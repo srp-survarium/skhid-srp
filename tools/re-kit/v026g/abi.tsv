@@ -2599,7 +2599,7 @@ va	name	source	ret_cleanup	result
 0x00161e50	stlp_std::priv::__linear_insert<vostok::render::grass_patch **>	manual	0	
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	manual	0	
 0x002e4100	survarium::weapon_core::melee_pred [descriptive]	manual	0	EAX: 1 when the gun's state machine's state [[+278h]+20h] is not kind 4, the gun's +5E8h is 0 and the user's actions [[+8]+330h] have bit 27 (melee); else 0. ECX the gun
-0x0033ab50	survarium::weapon_core_melee_state_base::on_shoot [descriptive]	manual	4	EAX 0; ECX the melee state (+120h its gun), entry ESP+4 the clip event (+10h its time): emit_bullet(gun+5A0h, the eye player+44Ch, its forward row x gun+578h, gun+53Ch, the event's time, player+110h, player+118h, 0)
+0x0033ab50	survarium::weapon_core_melee_state_base::on_shoot [descriptive]	manual	4	EAX 0; ECX the melee state (+120h its gun), entry ESP+4 the clip event (+10h its time): emit_bullet(gun EDI, +5A0h, &eye.position (+30h), &(eye forward row +20h x gun+578h), gun+53Ch, the event's time, player+110h, player+118h, 0)
 0x002e2940	survarium::weapon_core::subscribe_animation_event [descriptive]	manual	16	entry ESP+4 the gun, +8 the channel id (a byte: 3 the clip end), +0Ch the subscriber, +10h the boost functor: animation_player::subscribe_event_channel on the user's player +750h
 0x00301240	survarium::victory_item_core::tick [descriptive]	manual	0	ECX the battery: fsm::tick(+168h), then its user animations' tick (0x2FB980); the main vtable's +2Ch (0xA13DE8)
 0x003018c0	survarium::victory_item_core::is_carrying [descriptive]	manual	0	AL: the current state's kind [[+178h]+20h] is 3 (carry); the main vtable's +64h (0xA13E20)
@@ -2612,3 +2612,4 @@ va	name	source	ret_cleanup	result
 0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	manual	12	EAX: the state (ESI); vtable 0xA1BF84, kind +20h 1, +24h -3, +28h 0, the clip index to wait +0CCh 0FFh, +0E8h the scale (first player clip's frames / 30 / time, 0x30D750)
 0x00301920	survarium::victory_item_core::initialize_logic	manual	20	
 0x00322830	survarium::bullet_manager::emit_bullet	manual	32	EAX: the bullet
+0x00372420	survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition	manual	0	AL: 1 (mov al,1 / ret; folded: also take -> carry's and hit -> carry's predicate)

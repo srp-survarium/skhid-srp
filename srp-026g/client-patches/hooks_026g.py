@@ -147,6 +147,20 @@ TYPES["ConsoleArguments"] = {
     "orig_type": "&ConsoleArguments", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
 }
 
+# Patch 143's battery swing (vostok::battery): the state its finalize gets,
+# and the buffer its carry -> swing predicate is entered with.
+TYPES["BatteryState"] = {
+    "raw": "Option<BatteryState>", "fallible": True,
+    "build": "BatteryState::from_raw(&thread, {a})",
+    "orig_type": "&mut BatteryState", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
+TYPES["PredicateBuffer"] = {
+    "raw": "Option<PredicateBuffer>",
+    "binding": "let {n} = unsafe {{ PredicateBuffer::from_raw(&thread, {a}) }};",
+    "orig_type": "&PredicateBuffer", "orig_raw": "-", "pass": "{n}", "null": "{a}",
+}
+
 # A handler result, mapped to F's: the raw result engine_026g.tsv must give,
 # the Vostok type and how F's raw result `{x}` becomes it (`Original::call`),
 # and how that Vostok value `{v}` becomes the shim's result (`shim`: u32 in EAX

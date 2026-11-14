@@ -2470,6 +2470,51 @@ ban_time_on_status_replay:
     db 0x8a, 0x44, 0x24, 0x13, 0x8b, 0xd3
     jmp 0x21f21d
 
+; 0x2fa7e9 victory_item_core_cook::on_animations_loaded (0x2FA400, the client's and the core's batteries alike) once initialize_logic (0x2FA7E4) made the take, carry and put states: ESI the battery, ESP+28h the put state's six clips (the callback's own array, released after); replayed: mov ecx,[esp+20h] / mov eax,[ecx]: lohook -> battery_hit_on_logic
+global battery_hit_on_logic
+extern hook_battery_hit_on_logic
+battery_hit_on_logic:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_logic
+    mov edx, battery_hit_on_logic_replay
+    cmp eax, 0
+    je battery_hit_on_logic_go
+    mov edx, 0x2fa7ef
+    cmp eax, 1
+    je battery_hit_on_logic_go
+    ud2
+battery_hit_on_logic_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_logic_replay:
+    db 0x8b, 0x4c, 0x24, 0x20, 0x8b, 0x01
+    jmp 0x2fa7ef
+
+; 0x372420 the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> hit's predicate: callback -> battery_hit_on_wants_swing (wraps engine_fsm_always 0x372420)
+    RUST_CDECL battery_hit_on_wants_swing, hook_battery_hit_on_wants_swing, 1
+
+; 0xa1bf90 the take state's vtable slot 3 (+0Ch, 0xA1BF84): finalize, thiscall; fsm::tick calls it on the state it leaves (0x38CAA5): vtable -> battery_hit_on_finalize (wraps engine_battery_state_finalize 0x3447f0)
+    RUST_THISCALL battery_hit_on_finalize, hook_battery_hit_on_finalize, 0
+
 ; 0x334999 victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set: lohook -> battery_progress_on_match_start
 global battery_progress_on_match_start
 extern hook_battery_progress_on_match_start
@@ -9045,6 +9090,24 @@ world_check_on_raw_go:
 world_check_on_raw_replay:
     db 0x8b, 0x8f, 0x40, 0x1c, 0x1f, 0x00
     jmp 0x27c105
+
+section .rodata
+align 4
+global battery_hit_swing_vtable
+battery_hit_swing_vtable:
+    dd 0xa53fc0
+    dd 0x338ab0
+    dd 0x344730
+    dd 0x344b30
+    dd battery_hit_on_finalize
+    dd 0x344950
+    dd 0x344870
+    dd 0x338930
+    dd 0x339150
+    dd 0x397c20
+    dd 0x338b20
+    dd 0x344c90
+    dd 0x338ef0
 
 section .rodata
 align 4

@@ -1367,6 +1367,73 @@ pub extern "C" fn hook_ban_time_on_status(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- battery_hit (patch 143) ----
+
+/// The entry `battery_hit_on_logic` (0x2fa7e9, victory_item_core_cook::on_animations_loaded (0x2FA400, the client's and the core's batteries alike) once initialize_logic (0x2FA7E4) made the take, carry and put states: ESI the battery, ESP+28h the put state's six clips (the callback's own array, released after); replayed: mov ecx,[esp+20h] / mov eax,[ecx]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_logic(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_logic` calls this, from the game's jump at 0x2fa7e9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_logic(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The convention of engine_fsm_always (0x372420), a callback's: a marker for
+/// the callback entries made in it (no function of the game is called through it).
+pub struct OrigFsmAlways;
+
+/// The entry `battery_hit_on_wants_swing` (a callback in engine_fsm_always's convention, the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> hit's predicate)
+/// calls this with its 1 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `battery_hit_on_wants_swing`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_battery_hit_on_wants_swing(a0: Option<raw::PredicateBuffer>) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_wants_swing` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let buffer = unsafe { PredicateBuffer::from_raw(&thread, a0) };
+    u32::from(crate::battery_hit::on_wants_swing(buffer))
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// engine_battery_state_finalize (0x3447f0), as the vtable hook at 0xa1bf90 wraps it.
+pub struct OrigBatteryStateFinalize;
+
+impl OrigBatteryStateFinalize {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, state: &mut BatteryState) {
+        // SAFETY: engine_battery_state_finalize at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_battery_state_finalize(Some(state.raw())) }
+    }
+}
+
+/// The entry `battery_hit_on_finalize` (0xa1bf90, the take state's vtable slot 3 (+0Ch, 0xA1BF84): finalize, thiscall; fsm::tick calls it on the state it leaves (0x38CAA5)) calls this with
+/// engine_battery_state_finalize's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `battery_hit_on_finalize`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_battery_hit_on_finalize(a0: Option<raw::BatteryState>) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_finalize` calls this, from the game's call at
+    // 0xa1bf90, on the game's thread; a0.. are engine_battery_state_finalize's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut state) = (unsafe { BatteryState::from_raw(&thread, a0) }) else {
+        // a null BatteryState never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_battery_state_finalize(a0) }; 0 };
+    };
+    let orig = OrigBatteryStateFinalize;
+    { crate::battery_hit::on_finalize(&orig, &mut state); 0 }
+}
+
 // ---- battery_progress (patch 92) ----
 
 /// The entry `battery_progress_on_match_start` (0x334999, victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set) calls this with the saved machine.
@@ -5376,6 +5443,15 @@ pub extern "C" fn hook_tab_cursor_on_hud_call_chain(frame: &mut Frame) -> u32 {
     0
 }
 
+unsafe extern "C" { fn battery_hit_on_wants_swing(); }
+/// The entry `battery_hit_on_wants_swing`, in engine_fsm_always's convention (the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> hit's predicate): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn battery_hit_on_wants_swing_entry() -> super::hook::CallbackEntry<OrigFsmAlways> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_fsm_always, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(battery_hit_on_wants_swing as *const () as *const c_void) }
+}
+
 unsafe extern "C" { fn forest_glow_on_loaded(); }
 /// The entry `forest_glow_on_loaded`, in engine_store_first_resource's convention (the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query): a
 /// callback the patch hands the game (no site is rewritten).
@@ -5432,6 +5508,12 @@ pub fn memory_profile_on_demand() -> [super::hook::OnDemand; 6] {
         // generated or linked entry for it, alive as long as the executable.
         unsafe { super::hook::OnDemand::new(0xe4d70, &[0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8], memory_profile_on_out_of_memory as *const () as usize as u32) },
     ]
+}
+
+unsafe extern "C" { static battery_hit_swing_vtable: [u32; 13]; }
+pub fn battery_hit_swing_vtable_handle() -> super::project::NativeVtable<raw::TakeStateMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(battery_hit_swing_vtable).cast::<u32>().add(1) as usize as u32) }
 }
 
 unsafe extern "C" { static console_where_methods_vtable: [u32; 8]; }
