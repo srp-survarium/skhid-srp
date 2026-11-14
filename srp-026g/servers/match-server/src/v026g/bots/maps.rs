@@ -484,6 +484,9 @@ struct Built {
     grid: Source,
     sight: Source,
     tactics: Source,
+    /// The tactics' share of `seconds`, the map's walker walls among them (`TacticsBase`): built here once a map, not in a
+    /// match tick.
+    tactics_s: f32,
 }
 
 /// How a map's grid, sight tree and tactics were made by the build that made it ([`Maps::made`]).
@@ -513,10 +516,11 @@ impl Built {
             Source::Built => "built",
         };
         format!(
-            "grid {}, sight tree {}, tactics {}",
+            "grid {}, sight tree {}, tactics {} in {:.2} s with the walker walls",
             word(self.grid),
             word(self.sight),
-            word(self.tactics)
+            word(self.tactics),
+            self.tactics_s
         )
     }
 }
@@ -648,6 +652,7 @@ fn build(
         stage::set("the tactics");
         let marking = Maps::marking();
         let key = TacticsBase::key(map_file, grid_key, marking);
+        let tactics_started = Instant::now();
         let (base, tactics_source) = read_or_build(
             built,
             mapdata::built::tactics_file_name(key),
@@ -655,10 +660,10 @@ fn build(
             || TacticsBase::build(world.clone(), marking),
             |base, path| base.write(path, key),
         );
-        (base, grid_source, sight_source, tactics_source)
+        (base, grid_source, sight_source, tactics_source, tactics_started.elapsed().as_secs_f32())
     }))
     .map_err(|_| format!("{}: the build panicked", path.display()))?;
-    let (base, grid, sight, tactics) = built;
+    let (base, grid, sight, tactics, tactics_s) = built;
     Ok((
         base,
         Built {
@@ -666,6 +671,7 @@ fn build(
             grid,
             sight,
             tactics,
+            tactics_s,
         },
     ))
 }

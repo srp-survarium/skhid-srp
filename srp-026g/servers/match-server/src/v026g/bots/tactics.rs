@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use mapdata::grid::{MARGINAL_JUMP_M, STEP_UP_M};
 use mapdata::regions::Regions;
-use mapdata::{NodeId, Shape, Vec3, WalkGrid, World};
+use mapdata::{NodeId, RayTree, Shape, Vec3, WalkGrid, World};
 
 mod progress;
 
@@ -177,6 +177,11 @@ pub struct TacticsBase {
     /// zone off). A goal on any other floor (a roof one only drops from, a
     /// shelf's top past the jump) has no way from where bots are.
     walkable: Vec<u64>,
+    /// The map's walker-mesh walls for the reckoning's jump arc ([`super::body::walker_walls`]), built with the base, once for
+    /// the map, off the match loop (the map store's thread) and shared by its matches. Built by each match's tracker at its
+    /// first use before, inside a match tick: the first world or the first decided tick paid it, 0.17-0.32 s on Rudnya and
+    /// Cologne (the bench's first world at 500 or 1,000 ms, on the thread's CPU clock).
+    walker_walls: Arc<RayTree>,
     /// How far forward each region is, by the walk ([`progress`]): worked out
     /// with the base, once for the map, off the match loop (the map store's
     /// thread), not stored with it. [A276] Made at its first ask (before), it
@@ -578,8 +583,8 @@ pub struct Spot {
 
 impl TacticsBase {
     /// Builds them: the hazard marks, the floors' labels, the regions, the
-    /// bases' exits. 0.15-0.3 s on the big maps on a fast machine, so off
-    /// the match loop.
+    /// bases' exits, the walker walls. 0.15-0.3 s on the big maps on a fast
+    /// machine (the walker walls as much again), so off the match loop.
     pub fn build(world: Arc<World>, marking: impl Into<Marking>) -> Self {
         let hazards = Hazards::build(&world, marking);
         let grid = &world.grid;
@@ -609,7 +614,9 @@ impl TacticsBase {
         drop(labels);
         let walkable = walkable_from_spawns(&world);
         let progress = progress::Progress::build(&world.grid, &regions, &world.map.spawns);
+        let walker_walls = super::body::walker_walls(&world);
         let mut base = Self {
+            walker_walls,
             world,
             hazards,
             exits: Vec::new(),
@@ -737,7 +744,9 @@ impl TacticsBase {
                     })
                     .collect();
                 let progress = progress::Progress::build(&world.grid, &regions, &world.map.spawns);
+                let walker_walls = super::body::walker_walls(&world);
                 Ok(Self {
+                    walker_walls,
                     world,
                     hazards: Hazards::with_marks(zones, Arc::new(marks), marking),
                     exits,
@@ -757,9 +766,11 @@ impl TacticsBase {
         &self.progress
     }
 
-    /// Bytes held, beyond the world.
+    /// Bytes held, beyond the world (the walker walls when they are not the world's sight tree).
     pub fn memory_bytes(&self) -> usize {
-        self.hazards.marks().memory_bytes()
+        let walker_walls = if Arc::ptr_eq(&self.walker_walls, &self.world.sight) { 0 } else { self.walker_walls.memory_bytes() };
+        walker_walls
+            + self.hazards.marks().memory_bytes()
             + self.spawn_areas.len()
             + self.regions.memory_bytes()
             + self.walkable.len() * 8
@@ -888,6 +899,11 @@ impl Tactics {
 
     /// A match's tactics on a shared base: its own copy of the zones (the
     /// marks stay shared), no routes yet.
+    /// The map's walker walls (`TacticsBase::walker_walls`), for the tracker's jump arc.
+    pub fn walker_walls(&self) -> Arc<RayTree> {
+        self.base.walker_walls.clone()
+    }
+
     pub fn of(base: Arc<TacticsBase>) -> Self {
         Self {
             world: base.world.clone(),

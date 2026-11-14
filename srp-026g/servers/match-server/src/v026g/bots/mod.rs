@@ -1290,6 +1290,7 @@ impl Bots {
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         std::mem::take(&mut self.layers).attach(&mut tactics);
+        self.tracker.set_walker_walls(tactics.walker_walls());
         let tuning = self.tunings.match_wide();
         tactics.escape = tuning.hazard.escape;
         tactics.leave_islands = tuning.hazard.leave_islands;

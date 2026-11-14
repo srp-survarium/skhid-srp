@@ -564,8 +564,9 @@ pub struct Tracker {
     plain_respawn_ms: Option<u32>,
     deaths: VecDeque<Death>,
     world_time: u32,
-    /// [A318] The map's walker-mesh walls for the jump arc ([`body::walker_walls`]), built the first time `kin.jump_arc` needs
-    /// them: one per match.
+    /// [A318] The map's walker-mesh walls for the jump arc ([`body::walker_walls`]): the map's tactics' own, handed over with them
+    /// ([`Self::set_walker_walls`], `Bots::tactics_ready`), built off the match loop; built here at the first use only for a
+    /// tracker given a world without them (tests).
     walker: Option<Arc<RayTree>>,
     /// What the sprint-sound rule and the use ray did, by team (a carrier guess reads them through `&self`).
     activity: std::cell::Cell<[SenseActivity; 2]>,
@@ -656,6 +657,11 @@ impl Tracker {
             seen_reach: Vec::new(),
             walker: None,
         }
+    }
+
+    /// [A318] The map's walker walls, built with its tactics (`TacticsBase`), so no tick or world builds them.
+    pub fn set_walker_walls(&mut self, walls: Arc<RayTree>) {
+        self.walker = Some(walls);
     }
 
     /// [A318] The jump arc's walls for `world` while `kin.jump_arc` is on (none while off: nothing is built).
