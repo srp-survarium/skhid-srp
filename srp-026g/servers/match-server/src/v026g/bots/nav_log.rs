@@ -444,6 +444,12 @@ pub fn route_line(from: Option<Vec3>, goal: Vec3, verdict: &str) -> String {
     format!("{PREFIX}no way from {from} to {}: {verdict}", at(goal))
 }
 
+/// [C6] A zone spawner searched from a look spot on the margin's band (a floor no zone lists a standing body on, that the
+/// margin alone marks): `nav: zone spawner <i> at (..) looked at from the band at (..)`.
+pub fn spawner_band_line(index: usize, item: Vec3, spot: Vec3) -> String {
+    format!("{PREFIX}zone spawner {index} at {} looked at from the band at {}", at(item), at(spot))
+}
+
 /// [owner-5 A395a] A walk out over a zone's floors begun: `nav: zone walk-out from (..) on a <dry|hit> floor to (..), next
 /// (..), lines tested over the zone's floors up to R m`. `hit`: a zone on now overlaps the standing body's capsule there
 /// (`Hazards::hits_at`, the client's contact test); `dry`: none does (the floor is only in a zone's margin, or its zone is
@@ -464,6 +470,12 @@ pub fn walkout_line(from: Vec3, hit: Option<bool>, goal: Vec3, next: Option<Vec3
 /// (`Tactics::route_shut_ahead`): the route is planned again from where the body stands.
 pub fn walk_route_shut_line(from: Vec3, reach: f32) -> String {
     format!("{PREFIX}zone walk's held route goes on across the zone from {}, past the way out's {reach:.1} m: planned again", at(from))
+}
+
+/// [A395a] The line for a walk out that the client's capsule at the body's own feet starts, on a floor the band's marks
+/// (tested at the floor's centre) leave clear.
+pub fn feet_touch_line(feet: Vec3) -> String {
+    format!("{PREFIX}zone walk-out from {}: the capsule at the feet touches a zone, the floor's centre does not", at(feet))
 }
 
 /// [A395a] The line for a walk out's first tick on a floor a zone on hurts (`Hazards::hits_at`), after `ms` of the walk, on

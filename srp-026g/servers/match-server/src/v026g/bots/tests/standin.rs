@@ -623,6 +623,9 @@ pub(crate) struct Game {
     /// [`Hazard::client_cost_per_s`] at the body's centre): the hit curve at its place in the zone, the interval included;
     /// else the full hit wherever a body stands in it.
     pub(crate) zone_intensity: bool,
+    /// [zones] Each interval zone's last hit, ms, by zone ([`Self::zone_scale`]): the zone's own clock, not a body's (the
+    /// client's `last_hit_time` of the zone, 0x319D15). Kept while nobody is inside.
+    pub(crate) zone_last_hit: std::collections::HashMap<usize, u32>,
     /// What the routed zones took by pool (body, head, infection, pain) and the deaths in them by the pool
     /// that ran out.
     pub(crate) zone_pool_lost: [f32; 4],
@@ -1013,6 +1016,7 @@ impl Game {
             zone_hp: 0.0,
             zone_routed: false,
             zone_intensity: false,
+            zone_last_hit: std::collections::HashMap::new(),
             zone_pool_lost: [0.0; 4],
             zone_pool_deaths: [0; 4],
             fields: standin_fields::FieldGen::from_env(&world, seed),
@@ -1928,11 +1932,11 @@ impl Game {
         let pellet_cone = standin_damage::pellet_cone_deg(gun, ammo);
         let (disc, boxes) = match self.volume {
             HitVolume::Disc => (self.strike_disc_pellets(shooter, eye, dir, ammo.buck_shot, pellet_cone), Vec::new()),
-            HitVolume::Boxes { .. } => (None, self.strikes_boxes(shooter, eye, origin, dir, ammo, pellet_cone)),
+            HitVolume::Boxes { .. } => (Vec::new(), self.strikes_boxes(shooter, eye, origin, dir, ammo, pellet_cone)),
         };
-        // [G35] The pellets of the disc's hit that met the body (1 for a bullet).
-        let disc_pellets = disc.map_or(0, |(.., pellets)| pellets);
-        let disc = disc.map(|(body, along, _)| (body, along));
+        // [G35] Every body the disc's pellets met, nearest first, each with its own pellets (1 for a bullet).
+        let disc_strikes = disc;
+        let disc = disc_strikes.first().map(|&(body, along, _)| (body, along));
         let best: Option<(Place, f32)> = disc.or_else(|| {
             boxes
                 .iter()
@@ -1968,10 +1972,8 @@ impl Game {
             fired: ammo.buck_shot.clamp(1, 255) as u8,
             ..Default::default()
         };
-        if let Some((body, _)) = disc
-            && self.bodies[body].team != team
-        {
-            landed.on_enemy = disc_pellets.min(255) as u8;
+        for &(_, _, pellets) in disc_strikes.iter().filter(|s| self.bodies[s.0].team != team) {
+            landed.on_enemy = landed.on_enemy.saturating_add(pellets.min(255) as u8);
         }
         for strike in boxes.iter().filter(|s| self.bodies[s.body].team != team) {
             landed.on_enemy += 1;
@@ -1980,7 +1982,9 @@ impl Game {
         // The enemy the shot hit: the shooter's target if a bullet landed on it, else the nearest enemy hit.
         let hit = {
             let enemies = || {
-                disc.into_iter()
+                disc_strikes
+                    .iter()
+                    .map(|&(body, along, _)| (body, along))
                     .chain(boxes.iter().map(|s| (s.body, s.along)))
                     .filter(|&(body, _)| self.bodies[body].team != team)
             };
@@ -2021,8 +2025,15 @@ impl Game {
         });
         match self.volume {
             HitVolume::Disc => {
-                if let Some((target, along)) = best {
-                    self.land_disc(shooter, (target, along, disc_pellets), [eye, dir, view_dir], cone, tick);
+                // Every body a pellet met takes its own pellets; the shot counts as one hit on an enemy if any landed on one
+                // (as `land_boxes`).
+                let mut enemy_hit = false;
+                for &strike in &disc_strikes {
+                    enemy_hit |= self.land_disc(shooter, strike, [eye, dir, view_dir], cone, tick);
+                }
+                if enemy_hit {
+                    self.hits += 1;
+                    self.shots_hits[shooter].1 += 1;
                 }
             }
             HitVolume::Boxes { .. } => self.land_boxes(shooter, &boxes, [eye, dir, view_dir], cone, tick),
@@ -2033,24 +2044,34 @@ impl Game {
     /// passes within [`standin_hitbox::DISC_M`] and sees (a clear line from the eye to the chest, not a clear shot ray).
     /// [G35] [`Self::strike_disc`] for a whole shot: a bullet's one ray; a shotgun's `buck_shot` pellets each turned from
     /// `dir` in the game's pellet cone (`pellet_cone_deg` degrees, [`bench_spread::deflect`]) and met against the disc on
-    /// its own. The nearest body a pellet met, its distance along the line, and how many of the pellets met it. Before, the
-    /// centre ray met the disc and a share of the pellets by distance landed (`pellets_hitting`, a GUESS).
-    fn strike_disc_pellets(&mut self, shooter: Place, eye: Vec3, dir: Vec3, buck_shot: u32, cone_deg: f32) -> Option<(Place, f32, u32)> {
+    /// its own. Every body a pellet met, nearest first, with its distance along the line (its nearest pellet's) and how many
+    /// pellets met it: each pellet lands on the body it met, as the box model's do. #1895 landed them on the nearest body
+    /// alone (a pellet that met a farther body was dropped).
+    fn strike_disc_pellets(&mut self, shooter: Place, eye: Vec3, dir: Vec3, buck_shot: u32, cone_deg: f32) -> Vec<(Place, f32, u32)> {
         if buck_shot <= 1 {
-            return self.strike_disc(shooter, eye, dir).map(|(body, along)| (body, along, 1));
+            return self.strike_disc(shooter, eye, dir).map(|(body, along)| (body, along, 1)).into_iter().collect();
         }
-        let mut met: Vec<(Place, f32)> = Vec::new();
+        let mut struck: Vec<(Place, f32, u32)> = Vec::new();
         for _ in 0..buck_shot {
             let pellet = bench_spread::deflect(dir, cone_deg, &mut self.rng);
-            met.extend(self.strike_disc(shooter, eye, pellet));
+            if let Some((body, along)) = self.strike_disc(shooter, eye, pellet) {
+                match struck.iter_mut().find(|s| s.0 == body) {
+                    Some(s) => {
+                        s.1 = s.1.min(along);
+                        s.2 += 1;
+                    }
+                    None => struck.push((body, along, 1)),
+                }
+            }
         }
-        let (body, along) = met.iter().copied().min_by(|a, b| a.1.total_cmp(&b.1))?;
-        let landed = met.iter().filter(|(b, _)| *b == body).count() as u32;
-        log::debug!(
-            "stand-in shotgun shot of {shooter} at {}: {landed} of {buck_shot} pellets on {body} at {along:.1} m (cone {cone_deg:.2} deg)",
-            self.tick
-        );
-        Some((body, along, landed))
+        struck.sort_by(|a, b| a.1.total_cmp(&b.1));
+        for &(body, along, landed) in &struck {
+            log::debug!(
+                "stand-in shotgun shot of {shooter} at {}: {landed} of {buck_shot} pellets on {body} at {along:.1} m (cone {cone_deg:.2} deg)",
+                self.tick
+            );
+        }
+        struck
     }
 
     fn strike_disc(&self, shooter: Place, eye: Vec3, dir: Vec3) -> Option<(Place, f32)> {
@@ -2226,10 +2247,11 @@ impl Game {
     /// The old rule's hit: `shooter`'s shot hit `target` at `along` m; its part drawn by chance, a leg hit by
     /// a hash. `line` is the eye, the shot's direction and the view's.
     /// `strike`: the body hit, its distance along the line and the pellets that met it ([`Self::strike_disc_pellets`]).
-    fn land_disc(&mut self, shooter: Place, strike: (Place, f32, u32), line: [Vec3; 3], cone: f32, tick: u32) {
+    /// Whether it landed on an enemy (the caller counts the shot's hit once, as [`Self::land_boxes`]).
+    fn land_disc(&mut self, shooter: Place, strike: (Place, f32, u32), line: [Vec3; 3], cone: f32, tick: u32) -> bool {
         let (target, along, pellets) = strike;
         if !self.hurts(shooter, target, tick) {
-            return;
+            return false;
         }
         let [eye, dir, view_dir] = line;
         let gun = self.bodies[shooter].gun;
@@ -2238,8 +2260,6 @@ impl Game {
             self.team_hits += 1;
             self.team_hit_shots.push((shooter, target, eye, dir, cone, view_dir));
         } else {
-            self.hits += 1;
-            self.shots_hits[shooter].1 += 1;
             self.hit_log.push((tick, shooter, target));
         }
         let pain_before = self.bodies[target].pools.pain;
@@ -2252,6 +2272,7 @@ impl Game {
         other.received += if team_hit { 0.0 } else { 1.0 };
         other.stagger.hit(tick, standin_stagger::power_of(&self.damage, gun));
         self.settle(shooter, target, team_hit, pain_before, tick);
+        !team_hit
     }
 
     /// [`HitVolume::Boxes`]' hits: every body a bullet or pellet landed on takes them together, each with the
@@ -2405,6 +2426,8 @@ impl Game {
             return self.zone_tick_routed(inside, on, baked);
         }
         let tick = self.tick;
+        // [zones] The interval zones that hit somebody this tick: their clocks restart after the loop.
+        let mut struck: Vec<usize> = Vec::new();
         for place in 0..self.bodies.len() {
             let body = &mut self.bodies[place];
             if !body.alive {
@@ -2427,26 +2450,30 @@ impl Game {
                 body.zone_ys[slot] = body.feet.y;
                 hi - body.feet.y
             };
-            let per_baked: f32 = if baked {
-                inside
+            // [zones] The zones' hit a second where the body stands (`per_baked`: the spells and the log read it) and what
+            // lands this tick, as a second's worth (`baked_now`: [`Self::zone_scale`], an interval zone's one hit when its
+            // clock lets it).
+            let (mut per_baked, mut baked_now) = (0.0, 0.0);
+            if baked {
+                for zone in inside
                     .zones_at(node)
-                    .filter(|zone| {
-                        on.zones
-                            .iter()
-                            .find(|o| o.zone == zone.zone)
-                            .is_some_and(|o| o.activity.active(tick))
-                    })
-                    .map(|zone| self.zone_hit(zone, centre))
-                    .sum()
-            } else {
-                0.0
-            };
+                    .filter(|zone| on.zones.iter().find(|o| o.zone == zone.zone).is_some_and(|o| o.activity.active(tick)))
+                {
+                    let (rate, scale) = (self.zone_hit(zone, centre), self.zone_scale(zone, tick));
+                    per_baked += rate;
+                    baked_now += rate * scale;
+                    if Self::zone_fires(zone, scale) {
+                        struck.push(zone.zone);
+                    }
+                }
+            }
             let per_live = self.fields.hit_per_s_at(node);
             if self.flank_only == Some(place) {
                 continue;
             }
             let body = &mut self.bodies[place];
             let per_s = (per_baked + per_live) * body.heal.toxic_factor(tick);
+            let now_s = (baked_now + per_live) * body.heal.toxic_factor(tick);
             if per_s <= 0.0 {
                 if let Some(spell) = body.zone_spell
                     && tick >= spell.last + SPELL_GAP_MS
@@ -2457,9 +2484,9 @@ impl Game {
                 }
                 continue;
             }
-            let hit = (per_s * TICK_S).min(body.health.max(0.0));
+            let hit = (now_s * TICK_S).min(body.health.max(0.0));
             if per_live > 0.0 {
-                self.fields.stats.hp += hit * per_live / (per_baked + per_live);
+                self.fields.stats.hp += hit * per_live / (baked_now + per_live);
             }
             let spell = body.zone_spell.get_or_insert(ZoneSpell {
                 start: tick,
@@ -2517,6 +2544,7 @@ impl Game {
                 tickets[team] = tickets[team].saturating_sub(1);
             }
         }
+        self.restart_zone_clocks(&struck, tick);
     }
 
     /// The point the client takes a zone's distance at for the body at `place`: its feet (the owner's recordings, 159 of
@@ -2541,6 +2569,41 @@ impl Game {
         ZoneNow { restored: !self.world.grid.can_stand(node), unmarked, fixed: any_active && fixed, in_shape, any_active, zone: first }
     }
 
+    /// [zones] How much of `zone`'s hit a second lands at `tick`, as a share of a second over the tick (the zone tick multiplies
+    /// by [`TICK_S`]), by the client's `damage_zone_core::hit_objects` 0x319AF0 (PROVEN, `drugs_zones_artefacts.md`; the
+    /// zone's `continuous_hit`, its [+13Ch]):
+    /// - a continuous zone hits every tick its rate's share (`max_hit x intensity x tick / interval`): 1;
+    /// - an interval zone acts only when its last hit + its interval has come (0x319B01..0x319B1B; none before: the first
+    ///   on entry), and then hits each body in it once, `max_hit x intensity` (its rate times its interval: `interval / tick`);
+    ///   else nothing (0). Its clock is the zone's own ([`Self::zone_last_hit`], [`Self::restart_zone_clocks`]).
+    ///
+    /// Before, every zone hurt by its rate every tick.
+    fn zone_scale(&self, zone: &Hazard, tick: u32) -> f32 {
+        match zone.damage.as_ref() {
+            Some(damage) if !damage.continuous => {
+                let interval = damage.interval_ms.max(1);
+                let due = self.zone_last_hit.get(&zone.zone).is_none_or(|&last| last + interval <= tick);
+                if due { interval as f32 / 1000.0 / TICK_S } else { 0.0 }
+            }
+            _ => 1.0,
+        }
+    }
+
+    /// [zones] Whether `zone` (an interval zone) acts this tick at `scale` ([`Self::zone_scale`]).
+    fn zone_fires(zone: &Hazard, scale: f32) -> bool {
+        scale > 0.0 && zone.damage.as_ref().is_some_and(|damage| !damage.continuous)
+    }
+
+    /// [zones] The interval zones that hit somebody at `tick` take it as their last hit (the zone's `last_hit_time` := now,
+    /// 0x319D0E..0x319D15); a zone nobody was in keeps its own.
+    fn restart_zone_clocks(&mut self, struck: &[usize], tick: u32) {
+        for &zone in struck {
+            if self.zone_last_hit.insert(zone, tick) != Some(tick) {
+                log::debug!("stand-in zone {zone} hits at {tick} ms (an interval zone: its clock restarts)");
+            }
+        }
+    }
+
     /// What `zone` takes a second from a body whose dose point ([`Self::body_dose_point`]) is `centre`, before armour: the client's rule under
     /// [`Self::zone_intensity`], else the full hit.
     fn zone_hit(&self, zone: &Hazard, centre: Vec3) -> f32 {
@@ -2559,6 +2622,8 @@ impl Game {
     fn zone_tick_routed(&mut self, inside: &Hazards, on: &Hazards, baked: bool) {
         use crate::v026g::bots::zone_cost::Cost;
         let tick = self.tick;
+        // [zones] The interval zones that hit somebody this tick: their clocks restart after the loop.
+        let mut struck: Vec<usize> = Vec::new();
         for place in 0..self.bodies.len() {
             let body = &mut self.bodies[place];
             if !body.alive {
@@ -2582,20 +2647,21 @@ impl Game {
                 body.zone_ys[slot] = body.feet.y;
                 hi - body.feet.y
             };
-            let baked_cost: Cost = if baked {
-                inside
+            // [zones] As [`Self::zone_tick`]: the rate (`baked_cost`) and what lands this tick (`baked_now`).
+            let (mut baked_cost, mut baked_now) = (Cost::ZERO, Cost::ZERO);
+            if baked {
+                for zone in inside
                     .zones_at(node)
-                    .filter(|zone| {
-                        on.zones
-                            .iter()
-                            .find(|o| o.zone == zone.zone)
-                            .is_some_and(|o| o.activity.active(tick))
-                    })
-                    .map(|zone| self.zone_cost(zone, &armour, centre))
-                    .sum()
-            } else {
-                Cost::ZERO
-            };
+                    .filter(|zone| on.zones.iter().find(|o| o.zone == zone.zone).is_some_and(|o| o.activity.active(tick)))
+                {
+                    let (rate, scale) = (self.zone_cost(zone, &armour, centre), self.zone_scale(zone, tick));
+                    baked_cost = baked_cost + rate;
+                    baked_now = baked_now + rate * scale;
+                    if Self::zone_fires(zone, scale) {
+                        struck.push(zone.zone);
+                    }
+                }
+            }
             let per_live = self.fields.hit_per_s_at(node);
             if self.flank_only == Some(place) {
                 continue;
@@ -2607,6 +2673,11 @@ impl Game {
                 body: baked_cost.body + per_live * factor,
                 infection: baked_cost.infection * factor,
                 ..baked_cost
+            };
+            let landing = Cost {
+                body: baked_now.body + per_live * factor,
+                infection: baked_now.infection * factor,
+                ..baked_now
             };
             if cost.most() <= 0.0 {
                 if let Some(spell) = body.zone_spell
@@ -2625,10 +2696,10 @@ impl Game {
                 hit
             };
             let lost = [
-                take(&mut body.health, cost.body),
-                take(&mut body.pools.head, cost.head),
-                take(&mut body.rest.infection, cost.infection),
-                take(&mut body.pools.pain, cost.pain),
+                take(&mut body.health, landing.body),
+                take(&mut body.pools.head, landing.head),
+                take(&mut body.rest.infection, landing.infection),
+                take(&mut body.pools.pain, landing.pain),
             ];
             let hit: f32 = lost.iter().sum();
             for (total, each) in self.zone_pool_lost.iter_mut().zip(lost) {
@@ -2693,6 +2764,7 @@ impl Game {
                 tickets[team] = tickets[team].saturating_sub(1);
             }
         }
+        self.restart_zone_clocks(&struck, tick);
     }
 
     /// Whether the view's ray from `body`'s eye (its base pitch) comes

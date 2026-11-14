@@ -141,6 +141,9 @@ pub struct PlaceWorld {
     /// Each weapon item's state by its slot: with a user (the gun in hands) its state machine's state, aim, selector
     /// (the jump state) and portable object (`WeaponState::in_hand`).
     pub guns: Vec<(u8, WeaponState)>,
+    /// [Gap 6] Client patch 85's weapon-pickup record of the head (`weapon_pickup::Record`): for each weapon slot (7, 10)
+    /// the gun picked into it, by its recipe (the profile kit slot it was cooked from), the slot's own gun hidden.
+    pub pickup: weapon_pickup::Record,
     /// [Gap 11] Each drug item's course by its slot (`medkit::serialize` 0x33DBD0): with `m_active`, its `m_delay_ms` and
     /// `m_activity_time_ms`, both the time LEFT at the world (`medkit::set_active` 0x33D390 sets them whole, `medkit::tick`
     /// 0x33D790 counts the delay down, then the activity); `None` when not active (the timers are not saved then).
@@ -200,6 +203,7 @@ impl PlaceWorld {
                     })
                     .collect()
             }),
+            pickup: state.head().pickup(),
             jump_type: rest.map(|rest| rest.jump_type()),
             part_affects: rest.map_or_else(Vec::new, |rest| {
                 rest.damage_model()

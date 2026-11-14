@@ -894,7 +894,12 @@ fn drive_tick_inner(
                 && let Some((route, _)) = bot.route.as_mut()
             {
                 let (walked, _) = route.progress(me.feet);
-                if !crossing::still_borne(tactics, route, walked, &crossing::CrossBody::of(tuning, view, me, bot.features.stock.pools, &bot.features.crossing.armour)) {
+                let body = crossing::CrossBody::of(tuning, view, me, bot.features.stock.pools, &bot.features.crossing.armour);
+                if !crossing::still_borne(tactics, route, walked, &body) {
+                    // The log's line: the rest's price against the body (decision-neutral).
+                    let rest = crossing::hurt(tactics, route, walked, route.length(), body.armour());
+                    let line = crossing::priced_line("crossing given up", "its rest leaves too little", rest, &body, route.length() - walked);
+                    bot.nav_log.push(super::nav_log::Kind::Route, time, line);
                     crossing::count(crossing::Count::Aborted);
                     bot.features.crossing.goal = None;
                     bot.end_route(RouteEnd::CrossingAborted, time);
@@ -1537,8 +1542,8 @@ fn drive_tick_inner(
                             if from_zone && crossing_route.is_some() {
                                 plays::collect::take_counts::count(plays::collect::take_counts::Count::ZoneSearchFound);
                             }
-                            let kept;
-                            (route, crossed, kept) = crossing::choose(
+                            let (kept, line);
+                            (route, crossed, kept, line) = crossing::choose(
                                 tactics,
                                 from,
                                 route,
@@ -1550,6 +1555,9 @@ fn drive_tick_inner(
                             );
                             if kept {
                                 bot.features.crossing.long_kept = Some((at, time + crossing::LONG_RETRY_MS));
+                            }
+                            if let Some(line) = line {
+                                bot.nav_log.push(super::nav_log::Kind::Route, time, line);
                             }
                         }
                         Err(planning) => {
@@ -1721,7 +1729,16 @@ fn drive_tick_inner(
                                 super::tactics::ZoneExit::Out { .. } => {
                                     // [owner-5 A395a] The walk-out's own line: the start floor dry or being hit (the
                                     // client's contact test), the route's goal and next waypoint.
-                                    let hit = tactics.world.grid.locate(me.feet, 1.5).map(|node| tactics.hazards.hits_at(node, time));
+                                    let hit = tactics.world.grid.locate(me.feet, 1.5).map(|node| {
+                                        let feet = tactics.hazards.hits_feet(&tactics.world.grid, node, me.feet, time);
+                                        // [A395a] The capsule at the feet touches a zone on a floor the band marks clear
+                                        // (half a cell off its centre): the walk out is the feet's.
+                                        if feet && tactics.hazards.band_exit(node, time) {
+                                            let line = super::nav_log::feet_touch_line(me.feet);
+                                            bot.nav_log.push(super::nav_log::Kind::WalkOut, time, line);
+                                        }
+                                        feet
+                                    });
                                     let line = super::nav_log::walkout_line(me.feet, hit, *route_at, next, reach);
                                     bot.nav_log.push(super::nav_log::Kind::WalkOut, time, line);
                                     bot.zone_note = Some(format!(
@@ -1751,7 +1768,9 @@ fn drive_tick_inner(
                     }
                     // [A395a] The walk's ticks on floors a zone on hurts (the client's contact test); the first one logged.
                     if let Some(walk) = bot.zone_walk.as_mut()
-                        && tactics.world.grid.locate(me.feet, 1.5).is_some_and(|node| tactics.hazards.hits_at(node, time))
+                        && tactics.world.grid.locate(me.feet, 1.5).is_some_and(|node| {
+                            tactics.hazards.hits_feet(&tactics.world.grid, node, me.feet, time)
+                        })
                     {
                         walk.hurt_ticks += 1;
                         if walk.hurt_ticks == 1 {
@@ -2214,6 +2233,12 @@ impl Bot {
             let outcome =
                 super::nav_log::JumpOutcome::of(route.landing.y - route.take_off.y, watch.up.is_some(), watch.landed.is_some(), then);
             let line = super::nav_log::jump_line(outcome, route.take_off, route.landing, route.tries, time.saturating_sub(watch.at), then);
+            // [A386 R83/R94] An aimed press says its aim, so each is seen made or not.
+            let line = if route.aim.is_straight() {
+                line
+            } else {
+                format!("{line}, aimed: side {:+.2} m, turn {:+.2} rad", route.aim.side_m(), route.aim.turn_rad())
+            };
             self.nav_log.push(super::nav_log::Kind::Jump, time, line);
         }
         if self.tracing {

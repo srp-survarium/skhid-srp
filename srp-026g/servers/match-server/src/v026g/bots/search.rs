@@ -582,6 +582,8 @@ impl Bots {
         };
         let mut crossed = false;
         let mut kept = false;
+        // The log's line of a crossing found and not taken (`crossing::choose`).
+        let mut crossing_line: Option<String> = None;
         let (from, to) = pending.ends;
         // [take.cross_from_zone] The team's tuning asks a crossing's search from a zone floor.
         let from_zone_on = self.tunings.of(team).take.cross_from_zone.is_some();
@@ -591,7 +593,7 @@ impl Bots {
             .and_then(|bot| bot.as_ref())
             .is_some_and(|bot| long_kept(bot.features.crossing.long_kept, pending.goal, time));
         if let Some(second) = pending.second.take() {
-            (route, crossed, kept) = crossing::choose(
+            (route, crossed, kept, crossing_line) = crossing::choose(
                 tactics,
                 from,
                 second.plain,
@@ -634,7 +636,7 @@ impl Bots {
                         if from_zone && crossing_route.is_some() {
                             super::plays::collect::take_counts::count(super::plays::collect::take_counts::Count::ZoneSearchFound);
                         }
-                        (route, crossed, kept) = crossing::choose(
+                        (route, crossed, kept, crossing_line) = crossing::choose(
                             tactics,
                             from,
                             route,
@@ -666,6 +668,9 @@ impl Bots {
             }
             if kept {
                 bot.features.crossing.long_kept = Some((pending.goal, time + crossing::LONG_RETRY_MS));
+            }
+            if let Some(line) = crossing_line.take() {
+                bot.nav_log.push(super::nav_log::Kind::Route, time, line);
             }
             #[cfg(test)]
             {

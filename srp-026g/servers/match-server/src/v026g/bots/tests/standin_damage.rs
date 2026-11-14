@@ -192,31 +192,14 @@ pub(crate) fn part_for(class: Class, mut r: f32) -> Part {
 /// [G35] The cone a shotgun's pellets are turned in from the shot's direction, degrees across: the weapon's
 /// `base_dispersion` times the ammunition's `buck_dispersion` (PROVEN, `weapon_core::get_dispersed_buckshot_direction`
 /// 0x2E2120: none when the ammo's `buck_dispersion` [ammo+2A8h] is 0 (0x2E2141), else [weapon+3D8h] (`base_dispersion`,
-/// `dispersion_calculator::get_static_dispersion`'s) x [ammo+2A8h] at 0x2E2173 (the ammo loader 0x3325D3 stores
-/// `buck_dispersion` at the parameters' +40h, `dispersion` at +4h = ammo+26Ch). Each pellet is then turned
+/// `dispersion_calculator::get_static_dispersion`'s) x [ammo+2A8h] at 0x2E2173 (the ammo loader stores
+/// `buck_dispersion` at the parameters' +40h at 0x3325F6, its key loaded at 0x3325D3; `dispersion` at +4h = ammo+26Ch). Each
+/// pellet is then turned
 /// `0.5 x cone x modf(N(0, 0.5))` degrees (the normal 0x2E4850 of mean 0 and sigma 0.5 at 0x2E218D, the fraction 0x120560,
 /// the 0.5 at 0x927A44; degrees to radians by 1/180 and pi at 0x2E22C6) about an axis at a uniform angle round the shot's
 /// direction (0x2E49F0 over +5C0h..+5C4h): the law [`super::bench_spread::deflect`] draws.
 pub(crate) fn pellet_cone_deg(gun: &Gun, ammo: &AmmoParams) -> f32 {
     gun.dispersion.base * ammo.buck_dispersion
-}
-
-/// The old disc's share of a shotgun's pellets that land at `distance` metres (a GUESS: all up to 10 m, 0.6 at 25 m, 0.3
-/// from 50 m, in a line between). [G35] The stand-in's shots no longer read it: each pellet is flown in the game's cone
-/// ([`pellet_cone_deg`]) and met against the disc or the hit shapes. Kept only for the frozen old shot the disc is checked
-/// against (`standin_hitbox` tests).
-pub(crate) fn pellets_hitting(buck_shot: u32, distance: f32) -> u32 {
-    if buck_shot <= 1 {
-        return 1;
-    }
-    let share = if distance <= 10.0 {
-        1.0
-    } else if distance <= 25.0 {
-        1.0 - 0.4 * (distance - 10.0) / 15.0
-    } else {
-        (0.6 - 0.3 * (distance - 25.0) / 25.0).max(0.3)
-    };
-    ((buck_shot as f32 * share).round() as u32).max(1)
 }
 
 /// The pools of a body besides `Body::health` (the `body` pool).
@@ -845,16 +828,6 @@ mod tests {
     }
 
     #[test]
-    fn pellets_land_by_distance() {
-        assert_eq!(pellets_hitting(1, 5.0), 1);
-        assert_eq!(pellets_hitting(8, 5.0), 8);
-        assert_eq!(pellets_hitting(8, 25.0), 5);
-        assert_eq!(pellets_hitting(8, 50.0), 2);
-        assert_eq!(pellets_hitting(8, 90.0), 2);
-        assert!(pellets_hitting(8, 17.5) < 8 && pellets_hitting(8, 17.5) > 5);
-    }
-
-    #[test]
     fn a_torso_hit_takes_the_body_and_the_pain_alike() {
         // Unarmoured (the starter pistol is in no tier's kit): the whole
         // bullet.
@@ -1189,5 +1162,69 @@ mod tests {
         };
         assert!((hurt_in_10_s(true) - 0.15).abs() < 0.005, "the client's rule: {}", hurt_in_10_s(true));
         assert!((hurt_in_10_s(false) - 0.20).abs() < 0.005, "the full hit: {}", hurt_in_10_s(false));
+    }
+
+    /// [zones] An interval zone (`continuous_hit` off) hits on its own clock (`hit_objects` 0x319AF0): the first body in it at
+    /// once, then everybody in it each time its interval has come since its last hit, one hit of `max_hit` each; a body that
+    /// comes in between waits for the zone's next hit (the clock is the zone's, not the body's); and while nobody is in it the
+    /// clock keeps its last hit, so the first one in is hit at once.
+    #[test]
+    fn an_interval_zone_hits_everybody_in_it_on_its_own_clock() {
+        use crate::v026g::bots::hazards::Hazards;
+        use mapdata::{Damage, Rotation, Shape, ShapeKind, Zone, ZoneKind};
+        let at = mapdata::Vec3::new(30.0, 0.0, 20.0);
+        let away = mapdata::Vec3::new(60.0, 0.0, 20.0);
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "shock".into(),
+                team: -1,
+                position: at,
+                protection: None,
+                damage_type: "shock".into(),
+                damage: Some(Damage {
+                    max_hit: 0.1,
+                    interval_ms: 1000,
+                    continuous: false,
+                    parts: 1,
+                    part_names: vec!["front".into()],
+                    ..Damage::default()
+                }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Box,
+                    center: at + mapdata::Vec3::new(0.0, 1.0, 0.0),
+                    rotation: Rotation::IDENTITY,
+                    half: mapdata::Vec3::new(5.0, 2.0, 5.0),
+                }],
+            });
+        });
+        let inside = Hazards::build(&world, 0.0);
+        // Body 0 in from the start; body 1 comes in at 1,500 ms. Ticks from 50 ms to 5,000 ms.
+        let mut game = super::super::Game::new(world.clone(), &[0, 1], 1, None, None);
+        game.bodies[0].feet = at;
+        game.bodies[1].feet = away;
+        for _ in 0..(5.0 / super::super::TICK_S) as usize {
+            game.tick += super::super::TICK_MS;
+            if game.tick == 1_500 {
+                game.bodies[1].feet = at;
+            }
+            game.zone_tick(&inside, &inside, true);
+        }
+        let lost = |place: usize| 1.0 - game.bodies[place].health;
+        // The zone hits at 50, 1,050, 2,050, 3,050, 4,050 ms: five hits for body 0, three for body 1 (not at its entry).
+        assert!((lost(0) - 0.5).abs() < 1e-4, "body 0: {}", lost(0));
+        assert!((lost(1) - 0.3).abs() < 1e-4, "body 1: {}", lost(1));
+        // Nobody in until 2,500 ms: the first one in is hit at once, then every 1,000 ms (2,500, 3,500, 4,500).
+        let mut late = super::super::Game::new(world, &[0, 1], 1, None, None);
+        late.bodies[0].feet = away;
+        late.bodies[1].feet = away;
+        for _ in 0..(5.0 / super::super::TICK_S) as usize {
+            late.tick += super::super::TICK_MS;
+            if late.tick == 2_500 {
+                late.bodies[0].feet = at;
+            }
+            late.zone_tick(&inside, &inside, true);
+        }
+        assert!((1.0 - late.bodies[0].health - 0.3).abs() < 1e-4, "{}", 1.0 - late.bodies[0].health);
     }
 }

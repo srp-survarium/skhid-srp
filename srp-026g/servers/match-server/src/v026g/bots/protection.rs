@@ -12,6 +12,45 @@
 //!   an enemy is. So the bots take an enemy's protection by the rule a player can apply (his life's start and the
 //!   points' time), and the world's own end and fade only with `cheats.enemy_protection_exact`.
 
+/// A team's base: an `effect_zone` of the map with its team and its protection (`mapdata::project::Protection`, kept in
+/// the bots' maps since #1880): while a body of that team is inside it, the zone sets his end to the time now plus
+/// `duration_ms` every tick (`effect_zone_core::apply_invulnerability` 0x31ACA0, 0x31AD03..0x31AD15).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Base {
+    pub team: u8,
+    pub duration_ms: u32,
+    pub shapes: Vec<mapdata::project::Shape>,
+}
+
+impl Base {
+    /// The bases of a map: its effect zones of a team (0 or 1) with a protection.
+    pub fn of_map(map: &mapdata::project::MapData) -> Vec<Self> {
+        map.zones
+            .iter()
+            .filter_map(|zone| {
+                let protection = zone.protection?;
+                let team = u8::try_from(zone.team).ok().filter(|&team| team < 2)?;
+                Some(Self { team, duration_ms: protection.duration_ms, shapes: zone.shapes.clone() })
+            })
+            .collect()
+    }
+
+    pub fn contains(&self, at: mapdata::Vec3) -> bool {
+        self.shapes.iter().any(|shape| shape.contains(at))
+    }
+}
+
+/// Until when (exclusive, match ms) a body of `team` known at `at` at `time` (a player's own senses: seen, heard, told)
+/// is fully protected by his team's base: inside one of its bases at `time`, his end is at least `time` plus the base's
+/// duration (the zone sets it every tick he is inside), protected up to it inclusive. `None`: in none of his bases.
+pub fn base_until(bases: &[Base], team: u8, at: mapdata::Vec3, time: u32) -> Option<u32> {
+    bases
+        .iter()
+        .filter(|base| base.team == team && base.contains(at))
+        .map(|base| time.saturating_add(base.duration_ms).saturating_add(1))
+        .max()
+}
+
 /// `get_invulnerability` at `now` for an end `end` and a fade `fade` ms: 1 fully protected, 0 not.
 pub fn factor(end: Option<u32>, fade: u32, now: u32) -> f32 {
     let Some(end) = end else {
@@ -47,6 +86,19 @@ mod tests {
         assert_eq!(factor(Some(5_000), 2_000, 7_000), 0.0);
         assert_eq!(factor(Some(5_000), 2_000, 7_001), 0.0);
         assert_eq!(factor(Some(5_000), 0, 5_001), 0.0);
+    }
+
+    /// [item 4] A body known inside his own team's base at 30 s is protected to 30 s + the duration inclusive; outside it,
+    /// or inside the other team's base, not by this rule.
+    #[test]
+    fn a_body_known_in_his_base_is_protected_for_its_duration() {
+        use mapdata::project::{Shape, ShapeKind};
+        use mapdata::{Rotation, Vec3};
+        let sphere = |x: f32| Shape { kind: ShapeKind::Sphere, center: Vec3::new(x, 0.0, 0.0), rotation: Rotation::IDENTITY, half: Vec3::new(5.0, 5.0, 5.0) };
+        let bases = vec![Base { team: 0, duration_ms: 2_000, shapes: vec![sphere(0.0)] }, Base { team: 1, duration_ms: 2_000, shapes: vec![sphere(100.0)] }];
+        assert_eq!(base_until(&bases, 0, Vec3::new(1.0, 0.0, 0.0), 30_000), Some(32_001));
+        assert_eq!(base_until(&bases, 0, Vec3::new(50.0, 0.0, 0.0), 30_000), None);
+        assert_eq!(base_until(&bases, 1, Vec3::new(1.0, 0.0, 0.0), 30_000), None, "the other team's base");
     }
 
     /// The fair rule: a spawn at 10 s with the points' 6 s is protected to 16 s inclusive; the exact rule the world's end.

@@ -1530,6 +1530,11 @@ impl Tracker {
         self.spawn_protection_ms = by_team;
     }
 
+    /// [item 4] The team of a living place; `None` for a dead or unknown one.
+    pub fn living_team(&self, place: Place) -> Option<u8> {
+        self.places.get(place).filter(|state| state.alive).map(|state| state.team)
+    }
+
     /// [Gap 8] The living enemies of team `team` that cannot be hurt and until when (exclusive): by their life's start
     /// and their points' time, or with `exact` by their world's end ([`super::protection::fully_until`]).
     pub fn protected_enemies(&self, team: u8, exact: bool) -> Vec<(Place, u32)> {

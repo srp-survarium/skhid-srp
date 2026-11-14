@@ -19,8 +19,9 @@ use super::gap::{GAP_PRESS_MAX_M, GAP_PRESS_MIN_M, GAP_PRESS_STEP_M};
 use crate::controller::{jump, Collision};
 use crate::controller::tick::{Controller, CrouchInput, Settings, TickInput};
 
-/// The tick, s (the census's: 30 a second).
-const DT: f32 = 1.0 / 30.0;
+/// The tick, s: the client's step, 50 ms (0x9CC878; every step of the traces is 50 ms). It was the census's 30 a second (C2 row
+/// 44); the phases below keep their times.
+const DT: f32 = 0.05;
 /// A walking body's speed, m/s: `player_params`' `desired` `walk_fwd`, the cap `base_player::max_speed` (0x2DC010) puts on a
 /// walking step's vector (docs/notes/sprint_state.md, Speed).
 const WALK_MPS: f32 = 3.5;
@@ -30,10 +31,10 @@ const LEAVE_M: f32 = 0.4;
 const MOVED_M: f32 = 0.3;
 /// How far past the landing across the body walks on along the link, m.
 const WALK_ON_M: f32 = 1.5;
-/// The ticks of each phase: steering at the landing (3 s), walking on (2 s), settling (1 s).
-const STEER_TICKS: usize = 90;
-const ON_TICKS: usize = 60;
-const SETTLE_TICKS: usize = 30;
+/// The ticks of each phase at [`DT`]: steering at the landing (3 s), walking on (2 s), settling (1 s).
+const STEER_TICKS: usize = 60;
+const ON_TICKS: usize = 40;
+const SETTLE_TICKS: usize = 20;
 
 impl WalkGrid {
     /// The Drop links of `wide` the client's walk tick does not take a body down, as (take-off, direction, rank 0). Only those
@@ -567,7 +568,7 @@ impl WalkGrid {
             }
             wide.links[a as usize][d] = NONE;
             if !wide.out(a as usize).any(|x| x == b) {
-                wide.off.push(super::gap::OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: super::gap::Takeoff::WalkOff, share: super::gap::Share::UNFLOWN, walk: None });
+                wide.off.push(super::gap::OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: super::gap::Takeoff::WalkOff, share: super::gap::Share::UNFLOWN, walk: None, aim: super::gap::Aim::STRAIGHT });
                 added = true;
             }
         }

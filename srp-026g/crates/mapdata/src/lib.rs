@@ -168,13 +168,16 @@ pub const NARROW_DOORS_ALGO: u32 = 0x5313_0101;
 /// The same for the Drop links the client's walk tick does not take a body down ([`Body::drop_check`], A313), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
+/// The same for the Drop links' walk without [`Body::drop_lands`] stepped at the client's 50 ms (C2 row 44; it was 1/30 s): in the
+/// key only for a body with the check and without `drop_lands`, so a grid built with `drop_lands` keeps its key.
+pub const DROP_CHECK_TICK_ALGO: u32 = 0x5313_0202;
 /// The same for the walk check's refusals under a low ceiling as failures ([`Body::walk_ceiling_stalls`]), and [S7] its
 /// crouched retry of a standing walk that stops short, in [`grid_key_with_links`] only for a body that asks for it. A value of
 /// its own.
 pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c03;
 /// The same for the rim jumps flown on the exact tick ([`Body::rim_jumps`], A364 C2 rows 11/12), in [`grid_key_with_links`] only
 /// for a body that asks for it. A value of its own.
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b05;
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b06;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
@@ -186,7 +189,7 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 pub const DROP_LANDS_ALGO: u32 = 0x5067_0003;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
 /// body that asks for it. A value of its own.
-pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0001;
+pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0002;
 /// The same for the taken floors given back where the client's body rests and no floor names the place ([`Body::rest_floors`],
 /// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const REST_FLOORS_ALGO: u32 = 0x5389_0101;
@@ -199,8 +202,9 @@ pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0301;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45). 0104: the
 /// test body comes down onto the floor from up to 0.6 m over it and must rest there (A389 follow-up (a)). 0105: on the game's
-/// shapes where the build has them (the world the rest and held floors use).
-pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0105;
+/// shapes where the build has them (the world the rest and held floors use). 0106: a rest up to `NAME_HEIGHT_M` (0.2 m) over the
+/// floor stands (it was 0.1 m both ways).
+pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0106;
 /// The same for the walk-tick passes with the exe's collision rules ([`Body::exe_collision`], A325), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const EXE_COLLISION_ALGO: u32 = 0x5325_0101;
@@ -346,8 +350,7 @@ impl World {
     pub fn map_grid_with_stats(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> (WalkGrid, BuildStats) {
         // [A389] Every pass that walks or flies the client's body takes the shapes: the rim jumps, the gap flights, the Drop links'
         // walk, the rest and held floors.
-        let flown = body.rim_jumps || body.gap_flights || body.rest_floors || body.held_floors || body.wall_give_back || (body.drop_check && body.drop_lands);
-        let shapes = flown.then(|| controller::Collision::build_exe(map)).flatten();
+        let shapes = Self::takes_shapes(body).then(|| controller::Collision::build_exe(map)).flatten();
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let area = map.play_area(AREA_MARGIN);
         WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links)
@@ -369,10 +372,18 @@ impl World {
                 digest.f32(v);
             }
         }
-        if body.rim_jumps && map.bullet.is_some() {
+        // The grid of a body whose passes read the game's shapes depends on the map file's shapes, not only its walker: the file's
+        // digest is in the key for every such pass ([`Self::takes_shapes`]; it was for the rim jumps only).
+        if Self::takes_shapes(body) && map.bullet.is_some() {
             digest.u64(map_file);
         }
         digest.finish()
+    }
+
+    /// Whether `body`'s grid build steps the client's body on the game's shapes ([`Self::map_grid`]): the rim jumps, [A389] the gap
+    /// flights, the rest and held floors, the Drop links' walk, the wall give-back's stand test.
+    pub fn takes_shapes(body: Body) -> bool {
+        body.rim_jumps || body.gap_flights || body.rest_floors || body.held_floors || body.wall_give_back || (body.drop_check && body.drop_lands)
     }
 
     /// A world of a grid and a tree built before, from this map's geometry
@@ -497,6 +508,8 @@ pub fn grid_key_with_links(
         digest.u32(DROP_CHECK_ALGO);
         if body.drop_lands {
             digest.u32(DROP_LANDS_ALGO);
+        } else {
+            digest.u32(DROP_CHECK_TICK_ALGO);
         }
     }
     // And the walk check's ceiling refusals.
