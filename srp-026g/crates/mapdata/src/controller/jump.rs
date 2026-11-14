@@ -654,6 +654,26 @@ mod tests {
         Collision::build(&tris).with_caster(caster)
     }
 
+    /// [A385] A run-up whose start is over a lower level (a floor at 0 from x `edge` to 6, a level 3 m lower before it): the
+    /// body put there comes to rest on the lower level and does not reach the press point on the take-off's floor, so no press
+    /// is flown from a level the take-off is not on (owner-5 `mamayev-1808-lost-floors.md` §5.3: a sweep tool with no test at the
+    /// press flew 754 such). With the take-off's floor long enough for the run-up, it is made.
+    #[test]
+    fn a_run_up_starts_on_the_take_offs_own_level() {
+        let world = |edge: f32| {
+            let mut tris = Vec::new();
+            quad(&mut tris, Vec3::new(-5.0, -3.0, -3.0), Vec3::new(-5.0, -3.0, 3.0), Vec3::new(edge, -3.0, 3.0), Vec3::new(edge, -3.0, -3.0));
+            quad(&mut tris, Vec3::new(edge, 0.0, -3.0), Vec3::new(edge, 0.0, 3.0), Vec3::new(6.0, 0.0, 3.0), Vec3::new(6.0, 0.0, -3.0));
+            quad(&mut tris, Vec3::new(edge, -3.0, -3.0), Vec3::new(edge, 0.0, -3.0), Vec3::new(edge, 0.0, 3.0), Vec3::new(edge, -3.0, 3.0));
+            let (caster, _) = crate::Body { exe_collision: true, start_witness: true, ..crate::Body::client() }.controller();
+            Collision::build(&tris).with_caster(caster)
+        };
+        let press = Vec3::new(4.9, 0.0, 0.0);
+        let s = settings();
+        assert!(run_up(&world(4.75), &s, press, (1.0, 0.0), WALK_CAP_MS, false).is_none(), "a start over the lower level");
+        assert!(run_up(&world(1.0), &s, press, (1.0, 0.0), WALK_CAP_MS, false).is_some(), "a start on the take-off's floor");
+    }
+
     /// The grid's controller settings (the exe caster's: the wall normal by rays).
     fn settings() -> Settings {
         crate::Body { exe_collision: true, start_witness: true, ..crate::Body::client() }.controller().1
