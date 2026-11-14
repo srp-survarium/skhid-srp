@@ -94,7 +94,6 @@ jackhammer	Pancor Jackhammer	Shotguns	13		105	30	8	25	35	300	10	2.56	0.3	4.6	2�
 tt_33	TT-33	Pistols	0		30	25	15	40	60	300	8	1.6	0.2	0.8	0.8	0	0.5	0.4	1.5	20	15		Damage, Distance, Dispersion, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 pm	PM	Pistols	2		35	20	15	40	60	250	8	1.6	0.2	0.75	0.8	0	0.5	0.4	1.5	20	15		Damage, Distance, Dispersion, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 colt_m1911	Colt M1911	Pistols	3		55	25	15	40	60	260	7	1.4	0.2	1.1	1.3–1.6	-0.3–0.3	0.7	0.4	1.5	20	15		Damage, Distance, Dispersion, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
-magnum	Colt Python	Pistols	3		60	30	20	50	60	120	6	3.5	0.2	1.1	0.8	0	0.5	0.3	1.5	20	15		Damage, Distance, Dispersion, Weight, Aiming speed, Weapon recoil, Armor penetration
 aps	APS	Pistols	6		35	20	15	40	60	500	20	1.3	0.2	1.2	0.8	0	0.5	0.35	1.5	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 beretta93r	Beretta 93R	Pistols	6		34	20	15	40	60	580	20	1	0.2	1.1	0.8–1	-0.3–0.3	0.55	0.35	1.5	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 cz_75	CZ 75	Pistols	6		40	20	20	45	60	300	16	1.4	0.18	1	0.7–0.85	-0.1–0.1	0.4	0.25	1.5	20	15		Damage, Distance, Dispersion, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
@@ -102,3 +101,4 @@ fort_17	Fort 17	Pistols	6		35	20	15	40	60	300	12	1.6	0.2	0.75	0.8	0	0.5	0.4	1.5	
 mauser_m712	Mauser M.712	Pistols	6		35	25	15	40	60	580	10	1.5	0.25	1.7	1–1.2	-0.4–0.4	0.6	0.35	1.5	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 mp443	MP-443 Grach	Pistols	6		40	20	15	40	60	300	18	1.4	0.15	0.95	0.8–1	-0.25–0.25	0.5	0.4	1.5	20	15		Damage, Distance, Dispersion, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 glock_17	Glock 17	Pistols	7		36	20	15	40	60	375	17	1.25	0.2	0.7	1.1–1.4	-0.4–0.4	0.6	0.35	1.5	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
+magnum	Colt Python	Pistols	14		80	65	25	50	70	120	6	3.5	0.2	1.1	0.8	0	0.5	0.3	1.5	20	15		Damage, Distance, Dispersion, Weight, Aiming speed, Weapon recoil, Armor penetration
