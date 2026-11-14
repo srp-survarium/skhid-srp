@@ -24,5 +24,13 @@ and energy costs to their second-strongest rows):
     roll beside the built-in one (only new rolls leave out a kind the suit comes with).
 - Duty: weight limit +5 kg (1124), regeneration +15 % (1094), the kinds' top rows, beside its item slot, ammo bag, pocket capacity and
   artefact container.
+  - Buffed 2026-11-14 (the owner, after the Freedom suit's buff: "make sure duty is fine too, it
+    can get more ammo I guess"), against the same level-15 vest, backpack and trousers: two item
+    slots (1031), two ammo bags (1051), pocket capacity +2 (1171), as the Freedom suit; the suit
+    22 kg (was 26.4). Where the Freedom suit has its three mobility rows, Duty has three gun rows,
+    the kinds' top rows: aim time -10 % (1084), reload speed +15 % (1144), recoil -10 % (1154). So
+    Freedom is the lighter suit that runs, Duty the heavier one (5 kg more) that carries the same
+    and handles its gun better. Armour stays 0.87 (the owner: no armour change), one point under
+    the Freedom suit's 0.88; isolation, the artefact container and the helmet (5 kg) unchanged.
 - Suits already owned get the new bonuses at once: an item's record holds only its own
   modifications, the defaults come from the config.
