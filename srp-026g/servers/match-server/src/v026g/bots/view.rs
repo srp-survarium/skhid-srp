@@ -369,6 +369,9 @@ pub struct WorldFacts {
     /// [Gap 9] By place, its statistics' `last_killed_enemy_ms` (the time of its last kill; 0 none); empty: not used
     /// (`think.kill_time` off).
     pub kill_times: Vec<u32>,
+    /// [Gap 2] By place, whether the world names it carrying a battery (its inventory's `m_carried_item`, srp-validate's
+    /// `InventoryHeader::carried`): `None` where its state was not read; empty: the world did not say.
+    pub holders: Vec<Option<bool>>,
 }
 
 /// Sounds are kept this long, ms.
@@ -1502,7 +1505,7 @@ impl Tracker {
         if facts.batteries.is_empty() {
             return new_deaths;
         }
-        self.carriers_seen(&facts.batteries, facts.time);
+        self.carriers_seen(&facts.batteries, &facts.holders, facts.time);
         self.batteries = facts.batteries;
         self.batteries_time = facts.time;
         self.marks = facts.marks;
@@ -1590,8 +1593,9 @@ impl Tracker {
     }
 
     /// The carriers, from a world's batteries (`self.batteries` is still
-    /// the world before's).
-    fn carriers_seen(&mut self, batteries: &[BatteryState], time: u32) {
+    /// the world before's) and, by place, who the world names carrying one (`holders`, [`WorldFacts::holders`]).
+    fn carriers_seen(&mut self, batteries: &[BatteryState], holders: &[Option<bool>], time: u32) {
+        let holds = |place: Place| holders.get(place).copied().flatten();
         self.carries.resize_with(batteries.len(), Carry::default);
         // Batteries no longer carried; and their carriers' deaths.
         for (battery, state) in batteries.iter().enumerate() {
@@ -1635,7 +1639,7 @@ impl Tracker {
                 },
                 _ => continue,
             };
-            let mut candidates = self.candidates(point, thieves_of, time);
+            let mut candidates = self.candidates(point, thieves_of, holders, time);
             let carry = &mut self.carries[battery];
             *carry = Carry::default();
             if candidates.is_empty() {
@@ -1685,6 +1689,55 @@ impl Tracker {
                     carry.others.retain(|&(p, _)| p != place);
                 }
             }
+        }
+        // [Gap 2] Beliefs the world rules out: every world names who carries a battery (`m_carried_item`), not which one
+        // (the rule writes a carried battery with no carrier). A believed carrier the world shows carrying nothing does
+        // not have it: the battery goes to one who carries and is believed to carry nothing, its own candidates first,
+        // else the only such place; with two or more and none among its candidates, nobody known.
+        for (battery, state) in batteries.iter().enumerate() {
+            if !matches!(state, BatteryState::Carried(_)) {
+                continue;
+            }
+            let carry = &self.carries[battery];
+            let Some(was) = carry.carrier.filter(|&place| holds(place) == Some(false)) else {
+                continue;
+            };
+            let free = |place: Place| {
+                holds(place) == Some(true) && !self.carries.iter().any(|c| c.carrier == Some(place))
+            };
+            let unclaimed: Vec<Place> = (0..self.places.len()).filter(|&place| free(place)).collect();
+            let next = carry
+                .others
+                .iter()
+                .map(|&(place, _)| place)
+                .find(|&place| free(place))
+                .or_else(|| (unclaimed.len() == 1).then(|| unclaimed[0]));
+            let carry = &mut self.carries[battery];
+            carry.not_with.push(was);
+            carry.carrier = next;
+            carry.put_ins.clear();
+            self.notes.push(format!(
+                "player {was} no longer believed to carry battery {battery} (the world shows him carrying none); now {}",
+                next.map_or_else(
+                    || format!("nobody known ({} carry and are believed to carry none)", unclaimed.len()),
+                    |place| format!("player {place}")
+                )
+            ));
+        }
+        // [Gap 2] A carried battery with no believed carrier, and one place the world shows carrying that is believed to
+        // carry nothing: he has it.
+        let unclaimed: Vec<Place> = (0..self.places.len())
+            .filter(|&place| holds(place) == Some(true) && !self.carries.iter().any(|c| c.carrier == Some(place)))
+            .collect();
+        let orphans: Vec<usize> = batteries
+            .iter()
+            .enumerate()
+            .filter(|(battery, state)| matches!(state, BatteryState::Carried(_)) && self.carries[*battery].carrier.is_none())
+            .map(|(battery, _)| battery)
+            .collect();
+        if let ([battery], [place]) = (&orphans[..], &unclaimed[..]) {
+            self.carries[*battery].carrier = Some(*place);
+            self.notes.push(format!("battery {battery} carried by player {place}, the only one the world shows carrying"));
         }
         // Beliefs the batteries' staying carried rule out.
         for (battery, state) in batteries.iter().enumerate() {
@@ -1765,8 +1818,8 @@ impl Tracker {
     /// Who may have picked up a battery at `point` by the world at `time`,
     /// likeliest first: the living, near it, not believed to carry another
     /// battery, and for one taken from a container of `thieves_of`'s, not
-    /// of that team.
-    fn candidates(&self, point: Vec3, thieves_of: Option<u8>, time: u32) -> Vec<Candidate> {
+    /// of that team; [Gap 2] never one the world shows carrying nothing (`holders`, [`WorldFacts::holders`]).
+    fn candidates(&self, point: Vec3, thieves_of: Option<u8>, holders: &[Option<bool>], time: u32) -> Vec<Candidate> {
         let lying_seen = self.batteries_time;
         let mut candidates: Vec<Candidate> = self
             .places
@@ -1776,6 +1829,7 @@ impl Tracker {
                 state.alive
                     && thieves_of != Some(state.team)
                     && !self.carries.iter().any(|c| c.carrier == Some(*place))
+                    && holders.get(*place).copied().flatten() != Some(false)
             })
             .filter_map(|(place, state)| {
                 let used = state
@@ -2008,7 +2062,7 @@ mod tests {
         );
         // A battery 1 m ahead is within the ray, one 2.5 m ahead past its 1.8 m.
         for z in [1.0, 2.5] {
-            tracker.candidates(Vec3::new(0.0, 1.5, z), None, 1_100);
+            tracker.candidates(Vec3::new(0.0, 1.5, z), None, &[], 1_100);
         }
         let activity = tracker.sense_activity();
         assert_eq!((activity[1].use_judged, activity[1].use_short), (2, 1));
@@ -2357,6 +2411,37 @@ mod tests {
                 ..WorldFacts::default()
             });
         }
+
+        /// [Gap 2] A world that also names, by place, who carries a battery.
+        fn world_holding(&mut self, time: u32, batteries: Vec<BatteryState>, holders: Vec<Option<bool>>) {
+            self.tracker.facts(WorldFacts { time, batteries, holders, ..WorldFacts::default() });
+        }
+    }
+
+    /// [Gap 2] The world names who carries a battery: a belief it shows carrying nothing moves to the one it shows
+    /// carrying, at once (no put-ins to wait for); and a pick-up is never believed of one it shows carrying nothing.
+    #[test]
+    fn the_world_names_the_carrier_a_belief_follows_it() {
+        let mut at = AtTheContainer::new();
+        at.press(1, 1_100, key::CROUCH);
+        at.press(0, 1_600, 0);
+        at.world(2_000, vec![BatteryState::Carried(None)]);
+        assert_eq!(at.tracker.carrier(0), Some(1), "the use that met it, the world silent on its carrier");
+        at.tracker.take_notes();
+        at.world_holding(3_000, vec![BatteryState::Carried(None)], vec![Some(true), Some(false)]);
+        assert_eq!(at.tracker.carrier(0), Some(0));
+        let notes = at.tracker.take_notes();
+        assert!(
+            notes.iter().any(|n| n
+                == "player 1 no longer believed to carry battery 0 (the world shows him carrying none); now player 0"),
+            "{notes:?}"
+        );
+        // The same pick-up with the world naming its carrier: never the one it shows carrying nothing.
+        let mut at = AtTheContainer::new();
+        at.press(1, 1_100, key::CROUCH);
+        at.press(0, 1_600, 0);
+        at.world_holding(2_000, vec![BatteryState::Carried(None)], vec![Some(true), Some(false)]);
+        assert_eq!(at.tracker.carrier(0), Some(0));
     }
 
     /// The bot beside the battery whose use's ray passed through it takes
