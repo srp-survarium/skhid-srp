@@ -473,8 +473,16 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     shot the others hear as the AS Val's muffled `weapons/val_m` (`states.fire.sounds.third_view`):
     the Val, the MP7 with its silencer and its Legend, the ported Kriss Vector. Loud: the SR-3M,
     the 9A-91, the MSBS (shots of their own).
-  - The gun: a whole `ak_12` with no modification and no upgrade, the replaced gun's instance id,
-    in every kit and slot that held it (the second slot takes it: assault rifles fit slot 10).
+  - The gun: a whole `ak_12`, the replaced gun's instance id, in every kit and slot that held it
+    (the second slot takes it: assault rifles fit slot 10), with the EOTech 552 sight on it and
+    no other modification or upgrade (the owner, 2026-11-14: "also for ak-12, people should have
+    eotech collimator set on replaced weapons"). The sight is the shop's `shop_scope_eotech_552`,
+    on the AK-12 by the variant the game data makes for it (`fit_ak_12_eotech_552`,
+    `ScopeFits::variant`): the gun's one scope record in slot 3, packed as an owned scope's
+    (`weapon_scopes.md`, `weapon-kit.md`), its item id none of the profile's (an owned scope is in
+    no kit either). Nobody needs to own one. srp refuses to start on data with scope variants but
+    none of it for the AK-12; data with no scope variant at all (the tests') puts no scope on any
+    weapon, the AK-12 too.
   - Its ammo, the simplest way (the owner, 2026-11-14: "make it the simplest way"): in each kit
     that held a replaced gun, every ammo slot whose ammo none of the kit's guns fires now is
     emptied, and the kit has the same amount of AK-12 ammo as every other (`ammo_6.5x39`, the one
