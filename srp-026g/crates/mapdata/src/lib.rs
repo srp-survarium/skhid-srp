@@ -53,7 +53,7 @@ pub mod sight;
 pub mod stands;
 
 pub use grid::{
-    Body, BuildStats, DistanceMap, Erosion, ExitJump, ExitReach, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead,
+    Body, BuildStats, DistanceMap, Erosion, ExitJump, ExitReach, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead, Share,
     PocketExit, PocketId, Search, SlicedSearch, WalkGrid,
 };
 pub use library::{Face, Library, Materials, Surface, WalkerBehaviour};
@@ -115,8 +115,9 @@ pub const CELL: f32 = 0.25;
 pub const GRID_ALGO: u32 = 15;
 /// The same for the gap links' pass ([`grid::gap`]), in [`grid_key_with_links`]
 /// only when a build makes them ([`OffMeshLinks::Gaps`]): a grid without
-/// them keys, builds and writes as before they were made.
-pub const GAP_LINKS_ALGO: u32 = 4;
+/// them keys, builds and writes as before they were made. 5: [A385] the off-link record carries the share and a sprint link's
+/// walking press (16 bytes).
+pub const GAP_LINKS_ALGO: u32 = 5;
 /// The same for the walk-off lips ([`Body::walk_off_lips`]: a walk-off gap drop's take-off is a lip, so its floors and
 /// those near it carry the near-lip flag the file stores), in [`grid_key_with_links`] only for a body that asks for it.
 pub const WALK_OFF_LIPS_ALGO: u32 = 1;
@@ -172,7 +173,7 @@ pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
 pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c01;
 /// The same for the rim jumps flown on the exact tick ([`Body::rim_jumps`], A364 C2 rows 11/12), in [`grid_key_with_links`] only
 /// for a body that asks for it. A value of its own.
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b02;
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b04;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
@@ -440,6 +441,7 @@ pub fn grid_key_with_links(
     // And the rim jumps.
     if body.rim_jumps {
         digest.u32(RIM_JUMPS_ALGO);
+        digest.f32(body.fastest_walk_cap);
     }
     // And the jumps onto a top a wall holds the body on.
     if body.wall_held_tops {

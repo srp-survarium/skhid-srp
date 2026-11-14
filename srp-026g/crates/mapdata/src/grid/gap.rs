@@ -34,6 +34,7 @@
 //! (the motor lets go of sprint lining up); they come with it.
 
 use super::*;
+use crate::controller::jump;
 
 /// The client's short jump (`on_site_fwd`, codes 5-12): how far ahead of
 /// the press its root is, every 2 of its 24 frames, m. PROVEN (the stock
@@ -116,19 +117,29 @@ pub enum Takeoff {
     /// sprint, facing the link's way ([`SPRINT_RUN_UP_M`] of floor run
     /// before the press, turning onto the line at most square to it).
     Sprint(PressLead),
+    /// [A385] The short jump pressed this far before the take-off's centre `steps` steps into the walk-up (0: a standing jump;
+    /// at most [`jump::SLOW_STEPS_MAX`]): [`jump::Kind::Slow`].
+    Slow { lead: PressLead, steps: u8 },
 }
 
 /// A sprint link's press in a built file: this bit over its centimetres.
 const SPRINT_BIT: u16 = 0x8000;
+/// [A385] A slow press in a built file: this bit, its walk-up steps from [`SLOW_STEPS_SHIFT`] (3 bits), its centimetres under
+/// them (10 bits: a lead under 10.24 m).
+const SLOW_BIT: u16 = 0x4000;
+const SLOW_STEPS_SHIFT: u16 = 10;
+const SLOW_CM_MASK: u16 = (1 << SLOW_STEPS_SHIFT) - 1;
 
 impl Takeoff {
     /// In a built file: a press's centimetres, a walk-off 0 (no press is
     /// under [`GAP_PRESS_MIN_M`]), a sprint press's with [`SPRINT_BIT`].
+    /// [A385] A slow press's: [`SLOW_BIT`], its steps and its centimetres (a standing press at lead 0 is [`SLOW_BIT`] alone, not 0).
     pub(super) fn centimetres(self) -> u16 {
         match self {
             Takeoff::Press(lead) => lead.centimetres(),
             Takeoff::WalkOff => 0,
             Takeoff::Sprint(lead) => SPRINT_BIT | lead.centimetres(),
+            Takeoff::Slow { lead, steps } => SLOW_BIT | (u16::from(steps) << SLOW_STEPS_SHIFT) | (lead.centimetres() & SLOW_CM_MASK),
         }
     }
 
@@ -136,6 +147,10 @@ impl Takeoff {
         match cm {
             0 => Takeoff::WalkOff,
             cm if cm & SPRINT_BIT != 0 => Takeoff::Sprint(PressLead::from_centimetres(cm & !SPRINT_BIT)),
+            cm if cm & SLOW_BIT != 0 => Takeoff::Slow {
+                lead: PressLead::from_centimetres(cm & SLOW_CM_MASK),
+                steps: ((cm & !SLOW_BIT) >> SLOW_STEPS_SHIFT) as u8,
+            },
             cm => Takeoff::Press(PressLead::from_centimetres(cm)),
         }
     }
@@ -145,6 +160,7 @@ impl Takeoff {
             Takeoff::Press(lead) => lead.is_valid(),
             Takeoff::WalkOff => true,
             Takeoff::Sprint(lead) => (0.0..=SPRINT_PRESS_MAX_M + 1e-3).contains(&lead.metres()),
+            Takeoff::Slow { lead, steps } => lead.metres() <= GAP_PRESS_MAX_M + 1e-3 && steps <= jump::SLOW_STEPS_MAX,
         }
     }
 
@@ -152,7 +168,7 @@ impl Takeoff {
     /// lower success ([`SPRINT_GAP_PENALTY`]).
     pub fn penalty(self) -> f32 {
         match self {
-            Takeoff::Press(_) | Takeoff::WalkOff => 0.0,
+            Takeoff::Press(_) | Takeoff::WalkOff | Takeoff::Slow { .. } => 0.0,
             Takeoff::Sprint(_) => SPRINT_GAP_PENALTY,
         }
     }
@@ -162,8 +178,20 @@ impl Takeoff {
     /// must hold, with the jump's own cost (the owner's A56 rule).
     pub fn sprint_run_m(self) -> Option<f32> {
         match self {
-            Takeoff::Press(_) | Takeoff::WalkOff => None,
+            Takeoff::Press(_) | Takeoff::WalkOff | Takeoff::Slow { .. } => None,
             Takeoff::Sprint(_) => Some(SPRINT_RUN_UP_M),
+        }
+    }
+
+    /// [A385] The run a failed try of this press walks again before the next, m (A385-FORMAT §4): a walking press the motor's
+    /// back-off [`GAP_RUN_UP_M`] and the flyer's walk-up to the cap ([`jump::blend_m`]); a sprint press [`SPRINT_RUN_UP_M`];
+    /// a walk-off none.
+    pub fn run_up_m(self) -> f32 {
+        match self {
+            Takeoff::Press(_) => GAP_RUN_UP_M + jump::blend_m(jump::WALK_CAP_MS),
+            Takeoff::Slow { steps, .. } => GAP_RUN_UP_M + jump::blend_steps_m(jump::WALK_CAP_MS, steps),
+            Takeoff::Sprint(_) => SPRINT_RUN_UP_M,
+            Takeoff::WalkOff => 0.0,
         }
     }
 }
@@ -468,6 +496,60 @@ pub enum OffMeshLinks {
     Gaps,
 }
 
+/// [A385] A flown link's robustness (A385-FORMAT §2): of its press's [`jump::NEIGHBOURS`] neighbourhood flights (the motor's
+/// spread of lead, side and heading, the world 1-2 cm off, the bots' fastest kit; every sprint variant), how many land and stay;
+/// or not flown (a link no pass has scored yet: no price of its own).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Share(u8);
+
+impl Share {
+    /// A link not scored ([`OffLink`]s of the gap and drop passes until A389).
+    pub const UNFLOWN: Self = Self(u8::MAX);
+    /// Every neighbour lands.
+    pub const FULL: Self = Self(jump::NEIGHBOURS as u8);
+
+    /// `n` of the neighbourhood land.
+    pub fn landed(n: u8) -> Self {
+        assert!(usize::from(n) <= jump::NEIGHBOURS, "{n} of {} neighbours", jump::NEIGHBOURS);
+        Self(n)
+    }
+
+    /// The neighbours that land, None when not flown.
+    pub fn flown(self) -> Option<u8> {
+        (self != Self::UNFLOWN).then_some(self.0)
+    }
+
+    /// owner-5's classes (rim-score): 0 under 0.2 (knife edge), 1 from 0.2 to under 0.6, 2 at 0.6 and over (robust); an unflown
+    /// link in 2.
+    pub fn class(self) -> usize {
+        match self.flown() {
+            Some(n) if f32::from(n) < 0.2 * jump::NEIGHBOURS as f32 => 0,
+            Some(n) if f32::from(n) < 0.6 * jump::NEIGHBOURS as f32 => 1,
+            _ => 2,
+        }
+    }
+
+    /// The tries a press of this share fails for each that lands, reading the share as the chance a press within the motor's
+    /// spread lands (each neighbour an equally likely press): `NEIGHBOURS / landed - 1`; a link none of whose neighbours lands
+    /// (a riser no press gets up) `NEIGHBOURS`; an unflown one 0 (A385-FORMAT §4).
+    pub fn failed_tries(self) -> f32 {
+        match self.flown() {
+            None => 0.0,
+            Some(0) => jump::NEIGHBOURS as f32,
+            Some(n) => jump::NEIGHBOURS as f32 / f32::from(n) - 1.0,
+        }
+    }
+
+    pub(super) fn byte(self) -> u8 {
+        self.0
+    }
+
+    /// From a built file's byte: None when it is neither a count of the neighbourhood nor [`Self::UNFLOWN`].
+    pub(super) fn from_byte(b: u8) -> Option<Self> {
+        (usize::from(b) <= jump::NEIGHBOURS || b == u8::MAX).then_some(Self(b))
+    }
+}
+
 /// A link that is no neighbour link (an off-mesh connection): from a
 /// floor to one 2 or more cells away, of an off-mesh kind
 /// ([`LinkKind::is_off_mesh`]).
@@ -478,6 +560,11 @@ pub struct OffLink {
     pub kind: LinkKind,
     /// How it leaves its take-off: pressed, or walked off.
     pub press: Takeoff,
+    /// [A385] How robust its press is ([`Share::UNFLOWN`] for a link no pass has scored).
+    pub share: Share,
+    /// [A385] A sprint link's best walking press onto the same floor and its share, for a body the client refuses the sprint
+    /// (A385-FORMAT §5); None for a walking link or where no walking press lands.
+    pub walk: Option<(PressLead, Share)>,
 }
 
 /// The short jump's root height `ahead` metres from the press (linear
@@ -1212,6 +1299,8 @@ impl WalkGrid {
                         to,
                         kind: if to_y - h > -self.body.step { LinkKind::GapJump } else { LinkKind::GapDrop },
                         press: Takeoff::Sprint(PressLead::from_metres(lead)),
+                        share: Share::UNFLOWN,
+                        walk: None,
                     });
                     stats.made += 1;
                     stats.sprint += 1;
@@ -1443,7 +1532,7 @@ impl WalkGrid {
                 && self.ceiling[to as usize] - to_y >= self.body.stand_height
                 && Self::lands(wide, to as usize, d)
             {
-                out.push(OffLink { from: a as NodeId, to, kind: LinkKind::GapDrop, press: Takeoff::WalkOff });
+                out.push(OffLink { from: a as NodeId, to, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None });
                 stats.made += 1;
             }
         }
@@ -1530,6 +1619,8 @@ impl WalkGrid {
                             LinkKind::GapDrop
                         },
                         press: Takeoff::Press(PressLead::from_metres(GAP_PRESS_MIN_M + mid as f32 * GAP_PRESS_STEP_M)),
+                        share: Share::UNFLOWN,
+                        walk: None,
                     });
                     stats.made += 1;
                 } else {
@@ -1583,7 +1674,7 @@ impl WalkGrid {
         // overshoots).
         found.sort_by_key(|&(link, _)| match link.press {
             Takeoff::WalkOff => 0,
-            Takeoff::Press(_) => 1,
+            Takeoff::Press(_) | Takeoff::Slow { .. } => 1,
             Takeoff::Sprint(_) => 2,
         });
         let mut seen = std::collections::HashSet::new();

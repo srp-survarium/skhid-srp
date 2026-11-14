@@ -365,6 +365,12 @@ impl GridTuning {
             drop_check: self.drop_check,
             walk_ceiling_stalls: self.walk_ceiling_stalls,
             rim_jumps: self.rim_jumps,
+            // [A385] The rim jumps' neighbourhood flies the fastest bot's walk cap (the game data's bot profiles).
+            fastest_walk_cap: if self.rim_jumps {
+                mapdata::controller::jump::WALK_CAP_MS * survarium::v026g::bot_skills::fastest_bot_movement_level()
+            } else {
+                mapdata::controller::jump::WALK_CAP_MS
+            },
             wall_held_tops: self.wall_held_tops,
             wall_give_back: self.wall_give_back,
             exe_collision: self.exe_collision,
