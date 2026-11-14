@@ -2741,6 +2741,19 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         bot.lip_watch = watch;
         if may { guard } else { LipGuard::Clear }
     };
+    // [A388] A change of the keys at an edge, with both bodies' word on it, for the log (decision-neutral; a line a kind per bot per
+    // `nav_log::EVERY_MS`, `nav_log::MAX_PER_KIND` a match).
+    let changed = match guard {
+        LipGuard::Swapped(to) => Some(("swapped", Some(to))),
+        LipGuard::Braked(to) => Some(("braked", Some(to))),
+        LipGuard::Doomed => Some(("doomed", None)),
+        LipGuard::Clear | LipGuard::Safe => None,
+    };
+    if let Some((verdict, to)) = changed {
+        let edge = super::nav_log::EdgeWord::at(&tactics.world.grid, me.feet, None);
+        let speed = me.velocity[0].hypot(me.velocity[1]);
+        bot.nav_log.push(super::nav_log::Kind::Guard, time, super::nav_log::guard_line(verdict, me.feet, decision.keys, to, speed, edge));
+    }
     #[cfg(test)]
     {
         bot.bench_guard_at = (me.velocity, me.feet);

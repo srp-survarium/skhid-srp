@@ -118,6 +118,15 @@ pub struct Estimate {
 pub struct KeptBody {
     controller: Controller,
     feet: Vec3,
+    /// [A388] Its last step left the ground ([`KeptStep::airborne`]); false for a controller just set.
+    airborne: bool,
+}
+
+impl KeptBody {
+    /// [A388] Whether its last step left the ground: the kept controller's verdict at the reckoned feet (the log's).
+    pub fn airborne(&self) -> bool {
+        self.airborne
+    }
 }
 
 /// [A364 P9] Feet this far (flat, m) from where the kept controller left them were placed by something else (a world's fix, a jump,
@@ -139,9 +148,8 @@ pub(crate) struct KeptStep {
 pub(crate) fn kept_step(grid: &WalkGrid, kept: &mut Option<KeptBody>, feet: Vec3, by: Vec3, keys: u32, sprinting: bool) -> Option<KeptStep> {
     let mut body = match kept.take() {
         Some(body) if body.feet.distance_xz(feet) <= KEPT_SAME_M => body,
-        _ => KeptBody { controller: grid.kept_controller_at(feet)?, feet },
+        _ => KeptBody { controller: grid.kept_controller_at(feet)?, feet, airborne: false },
     };
-    #[cfg(test)]
     let started = std::time::Instant::now();
     let input = TickInput {
         walk: Vec3::new(by.x, 0.0, by.z),
@@ -152,13 +160,16 @@ pub(crate) fn kept_step(grid: &WalkGrid, kept: &mut Option<KeptBody>, feet: Vec3
     };
     let start = body.controller.feet();
     let notes = grid.kept_tick(&mut body.controller, input)?;
+    let ns = started.elapsed().as_nanos() as u64;
+    kept_clock::add(ns);
     #[cfg(test)]
-    client_steps::kept(started.elapsed().as_nanos() as u64);
+    client_steps::kept(ns);
     // The controller's own move, from the reckoned feet: a controller set anew stands where the walk start placed it (out of the
     // faces it overlapped), which is no move of the body.
     let end = body.controller.feet();
     let to = Vec3::new(feet.x + end.x - start.x, feet.y, feet.z + end.z - start.z);
     body.feet = to;
+    body.airborne = notes.airborne;
     *kept = Some(body);
     Some(KeptStep { to, airborne: notes.airborne })
 }
@@ -972,7 +983,7 @@ impl BodyTrack {
                 .then(|| {
                     let saved = fix.controller.as_ref()?;
                     let controller = grid?.kept_controller_saved(saved)?;
-                    Some(KeptBody { feet: controller.feet(), controller })
+                    Some(KeptBody { feet: controller.feet(), controller, airborne: false })
                 })
                 .flatten(),
             // [A318] The world's keys are input W's (PROVEN): the step before them takes input W-50's keys and the world's yaw
@@ -1512,6 +1523,25 @@ pub(crate) mod walker_holds {
 
     pub(crate) fn count() -> u64 {
         HELD.load(Relaxed)
+    }
+}
+
+/// [A388] The kept controllers' steps and their time on this server (every match), for the match-end CPU line
+/// (`Bots::drift_report`): decision-neutral, read only by the log.
+pub(crate) mod kept_clock {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static STEPS: AtomicU64 = AtomicU64::new(0);
+    static NS: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn add(ns: u64) {
+        STEPS.fetch_add(1, Relaxed);
+        NS.fetch_add(ns, Relaxed);
+    }
+
+    /// The steps and their time (ns) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64) {
+        (STEPS.swap(0, Relaxed), NS.swap(0, Relaxed))
     }
 }
 

@@ -564,6 +564,11 @@ impl WalkGrid {
         Some(body.tick(world, 0.05, &s, input))
     }
 
+    /// [A388] Whether the grid keeps the client's walker ([`Self::with_client_walker`], [`Self::with_client_world`]).
+    pub fn has_client_walker(&self) -> bool {
+        self.walker.is_some()
+    }
+
     /// [A366] The walkable top of the client's walker (the map's walker triangles) under `at` (flat) from `from_y` down to `reach`
     /// below it: a ray straight down, the first face met whose normal stands within the body's walkable slope
     /// ([`Body::min_ground_normal_y`]). None without [`Self::with_client_walker`] or with no such face: the grid's floors are all
