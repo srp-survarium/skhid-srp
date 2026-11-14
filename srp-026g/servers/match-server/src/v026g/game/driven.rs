@@ -312,6 +312,8 @@ impl Walkers {
             walkers.bots.set_shot_reach(reach);
             // [Gap 13] The mode's plain respawn delay (`mode.parameters.respawn_time`, seconds).
             walkers.bots.set_plain_respawn_ms(formed.played.map().respawn_time.saturating_mul(1000));
+            // [Gap 8] The map's spawn protection by team (`respawn_points[i].invulnerability_time`).
+            walkers.bots.set_spawn_protection_ms(formed.played.map().spawn_protection_ms);
             for (place, armour) in armours.into_iter().enumerate() {
                 walkers.bots.set_zone_armour(place, armour);
             }
@@ -823,6 +825,8 @@ impl Game {
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);
+            // [Gap 8] Its spawn protection (the damage model's invulnerability end and fade).
+            walkers.bots.protection(place, world.invulnerability_time_ms, world.invulnerability_fade_ms);
             // [Gap 7] Its hand wounds (parts 16 and 17's `hand_damage`), held as the client holds them.
             {
                 use srp_validate::world::AffectKind;
@@ -851,6 +855,8 @@ impl Game {
                 walkers.bots.own_gun(place, gun);
             }
         }
+        // [Gap 8] Each bot's enemies that cannot be hurt now.
+        walkers.bots.share_protection();
         let notes = walkers.bots.facts(world_facts(snapshot.time, decoded));
         log_notes(id, notes);
         walkers

@@ -207,6 +207,10 @@ pub struct CheatTuning {
     /// an enemy is back at his death in the kill feed plus the mode's plain respawn delay (`Tracker::plain_respawn_ms`),
     /// and a teammate at the world's time (his timer is his team's own).
     pub enemy_respawn_exact: bool,
+    /// [Gap 8] An enemy's spawn protection is the world's own end and fade (`m_invulnerability_time_in_ms`, its
+    /// attenuation), which nothing draws for a player. Off by default (the owner's rule: enemies by what a player can
+    /// know): his life's start plus his team's respawn points' `invulnerability_time` (`combat.spawn_protection`).
+    pub enemy_protection_exact: bool,
     /// A thief's place with this error, metres, this often, ms (0: off).
     pub thief_error_m: f32,
     pub thief_every_ms: u32,
@@ -241,6 +245,7 @@ impl Default for CheatTuning {
         Self {
             batteries: false,
             enemy_respawn_exact: false,
+            enemy_protection_exact: false,
             thief_error_m: 10.0,
             thief_every_ms: 3_000,
             radar_error_m: 15.0,
