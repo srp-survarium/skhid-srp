@@ -24,10 +24,10 @@ elevation grid for every map.
 | v010b_cs_mp_bath | Experimental Pool | 0.0952 | 42 (STALKER port, patch 57; Free for All) |
 | v010b_cs_mp_military_1 | Military Warehouses | 0.1843 | 43 (STALKER port, patch 57; Free for All) |
 | v010b_cs_training_camp | Training Camp | 0.1038 | 44 (STALKER port, patch 57; Free for All) |
-| v010b_cs_mp_darkvalley | Dark Valley | 0.0996 | 37 (STALKER port, pack stalker-maps-2@1; Free for All) |
-| v010b_cs_mp_atp | Vehicle Station | 0.0952 | 38 (STALKER port, pack stalker-maps-2@1; Free for All) |
-| v010b_cs_mp_firestation | Fire Station | 0.0952 | 39 (STALKER port, pack stalker-maps-2@1; Free for All) |
-| v010b_cs_mp_sport_center | Sports Center | 0.0952 | 40 (STALKER port, pack stalker-maps-2@1; Free for All) |
+| v010b_cs_mp_darkvalley | Dark Valley | 0.0996 | 37 (STALKER port, pack stalker-maps-2@2; Free for All) |
+| v010b_cs_mp_atp | Vehicle Station | 0.0952 | 38 (STALKER port, pack stalker-maps-2@2; Free for All) |
+| v010b_cs_mp_firestation | Fire Station | 0.0952 | 39 (STALKER port, pack stalker-maps-2@2; Free for All) |
+| v010b_cs_mp_sport_center | Sports Center | 0.0952 | 40 (STALKER port, pack stalker-maps-2@2; Free for All) |
 
 All weathers and modes of a level share one image. The mode projects differ only
 in mode props such as battery racks, containers and charging stations; the

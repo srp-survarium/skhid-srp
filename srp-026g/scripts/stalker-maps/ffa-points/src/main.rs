@@ -47,7 +47,7 @@ const GROUND_BELOW: f32 = 1.0;
 const REASON: &str = "reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first";
 const TRAINING_REASON: &str = "reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first in 3D";
 
-/// Bounds of the reviewed port's minimaps (stalker-maps@6, stalker-maps-2@1:
+/// Bounds of the reviewed port's minimaps (stalker-maps@6, stalker-maps-2@2:
 /// render_minimap.py's play area). The imported projects have a dummy 2 m
 /// levelmap; mapdata's native-map fallback truncates Military Warehouses.
 /// Training Camp has open scenery beyond its fence.

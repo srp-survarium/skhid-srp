@@ -66,11 +66,13 @@ its row of `release/content.tsv`. The list must stay the last that edits
 ## Four more maps: stalker-maps-2 (the owner, 2026-11-14)
 
 "Port four STALKER multiplayer maps", Free for All only, Clear Sky's versions:
-pack `stalker-maps-2@1` and content edit `ffa-stalker-2.json`. Built after the
+pack `stalker-maps-2@2` and content edit `ffa-stalker-2.json`. Built after the
 released `stalker-maps@6`, which they do not change: `release/build-content 60`
-(a quick build, `content-maps2-c` below) makes 4,847 new files, all the four
-maps' (their namespaces `ported/cs/<map>`, projects, ramp models and probes),
-and changes no file of the six maps; the 15 files that differ are the hud and
+(a quick build, `/mnt/hdd/Projects/stalker-maps-026/content-maps2-d`) makes
+4,855 new files, the four maps' (their namespaces `ported/cs/<map>`,
+projects, configs, ramp models and probes, and the four default probe
+textures `textures/ported/v010b/environment_probes/environment_probe*`), and
+changes no file of the six maps; the 15 files that differ are the hud and
 lobby movies, `gameplay/db_static_dictionaries` and the eleven localization
 files. The pack leaves out the 44 v0.100b template files (`textures/` and
 `material_instances/ported/v010b/{tiled,flora,sky,...}`) players have from
@@ -108,9 +110,17 @@ that would differ stops the build), so it needs that pack beside it.
   shift by 4 (as `stalker-maps@6`'s six did); `artefact-keeper-1` gives the
   four TDM projects their Keeper pool (Free for All's copies take it);
   `simulation_changes.tsv` has the `next` row.
-- Grass: X-Ray's detail objects on Dark Valley (142,346 tufts), Vehicle
-  Station (71,179) and Fire Station (147,551 at `density` 0.5; 384,112 at
-  the level's); Sports Center's level has none.
+- Grass: X-Ray's detail objects on Dark Valley (55,959 tufts at `density`
+  0.5; 142,346 at the level's 0.3), Vehicle Station (71,179) and Fire Station
+  (49,767 at `density` 1.0; 384,112 at the level's); Sports Center's level
+  has none. The client cooks a map's grass on the resource thread with
+  count x 20 bytes of stack (`grass_cook::on_layers_loaded` 0x12A820,
+  `_chkstk` from 0x12AC7E), and patch 128 gives that thread 2 MiB
+  (`THREAD_STACKS`, 0xE37BA): with 142,346 and 147,551 tufts the rev59
+  client died loading Dark Valley and Fire Station (`STACK_OVERFLOW`, 3 of
+  3; reports in `/mnt/hdd/Projects/stalker-maps-026/previews-maps2/crashes/`),
+  hence the thinner grass (at most 71,179, 1.4 MB: pack @2; @1, never released, had them all). Experimental Pool's
+  125,844 (2.5 MB) is over that line too: to check on the live client.
 - Static render geometry (`geometry.py`): Dark Valley 16.3 MiB, Vehicle
   Station 22.9, Fire Station 11.8, Sports Center 9.2 (native maps 43-48,
   the vertex pool 88 MB). Collision 194,093, 312,969, 190,097 and 88,835
@@ -172,7 +182,8 @@ projects). The points: the STALKER planner's 24 (`ffa-points`, its play
 areas the minimaps' frames) made twice as many by the spawn rule
 (check-points' `to_cover --times 2`; `ffa.md`): 48 a map, Vehicle Station
 47 (its point 14 stood on the roof only clmbl#4 reaches and is left out,
-`EXCLUDED_2`). Run on build C, `to_cover --times 1` keeps all 191 as they are.
+`EXCLUDED_2`). Run on that build, `to_cover --times 1` keeps all 191 as
+they are, and the released Free for All maps test passes on its server data.
 
 ```sh
 stalker-ffa-points <layers> --project v010b_cs_mp_<map>/day_4 ... --plots P > planned.tsv
@@ -196,8 +207,17 @@ appended (the manifest's state before the list).
   the bushes' rustle (`stalker-bushes`, made from `stalker-maps@6` only: a
   row each of `make_pack.py`'s `MAPS` and a pack of their leaves). Each is a
   row more in that list or script.
-- The loading pictures are frames of the game (2560 x 1440, highest
-  settings), or, until those are taken, the minimap's preview.
+- Loading pictures: frames of the game, headless at 2560 x 1440, highest
+  settings, hfov 100 (Dark Valley `sw-high` (200, 28, -262) yaw 55.2 pitch
+  -15.7; Vehicle Station `e-high` (196, 18, -27) -90 / -20.7; Fire Station
+  `nw-high` (-72, 26, 66) 128.9 / -12.8, the hose tower in the middle; all
+  high overviews: the eye-level tries were blocked). Sports Center still has
+  the minimap's preview: its capture waited on the owner's game. The shots,
+  contact sheets and the harness (its 8 Sports Center poses ready) are in
+  `/mnt/hdd/Projects/stalker-maps-026/previews-maps2/`.
+- A flat surface in Dark Valley's north and north-east yards, knee to eye
+  high, is drawn plain white in those frames (`n-yard`, `ne-yard`): not
+  looked into.
 - Seen in the game: nothing yet (not played, not released). Bots have no
   map data for them (Free for All is not played with bots).
 

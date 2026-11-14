@@ -3124,7 +3124,7 @@
   "v010b_cs_mp_darkvalley": {
    "name": "Dark Valley",
    "name_key": "st_cs_mp_darkvalley_name",
-   "origin": "skhid patch: Clear Sky port, pack stalker-maps-2@1, geometry from the 0.26g db with the released patches over it",
+   "origin": "skhid patch: Clear Sky port, pack stalker-maps-2@2, geometry from the 0.26g db with the released patches over it",
    "image": "v010b_cs_mp_darkvalley.webp",
    "image_size_px": [1536, 1536],
    "metres_per_pixel": 0.099621,
@@ -3258,7 +3258,7 @@
   "v010b_cs_mp_atp": {
    "name": "Vehicle Station",
    "name_key": "st_cs_mp_atp_name",
-   "origin": "skhid patch: Clear Sky port, pack stalker-maps-2@1, geometry from the 0.26g db with the released patches over it",
+   "origin": "skhid patch: Clear Sky port, pack stalker-maps-2@2, geometry from the 0.26g db with the released patches over it",
    "image": "v010b_cs_mp_atp.webp",
    "image_size_px": [1536, 1536],
    "metres_per_pixel": 0.095238,
@@ -3392,7 +3392,7 @@
   "v010b_cs_mp_firestation": {
    "name": "Fire Station",
    "name_key": "st_cs_mp_firestation_name",
-   "origin": "skhid patch: Clear Sky port, pack stalker-maps-2@1, geometry from the 0.26g db with the released patches over it",
+   "origin": "skhid patch: Clear Sky port, pack stalker-maps-2@2, geometry from the 0.26g db with the released patches over it",
    "image": "v010b_cs_mp_firestation.webp",
    "image_size_px": [1536, 1536],
    "metres_per_pixel": 0.095238,
@@ -3526,7 +3526,7 @@
   "v010b_cs_mp_sport_center": {
    "name": "Sports Center",
    "name_key": "st_cs_mp_sport_center_name",
-   "origin": "skhid patch: Clear Sky port, pack stalker-maps-2@1, geometry from the 0.26g db with the released patches over it",
+   "origin": "skhid patch: Clear Sky port, pack stalker-maps-2@2, geometry from the 0.26g db with the released patches over it",
    "image": "v010b_cs_mp_sport_center.webp",
    "image_size_px": [1536, 1536],
    "metres_per_pixel": 0.095238,
