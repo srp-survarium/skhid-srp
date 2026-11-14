@@ -141,6 +141,12 @@ pub(super) struct Walkers {
     /// The kit each place's zone armour was last worked out for (`zone_armour_of`): its first until a world names the
     /// kit in use (`Supplies::kit`), as the client prices the live kit.
     armour_kits: Vec<u8>,
+    /// [Gap 6] The kit and the hands slot each place's weapon kind and shot reach were last worked out for (`weapon_of`,
+    /// `shot_reach_of`): slot 7 of its first kit until a world names the weapon in hands (`combat.weapon_in_hands`); none
+    /// with the switch off.
+    held_weapons: Vec<Option<(u8, u8)>>,
+    /// `FireTuning::weapon_class_by_data`, as the kinds were first worked out with it.
+    weapon_by_data: bool,
     maps: Arc<Maps>,
     project: &'static str,
     /// Held once built, so the store may drop it while the match runs.
@@ -249,6 +255,7 @@ impl Walkers {
             .collect();
         let pantries = formed.profiles.iter().map(crate::v026g::bots::stock::Pantry::of_profile).collect();
         let reach: Vec<Option<f32>> = formed.profiles.iter().map(shot_reach_of).collect();
+        let held_weapons = vec![tuning.aim.combat.weapon_in_hands.then_some((0u8, 7u8)); formed.profiles.len()];
         let armours: Vec<_> = formed.profiles.iter().map(|profile| zone_armour_of(profile, 0)).collect();
         let armour_kits = vec![0; armours.len()];
         // The bodies' speed by their first kit's skills and weight, until a
@@ -295,6 +302,8 @@ impl Walkers {
             kit_in_use: all_kits,
             speed_kits,
             armour_kits,
+            held_weapons,
+            weapon_by_data: by_data,
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
@@ -450,22 +459,35 @@ fn weapon_of(
     profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
     by_data: bool,
 ) -> Option<WeaponKind> {
+    held_kind(profile, 0, 7, by_data)
+}
+
+/// [Gap 6] [`weapon_of`] for the weapon in kit slot `slot` of kit `kit` (the world's kit in use and hands slot): a bot of
+/// a role but the rusher's keeps its role's kind without `by_data`, as at the start.
+fn held_kind(
+    profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+    kit: usize,
+    slot: usize,
+    by_data: bool,
+) -> Option<WeaponKind> {
     use survarium::v026g::loadouts::BotRole;
     let role = survarium::v026g::loadouts::bot_role_of(profile);
     if let Some(role) = role.filter(|role| *role != BotRole::Rusher && !by_data) {
         return WeaponKind::of_role(role.name());
     }
-    weapon_in_slot_7(profile, by_data)
+    weapon_in(profile, kit, slot, by_data)
         .or_else(|| role.and_then(|role| WeaponKind::of_role(role.name())))
 }
 
-/// The kind of the item in slot 7 of the profile's first kit.
-fn weapon_in_slot_7(
+/// The kind of the item in slot `slot` of the profile's kit `kit`.
+fn weapon_in(
     profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+    kit: usize,
+    slot: usize,
     by_data: bool,
 ) -> Option<WeaponKind> {
-    let kit = profile.kits.first()?;
-    let (index, _) = kit.slots[7]?;
+    let kit = profile.kits.get(kit)?;
+    let (index, _) = (*kit.slots.get(slot)?)?;
     let item = profile.items.get(usize::from(index))?;
     if by_data {
         let weapon = survarium::v026g::weapons::weapon(item.dict_id)?;
@@ -490,8 +512,17 @@ fn weapon_in_slot_7(
 /// ([`crate::v026g::bots::shot_reach`]); None where the item is not in the
 /// table.
 fn shot_reach_of(profile: &survarium::v026g::match_msgs::static_info::MatchProfile) -> Option<f32> {
-    let kit = profile.kits.first()?;
-    let (index, _) = kit.slots[7]?;
+    shot_reach_in(profile, 0, 7)
+}
+
+/// [Gap 6] [`shot_reach_of`] for the weapon in kit slot `slot` of kit `kit`.
+fn shot_reach_in(
+    profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+    kit: usize,
+    slot: usize,
+) -> Option<f32> {
+    let kit = profile.kits.get(kit)?;
+    let (index, _) = (*kit.slots.get(slot)?)?;
     let item = profile.items.get(usize::from(index))?;
     let dictionary = survarium::v026g::dictionary::Dictionary::shared();
     crate::v026g::bots::shot_reach::reach_of(&dictionary.item(item.dict_id)?.cfg_name)
@@ -855,6 +886,20 @@ impl Game {
                     None => speeds.candidates(),
                 };
                 walkers.bots.set_speed_candidates(place, candidates);
+            }
+            // [Gap 6] A new weapon in hands (the kit in use, the hands slot): the kind every bot takes the body for and the
+            // reach its shots are heard at.
+            if let (Some(supplies), Some(profile)) = (supplies, self.formed.profiles.get(place))
+                && supplies.alive
+                && let Some(slot) = supplies.hands_slot
+                && let Some(Some(was)) = walkers.held_weapons.get(place).copied()
+                && was != (supplies.kit, slot)
+            {
+                walkers.held_weapons[place] = Some((supplies.kit, slot));
+                let kit = usize::from(supplies.kit);
+                let kind = held_kind(profile, kit, usize::from(slot), walkers.weapon_by_data);
+                walkers.bots.set_weapon(place, kind);
+                walkers.bots.set_shot_reach_of(place, shot_reach_in(profile, kit, usize::from(slot)));
             }
             let driven = self.formed.places.get(place).is_some_and(|p| p.driven);
             if let (true, Some(supplies), Some(profile)) =
@@ -1297,6 +1342,39 @@ mod tests {
         assert!(supports_with_one > 0, "some support kit carries the one grenade");
     }
 
+    /// [Gap 6] The weapon kind and shot reach a world's kit in use and hands slot name: the first kit's AK-74U, the second
+    /// kit's Mosin, the pistol drawn; a bot of a role keeps its role's kind (without `by_data`), a rusher its kit's weapon.
+    #[test]
+    fn the_weapon_in_hands_is_the_kits_slot_the_world_names() {
+        use survarium::v026g::loadouts::Loadout;
+        let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+        let first = Loadout::from_names(dictionary, [(7, "ak_74u"), (10, "tt_33")]).expect("a kit");
+        let second = Loadout::from_names(dictionary, [(7, "mosin_nagant")]).expect("a kit");
+        let profile = survarium::v026g::match_msgs::static_info::MatchProfile::from_loadouts(
+            "human",
+            0,
+            &[&first, &second],
+            [0.0; survarium::v026g::skills::MODIFIERS],
+            dictionary,
+            1,
+        );
+        // The AK-74U's kind and the Mosin's differ: the kit in use decides.
+        assert_eq!(weapon_in(&profile, 0, 7, false), Some(WeaponKind::Smg));
+        assert!(weapon_in(&profile, 1, 7, false).is_some_and(|kind| kind != WeaponKind::Smg));
+        assert_eq!(weapon_in(&profile, 0, 10, false), Some(WeaponKind::Pistol));
+        assert_eq!(weapon_in(&profile, 1, 10, false), None, "an empty slot");
+        assert_eq!(weapon_in(&profile, 3, 7, false), None, "no such kit");
+        assert_eq!(shot_reach_in(&profile, 0, 7), shot_reach_of(&profile));
+        assert!(shot_reach_in(&profile, 1, 7).is_some());
+        let equipment = BotEquipment { tier: BotTier::Mid, rusher: RusherKit::Smg, mask: BotMask::Table };
+        let bot = bot_profile(1, 0, BotRole::Camper, equipment);
+        assert_eq!(held_kind(&bot, 0, 10, false), WeaponKind::of_role(BotRole::Camper.name()));
+        assert_eq!(held_kind(&bot, 0, 7, false), weapon_of(&bot, false), "the start's");
+        // A rusher's kind is its kit's weapon, wherever the hands are.
+        let rusher = bot_profile(2, 0, BotRole::Rusher, equipment);
+        assert_eq!(held_kind(&rusher, 0, 7, false), weapon_in(&rusher, 0, 7, false));
+    }
+
     /// A profile of a human with a kit change: the first kit has no frag, the second one; with `all_kits` off (the
     /// switch `avoid.kit_in_use`) only the first is read and a throw key lists nothing, as at c3dc7241.
     #[test]
@@ -1341,7 +1419,7 @@ mod tests {
                 let profile =
                     bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit, mask: BotMask::Table });
                 assert_eq!(
-                    weapon_in_slot_7(&profile, false),
+                    weapon_in(&profile, 0, 7, false),
                     Some(WeaponKind::Smg),
                     "{tier} {}",
                     kit.name()
@@ -1351,7 +1429,7 @@ mod tests {
                 let profile =
                     bot_profile(1, 0, BotRole::Rusher, BotEquipment { tier, rusher: kit, mask: BotMask::Table });
                 assert_eq!(
-                    weapon_in_slot_7(&profile, false),
+                    weapon_in(&profile, 0, 7, false),
                     Some(WeaponKind::Shotgun),
                     "{tier} {}",
                     kit.name()
