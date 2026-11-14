@@ -1118,6 +1118,8 @@ struct Ahead {
     way: [f32; 2],
     /// How far before the take-off along the way the feet are.
     before: f32,
+    /// How far the feet are off the jump's line (the take-off's line along the way) to either side, metres.
+    side: f32,
     /// Not moving against the jump's way (since the last tick: standing,
     /// or within [`GOING_TURN`] of it).
     going: bool,
@@ -1173,6 +1175,33 @@ pub(super) fn press_due(before: f32, lead: f32, speed: f32) -> bool {
 /// height, which is the take-off's (`controller::jump::run_up` / `run_up_slow`'s own test, `jump::press_point`), metres.
 const FLOWN_RUN_UP_HEIGHT_M: f32 = 0.35;
 
+/// [A386] The press offsets the grid flew a gap or rim link's press with and scored it over: its share is how many of these
+/// neighbours land (`controller::jump::neighbourhood`, A385-FORMAT §2). A press off them is a flight the grid never tried.
+struct FlownWindow;
+
+impl FlownWindow {
+    /// The lead earlier or later: the largest of `jump::NEIGHBOUR_LEADS_M`, metres.
+    const LEAD_M: f32 = max_abs(mapdata::controller::jump::NEIGHBOUR_LEADS_M);
+    /// The line moved to either side (`jump::NEIGHBOUR_SIDE_M`), metres.
+    const SIDE_M: f32 = mapdata::controller::jump::NEIGHBOUR_SIDE_M;
+    /// The heading turned either way about the press (`jump::NEIGHBOUR_TURN_RAD`), radians.
+    const TURN_RAD: f32 = mapdata::controller::jump::NEIGHBOUR_TURN_RAD;
+}
+
+/// The largest magnitude in `values`.
+const fn max_abs<const N: usize>(values: [f32; N]) -> f32 {
+    let mut most = 0.0f32;
+    let mut i = 0;
+    while i < N {
+        let v = values[i].abs();
+        if v > most {
+            most = v;
+        }
+        i += 1;
+    }
+    most
+}
+
 /// [A386] Why a press now is not the one the grid flew for a gap or rim link, if it is not (A385-FORMAT §1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FlownOff {
@@ -1181,20 +1210,31 @@ enum FlownOff {
     /// A slow press (`jump::Kind::Slow(k)`) at a speed along the way at or over the walk-up's step k + 1 ((k + 1) / 6 of the
     /// body's cap, `jump::run_up_slow`'s k / 6 at step k): a faster press is another jump than the one flown.
     Fast,
+    /// The jump's first step starting farther than [`FlownWindow::LEAD_M`] from the flown lead (past it: arrived late).
+    Lead,
+    /// The feet farther than [`FlownWindow::SIDE_M`] off the jump's line.
+    Side,
 }
 
 /// [A386] Whether this press of `ahead`'s link is off the flown one ([`FlownOff`]); None for a press as flown, and for a link
 /// with no flown press (a ledge, an unflown gap link).
 fn flown_press_off(ahead: &Ahead, pose: &Pose, along: f32) -> Option<FlownOff> {
-    let flown = match ahead.leap {
-        Leap::Gap(GapPress { share, .. }) | Leap::SprintGap(SprintPress { share, .. }) => share.flown().is_some(),
-        Leap::Ledge | Leap::SprintLedge => false,
-    };
-    if !flown {
+    if !ahead.leap.flown() {
         return None;
     }
     if ahead.take_off_above.abs() > FLOWN_RUN_UP_HEIGHT_M {
         return Some(FlownOff::Height);
+    }
+    if ahead.side > FlownWindow::SIDE_M {
+        return Some(FlownOff::Side);
+    }
+    // The key acts a step later ([`press_due`]): the jump's step 0 starts a step's travel on.
+    let lead = match ahead.leap {
+        Leap::Gap(GapPress { lead, .. }) | Leap::SprintGap(SprintPress { lead, .. }) => lead.metres(),
+        Leap::Ledge | Leap::SprintLedge => 0.0,
+    };
+    if (ahead.before - along.max(0.0) * TICK_S - lead).abs() > FlownWindow::LEAD_M {
+        return Some(FlownOff::Lead);
     }
     match ahead.leap {
         Leap::Gap(GapPress { walk: WalkPress::Slow(k), .. }) if along >= f32::from(k + 1) / 6.0 * pose.walk_cap.ms() => Some(FlownOff::Fast),
@@ -1207,14 +1247,14 @@ fn flown_press_off(ahead: &Ahead, pose: &Pose, along: f32) -> Option<FlownOff> {
 pub mod flown_presses {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
 
     pub(super) fn off(why: super::FlownOff) {
         COUNTS[why as usize].fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Off the height, too fast.
-    pub fn counts() -> [u64; 2] {
+    /// Off the height, too fast, off the lead, off the line.
+    pub fn counts() -> [u64; 4] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -2291,6 +2331,7 @@ impl Motor {
                 lined: false,
                 way,
                 before: 0.0,
+                side: 0.0,
                 going: false,
                 end: Some(JumpEnd::Refused(take_off)),
                 stand: false,
@@ -2367,6 +2408,7 @@ impl Motor {
                 lined: false,
                 way,
                 before: 0.0,
+                side: 0.0,
                 going: false,
                 end: Some(JumpEnd::Failed(take_off)),
                 stand: false,
@@ -2530,7 +2572,14 @@ impl Motor {
         if !slow || jump.back || in_the_air || !on_line {
             jump.walk_up = WalkUp::ToRest;
         }
-        let at_rest_point = slow && jump.walk_up == WalkUp::ToRest && !in_the_air && at(run_up).distance_xz(feet) <= AT_RUN_UP_M;
+        // [A386] A flown slow press rests within the flight's tested window of its run-up point ([`FlownWindow`]): the walk-up
+        // carries a rest off the line on to the press.
+        let rest_near = if leap.flown() {
+            (along + run_up).abs() <= FlownWindow::LEAD_M && side <= FlownWindow::SIDE_M
+        } else {
+            at(run_up).distance_xz(feet) <= AT_RUN_UP_M
+        };
+        let at_rest_point = slow && jump.walk_up == WalkUp::ToRest && !in_the_air && rest_near;
         if at_rest_point && pose.speed < STILL_MS {
             jump.walk_up = WalkUp::Walking;
         }
@@ -2590,6 +2639,7 @@ impl Motor {
             lined,
             way,
             before: -along,
+            side,
             going,
             end: None,
             stand,
@@ -2698,11 +2748,17 @@ impl Motor {
         let near = match ahead.leap {
             Leap::Ledge | Leap::SprintLedge => ahead.before <= (JUMP_LEAD_S * speed + PRESS_M).max(ahead.lead_m),
             // [A386] A standing jump at its point, the body at rest there ([`WalkUp`]).
+            Leap::Gap(GapPress { lead, walk: WalkPress::Slow(0), share }) if share.flown().is_some() => {
+                ahead.before <= lead.metres() + FlownWindow::LEAD_M
+            }
             Leap::Gap(GapPress { lead, walk: WalkPress::Slow(0), .. }) => ahead.before <= lead.metres() + AT_RUN_UP_M,
             // [A386] On the tick whose jump step starts nearest the flown lead ([`press_due`]).
             Leap::Gap(GapPress { lead, .. }) | Leap::SprintGap(SprintPress { lead, .. }) => press_due(ahead.before, lead.metres(), along),
         };
-        if !(ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && near && rested) {
+        // [A386] A flown press faces its way within the flight's tested turn ([`FlownWindow::TURN_RAD`]); a body still turning
+        // waits for it.
+        let facing = if ahead.leap.flown() { FlownWindow::TURN_RAD } else { JUMP_FACING };
+        if !(ahead.lined && ahead.going && self.walking && still <= facing && near && rested) {
             return 0;
         }
         // [A386] A gap or rim link is pressed only as the grid flew it ([`flown_press_off`]): else no press, a back-off for another
@@ -2862,7 +2918,7 @@ impl Motor {
         #[cfg(test)]
         if std::env::var_os("SRP_BENCH_PRESS_ROWS").is_some() {
             eprintln!(
-                "pressrow\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:?}\t{:?}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{}\t{}\t{:.2}\t{:?}",
+                "pressrow\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:?}\t{:?}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{}\t{}\t{:.2}\t{:?}\t{:.3}\t{:.3}",
                 jump.take_off.x,
                 jump.take_off.y,
                 jump.take_off.z,
@@ -2879,6 +2935,8 @@ impl Motor {
                 jump.tries,
                 ahead.run_up,
                 pose.sprint_block,
+                ahead.side,
+                still,
             );
         }
         if ahead.approach == Approach::SprintGap {
@@ -6080,6 +6138,56 @@ mod tests {
         assert_ne!(landed & moves, 0, "the route goes on on the top: walked on: {landed:#x}");
     }
 
+    /// [A386] A flown press is pressed only within the offsets the grid flew it over (`jump::neighbourhood`): its jump's first
+    /// step within the lead's ±0.2 m, the feet within 0.15 m of the line; the window is the flyer's own constants.
+    #[test]
+    fn a_flown_press_is_pressed_only_within_its_flown_window() {
+        assert_eq!(FlownWindow::LEAD_M, 0.2);
+        assert_eq!(FlownWindow::SIDE_M, mapdata::controller::jump::NEIGHBOUR_SIDE_M);
+        assert_eq!(FlownWindow::TURN_RAD, mapdata::controller::jump::NEIGHBOUR_TURN_RAD);
+        let ahead = |before: f32, side: f32| Ahead {
+            aim: Vec3::ZERO,
+            lined: true,
+            way: [1.0, 0.0],
+            before,
+            side,
+            going: true,
+            end: None,
+            stand: false,
+            let_go: false,
+            leap: Leap::Gap(GapPress {
+                lead: mapdata::PressLead::from_metres(0.4),
+                walk: WalkPress::Slow(0),
+                share: mapdata::Share::landed(14),
+            }),
+            approach: Approach::Walk,
+            rise: 1.1,
+            take_off_above: 0.0,
+            lead_m: 0.0,
+            least_m: 0.0,
+            run_up: 0.4,
+            span: 0.5,
+        };
+        let pose = Pose::default();
+        // A standing jump flown 0.4 m before the take-off: from rest at 0.25 to 0.55 it is in the window ...
+        assert_eq!(flown_press_off(&ahead(0.25, 0.0), &pose, 0.0), None);
+        assert_eq!(flown_press_off(&ahead(0.55, 0.1), &pose, 0.0), None);
+        // ... at 0.17 or 0.64 (map 7's presses) it is not, nor 0.2 m off the line.
+        assert_eq!(flown_press_off(&ahead(0.17, 0.0), &pose, 0.0), Some(FlownOff::Lead));
+        assert_eq!(flown_press_off(&ahead(0.64, 0.0), &pose, 0.0), Some(FlownOff::Lead));
+        assert_eq!(flown_press_off(&ahead(0.4, 0.2), &pose, 0.0), Some(FlownOff::Side));
+        // A walking press: the jump's first step starts a step's travel on (0.5 m now at 2 m/s: 0.4 m).
+        let walking = |before: f32| Ahead {
+            leap: Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.4), walk: WalkPress::Cap, share: mapdata::Share::landed(14) }),
+            ..ahead(before, 0.0)
+        };
+        assert_eq!(flown_press_off(&walking(0.5), &pose, 2.0), None);
+        assert_eq!(flown_press_off(&walking(0.1), &pose, 2.0), Some(FlownOff::Lead), "arrived past its lead");
+        // Not flown: not asked.
+        let ledge = Ahead { leap: Leap::Ledge, ..ahead(0.0, 0.5) };
+        assert_eq!(flown_press_off(&ledge, &pose, 0.0), None);
+    }
+
     /// [A386] A gap or rim link is pressed only as the grid flew it ([`flown_press_off`]): a slow press of k steps under its
     /// walk-up's step k + 1 ((k + 1) / 6 of the cap), and any flown press with the feet within the flight's run-up height of the
     /// take-off. Off it: no key, a back-off. A ledge or an unflown gap link is not asked.
@@ -6090,6 +6198,7 @@ mod tests {
             lined: true,
             way: [1.0, 0.0],
             before: 0.1,
+            side: 0.0,
             going: true,
             end: None,
             stand: false,
@@ -6335,6 +6444,7 @@ mod tests {
             lined: true,
             way: [1.0, 0.0],
             before: 0.0,
+            side: 0.0,
             going: true,
             end: None,
             stand: false,
