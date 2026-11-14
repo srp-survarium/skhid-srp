@@ -660,7 +660,22 @@ fn build(
                     |path| WalkGrid::read(path, grid_key, body),
                     // [A364 C2 rows 11/12] The rim jumps fly on the game's shapes (a format 6 map), built for the grid only: by the
                     // one entry the bench's worlds build their grids by too.
-                    || World::map_grid(&map, &walker, cell, body, links),
+                    || {
+                        let (grid, stats) = World::map_grid_with_stats(&map, &walker, cell, body, links);
+                        // A log's only: what each pass of the build did (a grid read from the cache has no such line).
+                        log::info!(
+                            "Bot map {} grid built: {} floors; wall give-back {}, rest floors {}, held {:?}, drops walked {:?} re-aimed {}, gaps {:?}",
+                            path.display(),
+                            grid.len(),
+                            stats.wall_given_back,
+                            stats.rest_floors,
+                            stats.held,
+                            stats.drops_walked,
+                            stats.drops_reaimed,
+                            stats.gaps
+                        );
+                        grid
+                    },
                     |grid, path| grid.write(path, grid_key),
                 );
                 // [A346] The tables the tuning in force needs ([`Tuning::needs_wall_clearance`], [`Tuning::needs_open_sides`]) and
