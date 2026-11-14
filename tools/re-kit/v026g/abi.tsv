@@ -2598,3 +2598,17 @@ va	name	source	ret_cleanup	result
 0x001603b0	vostok::render::grass_world::process_culling's patch order	manual	0	AL: 1 for ECX's patch before EAX's
 0x00161e50	stlp_std::priv::__linear_insert<vostok::render::grass_patch **>	manual	0	
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	manual	0	
+0x002e4100	survarium::weapon_core::melee_pred [descriptive]	manual	0	EAX: 1 when the gun's state machine's state [[+278h]+20h] is not kind 4, the gun's +5E8h is 0 and the user's actions [[+8]+330h] have bit 27 (melee); else 0. ECX the gun
+0x0033ab50	survarium::weapon_core_melee_state_base::on_shoot [descriptive]	manual	4	EAX 0; ECX the melee state (+120h its gun), entry ESP+4 the clip event (+10h its time): emit_bullet(gun+5A0h, the eye player+44Ch, its forward row x gun+578h, gun+53Ch, the event's time, player+110h, player+118h, 0)
+0x002e2940	survarium::weapon_core::subscribe_animation_event [descriptive]	manual	16	entry ESP+4 the gun, +8 the channel id (a byte: 3 the clip end), +0Ch the subscriber, +10h the boost functor: animation_player::subscribe_event_channel on the user's player +750h
+0x00301240	survarium::victory_item_core::tick [descriptive]	manual	0	ECX the battery: fsm::tick(+168h), then its user animations' tick (0x2FB980); the main vtable's +2Ch (0xA13DE8)
+0x003018c0	survarium::victory_item_core::is_carrying [descriptive]	manual	0	AL: the current state's kind [[+178h]+20h] is 3 (carry); the main vtable's +64h (0xA13E20)
+0x00301b30	survarium::victory_item_core::is_user_switching [descriptive]	manual	0	EAX: 1 when the user [+8] has a next held item (+12Ch) other than its held (+128h) and its +33Ch set; ECX the battery. initialize_logic binds it as carry -> put's predicate (0x301ABD)
+0x00338930	survarium::victory_item_core_animation_end_aware_state::is_ready_for_transition [descriptive]	manual	0	AL: [ECX+28h], set by on_animation_end 0x344830 when the clip it waits for ([+0C8h][+0CCh]) ends; the take and put vtables' +18h
+0x00338eb0	survarium::victory_item_core_carry_state::register_animations [descriptive]	manual	4	ECX the state, entry ESP+4 the registry: register_animation of each pair at +0C8h..+0E0h
+0x00303450	boost::detail::function::function_invoker0<bool (__cdecl*)(void),bool>::invoke [descriptive]	manual	0	jmp [buffer]: the stored function is entered with the buffer's address still at entry ESP+4 (cdecl, the fsm pops it, 0x38CA7C); the invoker of the functor vtable 0xA13CAC (manager 0x303420)
+0x0028f040	boost::function0<bool>::function0 (copy) [descriptive]	manual	0	EAX: ESI; ECX the source, ESI the room: a tagged (bit 0) vtable copies the 24-byte buffer, else its manager clones it
+0x002fa400	survarium::victory_item_core_cook::on_animations_loaded [descriptive]	manual	4	the cook's queries callback: three 6-clip arrays (take, carry, put; each 4 player clips then 2 battery clips, query order) at ESP+58h, +40h, +28h, then initialize_logic (call 0x2FA7E4, ESI the battery kept)
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	manual	12	EAX: the state (ESI); vtable 0xA1BF84, kind +20h 1, +24h -3, +28h 0, the clip index to wait +0CCh 0FFh, +0E8h the scale (first player clip's frames / 30 / time, 0x30D750)
+0x00301920	survarium::victory_item_core::initialize_logic	manual	20	
+0x00322830	survarium::bullet_manager::emit_bullet	manual	32	EAX: the bullet
