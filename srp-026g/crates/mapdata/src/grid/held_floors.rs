@@ -24,7 +24,7 @@
 use super::controlled::parallel;
 use super::drop_check::{walk_drop, DropWalk};
 use super::gap::{OffLink, Share, Takeoff};
-use super::rest_floors::holds;
+use super::rest_floors::{NAME_HEIGHT_M, holds, rests_at};
 use super::*;
 use crate::controller::tick::Settings;
 use crate::controller::Collision;
@@ -60,6 +60,11 @@ pub fn fall_cost_m(height: f32) -> f32 {
     2.0 * PAIN_PER_FOOT * fall_damage(height) * FALL_DAMAGE_M
 }
 
+/// [R2 F3] How far off a floor's centre the ring's starts are, m: the exe check's ring (Mamayev Kurgan R2, 2026-11-15).
+const RING_M: f32 = 0.15;
+/// The ring's starts.
+const RING_WAYS: usize = 8;
+
 /// What [`WalkGrid::drop_unheld`] did ([`super::BuildStats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct HeldStats {
@@ -67,6 +72,8 @@ pub struct HeldStats {
     pub tested: usize,
     /// … and taken: no body stays on them.
     pub taken: usize,
+    /// … kept by the ring alone: a body come down on the centre falls, one come down a little off it rests on the floor.
+    pub by_ring: usize,
     /// The drops made from the last held floors (rule 2) …
     pub drops: usize,
     /// … of them deeper than the harmless height (priced by the fall's damage).
@@ -84,15 +91,42 @@ impl WalkGrid {
         let edge: Vec<usize> = (0..n)
             .filter(|&a| (0..DIRS.len()).any(|d| wide.links[a][d] == NONE || wide.kinds[a][d] != LinkKind::Walk))
             .collect();
-        let held = parallel(&edge, |&a| {
+        // Held at its centre ([`holds`]), else [R2 F3] where a body brought down a little off the centre rests on the floor: a
+        // narrow stand on a rock's edge drops a body come down on its centre but keeps one that lands beside it (the exe's tick,
+        // Mamayev Kurgan (-22.851, 32.311, 122.125): from 0.6 m over the centre it falls 1.95 m; from 0.6 m over a point 0.15 m
+        // off it rests 0.14 m from the centre and 0.10 m over it, as a body from over the sliver beside does). The ring is the
+        // exe check's: [`RING_M`] out, 8 ways; a rest counts for the floor when the floor names it (within the capsule's radius
+        // across and [`NAME_HEIGHT_M`] in height) before any other floor does (a start toward a held neighbour lands on that
+        // neighbour, which keeps nothing here).
+        let held: Vec<(bool, bool)> = parallel(&edge, |&a| {
             let p = self.position(a as NodeId);
-            holds(world, s, p, self.ceiling[a] - self.height[a] - self.body.stand_height, step)
+            let room = self.ceiling[a] - self.height[a] - self.body.stand_height;
+            if holds(world, s, p, room, step) {
+                return (true, false);
+            }
+            let ring = (0..RING_WAYS).any(|k| {
+                let t = k as f32 * std::f32::consts::TAU / RING_WAYS as f32;
+                let start = p + Vec3::new(RING_M * t.cos(), 0.0, RING_M * t.sin());
+                rests_at(world, s, start, room).is_some_and(|rest| {
+                    let named = self
+                        .floors_near(rest, self.body.radius)
+                        .filter(|&f| self.stand_gap(f, rest.y) <= NAME_HEIGHT_M)
+                        .min_by(|&f, &g| self.position(f).distance_xz(rest).total_cmp(&self.position(g).distance_xz(rest)));
+                    named == Some(a as NodeId)
+                })
+            });
+            (ring, ring)
         });
         let mut alive = vec![true; n];
-        for (&a, ok) in edge.iter().zip(&held) {
-            alive[a] = *ok;
+        for (&a, &(ok, _)) in edge.iter().zip(&held) {
+            alive[a] = ok;
         }
-        let mut stats = HeldStats { tested: edge.len(), taken: held.iter().filter(|h| !**h).count(), ..HeldStats::default() };
+        let mut stats = HeldStats {
+            tested: edge.len(),
+            taken: held.iter().filter(|h| !h.0).count(),
+            by_ring: held.iter().filter(|h| h.1).count(),
+            ..HeldStats::default()
+        };
         if stats.taken == 0 {
             return (stats, Vec::new());
         }
