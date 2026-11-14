@@ -345,7 +345,38 @@ pub fn fly_as(
 
 /// [A385] The floor a run-up's walk-up to `speed` takes ([`run_up`]: 6 steps ramping to the speed, k / 6 of it at step k), m.
 pub fn blend_m(speed: f32) -> f32 {
-    (1..=6).map(|k| speed * DT * k as f32 / 6.0).sum()
+    blend_steps_m(speed, 6)
+}
+
+/// [A385] The floor the first `steps` steps of a walk-up to `speed` take (k / 6 of the speed at step k), m.
+pub fn blend_steps_m(speed: f32, steps: u8) -> f32 {
+    (1..=steps).map(|k| speed * DT * f32::from(k) / 6.0).sum()
+}
+
+/// [A385] The most walk-up steps a slow press is pressed after ([`Kind::Slow`]): at 6 the walk-up is at the cap ([`Kind::Walk`]).
+pub const SLOW_STEPS_MAX: u8 = 5;
+
+/// [A385] The slow press's run-up ([`Kind::Slow`]): a body put down `steps` steps' walk-up back from `press_at` (as [`run_up`]
+/// puts it, [`RUN_UP_DROP_M`] over and come to rest) and walked up `steps` steps toward `cap` (k / 6 of it at step k); 0 steps
+/// is a standing jump. None as [`run_up`].
+pub fn run_up_slow(world: &Collision, s: &Settings, press_at: Vec3, heading: (f32, f32), cap: f32, steps: u8) -> Option<RunUp> {
+    use crate::grid::controlled::{body_at, Stance, WalkStart};
+    let way = Vec3::new(heading.0, 0.0, heading.1);
+    let flat = |v: Vec3| Vec3::new(v.x, 0.0, v.z);
+    let start = press_at - way * blend_steps_m(cap, steps);
+    let mut c = body_at(world, WalkStart::Clear, Stance::Standing, Vec3::new(start.x, press_at.y + RUN_UP_DROP_M, start.z));
+    if !settle(&mut c, world, s) {
+        return None;
+    }
+    let mut v = 0.0;
+    for k in 1..=steps {
+        let before = c.origin;
+        walk_step(&mut c, world, s, way * (cap * DT * f32::from(k) / 6.0), false);
+        v = flat(c.origin - before).length() / DT;
+    }
+    let f = c.feet();
+    (flat(f - press_at).length() <= 0.1 && (f.y - press_at.y).abs() <= 0.35 && !c.jumping && c.on_ground(s))
+        .then_some(RunUp { body: c, speed: v })
 }
 
 /// How a run-up ended ([`run_up`]).
@@ -433,6 +464,11 @@ pub fn sprint_variants() -> impl Iterator<Item = (Leg, f32)> {
 pub enum Kind {
     /// The short jump from the walk at the body's walk cap.
     Walk,
+    /// The short jump pressed this many steps into the walk-up ([`run_up_slow`], 0 to [`SLOW_STEPS_MAX`]; 0 a standing jump):
+    /// a client press (the short jump blends by the speed at the press), and the bots' recorded ups were pressed at 0-2.8 m/s
+    /// (owner-5 `a385-lost-links-client-truth.md` §2.2: Chemical Plant R10, 613 slow press points land against 133 at the cap;
+    /// Vector Laboratory R57's top is reached in the exe's tick only by slow presses).
+    Slow(u8),
     /// The sprint jump from the sprint, all its variants ([`sprint_variants`]).
     Sprint,
 }
@@ -544,6 +580,10 @@ pub fn neighbour_flights(
     match kind {
         Kind::Walk => {
             let RunUp { body: mut b, speed } = run_up(world, s, at, heading, flight.cap, false)?;
+            Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, STAY_STEPS, flight)])
+        }
+        Kind::Slow(steps) => {
+            let RunUp { body: mut b, speed } = run_up_slow(world, s, at, heading, flight.cap, steps)?;
             Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, STAY_STEPS, flight)])
         }
         Kind::Sprint => {

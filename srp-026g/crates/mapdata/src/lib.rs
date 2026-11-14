@@ -173,7 +173,7 @@ pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
 pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c01;
 /// The same for the rim jumps flown on the exact tick ([`Body::rim_jumps`], A364 C2 rows 11/12), in [`grid_key_with_links`] only
 /// for a body that asks for it. A value of its own.
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b03;
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b04;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;

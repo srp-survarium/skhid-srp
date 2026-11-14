@@ -1020,6 +1020,9 @@ fn pull_straight(
                     kind if kind.is_off_mesh() => grid.off_link(nodes[i - 1], nodes[i]).and_then(|l| match l.press {
                         mapdata::grid::gap::Takeoff::Press(press) => Some(Leap::Gap(press)),
                         mapdata::grid::gap::Takeoff::Sprint(press) => Some(Leap::SprintGap(press)),
+                        // [A385] A slow press (a standing jump, or pressed a few steps into the walk-up) is pressed at its point
+                        // as a walking one until the motor makes its speed (A386, A385-FORMAT §6).
+                        mapdata::grid::gap::Takeoff::Slow { lead, .. } => Some(Leap::Gap(lead)),
                         mapdata::grid::gap::Takeoff::WalkOff => None,
                     }),
                     _ => None,
