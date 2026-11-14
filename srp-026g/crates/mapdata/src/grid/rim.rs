@@ -542,10 +542,12 @@ impl WalkGrid {
             (di as f32 / l, dk as f32 / l)
         };
         // [C2 rows 11/12] A plain Jump link's own top is no link yet for its flight: the flown link may replace it.
-        let plain = |a: u32, b: u32, d: usize| self.marginal_jump(wide, a as usize, d) && wide.links[a as usize][d] == b;
-        let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
+        let plain: Vec<bool> =
+            todo.iter().map(|&(a, b, d)| self.marginal_jump(wide, a as usize, d) && wide.links[a as usize][d] == b).collect();
+        let jobs: Vec<((u32, u32, usize), bool)> = todo.iter().copied().zip(plain.iter().copied()).collect();
+        let flown = super::controlled::parallel(&jobs, |&((a, b, d), plain)| {
             let mut linked = linked(a);
-            if plain(a, b, d) {
+            if plain {
                 linked.retain(|&n| n != b);
             }
             self.best_press(world, s, a, b, way(d), &leads, |st| self.rim_lands_on(st, a, &linked), kits)
@@ -577,12 +579,12 @@ impl WalkGrid {
         stats.flights += stats.aimed_flights;
         let mut none = Vec::new();
         let mut replaced: Vec<(usize, usize)> = Vec::new();
-        for (&(a, b, d), p) in todo.iter().zip(&flown) {
+        for ((&(a, b, d), p), &plain) in todo.iter().zip(&flown).zip(&plain) {
             stats.flights += p.flights;
             let aimed = aimed_of.get(&(a, b)).copied();
             // [C2 rows 11/12] A plain Jump link a press lands on the top of goes: the flown link (its press and share) is the way
             // up. One no press lands on stays as it was (taught, not cut).
-            if plain(a, b, d) {
+            if plain {
                 stats.jumps_flown += 1;
                 if p.made.iter().chain(aimed.as_ref()).any(|m| m.to == b) {
                     replaced.push((a as usize, d));
