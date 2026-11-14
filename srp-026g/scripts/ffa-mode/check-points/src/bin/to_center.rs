@@ -19,6 +19,12 @@
 //! from every kept solo spawn and each other, the farthest first. A map whose
 //! centre cannot take them all is refused.
 //!
+//! `--below <y>` (run on the projects with the move applied) moves nothing of
+//! the perimeter: the solo spawns standing above that height are the ones that
+//! go, to centre places not above it. London's rotunda, 14.5: its second
+//! storey's floor is at 14.06, its third's at 17.92 (the owner, 2026-11-13:
+//! "london shouldn't have spawns on the third floor").
+//!
 //! The moved spawns keep their ids: the removed ones, by point id, take the
 //! new places in the order chosen. Prints them as checked.tsv rows (`point` is
 //! the moved spawn's point id: center.tsv, made into an edit list by
@@ -297,12 +303,13 @@ struct Args {
     layers: Vec<PathBuf>,
     projects: Vec<(String, Option<[f32; 4]>)>,
     plots: PathBuf,
+    below: Option<f32>,
 }
 
 fn parse() -> Result<Args, String> {
     let mut args = std::env::args().skip(1);
     let (mut layers, mut projects) = (Vec::new(), Vec::new());
-    let mut plots = None;
+    let (mut plots, mut below) = (None, None);
     while let Some(flag) = args.next() {
         let value = args.next().ok_or_else(|| format!("{flag} needs a value"))?;
         match flag.as_str() {
@@ -319,6 +326,7 @@ fn parse() -> Result<Args, String> {
                 }
             }),
             "--plots" => plots = Some(PathBuf::from(value)),
+            "--below" => below = Some(value.parse().map_err(|_| format!("bad height {value}"))?),
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -329,6 +337,7 @@ fn parse() -> Result<Args, String> {
         layers,
         projects,
         plots: plots.ok_or("--plots is required")?,
+        below,
     })
 }
 
@@ -368,10 +377,10 @@ fn run() -> Result<(), String> {
             .iter()
             .map(|&i| area.angle(solo[i].position))
             .collect();
-        let removed: Vec<usize> = every_other(&angles)
-            .into_iter()
-            .map(|k| perimeter[k])
-            .collect();
+        let removed: Vec<usize> = match args.below {
+            Some(top) => (0..solo.len()).filter(|&i| solo[i].position.y > top).collect(),
+            None => every_other(&angles).into_iter().map(|k| perimeter[k]).collect(),
+        };
         let kept: Vec<Vec3> = (0..solo.len())
             .filter(|i| !removed.contains(i))
             .map(|i| solo[i].position)
@@ -381,6 +390,7 @@ fn run() -> Result<(), String> {
         let mut candidates = Vec::new();
         for (&node, &p) in floors.iter().zip(&positions) {
             if area.at(p) <= band
+                || args.below.is_some_and(|top| p.y > top)
                 || !cells.insert((
                     (p.x / 2.0).floor() as i32,
                     (p.y / 2.0).floor() as i32,
