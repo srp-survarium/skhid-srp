@@ -123,6 +123,11 @@ impl Modifiers {
     }
 }
 
+/// The desired speed of `gait`, m/s: [`ground_speed`] of a body whose modifiers sum to 0 (`F` 1).
+pub fn desired(gait: Gait) -> f32 {
+    desired_minimal(gait).0
+}
+
 /// `default.player`'s `movement_speed`: (desired, minimal) m/s by state (PROVEN config).
 fn desired_minimal(gait: Gait) -> (f32, f32) {
     match gait {

@@ -272,7 +272,9 @@ pub struct Body {
     /// #1742); a refusal is the exe's own verdict, the step refused and the body stalled (the long replay: the port gives every
     /// field the game's value in 219,906 of 220,994 recorded steps, ceiling refusals among them; the exactness session,
     /// 2026-11-13). nav-team's stall census of the owner's 14 recordings: bots stalled crouched on such links (Rudnya
-    /// (-41.57 27.50 17.85) -> (-41.82 27.60 17.60), 11 stalls). A build input: in the key when set.
+    /// (-41.57 27.50 17.85) -> (-41.82 27.60 17.60), 11 stalls). [S7] With it the links passed only crouched are recorded
+    /// ([`WalkGait::Crouch`]), so a standing walk that stops short is walked again crouched too: a crouched body climbs some
+    /// edges a standing one stalls at (exactness S7, the exe's tick over captured worlds). A build input: in the key when set.
     pub walk_ceiling_stalls: bool,
     /// [A364 C2 rows 11/12] Whether jumps up a ledge or across a gap to a top higher than the Jump and gap links reach (the
     /// sprint jump's lowest top [`SPRINT_JUMP_LOW_M`] up a ledge, the standing jump across a gap) are made, up to
@@ -4219,6 +4221,11 @@ impl WalkGrid {
     /// [`Body::walk_ceiling_stalls`] How many Walk links only a crouching body walks ([`Self::walk_crouched`]).
     pub fn walk_crouched_count(&self) -> usize {
         self.walk_crouched.len()
+    }
+
+    /// [S7] Of those, the crouched climbs: rising more than a stalled riser the walk check cuts ([`controlled::CUT_RISE_M`]).
+    pub fn crouch_climb_count(&self) -> usize {
+        self.walk_crouched.iter().filter(|&&(a, b)| self.height[b as usize] - self.height[a as usize] > controlled::CUT_RISE_M).count()
     }
 
     /// [`Body::rim_jumps`] The rim jumps the build flew and no press made, as (take-off, landing) feet: the build's report (empty

@@ -363,7 +363,33 @@ pub(super) fn drive_tick(
     }
     decision.keys = bot.hurt.leg_damage.at(time).keys(decision.keys);
     bot.sent_keys = decision.keys;
+    crouch_climb_watch(bot, me, decision.keys, time);
     decision
+}
+
+/// [S7] How far from a crouched climb's take-off a crouched body is taken to be at it, m (flat).
+const CROUCH_CLIMB_AT_M: f32 = 1.0;
+/// [S7] How long after the crouch at its foot a crouched climb is watched for the body up it, ms.
+const CROUCH_CLIMB_WATCH_MS: u32 = 5_000;
+
+/// [S7] The log line of a crouched climb of the route ([`path::Route::crouch_climb_ahead`]; [`super::nav_log::crouch_climb_line`]):
+/// watched from the tick the bot holds the crouch key within [`CROUCH_CLIMB_AT_M`] of its take-off, written when a world shows
+/// the body up it ([`motor::is_up`]) or after [`CROUCH_CLIMB_WATCH_MS`]. Decides nothing.
+pub(super) fn crouch_climb_watch(bot: &mut Bot, me: &PlaceView, keys: u32, time: u32) {
+    if let Some((take_off, top, at)) = bot.crouch_climb {
+        let up = motor::is_up(me.feet, take_off, top);
+        if up || time >= at + CROUCH_CLIMB_WATCH_MS {
+            let line = super::nav_log::crouch_climb_line(up, take_off, top, time.saturating_sub(at), me.feet);
+            bot.nav_log.push(super::nav_log::Kind::CrouchClimb, time, line);
+            bot.crouch_climb = None;
+        }
+        return;
+    }
+    if keys & key::CROUCH == 0 {
+        return;
+    }
+    let ahead = bot.route.as_ref().and_then(|(route, _)| route.crouch_climb_ahead(me.feet, CROUCH_CLIMB_AT_M));
+    bot.crouch_climb = ahead.map(|(take_off, top)| (take_off, top, time));
 }
 
 fn drive_tick_inner(

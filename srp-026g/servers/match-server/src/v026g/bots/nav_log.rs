@@ -340,10 +340,13 @@ pub enum Kind {
     WalkOut,
     /// [A388] The lip guard changed a tick's keys at an edge, with both bodies' word on it (`drive.rs` `guard_keys`).
     Guard,
+    /// [S7] A crouched climb of the route (a Walk link only a crouching body climbs): crouched at its foot, and whether it got
+    /// up (`drive.rs` `crouch_climb_watch`).
+    CrouchClimb,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 10;
+const KINDS: usize = 11;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -402,6 +405,19 @@ impl NavLog {
 pub fn role_line(role: &str, target: impl std::fmt::Debug, play: impl std::fmt::Debug, outcome: &str, score: Option<f32>) -> String {
     let score = score.map_or(String::new(), |s| format!(", score {s:.2}"));
     format!("{PREFIX}job role {role} on {target:?} ({play:?}): {outcome}{score}")
+}
+
+/// [S7] A crouched climb: `nav: crouch climb up|not up: from (..) to (..), rise R m, crouched at its foot T ms before, feet (..)`:
+/// `up` once a world showed the body up it (`motor::is_up`), `not up` when none did within the watch.
+pub fn crouch_climb_line(up: bool, take_off: Vec3, top: Vec3, after_ms: u32, feet: Vec3) -> String {
+    let word = if up { "up" } else { "not up" };
+    format!(
+        "{PREFIX}crouch climb {word}: from {} to {}, rise {:.2} m, crouched at its foot {after_ms} ms before, feet {}",
+        at(take_off),
+        at(top),
+        top.y - take_off.y,
+        at(feet)
+    )
 }
 
 /// [owner-5] A sprint link pressed without sprint: `nav: sprint link pressed unsprinted: from (..) to (..), before B m, gate G`.
