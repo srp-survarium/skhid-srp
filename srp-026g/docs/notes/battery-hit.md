@@ -63,33 +63,51 @@
 
 ## Timing
 
-- Press to strike 0.3 s (the thrust's length, `HIT_TIME`), the blend back about 0.3 s; held,
-  one strike every 0.3 s at most. The gun-stock strike is the `kick` clip's length.
+- Press to strike 0.3 s (the thrust's length, `battery_hit::SWING_S`), then straight to the carry
+  (its idle clip; GUESS: the game blends the two, not traced). Held, the next swing starts at
+  once: one strike every 0.3 s at most. The gun-stock strike lasts the `kick` clip's length.
 - The strike is when the clip ends (the state's readiness, set by the animation player's end
   event, as the take's), on the same tick in every game.
 
 ## Edge cases
 
 - **Dropping or switching mid-swing:** the swing ends first (the state goes on only once its
-  clip ended), then the put; the strike still lands.
-- **Delivering mid-swing:** a container takes the battery as it does from the carry.
-- **Death mid-swing:** the battery is dropped as from the carry; no strike (the clip did not
-  end). A new take starts at the take state.
+  clip ended), then the put; the strike still lands (PROVEN in the check).
+- **Delivering mid-swing:** GUESS: a container takes the battery as from the carry (its use is
+  instant, 0x31CC40; not traced through the swing).
+- **Death mid-swing:** LIKELY the battery is dropped as from the carry (the death path not
+  traced); its finalize then strikes nothing, the clip not ended (PROVEN in the check). A new
+  pickup starts at the take (initialize 0x300BF6).
 - **Crouch, prone, sprint:** the put's clips as they are (its 4 player clips are one).
 - **Late join, resync, replays:** the swing is the machine's fourth state (index 3), saved and
   loaded by the game's own fsm serialize (0x38CC90: the index, then the state's fields, a
-  take's layout); `srp-validate` reads index 3 as `BatteryState::Hit`. Replays recorded before
+  take's layout); `srp-validate` reads index 3 as `BatteryState::Swing`. Replays recorded before
   the release are refused (`simulation_changes.tsv` `next`).
 
 ## The change (exe patch 143, Rust `battery_hit`)
 
 - `battery.logic` (0x2FA7E9, the cook callback after `initialize_logic`): a fourth state, a
-  take state (0x338940) on the put's six clips with `HIT_TIME`, kind 3 (carry, so every native
+  take state (0x338940) on the put's six clips with `SWING_S`, kind 3 (carry, so every native
   "is carrying" test holds through it), its vtable a copy whose finalize strikes; appended to
-  the machine's list; transitions carry -> hit (melee down, not switching), hit -> put (0x301B30),
-  hit -> carry (always, once ready).
-- The strike: `emit_bullet` with the arguments the gun-stock hit gives it (0x33AB50), the time
-  the tick's.
+  the machine's list; transitions carry -> swing (a function-pointer functor, our function: the
+  carrier alive, melee down; after carry -> put), swing -> put and swing -> carry (byte copies of
+  carry -> put's and take -> carry's functors), tried once its clip ended.
+- A battery whose machine is not the three states, or no memory: a crash (`expect`), not a
+  game left without the swing (it would play otherwise than the others).
+- The strike: `emit_bullet` with the arguments the gun-stock hit gives it (0x33AB50), EDI the
+  gun (slot 7, else 10; none: no strike), the time the carrier's.
+
+## Checked
+
+- `check_battery_hit_026g.py` (Unicorn, the patched exe beside the original): initialize_logic
+  and the site make the four states and five transitions as above; fsm::tick from the carry takes
+  the swing only for the melee key and a living carrier, the put first on a switch; in the swing
+  nothing until its clip ended, then the carry (or the put) and one strike with the gun-stock
+  arguments (slot 10's gun when 7 is empty); left early (a drop), no strike. Stubbed: the
+  allocator, a clip's time scale, the animation event channels, the battery's transform calls,
+  emit_bullet itself.
+- `cargo test` and Clippy of the patches crate and srp-validate (state 3 read, 4 refused).
+- Not played: the clip at this speed, a real clip end, the bullet's hit in a match.
 
 ## Release
 
