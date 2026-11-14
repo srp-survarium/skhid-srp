@@ -487,6 +487,7 @@ fn context(state: &[u8], m: Match) -> Context<'static> {
         game_mode: m.game_mode,
         batteries: m.batteries,
         respawn_points: Some(m.respawn),
+        team_2_points: None,
         profiles: None,
         artefacts: None,
         objects: None,

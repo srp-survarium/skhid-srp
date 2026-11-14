@@ -122,7 +122,32 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     to a subset of points. It needs no persistent random state;
   - with no safe point, choose among the five best-separated points from the
     nearest living player or spawn already assigned at this tick, using the
-    same mix. Equal ranks keep map order; smaller maps use all their points.
+    same mix. Equal ranks keep map order; smaller maps use all their points;
+  - neither offers the player's last two points ("Never the last two", below).
+- **Never the last two** (the owner, 2026-11-15: "players never repeat their last 2 spawns"): a
+  player's respawn point is never one of the two points he last spawned at.
+  - When: every spawn of a free-for-all, the first included; the clear pool and the crowded
+    fallback alike: the pool leaves them out, the fallback is the five best-separated less them.
+  - Who: each player by his own last two, a point by its index in the map's team-2 group.
+    Players spawning at the same tick each by his own.
+  - Fallback: only when that leaves no point at all (a map of one or two points) may one of
+    them be taken; there they are offered again as before.
+  - Starts empty: at a player's first spawn of the match. A place entered (a new player in it,
+    or one back after leaving) starts empty too: the respawn rule's on_player_entered_match, at
+    the same tick in every game.
+  - Late joiners: the history is the world's, 40 bytes after the respawn rule's own (each place
+    its latest point and the one before; snapshot_rules.md §2.3), so a late joiner, a resync and
+    a rollback load it with the rest and choose as the others. Nothing the game kept named the
+    point (client_patch.md, "Free for all (patch 142)"). The server and the game's world check
+    read the 40 bytes; a free-for-all world without them is refused.
+  - Replays: the worlds a replay holds (its chunk 3, replay_watch.md) carry it too, so a replay
+    chooses as the match did. Replays recorded before it are refused (simulation_changes.tsv
+    `next`).
+  - Release impact: a simulation and world-format change of patch 142, Free for All only: the
+    exe and the match server (srp-validate) of the same release. Team Deathmatch and every other
+    mode: bytes and choices unchanged. Offline only (tests, the Unicorn check); not played. To try
+    in a game: a Free for All with one or two players, many respawns (the suicide key), never at
+    either of the last two points.
 - **Deterministic:** the same synchronized inputs give clients, late joiners
   and replays the same result. TDM retains the game's selection.
 - **Protection:** 2 s on every team-2 point (`PROTECTION` in `scripts/ffa-mode/make_edits.py`;

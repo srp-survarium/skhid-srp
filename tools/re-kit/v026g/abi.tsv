@@ -2599,3 +2599,8 @@ va	name	source	ret_cleanup	result
 0x00161e50	stlp_std::priv::__linear_insert<vostok::render::grass_patch **>	manual	0	
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	manual	0	
 0x0005c060	vostok::sound::sound_scene::process_fade	manual	0	none; state +2FCh 1 (fading in): volume +2E4h += elapsed / +2ECh, at 1 the state 0; 2 (fading out): -= elapsed / +2F0h, at 0 the scene leaves the active list (0x5A320) and +2F9h is cleared; either way its submix +2E0h gets SetVolume(+2E8h x +2E4h, 0) (vtable +30h; 0x5C0E8, 0x5C1B3); state 0 writes nothing
+0x00316bc0	survarium::player_respawn_rule_base::on_player_entered_match	manual	8	
+0x00316c90	survarium::player_respawn_rule_base::serialize	manual	4	
+0x00316d50	survarium::player_respawn_rule_base::deserialize	manual	8	
+0x00316f10	survarium::player_respawn_rule_core::serialize	manual	4	
+0x00316fc0	survarium::player_respawn_rule_core::deserialize	manual	8	

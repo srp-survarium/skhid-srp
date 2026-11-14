@@ -255,6 +255,7 @@ impl Timed {
             game_mode: map.mode.rules().number(),
             batteries: map.victory_items_count as usize,
             respawn_points: Some(map.respawn_points),
+            team_2_points: None,
             profiles: None,
             artefacts: None,
             objects: None,

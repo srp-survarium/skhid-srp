@@ -22460,6 +22460,30 @@ impl KdEventFrame {
     }
 }
 
+/// A survarium::respawn_entered_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RespawnEnteredFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RespawnEnteredFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u8): player_respawn_rule_base::on_player_entered_match 0x316BC0's place (entry ESP+4, its low byte: movzx eax,byte [esp+4]); entry ESP+8 the enter time, which becomes the place's respawn time (+138h + 4 x place)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn place(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<u8>().as_ptr() }
+    }
+}
+
 /// A survarium::throw_grenade_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -27467,6 +27491,51 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn config(machine: &impl Machine) -> Option<EngineCfg> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EngineCfg)
+        }
+    }
+
+    /// respawn.save (0x316fb8): player_respawn_rule_core::serialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / pop ecx, then ret 4; reached only by the fall-through at 0x316FB6): EBX the writer (its argument, 0x316F12)
+    pub mod respawn_save {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::buffer_writer (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn writer(machine: &impl Machine) -> Option<BufferWriter> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(BufferWriter)
+        }
+    }
+
+    /// respawn.load (0x317038): player_respawn_rule_core::deserialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / ret 8; reached only by the fall-through at 0x317036): ESI the reader (its argument, 0x316FC7)
+    pub mod respawn_load {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::buffer_reader (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BufferReader)
+        }
+    }
+
+    /// respawn.entered (0x316bc0): player_respawn_rule_base::on_player_entered_match's entry (movzx eax,byte [esp+4]; then mov edx,[esp+8] / mov [ecx+eax*4+138h],edx / ret 8; vtable 0xA16084 slot +20h, called by game_world_core::on_player_entered_match 0x2D2021): [esp+4] the place
+    pub mod respawn_entered {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::respawn_entered_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<RespawnEnteredFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(RespawnEnteredFrame)
         }
     }
 }

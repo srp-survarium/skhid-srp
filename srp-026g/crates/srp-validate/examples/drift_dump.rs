@@ -74,6 +74,7 @@ fn context(time: u32, game_mode: u8, batteries: usize, respawn: usize) -> Contex
         game_mode,
         batteries,
         respawn_points: Some(respawn),
+        team_2_points: None,
         profiles: None,
         artefacts: None,
         objects: None,
