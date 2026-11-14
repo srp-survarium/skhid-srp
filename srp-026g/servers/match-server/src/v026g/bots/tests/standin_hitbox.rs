@@ -1355,8 +1355,8 @@ mod game_tests {
             for place in 0..4 {
                 let (a, b) = (&now.bodies[place], &old.bodies[place]);
                 assert_eq!(
-                    (a.alive, a.health, a.pools, a.legs, a.leg_broken_until, a.last_hit),
-                    (b.alive, b.health, b.pools, b.legs, b.leg_broken_until, b.last_hit),
+                    (a.alive, a.health, a.pools, a.legs, a.leg_wounds, a.leg_hit_at, a.last_hit),
+                    (b.alive, b.health, b.pools, b.legs, b.leg_wounds, b.leg_hit_at, b.last_hit),
                     "shot {shot}, body {place}"
                 );
             }

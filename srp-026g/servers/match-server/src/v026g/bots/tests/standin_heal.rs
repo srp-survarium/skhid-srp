@@ -39,8 +39,9 @@
 //!   `increase_health`: the body pool is `Body::health`, the head and the pain are
 //!   `standin_damage::Pools::restore`, the legs are the stand-in's own leg pools, and the hands
 //!   and the infection (which nothing in the stand-in damages) are [`Rest`];
-//! - the legs keep the stand-in's own 8 s mending (`STAND_IN_LEG_BROKEN_MS`); a drug adds to it
-//!   and ends the broken leg's effects (`leg_broken_until`) once both legs are above 0
+//! - a leg's wound lasts 8 s (`STAND_IN_LEG_BROKEN_MS`) and its pool regenerates by the client's rule
+//!   (`standin_damage::regenerate`); a drug adds to the pool
+//!   and ends the broken legs' effects (`leg_wounds`) once both legs are above 0
 //!   (`remove_affects`, 0x33DA50);
 //! - the damage is `standin_damage`'s (the weapon against the armour, on the body, the head and
 //!   the pain; a zone's hit its `hit_per_s`, every one taken as toxic); the hands and the
@@ -581,7 +582,7 @@ pub(crate) fn advance(body: &mut Body, tick: u32) {
     let acted = body.heal.tick(&mut pools, tick, TICK_S);
     // The broken leg's effects end with the drug's first tick.
     if acted && body.legs.iter().all(|&pool| pool > 0.0) {
-        body.leg_broken_until = 0;
+        body.leg_wounds = [None; 2];
     }
 }
 

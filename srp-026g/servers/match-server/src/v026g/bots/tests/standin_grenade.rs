@@ -39,7 +39,7 @@ use survarium::v026g::damage::{self, SplashParams};
 use survarium::v026g::loadouts::BOT_GRENADE;
 
 use super::standin_damage::Pool;
-use super::{Body, Game, Kill, Place, STAND_IN_LEG_BROKEN_MS};
+use super::{Body, Game, Kill, Place};
 
 /// The RGD-5's `stopping_power` (the grenade block's, PROVEN, sprint-jump RE `FINDINGS.md` §1.1: 0.1).
 const GRENADE_STOPPING_POWER: f32 = 0.1;
@@ -194,11 +194,9 @@ pub(crate) fn explode(game: &mut Game, thrower: Place, at: Vec3, tick: u32) -> V
                 }
                 "head" => body.pools.hurt(Pool::Head, lost, tick),
                 "right_leg" | "left_leg" => {
+                    // [legs] The one leg rule (its wound, its last hit, the F12 hold).
                     let leg = usize::from(pool == "left_leg");
-                    body.legs[leg] = (body.legs[leg] - lost).max(0.0);
-                    if body.legs[leg] <= 0.0 && body.leg_broken_until == 0 {
-                        body.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
-                    }
+                    super::standin_damage::wound_leg(body, leg, lost, "a blast", tick);
                 }
                 _ => {}
             }
@@ -318,7 +316,7 @@ mod tests {
         let hurt = blast(&mut game, 0, 10.0, 10.0);
         assert!(hurt.iter().any(|h| h.place == 1));
         assert_eq!(game.bodies[1].legs, [0.0, 0.0]);
-        assert!(game.bodies[1].leg_broken_until > 0);
+        assert!(game.bodies[1].leg_wounds.iter().any(Option::is_some));
     }
 
     /// A blast's pain can kill a body whose body pool survives it: the pain pool's death is the

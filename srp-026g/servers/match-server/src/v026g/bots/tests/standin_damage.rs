@@ -327,6 +327,11 @@ pub(crate) fn regenerate(model: &Model, bodies: &mut [Body], now: u32) {
         pools.body_seen = body.health;
         pools.head = regenerated(pool_part("head"), pools.head, pools.hit_at[1], now, dt_s, sooner, scale);
         pools.pain = regenerated(pool_part("pain"), pools.pain, pools.hit_at[2], now, dt_s, sooner, scale);
+        // [legs] The legs too, by their own parts (`right_leg`, `left_leg`: 0.03 / s up to 20 % of 0.5 after the delay from the
+        // leg's last hit, `damage_model.md`); they did not regenerate before.
+        for (leg, part) in ["right_leg", "left_leg"].into_iter().enumerate() {
+            body.legs[leg] = regenerated(pool_part(part), body.legs[leg], body.leg_hit_at[leg], now, dt_s, sooner, scale);
+        }
     }
 }
 
@@ -509,12 +514,20 @@ fn take(target: &mut Body, taken: Taken, hit_box: &str, now: u32) {
 /// leg's regeneration delay past its last damaging hit (the client's tick, 0x32A551).
 pub(crate) fn wound_leg(target: &mut Body, leg: usize, amount: f32, hit_box: &str, now: u32) {
     target.legs[leg] = (target.legs[leg] - amount).max(0.0);
-    let broke = target.legs[leg] <= 0.0 && target.leg_broken_until == 0;
+    // [legs] A hit that takes health writes the leg's last hit (0x32A29E): its regeneration waits its delay from here.
+    if amount > 0.0 {
+        target.leg_hit_at[leg] = Some(now);
+    }
+    // [legs] The wound is this leg's own (`Body::leg_wounds`).
+    let wound = &mut target.leg_wounds[leg];
+    let broke = target.legs[leg] <= 0.0 && wound.is_none();
     if broke {
-        target.leg_broken_until = now + STAND_IN_LEG_BROKEN_MS;
-    } else if target.leg_broken_until > now {
+        *wound = Some(now + STAND_IN_LEG_BROKEN_MS);
+    } else if let Some(end) = wound.as_mut()
+        && *end > now
+    {
         let delay = crate::v026g::bots::legs::regeneration_delay_ms(target.heal.factors.regeneration_sooner_ms);
-        target.leg_broken_until = target.leg_broken_until.max(now + delay);
+        *end = (*end).max(now + delay);
     }
     log::debug!(
         "stand-in leg wound at {now} ms: {} leg -{amount:.3} on {hit_box}, {:.3} of 0.5 left{}",
