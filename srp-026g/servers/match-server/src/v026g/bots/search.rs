@@ -495,8 +495,8 @@ pub(super) struct Pending {
     /// [`hazards::Hazards::version`] when it started.
     pub(super) hazards: u64,
     pub(super) planning: path::Planning,
-    /// The bot's health when it started, for a crossing's search.
-    pub(super) health: f32,
+    /// The bot's body when it started, for a crossing's search (its health and spend, `crossing::CrossBody`).
+    pub(super) body: crossing::CrossBody,
     /// A crossing's search, after the plain one (`crossing.rs`).
     pub(super) second: Option<crossing::Second>,
 }
@@ -545,7 +545,7 @@ impl Bots {
         let (time, side, objective) = (pending.time, pending.side, pending.objective);
         let filter = pending.filter.clone();
         let start = pending.ends.0;
-        let health = pending.health;
+        let body = pending.body;
         #[cfg(test)]
         let _tag = path::tag::Scope::new(
             self.bots
@@ -561,7 +561,7 @@ impl Bots {
                 time,
                 side,
                 objective,
-                health,
+                body,
                 &filter,
                 floors,
             )
@@ -596,7 +596,7 @@ impl Bots {
                 from,
                 second.plain,
                 route,
-                health,
+                body,
                 time,
                 side,
                 objective,
@@ -619,7 +619,7 @@ impl Bots {
             // search (`crossing.rs`).
             let mut from_zone = false;
             if !(route.is_some() && long_kept)
-                && (crossing::wanted(tactics, route.as_ref(), from, to, side, objective, health) || {
+                && (crossing::wanted(tactics, route.as_ref(), from, to, side, objective, body) || {
                     from_zone = from_zone_on && crossing::wanted_from_zone(tactics, route.as_ref(), from, to);
                     from_zone
                 })
@@ -628,7 +628,7 @@ impl Bots {
                     super::plays::collect::take_counts::count(super::plays::collect::take_counts::Count::ZoneSearchAsked);
                 }
                 match crossing::start(
-                    tactics, from, to, time, side, objective, health, &filter, floors,
+                    tactics, from, to, time, side, objective, body, &filter, floors,
                 ) {
                     Ok(crossing_route) => {
                         if from_zone && crossing_route.is_some() {
@@ -639,7 +639,7 @@ impl Bots {
                             from,
                             route,
                             crossing_route,
-                            health,
+                            body,
                             time,
                             side,
                             objective,
@@ -649,7 +649,7 @@ impl Bots {
                         pending.planning = planning;
                         pending.second = Some(crossing::Second {
                             plain: route,
-                            health,
+                            body,
                         });
                         grant.leave_under_way(pending);
                         return;

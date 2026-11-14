@@ -21,6 +21,10 @@ pub(super) struct Zones {
     /// band (`Hazards::in_band`).
     carrying: Vec<bool>,
     takes: (u32, u32),
+    /// [zone price] Each body's last world alive on a floor a zone on hurts (`Hazards::hits_at`), and the deaths that
+    /// came right after one (the next world shows it dead): the bots' zone deaths.
+    hurt_last: Vec<bool>,
+    zone_deaths: u32,
 }
 
 impl Zones {
@@ -34,6 +38,8 @@ impl Zones {
             hurt_on: 0,
             carrying: vec![false; bodies],
             takes: (0, 0),
+            hurt_last: vec![false; bodies],
+            zone_deaths: 0,
         }
     }
 }
@@ -57,7 +63,14 @@ impl RouteTopic for Zones {
                 .and_then(|node| hazards.zone_of(node))
                 .is_some_and(|zone| zone.activity.active(time));
             self.zone_on += u32::from(on);
-            self.hurt_on += u32::from(node.is_some_and(|node| hazards.hits_at(node, time)));
+            let hurt = node.is_some_and(|node| hazards.hits_at(node, time));
+            self.hurt_on += u32::from(hurt);
+            if !body.alive && std::mem::take(&mut self.hurt_last[place]) {
+                self.zone_deaths += 1;
+            }
+            if body.alive {
+                self.hurt_last[place] = hurt;
+            }
             let carries = body.alive && body.carrying.is_some();
             if carries && !std::mem::replace(&mut self.carrying[place], carries) {
                 self.takes.0 += 1;
@@ -107,5 +120,6 @@ impl RouteTopic for Zones {
             off.iter().sum::<f32>()
         ));
         line.main.push(format!("zone_hurt_s {} takes {} band_takes {}", self.hurt_on, self.takes.0, self.takes.1));
+        line.main.push(format!("zone_deaths {}", self.zone_deaths));
     }
 }

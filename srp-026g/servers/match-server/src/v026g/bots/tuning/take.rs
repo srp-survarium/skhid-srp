@@ -133,40 +133,123 @@ impl Default for ZoneLook {
 /// (traces `fx-zones-a296-zone-batteries-human-baseline.md`, PROVEN). With this:
 /// - the bot sprints in (`Pace::Run`), and the way in of a crossing is priced at `in_mps` instead of the walk's `CROSS_MPS` (the
 ///   way out, carrying, keeps the walk's price);
-/// - a team behind by `behind.by` points or more bears a bigger share of the bot's health (`behind.share`, leaving `behind.left`):
-///   a battery is worth more in a comeback; never below `CROSS_ABORT_LEFT`, where a take inside gives up;
+/// - how much of its pools a bot may spend on the walk, and what it must keep, is the battery's class's ([`ZoneSpend`]: the
+///   live humans' spend in that class), and a take inside gives up once the way out would leave under `spend.give_up_left`;
 /// - with `zone_look` on, a zone spot is looked at only if a battery there could be taken by this rule (no look at a fire that
 ///   kills: the 6a bench's cost, search time spent on batteries no bot then took).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ZoneTake {
     pub in_mps: f32,
-    pub behind: Option<ZoneTakeBehind>,
+    pub spend: ZoneSpend,
 }
 
 impl Default for ZoneTake {
     fn default() -> Self {
         // 4.5 m/s: the client's sprint is about 5 m/s (`path::SPRINT_FLIGHT_MPS` 5.1), less its start and the line's side steps. GUESS.
-        Self { in_mps: 4.5, behind: Some(ZoneTakeBehind::default()) }
+        Self { in_mps: 4.5, spend: ZoneSpend::default() }
     }
 }
 
-/// What a team behind bears for a zone battery ([`ZoneTake::behind`]).
+/// [zone price] How much of each pool a walk through zones may cost (`share`), and what it must leave (`left`).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct ZoneTakeBehind {
-    /// Behind by this many points or more (`MatchSignals::score_gap`).
-    pub by: f32,
-    /// At most this share of each pool it takes from...
+#[serde(deny_unknown_fields)]
+pub struct Spend {
     pub share: f32,
-    /// ...leaving at least this.
     pub left: f32,
 }
 
-impl Default for ZoneTakeBehind {
+/// [zone price] What a zone walk is for ([`ZoneSpend::spend`]): a take of a battery from the floor, or a carrier's way in.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ZoneErrand {
+    /// A take, with this many batteries outside the bases (not in a container).
+    Take { outside: usize },
+    /// A carrier's way in, `time_left_s` before the end, the carrier's team `score_gap` points ahead (behind: negative).
+    Carry { time_left_s: f32, score_gap: f32 },
+}
+
+/// [zone price] The share of its pools a bot may spend on a zone walk, by how much the battery matters. BOT CHOICE values,
+/// each the 75th percentile of what live humans spent in that class and the 25th of what they kept
+/// (the zone price design, 4.2-4.3: 203 human-only Batteries matches of the players' server, 2026-10-21..23; 612
+/// takes, 81 paid; 3,430 put-ins, 349 paid). When several rows apply, the most
+/// generous wins (the largest share; the smaller left on a tie). Being behind is no row: players spend the same behind as
+/// ahead (0.32 against 0.35 of the pool, p 0.78).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ZoneSpend {
+    /// A take in the opening, `after_opening_outside` + 1 or more batteries outside: 50 paid takes, p75 0.41, left p25 0.53.
+    pub opening: Spend,
+    /// A take with `after_opening_outside` or fewer outside: 31 paid takes, p75 0.59, left p25 0.39.
+    pub after_opening: Spend,
+    /// A take with `last_outside` or fewer outside: 10 paid takes, p75 0.75, left p25 0.25.
+    pub last_batteries: Spend,
+    /// A carrier on the way in: 344 paid carries (all but the deciding ones), p75 0.51, left p25 0.46.
+    pub carrier: Spend,
+    /// Any carrier in the last `late_s`: 28 paid carries, p75 0.55, left p25 0.33.
+    pub late_carrier: Spend,
+    /// The deciding carry, in the last `late_s` with the score within `close_points`: 5 paid carries (p 0.002 against
+    /// the earlier ones), p75 0.76, left p25 0.24.
+    pub deciding_carry: Spend,
+    /// A walk inside gives up once its way out would leave under this: the humans' 10th percentile of what is left (all
+    /// paid takes 0.16, later takes 0.15).
+    pub give_up_left: f32,
+    /// The opening ends with this many batteries outside (the human data's step: 7 or more against 6 or fewer).
+    pub after_opening_outside: u8,
+    /// The last batteries: this many or fewer outside.
+    pub last_outside: u8,
+    /// The end of the match, seconds left: the last 3 minutes.
+    pub late_s: f32,
+    /// The score within this many points.
+    pub close_points: f32,
+}
+
+impl Default for ZoneSpend {
     fn default() -> Self {
-        // One battery behind; 0.7 and 0.3 against the usual 0.5 and 0.4 (`CROSS_SHARE`, `CROSS_LEFT`). GUESS.
-        Self { by: 1.0, share: 0.7, left: 0.3 }
+        Self {
+            opening: Spend { share: 0.40, left: 0.50 },
+            after_opening: Spend { share: 0.60, left: 0.40 },
+            last_batteries: Spend { share: 0.75, left: 0.25 },
+            carrier: Spend { share: 0.50, left: 0.45 },
+            late_carrier: Spend { share: 0.55, left: 0.33 },
+            deciding_carry: Spend { share: 0.75, left: 0.25 },
+            give_up_left: 0.15,
+            after_opening_outside: 6,
+            last_outside: 3,
+            late_s: 180.0,
+            close_points: 1.0,
+        }
+    }
+}
+
+impl ZoneSpend {
+    /// The spend of `errand`: the most generous of the rows that apply.
+    pub fn spend(&self, errand: ZoneErrand) -> Spend {
+        let rows: [(bool, Spend); 3] = match errand {
+            ZoneErrand::Take { outside } => [
+                (outside > usize::from(self.after_opening_outside), self.opening),
+                (outside <= usize::from(self.after_opening_outside), self.after_opening),
+                (outside <= usize::from(self.last_outside), self.last_batteries),
+            ],
+            ZoneErrand::Carry { time_left_s, score_gap } => {
+                let late = time_left_s <= self.late_s;
+                [(true, self.carrier), (late, self.late_carrier), (late && score_gap.abs() <= self.close_points, self.deciding_carry)]
+            }
+        };
+        rows.into_iter()
+            .filter_map(|(applies, row)| applies.then_some(row))
+            .reduce(|a, b| if b.share > a.share || (b.share == a.share && b.left < a.left) { b } else { a })
+            .expect("a row always applies")
+    }
+
+    fn check(&self) -> Result<(), String> {
+        let rows = [self.opening, self.after_opening, self.last_batteries, self.carrier, self.late_carrier, self.deciding_carry];
+        if rows.iter().any(|r| !(r.share > 0.0 && r.share <= 1.0 && r.left >= self.give_up_left && r.left < 1.0)) {
+            return Err("take.zone_take.spend: a row's share in (0, 1], its left in [give_up_left, 1)".into());
+        }
+        if !(self.give_up_left > 0.0 && self.give_up_left < 1.0) || self.last_outside > self.after_opening_outside || self.late_s.is_nan() || self.late_s < 0.0 {
+            return Err("take.zone_take.spend".into());
+        }
+        Ok(())
     }
 }
 
@@ -221,12 +304,41 @@ impl TakeTuning {
             if !(zone.in_mps > 0.0 && zone.in_mps <= 6.0) {
                 return Err("take.zone_take.in_mps".into());
             }
-            if let Some(behind) = zone.behind
-                && !(behind.by > 0.0 && behind.share > 0.0 && behind.share <= 1.0 && behind.left >= 0.25 && behind.left < 1.0)
-            {
-                return Err("take.zone_take.behind".into());
-            }
+            zone.spend.check()?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// [zone price] Each class gets its row, and where several apply the most generous wins: the opening's take 0.40 / 0.50,
+    /// after it 0.60 / 0.40, the last 3 batteries 0.75 / 0.25 (it is also after the opening); a carrier 0.50 / 0.45, in the
+    /// last 180 s 0.55 / 0.33, the deciding carry 0.75 / 0.25 whatever the side of the 1-point score. Being behind is no
+    /// row; the defaults pass the check, a row under the give-up does not.
+    #[test]
+    fn a_zone_walk_spends_the_most_generous_row_of_its_class() {
+        let spend = ZoneSpend::default();
+        let row = |share, left| Spend { share, left };
+        assert_eq!(spend.spend(ZoneErrand::Take { outside: 10 }), row(0.40, 0.50));
+        assert_eq!(spend.spend(ZoneErrand::Take { outside: 7 }), row(0.40, 0.50));
+        assert_eq!(spend.spend(ZoneErrand::Take { outside: 6 }), row(0.60, 0.40));
+        assert_eq!(spend.spend(ZoneErrand::Take { outside: 4 }), row(0.60, 0.40));
+        assert_eq!(spend.spend(ZoneErrand::Take { outside: 3 }), row(0.75, 0.25));
+        assert_eq!(spend.spend(ZoneErrand::Take { outside: 0 }), row(0.75, 0.25));
+        assert_eq!(spend.spend(ZoneErrand::Carry { time_left_s: 600.0, score_gap: -3.0 }), row(0.50, 0.45));
+        assert_eq!(spend.spend(ZoneErrand::Carry { time_left_s: 180.0, score_gap: 4.0 }), row(0.55, 0.33));
+        for gap in [-1.0, 0.0, 1.0] {
+            assert_eq!(spend.spend(ZoneErrand::Carry { time_left_s: 30.0, score_gap: gap }), row(0.75, 0.25), "{gap}");
+        }
+        assert_eq!(spend.spend(ZoneErrand::Carry { time_left_s: 30.0, score_gap: -2.0 }), row(0.55, 0.33));
+        assert!(spend.check().is_ok());
+        let low = ZoneSpend { carrier: row(0.5, 0.1), ..spend };
+        assert!(low.check().is_err());
+        // A row tuned more generous than a narrower one still wins where it applies: the most generous, not the narrowest.
+        let wide = ZoneSpend { after_opening: row(0.9, 0.2), ..spend };
+        assert_eq!(wide.spend(ZoneErrand::Take { outside: 2 }), row(0.9, 0.2));
     }
 }
