@@ -2153,8 +2153,8 @@ package survarium.controls
       private static const SELL_DUPLICATES_PADDING:int = 40;
 
       // Pixels above the square's middle, set by look in the game (the owner,
-      // 2026-11-14, in the game: "a pixel up").
-      private static const SELL_DUPLICATES_RAISE:int = 1;
+      // 2026-11-14, in the game: "a pixel up", "one more up").
+      private static const SELL_DUPLICATES_RAISE:int = 2;
 
       private function updateSellDuplicates() : void
       {
