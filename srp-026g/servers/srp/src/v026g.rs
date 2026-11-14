@@ -141,7 +141,7 @@ impl MatchHost for RegistryHost {
     fn create(&self, setup: lobby::MatchSetup) -> Result<lobby::MatchTicket, String> {
         let pool = setup.pool;
         let setup = matches::MatchSetup {
-            map: setup.map,
+            played: setup.played,
             match_level: setup.match_level,
             players: setup
                 .players
@@ -232,6 +232,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
         match_id: result.match_id,
         map_id: result.map_id,
         mode: result.mode,
+        twist: result.twist,
         match_level: result.match_level,
         end: match result.end {
             matches::MatchEnd::ModeRule => rewards::MatchEnd::ModeRule,

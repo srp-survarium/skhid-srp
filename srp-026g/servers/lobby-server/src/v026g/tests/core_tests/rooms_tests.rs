@@ -189,11 +189,15 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     rows(&mut world, alice, ROOM_VOTE_BASE + 1, 1);
     let voted = rows(&mut world, bob, ROOM_VOTE_BASE + 1, 1);
     assert!(
-        voted.contains(&format!("C;2;{};0;0", voted_cards[2])),
+        voted
+            .iter()
+            .any(|row| row.starts_with(&format!("C;2;{};0;0;", voted_cards[2]))),
         "{voted:?}"
     );
     assert!(
-        voted.contains(&format!("C;1;{};2;1", voted_cards[1])),
+        voted
+            .iter()
+            .any(|row| row.starts_with(&format!("C;1;{};2;1;", voted_cards[1]))),
         "{voted:?}"
     );
     // The list shows the card that leads alone.
@@ -213,7 +217,8 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(map_of(&list), "0");
     let late = rows(&mut world, bob, ROOM_VOTE_BASE + 2, 1);
     assert!(
-        late.contains(&format!("C;2;{};2;1", voted_cards[2])),
+        late.iter()
+            .any(|row| row.starts_with(&format!("C;2;{};2;1;", voted_cards[2]))),
         "{late:?}"
     );
     world.take(alice);
@@ -226,7 +231,7 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     let setup = world.host.made.locked().last().unwrap().1.clone();
     // The third card won.
     assert_eq!(
-        setup.map.map().id,
+        setup.played.map().id,
         voted_cards[2],
         "the vote's winner when it started"
     );
@@ -249,7 +254,8 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     world.advance(Duration::from_secs(2));
     let after = state(&mut world, alice);
     assert_eq!(header(&after)[PHASE], "3", "the next vote: {after:?}");
-    assert_eq!(after.last().unwrap(), &format!("L;{}", voted_cards[2]));
+    // Its map and the mode it played.
+    assert!(after.last().unwrap().starts_with(&format!("L;{};", voted_cards[2])), "{after:?}");
     assert_eq!(cards(&after).len(), 3);
 }
 
@@ -1190,7 +1196,7 @@ fn a_rooms_match_has_its_players_mean_level_and_counts_its_map() {
     };
     assert_eq!(*id, ticket);
     assert_eq!(setup.match_level, 3);
-    let map = setup.map.map().level;
+    let map = setup.played.map().level;
     for player in [alice, bob] {
         let account = world.account(player);
         assert_eq!(account.map_plays, [(map, 1)]);
@@ -1452,7 +1458,7 @@ fn one_who_leaves_the_match_by_its_own_word_is_out_of_the_room_and_may_come_agai
             .in_match
             .contains(&bob_account)
     );
-    let map = setup.map.map().level;
+    let map = setup.played.map().level;
     assert_eq!(world.account(bob).map_plays, [(map, 1)]);
 
     // The match ends: Bob's latest place is his result, once.
@@ -2411,7 +2417,7 @@ fn a_private_room_with_bots_fills_its_teams_with_them() {
 
     let (ticket, _) = sent_to_match(&press_start(&mut world, alice)).expect("a match");
     let setup = world.host.made.locked().last().unwrap().1.clone();
-    assert!(bot_maps.contains(&setup.map.map().id));
+    assert!(bot_maps.contains(&setup.played.map().id));
     let size = usize::from(rules().pvb.default_size);
     for side in [0, 1] {
         let on = |driven: bool| {
@@ -2830,8 +2836,8 @@ fn blackout_is_a_mode_of_the_standard_pool() {
         .iter()
         .find(|(id, _)| *id == ticket)
         .expect("the room's match");
-    assert_eq!(setup.map.map().id, twin, "the Blackout map");
-    assert_eq!(setup.map.mode(), maps::GameMode::Blackout);
+    assert_eq!(setup.played.map().id, twin, "the Blackout map");
+    assert_eq!(setup.played.mode(), maps::GameMode::Blackout);
 }
 
 /// The owner's of 2026-11-05 ("i wish matches were always 8vs8"): a room

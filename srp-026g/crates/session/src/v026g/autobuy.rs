@@ -55,6 +55,7 @@ use survarium::v026g::item_params::{item_params, shop_unit};
 use survarium::v026g::lobby::{SpentMoney, limits};
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::prices;
+use survarium::v026g::twist::Twist;
 
 use super::account::Account;
 
@@ -140,13 +141,16 @@ fn used_by_counters(account: &Account, shots: &[u32], buckshot: Option<u16>) -> 
 /// id, units)`. `supplies` is the player's block of the last trusted
 /// snapshot, `shots[kit]` the bullets its counters say each kit fired,
 /// `respawns` how often it began a new life: its deaths and its kit
-/// changes before play began. Call it before the match's pay or drop
-/// changes a stack. See the module.
+/// changes before play began, `twist` the twist the match armed its kits
+/// with: then they were not the account's, and without a block the
+/// counters prove nothing of its stacks. Call it before the match's pay or
+/// drop changes a stack. See the module.
 pub fn used(
     account: &Account,
     supplies: Option<&Supplies>,
     shots: &[u32],
     respawns: u32,
+    twist: Option<Twist>,
 ) -> Vec<(u16, u32)> {
     let dictionary = Dictionary::shared();
     let buckshot = dictionary.item_named(BUCKSHOT).map(|item| item.dict_id);
@@ -170,6 +174,7 @@ pub fn used(
                 })
                 .collect()
         }
+        None if twist.is_some() => Vec::new(),
         None => used_by_counters(account, shots, buckshot),
     };
     // Never more than the account owns.
@@ -310,27 +315,27 @@ mod tests {
         let (mut account, _, ammo) = rifleman(300);
         let rounds = dict("ammo_5.45x39_7n6m");
         // 45 bullets with kit 1, whose one ammo is the 5.45.
-        assert_eq!(used(&account, None, &[45, 0, 0], 0), [(rounds, 45)]);
+        assert_eq!(used(&account, None, &[45, 0, 0], 0, None), [(rounds, 45)]);
         // Both kits fired: each its own ammo.
         assert_eq!(
-            used(&account, None, &[45, 7, 0], 0),
+            used(&account, None, &[45, 7, 0], 0, None),
             [(rounds, 45), (dict("ammo_7.62x25"), 7)]
         );
         // Never more than the stack.
-        assert_eq!(used(&account, None, &[1_000, 0, 0], 0), [(rounds, 300)]);
+        assert_eq!(used(&account, None, &[1_000, 0, 0], 0, None), [(rounds, 300)]);
         // A second kind of ammo in the kit: which was fired is not known.
         let other = account.add_item(dict("ammo_5.45x39_7n10"), 60);
         account.kits[0].slots[9] = Some(KitSlot {
             item_id: other,
             count: 60,
         });
-        assert_eq!(used(&account, None, &[45, 0, 0], 0), []);
+        assert_eq!(used(&account, None, &[45, 0, 0], 0, None), []);
         // The same kind in both slots is one kind.
         account.kits[0].slots[9] = Some(KitSlot {
             item_id: ammo,
             count: 30,
         });
-        assert_eq!(used(&account, None, &[45, 0, 0], 0), [(rounds, 45)]);
+        assert_eq!(used(&account, None, &[45, 0, 0], 0, None), [(rounds, 45)]);
         // Buckshot: a round is ten bullets, and the counter's unit is not
         // known.
         let shells = account.add_item(dict(BUCKSHOT), 100);
@@ -339,9 +344,9 @@ mod tests {
             count: 30,
         });
         account.kits[0].slots[9] = None;
-        assert_eq!(used(&account, None, &[45, 0, 0], 0), []);
+        assert_eq!(used(&account, None, &[45, 0, 0], 0, None), []);
         // A kit that fired nothing uses nothing.
-        assert_eq!(used(&account, None, &[0, 0, 0], 0), []);
+        assert_eq!(used(&account, None, &[0, 0, 0], 0, None), []);
     }
 
     #[test]
@@ -357,35 +362,35 @@ mod tests {
         // 240 rounds and 4 medkits left of 300 and 5; 60 bullets counted.
         let supplies = block(&[(rounds, 240), (medkit, 4)]);
         assert_eq!(
-            used(&account, Some(&supplies), &[60, 0, 0], 0),
+            used(&account, Some(&supplies), &[60, 0, 0], 0, None),
             [(rounds, 60), (medkit, 1)]
         );
         // The block says more ammo is gone than bullets were counted: the
         // bullets hold.
         assert_eq!(
-            used(&account, Some(&supplies), &[45, 0, 0], 0),
+            used(&account, Some(&supplies), &[45, 0, 0], 0, None),
             [(rounds, 45), (medkit, 1)]
         );
         // It says everything is gone: no more than its lives could take
         // (120 rounds and 2 medkits a life; one death is two lives).
         let empty = block(&[(rounds, 0), (medkit, 0)]);
         assert_eq!(
-            used(&account, Some(&empty), &[1_000, 0, 0], 0),
+            used(&account, Some(&empty), &[1_000, 0, 0], 0, None),
             [(rounds, 120), (medkit, 2)]
         );
         assert_eq!(
-            used(&account, Some(&empty), &[1_000, 0, 0], 1),
+            used(&account, Some(&empty), &[1_000, 0, 0], 1, None),
             [(rounds, 240), (medkit, 4)]
         );
         // More left than owned (a stack bought since): nothing used.
         let more = block(&[(rounds, 500), (medkit, 9)]);
-        assert_eq!(used(&account, Some(&more), &[60, 0, 0], 0), []);
+        assert_eq!(used(&account, Some(&more), &[60, 0, 0], 0, None), []);
         // A player alive whose slots were not found says nothing: the
         // counters alone.
         let mut unread = block(&[(rounds, 0), (medkit, 0)]);
         unread.alive = true;
         assert_eq!(
-            used(&account, Some(&unread), &[60, 0, 0], 0),
+            used(&account, Some(&unread), &[60, 0, 0], 0, None),
             [(rounds, 60)]
         );
         // Alive and read: what is in store and in hand.
@@ -395,7 +400,7 @@ mod tests {
         alive.items[0].in_hand = Some(100);
         alive.items[1].in_hand = Some(1);
         assert_eq!(
-            used(&account, Some(&alive), &[60, 0, 0], 0),
+            used(&account, Some(&alive), &[60, 0, 0], 0, None),
             [(rounds, 50), (medkit, 1)]
         );
     }
@@ -416,9 +421,11 @@ mod tests {
         supplies.inventory_read = true;
         supplies.items[0].in_hand = Some(120);
         supplies.items[0].slot = Some(8);
-        assert_eq!(used(&account, Some(&supplies), &[300, 0, 0], 0), []);
+        assert_eq!(used(&account, Some(&supplies), &[300, 0, 0], 0, None), []);
         // Without the block the fallback, the kit's counter, charges the 300.
-        assert_eq!(used(&account, None, &[300, 0, 0], 0), [(rounds, 300)]);
+        assert_eq!(used(&account, None, &[300, 0, 0], 0, None), [(rounds, 300)]);
+        // Not in a twisted match: its kits were not the account's.
+        assert_eq!(used(&account, None, &[300, 0, 0], 0, Some(Twist::Racket)), []);
     }
 
     #[test]

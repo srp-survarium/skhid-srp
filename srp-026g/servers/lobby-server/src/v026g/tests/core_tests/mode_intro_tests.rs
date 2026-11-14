@@ -49,7 +49,7 @@ fn mode_introduction_is_private_and_counts_distinct_matches() {
             .values_mut()
             .find(|running| running.ticket.match_id == id)
             .unwrap();
-        running.map = maps::MatchMap::of(61).unwrap();
+        running.map = survarium::v026g::twist::Played::plain(maps::MatchMap::of(61).unwrap());
         assert!(ask_intro(&mut world, alice, "#mode-intro:blackout:abc").is_empty());
         world
             .core
@@ -57,7 +57,7 @@ fn mode_introduction_is_private_and_counts_distinct_matches() {
             .values_mut()
             .find(|running| running.ticket.match_id == id)
             .unwrap()
-            .map = maps::MatchMap::of(blackout_map()).unwrap();
+            .map = survarium::v026g::twist::Played::plain(maps::MatchMap::of(blackout_map()).unwrap());
         assert!(ask_intro(&mut world, alice, "#mode-intro:scarcity:abc").is_empty());
         assert!(ask_intro(&mut world, alice, "#mode-intro:blackout:bad-token").is_empty());
         assert!(ask_intro(&mut world, carol, "#mode-intro:blackout:abc").is_empty());
