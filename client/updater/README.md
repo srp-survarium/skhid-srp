@@ -388,6 +388,13 @@ within the upload limit. Trackers: HTTP (compact answers) and UDP (BEP 15),
 IPv4, 200 peers an answer at most, asked again after 60 s to an hour as they
 say.
 
+**The bootstrap** (`Skhid-get.bat`'s torrent of the updater and 7zr.exe at
+one version, the spec's "Bootstrap"): `skhid-bootstrap.torrent` beside the
+updater, a file of the ZIP, taken as the ZIP installed it (its SHA-256 in
+`updater_skhid.state`). While the file in its place is the bootstrap's (every
+piece checked), each is copied into `updater_skhid.bootstrap\`, and shared
+from there while the updater shares, after it has replaced itself too.
+
 **The rendezvous** (`logic/src/rendezvous.rs`; the spec's "The rendezvous"):
 while it shares, the updater is also a peer of one fixed swarm whose info
 hash is made of the release's public key, and gives its signed torrent (one

@@ -521,6 +521,24 @@ class TorrentTest(wine.WineTest):
             peer.settimeout(30)
             self.assertIsNone(meet(peer, 60, torrent))
 
+    def test_the_bootstrap_is_shared_from_copies_kept_of_its_files(self):
+        # The bootstrap torrent: this updater and a 7zr.exe, unsigned, in the
+        # ZIP beside the updater (no revision torrent: it is shared alone).
+        seven = b"7z stand-in " * 5000
+        bootstrap_files = {f"{X86}/7zr.exe": seven, f"{X86}/updater_skhid.exe": self.updater_bytes}
+        bootstrap = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), bootstrap_files, self.tracker.urls,
+                                 signed=False)
+        self.offer(self.bundle(**{f"{X86}/7zr.exe": seven, f"{X86}/skhid-bootstrap.torrent": bootstrap}))
+        self.launch()
+        self.wait_latest()
+        wait(lambda: "torrent: sharing the bootstrap's 2 of 2 files" in self.log(), 60, "sharing the bootstrap")
+        kept = os.path.join(self.x86, "updater_skhid.bootstrap")
+        self.assertEqual(sorted(os.listdir(kept)), ["7zr.exe", "updater_skhid.exe"])
+        # The file in its place is another now (an update): the kept copy is
+        # what is shared.
+        self.write(f"{X86}/7zr.exe", b"another 7zr")
+        self.leech_from_updater(bootstrap, bootstrap_files)
+
     def test_torrent_not_allowed_is_https_as_before(self):
         patches, _, _, _ = self.release(12)
         self.launch(allow="direct")

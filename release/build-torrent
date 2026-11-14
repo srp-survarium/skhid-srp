@@ -6,7 +6,9 @@
 # (srp-026g/docs/notes/torrent-downloads.md has the format; release.sh names
 # it skhid-rev<n>.torrent), and the players' ZIP with it in
 # (--zip-out: the ZIP's entries as they are, then
-# game/binaries/x86/skhid.torrent, stored), by release/build_torrent.py from:
+# game/binaries/x86/skhid.torrent, stored, and release/bootstrap.torrent as
+# game/binaries/x86/skhid-bootstrap.torrent when there is one), by
+# release/build_torrent.py from:
 #   - the original game's files the updater installs from the pinned archive
 #     (client/updater/logic/src/game.rs FILES): resources.db from
 #     $SKHID_STOCK_DB, the other four from $SKHID_GAME, each checked by the
@@ -81,4 +83,7 @@ while read -r name sha _; do
     if [[ -n $name ]]; then args+=(--file "game/$name" "$PATCH_CACHE/$name" "$sha"); fi
 done <<<"$LIST"
 say "building $out: the original game's files, $(grep -c . <<<"$LIST") patch(es) of $PATCH_LIST, the files of $zip"
+# The bootstrap torrent rides in the ZIP too, for the updaters to seed it.
+bootstrap=$(dirname "$0")/bootstrap.torrent
+if [[ -f $bootstrap ]]; then args+=(--bootstrap "$bootstrap"); fi
 python -I "$(dirname "$0")/build_torrent.py" "${args[@]}"

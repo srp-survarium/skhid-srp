@@ -37,6 +37,9 @@ NAME = 'Survarium'
 # What the release's signature is of starts with this (then the revision, then SHA-256 of info).
 DOMAIN = b'skhid torrent signature 1\0'
 ENTRY = 'game/binaries/x86/skhid.torrent'
+# The bootstrap torrent, in the ZIP too (--bootstrap): the updater seeds it (from copies it keeps of
+# its two files) while it shares. Left out of the revision's torrent, as ENTRY.
+BOOTSTRAP_ENTRY = 'game/binaries/x86/skhid-bootstrap.torrent'
 PIECE = 4 << 20
 BLOCK = 16 << 10
 TRACKERS = (
@@ -321,6 +324,7 @@ def main():
     parser.add_argument('--public-key', required=True, help='its public key: 64 hex digits')
     parser.add_argument('--openssl', default='openssl')
     parser.add_argument('--file', nargs=3, action='append', default=[], metavar=('PATH', 'SOURCE', 'SHA256'))
+    parser.add_argument('--bootstrap', help='release/bootstrap.torrent, added to the ZIP as BOOTSTRAP_ENTRY')
     args = parser.parse_args()
     if not 1 <= args.revision <= 255:
         sys.exit(f'--revision {args.revision}: a revision is 1 to 255')
@@ -339,7 +343,7 @@ def main():
         for entry in archive.infolist():
             if entry.is_dir():
                 continue
-            if not safe(entry.filename) or entry.filename == ENTRY:
+            if not safe(entry.filename) or entry.filename in (ENTRY, BOOTSTRAP_ENTRY):
                 sys.exit(f'{args.zip}: {entry.filename} is not a path of the folder, or the torrent')
             if entry.filename in files:
                 print(f"  {entry.filename}: the ZIP's, over the original")
@@ -358,6 +362,14 @@ def main():
         entry.external_attr = 0o100644 << 16
         entry.compress_type = zipfile.ZIP_STORED
         archive.writestr(entry, torrent)
+        if args.bootstrap:
+            with open(args.bootstrap, 'rb') as bootstrap:
+                data = bootstrap.read()
+            entry = zipfile.ZipInfo(BOOTSTRAP_ENTRY)
+            entry.create_system = 3
+            entry.external_attr = 0o100644 << 16
+            entry.compress_type = zipfile.ZIP_STORED
+            archive.writestr(entry, data)
     os.rename(args.out + '.part', args.out)
     os.rename(args.zip_out + '.part', args.zip_out)
     btmh = hashlib.sha256(info).hexdigest()

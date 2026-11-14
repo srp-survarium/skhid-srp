@@ -56,8 +56,13 @@ corrections from the owner go here.
 - No peer gives them: the files' URLs in their order (`release/bootstrap.tsv`, the form of
   `release/patches.tsv`: Google Drive's first, the patches server's among them, 8 at most), each
   answer checked by its size and SHA-256. Our server is never needed; peers come first.
-- Who seeds it: updaters with "Allow torrent" on (the updater worker), and anyone with the
-  torrent.
+- Who seeds it: updaters with "Allow torrent" on, and anyone with the torrent. The release puts
+  `release/bootstrap.torrent` in the players' ZIP too, as `game/binaries/x86/skhid-bootstrap.torrent`
+  (left out of the revision's torrent, as `skhid.torrent`); the updater takes it as the checked
+  ZIP installed it (its SHA-256 in `updater_skhid.state`; it is not signed, the script pins it),
+  keeps a copy of each of its two files in `updater_skhid.bootstrap\` beside itself while the file
+  in its place is the bootstrap's (every piece checked), and shares them from there while it
+  shares, after it has updated itself too.
 - `release/build-bootstrap <players' ZIP>` makes it, once for an updater version: the two files
   from the ZIP (7zr.exe the pinned one), each published on the patches server at
   `bootstrap/<sha256>/<name>`, its row in `release/bootstrap.tsv`, the torrent and the script
