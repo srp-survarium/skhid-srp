@@ -256,6 +256,18 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - v0.11 (`ffa-vostok-v011-picks-1`, `v011e_level_03/day_8`): 71 of 73, the first 44 in point_ids
     28-71, 27 new 72-98; 71 and 72 out (no floor players reach within 1.5 m). No roof spawn: the
     roof check finds only a surface 144 m up over 13 here. 44 -> 71 points.
+- **Mamayev Kurgan v0.21 at the owner's picks** (2026-11-15: 66 `where` places,
+  `private/spawn-examples/mamayev021-2026-11-14.tsv`; "just mine for all maps"). Content edit
+  `ffa-mamayev-v021-picks-1`, from `scripts/ffa-mode/mamayev-v021-picks.tsv` (`picks --harmful-ok
+  20,21,57 --project v021d_level_06/day_8`) and `make_picks_edits.py mamayev-v021`, in its own
+  project only (native Mamayev's untouched):
+  - All 66 on their ground (0 to 21 cm), facing as he faced, however near another (34 and 35 are
+    0.48 m apart): the first 44 in point_ids 20-63 (position and rotation only), 22 new 64-85,
+    copies of the first solo spawn (20 m exclusion, 500 ms protection, no zones). 44 -> 66 points:
+    only his.
+  - The owner's against the checks: 20 and 21, 1.45 and 1.62 m from `acid_soft_damage_zone`, and
+    57, 0.04 m from `fire_soft_damage(1)`. 41 hold the rule; 25 have no cover or stand in the
+    perimeter band, kept as his.
 - A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
