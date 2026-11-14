@@ -6,7 +6,9 @@
 //! What a file's key covers:
 //! - the grid: the server's own key (`mapdata::grid_key_with_links`: the walker triangles as placed, the play area, the cell, the
 //!   grid body, the seeds, the off-mesh links and the build's algorithm numbers), the spawns (`WalkGrid::build_kept_with_links`
-//!   keeps their pockets; the server's key leaves them out because its maps share a grid only between projects of one geometry);
+//!   keeps their pockets; the server's key leaves them out because its maps share a grid only between projects of one geometry),
+//!   and, when the grid body flies the rim jumps (`Body::rim_jumps`), the map file's digest: the jumps fly on the game's shapes
+//!   (`Collision::build_exe`: the map's objects, placements and library meshes), which the walker triangles do not hold;
 //! - the sight tree: the server's own key (`mapdata::sight_key`: the bullet triangles and their armor);
 //! - both: the grid builder's code, as [`source_fingerprint`] (its file names carry it, so the files of another builder are never
 //!   read): every file of the `mapdata` crate, which holds the grid's and the tree's builds and everything they call (`survarium`,
@@ -103,10 +105,12 @@ enum Made {
     Built,
 }
 
-/// [`World::build_with_extras`] of `map`, its grid and sight tree read from the run's cache when it has them (and written there
-/// when built); with no cache, `World::build_with_extras` itself.
+/// [`World::build_with_extras`] of `map` (`map_file`: the digest of its file's bytes, as the server's map store takes it), its
+/// grid and sight tree read from the run's cache when it has them (and written there when built); with no cache,
+/// `World::build_with_extras` itself.
 pub(super) fn world(
     map: MapData,
+    map_file: u64,
     cell: f32,
     body: Body,
     links: OffMeshLinks,
@@ -119,8 +123,7 @@ pub(super) fn world(
     let started = Instant::now();
     let spawns: Vec<mapdata::Vec3> = map.spawns.iter().map(|s| s.position).collect();
     let walker = map.walker_triangles();
-    let area = map.play_area(mapdata::AREA_MARGIN);
-    let seeds = map.grid_seeds();
+    let (area, seeds) = (map.play_area(mapdata::AREA_MARGIN), map.grid_seeds());
     let grid_key = {
         let mut digest = Digest::new();
         digest.u64(mapdata::grid_key_with_links(
@@ -132,12 +135,15 @@ pub(super) fn world(
                 .into_iter()
                 .for_each(|v| digest.f32(v));
         }
+        if body.rim_jumps {
+            digest.u64(map_file);
+        }
         digest.finish()
     };
     let (grid, grid_made) = cache.read_or_build(
         format!("bench-grid-{:016x}-{grid_key:016x}.bin", cache.source),
         |path| WalkGrid::read(path, grid_key, body),
-        || WalkGrid::build_kept_with_links(&walker, area, cell, body, &seeds, &spawns, links).0,
+        || World::map_grid(&map, &walker, cell, body, links),
         |grid, path| grid.write(path, grid_key),
     );
     let grid_s = started.elapsed().as_secs_f32();

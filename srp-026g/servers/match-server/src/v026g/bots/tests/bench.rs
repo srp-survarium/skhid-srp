@@ -832,7 +832,14 @@ pub(crate) fn real_bot_cost() {
             Ok(None) => {}
             Err(refusal) => panic!("{refusal}"),
         }
-        let map = mapdata::MapData::read(&file).unwrap();
+        // The map, and the digest of its file's bytes (the grid cache's key has it when the rim jumps fly on the map's shapes).
+        let bytes = std::fs::read(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+        let map_file = {
+            let mut digest = mapdata::digest::Digest::new();
+            digest.bytes(&bytes);
+            digest.finish()
+        };
+        let map = mapdata::MapData::from_bytes(&bytes).unwrap();
         // The grid with the gap links when this run's tuning has them
         // (`GridTuning::gap_links`, `SRP_BENCH_TUNING`).
         let links = bench_tuning().off_mesh_links();
@@ -845,7 +852,7 @@ pub(crate) fn real_bot_cost() {
             pull_walk: bench_tuning().grid.pull_walk,
         };
         // From the cache of built grids and sight trees when the run has one (`SRP_BENCH_GRID_CACHE`), else built.
-        let world = Arc::new(super::grid_cache::world(map, mapdata::CELL, bench_tuning().grid_body(), links, extras));
+        let world = Arc::new(super::grid_cache::world(map, map_file, mapdata::CELL, bench_tuning().grid_body(), links, extras));
         // The baked-all alternative to the live zones, for what it costs (`SRP_BENCH_BAKE_FIELD_PLACES=<n>`).
         let world = match bench_settings().number::<usize>("SRP_BENCH_BAKE_FIELD_PLACES").filter(|&n| n > 0) {
             Some(n) => {

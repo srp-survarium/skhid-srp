@@ -590,9 +590,6 @@ fn build(
         stage::set("the grid key");
         let (cell, body) = (mapdata::CELL, grid_tuning.body());
         let walker = map.walker_triangles();
-        let area = map.play_area(mapdata::AREA_MARGIN);
-        let seeds = map.grid_seeds();
-        let spawns: Vec<mapdata::Vec3> = map.spawns.iter().map(|s| s.position).collect();
         // With the gap links when the server's tuning has them (`GridTuning::gap_links`).
         let links = grid_tuning.off_mesh_links();
         let grid_key = grid_key(&map, &walker, grid_tuning);
@@ -605,11 +602,9 @@ fn build(
                     built,
                     mapdata::built::grid_file_name(grid_key),
                     |path| WalkGrid::read(path, grid_key, body),
-                    || {
-                        // [A364 C2 rows 11/12] The rim jumps fly on the game's shapes (a format 6 map), built for the grid only.
-                        let shapes = body.rim_jumps.then(|| mapdata::controller::Collision::build_exe(&map)).flatten();
-                        WalkGrid::build_kept_with_shapes(&walker, shapes.as_ref(), area, cell, body, &seeds, &spawns, links).0
-                    },
+                    // [A364 C2 rows 11/12] The rim jumps fly on the game's shapes (a format 6 map), built for the grid only: by the
+                    // one entry the bench's worlds build their grids by too.
+                    || World::map_grid(&map, &walker, cell, body, links),
                     |grid, path| grid.write(path, grid_key),
                 );
                 // [A346] The tables the tuning in force needs ([`Tuning::needs_wall_clearance`], [`Tuning::needs_open_sides`]) and
