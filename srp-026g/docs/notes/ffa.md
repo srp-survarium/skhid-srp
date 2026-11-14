@@ -225,6 +225,17 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     `fruit_toxic_cloud_lvl5`, the low corners), kept by `--harmful-ok` as Rudnya's 45; and 17 where
     he stood (as Pool's 12: no floor under its centre but one 0.87 m below, there collision 0.20 m
     from the body's axis at 0.65 m).
+- **Vostok at the owner's picks** (2026-11-14, the same session: 73 `where` places,
+  `private/spawn-examples/vostok-2026-11-14.tsv`; "also for vostok also all"). Content edit
+  `ffa-vostok-picks-1`, from `scripts/ffa-mode/vostok-picks.tsv` (`picks --project
+  level_03/<weather>_8` for day, evening and rain; no pick needed `--harmful-ok` or `--as-stood`)
+  and `make_picks_edits.py vostok`, in its three own projects:
+  - All 73 on their ground (0 to 37 cm), facing as he faced, however near another (21 and 63, 29
+    and 45 are under 1 m apart): the first 48 in the places of point_ids 22-69 (position and
+    rotation only), 25 new points 70-94, copies of the first solo spawn (20 m exclusion, 500 ms
+    protection, no zones). 48 -> 73 points. After `ffa-cover-maps-1` and the other picks lists.
+  - 58 hold the rule; 2, 3, 23 and 38 have no cover, 21, 22, 58-63 and 68-70 are in the perimeter
+    band (5.7 m): kept as his.
 - A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
