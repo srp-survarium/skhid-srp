@@ -42,7 +42,7 @@ use mapdata::grid::{SPRINT_JUMP_LOW_M, STANDING_JUMP_M};
 use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
 use super::link_time;
-use super::path::{DropTruth, GapPress, Leap, Route, RouteHeight, SprintPress, WalkPress};
+use super::path::{DropTruth, GapPress, Leap, PressAim, Route, RouteHeight, SprintPress, WalkPress};
 use super::rng::Rng;
 use super::tuning::{Metres, Positive, Span};
 use crate::v026g::drive::key;
@@ -1081,6 +1081,8 @@ pub struct RoutePress {
     pub facing: f32,
     /// [owner-5] A sprint gap or rim link pressed without sprint: the gate that held the sprint (the log's line).
     pub sprint_gate: Option<SprintGate>,
+    /// [A386 R83/R94] The press's aim off the link's line ([`PressAim`]; the log's line says it when not straight).
+    pub aim: PressAim,
 }
 
 /// [owner-5] Why a sprint link's press went without sprint, the first gate that held it (`Motor::jump_key`'s `sprinted`):
@@ -1174,6 +1176,25 @@ pub(super) fn press_due(before: f32, lead: f32, speed: f32) -> bool {
 /// [A386] The height band of a flown press's run-up: the flyer's run-up ends with the feet within this of the press point's
 /// height, which is the take-off's (`controller::jump::run_up` / `run_up_slow`'s own test, `jump::press_point`), metres.
 const FLOWN_RUN_UP_HEIGHT_M: f32 = 0.35;
+
+/// [A386 R83/R94] The line a press is lined up and pressed along, as the grid flew it: its origin and its way (flat, unit). A
+/// straight press's is the link's take-off and way. An aimed one ([`PressAim`]) is pressed at the flight's press point
+/// (`controller::jump::press_point`: `lead` back along the link's way and `side` to its right) and run up along the heading, the
+/// way turned `turn` counter-clockwise. The origin is then the point `lead` on along the heading from the press point, so a point
+/// `m` back from it along the heading is the flight's run-up at `m`, and its press is at `lead`. The flyer's neighbourhood
+/// ([`FlownWindow`]) is scored around this press, so the window is measured on this line too.
+fn aimed_line(take_off: Vec3, way: [f32; 2], leap: Leap) -> (Vec3, [f32; 2]) {
+    let aim = leap.aim();
+    let lead = match leap {
+        Leap::Gap(GapPress { lead, .. }) | Leap::SprintGap(SprintPress { lead, .. }) if !aim.is_straight() => lead.metres(),
+        _ => return (take_off, way),
+    };
+    let (side, (sin, cos)) = (aim.side_m(), aim.turn_rad().sin_cos());
+    let right = [way[1], -way[0]];
+    let heading = [way[0] * cos - way[1] * sin, way[0] * sin + way[1] * cos];
+    let press = Vec3::new(take_off.x - way[0] * lead + right[0] * side, take_off.y, take_off.z - way[1] * lead + right[1] * side);
+    (Vec3::new(press.x + heading[0] * lead, press.y, press.z + heading[1] * lead), heading)
+}
 
 /// [A386] The press offsets the grid flew a gap or rim link's press with and scored it over: its share is how many of these
 /// neighbours land (`controller::jump::neighbourhood`, A385-FORMAT §2). A press off them is a flight the grid never tried.
@@ -2424,7 +2445,11 @@ impl Motor {
             });
         }
         let lead_m = route.ledge_lead(k).unwrap_or(0.0);
-        let at = |m: f32| Vec3::new(take_off.x - way[0] * m, take_off.y, take_off.z - way[1] * m);
+        // [A386 R83/R94] The jump's line is the flight's: for a press aimed off the link's line, the line through its press point
+        // along its heading ([`aimed_line`]); every point the lining, the press and its window measure from is on it. The link's
+        // own take-off stays the jump's (is it up, its tries, its log).
+        let (line_from, way) = aimed_line(take_off, way, leap);
+        let at = |m: f32| Vec3::new(line_from.x - way[0] * m, line_from.y, line_from.z - way[1] * m);
         // Feet on a floor under the take-off, out of reach of the jump this approach makes: not lined up and not pressed;
         // the walk follows the route up to the take-off. The lining's run-up point and its line are at the take-off's height,
         // and a flat test took a body a floor below them for one on the line: Mamayev Kurgan's (-2.90, 29.58, 105.38), its
@@ -2533,7 +2558,7 @@ impl Motor {
                 if clear(at(m)) { m } else { press.lead.metres() }
             }
         };
-        let (dx, dz) = (feet.x - take_off.x, feet.z - take_off.z);
+        let (dx, dz) = (feet.x - line_from.x, feet.z - line_from.z);
         let along = dx * way[0] + dz * way[1];
         let side = (dx * way[1] - dz * way[0]).abs();
         if lifting {
@@ -2599,9 +2624,9 @@ impl Motor {
             // up to 2 m on).
             let past = 3.0f32.max(take_off.distance_xz(landing) + 1.0);
             Vec3::new(
-                take_off.x + way[0] * past,
+                line_from.x + way[0] * past,
                 landing.y,
-                take_off.z + way[1] * past,
+                line_from.z + way[1] * past,
             )
         } else if !under && clear(at(run_up)) {
             at(run_up)
@@ -2748,7 +2773,7 @@ impl Motor {
         let near = match ahead.leap {
             Leap::Ledge | Leap::SprintLedge => ahead.before <= (JUMP_LEAD_S * speed + PRESS_M).max(ahead.lead_m),
             // [A386] A standing jump at its point, the body at rest there ([`WalkUp`]).
-            Leap::Gap(GapPress { lead, walk: WalkPress::Slow(0), share }) if share.flown().is_some() => {
+            Leap::Gap(GapPress { lead, walk: WalkPress::Slow(0), share, .. }) if share.flown().is_some() => {
                 ahead.before <= lead.metres() + FlownWindow::LEAD_M
             }
             Leap::Gap(GapPress { lead, walk: WalkPress::Slow(0), .. }) => ahead.before <= lead.metres() + AT_RUN_UP_M,
@@ -2879,6 +2904,7 @@ impl Motor {
             before: ahead.before,
             facing: still,
             sprint_gate,
+            aim: ahead.leap.aim(),
         });
         self.jump = Some(JumpBy::Route);
         if ahead.let_go {
@@ -5772,7 +5798,7 @@ mod tests {
         let p = |x: f32, y: f32, z: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, z),
             node: 0,
-            jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None })),
+            jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None, aim: PressAim::STRAIGHT })),
             low: false,
         };
         let keeps = |gate: bool| {
@@ -5918,7 +5944,7 @@ mod tests {
             let p = |x: f32, jump: bool| Waypoint {
                 at: Vec3::new(x, if jump { -1.7 } else { 0.0 }, 0.0),
                 node: 0,
-                jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None })),
+                jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None, aim: PressAim::STRAIGHT })),
                 low: false,
             };
             let route = Route::new(vec![p(-20.0, false), p(0.0, false), p(3.0, true), p(6.0, false)]);
@@ -6021,7 +6047,7 @@ mod tests {
     }
 
     fn sprint_link(walk: Option<GapPress>) -> Leap {
-        Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk })
+        Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk, aim: PressAim::STRAIGHT })
     }
 
     /// [A386] [`press_due`]: the key moves the body a step later (`StepInput::Previous`), so the press is the tick whose next
@@ -6078,7 +6104,7 @@ mod tests {
     /// the link has one (A385-FORMAT §5), with no sprint; with none it is refused ([`Walked::JumpRefused`]), no try spent.
     #[test]
     fn a_refused_sprint_link_takes_its_walking_press_or_is_refused() {
-        let walk = GapPress { lead: mapdata::PressLead::from_metres(0.8), walk: WalkPress::Cap, share: mapdata::Share::landed(9) };
+        let walk = GapPress { lead: mapdata::PressLead::from_metres(0.8), walk: WalkPress::Cap, share: mapdata::Share::landed(9), aim: PressAim::STRAIGHT };
         let mut rng = Rng::new(3);
         let mut motor = Motor::new(Feel { sprint_gaps: true, sway: 0.0, ..Feel::default() }, &mut rng);
         motor.walking = true;
@@ -6103,7 +6129,7 @@ mod tests {
     /// top is walked on at once.
     #[test]
     fn a_gap_links_landing_lets_go_until_at_rest_unless_the_route_goes_on_on_its_top() {
-        let walk = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL });
+        let walk = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT });
         let run = |route_on_top: bool| {
             let p = |x: f32, y: f32, jump: Option<Leap>| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump, low: false };
             // The landing 3 m on, 1.7 m down; the next corner on its top, or a drop 2 m lower.
@@ -6138,6 +6164,29 @@ mod tests {
         assert_ne!(landed & moves, 0, "the route goes on on the top: walked on: {landed:#x}");
     }
 
+    /// [A386 R83/R94] An aimed press is lined up on the flight's own line: the point `lead` back from [`aimed_line`]'s origin is
+    /// `controller::jump::press_point` with the aim's side, and its way is the flight's heading (the link's way turned `turn`
+    /// counter-clockwise); a straight press keeps the link's take-off and way.
+    #[test]
+    fn an_aimed_press_is_lined_up_on_the_flights_own_line() {
+        let take_off = Vec3::new(10.0, 2.0, -4.0);
+        let way = [0.6, 0.8];
+        let straight = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(1.2), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT });
+        assert_eq!(aimed_line(take_off, way, straight), (take_off, way));
+        let aim = PressAim::of_steps(-6, 4);
+        let lead = mapdata::PressLead::from_metres(1.2);
+        let aimed = Leap::SprintGap(SprintPress { lead, share: mapdata::Share::FULL, walk: None, aim });
+        let (origin, heading) = aimed_line(take_off, way, aimed);
+        let n = mapdata::controller::jump::Neighbour { lead: 0.0, side: aim.side_m(), turn: aim.turn_rad(), dy: 0.0, fastest: false };
+        let flown = mapdata::controller::jump::press_point(take_off, (way[0], way[1]), lead.metres(), n);
+        let pressed = Vec3::new(origin.x - heading[0] * lead.metres(), origin.y, origin.z - heading[1] * lead.metres());
+        assert!(pressed.distance(flown) < 1e-5, "the press point is the flight's: {pressed:?} {flown:?}");
+        let (sin, cos) = aim.turn_rad().sin_cos();
+        let turned = [way[0] * cos - way[1] * sin, way[0] * sin + way[1] * cos];
+        assert!((heading[0] - turned[0]).abs() < 1e-6 && (heading[1] - turned[1]).abs() < 1e-6, "the flight's heading: {heading:?}");
+        assert!((aim.side_m() + 0.3).abs() < 1e-6 && (aim.turn_rad() - 0.2).abs() < 1e-6, "R83's aim in steps of 0.05");
+    }
+
     /// [A386] A flown press is pressed only within the offsets the grid flew it over (`jump::neighbourhood`): its jump's first
     /// step within the lead's ±0.2 m, the feet within 0.15 m of the line; the window is the flyer's own constants.
     #[test]
@@ -6159,6 +6208,7 @@ mod tests {
                 lead: mapdata::PressLead::from_metres(0.4),
                 walk: WalkPress::Slow(0),
                 share: mapdata::Share::landed(14),
+                aim: PressAim::STRAIGHT,
             }),
             approach: Approach::Walk,
             rise: 1.1,
@@ -6178,7 +6228,7 @@ mod tests {
         assert_eq!(flown_press_off(&ahead(0.4, 0.2), &pose, 0.0), Some(FlownOff::Side));
         // A walking press: the jump's first step starts a step's travel on (0.5 m now at 2 m/s: 0.4 m).
         let walking = |before: f32| Ahead {
-            leap: Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.4), walk: WalkPress::Cap, share: mapdata::Share::landed(14) }),
+            leap: Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.4), walk: WalkPress::Cap, share: mapdata::Share::landed(14), aim: PressAim::STRAIGHT }),
             ..ahead(before, 0.0)
         };
         assert_eq!(flown_press_off(&walking(0.5), &pose, 2.0), None);
@@ -6213,7 +6263,7 @@ mod tests {
             span: 0.5,
         };
         let slow = |k: u8, share: mapdata::Share| {
-            Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.1), walk: WalkPress::Slow(k), share })
+            Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.1), walk: WalkPress::Slow(k), share, aim: PressAim::STRAIGHT })
         };
         let pose = Pose::default();
         let flown = mapdata::Share::landed(9);
@@ -6252,7 +6302,7 @@ mod tests {
     /// point, at rest.
     #[test]
     fn a_slow_link_comes_to_rest_at_its_run_up_then_walks_up_and_presses() {
-        let slow = |steps: u8| Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.6), walk: WalkPress::Slow(steps), share: mapdata::Share::FULL });
+        let slow = |steps: u8| Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.6), walk: WalkPress::Slow(steps), share: mapdata::Share::FULL, aim: PressAim::STRAIGHT });
         let walk_up = mapdata::controller::jump::blend_steps_m(mapdata::controller::jump::WALK_CAP_MS, 3);
         let mut rng = Rng::new(3);
         let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
@@ -6473,7 +6523,7 @@ mod tests {
         assert!(!ahead(0.25, 0.9, Leap::SprintLedge).out_of_reach(SPRINT_JUMP_LOW_M));
         assert!(ahead(0.35, 0.7, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
         // A gap link is pressed at its own point: not asked.
-        assert!(!ahead(1.0, 1.0, Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL })).out_of_reach(SPRINT_JUMP_LOW_M));
+        assert!(!ahead(1.0, 1.0, Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT })).out_of_reach(SPRINT_JUMP_LOW_M));
     }
 
     /// A route's end up a ledge is not arrived at from under it; up it, it
