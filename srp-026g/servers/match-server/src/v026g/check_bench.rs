@@ -18,7 +18,7 @@ impl Match {
         let info = StaticInfo::new(options, Dictionary::shared())?;
         Ok(Self(Formed {
             match_id: options.match_id,
-            played: options.map,
+            played: survarium::v026g::twist::Played::plain(options.map),
             match_level: options.match_level,
             places: Vec::new(),
             profiles: options.players.clone(),

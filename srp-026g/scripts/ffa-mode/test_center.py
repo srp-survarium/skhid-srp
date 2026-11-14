@@ -41,9 +41,9 @@ class CenterMoves(unittest.TestCase):
             with patch.object(m, 'moved', return_value=moves):
                 recipe = m.edits(root / 'live')
                 self.assertEqual(len(recipe['set_entry']), 1)
-                with self.assertRaises(ValueError):  # within 12 m of point 3
-                    with patch.object(m, 'moved', return_value={path: {2: ([118., 7., 5.], 0.5)}}):
-                        m.edits(root / 'live')
+                # No spacing between spawns (the owner, 2026-11-14): 2 m from point 3 is a move too.
+                with patch.object(m, 'moved', return_value={path: {2: ([118., 7., 5.], 0.5)}}):
+                    self.assertEqual(len(m.edits(root / 'live')['set_entry']), 1)
             recipe_path = root / 'edits.json'
             recipe_path.write_text(json.dumps(recipe))
             subprocess.run([sys.executable, str(m.base.EDIT), str(recipe_path),

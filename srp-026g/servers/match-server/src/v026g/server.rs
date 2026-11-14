@@ -510,7 +510,7 @@ impl Server {
                 formed.match_id,
                 formed.played.map().id,
                 formed.played.map().name,
-                formed.played.mode().lobby_number(),
+                formed.played.lobby_number(),
                 formed.places.len()
             );
             let mut game = Game::new(formed, self.port, self.settings.clone(), now);
@@ -744,6 +744,7 @@ impl Server {
                     replay_id: formed.replay_id.clone(),
                     map_id: formed.played.map().id,
                     mode: formed.played.mode(),
+                    twist: formed.played.twist(),
                     match_level: formed.match_level,
                     // A room's: called off, as one everyone left before its
                     // countdown (`Game::called_off`).

@@ -653,10 +653,28 @@ pub struct FriendRoom {
 /// A card of the vote.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Card {
-    pub map_id: u8,
+    pub shown: Shown,
     pub votes: u8,
     /// The asker voted for it.
     pub mine: bool,
+}
+
+/// A map as a room shows it: its `maps_dict` id and the mode its match
+/// plays, a twist's own (`twist::Played::lobby_number`): what the movie
+/// names on a card and on the banner of a match being played.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Shown {
+    pub map_id: u8,
+    pub mode: u8,
+}
+
+impl From<crate::v026g::twist::Played> for Shown {
+    fn from(played: crate::v026g::twist::Played) -> Self {
+        Self {
+            map_id: played.map().id,
+            mode: played.lobby_number(),
+        }
+    }
 }
 
 /// A member of the asker's room, in the order of the room.
@@ -734,8 +752,8 @@ pub struct RoomView {
     pub pin: bool,
     pub cards: Vec<Card>,
     pub members: Vec<Member>,
-    /// The map of its last match; 0: none yet.
-    pub last_map: u8,
+    /// What its last match played; none yet.
+    pub last: Option<Shown>,
     /// Always 0 since 2026-10-19 (no map is fixed before the start); kept
     /// so the lobby movies of revision 24 and before read the wire.
     pub next_map: u8,
@@ -830,14 +848,20 @@ pub struct RoomForm {
     pub modes_off: Vec<u8>,
 }
 
-/// A map a pool may hold, in [`room_pool`].
+/// A map a pool may hold, in [`room_pool`]: a free-for-all's once plain and
+/// once with each twist, a mode of its own in the create window
+/// (`ffa.md`, "Twists").
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PoolEntry {
     pub map_id: u8,
     /// Of its `maps_dict` entry (`maps::MapMode`).
     pub level: u8,
     pub weather: u8,
+    /// The mode its card plays, by its lobby number: its twist's
+    /// (`Twist::lobby_number`), else its map's.
     pub mode: u8,
+    /// The twist its card plays on the free-for-all's map; none: the map as it is.
+    pub twist: Option<crate::v026g::twist::Twist>,
     /// One of the server's experimental maps (`SRP_ROOMS_EXTRA_MAPS`): not
     /// in a room's pool unless its creator adds it.
     pub extra: bool,
@@ -926,7 +950,7 @@ pub fn room_list(
 ///   <pool>;<members>;<serial>;<pin>;<next map>;<min players>;<code>` (`code`
 ///   as above: why a join of another room, or a room made, left it in this
 ///   one), then a row a card, `C;<i>;<map_id>;
-///   <votes>;<mine>`, a row a member, `P;<i>;<gear>;<owner>;<me>;
+///   <votes>;<mine>;<mode>` ([`Card::shown`]: the mode a twist's own), a row a member, `P;<i>;<gear>;<owner>;<me>;
 ///   <in match>;<fit>;<away>;<name>` (`fit`: [`Fit`]; `away` 1: its game is
 ///   gone for now), in a private room a row `A;<sides>`, a digit a member
 ///   in the list's order, its team as the owner arranged it (0, 1;
@@ -939,9 +963,10 @@ pub fn room_list(
 ///   a row `J;<seconds>` when the asker waits to go into its room's match
 ///   being played ([`RoomView::join_in`]), or `J;-1;<why>` when it waits
 ///   and the match takes nobody now ([`JoinHold`]; a movie that reads only
-///   the seconds takes -1 as no row), and `L;<map_id>`, the last match's
-///   map (0: none); then a row `V;<name>` a spectator of its match being
-///   played ([`RoomView::spectators`], the name cut as a member's).
+///   the seconds takes -1 as no row), and `L;<map_id>;<mode>`, the last
+///   match's map and the mode it played (`L;0`: none); then a row
+///   `V;<name>` a spectator of its match being played
+///   ([`RoomView::spectators`], the name cut as a member's).
 pub fn room_state(
     room: Option<&RoomView>,
     code: RoomCode,
@@ -976,10 +1001,11 @@ pub fn room_state(
     )];
     names.extend(room.cards.iter().enumerate().map(|(index, card)| {
         format!(
-            "C;{index};{};{};{}",
-            card.map_id,
+            "C;{index};{};{};{};{}",
+            card.shown.map_id,
             card.votes,
-            u8::from(card.mine)
+            u8::from(card.mine),
+            card.shown.mode
         )
     }));
     names.extend(room.members.iter().enumerate().map(|(index, member)| {
@@ -1027,7 +1053,10 @@ pub fn room_state(
             row_name(&switch.name)
         ));
     }
-    names.push(format!("L;{}", room.last_map));
+    names.push(match room.last {
+        Some(last) => format!("L;{};{}", last.map_id, last.mode),
+        None => "L;0".to_owned(),
+    });
     at_most("room spectators", room.spectators.len(), SPECTATORS_MAX)?;
     names.extend(spectator_rows(&room.spectators));
     rows_at(ROOM_STATE, names)
@@ -1038,9 +1067,6 @@ pub fn room_state(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ListMember {
     pub member: Member,
-    /// The team of its place in the room's match being played, 0 or 1;
-    /// `None` when it has none.
-    pub side: Option<u8>,
     /// Its account: a right-click on it asks for its kits by it
     /// (`3D 00 <GEAR_BY_ACCOUNT> <account>`).
     pub account_id: u32,
@@ -1050,9 +1076,9 @@ pub struct ListMember {
 /// ROOM_MEMBERS_BASE + i`, to anyone (the room chosen in the Rooms list; a
 /// room with a PIN too: names are no secret): `S1;G;<key>;<members>`, then
 /// two rows a member in the order of the room: `P;<i>;<gear>;<owner>;<me>;
-/// <in match>;<fit>;<away>;<side>;<account>;<squad>` (the state's fields;
-/// `side` 1 or 2, the team of its place in the room's match being played, 0
-/// when it has none; `squad` its squad's mark, [`Member::squad`], 0 none),
+/// <in match>;<fit>;<away>;0;<account>;<squad>` (the state's fields; `0`
+/// where its side was, none told since 2026-11-13: the list never shows who
+/// plays on which side; `squad` its squad's mark, [`Member::squad`], 0 none),
 /// and its whole name alone (up to the 63 bytes a row holds, `;`
 /// and all: a name is never cut here). A room gone: `S1;G;<key>;0`, no
 /// member.
@@ -1084,14 +1110,13 @@ fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
     for (index, seen) in members.iter().enumerate() {
         let member = &seen.member;
         names.push(format!(
-            "P;{index};{};{};{};{};{};{};{};{};{}",
+            "P;{index};{};{};{};{};{};{};0;{};{}",
             member.gear,
             u8::from(member.owner),
             u8::from(member.me),
             u8::from(member.in_match),
             member.fit as u8,
             u8::from(member.away),
-            seen.side.map_or(0, |team| team.min(1) + 1),
             seen.account_id,
             squad_number(member.squad)
         ));
@@ -1520,7 +1545,7 @@ mod tests {
     }
 
     #[test]
-    fn a_member_list_gives_each_side_account_and_whole_name() {
+    fn a_member_list_gives_each_account_and_whole_name_and_no_side() {
         let member = Member {
             gear: 7,
             owner: true,
@@ -1540,32 +1565,22 @@ mod tests {
             name: "Bob".into(),
             ..member.clone()
         };
-        let seen = |member: &Member, side, account_id| ListMember {
+        let seen = |member: &Member, account_id| ListMember {
             member: member.clone(),
-            side,
             account_id,
         };
         assert_eq!(
-            members_names(
-                42,
-                &[
-                    seen(&member, Some(1), 5),
-                    seen(&other, None, 6),
-                    seen(&other, Some(0), 7)
-                ]
-            ),
+            members_names(42, &[seen(&member, 5), seen(&other, 6)]),
             [
-                "S1;G;42;3",
-                "P;0;7;1;0;1;2;1;2;5;2",
+                "S1;G;42;2",
+                "P;0;7;1;0;1;2;1;0;5;2",
                 "a;b",
                 "P;1;7;0;0;0;0;0;0;6;0",
-                "Bob",
-                "P;2;7;0;0;0;0;0;1;7;0",
                 "Bob"
             ]
         );
         assert_eq!(members_names(42, &[]), ["S1;G;42;0"]);
-        assert!(room_members(42, &vec![seen(&member, None, 1); MEMBERS_MAX + 1], &[]).is_err());
+        assert!(room_members(42, &vec![seen(&member, 1); MEMBERS_MAX + 1], &[]).is_err());
     }
 
     /// The longest names the game takes (63 bytes: wide Latin, Cyrillic,
@@ -1589,7 +1604,6 @@ mod tests {
                     squad: Some(SQUAD_MARKS),
                     name: names[i % names.len()].clone(),
                 },
-                side: Some(1),
                 account_id: i32::MAX as u32,
             })
             .collect();

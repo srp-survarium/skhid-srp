@@ -161,10 +161,10 @@ fn blackout_is_the_static_info_entry_on_its_battery_map() {
         (MatchMap::of(62).unwrap(), false),
     ] {
         let mut made = setup(2, MAP_BATTERIES);
-        made.map = played;
+        made.played = survarium::v026g::twist::Played::plain(played);
         let ticket = registry.create(made).unwrap();
         let formed = registry.formed(ticket.match_id).unwrap();
-        assert_eq!(formed.played, played);
+        assert_eq!(formed.played.match_map(), played);
         let options = parse_options(formed.info.options(), Dictionary::shared()).unwrap();
         assert_eq!(options.map, played);
         let entry = formed.info.options().ends_with(b"SRPX\x02\x01\x01");

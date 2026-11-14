@@ -11,10 +11,10 @@ text = subprocess.check_output(
 abi = (Path(__file__).parent.parent / "crates/voice-abi/src/lib.rs").read_text()
 expected = set(re.findall(r'load!\(c"(sv_[a-z_]+)"', abi))
 actual = set(re.findall(r"Ordinal: \d+\s+Name: (\S+)", text))
-assert len(expected) == 10 and actual == expected, (actual, expected)
+assert len(expected) == 15 and actual == expected, (actual, expected)
 imports = {name.lower() for name in re.findall(r"Import \{\s+Name: (\S+)", text)}
 # As BugTrap, the CRT is static. No codec, GCC, MSVC or UCRT DLL is shipped.
-allowed = {"kernel32.dll", "ntdll.dll", "userenv.dll", "ws2_32.dll", "winmm.dll",
+allowed = {"kernel32.dll", "ntdll.dll", "userenv.dll", "ws2_32.dll", "winmm.dll", "ole32.dll",
            "advapi32.dll", "bcryptprimitives.dll"}
 assert imports <= allowed, imports
 assert "Arch: i386" in text, "voice DLL must match the game's Win32 ABI"

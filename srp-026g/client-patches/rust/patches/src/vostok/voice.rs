@@ -1,11 +1,13 @@
 //! Patch 66's boundaries (voice chat, docs/notes/voice-chat.md): the voice's
 //! console variables, the match a connect starts, the push-to-talk key, the match's
-//! places as a frame or a menu sees them, the movies, and the optional
+//! places as a frame or a menu sees them, the game's sound listener and its
+//! engine's pan of a sound, the movies, and the optional
 //! versioned DLL (`skhid_voice.dll`, `voice_abi`). Every game and DLL value
 //! is read here once into a type; who talks, who is heard and who is muted
 //! is the patch's (`crate::voice`).
 
 use core::ffi::{CStr, c_void};
+use core::marker::PhantomData;
 use core::num::NonZeroU32;
 use core::ptr::NonNull;
 
@@ -80,6 +82,71 @@ impl Fraction {
     }
 }
 
+/// The sound tab's "Voice chat" volume and "Microphone sensitivity" as their
+/// sliders stand on the screen, accepted or not: what the Settings send with
+/// a press of "Test microphone", `<volume> <sensitivity>`, each the slider's
+/// whole steps (0..100).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Sliders {
+    volume: Fraction,
+    sensitivity: Fraction,
+}
+
+impl Sliders {
+    /// Two numbers of one to three decimal digits, 100 at most, one space
+    /// between them; nothing else.
+    pub fn parse(text: &CStr) -> Option<Sliders> {
+        let mut steps = text.to_bytes().split(|&byte| byte == b' ').map(|digits| {
+            if digits.is_empty() || digits.len() > 3 || !digits.iter().all(u8::is_ascii_digit) {
+                return None;
+            }
+            let steps = digits.iter().fold(0u16, |steps, digit| steps * 10 + u16::from(digit - b'0'));
+            (steps <= 100).then(|| Fraction::of_percent(f32::from(steps)))
+        });
+        let (volume, sensitivity) = (steps.next()??, steps.next()??);
+        steps.next().is_none().then_some(Sliders { volume, sensitivity })
+    }
+}
+
+/// What the Settings say with a call of the microphone test: a press of its
+/// button, or `stop` (the Settings window closed).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TestAsk {
+    Press(Sliders),
+    Stop,
+}
+
+impl TestAsk {
+    pub fn parse(text: &CStr) -> Option<TestAsk> {
+        if text == c"stop" { Some(TestAsk::Stop) } else { Sliders::parse(text).map(TestAsk::Press) }
+    }
+}
+
+pub use voice_abi::{Microphone, MicrophoneId};
+
+/// The capture device the options' Microphone list picks: Windows' default,
+/// or a device by its endpoint ID (the DLL's list gives them).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MicrophoneChoice {
+    Default,
+    Device(MicrophoneId),
+}
+
+impl MicrophoneChoice {
+    /// The list's text of it, and user.cfg's: empty for the default, else
+    /// the device's ID; None for anything else.
+    pub fn parse(text: &[u8]) -> Option<MicrophoneChoice> {
+        if text.is_empty() { Some(MicrophoneChoice::Default) } else { MicrophoneId::parse(text).map(MicrophoneChoice::Device) }
+    }
+
+    pub fn text(&self) -> &CStr {
+        match self {
+            MicrophoneChoice::Default => c"",
+            MicrophoneChoice::Device(id) => id.as_c_str(),
+        }
+    }
+}
+
 /// The voice options: off ("Disable voice chat", the gameplay tab's dead
 /// "Hide spam", `g_hide_spam`: nothing played, no microphone, the relay sends
 /// nothing) or on, with the sound tab's three stock voice controls.
@@ -96,6 +163,8 @@ static OFF: ConsoleBool = ConsoleBool::new();
 /// `srp_voice_mutes`' room: the patch's `Mutes` text.
 pub const MUTES_SIZE: usize = 512;
 static MUTES: ConsoleString<MUTES_SIZE> = ConsoleString::new();
+/// `srp_microphone`: the Microphone list's pick, [`MicrophoneChoice::text`].
+static CAPTURE_DEVICE: ConsoleString<{ voice_abi::MICROPHONE_ID }> = ConsoleString::new();
 
 /// The variables in the engine's list before user.cfg (`configs.start`):
 /// the stock sound tab's controls name three of them, user.cfg keeps all.
@@ -105,6 +174,19 @@ pub fn register(thread: &Thread) {
     MICROPHONE.register(thread, c"s_use_microphone");
     OFF.register(thread, c"g_hide_spam");
     MUTES.register(thread, c"srp_voice_mutes");
+    CAPTURE_DEVICE.register(thread, c"srp_microphone");
+}
+
+/// The saved pick of the Microphone list; the default for a value that is
+/// not one (a hand-edited user.cfg).
+pub fn saved_microphone(thread: &Thread) -> MicrophoneChoice {
+    MicrophoneChoice::parse(CAPTURE_DEVICE.get(thread)).unwrap_or(MicrophoneChoice::Default)
+}
+
+/// Keeps the Microphone list's pick, user.cfg written at once.
+pub fn save_microphone(thread: &Thread, choice: MicrophoneChoice) {
+    CAPTURE_DEVICE.set(thread, choice.text().to_bytes());
+    save_user_config(thread);
 }
 
 pub fn settings(thread: &Thread) -> Settings {
@@ -274,36 +356,151 @@ impl Polled {
     }
 }
 
+pub use voice_abi::{Ears, Heard, MicTest};
+
+/// How every place is heard (what the DLL is told: one `sv_hear` a place).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hearing([Heard; Place::COUNT]);
+
+impl Hearing {
+    /// Every place plain, as decoded in both ears.
+    pub const UNITY: Hearing = Hearing([Heard::Plain(Ears::UNITY); Place::COUNT]);
+
+    pub fn with(mut self, place: Place, heard: Heard) -> Hearing {
+        self.0[place.index()] = heard;
+        self
+    }
+
+    pub fn of(&self, place: Place) -> Heard {
+        self.0[place.index()]
+    }
+}
+
+/// A player alive in the world, as voice needs it: where its feet are.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Body {
+    pub feet: [f32; 3],
+}
+
+/// The engine's pan of a sound straight ahead, behind, above, or at the
+/// listener: the same in both ears, at constant power.
+pub const PAN_CENTRE: [f32; 2] = [core::f32::consts::FRAC_1_SQRT_2; 2];
+
+/// The game's sound listener at a frame of a match: the game world's sound
+/// scene (its on_after_tick 0x1F7620 gives the scene the camera's place,
+/// front and top every tick), with the sound world's panning table. What
+/// the engine pans its own point sounds by.
+pub struct Listener<'t> {
+    scene: raw::SoundScene,
+    table: raw::PanningLut,
+    position: [f32; 3],
+    _frame: PhantomData<&'t Thread>,
+}
+
+impl<'t> Listener<'t> {
+    /// At `game_world.after_move`. None before the scene has a listener (the
+    /// world's first tick has not set it), or without a scene.
+    pub fn at_frame(ctx: &'t Context<'_>) -> Option<Listener<'t>> {
+        let world = GameWorld::at_after_move(ctx)?;
+        // SAFETY: the ticking game world's sound scene, which its own tick
+        // gives the listener (0x1F764C, with no test: it is there while the
+        // world ticks), that scene's sound world and the panning table
+        // inside the world (filled by its constructor, never written
+        // again). get_listenet_position (0x57560) reads the scene's place
+        // (an atomic half3) with a locked cmpxchg8b that leaves it as it
+        // is, as the sound thread reads it, and writes the three floats.
+        unsafe {
+            let scene = world.this.sound_scene()?;
+            if scene.listener_set().read_volatile() == 0 {
+                return None;
+            }
+            let table = scene.world()?.panning();
+            let mut position = [0.0_f32; 3];
+            raw::engine_listener_position(Some(scene), position.as_mut_ptr());
+            Some(Listener { scene, table, position, _frame: PhantomData })
+        }
+    }
+
+    /// The left and right gains the engine gives a point sound `offset`
+    /// from the listener (metres, the map's frame): its own
+    /// sound_scene::calculate_3d_pan (0x57D70), which every point sound's
+    /// voice gets its output matrix from at each sound tick (notify_listener2
+    /// 0x5C3CC). Constant power: [`PAN_CENTRE`] ahead and behind, at the side 1
+    /// in that ear and nothing in the other, above or below towards the
+    /// centre. No gain by distance (the engine keeps that in the voice's
+    /// volume).
+    pub fn pan(&self, offset: [f32; 3]) -> [f32; 2] {
+        // A proxy of ours, all zero: its sound_type (+80h) 0, a point sound,
+        // the one field calculate_3d_pan reads of one.
+        let mut proxy = raw::SoundInstanceProxyStorage::zeroed();
+        let position = [self.position[0] + offset[0], self.position[1] + offset[1], self.position[2] + offset[2]];
+        let squared = offset[0] * offset[0] + offset[1] * offset[1] + offset[2] * offset[2];
+        // As notify_listener2 gives it: the distance, 1 m at least.
+        let distance = if squared > 1.0 { ::ragdoll::math::sqrt(squared) } else { 1.0 };
+        let mut matrix = [0.0_f32; 4];
+        let mut coefficient = 0.0_f32;
+        // SAFETY: the engine's function by its row's signature, on the
+        // game's thread. Run on the exe's bytes (check_voice_pan_026g.py): of
+        // a point sound it reads the proxy's +80h, the position, the table
+        // and the scene's three listener vectors (locked cmpxchg8b reads,
+        // as above), and writes matrix[0], matrix[1] and the coefficient;
+        // nothing else outside its stack.
+        unsafe {
+            raw::engine_sound_pan(
+                Some(self.scene),
+                Some(self.table),
+                Some(proxy.handle()),
+                position.as_ptr(),
+                distance,
+                matrix.as_mut_ptr(),
+                &mut coefficient,
+            );
+        }
+        if matrix[0].is_finite() && matrix[1].is_finite() { [matrix[0], matrix[1]] } else { PAN_CENTRE }
+    }
+}
+
 /// A place of the match as voice needs it: the name and team of its record
-/// (the match options') and, while its player is alive in the world, where.
+/// (the match options') and, while its player is alive in the world, its body.
 #[derive(Clone, Copy)]
 pub struct Seat {
     pub name: [u8; 64],
     pub team: u32,
-    pub position: Option<[f32; 3]>,
+    pub body: Option<Body>,
 }
 
-/// The match's places, the local player's among them.
+/// Whom the local player's voice reaches and who it hears, as srp's relay
+/// routes it (`registry::VoiceChannel`): the places of its team, or in a
+/// free-for-all every place of the match (the owner, 2026-11-13: "in FFA I
+/// would enable voice chat for all").
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Channel {
+    Team,
+    Match,
+}
+
+/// The match's places, the local player's among them, and its voice channel.
 #[derive(Clone, Copy)]
 pub struct Roster {
     seats: [Option<Seat>; Place::COUNT],
     local: Option<Place>,
+    channel: Channel,
 }
 
 impl Roster {
-    pub const EMPTY: Roster = Roster { seats: [None; Place::COUNT], local: None };
+    pub const EMPTY: Roster = Roster { seats: [None; Place::COUNT], local: None, channel: Channel::Team };
 
-    fn of(client: &NetworkClient<'_>, positions: bool) -> Roster {
-        let mut roster = Roster::EMPTY;
+    fn of(client: &NetworkClient<'_>, bodies: bool, channel: Channel) -> Roster {
+        let mut roster = Roster { channel, ..Roster::EMPTY };
         let teams = client.place_teams();
         for place in Place::all() {
             let Some(team) = teams[place.index()] else { continue };
-            let position = if positions {
-                client.player(u32::from(place.get())).filter(|p| p.alive() && p.inserted()).map(|p| p.feet())
+            let body = if bodies {
+                client.player(u32::from(place.get())).filter(|p| p.alive() && p.inserted()).map(|p| Body { feet: p.feet() })
             } else {
                 None
             };
-            roster.seats[place.index()] = Some(Seat { name: client.place_name(place), team, position });
+            roster.seats[place.index()] = Some(Seat { name: client.place_name(place), team, body });
         }
         roster.local = client.local_profile().and_then(|p| Place::new(u32::from(p)));
         roster
@@ -317,16 +514,26 @@ impl Roster {
         self.seats[place.index()].as_ref()
     }
 
-    /// Another player of the local player's team (0 or 1).
-    pub fn teammate(&self, place: Place) -> bool {
+    /// Another player on the local player's voice channel: of its team (0
+    /// or 1), or in a free-for-all any other in the match.
+    pub fn mate(&self, place: Place) -> bool {
         let Some((me, team)) = self.local.and_then(|me| self.seat(me).map(|seat| (me, seat.team))) else {
             return false;
         };
-        me != place && team < 2 && self.seat(place).is_some_and(|seat| seat.team == team)
+        me != place
+            && self.seat(place).is_some_and(|seat| match self.channel {
+                Channel::Team => team < 2 && seat.team == team,
+                Channel::Match => true,
+            })
     }
 
-    pub fn teammates(&self) -> impl Iterator<Item = (Place, &Seat)> {
-        Place::all().filter(|&p| self.teammate(p)).filter_map(|p| self.seat(p).map(|seat| (p, seat)))
+    pub fn mates(&self) -> impl Iterator<Item = (Place, &Seat)> {
+        Place::all().filter(|&p| self.mate(p)).filter_map(|p| self.seat(p).map(|seat| (p, seat)))
+    }
+
+    #[cfg(test)]
+    pub fn set_channel(&mut self, channel: Channel) {
+        self.channel = channel;
     }
 
     #[cfg(test)]
@@ -360,11 +567,12 @@ impl<'t> Scene<'t> {
         self.thread
     }
 
-    /// The match's places; with `positions`, the alive players' feet.
-    pub fn roster(&self, positions: bool) -> Roster {
+    /// The match's places on `channel`; with `bodies`, the alive players'
+    /// bodies.
+    pub fn roster(&self, bodies: bool, channel: Channel) -> Roster {
         self.game
             .and_then(|game| NetworkClient::of_game(game, self.thread))
-            .map_or(Roster::EMPTY, |client| Roster::of(&client, positions))
+            .map_or(Roster::EMPTY, |client| Roster::of(&client, bodies, channel))
     }
 
     pub fn movie(&self) -> Option<&Movie<'t>> {
@@ -510,9 +718,17 @@ impl Dll {
         unsafe { (self.api.mute)(places.0) }
     }
 
-    pub fn radio(self, places: Places) {
-        // SAFETY: the checked API, a mask.
-        unsafe { (self.api.radio)(places.0) }
+    /// Tells how every place is heard, what changed since `before` (all of
+    /// it without one): a place's whole state in one call.
+    pub fn hearing(self, hearing: Hearing, before: Option<Hearing>) {
+        for place in Place::all() {
+            let heard = hearing.of(place);
+            if before.map(|b| b.of(place)) != Some(heard) {
+                let (left, right, radio) = heard.call();
+                // SAFETY: the checked API, a place below 20 and scalars.
+                unsafe { (self.api.hear)(i32::from(place.get()), left, right, radio) }
+            }
+        }
     }
 
     /// The places talking now (the DLL's word): the teammates it plays, and
@@ -535,6 +751,51 @@ impl Dll {
     pub fn voice_id(self, place: Place) -> Option<VoiceId> {
         // SAFETY: the checked API, a place below 20.
         VoiceId::new(unsafe { (self.api.voice_id)(i32::from(place.get())) })
+    }
+
+    /// The Settings' "Test microphone" button pressed: the DLL starts its
+    /// test with these sliders, or stops the one that runs. In a match or
+    /// not.
+    pub fn test_press(self, sliders: Sliders) {
+        // SAFETY: the checked API, scalars (each 0..1).
+        unsafe { (self.api.test_press)(sliders.volume.get(), sliders.sensitivity.get()) }
+    }
+
+    /// The microphone test stopped, if one runs.
+    pub fn test_stop(self) {
+        // SAFETY: the checked API.
+        unsafe { (self.api.test_stop)() }
+    }
+
+    /// What the microphone test does now. The DLL's word is one of this
+    /// ABI's (the version was checked); another would read as no test.
+    pub fn test(self) -> MicTest {
+        // SAFETY: the checked API.
+        MicTest::of_word(unsafe { (self.api.test_state)() }).unwrap_or(MicTest::Idle)
+    }
+
+    /// The capture devices there are now (the DLL asks Windows), in its
+    /// order, each read once: its ID and its name (UTF-8). At most the room's
+    /// length; one the DLL did not write as an ABI's device is left out.
+    pub fn microphones(self, room: &mut [Microphone]) -> impl Iterator<Item = (MicrophoneId, &CStr)> {
+        let size = u32::try_from(room.len()).unwrap_or(u32::MAX);
+        // SAFETY: the checked API; room for `size` devices, which the DLL
+        // fills (at most) for the call.
+        let written = unsafe { (self.api.microphones)(room.as_mut_ptr(), size) };
+        let written = (written as usize).min(room.len());
+        room[..written].iter().filter_map(Microphone::read)
+    }
+
+    /// The capture device push-to-talk and the microphone test open from
+    /// their next opening.
+    pub fn choose_microphone(self, choice: MicrophoneChoice) {
+        let id = match &choice {
+            MicrophoneChoice::Default => core::ptr::null(),
+            MicrophoneChoice::Device(id) => id.as_c_str().as_ptr(),
+        };
+        // SAFETY: the checked API; null or a C string alive for the call
+        // (the DLL copies it).
+        unsafe { (self.api.choose_microphone)(id) }
     }
 
     /// The game has the keyboard (so when user32 lacked the functions).
@@ -563,6 +824,38 @@ mod tests {
             0xE01D => 0xA3, // right Ctrl
             _ => 0,
         }
+    }
+
+    #[test]
+    fn a_microphone_choice_is_the_default_or_an_id_and_reads_back() {
+        let id = b"{0.0.1.00000000}.{6b1a1d3c-1f9e-4c0e-9a59-0d2b5e3f7a10}";
+        let device = MicrophoneChoice::parse(id).unwrap();
+        assert_eq!(device, MicrophoneChoice::Device(MicrophoneId::parse(id).unwrap()));
+        assert_eq!(device.text().to_bytes(), id);
+        assert_eq!(MicrophoneChoice::parse(b""), Some(MicrophoneChoice::Default));
+        assert_eq!(MicrophoneChoice::Default.text(), c"");
+        for bad in [&b" "[..], b"a b", b"\xD0\x9C", &[b'a'; 200]] {
+            assert_eq!(MicrophoneChoice::parse(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn the_test_buttons_press_carries_the_two_sliders() {
+        let sliders = |volume, sensitivity| {
+            Some(Sliders { volume: Fraction::of_percent(volume), sensitivity: Fraction::of_percent(sensitivity) })
+        };
+        assert_eq!(Sliders::parse(c"100 50"), sliders(100.0, 50.0));
+        assert_eq!(Sliders::parse(c"0 0"), sliders(0.0, 0.0));
+        assert_eq!(Sliders::parse(c"7 100"), sliders(7.0, 100.0));
+        assert_eq!(Sliders::parse(c"7 100").map(|s| (s.volume.get(), s.sensitivity.get())), Some((0.07, 1.0)));
+        for bad in [c"", c"50", c"50 ", c" 50", c"50  50", c"50 50 50", c"101 50", c"50 101", c"1000 5", c"5.5 5", c"-1 5",
+                    c"a b", c"50,50", c"stop"] {
+            assert_eq!(Sliders::parse(bad), None, "{bad:?}");
+        }
+        assert_eq!(TestAsk::parse(c"35 80"), Sliders::parse(c"35 80").map(TestAsk::Press));
+        assert_eq!(TestAsk::parse(c"stop"), Some(TestAsk::Stop));
+        assert_eq!(TestAsk::parse(c"Stop"), None);
+        assert_eq!(TestAsk::parse(c""), None);
     }
 
     #[test]

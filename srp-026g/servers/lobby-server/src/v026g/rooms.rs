@@ -88,7 +88,9 @@ use std::time::Instant;
 use session::matchmaking_policy::{self as policy, Closed, Worth};
 use session::v026g::presets::{self, Offer};
 use session::v026g::room_settings::{self, RoomSettings};
-use session::v026g::rooms::{self as model, Door, Due, QueueChoice, Refused, Spec, Stage, Waiting};
+use session::v026g::rooms::{
+    self as model, Door, Due, Entry, QueueChoice, Refused, Spec, Stage, Waiting,
+};
 use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool, Strength};
 use survarium::v026g::lobby::presets::PresetDone;
@@ -98,11 +100,12 @@ use survarium::v026g::lobby::rooms::{
     RoomView,
 };
 use survarium::v026g::lobby::{self, ClientState};
+use survarium::v026g::twist::{Played, Twist};
 use survarium::v026g::maps;
 
 use super::MAINTENANCE_WINDOW;
 use super::core::{Core, JoinAt, Who};
-use super::play::{MatchPlayer, Running, Side, match_profile};
+use super::play::{MatchPlayer, Running, match_profile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PublicBracket {
@@ -211,10 +214,10 @@ fn code_of(refused: Refused) -> RoomCode {
 }
 
 /// A room's match being made (`play::launch`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct RoomLaunch {
-    /// The map its vote chose.
-    pub map_id: u8,
+    /// What its vote chose.
+    pub played: Played,
     /// The room's minimum of players (`MatchSetup::room_minimum`).
     pub minimum: u8,
     pub kind: RoomKind,
@@ -243,7 +246,10 @@ struct Ready {
 
 impl Core<'_> {
     /// The maps a pool may hold, in the order their bits name them: the
-    /// match pool (Blackout's maps too, mode 6), then the experimental maps.
+    /// match pool (Blackout's maps too, mode 6), then the experimental maps,
+    /// then those of them that are a free-for-all's once with each twist
+    /// (Racket's, then Cowboy's: a mode of its own in the create window, its
+    /// lobby number; `ffa.md`, "Twists").
     pub(super) fn room_entries(&self) -> Vec<PoolEntry> {
         let pool = &self.settings.maps;
         let extra = self
@@ -252,7 +258,8 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        pool.iter()
+        let plain: Vec<PoolEntry> = pool
+            .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
             .filter_map(|(id, extra)| {
@@ -262,10 +269,29 @@ impl Core<'_> {
                     level: map.level,
                     weather: map.weather,
                     mode: map.mode.lobby_number(),
+                    twist: None,
                     extra,
                     bots: self.settings.pvb.bot_maps.contains(&id),
                 })
             })
+            .collect();
+        let twisted = Twist::ALL.into_iter().flat_map(|twist| {
+            plain
+                .iter()
+                .filter(|entry| {
+                    maps::map_mode(entry.map_id)
+                        .is_some_and(|map| map.mode == maps::GameMode::FreeForAll)
+                })
+                .map(move |entry| PoolEntry {
+                    mode: twist.lobby_number(),
+                    twist: Some(twist),
+                    ..*entry
+                })
+        });
+        let twisted: Vec<PoolEntry> = twisted.collect();
+        plain
+            .into_iter()
+            .chain(twisted)
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()
@@ -662,9 +688,9 @@ impl Core<'_> {
         match self.rooms.start(who.account_id, &mut |bound| {
             rng.below(bound as u32) as usize
         }) {
-            Ok(Due::Start { key, map_id }) => {
+            Ok(Due::Start { key, played }) => {
                 log::info!("{}: started its room {key}'s match", who.name);
-                self.room_start(key, map_id, now);
+                self.room_start(key, played, now);
             }
             Err(refused) => log::info!("{}: Start in a room: refused ({refused:?})", who.name),
         }
@@ -871,19 +897,16 @@ impl Core<'_> {
         bots: bool,
         now: Instant,
     ) -> Result<u32, Refused> {
-        let entries: Vec<u8> = self
-            .room_entries()
-            .iter()
-            .map(|entry| entry.map_id)
-            .collect();
+        let entries: Vec<Entry> = self.room_entries().iter().map(Entry::from).collect();
         // The whole pool but the experimental maps: the match pool,
         // Blackout's maps with it (the owner's of 2026-10-25: Blackout
-        // is part of the standard pool).
-        let default: Vec<u8> = self
+        // is part of the standard pool), the free-for-alls with every twist
+        // (their shares, `twist::SHARES`).
+        let default: Vec<Entry> = self
             .room_entries()
             .iter()
             .filter(|entry| !entry.extra)
-            .map(|entry| entry.map_id)
+            .map(Entry::from)
             .collect();
         // A room with a PIN asks for the one its maker gave just before; it
         // has no max level (the owner's of 2026-10-26), the window's is
@@ -1306,49 +1329,21 @@ impl Core<'_> {
     }
 
     /// Who is in the room of that key, for anyone looking at the list (the
-    /// owner's of 2026-10-20), each with its side while it plays the room's
-    /// match: the team of its latest place in the match's roster; none in a
-    /// free-for-all, whose players are on no team ([`Side::Alone`]). Nobody:
-    /// the room is gone.
+    /// owner's of 2026-10-20), never by side: in every mode and state the
+    /// room's players as at its vote, those in its match marked (the owner's
+    /// of 2026-11-13: "always like at voting", "just what players are in the
+    /// game"). Nobody: the room is gone.
     fn room_members(&self, who: &Who, key: u32) -> Vec<ListMember> {
         let Some(room) = self.rooms.get(key) else {
             return Vec::new();
-        };
-        // The roster of its match being played, and the match.
-        let playing = match room.stage {
-            Stage::InMatch { match_id, .. } => self
-                .store
-                .matchmaking()
-                .formed_match(match_id)
-                .map(|formed| (formed, self.matches.get(&match_id))),
-            _ => None,
         };
         let unix = quests::now();
         let marks = self.room_squad_marks(room);
         room.members
             .iter()
-            .map(|&account_id| {
-                let member = self.room_member(who, room, account_id, &marks, unix);
-                let side = match &playing {
-                    Some((formed, running)) if member.in_match => formed
-                        .seats
-                        .iter()
-                        .rposition(|seat| seat.player.account_id == account_id)
-                        .and_then(|place| {
-                            let plays = running.and_then(|running| running.side(place));
-                            match plays {
-                                // Its seat's team is only the seating.
-                                Some(Side::Alone(_)) => None,
-                                _ => Some(formed.seats[place].team),
-                            }
-                        }),
-                    _ => None,
-                };
-                ListMember {
-                    member,
-                    side,
-                    account_id,
-                }
+            .map(|&account_id| ListMember {
+                member: self.room_member(who, room, account_id, &marks, unix),
+                account_id,
             })
             .collect()
     }
@@ -1386,14 +1381,14 @@ impl Core<'_> {
                 .cards
                 .iter()
                 .enumerate()
-                .map(|(index, &map_id)| Card {
-                    map_id,
+                .map(|(index, &played)| Card {
+                    shown: played.into(),
                     votes: tally[index],
                     mine: mine == Some(index as u8),
                 })
                 .collect(),
             members,
-            last_map: room.last_map,
+            last: room.last.map(Into::into),
             min_players: room.needs() as u8,
             // The vote is open until the match starts: no map is fixed
             // before (the cards show the votes).
@@ -1628,10 +1623,11 @@ impl Core<'_> {
                 // Before its match: the card that leads alone, or none (a
                 // tie or no votes is drawn at the start, so no map is shown
                 // that may not be played).
-                let map_id = match room.stage {
-                    Stage::InMatch { .. } => room.last_map,
-                    _ => room.leading().unwrap_or(0),
+                let shown = match room.stage {
+                    Stage::InMatch { .. } => room.last,
+                    _ => room.leading(),
                 };
+                let map_id = shown.map_or(0, |played| played.map().id);
                 RoomRow {
                     key: room.key,
                     level: self.room_level(room),
@@ -2378,8 +2374,8 @@ impl Core<'_> {
             &mut |bound| rng.below(bound as u32) as usize,
             |member| counted.contains(&member),
         );
-        for Due::Start { key, map_id } in due {
-            self.room_start(key, map_id, now);
+        for Due::Start { key, played } in due {
+            self.room_start(key, played, now);
         }
         let waiting: Vec<u32> = self
             .rooms
@@ -2438,8 +2434,8 @@ impl Core<'_> {
         Fit::Yes
     }
 
-    /// Start the room's match on `map_id`.
-    fn room_start(&mut self, key: u32, map_id: u8, now: Instant) {
+    /// Start the room's match, to play `played`.
+    fn room_start(&mut self, key: u32, played: Played, now: Instant) {
         let Some(room) = self.rooms.get(key) else {
             return;
         };
@@ -2478,8 +2474,7 @@ impl Core<'_> {
         // size, 20 at the most). Each plays on his own, squads too: the two
         // sides made below are only its seating (the match server gives
         // each place a team of its own and no squad).
-        let free_for_all =
-            maps::map_mode(map_id).is_some_and(|map| map.mode == maps::GameMode::FreeForAll);
+        let free_for_all = played.mode() == maps::GameMode::FreeForAll;
         let ready: Vec<Ready> = members
             .iter()
             .filter_map(|&account_id| self.room_ready(account_id))
@@ -2613,7 +2608,7 @@ impl Core<'_> {
         self.room_launching.insert(
             match_id,
             RoomLaunch {
-                map_id,
+                played,
                 minimum: room_minimum,
                 kind,
             },
@@ -2633,8 +2628,10 @@ impl Core<'_> {
             .map(|player| player.account_id)
             .collect();
         log::info!(
-            "Room {key}: match {match_id:#x} on map {map_id}, {} v {} with {} and {} of the \
+            "Room {key}: match {match_id:#x} on map {}{}, {} v {} with {} and {} of the \
              server's bots",
+            played.map().id,
+            played.twist().map_or(String::new(), |twist| format!(" ({twist:?})")),
             teams[0].len(),
             teams[1].len(),
             bots[0],
@@ -2644,7 +2641,7 @@ impl Core<'_> {
             self.room_send_to_match(*player, now);
         }
         // `launch` made the match (it is in `matches` from here on).
-        self.rooms.started(key, match_id, map_id, &seated, now);
+        self.rooms.started(key, match_id, played, &seated, now);
         // The match started without who could not play it: out of the room,
         // told why (they may come back with a kit that can).
         for (member, fit) in unfit {

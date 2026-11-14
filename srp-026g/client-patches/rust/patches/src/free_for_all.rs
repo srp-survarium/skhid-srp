@@ -343,6 +343,12 @@ enum Match {
 
 static MATCH: GameCell<Match> = GameCell::new(Match::Other);
 
+/// The match the options last read is a free-for-all (patch 66: its voice
+/// reaches every player of it).
+pub fn running(thread: &Thread) -> bool {
+    matches!(MATCH.get(thread), Match::FreeForAll(_))
+}
+
 fn options_read(thread: &Thread, read: Option<OptionsRead>) -> Flow<NoExit> {
     let game = read.and_then(|read| {
         let target = kills_to_win_in(read.rest())?;
@@ -374,7 +380,7 @@ pub fn on_initialize_match(ctx: &mut Context) -> Flow<NoExit> {
 
 /// `text` with each [`NUMBER`] replaced by `number` in decimal, cut to fit
 /// `out`.
-fn with_number<'o>(text: &[u8], number: u16, out: &'o mut [u8; 0x200]) -> &'o CStr {
+pub fn with_number<'o>(text: &[u8], number: u16, out: &'o mut [u8; 0x200]) -> &'o CStr {
     let mut digits = [0u8; 5];
     let mut first = digits.len();
     let mut rest = number;

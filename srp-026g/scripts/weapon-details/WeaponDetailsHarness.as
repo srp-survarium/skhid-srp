@@ -595,6 +595,12 @@ package {
    require(medicineLines(cards[0],d).join()==released.painkiller,"refused ranks change nothing");
    profile.setKitModifiers(kitFloats({43:3,45:3}));d=medicine("painkiller");shows(d,other);
    require(medicineLines(cards[0],d).join()==released.painkiller,"refused combo ranks change nothing");
+   // Brothers in Arms' three bits at 21, one rank since 2026-11-14: rank 2 of 1 is refused, its
+   // one rank beside Potent Painkiller 3 is a valid set.
+   profile.setKitModifiers(kitFloats({43:3|2<<21}));d=medicine("painkiller");shows(d,other);
+   require(medicineLines(cards[0],d).join()==released.painkiller,"Brothers in Arms 2 refused");
+   profile.setKitModifiers(kitFloats({43:3|1<<21}));d=medicine("painkiller");shows(d,other);
+   require(medicineLines(cards[0],d).join()==expect("painkiller",painkiller.painkiller.split(",")),"Brothers in Arms 1 valid: "+medicineLines(cards[0],d).join());
    // Unflinching's three bits at 4: rank 5 of 4 is refused; every combo skill at its most (74) is
    // a valid set beside Potent Painkiller 3.
    profile.setKitModifiers(kitFloats({43:3,45:5<<4}));d=medicine("painkiller");shows(d,other);

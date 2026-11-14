@@ -71,6 +71,7 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
         replay_id: ReplayId::new(MATCH, std::time::UNIX_EPOCH),
         map_id: 1,
         mode: GameMode::Batteries,
+        twist: None,
         match_level: 0,
         end: MatchEnd::ModeRule,
         winner: Some(0),

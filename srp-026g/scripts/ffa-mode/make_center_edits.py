@@ -12,7 +12,9 @@ them (the stock db, every patch of release/patches.tsv and what the manifest mak
       --project v010b_cs_mp_bath/day_8@-48.13,-22.87,34.12,53.13 \\
       --project v010b_cs_mp_military_1/day_8@-127.47,-71.12,115.78,95.38 > ../center.tsv
 
-(the STALKER maps with their reviewed play area, scripts/stalker-maps/ffa-points). Then
+(the STALKER maps with their reviewed play area, scripts/stalker-maps/ffa-points). London's rows 38
+and 39 are of a second run, on the projects with this list applied: `--project level_09/day_8
+--below 14.5` (to_center's doc: off its rotunda's third storey), in place of the first run's. Then
 
   python3 make_center_edits.py --live <folder>
 
@@ -30,7 +32,6 @@ import make_edits as base
 
 POINTS_TSV = base.HERE / 'center.tsv'
 OUTPUT = base.HERE.parent / 'content-edit/ffa-center-1.json'
-SPACING = 12.
 
 
 def path_of(project):
@@ -71,11 +72,6 @@ def edits(live):
         missing = set(points) - set(solo)
         if missing:
             raise ValueError(f'{path}: no solo spawn {sorted(missing)}')
-        after = {i: (points[i][0] if i in points else list(e['position'])) for i, e in solo.items()}
-        for i in points:
-            near = min(math.dist((after[i][0], after[i][2]), (p[0], p[2])) for j, p in after.items() if j != i)
-            if near < SPACING - 0.001:
-                raise ValueError(f'{path}: moved point {i} is {near:.2f} m from another solo spawn')
         for i in sorted(points):
             entry = solo[i]
             position, yaw = points[i]

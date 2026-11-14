@@ -35,6 +35,7 @@ use survarium::v026g::loadouts::BotRole;
 use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, ClientState, limits};
 use survarium::v026g::maps;
+use survarium::v026g::twist::Played;
 use survarium::v026g::match_msgs::static_info::{
     KIT_NOT_LOADED, MatchItem, MatchKit, MatchProfile, Upgrade,
 };
@@ -272,8 +273,8 @@ fn server_bot_teams(teams: &[u8], counts: [f64; 2], count: usize) -> Vec<u8> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchSetup {
     pub pool: QueuePool,
-    /// The map and the mode.
-    pub map: maps::MatchMap,
+    /// The map, the mode and a free-for-all's twist.
+    pub played: Played,
     /// The row of `match_levels_dict` the match's rewards are multiplied
     /// by: the mean of its players' levels
     /// (`session::v026g::matchmaking::match_level`).
@@ -309,7 +310,8 @@ pub(super) struct Running {
     pub pool: QueuePool,
     pub fixed_teams: bool,
     pub ticket: MatchTicket,
-    pub map: maps::MatchMap,
+    /// What it plays: its map, mode and twist.
+    pub map: Played,
     /// Its roster's sessions and teams, by place. The teams are the
     /// lobby's seating; what a place plays on is its [`Running::side`].
     pub seats: Vec<(u32, u8)>,
@@ -1243,7 +1245,7 @@ impl Core<'_> {
         // A room's match: the map its vote chose, the room's minimum,
         // whether it has a PIN and its bots (`rooms`).
         let room = self.room_launching.get(&match_id).copied();
-        let room_map = room.map(|room| room.map_id);
+        let room_played = room.map(|room| room.played);
         let unix = quests::now();
         // Its players' levels, and their equipment levels (the bots').
         let mut levels = Vec::with_capacity(formed.seats.len());
@@ -1339,9 +1341,10 @@ impl Core<'_> {
             );
             players
         });
-        let chosen = match (pvb, room_map) {
-            (Some(choice), _) => choice.map_id,
-            (None, Some(map_id)) => map_id,
+        let plain = |map_id: u8| (map_id, maps::MatchMap::of(map_id).map(Played::plain));
+        let (chosen, played) = match (pvb, room_played) {
+            (Some(choice), _) => plain(choice.map_id),
+            (None, Some(played)) => (played.map().id, Some(played)),
             // Neither a room's nor against bots: a map of the pool drawn at
             // random, never Blackout (a room's mode only, by its card) nor a
             // free-for-all (this match is of two teams, up to 20 players).
@@ -1360,10 +1363,10 @@ impl Core<'_> {
                     .filter(drawn)
                     .map(|map| map.id)
                     .collect();
-                match pool.len() {
+                plain(match pool.len() {
                     0 => maps::playable().find(drawn).map_or(0, |map| map.id),
                     count => pool[self.rng.below(count as u32) as usize],
-                }
+                })
             }
         };
         let match_level = matchmaking::match_level(&levels);
@@ -1378,19 +1381,19 @@ impl Core<'_> {
             || room.is_some_and(|room| {
                 matches!(room.kind, RoomKind::Private | RoomKind::WithBots { .. })
             });
-        let made = match (players.filter(|_| compatible), maps::MatchMap::of(chosen)) {
-            (Some(players), Some(map)) => self
+        let made = match (players.filter(|_| compatible), played) {
+            (Some(players), Some(played)) => self
                 .host
                 .create(MatchSetup {
                     pool: formed.pool,
-                    map,
+                    played,
                     match_level,
                     players,
                     vs_bots,
                     private,
                     room_minimum: room.map(|room| room.minimum),
                 })
-                .map(|ticket| (ticket, map)),
+                .map(|ticket| (ticket, played)),
             (None, _) => {
                 Err("a seated player is unavailable or uses an incompatible client".to_owned())
             }

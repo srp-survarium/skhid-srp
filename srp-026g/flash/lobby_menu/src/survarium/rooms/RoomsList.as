@@ -15,7 +15,6 @@ package survarium.rooms
     import survarium.constants.RoomCode;
     import survarium.constants.RoomFit;
     import survarium.constants.RoomPhase;
-    import survarium.constants.RoomSide;
     import survarium.player.LocalPlayerProfile;
 
     // The list, after the design: the table of the rooms on the left, the
@@ -26,8 +25,6 @@ package survarium.rooms
     {
         private static const SIDE_W:Number = 330;
         private static const MEMBERS_W:Number = SIDE_W - 32;
-        // A side's bar while the room plays its match.
-        private static const SIDE_COLOURS:Array = [0x5A8FB5, 0xC98A3C];
         // The quiet line of a playing room's spectators under its members: its place
         // kept while the room plays, whoever watches (nothing moves as they come
         // and go; the owner's of 2026-11-05, "shouldn't distract anyone").
@@ -311,18 +308,17 @@ package survarium.rooms
         }
 
         // The rows the list of a room of the table needs in two columns (the
-        // render above is made lower for them): half its players, or while
-        // it plays a side's, the room's size at most.
+        // render above is made lower for them): half its players.
         private function memberRows(room:Object):int
         {
             var n:int = Math.min(RoomsWire.MEMBERS_MAX, int(room.players));
-            return Math.max(1, room.phase == RoomPhase.IN_MATCH ? Math.min(n, int(room.size)) : int((n + 1) / 2));
+            return Math.max(1, int((n + 1) / 2));
         }
 
         // The chosen room's members in two columns (one layout, however many;
-        // the owner's of 2026-10-29), and while it plays its match, side 1 on the left
-        // and side 2 on the right (a bar of the side's colour), those not
-        // in the match where there is room. Each row: the equipment level
+        // the owner's of 2026-10-29), in the room's order, never by side (the
+        // owner's of 2026-11-13: "always like at voting"; those in its match
+        // gold). Each row: the equipment level
         // in a column of its own, the red mark of a kit that cannot play,
         // the name cut to what is left (`fitName`).
         internal function drawMembers():void
@@ -337,29 +333,8 @@ package survarium.rooms
             if (win._view != "list" || room == null || win._seen == null || win._seen.key != room.key)
                 return;
             var all:Array = win._seen.members;
-            var playing:Boolean = false;
-            var i:int;
-            for (i = 0; i < all.length; i++)
-                if (all[i].side == RoomSide.FIRST || all[i].side == RoomSide.SECOND)
-                    playing = true;
-            var cols:Array;
-            if (!playing)
-                cols = [all.slice(0, int((all.length + 1) / 2)), all.slice(int((all.length + 1) / 2))];
-            else
-            {
-                cols = [[], []];
-                var rest:Array = [];
-                for (i = 0; i < all.length; i++)
-                {
-                    if (all[i].side == RoomSide.FIRST || all[i].side == RoomSide.SECOND)
-                        cols[all[i].side - RoomSide.FIRST].push(all[i]);
-                    else
-                        rest.push(all[i]);
-                }
-                for (i = 0; i < rest.length; i++)
-                    cols[cols[0].length <= cols[1].length ? 0 : 1].push(rest[i]);
-            }
-            var rows:int = Math.max(1, Math.max(cols[0].length, cols.length > 1 ? cols[1].length : 0));
+            var cols:Array = [all.slice(0, int((all.length + 1) / 2)), all.slice(int((all.length + 1) / 2))];
+            var rows:int = Math.max(1, cols[0].length);
             var rowH:int = int(Math.max(12, Math.min(22, _membersH / rows)));
             var size:int = rowH >= 20 ? 14 : rowH >= 17 ? 13 : 12;
             var colW:Number = (MEMBERS_W - 12) / 2;
@@ -382,12 +357,6 @@ package survarium.rooms
             row.graphics.beginFill(0x000000, 0.01);
             row.graphics.drawRect(0, 0, w, rowH);
             row.graphics.endFill();
-            if (m.side == RoomSide.FIRST || m.side == RoomSide.SECOND)
-            {
-                row.graphics.beginFill(uint(SIDE_COLOURS[m.side - RoomSide.FIRST]), 1);
-                row.graphics.drawRect(0, 2, 3, rowH - 4);
-                row.graphics.endFill();
-            }
             box.addChild(row);
             var top:Number = int((rowH - size - 4) / 2);
             // The level in its own column, right-aligned: never under the name.

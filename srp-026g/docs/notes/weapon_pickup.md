@@ -313,7 +313,15 @@ local: nothing synced, no `simulation_changes` row.
   was not installed there. The cook now takes the recipe's place's player
   of its kit from the core's place table (core+18458h, 30h a place, the kit
   players at +0/+4/+8; `Player::kit_player`), which keeps them
-  (`a_departed_donors_gun_is_cooked`). Only the profile's changing part differs: the world carries it for
+  (`a_departed_donors_gun_is_cooked`). Before a world's load the table is
+  read in the client's match (`NetworkClient::kit_player`): a late
+  joiner's first world comes before its local player and before any
+  place's bit (the core's constructor clears them, 0x2D00D7; the load sets
+  them, 0x2D2862). Rev57 read it through the local player: the joiner
+  cooked nothing, the reader's cook inside the load was not made in 2 s,
+  and the native reader read the picked gun's bytes into the own gun, 2
+  bytes short; the next slot's item read garbage and crashed (report of
+  2026-11-13, exe+0x2EFF87). Only the profile's changing part differs: the world carries it for
   the places in it, so a joiner has a departed place's from the static info
   (its items' wear 1.0). A held gun's wear comes with the world; a pickup
   waiting for its switch is not in the world, so at the swap the picked gun
@@ -937,8 +945,9 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   `Frame::states`) names its picks and its pending pickup; a pick the
   place's player holds (or has pending) as named is kept by the reader; for
   each recipe, as many copies as the rest name, less its idle copies (in a
-  drop or let go), are cooked from the recipe's place's player (the
-  network client's get_active_player 0x27A9C0) and waited for. That wait is
+  drop or let go), are cooked from the recipe's place's player of its kit
+  (the client's match's place table, `NetworkClient::kit_player`; else
+  get_active_player 0x27A9C0) and waited for. That wait is
   not refused on the mark: here the game's own frame dispatch could have
   run every callback, a late join's install among them (it then binds its
   slot before the world is installed, between simulation updates); the game

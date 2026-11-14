@@ -119,9 +119,10 @@ package survarium.rooms
                 {
                     // The mode's tag as wide as its name (at most the card's
                     // width less its margins); the map's name up to the votes.
-                    var mode:TextField = look.text(cell, win.modeName(e.mode).toUpperCase(), 16, 13, cw - 44, 13, 0xFFFFFF);
+                    var cardMode:int = card.mode != 0 ? card.mode : e.mode;
+                    var mode:TextField = look.text(cell, win.modeName(cardMode).toUpperCase(), 16, 13, cw - 44, 13, 0xFFFFFF);
                     var tag:Shape = new Shape();
-                    tag.graphics.lineStyle(1, RoomsLook.modeColour(e.mode));
+                    tag.graphics.lineStyle(1, RoomsLook.modeColour(cardMode));
                     tag.graphics.beginFill(0x000000, 0.7);
                     tag.graphics.drawRect(10, 10, Math.min(cw - 20, mode.textWidth + 16), 24);
                     tag.graphics.endFill();
@@ -431,7 +432,8 @@ package survarium.rooms
                 _bannerLabel.text = win.say("st_srp_rooms_playing").toUpperCase();
                 // The map its match is played on (the server's `L` row) and its mode.
                 var played:Object = win.entry(win._room.last);
-                RoomsLook.fitName(_bannerMap, played != null ? win.levelName(played.level) + " · " + win.modeName(played.mode) : "", "");
+                var playedMode:int = win._room.lastMode != 0 ? win._room.lastMode : (played != null ? played.mode : 0);
+                RoomsLook.fitName(_bannerMap, played != null ? win.levelName(played.level) + " · " + win.modeName(playedMode) : "", "");
                 _banner.text = RoomsText.clock(win._room.secs + passed);
                 // Waiting to go into it: the seconds left, counted here; or
                 // why it cannot go in now; or its own kit or gear.

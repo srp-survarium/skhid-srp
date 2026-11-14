@@ -305,6 +305,31 @@ class MapEditorEdits(unittest.TestCase):
             self.assertEqual(ce.items_of(data, 'objects[0]/containers'), ['b', 'c'])
             self.assertEqual(value(data, 'objects[1]/full_name'), 'second')
 
+    def test_cli_add_entry_refuses_another_number_of_files_than_expected(self):
+        """An entry a file must take (a project's object): a missing anchor is refused, not passed over."""
+        def run(after, expected):
+            edits = {'add_entry': [{'files': 'project', 'list': 'objects', 'after': {'full_name': after},
+                                    'like': {'full_name': 'first'}, 'values': {'full_name': 'copy'},
+                                    **expected}]}
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                (root / 'live').mkdir()
+                (root / 'live/project').write_bytes(fixture())
+                (root / 'edits.json').write_text(json.dumps(edits))
+                result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                         str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                        capture_output=True, text=True)
+                return result, (root / 'out/project').exists()
+        result, written = run('first', {'expected_files': 1})
+        self.assertEqual((result.returncode, written), (0, True), result.stdout + result.stderr)
+        result, written = run('gone', {'expected_files': 1})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('0 files took it, not 1', result.stderr)
+        self.assertFalse(written)
+        # Without it, as before: the file is left alone.
+        result, written = run('gone', {})
+        self.assertEqual((result.returncode, written), (0, False), result.stdout + result.stderr)
+
     def test_cli_set_entry_remakes_an_indexed_table(self):
         """A skill from 5 ranks to 3 (skill-ranks-1): set_entry gives `modifiers` and the texts a
         shorter list, whose items may change type (here a text to an int), and the read-back takes

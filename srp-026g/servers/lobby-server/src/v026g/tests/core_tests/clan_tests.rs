@@ -1528,7 +1528,7 @@ fn a_clan_match_never_draws_a_free_for_all() {
         assert_eq!(made.len(), 1);
         let (id, setup) = &made[0];
         assert_eq!(*id, match_id);
-        let map = setup.map.map();
+        let map = setup.played.map();
         assert!(
             !matches!(map.mode, GameMode::FreeForAll | GameMode::Blackout),
             "map {} is {:?}",

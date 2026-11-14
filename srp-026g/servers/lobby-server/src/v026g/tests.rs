@@ -51,7 +51,7 @@ impl MatchHost for TestHost {
         // A free-for-all, as the registry makes it (`MatchRegistry::create`):
         // each place on a side of its own and in no squad, whatever the
         // lobby seated it as. `made` keeps what the lobby asked for.
-        let map = setup.map.map();
+        let map = setup.played.map();
         let free_for_all = map.mode == maps::GameMode::FreeForAll;
         let mut made = self.made.locked();
         let match_id = 0xA000 + made.len() as u32;
@@ -69,7 +69,7 @@ impl MatchHost for TestHost {
                     profile
                 })
                 .collect(),
-            map: setup.map,
+            map: setup.played.match_map(),
             match_id,
             match_level: setup.match_level,
             score_weights: SCORE_WEIGHTS,

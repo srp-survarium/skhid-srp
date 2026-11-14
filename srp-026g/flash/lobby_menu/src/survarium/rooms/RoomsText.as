@@ -20,7 +20,10 @@ package survarium.rooms
             "4": "st_srp_mode_team_deathmatch",
             "5": "st_srp_mode_research",
             "6": "st_srp_mode_blackout",
-            "8": "st_srp_mode_free_for_all"
+            "8": "st_srp_mode_free_for_all",
+            // A free-for-all's twist (docs/notes/ffa.md, "Twists"): no maps of its own, a card's mode.
+            "9": "st_srp_mode_racket",
+            "10": "st_srp_mode_cowboy"
         };
         // maps_dict's map_weather_id: 1 day, 2 rain, 3 evening, 4 night, 5 prerain.
         private static const WEATHER:Object = {

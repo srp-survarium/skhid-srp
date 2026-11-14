@@ -1,0 +1,53 @@
+{
+  "_about": "The STALKER maps' bushes rustle (the owner, 2026-11-14: \"bushes should have rustling sound just like on normal survarium maps\"): each map's leaves within a step's reach of a floor, models/srp/<level>_bushes of pack stalker-bushes@2 (game material foliage_deciduous, as stock's bushes), a collision object of its Team Deathmatch project after the level's own chunks, which Free for All's project is a copy of (ffa-projects-1.json, after this list). cgroup 8, cmask 32: the step's ray (group 30h, mask 8) meets it and plays the foliage step; bullets, grenades, cameras, walkers and dead bodies do not (docs/notes/stalker-maps.md, \"Bushes rustle\"). expected_files: a project the entry cannot be placed in (its anchor gone) stops the build. Made by scripts/stalker-bushes/make_pack.py --edits.",
+  "add_entry": [
+    {
+      "files": "projects/v010b_cs_mp_bath/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v010b/ported/cs/bath/bath_063.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v010b/ported/cs/bath/bath_000.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/bath_bushes.model/collision",
+        "cgroup": 8,
+        "cmask": 32
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v010b_cs_mp_military_1/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v010b/ported/cs/military_1/military_1_127.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v010b/ported/cs/military_1/military_1_000.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/military_1_bushes.model/collision",
+        "cgroup": 8,
+        "cmask": 32
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v010b_cs_training_camp/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v010b/ported/cs/training_camp/training_camp_063.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v010b/ported/cs/training_camp/training_camp_000.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/training_camp_bushes.model/collision",
+        "cgroup": 8,
+        "cmask": 32
+      },
+      "expected_files": 1
+    }
+  ]
+}

@@ -128,6 +128,20 @@ package
          this.settings_window.setSliderOption(values);
       }
       
+      // The exe's word of the Settings' microphone test (patch 66, Settings.setMicTest): its
+      // button's text, in answer to the sound tab's ask and whenever the test's state changes.
+      public function srp_mic_test(text:String) : void
+      {
+         this.settings_window.setMicTest(text);
+      }
+      
+      // The exe's answer to the Settings' Microphone list (patch 66, Settings.setMicrophone): its label,
+      // the default's text, the pick it shows, then each capture device's id and name.
+      public function srp_microphone(... values) : void
+      {
+         this.settings_window.setMicrophone(values);
+      }
+      
       // The exe's answer with the Settings' HUD group's texts (patch 83, Settings.setHudTexts).
       public function srp_hud_texts(... values) : void
       {

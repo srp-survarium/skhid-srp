@@ -9,7 +9,9 @@
 //!   at the match's end and when its scene is left (`game_world.finish`,
 //!   `game_world.deactivate`) stopped, push-to-talk released first;
 //! - every frame of a match (`game_world.after_move`): the options, the
-//!   mutes and who is far (the radio) told to the DLL when they change, a
+//!   mutes and how each teammate is heard (the radio, or plain in the
+//!   world: the engine's own pan of a sound at its place, and a gain by
+//!   its distance) told to the DLL when they change, a
 //!   held push-to-talk let go when the key is up or the game lost the
 //!   keyboard, and the hud's list of who talks;
 //! - the game world's keys (`tab_cursor.key`) and mouse buttons
@@ -20,7 +22,26 @@
 //!   asks `srp_voice_menu(place)`, answered `root.srp_voice_menu(place,
 //!   offered, muted)` (a teammate whose voice id is known), and sends
 //!   `srp_voice_mute(place, "1"|"0")`, answered `root.srp_voice_mute(place,
-//!   done)`.
+//!   done)`;
+//! - the options' microphone test (the owner, 2026-11-14; the DLL's, in a
+//!   match or not: voice-chat.md, "Microphone test"): the Settings' sound tab
+//!   asks `srp_mic_test` (`options.callback`), answered `root.srp_mic_test(
+//!   text)`, its button's text now, and sends `srp_mic_test("<volume>
+//!   <sensitivity>")`, a press with the two sliders as they stand, or
+//!   `srp_mic_test("stop")` as the Settings window closes; every frame of the
+//!   game (`game.tick`) the button is told its text again when the DLL's
+//!   state of the test, or its second, is no longer the one shown; the test
+//!   is also stopped when the Settings change tab and when the main menu
+//!   closes (`options.deactivate`: also a match's loading and its end);
+//! - the options' Microphone list (voice-chat.md, "Microphone"): the sound tab
+//!   asks `srp_microphone` (`options.callback`) as it is shown and as the list
+//!   is opened, answered `root.srp_microphone(label, default, shown, id, name,
+//!   ...)`, the capture devices the DLL finds now; a pick in the list sends
+//!   `srp_microphone_use(id)` (empty: Windows' default), told to the DLL at
+//!   once and not saved, and Cancel or leaving without Apply
+//!   `srp_microphone_use` with nothing, the saved one again; Apply sends
+//!   `srp_microphone(id)`, kept in user.cfg (`srp_microphone`) and told to
+//!   the DLL, which is told the saved one as it is loaded.
 //!
 //! Nothing a match computes: audio goes beside the game, through the DLL.
 
@@ -28,23 +49,60 @@
 
 use core::ffi::CStr;
 
+use ::ragdoll::math::sqrt;
+
 use crate::vostok::log::{self, Piece::*};
+use crate::vostok::settings::{Menu, OptionsCall};
 use crate::vostok::types::Place;
 use crate::vostok::voice::{
-    self as engine, Connect, Dll, MUTES_SIZE, Places, Roster, Scene, Settings, TalkInput, TalkKey, VoiceId, name_text,
+    self as engine, Channel, Connect, Dll, Ears, Heard, Hearing, Listener, MUTES_SIZE, MicTest, Microphone, MicrophoneChoice,
+    MicrophoneId, PAN_CENTRE, Places, Roster, Scene, Settings, TalkInput, TalkKey, TestAsk, VoiceId, name_text,
 };
-use crate::vostok::{Context, Flow, GameCell, GameWorldButton, GameWorldKey, HudCall, NoExit, Thread, VoiceOnHudCallExit};
+use crate::vostok::{
+    Context, Flow, GameCell, GameWorldButton, GameWorldKey, HudCall, NoExit, Thread, VoiceOnHudCallExit,
+    VoiceOnOptionsCallExit,
+};
 
-/// A teammate farther than this is heard through the radio (the owner,
-/// 2026-10-25); a dead one, or any when the local player is dead, too.
-pub const NEAR_M: f32 = 25.0;
+/// Where the plain voice ends (the owner, 2026-11-14: "the voice fall of
+/// start immediately and drops completely at 10 meters"): from this
+/// distance a speaker's plain voice is not heard.
+pub const PLAIN_TO_M: f32 = 10.0;
+
+/// Where the radio starts ("radio starts at 10 too"; 15 m since
+/// 2026-11-13, 25 before): from this distance a speaker is heard through
+/// the radio. The two may differ: between them, where the plain voice still
+/// reaches, both are heard; under both, were this the farther, neither.
+pub const RADIO_FROM_M: f32 = 10.0;
+
+/// How much of the plain voice is left at 9 m of what it is beside the
+/// listener: 0.7, 3 dB down (the owner: "should be still fine at 9m",
+/// "fall off should not be big", "so you always hear normally"). The one
+/// number of the fall: 0.5 is 6 dB, 0.35 9 dB, 1 none.
+pub const AT_9_M: f32 = 0.7;
+
+/// The plain voice beside the listener and straight ahead plays as decoded
+/// in both ears, as the radio does and as revision 58's near voice did: the
+/// engine pans a point sound at constant power, 0.707 in each ear ahead (1
+/// in one at the side), so its gains are raised by this.
+const LEVEL: f32 = core::f32::consts::SQRT_2;
+
+/// The plain voice's gain by its distance: a volume curve as the engine's
+/// distance presets have them (`sounds/spl/*.spl`: the gain by metres, read
+/// with the distance not under 1 m and held to 0..1, calculate_hdr_audio_frame
+/// 0x5C9B5), of two linear keys: 1 to 1 m, [`AT_9_M`] at 9 m, on to
+/// [`PLAIN_TO_M`]. With 0.7 it is the stock `weapon_shot_40` and
+/// `weapon_echo_close_mid` within 0.4 dB (docs/notes/voice-chat.md).
+fn gain(metres: f32) -> f32 {
+    let past = if metres > 1.0 { metres - 1.0 } else { 0.0 };
+    (1.0 - (1.0 - AT_9_M) * past / (9.0 - 1.0)).clamp(0.0, 1.0)
+}
 
 /// What the DLL was last told, so it is told again only on a change.
 #[derive(Clone, Copy, PartialEq)]
 struct Told {
     settings: Settings,
     muted: Places,
-    radio: Places,
+    hearing: Hearing,
 }
 
 /// `SKHID_VOICE_LOG` as the game was started with it (`on` or `1`), read at
@@ -90,7 +148,8 @@ struct Live {
 
 #[derive(Clone, Copy)]
 enum Voice {
-    /// The DLL not looked for yet (before the first live match).
+    /// The DLL not looked for yet (before the first live match and the
+    /// Settings' first showing of their sound tab).
     Unloaded,
     /// No DLL, or one of another ABI: voice stays off.
     Missing,
@@ -99,6 +158,32 @@ enum Voice {
 }
 
 static VOICE: GameCell<Voice> = GameCell::new(Voice::Unloaded);
+
+/// The DLL, looked for now when it was not yet; None without one of this ABI
+/// (said once in the log). Loaded, it is told the saved microphone.
+fn dll(thread: &Thread) -> Option<Dll> {
+    match VOICE.get(thread) {
+        Voice::Unloaded => {
+            let dll = Dll::load(thread);
+            match dll {
+                Some(dll) => dll.choose_microphone(engine::saved_microphone(thread)),
+                None => log::line(&[Text("voice: no skhid_voice.dll of this ABI: voice chat is off")]),
+            }
+            VOICE.set(thread, dll.map_or(Voice::Missing, Voice::Idle));
+            dll
+        }
+        Voice::Missing => None,
+        Voice::Idle(dll) | Voice::Live(dll, _) => Some(dll),
+    }
+}
+
+/// The DLL when it is loaded.
+fn loaded(thread: &Thread) -> Option<Dll> {
+    match VOICE.get(thread) {
+        Voice::Idle(dll) | Voice::Live(dll, _) => Some(dll),
+        Voice::Unloaded | Voice::Missing => None,
+    }
+}
 
 /// The muted teammates' voice ids, oldest first: `srp_voice_mutes` in
 /// user.cfg, each id 8 hex digits and a `|`. Read once a match; a record not
@@ -203,24 +288,15 @@ pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_connect(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let connect = Connect::at(ctx);
-    let dll = match VOICE.get(thread) {
-        Voice::Missing => return Flow::Continue,
-        Voice::Unloaded => match Dll::load(thread) {
-            Some(dll) => dll,
-            None => {
-                log::line(&[Text("voice: no skhid_voice.dll of this ABI: voice chat is off")]);
-                VOICE.set(thread, Voice::Missing);
-                return Flow::Continue;
-            }
-        },
-        Voice::Idle(dll) => dll,
-        Voice::Live(dll, _) => {
-            dll.talk(false);
-            dll.stop();
-            dll
-        }
-    };
+    let Some(dll) = dll(thread) else { return Flow::Continue };
+    if let Voice::Live(..) = VOICE.get(thread) {
+        dll.talk(false);
+        dll.stop();
+    }
     dll.talk(false);
+    // A match loads: a microphone test with no match ends (the start below
+    // ends its worker too).
+    dll.test_stop();
     let Some(connect) = connect else {
         log::line(&[Text("voice: a match connect without a host, or on port 65535: voice chat is off for this match")]);
         VOICE.set(thread, Voice::Idle(dll));
@@ -231,10 +307,10 @@ pub fn on_connect(ctx: &mut Context<'_>) -> Flow<NoExit> {
     // no mutes and no radio until the match's first frame knows its places (the
     // DLL keeps the last match's, by place, or its defaults; the relay forwards
     // to the seat from its connect, during the loading).
-    let told = Told { settings: engine::settings(thread), muted: Places::NONE, radio: Places::NONE };
+    let told = Told { settings: engine::settings(thread), muted: Places::NONE, hearing: Hearing::UNITY };
     dll.settings(told.settings);
     dll.mute(told.muted);
-    dll.radio(told.radio);
+    dll.hearing(told.hearing, None);
     let started = dll.start(&connect);
     trace.line(&[
         Text("the relay's port "),
@@ -252,9 +328,13 @@ pub fn on_connect(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The match's voice stopped, and the hud's list emptied (a name shown when
-/// it ended would stay to the next match's reset).
+/// The match's voice stopped (a microphone test with it), and the hud's list
+/// emptied (a name shown when it ended would stay to the next match's reset).
 fn stop(thread: &Thread, scene: Option<Scene<'_>>) {
+    if let Voice::Idle(dll) = VOICE.get(thread) {
+        // No voice in this match (a replay, or the start refused): a test over it.
+        dll.test_stop();
+    }
     if let Voice::Live(dll, live) = VOICE.get(thread) {
         dll.talk(false);
         dll.stop();
@@ -277,26 +357,56 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The teammates heard through the radio: farther than [`NEAR_M`], or
-/// either of the two not alive in the world.
-fn radio(roster: &Roster) -> Places {
-    let me = roster.local().and_then(|me| roster.seat(me)).and_then(|seat| seat.position);
-    roster.teammates().fold(Places::NONE, |far, (place, seat)| {
-        let near = match (me, seat.position) {
-            (Some(a), Some(b)) => {
-                let d = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-                let squared = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
-                squared.is_finite() && squared <= NEAR_M * NEAR_M
+/// How each mate (a teammate; in a free-for-all, any other player) is
+/// heard: through the radio when either of the two is not alive in the
+/// world (dead, a spectator); else by how far it is ([`in_the_world`]).
+/// `pan` is the engine's, of a sound at an offset from the listener. The
+/// other places are not heard at all: left plain, as decoded.
+fn hearing(roster: &Roster, pan: impl Fn([f32; 3]) -> [f32; 2]) -> Hearing {
+    let me = roster.local().and_then(|me| roster.seat(me)).and_then(|seat| seat.body);
+    roster.mates().fold(Hearing::UNITY, |hearing, (place, seat)| {
+        let heard = match (me, seat.body) {
+            (Some(me), Some(them)) => {
+                let offset = [them.feet[0] - me.feet[0], them.feet[1] - me.feet[1], them.feet[2] - me.feet[2]];
+                in_the_world(offset, PLAIN_TO_M, RADIO_FROM_M, &pan)
             }
-            _ => false,
+            _ => Heard::Radio,
         };
-        if near { far } else { far.with(place) }
+        hearing.with(place, heard)
     })
 }
 
-/// The teammates whose voice id is muted.
+/// How a speaker `offset` from the listener (feet to feet, so one on the
+/// same floor is at the ears' height) is heard, both alive: nearer than
+/// `plain_to`, plain, by the engine's pan of a sound there and [`gain`];
+/// from `radio_from` on, through the radio. A distance that is not a number
+/// (a broken place): the radio.
+fn in_the_world(offset: [f32; 3], plain_to: f32, radio_from: f32, pan: &impl Fn([f32; 3]) -> [f32; 2]) -> Heard {
+    let squared = offset[0] * offset[0] + offset[1] * offset[1] + offset[2] * offset[2];
+    if !squared.is_finite() {
+        return Heard::Radio;
+    }
+    let metres = sqrt(squared);
+    let radio = metres >= radio_from;
+    if metres >= plain_to {
+        return if radio { Heard::Radio } else { Heard::Plain(Ears::SILENT) };
+    }
+    let level = LEVEL * gain(metres);
+    let [left, right] = pan(offset);
+    let ears = Ears::new(left * level, right * level);
+    if radio { Heard::Both(ears) } else { Heard::Plain(ears) }
+}
+
+/// Whom the local player hears and is heard by, by the match's mode: in a
+/// free-for-all (patch 142's) every player of the match, else its team. The
+/// one place the client decides it; srp's relay routes the same way.
+fn channel(thread: &Thread) -> Channel {
+    if crate::free_for_all::running(thread) { Channel::Match } else { Channel::Team }
+}
+
+/// The mates (teammates; in a free-for-all, everyone) whose voice id is muted.
 fn muted(dll: Dll, roster: &Roster, mutes: &Mutes) -> Places {
-    roster.teammates().fold(Places::NONE, |muted, (place, _)| {
+    roster.mates().fold(Places::NONE, |muted, (place, _)| {
         if dll.voice_id(place).is_some_and(|id| mutes.has(id)) { muted.with(place) } else { muted }
     })
 }
@@ -335,8 +445,11 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
             live.trace = Trace::On(Some(state));
         }
     }
-    let roster = scene.roster(true);
-    let told = Told { settings, muted: muted(dll, &roster, &live.mutes), radio: radio(&roster) };
+    let roster = scene.roster(true, channel(thread));
+    // No listener yet (the world's first tick): the engine's centre.
+    let listener = Listener::at_frame(ctx);
+    let pan = |offset| listener.as_ref().map_or(PAN_CENTRE, |listener| listener.pan(offset));
+    let told = Told { settings, muted: muted(dll, &roster, &live.mutes), hearing: hearing(&roster, pan) };
     let before = live.told;
     if before.map(|t| t.settings) != Some(told.settings) {
         dll.settings(told.settings);
@@ -344,9 +457,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if before.map(|t| t.muted) != Some(told.muted) {
         dll.mute(told.muted);
     }
-    if before.map(|t| t.radio) != Some(told.radio) {
-        dll.radio(told.radio);
-    }
+    dll.hearing(told.hearing, before.map(|t| t.hearing));
     live.told = Some(told);
     let talking = match settings {
         Settings::Off => Places::NONE,
@@ -356,7 +467,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     // owner, 2026-11-11: "when I speak I want to see this with an icon").
     let own = roster.local();
     let speakers = Place::all()
-        .filter(|&p| talking.has(p) && (roster.teammate(p) || own == Some(p)))
+        .filter(|&p| talking.has(p) && (roster.mate(p) || own == Some(p)))
         .fold(Places::NONE, Places::with)
         .without(told.muted);
     if live.shown != Some(speakers) && show_speakers(&scene, &roster, speakers) {
@@ -451,8 +562,8 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<VoiceOnHudCallExit> {
         _ => None,
     };
     let id = live.and_then(|(dll, _)| {
-        let roster = Scene::at_call(&call).roster(false);
-        dll.voice_id(place).filter(|_| roster.teammate(place))
+        let roster = Scene::at_call(&call).roster(false, channel(thread));
+        dll.voice_id(place).filter(|_| roster.mate(place))
     });
     if menu {
         match (live, id) {
@@ -479,13 +590,225 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<VoiceOnHudCallExit> {
     Flow::Exit(VoiceOnHudCallExit::Done)
 }
 
+/// The Settings' call of the microphone test, and its answer's method.
+const MIC_TEST: &CStr = c"srp_mic_test";
+const MIC_TEST_ANSWER: &CStr = c"root.srp_mic_test";
+
+/// The button's text in a state: its dictionary key, and the seconds left
+/// its `%1$s` is.
+fn test_text(test: MicTest) -> (&'static CStr, Option<u8>) {
+    match test {
+        MicTest::Idle => (c"st_srp_mic_test", None),
+        MicTest::Recording(seconds) => (c"st_srp_mic_test_recording", Some(seconds)),
+        MicTest::Playing(seconds) => (c"st_srp_mic_test_playing", Some(seconds)),
+        MicTest::NoMicrophone => (c"st_srp_mic_test_no_microphone", None),
+        MicTest::NoPlayback => (c"st_srp_mic_test_no_playback", None),
+    }
+}
+
+/// The test's state the Settings' button shows: what its movie was last
+/// told. None: the sound tab has not asked yet, so there is no button to
+/// tell.
+static TEST_SHOWN: GameCell<Option<MicTest>> = GameCell::new(None);
+
+/// Tells the Settings' button its text for `test` (the running language's,
+/// with the seconds left); whether the movie took it.
+fn show_test(menu: &Menu<'_>, test: MicTest) -> bool {
+    let (key, seconds) = test_text(test);
+    let (mut text, mut numbered) = ([0; 0x200], [0; 0x200]);
+    let text = menu.translate(key, &mut text);
+    let text = match seconds {
+        Some(seconds) => crate::free_for_all::with_number(text.to_bytes(), u16::from(seconds), &mut numbered),
+        None => text,
+    };
+    menu.tell(MIC_TEST_ANSWER, &[text])
+}
+
+/// The Settings' call of the Microphone list, and its answer's method.
+const MICROPHONE: &CStr = c"srp_microphone";
+const MICROPHONE_ANSWER: &CStr = c"root.srp_microphone";
+/// The Settings' call of a pick used at once, not saved.
+const MICROPHONE_USE: &CStr = c"srp_microphone_use";
+/// The most capture devices the list shows (the answer's strings: three and
+/// two a device, within the movie call's 64).
+const MICROPHONES: usize = 16;
+
+/// The list's pick as the list can show it: the saved device as the DLL
+/// lists it now (its ID as listed), else the default (none saved, or the
+/// saved one is not there: unplugged).
+fn shown(saved: MicrophoneChoice, listed: impl IntoIterator<Item = MicrophoneId>) -> MicrophoneChoice {
+    listed
+        .into_iter()
+        .find(|&id| saved == MicrophoneChoice::Device(id))
+        .map_or(MicrophoneChoice::Default, MicrophoneChoice::Device)
+}
+
+/// `srp_microphone`: with an ID (or empty, the default) Apply's pick, kept
+/// in user.cfg and told to the DLL; with or without, the list is answered:
+/// its label, the default's text, the pick it shows ([`shown`]), then each
+/// device's ID and name, in Windows' order. Anything else is no pick
+/// (logged), answered the same.
+fn microphone_call(call: &OptionsCall<'_>, thread: &Thread, dll: Dll) {
+    if let Some(text) = call.string_argument(0) {
+        match MicrophoneChoice::parse(text.to_bytes()) {
+            Some(choice) => {
+                engine::save_microphone(thread, choice);
+                dll.choose_microphone(choice);
+            }
+            None => log::line(&[Text("voice: srp_microphone with neither a device's endpoint ID nor the default")]),
+        }
+    }
+    let (mut label, mut default) = ([0; 0x200], [0; 0x200]);
+    let label = call.translate(c"st_srp_microphone", &mut label);
+    let default = call.translate(c"st_srp_microphone_default", &mut default);
+    let mut room = [Microphone::EMPTY; MICROPHONES];
+    let mut listed: [Option<(MicrophoneId, &CStr)>; MICROPHONES] = [None; MICROPHONES];
+    for (slot, device) in listed.iter_mut().zip(dll.microphones(&mut room)) {
+        *slot = Some(device);
+    }
+    let pick = shown(engine::saved_microphone(thread), listed.iter().flatten().map(|&(id, _)| id));
+    let mut values: [&CStr; 3 + 2 * MICROPHONES] = [c""; 3 + 2 * MICROPHONES];
+    values[..3].copy_from_slice(&[label, default, pick.text()]);
+    let mut count = 3;
+    for (id, name) in listed.iter().flatten() {
+        values[count] = id.as_c_str();
+        values[count + 1] = name;
+        count += 2;
+    }
+    call.answer(MICROPHONE_ANSWER, &values[..count]);
+}
+
+/// `srp_microphone_use`: with an ID (or empty, the default) a pick in the
+/// list, told to the DLL at once (the test and push-to-talk open it from
+/// their next press) and not saved; with nothing the saved pick again
+/// (Cancel, the Settings left without Apply, a pick whose device is gone).
+/// Anything else is no pick (logged). Not answered.
+fn microphone_use_call(call: &OptionsCall<'_>, thread: &Thread, dll: Dll) {
+    let choice = match call.string_argument(0) {
+        Some(text) => MicrophoneChoice::parse(text.to_bytes()),
+        None => Some(engine::saved_microphone(thread)),
+    };
+    match choice {
+        Some(choice) => dll.choose_microphone(choice),
+        None => log::line(&[Text("voice: srp_microphone_use with neither a device's endpoint ID nor the default")]),
+    }
+}
+
+/// The Settings' calls (`options.callback`). `srp_microphone`: the
+/// Microphone list ([`microphone_call`]; with no DLL not answered, and the
+/// list stays away); `srp_microphone_use`: a pick used at once
+/// ([`microphone_use_call`]; with no DLL loaded nothing to tell, the list
+/// was never shown). `srp_mic_test`: the sound tab
+/// shown asks the button's text (answered at once; with no DLL not at all,
+/// and the button stays away); with `<volume> <sensitivity>` it is a press,
+/// which the DLL takes (it starts or stops its test: `on_tick` tells the
+/// button); with `stop` the Settings window closed. `options_tab_changed`
+/// (the game's own, left to it): the button is not seen on another tab, so a
+/// test stops.
+pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<VoiceOnOptionsCallExit> {
+    let Some(call) = OptionsCall::at(ctx) else { return Flow::Continue };
+    let thread = ctx.thread();
+    if call.method() == c"options_tab_changed" {
+        if let Some(dll) = loaded(thread) {
+            dll.test_stop();
+        }
+        return Flow::Continue;
+    }
+    if call.method() == MICROPHONE {
+        if let Some(dll) = dll(thread) {
+            microphone_call(&call, thread, dll);
+        }
+        return Flow::Exit(VoiceOnOptionsCallExit::Done);
+    }
+    if call.method() == MICROPHONE_USE {
+        if let Some(dll) = loaded(thread) {
+            microphone_use_call(&call, thread, dll);
+        }
+        return Flow::Exit(VoiceOnOptionsCallExit::Done);
+    }
+    if call.method() != MIC_TEST {
+        return Flow::Continue;
+    }
+    let Some(dll) = dll(thread) else { return Flow::Exit(VoiceOnOptionsCallExit::Done) };
+    match call.string_argument(0).map(TestAsk::parse) {
+        Some(Some(TestAsk::Press(sliders))) => dll.test_press(sliders),
+        Some(Some(TestAsk::Stop)) => dll.test_stop(),
+        Some(None) => log::line(&[Text("voice: srp_mic_test with neither the two sliders' steps nor stop")]),
+        None => {
+            let test = dll.test();
+            if call.menu().is_some_and(|menu| show_test(&menu, test)) {
+                TEST_SHOWN.set(thread, Some(test));
+            }
+        }
+    }
+    Flow::Exit(VoiceOnOptionsCallExit::Done)
+}
+
+/// Every frame of the game (`game.tick`), in a match or not, while the main
+/// menu is shown: the button is told its text when the DLL's test is no
+/// longer as the button shows it (its state changed, or a second of it
+/// passed; a test the menu's close stopped, when the menu is shown again).
+/// The DLL is asked nothing while the menu is closed, or before the sound
+/// tab first asked.
+pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    let Some(shown) = TEST_SHOWN.get(thread) else { return Flow::Continue };
+    let Some(menu) = Menu::shown_at_game_tick(ctx) else { return Flow::Continue };
+    let Some(dll) = loaded(thread) else { return Flow::Continue };
+    let test = dll.test();
+    if test != shown && show_test(&menu, test) {
+        TEST_SHOWN.set(thread, Some(test));
+    }
+    Flow::Continue
+}
+
+/// The main menu closes (`options.deactivate`: its Resume or its key, a
+/// match's end, the lobby left for a match's loading): a test stops.
+pub fn on_menu_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    if TEST_SHOWN.get(thread).is_some()
+        && let Some(dll) = loaded(thread)
+    {
+        dll.test_stop();
+    }
+    Flow::Continue
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::vostok::voice::Seat;
+    use crate::vostok::voice::{Body, Seat};
 
     fn id(n: u32) -> VoiceId {
         VoiceId::new(n).unwrap()
+    }
+
+    #[test]
+    fn each_state_of_the_test_has_its_text_and_the_counted_ones_their_seconds() {
+        let states = [MicTest::Idle, MicTest::Recording(7), MicTest::Playing(10), MicTest::NoMicrophone, MicTest::NoPlayback];
+        let texts = states.map(test_text);
+        assert_eq!(texts.map(|(_, seconds)| seconds), [None, Some(7), Some(10), None, None]);
+        for (n, (key, _)) in texts.iter().enumerate() {
+            assert!(key.to_bytes().starts_with(b"st_srp_mic_test"));
+            assert!(!texts[..n].iter().any(|(other, _)| other == key), "{key:?}");
+        }
+        let mut out = [0; 0x200];
+        assert_eq!(crate::free_for_all::with_number(b"Recording %1$s", 7, &mut out), c"Recording 7");
+    }
+
+    #[test]
+    fn the_list_shows_the_saved_microphone_while_it_is_there_else_the_default() {
+        let device = |text: &str| MicrophoneId::parse(text.as_bytes()).unwrap();
+        let (headset, webcam) = (device("{0.0.1.00000000}.{headset}"), device("{0.0.1.00000000}.{webcam}"));
+        let saved = MicrophoneChoice::Device(headset);
+        assert_eq!(shown(saved, [webcam, headset]), saved);
+        // unplugged: the default shown (the pick stays saved for when it is back)
+        assert_eq!(shown(saved, [webcam]), MicrophoneChoice::Default);
+        assert_eq!(shown(saved, []), MicrophoneChoice::Default);
+        assert_eq!(shown(MicrophoneChoice::Default, [webcam, headset]), MicrophoneChoice::Default);
+        // as listed: the movie finds the pick by the list's own text
+        let listed = device("{0.0.1.00000000}.{HEADSET}");
+        assert_eq!(shown(saved, [listed]).text(), listed.as_c_str());
     }
 
     #[test]
@@ -516,20 +839,105 @@ mod tests {
 
     fn roster(seats: &[(u32, Option<[f32; 3]>)]) -> Roster {
         let mut r = Roster::EMPTY;
-        for (n, &(team, position)) in seats.iter().enumerate() {
-            r.set(Place::new(n as u32).unwrap(), Seat { name: [0; 64], team, position });
+        for (n, &(team, feet)) in seats.iter().enumerate() {
+            let body = feet.map(|feet| Body { feet });
+            r.set(Place::new(n as u32).unwrap(), Seat { name: [0; 64], team, body });
         }
         r.set_local(Place::new(0));
         r
     }
 
+    fn p(n: u32) -> Place {
+        Place::new(n).unwrap()
+    }
+
+    /// A stand-in for the engine's pan: the offset's X and Z, so a test
+    /// sees which offset it was asked for.
+    fn pan(offset: [f32; 3]) -> [f32; 2] {
+        [offset[0], offset[2]]
+    }
+
+    fn close(a: f32, b: f32) -> bool {
+        (a - b).abs() < 1e-4
+    }
+
     #[test]
-    fn radio_past_25_m_and_for_the_dead() {
-        let p = |n| Place::new(n).unwrap();
-        let r = roster(&[(0, Some([0.0; 3])), (0, Some([25.0, 0.0, 0.0])), (0, Some([25.01, 0.0, 0.0])), (1, None), (0, None)]);
-        let far = radio(&r);
-        assert!(!far.has(p(1)) && far.has(p(2)) && !far.has(p(3)) && far.has(p(4)) && !far.has(p(0)));
+    fn plain_under_10_m_the_radio_from_it_and_for_the_dead() {
+        let r = roster(&[
+            (0, Some([5.0, 1.0, 5.0])),
+            (0, Some([5.0, 1.0, 14.9])),
+            (0, Some([5.0, 1.0, 15.0])),
+            (1, None),
+            (0, None),
+            (0, Some([5.0, 1.0, 55.0])),
+        ]);
+        let heard = hearing(&r, pan);
+        assert!(matches!(heard.of(p(1)), Heard::Plain(ears) if ears != Ears::SILENT));
+        assert_eq!(heard.of(p(2)), Heard::Radio);
+        assert_eq!(heard.of(p(4)), Heard::Radio);
+        assert_eq!(heard.of(p(5)), Heard::Radio);
+        // Not teammates (the other team, the local player): not heard, left plain.
+        assert_eq!(heard.of(p(3)), Heard::Plain(Ears::UNITY));
+        assert_eq!(heard.of(p(0)), Heard::Plain(Ears::UNITY));
         let dead = roster(&[(0, None), (0, Some([1.0, 0.0, 0.0]))]);
-        assert!(radio(&dead).has(p(1)));
+        assert_eq!(hearing(&dead, pan).of(p(1)), Heard::Radio);
+        let broken = roster(&[(0, Some([0.0; 3])), (0, Some([f32::NAN, 0.0, 0.0]))]);
+        assert_eq!(hearing(&broken, pan).of(p(1)), Heard::Radio);
+    }
+
+    #[test]
+    fn a_plain_voice_has_the_engines_pan_of_its_offset_and_falls_gently() {
+        // The pan is asked of the speaker's offset from the listener, feet to feet.
+        let r = roster(&[(0, Some([10.0, 2.0, 10.0])), (0, Some([10.5, 2.0, 10.25]))]);
+        let Heard::Plain(ears) = hearing(&r, pan).of(p(1)) else { panic!("near") };
+        // Under 1 m the gain is whole: the pan times the level.
+        let level = gain(1.0) * LEVEL;
+        assert!(close(ears.get()[0], 0.5 * level) && close(ears.get()[1], 0.25 * level), "{ears:?}");
+        // Ahead beside the listener, as decoded in both ears.
+        let ahead = |metres: f32| match in_the_world([0.0, 0.0, metres], PLAIN_TO_M, RADIO_FROM_M, &|_| PAN_CENTRE) {
+            Heard::Plain(ears) => ears.get(),
+            other => panic!("{metres}: {other:?}"),
+        };
+        assert!(close(ahead(0.0)[0], 1.0) && close(ahead(1.0)[1], 1.0));
+        // The fall: none to 1 m, AT_9_M at 9 m, linear between, on to the end.
+        assert!(close(gain(0.3), 1.0) && close(gain(1.0), 1.0) && close(gain(9.0), AT_9_M));
+        assert!(close(gain(5.0), (1.0 + AT_9_M) / 2.0) && gain(9.99) < AT_9_M && gain(9.99) > AT_9_M - 0.1);
+        assert!(close(ahead(9.0)[0], AT_9_M) && close(ahead(9.0)[1], AT_9_M));
+        // A pan that is not a number is silent, never noise.
+        assert_eq!(in_the_world([1.0, 0.0, 0.0], 10.0, 10.0, &|_| [f32::NAN; 2]), Heard::Plain(Ears::SILENT));
+    }
+
+    #[test]
+    fn the_two_distances_may_differ() {
+        let at = |metres: f32, plain_to: f32, radio_from: f32| in_the_world([metres, 0.0, 0.0], plain_to, radio_from, &|_| PAN_CENTRE);
+        // As set: one switch.
+        assert!(matches!(at(9.99, 10.0, 10.0), Heard::Plain(_)));
+        assert_eq!(at(10.0, 10.0, 10.0), Heard::Radio);
+        // The plain voice reaching past the radio's start: both between them.
+        assert!(matches!(at(9.0, 15.0, 10.0), Heard::Plain(_)));
+        assert!(matches!(at(12.0, 15.0, 10.0), Heard::Both(ears) if ears != Ears::SILENT));
+        assert_eq!(at(15.0, 15.0, 10.0), Heard::Radio);
+        // The radio starting past the plain voice's end: neither between them.
+        assert_eq!(at(11.0, 10.0, 12.0), Heard::Plain(Ears::SILENT));
+        assert_eq!(at(12.0, 10.0, 12.0), Heard::Radio);
+    }
+
+    #[test]
+    fn in_a_free_for_all_everyone_is_heard_in_a_team_mode_teammates() {
+        use crate::vostok::voice::Channel;
+        // A free-for-all's places, each a side of its own (4 + its place).
+        let mut ffa = roster(&[(4, Some([0.0; 3])), (5, Some([3.0, 0.0, 0.0])), (6, Some([0.0, 0.0, 40.0])), (7, None)]);
+        // As a team mode reads them: sides past the two, nobody's mate.
+        assert_eq!(ffa.mates().count(), 0);
+        ffa.set_channel(Channel::Match);
+        assert_eq!(ffa.mates().map(|(place, _)| place).collect::<Vec<_>>(), [p(1), p(2), p(3)]);
+        // The same near and far rule as teammates'.
+        let heard = hearing(&ffa, pan);
+        assert!(matches!(heard.of(p(1)), Heard::Plain(ears) if ears.get()[0] > 0.0 && ears.get()[1] == 0.0));
+        assert_eq!(heard.of(p(2)), Heard::Radio);
+        assert_eq!(heard.of(p(3)), Heard::Radio);
+        // A team mode: the teammates only.
+        let teams = roster(&[(0, None), (0, None), (1, None)]);
+        assert_eq!(teams.mates().map(|(place, _)| place).collect::<Vec<_>>(), [p(1)]);
     }
 }

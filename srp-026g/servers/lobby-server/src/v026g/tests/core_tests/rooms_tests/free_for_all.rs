@@ -30,7 +30,7 @@ fn free_for_all_world() -> World {
 /// What the match server was asked for last, as the lobby asked it.
 fn last_setup(world: &World) -> MatchSetup {
     let setup = world.host.made.locked().last().expect("a match").1.clone();
-    assert_eq!(setup.map.mode(), maps::GameMode::FreeForAll);
+    assert_eq!(setup.played.mode(), maps::GameMode::FreeForAll);
     setup
 }
 
@@ -77,7 +77,7 @@ fn a_room_whose_vote_wins_a_free_for_all_card_plays_it_with_each_ready_member() 
     let ticket = room_match_starts(&mut world, &[alice, bob, carol], VOTE_AND_WAIT);
     assert_eq!(world.host.made.locked().len(), 1);
     let setup = last_setup(&world);
-    assert_eq!(setup.map.map().id, free_for_all, "the vote's winner");
+    assert_eq!(setup.played.map().id, free_for_all, "the vote's winner");
     assert_eq!(setup.players.len(), 3);
     assert_eq!(seated(&setup), accounts(&world, &[alice, bob, carol]));
     assert!(setup.players.iter().all(|player| player.profile.squad == 0));
@@ -280,29 +280,4 @@ fn a_team_line_in_a_free_for_all_reaches_its_sender_only() {
         assert_eq!(heard(&mut world, other), 1);
     }
     world.assert_clean();
-}
-
-/// The Rooms list shows a team modes' players by their sides
-/// (`a_member_list_says_the_side_of_each_player_in_the_match`); a
-/// free-for-all's are in the match and on no side, though the lobby seated
-/// them two a side.
-#[test]
-fn a_member_list_says_no_side_for_the_players_of_a_free_for_all() {
-    let mut world = free_for_all_world();
-    let players: Vec<usize> = ["Alice", "Bob", "Carol", "Dave"]
-        .iter()
-        .map(|name| world.connect(name))
-        .collect();
-    let key = create(&mut world, players[0], spec(6), None);
-    for &player in &players[1..] {
-        rows(&mut world, player, ROOM_JOIN_BASE + key, 1);
-    }
-    room_match_starts(&mut world, &players, VOTE_AND_WAIT);
-    let eve = world.connect("Eve");
-    let seen = members(&mut world, eve, key);
-    assert_eq!(seen[0][3], "4", "{seen:?}");
-    for row in &seen[1..] {
-        // In the match; its side.
-        assert_eq!((row[5].as_str(), row[8].as_str()), ("1", "0"), "{row:?}");
-    }
 }

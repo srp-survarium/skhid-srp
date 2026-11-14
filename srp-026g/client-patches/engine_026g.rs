@@ -299,6 +299,10 @@ unsafe extern "C" {
     pub fn engine_respawn_point_clear(point: *const c_void, team: u32, players: *const c_void) -> u32;
     /// 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4
     pub fn engine_respawn_points_push(vector: *mut c_void, point: *const *mut c_void);
+    /// 0x57d70 vostok::sound::sound_scene::calculate_3d_pan: scene ESP+4, table ESP+8, proxy ESP+12, position ESP+16, distance ESP+20, matrix ESP+24, coefficient ESP+28; pops 28
+    pub fn engine_sound_pan(scene: *mut c_void, table: *mut c_void, proxy: *mut c_void, position: *const f32, distance: f32, matrix: *mut f32, coefficient: *mut f32);
+    /// 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
+    pub fn engine_listener_position(scene: *mut c_void, out: *mut f32) -> *mut f32;
 }
 
 #[allow(dead_code)]

@@ -243,6 +243,8 @@ global engine_message_box_a
 global engine_exit_process
 global engine_respawn_point_clear
 global engine_respawn_points_push
+global engine_sound_pan
+global engine_listener_position
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -2822,6 +2824,43 @@ engine_respawn_points_push:
     push dword [esp + 24]   ; point -> 4
     mov esi, [esp + 24]   ; vector
     call 0x3174c0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_sound_pan:
+    ; 0x57d70 vostok::sound::sound_scene::calculate_3d_pan: scene ESP+4, table ESP+8, proxy ESP+12, position ESP+16, distance ESP+20, matrix ESP+24, coefficient ESP+28; pops 28
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 44]   ; coefficient -> 28
+    push dword [esp + 44]   ; matrix -> 24
+    push dword [esp + 44]   ; distance -> 20
+    push dword [esp + 44]   ; position -> 16
+    push dword [esp + 44]   ; proxy -> 12
+    push dword [esp + 44]   ; table -> 8
+    push dword [esp + 44]   ; scene -> 4
+    call 0x57d70
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_listener_position:
+    ; 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; scene
+    mov esi, [esp + 24]   ; out
+    call 0x57560
     pop edi
     pop esi
     pop ebx

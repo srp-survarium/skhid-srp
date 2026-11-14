@@ -28,9 +28,12 @@ its row of `release/content.tsv`. The list must stay the last that edits
 
 - The six maps need their top-down renders for the Maps tab
   (`scripts/damage-calc/assets/maps`), or `release/build-site` stops.
-- Training Camp's west stash pair (team 0's `stash2`, team 1's `stash5`, at
-  about (-20.0, -9.6) and (-20.8, -9.8)) stands 1.0 and 1.7 m outside the
-  crater wall of `training-camp-arena-1.json`: players may not reach them.
+- Training Camp's Team Deathmatch project (`day_4`) has no walker wall:
+  `training-camp-arena-1.json` walls Free for All's own `day_8` only, at the
+  base's fence (`stalker-ffa.md`). Its teams' spawns are at the north and
+  south gateways and its west stash pair (team 0's `stash2`, team 1's
+  `stash5`, at about (-20.0, -9.6) and (-20.8, -9.8)) is 11 m outside the
+  fence: Team Deathmatch there needs its own boundary first.
 - Bots: no bots' map data for these maps (`release/bot-data.tsv`).
 
 | maps_dict id | level (`map_id`) | project / HUD key | map | source | loading id |
@@ -124,6 +127,63 @@ listed under `cs-mp_bath` in resource-porter's `ports/stalker-tdm/maps.json`
   - no spot in the room or on its roof is a dead end;
   - the room's doors stay clear.
 
+## The old builds' post-process (the owner, 2026-11-13/14)
+
+The environments of the maps ported from v0.10b and v0.11e (these six, Vostok
+v0.11, Chemical Plant v0.11) keep their source build's post-process values,
+which 0.26g draws its own way. Three edit lists set seven of them, in every
+mode's copy of the projects they name:
+
+| value | the ports | stock day maps | now | list |
+| --- | --- | --- | --- | --- |
+| `image_grain_intensity`, `image_grain_update_frequency` | 0.08, 2 | 0.02, 1 | 0.02, 1 on all 16 projects | `ported-maps-grain-1.json` |
+| `god_rays_intensity`, `god_rays_attenuation` | 1.0, 1.0 (the six STALKER maps) | 0.65, 2.6 (level_03) | 0.2, 3.0 on Military Warehouses, Experimental Pool and Training Camp | `stalker-maps-sun-1.json` |
+| `lens_flares_multiplier` | 2 (the six) | 1 | 0.7 on the same three | the same |
+| `ao_saturation` | 2 (the six) | 1 to 1.29 (level_03: 1) | 1 on the six's nine projects | `stalker-maps-ao-1.json` |
+
+- Grain ("always noisy in the distance", "on almost all ported maps"): 0.26g
+  adds it last, noise x colour^0.6 x intensity (`aberration.ps`), so it shows on
+  the sky and the haze. The v0.21d and v0.69d ports have stock grain. Seen in
+  the game (2026-11-14, captured frames before and after, the owner's
+  settings): the sky's grain is stock's.
+- The sun (on Military Warehouses: "you cannot look at that direction at
+  all"; on Experimental Pool and Training Camp, the same weather: "fix them
+  too"): a ray's strength is intensity x (1 - screen distance to the
+  sun)^attenuation x the far pixels (`t_position.x` of 300 or more: the sky)
+  between the pixel and the sun (`god_rays.ps`, `god_rays_mask.ps`); times the
+  ray colour, it is added before the tone curve. Half a screen height above or
+  below an open sun that is 0.23 with the ports' values, 0.05 on stock
+  level_03 and 0.01 on Vostok v0.11, which has this same day weather (sun 38.0
+  degrees up, azimuth 219.7, intensity 1.29) with rays 0.2 at 3.0 and flares
+  x0.7. The three maps have Vostok v0.11's three values, each in its Team
+  Deathmatch project and Free for All's copy. Seen in the game on Military
+  Warehouses (2026-11-14, captured frames): toward the sun the rays washed
+  the frame orange; with these values the sun has a halo and the sky and the
+  buildings stay visible. Experimental Pool and Training Camp were not
+  captured.
+- Ambient occlusion ("on fence there are black stripes", "often those happen
+  for some reason with this engine"; gone with `r_ambient_occlusion_quality 0`
+  in the owner's game): the stripes are the occlusion's own sample pattern on
+  a far flat wall, screen-aligned and about 6 pixels apart (Military
+  Warehouses' east fence from (59.8, -8.9, 1.7): solid, facing away from the
+  sun, no such lines in its textures). `ao_saturation` is an exponent in both
+  occlusion shaders: (1 - occluded)^(2 x `ao_saturation`) x 1.1 at
+  `r_ambient_occlusion_quality` 1 (`ssao_hemisphere_optimized.ps`), (1 -
+  occluded)^(3 x `ao_saturation`) x 1.2 at 2 and 3
+  (`ssao_hemisphere_stable_radius.ps`). The ports had 2, stock maps have 1 to
+  1.29: at quality 1 an occlusion of 0.2 left 0.45 of the ambient light where
+  level_03 leaves 0.70. The six maps have 1 now; the pattern itself is the
+  engine's and stays at stock strength. Not proven in the game: a still
+  captured frame shows the stripes neither before nor after (the occlusion's
+  temporal filter settles), so whether stock strength hides them in play is
+  the owner's to see. Their `ao_radius` 1.5 is a stock value
+  (level_02 day; stock maps have 1 to 1.5) and stays. Vostok v0.11 (1.5) and
+  Chemical Plant v0.11 (1.3) are above stock too and are not changed.
+- Not changed: Repair Depot, Station and Depository, not played, keep rays 1.0
+  at 1.0 and flares x2. All eight maps keep the old builds' vignette
+  (`vignette_effect_power` 1, stock 0) and far depth of field
+  (`use_bokeh_dof`, focus 100 m, region 50 m; stock day maps do not use it).
+
 ## Grass
 
 Experimental Pool and Military Warehouses have the grass of their Clear Sky
@@ -149,10 +209,192 @@ Training Camp's meadow.
 - Not carried over: X-Ray's per-slot sun, sky and colour terms (0.26g's grass
   has one colour per instance, fixed in the engine); 0.26g's own shadows
   light it.
+- Matte (the owner, 2026-11-14: "grass which is too glossy";
+  `stalker-grass-matte-1.json`): the two maps' grass material
+  (`ported/cs/<map>/details`) is stock `flora/grass_l03_alt` with the grass's
+  colour texture as its roughness map, `constant_roughness_min` 0.3, max 1.
+  A material's "roughness" is its gloss in 0.26g (stock glass 0.7 to 1, cloth
+  and skin 0.1, `flora/grass` 0.01): `gbuffer_pass.ps` writes 1 - (min +
+  range x the map's green), and the sun's highlight in `composition.ps` takes
+  that as its GGX roughness (alpha = 0.5 s^6 + 0.1 s). Stock's own map is near
+  black, gloss 0.04: a broad highlight of about 0.04 x the sun. The colour
+  texture gives 0.46: a sharp one of about 3 x the sun, and with every normal
+  up a whole patch took the sun's colour where the player looked toward the
+  sun and down. Both ends of the range are 0.04 now, stock's average. Seen in
+  the game on Military Warehouses (2026-11-14, captured frames at the owner's
+  two places and settings): the sun-coloured patches are gone, the grass keeps
+  its colour. Training Camp's meadow grass (`ported/v010b/flora/grass_l03_alt`,
+  also 0.3 over its colour texture) is not changed.
 - The other four maps take the same option. Repair Depot's level has
   349,153 tufts at the same density (thin it with `density`); Training Camp
   has its meadow already; Station and Depository need their level folders
   again.
+
+## Bushes rustle (the owner, 2026-11-14)
+
+"Bushes should have rustling sound just like on normal survarium maps": walking
+through a bush of a ported map was silent. Pack `stalker-bushes@2` and
+`content-edit/stalker-bushes-1.json` give Experimental Pool, Military Warehouses
+and Training Camp the foliage step of stock's bushes. Built and read back
+(below); **not heard in the game yet**.
+
+### What rustles in stock 0.26g (the exe and the data, read statically)
+
+- A step is the walk animation's sound event (`crouch_steps.md`):
+  `player_equipment_sound_effect::on_foot_step` 0x2A6520 ->
+  `step_manager::on_step` 0x248AD0 (a landing too, 0x23FBE0). `on_step` casts
+  one ray from 1 m above the foot straight down, 2 m long, with filter group
+  30h and mask 8 (0x248AED..0x248B58, `ray_test` 0x75E20). The closest hit's
+  triangle gives a game material (`bt_static_rigid_body::get_triangle_material`
+  0x3570A0); the pair of the foot's material and it (0x306D50) gives the sound.
+  Nothing else plays a pair of a foot material: `material_pair`'s other seven
+  callers are the bullet's four and the thrown things' marks (0x248160,
+  0x248720, 0x248980). PROVEN.
+- An object is tried by a ray when its group has a bit of the ray's mask and
+  its mask a bit of the ray's group (`needsCollision` 0x75BD0). PROVEN.
+- The physics world's level is the project's `collision_objects` and nothing
+  else: `project_cooker_simple::create_game_objects` 0x22C010 asks for each
+  entry's `lib_name` as a collision resource with its `cgroup` and `cmask`
+  (`static_collision::insert` 0x2F8850 adds the body with them), and for each
+  `render_visuals` entry as a drawn model only. The exe has no `hq_collision`
+  string: a model's `hq_collision` is not the game's (an editor's mesh).
+  PROVEN.
+- A triangle's material: `collision_shape_cook` (0x82590, 0x829E0) reads
+  `<lib_name>/vertices`, `indices`, `face_data` and the model's `settings`; a
+  face's name in `face_data`'s dictionary names
+  `game_material_settings/<name>/game_material_id`. PROVEN.
+- The sounds: `game_materials/material.pairs` gives foliage_deciduous (44)
+  `material/foliage_2/step/foliage_2_step` for the walker's own steps
+  (actor_local, 42), `..._m` and `..._sprint_m` for the others' (actor 10,
+  actor_sprint 53), the crouched ones of `crouch-steps-1`; **the walker's own
+  sprint and landing (actor_local_sprint, 56: every boot's
+  `sprint_1st_view_material_id` and `jump_1st_view_material_id`) have none**:
+  sprinting through a bush, he hears no step of his own for the steps that
+  meet a leaf, in stock too; the others hear his. These collections are named
+  by nothing but the pairs (the stock db's bytes).
+- Which bushes: of the 808 stock collision meshes, five bushes have faces of
+  foliage_deciduous, their whole `collision`: `models/flora/vine/bush_big`,
+  `bush_low`, `bush_wide`, `bush_corner_in`, `bush_corner_out` (768 to 1,642
+  triangles; cgroup 8, cmask 16), each with a smaller `walker_collision`
+  inside. Tarakanovsky Fort has 147 of them and Vector 319: a walker goes into
+  their leaves and the ray meets a leaf before the ground (of 3,040 standing
+  places sampled at the Fort's vine bushes, 235). The free-standing bushes
+  (`flora/bush_s_*`: School 82, Chemical Plant 5; `flora/fruit_2/yablo_kust_*`:
+  Rudnya 71, the Fort 43) are render visuals with no collision object: silent
+  in stock, as the ported ones were. Vector's `level/07/base_v_born_place` has
+  1,848 foliage faces of its own, and one fir (`flora/elka_green_05`) is
+  foliage_coniferous.
+- Why the ports were silent: resource-porter drops X-Ray's passable collision
+  triangles (`materials\bush`, `bush_sux`; `src/soc/build.rs`): 3,328 on
+  Experimental Pool, 8,373 on Military Warehouses, 866 on Training Camp.
+
+### What the pack is
+
+`scripts/stalker-bushes/make_pack.py` (its docstring has the rule) makes, from
+`stalker-maps@6`'s own files (its `pack.json` and each map's inputs pinned by
+sha256), one model a map, `models/srp/<level>_bushes`: `settings` and a
+`collision` mesh alone, every triangle of game material foliage_deciduous (44).
+
+- Its triangles are the leaves the map draws: the level chunks' surfaces of
+  foliage material (`flora`) with a branch or needle texture
+  (`trees_vetkagreen1/3/5`, `trees_vetkabig`, `trees_vetkasux2`, `trees_sosna`,
+  `trees_sosna_sux`, `trees_dub`, `trees_elka`), a leaf's two drawn sides once.
+- Every other drawn surface is on a list of what is not leaves: bark, stumps
+  and Training Camp's planks (`wood_collect`), the four other kinds of
+  material, one surface drawn with no material. A surface on no list stops the
+  script with its name.
+- Only what a step can meet: a triangle is kept when a point of it is at most
+  1.2 m above a floor of the level's collision (the ray starts 1 m above the
+  foot), and is cut off 1.2 m above the highest such floor. A floor faces up
+  (the level's ground has its normal up in every triangle) and is no tree's
+  wood: the port gives X-Ray's trunks, branches and planks one game material,
+  wood_silent, and a branch's top would keep the crown over it (846 leaves on
+  Experimental Pool); leaves over a plank floor are kept only where another
+  floor is in reach. The leaves over a walker's head and the crowns are not
+  in it.
+- X-Ray's own bush triangles would be the truer set (the level's `level.cform`);
+  Clear Sky is not installed on this machine any more, so the drawn leaves are
+  used.
+
+| map | leaves drawn | within a step of a floor | triangles | where a step rustles |
+| --- | ---: | ---: | ---: | ---: |
+| Experimental Pool | 20,666 | 5,059 | 6,945 | about 630 m² |
+| Military Warehouses | 50,271 | 20,503 | 28,772 | about 3,900 m² |
+| Training Camp | 4,212 | 2,011 | 2,704 | about 340 m² |
+
+The last column: standing places of a 1 m grid over the level's collision
+where the step's ray meets a leaf first. That is roughly two thirds of the
+ground where leaves are within a walker's height: the other steps there sound
+of the ground, as at the Fort's bushes.
+
+`@1` (never released) took a triangle for a floor by the size of its normal's
+y alone: undersides counted and branches' tops did, and leaves high in the
+crowns were kept (9,098, 31,833 and 3,242 triangles).
+
+### Where it stands in the project, and who meets it
+
+`stalker-bushes-1.json` adds the model as one collision object of each map's
+Team Deathmatch project (`day_4`), after the level's own chunks, before
+`ffa-projects-1` in `release/content.tsv`: Free for All's project is a copy
+and has it too. Each entry says one file must take it (`expected_files`, new
+in `content_edit.py`: an `add_entry` whose anchor is gone was passed over):
+the build stops at a project the object cannot be placed in, it cannot leave
+the bushes out silently. **cgroup 8, cmask 32**, a pair no object of the game
+had (every project's are 2/4, 8/16 and 10/20):
+
+| who asks | its group / mask | meets the bushes |
+| --- | --- | --- |
+| a step (`on_step` 0x248B58) | 30h / 8 | yes: the foliage step |
+| a bullet (`check_collision` 0x32D625) | 10h / 48h | no |
+| a blast's rays, the lobby's and the warm-up's cameras | 10h / 8 | no |
+| a grenade's body, a battery's | 818h / 8, 0A18h / 418h | no (each side's group must have a bit of the other's mask, 0xB3EDC) |
+| a walker's body, the foot placing, carried things | 824h / 3, 24h / 2 | no |
+| the use ray (`detect_usable_object`) | 114h / 8Ah | no |
+| a trap being placed (0x3064D2, 0x3066E5) | 404h / 202h, 414h / 20Ah | no |
+| a spot (`apply_new_input` 0x2D87EB) | 0FFFFh / 80Ah | yes, as a hittable thing that is not walkable: the ray goes on |
+| a dead body and its dropped gun (the ragdoll patch's level ray) | 414h / 20Ah | no: they fall through the leaves (it was 434h; `ragdoll.md` section 19) |
+
+The rows are every call of the physics world's ray test, ray query and
+penetration test in the game's code whose filter is pushed as a number, the
+bodies the notes know, and the patches' own rays. A requester that takes its
+filter from elsewhere would not be in it; none was found.
+
+- Bullets, grenades and blasts pass as before: no foliage hit effect either
+  (the Fort's bushes have one, and turn each bullet through them by up to the
+  round's `pierce_dispersion_angle`, `try_pierce` 0x32D960; cmask 16 would do
+  the same here, with a grenade bouncing off the leaves).
+- A spot's walk stops once it has met both something hittable (8) and
+  something walkable (2). The level's chunks are both (10) and stop it as
+  before. A sight line through a bush's lowest 1.2 m that also crosses
+  walker-only collision (on these maps Training Camp's alone: its crater
+  boundary in Free for All, its bonfires' walker meshes) now stops there,
+  where it went on: the one thing a match computes otherwise, hence the words
+  in `simulation_changes.tsv`.
+- The mesh is inside the level's collision box, so the physics world's box
+  (which the level's groups 8 and 2 make) is the same.
+- The ragdoll patch's level ray had bit 20h through the foot placing's group
+  24h, and a body and its gun would have come to rest on the leaves. Its
+  group is 414h now (`LEVEL_GROUP`, `rust/patches/src/ragdoll.rs`): of every
+  group and mask in the live data, the bushes' are the one pair that 434h met
+  and 414h does not (`ragdoll.md` section 19).
+
+### Not done
+
+- Repair Depot, Station and Depository (not played): a row each in the
+  script's `MAPS` once they are.
+- The walker's own sprint and landing on leaves are silent (stock's pair,
+  above): a `collision_sound` for pair 56/44 in `material.pairs` would give
+  them one, on the Fort's and Vector's bushes too.
+- Bot map data and the site's renders do not read it.
+
+To make it again: `python3 -I srp-026g/scripts/stalker-bushes/make_pack.py
+--packs $SKHID_PACKS_DIR --out $SKHID_PACKS_DIR/stalker-bushes-2
+--edits srp-026g/scripts/content-edit/stalker-bushes-1.json` (the same bytes
+every run: `pack.json` sha256 `a0b9ea98...d167`, the script's pin and the
+manifest's). `tools/check stalker-bushes` makes it again from the pinned source
+pack and compares the pack and the list; `stalker-bushes-manifest` holds the
+manifest's rows (the `stalker-maps` pack it is made from, this pack, the list
+before `ffa-projects-1`) to the script's pins, without making anything.
 
 ## Ladders
 
@@ -234,22 +476,38 @@ The spawns do not come from the level: they are the planner's.
 - `srp-026g/flash/hud`: their minimaps (`Minimap._levels`, `_minimapProps`,
   classes `minimap_<project>`). Training Camp's ground runs to the level's
   edge (400 x 400 m), so the renderer's default cut it 45 m around the TDM
-  spawns (a figure-8). Its minimap is framed on the crater wall + 15 m and
-  shows all the ground there, fading out inside the Tab map's 460 px
-  (the owner's pick, 2026-11-13): `render_minimap.py --map 212
+  spawns (a figure-8). Its minimap is framed on the crater wall of revisions
+  57-58 + 15 m and shows all the ground there, fading out inside the Tab
+  map's 460 px (the owner's pick, 2026-11-13): `render_minimap.py --map 212
   --frame-outline srp-026g/scripts/stalker-maps/training-arena.tsv`
-  (resource-porter `fix/training-camp-minimap`). Repair Depot's south edge has
+  (resource-porter `fix/training-camp-minimap`). Free for All's wall has since
+  moved in to the base's fence (`stalker-ffa.md`); the frame has not: the
+  fenced base is 73 x 67 m of the frame's 159 m, its middle 9 m east of the
+  frame's. Repair Depot's south edge has
   the same 45 m circles; it is not played.
 - `tools/actionscript` adds a bitmap the original movie lacks from the tree's
   `bitmaps/<class>.png` (lossless) or `.jpg`; `srp-026g/scripts/stalker-maps/ui_images.py`
   writes them from the porter's minimap render and a loading picture.
-- Loading pictures and room tiles: Training Camp and Repair Depot use the
-  earlier package's in-game shots. Experimental Pool uses the `poolside-se`
-  panorama and Military Warehouses uses `road-tower`, from the captured
-  `analysis-bath/ingame/previews/<project>/day/` frames (2026-11-12 update).
-  `ui_images.py` cuts their middle band to 1920 x 798; their existing classes
-  serve both loading screens and room tiles. The two underground maps still
-  use top-down placeholders.
+- Loading pictures and room tiles: Experimental Pool, Military Warehouses and
+  Training Camp are frames of the game itself, captured on 2026-11-14 (the
+  owner: "rerender preview images, since they are low quality and don't have
+  grass"): a headless game at 2560 x 1440, every graphics setting at its
+  highest, a fixed camera of 100 degrees across, the maps as PR #1793 leaves
+  them (the grass, stock film grain and ambient occlusion). The earlier
+  pictures were 1920 x 1080 frames from before the maps had grass, with the
+  old builds' grain. Camera (x, eye height y, z; yaw 0 looks +z, 90 looks +x;
+  pitch up):
+
+  | map | pose | position | yaw | pitch |
+  | --- | --- | --- | ---: | ---: |
+  | Experimental Pool | `poolside-se` | (4, 6.5, 4) | -60 | -4 |
+  | Military Warehouses | `road-tower` | (-8, -5.5, -8) | 3 | -2 |
+  | Training Camp | `base-se2` | (62, 19, -50) | -47 | -7 |
+
+  The frame is scaled to cover 1920 x 798 and its middle band kept, as
+  `ui_images.py` cuts it; the existing classes serve both loading screens and
+  room tiles. Repair Depot still uses the earlier package's in-game shot; the
+  two underground maps still use top-down placeholders.
 - `release/content.tsv`: the pack row `stalker-maps@4`. @3 has the grass
   with flat-lying normals (black tufts under a high sun); @2 also has the
   planner's spots on Experimental Pool; @1 has no grass.
@@ -260,7 +518,9 @@ The spawns do not come from the level: they are the planner's.
   loading picture, names.
 - The site: a top-down render per project in the calculator's maps
   (`scripts/damage-calc/assets/maps`, README) before `release/build-site`, or the
-  Maps tab build stops.
+  Maps tab build stops. The three played in Free for All have theirs (of
+  `day_8`); Repair Depot, Station and Depository need one before they are
+  played.
 - Bots: `mapdata-dump` for the new maps (`docs/notes/player_bots_mapdata.md`).
 - The live pools: `SRP_MATCH_MAPS` / `SRP_ROOMS_EXTRA_MAPS` say whether the maps
   are in the match pool or rooms only.

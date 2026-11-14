@@ -127,6 +127,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     other's, never a free-for-all), card 3 one of its free-for-alls, on another map than
     theirs while there is one; a pool without a free-for-all or of free-for-alls alone draws
     its three as before (`ffa.md`, "Where it is played"; `rooms::THIRD_CARD` names the mode).
+  - **A free-for-all card's twist** (`ffa.md`, "Twists"): the create window ticks "FFA: Racket"
+    and "FFA: Saloon" as modes beside Free for all (the owner's of 2026-11-14: "they are not
+    present in private room creations"); the pool offered has each free-for-all map once plain and
+    once with each twist, and a room's pool is the entries ticked. A free-for-all card plays one of
+    its map's entries in the pool, each by its share: Free for all alone plain, a twist alone that
+    twist. The server's rooms hold them all: the owner's shares (45 / 45 / 10).
   - **Blackout is on one card at the most** (the owner's of 2026-11-12: "Make it so blackout
     cannot be on two cards at the same time"): in every vote, one without a free-for-all card
     too. A second Blackout card drawn gives its place to a map of another mode while the pool
@@ -394,13 +400,13 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - Below State: the chosen room's members, each with its equipment level (the room view's)
     in a column of its own, then its name. Grey while its game is gone (`away`), red with the
     red mark when its kit or gear cannot play, white for the player itself, gold in the room's
-    match. While the room plays, the side of each player in the match (a bar of the side's
-    colour; side 1 left, side 2 right; those not in the match where there is room). A
-    free-for-all has no sides (`ffa.md`): its players are told with none, so they stay in
-    the two plain columns, gold, with no bar.
-  - Up to 20: one column while they fit at 18 a row; two otherwise (always two while it
-    plays). Rows share the space (12 to 22 high, the font 12 to 14); the map's render is made
-    up to 60 lower for a full room; nothing goes past the panel.
+    match. Never who plays on which side, in any mode or state (the owner's of 2026-11-13:
+    "it should always be like at voting", "just what players are in the game"): the server
+    tells no side (the row's side field is always 0), and while the room plays, its players
+    are where they are at its vote, those in the match gold.
+  - Up to 20, in two columns in the room's order. Rows share the space (12 to 22 high, the
+    font 12 to 14); the map's render is made up to 60 lower for a full room; nothing goes
+    past the panel.
   - **Long names** (up to 63 bytes, Cyrillic and other wide letters): the list gets them whole;
     a name too wide for its place is cut by its width in the panel's own font and ends with
     "…" (the game's bold Calibri has it); the level is never covered. The room view's names

@@ -4,7 +4,76 @@ use crate::{
     sounds::{SQUELCH_IN, SQUELCH_OUT},
     wire::Message,
 };
+pub use voice_abi::{Ears, Heard};
 const RING: usize = 32;
+/// A frame of the mix: each sample's left and right, as WinMM's 16-bit
+/// stereo takes them.
+pub type Stereo = [[i16; 2]; FRAME];
+/// What a speaker's frame is mixed by: its plain voice in each ear (the
+/// game's sound engine's gains for a sound at its place) and its radio, in
+/// both ears alike.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Gains {
+    plain: [f32; 2],
+    radio: f32,
+}
+impl Gains {
+    const UNITY: Self = Self { plain: [1., 1.], radio: 0. };
+    fn of(heard: Heard) -> Self {
+        match heard {
+            Heard::Plain(ears) => Self { plain: ears.get(), radio: 0. },
+            Heard::Radio => Self { plain: [0., 0.], radio: 1. },
+            Heard::Both(ears) => Self { plain: ears.get(), radio: 1. },
+        }
+    }
+}
+/// How every slot is heard.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hearing([Heard; SLOTS]);
+impl Hearing {
+    /// Every slot plain, as decoded in both ears.
+    pub const UNITY: Self = Self([Heard::Plain(Ears::UNITY); SLOTS]);
+    /// The slots of `radio` through the radio; the rest plain, as decoded.
+    pub fn radio(radio: u32) -> Self {
+        Self(std::array::from_fn(|slot| {
+            if radio & (1 << slot) != 0 {
+                Heard::Radio
+            } else {
+                Heard::Plain(Ears::UNITY)
+            }
+        }))
+    }
+    /// A slot past the 20 changes nothing.
+    pub fn set(&mut self, slot: usize, heard: Heard) {
+        if let Some(place) = self.0.get_mut(slot) {
+            *place = heard;
+        }
+    }
+}
+/// The radio's static under its words, of retail's recording: at retail's
+/// level, as revision 58 played it (the owner, 2026-11-14, after a test where
+/// half of it, #1635's, could not be heard: "static like live"; of revision
+/// 58's on 2026-11-13: "static is mostly fine"). The radio's words are raised
+/// by their own makeup (`radio::VOICE`), as on main before.
+const RADIO_BED: f32 = 1.0;
+/// How much louder than decoded a plain voice plays at the full "Voice chat"
+/// volume (the owner, 2026-11-14, in a game: "voice chat in general can be
+/// louder by x1.5 for people who can always tune it down"). Not the radio
+/// (the owner, the same day: "make radio effect like it is currently on
+/// main"): its words and squelch play at the slider's volume as before.
+pub(crate) const LOUDER: f32 = 1.5;
+/// The mix's knee: below it a sample is as summed; above it the rest of the
+/// way to full scale is approached smoothly, so loud or several talkers
+/// never clip hard.
+const KNEE: f32 = 0.5;
+fn soft_limit(x: f32) -> f32 {
+    let over = x.abs() - KNEE;
+    if over <= 0. {
+        x
+    } else {
+        x.signum() * (KNEE + (1. - KNEE) * (over / (1. - KNEE)).tanh())
+    }
+}
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Stats {
     pub decoded: u32,
@@ -57,6 +126,47 @@ impl Limiter {
         over
     }
 }
+/// A voice heard directly, as [`Speaker::play`] decodes and holds one. The
+/// microphone test plays its recording through it (`mic_test`), so that what
+/// the player hears of itself is what a teammate beside it would.
+pub struct Direct {
+    decoder: Decoder,
+    limiter: Limiter,
+}
+impl Direct {
+    pub fn new() -> Result<Self, String> {
+        Ok(Self {
+            decoder: Decoder::new()?,
+            limiter: Limiter::UNITY,
+        })
+    }
+    /// The frame's 20 ms; one the decoder refuses is concealed.
+    pub fn frame(&mut self, frame: &[u8]) -> Option<[f32; FRAME]> {
+        let mut pcm = self
+            .decoder
+            .decode(Some(frame))
+            .or_else(|_| self.decoder.decode(None))
+            .ok()?;
+        self.limiter.apply(&mut pcm);
+        Some(pcm)
+    }
+}
+/// `mono` in both ears as a plain voice beside the listener is: as decoded
+/// ([`Ears::UNITY`]).
+fn ahead(mono: &[f32; FRAME]) -> [[f32; 2]; FRAME] {
+    let [left, right] = Ears::UNITY.get();
+    mono.map(|sample| [sample * left, sample * right])
+}
+/// A frame of the mix from its sum: limited softly, as 16-bit samples.
+fn finish(acc: [[f32; 2]; FRAME]) -> Stereo {
+    acc.map(|ears| ears.map(|x| (soft_limit(x) * 32767.).round().clamp(-32768., 32767.) as i16))
+}
+/// `mono` alone as a frame of the mix, centred (the microphone test's
+/// playback when no match's voices play: [`Core::mix_over`] without them).
+#[cfg(any(windows, test))]
+pub fn centred(mono: &[f32; FRAME]) -> Stereo {
+    finish(ahead(mono))
+}
 #[derive(Clone, Copy)]
 enum Phase {
     Buffering,
@@ -93,6 +203,9 @@ struct Speaker {
     effect: Option<Effect>,
     closing_effect: bool,
     limiter: Limiter,
+    /// The gains of the last frame mixed: a frame ramps from them to its
+    /// own, so a turn, a step, or the switch to the radio never clicks.
+    gains: Gains,
 }
 impl Speaker {
     fn new() -> Result<Self, String> {
@@ -104,6 +217,7 @@ impl Speaker {
             effect: None,
             closing_effect: false,
             limiter: Limiter::UNITY,
+            gains: Gains::UNITY,
         })
     }
     fn take(&mut self, id: u16, slot: u8, stats: &mut Stats) -> bool {
@@ -359,27 +473,57 @@ impl Core {
             _ => {}
         }
     }
-    pub fn mix(&mut self, volume: f32, far_mask: u32, now: u32) -> [i16; FRAME] {
-        let mut acc = [0f32; FRAME];
+    pub fn mix(&mut self, volume: f32, hearing: &Hearing, now: u32) -> Stereo {
+        self.mix_over(None, volume, hearing, now)
+    }
+    /// The mix over `under`, 20 ms that play beside the speakers, centred and
+    /// at a volume of their own (the microphone test's playback).
+    pub fn mix_over(
+        &mut self,
+        under: Option<&[f32; FRAME]>,
+        volume: f32,
+        hearing: &Hearing,
+        now: u32,
+    ) -> Stereo {
+        let mut acc = under.map_or([[0f32; 2]; FRAME], ahead);
         let volume = unit(volume);
-        for (slot, s) in self.speakers.iter_mut().enumerate() {
-            let far = far_mask & (1 << slot) != 0;
+        let plain = volume * LOUDER;
+        for (s, heard) in self.speakers.iter_mut().zip(hearing.0) {
+            let to = Gains::of(heard);
+            let from = std::mem::replace(&mut s.gains, to);
+            let far = to.radio > 0.;
             s.finish_effect(far, &mut self.stats);
-            if let Some(mut pcm) = s.play(now, far, &mut self.stats) {
-                if far {
-                    s.radio.process(&mut pcm, 1.);
+            if let Some(pcm) = s.play(now, far, &mut self.stats) {
+                let ramp = |from: f32, to: f32, i: usize| from + (to - from) * (i + 1) as f32 / FRAME as f32;
+                if from.plain != [0., 0.] || to.plain != [0., 0.] {
+                    for (i, (a, p)) in acc.iter_mut().zip(pcm).enumerate() {
+                        for ((ear, from), to) in a.iter_mut().zip(from.plain).zip(to.plain) {
+                            *ear += p * plain * ramp(from, to, i);
+                        }
+                    }
                 }
-                for (a, p) in acc.iter_mut().zip(pcm) {
-                    *a += p * volume;
+                // The radio's filter runs only while it is heard (as it
+                // did): the frame it comes in on ramps it up from nothing.
+                if from.radio > 0. || to.radio > 0. {
+                    let mut radio = pcm;
+                    s.radio.process(&mut radio, RADIO_BED);
+                    for (i, (a, p)) in acc.iter_mut().zip(radio).enumerate() {
+                        let p = p * volume * ramp(from.radio, to.radio, i);
+                        a[0] += p;
+                        a[1] += p;
+                    }
                 }
             }
             s.finish_effect(far, &mut self.stats);
+            // The squelch is the radio's: centred.
             if let Some(fx) = &mut s.effect {
                 for sample in &mut acc {
                     if fx.at >= fx.samples.len() {
                         break;
                     }
-                    *sample += f32::from(fx.samples[fx.at]) / 32768. * volume;
+                    let fx_sample = f32::from(fx.samples[fx.at]) / 32768. * volume;
+                    sample[0] += fx_sample;
+                    sample[1] += fx_sample;
                     fx.at += 1;
                 }
                 if fx.at >= fx.samples.len() {
@@ -387,7 +531,7 @@ impl Core {
                 }
             }
         }
-        acc.map(|x| (x * 32767.).round().clamp(-32768., 32767.) as i16)
+        finish(acc)
     }
     pub fn talking(&self, now: u32) -> u32 {
         self.speakers.iter().enumerate().fold(0, |mask, (slot, s)| {

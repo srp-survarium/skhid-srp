@@ -205,9 +205,9 @@ package
             var say:Object = HarnessText.DATA[language];
             Loc.setData(say);
             // The pool the cards and rows name: long map names, the longest weather, every mode (the
-            // create window's ticks).
-            tell(["S1;M;6;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;117;1;1;4;0","4;184;8;1;5;0",
-               "5;12;7;1;8;0"]);
+            // create window's ticks), the free-for-all's map once more with each twist.
+            tell(["S1;M;8;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;117;1;1;4;0","4;184;8;1;5;0",
+               "5;12;7;1;8;0","6;12;7;1;9;0","7;12;7;1;10;0"]);
             var states:Array = [
                ["private, owner", 1001, true, true, 0, "01010", 0, []],
                ["private, member", 1002, true, false, 0, "01010", 0, []],
@@ -286,15 +286,15 @@ package
                   var modes:Array = [];
                   for each(var tick:* in ticks)
                      modes.push(tick.name);
-                  if(modes.slice(0, 6).join() != "2,3,6,4,5,8")
+                  if(modes.slice(0, 8).join() != "2,3,6,4,5,8,9,10")
                      failures.push(language + ": the create window's mode ticks " + modes.join());
-                  // the six of them above the window's foot (its Create button, in the same box; the
+                  // the eight of them above the window's foot (its Create button, in the same box; the
                   // window here is as low as it gets, RoomsWindow.MIN_H)
                   var formButtons:Array = [];
                   walk(win,[],[],0,0,formButtons);
                   for each(var foot:* in formButtons)
-                     if(foot.label == say.st_srp_rooms_create && ticks.length >= 6 && (foot.parent != ticks[5].parent
-                        || ticks[5].y + ticks[5].getBounds(ticks[5]).bottom > foot.y))
+                     if(foot.label == say.st_srp_rooms_create && ticks.length >= 8 && (foot.parent != ticks[7].parent
+                        || ticks[7].y + ticks[7].getBounds(ticks[7]).bottom > foot.y))
                         failures.push(language + ": the create window's last mode tick reaches its foot");
                }
          }

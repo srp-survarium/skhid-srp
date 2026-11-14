@@ -7,6 +7,14 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
 - 10 points a kill (the normal kill score), nothing lost on death.
 - The first to 30 kills ends the match, or the timer does (15:00).
 - Spawn protection 2 s ("3 seconds sounds too long, it should be 1.5 or 2 MAX").
+  Since 2026-11-14 0.5 s on every map (the owner: "let's change it to 0.5 everywhere"):
+  `ffa-protection-ms-1.json`, last of the Free for All lists but `ffa-rudnya-picks-1.json` and
+  `ffa-cover-maps-1.json` (whose new points copy a point it gave the 500 ms), sets each team-2 point's
+  `invulnerability_time` 2 -> 0 and adds `invulnerability_time_ms` 500, which the client hook of
+  revision 57 reads before the whole seconds (`stalker-ffa.md`, "Millisecond protection"), as
+  Training Camp has had since `training-camp-arena-1.json`. The lists above it still write 2 s;
+  `scripts/ffa-mode/make_protection_ms_edits.py` addresses the points by index, so it is made
+  again (from a build of the rows above it) when a list adds or removes a Free for All point.
 - Safe respawns across the map. On 2026-11-12 the owner revised the earlier
   farthest-point preference because it kept sending players to corners: all
   safe points now enter the choice, including the middle; distance ranks only
@@ -43,13 +51,19 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
   - No squads in the match: squad mates are opponents. The lobby squad itself stays.
   - Every other player is an enemy wherever the game compares teams: names, markers, minimap,
     kill feed, kills, assists, spotting.
-  - **No team chat** (the owner, 2026-11-12: "i'd rather it didn't have team chat"), and voice
-    goes by these sides too, never by the seating:
+  - **Voice for all** (the owner, 2026-11-13: "in FFA I would enable voice chat for all"; until
+    then nobody heard anyone): every player hears every other of the match, by the team modes'
+    rule of near and far (plain in the world under 10 m, the radio from it or dead;
+    voice-chat.md). The relay decides it from the match's mode (`registry::VoiceChannel::of`:
+    the match's channel, not a team's), the game from the options' free-for-all entry (patch
+    66's `channel`, by patch 142's `free_for_all::running`). The Tab menu's voice mute and the
+    talking list take every player (in Blackout the list still only on Tab).
+  - **No team chat** (the owner, 2026-11-12: "i'd rather it didn't have team chat"); the chat
+    goes by these sides, never by the seating:
     - The HUD offers no team tab ("The player's screens", below).
     - The server delivers none. A team channel's line (6 or 7; a changed game can still send
       one) reaches the players on the sender's side of the match (the lobby's `play::Side`, what
       `Core::side_played` answers): in a free-for-all the sender alone.
-    - The voice relay goes by the match's teams (`registry::voice_seat`): nobody hears anyone.
     - The match's channel ("All") reaches every player of the match, as in any mode.
     - The squad channel is the lobby squad's, whatever its members play: squad mates read each
       other's squad lines while they are opponents here, and the HUD keeps a squad's tab. Not
@@ -112,6 +126,70 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
 - **Checked against 0.26g's collision** (`scripts/ffa-mode/check-points`,
   `scripts/ffa-mode/checked.tsv`): each 0.31 point is kept, nudged to the ground (under 0.43 m) or
   dropped (ground over 0.5 m off, body blocked, or no reachable floor).
+- **Where a spawn may stand** (the owner, 2026-11-14: "there should be a rule that spawns are inside
+  buildings or close to two walls or some cover", "and none at the perimeter"; his picks on
+  Rudnya, `private/spawn-examples/rudnya-2026-11-14.tsv`, from the `where` lines of his game log,
+  "see how most of them usually have cover"). check-points' `cover` module is the rule (its
+  `cover` binary measures a map's spawns, given points and its floors); on the bullet collision
+  (what stops shots and sight) round the spawn's feet:
+  - cover, any of three: a roof (collision straight up within 6 m of the feet); a corner (two
+    walls within 2.5 m, at 1.6 m up, what hides a standing player, their faces 60° or more
+    apart); a side (collision within 2.5 m at 0.9 m up, what hides a crouching player, over an
+    arc of 75° or more);
+  - past the perimeter band: deeper than 10 % of the deepest point's depth in the walkable area
+    (to_center's measure, below; on Rudnya 6.6 m of 66.5 m). The move to the centre's 30 % band
+    holds 16 of the picks.
+  - Calibrated on the first 46 picks: 44 have cover (39 and 40, on a flat roof, have nothing
+    within 2.5 m); 44 are past the band (21, 1 m from the outline, and 25, 6.2 m, are not). Of a
+    sample of Rudnya's walkable floors (one in 4 m in plan and 3 m in height, 2,618) 36 % have
+    cover; open ground has none. His 10 later picks (47-56) all hold both parts. The owner: "it is
+    fine that not all hold".
+  - Every Free for All map's spawns as main had them on 2026-11-14 (the same in each weather),
+    cover / past the band / both, of all: Rudnya 10 / 16 / 5 of 28 (before its picks, below),
+    School 9 / 15 / 6 of 26, Vostok 17 / 15 / 10 of 24, Chemical Plant 19 / 19 / 9 of 30,
+    Tarakanovsky Fort 19 / 15 / 12 of 24, Mamayev Kurgan 12 / 17 / 6 of 25, Vector Laboratory
+    25 / 20 / 16 of 29, Cologne 19 / 20 / 16 of 23, London 20 / 26 / 15 of 32, Experimental Pool
+    15 / 17 / 9 of 24, Military Warehouses 11 / 19 / 6 of 24, Training Camp 9 / 26 / 9 of 26 (its
+    area measured from every spawn of the project, the fence's outside too), Vostok v0.11
+    16 / 15 / 10 of 22, Chemical Plant v0.11 11 / 14 / 3 of 22, Vostok v0.21 13 / 15 / 7 of 22,
+    Mamayev v0.21 11 / 19 / 8 of 22, Rudnya v0.69 13 / 16 / 7 of 22.
+- **No spacing between spawns** (the owner, 2026-11-14, of the 12 m the tools kept between solo
+  spawns: "we don't need this rules at all", "spawns can be as close as possible, the only thing that
+  matters is whether people can spawn close to each other"). Points may stand as close together as
+  they like: no spawn tool or check refuses or drops a point for being near another. Where a tool
+  chooses among candidates (to_center, central, ported, the STALKER maps' ffa-points, a roof spawn's
+  place) it still takes the farthest from those it has first, with no minimum. What keeps players
+  apart is the respawn's own choice ("Choice", above: a point with a living enemy, or a point given
+  at the same tick, within its enemy radius, 20 m, is not chosen; patch 142's `free_for_all.rs`
+  measures the same-tick one in 3D), which stays as it is. The lists made before (the 0.31 points'
+  move to the centre, London's, the ports', the STALKER maps') were made 12 m apart (Training Camp
+  8 m in 3D) and stay as they are.
+- **Rudnya at the owner's picks** (2026-11-14: "I can give you many examples with ~where"; "for
+  49, 8, 10 and 42 we need spawn points on top of those builings (roofs)", "those are silly spawn
+  points usually unreachable, but they make sense in general"). Content edit `ffa-rudnya-picks-1`,
+  from `scripts/ffa-mode/rudnya-picks.tsv`, made by check-points' `picks` (its doc is the rule) and
+  `make_picks_edits.py`, in level_01's three `<weather>_8` projects:
+  - All 56 of his places, each put on its ground by the spawn check (0 to 16 cm), however near one
+    another. 2 m from harmful zones, but 45, 1.49 m from the swamp anomaly's damage zone (the owner:
+    "45 can stay too"; `picks --harmful-ok 45`, the one exception). Facing as he faced: the
+    rotation's y is minus the `where` yaw (`where` turns +z towards +x, the engine's rotation_y
+    the other way; `mapdata::math::heading`). 52 of the 56 hold the rule (21 and 25 are in the
+    band, 39 and 40 have no cover).
+  - The first 28 take the places of point_ids 43-70 (position and rotation only), 28 are new points
+    71-98; new points copy the first solo spawn (20 m exclusion, 500 ms protection, no zones).
+  - Roof spawns 99-102, on the roofs of the buildings at picks 49, 8, 10 and 42: the roof nearest the
+    pick (open-sky floors of a walk grid of every floor round it, joined by walking, 2.2 m or more
+    over the pick), a floor 1 m from its edges sloping under 20° (35° where it has none: the
+    pitched roofs), body clear, a way down by the walk model (drops of 5 m at most) to a floor
+    players walk, of those the farthest in plan from every other spawn; facing the longest view.
+    The building at 18 ("similar for 18 building") has none: its roof, 8 m over 18's floor, has no
+    way down within 5 m drops, and its lower roofs no flat, clear floor.
+  - 28 -> 60 points. After `ffa-protection-ms-1`, before `ffa-cover-maps-1`.
+  - Checked (2026-11-14): `release/build-content 59`, a quick build (patch sha256 `72f2a0a6...`,
+    server data `c7ebbddd...`): the 60 points read back as rudnya-picks.tsv has them in all three
+    weathers, the other 30 Free for All projects' spawns as before; the released map test passes
+    on its server data. Offline only: not played, not released.
+  - Review renders: `private/renders/ffa-spawn-cover/` of the main checkout.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
   proposal for all 16 maps below; Training Camp has its own, `stalker-ffa.md`). Content edit
@@ -135,16 +213,75 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     Experimental Pool 7/15, Military Warehouses 7/14: 148 a map's worth; levels 1-8 the same in
     their three weathers (same points and geometry), 320 moved entries.
   - Cologne is a bridge: its centre is the bridge's middle lanes, not the middle of its length.
+  - London's rotunda (the owner, 2026-11-13: "london shouldn't have spawns on the third floor"): the
+    move had put ids 38 and 39 on its third storey (floor at 17.92; in the walk grid reached only by
+    a jump from the second, and left by a drop). `to_center --below 14.5`, on the projects with the
+    move applied, re-places only the solo spawns above that height, in the centre and not above it:
+    both stand on the second storey (14.06) now, about 2 m in plan from where they were. Its levels:
+    the underpass (0.7, a basement), the ground (the street at 6, mounds to 10 at its closed drum,
+    no floor slab at 6 or 10), the second storey (14.06, the donor's four points; walked onto from
+    the mounds) and the third (17.92, no spawn). No other London spawn is above a second storey
+    (id 41 is on one, 9.56 over 6.33). Review renders: `private/renders/london-ffa-floors/`.
   - The free for all's own `<weather>_8` projects only; Team Deathmatch's are not named.
   - Review renders (before/after per map): `private/renders/ffa-spawns-to-center/` of the main
     checkout.
+- **Every map by the spawn rule, twice the spawns** (the owner, 2026-11-14, on his Rudnya picks: "I
+  want you to ... try this on other maps"; then "let's make other maps have x2 spawns too"): content
+  edit `ffa-cover-maps-1`, from `scripts/ffa-mode/cover-maps.tsv`, made by check-points' `to_cover
+  --times 2` (its doc is the rule) and `make_cover_edits.py`, on every Free for All map but Rudnya
+  (its own, from his picks), over the projects as every list before it leaves them; the last Free
+  for All list (its new points copy the 500 ms of `ffa-protection-ms-1`, which addresses points by
+  index):
+  - A spawn stays where it is when it passes `cover` (above) and the spawn checks of the centre move
+    (standing floor, body clear, harmful zones 2 m away), however near another spawn (the owner,
+    2026-11-14: "spawns can be as close as possible, the only thing that matters is whether people
+    can spawn close to each other": the respawn's 20 m enemy exclusion keeps players apart). Its
+    facing: its own when a walkable 6 m and 8 m of view are ahead, else turned to a new spawn's. On
+    London none stands above 14.5 (its rotunda's third storey).
+  - Each other one keeps its point id, name, radii and protection and moves to a place that passes
+    the same; new team-2 points that pass it make the count twice what it was: point ids after the
+    project's highest (the STALKER maps' teams each count theirs from 0), copies of its first solo
+    spawn (20 m exclusion, 500 ms protection, no team zones), named `ffa_cover_<point id>`. The
+    places: the reachable standing floors past the band, one a 2 m cell and 2 m of height, facing
+    the walkable heading that sees farthest (to 20 m), into the area on a tie; chosen one at a time,
+    each the place that brings the inner area (past the band) nearest to a spawn in all, so it has
+    places to spawn everywhere; no distance is kept.
+  - Training Camp: its 26 stay exactly as they are (the owner's arena; 8 pass the rule, 14 have no
+    cover and 4 are in the band, measured on the fenced area); 26 new ones on the ground inside its
+    fence (`training-fence.tsv`; a floor under 1 m: its raised floors have their own rules, a way
+    down and no roofs, catwalks or the hub's platform, which `to_cover` does not check), its area
+    and band measured inside the fence.
+  - The walk grid is seeded by the spawns and its box holds them all, so the map is measured again
+    with the spawns where they moved or were added, and changed again, until every one stays and
+    none is added (2 or 3 rounds).
+  - Before -> after (kept / turned of them / moved / added): School 26 -> 52 (4 / 1 / 22 / 26),
+    Vostok 24 -> 48 (10 / 2 / 14 / 24), Chemical Plant 30 -> 60 (9 / 3 / 21 / 30), Fort 24 -> 48
+    (12 / 1 / 12 / 24), Mamayev 25 -> 50 (4 / 1 / 21 / 25), Vector Laboratory 29 -> 58
+    (15 / 3 / 14 / 29), Cologne 23 -> 46 (16 / 7 / 7 / 23), London 32 -> 64 (15 / 5 / 17 / 32),
+    Vostok v0.21 22 -> 44 (7 / 0 / 15 / 22), Mamayev v0.21 22 -> 44 (8 / 0 / 14 / 22), Chemical
+    Plant v0.11 22 -> 44 (3 / 0 / 19 / 22), Vostok v0.11 22 -> 44 (10 / 0 / 12 / 22), Rudnya v0.69
+    22 -> 44 (7 / 2 / 15 / 22), Experimental Pool 24 -> 48 (9 / 0 / 15 / 24), Military Warehouses
+    24 -> 48 (6 / 0 / 18 / 24), Training Camp 26 -> 52 (26 / 0 / 0 / 26): every map its double, no
+    shortfall (the smallest, Training Camp's ground inside the fence, had 308 places that pass).
+    397 -> 794 a map's worth; levels 2-8 the same in their three weathers (same points and
+    geometry): 519 changed and 759 new entries. The moved ones were in the band (108), had no
+    cover (121) or a harmful zone within 2 m (7).
+  - Only the free for all's own `<weather>_8` projects; Team Deathmatch's are not named.
+  - Checked (2026-11-14): `to_cover` on a quick build of revision 59 with the list keeps every solo
+    spawn of the 30 projects as it is, in one round (Training Camp's 26 new ones all pass); every
+    solo spawn has 20 m exclusion and 500 ms; the released map test passes on its server data with
+    the doubled counts. Offline: not seen in the game, not played.
+  - Review renders (before/after per map, a contact sheet): `private/renders/ffa-spawn-cover-maps/`
+    of the main checkout.
 - **Crowding** (2026-11-13, an offline model of the built projects, not play): one player respawns
   while the N - 1 others live, standing either on random solo points (A) or anywhere in the box
   around them (B); the share of respawns with no safe point (the fallback), N = 16 / 20:
   Cologne (level_08, 23 points in 165 x 38 m) A 7 % / 19 %, B 1 % / 7 %; Experimental Pool
   (v010b_cs_mp_bath, 81 x 73 m) A 1 % / 4 %, B 2 % / 9 %; Training Camp B 0.3 % / 2 %; Tarakanovsky
   Fort (level_05) and Mamayev v0.21 under 1 % at 20; every other map 0. At 10 every map was under
-  0.2 %. Same-tick respawns and the dead are left out (both ways).
+  0.2 %. Same-tick respawns and the dead are left out (both ways). Training Camp's figure is
+  for its crater arena of revision 58 (29 points); the fenced one (26 points in 73 x 67 m, 24
+  of them on its raised floors) is modelled in `stalker-ffa.md`, "The spawns".
 
 ## Maps
 
@@ -153,7 +290,7 @@ team-2 points: a mode-8 config without them stops the server (`maps::MapMode::fr
 
 | Level | Weathers | Solo points (kept / donor, or authored) |
 |---|---|---|
-| level_01 Rudnya | day, evening, rain | 28 / 29 |
+| level_01 Rudnya | day, evening, rain | the owner's 56 picks + 4 on roofs = 60 |
 | level_02 School | day, evening, rain | 25 / 25, and the project's own one |
 | level_03 Vostok Radar Station | day, evening, rain | 24 / 24 |
 | level_04 Chemical Plant | day, evening, rain | 30 / 33 |
@@ -161,7 +298,7 @@ team-2 points: a mode-8 config without them stops the server (`maps::MapMode::fr
 | level_06 Mamayev Kurgan | day, evening, rain | 25 / 26 |
 | level_07 Vector Laboratory | day, evening, rain | 29 / 30 |
 | level_08 Cologne | day, evening, prerain | 23 / 24 |
-| level_09 London | day | 22 / 27 + 6 authored central points = 28 |
+| level_09 London | day | 22 / 27 + 6 authored central points + 4 in the underpass = 32 |
 | v021d_level_03 Vostok Radar Station | day | 22 authored |
 | v021d_level_06 Mamayev Kurgan | day | 22 authored |
 | v011e_level_04 Chemical Plant | day | 22 authored |
@@ -180,7 +317,7 @@ actual London geometry within X [-35, 40], Z [-30, 30], with the same body,
 hazard and facing checks as the ports, and at least 12 m horizontal spacing
 from all 22 existing solo spawns and the other additions. `make_london_edits.py`
 emits `ffa-london-center-1.json`, applied after `ffa-1.json`; existing points
-and IDs remain unchanged. London now has 28 solo spawns.
+and IDs remain unchanged. That made 28 solo spawns (32 with the underpass's, below).
 
 Validation (2026-11-12): geometry generation checked 918 safe candidates on
 278,660 navigation floors, followed by visual review of the floor/point plot.
@@ -199,6 +336,20 @@ Installed this combined package into the isolated `local-clients-ffa` setup
 and restarted FfaOne/FfaTwo/FfaThree. The server reports 30 playable maps and
 all three processes are running; no central-spawn gameplay claim is made.
 Nothing was released and the release revision is unchanged.
+
+London's underpass (the owner, 2026-11-14: "put more points in basement there"; it had two, ids
+21 and 24) has four more, ids 48-51: `scripts/ffa-mode/london-underpass.tsv`, made by
+`central --region underpass` on the projects as every list before its own leaves them (28 solo
+spawns), and `make_london_edits.py --region underpass` emits `ffa-london-underpass-1.json`, after
+`ffa-center-1.json`.
+- The underpass: the walk grid's floors whose ceiling is under the street (6 m): its floor at 0.7
+  under the roundabout's plate at 4.73.
+- The same body, hazard and facing checks, the facing along it: its 6 m ahead is the underpass's
+  floor, and nothing is within 20 m in front.
+- 12 m in 3D from every solo spawn and each other: in plan the rotunda's second storey (13 m up)
+  and the street (5 m up) cover the whole underpass. The nearest spawn to a new one is 14.1 m
+  away; the underpass takes six at most at 12 m.
+- London has 32 solo spawns. Review renders: `private/renders/london-ffa-floors/`.
 
 The ported layouts are explicit source in `scripts/ffa-mode/ported.tsv`, made by the
 `ported` binary of `scripts/ffa-mode/check-points` and emitted by
@@ -269,6 +420,96 @@ and spatial review; they still need multiplayer playtesting for balance.
 - A live server with `SRP_MATCH_MODES` set must name 8 for it to be played.
 - **The site's live table** shows a free-for-all's players in all, not "N v N".
 
+## Twists
+
+A free-for-all card of the rooms' vote may be a twist of the mode (the owner, 2026-11-14: "implement
+FFA variation, which replaces all sniper rifles and all silent weapons with ak-12"): the same map,
+rules, spawns, pay and results, every kit's guns changed by the server.
+
+- **No maps of their own.** The match options' map id is one byte (`static_info.md`) and the owner
+  keeps the free ids for maps ("there should be enough map slots", "we will add more maps in the
+  future"): a twist is no `maps_dict` row, no config, no content. `survarium::v026g::twist::Played`
+  is what a match plays: a map, and on a free-for-all's a twist or none (no other mode's map can
+  hold one).
+- **Where:** each free-for-all card of a vote (the third card; all three in a pool of
+  free-for-alls alone) draws its twist with the card, by its share (`twist::SHARES`):
+  - plain Free for all 45 %, **Racket** 45 % (my pick);
+  - **Cowboy**, "Saloon" in the lobby, 10 % (the owner, 2026-11-14: "cowboy version should be
+    rare with only 10% chance"): every kit a Colt Python alone (`ffa-cowboy.md`).
+
+  Won, the card's match plays its twist.
+- **A mode of its own in the create window** (the owner, 2026-11-14: "they are not present in
+  private room creations"): "FFA: Racket" and "FFA: Saloon" are ticks beside Free for all, as the
+  other modes are. The pool offered (`room_pool`) has each free-for-all map once plain (mode 8) and
+  once with each twist (modes 9, 10), after the other entries: a tile (map and weather) takes all
+  three, a mode tick its entries; a room's pool is the entries ticked (`rooms::Entry`: a map and its
+  twist or none). A free-for-all card draws its map from the pool's maps, then what it plays among
+  that map's entries in the pool, each by its share (`twist::Plays`):
+  - Free for all alone: plain, always; a twist alone: that twist, always;
+  - Racket and Saloon: 45 to 10; all three: the shares above (my pick: the simplest rule, one
+    draw for every room).
+
+  The server's rooms (Play's) hold every entry but the experimental maps, so their cards draw by
+  the owner's shares as before. A window with nothing kept ticks every mode, the twists too; a kept
+  window from before them has them ticked (a mode added later is in, `rooms.md`). A room with bots
+  has no free-for-all, so no twist (their ticks greyed).
+- **Names** (the owner, 2026-11-14: "they shoud be FFA: Saloon — and FFA: Racket"): "FFA: " and one
+  word, in every language (the owner's: Racket, Движ; mine for the others):
+  `st_srp_mode_racket` FFA: Racket, Движ, Двіж (uk, be), Raban, Radau, Rambajz, Galama, Zsivaj,
+  Meteli. `st_srp_mode_cowboy` (mine) FFA: Saloon, Салун (ru, uk, be), Saloon (pl, de, cs, hu),
+  Salun, Saluuna: a saloon brawl, everyone against everyone (the owner, 2026-11-14, of an earlier
+  "Showdown" / "Дуэль": "duel usually means 1vs1").
+  The lobby's mode numbers 9 Racket and 10 Cowboy (`Twist::lobby_number`; 7 is Scarcity's): a card's tag and colour, the
+  room's banner of its match (`lobby.md`, rooms' `C` and `L` rows), the log's "mode". The game's
+  own screens (loading, results, the HUD) say Free for all: they read the map's config.
+- **The kits:** the server owns what spawns: the static info's profiles, which every game cooks
+  each life from. The match server arms every profile it gives (the first players', each late
+  joiner's) before the Keeper's draw; the clients, late joiners and replays get the armed ones.
+  The accounts keep their own guns; the lobby's checks of a kit (a weapon and its ammo, the max
+  level) are of the account's kit.
+- **Racket** (`survarium::v026g::racket`):
+  - Replaced: every sniper rifle (dictionary category 13: Mosin, TOZ-122, Winchester, Remington
+    700, SV-98, VSS, VSK-94, SVD, SVU, VSSK, their premium and golden copies) and every gun whose
+    shot the others hear as the AS Val's muffled `weapons/val_m` (`states.fire.sounds.third_view`):
+    the Val, the MP7 with its silencer and its Legend, the ported Kriss Vector. Loud: the SR-3M,
+    the 9A-91, the MSBS (shots of their own).
+  - The gun: a whole `ak_12`, the replaced gun's instance id, in every kit and slot that held it
+    (the second slot takes it: assault rifles fit slot 10), with the EOTech 552 sight on it and
+    no other modification or upgrade (the owner, 2026-11-14: "also for ak-12, people should have
+    eotech collimator set on replaced weapons"). The sight is the shop's `shop_scope_eotech_552`,
+    on the AK-12 by the variant the game data makes for it (`fit_ak_12_eotech_552`,
+    `ScopeFits::variant`): the gun's one scope record in slot 3, packed as an owned scope's
+    (`weapon_scopes.md`, `weapon-kit.md`), its item id none of the profile's (an owned scope is in
+    no kit either). Nobody needs to own one. Without that variant in the data the AK-12 goes bare;
+    nothing refuses such data (the owner, 2026-11-14: "since it is just enforced the behvaiour",
+    "not correctness").
+  - Its ammo, the simplest way (the owner, 2026-11-14: "make it the simplest way"): in each kit
+    that held a replaced gun, every ammo slot whose ammo none of the kit's guns fires now is
+    emptied, and the kit has the same amount of AK-12 ammo as every other (`ammo_6.5x39`, the one
+    ammo the data pairs with it; the dictionary's `optimal_count` of assault rifles, 60), in the
+    first slot emptied or else its first empty ammo slot. A kit that holds AK-12 ammo already
+    keeps its own; one with no ammo slot free has its AK-12's magazine alone. (A Val beside an
+    SR-3M on one SP-6: the SR-3M keeps the SP-6, the AK-12 has its 60.)
+  - That ammo is one new stack every such kit holds. Its store is the amount 1000 times
+    (`twist::STORE_LIVES`): a spawn takes each slot's count out of a stack's store and a dead
+    player keeps only the store (`snapshot_rules.md` §7.3), so a kit's worth would last one life
+    (found in review, 2026-11-14). An item no kit holds any more (the ammo that left) leaves the
+    table: a profile grows by that one stack at the most, and only where an item two kits shared
+    stays for the other.
+  - Nothing else changes: armour, pockets, artefacts, skills, a loud gun and its ammo.
+  - srp refuses to start on data without `ak_12` or with other than one ammo for it.
+- **Pay:** as any free-for-all. The ammo used is counted from the trusted world's stacks, which are
+  the match's; the ammo left out of the match is not in them, so not charged.
+  - The ammo the twist gives (`Twist::gives`: Racket's `ammo_6.5x39`, Cowboy's `ammo_.357m`) is
+    nobody's and never charged, though an account owns that kind too: its own stack's use in
+    that match is not charged either (the world's stacks are counted by kind).
+  - Without a trusted block a twisted match charges no ammo (`autobuy::used`): the shot counters
+    were of guns the account's kits do not hold.
+  - The kit's items' bonuses pay as the account's kit has them: a premium or golden gun a twist
+    replaced still pays its bonus (the owner, 2026-11-14: "fine").
+- **Not yet:** the website's "matches now" tab and the rooms list say Free for all for a twisted
+  match; nothing in the match tells the twist (no introduction line).
+
 ## The player's screens
 
 - **Top bar (hud):** the match timer only, without opposing bars, team counters or alive-player
@@ -315,8 +556,7 @@ and spatial review; they still need multiplayer playtesting for balance.
   - A match of two teams after it has the team's tab back, first: the chat is cleared at each
     match (`HUD.reset`), and the mode is told again.
 - **Rooms list (lobby):** the members of a room playing a free-for-all are shown in the match
-  (gold) with no side: no bar and no column of a team (`rooms.md`; the server tells no side,
-  the movie is unchanged).
+  (gold) with no side, as those of every mode since 2026-11-13 (`rooms.md`).
 
 ## Why two sides are the limit (PROVEN, 2026-11-01, 0.26g exe)
 

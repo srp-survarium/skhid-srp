@@ -4,6 +4,9 @@
 # after patches 76, 87 and the medical skills (0 to 2); the game world's keys
 # first of four (before patch 86's, which may take a key, 144's and 140's), the hud's calls after patches 86's and 144's;
 # the game world's mouse buttons (push-to-talk on a button), taking none.
+# The options' microphone test: the Settings' calls after patches 79, 83 and
+# 112 (1 to 3), the main menu's close after patch 113's (0), every frame of
+# the game after the music, the packets and the two reports (1 to 4).
 name = "voice"
 patch = 66
 
@@ -42,3 +45,18 @@ handler = "on_mouse_key"
 site = "hud.callback"
 handler = "on_hud_call"
 order = 3
+
+[[hook]]
+site = "options.callback"
+handler = "on_options_call"
+order = 4
+
+[[hook]]
+site = "options.deactivate"
+handler = "on_menu_close"
+order = 1
+
+[[hook]]
+site = "game.tick"
+handler = "on_tick"
+order = 5

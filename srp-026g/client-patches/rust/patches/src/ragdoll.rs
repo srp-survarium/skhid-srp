@@ -48,20 +48,25 @@ use crate::vostok::world::{BodyId, GameWorld, Held, ModifierIndex, NetworkClient
 use crate::vostok::{Context, Flow, Lock, NoExit, RagdollOnCullExit, RagdollOnHeldItemExit, RagdollOnPostBonesExit, Thread, camera, clock, headwear};
 
 /// ray_test's filter (an object is hit when its mask has a bit of the
-/// group and its group a bit of the mask): the foot IK's level (group 24h,
-/// mask 2: the walker collision, cgroup 2 / cmask 4), the level's collision
-/// that bullets hit (group 10h, mask 8: cgroup 8 / cmask 16, as the lobby's
-/// camera ray), and the batteries (group 0A18h, mask 418h, put in by
-/// victory_item_core 0x301CB0, lying or just dropped: bits 400h and 200h).
-/// Nothing else: players 824h/3, hit models 40h/11h, grenades 818h/8 (their
-/// group has 8h, their mask none of 434h), the lobby's 800h/800h and 20h/20h,
-/// the client objects' 80h/100h and 1/20h. The walker mesh alone is coarse
-/// and lies under the drawn ground on some maps (Rudnya: a median 4 cm, 10
-/// cm at the 90th percentile, deeper than the gun's radius); the collision
-/// follows the drawn ground, and the nearer of the two is the one met. The
-/// ray only reads the world: a body rests on a battery, the battery is
-/// never moved.
-const LEVEL_GROUP: u32 = 0x24 | 0x10 | 0x400;
+/// group and its group a bit of the mask): the walker collision (group 4,
+/// mask 2: cgroup 2 / cmask 4; the foot IK's ray is 24h/2), the level's
+/// collision that bullets hit (group 10h, mask 8: cgroup 8 / cmask 16, as
+/// the lobby's camera ray), and the batteries (group 0A18h, mask 418h, put
+/// in by victory_item_core 0x301CB0, lying or just dropped: bits 400h and
+/// 200h). Not the players' 824h/3, hit models 40h/11h, grenades 818h/8
+/// (their group has 8h, their mask none of 414h), the lobby's 800h/800h and
+/// 20h/20h, the client objects' 80h/100h and 1/20h. Not what a step's ray
+/// alone meets either, cgroup 8 / cmask 20h: the leaves of the STALKER
+/// maps' bushes (stalker-maps.md, "Bushes rustle"), which a body and its
+/// gun fall through. The group has no 20h for that, the foot IK's other
+/// bit: no collision object of a project and no object of the game's
+/// configs that the mask asks for is met by 20h alone. The walker mesh
+/// alone is coarse and lies under the drawn ground on some maps (Rudnya: a
+/// median 4 cm, 10 cm at the 90th percentile, deeper than the gun's
+/// radius); the collision follows the drawn ground, and the nearer of the
+/// two is the one met. The ray only reads the world: a body rests on a
+/// battery, the battery is never moved.
+const LEVEL_GROUP: u32 = 0x04 | 0x10 | 0x400;
 const LEVEL_MASK: u32 = 0x02 | 0x08 | 0x200;
 // ray_test takes them as u16
 const _: () = assert!(LEVEL_GROUP <= 0xFFFF && LEVEL_MASK <= 0xFFFF);
@@ -1032,5 +1037,8 @@ mod tests {
         for (group, mask) in [(0x824, 3), (0x40, 0x11), (0x818, 8), (0x800, 0x800), (0x20, 0x20), (0x80, 0x100), (1, 0x20)] {
             assert!(!meets(group, mask), "{group:#x}/{mask:#x}");
         }
+        // the STALKER maps' bushes, collision a step's ray alone meets
+        // (group 30h, mask 8): a body falls through their leaves
+        assert!(!meets(8, 0x20));
     }
 }

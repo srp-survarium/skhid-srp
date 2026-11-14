@@ -305,6 +305,10 @@ unsafe extern "C" {
     pub fn engine_respawn_point_clear(point: Option<RespawnPointCore>, team: u32, players: Option<PlayerVector>) -> u32;
     /// 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4
     pub fn engine_respawn_points_push(vector: Option<RespawnPointVector>, point: *mut Option<RespawnPointCore>);
+    /// 0x57d70 vostok::sound::sound_scene::calculate_3d_pan: scene ESP+4, table ESP+8, proxy ESP+12, position ESP+16, distance ESP+20, matrix ESP+24, coefficient ESP+28; pops 28
+    pub fn engine_sound_pan(scene: Option<SoundScene>, table: Option<PanningLut>, proxy: Option<SoundInstanceProxy>, position: *const f32, distance: f32, matrix: *mut f32, coefficient: *mut f32);
+    /// 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
+    pub fn engine_listener_position(scene: Option<SoundScene>, out: *mut f32) -> *mut f32;
 }
 
 #[allow(dead_code)]
@@ -1029,6 +1033,24 @@ impl GameWorld {
     #[inline(always)]
     pub unsafe fn loading(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x4e20).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x94 (ptr<vostok::sound::sound_scene>): its sound scene: on_after_tick 0x1F764C gives it the listener every tick (set_listener_properties 0x587D0, with no test for 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn sound_scene(self) -> Option<SoundScene> {
+        unsafe { self.0.byte_add(0x94).cast::<Option<SoundScene>>().read_volatile() }
+    }
+
+    /// +0x94 (ptr<vostok::sound::sound_scene>): its sound scene: on_after_tick 0x1F764C gives it the listener every tick (set_listener_properties 0x587D0, with no test for 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_sound_scene(self, value: Option<SoundScene>) {
+        unsafe { self.0.byte_add(0x94).cast::<Option<SoundScene>>().write_volatile(value) }
     }
 }
 
@@ -10854,6 +10876,15 @@ impl SoundWorld {
     pub unsafe fn set_logic_user(self, value: Option<WorldUser>) {
         unsafe { self.0.byte_add(0xb0).cast::<Option<WorldUser>>().write_volatile(value) }
     }
+
+    /// +0xcc (obj<vostok::sound::panning_lut>): its panning table, inside it: 512 directions of 9 gains, filled once by its constructor 0x5E150 in the sound world's (0x58D90); notify_listener2 0x5C396 gives its address to calculate_3d_pan
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn panning(self) -> PanningLut {
+        PanningLut(unsafe { self.0.byte_add(0xcc) })
+    }
 }
 
 /// A vostok::sound::sound_scene (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -10922,6 +10953,24 @@ impl SoundScene {
     #[inline(always)]
     pub unsafe fn listener_set(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x2fa).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x11c (ptr<vostok::sound::sound_world>): its sound world (notify_listener2 0x5C390)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn world(self) -> Option<SoundWorld> {
+        unsafe { self.0.byte_add(0x11c).cast::<Option<SoundWorld>>().read_volatile() }
+    }
+
+    /// +0x11c (ptr<vostok::sound::sound_world>): its sound world (notify_listener2 0x5C390)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_world(self, value: Option<SoundWorld>) {
+        unsafe { self.0.byte_add(0x11c).cast::<Option<SoundWorld>>().write_volatile(value) }
     }
 }
 
@@ -11015,6 +11064,58 @@ impl SoundInstanceProxy {
     #[inline(always)]
     pub unsafe fn set_scene(self, value: Option<SoundScene>) {
         unsafe { self.0.byte_add(0x68).cast::<Option<SoundScene>>().write_volatile(value) }
+    }
+
+    /// +0x80 (u32): its sound_type: 0 point, 1 cone (spot), 2 volumetric, 3 hud (calculate_3d_pan 0x57D88, the only field it reads of a point sound's proxy; notify_listener2 0x5C37C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn sound_type(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x80).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x90 bytes: a proxy is 144 bytes (new_helper<sound_instance_proxy_internal> over single_size_buffer_allocator<144>, 0x65450)
+    pub const SIZE: usize = 0x90;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::sound::sound_instance_proxys (0x90 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct SoundInstanceProxyStorage([u8; 0x90]);
+
+#[allow(dead_code)]
+impl SoundInstanceProxyStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x90])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> SoundInstanceProxy {
+        SoundInstanceProxy(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<SoundInstanceProxy> {
+        (!rooms.is_empty()).then(|| SoundInstanceProxy(NonNull::from(rooms).cast()))
     }
 }
 
@@ -17834,6 +17935,24 @@ impl GameOptions {
         unsafe { self.0.byte_add(0x44).cast::<u8>().as_ptr() }
     }
 
+    /// +0xc (ptr<vostok::ui::movie_holder>): the main menu's movie holder: game_options::activate shows it in the scene (re-kit: +0Ch the menu movie) and deactivate hides it; game_options_interface's menu is this field (+8 of +4), the movie the options invoke ([[+0Ch]+108h]+4, 0x1FF98F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn menu(self) -> Option<MovieHolder> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<MovieHolder>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<vostok::ui::movie_holder>): the main menu's movie holder: game_options::activate shows it in the scene (re-kit: +0Ch the menu movie) and deactivate hides it; game_options_interface's menu is this field (+8 of +4), the movie the options invoke ([[+0Ch]+108h]+4, 0x1FF98F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_menu(self, value: Option<MovieHolder>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<MovieHolder>>().write_volatile(value) }
+    }
+
     /// +0x34 (ptr<survarium::game>): the game (game_options::activate 0x200F83; game_options_interface's game is this field, +30h of +4)
     ///
     /// # Safety
@@ -23738,6 +23857,21 @@ pub struct KitLevelConfig(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl KitLevelConfig {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A vostok::sound::panning_lut (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PanningLut(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PanningLut {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
