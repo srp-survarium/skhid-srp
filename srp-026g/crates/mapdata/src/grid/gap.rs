@@ -464,6 +464,9 @@ pub struct GapStats {
     /// share (under 0.2, 0.2 to 0.6, 0.6 and over).
     pub flown: usize,
     pub flights: usize,
+    /// … the gaps found and their groups (a metre of edge, way, levels; at most two of a group flown).
+    pub gaps: usize,
+    pub groups: usize,
     pub by_share: [usize; 3],
 }
 
@@ -481,6 +484,8 @@ impl GapStats {
         self.made += o.made;
         self.sprint += o.sprint;
         self.flown += o.flown;
+        self.gaps += o.gaps;
+        self.groups += o.groups;
         self.flights += o.flights;
         for (m, o) in self.by_share.iter_mut().zip(o.by_share) {
             *m += o;

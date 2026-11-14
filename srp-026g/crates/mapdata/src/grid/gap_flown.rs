@@ -142,7 +142,7 @@ impl WalkGrid {
             }
         }
         // The gaps in groups by the thinning's key (a metre of edge, the way, the level, the far floor's level): flown in floor
-        // order until one is made, the one the thinning keeps of a group's made links anyway.
+        // order until one is made (the one the thinning keeps of a group's made links anyway), at most the group's two ends.
         let key = |g: &Gap| {
             let (p, q) = (self.position(g.a), self.position(g.b));
             (p.x.floor() as i32, p.z.floor() as i32, (2.0 * p.y).round() as i32, g.d, (2.0 * q.y).round() as i32)
@@ -155,12 +155,18 @@ impl WalkGrid {
                 _ => groups.push(i..i + 1),
             }
         }
+        stats.gaps = gaps.len();
+        stats.groups = groups.len();
         let leads = gap_leads();
         let kits = Kits { body: jump::WALK_CAP_MS, fastest: self.body.fastest_walk_cap };
         let flown = super::controlled::parallel(&groups, |r| {
             let mut flights = 0;
             let mut tried = 0;
-            for g in &gaps[r.clone()] {
+            // At most its first and its last take-off (in floor order): the thinning keeps one link a group, and a group's ends
+            // span its metre of edge. A bound of the pass's cost (the flights are the build's dearest step), our choice.
+            let group = &gaps[r.clone()];
+            let ends: &[Gap] = if group.len() <= 2 { group } else { &[group[0], group[group.len() - 1]] };
+            for g in ends {
                 tried += 1;
                 let (di, dk) = DIRS[g.d];
                 let l = ((di * di + dk * dk) as f32).sqrt();
