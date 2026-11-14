@@ -241,15 +241,18 @@ def run(data,padding=0,kit=0):
     ally=g.player(1,0,(0,6,0));far=g.player(2,0,(6.01,0,0));enemy=g.player(3,1,(1,0,0));dead=g.player(4,0,(1,0,0))
     g.emu.mem_write(dead+0x33c,b'\0')
     hit=g.block(0x50);owner=g.block(0x20);g.word(hit+0x20,owner)
-    g.ranks(2<<21)
-    for place,expected in [(0,.8),(1,.4),(2,.4),(3,.8),(19,.8)]:
-        g.word(owner+4,place)
-        g.step(0x2e50c7,5,stack=(0,0,bits(.8)),edi=g.read(PLAYER+0x2e0),esi=hit)
-        close(g.float(STACK-0x100+8),expected)
+    # Brothers in Arms, one rank (its three bits at 21): a teammate's hit does half its damage;
+    # 2..7 are refused (no skill at all) and the hit stays whole.
+    for rank in range(8):
+        g.ranks(rank<<21)
+        for place,halved in [(0,.8),(1,.4),(2,.4),(3,.8),(19,.8)]:
+            g.word(owner+4,place)
+            g.step(0x2e50c7,5,stack=(0,0,bits(.8)),edi=g.read(PLAYER+0x2e0),esi=hit)
+            close(g.float(STACK-0x100+8),halved if rank==1 else .8)
     assert all(g.read(p+0xd0)==10 for p in [PLAYER,ally,far,enemy,dead])
     item=g.block(0x500);vt=g.block(0x100);g.word(item,vt);g.word(vt+0x80,0x312250)
     for at in [PLAYER,ally,far,enemy,dead]:
-        for name in ['body','head','pain']:g.word(g.pools[at][name]+0xa0,bits(.1))
+        for name in g.pools[at]:g.word(g.pools[at][name]+0xa0,bits(.1))
     resource=g.effect_resource();g.word(item+0x290,resource);g.word(item+0x494,3000)
     inventory=g.block(0x200);g.word(item+0x250,inventory);g.word(inventory+0x174,PLAYER+0x108)
     second=g.player(5,0,(1,0,0))
@@ -313,7 +316,8 @@ def run(data,padding=0,kit=0):
     print('Medic clock: full activation duration, wrapping time, local pointer restore, ordinary clocks unchanged: PASS')
     print('Medic: insertion-independent recipients; independent native resource emission; retained references balanced: PASS')
     for at in [PLAYER,far,enemy,dead]:close(g.float(g.pools[at]['body']+0xa0),.1)
-    for name in ['body','head','pain']:close(g.float(g.pools[ally][name]+0xa0),g.float(g.pools[ally][name]+0x9c))
+    # Every body part of a recipient is full, the limbs too (the owner, 2026-11-14).
+    for name in g.pools[ally]:close(g.float(g.pools[ally][name]+0xa0),g.float(g.pools[ally][name]+0x9c))
     assert all(g.read(p+0xd0)==10 for p in [PLAYER,ally,far,enemy,dead])
     # The old visual-helper hook was reachable from native deserialize. Running
     # that exact point again must not heal or emit additional teammate effects.

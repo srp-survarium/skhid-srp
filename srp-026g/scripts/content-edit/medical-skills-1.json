@@ -718,14 +718,14 @@
       "unique_key": "id",
       "value": {
         "id": 342,
-        "levels_amount": 2,
+        "levels_amount": 1,
         "preconditions": {
-          "branch_points": 10
+          "branch_points": 0
         },
         "ui": {
           "position": [
             1,
-            3
+            1
           ],
           "name": "st_srp_medical_342_name",
           "description": "st_srp_medical_342_description",
@@ -734,14 +734,8 @@
           "postfix": "st_percent_postfix",
           "skill_descriptions": [
             [
-              " <green>+25",
+              "<green> +50",
               " 0",
-              "</green>",
-              ""
-            ],
-            [
-              " <green>+25",
-              " +25",
               "</green>",
               ""
             ],
@@ -754,9 +748,6 @@
           ]
         },
         "modifiers": [
-          {
-            "armored_trap_modifier": 2097152.0
-          },
           {
             "armored_trap_modifier": 2097152.0
           }

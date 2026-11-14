@@ -2,7 +2,9 @@
 
 `skhid_voice.dll` is Rust. It handles Opus, the UDP voice connection, WinMM
 capture/playback, the microphone's noise suppression and automatic gain (speexdsp's
-preprocessor, as 0.69), per-speaker jitter buffers, mutes and the retail radio effect.
+preprocessor, as 0.69), per-speaker jitter buffers, mutes and the retail radio effect. A plain
+voice's gains in the two ears are the game's: patch 66 asks its sound engine for each speaker's
+and tells them (`sv_hear`); the DLL only mixes by them.
 The arena patch loads its optional interface from `crates/voice-abi`; missing or
 incompatible DLLs leave voice disabled.
 
