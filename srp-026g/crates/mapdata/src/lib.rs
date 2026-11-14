@@ -189,6 +189,9 @@ pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0001;
 /// The same for the taken floors given back where the client's body rests and no floor names the place ([`Body::rest_floors`],
 /// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const REST_FLOORS_ALGO: u32 = 0x5389_0101;
+/// The same for the floors kept only where the client's capsule is held and the drops from the last held floors
+/// ([`Body::held_floors`], A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own.
+pub const HELD_FLOORS_ALGO: u32 = 0x5389_0201;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45).
 pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0103;
@@ -462,6 +465,10 @@ pub fn grid_key_with_links(
     // And the floors given back where the body rests.
     if body.rest_floors {
         digest.u32(REST_FLOORS_ALGO);
+    }
+    // And the floors only where the capsule is held.
+    if body.held_floors {
+        digest.u32(HELD_FLOORS_ALGO);
     }
     // And the jumps onto a top a wall holds the body on.
     if body.wall_held_tops {

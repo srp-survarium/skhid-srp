@@ -95,6 +95,7 @@ const FLIGHT_TOLERANCE_M: f32 = 0.1;
 pub mod controlled;
 pub mod gap;
 mod gap_flown;
+pub mod held_floors;
 mod rest_floors;
 pub use gap::{GapStats, OffLink, OffMeshLinks, PressLead, Share};
 pub use rim::Riser;
@@ -325,6 +326,12 @@ pub struct Body {
     /// owner-5's R2: a walking press rests at (-22.79, 31.65, 121.73)) is where the grid has nothing. A build input: in the key
     /// when set.
     pub rest_floors: bool,
+    /// [A389] Whether a floor at an edge is kept only where the client's walk tick holds a standing body (it rests no more than
+    /// a step under it), and the way down from the last held floor is one drop walked off to where the client's body stands,
+    /// its true height, priced by the client's fall damage (`grid::held_floors`; the owner, 2026-11-14: "Ok keep"). Chemical
+    /// Plant (68, 64): 7 floors on a broken slab no body stands on hid a 6 m fall behind Drops of 4.2-5.0 m. A build input: in
+    /// the key when set.
+    pub held_floors: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back (`grid::wall_give_back`):
     /// the exact pass keeps them, a wall face (not a rise of the ground) stands within 0.6 m, and the client's walk tick stands a
     /// body there. Needs [`Erosion::Exact`]. A build input: in the key when set.
@@ -474,6 +481,7 @@ impl Body {
             drop_lands: false,
             gap_flights: false,
             rest_floors: false,
+            held_floors: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -590,6 +598,7 @@ impl Default for Body {
             drop_lands: false,
             gap_flights: false,
             rest_floors: false,
+            held_floors: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -1345,6 +1354,8 @@ pub struct BuildStats {
     pub wall_given_back: usize,
     /// [A389] The floors given back where the client's body rests and no other floor names the place ([`Body::rest_floors`]).
     pub rest_floors: usize,
+    /// [A389] The edge floors no body stays on and the drops from the last held floors ([`Body::held_floors`]).
+    pub held: held_floors::HeldStats,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -1592,7 +1603,8 @@ impl WalkGrid {
         // needs it.
         let (caster, s) = body.controller();
         let gaps = links == OffMeshLinks::Gaps;
-        let needs_world = (gaps && (body.rim_jumps || body.gap_flights)) || (body.drop_check && body.drop_lands) || body.rest_floors;
+        let needs_world =
+            (gaps && (body.rim_jumps || body.gap_flights)) || (body.drop_check && body.drop_lands) || body.rest_floors || body.held_floors;
         let own = (needs_world && shapes.is_none()).then(|| crate::controller::Collision::build(triangles).with_caster(caster));
         let world = shapes.or(own.as_ref()).filter(|_| needs_world);
         (stats.exact_eroded, stats.wall_given_back, stats.rest_floors) = grid.erode(
@@ -1605,6 +1617,15 @@ impl WalkGrid {
         );
         wide.held.sort_unstable();
         wide.held.dedup();
+        // [A389] The edge floors no body stays on go; the ways down from the last held floors are made drops after the gap pass.
+        let unheld = match world.filter(|_| body.held_floors) {
+            Some(world) => {
+                let (held, drops) = grid.drop_unheld(&mut wide, world, &s);
+                stats.held = held;
+                drops
+            }
+            None => Vec::new(),
+        };
         if body.run_ups_after_erosion {
             (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, RunUp::Metres(SPRINT_RUN_UP_M));
         }
@@ -1613,6 +1634,7 @@ impl WalkGrid {
             (OffMeshLinks::Gaps, Some(world)) if body.gap_flights => grid.gap_links_flown(&wide, &solids, world, &s, &mut stats.gaps),
             (OffMeshLinks::Gaps, _) => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
+        grid.add_unheld_drops(&mut wide, &unheld);
         // [A364 C2 rows 11/12] The rim jumps, made as gap links where a client press lands (on the game's shapes, else the walker
         // triangles with the body's caster): after the erosion, no press from a floor only a crouched body fits.
         let mut rim_unmade: Vec<(Vec3, Vec3)> = Vec::new();
@@ -4390,8 +4412,14 @@ impl WalkGrid {
         } else {
             0.0
         };
-        let fall = if down {
+        // [A389] With `held_floors` a drop is priced by what the client's fall takes (nothing to the harmless height).
+        let hurt = if down && self.body.held_floors {
+            held_floors::fall_cost_m(self.height[from as usize] - self.height[to as usize])
+        } else {
             0.0
+        };
+        let fall = if down {
+            hurt
         } else if self.near_fall(to) {
             FALL_EDGE_PENALTY
         } else if self.near_lip(to) {

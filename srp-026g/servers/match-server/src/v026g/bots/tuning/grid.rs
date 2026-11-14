@@ -206,6 +206,12 @@ pub struct GridTuning {
     /// R2). Client-proven (the walk tick rests the body there), so ON and kept by `all_off` (the owner, 2026-11-05: correctness
     /// fixes go in). A grid is the map's (see `gap_links`).
     pub rest_floors: bool,
+    /// [A389] Whether the maps' walk grids keep a floor at an edge only where the client's walk tick holds a standing body, and
+    /// make the way down from the last held floor one drop to where the client's body stands, its true height priced by the
+    /// client's fall damage (`mapdata::Body::held_floors`; the owner, 2026-11-14: "Ok keep"): Chemical Plant's broken ramp hid a
+    /// 6 m fall behind 7 floors no body stands on. Client-proven (the walk tick decides), so ON and kept by `all_off`. A grid is
+    /// the map's (see `gap_links`).
+    pub held_floors: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back in the maps' walk grids
     /// (`mapdata::Body::wall_give_back`): the exact pass keeps them, a wall face stands within 0.6 m, and the client's walk tick
     /// stands a body there (A318: the rounds took the floor under the client in 376 of the drift lab's grid holds, the exact
@@ -338,6 +344,7 @@ impl Default for GridTuning {
             drop_lands: true,
             gap_flights: true,
             rest_floors: true,
+            held_floors: true,
             wall_give_back: true,
             exe_collision: true,
             walk_start_clear: true,
@@ -398,6 +405,7 @@ impl GridTuning {
             drop_lands: self.drop_lands,
             gap_flights: self.gap_flights,
             rest_floors: self.rest_floors,
+            held_floors: self.held_floors,
             wall_give_back: self.wall_give_back,
             exe_collision: self.exe_collision,
             walk_start_clear: self.walk_start_clear,
