@@ -871,12 +871,12 @@ fn a_bots_fight_hit_is_an_enemys_by_its_received_damage() {
     // A zone's hit at 5.5 s: no growth. Team 0 keeps the enemy's hit; team 1 (off) takes any.
     world(&mut bots, 6_000, 5_500, [20.0, 20.0]);
     assert_eq!((fight_hit(&bots, 0), fight_hit(&bots, 1)), (Some(3_100), Some(5_500)));
-    // A world with no statistics: the reading waits; the enemy's hit stands.
+    // A world with no statistics: that world's last hit is taken as any hit (the old rule), and the world counted.
     bots.received_damage(None);
     bots.hurt(0, Hurt::of([None, None], 7_000, 8_000));
     bots.hit_kind(0, 8_000);
-    assert_eq!(fight_hit(&bots, 0), Some(3_100));
-    assert_eq!(bots.hit_kinds(), (2, 2));
+    assert_eq!(fight_hit(&bots, 0), Some(7_000));
+    assert_eq!(bots.hit_kinds(), (2, 2, 1));
 }
 
 /// [A334] The server's poll and the bench's timed copy of it start a poll with the same budgets (`Bots::poll_budgets`): the

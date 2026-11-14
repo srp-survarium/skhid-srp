@@ -1672,26 +1672,33 @@ impl Bots {
     }
 
     /// [Gap 14] After the world's body of `place` ([`Self::hurt`]), made at `time`: whether its new last hit was an
-    /// enemy's ([`hit_kind::HitKind::world`]), and the last hit its fight decisions go by. With no statistics in the
-    /// world the reading waits for the next.
+    /// enemy's ([`hit_kind::HitKind::world`]), and the last hit its fight decisions go by. A world with no statistics for
+    /// the place (an empty statistics section: the client had no statistics object) says nothing of the kind: for that
+    /// world the last hit is any hit, as with the switch off, and the world is counted ([`hit_kind::HitKind::unread`]).
     pub fn hit_kind(&mut self, place: Place, time: u32) {
         let received = self.received.as_ref().and_then(|sums| sums.get(place).copied());
         let Some(Some(bot)) = self.bots.get_mut(place) else {
             return;
         };
-        if let Some(received) = received {
-            bot.hit_kind.world(time, bot.hurt.last_hit_ms, received);
-        }
-        bot.fight_hit_ms = if self.tunings.of(bot.team).aim.combat.hit_kind {
-            bot.hit_kind.enemy_hit_ms()
-        } else {
-            bot.hurt.last_hit_ms
+        let on = self.tunings.of(bot.team).aim.combat.hit_kind;
+        bot.fight_hit_ms = match received {
+            Some(received) => {
+                bot.hit_kind.world(time, bot.hurt.last_hit_ms, received);
+                if on { bot.hit_kind.enemy_hit_ms() } else { bot.hurt.last_hit_ms }
+            }
+            None => {
+                bot.hit_kind.unread += 1;
+                bot.hurt.last_hit_ms
+            }
         };
     }
 
-    /// [Gap 14] The bots' new last hits so far: those the worlds showed to be an enemy's, and the others.
-    pub fn hit_kinds(&self) -> (u32, u32) {
-        self.bots.iter().flatten().fold((0, 0), |(enemy, other), bot| (enemy + bot.hit_kind.enemy, other + bot.hit_kind.other))
+    /// [Gap 14] The bots' new last hits so far: those the worlds showed to be an enemy's, the others, and the bots' worlds
+    /// with no statistics (read by the old rule).
+    pub fn hit_kinds(&self) -> (u32, u32, u32) {
+        self.bots.iter().flatten().fold((0, 0, 0), |(enemy, other, unread), bot| {
+            (enemy + bot.hit_kind.enemy, other + bot.hit_kind.other, unread + bot.hit_kind.unread)
+        })
     }
 
     pub fn hit_markers(&mut self, hits: &[u32]) {

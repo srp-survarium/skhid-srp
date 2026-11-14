@@ -18,6 +18,8 @@ pub struct HitKind {
     /// Worlds whose new last hit was an enemy's, and those whose new last hit was not.
     pub enemy: u32,
     pub other: u32,
+    /// Worlds with no statistics for the body: read by the old rule (any hit), not here.
+    pub unread: u32,
 }
 
 impl HitKind {

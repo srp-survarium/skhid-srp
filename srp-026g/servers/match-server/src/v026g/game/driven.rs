@@ -751,6 +751,13 @@ impl Game {
             walkers.bots.hit_markers(&hits);
         }
         // [Gap 14] Each place's received damage from enemies (statistics `received_damage`, over its kits and inflictors).
+        if decoded.statistics.is_none() {
+            log::debug!(
+                "Match {id:#x}: a world at {} ms has no statistics: the bots take any last hit as a fight's ({} such bot worlds so far)",
+                snapshot.time,
+                walkers.bots.hit_kinds().2
+            );
+        }
         walkers.bots.received_damage(
             decoded
                 .statistics
