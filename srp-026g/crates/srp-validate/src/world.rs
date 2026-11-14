@@ -25,7 +25,7 @@ mod player_tail;
 pub use player_tail::{
     ArtefactSlots, BatteryAnimation, BatteryMotion, BatteryState, CarriedBattery, Head, HitEffect,
     HitEmitter, MAX_HIT_EFFECTS, MAX_PLAYER_EFFECTS,
-    InventoryHeader, PlayerState, Stamina, player_head, player_tail,
+    InventoryHeader, PlayerState, Stamina, player_head, player_tail, player_tail_kept,
 };
 mod weapon;
 pub use weapon::{
@@ -182,6 +182,7 @@ pub fn validate_frame(frame: &Frame<'_>, context: &Context<'_>) -> Result<(), Re
         player_head(&block, context)?;
         player_tail(&block, context)?;
     }
+    // [`validate_kept`] repeats these sections: a new one goes in both.
     bullets(frame, context)?;
     statistics(&frame.statistics(), context)?;
     objects(&frame.objects(), context)?;
@@ -193,4 +194,28 @@ pub fn validate_frame(frame: &Frame<'_>, context: &Context<'_>) -> Result<(), Re
 /// Parse a body and validate its supported semantic sections.
 pub fn validate(body: &[u8], context: &Context<'_>) -> Result<(), Refusal> {
     validate_frame(&frame(body, context.places)?, context)
+}
+
+/// [`validate`] keeping the players' states it read ([`player_tail_kept`]):
+/// `keep` is handed each place's state as the walk read it, in block order.
+/// A refusal may come after some places were handed: the caller keeps them
+/// only once the whole world passed. The server's (it has the profiles and
+/// the kits); the game's check is [`validate`].
+pub fn validate_kept<'a>(
+    body: &'a [u8],
+    context: &Context<'_>,
+    keep: &mut dyn for<'k> FnMut(u8, &PlayerState<'a>, Option<&ItemsAndRest<'a, 'k>>),
+) -> Result<(), Refusal> {
+    let frame = frame(body, context.places)?;
+    for block in frame.blocks() {
+        player_head(&block, context)?;
+        player_tail_kept(&block, context, keep)?;
+    }
+    // [`validate_frame`]'s sections, repeated so that the game's path stays as it is (the exe's arena links it).
+    bullets(&frame, context)?;
+    statistics(&frame.statistics(), context)?;
+    objects(&frame.objects(), context)?;
+    rules(&frame.rules(), context)?;
+    physics(&frame.physics())?;
+    effects(&frame.effects())
 }

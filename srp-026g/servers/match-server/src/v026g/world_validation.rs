@@ -7,11 +7,16 @@ use std::fmt;
 use super::registry::Formed;
 use srp_validate::{
     KITS, MAX_PLAYERS, Part, Refusal,
-    world::{self, Context, Held, Inventory, Item, Objects, Profile},
+    world::{
+        self, Affect, CarriedBattery, Context, Held, Inventory, Item, ItemBody, ItemsAndRest, JumpType, Objects, PlayerState,
+        Profile, Stamina, WeaponState,
+    },
 };
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::item_params;
 use survarium::v026g::maps::MatchMap;
+use survarium::v026g::match_msgs::motion::Motion;
+use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::static_info::{KIT_USABLE, MatchProfile};
 
 /// The match a world is checked as: the server's own ([`Roster::of`]), or
@@ -108,7 +113,102 @@ fn place_kits(
     Ok([kit(0)?, kit(1)?, kit(2)?])
 }
 
+/// A world that passed [`check_kept`]: each place's state as the check read it, owned, so that it outlives the upload's
+/// bytes and reaches the bots with the world once it is trusted (one parse, at the boundary: the world format's one
+/// definition, `srp_validate`). By place; `None` for a place with no block in the world.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Checked {
+    pub places: Vec<Option<PlaceWorld>>,
+}
+
+/// One place's state in a checked world: what the bots read ([`Self::motion`], [`Self::supplies`], [`Self::stamina`]),
+/// and the further fields of the state, kept for their readers to come.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlaceWorld {
+    /// The body, the controller block, the damage model and the recent hits ([`Motion::of_world`]); `None` when the
+    /// match's kits are not known (`kits`), as the items, and so the rest of the state, are not read then.
+    pub motion: Option<Motion>,
+    /// The kit in use, what is left of each item, the weapon in hands ([`Supplies::of_world`]).
+    pub supplies: Supplies,
+    /// The stamina record (`player_stamina::serialize` 0x329310).
+    pub stamina: Stamina,
+    /// `m_current_active_object` and `m_target_active_object`: the held object's and the pending one's ids.
+    pub active_objects: (Option<u8>, Option<u8>),
+    /// The battery the player carries (its user is the place: `player_tail_kept`).
+    pub carried: Option<CarriedBattery>,
+    /// The artefact slots' first slot and each slot's artefact id.
+    pub artefact_slots: Option<(u8, Vec<Option<u8>>)>,
+    /// Each weapon item's state by its slot: with a user (the gun in hands) its state machine's state, aim, selector
+    /// (the jump state) and portable object (`WeaponState::in_hand`).
+    pub guns: Vec<(u8, WeaponState)>,
+    /// `m_jump_type`; `None` when `motion` is.
+    pub jump_type: Option<JumpType>,
+    /// Each body part's affects (a hand wound is `AffectKind::HandDamage`), in part order; empty when `motion` is
+    /// `None`.
+    pub part_affects: Vec<Vec<Affect>>,
+    /// The damage model's `m_invulnerability_time_in_ms` (the spawn protection); `None` when `motion` is, or when none
+    /// is set.
+    pub invulnerability_time_ms: Option<u32>,
+}
+
+impl PlaceWorld {
+    fn of(
+        place: u8,
+        state: &PlayerState<'_>,
+        items: Option<&ItemsAndRest<'_, '_>>,
+        profile: &MatchProfile,
+        dictionary: &Dictionary,
+    ) -> Self {
+        let rest = items.map(ItemsAndRest::rest);
+        Self {
+            motion: rest.map(|rest| Motion::of_world(state, rest)),
+            supplies: Supplies::of_world(place, state, items, profile, dictionary),
+            stamina: state.stamina(),
+            active_objects: (state.current_active_object(), state.target_active_object()),
+            carried: state.inventory().carried(),
+            artefact_slots: state
+                .inventory()
+                .artefact_slots()
+                .map(|slots| (slots.begin().get(), slots.ids().collect())),
+            guns: items.map_or_else(Vec::new, |items| {
+                items
+                    .by_slot()
+                    .filter_map(|(slot, item)| match item.body() {
+                        ItemBody::Weapon(gun) => Some((slot, gun)),
+                        _ => None,
+                    })
+                    .collect()
+            }),
+            jump_type: rest.map(|rest| rest.jump_type()),
+            part_affects: rest.map_or_else(Vec::new, |rest| {
+                rest.damage_model()
+                    .body_parts()
+                    .map(|part| part.affects().iter().collect())
+                    .collect()
+            }),
+            invulnerability_time_ms: rest.and_then(|rest| rest.damage_model().invulnerability_time_ms()),
+        }
+    }
+}
+
+/// [`check_kept`] for a reader that needs only the verdict (the world check over recordings, the bench).
 pub fn check(body: &[u8], time: u32, places: usize, roster: Roster) -> Result<(), Refused> {
+    check_with(body, time, places, roster, Keep::Nothing).map(drop)
+}
+
+/// The world check of an upload ([`check`]), keeping each place's state as it read it ([`Checked`]): the match's.
+pub fn check_kept(body: &[u8], time: u32, places: usize, roster: Roster) -> Result<Checked, Refused> {
+    check_with(body, time, places, roster, Keep::Places)
+}
+
+/// What a check keeps of the world it read.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Keep {
+    Nothing,
+    Places,
+}
+
+fn check_with(body: &[u8], time: u32, places: usize, roster: Roster, keep: Keep) -> Result<Checked, Refused> {
     let mut profiles = [Profile::default(); MAX_PLAYERS];
     for (target, source) in profiles.iter_mut().zip(roster.profiles) {
         target.items = source.items.len();
@@ -170,8 +270,23 @@ pub fn check(body: &[u8], time: u32, places: usize, roster: Roster) -> Result<()
             objects: Some(&objects),
             inventory: inventory.as_ref(),
         };
-        match world::validate(body, &context) {
-            Ok(()) => return Ok(()),
+        let mut kept: Vec<Option<PlaceWorld>> = Vec::new();
+        let read = match keep {
+            Keep::Nothing => world::validate(body, &context),
+            Keep::Places => {
+                kept = vec![None; known];
+                let dictionary = Dictionary::shared();
+                world::validate_kept(body, &context, &mut |place, state, items| {
+                    if let (Some(slot), Some(profile)) =
+                        (kept.get_mut(usize::from(place)), roster.profiles.get(usize::from(place)))
+                    {
+                        *slot = Some(PlaceWorld::of(place, state, items, profile, dictionary));
+                    }
+                })
+            }
+        };
+        match read {
+            Ok(()) => return Ok(Checked { places: kept }),
             // Another count of installed places changes the game objects only.
             Err(refusal) if refusal.part == Part::Objects => {
                 first.get_or_insert(refusal);

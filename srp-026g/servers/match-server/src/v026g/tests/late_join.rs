@@ -1700,6 +1700,23 @@ fn a_private_rooms_result_says_so_with_its_late_joiner() {
     assert!(!bench.registry.formed(bench.match_id).unwrap().private);
 }
 
+/// The upload check of `body` ([`crate::v026g::world_validation::check`]), asserting that the check that keeps the
+/// places' views (`check_kept`, the match's) gives the same verdict.
+fn same_verdict_kept(
+    body: &[u8],
+    time: u32,
+    formed: &crate::v026g::registry::Formed,
+) -> Result<(), crate::v026g::world_validation::Refused> {
+    use crate::v026g::world_validation::{Roster, check, check_kept};
+    let plain = check(body, time, srp_validate::MAX_PLAYERS, Roster::of(formed));
+    let kept = check_kept(body, time, srp_validate::MAX_PLAYERS, Roster::of(formed)).map(drop);
+    assert_eq!(
+        plain.as_ref().map_err(ToString::to_string),
+        kept.as_ref().map_err(ToString::to_string)
+    );
+    plain
+}
+
 #[test]
 fn an_upload_is_one_of_a_game_that_has_installed_the_newcomers_or_not() {
     let mut bench = running_three();
@@ -1707,14 +1724,7 @@ fn an_upload_is_one_of_a_game_that_has_installed_the_newcomers_or_not() {
     assert!(bench.until(1_000, |b| b.clients[0].sim.bound() == place + 1));
     assert_eq!(bench.clients[1].sim.bound(), place);
     let formed = bench.registry.formed(bench.match_id).unwrap();
-    let check = |body: &[u8], time| {
-        crate::v026g::world_validation::check(
-            body,
-            time,
-            srp_validate::MAX_PLAYERS,
-            crate::v026g::world_validation::Roster::of(&formed),
-        )
-    };
+    let check = |body: &[u8], time| same_verdict_kept(body, time, &formed);
     let time = bench.clients[0].clock();
     // A game with the newcomer's six grenades, and one without them yet.
     let installed = bench.clients[0].sim.world(time);
@@ -1777,15 +1787,21 @@ fn an_upload_whose_player_state_reads_otherwise_than_its_kit_is_refused() {
     let formed = bench.registry.formed(bench.match_id).unwrap();
     let time = bench.clients[0].clock();
     let world = bench.clients[0].sim.world(time);
-    let check = |body: &[u8]| {
-        crate::v026g::world_validation::check(
-            body,
-            time,
-            srp_validate::MAX_PLAYERS,
-            crate::v026g::world_validation::Roster::of(&formed),
-        )
-    };
+    let check = |body: &[u8]| same_verdict_kept(body, time, &formed);
     assert!(check(&world).is_ok());
+    // The bots read place 1 from the views the check kept: its pistol in slot 7 at condition 1.0, its body.
+    let kept = crate::v026g::world_validation::check_kept(
+        &world,
+        time,
+        srp_validate::MAX_PLAYERS,
+        crate::v026g::world_validation::Roster::of(&formed),
+    )
+    .unwrap();
+    let place = kept.places[1].as_ref().expect("place 1 is read");
+    assert!(place.supplies.inventory_read && place.supplies.alive);
+    let pistol = place.supplies.items.iter().find(|item| item.slot == Some(7)).expect("the pistol's slot");
+    assert_eq!(pistol.condition, Some(1.0));
+    assert!(place.motion.as_ref().is_some_and(|motion| motion.alive && motion.damage.is_some()));
     // Place 1's pistol (slot 7, condition 1.0) saved as owned by its kit 2,
     // which has no player; or as the item of another slot.
     let pistol = [0, 0, 0x80, 0x3F, 1, 0, 7];
