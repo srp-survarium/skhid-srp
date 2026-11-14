@@ -640,7 +640,12 @@ pub fn plan_start(
         Err((found, _stage)) => {
             #[cfg(test)]
             count(&found, _stage, started.elapsed().as_secs_f64() * 1e6, 0, 1);
-            Ok(finish(grid, found, allowed, weight))
+            let ended = finish(grid, found, allowed, weight);
+            // Answered before a floor was searched: the regions (or the goal's links in) rule the way out.
+            if ended.is_none() {
+                LAST_END.with(|e| e.set(Some(SearchEnd::Regions)));
+            }
+            Ok(ended)
         }
         Ok(search) => {
             let mut planning = Planning {
@@ -712,6 +717,48 @@ impl Planning {
     }
 }
 
+/// [owner-5] How the last route search on this thread ended without a way, for the log's "no way" line only
+/// (`nav_log::Kind::Route`): read at once by the caller that ran the search ([`last_end`]), never by a decision.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SearchEnd {
+    /// A way was found.
+    Found,
+    /// No way over the floors the filter lets through (the search ran out of floors).
+    NoWay,
+    /// The search's budget of floors ran out first.
+    Budget,
+    /// Answered without a floor searched: the regions, or no allowed floor links into the goal.
+    Regions,
+}
+
+impl SearchEnd {
+    fn of(found: &Search) -> Self {
+        match found {
+            Search::Found(_) => Self::Found,
+            Search::NoWay => Self::NoWay,
+            Search::TooFar => Self::Budget,
+        }
+    }
+
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Found => "found",
+            Self::NoWay => "no way over the allowed floors",
+            Self::Budget => "the search's budget ran out",
+            Self::Regions => "the regions rule it out",
+        }
+    }
+}
+
+thread_local! {
+    static LAST_END: std::cell::Cell<Option<SearchEnd>> = const { std::cell::Cell::new(None) };
+}
+
+/// [owner-5] How the last route search on this thread ended ([`SearchEnd`]), taken (the next read is the next search's).
+pub fn last_end() -> Option<SearchEnd> {
+    LAST_END.with(std::cell::Cell::take)
+}
+
 /// The route of a search that ended. A weighed search's path is pulled
 /// straight only across floors of weight 1 or its own: a line pulled across
 /// a costly floor it went round would undo the way round.
@@ -721,6 +768,7 @@ fn finish(
     allowed: impl Fn(NodeId) -> bool,
     weight: Option<&dyn Fn(NodeId) -> f32>,
 ) -> Option<Route> {
+    LAST_END.with(|e| e.set(Some(SearchEnd::of(&found))));
     match (found, weight) {
         (Search::Found(path), None) => Some(pull(grid, path.nodes, allowed)),
         (Search::Found(path), Some(w)) => {

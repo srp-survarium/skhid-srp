@@ -164,11 +164,25 @@ impl Reserve {
     /// leaves `left` of it. The body pool is always asked (what the code always did); the others
     /// only when the walk takes from them.
     pub fn bears(&self, cost: Cost, share: f32, left: f32) -> bool {
-        let pool = |value: f32, cost: f32| cost <= share * value && value - cost >= left;
-        pool(self.body, cost.body)
-            && (cost.head <= 0.0 || pool(self.head, cost.head))
-            && (cost.infection <= 0.0 || pool(self.infection, cost.infection))
-            && (cost.pain <= 0.0 || pool(self.pain, cost.pain))
+        self.refusal(cost, share, left).is_none()
+    }
+
+    /// [owner-5] The first pool that does not bear `cost` ([`Self::bears`], the same tests in the same order), as the log
+    /// writes it: the pool, its cost against the share it may take or the reserve it must leave. `None`: borne.
+    pub fn refusal(&self, cost: Cost, share: f32, left: f32) -> Option<String> {
+        let pool = |name: &str, value: f32, cost: f32| {
+            if cost > share * value {
+                Some(format!("{name} pool: cost {cost:.3} over {share:.2} of {value:.3}"))
+            } else if value - cost < left {
+                Some(format!("{name} pool: cost {cost:.3} leaves {:.3}, under {left:.2}", value - cost))
+            } else {
+                None
+            }
+        };
+        pool("body", self.body, cost.body)
+            .or_else(|| (cost.head > 0.0).then(|| pool("head", self.head, cost.head)).flatten())
+            .or_else(|| (cost.infection > 0.0).then(|| pool("infection", self.infection, cost.infection)).flatten())
+            .or_else(|| (cost.pain > 0.0).then(|| pool("pain", self.pain, cost.pain)).flatten())
     }
 
     /// The largest share of a pool `cost` takes (the body pool's with `max(1e-3)` under it, as the
@@ -331,6 +345,25 @@ impl Hazard {
 mod tests {
     use super::*;
     use crate::v026g::bots::anomalies::Control;
+
+    /// [owner-5] `Reserve::refusal` is `bears`' own tests: none exactly when it bears, else the first pool that fails,
+    /// by its share or its reserve.
+    #[test]
+    fn a_refusal_is_none_exactly_when_the_body_bears_it() {
+        let reserve = Reserve { body: 1.0, head: 0.8, infection: 0.5, pain: 1.0 };
+        let costs = [0.0f32, 0.1, 0.24, 0.26, 0.4, 0.6, 0.9];
+        for &body in &costs {
+            for &infection in &costs {
+                for (share, left) in [(0.5, 0.4), (1.0, 0.0), (0.3, 0.6)] {
+                    let cost = Cost { body, head: 0.0, infection, pain: 0.0 };
+                    assert_eq!(reserve.bears(cost, share, left), reserve.refusal(cost, share, left).is_none(), "{cost:?} {share} {left}");
+                }
+            }
+        }
+        let cost = Cost { body: 0.1, head: 0.0, infection: 0.3, pain: 0.0 };
+        assert_eq!(reserve.refusal(cost, 0.5, 0.0).as_deref(), Some("infection pool: cost 0.300 over 0.50 of 0.500"));
+        assert_eq!(reserve.refusal(cost, 1.0, 0.4).as_deref(), Some("infection pool: cost 0.300 leaves 0.200, under 0.40"));
+    }
     use crate::v026g::bots::hazards::Activity;
     use mapdata::{Damage, Vec3};
 

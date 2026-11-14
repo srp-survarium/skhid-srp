@@ -342,6 +342,7 @@ impl Scenario {
             tactics: &self.tactics,
             tuning: &self.tuning,
             memo: &self.memo,
+            lines: Default::default(),
         }
     }
 

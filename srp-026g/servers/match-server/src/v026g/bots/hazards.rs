@@ -559,6 +559,16 @@ impl Hazards {
         self.allowed(node, arrival(time, d_m))
     }
 
+    /// [owner-5 A395a] Whether a zone on at `time` hits a body standing on `node` by the client's contact test: its capsule
+    /// overlaps the zone's shape ([`HazardMarks::hurt_set`]), or a live zone marks it. For the walk-out's log line only.
+    pub fn hits_at(&self, node: NodeId, time: u32) -> bool {
+        let set = match self.marks.hurt_set.get(node as usize) {
+            Some(&id) if id > 0 => self.marks.sets[usize::from(id) - 1].as_slice(),
+            _ => &[],
+        };
+        set.iter().any(|&h| self.zones[usize::from(h)].activity.active(time)) || self.live.on_at(node, time)
+    }
+
     /// Whether a zone at `node` is on at `time` (no margin of time).
     pub fn on_at(&self, node: NodeId, time: u32) -> bool {
         self.zones_at(node).any(|zone| zone.activity.active(time)) || self.live.on_at(node, time)

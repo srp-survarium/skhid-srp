@@ -1010,6 +1010,31 @@ pub struct RoutePress {
     pub tries: u32,
     pub before: f32,
     pub facing: f32,
+    /// [owner-5] A sprint gap or rim link pressed without sprint: the gate that held the sprint (the log's line).
+    pub sprint_gate: Option<SprintGate>,
+}
+
+/// [owner-5] Why a sprint link's press went without sprint, the first gate that held it (`Motor::jump_key`'s `sprinted`):
+/// the client's own refusal (`SprintBlock`), the sprint not on, the speed under [`SPRINT_PRESS_SPEED_MS`], or, at a band
+/// face, the run not along the jump's way.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SprintGate {
+    Block(SprintBlock),
+    NotSprinting,
+    Slow { speed: f32 },
+    NotAligned,
+}
+
+impl SprintGate {
+    /// The gate as the log writes it.
+    pub fn text(self) -> String {
+        match self {
+            Self::Block(block) => format!("sprint blocked ({block:?})"),
+            Self::NotSprinting => "sprint not on".to_string(),
+            Self::Slow { speed } => format!("speed {speed:.2} m/s under {SPRINT_PRESS_SPEED_MS:.2}"),
+            Self::NotAligned => "run not along the jump's way".to_string(),
+        }
+    }
 }
 
 /// What the jump ahead asks of this tick's walk ([`Motor::jump_ahead`]).
@@ -2523,12 +2548,25 @@ impl Motor {
         jump.back = true;
         self.keep_try(jump);
         self.links.pressed(self.clock, pose.feet, pose.speed);
+        // [owner-5] A sprint link pressed without sprint: the gate that held it, for the log (decides nothing).
+        // The order is `sprinted`'s own: the sprint on, the speed, then (a band face only) a block and the run's way.
+        let gate = if !self.sprinting {
+            SprintGate::NotSprinting
+        } else if pose.speed < SPRINT_PRESS_SPEED_MS {
+            SprintGate::Slow { speed: pose.speed }
+        } else if let Some(block) = block {
+            SprintGate::Block(block)
+        } else {
+            SprintGate::NotAligned
+        };
+        let sprint_gate = (ahead.approach.sprints() && !sprinted).then_some(gate);
         self.pressed = Some(RoutePress {
             take_off: jump.take_off,
             landing: jump.landing,
             tries: jump.tries,
             before: ahead.before,
             facing: still,
+            sprint_gate,
         });
         self.jump = Some(JumpBy::Route);
         self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Jump });
@@ -4144,6 +4182,8 @@ mod tests {
     struct Climb {
         /// The pose at each press of the jump key, and the tick.
         presses: Vec<(usize, Pose)>,
+        /// [owner-5] Each press's sprint gate for the log (`RoutePress::sprint_gate`).
+        gates: Vec<Option<SprintGate>>,
         decisions: Vec<Decision>,
         poses: Vec<Pose>,
         walked: Walked,
@@ -4226,6 +4266,7 @@ mod tests {
         };
         let mut climb = Climb {
             presses: Vec::new(),
+            gates: Vec::new(),
             decisions: Vec::new(),
             poses: Vec::new(),
             walked: Walked::OnTheWay,
@@ -4255,6 +4296,7 @@ mod tests {
             if decision.keys & key::JUMP != 0 {
                 assert_eq!(motor.jumped(), Some(JumpBy::Route));
                 climb.presses.push((tick, pose));
+                climb.gates.push(motor.route_press().and_then(|press| press.sprint_gate));
                 if ledge.face - along(pose.feet) <= ledge.reach {
                     air = Some(tick);
                 }
@@ -5237,9 +5279,16 @@ mod tests {
         let before = band_jumps::counts();
         let off = presses(false);
         assert!(off.presses.first().is_some_and(|(_, at)| at.speed < SPRINT_PRESS_SPEED_MS), "{:?}", off.presses);
+        // [owner-5] The press at a walk names the gate that held the sprint, for the log.
+        assert!(
+            matches!(off.gates.first(), Some(Some(SprintGate::NotSprinting | SprintGate::Slow { .. }))),
+            "{:?}",
+            off.gates
+        );
         let on = presses(true);
         assert!(!on.presses.is_empty(), "it runs up and jumps: {:?}", on.poses.last());
         assert!(on.presses.iter().all(|(_, at)| at.speed >= SPRINT_PRESS_SPEED_MS), "{:?}", on.presses);
+        assert!(on.gates.iter().all(Option::is_none), "pressed at speed with the sprint: no gate, {:?}", on.gates);
         let after = band_jumps::counts();
         let refusals = band_jumps::Slot::RefusedSlow as usize..=band_jumps::Slot::RefusedDirection as usize;
         assert!(after[refusals.clone()].iter().sum::<u64>() > before[refusals].iter().sum::<u64>(), "the slow arrival was refused");
