@@ -535,6 +535,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/grid/steep_walk_base",
     "/grid/walk_ceiling_stalls",
     "/grid/walk_every_link",
+    "/grid/walk_face_stands",
     "/grid/walk_start_clear",
     "/grid/wall_give_back",
     "/grid/wall_held_tops",

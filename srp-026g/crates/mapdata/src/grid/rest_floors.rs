@@ -74,7 +74,7 @@ impl WalkGrid {
     /// Whether a floor `alive` keeps names `at` (within the capsule's radius across, [`NAME_HEIGHT_M`] in height).
     fn named(&self, alive: &[bool], at: Vec3) -> bool {
         let r = self.body.radius;
-        self.floors_near(at, r).any(|f| alive[f as usize] && (self.height[f as usize] - at.y).abs() <= NAME_HEIGHT_M)
+        self.floors_near(at, r).any(|f| alive[f as usize] && self.stand_gap(f, at.y) <= NAME_HEIGHT_M)
     }
 
     /// The floors within `r` across of `at` (by their centres), any height.

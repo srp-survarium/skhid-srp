@@ -136,13 +136,14 @@ impl WalkGrid {
     /// Plant (-64.71, 7.58, 45.97): a walking press let go at its landing rests there, on the 7.625 strip (one cell row, its
     /// floors' centres at z 45.625, 0.35 m across), its own cell's floors 12.2 m up.
     pub(super) fn floor_under(&self, feet: Vec3) -> Option<NodeId> {
-        let near = |f: NodeId| (self.height[f as usize] - feet.y).abs() <= LAND_HEIGHT_M;
+        // [A389] On a `walk` face the body is on the floor anywhere down the face in the cell ([`super::Body::walk_face_stands`]).
+        let near = |f: NodeId| self.stand_gap(f, feet.y) <= LAND_HEIGHT_M;
         let i = ((feet.x - self.x0) / self.cell).floor() as i32;
         let k = ((feet.z - self.z0) / self.cell).floor() as i32;
         let cell = self.cell_index(i, k)?;
         let own = (self.start[cell]..self.start[cell + 1])
             .filter(|&f| near(f))
-            .min_by(|&p, &q| (self.height[p as usize] - feet.y).abs().total_cmp(&(self.height[q as usize] - feet.y).abs()));
+            .min_by(|&p, &q| self.stand_gap(p, feet.y).total_cmp(&self.stand_gap(q, feet.y)));
         if own.is_some() {
             return own;
         }

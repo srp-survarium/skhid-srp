@@ -212,6 +212,11 @@ pub struct GridTuning {
     /// 6 m fall behind 7 floors no body stands on. Client-proven (the walk tick decides), so ON and kept by `all_off`. A grid is
     /// the map's (see `gap_links`).
     pub held_floors: bool,
+    /// [A389] Whether the maps' walk grids name a body on a floor of `walk` faces anywhere down the faces in its cell
+    /// (`mapdata::Body::walk_face_stands`): the client takes UP as the ground's normal on a `walk` face whatever its slope, so a
+    /// press lands and stays on a steep `walk` rock under the cell's top (Mamayev Kurgan R11, R95, R97, R98). Client-proven (the
+    /// exe with each face's walker byte), so ON and kept by `all_off`. A grid is the map's (see `gap_links`).
+    pub walk_face_stands: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back in the maps' walk grids
     /// (`mapdata::Body::wall_give_back`): the exact pass keeps them, a wall face stands within 0.6 m, and the client's walk tick
     /// stands a body there (A318: the rounds took the floor under the client in 376 of the drift lab's grid holds, the exact
@@ -345,6 +350,7 @@ impl Default for GridTuning {
             gap_flights: true,
             rest_floors: true,
             held_floors: true,
+            walk_face_stands: true,
             wall_give_back: true,
             exe_collision: true,
             walk_start_clear: true,
@@ -406,6 +412,7 @@ impl GridTuning {
             gap_flights: self.gap_flights,
             rest_floors: self.rest_floors,
             held_floors: self.held_floors,
+            walk_face_stands: self.walk_face_stands,
             wall_give_back: self.wall_give_back,
             exe_collision: self.exe_collision,
             walk_start_clear: self.walk_start_clear,

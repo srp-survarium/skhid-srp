@@ -30,6 +30,7 @@
   "gap_flights": true,
   "rest_floors": true,
   "held_floors": true,
+  "walk_face_stands": true,
   "wall_give_back": true,
   "exe_collision": true,
   "walk_start_clear": true,

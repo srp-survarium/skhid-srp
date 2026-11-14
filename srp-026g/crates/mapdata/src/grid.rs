@@ -332,6 +332,14 @@ pub struct Body {
     /// Plant (68, 64): 7 floors on a broken slab no body stands on hid a 6 m fall behind Drops of 4.2-5.0 m. A build input: in
     /// the key when set.
     pub held_floors: bool,
+    /// [A389] Whether a body is on a floor that stands on `walk` faces wherever it is on them in the floor's cell, not only near
+    /// the cell's top (the floor's height): the client takes UP as the ground's normal on a `walk` face whatever its slope (its down
+    /// sweep 0x84420, 0x84561..0x84584 / 0x845ED, the face's walker byte), so a body stands anywhere on a steep `walk` rock.
+    /// Mamayev Kurgan R11, R95, R97, R98 (owner-5 `a385-lost-links-client-truth.md`, the exe with each face's byte): the presses
+    /// land and stay on the rock under the landing floor (rests 26.1-31.4 against floors 27.40-31.59), where no floor's height is
+    /// within 0.2 m. A floor of a `walk` face names a body from the face's lowest point in the cell to its height (A385's landing,
+    /// [`Body::rest_floors`]' naming). A build input: in the key when set.
+    pub walk_face_stands: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back (`grid::wall_give_back`):
     /// the exact pass keeps them, a wall face (not a rise of the ground) stands within 0.6 m, and the client's walk tick stands a
     /// body there. Needs [`Erosion::Exact`]. A build input: in the key when set.
@@ -482,6 +490,7 @@ impl Body {
             gap_flights: false,
             rest_floors: false,
             held_floors: false,
+            walk_face_stands: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -599,6 +608,7 @@ impl Default for Body {
             gap_flights: false,
             rest_floors: false,
             held_floors: false,
+            walk_face_stands: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -1120,6 +1130,10 @@ pub struct WalkGrid {
     cell_of: Vec<u32>,
     height: Vec<f32>,
     ceiling: Vec<f32>,
+    /// [A389] While the grid is built, per node: the lowest point of the `walk` faces under a floor that is on them in its cell
+    /// (the client takes UP as the ground's normal on a `walk` face whatever its slope, its down sweep 0x84420 / 0x845ED: a body
+    /// stands anywhere on it, not only at the cell's top); the floor's own height for any other. Empty in a grid read back.
+    walk_low: Vec<f32>,
     /// Per node and direction ([`DIRS`]), the floor it links to: that
     /// floor's index among the floors of its cell, [`NO_LINK`] for none.
     to: Vec<[u8; 8]>,
@@ -1460,6 +1474,7 @@ impl WalkGrid {
         let mut ceiling = Vec::new();
         let mut forced = Vec::new();
         let mut steep_face = Vec::new();
+        let mut walk_low = Vec::new();
         let mut solids = Solids {
             start: Vec::with_capacity(nx * nz + 1),
             spans: Vec::new(),
@@ -1504,10 +1519,16 @@ impl WalkGrid {
                 }
             }
             let mut merged: Vec<Span> = Vec::with_capacity(column.len());
+            // [A389] Each merged span's lowest `walk` piece (the floor on it stands from there to its top).
+            let mut lows: Vec<f32> = Vec::with_capacity(column.len());
             for span in column {
                 if let Some(last) = merged.last_mut()
                     && span.low <= last.high + MERGE_GAP
                 {
+                    let low = lows.last_mut().expect("one a merged span");
+                    if span.walk == 3 {
+                        *low = low.min(span.low);
+                    }
                     if (span.high - last.high).abs() <= SAME_TOP {
                         last.walk = last.walk.max(span.walk);
                         last.high = last.high.max(span.high);
@@ -1517,6 +1538,7 @@ impl WalkGrid {
                     }
                     continue;
                 }
+                lows.push(if span.walk == 3 { span.low } else { f32::INFINITY });
                 merged.push(span);
             }
             solids
@@ -1540,6 +1562,7 @@ impl WalkGrid {
                     cell_of.push(index as u32);
                     height.push(span.high);
                     ceiling.push(above.max(span.high + room));
+                    walk_low.push(if span.walk == 3 && body.walk_face_stands { lows[k].min(span.high) } else { span.high });
                     forced.push(span.walk == 3);
                     steep_face.push(span.walk == STEEP);
                 }
@@ -1563,6 +1586,7 @@ impl WalkGrid {
             cell_of,
             height,
             ceiling,
+            walk_low,
             to: Vec::new(),
             how: Vec::new(),
             piece: Vec::new(),
@@ -1724,6 +1748,8 @@ impl WalkGrid {
             stats.ramp_floors = grid.ramp.iter().filter(|&&d| d > 0).count();
         }
         stats.floors_kept = grid.len();
+        // [A389] The walk faces' low points are the build's only (a grid read back has none).
+        grid.walk_low = Vec::new();
         grid.warm();
         (grid, stats)
     }
@@ -2583,6 +2609,7 @@ impl WalkGrid {
         let total = order.len();
         let mut new_id = vec![NONE; old];
         let (mut cell_of, mut height, mut ceiling) = (Vec::with_capacity(total), Vec::with_capacity(total), Vec::with_capacity(total));
+        let mut walk_low = Vec::with_capacity(if self.walk_low.is_empty() { 0 } else { total });
         let mut given = vec![false; total];
         for (id, &(c, h, from)) in order.iter().enumerate() {
             cell_of.push(c);
@@ -2591,9 +2618,15 @@ impl WalkGrid {
                 Ok(a) => {
                     new_id[a] = id as u32;
                     ceiling.push(self.ceiling[a]);
+                    if let Some(&l) = self.walk_low.get(a) {
+                        walk_low.push(l);
+                    }
                 }
                 Err(g) => {
                     ceiling.push(aside[g].ceiling);
+                    if !self.walk_low.is_empty() {
+                        walk_low.push(h);
+                    }
                     given[id] = true;
                 }
             }
@@ -2622,6 +2655,7 @@ impl WalkGrid {
         self.cell_of = cell_of;
         self.height = height;
         self.ceiling = ceiling;
+        self.walk_low = walk_low;
         let mut start = Vec::with_capacity(self.start.len());
         let mut node = 0usize;
         for c in 0..self.nx * self.nz {
@@ -2850,6 +2884,9 @@ impl WalkGrid {
         };
         keep(&mut self.height);
         keep(&mut self.ceiling);
+        if !self.walk_low.is_empty() {
+            keep(&mut self.walk_low);
+        }
         let mut k = 0;
         self.cell_of.retain(|_| {
             k += 1;
@@ -3248,6 +3285,7 @@ impl WalkGrid {
                     cell_of: input.plain(u32::from_le_bytes)?,
                     height: input.plain(float)?,
                     ceiling: input.plain(float)?,
+                    walk_low: Vec::new(),
                     to: input.plain(|bytes: [u8; 8]| bytes)?,
                     how: input.plain(u32::from_le_bytes)?,
                     piece: input.plain(u32::from_le_bytes)?,
@@ -4452,6 +4490,21 @@ impl WalkGrid {
             _ => 0.0,
         };
         (q - p).length() + kind.penalty() + lip + marginal + fall + descent + sprint + riser
+    }
+
+    /// [A389] How far a body's feet at height `y` are from standing on floor `f` while the grid is built: 0 from its `walk` faces'
+    /// lowest point in its cell to its height ([`Body::walk_face_stands`]; its height alone otherwise), else the distance to that
+    /// band.
+    pub(super) fn stand_gap(&self, f: NodeId, y: f32) -> f32 {
+        let h = self.height[f as usize];
+        let low = self.walk_low.get(f as usize).copied().unwrap_or(h);
+        if y > h {
+            y - h
+        } else if y < low {
+            low - y
+        } else {
+            0.0
+        }
     }
 
     /// Whether a floor is a lip: the last floor before a ledge at least
