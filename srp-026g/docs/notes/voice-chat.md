@@ -731,9 +731,12 @@ device.
   sensitivity" and over "Test microphone", in the look of the movie's other lists.
 - **What it lists.** "Default" first, then each capture device by its name as Windows shows it,
   whole ("Microphone (Realtek(R) Audio)", not WinMM's 31 characters).
+- **A pick takes effect at once**, without Apply (the owner, 2026-11-14: "does microphone chooser
+  work when you switch mic but not apply it? — it should"): from the pick on, "Test microphone"
+  and push-to-talk open the picked device, from their next press, as the test takes the two
+  sliders as they stand on the screen.
 - **Saved** as the other options are: Apply keeps it in `user.cfg`, across restarts; Cancel, or
-  leaving without Apply, puts the saved one back. Push-to-talk and the "Test microphone" button
-  open the device it names, from their next press.
+  leaving without Apply, puts the saved one back, and the saved device is used again.
 - **"Default"** is Windows' default recording device: what the DLL opened before the list (WinMM's
   mapper, the console role; not the default communications device, which `waveInOpen`'s
   `WAVE_MAPPED_DEFAULT_COMMUNICATION_DEVICE` would open instead).
@@ -767,14 +770,20 @@ As built:
   pressed open) is answered `root.srp_microphone(label, default, shown, id, name, ...)`, at most 16
   devices: shown is the saved device's ID as listed while it is there, else empty (the default);
   `srp_microphone(id)` (empty: the default) is Apply's pick, saved in `user.cfg` at once and told to
-  the DLL, and answered the same. The DLL is told the saved pick as it is loaded (the first match,
-  or the tab's first showing). No DLL: no answer, no list.
+  the DLL, and answered the same; `srp_microphone_use(id)` is a pick, told to the DLL at once and
+  not saved, and `srp_microphone_use` with nothing tells it the saved pick again (not answered;
+  with no DLL loaded nothing). The DLL is told the saved pick as it is loaded (the first match, or
+  the tab's first showing). No DLL: no answer, no list.
 - **The movie** (`flash/main_menu`, `SrpMicrophone.as`): the movie's own list
   (`DropdownMenuSkinned`, as the Language list), its label in the sensitivity slider's label's look,
   in the row the PTT checkbox had; as wide as the slider's row, the open list at most 9 rows (more
-  scroll by the wheel); a name wider than the list is cut at its edge. A pick is a change for Apply,
-  as the Language list's; a press on the closed list asks the exe again first, keeping a pick not
-  applied yet while its device is listed.
+  scroll by the wheel); a name wider than the list is cut at its edge. A pick in the open list is
+  sent at once (`srp_microphone_use`, its id; the saved one picked again: nothing, so a saved device
+  that is unplugged and shown as Default stays the one used once it is back), and is a change for
+  Apply, as the Language list's; the list's revert (Cancel, the Settings closed or the tab changed
+  without Apply) sends `srp_microphone_use` with nothing. A press on the closed list asks the exe
+  again first, keeping a pick not applied yet while its device is listed; a pick whose device is
+  gone is dropped, and the saved one used again.
 - **Texts:** `st_srp_microphone` ("Microphone"), `st_srp_microphone_default` ("Default") in every
   dictionary, read by the exe.
 

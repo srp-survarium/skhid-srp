@@ -535,7 +535,8 @@ Patches:
   (options.callback), its button told the test's state at a frame
   (game.tick), the test stopped as the main menu closes
   (options.deactivate); the options' Microphone list (srp_microphone,
-  options.callback: the DLL's capture devices, the pick in user.cfg);
+  options.callback: the DLL's capture devices, a pick used at once by
+  srp_microphone_use, Apply's in user.cfg);
 - the kill feed shows a kill through a wall, by a ricochet and by pain (patch 67,
   with the late join; docs/notes/kill-feed-icons.md). kill_feed_026g.asm
   (the arena's block kill_feed.code): generate_killed_event (0x2DA170, at

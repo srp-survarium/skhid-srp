@@ -3643,8 +3643,11 @@ thread of its own) and opens the chosen one (`sv_choose_microphone`; found by it
 opening, the default when it is not there). The exe passes it on: `srp_microphone` (the tab shown,
 the list pressed open) is answered `root.srp_microphone(label, default, shown, id, name, ...)`;
 `srp_microphone(id)` (empty: the default) is Apply's pick, kept in `user.cfg` as
-`srp_microphone` and told to the DLL, which is told the saved one as it is loaded. A saved device
-not there is shown as Default and stays saved.
+`srp_microphone` and told to the DLL, which is told the saved one as it is loaded. A pick takes
+effect at once (the owner, 2026-11-14: "does microphone chooser work when you switch mic but not
+apply it? — it should"): `srp_microphone_use(id)` tells the DLL a pick, not saved, and
+`srp_microphone_use` with nothing (Cancel, leaving without Apply) the saved one again. A saved
+device not there is shown as Default and stays saved.
 
 **Who is talking**, as 0.69's hud (`VoiceChatTalkingPanel`): a row per teammate talking, and the
 player's own while its microphone is sent, at the right edge under mid-height, a light-blue speaker

@@ -3590,7 +3590,9 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   name, ...)` from `sv_microphones` (ABI 5; at most 16 devices); `srp_microphone(id)` (empty: the
   default) saves `srp_microphone` (a `ConsoleString` registered at `configs.start`, user.cfg written
   at once) and calls `sv_choose_microphone`, which the DLL is also given, with the saved pick, as
-  it is loaded.
+  it is loaded; `srp_microphone_use(id)`, a pick, calls it at once without saving (the owner: a pick
+  takes effect without Apply), and `srp_microphone_use` with nothing (Cancel, leaving without
+  Apply) with the saved pick.
 - **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio, the test's press and texts). **Not run**: a game.
 
 ### Distance detail option

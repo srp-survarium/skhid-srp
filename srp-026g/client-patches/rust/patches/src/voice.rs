@@ -36,10 +36,12 @@
 //! - the options' Microphone list (voice-chat.md, "Microphone"): the sound tab
 //!   asks `srp_microphone` (`options.callback`) as it is shown and as the list
 //!   is opened, answered `root.srp_microphone(label, default, shown, id, name,
-//!   ...)`, the capture devices the DLL finds now; Apply sends
-//!   `srp_microphone(id)` (empty: Windows' default), kept in user.cfg
-//!   (`srp_microphone`) and told to the DLL, which is told the saved one as
-//!   it is loaded.
+//!   ...)`, the capture devices the DLL finds now; a pick in the list sends
+//!   `srp_microphone_use(id)` (empty: Windows' default), told to the DLL at
+//!   once and not saved, and Cancel or leaving without Apply
+//!   `srp_microphone_use` with nothing, the saved one again; Apply sends
+//!   `srp_microphone(id)`, kept in user.cfg (`srp_microphone`) and told to
+//!   the DLL, which is told the saved one as it is loaded.
 //!
 //! Nothing a match computes: audio goes beside the game, through the DLL.
 
@@ -625,6 +627,8 @@ fn show_test(menu: &Menu<'_>, test: MicTest) -> bool {
 /// The Settings' call of the Microphone list, and its answer's method.
 const MICROPHONE: &CStr = c"srp_microphone";
 const MICROPHONE_ANSWER: &CStr = c"root.srp_microphone";
+/// The Settings' call of a pick used at once, not saved.
+const MICROPHONE_USE: &CStr = c"srp_microphone_use";
 /// The most capture devices the list shows (the answer's strings: three and
 /// two a device, within the movie call's 64).
 const MICROPHONES: usize = 16;
@@ -674,9 +678,27 @@ fn microphone_call(call: &OptionsCall<'_>, thread: &Thread, dll: Dll) {
     call.answer(MICROPHONE_ANSWER, &values[..count]);
 }
 
+/// `srp_microphone_use`: with an ID (or empty, the default) a pick in the
+/// list, told to the DLL at once (the test and push-to-talk open it from
+/// their next press) and not saved; with nothing the saved pick again
+/// (Cancel, the Settings left without Apply, a pick whose device is gone).
+/// Anything else is no pick (logged). Not answered.
+fn microphone_use_call(call: &OptionsCall<'_>, thread: &Thread, dll: Dll) {
+    let choice = match call.string_argument(0) {
+        Some(text) => MicrophoneChoice::parse(text.to_bytes()),
+        None => Some(engine::saved_microphone(thread)),
+    };
+    match choice {
+        Some(choice) => dll.choose_microphone(choice),
+        None => log::line(&[Text("voice: srp_microphone_use with neither a device's endpoint ID nor the default")]),
+    }
+}
+
 /// The Settings' calls (`options.callback`). `srp_microphone`: the
 /// Microphone list ([`microphone_call`]; with no DLL not answered, and the
-/// list stays away). `srp_mic_test`: the sound tab
+/// list stays away); `srp_microphone_use`: a pick used at once
+/// ([`microphone_use_call`]; with no DLL loaded nothing to tell, the list
+/// was never shown). `srp_mic_test`: the sound tab
 /// shown asks the button's text (answered at once; with no DLL not at all,
 /// and the button stays away); with `<volume> <sensitivity>` it is a press,
 /// which the DLL takes (it starts or stops its test: `on_tick` tells the
@@ -695,6 +717,12 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<VoiceOnOptionsCallExit> {
     if call.method() == MICROPHONE {
         if let Some(dll) = dll(thread) {
             microphone_call(&call, thread, dll);
+        }
+        return Flow::Exit(VoiceOnOptionsCallExit::Done);
+    }
+    if call.method() == MICROPHONE_USE {
+        if let Some(dll) = loaded(thread) {
+            microphone_use_call(&call, thread, dll);
         }
         return Flow::Exit(VoiceOnOptionsCallExit::Done);
     }
