@@ -1388,7 +1388,7 @@ pub extern "C" fn hook_battery_hit_on_logic(frame: &mut Frame) -> u32 {
 /// the callback entries made in it (no function of the game is called through it).
 pub struct OrigFsmAlways;
 
-/// The entry `battery_hit_on_wants_swing` (a callback in engine_fsm_always's convention, the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> hit's predicate)
+/// The entry `battery_hit_on_wants_swing` (a callback in engine_fsm_always's convention, the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> swing's predicate)
 /// calls this with its 1 arguments, typed by the row (the `raw` layer's).
 ///
 /// # Safety
@@ -5444,7 +5444,7 @@ pub extern "C" fn hook_tab_cursor_on_hud_call_chain(frame: &mut Frame) -> u32 {
 }
 
 unsafe extern "C" { fn battery_hit_on_wants_swing(); }
-/// The entry `battery_hit_on_wants_swing`, in engine_fsm_always's convention (the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> hit's predicate): a
+/// The entry `battery_hit_on_wants_swing`, in engine_fsm_always's convention (the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> swing's predicate): a
 /// callback the patch hands the game (no site is rewritten).
 pub fn battery_hit_on_wants_swing_entry() -> super::hook::CallbackEntry<OrigFsmAlways> {
     // SAFETY: the generated entry lives for the executable's lifetime and takes the

@@ -2509,7 +2509,7 @@ battery_hit_on_logic_replay:
     db 0x8b, 0x4c, 0x24, 0x20, 0x8b, 0x01
     jmp 0x2fa7ef
 
-; 0x372420 the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> hit's predicate: callback -> battery_hit_on_wants_swing (wraps engine_fsm_always 0x372420)
+; 0x372420 the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> swing's predicate: callback -> battery_hit_on_wants_swing (wraps engine_fsm_always 0x372420)
     RUST_CDECL battery_hit_on_wants_swing, hook_battery_hit_on_wants_swing, 1
 
 ; 0xa1bf90 the take state's vtable slot 3 (+0Ch, 0xA1BF84): finalize, thiscall; fsm::tick calls it on the state it leaves (0x38CAA5): vtable -> battery_hit_on_finalize (wraps engine_battery_state_finalize 0x3447f0)
