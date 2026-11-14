@@ -475,7 +475,11 @@ impl Game {
                 self.traps.events.push(Event::Caught { tick, placer: trap.placer, victim, kind, placed: trap.placed, placer_crouched: trap.placer_crouched, press_m: trap.press_m, eye_m: trap.eye_m, pitch_down: trap.pitch_down, placer_team: trap.team, victim_team: self.bodies[victim].team, placer_speed: trap.placer_speed });
                 let body = &mut self.bodies[victim];
                 body.legs = [0.0; 2];
-                body.leg_broken_until = body.leg_broken_until.max(tick + LEGS_MS);
+                // [legs] Both legs' wounds, and their pools' last hit.
+                body.leg_hit_at = [Some(tick); 2];
+                for wound in &mut body.leg_wounds {
+                    *wound = Some(wound.unwrap_or(0).max(tick + LEGS_MS));
+                }
                 body.trap.slow_until = tick + LEGS_MS;
                 body.pools.hurt(standin_damage::Pool::Pain, PAIN, tick);
                 continue;
@@ -702,7 +706,7 @@ mod tests {
         assert_eq!(game.traps.list[0].phase, Phase::Fired { at: tick });
         let body = &game.bodies[1];
         assert_eq!(body.legs, [0.0; 2]);
-        assert!(body.leg_broken_until >= tick + LEGS_MS);
+        assert!(body.leg_wounds.iter().all(|w| w.is_some_and(|end| end >= tick + LEGS_MS)));
         assert!(body.trap.slowed(tick + LEGS_MS - TICK_MS) && !body.trap.slowed(tick + LEGS_MS));
         assert!((pain - body.pools.pain - PAIN).abs() < 1e-4, "{pain} -> {}", body.pools.pain);
         assert_eq!(game.traps.counts(), [1, 1, 0, 0, 0, 0]);

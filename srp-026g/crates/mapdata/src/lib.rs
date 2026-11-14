@@ -168,6 +168,9 @@ pub const NARROW_DOORS_ALGO: u32 = 0x5313_0101;
 /// The same for the Drop links the client's walk tick does not take a body down ([`Body::drop_check`], A313), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
+/// The same for the Drop links' walk without [`Body::drop_lands`] stepped at the client's 50 ms (C2 row 44; it was 1/30 s): in the
+/// key only for a body with the check and without `drop_lands`, so a grid built with `drop_lands` keeps its key.
+pub const DROP_CHECK_TICK_ALGO: u32 = 0x5313_0202;
 /// The same for the walk check's refusals under a low ceiling as failures ([`Body::walk_ceiling_stalls`]), and [S7] its
 /// crouched retry of a standing walk that stops short, in [`grid_key_with_links`] only for a body that asks for it. A value of
 /// its own.
@@ -197,8 +200,10 @@ pub const HELD_FLOORS_ALGO: u32 = 0x5389_0201;
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0301;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
-/// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45).
-pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0103;
+/// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45). 0104: the
+/// test body comes down onto the floor from up to 0.6 m over it and must rest there (A389 follow-up (a)). 0105: on the game's
+/// shapes where the build has them (the world the rest and held floors use).
+pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0105;
 /// The same for the walk-tick passes with the exe's collision rules ([`Body::exe_collision`], A325), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const EXE_COLLISION_ALGO: u32 = 0x5325_0101;
@@ -340,11 +345,11 @@ impl World {
         Self::map_grid_with_stats(map, walker, cell, body, links).0
     }
 
-    /// [`Self::map_grid`] with what its build did ([R83] the server's log line of the aimed presses).
+    /// [`Self::map_grid`] with the build's counts ([`BuildStats`]), for a log.
     pub fn map_grid_with_stats(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> (WalkGrid, BuildStats) {
         // [A389] Every pass that walks or flies the client's body takes the shapes: the rim jumps, the gap flights, the Drop links'
         // walk, the rest and held floors.
-        let flown = body.rim_jumps || body.gap_flights || body.rest_floors || body.held_floors || (body.drop_check && body.drop_lands);
+        let flown = body.rim_jumps || body.gap_flights || body.rest_floors || body.held_floors || body.wall_give_back || (body.drop_check && body.drop_lands);
         let shapes = flown.then(|| controller::Collision::build_exe(map)).flatten();
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let area = map.play_area(AREA_MARGIN);
@@ -495,6 +500,8 @@ pub fn grid_key_with_links(
         digest.u32(DROP_CHECK_ALGO);
         if body.drop_lands {
             digest.u32(DROP_LANDS_ALGO);
+        } else {
+            digest.u32(DROP_CHECK_TICK_ALGO);
         }
     }
     // And the walk check's ceiling refusals.

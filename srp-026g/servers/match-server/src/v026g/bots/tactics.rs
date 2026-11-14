@@ -2299,7 +2299,9 @@ impl Tactics {
         };
         let depth = [2.0, 4.0, 8.0, 16.0, 32.0, ZONE_EXIT_MAX_M].into_iter().find_map(nearest).unwrap_or(ZONE_EXIT_MAX_M);
         let reach = depth + ZONE_EXIT_SLACK_M;
-        let band = !island(here) && self.hazards.band_exit(here, time);
+        // On the band by the floor's marks, and the client's capsule at the body's own feet touches no zone (the marks
+        // test it at the floor's centre): else a walk out.
+        let band = !island(here) && self.hazards.band_exit(here, time) && !self.hazards.hits_feet(grid, here, feet, time);
         Some(if band { ZoneExit::Band { reach } } else { ZoneExit::Out { reach } })
     }
 

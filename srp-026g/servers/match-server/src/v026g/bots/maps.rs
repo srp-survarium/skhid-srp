@@ -672,12 +672,25 @@ fn build(
                     // [A364 C2 rows 11/12] The rim jumps fly on the game's shapes (a format 6 map), built for the grid only: by the
                     // one entry the bench's worlds build their grids by too.
                     || {
-                        // [R83] The aimed presses' line (debug): made, tried, flights, and the grid's build time.
                         let started = Instant::now();
                         let (grid, stats) = World::map_grid_with_stats(&map, &walker, cell, body, links);
+                        // A log's only: what each pass of the build did (a grid read from the cache has no such line).
+                        log::info!(
+                            "Bot map {} grid built: {} floors; wall give-back {}, rest floors {}, held {:?}, drops walked {:?} re-aimed {}, gaps {:?}",
+                            path.display(),
+                            grid.len(),
+                            stats.wall_given_back,
+                            stats.rest_floors,
+                            stats.held,
+                            stats.drops_walked,
+                            stats.drops_reaimed,
+                            stats.gaps
+                        );
+                        // [R83] The aimed presses' line (debug): made, tried, flights, and the grid's build time.
                         let rim = stats.rim;
                         log::info!(
-                            "Bot map grid built in {:.1} s: aimed presses made {} of {} near misses tried, {} aimed flights of {} rim flights",
+                            "Bot map {} grid built in {:.1} s: aimed presses made {} of {} near misses tried, {} aimed flights of {} rim flights",
+                            path.display(),
                             started.elapsed().as_secs_f32(),
                             rim.aimed_made,
                             rim.aimed_tried,

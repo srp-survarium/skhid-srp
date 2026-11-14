@@ -1630,12 +1630,12 @@ impl WalkGrid {
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face, ground.as_ref());
         let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
         // The world the client's body is flown and walked on (the rest floors, the rim jumps, [A389] the gap flights and the Drop
-        // links' walk): the game's shapes, else the walker triangles with the body's caster; built once, only for a pass that
-        // needs it.
+        // links' walk, the wall give-back's stand test): the game's shapes, else the walker triangles with the body's caster; built
+        // once, only for a pass that needs it.
         let (caster, s) = body.controller();
         let gaps = links == OffMeshLinks::Gaps;
         let needs_world =
-            (gaps && (body.rim_jumps || body.gap_flights)) || (body.drop_check && body.drop_lands) || body.rest_floors || body.held_floors;
+            (gaps && (body.rim_jumps || body.gap_flights)) || (body.drop_check && body.drop_lands) || body.rest_floors || body.held_floors || body.wall_give_back;
         let own = (needs_world && shapes.is_none()).then(|| crate::controller::Collision::build(triangles).with_caster(caster));
         let world = shapes.or(own.as_ref()).filter(|_| needs_world);
         (stats.exact_eroded, stats.wall_given_back, stats.rest_floors) = grid.erode(
@@ -1643,8 +1643,8 @@ impl WalkGrid {
             &cut,
             &solids,
             walls.as_ref().filter(|_| body.erosion == Erosion::Exact),
-            triangles,
             world.filter(|_| body.rest_floors).map(|w| (w, &s)),
+            world.filter(|_| body.wall_give_back).map(|w| (w, &s)),
         );
         wide.held.sort_unstable();
         wide.held.dedup();
@@ -2425,8 +2425,8 @@ impl WalkGrid {
         cut: &[u8],
         solids: &Solids,
         walls: Option<&exact::Walls>,
-        triangles: &[Triangle],
         rest_world: Option<(&crate::controller::Collision, &crate::controller::tick::Settings)>,
+        give_back_world: Option<(&crate::controller::Collision, &crate::controller::tick::Settings)>,
     ) -> (usize, usize, usize) {
         let n = self.height.len();
         let mut alive = vec![true; n];
@@ -2467,10 +2467,10 @@ impl WalkGrid {
         // come back, with walks only, after the reach ([`Self::give_back_aside`]). A318: given-back floors seen by the passes
         // after the rounds moved bot stalls (level_02: a jump up a 1 m ledge from a given-back strip) and cut ways (level_07:
         // 8,007 kept floors, then a gap link the grid without them has).
-        let (given_back, mut given) = match walls {
-            Some(walls) if self.body.wall_give_back => {
+        let (given_back, mut given) = match (walls, give_back_world) {
+            (Some(walls), Some((world, s))) if self.body.wall_give_back => {
                 let mut back = alive.clone();
-                let count = self.give_back_by_walls(&mut back, walls, triangles);
+                let count = self.give_back_by_walls(&mut back, walls, world, s);
                 (count, (0..n).map(|a| back[a] && !alive[a]).collect())
             }
             _ => (0, Vec::new()),

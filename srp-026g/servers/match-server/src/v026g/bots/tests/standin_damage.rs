@@ -10,8 +10,9 @@
 //! - the weapon, its ammo and the distance: the bullet's damage and armour
 //!   piercing ([`damage::bullet_at`]). The weapon is the shooter's held gun;
 //!   its ammo is the one the tier's kit of that weapon carries
-//!   (`loadouts::TierGear`), a shotgun's shot its `buck_shot` pellets, as
-//!   many as [`pellets_hitting`] lets land;
+//!   (`loadouts::TierGear`), a shotgun's shot its `buck_shot` pellets, each
+//!   flown on its own in the game's pellet cone ([`pellet_cone_deg`], G35):
+//!   those that meet the body land;
 //! - the kit worn: the armour of the tier's kit that has the target's held
 //!   gun (a weapon is in one kit of a tier), the SUM of the `ranged` armour
 //!   of its items on the box hit (PROVEN: `armor::on_holder_assigned`
@@ -188,16 +189,22 @@ pub(crate) fn part_for(class: Class, mut r: f32) -> Part {
     Part::Leg
 }
 
-/// The pellets of a shotgun's shot that land at `distance` metres, of the
-/// ammo's `buck_shot`. **The count is the data's** (`buck_shot` of the ammo,
-/// read live: a patch that changes the pellets changes it here). **The share
-/// that lands is a GUESS**, the stand-in's own: all up to 10 m, 0.6 at 25 m,
-/// 0.3 from 50 m, in a line between. The game's rule is the cone of the
-/// ammo's `buck_dispersion`, which no key of the data gives as a share of
-/// hits and which is not worked out (`DAMAGE-FORMULA.md` §3, audit W10), so
-/// the curve cannot be derived from the pellet count; it stays until a
-/// measure of human shotgun hits by distance, or the cone, replaces it. The
-/// stand-in only: a bot's own decisions never read it.
+/// [G35] The cone a shotgun's pellets are turned in from the shot's direction, degrees across: the weapon's
+/// `base_dispersion` times the ammunition's `buck_dispersion` (PROVEN, `weapon_core::get_dispersed_buckshot_direction`
+/// 0x2E2120: none when the ammo's `buck_dispersion` [ammo+2A8h] is 0 (0x2E2141), else [weapon+3D8h] (`base_dispersion`,
+/// `dispersion_calculator::get_static_dispersion`'s) x [ammo+2A8h] at 0x2E2173 (the ammo loader 0x3325D3 stores
+/// `buck_dispersion` at the parameters' +40h, `dispersion` at +4h = ammo+26Ch). Each pellet is then turned
+/// `0.5 x cone x modf(N(0, 0.5))` degrees (the normal 0x2E4850 of mean 0 and sigma 0.5 at 0x2E218D, the fraction 0x120560,
+/// the 0.5 at 0x927A44; degrees to radians by 1/180 and pi at 0x2E22C6) about an axis at a uniform angle round the shot's
+/// direction (0x2E49F0 over +5C0h..+5C4h): the law [`super::bench_spread::deflect`] draws.
+pub(crate) fn pellet_cone_deg(gun: &Gun, ammo: &AmmoParams) -> f32 {
+    gun.dispersion.base * ammo.buck_dispersion
+}
+
+/// The old disc's share of a shotgun's pellets that land at `distance` metres (a GUESS: all up to 10 m, 0.6 at 25 m, 0.3
+/// from 50 m, in a line between). [G35] The stand-in's shots no longer read it: each pellet is flown in the game's cone
+/// ([`pellet_cone_deg`]) and met against the disc or the hit shapes. Kept only for the frozen old shot the disc is checked
+/// against (`standin_hitbox` tests).
 pub(crate) fn pellets_hitting(buck_shot: u32, distance: f32) -> u32 {
     if buck_shot <= 1 {
         return 1;
@@ -320,6 +327,11 @@ pub(crate) fn regenerate(model: &Model, bodies: &mut [Body], now: u32) {
         pools.body_seen = body.health;
         pools.head = regenerated(pool_part("head"), pools.head, pools.hit_at[1], now, dt_s, sooner, scale);
         pools.pain = regenerated(pool_part("pain"), pools.pain, pools.hit_at[2], now, dt_s, sooner, scale);
+        // [legs] The legs too, by their own parts (`right_leg`, `left_leg`: 0.03 / s up to 20 % of 0.5 after the delay from the
+        // leg's last hit, `damage_model.md`); they did not regenerate before.
+        for (leg, part) in ["right_leg", "left_leg"].into_iter().enumerate() {
+            body.legs[leg] = regenerated(pool_part(part), body.legs[leg], body.leg_hit_at[leg], now, dt_s, sooner, scale);
+        }
     }
 }
 
@@ -502,12 +514,20 @@ fn take(target: &mut Body, taken: Taken, hit_box: &str, now: u32) {
 /// leg's regeneration delay past its last damaging hit (the client's tick, 0x32A551).
 pub(crate) fn wound_leg(target: &mut Body, leg: usize, amount: f32, hit_box: &str, now: u32) {
     target.legs[leg] = (target.legs[leg] - amount).max(0.0);
-    let broke = target.legs[leg] <= 0.0 && target.leg_broken_until == 0;
+    // [legs] A hit that takes health writes the leg's last hit (0x32A29E): its regeneration waits its delay from here.
+    if amount > 0.0 {
+        target.leg_hit_at[leg] = Some(now);
+    }
+    // [legs] The wound is this leg's own (`Body::leg_wounds`).
+    let wound = &mut target.leg_wounds[leg];
+    let broke = target.legs[leg] <= 0.0 && wound.is_none();
     if broke {
-        target.leg_broken_until = now + STAND_IN_LEG_BROKEN_MS;
-    } else if target.leg_broken_until > now {
+        *wound = Some(now + STAND_IN_LEG_BROKEN_MS);
+    } else if let Some(end) = wound.as_mut()
+        && *end > now
+    {
         let delay = crate::v026g::bots::legs::regeneration_delay_ms(target.heal.factors.regeneration_sooner_ms);
-        target.leg_broken_until = target.leg_broken_until.max(now + delay);
+        *end = (*end).max(now + delay);
     }
     log::debug!(
         "stand-in leg wound at {now} ms: {} leg -{amount:.3} on {hit_box}, {:.3} of 0.5 left{}",
@@ -517,17 +537,17 @@ pub(crate) fn wound_leg(target: &mut Body, leg: usize, amount: f32, hit_box: &st
     );
 }
 
-/// One hit of `shooter_gun` at `distance` metres on `target`: takes the
-/// damage off its pools and, when a lethal pool is empty, its `health` to 0
-/// (the stand-in's death rule reads it). Draws the part and the box from
-/// `rng`. Gives the stamina the hit takes from the target's bar: the
-/// weapon's `stamina_damage` for each pellet or bullet that lands (none for
-/// a flat hit).
+/// One hit of `shooter_gun` at `distance` metres on `target`, `pellets` of its bullets landing (1 for a bullet; for a
+/// shotgun, the pellets that met the body, [`pellet_cone_deg`]): takes the damage off its pools and, when a lethal pool is
+/// empty, its `health` to 0 (the stand-in's death rule reads it). Draws the part and the box from `rng`. Gives the stamina
+/// the hit takes from the target's bar: the weapon's `stamina_damage` for each pellet or bullet that lands (none for a
+/// flat hit).
 pub(crate) fn hit(
     model: &Model,
     target: &mut Body,
     shooter_gun: &Gun,
     distance: f32,
+    pellets: u32,
     rng: &mut Rng,
     now: u32,
 ) -> f32 {
@@ -546,7 +566,6 @@ pub(crate) fn hit(
     let bullet = damage::bullet_at(weapon, ammo, distance);
     let class = Class::of(weapon);
     let body = damage::human();
-    let pellets = pellets_hitting(ammo.buck_shot, distance);
     for _ in 0..pellets {
         let part = part_for(class, rng.unit());
         let boxes = part.boxes();
@@ -996,7 +1015,7 @@ mod tests {
             grenades: true,
         };
         let mut rng = Rng::new(1);
-        hit(&model, &mut body, Arms::fallback().primary.0, 10.0, &mut rng, 1_000);
+        hit(&model, &mut body, Arms::fallback().primary.0, 10.0, 1, &mut rng, 1_000);
         assert!(near(body.health, 0.8));
     }
 
@@ -1015,7 +1034,7 @@ mod tests {
             grenades: true,
         };
         let mut rng = Rng::new(1);
-        hit(&model, &mut body, Arms::fallback().primary.0, 10.0, &mut rng, 1_000);
+        hit(&model, &mut body, Arms::fallback().primary.0, 10.0, 1, &mut rng, 1_000);
         assert!(body.health <= 1e-3);
     }
 

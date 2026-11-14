@@ -320,6 +320,8 @@ pub struct Bot {
     held_choke: Option<(Place, Vec3, u32)>,
     /// The lip guard's watch over its own hold on this bot's keys (`drive::LipWatch`).
     lip_watch: drive::LipWatch,
+    /// [A388 step 2b] The lip guard's last forecast and what it was asked ([`drive::LipMemo`]).
+    lip_memo: drive::LipMemo,
     /// The bench's stood line (`real_bot_cost`): whether the reflex had the
     /// legs at its last motor tick (a fight, not a route missing), and the
     /// poll clock of that tick (a play taken after it has had no motor
@@ -582,6 +584,7 @@ impl Bot {
             world_feet: None,
             held_choke: None,
             lip_watch: drive::LipWatch::default(),
+            lip_memo: drive::LipMemo::default(),
             #[cfg(test)]
             bench_legs: false,
             #[cfg(any(test, feature = "client-test"))]
@@ -1039,6 +1042,10 @@ pub struct Bots {
     pub client_tests: Option<client_tests::Link>,
     polls: polls::PollStats,
     tactics: Option<Tactics>,
+    /// [item 4] The map's team bases with their protection ([`protection::Base`]), from the map at `tactics_ready`.
+    bases: Vec<protection::Base>,
+    /// [item 4] The base rule's entries so far: added to a bot's list, and spawn-rule ends it moved later.
+    base_counts: (u32, u32),
     /// The plays' kept answers about these tactics (`plays::memo`), made
     /// anew with them.
     memo: plays::memo::Memo,
@@ -1124,6 +1131,8 @@ impl Bots {
             client_tests: None,
             polls: Default::default(),
             tactics: None,
+            bases: Vec::new(),
+            base_counts: (0, 0),
             memo: Default::default(),
             teams: [team_state(tunings.of(0)), team_state(tunings.of(1))],
             bots,
@@ -1246,6 +1255,16 @@ impl Bots {
         format!("team 0: {}; team 1: {}", one.line(), two.line())
     }
 
+    /// [Gap 3] What the worlds did to the bots' gun ledgers, summed by team, as the match-end log line
+    /// (`the bots' guns: ...`, [`guns::GunReads::line`]).
+    pub fn gun_report(&self) -> String {
+        let mut sums = [guns::GunReads::default(); 2];
+        for bot in self.bots.iter().flatten() {
+            sums[usize::from(bot.team.min(1))] += bot.gun_reads();
+        }
+        format!("team 0: {}; team 1: {}", sums[0].line(), sums[1].line())
+    }
+
     /// What every bot's pantry has done, summed by team ([`stock::PantryCounts`]).
     pub fn pantry_counts(&self) -> [stock::PantryCounts; 2] {
         let mut sums = [stock::PantryCounts::default(); 2];
@@ -1321,6 +1340,7 @@ impl Bots {
         tactics.clear_step_sees_lip = tuning.aim.combat.clear_step_sees_lip;
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.
+        self.bases = protection::Base::of_map(&tactics.world.map);
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
         tactics.hazards.attach(anomalies);
         self.features.artefacts = tuning
@@ -1537,16 +1557,55 @@ impl Bots {
 
     /// [Gap 8] Each bot's enemies that cannot be hurt and until when, by its team's rule (`combat.spawn_protection`,
     /// `cheats.enemy_protection_exact`): after a world.
-    pub fn share_protection(&mut self) {
+    /// Returns each base entry that added an enemy to a bot's list or moved his end later (bot, enemy, his base's team,
+    /// until), for the log; counted for the match's end ([`Self::base_report`]).
+    pub fn share_protection(&mut self) -> Vec<(Place, Place, u8, u32)> {
+        let mut changes = Vec::new();
         for bot in self.bots.iter_mut().flatten() {
             let tuning = self.tunings.of(bot.team);
-            let list = if tuning.aim.combat.spawn_protection {
-                self.tracker.protected_enemies(bot.team, tuning.cheats.enemy_protection_exact)
+            let exact = tuning.cheats.enemy_protection_exact;
+            let mut list = if tuning.aim.combat.spawn_protection {
+                self.tracker.protected_enemies(bot.team, exact)
             } else {
                 Vec::new()
             };
+            // [item 4] An enemy its own senses (or its team's word) last put inside his team's base is protected for the
+            // base's duration after that: the fair rule (the exact one is the world's end, which holds the base's too).
+            if tuning.aim.combat.spawn_protection && !exact {
+                for track in bot.memory.tracks() {
+                    let Some((at, time)) = track.own else {
+                        continue;
+                    };
+                    let Some(team) = self.tracker.living_team(track.who).filter(|&team| team != bot.team) else {
+                        continue;
+                    };
+                    let Some(until) = protection::base_until(&self.bases, team, at, time) else {
+                        continue;
+                    };
+                    match list.iter_mut().find(|(place, _)| *place == track.who) {
+                        Some((_, was)) if *was >= until => {}
+                        Some((_, was)) => {
+                            *was = until;
+                            self.base_counts.1 += 1;
+                            changes.push((bot.place, track.who, team, until));
+                        }
+                        None => {
+                            list.push((track.who, until));
+                            self.base_counts.0 += 1;
+                            changes.push((bot.place, track.who, team, until));
+                        }
+                    }
+                }
+            }
             bot.reflex.set_protected(list);
         }
+        changes
+    }
+
+    /// [item 4] The base rule's entries over the match as the match-end log line: added, and those that moved the spawn
+    /// rule's end later, a world and a bot each.
+    pub fn base_report(&self) -> String {
+        format!("added {}, ends moved later {}", self.base_counts.0, self.base_counts.1)
     }
 
     /// [Gap 7] A trusted world's hand wounds of one place: a bot's own weapon is gated as the client gates it
@@ -2236,15 +2295,21 @@ impl Bots {
     pub fn drift_report(&self) -> Vec<String> {
         let tallies: Vec<(usize, &nav_drift::Tally)> = self.bots.iter().flatten().map(|bot| (bot.place, &bot.drift)).collect();
         let mut lines = nav_drift::report(&tallies);
+        // [A388 step 2b] The lip guard's forecasts this match: asked anew, and the same ask's answer used again.
+        let (asked, reused) = self.bots.iter().flatten().fold((0u64, 0u64), |(a, r), bot| (a + u64::from(bot.lip_memo.asked), r + u64::from(bot.lip_memo.reused)));
+        lines.push(format!("{}lip guard forecasts this match: asked {asked}, the same ask's answer used again {reused}", nav_log::PREFIX));
         // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
         // time a step took.
-        let (steps, ns) = body::kept_clock::take();
+        let (steps, ns) = body::kept_clock::take(body::kept_clock::Of::Reckoning);
+        let (forecast_steps, forecast_ns) = body::kept_clock::take(body::kept_clock::Of::Forecast);
         let (left, ground, held) = body::kept_edges::take();
         lines.push(format!(
-            "{}kept controller steps since the last match end (every match on this server): {steps}, {} ns a step, {:.1} ms in all;              off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}",
+            "{}kept controller steps since the last match end (every match on this server): the reckoning's {steps}, {} ns a step,              {:.1} ms in all; the lip guard forecast's {forecast_steps}, {} ns a step, {:.1} ms in all; the reckoning's off the ground              {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}",
             nav_log::PREFIX,
             ns.checked_div(steps).unwrap_or(0),
             ns as f64 / 1e6,
+            forecast_ns.checked_div(forecast_steps).unwrap_or(0),
+            forecast_ns as f64 / 1e6,
             left + ground + held
         ));
         lines

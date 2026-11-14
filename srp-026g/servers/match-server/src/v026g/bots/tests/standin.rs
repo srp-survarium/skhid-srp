@@ -404,7 +404,12 @@ pub(crate) struct Body {
     /// The leg pools (0.5 full; a hip's or a foot's hit takes its share, `standin_damage::wound_leg`), until when an empty
     /// one is broken (no jump at all, PROVEN), and the last hit's tick (0: none this life).
     pub(crate) legs: [f32; 2],
-    pub(crate) leg_broken_until: u32,
+    /// [legs] Each leg's last damaging hit (its pool's regeneration waits its delay from it, `standin_damage::regenerate`), and
+    /// each leg's own `leg_damage` wound end (the client's affect is a leg's: `damage_model.md`, the damage model's +388h
+    /// counts the wounded legs; [`Self::leg_damage`]). One end for both legs before: the second leg's wound was no wound of its
+    /// own, and the both-legs stand never came.
+    pub(crate) leg_hit_at: [Option<u32>; 2],
+    pub(crate) leg_wounds: [Option<u32>; 2],
     pub(crate) last_hit: u32,
     /// [Gap 14] Its received damage from enemies so far, as its statistics' `received_damage` (the stand-in adds one a hit
     /// by an enemy's bullet or grenade: the bots read only whether it grew).
@@ -437,6 +442,14 @@ pub(crate) struct Body {
 }
 
 impl Body {
+    /// [legs] The legs' `leg_damage` wounds at `now` as the client counts them, by the bots' own port of the rule
+    /// (`legs::LegDamage`): one leg wounded refuses the sprint and the jump, both the move too (crouched, a move key still
+    /// moves: F42).
+    pub(crate) fn leg_damage(&self, now: u32) -> super::super::legs::LegDamage {
+        let ends: Vec<u32> = self.leg_wounds.iter().flatten().copied().collect();
+        super::super::legs::LegDamage::of(&ends, now)
+    }
+
     /// The elevation the view looks along, radians: the pitch and the weapon's kick (0x2E0F60) through the unit's scale.
     pub(crate) fn view_elevation(&self) -> f32 {
         Pitch::view(self.pitch, self.recoil.y()).elevation(self.scale)
@@ -936,7 +949,8 @@ impl Game {
             past_edge_down: None,
             slide_mps: None,
             legs: [0.5; 2],
-            leg_broken_until: 0,
+            leg_hit_at: [None; 2],
+            leg_wounds: [None; 2],
             last_hit: 0,
             received: 0.0,
             stagger: standin_stagger::Stagger::default(),
@@ -1130,7 +1144,8 @@ impl Game {
         body.health = 1.0;
         body.pools = standin_damage::Pools::default();
         body.legs = [0.5; 2];
-        body.leg_broken_until = 0;
+        body.leg_hit_at = [None; 2];
+        body.leg_wounds = [None; 2];
         body.last_hit = 0;
         body.stagger.reset();
         body.flight = None;
@@ -1208,9 +1223,9 @@ impl Game {
                 let mut jump = false;
                 if pressed[place] & key::JUMP != 0 {
                     self.jumps_pressed += 1;
-                    // A broken leg refuses it, and so does a bar under its cost or
-                    // the low flag (nothing is spent then).
-                    if body.legs.iter().all(|&pool| pool > 0.0) && body.stamina.jump() {
+                    // A leg's wound refuses it ([`Body::leg_damage`]: the client's gate is the wound, not the pool), and so
+                    // does a bar under its cost or the low flag (nothing is spent then).
+                    if body.leg_damage(tick).at(tick) == super::super::legs::LegGate::Free && body.stamina.jump() {
                         if self.honest {
                             jump = true;
                         } else {
@@ -1354,9 +1369,12 @@ impl Game {
                 continue;
             }
             let body = &mut self.bodies[place];
-            if body.leg_broken_until != 0 && tick >= body.leg_broken_until {
-                body.legs = body.legs.map(|pool| if pool > 0.0 { pool } else { 0.5 });
-                body.leg_broken_until = 0;
+            // [legs] A leg's wound ends at its end; its pool stays as it is and regenerates by the client's rule (0.03 / s up to
+            // 20 % of 0.5, `standin_damage::regenerate`). An empty leg was put back to a full 0.5 before.
+            for wound in &mut body.leg_wounds {
+                if wound.is_some_and(|end| tick >= end) {
+                    *wound = None;
+                }
             }
             standin_heal::advance(body, tick);
             let mut level = if body.carrying.is_some() { 0.95 } else { 1.0 } * body.speed_level;
@@ -1389,9 +1407,12 @@ impl Game {
                 _ => (body.keys, body.yaw),
             };
             body.held = (step_input == super::super::kin::StepInput::Previous).then_some((body.keys, body.yaw));
-            // [A364 P11] A leg's `leg_damage` affect (the stand-in's broken leg, 8 s) takes the sprint as it takes the jump: `can_sprint`
-            // 0x2DBF40 (PROVEN, `docs/notes/stagger_and_legs.md`), and what the bench's worlds show the bots.
-            let leg_affect = body.leg_broken_until > tick;
+            // [A364 P11] A leg's `leg_damage` affect (8 s) takes the sprint as it takes the jump: `can_sprint` 0x2DBF40 (PROVEN,
+            // `docs/notes/stagger_and_legs.md`), and what the bench's worlds show the bots. [legs] Both legs' take the move too
+            // (`legs::LegGate::keys`, the bots' port: F42).
+            let gate = body.leg_damage(tick).at(tick);
+            let leg_affect = gate != super::super::legs::LegGate::Free;
+            let moving = gate.keys(moving);
             let mut keys = if body.carrying.is_some() || caught || leg_affect || !body.stamina.may_sprint() {
                 moving & !key::SPRINT
             } else {
@@ -1533,12 +1554,13 @@ impl Game {
                     // reckoning's `ClientStep::Kept`): the lattice walks to where it ends.
                     if super::standin_jump::stand_in_kept() {
                         let by = Vec3::new(to.x - body.feet.x, 0.0, to.z - body.feet.z);
-                        if let Some(step) = body::kept_step(grid, &mut body.kept, body.feet, by, keys, sprint_state) {
+                        if let Some(step) = body::kept_step(grid, &mut body.kept, body.feet, by, keys, sprint_state, body::kept_clock::Of::StandIn) {
                             // [A388 step 2] Where its kept controller leaves the ground (`step_down` finds none under the capsule),
                             // the body leaves its floor there and falls (the walk-off below), not held by the lattice to
                             // `body::SUPPORT_M` past its floor's centre (`SRP_BENCH_STAND_IN_KEPT_EDGE`).
                             let off = (step.airborne && super::standin_jump::stand_in_kept_edge())
-                                .then(|| body::kept_off_ground(grid, step.to, body.feet.y));
+                                .then(|| body::kept_off_ground(grid, step.to, body.feet.y))
+                                .inspect(|&off| body::kept_edges::count(off));
                             (node, feet, _) = match off {
                                 Some(body::KeptOff::Left(down, at)) => {
                                     body.kept = None;
@@ -1903,10 +1925,14 @@ impl Game {
         }
         // What the shot's bullets met: the old disc's nearest chest, or the hit shapes of each pellet's ray.
         let ammo = standin_damage::ammo_of(&self.damage, gun);
+        let pellet_cone = standin_damage::pellet_cone_deg(gun, ammo);
         let (disc, boxes) = match self.volume {
-            HitVolume::Disc => (self.strike_disc(shooter, eye, dir), Vec::new()),
-            HitVolume::Boxes { .. } => (None, self.strikes_boxes(shooter, eye, origin, dir, ammo)),
+            HitVolume::Disc => (self.strike_disc_pellets(shooter, eye, dir, ammo.buck_shot, pellet_cone), Vec::new()),
+            HitVolume::Boxes { .. } => (None, self.strikes_boxes(shooter, eye, origin, dir, ammo, pellet_cone)),
         };
+        // [G35] The pellets of the disc's hit that met the body (1 for a bullet).
+        let disc_pellets = disc.map_or(0, |(.., pellets)| pellets);
+        let disc = disc.map(|(body, along, _)| (body, along));
         let best: Option<(Place, f32)> = disc.or_else(|| {
             boxes
                 .iter()
@@ -1942,10 +1968,10 @@ impl Game {
             fired: ammo.buck_shot.clamp(1, 255) as u8,
             ..Default::default()
         };
-        if let Some((body, along)) = disc
+        if let Some((body, _)) = disc
             && self.bodies[body].team != team
         {
-            landed.on_enemy = standin_damage::pellets_hitting(ammo.buck_shot, along).min(255) as u8;
+            landed.on_enemy = disc_pellets.min(255) as u8;
         }
         for strike in boxes.iter().filter(|s| self.bodies[s.body].team != team) {
             landed.on_enemy += 1;
@@ -1996,7 +2022,7 @@ impl Game {
         match self.volume {
             HitVolume::Disc => {
                 if let Some((target, along)) = best {
-                    self.land_disc(shooter, target, along, [eye, dir, view_dir], cone, tick);
+                    self.land_disc(shooter, (target, along, disc_pellets), [eye, dir, view_dir], cone, tick);
                 }
             }
             HitVolume::Boxes { .. } => self.land_boxes(shooter, &boxes, [eye, dir, view_dir], cone, tick),
@@ -2005,6 +2031,28 @@ impl Game {
 
     /// The old rule ([`HitVolume::Disc`]): the nearest body, within 100 m along the line, whose chest the line
     /// passes within [`standin_hitbox::DISC_M`] and sees (a clear line from the eye to the chest, not a clear shot ray).
+    /// [G35] [`Self::strike_disc`] for a whole shot: a bullet's one ray; a shotgun's `buck_shot` pellets each turned from
+    /// `dir` in the game's pellet cone (`pellet_cone_deg` degrees, [`bench_spread::deflect`]) and met against the disc on
+    /// its own. The nearest body a pellet met, its distance along the line, and how many of the pellets met it. Before, the
+    /// centre ray met the disc and a share of the pellets by distance landed (`pellets_hitting`, a GUESS).
+    fn strike_disc_pellets(&mut self, shooter: Place, eye: Vec3, dir: Vec3, buck_shot: u32, cone_deg: f32) -> Option<(Place, f32, u32)> {
+        if buck_shot <= 1 {
+            return self.strike_disc(shooter, eye, dir).map(|(body, along)| (body, along, 1));
+        }
+        let mut met: Vec<(Place, f32)> = Vec::new();
+        for _ in 0..buck_shot {
+            let pellet = bench_spread::deflect(dir, cone_deg, &mut self.rng);
+            met.extend(self.strike_disc(shooter, eye, pellet));
+        }
+        let (body, along) = met.iter().copied().min_by(|a, b| a.1.total_cmp(&b.1))?;
+        let landed = met.iter().filter(|(b, _)| *b == body).count() as u32;
+        log::debug!(
+            "stand-in shotgun shot of {shooter} at {}: {landed} of {buck_shot} pellets on {body} at {along:.1} m (cone {cone_deg:.2} deg)",
+            self.tick
+        );
+        Some((body, along, landed))
+    }
+
     fn strike_disc(&self, shooter: Place, eye: Vec3, dir: Vec3) -> Option<(Place, f32)> {
         let mut best: Option<(Place, f32)> = None;
         for (target, other) in self.bodies.iter().enumerate() {
@@ -2151,9 +2199,10 @@ impl Game {
     }
 
     /// [`HitVolume::Boxes`]: a bullet is one ray along `dir`; a shotgun's shot is its `buck_shot` pellets, each
-    /// its own ray, the shot's direction turned again by the ammunition's cone (`buck_dispersion`) as the game's
-    /// `get_dispersed_buckshot_direction` turns it (`fact-hitboxes-026g.md` 4). One strike per ray that met a
-    /// body.
+    /// its own ray, the shot's direction turned again in the game's pellet cone (`cone_deg`,
+    /// `standin_damage::pellet_cone_deg`: the weapon's `base_dispersion` x the ammo's `buck_dispersion`, as the game's
+    /// `get_dispersed_buckshot_direction` 0x2E2120 turns it; [G35] the base was left out before, so the pellets flew in
+    /// 0.8 to 2.0 times too narrow or wide a cone). One strike per ray that met a body.
     fn strikes_boxes(
         &mut self,
         shooter: Place,
@@ -2161,13 +2210,14 @@ impl Game {
         origin: Vec3,
         dir: Vec3,
         ammo: &survarium::v026g::damage::AmmoParams,
+        cone_deg: f32,
     ) -> Vec<BoxStrike> {
         if ammo.buck_shot <= 1 {
             return self.nearest_shape(shooter, eye, origin, dir).into_iter().collect();
         }
         (0..ammo.buck_shot)
             .filter_map(|_| {
-                let pellet = bench_spread::deflect(dir, ammo.buck_dispersion, &mut self.rng);
+                let pellet = bench_spread::deflect(dir, cone_deg, &mut self.rng);
                 self.nearest_shape(shooter, eye, origin, pellet)
             })
             .collect()
@@ -2175,7 +2225,9 @@ impl Game {
 
     /// The old rule's hit: `shooter`'s shot hit `target` at `along` m; its part drawn by chance, a leg hit by
     /// a hash. `line` is the eye, the shot's direction and the view's.
-    fn land_disc(&mut self, shooter: Place, target: Place, along: f32, line: [Vec3; 3], cone: f32, tick: u32) {
+    /// `strike`: the body hit, its distance along the line and the pellets that met it ([`Self::strike_disc_pellets`]).
+    fn land_disc(&mut self, shooter: Place, strike: (Place, f32, u32), line: [Vec3; 3], cone: f32, tick: u32) {
+        let (target, along, pellets) = strike;
         if !self.hurts(shooter, target, tick) {
             return;
         }
@@ -2193,7 +2245,7 @@ impl Game {
         let pain_before = self.bodies[target].pools.pain;
         let other = &mut self.bodies[target];
         let before = standin_heal::health_of(other);
-        let stamina = standin_damage::hit(&self.damage, other, gun, along, &mut self.rng, tick);
+        let stamina = standin_damage::hit(&self.damage, other, gun, along, pellets, &mut self.rng, tick);
         standin_heal::stop_on_bullet(other, target, before, tick, &mut self.drug_stops);
         other.stamina.hit(stamina);
         other.last_hit = tick;
@@ -2996,16 +3048,10 @@ impl Game {
         let hurts = self
             .bodies
             .iter()
-            // [A364 P11] With the leg's `leg_damage` affect, as a live world carries it (`game/driven.rs`): the bots' jump gate is the
-            // affect, not the pool. The stand-in holds one affect for its legs (no jump, no sprint until it ends; it does not take
-            // the both-legs stop), so it shows as one part's.
+            // [A364 P11] With the legs' `leg_damage` affects, as a live world carries them (`game/driven.rs`): the bots' jump gate is
+            // the affect, not the pool. [legs] Each leg's own ([`Body::leg_damage`]): one or both.
             .map(|b| {
-                let legs = if b.leg_broken_until > tick {
-                    super::super::legs::LegDamage::One { until: b.leg_broken_until }
-                } else {
-                    super::super::legs::LegDamage::Sound
-                };
-                Hurt::of(b.legs.map(Some), b.last_hit, tick).with_leg_damage(legs)
+                Hurt::of(b.legs.map(Some), b.last_hit, tick).with_leg_damage(b.leg_damage(tick))
             })
             .collect();
         self.hurts.push_back((tick, hurts));

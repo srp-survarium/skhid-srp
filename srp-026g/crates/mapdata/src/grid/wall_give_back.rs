@@ -11,8 +11,8 @@
 //! - a wall face ([`Walls`]: steeper than the walk limit, not a rise of the ground) stands within [`WALL_NEAR_M`] at the body's
 //!   height, so a real wall made the round take it (rising ground, which the old `round_keeps_exact` also gave back, 277k
 //!   floors mostly of Rudnya's hillside, has none);
-//! - the client's own walk tick stands a body there ([`stands`]): set on the floor out of the walls, 1 s with no keys, the feet
-//!   move under [`STAND_MOVED_M`] and drop under it (no slide, no fall).
+//! - the client's own walk tick stands a body there ([`stands`]): come down onto the floor from up to 0.6 m over it, out of the
+//!   walls, with no keys, it rests within [`STAND_MOVED_M`] of it across and in height (no slide, no fall).
 //!
 //! It runs after the rounds (and the narrow doors), before their relinking and the exact pass, as the doors' pass does.
 
@@ -20,40 +20,28 @@ use super::controlled::{out_of_walls, parallel};
 use super::exact::Walls;
 use super::*;
 use crate::controller::{Collision, Shape};
-use crate::controller::tick::{Controller, CrouchInput, Settings, TickInput};
+use crate::controller::tick::Settings;
 
 /// How near a wall face must be for the round to be its doing, m.
 pub const WALL_NEAR_M: f32 = 0.6;
 /// How far the feet may move (or drop) in the stand test, m.
 const STAND_MOVED_M: f32 = 0.1;
-/// The client's step, s (0x9CC878; every step of the traces is 50 ms).
-const STAND_DT: f32 = 0.05;
-/// The stand test's steps (1 s of the client's).
-const STAND_STEPS: usize = 20;
-/// [A364 C2 row 45] The test body is set this far over the floor, m, falling at [`STAND_FALL_MPS`], so its first step runs.
-const STAND_LIFT_M: f32 = 0.005;
-/// See [`STAND_LIFT_M`], m/s.
-const STAND_FALL_MPS: f32 = 0.01;
-
-/// Whether the client's walk tick stands a body on `feet`: set there out of the walls, 1 s with no keys, the feet move and drop
-/// under [`STAND_MOVED_M`]. The body is stepped by the grid's collision and settings (`world`, `s`: [`Body::controller`]).
+/// Whether the client's walk tick stands a body on `feet`: set there out of the walls, the body comes down onto it from up to
+/// 0.6 m over it (`room`: the floor's room over a standing body) with no keys and rests ([`super::rest_floors::rests_at`]: still on
+/// the ground 4 steps in a row within 2 s) within [`STAND_MOVED_M`] of it across and in height. The body is stepped by the grid's
+/// collision and settings (`world`, `s`: [`Body::controller`]).
 ///
-/// [A364 C2 row 45] The body arrives with a speed: it is set [`STAND_LIFT_M`] over the feet, falling at [`STAND_FALL_MPS`], so its
-/// first step runs and it lands, with the contact it lands on. A body set standing with no speed and the contact normal up is
-/// exactly the state `can_skip_player_step` 0x7C7E0 skips (no walk, no velocity, no slide due with an up normal, no ceiling push,
-/// +205h clear): every step returned at once, the feet never moved, and the test passed everywhere, in mid-air included (the
-/// exactness rig: 2,160 of 2,160 steps skipped). Landed on a rim, the contact's normal leans and `need_slide` 0x7BC20 slides the
-/// body off as the client's: a body held still stands only to about 0.25 m past a straight edge.
-pub(super) fn stands(world: &Collision, s: &Settings, feet: Vec3) -> bool {
+/// [A364 C2 row 45] The body arrives with a speed, so its steps run: a body set standing with no speed and the contact normal up
+/// is exactly the state `can_skip_player_step` 0x7C7E0 skips (the exactness rig: 2,160 of 2,160 steps skipped). [A389 follow-up]
+/// Set 5 mm over the floor's own point with one nudge (before), a capsule beside steep faces overlaps them and both ticks keep
+/// that pose, its steps skipped from the second (exactness 2026-11-14, Chemical Plant's broken slab: settled from 0.55 m above,
+/// the exe and the port drop the body off all 7 slab floors; put on them, both hold 4). Come down from over the floor as
+/// `held_floors` and `rest_floors` bring it, the body lands with the contact it lands on, and on a rim `need_slide` 0x7BC20 slides
+/// it off as the client's.
+pub(super) fn stands(world: &Collision, s: &Settings, feet: Vec3, room: f32) -> bool {
     let start = out_of_walls(world, feet);
-    let mut body = Controller::standing_at(start + Vec3::new(0.0, STAND_LIFT_M, 0.0));
-    body.velocity = Vec3::new(0.0, -STAND_FALL_MPS, 0.0);
-    let still = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting: false };
-    for _ in 0..STAND_STEPS {
-        body.tick(world, STAND_DT, s, still);
-    }
-    let end = body.feet();
-    (end.x - start.x).hypot(end.z - start.z) < STAND_MOVED_M && start.y - end.y < STAND_MOVED_M
+    super::rest_floors::rests_at(world, s, start, room)
+        .is_some_and(|end| (end.x - start.x).hypot(end.z - start.z) < STAND_MOVED_M && (start.y - end.y).abs() < STAND_MOVED_M)
 }
 
 /// How [`WalkGrid::give_back_by_walls`] judges a taken floor.
@@ -69,7 +57,7 @@ enum Judge {
 /// [A331] Whether the client's walk tick stands a body somewhere in the cell of `centre` (half its side `half`): the body set at
 /// the centre and pushed out of the walls as the client's world pushes it ([`out_of_walls`]: the standing cylinder with its
 /// margin), clear of every wall there, inside the cell, and standing there ([`stands`]).
-pub(super) fn stands_in_cell(world: &Collision, s: &Settings, centre: Vec3, half: f32) -> bool {
+pub(super) fn stands_in_cell(world: &Collision, s: &Settings, centre: Vec3, half: f32, room: f32) -> bool {
     let at = out_of_walls(world, centre);
     if (at.x - centre.x).abs() > half || (at.z - centre.z).abs() > half {
         return false;
@@ -78,13 +66,15 @@ pub(super) fn stands_in_cell(world: &Collision, s: &Settings, centre: Vec3, half
     if world.nearest_to(cyl, 0.0, |f| f.normal.y.abs() < 0.5).is_some_and(|(gap, _, _)| gap < 0.0) {
         return false;
     }
-    stands(world, s, at)
+    stands(world, s, at, room)
 }
 
 impl WalkGrid {
     /// Gives back the floors the rounds took beside a wall the body clears (see the module); `alive` is the rounds' result.
     /// Returns how many.
-    pub(super) fn give_back_by_walls(&self, alive: &mut [bool], walls: &Walls, triangles: &[Triangle]) -> usize {
+    /// The stand test runs on `world`, the build's: the game's shapes where the build has them (`Collision::build_exe`, as the rest
+    /// and held floors), else the walker triangles with the body's caster (as before).
+    pub(super) fn give_back_by_walls(&self, alive: &mut [bool], walls: &Walls, world: &Collision, s: &Settings) -> usize {
         let n = alive.len();
         let stand = self.body.stand_height;
         let centre = |a: usize| {
@@ -115,12 +105,12 @@ impl WalkGrid {
         if candidates.is_empty() {
             return 0;
         }
-        let (caster, s) = self.body.controller();
-        let world = Collision::build(triangles).with_caster(caster);
         let half = self.cell / 2.0;
+        // The room over a standing body: the test body comes down from at most this over the floor.
+        let room = |a: usize| self.ceiling[a] - self.height[a] - stand;
         let ok = parallel(&candidates, |&(a, judge)| match judge {
-            Judge::Centre => stands(&world, &s, centre(a)),
-            Judge::InCell => stands_in_cell(&world, &s, centre(a), half),
+            Judge::Centre => stands(world, s, centre(a), room(a)),
+            Judge::InCell => stands_in_cell(world, s, centre(a), half, room(a)),
         });
         let mut back = 0;
         for (&(a, _), keep) in candidates.iter().zip(ok) {
@@ -188,7 +178,7 @@ mod tests {
         assert!(!at(&off, 4.875), "the centre is under the exact clearance");
         assert!(at(&on, 4.875), "the body stands in the cell's far half");
         assert!(!at(&on, 5.375), "pushed out of its cell: stays taken");
-        assert!(stands_in_cell(&Collision::build(&tris), &Settings::LIVE, Vec3::new(4.875, 0.0, 5.125), 0.125));
+        assert!(stands_in_cell(&Collision::build(&tris), &Settings::LIVE, Vec3::new(4.875, 0.0, 5.125), 0.125, f32::INFINITY));
     }
 
     /// [A364 C2 row 45] The stand test runs the client's steps: a body on flat ground stands, one in mid-air or with its centre
@@ -205,10 +195,11 @@ mod tests {
         for caster in [crate::controller::Caster::Conservative, Body::client().controller().0] {
             let world = Collision::build(&tris).with_caster(caster);
             let s = Body::client().controller().1;
-            assert!(stands(&world, &s, Vec3::new(4.0, 1.0, 5.0)), "on the top");
-            assert!(stands(&world, &s, Vec3::new(7.0, 0.0, 5.0)), "on the ground");
-            assert!(!stands(&world, &s, Vec3::new(7.0, 0.3, 5.0)), "0.3 m in the air");
-            assert!(!stands(&world, &s, Vec3::new(5.35, 1.0, 5.0)), "0.35 m past the edge");
+            let room = f32::INFINITY;
+            assert!(stands(&world, &s, Vec3::new(4.0, 1.0, 5.0), room), "on the top");
+            assert!(stands(&world, &s, Vec3::new(7.0, 0.0, 5.0), room), "on the ground");
+            assert!(!stands(&world, &s, Vec3::new(7.0, 0.3, 5.0), room), "0.3 m in the air");
+            assert!(!stands(&world, &s, Vec3::new(5.35, 1.0, 5.0), room), "0.35 m past the edge");
         }
     }
 

@@ -157,7 +157,10 @@ pub(super) struct Walkers {
     /// [Gap 6] The kit and the hands slot each place's weapon kind and shot reach were last worked out for (`weapon_of`,
     /// `shot_reach_of`): slot 7 of its first kit until a world names the weapon in hands (`combat.weapon_in_hands`); none
     /// with the switch off.
-    held_weapons: Vec<Option<(u8, u8)>>,
+    held_weapons: Vec<Option<(u8, u8, Option<weapon_pickup::Recipe>)>>,
+    /// [Gap 6] Each place's gun picked into its hands slot (client patch 85: the pick's recipe, the donor's profile kit
+    /// slot), as the last trusted world's pickup record showed it; `None`: the slot's own gun.
+    picked: Vec<Option<weapon_pickup::Recipe>>,
     /// `FireTuning::weapon_class_by_data`, as the kinds were first worked out with it.
     weapon_by_data: bool,
     maps: Arc<Maps>,
@@ -268,7 +271,8 @@ impl Walkers {
             .collect();
         let pantries = formed.profiles.iter().map(crate::v026g::bots::stock::Pantry::of_profile).collect();
         let reach: Vec<Option<f32>> = formed.profiles.iter().map(shot_reach_of).collect();
-        let held_weapons = vec![tuning.aim.combat.weapon_in_hands.then_some((0u8, 7u8)); formed.profiles.len()];
+        let held_weapons = vec![tuning.aim.combat.weapon_in_hands.then_some((0u8, 7u8, None)); formed.profiles.len()];
+        let picked = vec![None; formed.profiles.len()];
         let armours: Vec<_> = formed.profiles.iter().map(|profile| zone_armour_of(profile, 0)).collect();
         let armour_kits = vec![0; armours.len()];
         // The bodies' speed by their first kit's skills and weight, until a
@@ -316,6 +320,7 @@ impl Walkers {
             speed_kits,
             armour_kits,
             held_weapons,
+            picked,
             weapon_by_data: by_data,
         })
         .map(|mut walkers| {
@@ -764,8 +769,8 @@ impl Game {
                 .as_ref()
                 .map(|statistics| statistics.players.iter().map(|player| player.received_damage.iter().flatten().sum()).collect()),
         );
-        // [Gap 3] The player blocks, for the bots' own mixing trees.
-        let blocks = survarium::v026g::match_msgs::players::blocks(decoded.sections.players).unwrap_or_default();
+        // [Gap 3] The player blocks, for the bots' own mixing trees: split at the first bot seen reloading, else never.
+        let mut blocks: Option<Vec<survarium::v026g::match_msgs::players::PlayerBlock>> = None;
         for (place, world) in checked.places.iter().enumerate() {
             let Some(world) = world else {
                 continue;
@@ -865,6 +870,15 @@ impl Game {
                     .collect();
                 walkers.bots.hands(place, crate::v026g::bots::hands::Hands::of(&ends, snapshot.time));
             }
+            // [Gap 6] The gun picked into the hands slot, if any (client patch 85's record), for the weapon kind.
+            if let Some(picked) = walkers.picked.get_mut(place) {
+                *picked = world
+                    .supplies
+                    .hands_slot
+                    .and_then(weapon_pickup::WeaponSlot::from_slot)
+                    .and_then(|slot| world.pickup.pick(slot))
+                    .map(|pick| pick.recipe);
+            }
             // [Gap 15] A bot's life in the world's kit in use, before its weapon is read.
             if world.supplies.alive {
                 let notes = walkers.bots.worn_kit(place, world.supplies.kit, snapshot.time);
@@ -879,6 +893,9 @@ impl Game {
                 // [Gap 3] A reload under way: its clip's end from the bot's own block's mixing tree.
                 if gun.state == crate::v026g::bots::guns::GunAt::Reloading
                     && let Some(clip) = blocks
+                        .get_or_insert_with(|| {
+                            survarium::v026g::match_msgs::players::blocks(decoded.sections.players).unwrap_or_default()
+                        })
                         .iter()
                         .find(|block| usize::from(block.place) == place)
                         .and_then(|block| block.animation)
@@ -917,7 +934,12 @@ impl Game {
             }
         }
         // [Gap 8] Each bot's enemies that cannot be hurt now.
-        walkers.bots.share_protection();
+        for (bot, enemy, team, until) in walkers.bots.share_protection() {
+            log::debug!(
+                "Match {id:#x}: player {bot} (the server's bot) takes player {enemy} as protected by team {team}'s base until {until} ms (world {} ms)",
+                snapshot.time
+            );
+        }
         let notes = walkers.bots.facts(world_facts(snapshot.time, decoded));
         log_notes(id, notes);
         walkers
@@ -988,19 +1010,33 @@ impl Game {
                 };
                 walkers.bots.set_speed_candidates(place, candidates);
             }
-            // [Gap 6] A new weapon in hands (the kit in use, the hands slot): the kind every bot takes the body for and the
-            // reach its shots are heard at.
-            if let (Some(supplies), Some(profile)) = (supplies, self.formed.profiles.get(place))
+            // [Gap 6] A new weapon in hands (the kit in use, the hands slot, a gun picked into it): the kind every bot takes the
+            // body for and the reach its shots are heard at. A picked gun (client patch 85) is its recipe's: the donor's
+            // profile, kit and slot it was cooked from (a player sees the gun in the hands, whoever's it was).
+            let pick = walkers.picked.get(place).copied().flatten();
+            if let (Some(supplies), Some(own)) = (supplies, self.formed.profiles.get(place))
                 && supplies.alive
                 && let Some(slot) = supplies.hands_slot
                 && let Some(Some(was)) = walkers.held_weapons.get(place).copied()
-                && was != (supplies.kit, slot)
+                && was != (supplies.kit, slot, pick)
             {
-                walkers.held_weapons[place] = Some((supplies.kit, slot));
-                let kit = usize::from(supplies.kit);
-                let kind = held_kind(profile, kit, usize::from(slot), walkers.weapon_by_data);
+                walkers.held_weapons[place] = Some((supplies.kit, slot, pick));
+                // A pick whose donor's profile is not in the match's list falls back to the slot's own gun (never the donor's
+                // kit and slot read in another profile).
+                let donor = pick.and_then(|recipe| {
+                    let profile = self.formed.profiles.get(usize::from(recipe.place.get()))?;
+                    Some((profile, usize::from(recipe.kit.get()), usize::from(recipe.slot.slot())))
+                });
+                if pick.is_some() && donor.is_none() {
+                    log::debug!("Match {:#x}: player {place} holds a picked gun whose donor's profile is unknown: its slot's own gun", self.id);
+                }
+                let (profile, kit, slot) = donor.unwrap_or((own, usize::from(supplies.kit), usize::from(slot)));
+                let kind = held_kind(profile, kit, slot, walkers.weapon_by_data);
+                if pick.is_some() {
+                    log::debug!("Match {:#x}: player {place} holds a picked gun: {kind:?}", self.id);
+                }
                 walkers.bots.set_weapon(place, kind);
-                walkers.bots.set_shot_reach_of(place, shot_reach_in(profile, kit, usize::from(slot)));
+                walkers.bots.set_shot_reach_of(place, shot_reach_in(profile, kit, slot));
             }
             let driven = self.formed.places.get(place).is_some_and(|p| p.driven);
             if let (true, Some(supplies), Some(profile)) =
