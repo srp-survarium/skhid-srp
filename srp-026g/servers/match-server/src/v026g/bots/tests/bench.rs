@@ -1815,8 +1815,10 @@ pub(crate) fn real_bot_cost() {
                     let all_hits = game.hits_at(world_tick).unwrap_or_default();
                     let staminas = game.staminas_at(world_tick).unwrap_or_default();
                     let mut handling = thread_cpu();
+                    bots.received_damage(game.received_at(world_tick));
                     for (place, hurt) in hurts.into_iter().enumerate() {
                         bots.hurt(place, hurt);
+                        bots.hit_kind(place, world_tick);
                     }
                     for (place, hits) in all_hits.into_iter().enumerate() {
                         bots.hits(place, &hits);

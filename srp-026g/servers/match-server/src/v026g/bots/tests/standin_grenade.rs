@@ -165,6 +165,7 @@ pub(crate) fn explode(game: &mut Game, thrower: Place, at: Vec3, tick: u32) -> V
         if !game.hurts(thrower, place, tick) {
             continue;
         }
+        let enemy_blast = game.bodies[thrower].team != game.bodies[place].team;
         game.metric_rays += splash.affected.len() as u64;
         let hits: Vec<(usize, f32)> = splash
             .affected
@@ -204,6 +205,7 @@ pub(crate) fn explode(game: &mut Game, thrower: Place, at: Vec3, tick: u32) -> V
         }
         if on_body > 0.0 || on_pain > 0.0 {
             body.last_hit = tick;
+            body.received += if enemy_blast { 1.0 } else { 0.0 };
             body.stagger.hit(tick, GRENADE_STOPPING_POWER);
         }
         let killed = body.health <= 1e-3 || body.pools.dead();

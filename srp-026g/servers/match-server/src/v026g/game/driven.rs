@@ -750,6 +750,13 @@ impl Game {
                 statistics.players.iter().map(|player| player.events[event::BULLET_HIT].iter().map(|&n| u32::from(n)).sum()).collect();
             walkers.bots.hit_markers(&hits);
         }
+        // [Gap 14] Each place's received damage from enemies (statistics `received_damage`, over its kits and inflictors).
+        walkers.bots.received_damage(
+            decoded
+                .statistics
+                .as_ref()
+                .map(|statistics| statistics.players.iter().map(|player| player.received_damage.iter().flatten().sum()).collect()),
+        );
         for (place, world) in checked.places.iter().enumerate() {
             let Some(world) = world else {
                 continue;
@@ -806,6 +813,7 @@ impl Game {
                 let hurt = Hurt::of(legs, damage.last_hit_time_ms, snapshot.time)
                     .with_leg_damage(LegDamage::of(&leg_ends, snapshot.time));
                 walkers.bots.hurt(place, hurt);
+                walkers.bots.hit_kind(place, snapshot.time);
                 // [2e] The body's recent hits (`m_recent_hits`): its stagger in the reckoning.
                 walkers.bots.hits(place, &motion.recent_hits);
                 if let Some(pools) = Pools::of_world(&damage.part_health) {

@@ -79,6 +79,7 @@ pub mod path;
 pub mod pitch;
 pub mod plays;
 pub mod pockets;
+pub mod hit_kind;
 pub mod pools;
 pub mod protection;
 pub mod recoil;
@@ -430,6 +431,10 @@ pub struct Bot {
     fired_at: Option<u32>,
     /// Its hurts as the last trusted world showed them ([`Bots::hurt`]).
     hurt: Hurt,
+    /// [Gap 14] Whether its last hits were an enemy's ([`hit_kind::HitKind`]), and the last hit its fight decisions go by
+    /// ([`Bots::hit_kind`]): an enemy's with `combat.hit_kind`, else any.
+    hit_kind: hit_kind::HitKind,
+    fight_hit_ms: Option<u32>,
     /// The last jump, until what followed it is traced.
     jump_watch: Option<JumpWatch>,
     /// Its falls and route jumps for the log (A285, `nav_log.rs`): written, never read back.
@@ -641,6 +646,8 @@ impl Bot {
             carry: jump_carry::JumpCarry::Free,
             fired_at: None,
             hurt: Hurt::default(),
+            hit_kind: hit_kind::HitKind::default(),
+            fight_hit_ms: None,
             jump_watch: None,
             nav_log: nav_log::NavLog::default(),
             drift: nav_drift::Tally::default(),
@@ -1043,6 +1050,8 @@ pub struct Bots {
     /// [Gap 9] By place, its statistics' enemy-hit count at the last world, and whether it rose in that world.
     hit_counts: Vec<u32>,
     hit_marked: Vec<bool>,
+    /// [Gap 14] The last world's received damage from enemies by place ([`Bots::received_damage`]).
+    received: Option<Vec<f32>>,
     /// Last, so a search left under way is dropped before it.
     _search_memory: SearchMemory,
 }
@@ -1133,6 +1142,7 @@ impl Bots {
             seen_hits: Vec::new(),
             hit_counts: Vec::new(),
             hit_marked: Vec::new(),
+            received: None,
             _search_memory: SearchMemory::hold(),
         }
     }
@@ -1655,6 +1665,35 @@ impl Bots {
     /// ([`worth::Wounds::landed`]); the bot that fired last before the hit gets it.
     /// [Gap 9] A trusted world's enemy-hit counts by place (statistics event 23): a bot whose count rose since the world
     /// before hit an enemy in between (its hit marker).
+    /// [Gap 14] A trusted world's received damage from enemies by place (statistics `received_damage`, summed over the
+    /// kits and inflictors; `None`: the world carried no statistics). Read before the bodies ([`Self::hit_kind`]).
+    pub fn received_damage(&mut self, sums: Option<Vec<f32>>) {
+        self.received = sums;
+    }
+
+    /// [Gap 14] After the world's body of `place` ([`Self::hurt`]), made at `time`: whether its new last hit was an
+    /// enemy's ([`hit_kind::HitKind::world`]), and the last hit its fight decisions go by. With no statistics in the
+    /// world the reading waits for the next.
+    pub fn hit_kind(&mut self, place: Place, time: u32) {
+        let received = self.received.as_ref().and_then(|sums| sums.get(place).copied());
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        if let Some(received) = received {
+            bot.hit_kind.world(time, bot.hurt.last_hit_ms, received);
+        }
+        bot.fight_hit_ms = if self.tunings.of(bot.team).aim.combat.hit_kind {
+            bot.hit_kind.enemy_hit_ms()
+        } else {
+            bot.hurt.last_hit_ms
+        };
+    }
+
+    /// [Gap 14] The bots' new last hits so far: those the worlds showed to be an enemy's, and the others.
+    pub fn hit_kinds(&self) -> (u32, u32) {
+        self.bots.iter().flatten().fold((0, 0), |(enemy, other), bot| (enemy + bot.hit_kind.enemy, other + bot.hit_kind.other))
+    }
+
     pub fn hit_markers(&mut self, hits: &[u32]) {
         self.hit_marked = hits
             .iter()

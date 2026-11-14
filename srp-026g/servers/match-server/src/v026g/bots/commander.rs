@@ -459,7 +459,7 @@ fn threat_tick(
                 .iter()
                 .flatten()
                 .filter(|b| b.team == team)
-                .filter(|b| b.reflex.target().is_some() || b.hurt.last_hit_ms.is_some_and(|at| now < at.saturating_add(breach::IN_FIGHT_MS)))
+                .filter(|b| b.reflex.target().is_some() || b.fight_hit_ms.is_some_and(|at| now < at.saturating_add(breach::IN_FIGHT_MS)))
                 .map(|b| b.place)
                 .collect();
             let killed = breach_tick(tactics, threat, team, view, now, tuning, &rules, (&holds, &held), &mates, &in_fight, &areas, objective, side, notes);

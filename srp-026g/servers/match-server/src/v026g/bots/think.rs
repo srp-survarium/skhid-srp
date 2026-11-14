@@ -1163,8 +1163,8 @@ pub(super) fn react(
         }),
         cover: tuning.cover.rule(),
     };
-    // A bullet that hit it, a limb's too (the hit marker and the stagger), as the world last showed.
-    bot.reflex.bullet_hit(bot.hurt.last_hit_ms);
+    // A bullet that hit it, a limb's too (the hit marker and the stagger), as the world last showed: [Gap 14] an enemy's.
+    bot.reflex.bullet_hit(bot.fight_hit_ms);
     bot.reflex
         .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);
     for text in bot.reflex.take_throw_notes() {
@@ -1218,13 +1218,13 @@ pub(super) fn self_kill(due: &Due, bot: &mut Bot, state: &mut TeamState, notes: 
         .tracks()
         .iter()
         .filter_map(|track| track.own.map(|(_, at)| at))
-        .chain(bot.hurt.last_hit_ms)
+        .chain(bot.fight_hit_ms)
         .max();
     let facts = stuck::Facts {
         now,
         hopeless: bot.stuck.hopeless(now, me.spawned),
         quiet_ms: sensed.map_or(u32::MAX, |at| now.saturating_sub(at)),
-        hit_quiet_ms: bot.hurt.last_hit_ms.filter(|&at| at >= me.spawned).map_or(u32::MAX, |at| now.saturating_sub(at)),
+        hit_quiet_ms: bot.fight_hit_ms.filter(|&at| at >= me.spawned).map_or(u32::MAX, |at| now.saturating_sub(at)),
         life_ms: now.saturating_sub(me.spawned),
         match_ms: ((view.total_s - view.time_left_s).max(0.0) * 1_000.0) as u32,
         carrying: me.carrying.is_some(),
