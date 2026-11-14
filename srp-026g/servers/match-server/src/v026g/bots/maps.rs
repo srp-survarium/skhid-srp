@@ -250,7 +250,7 @@ impl Maps {
     pub fn built_file_names(&self, project: &str) -> Result<[String; 3], String> {
         let dir = self.dir.as_ref().ok_or("no mapdata folder")?;
         let (map, map_file) = read_map(&dir.join(mapdata::format::file_name(project)))?;
-        let grid_key = grid_key(&map, &map.walker_triangles(), &self.grid);
+        let grid_key = grid_key(&map, &map.walker_triangles(), map_file, &self.grid);
         let sight_key = map.bullet_mesh().key();
         let tactics_key = TacticsBase::key(map_file, grid_key, Self::marking());
         Ok([
@@ -351,6 +351,7 @@ impl Maps {
                             built.how(),
                             (world_bytes(&base.world) + base.memory_bytes()) >> 20
                         );
+                        log_removed_floors(&name, &base.world.grid);
                         // [S7] Its crouched walks and, of them, the crouched climbs (debug).
                         let grid = &base.world.grid;
                         log::info!(
@@ -492,6 +493,11 @@ struct Built {
     grid: Source,
     sight: Source,
     tactics: Source,
+    /// The tactics' share of `seconds`, the map's walker walls among them (`TacticsBase`): built here once a map, not in a
+    /// match tick.
+    tactics_s: f32,
+    /// The grid's key ([`grid_key`]), the name of its pre-built file.
+    grid_key: u64,
 }
 
 /// How a map's grid, sight tree and tactics were made by the build that made it ([`Maps::made`]).
@@ -521,10 +527,12 @@ impl Built {
             Source::Built => "built",
         };
         format!(
-            "grid {}, sight tree {}, tactics {}",
+            "grid {} (key {:016x}), sight tree {}, tactics {} in {:.2} s with the walker walls",
             word(self.grid),
+            self.grid_key,
             word(self.sight),
-            word(self.tactics)
+            word(self.tactics),
+            self.tactics_s
         )
     }
 }
@@ -574,16 +582,64 @@ fn read_map(path: &Path) -> Result<(MapData, u64), String> {
     Ok((map, map_file))
 }
 
-/// The key of `map`'s walk grid as `grid_tuning` builds it (`walker`: the map's walker triangles): the one definition the
-/// build ([`build`]) and the pre-built files' names ([`Maps::built_file_names`]) share.
-fn grid_key(map: &MapData, walker: &[mapdata::Triangle], grid_tuning: &GridTuning) -> u64 {
-    let area = map.play_area(mapdata::AREA_MARGIN);
-    let seeds = map.grid_seeds();
-    mapdata::grid_key_with_links(walker, area, mapdata::CELL, grid_tuning.body(), &seeds, grid_tuning.off_mesh_links())
+/// The key of `map`'s walk grid as `grid_tuning` builds it (`walker`: the map's walker triangles; `map_file`: the digest of
+/// the map file's bytes, [`read_map`]): [`World::map_grid_key`], the key of the build's own call ([`World::map_grid`]). The one
+/// definition the build ([`build`]) and the pre-built files' names ([`Maps::built_file_names`]) share. Before, it held the
+/// walker triangles but not the game's shapes the rim jumps fly on, nor the spawns: a grid built for other objects or spawns
+/// on the same walker triangles was read back (a pre-built file) or shared (another project).
+fn grid_key(map: &MapData, walker: &[mapdata::Triangle], map_file: u64, grid_tuning: &GridTuning) -> u64 {
+    World::map_grid_key(map, walker, map_file, mapdata::CELL, grid_tuning.body(), grid_tuning.off_mesh_links())
 }
 
 /// Reads one map, takes or builds its grid and tree, and builds its
 /// tactics for the default margin.
+/// [A389] The players' positions file (`positions.tsv` of the routes corpus: `project x y z visits ...`), when set: every
+/// spot of the map the build lost is logged with its rule ([`log_removed_floors`]). A log's only: no decision reads it.
+pub const PLAYER_SPOTS_ENV: &str = "SRP_BOT_PLAYER_SPOTS";
+
+/// [A389] One line per map built: the floors each grid rule took and the gap links it made, and with [`PLAYER_SPOTS_ENV`] set
+/// each player's spot the build lost (a floor `held_floors` took covers it, within 0.35 m across and 0.3 m in height, and no
+/// kept floor does). `walk_face_stands` takes no floor and `gap_flights` none either (they make and price links). Logs only.
+fn log_removed_floors(name: &str, grid: &mapdata::WalkGrid) {
+    let taken = grid.held_taken();
+    let off = grid.off_links();
+    let flown = off.iter().filter(|l| l.share.flown().is_some()).count();
+    log::info!(
+        "Bot map {name} grid rules: held_floors took {} floors; walk_face_stands took 0; gap links {} ({flown} flown by the client's jump, {} not)",
+        taken.len(),
+        off.len(),
+        off.len() - flown
+    );
+    let Ok(path) = std::env::var(PLAYER_SPOTS_ENV) else { return };
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        log::warn!("Bot map {name}: {PLAYER_SPOTS_ENV} {path} unreadable");
+        return;
+    };
+    let project = name.replace('/', "_");
+    let kept = |p: mapdata::Vec3| grid.locate_within(p, 0.35, 0.3).is_some_and(|n| (grid.position(n).y - p.y).abs() <= 0.3);
+    let mut lost = 0usize;
+    for row in text.lines().skip(1) {
+        let f: Vec<&str> = row.split('\t').collect();
+        if f.len() < 5 || f[0].replace('/', "_") != project {
+            continue;
+        }
+        let (Ok(x), Ok(y), Ok(z)) = (f[1].parse::<f32>(), f[2].parse::<f32>(), f[3].parse::<f32>()) else { continue };
+        let p = mapdata::Vec3::new(x, y, z);
+        if let Some(q) = grid.held_taken_near(p, 0.35, 0.3)
+            && !kept(p)
+        {
+            lost += 1;
+            log::info!(
+                "Bot map {name}: player spot {} ({} visits) lost: held_floors took the floor at {}",
+                super::nav_log::at(p),
+                f[4],
+                super::nav_log::at(q)
+            );
+        }
+    }
+    log::info!("Bot map {name}: {lost} player spots lost to the grid rules");
+}
+
 fn build(
     path: &Path,
     built: Option<&Path>,
@@ -600,7 +656,7 @@ fn build(
         let walker = map.walker_triangles();
         // With the gap links when the server's tuning has them (`GridTuning::gap_links`).
         let links = grid_tuning.off_mesh_links();
-        let grid_key = grid_key(&map, &walker, grid_tuning);
+        let grid_key = grid_key(&map, &walker, map_file, grid_tuning);
         stage::set("the grid");
         let shared = lock(cache).grids.get(&grid_key).and_then(Weak::upgrade);
         let (grid, grid_source) = match shared {
@@ -620,7 +676,8 @@ fn build(
                 // ([`mapdata::GridExtras::apply`]; the bench's and the tests' worlds through `World::build_with_extras`).
                 // [A333] With the pull's hold for the routes' straight legs when `grid.wall_clear_pull` is on.
                 let pull_hold = grid_tuning.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M);
-                let grid = mapdata::GridExtras { wall_clearance, open_sides, pull_hold, pull_walk: grid_tuning.pull_walk }.apply(grid, &walker);
+                let grid = mapdata::GridExtras { wall_clearance, open_sides, pull_hold, pull_walk: grid_tuning.pull_walk, walker_shapes: grid_tuning.walker_shapes }
+                    .apply(grid, &walker, &map);
                 let grid = Arc::new(grid);
                 lock(cache).grids.insert(grid_key, Arc::downgrade(&grid));
                 (grid, source)
@@ -656,6 +713,7 @@ fn build(
         stage::set("the tactics");
         let marking = Maps::marking();
         let key = TacticsBase::key(map_file, grid_key, marking);
+        let tactics_started = Instant::now();
         let (base, tactics_source) = read_or_build(
             built,
             mapdata::built::tactics_file_name(key),
@@ -663,10 +721,10 @@ fn build(
             || TacticsBase::build(world.clone(), marking),
             |base, path| base.write(path, key),
         );
-        (base, grid_source, sight_source, tactics_source)
+        (base, grid_source, sight_source, tactics_source, tactics_started.elapsed().as_secs_f32(), grid_key)
     }))
     .map_err(|_| format!("{}: the build panicked", path.display()))?;
-    let (base, grid, sight, tactics) = built;
+    let (base, grid, sight, tactics, tactics_s, grid_key) = built;
     Ok((
         base,
         Built {
@@ -674,6 +732,8 @@ fn build(
             grid,
             sight,
             tactics,
+            tactics_s,
+            grid_key,
         },
     ))
 }

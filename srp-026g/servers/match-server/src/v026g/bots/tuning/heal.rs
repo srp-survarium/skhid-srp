@@ -29,6 +29,12 @@ pub struct HealTuning {
     /// bots). Off: the body pool alone, as before (a bot fought on at a full body and an emptying pain pool). The old
     /// value is wrong by the client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`).
     pub lethal_health: bool,
+    /// [Gap 11] A drug pressed takes its course from the trusted worlds late enough for the press
+    /// (`stock::PRESS_LAG_MS`): the item's `m_active`, `m_delay_ms` and `m_activity_time_ms` (the times left), so its
+    /// heal start and end are the client's, its skills, a bullet's stop (patch 84) and a death included
+    /// ([`super::super::stock::Course`]). Off: from the press and the drug table alone, a hit that took health taken as a
+    /// stop. That old value is wrong by the client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`).
+    pub course_from_world: bool,
     /// With `bandages` on, the pain pool's weight in a need, in place of `weights.pain`: 0.4 makes a pain
     /// pool under about 0.62 a need of `start_need` (0.15). The owner's "pain under 0.6" is the line; the
     /// weight is a GUESS that reaches it.
@@ -174,6 +180,7 @@ impl Default for HealTuning {
             on: true,
             bandages: true,
             lethal_health: true,
+            course_from_world: true,
             bandage_pain_weight: 0.4,
             start_need: 0.15,
             urgent_need: 0.2,

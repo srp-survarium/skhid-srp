@@ -79,6 +79,7 @@ pub mod path;
 pub mod pitch;
 pub mod plays;
 pub mod pockets;
+pub mod hit_kind;
 pub mod pools;
 pub mod protection;
 pub mod recoil;
@@ -228,6 +229,16 @@ pub struct Note {
     pub place: usize,
     pub time: u32,
     pub text: String,
+}
+
+/// [A395a] A bot's walk over a zone's floors (`Bot::zone_walk`): since when (ms) its lines are tested over them,
+/// whether the route it walks was planned since (`Tactics::route_shut_ahead`), and its ticks on floors a zone on hurts
+/// by the client's contact test (`Hazards::hits_at`), for the log.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ZoneWalk {
+    since: u32,
+    route: tactics::WalkRoute,
+    hurt_ticks: u32,
 }
 
 /// One bot.
@@ -420,6 +431,10 @@ pub struct Bot {
     fired_at: Option<u32>,
     /// Its hurts as the last trusted world showed them ([`Bots::hurt`]).
     hurt: Hurt,
+    /// [Gap 14] Whether its last hits were an enemy's ([`hit_kind::HitKind`]), and the last hit its fight decisions go by
+    /// ([`Bots::hit_kind`]): an enemy's with `combat.hit_kind`, else any.
+    hit_kind: hit_kind::HitKind,
+    fight_hit_ms: Option<u32>,
     /// The last jump, until what followed it is traced.
     jump_watch: Option<JumpWatch>,
     /// [S7] The crouched climb under way, for its log line ([`drive::crouch_climb_watch`]): (take-off, top, crouched at).
@@ -445,9 +460,9 @@ pub struct Bot {
     paired: bool,
     /// Its route searches dropped since it last noted them.
     dropped: path::Dropped,
-    /// Since when (ms) its walk tests its lines over a zone's floors, because it stands on floors the zone refuses
-    /// (`Tactics::zone_exit`); none off them. The note of each change is `zone_note`, said once.
-    zone_walk: Option<u32>,
+    /// Its walk over a zone's floors, because it stands on floors the zone refuses (`Tactics::zone_exit`); none off
+    /// them. The note of each change is `zone_note`, said once.
+    zone_walk: Option<ZoneWalk>,
     zone_note: Option<String>,
     /// Its kits by index (the profile's, `survarium::v026g::loadouts::
     /// bot_kits` of its tier and role) and the rounds of weapon 1's ammo
@@ -633,6 +648,8 @@ impl Bot {
             carry: jump_carry::JumpCarry::Free,
             fired_at: None,
             hurt: Hurt::default(),
+            hit_kind: hit_kind::HitKind::default(),
+            fight_hit_ms: None,
             jump_watch: None,
             crouch_climb: None,
             nav_log: nav_log::NavLog::default(),
@@ -1036,6 +1053,8 @@ pub struct Bots {
     /// [Gap 9] By place, its statistics' enemy-hit count at the last world, and whether it rose in that world.
     hit_counts: Vec<u32>,
     hit_marked: Vec<bool>,
+    /// [Gap 14] The last world's received damage from enemies by place ([`Bots::received_damage`]).
+    received: Option<Vec<f32>>,
     /// Last, so a search left under way is dropped before it.
     _search_memory: SearchMemory,
 }
@@ -1126,6 +1145,7 @@ impl Bots {
             seen_hits: Vec::new(),
             hit_counts: Vec::new(),
             hit_marked: Vec::new(),
+            received: None,
             _search_memory: SearchMemory::hold(),
         }
     }
@@ -1293,6 +1313,7 @@ impl Bots {
     /// clocks and the containers, a few ms.
     pub fn tactics_ready(&mut self, mut tactics: Tactics) -> String {
         std::mem::take(&mut self.layers).attach(&mut tactics);
+        self.tracker.set_walker_walls(tactics.walker_walls());
         let tuning = self.tunings.match_wide();
         tactics.escape = tuning.hazard.escape;
         tactics.leave_islands = tuning.hazard.leave_islands;
@@ -1571,6 +1592,23 @@ impl Bots {
     /// [Gap 3, F7] A trusted world's word on one place's weapon in hands ([`guns::GunWorld`]): a bot's own ledger is laid
     /// against it ([`reflex::Reflex::gun_world`], `combat.gun_from_world`), when the world's kit in use is the one its
     /// arms are of.
+    /// [Gap 11] A trusted world made at `time` shows a bot's own pockets of the kit in use (`world`): its grenade and
+    /// smoke pockets ([`view::Tracker::own_stacks`]) and its trap pocket ([`traps::Habit::read`]) hold the world's units
+    /// (`combat.stacks_from_world`).
+    pub fn own_stacks(&mut self, place: Place, time: u32, world: &pockets::WorldPockets) {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        if !self.tunings.of(bot.team).aim.combat.stacks_from_world {
+            return;
+        }
+        let trap = survarium::v026g::loadouts::BOT_TRAP.name;
+        if let Some((_, stack)) = world.slots.iter().flatten().find(|(name, _)| *name == trap) {
+            bot.features.traps.habit.read(time, stack.in_hand);
+        }
+        self.tracker.own_stacks(place, world.kit, time, world.slots.map(|slot| slot.map(|(_, stack)| stack)));
+    }
+
     pub fn own_gun(&mut self, place: Place, gun: guns::GunWorld) {
         let Some(Some(bot)) = self.bots.get_mut(place) else {
             return;
@@ -1630,6 +1668,42 @@ impl Bots {
     /// ([`worth::Wounds::landed`]); the bot that fired last before the hit gets it.
     /// [Gap 9] A trusted world's enemy-hit counts by place (statistics event 23): a bot whose count rose since the world
     /// before hit an enemy in between (its hit marker).
+    /// [Gap 14] A trusted world's received damage from enemies by place (statistics `received_damage`, summed over the
+    /// kits and inflictors; `None`: the world carried no statistics). Read before the bodies ([`Self::hit_kind`]).
+    pub fn received_damage(&mut self, sums: Option<Vec<f32>>) {
+        self.received = sums;
+    }
+
+    /// [Gap 14] After the world's body of `place` ([`Self::hurt`]), made at `time`: whether its new last hit was an
+    /// enemy's ([`hit_kind::HitKind::world`]), and the last hit its fight decisions go by. A world with no statistics for
+    /// the place (an empty statistics section: the client had no statistics object) says nothing of the kind: for that
+    /// world the last hit is any hit, as with the switch off, and the world is counted ([`hit_kind::HitKind::unread`]).
+    pub fn hit_kind(&mut self, place: Place, time: u32) {
+        let received = self.received.as_ref().and_then(|sums| sums.get(place).copied());
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        let on = self.tunings.of(bot.team).aim.combat.hit_kind;
+        bot.fight_hit_ms = match received {
+            Some(received) => {
+                bot.hit_kind.world(time, bot.hurt.last_hit_ms, received);
+                if on { bot.hit_kind.enemy_hit_ms() } else { bot.hurt.last_hit_ms }
+            }
+            None => {
+                bot.hit_kind.unread += 1;
+                bot.hurt.last_hit_ms
+            }
+        };
+    }
+
+    /// [Gap 14] The bots' new last hits so far: those the worlds showed to be an enemy's, the others, and the bots' worlds
+    /// with no statistics (read by the old rule).
+    pub fn hit_kinds(&self) -> (u32, u32, u32) {
+        self.bots.iter().flatten().fold((0, 0, 0), |(enemy, other, unread), bot| {
+            (enemy + bot.hit_kind.enemy, other + bot.hit_kind.other, unread + bot.hit_kind.unread)
+        })
+    }
+
     pub fn hit_markers(&mut self, hits: &[u32]) {
         self.hit_marked = hits
             .iter()
@@ -1677,6 +1751,25 @@ impl Bots {
     /// A trusted world's word on what one place's kits hold of drugs
     /// ([`stock::readings`], from `players::Supplies`): the bot's own count
     /// follows it.
+    /// [Gap 11] A trusted world made at `time` shows a bot's kit in use `kit` with the drug courses `shown`
+    /// ([`stock::world_courses`]): its presses take them (`heal.course_from_world`, [`stock::Pantry::courses`]).
+    /// Returns the presses whose course changed ([`stock::Pantry::courses`]), for the log.
+    pub fn courses(
+        &mut self,
+        place: Place,
+        time: u32,
+        kit: usize,
+        shown: &[stock::ShownDrug],
+    ) -> Vec<stock::CourseChange> {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return Vec::new();
+        };
+        if !self.tunings.of(bot.team).heal.course_from_world {
+            return Vec::new();
+        }
+        bot.features.stock.pantry.courses(time, kit, shown)
+    }
+
     pub fn stock(&mut self, place: Place, time: u32, readings: &stock::Readings) {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.features.stock.pantry.read(time, readings);
@@ -1755,8 +1848,12 @@ impl Bots {
             {
                 // [owner-5 R4] The route's word on it: planned by a drop at that edge or the model going down it, and
                 // the route's next link.
+                // [A388] And both bodies' word on the edge at the world before it (decision-neutral).
                 let fall = match world.as_deref() {
-                    Some(world) => fall.of_route(&world.grid, bot.route.as_ref().map(|(route, _)| route)),
+                    Some(world) => {
+                        let edge = nav_log::EdgeWord::at(&world.grid, fall.from, None);
+                        nav_log::Fall { edge: Some(edge), ..fall.of_route(&world.grid, bot.route.as_ref().map(|(route, _)| route)) }
+                    }
                     None => fall,
                 };
                 bot.nav_log.push(nav_log::Kind::Fall, time, fall.line());
@@ -1907,11 +2004,22 @@ impl Bots {
             if let Some(b) = beside.filter(|b| b.distance_m <= stuck::BESIDE_M) {
                 stuck::fix_gaps::count(if b.enemy { 4 } else { 5 });
             }
+            // [A388] At a lip, both bodies' word on the edge there: the grid's hold, the walker's ground and the kept controller's last
+            // step (decision-neutral).
+            let edge_text = self
+                .tactics
+                .as_ref()
+                .map(|tactics| &tactics.world.grid)
+                .filter(|grid| grid.locate(feet, 1.0).is_some_and(|node| grid.near_lip(node) || grid.is_lip(node)))
+                .map_or(String::new(), |grid| {
+                    let kept = self.tracker.body(place).and_then(|body| body.estimate()).and_then(|at| at.kept);
+                    format!(" (at a lip, {})", nav_log::EdgeWord::at(grid, feet, kept.map(|kept| kept.airborne())))
+                });
             bot.note(
                 &mut notes,
                 time,
                 format!(
-                    "is stuck at {:?}: {recovery:?}{}{}{}{}{}",
+                    "is stuck at {:?}: {recovery:?}{}{}{}{}{}{edge_text}",
                     feet.to_array(),
                     if by_keys {
                         " (walk keys held, the body still)"
@@ -2113,7 +2221,19 @@ impl Bots {
     /// A294: the match-end lines of the bots' drift (`nav_drift::report`).
     pub fn drift_report(&self) -> Vec<String> {
         let tallies: Vec<(usize, &nav_drift::Tally)> = self.bots.iter().flatten().map(|bot| (bot.place, &bot.drift)).collect();
-        nav_drift::report(&tallies)
+        let mut lines = nav_drift::report(&tallies);
+        // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
+        // time a step took.
+        let (steps, ns) = body::kept_clock::take();
+        let (left, ground, held) = body::kept_edges::take();
+        lines.push(format!(
+            "{}kept controller steps since the last match end (every match on this server): {steps}, {} ns a step, {:.1} ms in all;              off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}",
+            nav_log::PREFIX,
+            ns.checked_div(steps).unwrap_or(0),
+            ns as f64 / 1e6,
+            left + ground + held
+        ));
+        lines
     }
 
     /// A285: `index`'s falls and route jumps since the last poll, as its notes (`nav_log.rs`). Called by [`Self::poll`] and the

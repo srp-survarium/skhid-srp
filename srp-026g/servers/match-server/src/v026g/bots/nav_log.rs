@@ -113,6 +113,8 @@ pub struct Fall {
     pub by: Option<Planned>,
     /// [owner-5 R4] The route's next link where the motor last had the body ([`Self::of_route`]); none not asked.
     pub next: Option<NextLink>,
+    /// [A388] The edge at the world before the fall ([`EdgeWord::at`]); none not asked.
+    pub edge: Option<EdgeWord>,
 }
 
 /// [owner-5 R4] What makes a fall the model did not come down with a planned one: of 66 such notes in the owner's five
@@ -167,7 +169,7 @@ impl Fall {
     /// The fall from the world `before` (tick, feet) to the one `now`, if it is one.
     pub fn between(before: (u32, Vec3), now: (u32, Vec3), reckoned: Option<Vec3>) -> Option<Self> {
         let ((t0, from), (t1, to)) = (before, now);
-        (t1 > t0 && t1 - t0 <= FALL_GAP_MS && from.y - to.y >= FALL_M).then(|| Self { from, to, gap_ms: t1 - t0, reckoned, by: None, next: None })
+        (t1 > t0 && t1 - t0 <= FALL_GAP_MS && from.y - to.y >= FALL_M).then(|| Self { from, to, gap_ms: t1 - t0, reckoned, by: None, next: None, edge: None })
     }
 
     /// Whether the model expected it: false when its feet stayed [`MODEL_M`] or more above the world's.
@@ -222,8 +224,56 @@ impl Fall {
             }
             _ => String::new(),
         };
-        format!("{PREFIX}fell {:.1} m from {} to {} in {} ms{next}{model}", self.from.y - self.to.y, at(self.from), at(self.to), self.gap_ms)
+        let edge = self.edge.map_or(String::new(), |edge| format!(", {edge}"));
+        format!("{PREFIX}fell {:.1} m from {} to {} in {} ms{next}{model}{edge}", self.from.y - self.to.y, at(self.from), at(self.to), self.gap_ms)
     }
+}
+
+/// [A388] Both bodies' word on an edge at some feet, for the log (decision-neutral): the grid's (the floor that holds the feet and
+/// how far its centre is, against the hold to `body::SUPPORT_M`), the client walker's (ground under the feet within a step), and the
+/// reckoning's kept controller's (its last step on the ground or off it; none where none is kept).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EdgeWord {
+    /// The flat distance from the feet to the centre of the floor the grid has them on, m; none: no floor within reach.
+    pub floor_m: Option<f32>,
+    /// The client's walker has ground within a step under the feet; none: no walker.
+    pub walker_ground: Option<bool>,
+    /// The kept controller's last step left the ground; none: no controller kept.
+    pub controller_off: Option<bool>,
+}
+
+impl EdgeWord {
+    /// The word at `feet` on `grid`, with the kept controller's `controller_off`.
+    pub fn at(grid: &mapdata::WalkGrid, feet: Vec3, controller_off: Option<bool>) -> Self {
+        let floor_m = grid.locate(feet, 1.0).map(|node| grid.position(node).distance_xz(feet));
+        let step = grid.body().step;
+        let walker_ground = grid.has_client_walker().then(|| grid.walker_ground_below(feet, feet.y + 0.1, 0.1 + step).is_some());
+        Self { floor_m, walker_ground, controller_off }
+    }
+}
+
+impl std::fmt::Display for EdgeWord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let support = super::body::SUPPORT_M;
+        match self.floor_m {
+            Some(m) => write!(f, "edge: the grid's floor centre {m:.2} m away ({} its hold of {support})", if m <= support { "within" } else { "past" })?,
+            None => write!(f, "edge: no grid floor")?,
+        }
+        match self.walker_ground {
+            Some(ground) => write!(f, ", the walker's ground under the feet {}", if ground { "yes" } else { "no" })?,
+            None => write!(f, ", no walker")?,
+        }
+        match self.controller_off {
+            Some(off) => write!(f, ", the kept controller {}", if off { "off the ground" } else { "on the ground" }),
+            None => write!(f, ", no kept controller"),
+        }
+    }
+}
+
+/// [A388] A lip guard's change of a tick's keys: `nav: lip guard <swapped|braked|doomed> at (..), keys K to K2, speed S m/s, <edge>`.
+pub fn guard_line(verdict: &str, feet: Vec3, keys: u32, to: Option<u32>, speed: f32, edge: EdgeWord) -> String {
+    let to = to.map_or("none".to_string(), |k| format!("{k:#x}"));
+    format!("{PREFIX}lip guard {verdict} at {}, keys {keys:#x} to {to}, speed {speed:.2} m/s, {edge}", at(feet))
 }
 
 /// [owner-5 R4] The landings of `route`'s drops: its planner's Drop links ([`super::path::DropTruth::Links`]) and its gap
@@ -288,13 +338,15 @@ pub enum Kind {
     Route,
     /// [owner-5 A395a] A walk out over a zone's floors begun: from where, the floor dry or being hit, to where (`drive.rs`).
     WalkOut,
+    /// [A388] The lip guard changed a tick's keys at an edge, with both bodies' word on it (`drive.rs` `guard_keys`).
+    Guard,
     /// [S7] A crouched climb of the route (a Walk link only a crouching body climbs): crouched at its foot, and whether it got
     /// up (`drive.rs` `crouch_climb_watch`).
     CrouchClimb,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 10;
+const KINDS: usize = 11;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -405,6 +457,22 @@ pub fn walkout_line(from: Vec3, hit: Option<bool>, goal: Vec3, next: Option<Vec3
 
 /// [A395a] A walk off the margin's band begun (`Marking::Capsule`, where the client hurts no body): `nav: zone band exit
 /// from (..) to (..), next (..), lines tested over the band's floors up to R m`. Its lines cross no floor a zone hurts.
+/// [A395a] The line for a walk out whose held route goes on across the zone past the way out's reach
+/// (`Tactics::route_shut_ahead`): the route is planned again from where the body stands.
+pub fn walk_route_shut_line(from: Vec3, reach: f32) -> String {
+    format!("{PREFIX}zone walk's held route goes on across the zone from {}, past the way out's {reach:.1} m: planned again", at(from))
+}
+
+/// [A395a] The line for a walk out's first tick on a floor a zone on hurts (`Hazards::hits_at`), after `ms` of the walk, on
+/// the route it held or one planned since.
+pub fn walk_hurt_line(at_feet: Vec3, ms: u32, route: super::tactics::WalkRoute) -> String {
+    let route = match route {
+        super::tactics::WalkRoute::Held => "its held route",
+        super::tactics::WalkRoute::Planned => "a route planned since",
+    };
+    format!("{PREFIX}zone walk on a hurt floor at {}, {ms} ms into it, on {route}", at(at_feet))
+}
+
 pub fn band_exit_line(from: Vec3, goal: Vec3, next: Option<Vec3>, reach: f32) -> String {
     let next = next.map_or(String::new(), |p| format!(", next {}", at(p)));
     format!("{PREFIX}zone band exit from {} to {}{next}, lines tested over the band's floors up to {reach:.1} m", at(from), at(goal))
@@ -519,6 +587,17 @@ mod tests {
     }
 
     /// [owner-5 A395a] The walk-out line names its start floor's state and its goal.
+    #[test]
+    fn an_edge_word_says_each_bodys_verdict() {
+        let edge = EdgeWord { floor_m: Some(0.31), walker_ground: Some(false), controller_off: Some(true) };
+        assert_eq!(
+            guard_line("braked", Vec3::new(1.0, 2.0, 3.0), 0x1, Some(0x2), 1.5, edge),
+            "nav: lip guard braked at (1.0, 2.0, 3.0), keys 0x1 to 0x2, speed 1.50 m/s, edge: the grid's floor centre 0.31 m away (within its hold of 0.435), the walker's ground under the feet no, the kept controller off the ground"
+        );
+        let none = EdgeWord { floor_m: None, walker_ground: None, controller_off: None };
+        assert_eq!(none.to_string(), "edge: no grid floor, no walker, no kept controller");
+    }
+
     #[test]
     fn a_walkout_line_says_dry_or_hit() {
         let (p, q) = (Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 2.0, 3.0));

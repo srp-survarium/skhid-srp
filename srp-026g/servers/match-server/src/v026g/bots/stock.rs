@@ -161,6 +161,66 @@ pub struct Press {
     /// that is no bullet (a zone, a fall, a blast) stops nothing in the game but is read as one (LIKELY rare
     /// within a drug's few seconds).
     pub hit: Option<u32>,
+    /// [Gap 11] Its course as the last trusted world past [`PRESS_LAG_MS`] after the press showed it
+    /// ([`Pantry::courses`]); `None`: no world yet, or `HealTuning::course_from_world` off.
+    pub world: Option<Course>,
+}
+
+/// [Gap 11] A drug's course as a world made at `t` shows it (the item's `m_active`, `m_delay_ms`, `m_activity_time_ms`, the
+/// two times LEFT: `medkit::set_active` 0x33D390 sets them whole at the press, `medkit::tick` 0x33D790 counts the delay down
+/// and then the activity, and stops it at the holder's death; patch 84 stops it at a bullet hit).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Course {
+    /// Running: it heals from `heals_from` (t + the delay left) to `ends` (that + the activity left), ms.
+    Running { heals_from: u32, ends: u32 },
+    /// Not running at the world made at `by`: over by then (its end, or a hit that stopped it).
+    Over { by: u32 },
+}
+
+/// [Gap 11] One drug of a kit as a world shows it: the drug, its quick-use key (0 on, the kit's own slot order) and its
+/// course: `(delay left, activity left)` while active, ms.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ShownDrug {
+    pub drug: Drug,
+    pub quick: usize,
+    pub course: Option<(u32, u32)>,
+}
+
+/// [Gap 11] A press whose course a world changed ([`Pantry::courses`]): the drug, the press's time, the course it had
+/// (`None`: the table's) and the world's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CourseChange {
+    pub drug: Drug,
+    pub pressed: u32,
+    pub was: Option<Course>,
+    pub now: Course,
+}
+
+/// [Gap 11] The drugs of the kit `kit` a world shows, with the keys of the kit's own slot order (as [`readings`]) and each
+/// item's course by its slot (`world_validation::PlaceWorld::medkits`: `(delay left, activity left)` when active).
+pub fn world_courses(
+    kit: usize,
+    medkits: &[(u8, Option<(u32, u32)>)],
+    profile: &MatchProfile,
+    dictionary: &Dictionary,
+) -> Vec<ShownDrug> {
+    let Some(kit) = profile.kits.get(kit) else {
+        return Vec::new();
+    };
+    QUICK_USE_ORDER
+        .iter()
+        .copied()
+        .filter(|&slot| kit.slots[usize::from(slot)].is_some_and(|(_, count)| count > 0))
+        .take(QUICK_KEYS)
+        .enumerate()
+        .filter_map(|(quick, slot)| {
+            let (index, _) = kit.slots[usize::from(slot)]?;
+            let item = profile.items.get(usize::from(index))?;
+            let drug = dictionary.item(item.dict_id).and_then(|row| Drug::of_name(&row.name))?;
+            let &(_, course) = medkits.iter().find(|&&(at, _)| at == slot)?;
+            Some(ShownDrug { drug, quick, course })
+        })
+        .collect()
 }
 
 /// One drug of one kit in a world, as [`readings`] has it.
@@ -263,6 +323,8 @@ pub struct PantryCounts {
     /// Units pressed, by drug ([`Drug::ALL`] order), and presses into an empty slot (the game does nothing then).
     pub pressed: [u32; Drug::ALL.len()],
     pub empty_presses: u32,
+    /// [Gap 11] Presses whose course a world gave ([`Pantry::courses`]), a world each.
+    pub world_courses: u32,
 }
 
 impl PantryCounts {
@@ -270,8 +332,8 @@ impl PantryCounts {
     pub fn line(&self) -> String {
         let [medkits, bandages, antitoxins, military] = self.pressed;
         format!(
-            "spawns {} (short {}), medkits {medkits}, bandages {bandages}, antitoxins {antitoxins}, military {military}, empty presses {}",
-            self.spawns, self.short_spawns, self.empty_presses
+            "spawns {} (short {}), medkits {medkits}, bandages {bandages}, antitoxins {antitoxins}, military {military}, empty presses {}, courses from worlds {}",
+            self.spawns, self.short_spawns, self.empty_presses, self.world_courses
         )
     }
 }
@@ -284,6 +346,7 @@ impl std::ops::AddAssign for PantryCounts {
             *mine += theirs;
         }
         self.empty_presses += other.empty_presses;
+        self.world_courses += other.world_courses;
     }
 }
 
@@ -506,12 +569,50 @@ impl Pantry {
         };
         held.hand -= 1;
         held.total = held.total.saturating_sub(1);
-        held.pressed = Some(Press { at: now, hit: None });
+        held.pressed = Some(Press { at: now, hit: None, world: None });
         let drug = held.drug;
         if let Some(at) = Drug::ALL.iter().position(|&d| d == drug) {
             self.counts.pressed[at] += 1;
         }
         true
+    }
+
+    /// [Gap 11] A trusted world made at `time` shows the kit `kit` with the courses `shown` ([`world_courses`]): each
+    /// press of the kit in use that the world is late enough for ([`PRESS_LAG_MS`]) takes the world's course
+    /// ([`Press::world`]): running, with its heal start and end; or over by the world's time. Returns the presses whose
+    /// course changed, with the course the table and the hits gave before (for the log).
+    pub fn courses(&mut self, time: u32, kit: usize, shown: &[ShownDrug]) -> Vec<CourseChange> {
+        let mut changed = Vec::new();
+        if kit != self.kit {
+            return changed;
+        }
+        let mut read = 0;
+        for held in self.kit_at(kit) {
+            let Some(press) = held.pressed.as_mut() else {
+                continue;
+            };
+            if time < press.at.saturating_add(PRESS_LAG_MS) {
+                continue;
+            }
+            let Some(course) = shown.iter().find(|shown| shown.drug == held.drug && shown.quick == held.quick).map(|shown| shown.course)
+            else {
+                continue;
+            };
+            let now = match course {
+                Some((delay, activity)) => {
+                    let heals_from = time.saturating_add(delay);
+                    Course::Running { heals_from, ends: heals_from.saturating_add(activity) }
+                }
+                None => Course::Over { by: time },
+            };
+            let was = press.world.replace(now);
+            if was.is_none_or(|was| was != now && !matches!((was, now), (Course::Over { .. }, Course::Over { .. }))) {
+                changed.push(CourseChange { drug: held.drug, pressed: press.at, was, now });
+            }
+            read += 1;
+        }
+        self.counts.world_courses += read;
+        changed
     }
 
     /// A trusted world made at `time` showed `readings`: the kits hold what
@@ -889,6 +990,14 @@ mod tests {
         let (medkit, bandages) = (of("medkit"), of("bandages"));
         assert_eq!((medkit.in_hand, medkit.stored), (Some(2), 20));
         assert_eq!((bandages.in_hand, bandages.stored), (Some(2), 18));
+        // [Gap 11] The pockets of the kit in use, as the bots' own stacks read them.
+        let pockets = super::super::pockets::WorldPockets::of(&supplies, &live.profile).expect("alive, read");
+        assert_eq!(pockets.kit, 1);
+        let shown: Vec<_> = pockets.slots.iter().flatten().map(|(name, stack)| (*name, stack.in_hand, stack.stored)).collect();
+        assert!(shown.contains(&("medkit", 2, 20)) && shown.contains(&("bandages", 2, 18)), "{shown:?}");
+        let mut dead = supplies.clone();
+        dead.alive = false;
+        assert_eq!(super::super::pockets::WorldPockets::of(&dead, &live.profile), None, "a dead body's stacks are in store");
         // `Supplies::left`: the slots and the store.
         let left = supplies.left();
         assert_eq!(left[&medkit.dict_id], 22);
@@ -938,13 +1047,66 @@ mod tests {
         let press = |pantry: &Pantry| pantry.at_key(0).and_then(|held| held.pressed);
         pantry.hit(0);
         pantry.hit(9_500);
-        assert_eq!(press(&pantry), Some(Press { at: 10_000, hit: None }), "none, and a hit before the press");
+        assert_eq!(press(&pantry), Some(Press { at: 10_000, hit: None, world: None }), "none, and a hit before the press");
         pantry.hit(11_200);
         pantry.hit(12_000);
-        assert_eq!(press(&pantry), Some(Press { at: 10_000, hit: Some(11_200) }), "the first after it stays");
+        assert_eq!(press(&pantry), Some(Press { at: 10_000, hit: Some(11_200), world: None }), "the first after it stays");
         pantry.new_life(0);
         assert_eq!(press(&pantry), None);
     }
+    /// [Gap 11] A press takes its course from the first world late enough for it (`PRESS_LAG_MS`): running, its heal start
+    /// and end the world's times left past the world's time; then over, once a world shows it not active. A world of
+    /// another kit, or of a drug not pressed, changes nothing.
+    #[test]
+    fn a_press_takes_its_course_from_a_late_enough_world() {
+        let mut pantry = Pantry::standard();
+        pantry.new_life(0);
+        assert!(pantry.pressed(0, 10_000));
+        let world = |pantry: &Pantry| pantry.at_key(0).and_then(|held| held.pressed).and_then(|press| press.world);
+        let medkit = |course| [ShownDrug { drug: Drug::Medkit, quick: 0, course }];
+        pantry.courses(10_200, 0, &medkit(Some((1_800, 3_000))));
+        assert_eq!(world(&pantry), None, "a world too new for the press");
+        pantry.courses(10_000 + PRESS_LAG_MS, 1, &medkit(Some((1_500, 3_000))));
+        assert_eq!(world(&pantry), None, "another kit");
+        pantry.courses(10_000 + PRESS_LAG_MS, 0, &medkit(Some((1_500, 3_000))));
+        assert_eq!(world(&pantry), Some(Course::Running { heals_from: 12_000, ends: 15_000 }));
+        pantry.courses(13_000, 0, &medkit(None));
+        assert_eq!(world(&pantry), Some(Course::Over { by: 13_000 }), "stopped before its end");
+        assert_eq!(pantry.counts().world_courses, 2);
+        pantry.new_life(0);
+        assert_eq!(world(&pantry), None);
+    }
+
+    /// [Gap 11] A world's slots name the drugs by the kit's own key order: the medkit item's course goes to its key.
+    #[test]
+    fn the_worlds_courses_go_by_the_kits_keys() {
+        use super::live_kit::live_kit;
+        let live = live_kit();
+        let dictionary = Dictionary::shared();
+        let kit = &live.profile.kits[1];
+        let slot_of = |want: Drug| {
+            QUICK_USE_ORDER.iter().copied().find(|&slot| {
+                kit.slots[usize::from(slot)].is_some_and(|(index, count)| {
+                    count > 0
+                        && dictionary
+                            .item(live.profile.items[usize::from(index)].dict_id)
+                            .and_then(|row| Drug::of_name(&row.name))
+                            == Some(want)
+                })
+            })
+        };
+        let (medkit, bandages) = (slot_of(Drug::Medkit).expect("a medkit"), slot_of(Drug::Bandages).expect("bandages"));
+        let shown = world_courses(1, &[(medkit, Some((500, 3_000))), (bandages, None)], &live.profile, dictionary);
+        assert_eq!(
+            shown,
+            vec![
+                ShownDrug { drug: Drug::Medkit, quick: 0, course: Some((500, 3_000)) },
+                ShownDrug { drug: Drug::Bandages, quick: 1, course: None }
+            ]
+        );
+        assert!(world_courses(7, &[(medkit, None)], &live.profile, dictionary).is_empty(), "a kit the profile lacks");
+    }
+
     /// [A341, F65] The client's reading of a kit's medical modifiers: 302 at 2 (bits 3..5), 311 at 5 (bits 6..8), 312 at 3
     /// (bits 9..11, and `drug_amount` 0.24) give a delay x0.9, amounts x1.24 and regeneration 2.5 s sooner; a value the client
     /// refuses (not an exact integer, a rank over its field's cap: 302 at 3, 311 at 6) is no skill; no skill is the identity.

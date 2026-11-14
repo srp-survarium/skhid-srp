@@ -494,6 +494,13 @@ impl WalkGrid {
         self
     }
 
+    /// [A388] Keeps `world` as the client's walker: the game's shapes met by the exe's own cast
+    /// ([`crate::controller::Collision::build_exe`]), for [`Self::client_step`] and the reckoning's kept controller.
+    pub fn with_client_world(mut self, world: crate::controller::Collision) -> Self {
+        self.walker = Some(std::sync::Arc::new(world));
+        self
+    }
+
     /// [A334] The grid with the routes' pulled legs walked by the client's walker ([`Self::pull_walk_fails`]); it needs the
     /// walker ([`Self::with_client_walker`]), and without it nothing fails.
     pub fn with_pull_walk(mut self) -> Self {
@@ -567,12 +574,17 @@ impl WalkGrid {
     }
 
     /// [A364 P9] One tick of a kept body (`player_step` with what the game's logic hands it: `Controller::tick`) on the grid's
-    /// walker with its body's settings; false (and nothing moved) without [`Self::with_client_walker`].
-    pub fn kept_tick(&self, body: &mut Controller, input: TickInput) -> bool {
-        let Some(world) = self.walker.as_deref() else { return false };
+    /// walker with its body's settings, and what the step did (its `airborne`: `step_down` 0x7E1B0 found no ground under it);
+    /// none (and nothing moved) without [`Self::with_client_walker`].
+    pub fn kept_tick(&self, body: &mut Controller, input: TickInput) -> Option<crate::controller::tick::StepNotes> {
+        let world = self.walker.as_deref()?;
         let (_, s) = self.body.controller();
-        body.tick(world, 0.05, &s, input);
-        true
+        Some(body.tick(world, 0.05, &s, input))
+    }
+
+    /// [A388] Whether the grid keeps the client's walker ([`Self::with_client_walker`], [`Self::with_client_world`]).
+    pub fn has_client_walker(&self) -> bool {
+        self.walker.is_some()
     }
 
     /// [A366] The walkable top of the client's walker (the map's walker triangles) under `at` (flat) from `from_y` down to `reach`

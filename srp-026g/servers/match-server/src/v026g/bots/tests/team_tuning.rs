@@ -346,6 +346,7 @@ fn collectors_of_a_wide_zone(damage: mapdata::Damage, mut team0: Tuning, mut tea
             name: "toxic".into(),
             team: -1,
             position: Vec3::new(25.0, 0.0, 32.0),
+            protection: None,
             damage_type: "toxic".into(),
             damage: Some(damage),
             shapes: vec![Shape {
@@ -835,6 +836,47 @@ fn a_hit_is_a_teams_own_by_its_own_credit_window() {
     bots.bots[0].as_mut().unwrap().reflex.fired_on(1, 13_900);
     bots.bullet_hit(1, 14_000);
     assert_eq!(bots.teams[0].knowledge.wounds.hurt(1, 0, 14_000, 0, 400), before);
+}
+
+/// [Gap 14] A bot's fight decisions go by its last hit only when the worlds show it was an enemy's (its received damage
+/// grew in that world's interval): a zone's or a fall's hit leaves the last enemy hit as it was. With `combat.hit_kind`
+/// off (team 1) any hit counts, as before.
+#[test]
+fn a_bots_fight_hit_is_an_enemys_by_its_received_damage() {
+    use crate::v026g::bots::motor::Hurt;
+    let mut off = Tuning::default();
+    off.aim.combat.hit_kind = false;
+    let mut bots = Bots::new_with(
+        0x14A,
+        Mode::Batteries,
+        6,
+        &[0, 1],
+        &[true, true],
+        &[None, None],
+        tunings(Tuning::default(), off),
+        Trace::none(0),
+    );
+    let world = |bots: &mut Bots, time: u32, last_hit: u32, received: [f32; 2]| {
+        bots.received_damage(Some(received.to_vec()));
+        for place in [0, 1] {
+            bots.hurt(place, Hurt::of([None, None], last_hit, time));
+            bots.hit_kind(place, time);
+        }
+    };
+    let fight_hit = |bots: &Bots, place: usize| bots.bots[place].as_ref().unwrap().fight_hit_ms;
+    world(&mut bots, 2_000, 0, [0.0, 0.0]);
+    // A bullet at 3.1 s: the received damage grew.
+    world(&mut bots, 4_000, 3_100, [20.0, 20.0]);
+    assert_eq!((fight_hit(&bots, 0), fight_hit(&bots, 1)), (Some(3_100), Some(3_100)));
+    // A zone's hit at 5.5 s: no growth. Team 0 keeps the enemy's hit; team 1 (off) takes any.
+    world(&mut bots, 6_000, 5_500, [20.0, 20.0]);
+    assert_eq!((fight_hit(&bots, 0), fight_hit(&bots, 1)), (Some(3_100), Some(5_500)));
+    // A world with no statistics: that world's last hit is taken as any hit (the old rule), and the world counted.
+    bots.received_damage(None);
+    bots.hurt(0, Hurt::of([None, None], 7_000, 8_000));
+    bots.hit_kind(0, 8_000);
+    assert_eq!(fight_hit(&bots, 0), Some(7_000));
+    assert_eq!(bots.hit_kinds(), (2, 2, 1));
 }
 
 /// [A334] The server's poll and the bench's timed copy of it start a poll with the same budgets (`Bots::poll_budgets`): the

@@ -1265,6 +1265,7 @@ va	name	source	ret_cleanup	result
 0x002f0d30	survarium::character_dispersion_params::load	manual	8	
 0x002f1050	survarium::character_dispersion_skill_influence::load	manual	4	
 0x002f12a0	survarium::player_stealth::load	manual	4	
+0x002f58e0	survarium::shared_statistics::add_received_damage	manual	8	AL = the inflictor's id: 0xFF (no inflictor: a zone, a fall) adds nothing (0x2F58E2); an inflictor of the receiver's team (the records' team +45ECh, stride 45FCh) adds nothing (0x2F590B..0x2F5914); else received_damage[receiver][inflictor][kit] += XMM0 (0x2F5916..0x2F592F)
 0x002f5940	survarium::shared_statistics::on_trap_hit	manual		reached only from booby_trap_core::hit_victim 0x304B80 (handler slot +28h, thunk 0x26DB20); enemies only: last_hit_ms[receiver] (+198h) := the time, last_hit_enemy_id (+1ECh) := receiver, event 21 +1
 0x002f5ac0	survarium::shared_statistics::serialize	manual	0	
 0x002f5be0	survarium::shared_statistics::deserialize	manual	0	
@@ -1314,9 +1315,9 @@ va	name	source	ret_cleanup	result
 0x00305540	survarium::booby_trap_core::hit_by_type	manual	28h	none; the hit receiver's vtable +24h (bullets 0x32DA3A, splash): when the 4th argument (the hit type) == the set's +298h defuse_by_hit (absent: 8, none), is_explosive (+220h) ? explode (vfn +40h) : disarm 0x3050C0; no team test
 0x00305ea0	survarium::booby_trap_set_core::try_to_place_trap	manual	4	AL = a trap was placed
 0x00306490	survarium::booby_trap_set_core::get_visible_place_transform	manual	20	AL = a place was found; the 64-byte transform is written through a stack pointer argument
-0x00306720	survarium::booby_trap_set_core::action	manual	8	
+0x00306720	survarium::booby_trap_set_core::action	manual	8	the stack's amount - 1 only when it is > 0, the argument is 0 and the placement try_to_place_trap 0x305EA0 returns true (0x306745..0x306779): a release that places nothing keeps the trap
 0x00309f00	survarium::grenade_set_core::hand_transform	manual	4	EAX: the out pointer (the hand matrix written there)
-0x0030a120	survarium::grenade_set_core::start_throw	manual	8	AL: the slot; the explosion time goes to the grenade's vtable+0x10 (0x248460: time, id, owner node, 0)
+0x0030a120	survarium::grenade_set_core::start_throw	manual	8	AL: the slot; the explosion time goes to the grenade's vtable+0x10 (0x248460: time, id, owner node, 0); the grenade stack's amount (+260h) - 1 (0x30A18D); called only from weapon_core_throw_grenade_pull_pin_substate::initialize 0x3103A0 (0x3103D7) with the player's time (+324h): the unit leaves as the throw begins and nothing gives it back
 0x0030a250	survarium::grenade_set_core::launch_grenade	manual	12	
 0x0030d750	survarium::computed_show_animation_time_scale	manual	0	XMM0 low32: (end - start) x (1/30) / time, the animation's length over the wanted time
 0x0030da60	survarium::weapon_core_animation_end_aware_state::initialize	manual	0	
@@ -1500,9 +1501,9 @@ va	name	source	ret_cleanup	result
 0x0033cac0	survarium::medkit::medkit	manual	4	
 0x0033d2b0	survarium::medkit::`scalar deleting destructor'	manual	4	
 0x0033d2d0	survarium::medkit::~medkit	manual		
-0x0033d390	survarium::medkit::set_active	manual	8	
-0x0033d700	survarium::medkit::action	manual	8	
-0x0033d790	survarium::medkit::tick	manual	12	
+0x0033d390	survarium::medkit::set_active	manual	8	set_active(1): m_activity_time_ms (+2A8h) := the activity time through modifier 34 (0x33D3EF..0x33D43A); m_delay_ms (+2ACh) := the activation delay through modifier 33 (0x33D45A..0x33D491): both are the time LEFT
+0x0033d700	survarium::medkit::action	manual	8	a press with the drug not active (+2B0h) and the stack > 0: set_active(1, t), then amount - 1 in the same call (0x33D736..0x33D765)
+0x0033d790	survarium::medkit::tick	manual	12	the holder dead -> set_active(0) (0x33D7AE); the delay left -= min(delay, dt), nothing more while it is left; then the activity left; the first active tick (activity == full) removes the wounds (0x33D860..0x33D892); activity 0 -> set_active(0) (0x33DA2D..0x33DA3E)
 0x0033da50	survarium::medkit::remove_affects	manual	4	
 0x0033db30	survarium::medkit::reduce_damage	manual	12	
 0x0033dbd0	survarium::medkit::serialize	manual	8	

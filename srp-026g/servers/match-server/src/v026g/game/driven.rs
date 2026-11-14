@@ -750,6 +750,20 @@ impl Game {
                 statistics.players.iter().map(|player| player.events[event::BULLET_HIT].iter().map(|&n| u32::from(n)).sum()).collect();
             walkers.bots.hit_markers(&hits);
         }
+        // [Gap 14] Each place's received damage from enemies (statistics `received_damage`, over its kits and inflictors).
+        if decoded.statistics.is_none() {
+            log::debug!(
+                "Match {id:#x}: a world at {} ms has no statistics: the bots take any last hit as a fight's ({} such bot worlds so far)",
+                snapshot.time,
+                walkers.bots.hit_kinds().2
+            );
+        }
+        walkers.bots.received_damage(
+            decoded
+                .statistics
+                .as_ref()
+                .map(|statistics| statistics.players.iter().map(|player| player.received_damage.iter().flatten().sum()).collect()),
+        );
         for (place, world) in checked.places.iter().enumerate() {
             let Some(world) = world else {
                 continue;
@@ -806,6 +820,7 @@ impl Game {
                 let hurt = Hurt::of(legs, damage.last_hit_time_ms, snapshot.time)
                     .with_leg_damage(LegDamage::of(&leg_ends, snapshot.time));
                 walkers.bots.hurt(place, hurt);
+                walkers.bots.hit_kind(place, snapshot.time);
                 // [2e] The body's recent hits (`m_recent_hits`): its stagger in the reckoning.
                 walkers.bots.hits(place, &motion.recent_hits);
                 if let Some(pools) = Pools::of_world(&damage.part_health) {
@@ -859,6 +874,29 @@ impl Game {
                 && let Some(gun) = crate::v026g::bots::guns::GunWorld::of(snapshot.time, &world.supplies, &world.guns, profile)
             {
                 walkers.bots.own_gun(place, gun);
+            }
+            // [Gap 11] A bot's own pocket stacks of the kit in use: grenades, smokes, traps.
+            if let Some(profile) = self.formed.profiles.get(place)
+                && let Some(pockets) = crate::v026g::bots::pockets::WorldPockets::of(&world.supplies, profile)
+            {
+                walkers.bots.own_stacks(place, snapshot.time, &pockets);
+            }
+            // [Gap 11] A bot's own drug courses (the medkit items' `m_active` and times left) in the kit in use.
+            if world.supplies.alive
+                && let Some(profile) = self.formed.profiles.get(place)
+            {
+                let kit = usize::from(world.supplies.kit);
+                let shown = crate::v026g::bots::stock::world_courses(kit, &world.medkits, profile, survarium::v026g::dictionary::Dictionary::shared());
+                for change in walkers.bots.courses(place, snapshot.time, kit, &shown) {
+                    log::debug!(
+                        "Match {id:#x}: player {place} (the server's bot): {:?} pressed at {} ms, its course from the world at {} ms: {:?} (was {:?})",
+                        change.drug,
+                        change.pressed,
+                        snapshot.time,
+                        change.now,
+                        change.was
+                    );
+                }
             }
         }
         // [Gap 8] Each bot's enemies that cannot be hurt now.
@@ -1344,7 +1382,7 @@ mod tests {
         };
         let life = |pockets: &mut KitPockets| {
             let mut thrown = 0;
-            while pockets.throw_grenade(key::GRENADE).is_some() && thrown < 10 {
+            while pockets.throw_grenade(key::GRENADE, 0).is_some() && thrown < 10 {
                 thrown += 1;
             }
             thrown
@@ -1441,14 +1479,14 @@ mod tests {
         let Throws::Human(mut first_only) = Throws::of_profile(&profile, Player::Human, false) else {
             panic!("pockets");
         };
-        assert!(first_only.throw_grenade(key::GRENADE).is_none());
+        assert!(first_only.throw_grenade(key::GRENADE, 0).is_none());
         let Throws::Human(mut all) = Throws::of_profile(&profile, Player::Human, true) else {
             panic!("pockets");
         };
-        assert!(all.throw_grenade(key::GRENADE).is_none(), "kit 1 in use: a medkit");
+        assert!(all.throw_grenade(key::GRENADE, 0).is_none(), "kit 1 in use: a medkit");
         let kit = all.kit(1).expect("the profile has a second kit");
         all.use_kit(kit);
-        assert!(all.throw_grenade(key::GRENADE).is_some(), "kit 2 in use: the frag");
+        assert!(all.throw_grenade(key::GRENADE, 0).is_some(), "kit 2 in use: the frag");
         assert!(all.kit(2).is_none());
     }
 

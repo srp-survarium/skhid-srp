@@ -402,6 +402,7 @@ pub(crate) fn baked_places(world: &World, places: &[Vec3], radius: f32) -> World
             name: format!("baked_field_{k}"),
             team: -1,
             position: *at,
+            protection: None,
             damage_type: "toxic".into(),
             damage: Some(Damage { max_hit: hit_per_s(FieldKind::Lifebone) / 2.0, parts: 2, continuous: true, ..Damage::default() }),
             shapes: vec![Shape {

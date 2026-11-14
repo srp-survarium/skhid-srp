@@ -1050,6 +1050,7 @@ mod tests {
                 name: "acid".into(),
                 team: -1,
                 position: at,
+                protection: None,
                 damage_type: "toxic".into(),
                 damage: Some(Damage {
                     max_hit: 0.25,
@@ -1109,6 +1110,7 @@ mod tests {
                 name: "radiation".into(),
                 team: -1,
                 position: feet,
+                protection: None,
                 damage_type: "radiation".into(),
                 damage: Some(Damage {
                     max_hit: 0.01,

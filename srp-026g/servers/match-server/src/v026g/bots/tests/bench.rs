@@ -867,6 +867,7 @@ pub(crate) fn real_bot_cost() {
             open_sides: bench_open_sides(),
             pull_hold: bench_tuning().grid.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M),
             pull_walk: bench_tuning().grid.pull_walk,
+            walker_shapes: bench_tuning().grid.walker_shapes,
         };
         // From the cache of built grids and sight trees when the run has one (`SRP_BENCH_GRID_CACHE`), else built.
         let world = Arc::new(super::grid_cache::world(map, map_file, mapdata::CELL, bench_tuning().grid_body(), links, extras));
@@ -1814,8 +1815,10 @@ pub(crate) fn real_bot_cost() {
                     let all_hits = game.hits_at(world_tick).unwrap_or_default();
                     let staminas = game.staminas_at(world_tick).unwrap_or_default();
                     let mut handling = thread_cpu();
+                    bots.received_damage(game.received_at(world_tick));
                     for (place, hurt) in hurts.into_iter().enumerate() {
                         bots.hurt(place, hurt);
+                        bots.hit_kind(place, world_tick);
                     }
                     for (place, hits) in all_hits.into_iter().enumerate() {
                         bots.hits(place, &hits);
@@ -2546,6 +2549,11 @@ pub(crate) fn real_bot_cost() {
                 "{project} {per_team}v{per_team}: pull walk ticks a poll: max {}",
                 mapdata::grid::controlled::pull_walk_ticks_max_take()
             );
+            // [A388] The client's walker's bytes (the game's shapes with `grid.walker_shapes`, else the walker triangles).
+            eprintln!(
+                "{project} {per_team}v{per_team}: client walker bytes {}",
+                bots.tactics.as_ref().map_or(0, |t| t.world.grid.client_walker_bytes())
+            );
             eprintln!(
                 "{project} {per_team}v{per_team}: world built in {built_s:.2} s, map_ready {ready_ms:.1} ms ({summary})\n  \
                  {limit_s} s of play: bots {:.1} ms a second = {:.2} % of a core; per bot {:.3} %\n  \
@@ -2577,6 +2585,8 @@ pub(crate) fn real_bot_cost() {
             // [A318] Whether the reckoning takes the client's walk tick in the bench's matches (it did not before the world's walker).
             eprintln!("route hash: camper {:016x} bots {:016x}", bots.bench_route_hash[0], bots.bench_route_hash[1]);
             eprintln!("walker_holds so far: {}", crate::v026g::bots::body::walker_holds::count());
+            let (left, ground, held) = crate::v026g::bots::body::kept_edges::counts();
+            eprintln!("kept edges so far: left the floor {left}, the walker's ground under the feet {ground}, no floor under it {held}");
             let gate = crate::v026g::bots::drive::press_gate::counts();
             eprintln!("jump press gate so far: let through {}, dropped in the air {}, held through a crouch {}", gate[0], gate[1], gate[2]);
             let saved = crate::v026g::bots::stamina::counts::saved_worlds();

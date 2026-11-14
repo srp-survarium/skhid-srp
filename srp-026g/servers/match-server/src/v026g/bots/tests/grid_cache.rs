@@ -147,7 +147,7 @@ pub(super) fn world(
         |grid, path| grid.write(path, grid_key),
     );
     let grid_s = started.elapsed().as_secs_f32();
-    let grid = extras.apply(grid, &walker);
+    let grid = extras.apply(grid, &walker, &map);
     drop(walker);
     let extras_s = started.elapsed().as_secs_f32() - grid_s;
     let bullet = map.bullet_mesh();

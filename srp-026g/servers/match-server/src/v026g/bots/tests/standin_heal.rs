@@ -594,6 +594,8 @@ pub(crate) struct Seen {
     pub(crate) last_hit_ms: u32,
     /// [Gap 9] Its hits on enemies so far (the statistics' event 23): the bots' hit marker.
     pub(crate) enemy_hits: u32,
+    /// [Gap 14] Its received damage from enemies so far ([`super::standin::Body::received`]).
+    pub(crate) received: f32,
 }
 
 /// A press of a quick-use key: the tick, the place, what it did, and the
@@ -707,6 +709,7 @@ pub(crate) fn seen(body: &Body) -> Seen {
         readings: body.heal.readings(body.alive),
         last_hit_ms: body.last_hit,
         enemy_hits: 0,
+        received: body.received,
     }
 }
 

@@ -126,10 +126,10 @@ impl Riser {
 /// A rim link made: where it goes, its press and share, and a sprint link's walking press.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct Made {
-    to: NodeId,
-    press: Takeoff,
-    share: Share,
-    walk: Option<(PressLead, Share)>,
+    pub(super) to: NodeId,
+    pub(super) press: Takeoff,
+    pub(super) share: Share,
+    pub(super) walk: Option<(PressLead, Share)>,
 }
 
 impl WalkGrid {
@@ -140,13 +140,14 @@ impl WalkGrid {
     /// Plant (-64.71, 7.58, 45.97): a walking press let go at its landing rests there, on the 7.625 strip (one cell row, its
     /// floors' centres at z 45.625, 0.35 m across), its own cell's floors 12.2 m up.
     pub(super) fn floor_under(&self, feet: Vec3) -> Option<NodeId> {
-        let near = |f: NodeId| (self.height[f as usize] - feet.y).abs() <= LAND_HEIGHT_M;
+        // [A389] On a `walk` face the body is on the floor anywhere down the face in the cell ([`super::Body::walk_face_stands`]).
+        let near = |f: NodeId| self.stand_gap(f, feet.y) <= LAND_HEIGHT_M;
         let i = ((feet.x - self.x0) / self.cell).floor() as i32;
         let k = ((feet.z - self.z0) / self.cell).floor() as i32;
         let cell = self.cell_index(i, k)?;
         let own = (self.start[cell]..self.start[cell + 1])
             .filter(|&f| near(f))
-            .min_by(|&p, &q| (self.height[p as usize] - feet.y).abs().total_cmp(&(self.height[q as usize] - feet.y).abs()));
+            .min_by(|&p, &q| self.stand_gap(p, feet.y).total_cmp(&self.stand_gap(q, feet.y)));
         if own.is_some() {
             return own;
         }
@@ -367,7 +368,7 @@ fn rank(kind: Kind) -> u8 {
 
 /// The leads a gap link may carry: [`gap::GAP_PRESS_MIN_M`] to [`gap::GAP_PRESS_MAX_M`] by [`gap::GAP_PRESS_STEP_M`] (the built
 /// file's range, `PressLead::is_valid`).
-fn gap_leads() -> Vec<f32> {
+pub(super) fn gap_leads() -> Vec<f32> {
     let n = ((gap::GAP_PRESS_MAX_M - gap::GAP_PRESS_MIN_M) / gap::GAP_PRESS_STEP_M).round() as usize;
     (0..=n).map(|i| gap::GAP_PRESS_MIN_M + gap::GAP_PRESS_STEP_M * i as f32).collect()
 }

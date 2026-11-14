@@ -26,7 +26,8 @@ use survarium::v026g::match_msgs::static_info::MatchProfile;
 use survarium::v026g::weapons::is_grenade_item;
 
 use super::arc::{self, Grenade};
-use super::pockets::{ProfilePockets, quick_use_order};
+use super::pockets::{ProfilePockets, WorldStack, quick_use_order};
+use super::stock::PRESS_LAG_MS;
 use super::view::Place;
 use crate::v026g::drive::key;
 
@@ -143,6 +144,20 @@ pub struct Pocket {
     pub left: u16,
     pub store: Store,
     pub grenade: Grenade,
+    /// [Gap 11] When a press last took a unit of this life (the key's time); `None`: none yet. A world made before
+    /// [`PRESS_LAG_MS`] after it is no word on that unit ([`Pockets::read`]).
+    pub counted: Option<u32>,
+}
+
+/// [Gap 11] What a world's stacks did to a place's pockets ([`Pockets::read`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StacksRead {
+    /// Pockets whose units the world gave.
+    pub read: u32,
+    /// ... of them, units other than the count's.
+    pub changed: u32,
+    /// Pockets a press newer than the world kept at the count.
+    pub held: u32,
 }
 
 /// The item's storage behind a pocket's slot: a spawn fills the slot from it, `min(full, storage)`, and a death puts
@@ -179,6 +194,7 @@ impl Pockets {
                     left: units,
                     store: Store::Unread,
                     grenade: *Grenade::bots(),
+                    counted: None,
                 })
             }),
         }
@@ -211,6 +227,7 @@ impl Pockets {
     /// does at a death and a spawn.
     pub fn refill(&mut self) {
         for pocket in self.slots.iter_mut().flatten() {
+            pocket.counted = None;
             match pocket.store {
                 Store::Unread => pocket.left = pocket.full,
                 Store::Units(units) => {
@@ -278,16 +295,43 @@ impl Pockets {
     }
 
     /// The grenade the keys `pressed` (just gone down) throw, if any: one unit is taken.
+    #[cfg(test)]
     pub fn throw(&mut self, pressed: u32) -> Option<Pocketed> {
-        self.throw_grenade(pressed).map(|(item, _)| item)
+        self.throw_grenade(pressed, 0).map(|(item, _)| item)
     }
 
-    /// [`Self::throw`] with the numbers of the grenade that was thrown.
-    pub fn throw_grenade(&mut self, pressed: u32) -> Option<(Pocketed, Grenade)> {
+    /// The grenade the keys `pressed` throw at `time`, with its numbers, if any: one unit is taken, counted at `time`
+    /// (the client takes it as the throw begins: `grenade_set_core::start_throw` 0x30A120, called only from the pull-pin
+    /// step's start 0x3103A0, the press's tick; nothing gives it back).
+    pub fn throw_grenade(&mut self, pressed: u32, time: u32) -> Option<(Pocketed, Grenade)> {
         let i = self.throws_from(pressed)?;
         let pocket = self.slots[i].as_mut()?;
         pocket.left -= 1;
+        pocket.counted = Some(time);
         Some((pocket.item, pocket.grenade))
+    }
+
+    /// [Gap 11] A world made at `time` shows `stacks` in these pockets (by slot, `None`: not shown): each pocket holds
+    /// the world's units and storage, unless a press of this life took a unit less than [`PRESS_LAG_MS`] before the
+    /// world (the world may not show it yet: the count stands). A press the client did not act on is so undone.
+    pub fn read(&mut self, time: u32, stacks: [Option<WorldStack>; 6]) -> StacksRead {
+        let mut out = StacksRead::default();
+        for (slot, stack) in self.slots.iter_mut().zip(stacks) {
+            let (Some(pocket), Some(stack)) = (slot.as_mut(), stack) else {
+                continue;
+            };
+            if pocket.counted.is_some_and(|at| time < at.saturating_add(PRESS_LAG_MS)) {
+                out.held += 1;
+                continue;
+            }
+            out.read += 1;
+            out.changed += u32::from(pocket.left != stack.in_hand);
+            pocket.left = stack.in_hand;
+            if let Store::Units(_) = pocket.store {
+                pocket.store = Store::Units(stack.stored);
+            }
+        }
+        out
     }
 }
 
@@ -352,8 +396,13 @@ impl KitPockets {
     }
 
     /// [`Pockets::throw_grenade`] on the kit in use.
-    pub fn throw_grenade(&mut self, pressed: u32) -> Option<(Pocketed, Grenade)> {
-        self.kits[self.in_use.0].throw_grenade(pressed)
+    pub fn throw_grenade(&mut self, pressed: u32, time: u32) -> Option<(Pocketed, Grenade)> {
+        self.kits[self.in_use.0].throw_grenade(pressed, time)
+    }
+
+    /// [Gap 11] [`Pockets::read`] on the pockets of `kit` (the world's kit in use).
+    pub fn read(&mut self, kit: KitIndex, time: u32, stacks: [Option<WorldStack>; 6]) -> StacksRead {
+        self.kits[kit.0].read(time, stacks)
     }
 
     /// [`Pockets::frags`] of the kit in use.
@@ -543,6 +592,8 @@ pub struct ThrowCounts {
     pub quick_rules_differ: u32,
     /// A world named a kit the profile does not have (`Supplies::kit` out of range): kept the kit it had.
     pub unknown_kit: u32,
+    /// [Gap 11] A server bot's own pockets laid against the worlds' stacks ([`Pockets::read`]), summed.
+    pub stacks: StacksRead,
     /// Smoke grenades: seen, left out.
     pub smoke: u32,
     /// A throw key of a place with no pockets known (a late joiner, or a profile that did not read): not listed.
@@ -631,7 +682,7 @@ impl super::Bots {
             .collect::<Vec<_>>()
             .join(" ");
         format!(
-            "{} frags listed from pockets ({} a human's: {} by a quick-use key, {} from another kit than the first), {} assumed from a bot's key with its pockets read and no grenade left, {} listed from a bot's key with its pockets unread, {} smokes, {} throws with no pockets known, {} human throw keys that found no grenade, {} quick-use presses where the two numbering rules differ, {} kits named that the profile lacks, {} launched, {} unplaced, {} thrower dead; avoidance by the bot's team and whose the grenade is (told/saw/heard): {avoidance}; frag rolls refused, none in the kit: {refused}; frags by role (lives read/carrying/units carried/thrown): {carried}",
+            "{} frags listed from pockets ({} a human's: {} by a quick-use key, {} from another kit than the first), {} assumed from a bot's key with its pockets read and no grenade left, {} listed from a bot's key with its pockets unread, {} smokes, {} throws with no pockets known, {} human throw keys that found no grenade, {} quick-use presses where the two numbering rules differ, {} kits named that the profile lacks, bots' own pockets from the worlds: {} read ({} changed), {} held by a newer press; {} launched, {} unplaced, {} thrower dead; avoidance by the bot's team and whose the grenade is (told/saw/heard): {avoidance}; frag rolls refused, none in the kit: {refused}; frags by role (lives read/carrying/units carried/thrown): {carried}",
             counts.frag,
             counts.human_frag,
             counts.human_quick,
@@ -643,6 +694,9 @@ impl super::Bots {
             counts.human_empty,
             counts.quick_rules_differ,
             counts.unknown_kit,
+            counts.stacks.read,
+            counts.stacks.changed,
+            counts.stacks.held,
             counts.launched,
             counts.unplaced,
             counts.died_throwing,
@@ -1077,6 +1131,50 @@ mod tests {
     }
 
     /// `(0, bot)` and `(1, human)` with the pockets given, a bot's now read like a human's.
+    /// [Gap 11] A world's stack replaces the pocket's count, unless a press of this life took a unit too recently for the
+    /// world to show it: a press the client did not act on is undone at the next world past the lag, and the storage
+    /// follows the world's.
+    #[test]
+    fn a_world_stack_replaces_the_count_unless_a_press_is_newer() {
+        let stack = |in_hand, stored| Some(WorldStack { in_hand, stored });
+        let mut p = Pockets::new([None, Some((Pocketed::Frag, 2)), Some((Pocketed::Smoke, 1)), None, None, None])
+            .with_storage([None, Some(4), Some(1), None, None, None]);
+        assert_eq!(p.throw_grenade(key::GRENADE, 10_000).map(|t| t.0), Some(Pocketed::Frag));
+        assert_eq!(p.frags(), 1);
+        // A world made 200 ms after the press: no word on it.
+        let read = p.read(10_200, [None, stack(2, 2), stack(1, 0), None, None, None]);
+        assert_eq!(read, StacksRead { read: 1, changed: 0, held: 1 });
+        assert_eq!(p.frags(), 1, "the count stands");
+        // Past the lag the world still shows two: the client threw nothing.
+        let read = p.read(10_000 + PRESS_LAG_MS, [None, stack(2, 2), stack(1, 0), None, None, None]);
+        assert_eq!(read, StacksRead { read: 2, changed: 1, held: 0 });
+        assert_eq!(p.frags(), 2);
+        // A world that shows a unit gone that no press counted: the world's.
+        p.read(11_000, [None, stack(1, 2), stack(0, 0), None, None, None]);
+        assert_eq!((p.frags(), p.smoke_key()), (1, None));
+        // The next life fills from the world's storage: two.
+        p.refill();
+        assert_eq!(p.frags(), 2);
+        // A slot the world does not show keeps the count.
+        assert_eq!(p.read(20_000, [None; 6]), StacksRead::default());
+        assert_eq!(p.frags(), 2);
+    }
+
+    /// [Gap 11] The tracker takes a world's stacks only into a server bot's own pockets, of the kit the world names: what
+    /// a human carries is not shown to a player.
+    #[test]
+    fn only_a_bots_own_pockets_take_the_worlds_stacks() {
+        let pockets = || Pockets::new([None, Some((Pocketed::Frag, 2)), None, None, None, None]);
+        let mut tracker = stand_pockets(Some(pockets()), Some(pockets().into()));
+        let none_left = [None, Some(WorldStack { in_hand: 0, stored: 0 }), None, None, None, None];
+        tracker.own_stacks(0, 0, 5_000, none_left);
+        tracker.own_stacks(1, 0, 5_000, none_left);
+        assert_eq!((tracker.frags_left(0), tracker.frags_left(1)), (Some(0), Some(2)));
+        tracker.own_stacks(0, 3, 6_000, [None, Some(WorldStack { in_hand: 2, stored: 0 }), None, None, None, None]);
+        assert_eq!(tracker.frags_left(0), Some(0), "a kit the profile lacks: nothing read");
+        assert_eq!(tracker.throw_counts().stacks, StacksRead { read: 1, changed: 1, held: 0 });
+    }
+
     fn stand_pockets(bot: Option<Pockets>, human: Option<KitPockets>) -> Tracker {
         let kin = Kinematics::default();
         let mut tracker = Tracker::new(crate::v026g::bots::objective::Mode::Batteries, &[0, 1], &[true, false], vec![]);
@@ -1171,10 +1269,10 @@ mod tests {
         let mut throws = Throws::Human(pockets.into());
         assert_eq!(throws.frags_left(), Some(2), "the smoke and the medkit are no frags");
         let kit = throws.pockets_mut().expect("read");
-        kit.throw_grenade(key::GRENADE);
+        kit.throw_grenade(key::GRENADE, 0);
         assert_eq!(throws.frags_left(), Some(1));
         let kit = throws.pockets_mut().expect("read");
-        kit.throw_grenade(key::GRENADE);
+        kit.throw_grenade(key::GRENADE, 0);
         assert_eq!(throws.frags_left(), Some(0));
         let medkits = Throws::Bot(Pockets::new([Some((Pocketed::Other, 2)), None, None, None, None, None]).into());
         assert_eq!(medkits.frags_left(), Some(0), "a trap role's kit holds none");
@@ -1188,7 +1286,7 @@ mod tests {
         let smoke_first = Pockets::new([Some((Pocketed::Other, 1)), Some((Pocketed::Smoke, 1)), Some((Pocketed::Frag, 2)), None, None, None]);
         let mut throws = Throws::Bot(smoke_first.into());
         assert_eq!(throws.frags_left(), Some(0), "the key throws the smoke first");
-        throws.pockets_mut().expect("read").throw_grenade(key::GRENADE);
+        throws.pockets_mut().expect("read").throw_grenade(key::GRENADE, 0);
         assert_eq!(throws.frags_left(), Some(2), "the smoke is gone: the frags are next");
         let frag_first = Pockets::new([None, Some((Pocketed::Frag, 2)), Some((Pocketed::Smoke, 1)), Some((Pocketed::Frag, 1)), None, None]);
         assert_eq!(Throws::Bot(frag_first.into()).frags_left(), Some(2), "the frag behind the smoke is not counted");
@@ -1232,7 +1330,7 @@ mod tests {
             let mut thrown = Vec::new();
             for _ in 0..3 {
                 let mut n = 0;
-                while pockets.throw_grenade(key::GRENADE).is_some() && n < 20 {
+                while pockets.throw_grenade(key::GRENADE, 0).is_some() && n < 20 {
                     n += 1;
                 }
                 thrown.push(n);
@@ -1275,11 +1373,11 @@ mod tests {
         let pockets = Pockets::new([Some((Pocketed::Frag, 2)), None, None, None, None, None])
             .with_storage([Some(3), None, None, None, None, None]);
         let mut p = pockets;
-        assert_eq!(p.throw_grenade(key::GRENADE).map(|t| t.0), Some(Pocketed::Frag));
+        assert_eq!(p.throw_grenade(key::GRENADE, 0).map(|t| t.0), Some(Pocketed::Frag));
         p.refill();
-        assert_eq!(p.throw_grenade(key::GRENADE).map(|t| t.0), Some(Pocketed::Frag));
-        assert_eq!(p.throw_grenade(key::GRENADE).map(|t| t.0), Some(Pocketed::Frag));
-        assert_eq!(p.throw_grenade(key::GRENADE), None, "3 units in all: 1 + 2");
+        assert_eq!(p.throw_grenade(key::GRENADE, 0).map(|t| t.0), Some(Pocketed::Frag));
+        assert_eq!(p.throw_grenade(key::GRENADE, 0).map(|t| t.0), Some(Pocketed::Frag));
+        assert_eq!(p.throw_grenade(key::GRENADE, 0), None, "3 units in all: 1 + 2");
     }
 
     #[test]

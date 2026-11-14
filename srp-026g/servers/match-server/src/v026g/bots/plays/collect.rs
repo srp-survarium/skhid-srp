@@ -1192,7 +1192,7 @@ pub fn routed_crossing_to(
         0,
         Some(side),
         false,
-        crate::v026g::bots::crossing::CrossBody::old(1.0),
+        &crate::v026g::bots::crossing::CrossBody::old(1.0),
         &crate::v026g::bots::route_filter::RouteFilter::open(),
         &mut floors,
     )
@@ -1272,7 +1272,7 @@ pub fn routed_crossing_to(
                 0,
                 Some(side),
                 false,
-                crate::v026g::bots::crossing::CrossBody::old(1.0),
+                &crate::v026g::bots::crossing::CrossBody::old(1.0),
                 &crate::v026g::bots::route_filter::RouteFilter::open(),
                 &mut floors,
             )
@@ -2948,6 +2948,7 @@ mod tests {
                 name: "toxic".into(),
                 team: -1,
                 position: Vec3::new(25.0, 0.0, 32.0),
+                protection: None,
                 damage_type: "toxic".into(),
                 damage,
                 shapes: vec![Shape {
@@ -2977,6 +2978,7 @@ mod tests {
                 name: "toxic".into(),
                 team: -1,
                 position: Vec3::new(25.0, 0.0, 32.0),
+                protection: None,
                 damage_type: "toxic".into(),
                 damage: None,
                 shapes: vec![Shape {
@@ -3597,6 +3599,7 @@ mod tests {
                     name: "toxic".into(),
                     team: -1,
                     position: Vec3::new(20.0, 0.0, 30.0),
+                    protection: None,
                     damage_type: "toxic".into(),
                     damage: None,
                     shapes: vec![
@@ -3814,6 +3817,7 @@ mod tests {
                     name: "toxic".into(),
                     team: -1,
                     position: Vec3::new(20.0, 0.0, 30.0),
+                    protection: None,
                     damage_type: "toxic".into(),
                     damage: None,
                     shapes: vec![
@@ -4202,7 +4206,7 @@ mod tests {
                             0,
                             Some(i32::from(team)),
                             false,
-                            crate::v026g::bots::crossing::CrossBody::old(1.0),
+                            &crate::v026g::bots::crossing::CrossBody::old(1.0),
                             &crate::v026g::bots::route_filter::RouteFilter::open(),
                             &mut floors,
                         )
@@ -4210,7 +4214,7 @@ mod tests {
                         .flatten();
                         let hurt = route
                             .as_ref()
-                            .map(|r| crate::v026g::bots::crossing::hurt(&s.tactics, r, 0.0, r.length()));
+                            .map(|r| crate::v026g::bots::crossing::hurt(&s.tactics, r, 0.0, r.length(), None));
                         let cheapest = cheapest.get_or_insert_with(|| {
                             crate::v026g::bots::zone_search::Cheapest::from(&s.tactics, from, Some(i32::from(team)), None)
                         });
@@ -4218,7 +4222,7 @@ mod tests {
                             crate::v026g::bots::zone_search::walk_cost(&s.tactics, &p, None)
                         });
                         cheap_found += usize::from(dear.is_some());
-                        cheap_borne += usize::from(dear.is_some_and(|(c, _)| crate::v026g::bots::crossing::CrossBody::old(1.0).bears(c.body)));
+                        cheap_borne += usize::from(dear.is_some_and(|(c, _)| crate::v026g::bots::crossing::CrossBody::old(1.0).bears(c)));
                         eprintln!("    cheapest: {:?}", dear.map(|(c, m)| (c.body, m)));
                         routed += usize::from(route.is_some());
                         borne += usize::from(hurt.is_some_and(|h| crate::v026g::bots::crossing::CrossBody::old(1.0).bears(h)));
@@ -4244,6 +4248,7 @@ mod tests {
                 name: "slab".into(),
                 team: -1,
                 position: Vec3::new(25.0, -1.27, 32.0),
+                protection: None,
                 damage_type: "radiation".into(),
                 damage: Some(mapdata::Damage {
                     max_hit: 0.1,
@@ -4386,7 +4391,7 @@ mod tests {
     fn vector_laboratory_band_batteries_are_reached_without_a_crossing() {
         let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
         let mut defaults = crate::v026g::bots::tuning::Tuning::default();
-        defaults.hazard.capsule_marks = true;
+        defaults.hazard.capsule_goals = true;
         let map = mapdata::MapData::read(&std::path::Path::new(&dir).join("level_07_day_2.mapdata")).unwrap();
         let world = std::sync::Arc::new(mapdata::World::build_with_links(
             map,
@@ -4482,7 +4487,7 @@ mod tests {
                     0,
                     Some(i32::from(team)),
                     false,
-                    crate::v026g::bots::crossing::CrossBody::old(1.0),
+                    &crate::v026g::bots::crossing::CrossBody::old(1.0),
                     &crate::v026g::bots::route_filter::RouteFilter::open(),
                     &mut floors,
                 );
@@ -4490,7 +4495,7 @@ mod tests {
                     .as_ref()
                     .ok()
                     .and_then(|r| r.as_ref())
-                    .map(|r| (r.length(), crate::v026g::bots::crossing::hurt(&s.tactics, r, 0.0, r.length())));
+                    .map(|r| (r.length(), crate::v026g::bots::crossing::hurt(&s.tactics, r, 0.0, r.length(), cx.zone_armour())));
                 eprintln!("walk_in   way out to the spawn: length and hurt {hurt:?}");
                 let cheapest = crate::v026g::bots::zone_search::Cheapest::from(&s.tactics, to, Some(i32::from(team)), cx.zone_armour());
                 let priced = cheapest.path_to(home).map(|path| {
@@ -4518,7 +4523,7 @@ mod tests {
                     0,
                     Some(i32::from(team)),
                     false,
-                    crate::v026g::bots::crossing::CrossBody::old(1.0),
+                    &crate::v026g::bots::crossing::CrossBody::old(1.0),
                     &crate::v026g::bots::route_filter::RouteFilter::open(),
                     &mut floors,
                 );
@@ -5414,6 +5419,7 @@ mod tests {
                         name: "gate".into(),
                         team: -1,
                         position: Vec3::new(40.0, 0.0, 32.5),
+                        protection: None,
                         damage_type: "electro".into(),
                         damage: Some(mapdata::Damage { max_hit: 0.6, parts: 2, continuous: true, ..mapdata::Damage::default() }),
                         shapes: vec![mapdata::Shape {

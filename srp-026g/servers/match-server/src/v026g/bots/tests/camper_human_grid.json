@@ -26,6 +26,11 @@
   "walk_ceiling_stalls": true,
   "rim_jumps": true,
   "wall_held_tops": true,
+  "drop_lands": true,
+  "gap_flights": true,
+  "rest_floors": true,
+  "held_floors": true,
+  "walk_face_stands": true,
   "wall_give_back": true,
   "exe_collision": true,
   "walk_start_clear": true,
@@ -36,5 +41,6 @@
   "walk_every_link": true,
   "jump_air_steps": true,
   "wall_clear_pull": false,
-  "pull_walk": false
+  "pull_walk": false,
+  "walker_shapes": false
 }

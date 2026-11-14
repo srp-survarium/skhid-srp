@@ -2075,7 +2075,6 @@ va	status	ref_021d	name
 0x00305f50	inferred-high	0x001e9293	survarium::booby_trap_set_core::find_inactive_trap
 0x00305fc0	inferred-high	0x001e92fb	survarium::booby_trap_set_core::find_disarmed_trap
 0x00306490	inferred-high	0x001e966d	survarium::booby_trap_set_core::get_visible_place_transform
-0x00306720	inferred-high	0x001e98a9	survarium::booby_trap_set_core::action
 0x003067a0	inferred-high	0x001e98da	survarium::booby_trap_set_core::register_in_game_world
 0x003068e0	inferred-medium	0x001e9358	survarium::booby_trap_set_core::find_oldest_placed_trap
 0x00306d50	inferred-high		survarium::game_materials::pair_for
@@ -2099,7 +2098,6 @@ va	status	ref_021d	name
 0x00308620	inferred-medium	0x001eb903	vostok::buffer_vector<vostok::physics::loose_ptr<vostok::physics::base_physics_object,vostok::physics::loose_ptr_data,vostok::threading::multi_threading_policy> >::push_back
 0x00309ae0	inferred-medium	0x001ecede	survarium::grenade_set_core::grenade_set_core
 0x00309f00	inferred-high		survarium::grenade_set_core::hand_transform
-0x0030a120	inferred-high		survarium::grenade_set_core::start_throw
 0x0030a250	inferred-high		survarium::grenade_set_core::launch_grenade
 0x0030a350	inferred-medium		survarium::grenade_set_core::splash_parameters
 0x0030a4a0	inferred-high		survarium::grenade_set_core::splash_damage
@@ -2193,7 +2191,6 @@ va	status	ref_021d	name
 0x00310200	inferred-high	0x001f343f	survarium::pistol_weapon_core_fire_state::deserialize
 0x00310240	inferred-high	0x00208952	survarium::weapon_core_throw_grenade_base_substate::weapon_core_throw_grenade_base_substate
 0x00310330	inferred-medium	0x00208d38	survarium::weapon_core_throw_grenade_base_substate::`scalar deleting destructor'
-0x003103a0	inferred-medium		survarium::weapon_core_throw_grenade_base_substate::initialize
 0x00310680	inferred-high		survarium::weapon_core_throw_grenade_base_substate::on_animation_event
 0x003107b0	inferred-high		survarium::weapon_core_melee_state::weapon_core_melee_state
 0x003108b0	inferred-medium	0x00209592	survarium::weapon_core_melee_state::`scalar deleting destructor'
@@ -2256,7 +2253,6 @@ va	status	ref_021d	name
 0x00319d30	inferred-medium	0x001f6a3b	survarium::damage_zone_core::deactivate
 0x0031a410	inferred-medium		survarium::damage_zone_core::damage_of_body
 0x0031a620	inferred-medium	0x001f70d8	vostok::buffer_vector<vostok::physics::loose_ptr<vostok::physics::base_physics_object,vostok::physics::loose_ptr_data,vostok::threading::multi_threading_policy> >::resize
-0x0031ac10	inferred-medium	0x001f7489	survarium::effect_zone_core::load
 0x0031b4b0	inferred-medium	0x001edb0f	survarium::generic_anomaly_core::activate
 0x0031b530	inferred-medium	0x001edb84	survarium::generic_anomaly_core::deactivate
 0x0031b5b0	inferred-medium	0x001edc0b	survarium::generic_anomaly_core::tick
@@ -3304,7 +3300,6 @@ va	status	ref_021d	name
 0x002f55f0	inferred-medium		survarium::shared_statistics::on_artefact_taken
 0x002f5660	inferred-high		survarium::shared_statistics::clear_received_damage
 0x002f56a0	inferred-high		survarium::shared_statistics::count_assists
-0x002f58e0	inferred-high		survarium::shared_statistics::add_received_damage
 0x0026d9c0	inferred-high		survarium::base_game_statistics_handler::finish_match
 0x002f4cf0	inferred-high		survarium::shared_statistics::finish_match
 0x0026c320	inferred-medium		survarium::messaging_client::send_channel_subscription
@@ -3535,8 +3530,6 @@ va	status	ref_021d	name
 0x002e4850	inferred-medium		boost::random::normal_distribution<float>::operator()<boost::random::linear_congruential_engine<unsigned int,48271,0,2147483647> >
 0x002e0ca0	inferred-medium	0x001e3acf	survarium::weapon_core::set_next_fire_queue_type [descriptive: also dispatches the next-ammo action to 0x2E2650]
 0x002e0d00	inferred-medium		survarium::weapon_core::set_sprint_animation_to_wait_for [descriptive]
-0x0030a120	inferred-high	0x001ed3bd	survarium::grenade_set_core::pull_pin
-0x003103a0	inferred-medium		survarium::weapon_core_throw_grenade_pull_pin_substate::initialize
 0x0030ecc0	inferred-medium	0x001e3a64	survarium::weapon_core_fire_state_base::reset_fire_queue [descriptive]
 0x003320b0	inferred-high		survarium::recoil_calculator::deserialize
 0x0033a020	inferred-high		survarium::weapon_core_throw_grenade_state::weapon_core_throw_grenade_state

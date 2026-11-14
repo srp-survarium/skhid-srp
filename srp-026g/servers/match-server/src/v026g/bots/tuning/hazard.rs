@@ -6,11 +6,11 @@ use super::limits::Metres;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct HazardTuning {
-    /// Metres kept from a damage zone: refused by routes. Without [`Self::capsule_marks`] refused to stand on too; with
+    /// Metres kept from a damage zone: refused by routes. Without [`Self::capsule_goals`] refused to stand on too; with
     /// it the band round the floors the client hurts on, a stand priced at the band's share ([`Self::hurt_by_shape`])
     /// that routes enter only for their last leg.
     pub margin_m: Metres,
-    /// [A395a] A body may stand anywhere but where the client's damage zone lists a standing body: its controller's
+    /// [A395a] (`hazards::CapsuleUse::Goals`) A body may stand anywhere but where the client's damage zone lists a standing body: its controller's
     /// capsule (radius 0.38, height 1.8: `stand_capsule_width` 0.76 / 2, `stand_capsule_height`,
     /// `gameplay/players/default.player`, the grid's body) overlaps the zone's shape by Bullet's exact pair test, the
     /// contact counted only below zero distance (`damage_zone_core::tick` 0x319A70 -> `collision_sensor::contact_test`
@@ -20,9 +20,8 @@ pub struct HazardTuning {
     /// (`hazards::capsule_touches`). The floors of the `margin_m` band the capsule does not touch are stands and goals
     /// (`Hazards::stand_allowed`): Vector Laboratory's battery floor, 0.42 m over the pit zone's top, which the
     /// recordings show no body losing on (49 body worlds), was refused, and a body there walked out over its "zone
-    /// floors" into the zone (owner-5: 84 walk-outs, 74 from such dry floors, 10 into the zone, 7 deaths). The way out
-    /// of a zone (`Tactics::zone_exit`, the drive's walk-out) starts only on the capsule's floors; from the band a body
-    /// leaves over band floors, never a hurt one. Routes still keep off the band but for the last leg to a goal on it
+    /// floors" into the zone (a recorded match: 84 walk-outs, 74 from such dry floors, 10 into the zone, 7 deaths); that walk is
+    /// [`Self::capsule_exits`]'s. Routes still keep off the band but for the last leg to a goal on it
     /// (or the first from a start on it), by the shortest walk (`Tactics::band_way`): a safety margin for our motor,
     /// not a client rule (`hazards::Marking::Capsule`: routes over the band carried bodies onto hurt floors 196 times
     /// against 11 on the A395a bench, 2026-11-14), to lift after A388. Off: the whole margin is refused, as it was.
@@ -31,7 +30,16 @@ pub struct HazardTuning {
     /// at the pit rim's gap jumps the grid held the body in the jump, and at the drop onto the battery floor it landed
     /// 2.7-3.0 m off that floor, both into the pit. Those are faults of our motor and grid builder (A388 the model and
     /// the edge, A389 drops from where the body leaves), not of the zone rule; to bench again after them.
-    pub capsule_marks: bool,
+    pub capsule_goals: bool,
+    /// [A395a] The other half of the client's rule (`hazards::CapsuleUse::Exits`): the walk out of a zone
+    /// (`Tactics::zone_exit`) starts only on the floors the capsule touches ([`Self::capsule_goals`] says which); from
+    /// the band a body leaves over floors it may stand on, never one the zone hurts. A recorded match had 74 of 84
+    /// walk-outs start on such dry floors, 10 of them into the zone. On by default: benched apart from the goals' half
+    /// (2026-11-14), its walk-outs from dry floors went 140 -> 0 on Rudnya, Mamayev Kurgan and Vector Laboratory; its
+    /// extra seconds on hurt floors there were the walk out's held route across the zone, which both rules had
+    /// (`Tactics::route_shut_ahead`, fixed with it): per exit the same, 16 % of band exits and 17 % of walk-outs
+    /// followed by a spell on hurt floors.
+    pub capsule_exits: bool,
     /// The way out of a zone the bot starts in ([`EscapeRule`]).
     pub escape: EscapeRule,
     /// The bots know the artefact places of the map and what the cores say of them
@@ -57,7 +65,7 @@ pub struct HazardTuning {
     /// the floors `margin_m` keeps routes off. The client's test (read in the exe, 2026-10-29): each tick the zone's
     /// ghost object lists the bodies whose physics shape overlaps its own by an exact contact test (distance below 0,
     /// no tolerance; `damage_zone_core::tick` 0x319a70, `collision_sensor::contact_test` 0x307fa0, PROVEN); the
-    /// body's shape for a player is the character controller's capsule (PROVEN: [`Self::capsule_marks`]). Where in the shape
+    /// body's shape for a player is the character controller's capsule (PROVEN: [`Self::capsule_goals`]). Where in the shape
     /// only scales the damage. A battery on a floor 0.27 m over a cylinder's top overlaps nothing, but was priced as a floor in the
     /// zone (A129). Only the floor the take is made on is priced so (`Crossing::at_per_s`): the margin's band is
     /// priced there at the share of the zone's hit the motor's drift into it makes ([`Self::band_drift_m`]). The legs
@@ -191,7 +199,8 @@ impl Default for HazardTuning {
     fn default() -> Self {
         Self {
             margin_m: Metres::of(1.0),
-            capsule_marks: false,
+            capsule_exits: true,
+            capsule_goals: false,
             escape: EscapeRule::UnderStartZone,
             artefact_know: true,
             live_zones: true,

@@ -406,6 +406,9 @@ pub(crate) struct Body {
     pub(crate) legs: [f32; 2],
     pub(crate) leg_broken_until: u32,
     pub(crate) last_hit: u32,
+    /// [Gap 14] Its received damage from enemies so far, as its statistics' `received_damage` (the stand-in adds one a hit
+    /// by an enemy's bullet or grenade: the bots read only whether it grew).
+    pub(crate) received: f32,
     /// The hits of the last half second and their stopping power ([`standin_stagger`]).
     pub(crate) stagger: standin_stagger::Stagger,
     /// [2e] Until when the sights are still coming down after AIM went up, ms ([`stand_in_sprint_gates`]).
@@ -956,6 +959,7 @@ impl Game {
             legs: [0.5; 2],
             leg_broken_until: 0,
             last_hit: 0,
+            received: 0.0,
             stagger: standin_stagger::Stagger::default(),
             aim_out_until: 0,
             speed_level: 1.0,
@@ -1550,8 +1554,21 @@ impl Game {
                     // reckoning's `ClientStep::Kept`): the lattice walks to where it ends.
                     if super::standin_jump::stand_in_kept() {
                         let by = Vec3::new(to.x - body.feet.x, 0.0, to.z - body.feet.z);
-                        if let Some(walked) = body::kept_step(grid, &mut body.kept, body.feet, by, keys, sprint_state) {
-                            (node, feet, _) = walk_slide(grid, body.node.unwrap_or(node), body.feet, walked);
+                        if let Some(step) = body::kept_step(grid, &mut body.kept, body.feet, by, keys, sprint_state) {
+                            // [A388 step 2] Where its kept controller leaves the ground (`step_down` finds none under the capsule),
+                            // the body leaves its floor there and falls (the walk-off below), not held by the lattice to
+                            // `body::SUPPORT_M` past its floor's centre (`SRP_BENCH_STAND_IN_KEPT_EDGE`).
+                            let off = (step.airborne && super::standin_jump::stand_in_kept_edge())
+                                .then(|| body::kept_off_ground(grid, step.to, body.feet.y));
+                            (node, feet, _) = match off {
+                                Some(body::KeptOff::Left(down, at)) => {
+                                    body.kept = None;
+                                    (down, at, false)
+                                }
+                                Some(body::KeptOff::WalkerGround | body::KeptOff::NoFloor) | None => {
+                                    walk_slide(grid, body.node.unwrap_or(node), body.feet, step.to)
+                                }
+                            };
                         }
                     } else if super::standin_jump::stand_in_client_step()
                         && (feet.y - body.feet.y > body::STEP_UP_RISE_M || feet.distance_xz(target) > body::CLIENT_BLOCKED_M)
@@ -2201,6 +2218,7 @@ impl Game {
         standin_heal::stop_on_bullet(other, target, before, tick, &mut self.drug_stops);
         other.stamina.hit(stamina);
         other.last_hit = tick;
+        other.received += if team_hit { 0.0 } else { 1.0 };
         other.stagger.hit(tick, standin_stagger::power_of(&self.damage, gun));
         if let Some(leg) = stand_in_leg_hit(tick, shooter, target) {
             other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
@@ -2258,6 +2276,7 @@ impl Game {
             standin_damage::hit_boxes(&self.damage, other, gun, &landed, tick);
             standin_heal::stop_on_bullet(other, target, before, tick, &mut self.drug_stops);
             other.last_hit = tick;
+            other.received += if team_hit { 0.0 } else { 1.0 };
             // Every pellet that landed is a bullet of its own.
             other.stagger.hit(tick, standin_stagger::power_of(&self.damage, gun) * landed.len() as f32);
             for leg in [0, 1] {
@@ -3061,6 +3080,11 @@ impl Game {
     }
 
     /// The bodies' hurts in the world of `tick` ([`Self::world_at`]).
+    /// [Gap 14] The bodies' received damage from enemies in the world of `tick` ([`Body::received`]).
+    pub(crate) fn received_at(&self, tick: u32) -> Option<Vec<f32>> {
+        self.seen_at(tick).map(|seen| seen.iter().map(|seen| seen.received).collect())
+    }
+
     pub(crate) fn hurts_at(&self, tick: u32) -> Option<Vec<Hurt>> {
         let (_, hurts) = self.hurts.iter().find(|(t, _)| *t == tick)?;
         Some(hurts.clone())

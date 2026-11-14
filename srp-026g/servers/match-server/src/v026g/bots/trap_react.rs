@@ -885,10 +885,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
         bot.features.traps.react.register(key, bot.place, due.now, state);
     }
     let fighting = !bot.memory.all_seen(due.now, due.view.clock).is_empty()
-        || bot
-            .hurt
-            .last_hit_ms
-            .is_some_and(|hit| due.now < hit.saturating_add(FIGHT_HIT_MS));
+        || bot.fight_hit_ms.is_some_and(|hit| due.now < hit.saturating_add(FIGHT_HIT_MS));
     let nearest = others
         .iter()
         .map(|(trap, _, at)| (trap, me.feet.distance_xz(*at)))
@@ -1196,7 +1193,7 @@ pub(super) fn drive(
             .react
             .reaction
             .since()
-            .is_some_and(|since| bot.hurt.last_hit_ms.is_some_and(|hit| hit >= since));
+            .is_some_and(|since| bot.fight_hit_ms.is_some_and(|hit| hit >= since));
     let spot = match bot.features.traps.react.reaction {
         Reaction::Walk { spot, .. } => me.feet.distance_xz(spot),
         _ => 0.0,

@@ -80,7 +80,7 @@ use crate::sight::RayTree;
 mod clearance;
 pub use clearance::{CLEARANCE_MAX_M, CLEARANCE_STEP_M};
 mod doors;
-mod drop_check;
+pub mod drop_check;
 mod exact;
 mod open;
 mod rim;
@@ -94,6 +94,9 @@ const FLIGHT_TOLERANCE_M: f32 = 0.1;
 
 pub mod controlled;
 pub mod gap;
+mod gap_flown;
+pub mod held_floors;
+mod rest_floors;
 pub use gap::{GapStats, OffLink, OffMeshLinks, PressLead, Share};
 pub use rim::Riser;
 use gap::gap_cost;
@@ -297,6 +300,48 @@ pub struct Body {
     /// (School's sill at 41.9 21.7 142.9: 144 visits by 89 players in the routes corpus, no link from a spawn). A build input:
     /// in the key when set.
     pub wall_held_tops: bool,
+    /// [feed 67] With [`Self::drop_check`]: whether a Drop link is kept only where the client's body walked off it as a bot walks
+    /// it (3.5 m/s at the landing, re-aimed each 50 ms step, on along the link once within 0.3 m of it) comes to STAND on its
+    /// landing within 2 s of leaving the take-off (0.5 m across, 0.2 m in height: the exactness session's walk of the Drop
+    /// links, FINDINGS-FEED-exactness 2026-11-12 09:56Z, `grid::drop_check::walk_drop`); a link whose body lands on another floor lower down, and
+    /// arrives there walked at it, is re-aimed there. [A389] Walked on the game's shapes world (the build's `shapes`, else the
+    /// walker triangles with the body's caster), and no link is cut on the walk alone (a link is cut only where no client
+    /// action takes the body down there): a link no walk line arrives on or re-aims goes to the floor a walk line's
+    /// own landing stands on, else the crouched walk-off's (2.5 m/s, 0x337D5E), else a jump's off the edge (the short and sprint
+    /// jumps at the gap leads, `controller::jump`); only where none stands on a floor is it cut. Off: a link is kept where the body only goes down
+    /// (min(0.4 m, half the drop) under the take-off) on any line, wherever it lands (Chemical Plant mode 2: 245 of 6,000 sampled
+    /// links land on a level above the landing and 26 fall past it, and pass). A link that is the only way to a floor or back
+    /// from it is kept. [A377] And a kept or re-aimed link's take-off is a lip ([`WalkGrid::is_lip`]) when the body walked at
+    /// its landing and let go there (the client's stop blend) stands [`LIP_DROP_M`] or more under it on any line
+    /// (`grid::drop_check::stop_at_drop`), as where the link itself drops that far. A build input: in the key when set.
+    pub drop_lands: bool,
+    /// [A389] Whether the gap pass's presses are flown by the client's own jump code (`controller::jump`, A385's presses and
+    /// scoring) on the game's shapes world (`grid::gap`'s `fly_gaps`), not by the clip approximation (`SHORT_JUMP_AHEAD`, `fly`):
+    /// each gap a body could jump across (a floor two or more cells on, higher by more than a step than every floor crossed, in a
+    /// gap link's reach) gets the link its flown presses land on, with the press and its share (A385-FORMAT). Mamayev Kurgan's
+    /// gully (A369): the clip pass made no link ridge -> plateau, the flyer lands the walking jump at all 11 leads and 44 of 44
+    /// sprint flights where 56 players crossed. Off: the clip pass. A build input: in the key when set.
+    pub gap_flights: bool,
+    /// [A389] Whether a floor the erosion took comes back where the client's body comes to rest and no floor the erosion kept
+    /// names the place (`grid::rest_floors`: within the capsule's radius across and 0.2 m in height): a sliver of walkable face
+    /// between faces too steep to stand on loses every floor to the erosion, and a body that lands there (Mamayev Kurgan,
+    /// R2: a walking press rests at (-22.79, 31.65, 121.73)) is where the grid has nothing. A build input: in the key
+    /// when set.
+    pub rest_floors: bool,
+    /// [A389] Whether a floor at an edge is kept only where the client's walk tick holds a standing body (it rests no more than
+    /// a step under it), and the way down from the last held floor is one drop walked off to where the client's body stands,
+    /// its true height, priced by the client's fall damage (`grid::held_floors`). Chemical
+    /// Plant (68, 64): 7 floors on a broken slab no body stands on hid a 6 m fall behind Drops of 4.2-5.0 m. A build input: in
+    /// the key when set.
+    pub held_floors: bool,
+    /// [A389] Whether a body is on a floor that stands on `walk` faces wherever it is on them in the floor's cell, not only near
+    /// the cell's top (the floor's height): the client takes UP as the ground's normal on a `walk` face whatever its slope (its down
+    /// sweep 0x84420, 0x84561..0x84584 / 0x845ED, the face's walker byte), so a body stands anywhere on a steep `walk` rock.
+    /// Mamayev Kurgan R11, R95, R97, R98 (the exe with each face's byte): the presses
+    /// land and stay on the rock under the landing floor (rests 26.1-31.4 against floors 27.40-31.59), where no floor's height is
+    /// within 0.2 m. A floor of a `walk` face names a body from the face's lowest point in the cell to its height (A385's landing,
+    /// [`Body::rest_floors`]' naming). A build input: in the key when set.
+    pub walk_face_stands: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back (`grid::wall_give_back`):
     /// the exact pass keeps them, a wall face (not a rise of the ground) stands within 0.6 m, and the client's walk tick stands a
     /// body there. Needs [`Erosion::Exact`]. A build input: in the key when set.
@@ -443,6 +488,11 @@ impl Body {
             rim_jumps: false,
             fastest_walk_cap: crate::controller::jump::WALK_CAP_MS,
             wall_held_tops: false,
+            drop_lands: false,
+            gap_flights: false,
+            rest_floors: false,
+            held_floors: false,
+            walk_face_stands: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -556,6 +606,11 @@ impl Default for Body {
             rim_jumps: false,
             fastest_walk_cap: crate::controller::jump::WALK_CAP_MS,
             wall_held_tops: false,
+            drop_lands: false,
+            gap_flights: false,
+            rest_floors: false,
+            held_floors: false,
+            walk_face_stands: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -1077,6 +1132,10 @@ pub struct WalkGrid {
     cell_of: Vec<u32>,
     height: Vec<f32>,
     ceiling: Vec<f32>,
+    /// [A389] While the grid is built, per node: the lowest point of the `walk` faces under a floor that is on them in its cell
+    /// (the client takes UP as the ground's normal on a `walk` face whatever its slope, its down sweep 0x84420 / 0x845ED: a body
+    /// stands anywhere on it, not only at the cell's top); the floor's own height for any other. Empty in a grid read back.
+    walk_low: Vec<f32>,
     /// Per node and direction ([`DIRS`]), the floor it links to: that
     /// floor's index among the floors of its cell, [`NO_LINK`] for none.
     to: Vec<[u8; 8]>,
@@ -1124,6 +1183,14 @@ pub struct WalkGrid {
     /// [`Body::rim_jumps`] The rim jumps the build flew and no press made, as (take-off, landing) feet: the build's report only
     /// ([`Self::rim_unmade`]), not in the file or the digest.
     rim_unmade: Vec<(Vec3, Vec3)>,
+    /// [A377] [`Body::drop_lands`] The drop links whose take-off is a lip by where the client's body stops on their landing
+    /// ([`Self::is_lip`]), as (take-off, landing), sorted. In the file (after the crouched walks) and the digest. Empty without the
+    /// switch.
+    drop_lips: Vec<(NodeId, NodeId)>,
+    /// [A389] [`Body::held_floors`] The floors the build took because no standing body stays on them, as feet
+    /// ([`Self::held_taken`]): for the logs only (a route's goal or failure near one, a player's spot the build lost). In the file
+    /// (the last table) but not the digest: no decision reads it. Empty without the switch.
+    held_taken: Vec<Vec3>,
     /// Per node, its distance to the nearest wall the capsule meets, in [`clearance::CLEARANCE_STEP_M`] steps ([`Self::wall_clearance`]):
     /// made by [`Self::with_wall_clearance`] after the grid is built or read, from the map's triangles. In neither the file nor the
     /// digest. Empty without it.
@@ -1189,6 +1256,9 @@ struct Wide {
     /// ([`WalkGrid::held_by_wall`]), as (from, to), sorted: the jump's carry past the top does not apply to them
     /// ([`WalkGrid::drop_overshot_landings`]).
     held: Vec<(u32, u32)>,
+    /// [A377] [`Body::drop_lands`]: the drop links whose take-off is a lip by where the body stops on their landing, as (from,
+    /// to) ([`WalkGrid::drop_lips`]).
+    lips: Vec<(u32, u32)>,
 }
 
 /// A floor put aside by [`Body::wall_give_back`] ([`Wide::aside`]): where it is and its room.
@@ -1291,12 +1361,21 @@ pub struct BuildStats {
     /// kept because they are the only way to a floor or back from it.
     pub drops_unfollowed: usize,
     pub drops_unfollowed_kept: usize,
+    /// The Drop links re-aimed at the floor the client's body lands on ([`Body::drop_lands`]).
+    pub drops_reaimed: usize,
+    /// [A389] The Drop links walked by the client's body ([`Body::drop_lands`]), re-aimed by a way down other than the walk at
+    /// the landing, and cut (no client way tried stands on a floor).
+    pub drops_walked: drop_check::DropStats,
     /// The Drop links taken away because a ground top with no floor holds the body over their landing
     /// ([`Body::fall_stops_on_solids`]), and those kept because they are the only way to a floor or back from it.
     pub drops_under_solid: usize,
     pub drops_under_solid_kept: usize,
     /// The floors given back beside walls the body clears ([`Body::wall_give_back`]).
     pub wall_given_back: usize,
+    /// [A389] The floors given back where the client's body rests and no other floor names the place ([`Body::rest_floors`]).
+    pub rest_floors: usize,
+    /// [A389] The edge floors no body stays on and the drops from the last held floors ([`Body::held_floors`]).
+    pub held: held_floors::HeldStats,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -1401,6 +1480,7 @@ impl WalkGrid {
         let mut ceiling = Vec::new();
         let mut forced = Vec::new();
         let mut steep_face = Vec::new();
+        let mut walk_low = Vec::new();
         let mut solids = Solids {
             start: Vec::with_capacity(nx * nz + 1),
             spans: Vec::new(),
@@ -1445,10 +1525,16 @@ impl WalkGrid {
                 }
             }
             let mut merged: Vec<Span> = Vec::with_capacity(column.len());
+            // [A389] Each merged span's lowest `walk` piece (the floor on it stands from there to its top).
+            let mut lows: Vec<f32> = Vec::with_capacity(column.len());
             for span in column {
                 if let Some(last) = merged.last_mut()
                     && span.low <= last.high + MERGE_GAP
                 {
+                    let low = lows.last_mut().expect("one a merged span");
+                    if span.walk == 3 {
+                        *low = low.min(span.low);
+                    }
                     if (span.high - last.high).abs() <= SAME_TOP {
                         last.walk = last.walk.max(span.walk);
                         last.high = last.high.max(span.high);
@@ -1458,6 +1544,7 @@ impl WalkGrid {
                     }
                     continue;
                 }
+                lows.push(if span.walk == 3 { span.low } else { f32::INFINITY });
                 merged.push(span);
             }
             solids
@@ -1481,6 +1568,7 @@ impl WalkGrid {
                     cell_of.push(index as u32);
                     height.push(span.high);
                     ceiling.push(above.max(span.high + room));
+                    walk_low.push(if span.walk == 3 && body.walk_face_stands { lows[k].min(span.high) } else { span.high });
                     forced.push(span.walk == 3);
                     steep_face.push(span.walk == STEEP);
                 }
@@ -1504,6 +1592,7 @@ impl WalkGrid {
             cell_of,
             height,
             ceiling,
+            walk_low,
             to: Vec::new(),
             how: Vec::new(),
             piece: Vec::new(),
@@ -1519,6 +1608,8 @@ impl WalkGrid {
             walk_crouched: Vec::new(),
             riser: Vec::new(),
             rim_unmade: Vec::new(),
+            drop_lips: Vec::new(),
+            held_taken: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
             walker: None,
@@ -1538,29 +1629,55 @@ impl WalkGrid {
             .then(|| RayTree::from_corners(triangles.iter().filter(|t| t.walker != WalkerBehaviour::DontWalk).map(|t| t.v)));
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face, ground.as_ref());
         let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
-        (stats.exact_eroded, stats.wall_given_back) =
-            grid.erode(&mut wide, &cut, &solids, walls.as_ref().filter(|_| body.erosion == Erosion::Exact), triangles);
+        // The world the client's body is flown and walked on (the rest floors, the rim jumps, [A389] the gap flights and the Drop
+        // links' walk): the game's shapes, else the walker triangles with the body's caster; built once, only for a pass that
+        // needs it.
+        let (caster, s) = body.controller();
+        let gaps = links == OffMeshLinks::Gaps;
+        let needs_world =
+            (gaps && (body.rim_jumps || body.gap_flights)) || (body.drop_check && body.drop_lands) || body.rest_floors || body.held_floors;
+        let own = (needs_world && shapes.is_none()).then(|| crate::controller::Collision::build(triangles).with_caster(caster));
+        let world = shapes.or(own.as_ref()).filter(|_| needs_world);
+        (stats.exact_eroded, stats.wall_given_back, stats.rest_floors) = grid.erode(
+            &mut wide,
+            &cut,
+            &solids,
+            walls.as_ref().filter(|_| body.erosion == Erosion::Exact),
+            triangles,
+            world.filter(|_| body.rest_floors).map(|w| (w, &s)),
+        );
         wide.held.sort_unstable();
         wide.held.dedup();
+        // [A389] The edge floors no body stays on go; the ways down from the last held floors are made drops after the gap pass.
+        let unheld = match world.filter(|_| body.held_floors) {
+            Some(world) => {
+                let (held, drops) = grid.drop_unheld(&mut wide, world, &s);
+                stats.held = held;
+                drops
+            }
+            None => Vec::new(),
+        };
         if body.run_ups_after_erosion {
             (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, RunUp::Metres(SPRINT_RUN_UP_M));
         }
-        wide.off = match links {
-            OffMeshLinks::None => Vec::new(),
-            OffMeshLinks::Gaps => grid.gap_links(&wide, &solids, &mut stats.gaps),
+        wide.off = match (links, world) {
+            (OffMeshLinks::None, _) => Vec::new(),
+            (OffMeshLinks::Gaps, Some(world)) if body.gap_flights => grid.gap_links_flown(&wide, &solids, world, &s, &mut stats.gaps),
+            (OffMeshLinks::Gaps, _) => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
         // [A364 C2 rows 11/12] The rim jumps, made as gap links where a client press lands (on the game's shapes, else the walker
         // triangles with the body's caster): after the erosion, no press from a floor only a crouched body fits.
         let mut rim_unmade: Vec<(Vec3, Vec3)> = Vec::new();
-        if body.rim_jumps && links == OffMeshLinks::Gaps {
-            let (caster, s) = body.controller();
-            let own = shapes.is_none().then(|| crate::controller::Collision::build(triangles).with_caster(caster));
-            let world = shapes.or(own.as_ref()).expect("a world");
+        if body.rim_jumps && gaps {
+            let world = world.expect("a world");
             let unmade;
             (stats.rim, unmade) = grid.fly_rim_jumps(&mut wide, world, &s);
             grid.fly_risers(&mut wide, world, &s, &mut stats.rim);
             rim_unmade = unmade.into_iter().map(|(a, b)| (grid.position(a), grid.position(b))).collect();
         }
+        // [A389] The held floors' drops, from the floors a body gets to (the gap and rim links made): a drop off a roof no body
+        // gets onto would only make the roof lead in, and keep it.
+        stats.held.unreached = grid.add_unheld_drops(&mut wide, &unheld, seeds, spawns);
         if body.fall_stops_on_solids {
             // The faces' own geometry, not a walk test that may miss: a floor no body gets down to is let go as the carried
             // landings' are ([`Body::keep_last_resorts`]); the only way back out of a floor a body walks to stays.
@@ -1601,7 +1718,17 @@ impl WalkGrid {
             (stats.overshot_cut, stats.overshot_kept) = grid.drop_overshot_landings(&mut wide, seeds, spawns);
         }
         if body.drop_check {
-            let failing = grid.unfollowed_drops(&wide, triangles, seeds, spawns);
+            let failing = if body.drop_lands {
+                let world = world.expect("a world");
+                let (cut, reaim, lips, mut walked) = grid.landing_drops(&wide, world, seeds, spawns);
+                (walked.walk_offs, walked.walk_offs_reaimed, walked.walk_offs_unlanded) = grid.walk_off_links(&mut wide, world, seeds, spawns);
+                stats.drops_walked = walked;
+                stats.drops_reaimed = grid.reaim_drops(&mut wide, &reaim);
+                wide.lips = lips;
+                cut
+            } else {
+                grid.unfollowed_drops(&wide, triangles, seeds, spawns)
+            };
             (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true, false);
         }
         stats.floors_after_erosion = grid.len();
@@ -1630,6 +1757,8 @@ impl WalkGrid {
             stats.ramp_floors = grid.ramp.iter().filter(|&&d| d > 0).count();
         }
         stats.floors_kept = grid.len();
+        // [A389] The walk faces' low points are the build's only (a grid read back has none).
+        grid.walk_low = Vec::new();
         grid.warm();
         (grid, stats)
     }
@@ -1685,6 +1814,7 @@ impl WalkGrid {
             crouch: Vec::new(),
             riser: Vec::new(),
             held: Vec::new(),
+            lips: Vec::new(),
         }
     }
 
@@ -2296,7 +2426,8 @@ impl WalkGrid {
         solids: &Solids,
         walls: Option<&exact::Walls>,
         triangles: &[Triangle],
-    ) -> (usize, usize) {
+        rest_world: Option<(&crate::controller::Collision, &crate::controller::tick::Settings)>,
+    ) -> (usize, usize, usize) {
         let n = self.height.len();
         let mut alive = vec![true; n];
         let rounds = erosion_rounds(self.body.radius, self.cell);
@@ -2344,6 +2475,15 @@ impl WalkGrid {
             }
             _ => (0, Vec::new()),
         };
+        // [A389] [`Body::rest_floors`]: the taken floors where the client's body rests and no kept floor names the place come back
+        // as standing floors (the passes after the rounds read them: a landing there is named), and the exact pass leaves them.
+        let rests = rest_world.map_or_else(Vec::new, |(world, s)| self.rest_floors(&alive, world, s));
+        for &a in &rests {
+            alive[a] = true;
+            if let Some(g) = given.get_mut(a) {
+                *g = false;
+            }
+        }
         let furthest = rounds as i32 + 1;
         let standing = alive.clone();
         for a in 0..n {
@@ -2404,6 +2544,9 @@ impl WalkGrid {
                     *g &= in_cell || all[a];
                 }
             }
+            for &a in &rests {
+                alive[a] = true;
+            }
             // Under a wall only a standing capsule meets: walked crouched, and no jump starts or lands there (a jump needs room to
             // stand, `ledge`): the links it made before the floor was found low go.
             let mut low = vec![false; n];
@@ -2440,7 +2583,7 @@ impl WalkGrid {
             .map(|a| Aside { cell: self.cell_of[a], height: self.height[a], ceiling: self.ceiling[a] })
             .collect();
         self.compact(wide, &alive);
-        (exact, given_back)
+        (exact, given_back, rests.len())
     }
 
     /// [`Body::wall_give_back`]: the floors [`Self::erode`] put aside come back after the reach, each where a kept floor walks
@@ -2475,6 +2618,7 @@ impl WalkGrid {
         let total = order.len();
         let mut new_id = vec![NONE; old];
         let (mut cell_of, mut height, mut ceiling) = (Vec::with_capacity(total), Vec::with_capacity(total), Vec::with_capacity(total));
+        let mut walk_low = Vec::with_capacity(if self.walk_low.is_empty() { 0 } else { total });
         let mut given = vec![false; total];
         for (id, &(c, h, from)) in order.iter().enumerate() {
             cell_of.push(c);
@@ -2483,9 +2627,15 @@ impl WalkGrid {
                 Ok(a) => {
                     new_id[a] = id as u32;
                     ceiling.push(self.ceiling[a]);
+                    if let Some(&l) = self.walk_low.get(a) {
+                        walk_low.push(l);
+                    }
                 }
                 Err(g) => {
                     ceiling.push(aside[g].ceiling);
+                    if !self.walk_low.is_empty() {
+                        walk_low.push(h);
+                    }
                     given[id] = true;
                 }
             }
@@ -2514,6 +2664,7 @@ impl WalkGrid {
         self.cell_of = cell_of;
         self.height = height;
         self.ceiling = ceiling;
+        self.walk_low = walk_low;
         let mut start = Vec::with_capacity(self.start.len());
         let mut node = 0usize;
         for c in 0..self.nx * self.nz {
@@ -2742,6 +2893,9 @@ impl WalkGrid {
         };
         keep(&mut self.height);
         keep(&mut self.ceiling);
+        if !self.walk_low.is_empty() {
+            keep(&mut self.walk_low);
+        }
         let mut k = 0;
         self.cell_of.retain(|_| {
             k += 1;
@@ -2803,6 +2957,11 @@ impl WalkGrid {
         }
         wide.held.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
         for (a, b) in &mut wide.held {
+            *a = new_id[*a as usize];
+            *b = new_id[*b as usize];
+        }
+        wide.lips.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
+        for (a, b) in &mut wide.lips {
             *a = new_id[*a as usize];
             *b = new_id[*b as usize];
         }
@@ -2997,6 +3156,14 @@ impl WalkGrid {
                 digest.u32(u32::from(share));
             }
         }
+        // [A377] A grid with no lips by where the body stops digests as before there were any.
+        if !self.drop_lips.is_empty() {
+            digest.len(self.drop_lips.len());
+            for &(a, b) in &self.drop_lips {
+                digest.u32(a);
+                digest.u32(b);
+            }
+        }
         digest.finish()
     }
 
@@ -3034,6 +3201,7 @@ impl WalkGrid {
                 && self.walk_marked.is_empty()
                 && self.walk_crouched.is_empty()
                 && self.riser.is_empty()
+                && self.drop_lips.is_empty() && self.held_taken.is_empty()
             {
                 return Ok(());
             }
@@ -3052,12 +3220,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
             // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
-            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() {
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() {
                 return Ok(());
             }
             let pair = |&(a, b): &(NodeId, NodeId)| {
@@ -3068,17 +3236,17 @@ impl WalkGrid {
             };
             out.plain(&self.walled_exits, pair)?;
             // [2c] The marked walks, when the grid has them (an empty table before the crouched walks).
-            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() {
+            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_marked, pair)?;
             // [`Body::walk_ceiling_stalls`] The crouched walks, when the grid has them.
-            if self.walk_crouched.is_empty() && self.riser.is_empty() {
+            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_crouched, pair)?;
             // [A385 rule (d)] The risers' presses, when the grid has them: from, to, press (as an off-mesh link's), share, a zero.
-            if self.riser.is_empty() {
+            if self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() {
                 return Ok(());
             }
             out.plain(&self.riser, |&(a, b, r)| {
@@ -3088,6 +3256,22 @@ impl WalkGrid {
                 bytes[4..8].copy_from_slice(&b.to_le_bytes());
                 bytes[8..10].copy_from_slice(&press.to_le_bytes());
                 bytes[10] = share;
+                bytes
+            })?;
+            // [A377] The lips by where the body stops, when the grid has them.
+            if self.drop_lips.is_empty() && self.held_taken.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.drop_lips, pair)?;
+            // [A389] The floors `held_floors` took, as feet, when the grid has them (a log's only: not in the digest).
+            if self.held_taken.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.held_taken, |p| {
+                let mut bytes = [0u8; 12];
+                for (i, v) in [p.x, p.y, p.z].into_iter().enumerate() {
+                    bytes[4 * i..4 * i + 4].copy_from_slice(&v.to_le_bytes());
+                }
                 bytes
             })
         })
@@ -3121,6 +3305,7 @@ impl WalkGrid {
                     cell_of: input.plain(u32::from_le_bytes)?,
                     height: input.plain(float)?,
                     ceiling: input.plain(float)?,
+                    walk_low: Vec::new(),
                     to: input.plain(|bytes: [u8; 8]| bytes)?,
                     how: input.plain(u32::from_le_bytes)?,
                     piece: input.plain(u32::from_le_bytes)?,
@@ -3215,6 +3400,22 @@ impl WalkGrid {
                         })?
                     },
                     rim_unmade: Vec::new(),
+                    drop_lips: if input.ends() {
+                        Vec::new()
+                    } else {
+                        input.plain(|bytes: [u8; 8]| {
+                            let word = |i: usize| u32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
+                            (word(0), word(4))
+                        })?
+                    },
+                    held_taken: if input.ends() {
+                        Vec::new()
+                    } else {
+                        input.plain(|bytes: [u8; 12]| {
+                            let f = |i: usize| f32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
+                            Vec3::new(f(0), f(4), f(8))
+                        })?
+                    },
                     clearance: Vec::new(),
                     open: Vec::new(),
                     walker: None,
@@ -3261,6 +3462,9 @@ impl WalkGrid {
             || self.riser.windows(2).any(|w| (w[0].0, w[0].1) >= (w[1].0, w[1].1))
         {
             return Err("bad riser presses".into());
+        }
+        if self.drop_lips.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.drop_lips.windows(2).any(|w| w[0] >= w[1]) {
+            return Err("bad drop lips".into());
         }
         if self.start.len() != cells + 1
             || self.start[0] != 0
@@ -3912,6 +4116,11 @@ impl WalkGrid {
             .collect();
         self.riser = riser;
         self.walk_crouched = crouched;
+        // [A377] The lips by where the body stops, whose link is still there.
+        let mut lips: Vec<(NodeId, NodeId)> = wide.lips.iter().copied().filter(|&(a, b)| wide.out(a as usize).any(|x| x == b)).collect();
+        lips.sort_unstable();
+        lips.dedup();
+        self.drop_lips = lips;
         self.off = wide.off;
         for l in &self.off {
             self.flags[l.from as usize] |= OFF_OUT;
@@ -4023,6 +4232,20 @@ impl WalkGrid {
     /// for a grid read from a file).
     pub fn rim_unmade(&self) -> &[(Vec3, Vec3)] {
         &self.rim_unmade
+    }
+
+    /// [A389] The floors [`Body::held_floors`] took (no standing body stays on them), as feet: for the logs only.
+    pub fn held_taken(&self) -> &[Vec3] {
+        &self.held_taken
+    }
+
+    /// [A389] The nearest floor [`Body::held_floors`] took within `r` m across and `h` m in height of `p`, for the logs.
+    pub fn held_taken_near(&self, p: Vec3, r: f32, h: f32) -> Option<Vec3> {
+        self.held_taken
+            .iter()
+            .copied()
+            .filter(|q| q.distance_xz(p) <= r && (q.y - p.y).abs() <= h)
+            .min_by(|a, b| a.distance_xz(p).total_cmp(&b.distance_xz(p)))
     }
 
     /// [2c] How many Walk links are marked ([`Self::walk_marked`]).
@@ -4274,8 +4497,14 @@ impl WalkGrid {
         } else {
             0.0
         };
-        let fall = if down {
+        // [A389] With `held_floors` a drop is priced by what the client's fall takes (nothing to the harmless height).
+        let hurt = if down && self.body.held_floors {
+            held_floors::fall_cost_m(self.height[from as usize] - self.height[to as usize])
+        } else {
             0.0
+        };
+        let fall = if down {
+            hurt
         } else if self.near_fall(to) {
             FALL_EDGE_PENALTY
         } else if self.near_lip(to) {
@@ -4310,6 +4539,21 @@ impl WalkGrid {
         (q - p).length() + kind.penalty() + lip + marginal + fall + descent + sprint + riser
     }
 
+    /// [A389] How far a body's feet at height `y` are from standing on floor `f` while the grid is built: 0 from its `walk` faces'
+    /// lowest point in its cell to its height ([`Body::walk_face_stands`]; its height alone otherwise), else the distance to that
+    /// band.
+    pub(super) fn stand_gap(&self, f: NodeId, y: f32) -> f32 {
+        let h = self.height[f as usize];
+        let low = self.walk_low.get(f as usize).copied().unwrap_or(h);
+        if y > h {
+            y - h
+        } else if y < low {
+            low - y
+        } else {
+            0.0
+        }
+    }
+
     /// Whether a floor is a lip: the last floor before a ledge at least
     /// [`LIP_DROP_M`] high (one of its links drops that far: a Drop link, or
     /// a gap drop the body walks off, [`gap::Takeoff::WalkOff`]). Erosion keeps
@@ -4330,6 +4574,11 @@ impl WalkGrid {
     fn is_lip_by_links(&self, node: NodeId) -> bool {
         let a = node as usize;
         let y = self.height[a];
+        // [A377] A drop link's take-off where the body stopped on its landing stands a lip's height down.
+        let first = self.drop_lips.partition_point(|&(f, _)| f < node);
+        if self.drop_lips.get(first).is_some_and(|&(f, _)| f == node) {
+            return true;
+        }
         if self.body.walk_off_lips && self.off_out(node).iter().any(|l| {
             l.kind == LinkKind::GapDrop && l.press == gap::Takeoff::WalkOff && y - self.height[l.to as usize] >= LIP_DROP_M
         }) {
