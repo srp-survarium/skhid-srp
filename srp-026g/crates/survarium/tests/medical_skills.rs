@@ -6,9 +6,9 @@ use survarium::v026g::skills::{SkillError, SkillsTree};
 /// combo skills) and the rank field's first bit (medical-skills.md).
 #[rustfmt::skip]
 const TREE: [(u16, u8, u32, u8, u8, usize, u32); 13] = [
-    (301, 3, 0, 2, 1, 43, 0), (302, 2, 0, 3, 1, 43, 3),
+    (342, 1, 0, 1, 1, 43, 21), (301, 3, 0, 2, 1, 43, 0), (302, 2, 0, 3, 1, 43, 3),
     (311, 5, 3, 1, 2, 43, 6), (313, 2, 3, 3, 2, 45, 2), (312, 3, 3, 4, 2, 43, 9),
-    (342, 2, 10, 1, 3, 43, 21), (303, 2, 10, 2, 3, 45, 0), (321, 3, 10, 4, 3, 43, 12),
+    (303, 2, 10, 2, 3, 45, 0), (321, 3, 10, 4, 3, 43, 12),
     (332, 5, 15, 2, 4, 43, 17), (323, 4, 15, 3, 4, 45, 4), (333, 4, 15, 4, 4, 45, 7),
     (331, 1, 20, 2, 5, 43, 16), (322, 1, 20, 3, 5, 43, 15),
 ];
@@ -73,6 +73,8 @@ fn medical_tree_progression_and_native_payload() {
     let tier_one = [(301, 3), (302, 2)];
     tree.validate(100, &[(301, 3), (311, 1)]).unwrap();
     tree.validate(100, &[(301, 1), (302, 2), (311, 1)]).unwrap();
+    // Brothers in Arms (342) is a tier-1 skill: its one point counts.
+    tree.validate(100, &[(342, 1), (301, 2), (311, 1)]).unwrap();
     assert!(matches!(
         tree.validate(100, &[(301, 2), (311, 1)]),
         Err(SkillError::Locked { skill: 311, .. })
@@ -109,7 +111,7 @@ fn medical_tree_progression_and_native_payload() {
         }
         spent.push((id, ranks));
     }
-    assert_eq!(spent.iter().map(|(_, n)| u32::from(*n)).sum::<u32>(), 32);
+    assert_eq!(spent.iter().map(|(_, n)| u32::from(*n)).sum::<u32>(), 31);
     let mut medicine = spent.clone();
     medicine.retain(|&(id, _)| id != 331);
     medicine.push((322, 1));
@@ -130,7 +132,7 @@ fn medical_tree_progression_and_native_payload() {
         assert!(tree.skill(old).unwrap().antiskills.contains(&331));
         assert!(tree.skill(331).unwrap().antiskills.contains(&old));
     }
-    // Concentration instead of Unflinching: the same 32 points; both refused.
+    // Concentration instead of Unflinching: the same 31 points; both refused.
     let concentration: Vec<(u16, u8)> = spent
         .iter()
         .map(|&(id, n)| if id == 323 { (333, n) } else { (id, n) })

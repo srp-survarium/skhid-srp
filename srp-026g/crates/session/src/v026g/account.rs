@@ -1339,7 +1339,7 @@ mod tests {
             (311, 5, 3, 1, 2, &[]), (312, 3, 3, 4, 2, &[]), (313, 2, 3, 3, 2, &[]),
             (321, 3, 10, 4, 3, &[]), (322, 1, 20, 3, 5, &[331]), (323, 4, 15, 3, 4, &[333]),
             (331, 1, 20, 2, 5, &[322]), (332, 5, 15, 2, 4, &[]), (333, 4, 15, 4, 4, &[323]),
-            (342, 2, 10, 1, 3, &[]),
+            (342, 1, 0, 1, 1, &[]),
         ];
         let skills = rows
             .iter()
@@ -1401,10 +1401,10 @@ mod tests {
                 (321, 3),
                 (331, 1),
                 (332, 5),
-                (342, 2)
+                (342, 1)
             ]
         );
-        assert_eq!(spent(&account), 24);
+        assert_eq!(spent(&account), 23);
         assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
         assert!(
             account
@@ -1433,7 +1433,7 @@ mod tests {
             (313, 2),
             (303, 2),
             (321, 3),
-            (342, 2),
+            (342, 1),
             (323, 4),
             (333, 4),
         ];
@@ -1441,7 +1441,7 @@ mod tests {
         assert!(account.settle_skills(&tree));
         assert!(!account.skills.iter().any(|&(id, _)| id == 323));
         assert!(account.skills.contains(&(333, 4)));
-        assert_eq!(account.skills.iter().map(|&(_, n)| u32::from(n)).sum::<u32>(), 26);
+        assert_eq!(account.skills.iter().map(|&(_, n)| u32::from(n)).sum::<u32>(), 25);
         assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
         assert!(
             account
@@ -1456,7 +1456,8 @@ mod tests {
     /// A full build saved before Numb Legs moved from row 1 to row 3 (and
     /// Unflinching went from two ranks to four): the ids are the same and
     /// rows 1 and 2 hold Numb Legs' ten points, so nothing is taken back and
-    /// the kits are not sent again.
+    /// the kits are not sent again (Brothers in Arms at the one rank it has
+    /// since 2026-11-14).
     #[test]
     fn numb_legs_saved_in_row_one_stays_after_the_move() {
         let tree = medical_tree();
@@ -1470,7 +1471,7 @@ mod tests {
             (313, 2),
             (312, 3),
             (321, 3),
-            (342, 2),
+            (342, 1),
             (323, 2),
             (332, 5),
             (331, 1),
@@ -1486,5 +1487,61 @@ mod tests {
                 .zip(&revisions)
                 .all(|(kit, &before)| kit.revision == before)
         );
+    }
+
+    /// Brothers in Arms saved at two ranks in row 3 (before 2026-11-14) is
+    /// one rank in row 1 now: the second rank's point is the account's to
+    /// spend again and its kits are sent again. A row reached with exactly
+    /// that point is given back as well; one saved rank changes nothing.
+    #[test]
+    fn brothers_in_arms_saved_at_two_ranks_gives_a_point_back() {
+        let tree = medical_tree();
+        let settled = |saved: &[(u16, u8)]| {
+            let mut account = Account::new("Alice");
+            account.add_experience(50_000_000);
+            account.skills = saved.to_vec();
+            let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+            let changed = account.settle_skills(&tree);
+            // Sent again when anything was taken back, else left alone.
+            assert!(
+                account
+                    .kits
+                    .iter()
+                    .zip(&revisions)
+                    .all(|(kit, &before)| (kit.revision != before) == changed)
+            );
+            assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
+            assert!(!account.settle_skills(&tree));
+            (changed, account.skills)
+        };
+        // The full build of before: 32 points held, 31 now, nothing else.
+        #[rustfmt::skip]
+        let full = [
+            (301, 3), (302, 2), (311, 5), (312, 3), (313, 2), (342, 2), (303, 2), (321, 3),
+            (332, 5), (323, 4), (331, 1),
+        ];
+        let mut full_now = full.to_vec();
+        full_now[5] = (342, 1);
+        assert_eq!(settled(&full), (true, full_now));
+        // Rows 1-3 held exactly row 4's 15 with both ranks: row 4 and the
+        // tier-5 unlock come back too (21 points held, 14 now).
+        #[rustfmt::skip]
+        let fifteen = [(301, 3), (302, 2), (311, 5), (312, 3), (342, 2), (332, 5), (331, 1)];
+        assert_eq!(
+            settled(&fifteen),
+            (true, vec![(301, 3), (302, 2), (311, 5), (312, 3), (342, 1)])
+        );
+        // Rows 1-4 held exactly row 5's 20 with both ranks: the tier-5
+        // unlock comes back, row 4 stays (21 points held, 19 now).
+        #[rustfmt::skip]
+        let twenty = [(301, 3), (302, 2), (311, 5), (312, 3), (313, 1), (342, 2), (323, 4), (322, 1)];
+        let mut twenty_now = twenty.to_vec();
+        twenty_now[5] = (342, 1);
+        twenty_now.pop();
+        assert_eq!(settled(&twenty), (true, twenty_now));
+        // One rank, with no point to spare in rows 1-3 or 1-4: unchanged.
+        #[rustfmt::skip]
+        let one = [(301, 3), (302, 2), (311, 5), (342, 1), (303, 2), (321, 2), (332, 5), (331, 1)];
+        assert_eq!(settled(&one), (false, one.to_vec()));
     }
 }
