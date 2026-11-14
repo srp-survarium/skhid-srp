@@ -39,6 +39,13 @@ impl Bots {
         let Some(me) = view.place(bot.place).filter(|p| p.alive) else {
             return;
         };
+        #[cfg(test)]
+        if let Some(life) = bot.bench_life.as_mut() {
+            life.think.get_or_insert(now);
+            if bot.assignment.is_some() {
+                life.play.get_or_insert(now);
+            }
+        }
         let team = usize::from(bot.team & 1);
         let due = Due {
             now,
@@ -175,7 +182,14 @@ impl Bots {
                     };
                     {
                         bot.pace.learn_spots(&self.teams[usize::from(team)].knowledge, time, tuning.pace.ring_death_spots);
-                        drive_tick(bot, &me, view, tactics, &tuning, time, searching)
+                        #[cfg(test)]
+                        path::take_last_no_route();
+                        let decision = drive_tick(bot, &me, view, tactics, &tuning, time, searching);
+                        #[cfg(test)]
+                        if let Some(life) = bot.bench_life.as_mut() {
+                            life.drove(time, path::take_last_no_route());
+                        }
+                        decision
                     }
                 }
                 _ => bot.motor.rest(),
@@ -239,6 +253,12 @@ impl Bots {
                 &tuning.kin,
                 world.as_deref(),
             );
+            #[cfg(test)]
+            if keys & (key::FORWARD | key::BACK | key::LEFT | key::RIGHT) != 0
+                && let Some(life) = bot.bench_life.take()
+            {
+                super::life_start::moved(life, time);
+            }
             if let Some(input) = input {
                 made.push(Made {
                     place: bot.place,

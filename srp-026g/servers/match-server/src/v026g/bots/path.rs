@@ -292,11 +292,20 @@ pub enum NoRoute {
 thread_local! {
     static NO_ROUTE: std::cell::Cell<[u64; 6]> = const { std::cell::Cell::new([0; 6]) };
     static NO_ROUTE_BY_TEAM: std::cell::Cell<[[u64; 6]; 2]> = const { std::cell::Cell::new([[0; 6]; 2]) };
+    /// The last [`no_route`]'s why, for the bench's measure of a respawn's pause (`life_start`).
+    static LAST_NO_ROUTE: std::cell::Cell<Option<NoRoute>> = const { std::cell::Cell::new(None) };
+}
+
+/// The why of the last [`no_route`] since the last call, taken.
+#[cfg(test)]
+pub fn take_last_no_route() -> Option<NoRoute> {
+    LAST_NO_ROUTE.with(|c| c.take())
 }
 
 /// A tick of a bot with a goal and no route, counted by why.
 #[cfg(test)]
 pub fn no_route(team: u8, why: NoRoute) {
+    LAST_NO_ROUTE.with(|c| c.set(Some(why)));
     NO_ROUTE.with(|c| {
         let mut n = c.get();
         n[why as usize] += 1;
