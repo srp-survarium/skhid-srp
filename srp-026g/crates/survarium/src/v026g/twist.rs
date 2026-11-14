@@ -5,8 +5,13 @@
 //! third of what is left); the rooms' vote draws one for its free-for-all cards
 //! (`session::v026g::rooms`), and the lobby names it by its own mode number.
 
+use super::dictionary::PROFILE_SLOTS;
 use super::maps::{GameMode, MapMode, MatchMap};
-use super::match_msgs::static_info::MatchProfile;
+use super::match_msgs::static_info::{
+    FULL_CONDITION, KIT_USABLE, MatchItem, MatchKit, MatchProfile, NO_PROTECTION,
+};
+use super::skills::MODIFIERS;
+use srp_validate::world::WEAPON_SLOTS;
 
 /// The shares of a free-for-all card's draw ([`Plays::draw`]): the plain mode's and each twist's,
 /// in hundredths. Cowboy rare (the owner, 2026-11-14: "cowboy version should be rare with only
@@ -115,6 +120,46 @@ impl Twist {
             Self::Cowboy => super::cowboy::arm(profile, &super::cowboy::Revolver::shared()),
         }
     }
+
+    /// The guns of a kit whose slot `slot` holds `held(slot)` (items_dict ids) as the twist arms
+    /// them ([`Self::arm`] on a profile of that kit alone): each weapon slot with the gun a match
+    /// of the twist played there, for what its history keeps.
+    pub fn armed_guns(self, held: impl Fn(usize) -> Option<u16>) -> [(usize, Option<u16>); 2] {
+        let mut items = Vec::new();
+        let mut slots = [None; PROFILE_SLOTS];
+        for slot in WEAPON_SLOTS.map(usize::from) {
+            if let Some(dict_id) = held(slot) {
+                slots[slot] = Some((items.len() as u16, 1));
+                items.push(MatchItem {
+                    instance_id: items.len() as u32 + 1,
+                    dict_id,
+                    condition_or_stack: FULL_CONDITION,
+                    ..MatchItem::default()
+                });
+            }
+        }
+        let mut profile = MatchProfile {
+            team: 0,
+            name: String::new(),
+            clan_tag: String::new(),
+            protection: NO_PROTECTION,
+            kits: vec![MatchKit {
+                state: KIT_USABLE,
+                id: 0,
+                name: String::new(),
+                slots,
+                modifiers: [0.0; MODIFIERS],
+            }],
+            items,
+            squad: 0,
+        };
+        self.arm(&mut profile);
+        let (kit, items) = (&profile.kits[0], &profile.items);
+        WEAPON_SLOTS.map(usize::from).map(|slot| {
+            let gun = kit.slots[slot].and_then(|(index, _)| items.get(usize::from(index)));
+            (slot, gun.map(|item| item.dict_id))
+        })
+    }
 }
 
 /// What a match plays: a map, and on a free-for-all's a twist or none. Made only by
@@ -176,6 +221,23 @@ impl Played {
 mod tests {
     use super::super::maps::{self, playable_in};
     use super::*;
+
+    /// A kit's guns as each twist armed them: Racket's AK-12 for the sniper rifle, its other gun
+    /// kept; Cowboy's revolver alone; nothing held, nothing armed.
+    #[test]
+    fn a_kits_guns_are_the_twists() {
+        let id = |name| super::super::dictionary::Dictionary::shared().item_named(name).unwrap().dict_id;
+        let kit = |slot| match slot {
+            7 => Some(id("svd")),
+            10 => Some(id("ak_74u")),
+            _ => None,
+        };
+        let racket = id(super::super::racket::GUN);
+        assert_eq!(Twist::Racket.armed_guns(kit), [(7, Some(racket)), (10, Some(id("ak_74u")))]);
+        let revolver = id(super::super::cowboy::GUN_NAME);
+        assert_eq!(Twist::Cowboy.armed_guns(kit), [(7, Some(revolver)), (10, None)]);
+        assert_eq!(Twist::Racket.armed_guns(|_| None), [(7, None), (10, None)]);
+    }
 
     #[test]
     fn a_twist_is_a_free_for_alls_alone() {

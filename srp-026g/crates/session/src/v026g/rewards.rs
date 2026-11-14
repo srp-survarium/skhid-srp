@@ -1707,7 +1707,8 @@ impl<'a> Shared<'a> {
     /// trusted snapshot (as [`Self::wear`] counts a kit worn); with none
     /// (no trusted snapshot, or nothing done), the kit the account plays,
     /// the one the match took. Each with its own kills, headshots, shots and
-    /// hits, and its weapons and armour by slot.
+    /// hits, and its weapons and armour by slot: in a twist's match, the guns the twist
+    /// armed it with (`Twist::armed_guns`), not the account's own.
     fn kits_used(&self, account: &Account, player: &PlayerResult) -> Vec<history::KitLine> {
         let events = self.events(player);
         let kits = account.kits.len().min(KITS);
@@ -1730,17 +1731,33 @@ impl<'a> Shared<'a> {
                     shots: u64::from(events[event::BULLET_FIRE][index]),
                     hits: u64::from(events[event::BULLET_HIT][index]),
                 },
-                items: account.kits[index]
-                    .slots
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(slot, held)| {
-                        Some(history::KitItem {
-                            slot: history::GearSlot::of(slot)?,
-                            dict_id: account.item(held.as_ref()?.item_id)?.dict_id,
-                        })
-                    })
-                    .collect(),
+                items: self.kit_items(account, index),
+            })
+            .collect()
+    }
+
+    /// What the history keeps of `account`'s kit `index` ([`history::GearSlot`]): its items by
+    /// slot, its guns as the match's twist armed them.
+    fn kit_items(&self, account: &Account, index: usize) -> Vec<history::KitItem> {
+        let mut held: Vec<Option<u16>> = account.kits[index]
+            .slots
+            .iter()
+            .map(|held| Some(account.item(held.as_ref()?.item_id)?.dict_id))
+            .collect();
+        if let Some(twist) = self.result.twist {
+            for (slot, gun) in twist.armed_guns(|slot| held.get(slot).copied().flatten()) {
+                if let Some(at) = held.get_mut(slot) {
+                    *at = gun;
+                }
+            }
+        }
+        held.into_iter()
+            .enumerate()
+            .filter_map(|(slot, dict_id)| {
+                Some(history::KitItem {
+                    slot: history::GearSlot::of(slot)?,
+                    dict_id: dict_id?,
+                })
             })
             .collect()
     }
