@@ -894,7 +894,12 @@ fn drive_tick_inner(
                 && let Some((route, _)) = bot.route.as_mut()
             {
                 let (walked, _) = route.progress(me.feet);
-                if !crossing::still_borne(tactics, route, walked, &crossing::CrossBody::of(tuning, view, me, bot.features.stock.pools, &bot.features.crossing.armour)) {
+                let body = crossing::CrossBody::of(tuning, view, me, bot.features.stock.pools, &bot.features.crossing.armour);
+                if !crossing::still_borne(tactics, route, walked, &body) {
+                    // The log's line: the rest's price against the body (decision-neutral).
+                    let rest = crossing::hurt(tactics, route, walked, route.length(), body.armour());
+                    let line = crossing::priced_line("crossing given up", "its rest leaves too little", rest, &body, route.length() - walked);
+                    bot.nav_log.push(super::nav_log::Kind::Route, time, line);
                     crossing::count(crossing::Count::Aborted);
                     bot.features.crossing.goal = None;
                     bot.end_route(RouteEnd::CrossingAborted, time);
@@ -1537,8 +1542,8 @@ fn drive_tick_inner(
                             if from_zone && crossing_route.is_some() {
                                 plays::collect::take_counts::count(plays::collect::take_counts::Count::ZoneSearchFound);
                             }
-                            let kept;
-                            (route, crossed, kept) = crossing::choose(
+                            let (kept, line);
+                            (route, crossed, kept, line) = crossing::choose(
                                 tactics,
                                 from,
                                 route,
@@ -1550,6 +1555,9 @@ fn drive_tick_inner(
                             );
                             if kept {
                                 bot.features.crossing.long_kept = Some((at, time + crossing::LONG_RETRY_MS));
+                            }
+                            if let Some(line) = line {
+                                bot.nav_log.push(super::nav_log::Kind::Route, time, line);
                             }
                         }
                         Err(planning) => {
