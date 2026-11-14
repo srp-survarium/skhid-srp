@@ -22,6 +22,9 @@ and energy costs to their second-strongest rows):
     five are built in: the three mobility rows above, and weight limit +5 kg (1124) and
     regeneration +15 % (1094), Duty's own two. A suit that had rolled one of those kinds keeps the
     roll beside the built-in one (only new rolls leave out a kind the suit comes with).
+  - 2026-11-14, later (the owner: "for freedom replace stamina regeneration with shooting without
+    scope"): hip-fire dispersion -10 % (1074, the kind's top row) in place of stamina regeneration
+    +10 % (1104).
 - Duty: weight limit +5 kg (1124), regeneration +15 % (1094), the kinds' top rows, beside its item slot, ammo bag, pocket capacity and
   artefact container.
   - Buffed 2026-11-14 (the owner, after the Freedom suit's buff: "make sure duty is fine too, it
