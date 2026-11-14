@@ -28,7 +28,6 @@ COUNTS = {'cs_mp_bath': 24, 'cs_mp_military_1': 24, 'cs_training_camp': 26}
 TRAINING = 'cs_training_camp'
 GROUND = 2
 # Metres between two points of a map: on the ground plane, and Training Camp's in 3D.
-SPACING = {'cs_mp_bath': 12, 'cs_mp_military_1': 12, TRAINING: 8}
 # Training Camp's ground is at about y = -0.8: a point under this height stands on it.
 GROUND_BELOW = 1.0
 ON_GROUND = 'ground inside the fence'
@@ -83,10 +82,6 @@ def points():
         name, rows = project(key), by[project(key)]
         if len(rows) != count or len({r['point'] for r in rows}) != count:
             raise ValueError(f'{name}: expected {count} uniquely named points')
-        for i, a in enumerate(rows):
-            for b in rows[:i]:
-                if spacing(a, b) < SPACING[key] - 0.001:
-                    raise ValueError(f'{name}: points less than {SPACING[key]} m apart')
     stands = [stands_on(row) for row in by[project(TRAINING)]]
     if stands.count(ON_GROUND) != GROUND or None in stands:
         raise ValueError(f'{project(TRAINING)}: every point but {GROUND} on the ground stands on a raised floor')
@@ -111,14 +106,6 @@ def stands_on(p):
                    if i['x_min'] <= p['x'] <= i['x_max'] and i['z_min'] <= p['z'] <= i['z_max']
                    and i['y_min'] <= p['y'] <= i['y_max']), None)
     return on('cabin') or island or on('stairs') or (ON_GROUND if p['y'] < GROUND_BELOW else None)
-
-
-def spacing(a, b):
-    """On the ground plane; Training Camp's in 3D: a spawn on the ground under a raised floor does
-    not take it (the owner, 2026-11-13)."""
-    if a['project'] == project(TRAINING):
-        return math.dist((a['x'], a['y'], a['z']), (b['x'], b['y'], b['z']))
-    return math.hypot(a['x'] - b['x'], a['z'] - b['z'])
 
 
 def edits(pack, dictionary):

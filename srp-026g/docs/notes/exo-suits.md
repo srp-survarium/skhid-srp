@@ -34,3 +34,7 @@ and energy costs to their second-strongest rows):
     the Freedom suit's 0.88; isolation, the artefact container and the helmet (5 kg) unchanged.
 - Suits already owned get the new bonuses at once: an item's record holds only its own
   modifications, the defaults come from the config.
+- **Eight built-ins at most** (2026-11-14): the client holds eight default modifications an item
+  (`item_params::MOST_DEFAULT_MODIFICATIONS`, the item's constructor 0x2CB310) and stops at start on a
+  ninth; the two buffs above made nine each. Both suits lose regeneration +15 % (1094) (the owner's
+  pick), eight each. srp and `srp-check-game-data` refuse an item with more.

@@ -290,7 +290,6 @@ va	status	ref_021d	name
 0x00064e10	inferred-medium	0x00047ef3	vostok::sound::ogg_encoded_sound_interface::detach
 0x00064e40	inferred-medium	0x00047f17	vostok::sound::ogg_encoded_sound_interface::get_rms_by_time
 0x00064ed0	inferred-medium	0x00047f8d	vostok::sound::ogg_encoded_sound_interface::decompress
-0x00064f00	inferred-medium	0x00047fb5	vostok::buffer_vector<unsigned int>::push_back
 0x00064f80	inferred-medium	0x00048046	vostok::sound::sound_scene::new_point_sound_instance_proxy
 0x00065100	inferred-medium	0x00048152	vostok::sound::sound_scene::new_hud_sound_instance_proxy
 0x000652d0	inferred-medium	0x00048270	vostok::sound::sound_scene::new_spot_sound_instance_proxy

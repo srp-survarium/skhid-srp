@@ -32,7 +32,6 @@ package
       public function InventoryItemController()
       {
          super();
-         this.__setProp_btn_item_fix_InventoryItemController_();
          this.__setProp_btn_item_upgrade_InventoryItemController_();
          this.__setProp_btn_item_reroll_InventoryItemController_();
          this.__setProp_btn_item_craft_InventoryItemController_();
@@ -42,34 +41,6 @@ package
          this.__setProp_btnAccept_InventoryItemController_();
          this.__setProp_btnCancel_InventoryItemController_();
          this.__setProp_btnSellBig_InventoryItemController_();
-      }
-      
-      internal function __setProp_btn_item_fix_InventoryItemController_() : *
-      {
-         try
-         {
-            btn_item_fix["componentInspectorSetting"] = true;
-         }
-         catch(e:Error)
-         {
-         }
-         btn_item_fix.autoRepeat = false;
-         btn_item_fix.autoSize = "none";
-         btn_item_fix.data = "";
-         btn_item_fix.enabled = true;
-         btn_item_fix.enableInitCallback = false;
-         btn_item_fix.focusable = true;
-         btn_item_fix.label = "Чинить";
-         btn_item_fix.selected = false;
-         btn_item_fix.toggle = false;
-         btn_item_fix.visible = true;
-         try
-         {
-            btn_item_fix["componentInspectorSetting"] = false;
-         }
-         catch(e:Error)
-         {
-         }
       }
       
       internal function __setProp_btn_item_upgrade_InventoryItemController_() : *

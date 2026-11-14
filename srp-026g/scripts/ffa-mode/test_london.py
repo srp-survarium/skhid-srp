@@ -63,7 +63,7 @@ class LondonAdditions(unittest.TestCase):
                 offsets = m.base.c.value_offsets(blob)
                 self.assertEqual(len(offsets), len(set(offsets)))
 
-    def test_unchecked_or_overlapping_additions_rejected(self):
+    def test_unchecked_additions_rejected(self):
         for region in m.REGIONS.values():
             with tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
@@ -73,30 +73,6 @@ class LondonAdditions(unittest.TestCase):
                 points.write_text(raw.replace('kept', 'dropped', 1))
                 with self.assertRaises(ValueError):
                     m.edits(dataclasses.replace(region, points=points), root / 'live')
-                tree = m.base.tree(source.read_bytes())
-                first = m.points(region)[0]
-                tree['server_objects']['respawn_points'][2]['position'] = tuple(float(first[k]) for k in ('x', 'y', 'z'))
-                source.write_bytes(config(tree))
-                with self.assertRaisesRegex(ValueError, 'too close'):
-                    m.edits(region, root / 'live')
-
-    def test_underpass_spacing_is_3d(self):
-        """A spawn of the rotunda's storey 13 m over an underpass point leaves it clear; one on the
-        street 5 m over it and 10 m off in plan does not."""
-        region = m.UNDERPASS
-        first = [float(m.points(region)[0][k]) for k in ('x', 'y', 'z')]
-        for over, clear in (((0., 13.4, 0.), True), ((10., 5.3, 0.), False)):
-            with tempfile.TemporaryDirectory() as temp:
-                root = Path(temp)
-                source = self.fixture(root / 'live', region)
-                tree = m.base.tree(source.read_bytes())
-                tree['server_objects']['respawn_points'][2]['position'] = tuple(a + d for a, d in zip(first, over))
-                source.write_bytes(config(tree))
-                if clear:
-                    self.assertEqual(len(m.edits(region, root / 'live')['add_entry']), region.count)
-                else:
-                    with self.assertRaisesRegex(ValueError, 'too close'):
-                        m.edits(region, root / 'live')
 
 
 if __name__ == '__main__':

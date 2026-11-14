@@ -145,6 +145,7 @@ use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 
 use survarium::v021d;
+use survarium::v026g::twist::Twist;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::drops::{self, DropTable, Drops, Rng};
 use survarium::v026g::lobby::{
@@ -333,6 +334,10 @@ pub struct MatchResult {
     /// player earns counts twice, in its score and in what the score pays
     /// ([`BLACKOUT_FACTOR`]); the counts (kills, batteries) are as played.
     pub mode: GameMode,
+    /// A free-for-all's twist: its kits were not the accounts' own
+    /// (`survarium::v026g::twist`), so the counters alone prove no use of
+    /// an account's stacks (`autobuy::used`).
+    pub twist: Option<Twist>,
     pub match_level: u16,
     pub end: MatchEnd,
     /// 0 or 1, [`DRAW`], or `None` when no trusted snapshot gave a standing.
@@ -1977,7 +1982,13 @@ impl<'a> Shared<'a> {
             let respawns =
                 total(&events, event::DEATH).saturating_add(u32::from(player.kit_changes));
             reward.supplies_used =
-                super::autobuy::used(account, player.supplies.as_ref(), &shots, respawns);
+                super::autobuy::used(
+                    account,
+                    player.supplies.as_ref(),
+                    &shots,
+                    respawns,
+                    self.result.twist,
+                );
         }
         // The score's lines. A match against the server's bots pays a share
         // of the silver and the experience (`SRP_PVB_PAY`): of every cell,

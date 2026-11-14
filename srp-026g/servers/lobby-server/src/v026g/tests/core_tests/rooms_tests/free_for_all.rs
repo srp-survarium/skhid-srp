@@ -30,7 +30,7 @@ fn free_for_all_world() -> World {
 /// What the match server was asked for last, as the lobby asked it.
 fn last_setup(world: &World) -> MatchSetup {
     let setup = world.host.made.locked().last().expect("a match").1.clone();
-    assert_eq!(setup.map.mode(), maps::GameMode::FreeForAll);
+    assert_eq!(setup.played.mode(), maps::GameMode::FreeForAll);
     setup
 }
 
@@ -77,7 +77,7 @@ fn a_room_whose_vote_wins_a_free_for_all_card_plays_it_with_each_ready_member() 
     let ticket = room_match_starts(&mut world, &[alice, bob, carol], VOTE_AND_WAIT);
     assert_eq!(world.host.made.locked().len(), 1);
     let setup = last_setup(&world);
-    assert_eq!(setup.map.map().id, free_for_all, "the vote's winner");
+    assert_eq!(setup.played.map().id, free_for_all, "the vote's winner");
     assert_eq!(setup.players.len(), 3);
     assert_eq!(seated(&setup), accounts(&world, &[alice, bob, carol]));
     assert!(setup.players.iter().all(|player| player.profile.squad == 0));

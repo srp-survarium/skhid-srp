@@ -632,10 +632,28 @@ pub struct FriendRoom {
 /// A card of the vote.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Card {
-    pub map_id: u8,
+    pub shown: Shown,
     pub votes: u8,
     /// The asker voted for it.
     pub mine: bool,
+}
+
+/// A map as a room shows it: its `maps_dict` id and the mode its match
+/// plays, a twist's own (`twist::Played::lobby_number`): what the movie
+/// names on a card and on the banner of a match being played.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Shown {
+    pub map_id: u8,
+    pub mode: u8,
+}
+
+impl From<crate::v026g::twist::Played> for Shown {
+    fn from(played: crate::v026g::twist::Played) -> Self {
+        Self {
+            map_id: played.map().id,
+            mode: played.lobby_number(),
+        }
+    }
 }
 
 /// A member of the asker's room, in the order of the room.
@@ -713,8 +731,8 @@ pub struct RoomView {
     pub pin: bool,
     pub cards: Vec<Card>,
     pub members: Vec<Member>,
-    /// The map of its last match; 0: none yet.
-    pub last_map: u8,
+    /// What its last match played; none yet.
+    pub last: Option<Shown>,
     /// Always 0 since 2026-10-19 (no map is fixed before the start); kept
     /// so the lobby movies of revision 24 and before read the wire.
     pub next_map: u8,
@@ -950,10 +968,11 @@ pub fn room_state(
     )];
     names.extend(room.cards.iter().enumerate().map(|(index, card)| {
         format!(
-            "C;{index};{};{};{}",
-            card.map_id,
+            "C;{index};{};{};{};{}",
+            card.shown.map_id,
             card.votes,
-            u8::from(card.mine)
+            u8::from(card.mine),
+            card.shown.mode
         )
     }));
     names.extend(room.members.iter().enumerate().map(|(index, member)| {
@@ -1001,7 +1020,10 @@ pub fn room_state(
             row_name(&switch.name)
         ));
     }
-    names.push(format!("L;{}", room.last_map));
+    names.push(match room.last {
+        Some(last) => format!("L;{};{}", last.map_id, last.mode),
+        None => "L;0".to_owned(),
+    });
     rows_at(ROOM_STATE, names)
 }
 

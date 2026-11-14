@@ -1,22 +1,37 @@
 #!/usr/bin/env python3
 """make_pack.py: the content pack of the music (patch 88; ../../docs/notes/music.md).
 
-usage: python3 -I make_pack.py --donor <folder> --stock <folder> --out <packs folder>/music-<version>
+usage: python3 -I make_pack.py --donor <folder> --stock <folder> --end-song <file> --out <packs folder>/music-<version>
 
 --donor  retail 0.46c2's files at their game paths: sounds/single/music/<track>.high.ogg and .high.rms
          of every track below (resources.07.db of the 0.46c2 build: `vostok-port extract --db
          <resources.07.db> --path <path> --output <folder>/<path>`)
 --stock  the stock 0.26g resources.db's sounds/single/scapes/lobby/lobby_background.raw_options at its
          game path (`vostok-port extract`)
+--end-song  Training Camp's theme: the STALKER mobile project's end-song.wav (its
+         crates/stalker-audio/assets/; PCM16 mono 22 050 Hz, 33 s, with a 2 s fade-out at its tail), the
+         only copy there is, pinned by its sha256 (kept out of this repository)
 --out    the pack's folder (a new one): pack.json and files/, for `vostok-port pack` and the
          manifest's `pack` row (release/content.tsv)
 
-The tracks are retail's own, byte for byte: Vorbis, 44.1 kHz stereo, 112 kb/s nominal, the encoding of
-0.26g's own long sounds (the lobby's room tone), each with its RMS cache (0.02 s windows, as the
-engine's sound_rms reads it). 0.26g's single sounds take a `.raw_options` each, which 0.46c2's music
-has not: the lobby room tone's own (`lobby_background.raw_options`), with
+Needs ffmpeg (with libvorbis and libsoxr) on PATH, for the encoded track.
 
-- `volume_k`: the track at -24 LUFS integrated (ffmpeg's ebur128 of the file, the LOUDNESS table):
+The retail tracks are retail's own, byte for byte: Vorbis, 44.1 kHz stereo, 112 kb/s nominal, the
+encoding of 0.26g's own long sounds (the lobby's room tone), each with its RMS cache (0.02 s windows, as
+the engine's sound_rms reads it). Training Camp's theme (`cs_training_camp_loading`, for the STALKER map
+cs_training_camp) is encoded here the same way: resampled to 44.1 kHz (soxr), its one channel on both,
+libvorbis at 112 kb/s nominal (no upper or lower bound), no tags, bitexact. Its .high.rms is made as the
+0.10b engine's sound_rms constructor makes one (sound_rms.cpp): the first channel decoded at its own
+rate, the root mean square of each 882-sample window summed in floats, the shorter tail a window of its
+own; the file is the float 0.02, the length in ms (u32: samples x 1000 / rate, rounded down), the
+window count (u32), then a float a window, little-endian, as retail's are (this computation gives
+retail's own files within 5e-7 of each value).
+
+0.26g's single sounds take a `.raw_options` each, which 0.46c2's music has not: the lobby room tone's
+own (`lobby_background.raw_options`), with
+
+- `volume_k`: the track at -24 LUFS integrated (ffmpeg's ebur128 of the file, the tables below; the
+  encoded track's is measured again and refused if it differs):
   the room tone's level (-18.3 LUFS at its `volume_k` 0.5); the game's speech and shots stay above;
 - `use_hdr` false: the music is not in the engine's loudness window (it never masks a quiet sound,
   a loud one never pumps it);
@@ -26,15 +41,18 @@ has not: the lobby room tone's own (`lobby_background.raw_options`), with
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
+import re
 import struct
+import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lobby-bulb"))
 from make_pack import parse, serialize, T_BOOL, T_FLOAT, T_NAMED  # noqa: E402  (the binary config codec)
 
 PACK_ID = "music"
-VERSION = "1"
+VERSION = "2"
 MUSIC = "sounds/single/music/"
 STOCK_OPTIONS = "sounds/single/scapes/lobby/lobby_background.raw_options"
 STOCK_OPTIONS_SHA = "487e4bd7463ca4d4a7e578846b97d3f2bce351d63742a00e5fd1bc31e8060602"
@@ -64,6 +82,12 @@ TRACKS = {
     "level_09_loading": ("67bf05309f8313e88e963404c665cb455bdfb8dafaf14781d6105a1905891307",
                          "47e81c18161e1a10fdb00d8389472e03d3d6d544c9aac7053e18131631b81c4d", -11.3),
 }
+# the tracks encoded here: track: (its source's sha256, the encoded file's integrated loudness in LUFS)
+ENCODED = {
+    "cs_training_camp_loading": ("2fa2ac293096531706c027776f247363f0200e4b83d73b6317668f0981a5562b", -19.0),
+}
+RATE = 44100
+RMS_PERIOD = 0.02
 
 
 def sha256(data):
@@ -79,6 +103,42 @@ def read(folder, path, want):
 
 def float_bits(value):
     return struct.unpack("<I", struct.pack("<f", value))[0]
+
+
+def ffmpeg(args, data):
+    run = subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", *args], input=data, capture_output=True)
+    if run.returncode:
+        sys.exit(f"ffmpeg {' '.join(args)}: {run.stderr.decode(errors='replace')}")
+    return run
+
+
+def encode(wav):
+    """Vorbis, 44.1 kHz stereo, 112 kb/s nominal (libvorbis with no bounds: its rate estimate), as retail's."""
+    return ffmpeg(["-v", "error", "-i", "pipe:0", "-af", f"aresample={RATE}:resampler=soxr", "-ac", "2",
+                   "-c:a", "libvorbis", "-b:a", "112k", "-map_metadata", "-1", "-fflags", "+bitexact",
+                   "-flags:a", "+bitexact", "-f", "ogg", "pipe:1"], wav).stdout
+
+
+def rms_cache(ogg):
+    """The .high.rms of an Ogg, as the engine's sound_rms constructor computes it (the docstring)."""
+    pcm = ffmpeg(["-v", "error", "-i", "pipe:0", "-af", "pan=mono|c0=c0", "-f", "f32le", "pipe:1"], ogg).stdout
+    samples = struct.unpack(f"<{len(pcm) // 4}f", pcm)
+    window = int(RATE * RMS_PERIOD)
+    f32 = struct.Struct("<f")
+    values = []
+    for start in range(0, len(samples), window):
+        part = samples[start:start + window]
+        total = 0.0
+        for v in part:
+            total = f32.unpack(f32.pack(total + f32.unpack(f32.pack(v * v))[0]))[0]
+        values.append(math.sqrt(f32.unpack(f32.pack(total / len(part)))[0]))
+    return struct.pack(f"<fII{len(values)}f", RMS_PERIOD, len(samples) * 1000 // RATE, len(values), *values)
+
+
+def measured_loudness(ogg):
+    """Its integrated loudness in LUFS: ffmpeg's ebur128, to 0.1 as it prints it."""
+    log = ffmpeg(["-nostats", "-i", "pipe:0", "-af", "ebur128", "-f", "null", "-"], ogg).stderr.decode()
+    return float(re.findall(r"^\s*I:\s*(-?[0-9.]+) LUFS", log, re.M)[-1])
 
 
 def options(stock, loudness):
@@ -100,6 +160,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--donor", required=True, type=Path)
     ap.add_argument("--stock", required=True, type=Path)
+    ap.add_argument("--end-song", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
     a = ap.parse_args()
     if a.out.exists():
@@ -110,17 +171,28 @@ def main():
         files[f"{MUSIC}{track}.high.ogg"] = read(a.donor, f"{MUSIC}{track}.high.ogg", ogg)
         files[f"{MUSIC}{track}.high.rms"] = read(a.donor, f"{MUSIC}{track}.high.rms", rms)
         files[f"{MUSIC}{track}.raw_options"] = options(stock, loudness)
+    for track, (source, want) in ENCODED.items():
+        ogg = encode(read(a.end_song.parent, a.end_song.name, source))
+        measured = measured_loudness(ogg)
+        if measured != want:
+            sys.exit(f"{track}: {measured} LUFS encoded, not the pinned {want} (another ffmpeg or libvorbis?)")
+        files[f"{MUSIC}{track}.high.ogg"] = ogg
+        files[f"{MUSIC}{track}.high.rms"] = rms_cache(ogg)
+        files[f"{MUSIC}{track}.raw_options"] = options(stock, want)
+        print(f"{track}: .high.ogg {len(ogg)} bytes, sha256 {sha256(ogg)}; {want} LUFS")
     for path, data in files.items():
         (a.out / "files" / path).parent.mkdir(parents=True, exist_ok=True)
         (a.out / "files" / path).write_bytes(data)
     pack = {
         "format_version": 1, "id": PACK_ID, "version": VERSION, "target_build": "0.26g",
         "description": "the music: retail 0.46c2's main, lobby and level 1-9 loading themes "
-                       "(sounds/single/music, Vorbis 112 kb/s with their RMS), each with a .raw_options "
+                       "(sounds/single/music, Vorbis 112 kb/s with their RMS) and Training Camp's theme "
+                       "(cs_training_camp_loading, encoded the same way), each with a .raw_options "
                        "(-24 LUFS, no HDR, not 3D, never displaced) for exe patch 88",
         "operations": [{"op": "add_file", "path": path} for path in sorted(files)],
         "notes": ["made by srp-026g/scripts/music/make_pack.py from retail 0.46c2's resources.07.db and the "
-                  "stock resources.db's lobby_background.raw_options (docs/notes/music.md)"],
+                  "stock resources.db's lobby_background.raw_options, and Training Camp's theme from the STALKER "
+                  "mobile project's end-song.wav (docs/notes/music.md)"],
     }
     (a.out / "pack.json").write_text(json.dumps(pack, indent=2) + "\n")
     size = sum(len(d) for d in files.values())
