@@ -26,6 +26,12 @@ pub const SHARE_TOTAL: u32 = {
     total
 };
 
+/// The lives a twist's ammo lasts: its stack's store is a kit's rounds this many times. The game
+/// takes each slot's count out of the store at every spawn, a kit change in the countdown too, and
+/// a dead player keeps only what is left in it (`snapshot_rules.md` §7.3), so a kit's worth alone
+/// would last one life. More than any match has: 15:00 with a 5 s respawn is 180.
+pub const STORE_LIVES: u32 = 1_000;
+
 /// What a twist does to the kits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Twist {
@@ -59,6 +65,15 @@ impl Twist {
             roll -= share;
         }
         unreachable!("a roll is below the shares' sum")
+    }
+
+    /// The ammo the twist gives, which a match of it never charges (`session::v026g::autobuy`):
+    /// nobody's, though an account may own the same kind.
+    pub fn gives(self) -> u16 {
+        match self {
+            Self::Racket => super::racket::ammo(),
+            Self::Cowboy => super::cowboy::Revolver::shared().ammo,
+        }
     }
 
     /// The twist of a lobby number.

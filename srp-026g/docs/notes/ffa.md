@@ -462,14 +462,22 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     in every kit and slot that held it (the second slot takes it: assault rifles fit slot 10).
   - Its ammo: in each kit that held a replaced gun, every ammo slot whose ammo none of the kit's
     guns fires now is emptied; the ammo bags it took (a bag share for each clip begun) are AK-12
-    ammo (`ammo_6.5x39`, the one ammo the data pairs with it), whole clips, one new stack in the
-    first slot emptied. Without such ammo the AK-12 has its magazine alone.
+    ammo (`ammo_6.5x39`, the one ammo the data pairs with it), whole clips, in the first slot
+    emptied. Without such ammo the AK-12 has its magazine alone.
+  - That ammo is one new stack every such kit holds. Its store is the most rounds a kit takes,
+    1000 times (`twist::STORE_LIVES`): a spawn takes each slot's count out of a stack's store and
+    a dead player keeps only the store (`snapshot_rules.md` §7.3), so a kit's worth would last one
+    life (found in review, 2026-11-14). An item no kit holds any more (the ammo that left) leaves
+    the table: a profile never grows.
   - Nothing else changes: armour, pockets, artefacts, skills, a loud gun and its ammo.
   - srp refuses to start on data without `ak_12` or with other than one ammo for it.
 - **Pay:** as any free-for-all. The ammo used is counted from the trusted world's stacks, which are
-  the match's: the AK-12 ammo is nobody's, the replaced ammo was not in the match. Without a
-  trusted block a twisted match charges no ammo (`autobuy::used`): the shot counters were of guns
-  the account's kits do not hold.
+  the match's; the ammo left out of the match is not in them, so not charged.
+  - The ammo the twist gives (`Twist::gives`: Racket's `ammo_6.5x39`, Cowboy's `ammo_.357m`) is
+    nobody's and never charged, though an account owns that kind too: its own stack's use in
+    that match is not charged either (the world's stacks are counted by kind).
+  - Without a trusted block a twisted match charges no ammo (`autobuy::used`): the shot counters
+    were of guns the account's kits do not hold.
 - **Not yet:** the website's "matches now" tab and the rooms list say Free for all for a twisted
   match; nothing in the match tells the twist (no introduction line).
 

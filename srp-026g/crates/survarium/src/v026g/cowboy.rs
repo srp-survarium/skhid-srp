@@ -9,6 +9,7 @@ use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
 use super::item_params::{self, ItemClass};
 use super::match_msgs::static_info::{FULL_CONDITION, MatchItem, MatchKit, MatchProfile};
+use super::twist::STORE_LIVES;
 
 /// The dictionary name of the Colt Python.
 pub const GUN_NAME: &str = "magnum";
@@ -25,7 +26,7 @@ pub struct Revolver {
     /// [`GUN_NAME`]'s dict id.
     gun: u16,
     /// The first ammunition of the dictionary the gun takes.
-    ammo: u16,
+    pub ammo: u16,
     /// A kit's rounds of it: the dictionary's `optimal_count` of the gun's category.
     rounds: u16,
 }
@@ -119,7 +120,9 @@ pub fn arm(profile: &mut MatchProfile, revolver: &Revolver) {
     let ammo = MatchItem {
         instance_id: fresh_id(),
         dict_id: revolver.ammo,
-        condition_or_stack: u32::from(revolver.rounds),
+        // Every life's rounds: a spawn takes a slot's count out of the stack's store
+        // (`snapshot_rules.md` §7.3), so one kit's worth would last one life.
+        condition_or_stack: u32::from(revolver.rounds).saturating_mul(STORE_LIVES),
         ..MatchItem::default()
     };
     let (gun_at, ammo_at) = (profile.items.len() as u16, profile.items.len() as u16 + 1);
@@ -134,41 +137,7 @@ pub fn arm(profile: &mut MatchProfile, revolver: &Revolver) {
         let name = std::mem::take(&mut kit.name);
         *kit = MatchKit::new(kit.state, kit.id, name, slots, kit.modifiers);
     }
-    drop_unheld(profile);
-}
-
-/// `profile` without the items no kit holds, the kits' indices following. An index past the
-/// table stays past it.
-fn drop_unheld(profile: &mut MatchProfile) {
-    let held: Vec<bool> = (0..profile.items.len())
-        .map(|index| {
-            profile
-                .kits
-                .iter()
-                .flat_map(|kit| kit.slots.iter().flatten())
-                .any(|&(at, _)| usize::from(at) == index)
-        })
-        .collect();
-    // An item's new index: the held ones before it.
-    let moved: Vec<u16> = held
-        .iter()
-        .scan(0u16, |next, &held| {
-            let index = *next;
-            *next += u16::from(held);
-            Some(index)
-        })
-        .collect();
-    let mut keep = held.iter();
-    profile
-        .items
-        .retain(|_| keep.next().copied().unwrap_or(false));
-    for kit in &mut profile.kits {
-        for (index, _) in kit.slots.iter_mut().flatten() {
-            if let Some(&to) = moved.get(usize::from(*index)) {
-                *index = to;
-            }
-        }
-    }
+    profile.drop_unheld();
 }
 
 #[cfg(test)]
@@ -306,7 +275,8 @@ mod tests {
             assert!(item.modifications.is_empty() && item.upgrades.is_empty());
             let whole = match item.dict_id == revolver.gun {
                 true => FULL_CONDITION,
-                false => u32::from(revolver.rounds),
+                // Every life's rounds (`STORE_LIVES`).
+                false => u32::from(revolver.rounds) * STORE_LIVES,
             };
             assert_eq!(item.condition_or_stack, whole);
         }
