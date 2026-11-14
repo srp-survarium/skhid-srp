@@ -118,7 +118,8 @@ REACH = 1.2
 SAMPLE = 0.5
 # A floor: a collision triangle that faces up, its normal within 60 degrees of straight up. The
 # normal is (b - a) x (c - a) of the triangle's corners in the file's order: the levels' ground
-# (every triangle of game material grass, 33,794 in the three maps) has it up.
+# has it up (the 33,794 triangles of game material grass that lie this flat in the three maps,
+# every one).
 FLOOR_SLOPE = 0.5
 # Not a floor, whichever way it faces: the trees' own wood. The port gives X-Ray's tree trunks and
 # branches (and its planks) one game material; a branch's top would keep the crown over it.
