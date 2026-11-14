@@ -125,6 +125,23 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
 - **Checked against 0.26g's collision** (`scripts/ffa-mode/check-points`,
   `scripts/ffa-mode/checked.tsv`): each 0.31 point is kept, nudged to the ground (under 0.43 m) or
   dropped (ground over 0.5 m off, body blocked, or no reachable floor).
+- **Where a spawn may stand** (the owner, 2026-11-14: "there should be a rule that spawns are inside
+  buildings or close to two walls or some cover", "and none at the perimeter"; his 46 picks on
+  Rudnya, `private/spawn-examples/rudnya-2026-11-14.tsv`, from the `where` lines of his game log,
+  "see how most of them usually have cover"). check-points' `cover` module is the rule (its
+  `cover` binary measures a map's spawns, given points and its floors); on the bullet collision
+  (what stops shots and sight) round the spawn's feet:
+  - cover, any of three: a roof (collision straight up within 6 m of the feet); a corner (two
+    walls within 2.5 m, at 1.6 m up, what hides a standing player, their faces 60° or more
+    apart); a side (collision within 2.5 m at 0.9 m up, what hides a crouching player, over an
+    arc of 75° or more);
+  - past the perimeter band: deeper than 10 % of the deepest point's depth in the walkable area
+    (to_center's measure, below; on Rudnya 6.6 m of 66.5 m). The move to the centre's 30 % band
+    holds 16 of the picks.
+  - Calibrated on the picks: 44 have cover (39 and 40, on a flat roof, have nothing within 2.5 m);
+    44 are past the band (21, 1 m from the outline, and 25, 6.2 m, are not). Of a sample of
+    Rudnya's walkable floors (one in 4 m in plan and 3 m in height, 2,618) 36 % have cover;
+    open ground has none.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
   proposal for all 16 maps below; Training Camp has its own, `stalker-ffa.md`). Content edit
