@@ -2156,13 +2156,16 @@ impl Bots {
         let mut lines = nav_drift::report(&tallies);
         // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
         // time a step took.
-        let (steps, ns) = body::kept_clock::take();
+        let (steps, ns) = body::kept_clock::take(body::kept_clock::Of::Reckoning);
+        let (forecast_steps, forecast_ns) = body::kept_clock::take(body::kept_clock::Of::Forecast);
         let (left, ground, held) = body::kept_edges::take();
         lines.push(format!(
-            "{}kept controller steps since the last match end (every match on this server): {steps}, {} ns a step, {:.1} ms in all;              off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}",
+            "{}kept controller steps since the last match end (every match on this server): the reckoning's {steps}, {} ns a step,              {:.1} ms in all; the lip guard forecast's {forecast_steps}, {} ns a step, {:.1} ms in all; the reckoning's off the ground              {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}",
             nav_log::PREFIX,
             ns.checked_div(steps).unwrap_or(0),
             ns as f64 / 1e6,
+            forecast_ns.checked_div(forecast_steps).unwrap_or(0),
+            forecast_ns as f64 / 1e6,
             left + ground + held
         ));
         lines

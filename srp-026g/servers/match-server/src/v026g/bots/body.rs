@@ -35,7 +35,7 @@ use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
-use super::kin::{Blend, DropFall, Edge, StepInput, ClientStep, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{Blend, DropFall, Edge, ForecastStep, StepInput, ClientStep, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::kin::{SpeedTerms, SprintGates};
 use super::legs::LegDamage;
 use super::sprint_gates::{OwnGates, Stagger};
@@ -144,13 +144,22 @@ pub(crate) struct KeptStep {
 }
 
 /// [A364 P9] One reckoned ground step of the kept controller ([`ClientStep::Kept`]) from `feet`, asked to move `by` (flat): where its
-/// feet end and whether it left the ground ([`KeptStep`]). None without the grid's walker.
-pub(crate) fn kept_step(grid: &WalkGrid, kept: &mut Option<KeptBody>, feet: Vec3, by: Vec3, keys: u32, sprinting: bool) -> Option<KeptStep> {
+/// feet end and whether it left the ground ([`KeptStep`]). None without the grid's walker. `clock`: whose step it is, for the CPU
+/// line ([`kept_clock`]; the time counts a controller made anew here too).
+pub(crate) fn kept_step(
+    grid: &WalkGrid,
+    kept: &mut Option<KeptBody>,
+    feet: Vec3,
+    by: Vec3,
+    keys: u32,
+    sprinting: bool,
+    clock: kept_clock::Of,
+) -> Option<KeptStep> {
+    let started = std::time::Instant::now();
     let mut body = match kept.take() {
         Some(body) if body.feet.distance_xz(feet) <= KEPT_SAME_M => body,
         _ => KeptBody { controller: grid.kept_controller_at(feet)?, feet, airborne: false },
     };
-    let started = std::time::Instant::now();
     let input = TickInput {
         walk: Vec3::new(by.x, 0.0, by.z),
         air_control: Vec3::ZERO,
@@ -161,7 +170,7 @@ pub(crate) fn kept_step(grid: &WalkGrid, kept: &mut Option<KeptBody>, feet: Vec3
     let start = body.controller.feet();
     let notes = grid.kept_tick(&mut body.controller, input)?;
     let ns = started.elapsed().as_nanos() as u64;
-    kept_clock::add(ns);
+    kept_clock::add(clock, ns);
     #[cfg(test)]
     client_steps::kept(ns);
     // The controller's own move, from the reckoned feet: a controller set anew stands where the walk start placed it (out of the
@@ -184,16 +193,14 @@ pub(crate) fn kept_step(grid: &WalkGrid, kept: &mut Option<KeptBody>, feet: Vec3
 /// no-ground tick, with no walker ground under it: the walk-off comes on that same tick.
 pub(crate) fn kept_off_ground(grid: &WalkGrid, to: Vec3, top: f32) -> KeptOff {
     let step = grid.body().step;
-    let off = if grid.walker_ground_below(to, top + WALKER_GROUND_OVER_M, WALKER_GROUND_OVER_M + step).is_some() {
+    if grid.walker_ground_below(to, top + WALKER_GROUND_OVER_M, WALKER_GROUND_OVER_M + step).is_some() {
         KeptOff::WalkerGround
     } else {
         match under_edge(grid, to, top, top - step) {
             Some(down) => KeptOff::Left(down, Vec3::new(to.x, grid.position(down).y, to.z)),
             None => KeptOff::NoFloor,
         }
-    };
-    kept_edges::count(off);
-    off
+    }
 }
 
 /// [A388 step 2] What a ground step whose kept controller left the ground does ([`kept_off_ground`]).
@@ -1229,10 +1236,14 @@ fn advance(
                             Vec3::new(at.feet.x + end.x - from.x, at.feet.y, at.feet.z + end.z - from.z)
                         })
                     }
-                    // [A364 P9] Every ground step by the body's kept controller.
-                    (ClientStep::Kept, Role::Reckoning, false, Fall::Ground) => {
+                    // [A364 P9] Every ground step by the body's kept controller. [A388 step 2b] The lip guard's stop forecast's too
+                    // ([`ForecastStep::Kept`]): its body is the reckoning's, so it leaves an edge where the reckoned body does.
+                    (ClientStep::Kept, Role::Reckoning | Role::Forecast, false, Fall::Ground)
+                        if role == Role::Reckoning || kin.forecast_step == ForecastStep::Kept =>
+                    {
                         let by = Vec3::new(to.x - at.feet.x, 0.0, to.z - at.feet.z);
-                        kept_step(grid, &mut at.kept, at.feet, by, step_keys, Kinematics::sprint_state(at.keys)).map(|step| {
+                        let clock = if role == Role::Reckoning { kept_clock::Of::Reckoning } else { kept_clock::Of::Forecast };
+                        kept_step(grid, &mut at.kept, at.feet, by, step_keys, Kinematics::sprint_state(at.keys), clock).map(|step| {
                             airborne = step.airborne;
                             step.to
                         })
@@ -1288,11 +1299,11 @@ fn advance(
                 // [`SUPPORT_M`] past its floor's centre, where the client's capsule has already rolled off the walker's rim: falls
                 // report R4, 66 of 110 notes, a median 0.26 m / 0.3 s). The controller is set anew after the fall.
                 let mut left = false;
-                if airborne
-                    && kin.edge == Edge::Controller
-                    && let Some(target) = client
-                    && let KeptOff::Left(down, at_down) = kept_off_ground(grid, target, top)
-                {
+                let off = client.filter(|_| airborne && kin.edge == Edge::Controller).map(|target| kept_off_ground(grid, target, top));
+                if let (Role::Reckoning, Some(off)) = (role, off) {
+                    kept_edges::count(off);
+                }
+                if let Some(KeptOff::Left(down, at_down)) = off {
                     (node, feet, stopped, left) = (down, at_down, false, true);
                     at.kept = None;
                 }
@@ -1552,17 +1563,29 @@ pub(crate) mod walker_holds {
 pub(crate) mod kept_clock {
     use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
-    static STEPS: AtomicU64 = AtomicU64::new(0);
-    static NS: AtomicU64 = AtomicU64::new(0);
-
-    pub(crate) fn add(ns: u64) {
-        STEPS.fetch_add(1, Relaxed);
-        NS.fetch_add(ns, Relaxed);
+    /// Whose kept controller's step.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) enum Of {
+        /// The reckoning's (`BodyTrack`).
+        Reckoning,
+        /// [A388 step 2b] The lip guard's stop forecast's (`stays_up`, [`super::ForecastStep::Kept`]).
+        Forecast,
+        /// The bench's stand-in body's.
+        #[cfg(test)]
+        StandIn,
     }
 
-    /// The steps and their time (ns) since the last call, and zero again.
-    pub(crate) fn take() -> (u64, u64) {
-        (STEPS.swap(0, Relaxed), NS.swap(0, Relaxed))
+    static STEPS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+    static NS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+
+    pub(crate) fn add(of: Of, ns: u64) {
+        STEPS[of as usize].fetch_add(1, Relaxed);
+        NS[of as usize].fetch_add(ns, Relaxed);
+    }
+
+    /// `of`'s steps and their time (ns) since the last call, and zero again.
+    pub(crate) fn take(of: Of) -> (u64, u64) {
+        (STEPS[of as usize].swap(0, Relaxed), NS[of as usize].swap(0, Relaxed))
     }
 }
 
