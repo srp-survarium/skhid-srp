@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Put beside survarium_skhid.exe, then run: bash play_skhid.sh
+# With updater_skhid.exe beside it, it first updates the Skhid files and
+# resources.db's patches, without the launcher's window.
 # With the Skhid launcher beside it too: bash play_skhid.sh launcher
 # (it looks for newer Skhid files, and its PLAY button starts the game).
 # SKHID_CRASH_DUMP=full: a crash writes the game's whole memory (a .dmp of
@@ -10,6 +12,12 @@ set -euo pipefail
 # The game's language is chosen in its Settings. Server: empty when the
 # executable has an embedded default.
 server=
+
+# Without a system Wine 11+, GE-Proton's Wine (the Wine inside Proton, run
+# here directly: no Steam, no container), downloaded once beside the game.
+proton_name=GE-Proton11-12
+proton_sha256=0595159e417c3dbbfb7cc3ae0d3ed15a617cc607aa23ef756ea79029d7af5d70
+proton_url=https://github.com/GloriousEggroll/proton-ge-custom/releases/download/$proton_name/$proton_name-x86_64.tar.gz
 
 die() { echo "Error: $*" >&2; exit 1; }
 require_command() { command -v "$1" >/dev/null || die "Install $1 first."; }
@@ -47,14 +55,55 @@ detect_resolution() {
     echo 1920x1080
 }
 
+# The system's wine and wineserver when its Wine is 11 or newer; otherwise
+# GE-Proton's. Either one runs in the same modern WoW64 mode below. Sets
+# WINE, WINESERVER and configure_wine's version.
+select_wine() {
+    if command -v wine >/dev/null && command -v wineserver >/dev/null \
+        && version=$(LC_ALL=C wine --version 2>&1) \
+        && [[ $version =~ ^wine-([0-9]+)\.([0-9]+)([^0-9].*)?$ ]] && (( 10#${BASH_REMATCH[1]} >= 11 )); then
+        WINE=$(command -v wine)
+        WINESERVER=$(command -v wineserver)
+        return
+    fi
+    [[ $(uname -m) == x86_64 ]] || die "Install Wine 11.0 or newer with modern WoW64 support; see LINUX.txt."
+    echo "System Wine: ${version:-not found}. Using $proton_name's Wine instead (Wine 11+ is required)."
+    install_proton
+    WINE=$PWD/wine-runtime/$proton_name-x86_64/files/bin/wine
+    WINESERVER=$PWD/wine-runtime/$proton_name-x86_64/files/bin/wineserver
+    version=$(LC_ALL=C "$WINE" --version 2>&1) || die "$proton_name's Wine does not start on this system: $version
+See LINUX.txt."
+}
+
+install_proton() (
+    local runtime=wine-runtime temporary
+    [[ -x "$runtime/$proton_name-x86_64/files/bin/wine" ]] && exit 0
+    require_command curl
+    require_command sha256sum
+    require_command tar
+    mkdir -p -- "$runtime"
+    temporary=$(mktemp -d "$runtime/.download.XXXXXX")
+    trap 'rm -rf -- "$temporary"' EXIT
+    echo "Downloading $proton_name (570 MB, 1.6 GB unpacked; first launch only)..."
+    curl --fail --location --proto '=https' --proto-redir '=https' --connect-timeout 15 \
+        --speed-limit 10240 --speed-time 60 --retry 2 --progress-bar \
+        --output "$temporary/proton.tar.gz" "$proton_url" \
+        || die "$proton_name download failed. Run again to retry."
+    printf '%s  %s\n' "$proton_sha256" "$temporary/proton.tar.gz" | sha256sum -c - >>"$log" 2>&1 \
+        || die "$proton_name download checksum failed. Run again to retry; see $log"
+    tar -xzf "$temporary/proton.tar.gz" -C "$temporary" >>"$log" 2>&1 \
+        || die "$proton_name could not be unpacked. Run again to retry; see $log"
+    [[ -x "$temporary/$proton_name-x86_64/files/bin/wine" ]] \
+        || die "$proton_name is incomplete. Run again to retry; see $log"
+    # The folder in place says it is complete; an earlier release is removed.
+    find "$runtime" -mindepth 1 -maxdepth 1 -name 'GE-Proton*' -exec rm -rf -- {} +
+    mv -- "$temporary/$proton_name-x86_64" "$runtime/"
+)
+
 configure_wine() {
-    local version
-    require_command wine
-    require_command wineserver
+    local version=
     export WINEPREFIX="$PWD/wineprefix" WINEDEBUG=-all
-    WINE=$(command -v wine)
-    WINESERVER=$(command -v wineserver)
-    export WINE WINESERVER
+    log="$PWD/skhid-wine.log"
     # Keep HTML enabled; install Gecko explicitly instead of Wine's addon dialogs.
     # qwave remains disabled for the lobby-entry crash workaround.
     export WINEDLLOVERRIDES='mscoree,qwave=;mshtml=b;appwiz.cpl=d;winemenubuilder.exe=d'
@@ -62,16 +111,8 @@ configure_wine() {
     # win64 alone selects a prefix architecture, not the loader used for 32-bit EXEs.
     export WINEARCH=wow64
     unset WINELOADER
-    log="$PWD/skhid-wine.log"
-
-    version=$(LC_ALL=C "$WINE" --version 2>&1) || die "Cannot query Wine: $version
-Install Wine 11.0 or newer with modern WoW64 support (tested: 11.8 Staging WoW64).
-See LINUX.txt."
-    [[ $version =~ ^wine-([0-9]+)\.([0-9]+)([^0-9].*)?$ ]] || die "Unrecognized Wine version: $version
-Use Wine 11.0 or newer with modern WoW64 support; see LINUX.txt."
-    (( 10#${BASH_REMATCH[1]} >= 11 )) || die "Unsupported Wine: $version
-Wine 11.0 or newer with modern WoW64 is required (tested: 11.8 Staging WoW64).
-Select its wine and wineserver in PATH; see LINUX.txt."
+    select_wine
+    export WINE WINESERVER
 
     if [[ ! -e /dev/ntsync ]] && command -v modinfo >/dev/null && modinfo ntsync >/dev/null 2>&1; then
         die "Load ntsync before starting Wine: sudo modprobe ntsync
@@ -226,17 +267,33 @@ install_gecko() (
         || die "Gecko installation is incomplete. Run again to retry; see $log"
 )
 
+# The launcher's update, without its window: the updater, started by hand,
+# installs newer Skhid files and resources.db's patches, and says a failure
+# in a box of its own. Its log lines are shown meanwhile. It replaces a file
+# by renaming, so this script, still running, keeps reading its old copy.
+update_files() {
+    local updater from
+    touch updater_skhid.log
+    from=$(( $(wc -c < updater_skhid.log) + 1 ))
+    echo "Updating the Skhid files. Log: $PWD/updater_skhid.log"
+    "$WINE" updater_skhid.exe update >>"$log" 2>&1 &
+    updater=$!
+    tail -c "+$from" -F --pid="$updater" updater_skhid.log 2>/dev/null | sed -u 's/^[0-9-]* [0-9:]* /    /' &
+    wait "$updater" || echo 'The update did not finish; see the box the updater showed.' >&2
+    wait
+}
+
 start_game() {
     local -a args
     # resources.db's patches, the ones the server lists, must be in place first:
     # the exe of a release needs the content of its patches. The updater checks
     # them (it reads only); no updater beside this script, as without the
-    # launcher: no check.
-    if [[ -f updater_skhid.exe && ! -L updater_skhid.exe ]] \
-        && ! "$WINE" updater_skhid.exe ready quiet >>"$log" 2>&1; then
-        die "Skhid has not finished updating the game's files (game/resources.db.patch_*), so the game is not started.
-Start the launcher (bash Skhid.sh launcher, or bash play_skhid.sh launcher): it finishes the update.
-Details: game/binaries/x86/updater_skhid.log"
+    # launcher: no update and no check.
+    if [[ -f updater_skhid.exe && ! -L updater_skhid.exe ]]; then
+        update_files
+        "$WINE" updater_skhid.exe ready quiet >>"$log" 2>&1 \
+            || die "Skhid has not finished updating the game's files (game/resources.db.patch_*), so the game is not started.
+Run bash Skhid.sh again to retry. Details: game/binaries/x86/updater_skhid.log"
     fi
     echo "Starting Survarium. Log: $log"
     args=(-minimum_resources_memory_size=768)

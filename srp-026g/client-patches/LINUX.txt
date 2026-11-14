@@ -1,10 +1,12 @@
 SURVARIUM 0.26g - LINUX
 
-For the Wine scripts, install Bash, curl, Winetricks (with cabextract), and
-Wine 11.0+ with modern WoW64 support.
-Tested: Wine 11.8 Staging WoW64. Use wine and wineserver from the same
-installation. A Vulkan-capable graphics driver is required for DXVK.
-For GE-Proton11-7, see GE-PROTON below.
+For the Wine scripts, install Bash, curl, tar, and Winetricks (with
+cabextract). A Vulkan-capable graphics driver is required for DXVK.
+The script uses the system's Wine when it is 11.0+ (tested: 11.8 Staging
+WoW64; wine and wineserver from the same installation). Without one it
+downloads the Wine of GE-Proton11-12 once into game/binaries/x86/wine-runtime
+(570 MB, 1.6 GB unpacked) and runs that, without Steam. Either runs in
+modern WoW64 mode. For running the game in your own Proton, see GE-PROTON.
 
 If the script asks for ntsync, run sudo modprobe ntsync, then try again.
 To load it automatically at boot:
@@ -15,17 +17,19 @@ START
 
 Unpack the Skhid archive into an empty folder with about 10 GB free, then run:
 
-    bash Skhid.sh launcher
+    bash Skhid.sh
 
-The launcher downloads the game and updates; press PLAY when ready.
+It updates the Skhid files and the game's patches (the launcher's update,
+without its window; the lines of updater_skhid.log show meanwhile), then
+starts the game. The first run also downloads the game.
 For an existing game, apply the complete archive over its folder.
-To play directly without checking for updates, run bash Skhid.sh, or run
-bash play_skhid.sh from game/binaries/x86.
+bash Skhid.sh launcher starts the Skhid launcher instead; press PLAY when
+it is ready.
 
-First launch creates a Wine prefix and installs DXVK, Wine Gecko and the font
-Calibri (a 27 MB download, which the game's text needs) silently. Later
-launches reuse them. Settings: ~/.config/skhid/user.cfg (or
-$XDG_CONFIG_HOME/skhid/user.cfg).
+First launch creates a Wine prefix and installs DXVK and the font Calibri (a
+27 MB download, which the game's text needs) silently; the launcher's first
+start installs Wine Gecko. Later launches reuse them.
+Settings: ~/.config/skhid/user.cfg (or $XDG_CONFIG_HOME/skhid/user.cfg).
 Select an English keyboard layout before starting to avoid text-input issues.
 For VPN setup, see VPN.txt; split tunnelling must cover Wine.
 
@@ -47,7 +51,7 @@ Simply creating a win64 prefix is not the same as enabling this mode.
 
 IF IT FAILS
 
-The script refuses old Wine versions and non-modern-WoW64 setups. If switching
+The script refuses Wine setups that cannot run modern WoW64. If switching
 from older Wine or seeing a white launcher panel, close both, then rename
 game/binaries/x86/wineprefix to an unused backup name and launch again.
 Settings stored outside the prefix survive its recreation.

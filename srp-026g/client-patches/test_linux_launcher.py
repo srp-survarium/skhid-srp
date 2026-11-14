@@ -9,6 +9,7 @@ import pwd
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 
@@ -22,6 +23,8 @@ GECKO_MSI = b'Gecko installer fixture'
 GECKO_SHA = '26cecc47706b091908f7f814bddb074c61beb8063318e9efc5a7f789857793d6'
 VIEWER_EXE = b'PowerPoint Viewer fixture'
 VIEWER_SHA = 'c4e753548d3092ffd7dd3849105e0a26d9b5a1afe46e6e667fe7c6887893701f'
+PROTON_SHA = '0595159e417c3dbbfb7cc3ae0d3ed15a617cc607aa23ef756ea79029d7af5d70'
+PROTON_WINE = 'wine-runtime/GE-Proton11-12-x86_64/files/bin/wine'
 CALIBRI_FACES = ('calibri', 'calibrib', 'calibrii', 'calibriz')
 
 
@@ -36,7 +39,8 @@ class LauncherTests(unittest.TestCase):
         self.drm = self.root / 'drm'
         self.drm.mkdir()
         self.ntsync = self.root / 'ntsync'
-        self.script.write_text(SCRIPT.read_text().replace('/sys/class/drm', str(self.drm))
+        self.proton = self.root / 'proton.tar.gz'
+        self.script_text = (SCRIPT.read_text().replace('/sys/class/drm', str(self.drm))
             .replace('/dev/ntsync', str(self.ntsync))
             .replace(GECKO_SHA, hashlib.sha256(GECKO_MSI).hexdigest())
             .replace(VIEWER_SHA, hashlib.sha256(VIEWER_EXE).hexdigest()))
@@ -45,10 +49,12 @@ class LauncherTests(unittest.TestCase):
         self.tools.mkdir()
         self.calls = self.root / 'calls.jsonl'
         # Only mocked dependencies plus explicitly allowed core tools in PATH.
-        for tool in ('bash', 'dirname', 'flock', 'timeout', 'rm', 'mkdir', 'touch', 'id', 'awk', 'grep', 'mktemp', 'sha256sum', 'ln', 'cp', 'mv', 'tr'):
+        for tool in ('bash', 'dirname', 'flock', 'timeout', 'rm', 'mkdir', 'touch', 'id', 'awk', 'grep', 'mktemp', 'sha256sum', 'ln', 'cp', 'mv', 'tr',
+                     'wc', 'tail', 'sed', 'uname', 'find', 'tar', 'gzip'):
             (self.tools / tool).symlink_to(shutil.which(tool))
         stub = '#!' + sys.executable + '\n' + '''import json,os,pathlib,sys
 name=pathlib.Path(sys.argv[0]).name
+proton='wine-runtime' in sys.argv[0]
 prefix=pathlib.Path(os.environ['WINEPREFIX'])
 gecko=prefix/'drive_c/windows/syswow64/gecko/2.47.4/wine_gecko'
 def install_gecko():
@@ -58,10 +64,14 @@ def install_gecko():
 if name=='wine' and sys.argv[1]=='wineboot.exe':
  prefix.mkdir(parents=True,exist_ok=True)
 with open(os.environ['TEST_CALLS'],'a') as f:
- f.write(json.dumps(dict(name=name,args=sys.argv[1:],cwd=os.getcwd(),prefix=str(prefix),dll=os.environ.get('WINEDLLOVERRIDES'),arch=os.environ.get('WINEARCH'),crash_dump=os.environ.get('SKHID_CRASH_DUMP'))) + '\\n')
+ f.write(json.dumps(dict(name=name,proton=proton,args=sys.argv[1:],cwd=os.getcwd(),prefix=str(prefix),dll=os.environ.get('WINEDLLOVERRIDES'),arch=os.environ.get('WINEARCH'),crash_dump=os.environ.get('SKHID_CRASH_DUMP'))) + '\\n')
 if name=='wine' and sys.argv[1]=='survarium_skhid.exe' and os.environ.get('TEST_CRASH'):
  pathlib.Path('SRP-crash-test-0.dmp').write_bytes(b'MDMP')
  pathlib.Path('SRP-crash-test-0.txt').write_text('Reporter:  local build, full-memory dumps')
+if proton and sys.argv[1]=='--version':
+ if os.environ.get('TEST_PROTON_BROKEN'): sys.exit('error while loading shared libraries')
+ print('wine-11.0 (Staging)')
+ sys.exit(0)
 if os.environ.get('TEST_FAIL')==name+':'+sys.argv[1]:
  sys.exit(1)
 if name=='wine' and sys.argv[1]=='--version':
@@ -79,7 +89,9 @@ if name=='wineserver':
  if os.environ.get('TEST_GECKO_READY','1')=='1': install_gecko()
 elif name=='curl':
  output=pathlib.Path(sys.argv[sys.argv.index('--output')+1])
- if any('PowerPointViewer' in argument for argument in sys.argv[1:]):
+ if any('proton-ge-custom' in argument for argument in sys.argv[1:]):
+  output.write_bytes(b'corrupt' if os.environ.get('TEST_PROTON_CORRUPT') else pathlib.Path(os.environ['TEST_PROTON']).read_bytes())
+ elif any('PowerPointViewer' in argument for argument in sys.argv[1:]):
   output.write_bytes(b'corrupt' if os.environ.get('TEST_VIEWER_CORRUPT') else b'PowerPoint Viewer fixture')
  else:
   output.write_bytes(b'corrupt' if os.environ.get('TEST_GECKO_CORRUPT') else b'Gecko installer fixture')
@@ -102,7 +114,13 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
             path = self.tools / name
             path.write_text(stub)
             path.chmod(0o755)
-        self.env = dict(os.environ, PATH=str(self.tools), TEST_CALLS=str(self.calls))
+        # GE-Proton's release: its wine and wineserver are the same stub.
+        with tarfile.open(self.proton, 'w:gz') as archive:
+            for name in ('wine', 'wineserver'):
+                archive.add(self.tools / name, 'GE-Proton11-12-x86_64/files/bin/' + name)
+        self.script_text = self.script_text.replace(PROTON_SHA, hashlib.sha256(self.proton.read_bytes()).hexdigest())
+        self.script.write_text(self.script_text)
+        self.env = dict(os.environ, PATH=str(self.tools), TEST_CALLS=str(self.calls), TEST_PROTON=str(self.proton))
         self.env['HOME'] = str(self.root / 'home')
         for name in ('XDG_CONFIG_HOME', 'NIRI_SOCKET', 'WAYLAND_DISPLAY'):
             self.env.pop(name, None)
@@ -147,27 +165,73 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
             return calls
         return [c for c in calls if c['args'][0] not in ('--version', PROBE)]
 
-    def test_unsupported_or_unrecognized_wine_cannot_change_exe_or_prefix(self):
+    def proton_downloads(self):
+        return [c for c in self.recorded_calls(True) if c['name'] == 'curl' and any('proton-ge-custom' in a for a in c['args'])]
+
+    def test_old_unknown_or_missing_system_wine_uses_downloaded_proton(self):
         self.copy_exe()
-        for version in ('wine-9.0', 'wine-10.20 (Staging)', 'unknown', 'wine-110', ''):
-            with self.subTest(version=version):
-                self.env['TEST_WINE_VERSION'] = version
+        cases = [('version', version) for version in ('wine-9.0', 'wine-10.20 (Staging)', 'unknown', 'wine-110', '')]
+        cases += [('failed query', None), ('missing', 'wine'), ('missing', 'wineserver')]
+        for index, (case, value) in enumerate(cases):
+            with self.subTest(case=case, value=value):
+                self.env.pop('TEST_FAIL', None)
+                self.env['TEST_WINE_VERSION'] = value if case == 'version' else 'wine-11.8 (Staging)'
+                if case == 'failed query':
+                    self.env['TEST_FAIL'] = 'wine:--version'
+                tool = self.tools / (value or '')
+                if case == 'missing':
+                    tool.rename(tool.with_suffix('.disabled'))
                 self.calls.unlink(missing_ok=True)
                 result = self.run_script()
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn('Wine 11.0 or newer', result.stderr)
+                if case == 'missing':
+                    tool.with_suffix('.disabled').rename(tool)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn('GE-Proton11-12', result.stdout)
+                # Downloaded once, then reused.
+                self.assertEqual(len(self.proton_downloads()), 1 if index == 0 else 0)
+                calls = self.recorded_calls(True)
+                wine_calls = [c for c in calls if c['name'] in ('wine', 'wineserver') and c['args'] != ['--version']]
+                self.assertTrue(wine_calls and all(c['proton'] for c in wine_calls))
+                self.assertTrue(all(c['arch'] == 'wow64' for c in wine_calls))
+                self.assertEqual(calls[-1]['args'][0], 'survarium_skhid.exe')
                 self.assertEqual(self.exe.read_bytes(), FIXTURE)
-                self.assertFalse((self.bin/'wineprefix').exists())
-                self.assertEqual([c['args'] for c in self.recorded_calls(True)], [['--version']])
+        self.assertEqual([p.name for p in (self.bin / 'wine-runtime').iterdir()], ['GE-Proton11-12-x86_64'])
 
-    def test_failed_version_query_is_refused(self):
+    def test_system_wine_11_is_used_without_proton(self):
         self.copy_exe()
-        self.env['TEST_FAIL'] = 'wine:--version'
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(any(c['proton'] for c in self.recorded_calls(True)))
+        self.assertFalse((self.bin / 'wine-runtime').exists())
+        self.assertEqual([c['args'] for c in self.recorded_calls(True) if c['args'] == ['--version']], [['--version']])
+
+    def test_failed_or_corrupt_proton_download_is_not_used_and_retries(self):
+        self.copy_exe()
+        self.env['TEST_WINE_VERSION'] = 'wine-9.0'
+        for variable, message in (('TEST_PROTON_CORRUPT', 'checksum failed'), ('TEST_FAIL', 'download failed')):
+            with self.subTest(variable=variable):
+                self.env[variable] = 'curl:--fail' if variable == 'TEST_FAIL' else '1'
+                self.calls.unlink(missing_ok=True)
+                result = self.run_script()
+                del self.env[variable]
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+                self.assertEqual(list((self.bin / 'wine-runtime').iterdir()), [])
+                self.assertFalse((self.bin / 'wineprefix').exists())
+                self.assertFalse(any(c['proton'] for c in self.recorded_calls(True)))
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((self.bin / PROTON_WINE).exists())
+
+    def test_proton_wine_that_does_not_start_is_refused(self):
+        self.copy_exe()
+        self.env['TEST_WINE_VERSION'] = 'wine-9.0'
+        self.env['TEST_PROTON_BROKEN'] = '1'
         result = self.run_script()
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('Cannot query Wine', result.stderr)
-        self.assertEqual(self.exe.read_bytes(), FIXTURE)
-        self.assertFalse((self.bin/'wineprefix').exists())
+        self.assertIn("GE-Proton11-12's Wine does not start", result.stderr)
+        self.assertFalse((self.bin / 'wineprefix').exists())
+        self.assertEqual([c['args'] for c in self.recorded_calls(True) if c['proton']], [['--version']])
 
     def test_modern_wow64_is_forced_and_probed_on_every_start(self):
         self.copy_exe()
@@ -272,6 +336,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.copy_exe()
         self.modinfo(0)
         self.env['TEST_WINE_VERSION'] = 'wine-9.0'
+        self.env['TEST_PROTON_BROKEN'] = '1'
         result = self.run_script()
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn('ntsync', result.stderr)
@@ -444,18 +509,6 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
             self.assertIn('Usage', result.stderr)
         self.assertFalse(self.calls.exists())
 
-    def test_missing_dependencies_fail_before_changes(self):
-        self.copy_exe()
-        for name in ('wine', 'wineserver'):
-            tool = self.tools / name
-            tool.rename(tool.with_suffix('.disabled'))
-            result = self.run_script()
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn(name.lower(), result.stderr.lower())
-            self.assertFalse(self.calls.exists())
-            self.assertFalse((self.bin / "wineprefix").exists())
-            tool.with_suffix('.disabled').rename(tool)
-
     def test_winetricks_is_only_required_to_install_dxvk(self):
         self.copy_exe()
         tool = self.tools / 'winetricks'
@@ -504,18 +557,38 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.env['TEST_FAIL'] = 'wine:updater_skhid.exe'
         result = self.run_script()
         self.assertNotEqual(result.returncode, 0)
+        self.assertIn('The update did not finish', result.stderr)
         self.assertIn("has not finished updating the game's files", result.stderr)
-        self.assertIn('bash Skhid.sh launcher', result.stderr)
+        self.assertIn('Run bash Skhid.sh again', result.stderr)
         calls = self.recorded_calls()
-        self.assertEqual(calls[-1]['args'], ['updater_skhid.exe', 'ready', 'quiet'])
+        self.assertEqual([call['args'] for call in calls[-2:]],
+                         [['updater_skhid.exe', 'update'], ['updater_skhid.exe', 'ready', 'quiet']])
         self.assertFalse(any(call['args'][:1] == ['survarium_skhid.exe'] for call in calls))
-        # Ready: the game starts after the check.
+        # Updated and ready: the game starts after the check.
         self.env.pop('TEST_FAIL')
+        self.calls.unlink()
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn('The update did not finish', result.stderr)
         calls = self.recorded_calls()
-        self.assertEqual([call['args'][:2] for call in calls[-2:]],
-                         [['updater_skhid.exe', 'ready'], ['survarium_skhid.exe', '-minimum_resources_memory_size=768']])
+        self.assertEqual([call['args'][:2] for call in calls[-3:]],
+                         [['updater_skhid.exe', 'update'], ['updater_skhid.exe', 'ready'],
+                          ['survarium_skhid.exe', '-minimum_resources_memory_size=768']])
+
+    def test_the_update_shows_the_updater_log_lines_it_adds(self):
+        self.copy_exe()
+        updater = self.bin / 'updater_skhid.exe'
+        updater.write_bytes(b'MZ updater')
+        (self.bin / 'updater_skhid.log').write_text('2026-11-14 12:00:00 an earlier run\r\n')
+        # The updater, here, writes its log as the real one does.
+        wine = self.tools / 'wine'
+        wine.write_text(wine.read_text().replace("if proton and", """if sys.argv[1:3]==['updater_skhid.exe','update']:
+ with open('updater_skhid.log','a') as log: log.write('2026-11-14 12:00:01 patches: 41 patch(es) in place, checked\\r\\n')
+if proton and""", 1))
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('    patches: 41 patch(es) in place, checked', result.stdout)
+        self.assertNotIn('an earlier run', result.stdout)
 
     def test_generated_cert_only_launcher_passes_configured_server(self):
         self.copy_exe()
@@ -770,7 +843,7 @@ HDMI-1 connected 1366x768+0+0
 
     def test_full_crash_dumps_reach_the_game_and_its_crash_files_are_listed(self):
         self.copy_exe()
-        for tool in ('find', 'sort', 'date'):
+        for tool in ('sort', 'date'):
             (self.tools / tool).symlink_to(shutil.which(tool))
         old = self.bin / 'SRP-crash-old-0.zip'
         old.write_bytes(b'PK')

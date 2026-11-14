@@ -536,8 +536,13 @@ An embedded hostname is limited to 63 ASCII bytes and the port to 1–65535.
 `--cert-only` does not support embedding; cert-only overlays still pass the
 address through their batch file.
 
-On Linux, use **Wine 11.0+ with modern WoW64** (tested: **11.8 Staging WoW64**)
-and Winetricks. Run `bash play_skhid.sh` from `game/binaries/x86`.
+On Linux, `play_skhid.sh` runs **Wine 11.0+ with modern WoW64** (tested:
+**11.8 Staging WoW64**) and Winetricks: the system's Wine when it is 11.0 or
+newer, otherwise the Wine of GE-Proton11-12 (pinned, sha256 checked,
+downloaded once into `game/binaries/x86/wine-runtime`). Run `bash Skhid.sh`
+in the game's folder, or `bash play_skhid.sh` from `game/binaries/x86`: it
+runs `updater_skhid.exe update` (the launcher's update, without a window;
+its log lines shown), then `ready quiet`, then the game.
 See [LINUX.txt](LINUX.txt) for setup and troubleshooting.
 
 `bash play_skhid.sh launcher` starts `launcher_skhid.exe` in the same Wine
