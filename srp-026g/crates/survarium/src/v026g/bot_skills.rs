@@ -609,6 +609,36 @@ pub fn profile_movement_level(profile: &MatchProfile, kit: usize) -> Option<f32>
     profile_movement_level_in(profile, kit, super::loadouts::upgrades_on())
 }
 
+/// [A385] The highest speed factor a bot body carries: [`profile_movement_candidates`] (each weapon in hands, and none) of
+/// every kit of every role's profile ([`super::loadouts::bot_profile`]) at every tier, rusher kit and mask the game data has.
+/// The walk cap of the fastest bot is `max_speed` 3.5 x this (`base_player::max_speed` 0x2DC010 runs the stance's speed through
+/// the kit's movement modifiers, exactness 2026-11-14): the grid's rim jumps fly it ([`mapdata`]'s `Body::fastest_walk_cap`).
+pub fn fastest_bot_movement_level() -> f32 {
+    static FASTEST: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *FASTEST.get_or_init(fastest_of_every_bot)
+}
+
+fn fastest_of_every_bot() -> f32 {
+    use super::loadouts::{BotEquipment, BotMask, BotRole, BotTier, bot_profile};
+    let mut fastest = f32::MIN;
+    for tier in BotTier::ALL {
+        for &rusher in tier.rusher_kits() {
+            for mask in BotMask::ALL {
+                let equipment = BotEquipment { tier, rusher, mask };
+                for role in BotRole::ALL {
+                    let profile = bot_profile(0, 0, role, equipment);
+                    for kit in 0..profile.kits.len() {
+                        for level in profile_movement_candidates(&profile, kit).into_iter().flatten() {
+                            fastest = fastest.max(level);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    fastest
+}
+
 /// The slot of weapon 1 in a profile's kit.
 const WEAPON_SLOT: usize = 7;
 
