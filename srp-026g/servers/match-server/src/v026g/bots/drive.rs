@@ -1553,7 +1553,7 @@ fn drive_tick_inner(
                     // toward the goal, not standing (else the old route).
                     let filter = if round { filter } else { hard };
                     if let Some(partial) =
-                        tactics.partial_route(&planning, ends.0, time, side, objective, &filter)
+                        tactics.partial_route(&planning, ends, time, side, objective, &filter)
                     {
                         #[cfg(test)]
                         {
@@ -1666,21 +1666,36 @@ fn drive_tick_inner(
                     // A body on a zone's floors walks its way out over them: the lines it tests may cross the refused
                     // floors of their first stretch, within the way out and no further (`Feel::zone_lines`); else no
                     // point of the route out is one it walks to, and `unclear_aim` stood it there. One test of "on
-                    // refused floors" for the walk: `Hazards::allowed`, the refusal `clear_line_for` goes by.
-                    let leaving = bot.motor.feel.zone_lines.then(|| tactics.zone_exit_reach(me.feet, time)).flatten();
+                    // refused floors" for the walk: `Hazards::allowed`, the refusal `clear_line_for` goes by. With the
+                    // capsule's marking (A395a) the walk out of a zone starts only on the floors the client's zone lists a
+                    // standing body on; on the margin's band the body leaves the band, its lines over no hurt floor.
+                    let leaving = bot.motor.feel.zone_lines.then(|| tactics.zone_exit(me.feet, time)).flatten();
                     match (bot.zone_walk, leaving) {
-                        (None, Some(reach)) => {
+                        (None, Some(exit)) => {
                             bot.zone_walk = Some(time);
-                            // [owner-5 A395a] The walk-out's own line: the start floor dry or being hit (the client's
-                            // contact test), the route's goal and next waypoint.
-                            let hit = tactics.world.grid.locate(me.feet, 1.5).map(|node| tactics.hazards.hits_at(node, time));
                             let next = route.points().get(route.segment() + 1).map(|w| w.at);
-                            let line = super::nav_log::walkout_line(me.feet, hit, *route_at, next, reach);
-                            bot.nav_log.push(super::nav_log::Kind::WalkOut, time, line);
-                            bot.zone_note = Some(format!(
-                                "walks out over the floors of a zone from {:?}: lines tested over them up to {reach:.1} m",
-                                me.feet.to_array()
-                            ));
+                            let reach = exit.reach();
+                            match exit {
+                                super::tactics::ZoneExit::Out { .. } => {
+                                    // [owner-5 A395a] The walk-out's own line: the start floor dry or being hit (the
+                                    // client's contact test), the route's goal and next waypoint.
+                                    let hit = tactics.world.grid.locate(me.feet, 1.5).map(|node| tactics.hazards.hits_at(node, time));
+                                    let line = super::nav_log::walkout_line(me.feet, hit, *route_at, next, reach);
+                                    bot.nav_log.push(super::nav_log::Kind::WalkOut, time, line);
+                                    bot.zone_note = Some(format!(
+                                        "walks out over the floors of a zone from {:?}: lines tested over them up to {reach:.1} m",
+                                        me.feet.to_array()
+                                    ));
+                                }
+                                super::tactics::ZoneExit::Band { .. } => {
+                                    let line = super::nav_log::band_exit_line(me.feet, *route_at, next, reach);
+                                    bot.nav_log.push(super::nav_log::Kind::WalkOut, time, line);
+                                    bot.zone_note = Some(format!(
+                                        "leaves the band of a zone from {:?}: lines tested over its floors up to {reach:.1} m",
+                                        me.feet.to_array()
+                                    ));
+                                }
+                            }
                         }
                         (Some(since), None) => {
                             bot.zone_walk = None;
@@ -1693,7 +1708,7 @@ fn drive_tick_inner(
                         _ => {}
                     }
                     let clear = |p: Vec3| match leaving {
-                        Some(reach) => tactics.clear_line_leaving(me.feet, p, time, side, objective, reach),
+                        Some(exit) => tactics.clear_line_leaving(me.feet, p, time, side, objective, exit),
                         None => tactics.clear_line_for(me.feet, p, time, side, objective),
                     };
                     // On a lip's floors the walk keeps to the route's line: a line to a point further on cuts the

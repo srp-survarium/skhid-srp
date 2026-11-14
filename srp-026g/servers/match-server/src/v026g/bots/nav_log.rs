@@ -387,6 +387,13 @@ pub fn walkout_line(from: Vec3, hit: Option<bool>, goal: Vec3, next: Option<Vec3
     format!("{PREFIX}zone walk-out from {} {floor} to {}{next}, lines tested over the zone's floors up to {reach:.1} m", at(from), at(goal))
 }
 
+/// [A395a] A walk off the margin's band begun (`Marking::Capsule`, where the client hurts no body): `nav: zone band exit
+/// from (..) to (..), next (..), lines tested over the band's floors up to R m`. Its lines cross no floor a zone hurts.
+pub fn band_exit_line(from: Vec3, goal: Vec3, next: Option<Vec3>, reach: f32) -> String {
+    let next = next.map_or(String::new(), |p| format!(", next {}", at(p)));
+    format!("{PREFIX}zone band exit from {} to {}{next}, lines tested over the band's floors up to {reach:.1} m", at(from), at(goal))
+}
+
 /// [owner-5] A key for [`NavLog::push_once`] from the line's parts.
 pub fn key(parts: impl std::hash::Hash) -> u64 {
     use std::hash::{BuildHasher, BuildHasherDefault};
