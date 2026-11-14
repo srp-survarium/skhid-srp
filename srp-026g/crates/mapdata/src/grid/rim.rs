@@ -91,6 +91,7 @@ pub const NEAR_FLAT_M: f32 = 1.0;
 
 /// [R83] What [`WalkGrid::best_press_with`] found: the links made, the flights flown, and whether a flight came near the top
 /// ([`NEAR_HEIGHT_M`]).
+#[derive(Clone, Debug, Default)]
 pub(super) struct RimPress {
     pub(super) made: Vec<Made>,
     pub(super) flights: usize,
