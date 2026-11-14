@@ -369,6 +369,7 @@ impl Tuning {
             open_sides: self.needs_open_sides(),
             pull_hold: self.grid.wall_clear_pull.then_some(PULL_HOLD_M),
             pull_walk: self.grid.pull_walk,
+            walker_shapes: self.grid.walker_shapes,
         }
     }
 

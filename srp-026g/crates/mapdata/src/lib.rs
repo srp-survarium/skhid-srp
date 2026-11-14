@@ -245,12 +245,16 @@ pub struct GridExtras {
     pub pull_hold: Option<f32>,
     /// [A334] The routes' pulled legs walked by the client's walker ([`WalkGrid::with_pull_walk`]; the walker is always kept).
     pub pull_walk: bool,
+    /// [A388] The client's walker is the game's shapes met by the exe's own cast ([`controller::Collision::build_exe`], a format 6
+    /// map; exactness row 4: the port's step equals the exe's on 265 of 276 rim steps there, against 83 of 276 on the walker
+    /// triangles with the Bullet caster), not the walker triangles. A map without the shapes keeps the triangles.
+    pub walker_shapes: bool,
 }
 
 impl GridExtras {
     /// `grid` with these tables, and the client's walker always ([`WalkGrid::with_client_walker`]: the reckoning's client step,
-    /// A318), all from the map's `walker` triangles.
-    pub fn apply(self, grid: WalkGrid, walker: &[Triangle]) -> WalkGrid {
+    /// A318), all from the map's `walker` triangles; the walker from `map`'s game shapes instead with [`Self::walker_shapes`].
+    pub fn apply(self, grid: WalkGrid, walker: &[Triangle], map: &MapData) -> WalkGrid {
         let grid = if self.wall_clearance { grid.with_wall_clearance(walker) } else { grid };
         let grid = match self.pull_hold {
             Some(hold) => grid.with_pull_hold(hold),
@@ -260,7 +264,11 @@ impl GridExtras {
             Some(support_m) => grid.with_open_sides(walker, support_m),
             None => grid,
         };
-        let grid = grid.with_client_walker(walker);
+        let shapes = self.walker_shapes.then(|| controller::Collision::build_exe(map)).flatten();
+        let grid = match shapes {
+            Some(shapes) => grid.with_client_world(shapes),
+            None => grid.with_client_walker(walker),
+        };
         if self.pull_walk { grid.with_pull_walk() } else { grid }
     }
 
@@ -290,14 +298,14 @@ impl World {
     /// is set (0.5-1.7 s a map), and its table of open sides ([`WalkGrid::open_toward`]) for a capsule held `support_m` past a
     /// floor's centre at a ledge when `open_sides` is `Some(support_m)`.
     pub fn build_with(map: MapData, cell: f32, body: Body, links: OffMeshLinks, wall_clearance: bool, open_sides: Option<f32>) -> Self {
-        Self::build_with_extras(map, cell, body, links, GridExtras { wall_clearance, open_sides, pull_hold: None, pull_walk: false })
+        Self::build_with_extras(map, cell, body, links, GridExtras { wall_clearance, open_sides, pull_hold: None, pull_walk: false, walker_shapes: false })
     }
 
     /// [`Self::build_with_links`], the grid finished by `extras` ([`GridExtras::apply`]) as the server's map store finishes its
     /// own (`bots::maps`): the same step, so a table the store adds cannot be missing from a world built here.
     pub fn build_with_extras(map: MapData, cell: f32, body: Body, links: OffMeshLinks, extras: GridExtras) -> Self {
         let walker = map.walker_triangles();
-        let grid = extras.apply(Self::map_grid(&map, &walker, cell, body, links), &walker);
+        let grid = extras.apply(Self::map_grid(&map, &walker, cell, body, links), &walker, &map);
         let sight = map.bullet_mesh().build_tree();
         Self::assemble(map, grid.into(), sight.into())
     }

@@ -867,6 +867,7 @@ pub(crate) fn real_bot_cost() {
             open_sides: bench_open_sides(),
             pull_hold: bench_tuning().grid.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M),
             pull_walk: bench_tuning().grid.pull_walk,
+            walker_shapes: bench_tuning().grid.walker_shapes,
         };
         // From the cache of built grids and sight trees when the run has one (`SRP_BENCH_GRID_CACHE`), else built.
         let world = Arc::new(super::grid_cache::world(map, map_file, mapdata::CELL, bench_tuning().grid_body(), links, extras));

@@ -476,6 +476,13 @@ impl WalkGrid {
         self
     }
 
+    /// [A388] Keeps `world` as the client's walker: the game's shapes met by the exe's own cast
+    /// ([`crate::controller::Collision::build_exe`]), for [`Self::client_step`] and the reckoning's kept controller.
+    pub fn with_client_world(mut self, world: crate::controller::Collision) -> Self {
+        self.walker = Some(std::sync::Arc::new(world));
+        self
+    }
+
     /// [A334] The grid with the routes' pulled legs walked by the client's walker ([`Self::pull_walk_fails`]); it needs the
     /// walker ([`Self::with_client_walker`]), and without it nothing fails.
     pub fn with_pull_walk(mut self) -> Self {

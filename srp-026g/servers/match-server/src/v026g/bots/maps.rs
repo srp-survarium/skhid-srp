@@ -620,7 +620,8 @@ fn build(
                 // ([`mapdata::GridExtras::apply`]; the bench's and the tests' worlds through `World::build_with_extras`).
                 // [A333] With the pull's hold for the routes' straight legs when `grid.wall_clear_pull` is on.
                 let pull_hold = grid_tuning.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M);
-                let grid = mapdata::GridExtras { wall_clearance, open_sides, pull_hold, pull_walk: grid_tuning.pull_walk }.apply(grid, &walker);
+                let grid = mapdata::GridExtras { wall_clearance, open_sides, pull_hold, pull_walk: grid_tuning.pull_walk, walker_shapes: grid_tuning.walker_shapes }
+                    .apply(grid, &walker, &map);
                 let grid = Arc::new(grid);
                 lock(cache).grids.insert(grid_key, Arc::downgrade(&grid));
                 (grid, source)
