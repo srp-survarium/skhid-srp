@@ -72,18 +72,59 @@ pub enum Leap {
     /// Up a jump link above the grid body's standing jump (`Body::max_jump`): a sprint jump, run up to at a sprint. The
     /// planner labels each jump link once, from the grid it plans on; the motor reads the label.
     SprintLedge,
-    /// Across a gap link (`mapdata::grid::gap`): pressed this far before the
-    /// take-off, along the way to the landing, where the grid found the
-    /// client's jump comes down on it.
-    Gap(mapdata::PressLead),
-    /// Across a gap link at a sprint (`mapdata::grid::gap::Takeoff::Sprint`):
-    /// run into at a sprint, facing the landing, pressed this far before the
-    /// take-off. The sprint itself is the motor's sprint-jump line-up (A55).
-    ///
-    /// The motor (`Feel::sprint_gaps`; off, a walking gap jump): the run-up (the grid guarantees 1.5 m of floor behind or
-    /// beside the press) may turn onto the jump's way, so it sprints along the route and turns onto it over the last
-    /// [`motor::SPRINT_GAP_TURN_M`].
-    SprintGap(mapdata::PressLead),
+    /// Across a gap or rim link (`mapdata::grid::gap`, `grid::rim`) by the short jump, pressed as the grid flew it
+    /// ([`GapPress`]).
+    Gap(GapPress),
+    /// Across a gap or rim link by the sprint jump (`mapdata::grid::gap::Takeoff::Sprint`), pressed as the grid flew it
+    /// ([`SprintPress`]): with `Feel::sprint_gaps` run straight along the link's way from its run-up at a sprint (A386); off,
+    /// a walking gap jump at the sprint's lead.
+    SprintGap(SprintPress),
+}
+
+/// [A386] How a link's short jump is pressed, as the grid flew it (A385-FORMAT §1): at the walk cap, or `steps` steps into a
+/// walk-up from a stand.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WalkPress {
+    /// From the walk at the body's walk cap (`mapdata::controller::jump::Kind::Walk`).
+    Cap,
+    /// From a stand, pressed on the walk-up's step `steps` (0: a standing jump; `jump::Kind::Slow`, `gap::Takeoff::Slow`).
+    Slow(u8),
+}
+
+/// [A386] A gap or rim link's short jump as the grid flew it: where the body is at the press (`lead` before the take-off's
+/// centre, along the link's way), how it got there ([`WalkPress`]), and how robust the press is ([`mapdata::Share`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GapPress {
+    pub lead: mapdata::PressLead,
+    pub walk: WalkPress,
+    pub share: mapdata::Share,
+}
+
+/// [A386] A sprint link's jump as the grid flew it: its lead and share, and the link's best walking press (at the walk cap)
+/// onto the same floor for a body the client refuses the sprint (A385-FORMAT §5): None where no walking press lands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SprintPress {
+    pub lead: mapdata::PressLead,
+    pub share: mapdata::Share,
+    pub walk: Option<GapPress>,
+}
+
+impl Leap {
+    /// [A386] A gap link's press, from the grid's link (`gap::OffLink`): None for a walk-off (no key).
+    pub fn of_link(link: &mapdata::grid::gap::OffLink) -> Option<Self> {
+        use mapdata::grid::gap::Takeoff;
+        let share = link.share;
+        match link.press {
+            Takeoff::Press(lead) => Some(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share })),
+            Takeoff::Slow { lead, steps } => Some(Leap::Gap(GapPress { lead, walk: WalkPress::Slow(steps), share })),
+            Takeoff::Sprint(lead) => Some(Leap::SprintGap(SprintPress {
+                lead,
+                share,
+                walk: link.walk.map(|(lead, share)| GapPress { lead, walk: WalkPress::Cap, share }),
+            })),
+            Takeoff::WalkOff => None,
+        }
+    }
 }
 
 /// A corner of a route.
@@ -1023,17 +1064,9 @@ fn pull_straight(
                         Some(Leap::SprintLedge)
                     }
                     LinkKind::Jump => Some(Leap::Ledge),
-                    // A gap link (`mapdata::grid::gap`): at its own press.
-                    // A gap link: pressed at its own point, or walked off
-                    // with no key (a plain leg the body falls along).
-                    kind if kind.is_off_mesh() => grid.off_link(nodes[i - 1], nodes[i]).and_then(|l| match l.press {
-                        mapdata::grid::gap::Takeoff::Press(press) => Some(Leap::Gap(press)),
-                        mapdata::grid::gap::Takeoff::Sprint(press) => Some(Leap::SprintGap(press)),
-                        // [A385] A slow press (a standing jump, or pressed a few steps into the walk-up) is pressed at its point
-                        // as a walking one until the motor makes its speed (A386, A385-FORMAT §6).
-                        mapdata::grid::gap::Takeoff::Slow { lead, .. } => Some(Leap::Gap(lead)),
-                        mapdata::grid::gap::Takeoff::WalkOff => None,
-                    }),
+                    // A gap or rim link: pressed as the grid flew it ([`Leap::of_link`]), or walked off with no key (a plain
+                    // leg the body falls along).
+                    kind if kind.is_off_mesh() => grid.off_link(nodes[i - 1], nodes[i]).and_then(|l| Leap::of_link(&l)),
                     _ => None,
                 },
                 low: low(i - 1, i),
@@ -1980,6 +2013,41 @@ impl Route {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [A386] A gap or rim link's press reaches the route as the grid flew it: the short jump at the cap or slow from a stand,
+    /// the sprint with its walking press for a refused sprint, the share kept; a walk-off is no press.
+    #[test]
+    fn a_links_press_reaches_the_route_as_flown() {
+        use mapdata::grid::gap::Takeoff;
+        use mapdata::{PressLead, Share};
+        let link = |press: Takeoff, walk: Option<(PressLead, Share)>| mapdata::OffLink {
+            from: 0,
+            to: 1,
+            kind: LinkKind::GapJump,
+            press,
+            share: Share::landed(11),
+            walk,
+        };
+        let lead = PressLead::from_metres(0.9);
+        assert_eq!(
+            Leap::of_link(&link(Takeoff::Press(lead), None)),
+            Some(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share: Share::landed(11) }))
+        );
+        assert_eq!(
+            Leap::of_link(&link(Takeoff::Slow { lead, steps: 2 }, None)),
+            Some(Leap::Gap(GapPress { lead, walk: WalkPress::Slow(2), share: Share::landed(11) }))
+        );
+        let walk = PressLead::from_metres(1.2);
+        assert_eq!(
+            Leap::of_link(&link(Takeoff::Sprint(lead), Some((walk, Share::landed(4))))),
+            Some(Leap::SprintGap(SprintPress {
+                lead,
+                share: Share::landed(11),
+                walk: Some(GapPress { lead: walk, walk: WalkPress::Cap, share: Share::landed(4) }),
+            }))
+        );
+        assert_eq!(Leap::of_link(&link(Takeoff::WalkOff, None)), None);
+    }
     use crate::v026g::bots::body::tests::walled;
 
     /// A path that goes round a low ceiling (a patch of floors a standing body does not fit under) is pulled straight past it, not

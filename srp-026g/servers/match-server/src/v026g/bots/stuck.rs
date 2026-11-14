@@ -662,6 +662,13 @@ impl Stuck {
         }
     }
 
+    /// [A386] A sprint link the client refuses this body now (`motor::Walked::JumpRefused`): its `landing` is shut to this body's
+    /// searches for `ms` (its longest think: the refusal is asked again at least that often), as a jump given up is, but the spot
+    /// is no fall and the link is no failed one: the link is the client's when the sprint is.
+    pub fn refused_jump(&mut self, time: u32, landing: Vec3, ms: u32) {
+        self.shut(Shut { kind: ShutKind::Jump, landing, lasts: Lasts::Until(time + ms) }, time);
+    }
+
     /// A body held at the top of its route's drop down (the stuck ladder fired there while the route goes on below):
     /// the drops off where it stands (`landings`, [`drops_off`]) are shut to every search of this body for `kept_ms`, as
     /// a jump it gave up ([`Self::failed_jump`]), and the spot is a fall's for it and its team ([`Self::fell`]). The
