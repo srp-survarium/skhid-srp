@@ -259,10 +259,12 @@ impl GameAccounts {
     pub fn from_env() -> Result<Self, PersistError> {
         match SqliteGameRepository::from_env()? {
             Some(mut repository) => {
-                if let Some(paid) =
-                    repository.pay_back_once(&crate::persist::data_dir().join("backups"))?
-                {
+                let backups = crate::persist::data_dir().join("backups");
+                if let Some(paid) = repository.pay_back_once(&backups)? {
                     log_paid_back(&paid);
+                }
+                if let Some(made) = repository.make_golden_weapons_plain_once(&backups)? {
+                    log_made_plain(&made);
                 }
                 Self::with_repository(Box::new(repository))
             }
@@ -781,6 +783,25 @@ fn log_paid_back(paid: &[persist::PaidBack]) {
         vouchers[0],
         vouchers[1],
         vouchers[2]
+    );
+}
+
+/// The release log of
+/// [`persist::SqliteGameRepository::make_golden_weapons_plain_once`]: a line
+/// for each account it changed, and the totals.
+fn log_made_plain(made: &[persist::MadePlain]) {
+    for account in made {
+        log::info!(
+            "Made {} golden weapons of {} (account {}) their plain weapon",
+            account.weapons,
+            account.name,
+            account.account_id
+        );
+    }
+    log::info!(
+        "The golden weapons are plain ones, made so once: {} weapons of {} accounts",
+        made.iter().map(|account| account.weapons).sum::<u64>(),
+        made.len()
     );
 }
 

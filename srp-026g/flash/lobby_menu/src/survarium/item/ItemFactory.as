@@ -170,31 +170,28 @@ package survarium.item
          return row != null ? row : Equipment046.premium(dictId);
       }
       
-      // A golden item: a golden weapon or a premium armour piece (golden::is_golden).
+      // A golden item: a premium armour piece (golden::is_premium_armour).
       public static function isGolden(dictId:int) : Boolean
       {
-         return ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1 || ItemDictId.PREMIUM_ARMOUR.indexOf(dictId) != -1 || contentPremium(dictId) != null;
+         return ItemDictId.PREMIUM_ARMOUR.indexOf(dictId) != -1 || contentPremium(dictId) != null;
       }
       
-      // A golden item's plain item; anything else itself.
+      // A golden item's plain piece; anything else itself.
       public static function plainOf(dictId:int) : int
       {
-         var index:int = ItemDictId.GOLDEN_WEAPONS.indexOf(dictId);
-         if(index != -1)
-         {
-            return int(ItemDictId.GOLDEN_PLAIN[index]);
-         }
-         index = ItemDictId.PREMIUM_ARMOUR.indexOf(dictId);
+         var index:int = ItemDictId.PREMIUM_ARMOUR.indexOf(dictId);
          if(index != -1) return int(ItemDictId.PREMIUM_ARMOUR_PLAIN[index]);
          var extra:Array = contentPremium(dictId);
          return extra == null ? dictId : int(extra[1]);
       }
       
-      // The bonuses srp gives a new golden item as its own first modifications
-      // (golden::starting_modifications), as the exe gives the movie a modification ({state, icon,
-      // name, props} from its ui_desc; the name is unused for a modification): [id, icon, prop_id] a
-      // line, its value the game's own (bonusValue: scripts/content-edit/modifications.tsv, the one
-      // place it is written). A test holds these to the data (survarium::v026g::golden::tests).
+      // The premium bonuses, which never roll (ModificationRolls.isPremium: the most there is): the
+      // silver one a weapon may hold, and those srp gives a new golden item as its own first
+      // modifications (golden::starting_modifications); as the exe gives the movie a modification
+      // ({state, icon, name, props} from its ui_desc; the name is unused for a modification): [id,
+      // icon, prop_id] a line, its value the game's own (bonusValue:
+      // scripts/content-edit/modifications.tsv, the one place it is written). A test holds these to
+      // the data (survarium::v026g::golden::tests).
       public static const BONUS_UI:Array = [
          [1230,66,126], // silver
          [1240,65,127], // experience
@@ -210,8 +207,6 @@ package survarium.item
       {
          return Number(ModificationValues.value[String(row[0])]).toFixed(2);
       }
-      
-      public static const SILVER_BONUS:int = 1230;
       
       // Modification id as the exe gives it to the movie, of BONUS_UI; null for another id.
       public static function bonusModifier(id:int) : Object
@@ -235,29 +230,22 @@ package survarium.item
       }
       
       // The modifications of its own a new item of dictId has, as srp gives them
-      // (golden::starting_modifications): the silver bonus for a golden weapon, its premium bonuses
-      // for a premium armour piece, none for anything else. For entries of items not owned (the
-      // shop's, a bundle's contents); an owned item has the server's.
+      // (golden::starting_modifications): its premium bonuses for a premium armour piece, none for
+      // anything else. For entries of items not owned (the shop's, a bundle's contents); an owned
+      // item has the server's.
       public static function startingModifiers(dictId:int) : Array
       {
          var ids:Array;
-         if(ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1)
+         var index:int = ItemDictId.PREMIUM_ARMOUR.indexOf(dictId);
+         if(index == -1)
          {
-            ids = [SILVER_BONUS];
+            var extra:Array = contentPremium(dictId);
+            if(extra == null) return [];
+            ids = extra[2];
          }
          else
          {
-            var index:int = ItemDictId.PREMIUM_ARMOUR.indexOf(dictId);
-            if(index == -1)
-            {
-               var extra:Array = contentPremium(dictId);
-               if(extra == null) return [];
-               ids = extra[2];
-            }
-            else
-            {
-               ids = ItemDictId.PREMIUM_ARMOUR_BONUSES[index];
-            }
+            ids = ItemDictId.PREMIUM_ARMOUR_BONUSES[index];
          }
          var modifiers:Array = [];
          var id:int;
@@ -270,8 +258,8 @@ package survarium.item
       
       // Whether an item of donorDictId may be used up to upgrade one of
       // itemDictId, as the server has it (golden::may_donate): the same
-      // item, or any copy of the same plain item, both ways (a golden item
-      // for a plain one too: owner 2026-10-22).
+      // item, or a premium armour piece and its plain piece, both ways
+      // (owner 2026-10-22).
       public static function isCraftDonor(donorDictId:int, itemDictId:int) : Boolean
       {
          return donorDictId == itemDictId || plainOf(donorDictId) == plainOf(itemDictId);

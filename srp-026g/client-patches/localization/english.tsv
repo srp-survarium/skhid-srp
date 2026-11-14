@@ -147,7 +147,7 @@ st_ak12_premium_description	Russian assault rifle of the new Kalashnikov generat
 st_ak12_premium_name	AK-12M1
 st_ak74m_description	A modern version of Kalashnikov submachine gun, ammo: 5,45x39. Was adopted and gained good reputation among the armed forces. Supports single and burst shooting.
 st_ak74m_name	AK-74M
-st_ak74n_bundle_descr	<white>Contains the following items:\n- Improved "AK-74N".\n- 2000 rounds of 5.45x39 7N6M ammo.</white>\n
+st_ak74n_bundle_descr	<white>Contains the following items:\n- "AK-74N".\n- 2000 rounds of 5.45x39 7N6M ammo.</white>\n
 st_ak74n_bundle_name	"АК-74N" bundle
 st_ak74n_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_ak74n_name	AK-74N
@@ -367,7 +367,7 @@ st_blackmarket_meele_kill_descr	When you can't do the job cleanly - be prepared 
 st_blackmarket_meele_kill_name	Dirty work
 st_blackmarket_meele_kill_obj	Kill enemies using melee:
 st_blackmarket_represent	You must be dressed to represent the Black Market.
-st_blackmarket_starter_bundle_descr	<white>Contains the following items:\n"Bandit's jacket".\n"Bandit's pants".\n- Enhanced UZI.\n- 2000 rounds of 9x19 Parabellum ammo.</white>
+st_blackmarket_starter_bundle_descr	<white>Contains the following items:\n"Bandit's jacket".\n"Bandit's pants".\n- UZI.\n- 2000 rounds of 9x19 Parabellum ammo.</white>
 st_blackmarket_starter_bundle_name	"Bandit" bundle
 st_blackmarket_steal_box_descr	Kill two birds with one stone! Remember this rule! Stealing a battery from the enemy base not only leaves your opponents without protection but also greatly helps your own team!
 st_blackmarket_steal_box_name	Robbery
@@ -1357,7 +1357,7 @@ st_items_notes_frame_2_text_1	Supplies are placed in the pockets
 st_items_notes_frame_3_text_1	You can increase the number of pockets,\nusing equipment with a corresponding characteristic
 st_items_notes_frame_4_text_1	You can put\na limited number of items of the same type in one slot 
 st_items_notes_frame_5_text_1	You can increase the capacity of the pockets,\nusing equipment with a corresponding characteristic
-st_izh27_bundle_descr	<white>Contains the following items:\n- Improved MP-27M "Lancaster".\n- 1000 12x70 rounds, buckshot.</white>
+st_izh27_bundle_descr	<white>Contains the following items:\n- MP-27M "Lancaster".\n- 1000 12x70 rounds, buckshot.</white>
 st_izh27_bundle_name	MP-27M "Lancaster" bundle
 st_izh27_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_izh27_name	MP-27M Lancaster
@@ -2036,7 +2036,7 @@ st_scav_torso_4_desc	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_scav_torso_4_name	Survivor's jacket
 st_scav_torso_5_desc	Quilted cotton jacket. Fortified inside with curved metal plates and leather patches on the outside. Good choice for an experienced Scavenger.
 st_scav_torso_5_name	Reinforced padded jacket
-st_scavenger_starter_bundle_descr	<white>Contains the following items:\n"Survivor's jacket".\n"Survivor's pants".\n- Improved OTs-02 "Kiparis".\n- 1000 rounds of 9x18 PM ammo.</white>
+st_scavenger_starter_bundle_descr	<white>Contains the following items:\n"Survivor's jacket".\n"Survivor's pants".\n- OTs-02 "Kiparis".\n- 1000 rounds of 9x18 PM ammo.</white>
 st_scavenger_starter_bundle_name	"Survivor" bundle
 st_scavengers_accuracy_descr	What's the use in shooting in all directions? One bullet is enough to take a life. Learn to conserve your ammo.
 st_scavengers_accuracy_name	Shooting skills
@@ -2203,7 +2203,7 @@ st_squad_list_locked_hint	You can’t create a squad, being in a clan team
 st_squad_not_ready	Squad not ready
 st_sr2m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr2m_name	SR-2M "Veresk"
-st_sr3m_bundle_descr	<white>Contains the following items:\n- Improved CF-3M "Vikhr".\n- 2000 rounds of 9x39 SP-6 ammo.</white>\n
+st_sr3m_bundle_descr	<white>Contains the following items:\n- CF-3M "Vikhr".\n- 2000 rounds of 9x39 SP-6 ammo.</white>\n
 st_sr3m_bundle_name	SR-3M "Vikhr" bundle
 st_sr3m_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_sr3m_name	SR-3M "Vikhr"
@@ -3079,7 +3079,7 @@ st_vhs_2_description	Croatian bullpup assault rifle, ammo: 5.56x45. Made by HS P
 st_vhs_2_name	VHS-2
 st_victory	Victory
 st_victory_screen_no_dropped_item	You haven't found anything on the battlefield.
-st_vityaz_bundle_descr	<white>Contains the following items:\n- Improved PP-19-01 "Vityaz".\n- 2000 rounds of 9x19 Parabellum ammo.</white>
+st_vityaz_bundle_descr	<white>Contains the following items:\n- PP-19-01 "Vityaz".\n- 2000 rounds of 9x19 Parabellum ammo.</white>
 st_vityaz_bundle_name	PP-19-01 "Vityaz" bundle
 st_vityaz_description	Submachine gun, ammo: 9х19. Designed in 2004 in line with the needs of the Russian special forces. Supports single and burst shooting.
 st_vityaz_name	PP-19-01 Vityaz
@@ -3088,7 +3088,7 @@ st_vsk94_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_vsk94_name	VSK-94
 st_vsk94_premium_description	Russian sniper rifle, ammo: 9x39. Developed by the KBP bureau in Tula in the 1990s on the basis of the 9A-91, with a sound suppressor and a sniper stock; meant for quiet shooting at short and medium range. Equipped with a 20-round magazine. Supports single and automatic fire. Premium version in a special camouflage finish.
 st_vsk94_premium_name	VSK-94 Guardian
-st_vss_bundle_descr	<white>Contains the following items:\n- Improved VSS "Vintorez".\n- 1000 rounds of 9x39 SP-5 ammo.</white>\n
+st_vss_bundle_descr	<white>Contains the following items:\n- VSS "Vintorez".\n- 1000 rounds of 9x39 SP-5 ammo.</white>\n
 st_vss_bundle_name	VSS "Vintorez" bundle
 st_vss_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_vss_name	VSS "Vintorez"

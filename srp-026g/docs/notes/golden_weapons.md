@@ -1,67 +1,34 @@
-# Golden weapons
+# Golden weapons: there are none
 
-The owner's rules of 2026-10-21. Code: `survarium::v026g::golden`,
-`session::v026g::items_rules` (`craft`), `Account::add_item`; the
-data: `scripts/content-edit/weapon-stats.tsv` (`rarity`, the bonus columns), `items.tsv` (`like`, `start`); the lobby: `ItemDictId` (the lists), `ItemFactory`,
-`InventoryList` (gold background, craft donors), `MessageCraftItem`, `LobbyMenu.fill_crafted_item`.
+The owner's rule of 2026-11-14: "we have this debt with premium", "those all should be normal
+weapons", "and follow standard rules"; "all code related to gold/premium weapons goes". It
+replaces the rules of 2026-10-21/22 (only the silver bonus, as the weapon's own modification; any
+copy of a plain weapon a craft donor), which are gone with their code.
 
-- **The rule:** "remove extra bonuses from all golden weapons and make them upgradable just
-  like any other weapon but with the first golden bonus already set"; "remove modifiers except
-  for silver from all premium weapons".
-- **Golden weapons (22):** the 20 `wpn_*_premium` / `*_premium_2` copies (Kiparis, Uzi ×2,
-  Vityaz, VSS, SR-3M, Lancaster ×2, AK-74N, AK-74U, AK-12, AKMN ×2, SKS ×2, Vepr, Vepr-12,
-  Saiga-12, VSK-94, Remington 700) and the Neostead, whose first built-in bonus was +10 %
-  silver (modification 1230); and the MP7 special (owner: it joins them; its one bonus, 2004,
-  goes). Not the VSSK camo (not premium; its stock base rarity 3 is 0 too since
-  rev54, [vssk-built-ins.md](vssk-built-ins.md)); the premium armour has the same treatment since
-  2026-10-22 ([premium_armour.md](premium_armour.md)).
-- **Plain weapon of each:** the same weapon for silver (`*_premium*` → its stem); the
-  Neostead's is `neostead_2`, the MP7 special's the silenced MP7.
-- **What they keep:** the silver bonus only. Their other built-in bonuses (reload, reliability,
-  accuracy and the like) go.
-- **The silver bonus is a modification of the weapon's own, its first place**, not a built-in
-  one: it counts for the rank (a new golden weapon is rank 1), and the weapon takes two more.
-- **Upgradable as the plain weapon:** the same craft and reroll rules, places, chances and
-  prices (same item level).
-- **Rolls like any modification, the silver bonus too** (owner: "modifications on premium
-  weapons can be rolled too (even silver)"): a reroll may replace it. A failed craft no longer
-  takes it (owner 2026-10-23: an upgrade never takes a modification away, `craft-menu.md`). Once
-  gone it does not come back by itself (it never rolls: drop weight 0).
-- **Craft donors** (owner: "you should be able to use simple AK-12's and non-premium weapons
-  for crafting"):
-  - golden weapon + its plain weapon as donor: yes, it stays golden;
-  - golden + golden of the same plain weapon (`akmn_premium` + `akmn_premium_2`): yes;
-  - plain weapon + a golden donor: yes (owner 2026-10-22: "if I press upgrade on lancaster, I
-    should get inside premium lancasters too"); the golden one is used up, the weapon stays plain.
-    The craft window lists every copy of the same plain weapon.
-- **Gold background:** golden weapons keep it in the shop and the inventory (the lobby knows
-  them by its list, not by the item's rarity, which is 0 now).
-- **Gold name** (owner 2026-10-22): a golden weapon's name is gold (`Colors.GOLD`) in the shop,
-  the inventory and the item card, whatever its rank. A shop entry keeps rank 0 although it shows
-  the silver bonus: the shop's buy options are off for an item with a rank.
-- **Weapons owned before:** at the first start of the srp with this rule each golden weapon gets
-  the silver bonus as its first modification, once (`g26_meta` `golden_silver_given`, written
-  only after the changed accounts are; an account not written stops srp, and the next start
-  gives it to the golden weapons still without it). One that already had three of its own keeps
-  them (logged; none can have: the lobby showed rank 3).
-- **New ones** (shop, bundles, the admin) come with it.
-- **Data:** the 22 rows of `weapon-stats.tsv` have no bonus cell and `rarity` 0 (stock: 3; the
-  lobby's rank is `min(3, base + modifications)`: 3 forbade every craft and a default is never
-  offered for a reroll). srp refuses to start on data without it (`golden::check`), and so does
-  `release/build-server-db` (`srp-check-game-data`).
-- **Lobby:** the craft result showed the donor's entry (the exe names it); it shows the item
-  upgraded.
-- **Shop and bundles show the silver bonus** (owner: "gold sold weapons in shop no longer show that
-  they have silver bonus"): a golden weapon not owned (a shop entry, a bundle's contents) shows
-  1230 in its first place, as srp gives it on purchase (`ItemFactory.startingModifiers`; a test
-  holds its icon and prop to the data). Owned ones show the server's modifications.
-- **Release:** a resources.db patch (the content edit; the lobby movie), the server data built
-  with it, the server, the `next` row of `simulation_changes.tsv` (the bonuses change matches).
-  Not tested in the game yet. A rollback past it goes without `--keep-db` (the granted silver
-  would add to an old default).
-- **Tech debt** ([tech-debt.md](tech-debt.md)): the silver bonus is a granted modification, not a config
-  default, so that it can be rerolled and takes a place. That needs special cases: srp grants it on
-  creation (`golden::starting_modifications`; owned ones got it once in 2026-10), the lobby fakes it on
-  shop entries and bundle contents (`ItemFactory.startingModifiers`, `GangShop.setupShopItems`,
-  `InventoryList.setupBundleData`), and `golden::check` guards the data. A config default would need none
-  of these, but could not be rerolled and would add a 4th bonus.
+- **The 22 golden weapons**: the `*_premium` / `*_premium_2` copies (Kiparis, Uzi ×2, Vityaz, VSS,
+  SR-3M, Lancaster ×2, AK-74N, AK-74U, AK-12, AKMN ×2, SKS ×2, Vepr, Vepr-12, Saiga-12, VSK-94,
+  Remington 700), the Neostead (plain: `neostead_2`) and the MP7 special (plain: the silenced
+  MP7).
+- **Owned ones are their plain weapon**: once, at the first start of the release, srp changes each
+  one's dict id to its plain weapon's, in the items and the presets' slots
+  (`persist::SqliteGameRepository::make_golden_weapons_plain_once`, table `persist::GOLDEN_WEAPONS`,
+  `g26_meta` mark `golden_weapons_made_plain`, a copy of srp.db first, a log line per account). The
+  item id, modifications, upgrades and kit slots stay. Dry run:
+  `python3 scripts/golden-weapons/preview.py <a copy of srp.db>`.
+- **A silver bonus (1230) a weapon holds** is a modification like any other: it pays (+10 % silver),
+  takes a place, counts for the rank and rerolls; it never rolls (drop weight 0), so once rerolled
+  it is gone.
+- **Standard rules**: a weapon that was golden upgrades, rerolls and combines as its plain weapon,
+  with any copy of it (two SR-3Ms that were golden are two plain SR-3Ms). No gold background or gold
+  name, no silver bonus shown on a shop entry.
+- **None is made**: the bundles hold the plain weapon (no bonus; their descriptions lose
+  "improved"), no shop sells a golden copy (`shop.tsv` `not_sold`), the admin's give refuses one and
+  names the plain weapon. `items.tsv` gives them no `like` and no `start`.
+- **Unchanged**: the premium armour ([premium_armour.md](premium_armour.md)); the 22 rows of
+  `weapon-stats.tsv` and their configs (nobody owns one; old replays read them).
+- **Their stats are the plain weapon's**: five copies differed a little in `weapon-stats.tsv` (the
+  copy's / the plain weapon's: Kiparis zoom 1.2 / 1.1, Uzi recoil 0.5 / 0.6 and top 0.8-1 / 1-1.2,
+  AK-74N aim time 0.35 / 0.3, Vepr-12 weight 3.5 / 3.2 and spread 0.8 / 1, Saiga-12 weight 3.8 /
+  3.6); a weapon made plain plays as its plain weapon.
+- **Not a simulation change**: pay counts the same modifications, and a replay recorded before plays
+  its golden copies with their own unchanged configs.

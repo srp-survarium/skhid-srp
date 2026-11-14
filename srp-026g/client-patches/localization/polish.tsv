@@ -147,7 +147,7 @@ st_ak12_premium_description	Rosyjski karabinek automatyczny nowej generacji Kał
 st_ak12_premium_name	AK-12M1
 st_ak74m_description	Zmodernizowana wersja karabinku Kałasznikowa, amunicja: 5,45x39. Wykorzystywany w siłach zbrojnych, gdzie zdobył dobrą reputację. Posiada tryb ognia pojedynczego i ciągłego.
 st_ak74m_name	AK-74M
-st_ak74n_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony "AK-74N".\n-2000 nabojów 5.45x39 7N6M.</white>
+st_ak74n_bundle_descr	<white>Zawiera następujące przedmioty:\n- "AK-74N".\n-2000 nabojów 5.45x39 7N6M.</white>
 st_ak74n_bundle_name	Zestaw "AK-74N"
 st_ak74n_description	OPIS NIE JEST GOTOWY
 st_ak74n_name	AK-74N
@@ -367,7 +367,7 @@ st_blackmarket_meele_kill_descr	Jeśli nie możesz wykonać zadania czysto, bąd
 st_blackmarket_meele_kill_name	Brudna robota
 st_blackmarket_meele_kill_obj	Zabij przeciwników w walce wręcz.
 st_blackmarket_represent	Musisz włożyć barwy Czarnego Rynku.
-st_blackmarket_starter_bundle_descr	<white>Zawiera następujące przedmioty:\n- "Kurtka bandyty".\n- "Spodnie bandyty".\n- Ulepszony UZI.\n- 2000 nabojów 9x19 Parabellum.</white>
+st_blackmarket_starter_bundle_descr	<white>Zawiera następujące przedmioty:\n- "Kurtka bandyty".\n- "Spodnie bandyty".\n- UZI.\n- 2000 nabojów 9x19 Parabellum.</white>
 st_blackmarket_starter_bundle_name	Zestaw "Bandyta"
 st_blackmarket_steal_box_descr	Panuj i zastraszaj! Pamiętaj o tej zasadzie! Skradnij baterię z obcej bazy. Tym samym zostawisz wroga bez obrony, a jednocześnie pomożesz swoim!
 st_blackmarket_steal_box_name	Rabunek
@@ -1357,7 +1357,7 @@ st_items_notes_frame_2_text_1	Przedmioty specjalne umieszczane są w odpowiednic
 st_items_notes_frame_3_text_1	Możesz zwiększyć liczbę slotów,\nużywając wyposażenia o odpowiedniej charakterystyce
 st_items_notes_frame_4_text_1	W jednym miejscu można umieścić\nograniczoną liczbę przedmiotów danego typu
 st_items_notes_frame_5_text_1	Możesz zwiększyć pojemność slotów,\nużywając wyposażenia o odpowiedniej charakterystyce
-st_izh27_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony MP-27M "Lancaster".\n- 1000 nabojów śrutowych 12x70.</white>
+st_izh27_bundle_descr	<white>Zawiera następujące przedmioty:\n- MP-27M "Lancaster".\n- 1000 nabojów śrutowych 12x70.</white>
 st_izh27_bundle_name	Zestaw MP-27M "Lancaster"
 st_izh27_description	OPIS NIE JEST GOTOWY!!!
 st_izh27_name	MR-27M "Lancaster"
@@ -2036,7 +2036,7 @@ st_scav_torso_4_desc	OPIS NIE JEST GOTOWY!!!
 st_scav_torso_4_name	Kurtka ocalałego
 st_scav_torso_5_desc	Pikowana kurtka bawełniana. Wzmocniona od środka wyprofilowanymi metalowymi płytami, a na zewnątrz łatami ze skóry. Dobry wybór dla doświadczonego włóczęgi.
 st_scav_torso_5_name	Wzmocniona ocieplana kurtka
-st_scavenger_starter_bundle_descr	<white>Zawiera następujące przedmioty:\n- "Kurtka ocalałego".\n- "Spodnie ocalałego".\n- Ulepszony OC-02 "Cyprys".\n- 1000 nabojów 9x18 PM.</white>
+st_scavenger_starter_bundle_descr	<white>Zawiera następujące przedmioty:\n- "Kurtka ocalałego".\n- "Spodnie ocalałego".\n- OC-02 "Cyprys".\n- 1000 nabojów 9x18 PM.</white>
 st_scavenger_starter_bundle_name	Zestaw "Ocalały"
 st_scavengers_accuracy_descr	Nie ma sensu walić z broni gdzie popadnie. Dobremu strzelcowi wystarczy jedna kula, aby odebrać życie. Naucz się oszczędzania nabojów.
 st_scavengers_accuracy_name	Umiejętności strzeleckie
@@ -2203,7 +2203,7 @@ st_squad_list_locked_hint	Nie można utworzyć brygady będąc w drużynie klanu
 st_squad_not_ready	Brygada niegotowa
 st_sr2m_description	OPIS NIE JEST GOTOWY
 st_sr2m_name	SR-2M "Wrzos"
-st_sr3m_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony WSS "Wintoriez".\n- 2000 nabojów 9x39 SP-6.</white>
+st_sr3m_bundle_descr	<white>Zawiera następujące przedmioty:\n- WSS "Wintoriez".\n- 2000 nabojów 9x39 SP-6.</white>
 st_sr3m_bundle_name	Zestaw SR-3M "Wichr"
 st_sr3m_description	OPIS NIE JEST GOTOWY
 st_sr3m_name	SR-3M "Wichr"
@@ -3079,7 +3079,7 @@ st_vhs_2_description	Chorwacki karabinek automatyczny w układzie bullpup, amuni
 st_vhs_2_name	VHS-2
 st_victory	Zwycięstwo
 st_victory_screen_no_dropped_item	Na polu bitwy niczego nie znaleziono.
-st_vityaz_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony PP-19-01 "Witiaź".\n- 2000 nabojów 9x19 Parabellum.</white>
+st_vityaz_bundle_descr	<white>Zawiera następujące przedmioty:\n- PP-19-01 "Witiaź".\n- 2000 nabojów 9x19 Parabellum.</white>
 st_vityaz_bundle_name	Zestaw PP-19-01 "Witiaź"
 st_vityaz_description	Pistolet maszynowy, amunicja: 9х19. Zaprojektowany w 2004 r. na potrzeby rosyjskiego specnazu. Posiada tryb ognia pojedynczego i ciągłego.
 st_vityaz_name	PP-19-01 "Witiaź"
@@ -3088,7 +3088,7 @@ st_vsk94_description	OPIS NIE JEST GOTOWY!!!
 st_vsk94_name	WSK-94
 st_vsk94_premium_description	Rosyjski karabin wyborowy, amunicja: 9x39. Opracowany przez tulskie biuro KBP w latach 90. na bazie 9A-91, z tłumikiem i kolbą snajperską; przeznaczony do cichego strzelania na krótkie i średnie dystanse. Wyposażony w 20-nabojowy magazynek. Posiada tryb ognia pojedynczego i ciągłego. Wersja premium w specjalnym malowaniu kamuflażowym.
 st_vsk94_premium_name	WSK-94 Chranitel
-st_vss_bundle_descr	<white>Zawiera następujące przedmioty:\n- Ulepszony WSS "Wintoriez".\n- 1000 nabojów 9x39 SP-5.</white>
+st_vss_bundle_descr	<white>Zawiera następujące przedmioty:\n- WSS "Wintoriez".\n- 1000 nabojów 9x39 SP-5.</white>
 st_vss_bundle_name	Zestaw WSS "Wintoriez"
 st_vss_description	OPIS NIE JEST GOTOWY!!!
 st_vss_name	WSS "Wintoriez"

@@ -84,22 +84,20 @@
 //!   [LIKELY] The donor is another of the same item: the client's result
 //!   window shows the *donor's* dictionary entry as the upgraded item
 //!   (0x275B84 → 0x29F770 `dict_id`). [srp, the owner's rule of
-//!   2026-10-21] A golden weapon takes its plain weapon, or a golden
-//!   weapon of the same plain weapon, as its donor and stays golden (the
-//!   lobby shows the item, not the donor); [the owner's rule of
-//!   2026-10-22] a plain weapon takes a golden one too, which is used up
-//!   ([`golden::may_donate`]).
+//!   2026-10-22] A premium armour piece and its plain piece are donors for
+//!   each other; the upgraded item stays what it is (the lobby shows the
+//!   item, not the donor), the donor is used up ([`golden::may_donate`]).
 //!   [srp] The modification gained is rolled as a drop's are.
-//! - **Golden weapons** ([`golden`], the owner's rule of 2026-10-21): the
-//!   silver bonus is the item's own first modification, given when it is
-//!   made ([`Account::add_item`]); it rerolls, crafts and counts for the
-//!   rank as any modification.
+//! - **No golden weapons** (the owner, 2026-11-14: "those all should be
+//!   normal weapons"): the ones owned were made their plain weapon once,
+//!   with their modifications (an old silver bonus, 1230, is one like any);
+//!   nothing makes one any more (`docs/notes/golden_weapons.md`).
 //! - **Premium armour** ([`golden::armour_bonuses`], the owner's rule of
-//!   2026-10-22): the same, with its two premium bonuses (+20 % experience,
-//!   +50 % reputation with its faction; +5 % each in 0.26g, the owner's
-//!   of 2026-11-08) as its own first modifications;
-//!   its plain piece and it are donors for each other as a golden weapon
-//!   and its plain weapon are.
+//!   2026-10-22): its two premium bonuses (+20 % experience, +50 %
+//!   reputation with its faction; +5 % each in 0.26g, the owner's of
+//!   2026-11-08) are its own first modifications, given when it is made
+//!   ([`Account::add_item`]); they reroll, craft and count for the rank as
+//!   any modification.
 //! - **No repair, no wear, no defects** (the owner, 2026-11-08: "we don't
 //!   have repair in the game at all"): `47 03` is no request, a match wears
 //!   nothing and no item gets a defect, so every item stays whole.
@@ -766,7 +764,7 @@ pub fn craft(
 // ------------------------------------------------- matches and drops
 
 /// Gives a new item its modifications by the rarity a drop rolled: as many
-/// as the rarity, those it came with (a golden weapon's silver bonus)
+/// as the rarity, those it came with (a premium armour piece's bonuses)
 /// counted; returns the rank the lobby shows for it (the item's
 /// `base_rarity_level` and its modifications, 3 at most).
 pub fn roll_modifications(account: &mut Account, item_id: u32, rarity: u8, rng: &mut Rng) -> u8 {
@@ -787,8 +785,8 @@ pub fn roll_modifications(account: &mut Account, item_id: u32, rarity: u8, rng: 
 }
 
 /// What the items of the kit at `kit_index` add to a match's pay (the
-/// premium copies of weapons and armour: 10 % silver, 5 % experience, 5 %
-/// reputation with one faction).
+/// premium armour: experience and reputation with one faction; a silver
+/// bonus a weapon holds).
 pub fn kit_bonuses(account: &Account, kit_index: usize) -> Bonuses {
     let table = Modifications::shared();
     let mut total = Bonuses::default();

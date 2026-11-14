@@ -29,7 +29,7 @@ pub struct Item {
     pub base_cost: u32,
     /// The item's own config, e.g. `gameplay/items/weapons/wpn_spas_12.options`.
     pub cfg_name: String,
-    /// The plain item a golden or premium copy is (`srp_like`, by its name):
+    /// The plain piece a premium armour piece is a copy of (`srp_like`, by its name):
     /// another item of its category that is no copy itself.
     pub like: Option<u16>,
     /// The modifications of its own a new item comes with (`srp_start`).
@@ -629,16 +629,12 @@ mod tests {
         for (like, why) in [
             ("ak_74m", "is not another plain item of its category"),
             ("scav_torso_4", "is not another plain item of its category"),
-            (
-                "ak_74n_premium",
-                "is not another plain item of its category",
-            ),
             ("no_such_item", "is no item"),
         ] {
             let error = copy_of(like).unwrap_err().0;
             assert!(error.contains(why), "{like}: {error}");
         }
-        assert_eq!(Dictionary::shared().item(338).unwrap().like, Some(306));
+        assert_eq!(Dictionary::shared().item(345).unwrap().like, Some(325));
         assert_eq!(Dictionary::shared().item(3).unwrap().like, None);
     }
 }

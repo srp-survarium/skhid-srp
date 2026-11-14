@@ -92,9 +92,7 @@ package {
    new Container("weapons",1,1,new BitmapData(1,1,true,0),false,1,0,0,false);
    var Descriptor:Class=domain.getDefinition("survarium.data.ItemDescriptor") as Class;
    var descriptor:Object=new Descriptor("weapon-shop-check");
-   var Ids:Object=domain.getDefinition("survarium.constants.ItemDictId");
-   var golden:int=Ids.GOLDEN_WEAPONS[0];
-   var specs:Array=[[2229,-.05],[363,0],[9000,.05],[golden,.05]];
+   var specs:Array=[[2229,-.05],[363,0],[9000,.05]];
    var descriptors:Array=[],offers:Array=[];
    for each(var spec:Array in specs) {
     descriptors.push({dictId:spec[0],category:16,name:"Weapon "+spec[0],level:15,
@@ -114,7 +112,6 @@ package {
     require(movement.length==(expected==0?0:1),"shop exposes movement for weapon "+item.dictId);
     if(expected!=0) require(movement[0].isDefault && movement[0].icon==11 && movement[0].props[0].prop_value==expected,"shop preserves native weapon modifier");
     for each(var stat:Object in item.properties) require(stat.prop_id!=105,"shop movement is in bonuses, not main stats");
-    if(item.dictId==golden) require(item.modifiers.length==2,"golden shop weapon retains silver bonus alongside speed");
     return false;
    };
    // Exercise the actual shop constructor and the reconnect price-list path,

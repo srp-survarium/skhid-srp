@@ -107,8 +107,8 @@ fn is_ammo(dict_id: u16) -> bool {
     item_params::item_params(dict_id).is_some_and(|params| params.class == ItemClass::Ammunition)
 }
 
-/// Whether Racket replaces the gun `dict_id`: a sniper rifle (its golden and premium copies are
-/// of their plain gun's category), or a gun whose shot is [`SILENCED_SHOT`].
+/// Whether Racket replaces the gun `dict_id`: a sniper rifle, or a gun whose shot is
+/// [`SILENCED_SHOT`].
 pub fn replaces(dictionary: &Dictionary, dict_id: u16) -> bool {
     dictionary
         .item(dict_id)

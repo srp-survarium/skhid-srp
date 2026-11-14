@@ -1601,7 +1601,7 @@ fn a_shop_record_is_laid_out_as_the_client_reads_it() {
         u32::from_le_bytes(unpacked[at..at + 4].try_into().unwrap())
     };
     // The second: the AK-74N bundle (9), kind 1, 1500 gold in silver
-    // (money type 0), two items: the rifle (dict 338, 1) and its ammo
+    // (money type 0), two items: the rifle (dict 306, 1) and its ammo
     // (dict 7, 2000), each an item of the inventory (0 at +0x20 of the
     // item).
     assert_eq!(
@@ -1621,7 +1621,7 @@ fn a_shop_record_is_laid_out_as_the_client_reads_it() {
             u32_at(1, 0x18 + 0x0C),
             u32_at(1, 0x18 + 0x20)
         ],
-        [338, 1, 0]
+        [306, 1, 0]
     );
     assert_eq!(
         [

@@ -147,7 +147,7 @@ st_ak12_premium_description	Új generációs orosz Kalasnyikov gépkarabély. Az
 st_ak12_premium_name	AK-12M1
 st_ak74m_description	A Kalasnyikov korszerű változata, 5,45x39 lőszerrel. Rendszeresítése után jó hírnévre tett szert a hadseregben. Egyes és sorozatlövésre képes.
 st_ak74m_name	AK-74M
-st_ak74n_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett AK-74N.\n- 2000 darab 5.45x39 7N6M lőszer.</white>\n
+st_ak74n_bundle_descr	<white>Tartalma:\n- AK-74N.\n- 2000 darab 5.45x39 7N6M lőszer.</white>\n
 st_ak74n_bundle_name	AK-74N csomag
 st_ak74n_description	A leírás még nem érhető el.
 st_ak74n_name	AK-74N
@@ -367,7 +367,7 @@ st_blackmarket_meele_kill_descr	Ha nem megy tisztán, készülj fel, hogy bepisz
 st_blackmarket_meele_kill_name	Piszkos munka
 st_blackmarket_meele_kill_obj	Ölj meg ellenségeket közelharcban:
 st_blackmarket_represent	A Feketepiac felszerelését kell viselned.
-st_blackmarket_starter_bundle_descr	<white>Tartalma:\n- Banditakabát.\n- Banditanadrág.\n- Továbbfejlesztett UZI.\n- 2000 darab 9x19 Parabellum lőszer.</white>
+st_blackmarket_starter_bundle_descr	<white>Tartalma:\n- Banditakabát.\n- Banditanadrág.\n- UZI.\n- 2000 darab 9x19 Parabellum lőszer.</white>
 st_blackmarket_starter_bundle_name	Banditacsomag
 st_blackmarket_steal_box_descr	Két legyet egy csapásra! Ezt jegyezd meg! Ha ellopsz egy akkumulátort az ellenség bázisáról, őket védelem nélkül hagyod, a saját csapatodnak pedig sokat segítesz!
 st_blackmarket_steal_box_name	Rablás
@@ -1357,7 +1357,7 @@ st_items_notes_frame_2_text_1	A készletek a zsebekbe kerülnek
 st_items_notes_frame_3_text_1	A zsebek számát megfelelő\ntulajdonságú felszereléssel növelheted
 st_items_notes_frame_4_text_1	Egy rekeszbe korlátozott számú,\nazonos típusú tárgy fér 
 st_items_notes_frame_5_text_1	A zsebek kapacitását megfelelő\ntulajdonságú felszereléssel növelheted
-st_izh27_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett MP-27M Lancaster.\n- 1000 darab 12x70 sörétes lőszer.</white>
+st_izh27_bundle_descr	<white>Tartalma:\n- MP-27M Lancaster.\n- 1000 darab 12x70 sörétes lőszer.</white>
 st_izh27_bundle_name	MP-27M Lancaster csomag
 st_izh27_description	A leírás még nem érhető el.
 st_izh27_name	MP-27M Lancaster
@@ -2036,7 +2036,7 @@ st_scav_torso_4_desc	A leírás még nem érhető el.
 st_scav_torso_4_name	Túlélőkabát
 st_scav_torso_5_desc	Steppelt pamutkabát, belül hajlított fémlemezekkel, kívül bőrfoltokkal erősítve. Jó választás tapasztalt guberálónak.
 st_scav_torso_5_name	Megerősített vattakabát
-st_scavenger_starter_bundle_descr	<white>Tartalma:\n- Túlélőkabát.\n- Túlélőnadrág.\n- Továbbfejlesztett OTs-02 Kiparis.\n- 1000 darab 9x18 PM lőszer.</white>
+st_scavenger_starter_bundle_descr	<white>Tartalma:\n- Túlélőkabát.\n- Túlélőnadrág.\n- OTs-02 Kiparis.\n- 1000 darab 9x18 PM lőszer.</white>
 st_scavenger_starter_bundle_name	Túlélő csomag
 st_scavengers_accuracy_descr	Mi értelme mindenfelé lövöldözni? Egyetlen golyó is elég egy élet kioltásához. Tanulj meg takarékoskodni a lőszerrel.
 st_scavengers_accuracy_name	Lövészeti képességek
@@ -2203,7 +2203,7 @@ st_squad_list_locked_hint	Kláncsapatban nem hozhatsz létre osztagot
 st_squad_not_ready	Az osztag nem áll készen
 st_sr2m_description	A leírás még nem érhető el.
 st_sr2m_name	SR-2M "Veresk"
-st_sr3m_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett SR-3M "Vikhr".\n- 2000 darab 9x39 SP-6 lőszer.</white>\n
+st_sr3m_bundle_descr	<white>Tartalma:\n- SR-3M "Vikhr".\n- 2000 darab 9x39 SP-6 lőszer.</white>\n
 st_sr3m_bundle_name	SR-3M "Vikhr" csomag
 st_sr3m_description	A leírás még nem érhető el.
 st_sr3m_name	SR-3M "Vikhr"
@@ -3079,7 +3079,7 @@ st_vhs_2_description	Horvát bullpup gépkarabély, 5.56x45 lőszerrel. A HS Pro
 st_vhs_2_name	VHS-2
 st_victory	Győzelem
 st_victory_screen_no_dropped_item	Nem találtál semmit a csatatéren.
-st_vityaz_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett PP-19-01 Vityaz.\n- 2000 darab 9x19 Parabellum lőszer.</white>
+st_vityaz_bundle_descr	<white>Tartalma:\n- PP-19-01 Vityaz.\n- 2000 darab 9x19 Parabellum lőszer.</white>
 st_vityaz_bundle_name	PP-19-01 Vityaz csomag
 st_vityaz_description	Géppisztoly, 9x19 lőszerrel. 2004-ben tervezték az orosz különleges erők igényeire. Egyes és sorozatlövésre képes.
 st_vityaz_name	PP-19-01 Vityaz
@@ -3088,7 +3088,7 @@ st_vsk94_description	A leírás még nem érhető el.
 st_vsk94_name	VSK-94
 st_vsk94_premium_description	Orosz mesterlövészpuska, 9x39 lőszerrel. A tulai KBP az 1990-es években fejlesztette a 9A-91-ből, hangtompítóval és mesterlövésztussal, halk közeli és középtávú lövésekhez. 20 lőszeres tár, egyes és sorozatlövés. Prémium változat különleges álcafestéssel.
 st_vsk94_premium_name	VSK-94 Guardian
-st_vss_bundle_descr	<white>Tartalma:\n- Továbbfejlesztett VSS "Vintorez".\n- 1000 darab 9x39 SP-5 lőszer.</white>\n
+st_vss_bundle_descr	<white>Tartalma:\n- VSS "Vintorez".\n- 1000 darab 9x39 SP-5 lőszer.</white>\n
 st_vss_bundle_name	VSS "Vintorez" csomag
 st_vss_description	A leírás még nem érhető el.
 st_vss_name	VSS "Vintorez"

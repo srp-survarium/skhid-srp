@@ -94,7 +94,7 @@ package survarium.item
          return reaches(value,rolls[rolls.length - 1]);
       }
 
-      // Whether a bonus is a premium one, the most there is (owner 2026-10-22): the golden weapons'
+      // Whether a bonus is a premium one, the most there is (owner 2026-10-22): a weapon's
       // silver, the premium armour's experience and reputation (ItemFactory.BONUS_UI, by the same
       // property and value). They never roll; srp's
       // modifications::tests::the_premium_bonuses_are_the_most_their_property_gives checks that

@@ -827,7 +827,7 @@ package {
    Scene.isShift=false;Scene.isCtrl=false;
    heavy=movingWeapon(true,"-0.05");
    var light:Object=movingWeapon(false,"0.03");
-   // Another built-in line beside the movement (a golden weapon's silver): never changed.
+   // Another built-in line beside the movement (a silver bonus): never changed.
    var silver:Object={state:0,isDefault:true,icon:33,textValue:"Silver: <green>+10%</green>\n",props:[{prop_id:31,prop_value:"0.1"}]};
    var both:Object=movingWeapon(true,"-0.05");both.modifiersDefault.push(silver);both.modifiers=both.modifiersDefault;
    var off:Object=kitFloats({}),on:Object=kitFloats({62:1});

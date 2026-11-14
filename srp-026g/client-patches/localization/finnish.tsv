@@ -147,7 +147,7 @@ st_ak12_premium_description	Uuden sukupolven venäläinen Kalašnikov-rynnäkkö
 st_ak12_premium_name	AK-12M1
 st_ak74m_description	Kalašnikovin uudistettu versio, kaliiperi 5,45x39. Käytössä asevoimissa, joissa se on saanut hyvän maineen. Kerta- ja sarjatuli.
 st_ak74m_name	AK-74M
-st_ak74n_bundle_descr	<white>Sisältö:\n- Parannettu AK-74N.\n- 2000 patruunaa 5.45x39 7N6M.</white>\n
+st_ak74n_bundle_descr	<white>Sisältö:\n- AK-74N.\n- 2000 patruunaa 5.45x39 7N6M.</white>\n
 st_ak74n_bundle_name	AK-74N-paketti
 st_ak74n_description	Kuvausta ei vielä ole.
 st_ak74n_name	AK-74N
@@ -367,7 +367,7 @@ st_blackmarket_meele_kill_descr	Jos homma ei hoidu siististi, on liattava kädet
 st_blackmarket_meele_kill_name	Likainen työ
 st_blackmarket_meele_kill_obj	Tapa vihollisia lähitaistelussa:
 st_blackmarket_represent	Sinun on pukeuduttava Mustan pörssin varusteisiin edustaaksesi sitä.
-st_blackmarket_starter_bundle_descr	<white>Sisältö:\nRosvon takki.\nRosvon housut.\n- Parannettu UZI.\n- 2000 patruunaa 9x19 Parabellum.</white>
+st_blackmarket_starter_bundle_descr	<white>Sisältö:\nRosvon takki.\nRosvon housut.\n- UZI.\n- 2000 patruunaa 9x19 Parabellum.</white>
 st_blackmarket_starter_bundle_name	Rosvo-paketti
 st_blackmarket_steal_box_descr	Kaksi kärpästä yhdellä iskulla! Muista se. Varastamalla akun vihollisen tukikohdasta viet heiltä suojan ja autat samalla omaa joukkuettasi!
 st_blackmarket_steal_box_name	Ryöstö
@@ -1357,7 +1357,7 @@ st_items_notes_frame_2_text_1	Tarvikkeet sijoitetaan taskuihin
 st_items_notes_frame_3_text_1	Lisää taskuja saat varusteilla,\njoissa on vastaava ominaisuus
 st_items_notes_frame_4_text_1	Yhteen paikkaan mahtuu rajattu määrä\nsamantyyppisiä esineitä 
 st_items_notes_frame_5_text_1	Taskujen tilavuutta voit kasvattaa varusteilla,\njoissa on vastaava ominaisuus
-st_izh27_bundle_descr	<white>Sisältö:\n- Parannettu MP-27M Lancaster.\n- 1000 haulipatruunaa 12x70.</white>
+st_izh27_bundle_descr	<white>Sisältö:\n- MP-27M Lancaster.\n- 1000 haulipatruunaa 12x70.</white>
 st_izh27_bundle_name	MP-27M Lancaster -paketti
 st_izh27_description	Kuvausta ei vielä ole.
 st_izh27_name	MP-27M Lancaster
@@ -2036,7 +2036,7 @@ st_scav_torso_4_desc	Kuvausta ei vielä ole.
 st_scav_torso_4_name	Selviytyjän takki
 st_scav_torso_5_desc	Tikattu puuvillatakki. Sisällä kaarevat metallilevyt, ulkona nahkavahvikkeet. Hyvä valinta kokeneelle haaskaajalle.
 st_scav_torso_5_name	Vahvistettu toppatakki
-st_scavenger_starter_bundle_descr	<white>Sisältö:\nSelviytyjän takki.\nSelviytyjän housut.\n- Parannettu OTs-02 Kiparis.\n- 1000 patruunaa 9x18 PM.</white>
+st_scavenger_starter_bundle_descr	<white>Sisältö:\nSelviytyjän takki.\nSelviytyjän housut.\n- OTs-02 Kiparis.\n- 1000 patruunaa 9x18 PM.</white>
 st_scavenger_starter_bundle_name	Selviytyjä-paketti
 st_scavengers_accuracy_descr	Mitä hyötyä on ampua joka suuntaan? Yksi luoti riittää viemään hengen. Opettele säästämään ammuksia.
 st_scavengers_accuracy_name	Ampumataidot
@@ -2203,7 +2203,7 @@ st_squad_list_locked_hint	Et voi luoda ryhmää klaanijoukkueessa
 st_squad_not_ready	Ryhmä ei ole valmis
 st_sr2m_description	Kuvausta ei vielä ole.
 st_sr2m_name	SR-2M "Veresk"
-st_sr3m_bundle_descr	<white>Sisältö:\n- Parannettu CF-3M Vihr.\n- 2000 patruunaa 9x39 SP-6.</white>\n
+st_sr3m_bundle_descr	<white>Sisältö:\n- CF-3M Vihr.\n- 2000 patruunaa 9x39 SP-6.</white>\n
 st_sr3m_bundle_name	SR-3M Vihr -paketti
 st_sr3m_description	Kuvausta ei vielä ole.
 st_sr3m_name	SR-3M "Vikhr"
@@ -3079,7 +3079,7 @@ st_vhs_2_description	Kroatialainen bullpup-rynnäkkökivääri, kaliiperi 5.56x4
 st_vhs_2_name	VHS-2
 st_victory	Voitto
 st_victory_screen_no_dropped_item	Et löytänyt mitään taistelukentältä.
-st_vityaz_bundle_descr	<white>Sisältö:\n- Parannettu PP-19-01 Vitjaz.\n- 2000 patruunaa 9x19 Parabellum.</white>
+st_vityaz_bundle_descr	<white>Sisältö:\n- PP-19-01 Vitjaz.\n- 2000 patruunaa 9x19 Parabellum.</white>
 st_vityaz_bundle_name	PP-19-01 Vitjaz -paketti
 st_vityaz_description	Konepistooli, kaliiperi 9x19. Suunniteltu vuonna 2004 Venäjän erikoisjoukkojen tarpeisiin. Kerta- ja sarjatuli.
 st_vityaz_name	PP-19-01 Vityaz
@@ -3088,7 +3088,7 @@ st_vsk94_description	Kuvausta ei vielä ole.
 st_vsk94_name	VSK-94
 st_vsk94_premium_description	Venäläinen tarkkuuskivääri, kaliiperi 9x39. Tulan KBP kehitti sen 1990-luvulla 9A-91:stä, vaimentimella ja tarkkuustukilla hiljaiseen ammuntaan lähi- ja keskipitkille etäisyyksille. 20 patruunan lipas. Kerta- ja sarjatuli. Premium-versio erikoismaastokuvioinnilla.
 st_vsk94_premium_name	VSK-94 Guardian
-st_vss_bundle_descr	<white>Sisältö:\n- Parannettu VSS Vintorez.\n- 1000 patruunaa 9x39 SP-5.</white>\n
+st_vss_bundle_descr	<white>Sisältö:\n- VSS Vintorez.\n- 1000 patruunaa 9x39 SP-5.</white>\n
 st_vss_bundle_name	VSS Vintorez -paketti
 st_vss_description	Kuvausta ei vielä ole.
 st_vss_name	VSS "Vintorez"
