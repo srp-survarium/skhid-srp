@@ -773,6 +773,11 @@ impl Game {
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);
+            // [Gap 15] A bot's life in the world's kit in use, before its weapon is read.
+            if world.supplies.alive {
+                let notes = walkers.bots.worn_kit(place, world.supplies.kit, snapshot.time);
+                log_notes(id, notes);
+            }
             // [Gap 3, F7] A bot's own weapon in hands: its state, magazine and ammo at the world's time. After the body, so a
             // world that begins a life is laid against that life's ledger (it has no tick yet: not read).
             if let Some(profile) = self.formed.profiles.get(place)
