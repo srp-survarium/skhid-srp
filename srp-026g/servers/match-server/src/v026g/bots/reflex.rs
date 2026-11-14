@@ -709,6 +709,12 @@ pub struct CombatTuning {
     /// client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`). A gun picked up from another body
     /// (client patch 85) is read as the slot's own item: the pickup record is not read here.
     pub weapon_in_hands: bool,
+    /// [Gap 7] A bot's own hand wounds from every trusted world ([`super::hands::Hands`]): with both hands broken it
+    /// presses no aim and throws no grenade or smoke, and a two-handed weapon (`parameters.double_handed`) neither fires
+    /// nor reloads, as the client refuses them (0x2FC2DE, 0x2E40EC, `could_be_used` 0x2E3800). Off: the keys go as ever
+    /// (with both hands broken and a two-handed gun the bots held FIRE or AIM in 160 of 670 worlds, `damage_model.md`).
+    /// That old value is wrong by the client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`).
+    pub hands_from_world: bool,
     /// A round-by-round reload (the SPAS-12, the pumps, the bolt rifles that
     /// load by the round) is loaded with the sights down: the client ends
     /// the loop at the first round-end with them or the trigger held and a
@@ -1594,6 +1600,7 @@ impl Default for CombatTuning {
             gun_from_world: true,
             worn_kit_from_world: true,
             weapon_in_hands: true,
+            hands_from_world: true,
             reload_aim_control: true,
             reload_rounds_in_view: 0,
             press_ms: 100,
@@ -3747,6 +3754,10 @@ pub struct Reflex {
     journal: std::collections::VecDeque<Kept>,
     /// [Gap 3] [measure] What the worlds did to this life's ledger.
     gun_reads: GunReads,
+    /// [Gap 7] Its hands as the last world showed them.
+    hands_world: super::hands::Hands,
+    /// [Gap 7] [measure] Ticks its keys were gated by broken hands (aim, fire, a reload, a throw kept back).
+    hands_gated: u32,
     /// The aim's slow wander about the target, radians (yaw, pitch).
     wander: (f32, f32),
     /// Drawn per target: it aims down the sights nearer than `ads_near_m`;
@@ -4587,7 +4598,9 @@ impl Reflex {
 
     /// [smoke] Whether the kit has a smoke to throw now, and no throw is under way.
     pub fn can_smoke(&self) -> bool {
-        self.smoke_key.is_some() && self.smoke_throw.is_none() && self.throw.is_none() && self.cloud_hold.is_none()
+        // [Gap 7] No throw with both hands broken (0x2E40EC), as of its last tick.
+        let hands = self.last_tick.is_none_or(|now| !self.hands_broken(now));
+        hands && self.smoke_key.is_some() && self.smoke_throw.is_none() && self.throw.is_none() && self.cloud_hold.is_none()
     }
 
     /// [A208 `smoke.wait_for_cloud`] Whether it holds for a cloud now.
@@ -6111,6 +6124,10 @@ impl Reflex {
     /// that fails is not made, and the next place is weighed
     /// ([`pick_place`]), up to `grenade_places` of them, nearest first.
     fn grenade_roll(&mut self, look: RollView, aim: &AimTuning, skill: f32, rng: &mut Rng) {
+        // [Gap 7] No grenade with both hands broken (0x2E40EC).
+        if self.hands_broken(look.now) {
+            return;
+        }
         let RollView {
             me,
             sit,
@@ -6475,6 +6492,10 @@ impl Reflex {
     /// (a teammate in its blast, the thrower's own floor, the arc). A
     /// refusal makes no note: the roll comes again.
     fn volley_roll(&mut self, look: &RollView, volley: Volley, aim: &AimTuning, skill: f32, rng: &mut Rng) {
+        // [Gap 7] No grenade with both hands broken (0x2E40EC).
+        if self.hands_broken(look.now) {
+            return;
+        }
         let c = &aim.combat;
         self.volley = Some(Volley {
             next: look.now + c.grenade_volley_every_ms,
@@ -6917,6 +6938,10 @@ impl Reflex {
         if now < self.busy_until {
             return 0;
         }
+        // [Gap 7] A two-handed weapon does not reload with both hands broken.
+        if self.weapon_refused(now) {
+            return 0;
+        }
         if c.empty_reload {
             // [A277] An emptied weapon's reload comes at its clip end with the keys sent then ([`Self::keys_sent`]); past it
             // unresolved (no keys reported), the habit as before.
@@ -7100,6 +7125,10 @@ impl Reflex {
             self.empty_reloads.blocked += 1;
             return keys;
         }
+        // [Gap 7] A two-handed weapon does not reload with both hands broken: the habit's key comes when they mend.
+        if self.weapon_refused(now) {
+            return keys;
+        }
         let seen = self.target.is_some();
         let load = self.hands().held_mut();
         if load.rounds > 0 || load.loadable() == 0 {
@@ -7134,6 +7163,26 @@ impl Reflex {
     /// [Gap 3] [measure] What the worlds did to this life's gun ledger.
     pub fn gun_reads(&self) -> GunReads {
         self.gun_reads
+    }
+
+    /// [Gap 7] Its hands as a trusted world shows them.
+    pub fn set_hands(&mut self, hands: super::hands::Hands) {
+        self.hands_world = hands;
+    }
+
+    /// [Gap 7] Both hands broken at `now`: no aim, no grenade.
+    fn hands_broken(&self, now: u32) -> bool {
+        self.hands_world.broken(now)
+    }
+
+    /// [Gap 7] Both hands broken at `now` and the weapon in hand two-handed: no fire, no reload.
+    fn weapon_refused(&self, now: u32) -> bool {
+        self.hands_broken(now) && super::hands::double_handed(self.held_gun().item)
+    }
+
+    /// [Gap 7] [measure] Ticks its keys were gated by broken hands.
+    pub fn hands_gated(&self) -> u32 {
+        self.hands_gated
     }
 
     /// [Gap 3] The reload the ledger counts under way at `now`: its key's tick and its end.
@@ -7389,7 +7438,28 @@ impl Reflex {
         let mut over = self.combat_tick(me, view, memory, now, fire_allowed, aim, skill, rng);
         self.keep_loop_going(&mut over, now, &aim.combat);
         self.heal_press(&mut over, me, now);
+        self.hands_gate(&mut over, now);
         over
+    }
+
+    /// [Gap 7] The keys the client refuses with both hands broken taken off: the aim always, the trigger with a two-handed
+    /// weapon (its rounds given back to the ledger, [`Self::hold_fire`]).
+    fn hands_gate(&mut self, over: &mut Override, now: u32) {
+        if !self.hands_broken(now) {
+            return;
+        }
+        let mut gated = false;
+        if over.keys & key::AIM != 0 {
+            over.keys &= !key::AIM;
+            self.aim_since = None;
+            gated = true;
+        }
+        if over.fire && self.weapon_refused(now) {
+            over.fire = false;
+            self.hold_fire(now);
+            gated = true;
+        }
+        self.hands_gated += u32::from(gated);
     }
 
     /// The heal habit: the item's key goes out this tick, over whatever the
@@ -15575,6 +15645,34 @@ mod tests {
         keep_ticks(&mut r, 1_250, 1_400);
         r.gun_world(gun_at(1_300, GunAt::Idle, 1, Some(60)));
         assert_eq!(r.hands().held().rounds, 1, "the chambered round");
+    }
+
+    /// [Gap 7] Both hands broken: the aim is taken off, the trigger of a two-handed weapon too (its counted rounds given
+    /// back), and it neither reloads nor throws a smoke; mended, all as before.
+    #[test]
+    fn both_hands_broken_refuse_aim_fire_reload_and_throws() {
+        use super::super::hands::Hands;
+        let c = CombatTuning::default();
+        let mut r = gun_ledger(0, 60);
+        r.last_tick = Some(1_000);
+        r.smoke_key = Some(key::GRENADE);
+        assert!(r.can_smoke());
+        r.set_hands(Hands::Broken { until: 5_000 });
+        assert!(!r.can_smoke(), "no throw");
+        assert_eq!(r.reload(false, 1_000, &c), 0, "the AK-74U does not reload");
+        r.hands().held_mut().rounds = 10;
+        r.fired = (1_000, 2);
+        r.hands().held_mut().rounds = 8;
+        let mut over = Override { fire: true, keys: key::AIM | key::FORWARD, ..Override::default() };
+        r.hands_gate(&mut over, 1_000);
+        assert_eq!((over.fire, over.keys), (false, key::FORWARD));
+        assert_eq!((r.hands().held().rounds, r.hands_gated()), (10, 1), "the counted rounds back");
+        // Mended at 5 s: nothing taken off; the reload goes.
+        let mut over = Override { fire: true, keys: key::AIM, ..Override::default() };
+        r.hands_gate(&mut over, 5_000);
+        assert_eq!((over.fire, over.keys), (true, key::AIM));
+        r.hands().held_mut().rounds = 0;
+        assert_eq!(r.reload(false, 5_000, &c), key::RELOAD);
     }
 
     /// [Gap 3] A world with a clip under way says nothing; one older than every kept tick is not read.
