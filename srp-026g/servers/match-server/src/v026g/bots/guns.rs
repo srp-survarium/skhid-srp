@@ -1351,6 +1351,12 @@ pub struct GunReads {
     pub reload_lost: u32,
     /// A reload the world shows that the ledger had not counted (the client's own, e.g. the trigger on an empty weapon).
     pub reload_found: u32,
+    /// [Gap 3] Reload clip ends read from the worlds' mixing trees ([`ReloadClip`]), those that moved the ledger's end and
+    /// by how many ms in all, and reload clips a world showed being cancelled.
+    pub clip_read: u32,
+    pub clip_moved: u32,
+    pub clip_moved_ms: u64,
+    pub clip_cancelled: u32,
 }
 
 impl std::ops::AddAssign for GunReads {
@@ -1363,6 +1369,49 @@ impl std::ops::AddAssign for GunReads {
         self.reload_ended += other.reload_ended;
         self.reload_lost += other.reload_lost;
         self.reload_found += other.reload_found;
+        self.clip_read += other.clip_read;
+        self.clip_moved += other.clip_moved;
+        self.clip_moved_ms += other.clip_moved_ms;
+        self.clip_cancelled += other.clip_cancelled;
+    }
+}
+
+/// [Gap 3] The time group of the weapon's reload lexeme (`get_user_hands_lexeme_impl` 0x31EBD0 gets it from the reload
+/// state, `push 4` at 0x30E27E; the pistol's 0x30FF2B and the double barrel's 0x30F643 too).
+pub const RELOAD_TIME_GROUP: u8 = 4;
+
+/// [Gap 3] What a world's mixing tree says of the reload clip under way in a bot's hands (`super::clip_tree::AnimEvents`):
+/// the hands' reload node (time group 4, not its item's own-object twin) holds its next animation event, and a clip's
+/// end (type 4 or 0Ch) is when the magazine fills (`on_animation_end_impl` 0x310E40). Read against the next world:
+/// refilled iff that end is at or before it in 2,352 of 2,384 magazine reloads (`settle-tree` 3.3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReloadClip {
+    /// The clip ends at this game ms.
+    Ends(u32),
+    /// The node's weight event is 102h: the lexeme ends at weight 0, the reload is being cancelled.
+    Cancelled,
+}
+
+impl ReloadClip {
+    /// The reload clip of `events`, the tree of a world made at `world_ms`. `None`: no reload node with a clip's end, or
+    /// two such nodes that disagree.
+    pub fn of(events: &super::clip_tree::AnimEvents, world_ms: u32) -> Option<Self> {
+        let mut found = None;
+        for node in events.nodes.iter().filter(|node| node.time_group == Some(RELOAD_TIME_GROUP) && !node.own_object) {
+            if node.weight.is_some_and(|(flags, _)| flags == 0x102) {
+                return Some(Self::Cancelled);
+            }
+            if let Some((kind, at)) = node.event
+                && (kind == 4 || kind == 0x0C)
+            {
+                let end = events.game_ms(at, world_ms);
+                if found.is_some_and(|was| was != end) {
+                    return None;
+                }
+                found = Some(end);
+            }
+        }
+        found.map(Self::Ends)
     }
 }
 

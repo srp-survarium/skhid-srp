@@ -764,6 +764,8 @@ impl Game {
                 .as_ref()
                 .map(|statistics| statistics.players.iter().map(|player| player.received_damage.iter().flatten().sum()).collect()),
         );
+        // [Gap 3] The player blocks, for the bots' own mixing trees.
+        let blocks = survarium::v026g::match_msgs::players::blocks(decoded.sections.players).unwrap_or_default();
         for (place, world) in checked.places.iter().enumerate() {
             let Some(world) = world else {
                 continue;
@@ -874,6 +876,21 @@ impl Game {
                 && let Some(gun) = crate::v026g::bots::guns::GunWorld::of(snapshot.time, &world.supplies, &world.guns, profile)
             {
                 walkers.bots.own_gun(place, gun);
+                // [Gap 3] A reload under way: its clip's end from the bot's own block's mixing tree.
+                if gun.state == crate::v026g::bots::guns::GunAt::Reloading
+                    && let Some(clip) = blocks
+                        .iter()
+                        .find(|block| usize::from(block.place) == place)
+                        .and_then(|block| block.animation)
+                        .and_then(crate::v026g::bots::clip_tree::AnimEvents::read)
+                        .and_then(|events| crate::v026g::bots::guns::ReloadClip::of(&events, snapshot.time))
+                {
+                    let moved = walkers.bots.reload_clip(place, snapshot.time, clip);
+                    log::debug!(
+                        "Match {id:#x}: player {place} (the server's bot): reload clip at {} ms: {clip:?}, the ledger's end {moved:?}",
+                        snapshot.time
+                    );
+                }
             }
             // [Gap 11] A bot's own pocket stacks of the kit in use: grenades, smokes, traps.
             if let Some(profile) = self.formed.profiles.get(place)

@@ -2509,6 +2509,8 @@ va	name	source	ret_cleanup	result
 0x0027a070	survarium::match_client::match_client	manual	12	EAX: receiver pointer explicitly returned; receiver EDI
 0x003183a0	survarium::match_options::match_options	manual	0	EAX: receiver pointer explicitly returned; receiver ESI
 0x003a8980	anim_decode_read_bits	manual	0	EAX = the bits read, MSB first, zero-extended
+0x003a8af0	anim_read_node_time_track	manual		the animation event iterator's value (state +78h..+87h): 6 bits the event type >> 1 (+84h; 0: none, +80h := -1); if set a popped time +80h (the node's next event), 1 bit the interval after it (+78h), a popped float (+7Ch), 8 bits channels (+86h), 4 bits domain (+87h)
+0x003a8ba0	anim_read_node_flag_track	manual		the weight event iterator (state +8Ch..+97h): 1 bit type & 100h (a weight transition ends), 1 bit type & 2 (the lexeme ends); if either a popped time +90h, else +90h := -1
 0x00317d40	vostok::popcount	manual	0	EAX = set-bit count of the input
 0x002614e0	survarium::options_item_float::initialize	manual	0	none: the item's +1Ch and +20h = its variable's value ([[+8]+40h]), 0.0 without one
 0x002616e0	survarium::options_item_float::apply	manual	0	none: +20h = +1Ch; with a variable (+8) its value set from +1Ch ("%f", the variable's vtable +4 execute), whatever it held
@@ -2624,6 +2626,7 @@ va	name	source	ret_cleanup	result
 0x00153d90	vostok::render::streaming_texture_instance (constructor)	manual	0	EAX = EDI the record: proxy ESI, next 0, owner [ESI+4], then its bound_sphere, last_render_time and texel_factor (gather_streamable_textures 0x1552B7)
 0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	manual	4	EAX = ECX: the end of the bytes written; DL the XOR of the first differing byte pair (0 none); m_changed (+64h) set always
 0x003a90c0	anim_read_expression	thiscall	0	recursive pre-order expression reader (ECX=this); 2-bit op via jump table 0x3A9240: op0 (0x3A90D8) pops 2 floats from the floats buffer [this+0x1014] AND 1 time from the times buffer [this+8] (0x3A9116); op1 pops 1 float; ops 2/3 pop 1 time and recurse into two children (unbounded)
+0x003a9580	decode_times_in_ms_impl	manual		10 bits N; 1 bit the mode; 32 bits the base; with N > 1, 5 bits the width w and either N times base + read(w) (mode 0) or a sorted table of U (the bits of N) entries, the base then each the one before + read(w) + 1, and N indexes of the bits of U (mode 1); decode_data 0x3A9900 reverses them (0x3A9965..0x3A9981) and the readers pop from the end: the writer's order
 0x003a99c0	anim_state_deserialize	manual	4	this=EAX; reader object in ECX {+4 = stream byte-cursor ptr}; entry ESP+4 = output descriptor {+0 write cursor, +4 remaining space}; inline 0x1000 buffers at this+0x10 (times) and this+0x101c (floats); pops one times entry unconditionally at 0x3A9A64 before the node passes; ret 0x4
 0x003a9900	decode_data	manual	4	this=EAX, one stack arg = reader {+4 = stream ptr}; reads 16-bit tree length T, decodes the times (0x3A9580) and floats (decode_floats 0x3A98C0, its body decode_floats_impl 0x3A9720) tables into the two inline buffers, restores the bit cursor to just past T, advances reader.+4 by bytes consumed
 0x00038ff0	vostok::math::sin	manual	0	ST0: fsin of the float argument (x87, 80-bit; every caller stores it as a float)
