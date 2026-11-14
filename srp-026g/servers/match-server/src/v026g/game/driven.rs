@@ -1021,14 +1021,16 @@ impl Game {
                 && was != (supplies.kit, slot, pick)
             {
                 walkers.held_weapons[place] = Some((supplies.kit, slot, pick));
-                let (profile, kit, slot) = match pick {
-                    Some(recipe) => (
-                        self.formed.profiles.get(usize::from(recipe.place.get())).unwrap_or(own),
-                        usize::from(recipe.kit.get()),
-                        usize::from(recipe.slot.slot()),
-                    ),
-                    None => (own, usize::from(supplies.kit), usize::from(slot)),
-                };
+                // A pick whose donor's profile is not in the match's list falls back to the slot's own gun (never the donor's
+                // kit and slot read in another profile).
+                let donor = pick.and_then(|recipe| {
+                    let profile = self.formed.profiles.get(usize::from(recipe.place.get()))?;
+                    Some((profile, usize::from(recipe.kit.get()), usize::from(recipe.slot.slot())))
+                });
+                if pick.is_some() && donor.is_none() {
+                    log::debug!("Match {:#x}: player {place} holds a picked gun whose donor's profile is unknown: its slot's own gun", self.id);
+                }
+                let (profile, kit, slot) = donor.unwrap_or((own, usize::from(supplies.kit), usize::from(slot)));
                 let kind = held_kind(profile, kit, slot, walkers.weapon_by_data);
                 if pick.is_some() {
                     log::debug!("Match {:#x}: player {place} holds a picked gun: {kind:?}", self.id);
