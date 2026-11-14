@@ -188,6 +188,7 @@
   },
   "think": {
     "fall_lock": false,
+    "life_wakes_commander": false,
     "rest_off_lip": false,
     "search_queue": "first_come",
     "shut_in_gate": false,

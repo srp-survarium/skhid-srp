@@ -117,6 +117,12 @@ impl Bot {
         if route.is_some() {
             self.route_born = now;
         }
+        #[cfg(test)]
+        if route.is_some()
+            && let Some(life) = self.bench_life.as_mut()
+        {
+            life.route.get_or_insert(now);
+        }
         #[cfg(not(any(test, feature = "jump-test")))]
         let _ = now;
         self.route = route;
