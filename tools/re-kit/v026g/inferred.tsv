@@ -2148,7 +2148,6 @@ va	status	ref_021d	name
 0x0030e7e0	inferred-medium	0x001f1b70	survarium::weapon_core_fire_state::initialize
 0x0030e800	inferred-high	0x001f1ba6	survarium::weapon_core_fire_state::weapon_and_hands_expression
 0x0030e8a0	inferred-high		survarium::weapon_core_fire_state::get_weapon_lexeme
-0x0030edf0	inferred-high	0x001f20a1	survarium::weapon_core_shotgun_reload_start_substate::initialize
 0x0030eee0	inferred-high	0x001f22d2	survarium::weapon_core_shotgun_reload_one_round_substate::weapon_core_shotgun_reload_one_round_substate
 0x0030ef40	inferred-medium	0x001f2085	survarium::weapon_core_shotgun_reload_base_substate::`scalar deleting destructor'
 0x0030ef40	inferred-medium	0x001f2085	survarium::weapon_core_shotgun_reload_finish_substate::`scalar deleting destructor'
@@ -2159,7 +2158,6 @@ va	status	ref_021d	name
 0x0030efb0	inferred-high	0x001f24dd	survarium::weapon_core_shotgun_reload_finish_substate::weapon_core_shotgun_reload_finish_substate
 0x0030f010	inferred-high	0x001f213c	survarium::weapon_core_shotgun_reload_finish_substate::finalize
 0x0030f010	inferred-high	0x001f213c	survarium::weapon_core_shotgun_reload_one_round_substate::finalize
-0x0030f070	inferred-high		survarium::weapon_core_shotgun_reload_finish_substate::on_animation_end_impl
 0x0030f0b0	inferred-high	0x001f2710	survarium::double_barreled_weapon_core_idle_state::double_barreled_weapon_core_idle_state
 0x0030f1f0	inferred-medium	0x001f27d0	survarium::double_barreled_weapon_core_idle_state::`scalar deleting destructor'
 0x0030f260	inferred-high	0x001f2818	survarium::double_barreled_weapon_core_idle_state::get_weapon_lexeme
@@ -2181,7 +2179,6 @@ va	status	ref_021d	name
 0x0030fbe0	inferred-medium	0x001f3004	survarium::animations_registrator<survarium::pistol_weapon_core_idle_state,survarium::weapon_core_idle_state_base>::register_animations
 0x0030fdb0	inferred-high	0x001f3135	survarium::double_barreled_weapon_core_reload_state::initialize
 0x0030fdb0	inferred-high	0x001f3135	survarium::pistol_weapon_core_reload_state::initialize
-0x0030fdb0	inferred-high	0x001f3135	survarium::weapon_core_reload_state::initialize
 0x0030fdf0	inferred-high	0x001f314e	survarium::pistol_weapon_core_reload_state::weapon_and_hands_expression
 0x0030ff40	inferred-high	0x001f32e0	survarium::pistol_weapon_core_fire_state::pistol_weapon_core_fire_state
 0x003100d0	inferred-medium	0x001f3119	survarium::double_barreled_weapon_core_fire_state::`scalar deleting destructor'
@@ -2201,7 +2198,6 @@ va	status	ref_021d	name
 0x003107b0	inferred-high		survarium::weapon_core_melee_state::weapon_core_melee_state
 0x003108b0	inferred-medium	0x00209592	survarium::weapon_core_melee_state::`scalar deleting destructor'
 0x00310e40	inferred-high	0x001f34e8	survarium::weapon_core_reload_state_base::on_animation_end_impl
-0x00310e70	inferred-high	0x001f3567	survarium::weapon_core_chamber_a_round_state_base::on_animation_end_impl
 0x00310e90	inferred-high	0x001f3659	survarium::weapon_core_shotgun_reload_base_substate::weapon_core_shotgun_reload_base_substate
 0x00311070	inferred-high		survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme
 0x003114e0	inferred-medium	0x001f3b8c	survarium::damage_zone_core_cook::create_resource

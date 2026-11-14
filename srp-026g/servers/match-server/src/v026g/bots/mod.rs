@@ -464,6 +464,8 @@ pub struct Bot {
     /// [A277] [measure] Reloads at an emptying shot's clip end (`CombatTuning::empty_reload`), the lives before this one's
     /// reflex (which counts its own).
     empty_reloads: reflex::EmptyReloads,
+    /// [Gap 3] [measure] What the worlds did to its gun ledger, the lives before this one's ([`Self::gun_reads`]).
+    gun_reads: guns::GunReads,
     /// [measure] [A241] Its trigger ticks with the aim sway taken back and the degrees taken back, the lives before this one's
     /// reflex (which counts its own).
     sway_taken: (u32, f32),
@@ -646,6 +648,7 @@ impl Bot {
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             frag_rolls_refused: 0,
             empty_reloads: reflex::EmptyReloads::default(),
+            gun_reads: guns::GunReads::default(),
             sway_taken: (0, 0.0),
             client_sway: recoil::ClientSway::Absent,
             frag_lives: live_grenades::FragLives::default(),
@@ -700,6 +703,7 @@ impl Bot {
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
         self.empty_reloads += self.reflex.empty_reloads();
+        self.gun_reads += self.reflex.gun_reads();
         self.sway_taken.0 += self.reflex.sway_taken().0;
         self.sway_taken.1 += self.reflex.sway_taken().1;
         self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
@@ -710,6 +714,13 @@ impl Bot {
     pub fn empty_reloads(&self) -> reflex::EmptyReloads {
         let mut all = self.empty_reloads;
         all += self.reflex.empty_reloads();
+        all
+    }
+
+    /// [Gap 3] [measure] What the worlds did to its gun ledger in the match (`CombatTuning::gun_from_world`).
+    pub fn gun_reads(&self) -> guns::GunReads {
+        let mut all = self.gun_reads;
+        all += self.reflex.gun_reads();
         all
     }
 
@@ -897,6 +908,7 @@ impl Bot {
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
         self.empty_reloads += self.reflex.empty_reloads();
+        self.gun_reads += self.reflex.gun_reads();
         self.sway_taken.0 += self.reflex.sway_taken().0;
         self.sway_taken.1 += self.reflex.sway_taken().1;
         self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
@@ -1435,6 +1447,19 @@ impl Bots {
                 bot.features.stock.pantry.hit(hit);
             }
         }
+    }
+
+    /// [Gap 3, F7] A trusted world's word on one place's weapon in hands ([`guns::GunWorld`]): a bot's own ledger is laid
+    /// against it ([`reflex::Reflex::gun_world`], `combat.gun_from_world`), when the world's kit in use is the one its
+    /// arms are of.
+    pub fn own_gun(&mut self, place: Place, gun: guns::GunWorld) {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        if !self.tunings.of(bot.team).aim.combat.gun_from_world || usize::from(gun.kit) != bot.kit {
+            return;
+        }
+        bot.reflex.gun_world(gun);
     }
 
     /// [F1] A trusted world's saved stamina record of one place (`srp_validate::world::Stamina`): a bot's own bar is the

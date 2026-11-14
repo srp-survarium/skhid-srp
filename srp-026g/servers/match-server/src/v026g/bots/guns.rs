@@ -1192,6 +1192,180 @@ impl Hands {
     }
 }
 
+impl Load {
+    /// [Gap 3] Since when a round-by-round reload's loop runs (its key's tick), if one does.
+    pub fn loading_since(&self) -> Option<u32> {
+        self.loading.map(|loading| loading.at)
+    }
+
+    /// [Gap 3] The loop the ledger runs is not the client's: a world showed the weapon out of its reload.
+    pub fn stop_loading(&mut self) {
+        self.loading = None;
+    }
+}
+
+/// [Gap 3, F7] Where the weapon in hands is in its state machine (`m_logic`, weapon +0x320), by the index the world saves:
+/// an index into the gun's own states in the order its cook makes them, show, hide, idle, reload, fire, then
+/// `chamber_a_round` when it has one, throw grenade, melee (`item_params::GunStates`, the cook 0x30B9A0 into 0x2DF780;
+/// srp-validate `InHand::state_index`). Every gun has the first five (`GunStates::from_config` refuses a config without
+/// them), so idle is index 2 and reload index 3 for every gun; the class of the reload state (a magazine's 303, a
+/// double-barrel's 311, a pistol's 314, a tube's 306) does not move its index.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GunAt {
+    /// Idle (`state+124h` id 3): no clip of the weapon under way, so every shot and reload the client took by the world's
+    /// time is done and in its magazine.
+    Idle,
+    /// Reload (id 4): the client's reload runs at the world's time. A magazine is refilled at the reload clip's end
+    /// (`load_magazine` 0x2E17D0, called from the reload state's animation end 0x310E40; `saved_mixing_tree.md` "A
+    /// weapon's clip position": 2,352 of 2,384 refills by the next world exactly when the end was due, never before), so
+    /// the saved rounds are those before the reload (a gun that chambers on reload moves its chambered round into the
+    /// magazine at the state's start, `weapon_core_reload_state::initialize` 0x30FDB0: the same total). A tube's loop
+    /// fills DURING the state, one round a round clip (`reload_one_round` 0x2E1A00, 0x2E1A82): its saved rounds are
+    /// those loaded so far.
+    Reloading,
+    /// Show, hide, fire, chamber, throw, melee: a clip of the weapon under way (a shot whose round may or may not have
+    /// left by the world's time).
+    Busy,
+}
+
+impl GunAt {
+    /// The cook's order: show 0, hide 1, idle 2, reload 3, fire 4, the rest after.
+    const IDLE: u8 = 2;
+    const RELOAD: u8 = 3;
+
+    pub fn of_index(index: u8) -> Self {
+        match index {
+            Self::IDLE => Self::Idle,
+            Self::RELOAD => Self::Reloading,
+            _ => Self::Busy,
+        }
+    }
+}
+
+/// [Gap 3, F7] A trusted world's word on a bot's own weapon in hands, at the world's time: its state, the rounds it holds
+/// and the rounds of its ammo in the kit's stacks. Read from the world's typed views (`world_validation::PlaceWorld`, the
+/// world format's one definition).
+///
+/// - The rounds it holds: `m_ammo_in_magazine` (+0x5E5) and, for a gun with a chamber state, its chambered round
+///   (`m_is_round_chambered` +0x5F1), which is ON TOP of the magazine (a chamber gun holds its capacity + 1, 0x2E39D0).
+///   That total drops at the shot for every gun: a chamber gun's shot empties the chamber (`instant_fire` 0x2E253C)
+///   and its chamber clip's end takes one from the magazine into it (0x310E70), any other's shot takes one from the
+///   magazine (0x2E2545).
+/// - The ammo: a reload loads from the stack the weapon is bound to and takes the rounds off it in the same call
+///   (`load_magazine` 0x2E17D0: weapon +538h, the item's `m_amount`); a bot's weapon draws from the lowest non-empty kit
+///   slot holding its ammo (exactness on 60 live recordings: 9,107 exact bot reloads from slot 8, then 9, then 11). So
+///   the ammo is every stack of the kit in use holding the item the kit's first ammo slot holds
+///   (`loadouts::BOT_AMMO_SLOTS`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GunWorld {
+    /// The world's time.
+    pub at: u32,
+    /// The kit in use (`current_index`).
+    pub kit: u8,
+    /// The kit slot whose weapon is in hands (`m_active_slot`, inventory +0x170).
+    pub slot: u8,
+    pub state: GunAt,
+    /// The rounds it holds: the magazine and the chambered round.
+    pub rounds: u32,
+    /// `None`: the slot holds no stack of the kit's in this world (how the client keeps a stack it has emptied is not
+    /// read here, so an absent stack says nothing).
+    pub spare: Option<u32>,
+}
+
+impl GunWorld {
+    /// The weapon in hands of a living place whose kit items the world names as its own (the header's owner: this place,
+    /// the kit in use, the slot), with `guns` the world's weapon states by slot (`PlaceWorld::guns`). `None`: a dead body,
+    /// an inventory not read, no weapon of its own kit in hands, or a gun never put in a hand since its cook (no state
+    /// machine saved).
+    /// `profile` names the kit's items: the ammo is the item in the kit's first ammo slot.
+    pub fn of(
+        at: u32,
+        supplies: &survarium::v026g::match_msgs::players::Supplies,
+        guns: &[(u8, srp_validate::world::WeaponState)],
+        profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+    ) -> Option<Self> {
+        if !supplies.alive || !supplies.inventory_read {
+            return None;
+        }
+        let slot = supplies.hands_slot?;
+        // The kit's own weapon in that slot: the one `Supplies` found under this place's header (a picked gun is not).
+        supplies.items.iter().find(|item| item.slot == Some(slot))?.magazine?;
+        let (_, gun) = guns.iter().find(|(at, _)| *at == slot)?;
+        let in_hand = gun.in_hand()?;
+        let rounds = u32::from(gun.ammo_in_magazine()) + u32::from(gun.round_chambered() == Some(true));
+        let [ammo_slot] = BOT_AMMO_SLOTS;
+        let ammo = profile
+            .kits
+            .get(usize::from(supplies.kit))
+            .and_then(|kit| kit.slots.get(usize::from(ammo_slot)).copied().flatten())
+            .and_then(|(index, _)| profile.items.get(usize::from(index)))
+            .map(|item| item.dict_id);
+        let stacks: Vec<u32> = supplies
+            .items
+            .iter()
+            .filter(|item| item.stack && Some(item.dict_id) == ammo && item.slot.is_some())
+            .filter_map(|item| item.in_hand.map(u32::from))
+            .collect();
+        Some(Self {
+            at,
+            kit: supplies.kit,
+            slot,
+            state: GunAt::of_index(in_hand.state_index()),
+            rounds,
+            spare: (!stacks.is_empty()).then(|| stacks.iter().sum()),
+        })
+    }
+}
+
+/// [Gap 3] What the ledger held at a tick's keys ([`super::reflex::Reflex::keys_sent`]): the weapon in hand's rounds, its
+/// ammo, and the reload it counted under way (its end, the tick of its key) if any.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Kept {
+    pub now: u32,
+    pub rounds: u32,
+    pub spare: u32,
+    pub reload: Option<KeptReload>,
+}
+
+/// [Gap 3] A reload the ledger counted under way at a tick: when its key went and when it is done.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeptReload {
+    pub at: u32,
+    pub until: u32,
+}
+
+/// [Gap 3] [measure] What the worlds did to a life's gun ledger ([`super::reflex::Reflex::gun_world`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GunReads {
+    /// Worlds laid against the ledger (an idle weapon or a reload), and those with no tick kept at or before them.
+    pub read: u32,
+    pub unkept: u32,
+    /// Idle worlds whose magazine the ledger had otherwise at that tick, and the rounds put right in all.
+    pub rounds_off: u32,
+    pub rounds_moved: u32,
+    /// Idle worlds whose ammo the ledger had otherwise.
+    pub spare_off: u32,
+    /// A reload the ledger counted under way that the world shows over with its magazine filled (it ended sooner), and
+    /// one it shows over with the magazine as before (the client never took the key).
+    pub reload_ended: u32,
+    pub reload_lost: u32,
+    /// A reload the world shows that the ledger had not counted (the client's own, e.g. the trigger on an empty weapon).
+    pub reload_found: u32,
+}
+
+impl std::ops::AddAssign for GunReads {
+    fn add_assign(&mut self, other: Self) {
+        self.read += other.read;
+        self.unkept += other.unkept;
+        self.rounds_off += other.rounds_off;
+        self.rounds_moved += other.rounds_moved;
+        self.spare_off += other.spare_off;
+        self.reload_ended += other.reload_ended;
+        self.reload_lost += other.reload_lost;
+        self.reload_found += other.reload_found;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
