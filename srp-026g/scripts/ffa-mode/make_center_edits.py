@@ -12,7 +12,9 @@ them (the stock db, every patch of release/patches.tsv and what the manifest mak
       --project v010b_cs_mp_bath/day_8@-48.13,-22.87,34.12,53.13 \\
       --project v010b_cs_mp_military_1/day_8@-127.47,-71.12,115.78,95.38 > ../center.tsv
 
-(the STALKER maps with their reviewed play area, scripts/stalker-maps/ffa-points). Then
+(the STALKER maps with their reviewed play area, scripts/stalker-maps/ffa-points). London's rows 38
+and 39 are of a second run, on the projects with this list applied: `--project level_09/day_8
+--below 14.5` (to_center's doc: off its rotunda's third storey), in place of the first run's. Then
 
   python3 make_center_edits.py --live <folder>
 
