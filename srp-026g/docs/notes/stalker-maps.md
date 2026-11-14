@@ -28,9 +28,12 @@ its row of `release/content.tsv`. The list must stay the last that edits
 
 - The six maps need their top-down renders for the Maps tab
   (`scripts/damage-calc/assets/maps`), or `release/build-site` stops.
-- Training Camp's west stash pair (team 0's `stash2`, team 1's `stash5`, at
-  about (-20.0, -9.6) and (-20.8, -9.8)) stands 1.0 and 1.7 m outside the
-  crater wall of `training-camp-arena-1.json`: players may not reach them.
+- Training Camp's Team Deathmatch project (`day_4`) has no walker wall:
+  `training-camp-arena-1.json` walls Free for All's own `day_8` only, at the
+  base's fence (`stalker-ffa.md`). Its teams' spawns are at the north and
+  south gateways and its west stash pair (team 0's `stash2`, team 1's
+  `stash5`, at about (-20.0, -9.6) and (-20.8, -9.8)) is 11 m outside the
+  fence: Team Deathmatch there needs its own boundary first.
 - Bots: no bots' map data for these maps (`release/bot-data.tsv`).
 
 | maps_dict id | level (`map_id`) | project / HUD key | map | source | loading id |
@@ -473,11 +476,14 @@ The spawns do not come from the level: they are the planner's.
 - `srp-026g/flash/hud`: their minimaps (`Minimap._levels`, `_minimapProps`,
   classes `minimap_<project>`). Training Camp's ground runs to the level's
   edge (400 x 400 m), so the renderer's default cut it 45 m around the TDM
-  spawns (a figure-8). Its minimap is framed on the crater wall + 15 m and
-  shows all the ground there, fading out inside the Tab map's 460 px
-  (the owner's pick, 2026-11-13): `render_minimap.py --map 212
+  spawns (a figure-8). Its minimap is framed on the crater wall of revisions
+  57-58 + 15 m and shows all the ground there, fading out inside the Tab
+  map's 460 px (the owner's pick, 2026-11-13): `render_minimap.py --map 212
   --frame-outline srp-026g/scripts/stalker-maps/training-arena.tsv`
-  (resource-porter `fix/training-camp-minimap`). Repair Depot's south edge has
+  (resource-porter `fix/training-camp-minimap`). Free for All's wall has since
+  moved in to the base's fence (`stalker-ffa.md`); the frame has not: the
+  fenced base is 73 x 67 m of the frame's 159 m, its middle 9 m east of the
+  frame's. Repair Depot's south edge has
   the same 45 m circles; it is not played.
 - `tools/actionscript` adds a bitmap the original movie lacks from the tree's
   `bitmaps/<class>.png` (lossless) or `.jpg`; `srp-026g/scripts/stalker-maps/ui_images.py`

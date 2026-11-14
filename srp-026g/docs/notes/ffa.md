@@ -150,7 +150,9 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   Cologne (level_08, 23 points in 165 x 38 m) A 7 % / 19 %, B 1 % / 7 %; Experimental Pool
   (v010b_cs_mp_bath, 81 x 73 m) A 1 % / 4 %, B 2 % / 9 %; Training Camp B 0.3 % / 2 %; Tarakanovsky
   Fort (level_05) and Mamayev v0.21 under 1 % at 20; every other map 0. At 10 every map was under
-  0.2 %. Same-tick respawns and the dead are left out (both ways).
+  0.2 %. Same-tick respawns and the dead are left out (both ways). Training Camp's figure is
+  for its crater arena of revision 58 (29 points); the fenced one (26 points in 73 x 67 m, 24
+  of them on its raised floors) is modelled in `stalker-ffa.md`, "The spawns".
 
 ## Maps
 
