@@ -1641,7 +1641,6 @@ impl WalkGrid {
             &cut,
             &solids,
             walls.as_ref().filter(|_| body.erosion == Erosion::Exact),
-            triangles,
             world.filter(|_| body.rest_floors).map(|w| (w, &s)),
             world.filter(|_| body.wall_give_back).map(|w| (w, &s)),
         );
@@ -2424,7 +2423,6 @@ impl WalkGrid {
         cut: &[u8],
         solids: &Solids,
         walls: Option<&exact::Walls>,
-        triangles: &[Triangle],
         rest_world: Option<(&crate::controller::Collision, &crate::controller::tick::Settings)>,
         give_back_world: Option<(&crate::controller::Collision, &crate::controller::tick::Settings)>,
     ) -> (usize, usize, usize) {
