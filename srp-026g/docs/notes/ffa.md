@@ -217,6 +217,39 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - The free for all's own `<weather>_8` projects only; Team Deathmatch's are not named.
   - Review renders (before/after per map): `private/renders/ffa-spawns-to-center/` of the main
     checkout.
+- **Every map by the spawn rule** (the owner, 2026-11-14, on his Rudnya picks: "I want you to ... try
+  this on other maps"): content edit `ffa-cover-maps-1`, from `scripts/ffa-mode/cover-maps.tsv`,
+  made by check-points' `to_cover` (its doc is the rule) and `make_cover_edits.py`, on every Free for
+  All map but Rudnya (its own, from his picks) and Training Camp (its own arena, `stalker-ffa.md`),
+  over the projects as every list before it leaves them:
+  - A spawn stays where it is when it passes `cover` (above) and the spawn checks of the centre move
+    (standing floor, body clear, harmful zones 2 m away), however near another spawn (the owner,
+    2026-11-14: "spawns can be as close as possible, the only thing that matters is whether people
+    can spawn close to each other": the respawn's 20 m enemy exclusion keeps players apart). Its
+    facing: its own when a walkable 6 m and 8 m of view are ahead, else turned to a new spawn's. On
+    London none stands above 14.5 (its rotunda's third storey).
+  - Each other one keeps its point id, name, radii and protection and moves to a place that passes
+    the same: the reachable standing floors past the band, one a 2 m cell and 2 m of height, facing
+    the walkable heading that sees farthest (to 20 m), into the area on a tie. They are chosen one at
+    a time, each the place that brings the inner area (past the band) nearest to a spawn in all, so
+    it has places to spawn everywhere; no distance is kept.
+  - The walk grid is seeded by the spawns and its box holds them all, so the map is measured again
+    with the spawns where they moved, and changed again, until every one stays (2 or 3 rounds).
+  - Kept / turned of them / moved, of the spawns: School 4 / 1 / 22 of 26, Vostok 10 / 2 / 14 of 24,
+    Chemical Plant 9 / 3 / 21 of 30, Fort 12 / 1 / 12 of 24, Mamayev 4 / 1 / 21 of 25, Vector
+    Laboratory 15 / 3 / 14 of 29, Cologne 16 / 7 / 7 of 23, London 15 / 5 / 17 of 32, Vostok v0.21
+    7 / 0 / 15, Mamayev v0.21 8 / 0 / 14, Chemical Plant v0.11 3 / 0 / 19, Vostok v0.11 10 / 0 / 12,
+    Rudnya v0.69 7 / 2 / 15 (of 22 each), Experimental Pool 9 / 0 / 15 and Military Warehouses
+    6 / 0 / 18 of 24: 236 moved and 25 turned a map's worth, every map its count; levels 2-8 the same
+    in their three weathers (same points and geometry), 519 entries. The moved ones were in the band
+    (108), had no cover (121) or a harmful zone within 2 m (7). A new place's nearest spawn is 10 m
+    (Experimental Pool) to 21 m (Military Warehouses) away in plan.
+  - Only position and rotation change, in the free for all's own `<weather>_8` projects.
+  - Checked (2026-11-14): `to_cover` on a quick build of revision 59 with the list keeps every solo
+    spawn of the 29 projects as it is, in one round; the released map test passes on its server data.
+    Offline: not seen in the game, not played.
+  - Review renders (before/after per map, a contact sheet): `private/renders/ffa-spawn-cover-maps/`
+    of the main checkout.
 - **Crowding** (2026-11-13, an offline model of the built projects, not play): one player respawns
   while the N - 1 others live, standing either on random solo points (A) or anywhere in the box
   around them (B); the share of respawns with no safe point (the fallback), N = 16 / 20:
