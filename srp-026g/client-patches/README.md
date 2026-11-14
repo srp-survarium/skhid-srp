@@ -156,7 +156,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/replay_map.rs`, `src/replay_map.toml`, `src/vostok/ui.rs` (`GameWorldUi::at_enemy_ids`), `check_replay_map_026g.py` | Patch 135: a replay shows every enemy, spotted or not (`../docs/notes/replay-map.md`): its dot (update_minimap_players' spotted test, 0x239505), its marker and red name with Alt (render_name's, 0x1F2B50), the icons movie told `root.srp_show_enemies` before initialize_match's enemy list (0x235709); a replay known by the game's network client's class (`vostok::world::Playback`), no state of its own; its check runs the three sites in both exes (needs Unicorn) |
 | `rust/patches/src/replay_keys.rs`, `src/replay_keys.toml`, `src/vostok/world.rs` (`GameWorld::replay_player`, `places_in_match`), `src/vostok/keyboard.rs` (`GameWorldKey::replay_player`) | Patch 140: a replay's keys and the followed player's return (`../docs/notes/replay-keys.md`): at on_keyboard_action's start (0x25CD00) a key that goes down in a replay is kept, and at the frame's end (game_world::tick after the move, 0x1F7C3C) the replay player movie is told it (`root.srp_key`) and, when they changed, the places in the match (`root.srp_places`); a replay known by the game's network client's class, as patch 135 |
 | `rust/patches/src/console_where.rs`, `src/console_where.toml`, `src/vostok/console.rs`, `check_console_where_026g.py` | Patch 133: the console command `where` (`~`, then `where`) prints the camera's character's place and look, one line to the console, to `Survarium_<user>.log` (the game's log, channel `game`) and to `srp_patches.log`: `where: map <project> (id <maps_dict id>) pos <x y z> [eye <x y z>] dir <x y z> yaw <deg> pitch <deg>` (`map` the loaded match's project as the data names it, e.g. `v021d_level_03/day_2`, and its maps_dict id, `map -` in the lobby or with no world; `pos` the player's simulated place, the map projects' coordinates; `eye` the camera's place when it is not `pos`; `dir` the view's forward, a unit vector; yaw from +Z towards +X, 0 to 360; pitch above the horizontal; "(N s ago)" for a view older than a second, "no camera yet" before any). The player is the one the camera is on (update_camera's: a spectated or replayed one too); always on. A cc_delegate of ours registered at on_configs_loaded's start, its vtable a generated copy of cc_delegate's with execute ours; the view kept by a lohook after update_camera's view update (0x1F3650); the line through the game's own log helper (0x111C90, 0x111D10). Its check runs the registration, update_camera and console_commands::execute in both exes (needs Unicorn; `../docs/notes/client_patch.md` section 3.81) |
-| `rust/patches/src/spawn_marks.rs`, `src/spawn_marks.toml`, `src/vostok/free_fly.rs`, `check_spawn_marks_026g.py` | The spawn marks, a tool of a local build (`patch_026g.py --spawn-marks`; with patch 133, whose line it writes to a file): F7 puts a live match's screen on the engine's free-fly camera and back, F8 marks "a spawn here" and F9 "no spawn near here" where the screen's camera is, a line each of `srp_spawn_marks.tsv` beside `srp_patches.log`, said in the hud's centre message. A free camera is a cheat: the tool is compiled only with `cfg(srp_spawn_marks)`, and every other build's handler is empty and its arena the lock's, with none of it (the self-test's test_spawn_marks). The section "The spawn marks" below has the keys, the file and how to use it; `../docs/notes/client_patch.md` section 3.82 the evidence |
+| `rust/patches/src/spawn_marks.rs`, `src/spawn_marks.toml`, `src/vostok/free_fly.rs`, `check_spawn_marks_026g.py` | The spawn marks, a tool of a local build (`patch_026g.py --spawn-marks`; with patch 133, whose line it writes to a file): F7 puts a live match's screen on the engine's free-fly camera and back, F8 marks "a spawn here" and F9 "no spawn near here" where the screen's camera is, a line each of `srp_spawn_marks.tsv` beside `srp_patches.log`, said in the hud's centre message, F10 takes the map's last mark back; each mark of the map is shown where it is by one of the game's own looping particle systems (`src/vostok/particle.rs`: green spores for a spawn, a bonfire for no spawn), the file's marks again at a match's first frame on their map. A free camera is a cheat: the tool is compiled only with `cfg(srp_spawn_marks)`, and every other build's three handlers are empty and its arena the lock's, with none of it (the self-test's test_spawn_marks). The section "The spawn marks" below has the keys, the file and how to use it; `../docs/notes/client_patch.md` section 3.82 the evidence |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -5777,11 +5777,27 @@ built with `--spawn-marks` (`../docs/notes/client_patch.md` section 3.82).
 - **F8**: a mark "a spawn here". **F9**: a mark "no spawn near here". Where the screen's camera
   is and looks: the free-fly camera's place, or the player's eyes when walking (the line has the
   player's feet too).
+- **F10**: takes back the map's last mark: its line leaves the file (written whole beside it as
+  `srp_spawn_marks.tsv.new`, then put in its place) and its marker goes
+  (`took back the last mark: spawn here (11 shown)`).
+- **The markers**: each mark of the map is shown where it is, for as long as the map is played:
+  **green spores** rising from the ground for a spawn (the spore anomaly's,
+  `fx/level_4_anomaly/spori`), a **bonfire** for no spawn (a map's own, `fx/lights/bonfire`). A
+  mark walked with the player's camera is shown at the player's feet; one flown with the free-fly
+  camera (or with no player) at the camera. At the first frame of a match on a map, the file's
+  marks of that map are shown again (`srp_patches.log`: `spawn_marks: level_01/day_8: 12 marks of
+  srp_spawn_marks.tsv shown`), so marking goes on over matches and runs; another map's first
+  frame takes them away. At most 256 a map, and a file of at most 256 KiB (some 2000 marks:
+  begin a new file past it, the log says so).
 - Every press shows what it did in the middle of the screen for 2 s (`mark 3: spawn here`) and
-  writes it to `srp_patches.log`. `NO MARK: ...` means no line was written. With the interface
-  hidden (F11) there is no message on the screen: the log has it.
+  writes it to `srp_patches.log`. `NO MARK: ...` means no line was written, `NOTHING TAKEN BACK:
+  ...` that F10 changed nothing. With the interface hidden (F11) there is no message on the
+  screen: the log has it.
 - A Free for All match alone lasts its 15 minutes; the marks of the next one go on in the same
   file, their numbers too.
+- **F7 with no line in `srp_patches.log`** (the owner's first run, 2026-11-14, while F8 and F9
+  had theirs): the game never got the key. Nothing in the game takes F7 before the tool (section
+  3.82 of the notes): the keyboard or the desktop kept it.
 
 **The file:** `srp_spawn_marks.tsv` in the game's `binaries/x86/` folder (beside
 `srp_patches.log`): tab-separated, a header, one mark a line, added to across runs.
@@ -5815,11 +5831,14 @@ player is in the world.
 **Never in a release.** A free camera in a live match is a cheat. The tool is compiled only with
 `cfg(srp_spawn_marks)`, which `patch_026g.py --spawn-marks` alone gives the Rust crates
 (link_026g.py's `RUST_CFGS`); release/build-zip, `make_client_026g.py` and every other build link
-the arena the lock describes, where the tool's handler is `xor eax,eax / ret` and nothing else of
-it exists. The self-test's test_spawn_marks checks both arenas. No environment variable, file or
+the arena the lock describes, where the tool's three handlers are `xor eax,eax / ret` and nothing
+else of it exists but its query callback's generated entry, which nothing hands the game. The self-test's test_spawn_marks checks both arenas. No environment variable, file or
 console command reaches code that is not there.
 
-Checked: `check_spawn_marks_026g.py` (Unicorn: the default build as the original for the three
-keys; the marks, the messages and the file; F7 through the game's own camera switches; the
-free-fly camera's own input and tick), the patch crate's tests and Clippy with and without the
-cfg. **Not run in a game.**
+Checked: `check_spawn_marks_026g.py` (Unicorn: the default build as the original for the four
+keys and its frame asking, reading and playing nothing; the marks, the messages and the file; F7
+through the game's own camera switches; the free-fly camera's own input and tick; the markers
+through the frame's hook chain, the query and its callback through the game's invoker, the scene
+renderer's play and remove stubbed: shown from the file, a mark's, F10, another map, a particle
+that did not load), the patch crate's tests and Clippy with and without the cfg. **Not run in a
+game**: how the markers look, the particles' load and play for real.

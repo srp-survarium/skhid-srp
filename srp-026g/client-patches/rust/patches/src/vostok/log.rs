@@ -32,7 +32,6 @@
 //! calls it.
 
 use core::ffi::c_void;
-use core::ptr::NonNull;
 use core::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
 use super::files::{Find, FindData, Path};
@@ -415,19 +414,9 @@ fn size() -> Option<u32> {
 
 /// The file renamed srp_patches.old.log, that one replaced: whether it was.
 fn rename() -> bool {
-    const MOVEFILE_REPLACE_EXISTING: u32 = 1;
-    // SAFETY: kernel32 is loaded in every process; GetModuleHandleA and
-    // GetProcAddress through the exe's import slots, NUL-terminated names;
-    // MoveFileExA is that export (the library's dynamic row).
-    unsafe {
-        let kernel32 = (raw::engine_get_module_handle_a)(c"kernel32.dll".as_ptr().cast());
-        if kernel32.is_null() {
-            return false;
-        }
-        let Some(move_file) = NonNull::new((raw::engine_get_proc_address)(kernel32, c"MoveFileExA".as_ptr().cast())) else {
-            return false;
-        };
-        raw::engine_move_file_ex_a(move_file, NAME.as_ptr(), OLD_NAME.as_ptr(), MOVEFILE_REPLACE_EXISTING) != 0
+    match (Path::new(NAME), Path::new(OLD_NAME)) {
+        (Some(name), Some(old)) => super::files::replace(name, old),
+        _ => false,
     }
 }
 

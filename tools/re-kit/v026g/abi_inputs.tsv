@@ -65,20 +65,20 @@ va	name	location	role	basis
 0x00022490	vostok::render::scene_renderer::update_skeleton	entry ESP+0x10	the count (at most 80)	observed
 0x00022520	vostok::render::scene_renderer::set_gamma_correction_factor	stack+4	scene_renderer receiver	inferred
 0x00022520	vostok::render::scene_renderer::set_gamma_correction_factor	stack+8	gamma correction factor float captured for queued callback	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+4	scene_renderer receiver	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+8	scene resource reference captured for play command	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+12	by-value particle resource pointer slot copied then released	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+16	first matrix source forwarded to two-buffer command	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+20	second matrix source forwarded to two-buffer command	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+24	first attachment resource reference captured for play command; exact type unasserted	inferred
-0x00022660	vostok::render::scene_renderer::play_particle_system	stack+28	second attachment resource reference captured for play command; exact type unasserted	inferred
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+4	scene_renderer receiver	observed
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+8	scene resource reference captured for play command	observed
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+12	by-value particle resource pointer slot copied then released	observed
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+16	first matrix source forwarded to two-buffer command	observed
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+20	second matrix source forwarded to two-buffer command	observed
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+24	first attachment resource reference captured for play command; exact type unasserted	observed
+0x00022660	vostok::render::scene_renderer::play_particle_system	stack+28	second attachment resource reference captured for play command; exact type unasserted	observed
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+4	scene_renderer receiver	inferred
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+8	scene resource reference	inferred
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+12	particle resource reference	inferred
 0x00022860	vostok::render::scene_renderer::stop_particle_system	stack+16	scalar stop parameter float forwarded in helper XMM0; timing units unasserted	inferred
-0x000229d0	vostok::render::scene_renderer::remove_particle_system_instance	stack+4	scene_renderer receiver	inferred
-0x000229d0	vostok::render::scene_renderer::remove_particle_system_instance	stack+8	scene resource reference	inferred
-0x000229d0	vostok::render::scene_renderer::remove_particle_system_instance	stack+12	particle resource reference	inferred
+0x000229d0	vostok::render::scene_renderer::remove_particle_system_instance	stack+4	scene_renderer receiver	observed
+0x000229d0	vostok::render::scene_renderer::remove_particle_system_instance	stack+8	scene resource reference	observed
+0x000229d0	vostok::render::scene_renderer::remove_particle_system_instance	stack+12	particle resource reference	observed
 0x00022b30	vostok::render::scene_renderer::update_particle_system_instance	stack+4	scene_renderer receiver	inferred
 0x00022b30	vostok::render::scene_renderer::update_particle_system_instance	stack+8	scene resource reference	inferred
 0x00022b30	vostok::render::scene_renderer::update_particle_system_instance	stack+12	particle resource reference	inferred

@@ -256,7 +256,7 @@ pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     let arrived = match results.arrived(tag) {
         Arrived::Effects(kept) => kept.all(),
         // this callback is only the glow's query's
-        Arrived::Bus(_) | Arrived::Track(..) => return,
+        Arrived::Bus(_) | Arrived::Track(..) | Arrived::Particles(_) => return,
     };
     let (load, action) = LOAD.get(thread).step(Event::Arrived(arrived));
     LOAD.set(thread, load);

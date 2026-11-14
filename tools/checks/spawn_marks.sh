@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The spawn marks (srp-026g/client-patches/rust/patches/src/spawn_marks.rs): a local build's tool,
 # which no other build may hold. The default build as the original and without the tool, the
-# --spawn-marks build's keys, file and camera switches (Unicorn), and the crate with and without
+# --spawn-marks build's keys, file, camera switches and markers (Unicorn), and the crate with and without
 # its cfg.
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)

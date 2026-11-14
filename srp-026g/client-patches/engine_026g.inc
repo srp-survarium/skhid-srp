@@ -774,6 +774,15 @@ extern engine_switch_to_camera
 ; void engine_switch_to_player_camera(struct game_world *world, unsigned int first_person)
 ; 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
 extern engine_switch_to_player_camera
+; void engine_play_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system_instance *instance, const float *first, const float *second, struct particle_system_instance *const *first_attachment, struct particle_system_instance *const *second_attachment)
+; 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, instance ESP+12, first ESP+16, second ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28
+extern engine_play_particle_system
+; void engine_remove_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system_instance *const *instance)
+; 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, instance ESP+12; pops 12
+extern engine_remove_particle_system
+; void engine_release_particle(struct particle_system_instance **pointer)
+; 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+extern engine_release_particle
 ; void engine_sound_pan(struct sound_scene *scene, struct panning_lut *table, struct sound_instance_proxy *proxy, const float *position, float distance, float *matrix, float *coefficient)
 ; 0x57d70 vostok::sound::sound_scene::calculate_3d_pan: scene ESP+4, table ESP+8, proxy ESP+12, position ESP+16, distance ESP+20, matrix ESP+24, coefficient ESP+28; pops 28
 extern engine_sound_pan

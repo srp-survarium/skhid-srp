@@ -518,9 +518,9 @@ impl Glue {
                     // a retry after a failure), so none comes; one would keep
                     // its reference (a scene is never let go)
                     Told::Arrived(Arrived::Bus(_)) => Event::Frame,
-                    // the music asks no game effect (the glow's own callback
-                    // gets its query)
-                    Told::Arrived(Arrived::Effects(_)) => Event::Frame,
+                    // the music asks no game effect and no particle (the glow's
+                    // and the spawn marks' own callbacks get their queries)
+                    Told::Arrived(Arrived::Effects(_) | Arrived::Particles(_)) => Event::Frame,
                     Told::Unload => Event::Unload,
                 };
                 let mut game = Game { thread, now, sound, bus, serial: &mut serial, query };

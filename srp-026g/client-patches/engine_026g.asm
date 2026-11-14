@@ -232,6 +232,9 @@ global engine_respawn_point_clear
 global engine_respawn_points_push
 global engine_switch_to_camera
 global engine_switch_to_player_camera
+global engine_play_particle_system
+global engine_remove_particle_system
+global engine_release_particle
 global engine_sound_pan
 global engine_listener_position
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
@@ -2739,6 +2742,59 @@ engine_switch_to_player_camera:
     push dword [esp + 24]   ; first_person -> 4
     mov eax, [esp + 24]   ; world
     call 0x1f8200
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_play_particle_system:
+    ; 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, instance ESP+12, first ESP+16, second ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 44]   ; second_attachment -> 28
+    push dword [esp + 44]   ; first_attachment -> 24
+    push dword [esp + 44]   ; second -> 20
+    push dword [esp + 44]   ; first -> 16
+    push dword [esp + 44]   ; instance -> 12
+    push dword [esp + 44]   ; scene -> 8
+    push dword [esp + 44]   ; renderer -> 4
+    call 0x22660
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_remove_particle_system:
+    ; 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, instance ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; instance -> 12
+    push dword [esp + 28]   ; scene -> 8
+    push dword [esp + 28]   ; renderer -> 4
+    call 0x229d0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_release_particle:
+    ; 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; pointer
+    call 0x11540
     pop edi
     pop esi
     pop ebx

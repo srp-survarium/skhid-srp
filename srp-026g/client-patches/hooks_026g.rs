@@ -3096,6 +3096,21 @@ pub extern "C" fn hook_voice_on_frame(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- spawn_marks (patch 133) ----
+
+/// The entry `spawn_marks_on_frame` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_spawn_marks_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `spawn_marks_on_frame` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::spawn_marks::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- subtick_hits (patch 103) ----
 
 /// The entry `subtick_hits_on_ray` (0x32d627, check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet)) calls this with the saved machine.
@@ -4404,6 +4419,23 @@ pub extern "C" fn hook_sound_voices_on_voice_made(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- spawn_marks (patch 133) ----
+
+/// The entry `spawn_marks_on_loaded` (a callback in engine_store_first_resource's convention, the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query)
+/// calls this with its 2 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `spawn_marks_on_loaded`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_spawn_marks_on_loaded(a0: Option<raw::QueriesResult>, a1: *mut c_void) -> u32 {
+    // SAFETY: only the entry `spawn_marks_on_loaded` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let result = unsafe { QueryResults::from_raw(&thread, a0) };
+    let tag = QueryTag::from_raw(a1 as usize as u32);
+    { crate::spawn_marks::on_loaded(result, tag); 0 }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.
@@ -5333,6 +5365,8 @@ pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_voice_on_frame(frame);
     if flow != 0 { return flow; }
+    let flow = hook_spawn_marks_on_frame(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5394,6 +5428,15 @@ pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstR
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(music_on_query_done as *const () as *const c_void) }
+}
+
+unsafe extern "C" { fn spawn_marks_on_loaded(); }
+/// The entry `spawn_marks_on_loaded`, in engine_store_first_resource's convention (the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn spawn_marks_on_loaded_entry() -> super::hook::CallbackEntry<OrigStoreFirstResource> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_store_first_resource, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(spawn_marks_on_loaded as *const () as *const c_void) }
 }
 
 // ---- memory_profile: its hooks installed on demand ----

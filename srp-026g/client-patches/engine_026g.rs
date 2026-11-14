@@ -291,6 +291,12 @@ unsafe extern "C" {
     pub fn engine_switch_to_camera(director: *mut c_void, camera: *mut c_void);
     /// 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
     pub fn engine_switch_to_player_camera(world: *mut c_void, first_person: u32);
+    /// 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, instance ESP+12, first ESP+16, second ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28
+    pub fn engine_play_particle_system(renderer: *mut c_void, scene: *mut c_void, instance: *mut c_void, first: *const f32, second: *const f32, first_attachment: *const *mut c_void, second_attachment: *const *mut c_void);
+    /// 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, instance ESP+12; pops 12
+    pub fn engine_remove_particle_system(renderer: *mut c_void, scene: *mut c_void, instance: *const *mut c_void);
+    /// 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+    pub fn engine_release_particle(pointer: *mut *mut c_void);
     /// 0x57d70 vostok::sound::sound_scene::calculate_3d_pan: scene ESP+4, table ESP+8, proxy ESP+12, position ESP+16, distance ESP+20, matrix ESP+24, coefficient ESP+28; pops 28
     pub fn engine_sound_pan(scene: *mut c_void, table: *mut c_void, proxy: *mut c_void, position: *const f32, distance: f32, matrix: *mut f32, coefficient: *mut f32);
     /// 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX

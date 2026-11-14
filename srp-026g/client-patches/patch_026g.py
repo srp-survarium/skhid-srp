@@ -38,7 +38,8 @@ USAGE (this script never touches the source exe):
     python patch_026g.py <survarium.exe> <survarium_srp.exe> --spawn-marks
         the default build with the spawn marks, a tool for our own machine
         (rust/patches/src/spawn_marks.rs: F7 the free-fly camera in a live
-        match, F8 and F9 a mark in srp_spawn_marks.tsv). A free camera is a
+        match, F8 and F9 a mark in srp_spawn_marks.tsv, F10 the map's last
+        mark taken back; the map's marks shown in the world). A free camera is a
         cheat, so this is the one build whose arena is not the lock's: its
         Rust crates are compiled with `--cfg srp_spawn_marks`, and every
         other build has none of the tool's code. Never a release's
@@ -4620,7 +4621,8 @@ def main():
         data = with_diagnostics(data)
         description += ", the ragdoll's diagnostics on (srp_ragdoll.csv; a local build, never a release)"
     if spawn_marks:
-        description += ", the spawn marks' tool in (F7 the free camera, F8 and F9 a mark; a local build, never a release)"
+        description += (", the spawn marks' tool in (F7 the free camera, F8 and F9 a mark, F10 the last taken back, "
+                        "the map's marks shown; a local build, never a release)")
     if target != "--check":
         with open(target, "wb") as out:
             out.write(data)

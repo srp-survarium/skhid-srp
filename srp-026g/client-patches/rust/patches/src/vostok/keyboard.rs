@@ -64,10 +64,11 @@ impl Dik {
     pub const F3: Dik = Dik(0x3D);
     pub const F5: Dik = Dik(0x3F);
     pub const F6: Dik = Dik(0x40);
-    /// F7 to F9: bound to nothing by the game (hide-ui-key.md), the keys of a local build's spawn marks.
+    /// F7 to F10: bound to nothing by the game (hide-ui-key.md), the keys of a local build's spawn marks.
     pub const F7: Dik = Dik(0x41);
     pub const F8: Dik = Dik(0x42);
     pub const F9: Dik = Dik(0x43);
+    pub const F10: Dik = Dik(0x44);
     pub const LEFT: Dik = Dik(0xCB);
     pub const RIGHT: Dik = Dik(0xCD);
 
@@ -158,9 +159,14 @@ impl<'c, 'm> GameWorldKey<'c, 'm> {
     /// when its game plays a replay (its network client's class) and the hud
     /// has the movie. A live match's keys get none.
     pub fn replay_player(&self) -> Option<Movie<'_>> {
+        self.world()?.replay_player()
+    }
+
+    /// The game world this key came to.
+    pub fn world(&self) -> Option<GameWorld<'_>> {
         // SAFETY: the hud of the hook's site and its world, alive while
         // on_keyboard_action runs on the game's thread.
-        GameWorld::of(unsafe { self.hud.raw().world() }?, self.ctx.thread()).replay_player()
+        Some(GameWorld::of(unsafe { self.hud.raw().world() }?, self.ctx.thread()))
     }
 
     /// The key is taken here: no later handler (the player's) gets it. The

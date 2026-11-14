@@ -297,6 +297,12 @@ unsafe extern "C" {
     pub fn engine_switch_to_camera(director: Option<CameraDirector>, camera: Option<GameCamera>);
     /// 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
     pub fn engine_switch_to_player_camera(world: Option<GameWorld>, first_person: u32);
+    /// 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, instance ESP+12, first ESP+16, second ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28
+    pub fn engine_play_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, instance: Option<ParticleSystemInstance>, first: *const f32, second: *const f32, first_attachment: *mut Option<ParticleSystemInstance>, second_attachment: *mut Option<ParticleSystemInstance>);
+    /// 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, instance ESP+12; pops 12
+    pub fn engine_remove_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, instance: *mut Option<ParticleSystemInstance>);
+    /// 0x11540 vostok::intrusive_ptr<render_model_instance>::release: pointer ECX; pops 0
+    pub fn engine_release_particle(pointer: *mut Option<ParticleSystemInstance>);
     /// 0x57d70 vostok::sound::sound_scene::calculate_3d_pan: scene ESP+4, table ESP+8, proxy ESP+12, position ESP+16, distance ESP+20, matrix ESP+24, coefficient ESP+28; pops 28
     pub fn engine_sound_pan(scene: Option<SoundScene>, table: Option<PanningLut>, proxy: Option<SoundInstanceProxy>, position: *const f32, distance: f32, matrix: *mut f32, coefficient: *mut f32);
     /// 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
@@ -11795,6 +11801,24 @@ impl QueryResult {
         unsafe { self.0.byte_add(0x0).cast::<Option<MedicalEffectResource>>().write_volatile(value) }
     }
 
+    /// +0x0 (ptr<vostok::particle::particle_system_instance>): the result's resource, a particle system instance for a class 61 (3Dh) request, a new one each query (its cook reuses none): the particle effect cook asks them so, by the effect's particle_system name (0x25A5C0..0x25A5DC)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn particle(self) -> Option<ParticleSystemInstance> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ParticleSystemInstance>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::particle::particle_system_instance>): the result's resource, a particle system instance for a class 61 (3Dh) request, a new one each query (its cook reuses none): the particle effect cook asks them so, by the effect's particle_system name (0x25A5C0..0x25A5DC)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_particle(self, value: Option<ParticleSystemInstance>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ParticleSystemInstance>>().write_volatile(value) }
+    }
+
     /// 0x2e0 bytes: 2E0h bytes a result
     pub const SIZE: usize = 0x2e0;
 
@@ -22748,6 +22772,30 @@ impl FreeFlyCamera {
     #[inline(always)]
     pub unsafe fn camera(self) -> GameCamera {
         GameCamera(unsafe { self.0.byte_add(0x0) })
+    }
+}
+
+/// A vostok::particle::particle_system_instance (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleSystemInstance(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleSystemInstance {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xd0 (u32): its reference count, atomic: every taker lock xadds it (scene_renderer::play_particle_system 0x2271A, remove_particle_system_instance 0x22A57) and intrusive_ptr release 0x11540 drops it, destroying the instance at 0 (0x11562)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xd0).cast::<u32>().as_ptr() }
     }
 }
 

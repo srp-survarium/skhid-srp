@@ -154,6 +154,7 @@ pub mod medical;
 pub mod artefact_skills;
 pub mod keeper;
 pub mod effect;
+pub mod particle;
 pub mod animation_id;
 pub mod bake_gpu;
 pub mod deserialize;

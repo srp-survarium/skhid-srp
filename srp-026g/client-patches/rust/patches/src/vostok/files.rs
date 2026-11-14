@@ -9,7 +9,7 @@
 //! close belongs.
 
 use core::ffi::c_void;
-use core::ptr::null_mut;
+use core::ptr::{NonNull, null_mut};
 
 use crate::raw;
 
@@ -110,6 +110,26 @@ impl Drop for File {
         unsafe {
             (raw::engine_close_handle)(self.0);
         }
+    }
+}
+
+/// Renames the file `from` to `to`, the file `to` replaced when it is there
+/// (MoveFileExA with MOVEFILE_REPLACE_EXISTING: one step, so `to` is always
+/// whole, the old one or the new): whether it was.
+pub fn replace(from: Path, to: Path) -> bool {
+    const MOVEFILE_REPLACE_EXISTING: u32 = 1;
+    // SAFETY: kernel32 is loaded in every process; GetModuleHandleA and
+    // GetProcAddress through the exe's import slots, NUL-terminated names;
+    // MoveFileExA is that export (the library's dynamic row).
+    unsafe {
+        let kernel32 = (raw::engine_get_module_handle_a)(c"kernel32.dll".as_ptr().cast());
+        if kernel32.is_null() {
+            return false;
+        }
+        let Some(move_file) = NonNull::new((raw::engine_get_proc_address)(kernel32, c"MoveFileExA".as_ptr().cast())) else {
+            return false;
+        };
+        raw::engine_move_file_ex_a(move_file, from.ptr(), to.ptr(), MOVEFILE_REPLACE_EXISTING) != 0
     }
 }
 

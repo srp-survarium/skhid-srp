@@ -23,17 +23,35 @@ impl<T, const N: usize> BoundedVec<T, N> {
     }
     pub fn get(&self, index: usize) -> Option<&T> { self.slots.get(index)?.as_ref() }
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> { self.slots.get_mut(index)?.as_mut() }
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = &T> {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &T> + ExactSizeIterator {
         self.slots[..self.len].iter().map(|slot| slot.as_ref().expect("occupied prefix"))
     }
     pub fn iter_mut(&mut self) -> impl ExactSizeIterator<Item = &mut T> {
         self.slots[..self.len].iter_mut().map(|slot| slot.as_mut().expect("occupied prefix"))
+    }
+    /// Takes the value at `index` out, the later ones moved down one; none past the end.
+    pub fn remove(&mut self, index: usize) -> Option<T> {
+        if index >= self.len { return None; }
+        let value = self.slots[index].take();
+        self.slots[index..self.len].rotate_left(1);
+        self.len -= 1;
+        value
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn remove_keeps_the_order_of_the_rest() {
+        let mut entries = BoundedVec::<u32, 4>::new();
+        for i in 0..4 { entries.push(i).unwrap(); }
+        assert_eq!(entries.remove(1), Some(1));
+        assert_eq!(entries.iter().copied().collect::<std::vec::Vec<_>>(), [0, 2, 3]);
+        assert_eq!(entries.remove(3), None);
+        assert_eq!(entries.push(9), Ok(3));
+        assert_eq!(entries.iter().copied().collect::<std::vec::Vec<_>>(), [0, 2, 3, 9]);
+    }
     #[test]
     fn full_push_preserves_owners_and_values() {
         use std::{cell::Cell, rc::Rc};
