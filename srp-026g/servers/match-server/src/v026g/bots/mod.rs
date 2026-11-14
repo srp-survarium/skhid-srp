@@ -1568,6 +1568,23 @@ impl Bots {
     /// [Gap 3, F7] A trusted world's word on one place's weapon in hands ([`guns::GunWorld`]): a bot's own ledger is laid
     /// against it ([`reflex::Reflex::gun_world`], `combat.gun_from_world`), when the world's kit in use is the one its
     /// arms are of.
+    /// [Gap 11] A trusted world made at `time` shows a bot's own pockets of the kit in use (`world`): its grenade and
+    /// smoke pockets ([`view::Tracker::own_stacks`]) and its trap pocket ([`traps::Habit::read`]) hold the world's units
+    /// (`combat.stacks_from_world`).
+    pub fn own_stacks(&mut self, place: Place, time: u32, world: &pockets::WorldPockets) {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        if !self.tunings.of(bot.team).aim.combat.stacks_from_world {
+            return;
+        }
+        let trap = survarium::v026g::loadouts::BOT_TRAP.name;
+        if let Some((_, stack)) = world.slots.iter().flatten().find(|(name, _)| *name == trap) {
+            bot.features.traps.habit.read(time, stack.in_hand);
+        }
+        self.tracker.own_stacks(place, world.kit, time, world.slots.map(|slot| slot.map(|(_, stack)| stack)));
+    }
+
     pub fn own_gun(&mut self, place: Place, gun: guns::GunWorld) {
         let Some(Some(bot)) = self.bots.get_mut(place) else {
             return;
