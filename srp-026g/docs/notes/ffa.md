@@ -242,6 +242,20 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     48 -> 74 points.
   - 58 hold the rule; 2, 3, 23 and 38 have no cover, 21, 22, 58-63 and 68-70 are in the perimeter
     band (5.7 m): kept as his.
+- **Vostok's picks on its ports** (the owner, 2026-11-14: "all of my spawns most likely can be
+  reused on 0.11 and 0.21 maps"). Both ports share native Vostok's world coordinates: the site's
+  maps.json gives the three the same bounds (v0.11's minimap 0.23 m off in x only), and the picks
+  land where they did: v0.21 68 of 71 at the native height (the rest within 12 cm), v0.11 63 of
+  71 (within 33 cm). He did not stand on the ports, so `--as-stood` does not apply there; `picks
+  --shift 1.5` moves a pick the checks drop to the nearest place within 1.5 m that passes them,
+  else it stays out (none found one). Each in its port's own `day_8` project:
+  - v0.21 (`ffa-vostok-v021-picks-1`, `v021d_level_03/day_8`): 71 of 73, the first 44 in point_ids
+    22-65, 27 new 66-92; 67 and 68 out (inside the rust anomaly's `gas_damage_zone` there). The
+    roof spawn at 13, 93, lands on the same roof (3.2 m over 13's floor), here with a way down on
+    foot. 44 -> 72 points.
+  - v0.11 (`ffa-vostok-v011-picks-1`, `v011e_level_03/day_8`): 71 of 73, the first 44 in point_ids
+    28-71, 27 new 72-98; 71 and 72 out (no floor players reach within 1.5 m). No roof spawn: the
+    roof check finds only a surface 144 m up over 13 here. 44 -> 71 points.
 - A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed

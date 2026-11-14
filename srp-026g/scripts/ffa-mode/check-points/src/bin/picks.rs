@@ -5,6 +5,7 @@
 //! ```text
 //! picks --db <resources.db> --patch <resources.db.patch_12> ... \
 //!     --points <tsv> [--roofs 49,8,10,42] [--stranded-ok 13] [--harmful-ok 45] [--as-stood 12] \
+//!     [--shift 1.5] \
 //!     --project level_01/day_8 [--project level_01/evening_8 ...]
 //! ```
 //!
@@ -15,7 +16,9 @@
 //! a pick failing either is dropped, but one `--as-stood` names that fails the
 //! first stays at its own `where` position (the owner, 2026-11-14, "keep all
 //! my positions": he stood there; the check's collision has no floor under its
-//! centre). Every other pick is kept, however near
+//! centre). `--shift <m>`: a dropped pick goes to the nearest place within
+//! that many metres in plan that passes both (picks of one map on its ports,
+//! where he did not stand). Every other pick is kept, however near
 //! another (the owner, 2026-11-14: "we don't need this rules at all", of the
 //! 12 m spacing; the respawn's choice keeps players apart). They face as the
 //! owner faced: the rotation `[0, -yaw, 0]` (the `where` yaw turns +z towards
@@ -38,6 +41,9 @@ use mapdata::{Materials, Resources, Vec3};
 use std::{path::PathBuf, process::ExitCode};
 
 const HAZARD_MARGIN: f32 = 2.0;
+/// `--shift`'s rings and directions round a pick.
+const SHIFT_STEP: f32 = 0.25;
+const SHIFT_DIRECTIONS: u32 = 16;
 /// How far ahead the facing is looked along, for the reason column.
 const SIGHT: f32 = 20.0;
 
@@ -52,6 +58,8 @@ enum Ground {
     On,
     /// Moved this far up (or down) to the check's floor.
     Nudged(f32),
+    /// Dropped by the checks there for this; kept this far off (`--shift`).
+    Shifted { by: f32, why: String },
     /// Dropped by the check for this; kept where he stood (`--as-stood`).
     AsStood(String),
 }
@@ -61,6 +69,7 @@ impl Ground {
         match self {
             Ground::On => "on its ground".to_owned(),
             Ground::Nudged(d) => format!("ground {d:+.3} m"),
+            Ground::Shifted { by, why } => format!("shifted {by:.2} m, --shift; at his place: {why}"),
             Ground::AsStood(why) => format!("as he stood, --as-stood; the check: {why}"),
         }
     }
@@ -68,7 +77,7 @@ impl Ground {
     fn body(&self) -> &'static str {
         match self {
             Ground::AsStood(_) => "body as he stood",
-            Ground::On | Ground::Nudged(_) => "body clear",
+            Ground::On | Ground::Nudged(_) | Ground::Shifted { .. } => "body clear",
         }
     }
 }
@@ -342,6 +351,7 @@ fn run() -> Result<(), String> {
     let (mut layers, mut projects, mut points) = (Vec::new(), Vec::new(), None);
     let (mut roofs, mut harmful_ok, mut as_stood) = (Vec::<u32>::new(), Vec::<u32>::new(), Vec::<u32>::new());
     let mut stranded_ok = Vec::<u32>::new();
+    let mut shift = 0f32;
     let numbers = |value: &str, flag: &str| -> Result<Vec<u32>, String> {
         value
             .split(',')
@@ -358,6 +368,13 @@ fn run() -> Result<(), String> {
             "--harmful-ok" => harmful_ok = numbers(&value, &flag)?,
             "--as-stood" => as_stood = numbers(&value, &flag)?,
             "--stranded-ok" => stranded_ok = numbers(&value, &flag)?,
+            "--shift" => {
+                shift = value
+                    .parse()
+                    .ok()
+                    .filter(|m: &f32| m.is_finite() && *m >= 0.0)
+                    .ok_or_else(|| format!("bad --shift {value}"))?
+            }
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -383,9 +400,27 @@ fn run() -> Result<(), String> {
             .map(|s| s.point_id)
             .collect();
         ids.sort_unstable();
+        // `--shift`: the nearest place within `shift` m in plan of a pick
+        // the checks drop where it passes them all (rings 0.25 m apart).
+        let shifted = |at: Vec3| -> Option<(Vec3, f32)> {
+            let rings = (shift / SHIFT_STEP).floor() as u32;
+            (1..=rings).find_map(|ring| {
+                let r = ring as f32 * SHIFT_STEP;
+                (0..SHIFT_DIRECTIONS).find_map(|k| {
+                    let a = k as f32 * std::f32::consts::TAU / SHIFT_DIRECTIONS as f32;
+                    let q = at + Vec3::new(a.sin() * r, 0.0, a.cos() * r);
+                    let feet = match map.check(q) {
+                        Verdict::Kept => q,
+                        Verdict::Nudged { ground } => Vec3::new(q.x, ground, q.z),
+                        Verdict::Dropped(_) => return None,
+                    };
+                    (!map.harmful(feet, HAZARD_MARGIN)).then_some((feet, r))
+                })
+            })
+        };
         let mut placed = Vec::new();
         for pick in &picks {
-            let (feet, ground) = match map.check(pick.at) {
+            let (mut feet, mut ground) = match map.check(pick.at) {
                 Verdict::Kept => (pick.at, Ground::On),
                 Verdict::Nudged { ground } => (
                     Vec3::new(pick.at.x, ground, pick.at.z),
@@ -395,21 +430,29 @@ fn run() -> Result<(), String> {
                     eprintln!("{project}: pick {} kept as he stood (--as-stood): {why}", pick.n);
                     (pick.at, Ground::AsStood(why))
                 }
-                Verdict::Dropped(why) => {
+                Verdict::Dropped(why) => match shifted(pick.at) {
+                    Some((feet, by)) => {
+                        eprintln!("{project}: pick {} shifted {by:.2} m: {why}", pick.n);
+                        (feet, Ground::Shifted { by, why })
+                    }
+                    None => {
+                        eprintln!("{project}: pick {} dropped: {why}", pick.n);
+                        continue;
+                    }
+                },
+            };
+            let mut near_harm = map.harmful_zone(feet, HAZARD_MARGIN);
+            if let Some((zone, d)) = near_harm {
+                let why = format!("{d:.2} m from harmful zone {zone} (under {HAZARD_MARGIN} m)");
+                if harmful_ok.contains(&pick.n) {
+                    eprintln!("{project}: pick {} kept {d:.2} m from harmful zone {zone} (--harmful-ok)", pick.n);
+                } else if let Some((there, by)) = shifted(pick.at) {
+                    eprintln!("{project}: pick {} shifted {by:.2} m: {why}", pick.n);
+                    (feet, ground, near_harm) = (there, Ground::Shifted { by, why }, None);
+                } else {
                     eprintln!("{project}: pick {} dropped: {why}", pick.n);
                     continue;
                 }
-            };
-            let near_harm = map.harmful_zone(feet, HAZARD_MARGIN);
-            if let Some((zone, d)) = near_harm {
-                if !harmful_ok.contains(&pick.n) {
-                    eprintln!(
-                        "{project}: pick {} dropped: {d:.2} m from harmful zone {zone} (under {HAZARD_MARGIN} m)",
-                        pick.n
-                    );
-                    continue;
-                }
-                eprintln!("{project}: pick {} kept {d:.2} m from harmful zone {zone} (--harmful-ok)", pick.n);
             }
             placed.push(Placed {
                 n: pick.n,
