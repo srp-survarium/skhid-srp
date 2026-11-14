@@ -6154,3 +6154,5 @@ va	name	location	role	basis
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	EDX	the throw state (mov edx,esi at 0x33A453 before the call)	observed
 0x0033a4e0	survarium::weapon_core_throw_grenade_state::serialize	at 0x33A51B..0x33A53D	the set's slot byte saved: [[state+17Ch]+254h] (any item's inventory slot, 17h absent), the set not tested and not null-tested. Patch 115 saves 17h with no grenade set	observed
 0x00252b20	survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_fire_state>::deserialize	ECX	the fire state (mov edi,ecx at 0x252B38)	observed
+0x00057560	vostok::sound::sound_scene::get_listenet_position	EAX	the sound scene: its listener position, an atomic half3 at +120h, read by a locked cmpxchg8b that leaves it as it is	observed
+0x00057560	vostok::sound::sound_scene::get_listenet_position	ESI	the out float3: the position as three floats	observed

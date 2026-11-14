@@ -136,3 +136,5 @@ vtable	slot	va	class	base	basis
 0x00a16084	0x5c	0x00316da0	survarium::player_respawn_rule_core	survarium::player_respawn_rule_base	observed: called by the tick 0x3169B9 for each player given a point
 0x00a06e8c	0x44	0x00267b10	survarium::timelimit_rule	survarium::game_match_rule_base	observed: called for each rule by game_world_core::fill_match_hud_state (0x2D36D4); the core's vtable 0xA06E2C holds a `ret 8` (0x15A4B0) there
 0x00a177d4	0x44	0x00323980	survarium::kd_stats_rule	survarium::game_match_rule_base	observed: the same slot (0xA17818); the vtable set by the constructor 0x3237A4
+0x009fc4f4	0x08	0x001f77e0	survarium::game_world	survarium::game_world	observed: tick, in the primary vtable (the constructor writes 0x9FC4F4 at the object's +0, 0x1F682D)
+0x009fc4f4	0x0c	0x001f7620	survarium::game_world	survarium::game_world	observed: on_after_tick, the slot after tick in the primary vtable: its this is the game world as tick's (its +9Ch the game, +94h the sound scene it gives the listener)

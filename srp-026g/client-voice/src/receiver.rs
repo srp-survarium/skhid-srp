@@ -4,56 +4,50 @@ use crate::{
     sounds::{SQUELCH_IN, SQUELCH_OUT},
     wire::Message,
 };
-use std::f32::consts::{FRAC_PI_4, SQRT_2};
-pub use voice_abi::Pan;
+pub use voice_abi::{Ears, Heard};
 const RING: usize = 32;
 /// A frame of the mix: each sample's left and right, as WinMM's 16-bit
 /// stereo takes them.
 pub type Stereo = [[i16; 2]; FRAME];
-/// How a speaker is heard.
+/// What a speaker's frame is mixed by: its plain voice in each ear (the
+/// game's sound engine's gains for a sound at its place) and its radio, in
+/// both ears alike.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Heard {
-    /// Plain, from its side of the listener (a teammate near: the owner,
-    /// 2026-11-13, "directional in first 15 meters before radio").
-    Direct(Pan),
-    /// Through the radio, centred.
-    Radio,
+struct Gains {
+    plain: [f32; 2],
+    radio: f32,
 }
-impl Heard {
-    /// The left and right gains.
-    fn gains(self) -> [f32; 2] {
-        match self {
-            Heard::Direct(pan) => gains(pan),
-            Heard::Radio => [1., 1.],
+impl Gains {
+    const UNITY: Self = Self { plain: [1., 1.], radio: 0. };
+    fn of(heard: Heard) -> Self {
+        match heard {
+            Heard::Plain(ears) => Self { plain: ears.get(), radio: 0. },
+            Heard::Radio => Self { plain: [0., 0.], radio: 1. },
+            Heard::Both(ears) => Self { plain: ears.get(), radio: 1. },
         }
     }
-}
-/// Equal-power panning by the pan (the sine of the bearing), scaled so the
-/// centre is unity in both ears: as the mono mix was played before, and as
-/// the radio is. Every bearing has the same power (left² + right² = 2), so a
-/// direct voice is as loud as before wherever it is; full to one side it is
-/// +3 dB in that ear and silent in the other. Behind is centred, as ahead.
-pub fn gains(pan: Pan) -> [f32; 2] {
-    let angle = (pan.get() + 1.) * FRAC_PI_4;
-    [SQRT_2 * angle.cos(), SQRT_2 * angle.sin()]
 }
 /// How every slot is heard.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hearing([Heard; SLOTS]);
 impl Hearing {
-    /// The slots of `radio` through the radio; the rest directly, from `pan`'s.
-    pub fn new(radio: u32, pan: impl Fn(usize) -> Pan) -> Self {
+    /// Every slot plain, as decoded in both ears.
+    pub const UNITY: Self = Self([Heard::Plain(Ears::UNITY); SLOTS]);
+    /// The slots of `radio` through the radio; the rest plain, as decoded.
+    pub fn radio(radio: u32) -> Self {
         Self(std::array::from_fn(|slot| {
             if radio & (1 << slot) != 0 {
                 Heard::Radio
             } else {
-                Heard::Direct(pan(slot))
+                Heard::Plain(Ears::UNITY)
             }
         }))
     }
-    /// The slots of `radio` through the radio; the rest directly, centred.
-    pub fn radio(radio: u32) -> Self {
-        Self::new(radio, |_| Pan::CENTRE)
+    /// A slot past the 20 changes nothing.
+    pub fn set(&mut self, slot: usize, heard: Heard) {
+        if let Some(place) = self.0.get_mut(slot) {
+            *place = heard;
+        }
     }
 }
 /// The radio's static bed under a far teammate's words, of retail's level
@@ -163,10 +157,9 @@ struct Speaker {
     effect: Option<Effect>,
     closing_effect: bool,
     limiter: Limiter,
-    /// The left and right gains of the last frame mixed: a frame ramps from
-    /// them to its own, so a turn or a step past the radio's distance never
-    /// clicks.
-    ears: [f32; 2],
+    /// The gains of the last frame mixed: a frame ramps from them to its
+    /// own, so a turn, a step, or the switch to the radio never clicks.
+    gains: Gains,
 }
 impl Speaker {
     fn new() -> Result<Self, String> {
@@ -178,7 +171,7 @@ impl Speaker {
             effect: None,
             closing_effect: false,
             limiter: Limiter::UNITY,
-            ears: [1., 1.],
+            gains: Gains::UNITY,
         })
     }
     fn take(&mut self, id: u16, slot: u8, stats: &mut Stats) -> bool {
@@ -438,19 +431,28 @@ impl Core {
         let mut acc = [[0f32; 2]; FRAME];
         let volume = unit(volume);
         for (s, heard) in self.speakers.iter_mut().zip(hearing.0) {
-            let far = heard == Heard::Radio;
-            let to = heard.gains();
-            let from = std::mem::replace(&mut s.ears, to);
+            let to = Gains::of(heard);
+            let from = std::mem::replace(&mut s.gains, to);
+            let far = to.radio > 0.;
             s.finish_effect(far, &mut self.stats);
-            if let Some(mut pcm) = s.play(now, far, &mut self.stats) {
-                if far {
-                    s.radio.process(&mut pcm, RADIO_BED);
+            if let Some(pcm) = s.play(now, far, &mut self.stats) {
+                let ramp = |from: f32, to: f32, i: usize| from + (to - from) * (i + 1) as f32 / FRAME as f32;
+                if from.plain != [0., 0.] || to.plain != [0., 0.] {
+                    for (i, (a, p)) in acc.iter_mut().zip(pcm).enumerate() {
+                        for ((ear, from), to) in a.iter_mut().zip(from.plain).zip(to.plain) {
+                            *ear += p * volume * ramp(from, to, i);
+                        }
+                    }
                 }
-                for (i, (a, p)) in acc.iter_mut().zip(pcm).enumerate() {
-                    let t = (i + 1) as f32 / FRAME as f32;
-                    let p = p * volume;
-                    for ((ear, from), to) in a.iter_mut().zip(from).zip(to) {
-                        *ear += p * (from + (to - from) * t);
+                // The radio's filter runs only while it is heard (as it
+                // did): the frame it comes in on ramps it up from nothing.
+                if from.radio > 0. || to.radio > 0. {
+                    let mut radio = pcm;
+                    s.radio.process(&mut radio, RADIO_BED);
+                    for (i, (a, p)) in acc.iter_mut().zip(radio).enumerate() {
+                        let p = p * volume * ramp(from.radio, to.radio, i);
+                        a[0] += p;
+                        a[1] += p;
                     }
                 }
             }

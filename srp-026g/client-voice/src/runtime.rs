@@ -1,5 +1,6 @@
 //! Session lifecycle and the Windows voice worker. The game never shares
-//! codec or WinMM memory with the worker; its controls and status are atomic.
+//! codec or WinMM memory with the worker; its controls and status are atomic,
+//! how each place is heard one value under a lock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TalkState {
     Idle,
@@ -164,7 +165,7 @@ pub(crate) unsafe fn host_arg<'a>(host: *const std::ffi::c_char) -> Option<&'a s
 mod platform {
     use super::{DropLog, TalkAction, TalkState, host_arg};
     use crate::{
-        Core, Encoder, Hearing, Pan, Preprocessor, SLOTS, Sender,
+        Core, Encoder, Heard, Hearing, Preprocessor, SLOTS, Sender,
         radio::unit,
         windows::{Input, Output},
         wire::{self, Message},
@@ -193,9 +194,8 @@ mod platform {
         mic: AtomicBool,
         volume: AtomicU32,
         sensitivity: AtomicU32,
-        far: AtomicU32,
-        /// Each slot's [`Pan`] (its bits), for when it is heard directly.
-        pans: [AtomicU32; SLOTS],
+        /// How each slot is heard: a slot's whole state in one `sv_hear`.
+        hearing: Mutex<Hearing>,
         muted: AtomicU32,
         hello: AtomicBool,
     }
@@ -204,8 +204,7 @@ mod platform {
         mic: AtomicBool::new(true),
         volume: AtomicU32::new(1.0_f32.to_bits()),
         sensitivity: AtomicU32::new(0.5_f32.to_bits()),
-        far: AtomicU32::new(0),
-        pans: [const { AtomicU32::new(0) }; SLOTS],
+        hearing: Mutex::new(Hearing::UNITY),
         muted: AtomicU32::new(0),
         hello: AtomicBool::new(false),
     };
@@ -390,9 +389,10 @@ mod platform {
                     }
                 }
             }
-            let hearing = Hearing::new(CONTROL.far.load(SeqCst), |slot| {
-                Pan::new(f32::from_bits(CONTROL.pans[slot].load(SeqCst)))
-            });
+            let hearing = *CONTROL
+                .hearing
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
             let level = volume();
             if let Some(device) = &mut output {
                 if device.pump(|| core.mix(level, &hearing, now)).is_err() {
@@ -600,19 +600,17 @@ mod platform {
             CONTROL.hello.store(true, SeqCst);
         }
     }
+    /// How the slot is heard from now on (`voice_abi::Hear`): its plain
+    /// voice's gain in each ear and whether its radio is on. A slot past the
+    /// 20 changes nothing.
     #[unsafe(no_mangle)]
-    pub extern "C" fn sv_radio(mask: u32) {
-        CONTROL.far.store(mask, SeqCst);
-    }
-    /// Where the slot is heard from while it is heard directly (`Pan`: the
-    /// sine of its bearing). A slot past the 20 changes nothing.
-    #[unsafe(no_mangle)]
-    pub extern "C" fn sv_direction(slot: i32, sine: f32) {
-        if let Some(pan) = usize::try_from(slot)
-            .ok()
-            .and_then(|slot| CONTROL.pans.get(slot))
-        {
-            pan.store(Pan::new(sine).get().to_bits(), SeqCst);
+    pub extern "C" fn sv_hear(slot: i32, left: f32, right: f32, radio: i32) {
+        if let Ok(slot) = usize::try_from(slot) {
+            CONTROL
+                .hearing
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .set(slot, Heard::of_call(left, right, radio));
         }
     }
     #[unsafe(no_mangle)]
@@ -629,8 +627,7 @@ mod platform {
         stop: sv_stop,
         ptt: sv_ptt,
         settings: sv_settings,
-        radio: sv_radio,
-        direction: sv_direction,
+        hear: sv_hear,
         mute: sv_mute,
         talking: sv_talking,
         slot: sv_slot,
