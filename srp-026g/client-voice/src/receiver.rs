@@ -50,13 +50,18 @@ impl Hearing {
         }
     }
 }
-/// The radio's static bed under a far teammate's words, of retail's level
-/// (1.0, about -44 dB): half (-6 dB), as #1635 left it in the mix (a
-/// quarter under its +6 dB). Speech is played as decoded: #1635's +6 dB is
-/// undone (the owner, 2026-11-13, of revision 58's level: "sound close by
-/// right now was very good in game"); the radio raises its own words
-/// (`radio::VOICE`).
-const RADIO_BED: f32 = 0.5;
+/// The radio's static under its words, of retail's recording: at retail's
+/// level, as revision 58 played it (the owner, 2026-11-14, after a test where
+/// half of it, #1635's, could not be heard: "static like live"; of revision
+/// 58's on 2026-11-13: "static is mostly fine"). The radio's words are raised
+/// by their own makeup (`radio::VOICE`), as on main before.
+const RADIO_BED: f32 = 1.0;
+/// How much louder than decoded a plain voice plays at the full "Voice chat"
+/// volume (the owner, 2026-11-14, in a game: "voice chat in general can be
+/// louder by x1.5 for people who can always tune it down"). Not the radio
+/// (the owner, the same day: "make radio effect like it is currently on
+/// main"): its words and squelch play at the slider's volume as before.
+pub(crate) const LOUDER: f32 = 1.5;
 /// The mix's knee: below it a sample is as summed; above it the rest of the
 /// way to full scale is approached smoothly, so loud or several talkers
 /// never clip hard.
@@ -482,6 +487,7 @@ impl Core {
     ) -> Stereo {
         let mut acc = under.map_or([[0f32; 2]; FRAME], ahead);
         let volume = unit(volume);
+        let plain = volume * LOUDER;
         for (s, heard) in self.speakers.iter_mut().zip(hearing.0) {
             let to = Gains::of(heard);
             let from = std::mem::replace(&mut s.gains, to);
@@ -492,7 +498,7 @@ impl Core {
                 if from.plain != [0., 0.] || to.plain != [0., 0.] {
                     for (i, (a, p)) in acc.iter_mut().zip(pcm).enumerate() {
                         for ((ear, from), to) in a.iter_mut().zip(from.plain).zip(to.plain) {
-                            *ear += p * volume * ramp(from, to, i);
+                            *ear += p * plain * ramp(from, to, i);
                         }
                     }
                 }

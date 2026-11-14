@@ -1,4 +1,5 @@
 use super::*;
+use receiver::LOUDER;
 use wire::Message;
 fn tone(frame: usize, freq: f32, amplitude: f32) -> [i16; FRAME] {
     std::array::from_fn(|i| {
@@ -236,8 +237,8 @@ fn the_switch_to_the_radio_ramps_over_a_frame() {
     assert_eq!(plain[..4], switched[..4]);
     let near = |a: i16, b: i16, most: i32| (i32::from(a) - i32::from(b)).abs() <= most;
     // The tone's own largest step between two samples (500 Hz at 8000).
-    let step = 8000. * 2. * std::f32::consts::PI * 500. / RATE as f32;
-    assert!(near(switched[4][0][0], plain[4][0][0], 80), "{:?} {:?}", switched[4][0], plain[4][0]);
+    let step = 8000. * LOUDER * 2. * std::f32::consts::PI * 500. / RATE as f32;
+    assert!(near(switched[4][0][0], plain[4][0][0], 120), "{:?} {:?}", switched[4][0], plain[4][0]);
     let all: Vec<i16> = switched.iter().flatten().map(|[left, _]| *left).collect();
     let largest = all.windows(2).map(|pair| (i32::from(pair[1]) - i32::from(pair[0])).abs()).max().unwrap();
     assert!((largest as f32) < 2.5 * step, "{largest} {step}");

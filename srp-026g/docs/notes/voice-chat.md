@@ -410,8 +410,8 @@ Where the build differs from or adds to the design above:
 - **The radio** (the DLL): a teammate from 10 m on (15 m 2026-11-13, 25 m before), or either player
   dead (a spectator too: no body in the world), through a filter
   fitted to 0.69's `_radio` quick-command recordings (high-pass 405 Hz, peaks and dips up to 6.3
-  kHz), retail static under it (`tutorial_interference_02`, -44 dBFS; half of it in the mix since
-  #1635), and retail's squelch at the
+  kHz), retail static under it (`tutorial_interference_02`, -44 dBFS; half of it in the mix from
+  #1635 until 2026-11-14, whole again since: below), and retail's squelch at the
   start and end of a far utterance (the static lead-in and tail of 0.69's `_radio` phrases: 0.69 has
   no separate squelch file). Near: plain, no squelch. The sounds are compiled into the DLL
   (`client-voice/make_radio_sounds.py`). The switch at 10 m takes one 20 ms frame: the plain voice
@@ -433,6 +433,16 @@ Where the build differs from or adds to the design above:
   -47.7 (K), about 21 dB under the far words. Near speech peaks at 0.15-0.22 of full scale at the
   default sensitivity, 0.3-0.45 at the highest, under the soft limit's knee (0.5); full to one side
   (+3 dB in that ear) only the highest sensitivity's loudest reaches into the knee (0.63).
+  **Louder, the static as live** (2026-11-14, the owner in the local test of the plain voice and
+  the radio): "voice chat in general can be louder by x1.5 for people who can always tune it
+  down", then "make radio effect like it is currently on main" and "static like live". The plain
+  voice plays 1.5 times as decoded at the full "Voice chat" volume (`LOUDER`, +3.5 dB; the
+  slider still turns it down to nothing); the radio's filter, words and squelch stay as they
+  were; its static is retail's level again (`RADIO_BED` 1.0, as revision 58 played it; half of
+  it could not be heard in the test). With it a plain voice at 9.99 m (-3.6 dB of itself) is
+  within about a dB of the radio's words it turns into, so the step at 10 m below is
+  gone. Near speech now peaks at 0.22-0.33 of full scale at the default sensitivity, still under
+  the soft limit's knee (0.5); the highest sensitivity's loudest reaches into it.
 - **Plain in the world** (2026-11-14; before it, 2026-11-13, "directional near": plain within 15 m
   at one loudness, panned by a law of the DLL's, equal power by the sine of the bearing).
   - The owner, 2026-11-14, of the merged and unreleased #1782:
@@ -491,7 +501,8 @@ Where the build differs from or adds to the design above:
     | until now (#1782) | plain 0 dB | 0 | 0 | 0 | 0 | 0 | plain 0 dB to 15 m, then the radio |
     | now | plain 0 dB | -1.4 | -2.6 | -3.1 | -3.3 | -3.6 | the radio, 0 dB |
 
-    So the voice comes back about 3.6 dB louder where it turns into the radio. Both levels stay
+    (Since `LOUDER`, above, the plain column is 3.5 dB higher and the step is gone.) So the voice
+    came back about 3.6 dB louder where it turns into the radio. Both levels stay
     as the owner left them (the near voice beside the listener, the radio): `LEVEL` or the
     radio's `VOICE` would move a level that was tuned by ear. `AT_9_M` is what sets the step: 0.5
     (6 dB down at 9 m) made it 7.2 dB, which the owner's "so you always hear normally" ruled out;
