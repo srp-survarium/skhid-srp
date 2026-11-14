@@ -35,6 +35,25 @@ signing_key() {
     load_env
     printf '%s\n' "$(dirname "$RELEASE_ENV")/torrent-signing.pem"
 }
+# The bootstrap (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap"): the
+# list of its two files in the form of the offered-patch list (their URLs in
+# the order the script tries them after the peers), its torrent and the
+# script made of them, all three committed (release/build-bootstrap; more
+# URLs: release/add-mirror <name> <url>).
+BOOTSTRAP_LIST=release/bootstrap.tsv
+BOOTSTRAP_TORRENT=release/bootstrap.torrent
+BOOTSTRAP_SCRIPT=srp-026g/servers/web-server/bootstrap/Skhid-get.bat
+# shellcheck disable=SC2034 # used by the scripts that source this
+BOOTSTRAP_FILES=(game/binaries/x86/7zr.exe game/binaries/x86/updater_skhid.exe)
+# The script again from the torrent and the list (and with <path> <source>
+# pairs, the torrent again from those files first).
+render_bootstrap() {
+    local files=()
+    while (($#)); do files+=(--file "$1" "$2"); shift 2; done
+    mkdir -p "$ROOT/${BOOTSTRAP_SCRIPT%/*}"
+    python -I "$ROOT/release/build_torrent.py" bootstrap --torrent "$ROOT/$BOOTSTRAP_TORRENT" "${files[@]}" \
+        --list "$ROOT/$BOOTSTRAP_LIST" --body "$ROOT/release/bootstrap.ps1" --out "$ROOT/$BOOTSTRAP_SCRIPT"
+}
 # The openssl program: this system's, or nixpkgs'.
 openssl_program() {
     if command -v openssl; then return 0; fi
@@ -177,11 +196,14 @@ URL_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/patch-urls.checked
 # how it was checked (`downloaded`, `as checked before`, `by its first
 # bytes`).
 URL_PROBLEM='' CHECKED=''
-# The start of a patch and of a 7z archive, as od -tx1 writes it.
-PATCH_START=6c6974746c652d656e6469616e SEVENZIP_START=377abcaf271c
+# The start of a patch and of a 7z archive, as od -tx1 writes it; URL_START:
+# another (a program's, MZ: the bootstrap's files).
+PATCH_START=6c6974746c652d656e6469616e SEVENZIP_START=377abcaf271c URL_START=''
+# shellcheck disable=SC2034 # used by the scripts that source this
+PROGRAM_START=4d5a
 # shellcheck disable=SC2034 # CHECKED: the callers read it
 check_patch_url() {
-    local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got start=$PATCH_START
+    local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got start=${URL_START:-$PATCH_START}
     out=$dir/url-check.$$ head=$dir/url-check.$$.head
     URL_PROBLEM='' CHECKED=''
     if [[ -n $GAME_ROW && $sha == "$(cut -d' ' -f2 <<<"$GAME_ROW")" ]]; then start=$SEVENZIP_START; fi

@@ -38,6 +38,13 @@
 # past it, a "Google Drive - Quota exceeded" page, which the updater logs
 # and moves on from.
 #
+# The bootstrap's files (7zr.exe, updater_skhid.exe: release/bootstrap.tsv)
+# are not offered by srp: their URLs are in the script itself. For them,
+# step 2 as above (a program: MZ), then the URL goes into the file's row of
+# release/bootstrap.tsv (at its end, --first or --at <n>; --remove takes it
+# out) and the script is made again (release/build-bootstrap's step 4): commit
+# both. Nothing is written on a host.
+#
 # To build a URL into the next release too (the updater's and
 # Skhid-without-updater.bat's addresses for when the server cannot be
 # reached), add it to the file's row of the list in a PR.
@@ -64,6 +71,36 @@ while (($#)); do
 done
 [[ -n $name && -n $url ]] || usage 1
 ((!remove)) || [[ -z $at ]] || die "--remove takes no --first or --at"
+if [[ " ${BOOTSTRAP_FILES[*]##*/} " == *" $name "* ]]; then
+    list=$ROOT/$BOOTSTRAP_LIST
+    row=$(awk -F'\t' -v n="$name" '$1 == n' "$list")
+    [[ -n $row ]] || die "$name has no row in $BOOTSTRAP_LIST: release/build-bootstrap first"
+    IFS=$'\t' read -r _ sha size urls <<<"$row"
+    read -r -a each <<<"$urls"
+    kept=()
+    for known in "${each[@]}"; do [[ $known == "$url" ]] || kept+=("$known"); done
+    if ((remove)); then
+        ((${#kept[@]} < ${#each[@]})) || die "$url is not a URL of $name in $BOOTSTRAP_LIST"
+        ((${#kept[@]})) || die "$url is the last URL of $name: it keeps one"
+    else
+        ((${#kept[@]} == ${#each[@]})) || die "$url is a URL of $name in $BOOTSTRAP_LIST already"
+        ((${#each[@]} < MAX_PATCH_URLS)) || die "$name has $MAX_PATCH_URLS URLs already (--remove one)"
+        is_patch_url "$url" || die "$url is not a URL of the form the updater takes"
+        work=$(mktemp -d)
+        trap 'rm -rf "$work"' EXIT
+        say "$name: $size bytes, sha256 $sha; downloading $url as the updater does ..."
+        URL_START=$PROGRAM_START check_patch_url "$url" "$sha" "$size" "$work" full || die "$URL_PROBLEM; not added"
+        n=${at:-$((${#kept[@]} + 1))}
+        kept=("${kept[@]:0:n-1}" "$url" "${kept[@]:n-1}")
+    fi
+    ((!DRY_RUN)) || { say "[dry run] then: $name's URLs in $BOOTSTRAP_LIST: ${kept[*]}, and the script made again"; exit 0; }
+    awk -F'\t' -v OFS='\t' -v n="$name" -v u="${kept[*]}" '$1 == n { $4 = u } { print }' "$list" >"$list.new"
+    mv "$list.new" "$list"
+    # shellcheck disable=SC2119 # no files: the script again from the torrent as it is
+    render_bootstrap
+    say "$name's URLs, in their order: ${kept[*]}; commit $BOOTSTRAP_LIST and $BOOTSTRAP_SCRIPT"
+    exit 0
+fi
 [[ $name == "$GAME_NAME" ]] || patch_number "$name" >/dev/null ||
     die "$name: a file of the list is resources.db.patch_<n> (n from 1 to 255, no leading zero) or $GAME_NAME"
 need_cmds curl sha256sum ssh jq

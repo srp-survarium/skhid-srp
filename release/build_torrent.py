@@ -128,8 +128,120 @@ def build(files, sign):
             'files': v1_files, 'pieces': b''.join(pieces)}
     raw = bencode(info)
     torrent = {'announce': TRACKERS[0], 'announce-list': [[t] for t in TRACKERS], 'info': info,
-               'piece layers': layers, 'skhid': sign(raw)}
+               'piece layers': layers}
+    if sign:
+        torrent['skhid'] = sign(raw)
     return bencode(torrent), raw
+
+
+def decode(data, at=0):
+    """(value, end) of the bencoded value at `at` (of our own files: no limits); keys as bytes."""
+    kind = data[at:at + 1]
+    if kind == b'i':
+        end = data.index(b'e', at)
+        return int(data[at + 1:end]), end + 1
+    if kind in (b'l', b'd'):
+        at, items = at + 1, []
+        while data[at:at + 1] != b'e':
+            item, at = decode(data, at)
+            items.append(item)
+        if kind == b'l':
+            return items, at + 1
+        return dict(zip(items[::2], items[1::2])), at + 1
+    colon = data.index(b':', at)
+    end = colon + 1 + int(data[at:colon])
+    return data[colon + 1:end], end
+
+
+def info_bytes(data):
+    """The bencoded info of a torrent file, as it has it."""
+    start = data.index(b'4:infod') + 6
+    return data[start:decode(data, start)[1]]
+
+
+# The bootstrap (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap").
+BOOTSTRAP_HEAD = r"""@echo off
+rem Skhid-get.bat: gets Skhid (Survarium 0.26g) into a Survarium folder beside
+rem this file. Plain text: read it. It fetches the Skhid updater and 7zr.exe
+rem by BitTorrent from anyone who shares them (the public trackers below),
+rem else from the addresses below, checks every piece and file against the
+rem hashes below, then runs the updater, which installs the rest, and starts
+rem Skhid.bat. No administrator rights. Made by release/build-bootstrap.
+set "SKHID_GET_SCRIPT=%~f0"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$t = [IO.File]::ReadAllText($env:SKHID_GET_SCRIPT); iex $t.Substring($t.IndexOf('<#' + 'PS#>'))"
+if errorlevel 1 pause
+exit /b
+<#PS#>
+"""
+
+
+def quoted(text):
+    return "'" + text.replace("'", "''") + "'"
+
+
+def bootstrap_script(torrent, rows, body, trackers):
+    """Skhid-get.bat: the pins of `torrent` (the bootstrap torrent's bytes) and `rows` (name:
+    (sha256, size, urls) of release/bootstrap.tsv, by the file's name), then `body`."""
+    meta, _ = decode(torrent)
+    info = meta[b'info']
+    pieces, at, files = info[b'pieces'], 0, []
+    for entry in info[b'files']:
+        if entry.get(b'attr') == b'p':
+            continue
+        path = '/'.join(part.decode() for part in entry[b'path'])
+        size = entry[b'length']
+        count = -(-size // info[b'piece length'])
+        name = path.rsplit('/', 1)[-1]
+        if name not in rows:
+            sys.exit(f'{name}: no row in the bootstrap list')
+        sha256, row_size, urls = rows[name]
+        if row_size != size:
+            sys.exit(f'{name}: {row_size} bytes in the list, {size} in the torrent')
+        hashes = [pieces[20 * i:20 * i + 20].hex() for i in range(at, at + count)]
+        at += count
+        files.append(f"    @{{ Path = {quoted(path)}; Size = {size}; Sha256 = {quoted(sha256)};\n"
+                     f"        Pieces = @({', '.join(map(quoted, hashes))});\n"
+                     f"        Urls = @({', '.join(map(quoted, urls))}) }}")
+    pins = (f"$InfoHash = {quoted(hashlib.sha1(info_bytes(torrent)).hexdigest())}\n"
+            f"$PieceLength = {info[b'piece length']}\n"
+            f"$Trackers = @({', '.join(map(quoted, trackers))})\n"
+            "$Files = @(\n" + ",\n".join(files) + "\n)\n")
+    return (BOOTSTRAP_HEAD + pins + body).replace('\r\n', '\n').replace('\n', '\r\n').encode()
+
+
+def bootstrap(argv):
+    parser = argparse.ArgumentParser(prog='build_torrent.py bootstrap')
+    parser.add_argument('--torrent', required=True, help='the bootstrap torrent: made with --file, else read')
+    parser.add_argument('--file', nargs=2, action='append', default=[], metavar=('PATH', 'SOURCE'))
+    parser.add_argument('--list', required=True, help='release/bootstrap.tsv')
+    parser.add_argument('--body', required=True, help='release/bootstrap.ps1')
+    parser.add_argument('--out', required=True, help='Skhid-get.bat')
+    parser.add_argument('--tracker', action='append', help='another tracker than the UDP ones of TRACKERS')
+    args = parser.parse_args(argv)
+    rows = {}
+    with open(args.list) as listed:
+        for line in listed:
+            if line.strip() and not line.startswith('#'):
+                name, sha256, size, urls = line.rstrip('\r\n').split('\t')
+                rows[name] = (sha256, int(size), urls.split(' '))
+    if args.file:
+        for path, source in args.file:
+            name = path.rsplit('/', 1)[-1]
+            with open(source, 'rb') as each:
+                if name not in rows or hashlib.sha256(each.read()).hexdigest() != rows[name][0]:
+                    sys.exit(f'{source}: not the file of the row {name} of {args.list}')
+        torrent, _ = build({path: (lambda source=source: open(source, 'rb')) for path, source in args.file}, None)
+        with open(args.torrent, 'wb') as out:
+            out.write(torrent)
+    with open(args.torrent, 'rb') as each:
+        torrent = each.read()
+    with open(args.body) as each:
+        body = each.read()
+    trackers = args.tracker or [t for t in TRACKERS if t.startswith('udp://')]
+    script = bootstrap_script(torrent, rows, body, trackers)
+    with open(args.out, 'wb') as out:
+        out.write(script)
+    print(f'{args.out}: {len(script)} bytes; the bootstrap torrent btih {hashlib.sha1(info_bytes(torrent)).hexdigest()}')
 
 
 def signed(revision, info):
@@ -198,6 +310,8 @@ class Checked:
 
 
 def main():
+    if sys.argv[1:2] == ['bootstrap']:
+        return bootstrap(sys.argv[2:])
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--out', required=True)
     parser.add_argument('--zip', required=True)

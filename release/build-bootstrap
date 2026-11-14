@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# usage: release/build-bootstrap [--dry-run] <players' ZIP>
+#
+# The bootstrap (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap"), once
+# for a version of the updater: Skhid-get.bat, a plain-text script anyone can
+# pass around, gets updater_skhid.exe and 7zr.exe by BitTorrent (or from
+# their URLs), lays them out in a Survarium folder and runs the updater.
+#   1. the two files from the ZIP (a release's, with the updater to pin);
+#      7zr.exe must be the pinned extractor (client/updater/logic/src/game.rs);
+#   2. each published on the patches server ($SKHID_PATCHES_*) at
+#      bootstrap/<sha256>/<name>, never over another file (as
+#      release/upload-patch publishes a patch), and GET back: 200, its sha256;
+#   3. its row in release/bootstrap.tsv: <name> <sha256> <size> <that URL>
+#      (a row of the name with other bytes is replaced);
+#   4. release/bootstrap.torrent (hybrid, as release/build-torrent's, not
+#      signed: the script pins its hashes) and the script,
+#      srp-026g/servers/web-server/bootstrap/Skhid-get.bat (the site serves it).
+# Commit the three. More URLs (Google Drive's: --first): release/add-mirror
+# <name> <url>, which makes the script again. Each write on the patches
+# server asks y/N first; --dry-run prints them.
+. "$(dirname "$0")/lib.sh"
+zip=''
+while (($#)); do
+    case $1 in
+    -h | --help) usage ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    -*) die "unknown option $1 (--help)" ;;
+    *) [[ -z $zip ]] || usage 1; zip=$1; shift ;;
+    esac
+done
+[[ -f $zip ]] || usage 1
+need_cmds ssh curl sha256sum
+load_env
+use_patches live
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+extractor=$(sed -n '/^pub const EXTRACTOR: Pin/,/};/s/.*sha256: "\([0-9a-f]\{64\}\)".*/\1/p' "$ROOT/client/updater/logic/src/game.rs")
+pairs=()
+for path in "${BOOTSTRAP_FILES[@]}"; do
+    name=${path##*/}
+    zip_extract "$zip" "$path" "$work/$name" || die "$zip has no $path"
+    sha=$(sha256_of "$work/$name") size=$(size_of "$work/$name")
+    [[ $name != 7zr.exe || $sha == "$extractor" ]] || die "$zip: its 7zr.exe is not the pinned extractor ($extractor)"
+    [[ $(head -c 2 "$work/$name") == MZ ]] || die "$zip: its $name is not a program"
+    url=$PATCHES_URL/bootstrap/$sha/$name
+    dir=$(q "$PATCHES_DIR/bootstrap/$sha")
+    say "$name: $size bytes, sha256 $sha"
+    there=$(on_patches "if test -e $dir/$(q "$name"); then sha256sum < $dir/$(q "$name"); else echo none; fi")
+    if [[ $there == none ]]; then
+        write_on patches "mkdir -p $dir && cat > $dir/$(q "$name.tmp")" "$work/$name"
+        write_on patches "cd $dir && test \"\$(sha256sum < $(q "$name.tmp") | cut -c1-64)\" = $sha && chmod 644 $(q "$name.tmp") && mv -n $(q "$name.tmp") $(q "$name") && test ! -e $(q "$name.tmp")"
+    elif [[ ${there%% *} != "$sha" ]]; then
+        die "$PATCHES_DIR/bootstrap/$sha/$name is there with other bytes"
+    fi
+    if ((DRY_RUN)); then
+        say "[dry run] then: GET $url must give sha256 $sha; its row in $BOOTSTRAP_LIST"
+        continue
+    fi
+    [[ $(http_get "$url" "$work/$name.back") == 200 && $(sha256_of "$work/$name.back") == "$sha" ]] ||
+        die "GET $url did not give it back"
+    list=$ROOT/$BOOTSTRAP_LIST
+    row=$(awk -F'\t' -v n="$name" '$1 == n' "$list")
+    if [[ $row != "$name"$'\t'"$sha"$'\t'* ]]; then
+        grep -v -P "^\Q$name\E\t" "$list" >"$work/list" || true
+        printf '%s\t%s\t%s\t%s\n' "$name" "$sha" "$size" "$url" >>"$work/list"
+        cp "$work/list" "$list"
+        say "$BOOTSTRAP_LIST: $name $sha $url"
+    fi
+    pairs+=("$path" "$work/$name")
+done
+((DRY_RUN)) && exit 0
+render_bootstrap "${pairs[@]}"
+say "commit $BOOTSTRAP_LIST, $BOOTSTRAP_TORRENT and $BOOTSTRAP_SCRIPT"

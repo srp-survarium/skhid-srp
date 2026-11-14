@@ -352,6 +352,10 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
   none, or it is not a stored torrent of at most 4 MiB.
   The home page links it and its magnet under the ZIP's button. The format:
   `notes/torrent-downloads.md`.
+- `/Skhid-get.bat` (`GET` and `HEAD`; the 0.26g page only): the bootstrap
+  script (`servers/web-server/bootstrap/Skhid-get.bat`, made by
+  `release/build-bootstrap`), linked on the home page; none in a build
+  without it.
 - `/patches` (`GET`, public): the patches of `resources.db` the players'
   updater keeps in the game folder, as JSON (`{"patch_<n>":{"sha256":…,"urls":[…]},…}`,
   `{}` for none): those the server's game data was made of ("Game data"

@@ -40,6 +40,33 @@ corrections from the owner go here.
   open: people seeding with their own client, and a host of ours seeding (the owner's call; none
   is built).
 
+## Bootstrap: the game without our site
+
+- `Skhid-get.bat`: one plain-text script (a `.bat` with PowerShell inside; Windows 7's PowerShell 2
+  and later, no administrator rights) that anyone can pass around. Put beside an empty place and
+  run, it gets the Skhid updater and `7zr.exe`, lays them out in a `Survarium` folder beside
+  itself (`game/binaries/x86/`), runs the updater (`updater_skhid.exe check`), which installs the
+  original game and the Skhid files, and starts `Skhid.bat`.
+- It gets the two files by BitTorrent first, from the bootstrap torrent: those two files at one
+  version, in the players' layout, hybrid like the revision's (`release/bootstrap.torrent`). It
+  announces the torrent's v1 info hash to the public UDP trackers (BEP 15) and fetches from the
+  peers with the plain BEP 3 wire: no metadata exchange, the script pins every piece's SHA-1 and
+  each file's SHA-256 and size. A piece that is not its pin drops that peer; a message over a block
+  and its header drops it too; 40 peers at most.
+- No peer gives them: the files' URLs in their order (`release/bootstrap.tsv`, the form of
+  `release/patches.tsv`: Google Drive's first, the patches server's among them, 8 at most), each
+  answer checked by its size and SHA-256. Our server is never needed; peers come first.
+- Who seeds it: updaters with "Allow torrent" on (the updater worker), and anyone with the
+  torrent.
+- `release/build-bootstrap <players' ZIP>` makes it, once for an updater version: the two files
+  from the ZIP (7zr.exe the pinned one), each published on the patches server at
+  `bootstrap/<sha256>/<name>`, its row in `release/bootstrap.tsv`, the torrent and the script
+  (`srp-026g/servers/web-server/bootstrap/Skhid-get.bat`); the same files make the same bytes.
+  More URLs: `release/add-mirror <name> <url>` (checked as for a patch; it makes the script again).
+  Commit the three.
+- The site serves the script at `GET /Skhid-get.bat` and links it on the home page under the
+  ZIP's button, when the build has one.
+
 ## The updater
 
 - It answers the launcher's torrent messages instead of ignoring them: download type (`1A`),
@@ -156,6 +183,13 @@ entry of the ZIP at `/download`, `Content-Type: application/x-bittorrent`,
 `Content-Disposition: attachment; filename="skhid-rev<n>.torrent"` (n: the server's
 `SRP_MIN_PATCH_REVISION`, the release's). "Not found" when the ZIP has none, or it is compressed,
 over 4 MiB or not one whole torrent (one bencoded dictionary with a text `info.name`).
+
+**The bootstrap torrent** (`release/bootstrap.torrent`): `info.name` `Survarium`, two files,
+`game/binaries/x86/7zr.exe` then `game/binaries/x86/updater_skhid.exe`, the same hybrid layout and
+piece length (4 MiB) as above, the same trackers, no `skhid` signature (the script pins it). The
+script's pins, written by `build_torrent.py bootstrap`: `$InfoHash` (v1, 40 hex), `$PieceLength`,
+`$Trackers` (the UDP ones), `$Files` (each `Path`, `Size`, `Sha256`, `Pieces`: SHA-1 of each v1
+piece, its last one with the pad's zeros but the last file's, and `Urls`).
 
 **The site's home page** shows under the ZIP's button: "Or the whole game by BitTorrent:
 .torrent · magnet", the magnet being

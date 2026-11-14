@@ -19,6 +19,10 @@ use std::net::{Shutdown, TcpStream};
 use std::path::Path;
 
 pub(super) const PATH: &str = "/torrent";
+/// Where the bootstrap script is (`docs/notes/torrent-downloads.md`,
+/// "Bootstrap"), and the script itself, when release/build-bootstrap made it.
+pub(super) const BOOTSTRAP_PATH: &str = "/Skhid-get.bat";
+pub(super) const BOOTSTRAP: Option<&[u8]> = include!(concat!(env!("OUT_DIR"), "/bootstrap.rs"));
 /// Its name in the ZIP: beside the updater. Stored, not compressed.
 const ENTRY: &[u8] = b"game/binaries/x86/skhid.torrent";
 /// The most a torrent file may weigh (the release's are about 200 KB).
@@ -323,16 +327,37 @@ impl Torrent {
 /// `GET /torrent`: the file, named after the revision the server lets in
 /// (the release's: the torrent is put in place with it).
 pub(super) fn send(stream: &mut TcpStream, head_only: bool, torrent: &Torrent, revision: u8) {
+    attachment(
+        stream,
+        head_only,
+        "application/x-bittorrent",
+        &format!("skhid-rev{revision}.torrent"),
+        &torrent.bytes,
+    );
+}
+
+/// `GET /Skhid-get.bat`: the bootstrap script, to save.
+pub(super) fn send_bootstrap(stream: &mut TcpStream, head_only: bool, script: &[u8]) {
+    attachment(
+        stream,
+        head_only,
+        "application/octet-stream",
+        "Skhid-get.bat",
+        script,
+    );
+}
+
+fn attachment(stream: &mut TcpStream, head_only: bool, kind: &str, name: &str, bytes: &[u8]) {
     let head = format!(
-        "HTTP/1.0 200 OK\r\nContent-Type: application/x-bittorrent\r\n\
-         Content-Disposition: attachment; filename=\"skhid-rev{revision}.torrent\"\r\n\
+        "HTTP/1.0 200 OK\r\nContent-Type: {kind}\r\n\
+         Content-Disposition: attachment; filename=\"{name}\"\r\n\
          Content-Length: {}\r\nCache-Control: no-store\r\n\
          X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n",
-        torrent.bytes.len()
+        bytes.len()
     );
     let _ = stream.write_all(head.as_bytes());
     if !head_only {
-        let _ = stream.write_all(&torrent.bytes);
+        let _ = stream.write_all(bytes);
     }
     let _ = stream.flush();
     let _ = stream.shutdown(Shutdown::Write);
