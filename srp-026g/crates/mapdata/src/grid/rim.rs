@@ -126,14 +126,31 @@ pub(super) struct Made {
 
 impl WalkGrid {
     /// The floor under `feet`: in the feet's own cell (the feet within half a cell of its centre on both axes, the grid's own
-    /// test), the one within [`LAND_HEIGHT_M`] of the feet's height, the nearest in height.
+    /// test), the one within [`LAND_HEIGHT_M`] of the feet's height, the nearest in height; where that cell has none, the floor
+    /// within [`LAND_HEIGHT_M`] whose centre is nearest across, within the capsule's radius ([`super::Body::radius`]): a body
+    /// stands on a top over a cell the grid has no floor in at that height (the erosion's, or a top one cell wide). Chemical
+    /// Plant (-64.71, 7.58, 45.97): a walking press let go at its landing rests there, on the 7.625 strip (one cell row, its
+    /// floors' centres at z 45.625, 0.35 m across), its own cell's floors 12.2 m up.
     fn floor_under(&self, feet: Vec3) -> Option<NodeId> {
+        let near = |f: NodeId| (self.height[f as usize] - feet.y).abs() <= LAND_HEIGHT_M;
         let i = ((feet.x - self.x0) / self.cell).floor() as i32;
         let k = ((feet.z - self.z0) / self.cell).floor() as i32;
         let cell = self.cell_index(i, k)?;
-        (self.start[cell]..self.start[cell + 1])
-            .filter(|&f| (self.height[f as usize] - feet.y).abs() <= LAND_HEIGHT_M)
-            .min_by(|&p, &q| (self.height[p as usize] - feet.y).abs().total_cmp(&(self.height[q as usize] - feet.y).abs()))
+        let own = (self.start[cell]..self.start[cell + 1])
+            .filter(|&f| near(f))
+            .min_by(|&p, &q| (self.height[p as usize] - feet.y).abs().total_cmp(&(self.height[q as usize] - feet.y).abs()));
+        if own.is_some() {
+            return own;
+        }
+        let r = self.body.radius;
+        let reach = (r / self.cell).ceil() as i32;
+        let across = |f: NodeId| self.position(f).distance_xz(feet);
+        (-reach..=reach)
+            .flat_map(|dk| (-reach..=reach).map(move |di| (di, dk)))
+            .filter_map(|(di, dk)| self.cell_index(i + di, k + dk))
+            .flat_map(|c| self.start[c]..self.start[c + 1])
+            .filter(|&f| near(f) && across(f) <= r)
+            .min_by(|&p, &q| across(p).total_cmp(&across(q)))
     }
 
     /// The floor a flight's `steps` (keys let go at the landing, [`jump::STAY_KEYS`]) from the take-off floor `a` lands on and
