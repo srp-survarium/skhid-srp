@@ -310,6 +310,8 @@ impl Walkers {
             walkers.bots.set_throws(throws);
             walkers.bots.set_pantries(pantries);
             walkers.bots.set_shot_reach(reach);
+            // [Gap 13] The mode's plain respawn delay (`mode.parameters.respawn_time`, seconds).
+            walkers.bots.set_plain_respawn_ms(formed.played.map().respawn_time.saturating_mul(1000));
             for (place, armour) in armours.into_iter().enumerate() {
                 walkers.bots.set_zone_armour(place, armour);
             }

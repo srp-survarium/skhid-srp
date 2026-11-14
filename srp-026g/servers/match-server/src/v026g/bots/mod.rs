@@ -1251,6 +1251,11 @@ impl Bots {
         self.features.weapons[place] = weapon;
     }
 
+    /// [Gap 13] The mode's plain respawn delay, ms (no radio): an enemy's return as a player can know it.
+    pub fn set_plain_respawn_ms(&mut self, ms: u32) {
+        self.tracker.set_plain_respawn_ms(ms);
+    }
+
     /// [Gap 6] How far a shot of the weapon a world shows in one place's hands is heard.
     pub fn set_shot_reach_of(&mut self, place: Place, reach: Option<f32>) {
         self.tracker.set_shot_reach_of(place, reach);
