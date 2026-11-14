@@ -640,6 +640,12 @@ pub struct ThreatTuning {
     pub lanes_pierce: bool,
     /// K3: Trade does not go to a partner's death in a held spot's lanes.
     pub trade_out_of_lines: bool,
+    /// [A396] A trade is walked to only where the bot can reach the killer (his known place, else the death) in the
+    /// trade's time (`trade_max_s`, at the sprint's ground speed `stamina::SPRINT_MPS` over the path distance); from
+    /// farther it goes to a spot that sees his known place (the trade cover's rules: `trade_cover`, else
+    /// [`GroupUp::default`]; no such spot: it holds where it is, its view on him), and with the killer not known it does
+    /// not trade. 120 of 243 trades started over 25 m away and 2 of them reached the killer (A396). Off: as before.
+    pub trade_reach: bool,
     /// [A302 #1] A trade in any mode goes to a cover spot round the death that sees the killer's known place from a second bearing,
     /// off fresh deaths and their lanes (A297's [`GroupUp`] rules, `plays/trade.rs`), not onto the body; with the killer known and
     /// no such spot, the bot holds where it is, its view on him. In 0x60217a42 the trades walked onto bodies 6-8 m from a camper
@@ -994,6 +1000,7 @@ impl Default for ThreatTuning {
             job_kills: 2,
             lanes_pierce: true,
             trade_out_of_lines: true,
+            trade_reach: true,
             trade_cover: None,
             pair_up_hidden: true,
             crossfire_out_of_lines: true,

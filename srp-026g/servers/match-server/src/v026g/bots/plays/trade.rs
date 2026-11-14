@@ -149,6 +149,13 @@ fn group(cx: &Ctx) -> Option<GroupUp> {
     cx.tuning.tdm.group.or_else(|| cx.tuning.tdm.squad.map(|_| GroupUp::default())).filter(|_| !cx.view.objective().has_homes())
 }
 
+/// [A396] Whether the bot can reach `at` in the trade's longest time (`trade_max_s`) at the sprint's ground speed over the
+/// path distance (`threat.trade_reach`; off: always).
+fn reaches_in_time(cx: &Ctx, at: Vec3) -> bool {
+    !cx.tuning.threat.trade_reach
+        || cx.path_dist(at) <= crate::v026g::bots::stamina::SPRINT_MPS * cx.num(PlayKind::Trade, "trade_max_s")
+}
+
 /// The rules of a trade's cover spot: TDM's `tdm.group`, else [A302 #1] `threat.trade_cover` in any mode.
 fn cover_rules(cx: &Ctx) -> Option<GroupUp> {
     group(cx).or(cx.tuning.threat.trade_cover)
@@ -210,6 +217,9 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     {
         if in_held_line(cx, at) {
             crate::v026g::bots::threat::count(crate::v026g::bots::threat::Count::TradeRefused);
+        } else if !reaches_in_time(cx, killer_near(cx, at).unwrap_or(at)) && killer_near(cx, at).is_none() {
+            // [A396] Too far to reach in the trade's time, and no known place of the killer to cover: no trade.
+            crate::v026g::bots::threat::count(crate::v026g::bots::threat::Count::TradeTooFar);
         } else {
             out.extend(cx.candidate(PlayKind::Trade, TargetRef::Point(at), None));
             return;
@@ -244,8 +254,28 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
         cx.num(PlayKind::Trade, "trade_min_s"),
         cx.num(PlayKind::Trade, "trade_max_s"),
     );
-    let from = match (cover_rules(cx), cx.point_of(target)) {
-        (Some(rules), Some(body)) => killer_near(cx, body).and_then(|killer| {
+    // [A396] Too far to reach the killer in the trade's time: from a spot that sees his known place, with the trade cover's
+    // rules (or the default ones), else where it stands, its view on him.
+    let far = cx
+        .point_of(target)
+        .and_then(|body| killer_near(cx, body).map(|killer| (body, killer)))
+        .filter(|&(_, killer)| !reaches_in_time(cx, killer));
+    let from = match (cover_rules(cx), cx.point_of(target), far) {
+        (rules, _, Some((body, killer))) => {
+            let rules = rules.unwrap_or_default();
+            let spot = cover_spot(cx, &rules, body, killer, rng).unwrap_or(cx.me.feet);
+            crate::v026g::bots::threat::count(crate::v026g::bots::threat::Count::TradeFromCover);
+            log::debug!(
+                "player {} (the server's bot) at {} ms: trade too far ({:.0} m to the killer's known place): from ({:.1}, {:.1})",
+                cx.me.place,
+                cx.now,
+                cx.path_dist(killer),
+                spot.x,
+                spot.z
+            );
+            Some(spot)
+        }
+        (Some(rules), Some(body), None) => killer_near(cx, body).and_then(|killer| {
             // [A302 #1] With the killer known and no spot that covers him, the bot holds where it is, its view on him: the
             // body's spot is in his sight (TDM's rule as before: onto the body).
             cover_spot(cx, &rules, body, killer, rng).or_else(|| cx.tuning.threat.trade_cover.map(|_| cx.me.feet))
