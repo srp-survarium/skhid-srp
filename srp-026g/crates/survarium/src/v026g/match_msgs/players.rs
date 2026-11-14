@@ -430,6 +430,91 @@ impl Supplies {
         })
     }
 
+    /// The same, from the world's typed views ([`srp_validate::world::validate_kept`], the world format's one definition)
+    /// instead of a byte search: `state` the place's state to its inventory header, `items` its items and the rest when the
+    /// match's kits are known. Each field keeps [`Self::read`]'s meaning: a kit item is the one whose header names this
+    /// place, the kit in use and its slot (a picked gun's names its donor); a pick's own stacks not in the inventory are
+    /// taken as the kit gives them; `carried_weight` is given only when nothing is carried, `carrying` whenever the header
+    /// was read.
+    pub fn of_world(
+        place: u8,
+        state: &srp_validate::world::PlayerState<'_>,
+        items: Option<&srp_validate::world::ItemsAndRest<'_, '_>>,
+        profile: &MatchProfile,
+        dictionary: &Dictionary,
+    ) -> Self {
+        use srp_validate::world::{ItemBody, Left};
+        let head = state.head();
+        let kit_in_use = head.current_kit().get();
+        let mut items_left: Vec<ItemLeft> = profile
+            .items
+            .iter()
+            .zip(head.stored())
+            .map(|(item, stored)| ItemLeft {
+                dict_id: item.dict_id,
+                stack: dictionary.is_stack(item.dict_id),
+                stored,
+                in_hand: None,
+                condition: None,
+                magazine: None,
+                slot: None,
+            })
+            .collect();
+        let mut inventory_read = false;
+        let kit = profile.kits.get(usize::from(kit_in_use));
+        if let (Some(kit), Some(read)) = (kit, items) {
+            for (slot, held) in read.by_slot() {
+                let Some(owner) = held.owner() else { continue };
+                if owner.place().get() != place || owner.kit().get() != kit_in_use || owner.slot().get() != slot {
+                    continue;
+                }
+                let Some((index, _)) = kit.slots.get(usize::from(slot)).copied().flatten() else {
+                    continue;
+                };
+                let Some(item) = items_left.get_mut(usize::from(index)) else {
+                    continue;
+                };
+                inventory_read = true;
+                item.slot = Some(slot);
+                match held.left() {
+                    Left::Amount(amount) => item.in_hand = Some(amount),
+                    Left::Condition(condition) => {
+                        item.condition = Some(condition.get());
+                        if let ItemBody::Weapon(gun) = held.body() {
+                            item.magazine = Some(gun.ammo_in_magazine());
+                        }
+                    }
+                }
+            }
+            if head.pickup().picks.iter().any(Option::is_some) {
+                for (slot, held) in kit.slots.iter().enumerate() {
+                    let Some((index, count)) = *held else { continue };
+                    if let Some(item) = items_left.get_mut(usize::from(index)).filter(|item| item.stack && item.in_hand.is_none()) {
+                        item.slot = Some(slot as u8);
+                        item.in_hand = Some(count);
+                        inventory_read = true;
+                    }
+                }
+            }
+        }
+        let inventory = state.inventory();
+        let hands_slot = inventory.active_slot().map(|slot| slot.get()).filter(|&slot| {
+            kit.and_then(|kit| kit.slots.get(usize::from(slot)).copied().flatten())
+                .and_then(|(index, _)| profile.items.get(usize::from(index)))
+                .is_some_and(|item| item_params(item.dict_id).is_some_and(|params| params.kind.starts_with("wpn")))
+        });
+        let carrying = inventory.carried().is_some();
+        Self {
+            alive: head.alive(),
+            kit: kit_in_use,
+            inventory_read,
+            items: items_left,
+            hands_slot,
+            carried_weight: (!carrying).then(|| inventory.carried_weight().get()),
+            carrying: Some(carrying),
+        }
+    }
+
     /// What is left of each stack item, by dict id: what is in store,
     /// and, for a player alive with its inventory read, what is in its
     /// slots and its weapons' magazines. A magazine's rounds are counted

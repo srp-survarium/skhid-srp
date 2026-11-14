@@ -42,7 +42,7 @@ use mapdata::grid::{SPRINT_JUMP_LOW_M, STANDING_JUMP_M};
 use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
 use super::link_time;
-use super::path::{DropTruth, Leap, Route, RouteHeight};
+use super::path::{DropTruth, GapPress, Leap, Route, RouteHeight, SprintPress, WalkPress};
 use super::rng::Rng;
 use super::tuning::{Metres, Positive, Span};
 use crate::v026g::drive::key;
@@ -412,6 +412,60 @@ pub struct Pose {
     /// [A318] How far the grid's steps would have taken the reckoning past where the client's walk tick held it since the last
     /// world (`BodyTrack::held_short_since_fix`; zero under `kin.client_step = grid`): the hop's "behind" ([`Motor::stalled`]).
     pub held_short_m: f32,
+    /// [A386] The body's own walk cap ([`WalkCap`]): the speed the client's sprint jump asks of the press.
+    pub walk_cap: WalkCap,
+    /// [A386] On the ground or in the air, as the reckoning has it ([`Footing`]): the let-go after a link's reckoned landing.
+    pub footing: Footing,
+}
+
+/// [A386] Whether the reckoned body is on the ground, or in a jump or a fall (`body::Estimate::arc`, `body::Estimate::fall`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Footing {
+    #[default]
+    Ground,
+    Air,
+}
+
+/// [A386] A gap or rim link's landing "stays" as the grid flew it (A385-FORMAT §1, §6): from the landing the keys are let go and
+/// the body comes to rest on the top. After such a press the motor follows the reckoned body into the air and, on its first
+/// step on the ground, lets go of the move keys until it is at rest ([`STILL_MS`]), unless the route's next corner is on the
+/// same top (then the walk on is the route's).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Stay {
+    /// No such landing under way.
+    #[default]
+    Idle,
+    /// Pressed at this motor tick; not yet in the air.
+    Pressed { at: u32 },
+    /// In the air.
+    Flying,
+    /// Landed: the move keys let go until at rest.
+    Settling,
+}
+
+/// [A386] A body's walk cap, m/s: the client's `base_player::max_speed` 0x2DC010 times `long_jump_speed_factor` 1.0, which the
+/// sprint jump's speed test compares the press's speed with (0x33705A, exactness 1 on A385-FORMAT §1): the walk's 3.5 m/s
+/// ([`mapdata::controller::jump::WALK_CAP_MS`]) times the body's speed level (the stance's base speed through the kit's movement
+/// modifiers, `apply_modifier` 0x2D5AE0 index 4: the reckoning's `BodyTrack::level`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WalkCap(f32);
+
+impl WalkCap {
+    /// The cap of a body at speed level `level` ([`body::BodyTrack::level`]).
+    pub fn of_level(level: f32) -> Self {
+        Self(mapdata::controller::jump::WALK_CAP_MS * level)
+    }
+
+    pub fn ms(self) -> f32 {
+        self.0
+    }
+}
+
+impl Default for WalkCap {
+    /// The client's body at the movement factor 1 (`Body::client()`'s, the grid's flights).
+    fn default() -> Self {
+        Self::of_level(1.0)
+    }
 }
 
 /// The floor under the body, for the sprint through turns ([`Feel::sprint_turns`]).
@@ -549,6 +603,10 @@ pub enum Walked {
     /// A jump of the route did not get the body up in [`JUMP_TRIES`]
     /// tries: the take-off.
     JumpFailed(Vec3),
+    /// [A386] The route's sprint link from this take-off is refused by the client now (no sprint jump: [`Motor::sprint_refused`])
+    /// and the link has no walking press: the route is planned again without it while the refusal lasts. No try is spent and
+    /// nothing is failed: the link is the client's when the sprint is.
+    JumpRefused(Vec3),
 }
 
 /// A jump not yet up its ledge is pressed again no sooner than this,
@@ -595,10 +653,6 @@ struct Edge {
     last_y: f32,
     landed: Option<u32>,
 }
-/// A sprint gap link is lined up (the view turned onto the jump's way) over the last this much of the route to its
-/// take-off, metres: a 90 degree turn at the view's top turn speed (5 rad/s) takes 0.31 s, 1.6 m of a sprint, and the
-/// grid guarantees 1.5 m of run.
-pub const SPRINT_GAP_TURN_M: f32 = 2.0;
 /// A sprint jump is pressed at this ground speed at least, m/s (a sprint is 5.0-5.1 m/s). The client's own bar is
 /// lower: the walk cap, 3.5 m/s times (1 + the movement modifiers), 3.32-3.70 (PROVEN, `get_move_direction` and the
 /// speed test at 0x33705A, the sprint-jump RE §1.2); this is the margin above it for the speed the body reckons.
@@ -875,6 +929,8 @@ pub struct Motor {
     aimed_walk: bool,
     /// This tick's route jump being lined up for: how far before its take-off along its way the feet are ([`Motor::on_jump_line`]).
     jump_line: Option<f32>,
+    /// [A386] A gap or rim link's landing let go on ([`Stay`]).
+    stay: Stay,
     /// The link being timed ([`link_time`]), and what the last tick's walk was doing with the body in its approach.
     links: super::link_time::Watch,
     link_why: link_time::Why,
@@ -920,6 +976,19 @@ struct JumpTry {
     lift_refused_at_face: Option<lifts::Refused>,
     /// This try was backed off from once for a walk that would not carry the jump to its landing ([`Feel::walk_jump_reach`]).
     faced: bool,
+    /// [A386] A slow press's walk-up from a stand ([`WalkPress::Slow`]).
+    walk_up: WalkUp,
+}
+
+/// [A386] Where a slow press's walk-up is (A385-FORMAT §1 `Kind::Slow`: the body comes to rest at the run-up point, then walks
+/// `steps` steps and presses on the last).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum WalkUp {
+    /// Coming to the run-up point, or standing there until the body is at rest ([`STILL_MS`]).
+    #[default]
+    ToRest,
+    /// At rest there once: walking up to the press.
+    Walking,
 }
 
 /// The sprint lift up a face ([`Feel::fight_lift`]).
@@ -1052,8 +1121,12 @@ struct Ahead {
     /// Not moving against the jump's way (since the last tick: standing,
     /// or within [`GOING_TURN`] of it).
     going: bool,
-    /// Given up on: the take-off.
-    failed: Option<Vec3>,
+    /// Given up on, or refused ([`JumpEnd`]).
+    end: Option<JumpEnd>,
+    /// [A386] A slow press's body stands (no move key) to come to rest at its run-up point ([`WalkUp::ToRest`]).
+    stand: bool,
+    /// [A386] The landing is let go on ([`Stay`]): a gap or rim link whose route goes on off the landing's top.
+    let_go: bool,
     /// How it is pressed.
     leap: Leap,
     /// How the face is approached.
@@ -1087,6 +1160,74 @@ fn under_reach(leap: Leap, take_off_above: f32, landing_above: f32, reach: f32) 
     matches!(leap, Leap::Ledge | Leap::SprintLedge) && take_off_above > 0.0 && landing_above > reach
 }
 
+/// [A386] Whether this tick's input is the press of a jump flown with the body `lead` metres before the take-off, the body
+/// `before` metres before it now and going `speed` m/s along the way: the key moves the body on the step after this tick's
+/// (`kin::StepInput::Previous`: the step from input N's tick moves with input N-1's keys, PROVEN), so the jump's step 0 starts
+/// a step's travel (`speed` x [`TICK_S`]) further on, and the press is the tick whose step 0 starts nearest `lead`.
+pub(super) fn press_due(before: f32, lead: f32, speed: f32) -> bool {
+    let step = speed.max(0.0) * TICK_S;
+    before - step <= lead + 0.5 * step
+}
+
+/// [A386] The height band of a flown press's run-up: the flyer's run-up ends with the feet within this of the press point's
+/// height, which is the take-off's (`controller::jump::run_up` / `run_up_slow`'s own test, `jump::press_point`), metres.
+const FLOWN_RUN_UP_HEIGHT_M: f32 = 0.35;
+
+/// [A386] Why a press now is not the one the grid flew for a gap or rim link, if it is not (A385-FORMAT §1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FlownOff {
+    /// The feet more than [`FLOWN_RUN_UP_HEIGHT_M`] off the take-off's height: no flight of the link starts there.
+    Height,
+    /// A slow press (`jump::Kind::Slow(k)`) at a speed along the way at or over the walk-up's step k + 1 ((k + 1) / 6 of the
+    /// body's cap, `jump::run_up_slow`'s k / 6 at step k): a faster press is another jump than the one flown.
+    Fast,
+}
+
+/// [A386] Whether this press of `ahead`'s link is off the flown one ([`FlownOff`]); None for a press as flown, and for a link
+/// with no flown press (a ledge, an unflown gap link).
+fn flown_press_off(ahead: &Ahead, pose: &Pose, along: f32) -> Option<FlownOff> {
+    let flown = match ahead.leap {
+        Leap::Gap(GapPress { share, .. }) | Leap::SprintGap(SprintPress { share, .. }) => share.flown().is_some(),
+        Leap::Ledge | Leap::SprintLedge => false,
+    };
+    if !flown {
+        return None;
+    }
+    if ahead.take_off_above.abs() > FLOWN_RUN_UP_HEIGHT_M {
+        return Some(FlownOff::Height);
+    }
+    match ahead.leap {
+        Leap::Gap(GapPress { walk: WalkPress::Slow(k), .. }) if along >= f32::from(k + 1) / 6.0 * pose.walk_cap.ms() => Some(FlownOff::Fast),
+        _ => None,
+    }
+}
+
+/// [A386] The gap and rim presses backed off from as not flown ([`flown_press_off`]): off the take-off's height, a slow press too
+/// fast.
+pub mod flown_presses {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub(super) fn off(why: super::FlownOff) {
+        COUNTS[why as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Off the height, too fast.
+    pub fn counts() -> [u64; 2] {
+        std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
+/// [A386] Why the motor leaves a route's jump.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum JumpEnd {
+    /// Given up after [`JUMP_TRIES`] presses: the take-off ([`Walked::JumpFailed`]).
+    Failed(Vec3),
+    /// A sprint link the client refuses now, with no walking press: the take-off ([`Walked::JumpRefused`]).
+    Refused(Vec3),
+}
+
 /// How the body approaches the face of a jump link: one of these, never a mixture.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Approach {
@@ -1094,8 +1235,8 @@ enum Approach {
     Walk,
     /// A sprint jump of a ledge (the grid's label): walked into with sprint held, pressed at speed.
     Sprint,
-    /// A sprint gap link: the run goes on while it turns onto the jump's way ([`SPRINT_GAP_TURN_M`]), no stopping to
-    /// line up, and `before` is the route's distance to the take-off.
+    /// A sprint gap link: with [`Feel::sprint_gaps`], run up at a sprint straight along the link's way from its
+    /// run-up ([`mapdata::grid::gap::SPRINT_RUN_UP_M`] before the press, as the grid flew it: A386), lined up as a jump's line is.
     SprintGap,
     /// The sprint lift: run into the face at a sprint, no press ([`Feel::fight_lift`]).
     Lift,
@@ -1109,10 +1250,6 @@ impl Approach {
         self != Approach::Walk
     }
 
-    /// The sprint gap link's run through the turn.
-    fn runs_through(self) -> bool {
-        self == Approach::SprintGap
-    }
 }
 
 /// Why the motor pressed jump.
@@ -1170,6 +1307,7 @@ impl Motor {
             jump: None,
             aimed_walk: false,
             jump_line: None,
+            stay: Stay::Idle,
             links: super::link_time::Watch::default(),
             link_why: link_time::Why::Unknown,
             key_hold: None,
@@ -1578,10 +1716,9 @@ impl Motor {
         // only for a way behind it (it turns on the spot), and on a jump's
         // line for a turn off its way: it stands and turns to it first.
         let lined = jump.is_some_and(|jump| jump.lined);
-        let run_through = jump.is_some_and(|jump| jump.approach.runs_through());
-        if lined && run_through {
-            // A sprint gap link: the run goes on while the view turns onto the jump's way.
-            self.walking = true;
+        if jump.is_some_and(|jump| jump.stand) {
+            // [A386] A slow press's body comes to rest at its run-up point.
+            self.walking = false;
         } else if lined {
             self.walking = still < LINE_UP_GO;
         } else if self.walking && still > self.feel.stop_turn {
@@ -1714,7 +1851,9 @@ impl Motor {
         // walks (the keys held through a lockout lengthen it, and the bar comes back walking).
         if let Some(j) = jump
             && j.approach.sprints()
-            && ((j.lined && self.walking && still < LINE_UP_GO) || (j.approach.runs_through() && self.walking))
+            && j.lined
+            && self.walking
+            && still < LINE_UP_GO
             && !pose.no_jump
         {
             if self.tired {
@@ -1746,11 +1885,14 @@ impl Motor {
             self.key_hold = None;
         }
         if let Some(jump) = jump {
-            if let Some(take_off) = jump.failed {
-                return (Decision { keys: 0, turn }, Walked::JumpFailed(take_off));
+            match jump.end {
+                Some(JumpEnd::Failed(take_off)) => return (Decision { keys: 0, turn }, Walked::JumpFailed(take_off)),
+                Some(JumpEnd::Refused(take_off)) => return (Decision { keys: 0, turn }, Walked::JumpRefused(take_off)),
+                None => {}
             }
             keys |= self.jump_key(&jump, still, pose, false);
         }
+        keys = self.stay_keys(pose, keys);
         // A landing run against the way is braked, not walked out.
         let mut braked = false;
         if let Some(brake) = self.landing_brake(route, pose, s, &clear) {
@@ -2027,13 +2169,21 @@ impl Motor {
                 keys |= key::CROUCH;
             }
         }
+        if jump.is_some_and(|jump| jump.stand) {
+            // [A386] A slow press's body comes to rest at its run-up point.
+            self.walking = false;
+            keys &= !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT);
+        }
         if let Some(jump) = jump {
-            if let Some(take_off) = jump.failed {
-                return (Decision { keys: 0, turn }, Walked::JumpFailed(take_off));
+            match jump.end {
+                Some(JumpEnd::Failed(take_off)) => return (Decision { keys: 0, turn }, Walked::JumpFailed(take_off)),
+                Some(JumpEnd::Refused(take_off)) => return (Decision { keys: 0, turn }, Walked::JumpRefused(take_off)),
+                None => {}
             }
             let still = wrap(yaw_of(jump.way) - (pose.yaw + turn.0)).abs();
             keys |= self.jump_key(&jump, still, pose, true);
         }
+        keys = self.stay_keys(pose, keys);
         // A landing run against the way is braked, not walked out.
         if let Some(brake) = self.landing_brake(route, pose, s, &clear) {
             keys = (keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT)) | brake;
@@ -2060,6 +2210,7 @@ impl Motor {
     ///   only facing it ([`LINE_UP_GO`]) and presses at the take-off
     ///   ([`Motor::jump_key`]).
     /// - [`JUMP_TRIES`] presses that did not get it up: given up on.
+    /// - [A386] A gap or rim link is pressed as the grid flew it ([`GapPress`], [`SprintPress`]).
     fn jump_ahead(
         &mut self,
         route: &Route,
@@ -2073,7 +2224,15 @@ impl Motor {
         };
         let points = route.points();
         let (take_off, landing) = (points[k - 1].at, points[k].at);
-        let leap = points[k].jump.unwrap_or(Leap::Ledge);
+        let flown = points[k].jump.unwrap_or(Leap::Ledge);
+        // [A386] A sprint link the client would play no sprint jump on now ([`Self::sprint_refused`]) is pressed by its walking
+        // press (A385-FORMAT §5); with none it is refused ([`JumpEnd::Refused`]) while the refusal lasts.
+        let refused = self.feel.sprint_gaps && matches!(flown, Leap::SprintGap(_)) && self.sprint_refused(pose);
+        let leap = match flown {
+            Leap::SprintGap(sprint) if refused => sprint.walk.map_or(flown, Leap::Gap),
+            leap => leap,
+        };
+        let refused = refused && matches!(leap, Leap::SprintGap(_));
         let sprint_ledge = route.sprint_ledge(k);
         let sprint_gap = self.feel.sprint_gaps && matches!(leap, Leap::SprintGap(_));
         let sprint = sprint_ledge || sprint_gap;
@@ -2125,6 +2284,27 @@ impl Motor {
             }
             return None;
         }
+        if refused {
+            sprint_gaps::refused();
+            return Some(Ahead {
+                aim: take_off,
+                lined: false,
+                way,
+                before: 0.0,
+                going: false,
+                end: Some(JumpEnd::Refused(take_off)),
+                stand: false,
+                let_go: false,
+                leap,
+                approach: Approach::SprintGap,
+                rise: landing.y - take_off.y,
+                take_off_above: take_off.y - feet.y,
+                lead_m: 0.0,
+                least_m: 0.0,
+                run_up: 0.0,
+                span: take_off.distance_xz(landing),
+            });
+        }
         // The tries at this jump, kept over a route planned again to it.
         let same = |t: &JumpTry| {
             (t.take_off - take_off).length() < 0.3
@@ -2150,6 +2330,7 @@ impl Motor {
                 lift_seen: None,
                 lift_refused_at_face: None,
                 faced: false,
+                walk_up: WalkUp::ToRest,
             },
         };
         let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
@@ -2187,7 +2368,9 @@ impl Motor {
                 way,
                 before: 0.0,
                 going: false,
-                failed: Some(take_off),
+                end: Some(JumpEnd::Failed(take_off)),
+                stand: false,
+                let_go: false,
                 leap,
                 approach: if sprint { Approach::Sprint } else { Approach::Walk },
                 rise: landing.y - take_off.y,
@@ -2291,9 +2474,21 @@ impl Motor {
                     .find(|&m| clear(at(m)))
                     .unwrap_or(0.0)
             }
-            Leap::Gap(press) | Leap::SprintGap(press) => {
-                let m = press.metres() + mapdata::grid::gap::GAP_RUN_UP_M;
-                if clear(at(m)) { m } else { press.metres() }
+            // [A386] As the grid flew the press (A385-FORMAT §1): a walking press is walked into from the back-off
+            // ([`mapdata::grid::gap::GAP_RUN_UP_M`] before it); a slow one from where its walk-up from a stand starts
+            // (`jump::run_up_slow`: the walk-up's `steps` steps at k / 6 of the body's cap); a sprint one is run straight along
+            // the link's way from the floor the grid guarantees before its press ([`mapdata::grid::gap::SPRINT_RUN_UP_M`]).
+            Leap::Gap(press) => {
+                let walk_up = match press.walk {
+                    WalkPress::Cap => mapdata::grid::gap::GAP_RUN_UP_M,
+                    WalkPress::Slow(steps) => mapdata::controller::jump::blend_steps_m(pose.walk_cap.ms(), steps),
+                };
+                let m = press.lead.metres() + walk_up;
+                if clear(at(m)) { m } else { press.lead.metres() }
+            }
+            Leap::SprintGap(press) => {
+                let m = press.lead.metres() + mapdata::grid::gap::SPRINT_RUN_UP_M;
+                if clear(at(m)) { m } else { press.lead.metres() }
             }
         };
         let (dx, dz) = (feet.x - take_off.x, feet.z - take_off.z);
@@ -2327,16 +2522,29 @@ impl Motor {
         {
             jump.back = false;
         }
+        // [A386] A slow press: the body comes to rest at its run-up point (no move key, [`Ahead::stand`]), then walks up to the
+        // press. A back-off or a jump in the air starts it again.
+        let slow = matches!(leap, Leap::Gap(GapPress { walk: WalkPress::Slow(_), .. }));
+        // The walk-up is the one from the rest at the run-up point: a body off the jump's line (gone round, pushed away, back
+        // from a fight) comes to rest there again.
+        if !slow || jump.back || in_the_air || !on_line {
+            jump.walk_up = WalkUp::ToRest;
+        }
+        let at_rest_point = slow && jump.walk_up == WalkUp::ToRest && !in_the_air && at(run_up).distance_xz(feet) <= AT_RUN_UP_M;
+        if at_rest_point && pose.speed < STILL_MS {
+            jump.walk_up = WalkUp::Walking;
+        }
+        let stand = at_rest_point && jump.walk_up == WalkUp::ToRest;
+        // [A386] A gap or rim link's landing stays as flown ([`Stay`]) unless the route's next corner is on the same top: a walk
+        // on within a step of the landing's height.
+        let let_go = matches!(leap, Leap::Gap(_) | Leap::SprintGap(_))
+            && points.get(k + 1).is_none_or(|next| next.jump.is_some() || (next.at.y - landing.y).abs() > mapdata::Body::client().step);
         // A sprint gap link is lined up only over its last metres: the run before it follows the route and may turn onto
         // the jump's way (the run along a rail, the jump across it).
         // A lift that has reached its face is on the jump's line until it is up: the climb carries the body past the
         // take-off, which is no reason to turn it back to the run-up.
         let climbing = lifting && matches!(jump.lift, LiftTry::Lifting { at_face: Some(_) });
-        let lined = if sprint_gap {
-            in_the_air || (before_route <= SPRINT_GAP_TURN_M && !jump.back)
-        } else {
-            in_the_air || climbing || (on_line && !jump.back)
-        };
+        let lined = in_the_air || climbing || (on_line && !jump.back && (!slow || jump.walk_up == WalkUp::Walking));
         let aim = if lined {
             // Along the jump's way, past the landing (a gap link's lands
             // up to 2 m on).
@@ -2346,7 +2554,7 @@ impl Motor {
                 landing.y,
                 take_off.z + way[1] * past,
             )
-        } else if !sprint_gap && !under && clear(at(run_up)) {
+        } else if !under && clear(at(run_up)) {
             at(run_up)
         } else {
             // The run-up not in a line yet (round a corner): the route, up
@@ -2357,8 +2565,7 @@ impl Motor {
         // The way the feet went since the last tick (the hop's trail): a
         // body facing the way but still moving off it (back from the
         // run-up, the walk's blend) is not pressed for.
-        let going = sprint_gap
-            || self
+        let going = self
             .trail
             .back()
             .filter(|&&(at, _)| self.clock.wrapping_sub(at) <= 1)
@@ -2382,9 +2589,11 @@ impl Motor {
             aim,
             lined,
             way,
-            before: if sprint_gap { before_route } else { -along },
+            before: -along,
             going,
-            failed: None,
+            end: None,
+            stand,
+            let_go,
             leap,
             approach: if lifting {
                 Approach::Lift
@@ -2437,10 +2646,41 @@ impl Motor {
             return 0;
         }
         // A sprint jump is pressed at speed with sprint held (or, past its take-off, as it is: the try counts).
-        let band = self.feel.band_jump_gate && ahead.approach.sprints() && !ahead.approach.runs_through() && self.over_walk_top(ahead.rise);
+        let band = self.feel.band_jump_gate
+            && ahead.approach.sprints()
+            && ahead.approach != Approach::SprintGap
+            && self.over_walk_top(ahead.rise);
         let block = pose.sprint_block.or(aimed.then_some(SprintBlock::Aiming));
         let aligned = !band || press_aligned(pose.velocity, ahead.way);
-        let sprinted = self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && (!band || (block.is_none() && aligned));
+        // [A386] The speed of the body's last step along the jump's way, m/s (on the jump's line the body goes the way).
+        let along = pose.velocity[0] * ahead.way[0] + pose.velocity[1] * ahead.way[1];
+        let sprinted = match ahead.approach {
+            // [A386] The client plays a sprint link's sprint jump only with ALL of (A385-FORMAT §1, exactness 1): the last step's
+            // horizontal speed (+334h) at or over the body's own walk cap (`initialize` 0x337040, the test at 0x33705A: strictly
+            // under it the short jump), sprint and forward held with none of back, fire, crouch (`player_input::is_sprinting`
+            // 0x2F1220: the motor's line holds forward only; a block or an aimed walk is fire or aim), and `can_sprint`
+            // 0x2DBF40 ([`Pose::sprint_block`]).
+            Approach::SprintGap => {
+                self.sprinting && block.is_none() && pose.velocity[0].hypot(pose.velocity[1]) >= pose.walk_cap.ms()
+            }
+            _ => self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && (!band || (block.is_none() && aligned)),
+        };
+        // [A386] A sprint link not at the client's sprint at its press: no press (the short jump the client would play is not the
+        // link's), and at the press a back-off for another run-up; the try is spent, so it is no loop ([`JUMP_TRIES`]).
+        if ahead.approach == Approach::SprintGap && !sprinted {
+            let lead = match ahead.leap {
+                Leap::SprintGap(press) => press.lead.metres(),
+                _ => 0.0,
+            };
+            if ahead.lined && press_due(ahead.before, lead, along) {
+                jump.tries += 1;
+                jump.back = true;
+                self.keep_try(jump);
+                self.links.backed_off();
+                sprint_gaps::backed_off();
+            }
+            return 0;
+        }
         if ahead.approach.sprints() && !sprinted && (ahead.before > 0.0 || band) {
             if band && ahead.before.abs() <= BAND_FACE_M && pose.speed < STILL_MS {
                 band_jumps::face_tick();
@@ -2457,9 +2697,22 @@ impl Motor {
         // point (where the grid found the client's jump lands it).
         let near = match ahead.leap {
             Leap::Ledge | Leap::SprintLedge => ahead.before <= (JUMP_LEAD_S * speed + PRESS_M).max(ahead.lead_m),
-            Leap::Gap(press) | Leap::SprintGap(press) => ahead.before <= press.metres(),
+            // [A386] A standing jump at its point, the body at rest there ([`WalkUp`]).
+            Leap::Gap(GapPress { lead, walk: WalkPress::Slow(0), .. }) => ahead.before <= lead.metres() + AT_RUN_UP_M,
+            // [A386] On the tick whose jump step starts nearest the flown lead ([`press_due`]).
+            Leap::Gap(GapPress { lead, .. }) | Leap::SprintGap(SprintPress { lead, .. }) => press_due(ahead.before, lead.metres(), along),
         };
         if !(ahead.lined && ahead.going && self.walking && still <= JUMP_FACING && near && rested) {
+            return 0;
+        }
+        // [A386] A gap or rim link is pressed only as the grid flew it ([`flown_press_off`]): else no press, a back-off for another
+        // run-up (the try spent, so it is no loop).
+        if let Some(off) = flown_press_off(ahead, pose, along) {
+            jump.tries += 1;
+            jump.back = true;
+            self.keep_try(jump);
+            self.links.backed_off();
+            flown_presses::off(off);
             return 0;
         }
         if band && !sprinted {
@@ -2522,7 +2775,10 @@ impl Motor {
         // jump goes as the walk of the press, frozen, plus the air control; a press at rest at a face, from a turn or a blend still
         // building comes down short of the top (the bench with the client-true stand-in: batteries' failed jumps 18 -> 34).
         let short_clip = !(ahead.approach.sprints() && sprinted && block.is_none());
-        if self.feel.walk_jump_reach && short_clip && !ahead.approach.runs_through() {
+        // [A386] Not for a press the grid flew with the client's own flyer (a gap or rim link with a share, A385): that flight is
+        // the landing's proof, and the model's carry is not.
+        let flown = matches!(ahead.leap, Leap::Gap(GapPress { share, .. }) if share.flown().is_some());
+        if self.feel.walk_jump_reach && short_clip && ahead.approach != Approach::SprintGap && !flown {
             // [A364] The carry counts the body's last move whatever its heading (player +0x334); the jump goes the way it faces.
             let speed = pose.velocity[0].hypot(pose.velocity[1]);
             if walk_jump_lands(speed, ahead.before.max(0.0), ahead.span, ahead.rise) {
@@ -2569,6 +2825,9 @@ impl Motor {
             sprint_gate,
         });
         self.jump = Some(JumpBy::Route);
+        if ahead.let_go {
+            self.stay = Stay::Pressed { at: self.clock };
+        }
         self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Jump });
         if matches!(ahead.leap, Leap::Ledge | Leap::SprintLedge) && ahead.rise <= LIFT_MAX_RISE_M {
             lifts::jumped(ahead.rise, pose.urgent);
@@ -2598,7 +2857,31 @@ impl Motor {
                 }
             }
         }
-        if ahead.approach.runs_through() {
+        // The bench's press rows (`SRP_BENCH_PRESS_ROWS`, decision-neutral): each route press with its link's press as the route
+        // carries it, the approach, where the feet are against the take-off, and the speeds.
+        #[cfg(test)]
+        if std::env::var_os("SRP_BENCH_PRESS_ROWS").is_some() {
+            eprintln!(
+                "pressrow\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:?}\t{:?}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{}\t{}\t{:.2}\t{:?}",
+                jump.take_off.x,
+                jump.take_off.y,
+                jump.take_off.z,
+                jump.landing.x,
+                jump.landing.y,
+                jump.landing.z,
+                ahead.leap,
+                ahead.approach,
+                ahead.before,
+                pose.feet.y - jump.take_off.y,
+                speed,
+                along,
+                u8::from(self.sprinting),
+                jump.tries,
+                ahead.run_up,
+                pose.sprint_block,
+            );
+        }
+        if ahead.approach == Approach::SprintGap {
             sprint_gaps::pressed(speed);
             sprint_gaps::sprint_held(self.sprinting);
         }
@@ -2614,6 +2897,32 @@ impl Motor {
     /// [`BAND_UP_S`] of the press; else not up.
     /// A lift that has reached its face and finds the body up the ledge is a lift got up ([`lifts::up`]), whatever the
     /// route's progress is by then.
+    /// [A386] The client plays no sprint jump now, whatever the run: `base_player::can_sprint` 0x2DBF40 refuses the sprint
+    /// ([`Pose::sprint_block`]: aimed, firing, a reload, a stagger, the bar, a battery), or the walk aims ([`Self::aimed_walk`]:
+    /// the aim's keys are not `player_input::is_sprinting` 0x2F1220's), or the motor's bar is spent ([`Self::tired`]).
+    fn sprint_refused(&self, pose: &Pose) -> bool {
+        pose.sprint_block.is_some() || self.aimed_walk || self.tired
+    }
+
+    /// [A386] The keys after a gap or rim link's press ([`Stay`]): into the air on the reckoning; on its first step on the ground
+    /// the move keys and the sprint let go until the body is at rest. A press the reckoning never takes into the air within
+    /// [`CARRY_S`] is let be.
+    fn stay_keys(&mut self, pose: &Pose, keys: u32) -> u32 {
+        self.stay = match (self.stay, pose.footing) {
+            (Stay::Pressed { .. }, Footing::Air) => Stay::Flying,
+            (Stay::Pressed { at }, Footing::Ground) if self.since(at) > CARRY_S => Stay::Idle,
+            (Stay::Flying, Footing::Ground) => Stay::Settling,
+            (Stay::Settling, _) if pose.speed < STILL_MS => Stay::Idle,
+            (stay, _) => stay,
+        };
+        if self.stay == Stay::Settling {
+            stays::let_go();
+            keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT)
+        } else {
+            keys
+        }
+    }
+
     /// The route jump's try as it now is, its tries kept for the link ([`LinkTries`]).
     fn keep_try(&mut self, jump: JumpTry) {
         self.link_tries.set(jump.take_off, jump.landing, jump.tries);
@@ -3294,7 +3603,18 @@ pub mod straight_jumps {
 pub mod sprint_gaps {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 7] = [const { AtomicU64::new(0) }; 7];
+    static COUNTS: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
+
+    /// [A386] A sprint link refused by the client's sprint gate with no walking press: the route planned again without it.
+    pub fn refused() {
+        COUNTS[7].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// [A386] A sprint link at its press short of the client's sprint jump (the speed under the body's cap, or the sprint not
+    /// held): backed off for another run-up.
+    pub fn backed_off() {
+        COUNTS[8].fetch_add(1, Ordering::Relaxed);
+    }
 
     /// A press with the sprint key held (4) or not (5): the lining up lets go of it with `band_jump_gate` off.
     pub fn sprint_held(held: bool) {
@@ -3315,9 +3635,25 @@ pub mod sprint_gaps {
         COUNTS[3].fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Pressed under 3.5 m/s, 3.5-4.5, 4.5 and over, given up, pressed with the sprint key held and not, got across.
-    pub fn counts() -> [u64; 7] {
+    /// Pressed under 3.5 m/s, 3.5-4.5, 4.5 and over, given up, pressed with the sprint key held and not, got across; [A386]
+    /// refused, backed off short of the sprint.
+    pub fn counts() -> [u64; 9] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
+/// [A386] The ticks the move keys were let go after a gap or rim link's reckoned landing ([`Stay`]).
+pub mod stays {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static LET_GO: AtomicU64 = AtomicU64::new(0);
+
+    pub fn let_go() {
+        LET_GO.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn count() -> u64 {
+        LET_GO.load(Ordering::Relaxed)
     }
 }
 
@@ -5148,6 +5484,7 @@ mod tests {
             lift_seen: Some(0),
             lift_refused_at_face: Some(lifts::Refused::Blocked),
             faced: false,
+            walk_up: WalkUp::ToRest,
         });
         let before = lifts::left_counts();
         let band = 2; // 0.95-1.05
@@ -5377,7 +5714,7 @@ mod tests {
         let p = |x: f32, y: f32, z: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, z),
             node: 0,
-            jump: jump.then_some(Leap::SprintGap(mapdata::PressLead::from_metres(0.5))),
+            jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None })),
             low: false,
         };
         let keeps = |gate: bool| {
@@ -5523,7 +5860,7 @@ mod tests {
             let p = |x: f32, jump: bool| Waypoint {
                 at: Vec3::new(x, if jump { -1.7 } else { 0.0 }, 0.0),
                 node: 0,
-                jump: jump.then_some(Leap::SprintGap(mapdata::PressLead::from_metres(0.5))),
+                jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None })),
                 low: false,
             };
             let route = Route::new(vec![p(-20.0, false), p(0.0, false), p(3.0, true), p(6.0, false)]);
@@ -5605,38 +5942,230 @@ mod tests {
         assert_eq!(keys_at(false) & key::SPRINT, 0, "nothing known of the route: released as before");
     }
 
-    /// A sprint gap link (`Leap::SprintGap`, `Feel::sprint_gaps`) is run up to at a sprint along the route, the run
-    /// turning onto the jump's way over its last 2 m with no stop to line up, and pressed at the link's lead, at speed,
-    /// facing the way; off, it is a walking gap jump (no sprint held).
+    /// [A386] A gap link's route: along +x to the take-off at the origin, the landing 3 m on and 1.7 m down.
+    fn gap_route(leap: Leap) -> Route {
+        let p = |x: f32, y: f32, jump: Option<Leap>| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump, low: false };
+        Route::new(vec![p(-10.0, 0.0, None), p(0.0, 0.0, None), p(3.0, -1.7, Some(leap)), p(6.0, -1.7, None)])
+    }
+
+    /// [A386] One tick of a motor walking `route` with the body at `x` on the link's line facing +x, `speed` m/s along it.
+    fn gap_tick(motor: &mut Motor, route: &mut Route, x: f32, speed: f32, block: Option<SprintBlock>) -> (u32, Walked) {
+        let pose = Pose {
+            feet: Vec3::new(x, 0.0, 0.0),
+            yaw: yaw_of([1.0, 0.0]),
+            speed,
+            velocity: [speed, 0.0],
+            sprint_block: block,
+            ..Default::default()
+        };
+        let (decision, walked) = motor.walk(route, &pose, 5.0, |_| true);
+        (decision.keys, walked)
+    }
+
+    fn sprint_link(walk: Option<GapPress>) -> Leap {
+        Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk })
+    }
+
+    /// [A386] [`press_due`]: the key moves the body a step later (`StepInput::Previous`), so the press is the tick whose next
+    /// step starts nearest the lead: at 5 m/s (0.25 m a step) the ticks from 0.875 m before the lead's point down.
     #[test]
-    fn a_sprint_gap_link_is_run_up_to_at_a_sprint_and_pressed_at_speed() {
-        let p = |x: f32, y: f32, z: f32, jump: bool| Waypoint {
-            at: Vec3::new(x, y, z),
-            node: 0,
-            jump: jump.then_some(Leap::SprintGap(mapdata::PressLead::from_metres(0.5))),
-            low: false,
-        };
-        // A run along -z (a rail) to the take-off at the origin, the jump across it along +x.
-        let route = || {
-            Route::new(vec![p(0.0, 0.0, 20.0, false), p(0.0, 0.0, 0.0, false), p(3.0, -1.7, 0.0, true), p(6.0, -1.7, 0.0, false)])
-        };
-        let step = |on: bool, feet: Vec3, way: [f32; 2], speed: f32| {
+    fn a_press_is_due_on_the_tick_whose_jump_step_starts_nearest_the_lead() {
+        assert!(!press_due(1.4, 0.5, 5.0), "two steps' travel out: the next tick is nearer");
+        assert!(press_due(0.87, 0.5, 5.0), "the next step starts 0.12 m past the lead, the one after 0.13 m short of it");
+        assert!(press_due(0.5, 0.5, 0.0), "at rest at the lead");
+        assert!(!press_due(0.6, 0.5, 0.0), "at rest short of it");
+    }
+
+    /// [A386] A sprint link (`Leap::SprintGap`, `Feel::sprint_gaps`) is run straight along its way from its run-up at a sprint,
+    /// and pressed on the tick its jump step starts nearest the flown lead, only at the client's sprint jump: sprint held, no
+    /// block and the last step's speed at or over the body's walk cap (0x33705A). Short of the cap at the press: no key, a
+    /// back-off. Off: a walking gap jump, no sprint held.
+    #[test]
+    fn a_sprint_link_is_run_straight_and_pressed_only_at_the_clients_sprint_jump() {
+        let motor = |on: bool| {
             let mut rng = Rng::new(3);
             let mut motor = Motor::new(Feel { sprint_gaps: on, sway: 0.0, ..Feel::default() }, &mut rng);
             motor.walking = true;
-            let pose = Pose { feet, yaw: yaw_of(way), speed, ..Default::default() };
-            motor.walk(&mut route(), &pose, 5.0, |_| true).0.keys
+            motor
         };
-        let run = step(true, Vec3::new(0.0, 0.0, 2.0), [0.0, -1.0], 5.0);
-        assert_eq!(run & (key::FORWARD | key::SPRINT), key::FORWARD | key::SPRINT, "the sprint goes on into the turn: {run:#x}");
+        // On the line 2 m before the take-off at a sprint: forward and sprint, no press yet.
+        let (run, _) = gap_tick(&mut motor(true), &mut gap_route(sprint_link(None)), -2.0, 5.0, None);
+        assert_eq!(run & (key::FORWARD | key::SPRINT), key::FORWARD | key::SPRINT, "run straight at a sprint: {run:#x}");
         assert_eq!(run & key::JUMP, 0, "not yet");
-        // 0.4 m before the take-off, the view turned onto the way, 4.6 m/s: the press.
-        let press = step(true, Vec3::new(0.0, 0.0, 0.4), [1.0, 0.0], 4.6);
+        // 0.85 m before the take-off at 5 m/s: the next step starts 0.6 m before it, nearest the lead 0.5: the press.
+        let (press, _) = gap_tick(&mut motor(true), &mut gap_route(sprint_link(None)), -0.85, 5.0, None);
         assert_ne!(press & key::JUMP, 0, "pressed: {press:#x}");
-        // Too slow after the turn (a standing start): not pressed short of the take-off.
-        assert_eq!(step(true, Vec3::new(0.0, 0.0, 0.4), [1.0, 0.0], 2.0) & key::JUMP, 0);
+        // The same place under the body's walk cap (3.5 m/s at level 1): the client would play the short jump: no press.
+        let mut slow = motor(true);
+        let (short, _) = gap_tick(&mut slow, &mut gap_route(sprint_link(None)), -0.6, 3.0, None);
+        assert_eq!(short & key::JUMP, 0, "under the cap: no press: {short:#x}");
+        assert!(slow.jump_try.is_some_and(|t| t.back && t.tries == 1), "backed off, the try spent");
+        // A body of a faster kit (level 1.1: cap 3.85 m/s) at 3.7 m/s: under its own cap.
+        let mut fast_kit = motor(true);
+        let pose = Pose {
+            feet: Vec3::new(-0.6, 0.0, 0.0),
+            yaw: yaw_of([1.0, 0.0]),
+            speed: 3.7,
+            velocity: [3.7, 0.0],
+            walk_cap: WalkCap::of_level(1.1),
+            ..Default::default()
+        };
+        fast_kit.sprinting = true;
+        assert_eq!(fast_kit.walk(&mut gap_route(sprint_link(None)), &pose, 5.0, |_| true).0.keys & key::JUMP, 0, "under its own cap");
         // Off: no sprint held on the run.
-        assert_eq!(step(false, Vec3::new(0.0, 0.0, 2.0), [0.0, -1.0], 5.0) & key::SPRINT, 0);
+        assert_eq!(gap_tick(&mut motor(false), &mut gap_route(sprint_link(None)), -2.0, 5.0, None).0 & key::SPRINT, 0);
+    }
+
+    /// [A386] A sprint link the client refuses now (`can_sprint` 0x2DBF40: here a reload) is pressed by its walking press when
+    /// the link has one (A385-FORMAT §5), with no sprint; with none it is refused ([`Walked::JumpRefused`]), no try spent.
+    #[test]
+    fn a_refused_sprint_link_takes_its_walking_press_or_is_refused() {
+        let walk = GapPress { lead: mapdata::PressLead::from_metres(0.8), walk: WalkPress::Cap, share: mapdata::Share::landed(9) };
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel { sprint_gaps: true, sway: 0.0, ..Feel::default() }, &mut rng);
+        motor.walking = true;
+        let reload = Some(SprintBlock::Reloading);
+        // At the walk cap, the walking press's next step 0.8 m before the take-off: pressed, no sprint.
+        let (keys, walked) = gap_tick(&mut motor, &mut gap_route(sprint_link(Some(walk))), -1.0, 3.5, reload);
+        assert_eq!(walked, Walked::OnTheWay);
+        assert_ne!(keys & key::JUMP, 0, "the walking press: {keys:#x}");
+        assert_eq!(keys & key::SPRINT, 0, "no sprint: {keys:#x}");
+        // No walking press: refused at once, nothing pressed, no try counted.
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel { sprint_gaps: true, sway: 0.0, ..Feel::default() }, &mut rng);
+        motor.walking = true;
+        let (keys, walked) = gap_tick(&mut motor, &mut gap_route(sprint_link(None)), -2.0, 5.0, reload);
+        assert_eq!(walked, Walked::JumpRefused(Vec3::ZERO));
+        assert_eq!(keys, 0);
+        assert!(motor.jump_try.is_none_or(|t| t.tries == 0), "no try spent");
+    }
+
+    /// [A386] A gap link's landing stays as flown: after the press the reckoned body goes into the air; on its first step on the
+    /// ground the move keys and the sprint are let go until it is at rest, then the walk goes on. A route going on on the same
+    /// top is walked on at once.
+    #[test]
+    fn a_gap_links_landing_lets_go_until_at_rest_unless_the_route_goes_on_on_its_top() {
+        let walk = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL });
+        let run = |route_on_top: bool| {
+            let p = |x: f32, y: f32, jump: Option<Leap>| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump, low: false };
+            // The landing 3 m on, 1.7 m down; the next corner on its top, or a drop 2 m lower.
+            let next = if route_on_top { p(6.0, -1.7, None) } else { p(6.0, -3.7, None) };
+            let mut route = Route::new(vec![p(-10.0, 0.0, None), p(0.0, 0.0, None), p(3.0, -1.7, Some(walk)), next]);
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.walking = true;
+            let pose = |x: f32, y: f32, speed: f32, footing: Footing| Pose {
+                feet: Vec3::new(x, y, 0.0),
+                yaw: yaw_of([1.0, 0.0]),
+                speed,
+                velocity: [speed, 0.0],
+                footing,
+                ..Default::default()
+            };
+            let (press, _) = motor.walk(&mut route, &pose(-0.7, 0.0, 3.5, Footing::Ground), 5.0, |_| true);
+            assert_ne!(press.keys & key::JUMP, 0, "pressed: {:#x}", press.keys);
+            motor.clock += 1;
+            motor.walk(&mut route, &pose(0.5, 0.3, 3.5, Footing::Air), 5.0, |_| true);
+            motor.clock += 1;
+            let (landed, _) = motor.walk(&mut route, &pose(3.0, -1.7, 2.0, Footing::Ground), 5.0, |_| true);
+            motor.clock += 1;
+            let (rest, _) = motor.walk(&mut route, &pose(3.1, -1.7, 0.0, Footing::Ground), 5.0, |_| true);
+            (landed.keys, rest.keys)
+        };
+        let moves = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
+        let (landed, rest) = run(false);
+        assert_eq!(landed & moves, 0, "let go on landing: {landed:#x}");
+        assert_ne!(rest & moves, 0, "at rest: walks on: {rest:#x}");
+        let (landed, _) = run(true);
+        assert_ne!(landed & moves, 0, "the route goes on on the top: walked on: {landed:#x}");
+    }
+
+    /// [A386] A gap or rim link is pressed only as the grid flew it ([`flown_press_off`]): a slow press of k steps under its
+    /// walk-up's step k + 1 ((k + 1) / 6 of the cap), and any flown press with the feet within the flight's run-up height of the
+    /// take-off. Off it: no key, a back-off. A ledge or an unflown gap link is not asked.
+    #[test]
+    fn a_gap_link_is_pressed_only_at_its_flown_speed_and_height() {
+        let ahead = |leap: Leap, take_off_above: f32| Ahead {
+            aim: Vec3::ZERO,
+            lined: true,
+            way: [1.0, 0.0],
+            before: 0.1,
+            going: true,
+            end: None,
+            stand: false,
+            let_go: false,
+            leap,
+            approach: Approach::Walk,
+            rise: 2.0,
+            take_off_above,
+            lead_m: 0.0,
+            least_m: 0.0,
+            run_up: 0.2,
+            span: 0.5,
+        };
+        let slow = |k: u8, share: mapdata::Share| {
+            Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.1), walk: WalkPress::Slow(k), share })
+        };
+        let pose = Pose::default();
+        let flown = mapdata::Share::landed(9);
+        // Step 2 of the walk-up is 2 / 6 of 3.5 m/s: under 3 / 6 (1.75) it is the flown press.
+        assert_eq!(flown_press_off(&ahead(slow(2, flown), 0.0), &pose, 1.2), None);
+        assert_eq!(flown_press_off(&ahead(slow(2, flown), 0.0), &pose, 2.5), Some(FlownOff::Fast));
+        // A standing jump: under 1 / 6 of the cap.
+        assert_eq!(flown_press_off(&ahead(slow(0, flown), 0.0), &pose, 0.2), None);
+        assert_eq!(flown_press_off(&ahead(slow(0, flown), 0.0), &pose, 2.8), Some(FlownOff::Fast));
+        // The feet 0.57 m under the take-off: no flight starts there.
+        assert_eq!(flown_press_off(&ahead(slow(2, flown), 0.57), &pose, 1.0), Some(FlownOff::Height));
+        // Not flown: not asked.
+        assert_eq!(flown_press_off(&ahead(slow(2, mapdata::Share::UNFLOWN), 0.57), &pose, 3.0), None);
+        assert_eq!(flown_press_off(&ahead(Leap::Ledge, 0.57), &pose, 3.0), None);
+        // In a motor: a fast arrival at a standing jump's point is no press, and the walk-up starts again from rest.
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+        motor.walking = true;
+        let mut route = gap_route(slow(0, flown));
+        let (keys, _) = gap_tick(&mut motor, &mut route, -0.1, 0.0, None);
+        assert_ne!(keys & key::JUMP, 0, "at rest at its point: the standing jump");
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+        motor.walking = true;
+        let mut route = gap_route(slow(0, flown));
+        // Once at rest on the line, then away off it, then back at its point at 2.8 m/s: no press.
+        gap_tick(&mut motor, &mut route, -0.1, 0.0, None);
+        motor.jump_try.as_mut().expect("a try").pressed = None;
+        motor.jump_try.as_mut().expect("a try").walk_up = WalkUp::Walking;
+        let (keys, _) = gap_tick(&mut motor, &mut route, -0.1, 2.8, None);
+        assert_eq!(keys & key::JUMP, 0, "too fast for the standing jump: {keys:#x}");
+    }
+
+    /// [A386] A slow link (`WalkPress::Slow`, `jump::Kind::Slow`) is walked to its run-up point (its walk-up from a stand before
+    /// the lead), stood at until the body is at rest (no move key), then walked up and pressed; a standing jump (0 steps) at its
+    /// point, at rest.
+    #[test]
+    fn a_slow_link_comes_to_rest_at_its_run_up_then_walks_up_and_presses() {
+        let slow = |steps: u8| Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.6), walk: WalkPress::Slow(steps), share: mapdata::Share::FULL });
+        let walk_up = mapdata::controller::jump::blend_steps_m(mapdata::controller::jump::WALK_CAP_MS, 3);
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+        motor.walking = true;
+        let mut route = gap_route(slow(3));
+        // At its run-up point, still moving: stands (no move key, no press).
+        let (keys, _) = gap_tick(&mut motor, &mut route, -(0.6 + walk_up), 2.0, None);
+        assert_eq!(keys & (key::FORWARD | key::JUMP), 0, "stands to come to rest: {keys:#x}");
+        // At rest there: walks up.
+        let (keys, _) = gap_tick(&mut motor, &mut route, -(0.6 + walk_up), 0.0, None);
+        assert_ne!(keys & key::FORWARD, 0, "walks up: {keys:#x}");
+        assert_eq!(keys & key::JUMP, 0);
+        // The walk-up's press: 0.6 m before the take-off at 1.75 m/s (step 3's 3 / 6 of the cap).
+        let (keys, _) = gap_tick(&mut motor, &mut route, -0.65, 1.75, None);
+        assert_ne!(keys & key::JUMP, 0, "pressed on the walk-up: {keys:#x}");
+        // A standing jump: at rest at its point, pressed.
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+        motor.walking = true;
+        let mut route = gap_route(slow(0));
+        let (keys, _) = gap_tick(&mut motor, &mut route, -0.6, 0.0, None);
+        assert_ne!(keys & key::JUMP, 0, "the standing jump: {keys:#x}");
     }
 
     /// A jump that does not get the body up is tried again only from the
@@ -5807,7 +6336,9 @@ mod tests {
             way: [1.0, 0.0],
             before: 0.0,
             going: true,
-            failed: None,
+            end: None,
+            stand: false,
+            let_go: false,
             leap,
             approach: Approach::Walk,
             rise,
@@ -5832,7 +6363,7 @@ mod tests {
         assert!(!ahead(0.25, 0.9, Leap::SprintLedge).out_of_reach(SPRINT_JUMP_LOW_M));
         assert!(ahead(0.35, 0.7, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
         // A gap link is pressed at its own point: not asked.
-        assert!(!ahead(1.0, 1.0, Leap::Gap(mapdata::PressLead::from_metres(0.5))).out_of_reach(SPRINT_JUMP_LOW_M));
+        assert!(!ahead(1.0, 1.0, Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL })).out_of_reach(SPRINT_JUMP_LOW_M));
     }
 
     /// A route's end up a ledge is not arrived at from under it; up it, it

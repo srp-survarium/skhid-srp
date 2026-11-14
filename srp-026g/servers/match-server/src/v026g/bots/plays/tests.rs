@@ -296,7 +296,7 @@ impl Scenario {
     /// The signals of team 0 as the view now has them, and the modifiers
     /// settled to them.
     pub fn signals(&mut self) {
-        self.sig = MatchSignals::read(&self.view, 0, 1e6);
+        self.sig = MatchSignals::read(&self.view, 0, 1e6, |_| false);
         for _ in 0..40 {
             self.mods.update(&self.sig, &self.tuning.mods);
         }

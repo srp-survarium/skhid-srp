@@ -323,3 +323,46 @@ pub(crate) fn a_top_up_moves_the_kits_storage_into_the_stack_and_nowhere_else() 
     assert_eq!(ammo.storage, 0);
     assert_eq!(bot.top_up(), 0, "nothing in the storage to give");
 }
+
+/// [Gap 15] A world shows a bot's life in another kit than the one it counts on (the client spawned it in its own list's
+/// kit, F56): the life's arms and ammo become that kit's, as at a spawn in it, and the kit it counted on keeps its storage
+/// whole. Its own kit, a kit it has no arms of, or the switch off: nothing moves.
+#[test]
+pub(crate) fn a_life_the_world_shows_in_another_kit_takes_that_kits_arms() {
+    // The old kit, as the tests above: the flanker's Vityaz, AK-74U and MP-153.
+    let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
+    let new = |tuning: Tuning| {
+        Bots::new(
+            0x41A,
+            survarium::v026g::maps::RuleMode::Batteries,
+            0,
+            &[0],
+            &[true],
+            &[Some("flanker")],
+            Arc::new(tuning),
+            Trace::none(0),
+        )
+    };
+    let mut bots = new(Tuning::default());
+    let storage: Vec<u32> = bots.bots[0].as_ref().unwrap().kits.iter().map(|&(_, left)| left).collect();
+    assert!(bots.worn_kit(0, 0, 1_000).is_empty(), "its own kit");
+    assert!(bots.worn_kit(0, 5, 1_000).is_empty(), "no such kit");
+    let notes = bots.worn_kit(0, 1, 1_000);
+    assert_eq!(notes.len(), 1, "{notes:?}");
+    let bot = bots.bots[0].as_mut().unwrap();
+    assert_eq!((bot.kit, bot.reflex.held_gun().item, bot.reflex.left()), (1, "ak_74u", 120));
+    assert_eq!(bot.kits.iter().map(|&(_, left)| left).collect::<Vec<_>>(), storage, "no storage spent");
+    assert_eq!(bot.worn_kit_moves(), 1);
+    // This life fires 20 of the AK-74U's: at the next spawn (in the kit of its choice, the first) that kit has them off.
+    let hands = bot.reflex.hands();
+    hands.primary.rounds -= 20;
+    bot.new_life(0.5, None, Vec3::ZERO);
+    assert_eq!((bot.kits[0].1, bot.kits[1].1), (storage[0], storage[1] - 20));
+    assert_eq!((bot.kit, bot.reflex.held_gun().item), (0, "vityaz"));
+    // Off: the life keeps the arms of its choice.
+    let mut off = Tuning::default();
+    off.aim.combat.worn_kit_from_world = false;
+    let mut bots = new(off);
+    assert!(bots.worn_kit(0, 1, 1_000).is_empty());
+    assert_eq!(bots.bots[0].as_ref().unwrap().reflex.held_gun().item, "vityaz");
+}
