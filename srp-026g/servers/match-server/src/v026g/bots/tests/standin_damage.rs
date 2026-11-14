@@ -1163,4 +1163,68 @@ mod tests {
         assert!((hurt_in_10_s(true) - 0.15).abs() < 0.005, "the client's rule: {}", hurt_in_10_s(true));
         assert!((hurt_in_10_s(false) - 0.20).abs() < 0.005, "the full hit: {}", hurt_in_10_s(false));
     }
+
+    /// [zones] An interval zone (`continuous_hit` off) hits on its own clock (`hit_objects` 0x319AF0): the first body in it at
+    /// once, then everybody in it each time its interval has come since its last hit, one hit of `max_hit` each; a body that
+    /// comes in between waits for the zone's next hit (the clock is the zone's, not the body's); and while nobody is in it the
+    /// clock keeps its last hit, so the first one in is hit at once.
+    #[test]
+    fn an_interval_zone_hits_everybody_in_it_on_its_own_clock() {
+        use crate::v026g::bots::hazards::Hazards;
+        use mapdata::{Damage, Rotation, Shape, ShapeKind, Zone, ZoneKind};
+        let at = mapdata::Vec3::new(30.0, 0.0, 20.0);
+        let away = mapdata::Vec3::new(60.0, 0.0, 20.0);
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| {
+            map.zones.push(Zone {
+                kind: ZoneKind::Damage,
+                name: "shock".into(),
+                team: -1,
+                position: at,
+                protection: None,
+                damage_type: "shock".into(),
+                damage: Some(Damage {
+                    max_hit: 0.1,
+                    interval_ms: 1000,
+                    continuous: false,
+                    parts: 1,
+                    part_names: vec!["front".into()],
+                    ..Damage::default()
+                }),
+                shapes: vec![Shape {
+                    kind: ShapeKind::Box,
+                    center: at + mapdata::Vec3::new(0.0, 1.0, 0.0),
+                    rotation: Rotation::IDENTITY,
+                    half: mapdata::Vec3::new(5.0, 2.0, 5.0),
+                }],
+            });
+        });
+        let inside = Hazards::build(&world, 0.0);
+        // Body 0 in from the start; body 1 comes in at 1,500 ms. Ticks from 50 ms to 5,000 ms.
+        let mut game = super::super::Game::new(world.clone(), &[0, 1], 1, None, None);
+        game.bodies[0].feet = at;
+        game.bodies[1].feet = away;
+        for _ in 0..(5.0 / super::super::TICK_S) as usize {
+            game.tick += super::super::TICK_MS;
+            if game.tick == 1_500 {
+                game.bodies[1].feet = at;
+            }
+            game.zone_tick(&inside, &inside, true);
+        }
+        let lost = |place: usize| 1.0 - game.bodies[place].health;
+        // The zone hits at 50, 1,050, 2,050, 3,050, 4,050 ms: five hits for body 0, three for body 1 (not at its entry).
+        assert!((lost(0) - 0.5).abs() < 1e-4, "body 0: {}", lost(0));
+        assert!((lost(1) - 0.3).abs() < 1e-4, "body 1: {}", lost(1));
+        // Nobody in until 2,500 ms: the first one in is hit at once, then every 1,000 ms (2,500, 3,500, 4,500).
+        let mut late = super::super::Game::new(world, &[0, 1], 1, None, None);
+        late.bodies[0].feet = away;
+        late.bodies[1].feet = away;
+        for _ in 0..(5.0 / super::super::TICK_S) as usize {
+            late.tick += super::super::TICK_MS;
+            if late.tick == 2_500 {
+                late.bodies[0].feet = at;
+            }
+            late.zone_tick(&inside, &inside, true);
+        }
+        assert!((1.0 - late.bodies[0].health - 0.3).abs() < 1e-4, "{}", 1.0 - late.bodies[0].health);
+    }
 }
