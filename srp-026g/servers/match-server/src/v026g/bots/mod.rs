@@ -64,6 +64,7 @@ pub mod jump_test;
 pub mod kin;
 pub mod know;
 pub mod lane_ahead;
+pub mod hands;
 pub mod legs;
 pub mod link_time;
 pub mod live_grenades;
@@ -1491,6 +1492,22 @@ impl Bots {
                 bot.features.stock.pantry.hit(hit);
             }
         }
+    }
+
+    /// [Gap 7] A trusted world's hand wounds of one place: a bot's own weapon is gated as the client gates it
+    /// ([`hands::Hands`], `combat.hands_from_world`).
+    pub fn hands(&mut self, place: Place, hands: hands::Hands) {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        let on = self.tunings.of(bot.team).aim.combat.hands_from_world;
+        bot.reflex.set_hands(if on { hands } else { hands::Hands::Free });
+    }
+
+    /// [Gap 7] The hands' regeneration delay of the body at `place`: a bot's from its Metabolism.
+    pub fn hand_delay_ms(&self, place: Place) -> u32 {
+        let sooner = self.bots.get(place).and_then(Option::as_ref).map_or(0, |bot| bot.features.stock.pantry.factors().regeneration_sooner_ms);
+        hands::regeneration_delay_ms(sooner)
     }
 
     /// [Gap 15] A trusted world's kit in use (`current_index`) of a living place: a bot whose life is in another kit than
