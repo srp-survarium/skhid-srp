@@ -66,6 +66,9 @@ pub fn short_jump_carry(speed: f32) -> f32 {
 /// where it pressed; the motor presses at the link's own
 /// ([`OffLink::press`]).
 pub const GAP_PRESS_MIN_M: f32 = 0.6;
+/// [R83] The lowest lead a walking press is kept at, m: a press at the take-off's centre (R98's walk at lead 0.0), one
+/// centimetre on, since a lead of 0 is the walk-off's code ([`Takeoff::centimetres`]).
+pub const PRESS_LEAD_LOWEST_M: f32 = 0.01;
 pub const GAP_PRESS_MAX_M: f32 = 1.6;
 pub const GAP_PRESS_STEP_M: f32 = 0.1;
 /// A gap link holds for a press this much earlier or later than its own,
@@ -98,10 +101,11 @@ impl PressLead {
         Self(cm)
     }
 
-    /// Within the presses a build looks at.
+    /// Within the presses a build looks at: [R83] from [`PRESS_LEAD_LOWEST_M`] (an aimed press at the take-off's centre) to
+    /// [`GAP_PRESS_MAX_M`].
     pub(super) fn is_valid(self) -> bool {
         let m = self.metres();
-        (GAP_PRESS_MIN_M - 1e-3..=GAP_PRESS_MAX_M + 1e-3).contains(&m)
+        (PRESS_LEAD_LOWEST_M - 1e-3..=GAP_PRESS_MAX_M + 1e-3).contains(&m)
     }
 }
 
@@ -580,6 +584,54 @@ impl Share {
 /// A link that is no neighbour link (an off-mesh connection): from a
 /// floor to one 2 or more cells away, of an off-mesh kind
 /// ([`LinkKind::is_off_mesh`]).
+/// [R83] Where a press is aimed off its link's line (`R83-FORMAT.md`): the press point moved `side` steps to the way's right and
+/// the heading turned `turn` steps (counter-clockwise seen from above), each a signed count of [`Aim::STEP`] from -7 to 7.
+/// Byte 9 of the off-link record: the side in the low nibble, the turn in the high one (0: on the line, as every file before).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Aim {
+    side: i8,
+    turn: i8,
+}
+
+impl Aim {
+    /// On the link's line.
+    pub const STRAIGHT: Self = Self { side: 0, turn: 0 };
+    /// One step of the side (m) and of the turn (rad).
+    pub const STEP: f32 = 0.05;
+    /// The most steps either way.
+    pub const MAX: i8 = 7;
+
+    /// The aim of `side` and `turn` steps; None out of -[`Self::MAX`]..=[`Self::MAX`].
+    pub fn new(side: i8, turn: i8) -> Option<Self> {
+        (side.abs() <= Self::MAX && turn.abs() <= Self::MAX).then_some(Self { side, turn })
+    }
+
+    /// The press point's move to the way's right, m.
+    pub fn side_m(self) -> f32 {
+        f32::from(self.side) * Self::STEP
+    }
+
+    /// The heading's turn, counter-clockwise, rad.
+    pub fn turn_rad(self) -> f32 {
+        f32::from(self.turn) * Self::STEP
+    }
+
+    pub fn is_straight(self) -> bool {
+        self == Self::STRAIGHT
+    }
+
+    /// The record's byte.
+    pub fn byte(self) -> u8 {
+        (self.side as u8 & 0x0F) | ((self.turn as u8 & 0x0F) << 4)
+    }
+
+    /// The aim of a record's byte; None for a nibble of -8 (no aim's).
+    pub fn from_byte(byte: u8) -> Option<Self> {
+        let nibble = |n: u8| ((n << 4) as i8) >> 4;
+        Self::new(nibble(byte & 0x0F), nibble(byte >> 4))
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OffLink {
     pub from: NodeId,
@@ -592,6 +644,8 @@ pub struct OffLink {
     /// [A385] A sprint link's best walking press onto the same floor and its share, for a body the client refuses the sprint
     /// (A385-FORMAT §5); None for a walking link or where no walking press lands.
     pub walk: Option<(PressLead, Share)>,
+    /// [R83] Where its press is aimed ([`Aim::STRAIGHT`] for every link but a rim jump made only off the line).
+    pub aim: Aim,
 }
 
 /// The short jump's root height `ahead` metres from the press (linear
@@ -1328,6 +1382,7 @@ impl WalkGrid {
                         press: Takeoff::Sprint(PressLead::from_metres(lead)),
                         share: Share::UNFLOWN,
                         walk: None,
+                        aim: Aim::STRAIGHT,
                     });
                     stats.made += 1;
                     stats.sprint += 1;
@@ -1547,7 +1602,7 @@ impl WalkGrid {
             && to_y - h <= -self.body.step
             && self.ceiling[to as usize] - to_y >= self.body.stand_height
             && Self::lands(wide, to as usize, d))
-        .then_some(OffLink { from: a as NodeId, to, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None })
+        .then_some(OffLink { from: a as NodeId, to, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: Aim::STRAIGHT })
     }
 
     /// The walking gap links from floor `a` along `d` with `behind` metres
@@ -1661,6 +1716,7 @@ impl WalkGrid {
                         press: Takeoff::Press(PressLead::from_metres(GAP_PRESS_MIN_M + mid as f32 * GAP_PRESS_STEP_M)),
                         share: Share::UNFLOWN,
                         walk: None,
+                        aim: Aim::STRAIGHT,
                     });
                     stats.made += 1;
                 } else {
@@ -1923,6 +1979,23 @@ impl WalkGrid {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [R83] Every aim's byte reads back as that aim; the straight aim is byte 0 (every file before); a nibble of -8 is no aim.
+    #[test]
+    fn an_aims_byte_reads_back() {
+        assert_eq!(Aim::STRAIGHT.byte(), 0);
+        for side in -Aim::MAX..=Aim::MAX {
+            for turn in -Aim::MAX..=Aim::MAX {
+                let aim = Aim::new(side, turn).unwrap();
+                assert_eq!(Aim::from_byte(aim.byte()), Some(aim), "{side} {turn}");
+            }
+        }
+        assert_eq!(Aim::from_byte(0x08), None);
+        assert_eq!(Aim::from_byte(0x80), None);
+        assert_eq!(Aim::new(8, 0), None);
+        let r83 = Aim::new(-6, 4).unwrap();
+        assert!((r83.side_m() + 0.3).abs() < 1e-6 && (r83.turn_rad() - 0.2).abs() < 1e-6);
+    }
 
     fn quad(x0: f32, z0: f32, x1: f32, z1: f32, y: f32) -> [Triangle; 2] {
         let (a, b, c, d) = (

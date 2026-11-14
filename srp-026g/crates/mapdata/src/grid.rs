@@ -97,7 +97,7 @@ pub mod gap;
 mod gap_flown;
 pub mod held_floors;
 mod rest_floors;
-pub use gap::{GapStats, OffLink, OffMeshLinks, PressLead, Share};
+pub use gap::{Aim, GapStats, OffLink, OffMeshLinks, PressLead, Share};
 pub use rim::Riser;
 use gap::gap_cost;
 
@@ -3120,6 +3120,10 @@ impl WalkGrid {
             let (walk, walk_share) = l.walk.map_or((0, 0), |(p, s)| (p.centimetres(), s.byte()));
             digest.u32(u32::from(walk));
             digest.u32(u32::from(walk_share));
+            // [R83] An aimed press only: a grid with none digests as before.
+            if !l.aim.is_straight() {
+                digest.u32(0x4149_4d00 | u32::from(l.aim.byte()));
+            }
         }
         // [A347] A grid with no walled exits digests as before there were any.
         if !self.walled_exits.is_empty() {
@@ -3205,12 +3209,13 @@ impl WalkGrid {
             {
                 return Ok(());
             }
-            // [A385] 16 bytes: from, to, kind, press, share, a sprint link's walking press (0: none) and its share.
+            // [A385] 16 bytes: from, to, kind, [R83] the aim, press, share, a sprint link's walking press (0: none) and its share.
             out.plain(&self.off, |l| {
                 let mut bytes = [0u8; 16];
                 bytes[..4].copy_from_slice(&l.from.to_le_bytes());
                 bytes[4..8].copy_from_slice(&l.to.to_le_bytes());
-                bytes[8..10].copy_from_slice(&u16::from(l.kind as u8).to_le_bytes());
+                bytes[8] = l.kind as u8;
+                bytes[9] = l.aim.byte();
                 bytes[10..12].copy_from_slice(&l.press.centimetres().to_le_bytes());
                 bytes[12] = l.share.byte();
                 if let Some((walk, share)) = l.walk {
@@ -3327,7 +3332,13 @@ impl WalkGrid {
                         };
                         let half = |i: usize| u16::from_le_bytes([bytes[i], bytes[i + 1]]);
                         // An unknown kind is caught by `check`.
-                        let kind = u8::try_from(half(8)).ok().and_then(LinkKind::from_u8).unwrap_or(LinkKind::Walk);
+                        let kind = LinkKind::from_u8(bytes[8]).unwrap_or(LinkKind::Walk);
+                        // [R83] An aim only on a rim jump's press (a GapJump pressed at a walk or a sprint); any other is bad.
+                        let press = gap::Takeoff::from_centimetres(half(10));
+                        let aim = gap::Aim::from_byte(bytes[9]).filter(|aim| {
+                            aim.is_straight()
+                                || (kind == LinkKind::GapJump && matches!(press, gap::Takeoff::Press(_) | gap::Takeoff::Sprint(_)))
+                        });
                         let share = gap::Share::from_byte(bytes[12]);
                         let walk = match (half(13), gap::Share::from_byte(bytes[15])) {
                             (0, Some(_)) if bytes[15] == 0 => Some(None),
@@ -3337,15 +3348,8 @@ impl WalkGrid {
                             _ => None,
                         };
                         let (from, to) = (word(0), word(4));
-                        match (share, walk) {
-                            (Some(share), Some(walk)) => OffLink {
-                                from,
-                                to,
-                                kind,
-                                press: gap::Takeoff::from_centimetres(half(10)),
-                                share,
-                                walk,
-                            },
+                        match (share, walk, aim) {
+                            (Some(share), Some(walk), Some(aim)) => OffLink { from, to, kind, press, share, walk, aim },
                             _ => OffLink {
                                 from,
                                 to: from,
@@ -3353,6 +3357,7 @@ impl WalkGrid {
                                 press: gap::Takeoff::WalkOff,
                                 share: gap::Share::UNFLOWN,
                                 walk: None,
+                                aim: gap::Aim::STRAIGHT,
                             },
                         }
                     })?

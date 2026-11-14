@@ -170,7 +170,7 @@ impl WalkGrid {
                 let l = ((di * di + dk * dk) as f32).sqrt();
                 // The floors `a` has a link to already (its sides and its off-mesh links): a landing there makes no link.
                 let linked: Vec<NodeId> = wide.links[g.a as usize].iter().copied().filter(|&f| f != NONE).collect();
-                let (made, f) =
+                let super::rim::RimPress { made, flights: f, .. } =
                     self.best_press(world, s, g.a, g.b, (di as f32 / l, dk as f32 / l), &leads, |st| self.gap_lands_on(st, g.a, &linked, g.over), kits);
                 flights += f;
                 // Every press it makes (a jump's, and [S1] a sprint climb's onto its own floor), as the rim pass keeps them.
@@ -187,13 +187,13 @@ impl WalkGrid {
                 stats.no_landing += 1;
                 continue;
             };
-            for Made { to, press, share, walk } in made {
+            for Made { to, press, share, walk, .. } in made {
                 let rise = self.height[to as usize] - self.height[g.a as usize];
                 let kind = if rise > -self.body.step { LinkKind::GapJump } else { LinkKind::GapDrop };
                 stats.made += 1;
                 stats.sprint += usize::from(matches!(press, super::gap::Takeoff::Sprint(_)));
                 stats.by_share[share.class()] += 1;
-                found.push((OffLink { from: g.a, to, kind, press, share, walk }, g.d));
+                found.push((OffLink { from: g.a, to, kind, press, share, walk, aim: super::gap::Aim::STRAIGHT }, g.d));
             }
         }
         found.extend(clip);

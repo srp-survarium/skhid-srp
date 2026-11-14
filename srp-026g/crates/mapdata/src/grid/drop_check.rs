@@ -568,7 +568,7 @@ impl WalkGrid {
             }
             wide.links[a as usize][d] = NONE;
             if !wide.out(a as usize).any(|x| x == b) {
-                wide.off.push(super::gap::OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: super::gap::Takeoff::WalkOff, share: super::gap::Share::UNFLOWN, walk: None });
+                wide.off.push(super::gap::OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: super::gap::Takeoff::WalkOff, share: super::gap::Share::UNFLOWN, walk: None, aim: super::gap::Aim::STRAIGHT });
                 added = true;
             }
         }
