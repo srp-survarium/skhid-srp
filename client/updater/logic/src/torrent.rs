@@ -234,7 +234,7 @@ pub fn parse(data: &[u8]) -> Result<Torrent, TorrentError> {
                 .position(|(name, _, _)| *name == path)
                 .ok_or(Layout)?;
             let (_, tree_size, root) = tree.swap_remove(at);
-            if tree_size != size || (size > 0 && offset % u64::from(piece_length) != 0) {
+            if tree_size != size || (size > 0 && !offset.is_multiple_of(u64::from(piece_length))) {
                 return Err(Layout);
             }
             files.push(File { path, size, offset });

@@ -92,7 +92,7 @@ impl Shape {
         let fits = block.piece < self.pieces
             && block.length > 0
             && block.length <= BLOCK
-            && block.begin % BLOCK == 0
+            && block.begin.is_multiple_of(BLOCK)
             && u64::from(block.begin) + u64::from(block.length)
                 <= u64::from(self.piece_size(block.piece));
         fits.then_some(block).ok_or(Refused)

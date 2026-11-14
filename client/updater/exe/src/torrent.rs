@@ -31,6 +31,7 @@ use std::time::Duration;
 use updater_logic::pipe::{FromLauncher, ToLauncher, Torrenting};
 use updater_logic::swarm::{Action, Event, MAX_PEERS, PeerKey, Start, Swarm};
 use updater_logic::torrent::{self, MAX_TORRENT, Torrent};
+use updater_logic::rendezvous::{self, Exchange, Outcome, Ours};
 use updater_logic::tracker::{self, Address, Announce, Ask, Peer};
 use updater_logic::url;
 
@@ -52,6 +53,8 @@ const MAX_OUT: usize = 4 << 20;
 /// this long after its start, or no piece came for this long.
 const NO_PEER_MS: u64 = 20_000;
 const STALL_MS: u64 = 60_000;
+/// How long the rendezvous is asked for a newer torrent.
+const DISCOVER_MS: u64 = 20_000;
 
 /// What each file of the torrent is here, for one run of the engine.
 #[derive(Debug, Clone)]
@@ -85,6 +88,18 @@ pub struct Status {
     /// When the engine started fetching, and when a piece last came.
     pub started: u64,
     pub progressed: u64,
+    /// The newest signed torrent the rendezvous gave, newer than this
+    /// updater's: its revision and bytes.
+    pub found: Option<(u64, Arc<Vec<u8>>)>,
+}
+
+/// What an engine runs: the torrent's swarm (its files' roles), the
+/// rendezvous (the newest torrent this end has, the least revision it
+/// takes from others), or both.
+pub struct Job {
+    files: Option<(Torrent, Vec<Role>)>,
+    meeting: Option<Meeting>,
+    meeting_trackers: Vec<String>,
 }
 
 enum Command {
@@ -100,13 +115,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    fn start(
-        torrent: Torrent,
-        roles: Vec<Role>,
-        listener: Option<TcpListener>,
-        port: u16,
-        limit: Option<u64>,
-    ) -> Self {
+    fn start(job: Job, listener: Option<TcpListener>, port: u16, limit: Option<u64>) -> Self {
         let (commands, receiver) = mpsc::channel();
         let now = win::ticks();
         let status = Arc::new(Mutex::new(Status {
@@ -114,13 +123,13 @@ impl Engine {
             peers: 0,
             started: now,
             progressed: now,
+            found: None,
         }));
         let shared = status.clone();
         let thread = std::thread::Builder::new()
             .name("torrent".into())
             .spawn(move || {
-                let fetching = roles.iter().any(|role| matches!(role, Role::Fetch(_)));
-                let outcome = run(torrent, roles, fetching, listener, port, limit, &receiver, &shared);
+                let outcome = run(job, listener, port, limit, &receiver, &shared);
                 if let Err(why) = outcome {
                     log!("torrent: stopped: {why}");
                     shared.lock().expect("status").phase = Phase::Failed(why);
@@ -154,11 +163,18 @@ impl Drop for Engine {
     }
 }
 
+/// A torrent signed by the release: what it is, its revision, its bytes.
+pub struct Signed {
+    pub torrent: Torrent,
+    pub revision: u64,
+    bytes: Arc<Vec<u8>>,
+}
+
 /// The revision's torrent as this run knows it.
 enum Offered {
     /// Not read yet (or read before the overlay changed the folder).
     Unread,
-    Read(Arc<Torrent>),
+    Read(Arc<Signed>),
     /// None, or none this updater takes: HTTPS only this run.
     None,
 }
@@ -301,7 +317,10 @@ impl Torrents {
         matches!(self.mode, Mode::On { .. })
     }
 
-    fn start(&mut self, torrent: &Torrent, roles: Vec<Role>) -> bool {
+    fn start(&mut self, job: Job) -> bool {
+        if job.files.is_none() && job.meeting.is_none() {
+            return false;
+        }
         let limit = self.limit;
         let Mode::On {
             port,
@@ -314,7 +333,7 @@ impl Torrents {
         *engine = None;
         let bound = bound_port(listener, *port);
         let socket = listener.as_ref().and_then(|l| l.try_clone().ok());
-        *engine = Some(Engine::start(torrent.clone(), roles, socket, bound, limit));
+        *engine = Some(Engine::start(job, socket, bound, limit));
         true
     }
 
@@ -339,28 +358,48 @@ impl Torrents {
 
 /// The torrent beside the updater, a file of the players' ZIP.
 const FILE: &str = "skhid.torrent";
+/// The newest one the rendezvous gave ([`discover`]), beside it.
+const FOUND: &str = "updater_skhid.found.torrent";
 
-/// Where the revision's torrent comes from, and why it is trusted: the one
-/// place that decides it. The file beside the updater (the ZIP brings it),
-/// taken only when its signature is the release's and its revision is not
-/// older than the game's (`updater_logic::signed`).
-fn trusted(layout: &Layout) -> Result<Torrent, String> {
-    let path = format!("{}\\{FILE}", layout.exe_dir);
+/// One torrent beside the updater, when it is the release's.
+fn signed(layout: &Layout, name: &str) -> Result<Signed, String> {
+    let path = format!("{}\\{name}", layout.exe_dir);
     let bytes = win::read_file(&path, MAX_TORRENT).map_err(|code| {
         if win::is_missing(code) {
-            format!("no {FILE}")
+            format!("no {name}")
         } else {
-            format!("{FILE}: {}", win::error_text(code))
+            format!("{name}: {}", win::error_text(code))
         }
     })?;
-    let revision = crate::signed::check(&bytes, layout).map_err(|why| format!("{FILE}: {why}"))?;
-    log!("torrent: {FILE}: signed by the release, revision {revision}");
-    torrent::parse(&bytes).map_err(|error| format!("{FILE} is not one this updater reads ({error:?})"))
+    let revision = crate::signed::check(&bytes, layout).map_err(|why| format!("{name}: {why}"))?;
+    let torrent = torrent::parse(&bytes)
+        .map_err(|error| format!("{name} is not one this updater reads ({error:?})"))?;
+    log!("torrent: {name}: signed by the release, revision {revision}");
+    Ok(Signed {
+        torrent,
+        revision,
+        bytes: Arc::new(bytes),
+    })
+}
+
+/// Where the revision's torrent comes from, and why it is trusted: the one
+/// place that decides it. Trusted by its signature alone
+/// (`crate::signed`: the release's key, a revision not older than the
+/// game's), whoever handed it over: the ZIP's file beside the updater, or
+/// the newest one the rendezvous gave. The highest revision of them.
+fn trusted(layout: &Layout) -> Result<Signed, String> {
+    let zip = signed(layout, FILE);
+    let found = signed(layout, FOUND);
+    match (zip, found) {
+        (Ok(zip), Ok(found)) => Ok(if found.revision > zip.revision { found } else { zip }),
+        (Ok(one), Err(_)) | (Err(_), Ok(one)) => Ok(one),
+        (Err(why), Err(_)) => Err(why),
+    }
 }
 
 /// The revision's torrent, when the launcher allows torrent and there is
 /// one this updater trusts ([`trusted`]); read once a run.
-pub fn offered(session: &mut Session, layout: &Layout) -> Option<Arc<Torrent>> {
+pub fn offered(session: &mut Session, layout: &Layout) -> Option<Arc<Signed>> {
     if !session.torrents.allowed() {
         return None;
     }
@@ -370,14 +409,17 @@ pub fn offered(session: &mut Session, layout: &Layout) -> Option<Arc<Torrent>> {
         Offered::Unread => {}
     }
     match trusted(layout) {
-        Ok(torrent) => {
+        Ok(signed) => {
+            let torrent = &signed.torrent;
             log!(
-                "torrent: {FILE}: {} files, {} pieces of {} bytes, {} tracker(s)",
+                "torrent: revision {}: {} files, {} pieces of {} bytes, {} tracker(s)",
+                signed.revision,
                 torrent.files.len(),
                 torrent.piece_count(),
                 torrent.piece_length,
                 torrent.trackers.len()
             );
+            let torrent = signed;
             let torrent = Arc::new(torrent);
             session.torrents.offered = Offered::Read(torrent.clone());
             Some(torrent)
@@ -402,12 +444,13 @@ pub enum Fetched {
 /// Fetches `files` (the torrent's file, its part) by torrent: the launcher
 /// shows "checking" (pieces in the parts already) and "downloading" with
 /// its bar. Left for HTTPS when no peer comes or the pieces stop coming.
-pub fn fetch(session: &mut Session, torrent: &Torrent, files: &[(usize, String)]) -> Fetched {
+pub fn fetch(session: &mut Session, signed: &Signed, files: &[(usize, String)]) -> Fetched {
+    let torrent = &signed.torrent;
     let mut roles = alloc::vec![Role::Skip; torrent.files.len()];
     for (index, part) in files {
         roles[*index] = Role::Fetch(part.clone());
     }
-    if !session.torrents.start(torrent, roles) {
+    if !session.torrents.start(job(Some(signed), Some(roles), None)) {
         return Fetched::Not("torrent is not allowed".into());
     }
     let mut shown = None;
@@ -456,13 +499,18 @@ pub fn fetch(session: &mut Session, torrent: &Torrent, files: &[(usize, String)]
 /// stays open. Nothing when torrent is not allowed or there is no torrent,
 /// or it runs already.
 pub fn share(session: &mut Session, layout: &Layout) {
+    if let Some((revision, bytes)) = session.torrents.engine().and_then(|engine| engine.status().found) {
+        keep(layout, revision, &bytes);
+    }
     if session.torrents.sharing() || !session.torrents.allowed() {
         return;
     }
-    let Some(torrent) = offered(session, layout) else {
+    // Nothing to share, nothing to give at the rendezvous.
+    let Some(signed) = offered(session, layout) else {
         return;
     };
-    let roles: Vec<Role> = torrent
+    let signed = Some(signed);
+    let roles: Option<Vec<Role>> = signed.as_ref().map(|signed| signed.torrent
         .files
         .iter()
         .map(|file| {
@@ -472,11 +520,94 @@ pub fn share(session: &mut Session, layout: &Layout) {
                 _ => Role::Skip,
             }
         })
-        .collect();
-    let count = roles.iter().filter(|role| matches!(role, Role::Share(_))).count();
-    log!("torrent: sharing {count} of its {} files", torrent.files.len());
-    if count > 0 {
-        session.torrents.start(&torrent, roles);
+        .collect());
+    if let (Some(signed), Some(roles)) = (&signed, &roles) {
+        let count = roles.iter().filter(|role| matches!(role, Role::Share(_))).count();
+        log!("torrent: sharing {count} of its {} files", signed.torrent.files.len());
+    }
+    // The rendezvous too: others find the newest torrent from this one.
+    session.torrents.start(job(signed.as_deref(), roles, Some(layout)));
+}
+
+/// The rendezvous's trackers when no torrent names any: the release's
+/// (`release/build_torrent.py`).
+const TRACKERS: &[&str] = &[
+    "udp://tracker.opentrackr.org:1337/announce",
+    "http://tracker.opentrackr.org:1337/announce",
+    "udp://open.stealth.si:80/announce",
+    "udp://tracker.torrent.eu.org:451/announce",
+    "udp://exodus.desync.com:6969/announce",
+];
+
+/// An engine's job: the torrent's swarm with `roles` (when given), and the
+/// rendezvous when this updater has the release's key. `layout`: the
+/// least revision taken from the rendezvous is the game's (else none is
+/// looked for: only given).
+fn job(signed: Option<&Signed>, roles: Option<Vec<Role>>, layout: Option<&Layout>) -> Job {
+    let meeting = crate::signed::key().map(|key| Meeting {
+        hash: rendezvous::info_hash(&key),
+        key,
+        ours: signed.map(|signed| (signed.revision, signed.bytes.clone())),
+        floor: match (signed, layout) {
+            (Some(signed), _) => signed.revision + 1,
+            (None, Some(layout)) => crate::signed::installed(layout),
+            (None, None) => u64::MAX,
+        },
+    });
+    let meeting_trackers = match signed {
+        Some(signed) if !signed.torrent.trackers.is_empty() => signed.torrent.trackers.clone(),
+        _ => TRACKERS.iter().map(|text| String::from(*text)).collect(),
+    };
+    Job {
+        files: signed.zip(roles).map(|(signed, roles)| (signed.torrent.clone(), roles)),
+        meeting,
+        meeting_trackers,
+    }
+}
+
+/// Looks for a newer signed torrent than this updater has, from the
+/// rendezvous, for a while: when the update server cannot be reached (a
+/// blocked network, our servers down, a bare folder). One that comes is
+/// kept beside the updater ([`FOUND`]) and is the run's torrent from then.
+pub fn discover(session: &mut Session, layout: &Layout) {
+    if !session.torrents.allowed() || crate::signed::key().is_none() {
+        return;
+    }
+    let signed = offered(session, layout);
+    log!(
+        "torrent: the rendezvous asked for a torrent newer than {}",
+        signed.as_ref().map_or("none".into(), |signed| format!("revision {}", signed.revision))
+    );
+    session.torrents.start(job(signed.as_deref(), None, Some(layout)));
+    let until = win::ticks() + DISCOVER_MS;
+    let mut found = None;
+    while win::ticks() < until && session.pump() {
+        found = session.torrents.engine().and_then(|engine| engine.status().found);
+        if found.is_some() {
+            break;
+        }
+        win::sleep(100);
+    }
+    session.torrents.stop();
+    let Some((revision, bytes)) = found else {
+        log!("torrent: the rendezvous gave none newer");
+        return;
+    };
+    keep(layout, revision, &bytes);
+    session.torrents.forget();
+}
+
+/// A newer torrent the rendezvous gave, kept beside the updater
+/// ([`FOUND`]), once.
+fn keep(layout: &Layout, revision: u64, bytes: &[u8]) {
+    let path = format!("{}\\{FOUND}", layout.exe_dir);
+    if win::read_file(&path, MAX_TORRENT).is_ok_and(|kept| kept == bytes) {
+        return;
+    }
+    let staged = format!("{path}.skhid-new");
+    match win::write_file(&staged, bytes).and_then(|()| win::rename(&staged, &path, true)) {
+        Ok(()) => log!("torrent: revision {revision} from the rendezvous kept as {FOUND}"),
+        Err(code) => log!("torrent: {FOUND} cannot be written: {}", win::error_text(code)),
     }
 }
 
@@ -490,7 +621,7 @@ pub fn file_index(torrent: &Torrent, path: &str) -> Option<usize> {
 /// What the short threads hand back.
 enum Found {
     Tracker(usize, Result<Announce, String>),
-    Connected(TcpStream, Peer),
+    Connected(TcpStream, Which, Peer),
     NotConnected,
 }
 
@@ -601,10 +732,20 @@ fn check_parts(
     Some(start)
 }
 
+/// A tracker, asked for one of the engine's swarms.
 struct Tracker {
     address: Address,
+    swarm: Which,
     next: u64,
     asking: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Which {
+    /// The torrent's.
+    Files,
+    /// The rendezvous (`updater_logic::rendezvous`).
+    Rendezvous,
 }
 
 /// One announce, on its own thread.
@@ -662,9 +803,23 @@ fn announce(address: Address, ask: Ask, transaction: u32) -> Result<Announce, St
     }
 }
 
+/// What a connection is to the engine.
+enum Link {
+    /// Taken, its handshake not here yet: which swarm it is of is not
+    /// known. Its bytes so far.
+    Unrouted(Vec<u8>),
+    Files,
+    Rendezvous(Exchange),
+    /// Done: closed once what it has to send is sent.
+    Closing,
+}
+
 struct Connection {
     stream: TcpStream,
     out: Vec<u8>,
+    link: Link,
+    ip: [u8; 4],
+    since: u64,
 }
 
 fn ip_of(address: SocketAddr) -> Option<[u8; 4]> {
@@ -674,53 +829,98 @@ fn ip_of(address: SocketAddr) -> Option<[u8; 4]> {
     }
 }
 
+/// The torrent's swarm in the engine: the rules and the files.
+struct Files {
+    swarm: Swarm,
+    storage: Storage,
+    fetching: bool,
+}
+
+/// The rendezvous in the engine.
+struct Meeting {
+    hash: [u8; 20],
+    key: [u8; 32],
+    ours: Option<(u64, Arc<Vec<u8>>)>,
+    floor: u64,
+}
+
+impl Meeting {
+    fn ours(&self) -> Option<Ours<'_>> {
+        self.ours.as_ref().map(|(revision, bytes)| Ours {
+            revision: *revision,
+            torrent: bytes,
+        })
+    }
+}
+
+/// A rendezvous connection may stay this long.
+const MEETING_MS: u64 = 30_000;
+
 /// The engine's thread: until the update's thread drops its [`Engine`].
 fn run(
-    torrent: Torrent,
-    roles: Vec<Role>,
-    fetching: bool,
+    job: Job,
     mut listener: Option<TcpListener>,
     mut port: u16,
     limit: Option<u64>,
     commands: &mpsc::Receiver<Command>,
     status: &Mutex<Status>,
 ) -> Result<(), String> {
-    let mut storage = Storage {
-        roles,
-        files: BTreeMap::new(),
-    };
-    let Some(start) = check_parts(&torrent, &mut storage, status, commands) else {
-        return Ok(());
-    };
     let peer_id = peer_id();
-    let mut trackers: Vec<Tracker> = torrent
-        .trackers
-        .iter()
-        .filter_map(|text| tracker::address(text))
-        .map(|address| Tracker {
-            address,
-            next: 0,
-            asking: false,
-        })
-        .collect();
-    let info_hash = torrent.v1;
+    let mut trackers: Vec<Tracker> = Vec::new();
+    let mut add_trackers = |list: &[String], swarm: Which| {
+        for text in list {
+            if let Some(address) = tracker::address(text) {
+                trackers.push(Tracker {
+                    address,
+                    swarm,
+                    next: 0,
+                    asking: false,
+                });
+            }
+        }
+    };
+    let mut files = None;
+    if let Some((torrent, roles)) = job.files {
+        add_trackers(&torrent.trackers, Which::Files);
+        let fetching = roles.iter().any(|role| matches!(role, Role::Fetch(_)));
+        let mut storage = Storage {
+            roles,
+            files: BTreeMap::new(),
+        };
+        let Some(start) = check_parts(&torrent, &mut storage, status, commands) else {
+            return Ok(());
+        };
+        files = Some(Files {
+            swarm: Swarm::new(torrent, peer_id, &start, win::ticks()),
+            storage,
+            fetching,
+        });
+    }
+    let meeting = job.meeting;
+    if meeting.is_some() {
+        add_trackers(&job.meeting_trackers, Which::Rendezvous);
+    }
     let now = win::ticks();
-    let mut swarm = Swarm::new(torrent, peer_id, &start, now);
     {
         let mut status = status.lock().expect("status");
         status.started = now;
         status.progressed = now;
+        status.phase = Phase::Running { done: 0, total: 0 };
     }
     let (found_sender, found) = mpsc::channel::<Found>();
     let mut connections: BTreeMap<PeerKey, Connection> = BTreeMap::new();
     let mut next_key: PeerKey = 0;
-    // Peers the trackers named, and when each was last tried.
-    let mut known: BTreeMap<Peer, u64> = BTreeMap::new();
+    // Peers the trackers named, of which swarm, and when each was tried.
+    let mut known: BTreeMap<(Which, Peer), u64> = BTreeMap::new();
     let mut connecting = 0_usize;
     let mut last_tick = 0;
-    let mut actions = swarm.step(Event::UploadLimit(limit));
+    let mut best: Option<(u64, Arc<Vec<u8>>)> = None;
+    let mut actions = match &mut files {
+        Some(files) => files.swarm.step(Event::UploadLimit(limit)),
+        None => Vec::new(),
+    };
+    let mut buffer = alloc::vec![0_u8; 64 * 1024];
     loop {
-        // The update's thread: gone, or a new port or limit.
         loop {
             match commands.try_recv() {
                 Ok(Command::Listen(socket, bound)) => {
@@ -730,23 +930,36 @@ fn run(
                         tracker.next = 0;
                     }
                 }
-                Ok(Command::Limit(limit)) => actions.extend(swarm.step(Event::UploadLimit(limit))),
+                Ok(Command::Limit(limit)) => {
+                    if let Some(files) = &mut files {
+                        actions.extend(files.swarm.step(Event::UploadLimit(limit)));
+                    }
+                }
                 Err(mpsc::TryRecvError::Empty) => break,
                 Err(mpsc::TryRecvError::Disconnected) => return Ok(()),
             }
         }
         let now = win::ticks();
         let mut busy = false;
-        // Peers that connect.
+        let room = |files: &Option<Files>, connections: &BTreeMap<PeerKey, Connection>, ip: [u8; 4]| {
+            connections.len() < MAX_PEERS + 8
+                && files.as_ref().is_none_or(|files| files.swarm.may_connect(ip))
+        };
+        // Peers that connect: which swarm, their handshake says.
         while let Some(socket) = &listener {
             match socket.accept() {
                 Ok((stream, address)) => {
                     busy = true;
-                    match ip_of(address).filter(|&ip| swarm.may_connect(ip)) {
+                    match ip_of(address).filter(|&ip| room(&files, &connections, ip)) {
                         Some(ip) if stream.set_nonblocking(true).is_ok() => {
                             next_key += 1;
-                            connections.insert(next_key, Connection { stream, out: Vec::new() });
-                            actions.extend(swarm.step(Event::Connected { peer: next_key, ip }));
+                            connections.insert(next_key, Connection {
+                                stream,
+                                out: Vec::new(),
+                                link: Link::Unrouted(Vec::new()),
+                                ip,
+                                since: now,
+                            });
                         }
                         _ => drop(stream),
                     }
@@ -754,7 +967,6 @@ fn run(
                 Err(_) => break,
             }
         }
-        // What the short threads got.
         while let Ok(item) = found.try_recv() {
             busy = true;
             match item {
@@ -764,49 +976,78 @@ fn run(
                     match answer {
                         Ok(answer) => {
                             log!(
-                                "torrent: tracker {}: {} peer(s), again in {} s",
+                                "torrent: tracker {} ({:?}): {} peer(s), again in {} s",
                                 index + 1,
+                                tracker.swarm,
                                 answer.peers.len(),
                                 answer.interval_s
                             );
                             tracker.next = now + answer.interval_s * 1000;
                             for peer in answer.peers {
                                 if known.len() < 500 {
-                                    known.entry(peer).or_insert(0);
+                                    known.entry((tracker.swarm, peer)).or_insert(0);
                                 }
                             }
                         }
                         Err(why) => {
-                            log!("torrent: tracker {}: {why}", index + 1);
+                            log!("torrent: tracker {} ({:?}): {why}", index + 1, tracker.swarm);
                             tracker.next = now + TRACKER_RETRY_MS;
                         }
                     }
                 }
-                Found::Connected(stream, peer) => {
+                Found::Connected(stream, which, peer) => {
                     connecting -= 1;
-                    if swarm.may_connect(peer.ip) && stream.set_nonblocking(true).is_ok() {
+                    if room(&files, &connections, peer.ip) && stream.set_nonblocking(true).is_ok() {
                         next_key += 1;
-                        connections.insert(next_key, Connection { stream, out: Vec::new() });
-                        actions.extend(swarm.step(Event::Connected {
-                            peer: next_key,
+                        let mut connection = Connection {
+                            stream,
+                            out: Vec::new(),
+                            link: Link::Closing,
                             ip: peer.ip,
-                        }));
+                            since: now,
+                        };
+                        match (which, &mut files, &meeting) {
+                            (Which::Files, Some(files), _) => {
+                                connection.link = Link::Files;
+                                connections.insert(next_key, connection);
+                                actions.extend(files.swarm.step(Event::Connected {
+                                    peer: next_key,
+                                    ip: peer.ip,
+                                }));
+                            }
+                            (Which::Rendezvous, _, Some(meeting)) => {
+                                let (exchange, hello) =
+                                    Exchange::start(&meeting.hash, &peer_id, meeting.ours());
+                                connection.link = Link::Rendezvous(exchange);
+                                connection.out = hello;
+                                connections.insert(next_key, connection);
+                            }
+                            _ => {}
+                        }
                     }
                 }
                 Found::NotConnected => connecting -= 1,
             }
         }
         // Trackers due.
-        let (done, wanted) = swarm.progress();
+        let (done, wanted) = files.as_ref().map_or((0, 0), |files| files.swarm.progress());
+        let (uploaded, downloaded) = files
+            .as_ref()
+            .map_or((0, 0), |files| (files.swarm.uploaded, files.swarm.downloaded));
         for (index, tracker) in trackers.iter_mut().enumerate() {
             if tracker.asking || tracker.next > now {
                 continue;
             }
             tracker.asking = true;
-            let ask_address = tracker.address.clone();
+            let info_hash = match (tracker.swarm, &files, &meeting) {
+                (Which::Files, Some(files), _) => files.swarm.torrent().v1,
+                (_, _, Some(meeting)) => meeting.hash,
+                _ => continue,
+            };
+            let address = tracker.address.clone();
             let sender = found_sender.clone();
-            let (uploaded, downloaded) = (swarm.uploaded, swarm.downloaded);
             let transaction = random_u64() as u32;
+            let left = if tracker.swarm == Which::Files { wanted - done } else { 0 };
             let _ = std::thread::Builder::new()
                 .stack_size(256 * 1024)
                 .spawn(move || {
@@ -816,76 +1057,143 @@ fn run(
                         port,
                         uploaded,
                         downloaded,
-                        left: wanted - done,
+                        left,
                         event: tracker::Event::None,
                     };
-                    let _ = sender.send(Found::Tracker(index, announce(ask_address, ask, transaction)));
+                    let _ = sender.send(Found::Tracker(index, announce(address, ask, transaction)));
                 });
         }
-        // Peers to connect to.
-        if !swarm.complete() || swarm.sharing() {
-            let candidates: Vec<Peer> = known
-                .iter()
-                .filter(|(peer, tried)| {
-                    (**tried == 0 || now.saturating_sub(**tried) > RETRY_PEER_MS)
-                        && swarm.may_connect(peer.ip)
-                        && !(peer.ip[0] == 127 && peer.port == port)
-                })
-                .map(|(peer, _)| *peer)
-                .collect();
-            for peer in candidates {
-                if connecting >= CONNECTING || swarm.peer_count() + connecting >= MAX_PEERS {
-                    break;
-                }
-                known.insert(peer, now.max(1));
-                connecting += 1;
-                let sender = found_sender.clone();
-                let spawned = std::thread::Builder::new()
-                    .stack_size(64 * 1024)
-                    .spawn(move || {
-                        let address = SocketAddr::V4(SocketAddrV4::new(peer.ip.into(), peer.port));
-                        let _ = sender.send(
-                            match TcpStream::connect_timeout(&address, Duration::from_secs(5)) {
-                                Ok(stream) => Found::Connected(stream, peer),
-                                Err(_) => Found::NotConnected,
-                            },
-                        );
-                    });
-                if spawned.is_err() {
-                    connecting -= 1;
-                }
+        // Peers to connect to: the torrent's while it fetches or shares,
+        // the rendezvous's while a newer torrent is looked for.
+        let candidates: Vec<(Which, Peer)> = known
+            .iter()
+            .filter(|((which, peer), tried)| {
+                (**tried == 0 || now.saturating_sub(**tried) > RETRY_PEER_MS)
+                    && !(peer.ip[0] == 127 && peer.port == port)
+                    && match which {
+                        Which::Files => files.as_ref().is_some_and(|files| {
+                            files.swarm.may_connect(peer.ip)
+                                && (!files.swarm.complete() || files.swarm.sharing())
+                        }),
+                        Which::Rendezvous => best.is_none(),
+                    }
+            })
+            .map(|(key, _)| *key)
+            .collect();
+        for (which, peer) in candidates {
+            if connecting >= CONNECTING || connections.len() + connecting >= MAX_PEERS {
+                break;
+            }
+            known.insert((which, peer), now.max(1));
+            connecting += 1;
+            let sender = found_sender.clone();
+            let spawned = std::thread::Builder::new()
+                .stack_size(64 * 1024)
+                .spawn(move || {
+                    let address = SocketAddr::V4(SocketAddrV4::new(peer.ip.into(), peer.port));
+                    let _ = sender.send(
+                        match TcpStream::connect_timeout(&address, Duration::from_secs(5)) {
+                            Ok(stream) => Found::Connected(stream, which, peer),
+                            Err(_) => Found::NotConnected,
+                        },
+                    );
+                });
+            if spawned.is_err() {
+                connecting -= 1;
             }
         }
         // What the peers sent.
         let keys: Vec<PeerKey> = connections.keys().copied().collect();
-        let mut buffer = alloc::vec![0_u8; 64 * 1024];
         for key in keys {
             let mut gone = false;
             for _ in 0..4 {
                 let Some(connection) = connections.get_mut(&key) else { break };
-                match connection.stream.read(&mut buffer) {
-                    Ok(0) => gone = true,
-                    Ok(read) => {
-                        busy = true;
-                        actions.extend(swarm.step(Event::Received(key, &buffer[..read])));
-                        apply(&mut swarm, &mut storage, &mut connections, &mut actions)?;
+                let read = match connection.stream.read(&mut buffer) {
+                    Ok(0) => {
+                        gone = true;
+                        break;
+                    }
+                    Ok(read) => read,
+                    Err(error) if error.kind() == ErrorKind::WouldBlock => break,
+                    Err(_) => {
+                        gone = true;
+                        break;
+                    }
+                };
+                busy = true;
+                let bytes = &buffer[..read];
+                // A peer that connected: its handshake routes it.
+                if let Link::Unrouted(head) = &mut connection.link {
+                    head.extend_from_slice(bytes);
+                    if head.len() < 48 {
                         continue;
                     }
-                    Err(error) if error.kind() == ErrorKind::WouldBlock => {}
-                    Err(_) => gone = true,
+                    let head = core::mem::take(head);
+                    let hash = &head[28..48];
+                    match (&mut files, &meeting) {
+                        (Some(files), _) if hash == files.swarm.torrent().v1 => {
+                            connection.link = Link::Files;
+                            actions.extend(files.swarm.step(Event::Connected {
+                                peer: key,
+                                ip: connection.ip,
+                            }));
+                            actions.extend(files.swarm.step(Event::Received(key, &head)));
+                        }
+                        (_, Some(meeting)) if hash == meeting.hash => {
+                            let (mut exchange, hello) =
+                                Exchange::start(&meeting.hash, &peer_id, meeting.ours());
+                            connection.out.extend(hello);
+                            let outcome = exchange.received(&head, &meeting.hash, meeting.ours());
+                            connection.link = Link::Rendezvous(exchange);
+                            met(connection, outcome, meeting, &mut best);
+                        }
+                        _ => connection.link = Link::Closing,
+                    }
+                    continue;
                 }
-                break;
+                match &mut connection.link {
+                    Link::Files => {
+                        if let Some(files) = &mut files {
+                            actions.extend(files.swarm.step(Event::Received(key, bytes)));
+                        }
+                    }
+                    Link::Rendezvous(exchange) => {
+                        if let Some(meeting) = &meeting {
+                            let outcome = exchange.received(bytes, &meeting.hash, meeting.ours());
+                            met(connection, outcome, meeting, &mut best);
+                        }
+                    }
+                    Link::Unrouted(_) | Link::Closing => {}
+                }
             }
             if gone {
-                connections.remove(&key);
-                actions.extend(swarm.step(Event::Closed(key)));
+                close(&mut connections, &mut files, &mut actions, key);
+            }
+            if let Some(files) = &mut files {
+                apply(files, &mut connections, &mut actions)?;
             }
         }
         if now >= last_tick + 100 {
             last_tick = now;
-            actions.extend(swarm.step(Event::Tick(now)));
+            if let Some(files) = &mut files {
+                actions.extend(files.swarm.step(Event::Tick(now)));
+            }
+            // A connection that does not route or meet in time goes.
+            let late: Vec<PeerKey> = connections
+                .iter()
+                .filter(|(_, connection)| {
+                    matches!(connection.link, Link::Unrouted(_) | Link::Rendezvous(_) | Link::Closing)
+                        && now.saturating_sub(connection.since) > MEETING_MS
+                })
+                .map(|(key, _)| *key)
+                .collect();
+            for key in late {
+                close(&mut connections, &mut files, &mut actions, key);
+            }
         }
-        apply(&mut swarm, &mut storage, &mut connections, &mut actions)?;
+        if let Some(files) = &mut files {
+            apply(files, &mut connections, &mut actions)?;
+        }
         // What goes to the peers.
         let mut closed = Vec::new();
         for (key, connection) in &mut connections {
@@ -906,24 +1214,28 @@ fn run(
                     }
                 }
             }
-            if connection.out.len() > MAX_OUT {
+            if connection.out.len() > MAX_OUT + rendezvous::MAX_TORRENT
+                || (matches!(connection.link, Link::Closing) && connection.out.is_empty())
+            {
                 closed.push(*key);
             }
         }
         for key in closed {
-            connections.remove(&key);
-            actions.extend(swarm.step(Event::Closed(key)));
+            close(&mut connections, &mut files, &mut actions, key);
         }
         {
-            let (done, total) = swarm.progress();
             let mut status = status.lock().expect("status");
-            status.peers = swarm.peer_count();
-            status.progressed = swarm.progressed;
-            status.phase = if fetching && swarm.complete() {
-                Phase::Complete
-            } else {
-                Phase::Running { done, total }
-            };
+            status.peers = connections.len();
+            status.found = best.clone();
+            if let Some(files) = &files {
+                let (done, total) = files.swarm.progress();
+                status.progressed = files.swarm.progressed;
+                status.phase = if files.fetching && files.swarm.complete() {
+                    Phase::Complete
+                } else {
+                    Phase::Running { done, total }
+                };
+            }
         }
         if !busy {
             std::thread::sleep(Duration::from_millis(10));
@@ -931,11 +1243,57 @@ fn run(
     }
 }
 
+/// What a rendezvous connection's bytes led to: a torrent it sent, kept
+/// when it is the release's and newer than any so far.
+fn met(
+    connection: &mut Connection,
+    outcome: Outcome,
+    meeting: &Meeting,
+    best: &mut Option<(u64, Arc<Vec<u8>>)>,
+) {
+    match outcome {
+        Outcome::Going(send) => connection.out.extend(send),
+        Outcome::Done { send, torrent } => {
+            connection.out.extend(send);
+            connection.link = Link::Closing;
+            let Some(torrent) = torrent else { return };
+            match updater_logic::signed::verify(&torrent, &meeting.key) {
+                Ok(revision)
+                    if revision >= meeting.floor
+                        && best.as_ref().is_none_or(|(best, _)| revision > *best)
+                        && torrent::parse(&torrent).is_ok() =>
+                {
+                    log!("torrent: the rendezvous gave a signed torrent of revision {revision}");
+                    *best = Some((revision, Arc::new(torrent)));
+                }
+                Ok(revision) => log!("torrent: the rendezvous gave revision {revision}: not taken"),
+                Err(error) => log!("torrent: the rendezvous gave a torrent: {error:?}: not taken"),
+            }
+        }
+        Outcome::Refused => connection.link = Link::Closing,
+    }
+    if let Link::Closing = connection.link {
+        let _ = connection.stream.flush();
+    }
+}
+
+fn close(
+    connections: &mut BTreeMap<PeerKey, Connection>,
+    files: &mut Option<Files>,
+    actions: &mut Vec<Action>,
+    key: PeerKey,
+) {
+    if let Some(connection) = connections.remove(&key)
+        && let (Link::Files, Some(files)) = (connection.link, files)
+    {
+        actions.extend(files.swarm.step(Event::Closed(key)));
+    }
+}
+
 /// Does what the swarm asked for, and what that brings (a piece read is
 /// given back at once).
 fn apply(
-    swarm: &mut Swarm,
-    storage: &mut Storage,
+    files: &mut Files,
     connections: &mut BTreeMap<PeerKey, Connection>,
     actions: &mut Vec<Action>,
 ) -> Result<(), String> {
@@ -948,12 +1306,16 @@ fn apply(
                     }
                 }
                 Action::Close(key) => {
-                    connections.remove(&key);
+                    if let Some(connection) = connections.get_mut(&key) {
+                        connection.link = Link::Closing;
+                    }
                 }
-                Action::Write(piece, data) => storage.write(swarm.torrent(), piece, &data)?,
+                Action::Write(piece, data) => {
+                    files.storage.write(files.swarm.torrent(), piece, &data)?;
+                }
                 Action::Load(piece) => {
-                    let data = storage.read(swarm.torrent(), piece);
-                    actions.extend(swarm.step(Event::Loaded(piece, data)));
+                    let data = files.storage.read(files.swarm.torrent(), piece);
+                    actions.extend(files.swarm.step(Event::Loaded(piece, data)));
                 }
             }
         }

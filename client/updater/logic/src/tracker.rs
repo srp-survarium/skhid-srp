@@ -212,7 +212,7 @@ pub fn udp_announce(connection: u64, transaction: u32, key: u32, ask: &Ask) -> [
 
 pub fn udp_announced(answer: &[u8], transaction: u32) -> Result<Announce, TrackerError> {
     udp_head(answer, 1, transaction)?;
-    if answer.len() < 20 || (answer.len() - 20) % 6 != 0 {
+    if answer.len() < 20 || !(answer.len() - 20).is_multiple_of(6) {
         return Err(TrackerError::Format);
     }
     let seconds = u32::from_be_bytes(answer[8..12].try_into().expect("4 bytes"));

@@ -69,25 +69,61 @@ corrections from the owner go here.
 
 ## The updater
 
-- It answers the launcher's torrent messages instead of ignoring them: download type (`1A`),
-  port (`21`), upload limit (`1E`), and reports port ok / busy and the torrent states the
-  launcher already shows (`srp-026g/docs/notes/launcher_updater.md`).
-- With torrent on, it gets what it would otherwise download from this revision's torrent: the
-  original game's files (in place of the archive from Google Drive) and missing or damaged
-  patches. The Skhid ZIP stays HTTPS.
-- It takes the `.torrent` of the ZIP it installed (`game/binaries/x86/skhid.torrent`), and only
-  when its signature verifies with the release's public key it is built with ("Signed releases")
-  and it is of a revision not lower than the highest it has taken.
-- Every piece is checked against its SHA-256 before it counts. Each finished file is also checked
-  against the pins the updater already has (the game exe, the patches' SHA-256 in `/patches`)
-  before it is installed.
-- It shares only pieces it has checked, and only while it runs (while the launcher is open),
-  within the launcher's upload limit, on the launcher's port.
-- If the torrent gives nothing (no peers, port busy), it downloads by HTTPS as now. PLAY never
-  waits on the torrent.
-- First version: peers from the torrent's trackers only. No DHT, PEX, UPnP or uTP.
-- Peers are strangers: everything they send is parsed once, with fixed limits, and refused
-  otherwise.
+`client/updater/README.md` ("BitTorrent") has the details; `client/updater/exe/src/torrent.rs`
+and `client/updater/logic/src/swarm.rs` are the code.
+
+- It answers the launcher's torrent messages instead of ignoring them: "Allow torrent" (its 4th
+  argument, then `1A`), port (its 13th argument, then `21`, answered port ok `15` or busy `14`),
+  upload limit (`1E`; the 0.26g launcher sends none: no limit), and shows the launcher's states
+  (`08` checking the pieces already on disk, `09` downloading;
+  `srp-026g/docs/notes/launcher_updater.md`).
+- The torrent is trusted by its signature alone: the release's Ed25519 key is built into the
+  updater ("Signed releases"), and a torrent whose signature does not verify, or whose revision
+  is lower than the highest it has taken (`updater_skhid.torrent.revision` beside it) or than the
+  installed game's, is never taken. Where it came from does not matter: today the ZIP's
+  `game/binaries/x86/skhid.torrent` beside the updater, or the newest one the rendezvous gave
+  (below). One function decides it (`torrent::trusted`).
+- No torrent (an older ZIP, one released without it), or none it takes: it downloads by HTTPS
+  exactly as today, switch on or off. Torrent is only ever an extra source, never a
+  requirement.
+- With torrent on, it gets what it would otherwise download from the torrent: the original
+  game's files (in place of the archive from the mirrors; the Skhid files come first then, as
+  they bring the torrent) and missing or damaged patches. The Skhid ZIP stays HTTPS.
+- Every piece is checked against its SHA-256 (the torrent's v2 hashes) before it counts, is
+  written or is sent. Each finished file is also checked against the pins the updater has (the
+  original files' build-2777 SHA-256, `logic/src/game.rs` `FILES`; the patches' SHA-256 in
+  `/patches`) before it is installed.
+- Players are the seeders (no host of ours seeds): with torrent on it shares every file of the
+  torrent the folder has, however it came (the torrent, HTTPS, the ZIP), so the first players of
+  a revision, who get it by HTTPS, seed it. Only checked pieces, only while it runs (while the
+  launcher is open), within the launcher's upload limit, on the launcher's port.
+- If the torrent gives nothing (no peer in 20 s, no piece for 60 s), it downloads by HTTPS as
+  now. PLAY never waits on the torrent.
+- Peers from the trackers only (the torrent's; the release's list for the rendezvous). No DHT,
+  PEX, UPnP or uTP.
+- Peers are strangers: everything they send is parsed once, with fixed limits (40 connections,
+  4 of an address; 16 KiB blocks; 16 requests in flight, 256 queued; 32 MiB of pieces held until
+  checked; a 4 MiB torrent at the rendezvous), and refused otherwise. A peer that sent a block of
+  a piece that fails its hash is dropped and banned for the run.
+
+## The rendezvous
+
+How an updater finds a newer release without our site (`client/updater/logic/src/rendezvous.rs`):
+
+- Every updater with torrent on and a signed torrent is a peer of one fixed swarm on the
+  trackers, whose info hash is SHA-1 of `skhid-rendezvous 1\n` and the release's 32-byte public
+  key. Peers there have no pieces.
+- Its handshake sets the extension bit (BEP 10). The extension handshake says
+  `m: {skhid_torrent: <id>}` and `skhid_revision: <n>`, the revision of the newest signed torrent
+  it has (no `skhid_revision`: none). An end whose revision is higher sends its torrent, whole,
+  as one `skhid_torrent` message (at most 4 MiB) to an end with an older one or none; an end that
+  said the higher revision is waited for; then the connection ends. Anything else ends it.
+- A torrent that comes is taken only when its signature is the release's and its revision is
+  higher than the one this end has (or, having none, not lower than the installed game's). It is
+  kept beside the updater as `updater_skhid.found.torrent`; the highest revision of it and the
+  ZIP's is the torrent of the run.
+- When: an updater that cannot reach the update server asks the rendezvous for 20 s before it
+  goes on (a blocked network, our servers down); one that shares serves it the whole time.
 
 ## Signed releases
 

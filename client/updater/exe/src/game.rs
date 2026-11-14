@@ -425,8 +425,8 @@ fn by_torrent(session: &mut Session, layout: &Layout) -> Result<Option<bool>, Op
         .iter()
         .filter(|(name, _)| !win::exists(&place(layout, name)))
         .filter_map(|&(name, pin)| {
-            let index = torrent::file_index(&offered, &format!("game/{name}"))?;
-            (offered.files[index].size == pin.size).then_some((name, pin, index))
+            let index = torrent::file_index(&offered.torrent, &format!("game/{name}"))?;
+            (offered.torrent.files[index].size == pin.size).then_some((name, pin, index))
         })
         .collect();
     if wanted.is_empty() {

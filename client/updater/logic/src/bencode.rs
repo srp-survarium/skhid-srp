@@ -10,6 +10,9 @@ const MAX_DEPTH: usize = 24;
 /// The most values in one document.
 const MAX_VALUES: usize = 200_000;
 
+/// A dictionary's entries: key, value, the value's bytes in the document.
+pub type Entries<'a> = [(&'a [u8], Value<'a>, &'a [u8])];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Value<'a> {
     Int(i64),
@@ -57,7 +60,7 @@ impl<'a> Value<'a> {
         }
     }
 
-    pub fn dict(&self) -> Option<&[(&'a [u8], Value<'a>, &'a [u8])]> {
+    pub fn dict(&self) -> Option<&Entries<'a>> {
         match self {
             Value::Dict(items) => Some(items),
             _ => None,

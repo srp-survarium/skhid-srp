@@ -844,7 +844,7 @@ impl Run<'_> {
         let wanted: Vec<(&Patch, usize, String)> = fetch
             .iter()
             .filter_map(|patch| {
-                let index = torrent::file_index(&offered, &format!("game/{}", patch.file_name()))?;
+                let index = torrent::file_index(&offered.torrent, &format!("game/{}", patch.file_name()))?;
                 let part = format!("{}{PART}", place(self.layout, &patch.file_name()));
                 Some((*patch, index, part))
             })
@@ -854,7 +854,7 @@ impl Run<'_> {
         }
         let needed = wanted
             .iter()
-            .map(|(_, index, _)| offered.files[*index].size)
+            .map(|(_, index, _)| offered.torrent.files[*index].size)
             .sum::<u64>()
             .saturating_add(DISK_MARGIN);
         if win::free_space(&self.layout.game_dir).is_none_or(|free| free < needed) {

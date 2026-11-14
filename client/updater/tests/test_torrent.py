@@ -208,6 +208,82 @@ def wait(done, seconds, what):
     raise AssertionError(f"no {what} in {seconds} s")
 
 
+def rendezvous_hash():
+    return hashlib.sha1(b"skhid-rendezvous 1\n" + bytes.fromhex(public_key_hex())).digest()
+
+
+def read_frame(peer):
+    head = b""
+    while len(head) < 4:
+        part = peer.recv(4 - len(head))
+        if not part:
+            raise OSError("closed")
+        head += part
+    (length,) = struct.unpack(">I", head)
+    body = b""
+    while len(body) < length:
+        part = peer.recv(length - len(body))
+        if not part:
+            raise OSError("closed")
+        body += part
+    return body
+
+
+def meet(peer, revision, torrent=None):
+    """This end of a rendezvous connection (`logic/src/rendezvous.rs`): its
+    handshake and its revision said; `torrent` sent once the other end
+    says an older one. The torrent the other end sent, if any."""
+    reserved = bytearray(8)
+    reserved[5] = 0x10
+    peer.sendall(b"\x13BitTorrent protocol" + bytes(reserved) + rendezvous_hash() + b"-PY0000-rendezvous00")
+    said = bencode({b"m": {b"skhid_torrent": 3}, **({b"skhid_revision": revision} if revision else {})})
+    peer.sendall(struct.pack(">IBB", 2 + len(said), 20, 0) + said)
+    hello = b""
+    while len(hello) < 68:
+        part = peer.recv(68 - len(hello))
+        if not part:
+            raise OSError("closed")
+        hello += part
+    assert hello[28:48] == rendezvous_hash() and hello[25] & 0x10
+    theirs = lt.bdecode(read_frame(peer)[2:])
+    their_id = theirs[b"m"][b"skhid_torrent"]
+    their_revision = theirs.get(b"skhid_revision")
+    if torrent is not None and (their_revision is None or their_revision < revision):
+        peer.sendall(struct.pack(">IBB", 2 + len(torrent), 20, their_id) + torrent)
+    if their_revision is not None and (revision is None or their_revision > revision):
+        body = read_frame(peer)
+        assert body[:2] == bytes([20, 3]), body[:2]
+        return body[2:]
+    return None
+
+
+class Meeter:
+    """A rendezvous peer on 127.0.0.1 that has `torrent` of `revision`:
+    `got`, what each connection sent it."""
+
+    def __init__(self, revision, torrent):
+        self.listener = socket.socket()
+        self.listener.bind(("127.0.0.1", 0))
+        self.listener.listen()
+        self.port = self.listener.getsockname()[1]
+        self.revision, self.torrent, self.met = revision, torrent, 0
+        threading.Thread(target=self.serve, daemon=True).start()
+
+    def serve(self):
+        while True:
+            try:
+                peer, _ = self.listener.accept()
+            except OSError:
+                return
+            with peer:
+                peer.settimeout(30)
+                try:
+                    meet(peer, self.revision, self.torrent)
+                    self.met += 1
+                except (OSError, AssertionError, KeyError):
+                    pass
+
+
 class WrongPeer:
     """A peer that says it has every piece and sends 0xAA for each block
     asked: `closed` once the updater ends the connection."""
@@ -410,6 +486,40 @@ class TorrentTest(wine.WineTest):
         self.assert_patches(patches)
         self.assertTrue(wrong.closed, "the wrong peer is still connected")
         self.assertEqual(self.store_requests(), [])
+
+    def test_a_newer_release_comes_from_the_rendezvous_when_the_site_cannot_be_reached(self):
+        _, torrent, seed_dir, files = self.release(12)
+        self.launch()
+        self.wait_latest()
+        self.stop()
+        # The release after it, signed, at a peer of the rendezvous.
+        newer = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), {**files, "game/new.txt": b"new"},
+                             self.tracker.urls, revision=61)
+        meeter = Meeter(61, newer)
+        self.tracker.peers = [("127.0.0.1", meeter.port)]
+        # The update server cannot be asked.
+        self.site.manifest_status = 502
+        self.site.patch_list_status = 502
+        self.launch()
+        self.wait_latest()
+        log = self.log()
+        self.assertIn("the rendezvous gave a signed torrent of revision 61", log)
+        self.assertEqual(self.read(f"{X86}/updater_skhid.found.torrent"), newer)
+        self.stop()
+
+    def test_the_updater_gives_its_torrent_at_the_rendezvous(self):
+        _, torrent, _, _ = self.release(12)
+        self.launch()
+        self.wait_latest()
+        wait(lambda: "torrent: sharing" in self.log(), 60, "sharing")
+        for revision in (None, 59):
+            with socket.create_connection(("127.0.0.1", self.port), timeout=30) as peer:
+                peer.settimeout(30)
+                self.assertEqual(meet(peer, revision), torrent)
+        # One of the same revision gets nothing, and gives nothing.
+        with socket.create_connection(("127.0.0.1", self.port), timeout=30) as peer:
+            peer.settimeout(30)
+            self.assertIsNone(meet(peer, 60, torrent))
 
     def test_torrent_not_allowed_is_https_as_before(self):
         patches, _, _, _ = self.release(12)

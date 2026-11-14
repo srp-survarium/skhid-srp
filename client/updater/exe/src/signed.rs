@@ -16,17 +16,28 @@ use crate::install::Layout;
 /// key.
 const KEY: Option<&str> = option_env!("SKHID_SIGNING_KEY");
 
+/// The release's public key; `None` in a build without one.
+pub fn key() -> Option<[u8; 32]> {
+    KEY.and_then(signed::public_key)
+}
+
+/// The revision of the game installed here (0 when it cannot be told).
+pub fn installed(layout: &Layout) -> u64 {
+    gate::game_revision(layout)
+        .ok()
+        .and_then(|revision| revision.number())
+        .map_or(0, u64::from)
+}
+
 /// `Ok` when `torrent` is the release's, of this revision or a later one.
 pub fn check(torrent: &[u8], layout: &Layout) -> Result<u64, String> {
-    let key = KEY
-        .and_then(signed::public_key)
-        .ok_or("this updater has no key to check a torrent with")?;
+    let key = key().ok_or("this updater has no key to check a torrent with")?;
     let revision = signed::verify(torrent, &key).map_err(|error| match error {
         SignedError::Unsigned => String::from("not signed"),
         SignedError::Wrong => String::from("not signed by the release's key"),
     })?;
-    match gate::game_revision(layout).map(|revision| revision.number()) {
-        Ok(Some(installed)) if revision < u64::from(installed) => Err(format!(
+    match installed(layout) {
+        installed if revision < installed => Err(format!(
             "of revision {revision}, older than the game's {installed}"
         )),
         _ => Ok(revision),

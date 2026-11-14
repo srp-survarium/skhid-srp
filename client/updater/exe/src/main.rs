@@ -618,6 +618,10 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
                 min_revision: None,
                 online: false,
             });
+            // A newer release than this folder has, from the rendezvous of
+            // the updaters that allow torrent (`torrent::discover`): the
+            // run's torrent from here on.
+            torrent::discover(session, layout);
             // The original game from the addresses built into this updater
             // (a provider that blocks the server need not block them).
             if !game::present(layout) {
