@@ -62,6 +62,13 @@ const RADIO_BED: f32 = 1.0;
 /// (the owner, the same day: "make radio effect like it is currently on
 /// main"): its words and squelch play at the slider's volume as before.
 pub(crate) const LOUDER: f32 = 1.5;
+/// The whole mix this much louder (+6 dB) before its limiter: every voice,
+/// plain and through the radio, with the radio's static and squelch and the
+/// microphone test's playback, so their balance stays as it is (the owner,
+/// 2026-11-14, of revision 59 with "Voice chat" at 100: "it is quiet",
+/// "especially compared to gunshots"). The limiter holds what goes past
+/// its knee.
+const MIX: f32 = 2.0;
 /// The mix's knee: below it a sample is as summed; above it the rest of the
 /// way to full scale is approached smoothly, so loud or several talkers
 /// never clip hard.
@@ -157,9 +164,10 @@ fn ahead(mono: &[f32; FRAME]) -> [[f32; 2]; FRAME] {
     let [left, right] = Ears::UNITY.get();
     mono.map(|sample| [sample * left, sample * right])
 }
-/// A frame of the mix from its sum: limited softly, as 16-bit samples.
+/// A frame of the mix from its sum: [`MIX`] louder, limited softly, as
+/// 16-bit samples.
 fn finish(acc: [[f32; 2]; FRAME]) -> Stereo {
-    acc.map(|ears| ears.map(|x| (soft_limit(x) * 32767.).round().clamp(-32768., 32767.) as i16))
+    acc.map(|ears| ears.map(|x| (soft_limit(x * MIX) * 32767.).round().clamp(-32768., 32767.) as i16))
 }
 /// `mono` alone as a frame of the mix, centred (the microphone test's
 /// playback when no match's voices play: [`Core::mix_over`] without them).
