@@ -463,6 +463,12 @@ pub fn walk_route_shut_line(from: Vec3, reach: f32) -> String {
     format!("{PREFIX}zone walk's held route goes on across the zone from {}, past the way out's {reach:.1} m: planned again", at(from))
 }
 
+/// [A395a] The line for a walk out that the client's capsule at the body's own feet starts, on a floor the band's marks
+/// (tested at the floor's centre) leave clear.
+pub fn feet_touch_line(feet: Vec3) -> String {
+    format!("{PREFIX}zone walk-out from {}: the capsule at the feet touches a zone, the floor's centre does not", at(feet))
+}
+
 /// [A395a] The line for a walk out's first tick on a floor a zone on hurts (`Hazards::hits_at`), after `ms` of the walk, on
 /// the route it held or one planned since.
 pub fn walk_hurt_line(at_feet: Vec3, ms: u32, route: super::tactics::WalkRoute) -> String {
