@@ -9,22 +9,63 @@ use super::dictionary::Dictionary;
 use super::maps::{GameMode, MapMode, MatchMap};
 use super::match_msgs::static_info::MatchProfile;
 
-/// The shares of a free-for-all card's draw ([`Twist::draw`]): the plain mode's and each twist's,
+/// The shares of a free-for-all card's draw ([`Plays::draw`]): the plain mode's and each twist's,
 /// in hundredths. Cowboy rare (the owner, 2026-11-14: "cowboy version should be rare with only
 /// 10% chance"), Racket as often as the plain mode (my pick).
 pub const SHARES: [(Option<Twist>, u32); 3] =
     [(None, 45), (Some(Twist::Racket), 45), (Some(Twist::Cowboy), 10)];
 
-/// The sum of [`SHARES`]: what a draw's roll is below.
-pub const SHARE_TOTAL: u32 = {
-    let mut total = 0;
-    let mut at = 0;
-    while at < SHARES.len() {
-        total += SHARES[at].1;
-        at += 1;
+/// What a free-for-all card of the rooms' vote may play: the plain mode, one twist, or more of
+/// them, never none. A room's are the ones its pool holds on the card's map: the create window
+/// ticks each twist as a mode of its own; the server's rooms have them all.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Plays {
+    /// Bit `i`: [`SHARES`]' `i`th is in; never 0.
+    bits: u8,
+}
+
+impl Plays {
+    /// The plain mode and every twist: a server's room's draw (`SHARES` as they are).
+    pub const ALL: Self = Self {
+        bits: (1 << SHARES.len()) - 1,
+    };
+
+    /// The plays of `plays`; none of them: none.
+    pub fn of(plays: impl IntoIterator<Item = Option<Twist>>) -> Option<Self> {
+        let bits = plays.into_iter().fold(0, |bits, play| {
+            bits | SHARES
+                .iter()
+                .position(|&(each, _)| each == play)
+                .map_or(0, |at| 1 << at)
+        });
+        (bits != 0).then_some(Self { bits })
     }
-    total
-};
+
+    fn shares(self) -> impl Iterator<Item = (Option<Twist>, u32)> {
+        SHARES
+            .into_iter()
+            .enumerate()
+            .filter(move |&(at, _)| self.bits >> at & 1 == 1)
+            .map(|(_, share)| share)
+    }
+
+    /// The sum of its shares: what a draw's roll is below.
+    pub fn total(self) -> u32 {
+        self.shares().map(|(_, share)| share).sum()
+    }
+
+    /// What a card plays, for a roll below [`Self::total`]: each of its plays for its share.
+    pub fn draw(self, roll: u32) -> Option<Twist> {
+        let mut roll = roll % self.total();
+        for (play, share) in self.shares() {
+            if roll < share {
+                return play;
+            }
+            roll -= share;
+        }
+        unreachable!("a roll is below the shares' sum")
+    }
+}
 
 /// The lives a twist's ammo lasts: its stack's store is a kit's rounds this many times. The game
 /// takes each slot's count out of the store at every spawn, a kit change in the countdown too, and
@@ -52,19 +93,6 @@ impl Twist {
             Self::Racket => 9,
             Self::Cowboy => 10,
         }
-    }
-
-    /// What a free-for-all card of the rooms' vote plays, for a roll below [`SHARES`]' sum: each
-    /// twist, and none, for its share.
-    pub fn draw(roll: u32) -> Option<Self> {
-        let mut roll = roll % SHARE_TOTAL;
-        for (twist, share) in SHARES {
-            if roll < share {
-                return twist;
-            }
-            roll -= share;
-        }
-        unreachable!("a roll is below the shares' sum")
     }
 
     /// The ammo the twist gives, which a match of it never charges (`session::v026g::autobuy`):
@@ -161,11 +189,17 @@ mod tests {
         let ffa = playable_in(GameMode::FreeForAll).next().unwrap();
         let racket = Played::twisted(MatchMap::of(ffa.id).unwrap(), Twist::Racket).unwrap();
         assert_eq!((racket.lobby_number(), racket.mode()), (9, GameMode::FreeForAll));
-        // Every roll below the shares' sum: each its share.
-        let drawn = |twist| (0..SHARE_TOTAL).filter(|&roll| Twist::draw(roll) == twist).count();
+        // Every roll below the shares' sum: each its share; of fewer plays, each of them its own.
+        let drawn = |plays: Plays, twist| (0..plays.total()).filter(|&roll| plays.draw(roll) == twist).count();
         for (twist, share) in SHARES {
-            assert_eq!(drawn(twist), share as usize);
+            assert_eq!(drawn(Plays::ALL, twist), share as usize);
         }
+        let rare = Plays::of([Some(Twist::Racket), Some(Twist::Cowboy)]).unwrap();
+        assert_eq!((rare.total(), drawn(rare, None), drawn(rare, Some(Twist::Cowboy))), (55, 0, 10));
+        let plain = Plays::of([None, None]).unwrap();
+        assert_eq!((plain.total(), drawn(plain, None)), (45, 45));
+        assert_eq!(Plays::of([None, Some(Twist::Racket), Some(Twist::Cowboy)]), Some(Plays::ALL));
+        assert_eq!(Plays::of([]), None);
         // No twist shares a number with a mode (nor with Scarcity's 7, not on main).
         for twist in Twist::ALL {
             assert_eq!(GameMode::of_lobby_number(twist.lobby_number()), None);

@@ -23,9 +23,11 @@ package survarium.rooms
     {
         private static const FORM_W:Number = 420;
         // The protective device's three kinds together (the owner, 2026-10-26), then team deathmatch,
-        // Research and free for all.
+        // Research, free for all and its twists (FFA: Racket, FFA: Saloon; the owner, 2026-11-14:
+        // "they are not present in private room creations"): each a mode of its own, the server's
+        // pool has a free-for-all's map once with each.
         private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.BLACKOUT,
-            GameMode.TEAM_DEATHMATCH, GameMode.RESEARCH, GameMode.FREE_FOR_ALL];
+            GameMode.TEAM_DEATHMATCH, GameMode.RESEARCH, GameMode.FREE_FOR_ALL, GameMode.RACKET, GameMode.COWBOY];
         private static const TRACK_X:Number = 14;
 
         private var win:RoomsWindow;
@@ -204,7 +206,7 @@ package survarium.rooms
             y += 38;
             // The modes the server's pool offers, in MODE_ORDER: the three kinds
             // of protective device apart (plain, chargers, blackout), team
-            // deathmatch, Research and free for all; a mode out takes all its
+            // deathmatch, Research, free for all and its twists; a mode out takes all its
             // entries out of the pool. Rows of 24 px: four fit where three of 30 did.
             look.text(look._content, win.say("st_srp_rooms_modes").toUpperCase(), 14, y, 260, 12, RoomsLook.DIM);
             y += 22;
