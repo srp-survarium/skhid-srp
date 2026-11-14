@@ -85,7 +85,9 @@
 #      release/build-server-db (of the list), release/build-zip (--ref: the
 #      commit checked in step 1; --revision: the release's; --patches: the
 #      list, with the new patch, whose every patch the exe requires at its
-#      start: patch 49); the world check: every upload of those recordings
+#      start: patch 49), release/build-torrent (skhid-rev<n>.torrent of the
+#      whole game folder: srp-026g/docs/notes/torrent-downloads.md); the
+#      world check: every upload of those recordings
 #      checked as the new server checks an upload before it relays it, with
 #      the new server data (srp-world-check): one refused, or none checked,
 #      stops the release here, before the go; then the exe patches' self-test
@@ -139,10 +141,10 @@
 #      limit). With --now: right after the go, no notice, no wait for
 #      "matches":0, y/N; right before the stop it says how many matches run,
 #      which the stop ends without results (the log keeps the number).
-#      The swap: srp26 stopped; srp.db, the old ZIP and server data (hard
+#      The swap: srp26 stopped; srp.db, the old ZIP, server data, torrent (hard
 #      links), their sha256, the image ID, the setting (and the source) kept
 #      in the folder with its rollback, srp.db copied to the jump host too
-#      (live only); the server data (and source) and the ZIP in place,
+#      (live only); the server data (and source), the ZIP and torrent in place,
 #      SRP_MIN_PATCH_REVISION=<rev> and SRP_RELEASED_EXE_SHA256=<the sha256
 #      of the ZIP's game exe> (the match server reads it at its start and
 #      asks no game that reports this exe for its file; any other exe it
@@ -153,7 +155,7 @@
 #   6. checks the container, the log's game data line, /patches and /game
 #      (the list's files; any rows of srp's mirrors.tsv after each one's
 #      URLs, release/add-mirror) and /api/client-files (the new ZIP and, from an
-#      srp that says it, min-revision <rev>), and says what srp's log tells
+#      srp that says it, min-revision <rev> and the torrent), and says what srp's log tells
 #      of the release's exe. A failed check prints srp's log and runs the
 #      folder's rollback (srp.db, image, data, ZIP, settings, source: as
 #      before), with --now too. The run's output is the folder's release.log;
@@ -237,10 +239,11 @@
 . "$(dirname "$0")/lib.sh"
 here=$(cd "$(dirname "$0")" && pwd)
 
-# For release/test.sh only: another checkout, stand-ins for build-zip and
-# build-site, a shorter minute, another stock db and launcher.
+# For release/test.sh only: another checkout, stand-ins for build-zip,
+# build-torrent and build-site, a shorter minute, another stock db and launcher.
 REPO=${SKHID_TEST_REPO:-$ROOT}
 BUILD_ZIP=${SKHID_TEST_BUILD_ZIP:-$here/build-zip}
+BUILD_TORRENT=${SKHID_TEST_BUILD_TORRENT:-$here/build-torrent}
 BUILD_SITE=${SKHID_TEST_BUILD_SITE:-$here/build-site}
 MINUTE=${SKHID_TEST_SECONDS_PER_MINUTE:-60}
 STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
@@ -824,6 +827,7 @@ record_release() {
         say
         say "The players' ZIP, $ZIP_NAME: $ZIP_SIZE bytes, sha256 $ZIP_SHA"
         say "The server data, $DATA_NAME: sha256 $DATA_SHA"
+        say "The torrent, skhid-rev$rev.torrent: info hash (btmh) $TORRENT_SHA"
         say "The exe: sha256 $EXE_WITH (--server=$SKHID_GAME_SERVER), $EXE_WITHOUT without a server"
         if [[ -n ${published:-} ]]; then say "Its content: ${resources##*/}, sha256 $(sha256_of "$resources")"; fi
         say
@@ -1237,9 +1241,10 @@ if ((target_ok)); then
     if [[ $(sort -u <<<"$fs" | grep -c .) == 1 ]]; then okay "download/ is on the file system of $TARGET_DIR (a release folder's files go in by rename)"; else problem "download/ is not on the file system of $TARGET_DIR (or not there): the swap hard-links the release folder's files into it"; fi
     blobs=$(missing_original_blobs)
     if [[ -z $blobs ]]; then okay "download/resources/ keeps the original menus' blobs (the updater's restore to stock)"; else problem "download/resources/ on the $TARGET host lacks the original blobs the updater's restore fetches: $(tr '\n' ' ' <<<"$blobs")"; fi
-    present=$(on_target "cd $D && for f in download/$ZIP_NAME download/$DATA_NAME; do if test -f \$f; then echo \$f; fi; done")
+    present=$(on_target "cd $D && for f in download/$ZIP_NAME download/$DATA_NAME download/$TORRENT_NAME; do if test -f \$f; then echo \$f; fi; done")
     [[ $present == *"$ZIP_NAME"* ]] && HAVE_ZIP=1
     [[ $present == *"$DATA_NAME"* ]] && HAVE_DATA=1
+    [[ $present == *"$TORRENT_NAME"* ]] && HAVE_TORRENT=1
     if OLD_MIN=$(current_min_revision 2>"$work/min.log"); then
         okay "SRP_MIN_PATCH_REVISION now: $OLD_MIN"
     else
@@ -1644,6 +1649,7 @@ if ((DRY_RUN)); then
     say "[dry run] 2. build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
     say "[dry run]    then the world check of $WORLDS_SAID with it: $WORLD_CHECK --data $data $WORLDS (one world refused stops the release)"
     say "[dry run]    and: ${build_zip[*]}"
+    say "[dry run]    and: $BUILD_TORRENT${step_flags[*]:+ ${step_flags[*]}} --patches $PATCH_LIST --zip $zip --out $work/skhid-rev$rev.torrent"
     if ((build_code)); then say "[dry run]    and the server's image of main's source (podman): $image"; fi
     if ((no_selftest)); then
         say "[dry run]    WARNING no exe patches' self-test (--no-selftest)"
@@ -1655,6 +1661,8 @@ if ((DRY_RUN)); then
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
     stage_upload "$data" "$DATA_NAME" "<its sha256>"
     stage_upload "$zip" "$ZIP_NAME" "<its sha256>"
+    stage_upload "$work/skhid-rev$rev.torrent" "$TORRENT_NAME" "<its sha256>"
+    TORRENT_SHA='<its info hash>'
     stage_bot_data "$bd_dir"
 else
     progress "2. building the server data (release/build-server-db)"
@@ -1693,6 +1701,14 @@ else
     [[ $OFFERED_GAME == "$GAME_ROW" ]] ||
         die "$data does not name the game's archive of $GAME_LIST: ${OFFERED_GAME:-none}"
     check_exe_requires "$zip" "$work"
+    # The torrent of the whole game folder: the original game's files, the
+    # ZIP's, the list's patches (srp-026g/docs/notes/torrent-downloads.md).
+    progress "2. building the torrent of the game folder (release/build-torrent)"
+    torrent=$work/skhid-rev$rev.torrent
+    "$BUILD_TORRENT" "${step_flags[@]}" --patches "$PATCH_LIST" --zip "$zip" --out "$torrent" </dev/null 2>&1 |
+        grep -v ': in the cache$' | tee "$work/build-torrent.log" || die "build-torrent failed"
+    TORRENT_SHA=$(sed -n 's/^btmh 1220\([0-9a-f]\{64\}\)$/\1/p' "$work/build-torrent.log")
+    [[ -n $TORRENT_SHA && -s $torrent ]] || die "build-torrent made no torrent, or said no info hash ($work/build-torrent.log)"
     if ((build_code)); then
         progress "2. building the server's image here from main's source (podman)"
         build_image "$work/src" "$image" >"$work/build-image.log" 2>&1 ||
@@ -1728,6 +1744,7 @@ else
     write_on live "cat > $REL_DIR/changed.txt" "$work/changed.txt"
     stage_upload "$data" "$DATA_NAME" "$DATA_SHA"
     stage_upload "$zip" "$ZIP_NAME" "$ZIP_SHA"
+    stage_upload "$torrent" "$TORRENT_NAME" "$(sha256_of "$torrent")"
     stage_bot_data "$bd_dir"
 fi
 if ((build_code)); then
@@ -1859,10 +1876,11 @@ if ((!DRY_RUN)); then
     # What changes.
     say
     say "On the $TARGET host now:"
-    on_target "cd $D && ls -l download/$ZIP_NAME download/$DATA_NAME 2>&1; sha256sum download/$ZIP_NAME download/$DATA_NAME 2>&1; true" | sed 's/^/  /'
+    on_target "cd $D && ls -l download/$ZIP_NAME download/$DATA_NAME download/$TORRENT_NAME 2>&1; sha256sum download/$ZIP_NAME download/$DATA_NAME download/$TORRENT_NAME 2>&1; true" | sed 's/^/  /'
     say "It becomes:"
     say "  download/$ZIP_NAME: $ZIP_SIZE bytes, sha256 $ZIP_SHA (revision $live_rev -> $rev)"
     say "  download/$DATA_NAME: sha256 $DATA_SHA"
+    say "  download/$TORRENT_NAME: skhid-rev$rev.torrent, info hash $TORRENT_SHA"
     say "  .env: SRP_MIN_PATCH_REVISION $OLD_MIN -> $rev"
     say "  .env: SRP_RELEASED_EXE_SHA256 -> $EXE_SHA (the ZIP's game exe: no game that reports it is asked for its file)"
     if ((${#BD_TODO[@]})); then

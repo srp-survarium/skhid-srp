@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# usage: release/build-torrent --zip <players' ZIP> --out <file> [--test] [--patches <list>]
+#
+# The BitTorrent torrent of a revision's whole game folder, ready to play
+# (srp-026g/docs/notes/torrent-downloads.md has the format; release.sh names
+# it skhid-rev<n>.torrent), by release/build_torrent.py from:
+#   - the original game's files the updater installs from the pinned archive
+#     (client/updater/logic/src/game.rs FILES): resources.db from
+#     $SKHID_STOCK_DB, the other four from $SKHID_GAME, each checked by the
+#     sha256 of build 2777 (GAME_FILES below; the stock db's: lib.sh);
+#   - every file of the ZIP (release/build-zip's), at its path, over the
+#     original of the same path (bugtrap.dll, the login certificate);
+#   - every patch of the offered-patch list (release/patches.tsv; --test:
+#     patches-test.tsv; --patches: another) as game/<its name>, from
+#     ~/.cache/skhid-release/patches/ (downloaded there when missing, checked
+#     by its size and sha256: lib.sh cache_patches) and read against its row's
+#     sha256 again.
+# The same inputs make the same bytes. Prints the torrent's info hashes
+# (`btih <40 hex>`, `btmh 1220<64 hex>`). Reads only; runs at nice 10.
+. "$(dirname "$0")/lib.sh"
+
+# The original game's files but resources.db: `<path under game/> <sha256>`
+# of build 2777 (the exe's is game.rs's ORIGINAL_EXE).
+GAME_FILES=(
+    "binaries/x86/survarium.exe ac33d9937015c2299bf62cc6b127cb308b48a3475b30fff2ddd65479ae3bf153"
+    "binaries/x86/bugtrap.dll 5bb81aea946767ad860522fc638b267e7e972c1e3d8af7a390c1714c1e9a8aac"
+    "resources/ssl/survarium_login_server.crt f29e488d406815c66a4541599c3bb8816a623dddcd995b588c902074ae8c7b68"
+    "resources/sources/splash_screens/development_engine.bmp f81222a3463da4cc5e8af193cf41f15199368b44f1938f6a2bad6107c1aac00f"
+)
+
+zip='' out='' which=live patches=''
+while (($#)); do
+    case $1 in
+    -h | --help) usage ;;
+    --zip) (($# >= 2)) || usage 1; zip=$2; shift 2 ;;
+    --out) (($# >= 2)) || usage 1; out=$2; shift 2 ;;
+    --test) which='test'; shift ;;
+    --patches) (($# >= 2)) || usage 1; patches=$2; shift 2 ;;
+    *) die "unknown argument $1 (--help)" ;;
+    esac
+done
+[[ -n $zip && -n $out ]] || usage 1
+[[ -f $zip ]] || die "$zip: no such file"
+[[ ! -e $out ]] || die "$out: already there; never overwritten"
+need_cmds curl sha256sum
+lower_priority
+load_env SKHID_GAME SKHID_STOCK_DB
+game=$SKHID_GAME
+[[ -f $game/binaries/x86/survarium.exe ]] || game=$SKHID_GAME/game
+[[ -f $SKHID_STOCK_DB ]] || die "SKHID_STOCK_DB: $SKHID_STOCK_DB: no such file"
+use_patches "$which"
+if [[ -n $patches ]]; then PATCH_LIST=$patches; fi
+read_patch_list
+cache_patches
+
+args=(--zip "$zip" --out "$out"
+    --file game/resources.db "$SKHID_STOCK_DB" "${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}")
+for row in "${GAME_FILES[@]}"; do
+    read -r path sha <<<"$row"
+    args+=(--file "game/$path" "$game/$path" "$sha")
+done
+while read -r name sha _; do
+    if [[ -n $name ]]; then args+=(--file "game/$name" "$PATCH_CACHE/$name" "$sha"); fi
+done <<<"$LIST"
+say "building $out: the original game's files, $(grep -c . <<<"$LIST") patch(es) of $PATCH_LIST, the files of $zip"
+python -I "$(dirname "$0")/build_torrent.py" "${args[@]}"

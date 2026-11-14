@@ -22,7 +22,7 @@ root=$(dirname "$here")
 command -v python3 >/dev/null || { echo "test.sh: python3 is needed" >&2; exit 1; }
 
 if command -v shellcheck >/dev/null; then
-    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
+    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip build-torrent deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
         shellcheck -s sh host-rollback.sh host-bot-data.sh)
     echo "ok   shellcheck"
 else
@@ -459,7 +459,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # An srp that did not take the setting: $T/state/client-files-min.
             if read("client-files-min") is not None:
                 least = "min-revision " + read("client-files-min") + "\n"
-            return self.answer(200, f"skhid-client-files 1\nsha256 {hashlib.sha256(data).hexdigest()}\nsize {len(data)}\n{least}")
+            # The torrent in place: its "info hash" here is the sha256 of
+            # the stand-in's whole file (build-torrent's stand-in says so).
+            torrent = ""
+            try:
+                torrent = "torrent " + hashlib.sha256(open(os.path.join(live, "download", "skhid.torrent"), "rb").read()).hexdigest() + "\n"
+            except FileNotFoundError:
+                pass
+            return self.answer(200, f"skhid-client-files 1\nsha256 {hashlib.sha256(data).hexdigest()}\nsize {len(data)}\n{least}{torrent}")
         if self.path == "/" + read("admin-path", "-"):
             open(os.path.join(state, "admin-seen.log"), "a").write("GET\n")
             return self.answer(200, "<form>the admin page</form>")
@@ -1167,6 +1174,24 @@ echo "  CHANGED  game/binaries/x86/survarium_skhid.exe"
 echo "updater_skhid.exe: unchanged (the same file as live)"
 STANDIN
 chmod +x "$T/build-zip"
+# build-torrent [--test] --patches <list> --zip <zip> --out <file>: a file
+# naming the ZIP's sha256 and the list, and its sha256 as the "info hash";
+# its arguments are a line of $TEST_DIR/build-torrent.args.
+cat >"$T/build-torrent" <<'STANDIN'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$TEST_DIR/build-torrent.args"
+while (($#)); do
+    case $1 in
+    --zip) zip=$2; shift 2 ;;
+    --out) out=$2; shift 2 ;;
+    --patches) patches=$2; shift 2 ;;
+    *) shift ;;
+    esac
+done
+{ sha256sum <"$zip"; grep -v '^#' "$patches" | cut -f1; } >"$out"
+echo "btmh 1220$(sha256sum <"$out" | cut -c1-64)"
+STANDIN
+chmod +x "$T/build-torrent"
 # build-site --tree <dir> [--with <patch>]: the site's pages in <dir> built
 # from the list (SKHID_PATCH_LIST of the release.env) and --with's patch:
 # each built-from.tsv, and a page.js naming them; its arguments are a line of
@@ -1280,7 +1305,7 @@ echo 'map one' >"$T/bot-data/mapdata/level_t_day_2.mapdata"
 echo '{"routes": 1}' >"$T/bot-data/bot-routes/routes-t.json"
 grep '^#' "$here/bot-data.tsv" >"$T/bot-data.tsv"
 out=$(SKHID_BOT_DATA_LIST=$T/bot-data.tsv "$here/bot-data" add "$T/bot-data" mapdata/level_t_day_2.mapdata mapdata/bot-routes.json=bot-routes/routes-t.json 2>&1) || fail "bot-data add: $out"
-export SKHID_TEST_REPO=$T/repo SKHID_TEST_BUILD_ZIP=$T/build-zip SKHID_TEST_BUILD_SITE=$T/build-site XDG_CACHE_HOME=$T/cache TMPDIR=$T/tmp
+export SKHID_TEST_REPO=$T/repo SKHID_TEST_BUILD_ZIP=$T/build-zip SKHID_TEST_BUILD_TORRENT=$T/build-torrent SKHID_TEST_BUILD_SITE=$T/build-site XDG_CACHE_HOME=$T/cache TMPDIR=$T/tmp
 SKHID_TEST_STOCK_SHA256=$(sha256sum <"$T/resources.db" | cut -d' ' -f1)
 export SKHID_TEST_STOCK_SHA256
 token=tok3n-$RANDOM$RANDOM$RANDOM
@@ -1366,6 +1391,10 @@ check "release: the ZIP goes in while srp26 is stopped, before its start" bash -
 check "release: srp26 started with the new ZIP in place" test "$(tail -n 1 "$T/zip-at-start")" = "$(sha256sum <"$(folder 12 a)/Survarium-0.26g-srp-files.zip" | cut -c1-64)"
 check "release: waits for no match" has "$out" "5. no match is running"
 check "release: checks /patches and /api/client-files" has "$out" "/api/client-files: the new ZIP"
+check "release: builds the torrent of the ZIP and the list" bash -c "tail -n 1 $T/build-torrent.args | grep -q -- '--patches $T/patches.tsv --zip .*/Survarium-0.26g-srp-files.zip --out .*/skhid-rev12.torrent'"
+check "release: the torrent in place, the folder's" cmp -s "$(folder 12 a)/skhid.torrent" "$T/live/download/skhid.torrent"
+check "release: ... and /api/client-files names it" has "$out" "/api/client-files: the new torrent (info hash $(sha256sum <"$T/live/download/skhid.torrent" | cut -c1-64))"
+check "release: the rollback takes the torrent away (there was none)" grep -qx "HAVE_TORRENT=0" "$(folder 12 a)/rollback.env"
 check "release: checks the log's game data line" has "$out" "log: INFO game data: .* 2 patch(es) offered"
 check "release: prints the rollback" has "$out" "release/rollback release-rev12-[0-9-]*-a"
 check "release: the rollback puts the running image back, by its ID" grep -qx "OLD_IMAGE=sha256:[0-9a-f]*" "$(folder 12 a)/rollback.env"
@@ -2119,6 +2148,7 @@ D_FOLDER=$(basename "$(folder 14 d)")
 starts=$(cat "$T/docker/starts")
 out=$(yes_to "$here/rollback" --keep-db "$D_FOLDER") || fail "rollback --keep-db: $out"
 check "rollback --keep-db: the ZIP back" cmp -s "$T/work/r13.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
+check "rollback --keep-db: the torrent back" cmp -s "$(folder 13 b)/skhid.torrent" "$T/live/download/skhid.torrent"
 check "rollback --keep-db: srp.db as it was" grep -q "^start $starts " "$T/volume/srp.db"
 check "rollback --keep-db: the setting back" grep -qx "SRP_MIN_PATCH_REVISION=13" "$T/live/.env"
 check "rollback --keep-db: the game exe's line back, once" test "$(grep '^SRP_RELEASED_EXE_SHA256=' "$T/live/.env")" = "$(exe_line "$T/work/r13.zip")"

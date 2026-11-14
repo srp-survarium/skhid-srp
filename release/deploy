@@ -20,7 +20,9 @@
 #      image srp-026g:before-rev<n>-<stamp>; puts the rollback in the folder;
 #   5. the server data and the ZIP into place (hard links renamed over the
 #      old ones, while srp26 is stopped: the site never offers the old ZIP
-#      beside the new /patches and revision), SRP_MIN_PATCH_REVISION=<n>
+#      beside the new /patches and revision; download/skhid.torrent, the
+#      torrent of the ZIP before, is taken away: release.sh builds one, this
+#      does not), SRP_MIN_PATCH_REVISION=<n>
 #      and SRP_RELEASED_EXE_SHA256=<the sha256 of the ZIP's game exe> in
 #      .env (those lines only; the file is never printed), docker compose up
 #      -d --no-deps --force-recreate srp26;
@@ -108,9 +110,10 @@ else
     if [[ $LATEST_IMAGE != "$RUN_IMAGE" ]]; then
         say "NOTE: $IMAGE is $LATEST_IMAGE, not the running image: the restart runs that one"
     fi
-    present=$(on_target "cd $D && for f in download/$ZIP_NAME download/$DATA_NAME; do if test -f \$f; then echo \$f; fi; done")
+    present=$(on_target "cd $D && for f in download/$ZIP_NAME download/$DATA_NAME download/$TORRENT_NAME; do if test -f \$f; then echo \$f; fi; done")
     [[ $present == *"$ZIP_NAME"* ]] && HAVE_ZIP=1
     [[ $present == *"$DATA_NAME"* ]] && HAVE_DATA=1
+    [[ $present == *"$TORRENT_NAME"* ]] && HAVE_TORRENT=1
     OLD_PATCHES=$(served_patches)
     blobs=$(missing_original_blobs)
     [[ -z $blobs ]] || die "download/resources/ lacks the original blobs the updater's restore fetches: $(tr '\n' ' ' <<<"$blobs")"
