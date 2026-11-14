@@ -314,8 +314,6 @@ const AREA_POINTS: usize = 3;
 /// The step after a kill and after a hit, m.
 const AFTER_KILL_M: (f32, f32) = (2.5, 3.5);
 const AFTER_HIT_M: (f32, f32) = (2.0, 2.5);
-/// Health lost between two thinks that counts as a hit. GUESS.
-const HIT_HEALTH: f32 = 0.02;
 /// An enemy this recently known is "known", ms, and as near as this, m. GUESS.
 const KNOWN_MS: u32 = 6_000;
 const KNOWN_M: f32 = 60.0;
@@ -492,9 +490,11 @@ pub(crate) struct CamperMotion {
     moving: MoveOptions,
     mode: Mode,
     stance: Stance,
-    /// His kills and health at the last think.
+    /// His kills and his last hit's time ([`Think::last_hit_ms`]) at the last think. [G7] A hit was a fall of his health of
+    /// more than 0.02 between two thinks (`HIT_HEALTH`, GUESS): small hits were missed, and a zone's or a fall's loss
+    /// counted. The world's last hit time is the hit itself.
     kills: u32,
-    health: f32,
+    last_hit_ms: Option<u32>,
     /// The life he is in (`PlaceView::spawned`), and the time of the last think of it.
     life: u32,
     last_think: u32,
@@ -538,6 +538,9 @@ pub(crate) struct Think<'a> {
     pub(crate) enemy: Option<Vec3>,
     pub(crate) tactics: &'a Tactics,
     pub(crate) side: i32,
+    /// [G7] The time of his last hit as the world says it (the damage model's last hit, `motor::Hurt::last_hit_ms`; none
+    /// this life): a hit is a newer one.
+    pub(crate) last_hit_ms: Option<u32>,
 }
 
 /// How a motion begins.
@@ -550,11 +553,13 @@ pub(crate) struct Start<'a> {
     pub(crate) area: Vec<Vec3>,
     pub(crate) now: u32,
     pub(crate) me: &'a PlaceView,
+    /// [G7] His last hit's time at the start ([`Think::last_hit_ms`]): a hit before the motion began is none of its own.
+    pub(crate) last_hit_ms: Option<u32>,
 }
 
 impl CamperMotion {
     pub(crate) fn new(start: Start<'_>) -> Self {
-        let Start { options, moving, seed, spot, area, now, me } = start;
+        let Start { options, moving, seed, spot, area, now, me, last_hit_ms } = start;
         let mut rng = Rng::new(0xCA3E_0000 + me.place as u64 + (u64::from(seed) << 20));
         let area = if area.is_empty() { vec![spot] } else { area };
         let leave_at = first_leave(moving, now, &mut rng);
@@ -569,7 +574,7 @@ impl CamperMotion {
             mode: Mode::Stay { area, here: 0, kills: 0, last_kill: None, leave_at, hold },
             stance: Stance::Standing { next },
             kills: me.kills,
-            health: me.health,
+            last_hit_ms,
             life: me.spawned,
             last_think: now,
             previous: None,
@@ -607,9 +612,12 @@ impl CamperMotion {
     pub(crate) fn step(&mut self, t: &Think<'_>) -> Intent {
         let now = t.now;
         let killed = t.me.kills > self.kills;
-        let hit = self.health - t.me.health > HIT_HEALTH;
+        let hit = t.last_hit_ms > self.last_hit_ms;
+        if hit {
+            log::debug!("bench camper {} hit at {} ms (the world's last hit {:?}): a step aside", t.me.place, t.now, t.last_hit_ms);
+        }
         self.kills = t.me.kills;
-        self.health = t.me.health;
+        self.last_hit_ms = t.last_hit_ms;
         let away = now.saturating_sub(self.last_think);
         self.last_think = now;
         if t.me.spawned != self.life {
@@ -1301,6 +1309,7 @@ impl BenchCamper {
                             area: area_of(moving, tactics, side, at, self.options.crouch),
                             now,
                             me,
+                            last_hit_ms: bot.hurt.last_hit_ms,
                         })),
                     },
                 },
@@ -1349,7 +1358,7 @@ impl BenchCamper {
                 };
                 bot.control = Driver::BenchCamper;
                 let enemy = nearest_known(bot.memory.tracks(), me.feet, now);
-                bot.intent = motion.step(&Think { now, me, enemy, tactics, side });
+                bot.intent = motion.step(&Think { now, me, enemy, tactics, side, last_hit_ms: bot.hurt.last_hit_ms });
                 motion.holds_cover().then(|| motion.spot())
             }
         };
@@ -1433,6 +1442,7 @@ mod tests {
             area,
             now: 0,
             me: &me_at(spot, 0, 1.0, 0),
+            last_hit_ms: None,
         })
     }
 
@@ -1459,7 +1469,7 @@ mod tests {
         let mut asked: Vec<Vec3> = Vec::new();
         let mut feet = here(m);
         for now in (from..to).step_by(100) {
-            let t = Think { now, me: &me_at(feet, kills(now), 1.0, life(now)), enemy, tactics, side: 0 };
+            let t = Think { now, me: &me_at(feet, kills(now), 1.0, life(now)), enemy, tactics, side: 0, last_hit_ms: None };
             let intent = m.step(&t);
             if let Go::To { at, .. } = intent.go {
                 feet = at;
@@ -1497,10 +1507,13 @@ mod tests {
         assert_eq!(m.counts.after_kill, 1);
         let moved = asked.last().expect("a place").distance_xz(from);
         assert!((2.4..=3.6).contains(&moved), "{moved}");
-        // A hit: the health the think saw falls.
+        // A hit: the world's last hit time is newer than the last think's.
         let mut h = motion();
-        h.step(&Think { now: 0, me: &me_at(here(&h), 0, 1.0, 0), enemy: None, tactics: &tactics, side: 0 });
-        h.step(&Think { now: 100, me: &me_at(here(&h), 0, 0.7, 0), enemy: None, tactics: &tactics, side: 0 });
+        h.step(&Think { now: 0, me: &me_at(here(&h), 0, 1.0, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None });
+        h.step(&Think { now: 100, me: &me_at(here(&h), 0, 0.7, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: Some(80) });
+        assert_eq!(h.counts.after_hit, 1);
+        // [G7] A loss with no hit (a zone, a fall) is no hit, and the same hit is not counted twice.
+        h.step(&Think { now: 200, me: &me_at(here(&h), 0, 0.5, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: Some(80) });
         assert_eq!(h.counts.after_hit, 1);
     }
 
@@ -1632,7 +1645,7 @@ mod tests {
         let (first, _) = camper_spot_at(&tactics, 0, &live).expect("a spot");
         let mut m = motion_with(live, 1);
         // A new life far from it: he heads for the first spot.
-        m.step(&Think { now: 1_000, me: &me_at(Vec3::new(5.0, 0.0, 10.0), 0, 1.0, 900), enemy: None, tactics: &tactics, side: 0 });
+        m.step(&Think { now: 1_000, me: &me_at(Vec3::new(5.0, 0.0, 10.0), 0, 1.0, 900), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None });
         assert!(matches!(m.mode, Mode::Leave { to, .. } if to == first), "{:?}", m.mode);
     }
 
@@ -1679,7 +1692,7 @@ mod tests {
         let mut now = 0;
         let feet = Vec3::new(0.0, 0.0, 0.0);
         while now < 120_000 {
-            stuck.step(&Think { now, me: &me_at(feet, 0, 1.0, 0), enemy: None, tactics: &tactics, side: 0 });
+            stuck.step(&Think { now, me: &me_at(feet, 0, 1.0, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None });
             now += 100;
         }
         assert!(stuck.counts.gave_up >= 1, "{:?}", stuck.counts);
@@ -1697,7 +1710,7 @@ mod tests {
             let spot = here(&m);
             // Alive to 3 s, dead for 8 s, a new life from 11 s.
             run_lives(&mut m, &tactics, 0, 3_000, None, |_| 0, |_| 0);
-            m.step(&Think { now: 11_000, me: &me_at(spot, 0, 1.0, 7), enemy: None, tactics: &tactics, side: 0 });
+            m.step(&Think { now: 11_000, me: &me_at(spot, 0, 1.0, 7), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None });
             match m.mode {
                 Mode::Return { at, to } if to == spot => {
                     back += 1;
