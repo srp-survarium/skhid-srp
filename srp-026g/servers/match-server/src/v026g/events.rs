@@ -201,7 +201,8 @@ impl Extractor {
     /// The kills and deaths since the world at `after`, `gains` by place.
     fn kills(&mut self, world: &World, seats: &[Seat], after: u32, gains: &[Tally]) {
         let players = &world.statistics.players;
-        let team = |place: usize| seats.get(place).map(|seat| seat.team).filter(|&t| t < 2);
+        // Its side: a team's (0 or 1), or in a free-for-all its own (`maps::free_for_all_team`).
+        let team = |place: usize| seats.get(place).map(|seat| seat.team);
         let enemies =
             |a: usize, b: usize| matches!((team(a), team(b)), (Some(x), Some(y)) if x != y);
         // When each killer's kills of the window were.
@@ -228,15 +229,13 @@ impl Extractor {
             .enumerate()
             .flat_map(|(place, gain)| std::iter::repeat_n(place, kept(gain.deaths) as usize))
             .collect();
-        // The window's deaths by team: a killer's enemies' are the other's.
-        let mut died = [0usize; 2];
-        for &dead in &deaths {
-            if let Some(team) = team(dead) {
-                died[usize::from(team)] += 1;
-            }
-        }
-        let enemies_died =
-            |killer: usize| team(killer).map_or(0, |team| died[usize::from(1 - team)]);
+        // The window's deaths of a killer's enemies: of every other side.
+        let enemies_died = |killer: usize| {
+            deaths
+                .iter()
+                .filter(|&&dead| enemies(killer, dead))
+                .count()
+        };
         for &victim in &deaths {
             let Some(dead) = player(seats, victim) else {
                 continue;
@@ -442,6 +441,52 @@ mod tests {
                     kind: EventKind::End { points: [90, 98] },
                 },
             ]
+        );
+    }
+
+    /// In a free-for-all every place is a side of its own (4 + place): a lone kill is paired with
+    /// its victim, and a killer of one whose two deaths came in its window is not.
+    #[test]
+    fn a_free_for_all_pairs_kills_across_its_own_sides() {
+        let seats: Vec<Seat> = SEATS
+            .iter()
+            .enumerate()
+            .map(|(place, seat)| Seat {
+                team: survarium::v026g::maps::free_for_all_team(place),
+                ..*seat
+            })
+            .collect();
+        let mut extractor = Extractor::new(RuleMode::FreeForAll);
+        let mut world = statistics(&[(1, event::KILL, 1), (2, event::DEATH, 1)]);
+        world.players[1].last_killed_enemy_ms = 2_000;
+        let at = |time, statistics| World {
+            time,
+            statistics,
+            standing: None,
+            research: None,
+        };
+        assert!(extractor.observe(&at(5_000, &world), &seats));
+        // Then 0 kills once, 2 and 3 die: either may be its, so neither is paired.
+        let second = statistics(&[
+            (0, event::KILL, 1),
+            (1, event::KILL, 1),
+            (2, event::DEATH, 2),
+            (3, event::DEATH, 1),
+        ]);
+        assert!(extractor.observe(&at(10_000, &second), &seats));
+        let events = extractor.finish(20_000, [0, 0]);
+        assert_eq!(
+            events[0].kind,
+            EventKind::Kill {
+                killer: who(1),
+                victim: Some(who(2)),
+            }
+        );
+        assert!(
+            events[1..]
+                .iter()
+                .all(|event| !matches!(event.kind, EventKind::Kill { victim: Some(_), .. })),
+            "{events:?}"
         );
     }
 
