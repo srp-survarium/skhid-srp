@@ -421,12 +421,13 @@ impl World {
     /// Another match of the client's account ends, settled behind the
     /// lobby's back (the lobby is not told: no screen is shown for it).
     fn settle_another(&mut self, index: usize, match_id: u32) {
-        let made = self.host.made.lock().unwrap()[0].1.map;
+        let made = self.host.made.lock().unwrap()[0].1.played;
         let (account_id, session_id) = self.ids[index];
         let result = MatchResult {
             match_id,
             map_id: made.map().id,
             mode: made.mode(),
+            twist: made.twist(),
             match_level: 0,
             end: MatchEnd::ModeRule,
             winner: Some(0),

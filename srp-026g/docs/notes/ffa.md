@@ -307,6 +307,56 @@ and spatial review; they still need multiplayer playtesting for balance.
 - A live server with `SRP_MATCH_MODES` set must name 8 for it to be played.
 - **The site's live table** shows a free-for-all's players in all, not "N v N".
 
+## Twists
+
+A free-for-all card of the rooms' vote may be a twist of the mode (the owner, 2026-11-14: "implement
+FFA variation, which replaces all sniper rifles and all silent weapons with ak-12"): the same map,
+rules, spawns, pay and results, every kit's guns changed by the server.
+
+- **No maps of their own.** The match options' map id is one byte (`static_info.md`) and the owner
+  keeps the free ids for maps ("there should be enough map slots", "we will add more maps in the
+  future"): a twist is no `maps_dict` row, no config, no content. `survarium::v026g::twist::Played`
+  is what a match plays: a map, and on a free-for-all's a twist or none (no other mode's map can
+  hold one).
+- **Where:** each free-for-all card of a vote (the third card; all three in a pool of
+  free-for-alls alone) draws its twist with the card, by its share (`twist::SHARES`):
+  - plain Free for all 45 %, **Racket** 45 % (my pick);
+  - **Cowboy** 10 % when it lands (the owner, 2026-11-14: "cowboy version should be rare with
+    only 10% chance"; `ffa-cowboy.md`).
+
+  No tick of its own in the create window: a room with Free for all has its twists. Won, the card's
+  match plays its twist.
+- **Names** (one word each, as Blackout; the owner's: Racket, Движ; mine for the others):
+  `st_srp_mode_racket` Racket, Движ, Двіж (uk, be), Raban, Radau, Rambajz, Galama, Zsivaj, Meteli.
+  The lobby's mode number 9 (`Twist::lobby_number`; 7 is Scarcity's): a card's tag and colour, the
+  room's banner of its match (`lobby.md`, rooms' `C` and `L` rows), the log's "mode". The game's
+  own screens (loading, results, the HUD) say Free for all: they read the map's config.
+- **The kits:** the server owns what spawns: the static info's profiles, which every game cooks
+  each life from. The match server arms every profile it gives (the first players', each late
+  joiner's) before the Keeper's draw; the clients, late joiners and replays get the armed ones.
+  The accounts keep their own guns; the lobby's checks of a kit (a weapon and its ammo, the max
+  level) are of the account's kit.
+- **Racket** (`survarium::v026g::racket`):
+  - Replaced: every sniper rifle (dictionary category 13: Mosin, TOZ-122, Winchester, Remington
+    700, SV-98, VSS, VSK-94, SVD, SVU, VSSK, their premium and golden copies) and every gun whose
+    shot the others hear as the AS Val's muffled `weapons/val_m` (`states.fire.sounds.third_view`):
+    the Val, the MP7 with its silencer and its Legend, the ported Kriss Vector. Loud: the SR-3M,
+    the 9A-91, the MSBS (shots of their own).
+  - The gun: a whole `ak_12` with no modification and no upgrade, the replaced gun's instance id,
+    in every kit and slot that held it (the second slot takes it: assault rifles fit slot 10).
+  - Its ammo: in each kit that held a replaced gun, every ammo slot whose ammo none of the kit's
+    guns fires now is emptied; the ammo bags it took (a bag share for each clip begun) are AK-12
+    ammo (`ammo_6.5x39`, the one ammo the data pairs with it), whole clips, one new stack in the
+    first slot emptied. Without such ammo the AK-12 has its magazine alone.
+  - Nothing else changes: armour, pockets, artefacts, skills, a loud gun and its ammo.
+  - srp refuses to start on data without `ak_12` or with other than one ammo for it.
+- **Pay:** as any free-for-all. The ammo used is counted from the trusted world's stacks, which are
+  the match's: the AK-12 ammo is nobody's, the replaced ammo was not in the match. Without a
+  trusted block a twisted match charges no ammo (`autobuy::used`): the shot counters were of guns
+  the account's kits do not hold.
+- **Not yet:** the website's "matches now" tab and the rooms list say Free for all for a twisted
+  match; nothing in the match tells the twist (no introduction line).
+
 ## The player's screens
 
 - **Top bar (hud):** the match timer only, without opposing bars, team counters or alive-player

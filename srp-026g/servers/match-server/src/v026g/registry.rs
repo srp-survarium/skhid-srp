@@ -14,8 +14,9 @@ use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
 use survarium::v026g::keeper;
+use survarium::v026g::twist::{Played, Twist};
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::maps::{self, GameMode, MatchMap};
+use survarium::v026g::maps::{self, GameMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
@@ -75,9 +76,9 @@ pub struct MatchPlayer {
 /// A match the lobby formed.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchSetup {
-    /// The map, the mode and its timings
-    /// (`survarium::v026g::maps`).
-    pub map: MatchMap,
+    /// The map, the mode and its timings (`survarium::v026g::maps`), and
+    /// a free-for-all's twist (`survarium::v026g::twist`).
+    pub played: Played,
     /// Logged by the client only.
     pub match_level: u16,
     /// The players who will really come: the roster's size is the N of the
@@ -188,8 +189,8 @@ pub(crate) struct Place {
 #[derive(Clone)]
 pub(crate) struct Formed {
     pub match_id: u32,
-    /// The map and the mode.
-    pub played: MatchMap,
+    /// The map, the mode and a free-for-all's twist.
+    pub played: Played,
     pub match_level: u16,
     pub places: Vec<Place>,
     /// The profiles the clients were given, by place: what a snapshot's
@@ -452,7 +453,7 @@ impl MatchRegistry {
         if setup.players.is_empty() || setup.players.len() > MAX_PLAYERS {
             return Err(CreateError::Roster(setup.players.len()));
         }
-        let played = setup.map;
+        let played = setup.played;
         let map = played.map();
         // The server's bots play modes 2 to 4 (`bots`): none in Research.
         if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
@@ -521,11 +522,12 @@ impl MatchRegistry {
                 .into_iter()
                 .map(|player| {
                     let mut profile = player.profile;
+                    played.arm(&mut profile, Dictionary::shared());
                     keeper::give(&mut profile, keeper);
                     profile
                 })
                 .collect(),
-            map: played,
+            map: played.match_map(),
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
@@ -576,7 +578,7 @@ impl MatchRegistry {
             "Match {match_id:#x} made: map {} ({}, mode {}), {} players{}{}{}",
             map.id,
             map.name,
-            map.mode.lobby_number(),
+            played.lobby_number(),
             options.players.len(),
             if setup.vs_bots {
                 ", one player against the server's bots"
@@ -680,13 +682,14 @@ impl MatchRegistry {
         }
         next.profiles.extend(players.iter().map(|player| {
             let mut profile = player.profile.clone();
+            next.played.arm(&mut profile, Dictionary::shared());
             gift(&mut profile, next.keeper);
             profile
         }));
         next.info = StaticInfo::new(
             &MatchOptions {
                 players: next.profiles.clone(),
-                map: next.played,
+                map: next.played.match_map(),
                 match_id: static_id(match_id),
                 match_level: next.match_level,
                 score_weights: next.score_weights,
@@ -1082,6 +1085,8 @@ pub struct MatchResult {
     pub map_id: u8,
     /// [`Formed::played`]'s: Blackout's scores pay twice.
     pub mode: GameMode,
+    /// [`Formed::played`]'s twist: the kits it armed.
+    pub twist: Option<Twist>,
     pub match_level: u16,
     pub end: MatchEnd,
     /// 0 or 1, [`DRAW`], or `None` when no trusted snapshot gave a

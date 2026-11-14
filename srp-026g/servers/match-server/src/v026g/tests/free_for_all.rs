@@ -63,7 +63,7 @@ fn sides(registry: &MatchRegistry, match_id: u32) -> (Vec<u8>, Vec<(u8, u8)>) {
     let formed = registry.formed(match_id).expect("the match");
     let options = parse_options(formed.info.options(), Dictionary::shared())
         .expect("options a client reads");
-    assert_eq!(options.map, formed.played);
+    assert_eq!(options.map, formed.played.match_map());
     let kept: Vec<(u8, u8)> = formed
         .profiles
         .iter()
@@ -397,4 +397,56 @@ fn the_first_terminal_world_owns_the_result_during_the_closing_delay() {
     assert_eq!((result.players[0].deaths, result.players[1].deaths), (29, 30));
     assert!(result.players[0].score > result.players[1].score);
     bench.assert_no_faults();
+}
+
+/// A free-for-all with a twist (Racket, `docs/notes/ffa.md` "Twists") arms
+/// every profile it gives the clients, its first players' and a late
+/// joiner's; the lobby's profiles are as they were, and a plain one's stay
+/// as the lobby gave them.
+#[test]
+fn a_racket_match_arms_every_profile_it_gives_late_joiners_too() {
+    use survarium::v026g::twist::{Played, Twist};
+    let gun = |name: &str| {
+        Dictionary::shared()
+            .item_named(name)
+            .expect("a gun of the 0.26g dictionary")
+            .dict_id
+    };
+    let sniper = |mut player: MatchPlayer| {
+        player.profile.items[0].dict_id = gun("svd");
+        player
+    };
+    let guns = |registry: &MatchRegistry, match_id: u32| -> Vec<u16> {
+        let formed = registry.formed(match_id).expect("the match");
+        let options = parse_options(formed.info.options(), Dictionary::shared())
+            .expect("options a client reads");
+        assert_eq!(options.players, formed.profiles, "the clients get what the server keeps");
+        formed.profiles.iter().map(|profile| profile.items[0].dict_id).collect()
+    };
+    let registry = MatchRegistry::new("127.0.0.1", 1237);
+    let mut made = setup(2, map_id());
+    for player in &mut made.players {
+        *player = sniper(player.clone());
+    }
+    let map = maps::MatchMap::of(map_id()).unwrap();
+    made.played = Played::twisted(map, Twist::Racket).expect("a free-for-all's");
+    let racket = registry.create_growing(made).unwrap().match_id;
+    assert_eq!(registry.formed(racket).unwrap().played.twist(), Some(Twist::Racket));
+    assert_eq!(guns(&registry, racket), [gun("ak_12"); 2]);
+    registry.set_admitting(
+        racket,
+        2,
+        Ok(Instant::now() + Duration::from_secs(60)),
+        LivePhase::Playing,
+    );
+    assert!(registry.join_running(racket, sniper(newcomer(2, 0))).is_ok());
+    assert_eq!(guns(&registry, racket), [gun("ak_12"); 3]);
+    // The same players in a plain free-for-all keep their rifles.
+    let mut made = setup(2, map_id());
+    for player in &mut made.players {
+        *player = sniper(player.clone());
+        player.session_id += 0x100;
+    }
+    let plain = registry.create(made).unwrap().match_id;
+    assert_eq!(guns(&registry, plain), [gun("svd"); 2]);
 }
