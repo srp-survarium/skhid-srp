@@ -205,7 +205,7 @@ impl Core<'_> {
                 "L1;{:08x};{};{};{};{};{};{};{};{};{};{}",
                 running.ticket.match_id,
                 running.map.map().id,
-                running.map.mode().lobby_number(),
+                running.map.lobby_number(),
                 phase_code(live.phase),
                 players[0],
                 players[1],
