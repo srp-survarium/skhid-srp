@@ -1359,6 +1359,27 @@ pub struct GunReads {
     pub clip_cancelled: u32,
 }
 
+impl GunReads {
+    /// The counts as a log line: `worlds read 120 (unkept 2), rounds off 5 (moved 9), ...`.
+    pub fn line(&self) -> String {
+        format!(
+            "worlds read {} (unkept {}), rounds off {} (moved {}), ammo off {}, reloads ended {}, lost {}, found {}; reload clips read {}, moved {} ({} ms in all), cancelled {}",
+            self.read,
+            self.unkept,
+            self.rounds_off,
+            self.rounds_moved,
+            self.spare_off,
+            self.reload_ended,
+            self.reload_lost,
+            self.reload_found,
+            self.clip_read,
+            self.clip_moved,
+            self.clip_moved_ms,
+            self.clip_cancelled
+        )
+    }
+}
+
 impl std::ops::AddAssign for GunReads {
     fn add_assign(&mut self, other: Self) {
         self.read += other.read;

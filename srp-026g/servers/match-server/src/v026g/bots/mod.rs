@@ -1246,6 +1246,16 @@ impl Bots {
         format!("team 0: {}; team 1: {}", one.line(), two.line())
     }
 
+    /// [Gap 3] What the worlds did to the bots' gun ledgers, summed by team, as the match-end log line
+    /// (`the bots' guns: ...`, [`guns::GunReads::line`]).
+    pub fn gun_report(&self) -> String {
+        let mut sums = [guns::GunReads::default(); 2];
+        for bot in self.bots.iter().flatten() {
+            sums[usize::from(bot.team.min(1))] += bot.gun_reads();
+        }
+        format!("team 0: {}; team 1: {}", sums[0].line(), sums[1].line())
+    }
+
     /// What every bot's pantry has done, summed by team ([`stock::PantryCounts`]).
     pub fn pantry_counts(&self) -> [stock::PantryCounts; 2] {
         let mut sums = [stock::PantryCounts::default(); 2];
