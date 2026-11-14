@@ -468,9 +468,10 @@ pub enum BatteryAnimation {
 }
 
 /// A battery's state machine's state (`victory_item_core`'s three:
-/// `victory_item_core_take_state`, `_carry_state`, `_drop_state`; an id
-/// past them crashes the reader), with its base state's fields and, for
-/// take and drop, the animation it waits for
+/// `victory_item_core_take_state`, `_carry_state`, `_drop_state`, then exe
+/// patch 143's swing, a take state the cook appends; an id past them crashes
+/// the reader), with its base state's fields and, for take, drop and the
+/// swing, the animation it waits for
 /// (`victory_item_core_animation_end_aware_state` 0x344870).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BatteryState {
@@ -485,6 +486,12 @@ pub enum BatteryState {
         motion: BatteryMotion,
         animation: Option<BatteryAnimation>,
     },
+    /// The carrier's swing (patch 143, docs/notes/battery-hit.md): a take
+    /// state's layout, index 3.
+    Swing {
+        motion: BatteryMotion,
+        animation: Option<BatteryAnimation>,
+    },
 }
 
 impl BatteryState {
@@ -492,7 +499,8 @@ impl BatteryState {
         match *self {
             BatteryState::Take { motion, .. }
             | BatteryState::Carry { motion }
-            | BatteryState::Drop { motion, .. } => motion,
+            | BatteryState::Drop { motion, .. }
+            | BatteryState::Swing { motion, .. } => motion,
         }
     }
 }
@@ -637,7 +645,7 @@ impl CarriedBattery {
             index if index < BATTERY_CONTAINERS => Some(index),
             _ => return Err((at, Reason::TailBattery { at })),
         };
-        let state = match state_id(reader, 3)? {
+        let state = match state_id(reader, 4)? {
             0 => BatteryState::Take {
                 motion: BatteryMotion::read(reader)?,
                 animation: BatteryMotion::animation(reader)?,
@@ -645,7 +653,11 @@ impl CarriedBattery {
             1 => BatteryState::Carry {
                 motion: BatteryMotion::read(reader)?,
             },
-            _ => BatteryState::Drop {
+            2 => BatteryState::Drop {
+                motion: BatteryMotion::read(reader)?,
+                animation: BatteryMotion::animation(reader)?,
+            },
+            _ => BatteryState::Swing {
                 motion: BatteryMotion::read(reader)?,
                 animation: BatteryMotion::animation(reader)?,
             },
@@ -1405,7 +1417,17 @@ mod tests {
             }
         ));
         let reason = |state: &[u8]| with_profile(state).expect_err("refused").reason;
-        // Another user, a container past the two, a state past the three.
+        // The swing (patch 143): a take's layout.
+        let swing = battery(0, 0xFF, 3);
+        let read = PlayerState::read(&swing, 1, None).unwrap();
+        assert!(matches!(
+            read.inventory().carried().unwrap().state(),
+            BatteryState::Swing {
+                animation: Some(BatteryAnimation::FirstPerson),
+                ..
+            }
+        ));
+        // Another user, a container past the two, a state past the four.
         assert!(matches!(
             reason(&battery(1, 0xFF, 1)),
             Reason::TailBattery { .. }
@@ -1415,8 +1437,8 @@ mod tests {
             Reason::TailBattery { .. }
         ));
         assert!(matches!(
-            reason(&battery(0, 0xFF, 3)),
-            Reason::TailGunState { state: 3, .. }
+            reason(&battery(0, 0xFF, 4)),
+            Reason::TailGunState { state: 4, .. }
         ));
     }
 
