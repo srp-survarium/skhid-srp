@@ -1,9 +1,10 @@
 SURVARIUM 0.26g - LINUX
 
-Install Bash, curl, Winetricks (with cabextract), and Wine 11.0+ with modern
-WoW64 support.
+For the Wine scripts, install Bash, curl, Winetricks (with cabextract), and
+Wine 11.0+ with modern WoW64 support.
 Tested: Wine 11.8 Staging WoW64. Use wine and wineserver from the same
 installation. A Vulkan-capable graphics driver is required for DXVK.
+For GE-Proton11-7, see GE-PROTON below.
 
 If the script asks for ntsync, run sudo modprobe ntsync, then try again.
 To load it automatically at boot:
@@ -27,6 +28,22 @@ launches reuse them. Settings: ~/.config/skhid/user.cfg (or
 $XDG_CONFIG_HOME/skhid/user.cfg).
 Select an English keyboard layout before starting to avoid text-input issues.
 For VPN setup, see VPN.txt; split tunnelling must cover Wine.
+
+GE-PROTON
+
+GE-Proton11-7 with PROTON_USE_WOW64=1 was tested successfully through
+mounting all game resource archives, using a fresh prefix.
+
+Set this environment variable in the launcher that runs Proton (for example,
+UMU), before it starts Proton:
+
+    PROTON_USE_WOW64=1
+
+This is a Proton setting, not a game command-line argument. With GE-Proton11-7's
+default mode, the same game and resource files reproduced a "Cannot mount
+resources.db.patch_..." memory error. Enabling modern WoW64 fixed resource
+mounting without lowering the game's memory budgets or replacing patch files.
+Simply creating a win64 prefix is not the same as enabling this mode.
 
 IF IT FAILS
 
