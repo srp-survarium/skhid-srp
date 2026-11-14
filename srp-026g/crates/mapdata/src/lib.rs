@@ -293,20 +293,23 @@ impl World {
     /// [`Self::build_with_links`], the grid finished by `extras` ([`GridExtras::apply`]) as the server's map store finishes its
     /// own (`bots::maps`): the same step, so a table the store adds cannot be missing from a world built here.
     pub fn build_with_extras(map: MapData, cell: f32, body: Body, links: OffMeshLinks, extras: GridExtras) -> Self {
-        let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let walker = map.walker_triangles();
-        let (grid, _) = WalkGrid::build_kept_with_links(
-            &walker,
-            map.play_area(AREA_MARGIN),
-            cell,
-            body,
-            &map.grid_seeds(),
-            &spawns,
-            links,
-        );
-        let grid = extras.apply(grid, &walker);
+        let grid = extras.apply(Self::map_grid(&map, &walker, cell, body, links), &walker);
         let sight = map.bullet_mesh().build_tree();
         Self::assemble(map, grid.into(), sight.into())
+    }
+
+    /// [A364 C2 rows 11/12] The walk grid of `map` as a match has it (`walker`: its walker triangles): kept from the map's
+    /// [`MapData::grid_seeds`], its pockets those of the spawns, the rim jumps ([`Body::rim_jumps`]) flown on the game's shapes
+    /// ([`controller::Collision::build_exe`], a format 6 map; on the walker triangles for a map without them). The server's map
+    /// store (`bots::maps`) and [`Self::build_with_extras`] (the bench's and the tests' worlds) build their grids here, so the
+    /// bench's grid is the server's: the bench built its rim jumps on the walker triangles while the store flew them on the
+    /// shapes.
+    pub fn map_grid(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> WalkGrid {
+        let shapes = body.rim_jumps.then(|| controller::Collision::build_exe(map)).flatten();
+        let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
+        let area = map.play_area(AREA_MARGIN);
+        WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links).0
     }
 
     /// A world of a grid and a tree built before, from this map's geometry
