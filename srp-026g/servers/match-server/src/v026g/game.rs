@@ -131,6 +131,8 @@ use super::{LateInputs, Settings};
 use super::world_validation;
 
 mod driven;
+#[cfg(test)]
+pub(crate) use driven::world_period;
 mod late_join;
 mod live;
 mod start;

@@ -12,7 +12,7 @@
 //! |---|---|
 //! | `SRP_BENCH_LIVE_FIELDS=<n>` | off; else at most `n` fields alive at once (the release: 16) |
 //! | `SRP_BENCH_FIELD_TAKER` | `none`; `scripted` takes a field's artefact [`TAKE_AFTER_MS`] into its holding |
-//! | `SRP_BENCH_FIELD_WORLD_MS` | [`WORLD_MS`]: how often a world lists the fields to the bots (a lag arm: 5000) |
+//! | `SRP_BENCH_FIELD_WORLD_MS` | how often a world lists the fields to the bots (a lag arm: 5000); unset, every world (`settings::bench_world_ms`) |
 //! | `SRP_BENCH_FIELD_RADIUS_M` | [`RADIUS_M`]: the fields' radius |
 //! | `SRP_BENCH_FIELD_PLACES` | `spread`: floors of the map [`PLACE_GAP_M`] apart; `lanes`: points on the walks between the containers and the battery spawners (where the bots go, so a field costs them something) |
 //! | `SRP_BENCH_FIELD_PACE` | the release's; `fast`: the first try at 5 s, then every 4-8 s (a stress arm: more fields in a short match) |
@@ -193,7 +193,7 @@ impl FieldGen {
             seed,
             max,
             taker,
-            settings.number("SRP_BENCH_FIELD_WORLD_MS").unwrap_or(WORLD_MS),
+            settings.number("SRP_BENCH_FIELD_WORLD_MS").unwrap_or_else(|| super::settings::bench_world_ms(settings)),
             settings.number("SRP_BENCH_FIELD_RADIUS_M").unwrap_or(RADIUS_M),
         );
         if settings.var("SRP_BENCH_FIELD_PLACES").as_deref() == Ok("lanes") {
