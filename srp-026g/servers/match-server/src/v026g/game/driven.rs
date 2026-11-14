@@ -634,6 +634,10 @@ fn world_facts(time: u32, decoded: &Decoded) -> WorldFacts {
             .and_then(|gather| gather.timed.as_ref())
             .filter(|timed| timed.started)
             .map(|timed| timed.next_spawn),
+        // [Gap 13] The respawn rule's waiting places and their respawn times (`player_respawn_rule_core` 0x316F10).
+        respawns: rules
+            .and_then(|rules| rules.respawn.as_ref())
+            .map(|respawn| respawn.times.iter().map(|&(place, at)| (usize::from(place), at)).collect()),
     }
 }
 

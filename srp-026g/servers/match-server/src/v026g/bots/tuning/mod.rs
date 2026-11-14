@@ -566,6 +566,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/take/drop_impossible",
     "/take/pitch",
     "/think/goal_off_floor_no_way",
+    "/think/respawn_times",
     "/think/stamina_rates",
     "/traps/keep_off",
     "/traps/press_clear",
