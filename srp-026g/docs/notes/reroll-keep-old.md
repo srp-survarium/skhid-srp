@@ -49,7 +49,7 @@ locked into one". Code: `items_rules::reroll`; the lobby: `MessageRerollItem.upd
   [flat-reroll.md](flat-reroll.md)); paid once, when the three are
   offered; one offer at a time (asking for another modification meanwhile shows the same three,
   free); keep old; no craft while one is offered; refused for a damaged item or one in repair;
-  golden weapons' and premium armour's bonuses roll like any other.
+  premium armour's bonuses (and a silver bonus a weapon that was golden holds) roll like any other.
 - **The one changed last:** still kept (`reroll.modification`) and sent (`83 46 06`/`08`,
   `was_rerolled_before`); the window selects it when it opens, locks nothing and greys out
   nothing.

@@ -147,7 +147,7 @@ st_ak12_premium_description	Russisches Sturmgewehr der neuen Kalaschnikow-Genera
 st_ak12_premium_name	AK-12M1
 st_ak74m_description	Die modernisierte Variante von Kalaschnikow mit der Munition 5.45N...39. War auf der Ausrüstung übernommen und hat die gute Reputation unter den Streitkräften verdient. Unterstüzt das einzelne und automatische Regime der Schießerei.
 st_ak74m_name	AK-74M
-st_ak74n_bundle_descr	<white>Enthält folgende Sachen:\n- verbessert "AK-74N"\n- 2000 5.45x39 7N6M Patronen</white>
+st_ak74n_bundle_descr	<white>Enthält folgende Sachen:\n- "AK-74N"\n- 2000 5.45x39 7N6M Patronen</white>
 st_ak74n_bundle_name	Set "AK-74N"
 st_ak74n_description	Description is not ready!!!
 st_ak74n_name	AK-74N
@@ -367,7 +367,7 @@ st_blackmarket_meele_kill_descr	Wenn du schafst die Arbeit sauber zu machen - se
 st_blackmarket_meele_kill_name	schmutzige Arbeit
 st_blackmarket_meele_kill_obj	Gegner im Nahkampf töten:
 st_blackmarket_represent	Sie sollen in die Ausrüstung des schwarzen Marktes bekleidet sein.
-st_blackmarket_starter_bundle_descr	<white>Enthält folgende Sachen: \n- "Räuber Jacke"\n- "Räuber Hosen"\n- verbessert Uzi\n- 2000 9x19 Parabellum Patronen.</white>
+st_blackmarket_starter_bundle_descr	<white>Enthält folgende Sachen: \n- "Räuber Jacke"\n- "Räuber Hosen"\n- Uzi\n- 2000 9x19 Parabellum Patronen.</white>
 st_blackmarket_starter_bundle_name	Set "Räuber"
 st_blackmarket_steal_box_descr	Ergreife und herrsche! Merke dir diese Regel! Stiehl die Batterie von der fremden Base. Von einer Handlung wirst du die Feinde ohne Schutz lassen und deinen Mitspielern helfen!
 st_blackmarket_steal_box_name	Diebstahl
@@ -1357,7 +1357,7 @@ st_items_notes_frame_2_text_1	Die Sondermittel passen in die dazu geehörige Tas
 st_items_notes_frame_3_text_1	Sie können die Anzahl der Taschen vergrößern, indem Sie die Ausrüstung mit der entsprechenden Charaktisierung  verwenden
 st_items_notes_frame_4_text_1	In eine Tache können Sie eine begrenzte Anzahl von Objekten einer Sorte haben
 st_items_notes_frame_5_text_1	Sie können die Taschengröße vergrößern, indem Sie die Ausrüstung mit der entsprechenden Charaktisierung  verwenden
-st_izh27_bundle_descr	<white>Enthält folgende Sachen:\n- Verbessert MP-27M "Lancaster".\n- 1000 12x70 Patronen, Bruch</white>
+st_izh27_bundle_descr	<white>Enthält folgende Sachen:\n- MP-27M "Lancaster".\n- 1000 12x70 Patronen, Bruch</white>
 st_izh27_bundle_name	Set MP-27M "Lancaster"
 st_izh27_description	Description is not ready!!!
 st_izh27_name	MP-27M "Lankaster"
@@ -2036,7 +2036,7 @@ st_scav_torso_4_desc	Description is not ready!!!
 st_scav_torso_4_name	Jacke des Überlebenden
 st_scav_torso_5_desc	Stepp Jacke ist von den gebogenen metallischen Platten außen und Lederflicken innen gefestigt. Ist gute Kleidung für erfahrene Landstreicher.
 st_scav_torso_5_name	Verstärkte Kragen 
-st_scavenger_starter_bundle_descr	<white>Enthält folgende Sachen:\n- "Jacke des Überlebenden"\n- "Hose des Überlebendes"\n- Verbessert OTs-02 "Kiparis"\n- 1000 9x18 PM Patronen.</white>
+st_scavenger_starter_bundle_descr	<white>Enthält folgende Sachen:\n- "Jacke des Überlebenden"\n- "Hose des Überlebendes"\n- OTs-02 "Kiparis"\n- 1000 9x18 PM Patronen.</white>
 st_scavenger_starter_bundle_name	Set "Überlebender"
 st_scavengers_accuracy_descr	Das ist sinnlos Geld auswerfen. Der gute Schütze braucht nur ein Geschoss, um das Leben abzunehmen. Lerne wie die Patronen einzusparen.
 st_scavengers_accuracy_name	Fertigkeiten der Schießerei
@@ -2203,7 +2203,7 @@ st_squad_list_locked_hint	Es ist unmöglich, eine Truppe zu erstellen, wenn man 
 st_squad_not_ready	Abteilung ist nicht fertig
 st_sr2m_description	Description is not ready!!!
 st_sr2m_name	SR-2M "Veresk"
-st_sr3m_bundle_descr	<white>Enthält folgende Sachen: \n- Verbessert CF-3M "Vikhr"\n- 2000 9x39 SP-6 Patronen.</white>
+st_sr3m_bundle_descr	<white>Enthält folgende Sachen: \n- CF-3M "Vikhr"\n- 2000 9x39 SP-6 Patronen.</white>
 st_sr3m_bundle_name	Set SR-3M "Vikhr"
 st_sr3m_description	Description is not ready!!!
 st_sr3m_name	SR-3M "Vikhr"
@@ -3077,7 +3077,7 @@ st_vhs_2_description	Kroatisches Bullpup-Sturmgewehr, Munition: 5,56x45. Von HS 
 st_vhs_2_name	VHS-2
 st_victory	Sieg
 st_victory_screen_no_dropped_item	Sie haben auf dem Schlachtfeld nichts gefunden.
-st_vityaz_bundle_descr	<white> Enthält folgende Verbesserungen:\n- verbessert PP-19-01 "Vityaz"\n- 2000 9x19 Parabellum Patrone\nAmmo </white>
+st_vityaz_bundle_descr	<white> Enthält folgende Sachen:\n- PP-19-01 "Vityaz"\n- 2000 9x19 Parabellum Patrone\nAmmo </white>
 st_vityaz_bundle_name	Set PP-19-01 "Vityaz"
 st_vityaz_description	Die Maschinengewehr-Pistole unter der Munition 9N...19. Ist in 2004 speziell unter die Forderungen der Abteilung der Sondertruppen des Innenministeriums Russlands entwickelt. Unterstützt das einzelne und automatische Regime der Schießerei.
 st_vityaz_name	PP-19-01 Vityaz
@@ -3086,7 +3086,7 @@ st_vsk94_description	Description is not ready!!!
 st_vsk94_name	VSK-94
 st_vsk94_premium_description	Russisches Scharfschützengewehr, Munition: 9x39. In den 1990er Jahren vom KBP in Tula auf Grundlage des 9A-91 entwickelt, mit Schalldämpfer und Scharfschützenschaft; für leises Schießen auf kurze und mittlere Entfernung gedacht. Mit einem 20-Schuss-Magazin ausgestattet. Einzel- und Dauerfeuer. Premium-Version mit einer besonderen Tarnlackierung.
 st_vsk94_premium_name	VSK-94 "der Hüter"
-st_vss_bundle_descr	<white>Enthält folgende Sachen:\n- Verbessert VSS "Vintorez" \n- 1000 9x39 SP-5 Patronen.</white>
+st_vss_bundle_descr	<white>Enthält folgende Sachen:\n- VSS "Vintorez" \n- 1000 9x39 SP-5 Patronen.</white>
 st_vss_bundle_name	Set VSS "Vintorez"
 st_vss_description	Description is not ready!!!
 st_vss_name	VSS "Vintorez"

@@ -63,8 +63,7 @@ ordinary source (the owner, 2026-10-21: no decompilation matching needed now).
   | item categories | `survarium.constants.ItemCategory` (names: `gameplay/item_categories` and the shop filters) |
   | `ItemFactory.getCategory`'s groups | `survarium.constants.SuperCategory` (the shop's tabs) |
   | `ItemData.descriptor` | `survarium.constants.ItemPlace` (inventory, shop, bundle; below 100 the profile slot) |
-  | golden weapons and their plain weapons | `survarium.constants.ItemDictId.GOLDEN_WEAPONS` / `GOLDEN_PLAIN` (srp's `golden::GOLDEN_WEAPONS`; a Rust test keeps them the same) |
-  | premium armour, its plain pieces and premium bonuses | `survarium.constants.ItemDictId.PREMIUM_ARMOUR` / `PREMIUM_ARMOUR_PLAIN` / `PREMIUM_ARMOUR_BONUSES` (srp's `golden::PREMIUM_ARMOUR`; a Rust test keeps them the same) |
+  | premium armour, its plain pieces and premium bonuses | `survarium.constants.ItemDictId.PREMIUM_ARMOUR` / `PREMIUM_ARMOUR_PLAIN` / `PREMIUM_ARMOUR_BONUSES` (items.tsv's copies; a Rust test keeps them the same) |
   | the bonuses srp gives a new golden item, as a modification | `survarium.item.ItemFactory.BONUS_UI` (the modifications' `ui_desc`; a Rust test keeps them the same) |
   | gamepad buttons | `InputDelegate`'s `GAMEPAD_*` (the key codes Scaleform gives them) |
 

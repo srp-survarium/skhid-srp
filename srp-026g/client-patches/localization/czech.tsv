@@ -147,7 +147,7 @@ st_ak12_premium_description	Ruská útočná puška nové generace Kalašnikov. 
 st_ak12_premium_name	AK-12M1
 st_ak74m_description	Modernizovaná verze útočné pušky Kalašnikov na náboje 5,45x39. Byla zavedena do výzbroje a v armádě si získala dobrou pověst. Střílí jednotlivě i dávkami.
 st_ak74m_name	AK-74M
-st_ak74n_bundle_descr	<white>Obsahuje:\n- Vylepšený AK-74N.\n- 2000 nábojů 5.45x39 7N6M.</white>\n
+st_ak74n_bundle_descr	<white>Obsahuje:\n- AK-74N.\n- 2000 nábojů 5.45x39 7N6M.</white>\n
 st_ak74n_bundle_name	Balíček AK-74N
 st_ak74n_description	Popis zatím není k dispozici.
 st_ak74n_name	AK-74N
@@ -367,7 +367,7 @@ st_blackmarket_meele_kill_descr	Když to nejde čistě, připrav se ušpinit si 
 st_blackmarket_meele_kill_name	Špinavá práce
 st_blackmarket_meele_kill_obj	Zabij nepřátele zblízka:
 st_blackmarket_represent	Musíš mít oblečení Černého trhu, abys ho mohl zastupovat.
-st_blackmarket_starter_bundle_descr	<white>Obsahuje:\n- Banditská bunda.\n- Banditské kalhoty.\n- Vylepšené UZI.\n- 2000 nábojů 9x19 Parabellum.</white>
+st_blackmarket_starter_bundle_descr	<white>Obsahuje:\n- Banditská bunda.\n- Banditské kalhoty.\n- UZI.\n- 2000 nábojů 9x19 Parabellum.</white>
 st_blackmarket_starter_bundle_name	Banditský balíček
 st_blackmarket_steal_box_descr	Dvě mouchy jednou ranou! Pamatuj si to. Když ukradneš baterii z nepřátelské základny, připravíš soupeře o ochranu a zároveň pomůžeš vlastnímu týmu!
 st_blackmarket_steal_box_name	Loupež
@@ -1357,7 +1357,7 @@ st_items_notes_frame_2_text_1	Zásoby se ukládají do kapes
 st_items_notes_frame_3_text_1	Počet kapes zvýšíš vybavením\ns odpovídající vlastností
 st_items_notes_frame_4_text_1	Do jednoho slotu se vejde omezený počet\npředmětů stejného typu 
 st_items_notes_frame_5_text_1	Kapacitu kapes zvýšíš vybavením\ns odpovídající vlastností
-st_izh27_bundle_descr	<white>Obsahuje:\n- Vylepšenou MP-27M Lancaster.\n- 1000 brokových nábojů 12x70.</white>
+st_izh27_bundle_descr	<white>Obsahuje:\n- MP-27M Lancaster.\n- 1000 brokových nábojů 12x70.</white>
 st_izh27_bundle_name	Balíček MP-27M Lancaster
 st_izh27_description	Popis zatím není k dispozici.
 st_izh27_name	MP-27M Lancaster
@@ -2036,7 +2036,7 @@ st_scav_torso_4_desc	Popis zatím není k dispozici.
 st_scav_torso_4_name	Bunda přeživšího
 st_scav_torso_5_desc	Prošívaná bavlněná bunda. Uvnitř vyztužená tvarovanými kovovými pláty, zvenčí koženými záplatami. Dobrá volba pro zkušeného mrchožrouta.
 st_scav_torso_5_name	Zesílená vatovaná bunda
-st_scavenger_starter_bundle_descr	<white>Obsahuje:\n- Bundu přeživšího.\n- Kalhoty přeživšího.\n- Vylepšený OTs-02 Kiparis.\n- 1000 nábojů 9x18 PM.</white>
+st_scavenger_starter_bundle_descr	<white>Obsahuje:\n- Bundu přeživšího.\n- Kalhoty přeživšího.\n- OTs-02 Kiparis.\n- 1000 nábojů 9x18 PM.</white>
 st_scavenger_starter_bundle_name	Balíček přeživšího
 st_scavengers_accuracy_descr	K čemu je střílet na všechny strany? Dobrému střelci stačí k zabití jediná kulka. Nauč se šetřit munici.
 st_scavengers_accuracy_name	Střelecké dovednosti
@@ -2203,7 +2203,7 @@ st_squad_list_locked_hint	V klanovém týmu nemůžeš vytvořit četu
 st_squad_not_ready	Četa není připravená
 st_sr2m_description	Popis zatím není k dispozici.
 st_sr2m_name	SR-2M "Veresk"
-st_sr3m_bundle_descr	<white>Obsahuje:\n- Vylepšený SR-3M "Vikhr".\n- 2000 nábojů 9x39 SP-6.</white>\n
+st_sr3m_bundle_descr	<white>Obsahuje:\n- SR-3M "Vikhr".\n- 2000 nábojů 9x39 SP-6.</white>\n
 st_sr3m_bundle_name	Balíček SR-3M "Vikhr"
 st_sr3m_description	Popis zatím není k dispozici.
 st_sr3m_name	SR-3M "Vikhr"
@@ -3077,7 +3077,7 @@ st_vhs_2_description	Chorvatská útočná puška typu bullpup na náboje 5.56x4
 st_vhs_2_name	VHS-2
 st_victory	Vítězství
 st_victory_screen_no_dropped_item	Na bojišti jsi nic nenašel.
-st_vityaz_bundle_descr	<white>Obsahuje:\n- Vylepšený PP-19-01 Vityaz.\n- 2000 nábojů 9x19 Parabellum.</white>
+st_vityaz_bundle_descr	<white>Obsahuje:\n- PP-19-01 Vityaz.\n- 2000 nábojů 9x19 Parabellum.</white>
 st_vityaz_bundle_name	Balíček PP-19-01 Vityaz
 st_vityaz_description	Samopal na náboje 9x19. Navržený v roce 2004 pro ruské speciální síly. Střílí jednotlivě i dávkami.
 st_vityaz_name	PP-19-01 Vityaz
@@ -3086,7 +3086,7 @@ st_vsk94_description	Popis zatím není k dispozici.
 st_vsk94_name	VSK-94
 st_vsk94_premium_description	Ruská odstřelovačská puška na náboje 9x39. KBP v Tule ji v 90. letech vyvinulo z 9A-91 s tlumičem a odstřelovačskou pažbou pro tichou střelbu na krátkou a střední vzdálenost. Zásobník na 20 nábojů. Jednotlivá i automatická střelba. Prémiová verze se zvláštní kamufláží.
 st_vsk94_premium_name	VSK-94 Guardian
-st_vss_bundle_descr	<white>Obsahuje:\n- Vylepšený VSS "Vintorez".\n- 1000 nábojů 9x39 SP-5.</white>\n
+st_vss_bundle_descr	<white>Obsahuje:\n- VSS "Vintorez".\n- 1000 nábojů 9x39 SP-5.</white>\n
 st_vss_bundle_name	Balíček VSS "Vintorez"
 st_vss_description	Popis zatím není k dispozici.
 st_vss_name	VSS "Vintorez"

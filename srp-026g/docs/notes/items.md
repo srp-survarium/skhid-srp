@@ -34,9 +34,10 @@ PROVEN by the data:
   16 artefact slots, 17 ammo bags, 29 pocket size, 33..40 (the boosters'
   effects and the premium items' silver, experience and reputation
   bonuses). They are only ever `default_modifications` in the data; srp gives
-  the golden weapons their silver one (1230) and the premium armour its
-  experience and reputation ones (1240, 1250, 1260) as modifications of their
-  own ([golden_weapons.md](golden_weapons.md), [premium_armour.md](premium_armour.md)).
+  the premium armour its experience and reputation ones (1240, 1250, 1260) as
+  modifications of its own ([premium_armour.md](premium_armour.md)); a weapon
+  that was golden may hold the silver one (1230) as one
+  ([golden_weapons.md](golden_weapons.md)).
 - Three defects have `required_modifications: [low, high]` (4030 pockets
   `[1030, 1039]`, 4040 artefact slots, 4050 ammo bags): the id range of the
   modifications that give what the defect takes.
@@ -185,7 +186,7 @@ srp's reading of what only the server knew:
 | a reroll offers three that fit in the replaced one's place (its own type too, another strength): of different types while the item has them, then other strengths of those, so an item of few types (a backpack, a balaclava) is offered three too | [srp] |
 | the payment is taken when the three are offered, whatever is chosen, the old one kept too; an offer not chosen is kept (saved) and shown again when the window opens | [srp] |
 | every change of an item costs the same: the level's price, `reroll_modificator_multiplicator` (1.1) not used (until then each change made the next 1.1 times dearer, a GUESS) | the owner's rule of 2026-10-25 ([flat-reroll.md](flat-reroll.md)) |
-| the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item); a golden weapon and its plain weapon count as the same item ([srp], the owner's rule of 2026-10-21, [golden_weapons.md](golden_weapons.md)), and so do a premium armour piece and its plain piece (2026-10-22, [premium_armour.md](premium_armour.md)) |
+| the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item); a premium armour piece and its plain piece count as the same item ([srp], 2026-10-22, [premium_armour.md](premium_armour.md)); there are no golden weapons ([golden_weapons.md](golden_weapons.md)) |
 | the craft's chance row is `rank(item) - rank(donor)`; success, then failure, then nothing | PROVEN for the row (the UI indexes it so); the roll is the server's |
 | a gained modification is rolled as a drop's | [srp] |
 | a failure takes no modification: it does what "nothing" does (price and donor spent, the item as it was); 0x9B sends every failure chance as 0 and the window shows no failure row | the owner's rule of 2026-10-23 ([craft-menu.md](craft-menu.md)) |

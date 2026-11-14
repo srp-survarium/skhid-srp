@@ -714,8 +714,7 @@ descriptors remain intact across shop/inventory cards. The edit changes only
 `ui_desc/props_list`, leaving gameplay parameters and modifications untouched.
 All three descriptor consumers (`ItemFactory`, `InventoryList`, and the shop's
 own `GangShop.createItem`) call the same adapter. The UI harness exercises the
-real shop price-list/reconnect path, including zero, negative, positive and
-golden weapons, whose silver bonus is retained.
+real shop price-list/reconnect path, including zero, negative and positive.
 This is the weapon's base stat; Bear Arms (skill 112, modifier 62) does not
 rewrite its card, just as it does not change the weapon's weight. Held Alt the
 card shows the line as a match has it, a cancelled penalty "-5% -> 0%"

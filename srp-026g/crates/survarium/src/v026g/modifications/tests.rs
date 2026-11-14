@@ -439,14 +439,14 @@ fn craft_and_reroll_go_by_the_tables() {
 #[test]
 fn premium_gear_pays_more() {
     let data = Modifications::shared();
-    let premium = dict("ak_74n_premium");
-
-    // Its 1230 (10 % more silver) is a modification of its own: it pays
+    // A weapon's 1230 (10 % more silver; an old golden weapon's, made the
+    // plain weapon with it, 2026-11-14) is a modification like any: it pays
     // as one, and without it nothing.
-    let bonuses = data.bonuses(premium, &[(1230, false)]);
+    let rifle = dict("sr3m");
+    let bonuses = data.bonuses(rifle, &[(1230, false)]);
     assert!((bonuses.money - 0.1).abs() < 1e-6);
     assert_eq!(bonuses.experience, 0.0);
-    assert_eq!(data.bonuses(premium, &[]), Bonuses::default());
+    assert_eq!(data.bonuses(rifle, &[]), Bonuses::default());
     // Premium trousers: experience and the Black Market's reputation, as
     // modifications of their own (`super::super::golden`); without them,
     // nothing.
@@ -592,7 +592,7 @@ fn the_lobby_knows_the_values_each_bonus_rolls() {
     );
 }
 
-/// The lobby shows the premium bonuses (the golden weapons' silver, the
+/// The lobby shows the premium bonuses (the silver one a weapon may hold, the
 /// premium armour's experience and reputation) in gold as the most there
 /// is (`ModificationRolls.isPremium`, by `ItemFactory.BONUS_UI`'s property
 /// and value; docs/notes/max-bonus.md). True while no modification gives

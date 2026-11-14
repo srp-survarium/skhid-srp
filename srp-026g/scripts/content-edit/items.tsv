@@ -1,8 +1,11 @@
 # The items: a row per entry of the dictionary (gameplay/db_static_dictionaries items_dict), by dict_id.
 # premium: a premium item (is_premium): sold one by one or in a bundle, never by a faction, and
-# priced in silver as every item (gold is gone, 2026-11-08: its gold price times 100). like: the plain item a golden or premium copy is (srp_like);
-# a copy has its plain item's level and defaults and no base rarity. start: the modifications of its
-# own a new item comes with (srp_start), never one of its defaults. srp reads them from its game data.
+# priced in silver as every item (gold is gone, 2026-11-08: its gold price times 100). like: the plain piece a premium armour piece is a copy
+# of (srp_like); a copy has its plain item's level and defaults and no base rarity. start: the
+# modifications of its own a new item comes with (srp_start), never one of its defaults. srp reads them
+# from its game data. The golden weapons (*_premium, the Neostead, the MP7 special) have neither: they
+# are no copies any more, nothing gives them, and the ones owned were made their plain weapon
+# (docs/notes/golden_weapons.md).
 items	name	base_cost	premium	like	start
 3	ak_74m	47500	false		
 5	rgd-5	30	false		
@@ -304,13 +307,13 @@ items	name	base_cost	premium	like	start
 329	scav_legs_5	8080	false		
 330	scav_helmet_5	8080	false		
 331	ammo_5.45x39_7n22	60	false		
-332	kiparis_premium	50000	true	kiparis	1230
-333	uzi_premium	50000	true	uzi	1230
-334	vityaz_premium	100000	true	vityaz	1230
-335	vss_premium	250000	true	vss	1230
-336	sr3m_premium	250000	true	sr3m	1230
-337	izh_27_lancaster_premium	50000	true	izh_27_lancaster	1230
-338	ak_74n_premium	120000	true	ak_74n	1230
+332	kiparis_premium	50000	true		
+333	uzi_premium	50000	true		
+334	vityaz_premium	100000	true		
+335	vss_premium	250000	true		
+336	sr3m_premium	250000	true		
+337	izh_27_lancaster_premium	50000	true		
+338	ak_74n_premium	120000	true		
 339	weight_booster	1500	false		
 340	speed_booster	1500	false		
 341	regeneration_booster	1500	false		
@@ -735,28 +738,28 @@ items	name	base_cost	premium	like	start
 2219	msbs_carbine	75000	false		
 2220	mp7	75000	false		
 2221	mp7_silencer	75000	false		
-2222	wpn_mp7_silencer_special	200000	true	mp7_silencer	1230
+2222	wpn_mp7_silencer_special	200000	true		
 2223	kriss_vector	113400	false		
 2224	fn_p90	113400	false		
 2225	vepr_12	75000	false		
-2226	vepr_12_premium	200000	true	vepr_12	1230
+2226	vepr_12_premium	200000	true		
 2227	saiga_12	75000	false		
-2228	saiga_12_premium	200000	true	saiga_12	1230
+2228	saiga_12_premium	200000	true		
 2229	pkp_pecheneg	125000	false		
 2230	neostead_2	2500	false		
-2231	neostead	50000	true	neostead_2	1230
-2241	akmn_premium	100000	true	akmn	1230
-2242	akmn_premium_2	100000	true	akmn	1230
-2243	ak_74u_premium	100000	true	ak_74u	1230
-2244	vepr_premium	200000	true	vepr	1230
-2245	ak_12_premium	250000	true	ak_12	1230
-2246	sks_premium	100000	true	sks	1230
-2247	sks_premium_2	100000	true	sks	1230
-2248	vsk_94_premium	250000	true	vsk_94	1230
-2249	rem_700_premium	100000	true	rem_700	1230
+2231	neostead	50000	true		
+2241	akmn_premium	100000	true		
+2242	akmn_premium_2	100000	true		
+2243	ak_74u_premium	100000	true		
+2244	vepr_premium	200000	true		
+2245	ak_12_premium	250000	true		
+2246	sks_premium	100000	true		
+2247	sks_premium_2	100000	true		
+2248	vsk_94_premium	250000	true		
+2249	rem_700_premium	100000	true		
 2250	vssk_camo	165000	false		
-2251	izh_27_lancaster_premium_2	50000	true	izh_27_lancaster	1230
-2252	uzi_premium_2	50000	true	uzi	1230
+2251	izh_27_lancaster_premium_2	50000	true		
+2252	uzi_premium_2	50000	true		
 2253	ammo_23mm_r	10	false		
 2254	ammo_7.62x51_20	150	false		
 2261	ots14	80000	false		

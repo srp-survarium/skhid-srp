@@ -348,7 +348,7 @@ mod tests {
     fn the_items_the_code_names_are_in_the_data() {
         let named = named_items();
         assert!(named.contains(&("loadouts::STARTER", "tt_33")));
-        assert!(named.contains(&("shop_offers::BUNDLES", "vss_premium")));
+        assert!(named.contains(&("shop_offers::BUNDLES", "vss")));
         assert_eq!(lacking(Dictionary::shared(), &named), Vec::<String>::new());
         assert_eq!(check(super::super::game_data::shared()), Ok(()));
     }
@@ -360,20 +360,20 @@ mod tests {
         let mut dictionary = Dictionary::shared().clone();
         dictionary
             .items
-            .retain(|item| !matches!(item.name.as_str(), "tt_33" | "vss_premium"));
+            .retain(|item| !matches!(item.name.as_str(), "tt_33" | "vss"));
         let missing = lacking(&dictionary, &named_items());
         assert_eq!(
             missing,
             [
                 "loadouts::STARTER tt_33",
-                "shop_offers::BUNDLES vss_premium"
+                "shop_offers::BUNDLES vss"
             ]
         );
         let error = lacking_error("server-game-data.db", &missing).to_string();
         assert!(
             error.contains(
                 "server-game-data.db lacks what srp's code names: loadouts::STARTER tt_33, \
-                 shop_offers::BUNDLES vss_premium."
+                 shop_offers::BUNDLES vss."
             ),
             "{error}"
         );

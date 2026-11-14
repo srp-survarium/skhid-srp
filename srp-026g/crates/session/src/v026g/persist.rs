@@ -507,22 +507,10 @@ impl SqliteGameRepository {
     /// nothing and fails, so srp does not start and a rollback finds the
     /// file as it was (a failed backup at the start only warns).
     pub fn pay_back_once(&mut self, backups: &Path) -> Result<Option<Vec<PaidBack>>, PersistError> {
-        if self.paid_back()? {
+        if self.marked(PAID_BACK)? {
             return Ok(None);
         }
-        std::fs::create_dir_all(backups)
-            .map_err(|error| PersistError::Io(backups.to_path_buf(), error))?;
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let copy = backups.join(format!("srp-{stamp}-before-pay-back.db"));
-        self.connection
-            .execute("VACUUM INTO ?1", [copy.to_string_lossy()])?;
-        log::info!(
-            "Copied the database to {} before the pay-back",
-            copy.display()
-        );
+        self.copy_before(backups, "pay-back")?;
         let transaction = self.connection.transaction()?;
         let held = |dict_id: u16| {
             format!(
@@ -583,14 +571,139 @@ impl SqliteGameRepository {
         Ok(Some(paid))
     }
 
-    /// Whether [`Self::pay_back_once`] was done ([`PAID_BACK`]).
-    fn paid_back(&self) -> Result<bool, PersistError> {
+    /// The one-off change of the release that made the golden weapons plain
+    /// ones (the owner, 2026-11-14: "those all should be normal weapons",
+    /// "and follow standard rules"; `docs/notes/golden_weapons.md`), once in
+    /// the database's life ([`GOLDEN_WEAPONS_MADE_PLAIN`]), at the first
+    /// start of that release, after [`Self::pay_back_once`] and before the
+    /// accounts are loaded. In one transaction with its mark, every golden
+    /// weapon owned ([`GOLDEN_WEAPONS`]) becomes its plain weapon: its dict
+    /// id in `g26_items` and in the presets' slots (`g26_preset_slots`, which
+    /// keep it beside the item id); its item id, modifications (the silver
+    /// bonus 1230 an ordinary one now), upgrades and kits' slots (by item id)
+    /// stay. Returns what each account had; `None` when it was done before.
+    /// `scripts/golden-weapons/preview.py` shows it for a copy of the file.
+    ///
+    /// It copies the file first, as [`Self::pay_back_once`] does, and
+    /// without that copy it does nothing and fails.
+    pub fn make_golden_weapons_plain_once(
+        &mut self,
+        backups: &Path,
+    ) -> Result<Option<Vec<MadePlain>>, PersistError> {
+        if self.marked(GOLDEN_WEAPONS_MADE_PLAIN)? {
+            return Ok(None);
+        }
+        self.copy_before(backups, "golden-weapons")?;
+        let transaction = self.connection.transaction()?;
+        let ids = GOLDEN_WEAPONS
+            .map(|(golden, _)| golden.to_string())
+            .join(", ");
+        let mut made = Vec::new();
+        {
+            let mut rows = transaction.prepare(&format!(
+                "SELECT a.account_id, a.name, COUNT(*) FROM g26_items i
+                 JOIN g26_accounts a ON a.account_id = i.account_id
+                 WHERE i.dict_id IN ({ids})
+                 GROUP BY a.account_id ORDER BY a.account_id"
+            ))?;
+            let found = rows.query_map([], |row| {
+                Ok(MadePlain {
+                    account_id: row.get(0)?,
+                    name: row.get(1)?,
+                    weapons: row.get(2)?,
+                })
+            })?;
+            for account in found {
+                made.push(account?);
+            }
+        }
+        let plain: String = GOLDEN_WEAPONS
+            .iter()
+            .map(|(golden, plain)| format!(" WHEN {golden} THEN {plain}"))
+            .collect();
+        transaction.execute_batch(&format!(
+            "UPDATE g26_items SET dict_id = CASE dict_id{plain} END WHERE dict_id IN ({ids});
+             UPDATE g26_preset_slots SET dict_id = CASE dict_id{plain} END
+                 WHERE dict_id IN ({ids});"
+        ))?;
+        transaction.execute(
+            "INSERT INTO g26_meta (key, value) VALUES (?1, 1)",
+            [GOLDEN_WEAPONS_MADE_PLAIN],
+        )?;
+        transaction.commit()?;
+        Ok(Some(made))
+    }
+
+    /// Copies the file to `<backups>/srp-<unix>-before-<what>.db`, for a
+    /// one-off change of it.
+    fn copy_before(&self, backups: &Path, what: &str) -> Result<(), PersistError> {
+        std::fs::create_dir_all(backups)
+            .map_err(|error| PersistError::Io(backups.to_path_buf(), error))?;
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let copy = backups.join(format!("srp-{stamp}-before-{what}.db"));
+        self.connection
+            .execute("VACUUM INTO ?1", [copy.to_string_lossy()])?;
+        log::info!(
+            "Copied the database to {} before the {what}",
+            copy.display()
+        );
+        Ok(())
+    }
+
+    /// Whether the one-off change of the `g26_meta` mark `key` was done.
+    fn marked(&self, key: &str) -> Result<bool, PersistError> {
         Ok(self.connection.query_row(
             "SELECT EXISTS (SELECT 1 FROM g26_meta WHERE key = ?1)",
-            [PAID_BACK],
+            [key],
             |row| row.get(0),
         )?)
     }
+}
+
+/// The golden weapons [`SqliteGameRepository::make_golden_weapons_plain_once`]
+/// makes their plain weapon, `(golden, plain)` by dict id: the 22 of
+/// `docs/notes/golden_weapons.md`, as `scripts/content-edit/items.tsv`'s
+/// `like` named them until 2026-11-14 (`scripts/golden-weapons/preview.py`
+/// has the same).
+pub const GOLDEN_WEAPONS: [(u16, u16); 22] = [
+    (332, 88),    // kiparis_premium -> kiparis
+    (333, 55),    // uzi_premium -> uzi
+    (334, 19),    // vityaz_premium -> vityaz
+    (335, 308),   // vss_premium -> vss
+    (336, 309),   // sr3m_premium -> sr3m
+    (337, 108),   // izh_27_lancaster_premium -> izh_27_lancaster
+    (338, 306),   // ak_74n_premium -> ak_74n
+    (2222, 2221), // wpn_mp7_silencer_special -> mp7_silencer
+    (2226, 2225), // vepr_12_premium -> vepr_12
+    (2228, 2227), // saiga_12_premium -> saiga_12
+    (2231, 2230), // neostead -> neostead_2
+    (2241, 80),   // akmn_premium -> akmn
+    (2242, 80),   // akmn_premium_2 -> akmn
+    (2243, 13),   // ak_74u_premium -> ak_74u
+    (2244, 216),  // vepr_premium -> vepr
+    (2245, 363),  // ak_12_premium -> ak_12
+    (2246, 109),  // sks_premium -> sks
+    (2247, 109),  // sks_premium_2 -> sks
+    (2248, 305),  // vsk_94_premium -> vsk_94
+    (2249, 14),   // rem_700_premium -> rem_700
+    (2251, 108),  // izh_27_lancaster_premium_2 -> izh_27_lancaster
+    (2252, 55),   // uzi_premium_2 -> uzi
+];
+
+/// The `g26_meta` key that says the golden weapons owned were made their
+/// plain weapon ([`SqliteGameRepository::make_golden_weapons_plain_once`]).
+pub const GOLDEN_WEAPONS_MADE_PLAIN: &str = "golden_weapons_made_plain";
+
+/// What [`SqliteGameRepository::make_golden_weapons_plain_once`] found of
+/// an account: how many golden weapons it had.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MadePlain {
+    pub account_id: u32,
+    pub name: String,
+    pub weapons: u64,
 }
 
 /// The vouchers [`SqliteGameRepository::pay_back_once`] takes away, by dict
@@ -1432,8 +1545,147 @@ mod tests {
             )
             .unwrap();
         assert_eq!((gold, silver), (150, 1000));
-        assert!(!repository.paid_back().unwrap());
+        assert!(!repository.marked(PAID_BACK).unwrap());
         std::fs::remove_file(&blocked).unwrap();
+    }
+
+    /// The golden weapons owned become their plain weapon once, in the
+    /// items and the presets, keeping their ids and modifications; nothing
+    /// else changes; a second start changes nothing; without its copy it
+    /// changes nothing and fails.
+    #[test]
+    fn the_golden_weapons_owned_are_made_plain_once() {
+        let temp = TempDb::new("golden-weapons");
+        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
+        repository
+            .connection
+            .execute_batch(
+                "INSERT INTO g26_accounts (
+                    account_id, name, clan_tag, generic_money, premium_money,
+                    premium_until, exp_total, quest_faction, rating, rating_before,
+                    active_kit, autobuy, next_item_id, next_quest_instance,
+                    tutorial_step, tutorial_done
+                 ) VALUES
+                 (5, 'Carol', '', 8207, 0, 0, 900, 2, 118, 100, 1, 0, 9, 1, 0, 1),
+                 (6, 'Dave', '', 70, 0, 0, 900, 2, 118, 100, 1, 0, 9, 1, 0, 1);
+                 INSERT INTO g26_items (
+                    account_id, item_id, seq, dict_id, condition_or_stack,
+                    repair_time, reroll_time, modifications, upgrades
+                 ) VALUES
+                 (5, 1, 0, 336, 10000, 0, 0, '2034:0', ''),
+                 (5, 2, 1, 336, 10000, 0, 0, '1230:0', ''),
+                 (5, 3, 2, 2242, 10000, 0, 0, '1230:0,2000:0', ''),
+                 (5, 4, 3, 345, 10000, 0, 0, '1240:0,1250:0', ''),
+                 (6, 1, 0, 309, 10000, 0, 0, '2034:0', '');
+                 INSERT INTO g26_kits (account_id, id, seq, name, revision)
+                     VALUES (5, 1, 0, '', 0);
+                 INSERT INTO g26_kit_slots (account_id, kit_id, slot, item_id, count)
+                     VALUES (5, 1, 2, 2, 1);
+                 INSERT INTO g26_preset_slots
+                     (account_id, preset, kit, slot, item_id, dict_id, count)
+                     VALUES (5, 0, 0, 2, 2, 336, 1), (5, 0, 0, 5, 4, 345, 1);",
+            )
+            .unwrap();
+        let rows = |repository: &SqliteGameRepository, sql: &str| -> Vec<(i64, i64, String)> {
+            let mut statement = repository.connection.prepare(sql).unwrap();
+            statement
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+                .unwrap()
+                .map(Result::unwrap)
+                .collect()
+        };
+        let items = "SELECT item_id, dict_id, modifications FROM g26_items
+                     ORDER BY account_id, item_id";
+        let presets = "SELECT item_id, dict_id, '' FROM g26_preset_slots ORDER BY slot";
+        let kits = "SELECT kit_id, item_id, '' FROM g26_kit_slots";
+
+        // No copy: nothing changes.
+        let blocked = temp.path().with_extension("blocked");
+        std::fs::write(&blocked, b"").unwrap();
+        let before = rows(&repository, items);
+        assert!(repository.make_golden_weapons_plain_once(&blocked).is_err());
+        assert_eq!(rows(&repository, items), before);
+        assert!(!repository.marked(GOLDEN_WEAPONS_MADE_PLAIN).unwrap());
+        std::fs::remove_file(&blocked).unwrap();
+
+        let backups = temp.path().with_extension("backups");
+        let made = repository
+            .make_golden_weapons_plain_once(&backups)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            made,
+            [MadePlain {
+                account_id: 5,
+                name: "Carol".into(),
+                weapons: 3
+            }]
+        );
+        assert_eq!(std::fs::read_dir(&backups).unwrap().count(), 1);
+        let expected = |text: &str| text.to_owned();
+        let after = vec![
+            (1, 309, expected("2034:0")),
+            (2, 309, expected("1230:0")),
+            (3, 80, expected("1230:0,2000:0")),
+            (4, 345, expected("1240:0,1250:0")),
+            (1, 309, expected("2034:0")),
+        ];
+        assert_eq!(rows(&repository, items), after);
+        assert_eq!(
+            rows(&repository, presets),
+            [(2, 309, String::new()), (4, 345, String::new())]
+        );
+        assert_eq!(rows(&repository, kits), [(1, 2, String::new())]);
+        // The accounts load with them as plain SR-3Ms.
+        let loaded = repository.load_all().unwrap();
+        let carol = &loaded[0].1;
+        assert_eq!(carol.item(1).unwrap().dict_id, 309);
+        assert_eq!(carol.item(2).unwrap().modifications, [(1230, false)]);
+        drop(repository);
+
+        // A second start: nothing more.
+        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
+        assert_eq!(
+            repository.make_golden_weapons_plain_once(&backups).unwrap(),
+            None
+        );
+        assert_eq!(rows(&repository, items), after);
+        std::fs::remove_dir_all(&backups).unwrap();
+    }
+
+    /// The table is items.tsv's `like` of before: each golden weapon of the
+    /// dictionary (seven in the test data) and its plain weapon are weapons
+    /// of one category, the golden one named after it; and the dry run has
+    /// the same pairs.
+    #[test]
+    fn the_golden_weapons_are_their_plain_weapons_copies() {
+        use survarium::v026g::dictionary::Dictionary;
+
+        let dictionary = Dictionary::shared();
+        let mut found = 0;
+        for (golden, plain) in GOLDEN_WEAPONS {
+            assert!(GOLDEN_WEAPONS.iter().all(|&(other, _)| other != plain));
+            let (Some(golden), Some(plain)) = (dictionary.item(golden), dictionary.item(plain))
+            else {
+                continue;
+            };
+            found += 1;
+            assert_eq!(golden.category, plain.category, "{}", golden.name);
+            assert!(golden.name.starts_with(&plain.name), "{}", golden.name);
+            assert!(
+                golden.is_premium && golden.like.is_none(),
+                "{}",
+                golden.name
+            );
+        }
+        assert_eq!(found, 7);
+        let preview = include_str!("../../../../scripts/golden-weapons/preview.py");
+        for (golden, plain) in GOLDEN_WEAPONS {
+            assert!(
+                preview.contains(&format!("{golden}: {plain},")),
+                "preview.py: {golden}: {plain}"
+            );
+        }
     }
 
     #[test]

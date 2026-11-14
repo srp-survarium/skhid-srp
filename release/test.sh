@@ -60,7 +60,7 @@ export SKHID_RELEASE_GO=1
 cat >"$T/bin/srp-check-game-data" <<'EOF'
 #!/usr/bin/env bash
 if [[ -e $TEST_DIR/check-data-fails ]]; then
-    echo "$1: srp would not start on it: golden weapons with default modifications" >&2
+    echo "$1: srp would not start on it: premium armour with its bonuses as defaults" >&2
     exit 1
 fi
 echo "$1: srp starts on it"
@@ -715,7 +715,7 @@ check "build-server-db: no file left by a refusal" test ! -e "$T/work/sgd2.db"
 check "build-server-db: srp's start check on the data" has "$out" "srp starts on it"
 touch "$T/check-data-fails"
 expect_refused "build-server-db refuses data srp would not start on" \
-    "srp would not start on the built data; $T/work/sgd2.db not written: .*golden weapons" \
+    "srp would not start on the built data; $T/work/sgd2.db not written: .*premium armour" \
     "$here/build-server-db" --out "$T/work/sgd2.db"
 rm "$T/check-data-fails"
 check "build-server-db: no file left by a refused check" test ! -e "$T/work/sgd2.db"

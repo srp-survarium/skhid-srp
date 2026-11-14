@@ -1684,8 +1684,8 @@ package
       public function fill_crafted_item(value:Object) : void
       {
          // The exe names the donor's dictionary entry; the upgraded item is
-         // the window's first one, which differs for a golden item upgraded
-         // with its plain item (ItemFactory.isCraftDonor).
+         // the window's first one, which differs for a premium armour piece
+         // upgraded with its plain piece (ItemFactory.isCraftDonor).
          var main:Object = this.craftWindow ? this.craftWindow.dragItemSlot1.data : null;
          var itemData:ItemData = this.inventory_list.createItem(main ? main.dictId : value.dict_id);
          if((value.modifiers))

@@ -2992,7 +2992,7 @@ fn a_bundle_and_a_premium_item_are_bought_for_silver() {
         .iter()
         .map(|item| (item.dict_id, item.condition_or_stack))
         .collect();
-    assert!(owned.contains(&(id("ak_74n_premium"), FULL_CONDITION)));
+    assert!(owned.contains(&(id("ak_74n"), FULL_CONDITION)));
     assert!(owned.contains(&(id("ammo_5.45x39_7n6m"), 3_000)));
 
     // Two drop cards from the shop's list: their 100 gold in silver each.
