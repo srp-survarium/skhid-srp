@@ -171,7 +171,7 @@ impl Zone {
         self.damage.as_ref().map_or(1.0, |damage| damage.intensity(self.normalised_distance(point)))
     }
 
-    /// What a body whose centre is at `point` takes a second in this zone, before armour: [`Damage::rate_at`] at its
+    /// What a body whose feet are at `point` (the client's dose point) takes a second in this zone, before armour: [`Damage::rate_at`] at its
     /// normalised distance; 0 for a zone with no damage.
     pub fn hit_rate_at(&self, point: Vec3) -> f32 {
         self.damage.as_ref().map_or(0.0, |damage| damage.rate_at(self.normalised_distance(point)))
@@ -432,31 +432,53 @@ pub struct Shape {
     pub half: Vec3,
 }
 
+/// The client's normalised distance is 0 within this of a shape's centre (0x2F9860, `owner-5/zone-price-design.md` 1.1).
+const CENTRE_M: f32 = 0.001;
+
 impl Shape {
     pub fn contains(&self, point: Vec3) -> bool {
         self.distance(point) <= 0.0
     }
 
-    /// 0 at the shape's centre, 1 on its surface and beyond (the gauge of the convex shape: the point's distance from the
-    /// centre over the distance from the centre to the surface along the same ray): a sphere `|v| / r`, a box `max |v_i| / h_i`
-    /// in its own axes, a cylinder `max(rho / r, |y| / h)`. The client's `damage_zone_shape::normalised_distance` (0x2F9860)
-    /// divides the point's distance by a per-kind extent: the sphere's is its radius (PROVEN); the box (0x2F9050) and the
-    /// cylinder (0x2F9200) helpers were read only in part, so those two are LIKELY.
+    /// The client's normalised distance of `point` in the shape (`damage_zone_shape::normalised_distance` 0x2F9860 with
+    /// its per-kind helpers; PROVEN, `owner-5/zone-price-design.md` 1.1), clamped to `[0, 1]`, 0 within 1 mm of the
+    /// centre. `(x, y, z)` is `point - center` in the shape's own axes; a box or a cylinder is taken without Bullet's
+    /// margin ([`crate::bullet::boxlike_margin`]: the shape's implicit dimensions):
+    /// - a sphere: `|v| / r`;
+    /// - a box: `|v| / |c|`, `c` the point `(clamp(x, ±hx), clamp(y, ±hy), hz)`. The size goes to the box helper 0x2F9050
+    ///   as `(hx, hy, -hz)` (0x747E0, its box branch 0x747F4), and the helper clamps each axis first over `h`, then
+    ///   under `-h` (0x2F9152..0x2F9166), which for the negated z always ends at `+hz`. So `d` is 1 only on or past the
+    ///   two z faces, and under 1 at the x and y faces;
+    /// - a cylinder round its y axis: `sqrt((rho^2 + y^2) / (r^2 + y^2))` with `|y|` within the half height, else 1.
     pub fn normalised_distance(&self, point: Vec3) -> f32 {
-        let d = point - self.center;
-        let at = |extent: f32, along: f32| if extent > 0.0 { along / extent } else { f32::INFINITY };
-        let gauge = match self.kind {
-            ShapeKind::Sphere => at(self.half.x, d.length()),
+        let v = point - self.center;
+        if v.length() <= CENTRE_M {
+            return 0.0;
+        }
+        let ratio = |num: f32, den: f32| if den > 0.0 { num / den } else { 1.0 };
+        let local = || self.rotation.transposed().apply(v);
+        let core = || {
+            let margin = crate::bullet::boxlike_margin([self.half.x, self.half.y, self.half.z]);
+            Vec3::new(self.half.x - margin, self.half.y - margin, self.half.z - margin)
+        };
+        let d = match self.kind {
+            ShapeKind::Sphere => ratio(v.length(), self.half.x),
             ShapeKind::Box => {
-                let local = self.rotation.transposed().apply(d);
-                at(self.half.x, local.x.abs()).max(at(self.half.y, local.y.abs())).max(at(self.half.z, local.z.abs()))
+                let (p, h) = (local(), core());
+                let c = Vec3::new(p.x.clamp(-h.x, h.x), p.y.clamp(-h.y, h.y), h.z);
+                ratio(p.length(), c.length())
             }
             ShapeKind::Cylinder => {
-                let local = self.rotation.transposed().apply(d);
-                at(self.half.x, (local.x * local.x + local.z * local.z).sqrt()).max(at(self.half.y, local.y.abs()))
+                let p = local();
+                if p.y.abs() > self.half.y {
+                    1.0
+                } else {
+                    let r = core().x;
+                    ratio((p.x * p.x + p.z * p.z + p.y * p.y).sqrt(), (r * r + p.y * p.y).sqrt())
+                }
             }
         };
-        gauge.min(1.0)
+        d.clamp(0.0, 1.0)
     }
 
     /// The least [`Self::normalised_distance`] over `shapes`, 1 for none: a zone's (the client's helper 0x307870 keeps the
@@ -1093,8 +1115,8 @@ mod tests {
         Shape { kind, center: Vec3::new(10.0, 5.0, 10.0), rotation: Rotation::IDENTITY, half }
     }
 
-    /// 0 at a shape's centre, 1 on its surface and beyond, the gauge in between (a cylinder: the larger of the radial and the
-    /// vertical share).
+    /// 0 at a shape's centre, then the client's rules (0x2F9860): a sphere its radius's share; a cylinder and a box without
+    /// Bullet's margin, a box 1 only on its z faces.
     #[test]
     fn a_shapes_normalised_distance_runs_from_its_centre_to_its_surface() {
         let at = |dx: f32, dy: f32, dz: f32| Vec3::new(10.0 + dx, 5.0 + dy, 10.0 + dz);
@@ -1102,11 +1124,20 @@ mod tests {
         assert_eq!(sphere.normalised_distance(at(0.0, 0.0, 0.0)), 0.0);
         assert!((sphere.normalised_distance(at(2.0, 0.0, 0.0)) - 0.5).abs() < 1e-6);
         assert_eq!(sphere.normalised_distance(at(0.0, 9.0, 0.0)), 1.0);
+        // The cylinder's radius less Bullet's margin 0.04: 9.96; d = sqrt((rho^2 + y^2) / (r'^2 + y^2)) within its height.
         let cylinder = shape(ShapeKind::Cylinder, Vec3::new(10.0, 2.0, 10.0));
-        assert!((cylinder.normalised_distance(at(5.0, 0.0, 0.0)) - 0.5).abs() < 1e-6);
-        assert!((cylinder.normalised_distance(at(1.0, 1.8, 0.0)) - 0.9).abs() < 1e-6, "the vertical share is the larger");
+        assert!((cylinder.normalised_distance(at(4.98, 0.0, 0.0)) - 0.5).abs() < 1e-6);
+        let expect = ((1.0f32 + 1.8 * 1.8) / (9.96 * 9.96 + 1.8 * 1.8)).sqrt();
+        assert!((cylinder.normalised_distance(at(1.0, 1.8, 0.0)) - expect).abs() < 1e-6, "{expect}");
+        assert_eq!(cylinder.normalised_distance(at(1.0, 2.1, 0.0)), 1.0, "over its half height");
+        // A box (4, 1, 2), its core (3.96, 0.96, 1.96): 1 only on or past a z face, under 1 at the x and y faces.
         let cuboid = shape(ShapeKind::Box, Vec3::new(4.0, 1.0, 2.0));
-        assert!((cuboid.normalised_distance(at(1.0, 0.0, 1.0)) - 0.5).abs() < 1e-6);
+        let on_x_face = (3.96f32).hypot(0.0) / (3.96f32.powi(2) + 1.96f32.powi(2)).sqrt();
+        assert!((cuboid.normalised_distance(at(3.96, 0.0, 0.0)) - on_x_face).abs() < 1e-6, "{on_x_face}");
+        assert_eq!(cuboid.normalised_distance(at(0.0, 0.0, 1.96)), 1.0, "a z face");
+        assert_eq!(cuboid.normalised_distance(at(0.0, 0.0, -2.5)), 1.0, "past the other z face");
+        assert!((cuboid.normalised_distance(at(0.0, 0.0, 0.98)) - 0.5).abs() < 1e-6);
+        assert_eq!(cuboid.normalised_distance(at(0.0005, 0.0, 0.0)), 0.0, "within 1 mm of the centre");
     }
 
     /// The client's rate is the hit over the interval, a second's worth whatever the interval: Vector Laboratory's

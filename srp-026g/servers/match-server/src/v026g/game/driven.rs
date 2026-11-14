@@ -494,8 +494,8 @@ fn shot_reach_of(profile: &survarium::v026g::match_msgs::static_info::MatchProfi
     crate::v026g::bots::shot_reach::reach_of(&dictionary.item(item.dict_id)?.cfg_name)
 }
 
-/// What a bot wears against a zone's hits (F2, `zone_cost.rs`): the armour among the items of its first kit,
-/// as `HazardTuning::zone_pools` reads it.
+/// What a bot wears against a zone's hits (F2, `zone_cost.rs`): the armour among the items of its first kit and that
+/// kit's modifiers (`ZoneArmour::of_kit`), as `HazardTuning::zone_pools` reads it.
 fn zone_armour_of(
     profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
 ) -> crate::v026g::bots::zone_cost::ZoneArmour {
@@ -505,7 +505,8 @@ fn zone_armour_of(
         .into_iter()
         .flat_map(|kit| kit.slots.iter().flatten())
         .filter_map(|&(index, _)| profile.items.get(usize::from(index)).map(|item| item.dict_id));
-    crate::v026g::bots::zone_cost::ZoneArmour::of_items(ids)
+    let modifiers = profile.kits.first().map_or(&[][..], |kit| &kit.modifiers[..]);
+    crate::v026g::bots::zone_cost::ZoneArmour::of_kit(ids, modifiers)
 }
 
 fn log_notes(id: u32, notes: Vec<Note>) {

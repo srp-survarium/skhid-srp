@@ -204,18 +204,65 @@ impl Reserve {
     }
 }
 
-/// The armour a body wears against a zone's hits: the largest of its items against each hit type
-/// on each part. The client adds the items' armour on a part (`armor::on_holder_assigned` 0x33F0C0,
-/// PROVEN); the repo's damage rule takes the largest ([`damage`]'s module doc), the same as for
-/// bullets, and the two agree because a legal kit has one item on a box (the closed helmets and the
-/// exo suits lock the slots they cover).
+/// What a body's kit brings against a zone's hits: its items' armour, and the two modifiers of its kit that
+/// change a zone's hit (`owner-5/zone-price-design.md` 1.1, 1.4; PROVEN). Each bot's own: none is assumed.
+/// - The armour of a part against a hit type is the SUM of the worn items' (`armor` 0x33F2C0 / 0x33F2DD), plus
+///   Resistance's 0.05 a rank against the anomalous types (the client's hook at `body_part_parameters::hit_by_type`
+///   0x32A083, patch 109; `client-patches/.../artefact_skills.rs` `Skills::armour`).
+/// - An anomalous hit (toxic, radiation, fire, shock: the type table 0x92075C) is first scaled by
+///   `max(0, 1 + anomaly_damage)` (modifier 8, `apply_anomaly_damage_modifier` 0x332890 -> `apply_modifier` 0x2D5AE0).
+///
+/// Not read: modifier 51 (`toxic_damage`, the infection share, 0x3328F0) and 58 (the antitoxin's coefficient, only
+/// while the drug is on, 0x33DB30). No file of the rev-56 game data carries either and they are 0 in all 360 bot kits;
+/// which hits 51 scales is not settled by the design's read.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ZoneArmour {
     items: Vec<&'static ArmourParams>,
+    /// Resistance's rank, 0..=5 ([`resistance_rank`]).
+    resistance: u8,
+    /// `max(0, 1 + anomaly_damage)`; 1 for a kit without the modifier.
+    anomaly_scale: Scale,
+}
+
+/// `max(0, 1 + modifier)`: a kit's scale of a hit (`apply_modifier` 0x2D5AE0); 1 when the kit has none.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Scale(f32);
+
+impl Default for Scale {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}
+
+impl Scale {
+    fn of_modifier(value: f32) -> Self {
+        Self(if value.is_finite() { (1.0 + value).max(0.0) } else { 1.0 })
+    }
+}
+
+/// Resistance's armour a rank against the anomalous types (`Skills::armour`: 5 isolation points).
+const RESISTANCE_ARMOUR: f32 = 0.05;
+/// Resistance's highest rank.
+const RESISTANCE_MOST: u8 = 5;
+
+/// Resistance's rank in a kit's modifier 40 (`artefact_power`): bits 0..2 of the packed artefact skills, as the
+/// client's patch reads them (`artefact_skills.rs` `Skills::parse`): a value that is not a whole number in 0..16384,
+/// or a rank past 5, is no skill at all.
+pub fn resistance_rank(artefact_power: f32) -> u8 {
+    if !(0.0..16384.0).contains(&artefact_power) || artefact_power != (artefact_power as u32) as f32 {
+        return 0;
+    }
+    let rank = (artefact_power as u32 & 7) as u8;
+    if rank <= RESISTANCE_MOST { rank } else { 0 }
+}
+
+/// Whether `hit_type` is one of the anomalous types (toxic, radiation, fire, shock: 4..7 of the client's table).
+fn anomalous(hit_type: &str) -> bool {
+    matches!(hit_type, "toxic" | "radiation" | "fire" | "shock")
 }
 
 impl ZoneArmour {
-    /// The armour among the items with the dictionary ids `dict_ids` (the items of a kit).
+    /// The armour among the items with the dictionary ids `dict_ids` (the items of a kit), no modifier.
     pub fn of_items(dict_ids: impl IntoIterator<Item = u16>) -> Self {
         let mut items: Vec<&'static ArmourParams> = dict_ids
             .into_iter()
@@ -223,22 +270,36 @@ impl ZoneArmour {
             .collect();
         items.sort_by_key(|a| a.dict_id);
         items.dedup_by_key(|a| a.dict_id);
-        Self { items }
+        Self { items, ..Self::default() }
     }
 
-    /// The armour of the part `part` against hits of `hit_type`.
+    /// [`Self::of_items`] with the kit's resolved modifiers `modifiers` (`MatchProfile` kit, by
+    /// `survarium::v026g::skills::modifier_index`): modifier 8 and Resistance's rank in 40.
+    pub fn of_kit(dict_ids: impl IntoIterator<Item = u16>, modifiers: &[f32]) -> Self {
+        let at = |name: &str| survarium::v026g::skills::modifier_index(name).and_then(|i| modifiers.get(i).copied());
+        Self {
+            resistance: at("artefact_power").map_or(0, resistance_rank),
+            anomaly_scale: at("anomaly_damage").map_or(Scale::default(), Scale::of_modifier),
+            ..Self::of_items(dict_ids)
+        }
+    }
+
+    /// The armour of the part `part` against hits of `hit_type`: the worn items' summed, plus Resistance's.
     pub fn against(&self, part: &str, hit_type: &str) -> f32 {
-        self.items
-            .iter()
-            .map(|item| item.of_type(part, hit_type))
-            .fold(0.0, f32::max)
+        let worn: f32 = self.items.iter().map(|item| item.of_type(part, hit_type)).sum();
+        if anomalous(hit_type) { worn + f32::from(self.resistance) * RESISTANCE_ARMOUR } else { worn }
+    }
+
+    /// A zone's hit of `hit_type` before armour, `raw`, under the kit's modifier 8.
+    pub fn scaled(&self, hit_type: &str, raw: f32) -> f32 {
+        if anomalous(hit_type) { raw * self.anomaly_scale.0 } else { raw }
     }
 
     /// A number that is equal for equal armour: the key of what depends on it.
     pub fn key(&self) -> u64 {
-        self.items
-            .iter()
-            .fold(0xcbf2_9ce4_8422_2325, |h, a| (h ^ u64::from(a.dict_id)).wrapping_mul(0x100_0000_01b3))
+        let step = |h: u64, v: u64| (h ^ v).wrapping_mul(0x100_0000_01b3);
+        let items = self.items.iter().fold(0xcbf2_9ce4_8422_2325, |h, a| step(h, u64::from(a.dict_id)));
+        step(step(items, u64::from(self.resistance)), u64::from(self.anomaly_scale.0.to_bits()))
     }
 }
 
@@ -311,7 +372,7 @@ impl Hazard {
         self.cost_of(damage, damage.part_rate_per_s(), armour)
     }
 
-    /// [`Self::cost_per_s`] by the client's rule for a body whose centre is at `point`: each part's hit
+    /// [`Self::cost_per_s`] by the client's rule for a body whose feet are at `point`: each part's hit
     /// `max_hit x 1000 / interval_ms` at the zone's intensity there ([`mapdata::Damage::rate_at`]), the interval included. What
     /// the bench's stand-in hurts its bodies with.
     pub fn client_cost_per_s(&self, armour: &ZoneArmour, point: Vec3) -> Cost {
@@ -331,7 +392,7 @@ impl Hazard {
             .zone_hit(
                 &damage.part_names,
                 &self.damage_type,
-                per_part,
+                armour.scaled(&self.damage_type, per_part),
                 damage.armor_piercing,
                 |part, hit_type| armour.against(part, hit_type),
             )
@@ -419,6 +480,36 @@ mod tests {
         old.damage.as_mut().unwrap().part_names.clear();
         let raw = old.cost_per_s(&ZoneArmour::default());
         assert_eq!(raw, Cost::body(0.25 * 1.0));
+    }
+
+    /// [zone price] A bot's own kit prices a zone (design 1.4): Resistance 5 in modifier 40 adds 0.25 to the face's toxic
+    /// armour, so a 0.70 mask counts 0.95 and the moss's 0.100 a second falls to 0.005; no mask, to 0.075. Modifier 8
+    /// scales an anomalous hit before armour, never a bullet's type. A malformed modifier 40 is no skill.
+    #[test]
+    fn a_kits_resistance_and_anomaly_modifier_price_a_zone_by_the_clients_rule() {
+        use survarium::v026g::skills::{MODIFIERS, modifier_index};
+        let moss = zone("toxic", &["face"], 0.1, 0.0);
+        let mut mods = [0.0f32; MODIFIERS];
+        mods[modifier_index("artefact_power").unwrap()] = 5.0 + 8.0 + 2.0 * 512.0; // rank 5, Keeper, a draw
+        let resisting = ZoneArmour::of_kit([], &mods);
+        assert!(near(resisting.against("face", "toxic"), 0.25) && near(resisting.against("face", "ranged"), 0.0));
+        assert!(near(moss.cost_per_s(&resisting).infection, 0.075), "no mask: 0.100 to 0.075");
+        if let Some(mask) = damage::armour().iter().find(|a| a.typed.iter().any(|(b, t, v)| b == "face" && t == "toxic" && (*v - 0.7).abs() < 1e-6)) {
+            let ids = [mask.dict_id];
+            assert!(near(moss.cost_per_s(&ZoneArmour::of_items(ids)).infection, 0.030));
+            assert!(near(moss.cost_per_s(&ZoneArmour::of_kit(ids, &mods)).infection, 0.005), "a 0.70 mask counts 0.95");
+        }
+        assert_ne!(resisting.key(), ZoneArmour::default().key());
+        for bad in [6.0, 5.5, -1.0, 16384.0] {
+            assert_eq!(resistance_rank(bad), 0, "{bad}");
+        }
+        let mut weaker = [0.0f32; MODIFIERS];
+        weaker[modifier_index("anomaly_damage").unwrap()] = -0.4;
+        let kit = ZoneArmour::of_kit([], &weaker);
+        assert!(near(moss.cost_per_s(&kit).infection, 0.06), "x (1 - 0.4)");
+        assert!(near(kit.scaled("ranged", 1.0), 1.0));
+        weaker[modifier_index("anomaly_damage").unwrap()] = -2.0;
+        assert_eq!(moss.cost_per_s(&ZoneArmour::of_kit([], &weaker)).infection, 0.0, "max(0, 1 + S)");
     }
 
     /// Fire on the feet takes the pain pool (it kills at 0, and regenerates) and the legs' own

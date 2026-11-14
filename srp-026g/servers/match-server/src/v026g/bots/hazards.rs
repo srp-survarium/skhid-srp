@@ -476,13 +476,14 @@ impl HurtTest {
     }
 
     /// The share of `zone`'s hit a body standing on `node` loses to where in the zone it stands: 1 unless
-    /// [`Self::by_intensity`], else the intensity at the body's centre (the grid body's half height over the floor).
+    /// [`Self::by_intensity`], else the intensity at the body's feet on the floor: the client takes the zone's distance at
+    /// the feet point (the owner's recordings: 159 of 159 touching pairs lost at the feet's dose, 19 of them would have
+    /// taken nothing at the centre; `owner-5/zone-price-design.md` 1.1, PROVEN).
     fn intensity(self, zone: &Hazard, grid: &WalkGrid, node: NodeId) -> f32 {
         if !self.by_intensity {
             return 1.0;
         }
-        let centre = grid.position(node) + Vec3::new(0.0, 0.5 * grid.body().stand_height, 0.0);
-        zone.intensity_at(centre)
+        zone.intensity_at(grid.position(node))
     }
 }
 
@@ -1333,8 +1334,7 @@ mod tests {
         for node in [near, rim] {
             assert_eq!(hazards.hurt_per_s(grid, node, flat), full, "without the intensity, the full hit");
             assert_eq!(hazards.leg_cost_per_s(grid, node, None, flat).body, full);
-            let centre = grid.position(node) + Vec3::new(0.0, 0.5 * grid.body().stand_height, 0.0);
-            let share = hazards.zones[0].intensity_at(centre);
+            let share = hazards.zones[0].intensity_at(grid.position(node));
             assert!((hazards.hurt_per_s(grid, node, falling) - full * share).abs() < 1e-6, "the zone's hit times the intensity");
             assert!((hazards.leg_cost_per_s(grid, node, None, falling).body - full * share).abs() < 1e-6);
             assert_eq!(hazards.hit_per_s(node), full, "the gate does not move");
