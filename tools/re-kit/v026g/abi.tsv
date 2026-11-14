@@ -1222,7 +1222,7 @@ va	name	source	ret_cleanup	result
 0x002e1b50		auto	0	
 0x002e1bf0		auto	0	
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	manual	12	D = get_static_dispersion + (state +404h + shot +418h) x k, k = 0 when the aim interpolator's value (weapon +5FCh) is exactly 1, else 1; tilt = 0.5 x D x modf(N(0, 0.5)) degrees about an axis turned by a uniform [0, 2 pi) angle (+5C0h/+5C4h, generator +5BCh, seed 1) about the transform's forward; the direction at [stack+8]
-0x002e2120	survarium::weapon_core::get_dispersed_buckshot_direction	manual	8	
+0x002e2120	survarium::weapon_core::get_dispersed_buckshot_direction	manual	8	EAX = the weapon, stack+4 the output direction, stack+8 the input (the shot's dispersed) direction; returns the input when the ammo's buck_dispersion [ammo(weapon +538h)+2A8h] is 0; else D = base_dispersion (weapon +3D8h) x buck_dispersion (0x2E2173); tilt = 0.5 x D x modf(N(0, 0.5)) degrees (normal 0x2E4850 mean 0 sigma 0.5 at 0x2E218D, modf 0x120560, 0.5 at 0x927A44; x 1/180 x pi at 0x2E22C6) about an axis turned by a uniform angle (+5C0h/+5C4h, 0x2E49F0) about the input direction (0x2E1FB0 a perpendicular, rotation_around_axis 0xEF370); generator +5BCh. The ammo loader stores buck_dispersion at its parameters' +40h (0x3325D3; dispersion at +4h = ammo +26Ch)
 0x002e23a0	survarium::weapon_core::instant_fire	manual	8	a weapon with a chamber state (+5F0h) empties its chamber (+5F1h := 0, 0x2E253C); any other takes one from m_ammo_in_magazine (+5E5h, 0x2E2545)
 0x002e2990		auto		
 0x002e2a30		auto	0	
