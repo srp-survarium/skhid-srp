@@ -95,6 +95,7 @@ const FLIGHT_TOLERANCE_M: f32 = 0.1;
 pub mod controlled;
 pub mod gap;
 mod gap_flown;
+mod rest_floors;
 pub use gap::{GapStats, OffLink, OffMeshLinks, PressLead, Share};
 pub use rim::Riser;
 use gap::gap_cost;
@@ -318,6 +319,12 @@ pub struct Body {
     /// gully (A369): the clip pass made no link ridge -> plateau, the flyer lands the walking jump at all 11 leads and 44 of 44
     /// sprint flights where 56 players crossed. Off: the clip pass. A build input: in the key when set.
     pub gap_flights: bool,
+    /// [A389] Whether a floor the erosion took comes back where the client's body comes to rest and no floor the erosion kept
+    /// names the place (`grid::rest_floors`: within the capsule's radius across and 0.2 m in height): a sliver of walkable face
+    /// between faces too steep to stand on loses every floor to the erosion, and a body that lands there (Mamayev Kurgan,
+    /// owner-5's R2: a walking press rests at (-22.79, 31.65, 121.73)) is where the grid has nothing. A build input: in the key
+    /// when set.
+    pub rest_floors: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back (`grid::wall_give_back`):
     /// the exact pass keeps them, a wall face (not a rise of the ground) stands within 0.6 m, and the client's walk tick stands a
     /// body there. Needs [`Erosion::Exact`]. A build input: in the key when set.
@@ -466,6 +473,7 @@ impl Body {
             wall_held_tops: false,
             drop_lands: false,
             gap_flights: false,
+            rest_floors: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -581,6 +589,7 @@ impl Default for Body {
             wall_held_tops: false,
             drop_lands: false,
             gap_flights: false,
+            rest_floors: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -1334,6 +1343,8 @@ pub struct BuildStats {
     pub drops_under_solid_kept: usize,
     /// The floors given back beside walls the body clears ([`Body::wall_give_back`]).
     pub wall_given_back: usize,
+    /// [A389] The floors given back where the client's body rests and no other floor names the place ([`Body::rest_floors`]).
+    pub rest_floors: usize,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -1576,20 +1587,27 @@ impl WalkGrid {
             .then(|| RayTree::from_corners(triangles.iter().filter(|t| t.walker != WalkerBehaviour::DontWalk).map(|t| t.v)));
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face, ground.as_ref());
         let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
-        (stats.exact_eroded, stats.wall_given_back) =
-            grid.erode(&mut wide, &cut, &solids, walls.as_ref().filter(|_| body.erosion == Erosion::Exact), triangles);
+        // The world the client's body is flown and walked on (the rest floors, the rim jumps, [A389] the gap flights and the Drop
+        // links' walk): the game's shapes, else the walker triangles with the body's caster; built once, only for a pass that
+        // needs it.
+        let (caster, s) = body.controller();
+        let gaps = links == OffMeshLinks::Gaps;
+        let needs_world = (gaps && (body.rim_jumps || body.gap_flights)) || (body.drop_check && body.drop_lands) || body.rest_floors;
+        let own = (needs_world && shapes.is_none()).then(|| crate::controller::Collision::build(triangles).with_caster(caster));
+        let world = shapes.or(own.as_ref()).filter(|_| needs_world);
+        (stats.exact_eroded, stats.wall_given_back, stats.rest_floors) = grid.erode(
+            &mut wide,
+            &cut,
+            &solids,
+            walls.as_ref().filter(|_| body.erosion == Erosion::Exact),
+            triangles,
+            world.filter(|_| body.rest_floors).map(|w| (w, &s)),
+        );
         wide.held.sort_unstable();
         wide.held.dedup();
         if body.run_ups_after_erosion {
             (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, RunUp::Metres(SPRINT_RUN_UP_M));
         }
-        // The world the client's body is flown and walked on (the rim jumps, [A389] the gap flights and the Drop links' walk): the
-        // game's shapes, else the walker triangles with the body's caster; built once, only for a pass that needs it.
-        let (caster, s) = body.controller();
-        let gaps = links == OffMeshLinks::Gaps;
-        let needs_world = (gaps && (body.rim_jumps || body.gap_flights)) || (body.drop_check && body.drop_lands);
-        let own = (needs_world && shapes.is_none()).then(|| crate::controller::Collision::build(triangles).with_caster(caster));
-        let world = shapes.or(own.as_ref()).filter(|_| needs_world);
         wide.off = match (links, world) {
             (OffMeshLinks::None, _) => Vec::new(),
             (OffMeshLinks::Gaps, Some(world)) if body.gap_flights => grid.gap_links_flown(&wide, &solids, world, &s, &mut stats.gaps),
@@ -2349,7 +2367,8 @@ impl WalkGrid {
         solids: &Solids,
         walls: Option<&exact::Walls>,
         triangles: &[Triangle],
-    ) -> (usize, usize) {
+        rest_world: Option<(&crate::controller::Collision, &crate::controller::tick::Settings)>,
+    ) -> (usize, usize, usize) {
         let n = self.height.len();
         let mut alive = vec![true; n];
         let rounds = erosion_rounds(self.body.radius, self.cell);
@@ -2397,6 +2416,15 @@ impl WalkGrid {
             }
             _ => (0, Vec::new()),
         };
+        // [A389] [`Body::rest_floors`]: the taken floors where the client's body rests and no kept floor names the place come back
+        // as standing floors (the passes after the rounds read them: a landing there is named), and the exact pass leaves them.
+        let rests = rest_world.map_or_else(Vec::new, |(world, s)| self.rest_floors(&alive, world, s));
+        for &a in &rests {
+            alive[a] = true;
+            if let Some(g) = given.get_mut(a) {
+                *g = false;
+            }
+        }
         let furthest = rounds as i32 + 1;
         let standing = alive.clone();
         for a in 0..n {
@@ -2457,6 +2485,9 @@ impl WalkGrid {
                     *g &= in_cell || all[a];
                 }
             }
+            for &a in &rests {
+                alive[a] = true;
+            }
             // Under a wall only a standing capsule meets: walked crouched, and no jump starts or lands there (a jump needs room to
             // stand, `ledge`): the links it made before the floor was found low go.
             let mut low = vec![false; n];
@@ -2493,7 +2524,7 @@ impl WalkGrid {
             .map(|a| Aside { cell: self.cell_of[a], height: self.height[a], ceiling: self.ceiling[a] })
             .collect();
         self.compact(wide, &alive);
-        (exact, given_back)
+        (exact, given_back, rests.len())
     }
 
     /// [`Body::wall_give_back`]: the floors [`Self::erode`] put aside come back after the reach, each where a kept floor walks

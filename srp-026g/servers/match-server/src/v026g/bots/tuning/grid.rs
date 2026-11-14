@@ -200,6 +200,12 @@ pub struct GridTuning {
     /// made (A369: the bots walked round, 97.4 m for 6.4 m). Client-proven (the client's jump tick decides), so ON and kept by
     /// `all_off` (the owner, 2026-11-05: correctness fixes go in). A grid is the map's (see `gap_links`).
     pub gap_flights: bool,
+    /// [A389] Whether a floor the erosion took comes back in the maps' walk grids where the client's body comes to rest and no
+    /// kept floor names the place (`mapdata::Body::rest_floors`): a sliver of walkable face between faces too steep to stand
+    /// on loses every floor to the erosion, and a body landing there is where the grid has nothing (Mamayev Kurgan, owner-5's
+    /// R2). Client-proven (the walk tick rests the body there), so ON and kept by `all_off` (the owner, 2026-11-05: correctness
+    /// fixes go in). A grid is the map's (see `gap_links`).
+    pub rest_floors: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back in the maps' walk grids
     /// (`mapdata::Body::wall_give_back`): the exact pass keeps them, a wall face stands within 0.6 m, and the client's walk tick
     /// stands a body there (A318: the rounds took the floor under the client in 376 of the drift lab's grid holds, the exact
@@ -331,6 +337,7 @@ impl Default for GridTuning {
             wall_held_tops: true,
             drop_lands: true,
             gap_flights: true,
+            rest_floors: true,
             wall_give_back: true,
             exe_collision: true,
             walk_start_clear: true,
@@ -390,6 +397,7 @@ impl GridTuning {
             wall_held_tops: self.wall_held_tops,
             drop_lands: self.drop_lands,
             gap_flights: self.gap_flights,
+            rest_floors: self.rest_floors,
             wall_give_back: self.wall_give_back,
             exe_collision: self.exe_collision,
             walk_start_clear: self.walk_start_clear,
