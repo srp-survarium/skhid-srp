@@ -424,23 +424,48 @@ pub fn client_step(world: &Collision, s: &Settings, start: WalkStart, feet: Vec3
     (from, c.feet())
 }
 
-/// Runs `job` over `items` on the machine's threads, in order.
+/// Runs `job` over `items` on the machine's threads, in order: each result at its item's place, whatever thread ran it.
+///
+/// [bench speed] The threads take the items a block at a time from one counter ([`PARALLEL_BLOCKS`] blocks a thread), so a thread
+/// whose items are cheap takes more of them. Each thread used to get one fixed share of the items, which are in map order, and
+/// the call waited for the thread whose share held the costly part of the map: on 8 threads the rim jumps' flights took 689 s on
+/// Rudnya while the threads' mean was 477 s. A job's answer depends on its item only: the jobs read the grid and the world, and
+/// a thread's search arrays are reused under a new mark each search and read only where that search reached
+/// (`WalkGrid::start_search_reaching`), so the split changes no result (the grids of 8 and 16 threads were the same before this).
 pub(super) fn parallel<T: Sync, R: Send + Default + Clone>(items: &[T], job: impl Fn(&T) -> R + Sync) -> Vec<R> {
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).min(16);
-    let chunk = items.len().div_ceil(threads).max(1);
-    let mut out = vec![R::default(); items.len()];
-    std::thread::scope(|scope| {
-        for (part, slot) in items.chunks(chunk).zip(out.chunks_mut(chunk)) {
-            let job = &job;
-            scope.spawn(move || {
-                for (item, r) in part.iter().zip(slot.iter_mut()) {
-                    *r = job(item);
-                }
-            });
-        }
+    let block = items.len().div_ceil(threads * PARALLEL_BLOCKS).max(1);
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let done: Vec<Vec<(usize, Vec<R>)>> = std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..threads.min(items.len().div_ceil(block)))
+            .map(|_| {
+                scope.spawn(|| {
+                    let mut taken = Vec::new();
+                    loop {
+                        let first = next.fetch_add(block, std::sync::atomic::Ordering::Relaxed);
+                        if first >= items.len() {
+                            break taken;
+                        }
+                        let end = (first + block).min(items.len());
+                        taken.push((first, items[first..end].iter().map(&job).collect()));
+                    }
+                })
+            })
+            .collect();
+        workers.into_iter().map(|worker| worker.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))).collect()
     });
+    let mut out = vec![R::default(); items.len()];
+    for (first, results) in done.into_iter().flatten() {
+        for (at, result) in results.into_iter().enumerate() {
+            out[first + at] = result;
+        }
+    }
     out
 }
+
+/// How many blocks a thread's even share of [`parallel`]'s items is cut into: fine enough that the last blocks even the threads
+/// out (a block of the rim jumps' flights is about 15 items, ~3 s on Rudnya), coarse enough that the counter is not contended.
+const PARALLEL_BLOCKS: usize = 256;
 
 impl WalkGrid {
     /// [A318] Keeps the map's walker triangles as the client's controller meets them (its body's [`Body::controller`] caster), for
