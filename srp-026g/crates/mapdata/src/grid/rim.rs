@@ -293,6 +293,7 @@ impl WalkGrid {
     /// [R83] The best aimed press from `a` toward `b` along `way` (`R83-FORMAT.md`): the walk and the sprint at [`AIMED_LEADS`] at
     /// each of [`AIMS`] ([`Self::best_press_with`]), the best share, the first aim on a tie; with the flights flown. For the rim
     /// jumps and [A389]'s gap links no press on the line makes.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn best_aimed(
         &self,
         world: &Collision,
