@@ -404,6 +404,7 @@ fn drive_tick_inner(
         gait: motor::Gait::Walk,
         floor: motor::Floor::Open,
         held_short_m: bot.held_short_m,
+        walk_cap: bot.walk_cap,
     };
     if bot
         .jump_watch
@@ -1805,10 +1806,24 @@ fn drive_tick_inner(
                                 .map(|(_, point)| point.at);
                             bot.stuck.failed_jump(time, take_off, landing);
                         }
+                        // [A386] A sprint link the client refuses now, with no walking press: its landing is shut to this body's
+                        // searches until its next think (`Stuck::refused_jump`), so the route is planned without it while the
+                        // refusal lasts; nothing is failed.
+                        if let Walked::JumpRefused(take_off) = walked
+                            && let Some(landing) = route
+                                .points()
+                                .iter()
+                                .enumerate()
+                                .find(|&(k, point)| k >= 1 && point.jump.is_some() && route.points()[k - 1].at.distance_xz(take_off) < 0.3)
+                                .map(|(_, point)| point.at)
+                        {
+                            bot.stuck.refused_jump(time, landing, tuning.think.think_ms.1);
+                        }
                         bot.end_route(
                             match walked {
                                 Walked::Arrived => RouteEnd::Arrived,
                                 Walked::Off(_) => RouteEnd::Off,
+                                Walked::JumpRefused(_) => RouteEnd::JumpRefused,
                                 _ => RouteEnd::JumpFailed,
                             },
                             time,

@@ -400,6 +400,9 @@ pub struct Bot {
     unstick: Option<(u32, u32)>,
     /// [A318] The body track's [`body::BodyTrack::held_short_since_fix`] this tick (set before the drive), for the hop.
     held_short_m: f32,
+    /// [A386] The body's own walk cap this tick (set before the drive, from the reckoning's speed level), for the sprint jump's
+    /// speed test ([`motor::WalkCap`]).
+    walk_cap: motor::WalkCap,
     /// Since when it stands for want of a world (`UnstickTuning::blind_stop_ms`); none: it walks as it will.
     blind_since: Option<u32>,
     /// Ticks left of a jump held with the trigger let go ([`JUMP_HOLD_MS`]),
@@ -611,6 +614,7 @@ impl Bot {
             press: 0,
             unstick: None,
             held_short_m: 0.0,
+            walk_cap: motor::WalkCap::default(),
             blind_since: None,
             jump_hold: 0,
             jump_crouch: false,
