@@ -2,8 +2,9 @@
 
 Experimental Pool and Military Warehouses have 24 authored FFA spawns each,
 Training Camp 26. Training Camp keeps players inside its base's fence (a
-walker wall behind the fence, a truck in each of its three gateways), with
-its raised islands, and gives its FFA spawns 500 ms of protection. Pool and
+walker wall behind the fence, a truck in each of its three gateways), has its
+FFA spawns on its raised floors (islands, the towers' stairs, cabins; two on
+the ground), and gives them 500 ms of protection. Pool and
 Military Warehouses have in-game panorama pictures in room tiles and loading
 screens. All original TDM spawn positions are preserved. Half of Pool's and
 Military Warehouses' perimeter FFA spawns (7 each) are moved to their centre
@@ -24,7 +25,7 @@ Its source and porter history are in `stalker-maps.md` and
 | --- | --- | --- | --- | --- |
 | Experimental Pool | `v010b_cs_mp_bath/day_4` | 210 / 42 | 15 / 31 | 15.52 m |
 | Military Warehouses | `v010b_cs_mp_military_1/day_4` | 211 / 43 | 16 / 32 | 39.71 m |
-| Training Camp | `v010b_cs_training_camp/day_4` | 212 / 44 | 17 / 33 | 12.67 m; 3D from island points (point 20 is 22.7 m above point 17) |
+| Training Camp | `v010b_cs_training_camp/day_4` | 212 / 44 | 17 / 33 | 9.21 m, in 3D: its points are spaced so (point 2 is 22.3 m above point 10, 2.75 m beside it) |
 
 The remaining ports use levels 18–20 and pictures 34–36. Rudnya keeps level 14
 and picture 30. The mode tables, movie classes, minimaps and ten localization
@@ -63,17 +64,21 @@ Review generated points before replacing the committed TSV. The planner loads
 actual walker geometry and reachable standing floors, checks a 0.38 m radius /
 1.8 m standing body, ground within 0.5 m, a six-metre walkable facing and a 2 m
 margin from harmful zones. Stored rotations use Vostok's positive-yaw convention.
-Points are at least 12 m apart horizontally. Pool and Military Warehouses are
-planned from scratch, 24 each, and rerunning reproduces their rows byte for
-byte.
+Pool's and Military Warehouses' points are at least 12 m apart horizontally:
+they are planned from scratch, 24 each, and rerunning reproduces their rows
+byte for byte.
 
 Training Camp is not planned again. Its rows of the committed table
 (`--points`) are its points: the planner loads Free for All's own project,
-`day_8`, as the layers give it, keeps every row that is still fit there (inside
-the fence, floor, body, harmful zones, the stored facing) at its place and id,
-and gives the ids of the others new places (below). Run on the table it wrote,
-it changes nothing. To plan after a change of `day_8` itself (the wall, a
-truck), the last layer is a quick `release/build-content` patch that has it.
+`day_8`, as the layers give it, and keeps a row at its place and id when it is
+still fit there (inside the fence, floor, body, harmful zones, the stored
+facing) and stands where a point may: on a raised floor with a way down, or,
+two of them, on the ground. The ids of the others take new places (below). Run
+on the table it wrote, it changes nothing. To plan after a change of `day_8`
+itself (the wall, a truck), the last layer is a quick `release/build-content`
+patch that has it. Its log says, for every raised point, its cheapest way down
+to the ground (length, drops, jumps, the floors passed); with
+`FFA_POINTS_CANDIDATES` set, it lists every safe candidate too.
 
 ## The fence, its trucks and the islands
 
@@ -172,62 +177,172 @@ have left it.
 On the built `day_8` (the walk grid of every floor, flooded from the 26
 spawns): no floor outside the line is reached. A player who climbs a truck's
 nose stands on its cab against the wall. The raised floors (1,812 m² above
-6 m: three towers, the hub, catwalks, five islands) are reached exactly as
+6 m: three towers, the hub, catwalks, the islands) are reached exactly as
 before, all inside; the nearest is 1.34 m from the fence (the north-east upper
-island). The dead ends the grid has are the old ones, none new: parts of the
-west island and of a platform by the hub that are left only by a jump down.
+island). The dead ends the grid has are the old ones, none new, left only by a
+jump down: a hollow inside the west island's body, under its top (79 m² of
+floor, which this grid enters by one 2.4 m drop), and a low island by the
+north-west tower (21 m²).
 
 ### The spawns
 
-The centre has elevated walkways 15-30 m above the ground: three towers, a
-central hub, catwalks between them, and five flat raised platforms, the islands
-of `training-islands.tsv` (a box and floor height range each, reviewed from the
-planner's standing floors). Spacing is in 3D when either point is on an island,
-so a spawn on the ground under an island does not take it (the owner,
-2026-11-13).
+The base's raised floors, 6 to 30 m over its ground, 1,726 m² of them a
+walker reaches standing:
+
+- three towers, hollow concrete silos with a flat top at y = 28.5. A wooden
+  walkway of steps winds round each from the ground to its top, a second
+  flight of stairs winds inside it, and doors with landings join the two;
+- two cabins on each tower, round wooden huts with 2.75 m of standing floor
+  across: the lower one hangs by the walkway at y = 15.5, the upper one
+  stands a short bridge from the top, at y = 28.4;
+- floating islands with ground on top. A walker reaches eight of them, over
+  catwalks and bridges from the towers (the table below). The big one in the
+  middle, under the hub (y = 14 to 17), and the other small ones are reached
+  by no floor;
+- the hub's platform at about y = 29, over the middle island, where the
+  catwalks of the three towers meet.
+
+Two tables name the floors a spawn may stand on, reviewed from the planner's
+standing floors and from renders of the level: `training-islands.tsv` (a box
+and a floor height range for each island) and `training-towers.tsv` (a circle
+and a height range: a tower's stairs, from 6 m up to under its top, and each
+cabin's floor). A place is a cabin, else an island, else a tower's stairs. The
+towers' tops, the catwalks, the bridges and the hub's platform are in neither.
 
 Revision 57 had 24 points spread over the crater. Revision 58 moved every other
 perimeter one inside the fence and added five on the islands, 29 (the owner,
 2026-11-13: "set more spawns on training camp on islands", "remove half spawns
-on perimeter", "put them in the center"). Seven of those 29 stood outside the
-fence: 1, 3, 5, 9, 12, 13 and 20 (6, by the crater wall then, is inside it).
-The planner gave their ids new places inside the fence, 2 m or more from its
-line: the candidate farthest from every point so far, while one stays 12 m from
-all of them. Four fit. Spacing goes before count (the owner): three ids had no
-place, and ids stay 0..n without a gap (the game takes a point by its id; a
-config with a hole has none to give), so the last three points took them,
-standing where they stood. 26 points, ids 0 to 25.
+on perimeter", "put them in the center"). The fence, this change's first step
+(never released), took the seven that stood outside it: 26 points, ids 0 to
+25, 19 of them on the ground inside the fence and 7 raised.
 
-| Id | Was | Is |
-| --- | --- | --- |
-| 1 | (60.2, -32.6), south-east of the fence | (54.185, -0.771, 21.155), the north-east corner |
-| 3 | (42.2, 51.2), north | (-6.565, -0.828, 21.155), the west side |
-| 5 | (-24.1, 6.9), west | (15.185, -0.829, -5.845), west of the hub |
-| 9 | (-17.6, -23.8), south-west | (60.185, -0.847, -8.845), the east strip |
-| 12 | (-8.8, 27.2), 0.2 m outside the north-west corner | the former 28: `(-4.315, 22.158, 9.155)`, west island |
-| 13 | (9.2, 57.2), north | the former 27: `(28.185, 17.926, 18.655)`, north-east lower island |
-| 20 | (24.2, -44.6), the south road | the former 26: `(50.435, 21.864, -12.595)`, east island |
-| 26, 27, 28 | the islands above | gone (now 20, 13, 12) |
+The owner on those, 2026-11-14: "make sure all spawns are on islands or on
+ladders or in rubkas", "so that people don't only spawn on ground" (the
+ladders are the towers' stairs, the rubkas their cabins); then "some can be on
+ground, but only a few", "and very rare". As it is read here (the numbers are
+not the owner's): two points stay on the ground, every other one stands on a
+raised floor of the tables, 26 if they fit 8 m apart, fewer rather than
+nearer. Spacing is in 3D for every pair: a spawn on the ground under a raised
+floor does not take it (the owner, 2026-11-13), and up there "it is fine for
+players to spawn close".
 
-The other 19 are where they were. Three of them stand within 2 m of the fence
-(7 at 1.0 m, 15 at 0.6 m, 23 at 1.0 m): the 2 m rule was for the unseen crater
-wall and is kept for new places; these face away from a fence a player sees.
+The planner, on `day_8`:
 
-| Island | Floor height | Standing area | Points |
-| --- | --- | --- | --- |
-| west | 22-25 m | 122 m² | 24 `(4.685, 24.885, -2.845)`, 12 |
-| north-east upper | 22-23 m | 68 m² | 25 `(31.435, 22.507, 33.905)` |
-| north-east lower | 18-19 m | 54 m² | 13 |
-| south-east | 20-22 m | 115 m² | 8 `(30.435, 21.321, -23.845)` |
-| east | 21-22 m | 66 m² | 20 |
+1. A row on a raised floor keeps its place and id when it is still fit and
+   its floor has a way down: the seven did. Of the rows on the ground, the two
+   farthest apart stay, 3 and 9 (73 m, the west side and the east strip).
+2. A new place is a standing floor of the tables, reached from the spawns and
+   2 m inside the fence, that passes every point's checks (the body, harmful
+   zones, a level 6 m walk ahead: on the stairs that leaves their landings and
+   flat runs) and has a way down: the ground (a floor under y = 1 inside the
+   fence) is reached from it on the walk grid, by walking, crouching, a 1.3 m
+   jump or a drop of 5 m at most. A floor a walker cannot leave alive is no
+   place.
+3. The ids of the other 17 ground rows take the new places, the lowest id
+   first: the cabins first (they are the smallest floors, and the place
+   farthest from every point is never in one), then the place farthest from
+   every point so far, while one stays 8 m from them all.
+4. Ids no place is left for go, the last points taking them: spacing before
+   count, and ids stay 0..n without a gap (the game takes a point by its id; a
+   config with a hole has none to give). All 17 had a place.
 
-| Training Camp | Outside the fence | Ground inside | Raised | Total |
+26 points, ids 0 to 25: 2 on the ground and 24 raised, 11 of them on islands,
+10 on the towers' stairs (6 on a landing of the walkway outside, 4 on the
+stairs inside) and 3 in cabins. The nearest two are 2 and 20, 9.21 m.
+
+| Id | Place | Stands on | Over the ground | On foot to the ground, walking only | Before |
+| --- | --- | --- | --- | --- | --- |
+| 0 | (17.185, 15.548, -20.845) | cabin, the lower one of the south-west tower | 16.3 m | 35 m: the south-west tower's stairs | ground (19.9, 6.2) |
+| 1 | (4.685, 15.548, 15.905) | cabin, the lower one of the north-west tower | 16.3 m | 35 m: the north-west tower's stairs | ground (54.2, 21.2) |
+| 2 | (47.435, 28.397, -6.845) | cabin, the upper one of the east tower | 29.2 m | 70 m: a catwalk, the east tower's top, the east tower's stairs | ground (27.2, -20.8) |
+| 3 | (-6.565, -0.828, 21.155) | the ground |  |  | here |
+| 4 | (7.685, 6.288, -8.095) | stairs of the south-west tower, its walkway outside | 7.1 m | 14 m down its stairs | ground (42.2, -26.8) |
+| 5 | (45.935, 26.302, 18.905) | island north-east-small | 27.1 m | 65 m: a catwalk, the east tower's top, the east tower's stairs | ground (15.2, -5.8) |
+| 6 | (6.185, 10.977, 31.655) | stairs of the north-west tower, its walkway outside | 11.8 m | 23 m down its stairs | ground (57.2, 6.2) |
+| 7 | (5.185, 25.475, -18.595) | stairs of the south-west tower, inside it | 26.3 m | 50 m down its stairs | ground (15.2, 36.2) |
+| 8 | (30.435, 21.321, -23.845) | island south-east | 22.1 m | 81 m: a catwalk, the south-west tower's top, the south-west tower's stairs | here |
+| 9 | (60.185, -0.847, -8.845) | the ground |  |  | here |
+| 10 | (47.435, 6.071, -4.095) | stairs of the east tower, its walkway outside | 6.9 m | 14 m down its stairs | ground (39.2, 24.2) |
+| 11 | (52.685, 11.004, 9.155) | stairs of the east tower, its walkway outside | 11.8 m | 24 m down its stairs | ground (6.2, -14.8) |
+| 12 | (-4.315, 22.158, 9.155) | island west | 23.0 m | 92 m: a catwalk, the south-west tower's top, the south-west tower's stairs | here |
+| 13 | (28.185, 17.926, 18.655) | island north-east-lower | 18.7 m | 100 m: a catwalk, island north-east-upper, a catwalk, the north-west tower's top, the north-west tower's stairs | here |
+| 14 | (6.935, 25.514, 27.905) | stairs of the north-west tower, inside it | 26.3 m | 50 m down its stairs | ground (-2.8, 6.2) |
+| 15 | (3.435, 11.167, -21.595) | stairs of the south-west tower, its walkway outside | 12.0 m | 24 m down its stairs | ground (-8.1, -8.8) |
+| 16 | (0.935, 27.895, 18.155) | island north-west-small | 28.7 m | 64 m: the north-west tower's top, the north-west tower's stairs | ground (24.2, 24.2) |
+| 17 | (39.935, 20.345, -17.095) | island south-east | 21.1 m | 90 m: a catwalk, the south-west tower's top, the south-west tower's stairs | ground (47.9, -12.1) |
+| 18 | (48.185, 20.970, 0.905) | stairs of the east tower, inside it | 21.8 m | 41 m down its stairs | ground (30.2, -5.8) |
+| 19 | (38.685, 16.222, 6.155) | stairs of the east tower, its walkway outside | 17.0 m | 34 m down its stairs | here |
+| 20 | (50.435, 21.864, -12.595) | island east | 22.7 m | 53 m: a catwalk, the east tower's stairs | here |
+| 21 | (11.435, 20.306, -12.595) | stairs of the south-west tower, inside it | 21.1 m | 38 m down its stairs | ground (12.2, -26.8) |
+| 22 | (-4.565, 24.342, -0.345) | island west | 25.1 m | 85 m: a catwalk, the south-west tower's top, the south-west tower's stairs | ground (8.4, 21.2) |
+| 23 | (37.685, 22.148, 26.655) | island north-east-upper | 22.9 m | 93 m: a catwalk, the north-west tower's top, the north-west tower's stairs | ground (30.2, 36.2) |
+| 24 | (4.685, 24.885, -2.845) | island west | 25.7 m | 75 m: a catwalk, the south-west tower's top, the south-west tower's stairs | here |
+| 25 | (31.435, 22.507, 33.905) | island north-east-upper | 23.3 m | 87 m: a catwalk, the north-west tower's top, the north-west tower's stairs | here |
+
+"Walking only" is the way with no drop and no jump on the walk grid of every
+floor of the built `day_8`; the planner's cheapest way, which takes drops of
+up to 5.0 m as short cuts, is 13 to 86 m. "Before" is where the id stood
+after the fence's first step.
+
+| Raised floor | Floor y | Standing floor | Safe places | Points |
+| --- | --- | --- | --- | --- |
+| island west | 22.2-25.5 | 122 m² | 233 | 12, 22, 24 |
+| island north-east-upper | 21.8-23.1 | 68 m² | 113 | 23, 25 |
+| island north-east-lower | 17.8-19.0 | 54 m² | 112 | 13 |
+| island south-east | 20.1-22.2 | 115 m² | 202 | 8, 17 |
+| island east | 21.4-22.1 | 47 m² | 101 | 20 |
+| island north-west-small | 27.5-28.1 | 26 m² | 28 | 16 |
+| island north-east-small | 26.2-27.5 | 27 m² | 15 | 5 |
+| island north-west-low | 15.4-16.1 | 21 m² | none: no way down | |
+| the north-west tower's stairs | 6.0-27.5 | 228 m² | 37 | 6, 14 |
+| the south-west tower's stairs | 6.0-27.5 | 228 m² | 34 | 4, 7, 15, 21 |
+| the east tower's stairs | 6.0-27.5 | 230 m² | 46 | 10, 11, 18, 19 |
+| the six cabins | 15.5 (lower), 28.4 (upper) | 6 m² each | 31 | 0, 1, 2 |
+| tops, catwalks, bridges, the hub's platform | 15.5-30.3 | 522 m² | in no table | |
+
+The east island's box ended at the tower before and held its bridge and a
+piece of the tower's walkway; it ends at the island now. Three cabins have no
+point: the east tower's lower one is 4 m from point 19 and the south-west
+tower's upper one 6 m from point 24, which stay, and the north-west tower's
+upper one has no place that passes the checks.
+
+No spawn stands where a walker cannot get down. The north-west-low island, by
+that tower's lower cabin, is such a place: it is in the table so that the
+rule, not its absence, says so. The other dead end of the fence's check is no
+part of the west island's top but a hollow under it (`### The wall`), which
+the planner's grid does not enter: the island's three points stand on its
+top, which a catwalk joins to the south-west tower.
+
+| Training Camp | Outside the fence | Ground | Raised | Total |
 | --- | --- | --- | --- | --- |
 | Revision 57 | 14 | 8 | 2 | 24 |
 | Revision 58 | 7 | 15 | 7 | 29 |
-| This change | 0 | 19 | 7 | 26 |
+| The fence, first step (not released) | 0 | 19 | 7 | 26 |
+| This change | 0 | 2 kept (3 and 9) | 24: 7 kept, 17 new | 26 |
 
-Point 19 is on the east tower's ramp. The nearest two are 9 and 17, 12.67 m.
+Two of the 26 points are on the ground, 7.7 %. How often a spawn lands on one
+is not that share: the game takes any point with no other player within 20 m
+(`ffa.md`), and the two ground points, at the base's west and east edges, are
+the ones most often free. The crowding model of `ffa.md` (offline, not play;
+40,000 respawns a case; the 20 m taken in 3D, which is assumed of the game's
+test), one player respawning while the N - 1 others live, N = 10 / 16:
+
+| The others stand | A spawn lands on the ground | No point is safe (the fallback) |
+| --- | --- | --- |
+| on the ground, anywhere inside the fence | 2.6 % / 1.1 % (19 + 7 before: 29 % / 12 %) | 0 / 0 (0 / 0) |
+| half so, half on random spawn points | 10 % / 12 % (41 % / 24 %) | 0.0 % / 2.6 % (0.0 % / 0.1 %) |
+| on random spawn points, all of them | 30 % / 47 % (53 % / 40 %) | 0.3 % / 9.6 % (0.0 % / 0.6 %) |
+| anywhere in the points' box, heights ignored (`ffa.md`'s B) | 17 % / 19 % (81 % / 82 %) | 12 % / 53 % (5 % / 40 %) |
+
+So a ground spawn is rare while players are on the ground, and common when
+they all stay up by the spawns: the raised points, 9 m and more apart, share
+the enemies near them, and the ground points are what is left. The same makes
+a respawn with no safe point likelier than before at 16. With the same 24
+raised points and the two ground points nearest the middle (0 and 18)
+instead, the half-and-half case gives 4 % / 3 % on the ground and
+0.1 % / 4.8 % with no safe point; with no ground point, 0.4 % / 7.4 % with no
+safe point.
+
 `day_8` still carries Team Deathmatch's 24 points, as every Free for All copy
 does; Free for All takes team 2's only. Most of them are at the gateways,
 outside the wall, and one (team 0's point 2) is where the south gateway's
@@ -256,8 +371,9 @@ points. No feature revision is reserved.
 ## Validation and local playtest
 
 `tools/check stalker-maps` checks generated edits against the source pack,
-unchanged TDM data, native field types, dictionary preservation, island spawns,
-the closed wall behind the fence and the trucks (drawn and solid at their rows'
+unchanged TDM data, native field types, dictionary preservation, Training
+Camp's points (each on a floor of the two tables as its row says, two on the
+ground, 8 m apart in 3D), the closed wall behind the fence and the trucks (drawn and solid at their rows'
 places, the pack made again and compared with the manifest's pin), then tests
 and lints the planner. `build-content`
 checks full manifest composition and actual dictionary registration; `ffa-native`
@@ -266,8 +382,9 @@ covers the native timing loader and existing FFA/late-join/world checks.
 ### The fenced arena (2026-11-13)
 
 Not played, and not seen in the game: every check below is offline, on a quick
-`build-content 59`, and the pictures are software renders of the files
-(`private/renders/training-camp-fence/` of the main checkout).
+`build-content 59` of that day, when 19 of the 26 points stood on the ground
+(the next section moves them), and the pictures are software renders of the
+files (`private/renders/training-camp-fence/` of the main checkout).
 
 - The patch: the truck model's seven files, the border's primitives and
   `day_8`. Read back: `day_4` byte-identical to live; in `day_8` the 24 Team
@@ -288,6 +405,42 @@ Not played, and not seen in the game: every check below is offline, on a quick
 What a walk grid and a software render cannot show is left for the game: how
 the trucks sit and are lit, whether a cab can be climbed (the grid's jump is a
 guess of 1.3 m), and the engine's own collision with the truck's mesh.
+
+### The raised spawns (2026-11-14)
+
+Not played, and not seen in the game: every check below is offline, on a quick
+`build-content 59` of this branch with main (`b678302ce`) merged in, and the
+pictures are software renders of the files
+(`private/renders/training-camp-raised-spawns/` of the main checkout).
+
+- The build passes. `day_8` read back with the resource porter's config reader
+  (not the edit tool's): team 2's ids 0 to 25 at the table's places and
+  facings, 20 m, 1 m and 500 ms each; the 24 Team Deathmatch points and every
+  other value as the same tree builds them without this change (17 points'
+  position and rotation differ, nothing else). `day_4` is byte for byte that
+  build's: six environment values of main's lists (#1793) apart from live,
+  and no list of this change names it.
+- Each of the 26 against the built collision, apart from the planner (rays on
+  the walker triangles, the walk grid of every floor): collision within 5 cm
+  under its feet, 1.8 m clear over it, the body's 64 side rays clear, a
+  standing floor, and by the two tables the floor its row says.
+- The way down: from each of the 24 raised points the ground is reached by
+  walking alone, no drop and no jump, in 14 to 100 m (the table); so it is on
+  the fence's check's grid too, whose cells lie 0.1 m aside.
+- The planner on that patch, from the committed table: all 26 kept, the table
+  byte for byte. From the table of the fence's first step, on a build of this
+  tree with those points: this table. Experimental Pool's and Military
+  Warehouses' rows byte for byte both times.
+- The walk grid of the fence's check (`### The wall`), flooded from the new
+  spawns: the same 89,927 floors, none outside the fence's line, and the same
+  1,599 dead-end floors, none with a spawn.
+- `the_released_free_for_alls_play_on_their_own_projects` on its server game
+  data: 33 maps, map 44 with 26 solo points on its own project.
+
+Left for the game: how a spawn inside a tower, on a walkway's landing and in a
+cabin looks and feels (light, the first step out), whether the steps of the
+stairs walk as the grid's 0.6 m step says, and the game's own clear test with
+players above and below a point (taken here as 20 m in 3D).
 
 ### The crater arena of revision 57
 
