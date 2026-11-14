@@ -404,7 +404,12 @@ pub(crate) struct Body {
     /// The leg pools (0.5 full; a hip's or a foot's hit takes its share, `standin_damage::wound_leg`), until when an empty
     /// one is broken (no jump at all, PROVEN), and the last hit's tick (0: none this life).
     pub(crate) legs: [f32; 2],
-    pub(crate) leg_broken_until: u32,
+    /// [legs] Each leg's last damaging hit (its pool's regeneration waits its delay from it, `standin_damage::regenerate`), and
+    /// each leg's own `leg_damage` wound end (the client's affect is a leg's: `damage_model.md`, the damage model's +388h
+    /// counts the wounded legs; [`Self::leg_damage`]). One end for both legs before: the second leg's wound was no wound of its
+    /// own, and the both-legs stand never came.
+    pub(crate) leg_hit_at: [Option<u32>; 2],
+    pub(crate) leg_wounds: [Option<u32>; 2],
     pub(crate) last_hit: u32,
     /// [Gap 14] Its received damage from enemies so far, as its statistics' `received_damage` (the stand-in adds one a hit
     /// by an enemy's bullet or grenade: the bots read only whether it grew).
@@ -437,6 +442,14 @@ pub(crate) struct Body {
 }
 
 impl Body {
+    /// [legs] The legs' `leg_damage` wounds at `now` as the client counts them, by the bots' own port of the rule
+    /// (`legs::LegDamage`): one leg wounded refuses the sprint and the jump, both the move too (crouched, a move key still
+    /// moves: F42).
+    pub(crate) fn leg_damage(&self, now: u32) -> super::super::legs::LegDamage {
+        let ends: Vec<u32> = self.leg_wounds.iter().flatten().copied().collect();
+        super::super::legs::LegDamage::of(&ends, now)
+    }
+
     /// The elevation the view looks along, radians: the pitch and the weapon's kick (0x2E0F60) through the unit's scale.
     pub(crate) fn view_elevation(&self) -> f32 {
         Pitch::view(self.pitch, self.recoil.y()).elevation(self.scale)
@@ -936,7 +949,8 @@ impl Game {
             past_edge_down: None,
             slide_mps: None,
             legs: [0.5; 2],
-            leg_broken_until: 0,
+            leg_hit_at: [None; 2],
+            leg_wounds: [None; 2],
             last_hit: 0,
             received: 0.0,
             stagger: standin_stagger::Stagger::default(),
@@ -1130,7 +1144,8 @@ impl Game {
         body.health = 1.0;
         body.pools = standin_damage::Pools::default();
         body.legs = [0.5; 2];
-        body.leg_broken_until = 0;
+        body.leg_hit_at = [None; 2];
+        body.leg_wounds = [None; 2];
         body.last_hit = 0;
         body.stagger.reset();
         body.flight = None;
@@ -1208,9 +1223,9 @@ impl Game {
                 let mut jump = false;
                 if pressed[place] & key::JUMP != 0 {
                     self.jumps_pressed += 1;
-                    // A broken leg refuses it, and so does a bar under its cost or
-                    // the low flag (nothing is spent then).
-                    if body.legs.iter().all(|&pool| pool > 0.0) && body.stamina.jump() {
+                    // A leg's wound refuses it ([`Body::leg_damage`]: the client's gate is the wound, not the pool), and so
+                    // does a bar under its cost or the low flag (nothing is spent then).
+                    if body.leg_damage(tick).at(tick) == super::super::legs::LegGate::Free && body.stamina.jump() {
                         if self.honest {
                             jump = true;
                         } else {
@@ -1354,9 +1369,12 @@ impl Game {
                 continue;
             }
             let body = &mut self.bodies[place];
-            if body.leg_broken_until != 0 && tick >= body.leg_broken_until {
-                body.legs = body.legs.map(|pool| if pool > 0.0 { pool } else { 0.5 });
-                body.leg_broken_until = 0;
+            // [legs] A leg's wound ends at its end; its pool stays as it is and regenerates by the client's rule (0.03 / s up to
+            // 20 % of 0.5, `standin_damage::regenerate`). An empty leg was put back to a full 0.5 before.
+            for wound in &mut body.leg_wounds {
+                if wound.is_some_and(|end| tick >= end) {
+                    *wound = None;
+                }
             }
             standin_heal::advance(body, tick);
             let mut level = if body.carrying.is_some() { 0.95 } else { 1.0 } * body.speed_level;
@@ -1389,9 +1407,12 @@ impl Game {
                 _ => (body.keys, body.yaw),
             };
             body.held = (step_input == super::super::kin::StepInput::Previous).then_some((body.keys, body.yaw));
-            // [A364 P11] A leg's `leg_damage` affect (the stand-in's broken leg, 8 s) takes the sprint as it takes the jump: `can_sprint`
-            // 0x2DBF40 (PROVEN, `docs/notes/stagger_and_legs.md`), and what the bench's worlds show the bots.
-            let leg_affect = body.leg_broken_until > tick;
+            // [A364 P11] A leg's `leg_damage` affect (8 s) takes the sprint as it takes the jump: `can_sprint` 0x2DBF40 (PROVEN,
+            // `docs/notes/stagger_and_legs.md`), and what the bench's worlds show the bots. [legs] Both legs' take the move too
+            // (`legs::LegGate::keys`, the bots' port: F42).
+            let gate = body.leg_damage(tick).at(tick);
+            let leg_affect = gate != super::super::legs::LegGate::Free;
+            let moving = gate.keys(moving);
             let mut keys = if body.carrying.is_some() || caught || leg_affect || !body.stamina.may_sprint() {
                 moving & !key::SPRINT
             } else {
@@ -2996,16 +3017,10 @@ impl Game {
         let hurts = self
             .bodies
             .iter()
-            // [A364 P11] With the leg's `leg_damage` affect, as a live world carries it (`game/driven.rs`): the bots' jump gate is the
-            // affect, not the pool. The stand-in holds one affect for its legs (no jump, no sprint until it ends; it does not take
-            // the both-legs stop), so it shows as one part's.
+            // [A364 P11] With the legs' `leg_damage` affects, as a live world carries them (`game/driven.rs`): the bots' jump gate is
+            // the affect, not the pool. [legs] Each leg's own ([`Body::leg_damage`]): one or both.
             .map(|b| {
-                let legs = if b.leg_broken_until > tick {
-                    super::super::legs::LegDamage::One { until: b.leg_broken_until }
-                } else {
-                    super::super::legs::LegDamage::Sound
-                };
-                Hurt::of(b.legs.map(Some), b.last_hit, tick).with_leg_damage(legs)
+                Hurt::of(b.legs.map(Some), b.last_hit, tick).with_leg_damage(b.leg_damage(tick))
             })
             .collect();
         self.hurts.push_back((tick, hurts));
