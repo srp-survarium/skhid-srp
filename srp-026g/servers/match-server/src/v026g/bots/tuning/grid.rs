@@ -273,8 +273,9 @@ pub struct GridTuning {
     /// Only a risky leg is walked (a floor under the wall hold or a step), shortened to 11.4 m first, with the walks of a poll
     /// in a budget of walk ticks (`path::PULL_WALK_TICKS_A_POLL`): the worst poll is no worse than with it off. Not a build
     /// input: the grids and their key are the same either way. OFF: with the stand-in human pinned (#1460) the bots' own harm
-    /// is worse at jumps (16 matches: jumps failed 52 -> 124, jumps wrong +35 %, stuck s +10 %); ON again only after that is
-    /// root-caused and fixed.
+    /// is worse at jumps (16 matches: jumps failed 52 -> 124, jumps wrong +35 %, stuck s +10 %). That was the press from below a
+    /// ledge's take-off (#1805). ON since: harm-pullwalk3 on 5455d2bd (8 maps x 2 seeds, TDM + batt) no pooled harm; its one
+    /// harm row (map 3) is the rim jumps' press, which fails with it off too (A386).
     pub pull_walk: bool,
 }
 
@@ -324,7 +325,7 @@ impl Default for GridTuning {
             walk_every_link: true,
             jump_air_steps: true,
             wall_clear_pull: false,
-            pull_walk: false,
+            pull_walk: true,
         }
     }
 }

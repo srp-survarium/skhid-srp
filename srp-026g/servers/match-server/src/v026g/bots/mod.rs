@@ -372,6 +372,10 @@ pub struct Bot {
     /// The polls in a row it wanted a search and got none (`search::queue`).
     #[cfg(test)]
     pub(crate) bench_starved_polls: u32,
+    /// [A362] The bench's times of this life's start: the world that started it, its first think, its first route, its first move
+    /// key (`life_start`).
+    #[cfg(test)]
+    pub(crate) bench_life: Option<life_start::Life>,
     /// Whether its route is a search's way so far (a partial route), and when it last walked one (`search::queue`).
     #[cfg(test)]
     pub(crate) bench_on_partial: bool,
@@ -589,6 +593,8 @@ impl Bot {
             bench_replan: "none",
             #[cfg(test)]
             bench_starved_polls: 0,
+            #[cfg(test)]
+            bench_life: None,
             #[cfg(test)]
             bench_on_partial: false,
             #[cfg(test)]
@@ -1636,6 +1642,15 @@ impl Bots {
             bot.sent_keys = 0;
             bot.end_route(RouteEnd::NewLife, time);
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
+            #[cfg(test)]
+            {
+                bot.bench_life = Some(life_start::Life::new(time));
+            }
+            // [A362] The life has no play: the commander chooses one at its next poll, not at its own tick.
+            if self.tunings.of(bot.team).think.life_wakes_commander {
+                let state = &mut self.teams[team];
+                state.next_commander = state.next_commander.min(time);
+            }
             // The bar's rates of the kit this life is in (`think.stamina_rates`); the light kit's by default.
             if self.tunings.of(bot.team).think.stamina_rates == tuning::StaminaRates::Kit {
                 bot.stamina.set_rates(bot.kit_rates.get(bot.kit).copied().unwrap_or(stamina::Rates::LIGHT));
@@ -2576,6 +2591,97 @@ fn walks_crossing(bot: &Bot) -> Option<Vec3> {
 }
 
 impl Bot {
+}
+
+/// [A362] The bench's measure of a respawn's pause: from the world that starts a life to its first think, its first think with a
+/// play, its first drive tick,
+/// its first goal (a drive tick that asks for a way), its first route and its first move key, ms, in 100 ms bins up to 3 s (the
+/// last bin: 3 s or more); and its drive ticks before the first route by why it had none ([`path::NoRoute`], then no goal). Live
+/// (owner-5): the world to the first move key a median 1.05 s, against the owner's 0.95 s from the spawn.
+#[cfg(test)]
+pub mod life_start {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub const BINS: usize = 31;
+    /// The rows: think, play (its first think with a play), drive, goal, route, move.
+    pub const ROWS: usize = 6;
+    /// The why counts: the six [`super::path::NoRoute`] in order, then no goal.
+    pub const WHYS: usize = 7;
+    static BIN: [[AtomicU64; BINS]; ROWS] = [const { [const { AtomicU64::new(0) }; BINS] }; ROWS];
+    static WHY: [AtomicU64; WHYS] = [const { AtomicU64::new(0) }; WHYS];
+
+    #[derive(Clone, Copy, Debug)]
+    pub struct Life {
+        pub start: u32,
+        pub think: Option<u32>,
+        pub play: Option<u32>,
+        pub drive: Option<u32>,
+        pub goal: Option<u32>,
+        pub route: Option<u32>,
+        pub why: [u32; WHYS],
+    }
+
+    impl Life {
+        pub fn new(start: u32) -> Self {
+            Self { start, think: None, play: None, drive: None, goal: None, route: None, why: [0; WHYS] }
+        }
+
+        /// A drive tick at `now` before the life's first route: `asked` is why it had none, if it asked for a way.
+        pub fn drove(&mut self, now: u32, asked: Option<super::path::NoRoute>) {
+            if self.route.is_some() {
+                return;
+            }
+            self.drive.get_or_insert(now);
+            match asked {
+                Some(why) => {
+                    self.goal.get_or_insert(now);
+                    self.why[why as usize] += 1;
+                }
+                None => self.why[WHYS - 1] += 1,
+            }
+        }
+    }
+
+    fn bin(ms: u32) -> usize {
+        ((ms / 100) as usize).min(BINS - 1)
+    }
+
+    /// The life's first move key at `now`: its times and whys are counted and the life's measure ends.
+    pub fn moved(life: Life, now: u32) {
+        let since = |at: Option<u32>| at.map(|at| at.saturating_sub(life.start));
+        let rows = [since(life.think), since(life.play), since(life.drive), since(life.goal.or(life.route)), since(life.route), Some(now.saturating_sub(life.start))];
+        for (k, ms) in rows.into_iter().enumerate() {
+            if let Some(ms) = ms {
+                BIN[k][bin(ms)].fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        for (k, n) in life.why.iter().enumerate() {
+            WHY[k].fetch_add(u64::from(*n), Ordering::Relaxed);
+        }
+    }
+
+    pub fn bins() -> Vec<u64> {
+        BIN.iter()
+            .flat_map(|row| row.iter().map(|b| b.load(Ordering::Relaxed)))
+            .chain(WHY.iter().map(|w| w.load(Ordering::Relaxed)))
+            .collect()
+    }
+
+    /// The `share` quantile of one row of [`bins`], ms (the bin's upper end).
+    pub fn quantile(row: &[u64], share: f64) -> Option<u32> {
+        let total: u64 = row.iter().sum();
+        if total == 0 {
+            return None;
+        }
+        let mut seen = 0;
+        for (k, &n) in row.iter().enumerate() {
+            seen += n;
+            if seen as f64 >= share * total as f64 {
+                return Some(((k + 1) * 100) as u32);
+            }
+        }
+        None
+    }
 }
 
 #[cfg(test)]

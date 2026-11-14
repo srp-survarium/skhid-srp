@@ -244,6 +244,36 @@ pub(super) fn past_drop() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [A362] A respawn's pause: from the world that starts a life to its first think, first route and first move key, p50 / p90 ms
+/// (`bots::life_start`).
+pub(super) fn life_start() -> Box<dyn RouteTopic> {
+    Delta::of(
+        super::super::life_start::bins,
+        |d, line| {
+            use super::super::life_start::{BINS, ROWS, WHYS, quantile};
+            let q = |k: usize, share: f64| quantile(&d[k * BINS..(k + 1) * BINS], share).map_or("-".into(), |ms| ms.to_string());
+            let n: u64 = d[5 * BINS..6 * BINS].iter().sum();
+            let why = &d[ROWS * BINS..ROWS * BINS + WHYS];
+            line.ends.push(format!(
+                "life_start n {n} think_ms {}/{} play_ms {}/{} drive_ms {}/{} goal_ms {}/{} route_ms {}/{} move_ms {}/{}                  ticks_before_route noway/searching/starved/searched/ended/shutin/nogoal {}",
+                q(0, 0.5),
+                q(0, 0.9),
+                q(1, 0.5),
+                q(1, 0.9),
+                q(2, 0.5),
+                q(2, 0.9),
+                q(3, 0.5),
+                q(3, 0.9),
+                q(4, 0.5),
+                q(4, 0.9),
+                q(5, 0.5),
+                q(5, 0.9),
+                why.iter().map(u64::to_string).collect::<Vec<_>>().join("/")
+            ));
+        },
+    )
+}
+
 /// The worlds `kin.fix_floor = under_in_jump` put on a floor other than the other rule's: on the nearest (no jump of the body's own
 /// in the air) and on the floor under the feet (its jump in the air) (`body::counts`).
 pub(super) fn fix_floors() -> Box<dyn RouteTopic> {
