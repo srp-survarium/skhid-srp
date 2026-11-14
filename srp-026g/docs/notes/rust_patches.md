@@ -123,6 +123,17 @@ appears anywhere:
   target; the dev shell has the 32-bit std and linker). State a patch keeps
   lives in `static`s (`vostok::GameCell`, below); nothing allocates.
 
+One more build of the game's crate, for our own machines only: `patch_026g.py
+--spawn-marks` gives rustc `--cfg srp_spawn_marks` (link_026g.py's
+`RUST_CFGS`), and its arena is the one that is linked and not compared with
+the lock. Code no player may have (the spawn marks' free camera in a live
+match: `spawn_marks.rs`'s `tool`, `vostok/free_fly.rs`) is behind that cfg,
+so every other build's arena has none of it, which the self-test checks
+(test_spawn_marks). `vostok::trace::enabled`, a word of the image, is for
+diagnostics that are harmless in a player's hands. The host's tests compile
+the code too (`cfg(any(srp_spawn_marks, test))`); Clippy runs with and
+without the cfg (`RUSTFLAGS='--cfg srp_spawn_marks'`).
+
 Logic shared beyond the client (with srp, the match server) is a library
 crate of its own -- pure Rust, no game bindings, so it needs no `cfg` -- that
 `patches` depends on. The first is patch 76's solver, `srp-026g/crates/ragdoll`

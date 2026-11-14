@@ -2346,3 +2346,15 @@ va	status	ref_021d	name
 0x002f4580	observed		survarium::respawn_point_core::load
 0x00013da0	reviewed	0x00012c0b	vostok::engine::engine_world::command_line_editor
 0x003cd310	reviewed	0x00273594	vostok::render::render_cc_u32::is_changed
+0x00249360	verified		survarium::free_fly_camera::free_fly_camera
+0x002494d0	verified		survarium::free_fly_camera::on_keyboard_action
+0x002495b0	verified		survarium::free_fly_camera::on_gamepad_action
+0x00249660	verified		survarium::free_fly_camera::on_mouse_key_action
+0x002496a0	verified		survarium::free_fly_camera::on_mouse_move
+0x00249700	verified		survarium::free_fly_camera::build_view_matrix
+0x002498b0	verified		survarium::free_fly_camera::on_focus
+0x00249920	verified		survarium::free_fly_camera::on_activate
+0x00249a10	verified		survarium::free_fly_camera::on_deactivate
+0x00249a30	verified		survarium::free_fly_camera::tick
+0x00242500	verified		survarium::player_input_handler::on_focus
+0x00242850	verified		survarium::game_camera::on_activate

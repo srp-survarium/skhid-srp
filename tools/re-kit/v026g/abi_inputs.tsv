@@ -6154,3 +6154,35 @@ va	name	location	role	basis
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	EDX	the throw state (mov edx,esi at 0x33A453 before the call)	observed
 0x0033a4e0	survarium::weapon_core_throw_grenade_state::serialize	at 0x33A51B..0x33A53D	the set's slot byte saved: [[state+17Ch]+254h] (any item's inventory slot, 17h absent), the set not tested and not null-tested. Patch 115 saves 17h with no grenade set	observed
 0x00252b20	survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_fire_state>::deserialize	ECX	the fire state (mov edi,ecx at 0x252B38)	observed
+0x002494d0	survarium::free_fly_camera::on_keyboard_action	ECX	the camera input handler base (the camera +94h; vtable 0xA04808)	observed
+0x002494d0	survarium::free_fly_camera::on_keyboard_action	entry ESP+4	input world (not read)	observed
+0x002494d0	survarium::free_fly_camera::on_keyboard_action	entry ESP+8	key: its DirectInput code	observed
+0x002494d0	survarium::free_fly_camera::on_keyboard_action	entry ESP+12	event kind: 1 down, 3 held	observed
+0x00249660	survarium::free_fly_camera::on_mouse_key_action	ECX	the camera input handler base (the camera +94h)	observed
+0x00249660	survarium::free_fly_camera::on_mouse_key_action	entry ESP+4	input world (not read)	observed
+0x00249660	survarium::free_fly_camera::on_mouse_key_action	entry ESP+8	button key: 151h + the button	observed
+0x00249660	survarium::free_fly_camera::on_mouse_key_action	entry ESP+12	event kind: 2 held	observed
+0x002496a0	survarium::free_fly_camera::on_mouse_move	ECX	the camera input handler base (the camera +94h)	observed
+0x002496a0	survarium::free_fly_camera::on_mouse_move	entry ESP+4	input world (not read)	observed
+0x002496a0	survarium::free_fly_camera::on_mouse_move	entry ESP+8	x counts	observed
+0x002496a0	survarium::free_fly_camera::on_mouse_move	entry ESP+12	y counts	observed
+0x002496a0	survarium::free_fly_camera::on_mouse_move	entry ESP+16	z counts (the wheel)	observed
+0x00249700	survarium::free_fly_camera::build_view_matrix	entry ESP+4	the camera	observed
+0x00249700	survarium::free_fly_camera::build_view_matrix	entry ESP+8	raw angles: two floats, pitch then yaw, radians	observed
+0x00249700	survarium::free_fly_camera::build_view_matrix	entry ESP+12	forward shift, a float	observed
+0x00249700	survarium::free_fly_camera::build_view_matrix	entry ESP+16	right shift, a float	observed
+0x00249700	survarium::free_fly_camera::build_view_matrix	entry ESP+20	up shift, a float	observed
+0x002498b0	survarium::free_fly_camera::on_focus	ECX	the camera	observed
+0x002498b0	survarium::free_fly_camera::on_focus	entry ESP+4	focus byte: 1 gained, 0 lost	observed
+0x00249920	survarium::free_fly_camera::on_activate	ECX	the camera	observed
+0x00249920	survarium::free_fly_camera::on_activate	entry ESP+4	camera director	observed
+0x00249a10	survarium::free_fly_camera::on_deactivate	ECX	the camera	observed
+0x00249a30	survarium::free_fly_camera::tick	ECX	the camera	observed
+0x00242500	survarium::player_input_handler::on_focus	ECX	the handler game_camera base (the handler +4; vtable 0xA0406C)	observed
+0x00242500	survarium::player_input_handler::on_focus	entry ESP+4	focus byte: 1 gained, 0 lost	observed
+0x00242850	survarium::game_camera::on_activate	ECX	the camera	observed
+0x00242850	survarium::game_camera::on_activate	entry ESP+4	camera director	observed
+0x00242b90	survarium::base_network_client::bind_local_player [descriptive]	ECX	network client	observed
+0x00242b90	survarium::base_network_client::bind_local_player [descriptive]	entry ESP+4	the player, a counted reference by value (released at the end)	observed
+0x00242cc0	survarium::base_network_client::unbind_local_player [descriptive]	ECX	network client	observed
+0x0027b1a0	survarium::network_client::set_camera_for_match_state	ESI	network client (the live one: its +1F1C44h and +1F1C60h)	observed

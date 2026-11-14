@@ -293,6 +293,10 @@ unsafe extern "C" {
     pub fn engine_respawn_point_clear(point: Option<RespawnPointCore>, team: u32, players: Option<PlayerVector>) -> u32;
     /// 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4
     pub fn engine_respawn_points_push(vector: Option<RespawnPointVector>, point: *mut Option<RespawnPointCore>);
+    /// 0x243510 survarium::camera_director::switch_to_camera: director ESI, camera EDI; pops 0
+    pub fn engine_switch_to_camera(director: Option<CameraDirector>, camera: Option<GameCamera>);
+    /// 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
+    pub fn engine_switch_to_player_camera(world: Option<GameWorld>, first_person: u32);
 }
 
 #[allow(dead_code)]
@@ -917,6 +921,15 @@ impl PlayerInputHandler {
     pub unsafe fn view(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x48).cast::<f32>().as_ptr() }
     }
+
+    /// +0x4 (obj<survarium::game_camera>): its second base, the game_camera the director is given for the player's camera (lea edi,[eax+4] at 0x1F8251; vtable 0xA0406C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn camera(self) -> GameCamera {
+        GameCamera(unsafe { self.0.byte_add(0x4) })
+    }
 }
 
 /// A survarium::game_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -1003,6 +1016,60 @@ impl GameWorld {
     #[inline(always)]
     pub unsafe fn loading(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x4e20).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x98 (ptr<survarium::camera_director>): the scene's camera director (switch_to_player_camera 0x1F824B and switch_to_free_fly_camera 0x1F82AD give it to switch_to_camera in ESI; on_after_tick 0x1F7623 applies it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn camera_director(self) -> Option<CameraDirector> {
+        unsafe { self.0.byte_add(0x98).cast::<Option<CameraDirector>>().read_volatile() }
+    }
+
+    /// +0x98 (ptr<survarium::camera_director>): the scene's camera director (switch_to_player_camera 0x1F824B and switch_to_free_fly_camera 0x1F82AD give it to switch_to_camera in ESI; on_after_tick 0x1F7623 applies it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_camera_director(self, value: Option<CameraDirector>) {
+        unsafe { self.0.byte_add(0x98).cast::<Option<CameraDirector>>().write_volatile(value) }
+    }
+
+    /// +0x4d50 (ptr<survarium::free_fly_camera>): the engine's free-fly camera (switch_to_free_fly_camera 0x1F82B3, switch_to_camera's EDI; set_game_project 0x1F84FE puts it at the project's camera.position): the screen's while no player is bound
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn free_fly_camera(self) -> Option<FreeFlyCamera> {
+        unsafe { self.0.byte_add(0x4d50).cast::<Option<FreeFlyCamera>>().read_volatile() }
+    }
+
+    /// +0x4d50 (ptr<survarium::free_fly_camera>): the engine's free-fly camera (switch_to_free_fly_camera 0x1F82B3, switch_to_camera's EDI; set_game_project 0x1F84FE puts it at the project's camera.position): the screen's while no player is bound
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_free_fly_camera(self, value: Option<FreeFlyCamera>) {
+        unsafe { self.0.byte_add(0x4d50).cast::<Option<FreeFlyCamera>>().write_volatile(value) }
+    }
+
+    /// +0x4d58 (ptr<survarium::player_input_handler>): the bound local player's input handler, 0 without one (bind_local_player 0x242C59 sets it, unbind_local_player 0x242CEE clears it; the camera switches 0x1F8190..0x1F8360 write its mode)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player_handler(self) -> Option<PlayerInputHandler> {
+        unsafe { self.0.byte_add(0x4d58).cast::<Option<PlayerInputHandler>>().read_volatile() }
+    }
+
+    /// +0x4d58 (ptr<survarium::player_input_handler>): the bound local player's input handler, 0 without one (bind_local_player 0x242C59 sets it, unbind_local_player 0x242CEE clears it; the camera switches 0x1F8190..0x1F8360 write its mode)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_player_handler(self, value: Option<PlayerInputHandler>) {
+        unsafe { self.0.byte_add(0x4d58).cast::<Option<PlayerInputHandler>>().write_volatile(value) }
     }
 }
 
@@ -22499,6 +22566,72 @@ impl GrenadeChoiceFrame {
     }
 }
 
+/// A survarium::camera_director (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CameraDirector(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CameraDirector {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (f32): the screen's view, a row-vector 4x4 (16 f32: the rows right, up, forward and the place): camera_director::apply copies the active camera's +44h here (0x24345D..0x24346E), from update_camera (0x1F365D) and on_after_tick (0x1F762A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x84 (ptr<survarium::game_camera>): the active camera, 0 for none (switch_to_camera stores it, 0x243545; apply reads its view, 0x24344D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn active(self) -> Option<GameCamera> {
+        unsafe { self.0.byte_add(0x84).cast::<Option<GameCamera>>().read_volatile() }
+    }
+
+    /// +0x84 (ptr<survarium::game_camera>): the active camera, 0 for none (switch_to_camera stores it, 0x243545; apply reads its view, 0x24344D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_active(self, value: Option<GameCamera>) {
+        unsafe { self.0.byte_add(0x84).cast::<Option<GameCamera>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::free_fly_camera (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FreeFlyCamera(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FreeFlyCamera {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (obj<survarium::game_camera>): its first base, the game_camera the director is given (vtable 0xA047F0, its view +44h; its input handler base is +94h, vtable 0xA04808)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn camera(self) -> GameCamera {
+        GameCamera(unsafe { self.0.byte_add(0x0) })
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -22807,6 +22940,21 @@ pub struct KeyBinder(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl KeyBinder {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A survarium::game_camera (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameCamera(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameCamera {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {

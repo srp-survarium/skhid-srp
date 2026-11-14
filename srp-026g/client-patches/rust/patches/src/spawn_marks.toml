@@ -1,0 +1,15 @@
+# The spawn marks, a tool of a local build (spawn_marks.rs; client_patch.md
+# section 3.82): F7 the free-fly camera and back, F8 and F9 a mark of where
+# the screen's camera is, a line of srp_spawn_marks.tsv each. It prints what
+# patch 133's `where` prints, so it is that patch's. Only in a build made
+# with `patch_026g.py --spawn-marks` (cfg srp_spawn_marks); in every other
+# build the handler is empty and none of the tool is in the arena.
+name = "spawn_marks"
+patch = 133
+uses = ["console_where"]
+
+# on_keyboard_action's start, after the replay's keys.
+[[hook]]
+site = "tab_cursor.key"
+handler = "on_key"
+order = 3

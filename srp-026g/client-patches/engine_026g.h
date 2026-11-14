@@ -23,6 +23,7 @@ struct buffer_writer;
 struct bullet;
 struct bullet_manager;
 struct bullet_physics_world;
+struct camera_director;
 struct camouflage_decal_texture_type_baker_cook;
 struct cc_bool;
 struct cc_delegate;
@@ -38,6 +39,7 @@ struct drawable_image_context;
 struct effect_presenter_holder;
 struct engine_cfg;
 struct game_allocator;
+struct game_camera;
 struct game_effect;
 struct game_effect_list;
 struct game_effect_listener;
@@ -808,5 +810,11 @@ unsigned int engine_respawn_point_clear(const struct respawn_point_core *point, 
 
 /* 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4 */
 void engine_respawn_points_push(struct respawn_point_vector *vector, struct respawn_point_core *const *point);
+
+/* 0x243510 survarium::camera_director::switch_to_camera: director ESI, camera EDI; pops 0 */
+void engine_switch_to_camera(struct camera_director *director, struct game_camera *camera);
+
+/* 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4 */
+void engine_switch_to_player_camera(struct game_world *world, unsigned int first_person);
 
 #endif

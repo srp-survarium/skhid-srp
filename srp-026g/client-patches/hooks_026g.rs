@@ -4134,6 +4134,26 @@ pub extern "C" fn hook_replay_keys_on_key(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- spawn_marks (patch 133) ----
+
+/// The named exits of spawn_marks::on_key (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum SpawnMarksOnKeyExit { Taken }
+/// The entry `spawn_marks_on_key` (0x25cd00, game_world::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,0Ch): ECX the game world's input handler, ESP+8 the key, +0Ch its kind; taken is its `ret 0Ch` (AL the answer: 1 the key is taken, the player's handler not told)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_spawn_marks_on_key(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `spawn_marks_on_key` calls this, from the game's jump at 0x25cd00,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::spawn_marks::on_key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- replay_map (patch 135) ----
 
 /// The named exits of replay_map::on_enemy (the order the shim's Flow code
@@ -5280,6 +5300,8 @@ pub extern "C" fn hook_voice_on_key_chain(frame: &mut Frame) -> u32 {
     let flow = hook_tab_cursor_on_key(frame);
     if flow != 0 { return flow; }
     let flow = hook_replay_keys_on_key(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_spawn_marks_on_key(frame);
     if flow != 0 { return flow; }
     0
 }
