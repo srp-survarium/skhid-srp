@@ -233,7 +233,13 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - All 73 on their ground (0 to 37 cm), facing as he faced, however near another (21 and 63, 29
     and 45 are under 1 m apart): the first 48 in the places of point_ids 22-69 (position and
     rotation only), 25 new points 70-94, copies of the first solo spawn (20 m exclusion, 500 ms
-    protection, no zones). 48 -> 73 points. After `ffa-cover-maps-1` and the other picks lists.
+    protection, no zones). After `ffa-cover-maps-1` and the other picks lists.
+  - A roof spawn, 95, on the long building at pick 13 (the owner: "set one spawn on top of the
+    building where 13 is"; `picks --roofs 13 --stranded-ok 13`): at -61.943 13.519 -19.574, its
+    floor 3.5 m over 13's, 10.9 m from it in plan, flat (1°), facing the longest view. The roof
+    has no way down within the walk model's 5 m drops and is not reached on foot: placed anyway,
+    as he asked (`--stranded-ok` takes the nearest roof with a flat, clear floor without one).
+    48 -> 74 points.
   - 58 hold the rule; 2, 3, 23 and 38 have no cover, 21, 22, 58-63 and 68-70 are in the perimeter
     band (5.7 m): kept as his.
 - A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
