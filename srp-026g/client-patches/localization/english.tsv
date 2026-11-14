@@ -2650,6 +2650,11 @@ st_srp_medicine_hit_slow	Slow from bullets
 st_srp_medicine_sight_sway	Sight sway
 st_srp_medicine_sprint_stamina	Sprint stamina
 st_srp_melee_knockback	Melee knockback
+st_srp_mic_test	Test microphone
+st_srp_mic_test_no_microphone	No microphone
+st_srp_mic_test_no_playback	No sound output
+st_srp_mic_test_playing	Playing %1$s
+st_srp_mic_test_recording	Recording %1$s
 st_srp_mode_blackout	Protective device: blackout
 st_srp_mode_chargers	Protective device: chargers
 st_srp_mode_free_for_all	Free for all

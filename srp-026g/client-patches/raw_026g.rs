@@ -17595,6 +17595,24 @@ impl GameOptions {
         unsafe { self.0.byte_add(0x44).cast::<u8>().as_ptr() }
     }
 
+    /// +0xc (ptr<vostok::ui::movie_holder>): the main menu's movie holder: game_options::activate shows it in the scene (re-kit: +0Ch the menu movie) and deactivate hides it; game_options_interface's menu is this field (+8 of +4), the movie the options invoke ([[+0Ch]+108h]+4, 0x1FF98F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn menu(self) -> Option<MovieHolder> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<MovieHolder>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<vostok::ui::movie_holder>): the main menu's movie holder: game_options::activate shows it in the scene (re-kit: +0Ch the menu movie) and deactivate hides it; game_options_interface's menu is this field (+8 of +4), the movie the options invoke ([[+0Ch]+108h]+4, 0x1FF98F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_menu(self, value: Option<MovieHolder>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<MovieHolder>>().write_volatile(value) }
+    }
+
     /// +0x34 (ptr<survarium::game>): the game (game_options::activate 0x200F83; game_options_interface's game is this field, +30h of +4)
     ///
     /// # Safety

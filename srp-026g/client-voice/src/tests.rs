@@ -285,7 +285,7 @@ fn syllables(frame: usize, amplitude: f32) -> [i16; FRAME] {
 }
 /// As [`syllables`], with `harmonics` harmonics falling 6 dB an octave (45:
 /// up to 7.6 kHz, a wide-band voice).
-fn voiced(frame: usize, amplitude: f32, harmonics: usize) -> [i16; FRAME] {
+pub(crate) fn voiced(frame: usize, amplitude: f32, harmonics: usize) -> [i16; FRAME] {
     std::array::from_fn(|i| {
         let t = (frame * FRAME + i) as f32 / RATE as f32;
         if (t * 1000.) as u32 % 300 >= 200 {

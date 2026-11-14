@@ -1704,7 +1704,7 @@ def test_match_keys(original, image, before):
 
 
 def test_voice(original, image, before):
-    """Check 66: voice chat (patch 66: voice.toml's eight lohooks; its key the
+    """Check 66: voice chat (patch 66: voice.toml's eleven lohooks; its key the
     game's ptt, a key or a mouse button, the action table the game's), the movies' side."""
     print("voice chat (patch 66)")
     stock = Image(original)
@@ -1730,11 +1730,12 @@ def test_voice(original, image, before):
     declarations = {h["entry"]: h for h in P.hooks_026g.hooks(exe=P.hooks_026g.original_reader(original))
                     if any(m["patch"] == "voice" for m in h.get("chain", [h]))}
     hooks = [h for h in P.rust_hooks(original) if h[2] in declarations]
-    check(len(hooks) == 8 and {h[0] for h in hooks} == {0x1EA210, 0x27A1B0, 0x1F96F0, 0x1F9520, 0x1F7C3C, 0x25CD00,
-                                                       0x25CF70, 0x233D30},
-          "voice.toml's eight lohooks: configs.start, match_client.connect, game_world.finish and .deactivate, "
+    check(len(hooks) == 11 and {h[0] for h in hooks} == {0x1EA210, 0x27A1B0, 0x1F96F0, 0x1F9520, 0x1F7C3C, 0x25CD00,
+                                                        0x25CF70, 0x233D30, 0x1FF5D0, 0x201040, 0x1EC8EC},
+          "voice.toml's eleven lohooks: configs.start, match_client.connect, game_world.finish and .deactivate, "
           "game_world.after_move, tab_cursor.key, game_world.mouse_key (0x25CF70, past patch 31's jump; the key at "
-          "ESP+14h, its kind at +18h), hud.callback")
+          "ESP+14h, its kind at +18h), hud.callback; the options' microphone test's options.callback, "
+          "options.deactivate and game.tick")
     for va, old, symbol, opcode in hooks:
         target = linked.symbols[symbol]
         hook = P.hook_bytes(target, va, old, 0, opcode)
@@ -1745,6 +1746,13 @@ def test_voice(original, image, before):
     hud = here("flash", "hud", "src", "HUD.as")
     menu = here("flash", "hud", "src", "survarium", "controls", "PlayerRowMenu.as")
     timeline = here("flash", "main_menu", "src", "main_menu_fla", "settingsTabs_15.as")
+    mic_test = here("flash", "main_menu", "src", "SrpMicTest.as")
+    check("public function srp_mic_test(text:String)" in here("flash", "main_menu", "src", "MainMenu.as")
+          and 'public static const NAME:String = "srp_mic_test";' in mic_test and "SrpExe.call(NAME, null);" in mic_test
+          and 'SrpExe.call(NAME, Math.round(volume.selectedIndex) + " " + Math.round(sensitivity.selectedIndex));' in mic_test
+          and 'private static const STOP:String = "stop";' in mic_test and "SrpExe.call(NAME, STOP);" in mic_test,
+          "the main menu has root.srp_mic_test; the sound tab's Test microphone button asks srp_mic_test, sends a "
+          "press with the two voice sliders' steps and says stop as the Settings window closes")
     check("public function srp_voice_talking(... names)" in hud
           and "public function srp_voice_menu(place:uint, offered:uint, muted:uint)" in hud
           and "public function srp_voice_mute(place:uint, done:uint)" in hud

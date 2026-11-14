@@ -529,7 +529,11 @@ Patches:
   options, mutes, radio distances and the hud's list of who talks;
   push-to-talk (ptt, 47h) from the game world's keys (tab_cursor.key);
   "Mute voice" in the Tab list's player menu (hud.callback, after patch
-  86's);
+  86's); the options' "Test microphone" (the DLL records 10 s and plays
+  them back, in a match or not): the Settings' srp_mic_test
+  (options.callback), its button told the test's state at a frame
+  (game.tick), the test stopped as the main menu closes
+  (options.deactivate);
 - the kill feed shows a kill through a wall, by a ricochet and by pain (patch 67,
   with the late join; docs/notes/kill-feed-icons.md). kill_feed_026g.asm
   (the arena's block kill_feed.code): generate_killed_event (0x2DA170, at

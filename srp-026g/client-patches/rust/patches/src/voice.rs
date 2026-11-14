@@ -21,7 +21,17 @@
 //!   asks `srp_voice_menu(place)`, answered `root.srp_voice_menu(place,
 //!   offered, muted)` (a teammate whose voice id is known), and sends
 //!   `srp_voice_mute(place, "1"|"0")`, answered `root.srp_voice_mute(place,
-//!   done)`.
+//!   done)`;
+//! - the options' microphone test (the owner, 2026-11-14; the DLL's, in a
+//!   match or not: voice-chat.md, "Microphone test"): the Settings' sound tab
+//!   asks `srp_mic_test` (`options.callback`), answered `root.srp_mic_test(
+//!   text)`, its button's text now, and sends `srp_mic_test("<volume>
+//!   <sensitivity>")`, a press with the two sliders as they stand, or
+//!   `srp_mic_test("stop")` as the Settings window closes; every frame of the
+//!   game (`game.tick`) the button is told its text again when the DLL's
+//!   state of the test, or its second, is no longer the one shown; the test
+//!   is also stopped when the Settings change tab and when the main menu
+//!   closes (`options.deactivate`: also a match's loading and its end).
 //!
 //! Nothing a match computes: audio goes beside the game, through the DLL.
 
@@ -32,12 +42,16 @@ use core::ffi::CStr;
 use ::ragdoll::math::sqrt;
 
 use crate::vostok::log::{self, Piece::*};
+use crate::vostok::settings::{Menu, OptionsCall};
 use crate::vostok::types::Place;
 use crate::vostok::voice::{
-    self as engine, Body, Channel, Connect, Dll, Heard, Hearing, MUTES_SIZE, Pan, Places, Roster, Scene, Settings, TalkInput,
-    TalkKey, VoiceId, name_text,
+    self as engine, Body, Channel, Connect, Dll, Heard, Hearing, MUTES_SIZE, MicTest, Pan, Places, Roster, Scene, Settings,
+    TalkInput, TalkKey, TestAsk, VoiceId, name_text,
 };
-use crate::vostok::{Context, Flow, GameCell, GameWorldButton, GameWorldKey, HudCall, NoExit, Thread, VoiceOnHudCallExit};
+use crate::vostok::{
+    Context, Flow, GameCell, GameWorldButton, GameWorldKey, HudCall, NoExit, Thread, VoiceOnHudCallExit,
+    VoiceOnOptionsCallExit,
+};
 
 /// A teammate farther than this is heard through the radio (the owner,
 /// 2026-10-25; 15 m, not 25, 2026-11-13); a dead one, or any when the local
@@ -96,7 +110,8 @@ struct Live {
 
 #[derive(Clone, Copy)]
 enum Voice {
-    /// The DLL not looked for yet (before the first live match).
+    /// The DLL not looked for yet (before the first live match and the
+    /// Settings' first showing of their sound tab).
     Unloaded,
     /// No DLL, or one of another ABI: voice stays off.
     Missing,
@@ -105,6 +120,31 @@ enum Voice {
 }
 
 static VOICE: GameCell<Voice> = GameCell::new(Voice::Unloaded);
+
+/// The DLL, looked for now when it was not yet; None without one of this ABI
+/// (said once in the log).
+fn dll(thread: &Thread) -> Option<Dll> {
+    match VOICE.get(thread) {
+        Voice::Unloaded => {
+            let dll = Dll::load(thread);
+            if dll.is_none() {
+                log::line(&[Text("voice: no skhid_voice.dll of this ABI: voice chat is off")]);
+            }
+            VOICE.set(thread, dll.map_or(Voice::Missing, Voice::Idle));
+            dll
+        }
+        Voice::Missing => None,
+        Voice::Idle(dll) | Voice::Live(dll, _) => Some(dll),
+    }
+}
+
+/// The DLL when it is loaded.
+fn loaded(thread: &Thread) -> Option<Dll> {
+    match VOICE.get(thread) {
+        Voice::Idle(dll) | Voice::Live(dll, _) => Some(dll),
+        Voice::Unloaded | Voice::Missing => None,
+    }
+}
 
 /// The muted teammates' voice ids, oldest first: `srp_voice_mutes` in
 /// user.cfg, each id 8 hex digits and a `|`. Read once a match; a record not
@@ -209,24 +249,15 @@ pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_connect(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let connect = Connect::at(ctx);
-    let dll = match VOICE.get(thread) {
-        Voice::Missing => return Flow::Continue,
-        Voice::Unloaded => match Dll::load(thread) {
-            Some(dll) => dll,
-            None => {
-                log::line(&[Text("voice: no skhid_voice.dll of this ABI: voice chat is off")]);
-                VOICE.set(thread, Voice::Missing);
-                return Flow::Continue;
-            }
-        },
-        Voice::Idle(dll) => dll,
-        Voice::Live(dll, _) => {
-            dll.talk(false);
-            dll.stop();
-            dll
-        }
-    };
+    let Some(dll) = dll(thread) else { return Flow::Continue };
+    if let Voice::Live(..) = VOICE.get(thread) {
+        dll.talk(false);
+        dll.stop();
+    }
     dll.talk(false);
+    // A match loads: a microphone test with no match ends (the start below
+    // ends its worker too).
+    dll.test_stop();
     let Some(connect) = connect else {
         log::line(&[Text("voice: a match connect without a host, or on port 65535: voice chat is off for this match")]);
         VOICE.set(thread, Voice::Idle(dll));
@@ -258,9 +289,13 @@ pub fn on_connect(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The match's voice stopped, and the hud's list emptied (a name shown when
-/// it ended would stay to the next match's reset).
+/// The match's voice stopped (a microphone test with it), and the hud's list
+/// emptied (a name shown when it ended would stay to the next match's reset).
 fn stop(thread: &Thread, scene: Option<Scene<'_>>) {
+    if let Voice::Idle(dll) = VOICE.get(thread) {
+        // No voice in this match (a replay, or the start refused): a test over it.
+        dll.test_stop();
+    }
     if let Voice::Live(dll, live) = VOICE.get(thread) {
         dll.talk(false);
         dll.stop();
@@ -506,6 +541,104 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<VoiceOnHudCallExit> {
     Flow::Exit(VoiceOnHudCallExit::Done)
 }
 
+/// The Settings' call of the microphone test, and its answer's method.
+const MIC_TEST: &CStr = c"srp_mic_test";
+const MIC_TEST_ANSWER: &CStr = c"root.srp_mic_test";
+
+/// The button's text in a state: its dictionary key, and the seconds left
+/// its `%1$s` is.
+fn test_text(test: MicTest) -> (&'static CStr, Option<u8>) {
+    match test {
+        MicTest::Idle => (c"st_srp_mic_test", None),
+        MicTest::Recording(seconds) => (c"st_srp_mic_test_recording", Some(seconds)),
+        MicTest::Playing(seconds) => (c"st_srp_mic_test_playing", Some(seconds)),
+        MicTest::NoMicrophone => (c"st_srp_mic_test_no_microphone", None),
+        MicTest::NoPlayback => (c"st_srp_mic_test_no_playback", None),
+    }
+}
+
+/// The test's state the Settings' button shows: what its movie was last
+/// told. None: the sound tab has not asked yet, so there is no button to
+/// tell.
+static TEST_SHOWN: GameCell<Option<MicTest>> = GameCell::new(None);
+
+/// Tells the Settings' button its text for `test` (the running language's,
+/// with the seconds left); whether the movie took it.
+fn show_test(menu: &Menu<'_>, test: MicTest) -> bool {
+    let (key, seconds) = test_text(test);
+    let (mut text, mut numbered) = ([0; 0x200], [0; 0x200]);
+    let text = menu.translate(key, &mut text);
+    let text = match seconds {
+        Some(seconds) => crate::free_for_all::with_number(text.to_bytes(), u16::from(seconds), &mut numbered),
+        None => text,
+    };
+    menu.tell(MIC_TEST_ANSWER, &[text])
+}
+
+/// The Settings' calls (`options.callback`). `srp_mic_test`: the sound tab
+/// shown asks the button's text (answered at once; with no DLL not at all,
+/// and the button stays away); with `<volume> <sensitivity>` it is a press,
+/// which the DLL takes (it starts or stops its test: `on_tick` tells the
+/// button); with `stop` the Settings window closed. `options_tab_changed`
+/// (the game's own, left to it): the button is not seen on another tab, so a
+/// test stops.
+pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<VoiceOnOptionsCallExit> {
+    let Some(call) = OptionsCall::at(ctx) else { return Flow::Continue };
+    let thread = ctx.thread();
+    if call.method() == c"options_tab_changed" {
+        if let Some(dll) = loaded(thread) {
+            dll.test_stop();
+        }
+        return Flow::Continue;
+    }
+    if call.method() != MIC_TEST {
+        return Flow::Continue;
+    }
+    let Some(dll) = dll(thread) else { return Flow::Exit(VoiceOnOptionsCallExit::Done) };
+    match call.string_argument(0).map(TestAsk::parse) {
+        Some(Some(TestAsk::Press(sliders))) => dll.test_press(sliders),
+        Some(Some(TestAsk::Stop)) => dll.test_stop(),
+        Some(None) => log::line(&[Text("voice: srp_mic_test with neither the two sliders' steps nor stop")]),
+        None => {
+            let test = dll.test();
+            if call.menu().is_some_and(|menu| show_test(&menu, test)) {
+                TEST_SHOWN.set(thread, Some(test));
+            }
+        }
+    }
+    Flow::Exit(VoiceOnOptionsCallExit::Done)
+}
+
+/// Every frame of the game (`game.tick`), in a match or not, while the main
+/// menu is shown: the button is told its text when the DLL's test is no
+/// longer as the button shows it (its state changed, or a second of it
+/// passed; a test the menu's close stopped, when the menu is shown again).
+/// The DLL is asked nothing while the menu is closed, or before the sound
+/// tab first asked.
+pub fn on_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    let Some(shown) = TEST_SHOWN.get(thread) else { return Flow::Continue };
+    let Some(menu) = Menu::shown_at_game_tick(ctx) else { return Flow::Continue };
+    let Some(dll) = loaded(thread) else { return Flow::Continue };
+    let test = dll.test();
+    if test != shown && show_test(&menu, test) {
+        TEST_SHOWN.set(thread, Some(test));
+    }
+    Flow::Continue
+}
+
+/// The main menu closes (`options.deactivate`: its Resume or its key, a
+/// match's end, the lobby left for a match's loading): a test stops.
+pub fn on_menu_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    if TEST_SHOWN.get(thread).is_some()
+        && let Some(dll) = loaded(thread)
+    {
+        dll.test_stop();
+    }
+    Flow::Continue
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -513,6 +646,19 @@ mod tests {
 
     fn id(n: u32) -> VoiceId {
         VoiceId::new(n).unwrap()
+    }
+
+    #[test]
+    fn each_state_of_the_test_has_its_text_and_the_counted_ones_their_seconds() {
+        let states = [MicTest::Idle, MicTest::Recording(7), MicTest::Playing(10), MicTest::NoMicrophone, MicTest::NoPlayback];
+        let texts = states.map(test_text);
+        assert_eq!(texts.map(|(_, seconds)| seconds), [None, Some(7), Some(10), None, None]);
+        for (n, (key, _)) in texts.iter().enumerate() {
+            assert!(key.to_bytes().starts_with(b"st_srp_mic_test"));
+            assert!(!texts[..n].iter().any(|(other, _)| other == key), "{key:?}");
+        }
+        let mut out = [0; 0x200];
+        assert_eq!(crate::free_for_all::with_number(b"Recording %1$s", 7, &mut out), c"Recording 7");
     }
 
     #[test]

@@ -27,7 +27,9 @@ site = "options.activate"
 handler = "on_menu_show"
 
 # The main menu about to close: a key its settings await given up as Esc
-# gives it up, then the hud's cursor movie back.
+# gives it up, then the hud's cursor movie back. Patch 66's hook of the site
+# (the microphone test stopped) runs after it.
 [[hook]]
 site = "options.deactivate"
 handler = "on_menu_close"
+order = 0
