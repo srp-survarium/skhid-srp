@@ -1658,7 +1658,6 @@ impl WalkGrid {
             (OffMeshLinks::Gaps, Some(world)) if body.gap_flights => grid.gap_links_flown(&wide, &solids, world, &s, &mut stats.gaps),
             (OffMeshLinks::Gaps, _) => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
-        grid.add_unheld_drops(&mut wide, &unheld);
         // [A364 C2 rows 11/12] The rim jumps, made as gap links where a client press lands (on the game's shapes, else the walker
         // triangles with the body's caster): after the erosion, no press from a floor only a crouched body fits.
         let mut rim_unmade: Vec<(Vec3, Vec3)> = Vec::new();
@@ -1669,6 +1668,9 @@ impl WalkGrid {
             grid.fly_risers(&mut wide, world, &s, &mut stats.rim);
             rim_unmade = unmade.into_iter().map(|(a, b)| (grid.position(a), grid.position(b))).collect();
         }
+        // [A389] The held floors' drops, from the floors a body gets to (the gap and rim links made): a drop off a roof no body
+        // gets onto would only make the roof lead in, and keep it.
+        stats.held.unreached = grid.add_unheld_drops(&mut wide, &unheld, seeds, spawns);
         if body.fall_stops_on_solids {
             // The faces' own geometry, not a walk test that may miss: a floor no body gets down to is let go as the carried
             // landings' are ([`Body::keep_last_resorts`]); the only way back out of a floor a body walks to stays.

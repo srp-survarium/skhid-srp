@@ -71,6 +71,8 @@ pub struct HeldStats {
     pub drops: usize,
     /// … of them deeper than the harmless height (priced by the fall's damage).
     pub hurting: usize,
+    /// … and not made: their take-off is a floor no body gets to from the seeds or spawns (a roof's edge).
+    pub unreached: usize,
 }
 
 impl WalkGrid {
@@ -126,11 +128,22 @@ impl WalkGrid {
         (stats, drops)
     }
 
-    /// The drops of [`Self::drop_unheld`] made off-mesh walk-offs in `wide.off` (kept sorted), where the take-off has no link to
-    /// the landing yet.
-    pub(super) fn add_unheld_drops(&self, wide: &mut Wide, drops: &[(Vec3, Vec3)]) {
+    /// The drops of [`Self::drop_unheld`] made off-mesh walk-offs in `wide.off` (kept sorted), where the take-off is a floor a
+    /// body gets to from `seeds` or `spawns` over `wide`'s links and has no link to the landing yet. Returns the drops not made
+    /// for an unreached take-off: a drop out of a region no body gets into would make the region lead in, and the build would
+    /// keep it (School: 12,862 falls of 10 m or more off roofs, 976,594 roof floors kept).
+    pub(super) fn add_unheld_drops(&self, wide: &mut Wide, drops: &[(Vec3, Vec3)], seeds: &[Vec3], spawns: &[Vec3]) -> usize {
+        if drops.is_empty() {
+            return 0;
+        }
+        let reached = self.reached_floors(wide, seeds, spawns);
+        let mut unreached = 0;
         for &(from, to) in drops {
             let (Some(a), Some(b)) = (self.locate_within(from, 0.01, 0.01), self.locate_within(to, 0.01, 0.01)) else { continue };
+            if !reached[a as usize] {
+                unreached += 1;
+                continue;
+            }
             if wide.out(a as usize).any(|x| x == b) {
                 continue;
             }
@@ -138,6 +151,7 @@ impl WalkGrid {
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
         wide.off.dedup_by_key(|l| (l.from, l.to));
+        unreached
     }
 }
 

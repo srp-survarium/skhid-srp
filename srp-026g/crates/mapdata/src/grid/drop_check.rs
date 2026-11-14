@@ -336,7 +336,7 @@ impl WalkGrid {
     }
 
     /// The floors a body gets to from the seeds or a spawn over `wide`'s links and slips.
-    fn reached_floors(&self, wide: &Wide, seeds: &[Vec3], spawns: &[Vec3]) -> Vec<bool> {
+    pub(super) fn reached_floors(&self, wide: &Wide, seeds: &[Vec3], spawns: &[Vec3]) -> Vec<bool> {
         let n = self.height.len();
         let mut reached = vec![false; n];
         let mut queue: Vec<u32> = seeds
