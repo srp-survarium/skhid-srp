@@ -26,6 +26,11 @@ pub struct HazardTuning {
     /// (or the first from a start on it), by the shortest walk (`Tactics::band_way`): a safety margin for our motor,
     /// not a client rule (`hazards::Marking::Capsule`: routes over the band carried bodies onto hurt floors 196 times
     /// against 11 on the A395a bench, 2026-11-14), to lift after A388. Off: the whole margin is refused, as it was.
+    /// Off by default: on the A395a option (a) bench (2026-11-14, 37 of 64 matches) bodies spent 289 seconds on hurt
+    /// floors against 101 off, 9 of the 15 spells traced on Vector Laboratory starting within 3 s of leaving the band:
+    /// at the pit rim's gap jumps the grid held the body in the jump, and at the drop onto the battery floor it landed
+    /// 2.7-3.0 m off that floor, both into the pit. Those are faults of our motor and grid builder (A388 the model and
+    /// the edge, A389 drops from where the body leaves), not of the zone rule; to bench again after them.
     pub capsule_marks: bool,
     /// The way out of a zone the bot starts in ([`EscapeRule`]).
     pub escape: EscapeRule,
@@ -186,7 +191,7 @@ impl Default for HazardTuning {
     fn default() -> Self {
         Self {
             margin_m: Metres::of(1.0),
-            capsule_marks: true,
+            capsule_marks: false,
             escape: EscapeRule::UnderStartZone,
             artefact_know: true,
             live_zones: true,

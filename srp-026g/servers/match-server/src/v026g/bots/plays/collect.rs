@@ -4373,7 +4373,8 @@ mod tests {
     #[ignore = "needs the private map files"]
     fn vector_laboratory_band_batteries_are_reached_without_a_crossing() {
         let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
-        let defaults = crate::v026g::bots::tuning::Tuning::default();
+        let mut defaults = crate::v026g::bots::tuning::Tuning::default();
+        defaults.hazard.capsule_marks = true;
         let map = mapdata::MapData::read(&std::path::Path::new(&dir).join("level_07_day_2.mapdata")).unwrap();
         let world = std::sync::Arc::new(mapdata::World::build_with_links(
             map,

@@ -373,7 +373,9 @@ fn a_line_from_a_zone_may_leave_it_not_cross_its_core() {
     let big = zone("big", Vec3::new(30.0, 1.0, 20.0), Vec3::new(4.0, 1.0, 4.0));
     let world = field(&[], vec![big]);
     let teams = [0u8];
-    let mut bots = Bots::new(0xA70A, survarium::v026g::maps::RuleMode::Batteries, 0, &teams, &[true], &[None], Arc::new(Tuning::default()), Trace::none(0));
+    let mut tuning = Tuning::default();
+    tuning.hazard.capsule_marks = true;
+    let mut bots = Bots::new(0xA70A, survarium::v026g::maps::RuleMode::Batteries, 0, &teams, &[true], &[None], Arc::new(tuning), Trace::none(0));
     bots.map_ready(world.clone());
     let tactics = bots.tactics.as_ref().unwrap();
     let at = |x: f32, z: f32| Vec3::new(x, 0.0, z);
