@@ -182,6 +182,12 @@ class MovieTests(unittest.TestCase):
         for wrong in (flash_tree.Placement(9, 1, 1, 8, 6), flash_tree.Placement(9, 2, 1, 8, 99)):
             with self.assertRaises(ValueError):
                 flash_tree.placed_right(tags, [wrong])
+        removed = flash_tree.placed_right(tags, [flash_tree.Placement(9, 2, 1, 8, None)])
+        sub = swf.tags_of(swf.payload(removed[-1][1])[4:])
+        self.assertEqual([swf.placed(raw) for kind, raw in sub if kind == swf.PLACE_OBJECT2], [(1, 7)])
+        self.assertEqual([kind for kind, _ in sub].count(swf.SHOW_FRAME), 2)
+        with self.assertRaises(ValueError):
+            flash_tree.placed_right(tags, [flash_tree.Placement(9, 1, 1, 8, None)])
 
 
 class TreeTests(unittest.TestCase):

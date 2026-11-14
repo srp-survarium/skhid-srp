@@ -6176,3 +6176,5 @@ va	name	location	role	basis
 0x0032d4e0	survarium::bullet::check_collision	EBP at 0x32D5EE	the manager's physics world (+98h): the bullet's ray is its vtable+48h ray_test with filter group 10h and mask 48h (pushed at 0x32D5F3, 0x32D5F1), the bullet (EDI) and 1: collision objects of cgroup & 8 whose cmask has 10h, and hit models (40h)	observed
 0x00057560	vostok::sound::sound_scene::get_listenet_position	EAX	the sound scene: its listener position, an atomic half3 at +120h, read by a locked cmpxchg8b that leaves it as it is	observed
 0x00057560	vostok::sound::sound_scene::get_listenet_position	ESI	the out float3: the position as three floats	observed
+0x00064f00	vostok::buffer_vector<unsigned int>::push_back	ESI	the vector: begin +0, end +4, capacity end +8; past it the "buffer overflow" assertion (line 305)	observed
+0x00064f00	vostok::buffer_vector<unsigned int>::push_back	entry ESP+4	pointer to the u32 appended	observed
