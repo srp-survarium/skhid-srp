@@ -84,9 +84,11 @@ pub(super) fn holds(world: &Collision, s: &Settings, feet: Vec3, room: f32, step
     let mut ground: Option<f32> = None;
     for _ in 0..REST_STEPS_MAX {
         body.velocity.y = body.velocity.y.min(-FALL_MPS);
-        body.tick(world, DT, s, still);
+        let notes = body.tick(world, DT, s, still);
         let y = body.feet().y;
-        if !body.jumping && body.on_ground(s) {
+        // On the ground only where the step's own down sweep found it (`step_down` 0x7E1B0): `on_ground` 0x7EF90 is the jump's
+        // gate and stays true while a body walked off an edge falls its first 0.69 m (the exe's tick, a 2 m ledge).
+        if !notes.airborne && !body.jumping && body.on_ground(s) {
             ground = Some(y);
         } else if let Some(g) = ground
             && g - y > step
