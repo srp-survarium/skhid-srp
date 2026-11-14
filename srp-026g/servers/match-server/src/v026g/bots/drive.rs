@@ -3266,7 +3266,7 @@ mod tests {
         let grid = &world.grid;
         let body = kin::Kinematics::default();
         let lattice = kin::Kinematics { margin_edge: kin::MarginEdge::Lattice, ..body.clone() };
-        assert_eq!((body.edge, body.margin_edge), (kin::Edge::Client, kin::MarginEdge::Body), "the defaults (A93)");
+        assert_eq!((body.edge, body.margin_edge), (kin::Edge::Controller, kin::MarginEdge::Body), "the defaults (A93, A388 step 2)");
         let held = |guard: LipGuard| matches!(guard, LipGuard::Swapped(_) | LipGuard::Braked(_) | LipGuard::Doomed);
         let walk = |kin: &kin::Kinematics, x: f32, yaw: f32, full: bool| lip_guard_with(grid, kin, &on_the_slab(x, yaw, 3.5), 0.0, key::FORWARD, &[], HOLD, full);
         // Along the rim on its last floor: the sides.
