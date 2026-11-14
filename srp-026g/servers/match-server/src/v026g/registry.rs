@@ -14,8 +14,9 @@ use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
 use survarium::v026g::keeper;
+use survarium::v026g::twist::{Played, Twist};
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::maps::{self, GameMode, MatchMap};
+use survarium::v026g::maps::{self, GameMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
@@ -75,9 +76,9 @@ pub struct MatchPlayer {
 /// A match the lobby formed.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchSetup {
-    /// The map, the mode and its timings
-    /// (`survarium::v026g::maps`).
-    pub map: MatchMap,
+    /// The map, the mode and its timings (`survarium::v026g::maps`), and
+    /// a free-for-all's twist (`survarium::v026g::twist`).
+    pub played: Played,
     /// Logged by the client only.
     pub match_level: u16,
     /// The players who will really come: the roster's size is the N of the
@@ -188,8 +189,8 @@ pub(crate) struct Place {
 #[derive(Clone)]
 pub(crate) struct Formed {
     pub match_id: u32,
-    /// The map and the mode.
-    pub played: MatchMap,
+    /// The map, the mode and a free-for-all's twist.
+    pub played: Played,
     pub match_level: u16,
     pub places: Vec<Place>,
     /// The profiles the clients were given, by place: what a snapshot's
@@ -300,13 +301,45 @@ struct Inner {
     connections: HashMap<(u32, u8), IpAddr>,
 }
 
+/// Who hears a seat's voice in its match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VoiceChannel {
+    /// Its team's places (every mode with teams).
+    Team(u8),
+    /// Every place of the match: a free-for-all, whose places are each a
+    /// side of their own (the owner, 2026-11-13: "in FFA I would enable voice
+    /// chat for all").
+    Match,
+}
+
+impl VoiceChannel {
+    /// The channel of a place of `team` in a match of `mode`: the one place
+    /// the relay's routing is decided.
+    pub fn of(mode: GameMode, team: u8) -> VoiceChannel {
+        if mode == GameMode::FreeForAll {
+            VoiceChannel::Match
+        } else {
+            VoiceChannel::Team(team)
+        }
+    }
+
+    /// A place of `team` is on this channel.
+    pub fn has(self, team: u8) -> bool {
+        match self {
+            VoiceChannel::Team(own) => own == team,
+            VoiceChannel::Match => true,
+        }
+    }
+}
+
 /// A session's place as the voice relay needs it (`super::voice`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VoiceSeat {
     pub match_id: u32,
     /// The roster place: the speaker's slot on the voice wire.
     pub place: u8,
-    pub team: u8,
+    /// Who hears it, and whom it hears.
+    pub channel: VoiceChannel,
     /// The IP of the place's match connection; `None` before its 0xD8.
     pub ip: Option<IpAddr>,
 }
@@ -420,11 +453,15 @@ impl MatchRegistry {
         if setup.players.is_empty() || setup.players.len() > MAX_PLAYERS {
             return Err(CreateError::Roster(setup.players.len()));
         }
-        let played = setup.map;
+        let played = setup.played;
         let map = played.map();
         // The server's bots play modes 2 to 4 (`bots`): none in Research.
         if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(map.id));
+        }
+        let mut setup = setup;
+        for (place, player) in setup.players.iter_mut().enumerate() {
+            own_side(map, place, &mut player.profile);
         }
         let mut inner = self.inner();
         for (place, player) in setup.players.iter().enumerate() {
@@ -485,11 +522,12 @@ impl MatchRegistry {
                 .into_iter()
                 .map(|player| {
                     let mut profile = player.profile;
+                    played.arm(&mut profile);
                     keeper::give(&mut profile, keeper);
                     profile
                 })
                 .collect(),
-            map: played,
+            map: played.match_map(),
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
@@ -540,7 +578,7 @@ impl MatchRegistry {
             "Match {match_id:#x} made: map {} ({}, mode {}), {} players{}{}{}",
             map.id,
             map.name,
-            map.mode.lobby_number(),
+            played.lobby_number(),
             options.players.len(),
             if setup.vs_bots {
                 ", one player against the server's bots"
@@ -597,7 +635,7 @@ impl MatchRegistry {
         if !formed.growing_roster {
             return Err(JoinError::Unavailable);
         }
-        if players.len() > MAX_PLAYERS - formed.places.len() {
+        if players.len() > MAX_PLAYERS.saturating_sub(formed.places.len()) {
             return Err(JoinError::Full);
         }
         let Some(admitting) = inner
@@ -638,15 +676,20 @@ impl MatchRegistry {
         };
         let mut next = (**formed).clone();
         let first = next.places.len();
+        let mut players = players;
+        for (offset, player) in players.iter_mut().enumerate() {
+            own_side(next.played.map(), first + offset, &mut player.profile);
+        }
         next.profiles.extend(players.iter().map(|player| {
             let mut profile = player.profile.clone();
+            next.played.arm(&mut profile);
             gift(&mut profile, next.keeper);
             profile
         }));
         next.info = StaticInfo::new(
             &MatchOptions {
                 players: next.profiles.clone(),
-                map: next.played,
+                map: next.played.match_map(),
                 match_id: static_id(match_id),
                 match_level: next.match_level,
                 score_weights: next.score_weights,
@@ -741,9 +784,9 @@ impl MatchRegistry {
         }
     }
 
-    /// The places of a match's team that a game plays (not a bot's): each
-    /// place and its account, for the voice relay's ROSTER.
-    pub fn voice_roster(&self, match_id: u32, team: u8) -> Vec<(u8, u32)> {
+    /// The places of a match's voice channel that a game plays (not a
+    /// bot's): each place and its account, for the voice relay's ROSTER.
+    pub fn voice_roster(&self, match_id: u32, channel: VoiceChannel) -> Vec<(u8, u32)> {
         let inner = self.inner();
         let Some(formed) = inner.matches.get(&match_id) else {
             return Vec::new();
@@ -752,29 +795,26 @@ impl MatchRegistry {
             .places
             .iter()
             .enumerate()
-            .filter(|(_, place)| place.team == team && !place.bot && !place.driven)
+            .filter(|(_, place)| channel.has(place.team) && !place.bot && !place.driven)
             .map(|(index, place)| (index as u8, place.account_id))
             .collect()
     }
 
-    /// The seat of a session with its team and its match connection's IP,
-    /// for the voice relay. `None` for a session with no place, and for a
-    /// bot's place (no game talks for it).
+    /// The seat of a session with its voice channel (by the match's mode)
+    /// and its match connection's IP, for the voice relay. `None` for a
+    /// session with no place, and for a bot's place (no game talks for it).
     pub fn voice_seat(&self, session_id: u32) -> Option<VoiceSeat> {
         let inner = self.inner();
         let seat = *inner.seats.get(&session_id)?;
-        let place = inner
-            .matches
-            .get(&seat.match_id)?
-            .places
-            .get(usize::from(seat.place))?;
+        let formed = inner.matches.get(&seat.match_id)?;
+        let place = formed.places.get(usize::from(seat.place))?;
         if place.bot || place.driven {
             return None;
         }
         Some(VoiceSeat {
             match_id: seat.match_id,
             place: seat.place,
-            team: place.team,
+            channel: VoiceChannel::of(formed.played.mode(), place.team),
             ip: inner.connections.get(&(seat.match_id, seat.place)).copied(),
         })
     }
@@ -973,6 +1013,16 @@ pub enum MatchEnd {
     NotMade,
 }
 
+/// A free-for-all's place plays on a side of its own and in no squad
+/// (`maps::free_for_all_team`); in any other mode the lobby's team and squad
+/// stand.
+fn own_side(map: &maps::MapMode, place: usize, profile: &mut MatchProfile) {
+    if map.mode == GameMode::FreeForAll {
+        profile.team = maps::free_for_all_team(place);
+        profile.squad = 0;
+    }
+}
+
 /// The standing value for "no team": a draw.
 pub const DRAW: u8 = survarium::v026g::match_msgs::rules::DRAW;
 
@@ -1035,6 +1085,8 @@ pub struct MatchResult {
     pub map_id: u8,
     /// [`Formed::played`]'s: Blackout's scores pay twice.
     pub mode: GameMode,
+    /// [`Formed::played`]'s twist: the kits it armed.
+    pub twist: Option<Twist>,
     pub match_level: u16,
     pub end: MatchEnd,
     /// 0 or 1, [`DRAW`], or `None` when no trusted snapshot gave a

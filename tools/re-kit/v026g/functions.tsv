@@ -1988,6 +1988,7 @@ va	status	ref_021d	name
 0x00313200	verified		survarium::artefact_base::tick
 0x00313470	verified		survarium::artefact_base::on_taken
 0x00313490	verified		survarium::artefact_base::on_removed
+0x00313530	verified		survarium::artefact_base::end_active
 0x0025fa10	verified	0x00195e34	survarium::artefact<survarium::artefact_rattle_core>::artefact<survarium::artefact_rattle_core>
 0x001f28e0	verified	0x00156c9b	survarium::player::on_player_death
 0x00339630	reviewed	0x002085c5	survarium::bullet_manager::explode
@@ -2341,3 +2342,24 @@ va	status	ref_021d	name
 0x0001dcd0	observed		vostok::console_commands::cc_u32::cc_u32
 0x003cd300	observed		vostok::render::render_cc_u32::execute
 0x001f01b0	observed		survarium::open_file_impl
+0x000f6d00	observed		vostok::configs::binary_config_value::relocate_in_place
+0x002f4580	observed		survarium::respawn_point_core::load
+0x00013da0	reviewed	0x00012c0b	vostok::engine::engine_world::command_line_editor
+0x003cd310	reviewed	0x00273594	vostok::render::render_cc_u32::is_changed
+0x00082590	observed	0x00059784	vostok::physics::collision_shape_cook::translate_query
+0x000829e0	observed	0x00059aa0	vostok::physics::collision_shape_cook::on_collision_sources_loaded
+0x0022c010	observed	0x00179cf0	survarium::project_cooker_simple::create_game_objects
+0x003570a0	observed		vostok::physics::bt_static_rigid_body::get_triangle_material
+0x000b3eb0	verified		btHashedOverlappingPairCache::addOverlappingPair
+0x000b3f20	verified		btHashedOverlappingPairCache::setOverlapFilterCallback
+0x00057560	reviewed	0x0003eaef	vostok::sound::sound_scene::get_listenet_position
+0x000575f0	reviewed		vostok::sound::sound_scene::get_listenet_orient_front
+0x00057680	reviewed		vostok::sound::sound_scene::get_listenet_orient_top
+0x0005c7a0	reviewed	0x000425cd	vostok::sound::sound_scene::calculate_hdr_audio_frame
+0x0005e150	reviewed		vostok::sound::panning_lut::panning_lut
+0x0005e050	reviewed	0x000438d2	vostok::sound::pos_to_angle
+0x00064f00	observed		vostok::buffer_vector<unsigned int>::push_back
+0x001603b0	reviewed		vostok::render::grass_world::process_culling's patch order (patch+50h, then squared distance of patch+4084h to the camera)
+0x001610b0	reviewed		stlp_std::sort<vostok::render::grass_patch **> (grass_world::process_culling's)
+0x00161e50	reviewed		stlp_std::priv::__linear_insert<vostok::render::grass_patch **>
+0x00162060	reviewed		stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>

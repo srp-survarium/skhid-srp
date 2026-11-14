@@ -121,10 +121,23 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   on the card with most votes then, a tie or none drawn at random. Fewer members than the
   minimum stop it; a member changing kit stops nothing. A match that could not be made
   gives the room its wait again, the vote open, its votes kept.
-  - **The third card is Blackout** (the owner's of 2026-11-02: "offers blackout in voting
-    always as a third choice"): cards 1 and 2 drawn from the rest of the pool, card 3 one of
-    its Blackout maps, on another map than theirs while there is one; a pool without
-    Blackout or of Blackout alone draws its three as before (`blackout.md`).
+  - **The third card is a free-for-all** (the owner's of 2026-11-12: "ffa should be a third
+    pane always, blackout should be in general pool"; Blackout had the card from 2026-11-02
+    until then): cards 1 and 2 drawn from the rest of the pool (Blackout's maps as any
+    other's, never a free-for-all), card 3 one of its free-for-alls, on another map than
+    theirs while there is one; a pool without a free-for-all or of free-for-alls alone draws
+    its three as before (`ffa.md`, "Where it is played"; `rooms::THIRD_CARD` names the mode).
+  - **A free-for-all card's twist** (`ffa.md`, "Twists"): the create window ticks "FFA: Racket"
+    and "FFA: Saloon" as modes beside Free for all (the owner's of 2026-11-14: "they are not
+    present in private room creations"); the pool offered has each free-for-all map once plain and
+    once with each twist, and a room's pool is the entries ticked. A free-for-all card plays one of
+    its map's entries in the pool, each by its share: Free for all alone plain, a twist alone that
+    twist. The server's rooms hold them all: the owner's shares (45 / 45 / 10).
+  - **Blackout is on one card at the most** (the owner's of 2026-11-12: "Make it so blackout
+    cannot be on two cards at the same time"): in every vote, one without a free-for-all card
+    too. A second Blackout card drawn gives its place to a map of another mode while the pool
+    has one the vote does not show; a pool with nothing else keeps it, never a card fewer
+    (`blackout.md`; `rooms::ONE_CARD_AT_MOST` names the mode).
 - **The match starts at the room's minimum** (the owner's of 2026-10-20: "threshold is 2
   players though, not 4"; "just let people play, since rules are in rooms"; live, room 5209
   sat in "Awaiting other players" with 2 of 5): the game itself waits for 80 % of the
@@ -384,11 +397,13 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - Below State: the chosen room's members, each with its equipment level (the room view's)
     in a column of its own, then its name. Grey while its game is gone (`away`), red with the
     red mark when its kit or gear cannot play, white for the player itself, gold in the room's
-    match. While the room plays, the side of each player in the match (a bar of the side's
-    colour; side 1 left, side 2 right; those not in the match where there is room).
-  - Up to 20: one column while they fit at 18 a row; two otherwise (always two while it
-    plays). Rows share the space (12 to 22 high, the font 12 to 14); the map's render is made
-    up to 60 lower for a full room; nothing goes past the panel.
+    match. Never who plays on which side, in any mode or state (the owner's of 2026-11-13:
+    "it should always be like at voting", "just what players are in the game"): the server
+    tells no side (the row's side field is always 0), and while the room plays, its players
+    are where they are at its vote, those in the match gold.
+  - Up to 20, in two columns in the room's order. Rows share the space (12 to 22 high, the
+    font 12 to 14); the map's render is made up to 60 lower for a full room; nothing goes
+    past the panel.
   - **Long names** (up to 63 bytes, Cyrillic and other wide letters): the list gets them whole;
     a name too wide for its place is cut by its width in the panel's own font and ends with
     "…" (the game's bold Calibri has it); the level is never covered. The room view's names

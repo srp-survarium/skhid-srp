@@ -1100,7 +1100,10 @@ def test_weapon_camo(original, image, before):
     check_weapon_camo_026g.py runs the site and the code on made-up configs
     and models."""
     camo_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read())
-    check_piece(original, image, "weapon_camo_026g.section.bin", camo_va, open(P.weapon_camo_bin(), "rb").read())
+    camo = open(P.weapon_camo_bin(), "rb").read()
+    # its last dword, bake_name, is the build's: the arena's entry of weapon_camo.bake_name
+    check_piece(original, image, "weapon_camo_026g.section.bin", camo_va,
+                P.with_bake_name(camo, len(camo) - 4, P.arena()))
 
 
 def test_weapon_table(original, image, before):
@@ -1650,14 +1653,14 @@ def test_artefacts(original, image, before):
     check(P.artefacts_backs(linked) == list(P.ARTEFACTS_BACKS) and not unknown,
           "its entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
           + "); its calls are known targets" + "".join(f"; {t:#x}" for t in unknown))
-    heals = artefacts_va + names + 47
-    check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0"
-          + struct.pack("<III", *(artefacts_va + names + at for at in (32, 37, 42)))
+    heals = artefacts_va + names + 87
+    check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0left_hand\0right_hand\0left_leg\0"
+          b"right_leg\0" + struct.pack("<7I", *(artefacts_va + names + at for at in (32, 37, 42, 47, 57, 68, 77)))
           and f"mov ebp,{artefacts_va + names + 13:#x}" in texts
           and f"mov ebp,{artefacts_va + names:#x}" in texts and f"mov ebx,{heals:#x}" in texts
-          and f"cmp ebx,{heals + 12:#x}" in texts,
+          and f"cmp ebx,{heals + 28:#x}" in texts,
           "its data: the keys aim_time_mod and stopping_power_mod, and the pools Lifebone's active fills (pain, "
-          "body, head)")
+          "body, head, both hands, both legs)")
     hud_source = open(os.path.join(HERE, "..", "flash", "hud", "src", "HUD.as"), encoding="utf-8").read()
     from localization_026g import CATALOG, LANGUAGES, read_translations
     hints = [read_translations(CATALOG / f'{language}.tsv')['st_onyx_activation_hint']
@@ -1701,7 +1704,7 @@ def test_match_keys(original, image, before):
 
 
 def test_voice(original, image, before):
-    """Check 66: voice chat (patch 66: voice.toml's eight lohooks; its key the
+    """Check 66: voice chat (patch 66: voice.toml's eleven lohooks; its key the
     game's ptt, a key or a mouse button, the action table the game's), the movies' side."""
     print("voice chat (patch 66)")
     stock = Image(original)
@@ -1727,11 +1730,12 @@ def test_voice(original, image, before):
     declarations = {h["entry"]: h for h in P.hooks_026g.hooks(exe=P.hooks_026g.original_reader(original))
                     if any(m["patch"] == "voice" for m in h.get("chain", [h]))}
     hooks = [h for h in P.rust_hooks(original) if h[2] in declarations]
-    check(len(hooks) == 8 and {h[0] for h in hooks} == {0x1EA210, 0x27A1B0, 0x1F96F0, 0x1F9520, 0x1F7C3C, 0x25CD00,
-                                                       0x25CF70, 0x233D30},
-          "voice.toml's eight lohooks: configs.start, match_client.connect, game_world.finish and .deactivate, "
+    check(len(hooks) == 11 and {h[0] for h in hooks} == {0x1EA210, 0x27A1B0, 0x1F96F0, 0x1F9520, 0x1F7C3C, 0x25CD00,
+                                                        0x25CF70, 0x233D30, 0x1FF5D0, 0x201040, 0x1EC8EC},
+          "voice.toml's eleven lohooks: configs.start, match_client.connect, game_world.finish and .deactivate, "
           "game_world.after_move, tab_cursor.key, game_world.mouse_key (0x25CF70, past patch 31's jump; the key at "
-          "ESP+14h, its kind at +18h), hud.callback")
+          "ESP+14h, its kind at +18h), hud.callback; the options' microphone test's options.callback, "
+          "options.deactivate and game.tick")
     for va, old, symbol, opcode in hooks:
         target = linked.symbols[symbol]
         hook = P.hook_bytes(target, va, old, 0, opcode)
@@ -1742,6 +1746,22 @@ def test_voice(original, image, before):
     hud = here("flash", "hud", "src", "HUD.as")
     menu = here("flash", "hud", "src", "survarium", "controls", "PlayerRowMenu.as")
     timeline = here("flash", "main_menu", "src", "main_menu_fla", "settingsTabs_15.as")
+    mic_test = here("flash", "main_menu", "src", "SrpMicTest.as")
+    check("public function srp_mic_test(text:String)" in here("flash", "main_menu", "src", "MainMenu.as")
+          and 'public static const NAME:String = "srp_mic_test";' in mic_test and "SrpExe.call(NAME, null);" in mic_test
+          and 'SrpExe.call(NAME, Math.round(volume.selectedIndex) + " " + Math.round(sensitivity.selectedIndex));' in mic_test
+          and 'private static const STOP:String = "stop";' in mic_test and "SrpExe.call(NAME, STOP);" in mic_test,
+          "the main menu has root.srp_mic_test; the sound tab's Test microphone button asks srp_mic_test, sends a "
+          "press with the two voice sliders' steps and says stop as the Settings window closes")
+    microphone = here("flash", "main_menu", "src", "SrpMicrophone.as")
+    check("public function srp_microphone(... values)" in here("flash", "main_menu", "src", "MainMenu.as")
+          and 'public static const NAME:String = "srp_microphone";' in microphone and "SrpExe.call(NAME, null);" in microphone
+          and "SrpExe.call(NAME, saved);" in microphone
+          and 'private static const USE:String = "srp_microphone_use";' in microphone
+          and "SrpExe.call(USE, pending ? ids[menu.selectedIndex] : null);" in microphone
+          and "SrpExe.call(USE, null);" in microphone,
+          "the main menu has root.srp_microphone; the sound tab's Microphone list asks srp_microphone, sends "
+          "Apply's pick by its id, a pick at once by srp_microphone_use and the saved one again at its revert")
     check("public function srp_voice_talking(... names)" in hud
           and "public function srp_voice_menu(place:uint, offered:uint, muted:uint)" in hud
           and "public function srp_voice_mute(place:uint, done:uint)" in hud
@@ -3012,6 +3032,7 @@ def test_late_join(original, without, server, source):
           "dword patch 112's entry of the arena) and int3 padding, code | execute | read, on the page after .srpd, its "
           "file bytes right after .srp's")
     camo = open(P.weapon_camo_bin(), "rb").read()
+    camo = P.with_bake_name(camo, len(camo) - 4, P.arena())
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_DECALS_OFFSET - len(camo)) + open(P.weapon_decals_bin(), "rb").read()

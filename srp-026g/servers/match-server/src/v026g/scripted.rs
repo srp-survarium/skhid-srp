@@ -59,6 +59,9 @@ pub struct Sim {
     pub team_respawn_from: Option<(u32, [bool; 2])>,
     /// From a tick on: kills of player 0 and deaths of player 1.
     pub kills_from: Option<(u32, u16)>,
+    /// From a tick on: arbitrary per-place KD records, including their
+    /// matching kill/death statistics (terminal-standings regression).
+    pub kd_from: Option<(u32, Vec<KillsDeaths>)>,
     /// Each from its tick on: a place's count of an event, in kit 0.
     pub events_from: Vec<(u32, usize, usize, u16)>,
     /// From a tick on the world differs from the others' by this byte.
@@ -111,6 +114,7 @@ impl Sim {
             tdm_from: None,
             team_respawn_from: None,
             kills_from: None,
+            kd_from: None,
             events_from: Vec::new(),
             salt_from: None,
             ballast: 0,
@@ -174,7 +178,9 @@ impl Sim {
     /// No simulation at all, for a client that has none ([`Client::idle`]):
     /// never asked for a world.
     fn none() -> Self {
-        let map = maps::playable().next().expect("the game has maps");
+        let map = maps::playable_in(maps::GameMode::Batteries)
+            .next()
+            .expect("the game has battery maps");
         Self::new(1, map.id)
     }
 
@@ -200,6 +206,13 @@ impl Sim {
             } else {
                 players[0].events[snapshot::event::DEATH][0] = kills;
                 kills_deaths[0].deaths = kills;
+            }
+        }
+        if let Some((_, records)) = self.kd_from.as_ref().filter(|(from, _)| since(*from)) {
+            for ((kd, player), record) in kills_deaths.iter_mut().zip(&mut players).zip(records) {
+                *kd = *record;
+                player.events[snapshot::event::KILL][0] = record.kills;
+                player.events[snapshot::event::DEATH][0] = record.deaths;
             }
         }
         for &(_, place, event, count) in self.events_from.iter().filter(|set| since(set.0)) {
@@ -293,6 +306,9 @@ impl Sim {
                 units: vec![ResearchUnit::default(); 3],
             }
         });
+        // A free-for-all (mode 8) has no rule of its own: none of `gather`,
+        // `tdm` and `research` is written, and the kd stats (`kills_from`)
+        // follow the respawn rule.
         let rules = Rules {
             timelimit: Timelimit {
                 start: rule.start,
@@ -472,7 +488,10 @@ fn valid_empty_inventory() -> Vec<u8> {
     bytes.extend([0xff, 0xff]); // no active objects
     bytes.extend([0; 29]); // stamina
     bytes.extend([0; 5]); // weight and inventory bool
-    bytes.extend([0xff, 0, 0, 0]); // no carried item, artefacts or slots
+    // No carried item, no artefacts, the active slot 0, no grenade selected
+    // (23, as the inventory's constructor 0x2FC53D: a grenade slot must hold
+    // a grenade set).
+    bytes.extend([0xff, 0, 0, 23]);
     bytes
 }
 

@@ -126,7 +126,7 @@ const _: () = assert!(
 use super::afk::{self, Watch};
 use super::battery_cap;
 use super::kill_cap;
-use super::record::{Recorder, Recording};
+use super::record::{AcceptedWorld, Recorder, Recording};
 use super::registry::{Formed, IdleRemoved, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
 
@@ -1182,6 +1182,14 @@ impl Game {
         }
     }
 
+    /// The match's world is now `snapshot`, as uploaded: the one kind of
+    /// world a replay makes its key frames of (`sur_convert`).
+    fn record_accepted_world(&mut self, snapshot: &Snapshot, now: Instant) {
+        if let Some(recording) = self.recording.as_mut() {
+            recording.accepted_world(AcceptedWorld::of(snapshot.time, &snapshot.body), now);
+        }
+    }
+
     fn record_result(&mut self, result: &MatchResult, now: Instant) {
         if self.recording.is_none() {
             return;
@@ -1524,7 +1532,7 @@ impl Game {
         if peer.executable.identity().is_none() && let Upload::Offer(identity) = carrier.upload {
             log::info!(target: super::client_report::MODULES, "{} (account {}), match {:#x}, executable sha256 {} size {}", place.name, place.account_id, self.id, identity, identity.size());
         }
-        if let Some((sha256, answer)) = peer.executable.receive(carrier.upload, now) {
+        if let Some((sha256, answer)) = peer.executable.receive(carrier.upload, now, self.settings.released_executable) {
             let reply = Reply { match_id: carrier.match_id, sha256, answer };
             // Only a peer that offered this protocol ever receives its E4 reply.
             // Lost application replies are retried by the client's next offer.
@@ -4175,6 +4183,8 @@ impl Game {
             }
             return Verdict::Refused;
         }
+        // At its time as uploaded, the one a replay knows it by.
+        self.record_accepted_world(&snapshot, now);
         // The clock runs on the tick grid [LIKELY the initial world is on
         // it: 0.21d's was at 50 ms].
         if !snapshot.time.is_multiple_of(TICK_MS) {
@@ -4250,6 +4260,12 @@ impl Game {
     /// Read a trusted snapshot's statistics and rules: the standing, the
     /// phase, and whether the mode's rule has its end.
     fn observe(&mut self, snapshot: &Snapshot, vouchers: usize) {
+        // FFA's first terminal trusted world owns the results throughout
+        // the closing delay. Later uploads still serve synchronization,
+        // but cannot replace its standings, statistics or kill streaks.
+        if self.game_mode() == RuleMode::FreeForAll && self.mode_end_at.is_some() {
+            return;
+        }
         let Some(decoded) = snapshot::decode(
             snapshot.time,
             &snapshot.body,
@@ -4358,7 +4374,13 @@ impl Game {
                         )
                     }),
                 RuleMode::Research => research_end.is_some(),
-                _ => standing.is_some_and(|standing| {
+                RuleMode::FreeForAll => decoded.rules.as_ref().is_some_and(|read| {
+                    rules::ffa_finished(
+                        read.kills_deaths.iter().map(|record| record.kills),
+                        self.formed.played.map().kills_to_win,
+                    )
+                }),
+                RuleMode::Batteries | RuleMode::TimedBatteries => standing.is_some_and(|standing| {
                     rules::gather_finished(standing.points, self.batteries() as u32)
                 }),
             };
@@ -4545,6 +4567,7 @@ impl Game {
                             candidate.snapshot.time
                         );
                     }
+                    self.record_accepted_world(&candidate.snapshot, now);
                     self.snapshot = Some(candidate.snapshot);
                     self.requested_at = None;
                 }
@@ -5372,6 +5395,7 @@ impl Game {
             match_id: self.id,
             map_id: self.formed.played.map().id,
             mode: self.formed.played.mode(),
+            twist: self.formed.played.twist(),
             match_level: self.formed.match_level,
             end,
             winner: standing.map(|standing| standing.winner),

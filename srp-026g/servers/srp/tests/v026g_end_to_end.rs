@@ -1744,8 +1744,11 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
     };
     assert_eq!(gear, 7);
     assert_eq!(rows[0].0, format!("B1;0;{gear};15;6.8.10;8;61;0;5"));
-    assert_eq!(rows.len(), 17);
+    // The header, the owner's 16 maps (`pvb::MAPS`) and the free-for-all of
+    // each of their 8 levels by day.
+    assert_eq!(rows.len(), 1 + 16 + 8);
     assert!(rows.iter().any(|row| row.0 == "117;1;4;5"), "{rows:?}");
+    assert_eq!(rows.iter().filter(|row| row.0.ends_with(";8;5")).count(), 8, "{rows:?}");
 
     let start = pvb_choice_start(6, MAP);
     solo.ask(request::ranking(start, 1));

@@ -83,7 +83,8 @@ impl Field {
 }
 
 /// Modifier 43's layout, unchanged since the tree shipped (the five-rank
-/// fields kept three bits when their skills went down to two or three ranks).
+/// fields kept three bits when their skills went down to two or three ranks,
+/// and Brothers in Arms its three as the one-rank unlock it is now).
 const PAINKILLER: Field = Field::new(0, 3, 3);
 const BANDAGING: Field = Field::new(3, 3, 2);
 const METABOLISM: Field = Field::new(6, 3, 5);
@@ -94,7 +95,7 @@ const SUPPLY: Field = Field::new(16, 1, 1);
 const BONES: Field = Field::new(17, 3, 5);
 /// Medic left the tree (it returns in another one): its bit stays decoded.
 const MEDIC: Field = Field::new(20, 1, 1);
-const BROTHERS: Field = Field::new(21, 3, 2);
+const BROTHERS: Field = Field::new(21, 3, 1);
 /// Modifier 45: Numb Legs and Take Cover two bits each, Unflinching and
 /// Concentration three each (four ranks); every combination below 1024.
 const NUMB_LEGS: Field = Field::new(0, 2, 2);
@@ -143,7 +144,7 @@ pub struct Skills {
     supply: bool,
     bones: u8,
     medic: bool,
-    brothers: u8,
+    brothers: bool,
     numb_legs: u8,
     take_cover: u8,
     focus: Focus,
@@ -164,7 +165,7 @@ impl Skills {
             supply: SUPPLY.unlock(medical)?,
             bones: BONES.rank(medical)?,
             medic: MEDIC.unlock(medical)?,
-            brothers: BROTHERS.rank(medical)?,
+            brothers: BROTHERS.unlock(medical)?,
             numb_legs: NUMB_LEGS.rank(combo)?,
             take_cover: TAKE_COVER.rank(combo)?,
             focus: Focus::parse(UNFLINCHING.rank(combo)?, CONCENTRATION.rank(combo)?)?,
@@ -207,8 +208,9 @@ impl Skills {
         native * (1.0 + f32::from(self.bones) * 0.1)
     }
 
+    /// Brothers in Arms: a teammate's hit does half its damage.
     pub fn allied_damage(self, native: f32) -> f32 {
-        native * (1.0 - f32::from(self.brothers) * 0.25)
+        if self.brothers { native * 0.5 } else { native }
     }
 
     /// Numb Legs: the sprint's stamina a second.
@@ -360,7 +362,7 @@ mod tests {
     #[test]
     fn ranks_are_exact_and_invalid_profiles_are_refused() {
         // (shift, most) of modifier 43's ranked fields, then modifier 45's.
-        for (shift, most) in [(0, 3), (3, 2), (6, 5), (9, 3), (12, 3), (17, 5), (21, 2)] {
+        for (shift, most) in [(0, 3), (3, 2), (6, 5), (9, 3), (12, 3), (17, 5), (21, 1)] {
             for rank in 0..=most {
                 assert!(Skills::parse(medical(&[(rank, shift)]), 0.0).is_some());
             }
@@ -384,7 +386,7 @@ mod tests {
         for invalid in [-1.0, 0.5, f32::NAN, f32::INFINITY, 1024.0] {
             assert!(Skills::parse(0.0, invalid).is_none());
         }
-        let ranks = medical(&[(3, 0), (2, 3), (5, 6), (3, 9), (3, 12), (1, 15), (1, 16), (5, 17), (2, 21)]);
+        let ranks = medical(&[(3, 0), (2, 3), (5, 6), (3, 9), (3, 12), (1, 15), (1, 16), (5, 17), (1, 21)]);
         let full = Skills::parse(ranks, 74.0).unwrap();
         assert_eq!((full.numb_legs, full.take_cover, full.focus), (2, 2, Focus::Unflinching(4)));
         assert!(!full.is_medic());
@@ -405,7 +407,7 @@ mod tests {
             metabolism: 5,
             adrenalin: 3,
             bones: 5,
-            brothers: 2,
+            brothers: true,
             ..Skills::default()
         };
         assert!((s.pain_coefficient(0.9) - 0.87).abs() < 0.000001);
@@ -425,7 +427,9 @@ mod tests {
         assert!((s.movement_speed(4.0, 0.199) - 4.6).abs() < 0.00001);
         assert_eq!(s.movement_speed(4.0, 0.0), 4.0);
         assert_eq!(s.limb_health(0.5), 0.75);
+        // Brothers in Arms' one rank: the half its two ranks of 25% gave.
         assert_eq!(s.allied_damage(0.6), 0.3);
+        assert_eq!(Skills::default().allied_damage(0.6), 0.6);
     }
     #[test]
     fn regeneration_starts_sooner_and_goes_to_full_health() {

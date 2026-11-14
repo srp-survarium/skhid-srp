@@ -45,6 +45,7 @@
 #![forbid(unsafe_code)]
 
 mod inputs;
+pub use inputs::Fnv;
 use inputs::Patch;
 
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -933,7 +934,7 @@ mod tests {
     }
 
     /// BAKE_CODE's hash (its bytes but '\r') as BAKE_FORMAT was set.
-    const BAKE_CODE_HASH: u64 = 0x6576_de59_3627_e31c;
+    const BAKE_CODE_HASH: u64 = 0x91a7_5e94_d18a_1673;
 
     #[test]
     fn the_bake_code_is_this_format() {

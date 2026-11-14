@@ -926,6 +926,12 @@ package survarium.player
          return false;
       }
       
+      // InventoryList.duplicates: a loadout uses `itemId` (the sale's question's rows).
+      public static function inLoadout(itemId:uint) : Boolean
+      {
+         return me != null && int(me._presetUses[String(itemId)]) != 0;
+      }
+
       // MessageAskSell: the question a sale of `itemId` asks first, "" when
       // no preset uses it (the owner's of 2026-10-23).
       public static function sellWarning(itemId:uint) : String

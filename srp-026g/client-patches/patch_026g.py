@@ -483,7 +483,8 @@ Patches:
   the player's stagger (0x2DBCD0, at 0x2DBD89) is times max(0, 1 + list
   42), so bullets do not slow an active Spring's holder. A
   Lifebone's active (0x312250) removed injuries only; after them it fills
-  the pain, body and head pools (0x3122AA, increase_health as a medkit). An artefact's
+  every body part's pool (pain, body, head, both hands and both legs; 0x3122AA,
+  increase_health as a medkit). An artefact's
   press (artefact_base::action 0x313300, at its entry) activates every
   ready artefact of the pressed one's class in the artefact slots, so one
   key fires all of a kind that are ready, even when the pressed one is not.
@@ -529,7 +530,13 @@ Patches:
   options, mutes, radio distances and the hud's list of who talks;
   push-to-talk (ptt, 47h) from the game world's keys (tab_cursor.key);
   "Mute voice" in the Tab list's player menu (hud.callback, after patch
-  86's);
+  86's); the options' "Test microphone" (the DLL records 10 s and plays
+  them back, in a match or not): the Settings' srp_mic_test
+  (options.callback), its button told the test's state at a frame
+  (game.tick), the test stopped as the main menu closes
+  (options.deactivate); the options' Microphone list (srp_microphone,
+  options.callback: the DLL's capture devices, a pick used at once by
+  srp_microphone_use, Apply's in user.cfg);
 - the kill feed shows a kill through a wall, by a ricochet and by pain (patch 67,
   with the late join; docs/notes/kill-feed-icons.md). kill_feed_026g.asm
   (the arena's block kill_feed.code): generate_killed_event (0x2DA170, at
@@ -849,7 +856,7 @@ WORLD_UNPACK = (
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 56
+REVISION = 58
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -2179,7 +2186,7 @@ WEAPON_CAMO_NAME = b".srpw\0\0\0"
 WEAPON_CAMO_CHARACTERISTICS = 0x60000020      # code, execute, read (as .srp)
 WEAPON_CAMO_HOOK = (0x24B0D2, bytes.fromhex("8d44242050"), 0, 0xE8)
 WEAPON_CAMO_ENTRY = bytes.fromhex("609c89e5") # pushad; pushfd; mov ebp,esp
-WEAPON_CAMO_NAME_FORMAT = b"srpw1_%s_%s_%d\0"
+WEAPON_CAMO_BAKE_NAME = "weapon_camo_on_bake_name"   # the generated entry of weapon_camo.bake_name: the last dword
 # Patch 32 grown (client_patch.md section 3.30): weapon_stash_026g.asm at
 # WEAPON_STASH_OFFSET of `.srpw`, after the camouflage's code. An upgrade
 # window's item the lobby character does not show is shown on it from a
@@ -2335,8 +2342,8 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 #   mov esi,eax / mov eax,[esi+250h]`, the entry): link the two too;
 # - their unlink, 0x311DA0 (`push ebx / mov ebx,[esp+8]`, the entry): unlink;
 # - Lifebone's enable_active after its remove_affects, `mov ecx,[edi+250h]`
-#   at 0x3122AA: the pain, body and head pools filled to their maximum
-#   (increase_health, as a medkit);
+#   at 0x3122AA: every body part's pool (pain, body, head, both hands, both
+#   legs) filled to its maximum (increase_health, as a medkit);
 # - artefact_base::action 0x313300 (`push esi / mov esi,ecx / cmp dword
 #   [esi+280h],3`, the entry): a key-down activates every ready artefact of
 #   the pressed one's class in the artefact slots, as action activates one,
@@ -2541,6 +2548,19 @@ KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb757
 # the CRC-32 step 0x42050), and
 # game::exit's delete (0x1EC832) nops (BAKE_CACHE_KEEP).
 BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440000"))   # game::exit's delete
+
+# The grass sort's one order of distance (patch 146, README; client_patch.md
+# "The grass sort's distance"). grass_world::process_culling (0x160470) sorts
+# the visible patches (std::sort 0x1610B0) by patch+50h, then by the squared
+# distance of patch+4084h to the camera. The out-of-line comparator 0x1603B0
+# (median of three, and __linear_insert's test against the first element at
+# 0x161E66) summed its left side dz2 + dx2 + dy2; every inlined copy, and its
+# own right side, sum dz2 + dy2 + dx2. One ulp apart, the test said "not below
+# the first" while the unguarded walk (0x162060) found it below and read the
+# word before the array: a null patch, read of 0x50 at 0x162085 (rev58, a
+# match's first seconds). Swapping the two adds makes every copy one function
+# of the patch. No relocation is under the site; 0x1603B0 has no other caller.
+GRASS_SORT_ORDER = (0x160430, bytes.fromhex("f30f58f2" "f30f58f0"), bytes.fromhex("f30f58f0" "f30f58f2"))
 
 
 def weapon_camo_va(late_join):
@@ -2804,7 +2824,9 @@ INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the s
                              "per step", None, None)
 
 # Distance detail: native bounded integer command owns Apply/Cancel/save.
-# Full detail also selects LOD0 and keeps the top texture levels.
+# Maximum also selects LOD0. Of textures it touches only the requests of records that are not
+# streamed (no mip cut for them); streaming itself stays on in the game (client_patch.md,
+# "Textures in Maximum").
 DETAIL_HOOKS = (
     (0x3CF3D5, bytes.fromhex("b94b000000"), "detail_commit", 0xE9),
     (0x3CE2BE, bytes.fromhex("6a018d8f5e020000"), "detail_register", 0xE9),
@@ -3983,11 +4005,12 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 sys.exit(f"{va:#x}: a base relocation under a hook of the shared upgrades")
         weapon_camo = open(weapon_camo_bin(), "rb").read()
         camo_va = weapon_camo_va(late_join)
-        name_at = weapon_camo.find(WEAPON_CAMO_NAME_FORMAT)
-        if not weapon_camo.startswith(WEAPON_CAMO_ENTRY) or name_at < 0 \
-                or struct.pack("<I", camo_va + name_at) not in weapon_camo[:name_at]:
-            sys.exit(f"weapon_camo_026g.section.bin: its entry is not where patch_026g.py calls it, or it was "
-                     f"assembled for another address (-DCAVE={camo_va:#x})")
+        bake_name_at = len(weapon_camo) - 4
+        if not weapon_camo.startswith(WEAPON_CAMO_ENTRY) or weapon_camo[bake_name_at:] != bytes(4) \
+                or b"\xFF\x15" + struct.pack("<I", camo_va + bake_name_at) not in weapon_camo:
+            sys.exit(f"weapon_camo_026g.section.bin: its entry is not where patch_026g.py calls it, its last dword "
+                     f"is not the bake_name its code calls through, or it was assembled for another address "
+                     f"(-DCAVE={camo_va:#x})")
         weapon_stash = open(weapon_stash_bin(), "rb").read()
         if len(weapon_camo) > WEAPON_STASH_OFFSET or WEAPON_STASH_OFFSET + len(weapon_stash) > 0x1000:
             sys.exit("the weapon camouflage's code and the weapon stash's do not fit in .srpw's page")
@@ -4064,6 +4087,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         # 68's weapon_kit_preview_apply (UPGRADE_PREVIEW_KIT_APPLY; 0 without it).
         linked = arena(arena_blocks) if arena_blocks != () else None
         upgrade_preview = with_kit_apply(upgrade_preview, linked)
+        weapon_camo = with_bake_name(weapon_camo, bake_name_at, linked)
         upgrade_preview_state = late_join_state_va(late_join) + UPGRADE_PREVIEW_STATE_OFFSET
         if WEAPON_DECALS_OFFSET + len(weapon_decals) > UPGRADE_PREVIEW_OFFSET \
                 or len(upgrade_preview) > 0x1000:
@@ -4152,6 +4176,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                     patch(data, *change)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
+                patch(data, *GRASS_SORT_ORDER)
                 patch(data, *EXPAND_TEXT_UNBOUND)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
@@ -4220,7 +4245,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "an upgrade dropped on a weapon in its window is shown at once, "
                      f"Research (mode 5: rule class {RESEARCH_CLASS:#x}, its hud and messages), "
                      "a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills "
-                     "pain, body and head, and one press fires every artefact of its kind, "
+                     "every body part's pool, and one press fires every artefact of its kind, "
                      "Onyx fired together each 1 s longer per other one and reducing a hit once, "
                      "their activation hint shown once a press for their active time, "
                      "the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before "
@@ -4409,6 +4434,15 @@ def with_death_pitch(code, linked):
         return code
     target = struct.pack("<I", arena_target(linked, DEATH_PITCH_ENTRY))
     return code[:DEATH_CAMERA_PITCH] + target + code[DEATH_CAMERA_PITCH + 4:]
+
+
+def with_bake_name(code, at, linked):
+    """`.srpw`'s code (`code`, patch 44's first) with patch 44's bake_name
+    dword (`at`, zeros in the file) holding the Rust patch weapon_camo's
+    entry of the arena `linked`; as it is without one (no weapon is baked)."""
+    if linked is None or WEAPON_CAMO_BAKE_NAME not in linked.symbols:
+        return code
+    return code[:at] + struct.pack("<I", arena_target(linked, WEAPON_CAMO_BAKE_NAME)) + code[at + 4:]
 
 
 def with_kit_apply(code, linked):

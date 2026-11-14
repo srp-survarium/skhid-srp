@@ -927,6 +927,10 @@ impl Game {
     /// not (two placed one on each side, one of them gone). The sides it
     /// would make when not.
     fn entry_keeps_balance(&self, entering: &[usize]) -> Result<(), [i64; 2]> {
+        // A free-for-all has no sides to keep even: each place is its own.
+        if self.game_mode() == RuleMode::FreeForAll {
+            return Ok(());
+        }
         let mut sides = [0usize; 2];
         for (index, place) in self.formed.places.iter().enumerate() {
             let in_match = !self.waiting_entry(index)

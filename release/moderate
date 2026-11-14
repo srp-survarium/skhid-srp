@@ -643,6 +643,7 @@ CODE = re.compile(r"^code (private|mapped|image) (x|rx|rwx|wcx) ([0-9a-f]+)/([0-
 LOAD = re.compile(r"^load %s %s ([0-9a-f]+) %s at (\d+) (listed|unlisted)$" % (PLACE, QUOTED, PE))
 OVER = re.compile(r"^over (\?|%s) class (\?|%s) ([0-9a-f]+) (\d+)x(\d+) from (\?|windows|%s)$" % (QUOTED, QUOTED, PLACE))
 UNSEEN = re.compile(r"^over unknown: (.+)$")
+OVER_FILE = re.compile(r"^exe %s %s (?:sha256 ([0-9a-f]{64}) size (\d+)|(too big|unread))$" % (PLACE, QUOTED))
 
 
 def unquote(text):
@@ -661,7 +662,8 @@ def module_reports(text):
     extended styles, "?", "windows" or its exe's folder kind) for another
     process's always-on-top window over the game's, the sizes it covered
     and its exe's folders apart, ("unseen", why) where that could
-    not be told.
+    not be told, ("file", folder, name, "hashed", sha256, size) for the
+    file of such a window's exe (or "too big" / "unread", no hash).
     Returns (held, starts, dirs)."""
     held, starts, dirs = {}, {}, {}
     for report in EXECUTABLE_REPORT.finditer(text):
@@ -688,6 +690,9 @@ def module_reports(text):
                 dir = over[10]
             elif unseen := UNSEEN.match(entry):
                 key = ("unseen", unseen[1])
+            elif file := OVER_FILE.match(entry):
+                folder, dir, name, sha256, size, unhashed = file.groups()
+                key = ("file", folder, unquote(name), unhashed or "hashed", sha256 or "", int(size or 0))
             else:
                 continue
             held.setdefault(key, {})[int(report["id"])] = (report["name"], report["at"])
@@ -721,6 +726,9 @@ def module_line(key, accounts, starts, dirs=()):
         what = "over   %-5s  %-32s  class %s  styles %x (%s)" % (home, name, cls, style, ", ".join(how) or "plain")
     elif key[0] == "unseen":
         what = "over   unknown: %s" % key[1]
+    elif key[0] == "file":
+        _, folder, name, read, sha256, size = key
+        what = "file   %-5s  %-32s  %s" % (folder, name, "sha256 %s  size %d bytes" % (sha256, size) if read == "hashed" else "not hashed: " + read)
     else:
         folder, name, size, pe = key
         what = "%-5s  %-32s  size %x  %s" % (folder, name, size, built(pe))
@@ -745,7 +753,8 @@ def modules(args):
             fields = {"exe": ("kind", "sha256", "file_size"), "code": ("kind", "memory", "protect", "exec_size", "size", "pe"),
                       "load": ("kind", "folder", "name", "image_size", "pe", "listed"),
                       "over": ("kind", "name", "class", "styles", "home"),
-                      "unseen": ("kind", "why")}.get(key[0], ("folder", "name", "image_size", "pe"))
+                      "unseen": ("kind", "why"),
+                      "file": ("kind", "folder", "name", "read", "sha256", "file_size")}.get(key[0], ("folder", "name", "image_size", "pe"))
             row = dict(zip(fields, key))
             row["starts"] = sorted(starts.get(key, ()))
             row["dirs"] = sorted(dirs.get(key, ()))

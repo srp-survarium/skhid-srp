@@ -9,20 +9,24 @@
 //! - what the watch kept since the game's start ([`super::module_watch`]):
 //!   the DLLs the loader said it loaded;
 //! - the other processes' windows that are always on top and over the
-//!   game's ([`windows_over`]): overlays.
+//!   game's ([`windows_over`]): overlays; and the size and SHA-256 of each
+//!   such window's exe file outside the Windows folder ([`Files`]), read a
+//!   step a frame.
 //!
 //! Memory is read only with `ReadProcessMemory`, which fails instead of
 //! faulting on a page made unreadable or freed meanwhile. The kernel32
 //! functions are the library's dynamic rows.
 
+use super::executable::Executable;
 use super::world::read;
-use super::{Context, Thread, module_watch};
+use super::{Context, Lock, Thread, ThreadBound, module_watch};
+use crate::executable_report::{Hashed, Hashing, Source};
 use crate::raw;
 use core::ffi::{CStr, c_void};
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use srp_validate::modules::{
-    CodeScan, Entry, Home, Module, Moment, Name, Over, PeMarks, Place, Rect, Region, Report, Unseen, START,
+    CodeScan, Entry, Exe, File, Home, Module, Moment, Name, Over, PeMarks, Place, Rect, Region, Report, Unseen, START,
 };
 
 /// kernel32's `MODULEENTRY32W` (32-bit: 1064 bytes).
@@ -59,6 +63,11 @@ const SNAP_PROCESS: u32 = 2;
 const MAX_OVER: usize = 16;
 /// Windows walked at most from the top of their order (a desktop has hundreds).
 const MAX_WINDOWS: usize = 4096;
+/// Exe files read in one match connection at most, the first seen.
+const MAX_FILES: usize = 8;
+
+/// A match connection: its client and match seed.
+type Key = (usize, u32);
 
 /// kernel32's `PROCESSENTRY32W` (32-bit: 556 bytes).
 #[repr(C)]
@@ -100,6 +109,11 @@ impl Path {
         entry.path.get(..len).unwrap_or_default()
     }
     pub(super) fn as_units(&self) -> &[u16] { self.units.get(..self.len).unwrap_or_default() }
+
+    /// Its units and the terminator after them, for a call that takes a path.
+    pub(super) fn terminated(&self) -> Option<&[u16]> {
+        self.units.get(..=self.len).filter(|units| units.last() == Some(&0))
+    }
 
     /// The folder of the file this is the path of.
     pub(super) fn folder(&self) -> Path {
@@ -373,13 +387,115 @@ fn exe_of(kernel32: &Kernel32, process: u32) -> Option<Path> {
     (named != 0).then(|| Path::written(units, len)).filter(|path| !path.as_units().is_empty())
 }
 
+/// The exe files of the processes whose windows were over the game's in one
+/// match connection ([`windows_over`]), read through one after the other, a
+/// step a frame ([`Hashing`]). Of a file only its size and SHA-256 are kept,
+/// and its handle only while it is read.
+struct Files<F> {
+    slots: [Option<Slot<F>>; MAX_FILES],
+}
+
+struct Slot<F> {
+    path: Path,
+    name: Name,
+    place: Place,
+    state: Reading<F>,
+}
+
+enum Reading<F> {
+    /// Not opened yet: the files before it are read first.
+    Waiting,
+    Hashing(Hashing<F>),
+    Done(File),
+}
+
+impl<F> Reading<F> {
+    /// After the file's opening or a step of its reading.
+    fn of(hashed: Hashed<F>) -> Reading<F> {
+        match hashed {
+            Hashed::More(hashing) => Reading::Hashing(hashing),
+            Hashed::Whole(_, identity) => Reading::Done(File::Hashed(identity)),
+            Hashed::TooBig => Reading::Done(File::TooBig),
+            Hashed::Unread => Reading::Done(File::Unread),
+        }
+    }
+}
+
+impl<F: Source> Files<F> {
+    fn new() -> Files<F> {
+        Files { slots: core::array::from_fn(|_| None) }
+    }
+
+    /// A window of the exe at `path` is over the game's: its file is read, once.
+    fn saw(&mut self, path: &Path, place: Place) {
+        let Some(name) = Name::of_path(path.as_units()) else { return };
+        if self.slots.iter().flatten().any(|slot| slot.path.as_units() == path.as_units()) {
+            return;
+        }
+        if let Some(free) = self.slots.iter_mut().find(|slot| slot.is_none()) {
+            *free = Some(Slot { path: *path, name, place, state: Reading::Waiting });
+        }
+    }
+
+    /// A frame: the first file not read through yet is opened and asked its
+    /// size (one too big is done with at once, never read), or read on.
+    fn step(&mut self, open: impl FnOnce(&Path) -> Option<F>) {
+        let Some(slot) = self.slots.iter_mut().flatten().find(|slot| !matches!(slot.state, Reading::Done(_))) else { return };
+        slot.state = match core::mem::replace(&mut slot.state, Reading::Done(File::Unread)) {
+            Reading::Waiting => open(&slot.path).map_or(Reading::Done(File::Unread), |file| Reading::of(Hashing::start(file))),
+            Reading::Hashing(hashing) => Reading::of(hashing.step()),
+            done @ Reading::Done(_) => done,
+        };
+    }
+
+    /// The files read through, as told, in the order their windows were seen.
+    fn told(&self) -> [Option<Exe>; MAX_FILES] {
+        let done = self.slots.iter().flatten().filter_map(|slot| match &slot.state {
+            Reading::Done(file) => Some(Exe { name: slot.name, place: slot.place, file: *file }),
+            Reading::Waiting | Reading::Hashing(_) => None,
+        });
+        let mut told = [None; MAX_FILES];
+        told.iter_mut().zip(done).for_each(|(told, exe)| *told = Some(exe));
+        told
+    }
+}
+
+/// The files of one match connection; another connection's look starts anew.
+struct Watched {
+    key: Key,
+    files: ThreadBound<Files<Executable>>,
+}
+static FILES: Lock<Option<Watched>> = Lock::new(None);
+
+/// A frame of the match connection `connection`: a step of reading the exe
+/// files of the windows its looks saw.
+pub fn read_files(thread: &Thread, connection: Key) {
+    FILES.with(thread, |watched| {
+        let files = watched.as_mut().filter(|watched| watched.key == connection).and_then(|watched| watched.files.get_mut(thread));
+        if let Some(files) = files {
+            files.step(Executable::of_window);
+        }
+    });
+}
+
+/// The match connection `connection` closes: its files are read no more
+/// and the one open is closed.
+pub fn forget_files(thread: &Thread, connection: Key) {
+    FILES.with(thread, |watched| {
+        if watched.as_ref().is_some_and(|watched| watched.key == connection) {
+            *watched = None;
+        }
+    });
+}
+
 /// The other processes' windows over the game's ([`Over`]): from the top of
 /// the windows' order down to the game's own, each one that is visible,
 /// always on top and over some of the game's window, the first
 /// [`MAX_OVER`]. Only user32's own questions about a window are asked and
 /// nothing of its content is read; its process is opened only to ask where
-/// its exe is ([`exe_of`]).
-fn windows_over(kernel32: &Kernel32) -> Result<[Option<Over>; MAX_OVER], Unseen> {
+/// its exe is ([`exe_of`]). `saw` hears each such exe outside the Windows
+/// folder, by its path and its place as told.
+fn windows_over(kernel32: &Kernel32, mut saw: impl FnMut(&Path, Place)) -> Result<[Option<Over>; MAX_OVER], Unseen> {
     /// `GW_HWNDNEXT`: the window below in the order.
     const BELOW: u32 = 2;
     /// `GA_ROOT`: the top-level window a window is in.
@@ -428,9 +544,13 @@ fn windows_over(kernel32: &Kernel32) -> Result<[Option<Over>; MAX_OVER], Unseen>
             let (folder, temp, windows) = (kernel32.file_of(core::ptr::null_mut()).folder(), kernel32.temp(), kernel32.windows());
             let mut told = [None; MAX_OVER];
             for ((process, over), name) in found.iter().flatten().zip(names) {
-                let home = exe_of(kernel32, *process).map_or(Home::Unknown, |exe| {
+                let exe = exe_of(kernel32, *process);
+                let home = exe.as_ref().map_or(Home::Unknown, |exe| {
                     Home::of(exe.as_units(), folder.as_units(), temp.as_units(), windows.as_units())
                 });
+                if let (Some(exe), Home::At(place)) = (&exe, home) {
+                    saw(exe, place);
+                }
                 let over = Some(Over { name, home, ..*over });
                 // two windows alike are told once
                 if let Some(slot) = told.iter_mut().find(|slot| slot.is_none() || **slot == over) {
@@ -466,28 +586,45 @@ fn windows_over(kernel32: &Kernel32) -> Result<[Option<Over>; MAX_OVER], Unseen>
 }
 
 /// What a look at the other processes' windows over the game's saw
-/// ([`windows_over`]), or why it could not tell.
+/// ([`windows_over`]), or why it could not tell; and the exe files of the
+/// connection's such windows that are read through by now ([`Files`]), so a
+/// file whose reading ended since the last look is a change to tell, its
+/// window still there or not.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Windows(Result<[Option<Over>; MAX_OVER], Unseen>);
+pub struct Windows {
+    over: Result<[Option<Over>; MAX_OVER], Unseen>,
+    files: [Option<Exe>; MAX_FILES],
+}
 
 impl Windows {
-    /// A look now. `None`: kernel32 lacks a function the walks need.
-    pub fn look() -> Option<Windows> {
-        Some(Windows(windows_over(&Kernel32::get()?)))
+    /// A look now, of the match connection `connection`. `None`: kernel32
+    /// lacks a function the walks need.
+    pub fn look(thread: &Thread, connection: Key) -> Option<Windows> {
+        let kernel32 = Kernel32::get()?;
+        FILES.with(thread, |watched| {
+            // another connection's files, or another thread's (which this one may not touch): anew
+            if watched.as_ref().is_none_or(|watched| watched.key != connection || watched.files.get(thread).is_none()) {
+                *watched = Some(Watched { key: connection, files: ThreadBound::new(thread, Files::new()) });
+            }
+            let files = watched.as_mut()?.files.get_mut(thread)?;
+            let over = windows_over(&kernel32, |exe, place| files.saw(exe, place));
+            Some(Windows { over, files: files.told() })
+        })
     }
 
     /// A look that could not tell, for `unseen`.
     #[cfg(test)]
     pub fn unseen(unseen: Unseen) -> Windows {
-        Windows(Err(unseen))
+        Windows { over: Err(unseen), files: [None; MAX_FILES] }
     }
 
     /// Its entries, into `report`.
     fn add_to(self, report: &mut Report) {
-        match self.0 {
+        match self.over {
             Ok(overs) => overs.into_iter().flatten().for_each(|over| report.add(Entry::Over(over))),
             Err(unseen) => report.add(Entry::Unseen(unseen)),
         }
+        self.files.into_iter().flatten().for_each(|exe| report.add(Entry::Exe(exe)));
     }
 
     /// A report of these windows only (a minute's look).
@@ -534,6 +671,53 @@ mod tests {
         assert_eq!(Path::written([0; PATH], 0).len, 0);
         assert_eq!(Path::written([0; PATH], PATH as u32).len, 0);
         assert_eq!(Path::written([0; PATH], 7).len, 7);
+    }
+
+    #[test]
+    fn the_windows_exe_files_are_read_one_after_the_other_and_told_when_whole() {
+        use srp_validate::executable::{Identity, MAX_FILE};
+        /// A file of so many zeros left to read.
+        struct Zeros(usize);
+        impl Source for Zeros {
+            fn size(&mut self) -> Option<u64> { Some(self.0 as u64) }
+            fn read(&mut self, into: &mut [u8]) -> Option<usize> {
+                assert!(self.0 <= MAX_FILE as usize, "a file too big is never read");
+                let read = into.len().min(self.0);
+                self.0 -= read;
+                Some(read)
+            }
+            fn seek(&mut self, _: u32) -> bool { false }
+        }
+        let path = |text: &str| {
+            let mut units = [0; PATH];
+            text.encode_utf16().zip(&mut units).for_each(|(from, unit)| *unit = from);
+            Path::written(units, text.len() as u32)
+        };
+        let open = |path: &Path| match Name::of_path(path.as_units())?.as_str() {
+            "small.exe" => Some(Zeros(8193)),
+            "big.exe" => Some(Zeros(MAX_FILE as usize + 1)),
+            _ => None,
+        };
+        let told = |files: &Files<Zeros>| files.told().map(|exe| exe.map(|exe| (exe.name, exe.file)));
+        let (small, none, big) = (path("C:\\a\\small.exe"), path("C:\\a\\none.exe"), path("C:\\a\\big.exe"));
+        assert_eq!(small.terminated().map(<[u16]>::len), Some(small.as_units().len() + 1));
+        let name = |path: &Path| Name::of_path(path.as_units()).unwrap();
+        let mut files = Files::new();
+        [small, none, small, big].iter().for_each(|path| files.saw(path, Place::bare(srp_validate::modules::Folder::Other)));
+        // small.exe: opened, read twice, then its end; nothing is told of a file before that
+        for _ in 0..3 {
+            files.step(open);
+            assert_eq!(told(&files), [None; MAX_FILES]);
+        }
+        files.step(open);
+        let mut hash = sign_in_cipher::Sha256::new();
+        hash.update(&[0; 8193]);
+        let whole = File::Hashed(Identity::new(8193, hash.finish()).unwrap());
+        assert_eq!(told(&files)[..2], [Some((name(&small), whole)), None]);
+        // none.exe cannot be opened; big.exe is opened and too big by its size at once, with no read
+        (0..2).for_each(|_| files.step(open));
+        assert_eq!(told(&files)[1..4], [Some((name(&none), File::Unread)), Some((name(&big), File::TooBig)), None]);
+        files.step(|_| panic!("every file is read through"));
     }
 
     #[test]

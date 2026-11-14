@@ -272,6 +272,23 @@ pub enum Reason {
         place: u8,
         kit: u8,
     },
+    /// A held artefact names one of its kit's own items' slots, or a slot
+    /// below `first`, the first the game gives artefacts (none: the kit
+    /// has none).
+    ObjectsArtefactPocket {
+        object: usize,
+        place: u8,
+        kit: u8,
+        slot: u8,
+        first: Option<u8>,
+    },
+    /// Two held artefacts name one slot of one kit.
+    ObjectsArtefactSlotTwice {
+        object: usize,
+        place: u8,
+        kit: u8,
+        slot: u8,
+    },
     /// An object's field holds what the game never writes there
     /// (`world::GameObjects::read`).
     ObjectsField {
@@ -378,6 +395,16 @@ pub enum Reason {
     },
     /// A throw names a grenade slot past the inventory's.
     TailGrenadeSlot {
+        slot: u8,
+    },
+    /// A throw names a slot whose item (in the owner's kit) is no grenade
+    /// set.
+    TailGrenadeSet {
+        slot: u8,
+    },
+    /// The inventory's selected grenade (`m_grenade_slot`) is a slot whose
+    /// item is no grenade set.
+    TailSelectedGrenade {
         slot: u8,
     },
     /// A body part's affect is of no type the game has.
@@ -659,6 +686,33 @@ impl fmt::Display for Reason {
                 f,
                 "object {object} names owner {place} kit {kit}, which has no player"
             ),
+            Reason::ObjectsArtefactPocket {
+                object,
+                place,
+                kit,
+                slot,
+                first,
+            } => match first {
+                Some(first) => write!(
+                    f,
+                    "object {object} holds an artefact in place {place} kit {kit} slot {slot}, \
+                     a pocket or below its first artefact slot {first}"
+                ),
+                None => write!(
+                    f,
+                    "object {object} holds an artefact in place {place} kit {kit} slot {slot}, \
+                     a kit with no artefact slot"
+                ),
+            },
+            Reason::ObjectsArtefactSlotTwice {
+                object,
+                place,
+                kit,
+                slot,
+            } => write!(
+                f,
+                "object {object} holds a second artefact in place {place} kit {kit} slot {slot}"
+            ),
             Reason::ObjectsField { object, fault } => write!(f, "object {object}: {fault}"),
             Reason::PhysicsBytes { len } => write!(f, "{len} bytes where a game writes none"),
             Reason::BulletsUnread { len, bullets } => write!(
@@ -764,6 +818,12 @@ impl fmt::Display for Reason {
                 write!(f, "a state machine in state {state}, past its {states}")
             }
             Reason::TailGrenadeSlot { slot } => write!(f, "a throw of the grenade in slot {slot}"),
+            Reason::TailGrenadeSet { slot } => {
+                write!(f, "a throw of the grenade in slot {slot}, which holds no grenade set")
+            }
+            Reason::TailSelectedGrenade { slot } => {
+                write!(f, "the selected grenade in slot {slot}, which holds no grenade set")
+            }
             Reason::TailAffect { kind } => write!(f, "a body part affect of type {kind}"),
             Reason::TailBool { at } => write!(f, "a bool at {at} that is not 0x00 or 0xFF"),
             Reason::TailCarry => f.write_str("a carry snapshot of another version"),
@@ -844,7 +904,10 @@ impl fmt::Display for Reason {
                 write!(f, "map {map}, which the client does not have")
             }
             Reason::OptionsTeam { place, team } => {
-                write!(f, "place {place} has team {team}, not 0 or 1")
+                write!(
+                    f,
+                    "place {place} has team {team}, not 0 or 1 nor, with the roster's others, its own side"
+                )
             }
             Reason::OptionsNoKit { place } => {
                 write!(f, "place {place}, in the roster, has no kit")

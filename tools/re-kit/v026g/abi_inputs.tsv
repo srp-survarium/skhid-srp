@@ -3112,8 +3112,8 @@ va	name	location	role	basis
 0x003180e0	survarium::timelimit_rule_core::on_player_left_match	stack+4	client_id	inferred
 0x00318100	survarium::timelimit_rule_core::logic_tick	stack+4	timelimit_rule	inferred
 0x00318100	survarium::timelimit_rule_core::logic_tick	stack+8	time_ms	inferred
-0x00318360	survarium::timelimit_rule_core::rule_completed	ECX	timelimit_rule	inferred
-0x00318360	survarium::timelimit_rule_core::rule_completed	stack+4	time_ms	inferred
+0x00318360	survarium::timelimit_rule_core::rule_completed	ECX	timelimit_rule	observed
+0x00318360	survarium::timelimit_rule_core::rule_completed	stack+4	time_ms	observed
 0x003190c0	survarium::damage_zone_core::damage_zone_core	EAX	new damage-zone object storage	inferred
 0x003193f0	survarium::damage_zone_core::serialize	ECX	zone_secondary_receiver_fullobject_plus_0x130	inferred
 0x003193f0	survarium::damage_zone_core::serialize	stack+4	writer	inferred
@@ -3218,9 +3218,9 @@ va	name	location	role	basis
 0x00321b90	survarium::bullet_manager::serialize	stack+4	writer	inferred
 0x00321c50	survarium::bullet_manager::deserialize	EAX	bullet manager	inferred
 0x00321c50	survarium::bullet_manager::deserialize	stack+4	reader	inferred
-0x003237e0	survarium::kd_stats_rule::on_event	ECX	KD rule	inferred
-0x003237e0	survarium::kd_stats_rule::on_event	stack+4	event numeric ID	inferred
-0x003237e0	survarium::kd_stats_rule::on_event	stack+8	event payload pointer	inferred
+0x003237e0	survarium::kd_stats_rule::on_event	ECX	KD rule	observed
+0x003237e0	survarium::kd_stats_rule::on_event	stack+4	event numeric ID; 1 increments victim deaths and enemy killer kills (0x3237E0..0x323861)	observed
+0x003237e0	survarium::kd_stats_rule::on_event	stack+8	death event payload: byte 0 killer place (FF none), byte 1 victim place; equal places are suicide	observed
 0x00323870	survarium::kd_stats_rule::serialize	ECX	KD rule	inferred
 0x00323870	survarium::kd_stats_rule::serialize	stack+4	writer	inferred
 0x00323910	survarium::kd_stats_rule::deserialize	ECX	KD rule	inferred
@@ -6011,6 +6011,10 @@ va	name	location	role	basis
 0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	ESI	byte offset into the shadow (+58h)	observed
 0x0011b5a0	vostok::render::shader_constant_buffer::set_memory	entry ESP+4	shader_constant_buffer receiver	observed
 0x0023d070	survarium::game_world_ui::update_game_stats	EAX	the ui; called by update_ui every 40 ms (0x23B4B3): root.set_game_stats (state 1..3, fps, latency) only when one of them differs from the last sent (0x23D10D..0x23D129)	observed
+0x00338330	survarium::player_logic_dead_state::activate	ECX	dead_state (mov edi,ecx at 0x33833C; its selector at +18h)	observed
+0x00338280	survarium::player_logic_dead_state::get_death_animations	entry ESP+4	the set ([selector+40h]; mov ebp,[esp+0Ch] after one push)	observed
+0x00338280	survarium::player_logic_dead_state::get_death_animations	entry ESP+8	the out pair (returned in EAX)	observed
+0x00338280	survarium::player_logic_dead_state::get_death_animations	entry ESP+0Ch	the index, the dead state's m_animation_index (mov ebx,[esp+10h] after one push)	observed
 0x003cf7f0	vostok::render::res_render_output::present	EAX+0xCC	the render output's IDXGISwapChain: GetFullscreenState through its vtable +2Ch (0x3CF81C..0x3CF832), Present through +20h (0x3CF8FF..0x3CF907)	observed
 0x0042111a	WinMainCRTStartup	PE header	the exe's AddressOfEntryPoint (call 0x42DBFC / jmp 0x420F9C: the CRT's cookie init, then its startup); the TLS directory (0xA365A8) is called before it, its callback list at 0x884AA4 empty in the original	observed
 0x00038ff0	vostok::math::sin	entry ESP+4	the angle (float; cdecl)	observed
@@ -6104,3 +6108,84 @@ va	name	location	role	basis
 0x003cd300	vostok::render::render_cc_u32::execute	entry ESP+4	arguments string	observed
 0x001f01b0	survarium::open_file_impl	EAX	synchronous device wrapper	observed
 0x001f01b0	survarium::open_file_impl	ESI	resolved replay path (NUL-terminated ANSI)	observed
+0x00316820	survarium::player_respawn_rule_base::tick	ECX	the rule	observed
+0x00316820	survarium::player_respawn_rule_base::tick	entry ESP+8	the time, compared with each place's respawn time at +138h	observed
+0x003171d0	survarium::player_respawn_rule_base::select_respawn_points	ECX	the rule	observed
+0x003171d0	survarium::player_respawn_rule_base::select_respawn_points	entry ESP+4	the team: the group of points (+188h + 4 x team pointer, +194h + 4 x team count) and the team 0x2F4800 tests against	observed
+0x003171d0	survarium::player_respawn_rule_base::select_respawn_points	entry ESP+8	the team's due players (a vector)	observed
+0x003171d0	survarium::player_respawn_rule_base::select_respawn_points	entry ESP+0Ch	the living players, tested against each point	observed
+0x003171d0	survarium::player_respawn_rule_base::select_respawn_points	entry ESP+18h	the out vector of chosen points	observed
+0x002f4800	survarium::respawn_point_core::is_clear_for_team	ESI	the respawn point (position +8h, ally radius +30h, enemy radius +34h)	observed
+0x002f4800	survarium::respawn_point_core::is_clear_for_team	entry ESP+4	the team	observed
+0x002f4800	survarium::respawn_point_core::is_clear_for_team	entry ESP+8	the players to test (a vector)	observed
+0x003174c0	vostok::buffer_vector<survarium::respawn_point_core *>::push_back	ESI	the vector (begin +0, end +4, capacity end +8)	observed
+0x003174c0	vostok::buffer_vector<survarium::respawn_point_core *>::push_back	entry ESP+4	the point to add: the place holding its pointer	observed
+0x002f4580	survarium::respawn_point_core::load	entry ESP+4	the respawn point it fills (EBP): +4 point_id, +18h priority, +1Ch team, +8 position, +14h the rotation's angle, +30h ally_check_radius and +34h enemy_check_radius as floats, each only when the key is there and by its type (a float as it is, 0x2F45D1 and 0x2F4600; an int through cvtsi2ss), +20h invulnerability_time x 1000, ms (0x2F4628 mov edx,[eax]; imul edx,edx,3E8h: the raw value as an int with no type test, so whole seconds only: a float there is read as its bits), +28h and +2Ch the zones of ally_zones and enemy_zones (their collision_geometries, read with no value_exists: a point needs both keys)	observed
+0x002f4580	survarium::respawn_point_core::load	entry ESP+8	the point's config table (EBX), an entry of a project's server_objects/respawn_points; called a point by the respawn rule's cook 0x2C6910 (0x2C6A8E) and from 0x2065EF; ret 8	observed
+0x00267b10	survarium::timelimit_rule::fill_match_hud_state	ECX	the time rule (vtable 0xA06E8C slot +44h): its state +148h (1 waiting, 2 the countdown, 3 in process), its start +12Ch, match_time +138h, wait +13Ch, countdown +140h, in ms	observed
+0x00267b10	survarium::timelimit_rule::fill_match_hud_state	entry ESP+4	the hud state (the hud's +24h): in process +4 the whole seconds left (the ms left x 0.001 truncated, 0x267B5F; 0 once over, 0x267B4F) and +138h 0; waiting or counting down +138h 1, +8Ch the seconds, +0Ch the text (0x267C6A)	observed
+0x00267b10	survarium::timelimit_rule::fill_match_hud_state	entry ESP+8	the time, ms	observed
+0x00233680	survarium::match_hud_state::match_hud_state	ESI	the hud state (2B4h bytes, the hud's +24h; called once, by the hud's constructor at 0x233849): +0 the viewed place 0FFh, +4, +8, +8Ch, +90h, +92h zeros, the twenty kd records at +98h zeroed (0x2336D1); nothing clears it at a new match	observed
+0x002d36b0	survarium::game_world_core::fill_match_hud_state	entry ESP+4	the core world: each rule of +18824h..+18828h asked through its vtable +44h (0x2D36D4), then the object at +18F54h through its +1Ch	observed
+0x002d36b0	survarium::game_world_core::fill_match_hud_state	entry ESP+8	the hud state (game_world +220h, the hud's +24h: game_world::tick 0x1F7F7A, which first writes its byte 0, the place of the network client's player or 0FFh, 0x1F7F82)	observed
+0x002d36b0	survarium::game_world_core::fill_match_hud_state	entry ESP+0Ch	the time, ms	observed
+0x00323980	survarium::kd_stats_rule::fill_match_hud_state	entry ESP+4	the hud state: +98h + 8 x place takes the rule's +110h + 8 x place (kills u16, deaths u16, in the match u8) for its +1B0h places (the options' count, 0x3237B4)	observed
+0x00234880	survarium::game_world_ui::initialize_match	0x234D1C..0x234D31	the map config's mode.mode into the hud's +20h (0FFh from the constructor 0x233842) and to the movie as root.set_game_type (0x234D6B); read for equality only: 0x234D73 (2, 3, 4), 0x2385D8 (2, 3), 0x238CC9 (3), 0x23B339 (2, 3, 4), 0x23B3DE (4)	observed
+0x000f6d00	vostok::configs::binary_config_value::relocate_in_place	ECX	the value record; adds the base to its nonzero name at +8 and its data at +0 for types >2, then recursively relocates every child of types 3 and 4 in place, without deduplication; reachable table records must not be shared (FFA 2026-11-12 dumps: shared collision_geometries name relocated 31 times, lookup crashes at 0xF6BC2)	observed
+0x000f6d00	vostok::configs::binary_config_value::relocate_in_place	entry ESP+4	the config allocation base added to offsets; ret 4	observed
+0x002f4580	survarium::respawn_point_core::load	entry ESP+4	respawn_point_core output, kept in EBP from 0x2F4589	observed
+0x002f4580	survarium::respawn_point_core::load	entry ESP+8	binary config table, kept in EBX from 0x2F4584	observed
+0x003cd310	vostok::render::render_cc_u32::is_changed	ECX	render command (its header); value pointer at +50h, previous-value pointer at +60h	observed
+0x00209430	survarium::chat_handler::set_mode	at 0x209513..0x209668	the hud's tabs (the game mode flag set): root.remove_tab 4 and 3, then two tabs by add_new_tab, the team's (id 4, sent on 6, or 7 when lobby_client+1E57ACh is not 0: 0x209593; shows 0xA74A78 or 0xA74A88: 6 or 7, 5, 8, 2) and the match's (id 3, sent on 5, shows the same four); then add_squad_tab when lobby_client+1EAAA4h is not 0 (0x2096A9)	observed
+0x00209710	survarium::chat_handler::add_new_tab	stack+8	the tab descriptor (1Ch): +0 name, +4 id, +8 closable, +0Ch the channels it shows, +10h their count, +14h channel_to_send, +18h save_history; given to the movie as root.add_tab's object	observed
+0x00209ff0	survarium::chat_handler::add_squad_tab	at 0x20A013..0x20A057	the squad's tab: id 0, sent on 8, save_history 1, shows 0xA74AA8 (8, 5 and EDI, the team's channel written to 0xA74AB0: 3 of them; 1 when EDI is 0Ah, the lobby)	observed
+0x002089d0	survarium::chat_handler::on_message_typed	EDI	the channel of the line: what the movie's send_function was called with (its open tab's channel_to_send); 4 (private) asks root.active_tab_id for the conversation (0x208A34); given to messaging_client::send_text_message (0x26AD30) as it is	observed
+0x00208870	survarium::chat_handler::on_keyboard_action	at 0x2088BB..0x208911	action 46h: root.previous_tab while the key 2Ah (left Shift) is down, nothing while 38h (left Alt) is, root.next_tab otherwise; the movie alone knows the open tab	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	at 0x25CD6B..0x25CD83	the chat opens on action 3Fh of the game keys (group 1), Enter (1Ch) and numpad Enter (9Ch): 0x25CF18, chat_handler::focus(true) on [game+5398h] (root.focus_chat). No channel or tab is named, and no other key opens it: the hud movie's open tab is the channel	observed
+0x0030f830	survarium::double_barreled_weapon_core_fire_state::weapon_and_hands_expression	ECX	the fire state (mov edi,ecx at 0x30F846); its two fire animations at +164h, +168h (both constructors 0x30F660, 0x30FF40: an array of 2), m_weapon_animation_index at +16Ch	observed
+0x00310200	survarium::double_barreled_weapon_core_fire_state::deserialize	ECX	the fire state (mov esi,ecx at 0x31020A)	observed
+0x0033a770	survarium::weapon_core_throw_grenade_state::throw_grenade	ESI	the throw grenade state: its set [state+17Ch] (0x33A77F, 0x33A7BB), m_grenade_index [state+180h] (0x33A7CD)	observed
+0x0030a250	survarium::grenade_set_core::throw_grenade	AL	the grenade index (movzx eax,al at 0x30A264), unbounded	observed
+0x0030a250	survarium::grenade_set_core::throw_grenade	entry ESP+4	the grenade set (mov ebp,[esp+1Ch] after sub esp,10h and two pushes); its grenades' vector [set+268h]..[set+26Ch]	observed
+0x0033a650	survarium::weapon_core_throw_grenade_state::is_ready_for_transition	at 0x33A66D..0x33A689	m_grenade_index [ESI+180h]: 0FFh not ready; else [[[ESI+17Ch]+268h]+index*4]+154h with no bound (the set's grenades are (end +26Ch - begin +268h)/4). Patch 115 takes the 0FFh path for an index past them	observed
+0x0030db60	survarium::weapon_core_animation_end_aware_state::on_animation_end	at 0x30DB7D..0x30DB8E	m_index_of_animation_to_wait [ECX+134h] indexes [ECX+130h] (the state's handles, its class's register_animations' count: 4, 5, 9 or 10) with no bound, 0FFh included; the show state saves values far past (63, 205, 220; LIKELY never set: no constructor stores +134h, only initialize 0x30DB0F and the picks). Patch 115 takes an index past the handles as no match (0x30DBA7)	observed
+0x00310680	survarium::weapon_core_throw_grenade_throw_substate::on_animation_end	ECX	the throw substate (+130h its 4 handles from +140h, +134h the index, +138h its throw grenade state)	observed
+0x00310cf0	survarium::weapon_core_melee_state::on_hit_animation_event	ECX	the melee state (+130h its 4 handles from +144h, +134h the index)	observed
+0x002e4090	survarium::weapon_core::can_throw_grenade [descriptive]	ECX	the weapon core (+8 its user, the user's +10Ch its inventory)	observed
+0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	EDX	the throw state (mov edx,esi at 0x33A453 before the call)	observed
+0x0033a4e0	survarium::weapon_core_throw_grenade_state::serialize	at 0x33A51B..0x33A53D	the set's slot byte saved: [[state+17Ch]+254h] (any item's inventory slot, 17h absent), the set not tested and not null-tested. Patch 115 saves 17h with no grenade set	observed
+0x00252b20	survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_fire_state>::deserialize	ECX	the fire state (mov edi,ecx at 0x252B38)	observed
+0x002370e0	survarium::game_world_ui::update_body_parts_hp [descriptive]	EAX	the local player's damage model (its pools +108h): [the player's +108h slot 2]() at 0x23B788..0x23B78A	observed
+0x002370e0	survarium::game_world_ui::update_body_parts_hp [descriptive]	entry ESP+4	the game world ui (its movie through +8, +108h, +4)	observed
+0x0032a600	survarium::body_part::recall_expired_affects [descriptive]	entry ESP+4	the pool	observed
+0x0032a600	survarium::body_part::recall_expired_affects [descriptive]	entry ESP+8	the time, ms	observed
+0x0032a740	survarium::body_part::check_affects [descriptive]	EDI	the pool (Hmax +9Ch, H +A0h, its thresholds +28h)	observed
+0x0032a740	survarium::body_part::check_affects [descriptive]	entry ESP+4	the time, ms	observed
+0x0032a9c0	survarium::body_part::update_threshold_modifier [descriptive]	ECX	the pool: its model +7Ch, whose player is +3B0h (the kit +115h, the kits +6B8h)	observed
+0x0032ab90	survarium::body_part::apply_threshold_affects [descriptive]	EAX	the threshold	observed
+0x0032ab90	survarium::body_part::apply_threshold_affects [descriptive]	entry ESP+4	the pool	observed
+0x0032ab90	survarium::body_part::apply_threshold_affects [descriptive]	entry ESP+8	the time, ms	observed
+0x00312450	survarium::artefact_lifebone_core::disable_active_effects	ECX	the Lifebone	observed
+0x00248ad0	survarium::step_manager::on_step	ECX at 0x248B58	the physics world (game world +4D4Ch, +130h): the ground ray is its vtable+48h ray_test with filter group 30h and mask 8 (pushed at 0x248B14, 0x248B02), 0 and 1: it meets the collision objects of cgroup & 8 whose cmask has 10h or 20h (cmask 16 and 20: the level; walker_collision, cgroup 2, never)	observed
+0x00248ad0	survarium::step_manager::on_step	ECX at 0x248B75	the ray's hit object: its vtable+10h (bt_static_rigid_body::get_triangle_material 0x3570A0) with the hit's triangle index and compound flag gives the ground's material id for material_pair 0x306D50 (EDI); the foliage step is a foliage triangle met before the ground	observed
+0x002f8850	survarium::static_collision::insert	ESI at 0x2F892E	the static collision: its cgroup (u16 +44h) and cmask (u16 +46h) are the group and the mask of the body in the world's add (vtable+2Ch, 0x758B0) at 0x2F8944	observed
+0x003570a0	vostok::physics::bt_static_rigid_body::get_triangle_material	ECX	the static body (this; +10h its shape)	observed
+0x003570a0	vostok::physics::bt_static_rigid_body::get_triangle_material	entry ESP+4	the triangle index of a mesh hit, or the primitive's of a compound one (ray result +20h)	observed
+0x003570a0	vostok::physics::bt_static_rigid_body::get_triangle_material	entry ESP+8	byte: the index is a compound child's (ray result +24h)	observed
+0x00082590	vostok::physics::collision_shape_cook::translate_query	ECX	the cook (+20h byte: with game materials, the game's 1)	observed
+0x00082590	vostok::physics::collision_shape_cook::translate_query	entry ESP+4	the query (+0F8h / +0FCh its name)	observed
+0x0032d4e0	survarium::bullet::check_collision	EBP at 0x32D5EE	the manager's physics world (+98h): the bullet's ray is its vtable+48h ray_test with filter group 10h and mask 48h (pushed at 0x32D5F3, 0x32D5F1), the bullet (EDI) and 1: collision objects of cgroup & 8 whose cmask has 10h, and hit models (40h)	observed
+0x00057560	vostok::sound::sound_scene::get_listenet_position	EAX	the sound scene: its listener position, an atomic half3 at +120h, read by a locked cmpxchg8b that leaves it as it is	observed
+0x00057560	vostok::sound::sound_scene::get_listenet_position	ESI	the out float3: the position as three floats	observed
+0x00064f00	vostok::buffer_vector<unsigned int>::push_back	ESI	the vector: begin +0, end +4, capacity end +8; past it the "buffer overflow" assertion (line 305)	observed
+0x00064f00	vostok::buffer_vector<unsigned int>::push_back	entry ESP+4	pointer to the u32 appended	observed
+0x001603b0	vostok::render::grass_world::process_culling's patch order	ECX	left patch (sums dz2 + dx2 + dy2 in the original; patch 146: dz2 + dy2 + dx2)	observed
+0x001603b0	vostok::render::grass_world::process_culling's patch order	EAX	right patch (sums dz2 + dy2 + dx2)	observed
+0x001603b0	vostok::render::grass_world::process_culling's patch order	EDI	the camera position (3 floats)	observed
+0x00161e50	stlp_std::priv::__linear_insert<vostok::render::grass_patch **>	EAX	last (the value's slot)	observed
+0x00161e50	stlp_std::priv::__linear_insert<vostok::render::grass_patch **>	entry ESP+4	first	observed
+0x00161e50	stlp_std::priv::__linear_insert<vostok::render::grass_patch **>	entry ESP+8	the value (patch pointer)	observed
+0x00161e50	stlp_std::priv::__linear_insert<vostok::render::grass_patch **>	entry ESP+12	the camera position by value (3 floats)	observed
+0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	EDI	the value (patch pointer)	observed
+0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+4	last (the value's slot)	observed
+0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+8	the camera position by value (3 floats)	observed

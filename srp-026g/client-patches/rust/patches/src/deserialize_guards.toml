@@ -13,3 +13,59 @@ handler = "on_anomaly"
 [[hook]]
 site = "deserialize.artefact"
 handler = "on_artefact"
+
+[[hook]]
+site = "deserialize.death_animation"
+handler = "on_death_animation"
+
+[[hook]]
+site = "deserialize.fire_animation"
+handler = "on_fire_animation"
+
+[[hook]]
+site = "deserialize.fire_animation_sound"
+handler = "on_fire_animation_sound"
+
+[[hook]]
+site = "deserialize.grenade_ready"
+handler = "on_grenade_ready"
+
+[[hook]]
+site = "deserialize.grenade_throw"
+handler = "on_grenade_throw"
+
+[[hook]]
+site = "deserialize.wait_end"
+handler = "on_wait_end"
+
+[[hook]]
+site = "deserialize.wait_throw"
+handler = "on_wait_throw"
+
+[[hook]]
+site = "deserialize.wait_melee"
+handler = "on_wait_melee"
+
+[[hook]]
+site = "deserialize.grenade_pull"
+handler = "on_grenade_pull"
+
+[[hook]]
+site = "deserialize.grenade_idle"
+handler = "on_grenade_idle"
+
+[[hook]]
+site = "deserialize.grenade_choice"
+handler = "on_grenade_choice"
+
+[[hook]]
+site = "deserialize.grenade_serialize"
+handler = "on_grenade_serialize"
+
+[[hook]]
+site = "deserialize.grenade_can_throw"
+handler = "on_grenade_can_throw"
+
+[[hook]]
+site = "deserialize.grenade_attach"
+handler = "on_grenade_attach"

@@ -1411,3 +1411,62 @@ fn two_clan_teams_meet_in_a_match_and_one_alone_waits() {
     assert_eq!(clans.team(bandits), None);
     world.assert_clean();
 }
+
+/// A clan match (a Play with no room and no bots: the lobby draws its map)
+/// is of two teams, so its map is never a free-for-all's, nor Blackout's,
+/// however many of them the match pool has: from a pool of them and one Team
+/// Deathmatch map it is that map; from a pool of them alone, a map of two
+/// teams all the same.
+#[test]
+fn a_clan_match_never_draws_a_free_for_all() {
+    use crate::v026g::Settings;
+    use survarium::v026g::maps::{self, GameMode};
+
+    let of = |mode| -> Vec<u8> { maps::playable_in(mode).map(|map| map.id).collect() };
+    let free_for_alls = of(GameMode::FreeForAll);
+    // The test data's: one for each Team Deathmatch map.
+    assert_eq!(free_for_alls.len(), 24);
+    let default = Settings::local("127.0.0.1:0").maps;
+    assert!(
+        free_for_alls.iter().all(|id| default.contains(id)),
+        "the default pool has them"
+    );
+    let others = [free_for_alls, of(GameMode::Blackout)].concat();
+    for (pool, only) in [
+        ([others.clone(), vec![117]].concat(), Some(117)),
+        (others.clone(), None),
+    ] {
+        let mut settings = Settings::local("127.0.0.1:0");
+        settings.maps = pool;
+        let mut world = World::with_settings(settings);
+        world.accounts.clans().set_config(test_config());
+        let alice = world.connect("Alice");
+        let eve = world.connect("Eve");
+        world.register("Stalkers", "STK", alice, &[]);
+        world.register("Bandits", "BND", eve, &[]);
+        for index in [alice, eve] {
+            world.ask(index, clan(0x17, &[]));
+            world.take(index);
+        }
+        world.clan_ready(alice, true, true);
+        world.clan_ready(eve, true, true);
+        world.advance(Duration::from_secs(1));
+        let (match_id, _) = sent_to_match(&world.take(alice)).expect("a match");
+        let made = world.host.made.lock().unwrap();
+        assert_eq!(made.len(), 1);
+        let (id, setup) = &made[0];
+        assert_eq!(*id, match_id);
+        let map = setup.played.map();
+        assert!(
+            !matches!(map.mode, GameMode::FreeForAll | GameMode::Blackout),
+            "map {} is {:?}",
+            map.id,
+            map.mode
+        );
+        if let Some(only) = only {
+            assert_eq!(map.id, only);
+        }
+        let teams: Vec<u8> = setup.players.iter().map(|player| player.profile.team).collect();
+        assert_eq!(teams, [0, 1], "a clan a side");
+    }
+}

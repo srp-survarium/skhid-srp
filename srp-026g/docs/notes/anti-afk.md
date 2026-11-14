@@ -63,7 +63,7 @@ The owner, 2026-11-01: the simplest version first.
 
 ## The setting
 
-- `SRP_ANTI_AFK`: seconds, default 180, at least 60; `off` turns it off.
+- `SRP_ANTI_AFK`: seconds, default 180, at least 60; `off` or `0` turns it off.
 
 ## Parked
 

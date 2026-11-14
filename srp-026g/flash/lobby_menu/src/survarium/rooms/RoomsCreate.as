@@ -22,9 +22,12 @@ package survarium.rooms
     public class RoomsCreate
     {
         private static const FORM_W:Number = 420;
-        // The protective device's three kinds together (the owner, 2026-10-26), then team deathmatch and Research.
+        // The protective device's three kinds together (the owner, 2026-10-26), then team deathmatch,
+        // Research, free for all and its twists (FFA: Racket, FFA: Saloon; the owner, 2026-11-14:
+        // "they are not present in private room creations"): each a mode of its own, the server's
+        // pool has a free-for-all's map once with each.
         private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.BLACKOUT,
-            GameMode.TEAM_DEATHMATCH, GameMode.RESEARCH];
+            GameMode.TEAM_DEATHMATCH, GameMode.RESEARCH, GameMode.FREE_FOR_ALL, GameMode.RACKET, GameMode.COWBOY];
         private static const TRACK_X:Number = 14;
 
         private var win:RoomsWindow;
@@ -93,7 +96,8 @@ package survarium.rooms
 
         // `S1;F` as the window keeps it (RoomsWindow._form), read against
         // the pool: the modes out, and a tile out unless an entry of it is
-        // in (`bits`: entry `index` by bit `index % 20` of chunk `index / 20`).
+        // in (`bits`: entry `index` by bit `index % BITS_PER_CHUNK` of chunk
+        // `index / BITS_PER_CHUNK`).
         internal function formOf(head:Array, bits:Array):Object
         {
             var modesOff:Object = {};
@@ -108,8 +112,7 @@ package survarium.rooms
             for (i = 0; i < win._pool.length; i++)
             {
                 var p:Object = win._pool[i];
-                var chunk:uint = uint(bits[int(p.index / RoomsWire.BITS_PER_CHUNK)]);
-                if ((chunk & (1 << (p.index % RoomsWire.BITS_PER_CHUNK))) != 0)
+                if (RoomsWire.bitIn(bits, p.index))
                     on[p.level + "_" + p.weather] = true;
             }
             var off:Object = {};
@@ -203,8 +206,8 @@ package survarium.rooms
             y += 38;
             // The modes the server's pool offers, in MODE_ORDER: the three kinds
             // of protective device apart (plain, chargers, blackout), team
-            // deathmatch and Research; a mode out takes all its entries out of
-            // the pool. Rows of 24 px: four fit where three of 30 did.
+            // deathmatch, Research, free for all and its twists; a mode out takes all its
+            // entries out of the pool. Rows of 24 px: four fit where three of 30 did.
             look.text(look._content, win.say("st_srp_rooms_modes").toUpperCase(), 14, y, 260, 12, RoomsLook.DIM);
             y += 22;
             var offered:Array = poolModes();
@@ -569,20 +572,16 @@ package survarium.rooms
             }
             win._code = RoomCode.NONE;
             win._steps = [];
-            // The pool in pieces of 20 entries, each in by its bit.
-            var chunks:Array = [0, 0, 0, 0, 0, 0, 0, 0];
-            var any:Boolean = false;
+            // The pool in pieces of BITS_PER_CHUNK entries, each in by its bit.
+            var picked:Array = [];
             for (var i:int = 0; i < win._pool.length; i++)
             {
                 var p:Object = win._pool[i];
-                if (!chosen(p))
-                    continue;
-                chunks[int(p.index / RoomsWire.BITS_PER_CHUNK)] |= 1 << (p.index % RoomsWire.BITS_PER_CHUNK);
-                any = true;
+                if (chosen(p))
+                    picked.push(p.index);
             }
-            var used:int = win._pool.length > 0 ? int((win._pool.length + (RoomsWire.BITS_PER_CHUNK - 1)) / RoomsWire.BITS_PER_CHUNK) : 1;
-            for (var c:int = 0; c < used && c < RoomsWire.CHUNKS; c++)
-                win._steps.push(RoomsWire.BITS + c * RoomsWire.CHUNK_STEP + chunks[c]);
+            var any:Boolean = picked.length > 0;
+            win._steps = RoomsWire.poolSteps(picked, win._pool.length);
             win._steps.push(_bots ? RoomsWire.CREATE_BOTS : RoomsWire.CREATE + RoomsWire.CREATE_PIN);
             win._steps.unshift(RoomsWire.PIN + int(typedPin));
             if (!any)

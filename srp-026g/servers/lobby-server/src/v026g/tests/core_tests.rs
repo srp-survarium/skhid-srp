@@ -22,7 +22,7 @@ use survarium::v026g::prices;
 use survarium::v026g::shop_offers;
 
 use super::client::{TestClient, request};
-use super::{TestHost, denial, find, sent_to_match, signed_in};
+use super::{TestHost, denial, find, sent_to_match, signed_in, two_team_settings};
 use crate::v026g::core::Core;
 use crate::v026g::{Inbox, MatchFinished, Settings};
 
@@ -45,8 +45,10 @@ struct World {
 }
 
 impl World {
+    /// A lobby whose rooms play matches of two teams
+    /// ([`two_team_settings`]).
     fn new() -> Self {
-        Self::with_settings(Settings::local("127.0.0.1:0"))
+        Self::with_settings(two_team_settings())
     }
 
     fn with_settings(settings: Settings) -> Self {
@@ -931,7 +933,7 @@ fn two_players_meet_in_a_room_and_go_to_one_match() {
     assert_eq!(made.len(), 1);
     let (match_id, setup) = &made[0];
     assert_eq!(*match_id, alice_match);
-    assert!(setup.map.map().is_playable());
+    assert!(setup.played.map().is_playable());
     assert_eq!(setup.players.len(), 2);
     assert_eq!(setup.players[0].session_id, world.ids[alice].1);
     assert_eq!(setup.players[0].account_id, world.ids[alice].0);
@@ -2240,8 +2242,9 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
-            map_id: setup.map.map().id,
-            mode: setup.map.mode(),
+            map_id: setup.played.map().id,
+            mode: setup.played.mode(),
+            twist: setup.played.twist(),
             match_level: setup.match_level,
             end: MatchEnd::ModeRule,
             winner: Some(winner),
@@ -2310,8 +2313,9 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
-            map_id: setup.map.map().id,
-            mode: setup.map.mode(),
+            map_id: setup.played.map().id,
+            mode: setup.played.mode(),
+            twist: setup.played.twist(),
             match_level: setup.match_level,
             end: MatchEnd::NotMade,
             winner: None,

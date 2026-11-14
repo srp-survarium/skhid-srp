@@ -290,7 +290,6 @@ va	status	ref_021d	name
 0x00064e10	inferred-medium	0x00047ef3	vostok::sound::ogg_encoded_sound_interface::detach
 0x00064e40	inferred-medium	0x00047f17	vostok::sound::ogg_encoded_sound_interface::get_rms_by_time
 0x00064ed0	inferred-medium	0x00047f8d	vostok::sound::ogg_encoded_sound_interface::decompress
-0x00064f00	inferred-medium	0x00047fb5	vostok::buffer_vector<unsigned int>::push_back
 0x00064f80	inferred-medium	0x00048046	vostok::sound::sound_scene::new_point_sound_instance_proxy
 0x00065100	inferred-medium	0x00048152	vostok::sound::sound_scene::new_hud_sound_instance_proxy
 0x000652d0	inferred-medium	0x00048270	vostok::sound::sound_scene::new_spot_sound_instance_proxy
@@ -2142,7 +2141,6 @@ va	status	ref_021d	name
 0x00312cc0	inferred-medium	0x001f4b55	vostok::buffer_vector<survarium::damage_protector>::resize
 0x00312fd0	inferred-medium	0x001f4d54	survarium::artefact_base::artefact_base
 0x003134c0	inferred-medium		survarium::artefact_base::start_spawn_in_container
-0x00313530	inferred-medium		survarium::artefact_base::end_active
 0x00313ca0	inferred-medium	0x001fba38	survarium::gather_victory_items_rule::serialize
 0x00313dd0	inferred-medium	0x001fbb49	survarium::gather_victory_items_rule::deserialize
 0x00313ea0	inferred-medium	0x001fbc14	survarium::gather_victory_items_rule::resolve_links
@@ -2248,9 +2246,9 @@ va	status	ref_021d	name
 0x003340c0	inferred-medium		survarium::composite_game_effect::activate_effect
 0x003341d0	inferred-medium		survarium::composite_game_effect::deactivate_effect
 0x00337480	inferred-medium		survarium::player_logic_stand_jump_state::serialize
-0x00338280	inferred-medium		survarium::player_logic_dead_state::get_death_animations
-0x00338330	inferred-medium		survarium::player_logic_dead_state::activate
-0x00338540	inferred-medium		survarium::player_logic_dead_state::selected_animations
+0x00338280	inferred-high		survarium::player_logic_dead_state::get_death_animations
+0x00338330	inferred-high		survarium::player_logic_dead_state::activate
+0x00338540	inferred-high		survarium::player_logic_dead_state::selected_animations
 0x00338850	inferred-medium	0x002073c6	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::player_logic_dead_state,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::player_logic_dead_state *>,boost::arg<1> > > >::manager
 0x00339900	inferred-high	0x001f86b6	survarium::weapon_core_shotgun_reload_state::weapon_core_shotgun_reload_state
 0x00339b70	inferred-medium	0x001f8701	survarium::weapon_core_shotgun_reload_state::`scalar deleting destructor'
@@ -3465,3 +3463,28 @@ va	status	ref_021d	name
 0x0026d630	inferred-medium		survarium::base_local_network_client::follow_nobody
 0x00111c90	inferred-high		vostok::logging::helper::helper
 0x00111d10	inferred-high		vostok::logging::helper::write
+0x002f43a0	inferred-medium	0x0020becb	survarium::players_checker::tick
+0x002f4800	inferred-medium		survarium::respawn_point_core::is_clear_for_team
+0x002f48d0	inferred-medium		survarium::respawn_point_core::is_clear_for_team_counting
+0x00316ec0	inferred-medium		survarium::player_respawn_rule_core::player_respawn_rule_core
+0x00317360	inferred-medium		survarium::player_respawn_rule_base::select_team_2_respawn_points
+0x003174c0	inferred-medium		vostok::buffer_vector<survarium::respawn_point_core *>::push_back
+0x002f4580	inferred-medium		survarium::respawn_point_core::load
+0x00267b10	inferred-high		survarium::timelimit_rule::fill_match_hud_state
+0x00233680	inferred-medium		survarium::match_hud_state::match_hud_state
+0x00310480	inferred-medium		survarium::weapon_core_throw_grenade_throw_substate::initialize
+0x00310680	inferred-medium		survarium::weapon_core_throw_grenade_throw_substate::on_animation_end
+0x0033a770	inferred-medium		survarium::weapon_core_throw_grenade_state::throw_grenade
+0x0031ecf0	inferred-medium		survarium::weapon_core_base_state::animation_lexeme [descriptive]
+0x002e9040	inferred-medium		vostok::intrusive_ptr<grenade_core>::assign [descriptive]
+0x0024b8c0	inferred-medium		survarium::weapon_core_shotgun_reload_base_substate::register_animations
+0x002e4090	inferred-medium		survarium::weapon_core::can_throw_grenade [descriptive]
+0x00310450	inferred-medium		survarium::weapon_core_throw_grenade_idle_substate::is_ready_for_transition [descriptive]
+0x0033a730	inferred-medium		survarium::weapon_core_throw_grenade_state::grenade_selection_matches [descriptive]
+0x0030a090	inferred-medium		survarium::grenade_set_core::has_grenade_to_throw [descriptive]
+0x002370e0	inferred-high		survarium::game_world_ui::update_body_parts_hp [descriptive]
+0x0032a600	inferred-high		survarium::body_part::recall_expired_affects [descriptive]
+0x0032a740	inferred-high		survarium::body_part::check_affects [descriptive]
+0x0032a9c0	inferred-high		survarium::body_part::update_threshold_modifier [descriptive]
+0x0032ab90	inferred-high		survarium::body_part::apply_threshold_affects [descriptive]
+0x00312450	inferred-medium		survarium::artefact_lifebone_core::disable_active_effects

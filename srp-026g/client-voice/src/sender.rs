@@ -36,8 +36,8 @@ impl Sender {
         .expect("fixed START fits")
     }
     pub fn frame(&mut self, frame: &[u8]) -> Option<Vec<u8>> {
-        // A pair fits the relay's cap. Invalid input does not alter the sequence.
-        if frame.is_empty() || frame.len() > 192 {
+        // Only what the relay forwards. Invalid input does not alter the sequence.
+        if !crate::wire::our_frame(frame) {
             return None;
         }
         let active = self.active.as_mut()?;

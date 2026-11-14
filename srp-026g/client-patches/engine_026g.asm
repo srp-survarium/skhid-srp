@@ -229,6 +229,10 @@ global engine_cc_u32
 global engine_render_u32_execute
 global engine_message_box_a
 global engine_exit_process
+global engine_respawn_point_clear
+global engine_respawn_points_push
+global engine_sound_pan
+global engine_listener_position
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -2531,7 +2535,7 @@ engine_query_usables:
 
     align 16, db 0xCC
 engine_can_use:
-    ; virtual survarium::usable_object+0x30 (10 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
+    ; virtual survarium::usable_object+0x30 (11 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
     push ebp
     push ebx
     push esi
@@ -2669,6 +2673,77 @@ engine_render_u32_execute:
     push dword [esp + 24]   ; arguments -> 4
     mov ecx, [esp + 24]   ; object
     call 0x3cd300
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_respawn_point_clear:
+    ; 0x2f4800 survarium::respawn_point_core::is_clear_for_team: point ESI, team ESP+4, players ESP+8; pops 8; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; players -> 8
+    push dword [esp + 28]   ; team -> 4
+    mov esi, [esp + 28]   ; point
+    call 0x2f4800
+    movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_respawn_points_push:
+    ; 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; point -> 4
+    mov esi, [esp + 24]   ; vector
+    call 0x3174c0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_sound_pan:
+    ; 0x57d70 vostok::sound::sound_scene::calculate_3d_pan: scene ESP+4, table ESP+8, proxy ESP+12, position ESP+16, distance ESP+20, matrix ESP+24, coefficient ESP+28; pops 28
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 44]   ; coefficient -> 28
+    push dword [esp + 44]   ; matrix -> 24
+    push dword [esp + 44]   ; distance -> 20
+    push dword [esp + 44]   ; position -> 16
+    push dword [esp + 44]   ; proxy -> 12
+    push dword [esp + 44]   ; table -> 8
+    push dword [esp + 44]   ; scene -> 4
+    call 0x57d70
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_listener_position:
+    ; 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; scene
+    mov esi, [esp + 24]   ; out
+    call 0x57560
     pop edi
     pop esi
     pop ebx

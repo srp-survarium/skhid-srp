@@ -16,6 +16,11 @@ log across all games.
   that can ask nothing else (`PROCESS_QUERY_LIMITED_INFORMATION`), and the handle is closed at
   once. Nothing else of another process is looked at: not its title, its other windows, what
   a window shows or its memory.
+- **Such a window's exe file: its size and SHA-256, never the file.** The game reads the exe
+  file of a process whose window is over it (outside the Windows folder) to tell which build
+  of a program it is: the same file has the same hash on every PC. Only the size and the hash
+  are told; the file is never sent, and the code that reads it has no way to the upload of
+  "Executable identity and collection" below.
 - **Privacy.** A module is told by its file name and where its folder is: below the game's
   folder, below the temporary one, or (any other) its path from the drive with a user's name
   left out (`C:\Users\*\Downloads\tools`; also Wine's `Z:\home\*`). At most 64 bytes of it.
@@ -26,7 +31,8 @@ log across all games.
 - **Each minute in between** (the owner, 2026-11-11: a window opened and closed again mid-match
   was never seen): a minute after the last look, a frame of the match (`game.tick`) looks at the
   windows over the game again. When it saw otherwise than the last look, a report of moment
-  `minute <n>` (minutes since the first world, up to 254) tells those windows alone, so an
+  `minute <n>` (minutes since the first world, up to 254) tells those windows alone (and the
+  exe files read through by then), so an
   overlay that stays the whole match is told once and an empty one says the windows are gone.
   The modules, loads and code are told only at the first world and the end. Nothing is
   taken from the process list when no window is over the game, the usual look.
@@ -40,6 +46,12 @@ log across all games.
     Steam's and a recorder's overlays, the taskbar and a volume pop-up are such windows too:
     read rarest first. The first 16 from the top. Where it cannot be told, one entry says why:
     the game has no window yet, or its window is not in the order;
+  - **exe**: the file of an over window's exe outside the Windows folder: its name, its place
+    and its size and SHA-256, or that it is larger than 16 MiB (`too big`: told by its size,
+    such a file is never read) or could not be opened, asked its size or read (`unread`).
+    Reading takes some seconds (below), so a file is told by the
+    first report after its end: the next minute's (a file read through is a change to tell,
+    its window still there or gone) or the match's end. The first 8 exes a connection;
   - **module**: each module of the loader's list: name, place, image size, the PE header's
     link time and checksum (a build of a DLL, not just its name);
   - **load**: each DLL the loader said it loaded after the game's start, with its place, size
@@ -70,6 +82,16 @@ log across all games.
   with `QueryFullProcessImageNameW`. A window that is not always on top cannot
   stay above the game while it is played, so only those are told: what the player has open
   beside the game is not.
+- **An over window's exe file** (`vostok::modules`, `Files`). A look hands each such exe's path
+  (as Windows named it) to the connection's files, each path once. Each frame of the match
+  (`game.tick`) takes one step: the first file not read through is opened (`CreateFileW`,
+  read-only; others may read, rename or delete it meanwhile, so an updater is never in the
+  game's way, but not write it) and asked its size (`SetFilePointer` to its end and back: one
+  over 16 MiB is `too big` at once, with no read, one whose size Windows does not tell is
+  `unread`), or its next 8 KiB are read and hashed
+  (`executable_report::Hashing`, the running executable's own pacing), so a 2 MB exe takes
+  about 4 s at 60 frames a second and no frame reads more. One file is open at a time; the
+  match's close closes it and forgets the connection's files, and another match reads anew.
 - **Memory is read with `ReadProcessMemory`**, which fails instead of faulting on a page made
   unreadable or freed meanwhile.
 - **Windows' functions** are called through their own exports (dynamic rows of the engine
@@ -82,7 +104,13 @@ log across all games.
   (`client_report.rs` gives each entry's form), the moment `loaded`, `ended` or `minute <n>`.
 - `release/moderate modules` lists each entry with the accounts that have it, rarest first, a
   module with the folders it was told in; `--account <name>` lists one account's entries with
-  how many accounts share each.
+  how many accounts share each. An over window's exe file is a `file` line: its name, its
+  hash and size (or why it has none) and the folders it was told in, so one program's usual
+  build is shared by many accounts and another file under the same name stands apart.
+- A server from before an entry kind cannot read a part that has one, and a part it cannot read
+  is to it the game's leave message (the carrier's own id): the server that knows the kind
+  goes live before or with the game that tells it, as a release does.
+
 ## Checked, and not
 
 - Checked: the codec, the folder and name rules, the address-space scan, the
@@ -106,6 +134,11 @@ log across all games.
   in the first live reports.
 - Unseen so far: the report at a match's close; a minute's report in a game (only the state machine's tests
   and the server's line); Windows; what overlays look like in the log.
+- An over window's exe file (2026-11-12): the entry's codec (`srp-validate`'s tests), the files
+  read one after the other, a step a frame, with one that cannot be opened and one too big
+  (told by its size, never read; the patch crate's tests), the server's line and the tool's `file` lines. Not run in a game:
+  no file of another program has been opened by the game yet, on Wine or Windows, so what a
+  frame's step costs there (the open, a read from a cold disk) is not measured.
 
 ## Executable identity and collection
 
@@ -121,7 +154,9 @@ can lie: this is a client report, not remote attestation.
 After the first world, hashing reads at most 8 KiB per frame. An offer carries
 only size and SHA-256, logged in `modules.log` as `executable sha256 <hex> size
 <bytes>` and included by `release/moderate modules` (also `--account` and
-`--json`). Files over 16 MiB, empty files, or read/open failures produce no offer.
+`--json`). Files over 16 MiB, empty files, or read/open failures produce no offer;
+the size is asked right after the open, so a file over 16 MiB or one whose size
+cannot be told is not read at all.
 
 The match server replies with `Stored`, `Refused`, or the next window offset.
 Only `Need` starts an upload. E0 carriers have the separate impossible prefix
@@ -153,6 +188,19 @@ against the capacity on restart. A full/unavailable store refuses new uploads
 but still logs hashes. Operators may archive/remove files and restart to rebuild
 the in-memory catalog. Raw match recordings can also contain these protocol
 packets; playable replays select gameplay records, not executable payloads.
+
+**The release's own executable is not collected.** The release writes the
+SHA-256 of the game executable in the players' download into the server's
+`.env` (`SRP_RELEASED_EXE_SHA256`, beside `SRP_MIN_PATCH_REVISION`; `release/lib.sh`,
+`swap_server`), and the match server reads it once, at its start: the
+release's restart. An offer of that hash is answered `Stored` without
+looking at the store: no upload, nothing written, nothing reserved; the
+hash is logged as any other. Every other hash the server has not stored is
+collected as above, and no one is refused or removed by either answer.
+Without the setting (a local server) the release's own executable is
+collected like any other. A rollback puts the line back as it was. Before
+this, the first players after each release (up to 16 at once) each uploaded
+the 14 MB executable the release had just given them.
 
 Implementation and validation are recorded below; this source change is not a
 release and has not collected a live player's executable.
@@ -231,3 +279,34 @@ world-check above, world-drift (`7fcf3f90b666`, the same `0xa4ccfd` fault), and
 HUD-options (`c963856499a8`, the same `configs.start` assertion). All affected
 Rust checks and the executable-report, distance-detail and replay-file checks
 pass. Real Windows/Wine executable-upload testing and release remain outstanding.
+
+2026-11-12, branch `fix/released-exe-hash`, based on `ec63bb36e` (the release's
+own executable is not collected):
+
+- Implemented: the setting and its type (`executable::Released`, read with the
+  match server's settings at its start), the offer's answer, the release's
+  write of the line at the swap, its rollback, the line the release prints.
+- Tested: the match server's tests and Clippy (683 passed, 19 ignored);
+  `release/test.sh` against its stand-ins (all passed: the line at the swap of
+  `deploy` and `release.sh`, back or gone after a rollback, back in place by the
+  way a refused rollback names).
+- Played, the collection's first run in a game: one headless Wine client (DXVK,
+  an Xorg dummy display), a debug server of this branch with
+  `SRP_RELEASED_EXE_SHA256` the test exe's hash, revision 57 content, a Player vs
+  Bots match on Rudnya, nobody playing.
+  - The exe whose hash the server was given (1920x1080, 17 frames a second):
+    the offer came 105 s after the world (8 KiB hashed a frame), the answer was
+    `Stored`; one offer, one reply, no data packet in 3.5 minutes, and
+    `client-executables/` was never created.
+  - The same exe with one byte of its DOS stub's text changed (1280x720, 42
+    frames a second): the offer 42 s after the world, `Need 0`, 35,208 data
+    packets, `Stored` 387 s after the offer (36 kB/s). The stored file is the
+    changed exe's 14,083,192 bytes and SHA-256, mode 0600 in a folder 0700. Frame
+    times while it ran were those after it (median 22.3 ms against 23.0 ms; 14
+    frames over 100 ms in 387 s against 22 in the 143 s after); the server took
+    31 % of a core against 27 % after (debug build, 15 bots, its packet log on).
+    The match's recording is 9.8 MB (the first run's 3.5 minutes: 1.0 MB).
+- Not seen: Windows; more than one upload at once; a frame rate under 17 (the
+  upload's speed follows the frame rate, and the server gives it ten minutes);
+  the release's swap on a host (only the stand-ins).
+- Released: no.

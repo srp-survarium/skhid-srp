@@ -117,6 +117,42 @@ class MapEditorEdits(unittest.TestCase):
         self.assertEqual(value(data, 'objects[2]/full_name'), 'second')
         ce.walk(data)  # Names, CRC ordering and every reachable value still parse.
 
+    def test_copied_spawn_zones_survive_native_in_place_relocation(self):
+        # FFA clones a point without editing these mandatory nested zones. The
+        # native loader revisits shared records and adds its base address again.
+        data = config({'points': [{'id': 0,
+            'ally_zones': {'collision_geometries': {}},
+            'enemy_zones': {'collision_geometries': [
+                {'name': 'zone', 'position': (1.0, 2.0, 3.0)}]}}]})
+        for index in range(1, 4):
+            ce.add_entry(data, 'points', {'id': index - 1}, {'id': 0}, {'id': index})
+        original = bytes(data)
+        offsets = ce.value_offsets(original)
+        self.assertEqual(len(offsets), len(set(offsets)), 'each record must have one owner')
+        base = 0x31000000
+
+        def relocate(offset):
+            # Native 0xF6D00: adjust the name, then data for types > 2,
+            # recursively visiting named/indexed table records, without a cache.
+            d, name, _, kind, count = ce.rec(data, offset)
+            if name:
+                struct.pack_into('<I', data, offset + 8, (name + base) & 0xffffffff)
+            if kind > 2:
+                struct.pack_into('<I', data, offset, (d + base) & 0xffffffff)
+                if kind <= 4:
+                    for i in range(count):
+                        relocate(d + i * 24)
+
+        relocate(0)
+        for offset in offsets:
+            d, name, crc, kind, count = ce.rec(original, offset)
+            self.assertEqual(ce.rec(data, offset),
+                             (d + base if kind > 2 else d,
+                              name + base if name else 0, crc, kind, count))
+        for i in range(4):
+            self.assertEqual(value(original, f'points[{i}]/enemy_zones/collision_geometries[0]/name'),
+                             'zone')
+
     def test_add_value_takes_a_table_of_a_vector_and_a_float(self):
         """A lobby's srp_lobby (lobby-scenes-1): a named table at the root holding a float3 and a float."""
         data = fixture()
@@ -268,6 +304,31 @@ class MapEditorEdits(unittest.TestCase):
             data = bytearray((root / 'out/project').read_bytes())
             self.assertEqual(ce.items_of(data, 'objects[0]/containers'), ['b', 'c'])
             self.assertEqual(value(data, 'objects[1]/full_name'), 'second')
+
+    def test_cli_add_entry_refuses_another_number_of_files_than_expected(self):
+        """An entry a file must take (a project's object): a missing anchor is refused, not passed over."""
+        def run(after, expected):
+            edits = {'add_entry': [{'files': 'project', 'list': 'objects', 'after': {'full_name': after},
+                                    'like': {'full_name': 'first'}, 'values': {'full_name': 'copy'},
+                                    **expected}]}
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                (root / 'live').mkdir()
+                (root / 'live/project').write_bytes(fixture())
+                (root / 'edits.json').write_text(json.dumps(edits))
+                result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                         str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                        capture_output=True, text=True)
+                return result, (root / 'out/project').exists()
+        result, written = run('first', {'expected_files': 1})
+        self.assertEqual((result.returncode, written), (0, True), result.stdout + result.stderr)
+        result, written = run('gone', {'expected_files': 1})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('0 files took it, not 1', result.stderr)
+        self.assertFalse(written)
+        # Without it, as before: the file is left alone.
+        result, written = run('gone', {})
+        self.assertEqual((result.returncode, written), (0, False), result.stdout + result.stderr)
 
     def test_cli_set_entry_remakes_an_indexed_table(self):
         """A skill from 5 ranks to 3 (skill-ranks-1): set_entry gives `modifiers` and the texts a

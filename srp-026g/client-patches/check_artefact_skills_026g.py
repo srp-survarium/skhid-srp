@@ -110,6 +110,26 @@ def artefact(g, inv, slot, enable_active, state):
     return item
 
 
+def lands(g):
+    """The player's landing (0x2D8220): whether the game's landing, its fall damage, goes on."""
+    # Harmless and fatal speeds the landing compares with: 100 m/s, a landing at 1 m/s
+    # does nothing in the game either, so only the hook decides whether it goes on.
+    g.word(PLAYER + 0x30C, bits(100.0))
+    g.word(PLAYER + 0x310, bits(100.0))
+    reached = []
+    hook = g.emu.hook_add(UC_HOOK_CODE, lambda *a: reached.append(1), begin=LANDING_BODY, end=LANDING_BODY)
+    esp = STACK - 0x300
+    g.word(esp, STOP)
+    g.word(esp + 4, bits(1.0))
+    g.emu.reg_write(UC_X86_REG_ESP, esp)
+    g.emu.reg_write(UC_X86_REG_ECX, PLAYER)
+    g.emu.emu_start(LANDING, STOP, count=500_000)
+    g.emu.hook_del(hook)
+    assert g.emu.reg_read(UC_X86_REG_EIP) == STOP
+    assert g.emu.reg_read(UC_X86_REG_ESP) == esp + 8, "ret 4 either way"
+    return bool(reached)
+
+
 def check_onyx(data, kit):
     outcomes = []
     for payload in [0, ONYX_II, ONYX_II + 5 + 32 + 128, LARKSPUR_II, ONYX_II + 0.5]:
@@ -121,23 +141,8 @@ def check_onyx(data, kit):
             inv = inventory(g)
             for slot, (kind, state) in enumerate(carried, 13):
                 artefact(g, inv, slot, kind, state)
-            # Harmless and fatal speeds the landing compares with: 100 m/s, a landing at 1 m/s
-            # does nothing in the game either, so only the hook decides whether it goes on.
-            g.word(PLAYER + 0x30C, bits(100.0))
-            g.word(PLAYER + 0x310, bits(100.0))
-            reached = []
-            hook = g.emu.hook_add(UC_HOOK_CODE, lambda *a: reached.append(1), begin=LANDING_BODY, end=LANDING_BODY)
-            esp = STACK - 0x300
-            g.word(esp, STOP)
-            g.word(esp + 4, bits(1.0))
-            g.emu.reg_write(UC_X86_REG_ESP, esp)
-            g.emu.reg_write(UC_X86_REG_ECX, PLAYER)
-            g.emu.emu_start(LANDING, STOP, count=500_000)
-            g.emu.hook_del(hook)
-            assert g.emu.reg_read(UC_X86_REG_EIP) == STOP
-            assert g.emu.reg_read(UC_X86_REG_ESP) == esp + 8, "ret 4 either way"
             protected = payload in (ONYX_II, ONYX_II + 5 + 32 + 128) and (ONYX_ACTIVE, 4) in carried
-            assert bool(reached) != protected, (payload, carried)
+            assert lands(g) != protected, (payload, carried)
             outcomes.append((payload, len(carried), protected))
     print(f"Onyx II kit {kit}: the landing skipped only with the skill and an active Onyx (passive Onyx, "
           "another kind active, no skill, a refused payload: the game's landing): PASS")
@@ -1032,8 +1037,8 @@ def check_share_matrix(data):
     - Lifebone: its passive at the part's regeneration tick;
     - the activation (artefact_base::action's hook 0x313333, Medic's path, every kind since the
       owner's rev51 games): the recipient plays the kind's activation glow (the copy's
-      active_resource, the active's length, the timed clock) and a Lifebone's heals it (body, head,
-      pain full). On main only a Lifebone's did: a Spring's and an Onyx's played nothing.
+      active_resource, the active's length, the timed clock) and a Lifebone's heals it (every body
+      part full). On main only a Lifebone's did: a Spring's and an Onyx's played nothing.
     Up to the reach and past it: Resonance 9 m, Cascade 6 m (the owner, 2026-11-07; were 8 m and
     5 m, so 8.5 m and 5.5 m fail before it)."""
     outcomes = []
@@ -1093,8 +1098,8 @@ def check_share_matrix(data):
                 item = m.artefact(at, enable, 4)
                 g.word(item + 0x290, g.effect_resource())
                 g.word(item + left, length)
-                for name in ('body', 'head', 'pain'):
-                    g.word(g.pools[PLAYER][name] + 0xA0, bits(0.1))
+                for pool in g.pools[PLAYER].values():
+                    g.word(pool + 0xA0, bits(0.1))
                 g.effects.clear()
                 g.step(0x313333, 6, esi=item, edi=1234)
                 gets = shared and skill == CASCADE
@@ -1102,8 +1107,8 @@ def check_share_matrix(data):
                 if gets:
                     close(g.float(g.effect_instances[-1] + 0x24), length / 1000)
                 healed = gets and kind == 'Lifebone'
-                for name, maximum in (('body', 1.0), ('head', 0.4), ('pain', 1.0)):
-                    close(g.float(g.pools[PLAYER][name] + 0xA0), maximum if healed else 0.1)
+                for pool in g.pools[PLAYER].values():      # the limbs too (the owner, 2026-11-14)
+                    close(g.float(pool + 0xA0), g.float(pool + 0x9C) if healed else 0.1)
                 outcomes.append((kind, 'activation', skill, distance, gets))
     print("Resonance and Cascade, every kind: a teammate on kit 1 (kit objects of their own) gives a "
           "recipient on kit 1 its Spring's passive (Resonance) or whole active (Cascade: every list through "
@@ -1202,6 +1207,56 @@ def check_cascade_activation(data):
           "bytes: PASS")
 
 
+def check_cascade_seconds(data):
+    """Onyx II and Larkspur II go with what their holder's Cascade shares, by the holder's skill (as
+    Spring II's reload nodes, check_resonance_springs): a teammate an Onyx's activation reached lands
+    unhurt while that Onyx is active, wherever the carrier goes; one a Larkspur's activation reached
+    has its stamina filled, as the holder's. Not without the carrier's skill (the recipient's own is
+    for its own copies), without Cascade (Resonance shares passives), for a copy in its passive, out
+    of reach at the activation, for an enemy, or for another kind."""
+    near, far = (0.0, 4.0, 0.0), (0.0, 30.0, 0.0)
+    for team, skills, own, make, start, unhurt in [
+            (0, CASCADE + ONYX_II, 0, lambda m, at: onyx(m, at, 4), near, True),
+            (0, CASCADE, ONYX_II, lambda m, at: onyx(m, at, 4), near, False),
+            (0, ONYX_II, 0, lambda m, at: onyx(m, at, 4), near, False),
+            (0, RESONANCE + ONYX_II, 0, lambda m, at: onyx(m, at, 4), near, False),
+            (0, CASCADE + ONYX_II, 0, lambda m, at: onyx(m, at, 3), near, False),
+            (0, CASCADE + ONYX_II, 0, lambda m, at: m.artefact(at, LIFEBONE_ACTIVE_, 4), near, False),
+            (0, CASCADE + ONYX_II, 0, lambda m, at: onyx(m, at, 4), (0.0, 7.0, 0.0), False),
+            (1, CASCADE + ONYX_II, 0, lambda m, at: onyx(m, at, 4), near, False)]:
+        m = Match(data)
+        m.g.ranks(own, RANKS)
+        at = m.player(1, team, start, skills)
+        make(m, at)
+        m.g.emu.mem_write(at + 0x43C, struct.pack('<fff', *far))
+        assert lands(m.g) != unhurt, (team, skills, own, start)
+    stamina = 0x6C0   # a player's stamina: its maximum, +6Ch the current
+    for team, skills, kind, start, filled in [
+            (0, CASCADE + LARKSPUR_II, LIFEBONE_ACTIVE_, near, True),
+            (0, CASCADE, LIFEBONE_ACTIVE_, near, False),
+            (0, LARKSPUR_II, LIFEBONE_ACTIVE_, near, False),
+            (0, RESONANCE + LARKSPUR_II, LIFEBONE_ACTIVE_, near, False),
+            (0, CASCADE + LARKSPUR_II, SPRING_ACTIVE, near, False),
+            (0, CASCADE + LARKSPUR_II, LIFEBONE_ACTIVE_, (0.0, 7.0, 0.0), False),
+            (1, CASCADE + LARKSPUR_II, LIFEBONE_ACTIVE_, near, False)]:
+        m = Match(data)
+        g = m.g
+        g.ranks(LARKSPUR_II if not skills & LARKSPUR_II else 0, RANKS)
+        at = m.player(1, team, start, skills)
+        distant = m.player(2, 0, far)
+        for who in (PLAYER, at, distant):
+            g.word(who + stamina, bits(100.0))
+            g.word(who + stamina + 0x6C, bits(10.0))
+        m.artefact(at, kind, 4)
+        close(g.float(PLAYER + stamina + 0x6C), 100.0 if filled else 10.0)
+        close(g.float(at + stamina + 0x6C), 100.0 if skills & LARKSPUR_II and kind == LIFEBONE_ACTIVE_ else 10.0)
+        close(g.float(distant + stamina + 0x6C), 10.0)
+    print("Cascade, Onyx II and Larkspur II: a teammate an Onyx's activation reached lands unhurt while it is "
+          "active, wherever the carrier goes, and one a Larkspur's reached has its stamina filled, by the "
+          "carrier's skill; not without it (the recipient's own alone), without Cascade, for a passive copy, "
+          "another kind, a teammate out of reach then, or an enemy: PASS")
+
+
 def main():
     original = open(sys.argv[1], 'rb').read()
     patched, _ = base.build(original, 'section', open(base.default_bin('section'), 'rb').read(), None,
@@ -1217,6 +1272,7 @@ def main():
     check_resonance_lifebone(patched)
     check_share_matrix(patched)
     check_cascade_activation(patched)
+    check_cascade_seconds(patched)
     check_own_cap(patched)
     check_active_cap(patched)
 

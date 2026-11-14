@@ -883,6 +883,10 @@ st_crosshair_static_option	Статический прицел
 st_crosshair_type_option	Выбор прицела
 st_crouch_action	Присесть (удерж.)
 st_crouch_toggle_action	Присесть
+st_cs_mp_bath_name	Бассейн
+st_cs_mp_military_1_name	Армейские склады
+st_cs_mp_rembasa_name	Ремонтная база
+st_cs_training_camp_name	Тренировочный лагерь
 st_ct_max_members_count_error	Ошибка добавления. В клановой команде уже находится максимальное количество игроков.
 st_current_value	\nТекущее значение:
 st_cz_75_description	Чешский самозарядный пистолет, патрон: 9x19. Один из самых копируемых пистолетов холодной войны.
@@ -1193,6 +1197,8 @@ st_finish_match_mode_04_winner_message	Победа! Все противники
 st_finish_match_mode_05_draw_message	Ничья. Команды исследовали поровну
 st_finish_match_mode_05_loser_message	Поражение. Команда противника завершила исследование аномальной активности
 st_finish_match_mode_05_winner_message	Победа! Ваша команда завершила исследование аномальной активности
+st_finish_match_mode_08_loser_message	Поражение. Больше всех убийств не у вас
+st_finish_match_mode_08_winner_message	Победа! У вас больше всех убийств
 st_first_weapon_action	Оружие 1
 st_fix	Починить
 st_fn_fnc_description	Бельгийская штурмовая винтовка под боеприпас 5.56х45. Разработана FN Herstal в 70-х годах для бельгийской армии; лицензионные версии служат в Швеции и Индонезии. Магазин на 30 патронов. Огонь: одиночный и автоматический.
@@ -1517,6 +1523,8 @@ st_mode_04_description	Закрепите позиции вашей группы
 st_mode_04_name	Командный бой
 st_mode_05_description	Ваша задача - захватить контроль над мобильными исследовательскими установками. Каждая установка, захваченная вашей командой, производит очки исследования аномальной активности. Побеждает команда, набравшая больше очков в конце матча.
 st_mode_05_name	Исследование
+st_mode_08_description	Каждый сам за себя. Матч заканчивается, когда кто-то наберёт нужное число убийств или истечёт время. Побеждает боец с наибольшим числом убийств.
+st_mode_08_name	Все против всех
 st_modification_screen_edit_decal_hint	Чтобы изменить размер и положение нашивки, кликните на ее слот
 st_modification_screen_hint	Перетяните камуфляж или нашивку из вашего инвентаря в соответствующий слот модификации предмета
 st_modified	Модифицировано
@@ -2166,6 +2174,8 @@ st_snp_steady_breath_desc	Вы быстрее восстанавливаетес
 st_snp_steady_breath_name	Ровный выдох
 st_snp_steady_grip_desc	Повышает точность при стрельбе в движении.
 st_snp_steady_grip_name	Верный хват
+st_soc_ug_depository_name	Хранилище
+st_soc_ug_station_name	Станция
 st_soc_vepr_description	Российский самозарядный карабин семейства «Вепрь» под боеприпас 7.62х39. Выпускается заводом «Молот» в Вятских Полянах на усиленной ствольной коробке пулемета РПК как охотничье и спортивное оружие. Оснащен магазином на 10 патронов. Только одиночный огонь.
 st_soc_vepr_name	СОК-94
 st_socom16_description	ОПИСАНИЕ НЕ ГОТОВО!!!
@@ -2540,6 +2550,8 @@ st_srp_inventory_search_tip_kind	шлемы или ботинки
 st_srp_inventory_search_tip_kind_example	+шлем +ботинки
 st_srp_inventory_search_tip_level	предметы 10 или 11 уровня
 st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_inventory_sell_duplicates	Продать дубли
+st_srp_inventory_sell_duplicates_ask	Предметов на продажу: %1$s
 st_srp_item_props_mps	м/с
 st_srp_language_option	Язык:
 st_srp_language_restart	Применится после перезапуска.
@@ -2568,6 +2580,10 @@ st_srp_login_ban_forever	Бан бессрочный.
 st_srp_map_chemical_plant	Химзавод
 st_srp_map_chemical_plant_v011	Химзавод (v0.11)
 st_srp_map_cologne	Кельн
+st_srp_map_cs_mp_bath	Бассейн
+st_srp_map_cs_mp_military_1	Армейские склады
+st_srp_map_cs_mp_rembasa	Ремонтная база
+st_srp_map_cs_training_camp	Тренировочный лагерь
 st_srp_map_london	Лондон
 st_srp_map_mamayev_kurgan	Мамаев курган
 st_srp_map_mamayev_kurgan_v021	Мамаев курган (v0.21)
@@ -2575,6 +2591,8 @@ st_srp_map_names_option	Имена на карте
 st_srp_map_rudnya	Рудня
 st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
+st_srp_map_soc_ug_depository	Хранилище
+st_srp_map_soc_ug_station	Станция
 st_srp_map_tarakanovsky_fort	Таракановский форт
 st_srp_map_vector	Лаборатория "Вектор"
 st_srp_map_vostok	РЛС "Восток"
@@ -2634,9 +2652,19 @@ st_srp_medicine_hit_slow	Замедление от пуль
 st_srp_medicine_sight_sway	Раскачивание
 st_srp_medicine_sprint_stamina	Энергия на спринт
 st_srp_melee_knockback	Отбрасывание прикладом
+st_srp_mic_test	Проверить микрофон
+st_srp_mic_test_no_microphone	Нет микрофона
+st_srp_mic_test_no_playback	Нет вывода звука
+st_srp_mic_test_playing	Воспроизведение %1$s
+st_srp_mic_test_recording	Запись %1$s
+st_srp_microphone	Микрофон
+st_srp_microphone_default	По умолчанию
 st_srp_mode_blackout	Защитное устройство: блэкаут
 st_srp_mode_chargers	Защитное устройство: зарядники
+st_srp_mode_cowboy	FFA: Салун
+st_srp_mode_free_for_all	Все против всех
 st_srp_mode_protective_device	Защитное устройство
+st_srp_mode_racket	FFA: Движ
 st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
 st_srp_mouse_lock_option	Зафиксировать вертикальную чувствительность
@@ -2903,6 +2931,7 @@ st_start_match_welcome_message	Найдите батареи и доставьт
 st_start_match_welcome_message_2	Найдите и защитите места зарядки батарей!
 st_start_match_welcome_message_3	Уничтожьте как можно больше противников!
 st_start_match_welcome_message_5	Найдите и захватите исследовательские установки!
+st_start_match_welcome_message_8	Все против всех. Побеждает первый, кто наберёт %1$s убийств
 st_statistic_sync_text	Получение статистики матча
 st_statistics_daily_bonus	Ежедневный бонус
 st_statistics_equipment_bonus	Бонус экипировки

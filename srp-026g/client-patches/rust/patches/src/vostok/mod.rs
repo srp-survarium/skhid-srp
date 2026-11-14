@@ -84,6 +84,7 @@ mod upgrades;
 pub mod world;
 mod world_load;
 mod ui;
+pub mod match_rules;
 
 /// The generated hook glue (link_026g.py from the patches' TOML): each
 /// hook's `extern "C"` shim and its `Original`. Inside `vostok` so it reaches
@@ -124,6 +125,7 @@ pub use world_load::WorldLoad;
 pub use upgrades::{AttachedPairs, CookQuery, FlashUpgrade, PreviewApply, PreviewChange, Records};
 pub use rt::c_u32;
 pub use ui::{GameWorldUi, Movie, NameVisibility, DetachedTextInput};
+pub use match_rules::MatchClock;
 
 pub mod consumable;
 pub mod drawable_image;
@@ -161,3 +163,5 @@ pub mod match_close;
 mod world_context;
 
 pub mod replay_file;
+pub mod respawn;
+pub use respawn::{Due, Point, PointIndex, RespawnSelect, Side, TwoTeams};

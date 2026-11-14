@@ -51,7 +51,11 @@ __attribute__((section(".text.entry")))
 int late_join_validate_profile(const u8 *bytes, u32 length, const u8 *dictionary) {
     if (!bytes || !dictionary || length > 32768) return 0;
     struct reader r = {bytes, length, 1};
-    if (number(&r, 1) > 1 || !string(&r, 63) || !string(&r, 14)) return 0;
+    /* 0/1 are the two-team modes; 4 + place is an FFA identity.
+     * 2 (neutral), 3 (none), and identities outside the 20-place engine
+     * roster are never player affiliations. Admission checks the place. */
+    u32 side = number(&r, 1);
+    if ((side > 1 && (side < 4 || side >= 24)) || !string(&r, 63) || !string(&r, 14)) return 0;
     number(&r, 4); /* protection */
     u32 kits = number(&r, 1), items = number(&r, 1);
     if (!r.ok || !kits || kits > 3 || items > 69) return 0;

@@ -728,7 +728,6 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
     if let Some(current) = client.match_id() {
         forget_other_matches(thread, current);
     }
-    let local = client.local_player();
     let mut named = [None; NAMED];
     let mut count = 0;
     let mut drops = [None; PLACES as usize];
@@ -746,7 +745,7 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
         if let Some(recipe) = record.drop.available().map(|gun| gun.recipe)
             && body_drop(thread, place, recipe).is_none()
             && let Some(body) = client.player(u32::from(place.get()))
-            && let Some(cook_from) = local.as_ref().and_then(|l| l.kit_player(recipe.place, recipe.kit))
+            && let Some(cook_from) = client.kit_player(recipe.place, recipe.kit)
                 .or_else(|| client.player(u32::from(recipe.place.get()))) {
             let from = DropOf { place, body: body.id(), life: None, lies: Lies::Current };
             log_recipe("a world to load has the open drop", recipe, &[Text(" (of place "), Dec(u32::from(place.get())),
@@ -793,7 +792,7 @@ pub fn before_world_load(load: &WorldLoad<'_>, frame: &Frame<'_>) {
         if wanted <= idle {
             continue;
         }
-        let Some(donor) = local.as_ref().and_then(|l| l.kit_player(recipe.place, recipe.kit))
+        let Some(donor) = client.kit_player(recipe.place, recipe.kit)
             .or_else(|| client.player(u32::from(recipe.place.get()))) else {
             log_recipe("a world to load names", recipe, &[Text(": its place has no player to cook it from (the reader \
                                                                  will not install it)")]);

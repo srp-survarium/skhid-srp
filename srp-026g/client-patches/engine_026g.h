@@ -83,11 +83,13 @@ struct movie_slot;
 struct network_client;
 struct new_sound_propagator;
 struct object_light;
+struct panning_lut;
 struct particle_slot;
 struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
 struct player_profile;
+struct player_vector;
 struct pthreads3_allocator;
 struct pure_game_effect_emitter;
 struct queries_result;
@@ -104,6 +106,8 @@ struct render_visual;
 struct res_texture;
 struct resource_manager;
 struct resource_request;
+struct respawn_point_core;
+struct respawn_point_vector;
 struct save_descriptor;
 struct scene_model;
 struct scene_model_ref;
@@ -743,7 +747,7 @@ struct collision_geometry *engine_collision_geometry(struct game_object *object)
 /* 0x2dc390 survarium::collision_geometry::query_objects_by_type<survarium::usable_object>: result ESI, geometry ESP+4, cast ESP+8, offset ESP+12; pops 12 */
 void engine_query_usables(struct usable_list *result, struct collision_geometry *geometry, const void *cast, unsigned int offset);
 
-/* virtual survarium::usable_object+0x30 (10 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL */
+/* virtual survarium::usable_object+0x30 (11 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL */
 unsigned char engine_can_use(struct usable_object *usable, struct usable_user *user);
 
 /* virtual survarium::usable_object+0x44 (12 vtables of vtables.tsv: 0x246ed0, 0x2f8440): usable ECX, matrix ESP+4; pops 4 */
@@ -802,5 +806,17 @@ extern unsigned int (__attribute__((stdcall)) *const engine_message_box_a)(void 
 
 /* the IAT slot 0x87020c (an import, stdcall) */
 extern void (__attribute__((stdcall)) *const engine_exit_process)(unsigned int code);
+
+/* 0x2f4800 survarium::respawn_point_core::is_clear_for_team: point ESI, team ESP+4, players ESP+8; pops 8; AL */
+unsigned int engine_respawn_point_clear(const struct respawn_point_core *point, unsigned int team, const struct player_vector *players);
+
+/* 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4 */
+void engine_respawn_points_push(struct respawn_point_vector *vector, struct respawn_point_core *const *point);
+
+/* 0x57d70 vostok::sound::sound_scene::calculate_3d_pan: scene ESP+4, table ESP+8, proxy ESP+12, position ESP+16, distance ESP+20, matrix ESP+24, coefficient ESP+28; pops 28 */
+void engine_sound_pan(struct sound_scene *scene, struct panning_lut *table, struct sound_instance_proxy *proxy, const float *position, float distance, float *matrix, float *coefficient);
+
+/* 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX */
+float *engine_listener_position(struct sound_scene *scene, float *out);
 
 #endif

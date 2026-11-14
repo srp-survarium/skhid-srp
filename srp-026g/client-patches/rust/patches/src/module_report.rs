@@ -5,11 +5,13 @@
 //! loaded) and which other processes' always-on-top windows are over it,
 //! when a match connection's first world is in and when the match closes
 //! on the game; in between, a look at those windows each minute, told
-//! when it saw otherwise than the report before. The server only logs it.
+//! when it saw otherwise than the report before. The exe file of such a
+//! window is read a step a frame, and its size and SHA-256 are told by the
+//! first look after its end. The server only logs it.
 #![forbid(unsafe_code)]
 use crate::vostok::files::tick_count;
 use crate::vostok::log::{line, Piece::*};
-use crate::vostok::modules::{presenting, snapshot, Windows};
+use crate::vostok::modules::{forget_files, presenting, read_files, snapshot, Windows};
 use crate::vostok::module_watch;
 use crate::vostok::packet_recovery::Connection;
 use crate::vostok::{Context, Flow, GameCell, NoExit, Thread};
@@ -60,7 +62,8 @@ enum Event {
 enum Tell {
     /// Everything ([`snapshot`]) with what the look saw; `None`: it could not run.
     All(Moment, Option<Windows>),
-    /// The windows a minute's look saw, otherwise than the report before.
+    /// The windows a minute's look saw and the exe files read through by
+    /// then, otherwise than the report before.
     Windows(Minute, Windows),
 }
 
@@ -107,9 +110,11 @@ pub fn on_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// Each frame: a minute's look at the windows, when one is due.
+/// Each frame: a step of reading the windows' exe files, and a minute's
+/// look at the windows, when one is due.
 pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(connection) = Connection::at_game_tick(ctx) {
+        read_files(ctx.thread(), connection.key());
         report(ctx.thread(), &connection, Event::Frame(connection.key()));
     }
     Flow::Continue
@@ -118,6 +123,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(connection) = Connection::at_close(ctx) {
         report(ctx.thread(), &connection, Event::Closing(connection.key()));
+        forget_files(ctx.thread(), connection.key());
     }
     Flow::Continue
 }
@@ -142,7 +148,7 @@ pub fn on_present(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 fn report(thread: &Thread, connection: &Connection<'_>, event: Event) {
     let advance = |event| {
-        let (next, tell) = step(REPORTED.get(thread), event, tick_count(), Windows::look);
+        let (next, tell) = step(REPORTED.get(thread), event, tick_count(), || Windows::look(thread, connection.key()));
         REPORTED.set(thread, next);
         tell
     };

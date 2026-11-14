@@ -820,6 +820,18 @@ vostok::resources::save_descriptor	size	0x4	u32	their count
 vostok::resources::save_descriptor	owns	0x8	u8	1: its destructor 0x10A050 frees the data (mt_free's 0x106FC0), as make_save_descriptor sets it; 0: the data is not its
 vostok::render::dds_cursor	size	0x4	size	a cursor: one pointer (compress's [ebp+0Ch], the output past the header)
 vostok::render::bake_parameters_copy	size	0x140	size	the part of on_textures_loaded's copy the tail reads (through +13Ch)
+vostok::render::cook_parameters	layers	0x0	obj<vostok::render::cook_layer>	a camouflage_decal_cook_parameters (8B8h bytes, its constructor 0x119760, the decal editor's and patch 44's): the first of its three layers, two decals' then the camouflage's (weapon_decals_026g.asm LAYER_SIZE)
+vostok::render::cook_parameters	surface	0x794	u32	the index of the model's surface it bakes (patch 44's bake_surface, the decal editor 0x2641A0)
+vostok::render::cook_parameters	scale	0x798	f32	the camouflage's scale on the surface (patch 44: data/camo_scale, else 4.0 as every stock bake)
+vostok::render::cook_parameters	name	0x7A4	obj<vostok::buffer_string>	its baked files' name, before the type's letter (patch 44 and the decal editor write it; user_data/streamed_textures/<name><letter>.dds)
+vostok::render::cook_layer	matrix	0x0	f32	the first of its float4x4's 16 f32: where its textures lie on the surface (a decal's of its u64, 0x263D00; the camouflage's the identity)
+vostok::render::cook_layer	diffuse	0x40	obj<vostok::buffer_string>	its colours' texture name (empty: no layer of that type)
+vostok::render::cook_layer	normal	0xCC	obj<vostok::buffer_string>	its relief's texture name (_nmap)
+vostok::render::cook_layer	fresnel	0x158	obj<vostok::buffer_string>	its fresnel's texture name (_fmap)
+vostok::render::cook_layer	smoothness	0x1E4	obj<vostok::buffer_string>	its smoothness' texture name (_smap)
+vostok::render::cook_layer	size	0x270	size	a layer is 270h bytes, the next one's after it (weapon_decals_026g.asm LAYER_SIZE)
+survarium::weapon_bake_name_frame	parameters	0x4	ptr<vostok::render::cook_parameters>	weapon_camo.bake_name's first argument (by the site's ESP, the return address at +0): patch 44's parameters of one surface, every layer filled
+survarium::weapon_bake_name_frame	model	0x8	ptr<u8>	its second: the weapon's model path (object/model of its merged config), a C string
 vostok::render::bake_pair	size	0x8	size	two words
 vostok::input::keyboard	events	0x408	obj<vostok::input::key_event>	the events GetDeviceData buffers (execute 0x3B8D41/0x3B9080: DIDEVICEOBJECTDATA, at most 40h, their count to +404h at 0x3B914B), read by execute's loop (0x3B915E) and process (0x3B9B0E)
 vostok::input::key_event	key	0x0	u32	DIDEVICEOBJECTDATA.dwOfs: the key's DirectInput code, the index of the keys' states (execute 0x3B916A, 0x3B91EE; process 0x3B9B20)
@@ -865,6 +877,7 @@ survarium::match_packet	writer	0x2A8	obj<vostok::buffer_writer>	packet buffer wr
 survarium::game	world	0x18	obj<survarium::game_world>	the game world, inside the game: game::game constructs it in place (lea eax,[ebx+18h] / call 0x1F67B0 at 0x1E909F); the same one every match; its match (+4D4Ch, a counted reference) is 0 from the constructor (0x1F68A2), set at 0x1F9766 and 0 again at 0x1F8B64, for a live and a replay match alike
 survarium::game	options	0x57F4	obj<survarium::game_options>	the main menu, inside the game (activate_main_menu 0x1EDBD6 lea eax,[esi+57F4h]; game_world::on_deactivate 0x1F9567)
 survarium::game_options	shown	0x44	u8	the main menu shown: game_options::activate sets it (0x200F86), deactivate clears it (0x201067); each returns at once when it is so already
+survarium::game_options	menu	0xC	ptr<vostok::ui::movie_holder>	the main menu's movie holder: game_options::activate shows it in the scene (re-kit: +0Ch the menu movie) and deactivate hides it; game_options_interface's menu is this field (+8 of +4), the movie the options invoke ([[+0Ch]+108h]+4, 0x1FF98F)
 survarium::game_options	game	0x34	ptr<survarium::game>	the game (game_options::activate 0x200F83; game_options_interface's game is this field, +30h of +4)
 survarium::game_options	awaited_action	0x3C	u32	the action whose key the menu's key-binding settings wait for: start_bind_key sets it (scaleform_callback 0x1FF8A3, as it takes the menu's cursor movie +10h off the scene at 0x1FF8A9), finish_binding (0x2015A0), its copies (0x201722, 0x201800) and a conflict's message (0x20134F) set it to 48h, none, as the constructor does (0x1FFA13); deactivate leaves it
 survarium::game_world	active	0xD4	u8	the scene active: base_game_scene::on_activate sets it (0x23DD69), game_world::on_deactivate clears it (0x1F952B) at a match's end, before it closes the main menu (0x1F956D)
@@ -1078,6 +1091,10 @@ vostok::memory::profile_frame	memory	0x8	u32	their second: the memory mspace_mal
 vostok::memory::out_of_memory_frame	return_address	0x0	u32	memory.out_of_memory's ESP: the callback's return (heap_out_of_memory_return from mspace_malloc)
 vostok::memory::out_of_memory_frame	space	0x4	u32	its first argument: the arena's mspace (create_mspace_with_base made it at the arena's start)
 vostok::memory::out_of_memory_frame	allocator	0x8	ptr<vostok::memory::base_allocator>	its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)
+survarium::user_animations	death_count	0x594	u32	the death list's length (its entries at +590h): the set's load (0x2CF370, 0x2CF3E3) sizes it from the config (rifles 2, pistols_new 1, the battery carrier 1; death-poses.md); activate 0x338330 picks m_animation_index below it
+survarium::user_animations	death_hud_count	0xA24	u32	the death_hud list's length (its entries at +A20h, right after the death list's in one allocation, 0x2CF414); the same files as death, so the same length in every config
+survarium::death_animations_frame	set	0x4	ptr<survarium::user_animations>	get_death_animations' first argument at its entry (by the site's ESP at 0x338280): the selector's set, [selector+40h]
+survarium::death_animations_frame	index	0xC	u32	its third: the dead state's m_animation_index (movzx of state+30h at 0x3384ED and 0x338550), which it indexes both lists with, unbounded (ebx = index*4, 0x338281..0x338294)
 vostok::modules::tls_callback_frame	notify	0x4	u32	module_watch.thread's own argument (by the site's ESP, the return address into module_watch_tls at +0): the address of module_watch_dll, our DLL notification's entry, which module_watch_tls pushes
 vostok::modules::tls_callback_frame	reason	0x10	u32	the TLS callback's second argument (PIMAGE_TLS_CALLBACK: DllHandle +0Ch, Reason +10h, Reserved +14h, after the loader's return address at +8): 1 the process starts, 2 a thread starts, 3 a thread ends, 0 the process ends
 vostok::modules::dll_notification_frame	reason	0x8	u32	the DLL notification's first argument (LDR_DLL_NOTIFICATION_FUNCTION, after module_watch_dll's and ntdll's return addresses): 1 loaded, 2 unloaded
@@ -1148,3 +1165,63 @@ survarium::player_input_handler	view	0x48	f32	the camera's transform, a row-vect
 survarium::game	map_name	0x55E0	obj<vostok::buffer_string>	the match's project, as its maps_dict id's game mode config names it (mode.match_making_params.map_name, e.g. level_01/day_2): network_client::query_players assigns it before game_world::load (0x27B085), the replay's query too (0x218F3C); a buffer_string over 200h bytes at +55ECh (game::game 0x1E9291); never cleared, so the last match's in the lobby
 vostok::file_open_options	assert_on_failure	0x8	u32	4179F passes to path normalization; 400D5 tests before file-open assertion
 vostok::replay_path	bytes	0x0	u8	Resolved ANSI replay path, caller-owned 260-byte buffer (1F02C0)
+survarium::player_respawn_rule_base	team_2_points	0x190	ptr<survarium::respawn_point_core>	the team-2 group of respawn points, inline (cook 0x2C6A12: team 0, 1, 2 at +188h, +18Ch, +190h; select 0x317397)
+survarium::player_respawn_rule_base	team_2_count	0x19C	u32	their count (counts at +194h, +198h, +19Ch; 0x317368)
+survarium::respawn_point_core	position	0x8	f32	its position, a float3 (is_clear_for_team 0x2F483F)
+survarium::respawn_point_core	enemy_radius	0x34	f32	enemy_check_radius: no player of another team nearer (0x2F48A3)
+survarium::respawn_point_core	size	0x38	size	a point of a group (select's step 0x317270)
+survarium::player_vector	begin	0x0	ptr<survarium::player_slot>	a vector of players: its first (the respawn tick's two due vectors and its living one, 0x316820)
+survarium::player_vector	end	0x4	ptr<survarium::player_slot>	its end
+survarium::player_slot	player	0x0	ptr<survarium::player>	a player of the vector
+survarium::player_slot	size	0x4	size	a pointer
+survarium::respawn_select_frame	team	0x8	u32	select_respawn_points' team (ebp+8): the tick's due vector's index, 0 or 1
+survarium::respawn_select_frame	due	0xC	ptr<survarium::player_vector>	that team's due players (ebp+0Ch)
+survarium::respawn_select_frame	living	0x10	ptr<survarium::player_vector>	the living players (ebp+10h, given to 0x2F4800)
+survarium::respawn_select_frame	time	0x18	u32	the tick's time, ms (ebp+18h)
+survarium::respawn_select_frame	chosen	0x1C	ptr<survarium::respawn_point_vector>	the chosen points, one for each due player in order (ebp+1Ch; the tick spawns the first that many)
+survarium::respawn_point_vector	begin	0x0	u32	a vector of point pointers: its first (filled by push_back 0x3174C0)
+survarium::game_world_ui	viewed_place	0x24	u8	the hud state's first byte (the state is +24h..+2D8h, hashed by update_ui 0x23B2D2): the place of the network client's player (+4), 0FFh none; game_world::tick writes it each frame (0x1F7F82) before the rules fill the state (game_world_core::fill_match_hud_state 0x2D36B0)
+survarium::game_world_ui	seconds_left	0x28	u32	the hud state's +4: the match's whole seconds left while the time rule is in process, 0 once its time is over (timelimit_rule::fill_match_hud_state 0x267B4F, 0x267BA3)
+survarium::game_world_ui	pregame	0x15C	u8	the hud state's +138h: 1 while the time rule waits or counts down, 0 in process (timelimit_rule::fill_match_hud_state 0x267C6A, 0x267B91; update_ui's pregame test 0x23B307)
+survarium::game_world_ui	kd	0xBC	obj<survarium::hud_kd>	the hud state's +98h: a record a place, filled for the options' places (kd_stats_rule::fill_match_hud_state 0x323980; its count the rule's +1B0h, the options' places, 0x3237B4); never cleared after the hud's constructor (0x2336D1)
+survarium::hud_kd	kills	0x0	u16	the place's kills (the rule's +110h + 8 x place, 0x32399C)
+survarium::hud_kd	deaths	0x2	u16	its deaths (0x3239AC)
+survarium::hud_kd	size	0x8	size	a place's record (0x32399C: place x 8)
+survarium::match_rule	time_start	0x12C	u32	timelimit type 2 only: state start, rule_completed 0x318364
+survarium::match_rule	match_ms	0x138	u32	timelimit type 2 only: match duration, rule_completed 0x31837D
+survarium::match_rule	time_state	0x148	u32	timelimit type 2 only: state, rule_completed 0x31836B
+survarium::kd_stats_rule	records	0x110	obj<survarium::hud_kd>	twenty serialized KD records, on_event 0x3237EF and 0x323857
+survarium::kd_stats_rule	places	0x1B0	u8	serialized record count (patched constructor fixes it at 20); constructor 0x3237C3 and fill_match_hud_state 0x323982
+survarium::kd_stats_rule	core	0x1B4	ptr<survarium::core_world>	the owning world, on_event 0x32380C
+survarium::kd_event_frame	event	0x4	u32	on_event first argument: event 1 is a death, 0x3237E0
+survarium::kd_event_frame	time	0xC	u32	on_event third argument: completed world time, dispatched by 0x2D1EC0
+survarium::pvp_match	options	0x124	ptr<survarium::match_options>	borrowed match options (constructor 0x2D55B0 argument +10h); lj_native_install updates this roster, UI 0x23B42C..0x23B435 reads it
+survarium::respawn_point_core	protection_ms	0x20	u32	invulnerability duration in milliseconds, load 0x2F4628..0x2F4630 multiplies legacy seconds by 1000
+survarium::throw_grenade_state	grenade_set	0x17C	ptr<survarium::grenade_set_core>	the grenade set being thrown: its deserialize 0x33A5AB..0x33A5F7 takes it from the profile slot the world names; is_ready_for_transition 0x33A677 and the throw 0x33A7BB read it
+survarium::throw_grenade_state	grenade_index	0x180	u8	m_grenade_index: the set's grenade being thrown, 0FFh none (initialize 0x33A45C); the world's byte as read (deserialize 0x33A640); grenade_set_core::pull_pin 0x30A120 gives the game's own (0x3103DD)
+survarium::grenade_set_core	grenades_begin	0x268	u32	its grenades' vector begin (the constructor 0x309AFF; each entry a grenade object, walked to the end by 0x309E70): (end - begin) / 4 grenades
+survarium::grenade_set_core	grenades_end	0x26C	u32	its grenades' vector end (0x309E71); pull_pin 0x30A1C2 and throw_grenade 0x30A268 index from begin with no bound
+survarium::grenade_set_core	vtable	0x0	u32	its vtable: GRENADE_SET_VTABLE (the client's grenade_set, made by 0x25DD3C) or GRENADE_SET_CORE_VTABLE (grenade_set_core, 0x2E7E1B); the throw grenade state takes its set from a profile slot the world names (0x33A5AB) with no type test
+survarium::image	grenade_set_vtable	0xA0B56C	u32	grenade_set's vtable (RTTI .?AVgrenade_set@survarium@@, offset 0; written at 0x25DD45 over grenade_set_core's)
+survarium::image	grenade_set_core_vtable	0xA14824	u32	grenade_set_core's vtable (RTTI .?AVgrenade_set_core@survarium@@, offset 0; its constructor 0x309AF8)
+survarium::animation_end_aware_state	methods	0x0	ptr<survarium::weapon_state_methods>	its vtable (every weapon_core_*state class; RTTI)
+survarium::animation_end_aware_state	index_of_animation_to_wait	0x134	u8	m_index_of_animation_to_wait: an index of the handles from [state+130h] (the object's own, every constructor), 0FFh none; the world's byte as read (deserialize 0x30DBB0, 0x30DC7C); on_animation_end 0x30DB8E, 0x3106A2, 0x310D06 compare [[state+130h]+index*4] with no bound
+survarium::weapon_state_methods	register_animations	0x1C	u32	slot 7, register_animations: one per layout of the state's animation handles (REGISTER_*_ANIMATIONS), kept by every derived class (the weapon_sound_events_handler_state templates; RTTI)
+survarium::image	register_show_hide_animations	0x24B700	u32	show and hide states' register_animations: 5 handles from +13Ch (4, then +14Ch); their stores give 0 or 2 (0x30DF55)
+survarium::image	register_reload_animations	0x24B760	u32	reload state's register_animations: 5 handles from +144h (4, then +154h); its store 0 or 2 (0x30E237)
+survarium::image	register_fire_animations	0x24B7C0	u32	fire and chamber_a_round states' register_animations: 9 handles from +144h (8, then +164h); stores 0..6 (0x30E56A, 0x30F5FA) and 8 (fire, 0x30E83E)
+survarium::image	register_fire_twice_animations	0x24B820	u32	double-barrel's and pistol's fire and reload states' register_animations: 10 handles from +144h (8, then 2 at +164h); stores 0..6 (0x30FEE4) and 8, 9 (fire, 0x30F877)
+survarium::image	register_throw_substate_animations	0x24B880	u32	the throw grenade substates' register_animations: 4 handles from +140h; stores 0 or 2 (0x310374)
+survarium::image	register_shotgun_substate_animations	0x24B8C0	u32	the shotgun reload substates' register_animations: 5 handles from +138h (4, then +148h); stores 0 or 2 (0x3110B2)
+survarium::image	register_melee_animations	0x24B920	u32	melee state's register_animations: 4 handles from +144h; stores 0 or 2 (0x310C36)
+survarium::inventory	grenade_slot	0x17C	u32	m_grenade_slot: the selected grenade set's slot, 17h none (the constructor 0x2FC53D; grenade_set_core 0x309DEE, 0x309DFD; the world's byte)
+survarium::grenade_set_core	slot	0x254	u32	its profile_slot_id(): the throw state's serialize writes its low byte (0x33A521); 0x310473 and 0x33A74B compare the inventory's grenade slot with it
+survarium::grenade_set_core	config	0x25C	ptr<survarium::grenade_set_config>	its config (pull_pin 0x30A15C, 0x30A1A4)
+survarium::grenade_set_core	amount	0x260	u16	a stacked set's amount: pull_pin 0x30A120 stores amount-1 and indexes its grenades with that new amount's low byte (0x30A1B3), 1 for a set not stacked
+survarium::grenade_set_config	stacked	0x22A	u8	is_stack (pull_pin 0x30A16C, 0x30A1AA): not 0, the pull indexes by the amount
+survarium::grenade_choice_frame	wanted	0x4	u8	0x33A730's argument at the site ESP (no push before 0x33A73F; ret 4): it returns whether (the inventory's grenade slot == the set's slot) equals it
+survarium::game_world	sound_scene	0x94	ptr<vostok::sound::sound_scene>	its sound scene: on_after_tick 0x1F764C gives it the listener every tick (set_listener_properties 0x587D0, with no test for 0)
+vostok::sound::sound_scene	world	0x11C	ptr<vostok::sound::sound_world>	its sound world (notify_listener2 0x5C390)
+vostok::sound::sound_world	panning	0xCC	obj<vostok::sound::panning_lut>	its panning table, inside it: 512 directions of 9 gains, filled once by its constructor 0x5E150 in the sound world's (0x58D90); notify_listener2 0x5C396 gives its address to calculate_3d_pan
+vostok::sound::sound_instance_proxy	sound_type	0x80	u32	its sound_type: 0 point, 1 cone (spot), 2 volumetric, 3 hud (calculate_3d_pan 0x57D88, the only field it reads of a point sound's proxy; notify_listener2 0x5C37C)
+vostok::sound::sound_instance_proxy	size	0x90	size	a proxy is 144 bytes (new_helper<sound_instance_proxy_internal> over single_size_buffer_allocator<144>, 0x65450)

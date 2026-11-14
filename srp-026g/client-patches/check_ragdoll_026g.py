@@ -26,7 +26,7 @@ players are made up with the fields the step reads (ragdoll.md section 8),
 their skeleton is scavengers_01 in the cook's order (ragdoll.md section 8,
 `add_bone` 0x3ACDA0), the bones a standing body. Stubs: ray_test (0x75E20,
 a walker floor at y = 0 and the hittable floor 4 cm over it, as Rudnya's
-collision over its walker mesh; the filter checked: group 434h, mask 20Ah,
+collision over its walker mesh; the filter checked: group 414h, mask 20Ah,
 no delegate: the level's two collisions and the batteries), QueryPerformanceCounter / -Frequency (60
 frames a second), GetCurrentThreadId (the patches' lock: one thread),
 and the bullet manager's play_particle (0x3223E0) and
@@ -51,9 +51,10 @@ Checked:
   life) starts from the clip again;
 - a skeleton that is not ours (a bone missing) gets no ragdoll;
 - the ragdoll falls onto the floor and settles there, on the hittable
-  floor over the walker one, through the grenades' and the players' slabs
-  (their groups and masks the game's: the filter meets neither); the level
-  is read only through ray_test with the level's filter;
+  floor over the walker one, through the grenades', the players' and the
+  bushes' slabs (their groups and masks the game's and the STALKER maps'
+  bushes' 8/20h: the filter meets none); the level is read only through
+  ray_test with the level's filter;
 - a bullet's ray: the build's hook does the original's two moves (the same
   registers, frame and XMM0 as the original exe's code from the same
   state) and changes no byte of the bullet, its result or the frame; with
@@ -187,9 +188,10 @@ class Game:
         self.ticks, self.rays, self.hits = 0, [], {}
         # the level: its walker collision at y = 0 (cgroup 2, cmask 4) and the
         # collision bullets hit 4 cm over it (cgroup 8, cmask 16), as Rudnya's
-        # drawn ground over its walker mesh; a grenade's (818h/8) and a
-        # player's (824h/3) slabs where the body falls, which it must not meet;
-        # and batteries lying around x = 20 (a slab 0.3 m high
+        # drawn ground over its walker mesh; a grenade's (818h/8), a
+        # player's (824h/3) and a bush's (cgroup 8 / cmask 20h, what a step's
+        # ray alone meets: stalker-maps.md) slabs where the body falls, which
+        # it must not meet; and batteries lying around x = 20 (a slab 0.3 m high
         # with a gap where the player stands: group 0A18h, mask 418h,
         # victory_item_core 0x301CB0)
         near = lambda p: abs(p[0]) < 5 and abs(p[2]) < 5
@@ -197,6 +199,7 @@ class Game:
                         ("hittable floor", (0x08, 0x10), HITTABLE_FLOOR, lambda p: True),
                         ("grenade", (0x818, 0x08), 0.3, near),
                         ("player", (0x824, 0x03), 0.5, near),
+                        ("bush", (0x08, 0x20), 0.4, near),
                         ("battery", (0xA18, 0x418), 0.3,
                          lambda p: 18 <= p[0] <= 22 and -2 <= p[2] <= 2
                          and not (19.6 < p[0] < 20.4 and -0.4 < p[2] < 0.5))]
@@ -310,7 +313,7 @@ class Game:
         length = struct.unpack("<f", emu.mem_read(esp + 16, 4))[0]
         group, mask, delegate, unflipped = (self.u32(esp + 20 + 4 * i) for i in range(4))
         assert emu.reg_read(UC_X86_REG_ECX) == PHYSICS, "ray_test on the player's physics world"
-        assert (group, mask, delegate) == (0x434, 0x20A, 0), f"the level's filter: {group:#x} {mask:#x} {delegate}"
+        assert (group, mask, delegate) == (0x414, 0x20A, 0), f"the level's filter: {group:#x} {mask:#x} {delegate}"
         o = self.floats(origin, 3)
         d = self.floats(direction, 3)
         assert abs(math.sqrt(sum(x * x for x in d)) - 1) < 1e-3, "a unit direction"
@@ -648,8 +651,9 @@ def main():
     check(rays > 0 and all(r[2] > 0 for r in game.rays), f"the level read through ray_test ({len(game.rays)} rays)")
     check(hip < 0.5 and min(lowest) > -0.12, f"the body fell onto the floor (the hip at {hip:.2f} m, the lowest "
           f"bone at {min(lowest):.2f} m)")
-    check(game.hits.get("hittable floor", 0) > 0 and not game.hits.get("grenade") and not game.hits.get("player"),
-          f"it fell onto the hittable floor, through the grenade's and the player's slabs ({game.hits})")
+    check(game.hits.get("hittable floor", 0) > 0
+          and not any(game.hits.get(slab) for slab in ("grenade", "player", "bush")),
+          f"it fell onto the hittable floor, through the grenade's, the player's and the bush's slabs ({game.hits})")
     settled = len(game.rays)
     for _ in range(10):
         game.step()

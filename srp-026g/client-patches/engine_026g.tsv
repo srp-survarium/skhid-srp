@@ -257,3 +257,7 @@ engine_cc_u32	0x01dcd0	EAX:object ESP+4:name ESP+8:value ESP+12:minimum ESP+16:m
 engine_render_u32_execute	0x3cd300	ECX:object ESP+4:arguments	void engine_render_u32_execute(void *object, const char *arguments)	thunk
 engine_message_box_a	0xaeff30	-	unsigned int engine_message_box_a(void *window, const char *text, const char *title, unsigned int flags)	import
 engine_exit_process	0x87020c	-	void engine_exit_process(unsigned int code)	import
+engine_respawn_point_clear	0x2f4800	ESI:point ESP+4:team ESP+8:players	unsigned int engine_respawn_point_clear(const struct respawn_point_core *point, unsigned int team, const struct player_vector *players)	thunk	
+engine_respawn_points_push	0x3174c0	ESI:vector ESP+4:point	void engine_respawn_points_push(struct respawn_point_vector *vector, struct respawn_point_core *const *point)	thunk	
+engine_sound_pan	0x057d70	ESP+4:scene ESP+8:panning ESP+12:sound_type ESP+16:position ESP+20:distance ESP+24:matrix ESP+28:coefficient	void engine_sound_pan(struct sound_scene *scene, struct panning_lut *table, struct sound_instance_proxy *proxy, const float *position, float distance, float *matrix, float *coefficient)	thunk	
+engine_listener_position	0x057560	EAX:scene ESI:out	float *engine_listener_position(struct sound_scene *scene, float *out)	thunk	

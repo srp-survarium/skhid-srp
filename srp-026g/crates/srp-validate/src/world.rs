@@ -9,12 +9,14 @@ pub use effects::{
 };
 pub use objects::{
     ActiveCore, AnomalyArtefacts, AnomalyState, ArtefactBase, ArtefactBases, ArtefactContainerCore,
-    ArtefactContainerCores, ArtefactId, ArtefactState, BoobyTrapCore, DamageZoneCore,
-    DamageZoneCores, GameObject, GameObjectIter, GameObjects, GenericAnomalyCore, GrenadeCore, Kit,
-    Motion, ObjectFault, Owner, PlacedTrap, ResupplyZoneCore, Thrown, TrapState,
+    ArtefactContainerCores, ArtefactId, ArtefactSlot, ArtefactState, BoobyTrapCore,
+    DamageZoneCore, DamageZoneCores, GameObject, GameObjectIter, GameObjects, GenericAnomalyCore,
+    GrenadeCore, Kit, Motion, ObjectFault, Owner, PlacedTrap, ResupplyZoneCore, Thrown, TrapState,
     UsableObject, User, ZoneGroup, ZoneGroups, ZoneMask,
 };
-pub use objects::{Anomaly, Artefact, Artefacts, Group, Held, Map, Objects, State, objects};
+pub use objects::{
+    Anomaly, Artefact, ArtefactItem, Artefacts, Group, Held, Map, Objects, State, Uses, objects,
+};
 mod inventory;
 pub use inventory::{
     Affect, AffectKind, AfterItems, Ammo, Body, BodyPart, Chamber, Controller, DamageModel, Gun,

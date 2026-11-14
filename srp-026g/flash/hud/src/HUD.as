@@ -46,6 +46,7 @@ package
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
+   import survarium.modes.FfaProgress;
    import survarium.modes.ModeNotice;
    import survarium.modes.ModeIntroText;
    import flash.utils.getTimer;
@@ -233,6 +234,12 @@ package
       // Research (mode 5): the teams' points in Team Deathmatch's bars
       // (progress_indicator's frame 5) and the units under them.
       protected const GAME_MODE_RESEARCH:uint = 5;
+
+      // Free for all (mode 8, docs/notes/ffa.md): the Tab list one ranking (PlayerList.ranked); in the
+      // top bar, the match timer without Team Deathmatch's counters (FfaProgress).
+      protected const GAME_MODE_FREE_FOR_ALL:uint = 8;
+
+      private var _ffaProgress:FfaProgress = new FfaProgress();
       
       public var researchUnits:ResearchUnits;
 
@@ -1749,6 +1756,17 @@ package
          _gameType = type;
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
          this.researchUnits.removeEventListener(Event.ENTER_FRAME,this.onResearchFrame);
+         this.player_list.players.ranked = type == this.GAME_MODE_FREE_FOR_ALL;
+         // a free for all has no team: its chat has no team tab (GameChat.teamChannel)
+         this.chat.teamChannel = type != this.GAME_MODE_FREE_FOR_ALL;
+         this._ffaProgress.hide();
+         if(type == this.GAME_MODE_FREE_FOR_ALL)
+         {
+            // Reuse the timer's frame, hiding every team counter.
+            this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
+            this._ffaProgress.show(this.progress_indicator);
+            return;
+         }
          if(type == this.GAME_MODE_RESEARCH)
          {
             this.researchUnits.addEventListener(Event.ENTER_FRAME,this.onResearchFrame);
@@ -1769,7 +1787,15 @@ package
          }
          this.progress_indicator.gotoAndStop(this._gameType + 1);
       }
-      
+
+      // Free for all (the exe, at each change and once after set_game_type): the kills of the game's
+      // own player, or of the one it watches; the most kills anyone has; the kills that win.
+      // Retained for native callback compatibility; FFA shows those kills in the player list.
+      public function set_ffa_progress(own:int, top:int, target:int) : void
+      {
+         this._ffaProgress.tell(own,top,target);
+      }
+
       public function set_match_time_progress(time_left:uint, time_total:uint) : void
       {
          this.progress_indicator.radialTime.setTime(time_left,time_total);
@@ -1782,11 +1808,12 @@ package
          this.followModeNotice();
       }
 
-      // The match's time left as the mode shows it: Team Deathmatch's and Research's label, or the
-      // other modes' (progress_indicator's frames).
+      // The match's time left as the mode shows it: Team Deathmatch's, Research's and free for all's
+      // label, or the other modes' (progress_indicator's frames).
       private function matchTime() : Object
       {
-         if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH)
+         if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH
+            || this._gameType == this.GAME_MODE_FREE_FOR_ALL)
          {
             return this.progress_indicator.match_time_2_tdm;
          }
@@ -2026,6 +2053,11 @@ package
             this.progress_indicator.team_2_score.value = team2;
             this.progress_indicator.team1Progress.text = String(team1);
             this.progress_indicator.team2Progress.text = String(team2);
+         }
+         else if(this._gameType == this.GAME_MODE_FREE_FOR_ALL)
+         {
+            // Native progress refreshes must keep the team counters hidden.
+            this._ffaProgress.draw();
          }
          else
          {

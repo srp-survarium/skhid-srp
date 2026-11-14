@@ -1,7 +1,7 @@
 # Music
 
 The menus' and the maps' themes, as retail 0.69d plays them, with the owner's 15 s rule. Exe patch
-88 (Rust `music`) plays them; the pack `music@1` carries them; the edit list `music-1.json` names
+88 (Rust `music`) plays them; the pack `music@2` carries them; the edit list `music-1.json` names
 each mode's theme.
 
 ## The rules
@@ -94,11 +94,18 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the
 - **The tracks:** `main_theme`, `lobby_theme` and `level_01_loading` .. `level_09_loading`: 11
   tracks, 16.5 MB (16 526 528 bytes with their RMS and options). Retail 0.46c2's battle finale and
   win/lose cues are not used.
+- **Training Camp's theme** (`cs_training_camp_loading`, since `music@2`; the owner, 2026-11-14): a
+  song of the owner's STALKER mobile project, its `end-song.wav` (a Letov guitar excerpt, 33 s, a 2 s
+  fade-out at its tail; the only copy, pinned by sha256, outside this repository). `make_pack.py`
+  encodes it as retail's (44.1 kHz stereo, 112 kb/s nominal) and makes its `.high.rms` as the
+  engine's `sound_rms` does (its docstring); -19.0 LUFS encoded, `volume_k` 0.5623. It plays as the
+  other map themes do; a loading longer than 33 s loops it.
 - **Which map, which theme:** `music-1.json` adds `ui.loading_music` to every mode file, as retail
   has it (`gameplay/game_modes/<mode>.options`, `mode.ui.loading_music = "music/level_0N_loading"`):
   levels 1 to 9 their own, the ported maps their original's (the v0.21d and v0.11e maps their
-  0.26g levels, Research's its level's). A new map adds its files (Rudnya 0.69's and the STALKER
-  maps' when they land); a mode without the key has no theme.
+  0.26g levels, Research's its level's), Training Camp its own (its Team Deathmatch file; its Free
+  for All copy, made later by `ffa-stalker-1.json`, takes it). A new map adds its files (Rudnya
+  0.69's and the other STALKER maps' when they land); a mode without the key has no theme.
 
 ## How it works (patch 88)
 

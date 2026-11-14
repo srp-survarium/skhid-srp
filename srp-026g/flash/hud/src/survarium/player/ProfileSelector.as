@@ -85,10 +85,10 @@ package survarium.player
          while(i < this._profiles.length)
          {
             this._profiles[i].index = i;
-            profileName = "«" + this._profiles[i].name + "»";
+            profileName = "«" + Util.escapeHtml(this._profiles[i].name) + "»";
             if(this._profiles[i].state == ProfileState.PREMIUM_ONLY)
             {
-               this._profiles[i].label = Util.styledChar(this._profiles[i].name,"highlight");
+               this._profiles[i].label = Util.styledChar(Util.escapeHtml(this._profiles[i].name),"highlight");
                this._profiles[i].levelLabel = "";
                this._profiles[i].tipText = LocalizationData.getName("premium_profile_hint");
             }

@@ -9,6 +9,59 @@ release that made it what it is now.
 
 ---
 
+## 13 Nov, 12:31 — TODO: the owner's words (update required)
+
+<!-- Revision 58 (026g-rev58), released 2026-11-13 12:31 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1764 World check: a held artefact's slot is an artefact slot, its amount at most its item's uses
+- TODO: #1765 Patch 115: weapon animation indices stay in their tables
+- TODO: #1763 Chats: a player's name, tag or line never read as markup
+- TODO: #1773 Silver: 30,000 for finishing a match, and kills pay twice
+- TODO: #1774 Free for All: no player limit of its own, the room's (20 at the most)
+- TODO: #1772 Training Camp: half the perimeter spawns to the centre, more on the islands
+- TODO: #1775 Training Camp minimap: the whole ground framed on the crater, fading out
+- TODO: #1776 Free for All: half the perimeter spawns of 16 maps to their centre
+
+## 13 Nov, 03:04 — TODO: the owner's words (update required)
+
+<!-- Revision 57 (026g-rev57), released 2026-11-13 03:04 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1652 Lobby chat tab: raise a covered chat window, hide one on top
+- TODO: #1653 Lobby: a press in the inventory puts the chat windows under it
+- TODO: #1672 Fix v0.11 Radar tire streaming and terrain rendering
+- TODO: #1683 Open .sur files with Skhid and explain missing replay errors
+- TODO: #1685 Report executable hashes and collect verified files over match connections
+- TODO: #1029 Anti-AFK: kick idle players and apply daily bans
+- TODO: #1690 Restore Vostok anomalies, add Research and spread battery spawns
+- TODO: #1693 Refresh stale world corpus and repair native validation tooling
+- TODO: #1701 Enforce unique nicknames and reject Cyrillic lookalikes
+- TODO: #1704 Add live nickname renames to the admin panel and moderation script
+- TODO: #1705 Store player reports and praise instead of returning database errors
+- TODO: #1715 Players' weapon requests: Ash-12, 9A-91, SR-2M, PP-2000, MP7 buffs; H&K 416 and M4A1 side kick
+- TODO: #1711 Cascade shares Onyx II and Larkspur II
+- TODO: #1719 Calculator: recovery with every bonus, each one a toggle, in any mix
+- TODO: #1713 Rename shared nicknames in schema step 8 so srp starts on an existing database
+- TODO: #1708 Anti-AFK: SRP_ANTI_AFK=0 turns it off
+- TODO: #1718 Do not collect the release's own executable
+- TODO: #1722 Patch 125: the size and SHA-256 of an over window's exe file
+- TODO: #1721 Calculator: item tiles say what they do on hover; Forest Protection on the target
+- TODO: #1732 Add Free for All with solo spawns, kill standings and winner-only rating
+- TODO: #1724 Sign-up: a taken name gets the account id after it instead of a refusal
+- TODO: #1725 Distance detail docs: Maximum does not turn texture streaming off
+- TODO: #1738 Rooms: the vote's third card is a free-for-all, Blackout back in the pool
+- TODO: #1739 Patch 125: an exe file is asked its size before it is read
+- TODO: #1744 Add FFA to STALKER maps and contain Training Camp in the crater
+- TODO: #1740 Weapon camouflage: baked files named by a hash of their name
+- TODO: #1741 Free for All has no team chat
+- TODO: #1748 Weapon camouflage: a baked file's name only of what is baked
+- TODO: #1750 Free for all: no ammo zone serves anyone
+- TODO: #1751 STALKER maps: Free for All only, Team Deathmatch not offered yet
+- TODO: #1756 Free for All on its own maps without ammo crates; no exe resupply rule
+- TODO: #1599 Patch 115: a dead selector's death animation stays in its set's lists
+- TODO: #1762 Make replay key frames only of worlds the match server took
+- TODO: #1761 Voice: take only what the games' encoder makes, hold a loud speaker, rest after 30 s
+- TODO: #1766 Self-test: weapon camouflage's section holds the build's bake_name entry
+
 ## 11 Nov, 21:59 — TODO: the owner's words (update required)
 
 <!-- Revision 56 (026g-rev56), released 2026-11-11 21:59 UTC. To be worded for players; what it shipped: -->

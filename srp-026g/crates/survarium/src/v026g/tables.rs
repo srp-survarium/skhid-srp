@@ -112,6 +112,18 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
     super::golden::check_content(data, &dictionary)?;
     let params = item_params::derive(data, &dictionary)?;
     for row in &params {
+        if row.default_modifications.len() > item_params::MOST_DEFAULT_MODIFICATIONS {
+            let item = dictionary
+                .item(row.dict_id)
+                .expect("a row of the dictionary");
+            return Err(GameDataError(format!(
+                "{}: {} default modifications, the client holds {} at most and crashes at start \
+                 on more",
+                item.cfg_name,
+                row.default_modifications.len(),
+                item_params::MOST_DEFAULT_MODIFICATIONS
+            )));
+        }
         for &id in row.default_modifications {
             if modifications.modification(id).is_none() {
                 let item = dictionary

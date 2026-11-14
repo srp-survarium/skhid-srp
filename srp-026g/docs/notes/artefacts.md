@@ -44,8 +44,24 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the table
 - Passive: each of its seven pools (body, head, both hands, both legs, pain) regenerates
   base + 0.1/s, up to 100 %, as before.
 - Regeneration starts after the pool's own 8 s without a hit (the artefact no longer adds 2 s).
-- Active (3 s, cooldown 45 s): hand and leg injuries removed as before, and pain, body and head full
-  at once.
+- Active (3 s, cooldown 45 s): hand and leg injuries removed as before, and every body part full
+  at once: its seven pools (body, head, both hands, both legs, pain), each to its own maximum (a
+  limb's as Strong Bones made it). `infection` is not a body part and stays as it is. The teammates
+  Cascade's share reaches get the same.
+  - The owner, 2026-11-14: "larkspur doesn't heal body parts when active". From 2026-10-22 to then
+    the active filled pain, body and head only: a hand or leg lost its injury (the affect) and kept
+    its health.
+  - What that left: the hud's doll colours a part by its pool's health (0x2370E0:
+    `set_body_part_hp` with H / Hmax of both hands, both legs, head and body), and a leg's slow is
+    its pool's too (the thresholds, 0x32A9C0: -10 % under 20 %, -20 % at 0), so both stayed until
+    the pool regenerated. The injury's own effects (no sprint, the weapon's dispersion; the counts
+    at the damage model +388h and +389h) went with the affect. An affect is applied by a hit alone
+    (0x32A740, called at 0x32A2B3): removed, it came back only with the next hit on a pool still
+    at 0.
+- The passive goes on while the artefact is active and while it cools down: its regeneration
+  modifiers are linked at the pickup (on_taken 0x313470, vtable +7Ch) and unlinked at death or
+  removal (0x3132E7, 0x3134A8, vtable +84h); the press (0x313300) and the active's end (0x313530)
+  touch neither, and the modifier (0x312590) reads no state. Patch 109 leaves out only a fifth copy.
 - Cooldown 45 s, was 15 s (the owner, 2026-10-23): since its active is a full heal, 15 s was too
   often (Spring 40 s, Onyx 60 s). `data/cooldown_sec` 15 -> 45 in `artefacts.tsv`.
 - Nothing hard-codes it: artefact_base's constructor (0x312FD0) reads `cooldown_sec` x 1000 into
