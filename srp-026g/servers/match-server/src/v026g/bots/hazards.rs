@@ -796,6 +796,19 @@ impl Hazards {
             && self.live.allowed_for(node, time, self.pass_ms)
     }
 
+    /// [A395a] Whether the client lists a standing body whose feet are at `feet` (on `node`) in a zone on at `time`: its
+    /// capsule's contact test at the body's own place ([`capsule_touches`], the controller's standing capsule; the
+    /// crouched one is inside it), or a live field shuts the floor. The floor marks ([`Self::hits_at`]) test the capsule
+    /// at each floor's cell centre, so a body up to half a cell (0.125 m an axis) off it toward a zone is touched on a
+    /// floor marked dry; the zones looked at are those within the margin of the floor ([`HazardMarks::floor_set`]).
+    pub fn hits_feet(&self, grid: &WalkGrid, node: NodeId, feet: Vec3, time: u32) -> bool {
+        let body = grid.body();
+        self.margin_zones_at(node)
+            .filter(|zone| zone.activity.active(time))
+            .any(|zone| zone.shapes.iter().any(|shape| capsule_touches(shape, feet, body.radius, body.stand_height)))
+            || self.live.on_at(node, time)
+    }
+
     /// [A395a] Whether a body on `node` at `time` leaves the margin's band rather than walking out of a zone
     /// ([`CapsuleUse::exits`]): a floor of the band ([`Self::in_band`]) the client's rule clears ([`Self::capsule_clear`]).
     pub fn band_exit(&self, node: NodeId, time: u32) -> bool {

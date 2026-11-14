@@ -1721,7 +1721,16 @@ fn drive_tick_inner(
                                 super::tactics::ZoneExit::Out { .. } => {
                                     // [owner-5 A395a] The walk-out's own line: the start floor dry or being hit (the
                                     // client's contact test), the route's goal and next waypoint.
-                                    let hit = tactics.world.grid.locate(me.feet, 1.5).map(|node| tactics.hazards.hits_at(node, time));
+                                    let hit = tactics.world.grid.locate(me.feet, 1.5).map(|node| {
+                                        let feet = tactics.hazards.hits_feet(&tactics.world.grid, node, me.feet, time);
+                                        // [A395a] The capsule at the feet touches a zone on a floor the band marks clear
+                                        // (half a cell off its centre): the walk out is the feet's.
+                                        if feet && tactics.hazards.band_exit(node, time) {
+                                            let line = super::nav_log::feet_touch_line(me.feet);
+                                            bot.nav_log.push(super::nav_log::Kind::WalkOut, time, line);
+                                        }
+                                        feet
+                                    });
                                     let line = super::nav_log::walkout_line(me.feet, hit, *route_at, next, reach);
                                     bot.nav_log.push(super::nav_log::Kind::WalkOut, time, line);
                                     bot.zone_note = Some(format!(
@@ -1751,7 +1760,9 @@ fn drive_tick_inner(
                     }
                     // [A395a] The walk's ticks on floors a zone on hurts (the client's contact test); the first one logged.
                     if let Some(walk) = bot.zone_walk.as_mut()
-                        && tactics.world.grid.locate(me.feet, 1.5).is_some_and(|node| tactics.hazards.hits_at(node, time))
+                        && tactics.world.grid.locate(me.feet, 1.5).is_some_and(|node| {
+                            tactics.hazards.hits_feet(&tactics.world.grid, node, me.feet, time)
+                        })
                     {
                         walk.hurt_ticks += 1;
                         if walk.hurt_ticks == 1 {
