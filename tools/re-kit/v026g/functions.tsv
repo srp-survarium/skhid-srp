@@ -2359,3 +2359,7 @@ va	status	ref_021d	name
 0x0005e150	reviewed		vostok::sound::panning_lut::panning_lut
 0x0005e050	reviewed	0x000438d2	vostok::sound::pos_to_angle
 0x00064f00	observed		vostok::buffer_vector<unsigned int>::push_back
+0x001603b0	reviewed		vostok::render::grass_world::process_culling's patch order (patch+50h, then squared distance of patch+4084h to the camera)
+0x001610b0	reviewed		stlp_std::sort<vostok::render::grass_patch **> (grass_world::process_culling's)
+0x00161e50	reviewed		stlp_std::priv::__linear_insert<vostok::render::grass_patch **>
+0x00162060	reviewed		stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>

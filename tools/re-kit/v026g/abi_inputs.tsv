@@ -6178,3 +6178,13 @@ va	name	location	role	basis
 0x00057560	vostok::sound::sound_scene::get_listenet_position	ESI	the out float3: the position as three floats	observed
 0x00064f00	vostok::buffer_vector<unsigned int>::push_back	ESI	the vector: begin +0, end +4, capacity end +8; past it the "buffer overflow" assertion (line 305)	observed
 0x00064f00	vostok::buffer_vector<unsigned int>::push_back	entry ESP+4	pointer to the u32 appended	observed
+0x001603b0	vostok::render::grass_world::process_culling's patch order	ECX	left patch (sums dz2 + dx2 + dy2 in the original; patch 146: dz2 + dy2 + dx2)	observed
+0x001603b0	vostok::render::grass_world::process_culling's patch order	EAX	right patch (sums dz2 + dy2 + dx2)	observed
+0x001603b0	vostok::render::grass_world::process_culling's patch order	EDI	the camera position (3 floats)	observed
+0x00161e50	stlp_std::priv::__linear_insert<vostok::render::grass_patch **>	EAX	last (the value's slot)	observed
+0x00161e50	stlp_std::priv::__linear_insert<vostok::render::grass_patch **>	entry ESP+4	first	observed
+0x00161e50	stlp_std::priv::__linear_insert<vostok::render::grass_patch **>	entry ESP+8	the value (patch pointer)	observed
+0x00161e50	stlp_std::priv::__linear_insert<vostok::render::grass_patch **>	entry ESP+12	the camera position by value (3 floats)	observed
+0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	EDI	the value (patch pointer)	observed
+0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+4	last (the value's slot)	observed
+0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+8	the camera position by value (3 floats)	observed
