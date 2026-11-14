@@ -94,7 +94,7 @@ const FLIGHT_TOLERANCE_M: f32 = 0.1;
 
 pub mod controlled;
 pub mod gap;
-pub use gap::{GapStats, OffLink, OffMeshLinks, PressLead};
+pub use gap::{GapStats, OffLink, OffMeshLinks, PressLead, Share};
 use gap::gap_cost;
 
 /// The body and how it moves. Defaults: the 0.26g client's character
@@ -278,6 +278,10 @@ pub struct Body {
     /// (exactness `notes-mapflights.md` §2 C: 44 of 396 walking and 143 of 424 sprint presses onto Chemical Plant's deck
     /// 1.20-1.67 m up, 0 of 396 from a stand). A build input: in the key when set.
     pub rim_jumps: bool,
+    /// [A385] The walk cap of the bots' fastest kit, m/s (`base_player::max_speed` 0x2DC010 with the kit's movement modifiers,
+    /// the game data's bot profiles): the rim jumps' neighbourhood flies it as one of its flights (A385-FORMAT §2 row 6). The
+    /// grid body's own is [`crate::controller::jump::WALK_CAP_MS`]. In the key with [`Self::rim_jumps`].
+    pub fastest_walk_cap: f32,
     /// [routes corpus] Whether a jump onto a top too narrow to walk on along the jump (`WalkGrid::lands`: two more floors) is a
     /// landing all the same where a wall stands beyond the top along the jump within [`WALL_HELD_CELLS`] cells and before any
     /// drop: the wall stops the body on the top (a window's sill, a ledge along a wall), while a fence's top with a drop beyond
@@ -434,6 +438,7 @@ impl Body {
             drop_check: false,
             walk_ceiling_stalls: false,
             rim_jumps: false,
+            fastest_walk_cap: crate::controller::jump::WALK_CAP_MS,
             wall_held_tops: false,
             wall_give_back: false,
             exe_collision: false,
@@ -546,6 +551,7 @@ impl Default for Body {
             drop_check: false,
             walk_ceiling_stalls: false,
             rim_jumps: false,
+            fastest_walk_cap: crate::controller::jump::WALK_CAP_MS,
             wall_held_tops: false,
             wall_give_back: false,
             exe_collision: false,
@@ -2934,6 +2940,10 @@ impl WalkGrid {
             digest.u32(l.to);
             digest.u32(l.kind as u32);
             digest.u32(u32::from(l.press.centimetres()));
+            digest.u32(u32::from(l.share.byte()));
+            let (walk, walk_share) = l.walk.map_or((0, 0), |(p, s)| (p.centimetres(), s.byte()));
+            digest.u32(u32::from(walk));
+            digest.u32(u32::from(walk_share));
         }
         // [A347] A grid with no walled exits digests as before there were any.
         if !self.walled_exits.is_empty() {
@@ -2993,12 +3003,18 @@ impl WalkGrid {
             if self.off.is_empty() && self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
                 return Ok(());
             }
+            // [A385] 16 bytes: from, to, kind, press, share, a sprint link's walking press (0: none) and its share.
             out.plain(&self.off, |l| {
-                let mut bytes = [0u8; 12];
+                let mut bytes = [0u8; 16];
                 bytes[..4].copy_from_slice(&l.from.to_le_bytes());
                 bytes[4..8].copy_from_slice(&l.to.to_le_bytes());
                 bytes[8..10].copy_from_slice(&u16::from(l.kind as u8).to_le_bytes());
-                bytes[10..].copy_from_slice(&l.press.centimetres().to_le_bytes());
+                bytes[10..12].copy_from_slice(&l.press.centimetres().to_le_bytes());
+                bytes[12] = l.share.byte();
+                if let Some((walk, share)) = l.walk {
+                    bytes[13..15].copy_from_slice(&walk.centimetres().to_le_bytes());
+                    bytes[15] = share.byte();
+                }
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
@@ -3071,18 +3087,41 @@ impl WalkGrid {
                     off: if input.ends() {
                         Vec::new()
                     } else {
-                        input.plain(|bytes: [u8; 12]| {
+                        // [A385] A byte that is no share, or a walking press that is not a walking lead, makes the link bad
+                        // (`check`: no off-mesh link is from a floor to itself).
+                        input.plain(|bytes: [u8; 16]| {
                         let word = |i: usize| {
                             u32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]])
                         };
                         let half = |i: usize| u16::from_le_bytes([bytes[i], bytes[i + 1]]);
                         // An unknown kind is caught by `check`.
                         let kind = u8::try_from(half(8)).ok().and_then(LinkKind::from_u8).unwrap_or(LinkKind::Walk);
-                        OffLink {
-                            from: word(0),
-                            to: word(4),
-                            kind,
-                            press: gap::Takeoff::from_centimetres(half(10)),
+                        let share = gap::Share::from_byte(bytes[12]);
+                        let walk = match (half(13), gap::Share::from_byte(bytes[15])) {
+                            (0, Some(_)) if bytes[15] == 0 => Some(None),
+                            (cm, Some(s)) if cm != 0 && gap::PressLead::from_centimetres(cm).is_valid() => {
+                                Some(Some((gap::PressLead::from_centimetres(cm), s)))
+                            }
+                            _ => None,
+                        };
+                        let (from, to) = (word(0), word(4));
+                        match (share, walk) {
+                            (Some(share), Some(walk)) => OffLink {
+                                from,
+                                to,
+                                kind,
+                                press: gap::Takeoff::from_centimetres(half(10)),
+                                share,
+                                walk,
+                            },
+                            _ => OffLink {
+                                from,
+                                to: from,
+                                kind,
+                                press: gap::Takeoff::WalkOff,
+                                share: gap::Share::UNFLOWN,
+                                walk: None,
+                            },
                         }
                     })?
                     },
@@ -4144,8 +4183,15 @@ impl WalkGrid {
         };
         let (p, q) = (self.position(from), self.position(to));
         if kind.is_off_mesh() {
-            let takeoff = self.off_link(from, to).map_or(0.0, |l| l.press.penalty());
-            return gap_cost(kind, (q - p).length(), p.distance_xz(q), p.y - q.y) + takeoff + lip + marginal + fall;
+            let link = self.off_link(from, to);
+            let cost = gap_cost(kind, (q - p).length(), p.distance_xz(q), p.y - q.y);
+            // [A385] A flown link is priced by its share: the tries that fail for each that lands, each the link and its run-up
+            // again (A385-FORMAT §4), in place of the press's and the marginal height's fixed penalties.
+            if let Some(l) = link.filter(|l| l.share.flown().is_some()) {
+                return cost + l.share.failed_tries() * (cost + l.press.run_up_m()) + lip + fall;
+            }
+            let takeoff = link.map_or(0.0, |l| l.press.penalty());
+            return cost + takeoff + lip + marginal + fall;
         }
         let descent = if kind == LinkKind::Drop {
             DROP_DESCENT_PENALTY * (self.height[from as usize] - self.height[to as usize]).max(0.0)

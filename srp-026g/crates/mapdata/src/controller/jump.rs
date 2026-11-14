@@ -43,6 +43,28 @@ const FORWARD_LANDING_S: f32 = 4.0;
 /// The walk cap of a body that does not sprint, m/s (`max_speed` 3.5 x the kit's factor 1).
 pub const WALK_CAP_MS: f32 = 3.5;
 
+/// [A385] A flight's body and world: the body's own walk cap (`base_player::max_speed` 0x2DC010: the stance's base speed through
+/// the kit's movement modifiers, x `long_jump_speed_factor` 1.0, exactness 2026-11-14) and the world's height off the map's, as a
+/// lift of the body at its first air step (`dy` m: the top `dy` lower against the arc; a model of a world 1-2 cm off, not a
+/// client rule).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Flight {
+    /// The walk cap, m/s.
+    pub cap: f32,
+    /// The lift at the first air step, m.
+    pub dy: f32,
+}
+
+impl Flight {
+    /// The grid's body: the kit factor 1, the map's world.
+    pub const CLIENT: Self = Self { cap: WALK_CAP_MS, dy: 0.0 };
+
+    /// The sprint at this walk cap: [`SPRINT_MS`] scaled by the same kit factor.
+    pub fn sprint_ms(self) -> f32 {
+        SPRINT_MS * self.cap / WALK_CAP_MS
+    }
+}
+
 /// The run cycle's leg a sprint jump starts from (the selector's +50h): its clip.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Leg {
@@ -123,21 +145,22 @@ struct Driver {
     w: f64,
     /// The forward key held in the air ([`Keys::air_forward`]).
     air_forward: bool,
+    flight: Flight,
 }
 
 impl Driver {
-    fn new(press: Press) -> Self {
+    fn new(press: Press, flight: Flight) -> Self {
         match press {
             Press::Walk { speed } => {
                 let w = 1.0 - f64::from((speed.max(1.0) / FORWARD_LANDING_S).min(0.99));
-                Self { press, a: &jump_clips::ON_SITE, b: &jump_clips::ON_SITE_FWD, w, air_forward: true }
+                Self { press, a: &jump_clips::ON_SITE, b: &jump_clips::ON_SITE_FWD, w, air_forward: true, flight }
             }
             Press::Sprint { leg, .. } => {
                 let clip = match leg {
                     Leg::Left => &jump_clips::SPRINT_FROM_LEFT_LEG,
                     Leg::Right => &jump_clips::SPRINT_FROM_RIGHT_LEG,
                 };
-                Self { press, a: clip, b: clip, w: 0.0, air_forward: true }
+                Self { press, a: clip, b: clip, w: 0.0, air_forward: true, flight }
             }
         }
     }
@@ -178,7 +201,7 @@ impl Driver {
                     // On the floor the prepare's and the clip's travel are over the cap: the cap along the clip's way.
                     let r = self.mix(24.0);
                     let l = (r[1] * r[1] + r[2] * r[2]).sqrt();
-                    let c = f64::from(WALK_CAP_MS * DT);
+                    let c = f64::from(self.flight.cap * DT);
                     ((r[1] / l * c) as f32, (r[2] / l * c) as f32, 0.0)
                 }
             }
@@ -187,14 +210,17 @@ impl Driver {
 
     /// Step n's input, the body heading `(fx, fz)` (unit, flat) with the forward key held.
     fn input(&self, n: u32, heading: (f32, f32)) -> TickInput {
-        let (ahead, side, rise) = self.motion(n);
+        let (ahead, side, mut rise) = self.motion(n);
+        if n == self.press.takeoff_n() {
+            rise += self.flight.dy;
+        }
         // (ahead, right) in the body's frame to the map's (x, z): right = (fz, -fx).
         let (fx, fz) = heading;
         let (mut wx, mut wz) = (ahead * fx + side * fz, ahead * fz - side * fx);
         let air = self.in_air(n);
         if !air {
             // 0x2D9060: the horizontal walk cut to `max_speed` x the step when the controller is not in a jump.
-            let cap = WALK_CAP_MS * DT;
+            let cap = self.flight.cap * DT;
             let l = (wx * wx + wz * wz).sqrt();
             if l >= cap && l > 0.0 {
                 wx *= cap / l;
@@ -256,7 +282,23 @@ impl Keys {
 /// the clip's last travel to the walk cap over 6 steps and a sprint jump's is at the cap; let go, the last travel runs down
 /// to nothing over 6 steps. Each step's feet, the press's step first. The body is left where the flight left it.
 pub fn fly(world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f32), press: Press, keys: Keys, ground_steps: u32) -> Vec<FlightStep> {
-    let mut driver = Driver::new(press);
+    fly_as(world, s, c, heading, press, keys, ground_steps, Flight::CLIENT)
+}
+
+/// [`fly`] for the body and world `flight` ([`Flight`]).
+#[allow(clippy::too_many_arguments)]
+pub fn fly_as(
+    world: &Collision,
+    s: &Settings,
+    c: &mut Controller,
+    heading: (f32, f32),
+    press: Press,
+    keys: Keys,
+    ground_steps: u32,
+    flight: Flight,
+) -> Vec<FlightStep> {
+    let cap = flight.cap;
+    let mut driver = Driver::new(press, flight);
     driver.air_forward = keys.air_forward;
     let landing = press.landing_n();
     let mut steps = Vec::with_capacity((landing + ground_steps) as usize + 1);
@@ -277,13 +319,18 @@ pub fn fly(world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f
         let ramp = m.min(6) as f32 / 6.0;
         let speed = match press {
             _ if !keys.held_after => last_travel * (1.0 - ramp),
-            Press::Sprint { .. } => WALK_CAP_MS,
-            Press::Walk { .. } => last_travel + (WALK_CAP_MS - last_travel) * ramp,
+            Press::Sprint { .. } => cap,
+            Press::Walk { .. } => last_travel + (cap - last_travel) * ramp,
         };
         walk_step(c, world, s, way * (speed * DT), false);
         steps.push(FlightStep { n: landing + m, feet: c.feet(), in_jump: c.jumping, on_ground: c.on_ground(s) });
     }
     steps
+}
+
+/// [A385] The floor a run-up's walk-up to `speed` takes ([`run_up`]: 6 steps ramping to the speed, k / 6 of it at step k), m.
+pub fn blend_m(speed: f32) -> f32 {
+    (1..=6).map(|k| speed * DT * k as f32 / 6.0).sum()
 }
 
 /// How a run-up ended ([`run_up`]).
@@ -360,6 +407,176 @@ pub fn run_and_fly(world: &Collision, s: &Settings, press_at: Vec3, heading: (f3
         _ => Press::Walk { speed: v },
     };
     Some(fly(world, s, &mut c, heading, press, Keys::BOT, ground_steps))
+}
+
+/// [A385] The sprint jump's first air frames flown: the prepare's phase is a continuum (0x3375A0: the time scale (B + A / C) / 2,
+/// A the time left in the run clip's interval, exactness 2026-11-14); 6.57-7.44 is the range COUNTED over 16 traced sprint jumps
+/// (not the client's bounds), flown at its two ends and its middle.
+pub const SPRINT_FIRST_AIR_FRAMES: [f32; 3] = [6.57, 7.005, 7.44];
+
+/// [A385] The sprint jump's variants, none of them the bot's to choose (the leg is the selector's +50h, 0x3371F3; the phase the
+/// prepare's): each leg at each of [`SPRINT_FIRST_AIR_FRAMES`]. A sprint press lands only when every variant lands.
+pub fn sprint_variants() -> impl Iterator<Item = (Leg, f32)> {
+    [Leg::Left, Leg::Right].into_iter().flat_map(|leg| SPRINT_FIRST_AIR_FRAMES.into_iter().map(move |f| (leg, f)))
+}
+
+/// [A385] A press's gait, its sprint variants not chosen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Kind {
+    /// The short jump from the walk at the body's walk cap.
+    Walk,
+    /// The sprint jump from the sprint, all its variants ([`sprint_variants`]).
+    Sprint,
+}
+
+/// [A385] The neighbourhood's offsets (A385-FORMAT §2; the motor's measured spread, owner-5 §2.2): the lead earlier / later.
+pub const NEIGHBOUR_LEADS_M: [f32; 4] = [-0.2, -0.1, 0.1, 0.2];
+/// … the line moved to each side, m.
+pub const NEIGHBOUR_SIDE_M: f32 = 0.15;
+/// … the heading turned each way about the press point, rad.
+pub const NEIGHBOUR_TURN_RAD: f32 = 0.1;
+/// … the world off in height, each way, m ([`Flight::dy`]; Mamayev R2's one landing press turns on 1 cm).
+pub const NEIGHBOUR_DY_M: [f32; 2] = [0.01, 0.02];
+/// The flights of a neighbourhood ([`neighbourhood`]).
+pub const NEIGHBOURS: usize = 14;
+
+/// [A385] One flight of a press's neighbourhood: the press moved by these offsets.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Neighbour {
+    /// Pressed this much earlier (more lead), m.
+    pub lead: f32,
+    /// The press point moved to the way's right, m.
+    pub side: f32,
+    /// The heading turned (counter-clockwise seen from above), rad.
+    pub turn: f32,
+    /// The world's height offset ([`Flight::dy`]), m.
+    pub dy: f32,
+    /// At the bots' fastest kit's walk cap ([`Kits::fastest`]) instead of the grid body's.
+    pub fastest: bool,
+}
+
+impl Neighbour {
+    const AT: Self = Self { lead: 0.0, side: 0.0, turn: 0.0, dy: 0.0, fastest: false };
+}
+
+/// [A385] A press's neighbourhood (A385-FORMAT §2): the press itself, the leads, the sides, the turns, the world's heights and
+/// the fastest kit, [`NEIGHBOURS`] flights.
+pub fn neighbourhood() -> [Neighbour; NEIGHBOURS] {
+    let mut out = [Neighbour::AT; NEIGHBOURS];
+    let mut i = 1;
+    for lead in NEIGHBOUR_LEADS_M {
+        out[i].lead = lead;
+        i += 1;
+    }
+    for side in [-NEIGHBOUR_SIDE_M, NEIGHBOUR_SIDE_M] {
+        out[i].side = side;
+        i += 1;
+    }
+    for turn in [-NEIGHBOUR_TURN_RAD, NEIGHBOUR_TURN_RAD] {
+        out[i].turn = turn;
+        i += 1;
+    }
+    for dy in NEIGHBOUR_DY_M {
+        for sign in [-1.0, 1.0] {
+            out[i].dy = sign * dy;
+            i += 1;
+        }
+    }
+    out[i].fastest = true;
+    out
+}
+
+/// [A385] A walk-off's neighbourhood (nav-builder's A389): [`neighbourhood`] without its lead row (a walk-off has no press).
+pub fn neighbourhood_walk_off() -> Vec<Neighbour> {
+    neighbourhood().into_iter().filter(|n| n.lead == 0.0).collect()
+}
+
+/// [A385] The walk caps a link is flown at: the grid body's and the bots' fastest kit's, m/s (both the body's
+/// `base_player::max_speed` 0x2DC010 with its kit's movement modifiers).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Kits {
+    pub body: f32,
+    pub fastest: f32,
+}
+
+/// [A385] The ground steps a scoring flight runs after the jump: the release's run-down to rest over 6 steps ([`fly`] with the
+/// key let go) and one step at rest.
+pub const STAY_STEPS: u32 = 7;
+
+/// [A385] The keys of a scoring flight: forward held to the landing, let go there (A385-FORMAT §1 "stays").
+pub const STAY_KEYS: Keys = Keys { air_forward: true, held_after: false };
+
+/// [A385] The flights of one neighbour `n` of the press of `kind` at `lead` m before `takeoff` (the take-off floor's centre)
+/// along `way` (flat, unit): one for a walk, one per sprint variant for a sprint, each from its run-up ([`run_up`], shared by
+/// the variants) with the keys let go at the landing ([`STAY_KEYS`], [`STAY_STEPS`]). A sprint run-up under the cap presses the
+/// client's short jump. None when the run-up does not fit.
+#[allow(clippy::too_many_arguments)]
+pub fn neighbour_flights(
+    world: &Collision,
+    s: &Settings,
+    takeoff: Vec3,
+    way: (f32, f32),
+    kind: Kind,
+    lead: f32,
+    n: Neighbour,
+    kits: Kits,
+) -> Option<Vec<Vec<FlightStep>>> {
+    let flight = Flight { cap: if n.fastest { kits.fastest } else { kits.body }, dy: n.dy };
+    let (c, sn) = (n.turn.cos(), n.turn.sin());
+    let heading = (way.0 * c - way.1 * sn, way.0 * sn + way.1 * c);
+    let right = (way.1, -way.0);
+    let back = lead + n.lead;
+    let at = Vec3::new(takeoff.x - way.0 * back + right.0 * n.side, takeoff.y, takeoff.z - way.1 * back + right.1 * n.side);
+    match kind {
+        Kind::Walk => {
+            let RunUp { body: mut b, speed } = run_up(world, s, at, heading, flight.cap, false)?;
+            Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, STAY_STEPS, flight)])
+        }
+        Kind::Sprint => {
+            let run = run_up(world, s, at, heading, flight.sprint_ms(), true)?;
+            Some(
+                sprint_variants()
+                    .map(|(leg, first_air_frame)| {
+                        let press = if run.speed >= flight.cap {
+                            Press::Sprint { speed: run.speed, leg, first_air_frame }
+                        } else {
+                            Press::Walk { speed: run.speed }
+                        };
+                        let mut b = run.body;
+                        fly_as(world, s, &mut b, heading, press, STAY_KEYS, STAY_STEPS, flight)
+                    })
+                    .collect(),
+            )
+        }
+    }
+}
+
+/// [A385] A flight's landing and its rest: the first step after the jump's first air step out of the jump on which the client
+/// has the body on the ground (`on_ground` 0x7EF90), and the flight's last step, when the body is on the ground on every step
+/// from the landing on (it stays: A385-FORMAT §1); None when it never lands or leaves the ground after landing (it skims).
+pub fn landing_and_rest(steps: &[FlightStep]) -> Option<(FlightStep, FlightStep)> {
+    let first_air = steps.iter().position(|f| f.in_jump)?;
+    let landing = first_air + steps[first_air..].iter().position(|f| !f.in_jump && f.on_ground)?;
+    steps[landing..].iter().all(|f| f.on_ground).then(|| (steps[landing], steps[steps.len() - 1]))
+}
+
+/// [A385] A press's share (A385-FORMAT §2): of its [`NEIGHBOURS`] neighbours, how many land (`lands` holds for each of the
+/// neighbour's flights: every sprint variant); a neighbour whose run-up does not fit does not land.
+#[allow(clippy::too_many_arguments)]
+pub fn score(
+    world: &Collision,
+    s: &Settings,
+    takeoff: Vec3,
+    way: (f32, f32),
+    kind: Kind,
+    lead: f32,
+    kits: Kits,
+    lands: impl Fn(&[FlightStep]) -> bool,
+) -> u8 {
+    neighbourhood()
+        .into_iter()
+        .filter(|&n| neighbour_flights(world, s, takeoff, way, kind, lead, n, kits).is_some_and(|f| f.iter().all(|st| lands(st))))
+        .count() as u8
 }
 
 #[cfg(test)]

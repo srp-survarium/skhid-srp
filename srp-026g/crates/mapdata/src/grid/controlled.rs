@@ -20,7 +20,7 @@
 //! takes; a bridge is added, and a walk link taken away, only on what all three lines agree on.
 //!
 //! The controller runs whole ticks at [`WALK_MPS`] toward the target floor for the ticks the leg takes and two more.
-use super::gap::{OffLink, Takeoff};
+use super::gap::{OffLink, Share, Takeoff};
 use super::*;
 use crate::controller::tick::{Controller, Settings, TickInput};
 use crate::controller::{Capsule, Collision, Shape};
@@ -647,7 +647,7 @@ impl WalkGrid {
         }
         for &(a, b) in &new {
             if over_drop.contains(&(a, b)) || self.bridge_run(&all, a, b) >= BRIDGE_MIN_RUN {
-                wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapJump, press: Takeoff::WalkOff });
+                wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapJump, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None });
                 stats.bridges_walked += 1;
                 stats.bridges_added += 1;
             } else {
