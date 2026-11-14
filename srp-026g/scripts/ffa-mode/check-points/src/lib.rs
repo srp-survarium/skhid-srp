@@ -2,6 +2,8 @@
 
 use mapdata::{Body, MapData, Materials, RayTree, Resources, Vec3, WalkGrid};
 
+pub mod cover;
+
 /// The ground ray starts this far above the point.
 const ABOVE: f32 = 1.5;
 /// And looks this far below it.
@@ -123,6 +125,26 @@ impl Map {
             }
         }
         None
+    }
+
+    /// The walk grid's floors reached from the map's spawns where a body
+    /// stands, inside `bounds` (`[x0, z0, x1, z1]`) when given.
+    pub fn standing_floors(&self, bounds: Option<[f32; 4]>) -> Vec<u32> {
+        let seeds: Vec<_> = self
+            .data
+            .spawns
+            .iter()
+            .filter_map(|s| self.grid.locate(s.position, 1.0))
+            .collect();
+        let reachable = self.grid.distances_from(&seeds);
+        (0..self.grid.len() as u32)
+            .filter(|&n| {
+                let p = self.grid.position(n);
+                reachable.reaches(n)
+                    && self.grid.can_stand(n)
+                    && bounds.is_none_or(|b| p.x >= b[0] && p.z >= b[1] && p.x <= b[2] && p.z <= b[3])
+            })
+            .collect()
     }
 
     /// Whether a kept floor of the walk grid, where a body stands, is near.

@@ -30,16 +30,17 @@
 //! the moved spawn's point id: center.tsv, made into an edit list by
 //! make_center_edits.py) and writes <plots>/<project>.json (the area, the
 //! spawns and what becomes of them, for a review render).
+use ffa_check_points::cover::Area;
 use ffa_check_points::{Map, Verdict};
 use mapdata::{Materials, Resources, Vec3};
 use std::{collections::BTreeSet, fmt::Write as _, path::PathBuf, process::ExitCode};
 
-const CELL: f32 = 2.0;
 const MIN_SPACING: f32 = 12.0;
 const HAZARD_MARGIN: f32 = 2.0;
 const FACING_REACH: f32 = 6.0;
 const WIDEN: f32 = 0.05;
-/// The perimeter band and the centre area, of the deepest point's depth.
+/// The perimeter band and the centre area, of the deepest point's depth (the
+/// move's own band, as center.tsv was made; the spawn rule's is `cover::BAND`).
 const BAND: f32 = 0.3;
 const CORE: f32 = 0.5;
 
@@ -49,107 +50,14 @@ struct Candidate {
     yaw: f32,
 }
 
-/// The walkable area: a raster of depths (metres from the outline; `None`
-/// outside).
-struct Area {
-    x0: f32,
-    z0: f32,
-    width: usize,
-    height: usize,
-    depth: Vec<Option<f32>>,
-    max: f32,
-    centroid: (f32, f32),
+/// to_center's own reading of the walkable area ([`Area`], the lib's).
+trait Centre {
+    fn centre(&self, core: f32) -> Vec<bool>;
+    fn in_cells(&self, cells: &[bool], p: Vec3) -> bool;
+    fn angle(&self, p: Vec3) -> f32;
 }
 
-impl Area {
-    fn new(floors: &[Vec3]) -> Result<Self, String> {
-        if floors.is_empty() {
-            return Err("no reachable standing floor".into());
-        }
-        let pad = 3.0 * CELL;
-        let lo = floors.iter().fold(floors[0], |a, p| a.min(*p));
-        let hi = floors.iter().fold(floors[0], |a, p| a.max(*p));
-        let (x0, z0) = (lo.x - pad, lo.z - pad);
-        let width = ((hi.x + pad - x0) / CELL).ceil() as usize + 1;
-        let height = ((hi.z + pad - z0) / CELL).ceil() as usize + 1;
-        let mut floor = vec![false; width * height];
-        for p in floors {
-            let (i, j) = (((p.x - x0) / CELL) as usize, ((p.z - z0) / CELL) as usize);
-            floor[j * width + i] = true;
-        }
-        let neighbours = |i: usize, j: usize| {
-            (-1i32..=1).flat_map(move |dj| {
-                (-1i32..=1).filter_map(move |di| {
-                    let (a, b) = (i as i32 + di, j as i32 + dj);
-                    (a >= 0 && b >= 0 && (a as usize) < width && (b as usize) < height)
-                        .then_some((a as usize, b as usize))
-                })
-            })
-        };
-        // Close by one cell: grow, fill the holes (what the raster's border
-        // cannot reach), shrink.
-        let grown: Vec<bool> = (0..width * height)
-            .map(|k| neighbours(k % width, k / width).any(|(a, b)| floor[b * width + a]))
-            .collect();
-        let mut outside = vec![false; width * height];
-        let mut stack: Vec<(usize, usize)> = (0..width)
-            .flat_map(|i| [(i, 0), (i, height - 1)])
-            .chain((0..height).flat_map(|j| [(0, j), (width - 1, j)]))
-            .collect();
-        while let Some((i, j)) = stack.pop() {
-            let k = j * width + i;
-            if outside[k] || grown[k] {
-                continue;
-            }
-            outside[k] = true;
-            for (a, b) in neighbours(i, j) {
-                if (a == i || b == j) && !outside[b * width + a] {
-                    stack.push((a, b));
-                }
-            }
-        }
-        let inside: Vec<bool> = (0..width * height)
-            .map(|k| !neighbours(k % width, k / width).any(|(a, b)| outside[b * width + a]))
-            .collect();
-        let edge: Vec<(f32, f32)> = (0..width * height)
-            .filter(|&k| !inside[k] && neighbours(k % width, k / width).any(|(a, b)| inside[b * width + a]))
-            .map(|k| ((k % width) as f32, (k / width) as f32))
-            .collect();
-        let mut depth = vec![None; width * height];
-        let (mut max, mut sx, mut sz, mut n) = (0f32, 0f32, 0f32, 0f32);
-        for k in (0..width * height).filter(|&k| inside[k]) {
-            let (i, j) = ((k % width) as f32, (k / width) as f32);
-            let d = edge
-                .iter()
-                .map(|(a, b)| (a - i).hypot(b - j))
-                .fold(f32::INFINITY, f32::min);
-            let d = (d - 0.5) * CELL;
-            depth[k] = Some(d);
-            max = max.max(d);
-            sx += x0 + (i + 0.5) * CELL;
-            sz += z0 + (j + 0.5) * CELL;
-            n += 1.0;
-        }
-        Ok(Self {
-            x0,
-            z0,
-            width,
-            height,
-            depth,
-            max,
-            centroid: (sx / n, sz / n),
-        })
-    }
-
-    /// The depth at `p`, 0 outside the area.
-    fn at(&self, p: Vec3) -> f32 {
-        let (i, j) = ((p.x - self.x0) / CELL, (p.z - self.z0) / CELL);
-        if i < 0.0 || j < 0.0 || i as usize >= self.width || j as usize >= self.height {
-            return 0.0;
-        }
-        self.depth[j as usize * self.width + i as usize].unwrap_or(0.0)
-    }
-
+impl Centre for Area {
     /// The cells of the centre area: those at least `core` deep connected to
     /// the deepest (a wing's own deep cells are no centre).
     fn centre(&self, core: f32) -> Vec<bool> {
@@ -179,7 +87,7 @@ impl Area {
     }
 
     fn in_cells(&self, cells: &[bool], p: Vec3) -> bool {
-        let (i, j) = ((p.x - self.x0) / CELL, (p.z - self.z0) / CELL);
+        let (i, j) = ((p.x - self.x0) / Area::CELL, (p.z - self.z0) / Area::CELL);
         i >= 0.0
             && j >= 0.0
             && (i as usize) < self.width
@@ -352,20 +260,7 @@ fn run() -> Result<(), String> {
     for (project, bounds) in &args.projects {
         eprintln!("loading {project}");
         let map = Map::load_in(&mut resources, &materials, project, *bounds)?;
-        let seeds: Vec<_> = map
-            .data
-            .spawns
-            .iter()
-            .filter_map(|s| map.grid.locate(s.position, 1.0))
-            .collect();
-        let reachable = map.grid.distances_from(&seeds);
-        let floors: Vec<u32> = (0..map.grid.len() as u32)
-            .filter(|&n| {
-                reachable.reaches(n)
-                    && map.grid.can_stand(n)
-                    && inside(*bounds, map.grid.position(n))
-            })
-            .collect();
+        let floors = map.standing_floors(*bounds);
         let positions: Vec<Vec3> = floors.iter().map(|&n| map.grid.position(n)).collect();
         let area = Area::new(&positions)?;
         let band = BAND * area.max;
@@ -482,7 +377,8 @@ fn run() -> Result<(), String> {
         let f = |v: f32| format!("{v:.3}");
         write!(
             json,
-            "{{\"project\":\"{project}\",\"cell\":{CELL},\"x0\":{},\"z0\":{},\"width\":{},\"height\":{},\"max\":{},\"band\":{},\"core\":{},\"centroid\":[{},{}],",
+            "{{\"project\":\"{project}\",\"cell\":{},\"x0\":{},\"z0\":{},\"width\":{},\"height\":{},\"max\":{},\"band\":{},\"core\":{},\"centroid\":[{},{}],",
+            Area::CELL,
             f(area.x0),
             f(area.z0),
             area.width,
