@@ -715,6 +715,13 @@ pub struct CombatTuning {
     /// (with both hands broken and a two-handed gun the bots held FIRE or AIM in 160 of 670 worlds, `damage_model.md`).
     /// That old value is wrong by the client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`).
     pub hands_from_world: bool,
+    /// [Gap 14] The fight decisions that go by the bot's last hit (the reflex's hit reaction, the commander's in-fight
+    /// list, the stuck check's quiet, the trap habit's and trap reaction's fight gates) take only a hit the worlds show
+    /// to be an enemy's: one in a world interval in which the body's `received_damage` grew (it grows only for an
+    /// inflictor of the other team, `add_received_damage` 0x2F58E0; [`super::hit_kind`]). Off: any hit that took health
+    /// (`m_last_hit_time_ms`: a zone's, a fall's, a mate's too, 0x2E5134). That old value is wrong by the client, so it is
+    /// on by default and the all-off patch keeps it (`KEPT_RIGHT`).
+    pub hit_kind: bool,
     /// [Gap 8] An enemy who cannot be hurt now (spawn protection: [`super::protection`]) is no target while another
     /// seen enemy in range can be hurt, and no shot goes at him (a hit does nothing: `hit_impl` 0x2D9BBE). Which enemies
     /// are protected follows the rule a player can apply (his life's start and his team's points' time), or the world's
@@ -1615,6 +1622,7 @@ impl Default for CombatTuning {
             worn_kit_from_world: true,
             weapon_in_hands: true,
             hands_from_world: true,
+            hit_kind: true,
             spawn_protection: true,
             stacks_from_world: true,
             reload_aim_control: true,

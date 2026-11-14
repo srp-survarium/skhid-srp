@@ -406,6 +406,9 @@ pub(crate) struct Body {
     pub(crate) legs: [f32; 2],
     pub(crate) leg_broken_until: u32,
     pub(crate) last_hit: u32,
+    /// [Gap 14] Its received damage from enemies so far, as its statistics' `received_damage` (the stand-in adds one a hit
+    /// by an enemy's bullet or grenade: the bots read only whether it grew).
+    pub(crate) received: f32,
     /// The hits of the last half second and their stopping power ([`standin_stagger`]).
     pub(crate) stagger: standin_stagger::Stagger,
     /// [2e] Until when the sights are still coming down after AIM went up, ms ([`stand_in_sprint_gates`]).
@@ -956,6 +959,7 @@ impl Game {
             legs: [0.5; 2],
             leg_broken_until: 0,
             last_hit: 0,
+            received: 0.0,
             stagger: standin_stagger::Stagger::default(),
             aim_out_until: 0,
             speed_level: 1.0,
@@ -2214,6 +2218,7 @@ impl Game {
         standin_heal::stop_on_bullet(other, target, before, tick, &mut self.drug_stops);
         other.stamina.hit(stamina);
         other.last_hit = tick;
+        other.received += if team_hit { 0.0 } else { 1.0 };
         other.stagger.hit(tick, standin_stagger::power_of(&self.damage, gun));
         if let Some(leg) = stand_in_leg_hit(tick, shooter, target) {
             other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
@@ -2271,6 +2276,7 @@ impl Game {
             standin_damage::hit_boxes(&self.damage, other, gun, &landed, tick);
             standin_heal::stop_on_bullet(other, target, before, tick, &mut self.drug_stops);
             other.last_hit = tick;
+            other.received += if team_hit { 0.0 } else { 1.0 };
             // Every pellet that landed is a bullet of its own.
             other.stagger.hit(tick, standin_stagger::power_of(&self.damage, gun) * landed.len() as f32);
             for leg in [0, 1] {
@@ -3074,6 +3080,11 @@ impl Game {
     }
 
     /// The bodies' hurts in the world of `tick` ([`Self::world_at`]).
+    /// [Gap 14] The bodies' received damage from enemies in the world of `tick` ([`Body::received`]).
+    pub(crate) fn received_at(&self, tick: u32) -> Option<Vec<f32>> {
+        self.seen_at(tick).map(|seen| seen.iter().map(|seen| seen.received).collect())
+    }
+
     pub(crate) fn hurts_at(&self, tick: u32) -> Option<Vec<Hurt>> {
         let (_, hurts) = self.hurts.iter().find(|(t, _)| *t == tick)?;
         Some(hurts.clone())

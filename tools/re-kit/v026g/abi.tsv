@@ -1265,6 +1265,7 @@ va	name	source	ret_cleanup	result
 0x002f0d30	survarium::character_dispersion_params::load	manual	8	
 0x002f1050	survarium::character_dispersion_skill_influence::load	manual	4	
 0x002f12a0	survarium::player_stealth::load	manual	4	
+0x002f58e0	survarium::shared_statistics::add_received_damage	manual	8	AL = the inflictor's id: 0xFF (no inflictor: a zone, a fall) adds nothing (0x2F58E2); an inflictor of the receiver's team (the records' team +45ECh, stride 45FCh) adds nothing (0x2F590B..0x2F5914); else received_damage[receiver][inflictor][kit] += XMM0 (0x2F5916..0x2F592F)
 0x002f5940	survarium::shared_statistics::on_trap_hit	manual		reached only from booby_trap_core::hit_victim 0x304B80 (handler slot +28h, thunk 0x26DB20); enemies only: last_hit_ms[receiver] (+198h) := the time, last_hit_enemy_id (+1ECh) := receiver, event 21 +1
 0x002f5ac0	survarium::shared_statistics::serialize	manual	0	
 0x002f5be0	survarium::shared_statistics::deserialize	manual	0	
