@@ -1323,7 +1323,8 @@ function fillHealPick() {
 }
 // Healing compared, with the picks above: recovering by itself, the Larkspurs
 // carried and one activated, the medikits and bandages; every number from the
-// data, every rule RULES' (regeneration, medicine).
+// data, every rule RULES' (regeneration, medicine). An activated Larkspur
+// fills every pool at once (exe patch 54, no config says so: artefacts.md).
 function drawHealing() {
   const row = n => DATA.body.find(r => r.name === n);
   const pools = ["body", "head", "right_leg", "pain"];
@@ -1348,7 +1349,7 @@ function drawHealing() {
       rows.push([named(`${nm(lark)} ×${n}, ${T("carried", "у слоті")}`, "artefact_lifebone"), starts(carried[0]), ...carried.map(cell), dash]);
     }
     const cures = (lark.active.remove_affects || []).length;
-    rows.push([named(`${nm(lark)}, ${T("activated", "активований")}`, "artefact_lifebone"), T(`at once, every ${lark.cooldown_s} s`, `одразу, раз на ${lark.cooldown_s} с`), dash, dash, dash, dash, cures ? fixed : dash]);
+    rows.push([named(`${nm(lark)}, ${T("activated", "активований")}`, "artefact_lifebone"), T(`at once, every ${lark.cooldown_s} s`, `одразу, раз на ${lark.cooldown_s} с`), full, full, full, full, cures ? fixed : dash]);
   }
   for (const key of ["medkit", "military_medkit", "blackmarket_medkit", "science_medkit", "bandages"]) {
     const d = DATA.drugs && DATA.drugs[key]; if (!d) continue;

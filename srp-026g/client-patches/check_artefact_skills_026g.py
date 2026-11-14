@@ -1037,8 +1037,8 @@ def check_share_matrix(data):
     - Lifebone: its passive at the part's regeneration tick;
     - the activation (artefact_base::action's hook 0x313333, Medic's path, every kind since the
       owner's rev51 games): the recipient plays the kind's activation glow (the copy's
-      active_resource, the active's length, the timed clock) and a Lifebone's heals it (body, head,
-      pain full). On main only a Lifebone's did: a Spring's and an Onyx's played nothing.
+      active_resource, the active's length, the timed clock) and a Lifebone's heals it (every body
+      part full). On main only a Lifebone's did: a Spring's and an Onyx's played nothing.
     Up to the reach and past it: Resonance 9 m, Cascade 6 m (the owner, 2026-11-07; were 8 m and
     5 m, so 8.5 m and 5.5 m fail before it)."""
     outcomes = []
@@ -1098,8 +1098,8 @@ def check_share_matrix(data):
                 item = m.artefact(at, enable, 4)
                 g.word(item + 0x290, g.effect_resource())
                 g.word(item + left, length)
-                for name in ('body', 'head', 'pain'):
-                    g.word(g.pools[PLAYER][name] + 0xA0, bits(0.1))
+                for pool in g.pools[PLAYER].values():
+                    g.word(pool + 0xA0, bits(0.1))
                 g.effects.clear()
                 g.step(0x313333, 6, esi=item, edi=1234)
                 gets = shared and skill == CASCADE
@@ -1107,8 +1107,8 @@ def check_share_matrix(data):
                 if gets:
                     close(g.float(g.effect_instances[-1] + 0x24), length / 1000)
                 healed = gets and kind == 'Lifebone'
-                for name, maximum in (('body', 1.0), ('head', 0.4), ('pain', 1.0)):
-                    close(g.float(g.pools[PLAYER][name] + 0xA0), maximum if healed else 0.1)
+                for pool in g.pools[PLAYER].values():      # the limbs too (the owner, 2026-11-14)
+                    close(g.float(pool + 0xA0), g.float(pool + 0x9C) if healed else 0.1)
                 outcomes.append((kind, 'activation', skill, distance, gets))
     print("Resonance and Cascade, every kind: a teammate on kit 1 (kit objects of their own) gives a "
           "recipient on kit 1 its Spring's passive (Resonance) or whole active (Cascade: every list through "
