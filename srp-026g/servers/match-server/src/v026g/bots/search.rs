@@ -545,7 +545,7 @@ impl Bots {
         let (time, side, objective) = (pending.time, pending.side, pending.objective);
         let filter = pending.filter.clone();
         let start = pending.ends.0;
-        let body = pending.body;
+        let body = pending.body.clone();
         #[cfg(test)]
         let _tag = path::tag::Scope::new(
             self.bots
@@ -561,7 +561,7 @@ impl Bots {
                 time,
                 side,
                 objective,
-                body,
+                &body,
                 &filter,
                 floors,
             )
@@ -596,7 +596,7 @@ impl Bots {
                 from,
                 second.plain,
                 route,
-                body,
+                &body,
                 time,
                 side,
                 objective,
@@ -619,7 +619,7 @@ impl Bots {
             // search (`crossing.rs`).
             let mut from_zone = false;
             if !(route.is_some() && long_kept)
-                && (crossing::wanted(tactics, route.as_ref(), from, to, side, objective, body) || {
+                && (crossing::wanted(tactics, route.as_ref(), from, to, side, objective, &body) || {
                     from_zone = from_zone_on && crossing::wanted_from_zone(tactics, route.as_ref(), from, to);
                     from_zone
                 })
@@ -628,7 +628,7 @@ impl Bots {
                     super::plays::collect::take_counts::count(super::plays::collect::take_counts::Count::ZoneSearchAsked);
                 }
                 match crossing::start(
-                    tactics, from, to, time, side, objective, body, &filter, floors,
+                    tactics, from, to, time, side, objective, &body, &filter, floors,
                 ) {
                     Ok(crossing_route) => {
                         if from_zone && crossing_route.is_some() {
@@ -639,7 +639,7 @@ impl Bots {
                             from,
                             route,
                             crossing_route,
-                            body,
+                            &body,
                             time,
                             side,
                             objective,

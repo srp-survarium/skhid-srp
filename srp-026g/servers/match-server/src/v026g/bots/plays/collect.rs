@@ -1192,7 +1192,7 @@ pub fn routed_crossing_to(
         0,
         Some(side),
         false,
-        crate::v026g::bots::crossing::CrossBody::old(1.0),
+        &crate::v026g::bots::crossing::CrossBody::old(1.0),
         &crate::v026g::bots::route_filter::RouteFilter::open(),
         &mut floors,
     )
@@ -1272,7 +1272,7 @@ pub fn routed_crossing_to(
                 0,
                 Some(side),
                 false,
-                crate::v026g::bots::crossing::CrossBody::old(1.0),
+                &crate::v026g::bots::crossing::CrossBody::old(1.0),
                 &crate::v026g::bots::route_filter::RouteFilter::open(),
                 &mut floors,
             )
@@ -4202,7 +4202,7 @@ mod tests {
                             0,
                             Some(i32::from(team)),
                             false,
-                            crate::v026g::bots::crossing::CrossBody::old(1.0),
+                            &crate::v026g::bots::crossing::CrossBody::old(1.0),
                             &crate::v026g::bots::route_filter::RouteFilter::open(),
                             &mut floors,
                         )
@@ -4210,7 +4210,7 @@ mod tests {
                         .flatten();
                         let hurt = route
                             .as_ref()
-                            .map(|r| crate::v026g::bots::crossing::hurt(&s.tactics, r, 0.0, r.length()));
+                            .map(|r| crate::v026g::bots::crossing::hurt(&s.tactics, r, 0.0, r.length(), None));
                         let cheapest = cheapest.get_or_insert_with(|| {
                             crate::v026g::bots::zone_search::Cheapest::from(&s.tactics, from, Some(i32::from(team)), None)
                         });
@@ -4218,7 +4218,7 @@ mod tests {
                             crate::v026g::bots::zone_search::walk_cost(&s.tactics, &p, None)
                         });
                         cheap_found += usize::from(dear.is_some());
-                        cheap_borne += usize::from(dear.is_some_and(|(c, _)| crate::v026g::bots::crossing::CrossBody::old(1.0).bears(c.body)));
+                        cheap_borne += usize::from(dear.is_some_and(|(c, _)| crate::v026g::bots::crossing::CrossBody::old(1.0).bears(c)));
                         eprintln!("    cheapest: {:?}", dear.map(|(c, m)| (c.body, m)));
                         routed += usize::from(route.is_some());
                         borne += usize::from(hurt.is_some_and(|h| crate::v026g::bots::crossing::CrossBody::old(1.0).bears(h)));
@@ -4482,7 +4482,7 @@ mod tests {
                     0,
                     Some(i32::from(team)),
                     false,
-                    crate::v026g::bots::crossing::CrossBody::old(1.0),
+                    &crate::v026g::bots::crossing::CrossBody::old(1.0),
                     &crate::v026g::bots::route_filter::RouteFilter::open(),
                     &mut floors,
                 );
@@ -4490,7 +4490,7 @@ mod tests {
                     .as_ref()
                     .ok()
                     .and_then(|r| r.as_ref())
-                    .map(|r| (r.length(), crate::v026g::bots::crossing::hurt(&s.tactics, r, 0.0, r.length())));
+                    .map(|r| (r.length(), crate::v026g::bots::crossing::hurt(&s.tactics, r, 0.0, r.length(), cx.zone_armour())));
                 eprintln!("walk_in   way out to the spawn: length and hurt {hurt:?}");
                 let cheapest = crate::v026g::bots::zone_search::Cheapest::from(&s.tactics, to, Some(i32::from(team)), cx.zone_armour());
                 let priced = cheapest.path_to(home).map(|path| {
@@ -4518,7 +4518,7 @@ mod tests {
                     0,
                     Some(i32::from(team)),
                     false,
-                    crate::v026g::bots::crossing::CrossBody::old(1.0),
+                    &crate::v026g::bots::crossing::CrossBody::old(1.0),
                     &crate::v026g::bots::route_filter::RouteFilter::open(),
                     &mut floors,
                 );

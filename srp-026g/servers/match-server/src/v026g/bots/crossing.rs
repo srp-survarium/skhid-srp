@@ -44,6 +44,7 @@ use super::route_filter::RouteFilter;
 use super::plays::collect::{CROSS_ABORT_LEFT, CROSS_LEFT, CROSS_MPS, CROSS_SHARE, CROSS_STEP_M};
 use super::stuck;
 use super::tactics::Tactics;
+use super::zone_cost::{Budget, Cost, ZoneArmour};
 
 /// A patch walled by zones on all match is at most this, m² (in floors,
 /// [`ring_floors`]). GUESS: a room; the Mamayev Kurgan patch was 6 m²
@@ -74,37 +75,63 @@ pub struct Second {
     pub body: CrossBody,
 }
 
-/// [zone price] The body a crossing is weighed for: its health, and the spend its walk may take (`share` of the health at
-/// most, leaving `left`) and where a walk inside gives up (`give_up_left`): with `take.zone_take` the battery's class's
-/// (`ZoneSpend::spend`, the live humans' rows), else the old 0.5 / 0.4 / 0.25 ([`Self::old`]).
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// [zone price] The body a crossing is weighed for: its zone budget (`zone_cost::Budget`: the pools that kill and the
+/// armour a zone's hit is worked out with, the offer's own, `Ctx::budget`), and the spend its walk may take (`share` of
+/// each pool at most, leaving `left`) and where a walk inside gives up (`give_up_left`): with `take.zone_take` the
+/// battery's class's (`ZoneSpend::spend`, the live humans' rows), else the old 0.5 / 0.4 / 0.25 ([`Self::old`]).
+#[derive(Clone, Debug, PartialEq)]
 pub struct CrossBody {
-    pub health: f32,
+    pub budget: Budget,
     pub share: f32,
     pub left: f32,
     pub give_up_left: f32,
 }
 
 impl CrossBody {
-    /// The rule before the spend's classes: [`CROSS_SHARE`], [`CROSS_LEFT`], [`CROSS_ABORT_LEFT`].
+    /// The rule before the spend's classes ([`CROSS_SHARE`], [`CROSS_LEFT`], [`CROSS_ABORT_LEFT`]), the raw hit in the
+    /// body pool of `health`.
     pub fn old(health: f32) -> Self {
-        Self { health, share: CROSS_SHARE, left: CROSS_LEFT, give_up_left: CROSS_ABORT_LEFT }
+        Self { budget: Budget::raw(health), share: CROSS_SHARE, left: CROSS_LEFT, give_up_left: CROSS_ABORT_LEFT }
     }
 
-    /// `me`'s body now, by `tuning`'s rule (`take.zone_take`'s spend for `me`'s zone errand, `collect::zone_errand`).
-    pub fn of(tuning: &super::tuning::Tuning, view: &super::view::MatchView, me: &super::view::PlaceView) -> Self {
+    /// `me`'s body now, by `tuning`'s rule: its zone budget (`Budget::of_bot`: its pools `pools` and its armour
+    /// `armour` with `hazard.zone_pools` routed), and `take.zone_take`'s spend for `me`'s zone errand
+    /// (`collect::zone_errand`).
+    pub fn of(
+        tuning: &super::tuning::Tuning,
+        view: &super::view::MatchView,
+        me: &super::view::PlaceView,
+        pools: Option<super::pools::Pools>,
+        armour: &std::sync::Arc<ZoneArmour>,
+    ) -> Self {
+        let budget = Budget::of_bot(tuning.hazard.zone_pools, me.health, pools, armour);
         match tuning.take.zone_take {
             Some(rule) => {
                 let spend = rule.spend.spend(super::plays::collect::zone_errand(view, me));
-                Self { health: me.health, share: spend.share, left: spend.left, give_up_left: rule.spend.give_up_left }
+                Self { budget, share: spend.share, left: spend.left, give_up_left: rule.spend.give_up_left }
             }
-            None => Self::old(me.health),
+            None => Self { budget, ..Self::old(me.health) },
         }
     }
 
-    /// Whether a walk that takes `cost` of the health is borne: at most `share` of it, leaving `left`.
-    pub fn bears(self, cost: f32) -> bool {
-        cost <= self.share * self.health && self.health - cost >= self.left
+    /// The body pool (the health the old rules read).
+    pub fn health(&self) -> f32 {
+        self.budget.health()
+    }
+
+    /// The armour a zone's hit is worked out with (`None`: the raw hit in the body pool).
+    pub fn armour(&self) -> Option<&ZoneArmour> {
+        self.budget.armour.as_deref()
+    }
+
+    /// Whether a walk that costs `cost` is borne: at most `share` of each pool, leaving `left` (`Reserve::bears`).
+    pub fn bears(&self, cost: Cost) -> bool {
+        self.budget.reserve.bears(cost, self.share, self.left)
+    }
+
+    /// Whether a walk that costs `cost` still leaves `give_up_left` in each pool it takes from (`Reserve::leaves`).
+    pub fn leaves(&self, cost: Cost) -> bool {
+        self.budget.reserve.leaves(cost, self.give_up_left)
     }
 }
 
@@ -116,11 +143,11 @@ impl CrossBody {
 /// shut, and so does the margin's band round them (the gate is the zone's full hit, not what a body there loses,
 /// `Hazards::hurt_per_s`: a drift into a lethal zone is not crossed for); whether a route over the floors let through
 /// is taken is [`choose`]'s.
-pub fn crossable(tactics: &Tactics, node: NodeId, body: CrossBody) -> bool {
+pub fn crossable(tactics: &Tactics, node: NodeId, body: &CrossBody) -> bool {
     let hazards = &tactics.hazards;
     hazards.only_fixed_at(node) && {
         let thinnest = 2.0 * hazards.margin.max(CROSS_STEP_M);
-        body.health - hazards.hit_per_s(node) * thinnest / CROSS_MPS >= body.give_up_left
+        body.leaves(hazards.cost_per_s(node, body.armour()) * (thinnest / CROSS_MPS))
     }
 }
 
@@ -142,7 +169,7 @@ pub fn wanted(
     to: NodeId,
     side: Option<i32>,
     objective: bool,
-    body: CrossBody,
+    body: &CrossBody,
 ) -> bool {
     let grid = &tactics.world.grid;
     if !tactics.hazards.zones.iter().any(|zone| !zone.switches()) || !grid.may_reach(from, to) {
@@ -175,7 +202,7 @@ pub fn wanted_from_zone(tactics: &Tactics, plain: Option<&Route>, from: NodeId, 
 
 /// Whether the line from `a` to `b` passes over a floor a bot of `health`
 /// may cross ([`crossable`]), looked at every [`CROSS_STEP_M`].
-fn line_crosses(tactics: &Tactics, a: Vec3, b: Vec3, body: CrossBody) -> bool {
+fn line_crosses(tactics: &Tactics, a: Vec3, b: Vec3, body: &CrossBody) -> bool {
     let grid = &tactics.world.grid;
     let n = ((b - a).length() / CROSS_STEP_M).ceil().max(1.0) as usize;
     (0..=n).any(|k| {
@@ -184,14 +211,16 @@ fn line_crosses(tactics: &Tactics, a: Vec3, b: Vec3, body: CrossBody) -> bool {
     })
 }
 
-/// The health a body loses walking `route` from `from_m` to `to_m` along it,
-/// at [`CROSS_MPS`]: the zones on all match on its floors, looked at every
-/// [`CROSS_STEP_M`] (a zone that switches is crossed only while off).
+/// What a body loses walking `route` from `from_m` to `to_m` along it, in the pools that kill under `armour`
+/// (`Hazards::cost_per_s`; `None`: the raw hit in the body pool, the number it always was), at [`CROSS_MPS`]: the zones
+/// on all match on its floors, looked at every [`CROSS_STEP_M`] (a zone that switches is crossed only while off). The
+/// offer prices a battery's crossing in the same pools (`collect::Crossing`), so a toxic zone a mask makes cheap, or
+/// one that takes the infection pool a body has little of, is weighed by both alike.
 /// At the zones' full hit on every floor they mark, the margin's band included: the motor's own crossings of any goal
 /// are weighed pool-blind (the body's health), so a band priced at the drift's share let the bench's bots into zones
 /// they died in (Vector Laboratory, zone deaths 10 -> 15, `hurt_by_shape` alone); only a battery's crossing
 /// (`collect`) takes the shape's pricing.
-pub fn hurt(tactics: &Tactics, route: &Route, from_m: f32, to_m: f32) -> f32 {
+pub fn hurt(tactics: &Tactics, route: &Route, from_m: f32, to_m: f32, armour: Option<&ZoneArmour>) -> Cost {
     let grid = &tactics.world.grid;
     let d = (to_m - from_m).max(0.0);
     let n = (d / CROSS_STEP_M).ceil().max(1.0) as usize;
@@ -201,9 +230,8 @@ pub fn hurt(tactics: &Tactics, route: &Route, from_m: f32, to_m: f32) -> f32 {
             let point = route.floor_point(from_m + (i as f32 + 0.5) * ds);
             grid.locate(point, 0.6)
                 .filter(|&node| tactics.hazards.only_fixed_at(node))
-                .map_or(0.0, |node| tactics.hazards.hit_per_s(node))
-                * ds
-                / CROSS_MPS
+                .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour))
+                * (ds / CROSS_MPS)
         })
         .sum()
 }
@@ -221,7 +249,7 @@ pub fn start(
     time: u32,
     side: Option<i32>,
     objective: bool,
-    body: CrossBody,
+    body: &CrossBody,
     filter: &RouteFilter,
     floors: &mut usize,
 ) -> Result<Option<Route>, path::Planning> {
@@ -251,7 +279,7 @@ pub fn resume(
     time: u32,
     side: Option<i32>,
     objective: bool,
-    body: CrossBody,
+    body: &CrossBody,
     filter: &RouteFilter,
     floors: &mut usize,
 ) -> Option<Option<Route>> {
@@ -288,8 +316,8 @@ pub const START_HEALTH: f32 = 0.7;
 /// without it, on Mamayev Kurgan's batteries, 116 stretches in zones left a
 /// bot under 0.6 health (10 before crossings), and bots died 10 s into a
 /// zone of 0.25 a second.
-pub fn still_borne(tactics: &Tactics, route: &Route, walked: f32, body: CrossBody) -> bool {
-    body.health - hurt(tactics, route, walked, route.length()) >= body.give_up_left
+pub fn still_borne(tactics: &Tactics, route: &Route, walked: f32, body: &CrossBody) -> bool {
+    body.leaves(hurt(tactics, route, walked, route.length(), body.armour()))
 }
 
 /// What the motor takes after a crossing's search from floor `from`: the
@@ -302,7 +330,7 @@ pub fn choose(
     from: NodeId,
     plain: Option<Route>,
     crossed: Option<Route>,
-    body: CrossBody,
+    body: &CrossBody,
     time: u32,
     side: Option<i32>,
     objective: bool,
@@ -312,8 +340,8 @@ pub fn choose(
         let kept = plain.is_some();
         return (plain, false, kept);
     };
-    let cost = hurt(tactics, &crossed, 0.0, crossed.length());
-    let borne = cost <= 0.0 || (body.health >= START_HEALTH && body.bears(cost));
+    let cost = hurt(tactics, &crossed, 0.0, crossed.length(), body.armour());
+    let borne = cost.most() <= 0.0 || (body.health() >= START_HEALTH && body.bears(cost));
     match plain {
         Some(plain) if stuck::worth_round(plain.length(), crossed.length()) || !borne => {
             count(Count::Refused);
@@ -321,7 +349,7 @@ pub fn choose(
         }
         _ if borne => {
             count(Count::Taken);
-            (Some(crossed), cost > 0.0, false)
+            (Some(crossed), cost.most() > 0.0, false)
         }
         _ => match out_of_ring(tactics, from, &crossed, body, time, side, objective) {
             Some(out) => {
@@ -345,7 +373,7 @@ fn out_of_ring(
     tactics: &Tactics,
     from: NodeId,
     crossed: &Route,
-    body: CrossBody,
+    body: &CrossBody,
     time: u32,
     side: Option<i32>,
     objective: bool,
@@ -371,7 +399,7 @@ fn out_of_ring(
         }
         s += CROSS_STEP_M;
     };
-    if body.health - hurt(tactics, crossed, 0.0, s) < body.give_up_left {
+    if !body.leaves(hurt(tactics, crossed, 0.0, s, body.armour())) {
         return None;
     }
     // A few metres: searched to its end at once.
@@ -531,7 +559,7 @@ mod tests {
 
     /// The plain search, then the crossing's, as the motor makes them.
     fn plan(tactics: &Tactics, from: Vec3, to: Vec3, health: f32) -> (Option<Route>, bool) {
-        let body = CrossBody::old(health);
+        let body = &CrossBody::old(health);
         let grid = &tactics.world.grid;
         let (a, b) = (grid.locate(from, 1.5).unwrap(), grid.locate(to, 1.5).unwrap());
         let plain = tactics.route_nodes(a, b, 0, Some(0), false, &RouteFilter::open());
@@ -558,7 +586,7 @@ mod tests {
         let (route, crossing) = plan(&weak, WEST, EAST, 1.0);
         let route = route.expect("a crossing");
         assert!(crossing);
-        let cost = hurt(&weak, &route, 0.0, route.length());
+        let cost = hurt(&weak, &route, 0.0, route.length(), None).body;
         assert!(cost > 0.0 && cost < 0.2, "{cost}");
         // Too hurt to bear it: no way, as before.
         let (route, crossing) = plan(&weak, WEST, EAST, 0.42);
@@ -573,7 +601,7 @@ mod tests {
         let deadly = tactics(1.2, 0.0);
         let grid = &deadly.world.grid;
         let mid = grid.locate(Vec3::new(40.0, 0.0, 32.5), 1.5).unwrap();
-        assert!(!crossable(&deadly, mid, CrossBody::old(1.0)));
+        assert!(!crossable(&deadly, mid, &CrossBody::old(1.0)));
     }
 
     /// [take.cross_from_zone] From a floor inside a zone on all match (a body that stepped in by its crossing's edge) a failed
@@ -592,7 +620,7 @@ mod tests {
             assert!(!wanted_from_zone(&weak, Some(&plain), mid, east), "a plain way is kept");
         }
         let mut iters = usize::MAX;
-        let Ok(crossed) = start(&weak, mid, east, 0, Some(0), false, CrossBody::old(1.0), &RouteFilter::open(), &mut iters) else {
+        let Ok(crossed) = start(&weak, mid, east, 0, Some(0), false, &CrossBody::old(1.0), &RouteFilter::open(), &mut iters) else {
             panic!("an unbounded search ends");
         };
         assert!(crossed.is_some(), "from the zone floor the crossing's search finds the way");
@@ -611,7 +639,7 @@ mod tests {
             });
             let tactics = Tactics::new(world, 1.0);
             let mid = tactics.world.grid.locate(Vec3::new(40.0, 0.0, 32.5), 1.5).unwrap();
-            crossable(&tactics, mid, CrossBody::old(1.0))
+            crossable(&tactics, mid, &CrossBody::old(1.0))
         };
         assert!(gate(1000), "0.8 a second leaves 0.36 after the thinnest walk");
         assert!(!gate(500), "1.6 a second does not");
@@ -623,11 +651,11 @@ mod tests {
     fn a_crossing_is_stopped_once_its_rest_would_leave_too_little_health() {
         let weak = tactics(0.04, 0.0);
         let route = plan(&weak, WEST, EAST, 1.0).0.expect("a crossing");
-        let cost = hurt(&weak, &route, 0.0, route.length());
-        assert!(still_borne(&weak, &route, 0.0, CrossBody::old(1.0)));
+        let cost = hurt(&weak, &route, 0.0, route.length(), None).body;
+        assert!(still_borne(&weak, &route, 0.0, &CrossBody::old(1.0)));
         let low = CROSS_ABORT_LEFT + cost / 2.0;
-        assert!(!still_borne(&weak, &route, 0.0, CrossBody::old(low)));
-        assert!(still_borne(&weak, &route, route.length(), CrossBody::old(low)));
+        assert!(!still_borne(&weak, &route, 0.0, &CrossBody::old(low)));
+        assert!(still_borne(&weak, &route, route.length(), &CrossBody::old(low)));
     }
 
     /// With no zone, the plain route stands and no second search is made.
@@ -638,7 +666,7 @@ mod tests {
         let (a, b) = (grid.locate(WEST, 1.5).unwrap(), grid.locate(EAST, 1.5).unwrap());
         let route = plain.route_nodes(a, b, 0, Some(0), false, &RouteFilter::open());
         assert!(route.is_some());
-        assert!(!wanted(&plain, route.as_ref(), a, b, Some(0), false, CrossBody::old(1.0)));
+        assert!(!wanted(&plain, route.as_ref(), a, b, Some(0), false, &CrossBody::old(1.0)));
     }
 
     /// A bot in a patch ringed by a weak zone on all match (fallen in): out

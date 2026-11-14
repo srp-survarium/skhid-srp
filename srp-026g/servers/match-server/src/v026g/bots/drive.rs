@@ -868,7 +868,7 @@ fn drive_tick_inner(
                 && let Some((route, _)) = bot.route.as_mut()
             {
                 let (walked, _) = route.progress(me.feet);
-                if !crossing::still_borne(tactics, route, walked, crossing::CrossBody::of(tuning, view, me)) {
+                if !crossing::still_borne(tactics, route, walked, &crossing::CrossBody::of(tuning, view, me, bot.features.stock.pools, &bot.features.crossing.armour)) {
                     crossing::count(crossing::Count::Aborted);
                     bot.features.crossing.goal = None;
                     bot.end_route(RouteEnd::CrossingAborted, time);
@@ -1471,7 +1471,7 @@ fn drive_tick_inner(
                 let mut crossed = false;
                 let mut second = None;
                 // [zone price] The body its crossings are weighed for: the battery's class's spend (`CrossBody::of`).
-                let cross_body = crossing::CrossBody::of(tuning, view, me);
+                let cross_body = crossing::CrossBody::of(tuning, view, me, bot.features.stock.pools, &bot.features.crossing.armour);
                 // [take.cross_from_zone] Asked from a zone floor though `wanted` says no.
                 let mut from_zone = false;
                 if left.is_none()
@@ -1486,7 +1486,7 @@ fn drive_tick_inner(
                         to,
                         side,
                         objective,
-                        cross_body,
+                        &cross_body,
                     ) || {
                         from_zone = tuning.take.cross_from_zone.is_some()
                             && crossing::wanted_from_zone(tactics, route.as_ref(), from, to);
@@ -1497,7 +1497,7 @@ fn drive_tick_inner(
                         plays::collect::take_counts::count(plays::collect::take_counts::Count::ZoneSearchAsked);
                     }
                     match crossing::start(
-                        tactics, from, to, time, side, objective, cross_body, &hard, floors,
+                        tactics, from, to, time, side, objective, &cross_body, &hard, floors,
                     )
                     {
                         Ok(crossing_route) => {
@@ -1510,7 +1510,7 @@ fn drive_tick_inner(
                                 from,
                                 route,
                                 crossing_route,
-                                cross_body,
+                                &cross_body,
                                 time,
                                 side,
                                 objective,
@@ -1525,7 +1525,7 @@ fn drive_tick_inner(
                                 planning,
                                 crossing::Second {
                                     plain,
-                                    body: cross_body,
+                                    body: cross_body.clone(),
                                 },
                             ));
                         }
@@ -1553,7 +1553,7 @@ fn drive_tick_inner(
                         filter: hard.clone(),
                         hazards: tactics.hazards.version(),
                         planning,
-                        body: cross_body,
+                        body: cross_body.clone(),
                         second: Some(second),
                     });
                 } else if let (Some((round, planning)), Some(ends)) = (left, ends) {
@@ -1585,7 +1585,7 @@ fn drive_tick_inner(
                         filter,
                         hazards: tactics.hazards.version(),
                         planning,
-                        body: cross_body,
+                        body: cross_body.clone(),
                         second: None,
                     });
                 } else {
