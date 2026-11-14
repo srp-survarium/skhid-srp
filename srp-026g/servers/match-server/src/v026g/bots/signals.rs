@@ -17,7 +17,7 @@ use std::collections::VecDeque;
 
 use super::curve::Input;
 use super::tuning::{BotTier, ModTuning, SkillTuning};
-use super::view::{MatchView, Mode};
+use super::view::{MatchView, Mode, PlaceView};
 
 /// What the commander of `team` reads of the match.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -38,11 +38,12 @@ pub struct MatchSignals {
 }
 
 impl MatchSignals {
-    pub fn read(view: &MatchView, team: u8, since_theft_s: f32) -> Self {
+    /// `back`: a dead place counted as alive ([Gap 13] its respawn time has come, `think.respawn_times`).
+    pub fn read(view: &MatchView, team: u8, since_theft_s: f32, back: impl Fn(&PlaceView) -> bool) -> Self {
         let count = |ours: bool, alive: bool| {
             view.places
                 .iter()
-                .filter(|p| p.present && (p.team == team) == ours && (!alive || p.alive))
+                .filter(|p| p.present && (p.team == team) == ours && (!alive || p.alive || back(p)))
                 .count()
         };
         let theirs_all = count(false, false).max(1);

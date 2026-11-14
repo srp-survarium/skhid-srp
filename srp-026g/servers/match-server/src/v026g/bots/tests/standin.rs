@@ -2966,7 +2966,16 @@ impl Game {
             })
             .collect();
         let health = self.bodies.iter().map(|b| b.health).collect();
+        // [Gap 13] The dead bodies that will respawn and when, as the client's respawn rule holds them.
+        let respawns = (0..self.bodies.len())
+            .filter(|&place| {
+                let body = &self.bodies[place];
+                !body.alive && self.tickets.is_none_or(|tickets| tickets[usize::from(body.team)] > 0)
+            })
+            .map(|place| (place, self.bodies[place].dead_at + self.respawn_ms_of_body(place) + self.placed_walk_ms(place)))
+            .collect();
         let facts = WorldFacts {
+            respawns: Some(respawns),
             time: self.tick,
             stats: self.stats.clone(),
             points: Some(self.tickets.unwrap_or(self.points)),
