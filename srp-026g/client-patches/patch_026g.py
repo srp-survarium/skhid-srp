@@ -492,7 +492,8 @@ Patches:
   the player's stagger (0x2DBCD0, at 0x2DBD89) is times max(0, 1 + list
   42), so bullets do not slow an active Spring's holder. A
   Lifebone's active (0x312250) removed injuries only; after them it fills
-  the pain, body and head pools (0x3122AA, increase_health as a medkit). An artefact's
+  every body part's pool (pain, body, head, both hands and both legs; 0x3122AA,
+  increase_health as a medkit). An artefact's
   press (artefact_base::action 0x313300, at its entry) activates every
   ready artefact of the pressed one's class in the artefact slots, so one
   key fires all of a kind that are ready, even when the pressed one is not.
@@ -538,7 +539,11 @@ Patches:
   options, mutes, radio distances and the hud's list of who talks;
   push-to-talk (ptt, 47h) from the game world's keys (tab_cursor.key);
   "Mute voice" in the Tab list's player menu (hud.callback, after patch
-  86's);
+  86's); the options' "Test microphone" (the DLL records 10 s and plays
+  them back, in a match or not): the Settings' srp_mic_test
+  (options.callback), its button told the test's state at a frame
+  (game.tick), the test stopped as the main menu closes
+  (options.deactivate);
 - the kill feed shows a kill through a wall, by a ricochet and by pain (patch 67,
   with the late join; docs/notes/kill-feed-icons.md). kill_feed_026g.asm
   (the arena's block kill_feed.code): generate_killed_event (0x2DA170, at
@@ -2343,8 +2348,8 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 #   mov esi,eax / mov eax,[esi+250h]`, the entry): link the two too;
 # - their unlink, 0x311DA0 (`push ebx / mov ebx,[esp+8]`, the entry): unlink;
 # - Lifebone's enable_active after its remove_affects, `mov ecx,[edi+250h]`
-#   at 0x3122AA: the pain, body and head pools filled to their maximum
-#   (increase_health, as a medkit);
+#   at 0x3122AA: every body part's pool (pain, body, head, both hands, both
+#   legs) filled to its maximum (increase_health, as a medkit);
 # - artefact_base::action 0x313300 (`push esi / mov esi,ecx / cmp dword
 #   [esi+280h],3`, the entry): a key-down activates every ready artefact of
 #   the pressed one's class in the artefact slots, as action activates one,
@@ -4236,7 +4241,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "an upgrade dropped on a weapon in its window is shown at once, "
                      f"Research (mode 5: rule class {RESEARCH_CLASS:#x}, its hud and messages), "
                      "a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills "
-                     "pain, body and head, and one press fires every artefact of its kind, "
+                     "every body part's pool, and one press fires every artefact of its kind, "
                      "Onyx fired together each 1 s longer per other one and reducing a hit once, "
                      "their activation hint shown once a press for their active time, "
                      "the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before "

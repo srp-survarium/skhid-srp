@@ -774,3 +774,9 @@ extern engine_switch_to_camera
 ; void engine_switch_to_player_camera(struct game_world *world, unsigned int first_person)
 ; 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
 extern engine_switch_to_player_camera
+; void engine_sound_pan(struct sound_scene *scene, struct panning_lut *table, struct sound_instance_proxy *proxy, const float *position, float distance, float *matrix, float *coefficient)
+; 0x57d70 vostok::sound::sound_scene::calculate_3d_pan: scene ESP+4, table ESP+8, proxy ESP+12, position ESP+16, distance ESP+20, matrix ESP+24, coefficient ESP+28; pops 28
+extern engine_sound_pan
+; float *engine_listener_position(struct sound_scene *scene, float *out)
+; 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
+extern engine_listener_position

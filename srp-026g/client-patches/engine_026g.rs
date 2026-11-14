@@ -291,6 +291,10 @@ unsafe extern "C" {
     pub fn engine_switch_to_camera(director: *mut c_void, camera: *mut c_void);
     /// 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
     pub fn engine_switch_to_player_camera(world: *mut c_void, first_person: u32);
+    /// 0x57d70 vostok::sound::sound_scene::calculate_3d_pan: scene ESP+4, table ESP+8, proxy ESP+12, position ESP+16, distance ESP+20, matrix ESP+24, coefficient ESP+28; pops 28
+    pub fn engine_sound_pan(scene: *mut c_void, table: *mut c_void, proxy: *mut c_void, position: *const f32, distance: f32, matrix: *mut f32, coefficient: *mut f32);
+    /// 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
+    pub fn engine_listener_position(scene: *mut c_void, out: *mut f32) -> *mut f32;
 }
 
 #[allow(dead_code)]

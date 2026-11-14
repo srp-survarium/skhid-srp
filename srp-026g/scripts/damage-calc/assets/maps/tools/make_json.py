@@ -9,7 +9,9 @@ data, so take it from git history). With --only, OUT_DIR/maps.json is updated
 in place: the named maps are written (added or replaced) and the others kept
 as they are; the patch-added maps (build_all.PATCHED) need no TABLE_RS. Elevation grids come from WORK_DIR/out/<key>-ground.npy (terrain
 model heights) with WORK_DIR/out/<key>-height.npy (top surface) where no
-terrain was rendered.
+terrain was rendered; of a map with no terrain model at all (the STALKER
+ports), from WORK_DIR/out/<key>-solid.npy (the top of what is solid: no
+foliage).
 """
 import json
 import re
@@ -25,12 +27,18 @@ from build_all import NATIVE, PATCHED, PORTED, TARGET  # noqa: E402
 GRID = 64
 WEATHER = {1: 'day', 2: 'rain', 3: 'evening', 4: 'night', 5: 'prerain'}
 MODE = {2: 'battery (gather victory items)', 3: 'battery with charging stations (match_time_vi_spawn)',
-        4: 'team deathmatch'}
+        4: 'team deathmatch', 8: 'free for all'}
+# Where a mode's configs are under gameplay/game_modes/, when in a folder of their own.
+CONFIG_DIR = {8: 'ffa/'}
 
 
 def elevation(work, key, size):
+    """The grid, and whether it is of terrain models."""
     g = np.load(work / 'out' / f'{key}-ground.npy').astype(np.float64)
     h = np.load(work / 'out' / f'{key}-height.npy').astype(np.float64)
+    terrain = bool(np.isfinite(g).any())
+    if not terrain:
+        g = np.load(work / 'out' / f'{key}-solid.npy').astype(np.float64)
     g = np.where(np.isfinite(g), g, h)
     W = g.shape[0]; c = W // GRID
     blocks = g[:c * GRID, :c * GRID].reshape(GRID, c, GRID, c).swapaxes(1, 2).reshape(GRID, GRID, -1)
@@ -41,7 +49,7 @@ def elevation(work, key, size):
     if np.isnan(med).any():
         idx = ndimage.distance_transform_edt(np.isnan(med), return_distances=False, return_indices=True)
         med = med[tuple(idx)]
-    return [[round(float(v), 1) for v in row] for row in med]
+    return [[round(float(v), 1) for v in row] for row in med], terrain
 
 
 def main():
@@ -56,19 +64,20 @@ def main():
             continue
         size = m['size']; W = TARGET; mpp = 2 * size / W
         x0, z1 = m['posX'] - size, m['posY'] + size
-        lvl = int(key[-2:])
         if key in PORTED or key in PATCHED:
-            modes = [dict(map_id=i, config=f'{key}_day_{mo}.options', name=f'{key}_{mo}', mode=mo,
+            modes = [dict(map_id=i, config=f'{CONFIG_DIR.get(mo, "")}{key}_day_{mo}.options', name=f'{key}_{mo}', mode=mo,
                           mode_name=MODE[mo], weather='day', project=f'{key}/day_{mo}')
                      for i, mo in m['map_ids'].items()]
         else:
+            lvl = int(key[-2:])
             modes = [dict(map_id=int(i), config=cfg, name=n, mode=int(mo), mode_name=MODE.get(int(mo), mo),
                           weather=WEATHER.get(int(w), w), project=pr)
                      for i, cfg, n, mo, lv, w, pr, hp in rows if int(lv) == lvl and hp == 'true']
         check = json.loads((out / f'check_{key}.json').read_text()) if (out / f'check_{key}.json').exists() else None
+        heights, terrain = elevation(work, key, size)
         maps[key] = {
             'name': m['name'],
-            'name_key': m.get('name_key', f'st_level_{lvl:02d}_name'),
+            'name_key': m.get('name_key') or f'st_level_{key[-2:]}_name',
             'origin': ('ported: Skhid content pack maps-021d-7 (released in revision 20), geometry from the '
                        'pack overlay + the 0.26g db' if key in PORTED else
                        f"skhid patch: {m['origin']}, geometry from the 0.26g db with the released patches over it"
@@ -84,17 +93,19 @@ def main():
                                       round(z1 / mpp, 6)],
             'hud_minimap_props': {'size': size, 'posX': m['posX'], 'posY': m['posY']},
             'project_name': m.get('project_name', key),
-            'source_project': f'projects/{key}/day_2/client_project',
+            'source_project': f"projects/{key}/{m.get('project', 'day_2')}/client_project",
             'map_ids': sorted(r['map_id'] for r in modes),
             'modes': modes,
             'elevation': {
                 'grid': GRID,
                 'cell_m': round(2 * size / GRID, 4),
                 'note': 'heights[row][col] in metres (engine y), row 0 = north edge (z_max), col 0 = west '
-                        '(x_min); cell centre = bounds origin + (col+0.5, row+0.5) * cell_m. Median terrain '
-                        'height per cell (terrain models; top surface where no terrain). Not floor heights '
-                        'inside multi-storey buildings.',
-                'heights': elevation(work, key, size),
+                        '(x_min); cell centre = bounds origin + (col+0.5, row+0.5) * cell_m. '
+                        + ('Median terrain height per cell (terrain models; top surface where no terrain). '
+                           'Not floor heights inside multi-storey buildings.' if terrain else
+                           'Median height per cell of the top solid surface, without foliage (the map has no '
+                           'terrain model): a roof counts as ground.'),
+                'heights': heights,
             },
         }
         ver = {}

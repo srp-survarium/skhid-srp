@@ -7,6 +7,13 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
 - 10 points a kill (the normal kill score), nothing lost on death.
 - The first to 30 kills ends the match, or the timer does (15:00).
 - Spawn protection 2 s ("3 seconds sounds too long, it should be 1.5 or 2 MAX").
+  Since 2026-11-14 0.5 s on every map (the owner: "let's change it to 0.5 everywhere"):
+  `ffa-protection-ms-1.json`, last of the Free for All lists, sets each team-2 point's
+  `invulnerability_time` 2 -> 0 and adds `invulnerability_time_ms` 500, which the client hook of
+  revision 57 reads before the whole seconds (`stalker-ffa.md`, "Millisecond protection"), as
+  Training Camp has had since `training-camp-arena-1.json`. The lists above it still write 2 s;
+  `scripts/ffa-mode/make_protection_ms_edits.py` addresses the points by index, so it is made
+  again (from a build of the rows above it) when a list adds or removes a Free for All point.
 - Safe respawns across the map. On 2026-11-12 the owner revised the earlier
   farthest-point preference because it kept sending players to corners: all
   safe points now enter the choice, including the middle; distance ranks only
@@ -45,7 +52,7 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
     kill feed, kills, assists, spotting.
   - **Voice for all** (the owner, 2026-11-13: "in FFA I would enable voice chat for all"; until
     then nobody heard anyone): every player hears every other of the match, by the team modes'
-    rule of near and far (plain and from its side within 15 m, the radio past it or dead;
+    rule of near and far (plain in the world under 10 m, the radio from it or dead;
     voice-chat.md). The relay decides it from the match's mode (`registry::VoiceChannel::of`:
     the match's channel, not a team's), the game from the options' free-for-all entry (patch
     66's `channel`, by patch 142's `free_for_all::running`). The Tab menu's voice mute and the
@@ -141,6 +148,15 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     Experimental Pool 7/15, Military Warehouses 7/14: 148 a map's worth; levels 1-8 the same in
     their three weathers (same points and geometry), 320 moved entries.
   - Cologne is a bridge: its centre is the bridge's middle lanes, not the middle of its length.
+  - London's rotunda (the owner, 2026-11-13: "london shouldn't have spawns on the third floor"): the
+    move had put ids 38 and 39 on its third storey (floor at 17.92; in the walk grid reached only by
+    a jump from the second, and left by a drop). `to_center --below 14.5`, on the projects with the
+    move applied, re-places only the solo spawns above that height, in the centre and not above it:
+    both stand on the second storey (14.06) now, about 2 m in plan from where they were. Its levels:
+    the underpass (0.7, a basement), the ground (the street at 6, mounds to 10 at its closed drum,
+    no floor slab at 6 or 10), the second storey (14.06, the donor's four points; walked onto from
+    the mounds) and the third (17.92, no spawn). No other London spawn is above a second storey
+    (id 41 is on one, 9.56 over 6.33). Review renders: `private/renders/london-ffa-floors/`.
   - The free for all's own `<weather>_8` projects only; Team Deathmatch's are not named.
   - Review renders (before/after per map): `private/renders/ffa-spawns-to-center/` of the main
     checkout.
@@ -150,7 +166,9 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   Cologne (level_08, 23 points in 165 x 38 m) A 7 % / 19 %, B 1 % / 7 %; Experimental Pool
   (v010b_cs_mp_bath, 81 x 73 m) A 1 % / 4 %, B 2 % / 9 %; Training Camp B 0.3 % / 2 %; Tarakanovsky
   Fort (level_05) and Mamayev v0.21 under 1 % at 20; every other map 0. At 10 every map was under
-  0.2 %. Same-tick respawns and the dead are left out (both ways).
+  0.2 %. Same-tick respawns and the dead are left out (both ways). Training Camp's figure is
+  for its crater arena of revision 58 (29 points); the fenced one (26 points in 73 x 67 m, 24
+  of them on its raised floors) is modelled in `stalker-ffa.md`, "The spawns".
 
 ## Maps
 
@@ -167,7 +185,7 @@ team-2 points: a mode-8 config without them stops the server (`maps::MapMode::fr
 | level_06 Mamayev Kurgan | day, evening, rain | 25 / 26 |
 | level_07 Vector Laboratory | day, evening, rain | 29 / 30 |
 | level_08 Cologne | day, evening, prerain | 23 / 24 |
-| level_09 London | day | 22 / 27 + 6 authored central points = 28 |
+| level_09 London | day | 22 / 27 + 6 authored central points + 4 in the underpass = 32 |
 | v021d_level_03 Vostok Radar Station | day | 22 authored |
 | v021d_level_06 Mamayev Kurgan | day | 22 authored |
 | v011e_level_04 Chemical Plant | day | 22 authored |
@@ -186,7 +204,7 @@ actual London geometry within X [-35, 40], Z [-30, 30], with the same body,
 hazard and facing checks as the ports, and at least 12 m horizontal spacing
 from all 22 existing solo spawns and the other additions. `make_london_edits.py`
 emits `ffa-london-center-1.json`, applied after `ffa-1.json`; existing points
-and IDs remain unchanged. London now has 28 solo spawns.
+and IDs remain unchanged. That made 28 solo spawns (32 with the underpass's, below).
 
 Validation (2026-11-12): geometry generation checked 918 safe candidates on
 278,660 navigation floors, followed by visual review of the floor/point plot.
@@ -205,6 +223,20 @@ Installed this combined package into the isolated `local-clients-ffa` setup
 and restarted FfaOne/FfaTwo/FfaThree. The server reports 30 playable maps and
 all three processes are running; no central-spawn gameplay claim is made.
 Nothing was released and the release revision is unchanged.
+
+London's underpass (the owner, 2026-11-14: "put more points in basement there"; it had two, ids
+21 and 24) has four more, ids 48-51: `scripts/ffa-mode/london-underpass.tsv`, made by
+`central --region underpass` on the projects as every list before its own leaves them (28 solo
+spawns), and `make_london_edits.py --region underpass` emits `ffa-london-underpass-1.json`, after
+`ffa-center-1.json`.
+- The underpass: the walk grid's floors whose ceiling is under the street (6 m): its floor at 0.7
+  under the roundabout's plate at 4.73.
+- The same body, hazard and facing checks, the facing along it: its 6 m ahead is the underpass's
+  floor, and nothing is within 20 m in front.
+- 12 m in 3D from every solo spawn and each other: in plan the rotunda's second storey (13 m up)
+  and the street (5 m up) cover the whole underpass. The nearest spawn to a new one is 14.1 m
+  away; the underpass takes six at most at 12 m.
+- London has 32 solo spawns. Review renders: `private/renders/london-ffa-floors/`.
 
 The ported layouts are explicit source in `scripts/ffa-mode/ported.tsv`, made by the
 `ported` binary of `scripts/ffa-mode/check-points` and emitted by

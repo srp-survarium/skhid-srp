@@ -122,7 +122,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `sites_026g.tsv` | The game sites the Rust patches hook, by name: each a VA, a kind (call/splice/...), the callee it uses and a short note. A patch names a site; the addresses live here, not in the patch (`docs/notes/rust_patches.md`, "The design principle") |
 | `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
-| `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
+| `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills every body part's pool, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_artefact_glow_026g.py` | No patch: the artefacts' first-person glow is the content pack `artefact-glow` (`../scripts/artefact-glow/make_pack.py`, `../docs/notes/artefacts.md`). Runs the game's own effect code, in the original and the build: the particle cook's `view` (0x25A86F) on the pack's composite, the first- and third-person presenters' constructors (their particle presenters' views 0 and 1), the particle presenter's handler 0x2AC400 (an activation plays an effect only in the presenters of its view), the whole chain from player::set_effect_presenter and game_effect_player's dispatch 0x2DE3A0 and the artefact's effect calculator 0x313640 (the effect ends when the artefact is no longer active) (needs Unicorn) |
 | `rust/patches/src/blackout.rs`, `src/blackout.toml`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface, the teammates' markers kept and their names on Tab, the player's input on Tab as in every mode: five `lohook`s at sites of its own (`sites_026g.tsv`); its check runs each from the game's code before the site on made-up objects, the original beside (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
@@ -180,7 +180,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `raw_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust (C's types, research_arena's; typed by the kinds' handles, the Rust patches' `raw`), and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first 300 ms), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
-| `rust/patches/src/voice.rs`, `voice.toml` | Patch 66: safe Rust voice hooks (seven named lohooks) over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, the hud's list of who talks and the Tab menu's voice mute (the shared `patches.*` blocks); `cargo test` in `rust/` checks its logic |
+| `rust/patches/src/voice.rs`, `voice.toml` | Patch 66: safe Rust voice hooks (eleven named lohooks) over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, the hud's list of who talks, the Tab menu's voice mute and the options' microphone test (the shared `patches.*` blocks); `cargo test` in `rust/` checks its logic |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
@@ -3242,9 +3242,12 @@ does what no config of 0.26g could.
   seventh node there, +3C8h with `active/stopping_power_mod` (-1), linked and unlinked as the
   aim node; the object is 0x3D8 bytes. A hit's stamina damage is not changed.
 - **Lifebone's heal.** Its enable_active (0x312250) removed the hand and leg injuries only. After
-  them (0x3122AA, where the time is still its argument) the pools `pain`, `body` and `head` are
+  them (0x3122AA, where the time is still its argument) every body part's pool (the table
+  `heals`: `pain`, `body`, `head`, `left_hand`, `right_hand`, `left_leg`, `right_leg`) is
   found by name (0x2E58B0) and filled with increase_health (0x32A420, Hmax - H), as a medkit
-  heals a pool (0x33D9C3).
+  heals a pool (0x33D9C3). The four limbs since the owner's 2026-11-14 report ("larkspur doesn't
+  heal body parts when active"): before, a limb lost its injury and kept its health, which the
+  hud's doll and a leg's slow read (`../docs/notes/artefacts.md`). `infection` is not filled.
 - **One press, every artefact of a kind.** artefact_base::action (0x313300) activated the
   artefact pressed only, when it was in its passive with no cooldown. At its entry a key-down
   now activates the pressed one and every other artefact of the same class (vtable) and kind 1
@@ -3307,8 +3310,8 @@ relocation or branch inside, the code, its exits and calls, its texts), the aren
 `check_artefacts_026g.py` (Unicorn, the game's own code: the loader with the config lookup on
 a binary config of the release's numbers, both Springs' links with the getter: aim time x0.95
 passive, x0.85 active, x0.7 for two active Springs, speed x1.05 / x1.15 / x1.3; Lifebone's
-enable_active with made-up pools: pain, body and head full, a limb, a full pool and a missing
-one left alone; an
+enable_active with made-up pools: every body part's full (a limb's at the maximum Strong Bones
+gives it too), `infection`, a full pool and a missing one left alone; an
 inventory of two Springs, an Onyx, a Spring cooling and one active: one press fires the ready
 Springs alone, the Onyx alone, a key-up nothing, a cooling Spring's key the ready one; the stagger with made-up hits: -0.45, -0.5 at
 most, an old hit out, and 0 with an active Spring in the build; through the game's own callers, a
@@ -3588,7 +3591,7 @@ nothing reads it. No capture, no codec: `skhid_voice.dll` (Rust, libopus, waveIn
 UDP) is loaded at the first match with `LoadLibraryA` (the exe's import), its version asked;
 without it, or of another version (unloaded), voice is off.
 
-**The sites** (names-only `voice.toml`, eight lohooks; safe `voice.rs` over `vostok/voice.rs`):
+**The sites** (names-only `voice.toml`, eleven lohooks; safe `voice.rs` over `vostok/voice.rs`):
 - `configs.start` (before user.cfg): `s_chat_volume` and `s_mic_sens` (`ConsoleFloat`, 0..100, the
   float slider's steps are 1.0), `s_use_microphone` and `g_hide_spam` (the gameplay tab's dead
   option 5, "Hide spam", now "Disable voice chat") (`ConsoleBool`), `srp_voice_mutes`
@@ -3599,9 +3602,10 @@ without it, or of another version (unloaded), voice is off.
 - `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
   (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied;
 - `game_world.after_move` (every frame of a match): the options to the DLL on a change, the muted
-  places, the far ones (a teammate, in a free-for-all any player, beyond 15 m, or either of the two
-  dead: the radio filter), the
-  near ones' pans (`sv_direction`: the sine of the bearing, heard from that side) and the
+  places, how each place is heard (`sv_hear`: a teammate, in a free-for-all any player, from 10 m
+  on or with either of the two dead through the radio; nearer, plain in the world, its gains in the
+  two ears the engine's own pan of a sound at its place, `sound_scene::calculate_3d_pan` 0x57D70,
+  times a gain by its distance) and the
   hud's `root.srp_voice_talking(name, ...)` on a change; a push-to-talk whose key or button is up
   (user32's GetAsyncKeyState: the numpad's keys by either key NumLock gives, NumLock and Pause by
   their own, a button by its VK_*BUTTON) or with the game out of focus is let go;
@@ -3613,7 +3617,23 @@ without it, or of another version (unloaded), voice is off.
 - `hud.callback` (after patch 86's): the Tab list's player menu asks `srp_voice_menu(place)`
   (answered `root.srp_voice_menu(place, offered, muted)`) and sends `srp_voice_mute(place,
   "1"|"0")` (answered `root.srp_voice_mute(place, done)`): "Mute voice" / "Unmute voice" after the
-  chat mute's entries, for a teammate whose voice id the relay sent.
+  chat mute's entries, for a teammate whose voice id the relay sent;
+- `options.callback` (after patches 79, 83 and 112), `game.tick` (after the music, the packets and
+  the two reports) and `options.deactivate` (after patch 113's): the options' microphone test,
+  below.
+
+**The microphone test** (the owner, 2026-11-14: "you press button, it records for 10 seconds, then
+plays it back"; `voice-chat.md`, "Microphone test"). The sound tab's "Test microphone" button
+(`flash/main_menu`, `SrpMicTest.as`), in the lobby or in a match: the DLL records the microphone
+through a transmission's path, plays it back as a teammate beside the player would hear it, and
+is idle again; nothing of it is sent or kept. The DLL owns the test (ABI 3: `sv_test_press`,
+`sv_test_stop`, `sv_test_state`; with no match a worker of its own). The exe passes it on: the
+tab's ask `srp_mic_test` is answered `root.srp_mic_test(text)`, the button's text; with the two
+voice sliders' steps it is a press; every frame the button is told its text again when the DLL's
+state or its second changed; the test is stopped when the Settings window closes (the movie says
+`stop`) or changes tab, when the main menu closes (a match's loading and its end too) and at a
+match's connect. The DLL is loaded when the
+sound tab is first shown, if no match loaded it.
 
 **Who is talking**, as 0.69's hud (`VoiceChatTalkingPanel`): a row per teammate talking, and the
 player's own while its microphone is sent, at the right edge under mid-height, a light-blue speaker
@@ -3629,12 +3649,14 @@ the oldest go first), read once a match: a record that is not 8 hex digits, or a
 out and logged.
 
 **Texts** in `localization/*.tsv`: `st_hide_spam_option` ("Disable voice chat"), `st_ptt_action`
-("Push to talk"), `st_srp_hud_voice_*` (the Tab menu's entries and lines).
+("Push to talk"), `st_srp_hud_voice_*` (the Tab menu's entries and lines), `st_srp_mic_test*` (the
+microphone test's button).
 
-Checked: `selftest_026g.py` check 66 (the sites in the original, the eight hooks in the build, the
-game's ptt entry unchanged) and check 62 (the Controls rows: push-to-talk's in the game group, its
+Checked: `selftest_026g.py` check 66 (the sites in the original, the eleven hooks in the build, the
+game's ptt entry unchanged, the main menu's `srp_mic_test`) and check 62 (the Controls rows: push-to-talk's in the game group, its
 key settable), `check_hide_ui_026g.py` (the list sent to the movie), `cargo test` in `rust/` (the
-mutes' text, malformed records, direct to 15 m and its pan, the radio past it and for the dead, the keys a held input is polled by).
+mutes' text, malformed records, plain under 10 m with the pan it is given and its fall by distance, the radio from 10 m and for the dead, the two distances apart, the keys a held input is polled by,
+the microphone test's press and texts), `check_voice_pan_026g.py` (Unicorn: the original exe's calculate_3d_pan as the patch calls it: its law, what it reads and writes), `scripts/mic-test/check.sh` (Ruffle: the button).
 Played locally 2026-11-11 (two games under Wine, one microphone): talking and hearing in a team.
 
 ### 67. The kill feed shows a kill through a wall, by a ricochet and by pain (the next release's revision)

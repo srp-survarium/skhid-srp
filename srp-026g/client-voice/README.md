@@ -2,7 +2,11 @@
 
 `skhid_voice.dll` is Rust. It handles Opus, the UDP voice connection, WinMM
 capture/playback, the microphone's noise suppression and automatic gain (speexdsp's
-preprocessor, as 0.69), per-speaker jitter buffers, mutes and the retail radio effect.
+preprocessor, as 0.69), per-speaker jitter buffers, mutes and the retail radio effect, and
+the options' microphone test (`src/mic_test.rs`: 10 s recorded through a transmission's path
+and played back, in a match or with none; `docs/notes/voice-chat.md`, "Microphone test"). A plain
+voice's gains in the two ears are the game's: patch 66 asks its sound engine for each speaker's
+and tells them (`sv_hear`); the DLL only mixes by them.
 The arena patch loads its optional interface from `crates/voice-abi`; missing or
 incompatible DLLs leave voice disabled.
 
@@ -28,8 +32,11 @@ nix develop ./srp-026g -c bash -c 'cd srp-026g; cargo test -p skhid-voice; cargo
 `nix build ./srp-026g#skhid-voice-smoke` builds the independent C ABI probe.
 Run its `smoke_voice.exe` under Windows or Wine with the DLL path as its argument.
 It exercises start/stop, settings, roster, mute and PTT session boundaries over a
-local UDP peer. Audio-device availability is reported separately. The real game
-still needs two clients and a microphone to check capture, playback and controls.
+local UDP peer, and the microphone test's start and stops with no match and in one.
+Audio-device availability is reported separately; `full` after the DLL's path also
+runs a whole microphone test (it opens the default microphone and plays on the
+default device). The real game still needs two clients and a microphone to check
+capture, playback and controls.
 
 To listen to the codec/jitter/radio path without hardware, use a PCM 16-bit mono
 16 kHz WAV:

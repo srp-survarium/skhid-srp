@@ -1,4 +1,5 @@
 use super::*;
+use receiver::LOUDER;
 use wire::Message;
 fn tone(frame: usize, freq: f32, amplitude: f32) -> [i16; FRAME] {
     std::array::from_fn(|i| {
@@ -21,7 +22,7 @@ fn packet(seq: u16, frames: &[Vec<u8>]) -> Message {
     }
 }
 /// A frame mixed with the slots of `far` through the radio and the rest
-/// direct and centred: both ears alike, the mono mix of before.
+/// plain as decoded: both ears alike, the mono mix of before.
 fn mix(core: &mut Core, far: u32, now: u32) -> [i16; FRAME] {
     let stereo = core.mix(1., &Hearing::radio(far), now);
     assert!(stereo.iter().all(|[left, right]| left == right));
@@ -177,46 +178,108 @@ fn mid_utterance_radio_switch_does_not_add_opening_effect() {
     assert_eq!(core.stats().squelch_in, 0);
     assert_eq!(core.stats().decoded, 2);
 }
-#[test]
-fn a_direct_voice_is_panned_by_the_sine_of_its_bearing_at_one_power() {
-    let gains_at = |degrees: f32| gains(Pan::new(degrees.to_radians().sin()));
-    let close = |a: [f32; 2], b: [f32; 2]| (a[0] - b[0]).abs() < 1e-4 && (a[1] - b[1]).abs() < 1e-4;
-    // Ahead and behind: both ears at unity, as the mono mix and the radio.
-    assert!(close(gains_at(0.), [1., 1.]));
-    assert!(close(gains_at(180.), [1., 1.]));
-    // Full right and full left: +3 dB in that ear, none in the other.
-    assert!(close(gains_at(90.), [0., std::f32::consts::SQRT_2]));
-    assert!(close(gains_at(-90.), [std::f32::consts::SQRT_2, 0.]));
-    // 30 degrees right (pan 0.5): cos and sin of 3/8 pi, scaled.
-    let eighth = std::f32::consts::PI / 8.;
-    let half_right = [
-        std::f32::consts::SQRT_2 * (3. * eighth).cos(),
-        std::f32::consts::SQRT_2 * (3. * eighth).sin(),
-    ];
-    assert!(close(gains_at(30.), half_right));
-    assert!(close(gains_at(150.), half_right));
-    for degrees in (-180..=180).step_by(15) {
-        let [left, right] = gains_at(degrees as f32);
-        assert!((left * left + right * right - 2.).abs() < 1e-4, "{degrees}");
-    }
-    assert_eq!(Pan::new(f32::NAN), Pan::CENTRE);
-    assert_eq!(Pan::new(3.), Pan::new(1.));
-}
-#[test]
-fn a_voice_to_the_right_is_mixed_into_the_right_ear() {
-    let frames = encoded(12);
+/// A steady tone from slot 3, mixed frame by frame as `heard(tick)` says:
+/// each frame's left and right.
+fn heard_tone(ticks: u32, heard: impl Fn(u32) -> Heard) -> Vec<Stereo> {
+    let mut encoder = Encoder::new().unwrap();
+    let frames: Vec<Vec<u8>> = (0..ticks as usize + 4)
+        .map(|i| encoder.encode(&tone(i, 500., 8000.)).unwrap())
+        .collect();
     let mut core = Core::new().unwrap();
     feed(&mut core, &frames);
-    let right = Hearing::new(0, |_| Pan::new(1.));
+    (0..ticks)
+        .map(|tick| {
+            let mut hearing = Hearing::UNITY;
+            hearing.set(3, heard(tick));
+            core.mix(1., &hearing, tick * 20)
+        })
+        .collect()
+}
+fn ear_sums(frames: &[Stereo]) -> [f64; 2] {
     let mut ears = [0f64; 2];
-    for tick in 0..8 {
-        for [left, right] in core.mix(1., &right, tick * 20) {
-            ears[0] += f64::from(left).abs();
-            ears[1] += f64::from(right).abs();
-        }
+    for [left, right] in frames.iter().flatten() {
+        ears[0] += f64::from(*left).abs();
+        ears[1] += f64::from(*right).abs();
     }
-    // The first frame ramps from the centre; after it, the left is silent.
+    ears
+}
+#[test]
+fn a_plain_voice_is_mixed_by_the_gains_it_is_given() {
+    // To the right (the engine's pan of a sound at the side: nothing in the
+    // far ear): after the first frame's ramp from unity the left is silent.
+    let right = heard_tone(8, |_| Heard::Plain(Ears::new(0., 1.)));
+    let ears = ear_sums(&right);
     assert!(ears[1] > 0. && ears[0] < ears[1] / 20., "{ears:?}");
+    assert!(right[1..].iter().flatten().all(|[left, _]| *left == 0));
+    // Half as loud in both ears: half the samples of unity.
+    let unity = heard_tone(8, |_| Heard::Plain(Ears::UNITY));
+    let half = heard_tone(8, |_| Heard::Plain(Ears::new(0.5, 0.5)));
+    for ([whole, _], [halved, _]) in unity[2..].iter().flatten().zip(half[2..].iter().flatten()) {
+        assert!((i32::from(*whole) - 2 * i32::from(*halved)).abs() <= 2);
+    }
+    // Silent in both: nothing, and the utterance still plays out.
+    let silent = heard_tone(8, |_| Heard::Plain(Ears::SILENT));
+    assert!(silent[1..].iter().flatten().all(|ears| *ears == [0, 0]));
+}
+#[test]
+fn the_switch_to_the_radio_ramps_over_a_frame() {
+    // Plain for four frames, then the radio (the speaker walked past its
+    // distance): the frame of the switch starts as the plain voice went on
+    // and ends as the radio goes on, no step between two samples.
+    let plain = heard_tone(8, |_| Heard::Plain(Ears::UNITY));
+    let switched = heard_tone(8, |tick| {
+        if tick < 4 {
+            Heard::Plain(Ears::UNITY)
+        } else {
+            Heard::Radio
+        }
+    });
+    assert_eq!(plain[..4], switched[..4]);
+    let near = |a: i16, b: i16, most: i32| (i32::from(a) - i32::from(b)).abs() <= most;
+    // The tone's own largest step between two samples (500 Hz at 8000).
+    let step = 8000. * LOUDER * 2. * std::f32::consts::PI * 500. / RATE as f32;
+    assert!(near(switched[4][0][0], plain[4][0][0], 120), "{:?} {:?}", switched[4][0], plain[4][0]);
+    let all: Vec<i16> = switched.iter().flatten().map(|[left, _]| *left).collect();
+    let largest = all.windows(2).map(|pair| (i32::from(pair[1]) - i32::from(pair[0])).abs()).max().unwrap();
+    assert!((largest as f32) < 2.5 * step, "{largest} {step}");
+    // From the next frame on the radio alone: both ears alike, not the tone.
+    assert!(switched[5..].iter().flatten().all(|[left, right]| left == right));
+    assert_ne!(switched[6], plain[6]);
+}
+#[test]
+fn between_the_two_distances_the_plain_voice_and_the_radio_are_both_heard() {
+    let right = Ears::new(0., 1.);
+    let plain = ear_sums(&heard_tone(12, |_| Heard::Plain(right))[9..]);
+    let radio = ear_sums(&heard_tone(12, |_| Heard::Radio)[9..]);
+    let both = ear_sums(&heard_tone(12, |_| Heard::Both(right))[9..]);
+    // The radio is centred: alone in the left ear; the right has the voice too.
+    assert!(plain[0] == 0. && radio[0] > 0. && (both[0] - radio[0]).abs() < radio[0] / 100., "{plain:?} {radio:?} {both:?}");
+    assert!(both[1] > radio[1] * 1.2 && both[1] > plain[1] * 1.2, "{plain:?} {radio:?} {both:?}");
+}
+#[test]
+fn the_microphone_tests_playback_plays_under_a_voice_heard_in_the_world() {
+    // The test's playback (a steady level) while slot 3 talks from the right:
+    // the left ear has the playback alone, as it plays with no voice
+    // (`centred`); the right has the voice over it.
+    let mut encoder = Encoder::new().unwrap();
+    let frames: Vec<Vec<u8>> = (0..12).map(|i| encoder.encode(&tone(i, 500., 8000.)).unwrap()).collect();
+    let mut core = Core::new().unwrap();
+    feed(&mut core, &frames);
+    let under = [0.1_f32; FRAME];
+    let alone = receiver::centred(&under);
+    let mut hearing = Hearing::UNITY;
+    hearing.set(3, Heard::Plain(Ears::new(0., 1.)));
+    let mixed: Vec<Stereo> = (0..8).map(|tick| core.mix_over(Some(&under), 1., &hearing, tick * 20)).collect();
+    assert!(mixed[1..].iter().flatten().all(|[left, _]| *left == alone[0][0]));
+    let over = mixed[2..].iter().flatten().filter(|[_, right]| *right != alone[0][1]).count();
+    assert!(over > 4 * FRAME, "{over}");
+    // On the radio instead: both ears alike, over the playback.
+    let mut core = Core::new().unwrap();
+    feed(&mut core, &frames);
+    hearing.set(3, Heard::Radio);
+    let radio: Vec<Stereo> = (0..8).map(|tick| core.mix_over(Some(&under), 1., &hearing, tick * 20)).collect();
+    assert!(radio[1..].iter().flatten().all(|[left, right]| left == right));
+    assert!(radio[6..].iter().flatten().any(|[left, _]| *left != alone[0][0]));
 }
 #[test]
 fn utterance_order_wrap_and_reset() {
@@ -285,7 +348,7 @@ fn syllables(frame: usize, amplitude: f32) -> [i16; FRAME] {
 }
 /// As [`syllables`], with `harmonics` harmonics falling 6 dB an octave (45:
 /// up to 7.6 kHz, a wide-band voice).
-fn voiced(frame: usize, amplitude: f32, harmonics: usize) -> [i16; FRAME] {
+pub(crate) fn voiced(frame: usize, amplitude: f32, harmonics: usize) -> [i16; FRAME] {
     std::array::from_fn(|i| {
         let t = (frame * FRAME + i) as f32 / RATE as f32;
         if (t * 1000.) as u32 % 300 >= 200 {

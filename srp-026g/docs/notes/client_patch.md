@@ -1603,7 +1603,7 @@ A node is {prev, next, index, value}, linked at the tail of the holder's list ho
 
 **The patch.** 0x33AE13 `mov dword [esi+48h],13h` -> `jmp loader`: it does that, then (pushad, xmm0 kept) `passive/aim_time_mod` into +350h as index 31h (the max_carried_weight node, 0 in retail, no longer read) and `active/aim_time_mod` into a sixth node at +3B8h, index 31h, and goes on at 0x33AE1A. With the stopping power node at +3C8h (below) the object grows to 3D8h (0x25E7A8 `mov eax,3B8h`, 0x2EEA74 `mov eax,398h`); the wrapped Spring's own fields end at +3B7h (0x25EA4F..0x25EA83). 0x311BC0's first ten bytes (`push ebx / push esi / mov esi,eax / mov eax,[esi+250h]`) -> `jmp link_active`: the sixth node linked as 0x311BC0 links the others, then those ten bytes, back at 0x311BCA. 0x311DA0's `push ebx / mov ebx,[esp+8]` -> `jmp unlink_active`: 0x2D5D00 on it, the two instructions, back at 0x311DA5. The node is in its list exactly while the three active ones are (0x2D5D00 must not be given a node that is not in the list: it takes a missing prev as the list's head).
 
-**A Lifebone's heal.** enable_active 0x312250 (thiscall, the time): `remove_affects` entries (+360h..+364h, stride 20h) each through 0x2E58B0 (eax = the damage model's pools, [the holder's slot 2]+108h; ecx = &name; strcmp with pool+80h) and 0x32A6A0; then the duration (M39) into +494h. Its argument slot [esp+14h] is scratch after 0x3122E2. 0x3122AA `mov ecx,[edi+250h]` (reached with four pushes, from the loop or around it) -> `jmp lifebone_active`: the pools named `pain`, `body` and `head` (its table `heals`), each with H < Hmax given increase_health 0x32A420 (esi = the pool; the time, Hmax - H; `ret 8`; it clamps, calls 0x32A9C0, and 0x32B920 when the pool is then full), as the medkit at 0x33D9C3; the instruction; back at 0x3122B0.
+**A Lifebone's heal.** enable_active 0x312250 (thiscall, the time): `remove_affects` entries (+360h..+364h, stride 20h) each through 0x2E58B0 (eax = the damage model's pools, [the holder's slot 2]+108h; ecx = &name; strcmp with pool+80h) and 0x32A6A0; then the duration (M39) into +494h. Its argument slot [esp+14h] is scratch after 0x3122E2. 0x3122AA `mov ecx,[edi+250h]` (reached with four pushes, from the loop or around it) -> `jmp lifebone_active`: every body part's pool (its table `heals`: `pain`, `body`, `head`, and since the owner's 2026-11-14 report `left_hand`, `right_hand`, `left_leg` and `right_leg`), each with H < Hmax given increase_health 0x32A420 (esi = the pool; the time, Hmax - H; `ret 8`; it clamps, calls 0x32A9C0, and 0x32B920 when the pool is then full), as the medkit at 0x33D9C3; the instruction; back at 0x3122B0. Why the limbs: 0x32A6A0 takes the affect out of the pool's list (+30h..+34h) and leaves its health (+A0h), and the health is what the hud's doll shows (0x2370E0: H / Hmax of the six parts of its table 0xACFC38 to `root.set_body_part_hp`) and what slows a leg (0x32A9C0, from the hit path and increase_health alone: the thresholds' movement node at pool+CCh); the affect only counts the broken legs and hands (damage_model::on_broken_limb_affect 0x2E5370, +388h and +389h, read by can_sprint at 0x2DBF58 and by the weapon's dispersion at 0x2E1798 and its use at 0x2E381A), and nothing but a hit applies one (check_affects 0x32A740, its one call at 0x32A2B3).
 
 **The slow from bullets.** base_player::hit_impl (0x2D9B90) queues (time, stopping_power x k_power) in m_recent_hits (player+2E8h) once per bullet; the stagger 0x2DBCD0 (eax = the player, the time; `ret 4`; from the tick at 0x2D8FE5) sums those younger than [+320h] (0.5 s) into xmm0 and its local [esp+14h], both ways (the loop's end, or none at 0x2DBCF9) reaching 0x2DBD89 `movss xmm2,[esi+31Ch]`; then -min(local, [+31Ch] 0.5) goes into the player's own node +2F4h (index [+2FCh] = 4, value +300h). 0x2DBD89 -> `jmp stagger`: the getter on list 42 with (the sum, 1.0), the result into xmm0 and the local, xmm1 0, the instruction; back at 0x2DBD91. List 42 is artefact_synergy: no getter call reads it (re-kit damage notes) and no retail config sets it, so without a Spring the factor is 1. The Spring's seventh node, +3C8h, index 2Ah, `active/stopping_power_mod`, is filled by the loader hook and linked and unlinked with the aim node (the object 3D8h bytes; 3F8h since Spring II's two reload nodes, +3D8h with the passive and +3E8h with the active, artefact-skills.md). Since 2026-11-05 the stagger then calls patch 94's generated entry `medical_skills_on_stopping` (cdecl: the player, the sum in and out; every register kept): the medical skill Unflinching multiplies the sum while a painkiller is active (medical-skills.md). The one hook at 0x2DBD89 stays patch 54's.
 
@@ -3558,7 +3558,7 @@ What it is for and the owner's rules: [dxvk-option.md](dxvk-option.md). Here: wh
 
 The owner's ask (2026-10-23, answers 2026-10-25, the mute and the list as 0.69's 2026-11-06). Team
 push-to-talk through `skhid_voice.dll` (`../../client-voice`) and srp's voice relay on the match
-port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `vostok/voice.rs`):
+port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary `vostok/voice.rs`):
 
 - **The variables** (`configs.start`, before user.cfg): the sound tab's stock controls are bound by
   name to `s_chat_volume`, `s_use_microphone`, `s_mic_sens` (0x262DE8..0x262EC9) and nothing
@@ -3568,13 +3568,20 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `
   record left out and logged).
 - **Connect, end** (`match_client.connect` 0x27A1B0 at its start: ECX the client, [esp+4] the
   host, +8 the port, +0Ch the session; a replay's connect is 0x122350): the DLL loaded once
-  (`LoadLibraryA`, its ten exports and version through `voice_abi`), `sv_start(host, port + 1,
+  (`LoadLibraryA`, its exports and version through `voice_abi`), `sv_start(host, port + 1,
   session)`, the options told before it (no mutes, no radio: the DLL keeps the last match's);
   `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
   (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied.
-- **Every frame** (`game_world.after_move`): the options, the muted teammates and the far ones (a
-  teammate beyond 15 m, or either of the two not alive: the radio filter; a nearer one's pan, the
-  sine of its bearing from the local player's eyes' right, `sv_direction`) to the DLL on a change;
+- **Every frame** (`game_world.after_move`): the options, the muted teammates and how each
+  teammate is heard, a place's whole state in one `sv_hear(place, left, right, radio)`, to the DLL on
+  a change. From 10 m (`RADIO_FROM_M`), or with either of the two not alive: the radio. Nearer than
+  10 m (`PLAIN_TO_M`): plain, in the world: the engine's own pan of a point sound at the speaker's
+  place (`sound_scene::calculate_3d_pan` 0x57D70 through `engine_sound_pan`, with the game world's
+  sound scene (+94h: its listener), the sound world's panning table (+0CCh) and a zeroed proxy of
+  ours, a point sound; the position is the speaker's offset, feet to feet, added to the listener's
+  place as the engine keeps it, `engine_listener_position` 0x57560), times a gain by distance
+  (two linear keys, 1 to 1 m and `AT_9_M` 0.7 at 9 m) and `LEVEL` (voice-chat.md, "Plain in the
+  world"; `check_voice_pan_026g.py` runs the engine's function as the patch calls it);
   a held push-to-talk let go when its key is up (user32's GetAsyncKeyState, so a release the chat
   box took is seen: MapVirtualKeyA's VK of the scan code, and for the numpad's digits and point the
   VK_NUMPADn/VK_DECIMAL a press sets with NumLock on, as the scan code maps to the navigation
@@ -3597,7 +3604,18 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `
   answered `root.srp_voice_menu(place, offered, muted)` (a teammate whose voice id the relay sent),
   `srp_voice_mute(place, "1"|"0")` `root.srp_voice_mute(place, done)`; the menu shows "Mute voice"
   or "Unmute voice" after the chat's entries.
-- **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio). **Not run**: a game.
+- **The options' microphone test** (the owner, 2026-11-14; `voice-chat.md`, "Microphone test":
+  the DLL records 10 s and plays them back, in a match or not). `options.callback`
+  (game_options::scaleform_callback 0x1FF5D0, after patches 79, 83 and 112): the Settings' sound
+  tab asks `srp_mic_test`, answered `root.srp_mic_test(text)` (the button's text of the DLL's
+  state, the dictionary's `st_srp_mic_test*` with the seconds left); with `<volume> <sensitivity>`
+  (the two voice sliders' steps as they stand) it is a press, `sv_test_press`, with `stop` (the
+  Settings window closed) `sv_test_stop`; the DLL is loaded here when no match loaded it; at the
+  game's own `options_tab_changed` (left to it) `sv_test_stop`. `game.tick` (0x1EC8EC, EBX the game; after the music, the packets and the two
+  reports): while the main menu is shown (game_options, game+57F4h: +44h shown, +0Ch its movie's
+  holder, a new `fields_026g.tsv` row) the button is told its text when `sv_test_state` is no
+  longer what it shows. `options.deactivate` (0x201040, after patch 113's): `sv_test_stop`.
+- **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio, the test's press and texts). **Not run**: a game.
 
 ### Distance detail option
 

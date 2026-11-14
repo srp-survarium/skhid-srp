@@ -2290,6 +2290,21 @@ pub extern "C" fn hook_executable_report_on_frame(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- voice (patch 66) ----
+
+/// The entry `voice_on_tick` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_on_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_on_tick` calls this, from the game's jump at 0x1ec8ec,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::on_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- memory_report (patch 126) ----
 
 /// The entry `memory_report_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
@@ -2711,6 +2726,21 @@ pub extern "C" fn hook_hud_cursor_on_menu_close(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- voice (patch 66) ----
+
+/// The entry `voice_on_menu_close` (0x201040, game_options::deactivate's start (push ecx / cmp byte [esi+44h],0; the je after it returns when the menu is not shown): the menu's Resume (0x1FF66E), its key (0x20165A), a match's end (0x1F956D) and the lobby's (0x21D50E)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_on_menu_close(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_on_menu_close` calls this, from the game's jump at 0x201040,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::on_menu_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hud_options (patch 83) ----
 
 /// The entry `hud_options_on_process_start` (0xe9580, memory::platform::allocate_arenas' start (mov eax,11A8h before its stack probe 0x429F20): once, at the process's start (memory::allocate_region, 0xE11F9), before the VRAM check's get_local_video_memory_size 0x106300 (Direct3DCreate9) at 0xE9C3F and the render device) calls this with the saved machine.
@@ -2825,6 +2855,26 @@ pub extern "C" fn hook_mouse_pitch_on_options_call(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::mouse_pitch::on_options_call(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- voice (patch 66) ----
+
+/// The named exits of voice::on_options_call (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum VoiceOnOptionsCallExit { Done }
+/// The entry `voice_on_options_call` (0x1ff5d0, game_options::scaleform_callback's start (push ebp / push esi / mov esi,[esp+10h]): ECX the options' interface, the site's ESP+4 the movie, +8 the method's name, +0Ch the arguments, +10h their count; done is its `ret 10h`) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_on_options_call(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_on_options_call` calls this, from the game's jump at 0x1ff5d0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::on_options_call(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -5168,6 +5218,8 @@ pub extern "C" fn hook_music_on_frame_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_executable_report_on_frame(frame);
     if flow != 0 { return flow; }
+    let flow = hook_voice_on_tick(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5232,6 +5284,15 @@ pub extern "C" fn hook_hand_kill_on_hit_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_hud_cursor_on_menu_close_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_hud_cursor_on_menu_close(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_voice_on_menu_close(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_hud_options_on_present_chain(frame: &mut Frame) -> u32 {
     let flow = hook_hud_options_on_present(frame);
     if flow != 0 { return flow; }
@@ -5247,6 +5308,8 @@ pub extern "C" fn hook_language_on_options_call_chain(frame: &mut Frame) -> u32 
     let flow = hook_hud_options_on_options_call(frame);
     if flow != 0 { return flow; }
     let flow = hook_mouse_pitch_on_options_call(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_voice_on_options_call(frame);
     if flow != 0 { return flow; }
     0
 }

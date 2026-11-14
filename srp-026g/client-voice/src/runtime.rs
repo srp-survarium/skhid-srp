@@ -1,5 +1,6 @@
 //! Session lifecycle and the Windows voice worker. The game never shares
-//! codec or WinMM memory with the worker; its controls and status are atomic.
+//! codec or WinMM memory with the worker; its controls and status are atomic,
+//! how each place is heard one value under a lock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TalkState {
     Idle,
@@ -164,8 +165,10 @@ pub(crate) unsafe fn host_arg<'a>(host: *const std::ffi::c_char) -> Option<&'a s
 mod platform {
     use super::{DropLog, TalkAction, TalkState, host_arg};
     use crate::{
-        Core, Encoder, Hearing, Pan, Preprocessor, SLOTS, Sender,
+        Core, Encoder, FRAME, Heard, Hearing, Preprocessor, SLOTS, Sender,
+        mic_test::{Ask, Devices, Door, Event, Shown, Sliders, Test},
         radio::unit,
+        receiver::centred,
         windows::{Input, Output},
         wire::{self, Message},
     };
@@ -174,7 +177,7 @@ mod platform {
         io,
         net::{ToSocketAddrs, UdpSocket},
         sync::{
-            Arc, Mutex,
+            Arc, Mutex, MutexGuard,
             atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering::SeqCst},
         },
         thread::{self, JoinHandle},
@@ -193,9 +196,8 @@ mod platform {
         mic: AtomicBool,
         volume: AtomicU32,
         sensitivity: AtomicU32,
-        far: AtomicU32,
-        /// Each slot's [`Pan`] (its bits), for when it is heard directly.
-        pans: [AtomicU32; SLOTS],
+        /// How each slot is heard: a slot's whole state in one `sv_hear`.
+        hearing: Mutex<Hearing>,
         muted: AtomicU32,
         hello: AtomicBool,
     }
@@ -204,8 +206,7 @@ mod platform {
         mic: AtomicBool::new(true),
         volume: AtomicU32::new(1.0_f32.to_bits()),
         sensitivity: AtomicU32::new(0.5_f32.to_bits()),
-        far: AtomicU32::new(0),
-        pans: [const { AtomicU32::new(0) }; SLOTS],
+        hearing: Mutex::new(Hearing::UNITY),
         muted: AtomicU32::new(0),
         hello: AtomicBool::new(false),
     };
@@ -219,16 +220,27 @@ mod platform {
         heard: AtomicU32,
         transmitting: AtomicBool,
         ids: [AtomicU32; SLOTS],
+        /// The microphone test as the options' button shows it (a
+        /// [`Shown`]'s word).
+        test: AtomicU32,
+        /// What the game asks of the microphone test, for this worker.
+        door: Mutex<Door>,
     }
     impl Status {
-        fn new() -> Self {
+        /// `asked`: what the worker finds asked at its first pass.
+        fn new(asked: Option<Ask>) -> Self {
             Self {
                 stop: AtomicBool::new(false),
                 slot: AtomicI32::new(-1),
                 heard: AtomicU32::new(0),
                 transmitting: AtomicBool::new(false),
                 ids: std::array::from_fn(|_| AtomicU32::new(0)),
+                test: AtomicU32::new(Shown::Idle.word()),
+                door: Mutex::new(Door::Open(asked)),
             }
+        }
+        fn door(&self) -> MutexGuard<'_, Door> {
+            self.door.lock().unwrap_or_else(|error| error.into_inner())
         }
     }
     struct Session {
@@ -241,6 +253,11 @@ mod platform {
     enum Lifecycle {
         Stopped,
         Running(Session),
+        /// No match: a worker for the microphone test alone ([`run_test`]).
+        Testing {
+            status: Arc<Status>,
+            worker: JoinHandle<()>,
+        },
         Broken,
     }
     static SESSION: Mutex<Lifecycle> = Mutex::new(Lifecycle::Stopped);
@@ -264,14 +281,15 @@ mod platform {
         CONTROL.ptt.store(false, SeqCst);
         let previous = std::mem::replace(state, Lifecycle::Stopped);
         match previous {
-            Lifecycle::Running(session) => {
-                session.status.stop.store(true, SeqCst);
+            Lifecycle::Running(Session { status, worker, .. })
+            | Lifecycle::Testing { status, worker } => {
+                status.stop.store(true, SeqCst);
                 let deadline = Instant::now() + Duration::from_secs(3);
-                while !session.worker.is_finished() && Instant::now() < deadline {
+                while !worker.is_finished() && Instant::now() < deadline {
                     thread::sleep(Duration::from_millis(5));
                 }
-                if session.worker.is_finished() {
-                    if session.worker.join().is_err() {
+                if worker.is_finished() {
+                    if worker.join().is_err() {
                         say("voice worker panicked");
                     }
                 } else {
@@ -284,6 +302,68 @@ mod platform {
             Lifecycle::Broken => *state = Lifecycle::Broken,
             Lifecycle::Stopped => (),
         }
+    }
+
+    /// The worker's WinMM devices as the microphone test finds them.
+    struct Winmm {
+        playback: bool,
+    }
+    impl Devices for Winmm {
+        type Microphone = Input;
+        fn microphone(&mut self) -> Option<Input> {
+            Input::open().ok()
+        }
+        fn playback(&self) -> bool {
+            self.playback
+        }
+    }
+    /// A pass of the microphone test: what the game asked of it since the
+    /// last, then what its microphone captured and what is due.
+    fn test_pass(test: &mut Test<Input>, status: &Status, now: u32, playback: bool, talking: bool) {
+        let mut devices = Winmm { playback };
+        // The door is not held while the test opens or closes a device.
+        let asked = status.door().take();
+        match asked {
+            Some(Ask::Press(sliders)) => {
+                test.apply(Event::Press { sliders, talking }, now, &mut devices);
+            }
+            Some(Ask::Stop) => {
+                test.apply(Event::Stop, now, &mut devices);
+            }
+            None => (),
+        }
+        test.apply(Event::Pass, now, &mut devices);
+    }
+    /// The worker of a microphone test with no match (the lobby): the two
+    /// devices and the test, no socket and nothing of the relay. It leaves
+    /// when the test is over, closing its devices on its own thread.
+    fn run_test(status: Arc<Status>) {
+        let clock = Instant::now();
+        let mut test = Test::Idle;
+        // None: the press finds no playback device, and the button says so.
+        let mut output = Output::open().ok();
+        while !status.stop.load(SeqCst) {
+            let now = clock.elapsed().as_millis() as u32;
+            test_pass(&mut test, &status, now, output.is_some(), false);
+            if let Some(device) = &mut output {
+                let mut devices = Winmm { playback: true };
+                let play = || {
+                    let own = test.apply(Event::Play, now, &mut devices);
+                    centred(&own.unwrap_or([0.; FRAME]))
+                };
+                if device.pump(play).is_err() {
+                    output = None;
+                }
+            }
+            status.test.store(test.shown(now).word(), SeqCst);
+            if test.is_idle() && status.door().shut() {
+                // The device still holds the last frames it was handed.
+                thread::sleep(Duration::from_millis(100));
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        status.test.store(Shown::Idle.word(), SeqCst);
     }
 
     fn run(
@@ -305,6 +385,7 @@ mod platform {
         let mut ending: Option<(Vec<u8>, u8, u32)> = None;
         let mut applied_mute = u32::MAX;
         let mut receiving = true;
+        let mut test = Test::Idle;
         let mut drops = DropLog::default();
         let mut bytes = [0_u8; 464];
         while !status.stop.load(SeqCst) {
@@ -390,12 +471,20 @@ mod platform {
                     }
                 }
             }
-            let hearing = Hearing::new(CONTROL.far.load(SeqCst), |slot| {
-                Pan::new(f32::from_bits(CONTROL.pans[slot].load(SeqCst)))
-            });
+            let hearing = *CONTROL
+                .hearing
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
             let level = volume();
             if let Some(device) = &mut output {
-                if device.pump(|| core.mix(level, &hearing, now)).is_err() {
+                // The microphone test's playback under the voices: nothing
+                // of the test goes anywhere else from here.
+                let mut devices = Winmm { playback: true };
+                let mix = || {
+                    let own = test.apply(Event::Play, now, &mut devices);
+                    core.mix_over(own.as_ref(), level, &hearing, now)
+                };
+                if device.pump(mix).is_err() {
                     output = None;
                     output_retry = Some(now);
                     say("output device failed; retry in 5 seconds");
@@ -420,7 +509,15 @@ mod platform {
             status.heard.store(core.talking(now), SeqCst);
 
             let pressed = CONTROL.ptt.load(SeqCst);
-            match talk.update(now, pressed, CONTROL.mic.load(SeqCst)) {
+            test_pass(&mut test, &status, now, output.is_some(), pressed);
+            let action = talk.update(now, pressed, CONTROL.mic.load(SeqCst));
+            if action == TalkAction::Start {
+                // Talking wins: the test ends, and its capture device is
+                // closed before the transmission opens its own.
+                let playback = output.is_some();
+                test.apply(Event::Talk, now, &mut Winmm { playback });
+            }
+            match action {
                 TalkAction::Start => match Input::open() {
                     Ok(device) => {
                         input = Some(device);
@@ -482,6 +579,7 @@ mod platform {
                     ending = None;
                 }
             }
+            status.test.store(test.shown(now).word(), SeqCst);
             thread::sleep(Duration::from_millis(5));
         }
         if let Some(bytes) = sender.flush() {
@@ -497,6 +595,20 @@ mod platform {
     #[unsafe(no_mangle)]
     pub extern "C" fn sv_version() -> i32 {
         i32::from(voice_abi::ABI_VERSION)
+    }
+    /// The host may FreeLibrary while a worker owns executable code.
+    /// Pinning keeps code and static controls alive until process exit.
+    fn pin() -> bool {
+        let mut module = std::ptr::null_mut();
+        // SAFETY: an address of this module and a valid output pointer.
+        let pinned = unsafe {
+            GetModuleHandleExA(
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+                sv_version as *const () as *const u8,
+                &mut module,
+            )
+        };
+        pinned != 0
     }
 
     /// Start voice for a match. Returns zero on success.
@@ -550,20 +662,10 @@ mod platform {
         let Ok(preprocessor) = Preprocessor::new() else {
             return 6;
         };
-        // The host may FreeLibrary while the worker owns executable code.
-        // Pinning keeps code and static controls alive until process exit.
-        let mut module = std::ptr::null_mut();
-        let pinned = unsafe {
-            GetModuleHandleExA(
-                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
-                sv_version as *const () as *const u8,
-                &mut module,
-            )
-        };
-        if pinned == 0 {
+        if !pin() {
             return 7;
         }
-        let status = Arc::new(Status::new());
+        let status = Arc::new(Status::new(None));
         let worker_status = Arc::clone(&status);
         let Ok(worker) = thread::Builder::new()
             .name("skhid-voice".into())
@@ -600,19 +702,17 @@ mod platform {
             CONTROL.hello.store(true, SeqCst);
         }
     }
+    /// How the slot is heard from now on (`voice_abi::Hear`): its plain
+    /// voice's gain in each ear and whether its radio is on. A slot past the
+    /// 20 changes nothing.
     #[unsafe(no_mangle)]
-    pub extern "C" fn sv_radio(mask: u32) {
-        CONTROL.far.store(mask, SeqCst);
-    }
-    /// Where the slot is heard from while it is heard directly (`Pan`: the
-    /// sine of its bearing). A slot past the 20 changes nothing.
-    #[unsafe(no_mangle)]
-    pub extern "C" fn sv_direction(slot: i32, sine: f32) {
-        if let Some(pan) = usize::try_from(slot)
-            .ok()
-            .and_then(|slot| CONTROL.pans.get(slot))
-        {
-            pan.store(Pan::new(sine).get().to_bits(), SeqCst);
+    pub extern "C" fn sv_hear(slot: i32, left: f32, right: f32, radio: i32) {
+        if let Ok(slot) = usize::try_from(slot) {
+            CONTROL
+                .hearing
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .set(slot, Heard::of_call(left, right, radio));
         }
     }
     #[unsafe(no_mangle)]
@@ -629,12 +729,14 @@ mod platform {
         stop: sv_stop,
         ptt: sv_ptt,
         settings: sv_settings,
-        radio: sv_radio,
-        direction: sv_direction,
+        hear: sv_hear,
         mute: sv_mute,
         talking: sv_talking,
         slot: sv_slot,
         voice_id: sv_voice_id,
+        test_press: sv_test_press,
+        test_stop: sv_test_stop,
+        test_state: sv_test_state,
     };
     fn read_status<T>(default: T, read: impl FnOnce(&Status) -> T) -> T {
         let state = SESSION.lock().unwrap_or_else(|error| error.into_inner());
@@ -678,6 +780,57 @@ mod platform {
                 .and_then(|slot| status.ids.get(slot))
                 .map_or(0, |id| id.load(SeqCst))
         })
+    }
+    /// The options' "Test microphone" button, with the "Voice chat" volume
+    /// and the "Microphone sensitivity" as their sliders stand (each 0..1).
+    /// The test is the worker's: a match's, or with no match one of its own.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn sv_test_press(volume: f32, sensitivity: f32) {
+        let ask = Ask::Press(Sliders::new(volume, sensitivity));
+        let mut state = SESSION.lock().unwrap_or_else(|error| error.into_inner());
+        let taken = match &*state {
+            Lifecycle::Running(Session { status, .. }) | Lifecycle::Testing { status, .. } => {
+                status.door().ask(ask)
+            }
+            Lifecycle::Stopped => false,
+            Lifecycle::Broken => return,
+        };
+        if taken || !pin() {
+            return;
+        }
+        // No worker, or one that has left as its test was over (it closes
+        // its devices by itself; its handle goes here): a new one, which
+        // finds the press at its first pass.
+        let status = Arc::new(Status::new(Some(ask)));
+        let worker_status = Arc::clone(&status);
+        *state = match thread::Builder::new()
+            .name("skhid-voice-test".into())
+            .spawn(move || run_test(worker_status))
+        {
+            Ok(worker) => Lifecycle::Testing { status, worker },
+            Err(_) => Lifecycle::Stopped,
+        };
+    }
+    /// The test stopped, if one runs.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn sv_test_stop() {
+        let state = SESSION.lock().unwrap_or_else(|error| error.into_inner());
+        if let Lifecycle::Running(Session { status, .. }) | Lifecycle::Testing { status, .. } =
+            &*state
+        {
+            status.door().ask(Ask::Stop);
+        }
+    }
+    /// What the test does now, as its button shows it ([`Shown::word`]).
+    #[unsafe(no_mangle)]
+    pub extern "C" fn sv_test_state() -> u32 {
+        let state = SESSION.lock().unwrap_or_else(|error| error.into_inner());
+        match &*state {
+            Lifecycle::Running(Session { status, .. }) | Lifecycle::Testing { status, .. } => {
+                status.test.load(SeqCst)
+            }
+            Lifecycle::Stopped | Lifecycle::Broken => Shown::Idle.word(),
+        }
     }
 }
 
