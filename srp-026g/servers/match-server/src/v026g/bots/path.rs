@@ -172,7 +172,8 @@ impl Leap {
     }
 
     /// [A386] A flown press with its share (and a sprint press's walking one): None for a walk-off (no key).
-    /// `aim`: the link's press aimed off its line; a sprint link's walking press is the straight one.
+    /// `aim`: the link's press aimed off its line, a sprint link's walking press too (the builder flies every press of an aimed
+    /// sweep with the aim, `rim.rs` `best_press_with`: the walking press's lead and share are the aimed flights').
     pub fn of_press(
         press: mapdata::grid::gap::Takeoff,
         share: mapdata::Share,
@@ -186,7 +187,7 @@ impl Leap {
             Takeoff::Sprint(lead) => Some(Leap::SprintGap(SprintPress {
                 lead,
                 share,
-                walk: walk.map(|(lead, share)| GapPress { lead, walk: WalkPress::Cap, share, aim: PressAim::STRAIGHT }),
+                walk: walk.map(|(lead, share)| GapPress { lead, walk: WalkPress::Cap, share, aim }),
                 aim,
             })),
             // [S1] A sprint climb presses nothing: its top is a riser of the route (`Route::risers`), sprinted into.
@@ -2157,13 +2158,13 @@ mod tests {
             }))
         );
         assert_eq!(Leap::of_link(&link(Takeoff::WalkOff, None)), None);
-        // [A386 R83/R94] The link's aim is its press's; a sprint link's walking press is the straight one.
+        // [A386 R83/R94] The link's aim is its press's, a sprint link's walking press's too (flown aimed by the builder).
         let aim = mapdata::grid::Aim::new(-6, 4).expect("within the record's steps");
         let aimed = |press: Takeoff, walk| mapdata::OffLink { aim, ..link(press, walk) };
         assert_eq!(Leap::of_link(&aimed(Takeoff::Press(lead), None)).map(Leap::aim), Some(aim));
         let sprint = Leap::of_link(&aimed(Takeoff::Sprint(lead), Some((lead, Share::landed(4)))));
         assert_eq!(sprint.map(Leap::aim), Some(aim));
-        assert!(matches!(sprint, Some(Leap::SprintGap(SprintPress { walk: Some(walk), .. })) if walk.aim.is_straight()));
+        assert!(matches!(sprint, Some(Leap::SprintGap(SprintPress { walk: Some(walk), .. })) if walk.aim == aim));
         // A riser's flown press (A385 rule (d)).
         assert_eq!(RiserPress::of(None), RiserPress::Unflown);
         assert_eq!(RiserPress::of(Some(mapdata::grid::Riser::NoPress)), RiserPress::NoPress);
