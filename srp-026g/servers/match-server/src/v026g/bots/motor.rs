@@ -262,16 +262,10 @@ pub struct Feel {
     /// clear, or the second time, it presses as before (counted, [`walk_reach`]). Replaces 2d's "no press at rest at the face",
     /// which it covers. Off: pressed at any speed.
     pub walk_jump_reach: bool,
-    /// A ledge jump of the route is pressed only when its landing is within the jump's reach of the feet: with the feet
-    /// more than [`PRESS_UNDER_M`] under the take-off and the landing higher above them than the jump the press makes
-    /// gets up ([`mapdata::grid::SPRINT_JUMP_LOW_M`] at a sprint, else [`mapdata::grid::STANDING_JUMP_M`]: the client's
-    /// jump rises from where it is pressed, PROVEN, the jump study), there is no press, and the walk goes on up to the
-    /// take-off (a slope up to it lifts the feet to its floor). A body at the take-off's place (along the jump's way) still
-    /// out of reach of any jump its approach makes is on another floor, and the jump is given up so the route is planned
-    /// again. The bench pressed walking jumps 0.08-0.56 m under the take-off on the slopes before Vostok Radar Station's
-    /// and Mamayev Kurgan's ledges (a rise of 0.95-0.99 m leaves the walk jump's 0.998 m a few centimetres), and a jump
-    /// 1.36-1.50 m under one at Mamayev Kurgan, a rise of 1.03-2.37 m from the feet; none got up (A198). Off: pressed as
-    /// the body walks over the take-off's place, at any height.
+    /// [A198] At the take-off's place (along the jump's way) under its floor and out of reach of any jump its approach makes, the
+    /// jump is given up and the route planned again. Off (A262: given up 17 -> 104 with the stand-in's air control). The hold of
+    /// such a press, and following the route up to the take-off instead of lining up under it, are always on (`under_reach`:
+    /// the client's jump rises from where it is pressed, PROVEN).
     pub press_in_reach: bool,
     /// The sprint on short legs and through turns (A207, [`SprintTurns`]) for the legs that may run: a sprint is taken up on
     /// any leg with room before a sharp turn or the route's end, kept through the turns under [`SprintTurns::sharp_deg`]
@@ -623,9 +617,6 @@ pub const LIFT_MAX_RISE_M: f32 = 1.11;
 /// press lead is up to 0.85 m at a walk (`JUMP_LEAD_S` x 3.5 + `PRESS_M`) and the live players press about 1 m before
 /// (fx-cover, A198); 2 m is the lining up's last stretch.
 pub const STRAIGHT_JUMP_M: f32 = 2.0;
-/// Feet within this of a ledge jump's take-off height, metres, are on its floor ([`Feel::press_in_reach`]): the feet and
-/// the grid's floor of one place differ by a centimetre or two (LIKELY), so a press there is never held for that.
-const PRESS_UNDER_M: f32 = 0.05;
 /// The least depth of a top the lift is tried up, metres: a 0.33 m rail head-on lifted 0 of 20 (PROVEN); 0.35 is the owner's
 /// bar (LIKELY).
 pub const LIFT_TOP_M: f32 = 0.35;
@@ -729,8 +720,9 @@ const UP_NEAR_M: f32 = 1.5;
 /// press 29 times in 124, at the one after 15 times
 /// (`player_bots_stuck.md` §8.9).
 pub const JUMP_TRIES: u32 = 3;
-/// The tries at a jump count on over a route planned again to it within
-/// this, seconds.
+/// The press's own state (its band hold, its lift, the carry after it) is kept over a route planned again to the jump within
+/// this, seconds. The TRIES at a link are kept for the match ([`LinkTries`], A387): a link retried more than 10 s apart was
+/// never counted failed (owner-5 R3: one bot pressed a Mamayev Kurgan link 14 times in 190 s).
 pub(super) const TRY_KEPT_S: f32 = 10.0;
 /// A world that shows the body at most this far from the take-off of the
 /// jump it last pressed, on its floor, and not up, has it still under that
@@ -808,6 +800,8 @@ pub struct Motor {
     facing_ticks: u32,
     /// The route jump being made ([`Motor::jump_ahead`]).
     jump_try: Option<JumpTry>,
+    /// [A387] The presses at each route jump that no world has shown up yet, for the match.
+    link_tries: LinkTries,
     /// Whether this tick's walk lines up for a jump of the route, and for which kind (the caller lets go of crouch
     /// then: a crouched body does not jump).
     lining: Lining,
@@ -1079,13 +1073,18 @@ struct Ahead {
 }
 
 impl Ahead {
-    /// Whether the landing is out of reach of a press from where the feet are ([`Feel::press_in_reach`]): the feet more
-    /// than [`PRESS_UNDER_M`] under the take-off and the landing above them by more than `reach`, the jump the press makes.
+    /// Whether the landing is out of reach of a press from where the feet are: the feet under the take-off and the landing
+    /// above them by more than `reach`, the most the jump the press makes rises (the client's jump rises from where it is
+    /// pressed, PROVEN, the jump study).
     fn out_of_reach(&self, reach: f32) -> bool {
-        matches!(self.leap, Leap::Ledge | Leap::SprintLedge)
-            && self.take_off_above > PRESS_UNDER_M
-            && self.take_off_above + self.rise > reach
+        under_reach(self.leap, self.take_off_above, self.take_off_above + self.rise, reach)
     }
+}
+
+/// Whether a ledge jump pressed from feet `take_off_above` under its take-off and `landing_above` under its landing cannot get
+/// up: the feet under the take-off and the landing higher above them than `reach`, the most the press's jump rises.
+fn under_reach(leap: Leap, take_off_above: f32, landing_above: f32, reach: f32) -> bool {
+    matches!(leap, Leap::Ledge | Leap::SprintLedge) && take_off_above > 0.0 && landing_above > reach
 }
 
 /// How the body approaches the face of a jump link: one of these, never a mixture.
@@ -1140,6 +1139,7 @@ impl Motor {
             sprinting: false,
             facing_ticks: 0,
             jump_try: None,
+            link_tries: LinkTries::default(),
             lining: Lining::No,
             pressed: None,
             band_gave_up: None,
@@ -2138,7 +2138,7 @@ impl Motor {
             _ => JumpTry {
                 take_off,
                 landing,
-                tries: 0,
+                tries: self.link_tries.of(take_off, landing),
                 pressed: None,
                 back: false,
                 #[cfg(test)]
@@ -2180,7 +2180,7 @@ impl Motor {
                 jump.counted = true;
                 counts::gave_up();
             }
-            self.jump_try = Some(jump);
+            self.keep_try(jump);
             return Some(Ahead {
                 aim: take_off,
                 lined: false,
@@ -2200,6 +2200,17 @@ impl Motor {
         }
         let lead_m = route.ledge_lead(k).unwrap_or(0.0);
         let at = |m: f32| Vec3::new(take_off.x - way[0] * m, take_off.y, take_off.z - way[1] * m);
+        // Feet on a floor under the take-off, out of reach of the jump this approach makes: not lined up and not pressed;
+        // the walk follows the route up to the take-off. The lining's run-up point and its line are at the take-off's height,
+        // and a flat test took a body a floor below them for one on the line: Mamayev Kurgan's (-2.90, 29.58, 105.38), its
+        // three walk steps up from 28.08 cut across, pressed from 1.5 m under the take-off again and again (nav-motor's
+        // pull_walk trace, 2026-11-13; A198's presses 0.08-1.50 m under).
+        let under = under_reach(
+            leap,
+            take_off.y - feet.y,
+            landing.y - feet.y,
+            if sprint || lift_open { SPRINT_JUMP_LOW_M } else { STANDING_JUMP_M },
+        );
         // The sprint lift: up this face, with the top deep enough, a clear run before it and a body the client lets sprint.
         let mut lifting = lift_open && jump.lift != LiftTry::GaveUp;
         if lifting {
@@ -2308,7 +2319,7 @@ impl Motor {
             }
         }
         let on_line =
-            side <= LINED_SIDE_M && along <= LINED_PAST_M && along >= -(run_up + LINED_BEHIND_M);
+            !under && side <= LINED_SIDE_M && along <= LINED_PAST_M && along >= -(run_up + LINED_BEHIND_M);
         if jump.back && !in_the_air {
             self.links.backing();
         }
@@ -2335,7 +2346,7 @@ impl Motor {
                 landing.y,
                 take_off.z + way[1] * past,
             )
-        } else if !sprint_gap && clear(at(run_up)) {
+        } else if !sprint_gap && !under && clear(at(run_up)) {
             at(run_up)
         } else {
             // The run-up not in a line yet (round a corner): the route, up
@@ -2356,7 +2367,7 @@ impl Motor {
                 let moved = mx.hypot(mz);
                 moved < STANDING_M || mx * way[0] + mz * way[1] >= GOING_TURN.cos() * moved
             });
-        self.jump_try = Some(jump);
+        self.keep_try(jump);
         let kind = match leap {
             Leap::Ledge | Leap::SprintLedge if lifting => link_time::Kind::Lift,
             Leap::Ledge if through => link_time::Kind::Through,
@@ -2421,7 +2432,7 @@ impl Motor {
         let most = if ahead.approach.sprints() { SPRINT_JUMP_LOW_M } else { STANDING_JUMP_M };
         if self.feel.press_in_reach && landed && ahead.before <= 0.0 && ahead.out_of_reach(most) {
             jump.tries = JUMP_TRIES;
-            self.jump_try = Some(jump);
+            self.keep_try(jump);
             low_presses::gave_up();
             return 0;
         }
@@ -2482,21 +2493,18 @@ impl Motor {
                 }
             }
             jump.back = true;
-            self.jump_try = Some(jump);
+            self.keep_try(jump);
             self.links.backed_off();
             band_jumps::refused(block, self.sprinting, self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && !aligned);
             band_jumps::face(jump.take_off, ahead.rise, band_jumps::Event::Refused);
             return 0;
         }
-        // The landing out of reach of the jump this press makes, from where the feet are: no press while the walk
-        // goes on to the take-off ([`Feel::press_in_reach`]); off, the press is counted.
+        // The landing out of reach of the jump this press makes, from where the feet are: no press while the walk goes on
+        // up to the take-off. Only the give-up under it stays behind [`Feel::press_in_reach`] (A262: OFF).
         let reach = if sprinted && block.is_none() { SPRINT_JUMP_LOW_M } else { STANDING_JUMP_M };
         if ahead.out_of_reach(reach) {
-            if self.feel.press_in_reach {
-                low_presses::held();
-                return 0;
-            }
-            low_presses::pressed();
+            low_presses::held();
+            return 0;
         }
         // [A347a] A walking jump up onto a short top pressed later than its window's latest press carries the body off the
         // top's far side (Vector Laboratory's 0.905 m ledge: down from presses 0.15-0.38 m before the take-off, up from 0.53
@@ -2505,7 +2513,7 @@ impl Motor {
         if ahead.approach == Approach::Walk && matches!(ahead.leap, Leap::Ledge) && ahead.least_m > 0.0 && ahead.before < ahead.least_m {
             jump.tries += 1;
             jump.back = true;
-            self.jump_try = Some(jump);
+            self.keep_try(jump);
             self.links.backed_off();
             late_presses::backed_off();
             return 0;
@@ -2523,7 +2531,7 @@ impl Motor {
                 if ahead.run_up > 0.0 && !jump.faced {
                     jump.faced = true;
                     jump.back = true;
-                    self.jump_try = Some(jump);
+                    self.keep_try(jump);
                     self.links.backed_off();
                     walk_reach::backed_off();
                     return 0;
@@ -2538,7 +2546,7 @@ impl Motor {
         jump.tries += 1;
         jump.pressed = Some(self.clock);
         jump.back = true;
-        self.jump_try = Some(jump);
+        self.keep_try(jump);
         self.links.pressed(self.clock, pose.feet, pose.speed);
         // [owner-5] A sprint link pressed without sprint: the gate that held it, for the log (decides nothing).
         // The order is `sprinted`'s own: the sprint on, the speed, then (a band face only) a block and the run's way.
@@ -2606,6 +2614,23 @@ impl Motor {
     /// [`BAND_UP_S`] of the press; else not up.
     /// A lift that has reached its face and finds the body up the ledge is a lift got up ([`lifts::up`]), whatever the
     /// route's progress is by then.
+    /// The route jump's try as it now is, its tries kept for the link ([`LinkTries`]).
+    fn keep_try(&mut self, jump: JumpTry) {
+        self.link_tries.set(jump.take_off, jump.landing, jump.tries);
+        self.jump_try = Some(jump);
+    }
+
+    /// [A387] A world showed the body up the route jump from `take_off` to `landing` ([`on_top`]): the link's tries start again.
+    pub fn link_up_seen(&mut self, take_off: Vec3, landing: Vec3) {
+        self.link_tries.set(take_off, landing, 0);
+        if let Some(t) = self.jump_try.as_mut()
+            && (t.take_off - take_off).length() < 0.3
+            && (t.landing - landing).length() < 0.3
+        {
+            t.tries = 0;
+        }
+    }
+
     fn follow_lift(&mut self, feet: Vec3) {
         let clock = self.clock;
         let since = |at: u32| clock.wrapping_sub(at) as f32 * TICK_S;
@@ -2881,6 +2906,63 @@ impl Motor {
 /// [`UP_M`] and half the jump's rise (0.1 m for a jump that does not
 /// rise), and past the jump's middle along its way (a jump over a gap is
 /// made only across it).
+/// [A387] The presses at each route jump no world has shown up yet, for the match: a link is the same within 0.3 m at both
+/// ends (as a [`JumpTry`] is). A link retried after any time counts on, and [`JUMP_TRIES`] of them make it failed.
+#[derive(Clone, Debug, Default)]
+struct LinkTries(Vec<(Vec3, Vec3, u32)>);
+
+impl LinkTries {
+    fn of(&self, take_off: Vec3, landing: Vec3) -> u32 {
+        self.0.iter().find(|&&(a, b, _)| (a - take_off).length() < 0.3 && (b - landing).length() < 0.3).map_or(0, |&(_, _, n)| n)
+    }
+
+    fn set(&mut self, take_off: Vec3, landing: Vec3, tries: u32) {
+        match self.0.iter_mut().find(|(a, b, _)| (*a - take_off).length() < 0.3 && (*b - landing).length() < 0.3) {
+            Some(link) => link.2 = tries,
+            None if tries > 0 => self.0.push((take_off, landing, tries)),
+            None => {}
+        }
+    }
+}
+
+/// [A387] Whether a world's `feet` stand on the top a route jump from `take_off` to `landing` leads to, judged on the walk grid:
+/// the floor under the feet (within the capsule's radius) is one of the top's floors, those joined to the landing's floor by
+/// Walk links without going under [`is_up`]'s height, no farther from the landing than a sprint goes in `since_s` (4.9587 m/s,
+/// F5: a body up the jump cannot have gone farther by this world). [`is_up`] judged by a projection: past half the link and
+/// within 1.5 m of the landing, so a body on a rim top wider than its landing floor was "short" (owner-5 R3: 20 of 35 presses
+/// said "short" with the body up). Our judge: no client claim.
+pub fn on_top(grid: &mapdata::WalkGrid, feet: Vec3, take_off: Vec3, landing: Vec3, since_s: f32) -> bool {
+    let low = landing.y - UP_M.min((0.5 * (landing.y - take_off.y)).max(0.1));
+    let reach = UP_NEAR_M.max(super::stamina::SPRINT_MPS * since_s);
+    if feet.y < low || feet.distance_xz(landing) > reach {
+        return false;
+    }
+    let near = grid.body().radius;
+    let (Some(top), Some(at)) = (
+        grid.locate_within(landing, near, super::kin::FIX_ABOVE_M),
+        grid.locate_within(feet, near, super::kin::FIX_ABOVE_M),
+    ) else {
+        return false;
+    };
+    let on = |n: mapdata::NodeId| grid.position(n).y >= low && grid.position(n).distance_xz(landing) <= reach;
+    if !on(at) {
+        return false;
+    }
+    let mut seen = std::collections::HashSet::from([top]);
+    let mut queue = VecDeque::from([top]);
+    while let Some(n) = queue.pop_front() {
+        if n == at {
+            return true;
+        }
+        for (m, kind) in grid.links(n) {
+            if kind == mapdata::LinkKind::Walk && on(m) && seen.insert(m) {
+                queue.push_back(m);
+            }
+        }
+    }
+    false
+}
+
 pub fn is_up(feet: Vec3, take_off: Vec3, landing: Vec3) -> bool {
     let rise = landing.y - take_off.y;
     let (dx, dz) = (landing.x - take_off.x, landing.z - take_off.z);
@@ -3878,6 +3960,54 @@ pub mod counts {
 mod tests {
     use super::*;
     use crate::v026g::bots::kin::Kinematics;
+
+    /// [A387] Up a route jump judged on the top's floors: a world's feet anywhere on the top within a sprint's reach of the landing
+    /// since the press are up, though [`is_up`]'s projection (past half the link, within 1.5 m of the landing) said no; feet on
+    /// the ground under it, or on another top at the same height not joined to it, are not.
+    #[test]
+    fn up_is_judged_on_the_tops_floors() {
+        use crate::v026g::bots::body::tests::{floor, wall_x};
+        use mapdata::{Triangle, WalkGrid};
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        // A top 1.1 m up over x 10-14, z 0-10 (wide along the face), and another at the same height over x 16-20, apart.
+        for (x0, x1) in [(10.0, 14.0), (16.0, 20.0)] {
+            triangles.extend(floor(x0, 0.0, x1, 10.0, 1.1));
+            for x in [x0, x1] {
+                triangles.extend(wall_x(x, 0.0, 10.0).map(|mut t| {
+                    t.v.iter_mut().for_each(|v| v.y = v.y.min(1.1));
+                    t
+                }));
+            }
+        }
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+        let (take_off, landing) = (Vec3::new(9.6, 0.0, 5.0), Vec3::new(10.6, 1.1, 5.0));
+        // On the top, 3 m along the face from the landing: the projection said no, the top's floors say up.
+        let along = Vec3::new(10.6, 1.1, 8.0);
+        assert!(!is_up(along, take_off, landing));
+        assert!(on_top(&grid, along, take_off, landing, 1.0));
+        // Not yet that far: a sprint for 0.3 s goes 1.49 m (the judge's least reach is 1.5 m).
+        assert!(!on_top(&grid, along, take_off, landing, 0.3));
+        // On the ground under the face, and on the other top: not up.
+        assert!(!on_top(&grid, Vec3::new(9.6, 0.0, 6.0), take_off, landing, 1.0));
+        assert!(!on_top(&grid, Vec3::new(16.6, 1.1, 5.0), take_off, landing, 2.0));
+    }
+
+    /// [A387] The tries at a link are kept for the match: a link pressed again long after counts on, and a world that shows the
+    /// body up starts them again.
+    #[test]
+    fn a_links_tries_are_kept_for_the_match() {
+        let mut tries = LinkTries::default();
+        let (a, b) = (Vec3::new(1.0, 0.0, 1.0), Vec3::new(2.0, 1.0, 1.0));
+        assert_eq!(tries.of(a, b), 0);
+        tries.set(a, b, 2);
+        assert_eq!(tries.of(a + Vec3::new(0.1, 0.0, 0.0), b), 2, "the same link within 0.3 m");
+        assert_eq!(tries.of(a, b + Vec3::new(0.0, 0.0, 0.5)), 0, "another link");
+        let mut rng = Rng::new(1);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        motor.link_tries = tries;
+        motor.link_up_seen(a, b);
+        assert_eq!(motor.link_tries.of(a, b), 0);
+    }
 
     /// The label the planner gives a jump link up to height `y` from a take-off at 0: a sprint jump over the exe body's top.
     fn ledge_to(y: f32) -> Leap {
@@ -5606,8 +5736,9 @@ mod tests {
 
     /// A ledge whose take-off is 0.6 m over the floor the body walks (the route's take-off on a step the body is not
     /// on, as at Vostok Radar Station and Mamayev Kurgan, A198): the landing is 1.5 m over the feet, out of any jump's
-    /// reach. With `press_in_reach` it is never pressed and is given up at the take-off's place; off, it is pressed
-    /// (and tried until given up). An ordinary ledge is climbed the same with the switch on and off.
+    /// reach. It is never pressed, the switch on or off (the hold is always on); with `press_in_reach` it is given up at the
+    /// take-off's place, off the walk goes on (no give-up: the route's legs up to the take-off are walked). An ordinary ledge
+    /// is climbed the same with the switch on and off.
     #[test]
     fn a_jump_out_of_reach_of_the_feet_is_not_pressed_with_press_in_reach() {
         let p = |x: f32, y: f32, jump: bool| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: jump.then_some(ledge_to(y)), low: false };
@@ -5620,11 +5751,11 @@ mod tests {
             let feel = Feel { press_in_reach: on, ..Feel::default() };
             let (mut route, ledge) = high();
             let climb = climb_ledge_feel(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 800, false, 0, feel.clone());
-            assert_eq!(climb.walked, Walked::JumpFailed(Vec3::new(4.6, 0.6, 0.0)), "on {on}: {:?}", climb.poses.last());
+            assert!(climb.presses.is_empty(), "on {on}: {:?}", climb.presses);
             if on {
-                assert!(climb.presses.is_empty(), "{:?}", climb.presses);
+                assert_eq!(climb.walked, Walked::JumpFailed(Vec3::new(4.6, 0.6, 0.0)), "{:?}", climb.poses.last());
             } else {
-                assert_eq!(climb.presses.len(), JUMP_TRIES as usize, "{:?}", climb.presses);
+                assert!(!matches!(climb.walked, Walked::JumpFailed(_)), "no give-up: {:?}", climb.walked);
             }
             let (mut route, ledge) = up_a_ledge(false);
             let climb = climb_ledge_feel(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 300, false, 0, feel);
@@ -5633,8 +5764,41 @@ mod tests {
         }
     }
 
-    /// [`Ahead::out_of_reach`]: the feet under the take-off by more than [`PRESS_UNDER_M`] and the landing above the
-    /// reach: the bench's failed presses (A198) are out of reach of the jump each made, a body on the take-off's floor is not.
+    /// A body a floor under a ledge jump's take-off (the route's walk steps up to it not yet walked), out of reach of the jump,
+    /// is not lined up: it follows the route up the steps, and is not pressed for. Mamayev Kurgan's (-2.90, 29.58, 105.38): three
+    /// walk steps from 28.08 up to the take-off, the bots aimed at the run-up point at the take-off's height across them and
+    /// pressed 1.5 m under it. On the take-off's floor the same body is lined up.
+    #[test]
+    fn a_body_a_floor_under_the_take_off_follows_the_route_up_to_it() {
+        let p = |x: f32, y: f32, jump: bool| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: jump.then_some(ledge_to(0.82)), low: false };
+        let steps = || Route::new(vec![p(0.0, 0.0, false), p(0.75, 0.72, false), p(1.25, 1.5, false), p(1.75, 2.32, true), p(4.0, 2.32, false)]);
+        let mut route = steps();
+        let mut rng = Rng::new(1);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let clear = |_: Vec3| true;
+        let mut ahead_of = |motor: &mut Motor, feet: Vec3| {
+            let pose = Pose { feet, yaw: 0.0, pitch: 0.0, speed: 0.0, ..Default::default() };
+            let (s, _) = route.progress(feet);
+            motor.jump_ahead(&route, &pose, s, &clear).expect("the jump is ahead")
+        };
+        // At the steps' foot, 0.6 m before the take-off on the ground and 1.5 m under it.
+        let under = ahead_of(&mut motor, Vec3::new(0.65, 0.0, 0.0));
+        assert!(!under.lined, "under the take-off: not on the jump's line");
+        // The run-up point the lining aimed at: on the jump's line behind the take-off, at the take-off's height, over the ground.
+        let run_up = Vec3::new(1.25 - RUN_UP_M, 1.5, 0.0);
+        assert!((under.aim - run_up).length() > 0.3, "not the run-up point: {:?}", under.aim);
+        let (_, off) = steps().progress(under.aim);
+        assert!(off < 0.05, "the aim is on the route's legs: {:?} off {off}", under.aim);
+        assert!(under.out_of_reach(STANDING_JUMP_M));
+        // On the take-off's floor, on the jump's line: lined up.
+        let mut rng = Rng::new(1);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let on = ahead_of(&mut motor, Vec3::new(1.2, 1.5, 0.0));
+        assert!(on.lined && !on.out_of_reach(STANDING_JUMP_M), "{on:?}");
+    }
+
+    /// [`Ahead::out_of_reach`]: the feet under the take-off and the landing above the reach: the bench's failed presses (A198)
+    /// are out of reach of the jump each made, a body on the take-off's floor is not.
     #[test]
     fn out_of_reach_asks_both_the_floor_and_the_rise() {
         let ahead = |take_off_above: f32, rise: f32, leap: Leap| Ahead {
@@ -5660,9 +5824,8 @@ mod tests {
         // Mamayev Kurgan (17.35, 29.82, 119.88), up 0.99 m, 0.48-0.56 m under; (63.60, 36.39, 121.12), 1.36-1.50 m under.
         assert!(ahead(0.48, 0.99, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
         assert!(ahead(1.36, 0.87, Leap::Ledge).out_of_reach(SPRINT_JUMP_LOW_M));
-        // On the take-off's floor (within the feet's noise): pressed, whatever the rise.
+        // On the take-off's floor or over it: pressed, whatever the rise.
         assert!(!ahead(0.0, 1.25, Leap::SprintLedge).out_of_reach(SPRINT_JUMP_LOW_M));
-        assert!(!ahead(0.04, 0.99, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
         assert!(!ahead(-0.3, 0.9, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
         // Under the floor but within the jump's reach: pressed.
         assert!(!ahead(0.35, 0.6, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
