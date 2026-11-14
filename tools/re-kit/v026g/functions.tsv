@@ -1215,6 +1215,9 @@ va	status	ref_021d	name
 0x0030eab0	reviewed	0x001f1ebc	survarium::weapon_core_fire_state_base::serialize
 0x0030eb10	reviewed	0x001f1ef1	survarium::weapon_core_fire_state_base::deserialize
 0x0030ebf0	reviewed	0x001f1e3d	survarium::weapon_core_fire_state_base::on_shot_event
+0x0030edf0	observed		survarium::weapon_core_shotgun_reload_start_substate::initialize
+0x0030f070	reviewed		survarium::weapon_core_shotgun_reload_finish_substate::on_animation_end_impl
+0x0030fdb0	reviewed	0x001f3135	survarium::weapon_core_reload_state::initialize
 0x003100f0	reviewed	0x001f33b0	survarium::pistol_weapon_core_fire_state::initialize
 0x00310170	reviewed	0x001f33e7	survarium::pistol_weapon_core_fire_state::on_animation_end_impl
 0x003108d0	reviewed	0x002095db	survarium::weapon_core_melee_state::initialize
@@ -1222,6 +1225,7 @@ va	status	ref_021d	name
 0x00310980	reviewed	0x0020962b	survarium::weapon_core_melee_state::serialize
 0x003109c0	reviewed	0x00209630	survarium::weapon_core_melee_state::deserialize
 0x00310b10	reviewed	0x0020964b	survarium::weapon_core_melee_state::weapon_and_hands_expression
+0x00310e70	reviewed	0x001f3567	survarium::weapon_core_chamber_a_round_state_base::on_animation_end_impl
 0x00311310	reviewed	0x001f3a5f	survarium::damage_zone_core_cook::query_resources
 0x00311360	reviewed	0x001f3a9c	survarium::damage_zone_core_cook::process_resources
 0x003114a0	reviewed	0x001f3b53	survarium::damage_zone_core_cook::construct_resource

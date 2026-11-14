@@ -1215,14 +1215,14 @@ va	name	source	ret_cleanup	result
 0x002e1210	survarium::weapon_core::get_recoil_expression	manual	4	
 0x002e1560	survarium::weapon_core::get_recoil_animation_lexeme	manual	20	
 0x002e1730	survarium::weapon_core::update_dispersion	manual	4	
-0x002e17d0	survarium::weapon_core::load_magazine	manual	0	
+0x002e17d0	survarium::weapon_core::load_magazine	manual	0	n = min(the bound ammo item's amount (+538h -> +260h; 1 for a non-stack), capacity +5E4h - mag +5E5h); the item's amount -= n (marked dirty, +184h) and mag += n in the same call; then with +5F2h mag -= 1 and +5F1h := 1 (0x2E18C9)
 0x002e18e0	survarium::weapon_core::unload_ammo	manual	0	
-0x002e1a00	survarium::weapon_core::reload_one_round	manual	0	
+0x002e1a00	survarium::weapon_core::reload_one_round	manual	0	mag +1 (0x2E1A82) while mag < capacity and the bound stack is not empty
 0x002e1b50		auto	0	
 0x002e1bf0		auto	0	
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	manual	12	D = get_static_dispersion + (state +404h + shot +418h) x k, k = 0 when the aim interpolator's value (weapon +5FCh) is exactly 1, else 1; tilt = 0.5 x D x modf(N(0, 0.5)) degrees about an axis turned by a uniform [0, 2 pi) angle (+5C0h/+5C4h, generator +5BCh, seed 1) about the transform's forward; the direction at [stack+8]
 0x002e2120	survarium::weapon_core::get_dispersed_buckshot_direction	manual	8	
-0x002e23a0	survarium::weapon_core::instant_fire	manual	8	
+0x002e23a0	survarium::weapon_core::instant_fire	manual	8	a weapon with a chamber state (+5F0h) empties its chamber (+5F1h := 0, 0x2E253C); any other takes one from m_ammo_in_magazine (+5E5h, 0x2E2545)
 0x002e2990		auto		
 0x002e2a30		auto	0	
 0x002e2cc0		auto	4	
@@ -1235,7 +1235,7 @@ va	name	source	ret_cleanup	result
 0x002e3130	survarium::weapon_core::serialize	manual	8	
 0x002e3390	survarium::weapon_core::on_player_death	manual	0	
 0x002e3490	survarium::weapon_core::deserialize	manual	12	
-0x002e3800	survarium::weapon_core::could_be_used	manual	4	
+0x002e3800	survarium::weapon_core::could_be_used	manual	4	false when the player's damage model +389h (the broken-hands count, kept by on_broken_limb_affect 0x2E5370) is 2 and the weapon's +5E9h (config parameters.double_handed, absent = false) is set
 0x002e3840	survarium::weapon_core::computed_backward_recoil_time	manual	24	ST0 = (0.5 - clamp(0.5*[ECX+474h] (the kick's side axis x) + [ECX+2CCh] if [ECX+5E8h] (breath sway, +288h+44h), -0.5..0.5)) * entry ESP+4 (clip length); get_recoil_expression's lexeme 1, the weapon's recoil_animations[1] (recoil_horiz): kick x = +1 at the clip's start, -1 at its end
 0x002e3900	survarium::weapon_core::computed_horizontal_recoil_time	manual	24	ST0 = (clamp([ECX+2D0h] if [ECX+5E8h] else 0 (breath sway, +288h+48h), -0.5..0.5) + 0.5) * entry ESP+4 (clip length); get_recoil_expression's lexeme 0, recoil_animations[0] (recoil_vert): the sway only, no kick
 0x002e3a10	survarium::weapon_core::can_sprint	manual	0	
@@ -1252,7 +1252,7 @@ va	name	source	ret_cleanup	result
 0x002e4f60	survarium::damage_model::~damage_model	manual	4	
 0x002e5080	survarium::damage_model::hit_body_part	manual	0	EAX: 1 when the hit's damage, (1 - get_invulnerability) x hit+34h (0x2E50A8..0x2E50B7) through the part's armour and protectors (body_part_parameters::hit_by_type 0x329FF0), is above 0.0 (0x2E5128; it then sets +3C0h to the hit's time); else 0
 0x002e5290	survarium::damage_model::reset	manual	4	
-0x002e5370	survarium::damage_model::on_broken_limb_affect	manual	12	
+0x002e5370	survarium::damage_model::on_broken_limb_affect	manual	12	legs count +388h, hands count +389h: +1 when an affect starts, -1 when it ends (0x2E5387..0x2E53A0)
 0x002e53b0	survarium::damage_model::serialize	manual	4	
 0x002e5480	survarium::damage_model::deserialize	manual	12	none; after the parts, zeroes the broken legs' +388h and hands' +389h counts and recounts them from the saved affects (0x2E5518..0x2E5538 -> 0x2E5990): the counts are derived at every load
 0x002e5550	survarium::damage_model::get_invulnerability	manual	0	x87 ST0: Zero, one, or one minus an unsigned time ratio is left on the x87 stack before each observed return.
@@ -2164,7 +2164,7 @@ va	name	source	ret_cleanup	result
 0x002f81a0	survarium::resupply_zone_core::finish_use	manual	4	not used by caller
 0x002fdc10	survarium::inventory::resupply_from_profile	manual	12	not used by caller; inventory argument only reads slots 10C..168 and writes weight_dirty 184; other-item callbacks use real item owners (slots table 925FD8); check_weapon_pickup.py verifies borrowed slot view
 0x002fdf50	survarium::inventory::check_resupply	manual	8	EAX: 0 available; 1 storage empty; 2 full; inventory argument only reads slot pointers; check_weapon_pickup.py verifies temporary original-loadout view and balanced weapon refs
-0x0030ab40	survarium::weapon_core::load_config_parameters	manual	8	not used by caller
+0x0030ab40	survarium::weapon_core::load_config_parameters	manual	8	not used by caller; weapon +5E9h := parameters.double_handed present and nonzero (0x30ABA4..0x30ABC0; string 0xA0A228)
 0x000e5c20	vostok::resources::query_resources_and_wait	manual	0	not used by caller
 0x00205c60	vostok::type_to_int<survarium::inventory_cooker_data *>	manual	0	EAX: process-local variant type id
 0x002c7170	survarium::register_inventory_cook_and_dependencies	manual	0	EAX: static inventory cook 09261E8Ch; class 41h, reuse policy +0Ch = 0; descriptive label

@@ -1216,9 +1216,12 @@ pub enum GunAt {
     /// time is done and in its magazine.
     Idle,
     /// Reload (id 4): the client's reload runs at the world's time. A magazine is refilled at the reload clip's end
-    /// (`load_magazine` 0x2E17D0, from the clip's end event, `saved_mixing_tree.md` "A weapon's clip position": 2,352
-    /// of 2,384 refills by the next world exactly when the end was due, never before), so the saved magazine is the
-    /// one before the reload; a tube's loop puts its rounds in one by one.
+    /// (`load_magazine` 0x2E17D0, called from the reload state's animation end 0x310E40; `saved_mixing_tree.md` "A
+    /// weapon's clip position": 2,352 of 2,384 refills by the next world exactly when the end was due, never before), so
+    /// the saved rounds are those before the reload (a gun that chambers on reload moves its chambered round into the
+    /// magazine at the state's start, `weapon_core_reload_state::initialize` 0x30FDB0: the same total). A tube's loop
+    /// fills DURING the state, one round a round clip (`reload_one_round` 0x2E1A00, 0x2E1A82): its saved rounds are
+    /// those loaded so far.
     Reloading,
     /// Show, hide, fire, chamber, throw, melee: a clip of the weapon under way (a shot whose round may or may not have
     /// left by the world's time).
@@ -1239,10 +1242,20 @@ impl GunAt {
     }
 }
 
-/// [Gap 3, F7] A trusted world's word on a bot's own weapon in hands, at the world's time: its state, the rounds in its
-/// magazine (`m_ammo_in_magazine` +0x5E5) and the rounds of its ammo in the pocket slot a bot's kit fills
-/// (`loadouts::BOT_AMMO_SLOTS`: the stack's `m_amount`, what a reload loads from: `load_magazine` 0x2E17D0). Read from the
-/// world's typed views (`world_validation::PlaceWorld`, the world format's one definition).
+/// [Gap 3, F7] A trusted world's word on a bot's own weapon in hands, at the world's time: its state, the rounds it holds
+/// and the rounds of its ammo in the kit's stacks. Read from the world's typed views (`world_validation::PlaceWorld`, the
+/// world format's one definition).
+///
+/// - The rounds it holds: `m_ammo_in_magazine` (+0x5E5) and, for a gun with a chamber state, its chambered round
+///   (`m_is_round_chambered` +0x5F1), which is ON TOP of the magazine (a chamber gun holds its capacity + 1, 0x2E39D0).
+///   That total drops at the shot for every gun: a chamber gun's shot empties the chamber (`instant_fire` 0x2E253C)
+///   and its chamber clip's end takes one from the magazine into it (0x310E70), any other's shot takes one from the
+///   magazine (0x2E2545).
+/// - The ammo: a reload loads from the stack the weapon is bound to and takes the rounds off it in the same call
+///   (`load_magazine` 0x2E17D0: weapon +538h, the item's `m_amount`); a bot's weapon draws from the lowest non-empty kit
+///   slot holding its ammo (exactness on 60 live recordings: 9,107 exact bot reloads from slot 8, then 9, then 11). So
+///   the ammo is every stack of the kit in use holding the item the kit's first ammo slot holds
+///   (`loadouts::BOT_AMMO_SLOTS`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GunWorld {
     /// The world's time.
@@ -1252,7 +1265,8 @@ pub struct GunWorld {
     /// The kit slot whose weapon is in hands (`m_active_slot`, inventory +0x170).
     pub slot: u8,
     pub state: GunAt,
-    pub magazine: u32,
+    /// The rounds it holds: the magazine and the chambered round.
+    pub rounds: u32,
     /// `None`: the slot holds no stack of the kit's in this world (how the client keeps a stack it has emptied is not
     /// read here, so an absent stack says nothing).
     pub spare: Option<u32>,
@@ -1263,33 +1277,42 @@ impl GunWorld {
     /// the kit in use, the slot), with `guns` the world's weapon states by slot (`PlaceWorld::guns`). `None`: a dead body,
     /// an inventory not read, no weapon of its own kit in hands, or a gun never put in a hand since its cook (no state
     /// machine saved).
+    /// `profile` names the kit's items: the ammo is the item in the kit's first ammo slot.
     pub fn of(
         at: u32,
         supplies: &survarium::v026g::match_msgs::players::Supplies,
         guns: &[(u8, srp_validate::world::WeaponState)],
+        profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
     ) -> Option<Self> {
         if !supplies.alive || !supplies.inventory_read {
             return None;
         }
         let slot = supplies.hands_slot?;
         // The kit's own weapon in that slot: the one `Supplies` found under this place's header (a picked gun is not).
-        let magazine = supplies.items.iter().find(|item| item.slot == Some(slot))?.magazine?;
+        supplies.items.iter().find(|item| item.slot == Some(slot))?.magazine?;
         let (_, gun) = guns.iter().find(|(at, _)| *at == slot)?;
         let in_hand = gun.in_hand()?;
+        let rounds = u32::from(gun.ammo_in_magazine()) + u32::from(gun.round_chambered() == Some(true));
         let [ammo_slot] = BOT_AMMO_SLOTS;
-        let spare = supplies
+        let ammo = profile
+            .kits
+            .get(usize::from(supplies.kit))
+            .and_then(|kit| kit.slots.get(usize::from(ammo_slot)).copied().flatten())
+            .and_then(|(index, _)| profile.items.get(usize::from(index)))
+            .map(|item| item.dict_id);
+        let stacks: Vec<u32> = supplies
             .items
             .iter()
-            .find(|item| item.stack && item.slot == Some(ammo_slot))
-            .and_then(|item| item.in_hand)
-            .map(u32::from);
+            .filter(|item| item.stack && Some(item.dict_id) == ammo && item.slot.is_some())
+            .filter_map(|item| item.in_hand.map(u32::from))
+            .collect();
         Some(Self {
             at,
             kit: supplies.kit,
             slot,
             state: GunAt::of_index(in_hand.state_index()),
-            magazine: u32::from(magazine),
-            spare,
+            rounds,
+            spare: (!stacks.is_empty()).then(|| stacks.iter().sum()),
         })
     }
 }

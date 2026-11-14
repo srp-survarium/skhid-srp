@@ -7130,8 +7130,9 @@ impl Reflex {
     ///   in the client, sooner than the table (its magazine filled) or never begun (the key was not taken, F7: 1,446 of
     ///   10,932 reload presses gave no refill in 8 s): the weapon is free now, and the habit's key goes again when due;
     /// - a weapon in its reload that the ledger had not counted reloads on the client's own (its reload predicate
-    ///   0x2E3EF0 takes the trigger on an empty weapon): the ledger counts it from the world's magazine and ammo, begun at
-    ///   the world's time at the latest, so it frees the weapon no sooner than the client (the reload's exact end is in the
+    ///   0x2E3EF0 takes the trigger on an empty weapon): the ledger counts it from the world's rounds and ammo, begun at
+    ///   the world's time at the latest, so it frees the weapon no sooner than the client (a magazine's rounds are those
+    ///   before its reload; a tube's those loaded so far, its loop counted on from them; the reload's exact end is in the
     ///   world's mixing tree, F55: not read yet);
     /// - any other state has a clip under way (a shot may have left or not): nothing is read.
     ///
@@ -7162,7 +7163,10 @@ impl Reflex {
     fn idle_world(&mut self, world: GunWorld, kept: Kept, now: u32) {
         let reload_now = self.reload_under_way(now);
         let magazine = i64::from(self.hands().held().gun.magazine);
-        let rounds = i64::from(world.magazine) - i64::from(kept.rounds);
+        // The ledger holds at most a magazine: a chamber gun's round on top of a full one (capacity + 1, 0x2E39D0) is not
+        // in it, so a world is read up to a magazine (the round shows once the count falls under it).
+        let held = world.rounds.min(self.hands().held().gun.magazine);
+        let rounds = i64::from(held) - i64::from(kept.rounds);
         let spare = world.spare.map_or(0, |spare| i64::from(spare) - i64::from(kept.spare));
         let moved = |count: u32, by: i64, most: i64| (i64::from(count) + by).clamp(0, most) as u32;
         if rounds != 0 {
@@ -7189,7 +7193,7 @@ impl Reflex {
             }
         }
         // The client is out of the reload the ledger had under way at that tick: filled (it ended by then), or as before.
-        let filled = world.magazine >= kept.rounds;
+        let filled = held >= kept.rounds;
         if filled {
             self.gun_reads.reload_ended += 1;
         } else {
@@ -7216,7 +7220,7 @@ impl Reflex {
         }
         self.gun_reads.reload_found += 1;
         let load = self.hands().held_mut();
-        load.rounds = world.magazine.min(load.gun.magazine);
+        load.rounds = world.rounds.min(load.gun.magazine);
         if let Some(spare) = world.spare {
             load.spare = spare;
         }
@@ -15419,7 +15423,7 @@ mod tests {
     }
 
     fn gun_at(at: u32, state: GunAt, magazine: u32, spare: Option<u32>) -> GunWorld {
-        GunWorld { at, kit: 0, slot: 7, state, magazine, spare }
+        GunWorld { at, kit: 0, slot: 7, state, rounds: magazine, spare }
     }
 
     /// [Gap 3] The weapon state's index in the cook's order: idle 2, reload 3, any other a clip under way.
@@ -15518,6 +15522,20 @@ mod tests {
         assert_eq!((held.rounds, held.spare, r.busy_until, r.busy_why), (30, 30, 1_100 + ms, gate::RELOAD));
         assert_eq!(r.emptied, None, "no second reload at the clip's end");
         assert_eq!(r.gun_reads().reload_found, 1);
+    }
+
+    /// [Gap 3] A chamber gun holds a magazine and a round on top (capacity + 1, 0x2E39D0): the ledger holds at most a
+    /// magazine, so a full world is read at a magazine and moves nothing; the round shows once the count falls under it.
+    #[test]
+    fn a_round_on_top_of_a_full_magazine_moves_nothing() {
+        let mut r = gun_ledger(30, 60);
+        keep_ticks(&mut r, 1_000, 1_200);
+        r.gun_world(gun_at(1_100, GunAt::Idle, 31, Some(60)));
+        assert_eq!((r.hands().held().rounds, r.gun_reads().rounds_off), (30, 0));
+        r.hands().held_mut().rounds = 0;
+        keep_ticks(&mut r, 1_250, 1_400);
+        r.gun_world(gun_at(1_300, GunAt::Idle, 1, Some(60)));
+        assert_eq!(r.hands().held().rounds, 1, "the chambered round");
     }
 
     /// [Gap 3] A world with a clip under way says nothing; one older than every kept tick is not read.
