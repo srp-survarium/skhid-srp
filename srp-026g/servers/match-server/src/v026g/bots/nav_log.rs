@@ -235,7 +235,10 @@ pub fn key(parts: impl std::hash::Hash) -> u64 {
 /// [owner-5] Lines a play writes while it is asked (`Ctx::lines`, the candidates or a step), for its bot's [`NavLog`] once
 /// the poll lets go of the bot: `(kind, key, text)`; a key of `None` is a plain [`NavLog::push`].
 #[derive(Debug, Default)]
-pub struct Lines(std::cell::RefCell<Vec<(Kind, Option<u64>, String)>>);
+pub struct Lines(std::cell::RefCell<Vec<Line>>);
+
+/// [owner-5] One of [`Lines`]: its kind, its key for [`NavLog::push_once`] (none: a plain push) and its text.
+pub type Line = (Kind, Option<u64>, String);
 
 impl Lines {
     pub fn push(&self, kind: Kind, key: Option<u64>, text: String) {
@@ -243,12 +246,12 @@ impl Lines {
     }
 
     /// The lines written, for [`Self::write`].
-    pub fn take(&self) -> Vec<(Kind, Option<u64>, String)> {
+    pub fn take(&self) -> Vec<Line> {
         std::mem::take(&mut *self.0.borrow_mut())
     }
 
     /// `lines` into `log` at `time`.
-    pub fn write(lines: Vec<(Kind, Option<u64>, String)>, log: &mut NavLog, time: u32) {
+    pub fn write(lines: Vec<Line>, log: &mut NavLog, time: u32) {
         for (kind, key, text) in lines {
             match key {
                 Some(key) => log.push_once(kind, key, time, text),
@@ -261,6 +264,43 @@ impl Lines {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [owner-5] The owner-5 kinds stop at [`MAX_PER_KIND`] lines a match; a key writes once; the old kinds are not capped.
+    #[test]
+    fn the_owner5_lines_are_capped_and_keyed() {
+        let mut log = NavLog::default();
+        for i in 0..(MAX_PER_KIND + 20) {
+            log.push(Kind::Zone, i * EVERY_MS, format!("{PREFIX}z {i}"));
+        }
+        assert_eq!(log.take().len(), MAX_PER_KIND as usize);
+        for i in 0..(MAX_PER_KIND + 20) {
+            log.push(Kind::Jump, i * EVERY_MS, format!("{PREFIX}j {i}"));
+        }
+        assert_eq!(log.take().len(), (MAX_PER_KIND + 20) as usize, "a route jump's line is not capped");
+        let k = key(("route", 1, 2));
+        log.push_once(Kind::Route, k, 0, format!("{PREFIX}a"));
+        log.push_once(Kind::Route, k, 10 * EVERY_MS, format!("{PREFIX}a again"));
+        log.push_once(Kind::Route, key(("route", 1, 3)), 20 * EVERY_MS, format!("{PREFIX}b"));
+        let lines: Vec<String> = log.take().into_iter().map(|(_, t)| t).collect();
+        assert_eq!(lines, vec![format!("{PREFIX}a"), format!("{PREFIX}b")]);
+    }
+
+    /// [owner-5] Every owner-5 line begins with [`PREFIX`], so the bench's decision digest leaves it out
+    /// (`tests/tallies/decisions.rs`).
+    #[test]
+    fn the_owner5_lines_are_the_logs() {
+        let p = Vec3::new(1.0, 2.0, 3.0);
+        for line in [
+            role_line("flanker", "ThreatSpot(7)", "Flank", "no_spot", None),
+            sprint_line(p, p, 0.4, "sprint not on"),
+            zone_line(p, "infection pool: cost 0.300 over 0.50 of 0.400"),
+            spawner_line(3, p, "take.zone_look: no dry look spot in sight of it"),
+            route_line(None, p, "its start on no floor"),
+        ] {
+            assert!(line.starts_with(PREFIX), "{line}");
+        }
+        assert_eq!(route_line(Some(p), p, "x"), "nav: no way from (1.0, 2.0, 3.0) to (1.0, 2.0, 3.0): x");
+    }
 
     #[test]
     fn a_jump_outcome_is_up_short_or_given_up() {

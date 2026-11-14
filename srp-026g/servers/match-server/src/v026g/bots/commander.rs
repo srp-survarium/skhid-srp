@@ -1006,7 +1006,7 @@ impl Bots {
         }
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
-        let mut asked_lines: Vec<(Place, Vec<(super::nav_log::Kind, Option<u64>, String)>)> = Vec::new();
+        let mut asked_lines: Vec<(Place, Vec<super::nav_log::Line>)> = Vec::new();
         let mut blocks = Vec::new();
         // Bots with no fresh hold on a slot (`team::HOLD_FRESH_MS`): a way
         // to their goal or their play's target failed lately, or a carrier.

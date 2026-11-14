@@ -345,6 +345,25 @@ impl Hazard {
 mod tests {
     use super::*;
     use crate::v026g::bots::anomalies::Control;
+
+    /// [owner-5] `Reserve::refusal` is `bears`' own tests: none exactly when it bears, else the first pool that fails,
+    /// by its share or its reserve.
+    #[test]
+    fn a_refusal_is_none_exactly_when_the_body_bears_it() {
+        let reserve = Reserve { body: 1.0, head: 0.8, infection: 0.5, pain: 1.0 };
+        let costs = [0.0f32, 0.1, 0.24, 0.26, 0.4, 0.6, 0.9];
+        for &body in &costs {
+            for &infection in &costs {
+                for (share, left) in [(0.5, 0.4), (1.0, 0.0), (0.3, 0.6)] {
+                    let cost = Cost { body, head: 0.0, infection, pain: 0.0 };
+                    assert_eq!(reserve.bears(cost, share, left), reserve.refusal(cost, share, left).is_none(), "{cost:?} {share} {left}");
+                }
+            }
+        }
+        let cost = Cost { body: 0.1, head: 0.0, infection: 0.3, pain: 0.0 };
+        assert_eq!(reserve.refusal(cost, 0.5, 0.0).as_deref(), Some("infection pool: cost 0.300 over 0.50 of 0.500"));
+        assert_eq!(reserve.refusal(cost, 1.0, 0.4).as_deref(), Some("infection pool: cost 0.300 leaves 0.200, under 0.40"));
+    }
     use crate::v026g::bots::hazards::Activity;
     use mapdata::{Damage, Vec3};
 

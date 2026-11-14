@@ -2542,17 +2542,16 @@ impl Motor {
         self.links.pressed(self.clock, pose.feet, pose.speed);
         // [owner-5] A sprint link pressed without sprint: the gate that held it, for the log (decides nothing).
         // The order is `sprinted`'s own: the sprint on, the speed, then (a band face only) a block and the run's way.
-        let sprint_gate = (ahead.approach.sprints() && !sprinted).then(|| {
-            if !self.sprinting {
-                SprintGate::NotSprinting
-            } else if pose.speed < SPRINT_PRESS_SPEED_MS {
-                SprintGate::Slow { speed: pose.speed }
-            } else if let Some(block) = block {
-                SprintGate::Block(block)
-            } else {
-                SprintGate::NotAligned
-            }
-        });
+        let gate = if !self.sprinting {
+            SprintGate::NotSprinting
+        } else if pose.speed < SPRINT_PRESS_SPEED_MS {
+            SprintGate::Slow { speed: pose.speed }
+        } else if let Some(block) = block {
+            SprintGate::Block(block)
+        } else {
+            SprintGate::NotAligned
+        };
+        let sprint_gate = (ahead.approach.sprints() && !sprinted).then_some(gate);
         self.pressed = Some(RoutePress {
             take_off: jump.take_off,
             landing: jump.landing,
@@ -4053,6 +4052,8 @@ mod tests {
     struct Climb {
         /// The pose at each press of the jump key, and the tick.
         presses: Vec<(usize, Pose)>,
+        /// [owner-5] Each press's sprint gate for the log (`RoutePress::sprint_gate`).
+        gates: Vec<Option<SprintGate>>,
         decisions: Vec<Decision>,
         poses: Vec<Pose>,
         walked: Walked,
@@ -4135,6 +4136,7 @@ mod tests {
         };
         let mut climb = Climb {
             presses: Vec::new(),
+            gates: Vec::new(),
             decisions: Vec::new(),
             poses: Vec::new(),
             walked: Walked::OnTheWay,
@@ -4164,6 +4166,7 @@ mod tests {
             if decision.keys & key::JUMP != 0 {
                 assert_eq!(motor.jumped(), Some(JumpBy::Route));
                 climb.presses.push((tick, pose));
+                climb.gates.push(motor.route_press().and_then(|press| press.sprint_gate));
                 if ledge.face - along(pose.feet) <= ledge.reach {
                     air = Some(tick);
                 }
@@ -5146,9 +5149,16 @@ mod tests {
         let before = band_jumps::counts();
         let off = presses(false);
         assert!(off.presses.first().is_some_and(|(_, at)| at.speed < SPRINT_PRESS_SPEED_MS), "{:?}", off.presses);
+        // [owner-5] The press at a walk names the gate that held the sprint, for the log.
+        assert!(
+            matches!(off.gates.first(), Some(Some(SprintGate::NotSprinting | SprintGate::Slow { .. }))),
+            "{:?}",
+            off.gates
+        );
         let on = presses(true);
         assert!(!on.presses.is_empty(), "it runs up and jumps: {:?}", on.poses.last());
         assert!(on.presses.iter().all(|(_, at)| at.speed >= SPRINT_PRESS_SPEED_MS), "{:?}", on.presses);
+        assert!(on.gates.iter().all(Option::is_none), "pressed at speed with the sprint: no gate, {:?}", on.gates);
         let after = band_jumps::counts();
         let refusals = band_jumps::Slot::RefusedSlow as usize..=band_jumps::Slot::RefusedDirection as usize;
         assert!(after[refusals.clone()].iter().sum::<u64>() > before[refusals].iter().sum::<u64>(), "the slow arrival was refused");

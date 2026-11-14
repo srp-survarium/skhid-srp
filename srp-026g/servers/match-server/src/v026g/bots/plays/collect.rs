@@ -2875,6 +2875,30 @@ mod tests {
     use mapdata::{Rotation, Shape, ShapeKind, Vec3, Zone, ZoneKind};
 
     use super::*;
+
+    /// [owner-5] `Crossing::refusal` is the fits' own tests: none exactly when the crossing fits (plain, and by
+    /// `take.zone_take` ahead or behind), and a routed crossing under the start health names that first.
+    #[test]
+    fn a_crossing_refusal_is_none_exactly_when_it_fits() {
+        use crate::v026g::bots::zone_cost::Budget;
+        let rule = ZoneTake::default();
+        for routed in [false, true] {
+            for leg in [0.0f32, 0.05, 0.1, 0.2, 0.35] {
+                for health in [0.3f32, 0.6, 1.0] {
+                    let leg = Cost { body: leg, ..Cost::ZERO };
+                    let c = Crossing { edge: Vec3::ZERO, leg, leg_out: leg, at_per_s: Cost { body: 0.01, ..Cost::ZERO }, routed, walk_m: 5.0 };
+                    let budget = Budget::raw(health);
+                    assert_eq!(c.fits(&budget), c.refusal(&budget, None).is_none(), "{c:?} {health}");
+                    for behind in [false, true] {
+                        assert_eq!(c.fits_zone_take(&budget, &rule, behind), c.refusal(&budget, Some((&rule, behind))).is_none());
+                    }
+                }
+            }
+        }
+        let low = Crossing { edge: Vec3::ZERO, leg: Cost::ZERO, leg_out: Cost::ZERO, at_per_s: Cost::ZERO, routed: true, walk_m: 1.0 };
+        let why = low.refusal(&Budget::raw(0.1), None).unwrap();
+        assert!(why.starts_with("a routed crossing at health 0.100"), "{why}");
+    }
     use crate::v026g::bots::plays::tests::Scenario;
     use crate::v026g::bots::tactics::Tactics;
     use crate::v026g::bots::view::{BatteryState, Mode};
