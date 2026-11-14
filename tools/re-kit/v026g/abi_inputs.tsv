@@ -6191,4 +6191,3 @@ va	name	location	role	basis
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+8	the camera position by value (3 floats)	observed
 0x0005c060	vostok::sound::sound_scene::process_fade	ESI	the sound scene (sound_scene::tick)	observed
 0x0005c060	vostok::sound::sound_scene::process_fade	ECX	the ms since the world's last tick	observed
-0x00059a60	vostok::sound::sound_world::tick	ECX	after the scenes' ticks, its general pass (0x59AD7..0x59B4B): s_general_volume's value (0xA7AF90, the cc_float 0xA7D3C8's) truncated (cvttss2si) compared with the world's byte +48F0h; on a change the byte is stored and every active scene gets +2E8h = General x 0.01 (0xA2D774) and its submix SetVolume(+2E4h x that); the value's only reader in the exe	observed
