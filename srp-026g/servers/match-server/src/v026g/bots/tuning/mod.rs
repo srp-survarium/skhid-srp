@@ -550,6 +550,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/hazard/zone_intensity",
     "/hazard/zone_pools",
     "/heal/amounts",
+    "/heal/course_from_world",
     "/heal/drug_stops",
     "/heal/lethal_health",
     "/kin/carrier_sprint",

@@ -141,6 +141,10 @@ pub struct PlaceWorld {
     /// Each weapon item's state by its slot: with a user (the gun in hands) its state machine's state, aim, selector
     /// (the jump state) and portable object (`WeaponState::in_hand`).
     pub guns: Vec<(u8, WeaponState)>,
+    /// [Gap 11] Each drug item's course by its slot (`medkit::serialize` 0x33DBD0): with `m_active`, its `m_delay_ms` and
+    /// `m_activity_time_ms`, both the time LEFT at the world (`medkit::set_active` 0x33D390 sets them whole, `medkit::tick`
+    /// 0x33D790 counts the delay down, then the activity); `None` when not active (the timers are not saved then).
+    pub medkits: Vec<(u8, Option<(u32, u32)>)>,
     /// `m_jump_type`; `None` when `motion` is.
     pub jump_type: Option<JumpType>,
     /// Each body part's affects (a hand wound is `AffectKind::HandDamage`), in part order; empty when `motion` is
@@ -181,6 +185,17 @@ impl PlaceWorld {
                     .by_slot()
                     .filter_map(|(slot, item)| match item.body() {
                         ItemBody::Weapon(gun) => Some((slot, gun)),
+                        _ => None,
+                    })
+                    .collect()
+            }),
+            medkits: items.map_or_else(Vec::new, |items| {
+                items
+                    .by_slot()
+                    .filter_map(|(slot, item)| match item.body() {
+                        ItemBody::Medkit(medkit) => {
+                            Some((slot, medkit.active().map(|course| (course.delay_ms(), course.activity_time_ms()))))
+                        }
                         _ => None,
                     })
                     .collect()

@@ -866,6 +866,23 @@ impl Game {
             {
                 walkers.bots.own_stacks(place, snapshot.time, &pockets);
             }
+            // [Gap 11] A bot's own drug courses (the medkit items' `m_active` and times left) in the kit in use.
+            if world.supplies.alive
+                && let Some(profile) = self.formed.profiles.get(place)
+            {
+                let kit = usize::from(world.supplies.kit);
+                let shown = crate::v026g::bots::stock::world_courses(kit, &world.medkits, profile, survarium::v026g::dictionary::Dictionary::shared());
+                for change in walkers.bots.courses(place, snapshot.time, kit, &shown) {
+                    log::debug!(
+                        "Match {id:#x}: player {place} (the server's bot): {:?} pressed at {} ms, its course from the world at {} ms: {:?} (was {:?})",
+                        change.drug,
+                        change.pressed,
+                        snapshot.time,
+                        change.now,
+                        change.was
+                    );
+                }
+            }
         }
         // [Gap 8] Each bot's enemies that cannot be hurt now.
         walkers.bots.share_protection();

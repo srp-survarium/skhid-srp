@@ -67,7 +67,9 @@
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::pools::{Pool, Pools};
-use crate::v026g::bots::stock::{Drug, DrugFactors, Held, Pantry, Press};
+use crate::v026g::bots::stock::{Course, Drug, DrugFactors, Held, Pantry, Press};
+#[cfg(test)]
+use crate::v026g::bots::stock::ShownDrug;
 #[cfg(test)]
 use survarium::v026g::loadouts::PocketStore;
 use crate::v026g::bots::tactics::SpotQuery;
@@ -192,6 +194,12 @@ impl Item {
     /// knows of patch 84 (`HealTuning::drug_stops`).
     fn ends(&self, press: Press, stops: DrugStops, f: DrugFactors) -> u32 {
         let end = press.at + self.window_ms(f);
+        // [Gap 11] A world late enough for the press showed its course: the world's end, or over by its time.
+        match press.world {
+            Some(Course::Running { ends, .. }) => return ends,
+            Some(Course::Over { by }) => return end.min(by),
+            None => {}
+        }
         match press.hit {
             Some(hit) if stops.known() && hit < end => hit,
             _ => end,
@@ -271,7 +279,11 @@ pub fn projected_of(mut pools: Pools, seen: u32, pantry: &Pantry, stops: DrugSto
             continue;
         };
         let it = item(held.drug);
-        let from = (press.at + (it.delay_for(f) * 1000.0) as u32).max(seen);
+        let heals_from = match press.world {
+            Some(Course::Running { heals_from, .. }) => heals_from,
+            _ => press.at + (it.delay_for(f) * 1000.0) as u32,
+        };
+        let from = heals_from.max(seen);
         let to = it.ends(press, stops, f);
         if to > from {
             let secs = (to - from) as f32 / 1000.0;
@@ -1060,6 +1072,28 @@ mod tests {
         assert!((total - (0.3 + 1.0 / 3.0)).abs() < 1e-4, "{total}");
         let old = projected_of(hurt, 12_000, &pantry, DrugStops::Known, DrugAmounts::PerSecond).body;
         assert_eq!(old, 1.0, "the old reading: full");
+    }
+
+    /// [Gap 11] A course the world showed is the one the reckoning goes by: running, it heals from the world's heal start to
+    /// its end (a skill's shorter delay included); over by a world's time, it heals nothing after it, whatever the hits.
+    #[test]
+    fn the_worlds_course_is_the_one_the_reckoning_goes_by() {
+        let mut pantry = Pantry::medkits();
+        pantry.new_life(0);
+        assert!(pantry.pressed(0, 10_000));
+        // The table: heals 12 s to 15 s. The world: from 11.5 s to 14.5 s.
+        pantry.courses(11_000, 0, &[ShownDrug { drug: Drug::Medkit, quick: 0, course: Some((500, 3_000)) }]);
+        let hurt = Pools::of_body(0.3);
+        let at_13 = projected_of(hurt, 13_000, &pantry, DrugStops::Known, DrugAmounts::CourseTotal).body;
+        assert!((at_13 - (0.3 + 1.5 / 3.0)).abs() < 1e-4, "1.5 s of the course left: {at_13}");
+        let f = pantry.factors();
+        let held = pantry.at_key(0).expect("the medkit").clone();
+        assert!(busy(&held, 14_000, DrugStops::Known, f) && !busy(&held, 14_500, DrugStops::Known, f));
+        // A world at 12.5 s shows it not active: a hit stopped it; nothing more after.
+        pantry.courses(12_500, 0, &[ShownDrug { drug: Drug::Medkit, quick: 0, course: None }]);
+        assert_eq!(projected_of(hurt, 12_500, &pantry, DrugStops::Known, DrugAmounts::CourseTotal).body, 0.3);
+        let held = pantry.at_key(0).expect("the medkit").clone();
+        assert!(!busy(&held, 12_500, DrugStops::Known, f));
     }
 
     /// [A217] Patch 84: a medkit a bullet stopped in its delay heals nothing in the reckoning and frees the key at
