@@ -469,6 +469,8 @@ pub enum Kind {
     /// (owner-5 `a385-lost-links-client-truth.md` §2.2: Chemical Plant R10, 613 slow press points land against 133 at the cap;
     /// Vector Laboratory R57's top is reached in the exe's tick only by slow presses).
     Slow(u8),
+    /// [S1] No jump: the edge climbed at a sprint ([`climb_flight`]; a sprinting body climbs an edge to [`SPRINT_CLIMB_MAX_M`]).
+    Climb,
     /// The sprint jump from the sprint, all its variants ([`sprint_variants`]).
     Sprint,
 }
@@ -558,6 +560,41 @@ pub fn press_point(takeoff: Vec3, way: (f32, f32), lead: f32, n: Neighbour) -> V
     Vec3::new(takeoff.x - way.0 * back + right.0 * n.side, takeoff.y, takeoff.z - way.1 * back + right.1 * n.side)
 }
 
+/// [S1] The highest edge a sprinting body climbs with no jump, straight on, m (owner-5 `railings-findings.md` F3: the step up
+/// 0.80, 0x7C900, and the sprinting body's plain capsule, 0x7D33D, with its pull-back and second sweep, 0x7EA80: an edge
+/// under 0.80 + the radius 0.38; usable to 1.15 straight on, PROVEN on the exe's tick and in 136 live players' climbs).
+pub const SPRINT_CLIMB_MAX_M: f32 = 1.15;
+
+/// [S1] The most sprint steps a climb is flown on after its run-up ends at the take-off's centre.
+pub const CLIMB_STEPS_MAX: u32 = 12;
+
+/// [S1] A sprint climb's flight from its run-up's end `lead` before `takeoff` (the neighbour `n` as [`neighbour_flights`]): a
+/// sprinting run-up ([`run_up`], the sprint speed) to it, then sprint steps along the heading with the keys held until the body
+/// has been on the ground over the step height ([`Settings::step_height`]) above the take-off for two steps, or
+/// [`CLIMB_STEPS_MAX`] steps. None when the run-up does not fit. Nothing is jumped.
+#[allow(clippy::too_many_arguments)]
+pub fn climb_flight(world: &Collision, s: &Settings, takeoff: Vec3, way: (f32, f32), lead: f32, n: Neighbour, kits: Kits) -> Option<Vec<FlightStep>> {
+    let flight = Flight { cap: if n.fastest { kits.fastest } else { kits.body }, dy: n.dy };
+    let (c, sn) = (n.turn.cos(), n.turn.sin());
+    let heading = (way.0 * c - way.1 * sn, way.0 * sn + way.1 * c);
+    let at = press_point(takeoff, way, lead, n);
+    let RunUp { body: mut b, .. } = run_up(world, s, at, heading, flight.sprint_ms(), true)?;
+    let step = Vec3::new(heading.0, 0.0, heading.1) * (flight.sprint_ms() * DT);
+    let mut steps = Vec::new();
+    let mut up = 0;
+    for k in 0..CLIMB_STEPS_MAX {
+        walk_step(&mut b, world, s, step, true);
+        let feet = b.feet();
+        let on_ground = b.on_ground(s);
+        steps.push(FlightStep { n: k, feet, in_jump: b.jumping, on_ground });
+        up = if on_ground && feet.y > takeoff.y + s.step_height { up + 1 } else { 0 };
+        if up == 2 {
+            break;
+        }
+    }
+    Some(steps)
+}
+
 /// [A385] The flights of one neighbour `n` of the press of `kind` at `lead` m before `takeoff` (the take-off floor's centre)
 /// along `way` (flat, unit): one for a walk, one per sprint variant for a sprint, each from its run-up ([`run_up`], shared by
 /// the variants) with the keys let go at the landing ([`STAY_KEYS`], [`STAY_STEPS`]). A sprint run-up under the cap presses the
@@ -582,6 +619,7 @@ pub fn neighbour_flights(
             let RunUp { body: mut b, speed } = run_up(world, s, at, heading, flight.cap, false)?;
             Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, STAY_STEPS, flight)])
         }
+        Kind::Climb => climb_flight(world, s, takeoff, way, lead, n, kits).map(|st| vec![st]),
         Kind::Slow(steps) => {
             let RunUp { body: mut b, speed } = run_up_slow(world, s, at, heading, flight.cap, steps)?;
             Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, STAY_STEPS, flight)])
@@ -672,6 +710,20 @@ mod tests {
         let s = settings();
         assert!(run_up(&world(4.75), &s, press, (1.0, 0.0), WALK_CAP_MS, false).is_none(), "a start over the lower level");
         assert!(run_up(&world(1.0), &s, press, (1.0, 0.0), WALK_CAP_MS, false).is_some(), "a start on the take-off's floor");
+    }
+
+    /// [S1] A body sprinting at a ledge 0.90 or 1.10 m high climbs onto it with no jump (owner-5 F3); a walking one is held at
+    /// 0.90; nothing climbs 1.30.
+    #[test]
+    fn a_sprinting_body_climbs_a_ledge_to_1_15_m() {
+        let kits = Kits { body: WALK_CAP_MS, fastest: WALK_CAP_MS };
+        let own = neighbourhood()[0];
+        for top in [0.90, 1.10, 1.30] {
+            let steps = climb_flight(&ledge(top), &settings(), Vec3::new(4.5, 0.0, 0.0), (1.0, 0.0), 0.0, own, kits).expect("a run-up");
+            let last = steps.last().unwrap();
+            let up = last.on_ground && (last.feet.y - top).abs() < 0.05 && !steps.iter().any(|f| f.in_jump);
+            assert_eq!(up, top < SPRINT_CLIMB_MAX_M, "{top}: {last:?}");
+        }
     }
 
     /// The grid's controller settings (the exe caster's: the wall normal by rays).

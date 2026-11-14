@@ -164,7 +164,8 @@ impl Leap {
                 share,
                 walk: walk.map(|(lead, share)| GapPress { lead, walk: WalkPress::Cap, share }),
             })),
-            Takeoff::WalkOff => None,
+            // [S1] A sprint climb presses nothing: its top is a riser of the route (`Route::risers`), sprinted into.
+            Takeoff::Climb | Takeoff::WalkOff => None,
         }
     }
 }
@@ -1200,12 +1201,20 @@ fn pull_straight(
     route.sprint_drops = sprint_drops;
     route.ledge_leads = ledge_leads;
     route.ledge_tops = ledge_tops;
+    // [S1] And the tops of its sprint climbs (`mapdata::grid::gap::Takeoff::Climb`): a sprinting body climbs an edge to 1.15 m
+    // with no jump, so the riser's way (sprint into it) is the client's for both.
+    let climbed = |i: usize| {
+        into[i].is_off_mesh() && grid.off_link(nodes[i - 1], nodes[i]).is_some_and(|l| l.press == mapdata::grid::gap::Takeoff::Climb)
+    };
     route.risers = (1..nodes.len())
-        .filter(|&i| into[i] == LinkKind::Walk && grid.link_gait(nodes[i - 1], nodes[i]) == Some(mapdata::grid::WalkGait::SprintOrJump))
+        .filter(|&i| {
+            (into[i] == LinkKind::Walk && grid.link_gait(nodes[i - 1], nodes[i]) == Some(mapdata::grid::WalkGait::SprintOrJump)) || climbed(i)
+        })
         .map(|i| RiserUp {
             top: grid.position(nodes[i]),
             take_off: grid.position(nodes[i - 1]),
-            press: RiserPress::of(grid.riser(nodes[i - 1], nodes[i])),
+            // [S1] A sprint climb presses nothing ([`Leap::of_press`]): sprinted into, else counted as a riser with no press.
+            press: if climbed(i) { RiserPress::NoPress } else { RiserPress::of(grid.riser(nodes[i - 1], nodes[i])) },
         })
         .collect();
     route.planned = true;

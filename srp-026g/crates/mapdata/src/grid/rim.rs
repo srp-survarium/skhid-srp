@@ -21,7 +21,7 @@
 //! the jump's gate 0x2FBDC0 -> 0x2FC230 reads `on_ground` 0x7EF90, false for a crouched capsule, exactness 2026-11-14), and
 //! before the reach, so a top only a rim jump gets to is kept.
 use super::gap::{self, OffLink, PressLead, Share, Takeoff};
-use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, MARGINAL_JUMP_M, NONE, RIM_REACH_M};
+use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, NONE, RIM_REACH_M};
 use crate::controller::jump::{self, FlightStep, Kind, Kits, Neighbour};
 use crate::controller::tick::Settings;
 use crate::controller::Collision;
@@ -58,6 +58,10 @@ pub struct RimStats {
     pub risers_slowed: usize,
     /// The pressed risers by share, as [`Self::by_share`].
     pub risers_by_share: [usize; 3],
+    /// [S1] Of the made rim links, those that carry a sprint climb ([`Takeoff::Climb`]).
+    pub climbed: usize,
+    /// [S1] Of the pressed risers, those climbed at a sprint.
+    pub risers_climbed: usize,
     /// Flights flown.
     pub flights: usize,
 }
@@ -170,6 +174,9 @@ impl WalkGrid {
     fn rim_lands_on(&self, steps: &[FlightStep], a: NodeId, linked: &[NodeId]) -> Option<NodeId> {
         let up = self.height[a as usize] + self.body.step;
         let onto = |feet: Vec3| self.floor_under(feet).filter(|&g| self.height[g as usize] > up && !linked.contains(&g));
+        if !steps.iter().any(|f| f.in_jump) {
+            return self.climb_end(steps).filter(|&g| self.height[g as usize] > up && !linked.contains(&g));
+        }
         let (_, rest) = jump::landing_and_rest(steps, |f| onto(f.feet).is_some())?;
         onto(rest.feet)
     }
@@ -180,6 +187,9 @@ impl WalkGrid {
     fn riser_lands_on(&self, steps: &[FlightStep], b: NodeId) -> Option<NodeId> {
         let level = self.height[b as usize];
         let onto = |feet: Vec3| self.floor_under(feet).filter(|&g| (self.height[g as usize] - level).abs() <= LAND_HEIGHT_M);
+        if !steps.iter().any(|f| f.in_jump) {
+            return self.climb_end(steps).filter(|&g| (self.height[g as usize] - level).abs() <= LAND_HEIGHT_M).map(|_| b);
+        }
         let (landing, rest) = jump::landing_and_rest(steps, |f| onto(f.feet).is_some())?;
         onto(landing.feet)?;
         onto(rest.feet).map(|_| b)
@@ -190,8 +200,9 @@ impl WalkGrid {
     /// stays on ([`Self::rim_lands_on`], [`Self::riser_lands_on`]):
     ///
     /// 1. each (gait, lead) is flown ([`jump::neighbour_flights`] at the press itself): the floors its flights land on;
-    /// 2. the link goes to `b` when some press lands there, else to the floor the most presses land on (re-targeted: the link
-    ///    goes where the body lands), the lowest id on a tie;
+    /// 2. the link goes to `b` when some jump lands there, else to the floor the most jumps land on (re-targeted: the link
+    ///    goes where the body lands), the lowest id on a tie; [S1] the sprint climbs compete on that floor when one lands
+    ///    there, else make a second link to their own floor, chosen the same way among them;
     /// 3. each press onto that floor is scored by its neighbourhood ([`jump::neighbourhood`]; its lead row reuses step 1's
     ///    flights): a neighbour counts when every one of its flights lands and stays on a top floor, whichever (a neighbour's
     ///    rest spreads over the top's cells and levels: Chemical Plant R9, 13 of 14 up in the exe's tick, 6 on the press's own
@@ -199,7 +210,7 @@ impl WalkGrid {
     ///    gait's leads onto the floor; a sprint link also carries the best walking press onto it ([`Made::walk`]), for a body
     ///    the client refuses the sprint.
     ///
-    /// None when no press lands.
+    /// Empty when no press lands.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn best_press(
         &self,
@@ -211,7 +222,7 @@ impl WalkGrid {
         leads: &[f32],
         lands: impl Fn(&[FlightStep]) -> Option<NodeId>,
         kits: Kits,
-    ) -> (Option<Made>, usize) {
+    ) -> (Vec<Made>, usize) {
         let takeoff = self.position(a);
         let own = jump::neighbourhood()[0];
         let mut flights = 0;
@@ -248,63 +259,82 @@ impl WalkGrid {
                 Some(Landing { kind: *kind, lead: *lead, to })
             })
             .collect();
-        if landings.is_empty() {
-            return (None, flights);
+        // Step 2: the floors. The jumps' floor is chosen among the jumps' landings alone ([S1]: the sprint climbs, flown at
+        // every lead, would outnumber them and move a jump's link off its floor; Vector Laboratory, 6 floors whose only way in
+        // was such a jump), and the climb competes there when it lands there too. A climb landing on another floor makes a
+        // link of its own to the floor the climbs land on.
+        let floor_of = |of: &[&Landing]| {
+            let count = |f: NodeId| of.iter().filter(|l| l.to == f).count();
+            if count(b) > 0 { Some(b) } else { of.iter().map(|l| l.to).max_by_key(|&f| (count(f), std::cmp::Reverse(f))) }
+        };
+        let jumps: Vec<&Landing> = landings.iter().filter(|l| l.kind != Kind::Climb).collect();
+        let climbs: Vec<&Landing> = landings.iter().filter(|l| l.kind == Kind::Climb).collect();
+        let mut floors: Vec<NodeId> = floor_of(&jumps).into_iter().collect();
+        if let Some(c) = floor_of(&climbs).filter(|c| !floors.contains(c) && !climbs.iter().any(|l| floors.contains(&l.to))) {
+            floors.push(c);
         }
-        // Step 2: the floor.
-        let count = |f: NodeId| landings.iter().filter(|l| l.to == f).count();
-        let to = if count(b) > 0 {
-            b
-        } else {
-            landings.iter().map(|l| l.to).max_by_key(|&f| (count(f), std::cmp::Reverse(f))).expect("a landing")
-        };
-        // Step 3: each press onto `to` scored by its neighbourhood.
-        let reused = |kind: Kind, lead: f32| {
-            flown
-                .iter()
-                .find(|(k, l, _)| *k == kind && (l - lead).abs() < 1e-3)
-                .map(|(.., floors)| !floors.is_empty() && floors.iter().all(Option::is_some))
-        };
-        let mut scored: Vec<(Kind, f32, u8)> = Vec::new();
-        for l in landings.iter().filter(|l| l.to == to) {
-            let mut landed = 0u8;
-            for n in jump::neighbourhood() {
-                let lead_only = n == Neighbour { lead: n.lead, ..own };
-                let lands = match lead_only.then(|| reused(l.kind, l.lead + n.lead)).flatten() {
-                    Some(lands) => lands,
-                    None => fly(l.kind, l.lead, n).is_some_and(|fl| {
-                        flights += fl.len();
-                        fl.iter().all(|st| lands(st).is_some())
-                    }),
-                };
-                landed += u8::from(lands);
-            }
-            scored.push((l.kind, l.lead, landed));
-        }
-        let best_of = |kind: Option<Kind>| {
-            let of: Vec<&(Kind, f32, u8)> = scored.iter().filter(|s| kind.is_none_or(|k| s.0 == k)).collect();
-            let mid = |k: Kind| {
-                let ls: Vec<f32> = scored.iter().filter(|s| s.0 == k).map(|s| s.1).collect();
-                ls.iter().sum::<f32>() / ls.len().max(1) as f32
-            };
-            of.into_iter().copied().max_by(|p, q| {
-                p.2.cmp(&q.2)
-                    .then(rank(q.0).cmp(&rank(p.0)))
-                    .then((q.1 - mid(q.0)).abs().total_cmp(&(p.1 - mid(p.0)).abs()))
-            })
-        };
-        let (kind, lead, landed) = best_of(None).expect("a scored press");
-        let walk = (kind == Kind::Sprint)
-            .then(|| best_of(Some(Kind::Walk)))
-            .flatten()
-            .map(|(_, l, n)| (PressLead::from_metres(l), Share::landed(n)));
-        let press = match kind {
-            Kind::Walk => Takeoff::Press(PressLead::from_metres(lead)),
-            Kind::Sprint => Takeoff::Sprint(PressLead::from_metres(lead)),
-            Kind::Slow(steps) => Takeoff::Slow { lead: PressLead::from_metres(lead), steps },
-        };
-        (Some(Made { to, press, share: Share::landed(landed), walk }), flights)
+        let made = floors.into_iter().map(|to| press_onto(&flown, &landings, to, &lands, &fly, &mut flights)).collect();
+        (made, flights)
     }
+}
+
+/// [`WalkGrid::best_press`] step 3: each press of `landings` onto `to` scored by its neighbourhood (`flown` is step 1's flights
+/// at the press itself, reused for the lead row), the best of them.
+fn press_onto(
+    flown: &[(Kind, f32, Vec<Option<NodeId>>)],
+    landings: &[Landing],
+    to: NodeId,
+    lands: &impl Fn(&[FlightStep]) -> Option<NodeId>,
+    fly: &impl Fn(Kind, f32, Neighbour) -> Option<Vec<Vec<FlightStep>>>,
+    flights: &mut usize,
+) -> Made {
+    let own = jump::neighbourhood()[0];
+let reused = |kind: Kind, lead: f32| {
+        flown
+            .iter()
+            .find(|(k, l, _)| *k == kind && (l - lead).abs() < 1e-3)
+            .map(|(.., floors)| !floors.is_empty() && floors.iter().all(Option::is_some))
+    };
+    let mut scored: Vec<(Kind, f32, u8)> = Vec::new();
+    for l in landings.iter().filter(|l| l.to == to) {
+        let mut landed = 0u8;
+        for n in jump::neighbourhood() {
+            let lead_only = n == Neighbour { lead: n.lead, ..own };
+            let lands = match lead_only.then(|| reused(l.kind, l.lead + n.lead)).flatten() {
+                Some(lands) => lands,
+                None => fly(l.kind, l.lead, n).is_some_and(|fl| {
+                    *flights += fl.len();
+                    fl.iter().all(|st| lands(st).is_some())
+                }),
+            };
+            landed += u8::from(lands);
+        }
+        scored.push((l.kind, l.lead, landed));
+    }
+    let best_of = |kind: Option<Kind>| {
+        let of: Vec<&(Kind, f32, u8)> = scored.iter().filter(|s| kind.is_none_or(|k| s.0 == k)).collect();
+        let mid = |k: Kind| {
+            let ls: Vec<f32> = scored.iter().filter(|s| s.0 == k).map(|s| s.1).collect();
+            ls.iter().sum::<f32>() / ls.len().max(1) as f32
+        };
+        of.into_iter().copied().max_by(|p, q| {
+            p.2.cmp(&q.2)
+                .then(rank(q.0).cmp(&rank(p.0)))
+                .then((q.1 - mid(q.0)).abs().total_cmp(&(p.1 - mid(p.0)).abs()))
+        })
+    };
+    let (kind, lead, landed) = best_of(None).expect("a scored press");
+    let walk = (kind == Kind::Sprint)
+        .then(|| best_of(Some(Kind::Walk)))
+        .flatten()
+        .map(|(_, l, n)| (PressLead::from_metres(l), Share::landed(n)));
+    let press = match kind {
+        Kind::Walk => Takeoff::Press(PressLead::from_metres(lead)),
+        Kind::Sprint => Takeoff::Sprint(PressLead::from_metres(lead)),
+        Kind::Slow(steps) => Takeoff::Slow { lead: PressLead::from_metres(lead), steps },
+        Kind::Climb => Takeoff::Climb,
+    };
+    Made { to, press, share: Share::landed(landed), walk }
 }
 
 /// [A385] The presses flown, with their leads: the walk and the sprint at the gap links' `leads`, and the slow presses
@@ -317,16 +347,21 @@ fn presses(leads: &[f32]) -> Vec<(Kind, Vec<f32>)> {
     let near: Vec<f32> = (0..=n).map(|i| gap::GAP_PRESS_STEP_M * i as f32).collect();
     let mut out = vec![(Kind::Walk, leads.to_vec()), (Kind::Sprint, leads.to_vec())];
     out.extend((0..=jump::SLOW_STEPS_MAX).map(|k| (Kind::Slow(k), near.clone())));
+    // [S1] The sprint climb, its run-up ending at each lead and the sprint held on (a take-off within the capsule's radius of
+    // the face cannot be run up to: the body is held off it).
+    out.push((Kind::Climb, leads.to_vec()));
     out
 }
 
-/// [A385] A press's place on a tie of shares, the lower first: a walking press, then a slow one (fewer steps first), then a
-/// sprint (it costs stamina and needs the speed test).
+/// [A385, S1] A press's place on a tie of shares, the lower first: a sprint climb (nothing is pressed, so no press timing to
+/// miss: owner-5 `railings-design.md` §2, S2), a walking press, a slow one (fewer steps first), then a sprint jump (it costs
+/// stamina and needs the speed test).
 fn rank(kind: Kind) -> u8 {
     match kind {
-        Kind::Walk => 0,
-        Kind::Slow(k) => 1 + k,
-        Kind::Sprint => 2 + jump::SLOW_STEPS_MAX,
+        Kind::Climb => 0,
+        Kind::Walk => 1,
+        Kind::Slow(k) => 2 + k,
+        Kind::Sprint => 3 + jump::SLOW_STEPS_MAX,
     }
 }
 
@@ -344,15 +379,12 @@ fn gap_leads() -> Vec<f32> {
 pub const RIM_GAP_ACROSS_M: f32 = 2.65 - gap::GAP_PRESS_MIN_M + 0.38;
 
 impl WalkGrid {
-    /// [`Body::rim_jumps`]: from each floor along each way whose side has no link up (none, or a drop), across cells with no
-    /// floor within a step of it, to the first cell no farther than [`RIM_GAP_ACROSS_M`] with a floor higher than a gap link
-    /// reaches (the body's standing jump, [`MARGINAL_JUMP_M`] at most) and no higher than [`RIM_REACH_M`] (a Jump link up a
-    /// ledge goes to [`super::SPRINT_JUMP_LOW_M`]; one there takes the side, so a rim jump is above it); flown over the presses
-    /// ([`best_press`]) and made a GapJump with the press that lands. After the gap links (`wide.off`, kept sorted). Returns
-    /// the stats and the jumps no press made, as (take-off, landing) (none was a link before).
-    pub(super) fn fly_rim_jumps(&self, wide: &mut Wide, world: &Collision, s: &Settings) -> (RimStats, Vec<(NodeId, NodeId)>) {
-        let body = &self.body;
-        let low = body.max_jump.min(MARGINAL_JUMP_M);
+    /// The edges up from each floor (A364 C2 rows 11/12, S1): along each way whose side has no link up (none, or a drop), across
+    /// cells with no floor within a step of it, the first cell no farther than [`RIM_GAP_ACROSS_M`] with a floor rising more
+    /// than `low` and no more than `high` (a floor higher than `high` is a wall and ends the search), as (from, to, way); none
+    /// where `from` has an off-mesh link to `to` already.
+    fn edges_up(&self, wide: &Wide, low: f32, high: f32) -> Vec<(u32, u32, usize)> {
+        let step = self.body.step;
         let mut todo: Vec<(u32, u32, usize)> = Vec::new();
         for a in 0..self.height.len() {
             let ha = self.height[a];
@@ -368,7 +400,7 @@ impl WalkGrid {
                     let floors = self.start[cell]..self.start[cell + 1];
                     if let Some(b) = floors.clone().find(|&f| {
                         let rise = self.height[f as usize] - ha;
-                        rise > low && rise <= RIM_REACH_M
+                        rise > low && rise <= high
                     }) {
                         if wide.off.binary_search_by_key(&(a as u32, b), |l| (l.from, l.to)).is_err() {
                             todo.push((a as u32, b, d));
@@ -378,7 +410,7 @@ impl WalkGrid {
                     // A floor within a step goes on (no gap), one higher than the reach is a wall: either ends the search.
                     if floors.clone().any(|f| {
                         let rise = self.height[f as usize] - ha;
-                        rise.abs() <= body.step || rise > RIM_REACH_M
+                        rise.abs() <= step || rise > high
                     }) {
                         break;
                     }
@@ -386,6 +418,19 @@ impl WalkGrid {
                 }
             }
         }
+        todo
+    }
+
+    /// [`Body::rim_jumps`]: every edge up from a floor whose side has no link up ([`Self::edges_up`]: across cells with no floor
+    /// within a step, the first floor more than a step up and no higher than [`RIM_REACH_M`]; a Jump link up a ledge takes the
+    /// side), flown over the presses ([`Self::best_press`]: the jumps and, [S1], the sprint climb) and made a GapJump with the
+    /// press that lands. After the gap links (`wide.off`, kept sorted). Returns the stats and the jumps no press made, as
+    /// (take-off, landing) (none was a link before).
+    pub(super) fn fly_rim_jumps(&self, wide: &mut Wide, world: &Collision, s: &Settings) -> (RimStats, Vec<(NodeId, NodeId)>) {
+        let body = &self.body;
+        // [S1] From a step up: a sprinting body climbs an edge from 0.80 to 1.15 m with no jump ([`Kind::Climb`]), and an
+        // edge there whose side has no link (no Jump link) is the builder's to fly.
+        let todo = self.edges_up(wide, body.step, RIM_REACH_M);
         let leads = gap_leads();
         let kits = Kits { body: jump::WALK_CAP_MS, fastest: body.fastest_walk_cap };
         let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
@@ -399,26 +444,35 @@ impl WalkGrid {
         });
         let mut stats = RimStats { tried: todo.len(), ..RimStats::default() };
         let mut none = Vec::new();
-        for (&(a, b, _), &(made, flights)) in todo.iter().zip(&flown) {
+        for (&(a, b, _), (made, flights)) in todo.iter().zip(&flown) {
             stats.flights += flights;
-            let Some(Made { to, press, share, walk }) = made else {
+            if made.is_empty() {
                 none.push((a, b));
-                continue;
-            };
-            match press {
-                Takeoff::Press(_) => stats.walked += 1,
-                Takeoff::Slow { .. } => stats.slowed += 1,
-                _ => stats.sprinted += 1,
             }
-            stats.retargeted += usize::from(to != b);
-            stats.with_walk += usize::from(walk.is_some());
-            stats.by_share[share.class()] += 1;
-            wide.off.push(OffLink { from: a, to, kind: LinkKind::GapJump, press, share, walk });
+            for &Made { to, press, share, walk } in made {
+                match press {
+                    Takeoff::Press(_) => stats.walked += 1,
+                    Takeoff::Slow { .. } => stats.slowed += 1,
+                    Takeoff::Climb => stats.climbed += 1,
+                    _ => stats.sprinted += 1,
+                }
+                stats.retargeted += usize::from(to != b);
+                stats.with_walk += usize::from(walk.is_some());
+                stats.by_share[share.class()] += 1;
+                wide.off.push(OffLink { from: a, to, kind: LinkKind::GapJump, press, share, walk });
+            }
         }
         // Two candidates of one take-off may land on the same floor: one link (the first, by the way's order).
         wide.off.sort_by_key(|l| (l.from, l.to));
         wide.off.dedup_by_key(|l| (l.from, l.to));
         (stats, none)
+    }
+
+    /// [S1] Where a flight with no jump (a sprint climb, [`jump::climb_flight`]) ends: its last two steps on the ground
+    /// (`on_ground` 0x7EF90), over the floor under the last ([`Self::floor_under`]).
+    fn climb_end(&self, steps: &[FlightStep]) -> Option<NodeId> {
+        let [.., before, last] = steps else { return None };
+        (before.on_ground && last.on_ground && !steps.iter().any(|f| f.in_jump)).then(|| self.floor_under(last.feet)).flatten()
     }
 
     /// [A385 rule (d)] The risers' presses ([`Riser`]): every Walk link rising [`super::Body::walked_step`] or more, flown over the rim jumps' presses ([`Self::best_press`], landing on the
@@ -442,13 +496,15 @@ impl WalkGrid {
             self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, |st| self.riser_lands_on(st, b), kits)
         });
         stats.risers += todo.len();
-        for (&(a, b, _), &(made, flights)) in todo.iter().zip(&flown) {
+        for (&(a, b, _), (made, flights)) in todo.iter().zip(&flown) {
             stats.flights += flights;
-            let riser = match made {
+            // A riser's presses all land on its top ([`Self::riser_lands_on`]): one floor, so one press at most.
+            let riser = match made.first().copied() {
                 Some(Made { press, share, .. }) => {
                     match press {
                         Takeoff::Sprint(_) => stats.risers_sprinted += 1,
                         Takeoff::Slow { .. } => stats.risers_slowed += 1,
+                        Takeoff::Climb => stats.risers_climbed += 1,
                         _ => stats.risers_walked += 1,
                     }
                     stats.risers_by_share[share.class()] += 1;
@@ -481,12 +537,13 @@ mod tests {
     /// Ground at 0 for x < 5 and a block from x 5 to 12 whose top is `top` high, 6 m wide; a body starts at x 1: the grid, its
     /// rim stats and whether the top is reached.
     fn onto(top: f32, rim_jumps: bool) -> (WalkGrid, RimStats, bool) {
+        let b = body(rim_jumps);
         let mut tris = Vec::new();
         quad(&mut tris, Vec3::new(-2.0, 0.0, 0.0), Vec3::new(-2.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 0.0));
         quad(&mut tris, Vec3::new(5.0, top, 0.0), Vec3::new(5.0, top, 6.0), Vec3::new(12.0, top, 6.0), Vec3::new(12.0, top, 0.0));
         quad(&mut tris, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, top, 0.0), Vec3::new(5.0, top, 6.0), Vec3::new(5.0, 0.0, 6.0));
         let start = [Vec3::new(1.0, 0.0, 3.0)];
-        let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, body(rim_jumps), &start, &start, OffMeshLinks::Gaps);
+        let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, b, &start, &start, OffMeshLinks::Gaps);
         let up = grid.locate(Vec3::new(9.0, top, 3.0), 0.3).is_some_and(|n| grid.reached(n));
         (grid, stats.rim, up)
     }
@@ -498,8 +555,8 @@ mod tests {
     fn a_rim_jump_is_made_with_a_press_that_lands_and_not_where_none_does() {
         for top in [1.30, 1.40] {
             let (grid, rim, up) = onto(top, true);
-            assert!(rim.walked + rim.slowed + rim.sprinted > 0 && up, "{top}: {rim:?}");
-            assert_eq!(grid.rim_unmade().len(), rim.tried - rim.walked - rim.slowed - rim.sprinted, "{top}");
+            assert!(rim.walked + rim.slowed + rim.sprinted + rim.climbed > 0 && up, "{top}: {rim:?}");
+            assert_eq!(grid.rim_unmade().len(), rim.tried - rim.walked - rim.slowed - rim.sprinted - rim.climbed, "{top}");
             let path = std::env::temp_dir().join(format!("srp-rim-{}-{top}.bin", std::process::id()));
             grid.write(&path, 11).unwrap();
             let back = WalkGrid::read(&path, 11, body(true)).unwrap();
@@ -509,12 +566,37 @@ mod tests {
             assert!(!up_off, "{top}: no rim jumps, over the old cap");
         }
         let (grid, rim, up) = onto(2.10, true);
-        assert!(rim.tried > 0 && rim.walked + rim.slowed + rim.sprinted == 0 && !up, "2.10: {rim:?}");
+        assert!(rim.tried > 0 && rim.walked + rim.slowed + rim.sprinted + rim.climbed == 0 && !up, "2.10: {rim:?}");
         assert_eq!(grid.rim_unmade().len(), rim.tried);
     }
 
     /// [A385 §4] The share's classes and price: every neighbour lands, no extra try; 7 of 14, one; none, 14 (the largest, kept);
     /// not flown, none; owner-5's classes at 0.2 and 0.6 of 14; a built byte over 14 that is not the unflown mark is refused.
+    /// [S1] A sprinting body climbs an edge to 1.15 m with no jump (owner-5 F3): the rim links of a block 1.00 m high carry the
+    /// sprint climb (on a tie of shares it goes first: nothing is pressed), and kept through the built file; tops of 0.90 and
+    /// 1.10 m are reached (by the climb or a press of a higher share); a 1.30 m top is no climb.
+    #[test]
+    fn an_edge_to_1_15_m_is_climbed_at_a_sprint() {
+        for top in [0.90, 1.00, 1.10, 1.30] {
+            let (grid, rim, up) = onto(top, true);
+            let climbs = grid.off_links().iter().filter(|l| l.press == Takeoff::Climb).count();
+            assert!(up, "{top}: {rim:?}");
+            assert_eq!(climbs, rim.climbed, "{top}");
+            if top == 1.00 {
+                assert!(climbs > 0, "{rim:?}");
+                let path = std::env::temp_dir().join(format!("srp-climb-{}.bin", std::process::id()));
+                grid.write(&path, 11).unwrap();
+                let back = WalkGrid::read(&path, 11, body(true)).unwrap();
+                std::fs::remove_file(&path).ok();
+                assert_eq!(back.digest(), grid.digest());
+                assert_eq!(back.off_links().iter().filter(|l| l.press == Takeoff::Climb).count(), climbs);
+            }
+            if top > jump::SPRINT_CLIMB_MAX_M {
+                assert_eq!(climbs, 0, "{top}");
+            }
+        }
+    }
+
     #[test]
     fn a_share_prices_the_tries_that_fail() {
         assert_eq!(Share::FULL.failed_tries(), 0.0);
@@ -566,7 +648,7 @@ mod tests {
         let extra = r.share().failed_tries() * ((grid.position(b) - grid.position(a)).length() + r.run_up_m());
         let lips = grid.link_cost(a, b, LinkKind::Walk) - base - extra;
         assert!((-1e-3..=super::super::FALL_EDGE_PENALTY.max(super::super::LIP_PENALTY) + 1e-3).contains(&lips), "{lips}");
-        assert_eq!(rim.risers_walked + rim.risers_slowed + rim.risers_sprinted, rim.risers_by_share.iter().sum::<usize>());
+        assert_eq!(rim.risers_walked + rim.risers_slowed + rim.risers_sprinted + rim.risers_climbed, rim.risers_by_share.iter().sum::<usize>());
         let path = std::env::temp_dir().join(format!("srp-riser-{}.bin", std::process::id()));
         grid.write(&path, 11).unwrap();
         let back = WalkGrid::read(&path, 11, body(true)).unwrap();
@@ -641,7 +723,7 @@ mod tests {
     #[test]
     fn a_top_over_a_gap_higher_than_the_standing_jump_is_reached_by_its_flown_press() {
         let (rim, up) = over_a_gap(1.25, true);
-        assert!(rim.walked + rim.slowed + rim.sprinted > 0 && up, "{rim:?}");
+        assert!(rim.walked + rim.slowed + rim.sprinted + rim.climbed > 0 && up, "{rim:?}");
         let (_, up_off) = over_a_gap(1.25, false);
         assert!(!up_off, "no rim jumps: no gap link reaches 1.10 m");
     }
