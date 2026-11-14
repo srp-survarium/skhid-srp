@@ -139,6 +139,63 @@ listed under `cs-mp_bath` in resource-porter's `ports/stalker-tdm/maps.json`
   - no spot in the room or on its roof is a dead end;
   - the room's doors stay clear.
 
+## The old builds' post-process (the owner, 2026-11-13/14)
+
+The environments of the maps ported from v0.10b and v0.11e (these six, Vostok
+v0.11, Chemical Plant v0.11) keep their source build's post-process values,
+which 0.26g draws its own way. Three edit lists set seven of them, in every
+mode's copy of the projects they name:
+
+| value | the ports | stock day maps | now | list |
+| --- | --- | --- | --- | --- |
+| `image_grain_intensity`, `image_grain_update_frequency` | 0.08, 2 | 0.02, 1 | 0.02, 1 on all 16 projects | `ported-maps-grain-1.json` |
+| `god_rays_intensity`, `god_rays_attenuation` | 1.0, 1.0 (the six STALKER maps) | 0.65, 2.6 (level_03) | 0.2, 3.0 on Military Warehouses, Experimental Pool and Training Camp | `stalker-maps-sun-1.json` |
+| `lens_flares_multiplier` | 2 (the six) | 1 | 0.7 on the same three | the same |
+| `ao_saturation` | 2 (the six) | 1 to 1.29 (level_03: 1) | 1 on the six's nine projects | `stalker-maps-ao-1.json` |
+
+- Grain ("always noisy in the distance", "on almost all ported maps"): 0.26g
+  adds it last, noise x colour^0.6 x intensity (`aberration.ps`), so it shows on
+  the sky and the haze. The v0.21d and v0.69d ports have stock grain. Seen in
+  the game (2026-11-14, captured frames before and after, the owner's
+  settings): the sky's grain is stock's.
+- The sun (on Military Warehouses: "you cannot look at that direction at
+  all"; on Experimental Pool and Training Camp, the same weather: "fix them
+  too"): a ray's strength is intensity x (1 - screen distance to the
+  sun)^attenuation x the far pixels (`t_position.x` of 300 or more: the sky)
+  between the pixel and the sun (`god_rays.ps`, `god_rays_mask.ps`); times the
+  ray colour, it is added before the tone curve. Half a screen height above or
+  below an open sun that is 0.23 with the ports' values, 0.05 on stock
+  level_03 and 0.01 on Vostok v0.11, which has this same day weather (sun 38.0
+  degrees up, azimuth 219.7, intensity 1.29) with rays 0.2 at 3.0 and flares
+  x0.7. The three maps have Vostok v0.11's three values, each in its Team
+  Deathmatch project and Free for All's copy. Seen in the game on Military
+  Warehouses (2026-11-14, captured frames): toward the sun the rays washed
+  the frame orange; with these values the sun has a halo and the sky and the
+  buildings stay visible. Experimental Pool and Training Camp were not
+  captured.
+- Ambient occlusion ("on fence there are black stripes", "often those happen
+  for some reason with this engine"; gone with `r_ambient_occlusion_quality 0`
+  in the owner's game): the stripes are the occlusion's own sample pattern on
+  a far flat wall, screen-aligned and about 6 pixels apart (Military
+  Warehouses' east fence from (59.8, -8.9, 1.7): solid, facing away from the
+  sun, no such lines in its textures). `ao_saturation` is an exponent in both
+  occlusion shaders: (1 - occluded)^(2 x `ao_saturation`) x 1.1 at
+  `r_ambient_occlusion_quality` 1 (`ssao_hemisphere_optimized.ps`), (1 -
+  occluded)^(3 x `ao_saturation`) x 1.2 at 2 and 3
+  (`ssao_hemisphere_stable_radius.ps`). The ports had 2, stock maps have 1 to
+  1.29: at quality 1 an occlusion of 0.2 left 0.45 of the ambient light where
+  level_03 leaves 0.70. The six maps have 1 now; the pattern itself is the
+  engine's and stays at stock strength. Not proven in the game: a still
+  captured frame shows the stripes neither before nor after (the occlusion's
+  temporal filter settles), so whether stock strength hides them in play is
+  the owner's to see. Their `ao_radius` 1.5 is a stock value
+  (level_02 day; stock maps have 1 to 1.5) and stays. Vostok v0.11 (1.5) and
+  Chemical Plant v0.11 (1.3) are above stock too and are not changed.
+- Not changed: Repair Depot, Station and Depository, not played, keep rays 1.0
+  at 1.0 and flares x2. All eight maps keep the old builds' vignette
+  (`vignette_effect_power` 1, stock 0) and far depth of field
+  (`use_bokeh_dof`, focus 100 m, region 50 m; stock day maps do not use it).
+
 ## Grass
 
 Experimental Pool and Military Warehouses have the grass of their Clear Sky
@@ -164,6 +221,22 @@ Training Camp's meadow.
 - Not carried over: X-Ray's per-slot sun, sky and colour terms (0.26g's grass
   has one colour per instance, fixed in the engine); 0.26g's own shadows
   light it.
+- Matte (the owner, 2026-11-14: "grass which is too glossy";
+  `stalker-grass-matte-1.json`): the two maps' grass material
+  (`ported/cs/<map>/details`) is stock `flora/grass_l03_alt` with the grass's
+  colour texture as its roughness map, `constant_roughness_min` 0.3, max 1.
+  A material's "roughness" is its gloss in 0.26g (stock glass 0.7 to 1, cloth
+  and skin 0.1, `flora/grass` 0.01): `gbuffer_pass.ps` writes 1 - (min +
+  range x the map's green), and the sun's highlight in `composition.ps` takes
+  that as its GGX roughness (alpha = 0.5 s^6 + 0.1 s). Stock's own map is near
+  black, gloss 0.04: a broad highlight of about 0.04 x the sun. The colour
+  texture gives 0.46: a sharp one of about 3 x the sun, and with every normal
+  up a whole patch took the sun's colour where the player looked toward the
+  sun and down. Both ends of the range are 0.04 now, stock's average. Seen in
+  the game on Military Warehouses (2026-11-14, captured frames at the owner's
+  two places and settings): the sun-coloured patches are gone, the grass keeps
+  its colour. Training Camp's meadow grass (`ported/v010b/flora/grass_l03_alt`,
+  also 0.3 over its colour texture) is not changed.
 - The other four maps take the same option. Repair Depot's level has
   349,153 tufts at the same density (thin it with `density`); Training Camp
   has its meadow already; Station and Depository need their level folders
@@ -407,13 +480,26 @@ The spawns do not come from the level: they are the planner's.
 - `tools/actionscript` adds a bitmap the original movie lacks from the tree's
   `bitmaps/<class>.png` (lossless) or `.jpg`; `srp-026g/scripts/stalker-maps/ui_images.py`
   writes them from the porter's minimap render and a loading picture.
-- Loading pictures and room tiles: Training Camp and Repair Depot use the
-  earlier package's in-game shots. Experimental Pool uses the `poolside-se`
-  panorama and Military Warehouses uses `road-tower`, from the captured
-  `analysis-bath/ingame/previews/<project>/day/` frames (2026-11-12 update).
-  `ui_images.py` cuts their middle band to 1920 x 798; their existing classes
-  serve both loading screens and room tiles. The two underground maps still
-  use top-down placeholders.
+- Loading pictures and room tiles: Experimental Pool, Military Warehouses and
+  Training Camp are frames of the game itself, captured on 2026-11-14 (the
+  owner: "rerender preview images, since they are low quality and don't have
+  grass"): a headless game at 2560 x 1440, every graphics setting at its
+  highest, a fixed camera of 100 degrees across, the maps as PR #1793 leaves
+  them (the grass, stock film grain and ambient occlusion). The earlier
+  pictures were 1920 x 1080 frames from before the maps had grass, with the
+  old builds' grain. Camera (x, eye height y, z; yaw 0 looks +z, 90 looks +x;
+  pitch up):
+
+  | map | pose | position | yaw | pitch |
+  | --- | --- | --- | ---: | ---: |
+  | Experimental Pool | `poolside-se` | (4, 6.5, 4) | -60 | -4 |
+  | Military Warehouses | `road-tower` | (-8, -5.5, -8) | 3 | -2 |
+  | Training Camp | `base-se2` | (62, 19, -50) | -47 | -7 |
+
+  The frame is scaled to cover 1920 x 798 and its middle band kept, as
+  `ui_images.py` cuts it; the existing classes serve both loading screens and
+  room tiles. Repair Depot still uses the earlier package's in-game shot; the
+  two underground maps still use top-down placeholders.
 - `release/content.tsv`: the pack row `stalker-maps@4`. @3 has the grass
   with flat-lying normals (black tufts under a high sun); @2 also has the
   planner's spots on Experimental Pool; @1 has no grass.
