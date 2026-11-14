@@ -148,6 +148,8 @@ run on its bytes in Unicorn) unless marked.
   | `material_hit` (a bullet's hit) | 0.92 | 0.64 (-3.2 dB) | 0.44 (-6.5 dB) | 0.40 (-7.3 dB) | 35 m |
   | `weapon_echo_loud` | 0.96 | 0.74 (-2.3 dB) | 0.51 (-5.6 dB) | 0.46 (-6.4 dB) | 40 m |
   | `weapon_shot_mosin` | 0.92 | 0.64 (-3.1 dB) | 0.47 (-5.8 dB) | 0.43 (-6.6 dB) | 100 m |
+  | `weapon_shot_40` | 0.97 | 0.84 (-1.2 dB) | 0.71 (-2.7 dB) | 0.67 (-3.1 dB) | 45 m |
+  | `weapon_echo_close_mid` | 0.97 | 0.85 (-1.2 dB) | 0.72 (-2.6 dB) | 0.69 (-3.0 dB) | 85 m |
 
   (the stock db's 52 presets, their `volume` keys read linearly between the keys: within a few
   tenths of a dB of the engine's cubic keys, LIKELY; the dB are against the gain at 1 m).
@@ -440,11 +442,12 @@ Where the build differs from or adds to the design above:
       too" (they floated "maybe drop completely at 15 and radio starts at 10" and withdrew it:
       "no", "this isnot good");
     - "should be still fine at 9m";
-    - "fall off should not be big".
+    - "fall off should not be big", and, told that a voice 6 dB down at 9 m would come back
+      full on the radio at 10 m, "so you always hear normally".
   - So:
     - under 10 m (`PLAIN_TO_M`) a speaker is heard plain, as a sound in the game's world: from its
-      side, and quieter the farther it is, gently: half (6 dB down) at 9 m (`AT_9_M` 0.5, the one
-      number of the fall);
+      side, and quieter the farther it is, gently: 0.7 of itself (3 dB down) at 9 m (`AT_9_M`,
+      the one number of the fall; 0.5, 6 dB, in the first build of the same day);
     - at 10 m the plain voice is cut and the radio starts (`RADIO_FROM_M`): a switch, as it was
       at 15 m. Nothing of the radio nearer, nothing of the plain voice farther;
     - the two distances are two constants (patch 66, `voice.rs`) and may differ: with the plain
@@ -464,8 +467,9 @@ Where the build differs from or adds to the design above:
   - **Not the engine's** (said plainly):
     - the gain by distance is the patch's own arithmetic, in the form of the engine's distance
       presets (a `volume` curve, the distance not under 1 m, held to 0..1): two linear keys, 1 to
-      1 m and `AT_9_M` at 9 m, on to the cut. With 0.5 it is the stock `weapon_echo_loud` within
-      0.5 dB and `material_hit` within 1.4 dB at 1, 5, 9 and 10 m (the table above). No stock preset
+      1 m and `AT_9_M` at 9 m, on to the cut. With 0.7 it is the stock `weapon_shot_40` within
+      0.3 dB and `weapon_echo_close_mid` within 0.4 dB from 1 to 10 m (the table above; with 0.5 it
+      was `weapon_echo_loud` within 0.5 dB). No stock preset
       is loaded and the engine's curve reader (0x25F30) is not called: that needs a `.spl` asked
       of the resource manager, and a number in the patch is turned by ear sooner;
     - the characters' own voice presets are not used: a scream is 19 dB down at 9 m, the engine's
@@ -484,12 +488,13 @@ Where the build differs from or adds to the design above:
     | the speaker at | 1 m | 5 m | 8 m | 9 m | 9.5 m | 9.99 m | 10 m and past |
     |---|---|---|---|---|---|---|---|
     | until now (#1782) | plain 0 dB | 0 | 0 | 0 | 0 | 0 | plain 0 dB to 15 m, then the radio |
-    | now | plain 0 dB | -2.5 | -5.0 | -6.0 | -6.6 | -7.2 | the radio, 0 dB |
+    | now | plain 0 dB | -1.4 | -2.6 | -3.1 | -3.3 | -3.6 | the radio, 0 dB |
 
-    So the voice comes back about 7 dB louder where it turns into the radio. Keeping both levels
-    as the owner left them (the near voice beside the listener, the radio) was chosen over
-    hiding that step: `AT_9_M` nearer 1 makes it smaller (0.7: about 3.5 dB), `LEVEL` or the
-    radio's `VOICE` would move a level that was tuned by ear.
+    So the voice comes back about 3.6 dB louder where it turns into the radio. Both levels stay
+    as the owner left them (the near voice beside the listener, the radio): `LEVEL` or the
+    radio's `VOICE` would move a level that was tuned by ear. `AT_9_M` is what sets the step: 0.5
+    (6 dB down at 9 m) made it 7.2 dB, which the owner's "so you always hear normally" ruled out;
+    1 would be no fall and no step.
   - **The interface** (ABI 3): `sv_hear(place, left, right, radio)` tells a place's whole state in
     one call (`voice_abi::Heard`: plain with its two gains, the radio, or both), in place of the
     radio's mask and a pan a place (`sv_radio`, `sv_direction`), which could disagree. The DLL
@@ -628,11 +633,14 @@ Where the build differs from or adds to the design above:
 - `cargo test` in `client-patches/rust/`: the saved mutes' text (malformed records), plain under
   10 m (9.9 m plain, 10 m and 50 m the radio), the radio for the dead and for a broken place, the
   pan asked of the speaker's offset and its gains raised and lowered by the distance (1 to 1 m,
-  0.5 at 9 m), the two distances apart (both between them, or neither).
+  `AT_9_M` at 9 m), the two distances apart (both between them, or neither).
 - `check_voice_pan_026g.py` (Unicorn, `tools/check voice-pan`): the original exe's
   `calculate_3d_pan` called as the patch calls it, on a scene whose listener the engine's own
   `set_listener_properties` set and with the table its own constructor filled: the law (above),
-  a listener moved and turned, what it reads and writes. `check_engine_026g.py` holds the two new
+  a listener moved and turned, what it reads and writes; and `get_listenet_position` (0x57560)
+  as the patch calls it beside the pan every frame (the scene in EAX, the three floats' room in
+  ESI): the place the engine keeps, nothing read but the scene's +120h, nothing written but the
+  three floats. `check_engine_026g.py` holds the two new
   engine functions' thunks to the re-kit's rows. The old `check_voice_026g.py` (Unicorn over the 2026-10-25 hooks) went with
   those hooks; the lohooks' handlers are not run in Unicorn.
 - The Windows/Wine DLL smoke test covers loading, the ABI, relay handshake, mute/volume updates,

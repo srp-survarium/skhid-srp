@@ -52,10 +52,10 @@ pub const PLAIN_TO_M: f32 = 10.0;
 pub const RADIO_FROM_M: f32 = 10.0;
 
 /// How much of the plain voice is left at 9 m of what it is beside the
-/// listener: half, 6 dB down (the owner: "should be still fine at 9m",
-/// "fall off should not be big"). The one number of the fall: 0.7 is 3 dB,
-/// 0.35 9 dB, 1 none.
-pub const AT_9_M: f32 = 0.5;
+/// listener: 0.7, 3 dB down (the owner: "should be still fine at 9m",
+/// "fall off should not be big", "so you always hear normally"). The one
+/// number of the fall: 0.5 is 6 dB, 0.35 9 dB, 1 none.
+pub const AT_9_M: f32 = 0.7;
 
 /// The plain voice beside the listener and straight ahead plays as decoded
 /// in both ears, as the radio does and as revision 58's near voice did: the
@@ -67,8 +67,8 @@ const LEVEL: f32 = core::f32::consts::SQRT_2;
 /// distance presets have them (`sounds/spl/*.spl`: the gain by metres, read
 /// with the distance not under 1 m and held to 0..1, calculate_hdr_audio_frame
 /// 0x5C9B5), of two linear keys: 1 to 1 m, [`AT_9_M`] at 9 m, on to
-/// [`PLAIN_TO_M`]. With 0.5 it is the stock `weapon_echo_loud` within 0.5 dB
-/// and `material_hit` within 1.4 dB (docs/notes/voice-chat.md).
+/// [`PLAIN_TO_M`]. With 0.7 it is the stock `weapon_shot_40` and
+/// `weapon_echo_close_mid` within 0.4 dB (docs/notes/voice-chat.md).
 fn gain(metres: f32) -> f32 {
     let past = if metres > 1.0 { metres - 1.0 } else { 0.0 };
     (1.0 - (1.0 - AT_9_M) * past / (9.0 - 1.0)).clamp(0.0, 1.0)
@@ -644,7 +644,7 @@ mod tests {
         assert!(close(ahead(0.0)[0], 1.0) && close(ahead(1.0)[1], 1.0));
         // The fall: none to 1 m, AT_9_M at 9 m, linear between, on to the end.
         assert!(close(gain(0.3), 1.0) && close(gain(1.0), 1.0) && close(gain(9.0), AT_9_M));
-        assert!(close(gain(5.0), (1.0 + AT_9_M) / 2.0) && gain(9.99) < AT_9_M && gain(9.99) > 0.4);
+        assert!(close(gain(5.0), (1.0 + AT_9_M) / 2.0) && gain(9.99) < AT_9_M && gain(9.99) > AT_9_M - 0.1);
         assert!(close(ahead(9.0)[0], AT_9_M) && close(ahead(9.0)[1], AT_9_M));
         // A pan that is not a number is silent, never noise.
         assert_eq!(in_the_world([1.0, 0.0, 0.0], 10.0, 10.0, &|_| [f32::NAN; 2]), Heard::Plain(Ears::SILENT));

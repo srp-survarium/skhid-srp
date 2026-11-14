@@ -6,7 +6,8 @@ the original exe, in Unicorn as the patch's boundary calls it (vostok/voice.rs, 
 
 - the panning table is filled by its own constructor (panning_lut::panning_lut 0x5E150);
 - the listener is given to a made-up scene by the engine's set_listener_properties (0x587D0),
-  and read back by get_listenet_position (0x57560);
+  and its place read back by get_listenet_position (0x57560) as Listener::at_frame calls it
+  every frame: the scene in EAX, the three floats' room in ESI, every other register poison;
 - sound_scene::calculate_3d_pan (0x57D70) is called with the scene, the table, a proxy of 144
   zero bytes (a point sound), a position and the distance.
 
@@ -14,7 +15,10 @@ It holds what the patch relies on: the pan's law (constant power: 0.7071 in both
 and behind, 1 and 0 at the side, towards the centre above; no gain by distance), a listener
 turned and moved, and that of a point sound the function reads only the proxy's +80h, the
 position, the table and the scene's three listener vectors, and writes only the two gains and
-the low-pass coefficient (its 28 bytes of arguments popped).
+the low-pass coefficient (its 28 bytes of arguments popped). And of get_listenet_position:
+it gives the place the engine keeps (16-bit floats), returns the room in EAX, pops nothing,
+reads only the scene's +120h and writes only the three floats (the +120h by a locked cmpxchg8b
+that leaves it as it is).
 """
 import math
 import os
@@ -81,9 +85,30 @@ class Engine:
         self.uc.mem_write(VECTORS, struct.pack("<9f", *position, *front, *top))
         assert self.call(SET_LISTENER, [VECTORS + 12, VECTORS + 24], {UC_X86_REG_ESI: SCENE, UC_X86_REG_EAX: VECTORS}) == 8
         assert self.uc.mem_read(SCENE + 0x2FA, 1) == b"\x01"
-        assert self.call(LISTENER_POSITION, [], {UC_X86_REG_EAX: SCENE, UC_X86_REG_ESI: VECTORS + 64}) == 0
-        assert self.uc.reg_read(UC_X86_REG_EAX) == VECTORS + 64
-        return self.floats(VECTORS + 64, 3)
+        return self.listener_position()
+
+    def listener_position(self):
+        """As Listener::at_frame calls it: the scene's place, with what the call touched held to
+        the scene's +120h (read; written as it was) and the three floats (written)."""
+        out, scene = VECTORS + 64, bytes(self.uc.mem_read(SCENE, 0x400))
+        self.uc.mem_write(out, struct.pack("<4f", *[POISON] * 4))
+        kept, self.accesses = self.accesses, set()
+        popped = self.call(LISTENER_POSITION, [], {UC_X86_REG_EAX: SCENE, UC_X86_REG_ESI: out})
+        touched, self.accesses = self.accesses, kept
+        assert popped == 0 and self.uc.reg_read(UC_X86_REG_EAX) == out, (popped, hex(self.uc.reg_read(UC_X86_REG_EAX)))
+        for kind, address, size in touched:
+            if 0x10000 <= address < HEAP:
+                assert kind == "read", ("the exe written", hex(address))
+            elif kind == "read":
+                assert SCENE + 0x120 <= address and address + size <= SCENE + 0x128, ("read", hex(address), size)
+            else:
+                assert (SCENE + 0x120 <= address and address + size <= SCENE + 0x128) or (out <= address and address + size <= out + 12), \
+                    ("write", hex(address), size)
+        assert {kind for kind, address, _ in touched if SCENE <= address < SCENE + 0x400} == {"read", "write"}, touched
+        assert bytes(self.uc.mem_read(SCENE, 0x400)) == scene
+        x, y, z, fourth = self.floats(out, 4)
+        assert fourth == POISON
+        return x, y, z
 
     def pan(self, position, distance):
         """As Listener::pan calls it: the two gains and the low-pass coefficient."""
@@ -116,6 +141,13 @@ def main():
     print("ok: the panning table: %d directions, two speakers, constant power" % DIRECTIONS)
 
     # The listener at the origin, looking down +Z, up +Y: its right is +X.
+    assert engine.listener((0, 0, 0), (0, 0, 1), (0, 1, 0)) == (0.0, 0.0, 0.0)
+    # The place as the engine keeps it: 16-bit floats, exact where they can be, the nearest else.
+    assert engine.listener((1.5, -2.25, 100.0), (0, 0, 1), (0, 1, 0)) == (1.5, -2.25, 100.0)
+    kept = engine.listener((301.3, 12.7, -148.2), (0, 0, 1), (0, 1, 0))
+    assert kept == (301.25, 12.703125, -148.25), kept
+    assert engine.listener_position() == kept
+    print("ok: the listener's place as the patch reads it: EAX the scene, ESI the room, nothing else touched")
     assert engine.listener((0, 0, 0), (0, 0, 1), (0, 1, 0)) == (0.0, 0.0, 0.0)
     engine.accesses = set()
     half = math.sqrt(0.5)

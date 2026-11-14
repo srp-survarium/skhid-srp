@@ -3550,7 +3550,7 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `
   sound scene (+94h: its listener), the sound world's panning table (+0CCh) and a zeroed proxy of
   ours, a point sound; the position is the speaker's offset, feet to feet, added to the listener's
   place as the engine keeps it, `engine_listener_position` 0x57560), times a gain by distance
-  (two linear keys, 1 to 1 m and `AT_9_M` 0.5 at 9 m) and `LEVEL` (voice-chat.md, "Plain in the
+  (two linear keys, 1 to 1 m and `AT_9_M` 0.7 at 9 m) and `LEVEL` (voice-chat.md, "Plain in the
   world"; `check_voice_pan_026g.py` runs the engine's function as the patch calls it);
   a held push-to-talk let go when its key is up (user32's GetAsyncKeyState, so a release the chat
   box took is seen: MapVirtualKeyA's VK of the scan code, and for the numpad's digits and point the
