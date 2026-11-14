@@ -48,7 +48,7 @@ def main():
             assert p['y'] >= 6, (p['point'], 'is not raised')
             note = f'{on}, way down on foot'
             raised.append(on)
-        assert p['reason'].endswith(f'; spacing >=8m in 3D; {note}'), (p['point'], on, p['reason'])
+        assert p['reason'].endswith(f'; {note}'), (p['point'], on, p['reason'])
     assert len(authored) - len(raised) == m.GROUND
     kinds = {kind: sum(on.startswith(kind) for on in raised) for kind in ('raised island', 'stairs of tower', 'cabin')}
     # The truck's pack as the manifest pins it: made again from stalker-maps@6, the same pack.json.

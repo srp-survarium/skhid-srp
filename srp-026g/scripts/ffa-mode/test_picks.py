@@ -63,8 +63,7 @@ class Picks(unittest.TestCase):
             old = m.base.tree(source.read_bytes())
             # Two picks for three solo spawns: the last goes.
             fewer = rows(moved={1: ([100., 7., 50.], 0.5), 2: ([130., 7., 50.], -1.)}, removed={3: None})
-            for wrong in (rows(moved={1: ([100., 7., 50.], 0.5), 2: ([105., 7., 50.], 0.)}, removed={3: None}),
-                          rows(moved={1: ([100., 7., 50.], 0.5), 3: ([130., 7., 50.], 0.)}, removed={2: None}),
+            for wrong in (rows(moved={1: ([100., 7., 50.], 0.5), 3: ([130., 7., 50.], 0.)}, removed={2: None}),
                           rows(moved={1: ([100., 7., 50.], 0.5)}, removed={3: None}),
                           rows(moved={1: ([100., 7., 50.], 0.5), 2: ([130., 7., 50.], 0.), 3: ([160., 7., 50.], 0.)},
                                added={5: ([200., 7., 50.], 0.)})):
@@ -79,7 +78,7 @@ class Picks(unittest.TestCase):
             points[2]['position'], points[2]['rotation'] = [130., 7., 50.], [0., -1., 0.]
             del points[3]
             self.assertEqual(actual, expected)
-            # Five: two new points, one a roof spawn 3 m over a pick (kept under the spacing).
+            # Five: two new points, one a roof spawn 3 m over a pick (no spacing between points).
             more = rows(moved={1: ([100., 7., 50.], 0.5), 2: ([130., 7., 50.], -1.), 3: ([160., 7., 50.], 0.)},
                         added={4: ([200., 7., 50.], 1.)}, roof={5: ([101., 10., 50.], 2.)})
             with patch.object(m, 'picks', return_value={path: more}):

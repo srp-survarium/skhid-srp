@@ -32,7 +32,6 @@ import make_edits as base
 
 POINTS_TSV = base.HERE / 'center.tsv'
 OUTPUT = base.HERE.parent / 'content-edit/ffa-center-1.json'
-SPACING = 12.
 
 
 def path_of(project):
@@ -73,11 +72,6 @@ def edits(live):
         missing = set(points) - set(solo)
         if missing:
             raise ValueError(f'{path}: no solo spawn {sorted(missing)}')
-        after = {i: (points[i][0] if i in points else list(e['position'])) for i, e in solo.items()}
-        for i in points:
-            near = min(math.dist((after[i][0], after[i][2]), (p[0], p[2])) for j, p in after.items() if j != i)
-            if near < SPACING - 0.001:
-                raise ValueError(f'{path}: moved point {i} is {near:.2f} m from another solo spawn')
         for i in sorted(points):
             entry = solo[i]
             position, yaw = points[i]

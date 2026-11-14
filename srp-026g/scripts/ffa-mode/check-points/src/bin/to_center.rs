@@ -15,9 +15,10 @@
 //! lose every other one (the phase whose kept spawns leave the smaller largest
 //! gap). As many new spawns go into the centre area, from the same candidates
 //! and checks as the London central points (central.rs): reachable standing
-//! floor, body clear, harmful zones >= 2 m, a walkable 6 m facing, and >= 12 m
-//! from every kept solo spawn and each other, the farthest first. A map whose
-//! centre cannot take them all is refused.
+//! floor, body clear, harmful zones >= 2 m, a walkable 6 m facing, the
+//! farthest from every kept solo spawn and each other first (center.tsv was made
+//! with a 12 m minimum; since 2026-11-14 there is none, the owner: "we don't
+//! need this rules at all"). A map whose centre has too few is refused.
 //!
 //! `--below <y>` (run on the projects with the move applied) moves nothing of
 //! the perimeter: the solo spawns standing above that height are the ones that
@@ -35,7 +36,6 @@ use ffa_check_points::{Map, Verdict};
 use mapdata::{Materials, Resources, Vec3};
 use std::{collections::BTreeSet, fmt::Write as _, path::PathBuf, process::ExitCode};
 
-const MIN_SPACING: f32 = 12.0;
 const HAZARD_MARGIN: f32 = 2.0;
 const FACING_REACH: f32 = 6.0;
 const WIDEN: f32 = 0.05;
@@ -150,8 +150,8 @@ fn facing(map: &Map, bounds: Option<[f32; 4]>, node: u32, center: Vec3) -> Optio
 }
 
 /// central.rs's choice: the candidate farthest from every kept spawn and
-/// every one chosen, until `count`; fewer when no candidate is `spacing` clear.
-fn choose(points: &[Candidate], existing: &[Vec3], count: usize, spacing: f32) -> Vec<usize> {
+/// every one chosen, until `count`; fewer when the candidates run out.
+fn choose(points: &[Candidate], existing: &[Vec3], count: usize) -> Vec<usize> {
     let mut chosen = Vec::new();
     let mut distance: Vec<_> = points
         .iter()
@@ -168,13 +168,14 @@ fn choose(points: &[Candidate], existing: &[Vec3], count: usize, spacing: f32) -
         else {
             break;
         };
-        if distance[next] < spacing {
+        if distance[next] == f32::NEG_INFINITY {
             break;
         }
         chosen.push(next);
         for (i, p) in points.iter().enumerate() {
             distance[i] = distance[i].min(p.position.distance_xz(points[next].position));
         }
+        distance[next] = f32::NEG_INFINITY;
     }
     chosen
 }
@@ -291,7 +292,6 @@ fn run() -> Result<(), String> {
                     (p.y / 2.0).floor() as i32,
                     (p.z / 2.0).floor() as i32,
                 ))
-                || kept.iter().any(|at| at.distance_xz(p) < MIN_SPACING)
                 || harmful(&map, p)
             {
                 continue;
@@ -317,7 +317,7 @@ fn run() -> Result<(), String> {
                 .copied()
                 .filter(|c| area.in_cells(&cells_in, c.position))
                 .collect::<Vec<_>>();
-            added = choose(&central, &kept, removed.len(), MIN_SPACING)
+            added = choose(&central, &kept, removed.len())
                 .into_iter()
                 .map(|i| central[i])
                 .collect::<Vec<Candidate>>();
@@ -369,7 +369,7 @@ fn run() -> Result<(), String> {
                 return Err(format!("{project}: new point {i}'s stored facing is blocked"));
             }
             println!(
-                "{project}\t{}\t{}\t{}\t{}\t0\t{}\t0\t20\t2\tmoved\t\treachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m; centre area (depth >= {:.1} m)",
+                "{project}\t{}\t{}\t{}\t{}\t0\t{}\t0\t20\t2\tmoved\t\treachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; farthest-first; centre area (depth >= {:.1} m)",
                 moved[i], p.x, p.y, p.z, c.yaw, core
             );
         }
