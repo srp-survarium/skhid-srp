@@ -758,7 +758,7 @@ fn write_item(item: &MatchItem, dictionary: &Dictionary, out: &mut Vec<u8>) {
 /// What a match is sent must also have its kits' pockets packed: a kit
 /// built as a literal is refused here, not played. Profiles read back
 /// (recordings) are not held to it.
-fn check_sent(
+pub(crate) fn check_sent(
     player: usize,
     profile: &MatchProfile,
     dictionary: &Dictionary,
