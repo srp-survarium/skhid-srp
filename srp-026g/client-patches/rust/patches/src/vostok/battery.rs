@@ -195,9 +195,10 @@ impl<'t> PredicateBuffer<'t> {
     }
 }
 
-/// A battery's carrier (its +8, alive).
+/// A battery's carrier (its +8, alive), and the battery.
 pub struct Carrier<'t> {
     player: raw::Player,
+    battery: raw::VictoryItemCore,
     _thread: &'t Thread,
 }
 
@@ -207,7 +208,7 @@ impl<'t> Carrier<'t> {
     unsafe fn of(thread: &'t Thread, battery: raw::VictoryItemCore) -> Option<Carrier<'t>> {
         unsafe {
             let player = battery.user()?;
-            (read(player.alive()) != 0).then_some(Carrier { player, _thread: thread })
+            (read(player.alive()) != 0).then_some(Carrier { player, battery, _thread: thread })
         }
     }
 
@@ -221,10 +222,21 @@ impl<'t> Carrier<'t> {
     /// The gun-stock hit's bullet (0x33AB50's emit_bullet) of its first gun
     /// (slot 7, else 10): from the eye's place along its forward row times
     /// the gun's melee distance, the gun's melee data, now.
+    ///
+    /// The gun is deactivated while the battery is held (weapon_core's
+    /// deactivate 0x2E2EE0: no user, its clip set no posture), and the
+    /// bullet's constructor reads both through the gun: the shot's stance
+    /// (its vtable +7Ch, 0x2E43A0: the user alive, the posture's kind) and
+    /// the melee damage (0x2E1CF0: the user's kit modifiers). For the one
+    /// call the gun is lent the carrier and the battery's posture (the
+    /// carrier's posture now), as a held gun has them at its own gun-stock
+    /// hit; both are given back when it returns.
     pub fn strike(&self) -> Result<(), NoGun> {
-        // SAFETY: the live carrier's inventory and eye; a slot's item read
-        // as a gun only after its active object's vtable says it is one; the
-        // arguments as 0x33AB50 gives them, EDI the gun.
+        // SAFETY: the live carrier's inventory, eye and battery; a slot's
+        // item read as a gun only after its active object's vtable says it
+        // is one; the arguments as 0x33AB50 gives them, EDI the gun; the
+        // lent fields restored by LentGun's drop, on this thread, before
+        // anything else runs.
         unsafe {
             let inventory = self.player.inventory().ok_or(NoGun)?;
             let gun = GUN_SLOTS.iter().find_map(|&slot| {
@@ -233,18 +245,57 @@ impl<'t> Carrier<'t> {
                     .then(|| gun.weapon())
             }).ok_or(NoGun)?;
             let manager = gun.bullet_manager().ok_or(NoGun)?;
+            let posture = self.battery.user_animations().and_then(|a| a.posture()).ok_or(NoGun)?;
+            let lent = LentGun::lend(gun, self.player, posture).ok_or(NoGun)?;
             let eye = self.player.eye();
             let distance = read(gun.melee_distance());
             let velocity = [8, 9, 10].map(|i| read(eye.add(i)) * distance);
             raw::engine_emit_bullet(Some(gun), Some(manager), eye.add(12), velocity.as_ptr(),
                                     gun.melee_data().cast(), read(self.player.time()),
                                     Some(self.player.bullet_owner()), self.player.bullet_subject().cast(), 0);
+            drop(lent);
         }
         Ok(())
     }
 }
 
-/// A carrier with no gun in slot 7 or 10 (never in a match: a kit without
-/// both crashes every game at the spawn).
+/// A deactivated gun lent a user and a posture for one call; what it had
+/// is given back on drop.
+struct LentGun {
+    gun: raw::Weapon,
+    animations: raw::UserAnimations,
+    user: Option<raw::Player>,
+    posture: Option<raw::PostureState>,
+}
+
+impl LentGun {
+    /// # Safety
+    /// `gun`, `user` and `posture` are alive for as long as the lend, on
+    /// this thread.
+    unsafe fn lend(gun: raw::Weapon, user: raw::Player, posture: raw::PostureState) -> Option<LentGun> {
+        unsafe {
+            let animations = gun.user_animations()?;
+            let lent = LentGun { gun, animations, user: gun.user(), posture: animations.posture() };
+            gun.set_user(Some(user));
+            animations.set_posture(Some(posture));
+            Some(lent)
+        }
+    }
+}
+
+impl Drop for LentGun {
+    fn drop(&mut self) {
+        // SAFETY: the gun and its clip set lend() wrote, still alive (the
+        // lend lives for one call on this thread).
+        unsafe {
+            self.gun.set_user(self.user);
+            self.animations.set_posture(self.posture);
+        }
+    }
+}
+
+/// No strike: no gun in slot 7 or 10 (never in a match: a kit without both
+/// crashes every game at the spawn), or the battery has no posture (it is
+/// ticked while carried, so it always has one).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NoGun;

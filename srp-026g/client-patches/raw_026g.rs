@@ -7185,6 +7185,42 @@ impl Weapon {
     pub unsafe fn melee_distance(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x578).cast::<f32>().as_ptr() }
     }
+
+    /// +0x8 (ptr<survarium::player>): its user (weapon_core::set_user 0x2E2996); 0 once deactivated (0x2E2EE0), as a gun is while its player carries a battery; the bullet's constructor reads it through the gun's vtable +7Ch (0x2E43A0) and melee damage (0x2E1CFD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn user(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::player>): its user (weapon_core::set_user 0x2E2996); 0 once deactivated (0x2E2EE0), as a gun is while its player carries a battery; the bullet's constructor reads it through the gun's vtable +7Ch (0x2E43A0) and melee damage (0x2E1CFD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_user(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<Player>>().write_volatile(value) }
+    }
+
+    /// +0x278 (ptr<survarium::user_animations>): its clip set (weapon_core 0x30AAE1); +20h its posture now, 0 while the gun is deactivated; read by the shot's stance (vtable +7Ch, 0x2E43B0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn user_animations(self) -> Option<UserAnimations> {
+        unsafe { self.0.byte_add(0x278).cast::<Option<UserAnimations>>().read_volatile() }
+    }
+
+    /// +0x278 (ptr<survarium::user_animations>): its clip set (weapon_core 0x30AAE1); +20h its posture now, 0 while the gun is deactivated; read by the shot's stance (vtable +7Ch, 0x2E43B0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_user_animations(self, value: Option<UserAnimations>) {
+        unsafe { self.0.byte_add(0x278).cast::<Option<UserAnimations>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::weapon_hide_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -20694,6 +20730,24 @@ impl UserAnimations {
     pub unsafe fn death_hud_count(self) -> *mut u32 {
         unsafe { self.0.byte_add(0xa24).cast::<u32>().as_ptr() }
     }
+
+    /// +0x20 (ptr<survarium::posture_state>): the posture state now of its machine (+10h the list's count, +18h its head): 0x2E43B6, 0x301450; 0 for a deactivated gun's
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn posture(self) -> Option<PostureState> {
+        unsafe { self.0.byte_add(0x20).cast::<Option<PostureState>>().read_volatile() }
+    }
+
+    /// +0x20 (ptr<survarium::posture_state>): the posture state now of its machine (+10h the list's count, +18h its head): 0x2E43B6, 0x301450; 0 for a deactivated gun's
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_posture(self, value: Option<PostureState>) {
+        unsafe { self.0.byte_add(0x20).cast::<Option<PostureState>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::death_animations_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -22760,6 +22814,24 @@ impl VictoryItemCore {
     pub unsafe fn set_machine_current(self, value: Option<BatteryState>) {
         unsafe { self.0.byte_add(0x178).cast::<Option<BatteryState>>().write_volatile(value) }
     }
+
+    /// +0x1ac (ptr<survarium::user_animations>): its carrier's clip set (gameplay/victory_items/default.user_animations), ticked with it (victory_item_core::tick 0x301250); +20h its posture now (selected_animations 0x3012C1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn user_animations(self) -> Option<UserAnimations> {
+        unsafe { self.0.byte_add(0x1ac).cast::<Option<UserAnimations>>().read_volatile() }
+    }
+
+    /// +0x1ac (ptr<survarium::user_animations>): its carrier's clip set (gameplay/victory_items/default.user_animations), ticked with it (victory_item_core::tick 0x301250); +20h its posture now (selected_animations 0x3012C1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_user_animations(self, value: Option<UserAnimations>) {
+        unsafe { self.0.byte_add(0x1ac).cast::<Option<UserAnimations>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::battery_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -23225,6 +23297,30 @@ impl TakeStateMethodsStorage {
     #[inline(always)]
     pub fn first(rooms: &mut [Self]) -> Option<TakeStateMethods> {
         (!rooms.is_empty()).then(|| TakeStateMethods(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::posture_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PostureState(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PostureState {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x20 (u32): what posture it is (0x2E43B9 tests 1, 0x301450 tests 1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kind(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x20).cast::<u32>().as_ptr() }
     }
 }
 

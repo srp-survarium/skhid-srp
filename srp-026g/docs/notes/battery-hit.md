@@ -95,7 +95,25 @@
 - A battery whose machine is not the three states, or no memory: a crash (`expect`), not a
   game left without the swing (it would play otherwise than the others).
 - The strike: `emit_bullet` with the arguments the gun-stock hit gives it (0x33AB50), EDI the
-  gun (slot 7, else 10; none: no strike), the time the carrier's.
+  gun (slot 7, else 10; none: no strike), the time the carrier's. The gun is deactivated while
+  the battery is held (deactivate 0x2E2EE0: user +8 cleared, its clip set's posture +278h -> +20h
+  none), and the bullet's constructor reads both through it: the shot's stance (vtable +7Ch,
+  0x2E43A0: the user's +33Ch, the posture's kind) and the melee damage (0x2E1CF0: the user's kit
+  modifiers). So for the one call the gun is lent the carrier and the battery's posture (the
+  carrier's posture now, its clip set +1ACh -> +20h), as a held gun has them at its own gun-stock
+  hit, and given them back when it returns (`LentGun`, restored on drop). The bullet's flight
+  reads the gun's fields, not its user (melee branches 0x32C5E0, 0x32E385, 0x32F0F6; a scan of
+  0x2D0000..0x340000 finds no read of a source gun's user: static, not exhaustive).
+
+## The first in-game test (2026-11-14, build 56dfcf96d)
+
+- The owner pressed melee while carrying: the game crashed at 0x2E43A3 reading 0x33C (EAX 0).
+  The full dump: the gun 0x7C932B48 (vtable 0xA04174, the client weapon) has user +8 = 0 and
+  its posture none; the stack 0x32BAE2 (the constructor's call of the gun's +7Ch), 0x3228A4
+  (emit_bullet), 0xA4373BD (the strike); the battery's machine had 4 states, the swing
+  current. The first Unicorn check stubbed emit_bullet whole, so the constructor never ran on
+  the deactivated gun. The fix above; the check now runs emit_bullet and the constructor and
+  has the crash as its control.
 
 ## Checked
 
@@ -105,7 +123,8 @@
   nothing until its clip ended, then the carry (or the put) and one strike with the gun-stock
   arguments (slot 10's gun when 7 is empty); left early (a drop), no strike. Stubbed: the
   allocator, a clip's time scale, the animation event channels, the battery's transform calls,
-  emit_bullet itself.
+  emit_bullet's pool room and list add (emit_bullet and the bullet's constructor run).
+  Its control: the gun not lent faults at 0x2E43A3, the in-game crash.
 - `cargo test` and Clippy of the patches crate and srp-validate (state 3 read, 4 refused).
 - Not played: the clip at this speed, a real clip end, the bullet's hit in a match.
 

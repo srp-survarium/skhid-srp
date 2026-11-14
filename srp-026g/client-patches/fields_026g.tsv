@@ -1256,3 +1256,8 @@ survarium::player	bullet_owner	0x110	obj<survarium::bullet_owner>	its bullets' o
 survarium::player	bullet_subject	0x118	u32	its second interface a bullet keeps: emit_bullet's seventh argument (0x33AB7E, weapon_core::set_user 0x2E29B1); taken by its address
 survarium::weapon	melee_data	0x53C	u32	the gun-stock hit's bullet data (melee/data: blunt, combat_log_icon 48): emit_bullet's data (0x33ABC4), a kill's melee test [bullet+40h] == it (0x2DA2CD); taken by its address
 survarium::weapon	melee_distance	0x578	f32	melee/data/distance (1.7 m): the gun-stock bullet's speed, the eye's forward times it (0x33AB9B)
+survarium::victory_item_core	user_animations	0x1AC	ptr<survarium::user_animations>	its carrier's clip set (gameplay/victory_items/default.user_animations), ticked with it (victory_item_core::tick 0x301250); +20h its posture now (selected_animations 0x3012C1)
+survarium::weapon	user	0x8	ptr<survarium::player>	its user (weapon_core::set_user 0x2E2996); 0 once deactivated (0x2E2EE0), as a gun is while its player carries a battery; the bullet's constructor reads it through the gun's vtable +7Ch (0x2E43A0) and melee damage (0x2E1CFD)
+survarium::weapon	user_animations	0x278	ptr<survarium::user_animations>	its clip set (weapon_core 0x30AAE1); +20h its posture now, 0 while the gun is deactivated; read by the shot's stance (vtable +7Ch, 0x2E43B0)
+survarium::user_animations	posture	0x20	ptr<survarium::posture_state>	the posture state now of its machine (+10h the list's count, +18h its head): 0x2E43B6, 0x301450; 0 for a deactivated gun's
+survarium::posture_state	kind	0x20	u32	what posture it is (0x2E43B9 tests 1, 0x301450 tests 1)
