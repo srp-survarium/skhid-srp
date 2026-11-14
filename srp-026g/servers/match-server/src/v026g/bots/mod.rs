@@ -320,6 +320,8 @@ pub struct Bot {
     held_choke: Option<(Place, Vec3, u32)>,
     /// The lip guard's watch over its own hold on this bot's keys (`drive::LipWatch`).
     lip_watch: drive::LipWatch,
+    /// [A388 step 2b] The lip guard's last forecast and what it was asked ([`drive::LipMemo`]).
+    lip_memo: drive::LipMemo,
     /// The bench's stood line (`real_bot_cost`): whether the reflex had the
     /// legs at its last motor tick (a fight, not a route missing), and the
     /// poll clock of that tick (a play taken after it has had no motor
@@ -582,6 +584,7 @@ impl Bot {
             world_feet: None,
             held_choke: None,
             lip_watch: drive::LipWatch::default(),
+            lip_memo: drive::LipMemo::default(),
             #[cfg(test)]
             bench_legs: false,
             #[cfg(any(test, feature = "client-test"))]
@@ -2236,15 +2239,21 @@ impl Bots {
     pub fn drift_report(&self) -> Vec<String> {
         let tallies: Vec<(usize, &nav_drift::Tally)> = self.bots.iter().flatten().map(|bot| (bot.place, &bot.drift)).collect();
         let mut lines = nav_drift::report(&tallies);
+        // [A388 step 2b] The lip guard's forecasts this match: asked anew, and the same ask's answer used again.
+        let (asked, reused) = self.bots.iter().flatten().fold((0u64, 0u64), |(a, r), bot| (a + u64::from(bot.lip_memo.asked), r + u64::from(bot.lip_memo.reused)));
+        lines.push(format!("{}lip guard forecasts this match: asked {asked}, the same ask's answer used again {reused}", nav_log::PREFIX));
         // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
         // time a step took.
-        let (steps, ns) = body::kept_clock::take();
+        let (steps, ns) = body::kept_clock::take(body::kept_clock::Of::Reckoning);
+        let (forecast_steps, forecast_ns) = body::kept_clock::take(body::kept_clock::Of::Forecast);
         let (left, ground, held) = body::kept_edges::take();
         lines.push(format!(
-            "{}kept controller steps since the last match end (every match on this server): {steps}, {} ns a step, {:.1} ms in all;              off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}",
+            "{}kept controller steps since the last match end (every match on this server): the reckoning's {steps}, {} ns a step,              {:.1} ms in all; the lip guard forecast's {forecast_steps}, {} ns a step, {:.1} ms in all; the reckoning's off the ground              {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}",
             nav_log::PREFIX,
             ns.checked_div(steps).unwrap_or(0),
             ns as f64 / 1e6,
+            forecast_ns.checked_div(forecast_steps).unwrap_or(0),
+            forecast_ns as f64 / 1e6,
             left + ground + held
         ));
         lines

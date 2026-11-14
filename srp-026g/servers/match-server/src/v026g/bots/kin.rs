@@ -82,6 +82,8 @@ pub struct Kinematics {
     pub step_input: StepInput,
     /// [A318] How far a reckoned step up goes ([`ClientStep`]).
     pub client_step: ClientStep,
+    /// [A388 step 2b] Whose ground steps the lip guard's stop forecast (`body::stays_up`) plays ([`ForecastStep`]).
+    pub forecast_step: ForecastStep,
     /// [A318] The speed a world's falling body starts its reckoned fall at ([`FixFall`]).
     pub fix_fall: FixFall,
     /// [A269c] What a route adds to the cost of a walk onto a floor near an open side (with [`Edge::ClientWalksOff`], the grid's
@@ -510,6 +512,7 @@ impl Default for Kinematics {
             drop_fall: DropFall::Client,
             step_input: StepInput::Previous,
             client_step: ClientStep::Kept,
+            forecast_step: ForecastStep::Kept,
             fix_fall: FixFall::World,
             open_edge_cost: 0.0,
             walk_off_landing: WalkOffLanding::BySpeed,
@@ -653,6 +656,22 @@ pub enum ClientStep {
     /// The default (correctness, `tuning::KEPT_RIGHT`): on the owner's 14 recordings the reckoned worlds over 0.2 m off went
     /// 6.13 % -> 3.54 %; the step costs 10-20 us on the grid's walker (about 65,000 steps for 8 matches of 180 s: under 1 ms a
     /// second a match).
+    #[default]
+    Kept,
+}
+
+/// [A388 step 2b] Whose ground steps the lip guard's stop forecast (`body::stays_up`) plays.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ForecastStep {
+    /// The grid's alone: the forecast's body is held to `body::SUPPORT_M` past its floor's centre ([`Edge::Client`]'s edge) while
+    /// the reckoned body ([`Edge::Controller`]) has left it, so the guard lets keys walk the body off where the client's capsule
+    /// rolls off the rim and the forecast's does not (A388 exe review: the 0.26 m / 0.3 s gap of the falls report R4).
+    Grid,
+    /// As the reckoning with [`ClientStep::Kept`]: each forecast ground step is a kept controller's (made at the forecast's feet),
+    /// and with [`Edge::Controller`] the forecast's body leaves its floor where that controller leaves the ground with no client
+    /// ground under its feet (`body::kept_off_ground`). The default (correctness, `tuning::KEPT_RIGHT`). Its cost is a controller
+    /// tick a forecast tick on a lip's floors only: the match-end line counts the forecast's steps and time apart.
     #[default]
     Kept,
 }
