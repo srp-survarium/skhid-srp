@@ -2547,6 +2547,11 @@ pub(crate) fn real_bot_cost() {
                 "{project} {per_team}v{per_team}: pull walk ticks a poll: max {}",
                 mapdata::grid::controlled::pull_walk_ticks_max_take()
             );
+            // [A388] The client's walker's bytes (the game's shapes with `grid.walker_shapes`, else the walker triangles).
+            eprintln!(
+                "{project} {per_team}v{per_team}: client walker bytes {}",
+                bots.tactics.as_ref().map_or(0, |t| t.world.grid.client_walker_bytes())
+            );
             eprintln!(
                 "{project} {per_team}v{per_team}: world built in {built_s:.2} s, map_ready {ready_ms:.1} ms ({summary})\n  \
                  {limit_s} s of play: bots {:.1} ms a second = {:.2} % of a core; per bot {:.3} %\n  \
