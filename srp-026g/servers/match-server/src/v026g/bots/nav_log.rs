@@ -516,6 +516,12 @@ impl Lines {
     }
 }
 
+/// [Gap 2] The line for an enemy's carry kept from the intercept: the world names `carrier` holding `battery`, and the
+/// team neither saw him carrying it nor saw him take it (`TeamKnowledge::knew_carrying`).
+pub fn hidden_carry_line(battery: usize, carrier: usize) -> String {
+    format!("{PREFIX}carry of battery {battery} by player {carrier} not known to the team: chased at the theft's spot, if any")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -672,10 +678,4 @@ mod tests {
         assert_eq!(log.take(), vec![(1_000, "a".to_string()), (1_600, "f".to_string()), (3_000, "d (+2 held)".to_string())]);
         assert!(log.take().is_empty());
     }
-}
-
-/// [Gap 2] The line for an enemy's carry kept from the intercept: the world names `carrier` holding `battery`, and the
-/// team neither saw him carrying it nor saw him take it (`TeamKnowledge::knew_carrying`).
-pub fn hidden_carry_line(battery: usize, carrier: usize) -> String {
-    format!("{PREFIX}carry of battery {battery} by player {carrier} not known to the team: chased at the theft's spot, if any")
 }
