@@ -22,7 +22,7 @@ root=$(dirname "$here")
 command -v python3 >/dev/null || { echo "test.sh: python3 is needed" >&2; exit 1; }
 
 if command -v shellcheck >/dev/null; then
-    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip build-torrent deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
+    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip build-torrent make-signing-key deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
         shellcheck -s sh host-rollback.sh host-bot-data.sh)
     echo "ok   shellcheck"
 else
@@ -459,14 +459,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # An srp that did not take the setting: $T/state/client-files-min.
             if read("client-files-min") is not None:
                 least = "min-revision " + read("client-files-min") + "\n"
-            # The torrent in place: its "info hash" here is the sha256 of
-            # the stand-in's whole file (build-torrent's stand-in says so).
-            torrent = ""
-            try:
-                torrent = "torrent " + hashlib.sha256(open(os.path.join(live, "download", "skhid.torrent"), "rb").read()).hexdigest() + "\n"
-            except FileNotFoundError:
-                pass
-            return self.answer(200, f"skhid-client-files 1\nsha256 {hashlib.sha256(data).hexdigest()}\nsize {len(data)}\n{least}{torrent}")
+            return self.answer(200, f"skhid-client-files 1\nsha256 {hashlib.sha256(data).hexdigest()}\nsize {len(data)}\n{least}")
         if self.path == "/" + read("admin-path", "-"):
             open(os.path.join(state, "admin-seen.log"), "a").write("GET\n")
             return self.answer(200, "<form>the admin page</form>")
@@ -1137,6 +1130,11 @@ echo "REVISION = 11" >"$src/client-patches/patch_026g.py"
 printf '# Client patches\n\n| | |\n|---|---|\n| Revision 10 | ten |\n| Revision 11 | eleven |\n| Revision 4 | four |\n| The players'"'"' download | the zip |\n' \
     >"$src/client-patches/README.md"
 printf '# Skhid 0.26g — what changed\n\nNewest first.\n\n---\n\n## 15 Oct, 20:02 — an older entry\n\n- something\n' >"$T/repo/CHANGELOG-SKHID-026G.md"
+# The torrents' signing key: its public key committed, the key beside
+# release.env (the stand-in build-torrent signs nothing).
+mkdir -p "$T/repo/release"
+printf '%064d\n' 0 >"$T/repo/release/signing.pub"
+(umask 077 && echo 'a stand-in key' >"$T/torrent-signing.pem")
 commit "revision 11, as released"
 git -C "$T/repo" archive HEAD:srp-026g Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml certs crates \
     resources/binary-config-examples resources/game-026g scripts servers | tar -x -C "$T/live"
@@ -1174,9 +1172,11 @@ echo "  CHANGED  game/binaries/x86/survarium_skhid.exe"
 echo "updater_skhid.exe: unchanged (the same file as live)"
 STANDIN
 chmod +x "$T/build-zip"
-# build-torrent [--test] --patches <list> --zip <zip> --out <file>: a file
-# naming the ZIP's sha256 and the list, and its sha256 as the "info hash";
-# its arguments are a line of $TEST_DIR/build-torrent.args.
+# build-torrent [--test] --patches <list> --zip <zip> --out <file>
+# --zip-out <zip> --revision <n> --public-key <file>: a file naming the ZIP's
+# sha256 and the list, and the ZIP as it was (the checks here compare the
+# ZIP in place with r<n>.zip; test_build_torrent.py checks the real one's
+# entry); its arguments are a line of $TEST_DIR/build-torrent.args.
 cat >"$T/build-torrent" <<'STANDIN'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$TEST_DIR/build-torrent.args"
@@ -1184,11 +1184,13 @@ while (($#)); do
     case $1 in
     --zip) zip=$2; shift 2 ;;
     --out) out=$2; shift 2 ;;
+    --zip-out) zip_out=$2; shift 2 ;;
     --patches) patches=$2; shift 2 ;;
     *) shift ;;
     esac
 done
 { sha256sum <"$zip"; grep -v '^#' "$patches" | cut -f1; } >"$out"
+cp "$zip" "$zip_out"
 echo "btmh 1220$(sha256sum <"$out" | cut -c1-64)"
 STANDIN
 chmod +x "$T/build-torrent"
@@ -1351,6 +1353,11 @@ expect_refused "release: ... nor is another launcher" \
     "MISSING  SKHID_GAME: $T/game/binaries/x86/survarium_launcher.exe has sha256 $SKHID_TEST_LAUNCHER_SHA256, not the original 0.26g launcher's (0123)" \
     env SKHID_TEST_LAUNCHER_SHA256=0123 "$here/release.sh"
 check "release: ... neither planned nor took anything" bash -c "test ! -s $T/state/admin.log && test ! -e $T/lock"
+# Every torrent is signed: no key, or one others may read, stops the preflight.
+chmod 644 "$T/torrent-signing.pem"
+expect_refused "release: a signing key others may read is a preflight problem" \
+    "MISSING  the signing key $T/torrent-signing.pem: missing or not mode 600" "$here/release.sh"
+chmod 600 "$T/torrent-signing.pem"
 
 # A whole release, no new content (patch_3 and patch_12 listed), the server
 # code as live; a feature PR merged since the last release (11, no tag yet).
@@ -1391,10 +1398,8 @@ check "release: the ZIP goes in while srp26 is stopped, before its start" bash -
 check "release: srp26 started with the new ZIP in place" test "$(tail -n 1 "$T/zip-at-start")" = "$(sha256sum <"$(folder 12 a)/Survarium-0.26g-srp-files.zip" | cut -c1-64)"
 check "release: waits for no match" has "$out" "5. no match is running"
 check "release: checks /patches and /api/client-files" has "$out" "/api/client-files: the new ZIP"
-check "release: builds the torrent of the ZIP and the list" bash -c "tail -n 1 $T/build-torrent.args | grep -q -- '--patches $T/patches.tsv --zip .*/Survarium-0.26g-srp-files.zip --out .*/skhid-rev12.torrent'"
-check "release: the torrent in place, the folder's" cmp -s "$(folder 12 a)/skhid.torrent" "$T/live/download/skhid.torrent"
-check "release: ... and /api/client-files names it" has "$out" "/api/client-files: the new torrent (info hash $(sha256sum <"$T/live/download/skhid.torrent" | cut -c1-64))"
-check "release: the rollback takes the torrent away (there was none)" grep -qx "HAVE_TORRENT=0" "$(folder 12 a)/rollback.env"
+check "release: builds the signed torrent of the ZIP and the list" bash -c "tail -n 1 $T/build-torrent.args | grep -q -- '--patches $T/patches.tsv --zip .*/Survarium-0.26g-srp-files.zip --out .*/skhid-rev12.torrent --zip-out .* --revision 12 --public-key .*/signing.pub'"
+check "release: the preflight sees the signing key" has "$out" "the signing key: there, mode 600"
 check "release: checks the log's game data line" has "$out" "log: INFO game data: .* 2 patch(es) offered"
 check "release: prints the rollback" has "$out" "release/rollback release-rev12-[0-9-]*-a"
 check "release: the rollback puts the running image back, by its ID" grep -qx "OLD_IMAGE=sha256:[0-9a-f]*" "$(folder 12 a)/rollback.env"
@@ -2148,7 +2153,6 @@ D_FOLDER=$(basename "$(folder 14 d)")
 starts=$(cat "$T/docker/starts")
 out=$(yes_to "$here/rollback" --keep-db "$D_FOLDER") || fail "rollback --keep-db: $out"
 check "rollback --keep-db: the ZIP back" cmp -s "$T/work/r13.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
-check "rollback --keep-db: the torrent back" cmp -s "$(folder 13 b)/skhid.torrent" "$T/live/download/skhid.torrent"
 check "rollback --keep-db: srp.db as it was" grep -q "^start $starts " "$T/volume/srp.db"
 check "rollback --keep-db: the setting back" grep -qx "SRP_MIN_PATCH_REVISION=13" "$T/live/.env"
 check "rollback --keep-db: the game exe's line back, once" test "$(grep '^SRP_RELEASED_EXE_SHA256=' "$T/live/.env")" = "$(exe_line "$T/work/r13.zip")"

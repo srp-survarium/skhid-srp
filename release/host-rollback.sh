@@ -8,9 +8,9 @@
 #   sh <release folder>/rollback.sh <release folder> [--keep-db]
 #
 # Puts back what was there just before that release's swap, then makes srp26
-# anew and waits for it: download/Survarium-0.26g-srp-files.zip,
-# download/server-game-data.db and download/skhid.torrent (old-*, hard links
-# in the folder, renamed into place; one there was none of is taken away), the bots' data files the release put in the volume's folder (the
+# anew and waits for it: download/Survarium-0.26g-srp-files.zip and
+# download/server-game-data.db (old-*, hard links in the folder, renamed into
+# place), the bots' data files the release put in the volume's folder (the
 # old ones back from old-bot-data/, the new ones it created removed:
 # bot-data.log says which), SRP_MIN_PATCH_REVISION and SRP_RELEASED_EXE_SHA256
 # (those lines only; released-exe.old is the second as it was), the server source
@@ -42,7 +42,6 @@ fi
 dir=$(cd "$dir" && pwd)
 # TARGET_DIR COMPOSE IMAGE OLD_IMAGE VOLUME_DIR BACKUP_BEFORE OLD_MIN NEW_MIN
 # NEW_EXE_SHA HAVE_ZIP HAVE_DATA SRC BOT_DATA ZIP_NAME DATA_NAME
-# HAVE_TORRENT TORRENT_NAME (not in the folders of releases before them)
 # shellcheck disable=SC1091 # written by the release
 . "$dir/rollback.env"
 cd "$TARGET_DIR"
@@ -72,7 +71,6 @@ need=''
 if test -n "$db" && test "$keep_db" = 0; then need=$db; fi
 if test "$HAVE_ZIP" = 1; then need="$need $dir/old-$ZIP_NAME"; fi
 if test "$HAVE_DATA" = 1; then need="$need $dir/old-$DATA_NAME"; fi
-if test "${HAVE_TORRENT:-0}" = 1; then need="$need $dir/old-$TORRENT_NAME"; fi
 if test "$SRC" = 1; then need="$need $dir/old-src.tgz"; fi
 if test "${BOT_DATA:-0}" = 1 && test -f "$dir/bot-data.log"; then
     while read -r what path; do
@@ -89,9 +87,7 @@ test -f "$VOLUME_DIR/srp.db" || { echo "$VOLUME_DIR/srp.db is not there: nothing
 $COMPOSE stop srp26
 if test "$HAVE_DATA" = 1; then put "$dir/old-$DATA_NAME" "$DATA_NAME"; else rm -f "download/$DATA_NAME"; fi
 if test "$HAVE_ZIP" = 1; then put "$dir/old-$ZIP_NAME" "$ZIP_NAME"; else rm -f "download/$ZIP_NAME"; fi
-if test "${HAVE_TORRENT:-0}" = 1; then put "$dir/old-$TORRENT_NAME" "$TORRENT_NAME"; elif test -n "${TORRENT_NAME:-}"; then rm -f "download/$TORRENT_NAME"; fi
 rm -f "download/.$DATA_NAME.new" "download/.$ZIP_NAME.new"
-if test -n "${TORRENT_NAME:-}"; then rm -f "download/.$TORRENT_NAME.new"; fi
 if test "${BOT_DATA:-0}" = 1 && test -f "$dir/bot-data.log"; then
     # srp26 is stopped. A file that was there is copied back over the new
     # one (its owner and mode kept: cp -p as root), one the release made is
@@ -167,9 +163,5 @@ else
     echo "srp refuses the files from before: see its log above." >&2
 fi
 echo "srp26 is stopped (it would only refuse again). To put the release back as it was:" >&2
-torrent=''
-if test -n "${TORRENT_NAME:-}" && test -f "$dir/$TORRENT_NAME"; then
-    torrent=" && ln -f $dir/$TORRENT_NAME download/.$TORRENT_NAME.new && mv -f download/.$TORRENT_NAME.new download/$TORRENT_NAME"
-fi
-echo "  cd $TARGET_DIR && ln -f $dir/$DATA_NAME download/.$DATA_NAME.new && mv -f download/.$DATA_NAME.new download/$DATA_NAME && ln -f $dir/$ZIP_NAME download/.$ZIP_NAME.new && mv -f download/.$ZIP_NAME.new download/$ZIP_NAME$torrent && sed -i 's/^SRP_MIN_PATCH_REVISION=.*/SRP_MIN_PATCH_REVISION=$NEW_MIN/' .env && sed -i '/^SRP_RELEASED_EXE_SHA256=/d' .env && echo SRP_RELEASED_EXE_SHA256=$NEW_EXE_SHA >> .env && docker tag \$(cat $dir/image.new) $IMAGE && $COMPOSE up -d --no-deps --force-recreate srp26" >&2
+echo "  cd $TARGET_DIR && ln -f $dir/$DATA_NAME download/.$DATA_NAME.new && mv -f download/.$DATA_NAME.new download/$DATA_NAME && ln -f $dir/$ZIP_NAME download/.$ZIP_NAME.new && mv -f download/.$ZIP_NAME.new download/$ZIP_NAME && sed -i 's/^SRP_MIN_PATCH_REVISION=.*/SRP_MIN_PATCH_REVISION=$NEW_MIN/' .env && sed -i '/^SRP_RELEASED_EXE_SHA256=/d' .env && echo SRP_RELEASED_EXE_SHA256=$NEW_EXE_SHA >> .env && docker tag \$(cat $dir/image.new) $IMAGE && $COMPOSE up -d --no-deps --force-recreate srp26" >&2
 exit 1

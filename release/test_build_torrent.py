@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""build_torrent.py on small files; no network. With libtorrent importable (nix shell
-nixpkgs#python3Packages.libtorrent-rasterbar), it also reads the torrent and checks the files."""
+"""build_torrent.py on small files and a throwaway key; no network. Needs the openssl program
+(nix shell nixpkgs#openssl nixpkgs#python3 -c python3 -I release/test_build_torrent.py). With
+libtorrent importable (python3Packages.libtorrent-rasterbar), it also reads the torrent and checks
+the files."""
 import hashlib
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -34,11 +37,23 @@ def decode(data, at=0):
     return data[colon + 1:end], end
 
 
+def make_key(folder, name):
+    """A throwaway Ed25519 key: (its PEM file, its public key's file of 64 hex digits)."""
+    key, public = folder / f'{name}.pem', folder / f'{name}.pub'
+    subprocess.run(['openssl', 'genpkey', '-algorithm', 'ed25519', '-out', str(key)], check=True)
+    der = subprocess.run(['openssl', 'pkey', '-in', str(key), '-pubout', '-outform', 'DER'],
+                         check=True, capture_output=True).stdout
+    public.write_text(der[-32:].hex() + '\n')
+    return key, public
+
+
+@unittest.skipUnless(shutil.which('openssl'), 'the openssl program is needed')
 class Build(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
+        self.key, self.public = make_key(self.root, 'key')
         self.folder = self.root / 'Survarium'
         # Sizes around a block and a piece, and a file of several pieces.
         self.bytes = {
@@ -65,8 +80,10 @@ class Build(unittest.TestCase):
             for path, data in self.zip_bytes.items():
                 out.writestr(path, data)
 
-    def run_build(self, out, sha=None):
-        command = [sys.executable, '-I', str(SCRIPT), '--out', str(out), '--zip', str(self.zip)]
+    def run_build(self, out, sha=None, zip=None, public=None):
+        command = [sys.executable, '-I', str(SCRIPT), '--out', str(out), '--zip', str(zip or self.zip),
+                   '--zip-out', str(out) + '.zip', '--revision', '59', '--key', str(self.key),
+                   '--public-key', str(public or self.public)]
         for path, source in self.sources.items():
             command += ['--file', path, str(source), sha or hashlib.sha256(self.bytes[path]).hexdigest()]
         return subprocess.run(command, capture_output=True, text=True)
@@ -80,6 +97,14 @@ class Build(unittest.TestCase):
             done = self.run_build(out)
             self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(first.read_bytes(), second.read_bytes())
+        self.assertEqual(Path(f'{first}.zip').read_bytes(), Path(f'{second}.zip').read_bytes())
+        # The ZIP with it: every entry as before, and the torrent, stored.
+        with zipfile.ZipFile(f'{first}.zip') as archive:
+            self.assertEqual(archive.namelist(), [*self.zip_bytes, T.ENTRY])
+            for path, data in self.zip_bytes.items():
+                self.assertEqual(archive.read(path), data)
+            self.assertEqual(archive.read(T.ENTRY), first.read_bytes())
+            self.assertEqual(archive.getinfo(T.ENTRY).compress_type, zipfile.ZIP_STORED)
         self.assertIn('bugtrap.dll: the ZIP', done.stdout)
         data = first.read_bytes()
         torrent, end = decode(data)
@@ -89,6 +114,19 @@ class Build(unittest.TestCase):
         self.assertEqual(info[b'piece length'], T.PIECE)
         self.assertEqual(info[b'meta version'], 2)
         self.assertEqual(torrent[b'announce-list'], [[t.encode()] for t in T.TRACKERS])
+        # Signed: the revision and the signature of DOMAIN, it, SHA-256 of info.
+        self.assertEqual(sorted(torrent), [b'announce', b'announce-list', b'info', b'piece layers', b'skhid'])
+        self.assertEqual(torrent[b'skhid'][b'revision'], 59)
+        raw = data[data.index(b'4:infod') + 6:]
+        raw = raw[:decode(raw)[1]]
+        message = self.root / 'message'
+        message.write_bytes(b'skhid torrent signature 1\0' + bytes([59]) + hashlib.sha256(raw).digest())
+        (self.root / 'sig').write_bytes(torrent[b'skhid'][b'signature'])
+        pem = self.root / 'public.pem'
+        subprocess.run(['openssl', 'pkey', '-in', str(self.key), '-pubout', '-out', str(pem)], check=True)
+        verify = subprocess.run(['openssl', 'pkeyutl', '-verify', '-rawin', '-pubin', '-inkey', str(pem),
+                                 '-in', str(message), '-sigfile', str(self.root / 'sig')], capture_output=True)
+        self.assertEqual(verify.returncode, 0, verify.stdout + verify.stderr)
         expected = self.expected()
         # v1: the files in order of their parts, a pad after each but the last.
         order = sorted(expected, key=lambda p: [x.encode() for x in p.split('/')])
@@ -127,6 +165,23 @@ class Build(unittest.TestCase):
         self.assertIn('not ' + '0' * 64, done.stderr)
         self.assertFalse(out.exists())
         self.assertFalse(Path(str(out) + '.part').exists())
+        self.assertFalse(Path(str(out) + '.zip').exists())
+
+    def test_a_key_that_is_not_the_public_keys_writes_nothing(self):
+        _, other = make_key(self.root, 'other')
+        out = self.root / 'f.torrent'
+        done = self.run_build(out, public=other)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn('does not verify', done.stderr)
+        self.assertFalse(out.exists())
+        self.assertFalse(Path(str(out) + '.zip').exists())
+
+    def test_a_zip_with_a_torrent_is_refused(self):
+        done = self.run_build(self.root / 'd.torrent')
+        self.assertEqual(done.returncode, 0, done.stderr)
+        again = self.run_build(self.root / 'e.torrent', zip=self.root / 'd.torrent.zip')
+        self.assertNotEqual(again.returncode, 0)
+        self.assertIn('or the torrent', again.stderr)
 
 
 def reference_root(content):

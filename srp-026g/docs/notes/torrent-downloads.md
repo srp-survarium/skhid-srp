@@ -28,9 +28,12 @@ corrections from the owner go here.
 - Hybrid v1 + v2 (BEP 52): every file piece-aligned, SHA-256 piece hashes. Files that did not
   change between revisions keep the same v2 hashes, so their seeders keep sharing them.
 - Trackers: a few public ones, so the torrent works without our servers. No web seed for now.
+- It travels inside that revision's ZIP, as `game/binaries/x86/skhid.torrent` beside the
+  updater (the torrent itself leaves that one file out: it cannot hold its own hash). The ZIP is
+  checked (its SHA-256 in `/api/client-files`), so the updater has the revision's `.torrent` with
+  it. A ZIP without the file (an older one, `release/deploy`'s) means no torrent: HTTPS.
 - The site's download page shows the `.torrent` and the magnet (v1 and v2 hashes, name,
-  trackers) next to the ZIP. The web server serves the current `.torrent`, and
-  `/api/client-files` names its info hash (over HTTPS, so the updater can check it).
+  trackers) next to the ZIP, for people's own clients: the web server hands out the ZIP's file.
 - Seeding a new revision: the first players download by HTTPS (there are no peers yet), and every
   player with the launcher's "Allow torrent" on then shares what their updater has checked,
   including the files it got by HTTPS. That is one way a revision gets seeded; the others stay
@@ -45,7 +48,9 @@ corrections from the owner go here.
 - With torrent on, it gets what it would otherwise download from this revision's torrent: the
   original game's files (in place of the archive from Google Drive) and missing or damaged
   patches. The Skhid ZIP stays HTTPS.
-- It takes the `.torrent` only if its info hash is the one `/api/client-files` names.
+- It takes the `.torrent` of the ZIP it installed (`game/binaries/x86/skhid.torrent`), and only
+  when its signature verifies with the release's public key it is built with ("Signed releases")
+  and it is of a revision not lower than the highest it has taken.
 - Every piece is checked against its SHA-256 before it counts. Each finished file is also checked
   against the pins the updater already has (the game exe, the patches' SHA-256 in `/patches`)
   before it is installed.
@@ -56,6 +61,21 @@ corrections from the owner go here.
 - First version: peers from the torrent's trackers only. No DHT, PEX, UPnP or uTP.
 - Peers are strangers: everything they send is parsed once, with fixed limits, and refused
   otherwise.
+
+## Signed releases
+
+- Trust comes from our signature, not from our site: every revision's `.torrent` is signed by
+  the release with one Ed25519 key, and the updater takes only a torrent that verifies with the
+  public key it is built with.
+- What is signed: a fixed domain string, the revision and the SHA-256 of the torrent's `info`
+  (so every file's hashes); the signature sits outside `info`, so the info hashes, the swarm and
+  the magnet do not change with it ("The format").
+- The key: the private key only in `private/release/torrent-signing.pem` beside `release.env`
+  (mode 600, never committed, never printed, never on a host); its public key committed as
+  `release/signing.pub` (64 hex digits), which the updater build reads. `release/make-signing-key`
+  makes both, once, by the owner (it never replaces a key). Without the key, or with a public key
+  it does not verify with, the release builds no torrent and stops.
+- No rollback: an updater never takes a torrent of a lower revision than the highest it has taken.
 
 ## The format (fixed; the updater reads exactly this)
 
@@ -79,7 +99,8 @@ top folder). In it, at their paths (`/` between parts):
   | `game/resources.db` | 6285533906 | `c74078be…75492c` (stock) |
 
 - every file of that revision's players' ZIP at its ZIP path (`game/binaries/x86/…`, `Skhid.bat`,
-  `README.txt`...), over an original of the same path;
+  `README.txt`...), over an original of the same path; but `game/binaries/x86/skhid.torrent`,
+  which is the torrent itself;
 - every patch of the offered-patch list (`release/patches.tsv`) as `game/resources.db.patch_<n>`,
   read against its row's sha256.
 
@@ -95,7 +116,7 @@ compared: the order of the v2 tree), each followed by a pad file `{"attr": "p", 
 piece, and a v1 piece holds one file (and zeros). `pieces` is the SHA-1 of each such piece.
 
 **Top level.** `announce` (the first tracker), `announce-list` (one tracker a tier, in this
-order), `info`, `piece layers`; no `creation date`, `created by`, `comment` or `url-list` (no web
+order), `info`, `piece layers`, `skhid` (the signature, below); no `creation date`, `created by`, `comment` or `url-list` (no web
 seed). Trackers (`build_torrent.py` `TRACKERS`):
 
 ```text
@@ -111,30 +132,30 @@ The second is the one plain-HTTP tracker (BEP 3 announce); the others are UDP (B
 **The info hashes** are of the bencoded `info` exactly as the file has it: v1 (`btih`) its SHA-1,
 v2 (`btmh`) its SHA-256 (multihash `1220<64 hex>`).
 
-**On the host.** The release stages it in its release folder as `skhid.torrent` and, at the swap,
-puts it beside the ZIP: `download/skhid.torrent` (with the ZIP; kept and put back by the
-rollback). `release/deploy`, which ships a ZIP without one, takes it away.
-
-**`GET /torrent`** (and `HEAD`; srp's web server, `servers/web-server/src/torrent.rs`): that
-file, `Content-Type: application/x-bittorrent`, `Content-Disposition: attachment;
-filename="skhid-rev<n>.torrent"` (n: the server's `SRP_MIN_PATCH_REVISION`, the release's).
-"Not found" when there is none, it is over 4 MiB, or it is not one whole torrent (one bencoded
-dictionary with a text `info.name`).
-
-**`GET /api/client-files`** gains one line after the others when there is a torrent:
+**The signature.** The top-level `skhid` is a dictionary of two keys: `revision` (an integer,
+1 to 255: the release's) and `signature` (a 64-byte string): the Ed25519 signature (RFC 8032,
+pure Ed25519, no prehash; `openssl pkeyutl -sign -rawin`) of these 59 bytes:
 
 ```text
-skhid-client-files 1
-sha256 <64 hex>        the ZIP
-size <bytes>
-min-revision <0-255>
-torrent <64 hex>       SHA-256 of the torrent's bencoded info: its v2 info hash (btmh without 1220)
+"skhid torrent signature 1" 00     26 bytes: the ASCII text and a zero byte
+<revision>                          1 byte
+SHA-256 of the bencoded info        32 bytes, exactly as the file has info
 ```
 
-The format stays `skhid-client-files 1`: updaters before it skip a word they do not know
-(`client/updater/logic/src/manifest.rs`). No `torrent` line: no torrent now (download by
-HTTPS). The updater takes `/torrent`'s bytes only when the SHA-256 of their `info` is this value
-(and the v1 hash, for v1 peers, is the SHA-1 of the same bytes).
+The public key is `release/signing.pub`: one line, the 32-byte Ed25519 public key in lower-case
+hex (64 digits). Ed25519 is deterministic, so the same inputs still make the same bytes.
+
+**In the ZIP.** The release (`release.sh` step 2) builds the ZIP (`build-zip`), then the torrent
+over its files, then appends the torrent to it as `game/binaries/x86/skhid.torrent`, stored (not
+compressed), mode 644; that ZIP is the one shipped, and its SHA-256 is the one `/api/client-files`
+names (`sha256`; the format there is unchanged: no torrent line). The tag of the release names the
+info hash.
+
+**`GET /torrent`** (and `HEAD`; srp's web server, `servers/web-server/src/torrent.rs`): that
+entry of the ZIP at `/download`, `Content-Type: application/x-bittorrent`,
+`Content-Disposition: attachment; filename="skhid-rev<n>.torrent"` (n: the server's
+`SRP_MIN_PATCH_REVISION`, the release's). "Not found" when the ZIP has none, or it is compressed,
+over 4 MiB or not one whole torrent (one bencoded dictionary with a text `info.name`).
 
 **The site's home page** shows under the ZIP's button: "Or the whole game by BitTorrent:
 .torrent · magnet", the magnet being

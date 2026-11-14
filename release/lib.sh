@@ -12,10 +12,6 @@ DRY_RUN=${DRY_RUN:-0}
 # The two files of a release in <target dir>/download.
 ZIP_NAME=Survarium-0.26g-srp-files.zip
 DATA_NAME=server-game-data.db
-# And the torrent of its whole game folder (release/build-torrent), when the
-# release made one: srp hands it out at /torrent
-# (srp-026g/docs/notes/torrent-downloads.md).
-TORRENT_NAME=skhid.torrent
 # Where a checkout keeps its item tables (srp-item-tables).
 # shellcheck disable=SC2034 # used by the scripts that source this
 ITEM_TABLES_DIR=srp-026g/docs/data
@@ -28,6 +24,22 @@ QUICK_MARK=QUICK-BUILD
 STOCK_DB_SHA256=c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c
 # The players' exe in the ZIP.
 ZIP_EXE=game/binaries/x86/survarium_skhid.exe
+# The release's Ed25519 key, which signs every revision's torrent
+# (release/make-signing-key, srp-026g/docs/notes/torrent-downloads.md): its
+# file beside release.env (private/release/, mode 600, never committed, never
+# printed), its public key committed as SIGNING_PUB (64 hex digits), which the
+# updater is built with.
+# shellcheck disable=SC2034 # used by the scripts that source this
+SIGNING_PUB=release/signing.pub
+signing_key() {
+    load_env
+    printf '%s\n' "$(dirname "$RELEASE_ENV")/torrent-signing.pem"
+}
+# The openssl program: this system's, or nixpkgs'.
+openssl_program() {
+    if command -v openssl; then return 0; fi
+    printf '%s/bin/openssl\n' "$(nix build --no-link --print-out-paths nixpkgs#openssl.bin | head -n 1)"
+}
 # The original game's archive (build 2777): its row of release/game.tsv
 # (GAME_ROW), offered at /game; client/updater/logic/src/game.rs pins it.
 GAME_NAME=survarium-026g.7z
@@ -873,13 +885,12 @@ served_patches() {
 #   state            staging, swapping, released, stopped (before the swap),
 #                    rolled-back or rollback-refused
 #   release.log      what the run printed (no secret is ever printed)
-#   Survarium-0.26g-srp-files.zip, server-game-data.db, skhid.torrent
-#                    the new files, staged here (sha256 checked, mode 644;
-#                    the torrent when the release made one);
+#   Survarium-0.26g-srp-files.zip, server-game-data.db
+#                    the new files, staged here (sha256 checked, mode 644);
 #                    the swap hard-links each into download/ and renames it
 #                    over the old one (same file system: atomic)
 #   new.sha old.sha  sha256sum of the new files; of download/'s before
-#   old-Survarium-0.26g-srp-files.zip, old-server-game-data.db, old-skhid.torrent
+#   old-Survarium-0.26g-srp-files.zip, old-server-game-data.db
 #                    download/'s files before the swap (hard links)
 #   srp-<unix>.db    srp.db as it was before the release: the copy the new
 #                    srp made at its start (srp-db.name names it)
@@ -925,7 +936,7 @@ stage_upload() {
 # log), state stopped.
 stage_abandon() {
     ((STAGED)) || return 0
-    if on_target "cd $REL_DIR && rm -rf $ZIP_NAME $DATA_NAME $TORRENT_NAME ./*.part src src.tar image.tar.zst bot-data bot-data.list bot-data.sh && echo stopped > state && rm -f ../download/.$ZIP_NAME.new ../download/.$DATA_NAME.new ../download/.$TORRENT_NAME.new"; then
+    if on_target "cd $REL_DIR && rm -rf $ZIP_NAME $DATA_NAME ./*.part src src.tar image.tar.zst bot-data bot-data.list bot-data.sh && echo stopped > state && rm -f ../download/.$ZIP_NAME.new ../download/.$DATA_NAME.new"; then
         say "staged files: removed ($TARGET_DIR/$REL stays, state stopped)"
     else
         say "staged files: NOT removed: $TARGET_DIR/$REL"
@@ -1030,10 +1041,7 @@ restart_command() {
 # use_target, inspect_target (RUN_*), check_release_files (ZIP_SHA ...,
 # EXPECTED), release_folder and the files staged in it, and these:
 #   OLD_MIN            SRP_MIN_PATCH_REVISION before (`none`: no line)
-#   HAVE_ZIP HAVE_DATA HAVE_TORRENT 1 when download/ has that file now
-#   TORRENT_SHA        the info hash (`torrent` of /api/client-files) of the
-#                      torrent staged in the folder; empty: none is, and the
-#                      swap takes download/'s away (it is of another ZIP)
+#   HAVE_ZIP HAVE_DATA 1 when download/ has that file now
 #   OLD_PATCHES        /patches now (JSON, or empty): checked after a rollback
 #   SWAP_SRC           1: src.tar of the folder (main's source) goes into the
 #                      tree too, SWAP_SRC_INPUTS (quoted paths) kept first
@@ -1043,7 +1051,7 @@ restart_command() {
 #   swap_prepare <revision>  srp26 stopped; srp.db, the old files, the image
 #                            ID, the setting kept in the folder; the image
 #                            tagged; the rollback written
-#   swap_server <revision>   the server data, the ZIP, the torrent and the settings
+#   swap_server <revision>   the server data, the ZIP and the settings
 #                            (the revision; the ZIP's exe, EXE_SHA) (and
 #                            source) in place while srp26 is stopped, srp26
 #                            made anew on them, checked: running, its game
@@ -1059,7 +1067,7 @@ restart_command() {
 # (only srp26 stopped and copies made: it is started again), moved (the
 # rollback runs), finished.
 SWAP_STATE='' SWAP_SRC=0 SWAP_SRC_INPUTS='' SWAP_BEFORE_STOP=''
-OLD_MIN=none HAVE_ZIP=0 HAVE_DATA=0 HAVE_TORRENT=0 TORRENT_SHA='' OLD_PATCHES=''
+OLD_MIN=none HAVE_ZIP=0 HAVE_DATA=0 OLD_PATCHES=''
 # Until check_release_files reads a ZIP (release.sh's dry run builds none).
 EXE_SHA='<the sha256 of the game exe in the ZIP>'
 RUN_CONTAINER='' RUN_IMAGE='' RUN_VOLUME='' RUN_VOLUME_DIR='' LATEST_IMAGE=''
@@ -1192,7 +1200,6 @@ archive_command() {
     c="cd $D && echo $(q "$RUN_IMAGE") > $REL/image.old && echo $OLD_MIN > $REL/min.old && { grep '^SRP_RELEASED_EXE_SHA256=' .env > $REL/released-exe.old || true; } && : > $REL/old.sha"
     ((HAVE_ZIP)) && c+=" && sha256sum download/$ZIP_NAME >> $REL/old.sha && ln download/$ZIP_NAME $REL/old-$ZIP_NAME"
     ((HAVE_DATA)) && c+=" && sha256sum download/$DATA_NAME >> $REL/old.sha && ln download/$DATA_NAME $REL/old-$DATA_NAME"
-    ((HAVE_TORRENT)) && c+=" && sha256sum download/$TORRENT_NAME >> $REL/old.sha && ln download/$TORRENT_NAME $REL/old-$TORRENT_NAME"
     if ((SWAP_SRC)); then
         c+=" && tar -czf $REL/old-src.tgz \$(for p in $SWAP_SRC_INPUTS; do if test -e \$p; then echo \$p; fi; done)"
     fi
@@ -1204,8 +1211,7 @@ rollback_env() {
     printf '%s=%q\n' TARGET_DIR "$TARGET_DIR" COMPOSE "$TARGET_COMPOSE" IMAGE "$IMAGE" \
         OLD_IMAGE "$RUN_IMAGE" VOLUME_DIR "$RUN_VOLUME_DIR" BACKUP_BEFORE "$BACKUP_BEFORE" OLD_MIN "$OLD_MIN" NEW_MIN "$1" \
         NEW_EXE_SHA "$EXE_SHA" \
-        HAVE_ZIP "$HAVE_ZIP" HAVE_DATA "$HAVE_DATA" SRC "$SWAP_SRC" BOT_DATA "$BOT_DATA" ZIP_NAME "$ZIP_NAME" DATA_NAME "$DATA_NAME" \
-        HAVE_TORRENT "$HAVE_TORRENT" TORRENT_NAME "$TORRENT_NAME"
+        HAVE_ZIP "$HAVE_ZIP" HAVE_DATA "$HAVE_DATA" SRC "$SWAP_SRC" BOT_DATA "$BOT_DATA" ZIP_NAME "$ZIP_NAME" DATA_NAME "$DATA_NAME"
 }
 
 # The command that puts <name> of the folder into download/: a hard link
@@ -1381,11 +1387,10 @@ served_as() {
 
 # <revision>: /api/client-files names the new ZIP (sha256, size) and, when
 # the server says one (srp since min-revision), <revision> as the least
-# revision it lets in, and the staged torrent's info hash (TORRENT_SHA; none
-# when none is staged; a WARNING from an srp that names none at all); a few tries (it may be reading the file). Prints what
+# revision it lets in; a few tries (it may be reading the file). Prints what
 # failed and returns 1.
 check_client_files() {
-    local status _ min torrent
+    local status _ min
     for _ in 1 2 3 4 5; do
         status=$(HTTP_TIMEOUT=60 http_get "$TARGET_SITE/api/client-files" "$SWAP_WORK/client-files")
         if [[ $status == 200 ]] && grep -qx "sha256 $ZIP_SHA" "$SWAP_WORK/client-files" &&
@@ -1396,15 +1401,6 @@ check_client_files() {
                 return 1
             fi
             say "/api/client-files: the new ZIP (sha256 $ZIP_SHA, $ZIP_SIZE bytes), min-revision ${min:-(not said: an srp from before it)}"
-            torrent=$(sed -n 's/^torrent //p' "$SWAP_WORK/client-files")
-            if [[ -n $TORRENT_SHA && -z $torrent ]]; then
-                say "WARNING /api/client-files names no torrent: an srp from before it (download/$TORRENT_NAME is in place)"
-            elif [[ $torrent != "$TORRENT_SHA" ]]; then
-                say "/api/client-files names the torrent ${torrent:-none}, not ${TORRENT_SHA:-none}"
-                return 1
-            elif [[ -n $torrent ]]; then
-                say "/api/client-files: the new torrent (info hash $torrent)"
-            fi
             return 0
         fi
         sleep 2
@@ -1426,13 +1422,6 @@ swap_server() {
     SWAP_DONE+=("in place: download/$DATA_NAME")
     write_on live "$(put_command "$ZIP_NAME")"
     SWAP_DONE+=("in place: download/$ZIP_NAME")
-    if [[ -n $TORRENT_SHA ]]; then
-        write_on live "$(put_command "$TORRENT_NAME")"
-        SWAP_DONE+=("in place: download/$TORRENT_NAME")
-    elif ((HAVE_TORRENT)); then
-        write_on live "cd $D && rm -f download/$TORRENT_NAME"
-        SWAP_DONE+=("download/$TORRENT_NAME taken away (of the ZIP before; kept in the folder)")
-    fi
     write_on live "$(setting_command SRP_MIN_PATCH_REVISION "$1")"
     SWAP_DONE+=("SRP_MIN_PATCH_REVISION=$1 in .env (was $OLD_MIN)")
     # The exe this release ships: the match server reads it at its start and

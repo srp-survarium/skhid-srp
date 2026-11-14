@@ -9,7 +9,7 @@
 //!   patched game launcher and its updater ([`launcher`]): the page it shows
 //!   in its window, and which archive `/download` hands out now.
 //! - `/torrent` (the 0.26g page only) is the torrent of the whole game
-//!   folder beside the download file, when there is one ([`torrent`]).
+//!   folder that the download file holds, when it holds one ([`torrent`]).
 //! - `/patches` (the 0.26g page only) is the list of `resources.db`'s patches
 //!   the updater keeps in the game folder: those the server's game data was
 //!   made of ([`patches`]).
@@ -669,7 +669,7 @@ impl Web {
         if let Some(game) = &self.game
             && request.path == torrent::PATH
             && matches!(request.method.as_str(), "GET" | "HEAD")
-            && let Some(found) = available_download().and_then(|file| torrent::beside(file))
+            && let Some(found) = available_download().and_then(|file| torrent::in_zip(file))
         {
             torrent::send(
                 &mut stream,
@@ -1941,7 +1941,7 @@ fn home(lang: Lang, stats: Stats) -> String {
     // its torrent ([`torrent`]).
     let torrent = available_download()
         .filter(|_| v026g)
-        .and_then(|file| torrent::beside(file))
+        .and_then(|file| torrent::in_zip(file))
         .map_or_else(String::new, |torrent| {
             format!(
                 "<small>{} <a href=\"{}\">.torrent</a> &middot; <a href=\"{}\">magnet</a></small>",

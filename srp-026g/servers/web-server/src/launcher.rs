@@ -2,9 +2,8 @@
 //! (`client-patches/launcher/README.md`).
 //!
 //! - `GET /api/client-files`: which archive `/download` hands out now, as its
-//!   SHA-256 and size, the least game revision the login server lets in
-//!   (`SRP_MIN_PATCH_REVISION`), and the info hash of the torrent of the
-//!   whole game folder when there is one (`torrent`, [`crate::torrent`]). The updater compares the archive with what
+//!   SHA-256 and size, and the least game revision the login server lets in
+//!   (`SRP_MIN_PATCH_REVISION`). The updater compares the archive with what
 //!   it installed last, and the revision with what the game exe says.
 //! - `GET /resources/<sha256>`: the original bytes of a `resources.db`
 //!   region an earlier updater wrote (the resource step, gone with the
@@ -251,11 +250,9 @@ fn text(status: &'static str, body: String) -> Response {
 
 /// `GET /api/client-files`: the format of `client/updater`
 /// (`skhid-client-files 1`, then a word and its value on each line): the
-/// archive `/download` hands out, `min_revision`, the least game revision
+/// archive `/download` hands out, and `min_revision`, the least game revision
 /// the login server lets in (`SRP_MIN_PATCH_REVISION`), with which the
-/// updater compares the game exe it installed, and the torrent beside the
-/// archive (`torrent <SHA-256 of its info>`; no line without one: updaters
-/// before it skip a word they do not know).
+/// updater compares the game exe it installed.
 pub(super) fn client_files(min_revision: u8) -> Response {
     client_files_of(available_download(), min_revision)
 }
@@ -268,8 +265,7 @@ fn client_files_of(file: Option<&PathBuf>, min_revision: u8) -> Response {
         Some(Offered { sha256, size, .. }) => text(
             "200 OK",
             format!(
-                "skhid-client-files 1\nsha256 {sha256}\nsize {size}\nmin-revision {min_revision}\n{}",
-                crate::torrent::beside(file).map_or_else(String::new, |torrent| torrent.line())
+                "skhid-client-files 1\nsha256 {sha256}\nsize {size}\nmin-revision {min_revision}\n"
             ),
         ),
         // Being replaced right now, or unreadable: the updater tries again.
@@ -1265,14 +1261,6 @@ mod tests {
             "503 Service Unavailable"
         );
         assert_eq!(client_files_of(None, 27).status, "404 Not Found");
-        // The torrent beside it: its info hash on a line of its own.
-        let info = b"d4:name9:Survariume";
-        let torrent = [b"d4:info".as_slice(), info, b"e"].concat();
-        std::fs::write(dir.join("skhid.torrent"), torrent).unwrap();
-        assert!(client_files_of(Some(&file), 27).body.ends_with(&format!(
-            "min-revision 27\ntorrent {}\n",
-            crate::torrent::hex(&openssl::sha::sha256(info))
-        )));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -250,13 +250,10 @@ while srp is stopped none of it answers):
   sha256 <64 hex digits>
   size <bytes>
   min-revision <0-255>
-  torrent <64 hex digits>
   ```
 
   It reads the file again when its size or time changes; the revision is
-  srp's setting, read at its start. `torrent`, only when `skhid.torrent` is
-  beside the file: the info hash of the torrent of the whole game folder
-  that `GET /torrent` hands out (`../../docs/notes/torrent-downloads.md`).
+  srp's setting, read at its start.
 - `GET /patches` is the list of the game's content patches
   (`resources.db.patch_<n>`, each with its SHA-256 and the addresses of its
   file on the patches server): those the server's game data was made of,

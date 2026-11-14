@@ -3,23 +3,40 @@
 that, not this; srp-026g/docs/notes/torrent-downloads.md has the format).
 
     python3 -I build_torrent.py --out <skhid-rev<n>.torrent> --zip <players' ZIP>
-        [--file <path in the folder> <source file> <its sha256>]...
+        --zip-out <the ZIP with it> --revision <n> --key <private.pem> --public-key <signing.pub>
+        [--openssl <program>] [--file <path in the folder> <source file> <its sha256>]...
 
 The folder (the torrent's name, NAME) holds every --file at its path, then every file of the ZIP
 at its path, which replaces a --file of the same path (the Skhid files over the original game's).
-A --file is read once: its SHA-256 must be the one given, or nothing is written.
+A --file is read once: its SHA-256 must be the one given, or nothing is written. --zip-out is the
+ZIP with the torrent added as ENTRY (stored, not compressed: the web server reads it from there),
+which the torrent itself leaves out: it cannot hold its own hash. A ZIP that has ENTRY already is
+refused.
 
 Hybrid v1 + v2 (BEP 52) at PIECE bytes a piece: every file starts a piece (a v1 pad file after
 each one but the last), so a file's v2 hashes are its own, whatever is around it. The same files
-make the same bytes: no date, no creator, keys and files in byte order.
+make the same bytes: no date, no creator, keys and files in byte order (Ed25519 signatures are
+deterministic too).
+
+Signed: the top-level `skhid` dictionary (outside info, so the info hashes are not changed by it)
+holds `revision` and `signature`, the Ed25519 signature by --key of signed(): DOMAIN, the revision
+as one byte, the SHA-256 of the bencoded info. It must verify with --public-key (the committed
+release/signing.pub), or nothing is written.
 """
 import argparse
+import base64
 import hashlib
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import zipfile
 
 NAME = 'Survarium'
+# What the release's signature is of starts with this (then the revision, then SHA-256 of info).
+DOMAIN = b'skhid torrent signature 1\0'
+ENTRY = 'game/binaries/x86/skhid.torrent'
 PIECE = 4 << 20
 BLOCK = 16 << 10
 TRACKERS = (
@@ -87,8 +104,9 @@ def hash_file(read, padded):
     return size, v1, layer, root
 
 
-def build(files):
-    """The torrent's bytes; `files` maps a path (`a/b/c`) to a function that opens its bytes."""
+def build(files, sign):
+    """The torrent's bytes and its info's; `files` maps a path (`a/b/c`) to a function that opens
+    its bytes, `sign` gives the `skhid` dictionary of the bencoded info."""
     tree, v1_files, pieces, layers = {}, [], [], {}
     order = sorted(files, key=lambda path: [part.encode() for part in path.split('/')])
     for index, path in enumerate(order):
@@ -108,9 +126,46 @@ def build(files):
             v1_files.append({'attr': 'p', 'length': pad, 'path': ['.pad', str(pad)]})
     info = {'name': NAME, 'piece length': PIECE, 'meta version': 2, 'file tree': tree,
             'files': v1_files, 'pieces': b''.join(pieces)}
+    raw = bencode(info)
     torrent = {'announce': TRACKERS[0], 'announce-list': [[t] for t in TRACKERS], 'info': info,
-               'piece layers': layers}
-    return bencode(torrent), bencode(info)
+               'piece layers': layers, 'skhid': sign(raw)}
+    return bencode(torrent), raw
+
+
+def signed(revision, info):
+    """What the release's Ed25519 key signs: DOMAIN, the revision (one byte), SHA-256 of info."""
+    return DOMAIN + bytes([revision]) + hashlib.sha256(info).digest()
+
+
+# The public key's DER (RFC 8410) before its 32 bytes, for openssl.
+ED25519_PUBLIC = bytes.fromhex('302a300506032b6570032100')
+
+
+def signer(openssl, key, public_hex, revision, scratch):
+    """`sign` of build: the release key's signature, checked against the committed public key."""
+    public = bytes.fromhex(public_hex.strip())
+    if len(public) != 32:
+        sys.exit('the public key is not 64 hex digits (32 bytes)')
+    pem = os.path.join(scratch, 'public.pem')
+    with open(pem, 'w') as out:
+        out.write('-----BEGIN PUBLIC KEY-----\n' + base64.b64encode(ED25519_PUBLIC + public).decode()
+                  + '\n-----END PUBLIC KEY-----\n')
+
+    def sign(info):
+        message, sig = os.path.join(scratch, 'message'), os.path.join(scratch, 'signature')
+        with open(message, 'wb') as out:
+            out.write(signed(revision, info))
+        subprocess.run([openssl, 'pkeyutl', '-sign', '-rawin', '-inkey', key, '-in', message, '-out', sig],
+                       check=True, stdin=subprocess.DEVNULL)
+        if subprocess.run([openssl, 'pkeyutl', '-verify', '-rawin', '-pubin', '-inkey', pem, '-in', message,
+                           '-sigfile', sig], stdin=subprocess.DEVNULL, capture_output=True).returncode:
+            sys.exit(f'the signature of {key} does not verify with the public key given: another key')
+        with open(sig, 'rb') as signature:
+            value = signature.read()
+        if len(value) != 64:
+            sys.exit(f'openssl gave a signature of {len(value)} bytes, not 64')
+        return {'revision': revision, 'signature': value}
+    return sign
 
 
 def safe(path):
@@ -146,10 +201,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--out', required=True)
     parser.add_argument('--zip', required=True)
+    parser.add_argument('--zip-out', required=True)
+    parser.add_argument('--revision', required=True, type=int)
+    parser.add_argument('--key', required=True, help="the release's Ed25519 private key (PEM)")
+    parser.add_argument('--public-key', required=True, help='its public key: 64 hex digits')
+    parser.add_argument('--openssl', default='openssl')
     parser.add_argument('--file', nargs=3, action='append', default=[], metavar=('PATH', 'SOURCE', 'SHA256'))
     args = parser.parse_args()
-    if os.path.lexists(args.out):
-        sys.exit(f'{args.out}: already there; never overwritten')
+    if not 1 <= args.revision <= 255:
+        sys.exit(f'--revision {args.revision}: a revision is 1 to 255')
+    for need in (args.key, args.public_key):
+        if not os.path.isfile(need):
+            sys.exit(f'{need}: no such file (the release signs every torrent: release/make-signing-key)')
+    for out in (args.out, args.zip_out):
+        if os.path.lexists(out):
+            sys.exit(f'{out}: already there; never overwritten')
     files = {}
     for path, source, sha256 in args.file:
         if not safe(path) or path in files:
@@ -159,19 +225,32 @@ def main():
         for entry in archive.infolist():
             if entry.is_dir():
                 continue
-            if not safe(entry.filename):
-                sys.exit(f'{args.zip}: {entry.filename} is not a path of the folder')
+            if not safe(entry.filename) or entry.filename == ENTRY:
+                sys.exit(f'{args.zip}: {entry.filename} is not a path of the folder, or the torrent')
             if entry.filename in files:
                 print(f"  {entry.filename}: the ZIP's, over the original")
             files[entry.filename] = lambda entry=entry: archive.open(entry)
-        torrent, info = build(files)
+        with tempfile.TemporaryDirectory() as scratch:
+            with open(args.public_key) as public:
+                sign = signer(args.openssl, args.key, public.read(), args.revision, scratch)
+            torrent, info = build(files, sign)
     with open(args.out + '.part', 'xb') as out:
         out.write(torrent)
+    # The ZIP as it was, the torrent appended: its entry as make_client_026g.py makes them.
+    shutil.copyfile(args.zip, args.zip_out + '.part')
+    with zipfile.ZipFile(args.zip_out + '.part', 'a') as archive:
+        entry = zipfile.ZipInfo(ENTRY)
+        entry.create_system = 3
+        entry.external_attr = 0o100644 << 16
+        entry.compress_type = zipfile.ZIP_STORED
+        archive.writestr(entry, torrent)
     os.rename(args.out + '.part', args.out)
+    os.rename(args.zip_out + '.part', args.zip_out)
     btmh = hashlib.sha256(info).hexdigest()
     print(f'{args.out}: {len(files)} files, {len(torrent)} bytes, piece {PIECE}')
     print(f'btih {hashlib.sha1(info).hexdigest()}')
     print(f'btmh 1220{btmh}')
+    print(f'signed for revision {args.revision}')
 
 
 if __name__ == '__main__':
