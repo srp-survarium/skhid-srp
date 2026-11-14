@@ -541,6 +541,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/hazard/zone_pools",
     "/heal/amounts",
     "/heal/drug_stops",
+    "/heal/lethal_health",
     "/kin/carrier_sprint",
     "/kin/client_step",
     "/kin/drop_fall",

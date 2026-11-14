@@ -23,6 +23,12 @@ pub struct HealTuning {
     /// 1 s active), and in the pools run the team kills of the graded rule came on a pain pool under 0.6 (20
     /// of 33 lethal hits). Off, the pain weighs `weights.pain` (0.1: never alone a need).
     pub bandages: bool,
+    /// [Gap 4] A bot's own health in its decisions (Retreat, the plays' `Input::Health`, the traps' health gates) is the
+    /// lethal pool nearest its end: the body, the head, the pain or the infection, each of its most
+    /// (`pools::Pools::lethal_share`; `damage_model.md`: an empty one kills, and the pain alone killed 3,491 of 5,994
+    /// bots). Off: the body pool alone, as before (a bot fought on at a full body and an emptying pain pool). The old
+    /// value is wrong by the client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`).
+    pub lethal_health: bool,
     /// With `bandages` on, the pain pool's weight in a need, in place of `weights.pain`: 0.4 makes a pain
     /// pool under about 0.62 a need of `start_need` (0.15). The owner's "pain under 0.6" is the line; the
     /// weight is a GUESS that reaches it.
@@ -167,6 +173,7 @@ impl Default for HealTuning {
         Self {
             on: true,
             bandages: true,
+            lethal_health: true,
             bandage_pain_weight: 0.4,
             start_need: 0.15,
             urgent_need: 0.2,
