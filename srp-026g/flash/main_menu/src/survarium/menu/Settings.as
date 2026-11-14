@@ -118,7 +118,8 @@ package survarium.menu
       protected var _micTest:SrpMicTest;
       
       // The sound tab's "Microphone" list (exe patch 66), between the sensitivity slider and the test
-      // button: a pick is a change of the tab as the Language pick is, saved by Apply.
+      // button: a pick is used at once (the test and push-to-talk) and is a change of the tab as the
+      // Language pick is, saved by Apply; its revert (Cancel, leaving without Apply) uses the saved one.
       protected var _microphone:SrpMicrophone;
       
       // The controls tab's places, read from its timeline the first time it is laid out

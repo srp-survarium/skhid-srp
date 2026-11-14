@@ -1756,9 +1756,12 @@ def test_voice(original, image, before):
     microphone = here("flash", "main_menu", "src", "SrpMicrophone.as")
     check("public function srp_microphone(... values)" in here("flash", "main_menu", "src", "MainMenu.as")
           and 'public static const NAME:String = "srp_microphone";' in microphone and "SrpExe.call(NAME, null);" in microphone
-          and "SrpExe.call(NAME, saved);" in microphone,
-          "the main menu has root.srp_microphone; the sound tab's Microphone list asks srp_microphone and sends "
-          "Apply's pick by its id")
+          and "SrpExe.call(NAME, saved);" in microphone
+          and 'private static const USE:String = "srp_microphone_use";' in microphone
+          and "SrpExe.call(USE, pending ? ids[menu.selectedIndex] : null);" in microphone
+          and "SrpExe.call(USE, null);" in microphone,
+          "the main menu has root.srp_microphone; the sound tab's Microphone list asks srp_microphone, sends "
+          "Apply's pick by its id, a pick at once by srp_microphone_use and the saved one again at its revert")
     check("public function srp_voice_talking(... names)" in hud
           and "public function srp_voice_menu(place:uint, offered:uint, muted:uint)" in hud
           and "public function srp_voice_mute(place:uint, done:uint)" in hud
