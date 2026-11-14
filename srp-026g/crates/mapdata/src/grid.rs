@@ -95,6 +95,7 @@ const FLIGHT_TOLERANCE_M: f32 = 0.1;
 pub mod controlled;
 pub mod gap;
 pub use gap::{GapStats, OffLink, OffMeshLinks, PressLead, Share};
+pub use rim::Riser;
 use gap::gap_cost;
 
 /// The body and how it moves. Defaults: the 0.26g client's character
@@ -1114,6 +1115,10 @@ pub struct WalkGrid {
     /// [`Body::walk_ceiling_stalls`] The Walk links only a crouching body walks ([`WalkGait::Crouch`], [`Self::walk_crouched`]), as
     /// (from, to), sorted. In the file (after the marked walks) and the digest. Empty without the switch.
     walk_crouched: Vec<(NodeId, NodeId)>,
+    /// [A385 rule (d)] [`Body::rim_jumps`] The risers' presses ([`Self::riser`]), as (from, to, how), sorted by (from, to): every
+    /// Walk link rising [`Body::walked_step`] or more from a floor a body stands on, still a Walk link that is not crouched. In
+    /// the file (after the crouched walks) and the digest. Empty without the switch.
+    riser: Vec<(NodeId, NodeId, Riser)>,
     /// [`Body::rim_jumps`] The rim jumps the build flew and no press made, as (take-off, landing) feet: the build's report only
     /// ([`Self::rim_unmade`]), not in the file or the digest.
     rim_unmade: Vec<(Vec3, Vec3)>,
@@ -1176,6 +1181,8 @@ struct Wide {
     marked: Vec<(u32, u32)>,
     /// [`Body::walk_ceiling_stalls`]: the Walk links the walk check passes only crouched, as (from, to), sorted.
     crouch: Vec<(u32, u32)>,
+    /// [A385 rule (d)] The risers' presses ([`WalkGrid::fly_risers`]), as (from, to, how), sorted.
+    riser: Vec<(u32, u32, Riser)>,
     /// [routes corpus] [`Body::wall_held_tops`]: the Jump links kept for a wall that holds the body on their narrow top
     /// ([`WalkGrid::held_by_wall`]), as (from, to), sorted: the jump's carry past the top does not apply to them
     /// ([`WalkGrid::drop_overshot_landings`]).
@@ -1508,6 +1515,7 @@ impl WalkGrid {
             walled_exits: Vec::new(),
             walk_marked: Vec::new(),
             walk_crouched: Vec::new(),
+            riser: Vec::new(),
             rim_unmade: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
@@ -1548,6 +1556,7 @@ impl WalkGrid {
             let world = shapes.or(own.as_ref()).expect("a world");
             let unmade;
             (stats.rim, unmade) = grid.fly_rim_jumps(&mut wide, world, &s);
+            grid.fly_risers(&mut wide, world, &s, &mut stats.rim);
             rim_unmade = unmade.into_iter().map(|(a, b)| (grid.position(a), grid.position(b))).collect();
         }
         if body.fall_stops_on_solids {
@@ -1672,6 +1681,7 @@ impl WalkGrid {
             aside: Vec::new(),
             marked: Vec::new(),
             crouch: Vec::new(),
+            riser: Vec::new(),
             held: Vec::new(),
         }
     }
@@ -2784,6 +2794,11 @@ impl WalkGrid {
             *a = new_id[*a as usize];
             *b = new_id[*b as usize];
         }
+        wide.riser.retain(|&(a, b, _)| alive[a as usize] && alive[b as usize]);
+        for (a, b, _) in &mut wide.riser {
+            *a = new_id[*a as usize];
+            *b = new_id[*b as usize];
+        }
         wide.held.retain(|&(a, b)| alive[a as usize] && alive[b as usize]);
         for (a, b) in &mut wide.held {
             *a = new_id[*a as usize];
@@ -2969,6 +2984,17 @@ impl WalkGrid {
                 digest.u32(b);
             }
         }
+        // [A385 rule (d)] A grid with no riser presses digests as before there were any.
+        if !self.riser.is_empty() {
+            digest.len(self.riser.len());
+            for &(a, b, r) in &self.riser {
+                let (press, share) = r.bytes();
+                digest.u32(a);
+                digest.u32(b);
+                digest.u32(u32::from(press));
+                digest.u32(u32::from(share));
+            }
+        }
         digest.finish()
     }
 
@@ -3000,7 +3026,13 @@ impl WalkGrid {
             })?;
             // Only a grid with off-mesh links has their table: one without
             // writes as before there were any (read back as none).
-            if self.off.is_empty() && self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
+            if self.off.is_empty()
+                && self.ramp.is_empty()
+                && self.walled_exits.is_empty()
+                && self.walk_marked.is_empty()
+                && self.walk_crouched.is_empty()
+                && self.riser.is_empty()
+            {
                 return Ok(());
             }
             // [A385] 16 bytes: from, to, kind, press, share, a sprint link's walking press (0: none) and its share.
@@ -3018,12 +3050,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
             // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
-            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() {
                 return Ok(());
             }
             let pair = |&(a, b): &(NodeId, NodeId)| {
@@ -3034,15 +3066,28 @@ impl WalkGrid {
             };
             out.plain(&self.walled_exits, pair)?;
             // [2c] The marked walks, when the grid has them (an empty table before the crouched walks).
-            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() {
+            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_marked, pair)?;
             // [`Body::walk_ceiling_stalls`] The crouched walks, when the grid has them.
-            if self.walk_crouched.is_empty() {
+            if self.walk_crouched.is_empty() && self.riser.is_empty() {
                 return Ok(());
             }
-            out.plain(&self.walk_crouched, pair)
+            out.plain(&self.walk_crouched, pair)?;
+            // [A385 rule (d)] The risers' presses, when the grid has them: from, to, press (as an off-mesh link's), share, a zero.
+            if self.riser.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.riser, |&(a, b, r)| {
+                let (press, share) = r.bytes();
+                let mut bytes = [0u8; 12];
+                bytes[..4].copy_from_slice(&a.to_le_bytes());
+                bytes[4..8].copy_from_slice(&b.to_le_bytes());
+                bytes[8..10].copy_from_slice(&press.to_le_bytes());
+                bytes[10] = share;
+                bytes
+            })
         })
     }
 
@@ -3153,6 +3198,20 @@ impl WalkGrid {
                             (word(0), word(4))
                         })?
                     },
+                    // [A385 rule (d)] A record that is no riser's (its press, share or zero byte) makes it a riser from a floor to
+                    // itself, which `check` rejects.
+                    riser: if input.ends() {
+                        Vec::new()
+                    } else {
+                        input.plain(|bytes: [u8; 12]| {
+                            let word = |i: usize| u32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
+                            let how = Riser::from_bytes(u16::from_le_bytes([bytes[8], bytes[9]]), bytes[10]).filter(|_| bytes[11] == 0);
+                            match how {
+                                Some(how) => (word(0), word(4), how),
+                                None => (word(0), word(0), Riser::NoPress),
+                            }
+                        })?
+                    },
                     rim_unmade: Vec::new(),
                     clearance: Vec::new(),
                     open: Vec::new(),
@@ -3195,6 +3254,11 @@ impl WalkGrid {
         }
         if self.walk_crouched.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.walk_crouched.windows(2).any(|w| w[0] >= w[1]) {
             return Err("bad crouched walks".into());
+        }
+        if self.riser.iter().any(|&(a, b, _)| a as usize >= n || b as usize >= n || a == b)
+            || self.riser.windows(2).any(|w| (w[0].0, w[0].1) >= (w[1].0, w[1].1))
+        {
+            return Err("bad riser presses".into());
         }
         if self.start.len() != cells + 1
             || self.start[0] != 0
@@ -3834,6 +3898,17 @@ impl WalkGrid {
             .collect();
         crouched.sort_unstable();
         crouched.dedup();
+        // [A385 rule (d)] The risers still Walk links, walked standing.
+        let riser: Vec<(NodeId, NodeId, Riser)> = wide
+            .riser
+            .iter()
+            .copied()
+            .filter(|&(a, b, _)| {
+                crouched.binary_search(&(a, b)).is_err()
+                    && (0..DIRS.len()).any(|d| wide.links[a as usize][d] == b && wide.kinds[a as usize][d] == LinkKind::Walk)
+            })
+            .collect();
+        self.riser = riser;
         self.walk_crouched = crouched;
         self.off = wide.off;
         for l in &self.off {
@@ -3910,6 +3985,26 @@ impl WalkGrid {
     /// [`Body::walk_ceiling_stalls`] Whether the Walk link `a` -> `b` is one only a crouching body walks ([`WalkGait::Crouch`]).
     pub fn walk_crouched(&self, a: NodeId, b: NodeId) -> bool {
         self.walk_crouched.binary_search(&(a, b)).is_ok()
+    }
+
+    /// [A385 rule (d)] How a body jumps up the riser `a` -> `b` (a Walk link rising [`Body::walked_step`] or more, walked
+    /// standing, [`WalkGait::SprintOrJump`]): None for any other link, or a grid built without [`Body::rim_jumps`].
+    pub fn riser(&self, a: NodeId, b: NodeId) -> Option<Riser> {
+        self.riser.binary_search_by_key(&(a, b), |&(f, t, _)| (f, t)).ok().map(|i| self.riser[i].2)
+    }
+
+    /// [A385 rule (d)] The riser's press and share (A385-FORMAT §6, the motor's reader): None where [`Self::riser`] is none or no
+    /// press gets up it ([`Riser::NoPress`]).
+    pub fn riser_press(&self, a: NodeId, b: NodeId) -> Option<(gap::Takeoff, Share)> {
+        match self.riser(a, b)? {
+            Riser::Pressed { press, share } => Some((press, share)),
+            Riser::NoPress => None,
+        }
+    }
+
+    /// [A385 rule (d)] How many risers the grid has presses for ([`Self::riser`]).
+    pub fn riser_count(&self) -> usize {
+        self.riser.len()
     }
 
     /// [`Body::walk_ceiling_stalls`] How many Walk links only a crouching body walks ([`Self::walk_crouched`]).
@@ -4199,7 +4294,13 @@ impl WalkGrid {
             0.0
         };
         let sprint = if kind == LinkKind::Jump && q.y - p.y > self.body.max_jump { SPRINT_JUMP_PENALTY } else { 0.0 };
-        (q - p).length() + kind.penalty() + lip + marginal + fall + descent + sprint
+        // [A385 rule (d)] A riser is priced by its press's share as a rim link is (A385-FORMAT §4, §5): the tries that fail for
+        // each that lands, each the step and its run-up again.
+        let riser = match (kind, self.riser(from, to)) {
+            (LinkKind::Walk, Some(r)) => r.share().failed_tries() * ((q - p).length() + r.run_up_m()),
+            _ => 0.0,
+        };
+        (q - p).length() + kind.penalty() + lip + marginal + fall + descent + sprint + riser
     }
 
     /// Whether a floor is a lip: the last floor before a ledge at least

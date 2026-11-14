@@ -46,6 +46,14 @@ pub struct RimStats {
     pub with_walk: usize,
     /// The made links by share: under 0.2, 0.2 to 0.6, 0.6 and over (owner-5's knife-edge / middle / robust classes).
     pub by_share: [usize; 3],
+    /// [A385 rule (d)] Risers flown ([`WalkGrid::riser`]: Walk links up [`super::Body::walked_step`] or more) …
+    pub risers: usize,
+    /// … got up by a walking press …
+    pub risers_walked: usize,
+    /// … and by a sprint press; the rest no press gets up ([`Riser::NoPress`]).
+    pub risers_sprinted: usize,
+    /// The pressed risers by share, as [`Self::by_share`].
+    pub risers_by_share: [usize; 3],
     /// Flights flown.
     pub flights: usize,
 }
@@ -56,6 +64,55 @@ struct Landing {
     kind: Kind,
     lead: f32,
     to: NodeId,
+}
+
+/// [A385 rule (d)] How a body jumps up a riser (a Walk link rising [`super::Body::walked_step`] or more,
+/// [`super::WalkGait::SprintOrJump`]), flown as a rim jump (A385-FORMAT §5): the press the most of whose neighbourhood lands
+/// on the riser's top and its share, or no press gets up it (priced as a share of 0, [`Share::failed_tries`]; a sprinting body
+/// still steps up it).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Riser {
+    /// A short jump or a sprint jump ([`Takeoff::Press`], [`Takeoff::Sprint`]; never a walk-off) and its share.
+    Pressed { press: Takeoff, share: Share },
+    /// No flown press lands on the top.
+    NoPress,
+}
+
+impl Riser {
+    /// The share that prices it: a pressed riser's own, none (0 of the neighbourhood) for one no press gets up.
+    pub fn share(self) -> Share {
+        match self {
+            Riser::Pressed { share, .. } => share,
+            Riser::NoPress => Share::landed(0),
+        }
+    }
+
+    /// The run a failed try walks again ([`Takeoff::run_up_m`]); a walking press's for one no press gets up (the motor's
+    /// riser press is a walking one).
+    pub fn run_up_m(self) -> f32 {
+        match self {
+            Riser::Pressed { press, .. } => press.run_up_m(),
+            Riser::NoPress => Takeoff::Press(PressLead::from_metres(gap::GAP_PRESS_MIN_M)).run_up_m(),
+        }
+    }
+
+    /// In a built file: the press's centimetres ([`Takeoff`]'s, 0 for none) and the share's byte.
+    pub(super) fn bytes(self) -> (u16, u8) {
+        match self {
+            Riser::Pressed { press, share } => (press.centimetres(), share.byte()),
+            Riser::NoPress => (0, 0),
+        }
+    }
+
+    /// From a built file's press and share: None when they are no riser's (a walk-off press, a press out of the built range, a
+    /// share that is no count of the neighbourhood or is not flown, a no-press riser with a share).
+    pub(super) fn from_bytes(cm: u16, share: u8) -> Option<Self> {
+        let share = Share::from_byte(share).filter(|s| s.flown().is_some())?;
+        match Takeoff::from_centimetres(cm) {
+            Takeoff::WalkOff => (share == Share::landed(0)).then_some(Riser::NoPress),
+            press => press.is_valid().then_some(Riser::Pressed { press, share }),
+        }
+    }
 }
 
 /// A rim link made: where it goes, its press and share, and a sprint link's walking press.
@@ -97,11 +154,22 @@ impl WalkGrid {
         ((self.height[at_rest as usize] - self.height[to as usize]).abs() <= LAND_HEIGHT_M).then_some(to)
     }
 
+    /// [A385 rule (d)] The floor a flight's `steps` up the riser to `b` lands on and stays on: `b` when its landing (as
+    /// [`Self::rim_lands_on`]'s, the first step out of the jump on the ground) is over a floor of `b`'s level (within
+    /// [`LAND_HEIGHT_M`]) in the feet's own cell, the body on the ground from there to its rest, and at rest on that level.
+    fn riser_lands_on(&self, steps: &[FlightStep], b: NodeId) -> Option<NodeId> {
+        let level = self.height[b as usize];
+        let onto = |feet: Vec3| self.floor_under(feet).filter(|&g| (self.height[g as usize] - level).abs() <= LAND_HEIGHT_M);
+        let (landing, rest) = jump::landing_and_rest(steps, |f| onto(f.feet).is_some())?;
+        onto(landing.feet)?;
+        onto(rest.feet).map(|_| b)
+    }
+
     /// The press that gets a body from the take-off floor `a` up toward the floor `b` along `way`, among the leads `leads` (metres
-    /// before the take-off) and both gaits (A385-FORMAT §3), and the flights flown:
+    /// before the take-off) and both gaits (A385-FORMAT §3), and the flights flown; `lands` is the floor a flight lands and
+    /// stays on ([`Self::rim_lands_on`], [`Self::riser_lands_on`]):
     ///
-    /// 1. each (gait, lead) is flown ([`jump::neighbour_flights`] at the press itself): it lands on a floor when every one of its
-    ///    flights (every sprint variant) lands there and stays ([`Self::rim_lands_on`]);
+    /// 1. each (gait, lead) is flown ([`jump::neighbour_flights`] at the press itself): the floors its flights land on;
     /// 2. the link goes to `b` when some press lands there, else to the floor the most presses land on (re-targeted: the link
     ///    goes where the body lands), the lowest id on a tie;
     /// 3. each press onto that floor is scored by its neighbourhood ([`jump::neighbourhood`]; its lead row reuses step 1's
@@ -119,7 +187,7 @@ impl WalkGrid {
         b: NodeId,
         way: (f32, f32),
         leads: &[f32],
-        linked: &[NodeId],
+        lands: impl Fn(&[FlightStep]) -> Option<NodeId>,
         kits: Kits,
     ) -> (Option<Made>, usize) {
         let takeoff = self.position(a);
@@ -131,7 +199,7 @@ impl WalkGrid {
             for &lead in leads {
                 let floors = jump::neighbour_flights(world, s, takeoff, way, kind, lead, own, kits).map_or_else(Vec::new, |fl| {
                     flights += fl.len();
-                    fl.iter().map(|st| self.rim_lands_on(st, a, linked)).collect()
+                    fl.iter().map(|st| lands(st)).collect()
                 });
                 flown.push((kind, lead, floors));
             }
@@ -173,7 +241,7 @@ impl WalkGrid {
                     Some(lands) => lands,
                     None => jump::neighbour_flights(world, s, takeoff, way, l.kind, l.lead, n, kits).is_some_and(|fl| {
                         flights += fl.len();
-                        fl.iter().all(|st| self.rim_lands_on(st, a, linked) == Some(to))
+                        fl.iter().all(|st| lands(st) == Some(to))
                     }),
                 };
                 landed += u8::from(lands);
@@ -274,7 +342,7 @@ impl WalkGrid {
             let mut linked: Vec<NodeId> = wide.links[a as usize].iter().copied().filter(|&n| n != NONE).collect();
             let off = wide.off.partition_point(|o| o.from < a);
             linked.extend(wide.off[off..].iter().take_while(|o| o.from == a).map(|o| o.to));
-            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, &linked, kits)
+            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, |st| self.rim_lands_on(st, a, &linked), kits)
         });
         let mut stats = RimStats { tried: todo.len(), ..RimStats::default() };
         let mut none = Vec::new();
@@ -297,6 +365,50 @@ impl WalkGrid {
         wide.off.sort_by_key(|l| (l.from, l.to));
         wide.off.dedup_by_key(|l| (l.from, l.to));
         (stats, none)
+    }
+
+    /// [A385 rule (d)] The risers' presses ([`Riser`]): every Walk link rising [`super::Body::walked_step`] or more from a floor a
+    /// body stands on (no jump is pressed from a crouch), flown over the rim jumps' presses ([`Self::best_press`], landing on the
+    /// riser's top, [`Self::riser_lands_on`]) into `wide.riser`, sorted; `stats` counts them.
+    pub(super) fn fly_risers(&self, wide: &mut Wide, world: &Collision, s: &Settings, stats: &mut RimStats) {
+        let walked = self.body.walked_step();
+        let mut todo: Vec<(u32, u32, usize)> = Vec::new();
+        for a in 0..self.height.len() {
+            if !self.can_stand(a as NodeId) {
+                continue;
+            }
+            for d in 0..DIRS.len() {
+                let b = wide.links[a][d];
+                if b != NONE && wide.kinds[a][d] == LinkKind::Walk && self.height[b as usize] - self.height[a] >= walked {
+                    todo.push((a as u32, b, d));
+                }
+            }
+        }
+        let leads = gap_leads();
+        let kits = Kits { body: jump::WALK_CAP_MS, fastest: self.body.fastest_walk_cap };
+        let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
+            let (di, dk) = DIRS[d];
+            let l = ((di * di + dk * dk) as f32).sqrt();
+            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, |st| self.riser_lands_on(st, b), kits)
+        });
+        stats.risers += todo.len();
+        for (&(a, b, _), &(made, flights)) in todo.iter().zip(&flown) {
+            stats.flights += flights;
+            let riser = match made {
+                Some(Made { press, share, .. }) => {
+                    match press {
+                        Takeoff::Sprint(_) => stats.risers_sprinted += 1,
+                        _ => stats.risers_walked += 1,
+                    }
+                    stats.risers_by_share[share.class()] += 1;
+                    Riser::Pressed { press, share }
+                }
+                None => Riser::NoPress,
+            };
+            wide.riser.push((a, b, riser));
+        }
+        wide.riser.sort_by_key(|&(a, b, _)| (a, b));
+        wide.riser.dedup_by_key(|&mut (a, b, _)| (a, b));
     }
 }
 
@@ -348,6 +460,61 @@ mod tests {
         let (grid, rim, up) = onto(2.10, true);
         assert!(rim.tried > 0 && rim.walked + rim.sprinted == 0 && !up, "2.10: {rim:?}");
         assert_eq!(grid.rim_unmade().len(), rim.tried);
+    }
+
+    /// [A385 §4] The share's classes and price: every neighbour lands, no extra try; 7 of 14, one; none, 14 (the largest, kept);
+    /// not flown, none; owner-5's classes at 0.2 and 0.6 of 14; a built byte over 14 that is not the unflown mark is refused.
+    #[test]
+    fn a_share_prices_the_tries_that_fail() {
+        assert_eq!(Share::FULL.failed_tries(), 0.0);
+        assert_eq!(Share::landed(7).failed_tries(), 1.0);
+        assert_eq!(Share::landed(0).failed_tries(), jump::NEIGHBOURS as f32);
+        assert_eq!(Share::UNFLOWN.failed_tries(), 0.0);
+        let classes: Vec<usize> = (0..=14).map(|n| Share::landed(n).class()).collect();
+        assert_eq!(classes, [0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2]);
+        assert_eq!(Share::UNFLOWN.class(), 2);
+        assert_eq!(Share::from_byte(14), Some(Share::FULL));
+        assert_eq!(Share::from_byte(u8::MAX), Some(Share::UNFLOWN));
+        assert_eq!(Share::from_byte(15), None);
+    }
+
+    /// [A385 rule (d)] A riser's record parses only as a riser's: a press (walking in range, or sprint) with a flown share, or
+    /// no press with a share of 0.
+    #[test]
+    fn a_riser_record_parses_only_as_a_riser() {
+        let walk = Takeoff::Press(PressLead::from_metres(1.0));
+        let sprint = Takeoff::Sprint(PressLead::from_metres(0.8));
+        for r in [Riser::Pressed { press: walk, share: Share::landed(9) }, Riser::Pressed { press: sprint, share: Share::landed(0) }, Riser::NoPress] {
+            let (cm, share) = r.bytes();
+            assert_eq!(Riser::from_bytes(cm, share), Some(r));
+        }
+        assert_eq!(Riser::from_bytes(0, 3), None, "no press with a share");
+        assert_eq!(Riser::from_bytes(walk.centimetres(), u8::MAX), None, "not flown");
+        assert_eq!(Riser::from_bytes(walk.centimetres(), 15), None, "over the neighbourhood");
+        assert_eq!(Riser::from_bytes(30, 5), None, "a walking press under the built range");
+    }
+
+    /// [A385 rule (d)] A 0.78 m riser (walked from 0.76, climbed by a sprint or a jump): its Walk links up are flown and carry
+    /// a press or none ([`WalkGrid::riser`]), priced by its share, kept through the built file; without rim jumps none.
+    #[test]
+    fn a_riser_is_flown_priced_and_kept_in_the_file() {
+        let (grid, rim, up) = onto(0.78, true);
+        assert!(up && rim.risers > 0 && grid.riser_count() > 0, "{rim:?}");
+        let (a, b, r) = grid.riser[0];
+        assert_eq!(grid.link_gait(a, b), Some(super::super::WalkGait::SprintOrJump));
+        let base = (grid.position(b) - grid.position(a)).length() + LinkKind::Walk.penalty();
+        let extra = r.share().failed_tries() * ((grid.position(b) - grid.position(a)).length() + r.run_up_m());
+        let lips = grid.link_cost(a, b, LinkKind::Walk) - base - extra;
+        assert!((-1e-3..=super::super::FALL_EDGE_PENALTY.max(super::super::LIP_PENALTY) + 1e-3).contains(&lips), "{lips}");
+        assert_eq!(rim.risers_walked + rim.risers_sprinted, rim.risers_by_share.iter().sum::<usize>());
+        let path = std::env::temp_dir().join(format!("srp-riser-{}.bin", std::process::id()));
+        grid.write(&path, 11).unwrap();
+        let back = WalkGrid::read(&path, 11, body(true)).unwrap();
+        std::fs::remove_file(&path).ok();
+        assert_eq!(back.digest(), grid.digest());
+        assert_eq!(back.riser(a, b), Some(r));
+        let (off, rim_off, _) = onto(0.78, false);
+        assert_eq!((off.riser_count(), rim_off.risers), (0, 0));
     }
 
     /// One rim jump on a real map, every press's outcome printed: `RIM_MAP` (a format 6 map), `RIM_FROM` and `RIM_TO` ("x z y",
