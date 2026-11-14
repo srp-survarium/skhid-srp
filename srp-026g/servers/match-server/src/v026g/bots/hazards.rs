@@ -29,7 +29,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use mapdata::{Damage, NodeId, Shape, Vec3, WalkGrid, World, ZoneKind};
+use mapdata::{Damage, NodeId, Shape, ShapeKind, Vec3, WalkGrid, World, ZoneKind};
 
 use super::anomalies::{Anomalies, Control, Schedule, SyncReport};
 pub use super::live_zones::ZoneSet;
@@ -186,15 +186,76 @@ pub(super) fn standing_heights(grid: &WalkGrid) -> (f32, Vec<f32>) {
     (top, heights)
 }
 
-/// The centres of the spheres a standing body's capsule is made of (`radius` apart from the ends, ≤ 0.25 m apart): what
-/// [`near_floor`] tests a floor at for [`HazardMarks::hurt_set`] with `margin` the radius. Returns the capsule's height.
-pub(super) fn capsule_heights(grid: &WalkGrid) -> (f32, Vec<f32>) {
-    let body = grid.body();
-    let top = body.stand_height.max(0.1);
-    let (low, high) = (body.radius, (top - body.radius).max(body.radius));
-    let steps = ((high - low) / 0.25).ceil().max(1.0) as usize;
-    let heights = (0..=steps).map(|i| low + (high - low) * i as f32 / steps as f32).collect();
-    (top, heights)
+/// [A395a] Whether the client's damage zone of `shape` lists a body whose feet are at `feet`, its controller's capsule
+/// `radius` wide and `height` high: the zone's tick tests its ghost against the controller's ghost by Bullet's pair test
+/// (`damage_zone_core::tick` 0x319A70 -> `collision_sensor::contact_test` 0x307FA0 -> `bt_ghost_object::contact_test`
+/// 0x357C20 -> `btCollisionWorld::contactPairTest` 0xA3E50), and the body counts only when a contact point's distance is
+/// below zero (`contact_result_callback::addSingleResult` 0x77890, `comiss` 0x77899: strict). PROVEN
+/// (`owner-5/zone-contact-findings.md` 1.1-1.4).
+///
+/// - The capsule (`btCapsuleShape`, the controller's ghost at controller + 70h, 0x7B1E9..0x7B267): radius = width / 2
+///   (`setup_shape_dim` 0x7F100), its bottom the feet (`setup_crouch_state` 0x7F28B..0x7F2CA): the segment from
+///   `radius` to `height - radius` over the feet, grown by `radius`.
+/// - The zone's shape: a sphere exact (`btSphereShape` 0x74210, its radius its margin); a box or a cylinder its core
+///   (`half - margin`) grown by the margin (0xA96D0, 0xA9D40, [`mapdata::bullet::boxlike_margin`]): its faces where the
+///   data has them, its edges rounded.
+/// - The convex-convex pair's distance (GJK 0xC7540 with both margins) is the distance of the two cores less both
+///   margins: listed exactly when the segment comes within `radius + margin` of the zone's core.
+///
+/// The distance along a segment to a convex shape is convex in the segment's parameter, so its least is found by a
+/// golden-section search to well under a millimetre.
+pub(super) fn capsule_touches(shape: &Shape, feet: Vec3, radius: f32, height: f32) -> bool {
+    // The capsule spans the feet to `height` over them: feet at or over the shape's highest point, or the head at or
+    // under its lowest, meet it at no negative distance (exactly, whatever the rounding of the gap below).
+    let (lo, hi) = shape.bounds();
+    if feet.y >= hi.y || feet.y + height <= lo.y {
+        return false;
+    }
+    let (core, margin) = match shape.kind {
+        ShapeKind::Sphere => (*shape, 0.0),
+        ShapeKind::Box => {
+            let margin = mapdata::bullet::boxlike_margin([shape.half.x, shape.half.y, shape.half.z]);
+            (Shape { half: shape.half - Vec3::new(margin, margin, margin), ..*shape }, margin)
+        }
+        ShapeKind::Cylinder => {
+            let margin = mapdata::bullet::boxlike_margin([shape.half.x, shape.half.y, shape.half.x]);
+            (Shape { half: Vec3::new(shape.half.x - margin, shape.half.y - margin, shape.half.z), ..*shape }, margin)
+        }
+    };
+    let reach = radius + margin;
+    let low = feet + Vec3::new(0.0, radius, 0.0);
+    let high = feet + Vec3::new(0.0, (height - radius).max(radius), 0.0);
+    let gap = |t: f32| core.distance(low + (high - low) * t);
+    // Lipschitz 1 in metres along the segment: none of it is nearer than the middle's gap less half its length.
+    let half_length = 0.5 * (high - low).length();
+    let middle = gap(0.5);
+    if middle - half_length >= reach {
+        return false;
+    }
+    if middle < reach || gap(0.0) < reach || gap(1.0) < reach {
+        return true;
+    }
+    let ratio = 0.5 * (5f32.sqrt() - 1.0);
+    let (mut a, mut b) = (0.0f32, 1.0f32);
+    let (mut c, mut d) = (b - ratio * (b - a), a + ratio * (b - a));
+    let (mut gc, mut gd) = (gap(c), gap(d));
+    for _ in 0..40 {
+        if gc.min(gd) < reach {
+            return true;
+        }
+        if gc < gd {
+            b = d;
+            (d, gd) = (c, gc);
+            c = b - ratio * (b - a);
+            gc = gap(c);
+        } else {
+            a = c;
+            (c, gc) = (d, gd);
+            d = a + ratio * (b - a);
+            gd = gap(d);
+        }
+    }
+    gc.min(gd) < reach
 }
 
 /// Whether a standing body on the floor at `feet` comes within `margin` of `shape` (whose bounds are `bounds`): the
@@ -240,20 +301,24 @@ impl HazardMarks {
     pub fn build(world: &World, zones: &[Hazard], margin: f32) -> Self {
         let mut sets: Vec<Vec<u16>> = Vec::new();
         let mut known: HashMap<Vec<u16>, u16> = HashMap::new();
-        let steering = standing_heights(&world.grid);
-        let floor_set = Self::mark(world, zones, margin, steering, &mut sets, &mut known);
-        let hurt = capsule_heights(&world.grid);
-        let hurt_set = Self::mark(world, zones, world.grid.body().radius, hurt, &mut sets, &mut known);
+        let (top, heights) = standing_heights(&world.grid);
+        let near = |shape: &Shape, bounds, feet| near_floor(shape, bounds, feet, top, &heights, margin);
+        let floor_set = Self::mark(world, zones, margin, near, &mut sets, &mut known);
+        // The client's own test of a standing body (the crouched capsule, 1.1 m, is inside the standing one).
+        let body = world.grid.body();
+        let (radius, height) = (body.radius, body.stand_height);
+        let touches = |shape: &Shape, _: (Vec3, Vec3), feet: Vec3| capsule_touches(shape, feet, radius, height);
+        let hurt_set = Self::mark(world, zones, radius, touches, &mut sets, &mut known);
         Self { floor_set, hurt_set, sets }
     }
 
-    /// The floors within `margin` of the zones from the body points `(top, heights)` ([`near_floor`]), as indices
-    /// into `sets` (made as it goes).
+    /// The floors under each zone shape's bounds widened by `reach` that `marks` a body at (the shape, its bounds, the
+    /// floor's feet), as indices into `sets` (made as it goes).
     fn mark(
         world: &World,
         zones: &[Hazard],
-        margin: f32,
-        (top, heights): (f32, Vec<f32>),
+        reach: f32,
+        marks: impl Fn(&Shape, (Vec3, Vec3), Vec3) -> bool,
         sets: &mut Vec<Vec<u16>>,
         known: &mut HashMap<Vec<u16>, u16>,
     ) -> Vec<u16> {
@@ -264,14 +329,14 @@ impl HazardMarks {
             let h = h as u16;
             for shape in &map.zones[hazard.zone].shapes {
                 let (lo, hi) = shape.bounds();
-                let area = [lo.x - margin, lo.z - margin, hi.x + margin, hi.z + margin];
+                let area = [lo.x - reach, lo.z - reach, hi.x + reach, hi.z + reach];
                 for node in grid.floors_in(area) {
                     let feet = grid.position(node);
                     let current = floor_set[node as usize];
                     if current > 0 && sets[usize::from(current) - 1].contains(&h) {
                         continue;
                     }
-                    if !near_floor(shape, (lo, hi), feet, top, &heights, margin) {
+                    if !marks(shape, (lo, hi), feet) {
                         continue;
                     }
                     let mut set = match current {
@@ -411,13 +476,82 @@ impl HurtTest {
     }
 
     /// The share of `zone`'s hit a body standing on `node` loses to where in the zone it stands: 1 unless
-    /// [`Self::by_intensity`], else the intensity at the body's centre (the grid body's half height over the floor).
+    /// [`Self::by_intensity`], else the intensity at the body's feet on the floor: the client takes the zone's distance at
+    /// the feet point (the owner's recordings: 159 of 159 touching pairs lost at the feet's dose, 19 of them would have
+    /// taken nothing at the centre; `owner-5/zone-price-design.md` 1.1, PROVEN).
     fn intensity(self, zone: &Hazard, grid: &WalkGrid, node: NodeId) -> f32 {
         if !self.by_intensity {
             return 1.0;
         }
-        let centre = grid.position(node) + Vec3::new(0.0, 0.5 * grid.body().stand_height, 0.0);
-        zone.intensity_at(centre)
+        zone.intensity_at(grid.position(node))
+    }
+}
+
+/// The capsule marking's tag in a digest ([`Marking::digest_into`]).
+const CAPSULE_MARKING: u32 = 0x5A0E_395A;
+
+/// Where a body may stand and where its walk out of a zone starts. Routes keep off every floor within the margin of a
+/// zone on ([`Hazards::allowed`], [`HazardMarks::floor_set`]) under both: the floors the regions are cut by, the zone
+/// sets shut together, what a crossing walks. A base of the map is built for one (its key holds it).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Marking {
+    /// Every floor within `margin` metres of a zone is refused, to stand on as to walk over: the bots' own rule before
+    /// A395a, and the rule of a base built for a bare margin (`From<f32>`).
+    Margin(f32),
+    /// [A395a] The client's rule decides where a body is hurt: the floors its damage zone lists a standing body on
+    /// ([`HazardMarks::hurt_set`], [`capsule_touches`]: no margin over a zone's flat top, the capsule's radius beside
+    /// it). A stand or goal is refused only there ([`Hazards::stand_allowed`]), and the walk out of a zone starts only
+    /// there. The floors within `band` metres that the capsule does not touch (the band, [`Hazards::in_band`]) take no
+    /// hit, but routes keep off them all the same, as a safety margin for our motor, not a client rule: walking the
+    /// band (the A395a bench of 2026-11-14, 32 matches of 8 maps, routes over it) carried bodies onto hurt floors 196
+    /// times against 11 (a fall off the rim 66, a jump's landing 43, the walk's drift 82; the drift off the route on
+    /// band floors a mean of 0.226 m over 1170 samples). To lift after A388, with a bench of routes on the band again.
+    /// A route enters the band only for its last leg, to a goal there, or leaves it from a start there, by the
+    /// shortest walk over band floors (`Tactics::band_way`).
+    Capsule { band: f32 },
+}
+
+impl Marking {
+    /// The marking `tuning` asks for (`HazardTuning::capsule_marks`, `margin_m`).
+    pub fn of(tuning: &super::tuning::HazardTuning) -> Self {
+        let margin = tuning.margin_m.get();
+        if tuning.capsule_marks {
+            Self::Capsule { band: margin }
+        } else {
+            Self::Margin(margin)
+        }
+    }
+
+    /// The width of the marks round a zone: the refused margin, or the priced band.
+    pub fn margin(self) -> f32 {
+        match self {
+            Self::Margin(margin) | Self::Capsule { band: margin } => margin,
+        }
+    }
+
+    /// Into a key's or a base's digest: the margin's width as it always was, and the capsule's rule after it.
+    pub fn digest_into(self, digest: &mut mapdata::digest::Digest) {
+        digest.f32(self.margin());
+        if let Self::Capsule { .. } = self {
+            digest.u32(CAPSULE_MARKING);
+        }
+    }
+
+    /// The same rule and width, compared by their bits (a base is shared only with a match that asks for it).
+    pub fn same(self, other: Self) -> bool {
+        std::mem::discriminant(&self) == std::mem::discriminant(&other) && self.margin().to_bits() == other.margin().to_bits()
+    }
+}
+
+impl From<f32> for Marking {
+    fn from(margin: f32) -> Self {
+        Self::Margin(margin)
+    }
+}
+
+impl Default for Marking {
+    fn default() -> Self {
+        Self::Margin(0.0)
     }
 }
 
@@ -427,6 +561,9 @@ impl HurtTest {
 pub struct Hazards {
     pub zones: Vec<Hazard>,
     marks: Arc<HazardMarks>,
+    /// Which floors routes keep off ([`Marking`]).
+    pub marking: Marking,
+    /// The width of the marks round a zone ([`Marking::margin`]); the live fields' margin.
     pub margin: f32,
     /// How long a switching zone must stay off for [`Self::allowed`].
     pub pass_ms: u32,
@@ -439,12 +576,13 @@ pub struct Hazards {
 }
 
 impl Hazards {
-    /// The damage zones of `world`, each floor within `margin` metres of
-    /// one marked ([`HazardMarks::build`]).
-    pub fn build(world: &World, margin: f32) -> Self {
+    /// The damage zones of `world`, each floor within the marking's margin of one marked, and each the client lists a
+    /// body on ([`HazardMarks::build`]); routes keep off the floors `marking` says.
+    pub fn build(world: &World, marking: impl Into<Marking>) -> Self {
+        let marking = marking.into();
         let zones = Self::zones_of(world);
-        let marks = HazardMarks::build(world, &zones, margin);
-        Self::with_marks(zones, Arc::new(marks), margin)
+        let marks = HazardMarks::build(world, &zones, marking.margin());
+        Self::with_marks(zones, Arc::new(marks), marking)
     }
 
     /// The damage zones of `world` that hurt, each always active till
@@ -481,11 +619,13 @@ impl Hazards {
     }
 
     /// The zones and the floors they mark (built for them, or read).
-    pub fn with_marks(zones: Vec<Hazard>, marks: Arc<HazardMarks>, margin: f32) -> Self {
+    pub fn with_marks(zones: Vec<Hazard>, marks: Arc<HazardMarks>, marking: impl Into<Marking>) -> Self {
+        let marking = marking.into();
         Self {
             zones,
             marks,
-            margin,
+            marking,
+            margin: marking.margin(),
             pass_ms: PASS_MS,
             anomalies: None,
             seen: 0,
@@ -493,13 +633,29 @@ impl Hazards {
         }
     }
 
-    /// The zones marking `node`.
-    pub fn zones_at(&self, node: NodeId) -> impl Iterator<Item = &Hazard> + '_ {
-        let set = match self.marks.floor_set.get(node as usize) {
+    /// By floor, the set of the zones routes keep it off for: the margin's ([`Marking`]).
+    fn refused_sets(&self) -> &[u16] {
+        &self.marks.floor_set
+    }
+
+    /// The zones of a floor's set `id` (none for 0 or no floor).
+    fn zones_of_set(&self, id: Option<&u16>) -> impl Iterator<Item = &Hazard> + '_ {
+        let set = match id {
             Some(&id) if id > 0 => self.marks.sets[usize::from(id) - 1].as_slice(),
             _ => &[],
         };
         set.iter().map(|&h| &self.zones[usize::from(h)])
+    }
+
+    /// The zones marking `node`: those routes keep it off for ([`Marking`]).
+    pub fn zones_at(&self, node: NodeId) -> impl Iterator<Item = &Hazard> + '_ {
+        self.zones_of_set(self.refused_sets().get(node as usize))
+    }
+
+    /// The zones within the margin of `node` ([`HazardMarks::floor_set`]), refused or only priced: what [`HurtTest`]
+    /// weighs.
+    fn margin_zones_at(&self, node: NodeId) -> impl Iterator<Item = &Hazard> + '_ {
+        self.zones_of_set(self.marks.floor_set.get(node as usize))
     }
 
     /// The zones that hurt a body standing on `node` ([`HurtTest`]): the zones whose shape it overlaps, or all that mark
@@ -509,11 +665,7 @@ impl Hazards {
             HurtFloors::Shape { .. } => &self.marks.hurt_set,
             HurtFloors::Margin => &self.marks.floor_set,
         };
-        let set = match floor_set.get(node as usize) {
-            Some(&id) if id > 0 => self.marks.sets[usize::from(id) - 1].as_slice(),
-            _ => &[],
-        };
-        set.iter().map(|&h| &self.zones[usize::from(h)])
+        self.zones_of_set(floor_set.get(node as usize))
     }
 
     /// The zones marking `node` and how much of their hit a body there loses: all of it where the body is hurt
@@ -526,7 +678,7 @@ impl Hazards {
         rule: HurtTest,
     ) -> impl Iterator<Item = (&'a Hazard, f32)> + 'a {
         let band = rule.band_share();
-        self.zones_at(node).map(move |zone| {
+        self.margin_zones_at(node).map(move |zone| {
             let hurts = self.hurt_zones_at(node, rule).any(|hurt| hurt.zone == zone.zone);
             (zone, if hurts { 1.0 } else { band } * rule.intensity(zone, grid, node))
         })
@@ -562,11 +714,35 @@ impl Hazards {
     /// [owner-5 A395a] Whether a zone on at `time` hits a body standing on `node` by the client's contact test: its capsule
     /// overlaps the zone's shape ([`HazardMarks::hurt_set`]), or a live zone marks it. For the walk-out's log line only.
     pub fn hits_at(&self, node: NodeId, time: u32) -> bool {
-        let set = match self.marks.hurt_set.get(node as usize) {
-            Some(&id) if id > 0 => self.marks.sets[usize::from(id) - 1].as_slice(),
-            _ => &[],
-        };
-        set.iter().any(|&h| self.zones[usize::from(h)].activity.active(time)) || self.live.on_at(node, time)
+        self.zones_of_set(self.marks.hurt_set.get(node as usize)).any(|zone| zone.activity.active(time))
+            || self.live.on_at(node, time)
+    }
+
+    /// [A395a] Whether `node` is on the margin's band only: within the margin of a zone, and no zone lists a standing
+    /// body there ([`HazardMarks::hurt_set`]). Priced at the band's share ([`HurtTest`]).
+    pub fn in_band(&self, node: NodeId) -> bool {
+        self.margin_zones_at(node).next().is_some()
+            && self.zones_of_set(self.marks.hurt_set.get(node as usize)).next().is_none()
+    }
+
+    /// [A395a] Whether the marking lets a route walk the band to `node` or from it ([`Marking::Capsule`] and
+    /// [`Self::in_band`]): a goal or a start there.
+    pub fn band_end(&self, node: NodeId) -> bool {
+        matches!(self.marking, Marking::Capsule { .. }) && self.in_band(node)
+    }
+
+    /// [A395a] Whether a body may stand on `node` at `time`: under [`Marking::Capsule`] every zone the client lists a
+    /// standing body on there ([`HazardMarks::hurt_set`]) is off and stays off for [`Self::pass_ms`], and no live field
+    /// shuts it; under [`Marking::Margin`], [`Self::allowed`]. A stand on the band is one; the route to it walks the
+    /// band only for its last leg (`Tactics::band_way`).
+    pub fn stand_allowed(&self, node: NodeId, time: u32) -> bool {
+        match self.marking {
+            Marking::Margin(_) => self.allowed(node, time),
+            Marking::Capsule { .. } => {
+                self.zones_of_set(self.marks.hurt_set.get(node as usize)).all(|zone| zone.activity.off_for(time, self.pass_ms))
+                    && self.live.allowed_for(node, time, self.pass_ms)
+            }
+        }
     }
 
     /// Whether a zone at `node` is on at `time` (no margin of time).
@@ -635,12 +811,7 @@ impl Hazards {
     /// The set of zones marking `node`, baked and live (none: no zone);
     /// floors of one set are shut and open together.
     pub fn set_of(&self, node: NodeId) -> ZoneSet {
-        let baked = self
-            .marks
-            .floor_set
-            .get(node as usize)
-            .copied()
-            .unwrap_or(0);
+        let baked = self.refused_sets().get(node as usize).copied().unwrap_or(0);
         ZoneSet::new(baked, self.live.set_of(node))
     }
 
@@ -720,11 +891,7 @@ impl Hazards {
 
     /// Floors marked, for the logs.
     pub fn marked(&self) -> usize {
-        self.marks
-            .floor_set
-            .iter()
-            .filter(|&&mark| mark > 0)
-            .count()
+        self.refused_sets().iter().filter(|&&mark| mark > 0).count()
     }
 
     /// Whether `point` is near a zone (the floor under it is marked).
@@ -1056,6 +1223,94 @@ mod tests {
         assert_eq!(hazards.hurt_per_s(&world.grid, on, shape), hazards.hit_per_s(on));
     }
 
+    /// [A395a] The client's contact test of a standing body (radius 0.38, height 1.8) against a zone, row by row of
+    /// `owner-5/zone-contact-findings.md` section 2: no margin at or over a flat top, 0.38 m beside a side, the height
+    /// under a bottom, `R + 0.38` from a sphere's centre, the edges of a box rounded by Bullet's margin; strict.
+    #[test]
+    fn the_capsule_touches_a_zone_as_the_client_lists_it() {
+        let (r, h) = (0.38, 1.8);
+        let body = mapdata::Body::default();
+        assert_eq!((body.radius, body.stand_height), (r, h), "the grid's body is the client's capsule");
+        let block = Shape {
+            kind: ShapeKind::Box,
+            center: Vec3::new(0.0, 1.0, 0.0),
+            rotation: Rotation::IDENTITY,
+            half: Vec3::new(2.0, 1.0, 2.0),
+        };
+        let touches = |shape: &Shape, x: f32, y: f32, z: f32| capsule_touches(shape, Vec3::new(x, y, z), r, h);
+        // The top is y 2: feet on it touch nothing, a millimetre under it they do.
+        assert!(!touches(&block, 0.0, 2.0, 0.0), "feet level with the top");
+        assert!(!touches(&block, 0.0, 2.42, 0.0), "feet over the top");
+        assert!(touches(&block, 0.0, 1.999, 0.0), "feet just under the top");
+        // Beside a side (x 2), the body's levels within the zone's.
+        assert!(touches(&block, 2.37, 0.5, 0.0), "0.37 m off the side");
+        assert!(!touches(&block, 2.39, 0.5, 0.0), "0.39 m off the side");
+        // Under the bottom (y 0): the head must stay under it.
+        assert!(!touches(&block, 0.0, -1.81, 0.0), "the top of the head 1 cm under the bottom");
+        assert!(touches(&block, 0.0, -1.79, 0.0), "the head 1 cm into it");
+        // A vertical edge: the core's corner rounded by the 0.04 margin, so a body 0.26 m off both sides (0.368 m from
+        // the sharp edge) is not listed, as the sharp box would list it.
+        assert!(!touches(&block, 2.26, 0.5, 2.26), "the rounded edge");
+        assert!(touches(&block, 2.2, 0.5, 2.2), "0.28 m from the sharp edge, 0.38 from the rounded one less a little");
+        // A sphere of radius 3 at y 1: the axis (y 0.38..1.42 over the feet) within 3.38 of its centre.
+        let ball = Shape { kind: ShapeKind::Sphere, half: Vec3::new(3.0, 3.0, 3.0), ..block };
+        assert!(touches(&ball, 3.37, 0.0, 0.0));
+        assert!(!touches(&ball, 3.39, 0.0, 0.0));
+        // Vector Laboratory's pit cylinder (top 16.634): its battery floor 17.051 is not listed, standing or crouched.
+        let pit = Shape {
+            kind: ShapeKind::Cylinder,
+            center: Vec3::new(-0.618, 14.534, 0.178),
+            rotation: Rotation::IDENTITY,
+            half: Vec3::new(14.894, 2.1, 14.894),
+        };
+        assert!(!touches(&pit, 10.59, 17.051, -1.33), "the battery floor");
+        assert!(!capsule_touches(&pit, Vec3::new(10.59, 17.051, -1.33), r, body.crouch_height), "crouched");
+        assert!(touches(&pit, 8.46, 12.90, 0.31), "the pit's floor");
+    }
+
+    /// [A395a] With the capsule's marking, a floor over a zone's top inside the margin is a stand (priced at the band's
+    /// share) that routes keep off but for their last leg; a floor the capsule touches is no stand. With the margin's,
+    /// neither is a stand, as before.
+    #[test]
+    fn the_capsule_marking_stands_on_the_band_and_routes_keep_off_it() {
+        let mut map = electric_map();
+        map.zones.clear();
+        let slab = Shape {
+            kind: ShapeKind::Box,
+            center: Vec3::new(20.0, -0.27 - 1.0, 20.0),
+            rotation: Rotation::IDENTITY,
+            half: Vec3::new(4.0, 1.0, 4.0),
+        };
+        map.zones.push(zone("slab", slab, 0.1));
+        let world = world_of(map);
+        let grid = &world.grid;
+        let over = grid.locate(Vec3::new(20.0, 0.0, 20.0), 0.3).unwrap();
+        let capsule = Hazards::build(&world, Marking::Capsule { band: 1.0 });
+        let margin = Hazards::build(&world, 1.0);
+        assert!(!capsule.allowed(over, 0) && capsule.zone_of(over).is_some(), "routes keep off the band");
+        assert!(capsule.stand_allowed(over, 0) && !capsule.hits_at(over, 0), "a stand: the client does not hurt it");
+        assert!(capsule.in_band(over) && capsule.band_end(over), "the margin's band only");
+        assert!(!margin.stand_allowed(over, 0) && !margin.band_end(over), "the margin refuses it");
+        let shape = HurtTest { floors: HurtFloors::Shape { band_permille: 250 }, by_intensity: false };
+        let full = margin.hit_per_s(over);
+        assert!(full > 0.0 && capsule.hit_per_s(over) == full);
+        assert!((capsule.hurt_per_s(grid, over, shape) - 0.25 * full).abs() < 1e-6, "priced at the band's share");
+        assert_eq!(capsule.marked(), margin.marked(), "the same floors refused to routes");
+        // The zone's top raised over the floor: no stand under either.
+        let mut map = electric_map();
+        map.zones.clear();
+        map.zones.push(zone("deep", Shape { center: Vec3::new(20.0, 0.5, 20.0), ..slab }, 0.1));
+        let world = world_of(map);
+        let on = world.grid.locate(Vec3::new(20.0, 0.0, 20.0), 0.3).unwrap();
+        let beside = world.grid.locate(Vec3::new(24.6, 0.0, 20.0), 0.2).unwrap();
+        assert!(world.grid.position(beside).x > 24.5, "a floor over 0.5 m off the side");
+        let capsule = Hazards::build(&world, Marking::Capsule { band: 1.0 });
+        assert!(!capsule.stand_allowed(on, 0) && capsule.hits_at(on, 0));
+        assert!(!capsule.in_band(on) && !capsule.band_end(on), "listed: no band floor");
+        assert!(capsule.stand_allowed(beside, 0) && !capsule.allowed(beside, 0), "over 0.5 m off the side: the band");
+        assert!(!Hazards::build(&world, 1.0).stand_allowed(beside, 0), "the margin refuses it");
+    }
+
     /// A zone whose hit falls off to its rim is priced at the hit of the floor's place in it ([`HurtTest::by_intensity`]):
     /// the hurt floors, the legs of a crossing and the stand; the gate of what may be crossed
     /// ([`Hazards::hit_per_s`]) stays at the full hit, and a rule without it prices the full hit everywhere.
@@ -1079,8 +1334,7 @@ mod tests {
         for node in [near, rim] {
             assert_eq!(hazards.hurt_per_s(grid, node, flat), full, "without the intensity, the full hit");
             assert_eq!(hazards.leg_cost_per_s(grid, node, None, flat).body, full);
-            let centre = grid.position(node) + Vec3::new(0.0, 0.5 * grid.body().stand_height, 0.0);
-            let share = hazards.zones[0].intensity_at(centre);
+            let share = hazards.zones[0].intensity_at(grid.position(node));
             assert!((hazards.hurt_per_s(grid, node, falling) - full * share).abs() < 1e-6, "the zone's hit times the intensity");
             assert!((hazards.leg_cost_per_s(grid, node, None, falling).body - full * share).abs() < 1e-6);
             assert_eq!(hazards.hit_per_s(node), full, "the gate does not move");
@@ -1132,7 +1386,7 @@ mod tests {
         let HurtFloors::Shape { band_permille } = HurtTest::of(&tuning, 0.38).floors else {
             panic!("on by default");
         };
-        assert_eq!(band_permille, (1000.0 * 0.2 * (2.0f32 / std::f32::consts::PI).sqrt() / 0.62).round() as u16);
+        assert_eq!(band_permille, (1000.0 * 0.283 * (2.0f32 / std::f32::consts::PI).sqrt() / 0.62).round() as u16);
         // The all-off arm keeps the zone's curve (`zone_intensity`, PROVEN: A223), not the margin's full hit.
         let off = super::super::tuning::Tuning::all_off().hazard;
         assert_eq!(HurtTest::of(&off, 0.38), HurtTest { by_intensity: true, ..HurtTest::MARGIN });

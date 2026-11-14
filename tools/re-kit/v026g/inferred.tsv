@@ -348,7 +348,6 @@ va	status	ref_021d	name
 0x000763d0	inferred-high	0x00056baa	vostok::physics::bullet_physics_world::recover_from_penetrations
 0x00076920	inferred-medium	0x00056ec8	vostok::physics::bullet_physics_world::object_query
 0x00077320	inferred-high	0x00057700	`vostok::physics::bullet_physics_world::object_query'::`2'::object_query_callback::addSingleResult
-0x00077890	inferred-high	0x00057bbe	vostok::physics::contact_result_callback::addSingleResult
 0x000778b0	inferred-medium	0x00057c2e	vostok::physics::bullet_physics_world::adjust_foot_transform
 0x00077e50	inferred-medium	0x0005805a	vostok::physics::bullet_physics_world::notify_about_contact
 0x00078310	inferred-high	0x000582ca	vostok::physics::bullet_physics_world::subscribe_on_contact
@@ -3299,6 +3298,9 @@ va	status	ref_021d	name
 0x002f8720	inferred-medium		survarium::simple_game_project::on_inserted
 0x002f8850	inferred-high		survarium::static_collision::insert
 0x002f8970	inferred-high		survarium::static_collision::remove
+0x002f9050	inferred-high		survarium::damage_zone_shape::box_clamped_point
+0x002f9200	inferred-medium		survarium::damage_zone_shape::capsule_extent
+0x002f9550	inferred-high		survarium::damage_zone_shape::cylinder_extent
 0x002de7f0	inferred-medium		survarium::game_effect_player::stop
 0x002de090	inferred-medium		survarium::game_effect_player::play
 0x002de100	inferred-medium		survarium::game_effect_player::play_impl [descriptive]

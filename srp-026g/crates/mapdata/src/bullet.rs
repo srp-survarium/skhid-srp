@@ -166,6 +166,22 @@ impl Convex {
 /// A box's or a cylinder's constructor (0xA96D0, 0xA9D40): the default margin lowered to a tenth of the
 /// smallest half extent when that is less (`setSafeMargin` 0xA8CA0), then the implicit dimensions.
 fn boxlike(kind: ConvexKind, half: [f32; 3], walker: WalkerBehaviour, faces: Range<u32>) -> Convex {
+    let margin = boxlike_margin(half);
+    Convex {
+        kind,
+        scaling: [1.0; 3],
+        dims: half.map(|h| h * 1.0 - margin),
+        margin,
+        walker,
+        faces,
+    }
+}
+
+/// The margin a box's or a cylinder's constructor (0xA96D0, 0xA9D40) gives a shape of half extents `half` (a cylinder's
+/// `[radius, half height, radius]`): the default 0.04 (0xA2D7DC) lowered to a tenth (0x921948) of the smallest half
+/// extent when that is less (`setSafeMargin` 0xA8CA0). The shape is its core, `half - margin`, grown by the margin: its
+/// faces where the data puts them, its edges rounded by the margin.
+pub fn boxlike_margin(half: [f32; 3]) -> f32 {
     // `minAxis` (0xA8CA0..0xA8CD1): on a tie the later axis.
     let [x, y, z] = half;
     let smallest = if y > x {
@@ -176,18 +192,10 @@ fn boxlike(kind: ConvexKind, half: [f32; 3], walker: WalkerBehaviour, faces: Ran
         2
     };
     let safe = half[smallest] * SAFE_MARGIN_MULTIPLIER;
-    let margin = if DEFAULT_MARGIN > safe {
+    if DEFAULT_MARGIN > safe {
         safe
     } else {
         DEFAULT_MARGIN
-    };
-    Convex {
-        kind,
-        scaling: [1.0; 3],
-        dims: half.map(|h| h * 1.0 - margin),
-        margin,
-        walker,
-        faces,
     }
 }
 

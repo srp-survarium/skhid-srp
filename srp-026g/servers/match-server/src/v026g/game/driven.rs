@@ -49,6 +49,7 @@ use survarium::v026g::match_msgs::snapshot::{Battery, Decoded};
 use super::*;
 use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::legs::LegDamage;
+use crate::v026g::bots::hazards::Marking;
 use crate::v026g::bots::maps::{MapState, Maps};
 use crate::v026g::bots::motor::Hurt;
 use crate::v026g::bots::objective::Mode;
@@ -139,6 +140,9 @@ pub(super) struct Walkers {
     /// [A331] The kit and the hands slot each place's speed candidates were last sent for (`bot_skills::profile_kit_speeds`), by
     /// place; none: not sent (no profile, or the measured level).
     speed_kits: Vec<Option<(u8, Option<u8>)>>,
+    /// The kit each place's zone armour was last worked out for (`zone_armour_of`): its first until a world names the
+    /// kit in use (`Supplies::kit`), as the client prices the live kit.
+    armour_kits: Vec<u8>,
     maps: Arc<Maps>,
     project: &'static str,
     /// Held once built, so the store may drop it while the match runs.
@@ -247,7 +251,8 @@ impl Walkers {
             .collect();
         let pantries = formed.profiles.iter().map(crate::v026g::bots::stock::Pantry::of_profile).collect();
         let reach: Vec<Option<f32>> = formed.profiles.iter().map(shot_reach_of).collect();
-        let armours: Vec<_> = formed.profiles.iter().map(zone_armour_of).collect();
+        let armours: Vec<_> = formed.profiles.iter().map(|profile| zone_armour_of(profile, 0)).collect();
+        let armour_kits = vec![0; armours.len()];
         // The bodies' speed by their first kit's skills and weight, until a
         // world shows a life's own.
         let speed_levels: Vec<Option<f32>> = formed
@@ -291,6 +296,7 @@ impl Walkers {
             hold: MapHold::NotYet,
             kit_in_use: all_kits,
             speed_kits,
+            armour_kits,
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
@@ -373,8 +379,8 @@ impl Walkers {
                         );
                     }
                     let world = base.world.clone();
-                    let margin = self.bots.match_wide_tuning().hazard.margin_m.get();
-                    if margin.to_bits() == base.margin().to_bits() {
+                    let marking = Marking::of(&self.bots.match_wide_tuning().hazard);
+                    if marking.same(base.marking()) {
                         // The map's own tactics, shared by every match on it.
                         let floors = world.grid.len();
                         let summary = self.bots.tactics_ready(Tactics::of(base));
@@ -383,16 +389,16 @@ impl Walkers {
                             self.project,
                         );
                     } else {
-                        // Tuned to another margin: tactics of its own.
+                        // Tuned to another marking: tactics of its own.
                         let (send, built) = std::sync::mpsc::channel();
                         let for_tactics = world.clone();
                         let spawned = std::thread::Builder::new()
                             .name(format!("bot tactics {id:#x}"))
                             .spawn(move || {
                                 let started = std::time::Instant::now();
-                                let tactics = Tactics::new(for_tactics, margin);
+                                let tactics = Tactics::new(for_tactics, marking);
                                 log::info!(
-                                    "Match {id:#x}: the bots' tactics for margin {margin} built \
+                                    "Match {id:#x}: the bots' tactics for {marking:?} built \
                                      in {:.2} s",
                                     started.elapsed().as_secs_f32()
                                 );
@@ -493,18 +499,20 @@ fn shot_reach_of(profile: &survarium::v026g::match_msgs::static_info::MatchProfi
     crate::v026g::bots::shot_reach::reach_of(&dictionary.item(item.dict_id)?.cfg_name)
 }
 
-/// What a bot wears against a zone's hits (F2, `zone_cost.rs`): the armour among the items of its first kit,
-/// as `HazardTuning::zone_pools` reads it.
+/// What a bot wears against a zone's hits (F2, `zone_cost.rs`): the armour among the items of its kit `kit` and that
+/// kit's modifiers (`ZoneArmour::of_kit`), as `HazardTuning::zone_pools` reads it.
 fn zone_armour_of(
     profile: &survarium::v026g::match_msgs::static_info::MatchProfile,
+    kit: usize,
 ) -> crate::v026g::bots::zone_cost::ZoneArmour {
     let ids = profile
         .kits
-        .first()
+        .get(kit)
         .into_iter()
         .flat_map(|kit| kit.slots.iter().flatten())
         .filter_map(|&(index, _)| profile.items.get(usize::from(index)).map(|item| item.dict_id));
-    crate::v026g::bots::zone_cost::ZoneArmour::of_items(ids)
+    let modifiers = profile.kits.get(kit).map_or(&[][..], |kit| &kit.modifiers[..]);
+    crate::v026g::bots::zone_cost::ZoneArmour::of_kit(ids, modifiers)
 }
 
 fn log_notes(id: u32, notes: Vec<Note>) {
@@ -815,6 +823,14 @@ impl Game {
             // The kit a place is in, for its throw keys' pockets: a human's too.
             if let (Some(supplies), true) = (supplies, walkers.kit_in_use) {
                 walkers.bots.kit_in_use(place, usize::from(supplies.kit));
+            }
+            // [zone price] A new kit in use: its armour and modifiers against zones (the client prices the live kit).
+            if let (Some(supplies), Some(profile)) = (supplies, self.formed.profiles.get(place))
+                && walkers.armour_kits.get(place).is_some_and(|&kit| kit != supplies.kit)
+                && usize::from(supplies.kit) < profile.kits.len()
+            {
+                walkers.armour_kits[place] = supplies.kit;
+                walkers.bots.set_zone_armour(place, zone_armour_of(profile, usize::from(supplies.kit)));
             }
             // [A331] A new kit in use, or [A334] a new weapon in hands (`Supplies::hands_slot`): its speed factors. With the
             // hands known, the one value of that weapon in hands; else every weapon's, for a reading to pick.

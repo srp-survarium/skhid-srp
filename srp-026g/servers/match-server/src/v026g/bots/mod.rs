@@ -436,7 +436,7 @@ pub struct Bot {
     /// Its route searches dropped since it last noted them.
     dropped: path::Dropped,
     /// Since when (ms) its walk tests its lines over a zone's floors, because it stands on floors the zone refuses
-    /// (`Tactics::zone_exit_reach`); none off them. The note of each change is `zone_note`, said once.
+    /// (`Tactics::zone_exit`); none off them. The note of each change is `zone_note`, said once.
     zone_walk: Option<u32>,
     zone_note: Option<String>,
     /// Its kits by index (the profile's, `survarium::v026g::loadouts::
@@ -1210,7 +1210,7 @@ impl Bots {
     /// machine: the match server builds the tactics on a thread of its own
     /// ([`Self::tactics_ready`]). Returns a line for the log.
     pub fn map_ready(&mut self, world: Arc<World>) -> String {
-        let tactics = Tactics::new(world, self.tunings.match_wide().hazard.margin_m.get());
+        let tactics = Tactics::new(world, hazards::Marking::of(&self.tunings.match_wide().hazard));
         self.tactics_ready(tactics)
     }
 
@@ -1828,7 +1828,12 @@ impl Bots {
             let ticks = |rng: &mut Rng, s: (f32, f32)| (rng.range(s.0, s.1) / kin::TICK_S) as u32;
             // [pockets] No jump the game would refuse (a leg's `leg_damage`), nor one the bots' own policy holds after a hit
             // (`motor::HIT_JUMP_HOLD_MS`): the keys alone.
-            let jump = if bot.hurt.may_jump(time) {
+            // [A390] Nor on a floor a standing capsule does not fit under (`WalkGrid::can_stand` false): the body there is
+            // crouched, and `on_ground` 0x7EF90 is false for a crouched capsule, so the game refuses the jump.
+            let room = self.tactics.as_ref().is_none_or(|tactics| {
+                tactics.world.grid.locate(feet, 1.5).is_none_or(|node| tactics.world.grid.can_stand(node))
+            });
+            let jump = if bot.hurt.may_jump(time) && room {
                 key::JUMP
             } else {
                 0

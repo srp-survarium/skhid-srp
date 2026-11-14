@@ -844,7 +844,8 @@ pub(crate) fn real_bot_cost() {
             pull_hold: bench_tuning().grid.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M),
             pull_walk: bench_tuning().grid.pull_walk,
         };
-        let world = Arc::new(World::build_with_extras(map, mapdata::CELL, bench_tuning().grid_body(), links, extras));
+        // From the cache of built grids and sight trees when the run has one (`SRP_BENCH_GRID_CACHE`), else built.
+        let world = Arc::new(super::grid_cache::world(map, mapdata::CELL, bench_tuning().grid_body(), links, extras));
         // The baked-all alternative to the live zones, for what it costs (`SRP_BENCH_BAKE_FIELD_PLACES=<n>`).
         let world = match bench_settings().number::<usize>("SRP_BENCH_BAKE_FIELD_PLACES").filter(|&n| n > 0) {
             Some(n) => {
@@ -860,6 +861,7 @@ pub(crate) fn real_bot_cost() {
         // memory of the world as the server holds it.
         mapdata::free_search_memory();
         let world_mb = memory_mb().map(|(now, _)| now);
+        let audits = Instant::now();
         // The audit of the grid's erosion (`GridTuning::exact_erosion`): the floors with a wall nearer than the exact clearance
         // (none with the exact pass on) and the nearest such wall, metres.
         {
@@ -924,6 +926,7 @@ pub(crate) fn real_bot_cost() {
                 sides[0], sides[1], sides[2], sides[3], sides[4], sides[5]
             );
         }
+        eprintln!("  world audits {:.2} s", audits.elapsed().as_secs_f32());
         for &per_team in &sizes {
             let teams: Vec<u8> = (0..2 * per_team).map(|p| u8::from(p >= per_team)).collect();
             let driven = vec![true; teams.len()];
@@ -1054,7 +1057,7 @@ pub(crate) fn real_bot_cost() {
             // into the match, after their first spawn, as the live server gives a map that was not cached.
             let (summary, mut late_map) = match bench_settings().number::<u32>("SRP_BENCH_MAP_LATE_MS") {
                 Some(late_ms) => {
-                    let tactics = Tactics::new(world.clone(), bots.tunings.match_wide().hazard.margin_m.get());
+                    let tactics = Tactics::new(world.clone(), super::hazards::Marking::of(&bots.tunings.match_wide().hazard));
                     (format!("the map held to {late_ms} ms"), Some((late_ms, tactics)))
                 }
                 None => (bots.map_ready(world.clone()), None),
