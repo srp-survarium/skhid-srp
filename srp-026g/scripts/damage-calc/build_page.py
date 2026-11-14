@@ -125,14 +125,14 @@ if site:
     faces = "\n".join(f'@font-face {{ font-family: "{family}"; font-weight: {weight}; font-style: {style}; '
                        f'font-display: swap; src: url("/damage/fonts/{file}.woff2?v={version(fonts[file])}") format("woff2"); }}'
                        for family, weight, style, file in FONTS)
-    # The Maps tab's build (srp-026g/scripts/maps-tab, run first): every
-    # map's name from the game's modes and its HUD minimap, in its order.
+    # The Maps tab's build (srp-026g/scripts/maps-tab, run first): its maps
+    # (a render of a map no longer played is left out), each one's name from
+    # the game's modes and its HUD minimap, in its order.
     tab = os.path.join(out_path, "..", "maps", "maps.js")
     if os.path.isfile(tab):
         with open(tab, encoding="utf-8") as f:
             tab_maps = json.loads(re.search(r"const MAPS = (.*);\n", f.read()).group(1))["maps"]
-        order = [t["key"] for t in tab_maps if t["key"] in data["maps"]]
-        data["maps"] = {key: data["maps"][key] for key in order + [k for k in data["maps"] if k not in order]}
+        data["maps"] = {t["key"]: data["maps"][t["key"]] for t in tab_maps if t["key"] in data["maps"]}
         for t in tab_maps:
             if t["key"] in data["maps"]:
                 data["maps"][t["key"]].update(name=t["name"]["en"], name_uk=t["name"]["uk"], minimap=t["minimap"])

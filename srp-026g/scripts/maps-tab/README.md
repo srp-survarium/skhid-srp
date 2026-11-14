@@ -4,7 +4,7 @@ The website's `/wiki/maps`, a section of the wiki (`srp-026g/servers/web-server/
 `docs/notes/maps_tab.md`). It shows every playable map, by mode, with these
 points, each kind toggled on its own:
 
-- respawn points, by team;
+- respawn points, by team (Free for All: its own spawns, one kind);
 - battery spawns (the battery mode) and chargers (the mode with chargers:
   its batteries come out of them, so it has no battery spawns to show);
 - the teams' battery containers;
@@ -61,7 +61,7 @@ It writes `srp-026g/servers/web-server/maps/`:
 - `built-from.tsv`.
 
 The patches in `built-from.tsv` are exactly the offered ones on main. The
-web-server test `the_maps_and_the_calculator_are_built_from_the_offered_patches`
+web-server test `the_site_pages_are_built_from_the_offered_patches`
 fails a PR otherwise. A PR that changes the page's code commits its rebuild
 (`release/build-site --tree .`, or the commands above). FFDec is 26.0.0: it makes the committed
 icons byte for byte.
@@ -70,8 +70,9 @@ What comes from where:
 
 | what | where in the game data |
 |---|---|
-| maps, modes, names | `maps_dict` ids whose `gameplay/game_modes/` config is mode 2 to 5 and whose project exists (the server's rule, `crates/survarium/src/v026g/maps.rs`); names from the localization |
+| maps, modes, names | `maps_dict` ids whose `gameplay/game_modes/` config is mode 2 to 5 or 8 (Free for All) and whose project exists (the server's rule, `crates/survarium/src/v026g/maps.rs`); names from the localization. A map played in one mode alone (the STALKER ports, in Free for All) has that one mode |
 | respawn points, battery spawns, chargers, containers | the project's `server_objects`, shown only where the mode's `rules` read them (88 gather, 89 timed with chargers); a container where its collision zone is (its own position can be a pivot far off: level_04, level_06 and four more) |
+| Free for All's spawns | of its own project (`<weather>_8`, a copy of Team Deathmatch's), the team-2 respawn points alone: each player spawns there and nowhere else (exe patch 142, `docs/notes/ffa.md`). The two teams' points the copy keeps are not shown. The page draws a mode with no team's spawn as one kind: one colour, one swatch, no team in the tooltip |
 | Research units | the mode config's `parameters.capture_zones` (`cp_id`, `position`), shown where the mode's `rules` have Research's (480; `docs/notes/research_mode.md`) |
 | ammo stashes | `client_objects`: each `resupply_zone`'s collision zone, by team |
 | marker icons | `hud.swf` `Minimap._icons` (`PlayerBlue`, `Base`, `SpawnIcon`, `ResupplyIcon`), as SVG (FFDec), with each one's lightness and opacity so the page paints them in one blue and one red; the battery (the game's electrobox) is drawn flat after the real one, as the game has no flat icon of it (only a 96x64 photo-like one and an 11x9 glyph) |
