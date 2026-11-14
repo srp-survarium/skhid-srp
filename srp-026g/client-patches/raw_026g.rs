@@ -249,6 +249,8 @@ unsafe extern "C" {
     pub fn engine_context_unmap(context: Option<ImmediateContext>, resource: Option<HwResource>, subresource: u32);
     /// COM ID3D11DeviceContext+0x1bc (stdcall through the interface's vtable): context ESP+4; pops 4
     pub fn engine_context_flush(context: Option<ImmediateContext>);
+    /// COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX
+    pub fn engine_voice_set_volume(voice: Option<SubmixVoice>, volume: f32, operation_set: u32) -> u32;
     /// 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12
     pub fn engine_ray_callback(callback: Option<ClosestRayResultCallback>, from: *const f32, to: *const f32, group: u32, mask: u32, requester: Option<Bullet>);
     /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
@@ -10658,6 +10660,33 @@ impl SoundWorld {
         unsafe { self.0.byte_add(0xb0).cast::<Option<WorldUser>>().write_volatile(value) }
     }
 
+    /// +0x48e4 (ptr<vostok::sound::sound_scene>): the first of its active scenes (each scene's next +108h; add_scene_to_active 0x59FC9, the tick's walks 0x59AB1 and 0x59AE7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first_active(self) -> Option<SoundScene> {
+        unsafe { self.0.byte_add(0x48e4).cast::<Option<SoundScene>>().read_volatile() }
+    }
+
+    /// +0x48e4 (ptr<vostok::sound::sound_scene>): the first of its active scenes (each scene's next +108h; add_scene_to_active 0x59FC9, the tick's walks 0x59AB1 and 0x59AE7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_first_active(self, value: Option<SoundScene>) {
+        unsafe { self.0.byte_add(0x48e4).cast::<Option<SoundScene>>().write_volatile(value) }
+    }
+
+    /// +0x48f0 (u8): General as the tick last applied it, 0 to 100 (100 at the constructor 0x58DD3): the tick's general pass 0x59ADF compares s_general_volume's value (0xA7AF90, cvttss2si) with it and on a change gives every active scene its factor; add_scene_to_active 0x59FE3 reads it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn general(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x48f0).cast::<u8>().as_ptr() }
+    }
+
     /// +0xcc (obj<vostok::sound::panning_lut>): its panning table, inside it: 512 directions of 9 gains, filled once by its constructor 0x5E150 in the sound world's (0x58D90); notify_listener2 0x5C396 gives its address to calculate_3d_pan
     ///
     /// # Safety
@@ -10725,6 +10754,51 @@ impl SoundScene {
     #[inline(always)]
     pub unsafe fn fade_state(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x2fc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x108 (ptr<vostok::sound::sound_scene>): the next active scene of its world (add_scene_to_active 0x59FB0, the tick 0x59AC7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next_active(self) -> Option<SoundScene> {
+        unsafe { self.0.byte_add(0x108).cast::<Option<SoundScene>>().read_volatile() }
+    }
+
+    /// +0x108 (ptr<vostok::sound::sound_scene>): the next active scene of its world (add_scene_to_active 0x59FB0, the tick 0x59AC7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next_active(self, value: Option<SoundScene>) {
+        unsafe { self.0.byte_add(0x108).cast::<Option<SoundScene>>().write_volatile(value) }
+    }
+
+    /// +0x2e0 (ptr<xaudio2::submix_voice>): its XAudio2 submix voice, every voice of its sounds sent to it (0x631E5); its volume (SetVolume, vtable +30h) = volume (+2E4h) x general (+2E8h), set by process_fade 0x5C0D8, add_scene_to_active 0x59FEE and the tick's general pass 0x59B3F
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn submix(self) -> Option<SubmixVoice> {
+        unsafe { self.0.byte_add(0x2e0).cast::<Option<SubmixVoice>>().read_volatile() }
+    }
+
+    /// +0x2e0 (ptr<xaudio2::submix_voice>): its XAudio2 submix voice, every voice of its sounds sent to it (0x631E5); its volume (SetVolume, vtable +30h) = volume (+2E4h) x general (+2E8h), set by process_fade 0x5C0D8, add_scene_to_active 0x59FEE and the tick's general pass 0x59B3F
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_submix(self, value: Option<SubmixVoice>) {
+        unsafe { self.0.byte_add(0x2e0).cast::<Option<SubmixVoice>>().write_volatile(value) }
+    }
+
+    /// +0x2e8 (f32): its factor of General: General x 0.01 (0xA2D774) from add_scene_to_active 0x59FFC and the tick's general pass 0x59B19 (1 at the constructor 0x57955); process_fade 0x5C0D8 multiplies the volume by it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn general(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x2e8).cast::<f32>().as_ptr() }
     }
 
     /// +0x2fa (u8): its listener's position is set (set_listener_properties 0x587E0): only then its tick (0x57C9C) lets notify_listener 0x5C280 give its sounds voices
@@ -22800,6 +22874,21 @@ impl LobbyCharacter {
     }
 }
 
+/// A xaudio2::submix_voice (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SubmixVoice(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SubmixVoice {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
 /// A vostok::memory::game_allocator (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -24912,6 +25001,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn elapsed(machine: &impl Machine) -> u32 {
             machine.register(Register::Ebx)
+        }
+    }
+
+    /// sound_world.general (0x59adf): sound_world::tick's general pass, after the active scenes ticked (cmp byte [edi+48F0h],al; the je skips the pass when General is as last applied): the sound thread, EDI the world, EAX s_general_volume's value truncated (cvttss2si [0A7AF90h], 0 to 100); done 0x59B4B, past the pass (ESI 0 there as here: the scenes' walk ended)
+    pub mod sound_world_general {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::sound::sound_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<SoundWorld> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(SoundWorld)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn general(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
         }
     }
 

@@ -4330,6 +4330,48 @@ free_for_all_on_protection_read_replay:
     db 0x8b, 0x10, 0x69, 0xd2, 0xe8, 0x03, 0x00, 0x00
     jmp 0x2f4630
 
+; 0x59adf sound_world::tick's general pass, after the active scenes ticked (cmp byte [edi+48F0h],al; the je skips the pass when General is as last applied): the sound thread, EDI the world, EAX s_general_volume's value truncated (cvttss2si [0A7AF90h], 0 to 100); done 0x59B4B, past the pass (ESI 0 there as here: the scenes' walk ended): lohook -> game_volume_on_general
+global game_volume_on_general
+extern hook_game_volume_on_general
+game_volume_on_general:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_game_volume_on_general
+    mov edx, game_volume_on_general_replay
+    cmp eax, 0
+    je game_volume_on_general_go
+    mov edx, 0x59ae5
+    cmp eax, 1
+    je game_volume_on_general_go
+    mov edx, 0x59b4b
+    cmp eax, 2
+    je game_volume_on_general_go
+    ud2
+game_volume_on_general_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+game_volume_on_general_replay:
+    db 0x38, 0x87, 0xf0, 0x48, 0x00, 0x00
+    jmp 0x59ae5
+
 ; 0x2e50c7 EDI damage model ESI hit_info; invulnerability applied: lohook -> hand_kill_on_hit
 global hand_kill_on_hit
 extern hook_hand_kill_on_hit_chain

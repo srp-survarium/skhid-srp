@@ -131,7 +131,8 @@ run on its bytes in Unicorn) unless marked.
   - A mono sound's two gains are its output matrix into its scene's two-channel submix
     (`voice_bridge::set_output_matrix_impl` 0x5DC40). A hud sound (type 3) is not panned: 1 and 1.
 - **The volumes.** A scene's submix gets its fade volume times the general volume
-  (`s_general_volume`; fields_026g.tsv, the scene's +2E4h and +2E8h); the master is at unity.
+  (`s_general_volume`; fields_026g.tsv, the scene's +2E4h and +2E8h), and with patch 144 the Game
+  slider's share for every scene but the music's (`game-volume.md`); the master is at unity.
 - **Threads.** Every XAudio2 call is the sound thread's. The game's thread writes the listener's
   atomics and queues orders. With patch 100 the engine and every voice the game makes are its
   proxies, whose list only the sound thread's step changes (audio_device.md).

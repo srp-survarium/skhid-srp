@@ -880,11 +880,8 @@ package main_menu_fla
       {
          this.__setProp__ptt_settingsTabs_Layer2_3();
          this.__setProp__use_mik_settingsTabs_Layer2_3();
-         this._game_volume.slider.enabled = false;
-         this._game_volume.mouseEnabled = false;
-         this._game_volume.alpha = 0.5;
-         this._game_volume.mouseChildren = false;
-         // the Music slider (_sound_volume) is enabled: exe patch 88 registers its s_music_volume;
+         // the Game slider (_game_volume) is enabled: exe patch 144 registers its s_ingame_volume;
+         // the Music slider (_sound_volume) too: exe patch 88 registers its s_music_volume;
          // the voice chat's volume (_sound_сhat) and the microphone's sensitivity (_mic_sens) too:
          // exe patch 66 registers s_chat_volume and s_mic_sens. The PTT checkbox stays off: voice
          // is push-to-talk only.
