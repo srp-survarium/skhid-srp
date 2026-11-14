@@ -64,6 +64,7 @@ pub mod jump_test;
 pub mod kin;
 pub mod know;
 pub mod lane_ahead;
+pub mod hands;
 pub mod legs;
 pub mod link_time;
 pub mod live_grenades;
@@ -79,6 +80,7 @@ pub mod pitch;
 pub mod plays;
 pub mod pockets;
 pub mod pools;
+pub mod protection;
 pub mod recoil;
 pub mod reflex;
 pub mod rest;
@@ -400,6 +402,12 @@ pub struct Bot {
     unstick: Option<(u32, u32)>,
     /// [A318] The body track's [`body::BodyTrack::held_short_since_fix`] this tick (set before the drive), for the hop.
     held_short_m: f32,
+    /// [A386] The body's own walk cap this tick (set before the drive, from the reckoning's speed level), for the sprint jump's
+    /// speed test ([`motor::WalkCap`]).
+    walk_cap: motor::WalkCap,
+    /// [A386] Whether the reckoned body is on the ground or in a jump or a fall this tick (set before the drive), for the let-go
+    /// after a reckoned landing ([`motor::Footing`]).
+    footing: motor::Footing,
     /// Since when it stands for want of a world (`UnstickTuning::blind_stop_ms`); none: it walks as it will.
     blind_since: Option<u32>,
     /// Ticks left of a jump held with the trigger let go ([`JUMP_HOLD_MS`]),
@@ -458,6 +466,10 @@ pub struct Bot {
     /// [A277] [measure] Reloads at an emptying shot's clip end (`CombatTuning::empty_reload`), the lives before this one's
     /// reflex (which counts its own).
     empty_reloads: reflex::EmptyReloads,
+    /// [Gap 3] [measure] What the worlds did to its gun ledger, the lives before this one's ([`Self::gun_reads`]).
+    gun_reads: guns::GunReads,
+    /// [Gap 15] [measure] Lives put in the world's kit in use, not the one it counted on ([`Self::wear`]).
+    worn_kit_moves: u32,
     /// [measure] [A241] Its trigger ticks with the aim sway taken back and the degrees taken back, the lives before this one's
     /// reflex (which counts its own).
     sway_taken: (u32, f32),
@@ -611,6 +623,8 @@ impl Bot {
             press: 0,
             unstick: None,
             held_short_m: 0.0,
+            walk_cap: motor::WalkCap::default(),
+            footing: motor::Footing::default(),
             blind_since: None,
             jump_hold: 0,
             jump_crouch: false,
@@ -638,6 +652,8 @@ impl Bot {
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             frag_rolls_refused: 0,
             empty_reloads: reflex::EmptyReloads::default(),
+            gun_reads: guns::GunReads::default(),
+            worn_kit_moves: 0,
             sway_taken: (0, 0.0),
             client_sway: recoil::ClientSway::Absent,
             frag_lives: live_grenades::FragLives::default(),
@@ -692,16 +708,47 @@ impl Bot {
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
         self.empty_reloads += self.reflex.empty_reloads();
+        self.gun_reads += self.reflex.gun_reads();
         self.sway_taken.0 += self.reflex.sway_taken().0;
         self.sway_taken.1 += self.reflex.sway_taken().1;
         self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
 
+    /// [Gap 15] This life is in kit `kit` (the world's kit in use), not the one it counts on: its arms and this life's
+    /// ammo become that kit's, as at a spawn in it (0x2FCB70: the slot's rounds, at most what the storage has). The kit it
+    /// counted on keeps its storage whole (this life fired none of it). Whether it moved: not for its present kit, nor
+    /// for a kit it has no arms of.
+    fn wear(&mut self, kit: usize) -> bool {
+        if kit == self.kit {
+            return false;
+        }
+        let Some(&(arms, left)) = self.kits.get(kit) else {
+            return false;
+        };
+        self.kit = kit;
+        self.life_carried = left.min(arms.primary.1);
+        self.reflex.rearm(arms, self.life_carried);
+        self.worn_kit_moves += 1;
+        true
+    }
+
     /// [A277] [measure] Its reloads at an emptying shot's clip end in the match (`CombatTuning::empty_reload`).
     pub fn empty_reloads(&self) -> reflex::EmptyReloads {
         let mut all = self.empty_reloads;
         all += self.reflex.empty_reloads();
+        all
+    }
+
+    /// [Gap 15] [measure] Lives it was put in the world's kit in use, not the one it counted on.
+    pub fn worn_kit_moves(&self) -> u32 {
+        self.worn_kit_moves
+    }
+
+    /// [Gap 3] [measure] What the worlds did to its gun ledger in the match (`CombatTuning::gun_from_world`).
+    pub fn gun_reads(&self) -> guns::GunReads {
+        let mut all = self.gun_reads;
+        all += self.reflex.gun_reads();
         all
     }
 
@@ -889,6 +936,7 @@ impl Bot {
         self.features.weapon_mods.0.add(&self.reflex.mod_counts());
         self.frag_rolls_refused += self.reflex.refused_no_frag();
         self.empty_reloads += self.reflex.empty_reloads();
+        self.gun_reads += self.reflex.gun_reads();
         self.sway_taken.0 += self.reflex.sway_taken().0;
         self.sway_taken.1 += self.reflex.sway_taken().1;
         self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
@@ -982,6 +1030,9 @@ pub struct Bots {
     features: MatchFeatures,
     /// By place, the time of the last bullet hit its worlds showed, to see a new one ([`Self::bullet_hit`]).
     seen_hits: Vec<u32>,
+    /// [Gap 9] By place, its statistics' enemy-hit count at the last world, and whether it rose in that world.
+    hit_counts: Vec<u32>,
+    hit_marked: Vec<bool>,
     /// Last, so a search left under way is dropped before it.
     _search_memory: SearchMemory,
 }
@@ -1070,6 +1121,8 @@ impl Bots {
             layers: MapLayers::default(),
             features: MatchFeatures::default(),
             seen_hits: Vec::new(),
+            hit_counts: Vec::new(),
+            hit_marked: Vec::new(),
             _search_memory: SearchMemory::hold(),
         }
     }
@@ -1195,6 +1248,24 @@ impl Bots {
     /// Every place's weapon 1 kind (the matchup, play 11).
     pub fn set_weapons(&mut self, weapons: Vec<Option<reflex::WeaponKind>>) {
         self.features.weapons = weapons;
+    }
+
+    /// [Gap 6] The kind of the weapon a world shows in one place's hands.
+    pub fn set_weapon(&mut self, place: Place, weapon: Option<reflex::WeaponKind>) {
+        if self.features.weapons.len() <= place {
+            self.features.weapons.resize(place + 1, None);
+        }
+        self.features.weapons[place] = weapon;
+    }
+
+    /// [Gap 13] The mode's plain respawn delay, ms (no radio): an enemy's return as a player can know it.
+    pub fn set_plain_respawn_ms(&mut self, ms: u32) {
+        self.tracker.set_plain_respawn_ms(ms);
+    }
+
+    /// [Gap 6] How far a shot of the weapon a world shows in one place's hands is heard.
+    pub fn set_shot_reach_of(&mut self, place: Place, reach: Option<f32>) {
+        self.tracker.set_shot_reach_of(place, reach);
     }
 
     pub fn tracker(&self) -> &Tracker {
@@ -1429,6 +1500,84 @@ impl Bots {
         }
     }
 
+    /// [Gap 8] A trusted world's spawn protection of one place (its damage model's end and fade).
+    pub fn protection(&mut self, place: Place, end: Option<u32>, fade: u32) {
+        self.tracker.set_protection(place, end, fade);
+    }
+
+    /// [Gap 8] The map's spawn protection by team (its respawn points' time, ms).
+    pub fn set_spawn_protection_ms(&mut self, by_team: [Option<u32>; 2]) {
+        self.tracker.set_spawn_protection_ms(by_team);
+    }
+
+    /// [Gap 8] Each bot's enemies that cannot be hurt and until when, by its team's rule (`combat.spawn_protection`,
+    /// `cheats.enemy_protection_exact`): after a world.
+    pub fn share_protection(&mut self) {
+        for bot in self.bots.iter_mut().flatten() {
+            let tuning = self.tunings.of(bot.team);
+            let list = if tuning.aim.combat.spawn_protection {
+                self.tracker.protected_enemies(bot.team, tuning.cheats.enemy_protection_exact)
+            } else {
+                Vec::new()
+            };
+            bot.reflex.set_protected(list);
+        }
+    }
+
+    /// [Gap 7] A trusted world's hand wounds of one place: a bot's own weapon is gated as the client gates it
+    /// ([`hands::Hands`], `combat.hands_from_world`).
+    pub fn hands(&mut self, place: Place, hands: hands::Hands) {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        let on = self.tunings.of(bot.team).aim.combat.hands_from_world;
+        bot.reflex.set_hands(if on { hands } else { hands::Hands::Free });
+    }
+
+    /// [Gap 7] The hands' regeneration delay of the body at `place`: a bot's from its Metabolism.
+    pub fn hand_delay_ms(&self, place: Place) -> u32 {
+        let sooner = self.bots.get(place).and_then(Option::as_ref).map_or(0, |bot| bot.features.stock.pantry.factors().regeneration_sooner_ms);
+        hands::regeneration_delay_ms(sooner)
+    }
+
+    /// [Gap 15] A trusted world's kit in use (`current_index`) of a living place: a bot whose life is in another kit than
+    /// the one it counts on is put in that kit ([`Bot::wear`], `combat.worn_kit_from_world`): the client spawns a body in
+    /// its own list's kit, which a game that loaded a world mid-match keeps over the bot's choice (F56). A note when it
+    /// moves.
+    pub fn worn_kit(&mut self, place: Place, kit: u8, time: u32) -> Vec<Note> {
+        let mut notes = Vec::new();
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return notes;
+        };
+        let tuning = self.tunings.of(bot.team);
+        if !tuning.aim.combat.worn_kit_from_world {
+            return notes;
+        }
+        let was = bot.kit;
+        if !bot.wear(usize::from(kit)) {
+            return notes;
+        }
+        // The bar's rates of the kit this life is in (`think.stamina_rates`), as at a spawn in it.
+        if tuning.think.stamina_rates == tuning::StaminaRates::Kit {
+            bot.stamina.set_rates(bot.kit_rates.get(bot.kit).copied().unwrap_or(stamina::Rates::LIGHT));
+        }
+        bot.note(&mut notes, time, format!("wears kit {} (the world's), not kit {}", bot.kit + 1, was + 1));
+        notes
+    }
+
+    /// [Gap 3, F7] A trusted world's word on one place's weapon in hands ([`guns::GunWorld`]): a bot's own ledger is laid
+    /// against it ([`reflex::Reflex::gun_world`], `combat.gun_from_world`), when the world's kit in use is the one its
+    /// arms are of.
+    pub fn own_gun(&mut self, place: Place, gun: guns::GunWorld) {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        if !self.tunings.of(bot.team).aim.combat.gun_from_world || usize::from(gun.kit) != bot.kit {
+            return;
+        }
+        bot.reflex.gun_world(gun);
+    }
+
     /// [F1] A trusted world's saved stamina record of one place (`srp_validate::world::Stamina`): a bot's own bar is the
     /// record's at the world's time, its ticks since played again on it ([`stamina::Reckoning::saved`]).
     pub fn stamina(&mut self, place: Place, saved: stamina::Saved) {
@@ -1476,6 +1625,17 @@ impl Bots {
     /// `worth.credit_ms` before it: a hit marker and a puff of blood, not a read of his pools (a zone, a fall or
     /// bleeding is no bullet; a teammate human's bullet is not its bot's). The weapon's nominal damage is the share
     /// ([`worth::Wounds::landed`]); the bot that fired last before the hit gets it.
+    /// [Gap 9] A trusted world's enemy-hit counts by place (statistics event 23): a bot whose count rose since the world
+    /// before hit an enemy in between (its hit marker).
+    pub fn hit_markers(&mut self, hits: &[u32]) {
+        self.hit_marked = hits
+            .iter()
+            .enumerate()
+            .map(|(place, &now)| now > self.hit_counts.get(place).copied().unwrap_or(now))
+            .collect();
+        self.hit_counts = hits.to_vec();
+    }
+
     pub fn bullet_hit(&mut self, victim: Place, hit_ms: u32) {
         if self.seen_hits.len() <= victim {
             self.seen_hits.resize(victim + 1, 0);
@@ -1494,7 +1654,11 @@ impl Bots {
         for bot in self.bots.iter().flatten() {
             let team = usize::from(bot.team & 1);
             let window = self.tunings.of(bot.team & 1).aim.combat.worth.credit_ms;
-            if let Some((at, share)) = bot.reflex.shot_landed(victim, hit_ms, window)
+            // [Gap 9] Its own hit marker went in the interval (`worth.hit_marker`).
+            let marked = !self.tunings.of(bot.team & 1).aim.combat.worth.hit_marker
+                || self.hit_marked.get(bot.place).copied().unwrap_or(false);
+            if marked
+                && let Some((at, share)) = bot.reflex.shot_landed(victim, hit_ms, window)
                 && best[team].is_none_or(|(last, ..)| at > last)
             {
                 best[team] = Some((at, bot.place, share));

@@ -73,6 +73,7 @@ mod fix_gap;
 mod flank_build;
 mod flight_look;
 mod grid_cache;
+mod grid_digests;
 mod hump_deck;
 #[cfg(feature = "jump-test")]
 mod jump_pool;

@@ -2524,7 +2524,20 @@ pub(crate) fn real_bot_cost() {
             let saved = crate::v026g::bots::stamina::counts::saved_worlds();
             eprintln!("stamina saved worlds so far: {} (reckoned 5+ off {}, 20+ off {})", saved[0], saved[1], saved[2]);
             let riser = crate::v026g::bots::drive::riser_counts::counts();
-            eprintln!("risers so far: sprinted ticks {}, jumps {}, neither ticks {}", riser[0], riser[1], riser[2]);
+            eprintln!(
+                "risers so far: sprinted ticks {}, jumps {}, neither ticks {}, flown press not makeable ticks {}, no press ticks {}; \
+                 gap landings let go ticks {}; flown presses backed off: off the height {}, slow too fast {}, off the lead {}, off the line {}",
+                riser[0],
+                riser[1],
+                riser[2],
+                riser[3],
+                riser[4],
+                crate::v026g::bots::motor::stays::count(),
+                crate::v026g::bots::motor::flown_presses::counts()[0],
+                crate::v026g::bots::motor::flown_presses::counts()[1],
+                crate::v026g::bots::motor::flown_presses::counts()[2],
+                crate::v026g::bots::motor::flown_presses::counts()[3]
+            );
             let (ground, hard, client, moved) = crate::v026g::bots::body::client_steps::all();
             eprintln!(
                 "client_step so far: reckoned ground steps {ground}, hard {hard}, client steps {client}, moved otherwise {moved}"

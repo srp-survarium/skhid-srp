@@ -1129,10 +1129,43 @@ pub fn player_tail(block: &Block, context: &Context) -> Result<(), Refusal> {
     }
 }
 
+/// [`player_tail`] keeping what it read, for a reader that has the match's
+/// profiles (the server): each place whose state reads is handed to `keep`
+/// with its state to the inventory header and, with the match's kits, its
+/// items and the rest of the state to its exact end. The same reads and the
+/// same refusals as [`player_tail`]; not for the game's check, whose stack
+/// has no room for the items (it has no kits).
+pub fn player_tail_kept<'a>(
+    block: &Block<'a>,
+    context: &Context,
+    keep: &mut dyn for<'k> FnMut(u8, &PlayerState<'a>, Option<&ItemsAndRest<'a, 'k>>),
+) -> Result<(), Refusal> {
+    let Some(profiles) = context.profiles else {
+        return player_tail(block, context);
+    };
+    // A place with no profile was refused by the head already.
+    let Some(profile) = profiles.get(usize::from(block.place)) else {
+        return Ok(());
+    };
+    let refuse = |(offset, reason): Fault| {
+        Refusal::new(
+            Part::Player(block.place),
+            block.at.saturating_add(offset),
+            reason,
+        )
+    };
+    let state = PlayerState::read(block.state, profile.items, context.artefacts).map_err(refuse)?;
+    own_battery(&state, block.place).map_err(refuse)?;
+    let items = state.items_and_rest(block.place, context).map_err(refuse)?;
+    keep(block.place, &state, items.as_ref());
+    Ok(())
+}
+
 /// The state of a place with a profile of `items` items, to its exact end
 /// when the kits are known; its carried battery is its own.
 fn strict(block: &Block, items: usize, context: &Context) -> Result<(), Fault> {
     let state = PlayerState::read(block.state, items, context.artefacts)?;
+    // [`own_battery`] repeats this rule for [`player_tail_kept`]: a change goes in both.
     if let Some(battery) = state.inventory.carried
         && battery.user.get() != block.place
     {
@@ -1143,6 +1176,18 @@ fn strict(block: &Block, items: usize, context: &Context) -> Result<(), Fault> {
     }
     if context.inventory.is_some() {
         check_items(&state, block.place, context)?;
+    }
+    Ok(())
+}
+
+/// [`strict`]'s rule that a carried battery's user is the place itself, for [`player_tail_kept`] (repeated so that
+/// the game's path stays as it is: the exe's arena links it).
+fn own_battery(state: &PlayerState, place: u8) -> Result<(), Fault> {
+    if let Some(battery) = state.inventory.carried
+        && battery.user.get() != place
+    {
+        let at = battery.at.saturating_add(4);
+        return Err((at, Reason::TailBattery { at }));
     }
     Ok(())
 }

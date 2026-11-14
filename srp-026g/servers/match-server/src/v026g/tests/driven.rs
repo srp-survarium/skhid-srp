@@ -332,10 +332,18 @@ fn walking_map() -> std::sync::Arc<crate::v026g::bots::maps::Maps> {
     map.write(&dir.join(mapdata::format::file_name(project)))
         .unwrap();
     let maps = Maps::new(Some(dir));
+    // The build is over when the store says so: ready, or absent with its reason. Its length is the machine's
+    // load (a fixed 20 s timed out on a loaded host while the build was still going); the bound only stops a hang.
     let started = std::time::Instant::now();
-    while !matches!(maps.get(project), MapState::Ready(_)) {
-        assert!(started.elapsed().as_secs() < 20, "{:?}", maps.get(project));
-        std::thread::sleep(std::time::Duration::from_millis(5));
+    loop {
+        match maps.get(project) {
+            MapState::Ready(_) => break,
+            MapState::Absent(reason) => panic!("the walking map was not built: {reason}"),
+            MapState::Loading | MapState::Waiting(_) => {
+                assert!(started.elapsed().as_secs() < 600, "the walking map's build hangs: {:?}", maps.get(project));
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        }
     }
     maps
 }

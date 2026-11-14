@@ -592,6 +592,8 @@ pub(crate) struct Seen {
     pub(crate) readings: Readings,
     /// The tick of its last bullet hit (`m_last_hit_time_ms`; 0: none).
     pub(crate) last_hit_ms: u32,
+    /// [Gap 9] Its hits on enemies so far (the statistics' event 23): the bots' hit marker.
+    pub(crate) enemy_hits: u32,
 }
 
 /// A press of a quick-use key: the tick, the place, what it did, and the
@@ -674,6 +676,8 @@ pub(crate) fn tell(game: &mut Game, bots: &mut Bots, tick: u32) {
     let Some(seen) = game.seen_at(tick) else {
         return;
     };
+    let hits: Vec<u32> = seen.iter().map(|seen| seen.enemy_hits).collect();
+    bots.hit_markers(&hits);
     for (place, seen) in seen.iter().enumerate() {
         bots.pools(place, seen.pools);
         bots.bullet_hit(place, seen.last_hit_ms);
@@ -702,6 +706,7 @@ pub(crate) fn seen(body: &Body) -> Seen {
         },
         readings: body.heal.readings(body.alive),
         last_hit_ms: body.last_hit,
+        enemy_hits: 0,
     }
 }
 

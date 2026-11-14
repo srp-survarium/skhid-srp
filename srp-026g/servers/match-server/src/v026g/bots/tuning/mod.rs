@@ -165,13 +165,15 @@ pub use spacing::SpacingTuning;
 pub use take::CrossFromZone;
 pub use take::DropImpossible;
 pub use take::FarStands;
+pub use take::Spend;
 pub use take::TakePitch;
 pub use take::TakeTuning;
 pub use take::TeamMemory;
 pub use take::WorldStand;
+pub use take::ZoneErrand;
 pub use take::ZoneLook;
+pub use take::ZoneSpend;
 pub use take::ZoneTake;
-pub use take::ZoneTakeBehind;
 pub use tdm::Answer;
 pub use tdm::Approach;
 pub use tdm::GroupUp;
@@ -503,8 +505,15 @@ impl LoadedTuning {
 pub(super) const KEPT_RIGHT: &[&str] = &[
     "/aim/combat/empty_reload",
     "/aim/combat/grenade_kit_cap",
+    "/aim/combat/gun_from_world",
+    "/aim/combat/hands_from_world",
+    "/aim/combat/spawn_protection",
+    "/aim/combat/worn_kit_from_world",
     "/aim/combat/hit_cover_reach",
     "/aim/combat/live_eye",
+    "/aim/combat/weapon_in_hands",
+    "/aim/combat/worth/hit_marker",
+    "/think/kill_time",
     "/aim/combat/mirror_gated",
     "/aim/friends/spread_source",
     "/cover/pierce",
@@ -544,6 +553,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/hazard/zone_pools",
     "/heal/amounts",
     "/heal/drug_stops",
+    "/heal/lethal_health",
     "/kin/carrier_sprint",
     "/kin/client_step",
     "/kin/drop_fall",
@@ -567,6 +577,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/take/drop_impossible",
     "/take/pitch",
     "/think/goal_off_floor_no_way",
+    "/think/respawn_times",
     "/think/stamina_rates",
     "/traps/keep_off",
     "/traps/press_clear",

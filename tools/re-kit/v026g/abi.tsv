@@ -1193,7 +1193,8 @@ va	name	source	ret_cleanup	result
 0x002d99c0	survarium::base_player::remove_alive	manual	8	none; +33Ch := 0 (recompute_damage_collision_bones then does nothing), +32Ch, +330h := 0
 0x002d9a60	survarium::base_player::hit	manual	40	
 0x002d9ae0	survarium::base_player::hit	manual	32	
-0x002d9b90	survarium::base_player::hit_impl	manual	8	
+0x002d9b90	survarium::base_player::hit_impl	manual	8	the hit is dropped when get_invulnerability (0x2E5550) is >= 1 (0x2D9BBE..0x2D9BCB); a hit that took health calls the player's generate_hit_event (vtable +40h, 0x2D9ED1)
+0x002d9f40	survarium::base_player::generate_hit_event	manual		statistics handler slot +18h (add_received_damage 0x2F58E0, when abs(damage) >= 1e-6, 0x2DA0D6) and slot +4h (on_player_damaged 0x2F5450: the shooter's event 23 +1 for an enemy hit); neither writes last_hit_ms
 0x002da4b0	survarium::base_player::computed_head_transform	manual	0	none; player+44Ch := bone "Item" of the animation player +750h (skeleton [+408h]) x player+40Ch (world 4x4, translation at +47Ch); the camera's eye
 0x002da540	survarium::base_player::get_bone_transform	manual	8	EAX = the out matrix: the named bone's model-space 4x4 from the animation player +750h
 0x002da5b0	survarium::base_player::recompute_damage_collision_bones	manual	4	EAX: 2 nothing done (+33Ch clear: dead; or the time +324h already done), 0 skipped (the argument's place is this player's), 1 the hit model's bones set from the animation (0x3B480)
@@ -1215,14 +1216,14 @@ va	name	source	ret_cleanup	result
 0x002e1210	survarium::weapon_core::get_recoil_expression	manual	4	
 0x002e1560	survarium::weapon_core::get_recoil_animation_lexeme	manual	20	
 0x002e1730	survarium::weapon_core::update_dispersion	manual	4	
-0x002e17d0	survarium::weapon_core::load_magazine	manual	0	
+0x002e17d0	survarium::weapon_core::load_magazine	manual	0	n = min(the bound ammo item's amount (+538h -> +260h; 1 for a non-stack), capacity +5E4h - mag +5E5h); the item's amount -= n (marked dirty, +184h) and mag += n in the same call; then with +5F2h mag -= 1 and +5F1h := 1 (0x2E18C9)
 0x002e18e0	survarium::weapon_core::unload_ammo	manual	0	
-0x002e1a00	survarium::weapon_core::reload_one_round	manual	0	
+0x002e1a00	survarium::weapon_core::reload_one_round	manual	0	mag +1 (0x2E1A82) while mag < capacity and the bound stack is not empty
 0x002e1b50		auto	0	
 0x002e1bf0		auto	0	
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	manual	12	D = get_static_dispersion + (state +404h + shot +418h) x k, k = 0 when the aim interpolator's value (weapon +5FCh) is exactly 1, else 1; tilt = 0.5 x D x modf(N(0, 0.5)) degrees about an axis turned by a uniform [0, 2 pi) angle (+5C0h/+5C4h, generator +5BCh, seed 1) about the transform's forward; the direction at [stack+8]
 0x002e2120	survarium::weapon_core::get_dispersed_buckshot_direction	manual	8	
-0x002e23a0	survarium::weapon_core::instant_fire	manual	8	
+0x002e23a0	survarium::weapon_core::instant_fire	manual	8	a weapon with a chamber state (+5F0h) empties its chamber (+5F1h := 0, 0x2E253C); any other takes one from m_ammo_in_magazine (+5E5h, 0x2E2545)
 0x002e2990		auto		
 0x002e2a30		auto	0	
 0x002e2cc0		auto	4	
@@ -1235,7 +1236,7 @@ va	name	source	ret_cleanup	result
 0x002e3130	survarium::weapon_core::serialize	manual	8	
 0x002e3390	survarium::weapon_core::on_player_death	manual	0	
 0x002e3490	survarium::weapon_core::deserialize	manual	12	
-0x002e3800	survarium::weapon_core::could_be_used	manual	4	
+0x002e3800	survarium::weapon_core::could_be_used	manual	4	false when the player's damage model +389h (the broken-hands count, kept by on_broken_limb_affect 0x2E5370) is 2 and the weapon's +5E9h (config parameters.double_handed, absent = false) is set
 0x002e3840	survarium::weapon_core::computed_backward_recoil_time	manual	24	ST0 = (0.5 - clamp(0.5*[ECX+474h] (the kick's side axis x) + [ECX+2CCh] if [ECX+5E8h] (breath sway, +288h+44h), -0.5..0.5)) * entry ESP+4 (clip length); get_recoil_expression's lexeme 1, the weapon's recoil_animations[1] (recoil_horiz): kick x = +1 at the clip's start, -1 at its end
 0x002e3900	survarium::weapon_core::computed_horizontal_recoil_time	manual	24	ST0 = (clamp([ECX+2D0h] if [ECX+5E8h] else 0 (breath sway, +288h+48h), -0.5..0.5) + 0.5) * entry ESP+4 (clip length); get_recoil_expression's lexeme 0, recoil_animations[0] (recoil_vert): the sway only, no kick
 0x002e3a10	survarium::weapon_core::can_sprint	manual	0	
@@ -1250,9 +1251,10 @@ va	name	source	ret_cleanup	result
 0x002e4d80	survarium::damage_model::damage_model	manual	0	
 0x002e4f40	survarium::damage_model::`scalar deleting destructor'	manual	4	
 0x002e4f60	survarium::damage_model::~damage_model	manual	4	
+0x002e5040	survarium::damage_model::update	manual		each body part's regenerate 0x32A4B0 with the time, then +328h (m_last_tick_time_in_ms) := the time (0x2E5069); called from the player's update 0x2DAAF3
 0x002e5080	survarium::damage_model::hit_body_part	manual	0	EAX: 1 when the hit's damage, (1 - get_invulnerability) x hit+34h (0x2E50A8..0x2E50B7) through the part's armour and protectors (body_part_parameters::hit_by_type 0x329FF0), is above 0.0 (0x2E5128; it then sets +3C0h to the hit's time); else 0
 0x002e5290	survarium::damage_model::reset	manual	4	
-0x002e5370	survarium::damage_model::on_broken_limb_affect	manual	12	
+0x002e5370	survarium::damage_model::on_broken_limb_affect	manual	12	legs count +388h, hands count +389h: +1 when an affect starts, -1 when it ends (0x2E5387..0x2E53A0)
 0x002e53b0	survarium::damage_model::serialize	manual	4	
 0x002e5480	survarium::damage_model::deserialize	manual	12	none; after the parts, zeroes the broken legs' +388h and hands' +389h counts and recounts them from the saved affects (0x2E5518..0x2E5538 -> 0x2E5990): the counts are derived at every load
 0x002e5550	survarium::damage_model::get_invulnerability	manual	0	x87 ST0: Zero, one, or one minus an unsigned time ratio is left on the x87 stack before each observed return.
@@ -1263,6 +1265,7 @@ va	name	source	ret_cleanup	result
 0x002f0d30	survarium::character_dispersion_params::load	manual	8	
 0x002f1050	survarium::character_dispersion_skill_influence::load	manual	4	
 0x002f12a0	survarium::player_stealth::load	manual	4	
+0x002f5940	survarium::shared_statistics::on_trap_hit	manual		reached only from booby_trap_core::hit_victim 0x304B80 (handler slot +28h, thunk 0x26DB20); enemies only: last_hit_ms[receiver] (+198h) := the time, last_hit_enemy_id (+1ECh) := receiver, event 21 +1
 0x002f5ac0	survarium::shared_statistics::serialize	manual	0	
 0x002f5be0	survarium::shared_statistics::deserialize	manual	0	
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	manual	20	
@@ -1353,6 +1356,7 @@ va	name	source	ret_cleanup	result
 0x00313300	survarium::artefact_base::action	thiscall	8
 0x00313670	survarium::artefact_base::serialize	manual	8	
 0x00313760	survarium::artefact_base::deserialize	manual	12	
+0x00316da0	survarium::player_respawn_rule_base::spawn_player	manual		with the point's protection (+20h) > 0: damage model end +32Ch := spawn time + it, fade +330h := 0 (0x316E72..0x316E96)
 0x00317f30	survarium::timelimit_rule_core::serialize	manual	4	
 0x00317fd0	survarium::timelimit_rule_core::deserialize	manual	8	
 0x00318050	survarium::timelimit_rule_core::set_game_world_core	manual	4	
@@ -1364,6 +1368,7 @@ va	name	source	ret_cleanup	result
 0x003193f0	survarium::damage_zone_core::serialize	manual	8	
 0x00319470	survarium::damage_zone_core::deserialize	manual	12	
 0x00319500	survarium::damage_zone_core::load	manual	4	
+0x0031aca0	survarium::effect_zone_core::apply_invulnerability	manual		for a body the zone takes: damage model end := now + zone +48h (invulnerability_duration), fade := zone +4Ch (invulnerability_attenuation) (0x31AD03..0x31AD15)
 0x0031ad70	survarium::generic_anomaly_core::~generic_anomaly_core	manual		
 0x0031add0	survarium::generic_anomaly_core::`scalar deleting destructor'	manual	4	
 0x0031adf0	survarium::generic_anomaly_core::generic_anomaly_core	manual	12	
@@ -2026,7 +2031,7 @@ va	name	source	ret_cleanup	result
 0x0025cd00	survarium::game_world::on_keyboard_action	manual	12	AL: 1 the key taken (no later handler gets it)
 0x00208ad0	survarium::chat_handler::add_message	manual	20	
 0x0026da00	survarium::base_game_statistics_handler::on_player_killed	manual	68	
-0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	
+0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	killer: killstreak +1EEh +1, last_killed_enemy_ms +1E8h := the kill's time (0x2F52A4); every place not of the victim's team whose last_hit_enemy_id is the victim: last_hit_ms[victim] := 0 and last_hit_enemy_id := the argmax of its last_hit_ms (0xFF when all 0) (0x2F5310..0x2F53CD); the victim's last_hit_ms, last_hit_enemy_id (0xFF), last_killed_enemy_ms, received_damage and killstreak cleared (0x2F53D3..0x2F5439)
 0x00300710	survarium::victory_item_core::can_use	manual	4	AL: 1 when the user carries nothing ([user+0x10C]+0x178 is 0), his hand is not broken (byte +0x389 of [user+0x108] vtable+8, the damage model's broken hands) and [user+0x128] vtable+0x50 says no; else 0
 0x00300770	survarium::victory_item_core::use_info	manual	4	EAX: the prompt's string in can_use's order: st_cannot_pickup_item 0xA139E8 (carrying), st_cannot_pickup_item_broken_hand 0xA13A00, empty 0x9DB708, st_pickup_item 0xA13A24
 0x003007e0	survarium::victory_item_core::use_initialize	manual	8	
@@ -2164,7 +2169,7 @@ va	name	source	ret_cleanup	result
 0x002f81a0	survarium::resupply_zone_core::finish_use	manual	4	not used by caller
 0x002fdc10	survarium::inventory::resupply_from_profile	manual	12	not used by caller; inventory argument only reads slots 10C..168 and writes weight_dirty 184; other-item callbacks use real item owners (slots table 925FD8); check_weapon_pickup.py verifies borrowed slot view
 0x002fdf50	survarium::inventory::check_resupply	manual	8	EAX: 0 available; 1 storage empty; 2 full; inventory argument only reads slot pointers; check_weapon_pickup.py verifies temporary original-loadout view and balanced weapon refs
-0x0030ab40	survarium::weapon_core::load_config_parameters	manual	8	not used by caller
+0x0030ab40	survarium::weapon_core::load_config_parameters	manual	8	not used by caller; weapon +5E9h := parameters.double_handed present and nonzero (0x30ABA4..0x30ABC0; string 0xA0A228)
 0x000e5c20	vostok::resources::query_resources_and_wait	manual	0	not used by caller
 0x00205c60	vostok::type_to_int<survarium::inventory_cooker_data *>	manual	0	EAX: process-local variant type id
 0x002c7170	survarium::register_inventory_cook_and_dependencies	manual	0	EAX: static inventory cook 09261E8Ch; class 41h, reuse policy +0Ch = 0; descriptive label
@@ -2426,7 +2431,7 @@ va	name	source	ret_cleanup	result
 0x0026da00	survarium::base_game_statistics_handler::on_player_killed	manual	68	
 0x0026da50	survarium::base_game_statistics_handler::on_player_damaged	manual	40	
 0x0026da80	survarium::base_game_statistics_handler::on_player_weapon_firing	manual	20	
-0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	
+0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	killer: killstreak +1EEh +1, last_killed_enemy_ms +1E8h := the kill's time (0x2F52A4); every place not of the victim's team whose last_hit_enemy_id is the victim: last_hit_ms[victim] := 0 and last_hit_enemy_id := the argmax of its last_hit_ms (0xFF when all 0) (0x2F5310..0x2F53CD); the victim's last_hit_ms, last_hit_enemy_id (0xFF), last_killed_enemy_ms, received_damage and killstreak cleared (0x2F53D3..0x2F5439)
 0x002f5450	survarium::shared_statistics::on_player_damaged	manual	16	
 0x002f5500	survarium::shared_statistics::on_player_weapon_firing	manual	8	
 0x002d7800	survarium::base_player::on_fire	manual	4	

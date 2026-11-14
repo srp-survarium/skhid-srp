@@ -104,7 +104,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::RuleMode;
 use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
-use survarium::v026g::match_msgs::players::{self, Supplies};
+use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::rules::{self, TimelimitParams, TimelimitRule, Transition};
 use survarium::v026g::match_msgs::snapshot::{self, Rules, Standing, Statistics, event};
 use survarium::v026g::match_msgs::upload::{Pushed, Reassembler, Upload};
@@ -128,6 +128,7 @@ use super::kill_cap;
 use super::record::{Recorder, Recording};
 use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
+use super::world_validation;
 
 mod driven;
 mod late_join;
@@ -940,6 +941,8 @@ struct Snapshot {
 struct Candidate {
     from: usize,
     snapshot: Snapshot,
+    /// Each place's state as the upload's check read it.
+    checked: world_validation::Checked,
     since: Instant,
 }
 
@@ -4036,26 +4039,27 @@ impl Game {
             Some(Wanted::Vote(round)) if !joiner => Some(Judged::Asked(round)),
             _ => None,
         };
-        let roster = super::world_validation::Roster::of(&self.formed);
-        if let Err(refusal) =
-            super::world_validation::check(&snapshot.body, snapshot.time, places, roster)
-        {
-            peer.uploads_refused += 1;
-            if let Some(unlogged) = peer.uploads_log.refuse(now) {
-                log::warn!(
-                    "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) is no world a \
-                     game could load, {refusal}; sent to nobody{}",
-                    snapshot.time,
-                    snapshot.body.len(),
-                    refusal_log::since(unlogged)
-                );
+        let roster = world_validation::Roster::of(&self.formed);
+        let checked = match world_validation::check_kept(&snapshot.body, snapshot.time, places, roster) {
+            Ok(checked) => checked,
+            Err(refusal) => {
+                peer.uploads_refused += 1;
+                if let Some(unlogged) = peer.uploads_log.refuse(now) {
+                    log::warn!(
+                        "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) is no world a \
+                         game could load, {refusal}; sent to nobody{}",
+                        snapshot.time,
+                        snapshot.body.len(),
+                        refusal_log::since(unlogged)
+                    );
+                }
+                self.dump(&snapshot, index, "unloadable");
+                if let Some(judged) = judged {
+                    self.judge_upload(index, judged, Verdict::Refused, snapshot.time, now);
+                }
+                return;
             }
-            self.dump(&snapshot, index, "unloadable");
-            if let Some(judged) = judged {
-                self.judge_upload(index, judged, Verdict::Refused, snapshot.time, now);
-            }
-            return;
-        }
+        };
         let Some(peer) = self.peers[index].as_mut() else {
             return;
         };
@@ -4092,7 +4096,7 @@ impl Game {
         }
         let time = snapshot.time;
         if initial {
-            let verdict = self.first_snapshot(index, snapshot, now);
+            let verdict = self.first_snapshot(index, snapshot, &checked, now);
             self.judge_upload(index, Judged::Initial, verdict, time, now);
             return;
         }
@@ -4117,6 +4121,7 @@ impl Game {
         self.candidates.push(Candidate {
             from: index,
             snapshot,
+            checked,
             since: now,
         });
         if let Some(judged @ Judged::Asked(_)) = judged {
@@ -4126,7 +4131,13 @@ impl Game {
 
     /// The first upload starts the match, once it passed the world check
     /// and holds nothing an initial world cannot: the verdict.
-    fn first_snapshot(&mut self, index: usize, mut snapshot: Snapshot, now: Instant) -> Verdict {
+    fn first_snapshot(
+        &mut self,
+        index: usize,
+        mut snapshot: Snapshot,
+        checked: &world_validation::Checked,
+        now: Instant,
+    ) -> Verdict {
         if self.settings.check_initial_world
             && let Some(why) = self.not_initial(&snapshot)
         {
@@ -4165,7 +4176,7 @@ impl Game {
         );
         self.rule.on_match_ready(snapshot.time);
         self.dump(&snapshot, index, "initial");
-        self.observe(&snapshot, 1);
+        self.observe(&snapshot, checked, 1);
         self.snapshot = Some(snapshot);
         Verdict::Passed
     }
@@ -4215,7 +4226,7 @@ impl Game {
 
     /// Read a trusted snapshot's statistics and rules: the standing, the
     /// phase, and whether the mode's rule has its end.
-    fn observe(&mut self, snapshot: &Snapshot, vouchers: usize) {
+    fn observe(&mut self, snapshot: &Snapshot, checked: &world_validation::Checked, vouchers: usize) {
         let Some(decoded) = snapshot::decode(
             snapshot.time,
             &snapshot.body,
@@ -4237,7 +4248,7 @@ impl Game {
         {
             return;
         }
-        self.observe_driven(snapshot, &decoded);
+        self.observe_driven(snapshot, checked, &decoded);
         let teams: Vec<u8> = self.formed.places.iter().map(|place| place.team).collect();
         let standing = decoded.standing(self.game_mode(), &teams);
         if let Err(why) = self.plausible(&decoded, standing, snapshot.time) {
@@ -4346,15 +4357,10 @@ impl Game {
             );
             self.mode_end_at = Some(at);
         }
-        // What each player has left, from its block.
+        // What each player has left, as the world's check read its state.
         let mut supplies = vec![None; self.players()];
-        for block in players::blocks(&snapshot.body).unwrap_or_default() {
-            let place = usize::from(block.place);
-            if let (Some(slot), Some(profile)) =
-                (supplies.get_mut(place), self.formed.profiles.get(place))
-            {
-                *slot = Supplies::read(&block, profile, Dictionary::shared());
-            }
+        for (slot, place) in supplies.iter_mut().zip(&checked.places) {
+            *slot = place.as_ref().map(|place| place.supplies.clone());
         }
         self.state = Some(Observed {
             time: snapshot.time,
@@ -4502,7 +4508,7 @@ impl Game {
                     let needed = self.in_match().clamp(1, 2);
                     let vouchers = self.vouchers(candidate.snapshot.time, crc);
                     if vouchers >= needed {
-                        self.observe(&candidate.snapshot, vouchers);
+                        self.observe(&candidate.snapshot, &candidate.checked, vouchers);
                     } else {
                         log::info!(
                             "Match {:#x}: only player {} vouches for the snapshot at {} ms; its \

@@ -71,6 +71,12 @@ pub struct WorthTuning {
     /// A bullet hit counts as the team's when one of its bots fired at the enemy this long before it, ms (the world
     /// that shows the hit reaches the bots up to 1.5 s late).
     pub credit_ms: u32,
+    /// [Gap 9] A bullet hit counts as a bot's only when the world shows its own hit marker went: its statistics' enemy
+    /// hit event (event 23, `on_player_damaged` 0x2F5450, from `generate_hit_event` 0x2D9F40: one for each of its hits on
+    /// an enemy) rose since the world before. A player sees his own hit marker. Off: any bot that fired at the enemy
+    /// within `credit_ms` before his last hit (a zone's or a fall's too) is credited. That old value is wrong by the
+    /// client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`).
+    pub hit_marker: bool,
     /// A teammate bot's hit is known to the others this long after it, ms (a callout; `avoid.told_ms` is 200-400).
     pub told_ms: u32,
     /// The enemy who hit the bot last stays its target this long, ms, whatever the worth of the others (the hurter
@@ -109,6 +115,7 @@ impl Default for WorthTuning {
             objective_in_band: false,
             switch_gap_m: None,
             credit_ms: 2_000,
+            hit_marker: true,
             told_ms: 400,
             hurter_keep_ms: 0,
             push_m: 0.0,

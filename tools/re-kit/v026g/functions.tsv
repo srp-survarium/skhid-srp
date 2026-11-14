@@ -1142,6 +1142,7 @@ va	status	ref_021d	name
 0x002e4d80	reviewed	0x001d7dc1	survarium::damage_model::damage_model
 0x002e4f40	reviewed	0x001d7f23	survarium::damage_model::`scalar deleting destructor'
 0x002e4f60	reviewed	0x001d7f4a	survarium::damage_model::~damage_model
+0x002e5040	observed		survarium::damage_model::update
 0x002e5080	reviewed	0x001d8004	survarium::damage_model::hit_body_part
 0x002e5290	reviewed	0x001d82e8	survarium::damage_model::reset
 0x002e5370	reviewed	0x001d844a	survarium::damage_model::on_broken_limb_affect
@@ -1155,6 +1156,7 @@ va	status	ref_021d	name
 0x002f0d30	reviewed	0x001dd182	survarium::character_dispersion_params::load
 0x002f1050	reviewed	0x001dd463	survarium::character_dispersion_skill_influence::load
 0x002f12a0	reviewed	0x001dd64e	survarium::player_stealth::load
+0x002f5940	observed		survarium::shared_statistics::on_trap_hit
 0x002f5ac0	reviewed	0x001de11c	survarium::shared_statistics::serialize
 0x002f5be0	reviewed	0x001de1e0	survarium::shared_statistics::deserialize
 0x002f5da0	reviewed	0x001e5a42	vostok::network_core::buffer_writer::w<unsigned short>
@@ -1215,6 +1217,9 @@ va	status	ref_021d	name
 0x0030eab0	reviewed	0x001f1ebc	survarium::weapon_core_fire_state_base::serialize
 0x0030eb10	reviewed	0x001f1ef1	survarium::weapon_core_fire_state_base::deserialize
 0x0030ebf0	reviewed	0x001f1e3d	survarium::weapon_core_fire_state_base::on_shot_event
+0x0030edf0	observed		survarium::weapon_core_shotgun_reload_start_substate::initialize
+0x0030f070	reviewed		survarium::weapon_core_shotgun_reload_finish_substate::on_animation_end_impl
+0x0030fdb0	reviewed	0x001f3135	survarium::weapon_core_reload_state::initialize
 0x003100f0	reviewed	0x001f33b0	survarium::pistol_weapon_core_fire_state::initialize
 0x00310170	reviewed	0x001f33e7	survarium::pistol_weapon_core_fire_state::on_animation_end_impl
 0x003108d0	reviewed	0x002095db	survarium::weapon_core_melee_state::initialize
@@ -1222,6 +1227,7 @@ va	status	ref_021d	name
 0x00310980	reviewed	0x0020962b	survarium::weapon_core_melee_state::serialize
 0x003109c0	reviewed	0x00209630	survarium::weapon_core_melee_state::deserialize
 0x00310b10	reviewed	0x0020964b	survarium::weapon_core_melee_state::weapon_and_hands_expression
+0x00310e70	reviewed	0x001f3567	survarium::weapon_core_chamber_a_round_state_base::on_animation_end_impl
 0x00311310	reviewed	0x001f3a5f	survarium::damage_zone_core_cook::query_resources
 0x00311360	reviewed	0x001f3a9c	survarium::damage_zone_core_cook::process_resources
 0x003114a0	reviewed	0x001f3b53	survarium::damage_zone_core_cook::construct_resource
@@ -1233,6 +1239,7 @@ va	status	ref_021d	name
 0x00312af0	reviewed	0x001f49dc	survarium::artefact_onyx_core::deserialize
 0x00313670	reviewed	0x001f5179	survarium::artefact_base::serialize
 0x00313760	reviewed	0x001f522b	survarium::artefact_base::deserialize
+0x00316da0	observed		survarium::player_respawn_rule_base::spawn_player
 0x00317f30	reviewed	0x001f5569	survarium::timelimit_rule_core::serialize
 0x00317fd0	reviewed	0x001f5622	survarium::timelimit_rule_core::deserialize
 0x00318050	reviewed	0x001f56a9	survarium::timelimit_rule_core::set_game_world_core
@@ -1244,6 +1251,7 @@ va	status	ref_021d	name
 0x003193f0	reviewed	0x001f63ff	survarium::damage_zone_core::serialize
 0x00319470	reviewed	0x001f6467	survarium::damage_zone_core::deserialize
 0x00319500	reviewed	0x001f64aa	survarium::damage_zone_core::load
+0x0031aca0	observed		survarium::effect_zone_core::apply_invulnerability
 0x0031ad70	reviewed	0x00187f82	survarium::generic_anomaly_core::~generic_anomaly_core
 0x0031add0	reviewed	0x00187fcf	survarium::generic_anomaly_core::`scalar deleting destructor'
 0x0031adf0	reviewed	0x001ed4f4	survarium::generic_anomaly_core::generic_anomaly_core

@@ -91,8 +91,8 @@ use survarium::v026g::weapons::Optic;
 use super::aim_settle::{self, Settle, SettleGuns};
 use super::arc;
 use super::guns::{
-    Arms, AutoClass, Gun, Handling, Hands, LoopEnd, MG_CATEGORY, ModCounts, PISTOL_CATEGORY,
-    RIFLE_CATEGORY, SHOTGUN_CATEGORY, SMG_CATEGORY, SNIPER_CATEGORY, WeaponClass,
+    Arms, AutoClass, Gun, GunAt, GunReads, GunWorld, Handling, Hands, Kept, KeptReload, LoopEnd, MG_CATEGORY,
+    ModCounts, PISTOL_CATEGORY, RIFLE_CATEGORY, SHOTGUN_CATEGORY, SMG_CATEGORY, SNIPER_CATEGORY, WeaponClass,
 };
 use super::kin::{forward, wrap, yaw_of};
 use super::pitch::{Pitch, PitchScale};
@@ -687,6 +687,41 @@ pub struct CombatTuning {
     /// holder's deaths (41 against 22, z +2.2, while its container's thefts went 11 against 27; the dying holders' own
     /// reloads are not the cause, the rest untraced); the owner accepted that guard, and its trace comes after the release.
     pub empty_reload: bool,
+    /// [Gap 3, F7] The bot's own weapon from every trusted world ([`Reflex::gun_world`]): an idle weapon's magazine and
+    /// ammo put the ledger right, a reload the client never began (the key not taken) or ended sooner frees the weapon,
+    /// and a reload the client began on its own is counted. Off: the ledger is the bot's own count alone, which the
+    /// client's weapon drifts from (F7: 1,446 of 10,932 reload presses gave no refill in 8 s; F8: the shots counted right
+    /// in 64.4 % of 23,904 windows). That old value is wrong by the client, so it is on by default and the all-off patch
+    /// keeps it (`KEPT_RIGHT`).
+    pub gun_from_world: bool,
+    /// [Gap 15] A bot whose life a trusted world shows in another kit than the one it counts on (`current_index`, the kit
+    /// in use: srp-validate `Head::current_kit`, written by `game_world_core_client::serialize` 0x3218E0) takes that
+    /// kit's arms and ammo for the life ([`super::Bot`]'s `wear`): the client spawns a body in its own list's next kit,
+    /// which a game that loaded a world mid-match keeps over the bot's choice (F56, 58 bodies in 11 recordings). Off:
+    /// the life's arms are the bot's own choice whatever the world says, so every gun decision of that life runs on
+    /// another weapon than the client's. That old value is wrong by the client, so it is on by default and the all-off
+    /// patch keeps it (`KEPT_RIGHT`).
+    pub worn_kit_from_world: bool,
+    /// [Gap 6, F58] Every place's weapon kind (the matchup band, sniper spots, the bots' own kind fallback) and the
+    /// reach its shots are heard at follow the weapon each world shows in its hands: the kit in use (`current_index`) and
+    /// the hands slot (`m_active_slot`, inventory +0x170, set at the selection 0x2FCB18). Off: the item in slot 7 of the
+    /// first kit for the whole match, which a kit change or a drawn pistol leaves wrong. That old value is wrong by the
+    /// client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`). A gun picked up from another body
+    /// (client patch 85) is read as the slot's own item: the pickup record is not read here.
+    pub weapon_in_hands: bool,
+    /// [Gap 7] A bot's own hand wounds from every trusted world ([`super::hands::Hands`]): with both hands broken it
+    /// presses no aim and throws no grenade or smoke, and a two-handed weapon (`parameters.double_handed`) neither fires
+    /// nor reloads, as the client refuses them (0x2FC2DE, 0x2E40EC, `could_be_used` 0x2E3800). Off: the keys go as ever
+    /// (with both hands broken and a two-handed gun the bots held FIRE or AIM in 160 of 670 worlds, `damage_model.md`).
+    /// That old value is wrong by the client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`).
+    pub hands_from_world: bool,
+    /// [Gap 8] An enemy who cannot be hurt now (spawn protection: [`super::protection`]) is no target while another
+    /// seen enemy in range can be hurt, and no shot goes at him (a hit does nothing: `hit_impl` 0x2D9BBE). Which enemies
+    /// are protected follows the rule a player can apply (his life's start and his team's points' time), or the world's
+    /// end with `cheats.enemy_protection_exact`. Off: a fresh enemy is taken as hittable at once (aim and exposure spent on
+    /// a body a hit cannot hurt, up to 6 s). That old value is wrong by the client, so it is on by default and the
+    /// all-off patch keeps it (`KEPT_RIGHT`).
+    pub spawn_protection: bool,
     /// A round-by-round reload (the SPAS-12, the pumps, the bolt rifles that
     /// load by the round) is loaded with the sights down: the client ends
     /// the loop at the first round-end with them or the trigger held and a
@@ -1569,6 +1604,11 @@ impl Default for CombatTuning {
             reload_idle_ms: 400,
             reload_some_share: 0.4,
             empty_reload: true,
+            gun_from_world: true,
+            worn_kit_from_world: true,
+            weapon_in_hands: true,
+            hands_from_world: true,
+            spawn_protection: true,
             reload_aim_control: true,
             reload_rounds_in_view: 0,
             press_ms: 100,
@@ -3326,6 +3366,11 @@ pub enum ReloadWhy {
     Tactical,
 }
 
+/// [Gap 3] The ticks of gun ledger a reflex keeps for the worlds to come ([`Reflex::gun_world`]): 20 s of 50 ms ticks,
+/// several world intervals (`DEFAULT_PVB_WORLD_MS` 2,000) and their uploads. A memory bound of the server's, no client
+/// value: a world older than it is not read (counted, [`GunReads::unkept`]).
+pub const KEPT_TICKS: usize = 400;
+
 /// [A277] [measure] Reloads at the clip end of the shot that emptied the weapon ([`CombatTuning::empty_reload`]): begun by
 /// the count with the key, and left to the habit's key because a jump was in the keys then. The client refuses a reload
 /// while the player tries to jump (`can_reload` 0x2E3DA0 -> 0x2E4140 -> `is_trying_to_jump` 0x2FC230: the jump key, then
@@ -3712,6 +3757,19 @@ pub struct Reflex {
     /// [measure] The end of the last round-by-round reload's loop
     /// ([`Reflex::loop_end`]).
     loop_end: Option<LoopEnd>,
+    /// [Gap 3, F7] The gun ledger at each tick's keys since the last world laid against it ([`Self::keys_sent`]), oldest
+    /// first: what a world of the bot's own weapon is read against ([`Self::gun_world`]).
+    journal: std::collections::VecDeque<Kept>,
+    /// [Gap 3] [measure] What the worlds did to this life's ledger.
+    gun_reads: GunReads,
+    /// [Gap 7] Its hands as the last world showed them.
+    hands_world: super::hands::Hands,
+    /// [Gap 8] Enemies that cannot be hurt and until when (exclusive), as the last world gave them.
+    protected: Vec<(Place, u32)>,
+    /// [Gap 8] [measure] Ticks a shot was held off a protected target.
+    protected_held: u32,
+    /// [Gap 7] [measure] Ticks its keys were gated by broken hands (aim, fire, a reload, a throw kept back).
+    hands_gated: u32,
     /// The aim's slow wander about the target, radians (yaw, pitch).
     wander: (f32, f32),
     /// Drawn per target: it aims down the sights nearer than `ads_near_m`;
@@ -3940,6 +3998,28 @@ impl Reflex {
 
     pub fn arms(&self) -> Option<&'static Arms> {
         self.arms
+    }
+
+    /// [Gap 15] The life is in another kit than the one its arms were of (the world's `current_index`): its weapons are
+    /// that kit's, with `carried` rounds of its ammo, as at a spawn in it. What the ledger counted of the other kit's
+    /// weapon goes (its rounds, a reload or a switch under way, the shots' clocks, the kept ticks); the rest of the life
+    /// (targets, sights, plays, memory) stays.
+    pub fn rearm(&mut self, arms: &'static Arms, carried: u32) {
+        self.arms = Some(arms);
+        self.carried = Some(carried);
+        self.hands = None;
+        self.journal.clear();
+        self.busy_until = 0;
+        self.reload_note = None;
+        self.loop_end = None;
+        self.emptied = None;
+        self.clip_end = 0;
+        self.ready_at = 0.0;
+        self.held_ms = 0;
+        self.press_until = 0;
+        self.next_press = 0;
+        self.fired = (0, 0);
+        self.recoil.reset();
     }
 
     /// Where play 7 (the hide from an outranging enemy) is: "open", "hiding" (walking to the spot or waiting at it) or
@@ -4530,7 +4610,9 @@ impl Reflex {
 
     /// [smoke] Whether the kit has a smoke to throw now, and no throw is under way.
     pub fn can_smoke(&self) -> bool {
-        self.smoke_key.is_some() && self.smoke_throw.is_none() && self.throw.is_none() && self.cloud_hold.is_none()
+        // [Gap 7] No throw with both hands broken (0x2E40EC), as of its last tick.
+        let hands = self.last_tick.is_none_or(|now| !self.hands_broken(now));
+        hands && self.smoke_key.is_some() && self.smoke_throw.is_none() && self.throw.is_none() && self.cloud_hold.is_none()
     }
 
     /// [A208 `smoke.wait_for_cloud`] Whether it holds for a cloud now.
@@ -4988,6 +5070,10 @@ impl Reflex {
             seen.push(track);
         }
         let in_range = |t: &&SeenTrack| t.at().distance_xz(me.feet) <= aim.range_m;
+        // [Gap 8] While a seen enemy in range can be hurt, those who cannot are no targets.
+        if c.spawn_protection && seen.iter().filter(in_range).any(|t| !self.unhurtable(t.who(), now)) {
+            seen.retain(|t| !self.unhurtable(t.who(), now));
+        }
         let d = |t: &SeenTrack| t.at().distance_xz(me.feet);
         // The present target, unless another seen enemy presses more
         // ([`Self::presses_more`]).
@@ -6054,6 +6140,10 @@ impl Reflex {
     /// that fails is not made, and the next place is weighed
     /// ([`pick_place`]), up to `grenade_places` of them, nearest first.
     fn grenade_roll(&mut self, look: RollView, aim: &AimTuning, skill: f32, rng: &mut Rng) {
+        // [Gap 7] No grenade with both hands broken (0x2E40EC).
+        if self.hands_broken(look.now) {
+            return;
+        }
         let RollView {
             me,
             sit,
@@ -6418,6 +6508,10 @@ impl Reflex {
     /// (a teammate in its blast, the thrower's own floor, the arc). A
     /// refusal makes no note: the roll comes again.
     fn volley_roll(&mut self, look: &RollView, volley: Volley, aim: &AimTuning, skill: f32, rng: &mut Rng) {
+        // [Gap 7] No grenade with both hands broken (0x2E40EC).
+        if self.hands_broken(look.now) {
+            return;
+        }
         let c = &aim.combat;
         self.volley = Some(Volley {
             next: look.now + c.grenade_volley_every_ms,
@@ -6860,6 +6954,10 @@ impl Reflex {
         if now < self.busy_until {
             return 0;
         }
+        // [Gap 7] A two-handed weapon does not reload with both hands broken.
+        if self.weapon_refused(now) {
+            return 0;
+        }
         if c.empty_reload {
             // [A277] An emptied weapon's reload comes at its clip end with the keys sent then ([`Self::keys_sent`]); past it
             // unresolved (no keys reported), the habit as before.
@@ -7025,6 +7123,13 @@ impl Reflex {
     /// leaves the reload to the habit's key later. Starting the count a part of a tick after the client errs on the late
     /// side: no shot goes into the client's reload.
     pub fn keys_sent(&mut self, now: u32, keys: u32) -> u32 {
+        let sent = self.empty_reload_sent(now, keys);
+        self.keep_ledger(now);
+        sent
+    }
+
+    /// [`Self::keys_sent`]'s reload at an emptying shot's clip end.
+    fn empty_reload_sent(&mut self, now: u32, keys: u32) -> u32 {
         let Some(end) = self.emptied else {
             return keys;
         };
@@ -7034,6 +7139,10 @@ impl Reflex {
         self.emptied = None;
         if keys & key::JUMP != 0 {
             self.empty_reloads.blocked += 1;
+            return keys;
+        }
+        // [Gap 7] A two-handed weapon does not reload with both hands broken: the habit's key comes when they mend.
+        if self.weapon_refused(now) {
             return keys;
         }
         let seen = self.target.is_some();
@@ -7065,6 +7174,201 @@ impl Reflex {
     /// [A277] [measure] This life's reloads at an emptying shot's clip end.
     pub fn empty_reloads(&self) -> EmptyReloads {
         self.empty_reloads
+    }
+
+    /// [Gap 3] [measure] What the worlds did to this life's gun ledger.
+    pub fn gun_reads(&self) -> GunReads {
+        self.gun_reads
+    }
+
+    /// [Gap 8] The enemies that cannot be hurt and until when (`Bots::share_protection`).
+    pub fn set_protected(&mut self, protected: Vec<(Place, u32)>) {
+        self.protected = protected;
+    }
+
+    /// [Gap 8] Whether `who` cannot be hurt at `now`.
+    fn unhurtable(&self, who: Place, now: u32) -> bool {
+        self.protected.iter().any(|&(place, until)| place == who && now < until)
+    }
+
+    /// [Gap 8] [measure] Ticks a shot was held off a protected target.
+    pub fn protected_held(&self) -> u32 {
+        self.protected_held
+    }
+
+    /// [Gap 7] Its hands as a trusted world shows them.
+    pub fn set_hands(&mut self, hands: super::hands::Hands) {
+        self.hands_world = hands;
+    }
+
+    /// [Gap 7] Both hands broken at `now`: no aim, no grenade.
+    fn hands_broken(&self, now: u32) -> bool {
+        self.hands_world.broken(now)
+    }
+
+    /// [Gap 7] Both hands broken at `now` and the weapon in hand two-handed: no fire, no reload.
+    fn weapon_refused(&self, now: u32) -> bool {
+        self.hands_broken(now) && super::hands::double_handed(self.held_gun().item)
+    }
+
+    /// [Gap 7] [measure] Ticks its keys were gated by broken hands.
+    pub fn hands_gated(&self) -> u32 {
+        self.hands_gated
+    }
+
+    /// [Gap 3] The reload the ledger counts under way at `now`: its key's tick and its end.
+    fn reload_under_way(&self, now: u32) -> Option<KeptReload> {
+        let note = self.reload_note?;
+        (self.busy_why == gate::RELOAD && now < self.busy_until && note.at <= now)
+            .then_some(KeptReload { at: note.at, until: self.busy_until })
+    }
+
+    /// [Gap 3] The ledger at this tick's keys, kept for the worlds to come ([`Self::gun_world`]). A world is at most a few
+    /// seconds old (one world interval and its upload); [`KEPT_TICKS`] only bounds the memory of a bot that gets none.
+    fn keep_ledger(&mut self, now: u32) {
+        let held = *self.hands().held();
+        let reload = self.reload_under_way(now);
+        if self.journal.len() >= KEPT_TICKS {
+            self.journal.pop_front();
+        }
+        self.journal.push_back(Kept {
+            now,
+            rounds: held.rounds,
+            spare: held.spare,
+            reload,
+        });
+    }
+
+    /// [Gap 3, F7] A trusted world's word on the bot's own weapon in hands ([`GunWorld`]), laid against the ledger at the
+    /// last tick it holds at or before the world's time (a world carries the keys of the tick of its own time: `kin.rs`
+    /// `StepInput`, 6,408 of 6,408 client-test worlds; the stamina record is read the same way, `stamina::Reckoning::saved`).
+    /// The world is what the client did with the keys up to then; the ticks since are the ledger's own, so the difference
+    /// at that tick is carried to now:
+    /// - an idle weapon has no clip under way, so every shot and reload the client took is in its magazine: the rounds
+    ///   and the ammo are put right by the world's less the ledger's then; a reload the ledger had under way then is over
+    ///   in the client, sooner than the table (its magazine filled) or never begun (the key was not taken, F7: 1,446 of
+    ///   10,932 reload presses gave no refill in 8 s): the weapon is free now, and the habit's key goes again when due;
+    /// - a weapon in its reload that the ledger had not counted reloads on the client's own (its reload predicate
+    ///   0x2E3EF0 takes the trigger on an empty weapon): the ledger counts it from the world's rounds and ammo, begun at
+    ///   the world's time at the latest, so it frees the weapon no sooner than the client (a magazine's rounds are those
+    ///   before its reload; a tube's those loaded so far, its loop counted on from them; the reload's exact end is in the
+    ///   world's mixing tree, F55: not read yet);
+    /// - any other state has a clip under way (a shot may have left or not): nothing is read.
+    ///
+    /// The ledger's present is its last kept tick (a world reaches the bots between ticks).
+    pub fn gun_world(&mut self, world: GunWorld) {
+        if world.state == GunAt::Busy || self.hands().pistol_out {
+            return;
+        }
+        let Some(kept) = self.journal.iter().rev().find(|kept| kept.now <= world.at).copied() else {
+            self.gun_reads.unkept += 1;
+            return;
+        };
+        self.gun_reads.read += 1;
+        let now = self.journal.back().map_or(world.at, |last| last.now);
+        // The ticks before it are of no later world (worlds reach the bots in order: an older one is dropped).
+        while self.journal.front().is_some_and(|front| front.now < kept.now) {
+            self.journal.pop_front();
+        }
+        match world.state {
+            GunAt::Idle => self.idle_world(world, kept, now),
+            GunAt::Reloading => self.reload_world(world, kept, now),
+            GunAt::Busy => {}
+        }
+    }
+
+    /// [`Self::gun_world`] of an idle weapon. What it puts right it puts right in the kept ticks from the world's on too, so
+    /// a later world is laid against the ledger as it now stands.
+    fn idle_world(&mut self, world: GunWorld, kept: Kept, now: u32) {
+        let reload_now = self.reload_under_way(now);
+        let magazine = i64::from(self.hands().held().gun.magazine);
+        // The ledger holds at most a magazine: a chamber gun's round on top of a full one (capacity + 1, 0x2E39D0) is not
+        // in it, so a world is read up to a magazine (the round shows once the count falls under it).
+        let held = world.rounds.min(self.hands().held().gun.magazine);
+        let rounds = i64::from(held) - i64::from(kept.rounds);
+        let spare = world.spare.map_or(0, |spare| i64::from(spare) - i64::from(kept.spare));
+        let moved = |count: u32, by: i64, most: i64| (i64::from(count) + by).clamp(0, most) as u32;
+        if rounds != 0 {
+            let load = self.hands().held_mut();
+            load.rounds = moved(load.rounds, rounds, magazine);
+            self.gun_reads.rounds_off += 1;
+            self.gun_reads.rounds_moved += rounds.unsigned_abs() as u32;
+        }
+        if spare != 0 {
+            let load = self.hands().held_mut();
+            load.spare = moved(load.spare, spare, i64::MAX);
+            self.gun_reads.spare_off += 1;
+        }
+        for later in self.journal.iter_mut().filter(|later| later.now >= kept.now) {
+            later.rounds = moved(later.rounds, rounds, magazine);
+            later.spare = moved(later.spare, spare, i64::MAX);
+        }
+        let Some(reload) = kept.reload else {
+            return;
+        };
+        for later in self.journal.iter_mut().filter(|later| later.now >= kept.now) {
+            if later.reload.is_some_and(|counted| counted.at == reload.at) {
+                later.reload = None;
+            }
+        }
+        // The client is out of the reload the ledger had under way at that tick: filled (it ended by then), or as before.
+        let filled = held >= kept.rounds;
+        if filled {
+            self.gun_reads.reload_ended += 1;
+        } else {
+            self.gun_reads.reload_lost += 1;
+        }
+        let load = self.hands().held_mut();
+        if load.loading_since().is_some_and(|since| since <= world.at) {
+            load.stop_loading();
+        }
+        // The same reload still counted under way now (not one begun since): over.
+        if reload_now.is_some_and(|now_reload| now_reload.at == reload.at) {
+            let until = if filled { world.at } else { reload.at };
+            self.busy_until = until;
+            if let Some(note) = self.reload_note.as_mut() {
+                note.until = until;
+            }
+        }
+    }
+
+    /// [`Self::gun_world`] of a weapon in its reload.
+    fn reload_world(&mut self, world: GunWorld, kept: Kept, now: u32) {
+        if kept.reload.is_some() || self.reload_under_way(now).is_some() {
+            return;
+        }
+        self.gun_reads.reload_found += 1;
+        let load = self.hands().held_mut();
+        load.rounds = world.rounds.min(load.gun.magazine);
+        if let Some(spare) = world.spare {
+            load.spare = spare;
+        }
+        let (left, magazine) = (load.rounds, load.gun.magazine);
+        let ms = load.reload(world.at);
+        let gun = load.gun;
+        self.mod_counts.reload(gun);
+        let until = world.at + ms;
+        self.reload_note = Some(ReloadNote {
+            at: world.at,
+            until,
+            why: if left == 0 { ReloadWhy::Empty } else { ReloadWhy::Tactical },
+            left,
+            magazine,
+        });
+        // The kept ticks from the world's on: under this reload, at its count.
+        let (rounds, spare) = (self.hands().held().rounds, self.hands().held().spare);
+        for later in self.journal.iter_mut().filter(|later| later.now >= kept.now) {
+            later.rounds = rounds;
+            later.spare = spare;
+            later.reload = (later.now < until).then_some(KeptReload { at: world.at, until });
+        }
+        self.busy_until = self.busy_until.max(until);
+        self.busy_why = gate::RELOAD;
+        self.held_ms = 0;
+        self.press_until = 0;
+        self.emptied = None;
+        // A reload resets the kick (0x310E52), as the habit's.
+        self.recoil.reset();
     }
 
     /// A run of the side step the other way than the last.
@@ -7165,7 +7469,40 @@ impl Reflex {
         let mut over = self.combat_tick(me, view, memory, now, fire_allowed, aim, skill, rng);
         self.keep_loop_going(&mut over, now, &aim.combat);
         self.heal_press(&mut over, me, now);
+        self.hands_gate(&mut over, now);
+        if aim.combat.spawn_protection {
+            self.protection_gate(&mut over, now);
+        }
         over
+    }
+
+    /// [Gap 8] No shot at a target a hit cannot hurt: the trigger let go (its counted rounds given back).
+    fn protection_gate(&mut self, over: &mut Override, now: u32) {
+        if over.fire && self.target.is_some_and(|target| self.unhurtable(target, now)) {
+            over.fire = false;
+            self.hold_fire(now);
+            self.protected_held += 1;
+        }
+    }
+
+    /// [Gap 7] The keys the client refuses with both hands broken taken off: the aim always, the trigger with a two-handed
+    /// weapon (its rounds given back to the ledger, [`Self::hold_fire`]).
+    fn hands_gate(&mut self, over: &mut Override, now: u32) {
+        if !self.hands_broken(now) {
+            return;
+        }
+        let mut gated = false;
+        if over.keys & key::AIM != 0 {
+            over.keys &= !key::AIM;
+            self.aim_since = None;
+            gated = true;
+        }
+        if over.fire && self.weapon_refused(now) {
+            over.fire = false;
+            self.hold_fire(now);
+            gated = true;
+        }
+        self.hands_gated += u32::from(gated);
     }
 
     /// The heal habit: the item's key goes out this tick, over whatever the
@@ -15206,5 +15543,207 @@ mod tests {
         assert!(crowd.holds(&memory, me, now), "three within 30 m");
         assert!(!crowd.holds(&memory, me, now + 3_001), "sensed too long ago");
         assert!(!crowd.holds(&memory, Vec3::new(100.0, 0.0, 0.0), now), "far from them");
+    }
+
+    /// [Gap 3] A support kit's reflex (the AK-74U, 30 a magazine) with `rounds` in the magazine and `spare` to load, its
+    /// ledger kept at each 50 ms tick from 1,000 to `to`.
+    fn gun_ledger(rounds: u32, spare: u32) -> Reflex {
+        let mut r = Reflex::armed(Arms::of_test_role("support"));
+        let load = r.hands().held_mut();
+        load.rounds = rounds;
+        load.spare = spare;
+        r
+    }
+
+    fn keep_ticks(r: &mut Reflex, from: u32, to: u32) {
+        let mut now = from;
+        while now <= to {
+            r.keys_sent(now, 0);
+            now += 50;
+        }
+    }
+
+    /// [Gap 3] The habit's reload counted at `now` (as [`Reflex::reload`] counts it): its end.
+    fn count_reload(r: &mut Reflex, now: u32) -> u32 {
+        let load = r.hands().held_mut();
+        let (left, magazine) = (load.rounds, load.gun.magazine);
+        let ms = load.reload(now);
+        r.busy_until = now + ms;
+        r.busy_why = gate::RELOAD;
+        r.reload_note = Some(ReloadNote { at: now, until: now + ms, why: ReloadWhy::Empty, left, magazine });
+        now + ms
+    }
+
+    fn gun_at(at: u32, state: GunAt, magazine: u32, spare: Option<u32>) -> GunWorld {
+        GunWorld { at, kit: 0, slot: 7, state, rounds: magazine, spare }
+    }
+
+    /// [Gap 3] The weapon state's index in the cook's order: idle 2, reload 3, any other a clip under way.
+    #[test]
+    fn the_weapon_states_index_is_read_in_the_cooks_order() {
+        let states: Vec<GunAt> = (0..8).map(GunAt::of_index).collect();
+        assert_eq!(
+            states,
+            [
+                GunAt::Busy,
+                GunAt::Busy,
+                GunAt::Idle,
+                GunAt::Reloading,
+                GunAt::Busy,
+                GunAt::Busy,
+                GunAt::Busy,
+                GunAt::Busy
+            ]
+        );
+    }
+
+    /// [Gap 3, F7] An idle weapon's world puts the ledger right by the difference at its own tick: shots the ledger
+    /// counted after the world stay counted.
+    #[test]
+    fn an_idle_world_puts_the_magazine_right_at_its_tick() {
+        let mut r = gun_ledger(30, 60);
+        keep_ticks(&mut r, 1_000, 1_000);
+        r.hands().held_mut().rounds = 20;
+        keep_ticks(&mut r, 1_050, 1_200);
+        r.hands().held_mut().rounds = 15;
+        keep_ticks(&mut r, 1_250, 1_400);
+        // The client had 22 in it at 1,100 (the ledger: 20) and 63 rounds to load (60).
+        r.gun_world(gun_at(1_100, GunAt::Idle, 22, Some(63)));
+        let held = *r.hands().held();
+        assert_eq!((held.rounds, held.spare), (17, 63));
+        let reads = r.gun_reads();
+        assert_eq!((reads.read, reads.rounds_off, reads.rounds_moved, reads.spare_off), (1, 1, 2, 1));
+        // The same world again finds nothing to put right.
+        r.gun_world(gun_at(1_100, GunAt::Idle, 22, Some(63)));
+        assert_eq!(r.hands().held().rounds, 17);
+        // Never past the magazine nor under 0.
+        r.gun_world(gun_at(1_200, GunAt::Idle, 30, Some(63)));
+        assert_eq!(r.hands().held().rounds, 25);
+        r.gun_world(gun_at(1_300, GunAt::Idle, 0, Some(63)));
+        assert_eq!(r.hands().held().rounds, 0);
+    }
+
+    /// [Gap 3, F7] A reload whose key the client never took (the world idle, its magazine as before): the rounds and the
+    /// ammo go back, the weapon is free, and the habit has an empty weapon to reload.
+    #[test]
+    fn a_reload_the_client_never_began_is_undone() {
+        let mut r = gun_ledger(0, 60);
+        keep_ticks(&mut r, 1_000, 1_000);
+        let end = count_reload(&mut r, 1_050);
+        keep_ticks(&mut r, 1_050, 1_500);
+        assert!(end > 1_500, "the table's reload still runs");
+        r.gun_world(gun_at(1_300, GunAt::Idle, 0, Some(60)));
+        let held = *r.hands().held();
+        assert_eq!((held.rounds, held.spare), (0, 60));
+        assert!(r.busy_until <= 1_500 && held.needs_reload());
+        assert_eq!(r.reload_note.map(|n| n.until), Some(1_050));
+        assert_eq!(r.gun_reads().reload_lost, 1);
+    }
+
+    /// [Gap 3] A reload the world shows over with the magazine full, before the table's end: the weapon is free from the
+    /// world's time.
+    #[test]
+    fn a_reload_the_client_ended_sooner_frees_the_weapon() {
+        let mut r = gun_ledger(0, 60);
+        keep_ticks(&mut r, 1_000, 1_000);
+        count_reload(&mut r, 1_050);
+        keep_ticks(&mut r, 1_050, 1_500);
+        r.gun_world(gun_at(1_400, GunAt::Idle, 30, Some(30)));
+        let held = *r.hands().held();
+        assert_eq!((held.rounds, held.spare, r.busy_until), (30, 30, 1_400));
+        assert_eq!(r.gun_reads().reload_ended, 1);
+        // A reload the world shows under way while the ledger counts it: left to the ledger.
+        let mut r = gun_ledger(0, 60);
+        keep_ticks(&mut r, 1_000, 1_000);
+        let end = count_reload(&mut r, 1_050);
+        keep_ticks(&mut r, 1_050, 1_500);
+        r.gun_world(gun_at(1_300, GunAt::Reloading, 0, Some(60)));
+        assert_eq!((r.hands().held().rounds, r.busy_until), (30, end));
+    }
+
+    /// [Gap 3] The client reloading on its own (the ledger counted 2 rounds left): counted from the world's magazine and
+    /// ammo, begun at the world's time; no shot until its end.
+    #[test]
+    fn a_reload_the_ledger_did_not_count_is_counted_from_the_world() {
+        let mut r = gun_ledger(2, 60);
+        keep_ticks(&mut r, 1_000, 1_200);
+        r.emptied = Some(1_250);
+        r.gun_world(gun_at(1_100, GunAt::Reloading, 0, Some(60)));
+        let held = *r.hands().held();
+        let ms = held.gun.reload_ms(0, 30);
+        assert_eq!((held.rounds, held.spare, r.busy_until, r.busy_why), (30, 30, 1_100 + ms, gate::RELOAD));
+        assert_eq!(r.emptied, None, "no second reload at the clip's end");
+        assert_eq!(r.gun_reads().reload_found, 1);
+    }
+
+    /// [Gap 3] A chamber gun holds a magazine and a round on top (capacity + 1, 0x2E39D0): the ledger holds at most a
+    /// magazine, so a full world is read at a magazine and moves nothing; the round shows once the count falls under it.
+    #[test]
+    fn a_round_on_top_of_a_full_magazine_moves_nothing() {
+        let mut r = gun_ledger(30, 60);
+        keep_ticks(&mut r, 1_000, 1_200);
+        r.gun_world(gun_at(1_100, GunAt::Idle, 31, Some(60)));
+        assert_eq!((r.hands().held().rounds, r.gun_reads().rounds_off), (30, 0));
+        r.hands().held_mut().rounds = 0;
+        keep_ticks(&mut r, 1_250, 1_400);
+        r.gun_world(gun_at(1_300, GunAt::Idle, 1, Some(60)));
+        assert_eq!(r.hands().held().rounds, 1, "the chambered round");
+    }
+
+    /// [Gap 7] Both hands broken: the aim is taken off, the trigger of a two-handed weapon too (its counted rounds given
+    /// back), and it neither reloads nor throws a smoke; mended, all as before.
+    #[test]
+    fn both_hands_broken_refuse_aim_fire_reload_and_throws() {
+        use super::super::hands::Hands;
+        let c = CombatTuning::default();
+        let mut r = gun_ledger(0, 60);
+        r.last_tick = Some(1_000);
+        r.smoke_key = Some(key::GRENADE);
+        assert!(r.can_smoke());
+        r.set_hands(Hands::Broken { until: 5_000 });
+        assert!(!r.can_smoke(), "no throw");
+        assert_eq!(r.reload(false, 1_000, &c), 0, "the AK-74U does not reload");
+        r.hands().held_mut().rounds = 10;
+        r.fired = (1_000, 2);
+        r.hands().held_mut().rounds = 8;
+        let mut over = Override { fire: true, keys: key::AIM | key::FORWARD, ..Override::default() };
+        r.hands_gate(&mut over, 1_000);
+        assert_eq!((over.fire, over.keys), (false, key::FORWARD));
+        assert_eq!((r.hands().held().rounds, r.hands_gated()), (10, 1), "the counted rounds back");
+        // Mended at 5 s: nothing taken off; the reload goes.
+        let mut over = Override { fire: true, keys: key::AIM, ..Override::default() };
+        r.hands_gate(&mut over, 5_000);
+        assert_eq!((over.fire, over.keys), (true, key::AIM));
+        r.hands().held_mut().rounds = 0;
+        assert_eq!(r.reload(false, 5_000, &c), key::RELOAD);
+    }
+
+    /// [Gap 8] A target a hit cannot hurt gets no shot until his protection ends (its counted rounds given back).
+    #[test]
+    fn no_shot_goes_at_a_protected_target() {
+        let mut r = gun_ledger(10, 60);
+        r.target = Some(1);
+        r.set_protected(vec![(1, 16_001), (2, 3_000)]);
+        r.fired = (16_000, 1);
+        r.hands().held_mut().rounds = 9;
+        let mut over = Override { fire: true, ..Override::default() };
+        r.protection_gate(&mut over, 16_000);
+        assert_eq!((over.fire, r.hands().held().rounds, r.protected_held()), (false, 10, 1));
+        let mut over = Override { fire: true, ..Override::default() };
+        r.protection_gate(&mut over, 16_001);
+        assert!(over.fire, "the protection's end");
+        assert!(!r.unhurtable(2, 3_000) && r.unhurtable(2, 2_999) && !r.unhurtable(3, 0));
+    }
+
+    /// [Gap 3] A world with a clip under way says nothing; one older than every kept tick is not read.
+    #[test]
+    fn a_busy_or_too_old_world_is_not_read() {
+        let mut r = gun_ledger(20, 60);
+        keep_ticks(&mut r, 1_000, 1_200);
+        r.gun_world(gun_at(1_100, GunAt::Busy, 5, Some(5)));
+        r.gun_world(gun_at(900, GunAt::Idle, 5, Some(5)));
+        let held = *r.hands().held();
+        assert_eq!((held.rounds, held.spare), (20, 60));
+        assert_eq!((r.gun_reads().read, r.gun_reads().unkept), (0, 1));
     }
 }

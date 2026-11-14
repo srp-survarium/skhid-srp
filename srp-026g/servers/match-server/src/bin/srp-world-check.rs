@@ -5,7 +5,7 @@
 //!
 //! ```text
 //! srp-world-check --data <server-game-data.db> [--save <dir>] [--revision <n>]
-//!                 [--worlds <dir> [--one-in <n>]] <file or folder>...
+//!                 [--worlds <dir> [--one-in <n>]] [--reread] <file or folder>...
 //! ```
 //!
 //! A folder stands for the `*.srprec` and `match026g_*.bin` files in it.
@@ -17,16 +17,18 @@
 //! written there too, passed or not, one in `--one-in <n>` of each
 //! recording's (its first, then every n-th; default every one), as
 //! `match026g_<id>_<time>_p<place>_u<k>.bin`: the kept worlds srp-validate's
-//! `drift_dump` reads (`tools/checks/worlds.sh drift`). Exit 0 when every world passed and at least one was
+//! `drift_dump` reads (`tools/checks/worlds.sh drift`). `--reread`: also how the bots' former byte-search
+//! readers of each world compare with the typed views they read now (`world_check::Reread`), by file and in all.
+//! Exit 0 when every world passed and at least one was
 //! checked; 1 when a world was refused, or could not be checked, or none
 //! was; 2 for a usage error.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use match_server::v026g::world_check::{self, Recording, Unchecked};
+use match_server::v026g::world_check::{self, Recording, Reread, Unchecked};
 
 /// Refusals printed in full, for each file.
 const SHOWN: usize = 3;
@@ -38,12 +40,14 @@ fn main() -> ExitCode {
     let mut revision = None;
     let mut worlds = None;
     let mut one_in = None;
+    let mut reread = false;
     let mut inputs = Vec::new();
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--data" => data = args.next(),
             "--save" => save = args.next().map(PathBuf::from),
             "--worlds" => worlds = args.next().map(PathBuf::from),
+            "--reread" => reread = true,
             "--one-in" => match args.next().and_then(|n| n.parse::<NonZeroUsize>().ok()) {
                 Some(n) => one_in = Some(n),
                 None => return usage("--one-in takes a number above 0"),
@@ -92,6 +96,7 @@ fn main() -> ExitCode {
     }
 
     let mut tally = Tally::default();
+    let mut reread_all = Reread::default();
     // The dumps by match, checked with their match's recording.
     let mut dumps_of: HashMap<u32, Vec<(PathBuf, u32)>> = HashMap::new();
     for dump in dumps {
@@ -134,7 +139,15 @@ fn main() -> ExitCode {
             continue;
         }
         let mut file = FileTally::default();
+        let mut file_reread = Reread {
+            world_times: recording.uploads.iter().map(|upload| upload.time).collect::<BTreeSet<u32>>().len(),
+            ..Reread::default()
+        };
         for (k, upload) in recording.uploads.iter().enumerate() {
+            if reread {
+                // A refused world is the check's count; nothing to compare.
+                let _ = recording.reread(&upload.body, upload.time, &mut file_reread);
+            }
             if let Some(kept) = &kept
                 && let Err(error) = kept.write(&recording, k, upload)
             {
@@ -197,6 +210,13 @@ fn main() -> ExitCode {
         for line in &file.shown {
             println!("  REFUSED {line}");
         }
+        if reread {
+            println!("  REREAD {}", reread_line(&file_reread));
+            for line in file_reread.shown.iter().chain(&file_reread.supplies_shown) {
+                println!("  REREAD {line}");
+            }
+            reread_all.add(&file_reread);
+        }
         tally.add(file);
     }
     for (id, dumps) in dumps_of {
@@ -205,6 +225,12 @@ fn main() -> ExitCode {
             dumps.len()
         );
         tally.unchecked += dumps.len();
+    }
+    if reread {
+        println!("--- reread: {}", reread_line(&reread_all));
+        for line in &reread_all.supplies_shown {
+            println!("--- reread example: {line}");
+        }
     }
     println!("--- refusals by kind");
     for (kind, n) in &tally.kinds {
@@ -229,12 +255,36 @@ fn main() -> ExitCode {
     }
 }
 
+/// One line of a [`Reread`].
+fn reread_line(r: &Reread) -> String {
+    format!(
+        "{} worlds ({} times), {} places: typed body {}; Motion::find dropped {}, no damage model {}, same {}, differs {:?}; typed \
+         missing {}; supplies: old none {}, same {}, differ {:?}; time (fastest of 3, summed): check {:?}, check \
+         kept {:?}, former readers {:?}",
+        r.worlds,
+        r.world_times,
+        r.places,
+        r.typed,
+        r.old_dropped,
+        r.old_no_damage,
+        r.old_same,
+        r.old_differs,
+        r.typed_missing,
+        r.supplies_old_none,
+        r.supplies_same,
+        r.supplies_differ,
+        r.check_time,
+        r.kept_time,
+        r.old_time
+    )
+}
+
 fn usage(why: &str) -> ExitCode {
     if !why.is_empty() {
         eprintln!("{why}");
     }
     eprintln!(
-        "usage: srp-world-check --data <server-game-data.db> [--save <dir>] [--revision <n>] [--worlds <dir> [--one-in <n>]] <recording, dump or folder>..."
+        "usage: srp-world-check --data <server-game-data.db> [--save <dir>] [--revision <n>] [--worlds <dir> [--one-in <n>]] [--reread] <recording, dump or folder>..."
     );
     ExitCode::from(2)
 }

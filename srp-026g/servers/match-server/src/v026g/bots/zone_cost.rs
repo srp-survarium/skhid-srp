@@ -545,7 +545,7 @@ mod tests {
             infection: 1.0,
             pain: 1.0,
         };
-        // Share 0.5 and left 0.4 of a pool, as `collect::bears`.
+        // Share 0.5 and left 0.4 of a pool, as `crossing::CrossBody::old`.
         assert!(full.bears(Cost::body(0.4), 0.5, 0.4));
         assert!(!full.bears(Cost::body(0.6), 0.5, 0.4));
         // Infection: 0.45 of 1.0 is borne; 0.3 of a 0.5 pool is not (over half).

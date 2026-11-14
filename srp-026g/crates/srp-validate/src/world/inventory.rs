@@ -612,6 +612,13 @@ impl<'a, 'k> ItemsAndRest<'a, 'k> {
         self.items.iter().flatten().filter_map(ItemState::of)
     }
 
+    /// The items with the slot each was walked in, in slot order.
+    pub fn by_slot(&self) -> impl Iterator<Item = (u8, ItemState<'a>)> + '_ {
+        (0..SLOTS).zip(self.items.iter()).filter_map(|(slot, chosen)| {
+            chosen.as_ref().and_then(ItemState::of).map(|item| (slot, item))
+        })
+    }
+
     pub fn rest(&self) -> &AfterItems<'a> {
         &self.rest
     }

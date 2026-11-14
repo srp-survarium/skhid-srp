@@ -120,6 +120,9 @@ pub enum Takeoff {
     /// [A385] The short jump pressed this far before the take-off's centre `steps` steps into the walk-up (0: a standing jump;
     /// at most [`jump::SLOW_STEPS_MAX`]): [`jump::Kind::Slow`].
     Slow { lead: PressLead, steps: u8 },
+    /// [S1] No jump: the edge is climbed at a sprint (a sprinting body climbs an edge to [`jump::SPRINT_CLIMB_MAX_M`]), the
+    /// sprint run up to the take-off's centre and held on ([`jump::climb_flight`]).
+    Climb,
 }
 
 /// A sprint link's press in a built file: this bit over its centimetres.
@@ -129,6 +132,8 @@ const SPRINT_BIT: u16 = 0x8000;
 const SLOW_BIT: u16 = 0x4000;
 const SLOW_STEPS_SHIFT: u16 = 10;
 const SLOW_CM_MASK: u16 = (1 << SLOW_STEPS_SHIFT) - 1;
+/// [S1] A sprint climb in a built file: the sprint and the slow bit together, nothing else.
+const CLIMB_CODE: u16 = SPRINT_BIT | SLOW_BIT;
 
 impl Takeoff {
     /// In a built file: a press's centimetres, a walk-off 0 (no press is
@@ -140,12 +145,14 @@ impl Takeoff {
             Takeoff::WalkOff => 0,
             Takeoff::Sprint(lead) => SPRINT_BIT | lead.centimetres(),
             Takeoff::Slow { lead, steps } => SLOW_BIT | (u16::from(steps) << SLOW_STEPS_SHIFT) | (lead.centimetres() & SLOW_CM_MASK),
+            Takeoff::Climb => CLIMB_CODE,
         }
     }
 
     pub(super) fn from_centimetres(cm: u16) -> Self {
         match cm {
             0 => Takeoff::WalkOff,
+            CLIMB_CODE => Takeoff::Climb,
             cm if cm & SPRINT_BIT != 0 => Takeoff::Sprint(PressLead::from_centimetres(cm & !SPRINT_BIT)),
             cm if cm & SLOW_BIT != 0 => Takeoff::Slow {
                 lead: PressLead::from_centimetres(cm & SLOW_CM_MASK),
@@ -161,6 +168,7 @@ impl Takeoff {
             Takeoff::WalkOff => true,
             Takeoff::Sprint(lead) => (0.0..=SPRINT_PRESS_MAX_M + 1e-3).contains(&lead.metres()),
             Takeoff::Slow { lead, steps } => lead.metres() <= GAP_PRESS_MAX_M + 1e-3 && steps <= jump::SLOW_STEPS_MAX,
+            Takeoff::Climb => true,
         }
     }
 
@@ -168,7 +176,7 @@ impl Takeoff {
     /// lower success ([`SPRINT_GAP_PENALTY`]).
     pub fn penalty(self) -> f32 {
         match self {
-            Takeoff::Press(_) | Takeoff::WalkOff | Takeoff::Slow { .. } => 0.0,
+            Takeoff::Press(_) | Takeoff::WalkOff | Takeoff::Slow { .. } | Takeoff::Climb => 0.0,
             Takeoff::Sprint(_) => SPRINT_GAP_PENALTY,
         }
     }
@@ -179,7 +187,7 @@ impl Takeoff {
     pub fn sprint_run_m(self) -> Option<f32> {
         match self {
             Takeoff::Press(_) | Takeoff::WalkOff | Takeoff::Slow { .. } => None,
-            Takeoff::Sprint(_) => Some(SPRINT_RUN_UP_M),
+            Takeoff::Sprint(_) | Takeoff::Climb => Some(SPRINT_RUN_UP_M),
         }
     }
 
@@ -190,6 +198,7 @@ impl Takeoff {
         match self {
             Takeoff::Press(_) => GAP_RUN_UP_M + jump::blend_m(jump::WALK_CAP_MS),
             Takeoff::Slow { steps, .. } => GAP_RUN_UP_M + jump::blend_steps_m(jump::WALK_CAP_MS, steps),
+            Takeoff::Climb => SPRINT_RUN_UP_M,
             Takeoff::Sprint(_) => SPRINT_RUN_UP_M,
             Takeoff::WalkOff => 0.0,
         }
@@ -1721,7 +1730,7 @@ impl WalkGrid {
             Takeoff::WalkOff => 0,
             _ if link.share.flown().is_some() => 1,
             Takeoff::Press(_) | Takeoff::Slow { .. } => 2,
-            Takeoff::Sprint(_) => 3,
+            Takeoff::Sprint(_) | Takeoff::Climb => 3,
         });
         let mut seen = std::collections::HashSet::new();
         found.retain(|&(link, d)| {
