@@ -1828,7 +1828,12 @@ impl Bots {
             let ticks = |rng: &mut Rng, s: (f32, f32)| (rng.range(s.0, s.1) / kin::TICK_S) as u32;
             // [pockets] No jump the game would refuse (a leg's `leg_damage`), nor one the bots' own policy holds after a hit
             // (`motor::HIT_JUMP_HOLD_MS`): the keys alone.
-            let jump = if bot.hurt.may_jump(time) {
+            // [A390] Nor on a floor a standing capsule does not fit under (`WalkGrid::can_stand` false): the body there is
+            // crouched, and `on_ground` 0x7EF90 is false for a crouched capsule, so the game refuses the jump.
+            let room = self.tactics.as_ref().is_none_or(|tactics| {
+                tactics.world.grid.locate(feet, 1.5).is_none_or(|node| tactics.world.grid.can_stand(node))
+            });
+            let jump = if bot.hurt.may_jump(time) && room {
                 key::JUMP
             } else {
                 0
