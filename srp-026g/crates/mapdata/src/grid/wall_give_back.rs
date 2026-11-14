@@ -72,7 +72,9 @@ pub(super) fn stands_in_cell(world: &Collision, s: &Settings, centre: Vec3, half
 impl WalkGrid {
     /// Gives back the floors the rounds took beside a wall the body clears (see the module); `alive` is the rounds' result.
     /// Returns how many.
-    pub(super) fn give_back_by_walls(&self, alive: &mut [bool], walls: &Walls, triangles: &[Triangle]) -> usize {
+    /// The stand test runs on `world`, the build's: the game's shapes where the build has them (`Collision::build_exe`, as the rest
+    /// and held floors), else the walker triangles with the body's caster (as before).
+    pub(super) fn give_back_by_walls(&self, alive: &mut [bool], walls: &Walls, world: &Collision, s: &Settings) -> usize {
         let n = alive.len();
         let stand = self.body.stand_height;
         let centre = |a: usize| {
@@ -103,14 +105,12 @@ impl WalkGrid {
         if candidates.is_empty() {
             return 0;
         }
-        let (caster, s) = self.body.controller();
-        let world = Collision::build(triangles).with_caster(caster);
         let half = self.cell / 2.0;
         // The room over a standing body: the test body comes down from at most this over the floor.
         let room = |a: usize| self.ceiling[a] - self.height[a] - stand;
         let ok = parallel(&candidates, |&(a, judge)| match judge {
-            Judge::Centre => stands(&world, &s, centre(a), room(a)),
-            Judge::InCell => stands_in_cell(&world, &s, centre(a), half, room(a)),
+            Judge::Centre => stands(world, s, centre(a), room(a)),
+            Judge::InCell => stands_in_cell(world, s, centre(a), half, room(a)),
         });
         let mut back = 0;
         for (&(a, _), keep) in candidates.iter().zip(ok) {
