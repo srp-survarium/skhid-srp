@@ -1379,18 +1379,19 @@ mod tests {
     /// Rudnya: all 56 of the owner's picks and 4 roof spawns (ffa-rudnya-picks-1);
     /// every other map twice the spawns it had (ffa-cover-maps-1: London 32,
     /// its 22 kept, 6 central and 4 in the underpass, and 32 new; docs/notes/ffa.md).
+    /// Repair Depot (41, level 18) is played in Free for All too, inside its arena.
     #[test]
     #[ignore = "needs SRP_TEST_GAME_DATA from build-content with both FFA edit lists"]
     fn the_released_free_for_alls_play_on_their_own_projects() {
         let data = GameData::open(&env_path("SRP_TEST_GAME_DATA")).unwrap();
         let maps = fixtures::table_of(&data).unwrap();
-        free_for_alls_play_on_their_own_projects(&maps, 33);
+        free_for_alls_play_on_their_own_projects(&maps, 34);
         let ports: Vec<_> = maps.iter()
             .filter(|m| m.mode == GameMode::FreeForAll && m.level >= 9)
             .map(|m| (m.id, m.level, m.solo_respawn_points))
             .collect();
         assert_eq!(ports, [
-            (42, 15, 48), (43, 16, 48), (44, 17, 52), (163, 9, 64),
+            (41, 18, 48), (42, 15, 48), (43, 16, 48), (44, 17, 52), (163, 9, 64),
             (164, 10, 44), (165, 11, 44), (167, 12, 44), (168, 13, 44), (169, 14, 44)
         ]);
         // Levels 2 to 8, the same in each weather.

@@ -13,6 +13,7 @@ import make_ffa_edits as m
 import make_truck_pack as truck
 import check_ffa_edits
 import check_training_arena
+import make_rembasa_arena as rembasa
 
 MANIFEST = m.HERE.parents[2] / 'release/content.tsv'
 
@@ -32,6 +33,13 @@ def main():
         dictionary.write_bytes(data)
         check_ffa_edits.check(a.pack, dictionary)
         check_training_arena.check(a.pack, dictionary, a.native, m.EDIT)
+    # Repair Depot: its arena's wall is its outline's (the list made again), and every point stands
+    # inside the outline.
+    arena_list = m.HERE.parent / 'content-edit/rembasa-arena-1.json'
+    assert json.loads(arena_list.read_text()) == rembasa.build(a.native), 'stale Repair Depot arena edit'
+    outline = rembasa.outline()
+    depot = m.points()[m.project('cs_mp_rembasa')]
+    assert all(check_training_arena.inside_of(outline, p['x'], p['z']) for p in depot), 'a Repair Depot point outside its arena'
     authored = m.points()[m.project('cs_training_camp')]
     fence = check_training_arena.arena.outline()
     # Every point is inside the base's fence, and stands on what its row says: a raised floor of
@@ -58,7 +66,8 @@ def main():
     assert pinned == [truck.sha256(truck.manifest(made).encode())], 'release/content.tsv does not pin the truck this makes'
     print(f'PASS: {len(authored)} Training Camp points inside the fence; {len(raised)} on raised floors '
           f'({kinds["raised island"]} on islands, {kinds["stairs of tower"]} on the towers\' stairs, {kinds["cabin"]} in cabins), '
-          f'{m.GROUND} on the ground; raised spawns 8 and 19 are preserved; the truck pack is the manifest\'s ({report})')
+          f'{m.GROUND} on the ground; raised spawns 8 and 19 are preserved; the truck pack is the manifest\'s ({report}); '
+          f'{len(depot)} Repair Depot points inside its arena, its wall made again')
 
 if __name__ == '__main__':
     main()

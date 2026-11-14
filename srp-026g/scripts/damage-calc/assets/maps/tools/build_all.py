@@ -82,6 +82,12 @@ PATCHED = {
                                    origin='Clear Sky port, pack stalker-maps@6 (patch 57)', name='Training Camp',
                                    name_key='st_cs_training_camp_name', project_name='cs_training_camp', project='day_8',
                                    modes=(8,), map_ids={44: 8}),
+    # Repair Depot's frame is its Free for All arena + 15 m (render_minimap.py --frame-outline
+    # scripts/stalker-maps/rembasa-arena.tsv); in Free for All since 2026-11-14.
+    'v010b_cs_mp_rembasa': dict(size=89.309, posX=-2.34, posY=-7.075, bitmap='1032_minimap_cs_mp_rembasa.png',
+                                origin='Clear Sky port, pack stalker-maps@6 (patch 57)', name='Repair Depot',
+                                name_key='st_cs_mp_rembasa_name', project_name='cs_mp_rembasa', project='day_8',
+                                modes=(8,), map_ids={41: 8}),
 }
 
 

@@ -3,19 +3,20 @@
 Six STALKER multiplayer maps as one content pack, `stalker-maps@4`, the owner's
 pick of 2026-10-24 on the map spot planner. Team deathmatch only (mode 4).
 Where the work stands and how to continue: `stalker-maps-handoff.md`.
-FFA points and mode-8 configs for Pool, Military Warehouses and Training Camp:
-`stalker-ffa.md` (depends on the current FFA runtime; not released).
+FFA points and mode-8 configs for Pool, Military Warehouses, Training Camp and
+Repair Depot: `stalker-ffa.md`.
 
 ## Free for All only, for now (the owner, 2026-11-12)
 
 "New stalker maps should only have FFA", "no TDM yet": players get Free for All
 on Experimental Pool, Military Warehouses and Training Camp (maps_dict 42-44)
+and, since 2026-11-14, Repair Depot (41, inside its arena: `stalker-ffa.md`),
 and no Team Deathmatch on any of the six. `content-edit/stalker-tdm-hold-1.json`
 takes the six TDM rows (210-215) out of `maps_dict`, so neither srp nor the game
 has them as maps: no room pool or create window, vote card, Play, clan match,
 Player vs Bots, room with bots or Maps tab can list them (each lists the
 dictionary's playable rows; a room saved with them is fitted without them).
-Repair Depot, Station and Depository have no FFA and are not played.
+Station and Depository have no FFA and are not played.
 
 Everything else stays: the six TDM configs, the projects with both teams'
 spawns and stashes, their `modes.tsv`/`maps.tsv` rows, names, pictures and
@@ -483,8 +484,9 @@ The spawns do not come from the level: they are the planner's.
   (resource-porter `fix/training-camp-minimap`). Free for All's wall has since
   moved in to the base's fence (`stalker-ffa.md`); the frame has not: the
   fenced base is 73 x 67 m of the frame's 159 m, its middle 9 m east of the
-  frame's. Repair Depot's south edge has
-  the same 45 m circles; it is not played.
+  frame's. Repair Depot's had the same 45 m circles on its south edge; it is
+  framed the same way on its Free for All arena + 15 m (`render_minimap.py
+  --map 213 --frame-outline srp-026g/scripts/stalker-maps/rembasa-arena.tsv`).
 - `tools/actionscript` adds a bitmap the original movie lacks from the tree's
   `bitmaps/<class>.png` (lossless) or `.jpg`; `srp-026g/scripts/stalker-maps/ui_images.py`
   writes them from the porter's minimap render and a loading picture.
@@ -503,11 +505,13 @@ The spawns do not come from the level: they are the planner's.
   | Experimental Pool | `poolside-se` | (4, 6.5, 4) | -60 | -4 |
   | Military Warehouses | `road-tower` | (-8, -5.5, -8) | 3 | -2 |
   | Training Camp | `base-se2` | (62, 19, -50) | -47 | -7 |
+  | Repair Depot | `field-se` | (52, 16, -46) | -38 | -10 |
 
   The frame is scaled to cover 1920 x 798 and its middle band kept, as
   `ui_images.py` cuts it; the existing classes serve both loading screens and
-  room tiles. Repair Depot still uses the earlier package's in-game shot; the
-  two underground maps still use top-down placeholders.
+  room tiles. Repair Depot's was captured the same way when it went into Free
+  for All (2026-11-14, its arena's south-east corner, on a quick build of its
+  branch); the two underground maps still use top-down placeholders.
 - `release/content.tsv`: the pack row `stalker-maps@4`. @3 has the grass
   with flat-lying normals (black tufts under a high sun); @2 also has the
   planner's spots on Experimental Pool; @1 has no grass.
@@ -518,9 +522,8 @@ The spawns do not come from the level: they are the planner's.
   loading picture, names.
 - The site: a top-down render per project in the calculator's maps
   (`scripts/damage-calc/assets/maps`, README) before `release/build-site`, or the
-  Maps tab build stops. The three played in Free for All have theirs (of
-  `day_8`); Repair Depot, Station and Depository need one before they are
-  played.
+  Maps tab build stops. The four played in Free for All have theirs (of
+  `day_8`); Station and Depository need one before they are played.
 - Bots: `mapdata-dump` for the new maps (`docs/notes/player_bots_mapdata.md`).
 - The live pools: `SRP_MATCH_MAPS` / `SRP_ROOMS_EXTRA_MAPS` say whether the maps
   are in the match pool or rooms only.

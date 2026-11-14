@@ -1,7 +1,7 @@
 # STALKER FFA maps and Training Camp's fenced arena
 
 Experimental Pool and Military Warehouses have 24 authored FFA spawns each,
-Training Camp 26. Training Camp keeps players inside its base's fence (a
+Training Camp 26, Repair Depot 24 inside its arena (`## Repair Depot's arena`). Training Camp keeps players inside its base's fence (a
 walker wall behind the fence, a truck in each of its three gateways), has its
 FFA spawns on its raised floors (islands, the towers' stairs, cabins; two on
 the ground), and gives them 500 ms of protection. Pool and
@@ -12,8 +12,9 @@ afterwards, ids kept, by `ffa-center-1` with the other maps (`ffa.md`), so
 their day_8 positions are not all ffa-spawns.tsv's.
 
 This integrates the previously unmerged `stalker-maps@6` pack, which supplies
-six TDM ports. The other three are Repair Depot, Station and Depository. Only
-the three requested maps receive FFA configurations. Team Deathmatch on all
+six TDM ports. The other three are Repair Depot, Station and Depository. The
+three requested maps received FFA configurations, and Repair Depot since
+2026-11-14; Station and Depository have none. Team Deathmatch on all
 six is not offered yet (`stalker-tdm-hold-1.json`; `stalker-maps.md`, "Free
 for All only, for now"). The pack is immutable:
 `pack.json` SHA-256 is
@@ -26,8 +27,9 @@ Its source and porter history are in `stalker-maps.md` and
 | Experimental Pool | `v010b_cs_mp_bath/day_4` | 210 / 42 | 15 / 31 | 15.52 m |
 | Military Warehouses | `v010b_cs_mp_military_1/day_4` | 211 / 43 | 16 / 32 | 39.71 m |
 | Training Camp | `v010b_cs_training_camp/day_4` | 212 / 44 | 17 / 33 | 9.21 m, in 3D: its points are spaced so (point 2 is 22.3 m above point 10, 2.75 m beside it) |
+| Repair Depot | `v010b_cs_mp_rembasa/day_4` | 213 / 41 | 18 / 34 | 6.5 m (its 48 after the spawn rule; no spacing is kept since 2026-11-14) |
 
-The remaining ports use levels 18–20 and pictures 34–36. Rudnya keeps level 14
+The remaining ports (Station, Depository) use levels 19–20 and pictures 35–36. Rudnya keeps level 14
 and picture 30. The mode tables, movie classes, minimaps and ten localization
 catalogs agree with these IDs. The Keeper pool includes every new project;
 dictionary append-count guards include the six TDM registrations.
@@ -58,6 +60,7 @@ cargo run --release --manifest-path scripts/stalker-maps/ffa-points/Cargo.toml -
 python3 scripts/stalker-maps/make_ffa_edits.py --pack "$PACK" --dictionary "$DICTIONARY"
 python3 scripts/stalker-maps/make_truck_pack.py --pack "$PACK" --out "$SKHID_PACKS_DIR/training-camp-truck-1"
 python3 scripts/stalker-maps/make_training_arena.py --native "$NATIVE_BORDER"
+python3 scripts/stalker-maps/make_rembasa_arena.py --native "$NATIVE_BORDER"
 ```
 
 Review generated points before replacing the committed TSV. The planner loads
@@ -356,6 +359,103 @@ second truck stands.
 Nothing else of the mode is outside: `day_8` has no zones, crates, batteries or
 stations; its four campfires are inside the fence; its one anomaly is the
 Keeper's hidden pool at y = -1000.
+
+## Repair Depot's arena
+
+The owner, 2026-11-14: Repair Depot (Clear Sky `mp_rembasa`, in players' files
+since `stalker-maps@6`) goes into the game in Free for All only, as Experimental
+Pool and Training Camp are, and "not too big" (Military Warehouses, 243 x 166 m,
+was taken out for that). Everything is in Free for All's own project `day_8`;
+its Team Deathmatch row stays held (`stalker-tdm-hold-1`) and `day_4` is not
+edited, but for the sun the other three got (below). The pack is not rebuilt.
+
+The level as the pack has it: the depot, a walled yard of about 130 x 57 m
+(x -74..57, z -22..35) whose walls stop a walker on three sides, with a narrow
+passage north out of it (x -18..-14, z 35..51), and south of it an open field
+with trees that a walker crosses for 150 m more (the walk grid of `day_4`
+from its spawns reaches 222 x 230 m, to the edge of the box it was given). The
+original's spawns spread 120 x 228 m; the planner's (the TDM spawns and stashes)
+sit in the yard.
+
+### The outline and the wall
+
+`rembasa-arena.tsv` is the arena's outline, 10 vertices: the yard's walls and
+the passage, 1.5 to 2 m outside the floors a walker reaches along them, and a
+straight line across the field at z = -50, 28 m south of the yard. Inside it,
+136 x 87 m (x -76..59.5, z -50..36.5; the passage to 52.5): the yard and the
+near field with its trees, its concrete rails and the pipe. The field south of
+the line and east of x 59.5 is scenery. The outline is shared by the wall, the
+spawn planner (`ffa-points`, `arena::in_rembasa`), the spawn rule (`to_cover
+--fence`) and the HUD minimap's frame.
+
+`make_rembasa_arena.py` writes `rembasa-arena-1.json` (after
+`training-camp-arena-1`): the stock level border model copied to
+`models/srp/rembasa_border.model` with 10 boxes for its walker collision, one a
+side of the outline, 1 m thick, their inner face 0.1 m outside the line
+(`make_training_arena.behind`, the same builder as Training Camp's fence wall),
+y = -30..50, overlapping their neighbours by 0.75 m; and a walker-only collision
+object for it in `day_8` (`cmask=4`, `cgroup=2`). Bullets and sight pass. On the
+yard's sides the wall stands behind walls a walker meets first; only the south
+line is met in the open.
+
+The walk grid of the built `day_8` (mapdata's, every floor; walking, crouching,
+its jumps and drops), flooded from the project's 72 spawns over a box of
+290 x 340 m: 172,894 floors, x -73.9..59.1, z -49.6..50.4, none outside the
+outline. `day_4`'s, the same way: 567,640 floors, to the box's edge.
+
+### The spawns
+
+The same lists as the other STALKER maps, in their order:
+
+1. `ffa-stalker-1`: 24 points of the planner (`ffa-spawns.tsv`), planned as
+   Pool's on `day_4` inside the outline (2 m from it; 1,600 safe candidates on
+   176,876 floors), farthest-first; the mode-8 config
+   `ffa/v010b_cs_mp_rembasa_day_8.options` (a copy of the TDM config, 30 kills)
+   and `maps_dict` 41. 45, after Training Camp's 44, is the stock row
+   `test/artefact_testlevel.options`; 41 is free in the live data.
+   `ffa-stalker-radius-1`: 20 m exclusion.
+2. `ffa-center-1` (`to_center` on `day_8` in the outline's box): deepest 41 m
+   from the area's edge; 15 of the 24 in the perimeter band, every other one of
+   them (ids 1, 2, 3, 5, 6, 9 and 18) moved to the centre (`center.tsv`).
+3. `no-ammo-crates-1`: its six crates out of `day_8`, the config pointed at
+   `day_8`.
+4. `ffa-protection-ms-1`: 500 ms protection.
+5. `ffa-cover-maps-1` (`to_cover --times 2 --fence rembasa-arena.tsv`): the
+   band 4.1 m; 6 points kept, 18 replaced, 24 added (ids 24-47), settled in 2
+   rounds (`cover-maps.tsv`).
+
+48 points, ids 0 to 47, all on the ground (y -1.9 to 5.1; none on the two
+ladders' ledges), x -57.9..48.1, z -41.9..27.1: the nearest two 6.5 m apart, the
+nearest to the outline 8.1 m. Run again on the built project, `to_cover` keeps
+all 48 in one round.
+
+The visual lists the other three have, for `day_8` too: stock grain
+(`ported-maps-grain-1`; `day_4` had it), stock ambient occlusion
+(`stalker-maps-ao-1`) and the sun of Vostok v0.11 (`stalker-maps-sun-1`, in
+`day_4` and `day_8`: Repair Depot has the same weather, god rays 1.0 at 1.0 and
+flares x2). No grass (a pack rebuild), and its bushes do not rustle
+(`stalker-bushes@2` has the other three's).
+
+The HUD minimap is framed on the outline + 15 m (`render_minimap.py
+--frame-outline rembasa-arena.tsv`; size 89.309, posX -2.34, posY -7.075,
+2.87 px/m), all the ground in the frame fading out inside the Tab map's 460 px,
+as Training Camp's; before, the south edge was the renderer's two 45 m circles.
+The site's Maps tab has its top-down render of `day_8` in that frame
+(`damage-calc/assets/maps`).
+Its loading picture and room tile are a frame of the game (`stalker-maps.md`,
+pose `field-se`: the yard from the arena's south-east corner), as the other
+three's.
+
+Checked offline only, on a quick `build-content 60` of the branch: the lists
+above, read back from the build (the 48 points as `cover-maps.tsv` leaves them,
+20 m, 1 m, 0 s and 500 ms each; the 24 Team Deathmatch points as `day_4` has
+them; no crates; the wall's object; everything else of `day_8` as `day_4`);
+the walk grid's containment; `to_cover` again (all kept);
+`the_released_free_for_alls_play_on_their_own_projects` on its server data
+(34 maps, map 41 level 18 with 48 solo points). The loading picture is a frame
+of a headless game on that build, the only time the map ran in the game: not
+played. Left for the game: how the invisible line across the field feels, and
+the spawns' cover and sight lines.
 
 ## Millisecond protection
 
