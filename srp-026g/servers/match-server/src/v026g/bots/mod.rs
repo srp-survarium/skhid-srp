@@ -2298,6 +2298,12 @@ impl Bots {
         // [A388 step 2b] The lip guard's forecasts this match: asked anew, and the same ask's answer used again.
         let (asked, reused) = self.bots.iter().flatten().fold((0u64, 0u64), |(a, r), bot| (a + u64::from(bot.lip_memo.asked), r + u64::from(bot.lip_memo.reused)));
         lines.push(format!("{}lip guard forecasts this match: asked {asked}, the same ask's answer used again {reused}", nav_log::PREFIX));
+        // [A388 (e) gap 16] The reckoning's steps the client's legs crouched (both broken, the key up).
+        lines.push(format!(
+            "{}kept controller steps crouched by both legs broken with the crouch key up since the last match end (every match on this server): {}",
+            nav_log::PREFIX,
+            body::kept_clock::take_legs_crouched()
+        ));
         // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
         // time a step took.
         let (steps, ns) = body::kept_clock::take(body::kept_clock::Of::Reckoning);
