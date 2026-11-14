@@ -925,7 +925,7 @@ pub fn room_list(
 ///   <pool>;<members>;<serial>;<pin>;<next map>;<min players>;<code>` (`code`
 ///   as above: why a join of another room, or a room made, left it in this
 ///   one), then a row a card, `C;<i>;<map_id>;
-///   <votes>;<mine>`, a row a member, `P;<i>;<gear>;<owner>;<me>;
+///   <votes>;<mine>;<mode>` ([`Card::shown`]: the mode a twist's own), a row a member, `P;<i>;<gear>;<owner>;<me>;
 ///   <in match>;<fit>;<away>;<name>` (`fit`: [`Fit`]; `away` 1: its game is
 ///   gone for now), in a private room a row `A;<sides>`, a digit a member
 ///   in the list's order, its team as the owner arranged it (0, 1;
@@ -938,8 +938,8 @@ pub fn room_list(
 ///   a row `J;<seconds>` when the asker waits to go into its room's match
 ///   being played ([`RoomView::join_in`]), or `J;-1;<why>` when it waits
 ///   and the match takes nobody now ([`JoinHold`]; a movie that reads only
-///   the seconds takes -1 as no row), and `L;<map_id>`, the last match's
-///   map (0: none).
+///   the seconds takes -1 as no row), and `L;<map_id>;<mode>`, the last
+///   match's map and the mode it played (`L;0`: none).
 pub fn room_state(
     room: Option<&RoomView>,
     code: RoomCode,

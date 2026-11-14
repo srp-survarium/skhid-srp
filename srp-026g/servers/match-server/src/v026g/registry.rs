@@ -522,7 +522,7 @@ impl MatchRegistry {
                 .into_iter()
                 .map(|player| {
                     let mut profile = player.profile;
-                    played.arm(&mut profile, Dictionary::shared());
+                    played.arm(&mut profile);
                     keeper::give(&mut profile, keeper);
                     profile
                 })
@@ -682,7 +682,7 @@ impl MatchRegistry {
         }
         next.profiles.extend(players.iter().map(|player| {
             let mut profile = player.profile.clone();
-            next.played.arm(&mut profile, Dictionary::shared());
+            next.played.arm(&mut profile);
             gift(&mut profile, next.keeper);
             profile
         }));

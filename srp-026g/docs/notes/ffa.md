@@ -8,8 +8,8 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
 - The first to 30 kills ends the match, or the timer does (15:00).
 - Spawn protection 2 s ("3 seconds sounds too long, it should be 1.5 or 2 MAX").
   Since 2026-11-14 0.5 s on every map (the owner: "let's change it to 0.5 everywhere"):
-  `ffa-protection-ms-1.json`, last of the Free for All lists but `ffa-rudnya-picks-1.json` (whose
-  new points copy a point it gave the 500 ms), sets each team-2 point's
+  `ffa-protection-ms-1.json`, last of the Free for All lists but `ffa-rudnya-picks-1.json` and
+  `ffa-cover-maps-1.json` (whose new points copy a point it gave the 500 ms), sets each team-2 point's
   `invulnerability_time` 2 -> 0 and adds `invulnerability_time_ms` 500, which the client hook of
   revision 57 reads before the whole seconds (`stalker-ffa.md`, "Millisecond protection"), as
   Training Camp has had since `training-camp-arena-1.json`. The lists above it still write 2 s;
@@ -184,7 +184,7 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     players walk, of those the farthest in plan from every other spawn; facing the longest view.
     The building at 18 ("similar for 18 building") has none: its roof, 8 m over 18's floor, has no
     way down within 5 m drops, and its lower roofs no flat, clear floor.
-  - 28 -> 60 points. The last Free for All list, after `ffa-protection-ms-1`.
+  - 28 -> 60 points. After `ffa-protection-ms-1`, before `ffa-cover-maps-1`.
   - Checked (2026-11-14): `release/build-content 59`, a quick build (patch sha256 `72f2a0a6...`,
     server data `c7ebbddd...`): the 60 points read back as rudnya-picks.tsv has them in all three
     weathers, the other 30 Free for All projects' spawns as before; the released map test passes
@@ -456,8 +456,8 @@ rules, spawns, pay and results, every kit's guns changed by the server.
 - **Names** (the owner, 2026-11-14: "they shoud be FFA: Saloon — and FFA: Racket"): "FFA: " and one
   word, in every language (the owner's: Racket, Движ; mine for the others):
   `st_srp_mode_racket` FFA: Racket, Движ, Двіж (uk, be), Raban, Radau, Rambajz, Galama, Zsivaj,
-  Meteli. `st_srp_mode_cowboy` (mine) FFA: Saloon, Салун (ru, uk, be), Saloon (pl, de, cs), Salun,
-  Szalon, Saluuna: a saloon brawl, everyone against everyone (the owner, 2026-11-14, of an earlier
+  Meteli. `st_srp_mode_cowboy` (mine) FFA: Saloon, Салун (ru, uk, be), Saloon (pl, de, cs, hu),
+  Salun, Saluuna: a saloon brawl, everyone against everyone (the owner, 2026-11-14, of an earlier
   "Showdown" / "Дуэль": "duel usually means 1vs1").
   The lobby's mode numbers 9 Racket and 10 Cowboy (`Twist::lobby_number`; 7 is Scarcity's): a card's tag and colour, the
   room's banner of its match (`lobby.md`, rooms' `C` and `L` rows), the log's "mode". The game's
@@ -475,15 +475,19 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     the 9A-91, the MSBS (shots of their own).
   - The gun: a whole `ak_12` with no modification and no upgrade, the replaced gun's instance id,
     in every kit and slot that held it (the second slot takes it: assault rifles fit slot 10).
-  - Its ammo: in each kit that held a replaced gun, every ammo slot whose ammo none of the kit's
-    guns fires now is emptied; the ammo bags it took (a bag share for each clip begun) are AK-12
-    ammo (`ammo_6.5x39`, the one ammo the data pairs with it), whole clips, in the first slot
-    emptied. Without such ammo the AK-12 has its magazine alone.
-  - That ammo is one new stack every such kit holds. Its store is the most rounds a kit takes,
-    1000 times (`twist::STORE_LIVES`): a spawn takes each slot's count out of a stack's store and
-    a dead player keeps only the store (`snapshot_rules.md` §7.3), so a kit's worth would last one
-    life (found in review, 2026-11-14). An item no kit holds any more (the ammo that left) leaves
-    the table: a profile never grows.
+  - Its ammo, the simplest way (the owner, 2026-11-14: "make it the simplest way"): in each kit
+    that held a replaced gun, every ammo slot whose ammo none of the kit's guns fires now is
+    emptied, and the kit has the same amount of AK-12 ammo as every other (`ammo_6.5x39`, the one
+    ammo the data pairs with it; the dictionary's `optimal_count` of assault rifles, 60), in the
+    first slot emptied or else its first empty ammo slot. A kit that holds AK-12 ammo already
+    keeps its own; one with no ammo slot free has its AK-12's magazine alone. (A Val beside an
+    SR-3M on one SP-6: the SR-3M keeps the SP-6, the AK-12 has its 60.)
+  - That ammo is one new stack every such kit holds. Its store is the amount 1000 times
+    (`twist::STORE_LIVES`): a spawn takes each slot's count out of a stack's store and a dead
+    player keeps only the store (`snapshot_rules.md` §7.3), so a kit's worth would last one life
+    (found in review, 2026-11-14). An item no kit holds any more (the ammo that left) leaves the
+    table: a profile grows by that one stack at the most, and only where an item two kits shared
+    stays for the other.
   - Nothing else changes: armour, pockets, artefacts, skills, a loud gun and its ammo.
   - srp refuses to start on data without `ak_12` or with other than one ammo for it.
 - **Pay:** as any free-for-all. The ammo used is counted from the trusted world's stacks, which are
@@ -493,6 +497,8 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     that match is not charged either (the world's stacks are counted by kind).
   - Without a trusted block a twisted match charges no ammo (`autobuy::used`): the shot counters
     were of guns the account's kits do not hold.
+  - The kit's items' bonuses pay as the account's kit has them: a premium or golden gun a twist
+    replaced still pays its bonus (the owner, 2026-11-14: "fine").
 - **Not yet:** the website's "matches now" tab and the rooms list say Free for all for a twisted
   match; nothing in the match tells the twist (no introduction line).
 

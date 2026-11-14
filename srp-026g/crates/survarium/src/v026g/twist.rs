@@ -5,7 +5,6 @@
 //! third of what is left); the rooms' vote draws one for its free-for-all cards
 //! (`session::v026g::rooms`), and the lobby names it by its own mode number.
 
-use super::dictionary::Dictionary;
 use super::maps::{GameMode, MapMode, MatchMap};
 use super::match_msgs::static_info::MatchProfile;
 
@@ -99,7 +98,7 @@ impl Twist {
     /// nobody's, though an account may own the same kind.
     pub fn gives(self) -> u16 {
         match self {
-            Self::Racket => super::racket::ammo(),
+            Self::Racket => super::racket::Arms::shared().ammo,
             Self::Cowboy => super::cowboy::Revolver::shared().ammo,
         }
     }
@@ -110,9 +109,9 @@ impl Twist {
     }
 
     /// `profile`'s kits as the twist arms them.
-    pub fn arm(self, profile: &mut MatchProfile, dictionary: &Dictionary) {
+    pub fn arm(self, profile: &mut MatchProfile) {
         match self {
-            Self::Racket => super::racket::arm(profile, dictionary),
+            Self::Racket => super::racket::arm(profile, &super::racket::Arms::shared()),
             Self::Cowboy => super::cowboy::arm(profile, &super::cowboy::Revolver::shared()),
         }
     }
@@ -166,9 +165,9 @@ impl Played {
     }
 
     /// `profile`'s kits for the match: the twist's arms, or as they are.
-    pub fn arm(self, profile: &mut MatchProfile, dictionary: &Dictionary) {
+    pub fn arm(self, profile: &mut MatchProfile) {
         if let Some(twist) = self.twist {
-            twist.arm(profile, dictionary);
+            twist.arm(profile);
         }
     }
 }

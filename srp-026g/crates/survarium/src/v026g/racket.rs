@@ -1,7 +1,7 @@
 //! Racket (`docs/notes/ffa.md`, "Twists"; the owner, 2026-11-14: "replaces all sniper rifles and
 //! all silent weapons with ak-12"): a free-for-all's twist ([`super::twist::Twist::Racket`]). Every
-//! sniper rifle and every silenced gun of a player's kits is an AK-12 for the match, and the ammo
-//! its kit's guns can no longer fire is AK-12 ammo in the same ammo bags. The server owns what a
+//! sniper rifle and every silenced gun of a player's kits is an AK-12 for the match, with the
+//! same amount of AK-12 ammo in every such kit. The server owns what a
 //! match spawns (the static info's profiles, which every game cooks each life from), so the
 //! change reaches every game, late joiners and replays; the accounts keep their own guns.
 
@@ -24,21 +24,33 @@ pub const SILENCED_SHOT: &str = "weapons/val_m";
 /// The profile slots of the two weapons (`srp_validate::world::WEAPON_SLOTS`).
 const WEAPON_SLOTS: [usize; 2] = [7, 10];
 
-/// The AK-12 and the one ammo the data pairs with it.
+/// The AK-12 and the one ammo the data pairs with it, read from the game data once
+/// ([`Arms::shared`]): what [`arm`] gives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Arms {
+pub struct Arms {
     gun: u16,
-    ammo: u16,
+    /// The ammo Racket gives (`twist::Twist::gives`).
+    pub ammo: u16,
+    /// The rounds of AK-12 ammo a kit gets: the dictionary's `optimal_count` of the AK-12's
+    /// category.
+    rounds: u16,
 }
 
 impl Arms {
     /// The data's AK-12 and its ammo: exactly one ammo the dictionary pairs with it, which every
-    /// ammo slot takes.
+    /// ammo slot takes, and its category's amount.
     fn of(dictionary: &Dictionary) -> Result<Self, String> {
-        let gun = dictionary
+        let item = dictionary
             .item_named(GUN)
-            .ok_or_else(|| format!("the dictionary has no `{GUN}`"))?
-            .dict_id;
+            .ok_or_else(|| format!("the dictionary has no `{GUN}`"))?;
+        let gun = item.dict_id;
+        let rounds = dictionary
+            .categories
+            .iter()
+            .find(|category| category.id == item.category)
+            .and_then(|category| u16::try_from(category.optimal_count).ok())
+            .filter(|&count| count > 0)
+            .ok_or_else(|| format!("category {} of `{GUN}` has no ammo amount", item.category))?;
         let ammo: Vec<u16> = dictionary
             .items
             .iter()
@@ -51,19 +63,20 @@ impl Arms {
         if let Some(slot) = AMMO_SLOTS.iter().find(|&&slot| !dictionary.fits(ammo, slot)) {
             return Err(format!("`{GUN}`'s ammo {ammo} does not fit ammo slot {slot}"));
         }
-        Ok(Self { gun, ammo })
+        Ok(Self { gun, ammo, rounds })
+    }
+
+    /// The arms of the server's game data ([`check`] refused data without them at start).
+    pub fn shared() -> Self {
+        static SHARED: std::sync::OnceLock<Arms> = std::sync::OnceLock::new();
+        *SHARED.get_or_init(|| {
+            Arms::of(Dictionary::shared()).expect("Racket's arms are in the data (racket::check)")
+        })
     }
 }
 
 fn is_ammo(dict_id: u16) -> bool {
     item_params::item_params(dict_id).is_some_and(|params| params.class == ItemClass::Ammunition)
-}
-
-/// The ammo Racket gives: the AK-12's.
-pub fn ammo() -> u16 {
-    Arms::of(Dictionary::shared())
-        .expect("Racket's arms are in the data (racket::check at start)")
-        .ammo
 }
 
 /// Whether Racket replaces the gun `dict_id`: a sniper rifle (its golden and premium copies are
@@ -76,33 +89,21 @@ pub fn replaces(dictionary: &Dictionary, dict_id: u16) -> bool {
             == Some(SILENCED_SHOT)
 }
 
-/// The ammo bags `count` rounds of `dict_id` take: a bag share (`required_bags`, at least one)
-/// for each clip begun.
-fn bags_of(dict_id: u16, count: u32) -> u32 {
-    let required = item_params::item_params(dict_id).map_or(1, |params| params.required_bags.max(1));
-    count.div_ceil(item_params::shop_unit(dict_id)) * required
-}
-
-/// The rounds of `dict_id` that `bags` ammo bags hold: its whole clips.
-fn rounds_in(dict_id: u16, bags: u32) -> u32 {
-    let required = item_params::item_params(dict_id).map_or(1, |params| params.required_bags.max(1));
-    bags / required * item_params::shop_unit(dict_id)
-}
-
 /// `profile` armed for Racket:
 ///
 /// - every gun of its table that Racket [`replaces`] is a whole AK-12 with no modification and no
 ///   upgrade (the gun's own scope, camo and bonuses stay its own), of the same instance id, in
 ///   every kit and slot that held it;
-/// - in each kit that held one, the ammo of its ammo slots that none of its guns fires now leaves
-///   those slots, and its ammo bags (a share for each clip begun) are AK-12 ammo, whole clips, in
-///   the first slot it left. A kit with no such ammo has its AK-12's magazine alone;
-/// - that AK-12 ammo is one new stack every such kit holds, whose store lasts [`STORE_LIVES`] of
-///   the most rounds a kit takes;
+/// - in each kit that held one, the ammo that none of its guns fires now leaves its slots, and
+///   the kit has the AK-12's category's amount (`optimal_count`) of AK-12 ammo, in the first slot
+///   that ammo left or else its first empty ammo slot (a kit already holding AK-12 ammo keeps
+///   its own; one with no ammo slot free has its AK-12's magazine alone);
+/// - that AK-12 ammo is one new stack every such kit holds, its store the amount
+///   [`STORE_LIVES`] times;
 /// - an item no kit holds any more (the ammo that left) leaves the table;
 /// - nothing else of the kits changes: armour, pockets, artefacts, skills.
-pub fn arm(profile: &mut MatchProfile, dictionary: &Dictionary) {
-    let arms = Arms::of(dictionary).expect("Racket's arms are in the data (racket::check at start)");
+pub fn arm(profile: &mut MatchProfile, arms: &Arms) {
+    let dictionary = Dictionary::shared();
     let replaced: Vec<usize> = (0..profile.items.len())
         .filter(|&index| replaces(dictionary, profile.items[index].dict_id))
         .collect();
@@ -120,7 +121,7 @@ pub fn arm(profile: &mut MatchProfile, dictionary: &Dictionary) {
     }
     let next_id = profile.items.iter().map(|item| item.instance_id).max().unwrap_or(0);
     let items = &mut profile.items;
-    let mut stack: Option<(u16, u32)> = None;
+    let mut stack: Option<u16> = None;
     for kit in &mut profile.kits {
         let held = |slot: usize| kit.slots[slot].map(|(index, _)| usize::from(index));
         if !WEAPON_SLOTS
@@ -134,10 +135,9 @@ pub fn arm(profile: &mut MatchProfile, dictionary: &Dictionary) {
             .filter_map(held)
             .filter_map(|index| items.get(index).map(|item| item.dict_id))
             .collect();
-        let mut bags = 0_u32;
         let mut first = None;
         for slot in AMMO_SLOTS.map(usize::from) {
-            let Some((index, count)) = kit.slots[slot] else {
+            let Some((index, _)) = kit.slots[slot] else {
                 continue;
             };
             let Some(ammo) = items.get(usize::from(index)).map(|item| item.dict_id) else {
@@ -146,28 +146,34 @@ pub fn arm(profile: &mut MatchProfile, dictionary: &Dictionary) {
             if guns.iter().any(|&gun| dictionary.compatible(gun, ammo)) {
                 continue;
             }
-            bags = bags.saturating_add(bags_of(ammo, u32::from(count)));
             first.get_or_insert(slot);
             kit.slots[slot] = None;
         }
-        let rounds = rounds_in(arms.ammo, bags);
-        let Some(slot) = first.filter(|_| rounds > 0) else {
+        let fired = |slot: u8| {
+            kit.slots[usize::from(slot)]
+                .and_then(|(index, _)| items.get(usize::from(index)))
+                .is_some_and(|item| dictionary.compatible(arms.gun, item.dict_id))
+        };
+        if AMMO_SLOTS.into_iter().any(fired) {
+            continue;
+        }
+        let empty = AMMO_SLOTS
+            .map(usize::from)
+            .into_iter()
+            .find(|&slot| kit.slots[slot].is_none());
+        let Some(slot) = first.or(empty) else {
             continue;
         };
-        let rounds = rounds.min(u32::from(u16::MAX));
-        let (at, most) = stack.get_or_insert_with(|| {
+        let at = *stack.get_or_insert_with(|| {
             items.push(MatchItem {
                 instance_id: next_id.wrapping_add(1),
                 dict_id: arms.ammo,
+                condition_or_stack: u32::from(arms.rounds).saturating_mul(STORE_LIVES),
                 ..MatchItem::default()
             });
-            (items.len() as u16 - 1, 0)
+            items.len() as u16 - 1
         });
-        *most = (*most).max(rounds);
-        kit.slots[slot] = Some((*at, rounds as u16));
-    }
-    if let Some((at, most)) = stack {
-        items[usize::from(at)].condition_or_stack = most.saturating_mul(STORE_LIVES);
+        kit.slots[slot] = Some((at, arms.rounds));
     }
     profile.drop_unheld();
 }
@@ -232,15 +238,13 @@ mod tests {
         assert_eq!(heard("val"), Some(SILENCED_SHOT));
         assert_eq!(heard("ak_12"), Some("weapons/ak_12_m"));
         assert_eq!(heard("ammo_6.5x39"), None);
-        assert_eq!(
-            Arms::of(dictionary),
-            Ok(Arms { gun: id("ak_12"), ammo: id("ammo_6.5x39") })
-        );
+        let arms = Arms::of(dictionary).unwrap();
+        assert_eq!((arms.gun, arms.ammo), (id("ak_12"), id("ammo_6.5x39")));
+        assert!(arms.rounds > 0);
     }
 
     #[test]
-    fn a_sniper_kit_gets_an_ak_12_and_its_bags_of_ammo() {
-        let dictionary = Dictionary::shared();
+    fn a_sniper_kit_gets_an_ak_12_and_its_ammo() {
         let mut sniper = profile(&[&[
             (2, "ren_torso_6", 1),
             (7, "svd", 1),
@@ -250,7 +254,7 @@ mod tests {
             (13, "rgd-5", 2),
         ]]);
         let before = sniper.clone();
-        arm(&mut sniper, dictionary);
+        arm(&mut sniper, &Arms::shared());
         assert_eq!(named(&sniper, 0, 7).map(|(name, _)| name), Some("ak_12"));
         assert_eq!(named(&sniper, 0, 10).map(|(name, _)| name), Some("ak_12"));
         // The guns keep their instance ids, whole and bare.
@@ -261,12 +265,9 @@ mod tests {
             assert_eq!((gun.instance_id, gun.condition_or_stack), (old.instance_id, FULL_CONDITION));
             assert!(gun.modifications.is_empty() && gun.upgrades.is_empty());
         }
-        // Both guns' ammo is one stack of AK-12 ammo in the first slot it left, the bags of
-        // both: whole clips of the AK-12's.
-        let bags = bags_of(id("ammo_7.62x54_7n1"), 40) + bags_of(id("ammo_sp6"), 60);
-        let rounds = rounds_in(id("ammo_6.5x39"), bags);
-        assert!(rounds > 0);
-        assert_eq!(named(&sniper, 0, 8), Some(("ammo_6.5x39", rounds as u16)));
+        // Both guns' ammo leaves; the AK-12 ammo's amount is in the first slot it left.
+        let rounds = Arms::shared().rounds;
+        assert_eq!(named(&sniper, 0, 8), Some(("ammo_6.5x39", rounds)));
         assert_eq!(named(&sniper, 0, 11), None);
         // The rest of the kit as it was.
         for slot in [2, 13] {
@@ -275,18 +276,17 @@ mod tests {
         let (at, _) = sniper.kits[0].slots[8].unwrap();
         let new = &sniper.items[usize::from(at)];
         assert_eq!(new.instance_id, before.items.iter().map(|i| i.instance_id).max().unwrap() + 1);
-        assert_eq!(new.condition_or_stack, rounds * STORE_LIVES);
+        assert_eq!(new.condition_or_stack, u32::from(rounds) * STORE_LIVES);
         // The ammo that left is out of the table: torso, two AK-12s' entries, grenades, the stack.
         assert_eq!(sniper.items.len(), before.items.len() - 1);
     }
 
     #[test]
     fn a_loud_kit_and_a_loud_guns_ammo_stay() {
-        let dictionary = Dictionary::shared();
         // An AK-74U kit: nothing to do.
         let mut loud = profile(&[&[(7, "ak_74u", 1), (8, "ammo_5.45x39_7n10", 60)]]);
         let before = loud.clone();
-        arm(&mut loud, dictionary);
+        arm(&mut loud, &Arms::shared());
         assert_eq!(loud, before);
         // A shotgun beside a sniper rifle: the shotgun's shells stay, the rifle's rounds go.
         let mut mixed = profile(&[
@@ -299,7 +299,7 @@ mod tests {
             &[(7, "ak_74u", 1), (8, "ammo_5.45x39_7n10", 60)],
         ]);
         let before = mixed.clone();
-        arm(&mut mixed, dictionary);
+        arm(&mut mixed, &Arms::shared());
         assert_eq!(named(&mixed, 0, 10), named(&before, 0, 10));
         assert_eq!(named(&mixed, 0, 11), named(&before, 0, 11));
         assert_eq!(named(&mixed, 0, 8).map(|(name, _)| name), Some("ammo_6.5x39"));
@@ -309,14 +309,32 @@ mod tests {
         }
     }
 
+    /// A Val beside an SR-3M on one SP-6: the SR-3M keeps it, and the AK-12 still has its own
+    /// ammo, the category's amount, in the first empty ammo slot.
+    #[test]
+    fn an_ak_12_whose_ammo_a_loud_gun_keeps_has_its_own() {
+        let mut kit = profile(&[&[(7, "val", 1), (8, "ammo_sp6", 60), (10, "sr3m", 1)]]);
+        let sp6 = kit.kits[0].slots[8];
+        kit.kits[0].slots[11] = sp6;
+        arm(&mut kit, &Arms::shared());
+        let arms = Arms::shared();
+        assert_eq!(named(&kit, 0, 7).map(|(name, _)| name), Some("ak_12"));
+        assert_eq!(named(&kit, 0, 8), Some(("ammo_sp6", 60)));
+        assert_eq!(named(&kit, 0, 11), Some(("ammo_sp6", 60)));
+        assert_eq!(named(&kit, 0, 9), Some(("ammo_6.5x39", arms.rounds)));
+        // A sniper rifle with no ammo at all: the same amount.
+        let mut dry = profile(&[&[(7, "svd", 1)]]);
+        arm(&mut dry, &Arms::shared());
+        assert_eq!(named(&dry, 0, 8), Some(("ammo_6.5x39", arms.rounds)));
+    }
+
     #[test]
     fn a_gun_two_kits_share_is_replaced_in_both() {
-        let dictionary = Dictionary::shared();
         let mut shared = profile(&[&[(7, "vss", 1), (8, "ammo_sp5", 20)]]);
         // A second kit holding the same table entries, as an account's body sends one.
         let second = MatchKit::new(2, 2, String::new(), shared.kits[0].slots, [0.0; MODIFIERS]);
         shared.kits.push(second);
-        arm(&mut shared, dictionary);
+        arm(&mut shared, &Arms::shared());
         for kit in 0..2 {
             assert_eq!(named(&shared, kit, 7).map(|(name, _)| name), Some("ak_12"));
             assert_eq!(named(&shared, kit, 8).map(|(name, _)| name), Some("ammo_6.5x39"));
