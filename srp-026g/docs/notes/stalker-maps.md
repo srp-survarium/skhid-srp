@@ -199,13 +199,18 @@ Training Camp's meadow.
 - Matte (the owner, 2026-11-14: "grass which is too glossy";
   `stalker-grass-matte-1.json`): the two maps' grass material
   (`ported/cs/<map>/details`) is stock `flora/grass_l03_alt` with the grass's
-  colour texture as its roughness map and `constant_roughness_min` 0.3.
-  `gbuffer_pass.ps` writes smoothness = 1 - (min + range x that map's green):
-  stock's own map is near black (0.04, a highlight too narrow to see), the
-  colour texture gives 0.46, a broad sheen, and with every normal up a whole
-  patch took the sun's colour toward the sun. `constant_roughness_min` is 1.0
-  now: fully rough. Not seen in a game yet. Training Camp's meadow grass
-  (`ported/v010b/flora/grass_l03_alt`, also 0.3) is not changed.
+  colour texture as its roughness map, `constant_roughness_min` 0.3, max 1.
+  A material's "roughness" is its gloss in 0.26g (stock glass 0.7 to 1, cloth
+  and skin 0.1, `flora/grass` 0.01): `gbuffer_pass.ps` writes 1 - (min +
+  range x the map's green), and the sun's highlight in `composition.ps` takes
+  that as its GGX roughness (alpha = 0.5 s^6 + 0.1 s). Stock's own map is near
+  black, gloss 0.04: a broad highlight of about 0.04 x the sun. The colour
+  texture gives 0.46: a sharp one of about 3 x the sun, and with every normal
+  up a whole patch took the sun's colour where the player looked toward the
+  sun and down. Both ends of the range are 0.04 now, stock's average. Not
+  seen in a game yet. Training Camp's meadow grass
+  (`ported/v010b/flora/grass_l03_alt`, also 0.3 over its colour texture) is
+  not changed.
 - The other four maps take the same option. Repair Depot's level has
   349,153 tufts at the same density (thin it with `density`); Training Camp
   has its meadow already; Station and Depository need their level folders
