@@ -1153,6 +1153,41 @@ core changes: a death's key is a time of its match, so a later match's death
 at the same time must not find it). The patch hands the poses to
 `weapon_pickup::draw_drops` after each step. Visual only.
 
+## 19. The STALKER maps' bushes: the level ray without group bit 20h (2026-11-14)
+
+The ported STALKER maps give their bushes collision that a step's ray alone is
+meant to meet (cgroup 8 / cmask 20h, `stalker-maps.md`, "Bushes rustle"): the
+leaves a walker goes through, up to 1.2 m over the ground. The level ray's
+group 434h had bit 20h, so a body and its gun came to rest on those leaves.
+
+**The change.** `LEVEL_GROUP` is 414h (`0x04 | 0x10 | 0x400`), mask 20Ah as
+before. Bit 20h came with the foot IK's group 24h (section 11), of which the
+walker collision (cmask 4) needs bit 4 alone.
+
+**Nothing else stops being met (PROVEN, on the data).** An object leaves the
+ray when its group has a bit of 20Ah and its mask has 20h and none of 414h.
+Every pair of group and mask in the live data (the stock db and every patch to
+58: 156 projects, 1,098 gameplay configs) and the built bushes:
+
+| what | group / mask | 434h/20Ah | 414h/20Ah |
+| --- | --- | --- | --- |
+| a project's collision objects | 2/4, 8/16, 10/20 | met | met |
+| the bushes (6 objects) | 8/32 | met | not met |
+| a trap's hittable object (`blackmarket_trap.options`) | 808h/10h | met | met |
+| a trap's sensor geometry | 201h/420h | met | met (bit 400h) |
+| client objects' and usable objects' geometries | 1/20h, 80h/100h, 880h/100h | not met | not met |
+
+and the bodies put in by code, as before: batteries 0A18h/418h met; players
+824h/3, hit models 40h/11h, grenades 818h/8, the lobby's 800h/800h and 20h/20h
+not met.
+
+**Checked.** The patches' test lists 8/20h among what the filter does not
+meet. `check_ragdoll_026g.py`: the ray's filter is 414h/20Ah, and a bush's slab
+(8/20h, 0.4 m up where the body falls) is passed as the grenade's and the
+player's are: the body lands on the hittable floor. `check_weapon_pickup_026g.py`'s
+stand-in for the level takes the new group. Visual only: no data, no simulation
+change.
+
 ## Addresses (re-kit rows added in this change)
 
 | VA | Name | Row |
