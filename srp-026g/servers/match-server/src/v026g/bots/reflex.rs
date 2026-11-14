@@ -702,6 +702,13 @@ pub struct CombatTuning {
     /// another weapon than the client's. That old value is wrong by the client, so it is on by default and the all-off
     /// patch keeps it (`KEPT_RIGHT`).
     pub worn_kit_from_world: bool,
+    /// [Gap 6, F58] Every place's weapon kind (the matchup band, sniper spots, the bots' own kind fallback) and the
+    /// reach its shots are heard at follow the weapon each world shows in its hands: the kit in use (`current_index`) and
+    /// the hands slot (`m_active_slot`, inventory +0x170, set at the selection 0x2FCB18). Off: the item in slot 7 of the
+    /// first kit for the whole match, which a kit change or a drawn pistol leaves wrong. That old value is wrong by the
+    /// client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`). A gun picked up from another body
+    /// (client patch 85) is read as the slot's own item: the pickup record is not read here.
+    pub weapon_in_hands: bool,
     /// A round-by-round reload (the SPAS-12, the pumps, the bolt rifles that
     /// load by the round) is loaded with the sights down: the client ends
     /// the loop at the first round-end with them or the trigger held and a
@@ -1586,6 +1593,7 @@ impl Default for CombatTuning {
             empty_reload: true,
             gun_from_world: true,
             worn_kit_from_world: true,
+            weapon_in_hands: true,
             reload_aim_control: true,
             reload_rounds_in_view: 0,
             press_ms: 100,

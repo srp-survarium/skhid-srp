@@ -745,6 +745,14 @@ impl Tracker {
         self.shot_reach = reach;
     }
 
+    /// [Gap 6] One place's shot reach, metres: its weapon in hands changed.
+    pub fn set_shot_reach_of(&mut self, place: Place, reach: Option<f32>) {
+        if self.shot_reach.len() <= place {
+            self.shot_reach.resize(place + 1, None);
+        }
+        self.shot_reach[place] = reach;
+    }
+
     /// The speed level each place's profile gives (by place), taken for a
     /// body until a world shows its own (`BodyTrack::set_prior_level`).
     pub fn set_prior_levels(&mut self, levels: &[Option<f32>]) {
