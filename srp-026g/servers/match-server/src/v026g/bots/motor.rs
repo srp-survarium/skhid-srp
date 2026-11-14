@@ -1118,6 +1118,8 @@ struct Ahead {
     way: [f32; 2],
     /// How far before the take-off along the way the feet are.
     before: f32,
+    /// How far the feet are off the jump's line (the take-off's line along the way) to either side, metres.
+    side: f32,
     /// Not moving against the jump's way (since the last tick: standing,
     /// or within [`GOING_TURN`] of it).
     going: bool,
@@ -2291,6 +2293,7 @@ impl Motor {
                 lined: false,
                 way,
                 before: 0.0,
+                side: 0.0,
                 going: false,
                 end: Some(JumpEnd::Refused(take_off)),
                 stand: false,
@@ -2367,6 +2370,7 @@ impl Motor {
                 lined: false,
                 way,
                 before: 0.0,
+                side: 0.0,
                 going: false,
                 end: Some(JumpEnd::Failed(take_off)),
                 stand: false,
@@ -2590,6 +2594,7 @@ impl Motor {
             lined,
             way,
             before: -along,
+            side,
             going,
             end: None,
             stand,
@@ -2862,7 +2867,7 @@ impl Motor {
         #[cfg(test)]
         if std::env::var_os("SRP_BENCH_PRESS_ROWS").is_some() {
             eprintln!(
-                "pressrow\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:?}\t{:?}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{}\t{}\t{:.2}\t{:?}",
+                "pressrow\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:?}\t{:?}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{}\t{}\t{:.2}\t{:?}\t{:.3}\t{:.3}",
                 jump.take_off.x,
                 jump.take_off.y,
                 jump.take_off.z,
@@ -2879,6 +2884,8 @@ impl Motor {
                 jump.tries,
                 ahead.run_up,
                 pose.sprint_block,
+                ahead.side,
+                still,
             );
         }
         if ahead.approach == Approach::SprintGap {
@@ -6090,6 +6097,7 @@ mod tests {
             lined: true,
             way: [1.0, 0.0],
             before: 0.1,
+            side: 0.0,
             going: true,
             end: None,
             stand: false,
@@ -6335,6 +6343,7 @@ mod tests {
             lined: true,
             way: [1.0, 0.0],
             before: 0.0,
+            side: 0.0,
             going: true,
             end: None,
             stand: false,
