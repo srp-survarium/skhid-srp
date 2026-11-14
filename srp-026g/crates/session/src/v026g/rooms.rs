@@ -36,8 +36,9 @@
 //!   wait begin, however each came in (Play or a join; the owner's of
 //!   2026-10-31, [`Rooms::match_over`]).
 //! - The lobby routes Play within its equipment bracket, queues for full
-//!   rooms, and opens another room when four ready Play users are waiting.
-//!   [`QueueChoice`] keeps those waiters distinct from explicit room queues.
+//!   rooms, and opens another room when three ready players wait for public
+//!   rooms, by Play or a room's Queue alike. [`QueueChoice`] keeps Play's
+//!   waiters distinct: only they are routed again.
 //! - A private room (a PIN; the owner's of 2026-10-26) has no team size
 //!   and no players to start: it takes the most a match has (10 v 10), and
 //!   nothing counts down in it. Its owner starts its match when it wants,
@@ -1133,18 +1134,24 @@ impl Rooms {
     /// pair's one). Repeated Play does not change their position; choosing
     /// a room's queue removes them.
     pub fn play_queue(&self) -> Vec<(Waiting, u32)> {
+        self.queue_where(|queued, _| queued.choice == QueueChoice::Play)
+    }
+
+    /// Everyone waiting for a public room, by Play or its Queue alike,
+    /// oldest first, an entry each (a pair's one): those a new room takes.
+    pub fn public_queue(&self) -> Vec<(Waiting, u32)> {
+        self.queue_where(|_, room| room.is_open())
+    }
+
+    fn queue_where(&self, keep: impl Fn(&Queued, &Room) -> bool) -> Vec<(Waiting, u32)> {
         let mut waiting: Vec<_> = self
             .queues
             .iter()
-            .flat_map(|(&key, queue)| queue.iter().map(move |&waiting| (key, waiting)))
-            .filter_map(|(key, waiting)| {
+            .filter_map(|(key, queue)| Some((*key, queue, self.rooms.get(key)?)))
+            .flat_map(|(key, queue, room)| queue.iter().map(move |&waiting| (key, room, waiting)))
+            .filter_map(|(key, room, waiting)| {
                 let queued = self.queued.get(&waiting.lead())?;
-                (queued.choice == QueueChoice::Play).then_some((
-                    queued.since,
-                    waiting.lead(),
-                    waiting,
-                    key,
-                ))
+                keep(queued, room).then_some((queued.since, waiting.lead(), waiting, key))
             })
             .collect();
         waiting.sort_unstable_by_key(|&(since, lead, _, _)| (since, lead));

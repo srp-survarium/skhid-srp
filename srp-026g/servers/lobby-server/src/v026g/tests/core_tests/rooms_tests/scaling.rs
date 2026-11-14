@@ -83,10 +83,10 @@ fn a_client_cannot_create_a_public_room_or_leave_its_room_by_trying() {
 }
 
 #[test]
-fn three_wait_but_four_open_another_room_and_all_stay_in_it_after_its_match() {
+fn two_wait_but_three_open_another_room_and_all_stay_in_it_after_its_match() {
     let mut world = World::new();
     let (room, _) = full(&mut world, "Member", 1);
-    let mut waiting = waiters(&mut world, "Waiting", 3, 1);
+    let mut waiting = waiters(&mut world, "Waiting", 2, 1);
     world.advance(Duration::from_secs(1));
     assert_eq!(world.core.rooms.len(), 1);
     let position = world.core.rooms.queue_place(world.ids[waiting[0]].0);
@@ -96,8 +96,8 @@ fn three_wait_but_four_open_another_room_and_all_stay_in_it_after_its_match() {
         world.core.rooms.queue_place(world.ids[waiting[0]].0),
         position
     );
-    assert_eq!(world.core.rooms.queued_total(), 3);
-    waiting.extend(waiters(&mut world, "Fourth", 1, 1));
+    assert_eq!(world.core.rooms.queued_total(), 2);
+    waiting.extend(waiters(&mut world, "Third", 1, 1));
     world.advance(Duration::from_secs(1));
     assert_eq!(world.core.rooms.len(), 2);
     let next = key(&world, waiting[0]);
@@ -121,19 +121,20 @@ fn three_wait_but_four_open_another_room_and_all_stay_in_it_after_its_match() {
 fn a_freed_place_admits_a_play_waiter_without_opening_another_room() {
     let mut world = World::new();
     let (room, members) = full(&mut world, "Member", 1);
-    let waiting = waiters(&mut world, "Waiting", 3, 1);
+    let waiting = waiters(&mut world, "Waiting", 2, 1);
     rows(&mut world, members[1], ROOM_LEAVE, 1);
     world.advance(Duration::from_secs(1));
     assert_eq!(world.core.rooms.len(), 1);
     assert_eq!(key(&world, waiting[0]), room);
-    assert_eq!(world.core.rooms.queued_total(), 2);
+    assert_eq!(world.core.rooms.queued_total(), 1);
 }
 
+/// The owner's of 2026-11-14: a room's Queue opens another room as Play does.
 #[test]
-fn explicitly_chosen_queues_do_not_expand_or_move_with_play_waiters() {
+fn chosen_queues_open_another_room_as_play_does() {
     let mut world = World::new();
     let (room, _) = full(&mut world, "Member", 1);
-    let chosen: Vec<_> = (0..6)
+    let chosen: Vec<_> = (0..2)
         .map(|n| {
             let player = world.connect(&format!("Chosen{n}"));
             rows(&mut world, player, ROOM_QUEUE_BASE + room, 1);
@@ -142,31 +143,30 @@ fn explicitly_chosen_queues_do_not_expand_or_move_with_play_waiters() {
         .collect();
     world.advance(Duration::from_secs(1));
     assert_eq!(world.core.rooms.len(), 1);
-    let waiting = waiters(&mut world, "Waiting", 4, 1);
+    let waiting = waiters(&mut world, "Waiting", 1, 1)[0];
     world.advance(Duration::from_secs(1));
     assert_eq!(world.core.rooms.len(), 2);
-    assert_ne!(key(&world, waiting[0]), room);
-    for (i, player) in chosen.into_iter().enumerate() {
-        assert_eq!(
-            world.core.rooms.queue_place(world.ids[player].0),
-            Some((room, i + 1))
-        );
-    }
+    let next = key(&world, chosen[0]);
+    assert_ne!(next, room);
+    assert_eq!(key(&world, chosen[1]), next);
+    assert_eq!(key(&world, waiting), next);
+    assert_eq!(world.core.rooms.queued_total(), 0);
 }
 
 #[test]
-fn leaving_the_queue_and_unplayable_loadouts_do_not_count_toward_four() {
+fn leaving_the_queue_and_unplayable_loadouts_do_not_count_toward_three() {
     let mut world = World::new();
     full(&mut world, "Member", 1);
-    let waiting = waiters(&mut world, "Waiting", 3, 1);
+    let waiting = waiters(&mut world, "Waiting", 2, 1);
     rows(&mut world, waiting[0], ROOM_UNQUEUE, 1);
-    waiters(&mut world, "Third", 1, 1);
+    waiters(&mut world, "Second", 1, 1);
+    world.advance(Duration::from_secs(1));
     assert_eq!(world.core.rooms.len(), 1);
     let slots = world.account(waiting[1]).kits[0].slots;
     world.change(waiting[1], |account| account.kits[0].slots = [None; 23]);
-    waiters(&mut world, "Fourth", 1, 1);
+    waiters(&mut world, "Third", 1, 1);
     world.advance(Duration::from_secs(1));
-    assert_eq!(world.core.rooms.len(), 1, "only three can play");
+    assert_eq!(world.core.rooms.len(), 1, "only two can play");
     world.change(waiting[1], |account| account.kits[0].slots = slots);
     world.advance(Duration::from_secs(1));
     assert_eq!(world.core.rooms.len(), 2);
@@ -206,7 +206,7 @@ fn failed_expansion_keeps_every_waiter_and_retries_when_capacity_is_available() 
 }
 
 #[test]
-fn four_waiters_across_two_full_rooms_expand_together() {
+fn three_waiters_across_two_full_rooms_expand_together() {
     let mut world = World::new();
     full(&mut world, "Member", 1);
     let second = waiters(&mut world, "Second", 4, 1);
@@ -214,13 +214,13 @@ fn four_waiters_across_two_full_rooms_expand_together() {
     let second_key = key(&world, second[0]);
     waiters(&mut world, "Filling", 12, 1);
     assert!(world.core.rooms.get(second_key).unwrap().is_full());
-    let mut waiting = waiters(&mut world, "Waiting", 3, 1);
+    let mut waiting = waiters(&mut world, "Waiting", 2, 1);
     let keys: std::collections::HashSet<_> = waiting
         .iter()
         .map(|&player| world.core.rooms.queue_place(world.ids[player].0).unwrap().0)
         .collect();
     assert_eq!(keys.len(), 2, "demand is split across both queues");
-    waiting.extend(waiters(&mut world, "Fourth", 1, 1));
+    waiting.extend(waiters(&mut world, "Third", 1, 1));
     world.advance(Duration::from_secs(1));
     assert_eq!(world.core.rooms.len(), 3);
     let next = key(&world, waiting[0]);
@@ -232,11 +232,11 @@ fn four_waiters_across_two_full_rooms_expand_together() {
 fn a_restarted_game_does_not_count_toward_expansion_until_it_knows_its_queue() {
     let mut world = World::new();
     full(&mut world, "Member", 1);
-    let waiting = waiters(&mut world, "Waiting", 3, 1);
+    let waiting = waiters(&mut world, "Waiting", 2, 1);
     let account = world.ids[waiting[0]].0;
     let session = world.new_session(account);
     let again = world.connect_session((account, session));
-    waiters(&mut world, "Fourth", 1, 1);
+    waiters(&mut world, "Third", 1, 1);
     world.advance(Duration::from_secs(1));
     assert_eq!(world.core.rooms.len(), 1);
     state(&mut world, again);
@@ -270,13 +270,13 @@ fn a_new_play_does_not_jump_a_queue_when_a_place_has_just_freed() {
 }
 
 #[test]
-fn three_waiters_in_each_bracket_do_not_open_another_room() {
+fn two_waiters_in_each_bracket_do_not_open_another_room() {
     let mut world = World::new();
     full(&mut world, "Low", 1);
     full(&mut world, "High", 15);
-    waiters(&mut world, "LowWait", 3, 1);
-    waiters(&mut world, "HighWait", 3, 15);
+    waiters(&mut world, "LowWait", 2, 1);
+    waiters(&mut world, "HighWait", 2, 15);
     world.advance(Duration::from_secs(1));
     assert_eq!(world.core.rooms.len(), 2);
-    assert_eq!(world.core.rooms.queued_total(), 6);
+    assert_eq!(world.core.rooms.queued_total(), 4);
 }

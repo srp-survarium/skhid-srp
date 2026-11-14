@@ -18,12 +18,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - Play fills an eligible room in its bracket first (nearest level, then fullest).
     When all are full it queues, choosing a shortest queue. Repeated Play keeps
     the same queue position.
-  - Four ready Play users waiting across that bracket's queues open another room;
+  - Three ready players waiting across that bracket's queues open another room
+    (owner 2026-11-14: a public room's Queue counts as Play does);
     up to 16 transfer together, oldest first. This repeats with demand: no fixed
     three-plus-one limit. The rooms table's `rooms_most` still applies;
     at that limit, or if creation fails, everyone keeps waiting.
-  - Explicitly chosen queues do not count toward expansion and never move with it.
-    Disconnected games, restarted games not yet told their queue, and unplayable
+  - Only Play's waiters are routed again on a changed loadout. Disconnected games, restarted games not yet told their queue, and unplayable
     loadouts do not count. A changed equipment bracket is routed again.
   - Players up to level 10 may explicitly join a level-15 room through Rooms.
     Play does not put them there automatically. The switch suggestion is only
