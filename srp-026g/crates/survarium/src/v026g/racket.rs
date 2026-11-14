@@ -220,7 +220,7 @@ pub fn arm(profile: &mut MatchProfile, arms: &Arms) {
 /// The ammo bags of `kit` (its items' `items`) that its ammunition leaves free: its bags as the
 /// lobby counts them ([`KitLayout`]: its items' modifications, their defaults and their own, and
 /// its skills'), less a clip's bags for every clip its ammo slots hold, the last one begun.
-fn free_bags(kit: &MatchKit, items: &[MatchItem]) -> u32 {
+pub(super) fn free_bags(kit: &MatchKit, items: &[MatchItem]) -> u32 {
     let held = |slot: usize| {
         let (index, count) = kit.slots[slot]?;
         Some((items.get(usize::from(index))?, count))

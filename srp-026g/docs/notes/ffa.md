@@ -444,7 +444,11 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   free-for-alls alone) draws its twist with the card, by its share (`twist::SHARES`):
   - plain Free for all 45 %, **Racket** 45 % (my pick);
   - **Cowboy**, "Saloon" in the lobby, 10 % (the owner, 2026-11-14: "cowboy version should be
-    rare with only 10% chance"): every kit a Colt Python alone (`ffa-cowboy.md`).
+    rare with only 10% chance"), in two variations (the owner, 2026-11-14: "saloon should have
+    two variations with winchesters and colts or just with colts"), half and half (my pick: 5 %
+    each, `twist::Armed`): every kit a Winchester 1894 and a Colt Python, or a Colt Python alone
+    (`ffa-cowboy.md`). One name and one tick for both: the card draws its variation with its
+    twist.
 
   Won, the card's match plays its twist.
 - **A mode of its own in the create window** (the owner, 2026-11-14: "they are not present in
@@ -516,7 +520,8 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   - srp refuses to start on data without `ak_12` or with other than one ammo for it.
 - **Pay:** as any free-for-all. The ammo used is counted from the trusted world's stacks, which are
   the match's; the ammo left out of the match is not in them, so not charged.
-  - The ammo the twist gives (`Twist::gives`: Racket's `ammo_6.5x39`, Cowboy's `ammo_.357m`) is
+  - The ammo the twist gives (`Twist::gives`: Racket's `ammo_6.5x39`, Cowboy's `ammo_.30-30` and
+    `ammo_.357m`, in either variation: the Colt alone gives no `.30-30`, and nobody's is in it) is
     nobody's and never charged, though an account owns that kind too: its own stack's use in
     that match is not charged either (the world's stacks are counted by kind).
   - Without a trusted block a twisted match charges no ammo (`autobuy::used`): the shot counters
