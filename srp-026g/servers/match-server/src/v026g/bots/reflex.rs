@@ -694,6 +694,14 @@ pub struct CombatTuning {
     /// in 64.4 % of 23,904 windows). That old value is wrong by the client, so it is on by default and the all-off patch
     /// keeps it (`KEPT_RIGHT`).
     pub gun_from_world: bool,
+    /// [Gap 15] A bot whose life a trusted world shows in another kit than the one it counts on (`current_index`, the kit
+    /// in use: srp-validate `Head::current_kit`, written by `game_world_core_client::serialize` 0x3218E0) takes that
+    /// kit's arms and ammo for the life ([`super::Bot`]'s `wear`): the client spawns a body in its own list's next kit,
+    /// which a game that loaded a world mid-match keeps over the bot's choice (F56, 58 bodies in 11 recordings). Off:
+    /// the life's arms are the bot's own choice whatever the world says, so every gun decision of that life runs on
+    /// another weapon than the client's. That old value is wrong by the client, so it is on by default and the all-off
+    /// patch keeps it (`KEPT_RIGHT`).
+    pub worn_kit_from_world: bool,
     /// A round-by-round reload (the SPAS-12, the pumps, the bolt rifles that
     /// load by the round) is loaded with the sights down: the client ends
     /// the loop at the first round-end with them or the trigger held and a
@@ -1577,6 +1585,7 @@ impl Default for CombatTuning {
             reload_some_share: 0.4,
             empty_reload: true,
             gun_from_world: true,
+            worn_kit_from_world: true,
             reload_aim_control: true,
             reload_rounds_in_view: 0,
             press_ms: 100,
@@ -3958,6 +3967,28 @@ impl Reflex {
 
     pub fn arms(&self) -> Option<&'static Arms> {
         self.arms
+    }
+
+    /// [Gap 15] The life is in another kit than the one its arms were of (the world's `current_index`): its weapons are
+    /// that kit's, with `carried` rounds of its ammo, as at a spawn in it. What the ledger counted of the other kit's
+    /// weapon goes (its rounds, a reload or a switch under way, the shots' clocks, the kept ticks); the rest of the life
+    /// (targets, sights, plays, memory) stays.
+    pub fn rearm(&mut self, arms: &'static Arms, carried: u32) {
+        self.arms = Some(arms);
+        self.carried = Some(carried);
+        self.hands = None;
+        self.journal.clear();
+        self.busy_until = 0;
+        self.reload_note = None;
+        self.loop_end = None;
+        self.emptied = None;
+        self.clip_end = 0;
+        self.ready_at = 0.0;
+        self.held_ms = 0;
+        self.press_until = 0;
+        self.next_press = 0;
+        self.fired = (0, 0);
+        self.recoil.reset();
     }
 
     /// Where play 7 (the hide from an outranging enemy) is: "open", "hiding" (walking to the spot or waiting at it) or

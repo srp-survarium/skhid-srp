@@ -466,6 +466,8 @@ pub struct Bot {
     empty_reloads: reflex::EmptyReloads,
     /// [Gap 3] [measure] What the worlds did to its gun ledger, the lives before this one's ([`Self::gun_reads`]).
     gun_reads: guns::GunReads,
+    /// [Gap 15] [measure] Lives put in the world's kit in use, not the one it counted on ([`Self::wear`]).
+    worn_kit_moves: u32,
     /// [measure] [A241] Its trigger ticks with the aim sway taken back and the degrees taken back, the lives before this one's
     /// reflex (which counts its own).
     sway_taken: (u32, f32),
@@ -649,6 +651,7 @@ impl Bot {
             frag_rolls_refused: 0,
             empty_reloads: reflex::EmptyReloads::default(),
             gun_reads: guns::GunReads::default(),
+            worn_kit_moves: 0,
             sway_taken: (0, 0.0),
             client_sway: recoil::ClientSway::Absent,
             frag_lives: live_grenades::FragLives::default(),
@@ -710,11 +713,34 @@ impl Bot {
         self.reflex = Reflex::armed_carrying(Some(arms), self.life_carried);
     }
 
+    /// [Gap 15] This life is in kit `kit` (the world's kit in use), not the one it counts on: its arms and this life's
+    /// ammo become that kit's, as at a spawn in it (0x2FCB70: the slot's rounds, at most what the storage has). The kit it
+    /// counted on keeps its storage whole (this life fired none of it). Whether it moved: not for its present kit, nor
+    /// for a kit it has no arms of.
+    fn wear(&mut self, kit: usize) -> bool {
+        if kit == self.kit {
+            return false;
+        }
+        let Some(&(arms, left)) = self.kits.get(kit) else {
+            return false;
+        };
+        self.kit = kit;
+        self.life_carried = left.min(arms.primary.1);
+        self.reflex.rearm(arms, self.life_carried);
+        self.worn_kit_moves += 1;
+        true
+    }
+
     /// [A277] [measure] Its reloads at an emptying shot's clip end in the match (`CombatTuning::empty_reload`).
     pub fn empty_reloads(&self) -> reflex::EmptyReloads {
         let mut all = self.empty_reloads;
         all += self.reflex.empty_reloads();
         all
+    }
+
+    /// [Gap 15] [measure] Lives it was put in the world's kit in use, not the one it counted on.
+    pub fn worn_kit_moves(&self) -> u32 {
+        self.worn_kit_moves
     }
 
     /// [Gap 3] [measure] What the worlds did to its gun ledger in the match (`CombatTuning::gun_from_world`).
@@ -1447,6 +1473,31 @@ impl Bots {
                 bot.features.stock.pantry.hit(hit);
             }
         }
+    }
+
+    /// [Gap 15] A trusted world's kit in use (`current_index`) of a living place: a bot whose life is in another kit than
+    /// the one it counts on is put in that kit ([`Bot::wear`], `combat.worn_kit_from_world`): the client spawns a body in
+    /// its own list's kit, which a game that loaded a world mid-match keeps over the bot's choice (F56). A note when it
+    /// moves.
+    pub fn worn_kit(&mut self, place: Place, kit: u8, time: u32) -> Vec<Note> {
+        let mut notes = Vec::new();
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return notes;
+        };
+        let tuning = self.tunings.of(bot.team);
+        if !tuning.aim.combat.worn_kit_from_world {
+            return notes;
+        }
+        let was = bot.kit;
+        if !bot.wear(usize::from(kit)) {
+            return notes;
+        }
+        // The bar's rates of the kit this life is in (`think.stamina_rates`), as at a spawn in it.
+        if tuning.think.stamina_rates == tuning::StaminaRates::Kit {
+            bot.stamina.set_rates(bot.kit_rates.get(bot.kit).copied().unwrap_or(stamina::Rates::LIGHT));
+        }
+        bot.note(&mut notes, time, format!("wears kit {} (the world's), not kit {}", bot.kit + 1, was + 1));
+        notes
     }
 
     /// [Gap 3, F7] A trusted world's word on one place's weapon in hands ([`guns::GunWorld`]): a bot's own ledger is laid
