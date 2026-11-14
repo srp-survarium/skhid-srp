@@ -565,7 +565,17 @@ body_name:
     db "body", 0
 head_name:
     db "head", 0
-; The pools Lifebone's active fills.
+left_hand_name:
+    db "left_hand", 0
+right_hand_name:
+    db "right_hand", 0
+left_leg_name:
+    db "left_leg", 0
+right_leg_name:
+    db "right_leg", 0
+; The pools Lifebone's active fills: every body part (the limbs too since the
+; owner's 2026-11-14 report; `infection` is not one and is left).
 heals:
     dd pain_name, body_name, head_name
+    dd left_hand_name, right_hand_name, left_leg_name, right_leg_name
 heals_end:

@@ -31,7 +31,8 @@ number from the game data, the rules as the client's hit code applies them. Buil
   window's height; two clicks for the distance; the distance slider moves the target along the
   same line. On a wide screen (1700 px and up) it sits between shooter and target.
 - Healing, at the bottom: recovering by itself, the Larkspur (Живокіст) carried and activated,
-  the medikit and bandages, side by side; every number from the data. Under it, the time from
+  the medikit and bandages, side by side; every number from the data (an activated Larkspur
+  fills every pool at once: exe patch 54's rule, artefacts.md). Under it, the time from
   empty to full for none and 1–4 Larkspurs, the picked number marked.
 - Recovery bonuses (owner 2026-11-12: "it should take into account all bonuses to recovery",
   "those should all be togglable", "I want this to be combinable"): everything that changes the

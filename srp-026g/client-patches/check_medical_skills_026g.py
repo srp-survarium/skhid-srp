@@ -252,7 +252,7 @@ def run(data,padding=0,kit=0):
     assert all(g.read(p+0xd0)==10 for p in [PLAYER,ally,far,enemy,dead])
     item=g.block(0x500);vt=g.block(0x100);g.word(item,vt);g.word(vt+0x80,0x312250)
     for at in [PLAYER,ally,far,enemy,dead]:
-        for name in ['body','head','pain']:g.word(g.pools[at][name]+0xa0,bits(.1))
+        for name in g.pools[at]:g.word(g.pools[at][name]+0xa0,bits(.1))
     resource=g.effect_resource();g.word(item+0x290,resource);g.word(item+0x494,3000)
     inventory=g.block(0x200);g.word(item+0x250,inventory);g.word(inventory+0x174,PLAYER+0x108)
     second=g.player(5,0,(1,0,0))
@@ -316,7 +316,8 @@ def run(data,padding=0,kit=0):
     print('Medic clock: full activation duration, wrapping time, local pointer restore, ordinary clocks unchanged: PASS')
     print('Medic: insertion-independent recipients; independent native resource emission; retained references balanced: PASS')
     for at in [PLAYER,far,enemy,dead]:close(g.float(g.pools[at]['body']+0xa0),.1)
-    for name in ['body','head','pain']:close(g.float(g.pools[ally][name]+0xa0),g.float(g.pools[ally][name]+0x9c))
+    # Every body part of a recipient is full, the limbs too (the owner, 2026-11-14).
+    for name in g.pools[ally]:close(g.float(g.pools[ally][name]+0xa0),g.float(g.pools[ally][name]+0x9c))
     assert all(g.read(p+0xd0)==10 for p in [PLAYER,ally,far,enemy,dead])
     # The old visual-helper hook was reachable from native deserialize. Running
     # that exact point again must not heal or emit additional teammate effects.

@@ -6154,3 +6154,14 @@ va	name	location	role	basis
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	EDX	the throw state (mov edx,esi at 0x33A453 before the call)	observed
 0x0033a4e0	survarium::weapon_core_throw_grenade_state::serialize	at 0x33A51B..0x33A53D	the set's slot byte saved: [[state+17Ch]+254h] (any item's inventory slot, 17h absent), the set not tested and not null-tested. Patch 115 saves 17h with no grenade set	observed
 0x00252b20	survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_fire_state>::deserialize	ECX	the fire state (mov edi,ecx at 0x252B38)	observed
+0x002370e0	survarium::game_world_ui::update_body_parts_hp [descriptive]	EAX	the local player's damage model (its pools +108h): [the player's +108h slot 2]() at 0x23B788..0x23B78A	observed
+0x002370e0	survarium::game_world_ui::update_body_parts_hp [descriptive]	entry ESP+4	the game world ui (its movie through +8, +108h, +4)	observed
+0x0032a600	survarium::body_part::recall_expired_affects [descriptive]	entry ESP+4	the pool	observed
+0x0032a600	survarium::body_part::recall_expired_affects [descriptive]	entry ESP+8	the time, ms	observed
+0x0032a740	survarium::body_part::check_affects [descriptive]	EDI	the pool (Hmax +9Ch, H +A0h, its thresholds +28h)	observed
+0x0032a740	survarium::body_part::check_affects [descriptive]	entry ESP+4	the time, ms	observed
+0x0032a9c0	survarium::body_part::update_threshold_modifier [descriptive]	ECX	the pool: its model +7Ch, whose player is +3B0h (the kit +115h, the kits +6B8h)	observed
+0x0032ab90	survarium::body_part::apply_threshold_affects [descriptive]	EAX	the threshold	observed
+0x0032ab90	survarium::body_part::apply_threshold_affects [descriptive]	entry ESP+4	the pool	observed
+0x0032ab90	survarium::body_part::apply_threshold_affects [descriptive]	entry ESP+8	the time, ms	observed
+0x00312450	survarium::artefact_lifebone_core::disable_active_effects	ECX	the Lifebone	observed

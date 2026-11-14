@@ -272,8 +272,10 @@ also invoked by deserialize and must never perform this gameplay healing.
 It excludes self, enemies, dead/inactive players and targets outside Cascade's reach (6 m;
 5 m before the owner's 2026-11-07 change).
 Each successful native lookup is an owned reference released on every exit.
-For recipients it removes the Larkspur config's affects, fills body/head/pain
-like patch 54, and adds a native effect instance with the recipient's calculator.
+For recipients it removes the Larkspur config's affects, fills every body part
+like patch 54 (body, head, pain and, since the owner's 2026-11-14 report, both
+hands and both legs, each to the recipient's own maximum; artefacts.md), and
+adds a native effect instance with the recipient's calculator.
 The places it reaches are the copy's for its whole active (since 2026-11-11 patch 109 gives a
 Spring's and an Onyx's active to them wherever they go, artefact-skills.md "Resonance or Cascade");
 an activation without Medic's bit reaches none.
