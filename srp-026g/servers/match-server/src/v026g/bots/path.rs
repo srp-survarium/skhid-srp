@@ -1445,6 +1445,7 @@ impl Route {
             ledge_tops,
             gates,
             risers,
+            crouch_climbs,
             ..
         } = self;
         // A planned walk has its start at least (an escape's walk to an
