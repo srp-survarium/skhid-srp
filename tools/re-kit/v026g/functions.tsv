@@ -2363,3 +2363,4 @@ va	status	ref_021d	name
 0x001610b0	reviewed		stlp_std::sort<vostok::render::grass_patch **> (grass_world::process_culling's)
 0x00161e50	reviewed		stlp_std::priv::__linear_insert<vostok::render::grass_patch **>
 0x00162060	reviewed		stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>
+0x0005c060	reviewed		vostok::sound::sound_scene::process_fade

@@ -66,6 +66,8 @@ pub mod map_names;
 pub mod world_check;
 pub mod weapon_kit;
 pub mod music;
+// patch 144: the Settings' Game slider
+pub mod game_volume;
 pub mod sound_voices;
 pub mod drug_interrupt;
 pub mod footsteps;

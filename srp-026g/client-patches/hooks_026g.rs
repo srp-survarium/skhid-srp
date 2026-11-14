@@ -1787,6 +1787,21 @@ pub extern "C" fn hook_voice_on_configs(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- game_volume (patch 144) ----
+
+/// The entry `game_volume_on_configs` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_game_volume_on_configs(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `game_volume_on_configs` calls this, from the game's jump at 0x1ea210,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::game_volume::on_configs(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- console_where (patch 133) ----
 
 /// The entry `console_where_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player)) calls this with the saved machine.
@@ -2325,6 +2340,21 @@ pub extern "C" fn hook_voice_on_tick(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- game_volume (patch 144) ----
+
+/// The entry `game_volume_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_game_volume_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `game_volume_on_frame` calls this, from the game's jump at 0x1ec8ec,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::game_volume::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- memory_report (patch 126) ----
 
 /// The entry `memory_report_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
@@ -2640,6 +2670,26 @@ pub extern "C" fn hook_free_for_all_on_protection_read(frame: &mut Frame) -> u32
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::free_for_all::on_protection_read(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- game_volume (patch 144) ----
+
+/// The named exits of game_volume::on_general (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum GameVolumeOnGeneralExit { Done }
+/// The entry `game_volume_on_general` (0x59adf, sound_world::tick's general pass, after the active scenes ticked (cmp byte [edi+48F0h],al; the je skips the pass when General is as last applied): the sound thread, EDI the world, EAX s_general_volume's value truncated (cvttss2si [0A7AF90h], 0 to 100); done 0x59B4B, past the pass (ESI 0 there as here: the scenes' walk ended)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_game_volume_on_general(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `game_volume_on_general` calls this, from the game's jump at 0x59adf,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::game_volume::on_general(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -5205,6 +5255,8 @@ pub extern "C" fn hook_language_on_configs_start_chain(frame: &mut Frame) -> u32
     if flow != 0 { return flow; }
     let flow = hook_voice_on_configs(frame);
     if flow != 0 { return flow; }
+    let flow = hook_game_volume_on_configs(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5219,6 +5271,8 @@ pub extern "C" fn hook_music_on_frame_chain(frame: &mut Frame) -> u32 {
     let flow = hook_executable_report_on_frame(frame);
     if flow != 0 { return flow; }
     let flow = hook_voice_on_tick(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_game_volume_on_frame(frame);
     if flow != 0 { return flow; }
     0
 }
