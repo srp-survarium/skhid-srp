@@ -29,7 +29,7 @@ scav_helmet_9	Metal helmet	helmet	14	Scavengers		Head: armour 35, isolation 70	2
 duty_exo_helmet	Duty exoskeleton helmet	helmet	15	The Renaissance Army		Head/Face: armour 72, isolation 70	5		Armor, Isolation, Weight	
 edge_helmet_6	"Pilgrim" helmet	helmet	15	The Fringe Settlers		Head/Face: armour 70, isolation 90	5		Armor, Isolation, Weight	
 eq046_blackmarket_helmet_10	Heavy armored helmet	helmet	15	Black Market		Head: armour 65, isolation 20	2.5		Armor, Isolation, Weight	
-freedom_exo_helmet	Freedom exoskeleton helmet	helmet	15	The Fringe Settlers		Head/Face: armour 70, isolation 80	4.5		Armor, Isolation, Weight	
+freedom_exo_helmet	Freedom exoskeleton helmet	helmet	15	The Fringe Settlers		Head/Face: armour 70, isolation 80	3.5		Armor, Isolation, Weight	
 ren_helmet_6	"Zubr UM-4" helmet	helmet	15	The Renaissance Army		Head/Face: armour 75, isolation 50	6		Armor, Isolation, Weight	
 scav_helmet_10	Nomad Helmet	helmet	15	Scavengers		Head: armour 60, isolation 30	2.5		Armor, Isolation, Weight	yes
 face_069d_balaclava	Balaclava	mask	3	The Renaissance Army		Face: armour 18, isolation 6	0.3		Armor, Weight, Isolation	
@@ -109,10 +109,10 @@ edge_torso_5	Bulletproof vest "Keeper"	body	14	The Fringe Settlers		Chest/Back/A
 edge_torso_5_special	Keeper Of The Sun Vest	body	14	The Fringe Settlers	yes	Chest/Back/Arms: armour 70, isolation 25	10	Item slots +1, Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 ren_torso_5	"OZK-18KB" Vest	body	14	The Renaissance Army		Chest/Back/Arms: armour 70, isolation 75	13.5	Item slots +1, Pocket capacity +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_toro_9	Firefighter Bulletproof Vest	body	14	Scavengers		Chest/Back/Arms: armour 70, isolation 70	12	Item slots +1, Pocket capacity +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
-duty_exo_suit	Duty exoskeleton	body	15	The Renaissance Army		Chest/Back/Arms/Legs: armour 87, isolation 70	26.4	Item slots +1, Ammo bags +1, Pocket capacity +1, Artifact container +1, Weight limit +5 kg, Regeneration +15%	Armor, Isolation, Weight, Stamina regeneration, Movement speed, Energy costs	
+duty_exo_suit	Duty exoskeleton	body	15	The Renaissance Army		Chest/Back/Arms/Legs: armour 87, isolation 70	22	Item slots +2, Ammo bags +2, Pocket capacity +2, Artifact container +1, Aiming speed -10%, Weight limit +5 kg, Reload speed +15%, Weapon recoil -10%	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Energy costs	
 edge_torso_6	"Pilgrim" bulletproof vest	body	15	The Fringe Settlers		Chest/Back/Arms: armour 85, isolation 90	17	Artifact container +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 eq046_blackmarket_torso_10	Heavy armored vest	body	15	Black Market		Chest/Back/Arms: armour 88, isolation 20	14	Ammo bags +1, Item slots +2	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
-freedom_exo_suit	Freedom exoskeleton	body	15	The Fringe Settlers		Chest/Back/Arms/Legs: armour 85, isolation 80	26.2	Item slots +1, Ammo bags +1, Artifact container +1, Movement speed +4%, Energy costs -8%, Stamina regeneration +8%	Armor, Isolation, Weight, Regeneration, Weight limit	
+freedom_exo_suit	Freedom exoskeleton	body	15	The Fringe Settlers		Chest/Back/Arms/Legs: armour 88, isolation 80	17	Item slots +2, Ammo bags +2, Artifact container +1, Movement speed +5%, Energy costs -10%, Weight limit +5 kg, Stamina regeneration +10%, Pocket capacity +2	Armor, Isolation, Weight, Regeneration	
 ren_torso_6	"Zubr UM-4" bulletproof vest	body	15	The Renaissance Army		Chest/Back/Arms: armour 90, isolation 50	20	Ammo bags +2, Pocket capacity +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_torso_10	Nomad Vest	body	15	Scavengers		Chest/Back/Arms: armour 80, isolation 30	10	Item slots +1, Regeneration +12%	Armor, Isolation, Weight, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_back_1	Backpack with container	backpack	1	Scavengers			3	Artifact container +1	Weight, Regeneration, Weight limit	
@@ -210,7 +210,7 @@ edge_legs_7	Warrior pants	pants	9	The Fringe Settlers		Legs: armour 60, isolatio
 edge_legs_7_premium	Pants "Berserker"	pants	9	The Fringe Settlers	yes	Legs: armour 60, isolation 20	2	Ammo bags +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 ren_legs_2	"Shturm" pants	pants	9	The Renaissance Army		Legs: armour 70, isolation 10	2.5		Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 scav_legs_7	Pathfinder pants	pants	9	Scavengers		Legs: armour 65, isolation 20	2	Item slots +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
-eq046_renesanse_legs_7	Sniper Pants	pants	11	The Renaissance Army		Legs: armour 72, isolation 20	1.5		Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
+eq046_renesanse_legs_7	Sniper Pants	pants	11	The Renaissance Army		Legs: armour 72, isolation 20	1.5	Pocket capacity +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 eq069_snow_20_legs_7	Snow-20 Pants	pants	11	The Renaissance Army		Legs: armour 72, isolation 20	1.5		Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 bm_legs_8	Pants "Omicron"	pants	12	Black Market		Legs: armour 70, isolation 60	2.5	Artifact container +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
 bm_legs_8_premium	Pants "Omicron MKII"	pants	12	Black Market	yes	Legs: armour 70, isolation 60	2.5	Artifact container +1	Armor, Isolation, Weight, Regeneration, Stamina regeneration, Movement speed, Weight limit, Energy costs	
