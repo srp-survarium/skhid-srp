@@ -22,7 +22,7 @@ typedef void(__cdecl *void_fn)(void);
 typedef void(__cdecl *int_fn)(int);
 typedef void(__cdecl *settings_fn)(float, int, float);
 typedef void(__cdecl *mask_fn)(unsigned);
-typedef void(__cdecl *direction_fn)(int, float);
+typedef void(__cdecl *hear_fn)(int, float, float, int);
 typedef unsigned(__cdecl *talking_fn)(void);
 typedef int(__cdecl *slot_fn)(void);
 typedef unsigned(__cdecl *voice_id_fn)(int);
@@ -78,18 +78,17 @@ int main(int argc, char **argv)
     void_fn sv_stop = (void_fn)GetProcAddress(dll, "sv_stop");
     int_fn sv_ptt = (int_fn)GetProcAddress(dll, "sv_ptt");
     settings_fn sv_settings = (settings_fn)GetProcAddress(dll, "sv_settings");
-    mask_fn sv_radio = (mask_fn)GetProcAddress(dll, "sv_radio");
-    direction_fn sv_direction = (direction_fn)GetProcAddress(dll, "sv_direction");
+    hear_fn sv_hear = (hear_fn)GetProcAddress(dll, "sv_hear");
     mask_fn sv_mute = (mask_fn)GetProcAddress(dll, "sv_mute");
     talking_fn sv_talking = (talking_fn)GetProcAddress(dll, "sv_talking");
     slot_fn sv_slot = (slot_fn)GetProcAddress(dll, "sv_slot");
     voice_id_fn sv_voice_id = (voice_id_fn)GetProcAddress(dll, "sv_voice_id");
-    CHECK(sv_version && sv_start && sv_stop && sv_ptt && sv_settings && sv_radio && sv_direction && sv_mute &&
+    CHECK(sv_version && sv_start && sv_stop && sv_ptt && sv_settings && sv_hear && sv_mute &&
               sv_talking && sv_slot && sv_voice_id,
           "every export resolves");
     if (failures)
         return 1;
-    CHECK(sv_version() == 2, "sv_version is 2");
+    CHECK(sv_version() == 3, "sv_version is 3");
     sv_stop(); /* not started: nothing */
     CHECK(sv_talking() == 0 && sv_slot() == -1, "idle state");
 
@@ -158,9 +157,10 @@ int main(int argc, char **argv)
         CHECK(sv_talking() & (1u << 2), "late joiner can start with a lower utterance id");
     }
 
-    sv_radio(1u << 2);
-    sv_direction(3, -0.5f);
-    sv_direction(99, 1.0f); /* past the 20: nothing */
+    sv_hear(2, 0.0f, 0.0f, 1);   /* the radio */
+    sv_hear(3, 0.9f, 0.2f, 0);   /* plain, to the left */
+    sv_hear(4, 0.3f, 0.3f, 1);   /* both */
+    sv_hear(99, 1.0f, 1.0f, 0);  /* past the 20: nothing */
     sv_ptt(1);
     Sleep(100);
     got = expect(0x02, buf, sizeof buf, 300);

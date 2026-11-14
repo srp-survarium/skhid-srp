@@ -1,4 +1,5 @@
-//! A WAV through the real codec/jitter/radio path, without devices or a server.
+//! A WAV through the real codec/jitter/radio path, without devices or a server
+//! (the left ear of the mix: near, as decoded; far, the radio).
 use skhid_voice::{Core, Encoder, FRAME, Hearing, RATE, wire::Message};
 use std::{error::Error, fs};
 fn read_wav(path: &str) -> Result<Vec<i16>, Box<dyn Error>> {

@@ -140,3 +140,5 @@ vtable	slot	va	class	base	basis
 0x00a1f258	0x14	0x00356d00	vostok::physics::bt_static_rigid_body	vostok::physics::base_physics_object	observed: RTTI as slot 0; get_walker_behaviour (the same triangle's high two bits)
 0x009e4da4	0x04	0x000b3eb0	btHashedOverlappingPairCache	btOverlappingPairCallback	observed: RTTI (the locator at -4 names btHashedOverlappingPairCache); addOverlappingPair (Bullet's source: gAddedPairs 0x1F1D3C0 counted first)
 0x009e4da4	0x28	0x000b3f20	btHashedOverlappingPairCache	btOverlappingPairCache	observed: RTTI as slot 4; setOverlapFilterCallback (Bullet's source: m_overlapFilterCallback +18h := the argument); no call of it found (the slot is its one reference, no overlap filter class in the RTTI)
+0x009fc4f4	0x08	0x001f77e0	survarium::game_world	survarium::game_world	observed: tick, in the primary vtable (the constructor writes 0x9FC4F4 at the object's +0, 0x1F682D)
+0x009fc4f4	0x0c	0x001f7620	survarium::game_world	survarium::game_world	observed: on_after_tick, the slot after tick in the primary vtable: its this is the game world as tick's (its +9Ch the game, +94h the sound scene it gives the listener)

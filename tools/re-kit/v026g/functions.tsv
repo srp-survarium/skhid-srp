@@ -2352,3 +2352,9 @@ va	status	ref_021d	name
 0x003570a0	observed		vostok::physics::bt_static_rigid_body::get_triangle_material
 0x000b3eb0	verified		btHashedOverlappingPairCache::addOverlappingPair
 0x000b3f20	verified		btHashedOverlappingPairCache::setOverlapFilterCallback
+0x00057560	reviewed	0x0003eaef	vostok::sound::sound_scene::get_listenet_position
+0x000575f0	reviewed		vostok::sound::sound_scene::get_listenet_orient_front
+0x00057680	reviewed		vostok::sound::sound_scene::get_listenet_orient_top
+0x0005c7a0	reviewed	0x000425cd	vostok::sound::sound_scene::calculate_hdr_audio_frame
+0x0005e150	reviewed		vostok::sound::panning_lut::panning_lut
+0x0005e050	reviewed	0x000438d2	vostok::sound::pos_to_angle

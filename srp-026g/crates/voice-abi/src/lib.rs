@@ -2,36 +2,69 @@
 //! version before constructing `Api`; a missing or incompatible DLL disables voice.
 #![no_std]
 use core::ffi::c_char;
-pub const ABI_VERSION: u8 = 2;
+pub const ABI_VERSION: u8 = 3;
 pub type Version = unsafe extern "C" fn() -> i32;
 pub type Start = unsafe extern "C" fn(*const c_char, u32, u32) -> i32;
 pub type Stop = unsafe extern "C" fn();
 pub type Ptt = unsafe extern "C" fn(i32);
 pub type Settings = unsafe extern "C" fn(f32, i32, f32);
-pub type Radio = unsafe extern "C" fn(u32);
-/// A place's [`Pan`] (its sine), for when it is heard directly.
-pub type Direction = unsafe extern "C" fn(i32, f32);
+/// How a place is heard, all of it in one call ([`Heard::call`]): the place,
+/// its plain voice's gain in the left and in the right ear, and whether its
+/// radio is on (not 0).
+pub type Hear = unsafe extern "C" fn(i32, f32, f32, i32);
 pub type Mute = unsafe extern "C" fn(u32);
 pub type Talking = unsafe extern "C" fn() -> u32;
 pub type Slot = unsafe extern "C" fn() -> i32;
 pub type VoiceId = unsafe extern "C" fn(i32) -> u32;
-/// Where a speaker heard directly (not through the radio) is, left to right:
-/// the sine of its bearing from where the listener faces, -1 full left, 0
-/// ahead or behind, 1 full right.
+/// A plain voice's gain in the left and in the right ear: what the game's
+/// sound engine gives a sound at the speaker's place (its pan, its gain by
+/// distance). 1 in both is the voice as decoded.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Pan(f32);
-impl Pan {
-    pub const CENTRE: Pan = Pan(0.0);
-    /// Held to -1..1; not a number: the centre.
-    pub fn new(sine: f32) -> Pan {
-        if sine.is_nan() {
-            Pan::CENTRE
-        } else {
-            Pan(sine.clamp(-1.0, 1.0))
-        }
+pub struct Ears([f32; 2]);
+impl Ears {
+    pub const SILENT: Ears = Ears([0.0; 2]);
+    /// As decoded in both ears.
+    pub const UNITY: Ears = Ears([1.0; 2]);
+    /// The most an ear is given (+6 dB).
+    pub const MOST: f32 = 2.0;
+    /// Each held to 0..=[`Ears::MOST`]; not a number: silent.
+    pub fn new(left: f32, right: f32) -> Ears {
+        Ears([left, right].map(|gain| if gain.is_nan() { 0.0 } else { gain.clamp(0.0, Ears::MOST) }))
     }
-    pub fn get(self) -> f32 {
+    pub fn get(self) -> [f32; 2] {
         self.0
+    }
+}
+/// How a place is heard.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Heard {
+    /// Its voice plain, in the world: from its side and by its distance.
+    Plain(Ears),
+    /// Through the radio only, centred.
+    Radio,
+    /// Both: where the plain voice still reaches and the radio is already on
+    /// (only when the two distances differ).
+    Both(Ears),
+}
+impl Heard {
+    /// [`Hear`]'s arguments after the place.
+    pub fn call(self) -> (f32, f32, i32) {
+        let (ears, radio) = match self {
+            Heard::Plain(ears) => (ears, 0),
+            Heard::Radio => (Ears::SILENT, 1),
+            Heard::Both(ears) => (ears, 1),
+        };
+        (ears.0[0], ears.0[1], radio)
+    }
+    /// What [`Hear`]'s arguments say. A radio with a silent plain voice is
+    /// the radio alone.
+    pub fn of_call(left: f32, right: f32, radio: i32) -> Heard {
+        let ears = Ears::new(left, right);
+        match (radio != 0, ears == Ears::SILENT) {
+            (false, _) => Heard::Plain(ears),
+            (true, true) => Heard::Radio,
+            (true, false) => Heard::Both(ears),
+        }
     }
 }
 #[derive(Clone, Copy)]
@@ -41,8 +74,7 @@ pub struct Api {
     pub stop: Stop,
     pub ptt: Ptt,
     pub settings: Settings,
-    pub radio: Radio,
-    pub direction: Direction,
+    pub hear: Hear,
     pub mute: Mute,
     pub talking: Talking,
     pub slot: Slot,
@@ -77,12 +109,27 @@ impl Api {
             stop: load!(c"sv_stop", Stop),
             ptt: load!(c"sv_ptt", Ptt),
             settings: load!(c"sv_settings", Settings),
-            radio: load!(c"sv_radio", Radio),
-            direction: load!(c"sv_direction", Direction),
+            hear: load!(c"sv_hear", Hear),
             mute: load!(c"sv_mute", Mute),
             talking: load!(c"sv_talking", Talking),
             slot: load!(c"sv_slot", Slot),
             voice_id: load!(c"sv_voice_id", VoiceId),
         })
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn a_place_is_heard_as_its_one_call_says() {
+        let ears = Ears::new(0.25, 1.5);
+        for heard in [Heard::Plain(ears), Heard::Plain(Ears::SILENT), Heard::Radio, Heard::Both(ears)] {
+            let (left, right, radio) = heard.call();
+            assert_eq!(Heard::of_call(left, right, radio), heard);
+        }
+        assert_eq!(Heard::of_call(0.0, 0.0, 7), Heard::Radio);
+        assert_eq!(Ears::new(f32::NAN, 9.0).get(), [0.0, Ears::MOST]);
+        assert_eq!(Ears::new(-1.0, f32::INFINITY).get(), [0.0, Ears::MOST]);
+        assert_eq!(Heard::of_call(f32::NAN, f32::NAN, 1), Heard::Radio);
     }
 }
