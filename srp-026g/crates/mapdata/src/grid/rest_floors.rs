@@ -7,7 +7,7 @@
 //! name it. But where the walkable surface is a sliver between faces too steep to stand on, the erosion takes every floor of it
 //! and the place the body rests on has no name: the grid has no way onto it, though the client stands there.
 //!
-//! Mamayev Kurgan day 2, owner-5's R2 (`traces-20261028/owner-5/a385-lost-links-client-truth.md`): a walking press at lead 1.0
+//! Mamayev Kurgan day 2, R2: a walking press at lead 1.0
 //! rests at (-22.79, 31.65, 121.73) on a 0.3 m sliver of 43-44 deg faces between 60-80 deg ones; the grid without the erosion has
 //! floors there (-22.601, 31.847, 121.625) and (-22.351, 31.970, 121.625), the rounds take both (the steep faces are within the
 //! radius), and the give-back's stand test ([`super::wall_give_back`]) refuses them (a body set on the first rests at
@@ -35,13 +35,13 @@ const DT: f32 = 0.05;
 /// The most steps the rest test runs (2 s: A385's settle, `controller::jump`'s `SETTLE_STEPS_MAX`) …
 const REST_STEPS_MAX: usize = 40;
 /// … until the body has been on the ground with its feet moving under a millimetre a step for this many steps in a row (a body
-/// sliding off a broken edge is still moving after 1 s: Chemical Plant's slab, owner-5 `cp-two-falls-rootcause.md` 1.3). Our
+/// sliding off a broken edge is still moving after 1 s: Chemical Plant's slab). Our
 /// choice: the bound of the test, not a client value.
 const STILL_STEPS: usize = 4;
-/// The test body is put this far over the floor and comes down onto it, m (owner-5's stand feeds and the flyer's run-up,
+/// The test body is put this far over the floor and comes down onto it, m (the stand feeds and the flyer's run-up,
 /// `controller::jump`'s `RUN_UP_DROP_M`): a body arrives at a place by a move. Put at the floor's own point it may overlap faces
 /// over it (a capsule at the height of Chemical Plant's broken slab is inside its steep faces) and both ticks keep that pose,
-/// its steps skipped (exactness 2026-11-14, `private/grid/rig/owner5/recheck-20261114/cp-stand/notes-cp-slab.md`: settled from
+/// its steps skipped (exactness 2026-11-14, the Chemical Plant slab recheck: settled from
 /// 0.55 m above, the exe and the port drop the body off all 7 slab floors; put on them, both hold 4). Less where the room over
 /// the floor is shorter than a standing body and this.
 const PUT_OVER_M: f32 = 0.6;

@@ -303,8 +303,8 @@ pub struct Body {
     /// landing within 2 s of leaving the take-off (0.5 m across, 0.2 m in height: the exactness session's walk of the Drop
     /// links, FINDINGS-FEED-exactness 2026-11-12 09:56Z, `grid::drop_check::walk_drop`); a link whose body lands on another floor lower down, and
     /// arrives there walked at it, is re-aimed there. [A389] Walked on the game's shapes world (the build's `shapes`, else the
-    /// walker triangles with the body's caster), and no link is cut on the walk alone (the owner's rule: a link is cut only where
-    /// no client action takes the body down there): a link no walk line arrives on or re-aims goes to the floor a walk line's
+    /// walker triangles with the body's caster), and no link is cut on the walk alone (a link is cut only where no client
+    /// action takes the body down there): a link no walk line arrives on or re-aims goes to the floor a walk line's
     /// own landing stands on, else the crouched walk-off's (2.5 m/s, 0x337D5E), else a jump's off the edge (the short and sprint
     /// jumps at the gap leads, `controller::jump`); only where none stands on a floor is it cut. Off: a link is kept where the body only goes down
     /// (min(0.4 m, half the drop) under the take-off) on any line, wherever it lands (Chemical Plant mode 2: 245 of 6,000 sampled
@@ -323,19 +323,19 @@ pub struct Body {
     /// [A389] Whether a floor the erosion took comes back where the client's body comes to rest and no floor the erosion kept
     /// names the place (`grid::rest_floors`: within the capsule's radius across and 0.2 m in height): a sliver of walkable face
     /// between faces too steep to stand on loses every floor to the erosion, and a body that lands there (Mamayev Kurgan,
-    /// owner-5's R2: a walking press rests at (-22.79, 31.65, 121.73)) is where the grid has nothing. A build input: in the key
+    /// R2: a walking press rests at (-22.79, 31.65, 121.73)) is where the grid has nothing. A build input: in the key
     /// when set.
     pub rest_floors: bool,
     /// [A389] Whether a floor at an edge is kept only where the client's walk tick holds a standing body (it rests no more than
     /// a step under it), and the way down from the last held floor is one drop walked off to where the client's body stands,
-    /// its true height, priced by the client's fall damage (`grid::held_floors`; the owner, 2026-11-14: "Ok keep"). Chemical
+    /// its true height, priced by the client's fall damage (`grid::held_floors`). Chemical
     /// Plant (68, 64): 7 floors on a broken slab no body stands on hid a 6 m fall behind Drops of 4.2-5.0 m. A build input: in
     /// the key when set.
     pub held_floors: bool,
     /// [A389] Whether a body is on a floor that stands on `walk` faces wherever it is on them in the floor's cell, not only near
     /// the cell's top (the floor's height): the client takes UP as the ground's normal on a `walk` face whatever its slope (its down
     /// sweep 0x84420, 0x84561..0x84584 / 0x845ED, the face's walker byte), so a body stands anywhere on a steep `walk` rock.
-    /// Mamayev Kurgan R11, R95, R97, R98 (owner-5 `a385-lost-links-client-truth.md`, the exe with each face's byte): the presses
+    /// Mamayev Kurgan R11, R95, R97, R98 (the exe with each face's byte): the presses
     /// land and stay on the rock under the landing floor (rests 26.1-31.4 against floors 27.40-31.59), where no floor's height is
     /// within 0.2 m. A floor of a `walk` face names a body from the face's lowest point in the cell to its height (A385's landing,
     /// [`Body::rest_floors`]' naming). A build input: in the key when set.

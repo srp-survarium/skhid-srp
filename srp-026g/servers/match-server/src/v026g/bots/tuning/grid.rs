@@ -191,24 +191,23 @@ pub struct GridTuning {
     /// the client's 50 ms tick, on the game's shapes world), re-aimed at the floor it lands on where that is another floor lower
     /// down; [A389] where the walk stands on no floor, at the floor the client's other ways down stand on (the crouched walk-off,
     /// a jump off the edge), and cut only where none does. Off: a link passes when the body only goes down, wherever it lands, so a route's reckoning takes the
-    /// body to a landing it never stands on. Client-proven (the walk tick decides), so ON and kept by `all_off` (the owner,
-    /// 2026-11-05: correctness fixes go in). A grid is the map's (see `gap_links`).
+    /// body to a landing it never stands on. Client-proven (the walk tick decides), so ON and kept by `all_off` (a
+    /// correctness fix). A grid is the map's (see `gap_links`).
     pub drop_lands: bool,
     /// [A389] Whether the maps' gap links are flown by the client's own jump code on the game's shapes world
     /// (`mapdata::Body::gap_flights`: A385's presses and scoring, each link with its press and share), not by the clip
     /// approximation. Off: the clip pass, which missed Mamayev Kurgan's ridge -> plateau jump over the gully that 56 players
     /// made (A369: the bots walked round, 97.4 m for 6.4 m). Client-proven (the client's jump tick decides), so ON and kept by
-    /// `all_off` (the owner, 2026-11-05: correctness fixes go in). A grid is the map's (see `gap_links`).
+    /// `all_off` (a correctness fix). A grid is the map's (see `gap_links`).
     pub gap_flights: bool,
     /// [A389] Whether a floor the erosion took comes back in the maps' walk grids where the client's body comes to rest and no
     /// kept floor names the place (`mapdata::Body::rest_floors`): a sliver of walkable face between faces too steep to stand
-    /// on loses every floor to the erosion, and a body landing there is where the grid has nothing (Mamayev Kurgan, owner-5's
-    /// R2). Client-proven (the walk tick rests the body there), so ON and kept by `all_off` (the owner, 2026-11-05: correctness
-    /// fixes go in). A grid is the map's (see `gap_links`).
+    /// on loses every floor to the erosion, and a body landing there is where the grid has nothing (Mamayev Kurgan,
+    /// R2). Client-proven (the walk tick rests the body there), so ON and kept by `all_off` (a correctness fix). A grid is the map's (see `gap_links`).
     pub rest_floors: bool,
     /// [A389] Whether the maps' walk grids keep a floor at an edge only where the client's walk tick holds a standing body, and
     /// make the way down from the last held floor one drop to where the client's body stands, its true height priced by the
-    /// client's fall damage (`mapdata::Body::held_floors`; the owner, 2026-11-14: "Ok keep"): Chemical Plant's broken ramp hid a
+    /// client's fall damage (`mapdata::Body::held_floors`): Chemical Plant's broken ramp hid a
     /// 6 m fall behind 7 floors no body stands on. Client-proven (the walk tick decides), so ON and kept by `all_off`. A grid is
     /// the map's (see `gap_links`).
     pub held_floors: bool,

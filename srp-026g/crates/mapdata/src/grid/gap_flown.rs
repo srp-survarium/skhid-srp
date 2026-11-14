@@ -118,8 +118,8 @@ impl WalkGrid {
             return Vec::new();
         }
         let n = self.len();
-        // The clip pass's links (its walk-offs and presses) as well: teach, don't cut (the owner's rule: a link goes only where
-        // no client action makes it and no player does). A flown press wins its group in the thinning; a clip press is kept, unflown,
+        // The clip pass's links (its walk-offs and presses) as well: a link goes only where no client action makes it
+        // and no player does. A flown press wins its group in the thinning; a clip press is kept, unflown,
         // where none is flown (a gap the candidates below miss, or no flown press lands).
         let clip = self.gap_found(wide, solids, stats);
         let mut found: Vec<(OffLink, usize)> = Vec::new();

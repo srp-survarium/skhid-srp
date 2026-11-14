@@ -488,8 +488,7 @@ impl WalkGrid {
                 return Verdict::Reaim(b);
             }
         }
-        // [A389] No cut on the walk alone (the owner's rule: a link is cut only where no client action takes the body down
-        // there): a walk line's own landing on a floor lower down, then the crouched walk-off, then the jumps off the edge.
+        // [A389] No cut on the walk alone (a link is cut only where no client action takes the body down there): a walk line's own landing on a floor lower down, then the crouched walk-off, then the jumps off the edge.
         let lower = |feet: Vec3| {
             self.locate_within(feet, ARRIVE_FLAT_M, ARRIVE_HEIGHT_M).filter(|&b| {
                 let y = self.position(b).y;

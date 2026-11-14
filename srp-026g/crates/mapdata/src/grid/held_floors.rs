@@ -1,9 +1,9 @@
 //! [A389] Floors only where the client's capsule is held, and the way down from the last held floor as one drop, priced by the
-//! client's fall damage ([`super::Body::held_floors`]; the owner's rule, 2026-11-14: "Ok keep").
+//! client's fall damage ([`super::Body::held_floors`]).
 //!
 //! The rasteriser makes a floor from any piece of a walkable face in a cell, so a broken edge leaves small floors no body stands
 //! on, joined to the ground's last floors by Walk links and leaving by a Drop measured from their own height. Chemical Plant
-//! (68, 64), the broken ramp's end (owner-5 `cp-two-falls-rootcause.md` item 1, PROVEN): 7 floors on a broken slab (9.56 down
+//! (68, 64), the broken ramp's end (PROVEN): 7 floors on a broken slab (9.56 down
 //! to 8.04) behind the ramp's last floors, then Drops of 4.2-5.0 m to the ground at 3.83. In the exe's tick none of the 7 holds
 //! a body (7 of 7 end on the ground); walked off at 1 m/s or more the body passes over them and falls 5.3-6.1 m from the
 //! ramp's edge; bot 12 fell 6.5 m by the client's count and lost 0.334 of each leg (`fall_damage` 0x2D8220 at 6.5 m). Players
