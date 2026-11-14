@@ -297,6 +297,10 @@ pub struct DropStats {
     pub taught: usize,
     /// … and cut: no client way tried stands on a floor.
     pub cut: usize,
+    /// [A389] The gap pass's walk-offs walked ([`WalkGrid::walk_off_links`]), re-aimed, and left standing on no floor.
+    pub walk_offs: usize,
+    pub walk_offs_reaimed: usize,
+    pub walk_offs_unlanded: usize,
 }
 
 /// [feed 67] What [`super::Body::drop_lands`] does with one Drop link.
@@ -319,6 +323,21 @@ impl WalkGrid {
     /// [feed 67] The Drop links out of a floor a body gets to from the seeds or a spawn, as (take-off, direction, from, to).
     fn reached_drops(&self, wide: &Wide, seeds: &[Vec3], spawns: &[Vec3]) -> Vec<(u32, usize, Vec3, Vec3)> {
         let n = self.height.len();
+        let reached = self.reached_floors(wide, seeds, spawns);
+        (0..n)
+            .filter(|&a| reached[a])
+            .flat_map(|a| {
+                (0..DIRS.len()).filter_map(move |d| {
+                    let b = wide.links[a][d];
+                    (b != NONE && wide.kinds[a][d] == LinkKind::Drop).then(|| (a as u32, d, self.position(a as u32), self.position(b)))
+                })
+            })
+            .collect()
+    }
+
+    /// The floors a body gets to from the seeds or a spawn over `wide`'s links and slips.
+    fn reached_floors(&self, wide: &Wide, seeds: &[Vec3], spawns: &[Vec3]) -> Vec<bool> {
+        let n = self.height.len();
         let mut reached = vec![false; n];
         let mut queue: Vec<u32> = seeds
             .iter()
@@ -336,15 +355,50 @@ impl WalkGrid {
                 }
             }
         }
-        (0..n)
-            .filter(|&a| reached[a])
-            .flat_map(|a| {
-                (0..DIRS.len()).filter_map(move |d| {
-                    let b = wide.links[a][d];
-                    (b != NONE && wide.kinds[a][d] == LinkKind::Drop).then(|| (a as u32, d, self.position(a as u32), self.position(b)))
-                })
+        reached
+    }
+
+    /// [A389] [`super::Body::drop_lands`]: the gap pass's walk-offs (off-mesh GapDrop links walked off, no key: its fall over the
+    /// cells, not the client's) out of a floor a body gets to, walked by the client's body as a Drop link is
+    /// ([`Self::drop_verdict`]): a link the body comes to stand elsewhere from goes to that floor (none added where the take-off
+    /// has a link there already). One no client way tried stands on a floor stays as it is (an off-mesh link has no reach guard
+    /// to cut it by; counted). Returns (walked, re-aimed, standing on no floor).
+    pub(super) fn walk_off_links(&self, wide: &mut Wide, world: &Collision, seeds: &[Vec3], spawns: &[Vec3]) -> (usize, usize, usize) {
+        let reached = self.reached_floors(wide, seeds, spawns);
+        let todo: Vec<usize> = (0..wide.off.len())
+            .filter(|&i| {
+                let l = wide.off[i];
+                l.press == super::gap::Takeoff::WalkOff && reached[l.from as usize]
             })
-            .collect()
+            .collect();
+        if todo.is_empty() {
+            return (0, 0, 0);
+        }
+        let s = self.body.controller().1;
+        let start = self.body.walk_start();
+        let verdicts = parallel(&todo, |&i| {
+            let l = wide.off[i];
+            self.drop_verdict(world, &s, start, l.from, self.position(l.from), self.position(l.to))
+        });
+        let (mut moved, mut none) = (0, 0);
+        for (&i, v) in todo.iter().zip(verdicts) {
+            match v {
+                Verdict::Keep => {}
+                Verdict::Reaim(b) | Verdict::Taught(b) => {
+                    let from = wide.off[i].from;
+                    if b != from && !wide.out(from as usize).any(|x| x == b) {
+                        wide.off[i].to = b;
+                        moved += 1;
+                    }
+                }
+                Verdict::Cut => none += 1,
+            }
+        }
+        if moved > 0 {
+            wide.off.sort_by_key(|l| (l.from, l.to));
+            wide.off.dedup_by_key(|l| (l.from, l.to));
+        }
+        (todo.len(), moved, none)
     }
 
     /// [feed 67] [`super::Body::drop_lands`]: every Drop link out of a reached floor walked by the client's body to its landing
