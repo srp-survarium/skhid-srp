@@ -1569,6 +1569,12 @@ impl Bots {
                 && let Some(fall) = before.and_then(|before| nav_log::Fall::between(before, (time, feet), reckoned))
                 && fall.planned() != Some(true)
             {
+                // [owner-5 R4] The route's word on it: planned by a drop at that edge or the model going down it, and
+                // the route's next link.
+                let fall = match world.as_deref() {
+                    Some(world) => fall.of_route(&world.grid, bot.route.as_ref().map(|(route, _)| route)),
+                    None => fall,
+                };
                 bot.nav_log.push(nav_log::Kind::Fall, time, fall.line());
             }
             if new_life {

@@ -1671,6 +1671,12 @@ fn drive_tick_inner(
                     match (bot.zone_walk, leaving) {
                         (None, Some(reach)) => {
                             bot.zone_walk = Some(time);
+                            // [owner-5 A395a] The walk-out's own line: the start floor dry or being hit (the client's
+                            // contact test), the route's goal and next waypoint.
+                            let hit = tactics.world.grid.locate(me.feet, 1.5).map(|node| tactics.hazards.hits_at(node, time));
+                            let next = route.points().get(route.segment() + 1).map(|w| w.at);
+                            let line = super::nav_log::walkout_line(me.feet, hit, *route_at, next, reach);
+                            bot.nav_log.push(super::nav_log::Kind::WalkOut, time, line);
                             bot.zone_note = Some(format!(
                                 "walks out over the floors of a zone from {:?}: lines tested over them up to {reach:.1} m",
                                 me.feet.to_array()
