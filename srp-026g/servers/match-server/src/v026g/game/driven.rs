@@ -773,6 +773,11 @@ impl Game {
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);
+            // [Gap 3, F7] A bot's own weapon in hands: its state, magazine and ammo at the world's time. After the body, so a
+            // world that begins a life is laid against that life's ledger (it has no tick yet: not read).
+            if let Some(gun) = crate::v026g::bots::guns::GunWorld::of(snapshot.time, &world.supplies, &world.guns) {
+                walkers.bots.own_gun(place, gun);
+            }
         }
         let notes = walkers.bots.facts(world_facts(snapshot.time, decoded));
         log_notes(id, notes);

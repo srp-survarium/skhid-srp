@@ -503,6 +503,7 @@ impl LoadedTuning {
 pub(super) const KEPT_RIGHT: &[&str] = &[
     "/aim/combat/empty_reload",
     "/aim/combat/grenade_kit_cap",
+    "/aim/combat/gun_from_world",
     "/aim/combat/hit_cover_reach",
     "/aim/combat/live_eye",
     "/aim/combat/mirror_gated",
