@@ -16,7 +16,8 @@
 //!
 //! The tables `mapdata::GridExtras` adds are not cached: they are made from the read grid as the server's map store makes them
 //! (`bots::maps`), by the one `GridExtras::apply`. A file is written to a name of its own and renamed in, so a reader never sees
-//! half of one and two sessions writing the same key never mix; a file that does not read back (the key, the digest) is built again.
+//! half of one and two sessions writing the same key never mix; the runs that miss a key together build it once (its lock file); a
+//! file that does not read back (the key, the digest) is built again.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -150,20 +151,44 @@ pub(super) fn world(map: MapData, cell: f32, body: Body, links: OffMeshLinks, ex
 }
 
 impl Cache {
-    /// The part in `file_name` if it reads back, else built by `build` and written there (to a name of its own, renamed in).
+    /// The part in `file_name` if it reads back, else built by `build` and written there (to a name of its own, renamed in). On a
+    /// miss the run holds the key's lock file (`<file_name>.lock`, the system's lock, let go when the run ends however it ends)
+    /// and looks again: the jobs of one map started together build it once, the others read what it wrote.
     fn read_or_build<T>(
         &self,
         file_name: String,
-        read: impl FnOnce(&Path) -> Result<T, mapdata::Error>,
+        read: impl Fn(&Path) -> Result<T, mapdata::Error>,
         build: impl FnOnce() -> T,
         write: impl FnOnce(&T, &Path) -> Result<(), mapdata::Error>,
     ) -> (T, Made) {
         let path = self.dir.join(&file_name);
-        if path.is_file() {
-            match read(&path) {
-                Ok(value) => return (value, Made::Read),
-                Err(why) => eprintln!("  grid cache: {file_name} refused ({why}); built again"),
+        let read_back = || match path.is_file().then(|| read(&path)) {
+            Some(Ok(value)) => Some(value),
+            Some(Err(why)) => {
+                eprintln!("  grid cache: {file_name} refused ({why})");
+                None
             }
+            None => None,
+        };
+        if let Some(value) = read_back() {
+            return (value, Made::Read);
+        }
+        let lock_path = self.dir.join(format!("{file_name}.lock"));
+        // Another user's lock file opens for reading only (the folder's sticky bit); the lock works on either.
+        let lock = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)
+            .or_else(|_| std::fs::File::open(&lock_path))
+            .and_then(|file| file.lock().map(|()| file));
+        match &lock {
+            Ok(_) => {
+                if let Some(value) = read_back() {
+                    return (value, Made::Read);
+                }
+            }
+            Err(why) => eprintln!("  grid cache: {} not locked ({why}); built without the lock", lock_path.display()),
         }
         let value = build();
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
