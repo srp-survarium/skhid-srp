@@ -67,7 +67,7 @@ impl Bots {
         }
         let sensed = sense(&due, bot, rays);
         let state = &mut self.teams[team];
-        let percepts = share(&due, bot, state, &self.tracker, sensed);
+        let percepts = share(&due, bot, state, &self.tracker, sensed, &self.features.weapons);
         sense_batteries(&due, bot, state, rays, notes);
         rays.allow(None);
         remember(&due, bot, &percepts);
@@ -415,6 +415,7 @@ pub(super) fn share(
     state: &mut TeamState,
     tracker: &Tracker,
     sensed: Sensed,
+    weapons: &[Option<reflex::WeaponKind>],
 ) -> Vec<Percept> {
     let Due {
         now,
@@ -428,6 +429,10 @@ pub(super) fn share(
         quiet,
     } = sensed;
     for percept in &percepts {
+        // [#1861] A sight of him, or his shot heard, shows the team his weapon.
+        if percept.source == Source::Seen || (percept.source == Source::Heard && percept.busy) {
+            state.knowledge.weapons.learn(percept.who, weapons.get(percept.who).copied().flatten(), percept.time);
+        }
         state
             .knowledge
             .call_out(bot.place, percept, tuning.sense.callout_ms, tuning.spacing.callouts);

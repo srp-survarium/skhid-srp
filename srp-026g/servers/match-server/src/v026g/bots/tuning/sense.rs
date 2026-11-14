@@ -211,6 +211,10 @@ pub struct CheatTuning {
     /// attenuation), which nothing draws for a player. Off by default (the owner's rule: enemies by what a player can
     /// know): his life's start plus his team's respawn points' `invulnerability_time` (`combat.spawn_protection`).
     pub enemy_protection_exact: bool,
+    /// [#1861] An enemy's weapon kind (the sniper spots, the answer play) is the one in his hands in the latest world,
+    /// whatever the team sensed of him. Off by default: the kind the team last saw in his hands or heard him shoot
+    /// (`know::KnownWeapons`); a footstep or a callout's place tells none.
+    pub enemy_weapon_exact: bool,
     /// A thief's place with this error, metres, this often, ms (0: off).
     pub thief_error_m: f32,
     pub thief_every_ms: u32,
@@ -246,6 +250,7 @@ impl Default for CheatTuning {
             batteries: false,
             enemy_respawn_exact: false,
             enemy_protection_exact: false,
+            enemy_weapon_exact: false,
             thief_error_m: 10.0,
             thief_every_ms: 3_000,
             radar_error_m: 15.0,

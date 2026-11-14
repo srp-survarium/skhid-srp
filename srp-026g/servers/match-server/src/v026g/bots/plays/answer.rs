@@ -143,10 +143,20 @@ fn own_reach(cx: &Ctx) -> Option<f32> {
     cx.bot.weapon.map(|kind| c.band(kind).1 + c.band_slack_m)
 }
 
+/// [#1861] The weapon kind of `who` as the team knows it (a sight, a heard shot: `know::KnownWeapons`), or the exact one with
+/// `cheats.enemy_weapon_exact`.
+fn known_kind(cx: &Ctx, who: Place) -> Option<WeaponKind> {
+    if cx.tuning.cheats.enemy_weapon_exact {
+        cx.bot.weapons.get(who).copied().flatten()
+    } else {
+        cx.team.weapons.kind(who)
+    }
+}
+
 /// Where the team's own senses last put the enemy at `who`, when he is a sniper they sensed within `recent_s`; else where the
 /// team last sensed him, while its sniper memory holds his spot and that sense is within `remembered_s`.
 fn sniper_at(cx: &Ctx, who: Place) -> Option<Vec3> {
-    if cx.bot.weapons.get(who).copied().flatten() != Some(WeaponKind::Sniper) || !cx.view.place(who).is_some_and(|p| p.alive) {
+    if known_kind(cx, who) != Some(WeaponKind::Sniper) || !cx.view.place(who).is_some_and(|p| p.alive) {
         return None;
     }
     let within = |time: u32, name: &str| cx.now.saturating_sub(time) <= (cx.num(PlayKind::Answer, name) * 1000.0) as u32;
@@ -186,7 +196,7 @@ fn why_left_out(cx: &Ctx, target: TargetRef) -> String {
     if cx.view.objective().is_actor(cx.me) || cx.me.carrying.is_some() {
         return "an objective actor".to_string();
     }
-    if cx.bot.weapons.get(who).copied().flatten() != Some(WeaponKind::Sniper) {
+    if known_kind(cx, who) != Some(WeaponKind::Sniper) {
         return "his weapon is not known a sniper's".to_string();
     }
     if !cx.view.place(who).is_some_and(|p| p.alive) {
@@ -419,6 +429,8 @@ mod tests {
             3_000,
             20_000,
         );
+        // Seen: the team knows his weapon ([#1861]).
+        s.team.weapons.learn(1, Some(WeaponKind::Sniper), now);
         s
     }
 
