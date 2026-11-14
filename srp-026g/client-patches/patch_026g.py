@@ -2546,6 +2546,19 @@ KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb757
 # game::exit's delete (0x1EC832) nops (BAKE_CACHE_KEEP).
 BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440000"))   # game::exit's delete
 
+# The grass sort's one order of distance (patch 146, README; client_patch.md
+# "The grass sort's distance"). grass_world::process_culling (0x160470) sorts
+# the visible patches (std::sort 0x1610B0) by patch+50h, then by the squared
+# distance of patch+4084h to the camera. The out-of-line comparator 0x1603B0
+# (median of three, and __linear_insert's test against the first element at
+# 0x161E66) summed its left side dz2 + dx2 + dy2; every inlined copy, and its
+# own right side, sum dz2 + dy2 + dx2. One ulp apart, the test said "not below
+# the first" while the unguarded walk (0x162060) found it below and read the
+# word before the array: a null patch, read of 0x50 at 0x162085 (rev58, a
+# match's first seconds). Swapping the two adds makes every copy one function
+# of the patch. No relocation is under the site; 0x1603B0 has no other caller.
+GRASS_SORT_ORDER = (0x160430, bytes.fromhex("f30f58f2" "f30f58f0"), bytes.fromhex("f30f58f0" "f30f58f2"))
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -4160,6 +4173,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                     patch(data, *change)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
+                patch(data, *GRASS_SORT_ORDER)
                 patch(data, *EXPAND_TEXT_UNBOUND)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
