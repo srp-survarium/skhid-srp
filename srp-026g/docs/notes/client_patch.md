@@ -3817,3 +3817,35 @@ instructions and generated Rust glue. It covers ordinary success, open failure,
 normalization failure, spaces, UNC, CP1251 Cyrillic and 259-byte paths, preserving
 stack/SSE and checking the shared file-open function is byte-identical. Windows
 calls and normalization services are stubbed. This is not a full-game play test.
+
+### The grass sort's distance (2026-11-14, patch 146; unreleased)
+
+The report `SRP-crash-20261114-171430-468-p12008-t16096-0.zip` names revision 58
+(`survarium_skhid.exe` SHA prefix `3b2e5c2ef492`, matches), an access violation reading 0x50 at
+`0x162085`, 4.7 s after the countdown, 13 places, map 138. The stack: `0x161EAC`, `0x161372`,
+`0x16110C`, `0x16068E` (`grass_world::process_culling` 0x160470, after its call of the sort
+`0x1610B0`). Distance detail was Normal (`detail_state` 0 in the dump, a live value), so its two
+grass hooks ran the stock comparisons.
+
+`process_culling` pushes the visible patches into `grass_world+154h` (a `buffer_vector`, end at
++158h) and sorts them with STLport's `sort` (0x1610B0): the key `patch+50h` (unsigned), then the
+squared distance of `patch+4084h` to the camera, nearer first. The comparator exists out of line,
+`0x1603B0` (ECX left, EAX right, EDI the camera; AL), called by the median of three (0x161840) and
+by `__linear_insert` (0x161E50) at 0x161E66, its test against the first element; and inlined in the
+partition (0x1618D0), the heap (0x161CF0, 0x162220), the guarded insertion (0x161D40) and the
+unguarded walk (0x162060). Every inlined copy, and 0x1603B0's right side, sum `dz2 + dy2 + dx2`;
+0x1603B0's left side summed `dz2 + dx2 + dy2`. Float adds do not associate: for two patches one ulp
+apart the test said "not below the first" and the walk then found the value below it, moved the
+first up, and read the word before the array. In the dump `EBX` = `ECX + 4` = 0x99F66AC0 is the
+array's first slot and the words before it are zero: the read of `[0 + 50h]`.
+
+`GRASS_SORT_ORDER` (0x160430) swaps `addss xmm6,xmm2 / addss xmm6,xmm0` to
+`addss xmm6,xmm0 / addss xmm6,xmm2`: the left side becomes `dz2 + dy2 + dx2`, the same function of
+the patch as every other copy, a strict weak order for finite centers. No relocation is under the
+eight bytes; 0x1603B0 has the six callers above and no other (a scan of `.text` for call and jmp).
+The re-kit records the four functions and their inputs.
+
+Validation: `check_grass_sort_026g.py` (Unicorn) runs the game's `__linear_insert` with the patched
+exe built by `patch_026g.py`, on a pair (x, y, z) / (y, x, z) whose two orders differ, after a null
+word: the original faults at 0x162085, the patched exe puts the nearer patch first; a pair in order
+stays in both. Not played in a game.
