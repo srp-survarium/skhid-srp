@@ -33,7 +33,16 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
   leaves them, with:
   - `mode.mode` 8 and rules 93, 91, 94 (time, respawn, kd): no rule of its own. TDM's rule 90 has
     arrays of two teams.
-  - TDM's timings (15:00, 20 s countdown) and respawn time.
+  - TDM's timings (15:00, 20 s countdown) and respawn time. Checked (the owner, 2026-11-14:
+    "respans in ffa should be as long as in tdm", "i think now they are longer then needed?"):
+    the same wait as TDM's on every map. The 33 configs of mode 8 have `respawn_time` 8, as their
+    33 TDM configs, in the players' files of rev58. The respawn rule's death handler (0x316AA0)
+    sets every team's delay alike: `respawn_time` × (1 + modifier 60, the radio's -0.2) × the
+    rule's +118h (1.0, set by its constructor 0x316700 only), rounded up to the 50 ms grid, so
+    8 s, or 6.4 s with a radio. Nothing a free-for-all has adds to it: patch 142 only moves a due
+    player into the tick's first vector and gives him a point at that tick (the game's 50 ms
+    retry for a player left without one never comes), its 0.5 s protection starts at the spawn,
+    and the server sets no respawn time (`maps::MapMode::respawn_time` is read, not used).
   - **Its own project** (the owner, 2026-11-13: "TDM is good, nothing should change about it"):
     `projects/<map>/<weather>_8/client_project`, a copy of the TDM map's `<weather>_4` as every list
     before leaves it (content edit `ffa-projects-1`, right before `ffa-1`). The FFA lists edit the
