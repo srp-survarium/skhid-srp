@@ -41,7 +41,14 @@ const STAND_MOVED_M: f32 = 0.1;
 pub(super) fn stands(world: &Collision, s: &Settings, feet: Vec3, room: f32) -> bool {
     let start = out_of_walls(world, feet);
     super::rest_floors::rests_at(world, s, start, room)
-        .is_some_and(|end| (end.x - start.x).hypot(end.z - start.z) < STAND_MOVED_M && (start.y - end.y).abs() < STAND_MOVED_M)
+        .is_some_and(|end| {
+            // Down: no more than STAND_MOVED_M (no slide, no fall). Up: a floor names a place within NAME_HEIGHT_M of its height
+            // (`rest_floors`), and `out_of_walls` moves the start across a slope at the floor's height, so an honest rest may sit
+            // a little higher than the floor's sampled height.
+            (end.x - start.x).hypot(end.z - start.z) < STAND_MOVED_M
+                && start.y - end.y < STAND_MOVED_M
+                && end.y - start.y <= super::rest_floors::NAME_HEIGHT_M
+        })
 }
 
 /// How [`WalkGrid::give_back_by_walls`] judges a taken floor.
