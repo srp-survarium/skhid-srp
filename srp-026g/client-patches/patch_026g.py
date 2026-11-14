@@ -651,7 +651,7 @@ Patches:
   look-up (0x12D4C5) lets a query whose path is under way wait, and the
   texture made (0x12F194 a bake, 0x12DDB9 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
-  0xF0D00); the folder holds 3 GiB, the list 4096 records, the oldest let
+  0xF0D00); the folder holds 3 GiB, the list as many records as it needs, the oldest let
   go first (remove_unwanted_files whole, 0x131F90); the CRC-32 step
   (0x42050) goes 64 bytes a step (PCLMULQDQ) or eight bytes a step. Textures
   only;

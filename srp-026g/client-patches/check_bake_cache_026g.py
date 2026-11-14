@@ -23,7 +23,8 @@ sets it. Every site runs from the game's own code:
   the list's bytes grown by theirs), a file cut short deleted, the stub not
   called, the tables read in pages given back, the list in the baker's own
   1024 records; 1500 kept files all in the list, moved into 2048 records of
-  pages; a line to srp_patches.log; a release whose patch has only item stats keeps it; a
+  pages, 1024 kept files leave it grown (room for the first bake); a line
+  to srp_patches.log; a release whose patch has only item stats keeps it; a
   patch with a texture, a decal item or one that cannot be read, another
   format, a stamp of other bytes, no stamp or no folder: deleted (the stub)
   and stamped anew; revision 54's stamp (before formats: format 1's) and
@@ -71,7 +72,8 @@ sets it. Every site runs from the game's own code:
   the folder's physical path and its name), the last record in its place
   with its own path's pointers, the list's bytes less its file's, a line to
   srp_patches.log; with less than 50 MB free on the drive, down to 50 MB,
-  the loading record left; a full list (the baker's 1024 records, then
+  the loading record left; of two records of one path the first to go
+  leaves the file to the other; a full list (the baker's 1024 records, then
   2048) moves into pages twice its room, every record kept in its order with
   its path's pointers into its new self, the storage before untouched and
   never given back; with no folder known (the game's start not passed) the
@@ -798,6 +800,19 @@ def main():
            f"{many} kept files: all in the list, which moved out of the baker's {STOCK_RECORDS} records into "
            f"{2 * STOCK_RECORDS} of pages")
 
+    game = Game(bytes(built))
+    game.data(data)
+    game.dirs.add(FOLDER)
+    game.files[FOLDER + "\\" + STAMP] = stamp
+    for i in range(STOCK_RECORDS):
+        game.files[FOLDER + f"\\t{i:04}_s1d.dds"] = small
+    ok = game.start()
+    begin = game.read(LIST)
+    report(ok and len(game.records()) == STOCK_RECORDS and begin >= PAGES
+           and game.read(LIST + 8) == begin + 2 * STOCK_RECORDS * RECORD,
+           f"{STOCK_RECORDS} kept files fill the baker's records exactly: the start grows the list (the first "
+           f"bake's push_back comes before any trim)")
+
     print("the trim (remove_unwanted_files 0x131F90, whole; `ret 4`)")
     game = Game(bytes(built))
     game.data(data)
@@ -838,6 +853,22 @@ def main():
     f = game.push("f_s1d.dds", part)
     kept = game.trim()
     report(kept and game.records() == [loading, f], "Windows does not say the drive's free bytes: as with room")
+
+    game = Game(bytes(built))
+    game.data(data)
+    game.dirs.add(FOLDER)
+    game.files[FOLDER + "\\" + STAMP] = stamp
+    ok = game.start()
+    half = FOLDER_BYTES // 2
+    one, two = game.push("dup_s1d.dds", half), game.push("dup_s1d.dds", half)
+    f = game.push("f_s1d.dds", 5 << 20)
+    kept = game.trim()
+    shared = kept and game.records() == [f, two] and FOLDER + "\\dup_s1d.dds" in game.files
+    g = game.push("g_s1d.dds", half)
+    kept = game.trim()
+    report(ok and shared and kept and game.records() == [f, g] and FOLDER + "\\dup_s1d.dds" not in game.files,
+           "two records of one path (baked twice before either was listed): the older goes, its file stays "
+           "for the other; when the other goes, the file goes")
 
     game = Game(bytes(built))
     game.data(data)

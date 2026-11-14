@@ -356,7 +356,12 @@ fn grown(room: u32) -> usize {
 /// our own of `grown` records, kept for good, as is the storage it leaves
 /// (a record the game was given stays readable; what all the moves leave
 /// is less than the list's room). False when the list is full and no pages
-/// can be had, or there is no list.
+/// can be had, or there is no list. Called where the game changes the list
+/// itself (its trim after its push_back, and the game's start): the list is
+/// the baker's translate thread's (baker+14h, its static constructor's; the
+/// look-up runs in translate_query and the loads' checks in callbacks of
+/// its queries; the 2026-11-14 dump: +14h 952Ch, the main thread, the one
+/// whose bake crashed in push_back), so no other thread reads it meanwhile.
 fn room_for_one(thread: &Thread) -> bool {
     let Some(held) = List::held() else { return false };
     if held.records < held.room {
@@ -714,6 +719,9 @@ pub fn on_game_start(ctx: &mut Context<'_>) -> Flow<BakeCacheOnGameStartExit> {
             stamp(folder.path(), inputs);
         }
     }
+    // the kept files can fill the list exactly, and the first bake's
+    // push_back comes before any trim
+    room_for_one(ctx.thread());
     let what = match keep {
         Keep::Kept => "kept: ",
         Keep::Deleted { .. } => "deleted (another format, other game data or no stamp): ",
@@ -748,14 +756,20 @@ pub fn on_trim(ctx: &mut Context<'_>) -> Flow<BakeCacheOnTrimExit> {
     while List::held().is_some_and(|held| over(held, limit)) {
         // every record loading: nothing to let go
         let Some(record) = List::oldest() else { break };
+        let mut of = [0u8; RECORD_TEXT];
+        let named = record.path().is_some_and(|path| join(&mut of, path, b""));
+        record.remove();
+        gone += 1;
+        // its file, unless another record of its path is left (two queries
+        // baked it before either was listed: the same bytes)
         if base != 0
-            && let Some(name) = record.path().and_then(|path| path.strip_prefix(PREFIX))
+            && named
+            && List::size_of(text(&of)) == 0
+            && let Some(name) = text(&of).strip_prefix(PREFIX)
             && join(&mut at[base..], name, b"")
         {
             files::delete(path(&at));
         }
-        record.remove();
-        gone += 1;
     }
     if gone != 0
         && let Some(held) = List::held()
