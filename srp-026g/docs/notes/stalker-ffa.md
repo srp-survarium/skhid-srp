@@ -409,7 +409,7 @@ guess of 1.3 m), and the engine's own collision with the truck's mesh.
 ### The raised spawns (2026-11-14)
 
 Not played, and not seen in the game: every check below is offline, on a quick
-`build-content 59` of this branch with main (`b678302ce`) merged in, and the
+`build-content 59` of this branch with main (`261e3411b`) merged in, and the
 pictures are software renders of the files
 (`private/renders/training-camp-raised-spawns/` of the main checkout).
 
