@@ -345,13 +345,14 @@ crowns were kept (9,098, 31,833 and 3,242 triangles).
 
 ### Where it stands in the project, and who meets it
 
-`stalker-bushes-1.json` appends the model to the collision objects of each
-map's Team Deathmatch project (`day_4`), before `ffa-projects-1` in
-`release/content.tsv`: Free for All's project is a copy and has it too. The
-list names the count of collision objects each project has in `stalker-maps@6`
-(66, 136 and 78) and the build stops at any other: it cannot leave the bushes
-out silently. **cgroup 8, cmask 32**, a pair no object of the game had
-(every project's are 2/4, 8/16 and 10/20):
+`stalker-bushes-1.json` adds the model as one collision object of each map's
+Team Deathmatch project (`day_4`), after the level's own chunks, before
+`ffa-projects-1` in `release/content.tsv`: Free for All's project is a copy
+and has it too. Each entry says one file must take it (`expected_files`, new
+in `content_edit.py`: an `add_entry` whose anchor is gone was passed over):
+the build stops at a project the object cannot be placed in, it cannot leave
+the bushes out silently. **cgroup 8, cmask 32**, a pair no object of the game
+had (every project's are 2/4, 8/16 and 10/20):
 
 | who asks | its group / mask | meets the bushes |
 | --- | --- | --- |

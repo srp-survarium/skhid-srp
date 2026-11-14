@@ -13,8 +13,8 @@ usage: python3 -I make_pack.py --packs <packs folder> --out <packs folder>/stalk
 --out       the new pack's folder (a new one): pack.json and files/, for `vostok-port pack` and the
             manifest's `pack` row (release/content.tsv). Its pack.json must be PACK_JSON's. Never
             builds a release patch.
---edits     also writes the edit list that places the models (content-edit/stalker-bushes-1.json),
-            after placing them with it in the source pack's own projects.
+--edits     also writes the edit list that places the models (content-edit/stalker-bushes-1.json);
+            the models are placed with its edits in the source pack's own projects first.
 --manifest  makes nothing: the manifest's rows are this script's (the pack it is made from, the
             pack it makes, the edit list before Free for All's copies).
 
@@ -42,12 +42,12 @@ Every drawn surface of a level is one of four things, each by a list here: leave
 that is not (SOLID), a surface of another kind of material (NOT_FOLIAGE), one drawn with no
 material (BARE). A surface that is none of them stops the script with its name.
 
-The edit list appends it as a collision object of cgroup 8 and cmask 20h, which no object of the
-game has, and refuses a project whose collision objects are not the count it was made for: the
-step's ray (group 30h, mask 8) meets it; bullets, blasts and the lobby's and the warm-up's cameras
-(group 10h), grenades (818h), batteries (0A18h), the use ray (114h), the walkers (mask 3) and the
-ragdoll patch's level ray (414h) do not. A spot's ray (group 0FFFFh) does: it goes on through it
-as through anything hittable that is not walkable.
+The edit list places it after the level's own chunks as a collision object of cgroup 8 and cmask
+20h, which no object of the game has, and stops the build at a project it cannot place it in
+(expected_files). The step's ray (group 30h, mask 8) meets it; bullets, blasts and the lobby's and
+the warm-up's cameras (group 10h), grenades (818h), batteries (0A18h), the use ray (114h), the
+walkers (mask 3) and the ragdoll patch's level ray (414h) do not. A spot's ray (group 0FFFFh)
+does: it goes on through it as through anything hittable that is not walkable.
 """
 import argparse
 import hashlib
@@ -369,10 +369,12 @@ def leaves(pack, project, level):
 
 
 def bushes(pack, level, project_path):
-    """A map's model: its files and a report."""
+    """A map's model: its files, the lib_names of the level's first and last collision chunks (the
+    edit list's `like` and `after`) and a report."""
     project = pack.config(project_path)
     floors = Floors()
-    for _, model, _ in level_chunks(project, level, 'collision_objects'):
+    solid = level_chunks(project, level, 'collision_objects')
+    for _, model, _ in solid:
         for triangle, material in collision_triangles(pack, model):
             floors.add(triangle, material)
     # The level's collision faces up more than down (its ground does): the floors are its floors.
@@ -422,7 +424,7 @@ def bushes(pack, level, project_path):
               + f'), {len(seen)} leaves, {kept} within a step of a floor; '
               f'{len(points)} vertices, {len(triangles)} triangles, {spread:.0f} m2; '
               f'{[round(c, 2) for c in low]} .. {[round(c, 2) for c in high]}')
-    return files, report
+    return files, value(solid[0][0], 'lib_name'), value(solid[-1][0], 'lib_name'), report
 
 
 def settings():
@@ -452,42 +454,44 @@ def placement(level):
             'position': [0.0, 0.0, 0.0], 'rotation': [0.0, 0.0, 0.0], 'scale': [1.0, 1.0, 1.0]}
 
 
+def addition(level, project_path, first, last):
+    """The edit that places a map's model: an entry after the level's last collision chunk, made like
+    its first (at the origin, unturned: level_chunks) with the model's name and filter, in the one
+    project; a project that does not take it is refused (content_edit's expected_files)."""
+    values = {key: value for key, value in placement(level).items() if key in ('lib_name', 'cgroup', 'cmask')}
+    return {'files': project_path, 'list': 'collision_objects', 'after': {'lib_name': last},
+            'like': {'lib_name': first}, 'values': values, 'expected_files': 1}
+
+
 def edit_list(placed):
-    """The edit list: each map's model appended to the collision objects of its Team Deathmatch
-    project, which must be as many as the source pack's (a project changed since is refused, not
-    left without its bushes)."""
+    """The edit list: each map's model a collision object of its Team Deathmatch project, after the
+    level's own chunks. A project it cannot be placed in is refused, not left without its bushes."""
     return {
         '_about': ("The STALKER maps' bushes rustle (the owner, 2026-11-14: \"bushes should have rustling sound just "
                    "like on normal survarium maps\"): each map's leaves within a step's reach of a floor, "
                    f"models/srp/<level>_bushes of pack {PACK_ID}@{VERSION} (game material {MATERIAL[0]}, as stock's "
-                   "bushes), appended to the collision objects of its Team Deathmatch project, which Free for All's "
-                   f"project is a copy of ({COPIES}, after this list). cgroup {CGROUP}, cmask {CMASK}: the step's "
-                   "ray (group 30h, mask 8) meets it and plays the foliage step; bullets, grenades, cameras, walkers "
-                   "and dead bodies do not (docs/notes/stalker-maps.md, \"Bushes rustle\"). expected_count is the "
-                   f"project's collision objects in {SOURCE_PACK}: a project that has others is refused. Made by "
-                   "scripts/stalker-bushes/make_pack.py --edits."),
-        'append_entry': [{
-            'file': project,
-            'list': 'collision_objects',
-            'expected_count': count,
-            'unique_key': 'lib_name',
-            'value': placement(level),
-            'vectors': True,
-        } for level, project, count in placed],
+                   "bushes), a collision object of its Team Deathmatch project after the level's own chunks, which "
+                   f"Free for All's project is a copy of ({COPIES}, after this list). cgroup {CGROUP}, cmask "
+                   f"{CMASK}: the step's ray (group 30h, mask 8) meets it and plays the foliage step; bullets, "
+                   "grenades, cameras, walkers and dead bodies do not (docs/notes/stalker-maps.md, \"Bushes "
+                   "rustle\"). expected_files: a project the entry cannot be placed in (its anchor gone) stops the "
+                   "build. Made by scripts/stalker-bushes/make_pack.py --edits."),
+        'add_entry': [addition(*map_) for map_ in placed],
     }
 
 
-def place(pack, level, project_path):
+def place(pack, level, project_path, first, last):
     """The map's model placed in its project of the source pack as build-content places it
-    (content_edit's append_entry): the count the edit list expects, and the project read back with
-    that one object more, the others as they were."""
+    (content_edit's add_entry, with the edit the list has): the project read back with that one
+    object more, after the level's last chunk, the others as they were."""
+    edit = addition(level, project_path, first, last)
     data = bytearray(pack.file(project_path))
     before = get(parse(bytearray(data)), 'collision_objects')[1]
-    at = content_edit.append_entry(data, 'collision_objects', len(before), 'lib_name', placement(level), True)
+    at = content_edit.add_entry(data, edit['list'], edit['after'], edit['like'], edit['values'])
     after = get(parse(data), 'collision_objects')[1]
-    assert at == len(before) and after[:-1] == before, f'{project_path}: its collision objects moved'
-    assert {key: entry[1] for key, entry in after[-1][1]} == placement(level), f'{project_path}: not as placed'
-    return len(before)
+    assert at is not None and after[:at] + after[at + 1:] == before, f'{project_path}: not placed'
+    assert value(before[at - 1], 'lib_name') == last, f'{project_path}: not after {last}'
+    assert {key: entry[1] for key, entry in after[at][1]} == placement(level), f'{project_path}: not as placed'
 
 
 DESCRIPTION = ("the bushes of Experimental Pool, Military Warehouses and Training Camp as collision a foot step "
@@ -564,13 +568,14 @@ def main():
         pack = Pack(folder)
         project_path = f'projects/{project}/day_4/client_project'
         try:
-            files, report = bushes(pack, level, project_path)
+            files, first, last, report = bushes(pack, level, project_path)
         except Unknown as e:
             sys.exit(str(e))
         if pack.digest() != pin:
             stale.append(f"{level}: its inputs' sha256 is {pack.digest()}, not {SOURCE_PACK}'s {pin}")
         out.update(files)
-        placed.append((level, project_path, place(pack, level, project_path)))
+        place(pack, level, project_path, first, last)
+        placed.append((level, project_path, first, last))
         print(report)
     if stale:
         sys.exit('\n'.join(stale))
