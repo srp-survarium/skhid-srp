@@ -105,7 +105,13 @@ enum Made {
 
 /// [`World::build_with_extras`] of `map`, its grid and sight tree read from the run's cache when it has them (and written there
 /// when built); with no cache, `World::build_with_extras` itself.
-pub(super) fn world(map: MapData, cell: f32, body: Body, links: OffMeshLinks, extras: GridExtras) -> World {
+pub(super) fn world(
+    map: MapData,
+    cell: f32,
+    body: Body,
+    links: OffMeshLinks,
+    extras: GridExtras,
+) -> World {
     let Some(cache) = cache() else {
         return World::build_with_extras(map, cell, body, links, extras);
     };
@@ -117,10 +123,14 @@ pub(super) fn world(map: MapData, cell: f32, body: Body, links: OffMeshLinks, ex
     let seeds = map.grid_seeds();
     let grid_key = {
         let mut digest = Digest::new();
-        digest.u64(mapdata::grid_key_with_links(&walker, area, cell, body, &seeds, links));
+        digest.u64(mapdata::grid_key_with_links(
+            &walker, area, cell, body, &seeds, links,
+        ));
         digest.len(spawns.len());
         for spawn in &spawns {
-            [spawn.x, spawn.y, spawn.z].into_iter().for_each(|v| digest.f32(v));
+            [spawn.x, spawn.y, spawn.z]
+                .into_iter()
+                .for_each(|v| digest.f32(v));
         }
         digest.finish()
     };
@@ -188,7 +198,10 @@ impl Cache {
                     return (value, Made::Read);
                 }
             }
-            Err(why) => eprintln!("  grid cache: {} not locked ({why}); built without the lock", lock_path.display()),
+            Err(why) => eprintln!(
+                "  grid cache: {} not locked ({why}); built without the lock",
+                lock_path.display()
+            ),
         }
         let value = build();
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
