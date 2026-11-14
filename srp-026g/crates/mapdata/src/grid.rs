@@ -94,6 +94,7 @@ const FLIGHT_TOLERANCE_M: f32 = 0.1;
 
 pub mod controlled;
 pub mod gap;
+mod gap_flown;
 pub use gap::{GapStats, OffLink, OffMeshLinks, PressLead, Share};
 pub use rim::Riser;
 use gap::gap_cost;
@@ -299,13 +300,24 @@ pub struct Body {
     /// it (3.5 m/s at the landing, re-aimed each 50 ms step, on along the link once within 0.3 m of it) comes to STAND on its
     /// landing within 2 s of leaving the take-off (0.5 m across, 0.2 m in height: the exactness session's walk of the Drop
     /// links, FINDINGS-FEED-exactness 2026-11-12 09:56Z, `grid::drop_check::walk_drop`); a link whose body lands on another floor lower down, and
-    /// arrives there walked at it, is re-aimed there; the others are cut. Off: a link is kept where the body only goes down
+    /// arrives there walked at it, is re-aimed there. [A389] Walked on the game's shapes world (the build's `shapes`, else the
+    /// walker triangles with the body's caster), and no link is cut on the walk alone (the owner's rule: a link is cut only where
+    /// no client action takes the body down there): a link no walk line arrives on or re-aims goes to the floor a walk line's
+    /// own landing stands on, else the crouched walk-off's (2.5 m/s, 0x337D5E), else a jump's off the edge (the short and sprint
+    /// jumps at the gap leads, `controller::jump`); only where none stands on a floor is it cut. Off: a link is kept where the body only goes down
     /// (min(0.4 m, half the drop) under the take-off) on any line, wherever it lands (Chemical Plant mode 2: 245 of 6,000 sampled
     /// links land on a level above the landing and 26 fall past it, and pass). A link that is the only way to a floor or back
     /// from it is kept. [A377] And a kept or re-aimed link's take-off is a lip ([`WalkGrid::is_lip`]) when the body walked at
     /// its landing and let go there (the client's stop blend) stands [`LIP_DROP_M`] or more under it on any line
     /// (`grid::drop_check::stop_at_drop`), as where the link itself drops that far. A build input: in the key when set.
     pub drop_lands: bool,
+    /// [A389] Whether the gap pass's presses are flown by the client's own jump code (`controller::jump`, A385's presses and
+    /// scoring) on the game's shapes world (`grid::gap`'s `fly_gaps`), not by the clip approximation (`SHORT_JUMP_AHEAD`, `fly`):
+    /// each gap a body could jump across (a floor two or more cells on, higher by more than a step than every floor crossed, in a
+    /// gap link's reach) gets the link its flown presses land on, with the press and its share (A385-FORMAT). Mamayev Kurgan's
+    /// gully (A369): the clip pass made no link ridge -> plateau, the flyer lands the walking jump at all 11 leads and 44 of 44
+    /// sprint flights where 56 players crossed. Off: the clip pass. A build input: in the key when set.
+    pub gap_flights: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back (`grid::wall_give_back`):
     /// the exact pass keeps them, a wall face (not a rise of the ground) stands within 0.6 m, and the client's walk tick stands a
     /// body there. Needs [`Erosion::Exact`]. A build input: in the key when set.
@@ -453,6 +465,7 @@ impl Body {
             fastest_walk_cap: crate::controller::jump::WALK_CAP_MS,
             wall_held_tops: false,
             drop_lands: false,
+            gap_flights: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -567,6 +580,7 @@ impl Default for Body {
             fastest_walk_cap: crate::controller::jump::WALK_CAP_MS,
             wall_held_tops: false,
             drop_lands: false,
+            gap_flights: false,
             wall_give_back: false,
             exe_collision: false,
             walk_start_clear: false,
@@ -1311,6 +1325,9 @@ pub struct BuildStats {
     pub drops_unfollowed_kept: usize,
     /// The Drop links re-aimed at the floor the client's body lands on ([`Body::drop_lands`]).
     pub drops_reaimed: usize,
+    /// [A389] The Drop links walked by the client's body ([`Body::drop_lands`]), re-aimed by a way down other than the walk at
+    /// the landing, and cut (no client way tried stands on a floor).
+    pub drops_walked: drop_check::DropStats,
     /// The Drop links taken away because a ground top with no floor holds the body over their landing
     /// ([`Body::fall_stops_on_solids`]), and those kept because they are the only way to a floor or back from it.
     pub drops_under_solid: usize,
@@ -1566,17 +1583,23 @@ impl WalkGrid {
         if body.run_ups_after_erosion {
             (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, RunUp::Metres(SPRINT_RUN_UP_M));
         }
-        wide.off = match links {
-            OffMeshLinks::None => Vec::new(),
-            OffMeshLinks::Gaps => grid.gap_links(&wide, &solids, &mut stats.gaps),
+        // The world the client's body is flown and walked on (the rim jumps, [A389] the gap flights and the Drop links' walk): the
+        // game's shapes, else the walker triangles with the body's caster; built once, only for a pass that needs it.
+        let (caster, s) = body.controller();
+        let gaps = links == OffMeshLinks::Gaps;
+        let needs_world = (gaps && (body.rim_jumps || body.gap_flights)) || (body.drop_check && body.drop_lands);
+        let own = (needs_world && shapes.is_none()).then(|| crate::controller::Collision::build(triangles).with_caster(caster));
+        let world = shapes.or(own.as_ref()).filter(|_| needs_world);
+        wide.off = match (links, world) {
+            (OffMeshLinks::None, _) => Vec::new(),
+            (OffMeshLinks::Gaps, Some(world)) if body.gap_flights => grid.gap_links_flown(&wide, &solids, world, &s, &mut stats.gaps),
+            (OffMeshLinks::Gaps, _) => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
         // [A364 C2 rows 11/12] The rim jumps, made as gap links where a client press lands (on the game's shapes, else the walker
         // triangles with the body's caster): after the erosion, no press from a floor only a crouched body fits.
         let mut rim_unmade: Vec<(Vec3, Vec3)> = Vec::new();
-        if body.rim_jumps && links == OffMeshLinks::Gaps {
-            let (caster, s) = body.controller();
-            let own = shapes.is_none().then(|| crate::controller::Collision::build(triangles).with_caster(caster));
-            let world = shapes.or(own.as_ref()).expect("a world");
+        if body.rim_jumps && gaps {
+            let world = world.expect("a world");
             let unmade;
             (stats.rim, unmade) = grid.fly_rim_jumps(&mut wide, world, &s);
             grid.fly_risers(&mut wide, world, &s, &mut stats.rim);
@@ -1623,7 +1646,8 @@ impl WalkGrid {
         }
         if body.drop_check {
             let failing = if body.drop_lands {
-                let (cut, reaim, lips) = grid.landing_drops(&wide, triangles, seeds, spawns);
+                let (cut, reaim, lips, walked) = grid.landing_drops(&wide, world.expect("a world"), seeds, spawns);
+                stats.drops_walked = walked;
                 stats.drops_reaimed = grid.reaim_drops(&mut wide, &reaim);
                 wide.lips = lips;
                 cut

@@ -15,7 +15,8 @@
 
 use super::{DIRS, LIP_DROP_M, LinkKind, NONE, SEED_M, SPAWN_M, Triangle, Vec3, WalkGrid, Wide};
 use super::controlled::{STARTS, Stance, WalkStart, body_at, out_of_walls, parallel};
-use crate::controller::Collision;
+use super::gap::{GAP_PRESS_MAX_M, GAP_PRESS_MIN_M, GAP_PRESS_STEP_M};
+use crate::controller::{jump, Collision};
 use crate::controller::tick::{Controller, CrouchInput, Settings, TickInput};
 
 /// The tick, s (the census's: 30 a second).
@@ -192,7 +193,17 @@ pub enum DropWalk {
 /// node; the exactness session's walk of the Drop links (`private/grid/rig/link-walk`, `kinds.rs` `drop_one`, FINDINGS-FEED-exactness
 /// 2026-11-12 09:56Z), its leave rule ([`left_take_off`]) and its arrival.
 pub fn walk_drop(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, to: Vec3) -> DropWalk {
-    let mut c = body_at(world, start, Stance::Standing, from);
+    walk_drop_as(world, s, start, Stance::Standing, WALK_MPS, from, to)
+}
+
+/// [A389] The crouched walk's speed forward, m/s: `player_params`' crouch forward 2.5 x the body's factor 1.0 (0x337D5E,
+/// `docs/notes/crouch_logic.md`). A body walked off a drop crouched comes down nearer the edge than a walking one.
+pub const CROUCH_MPS: f32 = 2.5;
+
+/// [A389] [`walk_drop`] in `stance` at `speed` m/s (the crouch key held throughout for [`Stance::Crouched`]).
+pub fn walk_drop_as(world: &Collision, s: &Settings, start: WalkStart, stance: Stance, speed: f32, from: Vec3, to: Vec3) -> DropWalk {
+    let mut c = body_at(world, start, stance, from);
+    let key = stance == Stance::Crouched;
     let first = c.feet();
     let down = left_take_off(from.y, to.y);
     let len = flat(from, to).max(1e-4);
@@ -203,14 +214,14 @@ pub fn walk_drop(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, 
         let feet = c.feet();
         let d = flat(feet, to);
         let walk = if d <= WALK_ON_WITHIN_M {
-            line * (WALK_MPS * LAND_DT)
+            line * (speed * LAND_DT)
         } else {
-            Vec3::new((to.x - feet.x) / d, 0.0, (to.z - feet.z) / d) * (WALK_MPS * LAND_DT).min(d)
+            Vec3::new((to.x - feet.x) / d, 0.0, (to.z - feet.z) / d) * (speed * LAND_DT).min(d)
         };
         c.tick(world, LAND_DT, s, TickInput {
             walk,
             air_control: Vec3::ZERO,
-            crouch: CrouchInput::Tested { key: false, legs_broken: false },
+            crouch: CrouchInput::Tested { key, legs_broken: false },
             sprinting: false,
         });
         let feet = c.feet();
@@ -277,6 +288,17 @@ type Cuts = Vec<(u32, usize, f32)>;
 type Reaims = Vec<(u32, usize, u32)>;
 type Lips = Vec<(u32, u32)>;
 
+/// [A389] What [`WalkGrid::landing_drops`] did ([`super::BuildStats`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DropStats {
+    /// Drop links walked …
+    pub walked: usize,
+    /// … re-aimed by a client way down other than the walk at the landing ([`Verdict::Taught`]) …
+    pub taught: usize,
+    /// … and cut: no client way tried stands on a floor.
+    pub cut: usize,
+}
+
 /// [feed 67] What [`super::Body::drop_lands`] does with one Drop link.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 enum Verdict {
@@ -285,7 +307,11 @@ enum Verdict {
     Keep,
     /// The body lands on another floor of the grid, and walked at that floor it arrives there: the link goes there.
     Reaim(u32),
-    /// No line arrives and no landing is a floor the body arrives at.
+    /// [A389] No walk line arrives or re-aims as [`Self::Reaim`]; a client way down (a walk line's own landing, the crouched
+    /// walk-off, a jump off the edge) comes to stand on this floor: the link goes there.
+    Taught(u32),
+    /// No client way down tried stands on a floor of the grid: the walk lines, the crouched walk-off, the short and sprint
+    /// jumps at the gap leads.
     Cut,
 }
 
@@ -332,22 +358,22 @@ impl WalkGrid {
     pub(super) fn landing_drops(
         &self,
         wide: &Wide,
-        triangles: &[Triangle],
+        world: &Collision,
         seeds: &[Vec3],
         spawns: &[Vec3],
-    ) -> (Cuts, Reaims, Lips) {
+    ) -> (Cuts, Reaims, Lips, DropStats) {
         let links = self.reached_drops(wide, seeds, spawns);
+        let mut stats = DropStats { walked: links.len(), ..DropStats::default() };
         if links.is_empty() {
-            return (Vec::new(), Vec::new(), Vec::new());
+            return (Vec::new(), Vec::new(), Vec::new(), stats);
         }
-        let (caster, s) = self.body.controller();
-        let world = Collision::build(triangles).with_caster(caster);
+        let s = self.body.controller().1;
         let start = self.body.walk_start();
         let verdicts = parallel(&links, |&(a, _, from, to)| {
-            let v = self.drop_verdict(&world, &s, start, a, from, to);
+            let v = self.drop_verdict(world, &s, start, a, from, to);
             let lip = match v {
-                Verdict::Keep => self.stops_below(&world, &s, start, from, to),
-                Verdict::Reaim(b) => self.stops_below(&world, &s, start, from, self.position(b)),
+                Verdict::Keep => self.stops_below(world, &s, start, from, to),
+                Verdict::Reaim(b) | Verdict::Taught(b) => self.stops_below(world, &s, start, from, self.position(b)),
                 Verdict::Cut => false,
             };
             (v, lip)
@@ -359,7 +385,8 @@ impl WalkGrid {
             match v {
                 Verdict::Keep if lip => lips.push((a, wide.links[a as usize][d])),
                 Verdict::Keep => {}
-                Verdict::Reaim(b) => {
+                Verdict::Reaim(b) | Verdict::Taught(b) => {
+                    stats.taught += usize::from(matches!(v, Verdict::Taught(_)));
                     reaim.push((a, d, b));
                     if lip {
                         lips.push((a, b));
@@ -368,7 +395,8 @@ impl WalkGrid {
                 Verdict::Cut => cut.push((a, d, 0.0)),
             }
         }
-        (cut, reaim, lips)
+        stats.cut = cut.len();
+        (cut, reaim, lips, stats)
     }
 
     /// [A377] Whether a Drop link's take-off at `from` is a lip by where the client's body stops, its landing `to` being under
@@ -406,7 +434,70 @@ impl WalkGrid {
                 return Verdict::Reaim(b);
             }
         }
-        Verdict::Cut
+        // [A389] No cut on the walk alone (the owner's rule: a link is cut only where no client action takes the body down
+        // there): a walk line's own landing on a floor lower down, then the crouched walk-off, then the jumps off the edge.
+        let lower = |feet: Vec3| {
+            self.locate_within(feet, ARRIVE_FLAT_M, ARRIVE_HEIGHT_M).filter(|&b| {
+                let y = self.position(b).y;
+                b != a && (y - feet.y).abs() <= ARRIVE_HEIGHT_M && y < from.y - self.body.step
+            })
+        };
+        if let Some(b) = walks.iter().find_map(|w| if let DropWalk::LandsAt(feet) = *w { lower(feet) } else { None }) {
+            return Verdict::Taught(b);
+        }
+        for off in STARTS {
+            match walk_drop_as(world, s, start, Stance::Crouched, CROUCH_MPS, from + side * off, to + side * off) {
+                DropWalk::Arrives => return Verdict::Keep,
+                DropWalk::LandsAt(feet) => {
+                    if let Some(b) = lower(feet) {
+                        return Verdict::Taught(b);
+                    }
+                }
+                _ => {}
+            }
+        }
+        match self.jumped_down(world, s, a, from, ((to.x - from.x) / len, (to.z - from.z) / len)) {
+            Some(b) if (self.position(b).y - to.y).abs() <= ARRIVE_HEIGHT_M && flat(self.position(b), to) <= ARRIVE_FLAT_M => Verdict::Keep,
+            Some(b) => Verdict::Taught(b),
+            None => Verdict::Cut,
+        }
+    }
+
+    /// [A389] The floor lower than the take-off `a` (at `from`) by more than a step that a jump off it along `way` lands on and
+    /// stays on: the short jump at the body's walk cap, then the sprint jump (every variant on one floor), pressed at each of the
+    /// gap links' leads before the take-off's centre (A385's presses, `jump::neighbour_flights` at the press itself, the keys
+    /// let go at the landing, A385-FORMAT §1); the first that lands. None from a floor only a crouched body fits (no jump is
+    /// pressed from a crouch, rule (e): 0x2FBDC0 -> 0x2FC230 -> `on_ground` 0x7EF90).
+    fn jumped_down(&self, world: &Collision, s: &Settings, a: u32, from: Vec3, way: (f32, f32)) -> Option<u32> {
+        if !self.can_stand(a) {
+            return None;
+        }
+        let kits = jump::Kits { body: jump::WALK_CAP_MS, fastest: self.body.fastest_walk_cap };
+        let own = jump::neighbourhood()[0];
+        let below = |feet: Vec3| {
+            self.locate_within(feet, self.body.radius, ARRIVE_HEIGHT_M).filter(|&b| {
+                let y = self.position(b).y;
+                (y - feet.y).abs() <= ARRIVE_HEIGHT_M && y < from.y - self.body.step
+            })
+        };
+        let n = ((GAP_PRESS_MAX_M - GAP_PRESS_MIN_M) / GAP_PRESS_STEP_M).round() as usize;
+        for kind in [jump::Kind::Walk, jump::Kind::Sprint] {
+            for i in 0..=n {
+                let lead = GAP_PRESS_MIN_M + GAP_PRESS_STEP_M * i as f32;
+                let Some(flights) = jump::neighbour_flights(world, s, from, way, kind, lead, own, kits) else { continue };
+                let floors: Vec<Option<u32>> = flights
+                    .iter()
+                    .map(|st| jump::landing_and_rest(st, |f| below(f.feet).is_some()).and_then(|(_, rest)| below(rest.feet)))
+                    .collect();
+                // A sprint press lands only when every variant does (A385-FORMAT §1, rule (b)), here on one floor.
+                if let Some(&Some(b)) = floors.first()
+                    && floors.iter().all(|&f| f == Some(b))
+                {
+                    return Some(b);
+                }
+            }
+        }
+        None
     }
 
     /// [feed 67] Re-aims Drop links ([`Self::landing_drops`]): the link (take-off, direction) goes to the new landing, in its
@@ -423,7 +514,7 @@ impl WalkGrid {
             }
             wide.links[a as usize][d] = NONE;
             if !wide.out(a as usize).any(|x| x == b) {
-                wide.off.push(super::gap::OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: super::gap::Takeoff::WalkOff });
+                wide.off.push(super::gap::OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: super::gap::Takeoff::WalkOff, share: super::gap::Share::UNFLOWN, walk: None });
                 added = true;
             }
         }

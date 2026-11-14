@@ -179,8 +179,13 @@ pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b04;
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// The same for the Drop links kept only where the client's body stands on their landing, re-aimed where it lands elsewhere
 /// ([`Body::drop_lands`], feed 67), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0002: the
-/// lips by where the body stops on a landing (A377).
-pub const DROP_LANDS_ALGO: u32 = 0x5067_0002;
+/// lips by where the body stops on a landing (A377). 0003: walked on the game's shapes world, and a link no walk line
+/// arrives on re-aimed by the client's other ways down (a walk line's own landing, the crouched walk-off, a jump off the edge)
+/// before any cut (A389).
+pub const DROP_LANDS_ALGO: u32 = 0x5067_0003;
+/// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
+/// body that asks for it. A value of its own.
+pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0001;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45).
 pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0103;
@@ -446,6 +451,10 @@ pub fn grid_key_with_links(
     if body.rim_jumps {
         digest.u32(RIM_JUMPS_ALGO);
         digest.f32(body.fastest_walk_cap);
+    }
+    // And the gap links flown by the client's jump.
+    if body.gap_flights {
+        digest.u32(GAP_FLIGHTS_ALGO);
     }
     // And the jumps onto a top a wall holds the body on.
     if body.wall_held_tops {

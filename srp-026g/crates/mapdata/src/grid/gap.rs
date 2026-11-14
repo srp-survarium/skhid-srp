@@ -241,7 +241,7 @@ pub const SPRINT_PRESS_STEP_M: f32 = 0.2;
 /// clip (4.42) from the farthest prepare (1.64) and a fall on of the
 /// harmless drop at the fastest speed after the clip (about 2.6). A
 /// take-off with no floor in reach there gets no flight.
-const SPRINT_REACH_M: f32 = 8.7;
+pub(super) const SPRINT_REACH_M: f32 = 8.7;
 /// A sprint gap link is made over a gap this wide or more with nothing
 /// within the harmless drop in it, m: a narrower one the walking jump and
 /// the walk-off take, and over ground within the drop the body drops in
@@ -460,6 +460,11 @@ pub struct GapStats {
     pub sampled: usize,
     /// … and of those, kept for the walk round they save.
     pub kept: usize,
+    /// [A389] With `gap_flights`: the gaps flown (`gap_flown`), the flights of the client's jump they took, and the made links by
+    /// share (under 0.2, 0.2 to 0.6, 0.6 and over).
+    pub flown: usize,
+    pub flights: usize,
+    pub by_share: [usize; 3],
 }
 
 impl GapStats {
@@ -475,6 +480,11 @@ impl GapStats {
         self.too_high += o.too_high;
         self.made += o.made;
         self.sprint += o.sprint;
+        self.flown += o.flown;
+        self.flights += o.flights;
+        for (m, o) in self.by_share.iter_mut().zip(o.by_share) {
+            *m += o;
+        }
         self.one_way += o.one_way;
         self.sampled += o.sampled;
         self.kept += o.kept;
@@ -1411,7 +1421,7 @@ impl WalkGrid {
 
     /// One walk-off at `speed`: the body leaves `a`'s cell at its edge on
     /// `a`'s height and falls; the first floor it comes down to.
-    fn walk_off(&self, a: usize, d: usize, speed: f32, solids: &Solids) -> Option<u32> {
+    pub(super) fn walk_off(&self, a: usize, d: usize, speed: f32, solids: &Solids) -> Option<u32> {
         let from = self.position(a as NodeId);
         let h = self.height[a];
         let (di, dk) = DIRS[d];
@@ -1480,8 +1490,19 @@ impl WalkGrid {
             stats.no_gap += 1;
             return;
         }
-        // The floor walked to behind, for the run-up (each press needs its
-        // distance and [`GAP_RUN_UP_M`] more).
+        let behind = self.behind(wide, a, d);
+        // The walking ways first; a sprint jump only where they make none and found no face to vault down over.
+        let before = out.len();
+        let edge = self.walking_gap_link(wide, a, d, behind, solids, stats, out);
+        if out.len() == before && edge == Edge::Open {
+            self.sprint_gap_link(wide, a, d, behind, solids, stats, out);
+        }
+    }
+
+    /// The floor walked to behind `a` against `d`, m, for the run-up (each press needs its distance and [`GAP_RUN_UP_M`] more),
+    /// up to the longest run-up a press needs.
+    pub(super) fn behind(&self, wide: &Wide, a: usize, d: usize) -> f32 {
+        let (di, dk) = DIRS[d];
         let back = d ^ 1;
         let step = self.cell * ((di * di + dk * dk) as f32).sqrt();
         let mut behind = 0.0f32;
@@ -1494,12 +1515,22 @@ impl WalkGrid {
             behind += step;
             f = b as usize;
         }
-        // The walking ways first; a sprint jump only where they make none and found no face to vault down over.
-        let before = out.len();
-        let edge = self.walking_gap_link(wide, a, d, behind, solids, stats, out);
-        if out.len() == before && edge == Edge::Open {
-            self.sprint_gap_link(wide, a, d, behind, solids, stats, out);
-        }
+        behind
+    }
+
+    /// The walk-off from floor `a` along `d` ([`Self::walk_off_landing`]) as a gap link, with `behind` metres of floor behind
+    /// it: two or more cells on, more than a step down, standing room, a landing to walk on.
+    pub(super) fn walk_off_link(&self, wide: &Wide, a: usize, d: usize, behind: f32, solids: &Solids) -> Option<OffLink> {
+        let h = self.height[a];
+        let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+        let to = (behind + 1e-3 >= WALK_OFF_RUN_UP_M).then(|| self.walk_off_landing(a, d, solids)).flatten()?;
+        let (ti, tk) = self.cell_xz(self.cell_of[to as usize] as usize);
+        let to_y = self.height[to as usize];
+        ((ti - i).abs().max((tk - k).abs()) >= 2
+            && to_y - h <= -self.body.step
+            && self.ceiling[to as usize] - to_y >= self.body.stand_height
+            && Self::lands(wide, to as usize, d))
+        .then_some(OffLink { from: a as NodeId, to, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None })
     }
 
     /// The walking gap links from floor `a` along `d` with `behind` metres
@@ -1524,17 +1555,9 @@ impl WalkGrid {
         }
         // A drop walked off the edge first (J0: where a walk-off lands, a
         // jump overshoots); the presses after it, as for any gap.
-        if let Some(to) = (behind + 1e-3 >= WALK_OFF_RUN_UP_M).then(|| self.walk_off_landing(a, d, solids)).flatten() {
-            let (ti, tk) = self.cell_xz(self.cell_of[to as usize] as usize);
-            let to_y = self.height[to as usize];
-            if (ti - i).abs().max((tk - k).abs()) >= 2
-                && to_y - h <= -self.body.step
-                && self.ceiling[to as usize] - to_y >= self.body.stand_height
-                && Self::lands(wide, to as usize, d)
-            {
-                out.push(OffLink { from: a as NodeId, to, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None });
-                stats.made += 1;
-            }
+        if let Some(link) = self.walk_off_link(wide, a, d, behind, solids) {
+            out.push(link);
+            stats.made += 1;
         }
         let presses = ((GAP_PRESS_MAX_M - GAP_PRESS_MIN_M) / GAP_PRESS_STEP_M).round() as usize + 1;
         // Each press's landing, two or more cells on, and whether it vaults down ([`Self::vaults_down`]).
@@ -1668,6 +1691,12 @@ impl WalkGrid {
             found.extend(run);
             stats.add(&run_stats);
         }
+        self.thin_gap_links(wide, found, stats)
+    }
+
+    /// The gap links `found` (each with its way) kept and thinned (module documentation), sorted by take-off then landing.
+    pub(super) fn thin_gap_links(&self, wide: &Wide, mut found: Vec<(OffLink, usize)>, stats: &mut GapStats) -> Vec<OffLink> {
+        let n = self.len();
         // One a metre of edge, direction and level (the first, in floor
         // order); a drop one a metre of edge and level whatever its way,
         // walked off before pressed (J0: where a walk-off lands, a jump

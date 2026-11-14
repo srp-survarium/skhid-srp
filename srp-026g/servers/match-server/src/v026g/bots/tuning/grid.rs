@@ -188,11 +188,18 @@ pub struct GridTuning {
     pub wall_held_tops: bool,
     /// [feed 67] With `drop_check`: whether a Drop link is kept only where the client's body walked off it as a bot walks it
     /// comes to stand on its landing within 2 s (`mapdata::Body::drop_lands`, the exactness session's walk of the Drop links at
-    /// the client's 50 ms tick), re-aimed at the floor it lands on where that is another floor lower down, cut where it lands
-    /// nowhere the grid has. Off: a link passes when the body only goes down, wherever it lands, so a route's reckoning takes the
+    /// the client's 50 ms tick, on the game's shapes world), re-aimed at the floor it lands on where that is another floor lower
+    /// down; [A389] where the walk stands on no floor, at the floor the client's other ways down stand on (the crouched walk-off,
+    /// a jump off the edge), and cut only where none does. Off: a link passes when the body only goes down, wherever it lands, so a route's reckoning takes the
     /// body to a landing it never stands on. Client-proven (the walk tick decides), so ON and kept by `all_off` (the owner,
     /// 2026-11-05: correctness fixes go in). A grid is the map's (see `gap_links`).
     pub drop_lands: bool,
+    /// [A389] Whether the maps' gap links are flown by the client's own jump code on the game's shapes world
+    /// (`mapdata::Body::gap_flights`: A385's presses and scoring, each link with its press and share), not by the clip
+    /// approximation. Off: the clip pass, which missed Mamayev Kurgan's ridge -> plateau jump over the gully that 56 players
+    /// made (A369: the bots walked round, 97.4 m for 6.4 m). Client-proven (the client's jump tick decides), so ON and kept by
+    /// `all_off` (the owner, 2026-11-05: correctness fixes go in). A grid is the map's (see `gap_links`).
+    pub gap_flights: bool,
     /// [A318] Whether the floors the erosion rounds took beside a wall the body clears are given back in the maps' walk grids
     /// (`mapdata::Body::wall_give_back`): the exact pass keeps them, a wall face stands within 0.6 m, and the client's walk tick
     /// stands a body there (A318: the rounds took the floor under the client in 376 of the drift lab's grid holds, the exact
@@ -323,6 +330,7 @@ impl Default for GridTuning {
             rim_jumps: true,
             wall_held_tops: true,
             drop_lands: true,
+            gap_flights: true,
             wall_give_back: true,
             exe_collision: true,
             walk_start_clear: true,
@@ -381,6 +389,7 @@ impl GridTuning {
             },
             wall_held_tops: self.wall_held_tops,
             drop_lands: self.drop_lands,
+            gap_flights: self.gap_flights,
             wall_give_back: self.wall_give_back,
             exe_collision: self.exe_collision,
             walk_start_clear: self.walk_start_clear,
