@@ -50,7 +50,7 @@ except ImportError:
 
 # The tests' throwaway signing key (never a release's).
 SEED = bytes(range(32))
-DOMAIN = b"skhid-torrent 1\n"
+DOMAIN = b"skhid torrent signature 1\0"
 
 
 def public_key_hex():
@@ -62,7 +62,7 @@ def public_key_hex():
 def sign(entry, revision):
     """The release's signature (`logic/src/signed.rs`) added to `entry`."""
     info = hashlib.sha256(lt.bencode(entry[b"info"])).digest()
-    message = DOMAIN + struct.pack(">Q", revision) + info
+    message = DOMAIN + bytes([revision]) + info
     entry[b"skhid"] = {b"revision": revision,
                        b"signature": Ed25519PrivateKey.from_private_bytes(SEED).sign(message)}
 
@@ -532,7 +532,7 @@ class TorrentTest(wine.WineTest):
         cases = (
             ("no skhid.torrent", dict(torrent=False)),
             ("skhid.torrent: not signed", dict(signed=False)),
-            ("of revision 40, older than the game's 50", dict(revision=40)),
+            ("of revision 40, older than the 50 this folder has", dict(revision=40)),
         )
         for why, release in cases:
             with self.subTest(why):

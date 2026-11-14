@@ -419,6 +419,7 @@ pub fn offered(session: &mut Session, layout: &Layout) -> Option<Arc<Signed>> {
                 torrent.piece_length,
                 torrent.trackers.len()
             );
+            crate::signed::taken(layout, signed.revision);
             let torrent = signed;
             let torrent = Arc::new(torrent);
             session.torrents.offered = Offered::Read(torrent.clone());
@@ -550,7 +551,7 @@ fn job(signed: Option<&Signed>, roles: Option<Vec<Role>>, layout: Option<&Layout
         ours: signed.map(|signed| (signed.revision, signed.bytes.clone())),
         floor: match (signed, layout) {
             (Some(signed), _) => signed.revision + 1,
-            (None, Some(layout)) => crate::signed::installed(layout),
+            (None, Some(layout)) => crate::signed::installed(layout).max(1),
             (None, None) => u64::MAX,
         },
     });
@@ -1259,12 +1260,12 @@ fn met(
             let Some(torrent) = torrent else { return };
             match updater_logic::signed::verify(&torrent, &meeting.key) {
                 Ok(revision)
-                    if revision >= meeting.floor
-                        && best.as_ref().is_none_or(|(best, _)| revision > *best)
+                    if u64::from(revision) >= meeting.floor
+                        && best.as_ref().is_none_or(|(best, _)| u64::from(revision) > *best)
                         && torrent::parse(&torrent).is_ok() =>
                 {
                     log!("torrent: the rendezvous gave a signed torrent of revision {revision}");
-                    *best = Some((revision, Arc::new(torrent)));
+                    *best = Some((u64::from(revision), Arc::new(torrent)));
                 }
                 Ok(revision) => log!("torrent: the rendezvous gave revision {revision}: not taken"),
                 Err(error) => log!("torrent: the rendezvous gave a torrent: {error:?}: not taken"),

@@ -341,12 +341,17 @@ upload limit (the 0.26g launcher sends none: no limit). The port is
 listened on (all addresses) from the start; Windows' firewall may ask the
 player once.
 
-**The torrent** is `skhid.torrent` beside the updater, a file of the
-players' ZIP, and it is taken only when its Ed25519 signature is the
-release's (`release/signing.pub`, built in; `logic/src/signed.rs`) and its
-revision is not older than the installed game exe's. Missing, unsigned,
-another key's, older: no torrent, HTTPS as before. Where it comes from and
-why it is trusted is one function (`torrent::trusted`). Everything in it is
+**The torrent** is trusted by its Ed25519 signature alone: the release's
+public key (`release/signing.pub`, read by `exe/build.rs`; a test build
+takes `SKHID_SIGNING_KEY`) is built in (`logic/src/signed.rs`,
+`exe/src/signed.rs`), and a torrent is taken only when its signature
+verifies and its revision is not lower than the highest taken before
+(`updater_skhid.torrent.revision` beside the updater) nor than the installed
+game exe's. Today it comes as `skhid.torrent` beside the updater, a file of
+the players' ZIP, or as `updater_skhid.found.torrent`, the newest one the
+rendezvous gave (below); the highest revision of them is the run's. Missing,
+unsigned, another key's, older: no torrent, HTTPS as before. Where it comes
+from and why it is trusted is one function (`torrent::trusted`). Everything in it is
 then checked by SHA-256: its piece layers against each file's v2 root, and
 every piece against its layer before it counts, is written, or is sent.
 
@@ -382,6 +387,15 @@ a block of it. Uploads go to 4 peers at a time (one rotated every 30 s),
 within the upload limit. Trackers: HTTP (compact answers) and UDP (BEP 15),
 IPv4, 200 peers an answer at most, asked again after 60 s to an hour as they
 say.
+
+**The rendezvous** (`logic/src/rendezvous.rs`; the spec's "The rendezvous"):
+while it shares, the updater is also a peer of one fixed swarm whose info
+hash is made of the release's public key, and gives its signed torrent (one
+BEP 10 extension message, 4 MiB at most) to a peer there that has an older
+one or none. An updater that cannot reach the update server asks it for
+20 s first, and keeps a newer torrent it takes (signature verified, revision
+higher) beside itself. A connection is routed by the info hash of its
+handshake: the torrent's swarm or the rendezvous; anything else is closed.
 
 ## Original game download and verification
 
