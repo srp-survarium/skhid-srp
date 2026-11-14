@@ -28,7 +28,7 @@ pub struct Roster<'a> {
 impl<'a> Roster<'a> {
     pub(super) fn of(formed: &'a Formed) -> Self {
         Self {
-            map: formed.played,
+            map: formed.played.match_map(),
             profiles: &formed.profiles,
             initial_players: formed.initial_players,
         }

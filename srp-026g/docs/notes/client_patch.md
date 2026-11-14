@@ -3585,6 +3585,12 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   reports): while the main menu is shown (game_options, game+57F4h: +44h shown, +0Ch its movie's
   holder, a new `fields_026g.tsv` row) the button is told its text when `sv_test_state` is no
   longer what it shows. `options.deactivate` (0x201040, after patch 113's): `sv_test_stop`.
+- **The options' Microphone list** (the owner, 2026-11-14; `voice-chat.md`, "Microphone"), no new hook:
+  `options.callback`'s `srp_microphone` is answered `root.srp_microphone(label, default, shown, id,
+  name, ...)` from `sv_microphones` (ABI 5; at most 16 devices); `srp_microphone(id)` (empty: the
+  default) saves `srp_microphone` (a `ConsoleString` registered at `configs.start`, user.cfg written
+  at once) and calls `sv_choose_microphone`, which the DLL is also given, with the saved pick, as
+  it is loaded.
 - **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio, the test's press and texts). **Not run**: a game.
 
 ### Distance detail option

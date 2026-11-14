@@ -122,6 +122,31 @@ impl TestAsk {
     }
 }
 
+pub use voice_abi::{Microphone, MicrophoneId};
+
+/// The capture device the options' Microphone list picks: Windows' default,
+/// or a device by its endpoint ID (the DLL's list gives them).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MicrophoneChoice {
+    Default,
+    Device(MicrophoneId),
+}
+
+impl MicrophoneChoice {
+    /// The list's text of it, and user.cfg's: empty for the default, else
+    /// the device's ID; None for anything else.
+    pub fn parse(text: &[u8]) -> Option<MicrophoneChoice> {
+        if text.is_empty() { Some(MicrophoneChoice::Default) } else { MicrophoneId::parse(text).map(MicrophoneChoice::Device) }
+    }
+
+    pub fn text(&self) -> &CStr {
+        match self {
+            MicrophoneChoice::Default => c"",
+            MicrophoneChoice::Device(id) => id.as_c_str(),
+        }
+    }
+}
+
 /// The voice options: off ("Disable voice chat", the gameplay tab's dead
 /// "Hide spam", `g_hide_spam`: nothing played, no microphone, the relay sends
 /// nothing) or on, with the sound tab's three stock voice controls.
@@ -138,6 +163,8 @@ static OFF: ConsoleBool = ConsoleBool::new();
 /// `srp_voice_mutes`' room: the patch's `Mutes` text.
 pub const MUTES_SIZE: usize = 512;
 static MUTES: ConsoleString<MUTES_SIZE> = ConsoleString::new();
+/// `srp_microphone`: the Microphone list's pick, [`MicrophoneChoice::text`].
+static CAPTURE_DEVICE: ConsoleString<{ voice_abi::MICROPHONE_ID }> = ConsoleString::new();
 
 /// The variables in the engine's list before user.cfg (`configs.start`):
 /// the stock sound tab's controls name three of them, user.cfg keeps all.
@@ -147,6 +174,19 @@ pub fn register(thread: &Thread) {
     MICROPHONE.register(thread, c"s_use_microphone");
     OFF.register(thread, c"g_hide_spam");
     MUTES.register(thread, c"srp_voice_mutes");
+    CAPTURE_DEVICE.register(thread, c"srp_microphone");
+}
+
+/// The saved pick of the Microphone list; the default for a value that is
+/// not one (a hand-edited user.cfg).
+pub fn saved_microphone(thread: &Thread) -> MicrophoneChoice {
+    MicrophoneChoice::parse(CAPTURE_DEVICE.get(thread)).unwrap_or(MicrophoneChoice::Default)
+}
+
+/// Keeps the Microphone list's pick, user.cfg written at once.
+pub fn save_microphone(thread: &Thread, choice: MicrophoneChoice) {
+    CAPTURE_DEVICE.set(thread, choice.text().to_bytes());
+    save_user_config(thread);
 }
 
 pub fn settings(thread: &Thread) -> Settings {
@@ -734,6 +774,30 @@ impl Dll {
         MicTest::of_word(unsafe { (self.api.test_state)() }).unwrap_or(MicTest::Idle)
     }
 
+    /// The capture devices there are now (the DLL asks Windows), in its
+    /// order, each read once: its ID and its name (UTF-8). At most the room's
+    /// length; one the DLL did not write as an ABI's device is left out.
+    pub fn microphones(self, room: &mut [Microphone]) -> impl Iterator<Item = (MicrophoneId, &CStr)> {
+        let size = u32::try_from(room.len()).unwrap_or(u32::MAX);
+        // SAFETY: the checked API; room for `size` devices, which the DLL
+        // fills (at most) for the call.
+        let written = unsafe { (self.api.microphones)(room.as_mut_ptr(), size) };
+        let written = (written as usize).min(room.len());
+        room[..written].iter().filter_map(Microphone::read)
+    }
+
+    /// The capture device push-to-talk and the microphone test open from
+    /// their next opening.
+    pub fn choose_microphone(self, choice: MicrophoneChoice) {
+        let id = match &choice {
+            MicrophoneChoice::Default => core::ptr::null(),
+            MicrophoneChoice::Device(id) => id.as_c_str().as_ptr(),
+        };
+        // SAFETY: the checked API; null or a C string alive for the call
+        // (the DLL copies it).
+        unsafe { (self.api.choose_microphone)(id) }
+    }
+
     /// The game has the keyboard (so when user32 lacked the functions).
     pub fn focused(self) -> bool {
         self.window.is_none_or(Window::focused)
@@ -759,6 +823,19 @@ mod tests {
             0x53 => 0x2E,   // numpad . -> VK_DELETE
             0xE01D => 0xA3, // right Ctrl
             _ => 0,
+        }
+    }
+
+    #[test]
+    fn a_microphone_choice_is_the_default_or_an_id_and_reads_back() {
+        let id = b"{0.0.1.00000000}.{6b1a1d3c-1f9e-4c0e-9a59-0d2b5e3f7a10}";
+        let device = MicrophoneChoice::parse(id).unwrap();
+        assert_eq!(device, MicrophoneChoice::Device(MicrophoneId::parse(id).unwrap()));
+        assert_eq!(device.text().to_bytes(), id);
+        assert_eq!(MicrophoneChoice::parse(b""), Some(MicrophoneChoice::Default));
+        assert_eq!(MicrophoneChoice::Default.text(), c"");
+        for bad in [&b" "[..], b"a b", b"\xD0\x9C", &[b'a'; 200]] {
+            assert_eq!(MicrophoneChoice::parse(bad), None, "{bad:?}");
         }
     }
 

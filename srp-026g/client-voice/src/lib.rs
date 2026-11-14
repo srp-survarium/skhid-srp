@@ -2,6 +2,7 @@
 //! The Windows DLL adds capture/playback and a UDP session around these types.
 mod codec;
 pub mod mic_test;
+pub mod microphone;
 mod radio;
 mod receiver;
 #[cfg(any(windows, test))]

@@ -70,6 +70,7 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
         match_id: MATCH,
         map_id: 1,
         mode: GameMode::Batteries,
+        twist: None,
         match_level: 0,
         end: MatchEnd::ModeRule,
         winner: Some(0),

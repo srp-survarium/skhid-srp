@@ -64,6 +64,7 @@ use std::time::{Duration, Instant};
 use survarium::v026g::drops::Rng;
 use survarium::v026g::lobby::rooms::rules;
 use survarium::v026g::maps;
+use survarium::v026g::twist::{Played, Twist};
 
 use super::level_stats;
 use crate::Strength;
@@ -196,12 +197,13 @@ pub struct Room {
     /// Its members' accounts, in the order they came.
     pub members: Vec<u32>,
     pub stage: Stage,
-    /// The cards of the vote now; empty while it waits.
-    pub cards: Vec<u8>,
+    /// The cards of the vote now; empty while it waits. A free-for-all's
+    /// card plays its twist or none, drawn with the card ([`Rooms::deal`]).
+    pub cards: Vec<Played>,
     /// Each voter's card.
     pub votes: HashMap<u32, u8>,
-    /// The map of its last match; 0: none yet.
-    pub last_map: u8,
+    /// What its last match played; none yet.
+    pub last: Option<Played>,
     /// Its match just ended: the next vote is `RoomRules::after_match` longer.
     pub after_match: bool,
     /// The members in its match now.
@@ -384,7 +386,7 @@ impl Room {
     /// The card that leads the vote alone: what the room list shows before
     /// the start. `None` on a tie or with no votes (the start then draws
     /// one at random, [`Room::winner`]).
-    pub fn leading(&self) -> Option<u8> {
+    pub fn leading(&self) -> Option<Played> {
         let tally = self.tally();
         let most = *tally.iter().max()?;
         if most == 0 || tally.iter().filter(|&&votes| votes == most).count() > 1 {
@@ -394,9 +396,9 @@ impl Room {
         self.cards.get(index).copied()
     }
 
-    /// The map the vote chose: the card with the most votes; of several
+    /// What the vote chose: the card with the most votes; of several
     /// alike (or none voted for) one at random. `None` with no cards.
-    pub fn winner(&self, below: &mut impl FnMut(usize) -> usize) -> Option<u8> {
+    pub fn winner(&self, below: &mut impl FnMut(usize) -> usize) -> Option<Played> {
         let tally = self.tally();
         let most = *tally.iter().max()?;
         let tied: Vec<usize> = (0..tally.len()).filter(|&i| tally[i] == most).collect();
@@ -406,11 +408,11 @@ impl Room {
 }
 
 /// What the lobby must do now ([`Rooms::tick`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Due {
-    /// The room's vote and wait are over: its match is to start on `map_id`,
+    /// The room's vote and wait are over: its match is to play `played`,
     /// the vote's winner then.
-    Start { key: u32, map_id: u8 },
+    Start { key: u32, played: Played },
 }
 
 /// Why an owner's Start did nothing ([`Rooms::start`]).
@@ -676,7 +678,7 @@ impl Rooms {
         let key = self.new_key(below).ok_or(Refused::TooMany)?;
         let serial = self.next_serial();
         // The vote is always there: its cards from the start.
-        let cards = Self::draw(&pool, below);
+        let cards = Self::deal(&pool, below);
         let mut room = Room {
             key,
             owner,
@@ -687,7 +689,7 @@ impl Rooms {
             stage: Stage::Waiting,
             cards,
             votes: HashMap::new(),
-            last_map: 0,
+            last: None,
             after_match: false,
             in_match: HashSet::new(),
             serial,
@@ -1282,14 +1284,36 @@ impl Rooms {
         if room.stage != Stage::Waiting {
             return Err(StartRefused::Playing);
         }
-        let map_id = room.winner(below).ok_or(StartRefused::NoRoom)?;
+        let played = room.winner(below).ok_or(StartRefused::NoRoom)?;
         Ok(Due::Start {
             key: room.key,
-            map_id,
+            played,
         })
     }
 
-    /// The vote's cards from the pool, all different while the pool has as
+    /// The vote's cards from the pool ([`Self::draw`]), each a map a match
+    /// can be played on, and then each free-for-all's twist or none, drawn
+    /// by its share ([`Twist::draw`]; the owner, 2026-11-14: "cowboy version
+    /// should be rare"). A pool's id no match can play is no card.
+    fn deal(pool: &[u8], below: &mut impl FnMut(usize) -> usize) -> Vec<Played> {
+        let maps: Vec<maps::MatchMap> = Self::draw(pool, below)
+            .into_iter()
+            .filter_map(maps::MatchMap::of)
+            .collect();
+        maps.into_iter()
+            .map(|map| {
+                if map.mode() != maps::GameMode::FreeForAll {
+                    return Played::plain(map);
+                }
+                let roll = below(survarium::v026g::twist::SHARE_TOTAL as usize) as u32;
+                Twist::draw(roll)
+                    .and_then(|twist| Played::twisted(map, twist))
+                    .unwrap_or(Played::plain(map))
+            })
+            .collect()
+    }
+
+    /// The vote's maps from the pool, all different while the pool has as
     /// many, each drawn at random: the third a map of [`THIRD_CARD`]'s mode,
     /// on a map the first two are not while the pool has such a one; the
     /// first two of the rest of the pool. A pool without that mode (a
@@ -1387,7 +1411,7 @@ impl Rooms {
             // The vote is always there: a match that started took its cards,
             // and the next three are drawn at once, for the match after it.
             if room.cards.is_empty() {
-                room.cards = Self::draw(&room.pool, below);
+                room.cards = Self::deal(&room.pool, below);
                 room.votes.clear();
             }
             let present = room.members.len() >= room.needs();
@@ -1412,9 +1436,9 @@ impl Rooms {
                 // The whole time, a full room too; the map is the vote's
                 // winner at its end.
                 Stage::Vote { until } if now >= until => match room.winner(below) {
-                    Some(map_id) if enough => due.push(Due::Start {
+                    Some(played) if enough => due.push(Due::Start {
                         key: room.key,
-                        map_id,
+                        played,
                     }),
                     _ => room.stage = Stage::Waiting,
                 },
@@ -1425,13 +1449,13 @@ impl Rooms {
     }
 
     /// The room's match was made: `seated` went to it.
-    pub fn started(&mut self, key: u32, match_id: u32, map_id: u8, seated: &[u32], now: Instant) {
+    pub fn started(&mut self, key: u32, match_id: u32, played: Played, seated: &[u32], now: Instant) {
         if let Some(room) = self.rooms.get_mut(&key) {
             room.stage = Stage::InMatch {
                 match_id,
                 since: now,
             };
-            room.last_map = map_id;
+            room.last = Some(played);
             room.in_match = seated.iter().copied().collect();
             room.cards.clear();
             room.votes.clear();
@@ -1760,6 +1784,11 @@ fn is_one_card_at_most(id: u8) -> bool {
 mod tests {
     use super::*;
 
+    /// A map id's card with no twist.
+    fn plain_map(id: u8) -> Played {
+        Played::plain(maps::MatchMap::of(id).expect("a playable map"))
+    }
+
     fn spec(size: u8, pin: Option<u16>) -> Spec {
         Spec {
             size,
@@ -1839,7 +1868,7 @@ mod tests {
             rooms.tick(voted + wait, &mut first, |_| true),
             vec![Due::Start {
                 key,
-                map_id: cards[0]
+                played: cards[0]
             }]
         );
         rooms.started(key, 77, cards[0], &[1, 2], now);
@@ -1852,7 +1881,7 @@ mod tests {
         assert!(rooms.vote(2, 1));
         assert_eq!(rooms.match_over(77), Some(key));
         let room = rooms.get(key).unwrap();
-        assert_eq!((room.stage, room.last_map), (Stage::Waiting, cards[0]));
+        assert_eq!((room.stage, room.last), (Stage::Waiting, Some(cards[0])));
         // The next vote begins, its votes kept, 10 s longer after a match.
         let back = voted + wait * 2;
         rooms.tick(back, &mut first, |_| true);
@@ -1902,7 +1931,7 @@ mod tests {
             rooms.start(2, &mut first),
             Ok(Due::Start {
                 key: private,
-                map_id: cards[2]
+                played: cards[2]
             })
         );
         rooms.started(private, 77, cards[2], &[2, 3], later);
@@ -1942,7 +1971,7 @@ mod tests {
         );
         assert_eq!(rooms.move_member(1, 1), Ok(0));
         // Kept across a match; no move while it is played.
-        rooms.started(key, 7, 61, &[1, 2, 3, 4], now);
+        rooms.started(key, 7, plain_map(61), &[1, 2, 3, 4], now);
         assert_eq!(rooms.move_member(1, 1), Err(MoveRefused::Playing));
         rooms.match_over(7);
         assert_eq!(rooms.get(key).unwrap().arranged(), [vec![2], vec![1, 3, 4]]);
@@ -2058,7 +2087,7 @@ mod tests {
             first_due,
             vec![Due::Start {
                 key,
-                map_id: cards[1]
+                played: cards[1]
             }]
         );
         // Not made: the vote and the wait again, whole (the 30 s at the
@@ -2083,7 +2112,7 @@ mod tests {
             rooms.tick(due + rules().vote + wait, &mut first, |_| true),
             vec![Due::Start {
                 key,
-                map_id: cards[2]
+                played: cards[2]
             }]
         );
         // The maker names it, whoever owns it later.
@@ -2173,7 +2202,7 @@ mod tests {
             rooms.join(account, 0, key, now).unwrap();
         }
         // 5 came too late to go into the match.
-        rooms.started(key, 7, POOL[0], &[1, 2, 3, 4], now);
+        rooms.started(key, 7, plain_map(POOL[0]), &[1, 2, 3, 4], now);
         assert_eq!(rooms.match_over(7), Some(key));
         let room = rooms.get(key).unwrap();
         assert_eq!(room.members, [1, 2, 3, 4, 5]);
@@ -2182,7 +2211,7 @@ mod tests {
         // A room of two: both stay, the room with them.
         let pair = room_of(&mut rooms, 10, 8, None, now);
         rooms.join(11, 0, pair, now).unwrap();
-        rooms.started(pair, 10, POOL[0], &[10, 11], now);
+        rooms.started(pair, 10, plain_map(POOL[0]), &[10, 11], now);
         assert_eq!(rooms.match_over(10), Some(pair));
         assert_eq!(rooms.get(pair).unwrap().members, [10, 11]);
         assert_eq!(
@@ -2530,14 +2559,14 @@ mod tests {
             .unwrap();
         rooms.join(2, 0, key, now).unwrap();
         let third = rooms.get(key).unwrap().cards[2];
-        assert!(free_for_all.contains(&third));
+        assert!(free_for_all.contains(&third.map().id));
         rooms.vote(1, 2);
         rooms.vote(2, 2);
         rooms.tick(now, &mut first, |_| true);
         let wait = Duration::from_secs(30);
         assert_eq!(
             rooms.tick(now + rules().vote + wait, &mut first, |_| true),
-            vec![Due::Start { key, map_id: third }]
+            vec![Due::Start { key, played: third }]
         );
     }
 

@@ -32,7 +32,14 @@
 //!   game (`game.tick`) the button is told its text again when the DLL's
 //!   state of the test, or its second, is no longer the one shown; the test
 //!   is also stopped when the Settings change tab and when the main menu
-//!   closes (`options.deactivate`: also a match's loading and its end).
+//!   closes (`options.deactivate`: also a match's loading and its end);
+//! - the options' Microphone list (voice-chat.md, "Microphone"): the sound tab
+//!   asks `srp_microphone` (`options.callback`) as it is shown and as the list
+//!   is opened, answered `root.srp_microphone(label, default, shown, id, name,
+//!   ...)`, the capture devices the DLL finds now; Apply sends
+//!   `srp_microphone(id)` (empty: Windows' default), kept in user.cfg
+//!   (`srp_microphone`) and told to the DLL, which is told the saved one as
+//!   it is loaded.
 //!
 //! Nothing a match computes: audio goes beside the game, through the DLL.
 
@@ -46,8 +53,8 @@ use crate::vostok::log::{self, Piece::*};
 use crate::vostok::settings::{Menu, OptionsCall};
 use crate::vostok::types::Place;
 use crate::vostok::voice::{
-    self as engine, Channel, Connect, Dll, Ears, Heard, Hearing, Listener, MUTES_SIZE, MicTest, PAN_CENTRE, Places, Roster, Scene,
-    Settings, TalkInput, TalkKey, TestAsk, VoiceId, name_text,
+    self as engine, Channel, Connect, Dll, Ears, Heard, Hearing, Listener, MUTES_SIZE, MicTest, Microphone, MicrophoneChoice,
+    MicrophoneId, PAN_CENTRE, Places, Roster, Scene, Settings, TalkInput, TalkKey, TestAsk, VoiceId, name_text,
 };
 use crate::vostok::{
     Context, Flow, GameCell, GameWorldButton, GameWorldKey, HudCall, NoExit, Thread, VoiceOnHudCallExit,
@@ -151,13 +158,14 @@ enum Voice {
 static VOICE: GameCell<Voice> = GameCell::new(Voice::Unloaded);
 
 /// The DLL, looked for now when it was not yet; None without one of this ABI
-/// (said once in the log).
+/// (said once in the log). Loaded, it is told the saved microphone.
 fn dll(thread: &Thread) -> Option<Dll> {
     match VOICE.get(thread) {
         Voice::Unloaded => {
             let dll = Dll::load(thread);
-            if dll.is_none() {
-                log::line(&[Text("voice: no skhid_voice.dll of this ABI: voice chat is off")]);
+            match dll {
+                Some(dll) => dll.choose_microphone(engine::saved_microphone(thread)),
+                None => log::line(&[Text("voice: no skhid_voice.dll of this ABI: voice chat is off")]),
             }
             VOICE.set(thread, dll.map_or(Voice::Missing, Voice::Idle));
             dll
@@ -614,7 +622,61 @@ fn show_test(menu: &Menu<'_>, test: MicTest) -> bool {
     menu.tell(MIC_TEST_ANSWER, &[text])
 }
 
-/// The Settings' calls (`options.callback`). `srp_mic_test`: the sound tab
+/// The Settings' call of the Microphone list, and its answer's method.
+const MICROPHONE: &CStr = c"srp_microphone";
+const MICROPHONE_ANSWER: &CStr = c"root.srp_microphone";
+/// The most capture devices the list shows (the answer's strings: three and
+/// two a device, within the movie call's 64).
+const MICROPHONES: usize = 16;
+
+/// The list's pick as the list can show it: the saved device as the DLL
+/// lists it now (its ID as listed), else the default (none saved, or the
+/// saved one is not there: unplugged).
+fn shown(saved: MicrophoneChoice, listed: impl IntoIterator<Item = MicrophoneId>) -> MicrophoneChoice {
+    listed
+        .into_iter()
+        .find(|&id| saved == MicrophoneChoice::Device(id))
+        .map_or(MicrophoneChoice::Default, MicrophoneChoice::Device)
+}
+
+/// `srp_microphone`: with an ID (or empty, the default) Apply's pick, kept
+/// in user.cfg and told to the DLL; with or without, the list is answered:
+/// its label, the default's text, the pick it shows ([`shown`]), then each
+/// device's ID and name, in Windows' order. Anything else is no pick
+/// (logged), answered the same.
+fn microphone_call(call: &OptionsCall<'_>, thread: &Thread, dll: Dll) {
+    if let Some(text) = call.string_argument(0) {
+        match MicrophoneChoice::parse(text.to_bytes()) {
+            Some(choice) => {
+                engine::save_microphone(thread, choice);
+                dll.choose_microphone(choice);
+            }
+            None => log::line(&[Text("voice: srp_microphone with neither a device's endpoint ID nor the default")]),
+        }
+    }
+    let (mut label, mut default) = ([0; 0x200], [0; 0x200]);
+    let label = call.translate(c"st_srp_microphone", &mut label);
+    let default = call.translate(c"st_srp_microphone_default", &mut default);
+    let mut room = [Microphone::EMPTY; MICROPHONES];
+    let mut listed: [Option<(MicrophoneId, &CStr)>; MICROPHONES] = [None; MICROPHONES];
+    for (slot, device) in listed.iter_mut().zip(dll.microphones(&mut room)) {
+        *slot = Some(device);
+    }
+    let pick = shown(engine::saved_microphone(thread), listed.iter().flatten().map(|&(id, _)| id));
+    let mut values: [&CStr; 3 + 2 * MICROPHONES] = [c""; 3 + 2 * MICROPHONES];
+    values[..3].copy_from_slice(&[label, default, pick.text()]);
+    let mut count = 3;
+    for (id, name) in listed.iter().flatten() {
+        values[count] = id.as_c_str();
+        values[count + 1] = name;
+        count += 2;
+    }
+    call.answer(MICROPHONE_ANSWER, &values[..count]);
+}
+
+/// The Settings' calls (`options.callback`). `srp_microphone`: the
+/// Microphone list ([`microphone_call`]; with no DLL not answered, and the
+/// list stays away). `srp_mic_test`: the sound tab
 /// shown asks the button's text (answered at once; with no DLL not at all,
 /// and the button stays away); with `<volume> <sensitivity>` it is a press,
 /// which the DLL takes (it starts or stops its test: `on_tick` tells the
@@ -629,6 +691,12 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<VoiceOnOptionsCallExit> {
             dll.test_stop();
         }
         return Flow::Continue;
+    }
+    if call.method() == MICROPHONE {
+        if let Some(dll) = dll(thread) {
+            microphone_call(&call, thread, dll);
+        }
+        return Flow::Exit(VoiceOnOptionsCallExit::Done);
     }
     if call.method() != MIC_TEST {
         return Flow::Continue;
@@ -698,6 +766,21 @@ mod tests {
         }
         let mut out = [0; 0x200];
         assert_eq!(crate::free_for_all::with_number(b"Recording %1$s", 7, &mut out), c"Recording 7");
+    }
+
+    #[test]
+    fn the_list_shows_the_saved_microphone_while_it_is_there_else_the_default() {
+        let device = |text: &str| MicrophoneId::parse(text.as_bytes()).unwrap();
+        let (headset, webcam) = (device("{0.0.1.00000000}.{headset}"), device("{0.0.1.00000000}.{webcam}"));
+        let saved = MicrophoneChoice::Device(headset);
+        assert_eq!(shown(saved, [webcam, headset]), saved);
+        // unplugged: the default shown (the pick stays saved for when it is back)
+        assert_eq!(shown(saved, [webcam]), MicrophoneChoice::Default);
+        assert_eq!(shown(saved, []), MicrophoneChoice::Default);
+        assert_eq!(shown(MicrophoneChoice::Default, [webcam, headset]), MicrophoneChoice::Default);
+        // as listed: the movie finds the pick by the list's own text
+        let listed = device("{0.0.1.00000000}.{HEADSET}");
+        assert_eq!(shown(saved, [listed]).text(), listed.as_c_str());
     }
 
     #[test]

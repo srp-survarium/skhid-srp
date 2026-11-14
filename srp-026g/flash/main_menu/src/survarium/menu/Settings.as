@@ -1,5 +1,6 @@
 package survarium.menu
 {
+   import flash.display.DisplayObject;
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.events.Event;
@@ -115,6 +116,10 @@ package survarium.menu
       // The sound tab's "Test microphone" button (exe patch 66), under the Microphone sensitivity
       // slider. Not a setting: a press is no change of the tab.
       protected var _micTest:SrpMicTest;
+      
+      // The sound tab's "Microphone" list (exe patch 66), between the sensitivity slider and the test
+      // button: a pick is a change of the tab as the Language pick is, saved by Apply.
+      protected var _microphone:SrpMicrophone;
       
       // The controls tab's places, read from its timeline the first time it is laid out
       // (layoutControls); null until then.
@@ -312,6 +317,15 @@ package survarium.menu
       public function setMicTest(text:String) : void
       {
          this._micTest.answer(text);
+      }
+      
+      // The exe's answer to the Microphone list (root.srp_microphone): the shown device selected, so
+      // no pick is pending (unless one not applied yet is still listed).
+      public function setMicrophone(values:Array) : void
+      {
+         this._microphone.answer(values);
+         this.microphoneChanged(null);
+         this.layoutVoice();
       }
       
       // The HUD group's own texts (root.srp_hud_texts): the heading, "Hide quests", the crosshair
@@ -551,6 +565,10 @@ package survarium.menu
                {
                   this._renderer.save();
                }
+               else if(control == this._microphone.menu)
+               {
+                  this._microphone.save();
+               }
                else if(this.checkOf(control) != null)
                {
                   this.checkOf(control).save();
@@ -607,6 +625,7 @@ package survarium.menu
          this._mouse.revert();
          this._fov.revert();
          this._renderer.revert();
+         this._microphone.revert();
          this.btn_accept.enabled = false;
          this.btn_cancel.label = this._exitLabel;
          _changes = 0;
@@ -658,6 +677,9 @@ package survarium.menu
          this._changed[this._fov.slider] = 0;
          this._fov.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.fovChanged);
          this._micTest = new SrpMicTest(this.settings_content);
+         this._microphone = new SrpMicrophone(this.settings_content);
+         this._changed[this._microphone.menu] = 0;
+         this._microphone.menu.addEventListener(ListEvent.INDEX_CHANGE,this.microphoneChanged);
          this._mouse.check.box.addEventListener(Event.SELECT,this.mouseChanged);
          this._mouse.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.mouseChanged);
          this._renderer = new SrpRendererChoice(this.settings_content);
@@ -675,6 +697,7 @@ package survarium.menu
          this._mouse.place();
          this._fov.place();
          this._micTest.place();
+         this._microphone.place();
          this._renderer.place();
          SrpDistanceDetail.apply(this);
          this._language.place();
@@ -786,6 +809,16 @@ package survarium.menu
                option.enabled = true;
             }
          }
+         // The sound tab's stock "PTT" checkbox (its option 6, s_ptt_button: the stock game's
+         // push-to-talk or open microphone switch) is never shown: voice is push-to-talk only and
+         // the option names no variable, so it did nothing, greyed (the owner, 2026-11-14: "let's
+         // remove the button then"). The exe's options still bind it by name: it stays in the
+         // timeline, hidden after each bind. The push-to-talk key is the Controls tab's.
+         var ptt:DisplayObject = this.settings_content["_ptt"] as DisplayObject;
+         if(ptt)
+         {
+            ptt.visible = false;
+         }
          SrpVideoTab.finish(this,this._renderer);
          SrpDistanceDetail.finish(this);
          // the HUD group, after the tab's settings are bound (their labels set)
@@ -794,7 +827,31 @@ package survarium.menu
          this.layoutGameplay();
          this._mouse.bind();
          this.layoutControls();
-         this._micTest.layout();
+         this.layoutVoice();
+      }
+      
+      // Between the Microphone list and the "Test microphone" button under it.
+      private static const VOICE_GAP:Number = 12;
+      
+      // The sound tab's voice column under its sensitivity slider, the stock PTT checkbox hidden: in the
+      // checkbox's row (the timeline's, the first under the slider) the Microphone list's label, in the
+      // slider's label's look, the list under it as the slider is under its label, then the "Test
+      // microphone" button (in the row itself while the list is not shown: no voice DLL).
+      protected function layoutVoice() : void
+      {
+         var c:MovieClip = this.settings_content;
+         var row:DisplayObject = c.currentFrame == 4 ? c["_ptt"] as DisplayObject : null;
+         var sensitivity:OptionSlider = c.currentFrame == 4 ? c["_mic_sens"] as OptionSlider : null;
+         if(!row || !sensitivity)
+         {
+            return;
+         }
+         var top:Number = row.y;
+         if(this._microphone.menu.visible)
+         {
+            top = VOICE_GAP + this._microphone.layout(sensitivity.textField,sensitivity.x,row.y,sensitivity.slider.y - sensitivity.textField.y,sensitivity.getBounds(c).right - sensitivity.x);
+         }
+         this._micTest.layout(top);
       }
       
       protected function someOneSelected(event:Event) : void
@@ -886,6 +943,12 @@ package survarium.menu
       protected function rendererChanged(event:Event) : void
       {
          this.listChanged(this._renderer.menu,this._renderer.pending);
+      }
+      
+      // A Microphone pick, the same way.
+      protected function microphoneChanged(event:Event) : void
+      {
+         this.listChanged(this._microphone.menu,this._microphone.pending);
       }
       
       // A move of the field of view slider, the same way.
@@ -1202,6 +1265,8 @@ package survarium.menu
          this._fov.revert();
          this._changed[this._renderer.menu] = 0;
          this._renderer.revert();
+         this._changed[this._microphone.menu] = 0;
+         this._microphone.revert();
          this.checkButtons();
          this.settings_content.gotoAndStop(this.tabs.selectedIndex + 1);
          this.create_labels(this.tabs.selectedIndex);

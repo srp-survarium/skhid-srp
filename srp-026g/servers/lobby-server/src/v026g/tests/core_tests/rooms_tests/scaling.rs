@@ -112,7 +112,7 @@ fn three_wait_but_four_open_another_room_and_all_stay_in_it_after_its_match() {
     world
         .core
         .rooms
-        .started(next, 123, 61, &accounts, world.now);
+        .started(next, 123, survarium::v026g::twist::Played::plain(survarium::v026g::maps::MatchMap::of(61).unwrap()), &accounts, world.now);
     world.core.room_match_over(123);
     assert!(waiting.iter().all(|&player| key(&world, player) == next));
 }

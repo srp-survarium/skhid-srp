@@ -77,6 +77,11 @@ pub struct ItemParams {
     /// A weapon's state machine ([`GunStates`]); `None` for an item with
     /// no `states`.
     pub gun: Option<GunStates>,
+    /// The sound the other players hear its shot by: the first of
+    /// `states.fire.sounds.third_view` (a `[time, sound]` pair each); `None`
+    /// for an item that does not fire. A silenced gun's is the AS Val's
+    /// muffled shot ([`super::racket`]).
+    pub shot_heard: Option<&'static str>,
 }
 
 /// A weapon's state machine as its cook makes it (0x30B9A0 into
@@ -494,6 +499,7 @@ impl ItemParams {
             pocket_share: PocketShare::from_config(p)?,
             class: ItemClass::from_config(config)?,
             gun: GunStates::from_config(config)?,
+            shot_heard: shot_heard(config)?,
             modification: int(p, "modification")?,
             default_modifications: leak(default_modifications),
             covered_slots: leak(covered_slots_of(config)?),
@@ -513,6 +519,26 @@ impl ItemParams {
                 )),
             },
         })
+    }
+}
+
+/// The first sound of a config's `states.fire.sounds.third_view`, if it has
+/// one ([`ItemParams::shot_heard`]).
+fn shot_heard(config: &ConfigValue) -> Result<Option<&'static str>, ConfigError> {
+    let Some(heard) = ["states", "fire", "sounds", "third_view"]
+        .into_iter()
+        .try_fold(config, |value, key| value.get(key))
+    else {
+        return Ok(None);
+    };
+    let Some(first) = heard.children().first().copied() else {
+        return Ok(None);
+    };
+    match first.children().get(1).and_then(|sound| sound.as_str()) {
+        Some(sound) => Ok(Some(Box::leak(sound.to_owned().into_boxed_str()))),
+        None => Err(ConfigError(
+            "`states.fire.sounds.third_view[0]` is no `[time, sound]` pair".into(),
+        )),
     }
 }
 

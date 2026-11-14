@@ -933,7 +933,7 @@ fn two_players_meet_in_a_room_and_go_to_one_match() {
     assert_eq!(made.len(), 1);
     let (match_id, setup) = &made[0];
     assert_eq!(*match_id, alice_match);
-    assert!(setup.map.map().is_playable());
+    assert!(setup.played.map().is_playable());
     assert_eq!(setup.players.len(), 2);
     assert_eq!(setup.players[0].session_id, world.ids[alice].1);
     assert_eq!(setup.players[0].account_id, world.ids[alice].0);
@@ -2242,8 +2242,9 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
-            map_id: setup.map.map().id,
-            mode: setup.map.mode(),
+            map_id: setup.played.map().id,
+            mode: setup.played.mode(),
+            twist: setup.played.twist(),
             match_level: setup.match_level,
             end: MatchEnd::ModeRule,
             winner: Some(winner),
@@ -2312,8 +2313,9 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
-            map_id: setup.map.map().id,
-            mode: setup.map.mode(),
+            map_id: setup.played.map().id,
+            mode: setup.played.mode(),
+            twist: setup.played.twist(),
             match_level: setup.match_level,
             end: MatchEnd::NotMade,
             winner: None,
