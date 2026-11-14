@@ -1116,7 +1116,7 @@ pub struct WalkGrid {
     /// (from, to), sorted. In the file (after the marked walks) and the digest. Empty without the switch.
     walk_crouched: Vec<(NodeId, NodeId)>,
     /// [A385 rule (d)] [`Body::rim_jumps`] The risers' presses ([`Self::riser`]), as (from, to, how), sorted by (from, to): every
-    /// Walk link rising [`Body::walked_step`] or more from a floor a body stands on, still a Walk link that is not crouched. In
+    /// Walk link rising [`Body::walked_step`] or more, still a Walk link that is not crouched. In
     /// the file (after the crouched walks) and the digest. Empty without the switch.
     riser: Vec<(NodeId, NodeId, Riser)>,
     /// [`Body::rim_jumps`] The rim jumps the build flew and no press made, as (take-off, landing) feet: the build's report only
@@ -1548,7 +1548,7 @@ impl WalkGrid {
             OffMeshLinks::Gaps => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
         // [A364 C2 rows 11/12] The rim jumps, made as gap links where a client press lands (on the game's shapes, else the walker
-        // triangles with the body's caster): after the erosion, from the floors a body stands on.
+        // triangles with the body's caster): after the erosion, no press from a floor only a crouched body fits.
         let mut rim_unmade: Vec<(Vec3, Vec3)> = Vec::new();
         if body.rim_jumps && links == OffMeshLinks::Gaps {
             let (caster, s) = body.controller();

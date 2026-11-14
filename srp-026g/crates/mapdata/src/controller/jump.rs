@@ -506,6 +506,14 @@ pub const STAY_STEPS: u32 = 7;
 /// [A385] The keys of a scoring flight: forward held to the landing, let go there (A385-FORMAT §1 "stays").
 pub const STAY_KEYS: Keys = Keys { air_forward: true, held_after: false };
 
+/// [A385] Where the neighbour `n` of a press `lead` metres before `takeoff` along `way` is pressed: `lead + n.lead` back along
+/// the way and `n.side` to its right, at the take-off's height (the run-up ends there, [`neighbour_flights`]).
+pub fn press_point(takeoff: Vec3, way: (f32, f32), lead: f32, n: Neighbour) -> Vec3 {
+    let right = (way.1, -way.0);
+    let back = lead + n.lead;
+    Vec3::new(takeoff.x - way.0 * back + right.0 * n.side, takeoff.y, takeoff.z - way.1 * back + right.1 * n.side)
+}
+
 /// [A385] The flights of one neighbour `n` of the press of `kind` at `lead` m before `takeoff` (the take-off floor's centre)
 /// along `way` (flat, unit): one for a walk, one per sprint variant for a sprint, each from its run-up ([`run_up`], shared by
 /// the variants) with the keys let go at the landing ([`STAY_KEYS`], [`STAY_STEPS`]). A sprint run-up under the cap presses the
@@ -524,9 +532,7 @@ pub fn neighbour_flights(
     let flight = Flight { cap: if n.fastest { kits.fastest } else { kits.body }, dy: n.dy };
     let (c, sn) = (n.turn.cos(), n.turn.sin());
     let heading = (way.0 * c - way.1 * sn, way.0 * sn + way.1 * c);
-    let right = (way.1, -way.0);
-    let back = lead + n.lead;
-    let at = Vec3::new(takeoff.x - way.0 * back + right.0 * n.side, takeoff.y, takeoff.z - way.1 * back + right.1 * n.side);
+    let at = press_point(takeoff, way, lead, n);
     match kind {
         Kind::Walk => {
             let RunUp { body: mut b, speed } = run_up(world, s, at, heading, flight.cap, false)?;

@@ -17,9 +17,9 @@
 //! link carries the one whose neighbourhood ([`jump::neighbourhood`]: the motor's measured spread of lead, side and heading,
 //! the world 1-2 cm off, the bots' fastest kit) lands most ([`Share`]); a walking press on a tie. The share prices the link
 //! ([`WalkGrid::link_cost`]); nothing is cut (the owner, 2026-11-13: the bots are taught the press, the path is not taken
-//! away). Made after the erosion, from the floors a body stands on (a jump is never pressed from a crouch: the jump's gate
-//! 0x2FBDC0 -> 0x2FC230 reads `on_ground` 0x7EF90, false for a crouched capsule, exactness 2026-11-14), and before the reach,
-//! so a top only a rim jump gets to is kept.
+//! away). Made after the erosion, with no press from a floor only a crouched body fits (a jump is never pressed from a crouch:
+//! the jump's gate 0x2FBDC0 -> 0x2FC230 reads `on_ground` 0x7EF90, false for a crouched capsule, exactness 2026-11-14), and
+//! before the reach, so a top only a rim jump gets to is kept.
 use super::gap::{self, OffLink, PressLead, Share, Takeoff};
 use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, MARGINAL_JUMP_M, NONE, RIM_REACH_M};
 use crate::controller::jump::{self, FlightStep, Kind, Kits, Neighbour};
@@ -193,11 +193,22 @@ impl WalkGrid {
         let takeoff = self.position(a);
         let own = jump::neighbourhood()[0];
         let mut flights = 0;
+        // Rule (e): no jump is pressed from a crouch (the jump's gate 0x2FBDC0 -> 0x2FC230 reads `on_ground` 0x7EF90, false for a
+        // crouched capsule): a press whose press point is over a floor only a crouched body fits ([`WalkGrid::can_stand`]) is not
+        // flown and does not land. The press point, not the take-off floor: the body presses `lead` back and flies over the
+        // take-off, which may be under the top's overhang (Mamayev Kurgan: 17,363 of 48,606 rim take-offs are crouch-only floors).
+        let fly = |kind: Kind, lead: f32, n: Neighbour| {
+            let at = jump::press_point(takeoff, way, lead, n);
+            if self.floor_under(at).is_some_and(|f| !self.can_stand(f)) {
+                return None;
+            }
+            jump::neighbour_flights(world, s, takeoff, way, kind, lead, n, kits)
+        };
         // Step 1: every press at the press itself: the floors its flights land on (one, or one per sprint variant).
         let mut flown: Vec<(Kind, f32, Vec<Option<NodeId>>)> = Vec::new();
         for kind in [Kind::Walk, Kind::Sprint] {
             for &lead in leads {
-                let floors = jump::neighbour_flights(world, s, takeoff, way, kind, lead, own, kits).map_or_else(Vec::new, |fl| {
+                let floors = fly(kind, lead, own).map_or_else(Vec::new, |fl| {
                     flights += fl.len();
                     fl.iter().map(|st| lands(st)).collect()
                 });
@@ -239,7 +250,7 @@ impl WalkGrid {
                 let lead_only = n == Neighbour { lead: n.lead, ..own };
                 let lands = match lead_only.then(|| reused(l.kind, l.lead + n.lead)).flatten() {
                     Some(lands) => lands,
-                    None => jump::neighbour_flights(world, s, takeoff, way, l.kind, l.lead, n, kits).is_some_and(|fl| {
+                    None => fly(l.kind, l.lead, n).is_some_and(|fl| {
                         flights += fl.len();
                         fl.iter().all(|st| lands(st) == Some(to))
                     }),
@@ -298,10 +309,6 @@ impl WalkGrid {
         let low = body.max_jump.min(MARGINAL_JUMP_M);
         let mut todo: Vec<(u32, u32, usize)> = Vec::new();
         for a in 0..self.height.len() {
-            // No jump is pressed from a crouch (the jump's gate reads `on_ground` 0x7EF90, false for a crouched capsule).
-            if !self.can_stand(a as NodeId) {
-                continue;
-            }
             let ha = self.height[a];
             let (i, k) = self.cell_xz(self.cell_of[a] as usize);
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
@@ -367,16 +374,12 @@ impl WalkGrid {
         (stats, none)
     }
 
-    /// [A385 rule (d)] The risers' presses ([`Riser`]): every Walk link rising [`super::Body::walked_step`] or more from a floor a
-    /// body stands on (no jump is pressed from a crouch), flown over the rim jumps' presses ([`Self::best_press`], landing on the
+    /// [A385 rule (d)] The risers' presses ([`Riser`]): every Walk link rising [`super::Body::walked_step`] or more, flown over the rim jumps' presses ([`Self::best_press`], landing on the
     /// riser's top, [`Self::riser_lands_on`]) into `wide.riser`, sorted; `stats` counts them.
     pub(super) fn fly_risers(&self, wide: &mut Wide, world: &Collision, s: &Settings, stats: &mut RimStats) {
         let walked = self.body.walked_step();
         let mut todo: Vec<(u32, u32, usize)> = Vec::new();
         for a in 0..self.height.len() {
-            if !self.can_stand(a as NodeId) {
-                continue;
-            }
             for d in 0..DIRS.len() {
                 let b = wide.links[a][d];
                 if b != NONE && wide.kinds[a][d] == LinkKind::Walk && self.height[b as usize] - self.height[a] >= walked {
