@@ -3333,11 +3333,13 @@ impl WalkGrid {
                         let half = |i: usize| u16::from_le_bytes([bytes[i], bytes[i + 1]]);
                         // An unknown kind is caught by `check`.
                         let kind = LinkKind::from_u8(bytes[8]).unwrap_or(LinkKind::Walk);
-                        // [R83] An aim only on a rim jump's press (a GapJump pressed at a walk or a sprint); any other is bad.
+                        // [R83] An aim only on a jump's press (a rim jump's or a gap link's: a GapJump or a GapDrop pressed at a walk
+                        // or a sprint); any other is bad.
                         let press = gap::Takeoff::from_centimetres(half(10));
                         let aim = gap::Aim::from_byte(bytes[9]).filter(|aim| {
                             aim.is_straight()
-                                || (kind == LinkKind::GapJump && matches!(press, gap::Takeoff::Press(_) | gap::Takeoff::Sprint(_)))
+                                || (matches!(kind, LinkKind::GapJump | LinkKind::GapDrop)
+                                    && matches!(press, gap::Takeoff::Press(_) | gap::Takeoff::Sprint(_)))
                         });
                         let share = gap::Share::from_byte(bytes[12]);
                         let walk = match (half(13), gap::Share::from_byte(bytes[15])) {

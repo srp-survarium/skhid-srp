@@ -164,36 +164,55 @@ impl WalkGrid {
             // span its metre of edge. A bound of the pass's cost (the flights are the build's dearest step), our choice.
             let group = &gaps[r.clone()];
             let ends: &[Gap] = if group.len() <= 2 { group } else { &[group[0], group[group.len() - 1]] };
-            for g in ends {
-                tried += 1;
+            let way = |g: &Gap| {
                 let (di, dk) = DIRS[g.d];
                 let l = ((di * di + dk * dk) as f32).sqrt();
-                // The floors `a` has a link to already (its sides and its off-mesh links): a landing there makes no link.
-                let linked: Vec<NodeId> = wide.links[g.a as usize].iter().copied().filter(|&f| f != NONE).collect();
-                let super::rim::RimPress { made, flights: f, .. } =
-                    self.best_press(world, s, g.a, g.b, (di as f32 / l, dk as f32 / l), &leads, |st| self.gap_lands_on(st, g.a, &linked, g.over), kits);
+                (di as f32 / l, dk as f32 / l)
+            };
+            // The floors `a` has a link to already (its sides and its off-mesh links): a landing there makes no link.
+            let linked = |g: &Gap| -> Vec<NodeId> { wide.links[g.a as usize].iter().copied().filter(|&f| f != NONE).collect() };
+            let mut near: Option<Gap> = None;
+            for g in ends {
+                tried += 1;
+                let linked = linked(g);
+                let super::rim::RimPress { made, flights: f, near: close } =
+                    self.best_press(world, s, g.a, g.b, way(g), &leads, |st| self.gap_lands_on(st, g.a, &linked, g.over), kits);
                 flights += f;
                 // Every press it makes (a jump's, and [S1] a sprint climb's onto its own floor), as the rim pass keeps them.
                 if !made.is_empty() {
-                    return (Some((*g, made)), tried, flights);
+                    return (Some((*g, made)), tried, flights, None);
+                }
+                if close && near.is_none() {
+                    near = Some(*g);
                 }
             }
-            (None, tried, flights)
+            // [R83] No press on the line made it and a flight came near the landing: the aimed presses, from that end
+            // (`R83-FORMAT.md`; Mamayev Kurgan day_2's box from the rock pile is a gap made only aimed).
+            if let Some(g) = near {
+                let linked = linked(&g);
+                let (made, f) = self.best_aimed(world, s, g.a, g.b, way(&g), &|st| self.gap_lands_on(st, g.a, &linked, g.over), kits);
+                flights += f;
+                return (made.map(|m| (g, vec![m])), tried, flights, Some(f));
+            }
+            (None, tried, flights, None)
         });
-        for (made, tried, flights) in flown {
+        for (made, tried, flights, aimed) in flown {
             stats.flown += tried;
             stats.flights += flights;
+            stats.aimed_tried += usize::from(aimed.is_some());
+            stats.aimed_flights += aimed.unwrap_or(0);
             let Some((g, made)) = made else {
                 stats.no_landing += 1;
                 continue;
             };
-            for Made { to, press, share, walk, .. } in made {
+            stats.aimed_made += usize::from(aimed.is_some());
+            for Made { to, press, share, walk, aim } in made {
                 let rise = self.height[to as usize] - self.height[g.a as usize];
                 let kind = if rise > -self.body.step { LinkKind::GapJump } else { LinkKind::GapDrop };
                 stats.made += 1;
                 stats.sprint += usize::from(matches!(press, super::gap::Takeoff::Sprint(_)));
                 stats.by_share[share.class()] += 1;
-                found.push((OffLink { from: g.a, to, kind, press, share, walk, aim: super::gap::Aim::STRAIGHT }, g.d));
+                found.push((OffLink { from: g.a, to, kind, press, share, walk, aim }, g.d));
             }
         }
         found.extend(clip);

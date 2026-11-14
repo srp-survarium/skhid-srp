@@ -77,9 +77,11 @@ pub struct RimStats {
 /// the bounded sweep), as (side, turn) in [`Aim::STEP`]s: the side 0.3 m or 0.15 m with the heading turned 0.2 or 0.3 rad,
 /// the side 0.15 m straight, the heading turned 0.3 rad, every sign. Every proven row's press is one of them
 /// (`a385-lost-links-client-truth.md` §1, the exe's tick): R83 (-0.3, 0.2) = (-6, 4), R94 (-0.3, -0.3) = (-6, -6), R95
-/// (0.3, 0.2) = (6, 4), R85 (0.15, -0.3) = (3, -6), R98 (0.15, 0.2) = (3, 4). Flown in this order; the best share wins, the
-/// first on a tie.
-pub const AIMS: [(i8, i8); 20] = [
+/// (0.3, 0.2) = (6, 4), R85 (0.15, -0.3) = (3, -6), R98 (0.15, 0.2) = (3, 4); and the side 0.3 m straight, Mamayev Kurgan
+/// day_2's gap jump from the rock pile onto the 1.80 m box (sprint at lead 0.0, side 0.3 = (6, 0); at lead 0.1, side 0.15 =
+/// (3, 0): 6 of 7 replayed in the exe rest on the top, owner-5 `owner-5-mamayev-box-press-20261115.md`). Flown in this order;
+/// the best share wins, the first on a tie.
+pub const AIMS: [(i8, i8); 22] = [
     (-6, 4),
     (-6, -4),
     (6, 4),
@@ -98,6 +100,8 @@ pub const AIMS: [(i8, i8); 20] = [
     (3, -6),
     (-3, 0),
     (3, 0),
+    (-6, 0),
+    (6, 0),
     (0, 6),
     (0, -6),
 ];
@@ -284,6 +288,33 @@ impl WalkGrid {
         kits: Kits,
     ) -> RimPress {
         self.best_press_with(world, s, a, b, way, &presses(leads), Aim::STRAIGHT, lands, kits)
+    }
+
+    /// [R83] The best aimed press from `a` toward `b` along `way` (`R83-FORMAT.md`): the walk and the sprint at [`AIMED_LEADS`] at
+    /// each of [`AIMS`] ([`Self::best_press_with`]), the best share, the first aim on a tie; with the flights flown. For the rim
+    /// jumps and [A389]'s gap links no press on the line makes.
+    pub(super) fn best_aimed(
+        &self,
+        world: &Collision,
+        s: &Settings,
+        a: NodeId,
+        b: NodeId,
+        way: (f32, f32),
+        lands: &impl Fn(&[FlightStep]) -> Option<NodeId>,
+        kits: Kits,
+    ) -> (Option<Made>, usize) {
+        let presses = [(Kind::Walk, AIMED_LEADS.to_vec()), (Kind::Sprint, AIMED_LEADS.to_vec())];
+        let mut flights = 0;
+        let mut best: Option<Made> = None;
+        for (side, turn) in AIMS {
+            let aim = Aim::new(side, turn).expect("an aim in range");
+            let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits);
+            flights += p.flights;
+            if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.byte() > b.share.byte())) {
+                best = Some(m);
+            }
+        }
+        (best, flights)
     }
 
     /// [`Self::best_press`] over `presses` (each kind with its leads), every press and neighbour aimed by `aim` ([R83]: its
@@ -537,20 +568,9 @@ impl WalkGrid {
         // flights came near the top, the walk and the sprint at [`AIMED_LEADS`] at each of [`AIMS`]; the best share wins.
         let near: Vec<(u32, u32, usize)> =
             todo.iter().zip(&flown).filter(|(_, p)| p.made.is_empty() && p.near).map(|(&t, _)| t).collect();
-        let aimed_presses = [(Kind::Walk, AIMED_LEADS.to_vec()), (Kind::Sprint, AIMED_LEADS.to_vec())];
         let aimed = super::controlled::parallel(&near, |&(a, b, d)| {
             let linked = linked(a);
-            let mut flights = 0;
-            let mut best: Option<Made> = None;
-            for (side, turn) in AIMS {
-                let aim = Aim::new(side, turn).expect("an aim in range");
-                let p = self.best_press_with(world, s, a, b, way(d), &aimed_presses, aim, |st| self.rim_lands_on(st, a, &linked), kits);
-                flights += p.flights;
-                if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.byte() > b.share.byte())) {
-                    best = Some(m);
-                }
-            }
-            (best, flights)
+            self.best_aimed(world, s, a, b, way(d), &|st| self.rim_lands_on(st, a, &linked), kits)
         });
         let mut stats = RimStats { tried: todo.len(), aimed_tried: near.len(), ..RimStats::default() };
         let aimed_of: std::collections::HashMap<(u32, u32), Made> =

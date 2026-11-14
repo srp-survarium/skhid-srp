@@ -482,6 +482,13 @@ pub struct GapStats {
     pub groups: usize,
     /// … and the clip pass's pressed links kept where no flown press covers their group (unflown, priced as before).
     pub clip_kept: usize,
+    /// [R83] Groups no press on the line made, one of whose flights came near the landing, flown again aimed
+    /// ([`WalkGrid::best_aimed`]) …
+    pub aimed_tried: usize,
+    /// … made by an aimed press …
+    pub aimed_made: usize,
+    /// … in this many flights (in [`Self::flights`] too).
+    pub aimed_flights: usize,
     pub by_share: [usize; 3],
 }
 
