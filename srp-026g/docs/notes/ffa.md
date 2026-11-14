@@ -211,8 +211,19 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     over his feet) but one 0.83 m below, and there a body meets collision 0.31 m from its axis at
     0.65 m: most likely he stood on the edge of something 0.83 m high beside the point, his
     centre over the lower floor. Not moved elsewhere: his to place again.
-  - A map more (School next) is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its
-    content row.
+- **School at the owner's picks** (2026-11-14, the same session: 49 `where` places,
+  `private/spawn-examples/school-2026-11-14.tsv`). Content edit `ffa-school-picks-1`, from
+  `scripts/ffa-mode/school-picks.tsv` (`picks --project level_02/<weather>_8` for day, evening and
+  rain) and `make_picks_edits.py school`, in its three own projects:
+  - 41 of his 49 places, on their ground, facing as he faced, in the places of point_ids 30-70
+    (position and rotation only); 40 hold the rule (39 has no cover). The 11 left over, 71-81, go:
+    52 -> 41 points. After `ffa-cover-maps-1`.
+  - Dropped by the checks, the same in the three weathers: 7 and 8 (1.92 and 1.27 m from
+    `stalactite_radiation`), 15 (1.15 m from `fruit_toxic_cloud_lvl4`), 45, 46, 48 and 49 (inside
+    `fruit_toxic_cloud_lvl5`, the low corners) and 17 (as Pool's 12: no floor under its centre
+    but one 0.87 m below, there collision 0.20 m from the body's axis at 0.65 m). His to let be
+    (`picks --harmful-ok`, as Rudnya's 45) or place again.
+- A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
   proposal for all 16 maps below; Training Camp has its own, `stalker-ffa.md`). Content edit
