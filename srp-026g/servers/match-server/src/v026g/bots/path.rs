@@ -140,6 +140,14 @@ impl RiserPress {
 }
 
 impl Leap {
+    /// [A386] Whether the grid flew this press (a gap or rim link with a share, A385-FORMAT §2).
+    pub fn flown(self) -> bool {
+        match self {
+            Leap::Gap(GapPress { share, .. }) | Leap::SprintGap(SprintPress { share, .. }) => share.flown().is_some(),
+            Leap::Ledge | Leap::SprintLedge => false,
+        }
+    }
+
     /// [A386] A gap link's press, from the grid's link (`gap::OffLink`): None for a walk-off (no key).
     pub fn of_link(link: &mapdata::grid::gap::OffLink) -> Option<Self> {
         Self::of_press(link.press, link.share, link.walk)
