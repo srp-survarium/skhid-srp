@@ -1,6 +1,6 @@
 # Top-down map images for the 0.26g damage calculator
 
-One orthographic top-down render per map (1536 x 1536 px, webp, 0.12-0.18 m/px).
+One orthographic top-down render per map (1536 x 1536 px, webp, 0.10-0.18 m/px).
 Each image covers exactly the square frame the in-game HUD minimap uses.
 `maps.json` gives the pixel-to-world transform, the maps_dict ids and a 64 x 64
 elevation grid for every map.
@@ -21,6 +21,9 @@ elevation grid for every map.
 | v011e_level_03 | Vostok Radar Station (v0.11) | 0.1302 | 208, 209 (ported, patch 22) |
 | v011e_level_04 | Chemical Plant (v0.11) | 0.1823 | 206, 207 (ported, patch 22) |
 | v069d_level_01 | Rudnya (v0.69) | 0.1693 | 204, 216, 217 (ported, patch 40) |
+| v010b_cs_mp_bath | Experimental Pool | 0.0952 | 42 (STALKER port, patch 57; Free for All) |
+| v010b_cs_mp_military_1 | Military Warehouses | 0.1843 | 43 (STALKER port, patch 57; Free for All) |
+| v010b_cs_training_camp | Training Camp | 0.1038 | 44 (STALKER port, patch 57; Free for All) |
 
 All weathers and modes of a level share one image. The mode projects differ only
 in mode props such as battery racks, containers and charging stations; the
@@ -72,6 +75,12 @@ click position back to the 1536 px image first.
   layout. Their geometry comes from the content pack
   `/mnt/hdd/Projects/release-20/packs/maps-021d-7/files`, with the 0.26g db
   supplying the rest.
+- The STALKER ports played in Free for All (pack stalker-maps@6, patch 57) have
+  their own minimaps and frames in hud.swf, by project_name (`cs_mp_bath`,
+  `cs_mp_military_1`, `cs_training_camp`). They have no day_2: their renders are
+  of Free for All's own project, `day_8`, the one played, with every listed
+  patch over the db. Their bitmaps are clear outside the play area, as the 0.26g
+  ones (`minimap_area.kind_of`: alpha).
 
 ## Verification
 
@@ -91,6 +100,8 @@ Results are stored in `maps.json -> maps.<key>.verification` and in `check_<key>
      - Deliberately wrong transform, as a control: 4-106 fail per map with z
        mirrored, and 4-44 with a 5 m shift. (London, v011e_level_03 and
        v011e_level_04: 0 fail; controls 52/7/12 mirrored, 9/1/13 shifted.)
+     - The STALKER ports (the respawn points of `day_8`: 48, 48 and 53): 0
+       fail; controls 14/11/9 mirrored, 12/12/5 shifted.
 2. **Native minimap alignment (`align_<key>`).** The developers' own minimap
    bitmaps were compared with the render's building mask while searching scale
    0.95-1.05 and shift ±8 m.
@@ -103,6 +114,16 @@ Results are stored in `maps.json -> maps.<key>.verification` and in `check_<key>
    - London and the 0.11e maps: best scale 1.015, 0.995 and 1.005 with shifts of
      0.5, 1.1 and 1.5 m. Their bitmaps are painted rather than block masks, so
      the metric is weaker; a side-by-side of bitmap and render matches.
+   - The STALKER ports: Experimental Pool and Military Warehouses fit best at
+     scale 1.000 with a shift of 0.5 m (one step of the search). Training Camp
+     is a crater with no building blocks: the mask metric is weak and its best
+     fit landed at the edge of the search range. Their bitmaps are renders too,
+     so the three were also compared as pictures: the bitmap's edges against
+     the render's (gradient of the luminance, inside the bitmap's drawn area),
+     over the same search. The best fit is scale 1.000 (Training Camp: 1.000
+     and 1.005 alike) with a shift of 0.2 m or less, under one bitmap pixel
+     (0.29 to 0.55 m); 5 m off, the correlation falls from 0.67-0.74 to 0.30 or
+     less.
 3. **Measured distance.** The long south building of level_03 measures:
    - 50.05 m from the model vertices,
    - 49.2 m on the render,
@@ -132,6 +153,10 @@ Always use `python3 -I`.
     # their raw client_projects (day_2/3/4 as the patches give them) go to $W/db like the stock ones
     # Rudnya (v0.69), from its pack (rudnya-069d) over the db; native Rudnya's frame, minimap and play area
     python3 -I extract_level.py $DBGRAB $DB v069d_level_01/day_2 $W/lv/v069d_level_01 <packs>/rudnya-069d-3/files
+    # the STALKER ports played in Free for All (patch 57): that mode's own project, every patch of
+    # release/patches.tsv over the db; day_8's raw client_project of each goes to $W/db
+    ALL=$(grep -v '^#' <skhid-srp>/release/patches.tsv | cut -f1 | while read n; do printf ' --patch %s' <patches>/$n; done)
+    for k in v010b_cs_mp_bath v010b_cs_mp_military_1 v010b_cs_training_camp; do python3 -I extract_level.py $DBGRAB $DB $k/day_8 $W/lv/$k $ALL; done
     # (extract_level.py before 2026-10-19 lost every surface whose name ends in "_", e.g. level_08's moss
     # and ground cover, level_03's terrain_all; all 13 maps were re-rendered with the fix)
     # 4. render + shade + check + webp (~1 min per map)
@@ -142,7 +167,7 @@ Always use `python3 -I`.
     python3 -I make_json.py $W <scratch>/maps <skhid-srp>/srp-026g/crates/survarium/src/v026g/maps/table.rs
     # or, to add or redo some maps in an existing maps.json (the patch-added ones need no table.rs):
     python3 -I make_json.py $W <dir with maps.json> - --only level_09 v011e_level_03 v011e_level_04
-    python3 -I play_area.py <dir with maps.json>/maps.json <patch-22 hud images>   # the play-area crops
+    python3 -I play_area.py <dir with maps.json>/maps.json <hud-images>   # the play-area crops (the released hud.swf's bitmaps)
 
 The rasterizer was copied from the playable-map-pack's `render_minimap.py`.
 
@@ -152,5 +177,7 @@ The rasterizer was copied from the playable-map-pack's `render_minimap.py`.
   Indoor-heavy maps such as level_07 (Vector Laboratory) show the lab's roofs,
   much like the native minimap's dark blocks.
 - The elevation grid holds terrain heights only, so floors inside or on top of
-  buildings are not in it.
-- The ported maps that are not live (194-201) are not included.
+  buildings are not in it. The STALKER ports have no terrain model: their grid
+  is the top solid surface (no foliage), so a roof counts as ground there.
+- The ported maps that are not live (194-201) are not included, nor the STALKER
+  ports that are not played (Repair Depot, Station, Depository).

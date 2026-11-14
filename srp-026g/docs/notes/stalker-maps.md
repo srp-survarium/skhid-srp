@@ -275,7 +275,9 @@ The spawns do not come from the level: they are the planner's.
   loading picture, names.
 - The site: a top-down render per project in the calculator's maps
   (`scripts/damage-calc/assets/maps`, README) before `release/build-site`, or the
-  Maps tab build stops.
+  Maps tab build stops. The three played in Free for All have theirs (of
+  `day_8`); Repair Depot, Station and Depository need one before they are
+  played.
 - Bots: `mapdata-dump` for the new maps (`docs/notes/player_bots_mapdata.md`).
 - The live pools: `SRP_MATCH_MAPS` / `SRP_ROOMS_EXTRA_MAPS` say whether the maps
   are in the match pool or rooms only.
