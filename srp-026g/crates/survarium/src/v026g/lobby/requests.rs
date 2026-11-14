@@ -149,7 +149,8 @@ pub enum FriendshipAction {
     RemoveFriend { account_id: u32 },
     /// `03`.
     Ignore { account_id: u32 },
-    /// `04`.
+    /// `04`: the name without the clan tag the client may show with it
+    /// (`Reader::player_name`).
     IgnoreByName { name: String },
     /// `05`.
     StopIgnoring { account_id: u32 },
@@ -296,7 +297,10 @@ pub enum ClientMessage {
     /// voucher's item id (0 for money: `MessageEnterName`), is read and not
     /// kept: the vouchers are gone (the owner, 2026-11-08).
     ChangeNickname { nickname: String },
-    /// `49 05`: a report or compliment, as named by the Flash menu.
+    /// `49 05`: a report or compliment, as named by the Flash menu. Here and
+    /// in the chat mute, the private line's receiver and `4D`'s target, the
+    /// name is without the clan tag the client may show with it
+    /// (`Reader::player_name`).
     CommentAboutUser {
         nickname: String,
         comment: PlayerComment,
@@ -472,6 +476,18 @@ impl<'a> Reader<'a> {
         let len = self.u8()?;
         Ok(String::from_utf8_lossy(self.take(len.into())?).into_owned())
     }
+    /// A player the client names as a message's target, as it shows the
+    /// name: a clan member's is `[TAG] name` on the results' rows
+    /// (`results.md` §1.2), whose menu sends it back as it is. A nickname
+    /// has no blank (`session::v026g::names::Nickname`) and a tag no `]`,
+    /// so that form is no player's: the name is what follows the tag.
+    fn player_name(&mut self) -> Result<String, ParseError> {
+        let shown = self.str()?;
+        Ok(match shown.strip_prefix('[').and_then(|rest| rest.split_once("] ")) {
+            Some((_tag, name)) => name.to_owned(),
+            None => shown,
+        })
+    }
     /// `u16 count` and UTF-16LE units.
     fn wide(&mut self) -> Result<String, ParseError> {
         let count = self.u16()?;
@@ -596,14 +612,14 @@ fn parse_body(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
         },
         id::CHAT_TEXT => M::ChatText {
             channel_id: r.u32()?,
-            receiver: r.str()?,
+            receiver: r.player_name()?,
             channel: r.u8()?,
             body: r.str()?,
         },
         id::IMPORTANT => {
             // Always 0.
             r.u32()?;
-            let target_name = r.str()?;
+            let target_name = r.player_name()?;
             let kind = r.u8()?;
             let text = r.str()?;
             // The long form (clan and clan-team invites) has one more u32.
@@ -626,7 +642,7 @@ fn parse_body(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             3 => FriendshipAction::Ignore {
                 account_id: super::listed_account(r.u32()?),
             },
-            4 => FriendshipAction::IgnoreByName { name: r.str()? },
+            4 => FriendshipAction::IgnoreByName { name: r.player_name()? },
             5 => FriendshipAction::StopIgnoring {
                 account_id: super::listed_account(r.u32()?),
             },
@@ -772,7 +788,7 @@ fn parse_profile(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             return Ok(M::ChangeNickname { nickname });
         }
         0x05 => {
-            let nickname = r.str()?;
+            let nickname = r.player_name()?;
             let a = r.u8()?;
             let b = r.u8()?;
             if a == super::CHAT_MUTE_ACTION {
