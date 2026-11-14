@@ -124,6 +124,7 @@ impl WalkGrid {
         }
         stats.drops = drops.len();
         stats.hurting = drops.iter().filter(|(f, t)| f.y - t.y > HARMLESS_HEIGHT_M).count();
+        self.held_taken = (0..n).filter(|&a| !alive[a]).map(|a| self.position(a as NodeId)).collect();
         self.compact(wide, &alive);
         (stats, drops)
     }

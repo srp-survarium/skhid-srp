@@ -1185,6 +1185,10 @@ pub struct WalkGrid {
     /// ([`Self::is_lip`]), as (take-off, landing), sorted. In the file (after the crouched walks) and the digest. Empty without the
     /// switch.
     drop_lips: Vec<(NodeId, NodeId)>,
+    /// [A389] [`Body::held_floors`] The floors the build took because no standing body stays on them, as feet
+    /// ([`Self::held_taken`]): for the logs only (a route's goal or failure near one, a player's spot the build lost). In the file
+    /// (the last table) but not the digest: no decision reads it. Empty without the switch.
+    held_taken: Vec<Vec3>,
     /// Per node, its distance to the nearest wall the capsule meets, in [`clearance::CLEARANCE_STEP_M`] steps ([`Self::wall_clearance`]):
     /// made by [`Self::with_wall_clearance`] after the grid is built or read, from the map's triangles. In neither the file nor the
     /// digest. Empty without it.
@@ -1603,6 +1607,7 @@ impl WalkGrid {
             riser: Vec::new(),
             rim_unmade: Vec::new(),
             drop_lips: Vec::new(),
+            held_taken: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
             walker: None,
@@ -3194,7 +3199,7 @@ impl WalkGrid {
                 && self.walk_marked.is_empty()
                 && self.walk_crouched.is_empty()
                 && self.riser.is_empty()
-                && self.drop_lips.is_empty()
+                && self.drop_lips.is_empty() && self.held_taken.is_empty()
             {
                 return Ok(());
             }
@@ -3213,12 +3218,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
             // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
-            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() {
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() {
                 return Ok(());
             }
             let pair = |&(a, b): &(NodeId, NodeId)| {
@@ -3229,17 +3234,17 @@ impl WalkGrid {
             };
             out.plain(&self.walled_exits, pair)?;
             // [2c] The marked walks, when the grid has them (an empty table before the crouched walks).
-            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() {
+            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_marked, pair)?;
             // [`Body::walk_ceiling_stalls`] The crouched walks, when the grid has them.
-            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() {
+            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_crouched, pair)?;
             // [A385 rule (d)] The risers' presses, when the grid has them: from, to, press (as an off-mesh link's), share, a zero.
-            if self.riser.is_empty() && self.drop_lips.is_empty() {
+            if self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() {
                 return Ok(());
             }
             out.plain(&self.riser, |&(a, b, r)| {
@@ -3252,10 +3257,21 @@ impl WalkGrid {
                 bytes
             })?;
             // [A377] The lips by where the body stops, when the grid has them.
-            if self.drop_lips.is_empty() {
+            if self.drop_lips.is_empty() && self.held_taken.is_empty() {
                 return Ok(());
             }
-            out.plain(&self.drop_lips, pair)
+            out.plain(&self.drop_lips, pair)?;
+            // [A389] The floors `held_floors` took, as feet, when the grid has them (a log's only: not in the digest).
+            if self.held_taken.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.held_taken, |p| {
+                let mut bytes = [0u8; 12];
+                for (i, v) in [p.x, p.y, p.z].into_iter().enumerate() {
+                    bytes[4 * i..4 * i + 4].copy_from_slice(&v.to_le_bytes());
+                }
+                bytes
+            })
         })
     }
 
@@ -3388,6 +3404,14 @@ impl WalkGrid {
                         input.plain(|bytes: [u8; 8]| {
                             let word = |i: usize| u32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
                             (word(0), word(4))
+                        })?
+                    },
+                    held_taken: if input.ends() {
+                        Vec::new()
+                    } else {
+                        input.plain(|bytes: [u8; 12]| {
+                            let f = |i: usize| f32::from_le_bytes([bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]]);
+                            Vec3::new(f(0), f(4), f(8))
                         })?
                     },
                     clearance: Vec::new(),
@@ -4201,6 +4225,20 @@ impl WalkGrid {
     /// for a grid read from a file).
     pub fn rim_unmade(&self) -> &[(Vec3, Vec3)] {
         &self.rim_unmade
+    }
+
+    /// [A389] The floors [`Body::held_floors`] took (no standing body stays on them), as feet: for the logs only.
+    pub fn held_taken(&self) -> &[Vec3] {
+        &self.held_taken
+    }
+
+    /// [A389] The nearest floor [`Body::held_floors`] took within `r` m across and `h` m in height of `p`, for the logs.
+    pub fn held_taken_near(&self, p: Vec3, r: f32, h: f32) -> Option<Vec3> {
+        self.held_taken
+            .iter()
+            .copied()
+            .filter(|q| q.distance_xz(p) <= r && (q.y - p.y).abs() <= h)
+            .min_by(|a, b| a.distance_xz(p).total_cmp(&b.distance_xz(p)))
     }
 
     /// [2c] How many Walk links are marked ([`Self::walk_marked`]).
