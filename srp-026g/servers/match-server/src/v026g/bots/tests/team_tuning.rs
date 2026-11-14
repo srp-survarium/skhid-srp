@@ -804,9 +804,12 @@ fn a_hit_is_a_teams_own_by_its_own_credit_window() {
         tunings(Tuning::default(), other),
         Trace::none(0),
     );
-    // Each bot fired at the other 500 ms before the bullet hit that the world shows.
+    // Each bot fired at the other 500 ms before the bullet hit that the world shows, and its hit marker went ([Gap 9]:
+    // its enemy hits rose since the world before).
     bots.bots[0].as_mut().unwrap().reflex.fired_on(1, 9_500);
     bots.bots[1].as_mut().unwrap().reflex.fired_on(0, 9_500);
+    bots.hit_markers(&[0, 0]);
+    bots.hit_markers(&[1, 1]);
     for place in [0, 1] {
         bots.bullet_hit(place, 10_000);
     }
@@ -818,6 +821,12 @@ fn a_hit_is_a_teams_own_by_its_own_credit_window() {
     bots.bots[0].as_mut().unwrap().reflex.fired_on(1, 12_000);
     bots.bullet_hit(1, 10_500);
     assert_eq!(bots.teams[0].knowledge.wounds.hurt(1, 0, 10_500, 0, 400), one);
+    // [Gap 9] A hit its marker did not show (a zone's, a fall's, a mate's): fired at him just before, still no credit.
+    bots.hit_markers(&[1, 1]);
+    let before = bots.teams[0].knowledge.wounds.hurt(1, 0, 14_000, 0, 400);
+    bots.bots[0].as_mut().unwrap().reflex.fired_on(1, 13_900);
+    bots.bullet_hit(1, 14_000);
+    assert_eq!(bots.teams[0].knowledge.wounds.hurt(1, 0, 14_000, 0, 400), before);
 }
 
 /// [A334] The server's poll and the bench's timed copy of it start a poll with the same budgets (`Bots::poll_budgets`): the

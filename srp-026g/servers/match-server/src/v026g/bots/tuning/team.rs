@@ -1184,6 +1184,12 @@ pub struct ThinkTuning {
     /// interval and its upload late). That old value is wrong by the client, so it is on by default and the all-off patch
     /// keeps it (`KEPT_RIGHT`).
     pub respawn_times: bool,
+    /// [Gap 9] A death the kill feed pairs with one killer (one place's kills and one place's deaths rose since the
+    /// world before) is dated at that killer's `last_killed_enemy_ms` (+1E8h, set to the kill's time by
+    /// `on_player_killed` 0x2F52A4), not at the world that shows it (up to a world interval and its upload later). The
+    /// kill feed shows a kill when it happens. Off: the world's time. That old value is wrong by the client, so it is on
+    /// by default and the all-off patch keeps it (`KEPT_RIGHT`).
+    pub kill_time: bool,
     /// A rest point (the goal of a walk) on a lip or near one is moved inward to the nearest floor off the edge
     /// ([`super::super::path::off_lip`]): the owner's rule, a body at rest keeps its centre on the floor (the sniper that
     /// stood with its feet half over a drop). Off: the goal as the play gave it.
@@ -1236,6 +1242,7 @@ impl Default for ThinkTuning {
             shut_in_gate: true,
             life_wakes_commander: true,
             respawn_times: true,
+            kill_time: true,
             rest_off_lip: true,
             stranded_start: true,
             goal_off_floor_no_way: true,

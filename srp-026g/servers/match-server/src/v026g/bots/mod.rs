@@ -1029,6 +1029,9 @@ pub struct Bots {
     features: MatchFeatures,
     /// By place, the time of the last bullet hit its worlds showed, to see a new one ([`Self::bullet_hit`]).
     seen_hits: Vec<u32>,
+    /// [Gap 9] By place, its statistics' enemy-hit count at the last world, and whether it rose in that world.
+    hit_counts: Vec<u32>,
+    hit_marked: Vec<bool>,
     /// Last, so a search left under way is dropped before it.
     _search_memory: SearchMemory,
 }
@@ -1117,6 +1120,8 @@ impl Bots {
             layers: MapLayers::default(),
             features: MatchFeatures::default(),
             seen_hits: Vec::new(),
+            hit_counts: Vec::new(),
+            hit_marked: Vec::new(),
             _search_memory: SearchMemory::hold(),
         }
     }
@@ -1595,6 +1600,17 @@ impl Bots {
     /// `worth.credit_ms` before it: a hit marker and a puff of blood, not a read of his pools (a zone, a fall or
     /// bleeding is no bullet; a teammate human's bullet is not its bot's). The weapon's nominal damage is the share
     /// ([`worth::Wounds::landed`]); the bot that fired last before the hit gets it.
+    /// [Gap 9] A trusted world's enemy-hit counts by place (statistics event 23): a bot whose count rose since the world
+    /// before hit an enemy in between (its hit marker).
+    pub fn hit_markers(&mut self, hits: &[u32]) {
+        self.hit_marked = hits
+            .iter()
+            .enumerate()
+            .map(|(place, &now)| now > self.hit_counts.get(place).copied().unwrap_or(now))
+            .collect();
+        self.hit_counts = hits.to_vec();
+    }
+
     pub fn bullet_hit(&mut self, victim: Place, hit_ms: u32) {
         if self.seen_hits.len() <= victim {
             self.seen_hits.resize(victim + 1, 0);
@@ -1613,7 +1629,11 @@ impl Bots {
         for bot in self.bots.iter().flatten() {
             let team = usize::from(bot.team & 1);
             let window = self.tunings.of(bot.team & 1).aim.combat.worth.credit_ms;
-            if let Some((at, share)) = bot.reflex.shot_landed(victim, hit_ms, window)
+            // [Gap 9] Its own hit marker went in the interval (`worth.hit_marker`).
+            let marked = !self.tunings.of(bot.team & 1).aim.combat.worth.hit_marker
+                || self.hit_marked.get(bot.place).copied().unwrap_or(false);
+            if marked
+                && let Some((at, share)) = bot.reflex.shot_landed(victim, hit_ms, window)
                 && best[team].is_none_or(|(last, ..)| at > last)
             {
                 best[team] = Some((at, bot.place, share));

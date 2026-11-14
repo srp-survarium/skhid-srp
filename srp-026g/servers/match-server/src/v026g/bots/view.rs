@@ -366,6 +366,9 @@ pub struct WorldFacts {
     /// [Gap 13] The respawn rule's waiting places and when each respawns (`m_player_respawn_times`, absolute match ms);
     /// `None` when the world has no respawn rule.
     pub respawns: Option<Vec<(Place, u32)>>,
+    /// [Gap 9] By place, its statistics' `last_killed_enemy_ms` (the time of its last kill; 0 none); empty: not used
+    /// (`think.kill_time` off).
+    pub kill_times: Vec<u32>,
 }
 
 /// Sounds are kept this long, ms.
@@ -1400,6 +1403,25 @@ impl Tracker {
     /// it put in the kill feed.
     pub fn facts(&mut self, facts: WorldFacts) -> Vec<Death> {
         let mut new_deaths = Vec::new();
+        // [Gap 9] One killer and one victim since the world before: the death at the killer's kill time, if it falls in
+        // the interval (a later world's kill of the same place would be another).
+        let rose = |by: fn(&(u32, u32, u32)) -> u32| -> Vec<Place> {
+            facts
+                .stats
+                .iter()
+                .enumerate()
+                .filter(|(place, now)| self.places.get(*place).is_some_and(|state| by(now) > by(&state.stats)))
+                .map(|(place, _)| place)
+                .collect()
+        };
+        let killed_at = match (&rose(|s| s.0)[..], &rose(|s| s.1)[..]) {
+            ([killer], [_]) => facts
+                .kill_times
+                .get(*killer)
+                .copied()
+                .filter(|&at| at > self.world_time && at <= facts.time),
+            _ => None,
+        };
         self.world_time = self.world_time.max(facts.time);
         for (place, stats) in facts.stats.iter().enumerate() {
             let Some(state) = self.places.get_mut(place) else {
@@ -1419,7 +1441,7 @@ impl Tracker {
                     let death = Death {
                         place,
                         at,
-                        time: facts.time,
+                        time: killed_at.unwrap_or(facts.time),
                     };
                     self.deaths.push_back(death);
                     new_deaths.push(death);
@@ -2026,6 +2048,27 @@ mod tests {
         fed.deaths = vec![Death { place: 1, at: Vec3::ZERO, time: 5_000 }, Death { place: 2, at: Vec3::ZERO, time: 6_000 }];
         let fed_back: Vec<bool> = fed.places.iter().map(|p| tracker.back(&fed, 0, p, false)).collect();
         assert_eq!(fed_back, [false, true, false]);
+    }
+
+    /// [Gap 9] One killer and one victim between two worlds: the death is dated at the killer's last kill time; with two
+    /// killers, or a kill time outside the interval, at the world's time.
+    #[test]
+    fn a_death_is_dated_at_its_one_killers_kill_time() {
+        let kin = Kinematics::default();
+        let run = |stats: Vec<(u32, u32, u32)>, kill_times: Vec<u32>| {
+            let mut tracker = Tracker::new(Mode::Batteries, &[0, 1, 0], &[false; 3], vec![(0, Vec3::ZERO); 3]);
+            for place in 0..3 {
+                tracker.entered(place, true);
+                tracker.fixed(place, fix(1_000, Vec3::new(10.0 * place as f32, 0.0, 10.0)), None, &kin, None);
+            }
+            tracker.facts(WorldFacts { time: 1_000, stats: vec![(0, 0, 0); 3], ..WorldFacts::default() });
+            let deaths = tracker.facts(WorldFacts { time: 2_000, stats, kill_times, ..WorldFacts::default() });
+            deaths.iter().map(|death| (death.place, death.time)).collect::<Vec<_>>()
+        };
+        assert_eq!(run(vec![(1, 0, 1), (0, 1, 0), (0, 0, 0)], vec![1_350, 0, 0]), [(1, 1_350)]);
+        assert_eq!(run(vec![(1, 0, 1), (0, 1, 0), (0, 0, 0)], vec![900, 0, 0]), [(1, 2_000)], "an older kill");
+        assert_eq!(run(vec![(1, 0, 1), (0, 1, 0), (0, 0, 0)], vec![]), [(1, 2_000)], "no kill times");
+        assert_eq!(run(vec![(1, 0, 1), (0, 1, 0), (1, 0, 1)], vec![1_350, 0, 1_400]), [(1, 2_000)], "two killers");
     }
 
     #[test]

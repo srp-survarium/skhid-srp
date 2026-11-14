@@ -1155,6 +1155,7 @@ va	status	ref_021d	name
 0x002f0d30	reviewed	0x001dd182	survarium::character_dispersion_params::load
 0x002f1050	reviewed	0x001dd463	survarium::character_dispersion_skill_influence::load
 0x002f12a0	reviewed	0x001dd64e	survarium::player_stealth::load
+0x002f5940	observed		survarium::shared_statistics::on_trap_hit
 0x002f5ac0	reviewed	0x001de11c	survarium::shared_statistics::serialize
 0x002f5be0	reviewed	0x001de1e0	survarium::shared_statistics::deserialize
 0x002f5da0	reviewed	0x001e5a42	vostok::network_core::buffer_writer::w<unsigned short>
