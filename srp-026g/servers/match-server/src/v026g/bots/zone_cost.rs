@@ -351,6 +351,23 @@ impl Budget {
         }
     }
 
+    /// A bot's budget by `zone_pools` (`HazardTuning::zone_pools`): the body pool `health` and the raw hit, or, routed,
+    /// its pools (`pools`, the body pool the world's latest: enemy fire counts) and the armour it wears.
+    pub fn of_bot(
+        zone_pools: super::tuning::ZonePools,
+        health: f32,
+        pools: Option<Pools>,
+        armour: &Arc<ZoneArmour>,
+    ) -> Self {
+        match zone_pools {
+            super::tuning::ZonePools::Raw => Self::raw(health),
+            super::tuning::ZonePools::Routed => {
+                let pools = Pools { body: health, ..pools.unwrap_or(Pools::of_body(health)) };
+                Self::routed(&pools, armour.clone())
+            }
+        }
+    }
+
     /// The body pool the old rules read.
     pub fn health(&self) -> f32 {
         self.reserve.body
