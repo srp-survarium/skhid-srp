@@ -7,6 +7,13 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
 - 10 points a kill (the normal kill score), nothing lost on death.
 - The first to 30 kills ends the match, or the timer does (15:00).
 - Spawn protection 2 s ("3 seconds sounds too long, it should be 1.5 or 2 MAX").
+  Since 2026-11-14 0.5 s on every map (the owner: "let's change it to 0.5 everywhere"):
+  `ffa-protection-ms-1.json`, last of the Free for All lists, sets each team-2 point's
+  `invulnerability_time` 2 -> 0 and adds `invulnerability_time_ms` 500, which the client hook of
+  revision 57 reads before the whole seconds (`stalker-ffa.md`, "Millisecond protection"), as
+  Training Camp has had since `training-camp-arena-1.json`. The lists above it still write 2 s;
+  `scripts/ffa-mode/make_protection_ms_edits.py` addresses the points by index, so it is made
+  again (from a build of the rows above it) when a list adds or removes a Free for All point.
 - Safe respawns across the map. On 2026-11-12 the owner revised the earlier
   farthest-point preference because it kept sending players to corners: all
   safe points now enter the choice, including the middle; distance ranks only
