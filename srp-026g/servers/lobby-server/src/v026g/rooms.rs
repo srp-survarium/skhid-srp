@@ -2292,7 +2292,7 @@ impl Core<'_> {
             "Room {key}: match {match_id:#x} on map {}{}, {} v {} with {} and {} of the \
              server's bots",
             played.map().id,
-            played.twist().map_or(String::new(), |twist| format!(" ({twist:?})")),
+            played.armed().map_or(String::new(), |twist| format!(" ({twist:?})")),
             teams[0].len(),
             teams[1].len(),
             bots[0],

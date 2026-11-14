@@ -180,7 +180,7 @@ pub fn used(
         None => used_by_counters(account, shots, buckshot),
     };
     if let Some(given) = twist.map(Twist::gives) {
-        used.retain(|&(dict_id, _)| dict_id != given);
+        used.retain(|(dict_id, _)| !given.contains(dict_id));
     }
     // Never more than the account owns.
     for (dict_id, units) in &mut used {
@@ -439,7 +439,7 @@ mod tests {
     #[test]
     fn the_ammo_a_twist_gives_is_never_charged() {
         let (mut account, _, _) = rifleman(300);
-        let given = Twist::Cowboy.gives();
+        let given = Twist::Cowboy.gives()[1];
         let own = account.add_item(given, 200);
         account.kits[1].slots[9] = Some(KitSlot {
             item_id: own,
