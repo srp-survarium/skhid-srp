@@ -10,8 +10,10 @@ use super::maps::{GameMode, MapMode, MatchMap};
 use super::match_msgs::static_info::MatchProfile;
 
 /// The shares of a free-for-all card's draw ([`Twist::draw`]): the plain mode's and each twist's,
-/// in hundredths. Racket as often as the plain mode (my pick, 2026-11-14).
-pub const SHARES: [(Option<Twist>, u32); 2] = [(None, 45), (Some(Twist::Racket), 45)];
+/// in hundredths. Cowboy rare (the owner, 2026-11-14: "cowboy version should be rare with only
+/// 10% chance"), Racket as often as the plain mode (my pick).
+pub const SHARES: [(Option<Twist>, u32); 3] =
+    [(None, 45), (Some(Twist::Racket), 45), (Some(Twist::Cowboy), 10)];
 
 /// The sum of [`SHARES`]: what a draw's roll is below.
 pub const SHARE_TOTAL: u32 = {
@@ -29,17 +31,20 @@ pub const SHARE_TOTAL: u32 = {
 pub enum Twist {
     /// Every sniper rifle and silenced gun an AK-12 ([`super::racket`]).
     Racket,
+    /// Every kit a Colt Python alone ([`super::cowboy`]); "Showdown" in the lobby.
+    Cowboy,
 }
 
 impl Twist {
     /// Every twist.
-    pub const ALL: [Self; 1] = [Self::Racket];
+    pub const ALL: [Self; 2] = [Self::Racket, Self::Cowboy];
 
     /// Its number in the lobby: the rooms' cards, rows and banners, the matches' list. After every
     /// mode's ([`GameMode::lobby_number`]: 7 is Scarcity's, 8 Free for All's).
     pub const fn lobby_number(self) -> u8 {
         match self {
             Self::Racket => 9,
+            Self::Cowboy => 10,
         }
     }
 
@@ -65,6 +70,7 @@ impl Twist {
     pub fn arm(self, profile: &mut MatchProfile, dictionary: &Dictionary) {
         match self {
             Self::Racket => super::racket::arm(profile, dictionary),
+            Self::Cowboy => super::cowboy::arm(profile, &super::cowboy::Revolver::shared()),
         }
     }
 }

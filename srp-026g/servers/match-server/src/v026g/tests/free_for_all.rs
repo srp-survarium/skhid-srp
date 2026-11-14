@@ -450,3 +450,24 @@ fn a_racket_match_arms_every_profile_it_gives_late_joiners_too() {
     let plain = registry.create(made).unwrap().match_id;
     assert_eq!(guns(&registry, plain), [gun("svd"); 2]);
 }
+
+/// A Cowboy free-for-all (`docs/notes/ffa-cowboy.md`) gives every place's
+/// kits the Colt Python alone, in the first slot.
+#[test]
+fn a_cowboy_match_gives_everyone_a_colt_python() {
+    use survarium::v026g::twist::{Played, Twist};
+    let registry = MatchRegistry::new("127.0.0.1", 1238);
+    let mut made = setup(3, map_id());
+    let map = maps::MatchMap::of(map_id()).unwrap();
+    made.played = Played::twisted(map, Twist::Cowboy).expect("a free-for-all's");
+    let id = registry.create(made).unwrap().match_id;
+    let formed = registry.formed(id).unwrap();
+    let python = Dictionary::shared().item_named("magnum").unwrap().dict_id;
+    for profile in &formed.profiles {
+        for kit in &profile.kits {
+            let (index, _) = kit.slots[7].expect("a gun in slot 7");
+            assert_eq!(profile.items[usize::from(index)].dict_id, python);
+            assert_eq!(kit.slots[10], None);
+        }
+    }
+}
