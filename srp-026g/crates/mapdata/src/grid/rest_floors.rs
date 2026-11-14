@@ -70,6 +70,34 @@ pub(super) fn rests_at(world: &Collision, s: &Settings, feet: Vec3, room: f32) -
     None
 }
 
+/// [A389] Whether the client's walk tick holds a standing body come down onto `feet` (as [`rests_at`] brings it, `room` the
+/// floor's room over a standing body) on the ground there: in [`REST_STEPS_MAX`] steps with no keys, once it has landed it never
+/// drops more than `step` under the ground it last stood on while off the ground (it falls off). A body sliding down a slope
+/// steeper than standing still holds (`need_slide` 0x7BC20, from 40 deg) stays on the ground: held, the slope is walked
+/// (Chemical Plant (33.18, 12.28, -14.32), a ramp 3 players stood on: it slides at 1 m/s, on the ground every step). Chemical
+/// Plant's broken slab drops it 4-5 m to the ground: not held.
+pub(super) fn holds(world: &Collision, s: &Settings, feet: Vec3, room: f32, step: f32) -> bool {
+    let over = PUT_OVER_M.min(room).max(0.005);
+    let start = out_of_walls(world, feet + Vec3::new(0.0, over, 0.0));
+    let mut body = Controller::standing_at(start);
+    let still = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting: false };
+    let mut ground: Option<f32> = None;
+    for _ in 0..REST_STEPS_MAX {
+        body.velocity.y = body.velocity.y.min(-FALL_MPS);
+        body.tick(world, DT, s, still);
+        let y = body.feet().y;
+        if !body.jumping && body.on_ground(s) {
+            ground = Some(y);
+        } else if let Some(g) = ground
+            && g - y > step
+        {
+            return false;
+        }
+    }
+    // Never landed: it fell the whole time.
+    ground.is_some()
+}
+
 impl WalkGrid {
     /// Whether a floor `alive` keeps names `at` (within the capsule's radius across, [`NAME_HEIGHT_M`] in height).
     fn named(&self, alive: &[bool], at: Vec3) -> bool {

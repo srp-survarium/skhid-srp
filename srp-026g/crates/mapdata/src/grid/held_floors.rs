@@ -10,9 +10,10 @@
 //! go down there too (100 of 126 player worlds at the ramp's end are followed by one 1.5 m+ lower).
 //!
 //! The rule:
-//! 1. A floor at an edge (a side with no Walk link) is kept only where the client's walk tick holds a standing body: set on its
-//!    centre ([`super::rest_floors::rests_at`]: come down onto it from 0.6 m over it, no keys, until still) it rests on the ground no more than
-//!    a step (`Body::step`, `cc_step_height`) under the floor. A floor no body stays on is our grid's only, no client's place.
+//! 1. A floor at an edge (a side with no Walk link) is kept only where the client's walk tick holds a standing body
+//!    ([`super::rest_floors::holds`]: come down onto its centre from 0.6 m over it, no keys, 2 s): once landed it never drops
+//!    more than a step (`Body::step`, `cc_step_height`) off the ground (a body sliding down a steep walked slope stays on the
+//!    ground: held). A floor a body falls off is our grid's only, no client's place.
 //! 2. The way down stays, as one drop: from each kept floor that had a link onto a taken one, the client's body walked at the
 //!    taken floor ([`super::drop_check::walk_drop`]) comes to stand on a floor lower down; the take-off gets an off-mesh drop
 //!    walked off ([`LinkKind::GapDrop`], no key) to it, its height the true one (the take-off's to the landing's).
@@ -23,7 +24,7 @@
 use super::controlled::parallel;
 use super::drop_check::{walk_drop, DropWalk};
 use super::gap::{OffLink, Share, Takeoff};
-use super::rest_floors::rests_at;
+use super::rest_floors::holds;
 use super::*;
 use crate::controller::tick::Settings;
 use crate::controller::Collision;
@@ -83,7 +84,7 @@ impl WalkGrid {
             .collect();
         let held = parallel(&edge, |&a| {
             let p = self.position(a as NodeId);
-            rests_at(world, s, p, self.ceiling[a] - self.height[a] - self.body.stand_height).is_some_and(|rest| rest.y >= p.y - step)
+            holds(world, s, p, self.ceiling[a] - self.height[a] - self.body.stand_height, step)
         });
         let mut alive = vec![true; n];
         for (&a, ok) in edge.iter().zip(&held) {
