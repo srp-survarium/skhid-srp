@@ -168,9 +168,10 @@ pub const NARROW_DOORS_ALGO: u32 = 0x5313_0101;
 /// The same for the Drop links the client's walk tick does not take a body down ([`Body::drop_check`], A313), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
-/// The same for the walk check's refusals under a low ceiling as failures ([`Body::walk_ceiling_stalls`]), in
-/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
-pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c01;
+/// The same for the walk check's refusals under a low ceiling as failures ([`Body::walk_ceiling_stalls`]), and [S7] its
+/// crouched retry of a standing walk that stops short, in [`grid_key_with_links`] only for a body that asks for it. A value of
+/// its own.
+pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c02;
 /// The same for the rim jumps flown on the exact tick ([`Body::rim_jumps`], A364 C2 rows 11/12), in [`grid_key_with_links`] only
 /// for a body that asks for it. A value of its own.
 pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b05;

@@ -870,11 +870,28 @@ impl WalkGrid {
             let mut c = body_at(world, start, stance, from);
             let mut centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step);
             let mut only_crouched = false;
-            if centre == Walked::Ceiling && stance == Stance::Standing {
+            // A standing body refused under a low ceiling is walked again crouched; and, [`Body::walk_ceiling_stalls`] (whose
+            // crouched walks are recorded, so the route crouches there), one that stops short: a crouched body takes the simple
+            // move test (`cc_crouch_move_complex_test` off, 0x7D2A0) and climbs edges a standing body stalls at. On the
+            // exe's own tick over captured worlds (exactness S7, `rig_real`), it climbs 11 of 18 live 0.48-0.79 m edges, two of
+            // them (0.652 and 0.753 m, Vector Laboratory) that a standing walker cannot, and fails four a walker climbs: an
+            // answer per edge, walked here, not a height rule.
+            let retry = match centre {
+                Walked::Ceiling => true,
+                Walked::Short(_) => stalls,
+                Walked::At | Walked::AtEnd(_) => false,
+            };
+            if retry && stance == Stance::Standing {
                 let mut c = body_at(world, start, Stance::Crouched, from);
-                centre = walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step);
-                only_crouched = matches!(centre, Walked::At | Walked::AtEnd(_));
+                let low = walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step);
+                only_crouched = matches!(low, Walked::At | Walked::AtEnd(_));
+                // A crouched walk that does not arrive leaves the standing answer (its share prices a cut).
+                if only_crouched || centre == Walked::Ceiling {
+                    centre = low;
+                }
             }
+            // The stance this line arrived in: the chained walk below walks it so.
+            let line = if only_crouched { Stance::Crouched } else { stance };
             share = share.max(match centre {
                 Walked::Short(x) => x,
                 Walked::Ceiling if stalls => 0.0,
@@ -886,7 +903,7 @@ impl WalkGrid {
             }
             let chained = before.is_none_or(|q| {
                 let from_q = self.position(q as NodeId) + side * off;
-                let mut c = body_at(world, start, stance, from_q);
+                let mut c = body_at(world, start, line, from_q);
                 // The link before failing is its own check's; from where it leaves the body this one says nothing.
                 !matches!(walk_on(world, s, &mut c, from_q, from, SPARE_TICKS, self.body.step), Walked::At | Walked::AtEnd(_))
                     || arrives(walk_on(world, s, &mut c, from, to, SPARE_TICKS, self.body.step))
@@ -1111,5 +1128,60 @@ mod tests {
         let (walked, narrow) = bridges_up(Some(0.5));
         assert_eq!(walked, 0, "the 0.5 m strip");
         assert!(narrow > 0, "the 0.5 m strip had bridges the controller walks, left pressed");
+    }
+
+    /// [S7] The walk check's crouched retry ([`WalkGrid::walk_link`] with [`Body::walk_ceiling_stalls`]) over a 0.785 m vertical
+    /// step: the standing body stops short (the exe climbs a vertical face walking up to 0.75 m), the crouched one too (its
+    /// simple move test climbs a vertical face to 0.70 m), so the riser is still failing and marked, and no link is recorded
+    /// crouched; a 0.65 m step is walked standing and not recorded crouched.
+    #[test]
+    fn a_step_a_crouched_body_does_not_climb_either_stays_marked() {
+        let build = |h: f32| {
+            let mut tris = Vec::new();
+            floor(&mut tris, 0.0, 0.0, 5.0, 6.0, 0.0);
+            floor(&mut tris, 5.0, 0.0, 10.0, 6.0, h);
+            quad(&mut tris, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, h, 0.0), Vec3::new(5.0, h, 6.0), Vec3::new(5.0, 0.0, 6.0));
+            let body =
+                Body { client_controller: true, walk_start_clear: true, walk_every_link: true, walk_ceiling_stalls: true, ..Body::client() };
+            let start = [Vec3::new(1.0, 0.0, 3.0)];
+            WalkGrid::build_kept_with_links(&tris, [0.0, 0.0, 10.0, 6.0], 0.25, body, &start, &start, OffMeshLinks::None)
+        };
+        let (high, _) = build(0.785);
+        assert!(high.walk_marked_count() > 0);
+        assert_eq!(high.walk_crouched_count(), 0);
+        let (low, stats) = build(0.65);
+        assert_eq!(low.walk_crouched_count(), 0, "{:?}", stats.controlled);
+        assert!(low.reached(low.locate(Vec3::new(8.0, 0.65, 3.0), 0.3).expect("the top")));
+    }
+
+    /// [S7] The two live edges a crouched body climbs and a standing walker cannot (exactness's real-memory rig, the exe's own
+    /// tick over the captured Vector Laboratory, `notes-s7.md`): the walk check's walk ([`walk_on`]) on the map's own shapes
+    /// stops the standing body short and brings the crouched one up, as the exe does.
+    #[test]
+    #[ignore = "needs SRP_MAPDATA_DIR (the map files with their shapes)"]
+    fn the_live_edges_only_a_crouched_body_climbs_are_climbed_crouched() {
+        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+            eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+            return;
+        };
+        let map = crate::MapData::from_bytes(&std::fs::read(dir.join("level_07_day_4.mapdata")).unwrap()).unwrap();
+        let world = Collision::build_exe(&map).unwrap();
+        let s = Settings::LIVE;
+        // The recorded spot (x, z), the floor and the top's heights, the heading, the start's distance back, the end's ahead.
+        for (x, z, floor, top, (ux, uz), back, ahead) in [
+            // rec 67803289: 0.652 m (the rig: standing below the top, crouched on it).
+            (4.24f32, -11.06f32, 20.761f32, 21.414f32, (-0.759f32, 0.651f32), 1.0f32, 0.5f32),
+            // rec 7baa92b5: 0.753 m.
+            (-40.91, -27.10, 20.953, 21.635, (-0.984, -0.177), 0.6, 1.0),
+        ] {
+            let from = Vec3::new(x - ux * back, floor, z - uz * back);
+            let to = Vec3::new(x + ux * ahead, top, z + uz * ahead);
+            let walk = |stance: Stance| {
+                let mut c = body_at(&world, WalkStart::Clear, stance, from);
+                walk_on(&world, &s, &mut c, from, to, SPARE_TICKS, 0.8)
+            };
+            assert!(matches!(walk(Stance::Standing), Walked::Short(_)), "({x}, {z}) standing: {:?}", walk(Stance::Standing));
+            assert_eq!(walk(Stance::Crouched), Walked::At, "({x}, {z}) crouched");
+        }
     }
 }
