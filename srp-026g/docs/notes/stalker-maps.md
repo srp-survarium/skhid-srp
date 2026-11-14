@@ -155,7 +155,9 @@ mode's copy of the projects they name:
 
 - Grain ("always noisy in the distance", "on almost all ported maps"): 0.26g
   adds it last, noise x colour^0.6 x intensity (`aberration.ps`), so it shows on
-  the sky and the haze. The v0.21d and v0.69d ports have stock grain.
+  the sky and the haze. The v0.21d and v0.69d ports have stock grain. Seen in
+  the game (2026-11-14, captured frames before and after, the owner's
+  settings): the sky's grain is stock's.
 - The sun (on Military Warehouses: "you cannot look at that direction at
   all"; on Experimental Pool and Training Camp, the same weather: "fix them
   too"): a ray's strength is intensity x (1 - screen distance to the
@@ -166,7 +168,11 @@ mode's copy of the projects they name:
   level_03 and 0.01 on Vostok v0.11, which has this same day weather (sun 38.0
   degrees up, azimuth 219.7, intensity 1.29) with rays 0.2 at 3.0 and flares
   x0.7. The three maps have Vostok v0.11's three values, each in its Team
-  Deathmatch project and Free for All's copy. Not seen in a game yet.
+  Deathmatch project and Free for All's copy. Seen in the game on Military
+  Warehouses (2026-11-14, captured frames): toward the sun the rays washed
+  the frame orange; with these values the sun has a halo and the sky and the
+  buildings stay visible. Experimental Pool and Training Camp were not
+  captured.
 - Ambient occlusion ("on fence there are black stripes", "often those happen
   for some reason with this engine"; gone with `r_ambient_occlusion_quality 0`
   in the owner's game): the stripes are the occlusion's own sample pattern on
@@ -179,7 +185,10 @@ mode's copy of the projects they name:
   (`ssao_hemisphere_stable_radius.ps`). The ports had 2, stock maps have 1 to
   1.29: at quality 1 an occlusion of 0.2 left 0.45 of the ambient light where
   level_03 leaves 0.70. The six maps have 1 now; the pattern itself is the
-  engine's and stays at stock strength. Their `ao_radius` 1.5 is a stock value
+  engine's and stays at stock strength. Not proven in the game: a still
+  captured frame shows the stripes neither before nor after (the occlusion's
+  temporal filter settles), so whether stock strength hides them in play is
+  the owner's to see. Their `ao_radius` 1.5 is a stock value
   (level_02 day; stock maps have 1 to 1.5) and stays. Vostok v0.11 (1.5) and
   Chemical Plant v0.11 (1.3) are above stock too and are not changed.
 - Not changed: Repair Depot, Station and Depository, not played, keep rays 1.0
@@ -223,10 +232,11 @@ Training Camp's meadow.
   black, gloss 0.04: a broad highlight of about 0.04 x the sun. The colour
   texture gives 0.46: a sharp one of about 3 x the sun, and with every normal
   up a whole patch took the sun's colour where the player looked toward the
-  sun and down. Both ends of the range are 0.04 now, stock's average. Not
-  seen in a game yet. Training Camp's meadow grass
-  (`ported/v010b/flora/grass_l03_alt`, also 0.3 over its colour texture) is
-  not changed.
+  sun and down. Both ends of the range are 0.04 now, stock's average. Seen in
+  the game on Military Warehouses (2026-11-14, captured frames at the owner's
+  two places and settings): the sun-coloured patches are gone, the grass keeps
+  its colour. Training Camp's meadow grass (`ported/v010b/flora/grass_l03_alt`,
+  also 0.3 over its colour texture) is not changed.
 - The other four maps take the same option. Repair Depot's level has
   349,153 tufts at the same density (thin it with `density`); Training Camp
   has its meadow already; Station and Depository need their level folders
