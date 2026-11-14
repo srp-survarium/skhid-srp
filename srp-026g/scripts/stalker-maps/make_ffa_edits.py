@@ -240,8 +240,9 @@ def table_2(planned, cover):
             if r['verdict'] not in ('replaced', 'turned', 'added') or (r['verdict'] == 'added') == (key in rows):
                 raise ValueError(f'{key}: to_cover says {r["verdict"]}')
             rows[key] = dict(x=r['x'], y=r['y'], z=r['z'], ry=r['ry'], verdict=r['verdict'], reason=r['reason'])
-    for key in EXCLUDED_2:
-        rows.pop(key)
+    if any(v['verdict'] != 'planned' for v in rows.values()):   # the rule's table, not the planner's alone
+        for key in EXCLUDED_2:
+            rows.pop(key)
     head = ['project', 'point', 'x', 'y', 'z', 'ry', 'verdict', 'reason']
     lines = ['\t'.join(head)]
     order = [k for k, _, _ in MAPS_2]
