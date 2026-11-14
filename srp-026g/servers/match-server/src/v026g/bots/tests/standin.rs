@@ -3007,6 +3007,10 @@ impl Game {
             .map(|place| (place, self.bodies[place].dead_at + self.respawn_ms_of_body(place) + self.placed_walk_ms(place)))
             .collect();
         let facts = WorldFacts {
+            // [Gap 2] Who carries a battery, as each place's inventory says it (`m_carried_item`).
+            holders: (0..self.bodies.len())
+                .map(|place| Some(self.batteries.contains(&Lying::Carried(place))))
+                .collect(),
             respawns: Some(respawns),
             kill_times: self.last_kills.clone(),
             time: self.tick,
