@@ -6185,6 +6185,21 @@ mod tests {
         let turned = [way[0] * cos - way[1] * sin, way[0] * sin + way[1] * cos];
         assert!((heading[0] - turned[0]).abs() < 1e-6 && (heading[1] - turned[1]).abs() < 1e-6, "the flight's heading: {heading:?}");
         assert!((aim.side_m() + 0.3).abs() < 1e-6 && (aim.turn_rad() - 0.2).abs() < 1e-6, "R83's aim in steps of 0.05");
+        // #1899's widened set: walking leads down to 0.01 (a walk at the take-off is stored so, 0 being the walk-off's code) and
+        // the aims (+-6, +-6), (+-3, +-4), (+-3, +-6): the same press point and heading as the flyer's at every one.
+        for lead in [0.01, 0.1, 0.3] {
+            let lead = mapdata::PressLead::from_metres(lead);
+            for (side, turn) in [(6, 6), (-6, -6), (6, -6), (3, 4), (-3, -4), (3, -6), (-3, 6)] {
+                let aim = PressAim::new(side, turn).expect("within the record's steps");
+                let leap = Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share: mapdata::Share::FULL, aim });
+                let (origin, heading) = aimed_line(take_off, way, leap);
+                let n = mapdata::controller::jump::Neighbour { lead: 0.0, side: aim.side_m(), turn: aim.turn_rad(), dy: 0.0, fastest: false };
+                let flown = mapdata::controller::jump::press_point(take_off, (way[0], way[1]), lead.metres(), n);
+                let pressed = Vec3::new(origin.x - heading[0] * lead.metres(), origin.y, origin.z - heading[1] * lead.metres());
+                assert!(pressed.distance_xz(flown) < 1e-5, "lead {} aim {side} {turn}: {pressed:?} {flown:?}", lead.metres());
+                assert!((heading[0].hypot(heading[1]) - 1.0).abs() < 1e-5, "a unit heading");
+            }
+        }
     }
 
     /// [A386] A flown press is pressed only within the offsets the grid flew it over (`jump::neighbourhood`): its jump's first
