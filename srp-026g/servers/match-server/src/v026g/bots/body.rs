@@ -124,9 +124,19 @@ pub struct KeptBody {
 /// a fall, the grid stopping short): the controller is set anew there.
 pub const KEPT_SAME_M: f32 = 0.05;
 
+/// [A364 P9] One ground step of a kept controller ([`kept_step`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct KeptStep {
+    /// Where its feet end, flat (the grid gives the height while it is on the ground).
+    pub to: Vec3,
+    /// [A388 step 2] The step left the ground: the client's `step_down` (0x7E1B0, port `controller::tick`) found no ground within the
+    /// step under the capsule and it is airborne ([`mapdata::controller::tick::StepNotes::airborne`]).
+    pub airborne: bool,
+}
+
 /// [A364 P9] One reckoned ground step of the kept controller ([`ClientStep::Kept`]) from `feet`, asked to move `by` (flat): where its
-/// feet end (flat; the grid gives the height). None without the grid's walker.
-pub(crate) fn kept_step(grid: &WalkGrid, kept: &mut Option<KeptBody>, feet: Vec3, by: Vec3, keys: u32, sprinting: bool) -> Option<Vec3> {
+/// feet end and whether it left the ground ([`KeptStep`]). None without the grid's walker.
+pub(crate) fn kept_step(grid: &WalkGrid, kept: &mut Option<KeptBody>, feet: Vec3, by: Vec3, keys: u32, sprinting: bool) -> Option<KeptStep> {
     let mut body = match kept.take() {
         Some(body) if body.feet.distance_xz(feet) <= KEPT_SAME_M => body,
         _ => KeptBody { controller: grid.kept_controller_at(feet)?, feet },
@@ -141,9 +151,7 @@ pub(crate) fn kept_step(grid: &WalkGrid, kept: &mut Option<KeptBody>, feet: Vec3
         sprinting,
     };
     let start = body.controller.feet();
-    if !grid.kept_tick(&mut body.controller, input) {
-        return None;
-    }
+    let notes = grid.kept_tick(&mut body.controller, input)?;
     #[cfg(test)]
     client_steps::kept(started.elapsed().as_nanos() as u64);
     // The controller's own move, from the reckoned feet: a controller set anew stands where the walk start placed it (out of the
@@ -152,7 +160,15 @@ pub(crate) fn kept_step(grid: &WalkGrid, kept: &mut Option<KeptBody>, feet: Vec3
     let to = Vec3::new(feet.x + end.x - start.x, feet.y, feet.z + end.z - start.z);
     body.feet = to;
     *kept = Some(body);
-    Some(to)
+    Some(KeptStep { to, airborne: notes.airborne })
+}
+
+/// [A388 step 2] Where a ground step whose kept controller left the ground ([`KeptStep::airborne`]) goes: the floor it falls onto,
+/// the highest under the controller's feet `to` lower than a step under the top `top` and open above it ([`under_edge`]), and the
+/// feet at `to` on it. None when no such floor is there (the body is held as the grid's edge has it until a world shows it).
+pub(crate) fn kept_off_ground(grid: &WalkGrid, to: Vec3, top: f32) -> Option<(NodeId, Vec3)> {
+    let down = under_edge(grid, to, top, top - grid.body().step)?;
+    Some((down, Vec3::new(to.x, grid.position(down).y, to.z)))
 }
 
 /// [A318] The grid's own step less the client tick's, for one reckoned step: its flat length (m, may be negative) and its flat net.
@@ -1168,6 +1184,8 @@ fn advance(
                 // grid then walks to that point. The reckoning only, on the ground.
                 let rises = feet.y - at.feet.y > STEP_UP_RISE_M;
                 let blocked = feet.distance_xz(to) > CLIENT_BLOCKED_M;
+                // [A388 step 2] The kept controller's step left the ground ([`KeptStep::airborne`]).
+                let mut airborne = false;
                 let client = match (kin.client_step, role, in_air, at.fall) {
                     (ClientStep::Client, Role::Reckoning, false, Fall::Ground) if rises || blocked => {
                         let by = Vec3::new(to.x - at.feet.x, 0.0, to.z - at.feet.z);
@@ -1178,7 +1196,10 @@ fn advance(
                     // [A364 P9] Every ground step by the body's kept controller.
                     (ClientStep::Kept, Role::Reckoning, false, Fall::Ground) => {
                         let by = Vec3::new(to.x - at.feet.x, 0.0, to.z - at.feet.z);
-                        kept_step(grid, &mut at.kept, at.feet, by, step_keys, Kinematics::sprint_state(at.keys))
+                        kept_step(grid, &mut at.kept, at.feet, by, step_keys, Kinematics::sprint_state(at.keys)).map(|step| {
+                            airborne = step.airborne;
+                            step.to
+                        })
                     }
                     _ => None,
                 };
@@ -1226,6 +1247,23 @@ fn advance(
                     );
                     (node, feet, stopped) = slide_edge(kin, grid, at.node.unwrap_or(node), at.feet, short, offs);
                 }
+                // [A388 step 2] [`Edge::Controller`]: where the kept controller leaves the ground, so does the body: on the floor it
+                // falls onto at the controller's feet, and [`fall_step`] plays the client's fall from the top (not held by the grid to
+                // [`SUPPORT_M`] past its floor's centre, where the client's capsule has already rolled off the walker's rim: falls
+                // report R4, 66 of 110 notes, a median 0.26 m / 0.3 s). The controller is set anew after the fall.
+                let mut left = false;
+                if airborne
+                    && kin.edge == Edge::Controller
+                    && let Some(target) = client
+                {
+                    let off = kept_off_ground(grid, target, top);
+                    #[cfg(test)]
+                    kept_edges::count(off.is_some());
+                    if let Some((down, at_down)) = off {
+                        (node, feet, stopped, left) = (down, at_down, false, true);
+                        at.kept = None;
+                    }
+                }
                 if in_air
                     && feet.distance_xz(to) > 1e-3
                     && let Some(up) = jumped_to(grid, node, feet, to)
@@ -1242,6 +1280,7 @@ fn advance(
                 // `nav-builder-20261112/A366-root-cause.md`). The body stays on the walker's ground with its last floor.
                 if role == Role::Reckoning
                     && !in_air
+                    && !left
                     && matches!(at.fall, Fall::Ground)
                     && top - feet.y > grid.body().step
                     && let Some(ground) = grid.walker_ground_below(to, top + WALKER_GROUND_OVER_M, WALKER_GROUND_OVER_M + grid.body().step)
@@ -1364,7 +1403,11 @@ pub(crate) fn client_fall_tick(speed: f32) -> (f32, f32) {
 fn slide_edge(kin: &Kinematics, grid: &WalkGrid, node: NodeId, from: Vec3, to: Vec3, offs: WalkOffs) -> (NodeId, Vec3, bool) {
     match kin.edge {
         Edge::Lattice => slide_up_to(grid, node, from, to, f32::INFINITY, Bridges::of(kin)),
-        Edge::Client => slide_supported_by(grid, node, from, to, f32::INFINITY, SUPPORT_M, offs, Bridges::of(kin), kin.wall_slide),
+        // [A388 step 2] With [`Edge::Controller`] the grid still holds the feet on its floors; the body leaves them where its kept
+        // controller leaves the ground (`advance`).
+        Edge::Client | Edge::Controller => {
+            slide_supported_by(grid, node, from, to, f32::INFINITY, SUPPORT_M, offs, Bridges::of(kin), kin.wall_slide)
+        }
         Edge::ClientWalksOff => {
             let slid = slide_supported_by(grid, node, from, to, f32::INFINITY, SUPPORT_M, offs, Bridges::of(kin), kin.wall_slide);
             walk_off_open(grid, slid.0, slid.1, to).map_or(slid, |(node, feet)| (node, feet, false))
@@ -1469,6 +1512,24 @@ pub(crate) mod walker_holds {
 
     pub(crate) fn count() -> u64 {
         HELD.load(Relaxed)
+    }
+}
+
+/// [A388 step 2] The reckoned steps whose kept controller left the ground ([`Edge::Controller`]): those that left the floor there
+/// for one under it, and those with no floor under it to fall onto (held as the grid's edge has it), for the bench.
+#[cfg(test)]
+pub(crate) mod kept_edges {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static LEFT: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub(crate) fn count(left: bool) {
+        LEFT[usize::from(!left)].fetch_add(1, Relaxed);
+    }
+
+    /// (left the floor, no floor under it).
+    pub(crate) fn counts() -> (u64, u64) {
+        (LEFT[0].load(Relaxed), LEFT[1].load(Relaxed))
     }
 }
 
@@ -2790,6 +2851,41 @@ pub(super) mod tests {
         let (lattice, client) = (first_down(Edge::Lattice).expect("falls"), first_down(Edge::Client).expect("falls"));
         assert!(lattice < 0.3, "the lattice drops the reckoned body at the boundary: {lattice}");
         assert!(client > lattice + 0.1 && client <= SUPPORT_M, "the client edge holds it to the support, a tick short of the fall: {client}");
+    }
+
+    /// [A388 step 2] [`Edge::Controller`]: the reckoned body walking out over a ledge leaves the top where its kept controller
+    /// ([`ClientStep::Kept`], the client's tick on the walker) leaves the ground, before [`Edge::Client`]'s hold to [`SUPPORT_M`]
+    /// past the last floor's centre: the capsule's rounded bottom rolls off the rim while the grid still has a floor of the top
+    /// within the support. The fall from there is the client's (`fall_step`).
+    #[test]
+    fn the_reckoned_body_leaves_a_ledge_where_its_kept_controller_leaves_the_ground() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(0.0, 0.0, 10.1, 10.0, 2.0));
+        triangles.extend(wall_x(10.1, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(2.0));
+            t
+        }));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        // Where the feet were (x) the tick before they first went under the top, and the floor under them then.
+        let first_down = |edge: Edge| {
+            let kin = Kinematics { blend_ticks: 1, edge, client_step: ClientStep::Kept, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(8.0, 2.0, 5.0), yaw), &kin, Some(&grid));
+            let mut before = 8.0;
+            for time in (50..=4_000).step_by(50) {
+                track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+                let at = track.estimate().unwrap().feet;
+                if at.y < 1.99 {
+                    return Some(before);
+                }
+                before = at.x;
+            }
+            None
+        };
+        let (client, controller) = (first_down(Edge::Client).expect("falls"), first_down(Edge::Controller).expect("falls"));
+        assert!(controller < client - 0.05, "the controller's edge is before the grid's hold: controller {controller}, client {client}");
+        assert!(controller > 10.1 - 0.2, "and not before the rim: {controller}");
     }
 
     /// [A318] [`DropFall::Client`]: a body going over a 3 m drop sinks 0.05 m a tick for five ticks (the speed at each tick's start

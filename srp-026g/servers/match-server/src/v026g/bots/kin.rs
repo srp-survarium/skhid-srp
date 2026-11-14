@@ -363,6 +363,15 @@ pub enum Edge {
     /// ticks (0.5 % with [`Self::Client`]) in runs of 1-2 ticks, flipping 3 times a second, and stuck cases went +48 %, kills -13 %:
     /// it waits for a guard that holds its brake.
     ClientWalksOff,
+    /// [A388 step 2] [`Self::Client`] on the grid's floors, and with [`ClientStep::Kept`] the body leaves its floor where its kept
+    /// controller leaves the ground (`step_down` 0x7E1B0 finds no ground within the step under the capsule, port
+    /// `mapdata::controller::tick`): its feet go on to the controller's and come down on the floor under them (`body::kept_off_ground`).
+    /// [`Self::Client`] holds the body up to [`super::body::SUPPORT_M`] past its floor's centre, past where the client's capsule rolls
+    /// off the walker's rim: falls report R4, 66 of 110 fall notes, the model's walk-off a median
+    /// 0.26 m / 0.3 s after the client's (the recording's client tick makes 54 of the 66; the exe's tick at the two largest spots
+    /// leaves where the recorded bodies did). The lip guard's stop forecast (`body::stays_up`) keeps [`Self::Client`]'s edge: the
+    /// forecast plays no kept controller.
+    Controller,
 }
 
 /// [POCKETS (b)] Where the reckoned body ([`Edge::Client`]) comes down when it goes off a ledge whose drop is an off-mesh walk-off
@@ -497,7 +506,7 @@ impl Default for Kinematics {
             fix_blend: FixBlend::Replayed,
             wall_slide: WallSlide::Round,
             jump_snap: JumpSnap::ByKeys,
-            edge: Edge::Client,
+            edge: Edge::Controller,
             drop_fall: DropFall::Client,
             step_input: StepInput::Previous,
             client_step: ClientStep::Kept,

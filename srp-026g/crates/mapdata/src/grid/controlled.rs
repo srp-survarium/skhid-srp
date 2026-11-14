@@ -556,12 +556,12 @@ impl WalkGrid {
     }
 
     /// [A364 P9] One tick of a kept body (`player_step` with what the game's logic hands it: `Controller::tick`) on the grid's
-    /// walker with its body's settings; false (and nothing moved) without [`Self::with_client_walker`].
-    pub fn kept_tick(&self, body: &mut Controller, input: TickInput) -> bool {
-        let Some(world) = self.walker.as_deref() else { return false };
+    /// walker with its body's settings, and what the step did (its `airborne`: `step_down` 0x7E1B0 found no ground under it);
+    /// none (and nothing moved) without [`Self::with_client_walker`].
+    pub fn kept_tick(&self, body: &mut Controller, input: TickInput) -> Option<crate::controller::tick::StepNotes> {
+        let world = self.walker.as_deref()?;
         let (_, s) = self.body.controller();
-        body.tick(world, 0.05, &s, input);
-        true
+        Some(body.tick(world, 0.05, &s, input))
     }
 
     /// [A366] The walkable top of the client's walker (the map's walker triangles) under `at` (flat) from `from_y` down to `reach`

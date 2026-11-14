@@ -280,7 +280,7 @@ pub struct GridTuning {
     /// [A388] Whether the client's walker the reckoning's kept controller walks (and the pulled legs' walk, the client step) is
     /// the game's shapes met by the exe's own cast (`mapdata::controller::Collision::build_exe`: exactness row 4, the port's
     /// step equals the exe's on 265 of 276 rim steps there, against 83 of 276 on the walker triangles with the Bullet caster), not
-    /// the walker triangles. Not a build input: the grids and their key are the same either way. Off until its bench.
+    /// the walker triangles. Not a build input: the grids and their key are the same either way. On (a correctness fix, `KEPT_RIGHT`).
     pub walker_shapes: bool,
 }
 
@@ -331,7 +331,7 @@ impl Default for GridTuning {
             jump_air_steps: true,
             wall_clear_pull: false,
             pull_walk: true,
-            walker_shapes: false,
+            walker_shapes: true,
         }
     }
 }
