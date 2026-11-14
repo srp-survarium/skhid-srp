@@ -176,10 +176,35 @@ pub(crate) fn kept_step(grid: &WalkGrid, kept: &mut Option<KeptBody>, feet: Vec3
 
 /// [A388 step 2] Where a ground step whose kept controller left the ground ([`KeptStep::airborne`]) goes: the floor it falls onto,
 /// the highest under the controller's feet `to` lower than a step under the top `top` and open above it ([`under_edge`]), and the
-/// feet at `to` on it. None when no such floor is there (the body is held as the grid's edge has it until a world shows it).
-pub(crate) fn kept_off_ground(grid: &WalkGrid, to: Vec3, top: f32) -> Option<(NodeId, Vec3)> {
-    let down = under_edge(grid, to, top, top - grid.body().step)?;
-    Some((down, Vec3::new(to.x, grid.position(down).y, to.z)))
+/// feet at `to` on it. None when no such floor is there (the body is held as the grid's edge has it until a world shows it), and
+/// none while the client's walker still has ground within a step under `to` ([`WalkGrid::walker_ground_below`], A366's test): a
+/// slow body's `step_down` looks only 0.05 m under its feet, so the exe finds no ground on most ticks down a ramp steeper than about
+/// 16 degrees walking and on every stair or kerb (exe review of A388, 2026-11-15: a 25 degree slope at 3.5 m/s, no ground on 7
+/// ticks of 8), while the body goes on down it. At a ledge the capsule's axis is already 0.18-0.25 m past the rim on its first
+/// no-ground tick, with no walker ground under it: the walk-off comes on that same tick.
+pub(crate) fn kept_off_ground(grid: &WalkGrid, to: Vec3, top: f32) -> KeptOff {
+    let step = grid.body().step;
+    let off = if grid.walker_ground_below(to, top + WALKER_GROUND_OVER_M, WALKER_GROUND_OVER_M + step).is_some() {
+        KeptOff::WalkerGround
+    } else {
+        match under_edge(grid, to, top, top - step) {
+            Some(down) => KeptOff::Left(down, Vec3::new(to.x, grid.position(down).y, to.z)),
+            None => KeptOff::NoFloor,
+        }
+    };
+    kept_edges::count(off);
+    off
+}
+
+/// [A388 step 2] What a ground step whose kept controller left the ground does ([`kept_off_ground`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum KeptOff {
+    /// It leaves its floor for this one, the feet there.
+    Left(NodeId, Vec3),
+    /// The client's walker still has ground within a step under the feet (a ramp, a stair): it stays on the grid's floors.
+    WalkerGround,
+    /// No floor under the feet to come down on: held as the grid's edge has it.
+    NoFloor,
 }
 
 /// [A318] The grid's own step less the client tick's, for one reckoned step: its flat length (m, may be negative) and its flat net.
@@ -1266,14 +1291,10 @@ fn advance(
                 if airborne
                     && kin.edge == Edge::Controller
                     && let Some(target) = client
+                    && let KeptOff::Left(down, at_down) = kept_off_ground(grid, target, top)
                 {
-                    let off = kept_off_ground(grid, target, top);
-                    #[cfg(test)]
-                    kept_edges::count(off.is_some());
-                    if let Some((down, at_down)) = off {
-                        (node, feet, stopped, left) = (down, at_down, false, true);
-                        at.kept = None;
-                    }
+                    (node, feet, stopped, left) = (down, at_down, false, true);
+                    at.kept = None;
                 }
                 if in_air
                     && feet.distance_xz(to) > 1e-3
@@ -1545,21 +1566,32 @@ pub(crate) mod kept_clock {
     }
 }
 
-/// [A388 step 2] The reckoned steps whose kept controller left the ground ([`Edge::Controller`]): those that left the floor there
-/// for one under it, and those with no floor under it to fall onto (held as the grid's edge has it), for the bench.
-#[cfg(test)]
+/// [A388 step 2] The steps whose kept controller left the ground ([`kept_off_ground`], the reckoning's and the bench stand-in's) on
+/// this server, by what they did: left the floor, kept on it by the walker's ground under the feet (a ramp, a stair), held with no
+/// floor under them. For the match-end line (`Bots::drift_report`) and the bench; decision-neutral.
 pub(crate) mod kept_edges {
     use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
-    static LEFT: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+    static OFF: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
 
-    pub(crate) fn count(left: bool) {
-        LEFT[usize::from(!left)].fetch_add(1, Relaxed);
+    pub(crate) fn count(off: super::KeptOff) {
+        let i = match off {
+            super::KeptOff::Left(..) => 0,
+            super::KeptOff::WalkerGround => 1,
+            super::KeptOff::NoFloor => 2,
+        };
+        OFF[i].fetch_add(1, Relaxed);
     }
 
-    /// (left the floor, no floor under it).
-    pub(crate) fn counts() -> (u64, u64) {
-        (LEFT[0].load(Relaxed), LEFT[1].load(Relaxed))
+    /// (left the floor, the walker's ground under the feet, no floor under them) so far.
+    #[cfg(test)]
+    pub(crate) fn counts() -> (u64, u64, u64) {
+        (OFF[0].load(Relaxed), OFF[1].load(Relaxed), OFF[2].load(Relaxed))
+    }
+
+    /// [`counts`] since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64, u64) {
+        (OFF[0].swap(0, Relaxed), OFF[1].swap(0, Relaxed), OFF[2].swap(0, Relaxed))
     }
 }
 

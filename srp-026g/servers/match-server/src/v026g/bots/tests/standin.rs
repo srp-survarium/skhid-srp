@@ -1554,17 +1554,16 @@ impl Game {
                             // [A388 step 2] Where its kept controller leaves the ground (`step_down` finds none under the capsule),
                             // the body leaves its floor there and falls (the walk-off below), not held by the lattice to
                             // `body::SUPPORT_M` past its floor's centre (`SRP_BENCH_STAND_IN_KEPT_EDGE`).
-                            let off = if step.airborne && super::standin_jump::stand_in_kept_edge() {
-                                body::kept_off_ground(grid, step.to, body.feet.y)
-                            } else {
-                                None
-                            };
+                            let off = (step.airborne && super::standin_jump::stand_in_kept_edge())
+                                .then(|| body::kept_off_ground(grid, step.to, body.feet.y));
                             (node, feet, _) = match off {
-                                Some((down, at)) => {
+                                Some(body::KeptOff::Left(down, at)) => {
                                     body.kept = None;
                                     (down, at, false)
                                 }
-                                None => walk_slide(grid, body.node.unwrap_or(node), body.feet, step.to),
+                                Some(body::KeptOff::WalkerGround | body::KeptOff::NoFloor) | None => {
+                                    walk_slide(grid, body.node.unwrap_or(node), body.feet, step.to)
+                                }
                             };
                         }
                     } else if super::standin_jump::stand_in_client_step()

@@ -2157,11 +2157,13 @@ impl Bots {
         // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
         // time a step took.
         let (steps, ns) = body::kept_clock::take();
+        let (left, ground, held) = body::kept_edges::take();
         lines.push(format!(
-            "{}kept controller steps since the last match end (every match on this server): {steps}, {} ns a step, {:.1} ms in all",
+            "{}kept controller steps since the last match end (every match on this server): {steps}, {} ns a step, {:.1} ms in all;              off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}",
             nav_log::PREFIX,
             ns.checked_div(steps).unwrap_or(0),
-            ns as f64 / 1e6
+            ns as f64 / 1e6,
+            left + ground + held
         ));
         lines
     }
