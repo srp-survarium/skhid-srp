@@ -146,6 +146,9 @@ pub struct PlaceWorld {
     /// Each body part's affects (a hand wound is `AffectKind::HandDamage`), in part order; empty when `motion` is
     /// `None`.
     pub part_affects: Vec<Vec<Affect>>,
+    /// Each body part's `m_last_hit_time` (part +B0h: the last hit that took health, 0x32A29E), in part order; empty when
+    /// `motion` is `None`.
+    pub part_last_hits: Vec<u32>,
     /// The damage model's `m_invulnerability_time_in_ms` (the spawn protection); `None` when `motion` is, or when none
     /// is set.
     pub invulnerability_time_ms: Option<u32>,
@@ -185,6 +188,9 @@ impl PlaceWorld {
                     .body_parts()
                     .map(|part| part.affects().iter().collect())
                     .collect()
+            }),
+            part_last_hits: rest.map_or_else(Vec::new, |rest| {
+                rest.damage_model().body_parts().map(|part| part.last_hit_time_ms()).collect()
             }),
             invulnerability_time_ms: rest.and_then(|rest| rest.damage_model().invulnerability_time_ms()),
         }

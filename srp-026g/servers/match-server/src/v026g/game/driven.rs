@@ -810,6 +810,21 @@ impl Game {
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);
+            // [Gap 7] Its hand wounds (parts 16 and 17's `hand_damage`), held as the client holds them.
+            {
+                use srp_validate::world::AffectKind;
+                let delay = walkers.bots.hand_delay_ms(place);
+                let ends: Vec<u32> = [16, 17]
+                    .into_iter()
+                    .filter_map(|part| {
+                        let last_hit = world.part_last_hits.get(part).copied().unwrap_or(0);
+                        world.part_affects.get(part)?.iter().find(|affect| affect.kind() == AffectKind::HandDamage).map(
+                            |affect| crate::v026g::bots::hands::end_listed(affect.end_time_ms(), last_hit, delay, snapshot.time),
+                        )
+                    })
+                    .collect();
+                walkers.bots.hands(place, crate::v026g::bots::hands::Hands::of(&ends, snapshot.time));
+            }
             // [Gap 15] A bot's life in the world's kit in use, before its weapon is read.
             if world.supplies.alive {
                 let notes = walkers.bots.worn_kit(place, world.supplies.kit, snapshot.time);
