@@ -27,27 +27,56 @@ pub fn fenced(x: f32, z: f32, margin: f32) -> bool {
     within(fence(), x, z, margin)
 }
 
-/// The reviewed raised islands inside the fence: a box around each flat
-/// platform of the elevated walkways, with its floor's height range.
+/// The reviewed raised islands inside the fence: a box around each floating
+/// island's top, with its floor's height range.
 pub const ISLANDS: &str = include_str!("../../training-islands.tsv");
 
-pub struct Island {
-    pub name: &'static str,
+/// The base's three towers: round floors, each a circle with a height
+/// range. A tower's `stairs` are the walkway that winds round it, the
+/// stairs inside it and their landings, below its roof; a `cabin` is one of
+/// the two huts on a tower (the lower by its walkway, the upper at its roof).
+pub const TOWERS: &str = include_str!("../../training-towers.tsv");
+
+/// A raised floor a Free for All spawn may stand on, by its name in the
+/// tables (the owner, 2026-11-14: "on islands or on ladders or in rubkas").
+/// The towers' roofs, the catwalks and the platform over the hub are none.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Raised {
+    Island(&'static str),
+    /// A tower's stairs: `training-towers.tsv`'s "ladders".
+    Stairs(&'static str),
+    Cabin(&'static str),
+}
+
+impl std::fmt::Display for Raised {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Island(name) => write!(f, "raised island {name}"),
+            Self::Stairs(name) => write!(f, "stairs of tower {name}"),
+            Self::Cabin(name) => write!(f, "cabin {name}"),
+        }
+    }
+}
+
+struct Island {
+    name: &'static str,
     min: [f32; 3],
     max: [f32; 3],
 }
 
-impl Island {
-    /// Whether a standing floor at (x, y, z) is this island's.
-    pub fn holds(&self, x: f32, y: f32, z: f32) -> bool {
-        [x, y, z]
-            .iter()
-            .zip(self.min.iter().zip(&self.max))
-            .all(|(v, (lo, hi))| (lo..=hi).contains(&v))
-    }
+struct Round {
+    place: Raised,
+    centre: [f32; 2],
+    radius: f32,
+    y: [f32; 2],
 }
 
-pub fn islands() -> &'static [Island] {
+fn numbers<const N: usize>(what: &str, cells: std::str::Split<'static, char>) -> [f32; N] {
+    let v: Vec<f32> = cells.map(|c| c.parse().unwrap_or_else(|_| panic!("{what}: {c}"))).collect();
+    v.try_into().unwrap_or_else(|_| panic!("{what}: {N} numbers expected"))
+}
+
+fn islands() -> &'static [Island] {
     static PARSED: std::sync::OnceLock<Vec<Island>> = std::sync::OnceLock::new();
     PARSED.get_or_init(|| {
         ISLANDS
@@ -56,14 +85,53 @@ pub fn islands() -> &'static [Island] {
             .map(|line| {
                 let mut cells = line.split('\t');
                 let name = cells.next().expect("island name");
-                let v: Vec<f32> = cells.map(|c| c.parse().expect("island bound")).collect();
-                let [x0, z0, x1, z1, y0, y1] = v[..] else {
-                    panic!("island {name}: expected x_min z_min x_max z_max y_min y_max");
-                };
+                let [x0, z0, x1, z1, y0, y1] = numbers(name, cells);
                 Island { name, min: [x0, y0, z0], max: [x1, y1, z1] }
             })
             .collect()
     })
+}
+
+fn towers() -> &'static [Round] {
+    static PARSED: std::sync::OnceLock<Vec<Round>> = std::sync::OnceLock::new();
+    PARSED.get_or_init(|| {
+        TOWERS
+            .lines()
+            .skip(1)
+            .map(|line| {
+                let mut cells = line.split('\t');
+                let name = cells.next().expect("tower place");
+                let place = match cells.next() {
+                    Some("stairs") => Raised::Stairs(name),
+                    Some("cabin") => Raised::Cabin(name),
+                    kind => panic!("{name}: stairs or cabin expected, not {kind:?}"),
+                };
+                let [x, z, radius, y0, y1] = numbers(name, cells);
+                Round { place, centre: [x, z], radius, y: [y0, y1] }
+            })
+            .collect()
+    })
+}
+
+/// The raised floor a standing floor at (x, y, z) is part of, if it is one a
+/// spawn may stand on: a cabin, else an island, else a tower's stairs.
+pub fn raised_at(x: f32, y: f32, z: f32) -> Option<Raised> {
+    let round = |cabin: bool| {
+        towers().iter().find(|r| {
+            matches!(r.place, Raised::Cabin(_)) == cabin
+                && (r.y[0]..=r.y[1]).contains(&y)
+                && (x - r.centre[0]).hypot(z - r.centre[1]) <= r.radius
+        })
+    };
+    let island = || {
+        islands().iter().find(|i| {
+            [x, y, z].iter().zip(i.min.iter().zip(&i.max)).all(|(v, (lo, hi))| (lo..=hi).contains(&v))
+        })
+    };
+    round(true)
+        .map(|r| r.place)
+        .or_else(|| island().map(|i| Raised::Island(i.name)))
+        .or_else(|| round(false).map(|r| r.place))
 }
 
 /// Inside the outline and at least `margin` from its edges.
@@ -118,8 +186,8 @@ mod tests {
     }
 
     #[test]
-    fn islands_are_raised_and_inside_the_fence() {
-        assert_eq!(islands().len(), 5);
+    fn raised_floors_are_raised_and_inside_the_fence() {
+        assert_eq!(islands().len(), 8);
         for island in islands() {
             assert!(island.min.iter().zip(&island.max).all(|(lo, hi)| lo < hi), "{}", island.name);
             assert!(island.min[1] > 15.0, "{} is not raised", island.name);
@@ -129,7 +197,28 @@ mod tests {
                 }
             }
         }
-        // Point 8, the original south-east island spawn, is on its island.
-        assert!(islands().iter().any(|i| i.holds(30.435, 21.321, -23.845)));
+        // Three towers, each with its stairs and two cabins.
+        let count = |cabin: bool| towers().iter().filter(|r| matches!(r.place, Raised::Cabin(_)) == cabin).count();
+        assert_eq!((count(false), count(true)), (3, 6));
+        for round in towers() {
+            assert!(round.y[0] >= 6.0 && round.y[0] < round.y[1], "{:?} is not raised", round.place);
+            for (dx, dz) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)] {
+                let (x, z) = (round.centre[0] + dx * round.radius, round.centre[1] + dz * round.radius);
+                assert!(fenced(x, z, 0.0), "{:?} reaches the fence", round.place);
+            }
+        }
+    }
+
+    #[test]
+    fn a_place_is_a_cabin_then_an_island_then_stairs() {
+        // Point 8, the original south-east island spawn, and point 19 on the east tower's walkway.
+        assert_eq!(raised_at(30.435, 21.321, -23.845), Some(Raised::Island("south_east")));
+        assert_eq!(raised_at(38.685, 16.22, 6.155), Some(Raised::Stairs("east")));
+        // The lower cabin of the north-west tower stands inside its stairs' circle.
+        assert_eq!(raised_at(4.1, 15.55, 15.3), Some(Raised::Cabin("north_west_lower")));
+        // The ground, a tower's roof, the catwalk from it and the platform over the hub are none.
+        for p in [[20.0, -0.8, 0.0], [9.4, 28.5, 23.9], [15.0, 28.7, 13.0], [22.0, 29.0, 4.0]] {
+            assert_eq!(raised_at(p[0], p[1], p[2]), None, "{p:?}");
+        }
     }
 }

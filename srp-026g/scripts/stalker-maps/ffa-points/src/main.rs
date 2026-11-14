@@ -5,13 +5,14 @@
 //! walkable facing. Greedy farthest-point selection distributes 24 points.
 //! Training Camp's points are not planned again: those of the committed table
 //! (--points) that are still fit on Free for All's own project keep their
-//! place and id, and the others' ids take new places inside its base's fence
-//! (training-fence.tsv), spaced in 3D from its raised islands
-//! (training-islands.tsv).
+//! place and id, but for the ground's, of which two stay. The others' ids take
+//! new places on its raised floors (training-islands.tsv, training-towers.tsv:
+//! islands, the towers' stairs, cabins) that have a way down on foot, spaced
+//! in 3D inside its base's fence (training-fence.tsv).
 mod collision;
 mod arena;
 use collision::{Map, Verdict};
-use mapdata::{Materials, Resources, Vec3};
+use mapdata::{LinkKind, Materials, Resources, Vec3};
 use std::{
     collections::BTreeSet,
     fs::File,
@@ -31,12 +32,23 @@ const TRAINING: &str = "v010b_cs_training_camp/day_4";
 /// crates, the walker wall behind its base's fence, a truck in each gateway.
 /// Its points are checked and placed on it, so the layers must give it.
 const TRAINING_FFA: &str = "v010b_cs_training_camp/day_8";
-/// The islands are small: their floors are sampled finer than the 3 m lattice.
-const ISLAND_LATTICE: f32 = 0.75;
+/// The raised floors are small: they are sampled finer than the 3 m lattice.
+const RAISED_LATTICE: f32 = 0.75;
 /// A new Training Camp place and its facing's end stay this far inside the fence.
 const FENCE_MARGIN: f32 = 2.0;
-/// What every row's reason starts with: the checks every point passes.
+/// Training Camp's points are this far apart, in 3D: a spawn on the ground
+/// under a raised floor does not take it (the owner, 2026-11-13), and "it is
+/// fine for players to spawn close" on the raised floors.
+const TRAINING_SPACING: f32 = 8.0;
+/// How many of the table's points on the ground stay, the two farthest apart
+/// (the owner, 2026-11-14: "make sure all spawns are on islands or on ladders
+/// or in rubkas", "some can be on ground, but only a few", "and very rare").
+const GROUND_KEPT: usize = 2;
+/// The base's ground lies at about y = -0.8: a floor under this height is it.
+const GROUND_BELOW: f32 = 1.0;
+/// What a row's reason is: the checks every point passes, and its map's spacing.
 const REASON: &str = "reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m";
+const TRAINING_REASON: &str = "reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=8m in 3D";
 
 /// Bounds of the reviewed port's minimaps (stalker-maps@6). The imported
 /// projects have a dummy 2 m levelmap; mapdata's native-map fallback truncates
@@ -162,16 +174,9 @@ fn choose(points: &[Candidate], count: usize, spacing: f32) -> Result<Vec<usize>
     Ok(chosen)
 }
 
-/// Training Camp's spacing: in 3D when either point stands on an island (the
-/// owner, 2026-11-13: a spawn on the ground under an island does not take
-/// it), horizontal otherwise, as for every point.
-fn training_distance(a: Vec3, b: Vec3) -> f32 {
-    let on_island = |p: Vec3| arena::islands().iter().any(|i| i.holds(p.x, p.y, p.z));
-    if on_island(a) || on_island(b) {
-        (a - b).length()
-    } else {
-        a.distance_xz(b)
-    }
+/// The distance between two Training Camp points: in 3D.
+fn apart(a: Vec3, b: Vec3) -> f32 {
+    (a - b).length()
 }
 
 /// Up to `limit` more points after `chosen`: the candidate farthest from every
@@ -205,6 +210,34 @@ fn extend(
         }
     }
     added
+}
+
+/// `count` of `points` spread over the ground plane, in ascending order: from
+/// each start, the farthest from those taken so far, again and again; the
+/// start whose choice keeps the largest smallest gap wins (the first on a tie).
+fn spread(points: &[Candidate], count: usize) -> Vec<usize> {
+    let Some(more) = count.min(points.len()).checked_sub(1) else {
+        return Vec::new();
+    };
+    let gap = |chosen: &[usize]| {
+        let pairs = chosen.iter().enumerate().flat_map(|(j, &a)| chosen[..j].iter().map(move |&b| (a, b)));
+        pairs
+            .map(|(a, b)| points[a].position.distance_xz(points[b].position))
+            .fold(f32::INFINITY, f32::min)
+    };
+    let from = |start: usize| {
+        let mut chosen = vec![start];
+        // A point at the start's own place is never the farthest from it.
+        let taken = [points[start].position];
+        chosen.extend(extend(points, &taken, f32::MIN_POSITIVE, more, Vec3::distance_xz));
+        chosen
+    };
+    let mut best = (0..points.len())
+        .map(from)
+        .reduce(|best, next| if gap(&next) > gap(&best) { next } else { best })
+        .unwrap_or_default();
+    best.sort_unstable();
+    best
 }
 
 /// Fills the empty slots, lowest first, from `fresh`. When it runs out, the
@@ -290,15 +323,13 @@ fn cell(p: Vec3, size: f32) -> (i32, i32, i32) {
     )
 }
 
-/// A map's points in id order, each with what its row's reason says after
-/// [`REASON`].
+/// A map's points in id order, each with its row's reason.
 type Spawns = Vec<(Candidate, String)>;
 
-/// A map's safe candidates: on the 3 m lattice, and (Training Camp) on its
-/// islands' finer one. `plot` samples the standing floors.
-type Found = (Vec<Candidate>, Vec<Candidate>);
-
-fn candidates(map: &Map, mut plot: Option<&mut File>) -> Result<Found, String> {
+/// The floors a spawn may stand on, in the grid's order: reached from the
+/// map's spawns, with a standing body's headroom, in the play area (Training
+/// Camp: [`FENCE_MARGIN`] inside its fence). `plot` samples them.
+fn standing_floors(map: &Map, plot: &mut File) -> Result<Vec<u32>, String> {
     let seeds: Vec<_> = map
         .data
         .spawns
@@ -306,11 +337,7 @@ fn candidates(map: &Map, mut plot: Option<&mut File>) -> Result<Found, String> {
         .filter_map(|s| map.grid.locate(s.position, 1.0))
         .collect();
     let reachable = map.grid.distances_from(&seeds);
-    let (area, _) = area(&map.data.project)?;
-    let center = Vec3::new((area[0] + area[2]) * 0.5, 0.0, (area[1] + area[3]) * 0.5);
-    let (mut cells, mut island_cells) = (BTreeSet::new(), BTreeSet::new());
-    let (mut candidates, mut on_islands) = (Vec::new(), Vec::new());
-    let islands = if map.data.project == TRAINING_FFA { arena::islands() } else { &[] };
+    let mut floors = Vec::new();
     for node in 0..map.grid.len() as u32 {
         if !reachable.reaches(node) || !map.grid.can_stand(node) {
             continue;
@@ -319,52 +346,52 @@ fn candidates(map: &Map, mut plot: Option<&mut File>) -> Result<Found, String> {
         if !in_play_area(map, p, FENCE_MARGIN) {
             continue;
         }
-        if node % 16 == 0
-            && let Some(plot) = plot.as_mut()
-        {
+        if node % 16 == 0 {
             writeln!(plot, "{},{},{}", p.x, p.y, p.z).map_err(|e| e.to_string())?;
         }
-        if islands.iter().any(|i| i.holds(p.x, p.y, p.z))
-            && island_cells.insert(cell(p, ISLAND_LATTICE))
-            && let Some(c) = candidate(map, node, center)
-        {
-            on_islands.push(c);
-        }
-        // A 3 m lattice is dense enough to find cover without doing expensive
-        // collision queries for every quarter-metre grid node. Keep floors apart.
-        if cells.insert(cell(p, 3.0))
-            && let Some(c) = candidate(map, node, center)
-        {
-            candidates.push(c);
-        }
+        floors.push(node);
     }
-    eprintln!(
-        "{}: {} safe candidates on {} floors, {} on raised islands",
-        map.data.project,
-        candidates.len(),
-        map.grid.len(),
-        on_islands.len()
-    );
-    Ok((candidates, on_islands))
+    Ok(floors)
+}
+
+/// Towards a map's middle: where a facing looks on a tie.
+fn middle(map: &Map) -> Result<Vec3, String> {
+    let (area, _) = area(&map.data.project)?;
+    Ok(Vec3::new((area[0] + area[2]) * 0.5, 0.0, (area[1] + area[3]) * 0.5))
 }
 
 fn generate(map: &Map, plot: &mut File) -> Result<Spawns, String> {
-    let (candidates, _) = candidates(map, Some(plot))?;
+    let center = middle(map)?;
+    let mut cells = BTreeSet::new();
+    // A 3 m lattice is dense enough to find cover without doing expensive
+    // collision queries for every quarter-metre grid node. Keep floors apart.
+    let candidates: Vec<Candidate> = standing_floors(map, plot)?
+        .into_iter()
+        .filter(|&node| cells.insert(cell(map.grid.position(node), 3.0)))
+        .filter_map(|node| candidate(map, node, center))
+        .collect();
+    eprintln!(
+        "{}: {} safe candidates on {} floors",
+        map.data.project,
+        candidates.len(),
+        map.grid.len()
+    );
     Ok(choose(&candidates, COUNT, MIN_SPACING)?
         .into_iter()
-        .map(|i| (candidates[i], String::new()))
+        .map(|i| (candidates[i], REASON.to_owned()))
         .collect())
 }
 
-/// Training Camp's rows of the committed table, in id order.
-fn read_table(path: &Path) -> Result<Spawns, String> {
+/// Training Camp's rows of the committed table, in id order: where each
+/// point stands and faces.
+fn read_table(path: &Path) -> Result<Vec<Candidate>, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     text.lines()
         .filter(|line| line.split('\t').next() == Some(TRAINING))
         .enumerate()
         .map(|(id, line)| {
             let cells: Vec<&str> = line.split('\t').collect();
-            let [_, point, x, y, z, _, yaw, _, _, _, _, _, reason] = cells[..] else {
+            let [_, point, x, y, z, _, yaw, _, _, _, _, _, _] = cells[..] else {
                 return Err(format!("{TRAINING} row {id}: 13 cells expected"));
             };
             let number = |cell: &str| {
@@ -374,64 +401,185 @@ fn read_table(path: &Path) -> Result<Spawns, String> {
             if point != format!("ported_{id:02}") {
                 return Err(format!("{TRAINING} row {id} is {point}: rows are in id order"));
             }
-            let note = reason
-                .strip_prefix(REASON)
-                .ok_or_else(|| format!("{TRAINING} row {id}: its reason lacks the checks"))?;
             let position = Vec3::new(number(x)?, number(y)?, number(z)?);
-            Ok((Candidate { position, yaw: number(yaw)? }, note.to_owned()))
+            Ok(Candidate { position, yaw: number(yaw)? })
         })
         .collect()
 }
 
-/// What the row of a point placed anew says: where it went.
-fn moved_note(p: Vec3) -> String {
-    match arena::islands().iter().find(|i| i.holds(p.x, p.y, p.z)) {
-        Some(island) => format!(
-            "; moved inside the fence, onto raised island {}, spacing in 3D",
-            island.name
-        ),
-        None => "; moved inside the fence, spacing in 3D from islands".to_owned(),
+/// What a Training Camp point stands on.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Floor {
+    /// The base's ground.
+    Ground,
+    /// A raised floor a spawn may stand on, with a way down to the ground on
+    /// foot ([`Descent`]).
+    Raised(arena::Raised),
+}
+
+impl std::fmt::Display for Floor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Ground => f.write_str("ground inside the fence"),
+            Self::Raised(raised) => write!(f, "{raised}, way down on foot"),
+        }
     }
 }
 
-/// Training Camp on Free for All's own project as the layers give it: the
-/// table's points that are still fit keep their place and id. The others'
-/// ids take new places inside the fence (the ground, the towers, the
-/// islands): the candidate farthest from every point so far, while one keeps
-/// the spacing. Ids no place is left for go ([`refill`]): spacing before count.
-fn training(ffa: &Map, table: Spawns, plot: &mut File) -> Result<Spawns, String> {
-    let (candidates, on_islands) = candidates(ffa, Some(plot))?;
-    let slots: Vec<Option<(Candidate, String)>> = table
+/// The ways down to Training Camp's ground: from which floors a body gets to
+/// it by the walk grid's moves (walking, crouching, a jump up a ledge, a drop
+/// of the harmless height at most).
+struct Descent(mapdata::DistanceMap);
+
+impl Descent {
+    fn of(map: &Map) -> Self {
+        let ground: Vec<u32> = (0..map.grid.len() as u32)
+            .filter(|&node| {
+                let p = map.grid.position(node);
+                p.y < GROUND_BELOW && in_play_area(map, p, 0.0)
+            })
+            .collect();
+        Self(map.grid.distances_to(&ground))
+    }
+
+    /// What the floor at `node`, at `p`, is for a spawn: the ground, a
+    /// raised floor it may stand on, or neither.
+    fn floor(&self, node: u32, p: Vec3) -> Result<Floor, String> {
+        match arena::raised_at(p.x, p.y, p.z) {
+            Some(raised) if self.0.reaches(node) => Ok(Floor::Raised(raised)),
+            Some(raised) => Err(format!("has no way down from {raised}")),
+            None if p.y < GROUND_BELOW => Ok(Floor::Ground),
+            None => Err("stands on no island, stairs or cabin".to_owned()),
+        }
+    }
+
+    /// The way down from the floor at `node`, for the log: its length, its
+    /// drops and jumps, and the raised floors it passes.
+    fn way(&self, grid: &mapdata::WalkGrid, mut node: u32) -> String {
+        let (mut metres, mut drops, mut jumps, mut highest) = (0.0, 0, 0, 0.0f32);
+        let mut passes: Vec<String> = Vec::new();
+        while let Some((next, kind)) = self.0.next_step(grid, node) {
+            let (from, to) = (grid.position(node), grid.position(next));
+            metres += (to - from).length();
+            match kind {
+                LinkKind::Walk => {}
+                LinkKind::Drop => (drops, highest) = (drops + 1, highest.max(from.y - to.y)),
+                LinkKind::Jump => jumps += 1,
+            }
+            let on = match arena::raised_at(to.x, to.y, to.z) {
+                Some(raised) => raised.to_string(),
+                None if to.y < GROUND_BELOW => "the ground".to_owned(),
+                None => "other floors".to_owned(),
+            };
+            if passes.last() != Some(&on) {
+                passes.push(on);
+            }
+            node = next;
+        }
+        format!(
+            "{metres:.0} m, {drops} drops (the highest {highest:.1} m), {jumps} jumps, over {}",
+            passes.join(" > ")
+        )
+    }
+}
+
+/// Training Camp on Free for All's own project as the layers give it. The
+/// table's points on a raised floor that are still fit keep their place and
+/// id, and so do [`GROUND_KEPT`] of those on the ground, the ones farthest
+/// apart. The others' ids take new places on the raised floors (islands, the
+/// towers' stairs, cabins) that have a way down: the candidate farthest from
+/// every point so far, while one keeps the spacing. Ids no place is left for
+/// go ([`refill`]): spacing before count.
+fn training(ffa: &Map, table: Vec<Candidate>, plot: &mut File) -> Result<Spawns, String> {
+    let descent = Descent::of(ffa);
+    let rows: Vec<Option<(Candidate, Floor)>> = table
         .into_iter()
         .enumerate()
-        .map(|(id, row)| match fit(ffa, &row.0) {
-            Ok(()) => Some(row),
-            Err(why) => {
-                eprintln!("{TRAINING_FFA}: point {id} {why}: its id moves");
-                None
+        .map(|(id, c)| {
+            let floor = fit(ffa, &c).and_then(|()| {
+                let node = ffa.grid.locate(c.position, 0.6).ok_or("lost its floor")?;
+                descent.floor(node, c.position)
+            });
+            match floor {
+                Ok(floor) => Some((c, floor)),
+                Err(why) => {
+                    eprintln!("{TRAINING_FFA}: point {id} {why}: its id moves");
+                    None
+                }
             }
         })
         .collect();
+    let (ids, ground): (Vec<usize>, Vec<Candidate>) = rows
+        .iter()
+        .enumerate()
+        .filter_map(|(id, row)| row.filter(|(_, floor)| *floor == Floor::Ground).map(|(c, _)| (id, c)))
+        .unzip();
+    let stay: Vec<usize> = spread(&ground, GROUND_KEPT).into_iter().map(|i| ids[i]).collect();
+    eprintln!(
+        "{TRAINING_FFA}: {} points on the ground, of which {stay:?} stay there",
+        ids.len()
+    );
+    let slots: Vec<Option<(Candidate, Floor)>> = rows
+        .into_iter()
+        .enumerate()
+        .map(|(id, row)| row.filter(|(_, floor)| *floor != Floor::Ground || stay.contains(&id)))
+        .collect();
     let kept: Vec<Vec3> = slots.iter().flatten().map(|(c, _)| c.position).collect();
     for (j, a) in kept.iter().enumerate() {
-        if kept[..j].iter().any(|b| training_distance(*a, *b) < MIN_SPACING) {
-            return Err(format!("{TRAINING_FFA}: the table's points are under {MIN_SPACING} m apart"));
+        if kept[..j].iter().any(|b| apart(*a, *b) < TRAINING_SPACING) {
+            return Err(format!("{TRAINING_FFA}: the table's points are under {TRAINING_SPACING} m apart"));
         }
     }
+    let center = middle(ffa)?;
+    let mut cells = BTreeSet::new();
+    let pool: Vec<(Candidate, Floor)> = standing_floors(ffa, plot)?
+        .into_iter()
+        .filter_map(|node| {
+            let p = ffa.grid.position(node);
+            let floor = descent.floor(node, p).ok().filter(|floor| *floor != Floor::Ground)?;
+            cells.insert(cell(p, RAISED_LATTICE)).then_some(())?;
+            Some((candidate(ffa, node, center)?, floor))
+        })
+        .collect();
     let free = slots.len() - kept.len();
-    let pool: Vec<Candidate> = candidates.into_iter().chain(on_islands).collect();
-    let placed = extend(&pool, &kept, MIN_SPACING, free, training_distance);
+    // The cabins first: they are the smallest of the raised floors, and the
+    // farthest place from every point is never in one.
+    let (cabins, open): (Vec<_>, Vec<_>) = pool
+        .iter()
+        .copied()
+        .partition(|(_, floor)| matches!(floor, Floor::Raised(arena::Raised::Cabin(_))));
+    let (mut taken, mut fresh) = (kept.clone(), Vec::new());
+    for places in [cabins, open] {
+        let candidates: Vec<Candidate> = places.iter().map(|(c, _)| *c).collect();
+        for i in extend(&candidates, &taken, TRAINING_SPACING, free - fresh.len(), apart) {
+            taken.push(candidates[i].position);
+            fresh.push(places[i]);
+        }
+    }
     eprintln!(
-        "{TRAINING_FFA}: {} points keep their place, {} of {free} ids take a new one",
+        "{TRAINING_FFA}: {} safe candidates on raised floors with a way down; {} points keep their place, {} of {free} ids take a new one",
+        pool.len(),
         kept.len(),
-        placed.len()
+        fresh.len()
     );
-    let fresh = placed.into_iter().map(|i| (pool[i], moved_note(pool[i].position)));
+    if std::env::var_os("FFA_POINTS_CANDIDATES").is_some() {
+        for (c, floor) in &pool {
+            eprintln!("candidate\t{}\t{}\t{}\t{}\t{floor}", c.position.x, c.position.y, c.position.z, c.yaw);
+        }
+    }
     let (points, moved_down) = refill(slots, fresh);
     for (id, from) in moved_down {
         eprintln!("{TRAINING_FFA}: no place is left for id {id}: point {from} takes it, where it stands");
     }
-    Ok(points)
+    for (id, (c, floor)) in points.iter().enumerate() {
+        if let (Floor::Raised(raised), Some(node)) = (floor, ffa.grid.locate(c.position, 0.6)) {
+            eprintln!("{TRAINING_FFA}: point {id} on {raised}, down {}", descent.way(&ffa.grid, node));
+        }
+    }
+    Ok(points
+        .into_iter()
+        .map(|(c, floor)| (c, format!("{TRAINING_REASON}; {floor}")))
+        .collect())
 }
 
 fn run() -> Result<(), String> {
@@ -472,11 +620,11 @@ fn run() -> Result<(), String> {
         } else {
             generate(&map, &mut plot)?
         };
-        for (i, (c, note)) in points.iter().enumerate() {
+        for (i, (c, reason)) in points.iter().enumerate() {
             fit(&map, c).map_err(|why| format!("{project}: point {i} {why}"))?;
             let p = c.position;
             println!(
-                "{project}\tported_{i:02}\t{}\t{}\t{}\t0\t{}\t0\t30\t2\tkept\t\t{REASON}{note}",
+                "{project}\tported_{i:02}\t{}\t{}\t{}\t0\t{}\t0\t30\t2\tkept\t\t{reason}",
                 p.x, p.y, p.z, c.yaw
             );
         }
@@ -549,9 +697,24 @@ mod tests {
         assert_eq!(refill(vec![Some('a')], ['x']), (vec!['a'], vec![]));
     }
     #[test]
-    fn a_new_place_says_where_it_went() {
-        assert!(moved_note(Vec3::new(51.0, -0.75, 18.0)).ends_with("fence, spacing in 3D from islands"));
-        assert!(moved_note(Vec3::new(0.0, 23.0, 3.0)).contains("raised island west"));
+    fn the_ground_points_that_stay_are_the_farthest_apart() {
+        let at = |x: f32, z: f32| Candidate { position: Vec3::new(x, 0.0, z), yaw: 0.0 };
+        // A 30 x 40 m rectangle's corners and its middle: the diagonal, and the first one on a tie.
+        let points = [at(0.0, 0.0), at(30.0, 0.0), at(15.0, 20.0), at(0.0, 40.0), at(30.0, 40.0)];
+        assert_eq!(spread(&points, 2), vec![0, 4]);
+        // Three: that diagonal and a third corner, 30 m apart at the least (the first on a tie).
+        assert_eq!(spread(&points, 3), vec![0, 1, 4]);
+        assert_eq!(spread(&points, 1), vec![0]);
+        assert_eq!(spread(&points, 9), vec![0, 1, 2, 3, 4]);
+        assert!(spread(&points, 0).is_empty() && spread(&[], 2).is_empty());
+    }
+    #[test]
+    fn a_row_says_what_its_point_stands_on() {
+        assert_eq!(Floor::Ground.to_string(), "ground inside the fence");
+        let on = |raised| Floor::Raised(raised).to_string();
+        assert_eq!(on(arena::Raised::Island("west")), "raised island west, way down on foot");
+        assert_eq!(on(arena::Raised::Stairs("east")), "stairs of tower east, way down on foot");
+        assert_eq!(on(arena::Raised::Cabin("east_upper")), "cabin east_upper, way down on foot");
     }
     #[test]
     fn a_map_too_small_for_safe_spacing_is_refused() {
