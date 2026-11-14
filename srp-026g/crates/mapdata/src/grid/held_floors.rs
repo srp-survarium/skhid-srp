@@ -11,7 +11,7 @@
 //!
 //! The rule:
 //! 1. A floor at an edge (a side with no Walk link) is kept only where the client's walk tick holds a standing body: set on its
-//!    centre ([`super::rest_floors::rests_at`]: out of the walls, 1 cm/s down, 1 s, no keys) it rests on the ground no more than
+//!    centre ([`super::rest_floors::rests_at`]: out of the walls, 1 cm/s down, no keys, until still) it rests on the ground no more than
 //!    a step (`Body::step`, `cc_step_height`) under the floor. A floor no body stays on is our grid's only, no client's place.
 //! 2. The way down stays, as one drop: from each kept floor that had a link onto a taken one, the client's body walked at the
 //!    taken floor ([`super::drop_check::walk_drop`]) comes to stand on a floor lower down; the take-off gets an off-mesh drop

@@ -16,8 +16,8 @@
 //! A taken floor comes back when all hold:
 //! - no floor the erosion kept is within the capsule's radius across and [`NAME_HEIGHT_M`] of its centre;
 //! - the client's walk tick rests a standing body there: set on its centre out of the walls, falling at 1 cm/s so its first
-//!   step runs (as [`super::wall_give_back::stands`] sets it, A364 C2 row 45), 1 s with no keys, the body is on the ground
-//!   (`on_ground` 0x7EF90) with its feet within the radius across and [`NAME_HEIGHT_M`] of the centre;
+//!   step runs (as [`super::wall_give_back::stands`] sets it, A364 C2 row 45), with no keys until it stands still on the ground
+//!   (`on_ground` 0x7EF90; [`rests_at`]), its feet within the radius across and [`NAME_HEIGHT_M`] of the centre;
 //! - no floor the erosion kept is within the radius across and [`NAME_HEIGHT_M`] of where it rests either.
 //!
 //! It comes back as a floor like any other (its links as the cells made them), before the passes that read the floors (the gap
@@ -32,24 +32,35 @@ use crate::controller::Collision;
 pub const NAME_HEIGHT_M: f32 = 0.2;
 /// The client's step, s (0x9CC878; every step of the traces is 50 ms).
 const DT: f32 = 0.05;
-/// The rest test's steps (1 s of the client's, as the give-back's stand test).
-const REST_STEPS: usize = 20;
+/// The most steps the rest test runs (2 s: A385's settle, `controller::jump`'s `SETTLE_STEPS_MAX`) …
+const REST_STEPS_MAX: usize = 40;
+/// … until the body has been on the ground with its feet moving under a millimetre a step for this many steps in a row (a body
+/// sliding off a broken edge is still moving after 1 s: Chemical Plant's slab, owner-5 `cp-two-falls-rootcause.md` 1.3). Our
+/// choice: the bound of the test, not a client value.
+const STILL_STEPS: usize = 4;
 /// The test body is set this far over the floor, m, falling at [`FALL_MPS`], so its first step runs (`can_skip_player_step`
 /// 0x7C7E0 skips a body set with no speed: [`super::wall_give_back`]).
 const LIFT_M: f32 = 0.005;
 /// See [`LIFT_M`], m/s.
 const FALL_MPS: f32 = 0.01;
 
-/// Where the client's walk tick rests a standing body set at `feet` (module documentation), when it is on the ground then.
+/// Where the client's walk tick rests a standing body set at `feet` (module documentation): its feet once it has stood still on
+/// the ground [`STILL_STEPS`] steps in a row; None when it has not within [`REST_STEPS_MAX`] (it falls, slides on).
 pub(super) fn rests_at(world: &Collision, s: &Settings, feet: Vec3) -> Option<Vec3> {
     let start = out_of_walls(world, feet);
     let mut body = Controller::standing_at(start + Vec3::new(0.0, LIFT_M, 0.0));
     body.velocity = Vec3::new(0.0, -FALL_MPS, 0.0);
     let still = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting: false };
-    for _ in 0..REST_STEPS {
+    let mut run = 0;
+    for _ in 0..REST_STEPS_MAX {
+        let before = body.feet();
         body.tick(world, DT, s, still);
+        run = if !body.jumping && body.on_ground(s) && (body.feet() - before).length() < 1e-3 { run + 1 } else { 0 };
+        if run >= STILL_STEPS {
+            return Some(body.feet());
+        }
     }
-    (!body.jumping && body.on_ground(s)).then(|| body.feet())
+    None
 }
 
 impl WalkGrid {
