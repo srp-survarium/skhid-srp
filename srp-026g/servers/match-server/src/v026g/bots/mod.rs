@@ -1780,8 +1780,12 @@ impl Bots {
             {
                 // [owner-5 R4] The route's word on it: planned by a drop at that edge or the model going down it, and
                 // the route's next link.
+                // [A388] And both bodies' word on the edge at the world before it (decision-neutral).
                 let fall = match world.as_deref() {
-                    Some(world) => fall.of_route(&world.grid, bot.route.as_ref().map(|(route, _)| route)),
+                    Some(world) => {
+                        let edge = nav_log::EdgeWord::at(&world.grid, fall.from, None);
+                        nav_log::Fall { edge: Some(edge), ..fall.of_route(&world.grid, bot.route.as_ref().map(|(route, _)| route)) }
+                    }
                     None => fall,
                 };
                 bot.nav_log.push(nav_log::Kind::Fall, time, fall.line());
@@ -1932,11 +1936,22 @@ impl Bots {
             if let Some(b) = beside.filter(|b| b.distance_m <= stuck::BESIDE_M) {
                 stuck::fix_gaps::count(if b.enemy { 4 } else { 5 });
             }
+            // [A388] At a lip, both bodies' word on the edge there: the grid's hold, the walker's ground and the kept controller's last
+            // step (decision-neutral).
+            let edge_text = self
+                .tactics
+                .as_ref()
+                .map(|tactics| &tactics.world.grid)
+                .filter(|grid| grid.locate(feet, 1.0).is_some_and(|node| grid.near_lip(node) || grid.is_lip(node)))
+                .map_or(String::new(), |grid| {
+                    let kept = self.tracker.body(place).and_then(|body| body.estimate()).and_then(|at| at.kept);
+                    format!(" (at a lip, {})", nav_log::EdgeWord::at(grid, feet, kept.map(|kept| kept.airborne())))
+                });
             bot.note(
                 &mut notes,
                 time,
                 format!(
-                    "is stuck at {:?}: {recovery:?}{}{}{}{}{}",
+                    "is stuck at {:?}: {recovery:?}{}{}{}{}{}{edge_text}",
                     feet.to_array(),
                     if by_keys {
                         " (walk keys held, the body still)"
@@ -2138,7 +2153,19 @@ impl Bots {
     /// A294: the match-end lines of the bots' drift (`nav_drift::report`).
     pub fn drift_report(&self) -> Vec<String> {
         let tallies: Vec<(usize, &nav_drift::Tally)> = self.bots.iter().flatten().map(|bot| (bot.place, &bot.drift)).collect();
-        nav_drift::report(&tallies)
+        let mut lines = nav_drift::report(&tallies);
+        // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
+        // time a step took.
+        let (steps, ns) = body::kept_clock::take();
+        let (left, ground, held) = body::kept_edges::take();
+        lines.push(format!(
+            "{}kept controller steps since the last match end (every match on this server): {steps}, {} ns a step, {:.1} ms in all;              off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}",
+            nav_log::PREFIX,
+            ns.checked_div(steps).unwrap_or(0),
+            ns as f64 / 1e6,
+            left + ground + held
+        ));
+        lines
     }
 
     /// A285: `index`'s falls and route jumps since the last poll, as its notes (`nav_log.rs`). Called by [`Self::poll`] and the

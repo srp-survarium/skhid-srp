@@ -325,6 +325,15 @@ pub(crate) fn stand_in_slow_fall() -> bool {
 /// lands on a walkway 1.5 m ahead of it (J0 g2a at Chemical Plant's pedestrian bridge: 7 of 7 walk-offs on the walkway, PROVEN), where the
 /// stand-in puts the body on the floor straight below the edge in one tick ([`past_edge`], or a walk along a Drop link). Off: as before
 /// (the benches before it became the default, 2026-11-02, before A93, are comparable only with it off).
+/// [A388 step 2] Whether a stand-in body's kept controller ([`stand_in_kept`]) that leaves the ground takes the body off its floor
+/// there (`SRP_BENCH_STAND_IN_KEPT_EDGE`, on unless `off`): the client's capsule leaves a ledge where its `step_down` (0x7E1B0) finds
+/// no ground within the step, which the lattice's hold to `body::SUPPORT_M` past a floor's centre passes by a median 0.26 m (falls
+/// report R4, the exe's tick at its two largest spots).
+pub(crate) fn stand_in_kept_edge() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_KEPT_EDGE").map_or(true, |v| v != "off"))
+}
+
 pub(crate) fn stand_in_walk_off() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_WALKOFF").map_or(true, |v| v != "off"))
