@@ -13,7 +13,8 @@ The owner's rules of 2026-11-14. Code: the lobby movie, `InventoryList.duplicate
 - **Kept copies:** one a loadout uses, a worn cosmetic, an item wearing a cosmetic or a scope. An item
   none of whose copies is kept keeps the copy of the highest rank.
 - **Never sold:**
-  - stacks (ammo, consumables);
+  - ammo, of any kind;
+  - stacks (consumables);
   - golden items (golden weapons, premium armour): golden copies of different rolls suit different
     play;
   - the plain copies of a weapon that has a golden version, while no golden one of it is owned (they

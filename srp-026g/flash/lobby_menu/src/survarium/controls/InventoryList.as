@@ -595,7 +595,7 @@ package survarium.controls
       // The items Sell duplicates sells (the owner, 2026-11-14; docs/notes/sell-duplicates.md): of
       // each item, every copy past the ones kept. Kept: a copy a loadout uses, a worn cosmetic, an
       // item wearing one; of an item with none of these, the copy of the highest rank. Never sold:
-      // stacks, golden items (golden ones of different rolls suit different play), and the plain
+      // stacks, ammo, golden items (golden ones of different rolls suit different play), and the plain
       // copies of a weapon with a golden version while no golden one of it is owned.
       public function duplicates() : Array
       {
@@ -616,7 +616,7 @@ package survarium.controls
          var copiesOf:Object = {};
          for each(item in this._inventoryItems)
          {
-            if(item.isStack || ItemFactory.isGolden(item.dictId) || ItemDictId.GOLDEN_PLAIN.indexOf(item.dictId) != -1 && !goldenOwned[item.dictId])
+            if(item.isStack || item.superCategory == SuperCategory.AMMO || ItemFactory.isGolden(item.dictId) || ItemDictId.GOLDEN_PLAIN.indexOf(item.dictId) != -1 && !goldenOwned[item.dictId])
             {
                continue;
             }
