@@ -401,8 +401,8 @@ pub(crate) struct Body {
     pub(crate) past_edge_down: Option<u32>,
     /// The speed of the slide off steep ground it is on, m/s ([`standin_slide`], `SRP_BENCH_STAND_IN_SLIDE=on`); none: not sliding.
     pub(crate) slide_mps: Option<f32>,
-    /// The leg pools (0.5 full), until when an empty one is broken, and
-    /// the last hit's tick (0: none this life), [`STAND_IN_LEG_SHARE`].
+    /// The leg pools (0.5 full; a hip's or a foot's hit takes its share, `standin_damage::wound_leg`), until when an empty
+    /// one is broken (no jump at all, PROVEN), and the last hit's tick (0: none this life).
     pub(crate) legs: [f32; 2],
     pub(crate) leg_broken_until: u32,
     pub(crate) last_hit: u32,
@@ -492,16 +492,6 @@ pub(crate) const NUDGE_EVERY_MS: u32 = 20_000;
 /// (`Game::taken_killed`), ms.
 pub(crate) const TAKEN_KILLED_MS: u32 = 3_000;
 
-/// A stand-in body's legs: one hit in this many lands on a leg [GUESS: the
-/// hip and foot zones], taking [`STAND_IN_LEG_HIT`] of its pool (0.5 full;
-/// one or two rifle hits empty one, LIKELY, sprint-jump RE `FINDINGS.md`
-/// §1.8). An empty pool breaks the leg: no jump at all for
-/// [`STAND_IN_LEG_BROKEN_MS`] (PROVEN), then it is whole (the game mends
-/// it slowly).
-pub(crate) const STAND_IN_LEG_SHARE: u32 = 4;
-
-pub(crate) const STAND_IN_LEG_HIT: f32 = 0.25;
-
 /// How long a broken leg lasts: game data, `gameplay/hit_params/human_hit_params.options` `affect_duration_sec/leg_damage`
 /// = 8 (s; the affect `leg_damage` 4 of `hit_affects_type_enum`). The live worlds agree (141 broken-leg stretches, most 8.0-8.1 s,
 /// sprint-jump RE `FINDINGS.md` §1.8): a check, not the source.
@@ -528,17 +518,6 @@ pub(crate) fn stand_in_sprint_gates() -> bool {
 pub(crate) const STAND_IN_STAGGER: f32 = 0.75;
 
 pub(crate) const STAND_IN_STAGGER_MS: u32 = 500;
-
-/// The leg a hit of `shooter` on `target` at `tick` lands on, if any
-/// ([`STAND_IN_LEG_SHARE`]): a hash, so the game's draws are not moved.
-pub(crate) fn stand_in_leg_hit(tick: u32, shooter: Place, target: Place) -> Option<usize> {
-    let from = (shooter as u32).wrapping_mul(0x85EB_CA6B);
-    let to = (target as u32).wrapping_mul(0x9E37_79B9);
-    let h = (tick ^ from ^ to).wrapping_mul(0xC2B2_AE35);
-    let h = h ^ (h >> 16);
-    let leg = ((h >> 8) & 1) as usize;
-    h.is_multiple_of(STAND_IN_LEG_SHARE).then_some(leg)
-}
 
 /// The stand-in game.
 pub(crate) struct Game {
@@ -2202,16 +2181,6 @@ impl Game {
         other.stamina.hit(stamina);
         other.last_hit = tick;
         other.stagger.hit(tick, standin_stagger::power_of(&self.damage, gun));
-        if let Some(leg) = stand_in_leg_hit(tick, shooter, target) {
-            other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
-            if other.legs[leg] <= 0.0 && other.leg_broken_until == 0 {
-                other.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
-            } else if other.leg_broken_until > tick {
-                // [F12] A wound is held the leg's regeneration delay past its last damaging hit (the client's tick, 0x32A551).
-                let delay = crate::v026g::bots::legs::regeneration_delay_ms(other.heal.factors.regeneration_sooner_ms);
-                other.leg_broken_until = other.leg_broken_until.max(tick + delay);
-            }
-        }
         self.settle(shooter, target, team_hit, pain_before, tick);
     }
 
@@ -2260,18 +2229,6 @@ impl Game {
             other.last_hit = tick;
             // Every pellet that landed is a bullet of its own.
             other.stagger.hit(tick, standin_stagger::power_of(&self.damage, gun) * landed.len() as f32);
-            for leg in [0, 1] {
-                if landed.iter().any(|(param, ..)| param.leg() == Some(leg)) {
-                    other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
-                    if other.legs[leg] <= 0.0 && other.leg_broken_until == 0 {
-                        other.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
-                    } else if other.leg_broken_until > tick {
-                        // [F12] A wound is held the leg's regeneration delay past its last damaging hit (the client's tick, 0x32A551).
-                        let delay = crate::v026g::bots::legs::regeneration_delay_ms(other.heal.factors.regeneration_sooner_ms);
-                        other.leg_broken_until = other.leg_broken_until.max(tick + delay);
-                    }
-                }
-            }
             let was_alive = self.bodies[target].alive;
             self.settle(shooter, target, team_hit, pain_before, tick);
             if through_cover && !team_hit && was_alive && !self.bodies[target].alive {

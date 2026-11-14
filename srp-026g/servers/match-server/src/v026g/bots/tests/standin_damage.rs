@@ -23,8 +23,9 @@
 //!   shooter's weapon class and then a box of the part by chance ([`hit`]);
 //! - the pools: the box's `bdb_coeff` of the damage after armour taken from
 //!   `body` (the body's `health`), `head` and `pain` ([`Pools`]); a pool at 0
-//!   kills. The leg and hand pools do not kill and the stand-in's own leg
-//!   model ([`stand_in_leg_hit`]) keeps handling the legs.
+//!   kills. [G24] The legs too: a hip or a foot gives its leg's pool
+//!   (`right_leg`, `left_leg`, 0.5 full) its share ([`wound_leg`]); an empty
+//!   one breaks the leg. The hand pools are not modelled.
 //!
 //! The pools regenerate ([`regenerate`], [`Pools`]). Not modelled: a bullet
 //! that crosses two boxes, the killer's spawn protection.
@@ -38,7 +39,7 @@ use crate::v026g::bots::guns::{Gun, WeaponClass};
 use crate::v026g::bots::rng::Rng;
 
 use super::standin_hitbox::HitParam;
-use super::{Body, bench_rusher_kits, bench_settings, bench_tier};
+use super::{Body, STAND_IN_LEG_BROKEN_MS, bench_rusher_kits, bench_settings, bench_tier};
 
 /// The parts a hit lands on, as the live matches show it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -449,21 +450,71 @@ pub(crate) fn regeneration_scale(kit: Option<&RoleGear>, mask: Option<Mask>) -> 
 
 /// What one pellet or bullet of the hit does to `pools`: `(body, head,
 /// pain)` taken, from the box's feeds after the box's armour.
-fn pools_taken(body: &BodyParams, hit_box: &str, amount: f32, arp: f32, armor: f32) -> [f32; 3] {
+/// What one hit on a box takes from each pool the stand-in keeps: the box's `bdb_coeff` to the pool times the damage after
+/// the box's armour ([`damage::after_armour`]; `damage_model.md`: a hip or a foot gives its leg x 1, PROVEN).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Taken {
+    body: f32,
+    head: f32,
+    pain: f32,
+    /// [G24] The right leg's pool and the left's (the stand-in's `legs[0]` and `legs[1]`, as `HitParam::leg`).
+    legs: [f32; 2],
+}
+
+fn pools_taken(body: &BodyParams, hit_box: &str, amount: f32, arp: f32, armor: f32) -> Taken {
     let delta = damage::after_armour(amount, arp, armor);
-    let mut taken = [0.0; 3];
+    let mut taken = Taken::default();
     if let Some(part) = body.part(hit_box) {
         for (pool, c) in &part.feeds {
             let slot = match pool.as_str() {
-                "body" => 0,
-                "head" => 1,
-                "pain" => 2,
+                "body" => &mut taken.body,
+                "head" => &mut taken.head,
+                "pain" => &mut taken.pain,
+                "right_leg" => &mut taken.legs[0],
+                "left_leg" => &mut taken.legs[1],
                 _ => continue,
             };
-            taken[slot] += c * delta;
+            *slot += c * delta;
         }
     }
     taken
+}
+
+/// One box's hit taken off `target`'s pools ([`pools_taken`]).
+fn take(target: &mut Body, taken: Taken, hit_box: &str, now: u32) {
+    target.health -= taken.body;
+    for (pool, amount) in [(Pool::Head, taken.head), (Pool::Pain, taken.pain)] {
+        if amount > 0.0 {
+            target.pools.hurt(pool, amount, now);
+        }
+    }
+    for (leg, amount) in taken.legs.into_iter().enumerate() {
+        if amount > 0.0 {
+            wound_leg(target, leg, amount, hit_box, now);
+        }
+    }
+}
+
+/// [G24] `target`'s leg `leg` (0 right, 1 left) loses `amount` of its pool (0.5 full), its box's share of a hit after armour
+/// ([`pools_taken`]). Before, every leg hit took a flat 0.25 (`STAND_IN_LEG_HIT`, "one or two rifle hits empty one", LIKELY)
+/// whatever the weapon, the distance and the armour, and the leg was drawn one hit in four apart from the box. An empty pool
+/// breaks the leg for [`STAND_IN_LEG_BROKEN_MS`] (the game's `leg_damage` affect); [F12] a broken leg's wound is held the
+/// leg's regeneration delay past its last damaging hit (the client's tick, 0x32A551).
+pub(crate) fn wound_leg(target: &mut Body, leg: usize, amount: f32, hit_box: &str, now: u32) {
+    target.legs[leg] = (target.legs[leg] - amount).max(0.0);
+    let broke = target.legs[leg] <= 0.0 && target.leg_broken_until == 0;
+    if broke {
+        target.leg_broken_until = now + STAND_IN_LEG_BROKEN_MS;
+    } else if target.leg_broken_until > now {
+        let delay = crate::v026g::bots::legs::regeneration_delay_ms(target.heal.factors.regeneration_sooner_ms);
+        target.leg_broken_until = target.leg_broken_until.max(now + delay);
+    }
+    log::debug!(
+        "stand-in leg wound at {now} ms: {} leg -{amount:.3} on {hit_box}, {:.3} of 0.5 left{}",
+        if leg == 0 { "right" } else { "left" },
+        target.legs[leg],
+        if broke { ", broken" } else { "" }
+    );
 }
 
 /// One hit of `shooter_gun` at `distance` metres on `target`: takes the
@@ -500,19 +551,8 @@ pub(crate) fn hit(
         let part = part_for(class, rng.unit());
         let boxes = part.boxes();
         let hit_box = boxes[rng.below(boxes.len())];
-        let [on_body, on_head, on_pain] = pools_taken(
-            body,
-            hit_box,
-            bullet.damage,
-            bullet.arp,
-            armour_on_masked(worn, model.mask, hit_box),
-        );
-        target.health -= on_body;
-        for (pool, taken) in [(Pool::Head, on_head), (Pool::Pain, on_pain)] {
-            if taken > 0.0 {
-                target.pools.hurt(pool, taken, now);
-            }
-        }
+        let taken = pools_taken(body, hit_box, bullet.damage, bullet.arp, armour_on_masked(worn, model.mask, hit_box));
+        take(target, taken, hit_box, now);
     }
     if target.pools.dead() {
         target.health = target.health.min(0.0);
@@ -570,19 +610,8 @@ pub(crate) fn hit_boxes(
     let body = damage::human();
     for &(param, load) in landed {
         let hit_box = param.name();
-        let [on_body, on_head, on_pain] = pools_taken(
-            body,
-            hit_box,
-            load.damage,
-            load.pierce,
-            armour_on_masked(worn, model.mask, hit_box),
-        );
-        target.health -= on_body;
-        for (pool, taken) in [(Pool::Head, on_head), (Pool::Pain, on_pain)] {
-            if taken > 0.0 {
-                target.pools.hurt(pool, taken, now);
-            }
-        }
+        let taken = pools_taken(body, hit_box, load.damage, load.pierce, armour_on_masked(worn, model.mask, hit_box));
+        take(target, taken, hit_box, now);
     }
     if target.pools.dead() {
         target.health = target.health.min(0.0);
@@ -646,9 +675,9 @@ mod tests {
             bullet.arp,
             armour_on(kit_of(tier, RusherKit::Control, target_gun), hit_box),
         );
-        body.health -= taken[0];
-        body.pools.head -= taken[1];
-        body.pools.pain -= taken[2];
+        body.health -= taken.body;
+        body.pools.head -= taken.head;
+        body.pools.pain -= taken.pain;
         (body.health, body.pools)
     }
 
@@ -879,7 +908,7 @@ mod tests {
         let mut hits = 0;
         while body.health > 1e-3 && hits < 100 {
             let taken = pools_taken(damage::human(), "front", delta, 0.0, 0.0);
-            body.health -= taken[0];
+            body.health -= taken.body;
             hits += 1;
         }
         assert_eq!(hits, (1.0 / delta).ceil() as i32, "{delta}");
