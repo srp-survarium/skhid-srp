@@ -76,11 +76,11 @@ fn chemical_plant_neck_stage_by_stage() {
     let open_reach = reach(&|_| true);
     println!("2 regions ({} of them): start region {start}, goal region {goal}: reach with the zones shut {shut_reach}, with all open {open_reach}", regions.len());
     // 3. only_across_fixed and wanted
-    let across = tactics.only_across_fixed(from, to, side, false, |m| crossing::crossable(&tactics, m, &crossing::CrossBody::old(1.0)));
-    println!("3 only_across_fixed {across}; wanted {}", crossing::wanted(&tactics, None, from, to, side, false, &crossing::CrossBody::old(1.0)));
+    let across = tactics.only_across_fixed(from, to, side, false, |m| crossing::crossable(&tactics, m, &crossing::tests::fixture(1.0)));
+    println!("3 only_across_fixed {across}; wanted {}", crossing::wanted(&tactics, None, from, to, side, false, &crossing::tests::fixture(1.0)));
     // 4. the crossing search
     let mut floors = usize::MAX;
-    let crossed = crossing::start(&tactics, from, to, 0, side, false, &crossing::CrossBody::old(1.0), &RouteFilter::open(), &mut floors);
+    let crossed = crossing::start(&tactics, from, to, 0, side, false, &crossing::tests::fixture(1.0), &RouteFilter::open(), &mut floors);
     println!("4 crossing search: {}", match crossed { Ok(Some(r)) => format!("a route of {:.1} m", r.length()), Ok(None) => "NO WAY".to_owned(), Err(_) => "unfinished".to_owned() });
     println!("  floors expanded: {}", usize::MAX - floors);
 }
@@ -120,7 +120,7 @@ fn vostok_carriers_stage_by_stage() {
                 let plain = tactics.route_nodes(from, to, time, side, false, &RouteFilter::open());
                 let open = path::plan_where(grid, from, to, |n| tactics.spawn_ok(n, side, false));
                 let mut floors = usize::MAX;
-                let crossed = crossing::start(&tactics, from, to, time, side, false, &crossing::CrossBody::old(1.0), &RouteFilter::open(), &mut floors);
+                let crossed = crossing::start(&tactics, from, to, time, side, false, &crossing::tests::fixture(1.0), &RouteFilter::open(), &mut floors);
                 let shut = open.as_ref().map_or(0, |r| r.points().iter().filter(|w| !tactics.allowed(w.node, time, side, false)).count());
                 println!(
                     "from ({:.1},{:.1},{:.1}) t {time}: plain {}; open-but-spawns {}, its corners shut at t: {shut}; crossing {}; wanted {}",
@@ -128,7 +128,7 @@ fn vostok_carriers_stage_by_stage() {
                     plain.as_ref().map_or("NO WAY".to_owned(), |r| format!("{:.0} m", r.length())),
                     open.as_ref().map_or("none".to_owned(), |r| format!("{:.0} m", r.length())),
                     match crossed { Ok(Some(r)) => format!("{:.0} m", r.length()), Ok(None) => "NO WAY".to_owned(), Err(_) => "unfinished".to_owned() },
-                    crossing::wanted(&tactics, plain.as_ref(), from, to, side, false, &crossing::CrossBody::old(1.0)),
+                    crossing::wanted(&tactics, plain.as_ref(), from, to, side, false, &crossing::tests::fixture(1.0)),
                 );
             }
         }

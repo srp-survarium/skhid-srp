@@ -19,7 +19,7 @@
 //!   (`stuck::worth_round`);
 //! - else, from a patch such zones ring (`Tactics::ringed`), the route is
 //!   walked only to the first floor past the ring, toward the goal, when that
-//!   leaves the bot at least `collect::CROSS_ABORT_LEFT` (the walk out of a
+//!   leaves the bot at least the spend rows' give-up (`ZoneSpend::give_up_left`) (the walk out of a
 //!   battery's zone); from there it plans as ever.
 //!
 //! A route taken is a crossing for the motor (`Bot::crossing`): it is not
@@ -41,7 +41,7 @@ use mapdata::{NodeId, Vec3};
 use super::features::{Feature, Life};
 use super::path::{self, Route};
 use super::route_filter::RouteFilter;
-use super::plays::collect::{CROSS_ABORT_LEFT, CROSS_LEFT, CROSS_MPS, CROSS_SHARE, CROSS_STEP_M};
+use super::plays::collect::{CROSS_MPS, CROSS_STEP_M};
 use super::stuck;
 use super::tactics::Tactics;
 use super::zone_cost::{Budget, Cost, ZoneArmour};
@@ -78,7 +78,7 @@ pub struct Second {
 /// [zone price] The body a crossing is weighed for: its zone budget (`zone_cost::Budget`: the pools that kill and the
 /// armour a zone's hit is worked out with, the offer's own, `Ctx::budget`), and the spend its walk may take (`share` of
 /// each pool at most, leaving `left`) and where a walk inside gives up (`give_up_left`): with `take.zone_take` the
-/// battery's class's (`ZoneSpend::spend`, the live humans' rows), else the old 0.5 / 0.4 / 0.25 ([`Self::old`]).
+/// battery's class's (`ZoneSpend::spend`, the live humans' rows: `take.zone_take`'s, else the default rows).
 #[derive(Clone, Debug, PartialEq)]
 pub struct CrossBody {
     pub budget: Budget,
@@ -88,10 +88,13 @@ pub struct CrossBody {
 }
 
 impl CrossBody {
-    /// The rule before the spend's classes ([`CROSS_SHARE`], [`CROSS_LEFT`], [`CROSS_ABORT_LEFT`]), the raw hit in the
-    /// body pool of `health`.
-    pub fn old(health: f32) -> Self {
-        Self { budget: Budget::raw(health), share: CROSS_SHARE, left: CROSS_LEFT, give_up_left: CROSS_ABORT_LEFT }
+    /// The body a crossing's search alone is made for (`collect::routed_crossing_to`: from the spawn, at full health, the
+    /// raw hit): [`crossable`] reads only its give-up, the default rows' ([`ZoneSpend`](super::tuning::ZoneSpend)); its
+    /// share and reserve are the last batteries' row, the most generous of a take's.
+    pub fn searched() -> Self {
+        let rows = super::tuning::ZoneSpend::default();
+        let spend = rows.spend(super::tuning::ZoneErrand::Take { outside: 0 });
+        Self { budget: Budget::raw(1.0), share: spend.share, left: spend.left, give_up_left: rows.give_up_left }
     }
 
     /// `me`'s body now, by `tuning`'s rule: its zone budget (`Budget::of_bot`: its pools `pools` and its armour
@@ -105,13 +108,9 @@ impl CrossBody {
         armour: &std::sync::Arc<ZoneArmour>,
     ) -> Self {
         let budget = Budget::of_bot(tuning.hazard.zone_pools, me.health, pools, armour);
-        match tuning.take.zone_take {
-            Some(rule) => {
-                let spend = rule.spend.spend(super::plays::collect::zone_errand(view, me));
-                Self { budget, share: spend.share, left: spend.left, give_up_left: rule.spend.give_up_left }
-            }
-            None => Self { budget, ..Self::old(me.health) },
-        }
+        let rows = super::plays::collect::zone_spend_rows(tuning);
+        let spend = rows.spend(super::plays::collect::zone_errand(view, me));
+        Self { budget, share: spend.share, left: spend.left, give_up_left: rows.give_up_left }
     }
 
     /// The body pool (the health the old rules read).
@@ -138,7 +137,7 @@ impl CrossBody {
 /// Whether a crossing's search lets a bot of `health` onto floor `node`:
 /// only zones on all match mark it (`Hazards::only_fixed_at`), and a walk
 /// across them at their thinnest (the marks' margin each side) leaves it at
-/// least [`CROSS_ABORT_LEFT`], the walk out of a ring's test. Zones that kill
+/// least its give-up (`CrossBody::give_up_left`), the walk out of a ring's test. Zones that kill
 /// in a few metres (Vostok Radar Station's and Cologne's 1.2 a second) stay
 /// shut, and so does the margin's band round them (the gate is the zone's full hit, not what a body there loses,
 /// `Hazards::hurt_per_s`: a drift into a lethal zone is not crossed for); whether a route over the floors let through
@@ -305,11 +304,11 @@ pub fn resume(
 /// in zones that left a bot under 0.6 health began under 0.7 (C: 10 such
 /// stretches in all); 23 began within 3 s of an enemy's hit. GUESS: at
 /// 0.7 the dearest crossing borne (half the health) leaves 0.35, over the
-/// abort's `CROSS_ABORT_LEFT`.
+/// abort's its give-up.
 pub const START_HEALTH: f32 = 0.7;
 
 /// Whether a crossing walked `walked` m along `route` still leaves a bot
-/// of `health` [`CROSS_ABORT_LEFT`] over the rest of its zones at
+/// of `health` its give-up (`CrossBody::give_up_left`) over the rest of its zones at
 /// [`CROSS_MPS`], a carrier's crossing's abort (`collect`). Hurt in a fight
 /// or held up in the zone, it stops crossing (`mod.rs`), and the escape
 /// walks it out (`Tactics::escape`). The bench (seeds 1-8, zone damage on):
@@ -368,7 +367,7 @@ pub fn choose(
 /// ([`Tactics::ringed`]): `crossed` up to the first floor past the ring that
 /// it may walk on with every floor next to it (clear of the zone's edge, as
 /// `Tactics::escape`'s ways out), if that walk leaves a bot of `health` at
-/// least [`CROSS_ABORT_LEFT`].
+/// least its give-up (`CrossBody::give_up_left`).
 fn out_of_ring(
     tactics: &Tactics,
     from: NodeId,
@@ -508,7 +507,13 @@ impl Feature for BotState {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
+    /// The body these checks were written for: the raw hit in the body pool of `health`, a share of 0.5 and a reserve of
+    /// 0.4, giving up under 0.25 (a fixture: the bots go by `ZoneSpend`, `CrossBody::of`).
+    pub(crate) fn fixture(health: f32) -> CrossBody {
+        CrossBody { budget: Budget::raw(health), share: 0.5, left: 0.4, give_up_left: 0.25 }
+    }
+
     use mapdata::{Rotation, Shape, ShapeKind, Vec3, Zone, ZoneKind};
 
     use super::*;
@@ -559,7 +564,7 @@ mod tests {
 
     /// The plain search, then the crossing's, as the motor makes them.
     fn plan(tactics: &Tactics, from: Vec3, to: Vec3, health: f32) -> (Option<Route>, bool) {
-        let body = &CrossBody::old(health);
+        let body = &fixture(health);
         let grid = &tactics.world.grid;
         let (a, b) = (grid.locate(from, 1.5).unwrap(), grid.locate(to, 1.5).unwrap());
         let plain = tactics.route_nodes(a, b, 0, Some(0), false, &RouteFilter::open());
@@ -601,7 +606,7 @@ mod tests {
         let deadly = tactics(1.2, 0.0);
         let grid = &deadly.world.grid;
         let mid = grid.locate(Vec3::new(40.0, 0.0, 32.5), 1.5).unwrap();
-        assert!(!crossable(&deadly, mid, &CrossBody::old(1.0)));
+        assert!(!crossable(&deadly, mid, &fixture(1.0)));
     }
 
     /// [take.cross_from_zone] From a floor inside a zone on all match (a body that stepped in by its crossing's edge) a failed
@@ -620,7 +625,7 @@ mod tests {
             assert!(!wanted_from_zone(&weak, Some(&plain), mid, east), "a plain way is kept");
         }
         let mut iters = usize::MAX;
-        let Ok(crossed) = start(&weak, mid, east, 0, Some(0), false, &CrossBody::old(1.0), &RouteFilter::open(), &mut iters) else {
+        let Ok(crossed) = start(&weak, mid, east, 0, Some(0), false, &fixture(1.0), &RouteFilter::open(), &mut iters) else {
             panic!("an unbounded search ends");
         };
         assert!(crossed.is_some(), "from the zone floor the crossing's search finds the way");
@@ -639,23 +644,23 @@ mod tests {
             });
             let tactics = Tactics::new(world, 1.0);
             let mid = tactics.world.grid.locate(Vec3::new(40.0, 0.0, 32.5), 1.5).unwrap();
-            crossable(&tactics, mid, &CrossBody::old(1.0))
+            crossable(&tactics, mid, &fixture(1.0))
         };
         assert!(gate(1000), "0.8 a second leaves 0.36 after the thinnest walk");
         assert!(!gate(500), "1.6 a second does not");
     }
 
     /// A crossing hurt on the way is stopped once the rest of it would leave
-    /// the bot under `CROSS_ABORT_LEFT`; past the zone it is borne.
+    /// the bot under its give-up; past the zone it is borne.
     #[test]
     fn a_crossing_is_stopped_once_its_rest_would_leave_too_little_health() {
         let weak = tactics(0.04, 0.0);
         let route = plan(&weak, WEST, EAST, 1.0).0.expect("a crossing");
         let cost = hurt(&weak, &route, 0.0, route.length(), None).body;
-        assert!(still_borne(&weak, &route, 0.0, &CrossBody::old(1.0)));
-        let low = CROSS_ABORT_LEFT + cost / 2.0;
-        assert!(!still_borne(&weak, &route, 0.0, &CrossBody::old(low)));
-        assert!(still_borne(&weak, &route, route.length(), &CrossBody::old(low)));
+        assert!(still_borne(&weak, &route, 0.0, &fixture(1.0)));
+        let low = fixture(1.0).give_up_left + cost / 2.0;
+        assert!(!still_borne(&weak, &route, 0.0, &fixture(low)));
+        assert!(still_borne(&weak, &route, route.length(), &fixture(low)));
     }
 
     /// With no zone, the plain route stands and no second search is made.
@@ -666,13 +671,13 @@ mod tests {
         let (a, b) = (grid.locate(WEST, 1.5).unwrap(), grid.locate(EAST, 1.5).unwrap());
         let route = plain.route_nodes(a, b, 0, Some(0), false, &RouteFilter::open());
         assert!(route.is_some());
-        assert!(!wanted(&plain, route.as_ref(), a, b, Some(0), false, &CrossBody::old(1.0)));
+        assert!(!wanted(&plain, route.as_ref(), a, b, Some(0), false, &fixture(1.0)));
     }
 
     /// A bot in a patch ringed by a weak zone on all match (fallen in): out
     /// by its crossing to the goal when it bears it; else, too hurt for that,
     /// only to the first floor past the ring toward the goal, when that walk
-    /// leaves it `CROSS_ABORT_LEFT`; from there it plans as ever.
+    /// leaves it its give-up; from there it plans as ever.
     #[test]
     fn a_bot_ringed_by_a_weak_zone_on_all_match_walks_out_toward_its_goal() {
         let ringed = tactics(0.0, 0.04);

@@ -24,7 +24,7 @@
 
 use super::*;
 use crate::v026g::bots::hazards::HurtTest;
-use crate::v026g::bots::tuning::{RouteCrossing, Spend, ZoneErrand, ZoneTake};
+use crate::v026g::bots::tuning::{RouteCrossing, Spend, ZoneErrand, ZoneSpend, ZoneTake};
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
 use crate::v026g::bots::crossing::START_HEALTH;
 use crate::v026g::bots::view;
@@ -902,16 +902,6 @@ const CROSS_STOP_M: f32 = 1.0;
 /// A take stands this long at the battery, s: the last metre, the aim, up
 /// to two uses `use_every_s` apart. GUESS (the bench's takes, 2-4 s).
 const CROSS_TAKE_S: f32 = 4.0;
-/// A crossing is made only if, in and out and the take, it costs at most
-/// this share of the bot's health...
-pub const CROSS_SHARE: f32 = 0.5;
-/// ... and leaves it at least this. GUESSES: never lethal, the damage is
-/// the zones' hit in the pools that kill; the margin's cushion the share counted once (a crossing priced at the
-/// zone's full hit on the marks' 1 m margin) is gone with `hurt_by_shape`, whose band is priced at the drift's share.
-pub const CROSS_LEFT: f32 = 0.4;
-/// In a zone, a take gives up once the walk back out would leave less
-/// than this, without `take.zone_take` (its own `spend.give_up_left`, 0.15, the humans' 10th percentile). GUESS.
-pub const CROSS_ABORT_LEFT: f32 = 0.25;
 
 /// A walk in a line across zones on all match to a battery no way leads
 /// to (`Ctx::needs_crossing`), from a dry floor a way does lead to; or a
@@ -943,10 +933,10 @@ impl Crossing {
         self.leg + self.leg_out + self.at_per_s * CROSS_TAKE_S
     }
 
-    /// Whether a bot with `budget` makes it: at most [`CROSS_SHARE`] of each pool it takes from, leaving
-    /// [`CROSS_LEFT`] (`crossing::CrossBody::bears` for the body pool alone).
-    pub fn fits(&self, budget: &Budget) -> bool {
-        self.fits_by(budget, self.cost(), CROSS_SHARE, CROSS_LEFT)
+    /// Whether a bot with `budget` makes it at a walk: at most `spend.share` of each pool it takes from, leaving
+    /// `spend.left` (`crossing::CrossBody::bears`).
+    pub fn fits(&self, budget: &Budget, spend: Spend) -> bool {
+        self.fits_by(budget, self.cost(), spend.share, spend.left)
     }
 
     /// [take.zone_take] Whether a bot with `budget` makes it by `rule`: the way in at a sprint (`ZoneTake::in_mps`, the way out
@@ -963,12 +953,12 @@ impl Crossing {
         (cost, spend.share, spend.left)
     }
 
-    /// [owner-5] Why a bot with `budget` does not make it ([`Self::fits`], or [`Self::fits_zone_take`] with `rule`), as the
-    /// log writes it; `None`: it does.
-    pub fn refusal(&self, budget: &Budget, rule: Option<(&ZoneTake, Spend)>) -> Option<String> {
+    /// Why a bot with `budget` does not make it with `spend` ([`Self::fits`], or [`Self::fits_zone_take`] with `rule`),
+    /// as the log writes it; `None`: it does.
+    pub fn refusal(&self, budget: &Budget, spend: Spend, rule: Option<&ZoneTake>) -> Option<String> {
         let (cost, share, left) = match rule {
-            Some((rule, spend)) => self.zone_take_terms(rule, spend),
-            None => (self.cost(), CROSS_SHARE, CROSS_LEFT),
+            Some(rule) => self.zone_take_terms(rule, spend),
+            None => (self.cost(), spend.share, spend.left),
         };
         self.refusal_by(budget, cost, share, left)
     }
@@ -1029,6 +1019,11 @@ pub mod routed_asks {
     pub fn counts() -> [u64; 5] {
         [0, 1, 2, 3, 4].map(|k| COUNTS[k].load(Ordering::Relaxed))
     }
+}
+
+/// [zone price] The spend rows of `tuning`'s zone walks: `take.zone_take`'s, else the default rows ([`ZoneSpend`]).
+pub fn zone_spend_rows(tuning: &crate::v026g::bots::tuning::Tuning) -> ZoneSpend {
+    tuning.take.zone_take.map_or_else(ZoneSpend::default, |rule| rule.spend)
 }
 
 /// [zone price] What `me`'s zone walk is for, from the match view ([`ZoneErrand`]): a carrier's way in, with the time left
@@ -1192,7 +1187,7 @@ pub fn routed_crossing_to(
         0,
         Some(side),
         false,
-        &crate::v026g::bots::crossing::CrossBody::old(1.0),
+        &crate::v026g::bots::crossing::CrossBody::searched(),
         &crate::v026g::bots::route_filter::RouteFilter::open(),
         &mut floors,
     )
@@ -1272,7 +1267,7 @@ pub fn routed_crossing_to(
                 0,
                 Some(side),
                 false,
-                &crate::v026g::bots::crossing::CrossBody::old(1.0),
+                &crate::v026g::bots::crossing::CrossBody::searched(),
                 &crate::v026g::bots::route_filter::RouteFilter::open(),
                 &mut floors,
             )
@@ -1356,19 +1351,18 @@ impl Ctx<'_> {
         })
     }
 
-    /// Whether this bot makes `crossing` with `budget`: [`Crossing::fits`], or with `take.zone_take` on, by its rule (a sprint in,
-    /// the battery's class's spend, [`Crossing::fits_zone_take`]).
+    /// Whether this bot makes `crossing` with `budget` at the battery's class's spend ([`Self::zone_spend`]): with
+    /// `take.zone_take` on by its rule (a sprint in, [`Crossing::fits_zone_take`]), else at a walk ([`Crossing::fits`]).
     pub fn crossing_bears(&self, crossing: &Crossing, budget: &Budget) -> bool {
         match self.tuning.take.zone_take {
-            Some(rule) => crossing.fits_zone_take(budget, &rule, self.zone_spend(&rule)),
-            None => crossing.fits(budget),
+            Some(rule) => crossing.fits_zone_take(budget, &rule, self.zone_spend()),
+            None => crossing.fits(budget, self.zone_spend()),
         }
     }
 
-    /// [owner-5] Why this bot does not make `crossing` ([`Self::crossing_bears`]'s rule), as the log writes it.
+    /// Why this bot does not make `crossing` ([`Self::crossing_bears`]'s rule), as the log writes it.
     pub fn crossing_refusal(&self, crossing: &Crossing, budget: &Budget) -> Option<String> {
-        let rule = self.tuning.take.zone_take;
-        crossing.refusal(budget, rule.as_ref().map(|rule| (rule, self.zone_spend(rule))))
+        crossing.refusal(budget, self.zone_spend(), self.tuning.take.zone_take.as_ref())
     }
 
     /// [zone price] What this bot's zone walk is for ([`ZoneErrand`]): its carry's way in, or a take.
@@ -1376,14 +1370,20 @@ impl Ctx<'_> {
         zone_errand(self.view, self.me)
     }
 
-    /// [zone price] The spend `rule` gives this bot's zone walk now ([`ZoneSpend::spend`]).
-    pub fn zone_spend(&self, rule: &ZoneTake) -> Spend {
-        rule.spend.spend(self.zone_errand())
+    /// [zone price] The spend rows this bot's zone walks go by: `take.zone_take`'s, else the default rows (players'
+    /// spend by class, [`ZoneSpend`]): a zone walk is never weighed by any other rule.
+    pub fn zone_spend_rows(&self) -> ZoneSpend {
+        zone_spend_rows(self.tuning)
     }
 
-    /// [zone price] Where a walk inside gives up: `take.zone_take`'s `spend.give_up_left`, else [`CROSS_ABORT_LEFT`].
+    /// [zone price] The spend this bot's zone walk has now ([`ZoneSpend::spend`] of its errand).
+    pub fn zone_spend(&self) -> Spend {
+        self.zone_spend_rows().spend(self.zone_errand())
+    }
+
+    /// [zone price] Where a walk inside gives up ([`ZoneSpend::give_up_left`]).
     pub fn zone_give_up_left(&self) -> f32 {
-        self.tuning.take.zone_take.map_or(CROSS_ABORT_LEFT, |rule| rule.spend.give_up_left)
+        self.zone_spend_rows().give_up_left
     }
 
     /// [take.zone_take] The pace of a walk to a zone battery or its look spot: a sprint with the switch on, else `pace`.
@@ -1760,7 +1760,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
             // [take.zone_take] Only where a battery there could be taken (a crossing a team behind bears at the bot's pools now):
             // no look at a fire that kills.
             if let Some(rule) = cx.tuning.take.zone_take
-                && !cx.crossing(item).is_some_and(|c| c.fits_zone_take(&cx.budget(), &rule, cx.zone_spend(&rule)))
+                && !cx.crossing(item).is_some_and(|c| c.fits_zone_take(&cx.budget(), &rule, cx.zone_spend()))
             {
                 spawner_skipped(cx, i, item, shut[k], "take.zone_take: its crossing not borne");
                 continue;
@@ -2889,6 +2889,8 @@ pub(super) fn aimed_at(cx: &Ctx, aim: Vec3) -> bool {
 
 #[cfg(test)]
 mod tests {
+    /// The share and the reserve these checks were written at (a fixture: the bots go by `ZoneSpend`).
+    const FIXTURE: Spend = Spend { share: 0.5, left: 0.4 };
     use mapdata::{Rotation, Shape, ShapeKind, Vec3, Zone, ZoneKind};
 
     use super::*;
@@ -2905,16 +2907,16 @@ mod tests {
                     let leg = Cost { body: leg, ..Cost::ZERO };
                     let c = Crossing { edge: Vec3::ZERO, leg, leg_out: leg, at_per_s: Cost { body: 0.01, ..Cost::ZERO }, routed, walk_m: 5.0 };
                     let budget = Budget::raw(health);
-                    assert_eq!(c.fits(&budget), c.refusal(&budget, None).is_none(), "{c:?} {health}");
+                    assert_eq!(c.fits(&budget, FIXTURE), c.refusal(&budget, FIXTURE, None).is_none(), "{c:?} {health}");
                     for errand in [ZoneErrand::Take { outside: 9 }, ZoneErrand::Take { outside: 2 }, ZoneErrand::Carry { time_left_s: 60.0, score_gap: 0.0 }] {
                         let spend = rule.spend.spend(errand);
-                        assert_eq!(c.fits_zone_take(&budget, &rule, spend), c.refusal(&budget, Some((&rule, spend))).is_none());
+                        assert_eq!(c.fits_zone_take(&budget, &rule, spend), c.refusal(&budget, spend, Some(&rule)).is_none());
                     }
                 }
             }
         }
         let low = Crossing { edge: Vec3::ZERO, leg: Cost::ZERO, leg_out: Cost::ZERO, at_per_s: Cost::ZERO, routed: true, walk_m: 1.0 };
-        let why = low.refusal(&Budget::raw(0.1), None).unwrap();
+        let why = low.refusal(&Budget::raw(0.1), FIXTURE, None).unwrap();
         assert!(why.starts_with("a routed crossing at health 0.100"), "{why}");
     }
     use crate::v026g::bots::plays::tests::Scenario;
@@ -3080,7 +3082,7 @@ mod tests {
         // The zone's 4 m and the marks' margin of 1 m; the nearest such floor.
         assert!((5.0..7.0).contains(&off), "{crossing:?}");
         assert!(
-            crossing.fits(&Budget::raw(1.0)) && !crossing.fits(&Budget::raw(0.3)),
+            crossing.fits(&Budget::raw(1.0), FIXTURE) && !crossing.fits(&Budget::raw(0.3), FIXTURE),
             "{crossing:?}"
         );
         // To the edge first.
@@ -3163,9 +3165,9 @@ mod tests {
         assert!(crossing.routed, "{crossing:?}");
         assert!(s.tactics.hazards.hazard_free(s.tactics.world.grid.locate(crossing.edge, 1.5).unwrap()));
         assert!(crossing.walk_m > 20.0 && crossing.walk_m < 60.0, "{crossing:?}");
-        assert!(crossing.fits(&Budget::raw(1.0)), "{crossing:?}");
+        assert!(crossing.fits(&Budget::raw(1.0), FIXTURE), "{crossing:?}");
         // Not begun below the motor's own start health.
-        assert!(!crossing.fits(&Budget::raw(START_HEALTH - 0.05)), "{crossing:?}");
+        assert!(!crossing.fits(&Budget::raw(START_HEALTH - 0.05), FIXTURE), "{crossing:?}");
         assert_eq!(collects(&s), vec![target]);
         // To the edge first, then the take asks for the zone's floor.
         s.current = Some((PlayKind::Collect, target, s.view.clock));
@@ -3954,7 +3956,7 @@ mod tests {
             ..Pools::FULL
         });
         let raw_crossing = raw.cx(0).crossing(at).expect("a crossing");
-        assert!(raw_crossing.fits(&raw.cx(0).budget()));
+        assert!(raw_crossing.fits(&raw.cx(0).budget(), FIXTURE));
         assert!(raw_crossing.cost().body > 0.0 && raw_crossing.cost().infection == 0.0);
         // Routed, a sick bot (infection 0.1 of 1.0): the cost is in the infection pool and it does not bear it.
         let mut sick = routed(acid(&["face"]));
@@ -3966,12 +3968,12 @@ mod tests {
         assert!(crossing.cost().infection > 0.0 && crossing.cost().body == 0.0, "{:?}", crossing.cost());
         // The same walk, in numbers: what the raw rule counted in the body pool.
         assert!((crossing.cost().infection - raw_crossing.cost().body).abs() < 1e-5);
-        assert!(!crossing.fits(&sick.cx(0).budget()), "{crossing:?}");
+        assert!(!crossing.fits(&sick.cx(0).budget(), FIXTURE), "{crossing:?}");
         assert_eq!(sick.cx(0).take_block(at), Some("its zone hurts too much"));
         // A healthy bot bears the same walk.
         let mut well = routed(acid(&["face"]));
         well.pools = Some(Pools::FULL);
-        assert!(crossing.fits(&well.cx(0).budget()));
+        assert!(crossing.fits(&well.cx(0).budget(), FIXTURE));
         assert_eq!(well.cx(0).take_block(at), None);
         // A mask: the cost falls by the armour on the face.
         if let Some((mask, armour)) = survarium::v026g::damage::armour().iter().find_map(|a| {
@@ -4134,7 +4136,7 @@ mod tests {
                         zoned += 1;
                         let crossing = cx.crossing(at);
                         found += usize::from(crossing.is_some());
-                        fit += usize::from(crossing.is_some_and(|c| c.fits(&Budget::raw(1.0))));
+                        fit += usize::from(crossing.is_some_and(|c| c.fits(&Budget::raw(1.0), FIXTURE)));
                         eprintln!(
                             "level {level} mode {mode} team {team} spawner {i}: {:?} cost {:?} block {:?}",
                             crossing.map(|c| (c.edge.distance_xz(stand), c.leg, c.at_per_s)),
@@ -4202,7 +4204,7 @@ mod tests {
                             0,
                             Some(i32::from(team)),
                             false,
-                            &crate::v026g::bots::crossing::CrossBody::old(1.0),
+                            &crate::v026g::bots::crossing::tests::fixture(1.0),
                             &crate::v026g::bots::route_filter::RouteFilter::open(),
                             &mut floors,
                         )
@@ -4218,14 +4220,14 @@ mod tests {
                             crate::v026g::bots::zone_search::walk_cost(&s.tactics, &p, None)
                         });
                         cheap_found += usize::from(dear.is_some());
-                        cheap_borne += usize::from(dear.is_some_and(|(c, _)| crate::v026g::bots::crossing::CrossBody::old(1.0).bears(c)));
+                        cheap_borne += usize::from(dear.is_some_and(|(c, _)| crate::v026g::bots::crossing::tests::fixture(1.0).bears(c)));
                         eprintln!("    cheapest: {:?}", dear.map(|(c, m)| (c.body, m)));
                         routed += usize::from(route.is_some());
-                        borne += usize::from(hurt.is_some_and(|h| crate::v026g::bots::crossing::CrossBody::old(1.0).bears(h)));
+                        borne += usize::from(hurt.is_some_and(|h| crate::v026g::bots::crossing::tests::fixture(1.0).bears(h)));
                         eprintln!(
                             "level {level} mode {mode} team {team} spawner {i}: route {:?} m, hurt {hurt:?}, borne at full health {}",
                             route.as_ref().map(|r| r.length()),
-                            hurt.is_some_and(|h| crate::v026g::bots::crossing::CrossBody::old(1.0).bears(h)),
+                            hurt.is_some_and(|h| crate::v026g::bots::crossing::tests::fixture(1.0).bears(h)),
                         );
                     }
                 }
@@ -4310,7 +4312,7 @@ mod tests {
         let edge = grid.locate(crossing.edge, 1.5).unwrap();
         assert!(s.tactics.hazards.hazard_free(edge), "a dry floor: {crossing:?}");
         assert!(crossing.edge.distance_xz(at) < 4.0, "{crossing:?}");
-        assert!(crossing.fits(&Budget::raw(1.0)), "{crossing:?}");
+        assert!(crossing.fits(&Budget::raw(1.0), FIXTURE), "{crossing:?}");
     }
 
     /// The real maps (private files; `SRP_MAPDATA_DIR`; `ZONES_TUNING` a merge patch file over the defaults, none: the
@@ -4482,7 +4484,7 @@ mod tests {
                     0,
                     Some(i32::from(team)),
                     false,
-                    &crate::v026g::bots::crossing::CrossBody::old(1.0),
+                    &crate::v026g::bots::crossing::tests::fixture(1.0),
                     &crate::v026g::bots::route_filter::RouteFilter::open(),
                     &mut floors,
                 );
@@ -4518,7 +4520,7 @@ mod tests {
                     0,
                     Some(i32::from(team)),
                     false,
-                    &crate::v026g::bots::crossing::CrossBody::old(1.0),
+                    &crate::v026g::bots::crossing::tests::fixture(1.0),
                     &crate::v026g::bots::route_filter::RouteFilter::open(),
                     &mut floors,
                 );
