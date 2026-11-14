@@ -310,6 +310,8 @@ impl Walkers {
             walkers.bots.set_throws(throws);
             walkers.bots.set_pantries(pantries);
             walkers.bots.set_shot_reach(reach);
+            // [Gap 13] The mode's plain respawn delay (`mode.parameters.respawn_time`, seconds).
+            walkers.bots.set_plain_respawn_ms(formed.played.map().respawn_time.saturating_mul(1000));
             for (place, armour) in armours.into_iter().enumerate() {
                 walkers.bots.set_zone_armour(place, armour);
             }
@@ -634,6 +636,10 @@ fn world_facts(time: u32, decoded: &Decoded) -> WorldFacts {
             .and_then(|gather| gather.timed.as_ref())
             .filter(|timed| timed.started)
             .map(|timed| timed.next_spawn),
+        // [Gap 13] The respawn rule's waiting places and their respawn times (`player_respawn_rule_core` 0x316F10).
+        respawns: rules
+            .and_then(|rules| rules.respawn.as_ref())
+            .map(|respawn| respawn.times.iter().map(|&(place, at)| (usize::from(place), at)).collect()),
     }
 }
 

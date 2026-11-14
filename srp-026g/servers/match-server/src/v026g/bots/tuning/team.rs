@@ -1178,6 +1178,12 @@ pub struct ThinkTuning {
     /// tick (`commander_ms`, 0-500 ms) before the play's first step (the bench: first goal a median 0.5-0.7 s after the first
     /// think, no search starved in between).
     pub life_wakes_commander: bool,
+    /// [Gap 13] A dead place whose respawn time (the world's respawn rule, `m_player_respawn_times`, absolute match ms:
+    /// `player_respawn_rule_core` 0x316F10) has come counts as back for the commander's signals (the alive counts, the
+    /// enemies' dead share), before a world shows its new life. Off: dead until a world shows it alive (up to a world
+    /// interval and its upload late). That old value is wrong by the client, so it is on by default and the all-off patch
+    /// keeps it (`KEPT_RIGHT`).
+    pub respawn_times: bool,
     /// A rest point (the goal of a walk) on a lip or near one is moved inward to the nearest floor off the edge
     /// ([`super::super::path::off_lip`]): the owner's rule, a body at rest keeps its centre on the floor (the sniper that
     /// stood with its feet half over a drop). Off: the goal as the play gave it.
@@ -1229,6 +1235,7 @@ impl Default for ThinkTuning {
             trace_every_ms: 5_000,
             shut_in_gate: true,
             life_wakes_commander: true,
+            respawn_times: true,
             rest_off_lip: true,
             stranded_start: true,
             goal_off_floor_no_way: true,

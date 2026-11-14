@@ -363,6 +363,9 @@ pub struct WorldFacts {
     pub can_respawn: Option<[bool; 2]>,
     /// Timed batteries: when the next battery appears (match ms).
     pub next_battery: Option<u32>,
+    /// [Gap 13] The respawn rule's waiting places and when each respawns (`m_player_respawn_times`, absolute match ms);
+    /// `None` when the world has no respawn rule.
+    pub respawns: Option<Vec<(Place, u32)>>,
 }
 
 /// Sounds are kept this long, ms.
@@ -546,6 +549,12 @@ pub struct Tracker {
     /// By place, the reach of a shot of its weapon 1 ([`super::shot_reach`]),
     /// where known.
     shot_reach: Vec<Option<f32>>,
+    /// [Gap 13] By place, when the last world's respawn rule has it respawn ([`WorldFacts::respawns`]).
+    respawn_at: Vec<Option<u32>>,
+    /// [Gap 13] The mode's plain respawn delay, ms (`gameplay/game_modes/<mode>` `mode.parameters.respawn_time`, seconds:
+    /// `survarium::v026g::maps::MapMode::respawn_time`), before a radio's shortening (the respawn rule 0x316AA0 through
+    /// the getter 0x2D5AE0); `None` until the match sets it.
+    plain_respawn_ms: Option<u32>,
     deaths: VecDeque<Death>,
     world_time: u32,
     /// [A318] The map's walker-mesh walls for the jump arc ([`body::walker_walls`]), built the first time `kin.jump_arc` needs
@@ -621,6 +630,8 @@ impl Tracker {
             smoke_counts: SmokeCounts::default(),
             sounds: VecDeque::new(),
             shot_reach: Vec::new(),
+            respawn_at: Vec::new(),
+            plain_respawn_ms: None,
             deaths: VecDeque::new(),
             world_time: 0,
             activity: Default::default(),
@@ -1426,6 +1437,15 @@ impl Tracker {
         if facts.next_battery.is_some() {
             self.next_battery = facts.next_battery;
         }
+        if let Some(respawns) = &facts.respawns {
+            self.respawn_at.iter_mut().for_each(|at| *at = None);
+            for &(place, at) in respawns {
+                if self.respawn_at.len() <= place {
+                    self.respawn_at.resize(place + 1, None);
+                }
+                self.respawn_at[place] = Some(at);
+            }
+        }
         if !facts.container_counts.is_empty() {
             self.container_counts = facts.container_counts;
         }
@@ -1437,6 +1457,40 @@ impl Tracker {
         self.batteries_time = facts.time;
         self.marks = facts.marks;
         new_deaths
+    }
+
+    /// [Gap 13] When the last world's respawn rule has `place` respawn (absolute match ms), if it waits for one.
+    pub fn respawn_at(&self, place: Place) -> Option<u32> {
+        self.respawn_at.get(place).copied().flatten()
+    }
+
+    /// [Gap 13] The mode's plain respawn delay, ms (no radio).
+    pub fn set_plain_respawn_ms(&mut self, ms: u32) {
+        self.plain_respawn_ms = Some(ms);
+    }
+
+    /// [Gap 13] Whether a dead place counts as back at `view.clock` for team `team`: a teammate at the world's respawn
+    /// time; an enemy, with `exact` (`cheats.enemy_respawn_exact`) the same, else as a player can know it: his team may
+    /// still respawn (the score shows its tickets), and his last death in the kill feed is the mode's plain respawn
+    /// delay ago (`plain_respawn_ms`; a death no world placed, or no delay known: not before a world shows him).
+    pub fn back(&self, view: &MatchView, team: u8, place: &PlaceView, exact: bool) -> bool {
+        if place.alive {
+            return false;
+        }
+        if place.team == team || exact {
+            return self.respawn_at(place.place).is_some_and(|at| at <= view.clock);
+        }
+        let Some(plain) = self.plain_respawn_ms else {
+            return false;
+        };
+        view.can_respawn[usize::from(place.team & 1)]
+            && view
+                .deaths
+                .iter()
+                .filter(|death| death.place == place.place)
+                .map(|death| death.time)
+                .max()
+                .is_some_and(|died| died.saturating_add(plain) <= view.clock)
     }
 
     /// Who is believed to carry `battery` (a soak checks it against its
@@ -1933,6 +1987,45 @@ mod tests {
         );
         // The bot's place, never seen, is not alive in the view.
         assert!(!view.place(0).unwrap().alive);
+    }
+
+    /// [Gap 13] A world's respawn rule names the waiting places and their respawn times: the tracker keeps the last
+    /// world's, a place the next world does not list waits for none, and a world without the rule leaves them. The
+    /// commander's signals count a dead place as back: a teammate at the world's time; an enemy by the kill feed's death
+    /// and the mode's plain delay, or at the world's time with the cheat.
+    #[test]
+    fn the_respawn_times_are_the_last_worlds_and_a_place_due_counts_as_back() {
+        let mut tracker = Tracker::new(Mode::Batteries, &[0, 1, 1], &[true, false, false], vec![(0, Vec3::ZERO); 3]);
+        assert_eq!(tracker.respawn_at(1), None);
+        tracker.facts(WorldFacts { time: 1_000, respawns: Some(vec![(1, 9_000), (2, 12_000)]), ..WorldFacts::default() });
+        assert_eq!((tracker.respawn_at(1), tracker.respawn_at(2), tracker.respawn_at(0)), (Some(9_000), Some(12_000), None));
+        tracker.facts(WorldFacts { time: 3_000, ..WorldFacts::default() });
+        assert_eq!(tracker.respawn_at(2), Some(12_000), "no rule in the world: kept");
+        tracker.facts(WorldFacts { time: 5_000, respawns: Some(vec![(2, 12_000)]), ..WorldFacts::default() });
+        assert_eq!((tracker.respawn_at(1), tracker.respawn_at(2)), (None, Some(12_000)));
+        // Two dead enemies of team 0's (never seen alive): at 13 s the one due at 12 s is back, the other waits for none.
+        for place in 0..3 {
+            tracker.entered(place, true);
+        }
+        let clock = Clock { clock: 13_000, time_left_s: 600.0, total_s: 900.0, playing: true };
+        let view = tracker.view(&clock, &Kinematics::default(), None);
+        let none = super::super::signals::MatchSignals::read(&view, 0, 1e6, |_| false);
+        assert_eq!((none.alive_theirs, none.enemies_dead), (0, 1.0));
+        // With the cheat (`cheats.enemy_respawn_exact`) the enemies' world times: the one due is back.
+        let exact = super::super::signals::MatchSignals::read(&view, 0, 1e6, |p| tracker.back(&view, 0, p, true));
+        assert_eq!((exact.alive_theirs, exact.enemies_dead), (1, 0.5));
+        // Without it an enemy is back only by his kill-feed death and the plain delay: none known here.
+        tracker.set_plain_respawn_ms(8_000);
+        let fair = super::super::signals::MatchSignals::read(&view, 0, 1e6, |p| tracker.back(&view, 0, p, false));
+        assert_eq!(fair.alive_theirs, 0);
+        // To their own team they are teammates: the world's time, cheat or not.
+        let mates = super::super::signals::MatchSignals::read(&view, 1, 1e6, |p| tracker.back(&view, 1, p, false));
+        assert_eq!(mates.alive_ours, 1);
+        // An enemy's death in the kill feed 8 s ago (the plain delay) is back; 7 s ago is not.
+        let mut fed = view.clone();
+        fed.deaths = vec![Death { place: 1, at: Vec3::ZERO, time: 5_000 }, Death { place: 2, at: Vec3::ZERO, time: 6_000 }];
+        let fed_back: Vec<bool> = fed.places.iter().map(|p| tracker.back(&fed, 0, p, false)).collect();
+        assert_eq!(fed_back, [false, true, false]);
     }
 
     #[test]
