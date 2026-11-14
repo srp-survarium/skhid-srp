@@ -3298,6 +3298,8 @@ va	status	ref_021d	name
 0x002f8720	inferred-medium		survarium::simple_game_project::on_inserted
 0x002f8850	inferred-high		survarium::static_collision::insert
 0x002f8970	inferred-high		survarium::static_collision::remove
+0x002f9050	inferred-high		survarium::damage_zone_shape::box_clamped_point
+0x002f9200	inferred-medium		survarium::damage_zone_shape::cylinder_axis_point
 0x002de7f0	inferred-medium		survarium::game_effect_player::stop
 0x002de090	inferred-medium		survarium::game_effect_player::play
 0x002de100	inferred-medium		survarium::game_effect_player::play_impl [descriptive]
