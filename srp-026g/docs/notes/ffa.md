@@ -8,7 +8,8 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
 - The first to 30 kills ends the match, or the timer does (15:00).
 - Spawn protection 2 s ("3 seconds sounds too long, it should be 1.5 or 2 MAX").
   Since 2026-11-14 0.5 s on every map (the owner: "let's change it to 0.5 everywhere"):
-  `ffa-protection-ms-1.json`, last of the Free for All lists, sets each team-2 point's
+  `ffa-protection-ms-1.json`, last of the Free for All lists but `ffa-rudnya-picks-1.json` (whose
+  new points copy a point it gave the 500 ms), sets each team-2 point's
   `invulnerability_time` 2 -> 0 and adds `invulnerability_time_ms` 500, which the client hook of
   revision 57 reads before the whole seconds (`stalker-ffa.md`, "Millisecond protection"), as
   Training Camp has had since `training-camp-arena-1.json`. The lists above it still write 2 s;
@@ -125,6 +126,70 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
 - **Checked against 0.26g's collision** (`scripts/ffa-mode/check-points`,
   `scripts/ffa-mode/checked.tsv`): each 0.31 point is kept, nudged to the ground (under 0.43 m) or
   dropped (ground over 0.5 m off, body blocked, or no reachable floor).
+- **Where a spawn may stand** (the owner, 2026-11-14: "there should be a rule that spawns are inside
+  buildings or close to two walls or some cover", "and none at the perimeter"; his picks on
+  Rudnya, `private/spawn-examples/rudnya-2026-11-14.tsv`, from the `where` lines of his game log,
+  "see how most of them usually have cover"). check-points' `cover` module is the rule (its
+  `cover` binary measures a map's spawns, given points and its floors); on the bullet collision
+  (what stops shots and sight) round the spawn's feet:
+  - cover, any of three: a roof (collision straight up within 6 m of the feet); a corner (two
+    walls within 2.5 m, at 1.6 m up, what hides a standing player, their faces 60° or more
+    apart); a side (collision within 2.5 m at 0.9 m up, what hides a crouching player, over an
+    arc of 75° or more);
+  - past the perimeter band: deeper than 10 % of the deepest point's depth in the walkable area
+    (to_center's measure, below; on Rudnya 6.6 m of 66.5 m). The move to the centre's 30 % band
+    holds 16 of the picks.
+  - Calibrated on the first 46 picks: 44 have cover (39 and 40, on a flat roof, have nothing
+    within 2.5 m); 44 are past the band (21, 1 m from the outline, and 25, 6.2 m, are not). Of a
+    sample of Rudnya's walkable floors (one in 4 m in plan and 3 m in height, 2,618) 36 % have
+    cover; open ground has none. His 10 later picks (47-56) all hold both parts. The owner: "it is
+    fine that not all hold".
+  - Every Free for All map's spawns as main had them on 2026-11-14 (the same in each weather),
+    cover / past the band / both, of all: Rudnya 10 / 16 / 5 of 28 (before its picks, below),
+    School 9 / 15 / 6 of 26, Vostok 17 / 15 / 10 of 24, Chemical Plant 19 / 19 / 9 of 30,
+    Tarakanovsky Fort 19 / 15 / 12 of 24, Mamayev Kurgan 12 / 17 / 6 of 25, Vector Laboratory
+    25 / 20 / 16 of 29, Cologne 19 / 20 / 16 of 23, London 20 / 26 / 15 of 32, Experimental Pool
+    15 / 17 / 9 of 24, Military Warehouses 11 / 19 / 6 of 24, Training Camp 9 / 26 / 9 of 26 (its
+    area measured from every spawn of the project, the fence's outside too), Vostok v0.11
+    16 / 15 / 10 of 22, Chemical Plant v0.11 11 / 14 / 3 of 22, Vostok v0.21 13 / 15 / 7 of 22,
+    Mamayev v0.21 11 / 19 / 8 of 22, Rudnya v0.69 13 / 16 / 7 of 22.
+- **No spacing between spawns** (the owner, 2026-11-14, of the 12 m the tools kept between solo
+  spawns: "we don't need this rules at all", "spawns can be as close as possible, the only thing that
+  matters is whether people can spawn close to each other"). Points may stand as close together as
+  they like: no spawn tool or check refuses or drops a point for being near another. Where a tool
+  chooses among candidates (to_center, central, ported, the STALKER maps' ffa-points, a roof spawn's
+  place) it still takes the farthest from those it has first, with no minimum. What keeps players
+  apart is the respawn's own choice ("Choice", above: a point with a living enemy, or a point given
+  at the same tick, within its enemy radius, 20 m, is not chosen; patch 142's `free_for_all.rs`
+  measures the same-tick one in 3D), which stays as it is. The lists made before (the 0.31 points'
+  move to the centre, London's, the ports', the STALKER maps') were made 12 m apart (Training Camp
+  8 m in 3D) and stay as they are.
+- **Rudnya at the owner's picks** (2026-11-14: "I can give you many examples with ~where"; "for
+  49, 8, 10 and 42 we need spawn points on top of those builings (roofs)", "those are silly spawn
+  points usually unreachable, but they make sense in general"). Content edit `ffa-rudnya-picks-1`,
+  from `scripts/ffa-mode/rudnya-picks.tsv`, made by check-points' `picks` (its doc is the rule) and
+  `make_picks_edits.py`, in level_01's three `<weather>_8` projects:
+  - All 56 of his places, each put on its ground by the spawn check (0 to 16 cm), however near one
+    another. 2 m from harmful zones, but 45, 1.49 m from the swamp anomaly's damage zone (the owner:
+    "45 can stay too"; `picks --harmful-ok 45`, the one exception). Facing as he faced: the
+    rotation's y is minus the `where` yaw (`where` turns +z towards +x, the engine's rotation_y
+    the other way; `mapdata::math::heading`). 52 of the 56 hold the rule (21 and 25 are in the
+    band, 39 and 40 have no cover).
+  - The first 28 take the places of point_ids 43-70 (position and rotation only), 28 are new points
+    71-98; new points copy the first solo spawn (20 m exclusion, 500 ms protection, no zones).
+  - Roof spawns 99-102, on the roofs of the buildings at picks 49, 8, 10 and 42: the roof nearest the
+    pick (open-sky floors of a walk grid of every floor round it, joined by walking, 2.2 m or more
+    over the pick), a floor 1 m from its edges sloping under 20° (35° where it has none: the
+    pitched roofs), body clear, a way down by the walk model (drops of 5 m at most) to a floor
+    players walk, of those the farthest in plan from every other spawn; facing the longest view.
+    The building at 18 ("similar for 18 building") has none: its roof, 8 m over 18's floor, has no
+    way down within 5 m drops, and its lower roofs no flat, clear floor.
+  - 28 -> 60 points. The last Free for All list, after `ffa-protection-ms-1`.
+  - Checked (2026-11-14): `release/build-content 59`, a quick build (patch sha256 `72f2a0a6...`,
+    server data `c7ebbddd...`): the 60 points read back as rudnya-picks.tsv has them in all three
+    weathers, the other 30 Free for All projects' spawns as before; the released map test passes
+    on its server data. Offline only: not played, not released.
+  - Review renders: `private/renders/ffa-spawn-cover/` of the main checkout.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
   proposal for all 16 maps below; Training Camp has its own, `stalker-ffa.md`). Content edit
@@ -177,7 +242,7 @@ team-2 points: a mode-8 config without them stops the server (`maps::MapMode::fr
 
 | Level | Weathers | Solo points (kept / donor, or authored) |
 |---|---|---|
-| level_01 Rudnya | day, evening, rain | 28 / 29 |
+| level_01 Rudnya | day, evening, rain | the owner's 56 picks + 4 on roofs = 60 |
 | level_02 School | day, evening, rain | 25 / 25, and the project's own one |
 | level_03 Vostok Radar Station | day, evening, rain | 24 / 24 |
 | level_04 Chemical Plant | day, evening, rain | 30 / 33 |

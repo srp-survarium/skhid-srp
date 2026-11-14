@@ -2,6 +2,8 @@
 
 use mapdata::{Body, MapData, Materials, RayTree, Resources, Vec3, WalkGrid};
 
+pub mod cover;
+
 /// The ground ray starts this far above the point.
 const ABOVE: f32 = 1.5;
 /// And looks this far below it.
@@ -103,7 +105,7 @@ impl Map {
     }
 
     /// What a standing body at `feet` meets, if anything.
-    fn blocked(&self, feet: Vec3) -> Option<String> {
+    pub fn blocked(&self, feet: Vec3) -> Option<String> {
         let up = Vec3::new(0.0, 1.0, 0.0);
         let base = feet + Vec3::new(0.0, 0.02, 0.0);
         if let Some(t) = self.rays.ray_cast(base, up, HEIGHT - 0.02) {
@@ -123,6 +125,47 @@ impl Map {
             }
         }
         None
+    }
+
+    /// The walk grid's floors reached from the map's spawns where a body
+    /// stands, inside `bounds` (`[x0, z0, x1, z1]`) when given.
+    pub fn standing_floors(&self, bounds: Option<[f32; 4]>) -> Vec<u32> {
+        let seeds: Vec<_> = self
+            .data
+            .spawns
+            .iter()
+            .filter_map(|s| self.grid.locate(s.position, 1.0))
+            .collect();
+        let reachable = self.grid.distances_from(&seeds);
+        (0..self.grid.len() as u32)
+            .filter(|&n| {
+                let p = self.grid.position(n);
+                reachable.reaches(n)
+                    && self.grid.can_stand(n)
+                    && bounds.is_none_or(|b| p.x >= b[0] && p.z >= b[1] && p.x <= b[2] && p.z <= b[3])
+            })
+            .collect()
+    }
+
+    /// Whether a standing body at `feet` (at 0.1, 0.9 and 1.7 m) comes within
+    /// `margin` of a harmful zone's shape.
+    pub fn harmful(&self, feet: Vec3, margin: f32) -> bool {
+        self.harmful_zone(feet, margin).is_some()
+    }
+
+    /// The nearest harmful zone a standing body at `feet` comes within
+    /// `margin` of: its name and distance.
+    pub fn harmful_zone(&self, feet: Vec3, margin: f32) -> Option<(&str, f32)> {
+        self.data
+            .zones
+            .iter()
+            .filter(|z| z.damage.as_ref().is_some_and(|d| d.harmful()))
+            .flat_map(|z| z.shapes.iter().map(move |s| (z.name.as_str(), s)))
+            .flat_map(|(name, s)| {
+                [0.1, 0.9, 1.7].map(|h| (name, s.distance(feet + Vec3::new(0.0, h, 0.0))))
+            })
+            .filter(|(_, d)| *d < margin)
+            .min_by(|a, b| a.1.total_cmp(&b.1))
     }
 
     /// Whether a kept floor of the walk grid, where a body stands, is near.
