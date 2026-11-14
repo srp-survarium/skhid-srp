@@ -10,6 +10,7 @@ package survarium.controls
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.geom.Point;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextLineMetrics;
    import flash.ui.Keyboard;
@@ -62,6 +63,7 @@ package survarium.controls
    import survarium.constants.WeaponHands;
    import survarium.constants.ProfileSlot;
    import survarium.player.LocalPaperDoll;
+   import survarium.player.LocalPlayerProfile;
    import survarium.player.ReasonsTip;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
@@ -310,6 +312,9 @@ package survarium.controls
       // The shop's "not owned" check box (makeOwnedToggle).
       private var _ownedToggle:CheckBoxShared;
 
+      // The inventory's Sell duplicates button (makeSellDuplicates).
+      private var _sellDuplicates:SrvButtonSkinned;
+
       // The lobby's inventory list (there is one), for the shop's tiles (owned).
       private static var me:InventoryList;
 
@@ -363,6 +368,10 @@ package survarium.controls
          if(this._ownedToggle != null)
          {
             this.placeOwnedToggle();
+         }
+         if(this._sellDuplicates != null)
+         {
+            this._sellDuplicates.visible = !value;
          }
       }
       
@@ -589,6 +598,68 @@ package survarium.controls
          var itemData:ItemData = this._inventoryItemsDict[itemId];
          this.sellObject(itemData);
       }
+
+      // The items Sell duplicates sells (the owner, 2026-11-14; docs/notes/sell-duplicates.md). Copies of
+      // an item (one dictionary id) are kept to be combined until one of them has all its modifications
+      // (rank ItemRank.MAX, its name gold: "gold means three modifiers"); then the others are spares
+      // ("people who got golden gun no longer care about duplicates"). Never sold: a copy of that rank
+      // (different rolls suit different play), a copy a loadout uses, a worn cosmetic or an item wearing
+      // one; stacks and ammo.
+      public function duplicates() : Array
+      {
+         var sold:Array = [];
+         if(this._inventoryItems == null)
+         {
+            return sold;
+         }
+         var item:ItemData;
+         var full:Object = {};
+         for each(item in this._inventoryItems)
+         {
+            if(item.rank >= ItemRank.MAX)
+            {
+               full[item.dictId] = true;
+            }
+         }
+         for each(item in this._inventoryItems)
+         {
+            if(full[item.dictId] && item.rank < ItemRank.MAX && !item.isStack && item.superCategory != SuperCategory.AMMO && !LocalPlayerProfile.inLoadout(item.itemId) && item.slotTarget == 0 && (item.upgrades == null || item.upgrades.length == 0))
+            {
+               sold.push(item);
+            }
+         }
+         return sold;
+      }
+
+      // The Sell duplicates button: one question, then a sale (`47 01`) of each; the list is
+      // made again on Yes, from the inventory then.
+      public function sellDuplicates() : void
+      {
+         var sold:Array = this.duplicates();
+         if(sold.length == 0)
+         {
+            return;
+         }
+         var silver:uint = 0;
+         for each(var item:ItemData in sold)
+         {
+            silver += uint(item.cost / ItemPrice.SELL_DIVISOR);
+         }
+         Message.showMessage("apply",{
+            text:LocalizationData.format("st_srp_inventory_sell_duplicates_ask",sold.length),
+            silver:silver,
+            label_ok:LocalizationData.getName("sell"),
+            onYes:this.onSellDuplicatesYes
+         },true);
+      }
+
+      private function onSellDuplicatesYes(data:Object = null) : void
+      {
+         for each(var item:ItemData in this.duplicates())
+         {
+            ExternalInterface.call("sell_ok_clicked",item.itemId,1);
+         }
+      }
       
       public function ignoreNextAttach(value:int) : void
       {
@@ -648,6 +719,7 @@ package survarium.controls
          this.itemControlPanel.mouseChildren = !value;
          this.checkboxCompareItems.mouseEnabled = !value;
          this._item_control.checkButtonEnabled();
+         this.updateSellDuplicates();
       }
       
       public function lock(elementId:uint, state:Boolean) : void
@@ -1346,6 +1418,7 @@ package survarium.controls
          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id,filterOptions);
          dispatchEvent(new Event(Event.CHANGE));
          this.listSearchWords();
+         this.updateSellDuplicates();
          if((parent))
          {
             victory_screen = parent["victory_screen"];
@@ -2034,7 +2107,66 @@ package survarium.controls
          this.checkboxCompareItems.addEventListener(ButtonEvent.CLICK,this.showCompareCheckbox);
          this.makeSearch();
          this.makeOwnedToggle();
+         this.makeSellDuplicates();
          LocalizationData.addCallback(this.onLocal,"checkbox_compare_items");
+      }
+
+      // Sell duplicates (sell-duplicates.md; the owner, 2026-11-14: "on the right in Comparing items
+      // band", the item row above being for the item selected): the lobby's own button
+      // (SrvButtonSkinned), at the right of the compare box's row; in the inventory only; greyed while
+      // there is nothing to sell or the inventory is locked.
+      private function makeSellDuplicates() : void
+      {
+         _sellDuplicates = new SrvButtonSkinned();
+         this._sellDuplicates.visible = !this.isShop;
+         this._sellDuplicates.addEventListener(ButtonEvent.CLICK,this.onSellDuplicatesClick);
+         addChild(this._sellDuplicates);
+         this.updateSellDuplicates();
+      }
+
+      // Its text's width and the row's right end, the window's margin as the compare box's from its
+      // left; its middle at the compare box's square's (the box without its label; the square sits in
+      // the row's middle, the label lower: the owner, 2026-11-14, "not aligned vertically"). Placed when
+      // the texts come.
+      private function placeSellDuplicates() : void
+      {
+         var compare:Button = this.checkboxCompareItems;
+         this._sellDuplicates.label = LocalizationData.getName("st_srp_inventory_sell_duplicates");
+         this._sellDuplicates.validateNow();
+         this._sellDuplicates.width = Math.ceil(this._sellDuplicates.textField.textWidth) + SELL_DUPLICATES_PADDING;
+         this._sellDuplicates.x = Math.round(background.width - compare.x - this._sellDuplicates.width);
+         var square:Rectangle = null;
+         for(var i:int = 0; i < compare.numChildren; i++)
+         {
+            var part:DisplayObject = compare.getChildAt(i);
+            if(part != compare.textField && part.visible)
+            {
+               square = square == null ? part.getBounds(this) : square.union(part.getBounds(this));
+            }
+         }
+         var button:Rectangle = this._sellDuplicates.getBounds(this);
+         var middle:Number = square != null ? square.y + square.height / 2 : compare.y + compare.height / 2;
+         this._sellDuplicates.y = Math.round(this._sellDuplicates.y + middle - (button.y + button.height / 2)) - SELL_DUPLICATES_RAISE;
+      }
+
+      // The room left and right of the button's text, together.
+      private static const SELL_DUPLICATES_PADDING:int = 40;
+
+      // Pixels above the square's middle, set by look in the game (the owner,
+      // 2026-11-14, in the game: "a pixel up", "one more up").
+      private static const SELL_DUPLICATES_RAISE:int = 2;
+
+      private function updateSellDuplicates() : void
+      {
+         if(this._sellDuplicates != null)
+         {
+            this._sellDuplicates.enabled = !this._inventoryLocked && this.duplicates().length > 0;
+         }
+      }
+
+      private function onSellDuplicatesClick(event:ButtonEvent) : void
+      {
+         this.sellDuplicates();
       }
 
       // The shop's "Hide owned" check box (shop-owned-mark.md): the compare box's symbol
@@ -2099,6 +2231,7 @@ package survarium.controls
          this.fillSearchTip();
          this._ownedToggle.tipData = {name:LocalizationData.getName("st_srp_shop_not_owned_hint")};
          this.placeOwnedToggle();
+         this.placeSellDuplicates();
       }
       
       // The search box (docs/notes/item-search.md): the friends window's name box, always there,

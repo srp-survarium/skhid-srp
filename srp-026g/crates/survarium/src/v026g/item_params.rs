@@ -14,6 +14,13 @@ use srp_validate::world::{Artefact, Chamber, GunState};
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
 
+/// The most default modifications an item may have. The client keeps them in a `buffer_vector<u32>`
+/// of eight inside the item (the item's constructor 0x2CB310: begin item+0x240, capacity +0x20 bytes,
+/// at item+0x234..0x23C); `items_dictionary_cook::on_subresources_loaded` (0x2C97F2) pushes each
+/// one, and a ninth stops the game at start ("buffer overflow", `buffer_vector<unsigned int>::push_back`).
+/// Seen 2026-11-14 with the Duty and Freedom exoskeleton torsos at nine.
+pub const MOST_DEFAULT_MODIFICATIONS: usize = 8;
+
 /// One item's parameters.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ItemParams {
@@ -55,7 +62,7 @@ pub struct ItemParams {
     pub pocket_share: PocketShare,
     /// Cosmetics: the modification that puts it on an item.
     pub modification: u32,
-    /// The modifications the item always has.
+    /// The modifications the item always has: [`MOST_DEFAULT_MODIFICATIONS`] at most.
     pub default_modifications: &'static [u32],
     /// The profile slots it covers when worn (`data.additional_model_slots`,
     /// [`model_slot`]): a kit that wears it has nothing in them. A helmet
@@ -615,7 +622,11 @@ mod tests {
             }
             assert!(params.item_level <= 16, "{}", item.name);
             assert!(params.faction <= 4, "{}", item.name);
-            assert!(params.default_modifications.len() <= 8, "{}", item.name);
+            assert!(
+                params.default_modifications.len() <= MOST_DEFAULT_MODIFICATIONS,
+                "{}",
+                item.name
+            );
         }
         assert!(item_params(73).is_none());
     }
