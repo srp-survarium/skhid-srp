@@ -217,6 +217,11 @@ impl Input {
         Ok(())
     }
 }
+impl crate::mic_test::Microphone for Input {
+    fn capture(&mut self, frame: impl FnMut([i16; FRAME])) -> Result<(), u32> {
+        self.pump(frame)
+    }
+}
 impl Drop for Input {
     fn drop(&mut self) {
         // SAFETY: reset returns the queued headers before unpreparing them.

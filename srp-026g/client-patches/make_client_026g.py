@@ -68,7 +68,8 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         the Rust SRP crash reporter; saves zipped dumps locally; Submit Bug opens SRP Discord in the browser.
     <output>/game/binaries/x86/skhid_voice.dll
         voice chat (../client-voice, exe patch 66): the exe loads it at the
-        first match; without it voice is off. Built by client-voice/build.sh
+        first match, or when the options' sound tab is first shown (its
+        microphone test); without it voice is off. Built by client-voice/build.sh
         in the pinned Nix shell; its exports are checked here.
     <output>/game/binaries/x86/play_skhid.sh
         the Linux launcher: creates a local Wine prefix, installs DXVK through
@@ -269,7 +270,8 @@ def read_bugtrap(path):
 VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "target-voice", "i686-win7-windows-msvc", "release", "skhid_voice.dll"))
 # What patch 66 asks of the DLL by name (the shared voice-abi crate).
 VOICE_EXPORTS = (b"sv_version", b"sv_start", b"sv_stop", b"sv_ptt", b"sv_settings", b"sv_hear",
-                 b"sv_mute", b"sv_talking", b"sv_slot", b"sv_voice_id")
+                 b"sv_mute", b"sv_talking", b"sv_slot", b"sv_voice_id", b"sv_test_press", b"sv_test_stop",
+                 b"sv_test_state")
 
 
 def read_voice(path):

@@ -4452,7 +4452,7 @@ hud_cursor_on_menu_show_replay:
 
 ; 0x201040 game_options::deactivate's start (push ecx / cmp byte [esi+44h],0; the je after it returns when the menu is not shown): the menu's Resume (0x1FF66E), its key (0x20165A), a match's end (0x1F956D) and the lobby's (0x21D50E): lohook -> hud_cursor_on_menu_close
 global hud_cursor_on_menu_close
-extern hook_hud_cursor_on_menu_close
+extern hook_hud_cursor_on_menu_close_chain
 hud_cursor_on_menu_close:
     lea esp, [esp - 4]
     pushfd
@@ -4470,7 +4470,7 @@ hud_cursor_on_menu_close:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_hud_cursor_on_menu_close
+    call hook_hud_cursor_on_menu_close_chain
     mov edx, hud_cursor_on_menu_close_replay
     cmp eax, 0
     je hud_cursor_on_menu_close_go

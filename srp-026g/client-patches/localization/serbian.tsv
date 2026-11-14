@@ -2650,6 +2650,11 @@ st_srp_medicine_hit_slow	Usporenje od metaka
 st_srp_medicine_sight_sway	Ljuljanje nišana
 st_srp_medicine_sprint_stamina	Izdržljivost za sprint
 st_srp_melee_knockback	Odbacivanje kundakom
+st_srp_mic_test	Testiraj mikrofon
+st_srp_mic_test_no_microphone	Nema mikrofona
+st_srp_mic_test_no_playback	Nema izlaza zvuka
+st_srp_mic_test_playing	Reprodukcija %1$s
+st_srp_mic_test_recording	Snimanje %1$s
 st_srp_mode_blackout	Zaštitni uređaj: zamračenje
 st_srp_mode_chargers	Zaštitni uređaj: punjači
 st_srp_mode_free_for_all	Svako protiv svakoga

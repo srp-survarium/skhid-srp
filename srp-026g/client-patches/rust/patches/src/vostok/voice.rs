@@ -82,6 +82,46 @@ impl Fraction {
     }
 }
 
+/// The sound tab's "Voice chat" volume and "Microphone sensitivity" as their
+/// sliders stand on the screen, accepted or not: what the Settings send with
+/// a press of "Test microphone", `<volume> <sensitivity>`, each the slider's
+/// whole steps (0..100).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Sliders {
+    volume: Fraction,
+    sensitivity: Fraction,
+}
+
+impl Sliders {
+    /// Two numbers of one to three decimal digits, 100 at most, one space
+    /// between them; nothing else.
+    pub fn parse(text: &CStr) -> Option<Sliders> {
+        let mut steps = text.to_bytes().split(|&byte| byte == b' ').map(|digits| {
+            if digits.is_empty() || digits.len() > 3 || !digits.iter().all(u8::is_ascii_digit) {
+                return None;
+            }
+            let steps = digits.iter().fold(0u16, |steps, digit| steps * 10 + u16::from(digit - b'0'));
+            (steps <= 100).then(|| Fraction::of_percent(f32::from(steps)))
+        });
+        let (volume, sensitivity) = (steps.next()??, steps.next()??);
+        steps.next().is_none().then_some(Sliders { volume, sensitivity })
+    }
+}
+
+/// What the Settings say with a call of the microphone test: a press of its
+/// button, or `stop` (the Settings window closed).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TestAsk {
+    Press(Sliders),
+    Stop,
+}
+
+impl TestAsk {
+    pub fn parse(text: &CStr) -> Option<TestAsk> {
+        if text == c"stop" { Some(TestAsk::Stop) } else { Sliders::parse(text).map(TestAsk::Press) }
+    }
+}
+
 /// The voice options: off ("Disable voice chat", the gameplay tab's dead
 /// "Hide spam", `g_hide_spam`: nothing played, no microphone, the relay sends
 /// nothing) or on, with the sound tab's three stock voice controls.
@@ -276,7 +316,7 @@ impl Polled {
     }
 }
 
-pub use voice_abi::{Ears, Heard};
+pub use voice_abi::{Ears, Heard, MicTest};
 
 /// How every place is heard (what the DLL is told: one `sv_hear` a place).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -673,6 +713,27 @@ impl Dll {
         VoiceId::new(unsafe { (self.api.voice_id)(i32::from(place.get())) })
     }
 
+    /// The Settings' "Test microphone" button pressed: the DLL starts its
+    /// test with these sliders, or stops the one that runs. In a match or
+    /// not.
+    pub fn test_press(self, sliders: Sliders) {
+        // SAFETY: the checked API, scalars (each 0..1).
+        unsafe { (self.api.test_press)(sliders.volume.get(), sliders.sensitivity.get()) }
+    }
+
+    /// The microphone test stopped, if one runs.
+    pub fn test_stop(self) {
+        // SAFETY: the checked API.
+        unsafe { (self.api.test_stop)() }
+    }
+
+    /// What the microphone test does now. The DLL's word is one of this
+    /// ABI's (the version was checked); another would read as no test.
+    pub fn test(self) -> MicTest {
+        // SAFETY: the checked API.
+        MicTest::of_word(unsafe { (self.api.test_state)() }).unwrap_or(MicTest::Idle)
+    }
+
     /// The game has the keyboard (so when user32 lacked the functions).
     pub fn focused(self) -> bool {
         self.window.is_none_or(Window::focused)
@@ -699,6 +760,25 @@ mod tests {
             0xE01D => 0xA3, // right Ctrl
             _ => 0,
         }
+    }
+
+    #[test]
+    fn the_test_buttons_press_carries_the_two_sliders() {
+        let sliders = |volume, sensitivity| {
+            Some(Sliders { volume: Fraction::of_percent(volume), sensitivity: Fraction::of_percent(sensitivity) })
+        };
+        assert_eq!(Sliders::parse(c"100 50"), sliders(100.0, 50.0));
+        assert_eq!(Sliders::parse(c"0 0"), sliders(0.0, 0.0));
+        assert_eq!(Sliders::parse(c"7 100"), sliders(7.0, 100.0));
+        assert_eq!(Sliders::parse(c"7 100").map(|s| (s.volume.get(), s.sensitivity.get())), Some((0.07, 1.0)));
+        for bad in [c"", c"50", c"50 ", c" 50", c"50  50", c"50 50 50", c"101 50", c"50 101", c"1000 5", c"5.5 5", c"-1 5",
+                    c"a b", c"50,50", c"stop"] {
+            assert_eq!(Sliders::parse(bad), None, "{bad:?}");
+        }
+        assert_eq!(TestAsk::parse(c"35 80"), Sliders::parse(c"35 80").map(TestAsk::Press));
+        assert_eq!(TestAsk::parse(c"stop"), Some(TestAsk::Stop));
+        assert_eq!(TestAsk::parse(c"Stop"), None);
+        assert_eq!(TestAsk::parse(c""), None);
     }
 
     #[test]

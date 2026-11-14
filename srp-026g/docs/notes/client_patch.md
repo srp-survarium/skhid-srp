@@ -3528,7 +3528,7 @@ What it is for and the owner's rules: [dxvk-option.md](dxvk-option.md). Here: wh
 
 The owner's ask (2026-10-23, answers 2026-10-25, the mute and the list as 0.69's 2026-11-06). Team
 push-to-talk through `skhid_voice.dll` (`../../client-voice`) and srp's voice relay on the match
-port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `vostok/voice.rs`):
+port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary `vostok/voice.rs`):
 
 - **The variables** (`configs.start`, before user.cfg): the sound tab's stock controls are bound by
   name to `s_chat_volume`, `s_use_microphone`, `s_mic_sens` (0x262DE8..0x262EC9) and nothing
@@ -3538,7 +3538,7 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `
   record left out and logged).
 - **Connect, end** (`match_client.connect` 0x27A1B0 at its start: ECX the client, [esp+4] the
   host, +8 the port, +0Ch the session; a replay's connect is 0x122350): the DLL loaded once
-  (`LoadLibraryA`, its ten exports and version through `voice_abi`), `sv_start(host, port + 1,
+  (`LoadLibraryA`, its exports and version through `voice_abi`), `sv_start(host, port + 1,
   session)`, the options told before it (no mutes, no radio: the DLL keeps the last match's);
   `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
   (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied.
@@ -3574,7 +3574,18 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eight lohooks; its boundary `
   answered `root.srp_voice_menu(place, offered, muted)` (a teammate whose voice id the relay sent),
   `srp_voice_mute(place, "1"|"0")` `root.srp_voice_mute(place, done)`; the menu shows "Mute voice"
   or "Unmute voice" after the chat's entries.
-- **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio). **Not run**: a game.
+- **The options' microphone test** (the owner, 2026-11-14; `voice-chat.md`, "Microphone test":
+  the DLL records 10 s and plays them back, in a match or not). `options.callback`
+  (game_options::scaleform_callback 0x1FF5D0, after patches 79, 83 and 112): the Settings' sound
+  tab asks `srp_mic_test`, answered `root.srp_mic_test(text)` (the button's text of the DLL's
+  state, the dictionary's `st_srp_mic_test*` with the seconds left); with `<volume> <sensitivity>`
+  (the two voice sliders' steps as they stand) it is a press, `sv_test_press`, with `stop` (the
+  Settings window closed) `sv_test_stop`; the DLL is loaded here when no match loaded it; at the
+  game's own `options_tab_changed` (left to it) `sv_test_stop`. `game.tick` (0x1EC8EC, EBX the game; after the music, the packets and the two
+  reports): while the main menu is shown (game_options, game+57F4h: +44h shown, +0Ch its movie's
+  holder, a new `fields_026g.tsv` row) the button is told its text when `sv_test_state` is no
+  longer what it shows. `options.deactivate` (0x201040, after patch 113's): `sv_test_stop`.
+- **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio, the test's press and texts). **Not run**: a game.
 
 ### Distance detail option
 

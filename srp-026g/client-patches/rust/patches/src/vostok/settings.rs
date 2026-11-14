@@ -6,10 +6,11 @@
 
 use core::cell::UnsafeCell;
 use core::ffi::CStr;
+use core::marker::PhantomData;
 
 use super::context::Context;
 use super::hook::Thread;
-use super::ui::{TEXT_LIMIT, c_string, movie_of, string_argument};
+use super::ui::{Movie, TEXT_LIMIT, c_string, movie_of, string_argument};
 use crate::raw;
 
 /// Writes user.cfg now (game::save_user_config 0x1E9030, what the game does
@@ -281,6 +282,62 @@ impl<'c> OptionsCall<'c> {
         // hook's thread (the options' own Invoke reads it so, 0x1FF98F).
         let Some(movie) = (unsafe { movie_of(self.options.menu()) }) else { return false };
         movie.invoke_strings(method, values)
+    }
+
+    /// The menu that called, to tell it something as [`Menu`] does.
+    pub fn menu(&self) -> Option<Menu<'_>> {
+        // SAFETY: as answer and translate: the options' menu and game, alive
+        // for the call.
+        let (movie, game) = unsafe { (movie_of(self.options.menu())?, self.options.game()?) };
+        Some(Menu { movie, game, thread: PhantomData })
+    }
+}
+
+/// The main menu's movie (the Settings are in it) with the game's
+/// dictionary: what a patch tells the Settings by, in answer to a call of
+/// theirs ([`OptionsCall::menu`]) or at a frame while the menu is shown
+/// ([`Menu::shown_at_game_tick`]).
+pub struct Menu<'t> {
+    movie: Movie<'t>,
+    game: raw::Game,
+    thread: PhantomData<&'t Thread>,
+}
+
+impl<'t> Menu<'t> {
+    /// At `game.tick` (every frame, in a match or not), while the main menu
+    /// is shown; None while it is not.
+    pub fn shown_at_game_tick(ctx: &'t Context<'_>) -> Option<Menu<'t>> {
+        // SAFETY: the site's EBX is the game, alive and ticking on this
+        // thread; the main menu is inside it, its shown byte its own, its
+        // movie holder the one it shows while that byte is set.
+        unsafe {
+            let game = raw::site::game_tick::game(ctx)?;
+            let options = game.options();
+            if *options.shown() == 0 {
+                return None;
+            }
+            Some(Menu { movie: movie_of(options.menu())?, game, thread: PhantomData })
+        }
+    }
+
+    /// A dictionary text of the running language into `out`, as
+    /// [`OptionsCall::translate`].
+    pub fn translate<'o>(&self, key: &CStr, out: &'o mut [u8; 0x200]) -> &'o CStr {
+        out[0] = 0;
+        // SAFETY: the game and its text translator, alive for the hook;
+        // translate_text copies a text shorter than 200h bytes with its zero
+        // into `out` (0x1FF15D) and leaves it alone otherwise.
+        unsafe {
+            raw::engine_translate_text(Some(self.game.text_translator()), key.as_ptr().cast(), out.as_mut_ptr());
+        }
+        out[0x1FF] = 0;
+        CStr::from_bytes_until_nul(out).unwrap_or(c"")
+    }
+
+    /// Invokes the movie's `method` with these strings (UTF-8); whether the
+    /// movie took it.
+    pub fn tell(&self, method: &CStr, values: &[&CStr]) -> bool {
+        self.movie.invoke_strings(method, values)
     }
 }
 

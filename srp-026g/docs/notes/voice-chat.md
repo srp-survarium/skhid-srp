@@ -361,7 +361,8 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 Where the build differs from or adds to the design above:
 
 - **The exe patch is 66**, the safe Rust module `client-patches/rust/patches/src/voice.rs` over
-  its boundary `vostok/voice.rs`. Its names-only `voice.toml` chains eight lohooks of
+  its boundary `vostok/voice.rs`. Its names-only `voice.toml` chains eight lohooks (three more
+  since the microphone test, below) of
   `sites_026g.tsv`: `configs.start` (the variables, before user.cfg), `match_client.connect`
   (the options told, no mutes and no radio, then `sv_start(host, match port + 1, session)`),
   `game_world.finish` and `game_world.deactivate` (`sv_stop`, the talking list emptied),
@@ -506,7 +507,7 @@ Where the build differs from or adds to the design above:
     radio's `VOICE` would move a level that was tuned by ear. `AT_9_M` is what sets the step: 0.5
     (6 dB down at 9 m) made it 7.2 dB, which the owner's "so you always hear normally" ruled out;
     1 would be no fall and no step.
-  - **The interface** (ABI 3): `sv_hear(place, left, right, radio)` tells a place's whole state in
+  - **The interface** (ABI 3 in #1801; 4 with the microphone test): `sv_hear(place, left, right, radio)` tells a place's whole state in
     one call (`voice_abi::Heard`: plain with its two gains, the radio, or both), in place of the
     radio's mask and a pan a place (`sv_radio`, `sv_direction`), which could disagree. The DLL
     has no law of its own left: it mixes the plain voice by the two gains and the radio at unity,
@@ -623,6 +624,97 @@ Where the build differs from or adds to the design above:
   microphone, PTT does nothing, the HUD list empty, and HELLO says "does not hear", so the relay
   sends nothing. Saved as the other options, at once, no restart.
 
+## Microphone test (the owner, 2026-11-14; built, not played)
+
+The owner: "can we add feature to test your microphone? you press button, it records for 10
+seconds, then plays it back". Until it, a player could not tell whether the microphone works, or
+how it sounds, without asking a teammate in a match.
+
+- **Where.** Options, Sound tab, the last of the voice controls (under "Microphone sensitivity" and
+  the stock PTT checkbox): one button, "Test microphone".
+- **A press.** The microphone is recorded for 10 s, then the recording plays back once, then the
+  button is as before. The button itself shows the state and the seconds left ("Recording 7",
+  "Playing 4"). A press while it records or plays stops it.
+- **What is heard** is what a teammate standing beside the player would hear: the recording goes
+  through a transmission's path (noise suppression, the automatic gain at the sensitivity, the
+  codec) and is played plain, centred, no radio, at the "Voice chat" volume. The sensitivity and
+  the volume are the sliders' as they stand on the screen at the press, also before they are
+  accepted: move a slider, test again.
+- **Wherever the options open:** in the lobby with no match, and in a match.
+- **Whatever "Use microphone" and "Disable voice chat" say:** it is local, and how one checks
+  before turning them on.
+- **Nothing of it leaves the game:** not sent to the relay or to anyone, not written to disk,
+  dropped from memory when the playback ends or the test is stopped.
+- **In a match talking wins.** A push-to-talk press stops the test and transmits as usual; the
+  test cannot start while push-to-talk is held. Voices from others keep playing during the test.
+- **It stops by itself** when the options close (the Settings window, or the whole menu), when a
+  match starts loading and when a match ends. As built, also when the options go to another tab:
+  its button is not seen there.
+- **No microphone, or it cannot be opened:** the button says so for a moment ("No microphone",
+  2 s) and returns. The same for no playback device ("No sound output").
+- **Not asked, not built:** a level meter, a device list, a saved recording.
+
+As built:
+
+- **The DLL owns the test** (`client-voice/src/mic_test.rs`): one machine, `Test`, and one
+  transition, `Test::step(state, event, now, devices)`. The exe and the movie only show what it
+  reports.
+
+  | state, and what it holds | `Press` | `Stop` | `Talk` | `Pass` | `Play` |
+  |---|---|---|---|---|---|
+  | `Idle` | push-to-talk held: stays. Else the microphone is opened: `Recording`; none, or no playback device: `Missing` | stays | stays | stays | nothing |
+  | `Recording`: the open capture device, the press's sliders, when its 10 s end, a preprocessor and an encoder of its own, the frames recorded so far | `Idle` | `Idle` | `Idle` | the frames captured since the last pass are preprocessed, encoded and kept (500 at most); the device failed: `Missing`; the 10 s over: `Playing`, or `Missing` when not one frame came | nothing |
+  | `Playing`: the press's volume, a decoder, the frames left | `Idle` | `Idle` | `Idle` | no playback device: `Missing` | the next frame decoded, at the volume; none left: `Idle` |
+  | `Missing`: the microphone or the playback device, until when | as `Idle` | `Idle` | stays | its 2 s over: `Idle` | nothing |
+
+  `Press` is the button (with the two sliders, and whether push-to-talk is held), `Stop` the
+  options closed or on another tab or a match loading or over, `Talk` push-to-talk starting a
+  transmission, `Pass` a pass of the worker (every 5 ms), `Play` the playback device taking its
+  next 20 ms. A state that goes takes what it holds with it: the capture device is closed, the
+  recording freed.
+- **The capture device and push-to-talk.** `Recording` owns the open device and nothing else has
+  it. A transmission's start is the test's `Talk`: the test ends and its device is closed before
+  the transmission opens its own, so nothing the test captured is ever sent. A press while
+  push-to-talk is held starts nothing.
+- **Without a match.** The DLL used to run only between `sv_start` and `sv_stop`. A press with no
+  worker now starts one for the test alone (`runtime.rs`, `run_test`): the playback device and
+  the test, no socket and none of the relay's code. It leaves by itself when the test is over
+  (100 ms after, for the device to play out what it was handed), closing its devices on its own
+  thread. In a match the match's worker runs the test in its loop and mixes the playback under
+  the others' voices, before the mix's soft limit. The game's asks reach the worker through a
+  `Door` (the last one stands); a worker that leaves shuts it, so a press is never left with a
+  worker that has gone: the DLL starts another. `sv_start` and `sv_stop` end a test's own worker
+  as they end a match's.
+- **A teammate's path.** Each captured frame goes through a preprocessor and an encoder made for
+  the test (as a match's first press finds them), and is kept as the frame a transmission would
+  have sent (one the relay would not forward is not kept): about 20 kB for 10 s, in memory only.
+  The playback decodes them as a speaker heard directly is decoded (the ceiling of a loud
+  speaker too), at the press's volume, centred. The DLL's tests hold it sample for sample to what
+  a teammate's game plays of the same microphone (the relay's messages, the jitter buffer, the
+  mix).
+- **The seconds.** The recording lasts 10 s of the worker's clock; its seconds left are the
+  clock's, counted up (10 at the press, 1 in the last). The playback's are those of the frames
+  left.
+- **ABI 3** (in #1803; 4 with `sv_hear`) (`voice-abi`): `sv_test_press(volume, sensitivity)` (each 0..1), `sv_test_stop()`,
+  `sv_test_state() -> u32`, the word of `MicTest`: `Idle`, `Recording(seconds)`,
+  `Playing(seconds)`, `NoMicrophone`, `NoPlayback`.
+- **The exe** (patch 66, three more lohooks). `options.callback`: the sound tab shown asks
+  `srp_mic_test`, answered `root.srp_mic_test(text)`, the button's whole text in the running
+  language; `srp_mic_test("<volume> <sensitivity>")` (the sliders' steps, 0..100) is a press,
+  `srp_mic_test("stop")` the Settings window closed (the menu behind it stays);
+  the DLL is loaded here when no match loaded it yet (none of this ABI: no answer, and no
+  button); the game's own `options_tab_changed` stops the test. `game.tick` (every frame, in a
+  match or not), while the main menu is shown: the button is told its text again when the DLL's
+  state, or its second, is no longer the one it shows; the DLL is asked nothing while the menu is
+  closed, or before the sound tab first asked.
+  `options.deactivate` (the menu's Resume or key, the lobby left for a match's loading, a match's
+  end): the test stopped. `match_client.connect` and the match's end stop it too.
+- **The movie** (`flash/main_menu`, `SrpMicTest.as`): the tab's own button (`SetingsButton`, as
+  the Graphics tab's), one width whatever it says. It shows the exe's text and keeps no state and
+  no clock; a press is no change for Apply; the window closing says stop.
+- **Texts:** `st_srp_mic_test`, `_recording`, `_playing` (`%1$s` the seconds), `_no_microphone`,
+  `_no_playback` in every dictionary, read by the exe.
+
 ## Validation
 
 - The DLL's Rust tests cover protocol bounds, Opus round trips, jitter and packet loss/reorder,
@@ -657,6 +749,27 @@ Where the build differs from or adds to the design above:
 - The Windows/Wine DLL smoke test covers loading, the ABI, relay handshake, mute/volume updates,
   and stopping/restarting with PTT held. It uses a fake relay; the Rust integration above uses
   the real relay.
+- The microphone test: the DLL's `mic_test` tests run the machine with a made-up microphone and
+  clock, no device (10 s recorded through the clock's wrap and played back once, the seconds
+  shown, the playback sample for sample a teammate's, the sliders' levels, a press stopping
+  either part, talking winning, the stops, no microphone in its three ways, no playback device,
+  a microphone ahead of the clock, the door); `cargo test` in `client-patches/rust/` the press's
+  two sliders and each state's text; `scripts/mic-test/check.sh` (Ruffle) the button: none until
+  the exe answers, its place, a press sending the sliders as they stand and no change for Apply,
+  every dictionary's texts on its one line, the other tabs. The smoke test starts and stops the
+  test with no match and in one, with whatever devices it finds.
+- The built DLL's microphone test was run 2026-11-14 with the smoke test under Wine 11.8, in a
+  sandbox with none of the machine's audio (no `/dev/snd`, no user sound server; a private
+  PulseAudio server instead). With no device: "no microphone" for its 2 s, twice, in a match too.
+  With a microphone and no playback device: "no playback device". With a null sink as the
+  playback device and its monitor as the microphone, a made-up voice played into it for the
+  recording: "recording" 10 to 1 a second apart, "playing" 10 to 1, idle at 19.99 s; the sink was
+  given the made-up voice for its 9.5 s, then 10 s of the DLL's playback at the automatic gain's
+  level (-23 dB of full scale falling to -28), then silence. In a match there: no START or AUDIO
+  from the test, a push-to-talk ends it and sends its START, held it keeps the test from starting,
+  the match's end stops it. A source that comes in bursts longer than the capture's four 20 ms
+  buffers (the null sink's monitor behind a slow stream: 8.1 s of the 10 came through) loses the
+  rest, for a transmission as for the test: not changed here.
 
 Real microphone capture and audible playback still require an in-game test with two games, a
 microphone on one, and both near (walking round the speaker and away from it: the voice from its
@@ -666,7 +779,10 @@ calls. One player with one microphone cannot test it as it is: push-to-talk is l
 window loses the keyboard, so the window that talks cannot be left to walk round it in the other.
 What would do it (not built): a local switch of the DLL, an environment variable read once at
 `sv_start` naming a 16 kHz mono WAV, with which the worker talks by itself, the file as the
-microphone, in utterances with a pause between (so the squelch is heard too), whatever the key. Also check the Tab menu's voice mute, the
+microphone, in utterances with a pause between (so the squelch is heard too), whatever the key.
+The microphone test needs one game and a microphone: in the lobby and in a match,
+the button's countdown, how the playback sounds at a few sensitivities, a push-to-talk during it,
+closing the options during it. Also check the Tab menu's voice mute, the
 talking list's fade, the automatic gain with a quiet and a loud microphone, disable voice chat,
 PTT rebinding after restarting, death/respawn and crossing a match boundary while PTT is held.
 This PR is kept out of v35 and the following port-only release.
