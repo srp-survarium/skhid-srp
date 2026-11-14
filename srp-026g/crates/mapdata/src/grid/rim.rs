@@ -74,13 +74,38 @@ pub struct RimStats {
 }
 
 /// [R83] The aims flown at a rim jump no press on the line makes and one of whose flights came near the top (`R83-FORMAT.md`,
-/// the bounded sweep), as (side, turn) in [`Aim::STEP`]s: the side 0.3 m with the heading turned 0.2 rad either way, the side
-/// 0.15 m, the heading turned 0.3 rad. The presses that make R83, R85, R94, R95, R98 in the exe's tick lie at side 0.15-0.3 m,
-/// turn 0.1-0.3 rad (`a385-lost-links-client-truth.md` §1). Flown in this order; the best share wins, the first on a tie.
-pub const AIMS: [(i8, i8); 8] = [(-6, 4), (-6, -4), (6, 4), (6, -4), (-3, 0), (3, 0), (0, 6), (0, -6)];
+/// the bounded sweep), as (side, turn) in [`Aim::STEP`]s: the side 0.3 m or 0.15 m with the heading turned 0.2 or 0.3 rad,
+/// the side 0.15 m straight, the heading turned 0.3 rad, every sign. Every proven row's press is one of them
+/// (`a385-lost-links-client-truth.md` §1, the exe's tick): R83 (-0.3, 0.2) = (-6, 4), R94 (-0.3, -0.3) = (-6, -6), R95
+/// (0.3, 0.2) = (6, 4), R85 (0.15, -0.3) = (3, -6), R98 (0.15, 0.2) = (3, 4). Flown in this order; the best share wins, the
+/// first on a tie.
+pub const AIMS: [(i8, i8); 20] = [
+    (-6, 4),
+    (-6, -4),
+    (6, 4),
+    (6, -4),
+    (-6, 6),
+    (-6, -6),
+    (6, 6),
+    (6, -6),
+    (-3, 4),
+    (-3, -4),
+    (3, 4),
+    (3, -4),
+    (-3, 6),
+    (-3, -6),
+    (3, 6),
+    (3, -6),
+    (-3, 0),
+    (3, 0),
+    (0, 6),
+    (0, -6),
+];
 
-/// [R83] The leads an aimed press is flown at, m: three of the gap leads, a walk and a sprint at each.
-pub const AIMED_LEADS: [f32; 3] = [0.6, 1.0, 1.4];
+/// [R83] The leads an aimed press is flown at, m, a walk and a sprint at each: every proven row's lead is one (R98's walk at
+/// the take-off's centre, [`gap::PRESS_LEAD_LOWEST_M`]; R94's sprint at 0.1; R94's kit walk and R95 at 0.3; R85 at 0.7; R83
+/// at 1.2), with the gap leads 0.6, 1.0 and 1.4.
+pub const AIMED_LEADS: [f32; 8] = [gap::PRESS_LEAD_LOWEST_M, 0.1, 0.3, 0.6, 0.7, 1.0, 1.2, 1.4];
 
 /// [R83] A flight came near a rim jump's top when one of its steps was within this of the top floor's height, below or above,
 /// m, and within [`NEAR_FLAT_M`] of its centre across: the bound of the aimed presses' sweep (a cost bound, not a claim of the

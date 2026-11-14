@@ -66,6 +66,9 @@ pub fn short_jump_carry(speed: f32) -> f32 {
 /// where it pressed; the motor presses at the link's own
 /// ([`OffLink::press`]).
 pub const GAP_PRESS_MIN_M: f32 = 0.6;
+/// [R83] The lowest lead a walking press is kept at, m: a press at the take-off's centre (R98's walk at lead 0.0), one
+/// centimetre on, since a lead of 0 is the walk-off's code ([`Takeoff::centimetres`]).
+pub const PRESS_LEAD_LOWEST_M: f32 = 0.01;
 pub const GAP_PRESS_MAX_M: f32 = 1.6;
 pub const GAP_PRESS_STEP_M: f32 = 0.1;
 /// A gap link holds for a press this much earlier or later than its own,
@@ -98,10 +101,11 @@ impl PressLead {
         Self(cm)
     }
 
-    /// Within the presses a build looks at.
+    /// Within the presses a build looks at: [R83] from [`PRESS_LEAD_LOWEST_M`] (an aimed press at the take-off's centre) to
+    /// [`GAP_PRESS_MAX_M`].
     pub(super) fn is_valid(self) -> bool {
         let m = self.metres();
-        (GAP_PRESS_MIN_M - 1e-3..=GAP_PRESS_MAX_M + 1e-3).contains(&m)
+        (PRESS_LEAD_LOWEST_M - 1e-3..=GAP_PRESS_MAX_M + 1e-3).contains(&m)
     }
 }
 
