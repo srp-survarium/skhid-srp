@@ -88,7 +88,9 @@ use std::time::Instant;
 use session::matchmaking_policy::{self as policy, Closed, Worth};
 use session::v026g::presets::{self, Offer};
 use session::v026g::room_settings::{self, RoomSettings};
-use session::v026g::rooms::{self as model, Door, Due, QueueChoice, Refused, Spec, Stage, Waiting};
+use session::v026g::rooms::{
+    self as model, Door, Due, Entry, QueueChoice, Refused, Spec, Stage, Waiting,
+};
 use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool, Strength};
 use survarium::v026g::lobby::presets::PresetDone;
@@ -98,7 +100,7 @@ use survarium::v026g::lobby::rooms::{
     RoomView,
 };
 use survarium::v026g::lobby::{self, ClientState};
-use survarium::v026g::twist::Played;
+use survarium::v026g::twist::{Played, Twist};
 use survarium::v026g::maps;
 
 use super::MAINTENANCE_WINDOW;
@@ -244,7 +246,10 @@ struct Ready {
 
 impl Core<'_> {
     /// The maps a pool may hold, in the order their bits name them: the
-    /// match pool (Blackout's maps too, mode 6), then the experimental maps.
+    /// match pool (Blackout's maps too, mode 6), then the experimental maps,
+    /// then those of them that are a free-for-all's once with each twist
+    /// (Racket's, then Cowboy's: a mode of its own in the create window, its
+    /// lobby number; `ffa.md`, "Twists").
     pub(super) fn room_entries(&self) -> Vec<PoolEntry> {
         let pool = &self.settings.maps;
         let extra = self
@@ -253,7 +258,7 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        pool
+        let plain: Vec<PoolEntry> = pool
             .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
@@ -264,10 +269,29 @@ impl Core<'_> {
                     level: map.level,
                     weather: map.weather,
                     mode: map.mode.lobby_number(),
+                    twist: None,
                     extra,
                     bots: self.settings.pvb.bot_maps.contains(&id),
                 })
             })
+            .collect();
+        let twisted = Twist::ALL.into_iter().flat_map(|twist| {
+            plain
+                .iter()
+                .filter(|entry| {
+                    maps::map_mode(entry.map_id)
+                        .is_some_and(|map| map.mode == maps::GameMode::FreeForAll)
+                })
+                .map(move |entry| PoolEntry {
+                    mode: twist.lobby_number(),
+                    twist: Some(twist),
+                    ..*entry
+                })
+        });
+        let twisted: Vec<PoolEntry> = twisted.collect();
+        plain
+            .into_iter()
+            .chain(twisted)
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()
@@ -854,19 +878,16 @@ impl Core<'_> {
         bots: bool,
         now: Instant,
     ) -> Result<u32, Refused> {
-        let entries: Vec<u8> = self
-            .room_entries()
-            .iter()
-            .map(|entry| entry.map_id)
-            .collect();
+        let entries: Vec<Entry> = self.room_entries().iter().map(Entry::from).collect();
         // The whole pool but the experimental maps: the match pool,
         // Blackout's maps with it (the owner's of 2026-10-25: Blackout
-        // is part of the standard pool).
-        let default: Vec<u8> = self
+        // is part of the standard pool), the free-for-alls with every twist
+        // (their shares, `twist::SHARES`).
+        let default: Vec<Entry> = self
             .room_entries()
             .iter()
             .filter(|entry| !entry.extra)
-            .map(|entry| entry.map_id)
+            .map(Entry::from)
             .collect();
         // A room with a PIN asks for the one its maker gave just before; it
         // has no max level (the owner's of 2026-10-26), the window's is

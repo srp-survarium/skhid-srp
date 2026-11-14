@@ -3,7 +3,7 @@
 //! again after the match; Play into a room; a PIN, a max level and a kick;
 //! a late joiner; and no room for an older game.
 
-use session::v026g::rooms::Stage;
+use session::v026g::rooms::{Entry, Stage};
 use session::v026g::{matchmaking, quests};
 use survarium::v026g::lobby::rooms::{
     ROOM_FORM, ROOM_FRIENDS, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_MEMBERS_BASE,
@@ -73,18 +73,13 @@ pub(super) fn create(world: &mut World, index: usize, spec: RoomSpec, pin: Optio
     // Public rooms are server-created now. Lifecycle tests can still set
     // up a particular size/pool directly; the wire refusal is tested below.
     if pin.is_none() {
-        let entries: Vec<_> = world
-            .core
-            .room_entries()
-            .iter()
-            .map(|entry| entry.map_id)
-            .collect();
+        let entries: Vec<_> = world.core.room_entries().iter().map(Entry::from).collect();
         let default: Vec<_> = world
             .core
             .room_entries()
             .iter()
             .filter(|entry| !entry.extra)
-            .map(|entry| entry.map_id)
+            .map(Entry::from)
             .collect();
         let account_id = world.ids[index].0;
         let gear = matchmaking::gear_level(
@@ -1219,9 +1214,9 @@ fn an_older_game_plays_in_no_room() {
     assert!(world.host.made.locked().is_empty());
 }
 
-/// The create window's answer: its header's fields and the `maps_dict` ids
-/// it puts in (tile in, mode not out).
-fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<u8>) {
+/// The create window's answer: its header's fields and the entries it puts
+/// in (tile in, mode not out).
+fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<Entry>) {
     let rows = rows(world, index, ROOM_FORM, 1);
     let header = header(&rows);
     let modes_off: Vec<u8> = header[7]
@@ -1242,7 +1237,7 @@ fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<u8>) {
         .iter()
         .zip(tiles_on)
         .filter(|(entry, on)| *on && !modes_off.contains(&entry.mode))
-        .map(|(entry, _)| entry.map_id)
+        .map(|(entry, _)| Entry::from(entry))
         .collect();
     (header[2..7].to_vec(), chosen)
 }
@@ -1256,10 +1251,10 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     let entries = world.core.room_entries();
-    let regular: Vec<u8> = entries
+    let regular: Vec<Entry> = entries
         .iter()
         .filter(|entry| !entry.extra)
-        .map(|entry| entry.map_id)
+        .map(Entry::from)
         .collect();
     assert!(entries.len() >= 3, "{entries:?}");
     let defaults = (
@@ -1292,14 +1287,14 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     assert_eq!(fields, ["1", "9", "2", "3", "45"]);
     // The pool as made: the window's tiles and modes give it back (an entry
     // of the same map, weather and mode would come with it).
-    let made: Vec<u8> = world
+    let made: Vec<Entry> = world
         .core
         .rooms
         .of(world.ids[alice].0)
         .unwrap()
         .pool
         .clone();
-    assert_eq!(made, [entries[0].map_id, entries[2].map_id]);
+    assert_eq!(made, [Entry::from(&entries[0]), Entry::from(&entries[2])]);
     assert_eq!(chosen, made);
     assert!(world.account(alice).room_settings.is_some());
     // Equipment over the max level now: the window offers its level.
@@ -2405,7 +2400,7 @@ fn a_private_room_with_bots_fills_its_teams_with_them() {
     let key: u32 = header(&made)[KEY].parse().unwrap();
     let room = world.core.rooms.get(key).unwrap();
     assert!(room.with_bots());
-    assert!(room.pool.iter().all(|id| bot_maps.contains(id)));
+    assert!(room.pool.iter().all(|entry| bot_maps.contains(&entry.map)));
     // A member joins with the PIN; the room lists only the two of them.
     let bob = world.connect("Bob");
     rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
@@ -2805,7 +2800,7 @@ fn blackout_is_a_mode_of_the_standard_pool() {
     let carol = world.connect("Carol");
     // The defaults have it.
     let (_, chosen) = form(&mut world, alice);
-    assert!(chosen.contains(&lobby_id), "{chosen:?}");
+    assert!(chosen.contains(&Entry::plain(lobby_id)), "{chosen:?}");
     // A room Play makes has it.
     let made_by_play: u32 = play_into_room(&mut world, carol).parse().unwrap();
     assert!(
@@ -2815,7 +2810,7 @@ fn blackout_is_a_mode_of_the_standard_pool() {
             .get(made_by_play)
             .unwrap()
             .pool
-            .contains(&lobby_id)
+            .contains(&Entry::plain(lobby_id))
     );
     rows(&mut world, carol, ROOM_LEAVE, 1);
     // Alice's room: Blackout alone. Play puts Bob into it.

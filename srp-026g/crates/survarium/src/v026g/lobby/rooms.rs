@@ -823,14 +823,20 @@ pub struct RoomForm {
     pub modes_off: Vec<u8>,
 }
 
-/// A map a pool may hold, in [`room_pool`].
+/// A map a pool may hold, in [`room_pool`]: a free-for-all's once plain and
+/// once with each twist, a mode of its own in the create window
+/// (`ffa.md`, "Twists").
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PoolEntry {
     pub map_id: u8,
     /// Of its `maps_dict` entry (`maps::MapMode`).
     pub level: u8,
     pub weather: u8,
+    /// The mode its card plays, by its lobby number: its twist's
+    /// (`Twist::lobby_number`), else its map's.
     pub mode: u8,
+    /// The twist its card plays on the free-for-all's map; none: the map as it is.
+    pub twist: Option<crate::v026g::twist::Twist>,
     /// One of the server's experimental maps (`SRP_ROOMS_EXTRA_MAPS`): not
     /// in a room's pool unless its creator adds it.
     pub extra: bool,

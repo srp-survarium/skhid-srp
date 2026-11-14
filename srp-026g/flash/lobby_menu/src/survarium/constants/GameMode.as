@@ -23,6 +23,12 @@ package survarium.constants
       // another mode
       public static const FREE_FOR_ALL:int = 8;
       
+      // A free-for-all's twists (docs/notes/ffa.md, "Twists"): no maps of their own, the lobby's
+      // numbers of what a free-for-all card plays (the server's `Twist::lobby_number`)
+      public static const RACKET:int = 9;
+      
+      public static const COWBOY:int = 10;
+      
       public function GameMode()
       {
          super();

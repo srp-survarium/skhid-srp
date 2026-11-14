@@ -2661,10 +2661,10 @@ st_srp_microphone	Mikrofoni
 st_srp_microphone_default	Oletus
 st_srp_mode_blackout	Suojalaite: sähkökatko
 st_srp_mode_chargers	Suojalaite: laturit
-st_srp_mode_cowboy	Saluuna
+st_srp_mode_cowboy	FFA: Saluuna
 st_srp_mode_free_for_all	Kaikki kaikkia vastaan
 st_srp_mode_protective_device	Suojalaite
-st_srp_mode_racket	Meteli
+st_srp_mode_racket	FFA: Meteli
 st_srp_mode_research	Tutkimus
 st_srp_mode_team_deathmatch	Joukkuetaistelu
 st_srp_mouse_lock_option	Lukitse pystyherkkyys

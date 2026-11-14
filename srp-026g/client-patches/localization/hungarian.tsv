@@ -2661,10 +2661,10 @@ st_srp_microphone	Mikrofon
 st_srp_microphone_default	Alapértelmezett
 st_srp_mode_blackout	Védelmi berendezés: áramszünet
 st_srp_mode_chargers	Védelmi berendezés: töltők
-st_srp_mode_cowboy	Saloon
+st_srp_mode_cowboy	FFA: Saloon
 st_srp_mode_free_for_all	Mindenki mindenki ellen
 st_srp_mode_protective_device	Védelmi berendezés
-st_srp_mode_racket	Zsivaj
+st_srp_mode_racket	FFA: Zsivaj
 st_srp_mode_research	Kutatás
 st_srp_mode_team_deathmatch	Csapatos deathmatch
 st_srp_mouse_lock_option	Függőleges érzékenység rögzítése

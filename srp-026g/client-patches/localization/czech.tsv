@@ -2661,10 +2661,10 @@ st_srp_microphone	Mikrofon
 st_srp_microphone_default	Výchozí
 st_srp_mode_blackout	Ochranné zařízení: výpadek
 st_srp_mode_chargers	Ochranné zařízení: nabíječky
-st_srp_mode_cowboy	Saloon
+st_srp_mode_cowboy	FFA: Saloon
 st_srp_mode_free_for_all	Každý proti každému
 st_srp_mode_protective_device	Ochranné zařízení
-st_srp_mode_racket	Rambajz
+st_srp_mode_racket	FFA: Rambajz
 st_srp_mode_research	Výzkum
 st_srp_mode_team_deathmatch	Týmový deathmatch
 st_srp_mouse_lock_option	Zamknout svislou citlivost
