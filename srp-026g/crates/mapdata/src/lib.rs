@@ -197,8 +197,9 @@ pub const HELD_FLOORS_ALGO: u32 = 0x5389_0201;
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0301;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
-/// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45).
-pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0103;
+/// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45). 0104: the
+/// test body comes down onto the floor from up to 0.6 m over it and must rest there (A389 follow-up (a)).
+pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0104;
 /// The same for the walk-tick passes with the exe's collision rules ([`Body::exe_collision`], A325), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const EXE_COLLISION_ALGO: u32 = 0x5325_0101;
@@ -337,13 +338,18 @@ impl World {
     /// bench's grid is the server's: the bench built its rim jumps on the walker triangles while the store flew them on the
     /// shapes.
     pub fn map_grid(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> WalkGrid {
+        Self::map_grid_with_stats(map, walker, cell, body, links).0
+    }
+
+    /// [`Self::map_grid`] with the build's counts ([`BuildStats`]), for a log.
+    pub fn map_grid_with_stats(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> (WalkGrid, BuildStats) {
         // [A389] Every pass that walks or flies the client's body takes the shapes: the rim jumps, the gap flights, the Drop links'
         // walk, the rest and held floors.
         let flown = body.rim_jumps || body.gap_flights || body.rest_floors || body.held_floors || (body.drop_check && body.drop_lands);
         let shapes = flown.then(|| controller::Collision::build_exe(map)).flatten();
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let area = map.play_area(AREA_MARGIN);
-        WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links).0
+        WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links)
     }
 
     /// The key of [`Self::map_grid`]'s grid: what it is built from, so a grid read back under this key (a pre-built file, or
