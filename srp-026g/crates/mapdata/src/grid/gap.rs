@@ -482,6 +482,10 @@ pub struct GapStats {
     pub groups: usize,
     /// … and the clip pass's pressed links kept where no flown press covers their group (unflown, priced as before).
     pub clip_kept: usize,
+    /// [S4] Of the gaps flown, those over a thin top (a rail, a railing, a sill: [`WalkGrid::over_thin_top`]) …
+    pub over_thin: usize,
+    /// … and the links made over one.
+    pub over_thin_made: usize,
     pub by_share: [usize; 3],
 }
 

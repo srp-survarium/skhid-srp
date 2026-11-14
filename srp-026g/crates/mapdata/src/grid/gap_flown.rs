@@ -33,7 +33,18 @@ struct Gap {
     b: u32,
     d: usize,
     over: f32,
+    /// The first cell on from the take-off's a landing may be in: 2 for a gap, past the thin top for [S4] a gap over one.
+    past: i32,
+    /// [S4] Over a thin top ([`WalkGrid::over_thin_top`]).
+    thin: bool,
 }
+
+/// [S4] The highest thin top a gap over one is searched over, m over the take-off: a sprint jump clears a rail to 1.2 m
+/// (`railings-design.md` §4, 725-805 of 805 presses, every lead 0-1.9 m). Only bounds the search; each link is flown.
+pub const OVER_TOP_M: f32 = 1.2;
+/// [S4] The most cells along the way a thin top spans (0.5 m: the thin tops of the railings census, `railings-design.md` §3);
+/// a longer one is a ledge's top, the rim jumps' and the gap links' onto it.
+pub const THIN_CELLS: i32 = 2;
 
 impl WalkGrid {
     /// The floor across the gap from `a` along `d` (module documentation) and the gap's bottom: the highest floor crossed, and at
@@ -86,12 +97,85 @@ impl WalkGrid {
         None
     }
 
+    /// [S4] The floor across a thin top from `a` along `d` (a rail, a railing, a sill at the floor's edge, `railings-design.md`
+    /// §4, "over a rail" and "jump off a rail's side": the Chemical Plant train's roof past the railing): across cells with no
+    /// floor within a step of the take-off, a top of at most [`THIN_CELLS`] cells along the way, more than a step and at most
+    /// [`OVER_TOP_M`] over the take-off; then the first cell holding a floor at least a step under the top's, in a gap link's
+    /// reach (no higher than the reach, no lower than the harmless drop), with standing room, that `a` has no link to. With the
+    /// gap's bottom (the highest floor crossed under the take-off, the walk-off's floor at least, as [`Self::gap_across`]) and the
+    /// first cell a landing may be in (past the top). None when the way meets no such top.
+    fn over_thin_top(&self, wide: &Wide, solids: &Solids, a: usize, d: usize) -> Option<(u32, f32, i32)> {
+        let h = self.height[a];
+        let body = &self.body;
+        let reach = body.max_jump.min(MARGINAL_JUMP_M);
+        let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+        let (di, dk) = DIRS[d];
+        let stride = self.cell * ((di * di + dk * dk) as f32).sqrt();
+        let linked = |f: u32| wide.links[a].contains(&f);
+        let walked = self.walk_off(a, d, jump::WALK_CAP_MS, solids).map(|f| self.height[f as usize]);
+        let mut crossed = walked.filter(|&y| y < h - body.step).unwrap_or(f32::NEG_INFINITY);
+        // Before the top: cells with no floor within a step of the take-off (a floor there is walked to: no edge here).
+        let mut g = 1;
+        let top = loop {
+            if (g as f32 - 0.5) * stride > SPRINT_REACH_M {
+                return None;
+            }
+            let cell = self.cell_index(i + g * di, k + dk * g)?;
+            let up: Vec<f32> = (self.start[cell]..self.start[cell + 1]).map(|f| self.height[f as usize]).filter(|&y| y > h - body.step).collect();
+            if !up.is_empty() {
+                if up.iter().any(|&y| y - h <= body.step || y - h > OVER_TOP_M) {
+                    return None;
+                }
+                break up.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+            }
+            crossed = (self.start[cell]..self.start[cell + 1]).map(|f| self.height[f as usize]).fold(crossed, f32::max);
+            g += 1;
+        };
+        // The top: at most THIN_CELLS cells holding it.
+        let first = g;
+        while g - first < THIN_CELLS {
+            let cell = self.cell_index(i + (g + 1) * di, k + dk * (g + 1))?;
+            if !(self.start[cell]..self.start[cell + 1]).any(|f| (self.height[f as usize] - top).abs() <= body.step) {
+                break;
+            }
+            g += 1;
+        }
+        if g - first >= THIN_CELLS {
+            return None;
+        }
+        // Past it: the first cell with a landing.
+        let past = g + 1;
+        let mut g = past;
+        while (g as f32 - 0.5) * stride <= SPRINT_REACH_M {
+            let cell = self.cell_index(i + g * di, k + dk * g)?;
+            let floors = self.start[cell]..self.start[cell + 1];
+            let target = floors.clone().filter(|&f| {
+                let y = self.height[f as usize];
+                y - h <= reach
+                    && h - y <= body.max_drop
+                    && y <= top - body.step
+                    && y > crossed
+                    && self.ceiling[f as usize] - y >= body.stand_height
+                    && !linked(f)
+            });
+            if let Some(f) = target.max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize])) {
+                return Some((f, crossed, past));
+            }
+            // A floor higher than a step under the top past it: a wider top or a wall, the rim jumps' and the gap links'.
+            if floors.clone().any(|f| self.height[f as usize] > top - body.step) {
+                return None;
+            }
+            g += 1;
+        }
+        None
+    }
+
     /// The floor a flight's `steps` from the take-off `a` lands and stays on (A385-FORMAT §1): its landing
     /// ([`jump::landing_and_rest`], the first step out of the jump on the ground, `on_ground` 0x7EF90) over a floor
     /// ([`Self::floor_under`]) two or more cells on from `a`'s, in a gap link's reach of it (no higher than the reach, no lower
     /// than the harmless drop) and over `over` (out of the gap, [`Gap::over`]), with standing room, not one `a` has a link to
     /// (`linked`), and at rest over such a floor: the floor it rests on.
-    fn gap_lands_on(&self, steps: &[FlightStep], a: u32, linked: &[NodeId], over: f32) -> Option<NodeId> {
+    fn gap_lands_on(&self, steps: &[FlightStep], a: u32, linked: &[NodeId], over: f32, past: i32) -> Option<NodeId> {
         let h = self.height[a as usize];
         let reach = self.body.max_jump.min(MARGINAL_JUMP_M);
         let (i, k) = self.cell_xz(self.cell_of[a as usize] as usize);
@@ -99,7 +183,7 @@ impl WalkGrid {
             self.floor_under(feet).filter(|&g| {
                 let y = self.height[g as usize];
                 let (gi, gk) = self.cell_xz(self.cell_of[g as usize] as usize);
-                (gi - i).abs().max((gk - k).abs()) >= 2
+                (gi - i).abs().max((gk - k).abs()) >= past
                     && y - h <= reach
                     && h - y <= self.body.max_drop
                     && y > over
@@ -130,11 +214,17 @@ impl WalkGrid {
             }
             for d in 0..DIRS.len() {
                 let b = wide.links[a][d];
+                // [S4] Over a thin top: along a way no Walk link takes (a Jump link onto the top, a Drop, or none).
+                if (b == NONE || wide.kinds[a][d] != LinkKind::Walk)
+                    && let Some((b, crossed, past)) = self.over_thin_top(wide, solids, a, d)
+                {
+                    gaps.push(Gap { a: a as u32, b, d, over: crossed, past, thin: true });
+                }
                 if b != NONE && wide.kinds[a][d] != LinkKind::Drop {
                     continue;
                 }
                 match self.gap_across(wide, solids, a, d) {
-                    Some((b, crossed)) => gaps.push(Gap { a: a as u32, b, d, over: crossed + self.body.step }),
+                    Some((b, crossed)) => gaps.push(Gap { a: a as u32, b, d, over: crossed + self.body.step, past: 2, thin: false }),
                     None => stats.no_gap += 1,
                 }
             }
@@ -143,7 +233,7 @@ impl WalkGrid {
         // order until one is made (the one the thinning keeps of a group's made links anyway), at most the group's two ends.
         let key = |g: &Gap| {
             let (p, q) = (self.position(g.a), self.position(g.b));
-            (p.x.floor() as i32, p.z.floor() as i32, (2.0 * p.y).round() as i32, g.d, (2.0 * q.y).round() as i32)
+            (p.x.floor() as i32, p.z.floor() as i32, (2.0 * p.y).round() as i32, g.d, (2.0 * q.y).round() as i32, g.thin)
         };
         gaps.sort_by_key(|g| (key(g), g.a));
         let mut groups: Vec<std::ops::Range<usize>> = Vec::new();
@@ -171,7 +261,7 @@ impl WalkGrid {
                 // The floors `a` has a link to already (its sides and its off-mesh links): a landing there makes no link.
                 let linked: Vec<NodeId> = wide.links[g.a as usize].iter().copied().filter(|&f| f != NONE).collect();
                 let super::rim::RimPress { made, flights: f, .. } =
-                    self.best_press(world, s, g.a, g.b, (di as f32 / l, dk as f32 / l), &leads, |st| self.gap_lands_on(st, g.a, &linked, g.over), kits);
+                    self.best_press(world, s, g.a, g.b, (di as f32 / l, dk as f32 / l), &leads, |st| self.gap_lands_on(st, g.a, &linked, g.over, g.past), kits);
                 flights += f;
                 // Every press it makes (a jump's, and [S1] a sprint climb's onto its own floor), as the rim pass keeps them.
                 if !made.is_empty() {
@@ -180,6 +270,7 @@ impl WalkGrid {
             }
             (None, tried, flights)
         });
+        stats.over_thin = gaps.iter().filter(|g| g.thin).count();
         for (made, tried, flights) in flown {
             stats.flown += tried;
             stats.flights += flights;
@@ -187,6 +278,7 @@ impl WalkGrid {
                 stats.no_landing += 1;
                 continue;
             };
+            stats.over_thin_made += usize::from(g.thin) * made.len();
             for Made { to, press, share, walk, .. } in made {
                 let rise = self.height[to as usize] - self.height[g.a as usize];
                 let kind = if rise > -self.body.step { LinkKind::GapJump } else { LinkKind::GapDrop };
@@ -255,6 +347,26 @@ mod tests {
         assert!(flown.iter().all(|l| l.kind == LinkKind::GapJump && l.share.flown().is_some_and(|n| n > 0)), "{flown:?}");
         let clip = across(&grid(&t, false), 7.0);
         assert!(clip.iter().all(|l| l.share.flown().is_none()), "{clip:?}");
+    }
+
+    /// [S4] A deck 2 m up ending at a railing 0.25 m thick, its top 1.0 m over the deck, with a roof 1.0 m under the deck past it
+    /// (the Chemical Plant train's case, `railings-design.md` §4): the way over the railing is a gap searched and flown
+    /// ([`WalkGrid::over_thin_top`]); whether a press clears the railing is the flight's. Before S4 the railing ended the search.
+    #[test]
+    fn a_way_over_a_railing_is_searched_as_a_gap() {
+        let mut t = quad(0.0, 14.0, -3.0).to_vec();
+        t.extend(quad(0.0, 6.0, 2.0));
+        t.extend(face_x(6.0, -3.0, 3.0));
+        t.extend(quad(6.0, 6.25, 3.0));
+        t.extend(face_x(6.25, 1.0, 3.0));
+        t.extend(quad(6.25, 14.0, 1.0));
+        t.extend(face_x(6.25, -3.0, 1.0));
+        let body = Body { gap_flights: true, exe_collision: true, start_witness: true, max_jump: STANDING_JUMP_M, ..Body::client() };
+        let start = [Vec3::new(3.0, 2.0, 5.0)];
+        let (g, stats) = WalkGrid::build_kept_with_links(&t, AREA, 0.25, body, &start, &start, OffMeshLinks::Gaps);
+        assert!(stats.gaps.over_thin > 0, "{:?}", stats.gaps);
+        let over: Vec<OffLink> = g.off_links().iter().copied().filter(|l| g.position(l.from).x < 6.0 && g.position(l.to).x > 6.25).collect();
+        println!("over the railing: {} made, {over:?}", stats.gaps.over_thin_made);
     }
 
     /// A level gap of 6 m: no press of the client's lands across (the sprint jump from a 0.6-1.6 m lead comes down about 4 m on),
