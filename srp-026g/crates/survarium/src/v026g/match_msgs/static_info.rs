@@ -388,6 +388,40 @@ impl MatchProfile {
         }
     }
 
+    /// Without the items no kit holds, the kits' indices following. An index past the table
+    /// stays past it.
+    pub fn drop_unheld(&mut self) {
+        let held: Vec<bool> = (0..self.items.len())
+            .map(|index| {
+                self
+                    .kits
+                    .iter()
+                    .flat_map(|kit| kit.slots.iter().flatten())
+                    .any(|&(at, _)| usize::from(at) == index)
+            })
+            .collect();
+        // An item's new index: the held ones before it.
+        let moved: Vec<u16> = held
+            .iter()
+            .scan(0u16, |next, &held| {
+                let index = *next;
+                *next += u16::from(held);
+                Some(index)
+            })
+            .collect();
+        let mut keep = held.iter();
+        self
+            .items
+            .retain(|_| keep.next().copied().unwrap_or(false));
+        for kit in &mut self.kits {
+            for (index, _) in kit.slots.iter_mut().flatten() {
+                if let Some(&to) = moved.get(usize::from(*index)) {
+                    *index = to;
+                }
+            }
+        }
+    }
+
     /// The place's grenades and traps in a world's game objects, in the
     /// order the game binds them (`srp_validate::world::objects`): its
     /// usable kits in order (each has a player object, 0x321820), each

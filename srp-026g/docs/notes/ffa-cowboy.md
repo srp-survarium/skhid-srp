@@ -21,7 +21,8 @@ a late joiner and a replay see the same kits.
 - **Everything else stays:** armour, pockets (medicine, grenades, boosters, traps), artefacts, the
   kit's skills (modifiers), its name and id. The pockets stay packed.
 - **Items:** the Python and its ammunition are one new item each in the profile's table, held by
-  every kit: whole (`FULL_CONDITION`; the ammunition's stack is the 40 rounds), no modifications,
+  every kit: whole (`FULL_CONDITION`; the ammunition's store is the kit's 40 rounds 1000 times,
+  `twist::STORE_LIVES`, so that every life has its 40, `ffa.md` "Twists"), no modifications,
   no upgrades. Their ids are the lowest ones from 1 that the profile's items did not have. An item
   no kit holds any more (the old guns and ammunition) leaves the table, so a profile never grows
   past the 69 items a profile holds.

@@ -142,8 +142,10 @@ fn used_by_counters(account: &Account, shots: &[u32], buckshot: Option<u16>) -> 
 /// snapshot, `shots[kit]` the bullets its counters say each kit fired,
 /// `respawns` how often it began a new life: its deaths and its kit
 /// changes before play began, `twist` the twist the match armed its kits
-/// with: then they were not the account's, and without a block the
-/// counters prove nothing of its stacks. Call it before the match's pay or
+/// with: then they were not the account's, without a block the counters
+/// prove nothing of its stacks, and the ammo the twist gives
+/// ([`Twist::gives`]) is nobody's, never charged though the account owns
+/// that kind too. Call it before the match's pay or
 /// drop changes a stack. See the module.
 pub fn used(
     account: &Account,
@@ -177,6 +179,9 @@ pub fn used(
         None if twist.is_some() => Vec::new(),
         None => used_by_counters(account, shots, buckshot),
     };
+    if let Some(given) = twist.map(Twist::gives) {
+        used.retain(|&(dict_id, _)| dict_id != given);
+    }
     // Never more than the account owns.
     for (dict_id, units) in &mut used {
         *units = (*units).min(owned(account, *dict_id));
@@ -426,6 +431,30 @@ mod tests {
         assert_eq!(used(&account, None, &[300, 0, 0], 0, None), [(rounds, 300)]);
         // Not in a twisted match: its kits were not the account's.
         assert_eq!(used(&account, None, &[300, 0, 0], 0, Some(Twist::Racket)), []);
+    }
+
+    /// A twisted match never charges the ammo its twist gave, though the
+    /// account owns that kind too: a Python owner's own .357 is not what
+    /// the match's store of it spent (`docs/notes/ffa.md`, "Twists").
+    #[test]
+    fn the_ammo_a_twist_gives_is_never_charged() {
+        let (mut account, _, _) = rifleman(300);
+        let given = Twist::Cowboy.gives();
+        let own = account.add_item(given, 200);
+        account.kits[1].slots[9] = Some(KitSlot {
+            item_id: own,
+            count: 40,
+        });
+        let rounds = dict("ammo_5.45x39_7n6m");
+        let supplies = block(&[(rounds, 270), (given, 170)]);
+        assert_eq!(
+            used(&account, Some(&supplies), &[30, 0, 0], 0, None),
+            [(rounds, 30), (given, 30)]
+        );
+        assert_eq!(
+            used(&account, Some(&supplies), &[30, 0, 0], 0, Some(Twist::Cowboy)),
+            [(rounds, 30)]
+        );
     }
 
     #[test]
