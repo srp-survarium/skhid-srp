@@ -18,7 +18,9 @@
 //! after them ("SRPX", then tagged entries) is read by exe patches only:
 //! tag 2 is the Blackout flag (patch 65, `docs/notes/blackout.md`; its
 //! reader is at the two calls of `match_options::deserialize`, 0x27B928 and
-//! 0x1F096C); tag 1 is kept for team damage (#370).
+//! 0x1F096C); tag 3 a free-for-all's kill target (patch 142); tag 1 team
+//! damage's rule (patch 63, `docs/notes/team-damage.md`; its bytes are
+//! `srp_validate::team_damage::Rule`'s), first, when the match has it.
 //!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
@@ -34,6 +36,7 @@ use super::super::loadouts::{Loadout, POCKET_SLOTS};
 use super::super::skills::{MODIFIERS, write_modifier_block};
 use super::super::item_params::{self, ItemClass};
 use super::super::{lzma2, maps};
+use srp_validate::team_damage;
 use srp_validate::world::{AMMO_SLOTS, Ammo, Body, Gun, Held, Item, Measure, WEAPON_SLOTS};
 use super::snapshot::event;
 use super::{MAX_PLAYERS, ServerMessage};
@@ -537,6 +540,9 @@ pub struct MatchOptions {
     pub match_id: u32,
     pub match_level: u16,
     pub score_weights: [f32; SCORE_EVENTS],
+    /// Team damage turned back on its dealer past a threshold (exe patch
+    /// 63): the rule, in a match that has it (srp's entry tag 1).
+    pub team_damage: Option<team_damage::Rule>,
 }
 
 /// srp's block after the options: its magic, then tagged entries
@@ -863,14 +869,18 @@ pub fn options_bytes(
         *squad = profile.squad;
     }
     out.extend(squads);
-    match SrpBlock::of(options.map) {
+    let block = SrpBlock::of(options.map);
+    if options.team_damage.is_some() || block != SrpBlock::Plain {
+        out.extend(SRPX_MAGIC);
+    }
+    if let Some(rule) = options.team_damage {
+        out.extend([team_damage::TAG, team_damage::Rule::ENTRY_LEN as u8]);
+        out.extend(rule.entry());
+    }
+    match block {
         SrpBlock::Plain => {}
-        SrpBlock::Blackout => {
-            out.extend(SRPX_MAGIC);
-            out.extend([SRPX_BLACKOUT, 1, 1]);
-        }
+        SrpBlock::Blackout => out.extend([SRPX_BLACKOUT, 1, 1]),
         SrpBlock::FreeForAll { kills_to_win } => {
-            out.extend(SRPX_MAGIC);
             out.extend([SRPX_FREE_FOR_ALL, 2]);
             out.extend(kills_to_win.to_le_bytes());
         }
@@ -1107,7 +1117,7 @@ pub fn parse_options(
         *weight = reader.f32()?;
     }
     let squads = reader.take(MAX_PLAYERS)?;
-    let block = read_srp_block(&mut reader)?;
+    let (team_damage, block) = read_srp_block(&mut reader)?;
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
@@ -1132,25 +1142,34 @@ pub fn parse_options(
         match_id,
         match_level,
         score_weights,
+        team_damage,
     })
 }
 
-/// srp's block after the options, if any: as patch 65's reader reads it, but
-/// strict (an unknown tag or a short entry is refused, so a test sees it).
-fn read_srp_block(reader: &mut Reader) -> Result<SrpBlock, StaticInfoError> {
+/// srp's block after the options, if any: as the patches read it, but
+/// strict (an unknown tag, a short entry or one out of its order is
+/// refused, so a test sees it): team damage's rule if the match has it,
+/// then the mode's entry if its mode has one.
+fn read_srp_block(
+    reader: &mut Reader,
+) -> Result<(Option<team_damage::Rule>, SrpBlock), StaticInfoError> {
     if reader.bytes.is_empty() {
-        return Ok(SrpBlock::Plain);
+        return Ok((None, SrpBlock::Plain));
     }
     if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
         return Err(StaticInfoError::SrpBlock);
     }
-    // One entry: a match is of one mode.
-    let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
-    let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
-    let entry = reader
-        .take(usize::from(len))
-        .map_err(|_| StaticInfoError::SrpBlock)?;
-    let block = match (tag, entry) {
+    let mut next = srp_entry(reader)?;
+    let mut rule = None;
+    if next.0 == team_damage::TAG {
+        rule = Some(team_damage::Rule::of_entry(next.1).ok_or(StaticInfoError::SrpBlock)?);
+        if reader.bytes.is_empty() {
+            return Ok((rule, SrpBlock::Plain));
+        }
+        next = srp_entry(reader)?;
+    }
+    // One mode entry: a match is of one mode.
+    let block = match next {
         (SRPX_BLACKOUT, [1]) => SrpBlock::Blackout,
         (SRPX_FREE_FOR_ALL, &[low, high]) if (low, high) != (0, 0) => SrpBlock::FreeForAll {
             kills_to_win: u16::from_le_bytes([low, high]),
@@ -1160,7 +1179,15 @@ fn read_srp_block(reader: &mut Reader) -> Result<SrpBlock, StaticInfoError> {
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::SrpBlock);
     }
-    Ok(block)
+    Ok((rule, block))
+}
+
+/// One entry of srp's block: its tag and its bytes.
+fn srp_entry<'a>(reader: &mut Reader<'a>) -> Result<(u8, &'a [u8]), StaticInfoError> {
+    let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
+    let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
+    let bytes = reader.take(usize::from(len)).map_err(|_| StaticInfoError::SrpBlock)?;
+    Ok((tag, bytes))
 }
 
 /// What srp's block after the options says of the match: nothing, or the
@@ -1291,6 +1318,7 @@ mod tests {
             match_id: 0x1234_5678,
             match_level: 3,
             score_weights: SCORE_WEIGHTS,
+            team_damage: None,
         }
     }
 
@@ -1300,6 +1328,27 @@ mod tests {
             .find(|map| map.mode == maps::GameMode::Blackout)
             .and_then(|map| maps::MatchMap::of(map.id))
             .expect("a Blackout map")
+    }
+
+    #[test]
+    fn team_damage_is_the_first_entry_and_reads_back() {
+        let rule = team_damage::Rule::ORIGINAL;
+        let entry = [&[team_damage::TAG, 12][..], &rule.entry()].concat();
+        let plain = options(vec![alice()]);
+        let without = options_bytes(&plain, dictionary()).unwrap();
+        for (map, mode_entry) in [(plain.map, &b""[..]), (blackout_map(), b"\x02\x01\x01")] {
+            let with = MatchOptions { map, team_damage: Some(rule), ..plain.clone() };
+            let bytes = options_bytes(&with, dictionary()).unwrap();
+            assert_eq!(bytes[without.len()..], [&b"SRPX"[..], &entry, mode_entry].concat()[..]);
+            assert_eq!(parse_options(&bytes, dictionary()), Ok(with));
+        }
+        // The mode's entry first, a rule out of its domains, the block empty.
+        let blackout_first = [&without[..], b"SRPX\x02\x01\x01", &entry].concat();
+        let mut wrong = entry.clone();
+        wrong[2..6].copy_from_slice(&(-1.0f32).to_le_bytes());
+        for bytes in [blackout_first, [&without[..], b"SRPX", &wrong].concat(), [&without[..], b"SRPX"].concat()] {
+            assert!(parse_options(&bytes, dictionary()).is_err());
+        }
     }
 
     #[test]

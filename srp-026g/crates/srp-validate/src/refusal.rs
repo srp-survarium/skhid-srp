@@ -327,6 +327,9 @@ pub enum Reason {
         at: usize,
         what: &'static str,
     },
+    /// The bytes after the closing part are not exe patch 63's team
+    /// damage record (`team_damage::Counts`) of the world's places.
+    EffectsTeamDamage(crate::team_damage::CountsFault),
 
     // The player state's tail (after the head).
     /// The tail did not read to the inventory header: it ran short, or no
@@ -759,7 +762,7 @@ impl fmt::Display for Reason {
             } => write!(f, "{record} {index}'s {field} is none of its values"),
             Reason::RulesField { field } => write!(f, "{field} is none of its values"),
             Reason::EffectsLength { len } => {
-                write!(f, "{len} bytes, not the 20 of no effect or the 87 of one")
+                write!(f, "{len} bytes, not the 20 of no effect or the 87 of one (then a team damage record)")
             }
             Reason::EffectsCount { count, len } => {
                 write!(f, "{count} effects in {len} bytes")
@@ -777,6 +780,7 @@ impl fmt::Display for Reason {
             Reason::EffectsBytes { at, what } => {
                 write!(f, "{what} at {at} is not every world's")
             }
+            Reason::EffectsTeamDamage(fault) => write!(f, "{fault}"),
             Reason::TailUnread { at } => {
                 write!(
                     f,

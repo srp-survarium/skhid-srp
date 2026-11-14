@@ -1478,6 +1478,7 @@ mod tests {
             match_id: 1,
             match_level: 1,
             score_weights: [0.0; SCORE_EVENTS],
+            team_damage: None,
         };
         let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
         let mut records = vec![
@@ -1910,6 +1911,7 @@ mod tests {
             match_id: 1,
             match_level: 1,
             score_weights: [0.0; SCORE_EVENTS],
+            team_damage: None,
         };
         let info = StaticInfo::new(&options, Dictionary::shared()).unwrap();
         for place in 0..3u8 {

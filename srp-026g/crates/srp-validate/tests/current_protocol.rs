@@ -42,6 +42,7 @@ fn options(blackout: bool) -> info::MatchOptions {
         match_id: 0x1234_5678,
         match_level: 3,
         score_weights: info::SCORE_WEIGHTS,
+        team_damage: None,
     }
 }
 

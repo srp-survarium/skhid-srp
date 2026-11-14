@@ -1224,3 +1224,10 @@ vostok::sound::sound_scene	world	0x11C	ptr<vostok::sound::sound_world>	its sound
 vostok::sound::sound_world	panning	0xCC	obj<vostok::sound::panning_lut>	its panning table, inside it: 512 directions of 9 gains, filled once by its constructor 0x5E150 in the sound world's (0x58D90); notify_listener2 0x5C396 gives its address to calculate_3d_pan
 vostok::sound::sound_instance_proxy	sound_type	0x80	u32	its sound_type: 0 point, 1 cone (spot), 2 volumetric, 3 hud (calculate_3d_pan 0x57D88, the only field it reads of a point sound's proxy; notify_listener2 0x5C37C)
 vostok::sound::sound_instance_proxy	size	0x90	size	a proxy is 144 bytes (new_helper<sound_instance_proxy_internal> over single_size_buffer_allocator<144>, 0x65450)
+survarium::player	dying	0x33D	u8	m_has_to_die: hit_impl deals nothing to a dying player (0x2D9BA9)
+survarium::hit_info	source	0x20	u32	the hit's source object: the weapon, grenade or trap; 0 for a fall (the dealer is then the player's own place) (base_player::hit 0x2D9AE0 fills it; 0.28a2's team damage counts only a hit with one, 0x5AA41B)
+survarium::hit_info	damage	0x34	f32	the hit's damage, before armour (damage_model::hit_body_part 0x2E5080 scales it by 1 - invulnerability; +38h is the armour piercing)
+survarium::hit_info	dealer	0x44	u8	the dealer's place, 0FFh none (hit_info::hit_info's stack+8, 0x32BA52; hit_impl passes it to generate_killed_event, 0x2D9F09)
+survarium::hit_info	size	0x48	size	a hit_info: 48h bytes (base_player::hit 0x2D9AE0 builds one on its stack)
+survarium::hit_impl_frame	hit	0xC	ptr<survarium::hit_info>	base_player::hit_impl's second argument, the hit (by EBP: [ebp+0Ch], 0x2D9F00)
+survarium::world_load_effects_frame	reader	0x3C	obj<vostok::buffer_reader>	game_world_core::deserialize's effects reader {begin, cursor, size} (esp+3Ch at 0x2D2C75; filled 0x2D2C26..0x2D2C34)

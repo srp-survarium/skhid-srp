@@ -23,6 +23,74 @@ use survarium::v026g::match_msgs::static_info::score_weights as static_info_weig
 use survarium::v026g::match_msgs::static_info::{
     MatchOptions, MatchProfile, SCORE_EVENTS, StaticInfo, StaticInfoError,
 };
+use srp_validate::team_damage::Rule as TeamDamage;
+
+/// `SRP_TEAM_DAMAGE` (exe patch 63, `docs/notes/team-damage.md`): unset,
+/// empty or `on` for 0.28a's numbers ([`TeamDamage::ORIGINAL`]), `off` for
+/// none, or `max_amount,max_ratio,return_ratio`. A value it cannot read is
+/// logged and leaves 0.28a's numbers.
+pub fn team_damage_setting(value: Option<&str>) -> Option<TeamDamage> {
+    let numbers = |text: &str| {
+        let mut parts = text.split(',').map(|part| part.trim().parse::<f32>().ok().map(f32::to_bits));
+        match (parts.next()??, parts.next()??, parts.next()??, parts.next()) {
+            (amount, ratio, turn, None) => TeamDamage::of_bits(amount, ratio, turn),
+            _ => None,
+        }
+    };
+    match value.map(str::trim) {
+        None | Some("") => Some(TeamDamage::ORIGINAL),
+        Some(on) if on.eq_ignore_ascii_case("on") => Some(TeamDamage::ORIGINAL),
+        Some(off) if off.eq_ignore_ascii_case("off") => None,
+        Some(text) => numbers(text).or_else(|| {
+            log::error!(
+                "SRP_TEAM_DAMAGE is `{text}`; it must be `on`, `off` or `max_amount,max_ratio,return_ratio` \
+                 (0 to 100, 0 to 1, 0 to 16). Using 0.28a's 3,0.67,2"
+            );
+            Some(TeamDamage::ORIGINAL)
+        }),
+    }
+}
+
+/// [`team_damage_setting`] of the environment's `SRP_TEAM_DAMAGE`.
+pub fn team_damage_from_env() -> Option<TeamDamage> {
+    team_damage_setting(std::env::var("SRP_TEAM_DAMAGE").ok().as_deref())
+}
+
+/// A match as the rules that hold its players to team play tell them apart
+/// (the owner's, 2026-11-14: team damage has "the same rules (same code)"
+/// as the anti-AFK): [`MatchKind::of`] alone decides it, from the formed
+/// match's own fields ([`Formed::kind`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MatchKind {
+    /// Players against players in two teams: a public room's match, or Play's.
+    Public,
+    /// A private room's match (a PIN).
+    PrivateRoom,
+    /// Players against the server's bots ("Player vs Bots"), the only
+    /// matches the lobby puts the server's bots in.
+    VsBots,
+    /// A free-for-all: each player his own side, so nobody has a teammate,
+    /// and an idle player is simply killed.
+    FreeForAll,
+}
+
+impl MatchKind {
+    pub fn of(private: bool, vs_bots: bool, mode: GameMode) -> Self {
+        match (private, vs_bots, mode) {
+            (true, _, _) => Self::PrivateRoom,
+            (false, true, _) => Self::VsBots,
+            (false, false, GameMode::FreeForAll) => Self::FreeForAll,
+            (false, false, _) => Self::Public,
+        }
+    }
+
+    /// Whether its players are held to team play: the anti-AFK removes an
+    /// idle one (`afk::Watch`) and team damage turns on its dealer past the
+    /// threshold. Only a public match of two teams.
+    pub fn team_play(self) -> bool {
+        self == Self::Public
+    }
+}
 
 /// Set in every [`static_id`], clear in every match id.
 const STATIC_ID_BIT: u32 = 0x8000_0000;
@@ -211,6 +279,17 @@ pub(crate) struct Formed {
     /// Keeper of the Artifacts' kind, drawn once when the match is made and written into every
     /// kit of every profile, a late joiner's too (`survarium::v026g::keeper`).
     pub keeper: keeper::Kind,
+    /// Team damage's rule in its static info, a late joiner's too: the
+    /// registry's setting in a match of team play ([`MatchKind::team_play`]),
+    /// decided once when the match is made.
+    pub team_damage: Option<TeamDamage>,
+}
+
+impl Formed {
+    /// What the match is to the rules of team play.
+    pub fn kind(&self) -> MatchKind {
+        MatchKind::of(self.private, self.vs_bots, self.played.mode())
+    }
 }
 
 /// How far a match is.
@@ -385,6 +464,9 @@ impl std::error::Error for JoinError {}
 pub struct MatchRegistry {
     host: String,
     port: u16,
+    /// Team damage in the matches of team play it makes
+    /// ([`team_damage_setting`]); none unless set.
+    team_damage: Option<TeamDamage>,
     inner: Mutex<Inner>,
 }
 
@@ -394,6 +476,7 @@ impl MatchRegistry {
         Self {
             host: host.to_owned(),
             port,
+            team_damage: None,
             inner: Mutex::new(Inner {
                 last_id: random() | 1,
                 ..Inner::default()
@@ -402,10 +485,16 @@ impl MatchRegistry {
     }
 
     /// The registry of the configured match server (`SRP_PUBLIC_HOST`,
-    /// `SRP_MATCH_PORT`: the settings the 0.21d server has).
+    /// `SRP_MATCH_PORT`: the settings the 0.21d server has; `SRP_TEAM_DAMAGE`).
     pub fn from_config() -> Self {
         let config = &vostok::config::get().match_server;
-        Self::new(&config.public_host, config.port)
+        Self::new(&config.public_host, config.port).with_team_damage(team_damage_from_env())
+    }
+
+    /// The registry with `team_damage` for the matches of team play it makes.
+    pub fn with_team_damage(mut self, team_damage: Option<TeamDamage>) -> Self {
+        self.team_damage = team_damage;
+        self
     }
 
     /// The port the clients are told.
@@ -515,6 +604,9 @@ impl MatchRegistry {
             .map(|player| (!player.driven).then_some(player.session_id))
             .collect();
         let keeper = keeper::draw(random());
+        let team_damage = self
+            .team_damage
+            .filter(|_| MatchKind::of(setup.private, setup.vs_bots, map.mode).team_play());
         let options = MatchOptions {
             players: setup
                 .players
@@ -529,6 +621,7 @@ impl MatchRegistry {
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
+            team_damage,
         };
         let info =
             StaticInfo::new(&options, Dictionary::shared()).map_err(CreateError::StaticInfo)?;
@@ -562,6 +655,7 @@ impl MatchRegistry {
                 private: setup.private,
                 room_minimum: setup.room_minimum,
                 keeper,
+                team_damage,
             }),
         );
         let count = |which: fn(&Place) -> bool| {
@@ -690,6 +784,7 @@ impl MatchRegistry {
                 match_id: static_id(match_id),
                 match_level: next.match_level,
                 score_weights: next.score_weights,
+                team_damage: next.team_damage,
             },
             Dictionary::shared(),
         )

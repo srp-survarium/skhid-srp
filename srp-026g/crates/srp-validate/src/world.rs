@@ -189,7 +189,7 @@ pub fn validate_frame(frame: &Frame<'_>, context: &Context<'_>) -> Result<(), Re
     objects(&frame.objects(), context)?;
     rules(&frame.rules(), context)?;
     physics(&frame.physics())?;
-    effects(&frame.effects())
+    effects(&frame.effects(), context.places)
 }
 
 /// Parse a body and validate its supported semantic sections.

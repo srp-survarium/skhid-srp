@@ -315,6 +315,8 @@ unsafe extern "stdcall" {
     pub fn engine_compress_mip(renderer: Option<SystemRenderer>, levels: *mut Option<ResTexture>, cursor: Option<DdsCursor>, wide: u32, high: u32, level: u32, format: u32, normal: u32);
     /// 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
     pub fn engine_discard_playing_order(client: Option<LobbyClient>, left: u32);
+    /// 0x2d9b90 survarium::base_player::hit_impl: player ESP+4, hit ESP+8; pops 8; stdcall, called directly
+    pub fn engine_hit_impl(player: Option<Player>, hit: Option<HitInfo>);
 }
 
 #[allow(dead_code)]
@@ -1841,6 +1843,15 @@ impl Player {
     #[inline(always)]
     pub unsafe fn set_camera_handler(self, value: Option<PlayerInputHandler>) {
         unsafe { self.0.byte_add(0xf470).cast::<Option<PlayerInputHandler>>().write_volatile(value) }
+    }
+
+    /// +0x33d (u8): m_has_to_die: hit_impl deals nothing to a dying player (0x2D9BA9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn dying(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x33d).cast::<u8>().as_ptr() }
     }
 }
 
@@ -11406,6 +11417,76 @@ impl HitInfo {
     #[inline(always)]
     pub unsafe fn time(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x3c).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x20 (u32): the hit's source object: the weapon, grenade or trap; 0 for a fall (the dealer is then the player's own place) (base_player::hit 0x2D9AE0 fills it; 0.28a2's team damage counts only a hit with one, 0x5AA41B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn source(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x20).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x34 (f32): the hit's damage, before armour (damage_model::hit_body_part 0x2E5080 scales it by 1 - invulnerability; +38h is the armour piercing)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn damage(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x34).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x44 (u8): the dealer's place, 0FFh none (hit_info::hit_info's stack+8, 0x32BA52; hit_impl passes it to generate_killed_event, 0x2D9F09)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn dealer(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x44).cast::<u8>().as_ptr() }
+    }
+
+    /// 0x48 bytes: a hit_info: 48h bytes (base_player::hit 0x2D9AE0 builds one on its stack)
+    pub const SIZE: usize = 0x48;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::hit_infos (0x48 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct HitInfoStorage([u8; 0x48]);
+
+#[allow(dead_code)]
+impl HitInfoStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x48])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> HitInfo {
+        HitInfo(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<HitInfo> {
+        (!rooms.is_empty()).then(|| HitInfo(NonNull::from(rooms).cast()))
     }
 }
 
@@ -22600,6 +22681,63 @@ impl GrenadeChoiceFrame {
     }
 }
 
+/// A survarium::hit_impl_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HitImplFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HitImplFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (ptr<survarium::hit_info>): base_player::hit_impl's second argument, the hit (by EBP: [ebp+0Ch], 0x2D9F00)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn hit(self) -> Option<HitInfo> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<HitInfo>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<survarium::hit_info>): base_player::hit_impl's second argument, the hit (by EBP: [ebp+0Ch], 0x2D9F00)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_hit(self, value: Option<HitInfo>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<HitInfo>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::world_load_effects_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WorldLoadEffectsFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WorldLoadEffectsFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x3c (obj<vostok::buffer_reader>): game_world_core::deserialize's effects reader {begin, cursor, size} (esp+3Ch at 0x2D2C75; filled 0x2D2C26..0x2D2C34)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn reader(self) -> BufferReader {
+        BufferReader(unsafe { self.0.byte_add(0x3c) })
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -27334,6 +27472,111 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn config(machine: &impl Machine) -> Option<EngineCfg> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EngineCfg)
+        }
+    }
+
+    /// player.hit_start (0x2d9bb6): base_player::hit_impl past its tests of a dead (+33Ch, 0x2D9B9A) and a dying (+33Dh, 0x2D9BA9) victim, before its invulnerability query (mov esi,[ebx+2E0h]; get_invulnerability 0x2E5550 at 0x2D9BBE): EBX the victim, [EBP+0Ch] the hit; skipped is the function's own way out of a hit it does not deal (lea esp,[ebp-78h], the pops, ret 8 at 0x2D9F1A, where the jumps of 0x2D9BA3, 0x2D9BB0 and 0x2D9BCB land); every hit of every player, in every game's simulation
+    pub mod player_hit_start {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn victim(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+
+        /// EBP: a survarium::hit_impl_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<HitImplFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(HitImplFrame)
+        }
+    }
+
+    /// player.pain_lost (0x2d9ea9): base_player::hit_impl's subss xmm0,[eax+0A0h]: XMM0 the victim's pain before the hit ([ebp-18h], 0x2D9E9B), EAX its pain pool ([ebp-1Ch]), whose +0A0h is the pain after it; the difference is the pain the hit took, which the player's on_hit is given (its vtable +40h, 0x2D9EA2); EBX the victim, EDI the hit (0x2D9CB1's mov edi,esi; its +44h the dealer, 0x2D9EB1); only for a hit that took health (past 0x2D9CB1)
+    pub mod player_pain_lost {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn victim(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Player)
+        }
+
+        /// EDI: a survarium::hit_info (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<HitInfo> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(HitInfo)
+        }
+
+        /// EAX: a survarium::medical_pool (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn pool(machine: &impl Machine) -> Option<MedicalPool> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(MedicalPool)
+        }
+    }
+
+    /// world_save.effects_written (0x2d2716): game_world_core::serialize after the effects section's three writes (the opening id 0x2D26E1, game_effect_player 0x2DDAD0 at 0x2D26FA, the closing part's vtable +8 at 0x2D2714), before mov byte [esi+0C0BBAh],0: EBP the core, EDI the effects' writer (the history item's effects buffer), ESI the history item
+    pub mod world_save_effects_written {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(CoreWorld)
+        }
+
+        /// EDI: a vostok::buffer_writer (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn writer(machine: &impl Machine) -> Option<BufferWriter> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BufferWriter)
+        }
+    }
+
+    /// world_load.effects_read (0x2d2c75): game_world_core::deserialize after the effects section's three reads (the opening id 0x2D2C44, game_effect_player 0x2DDDF0 at 0x2D2C54, the closing part's vtable +0Ch at 0x2D2C73), before mov eax,[ebp+19034h]: EBP the core, the effects' reader at [esp+3Ch] (made at 0x2D2C1A..0x2D2C34 over the history item's +0C0B84h buffer)
+    pub mod world_load_effects_read {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a survarium::core_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn core(machine: &impl Machine) -> Option<CoreWorld> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(CoreWorld)
+        }
+
+        /// the site's ESP: a survarium::world_load_effects_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<WorldLoadEffectsFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(WorldLoadEffectsFrame)
         }
     }
 }

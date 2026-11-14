@@ -88,6 +88,7 @@
 
 use super::Section;
 use crate::reader::{Reader, Short};
+use crate::team_damage::Counts;
 use crate::{Finite, Part, Reason, Refusal, wire_bool};
 
 /// An effect's length in its one form.
@@ -420,13 +421,16 @@ impl Effect {
 }
 
 /// The effects section: its opening id, its time, its effect if it has
-/// one, its closing part (borrowed from the world).
+/// one, its closing part (borrowed from the world), then exe patch 63's
+/// team damage counts when any place dealt any ([`Counts`]: its record
+/// after the closing part).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Effects<'a> {
     opening: u32,
     time: u32,
     effect: Option<Effect>,
     closing: &'a [u8; CLOSING_LEN],
+    team_damage: Counts,
 }
 
 /// The closing part's length.
@@ -435,9 +439,9 @@ const CLOSING_LEN: usize = 8;
 const EFFECT_AT: usize = 12;
 
 impl<'a> Effects<'a> {
-    /// The section, read to its end with at most one effect (the most any
-    /// world has), or why not.
-    pub fn read(section: &Section<'a>) -> Result<Self, Refusal> {
+    /// The section of a world of `places` places, read to its end with at
+    /// most one effect (the most any world has), or why not.
+    pub fn read(section: &Section<'a>, places: usize) -> Result<Self, Refusal> {
         let len = section.bytes.len();
         let refuse = |at: usize, reason| Refusal::new(Part::Effects, at, reason);
         let wrong_length = || refuse(section.at, Reason::EffectsLength { len });
@@ -459,14 +463,18 @@ impl<'a> Effects<'a> {
             .ok()
             .and_then(|bytes| bytes.try_into().ok())
             .ok_or_else(wrong_length)?;
-        if !reader.is_done() {
-            return Err(wrong_length());
-        }
+        let team_damage = if reader.is_done() {
+            Counts::NONE
+        } else {
+            Counts::read(reader.rest(), places)
+                .map_err(|fault| refuse(reader.at(), Reason::EffectsTeamDamage(fault)))?
+        };
         Ok(Self {
             opening,
             time,
             effect,
             closing,
+            team_damage,
         })
     }
 
@@ -488,6 +496,11 @@ impl<'a> Effects<'a> {
     pub fn closing(&self) -> [u8; CLOSING_LEN] {
         *self.closing
     }
+
+    /// Each place's team damage counts (none without the record).
+    pub fn team_damage(&self) -> Counts {
+        self.team_damage
+    }
 }
 
 /// The closing part of every world: f32 1.0 and a u32 0.
@@ -495,10 +508,11 @@ const CLOSING: [u8; CLOSING_LEN] = [0, 0, 0x80, 0x3F, 0, 0, 0, 0];
 /// The f32 0.1 an effect and its root's child save as their length.
 const POINT_ONE: u32 = 0x3DCC_CCCD;
 
-/// The effects section is one of the two forms every world has (the
-/// module doc).
-pub fn effects(section: &Section) -> Result<(), Refusal> {
-    let read = Effects::read(section)?;
+/// The effects section of a world of `places` places is one of the two
+/// forms every world has (the module doc), and its team damage record, if
+/// any, is one of the world's places.
+pub fn effects(section: &Section, places: usize) -> Result<(), Refusal> {
+    let read = Effects::read(section, places)?;
     let refuse = |offset: usize, reason| {
         Err(Refusal::new(
             Part::Effects,
@@ -638,12 +652,12 @@ mod tests {
     }
 
     fn reason(bytes: &[u8]) -> Option<Reason> {
-        effects(&section(bytes)).err().map(|refusal| refusal.reason)
+        effects(&section(bytes), 20).err().map(|refusal| refusal.reason)
     }
 
     #[test]
     fn every_field_reads_by_name() {
-        let read = Effects::read(&section(&LIVE)).unwrap();
+        let read = Effects::read(&section(&LIVE), 20).unwrap();
         assert_eq!((read.opening(), read.time()), (0xEFE5_935E, 40_600));
         assert_eq!(read.closing(), CLOSING);
         let effect = read.effect().unwrap();
@@ -749,5 +763,31 @@ mod tests {
             reason(&closing),
             Some(Reason::EffectsBytes { at: 12, .. })
         ));
+    }
+
+    #[test]
+    fn the_team_damage_record_follows_the_closing_part() {
+        use crate::team_damage::{CountsFault, Dealt};
+        let counts = Counts::NONE.with(1, Dealt::NONE.with(3.5, true).unwrap());
+        let mut record = [0; Counts::MAX_RECORD];
+        let len = counts.record(&mut record);
+        for form in [&LIVE[..], &NONE[..]] {
+            let with = [form, &record[..len]].concat();
+            assert_eq!(reason(&with), None);
+            assert_eq!(Effects::read(&section(&with), 20).unwrap().team_damage(), counts);
+            assert_eq!(
+                effects(&section(&with), 1).err().map(|refusal| refusal.reason),
+                Some(Reason::EffectsTeamDamage(CountsFault::Places { places: 2, most: 1 }))
+            );
+        }
+        assert_eq!(Effects::read(&section(&NONE), 20).unwrap().team_damage(), Counts::NONE);
+        assert_eq!(
+            reason(&[&NONE[..], b"SRTD"].concat()),
+            Some(Reason::EffectsTeamDamage(CountsFault::Length { len: 4 }))
+        );
+        assert_eq!(
+            reason(&[&NONE[..], b"x"].concat()),
+            Some(Reason::EffectsTeamDamage(CountsFault::Length { len: 1 }))
+        );
     }
 }

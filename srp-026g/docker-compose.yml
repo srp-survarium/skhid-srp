@@ -138,6 +138,8 @@ services:
       - SRP_PACKET_LOG
       # Anti-AFK (docs/notes/anti-afk.md): seconds without input; `off` or `0` turns it off.
       - SRP_ANTI_AFK
+      # Team damage (docs/notes/team-damage.md): `on` (unset), `off` or `max_amount,max_ratio,return_ratio`.
+      - SRP_TEAM_DAMAGE
       # "Player vs Bots" (the lobby's `pvb.rs`; on here, `off` in .env to
       # switch it off; the code's own default is off). Each match against
       # bots may hold a bots' map of its own in memory (35-150 MB, up to

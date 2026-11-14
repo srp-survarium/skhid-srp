@@ -13,7 +13,7 @@
 //!   server checks of a client's input before it relays it.
 
 use crate::reader::{Reader, Short};
-use crate::{MAX_PLAYERS, Part, Reason, Refusal, finite, transport};
+use crate::{MAX_PLAYERS, Part, Reason, Refusal, finite, team_damage, transport};
 
 /// What the game knows that 0xE4 is checked against: its own items
 /// dictionary and maps (never the message's).
@@ -427,35 +427,12 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     }
     // The squad bytes.
     reader.skip(MAX_PLAYERS).map_err(short)?;
-    // srp appends an SRPX block for a Blackout match (shipped patch 65) and
-    // for a free-for-all (its kill target).
+    // srp's block after the squads, if any ([`srp_block_fits`]).
     // Keep this in sync with static_info::read_srp_block on the server.
     if !reader.is_done() {
-        let at = reader.at();
-        let invalid = || {
-            refuse(
-                at,
-                Reason::OptionsTrailing {
-                    len: reader.rest().len(),
-                },
-            )
-        };
-        if !reader.rest().starts_with(b"SRPX") {
-            return Err(invalid());
-        }
-        reader.skip(4).map_err(short)?;
-        // One entry, `{tag, len, bytes}`: Blackout's `{2, 1, 1}`, or a
-        // free-for-all's `{3, 2, kills to win}` (a u16, never 0), which only
-        // a roster of own sides has.
-        let at = reader.at();
-        let fits = match reader.rest() {
-            [2, 1, 1] => !own_sides,
-            [3, 2, low, high] => own_sides && (*low, *high) != (0, 0),
-            _ => false,
-        };
-        if !fits {
+        if !srp_block_fits(reader.rest(), own_sides) {
             return Err(refuse(
-                at,
+                reader.at(),
                 Reason::OptionsTrailing {
                     len: reader.rest().len(),
                 },
@@ -466,6 +443,34 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         return Err(refuse(reader.at(), Reason::OptionsTrailing { len: 0 }));
     }
     Ok(roster)
+}
+
+/// Whether `block` is srp's block after the options: "SRPX", then its
+/// entries `{tag, len, bytes}` in this order, at least one: team damage's
+/// rule (tag 1, exe patch 63, [`team_damage::Rule`]) when the match has it,
+/// then the mode's own, Blackout's `{2, 1, 1}` (shipped patch 65) or a
+/// free-for-all's `{3, 2, kills to win}` (a u16, never 0), which only a
+/// roster of own sides has, and always has.
+fn srp_block_fits(block: &[u8], own_sides: bool) -> bool {
+    let Some(entries) = block.strip_prefix(b"SRPX") else {
+        return false;
+    };
+    let (rule, mode) = match entries {
+        [team_damage::TAG, 12, rest @ ..] => match rest.split_at_checked(team_damage::Rule::ENTRY_LEN) {
+            Some((rule, mode)) => (Some(team_damage::Rule::of_entry(rule)), mode),
+            None => return false,
+        },
+        _ => (None, entries),
+    };
+    if rule.is_some_and(|rule| rule.is_none()) {
+        return false;
+    }
+    match mode {
+        [] => rule.is_some() && !own_sides,
+        [2, 1, 1] => !own_sides,
+        [3, 2, low, high] => own_sides && (*low, *high) != (0, 0),
+        _ => false,
+    }
 }
 
 /// A fault while reading a part of a profile.

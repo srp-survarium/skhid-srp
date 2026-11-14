@@ -16,6 +16,8 @@ use std::time::{Duration, Instant};
 
 use survarium::v026g::match_msgs::PlayerInput;
 
+use super::registry::MatchKind;
+
 /// `SRP_ANTI_AFK` when unset: three minutes (the owner's).
 pub(crate) const DEFAULT_LIMIT: Duration = Duration::from_secs(180);
 /// The least limit the setting takes: a typo must not remove players who
@@ -171,25 +173,13 @@ impl Player {
     };
 }
 
-/// A match as anti-AFK tells them apart (`Formed::private`,
-/// `Formed::vs_bots`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MatchKind {
-    /// Players against players: a public room's match, or Play's.
-    Public,
-    /// A private room's match (a PIN).
-    PrivateRoom,
-    /// Players against the server's bots ("Player vs Bots"), the only
-    /// matches the lobby puts the server's bots in.
-    VsBots,
-}
-
 /// Whether a match removes idle players: decided once, when it is made.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Watch {
-    /// A private room's match, a match against bots (the owner's of
-    /// 2026-11-02: "it should also be fine to afk w/bots"), or the setting
-    /// off: nobody is removed.
+    /// A match not of team play ([`MatchKind::team_play`]: a private room's,
+    /// one against bots, the owner's of 2026-11-02: "it should also be fine
+    /// to afk w/bots", or a free-for-all, 2026-11-14), or the setting off:
+    /// nobody is removed.
     Exempt,
     /// By place, its player's watch (a place not seen yet is fresh).
     Watched {
@@ -201,12 +191,12 @@ pub(crate) enum Watch {
 impl Watch {
     /// The watch of a match of `kind` under the setting.
     pub fn new(setting: Setting, kind: MatchKind) -> Self {
-        match (setting, kind) {
-            (Setting::Off, _) | (_, MatchKind::PrivateRoom | MatchKind::VsBots) => Self::Exempt,
-            (Setting::After(limit), MatchKind::Public) => Self::Watched {
+        match (setting, kind.team_play()) {
+            (Setting::After(limit), true) => Self::Watched {
                 limit,
                 players: Vec::new(),
             },
+            (Setting::Off, _) | (_, false) => Self::Exempt,
         }
     }
 
@@ -432,11 +422,12 @@ mod tests {
     }
 
     #[test]
-    fn a_private_room_a_match_against_bots_or_the_setting_off_removes_nobody() {
+    fn a_private_room_a_match_against_bots_a_free_for_all_or_the_setting_off_removes_nobody() {
         let start = Instant::now();
         for mut watch in [
             Watch::new(Setting::default(), MatchKind::PrivateRoom),
             Watch::new(Setting::default(), MatchKind::VsBots),
+            Watch::new(Setting::default(), MatchKind::FreeForAll),
             Watch::new(Setting::Off, MatchKind::Public),
             Watch::new(Setting::Off, MatchKind::PrivateRoom),
         ] {

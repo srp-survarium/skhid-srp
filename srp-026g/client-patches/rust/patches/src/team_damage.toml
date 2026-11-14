@@ -1,0 +1,36 @@
+# Patch 63: team damage turned back on its dealer past a threshold, as 0.28a
+# had it (docs/notes/team-damage.md). The sites are sites_026g.tsv's; the
+# logic is team_damage.rs. The two options reads are other patches' sites too
+# (65, 83, 86, 142, music): their chains run this patch's hooks last.
+name = "team_damage"
+patch = 63
+
+# a teammate's hit, turned on its dealer past the threshold
+[[hook]]
+site = "player.hit_start"
+handler = "on_hit_start"
+
+# the pain a hit took, counted for its dealer
+[[hook]]
+site = "player.pain_lost"
+handler = "on_pain_lost"
+
+# the counts go with the world: a record after its effects
+[[hook]]
+site = "world_save.effects_written"
+handler = "on_world_save"
+
+[[hook]]
+site = "world_load.effects_read"
+handler = "on_world_load"
+
+# the server's numbers: srp's block after the match's options
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 5
+
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 5

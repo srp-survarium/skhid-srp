@@ -33,6 +33,7 @@ impl Match {
             // Keeper's draw gives a late joiner's kits (registry::Formed::keeper); the bench only
             // checks uploads, whose profiles carry the match's draw already.
             keeper: survarium::v026g::keeper::draw(0),
+            team_damage: options.team_damage,
         }))
     }
 

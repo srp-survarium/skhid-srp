@@ -7611,6 +7611,165 @@ tab_cursor_on_hud_call_replay:
     db 0x53, 0x56, 0x8b, 0x74, 0x24, 0x10
     jmp 0x233d36
 
+; 0x2d9bb6 base_player::hit_impl past its tests of a dead (+33Ch, 0x2D9B9A) and a dying (+33Dh, 0x2D9BA9) victim, before its invulnerability query (mov esi,[ebx+2E0h]; get_invulnerability 0x2E5550 at 0x2D9BBE): EBX the victim, [EBP+0Ch] the hit; skipped is the function's own way out of a hit it does not deal (lea esp,[ebp-78h], the pops, ret 8 at 0x2D9F1A, where the jumps of 0x2D9BA3, 0x2D9BB0 and 0x2D9BCB land); every hit of every player, in every game's simulation: lohook -> team_damage_on_hit_start
+global team_damage_on_hit_start
+extern hook_team_damage_on_hit_start
+team_damage_on_hit_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_team_damage_on_hit_start
+    mov edx, team_damage_on_hit_start_replay
+    cmp eax, 0
+    je team_damage_on_hit_start_go
+    mov edx, 0x2d9bbc
+    cmp eax, 1
+    je team_damage_on_hit_start_go
+    mov edx, 0x2d9f1a
+    cmp eax, 2
+    je team_damage_on_hit_start_go
+    ud2
+team_damage_on_hit_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+team_damage_on_hit_start_replay:
+    db 0x8b, 0xb3, 0xe0, 0x02, 0x00, 0x00
+    jmp 0x2d9bbc
+
+; 0x2d9ea9 base_player::hit_impl's subss xmm0,[eax+0A0h]: XMM0 the victim's pain before the hit ([ebp-18h], 0x2D9E9B), EAX its pain pool ([ebp-1Ch]), whose +0A0h is the pain after it; the difference is the pain the hit took, which the player's on_hit is given (its vtable +40h, 0x2D9EA2); EBX the victim, EDI the hit (0x2D9CB1's mov edi,esi; its +44h the dealer, 0x2D9EB1); only for a hit that took health (past 0x2D9CB1): lohook -> team_damage_on_pain_lost
+global team_damage_on_pain_lost
+extern hook_team_damage_on_pain_lost
+team_damage_on_pain_lost:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_team_damage_on_pain_lost
+    mov edx, team_damage_on_pain_lost_replay
+    cmp eax, 0
+    je team_damage_on_pain_lost_go
+    mov edx, 0x2d9eb1
+    cmp eax, 1
+    je team_damage_on_pain_lost_go
+    ud2
+team_damage_on_pain_lost_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+team_damage_on_pain_lost_replay:
+    db 0xf3, 0x0f, 0x5c, 0x80, 0xa0, 0x00, 0x00, 0x00
+    jmp 0x2d9eb1
+
+; 0x2d2716 game_world_core::serialize after the effects section's three writes (the opening id 0x2D26E1, game_effect_player 0x2DDAD0 at 0x2D26FA, the closing part's vtable +8 at 0x2D2714), before mov byte [esi+0C0BBAh],0: EBP the core, EDI the effects' writer (the history item's effects buffer), ESI the history item: lohook -> team_damage_on_world_save
+global team_damage_on_world_save
+extern hook_team_damage_on_world_save
+team_damage_on_world_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_team_damage_on_world_save
+    mov edx, team_damage_on_world_save_replay
+    cmp eax, 0
+    je team_damage_on_world_save_go
+    mov edx, 0x2d271d
+    cmp eax, 1
+    je team_damage_on_world_save_go
+    ud2
+team_damage_on_world_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+team_damage_on_world_save_replay:
+    db 0xc6, 0x86, 0xba, 0x0b, 0x0c, 0x00, 0x00
+    jmp 0x2d271d
+
+; 0x2d2c75 game_world_core::deserialize after the effects section's three reads (the opening id 0x2D2C44, game_effect_player 0x2DDDF0 at 0x2D2C54, the closing part's vtable +0Ch at 0x2D2C73), before mov eax,[ebp+19034h]: EBP the core, the effects' reader at [esp+3Ch] (made at 0x2D2C1A..0x2D2C34 over the history item's +0C0B84h buffer): lohook -> team_damage_on_world_load
+global team_damage_on_world_load
+extern hook_team_damage_on_world_load
+team_damage_on_world_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_team_damage_on_world_load
+    mov edx, team_damage_on_world_load_replay
+    cmp eax, 0
+    je team_damage_on_world_load_go
+    mov edx, 0x2d2c7b
+    cmp eax, 1
+    je team_damage_on_world_load_go
+    ud2
+team_damage_on_world_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+team_damage_on_world_load_replay:
+    db 0x8b, 0x85, 0x34, 0x90, 0x01, 0x00
+    jmp 0x2d2c7b
+
 ; 0x79d369 AvmTextField::OnCharEvent before GetAS3Obj: EDI the AvmTextField interface, its raw/collectible AS3 pointers at -1Ch/-20h; ignore sets BL=0 for the original false-return epilogue, no event allocated: lohook -> text_input_on_char
 global text_input_on_char
 extern hook_text_input_on_char

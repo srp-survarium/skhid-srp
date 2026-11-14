@@ -309,6 +309,8 @@ unsafe extern "stdcall" {
     pub fn engine_compress_mip(renderer: *mut c_void, levels: *mut *mut c_void, cursor: *mut c_void, wide: u32, high: u32, level: u32, format: u32, normal: u32);
     /// 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
     pub fn engine_discard_playing_order(client: *mut c_void, left: u32);
+    /// 0x2d9b90 survarium::base_player::hit_impl: player ESP+4, hit ESP+8; pops 8; stdcall, called directly
+    pub fn engine_hit_impl(player: *mut c_void, hit: *mut c_void);
 }
 
 #[allow(dead_code)]

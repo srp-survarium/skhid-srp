@@ -610,7 +610,7 @@ fn bench_worlds(worlds: &[(String, Vec<u8>)], kept: usize, options: &Options) {
             .0;
             parts[5] = time(part_budget, || world::rules(&frame.rules(), &ctx).is_ok()).0;
             parts[6] = time(part_budget, || world::physics(&frame.physics()).is_ok()).0;
-            parts[7] = time(part_budget, || world::effects(&frame.effects()).is_ok()).0;
+            parts[7] = time(part_budget, || world::effects(&frame.effects(), ctx.places).is_ok()).0;
         }
         let players = body
             .first_chunk::<4>()

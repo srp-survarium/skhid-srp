@@ -21,6 +21,7 @@ mod packet_input;
 mod refused_worlds;
 mod sockets;
 mod start;
+mod team_damage;
 mod units;
 
 use std::net::{SocketAddr, UdpSocket};

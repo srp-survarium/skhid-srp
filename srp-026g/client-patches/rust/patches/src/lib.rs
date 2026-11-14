@@ -112,3 +112,5 @@ pub mod console_where;
 
 pub mod replay_file;
 pub mod free_for_all;
+// patch 63: team damage turned back on its dealer past a threshold
+pub mod team_damage;

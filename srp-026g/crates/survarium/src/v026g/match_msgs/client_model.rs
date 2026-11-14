@@ -632,6 +632,7 @@ mod tests {
             match_id: 7,
             match_level: 0,
             score_weights: SCORE_WEIGHTS,
+            team_damage: None,
         };
         StaticInfo::new(&options, dictionary()).unwrap()
     }

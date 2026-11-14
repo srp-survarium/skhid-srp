@@ -232,6 +232,7 @@ global engine_respawn_point_clear
 global engine_respawn_points_push
 global engine_sound_pan
 global engine_listener_position
+global engine_hit_impl
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -320,6 +321,7 @@ engine_rand_bytes equ 0x46b6e0   ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, lengt
 engine_cc_delegate_execute equ 0xec830   ; 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
 engine_message_box_a equ 0xaeff30   ; the IAT slot 0xaeff30 (an import, stdcall)
 engine_exit_process equ 0x87020c   ; the IAT slot 0x87020c (an import, stdcall)
+engine_hit_impl equ 0x2d9b90   ; 0x2d9b90 survarium::base_player::hit_impl: player ESP+4, hit ESP+8; pops 8; stdcall, called directly
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX

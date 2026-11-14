@@ -1467,6 +1467,21 @@ pub extern "C" fn hook_free_for_all_on_static_info(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- team_damage (patch 63) ----
+
+/// The entry `team_damage_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_team_damage_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `team_damage_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::team_damage::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
@@ -1536,6 +1551,21 @@ pub extern "C" fn hook_free_for_all_on_replay_options(frame: &mut Frame) -> u32 
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::free_for_all::on_replay_options(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- team_damage (patch 63) ----
+
+/// The entry `team_damage_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_team_damage_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `team_damage_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::team_damage::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -4408,6 +4438,71 @@ pub extern "C" fn hook_voice_on_hud_call(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- team_damage (patch 63) ----
+
+/// The named exits of team_damage::on_hit_start (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TeamDamageOnHitStartExit { Skipped }
+/// The entry `team_damage_on_hit_start` (0x2d9bb6, base_player::hit_impl past its tests of a dead (+33Ch, 0x2D9B9A) and a dying (+33Dh, 0x2D9BA9) victim, before its invulnerability query (mov esi,[ebx+2E0h]; get_invulnerability 0x2E5550 at 0x2D9BBE): EBX the victim, [EBP+0Ch] the hit; skipped is the function's own way out of a hit it does not deal (lea esp,[ebp-78h], the pops, ret 8 at 0x2D9F1A, where the jumps of 0x2D9BA3, 0x2D9BB0 and 0x2D9BCB land); every hit of every player, in every game's simulation) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_team_damage_on_hit_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `team_damage_on_hit_start` calls this, from the game's jump at 0x2d9bb6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::team_damage::on_hit_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- team_damage (patch 63) ----
+
+/// The entry `team_damage_on_pain_lost` (0x2d9ea9, base_player::hit_impl's subss xmm0,[eax+0A0h]: XMM0 the victim's pain before the hit ([ebp-18h], 0x2D9E9B), EAX its pain pool ([ebp-1Ch]), whose +0A0h is the pain after it; the difference is the pain the hit took, which the player's on_hit is given (its vtable +40h, 0x2D9EA2); EBX the victim, EDI the hit (0x2D9CB1's mov edi,esi; its +44h the dealer, 0x2D9EB1); only for a hit that took health (past 0x2D9CB1)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_team_damage_on_pain_lost(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `team_damage_on_pain_lost` calls this, from the game's jump at 0x2d9ea9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::team_damage::on_pain_lost(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- team_damage (patch 63) ----
+
+/// The entry `team_damage_on_world_save` (0x2d2716, game_world_core::serialize after the effects section's three writes (the opening id 0x2D26E1, game_effect_player 0x2DDAD0 at 0x2D26FA, the closing part's vtable +8 at 0x2D2714), before mov byte [esi+0C0BBAh],0: EBP the core, EDI the effects' writer (the history item's effects buffer), ESI the history item) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_team_damage_on_world_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `team_damage_on_world_save` calls this, from the game's jump at 0x2d2716,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::team_damage::on_world_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- team_damage (patch 63) ----
+
+/// The entry `team_damage_on_world_load` (0x2d2c75, game_world_core::deserialize after the effects section's three reads (the opening id 0x2D2C44, game_effect_player 0x2DDDF0 at 0x2D2C54, the closing part's vtable +0Ch at 0x2D2C73), before mov eax,[ebp+19034h]: EBP the core, the effects' reader at [esp+3Ch] (made at 0x2D2C1A..0x2D2C34 over the history item's +0C0B84h buffer)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_team_damage_on_world_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `team_damage_on_world_load` calls this, from the game's jump at 0x2d2c75,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::team_damage::on_world_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- text_input (patch 52) ----
 
 /// The named exits of text_input::on_char (the order the shim's Flow code
@@ -5079,6 +5174,8 @@ pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_free_for_all_on_static_info(frame);
     if flow != 0 { return flow; }
+    let flow = hook_team_damage_on_static_info(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5093,6 +5190,8 @@ pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u3
     let flow = hook_music_on_replay(frame);
     if flow != 0 { return flow; }
     let flow = hook_free_for_all_on_replay_options(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_team_damage_on_replay_options(frame);
     if flow != 0 { return flow; }
     0
 }

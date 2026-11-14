@@ -774,3 +774,7 @@ extern engine_sound_pan
 ; float *engine_listener_position(struct sound_scene *scene, float *out)
 ; 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
 extern engine_listener_position
+; void engine_hit_impl(struct player *player, struct hit_info *hit)
+; 0x2d9b90 survarium::base_player::hit_impl: player ESP+4, hit ESP+8; pops 8; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_hit_impl

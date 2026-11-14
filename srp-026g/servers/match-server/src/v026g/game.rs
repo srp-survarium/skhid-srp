@@ -1063,14 +1063,8 @@ impl Game {
         let players = formed.places.len();
         let rule = TimelimitRule::new(TimelimitParams::of(formed.played.map(), players as u8));
         let walkers = driven::Walkers::new(&formed, &settings);
-        // Once for the match: a private room's (a PIN) and one against bots
-        // remove nobody.
-        let kind = match (formed.private, formed.vs_bots) {
-            (true, _) => afk::MatchKind::PrivateRoom,
-            (false, true) => afk::MatchKind::VsBots,
-            (false, false) => afk::MatchKind::Public,
-        };
-        let afk = Watch::new(settings.anti_afk, kind);
+        // Once for the match: only a match of team play removes idle players.
+        let afk = Watch::new(settings.anti_afk, formed.kind());
         log_unread_kits(&formed, 0);
         Self {
             id: formed.match_id,

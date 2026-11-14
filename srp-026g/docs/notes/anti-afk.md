@@ -26,7 +26,10 @@ The owner, 2026-11-01: the simplest version first.
 - **Private rooms (a PIN): never.** Public rooms and Play: yes.
 - **Matches against bots ("Player vs Bots"): never.** The owner, 2026-11-02: "it should also be
   fine to afk w/bots".
-- Both decided once, when the match is made.
+- **Free for all: never.** The owner, 2026-11-14: "FFA allows afk, which is fine there, since
+  they will simply be getting killed". The same test decides team damage (`team-damage.md`):
+  `registry::MatchKind::team_play`.
+- All decided once, when the match is made.
 - Bots are never removed.
 - **Four or fewer connected human players: never.** Count all connected human places,
   including loading, dead and resyncing players; exclude departed players and bots. Recheck

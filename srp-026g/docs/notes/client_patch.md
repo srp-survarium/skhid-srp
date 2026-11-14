@@ -3041,6 +3041,27 @@ hooks in the patched exe on made-up objects (a relay paid at its own team's
 delivery, steps dropped at the other team's), and the game's own serialize and
 deserialize of two records with the hooks inside.
 
+### Team damage (patch 63)
+
+`team_damage` (Rust, `vostok::team_damage`) turns a teammate's hit on its dealer past 0.28a's
+threshold (`team-damage.md`). PROVEN in the exe, each site run with Unicorn in both exes
+(`check_team_damage_026g.py`); not run in a game.
+
+- **The hit's start** (`player.hit_start`, 0x2D9BB6, `mov esi,[ebx+2E0h]`, 6 bytes): hit_impl
+  past its tests of a dead (+33Ch) and a dying (+33Dh) victim; EBX the victim, [EBP+0Ch] the
+  hit. Its exit `skipped` is 0x2D9F1A (`lea esp,[ebp-78h]`, the pops, `ret 8`), where the
+  function's own jumps for a hit it does not deal land. A turned hit is a copy of the 48h-byte
+  hit_info, its damage (+34h) times `return_ratio`, given to hit_impl (stdcall, `ret 8`) for the
+  dealer: his armour; the hit's place (+44h) is his own, so neither counted nor turned again.
+- **The pain lost** (`player.pain_lost`, 0x2D9EA9, `subss xmm0,[eax+0A0h]`, 8 bytes): XMM0 the
+  pain before, EAX the pain pool (+0A0h after), EDI the hit, EBX the victim.
+- **The dealer** is the hit's place when it is another than the victim's (+114h), the hit has a
+  source (+20h) and core_active_player (0x2D0AB0) gives the place's player; a teammate is the
+  match profile's team (+6B8h, +45ECh), 0 or 1, the same.
+- **The world** (`world_save.effects_written` 0x2D2716, EDI the effects' writer;
+  `world_load.effects_read` 0x2D2C75, the effects' reader at [esp+3Ch] over the history item's
+  +0C0B84h buffer): the record after the effects' three parts, `srp_validate::team_damage`.
+
 ### Free for all (patch 142)
 
 `free_for_all` (Rust, `vostok::respawn`, `vostok::ui`) lets a player have a team of his own (srp's

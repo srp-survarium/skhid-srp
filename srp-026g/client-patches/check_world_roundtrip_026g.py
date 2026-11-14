@@ -149,6 +149,10 @@ OWN_CHECKS = {
     (0x334F66, 10): "battery.save: patch 92's life after each battery's record (the statistics, modes 2 and 3; "
                     "none in the recorded match); check_battery_progress_026g.py (a load gives every life back)",
     (0x3350D0, 6): "battery.load: as battery.save",
+    (0x2D2716, 7): "world_save.effects_written: patch 63's team damage counts after the effects (only in a match "
+                   "with its rule); check_team_damage_026g.py (a world loaded with a record saves that record, one "
+                   "without saves none)",
+    (0x2D2C75, 6): "world_load.effects_read: as world_save.effects_written",
 }
 CODEC = re.compile(r"::(de)?serialize")
 CODEC_ALSO = {0x32BBC0: "survarium::bullet::bullet (the bullet loader)",

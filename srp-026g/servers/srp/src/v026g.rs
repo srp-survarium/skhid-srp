@@ -505,10 +505,10 @@ impl Stack {
         // The match server first: the registry tells the port it got.
         let match_socket = UdpSocket::bind(&options.match_bind)?;
         let match_addr = match_socket.local_addr()?;
-        let registry = Arc::new(MatchRegistry::new(
-            &options.match_public_host,
-            match_addr.port(),
-        ));
+        let registry = Arc::new(
+            MatchRegistry::new(&options.match_public_host, match_addr.port())
+                .with_team_damage(matches::team_damage_from_env()),
+        );
         // Voice beside it, on the next port: the games send there.
         let voice_socket = if options.voice {
             let port = matches::voice::port_for(match_addr.port()).ok_or_else(|| {

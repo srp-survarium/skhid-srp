@@ -148,6 +148,7 @@ pub mod statistics;
 pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
 
 pub mod medical;
+pub mod team_damage;
 pub mod artefact_skills;
 pub mod keeper;
 pub mod effect;

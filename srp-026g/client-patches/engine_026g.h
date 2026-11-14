@@ -54,6 +54,7 @@ struct gfx_movie;
 struct gfx_object;
 struct gfx_object_interface;
 struct gfx_value;
+struct hit_info;
 struct hit_object;
 struct hw_resource;
 struct immediate_context;
@@ -815,5 +816,8 @@ void engine_sound_pan(struct sound_scene *scene, struct panning_lut *table, stru
 
 /* 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX */
 float *engine_listener_position(struct sound_scene *scene, float *out);
+
+/* 0x2d9b90 survarium::base_player::hit_impl: player ESP+4, hit ESP+8; pops 8; stdcall, called directly */
+void __attribute__((stdcall)) engine_hit_impl(struct player *player, struct hit_info *hit);
 
 #endif

@@ -25,6 +25,7 @@ pub mod messages;
 pub mod modules;
 pub mod recovery;
 pub mod reader;
+pub mod team_damage;
 pub mod refusal;
 pub mod report;
 pub mod executable;
