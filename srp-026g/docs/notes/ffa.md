@@ -33,7 +33,16 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
   leaves them, with:
   - `mode.mode` 8 and rules 93, 91, 94 (time, respawn, kd): no rule of its own. TDM's rule 90 has
     arrays of two teams.
-  - TDM's timings (15:00, 20 s countdown) and respawn time.
+  - TDM's timings (15:00, 20 s countdown) and respawn time. Checked (the owner, 2026-11-14:
+    "respans in ffa should be as long as in tdm", "i think now they are longer then needed?"):
+    the same wait as TDM's on every map. The 33 configs of mode 8 have `respawn_time` 8, as their
+    33 TDM configs, in the players' files of rev58. The respawn rule's death handler (0x316AA0)
+    sets every team's delay alike: `respawn_time` × (1 + modifier 60, the radio's -0.2) × the
+    rule's +118h (1.0, set by its constructor 0x316700 only), rounded up to the 50 ms grid, so
+    8 s, or 6.4 s with a radio. Nothing a free-for-all has adds to it: patch 142 only moves a due
+    player into the tick's first vector and gives him a point at that tick (the game's 50 ms
+    retry for a player left without one never comes), its 0.5 s protection starts at the spawn,
+    and the server sets no respawn time (`maps::MapMode::respawn_time` is read, not used).
   - **Its own project** (the owner, 2026-11-13: "TDM is good, nothing should change about it"):
     `projects/<map>/<weather>_8/client_project`, a copy of the TDM map's `<weather>_4` as every list
     before leaves it (content edit `ffa-projects-1`, right before `ffa-1`). The FFA lists edit the
@@ -485,13 +494,20 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     "not correctness").
   - Its ammo, the simplest way (the owner, 2026-11-14: "make it the simplest way"): in each kit
     that held a replaced gun, every ammo slot whose ammo none of the kit's guns fires now is
-    emptied, and the kit has the same amount of AK-12 ammo as every other (`ammo_6.5x39`, the one
-    ammo the data pairs with it; the dictionary's `optimal_count` of assault rifles, 60), in the
-    first slot emptied or else its first empty ammo slot. A kit that holds AK-12 ammo already
-    keeps its own; one with no ammo slot free has its AK-12's magazine alone. (A Val beside an
-    SR-3M on one SP-6: the SR-3M keeps the SP-6, the AK-12 has its 60.)
-  - That ammo is one new stack every such kit holds. Its store is the amount 1000 times
-    (`twist::STORE_LIVES`): a spawn takes each slot's count out of a stack's store and a dead
+    emptied, and the kit has a magazine of AK-12 ammo (`ammo_6.5x39`, the one ammo the data pairs
+    with it: a clip of 30, one bag, `item_params`) for every ammo bag the ammo it keeps leaves free
+    (the owner, 2026-11-14: "everyone gets only one mag in racket? for ak-12?", "it should be
+    number of ammo slots in their inventory"; until then every kit had 60). The kit's bags are the
+    lobby's (`loadouts::KitLayout`): the player's 3, plus the `ammo_bags_modifier` of its worn
+    items' modifications (their defaults and their own) and its skills' (modifier 16); the ammo it
+    keeps takes a clip's `required_bags` for every clip it holds, the last one begun. The AK-12
+    ammo goes in the first slot emptied or else its first empty ammo slot. A kit that holds AK-12
+    ammo already keeps its own; one with no ammo slot or no bag free has its AK-12's magazine
+    alone. (A sniper's kit of three bags: 90 rounds. A Val beside an SR-3M on one SP-6: the SR-3M
+    keeps the SP-6, the AK-12 has the bags it leaves.)
+  - That ammo is one new stack every such kit holds. Its store is the largest kit's amount 1000
+    times (`twist::STORE_LIVES`; my pick, the simplest: one stack, which lasts every kit's lives
+    at least as long): a spawn takes each slot's count out of a stack's store and a dead
     player keeps only the store (`snapshot_rules.md` §7.3), so a kit's worth would last one life
     (found in review, 2026-11-14). An item no kit holds any more (the ammo that left) leaves the
     table: a profile grows by that one stack at the most, and only where an item two kits shared
