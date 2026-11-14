@@ -189,7 +189,7 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 pub const DROP_LANDS_ALGO: u32 = 0x5067_0003;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
 /// body that asks for it. A value of its own.
-pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0001;
+pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0002;
 /// The same for the taken floors given back where the client's body rests and no floor names the place ([`Body::rest_floors`],
 /// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const REST_FLOORS_ALGO: u32 = 0x5389_0101;
