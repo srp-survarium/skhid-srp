@@ -2346,3 +2346,9 @@ va	status	ref_021d	name
 0x002f4580	observed		survarium::respawn_point_core::load
 0x00013da0	reviewed	0x00012c0b	vostok::engine::engine_world::command_line_editor
 0x003cd310	reviewed	0x00273594	vostok::render::render_cc_u32::is_changed
+0x00082590	observed	0x00059784	vostok::physics::collision_shape_cook::translate_query
+0x000829e0	observed	0x00059aa0	vostok::physics::collision_shape_cook::on_collision_sources_loaded
+0x0022c010	observed	0x00179cf0	survarium::project_cooker_simple::create_game_objects
+0x003570a0	observed		vostok::physics::bt_static_rigid_body::get_triangle_material
+0x000b3eb0	verified		btHashedOverlappingPairCache::addOverlappingPair
+0x000b3f20	verified		btHashedOverlappingPairCache::setOverlapFilterCallback

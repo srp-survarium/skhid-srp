@@ -36,7 +36,7 @@ Edits (edits.json):
   "replace_string": [{"files", "from", "to"}]          every string value equal to `from`, appended
   "edit_text":      [{"file", "path", "from", "to"}]   in one text (UTF-8, as the localization tables
                                                        keep it), its one `from` becomes `to`
-  "add_entry":      [{"files", "list", "after", "like", "values", "only_if"}]
+  "add_entry":      [{"files", "list", "after", "like", "values", "only_if", "expected_files"}]
                     a new entry of the indexed table `list` (a lobby card's `ui_desc/props_list`, the
                     card lines' `ui_properties`) after the entry whose keys match `after`, made like
                     the entry matching `like` with `values` set; a value "{a/b}" is that number of
@@ -44,7 +44,8 @@ Edits (edits.json):
                     indexed table of vectors (a wire's points) made anew; a key of `values` may be a
                     path in the entry (`spawned_item/position`): the tables on its way are copied
                     anew, the like entry's own stay as they are; files without `only_if`, the table
-                    or those entries are left alone
+                    or those entries are left alone, unless `expected_files` says how many files
+                    must take the entry (a project's object: any other number is refused)
   "_inputs":        [{"files" (glob)}]               read-only dependencies supplied by build-content.
                     add_entry with reload_clip_ratio:true copies the empty/tactical hands-clip
                     duration ratio into prop_value, only for state 314. Declare its clips here.
@@ -2483,6 +2484,9 @@ def main():
             added.setdefault(p, []).append('%s[%d]' % (lst, at))
             grown.setdefault(p, {}).setdefault(lst, 0)
             grown[p][lst] += 1
+        if 'expected_files' in e and n != e['expected_files']:
+            raise ValueError('add_entry %s of %s after %s: %d files took it, not %d'
+                             % (e['list'], e['files'], e['after'], n, e['expected_files']))
         print('entry %s after %s: %d files' % (e['list'], e['after'], n))
     for e in edits.get('append_entry', []):
         if 'files' in e:
