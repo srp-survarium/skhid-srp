@@ -80,6 +80,7 @@ pub mod pitch;
 pub mod plays;
 pub mod pockets;
 pub mod hit_kind;
+pub mod clip_tree;
 pub mod pools;
 pub mod protection;
 pub mod recoil;
@@ -1604,6 +1605,19 @@ impl Bots {
             bot.features.traps.habit.read(time, stack.in_hand);
         }
         self.tracker.own_stacks(place, world.kit, time, world.slots.map(|slot| slot.map(|(_, stack)| stack)));
+    }
+
+    /// [Gap 3] A trusted world made at `at` shows a bot's weapon reloading with the reload clip `clip`
+    /// ([`guns::ReloadClip`], `combat.reload_end_from_world`): its ledger's reload ends at the clip's end
+    /// ([`reflex::Reflex::reload_clip`]). Returns the ledger's end before and after when it moved, for the log.
+    pub fn reload_clip(&mut self, place: Place, at: u32, clip: guns::ReloadClip) -> Option<(u32, u32)> {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return None;
+        };
+        if !self.tunings.of(bot.team).aim.combat.reload_end_from_world {
+            return None;
+        }
+        bot.reflex.reload_clip(at, clip)
     }
 
     pub fn own_gun(&mut self, place: Place, gun: guns::GunWorld) {

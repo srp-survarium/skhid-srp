@@ -92,7 +92,8 @@ use super::aim_settle::{self, Settle, SettleGuns};
 use super::arc;
 use super::guns::{
     Arms, AutoClass, Gun, GunAt, GunReads, GunWorld, Handling, Hands, Kept, KeptReload, LoopEnd, MG_CATEGORY,
-    ModCounts, PISTOL_CATEGORY, RIFLE_CATEGORY, SHOTGUN_CATEGORY, SMG_CATEGORY, SNIPER_CATEGORY, WeaponClass,
+    ModCounts, PISTOL_CATEGORY, RIFLE_CATEGORY, Reload, ReloadClip, SHOTGUN_CATEGORY, SMG_CATEGORY, SNIPER_CATEGORY,
+    WeaponClass,
 };
 use super::kin::{forward, wrap, yaw_of};
 use super::pitch::{Pitch, PitchScale};
@@ -722,6 +723,12 @@ pub struct CombatTuning {
     /// (`m_last_hit_time_ms`: a zone's, a fall's, a mate's too, 0x2E5134). That old value is wrong by the client, so it is
     /// on by default and the all-off patch keeps it (`KEPT_RIGHT`).
     pub hit_kind: bool,
+    /// [Gap 3] A magazine reload under way ends when the bot's own world's mixing tree says its clip ends (the reload
+    /// node's next event, [`super::guns::ReloadClip`]): the client fills the magazine at the clip's end
+    /// (`on_animation_end_impl` 0x310E40), which the reload time scaled by the skills, the gloves and a modification
+    /// gives, so the ledger's own time is only its estimate. Off: the ledger's time alone. That old value is wrong by the
+    /// client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`).
+    pub reload_end_from_world: bool,
     /// [Gap 8] An enemy who cannot be hurt now (spawn protection: [`super::protection`]) is no target while another
     /// seen enemy in range can be hurt, and no shot goes at him (a hit does nothing: `hit_impl` 0x2D9BBE). Which enemies
     /// are protected follows the rule a player can apply (his life's start and his team's points' time), or the world's
@@ -1623,6 +1630,7 @@ impl Default for CombatTuning {
             weapon_in_hands: true,
             hands_from_world: true,
             hit_kind: true,
+            reload_end_from_world: true,
             spawn_protection: true,
             stacks_from_world: true,
             reload_aim_control: true,
@@ -7291,6 +7299,40 @@ impl Reflex {
             GunAt::Reloading => self.reload_world(world, kept, now),
             GunAt::Busy => {}
         }
+    }
+
+    /// [Gap 3] A world made at `at` that shows the weapon reloading shows its reload clip `clip` ([`ReloadClip`]): a
+    /// magazine reload the ledger counts under way since the world or before ends at the clip's end (the gate, the note,
+    /// the kept ticks). Returns the ledger's end before and after when it moved, for the log.
+    pub fn reload_clip(&mut self, at: u32, clip: ReloadClip) -> Option<(u32, u32)> {
+        let end = match clip {
+            ReloadClip::Ends(end) => end,
+            ReloadClip::Cancelled => {
+                self.gun_reads.clip_cancelled += 1;
+                return None;
+            }
+        };
+        if self.hands().pistol_out || !matches!(self.hands().held().gun.reload, Reload::Magazine { .. }) {
+            return None;
+        }
+        let note = self.reload_note.as_mut().filter(|note| note.at <= at && end > at)?;
+        self.gun_reads.clip_read += 1;
+        let (began, was) = (note.at, note.until);
+        if was == end {
+            return None;
+        }
+        note.until = end;
+        self.gun_reads.clip_moved += 1;
+        self.gun_reads.clip_moved_ms += u64::from(was.abs_diff(end));
+        if self.busy_why == gate::RELOAD {
+            self.busy_until = end;
+        }
+        for later in &mut self.journal {
+            if later.reload.is_some_and(|reload| reload.at == began) {
+                later.reload = (later.now < end).then_some(KeptReload { at: began, until: end });
+            }
+        }
+        Some((was, end))
     }
 
     /// [`Self::gun_world`] of an idle weapon. What it puts right it puts right in the kept ticks from the world's on too, so
