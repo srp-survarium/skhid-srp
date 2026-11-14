@@ -189,7 +189,9 @@ impl WalkGrid {
     /// 2. the link goes to `b` when some press lands there, else to the floor the most presses land on (re-targeted: the link
     ///    goes where the body lands), the lowest id on a tie;
     /// 3. each press onto that floor is scored by its neighbourhood ([`jump::neighbourhood`]; its lead row reuses step 1's
-    ///    flights), and the link carries the highest share; on a tie a walking press, then the lead nearest the middle of that
+    ///    flights): a neighbour counts when every one of its flights lands and stays on a top floor, whichever (a neighbour's
+    ///    rest spreads over the top's cells and levels: Chemical Plant R9, 13 of 14 up in the exe's tick, 6 on the press's own
+    ///    floor, owner-5 `a385-lost-links-client-truth.md` §3), and the link carries the highest share; on a tie a walking press, then the lead nearest the middle of that
     ///    gait's leads onto the floor; a sprint link also carries the best walking press onto it ([`Made::walk`]), for a body
     ///    the client refuses the sprint.
     ///
@@ -257,7 +259,7 @@ impl WalkGrid {
             flown
                 .iter()
                 .find(|(k, l, _)| *k == kind && (l - lead).abs() < 1e-3)
-                .map(|(.., floors)| !floors.is_empty() && floors.iter().all(|&f| f == Some(to)))
+                .map(|(.., floors)| !floors.is_empty() && floors.iter().all(Option::is_some))
         };
         let mut scored: Vec<(Kind, f32, u8)> = Vec::new();
         for l in landings.iter().filter(|l| l.to == to) {
@@ -268,7 +270,7 @@ impl WalkGrid {
                     Some(lands) => lands,
                     None => fly(l.kind, l.lead, n).is_some_and(|fl| {
                         flights += fl.len();
-                        fl.iter().all(|st| lands(st) == Some(to))
+                        fl.iter().all(|st| lands(st).is_some())
                     }),
                 };
                 landed += u8::from(lands);

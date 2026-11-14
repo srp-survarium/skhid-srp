@@ -254,13 +254,28 @@ fn walk_step(c: &mut Controller, world: &Collision, s: &Settings, walk: Vec3, sp
     c.tick(world, DT, s, input);
 }
 
-/// A body put down: three steps with no walk and a small downward speed (so no step is skipped, `can_skip_player_step`), as
-/// the rig's `settle` does.
-fn settle(c: &mut Controller, world: &Collision, s: &Settings) {
-    for _ in 0..3 {
-        c.velocity = Vec3::new(0.0, -0.01, 0.0);
+/// [A385] How high over the press point's height a run-up's body is put before it comes down ([`settle`]): the ground at the
+/// run-up's start may be lower than the take-off (a sloped approach), and a body put at the take-off's height there would run
+/// in the air (owner-5 `a385-lost-links-client-truth.md` §2.1: Mamayev Kurgan R94, a walking press at 1.0 m pressed with the
+/// feet at 28.34 over ground at 28.01). The same height as owner-5's `start_real`.
+const RUN_UP_DROP_M: f32 = 0.6;
+
+/// [A385] The steps a body put down is given to come to rest ([`settle`]): 2 s, the 0.6 m fall takes 7.
+const SETTLE_STEPS_MAX: u32 = 40;
+
+/// A body put down comes to rest: steps with no walk (a small downward speed at the first, so no step is skipped,
+/// `can_skip_player_step`) until it is on the ground and its feet move under a millimetre in a step. False when it has not
+/// in [`SETTLE_STEPS_MAX`] steps.
+fn settle(c: &mut Controller, world: &Collision, s: &Settings) -> bool {
+    c.velocity = Vec3::new(0.0, -0.01, 0.0);
+    for _ in 0..SETTLE_STEPS_MAX {
+        let before = c.feet();
         walk_step(c, world, s, Vec3::ZERO, false);
+        if c.on_ground(s) && (c.feet() - before).length() < 1e-3 {
+            return true;
+        }
     }
+    false
 }
 
 /// The keys of a flight ([`fly`]).
@@ -341,10 +356,11 @@ pub struct RunUp {
     pub speed: f32,
 }
 
-/// The run-up ending at `press_at` (feet) along `heading` at `speed` m/s (sprinting or not), as the rig's `run_up` makes it: a
-/// body put down 3.5 + 4 steps' travel back, walked up to speed over 6 steps (the 0.3 s blend) then 4 steady steps; else
-/// with no steady steps; else two steps at speed from 2 steps' travel back. None when no run-up ends within 0.1 m across and
-/// 0.35 m in height of `press_at`, on the ground.
+/// The run-up ending at `press_at` (feet) along `heading` at `speed` m/s (sprinting or not): a body put down 3.5 + 4 steps'
+/// travel back, [`RUN_UP_DROP_M`] over `press_at`'s height, come to rest on the ground there ([`settle`]), walked up to speed
+/// over 6 steps (the 0.3 s blend) then 4 steady steps; else with no steady steps. None when no run-up ends within 0.1 m across
+/// and 0.35 m in height of `press_at`, on the ground. (A385: no longer two steps at speed from 2 steps' travel back, which no
+/// client's body does, owner-5 §2.1; nor from a body still coming down.)
 pub fn run_up(world: &Collision, s: &Settings, press_at: Vec3, heading: (f32, f32), speed: f32, sprinting: bool) -> Option<RunUp> {
     use crate::grid::controlled::{body_at, Stance, WalkStart};
     let way = Vec3::new(heading.0, 0.0, heading.1);
@@ -355,12 +371,11 @@ pub fn run_up(world: &Collision, s: &Settings, press_at: Vec3, heading: (f32, f3
     };
     let put = |back: f32| {
         let start = press_at - way * back;
-        let mut c = body_at(world, WalkStart::Clear, Stance::Standing, Vec3::new(start.x, press_at.y, start.z));
-        settle(&mut c, world, s);
-        c
+        let mut c = body_at(world, WalkStart::Clear, Stance::Standing, Vec3::new(start.x, press_at.y + RUN_UP_DROP_M, start.z));
+        settle(&mut c, world, s).then_some(c)
     };
     for steady in [4u32, 0] {
-        let mut c = put(speed * DT * (3.5 + steady as f32));
+        let Some(mut c) = put(speed * DT * (3.5 + steady as f32)) else { continue };
         let mut v = 0.0;
         for k in 1..=(6 + steady) {
             let before = c.origin;
@@ -371,14 +386,7 @@ pub fn run_up(world: &Collision, s: &Settings, press_at: Vec3, heading: (f32, f3
             return Some(RunUp { body: c, speed: v });
         }
     }
-    let mut c = put(2.0 * speed * DT);
-    let mut v = 0.0;
-    for _ in 0..2 {
-        let before = c.origin;
-        walk_step(&mut c, world, s, way * (speed * DT), sprinting);
-        v = flat(c.origin - before).length() / DT;
-    }
-    ok(&c).then_some(RunUp { body: c, speed: v })
+    None
 }
 
 /// The gait of a run-up jump: a walk (the short jump) or a sprint (the sprint jump off `leg`, its first air step ending at
