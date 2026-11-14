@@ -245,15 +245,19 @@ const RESISTANCE_ARMOUR: f32 = 0.05;
 /// Resistance's highest rank.
 const RESISTANCE_MOST: u8 = 5;
 
+/// The Keeper draw's highest value in bits 9..11 of modifier 40 (`artefact_skills.rs` `Draw::MOST`).
+const DRAW_MOST: u32 = 6;
+
 /// Resistance's rank in a kit's modifier 40 (`artefact_power`): bits 0..2 of the packed artefact skills, as the
 /// client's patch reads them (`artefact_skills.rs` `Skills::parse`): a value that is not a whole number in 0..16384,
-/// or a rank past 5, is no skill at all.
+/// a rank past 5 or a Keeper draw (bits 9..11) of 7 is no skill at all.
 pub fn resistance_rank(artefact_power: f32) -> u8 {
     if !(0.0..16384.0).contains(&artefact_power) || artefact_power != (artefact_power as u32) as f32 {
         return 0;
     }
-    let rank = (artefact_power as u32 & 7) as u8;
-    if rank <= RESISTANCE_MOST { rank } else { 0 }
+    let bits = artefact_power as u32;
+    let rank = (bits & 7) as u8;
+    if rank <= RESISTANCE_MOST && (bits >> 9) & 7 <= DRAW_MOST { rank } else { 0 }
 }
 
 /// Whether `hit_type` is one of the anomalous types (toxic, radiation, fire, shock: 4..7 of the client's table).
@@ -274,7 +278,8 @@ impl ZoneArmour {
     }
 
     /// [`Self::of_items`] with the kit's resolved modifiers `modifiers` (`MatchProfile` kit, by
-    /// `survarium::v026g::skills::modifier_index`): modifier 8 and Resistance's rank in 40.
+    /// `survarium::v026g::skills::modifier_index`): modifier 8 and Resistance's rank in 40. The client reads the player's
+    /// live kit in use; the server takes it from the worlds (`driven.rs`).
     pub fn of_kit(dict_ids: impl IntoIterator<Item = u16>, modifiers: &[f32]) -> Self {
         let at = |name: &str| survarium::v026g::skills::modifier_index(name).and_then(|i| modifiers.get(i).copied());
         Self {
@@ -500,7 +505,7 @@ mod tests {
             assert!(near(moss.cost_per_s(&ZoneArmour::of_kit(ids, &mods)).infection, 0.005), "a 0.70 mask counts 0.95");
         }
         assert_ne!(resisting.key(), ZoneArmour::default().key());
-        for bad in [6.0, 5.5, -1.0, 16384.0] {
+        for bad in [6.0, 5.5, -1.0, 16384.0, 5.0 + 7.0 * 512.0] {
             assert_eq!(resistance_rank(bad), 0, "{bad}");
         }
         let mut weaker = [0.0f32; MODIFIERS];
