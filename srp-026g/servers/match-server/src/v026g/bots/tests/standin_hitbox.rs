@@ -1290,12 +1290,6 @@ mod game_tests {
         standin_damage::hit(&game.damage, other, gun, along, &mut game.rng, tick);
         other.last_hit = tick;
         other.stagger.hit(tick, standin_stagger::power_of(&game.damage, gun));
-        if let Some(leg) = stand_in_leg_hit(tick, shooter, target) {
-            other.legs[leg] = (other.legs[leg] - STAND_IN_LEG_HIT).max(0.0);
-            if other.legs[leg] <= 0.0 && other.leg_broken_until == 0 {
-                other.leg_broken_until = tick + STAND_IN_LEG_BROKEN_MS;
-            }
-        }
         let lethal = other.health <= 1e-3;
         if team_hit {
             game.team_hit_pains.push((pain_before, lethal));

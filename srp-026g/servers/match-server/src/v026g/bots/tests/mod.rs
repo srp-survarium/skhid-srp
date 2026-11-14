@@ -32,7 +32,7 @@
 //! keys held at its press, and a step no higher than the client's
 //! ([`Flight`], [`honest_stand_in`]; `SRP_BENCH_STAND_IN=old`: the old
 //! lift up any floor in reach, [`stand_in_jump`]); none with a broken leg, a
-//! hit's stagger as one slow ([`STAND_IN_LEG_SHARE`], [`STAND_IN_STAGGER`]);
+//! hit's stagger as one slow (`standin_damage::wound_leg`, [`STAND_IN_STAGGER`]);
 //! the rounds are not counted, the bots count their own): the runs check
 //! that bots of two teams find each other, fight, die, come back, take
 //! and bring batteries and end a match, with no input out of the rules;
