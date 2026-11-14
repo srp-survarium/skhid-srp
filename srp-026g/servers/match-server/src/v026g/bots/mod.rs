@@ -1243,6 +1243,19 @@ impl Bots {
         self.features.weapons = weapons;
     }
 
+    /// [Gap 6] The kind of the weapon a world shows in one place's hands.
+    pub fn set_weapon(&mut self, place: Place, weapon: Option<reflex::WeaponKind>) {
+        if self.features.weapons.len() <= place {
+            self.features.weapons.resize(place + 1, None);
+        }
+        self.features.weapons[place] = weapon;
+    }
+
+    /// [Gap 6] How far a shot of the weapon a world shows in one place's hands is heard.
+    pub fn set_shot_reach_of(&mut self, place: Place, reach: Option<f32>) {
+        self.tracker.set_shot_reach_of(place, reach);
+    }
+
     pub fn tracker(&self) -> &Tracker {
         &self.tracker
     }
