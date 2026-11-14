@@ -2657,6 +2657,8 @@ st_srp_mic_test_no_microphone	Ei mikrofonia
 st_srp_mic_test_no_playback	Ei äänilähtöä
 st_srp_mic_test_playing	Toisto %1$s
 st_srp_mic_test_recording	Äänitys %1$s
+st_srp_microphone	Mikrofoni
+st_srp_microphone_default	Oletus
 st_srp_mode_blackout	Suojalaite: sähkökatko
 st_srp_mode_chargers	Suojalaite: laturit
 st_srp_mode_cowboy	Saluuna

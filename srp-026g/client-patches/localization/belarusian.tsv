@@ -2657,6 +2657,8 @@ st_srp_mic_test_no_microphone	Няма мікрафона
 st_srp_mic_test_no_playback	Няма вываду гуку
 st_srp_mic_test_playing	Прайграванне %1$s
 st_srp_mic_test_recording	Запіс %1$s
+st_srp_microphone	Мікрафон
+st_srp_microphone_default	Па змаўчанні
 st_srp_mode_blackout	Ахоўная прылада: блэкаўт
 st_srp_mode_chargers	Ахоўная прылада: зараднікі
 st_srp_mode_cowboy	Салун

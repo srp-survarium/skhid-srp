@@ -3593,8 +3593,8 @@ without it, or of another version (unloaded), voice is off.
 **The sites** (names-only `voice.toml`, eleven lohooks; safe `voice.rs` over `vostok/voice.rs`):
 - `configs.start` (before user.cfg): `s_chat_volume` and `s_mic_sens` (`ConsoleFloat`, 0..100, the
   float slider's steps are 1.0), `s_use_microphone` and `g_hide_spam` (the gameplay tab's dead
-  option 5, "Hide spam", now "Disable voice chat") (`ConsoleBool`), `srp_voice_mutes`
-  (`ConsoleString`); saved in user.cfg;
+  option 5, "Hide spam", now "Disable voice chat") (`ConsoleBool`), `srp_voice_mutes` and
+  `srp_microphone` (`ConsoleString`); saved in user.cfg;
 - `match_client.connect` (0x27A1B0 at its start: the host, the port, the session; a replay's match
   client has its own connect, 0x122350): the DLL loaded once, told the options, no mutes and no
   radio, then `sv_start(host, port + 1, session)`;
@@ -3619,7 +3619,7 @@ without it, or of another version (unloaded), voice is off.
   chat mute's entries, for a teammate whose voice id the relay sent;
 - `options.callback` (after patches 79, 83 and 112), `game.tick` (after the music, the packets and
   the two reports) and `options.deactivate` (after patch 113's): the options' microphone test,
-  below.
+  below; `options.callback` also the Microphone list, below.
 
 **The microphone test** (the owner, 2026-11-14: "you press button, it records for 10 seconds, then
 plays it back"; `voice-chat.md`, "Microphone test"). The sound tab's "Test microphone" button
@@ -3633,6 +3633,17 @@ state or its second changed; the test is stopped when the Settings window closes
 `stop`) or changes tab, when the main menu closes (a match's loading and its end too) and at a
 match's connect. The DLL is loaded when the
 sound tab is first shown, if no match loaded it.
+
+**The Microphone list** (the owner, 2026-11-14: "did we create selector for microphone?";
+`voice-chat.md`, "Microphone"). The sound tab's list (`SrpMicrophone.as`): "Default" (Windows'
+default recording device, as before), then each capture device by its whole name. The DLL lists
+them (ABI 5: `sv_microphones`, WinMM's devices by their endpoint IDs, named through MMDevice on a
+thread of its own) and opens the chosen one (`sv_choose_microphone`; found by its ID at each
+opening, the default when it is not there). The exe passes it on: `srp_microphone` (the tab shown,
+the list pressed open) is answered `root.srp_microphone(label, default, shown, id, name, ...)`;
+`srp_microphone(id)` (empty: the default) is Apply's pick, kept in `user.cfg` as
+`srp_microphone` and told to the DLL, which is told the saved one as it is loaded. A saved device
+not there is shown as Default and stays saved.
 
 **Who is talking**, as 0.69's hud (`VoiceChatTalkingPanel`): a row per teammate talking, and the
 player's own while its microphone is sent, at the right edge under mid-height, a light-blue speaker
@@ -3649,13 +3660,13 @@ out and logged.
 
 **Texts** in `localization/*.tsv`: `st_hide_spam_option` ("Disable voice chat"), `st_ptt_action`
 ("Push to talk"), `st_srp_hud_voice_*` (the Tab menu's entries and lines), `st_srp_mic_test*` (the
-microphone test's button).
+microphone test's button), `st_srp_microphone*` (the Microphone list).
 
 Checked: `selftest_026g.py` check 66 (the sites in the original, the eleven hooks in the build, the
 game's ptt entry unchanged, the main menu's `srp_mic_test`) and check 62 (the Controls rows: push-to-talk's in the game group, its
 key settable), `check_hide_ui_026g.py` (the list sent to the movie), `cargo test` in `rust/` (the
 mutes' text, malformed records, plain under 10 m with the pan it is given and its fall by distance, the radio from 10 m and for the dead, the two distances apart, the keys a held input is polled by,
-the microphone test's press and texts), `check_voice_pan_026g.py` (Unicorn: the original exe's calculate_3d_pan as the patch calls it: its law, what it reads and writes), `scripts/mic-test/check.sh` (Ruffle: the button).
+the microphone test's press and texts, the Microphone pick's text and the list's shown pick), `check_voice_pan_026g.py` (Unicorn: the original exe's calculate_3d_pan as the patch calls it: its law, what it reads and writes), `scripts/mic-test/check.sh` (Ruffle: the button and the Microphone list).
 Played locally 2026-11-11 (two games under Wine, one microphone): talking and hearing in a team.
 
 ### 67. The kill feed shows a kill through a wall, by a ricochet and by pain (the next release's revision)

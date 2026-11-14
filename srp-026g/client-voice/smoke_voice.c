@@ -7,7 +7,8 @@
  * at sv_test_stop, at a push-to-talk and at the match's end; without a
  * microphone or a playback device it says so for a moment. With `full` after
  * the DLL's path a whole test runs too, 10 s recorded and played back: it
- * opens the default microphone and plays on the default device.
+ * opens the default microphone and plays on the default device. The options'
+ * microphone list is printed, and a choice not plugged in opens the default.
  *
  *   nix develop ./srp-026g -c bash srp-026g/client-voice/build.sh
  *   nix build ./srp-026g#skhid-voice-smoke
@@ -32,6 +33,13 @@ typedef unsigned(__cdecl *talking_fn)(void);
 typedef int(__cdecl *slot_fn)(void);
 typedef unsigned(__cdecl *voice_id_fn)(int);
 typedef void(__cdecl *press_fn)(float, float);
+/* voice-abi's Microphone: an endpoint ID and a name (UTF-8), each NUL-terminated in its room. */
+struct microphone {
+    char id[128];
+    char name[256];
+};
+typedef unsigned(__cdecl *microphones_fn)(struct microphone *, unsigned);
+typedef void(__cdecl *choose_fn)(const char *);
 
 static int failures;
 #define CHECK(cond, what)                                                                  \
@@ -140,15 +148,30 @@ int main(int argc, char **argv)
     press_fn sv_test_press = (press_fn)GetProcAddress(dll, "sv_test_press");
     void_fn sv_test_stop = (void_fn)GetProcAddress(dll, "sv_test_stop");
     talking_fn sv_test_state = (talking_fn)GetProcAddress(dll, "sv_test_state");
+    microphones_fn sv_microphones = (microphones_fn)GetProcAddress(dll, "sv_microphones");
+    choose_fn sv_choose_microphone = (choose_fn)GetProcAddress(dll, "sv_choose_microphone");
+    static struct microphone microphones[16];
+    unsigned listed, i;
     unsigned test;
     CHECK(sv_version && sv_start && sv_stop && sv_ptt && sv_settings && sv_hear && sv_mute &&
-              sv_talking && sv_slot && sv_voice_id && sv_test_press && sv_test_stop && sv_test_state,
+              sv_talking && sv_slot && sv_voice_id && sv_test_press && sv_test_stop && sv_test_state &&
+              sv_microphones && sv_choose_microphone,
           "every export resolves");
     if (failures)
         return 1;
-    CHECK(sv_version() == 4, "sv_version is 4");
+    CHECK(sv_version() == 5, "sv_version is 5");
     sv_stop(); /* not started: nothing */
     CHECK(sv_talking() == 0 && sv_slot() == -1, "idle state");
+
+    /* The options' Microphone list: the capture devices by their endpoint IDs and whole
+     * names (none where there is no audio). A choice that is not plugged in opens the
+     * default: the microphone test below runs with one. */
+    listed = sv_microphones(microphones, 16);
+    CHECK(listed <= 16, "the microphone list fits its room");
+    for (i = 0; i < listed; i++)
+        printf("note: microphone %u: %s (%s)\n", i, microphones[i].name, microphones[i].id);
+    CHECK(sv_microphones(NULL, 16) == 0 && sv_microphones(microphones, 0) == 0, "no room: nothing listed");
+    sv_choose_microphone("{0.0.1.00000000}.{00000000-0000-0000-0000-000000000000}");
 
     /* The microphone test with no match (the lobby): a worker of its own,
      * which leaves when the test is over. */
@@ -295,6 +318,8 @@ int main(int argc, char **argv)
     CHECK(!(sv_talking() & ((1u << 5) | (1u << 31))), "a key held across the stop is released: not talking");
     CHECK(expect(0x02, buf, sizeof buf, 400) < 0, "a key held across the stop is released: no START");
 
+    /* In the match, the first listed device chosen (the default without one). */
+    sv_choose_microphone(listed ? microphones[0].id : NULL);
     /* The microphone test in a match, by the match's worker: talking wins,
      * and the match's end stops it. Nothing of it goes to the relay. */
     sv_test_press(1.0f, 0.5f);
