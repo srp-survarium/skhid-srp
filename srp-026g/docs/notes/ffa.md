@@ -268,6 +268,17 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - The owner's against the checks: 20 and 21, 1.45 and 1.62 m from `acid_soft_damage_zone`, and
     57, 0.04 m from `fire_soft_damage(1)`. 41 hold the rule; 25 have no cover or stand in the
     perimeter band, kept as his.
+- **Mamayev Kurgan at the owner's picks** (2026-11-15: 68 `where` places on day_8,
+  `private/spawn-examples/mamayev026-2026-11-15.tsv`). Content edit `ffa-mamayev-picks-1`, from
+  `scripts/ffa-mode/mamayev-picks.tsv` (`picks --harmful-ok 17,30,31,55,57 --project
+  level_06/<weather>_8` for day, evening and rain) and `make_picks_edits.py mamayev`, in its three
+  own projects:
+  - All 68 on their ground (0 to 41 cm), facing as he faced: the first 50 in point_ids 30-79
+    (position and rotation only), 18 new 80-97, copies of the first solo spawn. 50 -> 68 points:
+    only his.
+  - The owner's against the checks: 17, 30 and 31, 1.01, 1.77 and 0.17 m from `fire_soft_damage`,
+    and 55 and 57, inside and 1.44 m from `frogs_damage_zone`. 35 hold the rule; 33 have no cover
+    or stand in the perimeter band, kept as his.
 - A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
