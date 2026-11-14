@@ -623,6 +623,9 @@ pub(crate) struct Game {
     /// [`Hazard::client_cost_per_s`] at the body's centre): the hit curve at its place in the zone, the interval included;
     /// else the full hit wherever a body stands in it.
     pub(crate) zone_intensity: bool,
+    /// [zones] Each interval zone's last hit, ms, by zone ([`Self::zone_scale`]): the zone's own clock, not a body's (the
+    /// client's `last_hit_time` of the zone, 0x319D15). Kept while nobody is inside.
+    pub(crate) zone_last_hit: std::collections::HashMap<usize, u32>,
     /// What the routed zones took by pool (body, head, infection, pain) and the deaths in them by the pool
     /// that ran out.
     pub(crate) zone_pool_lost: [f32; 4],
@@ -1013,6 +1016,7 @@ impl Game {
             zone_hp: 0.0,
             zone_routed: false,
             zone_intensity: false,
+            zone_last_hit: std::collections::HashMap::new(),
             zone_pool_lost: [0.0; 4],
             zone_pool_deaths: [0; 4],
             fields: standin_fields::FieldGen::from_env(&world, seed),
@@ -2422,6 +2426,8 @@ impl Game {
             return self.zone_tick_routed(inside, on, baked);
         }
         let tick = self.tick;
+        // [zones] The interval zones that hit somebody this tick: their clocks restart after the loop.
+        let mut struck: Vec<usize> = Vec::new();
         for place in 0..self.bodies.len() {
             let body = &mut self.bodies[place];
             if !body.alive {
@@ -2444,26 +2450,30 @@ impl Game {
                 body.zone_ys[slot] = body.feet.y;
                 hi - body.feet.y
             };
-            let per_baked: f32 = if baked {
-                inside
+            // [zones] The zones' hit a second where the body stands (`per_baked`: the spells and the log read it) and what
+            // lands this tick, as a second's worth (`baked_now`: [`Self::zone_scale`], an interval zone's one hit when its
+            // clock lets it).
+            let (mut per_baked, mut baked_now) = (0.0, 0.0);
+            if baked {
+                for zone in inside
                     .zones_at(node)
-                    .filter(|zone| {
-                        on.zones
-                            .iter()
-                            .find(|o| o.zone == zone.zone)
-                            .is_some_and(|o| o.activity.active(tick))
-                    })
-                    .map(|zone| self.zone_hit(zone, centre))
-                    .sum()
-            } else {
-                0.0
-            };
+                    .filter(|zone| on.zones.iter().find(|o| o.zone == zone.zone).is_some_and(|o| o.activity.active(tick)))
+                {
+                    let (rate, scale) = (self.zone_hit(zone, centre), self.zone_scale(zone, tick));
+                    per_baked += rate;
+                    baked_now += rate * scale;
+                    if Self::zone_fires(zone, scale) {
+                        struck.push(zone.zone);
+                    }
+                }
+            }
             let per_live = self.fields.hit_per_s_at(node);
             if self.flank_only == Some(place) {
                 continue;
             }
             let body = &mut self.bodies[place];
             let per_s = (per_baked + per_live) * body.heal.toxic_factor(tick);
+            let now_s = (baked_now + per_live) * body.heal.toxic_factor(tick);
             if per_s <= 0.0 {
                 if let Some(spell) = body.zone_spell
                     && tick >= spell.last + SPELL_GAP_MS
@@ -2474,9 +2484,9 @@ impl Game {
                 }
                 continue;
             }
-            let hit = (per_s * TICK_S).min(body.health.max(0.0));
+            let hit = (now_s * TICK_S).min(body.health.max(0.0));
             if per_live > 0.0 {
-                self.fields.stats.hp += hit * per_live / (per_baked + per_live);
+                self.fields.stats.hp += hit * per_live / (baked_now + per_live);
             }
             let spell = body.zone_spell.get_or_insert(ZoneSpell {
                 start: tick,
@@ -2534,6 +2544,7 @@ impl Game {
                 tickets[team] = tickets[team].saturating_sub(1);
             }
         }
+        self.restart_zone_clocks(&struck, tick);
     }
 
     /// The point the client takes a zone's distance at for the body at `place`: its feet (the owner's recordings, 159 of
@@ -2558,6 +2569,41 @@ impl Game {
         ZoneNow { restored: !self.world.grid.can_stand(node), unmarked, fixed: any_active && fixed, in_shape, any_active, zone: first }
     }
 
+    /// [zones] How much of `zone`'s hit a second lands at `tick`, as a share of a second over the tick (the zone tick multiplies
+    /// by [`TICK_S`]), by the client's `damage_zone_core::hit_objects` 0x319AF0 (PROVEN, `drugs_zones_artefacts.md`; the
+    /// zone's `continuous_hit`, its [+13Ch]):
+    /// - a continuous zone hits every tick its rate's share (`max_hit x intensity x tick / interval`): 1;
+    /// - an interval zone acts only when its last hit + its interval has come (0x319B01..0x319B1B; none before: the first
+    ///   on entry), and then hits each body in it once, `max_hit x intensity` (its rate times its interval: `interval / tick`);
+    ///   else nothing (0). Its clock is the zone's own ([`Self::zone_last_hit`], [`Self::restart_zone_clocks`]).
+    ///
+    /// Before, every zone hurt by its rate every tick.
+    fn zone_scale(&self, zone: &Hazard, tick: u32) -> f32 {
+        match zone.damage.as_ref() {
+            Some(damage) if !damage.continuous => {
+                let interval = damage.interval_ms.max(1);
+                let due = self.zone_last_hit.get(&zone.zone).is_none_or(|&last| last + interval <= tick);
+                if due { interval as f32 / 1000.0 / TICK_S } else { 0.0 }
+            }
+            _ => 1.0,
+        }
+    }
+
+    /// [zones] Whether `zone` (an interval zone) acts this tick at `scale` ([`Self::zone_scale`]).
+    fn zone_fires(zone: &Hazard, scale: f32) -> bool {
+        scale > 0.0 && zone.damage.as_ref().is_some_and(|damage| !damage.continuous)
+    }
+
+    /// [zones] The interval zones that hit somebody at `tick` take it as their last hit (the zone's `last_hit_time` := now,
+    /// 0x319D0E..0x319D15); a zone nobody was in keeps its own.
+    fn restart_zone_clocks(&mut self, struck: &[usize], tick: u32) {
+        for &zone in struck {
+            if self.zone_last_hit.insert(zone, tick) != Some(tick) {
+                log::debug!("stand-in zone {zone} hits at {tick} ms (an interval zone: its clock restarts)");
+            }
+        }
+    }
+
     /// What `zone` takes a second from a body whose dose point ([`Self::body_dose_point`]) is `centre`, before armour: the client's rule under
     /// [`Self::zone_intensity`], else the full hit.
     fn zone_hit(&self, zone: &Hazard, centre: Vec3) -> f32 {
@@ -2576,6 +2622,8 @@ impl Game {
     fn zone_tick_routed(&mut self, inside: &Hazards, on: &Hazards, baked: bool) {
         use crate::v026g::bots::zone_cost::Cost;
         let tick = self.tick;
+        // [zones] The interval zones that hit somebody this tick: their clocks restart after the loop.
+        let mut struck: Vec<usize> = Vec::new();
         for place in 0..self.bodies.len() {
             let body = &mut self.bodies[place];
             if !body.alive {
@@ -2599,20 +2647,21 @@ impl Game {
                 body.zone_ys[slot] = body.feet.y;
                 hi - body.feet.y
             };
-            let baked_cost: Cost = if baked {
-                inside
+            // [zones] As [`Self::zone_tick`]: the rate (`baked_cost`) and what lands this tick (`baked_now`).
+            let (mut baked_cost, mut baked_now) = (Cost::ZERO, Cost::ZERO);
+            if baked {
+                for zone in inside
                     .zones_at(node)
-                    .filter(|zone| {
-                        on.zones
-                            .iter()
-                            .find(|o| o.zone == zone.zone)
-                            .is_some_and(|o| o.activity.active(tick))
-                    })
-                    .map(|zone| self.zone_cost(zone, &armour, centre))
-                    .sum()
-            } else {
-                Cost::ZERO
-            };
+                    .filter(|zone| on.zones.iter().find(|o| o.zone == zone.zone).is_some_and(|o| o.activity.active(tick)))
+                {
+                    let (rate, scale) = (self.zone_cost(zone, &armour, centre), self.zone_scale(zone, tick));
+                    baked_cost = baked_cost + rate;
+                    baked_now = baked_now + rate * scale;
+                    if Self::zone_fires(zone, scale) {
+                        struck.push(zone.zone);
+                    }
+                }
+            }
             let per_live = self.fields.hit_per_s_at(node);
             if self.flank_only == Some(place) {
                 continue;
@@ -2624,6 +2673,11 @@ impl Game {
                 body: baked_cost.body + per_live * factor,
                 infection: baked_cost.infection * factor,
                 ..baked_cost
+            };
+            let landing = Cost {
+                body: baked_now.body + per_live * factor,
+                infection: baked_now.infection * factor,
+                ..baked_now
             };
             if cost.most() <= 0.0 {
                 if let Some(spell) = body.zone_spell
@@ -2642,10 +2696,10 @@ impl Game {
                 hit
             };
             let lost = [
-                take(&mut body.health, cost.body),
-                take(&mut body.pools.head, cost.head),
-                take(&mut body.rest.infection, cost.infection),
-                take(&mut body.pools.pain, cost.pain),
+                take(&mut body.health, landing.body),
+                take(&mut body.pools.head, landing.head),
+                take(&mut body.rest.infection, landing.infection),
+                take(&mut body.pools.pain, landing.pain),
             ];
             let hit: f32 = lost.iter().sum();
             for (total, each) in self.zone_pool_lost.iter_mut().zip(lost) {
@@ -2710,6 +2764,7 @@ impl Game {
                 tickets[team] = tickets[team].saturating_sub(1);
             }
         }
+        self.restart_zone_clocks(&struck, tick);
     }
 
     /// Whether the view's ray from `body`'s eye (its base pitch) comes
