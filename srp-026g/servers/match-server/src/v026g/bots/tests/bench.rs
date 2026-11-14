@@ -1054,7 +1054,7 @@ pub(crate) fn real_bot_cost() {
             // into the match, after their first spawn, as the live server gives a map that was not cached.
             let (summary, mut late_map) = match bench_settings().number::<u32>("SRP_BENCH_MAP_LATE_MS") {
                 Some(late_ms) => {
-                    let tactics = Tactics::new(world.clone(), bots.tunings.match_wide().hazard.margin_m.get());
+                    let tactics = Tactics::new(world.clone(), super::hazards::Marking::of(&bots.tunings.match_wide().hazard));
                     (format!("the map held to {late_ms} ms"), Some((late_ms, tactics)))
                 }
                 None => (bots.map_ready(world.clone()), None),

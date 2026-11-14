@@ -49,6 +49,7 @@ use survarium::v026g::match_msgs::snapshot::{Battery, Decoded};
 use super::*;
 use crate::v026g::bots::body::Fix;
 use crate::v026g::bots::legs::LegDamage;
+use crate::v026g::bots::hazards::Marking;
 use crate::v026g::bots::maps::{MapState, Maps};
 use crate::v026g::bots::motor::Hurt;
 use crate::v026g::bots::objective::Mode;
@@ -373,8 +374,8 @@ impl Walkers {
                         );
                     }
                     let world = base.world.clone();
-                    let margin = self.bots.match_wide_tuning().hazard.margin_m.get();
-                    if margin.to_bits() == base.margin().to_bits() {
+                    let marking = Marking::of(&self.bots.match_wide_tuning().hazard);
+                    if marking.same(base.marking()) {
                         // The map's own tactics, shared by every match on it.
                         let floors = world.grid.len();
                         let summary = self.bots.tactics_ready(Tactics::of(base));
@@ -383,16 +384,16 @@ impl Walkers {
                             self.project,
                         );
                     } else {
-                        // Tuned to another margin: tactics of its own.
+                        // Tuned to another marking: tactics of its own.
                         let (send, built) = std::sync::mpsc::channel();
                         let for_tactics = world.clone();
                         let spawned = std::thread::Builder::new()
                             .name(format!("bot tactics {id:#x}"))
                             .spawn(move || {
                                 let started = std::time::Instant::now();
-                                let tactics = Tactics::new(for_tactics, margin);
+                                let tactics = Tactics::new(for_tactics, marking);
                                 log::info!(
-                                    "Match {id:#x}: the bots' tactics for margin {margin} built \
+                                    "Match {id:#x}: the bots' tactics for {marking:?} built \
                                      in {:.2} s",
                                     started.elapsed().as_secs_f32()
                                 );
