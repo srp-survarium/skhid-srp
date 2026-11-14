@@ -735,9 +735,8 @@ impl Bots {
             .fold(1e6, f32::min);
         // [Gap 13] A dead place whose respawn time the worlds gave has come is back.
         let tracker = &self.tracker;
-        let back = |p: &PlaceView| {
-            tuning.think.respawn_times && !p.alive && tracker.respawn_at(p.place).is_some_and(|at| at <= view.clock)
-        };
+        let exact = tuning.cheats.enemy_respawn_exact;
+        let back = |p: &PlaceView| tuning.think.respawn_times && tracker.back(view, team, p, exact);
         state.signals = MatchSignals::read(view, team, since_theft, back);
         state.mods.update(&state.signals, &tuning.mods);
         // A team that can no longer respawn (Team Deathmatch, its tickets

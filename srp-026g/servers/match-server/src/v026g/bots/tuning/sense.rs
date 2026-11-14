@@ -202,6 +202,11 @@ pub struct CheatTuning {
     /// straight to the batteries): the fair battery knowledge instead
     /// (`player_bots_behaviour.md` §2.1).
     pub batteries: bool,
+    /// [Gap 13] An enemy's return is the world's own respawn time (`m_player_respawn_times`), which takes his radio's
+    /// shortening that no player sees on an enemy. Off by default (the owner's rule: enemies by what a human can know):
+    /// an enemy is back at his death in the kill feed plus the mode's plain respawn delay (`Tracker::plain_respawn_ms`),
+    /// and a teammate at the world's time (his timer is his team's own).
+    pub enemy_respawn_exact: bool,
     /// A thief's place with this error, metres, this often, ms (0: off).
     pub thief_error_m: f32,
     pub thief_every_ms: u32,
@@ -235,6 +240,7 @@ impl Default for CheatTuning {
     fn default() -> Self {
         Self {
             batteries: false,
+            enemy_respawn_exact: false,
             thief_error_m: 10.0,
             thief_every_ms: 3_000,
             radar_error_m: 15.0,

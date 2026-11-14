@@ -22,7 +22,7 @@ switches ON traps: enabled press_landing_m=1 react.defuse react.hear react.jump 
 switches ON unstick: blind_stop_ms=4500 drop_shut_from_top drop_shut_last_resort escape_floor home_gate_max_ms=90000 home_no_way_ms=20000 progress_ms=6000 suicide_after_ms=60000 unknown_meant_needs_keys
 switches OFF aim: combat.band_cross_deg combat.clear_step_sees_lip combat.clear_step_sees_open combat.clear_step_slides_along combat.glance_run_yields combat.grenade_close combat.grenade_close_pace combat.grenade_off_y_m combat.grenade_push_tracks combat.grenade_start_margin_m combat.grenade_volley combat.grenade_volley_track combat.hit_at_shot combat.hit_bearing combat.hit_bearing_with_target combat.kit_recoil combat.lead_drop combat.lead_flight combat.outranged_cover combat.pre_aim_heard combat.reacquire_keep combat.stand_strafe combat.worth.objective_in_band combat.worth.switch_gap_m
 switches OFF avoid: escape
-switches OFF cheats: batteries
+switches OFF cheats: batteries enemy_respawn_exact
 switches OFF commit: crossfire_arrival_tau_s
 switches OFF feel: fight_lift press_in_reach sprint_turns straight_jumps
 switches OFF grid: capsule_steps give_back_in_cell keep_last_resorts wall_clear_pull
