@@ -2655,6 +2655,8 @@ st_srp_mic_test_no_microphone	Kein Mikrofon
 st_srp_mic_test_no_playback	Keine Tonausgabe
 st_srp_mic_test_playing	Wiedergabe %1$s
 st_srp_mic_test_recording	Aufnahme %1$s
+st_srp_microphone	Mikrofon
+st_srp_microphone_default	Standard
 st_srp_mode_blackout	Schutzeinrichtung: Blackout
 st_srp_mode_chargers	Schutzeinrichtung: Ladestationen
 st_srp_mode_free_for_all	Jeder gegen jeden

@@ -4,6 +4,7 @@ package
     import flash.display.Loader;
     import flash.display.Sprite;
     import flash.events.Event;
+    import flash.events.MouseEvent;
     import flash.events.UncaughtErrorEvent;
     import flash.geom.Rectangle;
     import flash.net.URLRequest;
@@ -17,7 +18,11 @@ package
     // until the exe answers the tab's ask; its place under the voice controls, the last of them; a press
     // sends the two voice sliders as they stand and is no change for Apply; the Settings window closed
     // says stop; the button shows the exe's text, every dictionary's on one line with the font's glyphs;
-    // hidden on the other tabs and asked again on the way back. Prints "MICTEST ..." lines and "MICTEST RESULT pass" or "MICTEST RESULT
+    // hidden on the other tabs and asked again on the way back. And its "Microphone" list (voice-chat.md,
+    // "Microphone"): none until the exe answers; Default first, then the devices by name; its place between
+    // the slider and the button; a pick pending for Apply, Cancel putting the saved one back, Apply
+    // sending its id ("" the default); an unplugged device shown as Default; the list asked again as it
+    // is pressed open (a pick not applied kept); every dictionary's two texts fitting. Prints "MICTEST ..." lines and "MICTEST RESULT pass" or "MICTEST RESULT
     // fail: ...", then shows each state of the button for check.sh's screenshots ("MICTEST SHOT
     // <name>") and ends with "MICTEST END". No game, no voice DLL, no audio device.
     public class MicTestHarness extends Sprite
@@ -27,6 +32,9 @@ package
         // microphone, no playback device), then the tab's stock ones.
         private static const IDLE:int = 0, RECORDING:int = 1, PLAYING:int = 2, NO_MICROPHONE:int = 3, NO_PLAYBACK:int = 4;
         private static const STOCK:int = 5;
+        // ... then the Microphone list's label and its default's text.
+        private static const MIC_LABEL:int = STOCK + 10, MIC_DEFAULT:int = STOCK + 11;
+        private static const MICROPHONE:String = "srp_microphone";
         private static const VOLUME:String = "_sound_сhat";
 
         private var loader:Loader = new Loader();
@@ -38,6 +46,14 @@ package
         private var dll:Boolean = false;
         // The button's text as the stand-in exe words the test's state.
         private var word:String = "";
+        // The stand-in exe's capture devices ([id, name], Windows' order), its saved pick ("": the
+        // default), the dictionary it answers in, and each call of the list (null: an ask).
+        private var devices:Array = [["{0.0.1.00000000}.{a1}", "Microphone (Realtek(R) Audio)"],
+            ["{0.0.1.00000000}.{b2}", "Headset Microphone (SteelSeries Arctis 7 Chat)"],
+            ["{0.0.1.00000000}.{c3}", "Микрофон (USB Audio Device)"]];
+        private var saved:String = "";
+        private var dictionary:Array;
+        private var microphoneCalls:Array = [];
 
         public function MicTestHarness()
         {
@@ -65,6 +81,8 @@ package
         private function get settings():* { return menu.settings_window; }
         private function get content():* { return settings.settings_content; }
         private function get button():* { return content.getChildByName("_" + NAME); }
+        private function get list():* { return content.getChildByName("_" + MICROPHONE); }
+        private function get listLabel():* { return content.getChildByName("_srp_microphone_label"); }
 
         private function click(target:*):void
         {
@@ -75,9 +93,30 @@ package
         // The exe: patch 66's answer to the Settings' ask of the test; a press is only taken.
         private function exe(name:String, value:String):void
         {
+            if (name == MICROPHONE)
+            {
+                microphoneCalls.push(value);
+                if (value != null) saved = value;
+                if (dll) answerMicrophones();
+                return;
+            }
             if (name != NAME) return;
             calls.push(value);
             if (value == null && dll) menu.srp_mic_test(word);
+        }
+
+        // The exe: patch 66's answer to the list (root.srp_microphone): its label and the default's text in
+        // the dictionary it answers in, the saved device while it is listed (else "", the default), then
+        // each device's id and name.
+        private function answerMicrophones():void
+        {
+            var values:Array = [dictionary[MIC_LABEL], dictionary[MIC_DEFAULT], ""];
+            for each (var device:Array in devices)
+            {
+                values.push(device[0], device[1]);
+                if (device[0] == saved) values[2] = saved;
+            }
+            menu.srp_microphone.apply(null, values);
         }
 
         // The Settings' own texts as the exe gives them once (which puts the tab bar on its first tab).
@@ -134,14 +173,13 @@ package
             require(getQualifiedClassName(b) == "SetingsButton", "it is the tab's own button");
             // the stock PTT checkbox hidden (the owner, 2026-11-14: "let's remove the button then")
             require(c._ptt != null && !c._ptt.visible, "the PTT checkbox is hidden");
-            // under the voice column's controls (the sensitivity slider), in the PTT checkbox's row, from
-            // the column's left edge, clear of every other control
+            // under the voice column's controls (the sensitivity slider, the Microphone list: checkMicrophone),
+            // from the column's left edge, clear of every other control
             var slider:Rectangle = c._mic_sens.getBounds(c);
             var at:Rectangle = b.getBounds(c);
             require(Math.abs(at.left - slider.left) <= 1 && Math.abs(at.left - c._use_mik.x) <= 1,
                 "its left edge is the voice column's (" + at.left + ", " + slider.left + ")");
-            require(at.top >= slider.bottom && at.top < slider.bottom + 20, "it is just under the sensitivity slider ("
-                + at.top + ", " + slider.bottom + ")");
+            require(at.top >= slider.bottom, "it is under the sensitivity slider (" + at.top + ", " + slider.bottom + ")");
             require(at.right <= slider.right, "it ends within the column (" + at.right + ", " + slider.right + ")");
             for (var i:int = 0; i < c.numChildren; ++i)
             {
@@ -217,6 +255,119 @@ package
             menu.srp_mic_test(word);
         }
 
+        // A player's pick: the list dispatches its change only while open.
+        private function pick(m:*, index:int):void
+        {
+            var listEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ListEvent") as Class;
+            m.selectedIndex = index;
+            m.dispatchEvent(new listEvent("listIndexChange", true, false, index));
+        }
+
+        // The pick shown in the closed list fits its box (or not: how wide it is).
+        private function fits(m:*):Boolean
+        {
+            m.validateNow();
+            return m.textField.textWidth + 4 <= m.textField.width * m.scaleX + 0.01;
+        }
+
+        // The Microphone list (voice-chat.md, "Microphone"), with the stand-in exe's three devices.
+        private function checkMicrophone():void
+        {
+            var c:* = content;
+            var m:* = list;
+            var l:* = listLabel;
+            var b:* = button;
+            require(m != null && m.visible && m.alpha == 1 && l.visible, "the Microphone list shows once the exe has answered");
+            require(getQualifiedClassName(m) == "DropdownMenuSkinned", "it is the movie's own list: " + getQualifiedClassName(m));
+            require(l.text == texts[0][MIC_LABEL], "its label is the exe's: " + l.text);
+            var names:Array = [];
+            for (var n:int = 0; n < m.dataProvider.length; ++n) names.push(m.dataProvider[n]);
+            require(names.join("|") == [texts[0][MIC_DEFAULT], devices[0][1], devices[1][1], devices[2][1]].join("|"),
+                "Default first, then the devices by their names: " + names);
+            require(m.selectedIndex == 0 && !settings.btn_accept.enabled, "none saved: Default, nothing pending");
+
+            // the column: the slider, the list's label in the PTT checkbox's row, the list, the button
+            m.validateNow();
+            var slider:Rectangle = c._mic_sens.getBounds(c);
+            var label:Rectangle = new Rectangle(l.x, l.y, l.textWidth + 4, l.textHeight + 4);
+            var box:Rectangle = m.getBounds(c);
+            var at:Rectangle = b.getBounds(c);
+            require(label.top >= slider.bottom && box.top >= label.bottom - 1 && at.top >= box.bottom,
+                "top to bottom: the slider, the label, the list, the button (" + [slider.bottom, label.top, label.bottom, box.top, box.bottom, at.top] + ")");
+            require(Math.abs(box.left - at.left) <= 1 && Math.abs(l.x - c._mic_sens.textField.getBounds(c).left) <= 1,
+                "the list and the button at the column's edge, the label at the slider's label's (" + [box.left, at.left, l.x] + ")");
+            require(box.right <= slider.right + 1, "the list ends within the column (" + box.right + ", " + slider.right + ")");
+            for (var i:int = 0; i < c.numChildren; ++i)
+            {
+                var other:DisplayObject = c.getChildAt(i);
+                if (other == m || other == l || !other.visible) continue;
+                require(!box.intersects(other.getBounds(c)), "the list lies over " + other.name + " (" + box + ", " + other.getBounds(c) + ")");
+                require(!label.intersects(other.getBounds(c)), "its label lies over " + other.name + " (" + label + ", " + other.getBounds(c) + ")");
+            }
+            trace("MICTEST list " + Math.round(box.width) + "x" + Math.round(box.height) + " at " + Math.round(box.left) + "," + Math.round(box.top)
+                + ", its label at " + Math.round(label.top) + ", the button at " + Math.round(at.top));
+
+            // a pick is a change for Apply; Cancel puts the saved one back
+            pick(m, 2);
+            require(settings.btn_accept.enabled, "a pick is a change for Apply");
+            click(settings.btn_cancel);
+            require(m.selectedIndex == 0 && !settings.btn_accept.enabled, "Cancel puts the saved one back: " + m.selectedIndex);
+            // a pick applied: the exe is given its id, and answers with it shown
+            microphoneCalls = [];
+            pick(m, 2);
+            click(settings.btn_accept);
+            require(microphoneCalls.length == 1 && microphoneCalls[0] == devices[1][0] && saved == devices[1][0],
+                "Apply sends the pick's id: " + microphoneCalls);
+            require(m.selectedIndex == 2 && !settings.btn_accept.enabled, "applied, it is shown and nothing is pending");
+            // unplugged: the list shows Default, nothing pending; the pick stays saved for when it is back
+            var unplugged:Array = devices.splice(1, 1)[0];
+            bind(texts[0], 100, 50);
+            require(m.dataProvider.length == 3 && m.selectedIndex == 0 && !settings.btn_accept.enabled,
+                "a saved device not there: Default shown, nothing pending (" + m.selectedIndex + ")");
+            require(saved == unplugged[0], "and it stays saved");
+            // plugged in again while the tab shows: pressed open, the list asks again and has it
+            devices.splice(1, 0, unplugged);
+            microphoneCalls = [];
+            m.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN));
+            require(microphoneCalls.length == 1 && microphoneCalls[0] == null, "pressed open, the list asks the exe again: " + microphoneCalls);
+            require(m.dataProvider.length == 4 && m.selectedIndex == 2 && !settings.btn_accept.enabled, "the device back, shown as saved");
+            // a pick not applied yet stays through an ask
+            pick(m, 3);
+            m.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN));
+            require(m.selectedIndex == 3 && settings.btn_accept.enabled, "a pick not applied stays through an ask: " + m.selectedIndex);
+            // open, a press closes it: no ask
+            microphoneCalls = [];
+            m.open();
+            m.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN));
+            m.close();
+            require(microphoneCalls.length == 0, "a press on the open list does not ask: " + microphoneCalls);
+            // Default applied: the empty id
+            pick(m, 0);
+            click(settings.btn_accept);
+            require(microphoneCalls.length == 1 && microphoneCalls[0] == "" && saved == "", "Default applied: the empty id: " + microphoneCalls);
+
+            // every dictionary's label and Default fit; how the devices' names fit the box
+            for (var row:int = 0; row < texts.length; ++row)
+            {
+                dictionary = texts[row];
+                answerMicrophones();
+                require(l.text == texts[row][MIC_LABEL] && l.textWidth + 4 <= l.width && l.numLines == 1,
+                    "dictionary " + row + ": the label " + l.text + " fits (" + l.textWidth + " of " + l.width + ")");
+                require(m.selectedIndex == 0 && fits(m), "dictionary " + row + ": " + texts[row][MIC_DEFAULT] + " fits the list ("
+                    + m.textField.textWidth + " of " + m.textField.width + ")");
+            }
+            dictionary = texts[0];
+            answerMicrophones();
+            var widths:Array = [];
+            for (var d:int = 1; d < m.dataProvider.length; ++d)
+            {
+                m.selectedIndex = d;
+                widths.push(m.dataProvider[d] + (fits(m) ? " fits, " : " does not fit, ") + Math.round(m.textField.textWidth) + " px");
+            }
+            m.selectedIndex = 0;
+            trace("MICTEST the list's box has " + Math.round(m.textField.width * m.scaleX) + " px for its text: " + widths.join("; "));
+        }
+
         private function tick(e:Event):void
         {
             ++frames;
@@ -225,6 +376,7 @@ package
                 if (frames == 10)
                 {
                     texts = JSON.parse(loaderInfo.parameters.texts) as Array;
+                    dictionary = texts[0];
                     var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
                     Object(domain.getDefinition("SrpExe")).standIn = exe;
                     labels(texts[0]);
@@ -238,6 +390,9 @@ package
                     require(content.currentFrame == 4, "the sound tab is frame 4: " + content.currentFrame);
                     require(calls.length == 1 && calls[0] == null, "the sound tab asks the exe: " + calls);
                     require(button != null && !button.visible, "without the exe's answer there is no button");
+                    require(microphoneCalls.length == 1 && microphoneCalls[0] == null, "the sound tab asks for the list: " + microphoneCalls);
+                    require(list != null && !list.visible && !listLabel.visible, "without the exe's answer there is no Microphone list");
+                    microphoneCalls = [];
                     // with it: the tab bound again (as the game does when its options are read)
                     dll = true;
                     word = texts[0][IDLE];
@@ -246,6 +401,7 @@ package
                 if (frames == 30)
                 {
                     check();
+                    checkMicrophone();
                     trace("MICTEST RESULT pass");
                 }
                 // the states, for the screenshots (the first dictionary's), each held a second so check.sh's
@@ -259,7 +415,11 @@ package
                 if (frames == 290) trace("MICTEST SHOT no-microphone");
                 if (frames == 350) menu.srp_mic_test(texts[0][NO_PLAYBACK]);
                 if (frames == 370) trace("MICTEST SHOT no-playback");
-                if (frames == 430) trace("MICTEST END");
+                if (frames == 430) menu.srp_mic_test(texts[0][IDLE]);
+                if (frames == 440) list.open();
+                if (frames == 450) trace("MICTEST SHOT microphones");
+                if (frames == 510) list.close();
+                if (frames == 520) trace("MICTEST END");
             }
             catch (error:Error)
             {

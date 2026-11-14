@@ -657,7 +657,8 @@ how it sounds, without asking a teammate in a match.
   its button is not seen there.
 - **No microphone, or it cannot be opened:** the button says so for a moment ("No microphone",
   2 s) and returns. The same for no playback device ("No sound output").
-- **Not asked, not built:** a level meter, a device list, a saved recording.
+- **Not asked, not built:** a level meter, a device list (built since: "Microphone", below), a saved
+  recording.
 
 As built:
 
@@ -720,6 +721,63 @@ As built:
 - **Texts:** `st_srp_mic_test`, `_recording`, `_playing` (`%1$s` the seconds), `_no_microphone`,
   `_no_playback` in every dictionary, read by the exe.
 
+## Microphone (the owner, 2026-11-14; built, not played)
+
+The owner named a microphone list the next voice patch (2026-11-11), then asked: "did we create
+selector for microphone?" (2026-11-14). Until it, voice always used Windows' default recording
+device.
+
+- **Where.** Options, Sound tab, with the voice controls: a list "Microphone", under "Microphone
+  sensitivity" and over "Test microphone", in the look of the movie's other lists.
+- **What it lists.** "Default" first, then each capture device by its name as Windows shows it,
+  whole ("Microphone (Realtek(R) Audio)", not WinMM's 31 characters).
+- **Saved** as the other options are: Apply keeps it in `user.cfg`, across restarts; Cancel, or
+  leaving without Apply, puts the saved one back. Push-to-talk and the "Test microphone" button
+  open the device it names, from their next press.
+- **"Default"** is Windows' default recording device: what the DLL opened before the list (WinMM's
+  mapper, the console role; not the default communications device, which `waveInOpen`'s
+  `WAVE_MAPPED_DEFAULT_COMMUNICATION_DEVICE` would open instead).
+- **Unplugged.** A saved device that is not there: the default is used, and the list shows
+  "Default" (nothing to apply); the pick stays saved, so the device is used again once it is back.
+- **Plugged in while the game runs:** it is in the list the next time the list is opened (the tab
+  shown again, or the list pressed open); nothing more.
+- **Not asked, not built:** a level meter, a choice of the output device.
+
+As built:
+
+- **Found again by its endpoint ID**, the ID WinMM reports for its device
+  (`DRV_QUERYFUNCTIONINSTANCEID`, Windows from Vista on and Wine: `{0.0.1.00000000}.{<a GUID>}`):
+  the same while the device is unplugged and plugged in again, whatever WinMM's number for it.
+  `user.cfg` keeps it as `srp_microphone <id>` (empty: the default); a value that is not an ID (a
+  hand-edited file) is the default. IDs are compared whatever the case of their letters.
+- **The DLL** (`client-voice/src/microphone.rs`, the part its tests run with a made-up list; Windows'
+  part in `windows.rs`):
+  - the list (`sv_microphones`): WinMM's capture devices in its order, each with its endpoint ID
+    and its endpoint's whole friendly name (MMDevice's `PKEY_Device_FriendlyName`, asked by that
+    ID); without the whole name WinMM's (cut at 31 characters), without either the ID; a device
+    with no ID is not listed (nothing to save it by). Windows is asked on a thread of the DLL's
+    own, which starts COM for MMDevice and ends it, so the game's thread is never in COM;
+  - the choice (`sv_choose_microphone`): kept by the DLL; at each opening of the capture device (a
+    push-to-talk press, the test's start) the WinMM device with that ID is looked for, and opened;
+    none (unplugged), or no choice: WinMM's mapper, as before.
+- **ABI 5** (`voice-abi`): `sv_microphones(room, size) -> written` (a `Microphone`: its ID, 128 bytes
+  with the NUL, and its name, UTF-8, 256; read once by the exe with `Microphone::read`) and
+  `sv_choose_microphone(id or null)`; `MicrophoneId` is the one type of an ID on both sides.
+- **The exe** (patch 66, no new hook): `options.callback`, `srp_microphone` (the tab shown, the list
+  pressed open) is answered `root.srp_microphone(label, default, shown, id, name, ...)`, at most 16
+  devices: shown is the saved device's ID as listed while it is there, else empty (the default);
+  `srp_microphone(id)` (empty: the default) is Apply's pick, saved in `user.cfg` at once and told to
+  the DLL, and answered the same. The DLL is told the saved pick as it is loaded (the first match,
+  or the tab's first showing). No DLL: no answer, no list.
+- **The movie** (`flash/main_menu`, `SrpMicrophone.as`): the movie's own list
+  (`DropdownMenuSkinned`, as the Language list), its label in the sensitivity slider's label's look,
+  in the row the PTT checkbox had; as wide as the slider's row, the open list at most 9 rows (more
+  scroll by the wheel); a name wider than the list is cut at its edge. A pick is a change for Apply,
+  as the Language list's; a press on the closed list asks the exe again first, keeping a pick not
+  applied yet while its device is listed.
+- **Texts:** `st_srp_microphone` ("Microphone"), `st_srp_microphone_default` ("Default") in every
+  dictionary, read by the exe.
+
 ## Validation
 
 - The DLL's Rust tests cover protocol bounds, Opus round trips, jitter and packet loss/reorder,
@@ -776,6 +834,19 @@ As built:
   the match's end stops it. A source that comes in bursts longer than the capture's four 20 ms
   buffers (the null sink's monitor behind a slow stream: 8.1 s of the 10 came through) loses the
   rest, for a transmission as for the test: not changed here.
+- The Microphone list: the DLL's `microphone` tests with a made-up device list (Windows' order, the
+  whole name over WinMM's, WinMM's without one, the ID without either, a device without an ID left
+  out, the room's size; the chosen device found by its ID after another is unplugged, the default
+  when it is not there or none is chosen, the ID whatever its case); `voice-abi`'s test: a
+  `Microphone` reads back as made, a long name cut at a character, a broken one refused; `cargo
+  test` in `client-patches/rust/` the pick's text and the list's shown pick (the saved device
+  while listed, else the default); `scripts/mic-test/check.sh` (Ruffle) the list: none until the
+  exe answers, Default and the devices by name, its place between the slider and the button, a
+  pick pending, Cancel, Apply sending the ID and the empty ID for Default, an unplugged device
+  shown as Default, the list asked again as it is pressed open with a pick not applied kept,
+  every dictionary's two texts fitting; `client-voice/build.sh` built the DLL and `check_abi.py`
+  passed (15 exports, `ole32.dll` added to its system imports). The smoke test prints the list
+  and chooses a device that is not there (not run for this change: it needs Wine).
 
 Real microphone capture and audible playback still require an in-game test with two games, a
 microphone on one, and both near (walking round the speaker and away from it: the voice from its
@@ -791,4 +862,7 @@ the button's countdown, how the playback sounds at a few sensitivities, a push-t
 closing the options during it. Also check the Tab menu's voice mute, the
 talking list's fade, the automatic gain with a quiet and a loud microphone, disable voice chat,
 PTT rebinding after restarting, death/respawn and crossing a match boundary while PTT is held.
+The Microphone list needs Windows (or Wine) with two capture devices: the list's names, a pick
+heard in the test and in a match, the pick after a restart, one unplugged before the start
+(Default shown, the default used) and plugged in while the game runs.
 This PR is kept out of v35 and the following port-only release.

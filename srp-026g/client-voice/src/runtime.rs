@@ -167,11 +167,13 @@ mod platform {
     use crate::{
         Core, Encoder, FRAME, Heard, Hearing, Preprocessor, SLOTS, Sender,
         mic_test::{Ask, Devices, Door, Event, Shown, Sliders, Test},
+        microphone::{self, Device},
         radio::unit,
         receiver::centred,
-        windows::{Input, Output},
+        windows::{self, Input, Output},
         wire::{self, Message},
     };
+    use voice_abi::{Microphone, MicrophoneId};
     use std::{
         ffi::c_char,
         io,
@@ -200,6 +202,9 @@ mod platform {
         hearing: Mutex<Hearing>,
         muted: AtomicU32,
         hello: AtomicBool,
+        /// The capture device the player chose (`sv_choose_microphone`);
+        /// None: Windows' default.
+        microphone: Mutex<Option<MicrophoneId>>,
     }
     static CONTROL: Controls = Controls {
         ptt: AtomicBool::new(false),
@@ -209,9 +214,20 @@ mod platform {
         hearing: Mutex::new(Hearing::UNITY),
         muted: AtomicU32::new(0),
         hello: AtomicBool::new(false),
+        microphone: Mutex::new(None),
     };
     fn volume() -> f32 {
         f32::from_bits(CONTROL.volume.load(SeqCst))
+    }
+    /// The capture device to open now: the chosen one where WinMM has it
+    /// (found by its endpoint ID at each opening, so a device plugged in
+    /// again is found whatever its number), else Windows' default.
+    fn microphone_device() -> Device {
+        let chosen = *CONTROL
+            .microphone
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        chosen.map_or(Device::Default, |chosen| microphone::device(&chosen, &windows::endpoint_ids()))
     }
 
     struct Status {
@@ -311,7 +327,7 @@ mod platform {
     impl Devices for Winmm {
         type Microphone = Input;
         fn microphone(&mut self) -> Option<Input> {
-            Input::open().ok()
+            Input::open(microphone_device()).ok()
         }
         fn playback(&self) -> bool {
             self.playback
@@ -518,7 +534,7 @@ mod platform {
                 test.apply(Event::Talk, now, &mut Winmm { playback });
             }
             match action {
-                TalkAction::Start => match Input::open() {
+                TalkAction::Start => match Input::open(microphone_device()) {
                     Ok(device) => {
                         input = Some(device);
                         status.transmitting.store(true, SeqCst);
@@ -737,7 +753,58 @@ mod platform {
         test_press: sv_test_press,
         test_stop: sv_test_stop,
         test_state: sv_test_state,
+        microphones: sv_microphones,
+        choose_microphone: sv_choose_microphone,
     };
+    /// The options' Microphone list (`voice_abi::Microphones`): the capture
+    /// devices now into the game's room of `room` of them; how many. Windows
+    /// is asked on a thread of the DLL's own, so COM (MMDevice's whole names)
+    /// is started and ended there, never on the game's thread.
+    ///
+    /// # Safety
+    /// `out` is null or writable for `room` devices, for the call.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn sv_microphones(out: *mut Microphone, room: u32) -> u32 {
+        if out.is_null() || room == 0 {
+            return 0;
+        }
+        let found = thread::scope(|scope| {
+            thread::Builder::new()
+                .name("skhid-voice-devices".into())
+                .spawn_scoped(scope, windows::microphones)
+                .ok()
+                .and_then(|lister| lister.join().ok())
+        })
+        .unwrap_or_default();
+        // SAFETY: the caller's room of `room` devices.
+        let room = unsafe { std::slice::from_raw_parts_mut(out, room as usize) };
+        microphone::list(&found, room) as u32
+    }
+    /// The capture device push-to-talk and the test open from the next
+    /// opening (`voice_abi::ChooseMicrophone`): an endpoint ID, or null (or
+    /// not an ID) for Windows' default.
+    ///
+    /// # Safety
+    /// `id` is null or a readable NUL-terminated string, for the call.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn sv_choose_microphone(id: *const c_char) {
+        let chosen = if id.is_null() {
+            None
+        } else {
+            // SAFETY: the caller's NUL-terminated string. An ID is shorter
+            // than its room: a longer string is read no further.
+            let mut len = 0;
+            while len < voice_abi::MICROPHONE_ID && unsafe { *id.add(len) } != 0 {
+                len += 1;
+            }
+            // SAFETY: the `len` bytes before the NUL (or the room) just read.
+            MicrophoneId::parse(unsafe { std::slice::from_raw_parts(id.cast::<u8>(), len) })
+        };
+        *CONTROL
+            .microphone
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = chosen;
+    }
     fn read_status<T>(default: T, read: impl FnOnce(&Status) -> T) -> T {
         let state = SESSION.lock().unwrap_or_else(|error| error.into_inner());
         if let Lifecycle::Running(session) = &*state {

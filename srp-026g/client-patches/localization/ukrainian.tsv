@@ -2655,6 +2655,8 @@ st_srp_mic_test_no_microphone	Немає мікрофона
 st_srp_mic_test_no_playback	Немає виводу звуку
 st_srp_mic_test_playing	Відтворення %1$s
 st_srp_mic_test_recording	Запис %1$s
+st_srp_microphone	Мікрофон
+st_srp_microphone_default	За замовчуванням
 st_srp_mode_blackout	Захисний пристрій: блекаут
 st_srp_mode_chargers	Захисний пристрій: зарядники
 st_srp_mode_free_for_all	Усі проти всіх

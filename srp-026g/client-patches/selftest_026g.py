@@ -1753,6 +1753,12 @@ def test_voice(original, image, before):
           and 'private static const STOP:String = "stop";' in mic_test and "SrpExe.call(NAME, STOP);" in mic_test,
           "the main menu has root.srp_mic_test; the sound tab's Test microphone button asks srp_mic_test, sends a "
           "press with the two voice sliders' steps and says stop as the Settings window closes")
+    microphone = here("flash", "main_menu", "src", "SrpMicrophone.as")
+    check("public function srp_microphone(... values)" in here("flash", "main_menu", "src", "MainMenu.as")
+          and 'public static const NAME:String = "srp_microphone";' in microphone and "SrpExe.call(NAME, null);" in microphone
+          and "SrpExe.call(NAME, saved);" in microphone,
+          "the main menu has root.srp_microphone; the sound tab's Microphone list asks srp_microphone and sends "
+          "Apply's pick by its id")
     check("public function srp_voice_talking(... names)" in hud
           and "public function srp_voice_menu(place:uint, offered:uint, muted:uint)" in hud
           and "public function srp_voice_mute(place:uint, done:uint)" in hud
