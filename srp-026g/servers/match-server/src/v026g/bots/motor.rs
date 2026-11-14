@@ -729,8 +729,9 @@ const UP_NEAR_M: f32 = 1.5;
 /// press 29 times in 124, at the one after 15 times
 /// (`player_bots_stuck.md` §8.9).
 pub const JUMP_TRIES: u32 = 3;
-/// The tries at a jump count on over a route planned again to it within
-/// this, seconds.
+/// The press's own state (its band hold, its lift, the carry after it) is kept over a route planned again to the jump within
+/// this, seconds. The TRIES at a link are kept for the match ([`LinkTries`], A387): a link retried more than 10 s apart was
+/// never counted failed (owner-5 R3: one bot pressed a Mamayev Kurgan link 14 times in 190 s).
 pub(super) const TRY_KEPT_S: f32 = 10.0;
 /// A world that shows the body at most this far from the take-off of the
 /// jump it last pressed, on its floor, and not up, has it still under that
@@ -808,6 +809,8 @@ pub struct Motor {
     facing_ticks: u32,
     /// The route jump being made ([`Motor::jump_ahead`]).
     jump_try: Option<JumpTry>,
+    /// [A387] The presses at each route jump that no world has shown up yet, for the match.
+    link_tries: LinkTries,
     /// Whether this tick's walk lines up for a jump of the route, and for which kind (the caller lets go of crouch
     /// then: a crouched body does not jump).
     lining: Lining,
@@ -1115,6 +1118,7 @@ impl Motor {
             sprinting: false,
             facing_ticks: 0,
             jump_try: None,
+            link_tries: LinkTries::default(),
             lining: Lining::No,
             pressed: None,
             band_gave_up: None,
@@ -2113,7 +2117,7 @@ impl Motor {
             _ => JumpTry {
                 take_off,
                 landing,
-                tries: 0,
+                tries: self.link_tries.of(take_off, landing),
                 pressed: None,
                 back: false,
                 #[cfg(test)]
@@ -2155,7 +2159,7 @@ impl Motor {
                 jump.counted = true;
                 counts::gave_up();
             }
-            self.jump_try = Some(jump);
+            self.keep_try(jump);
             return Some(Ahead {
                 aim: take_off,
                 lined: false,
@@ -2331,7 +2335,7 @@ impl Motor {
                 let moved = mx.hypot(mz);
                 moved < STANDING_M || mx * way[0] + mz * way[1] >= GOING_TURN.cos() * moved
             });
-        self.jump_try = Some(jump);
+        self.keep_try(jump);
         let kind = match leap {
             Leap::Ledge | Leap::SprintLedge if lifting => link_time::Kind::Lift,
             Leap::Ledge if through => link_time::Kind::Through,
@@ -2396,7 +2400,7 @@ impl Motor {
         let most = if ahead.approach.sprints() { SPRINT_JUMP_LOW_M } else { STANDING_JUMP_M };
         if self.feel.press_in_reach && landed && ahead.before <= 0.0 && ahead.out_of_reach(most) {
             jump.tries = JUMP_TRIES;
-            self.jump_try = Some(jump);
+            self.keep_try(jump);
             low_presses::gave_up();
             return 0;
         }
@@ -2457,7 +2461,7 @@ impl Motor {
                 }
             }
             jump.back = true;
-            self.jump_try = Some(jump);
+            self.keep_try(jump);
             self.links.backed_off();
             band_jumps::refused(block, self.sprinting, self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && !aligned);
             band_jumps::face(jump.take_off, ahead.rise, band_jumps::Event::Refused);
@@ -2480,7 +2484,7 @@ impl Motor {
         if ahead.approach == Approach::Walk && matches!(ahead.leap, Leap::Ledge) && ahead.least_m > 0.0 && ahead.before < ahead.least_m {
             jump.tries += 1;
             jump.back = true;
-            self.jump_try = Some(jump);
+            self.keep_try(jump);
             self.links.backed_off();
             late_presses::backed_off();
             return 0;
@@ -2498,7 +2502,7 @@ impl Motor {
                 if ahead.run_up > 0.0 && !jump.faced {
                     jump.faced = true;
                     jump.back = true;
-                    self.jump_try = Some(jump);
+                    self.keep_try(jump);
                     self.links.backed_off();
                     walk_reach::backed_off();
                     return 0;
@@ -2513,7 +2517,7 @@ impl Motor {
         jump.tries += 1;
         jump.pressed = Some(self.clock);
         jump.back = true;
-        self.jump_try = Some(jump);
+        self.keep_try(jump);
         self.links.pressed(self.clock, pose.feet, pose.speed);
         self.pressed = Some(RoutePress {
             take_off: jump.take_off,
@@ -2568,6 +2572,23 @@ impl Motor {
     /// [`BAND_UP_S`] of the press; else not up.
     /// A lift that has reached its face and finds the body up the ledge is a lift got up ([`lifts::up`]), whatever the
     /// route's progress is by then.
+    /// The route jump's try as it now is, its tries kept for the link ([`LinkTries`]).
+    fn keep_try(&mut self, jump: JumpTry) {
+        self.link_tries.set(jump.take_off, jump.landing, jump.tries);
+        self.jump_try = Some(jump);
+    }
+
+    /// [A387] A world showed the body up the route jump from `take_off` to `landing` ([`on_top`]): the link's tries start again.
+    pub fn link_up_seen(&mut self, take_off: Vec3, landing: Vec3) {
+        self.link_tries.set(take_off, landing, 0);
+        if let Some(t) = self.jump_try.as_mut()
+            && (t.take_off - take_off).length() < 0.3
+            && (t.landing - landing).length() < 0.3
+        {
+            t.tries = 0;
+        }
+    }
+
     fn follow_lift(&mut self, feet: Vec3) {
         let clock = self.clock;
         let since = |at: u32| clock.wrapping_sub(at) as f32 * TICK_S;
@@ -2843,6 +2864,63 @@ impl Motor {
 /// [`UP_M`] and half the jump's rise (0.1 m for a jump that does not
 /// rise), and past the jump's middle along its way (a jump over a gap is
 /// made only across it).
+/// [A387] The presses at each route jump no world has shown up yet, for the match: a link is the same within 0.3 m at both
+/// ends (as a [`JumpTry`] is). A link retried after any time counts on, and [`JUMP_TRIES`] of them make it failed.
+#[derive(Clone, Debug, Default)]
+struct LinkTries(Vec<(Vec3, Vec3, u32)>);
+
+impl LinkTries {
+    fn of(&self, take_off: Vec3, landing: Vec3) -> u32 {
+        self.0.iter().find(|&&(a, b, _)| (a - take_off).length() < 0.3 && (b - landing).length() < 0.3).map_or(0, |&(_, _, n)| n)
+    }
+
+    fn set(&mut self, take_off: Vec3, landing: Vec3, tries: u32) {
+        match self.0.iter_mut().find(|(a, b, _)| (*a - take_off).length() < 0.3 && (*b - landing).length() < 0.3) {
+            Some(link) => link.2 = tries,
+            None if tries > 0 => self.0.push((take_off, landing, tries)),
+            None => {}
+        }
+    }
+}
+
+/// [A387] Whether a world's `feet` stand on the top a route jump from `take_off` to `landing` leads to, judged on the walk grid:
+/// the floor under the feet (within the capsule's radius) is one of the top's floors, those joined to the landing's floor by
+/// Walk links without going under [`is_up`]'s height, no farther from the landing than a sprint goes in `since_s` (4.9587 m/s,
+/// F5: a body up the jump cannot have gone farther by this world). [`is_up`] judged by a projection: past half the link and
+/// within 1.5 m of the landing, so a body on a rim top wider than its landing floor was "short" (owner-5 R3: 20 of 35 presses
+/// said "short" with the body up). Our judge: no client claim.
+pub fn on_top(grid: &mapdata::WalkGrid, feet: Vec3, take_off: Vec3, landing: Vec3, since_s: f32) -> bool {
+    let low = landing.y - UP_M.min((0.5 * (landing.y - take_off.y)).max(0.1));
+    let reach = UP_NEAR_M.max(super::stamina::SPRINT_MPS * since_s);
+    if feet.y < low || feet.distance_xz(landing) > reach {
+        return false;
+    }
+    let near = grid.body().radius;
+    let (Some(top), Some(at)) = (
+        grid.locate_within(landing, near, super::kin::FIX_ABOVE_M),
+        grid.locate_within(feet, near, super::kin::FIX_ABOVE_M),
+    ) else {
+        return false;
+    };
+    let on = |n: mapdata::NodeId| grid.position(n).y >= low && grid.position(n).distance_xz(landing) <= reach;
+    if !on(at) {
+        return false;
+    }
+    let mut seen = std::collections::HashSet::from([top]);
+    let mut queue = VecDeque::from([top]);
+    while let Some(n) = queue.pop_front() {
+        if n == at {
+            return true;
+        }
+        for (m, kind) in grid.links(n) {
+            if kind == mapdata::LinkKind::Walk && on(m) && seen.insert(m) {
+                queue.push_back(m);
+            }
+        }
+    }
+    false
+}
+
 pub fn is_up(feet: Vec3, take_off: Vec3, landing: Vec3) -> bool {
     let rise = landing.y - take_off.y;
     let (dx, dz) = (landing.x - take_off.x, landing.z - take_off.z);
@@ -3840,6 +3918,54 @@ pub mod counts {
 mod tests {
     use super::*;
     use crate::v026g::bots::kin::Kinematics;
+
+    /// [A387] Up a route jump judged on the top's floors: a world's feet anywhere on the top within a sprint's reach of the landing
+    /// since the press are up, though [`is_up`]'s projection (past half the link, within 1.5 m of the landing) said no; feet on
+    /// the ground under it, or on another top at the same height not joined to it, are not.
+    #[test]
+    fn up_is_judged_on_the_tops_floors() {
+        use crate::v026g::bots::body::tests::{floor, wall_x};
+        use mapdata::{Triangle, WalkGrid};
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        // A top 1.1 m up over x 10-14, z 0-10 (wide along the face), and another at the same height over x 16-20, apart.
+        for (x0, x1) in [(10.0, 14.0), (16.0, 20.0)] {
+            triangles.extend(floor(x0, 0.0, x1, 10.0, 1.1));
+            for x in [x0, x1] {
+                triangles.extend(wall_x(x, 0.0, 10.0).map(|mut t| {
+                    t.v.iter_mut().for_each(|v| v.y = v.y.min(1.1));
+                    t
+                }));
+            }
+        }
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+        let (take_off, landing) = (Vec3::new(9.6, 0.0, 5.0), Vec3::new(10.6, 1.1, 5.0));
+        // On the top, 3 m along the face from the landing: the projection said no, the top's floors say up.
+        let along = Vec3::new(10.6, 1.1, 8.0);
+        assert!(!is_up(along, take_off, landing));
+        assert!(on_top(&grid, along, take_off, landing, 1.0));
+        // Not yet that far: a sprint for 0.3 s goes 1.49 m (the judge's least reach is 1.5 m).
+        assert!(!on_top(&grid, along, take_off, landing, 0.3));
+        // On the ground under the face, and on the other top: not up.
+        assert!(!on_top(&grid, Vec3::new(9.6, 0.0, 6.0), take_off, landing, 1.0));
+        assert!(!on_top(&grid, Vec3::new(16.6, 1.1, 5.0), take_off, landing, 2.0));
+    }
+
+    /// [A387] The tries at a link are kept for the match: a link pressed again long after counts on, and a world that shows the
+    /// body up starts them again.
+    #[test]
+    fn a_links_tries_are_kept_for_the_match() {
+        let mut tries = LinkTries::default();
+        let (a, b) = (Vec3::new(1.0, 0.0, 1.0), Vec3::new(2.0, 1.0, 1.0));
+        assert_eq!(tries.of(a, b), 0);
+        tries.set(a, b, 2);
+        assert_eq!(tries.of(a + Vec3::new(0.1, 0.0, 0.0), b), 2, "the same link within 0.3 m");
+        assert_eq!(tries.of(a, b + Vec3::new(0.0, 0.0, 0.5)), 0, "another link");
+        let mut rng = Rng::new(1);
+        let mut motor = Motor::new(Feel::default(), &mut rng);
+        motor.link_tries = tries;
+        motor.link_up_seen(a, b);
+        assert_eq!(motor.link_tries.of(a, b), 0);
+    }
 
     /// The label the planner gives a jump link up to height `y` from a take-off at 0: a sprint jump over the exe body's top.
     fn ledge_to(y: f32) -> Leap {

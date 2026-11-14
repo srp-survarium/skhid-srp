@@ -1565,6 +1565,17 @@ impl Bots {
         let team = usize::from(bot.team & 1);
         if let Some(feet) = feet {
             bot.jump_seen(time, feet);
+            // [A387] Up the route jump watched, judged from this world on the top's floors ([`motor::on_top`]): the log's word,
+            // and the link's tries start again (the motor's tries per link for the match).
+            if let Some(world) = world.as_deref()
+                && let Some(watch) = bot.jump_watch.as_mut()
+                && let Some(route) = watch.route
+                && time > watch.at
+                && motor::on_top(&world.grid, feet, route.take_off, route.landing, (time - watch.at) as f32 / 1_000.0)
+            {
+                watch.up.get_or_insert(time);
+                bot.motor.link_up_seen(route.take_off, route.landing);
+            }
             if !new_life
                 && let Some(fall) = before.and_then(|before| nav_log::Fall::between(before, (time, feet), reckoned))
                 && fall.planned() != Some(true)
