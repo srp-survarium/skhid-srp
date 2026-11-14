@@ -11,6 +11,11 @@ and energy costs to their second-strongest rows):
 
 - Freedom: movement speed +4 % (1113), energy costs -8 % (1163), stamina regeneration +8 % (1103);
   its item slot, ammo bag and artefact container stay.
+  - Buffed 2026-11-14 (the owner: "buff it", against the level-15 vest, backpack and trousers a
+    suit replaces: 26 kg, 88 armour, three item slots, four ammo bags, nine rolls to the suit's
+    three): the kinds' top rows, movement +5 % (1114), energy costs -10 % (1164), stamina
+    regeneration +10 % (1104); two ammo bags (1051); the suit 20 kg (was 26.2), its helmet 3.5 kg
+    (was 4.5). Armour and isolation unchanged.
 - Duty: weight limit +5 kg (1124), regeneration +15 % (1094), the kinds' top rows, beside its item slot, ammo bag, pocket capacity and
   artefact container.
 - Suits already owned get the new bonuses at once: an item's record holds only its own
