@@ -769,8 +769,8 @@ impl Game {
                 .as_ref()
                 .map(|statistics| statistics.players.iter().map(|player| player.received_damage.iter().flatten().sum()).collect()),
         );
-        // [Gap 3] The player blocks, for the bots' own mixing trees.
-        let blocks = survarium::v026g::match_msgs::players::blocks(decoded.sections.players).unwrap_or_default();
+        // [Gap 3] The player blocks, for the bots' own mixing trees: split at the first bot seen reloading, else never.
+        let mut blocks: Option<Vec<survarium::v026g::match_msgs::players::PlayerBlock>> = None;
         for (place, world) in checked.places.iter().enumerate() {
             let Some(world) = world else {
                 continue;
@@ -893,6 +893,9 @@ impl Game {
                 // [Gap 3] A reload under way: its clip's end from the bot's own block's mixing tree.
                 if gun.state == crate::v026g::bots::guns::GunAt::Reloading
                     && let Some(clip) = blocks
+                        .get_or_insert_with(|| {
+                            survarium::v026g::match_msgs::players::blocks(decoded.sections.players).unwrap_or_default()
+                        })
                         .iter()
                         .find(|block| usize::from(block.place) == place)
                         .and_then(|block| block.animation)
