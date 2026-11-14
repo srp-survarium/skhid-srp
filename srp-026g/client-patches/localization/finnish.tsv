@@ -2550,6 +2550,8 @@ st_srp_inventory_search_tip_kind	kypärät tai saappaat
 st_srp_inventory_search_tip_kind_example	+kypärä +saappaat
 st_srp_inventory_search_tip_level	tason 10 tai 11 esineet
 st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_inventory_sell_duplicates	Myy kaksoiskappaleet
+st_srp_inventory_sell_duplicates_ask	Myytäviä esineitä: %1$s\nHopea: %2$s
 st_srp_item_props_mps	m/s
 st_srp_language_option	Kieli:
 st_srp_language_restart	Vaatii uudelleenkäynnistyksen.

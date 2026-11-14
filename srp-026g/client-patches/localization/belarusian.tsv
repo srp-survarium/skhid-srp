@@ -2550,6 +2550,8 @@ st_srp_inventory_search_tip_kind	шлемы або боты
 st_srp_inventory_search_tip_kind_example	+шлем +боты
 st_srp_inventory_search_tip_level	прадметы 10 або 11 узроўню
 st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_inventory_sell_duplicates	Прадаць дублі
+st_srp_inventory_sell_duplicates_ask	Прадметаў на продаж: %1$s\nСрэбра: %2$s
 st_srp_item_props_mps	м/с
 st_srp_language_option	Мова:
 st_srp_language_restart	Прыменіцца пасля перазапуску.

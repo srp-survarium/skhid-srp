@@ -25,6 +25,7 @@ package survarium.controls
       
       public var btn_item_upgrade:ButtonClick;
       
+      // The stock Fix button, now Sell duplicates (the timeline's name).
       public var btn_item_fix:ButtonProgress;
       
       public var btn_item_buy:Button;
@@ -101,8 +102,16 @@ package survarium.controls
          this.btnAccept.visible = false;
          this.btnCancel.visible = false;
          this.btn_show_use.visible = false;
-         // No Fix button: srp has no repair (the owner, 2026-11-08). The timeline still places it.
-         this.btn_item_fix.visible = false;
+         // The stock Fix button is Sell duplicates (srp has no repair, the owner 2026-11-08; Sell
+         // duplicates, 2026-11-14): its condition bar and value are not drawn.
+         if(this.btn_item_fix.progress_track)
+         {
+            this.btn_item_fix.progress_track.visible = false;
+         }
+         if(this.btn_item_fix.textFieldValue)
+         {
+            this.btn_item_fix.textFieldValue.visible = false;
+         }
          this.updateData(null);
          this.btnSellBig.width = this.btn_show_l.width = this.btn_show_r.width = this.btn_show_use.width = 140;
       }
@@ -116,6 +125,7 @@ package survarium.controls
          this.btn_show_r.label = LocalizationData.getName("sell");
          this.btn_item_reroll.label = LocalizationData.getName("btn_reroll_label");
          this.btn_item_craft.label = LocalizationData.getName("btn_craft_label");
+         this.btn_item_fix.label = LocalizationData.getName("st_srp_inventory_sell_duplicates");
       }
       
       public function setItemControl(itemCard:*) : void
@@ -127,6 +137,7 @@ package survarium.controls
          this.btn_item_upgrade.addEventListener(ButtonEvent.CLICK,this.openModifiersWindow);
          this.btn_item_reroll.addEventListener(ButtonEvent.CLICK,this._itemCard.upgradeItem);
          this.btn_item_craft.addEventListener(ButtonEvent.CLICK,this.craftItem);
+         this.btn_item_fix.addEventListener(ButtonEvent.CLICK,this.sellDuplicates);
          this.btn_show_r.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick2);
          this.btn_show_l.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick1);
       }
@@ -134,6 +145,18 @@ package survarium.controls
       private function craftItem(event:ButtonEvent) : void
       {
          dispatchEvent(new Event(Events.CRAFFT_ITEM));
+      }
+
+      private function sellDuplicates(event:ButtonEvent) : void
+      {
+         (this._inventory as InventoryList).sellDuplicates();
+      }
+
+      // Sell duplicates: on while the inventory has a duplicate to sell and selling is allowed.
+      public function updateSellDuplicates() : void
+      {
+         var inventory:InventoryList = this._inventory as InventoryList;
+         this.btn_item_fix.enabled = !this._locked && inventory != null && !inventory.getElelementLocked(LobbyMenu.INVENTORY_ELEMNENT_ID) && inventory.duplicates().length > 0;
       }
       
       public function setInvenory(inventory:IInventoryItemFactory) : void
@@ -255,6 +278,7 @@ package survarium.controls
             this.btnSellBig.enabled = this.btn_item_sell.enabled = this.btn_item_buy.enabled = this.btn_item_upgrade.enabled = this.btn_item_reroll.enabled = false;
             this.btn_item_craft.enabled = false;
             this.btn_item_craft.alpha = this.btn_item_reroll.alpha = this.btn_item_upgrade.alpha = this.btn_item_buy.alpha = this.btn_item_sell.alpha = 0.5;
+            this.updateSellDuplicates();
             return;
          }
          var buyUnlocked:Boolean = !this._inventory.getElelementLocked(LobbyMenu.SHOP_ELEMNENT_ID);
@@ -269,6 +293,7 @@ package survarium.controls
          this.btn_item_reroll.alpha = this.btn_item_reroll.enabled ? 1 : 0.5;
          this.btn_item_craft.alpha = this.btn_item_craft.enabled ? 1 : 0.5;
          this.btn_item_upgrade.alpha = this.btn_item_upgrade.enabled ? 1 : 0.5;
+         this.updateSellDuplicates();
          var buyable:Boolean = this._data.canBuy;
          if(!this._isShopItems)
          {
@@ -293,6 +318,7 @@ package survarium.controls
             this.btn_item_sell.visible = false;
             this.btn_item_buy.visible = false;
             this.btn_item_craft.visible = false;
+            this.btn_item_fix.visible = false;
             return;
          }
          this.btnSellBig.visible = false;
@@ -346,10 +372,13 @@ package survarium.controls
             this.btn_item_reroll.visible = true;
             this.btn_item_upgrade.visible = true;
          }
+         // Sell duplicates sits in the row of an owned item, as Sell does.
+         this.btn_item_fix.visible = this.btn_item_sell.visible;
+         this.updateSellDuplicates();
          this.spaceItemRow();
       }
 
-      // The item row (Upgrade, Modification, Attachments, Sell or Buy) had Fix among them; with Fix gone
+      // The item row (Upgrade, Modification, Attachments, Sell duplicates in Fix's place, Sell or Buy):
       // the visible ones grow to take the row's whole span, the stock gap between them (the owner,
       // 2026-11-09: "there is a hole", "actually just make buttons bigger", "so the whole space is taken").
       // The span (the first button's left edge to the last one's right edge), the gap and the order are

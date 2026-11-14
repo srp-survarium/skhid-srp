@@ -51,6 +51,7 @@ package survarium.controls
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemCondition;
    import survarium.constants.ItemDefaults;
+   import survarium.constants.ItemDictId;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemPrice;
    import survarium.constants.ModificationState;
@@ -62,6 +63,7 @@ package survarium.controls
    import survarium.constants.WeaponHands;
    import survarium.constants.ProfileSlot;
    import survarium.player.LocalPaperDoll;
+   import survarium.player.LocalPlayerProfile;
    import survarium.player.ReasonsTip;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
@@ -588,6 +590,98 @@ package survarium.controls
       {
          var itemData:ItemData = this._inventoryItemsDict[itemId];
          this.sellObject(itemData);
+      }
+
+      // The items Sell duplicates sells (the owner, 2026-11-14; docs/notes/sell-duplicates.md): of
+      // each item, every copy past the ones kept. Kept: a copy a loadout uses, a worn cosmetic, an
+      // item wearing one; of an item with none of these, the copy of the highest rank. Never sold:
+      // stacks, golden items (golden ones of different rolls suit different play), and the plain
+      // copies of a weapon with a golden version while no golden one of it is owned.
+      public function duplicates() : Array
+      {
+         var sold:Array = [];
+         if(this._inventoryItems == null)
+         {
+            return sold;
+         }
+         var item:ItemData;
+         var goldenOwned:Object = {};
+         for each(item in this._inventoryItems)
+         {
+            if(ItemFactory.isGolden(item.dictId))
+            {
+               goldenOwned[ItemFactory.plainOf(item.dictId)] = true;
+            }
+         }
+         var copiesOf:Object = {};
+         for each(item in this._inventoryItems)
+         {
+            if(item.isStack || ItemFactory.isGolden(item.dictId) || ItemDictId.GOLDEN_PLAIN.indexOf(item.dictId) != -1 && !goldenOwned[item.dictId])
+            {
+               continue;
+            }
+            if(copiesOf[item.dictId] == null)
+            {
+               copiesOf[item.dictId] = [];
+            }
+            copiesOf[item.dictId].push(item);
+         }
+         for each(var copies:Array in copiesOf)
+         {
+            if(copies.length < 2)
+            {
+               continue;
+            }
+            copies.sortOn("rank",Array.NUMERIC | Array.DESCENDING);
+            var spares:Array = [];
+            var anyKept:Boolean = false;
+            for each(item in copies)
+            {
+               if(LocalPlayerProfile.inLoadout(item.itemId) || item.slotTarget != 0 || item.upgrades != null && item.upgrades.length > 0)
+               {
+                  anyKept = true;
+               }
+               else
+               {
+                  spares.push(item);
+               }
+            }
+            if(!anyKept)
+            {
+               spares.shift();
+            }
+            sold = sold.concat(spares);
+         }
+         return sold;
+      }
+
+      // ItemControlPanel's Sell duplicates: one question, then a sale (`47 01`) of each; the list is
+      // made again on Yes, from the inventory then.
+      public function sellDuplicates() : void
+      {
+         var sold:Array = this.duplicates();
+         if(sold.length == 0)
+         {
+            return;
+         }
+         var silver:uint = 0;
+         for each(var item:ItemData in sold)
+         {
+            silver += uint(item.cost / ItemPrice.SELL_DIVISOR);
+         }
+         Message.showMessage("apply",{
+            text:LocalizationData.format("st_srp_inventory_sell_duplicates_ask",sold.length,silver),
+            label_ok:LocalizationData.getName("sell"),
+            onYes:this.onSellDuplicatesYes
+         },true);
+      }
+
+      private function onSellDuplicatesYes(data:Object = null) : void
+      {
+         for each(var item:ItemData in this.duplicates())
+         {
+            ExternalInterface.call("sell_ok_clicked",item.itemId,1);
+         }
       }
       
       public function ignoreNextAttach(value:int) : void
@@ -1346,6 +1440,7 @@ package survarium.controls
          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id,filterOptions);
          dispatchEvent(new Event(Event.CHANGE));
          this.listSearchWords();
+         this.itemControlPanel.updateSellDuplicates();
          if((parent))
          {
             victory_screen = parent["victory_screen"];
