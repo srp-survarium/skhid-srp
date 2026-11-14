@@ -178,7 +178,7 @@ team-2 points: a mode-8 config without them stops the server (`maps::MapMode::fr
 | level_06 Mamayev Kurgan | day, evening, rain | 25 / 26 |
 | level_07 Vector Laboratory | day, evening, rain | 29 / 30 |
 | level_08 Cologne | day, evening, prerain | 23 / 24 |
-| level_09 London | day | 22 / 27 + 6 authored central points = 28 |
+| level_09 London | day | 22 / 27 + 6 authored central points + 4 in the underpass = 32 |
 | v021d_level_03 Vostok Radar Station | day | 22 authored |
 | v021d_level_06 Mamayev Kurgan | day | 22 authored |
 | v011e_level_04 Chemical Plant | day | 22 authored |
@@ -197,7 +197,7 @@ actual London geometry within X [-35, 40], Z [-30, 30], with the same body,
 hazard and facing checks as the ports, and at least 12 m horizontal spacing
 from all 22 existing solo spawns and the other additions. `make_london_edits.py`
 emits `ffa-london-center-1.json`, applied after `ffa-1.json`; existing points
-and IDs remain unchanged. London now has 28 solo spawns.
+and IDs remain unchanged. That made 28 solo spawns (32 with the underpass's, below).
 
 Validation (2026-11-12): geometry generation checked 918 safe candidates on
 278,660 navigation floors, followed by visual review of the floor/point plot.
@@ -216,6 +216,20 @@ Installed this combined package into the isolated `local-clients-ffa` setup
 and restarted FfaOne/FfaTwo/FfaThree. The server reports 30 playable maps and
 all three processes are running; no central-spawn gameplay claim is made.
 Nothing was released and the release revision is unchanged.
+
+London's underpass (the owner, 2026-11-14: "put more points in basement there"; it had two, ids
+21 and 24) has four more, ids 48-51: `scripts/ffa-mode/london-underpass.tsv`, made by
+`central --region underpass` on the projects as every list before its own leaves them (28 solo
+spawns), and `make_london_edits.py --region underpass` emits `ffa-london-underpass-1.json`, after
+`ffa-center-1.json`.
+- The underpass: the walk grid's floors whose ceiling is under the street (6 m): its floor at 0.7
+  under the roundabout's plate at 4.73.
+- The same body, hazard and facing checks, the facing along it: its 6 m ahead is the underpass's
+  floor, and nothing is within 20 m in front.
+- 12 m in 3D from every solo spawn and each other: in plan the rotunda's second storey (13 m up)
+  and the street (5 m up) cover the whole underpass. The nearest spawn to a new one is 14.1 m
+  away; the underpass takes six at most at 12 m.
+- London has 32 solo spawns. Review renders: `private/renders/london-ffa-floors/`.
 
 The ported layouts are explicit source in `scripts/ffa-mode/ported.tsv`, made by the
 `ported` binary of `scripts/ffa-mode/check-points` and emitted by

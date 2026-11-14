@@ -1376,6 +1376,7 @@ mod tests {
     }
 
     /// Built data with both FFA edit lists, including London and all five ports.
+    /// London: its 22 kept, 6 central and 4 in the underpass (docs/notes/ffa.md).
     #[test]
     #[ignore = "needs SRP_TEST_GAME_DATA from build-content with both FFA edit lists"]
     fn the_released_free_for_alls_play_on_their_own_projects() {
@@ -1383,11 +1384,11 @@ mod tests {
         let maps = fixtures::table_of(&data).unwrap();
         free_for_alls_play_on_their_own_projects(&maps, 33);
         let ports: Vec<_> = maps.iter()
-            .filter(|m| m.mode == GameMode::FreeForAll && m.level >= 10)
+            .filter(|m| m.mode == GameMode::FreeForAll && m.level >= 9)
             .map(|m| (m.id, m.level, m.solo_respawn_points))
             .collect();
         assert_eq!(ports, [
-            (42, 15, 24), (43, 16, 24), (44, 17, 26),
+            (42, 15, 24), (43, 16, 24), (44, 17, 26), (163, 9, 32),
             (164, 10, 22), (165, 11, 22), (167, 12, 22), (168, 13, 22), (169, 14, 22)
         ]);
     }
