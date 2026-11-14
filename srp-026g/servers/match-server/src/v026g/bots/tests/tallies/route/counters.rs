@@ -248,7 +248,7 @@ pub(super) fn past_drop() -> Box<dyn RouteTopic> {
 /// (`bots::life_start`).
 pub(super) fn life_start() -> Box<dyn RouteTopic> {
     Delta::of(
-        || super::super::life_start::bins(),
+        super::super::life_start::bins,
         |d, line| {
             use super::super::life_start::{BINS, ROWS, WHYS, quantile};
             let q = |k: usize, share: f64| quantile(&d[k * BINS..(k + 1) * BINS], share).map_or("-".into(), |ms| ms.to_string());
