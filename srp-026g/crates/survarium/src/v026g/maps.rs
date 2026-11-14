@@ -1376,8 +1376,9 @@ mod tests {
     }
 
     /// Built data with both FFA edit lists, including London and all five ports.
-    /// London: its 22 kept, 6 central and 4 in the underpass; Rudnya: all 56
-    /// of the owner's picks and 4 roof spawns (ffa-rudnya-picks-1; docs/notes/ffa.md).
+    /// Rudnya: all 56 of the owner's picks and 4 roof spawns (ffa-rudnya-picks-1);
+    /// every other map twice the spawns it had (ffa-cover-maps-1: London 32,
+    /// its 22 kept, 6 central and 4 in the underpass, and 32 new; docs/notes/ffa.md).
     #[test]
     #[ignore = "needs SRP_TEST_GAME_DATA from build-content with both FFA edit lists"]
     fn the_released_free_for_alls_play_on_their_own_projects() {
@@ -1389,9 +1390,14 @@ mod tests {
             .map(|m| (m.id, m.level, m.solo_respawn_points))
             .collect();
         assert_eq!(ports, [
-            (42, 15, 24), (43, 16, 24), (44, 17, 26), (163, 9, 32),
-            (164, 10, 22), (165, 11, 22), (167, 12, 22), (168, 13, 22), (169, 14, 22)
+            (42, 15, 48), (43, 16, 48), (44, 17, 52), (163, 9, 64),
+            (164, 10, 44), (165, 11, 44), (167, 12, 44), (168, 13, 44), (169, 14, 44)
         ]);
+        // Levels 2 to 8, the same in each weather.
+        for map in maps.iter().filter(|m| m.mode == GameMode::FreeForAll && (2..=8).contains(&m.level)) {
+            let twice = [52, 48, 60, 48, 50, 58, 46][usize::from(map.level) - 2];
+            assert_eq!(map.solo_respawn_points, twice, "{}", map.config);
+        }
         let rudnya: Vec<_> = maps.iter()
             .filter(|m| m.mode == GameMode::FreeForAll && m.level == 1)
             .map(|m| (m.id, m.solo_respawn_points))
