@@ -480,9 +480,9 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     on the AK-12 by the variant the game data makes for it (`fit_ak_12_eotech_552`,
     `ScopeFits::variant`): the gun's one scope record in slot 3, packed as an owned scope's
     (`weapon_scopes.md`, `weapon-kit.md`), its item id none of the profile's (an owned scope is in
-    no kit either). Nobody needs to own one. srp refuses to start on data with scope variants but
-    none of it for the AK-12; data with no scope variant at all (the tests') puts no scope on any
-    weapon, the AK-12 too.
+    no kit either). Nobody needs to own one. Without that variant in the data the AK-12 goes bare;
+    nothing refuses such data (the owner, 2026-11-14: "since it is just enforced the behvaiour",
+    "not correctness").
   - Its ammo, the simplest way (the owner, 2026-11-14: "make it the simplest way"): in each kit
     that held a replaced gun, every ammo slot whose ammo none of the kit's guns fires now is
     emptied, and the kit has the same amount of AK-12 ammo as every other (`ammo_6.5x39`, the one

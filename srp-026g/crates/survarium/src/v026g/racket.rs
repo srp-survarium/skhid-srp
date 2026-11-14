@@ -40,15 +40,15 @@ pub struct Arms {
     /// The rounds of AK-12 ammo a kit gets: the dictionary's `optimal_count` of the AK-12's
     /// category.
     rounds: u16,
-    /// The variant that shows [`SIGHT`] on the AK-12 (`ScopeFits::variant`); none in game data
-    /// with no scope variant at all, where no scope goes on any weapon (`weapon_scopes.md`).
+    /// The variant that shows [`SIGHT`] on the AK-12 (`ScopeFits::variant`), when the game data
+    /// has one; without it the AK-12 goes bare (the owner, 2026-11-14: the sight is behaviour, not
+    /// correctness, so nothing refuses data without it).
     sight: Option<u16>,
 }
 
 impl Arms {
     /// The data's AK-12 and its ammo: exactly one ammo the dictionary pairs with it, which every
-    /// ammo slot takes, and its category's amount; and its [`SIGHT`], which game data with scope
-    /// variants (`fits`) must put on it.
+    /// ammo slot takes, and its category's amount; and its [`SIGHT`]'s variant, if the data has it.
     fn of(dictionary: &Dictionary, fits: &ScopeFits) -> Result<Self, String> {
         let item = dictionary
             .item_named(GUN)
@@ -73,18 +73,9 @@ impl Arms {
         if let Some(slot) = AMMO_SLOTS.iter().find(|&&slot| !dictionary.fits(ammo, slot)) {
             return Err(format!("`{GUN}`'s ammo {ammo} does not fit ammo slot {slot}"));
         }
-        let sight = if fits.is_empty() {
-            None
-        } else {
-            let scope = dictionary
-                .item_named(SIGHT)
-                .ok_or_else(|| format!("the dictionary has no `{SIGHT}`"))?
-                .dict_id;
-            let variant = fits
-                .variant(gun, scope)
-                .ok_or_else(|| format!("no scope variant puts `{SIGHT}` on `{GUN}`"))?;
-            Some(variant)
-        };
+        let sight = dictionary
+            .item_named(SIGHT)
+            .and_then(|scope| fits.variant(gun, scope.dict_id));
         Ok(Self {
             gun,
             ammo,
@@ -231,8 +222,8 @@ fn sight_records(variant: u16, id: u32) -> Vec<Upgrade> {
         .collect()
 }
 
-/// The game data has Racket's AK-12, its one ammo, which every ammo slot takes, and its sight
-/// where the data has scope variants; srp refuses to start otherwise.
+/// The game data has Racket's AK-12 and its one ammo, which every ammo slot takes; srp refuses to
+/// start otherwise. (Its sight is not checked: without it the AK-12 goes bare.)
 pub fn check(data: &GameData) -> Result<(), GameDataError> {
     Arms::of(Dictionary::shared(), ScopeFits::shared())
         .map(|_| ())
