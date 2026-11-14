@@ -12,14 +12,15 @@ itself stays as the game ships it (an earlier updater changed parts of it
 in place: those get their stock bytes back once, "Restoring resources.db"
 below).
 
-An ordinary 32-bit Windows program of about 380 KB, like `../bugtrap`: Rust's
+An ordinary 32-bit Windows program of about 590 KB, like `../bugtrap`: Rust's
 standard library and Microsoft's C runtime, linked in (`+crt-static`, as
 `cl /MT`; no runtime DLL beside it), the game's icon, a version resource
 (Skhid, "Skhid updater", the release revision) and its `asInvoker` manifest.
 Windows 7 and later. It imports `kernel32.dll`, `user32.dll` (its message
 box), `winhttp.dll`, `advapi32.dll` (per-user replay registration), `shell32.dll` (file associations and the Documents folder, where the game's
-user.cfg says the language its messages are in) and `ntdll.dll` (two
-functions of the standard library's).
+user.cfg says the language its messages are in), `ws2_32.dll` (BitTorrent's
+sockets, "BitTorrent" below) and `ntdll.dll` (two functions of the standard
+library's).
 
 ## What it does, and does not
 
@@ -73,7 +74,11 @@ functions of the standard library's).
   does hold the game folder's path) beside itself. `updater_skhid.lock`
   prevents simultaneous installs in the same folder. The patch step writes
   its own files beside it too (listed under "Patches").
-- No BitTorrent, no listening port, no UPnP, no service, no crash upload, no administrator rights (its manifest says `asInvoker`;
+- With the launcher's "Allow torrent" on, also downloads the original game's
+  files and missing patches from the revision's signed torrent, and shares
+  every file of it the folder has while the launcher is open, on the
+  launcher's port ("BitTorrent" below); off, none of it. No DHT, PEX, UPnP or
+  uTP, no service, no crash upload, no administrator rights (its manifest says `asInvoker`;
   without one Windows takes a program named "updater" for an installer and
   asks for elevation).
 
@@ -99,9 +104,9 @@ says so and does nothing.
 
 | Folder | What |
 |---|---|
-| `logic/` | Everything that needs no Windows, as a library with no dependencies: SHA-256, DEFLATE and CRC-32, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
+| `logic/` | Everything that needs no Windows, as a library whose one dependency is Ed25519 (`ed25519-compact`, the torrent's signature): SHA-256, SHA-1 (the v1 info hash only), DEFLATE and CRC-32, bencoding, the torrent, its signature, the peer wire and the trackers' messages, the swarm's rules (`swarm.rs`: one state, one transition), the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
 | `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-win7-windows-msvc` with `-Z build-std=std,panic_abort`, `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource |
-| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
+| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `test_torrent.py`: BitTorrent against a local tracker and libtorrent peers, Windows or Wine. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
 
 ## PLAY and the server's revision
 
@@ -321,6 +326,62 @@ The one call of the message box in the replay's code is `notify` in
 `exe/src/replay.rs`, behind `if !quiet`, and the replay returns from `run`
 before any of `main.rs`'s own calls of it: with `quiet` no window is made
 (`tests/test_replay.py`, `QuietSource`, reads the source to keep it so).
+
+## BitTorrent
+
+`srp-026g/docs/notes/torrent-downloads.md` is the spec; `exe/src/torrent.rs`
+and `logic/src/swarm.rs` the code.
+
+**The launcher's settings.** The update's 4th argument is `torrent` when the
+launcher's "Allow torrent" is on (its default), else `direct`; the 13th its
+port (`""`: none, the system picks one). While the updater runs, the
+launcher's `1A` turns it on or off, `21` sets the port (answered `15`
+listening, `14` busy: the launcher shows "busy" in its settings), `1E` an
+upload limit (the 0.26g launcher sends none: no limit). The port is
+listened on (all addresses) from the start; Windows' firewall may ask the
+player once.
+
+**The torrent** is `skhid.torrent` beside the updater, a file of the
+players' ZIP, and it is taken only when its Ed25519 signature is the
+release's (`release/signing.pub`, built in; `logic/src/signed.rs`) and its
+revision is not older than the installed game exe's. Missing, unsigned,
+another key's, older: no torrent, HTTPS as before. Where it comes from and
+why it is trusted is one function (`torrent::trusted`). Everything in it is
+then checked by SHA-256: its piece layers against each file's v2 root, and
+every piece against its layer before it counts, is written, or is sent.
+
+**What it fetches**, when the launcher allows it: the original game's files
+that are missing (in the place of the 7z from the mirrors; the Skhid files
+come first then, as they bring the torrent), each finished file also against
+its build-2777 pin (`logic/src/game.rs` `FILES`) before it is put in place;
+and the listed patches that are missing or damaged, each against the list's
+SHA-256 before it is renamed into place. A part (`<file>.skhid-torrent` for
+the game, `.skhid-part` for a patch) is checked piece by piece when a run
+finds it ("checking", state 08), so a game download goes on at the next
+start. No peer within 20 s, no piece for 60 s, torrent turned off, the
+signature or the pin wrong: the HTTPS download as without torrent. PLAY
+never waits on a peer.
+
+**What it shares**: every file of the torrent the folder has at the
+torrent's size, however it came (by torrent, by HTTPS, from the ZIP), from
+the end of the update until the launcher closes (`gate::watch`). A piece is
+read and checked before any byte of it is sent; one that fails is not
+offered again. So the first players of a revision, who get it by HTTPS,
+seed it.
+
+**Peers are strangers** (`logic/src/wire.rs`, `swarm.rs`, `tracker.rs`): no
+extension is spoken (no reserved bit set, an extension message refused);
+every message is read once against the torrent's numbers (a request within
+its piece, at a 16 KiB block, 16 KiB at most; a bitfield of its size, spare
+bits zero; 16 KiB + 9 bytes the longest) and anything else closes the
+connection. At most 40 connections, 4 of one address; 16 requests in flight
+to a peer, 256 queued from one; 32 MiB of pieces held until checked; a
+handshake within 15 s, a request answered within 60 s, a word every 150 s.
+A piece that fails its hash closes and bans for the run every peer that sent
+a block of it. Uploads go to 4 peers at a time (one rotated every 30 s),
+within the upload limit. Trackers: HTTP (compact answers) and UDP (BEP 15),
+IPv4, 200 peers an answer at most, asked again after 60 s to an hour as they
+say.
 
 ## Original game download and verification
 
@@ -732,6 +793,8 @@ python tests/test_play_gate.py               # Windows or Wine (PLAY and the ser
 python tests/test_replay.py                  # Windows; the replay, in its no-window mode only
 python tests/test_game_download.py           # Windows or Wine
 python tests/test_unreadable.py              # Windows or Wine (a Skhid file that cannot be read)
+SKHID_SIGNING_KEY=$(python tests/test_torrent.py --key) ./build.sh   # the tests' signing key
+python tests/test_torrent.py                 # Windows or Wine; Python with libtorrent and cryptography
 SKHID_TEST_BUNDLE=<a players' zip> python tests/test_updater.py
 ```
 

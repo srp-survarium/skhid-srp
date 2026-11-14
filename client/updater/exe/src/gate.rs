@@ -32,7 +32,7 @@ use crate::http::{self, HttpError};
 use crate::install::Layout;
 use crate::log::log;
 use crate::win::{self, File};
-use crate::{Session, restart_launcher, text};
+use crate::{Session, restart_launcher, text, torrent};
 
 /// The game exe the launcher starts, beside the updater.
 pub const GAME_EXE: &str = "survarium_skhid.exe";
@@ -66,7 +66,7 @@ fn read_exactly(file: &File, buffer: &mut [u8]) -> Result<(), String> {
 }
 
 /// The revision the installed game exe says in its sign-in.
-fn game_revision(layout: &Layout) -> Result<Revision, String> {
+pub fn game_revision(layout: &Layout) -> Result<Revision, String> {
     let path = format!("{}\\{GAME_EXE}", layout.exe_dir);
     let file = File::shared(&path).map_err(win::error_text)?;
     let size = file.size().map_err(win::error_text)?;
@@ -136,7 +136,11 @@ pub fn watch(session: &mut Session, layout: &Layout, product: &str, seen: &Seen)
     );
     let mut missed = 0;
     let mut down = false;
+    // Meanwhile the torrent's files this folder has are shared, when the
+    // launcher allows it (again once it is allowed again).
+    torrent::share(session, layout);
     while session.pipe.is_some() && session.pause(WATCH_MS) {
+        torrent::share(session, layout);
         let result = http::get(&seen.server, "/api/client-files", 4096, &mut |_, _| {
             session.pump()
         });

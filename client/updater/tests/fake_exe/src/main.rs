@@ -13,14 +13,17 @@
 //!   `<release>` is there.
 //! - `fake-exe.exe lock <file> <held> <release>`: the same, but nobody else
 //!   may even read the file (share mode 0), as some antivirus scans do.
-//! - `fake-exe.exe launcher <name> <updater> <out> <stop> [<ok>]`: the launcher's
+//! - `fake-exe.exe launcher <name> <updater> <out> <stop> [<ok> [<extra> <say>]]`: the launcher's
 //!   end of its pipe: makes `\\.\pipe\vostok_updater_pipe-<name>`, starts
 //!   `<updater> update <pipe>`, writes every byte the updater sends into
 //!   `<out>`, says stop (the launcher's abort) once the file `<stop>` is
 //!   there, and ends with the updater's exit code once it is gone. With
 //!   `<ok>` it also holds the launcher's instance mutex until the pipe
 //!   closes, and takes the updater's words as a modal box: nothing more is
-//!   read until the file `<ok>` is there.
+//!   read until the file `<ok>` is there. `<extra>`: more arguments of the
+//!   updater's (as the launcher's 3rd to 13th: its "Allow torrent" and
+//!   port); `<say>`: whenever that file is there, its bytes are written to
+//!   the pipe (frames of the launcher's) and it is deleted.
 #![windows_subsystem = "windows"]
 
 extern crate alloc;
@@ -133,7 +136,15 @@ fn hold(path: &str, held: &str, release: &str, share: u32) -> u32 {
 /// (`<name>_or_its_installer_is_already_running`) until the pipe closes, and
 /// an updater's words (message 05) are a modal box: nothing more is read
 /// from the pipe until the file `clicked` is there (the player's click).
-fn launcher(name: &str, updater: &str, out: &str, stop: &str, clicked: &str) -> u32 {
+fn launcher(
+    name: &str,
+    updater: &str,
+    out: &str,
+    stop: &str,
+    clicked: &str,
+    extra: &str,
+    say: &str,
+) -> u32 {
     let mutex = if clicked.is_empty() {
         null_mut()
     } else {
@@ -160,7 +171,10 @@ fn launcher(name: &str, updater: &str, out: &str, stop: &str, clicked: &str) -> 
         Some(at) => &updater[..at],
         None => ".",
     };
-    let mut command = wide(&alloc::format!("\"{updater}\" \"update\" \"{pipe_name}\""));
+    let mut command = wide(&alloc::format!(
+        "\"{updater}\" \"update\" \"{pipe_name}\"{}{extra}",
+        if extra.is_empty() { "" } else { " " }
+    ));
     let folder = wide(folder);
     let mut startup: STARTUPINFOW = unsafe { core::mem::zeroed() };
     startup.cb = core::mem::size_of::<STARTUPINFOW>() as u32;
@@ -223,6 +237,13 @@ fn launcher(name: &str, updater: &str, out: &str, stop: &str, clicked: &str) -> 
             }
             continue;
         }
+        if !say.is_empty() && exists(say) {
+            // What the tests have the launcher say: the file's bytes, as
+            // they are (whole frames).
+            let bytes = std::fs::read(say).unwrap_or_default();
+            let _ = std::fs::remove_file(say);
+            unsafe { write(pipe, bytes.as_ptr(), bytes.len()) };
+        }
         if !stopped && exists(stop) {
             // The launcher's abort: a frame of one byte, 0x1B.
             let abort = [1_u8, 0, 0x1b];
@@ -279,6 +300,8 @@ fn main() {
                 argument(4),
                 argument(5),
                 argument(6),
+                argument(7),
+                argument(8),
             )),
             _ => {}
         }

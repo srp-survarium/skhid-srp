@@ -16,8 +16,9 @@
 //! it always did.
 //!
 //! It asks its configured server for Skhid updates. Missing original game
-//! files come from a separate HTTPS mirror with compiled-in SHA-256 pins. No torrent, no listening
-//! port, no crash upload, no administrator rights. Successful launcher updates
+//! files come from a separate HTTPS mirror with compiled-in SHA-256 pins, or, when
+//! the launcher allows torrent, from the revision's torrent too, whose files it then
+//! shares while the launcher is open (`torrent.rs`). No crash upload, no administrator rights. Successful launcher updates
 //! register Skhid Replay for .sur files in this user's Open With choices.
 #![windows_subsystem = "windows"]
 
@@ -33,7 +34,9 @@ mod pipe;
 mod replay;
 mod replay_association;
 mod resources;
+mod signed;
 mod text;
+mod torrent;
 mod win;
 
 use alloc::format;
@@ -45,7 +48,7 @@ use updater_logic::manifest::{
     Found, Installed, InstalledFile, MAX_ARCHIVE_SIZE, Manifest, ManifestError, Reason, Verdict,
     damage, parse_installed, parse_manifest, verdict, write_installed,
 };
-use updater_logic::pipe::{FromLauncher, ToLauncher, state, step};
+use updater_logic::pipe::{FromLauncher, ToLauncher, Torrenting, state, step};
 use updater_logic::problem::{Failed, Fault, Miss, Problem, Removal, Where};
 use updater_logic::sha256::{digest, to_hex};
 use updater_logic::url::{self, Url};
@@ -127,6 +130,8 @@ struct Session {
     /// addresses gave it. The run's failure, if it ends in one, is said in
     /// its box (`updater_logic::problem`), in the launcher's language.
     trouble: Option<Failed>,
+    /// The launcher's torrent settings, and the torrent engine (`torrent.rs`).
+    torrents: torrent::Torrents,
 }
 
 impl Session {
@@ -169,6 +174,13 @@ impl Session {
                     FromLauncher::Abort => {
                         log!("the launcher asks to stop");
                         self.stopped = true;
+                    }
+                    message @ (FromLauncher::AllowTorrent(_)
+                    | FromLauncher::Port(_)
+                    | FromLauncher::UploadLimit(_)) => {
+                        if let Some(answer) = self.torrents.on_message(message) {
+                            pipe.send(answer);
+                        }
                     }
                     other => log!("launcher message ignored: {other:?}"),
                 }
@@ -260,6 +272,9 @@ impl Session {
     /// Tells the launcher this updater is done for good, and closes the
     /// pipe. A launcher that did not ask for it closes itself on that.
     fn leave(&mut self) {
+        // Sharing ends with the launcher: the files closed before the next
+        // updater runs.
+        self.torrents.stop();
         if let Some(mut pipe) = self.pipe.take() {
             pipe.send(ToLauncher::State(state::ABORTED));
             pipe.close();
@@ -520,6 +535,8 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
         Err(message) => return Done::Failed(message),
     };
     let done = overlay(session, layout, &server);
+    // The overlay may have brought another torrent.
+    session.torrents.forget();
     // New Skhid files may need other patches than those checked so far: until
     // a patch step with the server's list has checked the folder again,
     // `ready` and a start without the server refuse.
@@ -642,10 +659,12 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     // archive. With that file in place the game comes first, as a player's
     // own copy of it would be there first. Without it (deleted, damaged, the
     // archive only half unpacked) the Skhid files come first, which brings
-    // it, and the game after them.
-    let game_after = !game::present(layout) && !game::extractor_ready(layout);
+    // it, and the game after them. So do they when torrent is allowed:
+    // the revision's torrent is a file of the archive (`torrent.rs`).
+    let game_after = !game::present(layout)
+        && (!game::extractor_ready(layout) || session.torrents.allowed());
     let game_added = if game_after {
-        log!("the original game is missing and so is its extractor: the Skhid files first");
+        log!("the original game is missing: the Skhid files first (its extractor, its torrent)");
         false
     } else {
         match game::ensure(session, layout, Some(server)) {
@@ -845,6 +864,8 @@ struct Options {
     /// `check`: every patch file is hashed, whatever was hashed before (the
     /// repair); the launcher's update takes the quick check.
     look: patches::Look,
+    /// The launcher's "Allow torrent" and port (its 4th and 13th arguments).
+    torrenting: Torrenting,
 }
 
 /// The command line: the launcher's (`"<exe>" "update" "<pipe>" ...`, the
@@ -891,6 +912,7 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
             } else {
                 patches::Look::Quick
             },
+            torrenting: Torrenting::Off,
         }),
         "update" | "full_update" => Ok(Options {
             pipe_name: pipe_name(),
@@ -898,6 +920,10 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
             ready: false,
             quiet: false,
             look: patches::Look::Quick,
+            torrenting: Torrenting::of_arguments(
+                rest.get(2).map_or("", String::as_str),
+                rest.get(11).map_or("", String::as_str),
+            ),
         }),
         "copy" => Ok(Options {
             pipe_name: pipe_name(),
@@ -905,6 +931,7 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
             ready: false,
             quiet: false,
             look: patches::Look::Quick,
+            torrenting: Torrenting::Off,
         }),
         _ => Err(text::usage()),
     }
@@ -982,6 +1009,7 @@ fn run() -> u32 {
         named_file: false,
         seen: None,
         trouble: None,
+        torrents: torrent::Torrents::new(options.torrenting),
     };
 
     if options.copy {

@@ -11,7 +11,7 @@ use crate::{
     http::{self, HttpError},
     install::Layout,
     log::log,
-    text, win,
+    text, torrent, win,
 };
 use alloc::{format, string::String, vec::Vec};
 use updater_logic::{
@@ -65,10 +65,23 @@ pub fn sweep(layout: &Layout) {
     if present(layout) && win::exists(&archive) && win::delete(&archive).is_ok() {
         log!("removed the left-over game download: {archive}");
     }
+    if present(layout) {
+        remove_parts(layout);
+    }
     let output = output_path(layout);
     if win::exists(&output) {
         log!("what the extractor printed in an attempt that was cut short:");
         log_output(&output);
+    }
+}
+
+/// What a download by torrent left, once the game is there.
+fn remove_parts(layout: &Layout) {
+    for (name, _) in game::FILES {
+        let part = format!("{}{PART}", place(layout, name));
+        if win::exists(&part) && win::delete(&part).is_ok() {
+            log!("removed the left-over torrent download: {part}");
+        }
     }
 }
 
@@ -389,6 +402,79 @@ fn clean_stage(stage: &str) {
     win::remove_dir(stage);
 }
 
+/// A file of the game while the torrent fetches it, beside its place. Kept
+/// when the torrent is left for HTTPS: the next start checks its pieces and
+/// goes on from them; removed once the game is there.
+const PART: &str = ".skhid-torrent";
+
+fn place(layout: &Layout, name: &str) -> String {
+    format!("{}\\{}", layout.game_dir, name.replace('/', "\\"))
+}
+
+/// The original files that are missing, by the revision's torrent, when the
+/// launcher allows it and the torrent has them as build 2777 has them (its
+/// `bugtrap.dll` and certificate are the Skhid ones: the overlay brings
+/// those). Every piece is checked by the torrent's SHA-256, then each whole
+/// file by its pin, before it is put in place. `Ok(None)`: not by torrent
+/// (none, no peer, it stalled): the archive by HTTPS, as without it.
+fn by_torrent(session: &mut Session, layout: &Layout) -> Result<Option<bool>, Option<String>> {
+    let Some(offered) = torrent::offered(session, layout) else {
+        return Ok(None);
+    };
+    let wanted: Vec<(&str, Pin, usize)> = game::FILES
+        .iter()
+        .filter(|(name, _)| !win::exists(&place(layout, name)))
+        .filter_map(|&(name, pin)| {
+            let index = torrent::file_index(&offered, &format!("game/{name}"))?;
+            (offered.files[index].size == pin.size).then_some((name, pin, index))
+        })
+        .collect();
+    if wanted.is_empty() {
+        return Ok(None);
+    }
+    let needed = wanted.iter().map(|(_, pin, _)| pin.size).sum::<u64>() + (256 << 20);
+    if win::free_space(&layout.game_dir).is_none_or(|free| free < needed) {
+        log!("game: by torrent: {needed} bytes of free space needed: HTTPS");
+        return Ok(None);
+    }
+    let mut files = Vec::new();
+    for (name, _, index) in &wanted {
+        let part = format!("{}{PART}", place(layout, name));
+        win::create_folders(win::split_path(&part).0)
+            .map_err(|code| io_error("create the game's folders", code))?;
+        files.push((*index, part));
+    }
+    log!("game: {} original file(s) by torrent", wanted.len());
+    match torrent::fetch(session, &offered, &files) {
+        torrent::Fetched::Done => {}
+        torrent::Fetched::Stopped => return Err(None),
+        torrent::Fetched::Not(why) => {
+            log!("game: by torrent: {why}: HTTPS");
+            return Ok(None);
+        }
+    }
+    for ((name, pin, _), (_, part)) in wanted.iter().zip(&files) {
+        if check(part, *pin, session)?.is_none() {
+            log!("game: by torrent: {name} is not build 2777's (its pin): HTTPS");
+            let _ = win::delete(part);
+            return Ok(None);
+        }
+    }
+    let mut added: Vec<String> = Vec::new();
+    for ((name, _, _), (_, part)) in wanted.iter().zip(&files) {
+        let target = place(layout, name);
+        if let Err(code) = win::rename(part, &target, false) {
+            for path in added.iter().rev() {
+                let _ = win::delete(path);
+            }
+            return Err(io_error("install the original game files", code));
+        }
+        added.push(target);
+    }
+    log!("installed original game by torrent: {} files added", added.len());
+    Ok(Some(present(layout)).filter(|&present| present))
+}
+
 /// Installs only missing original files. Every extraction and check finishes
 /// before promotion; failed promotions undo only files added by this attempt.
 ///
@@ -401,6 +487,9 @@ pub fn ensure(
 ) -> Result<bool, Option<String>> {
     if present(layout) {
         return Ok(false);
+    }
+    if let Some(added) = by_torrent(session, layout)? {
+        return Ok(added);
     }
     log!("original game files missing; downloading the pinned 0.26g archive");
     // The extractor first: without it 2.9 GB would be downloaded for nothing.
@@ -421,7 +510,7 @@ pub fn ensure(
     // again. This works on a 32-bit updater too: file sizes and progress are
     // u64 throughout.
     let downloaded = win::file_size(&archive_path).is_ok_and(|size| size == game::ARCHIVE.size);
-    let unpacked = game::FILES.iter().map(|(_, size)| size).sum::<u64>();
+    let unpacked = game::FILES.iter().map(|(_, pin)| pin.size).sum::<u64>();
     let needed = if downloaded { 0 } else { game::ARCHIVE.size } + unpacked + (256 << 20);
     let free = win::free_space(&layout.game_dir)
         .ok_or_else(|| Some("Cannot check free disk space for the game installation.".into()))?;
@@ -476,7 +565,7 @@ pub fn ensure(
             )));
         }
         for (name, expected) in game::FILES {
-            if win::file_size(&extracted(&stage, name)).ok() != Some(*expected) {
+            if win::file_size(&extracted(&stage, name)).ok() != Some(expected.size) {
                 return Err(Some(format!(
                     "The extracted game file {name} is missing or has the wrong size. Nothing was installed."
                 )));
@@ -533,6 +622,7 @@ pub fn ensure(
     // The extractor is a file of the Skhid archive and stays.
     if result.is_ok() {
         let _ = win::delete(&archive_path);
+        remove_parts(layout);
     }
     result
 }
