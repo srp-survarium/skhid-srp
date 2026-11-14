@@ -565,7 +565,14 @@ mod tests {
                     for steps in fl {
                         let e = steps.last().unwrap().feet;
                         let land = jump::landing_and_rest(&steps, |_| true).map(|(l, _)| l.feet);
-                        let trace: Vec<String> = steps.iter().map(|f| format!("{:.2},{:.2},{:.2}", f.feet.x, f.feet.y, f.feet.z)).collect();
+                        // Each step's feet and the client's flags: J in the jump, G on the ground (`on_ground` 0x7EF90).
+                        let trace: Vec<String> = steps
+                            .iter()
+                            .map(|f| {
+                                let flags = format!("{}{}", if f.in_jump { "J" } else { "" }, if f.on_ground { "G" } else { "" });
+                                format!("{:.2},{:.2},{:.2}{flags}", f.feet.x, f.feet.y, f.feet.z)
+                            })
+                            .collect();
                         println!("{kind:?} lead {lead:.1} n{i}: land {land:?} end ({:.3} {:.3} {:.3}) | {}", e.x, e.y, e.z, trace.join(" "));
                     }
                 }
