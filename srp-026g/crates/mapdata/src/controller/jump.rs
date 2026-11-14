@@ -551,12 +551,13 @@ pub fn neighbour_flights(
     }
 }
 
-/// [A385] A flight's landing and its rest: the first step after the jump's first air step out of the jump on which the client
-/// has the body on the ground (`on_ground` 0x7EF90), and the flight's last step, when the body is on the ground on every step
-/// from the landing on (it stays: A385-FORMAT §1); None when it never lands or leaves the ground after landing (it skims).
-pub fn landing_and_rest(steps: &[FlightStep]) -> Option<(FlightStep, FlightStep)> {
+/// [A385] A flight's landing and its rest: after the jump's first air step, the first step out of the jump on which the client
+/// has the body on the ground (`on_ground` 0x7EF90) and `on` holds (the caller's floor: a rim catch is on the ground on the
+/// top's edge before the ground steps climb the rest), and the flight's last step, when the body is on the ground on every step
+/// from the landing on (it stays: A385-FORMAT §1); None when it never lands so or leaves the ground after (it skims).
+pub fn landing_and_rest(steps: &[FlightStep], on: impl Fn(&FlightStep) -> bool) -> Option<(FlightStep, FlightStep)> {
     let first_air = steps.iter().position(|f| f.in_jump)?;
-    let landing = first_air + steps[first_air..].iter().position(|f| !f.in_jump && f.on_ground)?;
+    let landing = first_air + steps[first_air..].iter().position(|f| !f.in_jump && f.on_ground && on(f))?;
     steps[landing..].iter().all(|f| f.on_ground).then(|| (steps[landing], steps[steps.len() - 1]))
 }
 

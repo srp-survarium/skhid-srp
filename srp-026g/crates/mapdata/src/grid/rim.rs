@@ -90,8 +90,9 @@ impl WalkGrid {
     /// Laboratory's (-45.35, 25.61, 4.93), 0.88 m over the take-off at 24.73: no fixed height).
     fn rim_lands_on(&self, steps: &[FlightStep], a: NodeId, linked: &[NodeId]) -> Option<NodeId> {
         let up = self.height[a as usize] + self.body.step;
-        let (landing, rest) = jump::landing_and_rest(steps)?;
-        let to = self.floor_under(landing.feet).filter(|&g| self.height[g as usize] > up && !linked.contains(&g))?;
+        let onto = |feet: Vec3| self.floor_under(feet).filter(|&g| self.height[g as usize] > up && !linked.contains(&g));
+        let (landing, rest) = jump::landing_and_rest(steps, |f| onto(f.feet).is_some())?;
+        let to = onto(landing.feet)?;
         let at_rest = self.floor_under(rest.feet)?;
         ((self.height[at_rest as usize] - self.height[to as usize]).abs() <= LAND_HEIGHT_M).then_some(to)
     }
@@ -124,19 +125,28 @@ impl WalkGrid {
         let takeoff = self.position(a);
         let own = jump::neighbourhood()[0];
         let mut flights = 0;
-        // Step 1: every press at the press itself. (kind, lead, floor it lands on).
-        let mut flown: Vec<(Kind, f32, Option<NodeId>)> = Vec::new();
+        // Step 1: every press at the press itself: the floors its flights land on (one, or one per sprint variant).
+        let mut flown: Vec<(Kind, f32, Vec<Option<NodeId>>)> = Vec::new();
         for kind in [Kind::Walk, Kind::Sprint] {
             for &lead in leads {
-                let to = jump::neighbour_flights(world, s, takeoff, way, kind, lead, own, kits).and_then(|fl| {
+                let floors = jump::neighbour_flights(world, s, takeoff, way, kind, lead, own, kits).map_or_else(Vec::new, |fl| {
                     flights += fl.len();
-                    let floors: Vec<Option<NodeId>> = fl.iter().map(|st| self.rim_lands_on(st, a, linked)).collect();
-                    floors[0].filter(|_| floors.iter().all(|&f| f == floors[0]))
+                    fl.iter().map(|st| self.rim_lands_on(st, a, linked)).collect()
                 });
-                flown.push((kind, lead, to));
+                flown.push((kind, lead, floors));
             }
         }
-        let landings: Vec<Landing> = flown.iter().filter_map(|&(kind, lead, to)| to.map(|to| Landing { kind, lead, to })).collect();
+        // A press is a candidate when some flight of it lands: a sprint press some of whose variants land is a way a client
+        // makes (the owner's rule, 2026-11-13: teach, do not cut), onto the floor the most of its variants land on; its share
+        // counts only neighbours where every variant lands (A385-FORMAT §2, rule (b)), so it may be 0 (the largest price).
+        let landings: Vec<Landing> = flown
+            .iter()
+            .filter_map(|(kind, lead, floors)| {
+                let on = |f: NodeId| floors.iter().filter(|&&g| g == Some(f)).count();
+                let to = floors.iter().flatten().copied().max_by_key(|&f| (on(f), std::cmp::Reverse(f)))?;
+                Some(Landing { kind: *kind, lead: *lead, to })
+            })
+            .collect();
         if landings.is_empty() {
             return (None, flights);
         }
@@ -149,7 +159,10 @@ impl WalkGrid {
         };
         // Step 3: each press onto `to` scored by its neighbourhood.
         let reused = |kind: Kind, lead: f32| {
-            flown.iter().find(|&&(k, l, _)| k == kind && (l - lead).abs() < 1e-3).map(|&(.., f)| f == Some(to))
+            flown
+                .iter()
+                .find(|(k, l, _)| *k == kind && (l - lead).abs() < 1e-3)
+                .map(|(.., floors)| !floors.is_empty() && floors.iter().all(|&f| f == Some(to)))
         };
         let mut scored: Vec<(Kind, f32, u8)> = Vec::new();
         for l in landings.iter().filter(|l| l.to == to) {
@@ -364,7 +377,7 @@ mod tests {
                     };
                     for steps in fl {
                         let e = steps.last().unwrap().feet;
-                        let land = jump::landing_and_rest(&steps).map(|(l, _)| l.feet);
+                        let land = jump::landing_and_rest(&steps, |_| true).map(|(l, _)| l.feet);
                         let trace: Vec<String> = steps.iter().map(|f| format!("{:.2},{:.2},{:.2}", f.feet.x, f.feet.y, f.feet.z)).collect();
                         println!("{kind:?} lead {lead:.1} n{i}: land {land:?} end ({:.3} {:.3} {:.3}) | {}", e.x, e.y, e.z, trace.join(" "));
                     }
