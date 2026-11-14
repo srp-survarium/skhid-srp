@@ -793,9 +793,13 @@ impl Ctx<'_> {
             return false;
         }
         let past = |b| self.tactics.past_fixed_zones(b);
-        (past(goal) || grid.entered_from(goal, past))
+        // [A395a] A goal on the margin's band is entered by the band's shortest walk in (`Tactics::band_way`).
+        let way_in = self.tactics.band_way(goal, crate::v026g::bots::tactics::BandEnd::In);
+        (past(goal) || grid.entered_from(goal, past) || self.tactics.band_way_from(goal, past))
             && grid.entered_from(goal, |b| {
-                Some(b) == start || self.tactics.allowed(b, self.now, self.bot.side, objective)
+                Some(b) == start
+                    || self.tactics.allowed(b, self.now, self.bot.side, objective)
+                    || way_in.as_ref().is_some_and(|way| way.contains(&b))
             })
     }
 

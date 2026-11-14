@@ -364,32 +364,42 @@ fn a_bot_pushed_into_a_zone_stands_there_with_zone_lines_off() {
     assert!(pushed(true).on_ms <= 3_000, "on: out at once");
 }
 
-/// A line from a body in a zone's band may cross the refused floors of its way out, not the zone's core: from the band, out is
-/// clear, a chord across the core and a line into it are not; from deep inside, either way out is.
+/// A line from a body on a zone's refused floors may cross them on its way out, not the zone's core: from the capsule's reach
+/// round the zone, out is clear, a chord across the core and a line into it are not; from deep inside, either way out is.
+/// [A395a] On a floor of the margin's band that the client's capsule does not touch no walk-out starts: the body leaves
+/// the band, its lines over no floor the zone hurts.
 #[test]
 fn a_line_from_a_zone_may_leave_it_not_cross_its_core() {
     let big = zone("big", Vec3::new(30.0, 1.0, 20.0), Vec3::new(4.0, 1.0, 4.0));
     let world = field(&[], vec![big]);
     let teams = [0u8];
-    let mut bots = Bots::new(0xA70A, survarium::v026g::maps::RuleMode::Batteries, 0, &teams, &[true], &[None], Arc::new(Tuning::default()), Trace::none(0));
+    let mut tuning = Tuning::default();
+    tuning.hazard.capsule_marks = true;
+    let mut bots = Bots::new(0xA70A, survarium::v026g::maps::RuleMode::Batteries, 0, &teams, &[true], &[None], Arc::new(tuning), Trace::none(0));
     bots.map_ready(world.clone());
     let tactics = bots.tactics.as_ref().unwrap();
     let at = |x: f32, z: f32| Vec3::new(x, 0.0, z);
-    // In the band (the zone's box is x 26-34, the margin a metre more).
+    // The zone's box is x 26-34; the capsule (radius 0.38) touches it from 0.38 m off its side, the margin is a metre.
+    use crate::v026g::bots::tactics::ZoneExit;
     let band = at(25.4, 20.0);
-    let reach = tactics.zone_exit_reach(band, 0).expect("the band is refused");
-    assert!(reach < 3.0, "{reach}");
-    assert!(tactics.clear_line_leaving(band, at(21.0, 20.0), 0, None, false, reach), "out");
-    assert!(!tactics.clear_line_leaving(band, at(38.0, 20.0), 0, None, false, reach), "across the core");
-    assert!(!tactics.clear_line_leaving(band, at(29.0, 20.0), 0, None, false, reach), "into the core");
-    assert!(!tactics.clear_line_for(band, at(21.0, 20.0), 0, None, false), "the plain test refuses every line from the band");
+    let off_band = tactics.zone_exit(band, 0).expect("routes keep off the margin's band");
+    assert!(matches!(off_band, ZoneExit::Band { .. }), "0.6 m off the side the client hurts no body: {off_band:?}");
+    assert!(tactics.clear_line_leaving(band, at(21.0, 20.0), 0, None, false, off_band), "off the band");
+    assert!(!tactics.clear_line_leaving(band, at(29.0, 20.0), 0, None, false, off_band), "never over a hurt floor");
+    let reach_floor = at(25.75, 20.0);
+    let exit = tactics.zone_exit(reach_floor, 0).expect("the capsule's reach is refused");
+    assert!(matches!(exit, ZoneExit::Out { .. }) && exit.reach() < 3.0, "{exit:?}");
+    assert!(tactics.clear_line_leaving(reach_floor, at(21.0, 20.0), 0, None, false, exit), "out");
+    assert!(!tactics.clear_line_leaving(reach_floor, at(38.0, 20.0), 0, None, false, exit), "across the core");
+    assert!(!tactics.clear_line_leaving(reach_floor, at(29.0, 20.0), 0, None, false, exit), "into the core");
+    assert!(!tactics.clear_line_for(reach_floor, at(21.0, 20.0), 0, None, false), "the plain test refuses every line from it");
     // Deep inside: the way out is the reach.
     let deep = at(30.0, 20.0);
-    let reach = tactics.zone_exit_reach(deep, 0).expect("the core is refused");
-    assert!(reach > 5.0, "{reach}");
-    assert!(tactics.clear_line_leaving(deep, at(22.0, 20.0), 0, None, false, reach), "out from the core");
-    // On allowed floors there is no reach: the plain test goes on.
-    assert_eq!(tactics.zone_exit_reach(at(10.0, 20.0), 0), None);
+    let exit = tactics.zone_exit(deep, 0).expect("the core is refused");
+    assert!(matches!(exit, ZoneExit::Out { .. }) && exit.reach() > 5.0, "{exit:?}");
+    assert!(tactics.clear_line_leaving(deep, at(22.0, 20.0), 0, None, false, exit), "out from the core");
+    // On allowed floors there is no exit: the plain test goes on.
+    assert_eq!(tactics.zone_exit(at(10.0, 20.0), 0), None);
 }
 
 /// A bot that dies in the middle of a zone walk starts its next life off it: no walk to end with a note of a way out.

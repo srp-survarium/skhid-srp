@@ -459,7 +459,9 @@ fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3, crossing: bool) -> Vec<(TakeStand,
                             .locate(at, 1.5)
                             .is_none_or(|home| !traps(cx.tactics, home, node))
                 } else {
-                    cx.tactics.allowed(node, cx.now, cx.bot.side, false)
+                    // [A395a] A stand where the client hurts no body: on the margin's band too, reached by its shortest
+                    // walk in (`Tactics::band_way`).
+                    cx.tactics.stand_allowed(node, cx.now, cx.bot.side, false)
                 }
             {
                 continue;
@@ -1328,7 +1330,8 @@ impl Ctx<'_> {
             return false;
         };
         let past = |b| self.tactics.past_fixed_zones(b);
-        self.tactics.walkable(goal) && !(past(goal) || grid.entered_from(goal, past))
+        self.tactics.walkable(goal)
+            && !(past(goal) || grid.entered_from(goal, past) || self.tactics.band_way_from(goal, past))
     }
 
     /// The crossing to take a battery lying at `at` by (its stand needs
@@ -4361,6 +4364,70 @@ mod tests {
             }
         }
         eprintln!("zone_survey total: needs a crossing {needs}, takeable {open}");
+    }
+
+    /// [A395a] Vector Laboratory's batteries whose stand is on a zone's margin and that the client hurts no body on (the
+    /// battery floor, 0.42 m over the pit zone's top): under the capsule's marking each is a take reached from both
+    /// spawns by a route that walks the band only along its shortest walk in, with no crossing.
+    #[test]
+    #[ignore = "needs the private map files"]
+    fn vector_laboratory_band_batteries_are_reached_without_a_crossing() {
+        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let mut defaults = crate::v026g::bots::tuning::Tuning::default();
+        defaults.hazard.capsule_marks = true;
+        let map = mapdata::MapData::read(&std::path::Path::new(&dir).join("level_07_day_2.mapdata")).unwrap();
+        let world = std::sync::Arc::new(mapdata::World::build_with_links(
+            map,
+            mapdata::CELL,
+            defaults.grid_body(),
+            defaults.off_mesh_links(),
+        ));
+        let mut on_band = 0;
+        for (index, spawner) in world.map.battery_spawners.iter().enumerate() {
+            let at = spawner.item;
+            for team in [0u8, 1] {
+                let spawn = world.map.spawns.iter().find(|p| p.team == i32::from(team)).unwrap().position;
+                let mut s = Scenario::field(Mode::Batteries);
+                s.tuning = defaults.clone();
+                s.tactics = Tactics::new(world.clone(), crate::v026g::bots::hazards::Marking::of(&defaults.hazard));
+                s.tactics.hazards.attach(crate::v026g::bots::anomalies::Anomalies::new(&world.map, 0));
+                s.side = Some(i32::from(team));
+                s.bot(0, team, spawn);
+                let cx = s.cx(0);
+                let Some(stand) = s.tactics.stand_to_take(at) else {
+                    continue;
+                };
+                let grid = &s.tactics.world.grid;
+                let node = grid.locate(stand, 3.0).unwrap();
+                if !s.tactics.hazards.in_band(node) {
+                    continue;
+                }
+                on_band += 1;
+                let route = s.tactics.route(spawn, stand, 0, Some(i32::from(team)));
+                let way = s.tactics.band_way(node, crate::v026g::bots::tactics::BandEnd::In).unwrap();
+                eprintln!(
+                    "battery {index} team {team}: stand {stand:?} on the band; needs crossing {} reachable {} route {:?} m, band walk in {} floors",
+                    cx.needs_crossing(stand),
+                    cx.reachable(stand, false),
+                    route.as_ref().map(|r| r.length()),
+                    way.len()
+                );
+                assert!(!cx.needs_crossing(stand) && cx.reachable(stand, false), "battery {index}: a plain take");
+                let route = route.expect("a route from the spawn");
+                let mut d = 0.0;
+                while d <= route.length() {
+                    let p = route.floor_point(d);
+                    if let Some(n) = grid.locate(p, 0.6)
+                        && s.tactics.hazards.zone_of(n).is_some()
+                        && !s.tactics.hazards.hits_at(n, 0)
+                    {
+                        assert!(way.iter().any(|&w| grid.position(w).distance_xz(p) <= 0.5), "battery {index}: off its walk in at {p:?}");
+                    }
+                    d += 0.25;
+                }
+            }
+        }
+        assert!(on_band > 0, "the battery floor's batteries");
     }
 
     /// Vector Laboratory's spawner 26 (the owner's marked battery): the walk in from its crossing's edge, and from the

@@ -6038,6 +6038,8 @@ va	name	location	role	basis
 0x00077560	vostok::physics::bullet_physics_world::ray_query	entry ESP+16	the hits: a buffer_vector<closest_ray_result> {begin, end, allocator, capacity end} it appends every hit to (28h each, 0x777DE; grown by 0x788C0), then sorts nearest the origin first (0x78960)	observed
 0x00077560	vostok::physics::bullet_physics_world::ray_query	entry ESP+20	the filter group (u16, the callback's +0Ch at 0x7766E)	observed
 0x00077560	vostok::physics::bullet_physics_world::ray_query	entry ESP+24	the filter mask (u16, the callback's +0Eh at 0x7767E)	observed
+0x00077890	vostok::physics::contact_result_callback::addSingleResult	ECX	the result callback (+8 the hit flag)	observed
+0x00077890	vostok::physics::contact_result_callback::addSingleResult	entry ESP+4	the btManifoldPoint (+50h its distance)	observed
 0x000716c0	vostok::physics::bt_animated_rigid_body::get_collision_group	ECX	the physics object (this)	observed
 0x0007ab10	vostok::physics::bullet_character_controller::get_collision_group	ECX	the physics object (this: the controller's base_physics_object)	observed
 0x00356d50	vostok::physics::bt_static_rigid_body::get_collision_group	ECX	the physics object (this)	observed

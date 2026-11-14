@@ -2385,7 +2385,7 @@ impl Game {
             let Some(node) = self.world.grid.locate(body.feet, 1.0) else {
                 continue;
             };
-            let centre = self.body_centre(place);
+            let centre = self.body_dose_point(place);
             let now = self.zone_now(node, inside, on, tick);
             let was_off = std::mem::replace(&mut self.bodies[place].zone_prev_off, now.in_shape && !now.any_active);
             let drop_m = {
@@ -2487,10 +2487,10 @@ impl Game {
         }
     }
 
-    /// The centre of the body at `place`: half the grid body's height over its feet (the client asks the zone about the
-    /// capsule's centre: the live bots' losses fit the curve at it, `fx-zones-bots-hurt.md`).
-    fn body_centre(&self, place: usize) -> Vec3 {
-        self.bodies[place].feet + Vec3::new(0.0, 0.5 * self.world.grid.body().stand_height, 0.0)
+    /// The point the client takes a zone's distance at for the body at `place`: its feet (the owner's recordings, 159 of
+    /// 159 touching pairs; `owner-5/zone-price-design.md` 1.1, PROVEN).
+    fn body_dose_point(&self, place: usize) -> Vec3 {
+        self.bodies[place].feet
     }
 
     /// What the floor `node` is to the damage zones at `tick` ([`ZoneNow`]): `inside` holds the zones' own shapes, `on` the bots' marks and timing.
@@ -2509,7 +2509,7 @@ impl Game {
         ZoneNow { restored: !self.world.grid.can_stand(node), unmarked, fixed: any_active && fixed, in_shape, any_active, zone: first }
     }
 
-    /// What `zone` takes a second from a body whose centre is at `centre`, before armour: the client's rule under
+    /// What `zone` takes a second from a body whose dose point ([`Self::body_dose_point`]) is `centre`, before armour: the client's rule under
     /// [`Self::zone_intensity`], else the full hit.
     fn zone_hit(&self, zone: &Hazard, centre: Vec3) -> f32 {
         if self.zone_intensity { zone.hit_rate_at(centre) } else { zone.hit_per_s() }
@@ -2540,7 +2540,7 @@ impl Game {
                 continue;
             };
             let armour = super::standin_damage::zone_armour_of(self.damage.tier, self.damage.rusher, self.damage.mask, body.gun.item);
-            let centre = self.body_centre(place);
+            let centre = self.body_dose_point(place);
             let now = self.zone_now(node, inside, on, tick);
             let was_off = std::mem::replace(&mut self.bodies[place].zone_prev_off, now.in_shape && !now.any_active);
             let drop_m = {

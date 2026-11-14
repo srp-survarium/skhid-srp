@@ -568,7 +568,7 @@ impl Bots {
         } else {
             tactics.resume_route(
                 &mut pending.planning,
-                start,
+                pending.ends,
                 time,
                 side,
                 objective,

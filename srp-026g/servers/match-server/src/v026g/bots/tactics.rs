@@ -20,7 +20,7 @@ use mapdata::{NodeId, Shape, Vec3, WalkGrid, World};
 
 mod progress;
 
-use super::hazards::{HazardMarks, Hazards, PASS_MS};
+use super::hazards::{HazardMarks, Hazards, Marking, PASS_MS};
 use super::path::{self, Route};
 use super::route_filter::RouteFilter;
 use super::rng::Rng;
@@ -34,7 +34,7 @@ pub const SPAWN_AREA_M: f32 = 20.0;
 /// A point is looked for on the grid within this, metres.
 const LOCATE_M: f32 = 3.0;
 /// A body on refused floors may test a line over them this much beyond the way to the nearest allowed floor
-/// ([`Tactics::zone_exit_reach`]), metres: the turns of a way out, a stride's overshoot.
+/// ([`Tactics::zone_exit`]), metres: the turns of a way out, a stride's overshoot.
 const ZONE_EXIT_SLACK_M: f32 = 1.0;
 /// … and looks for that floor within this height of its feet (one storey) and this far, metres.
 const ZONE_EXIT_STOREY_M: f32 = 2.5;
@@ -241,6 +241,65 @@ pub struct Tactics {
     pub cover_tally: CoverTally,
     /// What the commander's gang-up cap counted (PR C item 20), by play.
     pub gang_tally: super::team::GangTally,
+    /// [A395a] [`Self::band_way`]'s ways, the latest [`BAND_WAYS_KEPT`]: they depend on the map alone and the floor.
+    band_ways: std::sync::Mutex<Vec<(NodeId, BandEnd, BandWay)>>,
+}
+
+/// [A395a] The floors of the margin's band on the shortest way between a band floor and the floors out of every zone's
+/// margin ([`Tactics::band_way`]), the band floor first; empty where none is found.
+type BandWay = Arc<[NodeId]>;
+
+/// [A395a] Which way a band way goes ([`Tactics::band_way`]): in to a route's goal on the band, or out from its start.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BandEnd {
+    In,
+    Out,
+}
+
+/// [A395a] [`Tactics::band_way`] keeps this many ways: a match's goals and starts on the band are a handful.
+const BAND_WAYS_KEPT: usize = 32;
+
+/// [A395a] [`Tactics::band_way`] expands at most this many floors: a band is a metre wide round a zone and a zone's flat
+/// top under it (the Vector Laboratory battery floor over its pit, about 100 m2: 1600 floors of 0.25 m).
+const BAND_WAY_FLOORS: usize = 8192;
+
+/// [A395a] The band floors a plain route may walk ([`Tactics::band_legs`]): the way out from its start and the way in to
+/// its goal, each where that end is on the band.
+pub struct BandLegs {
+    ways: [Option<BandWay>; 2],
+}
+
+impl BandLegs {
+    /// Whether `node` is a floor of either way.
+    pub fn has(&self, node: NodeId) -> bool {
+        self.ways.iter().flatten().any(|way| way.contains(&node))
+    }
+
+    /// Whether either way walks a floor of `region`.
+    fn crosses(&self, regions: &Regions, region: u32) -> bool {
+        self.ways.iter().flatten().any(|way| way.iter().any(|&node| regions.of(node) == region))
+    }
+}
+
+/// How a body on floors routes keep off walks out of them ([`Tactics::zone_exit`]): the lines its walk tests may cross
+/// the refused floors of their first stretch, within `reach` metres ([`Tactics::clear_line_leaving`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ZoneExit {
+    /// Out of a zone's floors: on the floors the marking hurts (the margin's under `Marking::Margin`, the client's
+    /// capsule's under `Marking::Capsule`), or a dry island. Its lines cross any refused floor within the reach.
+    Out { reach: f32 },
+    /// [A395a] Off the margin's band (`Marking::Capsule`), where the client hurts no body: its lines cross only the
+    /// floors a body may stand on (`Hazards::stand_allowed`), never one the zone hurts.
+    Band { reach: f32 },
+}
+
+impl ZoneExit {
+    /// How far the lines may cross the refused floors, metres.
+    pub fn reach(self) -> f32 {
+        match self {
+            Self::Out { reach } | Self::Band { reach } => reach,
+        }
+    }
 }
 
 /// What [`Tactics::line_of_fire`] finds: whether the line is open to fire and the share of the bullet's damage that reaches its end.
@@ -371,7 +430,7 @@ const SPAWN_BITS: u32 = 8;
 /// the spawn areas, the regions, the exits and the searches
 /// they come from), so a stored base of the old build is never read for the new.
 /// `the_base_and_its_digest_are_fixed` fails until then.
-pub const TACTICS_ALGO: u32 = 4;
+pub const TACTICS_ALGO: u32 = 5;
 
 /// How many goal regions' distances [`Tactics::walk_estimate`] keeps: each is
 /// one `f32` a region (823-4,477 on the offered maps, 3-18 KB), so at most
@@ -521,8 +580,8 @@ impl TacticsBase {
     /// Builds them: the hazard marks, the floors' labels, the regions, the
     /// bases' exits. 0.15-0.3 s on the big maps on a fast machine, so off
     /// the match loop.
-    pub fn build(world: Arc<World>, hazard_margin: f32) -> Self {
-        let hazards = Hazards::build(&world, hazard_margin);
+    pub fn build(world: Arc<World>, marking: impl Into<Marking>) -> Self {
+        let hazards = Hazards::build(&world, marking);
         let grid = &world.grid;
         // The zones' set in the high bits, the sides' spawn areas in the low.
         let mut labels: Vec<u32> = (0..grid.len() as NodeId)
@@ -572,9 +631,9 @@ impl TacticsBase {
         base
     }
 
-    /// The hazard margin it was built for.
-    pub fn margin(&self) -> f32 {
-        self.hazards.margin
+    /// The marking it was built for ([`Marking`]).
+    pub fn marking(&self) -> Marking {
+        self.hazards.marking
     }
 
     /// The key of the base built for `margin` from the map file whose
@@ -582,12 +641,12 @@ impl TacticsBase {
     /// map's zones, anomalies and spawns) on the grid of `grid_key`
     /// (`mapdata::grid_key`, of the triangles as this machine placed them:
     /// a base is never read onto another grid).
-    pub fn key(map_file: u64, grid_key: u64, margin: f32) -> u64 {
+    pub fn key(map_file: u64, grid_key: u64, marking: impl Into<Marking>) -> u64 {
         let mut digest = mapdata::digest::Digest::new();
         digest.u32(TACTICS_ALGO);
         digest.u64(map_file);
         digest.u64(grid_key);
-        digest.f32(margin);
+        marking.into().digest_into(&mut digest);
         digest.f32(SPAWN_AREA_M);
         digest.u32(SPAWN_BITS);
         digest.u32(PASS_MS);
@@ -631,8 +690,9 @@ impl TacticsBase {
         path: &std::path::Path,
         key: u64,
         world: Arc<World>,
-        margin: f32,
+        marking: impl Into<Marking>,
     ) -> Result<Self, mapdata::Error> {
+        let marking = marking.into();
         let zones = Hazards::zones_of(&world);
         let floors = world.grid.len();
         mapdata::built::read(
@@ -679,7 +739,7 @@ impl TacticsBase {
                 let progress = progress::Progress::build(&world.grid, &regions, &world.map.spawns);
                 Ok(Self {
                     world,
-                    hazards: Hazards::with_marks(zones, Arc::new(marks), margin),
+                    hazards: Hazards::with_marks(zones, Arc::new(marks), marking),
                     exits,
                     spawn_areas,
                     regions,
@@ -716,7 +776,7 @@ impl TacticsBase {
     /// Equal digests, equal answers.
     pub fn digest(&self) -> u64 {
         let mut digest = mapdata::digest::Digest::new();
-        digest.f32(self.hazards.margin);
+        self.hazards.marking.digest_into(&mut digest);
         digest.u32(self.hazards.pass_ms);
         digest.len(self.hazards.zones.len());
         for zone in &self.hazards.zones {
@@ -822,8 +882,8 @@ impl TacticsBase {
 
 impl Tactics {
     /// A match's tactics, built for it alone ([`TacticsBase::build`]).
-    pub fn new(world: Arc<World>, hazard_margin: f32) -> Self {
-        Self::of(Arc::new(TacticsBase::build(world, hazard_margin)))
+    pub fn new(world: Arc<World>, marking: impl Into<Marking>) -> Self {
+        Self::of(Arc::new(TacticsBase::build(world, marking)))
     }
 
     /// A match's tactics on a shared base: its own copy of the zones (the
@@ -849,6 +909,7 @@ impl Tactics {
             clear_step_sees_lip: false,
             cover_tally: CoverTally::default(),
             gang_tally: Default::default(),
+            band_ways: Default::default(),
             base,
         }
     }
@@ -999,7 +1060,7 @@ impl Tactics {
     }
 
     /// [`Self::dry_island`] with `Tuning::hazard.leave_islands` on: a floor no way out of zones ends on, and one a body walks
-    /// off over the ring ([`Self::zone_exit_reach`], `drive`'s escape).
+    /// off over the ring ([`Self::zone_exit`], `drive`'s escape).
     pub fn on_island(&self, node: NodeId) -> bool {
         self.island_test()(node)
     }
@@ -1180,6 +1241,102 @@ impl Tactics {
         spawn_areas & !own == 0
     }
 
+    /// [A395a] Whether a body of map side `side` may stand on `node` at `time` (a goal, a take's stand): [`Self::allowed`]
+    /// with the zones' part by the client's contact test ([`Hazards::stand_allowed`]). A stand on the margin's band is
+    /// reached by the band's shortest walk in ([`Self::band_way`]).
+    pub fn stand_allowed(&self, node: NodeId, time: u32, side: Option<i32>, objective: bool) -> bool {
+        self.hazards.stand_allowed(node, time) && self.spawn_ok(node, side, objective)
+    }
+
+    /// [A395a] For a floor of the margin's band a route may end on (`BandEnd::In`) or start from (`BandEnd::Out`)
+    /// ([`Hazards::band_end`]): the band floors of the shortest way between it and the floors out of every zone's margin,
+    /// it first. Inside the band the way walks (walk links, which join both ways: no jump or drop along a zone's rim,
+    /// where the A395a bench's bodies fell and landed on hurt floors); its last floor is the one a link of any kind
+    /// joins to a floor out of the margin, from it (`Out`) or into it (`In`: a drop onto Vector Laboratory's battery
+    /// floor). A route walks the band over these floors and no others ([`Self::band_legs`]). None for any other floor;
+    /// empty where no such way is found within [`BAND_WAY_FLOORS`].
+    pub fn band_way(&self, node: NodeId, end: BandEnd) -> Option<BandWay> {
+        if !self.hazards.band_end(node) {
+            return None;
+        }
+        let mut kept = self.band_ways.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((_, _, way)) = kept.iter().find(|(at, e, _)| *at == node && *e == end) {
+            return Some(way.clone());
+        }
+        let way = self.find_band_way(node, end);
+        if kept.len() >= BAND_WAYS_KEPT {
+            kept.remove(0);
+        }
+        kept.push((node, end, way.clone()));
+        Some(way)
+    }
+
+    /// [`Self::band_way`] searched: a Dijkstra over walk links from `from` through band floors only
+    /// ([`Hazards::in_band`]), to the first floor joined to one out of the margin the way `end` asks.
+    fn find_band_way(&self, from: NodeId, end: BandEnd) -> BandWay {
+        use std::cmp::Reverse;
+        use std::collections::{BinaryHeap, HashMap};
+        let grid = &self.world.grid;
+        let hazards = &self.hazards;
+        let outside = |node: NodeId| hazards.zone_of(node).is_none();
+        let joined = |a: NodeId| match end {
+            BandEnd::Out => grid.links(a).any(|(b, _)| outside(b)),
+            BandEnd::In => grid.entered_from(a, outside),
+        };
+        let mut best: HashMap<NodeId, (f32, Option<NodeId>)> = HashMap::from([(from, (0.0, None))]);
+        let mut open = BinaryHeap::from([(Reverse(0.0f32.to_bits()), from)]);
+        let mut expanded = 0;
+        while let Some((Reverse(bits), a)) = open.pop() {
+            let price = f32::from_bits(bits);
+            if best.get(&a).is_some_and(|&(p, _)| price > p) {
+                continue;
+            }
+            if joined(a) {
+                let mut way = Vec::new();
+                let mut at = Some(a);
+                while let Some(node) = at {
+                    way.push(node);
+                    at = best[&node].1;
+                }
+                way.reverse();
+                return way.into();
+            }
+            expanded += 1;
+            if expanded > BAND_WAY_FLOORS {
+                break;
+            }
+            for (b, kind) in grid.links(a) {
+                if kind != mapdata::grid::LinkKind::Walk || !hazards.in_band(b) {
+                    continue;
+                }
+                let step = grid.link_cost(a, b, kind);
+                if !step.is_finite() {
+                    continue;
+                }
+                let through = price + step;
+                if best.get(&b).is_none_or(|&(p, _)| through < p) {
+                    best.insert(b, (through, Some(a)));
+                    open.push((Reverse(through.to_bits()), b));
+                }
+            }
+        }
+        Arc::from([])
+    }
+
+    /// [A395a] Whether `node` is on the margin's band and its shortest way in ([`Self::band_way`], [`BandEnd::In`]) is
+    /// entered from a floor `enters` lets through: a goal there is reached from such a floor by the band's way in.
+    pub fn band_way_from(&self, node: NodeId, enters: impl Fn(NodeId) -> bool) -> bool {
+        self.band_way(node, BandEnd::In)
+            .and_then(|way| way.last().copied())
+            .is_some_and(|last| self.world.grid.entered_from(last, enters))
+    }
+
+    /// [A395a] The band floors a route from `start` to `goal` may walk ([`Self::band_way`] of each end): the first leg
+    /// out from a start on the band, the last leg in to a goal on it. Empty for ends off the band.
+    pub fn band_legs(&self, start: NodeId, goal: NodeId) -> BandLegs {
+        BandLegs { ways: [self.band_way(start, BandEnd::Out), self.band_way(goal, BandEnd::In)] }
+    }
+
     /// [`Self::allowed`] for a whole region (its floors share their label).
     pub fn region_allowed(
         &self,
@@ -1342,20 +1499,53 @@ impl Tactics {
         let grid = &self.world.grid;
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
+        let legs = self.band_legs(start, goal);
         path::plan_start(
             grid,
             &self.base.regions,
             start,
             goal,
-            |node| self.allowed_from(node, time, side, objective, at) && filter.floor_open(grid, node),
-            |region| {
-                self.region_allowed_from(region, time, side, objective, at)
-                    && filter.region_open(region)
-            },
+            |node| self.route_floor_open(node, time, side, objective, at, filter, &legs),
+            |region| self.route_region_open(region, time, side, objective, at, filter, &legs),
             filter.max_jump_rise(),
             filter.weighs().then_some(&weight as &dyn Fn(NodeId) -> f32),
             iters,
         )
+    }
+
+    /// A plain route's floor test ([`Self::start_route`], [`Self::resume_route`], [`Self::partial_route`]):
+    /// [`Self::allowed_from`], or a floor of its band legs ([`Self::band_legs`]) off another side's spawn area; and open
+    /// by `filter`.
+    #[allow(clippy::too_many_arguments)]
+    fn route_floor_open(
+        &self,
+        node: NodeId,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        at: Vec3,
+        filter: &RouteFilter,
+        legs: &BandLegs,
+    ) -> bool {
+        (self.allowed_from(node, time, side, objective, at) || (legs.has(node) && self.spawn_ok(node, side, objective)))
+            && filter.floor_open(&self.world.grid, node)
+    }
+
+    /// A plain route's region test: [`Self::region_allowed_from`] and open by `filter`, or a region a band leg walks
+    /// through ([`Self::band_legs`]: its floors decide).
+    #[allow(clippy::too_many_arguments)]
+    fn route_region_open(
+        &self,
+        region: u32,
+        time: u32,
+        side: Option<i32>,
+        objective: bool,
+        at: Vec3,
+        filter: &RouteFilter,
+        legs: &BandLegs,
+    ) -> bool {
+        (self.region_allowed_from(region, time, side, objective, at) && filter.region_open(region))
+            || legs.crosses(&self.base.regions, region)
     }
 
     /// The way so far of a [`Self::start_route`] search under way
@@ -1364,7 +1554,7 @@ impl Tactics {
     pub fn partial_route(
         &self,
         planning: &path::Planning,
-        start: NodeId,
+        (start, goal): (NodeId, NodeId),
         time: u32,
         side: Option<i32>,
         objective: bool,
@@ -1372,9 +1562,8 @@ impl Tactics {
     ) -> Option<Route> {
         let grid = &self.world.grid;
         let at = grid.position(start);
-        planning.partial(grid, |node| {
-            self.allowed_from(node, time, side, objective, at) && filter.floor_open(grid, node)
-        })
+        let legs = self.band_legs(start, goal);
+        planning.partial(grid, |node| self.route_floor_open(node, time, side, objective, at, filter, &legs))
     }
 
     /// A [`Self::start_route`] search goes on: the route, or none, once it
@@ -1385,7 +1574,7 @@ impl Tactics {
     pub fn resume_route(
         &self,
         planning: &mut path::Planning,
-        start: NodeId,
+        (start, goal): (NodeId, NodeId),
         time: u32,
         side: Option<i32>,
         objective: bool,
@@ -1395,14 +1584,12 @@ impl Tactics {
         let grid = &self.world.grid;
         let at = grid.position(start);
         let weight = |node| filter.weight(grid, node);
+        let legs = self.band_legs(start, goal);
         planning.resume(
             grid,
             &self.base.regions,
-            |node| self.allowed_from(node, time, side, objective, at) && filter.floor_open(grid, node),
-            |region| {
-                self.region_allowed_from(region, time, side, objective, at)
-                    && filter.region_open(region)
-            },
+            |node| self.route_floor_open(node, time, side, objective, at, filter, &legs),
+            |region| self.route_region_open(region, time, side, objective, at, filter, &legs),
             &weight,
             iters,
         )
@@ -2051,12 +2238,15 @@ impl Tactics {
     }
 
     /// For a body with its feet at `feet` on floors a zone refuses at `time` ([`Hazards::allowed`]: the refusal
-    /// [`Self::clear_line_for`] refuses its lines by): how far its walk may test a line over the refused floors, metres,
-    /// the way to the nearest floor the zones allow and [`ZONE_EXIT_SLACK_M`] more. None where it stands on allowed
-    /// floors. Its route out runs over the refused floors, so a line from it may cross as much of them as that way is long
-    /// ([`Self::clear_line_leaving`]), and no more. A dry island counts as refused ([`Self::on_island`]): its way off
-    /// crosses the ring.
-    pub fn zone_exit_reach(&self, feet: Vec3, time: u32) -> Option<f32> {
+    /// [`Self::clear_line_for`] refuses its lines by): how it walks out ([`ZoneExit`]), and how far its walk may test a
+    /// line over the refused floors, metres: the way to the nearest floor the zones allow and [`ZONE_EXIT_SLACK_M`] more.
+    /// None where it stands on allowed floors. Its route out runs over the refused floors, so a line from it may cross as
+    /// much of them as that way is long ([`Self::clear_line_leaving`]), and no more. A dry island counts as refused
+    /// ([`Self::on_island`]): its way off crosses the ring. [A395a] With the capsule's marking
+    /// (`HazardTuning::capsule_marks`) the walk out of a zone ([`ZoneExit::Out`]) starts only on the floors the client's
+    /// damage zone lists a standing body on (`hazards::capsule_touches`); on the margin's band the body leaves the band
+    /// over its floors and never a hurt one ([`ZoneExit::Band`]).
+    pub fn zone_exit(&self, feet: Vec3, time: u32) -> Option<ZoneExit> {
         let grid = &self.world.grid;
         let here = grid.locate(feet, 1.5)?;
         let island = self.island_test();
@@ -2072,20 +2262,27 @@ impl Tactics {
                 .min_by(f32::total_cmp)
         };
         let depth = [2.0, 4.0, 8.0, 16.0, 32.0, ZONE_EXIT_MAX_M].into_iter().find_map(nearest).unwrap_or(ZONE_EXIT_MAX_M);
-        Some(depth + ZONE_EXIT_SLACK_M)
+        let reach = depth + ZONE_EXIT_SLACK_M;
+        let band = !island(here) && self.hazards.band_end(here) && self.hazards.stand_allowed(here, time);
+        Some(if band { ZoneExit::Band { reach } } else { ZoneExit::Out { reach } })
     }
 
-    /// [`Self::clear_line_for`] for a body on refused floors ([`Self::zone_exit_reach`] `reach`): the refused floors of
-    /// the line's first stretch are walked, within `reach` of its start and before the first allowed floor, the way
-    /// [`Self::clear_step_for`] lets a body out of a lip's band: out, not across a zone's core or back in. The spawn
-    /// rule still holds.
-    pub fn clear_line_leaving(&self, a: Vec3, b: Vec3, time: u32, side: Option<i32>, objective: bool, reach: f32) -> bool {
+    /// [`Self::clear_line_for`] for a body on refused floors ([`Self::zone_exit`]): the refused floors of the line's
+    /// first stretch are walked, within the exit's reach of its start and before the first allowed floor, the way
+    /// [`Self::clear_step_for`] lets a body out of a lip's band: out, not across a zone's core or back in. From the
+    /// margin's band ([`ZoneExit::Band`]) only floors a body may stand on ([`Hazards::stand_allowed`]): no floor the
+    /// zone hurts. The spawn rule still holds.
+    pub fn clear_line_leaving(&self, a: Vec3, b: Vec3, time: u32, side: Option<i32>, objective: bool, exit: ZoneExit) -> bool {
         let grid = &self.world.grid;
         let Some((from, to)) = line_ends(grid, a, b) else {
             return false;
         };
         let left = std::cell::Cell::new(false);
         let island = self.island_test();
+        let (reach, band) = match exit {
+            ZoneExit::Out { reach } => (reach, false),
+            ZoneExit::Band { reach } => (reach, true),
+        };
         path::straight_where(grid, from, to, |node| {
             if !self.spawn_ok(node, side, objective) {
                 return false;
@@ -2094,7 +2291,7 @@ impl Tactics {
                 left.set(true);
                 return true;
             }
-            !left.get() && grid.position(node).distance_xz(a) <= reach
+            !left.get() && grid.position(node).distance_xz(a) <= reach && (!band || self.hazards.stand_allowed(node, time))
         })
     }
 
@@ -3198,7 +3395,7 @@ pub(super) mod tests {
     fn the_base_and_its_digest_are_fixed() {
         let base = TacticsBase::build(field(), 1.0);
         assert_eq!(base.digest(), PINNED_FIELD);
-        assert_eq!(TACTICS_ALGO, 4);
+        assert_eq!(TACTICS_ALGO, 5);
     }
 
     const PINNED_FIELD: u64 = 13_582_078_593_300_033_124;
@@ -3732,7 +3929,7 @@ pub(super) mod tests {
     /// [`HazardTuning::leave_islands`](super::super::tuning::HazardTuning) A ring of zones on all match round a dry floor 5.6 x
     /// 1.6 m (School's fruit cloud makes such at y 13.6): no route leaves the island. Off, a body walking out of the ring's
     /// west side took the nearest dry floor, the island; on, its way out ends on the floors the spawns reach, and a body on the
-    /// island walks off it over the ring (the walk's lines may cross it: [`Tactics::zone_exit_reach`]).
+    /// island walks off it over the ring (the walk's lines may cross it: [`Tactics::zone_exit`]).
     #[test]
     fn a_way_out_of_zones_never_ends_on_a_dry_island_and_a_body_on_one_walks_off_it() {
         let world = field_with(|map| {
@@ -3757,7 +3954,7 @@ pub(super) mod tests {
             grid.locate(out.point_at(out.length()), 0.3).unwrap()
         };
         assert!(tactics.dry_island(end_of(&tactics, in_ring)));
-        assert_eq!(tactics.zone_exit_reach(on_island, 0), None);
+        assert_eq!(tactics.zone_exit(on_island, 0), None);
         // On: past the island to the floors the spawns reach, from the ring and from the island itself.
         tactics.leave_islands = true;
         assert!(tactics.on_island(island) && !tactics.on_island(outside));
@@ -3766,8 +3963,57 @@ pub(super) mod tests {
             assert!(!tactics.dry_island(end) && tactics.allowed(end, 0, Some(0), false), "{:?}", grid.position(end));
             assert!(tactics.route_nodes(end, outside, 0, Some(0), false, &RouteFilter::open()).is_some());
         }
-        let reach = tactics.zone_exit_reach(on_island, 0).expect("the island is walked off");
-        assert!((2.0..=8.0).contains(&reach), "{reach}");
+        let exit = tactics.zone_exit(on_island, 0).expect("the island is walked off");
+        assert!(matches!(exit, ZoneExit::Out { .. }), "{exit:?}");
+        assert!((2.0..=8.0).contains(&exit.reach()), "{exit:?}");
+    }
+
+    /// [A395a] Under the capsule's marking a goal on the margin's band, 4 m in over a zone's flat top the client hurts no
+    /// body on, is a stand and a route gets to it, entering the band only by its shortest walk in; a start there gets
+    /// out the same way. Under the margin's the goal is refused.
+    #[test]
+    fn a_goal_on_a_zones_band_is_reached_by_the_bands_shortest_walk_in() {
+        use mapdata::{Rotation, ShapeKind};
+        let slab = Shape {
+            kind: ShapeKind::Box,
+            center: Vec3::new(20.0, -0.27 - 1.0, 20.0),
+            rotation: Rotation::IDENTITY,
+            half: Vec3::new(4.0, 1.0, 4.0),
+        };
+        let world = field_with(|map| map.zones.push(crate::v026g::bots::anomalies::tests::zone("slab", slab, 0.1)));
+        let grid = &world.grid;
+        let goal = grid.locate(Vec3::new(20.0, 0.0, 20.0), 0.3).unwrap();
+        let start = grid.locate(Vec3::new(5.0, 0.0, 20.0), 0.3).unwrap();
+        let margin = Tactics::new(world.clone(), 1.0);
+        assert!(!margin.stand_allowed(goal, 0, None, false) && margin.band_way(goal, BandEnd::In).is_none());
+        assert!(margin.route_nodes(start, goal, 0, None, false, &RouteFilter::open()).is_none(), "the margin refuses it");
+        let capsule = Tactics::new(world.clone(), Marking::Capsule { band: 1.0 });
+        assert!(capsule.stand_allowed(goal, 0, None, false) && !capsule.allowed(goal, 0, None, false));
+        let way = capsule.band_way(goal, BandEnd::In).expect("a goal on the band");
+        // The slab is x and z 16-24, its band out to 15 and 25; the goal at (20, 20) is 5 m in from each side: the way
+        // is about 5 m of 0.25 m floors, its last a band floor next to one out of the margin.
+        assert!((18..=24).contains(&way.len()), "{}", way.len());
+        let last = *way.last().unwrap();
+        let out = grid.position(last);
+        assert!(capsule.hazards.in_band(last) && (4.5..=5.5).contains(&out.distance_xz(Vec3::new(20.0, 0.0, 20.0))), "{out:?}");
+        assert!(grid.entered_from(last, |b| capsule.hazards.zone_of(b).is_none()), "entered from a floor out of the margin");
+        assert!(way.iter().all(|&n| capsule.hazards.in_band(n)), "band floors only");
+        let way_out = capsule.band_way(goal, BandEnd::Out).expect("a start on the band");
+        assert_eq!(way_out.len(), way.len(), "a flat band: out the way it is in");
+        for (from, to, way) in [(start, goal, &way), (goal, start, &way_out)] {
+            let on_way = |p: Vec3| way.iter().any(|&n| grid.position(n).distance_xz(p) <= 0.5);
+            let route = capsule.route_nodes(from, to, 0, None, false, &RouteFilter::open()).expect("a way to and from the band");
+            let mut s = 0.0;
+            while s <= route.length() {
+                let p = route.floor_point(s);
+                if let Some(node) = grid.locate(p, 0.6)
+                    && capsule.hazards.zone_of(node).is_some()
+                {
+                    assert!(on_way(p), "on the band only by its shortest walk: {p:?}");
+                }
+                s += 0.25;
+            }
+        }
     }
 
     /// A body in a zone that every way out of crosses a stronger one of

@@ -252,7 +252,7 @@ impl Maps {
         let (map, map_file) = read_map(&dir.join(mapdata::format::file_name(project)))?;
         let grid_key = grid_key(&map, &map.walker_triangles(), &self.grid);
         let sight_key = map.bullet_mesh().key();
-        let tactics_key = TacticsBase::key(map_file, grid_key, Self::margin());
+        let tactics_key = TacticsBase::key(map_file, grid_key, Self::marking());
         Ok([
             mapdata::built::grid_file_name(grid_key),
             mapdata::built::sight_file_name(sight_key),
@@ -265,10 +265,10 @@ impl Maps {
         lock(&self.cache).made.get(project).copied()
     }
 
-    /// The hazard margin the shared tactics are built for: the tuning's
+    /// The hazard marking the shared tactics are built for: the tuning's
     /// default. A match tuned otherwise builds its own.
-    pub fn margin() -> f32 {
-        Tuning::default().hazard.margin_m.get()
+    pub fn marking() -> super::hazards::Marking {
+        super::hazards::Marking::of(&Tuning::default().hazard)
     }
 
     /// Starts building `project`'s map (`level_01/day_4`) unless it is
@@ -651,13 +651,13 @@ fn build(
         stage::set("assembling the world");
         let world = Arc::new(World::assemble(map, grid, sight));
         stage::set("the tactics");
-        let margin = Maps::margin();
-        let key = TacticsBase::key(map_file, grid_key, margin);
+        let marking = Maps::marking();
+        let key = TacticsBase::key(map_file, grid_key, marking);
         let (base, tactics_source) = read_or_build(
             built,
             mapdata::built::tactics_file_name(key),
-            |path| TacticsBase::read(path, key, world.clone(), margin),
-            || TacticsBase::build(world.clone(), margin),
+            |path| TacticsBase::read(path, key, world.clone(), marking),
+            || TacticsBase::build(world.clone(), marking),
             |base, path| base.write(path, key),
         );
         (base, grid_source, sight_source, tactics_source)
@@ -969,7 +969,7 @@ mod tests {
         let base = wait_ready(&maps, project, Duration::from_secs(10));
         let world = base.world.clone();
         assert_eq!(world.map.project, project);
-        assert_eq!(base.margin(), Maps::margin());
+        assert_eq!(base.marking(), Maps::marking());
         // The meshes went once the grid and the tree were built.
         assert!(world.map.libraries.is_empty() && world.map.placements.is_empty());
         let a = world.grid.locate(Vec3::new(-5.0, 0.0, 0.0), 1.0).unwrap();
@@ -1030,7 +1030,7 @@ mod tests {
             } else if name.starts_with("sight-") {
                 RayTree::read(&path, key).is_ok()
             } else {
-                TacticsBase::read(&path, key, third.world.clone(), Maps::margin()).is_ok()
+                TacticsBase::read(&path, key, third.world.clone(), Maps::marking()).is_ok()
             };
             assert!(fine, "{name} written over");
         }

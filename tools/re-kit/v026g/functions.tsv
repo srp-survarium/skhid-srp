@@ -175,6 +175,7 @@ va	status	ref_021d	name
 0x0007a1f0	observed		vostok::physics::create_bt_primitive
 0x000716c0	reviewed	0x00053e64	vostok::physics::bt_animated_rigid_body::get_collision_group
 0x00077560	reviewed	0x00057966	vostok::physics::bullet_physics_world::ray_query
+0x00077890	reviewed	0x00057bbe	vostok::physics::contact_result_callback::addSingleResult
 0x0007ab10	reviewed	0x0021c787	vostok::physics::bullet_character_controller::get_collision_group
 0x0007ab30	reviewed	0x00155e22	vostok::network_core::mutable_buffer::resize
 0x0007ab70	observed		vostok::network_core::mutable_buffer::reallocate
