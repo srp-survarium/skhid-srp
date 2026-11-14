@@ -228,6 +228,9 @@ pub struct Route {
     /// [C2 riser] The route's Walk links up a riser the client's WALKING body is held by
     /// ([`mapdata::grid::WalkGait::SprintOrJump`]: 0.76-0.80 m): a sprint steps up it, else a jump ([`RiserUp`]); the planner sets them.
     risers: Vec<RiserUp>,
+    /// [S7] The route's Walk links only a crouching body walks that rise more than a stalled riser the walk check cuts
+    /// ([`mapdata::grid::controlled::CUT_RISE_M`]): crouched climbs, as (take-off, top), for the log only ([`super::nav_log`]).
+    crouch_climbs: Vec<(Vec3, Vec3)>,
     /// Made by the planner from a path of floors ([`pull_straight`]), so `sprint_drops` holds every Drop link of it.
     planned: bool,
 }
@@ -1217,6 +1220,15 @@ fn pull_straight(
             press: if climbed(i) { RiserPress::NoPress } else { RiserPress::of(grid.riser(nodes[i - 1], nodes[i])) },
         })
         .collect();
+    // [S7] Its crouched climbs, for the log.
+    route.crouch_climbs = (1..nodes.len())
+        .filter(|&i| {
+            into[i] == LinkKind::Walk
+                && walk_crouched(nodes[i - 1], nodes[i])
+                && grid.position(nodes[i]).y - grid.position(nodes[i - 1]).y > mapdata::grid::controlled::CUT_RISE_M
+        })
+        .map(|i| (grid.position(nodes[i - 1]), grid.position(nodes[i])))
+        .collect();
     route.planned = true;
     route
 }
@@ -1402,7 +1414,7 @@ impl Route {
             new_at.push(total);
         }
         let floors = self.rescaled_floors(&new_at);
-        let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, risers, planned, below_walk_m, past_drop, .. } = self;
+        let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, risers, crouch_climbs, planned, below_walk_m, past_drop, .. } = self;
         gates.extend(corner.iter().flatten());
         let mut route = Self::with_floors(points, floors);
         route.sprint_drops = sprint_drops;
@@ -1410,6 +1422,7 @@ impl Route {
         route.ledge_tops = ledge_tops;
         route.gates = gates;
         route.risers = risers;
+        route.crouch_climbs = crouch_climbs;
         route.planned = planned;
         route.below_walk_m = below_walk_m;
         route.past_drop = past_drop;
@@ -1454,6 +1467,7 @@ impl Route {
         route.ledge_tops = ledge_tops;
         route.gates = gates;
         route.risers = risers;
+        route.crouch_climbs = crouch_climbs;
         route.planned = planned;
         route
     }
@@ -1496,6 +1510,7 @@ impl Route {
         route.ledge_tops = self.ledge_tops.iter().chain(&mid.ledge_tops).copied().collect();
         route.gates = self.gates.iter().chain(&mid.gates).copied().collect();
         route.risers = self.risers.iter().chain(&mid.risers).copied().collect();
+        route.crouch_climbs = self.crouch_climbs.iter().chain(&mid.crouch_climbs).copied().collect();
         route.planned = self.planned && mid.planned;
         route
     }
@@ -1532,6 +1547,7 @@ impl Route {
             ledge_tops: Vec::new(),
             gates: Vec::new(),
             risers: Vec::new(),
+            crouch_climbs: Vec::new(),
             planned: false,
         }
     }
@@ -1555,6 +1571,7 @@ impl Route {
         route.ledge_tops = self.ledge_tops;
         route.gates = self.gates;
         route.risers = self.risers;
+        route.crouch_climbs = self.crouch_climbs;
         route.planned = self.planned;
         route
     }
@@ -1578,6 +1595,16 @@ impl Route {
             .iter()
             .filter(|r| r.top.y - feet.y > 0.5 && r.top.distance_xz(feet) <= within)
             .min_by(|a, b| a.top.distance_xz(feet).total_cmp(&b.top.distance_xz(feet)))
+            .copied()
+    }
+
+    /// [S7] The nearest crouched climb of the route ([`Route::crouch_climbs`]) whose take-off is within `within` m (flat) of
+    /// `feet` and whose top is still over them by more than [`mapdata::grid::controlled::CUT_RISE_M`], as (take-off, top).
+    pub fn crouch_climb_ahead(&self, feet: Vec3, within: f32) -> Option<(Vec3, Vec3)> {
+        self.crouch_climbs
+            .iter()
+            .filter(|(from, top)| top.y - feet.y > mapdata::grid::controlled::CUT_RISE_M && from.distance_xz(feet) <= within)
+            .min_by(|a, b| a.0.distance_xz(feet).total_cmp(&b.0.distance_xz(feet)))
             .copied()
     }
 

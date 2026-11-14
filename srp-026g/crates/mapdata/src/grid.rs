@@ -4014,6 +4014,11 @@ impl WalkGrid {
         self.walk_crouched.len()
     }
 
+    /// [S7] Of those, the crouched climbs: rising more than a stalled riser the walk check cuts ([`controlled::CUT_RISE_M`]).
+    pub fn crouch_climb_count(&self) -> usize {
+        self.walk_crouched.iter().filter(|&&(a, b)| self.height[b as usize] - self.height[a as usize] > controlled::CUT_RISE_M).count()
+    }
+
     /// [`Body::rim_jumps`] The rim jumps the build flew and no press made, as (take-off, landing) feet: the build's report (empty
     /// for a grid read from a file).
     pub fn rim_unmade(&self) -> &[(Vec3, Vec3)] {

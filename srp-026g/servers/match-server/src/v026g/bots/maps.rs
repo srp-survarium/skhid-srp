@@ -351,6 +351,14 @@ impl Maps {
                             built.how(),
                             (world_bytes(&base.world) + base.memory_bytes()) >> 20
                         );
+                        // [S7] Its crouched walks and, of them, the crouched climbs (debug).
+                        let grid = &base.world.grid;
+                        log::info!(
+                            "Bot map {name} grid: {} crouched walk links, {} of them crouched climbs (rising over {} m)",
+                            grid.walk_crouched_count(),
+                            grid.crouch_climb_count(),
+                            mapdata::grid::controlled::CUT_RISE_M
+                        );
                         cache.made.insert(name.clone(), built.made());
                         cache.insert_ready(&name, Arc::new(base), keep);
                     }

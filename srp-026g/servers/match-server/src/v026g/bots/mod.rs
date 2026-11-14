@@ -422,6 +422,8 @@ pub struct Bot {
     hurt: Hurt,
     /// The last jump, until what followed it is traced.
     jump_watch: Option<JumpWatch>,
+    /// [S7] The crouched climb under way, for its log line ([`drive::crouch_climb_watch`]): (take-off, top, crouched at).
+    crouch_climb: Option<(Vec3, Vec3, u32)>,
     /// Its falls and route jumps for the log (A285, `nav_log.rs`): written, never read back.
     nav_log: nav_log::NavLog,
     /// Its drift over the match for the match-end table (A294, `nav_drift.rs`): written, never read back.
@@ -632,6 +634,7 @@ impl Bot {
             fired_at: None,
             hurt: Hurt::default(),
             jump_watch: None,
+            crouch_climb: None,
             nav_log: nav_log::NavLog::default(),
             drift: nav_drift::Tally::default(),
             tracing: false,
