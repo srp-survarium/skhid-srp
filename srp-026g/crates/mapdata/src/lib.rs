@@ -221,6 +221,8 @@ pub const CLIENT_BODY_ALGO: u32 = 1;
 /// millimetre, the split axis kept in a branch (the tree of 1 was median splits and tight boxes). 3: the tree keeps
 /// each triangle's bullet armor ([`FaceArmor`]), in the key and in the file.
 pub const SIGHT_ALGO: u32 = 3;
+/// [`World::map_grid_key`]'s own part (the spawns, and the map file when the rim jumps fly on the game's shapes).
+pub const MAP_GRID_KEY_ALGO: u32 = 1;
 
 /// One map ready for bots: its data, walk grid and sight tree.
 pub struct World {
@@ -311,6 +313,28 @@ impl World {
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let area = map.play_area(AREA_MARGIN);
         WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links).0
+    }
+
+    /// The key of [`Self::map_grid`]'s grid: what it is built from, so a grid read back under this key (a pre-built file, or
+    /// one shared between projects) is the one the build would make. The walker triangles, area, cell, body, seeds and links
+    /// ([`grid_key_with_links`]); the spawns, whose pockets the grid keeps; and when the rim jumps fly on the game's shapes
+    /// (`body.rim_jumps` and a map with them), `map_file`, the digest of the map file's bytes
+    /// (`digest::Digest::bytes`): the shapes are built from its objects, placements and library meshes
+    /// ([`controller::Collision::build_exe`]), which the walker triangles do not hold.
+    pub fn map_grid_key(map: &MapData, walker: &[Triangle], map_file: u64, cell: f32, body: Body, links: OffMeshLinks) -> u64 {
+        let mut digest = digest::Digest::new();
+        digest.u64(grid_key_with_links(walker, map.play_area(AREA_MARGIN), cell, body, &map.grid_seeds(), links));
+        digest.u32(MAP_GRID_KEY_ALGO);
+        digest.len(map.spawns.len());
+        for spawn in &map.spawns {
+            for v in [spawn.position.x, spawn.position.y, spawn.position.z] {
+                digest.f32(v);
+            }
+        }
+        if body.rim_jumps && map.bullet.is_some() {
+            digest.u64(map_file);
+        }
+        digest.finish()
     }
 
     /// A world of a grid and a tree built before, from this map's geometry
