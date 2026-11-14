@@ -69,7 +69,7 @@ fn print(name: &str, value: u64) -> u64 {
 /// Gap links: the walking and sprint jumps, the drops walked off, the two-way filter.
 #[test]
 fn the_gap_links_pass_is_pinned() {
-    assert_eq!(GAP_LINKS_ALGO, 4, "raise GAP_LINKS_ALGO with the pin");
+    assert_eq!(GAP_LINKS_ALGO, 5, "raise GAP_LINKS_ALGO with the pin");
     let d = print("gap", digest_of(Body::default(), OffMeshLinks::Gaps));
     assert_ne!(d, digest_of(Body::default(), OffMeshLinks::None), "the world makes gap links");
     assert_eq!(d, PIN_GAP);
@@ -129,7 +129,7 @@ fn the_default_file_key_is_the_one_there_was() {
     }
 }
 
-const PIN_GAP: u64 = 218_410_819_143_687_843;
+const PIN_GAP: u64 = 1_241_238_972_617_862_007;
 const PIN_EXACT: u64 = 5_559_966_362_604_391_412;
 const PIN_HONEST: u64 = 9_697_411_571_619_617_025;
 const PIN_CLIENT: u64 = 10_680_625_577_665_009_494;
