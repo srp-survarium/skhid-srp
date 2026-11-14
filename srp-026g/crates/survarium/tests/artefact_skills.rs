@@ -9,7 +9,7 @@ const TREE: [(u16, u8, u32, u8, u8); 12] = [
     (512, 5, 5, 3, 2), (513, 1, 5, 4, 2),
     (521, 1, 10, 2, 3), (522, 1, 10, 3, 3), (523, 4, 10, 1, 3),
     (531, 1, 15, 1, 4), (532, 1, 15, 2, 4), (533, 1, 15, 3, 4),
-    (541, 1, 20, 2, 5), (542, 1, 20, 3, 5),
+    (541, 1, 17, 2, 5), (542, 1, 17, 3, 5),
 ];
 
 /// Keeper of the Artifacts and Forest Protection, row III: both may be taken (an either/or pair
@@ -74,7 +74,7 @@ fn artefact_tree_progression_and_modifiers() {
     let mut both = build(5, RESONANCE);
     both.push((CASCADE, 1));
     assert!(exclusive(&tree, &both), "Resonance and Cascade");
-    // The stock rows, 0/5/10/15/20: row I holds 8, rows I-III 20, rows I-IV 23 (a full build
+    // The rows 0/5/10/15/17: row I holds 8, rows I-III 20, rows I-IV 23 (a full build
     // is 24).
     assert_eq!(points(&build(1, RESONANCE)), 8);
     assert_eq!(points(&build(3, RESONANCE)), 20);
@@ -89,7 +89,7 @@ fn artefact_tree_progression_and_modifiers() {
     // Each row opens at its threshold: exactly that many points in the rows above it (the spare
     // ones taken from the nearest row first), and a point less locks it.
     for row in 2..=5u8 {
-        let needs = 5 * u32::from(row - 1);
+        let needs = [0, 5, 10, 15, 17][usize::from(row - 1)];
         let first = build(row, RESONANCE).last().unwrap().0;
         let mut set = build(row - 1, RESONANCE);
         let mut spare = points(&set) - needs;
