@@ -1180,7 +1180,8 @@ mod tests {
                 Shape { center: Vec3::new(40.0, 5.0, 10.0), ..shape(ShapeKind::Sphere, Vec3::new(2.0, 2.0, 2.0)) },
             ],
         };
-        assert!((zone.intensity_at(Vec3::new(15.0, 5.0, 10.0)) - 0.5).abs() < 1e-6);
+        // The cylinder's radius less Bullet's margin: 9.96, so halfway out is 4.98 m.
+        assert!((zone.intensity_at(Vec3::new(14.98, 5.0, 10.0)) - 0.5).abs() < 1e-6);
         assert!((zone.intensity_at(Vec3::new(10.0, 5.0, 10.0)) - 1.0).abs() < 1e-6);
         assert_eq!(zone.intensity_at(Vec3::new(25.0, 5.0, 10.0)), 0.0);
         assert!((zone.intensity_at(Vec3::new(41.0, 5.0, 10.0)) - 0.5).abs() < 1e-6, "the nearer shape counts");
