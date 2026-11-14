@@ -1,4 +1,4 @@
-"""Rudnya's spawns at the owner's picks: only position and rotation change, new points copy a solo
+"""A map's spawns at the owner's picks: only position and rotation change, new points copy a solo
 spawn, the left-over last go."""
 import json
 from pathlib import Path
@@ -18,25 +18,34 @@ def rows(moved=(), added=(), roof=(), removed=()):
     return {v: dict(points) for v, points in zip(m.VERDICTS, (moved, added, roof, removed))}
 
 
+TEST = m.Map(Path('test-picks.tsv'), Path('ffa-test-picks-1.json'), 'ffa_test_', 'a test')
+
+
 class Picks(unittest.TestCase):
-    def test_checked_in_recipe_is_rudnya_picks_tsv_on_free_for_all_projects_only(self):
-        recipe = json.loads(m.OUTPUT.read_text())
-        picks = m.picks()
+    def test_checked_in_recipes_are_their_picks_on_free_for_all_projects_only(self):
+        for name, map in m.MAPS.items():
+            with self.subTest(map=name):
+                self.recipe_is_its_picks(map)
+
+    def recipe_is_its_picks(self, map):
+        recipe = json.loads(map.output.read_text())
+        picks = m.picks(map)
         count = lambda *verdicts: sum(len(by[v]) for by in picks.values() for v in verdicts)
         self.assertEqual(len(recipe.get('set_entry', [])), count('moved'))
         self.assertEqual(len(recipe.get('add_entry', [])), count('added', 'roof'))
         self.assertEqual(len(recipe.get('remove_entry', [])), count('removed'))
         for row in recipe['set_entry']:
-            self.assertRegex(row['file'], r'^projects/level_01/[a-z]+_8/client_project$')
+            self.assertRegex(row['file'], r'^projects/[a-z0-9_]+/[a-z]+_8/client_project$')
             self.assertEqual(row['where']['team'], 2)
             position, yaw = picks[row['file']]['moved'][row['where']['point_id']]
             self.assertEqual(row['to'], {'position': position, 'rotation': [0., yaw, 0.]})
         for row in recipe.get('add_entry', []):
-            self.assertRegex(row['files'], r'^projects/level_01/[a-z]+_8/client_project$')
+            self.assertRegex(row['files'], r'^projects/[a-z0-9_]+/[a-z]+_8/client_project$')
             by = picks[row['files']]
             position, yaw = {**by['added'], **by['roof']}[row['values']['point_id']]
             self.assertEqual((row['values']['position'], row['values']['rotation']), (position, [0., yaw, 0.]))
             self.assertEqual((row['values']['team'], row['values']['invulnerability_time_ms']), (2, 500))
+            self.assertEqual(row['values']['name'], f"{map.prefix}{row['values']['point_id']}")
 
     def apply(self, root, path, recipe):
         out = Path(tempfile.mkdtemp(dir=root)) / 'out'
@@ -69,9 +78,9 @@ class Picks(unittest.TestCase):
                                added={5: ([200., 7., 50.], 0.)})):
                 with self.subTest(wrong=wrong), self.assertRaises(ValueError), \
                         patch.object(m, 'picks', return_value={path: wrong}):
-                    m.edits(root / 'live')
+                    m.edits(TEST, root / 'live')
             with patch.object(m, 'picks', return_value={path: fewer}):
-                actual = self.apply(root, path, m.edits(root / 'live'))
+                actual = self.apply(root, path, m.edits(TEST, root / 'live'))
             expected = json.loads(json.dumps(old))
             points = expected['server_objects']['respawn_points']
             points[1]['position'], points[1]['rotation'] = [100., 7., 50.], [0., 0.5, 0.]
@@ -82,14 +91,31 @@ class Picks(unittest.TestCase):
             more = rows(moved={1: ([100., 7., 50.], 0.5), 2: ([130., 7., 50.], -1.), 3: ([160., 7., 50.], 0.)},
                         added={4: ([200., 7., 50.], 1.)}, roof={5: ([101., 10., 50.], 2.)})
             with patch.object(m, 'picks', return_value={path: more}):
-                actual = self.apply(root, path, m.edits(root / 'live'))
+                actual = self.apply(root, path, m.edits(TEST, root / 'live'))
             got = actual['server_objects']['respawn_points']
             self.assertEqual([p['point_id'] for p in got], [0, 1, 2, 3, 4, 5])
             for i, (position, yaw) in [(4, ([200., 7., 50.], 1.)), (5, ([101., 10., 50.], 2.))]:
                 self.assertEqual(got[i]['position'], position)
                 self.assertEqual(got[i]['rotation'], [0., yaw, 0.])
                 self.assertEqual((got[i]['name'], got[i]['team'], got[i]['invulnerability_time_ms'],
-                                  got[i]['enemy_check_radius']), (f'ffa_rudnya_{i}', 2, 500, 20.))
+                                  got[i]['enemy_check_radius']), (f'ffa_test_{i}', 2, 500, 20.))
+            # Point ids anew in each team (the STALKER maps): team 0's stay, team 2's last one goes.
+            path = 'projects/stalker/day_8/client_project'
+            source = root / 'live' / path
+            source.parent.mkdir(parents=True)
+            source.write_bytes(config({'server_objects': {'respawn_points': [
+                {**e, 'point_id': i, 'team': team} for e, (i, team) in zip(entries + entries[:1],
+                                                                          [(0, 0), (1, 0), (0, 2), (1, 2), (2, 2)])]}}))
+            old = m.base.tree(source.read_bytes())
+            picked = rows(moved={0: ([100., 7., 50.], 0.5), 1: ([130., 7., 50.], -1.)}, removed={2: None})
+            with patch.object(m, 'picks', return_value={path: picked}):
+                actual = self.apply(root, path, m.edits(TEST, root / 'live'))
+            expected = json.loads(json.dumps(old))
+            points = expected['server_objects']['respawn_points']
+            points[2]['position'], points[2]['rotation'] = [100., 7., 50.], [0., 0.5, 0.]
+            points[3]['position'], points[3]['rotation'] = [130., 7., 50.], [0., -1., 0.]
+            del points[4]
+            self.assertEqual(actual, expected)
 
 
 if __name__ == '__main__':

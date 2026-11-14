@@ -199,6 +199,20 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     weathers, the other 30 Free for All projects' spawns as before; the released map test passes
     on its server data. Offline only: not played, not released.
   - Review renders: `private/renders/ffa-spawn-cover/` of the main checkout.
+- **Experimental Pool at the owner's picks** (2026-11-14, the same session as Rudnya's: 28 `where`
+  places, `private/spawn-examples/pool-2026-11-14.tsv`). Content edit `ffa-pool-picks-1`, from
+  `scripts/ffa-mode/pool-picks.tsv` (`picks --project v010b_cs_mp_bath/day_8`, no roofs asked) and
+  `make_picks_edits.py pool`, in its own project only; Pool's point ids count anew in each team
+  (team 2: 0-47 after `ffa-cover-maps-1`):
+  - 27 of his 28 places, on their ground (pick 28 lowered 7 cm), facing as he faced, in the places
+    of point_ids 0-26 (position and rotation only); 26 hold the rule (20 has no cover). The 21 left
+    over, 27-47, go: 48 -> 27 points. After `ffa-cover-maps-1`.
+  - Pick 12 (9.461 9.658 26.795) is dropped: no floor under its centre (he stood, eye 1.45 m
+    over his feet) but one 0.83 m below, and there a body meets collision 0.31 m from its axis at
+    0.65 m: most likely he stood on the edge of something 0.83 m high beside the point, his
+    centre over the lower floor. Not moved elsewhere: his to place again.
+  - A map more (School next) is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its
+    content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
   proposal for all 16 maps below; Training Camp has its own, `stalker-ffa.md`). Content edit
