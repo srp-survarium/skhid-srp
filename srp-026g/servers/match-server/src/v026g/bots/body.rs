@@ -1265,10 +1265,12 @@ fn advance(
     }
     if kin.jump_arc {
         // [A318] A press starts the client's jump when it may (`on_ground` 0x7EF90: standing, uncrouched, not falling; none under
-        // way).
+        // way). [A390] Uncrouched is the capsule, not the key: a body let go of the key where it has no room to stand stays
+        // crouched (the stand test 0x7F7B0 fails), and so does a body on a floor a standing capsule does not fit.
         if tick.keys & key::JUMP != 0
             && at.keys & key::JUMP == 0
             && tick.keys & key::CROUCH == 0
+            && !capsule_crouched(&at, grid)
             && tick.jump == JumpGate::Open
             && at.arc.is_none()
             && at.fall == Fall::Ground
@@ -1295,6 +1297,16 @@ fn advance(
     at.keys = tick.keys;
     at.time = tick.time;
     at
+}
+
+/// [A390] Whether the reckoned body's capsule is crouched with the key up: its kept controller's own state
+/// ([`ClientStep::Kept`]), else a floor a standing capsule does not fit under (`WalkGrid::can_stand` false: the client's standing
+/// body cannot be there, `crouch_logic.md`). `on_ground` 0x7EF90 is false for a crouched capsule: no jump starts.
+fn capsule_crouched(at: &Estimate, grid: Option<&WalkGrid>) -> bool {
+    match at.kept {
+        Some(kept) => kept.controller.crouched,
+        None => at.node.zip(grid).is_some_and(|(node, grid)| !grid.can_stand(node)),
+    }
 }
 
 /// [A318] One step of the reckoned body's height over a drop ([`DropFall::Gravity`]), `feet` on its floor after the step and `top`
@@ -2947,6 +2959,47 @@ pub(super) mod tests {
         let mut plain = BodyTrack::default();
         plain.fixed(fix(0, feet, yaw), &kin, Some(&walker));
         assert!(plain.estimate().unwrap().kept.is_none());
+    }
+
+    /// [A390] A press starts no jump while the capsule is crouched with the key up (`on_ground` 0x7EF90 is false for it): the kept
+    /// controller crouched under a beam with no room to stand, or, without it, a floor a standing capsule does not fit. On open
+    /// ground the same press starts the jump.
+    #[test]
+    fn a_crouched_capsule_starts_no_jump() {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        // A beam 1.3 m up over x 2-8: room for the crouched capsule (1.1 m), none for the standing one (1.8 m).
+        triangles.extend(floor(2.0, 0.0, 8.0, 10.0, 1.3));
+        let walker = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        let saved = |feet: Vec3| Saved {
+            feet,
+            jumping: false,
+            input_crouch: false,
+            logic_crouch: true,
+            capsule_crouch: true,
+            can_stand: false,
+            colliding_with_player: false,
+            velocity: Vec3::ZERO,
+            support_normal: Vec3::new(0.0, 1.0, 0.0),
+            ceiling_normal: Vec3::new(0.0, -1.0, 0.0),
+            ceiling_slide: Vec3::ZERO,
+        };
+        // Whether a jump press at 50 ms (after a world at `feet`) starts the client's jump.
+        let jumps = |client_step: ClientStep, feet: Vec3, crouched: bool| {
+            let kin = Kinematics { blend_ticks: 1, client_step, jump_arc: true, ..Kinematics::default() };
+            let mut track = BodyTrack::default();
+            let world = if crouched { Fix { controller: Some(saved(feet)), ..fix(0, feet, yaw) } } else { fix(0, feet, yaw) };
+            track.fixed(world, &kin, Some(&walker));
+            track.decided(50, key::JUMP, (0.0, 0.0), 0.0, &kin, Some(&walker));
+            track.estimate().unwrap().arc.is_some()
+        };
+        let under = Vec3::new(4.0, 0.0, 5.0);
+        let open = Vec3::new(14.0, 0.0, 5.0);
+        assert!(!walker.can_stand(walker.locate(under, 1.5).unwrap()), "the beam leaves no standing room");
+        assert!(!jumps(ClientStep::Kept, under, true), "the kept controller crouched under the beam");
+        assert!(!jumps(ClientStep::Grid, under, false), "a floor a standing capsule does not fit");
+        assert!(jumps(ClientStep::Grid, open, false), "open ground: it jumps");
+        assert!(jumps(ClientStep::Kept, open, false), "open ground, kept controller: it jumps");
     }
 
     /// [A318] [`StepInput::Previous`] (the client's): the step into the feet at N moves with input N-100's keys and its yaw after
