@@ -208,7 +208,16 @@ fn threat_tick(
                 if let Some(keep) = &keep {
                     super::concede::shooter_sensed(threat, team, track.who, at, now, keep);
                 }
-                if sniper_spots && weapons.get(track.who).copied().flatten() == Some(reflex::WeaponKind::Sniper) {
+                // [#1861] The kind the team knows of him (a sight, a heard shot), or the exact one with the cheat.
+                let kind = if tuning.cheats.enemy_weapon_exact {
+                    weapons.get(track.who).copied().flatten()
+                } else {
+                    state.knowledge.weapons.kind(track.who)
+                };
+                if sniper_spots && kind.is_none() && weapons.get(track.who).copied().flatten() == Some(reflex::WeaponKind::Sniper) {
+                    log::debug!("team {team}: player {} sensed, his weapon (a sniper's) not known to the team: no sniper spot", track.who);
+                }
+                if sniper_spots && kind == Some(reflex::WeaponKind::Sniper) {
                     let combat = &tuning.aim.combat;
                     let reach = combat.band(reflex::WeaponKind::Sniper).1 + combat.band_slack_m;
                     // How: the track's source when its last report is the own sense (else a cheat's or the HUD's came

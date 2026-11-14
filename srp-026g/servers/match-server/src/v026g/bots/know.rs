@@ -1011,6 +1011,34 @@ pub struct SmokeClaim {
 /// asks (the fuse is 4 s; `grenade_claim_ms` is 6 s).
 pub const THROW_CLAIM_KEEP_MS: u32 = 30_000;
 
+/// The weapon kind a team knows of each enemy: the kind his hands showed when one of the team's bots last saw him, or the
+/// kind of the weapon whose shot it last heard (a player sees the gun in another's hands and tells a sniper rifle's shot).
+/// A footstep, a callout's place or the HUD's tells no weapon.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct KnownWeapons {
+    by_place: Vec<Option<(super::reflex::WeaponKind, u32)>>,
+}
+
+impl KnownWeapons {
+    /// A sight of `who` (or his shot heard) at `time` showed `kind` (the weapon in his hands then; `None`: not known).
+    pub fn learn(&mut self, who: Place, kind: Option<super::reflex::WeaponKind>, time: u32) {
+        let Some(kind) = kind else {
+            return;
+        };
+        if self.by_place.len() <= who {
+            self.by_place.resize(who + 1, None);
+        }
+        if self.by_place[who].is_none_or(|(_, was)| was <= time) {
+            self.by_place[who] = Some((kind, time));
+        }
+    }
+
+    /// The kind the team last saw or heard `who` with; `None`: never.
+    pub fn kind(&self, who: Place) -> Option<super::reflex::WeaponKind> {
+        self.by_place.get(who).copied().flatten().map(|(kind, _)| kind)
+    }
+}
+
 /// What a team's bots share: callouts (one bot's sense, the others' a
 /// moment later), danger spots, thefts, and with the battery cheat off
 /// what they know of the batteries and the spawners they have looked at.
@@ -1025,6 +1053,8 @@ pub struct TeamKnowledge {
     pub thefts: Vec<Theft>,
     /// What the team saw land on its enemies, and who goes after a hurt one ([`super::worth`]).
     pub wounds: super::worth::Wounds,
+    /// [#1861] The weapon kind the team knows of each enemy ([`KnownWeapons`]).
+    pub weapons: KnownWeapons,
     /// Batteries of ours taken from home this match, by anyone (the
     /// container holder's need, `guard_lead`; [`Self::thefts`] keeps 60 s).
     pub thefts_match: u32,
