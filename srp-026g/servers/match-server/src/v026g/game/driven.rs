@@ -42,8 +42,6 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use mapdata::{Vec3, World};
-use survarium::v026g::match_msgs::motion::Motion;
-use survarium::v026g::match_msgs::players;
 use survarium::v026g::match_msgs::snapshot::{Battery, Decoded};
 
 use super::*;
@@ -687,20 +685,20 @@ impl Game {
     }
 
     /// A trusted world: every player's body, and the statistics and
-    /// batteries, for the bots.
-    pub(super) fn observe_driven(&mut self, snapshot: &Snapshot, decoded: &Decoded) {
+    /// batteries, for the bots. The bodies as the world's check read them
+    /// (`checked`: the world format's one definition, read once).
+    pub(super) fn observe_driven(&mut self, snapshot: &Snapshot, checked: &world_validation::Checked, decoded: &Decoded) {
         let id = self.id;
         let Some(walkers) = self.walkers.as_mut() else {
             return;
         };
-        let Some((blocks, _)) = players::walk(&snapshot.body) else {
-            return;
-        };
-        for block in blocks {
-            let place = usize::from(block.place);
-            let Some((items, motion)) = Motion::find(block.state, snapshot.time) else {
+        for (place, world) in checked.places.iter().enumerate() {
+            let Some(world) = world else {
+                continue;
+            };
+            let Some(motion) = world.motion.as_ref() else {
                 log::debug!(
-                    "Match {id:#x}: player {place}'s body is not read in the world at {} ms",
+                    "Match {id:#x}: player {place}'s body is not read in the world at {} ms (its kits are not known)",
                     snapshot.time
                 );
                 continue;
@@ -759,8 +757,8 @@ impl Game {
             }
             // [F1] The place's saved stamina record (`srp_validate`'s view of the state, the world format's one definition): a
             // bot's own bar is the record's.
-            if let Ok(state) = srp_validate::world::PlayerState::read(block.state, items, None) {
-                let saved = state.stamina();
+            {
+                let saved = world.stamina;
                 walkers.bots.stamina(
                     place,
                     crate::v026g::bots::stamina::Saved::of(

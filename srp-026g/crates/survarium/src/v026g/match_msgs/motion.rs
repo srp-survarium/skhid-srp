@@ -280,6 +280,64 @@ impl Motion {
         found
     }
 
+    /// The same, from the world's typed views ([`srp_validate::world::validate_kept`], the world format's one definition):
+    /// `state` the place's state to its inventory header, `rest` everything after its items. Each field keeps
+    /// [`Self::read`]'s meaning: `inserted_time_ms` as written (0xFFFFFFFF before the insert), the controller's position
+    /// in the map's frame, a part's leg wound the latest end of its `leg_damage` affects.
+    pub fn of_world(state: &srp_validate::world::PlayerState<'_>, rest: &srp_validate::world::AfterItems<'_>) -> Self {
+        use srp_validate::world::AffectKind;
+        let head = state.head();
+        let three = |v: [srp_validate::Finite; 3]| v.map(srp_validate::Finite::get);
+        let body = rest.controller().map(|c| {
+            let physics_position = three(c.last_pos());
+            let [x, y, z] = physics_position;
+            Body {
+                physics_position,
+                position: [x, y, -z],
+                jumping: c.jumping(),
+                input_crouch: c.input_is_in_crouch(),
+                logic_crouch: c.logic_is_in_crouch(),
+                capsule_crouch: c.capsule_is_in_crouch(),
+                can_stand: c.can_stand(),
+                colliding_with_player: c.colliding_with_player(),
+                sprinting: c.is_sprinting(),
+                fall_and_slide_velocity: three(c.fall_and_slide_velocity()),
+                supporting_surface_normal: three(c.supporting_surface_normal()),
+                blocking_ceiling_normal: three(c.blocking_ceiling_normal()),
+                blocking_ceiling_slide_velocity: three(c.blocking_ceiling_slide_velocity()),
+            }
+        });
+        let model = rest.damage_model();
+        let mut part_health = Vec::with_capacity(model.body_part_count());
+        let mut leg_wounds = Vec::new();
+        let mut part_speed_modifiers = Vec::with_capacity(model.body_part_count());
+        for part in model.body_parts() {
+            part_health.push(part.health().get());
+            part_speed_modifiers.push(part.movement_speed_modifier().get());
+            let end = part.affects().iter().filter(|a| a.kind() == AffectKind::LegDamage).map(|a| a.end_time_ms()).max();
+            let last_hit = part.last_hit_time_ms();
+            leg_wounds.extend(end.map(|end| LegWound { end, last_hit: (last_hit != 0).then_some(last_hit) }));
+        }
+        Self {
+            alive: head.alive(),
+            time_ms: head.effects_time_ms(),
+            rotation_y: head.rotation_y().get(),
+            look_pitch: head.look_pitch().get(),
+            actions_mask: head.actions_mask(),
+            inserted_time_ms: rest.inserted_time_ms().unwrap_or(u32::MAX),
+            recent_hits: rest.recent_hits().map(|hit| (hit.timestamp_ms(), hit.stopping_speed().get())).collect(),
+            body,
+            damage: Some(Damage {
+                jump_type: rest.jump_type() as u8,
+                linear_horizontal_speed: rest.linear_horizontal_speed().get(),
+                last_hit_time_ms: model.last_hit_time_ms(),
+                part_health,
+                leg_wounds,
+                part_speed_modifiers,
+            }),
+        }
+    }
+
     /// Reads a state whose profile is not known: the item counts whose head
     /// carries the world's `time_ms` are tried, and the reading is taken
     /// when exactly one count gives one. For tools over saved worlds; the
