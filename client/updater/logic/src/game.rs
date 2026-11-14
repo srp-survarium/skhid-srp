@@ -39,17 +39,42 @@ pub const ORIGINAL_EXE: Pin = Pin {
     sha256: "ac33d9937015c2299bf62cc6b127cb308b48a3475b30fff2ddd65479ae3bf153",
 };
 
-/// Only the files needed to run the game, relative to `Survarium/game`.
-/// Old vendor installers, services and updaters are never extracted or run.
-pub const FILES: &[(&str, u64)] = &[
-    ("binaries/x86/survarium.exe", 12_894_840),
-    ("binaries/x86/bugtrap.dll", 278_648),
-    ("resources/ssl/survarium_login_server.crt", 757),
+/// Only the files needed to run the game, relative to `Survarium/game`,
+/// with build 2777's sizes and SHA-256 (the db's: `release/lib.sh`'s
+/// `STOCK_DB_SHA256`; the others: `release/build-torrent`'s). Old vendor
+/// installers, services and updaters are never extracted or run. The
+/// archive's download checks the archive and the exe; one by torrent checks
+/// each file by its pin (`exe/src/game.rs`).
+pub const FILES: &[(&str, Pin)] = &[
+    ("binaries/x86/survarium.exe", ORIGINAL_EXE),
+    (
+        "binaries/x86/bugtrap.dll",
+        Pin {
+            size: 278_648,
+            sha256: "5bb81aea946767ad860522fc638b267e7e972c1e3d8af7a390c1714c1e9a8aac",
+        },
+    ),
+    (
+        "resources/ssl/survarium_login_server.crt",
+        Pin {
+            size: 757,
+            sha256: "f29e488d406815c66a4541599c3bb8816a623dddcd995b588c902074ae8c7b68",
+        },
+    ),
     (
         "resources/sources/splash_screens/development_engine.bmp",
-        536_056,
+        Pin {
+            size: 536_056,
+            sha256: "f81222a3463da4cc5e8af193cf41f15199368b44f1938f6a2bad6107c1aac00f",
+        },
     ),
-    ("resources.db", 6_285_533_906),
+    (
+        "resources.db",
+        Pin {
+            size: 6_285_533_906,
+            sha256: "c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c",
+        },
+    ),
 ];
 
 /// How far the extractor is, 0 to 100, from what it printed (its `-bsp1`
@@ -117,9 +142,10 @@ mod tests {
             assert!(pin.size > 0);
             assert!(from_hex(pin.sha256.as_bytes()).is_some());
         }
-        for (path, size) in FILES {
+        for (path, pin) in FILES {
             assert!(crate::zip::safe_name(path));
-            assert!(*size > 0);
+            assert!(pin.size > 0);
+            assert!(from_hex(pin.sha256.as_bytes()).is_some());
         }
         assert!(crate::zip::safe_name(ARCHIVE_NAME));
         assert!(crate::zip::safe_name(EXTRACTOR_NAME));

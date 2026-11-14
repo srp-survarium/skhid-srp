@@ -609,7 +609,7 @@ class UpdaterTest(unittest.TestCase):
         # By hand: with a launcher's pipe it would start the archive's real
         # launcher once that is installed.
         exe = os.path.join(self.x86, "updater_skhid.exe")
-        self.assertEqual(subprocess.run([exe, "check", "quiet"], timeout=120).returncode, 0, self.log())
+        self.assertEqual(subprocess.run([exe, "check", "quiet", "direct"], timeout=120).returncode, 0, self.log())
         with zipfile.ZipFile(bundle) as archive:
             for info in archive.infolist():
                 # (The archive's own .url would send the next test run elsewhere.)
@@ -848,17 +848,17 @@ class UpdaterTest(unittest.TestCase):
     def test_by_hand_it_updates_without_a_launcher(self):
         files = self.offer(self.bundle())
         exe = os.path.join(self.x86, "updater_skhid.exe")
-        self.assertEqual(subprocess.run([exe, "check", "quiet"], cwd=self.root, timeout=120).returncode, 0)
+        self.assertEqual(subprocess.run([exe, "check", "quiet", "direct"], cwd=self.root, timeout=120).returncode, 0)
         self.assertEqual(self.read("README.txt"), files["README.txt"])
         self.site.manifest_status = 500
         os.remove(self.path(f"{X86}/survarium_skhid.exe"))
-        self.assertEqual(subprocess.run([exe, "check", "quiet"], timeout=120).returncode, 1)
+        self.assertEqual(subprocess.run([exe, "check", "quiet", "direct"], timeout=120).returncode, 1)
         self.assertIn("FAILED: x86/survarium_skhid.exe is missing or damaged and cannot be repaired now: "
                       "127.0.0.1 answered /api/client-files with error 500", self.log())
         # Outside game\binaries\x86 it does nothing.
         stray = os.path.join(self.root, "updater_skhid.exe")
         shutil.copy(exe, stray)
-        self.assertEqual(subprocess.run([stray, "check", "quiet"], timeout=30).returncode, 1)
+        self.assertEqual(subprocess.run([stray, "check", "quiet", "direct"], timeout=30).returncode, 1)
         self.assertEqual(os.listdir(self.root).count("updater_skhid.log"), 0)
 
     def test_a_bad_server_address_is_refused(self):

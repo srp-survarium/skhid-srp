@@ -21,7 +21,7 @@
 //! written without a leading zero (the game's own rule: `patch_014` is not
 //! a patch), no key twice; every value an object of exactly two members,
 //! `sha256` (64 hex characters) and the file's addresses: `urls`, an array
-//! of 1 to [`MAX_URLS`] of them, none twice, tried in their order, or (the
+//! of 0 to [`MAX_URLS`] of them (none: the torrent's alone), none twice, tried in their order, or (the
 //! form of updaters before 0.3.0, still read) `url`, one; never both. An
 //! address is `http://` or `https://`, any host, a bare IP address too, and
 //! a path ([`crate::url::patch`]). Plain HTTP is taken for the files: each
@@ -72,7 +72,8 @@ pub struct Patch {
     /// 1 to 255.
     pub number: u8,
     pub sha256: [u8; 32],
-    /// Where its file is: 1 to [`MAX_URLS`] addresses, tried in this order.
+    /// Where its file is: up to [`MAX_URLS`] addresses, tried in this order
+    /// (none: the revision's torrent alone gives it).
     pub addresses: Vec<Address>,
 }
 
@@ -289,8 +290,12 @@ pub fn parse_game(bytes: &[u8]) -> Result<Download, ListError> {
     if reader.at != bytes.len() {
         return Err(ListError::Syntax(reader.at));
     }
-    let (Some(sha256), Some(size), Some(texts)) = (entry.sha256, entry.size, entry.addresses)
-    else {
+    // The game's archive has an address at least (none is a patch's alone).
+    let (Some(sha256), Some(size), Some(texts)) = (
+        entry.sha256,
+        entry.size,
+        entry.addresses.filter(|texts| !texts.is_empty()),
+    ) else {
         return Err(ListError::BadEntry(GAME.into()));
     };
     Ok(Download {
@@ -389,12 +394,17 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// `urls`: an array of 1 to [`MAX_URLS`] strings. `BadEntry` for
+    /// `urls`: an array of 0 to [`MAX_URLS`] strings (none: a patch the
+    /// revision's torrent alone gives, `exe/src/torrent.rs`). `BadEntry` for
     /// another value.
     fn strings(&mut self) -> Result<Vec<&'a [u8]>, ListError> {
         let bad = || ListError::BadEntry(String::new());
         if !self.take(b'[') {
             return Err(bad());
+        }
+        self.space();
+        if self.take(b']') {
+            return Ok(Vec::new());
         }
         let mut strings = Vec::new();
         loop {
@@ -684,7 +694,7 @@ mod tests {
     }
 
     #[test]
-    fn a_patch_has_one_to_eight_addresses_none_twice() {
+    fn a_patch_has_up_to_eight_addresses_none_twice() {
         let h = hex(b"x");
         let urls: Vec<String> = (1..=9)
             .map(|n| alloc::format!("http://mirror{n}.example/patch_3"))
@@ -699,7 +709,8 @@ mod tests {
             assert_eq!(read.patches[0].addresses[n - 1].text, urls[n - 1]);
         }
         assert_eq!(list(&refs[..9]), Err(ListError::BadEntry("patch_3".into())));
-        assert_eq!(list(&[]), Err(ListError::BadEntry("patch_3".into())));
+        // None: a patch of the torrent alone.
+        assert_eq!(list(&[]).unwrap().patches[0].addresses.len(), 0);
         assert_eq!(
             list(&[refs[0], refs[1], refs[0]]),
             Err(ListError::SameUrl("patch_3".into()))

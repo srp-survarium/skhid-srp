@@ -1,0 +1,10 @@
+# The bootstrap's two files (srp-026g/docs/notes/torrent-downloads.md,
+# "Bootstrap"): the updater and 7zr.exe that Skhid-get.bat fetches by
+# BitTorrent (release/bootstrap.torrent), else from these URLs, tried in this
+# order (any host first: Google Drive's, the owner's rule; the patches
+# server's among them; 8 at most). The same form as release/patches.tsv.
+# release/build-bootstrap writes a file's row when it publishes it (another
+# file of that name replaces its row: those URLs give other bytes);
+# release/add-mirror <name> <url> adds a URL. Both make the script again:
+# commit the three together.
+# name	sha256	size	urls

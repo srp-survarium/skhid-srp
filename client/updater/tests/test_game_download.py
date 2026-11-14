@@ -107,7 +107,7 @@ class GameDownloadTest(unittest.TestCase):
         return [line[20:] for line in self.log.splitlines() if line[20:].startswith("skhid-game  ")]
 
     def run_updater(self, timeout=60):
-        command = [str(self.exe), "check", "quiet"]
+        command = [str(self.exe), "check", "quiet", "direct"]
         if os.name != "nt":
             command.insert(0, "wine")
         # Wine's background services can inherit pipes beyond updater exit.
@@ -347,7 +347,7 @@ class GameDownloadTest(unittest.TestCase):
                          "needs the pinned archive; kills the updater as Windows' task manager would")
     def test_an_updater_killed_while_extracting_leaves_nothing_for_good(self):
         cached = self.cache_archive()
-        updater = subprocess.Popen([str(self.exe), "check", "quiet"],
+        updater = subprocess.Popen([str(self.exe), "check", "quiet", "direct"],
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.addCleanup(updater.kill)
 

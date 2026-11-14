@@ -345,6 +345,17 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
   resource step (`../../client/updater/README.md`, "Resources"). Any other
   name under `/resources/` is the page's "not found"; the 0.21d page has no
   such route.
+- `/torrent` (`GET` and `HEAD`; the 0.26g page only): the torrent of the
+  whole game folder that the ZIP of `SRP_DOWNLOAD_FILE` holds as
+  `game/binaries/x86/skhid.torrent` (the release puts it in, signed), as
+  `skhid-rev<SRP_MIN_PATCH_REVISION>.torrent`; "not found" when the ZIP has
+  none, or it is not a stored torrent of at most 4 MiB.
+  The home page links it and its magnet under the ZIP's button. The format:
+  `notes/torrent-downloads.md`.
+- `/Skhid-get.bat` (`GET` and `HEAD`; the 0.26g page only): the bootstrap
+  script (`servers/web-server/bootstrap/Skhid-get.bat`, made by
+  `release/build-bootstrap`), linked on the home page; none in a build
+  without it.
 - `/patches` (`GET`, public): the patches of `resources.db` the players'
   updater keeps in the game folder, as JSON (`{"patch_<n>":{"sha256":…,"urls":[…]},…}`,
   `{}` for none): those the server's game data was made of ("Game data"
@@ -352,7 +363,7 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
 - `/api/client-files` and `/launcher/…` (since 2026-10-13, for the patched game
   launcher and its updater: `../client-patches/launcher/README.md`). The first answers with the
   SHA-256 and size of the file `/download` hands out (`SRP_DOWNLOAD_FILE`), as
-  three lines of text; the file is read again when its size or time changes,
+  lines of text (and `min-revision`); the file is read again when its size or time changes,
   so a new ZIP put in its place is seen without a restart. The second is the
   page the launcher shows in its window (899 by 335, made for Internet
   Explorer's engine, one script of its own, nothing from another host): the ten best

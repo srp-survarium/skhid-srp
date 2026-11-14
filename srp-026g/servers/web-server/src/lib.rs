@@ -8,6 +8,9 @@
 //! - `/launcher/…` and `/api/client-files` (the 0.26g page only) are for the
 //!   patched game launcher and its updater ([`launcher`]): the page it shows
 //!   in its window, and which archive `/download` hands out now.
+//! - `/torrent` (the 0.26g page only) is the torrent of the whole game
+//!   folder that the download file holds, when it holds one, and
+//!   `/Skhid-get.bat` the bootstrap script, when the build has one ([`torrent`]).
 //! - `/patches` (the 0.26g page only) is the list of `resources.db`'s patches
 //!   the updater keeps in the game folder: those the server's game data was
 //!   made of ([`patches`]).
@@ -54,6 +57,7 @@ mod quests;
 mod rename;
 mod skills;
 mod stats;
+mod torrent;
 mod v026g;
 mod wiki;
 
@@ -661,6 +665,27 @@ impl Web {
             && let Some(file) = available_download()
         {
             self.download(&mut stream, &request, file);
+            return;
+        }
+        if let Some(game) = &self.game
+            && request.path == torrent::PATH
+            && matches!(request.method.as_str(), "GET" | "HEAD")
+            && let Some(found) = available_download().and_then(|file| torrent::in_zip(file))
+        {
+            torrent::send(
+                &mut stream,
+                request.method == "HEAD",
+                &found,
+                game.min_patch_revision,
+            );
+            return;
+        }
+        if self.game.is_some()
+            && request.path == torrent::BOOTSTRAP_PATH
+            && matches!(request.method.as_str(), "GET" | "HEAD")
+            && let Some(script) = torrent::BOOTSTRAP
+        {
+            torrent::send_bootstrap(&mut stream, request.method == "HEAD", script);
             return;
         }
         if let Some(file) = resource_request(
@@ -1921,6 +1946,35 @@ fn home(lang: Lang, stats: Stats) -> String {
         ),
         None => String::new(),
     };
+    // 0.26g: the whole game folder by BitTorrent too, when the release made
+    // its torrent ([`torrent`]).
+    let torrent = available_download()
+        .filter(|_| v026g)
+        .and_then(|file| torrent::in_zip(file))
+        .map_or_else(String::new, |torrent| {
+            format!(
+                "<small>{} <a href=\"{}\">.torrent</a> &middot; <a href=\"{}\">magnet</a></small>",
+                lang.tr(
+                    "Or the whole game by BitTorrent:",
+                    "Або всю гру через BitTorrent:"
+                ),
+                torrent::PATH,
+                escape(&torrent.magnet())
+            )
+        });
+    // 0.26g: the script that gets it all without this site, when there is one.
+    let bootstrap = if v026g && torrent::BOOTSTRAP.is_some() {
+        format!(
+            "<small>{} <a href=\"{}\">Skhid-get.bat</a></small>",
+            lang.tr(
+                "Without this site, by BitTorrent:",
+                "Без цього сайту, через BitTorrent:"
+            ),
+            torrent::BOOTSTRAP_PATH
+        )
+    } else {
+        String::new()
+    };
     // 0.26g: the game itself comes from elsewhere (step one); this server
     // hands out only the files that go over it. A download whose launcher
     // brings the game has no such step.
@@ -2040,7 +2094,7 @@ fn home(lang: Lang, stats: Stats) -> String {
         String::new()
     };
     format!(
-        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
+        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}{torrent}{bootstrap}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
         lang.tr("Skhid", "Схід"),
         lang.tr(
             &format!("Skhid (Ukrainian for \u{201c}east\u{201d}) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again."),

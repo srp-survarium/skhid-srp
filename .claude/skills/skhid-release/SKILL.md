@@ -384,7 +384,12 @@ The order, as it runs:
    --test`, play a match on the test environment (one against bots is
    kept), copy its recording from the test volume's `recordings/`, and
    give `--worlds <folder>`. Then
-   `build-zip` (of the commit checked in step 1); then the **exe patches'
+   `build-zip` (of the commit checked in step 1), `build-torrent` (the
+   torrent of the whole game folder, `skhid-rev<n>.torrent`, signed with the
+   release's key, `private/release/torrent-signing.pem`, and put into the ZIP
+   as `game/binaries/x86/skhid.torrent`: `srp-026g/docs/notes/torrent-downloads.md`;
+   no key: the preflight stops; the owner makes it once with
+   `release/make-signing-key` and commits `release/signing.pub`); then the **exe patches'
    self-test** of that commit started in the background
    (`srp-026g/client-patches/selftest_026g.py`, its Linux part, on
    `$SKHID_GAME`'s `survarium.exe`, in the commit's dev shell with nixpkgs'
@@ -706,7 +711,10 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 | `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (local cache checked by size and SHA-256; missing or invalid files downloaded; every primary URL and mirror checked whole once, then by its first bytes), `srp-game-data build --patch "<file>=<urls>"` | a local file, the patch cache |
 | `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab, the calculator and the skills from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; each `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage,skills,wiki}/`, the cache |
 | `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
-| `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own, in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
+| `release/build-torrent --zip <zip> --out <file> --zip-out <zip> --revision <n> [--public-key] [--test] [--patches <list>]` | the signed torrent of the whole game folder (`srp-026g/docs/notes/torrent-downloads.md`): the original game's files (`$SKHID_GAME`, `$SKHID_STOCK_DB`, each by its pinned sha256), the ZIP's files over them, the list's patches (the patch cache); and the ZIP with it in; prints its info hashes; the same inputs, the same bytes | local files, the patch cache |
+| `release/build-bootstrap [--dry-run] <players' ZIP>` | once for an updater version: the bootstrap's two files (the updater, 7zr.exe) published on the patches server at `bootstrap/<sha256>/<name>`, their rows in `release/bootstrap.tsv`, `release/bootstrap.torrent` and `srp-026g/servers/web-server/bootstrap/Skhid-get.bat` (`srp-026g/docs/notes/torrent-downloads.md`, "Bootstrap"); more URLs: `release/add-mirror <name> <url>`, which makes the script again | the patches server, the checkout |
+| `release/make-signing-key` | once, by the owner: the torrents' Ed25519 key beside `release.env` (mode 600) and `release/signing.pub` to commit; never replaces one | private/release/, the checkout |
+| `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own (a ZIP from it has no torrent unless it was release.sh's), in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
 | `release/rollback [--test] [--keep-db] [<folder>]` | a release folder's rollback | the target |
 | `release/setup-patches-server [--test] [--check]` | once: the patches folder and Caddy's site block for it (validate and reload; either failing puts the backup back) | the jump host's Caddy |
 

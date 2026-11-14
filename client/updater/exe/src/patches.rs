@@ -59,6 +59,7 @@ use crate::http::{self, HttpError};
 use crate::install::Layout;
 use crate::log::log;
 use crate::text;
+use crate::torrent;
 use crate::win::{self, Code, File};
 
 /// Beside the updater: the server's last list, as it was read.
@@ -458,6 +459,9 @@ struct Run<'a> {
     record: &'a mut Record,
     /// The folder is about to change, or has: the status says so.
     changing: bool,
+    /// Patches the torrent gave this run, checked in their parts, and what
+    /// Windows said of each when it was hashed.
+    torrented: Vec<(u8, Option<Identity>)>,
 }
 
 impl Run<'_> {
@@ -465,7 +469,7 @@ impl Run<'_> {
     fn list(&mut self) -> Result<List, Fail> {
         let server = match &self.source {
             Source::Server(server) => *server,
-            Source::BuiltIn(list) => return Ok(list.clone()),
+            Source::BuiltIn(list) | Source::Torrent(list) => return Ok(list.clone()),
         };
         let mut last = String::new();
         for attempt in 1..=LIST_TRIES {
@@ -564,6 +568,16 @@ impl Run<'_> {
         let name = patch.file_name();
         let target = place(self.layout, &name);
         let part = format!("{target}{PART}");
+        if let Some(at) = self.torrented.iter().position(|(number, _)| *number == patch.number) {
+            let (_, identity) = self.torrented.remove(at);
+            return self.put(patch, &part, &target, identity, "by torrent", 0);
+        }
+        if patch.addresses.is_empty() {
+            return Err(Fail::Blocked(
+                text::patches_download(&name, "it is the revision's torrent's alone, and no peer gave it."),
+                format!("{name}: no address, and the torrent did not give it"),
+            ));
+        }
         let count = patch.addresses.len();
         // Which addresses a second round tries, the first failure's words,
         // and how each address failed last.
@@ -632,38 +646,7 @@ impl Run<'_> {
                         }
                     }
                 };
-                // Checked: into its place, unless the game runs now.
-                if let Err(fail) = self.guard() {
-                    let _ = win::delete(&part);
-                    return Err(fail);
-                }
-                if let Err(code) =
-                    retried("renamed", &part, &mut || win::rename(&part, &target, true))
-                {
-                    let _ = win::delete(&part);
-                    return Err(file_fail(&target, code, "replaced"));
-                }
-                self.session.state(state::INSTALLING);
-                self.session.send(ToLauncher::InstallInfo {
-                    step: step::EXTRACT,
-                    text: &name,
-                });
-                self.session.named_file = true;
-                log!(
-                    "patches: {name}: downloaded {} (address {} of {count}), checksum right ({})",
-                    address.text,
-                    at + 1,
-                    hex(&patch.sha256)
-                );
-                // The file hashed is the one in place when the rename kept
-                // its ID.
-                let kept = identity
-                    .filter(|identity| win::identity(&target).ok() == Some(*identity))
-                    .inspect(|identity| {
-                        self.record
-                            .hashed(patch.number, patch.sha256, *identity, win::now());
-                    });
-                return Ok(kept.is_some());
+                return self.put(patch, &part, &target, identity, &address.text, at + 1);
             }
         }
         let (reason, miss, address) = first.expect("an address failed");
@@ -807,6 +790,119 @@ impl Run<'_> {
         }
     }
 
+    /// A checked part into its place, unless the game runs now: `true` when
+    /// the file in place is known by its file ID to be the one hashed.
+    /// `from`: the address it came from (its number of the list's), or the
+    /// torrent (0).
+    fn put(
+        &mut self,
+        patch: &Patch,
+        part: &str,
+        target: &str,
+        identity: Option<Identity>,
+        from: &str,
+        address: usize,
+    ) -> Result<bool, Fail> {
+        let name = patch.file_name();
+        if let Err(fail) = self.guard() {
+            let _ = win::delete(part);
+            return Err(fail);
+        }
+        if let Err(code) = retried("renamed", part, &mut || win::rename(part, target, true)) {
+            let _ = win::delete(part);
+            return Err(file_fail(target, code, "replaced"));
+        }
+        self.session.state(state::INSTALLING);
+        self.session.send(ToLauncher::InstallInfo {
+            step: step::EXTRACT,
+            text: &name,
+        });
+        self.session.named_file = true;
+        let count = patch.addresses.len();
+        log!(
+            "patches: {name}: downloaded {from}{}, checksum right ({})",
+            if address > 0 {
+                format!(" (address {address} of {count})")
+            } else {
+                String::new()
+            },
+            hex(&patch.sha256)
+        );
+        // The file hashed is the one in place when the rename kept its ID.
+        let kept = identity
+            .filter(|identity| win::identity(target).ok() == Some(*identity))
+            .inspect(|identity| {
+                self.record
+                    .hashed(patch.number, patch.sha256, *identity, win::now());
+            });
+        Ok(kept.is_some())
+    }
+
+    /// The patches to fetch, by the revision's torrent first when the
+    /// launcher allows it and the torrent has them: each into its part,
+    /// every piece checked by the torrent's SHA-256, then the whole file by
+    /// the list's ([`Run::fetch`] puts it in place). What the torrent does
+    /// not give comes from its addresses, as without it.
+    fn by_torrent(&mut self, fetch: &[&Patch]) -> Result<(), Fail> {
+        let Some(offered) = torrent::offered(self.session, self.layout) else {
+            return Ok(());
+        };
+        let wanted: Vec<(&Patch, usize, String)> = fetch
+            .iter()
+            .filter_map(|patch| {
+                let index = torrent::file_index(&offered.torrent, &format!("game/{}", patch.file_name()))?;
+                let part = format!("{}{PART}", place(self.layout, &patch.file_name()));
+                Some((*patch, index, part))
+            })
+            .collect();
+        if wanted.is_empty() {
+            return Ok(());
+        }
+        let needed = wanted
+            .iter()
+            .map(|(_, index, _)| offered.torrent.files[*index].size)
+            .sum::<u64>()
+            .saturating_add(DISK_MARGIN);
+        if win::free_space(&self.layout.game_dir).is_none_or(|free| free < needed) {
+            return Ok(());
+        }
+        log!("patches: {} by torrent", wanted.len());
+        let files: Vec<(usize, String)> = wanted
+            .iter()
+            .map(|(_, index, part)| (*index, part.clone()))
+            .collect();
+        let outcome = torrent::fetch(self.session, &offered, &files);
+        for (patch, _, part) in &wanted {
+            if let torrent::Fetched::Done = outcome {
+                match win::hash_file_identity(part, &mut |_| true) {
+                    Ok((_, sha256, identity)) if sha256 == patch.sha256 => {
+                        self.torrented.push((patch.number, identity));
+                        continue;
+                    }
+                    Ok((_, sha256, _)) => log!(
+                        "patches: {}: the torrent's has SHA-256 {}, the list says {}",
+                        patch.file_name(),
+                        hex(&sha256),
+                        hex(&patch.sha256)
+                    ),
+                    Err(code) => log!(
+                        "patches: {part} cannot be read back ({})",
+                        win::error_text(code)
+                    ),
+                }
+            }
+            let _ = win::delete(part);
+        }
+        match outcome {
+            torrent::Fetched::Stopped => Err(Fail::Stopped),
+            torrent::Fetched::Not(why) => {
+                log!("patches: by torrent: {why}: from their addresses");
+                Ok(())
+            }
+            torrent::Fetched::Done => Ok(()),
+        }
+    }
+
     fn step(&mut self, overlay: &[&str]) -> Result<(), Fail> {
         if let Some(name) = overlay_patch(overlay) {
             // The overlay put it in the folder already.
@@ -883,6 +979,8 @@ impl Run<'_> {
         for name in &todo.delete {
             self.delete(name)?;
         }
+        let wanted: Vec<&Patch> = todo.fetch.iter().map(|fetch| &fetch.patch).collect();
+        self.by_torrent(&wanted)?;
         // Downloaded: whether known in place by the file ID.
         let mut downloaded: Vec<(u8, bool)> = Vec::new();
         for fetch in &todo.fetch {
@@ -946,6 +1044,9 @@ fn list_error(error: &ListError) -> String {
 enum Source<'a> {
     /// `GET <server>/patches`.
     Server(&'a Url),
+    /// The server could not be asked: the revision's signed torrent's
+    /// patches ([`torrent_list`]), a list as the server's.
+    Torrent(List),
     /// The server could not be reached: the list built in ([`built_in`]).
     BuiltIn(List),
 }
@@ -995,7 +1096,32 @@ fn offline(
             log!("patches: stopped");
             Outcome::Stopped
         }
-        Err(Some(why)) => match built_in() {
+        Err(Some(why)) => match torrent_list(session, layout) {
+            Ok(Some(list)) => {
+                log!("patches: the server could not be asked and {why}: the torrent's patches");
+                step(session, layout, Source::Torrent(list), overlay, look, record)
+            }
+            Err(fail) => {
+                log!("patches: BLOCKED: {fail}. The player is told: {message}");
+                Outcome::Blocked(message.into())
+            }
+            Ok(None) => offline_built_in(session, layout, overlay, record, look, message, &why),
+        },
+    }
+}
+
+/// The list built into this updater, when the server could not be asked
+/// and nothing else can be checked against.
+fn offline_built_in(
+    session: &mut Session,
+    layout: &Layout,
+    overlay: &[&str],
+    record: &mut Record,
+    look: Look,
+    message: &str,
+    why: &str,
+) -> Outcome {
+    match built_in() {
             Some(list) => {
                 log!(
                     "patches: the server could not be asked and {why}: the list built into this \
@@ -1014,8 +1140,83 @@ fn offline(
                 log!("patches: BLOCKED: {why}. The player is told: {message}");
                 Outcome::Blocked(message.into())
             }
-        },
     }
+}
+
+/// The revision's signed torrent's patches as a list, when the server
+/// could not be asked (`torrent::offered`): each `resources.db.patch_<n>` of
+/// it in place, checked piece by piece against the torrent, fetched by it
+/// when missing or damaged; its SHA-256 taken from the checked file. The
+/// addresses are the kept list's for the same file, else none: the torrent
+/// alone gives it, until the server's list names it again. `Ok(None)`: no
+/// torrent, or one that has none.
+fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, String> {
+    let Some(offered) = torrent::offered(session, layout) else {
+        return Ok(None);
+    };
+    let torrent = &offered.torrent;
+    let ours: Vec<(u8, usize)> = (0..torrent.files.len())
+        .filter_map(|index| {
+            let name = torrent.files[index].path.strip_prefix("game/")?;
+            Some((updater_logic::patches::file_number(name)?, index))
+        })
+        .collect();
+    if ours.is_empty() {
+        return Ok(None);
+    }
+    let missing: Vec<(usize, String)> = ours
+        .iter()
+        .filter(|(number, index)| {
+            !torrent::whole(torrent, *index, &place(layout, &format!("{FILE_PREFIX}{number}")))
+        })
+        .map(|(number, index)| (*index, format!("{}{PART}", place(layout, &format!("{FILE_PREFIX}{number}")))))
+        .collect();
+    if !missing.is_empty() {
+        log!("patches: {} of the torrent's to fetch by it", missing.len());
+        match torrent::fetch(session, &offered, &missing) {
+            torrent::Fetched::Done => {}
+            torrent::Fetched::Stopped => return Err("stopped".into()),
+            torrent::Fetched::Not(why) => {
+                for (_, part) in &missing {
+                    let _ = win::delete(part);
+                }
+                return Err(format!("the torrent did not give its patches: {why}"));
+            }
+        }
+        for (_, part) in &missing {
+            let target = part.strip_suffix(PART).expect("a part");
+            if let Err(code) = File::alone(&place(layout, DB_NAME))
+                .map(drop)
+                .or_else(|code| if win::is_missing(code) { Ok(()) } else { Err(code) })
+                .and_then(|()| win::rename(part, target, true))
+            {
+                let _ = win::delete(part);
+                return Err(format!("{target} cannot be put in place: {}", win::error_text(code)));
+            }
+        }
+    }
+    let kept = win::read_file(&beside(layout, LIST_FILE), MAX_LIST)
+        .ok()
+        .and_then(|bytes| parse_list(&bytes).ok())
+        .unwrap_or_default();
+    let mut patches = Vec::new();
+    for (number, _) in &ours {
+        let path = place(layout, &format!("{FILE_PREFIX}{number}"));
+        let (_, sha256) = win::hash_file(&path).map_err(|code| format!("{path}: {}", win::error_text(code)))?;
+        let addresses = kept
+            .get(*number)
+            .filter(|patch| patch.sha256 == sha256)
+            .map(|patch| patch.addresses.clone())
+            .unwrap_or_default();
+        patches.push(Patch {
+            number: *number,
+            sha256,
+            addresses,
+        });
+    }
+    patches.sort_by_key(|patch| patch.number);
+    log!("patches: the torrent lists {} patch(es)", patches.len());
+    Ok(Some(List { patches }))
 }
 
 /// The patch step. `server`: `Err(why)` when the server could not be asked
@@ -1074,6 +1275,7 @@ fn step(
         look,
         record,
         changing: false,
+        torrented: Vec::new(),
     };
     let outcome = run.step(overlay);
     let changing = run.changing;

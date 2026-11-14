@@ -870,3 +870,48 @@ pub fn run_wait(
     }
     Ok(code)
 }
+
+/// The launcher's saved torrent settings (`HKCU\Software\Vostok Games\
+/// Survarium`: `download_type`, 1 torrent and 0 direct, and `port_number`),
+/// as the launcher would pass them: (`torrent` or `direct`, the port).
+/// Nothing saved: torrent, as the launcher's default, and no port.
+pub fn launcher_torrent_setting() -> (&'static str, String) {
+    use windows_sys::Win32::System::Registry::{
+        HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RRF_RT_REG_SZ, RegGetValueW,
+    };
+    let key = wide("Software\\Vostok Games\\Survarium");
+    let mut kind = 1_u32;
+    let mut size = 4_u32;
+    let read = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            key.as_ptr(),
+            wide("download_type").as_ptr(),
+            RRF_RT_REG_DWORD,
+            null_mut(),
+            (&raw mut kind).cast(),
+            &mut size,
+        )
+    };
+    let allowed = read != 0 || kind != 0;
+    let mut port = [0_u16; 16];
+    let mut size = (port.len() * 2) as u32;
+    let read = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            key.as_ptr(),
+            wide("port_number").as_ptr(),
+            RRF_RT_REG_SZ,
+            null_mut(),
+            port.as_mut_ptr().cast(),
+            &mut size,
+        )
+    };
+    let port = if read == 0 {
+        let units = &port[..(size as usize / 2).min(port.len())];
+        from_wide(units).trim_end_matches('\0').into()
+    } else {
+        String::new()
+    };
+    (if allowed { "torrent" } else { "direct" }, port)
+}
