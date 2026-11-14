@@ -1,8 +1,9 @@
 //! A map's Free for All spawns by the spawn rule (the owner, 2026-11-14:
 //! "there should be a rule that spawns are inside buildings or close to two
-//! walls or some cover", "and none at the perimeter"): the rule is
-//! `ffa_check_points::cover` (cover, past the perimeter band); the spawns that
-//! fail it get new places that pass it, as many as there are.
+//! walls or some cover", "and none at the perimeter", "let's make other maps
+//! have x2 spawns too"): the rule is `ffa_check_points::cover` (cover, past
+//! the perimeter band); the spawns that fail it get new places that pass it,
+//! and new points that pass it make the count `--times` what it was.
 //!
 //! A solo spawn stays where it is when it passes the spawn check
 //! ([`Map::check`]: standing floor, body clear), harmful zones at least
@@ -14,36 +15,46 @@
 //! ahead (not into a wall), else the facing a new spawn gets (it is turned;
 //! its place stays), else its own.
 //!
-//! The others take new places: the reachable standing floors past the band,
-//! one in each cell of 2 m and 2 m of height, that pass the same checks and
-//! the rule, with a facing: of the 32 headings whose FACING_REACH ahead is
-//! walkable (no harmful zone at its end), the one that sees farthest (to
-//! SIGHT), into the area on a tie, seeing VIEW at least. They are chosen one
-//! at a time, each the place that brings the area's inner cells (past the
-//! band) nearest to a spawn in all (the sum of each cell's distance to its
-//! nearest spawn falls the most), so the inner area has places to spawn
-//! everywhere: a preference, no distance kept. The replaced spawns' ids go
-//! to the new places, the nearest pair first. A map with fewer candidates
-//! than spawns to place is refused, saying how many it holds.
+//! The others, and the new points, take new places: the reachable standing
+//! floors past the band, one in each cell of 2 m and 2 m of height, that pass
+//! the same checks and the rule, with a facing: of the 32 headings whose
+//! FACING_REACH ahead is walkable (no harmful zone at its end), the one that
+//! sees farthest (to SIGHT), into the area on a tie, seeing VIEW at least.
+//! They are chosen one at a time, each the place that brings the area's inner
+//! cells (past the band) nearest to a spawn in all (the sum of each cell's
+//! distance to its nearest spawn falls the most), so the inner area has
+//! places to spawn everywhere: a preference, no distance kept. The replaced
+//! spawns' ids go to the new places, the nearest pair first; the places left
+//! are new points, numbered after the project's highest point id. A map with
+//! fewer candidates than its failing spawns is refused; one that cannot hold
+//! the count takes what it holds and says so.
 //!
 //! The walk grid is seeded by the spawns and its area holds them all, so a
 //! map whose spawns moved is measured again with them where they stand, and
-//! changed again, until every spawn stays as it is (at most ROUNDS rounds):
-//! its spawns pass the rule on the project the list makes.
+//! changed again, until every spawn stays as it is and none is added (at most
+//! ROUNDS rounds): its spawns pass the rule on the project the list makes.
 //!
-//! `--below <project>=<height>`: no spawn of that project stands above the
-//! height (London 14.5: none on its rotunda's third storey, floor 17.92;
-//! the owner, 2026-11-13: "london shouldn't have spawns on the third floor").
+//! - `--below <project>=<height>`: no spawn of that project stands above the
+//!   height (London 14.5: none on its rotunda's third storey, floor 17.92;
+//!   the owner, 2026-11-13: "london shouldn't have spawns on the third floor");
+//! - `--fence <project>=<tsv>`: its area, its band and its new places are
+//!   inside that polygon (`x`, `z` columns): Training Camp's fence;
+//! - `--hold <project>`: its current spawns all stay as they are, whatever
+//!   the rule makes of them (Training Camp: the owner's arena); only new
+//!   points are added (and `--below` is theirs alone).
 //!
-//! Prints the changed spawns as checked.tsv rows (`point` the point id;
-//! `verdict` `replaced` or `turned`): cover-maps.tsv, made into an edit list by
-//! make_cover_edits.py; writes <plots>/<project>.json (the area, every spawn
-//! before with its verdict, the set after) for a review render.
+//! Prints the changed and new spawns as checked.tsv rows (`point` the point
+//! id; `verdict` `replaced`, `turned` or `added`): cover-maps.tsv, made into
+//! an edit list by make_cover_edits.py; writes <plots>/<project>.json (the
+//! area, every spawn before with its verdict, the set after) for a review
+//! render.
 //!
 //! ```text
 //! to_cover --db <resources.db> --patch <resources.db.patch_12> ... --plots <folder> \
-//!     --project level_02/day_8 ... --project v010b_cs_mp_bath/day_8@x0,z0,x1,z1 \
-//!     --below level_09/day_8=14.5
+//!     --times 2 --project level_02/day_8 ... --project v010b_cs_mp_bath/day_8@x0,z0,x1,z1 \
+//!     --below level_09/day_8=14.5 --project v010b_cs_training_camp/day_8@x0,z0,x1,z1 \
+//!     --fence v010b_cs_training_camp/day_8=<training-fence.tsv> \
+//!     --hold v010b_cs_training_camp/day_8 --below v010b_cs_training_camp/day_8=1
 //! ```
 use ffa_check_points::cover::{Area, Placement, Sight};
 use ffa_check_points::{Map, Verdict};
@@ -64,6 +75,8 @@ enum Before {
     Kept { turned: Option<f32> },
     /// It fails: why.
     Fails(String),
+    /// It fails (why), and stays as it is: a map given with `--hold`.
+    Held(String),
 }
 
 #[derive(Clone, Copy)]
@@ -237,8 +250,8 @@ fn choose(
 }
 
 /// The replaced spawns' ids for the new places: the nearest (old place, new
-/// place) pair first.
-fn assign(old: &[(i32, Vec3)], new: &[Vec3]) -> Vec<i32> {
+/// place) pair first; the places left over have none (they are new points).
+fn assign(old: &[(i32, Vec3)], new: &[Vec3]) -> Vec<Option<i32>> {
     let mut pairs: Vec<(f32, usize, usize)> = old
         .iter()
         .enumerate()
@@ -256,9 +269,45 @@ fn assign(old: &[(i32, Vec3)], new: &[Vec3]) -> Vec<i32> {
             id[j] = Some(old[i].0);
         }
     }
-    id.into_iter()
-        .map(|i| i.expect("as many ids as places"))
-        .collect()
+    id
+}
+
+/// Whether (x, z) is inside the polygon `vertices` (in order).
+fn within(vertices: &[[f32; 2]], x: f32, z: f32) -> bool {
+    let mut inside = false;
+    for (a, b) in vertices
+        .iter()
+        .zip(vertices.iter().cycle().skip(1))
+        .take(vertices.len())
+    {
+        if (a[1] > z) != (b[1] > z) && x < a[0] + (z - a[1]) * (b[0] - a[0]) / (b[1] - a[1]) {
+            inside = !inside;
+        }
+    }
+    inside
+}
+
+/// A polygon's TSV (`x`, `z` columns after a header line).
+fn polygon(path: &str) -> Result<Vec<[f32; 2]>, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+    let vertices = text
+        .lines()
+        .skip(1)
+        .filter(|l| !l.trim().is_empty())
+        .map(|line| {
+            let (x, z) = line
+                .split_once('\t')
+                .ok_or_else(|| format!("{path}: {line}"))?;
+            Ok([
+                x.parse().map_err(|_| format!("{path}: {line}"))?,
+                z.trim().parse().map_err(|_| format!("{path}: {line}"))?,
+            ])
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    if vertices.len() < 3 {
+        return Err(format!("{path}: not a polygon"));
+    }
+    Ok(vertices)
 }
 
 struct Args {
@@ -266,13 +315,32 @@ struct Args {
     projects: Vec<(String, Option<[f32; 4]>)>,
     /// (project, the highest a spawn may stand there).
     below: Vec<(String, f32)>,
+    /// (project, the fence its area and new places are inside).
+    fences: Vec<(String, Vec<[f32; 2]>)>,
+    /// Projects whose current spawns all stay as they are.
+    hold: Vec<String>,
+    /// A map's spawns after: this many times its current ones.
+    times: usize,
     plots: PathBuf,
 }
 
 fn parse() -> Result<Args, String> {
     let mut args = std::env::args().skip(1);
-    let (mut layers, mut projects, mut below, mut plots) =
-        (Vec::new(), Vec::new(), Vec::new(), None);
+    let (mut layers, mut projects, mut below, mut fences, mut hold, mut plots) = (
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        None,
+    );
+    let mut times = 1;
+    let named = |value: &str, what: &str| -> Result<(String, String), String> {
+        let (p, v) = value
+            .split_once('=')
+            .ok_or_else(|| format!("{value}: <project>={what}"))?;
+        Ok((p.to_owned(), v.to_owned()))
+    };
     while let Some(flag) = args.next() {
         let value = args.next().ok_or_else(|| format!("{flag} needs a value"))?;
         match flag.as_str() {
@@ -289,12 +357,15 @@ fn parse() -> Result<Args, String> {
                 }
             }),
             "--below" => {
-                let (p, y) = value
-                    .split_once('=')
-                    .ok_or_else(|| format!("--below {value}: <project>=<height>"))?;
-                let y = y.parse().map_err(|_| format!("bad height {y}"))?;
-                below.push((p.to_owned(), y));
+                let (p, y) = named(&value, "<height>")?;
+                below.push((p, y.parse().map_err(|_| format!("bad height {y}"))?));
             }
+            "--fence" => {
+                let (p, file) = named(&value, "<tsv>")?;
+                fences.push((p, polygon(&file)?));
+            }
+            "--hold" => hold.push(value),
+            "--times" => times = value.parse().map_err(|_| format!("bad --times {value}"))?,
             "--plots" => plots = Some(PathBuf::from(value)),
             _ => return Err(format!("unknown flag {flag}")),
         }
@@ -302,25 +373,41 @@ fn parse() -> Result<Args, String> {
     if layers.is_empty() || projects.is_empty() {
         return Err("--db and at least one --project are required".into());
     }
-    if let Some((p, _)) = below
+    let known = |p: &String| projects.iter().any(|(q, _)| q == p);
+    if let Some(p) = below
         .iter()
-        .find(|(p, _)| !projects.iter().any(|(q, _)| q == p))
+        .map(|(p, _)| p)
+        .chain(fences.iter().map(|(p, _)| p))
+        .chain(&hold)
+        .find(|p| !known(p))
     {
-        return Err(format!("--below {p}: not a --project"));
+        return Err(format!("{p}: not a --project"));
+    }
+    if times == 0 {
+        return Err("--times is at least 1".into());
     }
     Ok(Args {
         layers,
         projects,
         below,
+        fences,
+        hold,
+        times,
         plots: plots.ok_or("--plots is required")?,
     })
 }
 
 /// A project's settings.
-struct Setting {
+struct Setting<'a> {
     bounds: Option<[f32; 4]>,
     /// The highest a spawn may stand.
     top: Option<f32>,
+    /// The fence its area and new places are inside.
+    fence: Option<&'a [[f32; 2]]>,
+    /// Whether its current spawns all stay as they are.
+    hold: bool,
+    /// How many solo spawns it has after.
+    total: usize,
 }
 
 /// One round of the rule on a map's solo spawns as they stand.
@@ -329,14 +416,35 @@ struct Round {
     /// The solo spawns, in point id order, and what the rule makes of each.
     before: Vec<(Spawn, Before)>,
     /// The failing ones' new places, by point id.
+    moved: Vec<(i32, Candidate)>,
+    /// New points up to the total, by their new point ids.
     added: Vec<(i32, Candidate)>,
     candidates: usize,
 }
 
 impl Round {
     fn of(map: &Map, sight: &Sight, setting: &Setting) -> Result<Self, String> {
-        let Setting { bounds, top } = *setting;
-        let area = Area::of(map, bounds)?;
+        let Setting {
+            bounds,
+            top,
+            fence,
+            hold,
+            total,
+        } = *setting;
+        let floors: Vec<u32> = map
+            .standing_floors(bounds)
+            .into_iter()
+            .filter(|&n| {
+                let p = map.grid.position(n);
+                fence.is_none_or(|f| within(f, p.x, p.z))
+            })
+            .collect();
+        let area = Area::new(
+            &floors
+                .iter()
+                .map(|&n| map.grid.position(n))
+                .collect::<Vec<_>>(),
+        )?;
         let centre = Vec3::new(area.centroid.0, 0.0, area.centroid.1);
         let mut solo: Vec<Spawn> = map
             .data
@@ -346,30 +454,38 @@ impl Round {
             .cloned()
             .collect();
         solo.sort_by_key(|s| s.point_id);
-        let mut before: Vec<(Spawn, Before)> = Vec::new();
-        let mut kept: Vec<Vec3> = Vec::new();
-        for s in solo {
-            let verdict = (|| {
-                if let Some(top) = top.filter(|&top| s.position.y > top) {
-                    return Err(format!("above {top} m"));
-                }
-                let (feet, _) = checked(map, sight, &area, s.position)?;
-                let node = map
-                    .grid
-                    .locate(feet, 0.6)
-                    .ok_or("no walk-grid floor under it")?;
-                let turned = match sight_along(map, bounds, node, heading_of(s.rotation)) {
-                    Some(seen) if seen >= VIEW => None,
-                    _ => facing(map, bounds, node, centre),
+        let before: Vec<(Spawn, Before)> = solo
+            .into_iter()
+            .map(|s| {
+                let verdict = (|| {
+                    if let Some(top) = top.filter(|&top| !hold && s.position.y > top) {
+                        return Err(format!("above {top} m"));
+                    }
+                    let (feet, _) = checked(map, sight, &area, s.position)?;
+                    let node = map
+                        .grid
+                        .locate(feet, 0.6)
+                        .ok_or("no walk-grid floor under it")?;
+                    let turned = match sight_along(map, bounds, node, heading_of(s.rotation)) {
+                        Some(seen) if seen >= VIEW => None,
+                        _ => facing(map, bounds, node, centre),
+                    };
+                    Ok(turned)
+                })();
+                let verdict = match verdict {
+                    Ok(turned) if !hold => Before::Kept { turned },
+                    Ok(_) => Before::Kept { turned: None },
+                    Err(why) if hold => Before::Held(why),
+                    Err(why) => Before::Fails(why),
                 };
-                Ok(Before::Kept { turned })
-            })();
-            let verdict = verdict.unwrap_or_else(Before::Fails);
-            if matches!(verdict, Before::Kept { .. }) {
-                kept.push(s.position);
-            }
-            before.push((s, verdict));
-        }
+                (s, verdict)
+            })
+            .collect();
+        let stays: Vec<Vec3> = before
+            .iter()
+            .filter(|(_, v)| !matches!(v, Before::Fails(_)))
+            .map(|(s, _)| s.position)
+            .collect();
         let failing: Vec<(i32, Vec3)> = before
             .iter()
             .filter(|(_, v)| matches!(v, Before::Fails(_)))
@@ -377,7 +493,7 @@ impl Round {
             .collect();
         let mut cells = BTreeSet::new();
         let mut candidates = Vec::new();
-        for node in map.standing_floors(bounds) {
+        for node in floors {
             let p = map.grid.position(node);
             if !area.inside(p)
                 || top.is_some_and(|top| p.y > top)
@@ -399,27 +515,45 @@ impl Round {
                 });
             }
         }
-        let added: Vec<Candidate> = choose(&candidates, &kept, &inner_cells(&area), failing.len())
+        let wanted = failing.len() + total.saturating_sub(before.len());
+        let places: Vec<Candidate> = choose(&candidates, &stays, &inner_cells(&area), wanted)
             .into_iter()
             .map(|i| candidates[i])
             .collect();
-        if added.len() < failing.len() {
+        if places.len() < failing.len() {
             return Err(format!(
-                "{} of the {} spawns that fail the rule find a place: the map holds {} of its {}",
-                added.len(),
-                failing.len(),
-                before.len() - failing.len() + added.len(),
-                before.len()
+                "{} places pass the rule for the {} spawns that fail it",
+                places.len(),
+                failing.len()
             ));
         }
         let ids = assign(
             &failing,
-            &added.iter().map(|c| c.position).collect::<Vec<_>>(),
+            &places.iter().map(|c| c.position).collect::<Vec<_>>(),
         );
+        let mut next = map
+            .data
+            .spawns
+            .iter()
+            .map(|s| s.point_id)
+            .max()
+            .unwrap_or(-1)
+            + 1;
+        let (mut moved, mut added) = (Vec::new(), Vec::new());
+        for (id, place) in ids.into_iter().zip(places) {
+            match id {
+                Some(id) => moved.push((id, place)),
+                None => {
+                    added.push((next, place));
+                    next += 1;
+                }
+            }
+        }
         Ok(Self {
             area,
             before,
-            added: ids.into_iter().zip(added).collect(),
+            moved,
+            added,
             candidates: candidates.len(),
         })
     }
@@ -431,15 +565,16 @@ impl Round {
             .count()
     }
 
-    /// Whether every spawn stays as it is.
+    /// Whether every spawn stays as it is and none is added.
     fn settled(&self) -> bool {
-        self.added.is_empty() && self.turned() == 0
+        self.moved.is_empty() && self.added.is_empty() && self.turned() == 0
     }
 
-    /// The map's spawns with this round's changes.
-    fn apply(&self, spawns: &mut [Spawn]) {
+    /// The map's spawns with this round's changes: a new point is a copy of
+    /// the first solo spawn at its place.
+    fn apply(&self, spawns: &mut Vec<Spawn>) {
         for s in spawns.iter_mut().filter(|s| s.team == 2) {
-            if let Some((_, c)) = self.added.iter().find(|(id, _)| *id == s.point_id) {
+            if let Some((_, c)) = self.moved.iter().find(|(id, _)| *id == s.point_id) {
                 s.position = c.position;
                 s.rotation = Vec3::new(0.0, c.yaw, 0.0);
             }
@@ -449,6 +584,16 @@ impl Round {
             });
             if let Some(yaw) = turned {
                 s.rotation = Vec3::new(0.0, yaw, 0.0);
+            }
+        }
+        if let Some((model, _)) = self.before.first() {
+            for (id, c) in &self.added {
+                spawns.push(Spawn {
+                    position: c.position,
+                    rotation: Vec3::new(0.0, c.yaw, 0.0),
+                    point_id: *id,
+                    ..model.clone()
+                });
             }
         }
     }
@@ -467,6 +612,8 @@ fn run() -> Result<(), String> {
     );
     for (project, bounds) in &args.projects {
         eprintln!("loading {project}");
+        let mut data =
+            MapData::load(&mut resources, &materials, project).map_err(|e| e.to_string())?;
         let setting = Setting {
             bounds: *bounds,
             top: args
@@ -474,14 +621,19 @@ fn run() -> Result<(), String> {
                 .iter()
                 .find(|(p, _)| p == project)
                 .map(|&(_, y)| y),
+            fence: args
+                .fences
+                .iter()
+                .find(|(p, _)| p == project)
+                .map(|(_, f)| f.as_slice()),
+            hold: args.hold.contains(project),
+            total: args.times * data.spawns.iter().filter(|s| s.team == 2).count(),
         };
-        let mut data =
-            MapData::load(&mut resources, &materials, project).map_err(|e| e.to_string())?;
         let map = Map::of(data.clone(), *bounds);
         let sight = Sight::of(&map);
         let first = Round::of(&map, &sight, &setting).map_err(|e| format!("{project}: {e}"))?;
         // The walk grid is seeded by the spawns and its area holds them all:
-        // moved spawns are measured again, until every one stays.
+        // moved and new spawns are measured again, until every one stays.
         let mut later: Option<Round> = None;
         let mut rounds = 1;
         loop {
@@ -499,54 +651,64 @@ fn run() -> Result<(), String> {
         }
         let last = later.as_ref().unwrap_or(&first);
         let area = &last.area;
-        // What became of each spawn: moved, turned or as it was.
-        let after: Vec<(Spawn, &str)> = first
+        // What became of each spawn: moved, turned, as it was, or added.
+        let after: Vec<(Spawn, &str)> = last
             .before
             .iter()
-            .map(|(s, _)| {
-                let now = last
+            .map(|(now, _)| {
+                let state = match first
                     .before
                     .iter()
-                    .find(|(b, _)| b.point_id == s.point_id)
-                    .expect("the same spawns")
-                    .0
-                    .clone();
-                let state = if (now.position - s.position).length() > 1e-4 {
-                    "new"
-                } else if (now.rotation - s.rotation).length() > 1e-6 {
-                    "turned"
-                } else {
-                    "kept"
+                    .find(|(s, _)| s.point_id == now.point_id)
+                {
+                    None => "added",
+                    Some((s, _)) if (now.position - s.position).length() > 1e-4 => "new",
+                    Some((s, _)) if (now.rotation - s.rotation).length() > 1e-6 => "turned",
+                    Some(_) => "kept",
                 };
-                (now, state)
+                (now.clone(), state)
             })
             .collect();
         let count = |state: &str| after.iter().filter(|(_, s)| *s == state).count();
+        let short = setting.total.saturating_sub(after.len());
         eprintln!(
-            "{project}: depth max {:.1} m, band {:.1} m, {} solo, {} kept ({} turned), {} replaced, {} candidates; settled in {rounds} rounds",
+            "{project}: depth max {:.1} m, band {:.1} m, {} solo -> {}, {} kept ({} turned), {} replaced, {} added, {} candidates; settled in {rounds} rounds{}",
             first.area.max,
             first.area.band(),
+            first.before.len(),
             after.len(),
             count("kept") + count("turned"),
             count("turned"),
             count("new"),
-            first.candidates
+            count("added"),
+            first.candidates,
+            if short > 0 {
+                format!("; SHORT of {} by {short}", setting.total)
+            } else {
+                String::new()
+            }
         );
         let reason = |what: &str, p: Vec3| {
             let placement = Placement::of(&sight, area, p);
             format!(
-                "{what}; cover {} (depth {:.1} m past the band's {:.1} m); reachable standing floor; body clear; harmful zones >={HAZARD_MARGIN}m; walkable facing {FACING_REACH}m seeing >={VIEW}m{}",
+                "{what}; cover {} (depth {:.1} m past the band's {:.1} m); reachable standing floor; body clear; harmful zones >={HAZARD_MARGIN}m; walkable facing {FACING_REACH}m seeing >={VIEW}m{}{}",
                 placement.cover.name(),
                 placement.depth,
                 area.band(),
                 setting
                     .top
-                    .map_or(String::new(), |top| format!("; at most {top} m high"))
+                    .map_or(String::new(), |top| format!("; at most {top} m high")),
+                if setting.fence.is_some() {
+                    "; inside the fence"
+                } else {
+                    ""
+                }
             )
         };
         for (s, state) in &after {
             let (verdict, what) = match *state {
                 "new" => ("replaced", "new place"),
+                "added" => ("added", "new point"),
                 "turned" => ("turned", "kept, turned"),
                 _ => continue,
             };
@@ -568,7 +730,7 @@ fn run() -> Result<(), String> {
         let a = &first.area;
         write!(
             json,
-            "{{\"project\":\"{project}\",\"cell\":{},\"x0\":{},\"z0\":{},\"width\":{},\"height\":{},\"max\":{},\"band\":{},\"candidates\":{},\"rounds\":{rounds},",
+            "{{\"project\":\"{project}\",\"cell\":{},\"x0\":{},\"z0\":{},\"width\":{},\"height\":{},\"max\":{},\"band\":{},\"candidates\":{},\"rounds\":{rounds},\"total\":{},\"short\":{short},",
             Area::CELL,
             f(a.x0),
             f(a.z0),
@@ -577,6 +739,7 @@ fn run() -> Result<(), String> {
             f(a.max),
             f(a.band()),
             first.candidates
+            , setting.total
         )
         .unwrap();
         let depth: Vec<String> = a
@@ -604,7 +767,7 @@ fn run() -> Result<(), String> {
             .map(|(s, v)| {
                 let extra = match v {
                     Before::Kept { .. } => "\"pass\":true,\"why\":\"\"".to_owned(),
-                    Before::Fails(why) => {
+                    Before::Fails(why) | Before::Held(why) => {
                         format!("\"pass\":false,\"why\":\"{}\"", why.replace('"', "'"))
                     }
                 };
@@ -679,7 +842,20 @@ mod tests {
             (7, Vec3::new(0.0, 0.0, 0.0)),
             (9, Vec3::new(100.0, 0.0, 0.0)),
         ];
-        let new = [Vec3::new(90.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 0.0)];
-        assert_eq!(assign(&old, &new), vec![9, 7]);
+        let new = [
+            Vec3::new(90.0, 0.0, 0.0),
+            Vec3::new(50.0, 0.0, 0.0),
+            Vec3::new(5.0, 0.0, 0.0),
+        ];
+        // The place left over is a new point.
+        assert_eq!(assign(&old, &new), vec![Some(9), None, Some(7)]);
+    }
+
+    #[test]
+    fn a_fence_holds_its_inside() {
+        let square = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]];
+        assert!(within(&square, 5.0, 5.0));
+        assert!(!within(&square, 15.0, 5.0));
+        assert!(!within(&square, -1.0, 5.0));
     }
 }
