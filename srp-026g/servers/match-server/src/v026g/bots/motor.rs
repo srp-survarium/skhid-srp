@@ -6173,14 +6173,14 @@ mod tests {
         let way = [0.6, 0.8];
         let straight = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(1.2), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT });
         assert_eq!(aimed_line(take_off, way, straight), (take_off, way));
-        let aim = PressAim::of_steps(-6, 4);
+        let aim = PressAim::new(-6, 4).expect("within the record's steps");
         let lead = mapdata::PressLead::from_metres(1.2);
         let aimed = Leap::SprintGap(SprintPress { lead, share: mapdata::Share::FULL, walk: None, aim });
         let (origin, heading) = aimed_line(take_off, way, aimed);
         let n = mapdata::controller::jump::Neighbour { lead: 0.0, side: aim.side_m(), turn: aim.turn_rad(), dy: 0.0, fastest: false };
         let flown = mapdata::controller::jump::press_point(take_off, (way[0], way[1]), lead.metres(), n);
         let pressed = Vec3::new(origin.x - heading[0] * lead.metres(), origin.y, origin.z - heading[1] * lead.metres());
-        assert!(pressed.distance(flown) < 1e-5, "the press point is the flight's: {pressed:?} {flown:?}");
+        assert!(pressed.distance_xz(flown) < 1e-5 && (pressed.y - flown.y).abs() < 1e-6, "the press point is the flight's: {pressed:?} {flown:?}");
         let (sin, cos) = aim.turn_rad().sin_cos();
         let turned = [way[0] * cos - way[1] * sin, way[0] * sin + way[1] * cos];
         assert!((heading[0] - turned[0]).abs() < 1e-6 && (heading[1] - turned[1]).abs() < 1e-6, "the flight's heading: {heading:?}");

@@ -102,41 +102,11 @@ pub struct GapPress {
     pub aim: PressAim,
 }
 
-/// [A386 R83/R94] A press aimed off its link's line, as the grid flew it (`R83-FORMAT.md`, the off-link record's byte 9, signed
-/// steps of [`PressAim::STEP`]): the press point `side` to the link's way's right of the straight press point, and the heading
-/// turned `turn` counter-clockwise seen from above (`controller::jump::press_point`, `neighbour_flights`'s heading). Straight
-/// (both 0) for every link of a file before it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct PressAim {
-    side: i8,
-    turn: i8,
-}
-
-impl PressAim {
-    /// One step of the side (m) and of the turn (rad).
-    pub const STEP: f32 = 0.05;
-    /// On the link's line.
-    pub const STRAIGHT: Self = Self { side: 0, turn: 0 };
-
-    /// The aim of `side` and `turn` steps.
-    pub const fn of_steps(side: i8, turn: i8) -> Self {
-        Self { side, turn }
-    }
-
-    /// The press point's offset to the way's right, m.
-    pub fn side_m(self) -> f32 {
-        f32::from(self.side) * Self::STEP
-    }
-
-    /// The heading's turn, counter-clockwise seen from above, rad.
-    pub fn turn_rad(self) -> f32 {
-        f32::from(self.turn) * Self::STEP
-    }
-
-    pub fn is_straight(self) -> bool {
-        self == Self::STRAIGHT
-    }
-}
+/// [A386 R83/R94] A press aimed off its link's line, as the grid flew it: the builder's [`mapdata::grid::Aim`] (`R83-FORMAT.md`,
+/// the off-link record's byte 9): the press point `side_m` to the link's way's right of the straight one, the heading turned
+/// `turn_rad` counter-clockwise seen from above (`controller::jump::press_point`, `neighbour_flights`'s heading). Straight for
+/// every link of a file before it.
+pub type PressAim = mapdata::grid::Aim;
 
 /// [A386] A sprint link's jump as the grid flew it: its lead and share, and the link's best walking press (at the walk cap)
 /// onto the same floor for a body the client refuses the sprint (A385-FORMAT §5): None where no walking press lands.
@@ -198,7 +168,7 @@ impl Leap {
 
     /// [A386] A gap link's press, from the grid's link (`gap::OffLink`): None for a walk-off (no key).
     pub fn of_link(link: &mapdata::grid::gap::OffLink) -> Option<Self> {
-        Self::of_press(link.press, link.share, link.walk, PressAim::STRAIGHT)
+        Self::of_press(link.press, link.share, link.walk, link.aim)
     }
 
     /// [A386] A flown press with its share (and a sprint press's walking one): None for a walk-off (no key).
@@ -2187,6 +2157,13 @@ mod tests {
             }))
         );
         assert_eq!(Leap::of_link(&link(Takeoff::WalkOff, None)), None);
+        // [A386 R83/R94] The link's aim is its press's; a sprint link's walking press is the straight one.
+        let aim = mapdata::grid::Aim::new(-6, 4).expect("within the record's steps");
+        let aimed = |press: Takeoff, walk| mapdata::OffLink { aim, ..link(press, walk) };
+        assert_eq!(Leap::of_link(&aimed(Takeoff::Press(lead), None)).map(Leap::aim), Some(aim));
+        let sprint = Leap::of_link(&aimed(Takeoff::Sprint(lead), Some((lead, Share::landed(4)))));
+        assert_eq!(sprint.map(Leap::aim), Some(aim));
+        assert!(matches!(sprint, Some(Leap::SprintGap(SprintPress { walk: Some(walk), .. })) if walk.aim.is_straight()));
         // A riser's flown press (A385 rule (d)).
         assert_eq!(RiserPress::of(None), RiserPress::Unflown);
         assert_eq!(RiserPress::of(Some(mapdata::grid::Riser::NoPress)), RiserPress::NoPress);
