@@ -1501,9 +1501,9 @@ va	name	source	ret_cleanup	result
 0x0033cac0	survarium::medkit::medkit	manual	4	
 0x0033d2b0	survarium::medkit::`scalar deleting destructor'	manual	4	
 0x0033d2d0	survarium::medkit::~medkit	manual		
-0x0033d390	survarium::medkit::set_active	manual	8	
-0x0033d700	survarium::medkit::action	manual	8	
-0x0033d790	survarium::medkit::tick	manual	12	
+0x0033d390	survarium::medkit::set_active	manual	8	set_active(1): m_activity_time_ms (+2A8h) := the activity time through modifier 34 (0x33D3EF..0x33D43A); m_delay_ms (+2ACh) := the activation delay through modifier 33 (0x33D45A..0x33D491): both are the time LEFT
+0x0033d700	survarium::medkit::action	manual	8	a press with the drug not active (+2B0h) and the stack > 0: set_active(1, t), then amount - 1 in the same call (0x33D736..0x33D765)
+0x0033d790	survarium::medkit::tick	manual	12	the holder dead -> set_active(0) (0x33D7AE); the delay left -= min(delay, dt), nothing more while it is left; then the activity left; the first active tick (activity == full) removes the wounds (0x33D860..0x33D892); activity 0 -> set_active(0) (0x33DA2D..0x33DA3E)
 0x0033da50	survarium::medkit::remove_affects	manual	4	
 0x0033db30	survarium::medkit::reduce_damage	manual	12	
 0x0033dbd0	survarium::medkit::serialize	manual	8	

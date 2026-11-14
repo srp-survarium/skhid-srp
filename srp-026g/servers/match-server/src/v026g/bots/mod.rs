@@ -1748,6 +1748,25 @@ impl Bots {
     /// A trusted world's word on what one place's kits hold of drugs
     /// ([`stock::readings`], from `players::Supplies`): the bot's own count
     /// follows it.
+    /// [Gap 11] A trusted world made at `time` shows a bot's kit in use `kit` with the drug courses `shown`
+    /// ([`stock::world_courses`]): its presses take them (`heal.course_from_world`, [`stock::Pantry::courses`]).
+    /// Returns the presses whose course changed ([`stock::Pantry::courses`]), for the log.
+    pub fn courses(
+        &mut self,
+        place: Place,
+        time: u32,
+        kit: usize,
+        shown: &[stock::ShownDrug],
+    ) -> Vec<stock::CourseChange> {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return Vec::new();
+        };
+        if !self.tunings.of(bot.team).heal.course_from_world {
+            return Vec::new();
+        }
+        bot.features.stock.pantry.courses(time, kit, shown)
+    }
+
     pub fn stock(&mut self, place: Place, time: u32, readings: &stock::Readings) {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.features.stock.pantry.read(time, readings);
