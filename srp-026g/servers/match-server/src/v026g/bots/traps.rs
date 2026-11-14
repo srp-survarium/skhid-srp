@@ -1607,7 +1607,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         now: due.now,
         play: bot.assignment.as_ref().map(|a| a.kind),
         carrying: me.carrying.is_some(),
-        health: me.health,
+        health: super::pools::own_health(bot.features.stock.pools, me.health, due.tuning.heal.lethal_health),
         enemy: if job.is_some() { !bot.memory.all_seen(due.now, due.view.clock).is_empty() } else { enemy_near(bot, due) },
         last_hit: bot.hurt.last_hit_ms,
         reloading: bot

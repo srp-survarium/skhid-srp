@@ -617,6 +617,12 @@ impl Ctx<'_> {
             })
     }
 
+    /// [Gap 4] Its own health for a decision: the lethal pool nearest its end with `heal.lethal_health` and its pools
+    /// known, else the body pool ([`super::pools::own_health`]).
+    pub fn health(&self) -> f32 {
+        super::pools::own_health(self.bot.pools, self.me.health, self.tuning.heal.lethal_health)
+    }
+
     /// The play's tuning.
     pub fn play(&self, kind: PlayKind) -> PlayTuning {
         self.tuning
@@ -1027,7 +1033,7 @@ impl Ctx<'_> {
         match input {
             // A target with no place (roam ahead) is near.
             Input::PathDist => point.map_or(0.0, |at| self.path_dist(at)),
-            Input::Health => self.me.health,
+            Input::Health => self.health(),
             Input::Ammo => self.bot.ammo.share(),
             Input::EnemiesNearTarget => point.map_or(0.0, |at| self.enemies_near(at, 25.0) as f32),
             Input::FriendsNearTarget => point.map_or(0.0, |at| self.friends_near(at, 25.0) as f32),

@@ -79,7 +79,7 @@ pub fn under_fire(cx: &Ctx) -> bool {
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     let running = matches!(cx.bot.current, Some((PlayKind::Retreat, _, _)));
     if !running
-        && (cx.me.health >= num(cx, "below")
+        && (cx.health() >= num(cx, "below")
             || (super::heal::medkits_left(cx) > 0 && !under_fire(cx)))
     {
         return;
