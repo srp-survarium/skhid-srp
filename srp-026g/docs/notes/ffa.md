@@ -199,6 +199,64 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     weathers, the other 30 Free for All projects' spawns as before; the released map test passes
     on its server data. Offline only: not played, not released.
   - Review renders: `private/renders/ffa-spawn-cover/` of the main checkout.
+- **Experimental Pool at the owner's picks** (2026-11-14, the same session as Rudnya's: 28 `where`
+  places, `private/spawn-examples/pool-2026-11-14.tsv`). Content edit `ffa-pool-picks-1`, from
+  `scripts/ffa-mode/pool-picks.tsv` (`picks --as-stood 12 --project v010b_cs_mp_bath/day_8`, no
+  roofs asked) and `make_picks_edits.py pool`, in its own project only; Pool's point ids count anew
+  in each team (team 2: 0-47 after `ffa-cover-maps-1`):
+  - All 28 of his places (the owner, of the picks the checks dropped: "keep all my positions"),
+    on their ground (pick 28 lowered 7 cm), facing as he faced, in the places of point_ids 0-27
+    (position and rotation only); 27 hold the rule (20 has no cover). The 20 left over, 28-47, go:
+    48 -> 28 points. After `ffa-cover-maps-1`.
+  - Pick 12 (9.461 9.658 26.795) stays where he stood (`picks --as-stood`): the check's collision
+    has no floor under its centre (he stood, eye 1.45 m over his feet) but one 0.83 m below, where
+    a body meets collision 0.31 m from its axis at 0.65 m: most likely he stood on the edge of
+    something 0.83 m high beside the point.
+- **School at the owner's picks** (2026-11-14, the same session: 49 `where` places,
+  `private/spawn-examples/school-2026-11-14.tsv`). Content edit `ffa-school-picks-1`, from
+  `scripts/ffa-mode/school-picks.tsv` (`picks --harmful-ok 7,8,15,45,46,48,49 --as-stood 17
+  --project level_02/<weather>_8` for day, evening and rain) and `make_picks_edits.py school`, in
+  its three own projects:
+  - All 49 of his places ("keep all my positions"), on their ground, facing as he faced, in the
+    places of point_ids 30-78 (position and rotation only); 48 hold the rule (39 has no cover). The
+    3 left over, 79-81, go: 52 -> 49 points. After `ffa-cover-maps-1`.
+  - The owner's against the checks, the same in the three weathers: 7 and 8 (1.92 and 1.27 m from
+    `stalactite_radiation`), 15 (1.15 m from `fruit_toxic_cloud_lvl4`), 45, 46, 48 and 49 (inside
+    `fruit_toxic_cloud_lvl5`, the low corners), kept by `--harmful-ok` as Rudnya's 45; and 17 where
+    he stood (as Pool's 12: no floor under its centre but one 0.87 m below, there collision 0.20 m
+    from the body's axis at 0.65 m).
+- **Vostok at the owner's picks** (2026-11-14, the same session: 73 `where` places,
+  `private/spawn-examples/vostok-2026-11-14.tsv`; "also for vostok also all"). Content edit
+  `ffa-vostok-picks-1`, from `scripts/ffa-mode/vostok-picks.tsv` (`picks --project
+  level_03/<weather>_8` for day, evening and rain; no pick needed `--harmful-ok` or `--as-stood`)
+  and `make_picks_edits.py vostok`, in its three own projects:
+  - All 73 on their ground (0 to 37 cm), facing as he faced, however near another (21 and 63, 29
+    and 45 are under 1 m apart): the first 48 in the places of point_ids 22-69 (position and
+    rotation only), 25 new points 70-94, copies of the first solo spawn (20 m exclusion, 500 ms
+    protection, no zones). After `ffa-cover-maps-1` and the other picks lists.
+  - A roof spawn, 95, on the long building at pick 13 (the owner: "set one spawn on top of the
+    building where 13 is"; `picks --roofs 13 --stranded-ok 13`): at -61.943 13.519 -19.574, its
+    floor 3.5 m over 13's, 10.9 m from it in plan, flat (1°), facing the longest view. The roof
+    has no way down within the walk model's 5 m drops and is not reached on foot: placed anyway,
+    as he asked (`--stranded-ok` takes the nearest roof with a flat, clear floor without one).
+    48 -> 74 points.
+  - 58 hold the rule; 2, 3, 23 and 38 have no cover, 21, 22, 58-63 and 68-70 are in the perimeter
+    band (5.7 m): kept as his.
+- **Vostok's picks on its ports** (the owner, 2026-11-14: "all of my spawns most likely can be
+  reused on 0.11 and 0.21 maps"). Both ports share native Vostok's world coordinates: the site's
+  maps.json gives the three the same bounds (v0.11's minimap 0.23 m off in x only), and the picks
+  land where they did: v0.21 68 of 71 at the native height (the rest within 12 cm), v0.11 63 of
+  71 (within 33 cm). He did not stand on the ports, so `--as-stood` does not apply there; `picks
+  --shift 1.5` moves a pick the checks drop to the nearest place within 1.5 m that passes them,
+  else it stays out (none found one). Each in its port's own `day_8` project:
+  - v0.21 (`ffa-vostok-v021-picks-1`, `v021d_level_03/day_8`): 71 of 73, the first 44 in point_ids
+    22-65, 27 new 66-92; 67 and 68 out (inside the rust anomaly's `gas_damage_zone` there). The
+    roof spawn at 13, 93, lands on the same roof (3.2 m over 13's floor), here with a way down on
+    foot. 44 -> 72 points.
+  - v0.11 (`ffa-vostok-v011-picks-1`, `v011e_level_03/day_8`): 71 of 73, the first 44 in point_ids
+    28-71, 27 new 72-98; 71 and 72 out (no floor players reach within 1.5 m). No roof spawn: the
+    roof check finds only a surface 144 m up over 13 here. 44 -> 71 points.
+- A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
   proposal for all 16 maps below; Training Camp has its own, `stalker-ffa.md`). Content edit

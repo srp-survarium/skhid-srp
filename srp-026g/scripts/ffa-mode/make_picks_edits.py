@@ -1,52 +1,138 @@
 #!/usr/bin/env python3
-"""Rudnya's Free for All spawns at the owner's picks (2026-11-14: "there should be a rule that spawns
-are inside buildings or close to two walls or some cover", "I can give you many examples with ~where";
-his 56 `where` places, private/spawn-examples/rudnya-2026-11-14.tsv; "for 49, 8, 10 and 42 we need
-spawn points on top of those builings (roofs)").
+"""A map's Free for All spawns at the owner's picks (2026-11-14, Rudnya first: "there should be a rule
+that spawns are inside buildings or close to two walls or some cover", "I can give you many examples
+with ~where"; his `where` places, private/spawn-examples/<map>-2026-11-14.tsv). MAPS names each map:
+its picks, its edit list, its new points' names and the list's about text; a map more is a row there.
 
-rudnya-picks.tsv is the reviewed output of check-points' picks binary (its doc says how a pick is
-put on its ground and checked), run on the projects as every row of release/content.tsv
-leaves them (the stock db, every patch of release/patches.tsv and a build-content patch):
+<map>-picks.tsv is the reviewed output of check-points' picks binary (its doc says how a pick is put
+on its ground and checked), run on the map's projects as every row of release/content.tsv above the
+map's list leaves them (the stock db, every patch of release/patches.tsv and, for rows not yet
+released, a build-content patch):
 
   cd check-points && cargo run --release --bin picks -- --db <resources.db> \\
       --patch <resources.db.patch_12> ... --patch <resources.db.patch_59> \\
       --points <rudnya-2026-11-14.tsv> --roofs 49,8,10,42 --harmful-ok 45 \\
       --project level_01/day_8 --project level_01/evening_8 --project level_01/rain_8 > ../rudnya-picks.tsv
+  cd check-points && cargo run --release --bin picks -- --db <resources.db> --patch ... \\
+      --points <pool-2026-11-14.tsv> --as-stood 12 --project v010b_cs_mp_bath/day_8 > ../pool-picks.tsv
+  cd check-points && cargo run --release --bin picks -- --db <resources.db> --patch ... \\
+      --points <school-2026-11-14.tsv> --harmful-ok 7,8,15,45,46,48,49 --as-stood 17 \\
+      --project level_02/day_8 --project level_02/evening_8 --project level_02/rain_8 > ../school-picks.tsv
+  cd check-points && cargo run --release --bin picks -- --db <resources.db> --patch ... \\
+      --points <vostok-2026-11-14.tsv> --roofs 13 --stranded-ok 13 \\
+      --project level_03/day_8 --project level_03/evening_8 --project level_03/rain_8 > ../vostok-picks.tsv
+  cd check-points && cargo run --release --bin picks -- --db <resources.db> --patch ... \\
+      --points <vostok-2026-11-14.tsv> --shift 1.5 --roofs 13 --project v021d_level_03/day_8 > ../vostok-v021-picks.tsv
+  cd check-points && cargo run --release --bin picks -- --db <resources.db> --patch ... \\
+      --points <vostok-2026-11-14.tsv> --shift 1.5 --project v011e_level_03/day_8 > ../vostok-v011-picks.tsv
+
+(the owner, 2026-11-14, of the picks the checks dropped: "keep all my positions").
 
 Then
 
-  python3 make_picks_edits.py --live <folder>
+  python3 make_picks_edits.py <map> --live <folder>
 
-with the projects at their game paths as those rows leave them, writes
-../content-edit/ffa-rudnya-picks-1.json: each `moved` row's solo spawn, matched by its point id, name
-and team 2, gets the pick's position and rotation [0, yaw, 0] (its id, name, radii and protection
-stay); each `added` and `roof` row is a new solo spawn after the project's last point, a copy of its
-first solo spawn (20 m exclusion, 500 ms protection, no team zones) at the row's place, named
-ffa_rudnya_<point id>; each `removed` row's spawn, the project's last entries, goes. Points stand
-as near one another as they are (the owner, 2026-11-14, of the 12 m spacing: "we don't need this
-rules at all"); 45 is 1.5 m from the swamp anomaly ("45 can stay too"). Only the free for all's
-own projects (`<weather>_8`); Team Deathmatch's are never named. The last of the Free for All lists:
-it adds and removes points, which the lists before it address by index, and its new points copy the
-500 ms that ffa-protection-ms-1 gave the others.
+with the projects at their game paths as those rows leave them, writes the map's list in
+../content-edit/: each `moved` row's solo spawn, matched by its point id, name and team 2, gets the
+pick's position and rotation [0, yaw, 0] (its id, name, radii and protection stay); each `added` and
+`roof` row is a new solo spawn after the project's last point, a copy of its first solo spawn (20 m
+exclusion, 500 ms protection, no team zones) at the row's place, named <prefix><point id>; each
+`removed` row's spawn, the project's last entries, goes. Points stand as near one another as they are
+(the owner, 2026-11-14, of the 12 m spacing: "we don't need this rules at all"). Only the free for
+all's own projects (`<weather>_8`); Team Deathmatch's are never named. A map's list comes after every
+list that touches its Free for All spawns: it adds and removes points, which the lists before it
+address by index, and its new points copy the 500 ms that ffa-protection-ms-1 gave the others.
 """
 import argparse
 import csv
 import math
 from pathlib import Path
+from typing import NamedTuple
 
 import make_edits as base
 from make_center_edits import path_of
 
-POINTS_TSV = base.HERE / 'rudnya-picks.tsv'
-OUTPUT = base.HERE.parent / 'content-edit/ffa-rudnya-picks-1.json'
+
+class Map(NamedTuple):
+    picks: Path
+    output: Path
+    prefix: str
+    about: str
+
+
+MAPS = {
+    'rudnya': Map(
+        base.HERE / 'rudnya-picks.tsv', base.HERE.parent / 'content-edit/ffa-rudnya-picks-1.json', 'ffa_rudnya_',
+        'Rudnya\'s Free for All spawns at the owner\'s picks (2026-11-14: "there should be a rule that '
+        'spawns are inside buildings or close to two walls or some cover"; his `where` places; "for 49, 8, 10 and '
+        '42 we need spawn points on top of those builings (roofs)"). Generated by scripts/ffa-mode/'
+        'make_picks_edits.py from rudnya-picks.tsv (check-points picks): each kept pick on its ground, body clear, '
+        '2 m from harmful zones (but 45, the owner\'s), facing as he faced, in a solo spawn\'s place (its id, name, '
+        'radii and protection kept) or a new one; a roof spawn on each building asked for, with a way down; the '
+        'solo spawns left over (the last entries) go. The free for all\'s own projects only; the last Free for '
+        'All list (its new points copy the 500 ms ffa-protection-ms-1 gave the others).'),
+    'pool': Map(
+        base.HERE / 'pool-picks.tsv', base.HERE.parent / 'content-edit/ffa-pool-picks-1.json', 'ffa_pool_',
+        'Experimental Pool\'s Free for All spawns at the owner\'s picks (2026-11-14: his `where` places, as '
+        'Rudnya\'s). Generated by scripts/ffa-mode/make_picks_edits.py from pool-picks.tsv (check-points picks): '
+        'all 28 ("keep all my positions"), each on its ground, body clear (but 12, where he stood: the check has no '
+        'floor under its centre), 2 m from harmful zones, facing as he faced, in a solo spawn\'s place (its id, '
+        'name, radii and protection kept), however near another; the solo spawns left over (the last entries) go. '
+        'The free for all\'s own project v010b_cs_mp_bath/day_8 only; after ffa-cover-maps-1, whose points it '
+        'replaces.'),
+    'school': Map(
+        base.HERE / 'school-picks.tsv', base.HERE.parent / 'content-edit/ffa-school-picks-1.json', 'ffa_school_',
+        'School\'s Free for All spawns at the owner\'s picks (2026-11-14: his `where` places, as Rudnya\'s). '
+        'Generated by scripts/ffa-mode/make_picks_edits.py from school-picks.tsv (check-points picks): all 49 '
+        '("keep all my positions"), each on its ground, body clear (but 17, where he stood: the check has no floor '
+        'under its centre), 2 m from harmful zones (but 7, 8, 15, 45, 46, 48 and 49, the owner\'s), facing as he '
+        'faced, in a solo spawn\'s place (its id, name, radii and protection kept), however near another; the solo '
+        'spawns left over (the last entries) go. The free for all\'s own projects level_02/<weather>_8 only; after '
+        'ffa-cover-maps-1, whose points it replaces.'),
+    'vostok': Map(
+        base.HERE / 'vostok-picks.tsv', base.HERE.parent / 'content-edit/ffa-vostok-picks-1.json', 'ffa_vostok_',
+        'Vostok\'s Free for All spawns at the owner\'s picks (2026-11-14: his `where` places, as Rudnya\'s; "also for '
+        'vostok also all"). Generated by scripts/ffa-mode/make_picks_edits.py from vostok-picks.tsv (check-points '
+        'picks): all 73, each on its ground, body clear, 2 m from harmful zones, facing as he faced, however near '
+        'another, in a solo spawn\'s place (its id, name, radii and protection kept) or a new one after the last '
+        '(a copy of the first solo spawn: 20 m exclusion, 500 ms protection); and a roof spawn on the building at 13 '
+        '("set one spawn on top of the building where 13 is"), without a way down within 5 m drops, as he asked. '
+        'The free for all\'s own projects '
+        'level_03/<weather>_8 only; after ffa-cover-maps-1, whose points it replaces.'),
+    # Vostok's picks on its ports, which share its world coordinates (the owner, 2026-11-14: "all of my
+    # spawns most likely can be reused on 0.11 and 0.21 maps"): a pick the checks drop there moves up to
+    # 1.5 m (picks --shift), else stays out.
+    'vostok-v021': Map(
+        base.HERE / 'vostok-v021-picks.tsv', base.HERE.parent / 'content-edit/ffa-vostok-v021-picks-1.json',
+        'ffa_vostok_v021_',
+        'Vostok v0.21\'s Free for All spawns at the owner\'s Vostok picks (2026-11-14: "all of my spawns most likely '
+        'can be reused on 0.11 and 0.21 maps"; the port shares Vostok\'s world coordinates). Generated by '
+        'scripts/ffa-mode/make_picks_edits.py from vostok-v021-picks.tsv (check-points picks): 71 of the 73, each on '
+        'its ground, body clear, 2 m from harmful zones, facing as he faced, however near another, in a solo spawn\'s '
+        'place (its id, name, radii and protection kept) or a new one after the last (a copy of the first solo '
+        'spawn: 20 m exclusion, 500 ms protection); 67 and 68 stay out (inside the rust anomaly\'s gas, none 2 m '
+        'clear within 1.5 m); and the roof spawn on the building at 13, which has stairs down here. The free for '
+        'all\'s own project v021d_level_03/day_8 only; after ffa-cover-maps-1, whose points it replaces.'),
+    'vostok-v011': Map(
+        base.HERE / 'vostok-v011-picks.tsv', base.HERE.parent / 'content-edit/ffa-vostok-v011-picks-1.json',
+        'ffa_vostok_v011_',
+        'Vostok v0.11\'s Free for All spawns at the owner\'s Vostok picks (2026-11-14: "all of my spawns most likely '
+        'can be reused on 0.11 and 0.21 maps"; the port shares Vostok\'s world coordinates). Generated by '
+        'scripts/ffa-mode/make_picks_edits.py from vostok-v011-picks.tsv (check-points picks): 71 of the 73, each on '
+        'its ground, body clear, 2 m from harmful zones, facing as he faced, however near another, in a solo spawn\'s '
+        'place (its id, name, radii and protection kept) or a new one after the last (a copy of the first solo '
+        'spawn: 20 m exclusion, 500 ms protection); 71 and 72 stay out (no floor players reach within 1.5 m); no '
+        'roof spawn (the check finds no roof over 13 here). The free for all\'s own project v011e_level_03/day_8 '
+        'only; after ffa-cover-maps-1, whose points it replaces.'),
+}
 
 
 VERDICTS = ('moved', 'added', 'roof', 'removed')
 
 
-def picks():
-    """rudnya-picks.tsv's rows by project and verdict: {verdict: {point id: (position, yaw)}}."""
-    with POINTS_TSV.open(newline='') as stream:
+def picks(map):
+    """The map's picks rows by project and verdict: {verdict: {point id: (position, yaw)}}."""
+    with map.picks.open(newline='') as stream:
         rows = list(csv.DictReader(stream, delimiter='\t'))
     out = {}
     for row in rows:
@@ -63,32 +149,29 @@ def picks():
     return out
 
 
-def edits(live):
-    out = {'_about': 'Rudnya\'s Free for All spawns at the owner\'s picks (2026-11-14: "there should be a rule that '
-           'spawns are inside buildings or close to two walls or some cover"; his `where` places; "for 49, 8, 10 and '
-           '42 we need spawn points on top of those builings (roofs)"). Generated by scripts/ffa-mode/'
-           'make_picks_edits.py from rudnya-picks.tsv (check-points picks): each kept pick on its ground, body clear, '
-           '2 m from harmful zones (but 45, the owner\'s), facing as he faced, in a solo spawn\'s place (its id, name, '
-           'radii and protection kept) or a new one; a roof spawn on each building asked for, with a way down; the '
-           'solo spawns left over (the last entries) go. The free for all\'s own projects only; the last Free for '
-           'All list (its new points copy the 500 ms ffa-protection-ms-1 gave the others).',
-           'set_entry': [], 'add_entry': [], 'remove_entry': []}
-    for path, by in picks().items():
+def edits(map, live):
+    out = {'_about': map.about, 'set_entry': [], 'add_entry': [], 'remove_entry': []}
+    for path, by in picks(map).items():
         buf = (live / path).read_bytes()
         entries = base.tree(buf)['server_objects']['respawn_points']
+        ids = [e['point_id'] for e in entries if e['team'] == 2]
         solo = {e['point_id']: e for e in entries if e['team'] == 2}
         moved, removed = by['moved'], by['removed']
         new = {**by['added'], **by['roof']}
         if set(moved) | set(removed) != set(solo):
             raise ValueError(f'{path}: the picks name {sorted(set(moved) | set(removed))}, '
                              f'the solo spawns are {sorted(solo)}')
-        if [e['point_id'] for e in entries] != list(range(len(entries))):
-            raise ValueError(f'{path}: point ids are not 0..n-1')
-        if sorted(removed) != list(range(len(entries) - len(removed), len(entries))):
+        # Point ids count on over the teams (Rudnya, School) or anew in each (the STALKER maps): the
+        # solo spawns are the last entries, numbered in a run, and new points follow the highest id.
+        if (not ids or ids != list(range(ids[0], ids[0] + len(ids)))
+                or any(e['team'] != 2 for e in entries[len(entries) - len(ids):])):
+            raise ValueError(f'{path}: the solo spawns are not the last entries, numbered in a run')
+        if sorted(removed) != ids[len(ids) - len(removed):]:
             raise ValueError(f'{path}: a removed spawn is not among the last entries')
         if new and removed:
             raise ValueError(f'{path}: points both added and removed')
-        if sorted(new) != list(range(len(entries), len(entries) + len(new))):
+        last = max(e['point_id'] for e in entries)
+        if sorted(new) != list(range(last + 1, last + 1 + len(new))):
             raise ValueError(f'{path}: new points are not numbered after the last')
         for i in sorted(moved):
             entry = solo[i]
@@ -99,14 +182,15 @@ def edits(live):
                          'rotation': [round(v, 6) for v in entry['rotation']]},
                 'to': {'position': position, 'rotation': [0., yaw, 0.]}})
         model = solo[min(solo)]
-        types = base.walked_types(buf, f"{base.POINTS}[{model['point_id']}]")
-        if (any(model[z]['collision_geometries'] for z in ('ally_zones', 'enemy_zones'))
+        types = base.walked_types(buf, f"{base.POINTS}[{entries.index(model)}]")
+        # The model of the new points, when there are any (School's radii are ints: it needs none).
+        if new and (any(model[z]['collision_geometries'] for z in ('ally_zones', 'enemy_zones'))
                 or any(types[k] != base.c.T_FLOAT for k in base.RADII)
                 or model.get('invulnerability_time_ms') != 500 or model['invulnerability_time'] != 0):
             raise ValueError(f'{path}: solo point {model["point_id"]} is no template (zones, float radii, 500 ms)')
         for i in sorted(new):
             position, yaw = new[i]
-            name = f'ffa_rudnya_{i}'
+            name = f'{map.prefix}{i}'
             out['add_entry'].append({'files': path, 'list': base.POINTS, 'after': {'point_id': i - 1},
                 'like': {'point_id': model['point_id']}, 'expected_files': 1, 'values': {
                     'name': name, 'full_name': 'logic/modes/ffa/respawn/' + name, 'point_id': i, 'team': 2,
@@ -119,11 +203,13 @@ def edits(live):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('map', choices=sorted(MAPS))
     parser.add_argument('--live', type=Path, required=True)
     args = parser.parse_args()
-    base.write(edits(args.live), OUTPUT)
-    print(OUTPUT)
+    map = MAPS[args.map]
+    base.write(edits(map, args.live), map.output)
+    print(map.output)
 
 
 if __name__ == '__main__':
