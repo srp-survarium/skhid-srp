@@ -708,7 +708,7 @@ pub struct CombatTuning {
     /// the hands slot (`m_active_slot`, inventory +0x170, set at the selection 0x2FCB18). Off: the item in slot 7 of the
     /// first kit for the whole match, which a kit change or a drawn pistol leaves wrong. That old value is wrong by the
     /// client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`). A gun picked up from another body
-    /// (client patch 85) is read as the slot's own item: the pickup record is not read here.
+    /// (client patch 85) is its recipe's: the world's pickup record names the donor's profile kit slot it was cooked from.
     pub weapon_in_hands: bool,
     /// [Gap 7] A bot's own hand wounds from every trusted world ([`super::hands::Hands`]): with both hands broken it
     /// presses no aim and throws no grenade or smoke, and a two-handed weapon (`parameters.double_handed`) neither fires
