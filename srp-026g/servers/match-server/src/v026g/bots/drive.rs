@@ -2225,6 +2225,12 @@ impl Bot {
             let outcome =
                 super::nav_log::JumpOutcome::of(route.landing.y - route.take_off.y, watch.up.is_some(), watch.landed.is_some(), then);
             let line = super::nav_log::jump_line(outcome, route.take_off, route.landing, route.tries, time.saturating_sub(watch.at), then);
+            // [A386 R83/R94] An aimed press says its aim, so each is seen made or not.
+            let line = if route.aim.is_straight() {
+                line
+            } else {
+                format!("{line}, aimed: side {:+.2} m, turn {:+.2} rad", route.aim.side_m(), route.aim.turn_rad())
+            };
             self.nav_log.push(super::nav_log::Kind::Jump, time, line);
         }
         if self.tracing {
