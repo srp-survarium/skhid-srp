@@ -715,6 +715,13 @@ pub struct CombatTuning {
     /// (with both hands broken and a two-handed gun the bots held FIRE or AIM in 160 of 670 worlds, `damage_model.md`).
     /// That old value is wrong by the client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`).
     pub hands_from_world: bool,
+    /// [Gap 8] An enemy who cannot be hurt now (spawn protection: [`super::protection`]) is no target while another
+    /// seen enemy in range can be hurt, and no shot goes at him (a hit does nothing: `hit_impl` 0x2D9BBE). Which enemies
+    /// are protected follows the rule a player can apply (his life's start and his team's points' time), or the world's
+    /// end with `cheats.enemy_protection_exact`. Off: a fresh enemy is taken as hittable at once (aim and exposure spent on
+    /// a body a hit cannot hurt, up to 6 s). That old value is wrong by the client, so it is on by default and the
+    /// all-off patch keeps it (`KEPT_RIGHT`).
+    pub spawn_protection: bool,
     /// A round-by-round reload (the SPAS-12, the pumps, the bolt rifles that
     /// load by the round) is loaded with the sights down: the client ends
     /// the loop at the first round-end with them or the trigger held and a
@@ -1601,6 +1608,7 @@ impl Default for CombatTuning {
             worn_kit_from_world: true,
             weapon_in_hands: true,
             hands_from_world: true,
+            spawn_protection: true,
             reload_aim_control: true,
             reload_rounds_in_view: 0,
             press_ms: 100,
@@ -3756,6 +3764,10 @@ pub struct Reflex {
     gun_reads: GunReads,
     /// [Gap 7] Its hands as the last world showed them.
     hands_world: super::hands::Hands,
+    /// [Gap 8] Enemies that cannot be hurt and until when (exclusive), as the last world gave them.
+    protected: Vec<(Place, u32)>,
+    /// [Gap 8] [measure] Ticks a shot was held off a protected target.
+    protected_held: u32,
     /// [Gap 7] [measure] Ticks its keys were gated by broken hands (aim, fire, a reload, a throw kept back).
     hands_gated: u32,
     /// The aim's slow wander about the target, radians (yaw, pitch).
@@ -5058,6 +5070,10 @@ impl Reflex {
             seen.push(track);
         }
         let in_range = |t: &&SeenTrack| t.at().distance_xz(me.feet) <= aim.range_m;
+        // [Gap 8] While a seen enemy in range can be hurt, those who cannot are no targets.
+        if c.spawn_protection && seen.iter().filter(in_range).any(|t| !self.unhurtable(t.who(), now)) {
+            seen.retain(|t| !self.unhurtable(t.who(), now));
+        }
         let d = |t: &SeenTrack| t.at().distance_xz(me.feet);
         // The present target, unless another seen enemy presses more
         // ([`Self::presses_more`]).
@@ -7165,6 +7181,21 @@ impl Reflex {
         self.gun_reads
     }
 
+    /// [Gap 8] The enemies that cannot be hurt and until when (`Bots::share_protection`).
+    pub fn set_protected(&mut self, protected: Vec<(Place, u32)>) {
+        self.protected = protected;
+    }
+
+    /// [Gap 8] Whether `who` cannot be hurt at `now`.
+    fn unhurtable(&self, who: Place, now: u32) -> bool {
+        self.protected.iter().any(|&(place, until)| place == who && now < until)
+    }
+
+    /// [Gap 8] [measure] Ticks a shot was held off a protected target.
+    pub fn protected_held(&self) -> u32 {
+        self.protected_held
+    }
+
     /// [Gap 7] Its hands as a trusted world shows them.
     pub fn set_hands(&mut self, hands: super::hands::Hands) {
         self.hands_world = hands;
@@ -7439,7 +7470,19 @@ impl Reflex {
         self.keep_loop_going(&mut over, now, &aim.combat);
         self.heal_press(&mut over, me, now);
         self.hands_gate(&mut over, now);
+        if aim.combat.spawn_protection {
+            self.protection_gate(&mut over, now);
+        }
         over
+    }
+
+    /// [Gap 8] No shot at a target a hit cannot hurt: the trigger let go (its counted rounds given back).
+    fn protection_gate(&mut self, over: &mut Override, now: u32) {
+        if over.fire && self.target.is_some_and(|target| self.unhurtable(target, now)) {
+            over.fire = false;
+            self.hold_fire(now);
+            self.protected_held += 1;
+        }
     }
 
     /// [Gap 7] The keys the client refuses with both hands broken taken off: the aim always, the trigger with a two-handed
@@ -15673,6 +15716,23 @@ mod tests {
         assert_eq!((over.fire, over.keys), (true, key::AIM));
         r.hands().held_mut().rounds = 0;
         assert_eq!(r.reload(false, 5_000, &c), key::RELOAD);
+    }
+
+    /// [Gap 8] A target a hit cannot hurt gets no shot until his protection ends (its counted rounds given back).
+    #[test]
+    fn no_shot_goes_at_a_protected_target() {
+        let mut r = gun_ledger(10, 60);
+        r.target = Some(1);
+        r.set_protected(vec![(1, 16_001), (2, 3_000)]);
+        r.fired = (16_000, 1);
+        r.hands().held_mut().rounds = 9;
+        let mut over = Override { fire: true, ..Override::default() };
+        r.protection_gate(&mut over, 16_000);
+        assert_eq!((over.fire, r.hands().held().rounds, r.protected_held()), (false, 10, 1));
+        let mut over = Override { fire: true, ..Override::default() };
+        r.protection_gate(&mut over, 16_001);
+        assert!(over.fire, "the protection's end");
+        assert!(!r.unhurtable(2, 3_000) && r.unhurtable(2, 2_999) && !r.unhurtable(3, 0));
     }
 
     /// [Gap 3] A world with a clip under way says nothing; one older than every kept tick is not read.

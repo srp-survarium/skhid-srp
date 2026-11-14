@@ -554,6 +554,10 @@ pub struct Tracker {
     shot_reach: Vec<Option<f32>>,
     /// [Gap 13] By place, when the last world's respawn rule has it respawn ([`WorldFacts::respawns`]).
     respawn_at: Vec<Option<u32>>,
+    /// [Gap 8] By place, its damage model's invulnerability end and fade in the last world.
+    protection: Vec<(Option<u32>, u32)>,
+    /// [Gap 8] By team, the spawn protection of its respawn points, ms.
+    spawn_protection_ms: [Option<u32>; 2],
     /// [Gap 13] The mode's plain respawn delay, ms (`gameplay/game_modes/<mode>` `mode.parameters.respawn_time`, seconds:
     /// `survarium::v026g::maps::MapMode::respawn_time`), before a radio's shortening (the respawn rule 0x316AA0 through
     /// the getter 0x2D5AE0); `None` until the match sets it.
@@ -634,6 +638,8 @@ impl Tracker {
             sounds: VecDeque::new(),
             shot_reach: Vec::new(),
             respawn_at: Vec::new(),
+            protection: Vec::new(),
+            spawn_protection_ms: [None, None],
             plain_respawn_ms: None,
             deaths: VecDeque::new(),
             world_time: 0,
@@ -1486,6 +1492,35 @@ impl Tracker {
         self.respawn_at.get(place).copied().flatten()
     }
 
+    /// [Gap 8] One place's invulnerability end and fade, as a world shows them.
+    pub fn set_protection(&mut self, place: Place, end: Option<u32>, fade: u32) {
+        if self.protection.len() <= place {
+            self.protection.resize(place + 1, (None, 0));
+        }
+        self.protection[place] = (end, fade);
+    }
+
+    /// [Gap 8] The map's spawn protection by team, ms.
+    pub fn set_spawn_protection_ms(&mut self, by_team: [Option<u32>; 2]) {
+        self.spawn_protection_ms = by_team;
+    }
+
+    /// [Gap 8] The living enemies of team `team` that cannot be hurt and until when (exclusive): by their life's start
+    /// and their points' time, or with `exact` by their world's end ([`super::protection::fully_until`]).
+    pub fn protected_enemies(&self, team: u8, exact: bool) -> Vec<(Place, u32)> {
+        self.places
+            .iter()
+            .enumerate()
+            .filter(|(_, state)| state.alive && state.team != team)
+            .filter_map(|(place, state)| {
+                let (end, _) = self.protection.get(place).copied().unwrap_or((None, 0));
+                let spawned = (state.spawned != u32::MAX && state.spawned != 0).then_some(state.spawned);
+                let point_ms = self.spawn_protection_ms.get(usize::from(state.team & 1)).copied().flatten();
+                super::protection::fully_until(exact, end, spawned, point_ms).map(|until| (place, until))
+            })
+            .collect()
+    }
+
     /// [Gap 13] The mode's plain respawn delay, ms (no radio).
     pub fn set_plain_respawn_ms(&mut self, ms: u32) {
         self.plain_respawn_ms = Some(ms);
@@ -2009,6 +2044,23 @@ mod tests {
         );
         // The bot's place, never seen, is not alive in the view.
         assert!(!view.place(0).unwrap().alive);
+    }
+
+    /// [Gap 8] The enemies a team takes as protected: by the fair rule his life's start (inserted at 10 ms) plus his
+    /// team's points' time; with the cheat the world's end; teammates and the dead never.
+    #[test]
+    fn a_fresh_enemy_is_protected_for_his_points_time() {
+        let kin = Kinematics::default();
+        let mut tracker = Tracker::new(Mode::Batteries, &[0, 1, 1], &[false; 3], vec![(0, Vec3::ZERO); 3]);
+        for place in 0..3 {
+            tracker.entered(place, true);
+            tracker.fixed(place, fix(1_000, Vec3::new(10.0 * place as f32, 0.0, 10.0)), None, &kin, None);
+        }
+        tracker.set_spawn_protection_ms([Some(6_000), Some(6_000)]);
+        tracker.set_protection(1, Some(9_000), 2_000);
+        assert_eq!(tracker.protected_enemies(0, false), [(1, 6_011), (2, 6_011)]);
+        assert_eq!(tracker.protected_enemies(0, true), [(1, 9_001)]);
+        assert_eq!(tracker.protected_enemies(1, false), [(0, 6_011)]);
     }
 
     /// [Gap 13] A world's respawn rule names the waiting places and their respawn times: the tracker keeps the last

@@ -80,6 +80,7 @@ pub mod pitch;
 pub mod plays;
 pub mod pockets;
 pub mod pools;
+pub mod protection;
 pub mod recoil;
 pub mod reflex;
 pub mod rest;
@@ -1496,6 +1497,30 @@ impl Bots {
             if let Some(hit) = hurt.last_hit_ms {
                 bot.features.stock.pantry.hit(hit);
             }
+        }
+    }
+
+    /// [Gap 8] A trusted world's spawn protection of one place (its damage model's end and fade).
+    pub fn protection(&mut self, place: Place, end: Option<u32>, fade: u32) {
+        self.tracker.set_protection(place, end, fade);
+    }
+
+    /// [Gap 8] The map's spawn protection by team (its respawn points' time, ms).
+    pub fn set_spawn_protection_ms(&mut self, by_team: [Option<u32>; 2]) {
+        self.tracker.set_spawn_protection_ms(by_team);
+    }
+
+    /// [Gap 8] Each bot's enemies that cannot be hurt and until when, by its team's rule (`combat.spawn_protection`,
+    /// `cheats.enemy_protection_exact`): after a world.
+    pub fn share_protection(&mut self) {
+        for bot in self.bots.iter_mut().flatten() {
+            let tuning = self.tunings.of(bot.team);
+            let list = if tuning.aim.combat.spawn_protection {
+                self.tracker.protected_enemies(bot.team, tuning.cheats.enemy_protection_exact)
+            } else {
+                Vec::new()
+            };
+            bot.reflex.set_protected(list);
         }
     }
 

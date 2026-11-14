@@ -1142,6 +1142,7 @@ va	status	ref_021d	name
 0x002e4d80	reviewed	0x001d7dc1	survarium::damage_model::damage_model
 0x002e4f40	reviewed	0x001d7f23	survarium::damage_model::`scalar deleting destructor'
 0x002e4f60	reviewed	0x001d7f4a	survarium::damage_model::~damage_model
+0x002e5040	observed		survarium::damage_model::update
 0x002e5080	reviewed	0x001d8004	survarium::damage_model::hit_body_part
 0x002e5290	reviewed	0x001d82e8	survarium::damage_model::reset
 0x002e5370	reviewed	0x001d844a	survarium::damage_model::on_broken_limb_affect
@@ -1238,6 +1239,7 @@ va	status	ref_021d	name
 0x00312af0	reviewed	0x001f49dc	survarium::artefact_onyx_core::deserialize
 0x00313670	reviewed	0x001f5179	survarium::artefact_base::serialize
 0x00313760	reviewed	0x001f522b	survarium::artefact_base::deserialize
+0x00316da0	observed		survarium::player_respawn_rule_base::spawn_player
 0x00317f30	reviewed	0x001f5569	survarium::timelimit_rule_core::serialize
 0x00317fd0	reviewed	0x001f5622	survarium::timelimit_rule_core::deserialize
 0x00318050	reviewed	0x001f56a9	survarium::timelimit_rule_core::set_game_world_core
@@ -1249,6 +1251,7 @@ va	status	ref_021d	name
 0x003193f0	reviewed	0x001f63ff	survarium::damage_zone_core::serialize
 0x00319470	reviewed	0x001f6467	survarium::damage_zone_core::deserialize
 0x00319500	reviewed	0x001f64aa	survarium::damage_zone_core::load
+0x0031aca0	observed		survarium::effect_zone_core::apply_invulnerability
 0x0031ad70	reviewed	0x00187f82	survarium::generic_anomaly_core::~generic_anomaly_core
 0x0031add0	reviewed	0x00187fcf	survarium::generic_anomaly_core::`scalar deleting destructor'
 0x0031adf0	reviewed	0x001ed4f4	survarium::generic_anomaly_core::generic_anomaly_core

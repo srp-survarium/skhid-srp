@@ -152,6 +152,9 @@ pub struct PlaceWorld {
     /// The damage model's `m_invulnerability_time_in_ms` (the spawn protection); `None` when `motion` is, or when none
     /// is set.
     pub invulnerability_time_ms: Option<u32>,
+    /// The damage model's `m_invulnerability_attenuation` (+330h): the fade after that end, ms (0: none); 0 when
+    /// `motion` is `None`.
+    pub invulnerability_fade_ms: u32,
 }
 
 impl PlaceWorld {
@@ -193,6 +196,7 @@ impl PlaceWorld {
                 rest.damage_model().body_parts().map(|part| part.last_hit_time_ms()).collect()
             }),
             invulnerability_time_ms: rest.and_then(|rest| rest.damage_model().invulnerability_time_ms()),
+            invulnerability_fade_ms: rest.map_or(0, |rest| rest.damage_model().invulnerability_attenuation()),
         }
     }
 }

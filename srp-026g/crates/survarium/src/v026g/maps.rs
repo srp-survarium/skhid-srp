@@ -293,6 +293,12 @@ pub struct MapMode {
     /// (snapshot_rules.md §2.3). PROVEN (code and data). 0 without a
     /// project.
     pub respawn_points: usize,
+    /// By team (0, 1): the spawn protection its respawn points give, ms: the largest of the team's points'
+    /// `server_objects.respawn_points[i].invulnerability_time` (an int of seconds; the loader 0x2F4580 keeps it in ms,
+    /// 0x2F462A; a missing key is 0) times 1000. A spawn at a point makes the damage model's invulnerability end the
+    /// spawn time plus it, with no fade (0x316E72..0x316E96; `docs/notes/v011e_spawn_protection.md`). Every point of the
+    /// shipped maps has 6 s. `None`: the team has no point (or no project).
+    pub spawn_protection_ms: [Option<u32>; 2],
     /// Modes 2 and 3: whose the two battery containers are, by container
     /// id: `victory_items_containers[..].team` of the project by its `id`.
     /// PROVEN (data). A battery's container id in a snapshot is this id,
@@ -334,6 +340,8 @@ fn leak_str(text: &str) -> &'static str {
 pub struct ProjectObjects {
     /// [`MapMode::respawn_points`].
     pub respawn_points: usize,
+    /// [`MapMode::spawn_protection_ms`].
+    pub spawn_protection_ms: [Option<u32>; 2],
     /// The battery containers' teams by container id, if the project has
     /// containers ([`MapMode::container_teams`]).
     pub container_teams: Option<[u8; 2]>,
@@ -357,9 +365,20 @@ impl ProjectObjects {
         dictionary: &Dictionary,
     ) -> Result<Self, ConfigError> {
         let objects = project.get("server_objects");
-        let respawn_points = objects
+        let points = objects
             .and_then(|objects| objects.get("respawn_points"))
-            .map_or(0, |points| points.children().len());
+            .map(ConfigValue::children)
+            .unwrap_or_default();
+        let respawn_points = points.len();
+        let mut spawn_protection_ms: [Option<u32>; 2] = [None, None];
+        for point in &points {
+            let team = point.get("team").and_then(ConfigValue::as_i32).unwrap_or(-1);
+            let seconds = point.get("invulnerability_time").and_then(ConfigValue::as_i32).unwrap_or(0);
+            if let (Some(slot), Ok(seconds)) = (usize::try_from(team).ok().and_then(|team| spawn_protection_ms.get_mut(team)), u32::try_from(seconds)) {
+                let ms = seconds.saturating_mul(1000);
+                *slot = Some(slot.map_or(ms, |was| was.max(ms)));
+            }
+        }
         let containers = objects
             .filter(|_| with_batteries)
             .and_then(|objects| objects.get("victory_items_containers"))
@@ -396,6 +415,7 @@ impl ProjectObjects {
         };
         Ok(Self {
             respawn_points,
+            spawn_protection_ms,
             container_teams,
             world_objects: world_objects(project, data, dictionary)?,
         })
@@ -675,6 +695,7 @@ impl MapMode {
             .transpose()?
             .unwrap_or(ProjectObjects {
                 respawn_points: 0,
+                spawn_protection_ms: [None, None],
                 container_teams: None,
                 world_objects: &NO_WORLD_OBJECTS,
             });
@@ -708,6 +729,7 @@ impl MapMode {
             tickets_count: int(p, "tickets_count")?,
             resources_count: int(p, "resources_count")?,
             respawn_points: objects.respawn_points,
+            spawn_protection_ms: objects.spawn_protection_ms,
             container_teams: objects
                 .container_teams
                 .filter(|_| rule_mode.has_batteries()),

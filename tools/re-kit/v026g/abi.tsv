@@ -1193,7 +1193,7 @@ va	name	source	ret_cleanup	result
 0x002d99c0	survarium::base_player::remove_alive	manual	8	none; +33Ch := 0 (recompute_damage_collision_bones then does nothing), +32Ch, +330h := 0
 0x002d9a60	survarium::base_player::hit	manual	40	
 0x002d9ae0	survarium::base_player::hit	manual	32	
-0x002d9b90	survarium::base_player::hit_impl	manual	8	
+0x002d9b90	survarium::base_player::hit_impl	manual	8	the hit is dropped when get_invulnerability (0x2E5550) is >= 1 (0x2D9BBE..0x2D9BCB); a hit that took health calls the player's generate_hit_event (vtable +40h, 0x2D9ED1)
 0x002d9f40	survarium::base_player::generate_hit_event	manual		statistics handler slot +18h (add_received_damage 0x2F58E0, when abs(damage) >= 1e-6, 0x2DA0D6) and slot +4h (on_player_damaged 0x2F5450: the shooter's event 23 +1 for an enemy hit); neither writes last_hit_ms
 0x002da4b0	survarium::base_player::computed_head_transform	manual	0	none; player+44Ch := bone "Item" of the animation player +750h (skeleton [+408h]) x player+40Ch (world 4x4, translation at +47Ch); the camera's eye
 0x002da540	survarium::base_player::get_bone_transform	manual	8	EAX = the out matrix: the named bone's model-space 4x4 from the animation player +750h
@@ -1251,6 +1251,7 @@ va	name	source	ret_cleanup	result
 0x002e4d80	survarium::damage_model::damage_model	manual	0	
 0x002e4f40	survarium::damage_model::`scalar deleting destructor'	manual	4	
 0x002e4f60	survarium::damage_model::~damage_model	manual	4	
+0x002e5040	survarium::damage_model::update	manual		each body part's regenerate 0x32A4B0 with the time, then +328h (m_last_tick_time_in_ms) := the time (0x2E5069); called from the player's update 0x2DAAF3
 0x002e5080	survarium::damage_model::hit_body_part	manual	0	EAX: 1 when the hit's damage, (1 - get_invulnerability) x hit+34h (0x2E50A8..0x2E50B7) through the part's armour and protectors (body_part_parameters::hit_by_type 0x329FF0), is above 0.0 (0x2E5128; it then sets +3C0h to the hit's time); else 0
 0x002e5290	survarium::damage_model::reset	manual	4	
 0x002e5370	survarium::damage_model::on_broken_limb_affect	manual	12	legs count +388h, hands count +389h: +1 when an affect starts, -1 when it ends (0x2E5387..0x2E53A0)
@@ -1355,6 +1356,7 @@ va	name	source	ret_cleanup	result
 0x00313300	survarium::artefact_base::action	thiscall	8
 0x00313670	survarium::artefact_base::serialize	manual	8	
 0x00313760	survarium::artefact_base::deserialize	manual	12	
+0x00316da0	survarium::player_respawn_rule_base::spawn_player	manual		with the point's protection (+20h) > 0: damage model end +32Ch := spawn time + it, fade +330h := 0 (0x316E72..0x316E96)
 0x00317f30	survarium::timelimit_rule_core::serialize	manual	4	
 0x00317fd0	survarium::timelimit_rule_core::deserialize	manual	8	
 0x00318050	survarium::timelimit_rule_core::set_game_world_core	manual	4	
@@ -1366,6 +1368,7 @@ va	name	source	ret_cleanup	result
 0x003193f0	survarium::damage_zone_core::serialize	manual	8	
 0x00319470	survarium::damage_zone_core::deserialize	manual	12	
 0x00319500	survarium::damage_zone_core::load	manual	4	
+0x0031aca0	survarium::effect_zone_core::apply_invulnerability	manual		for a body the zone takes: damage model end := now + zone +48h (invulnerability_duration), fade := zone +4Ch (invulnerability_attenuation) (0x31AD03..0x31AD15)
 0x0031ad70	survarium::generic_anomaly_core::~generic_anomaly_core	manual		
 0x0031add0	survarium::generic_anomaly_core::`scalar deleting destructor'	manual	4	
 0x0031adf0	survarium::generic_anomaly_core::generic_anomaly_core	manual	12	
