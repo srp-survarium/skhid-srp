@@ -1044,6 +1044,8 @@ pub struct Bots {
     tactics: Option<Tactics>,
     /// [item 4] The map's team bases with their protection ([`protection::Base`]), from the map at `tactics_ready`.
     bases: Vec<protection::Base>,
+    /// [item 4] The base rule's entries so far: added to a bot's list, and spawn-rule ends it moved later.
+    base_counts: (u32, u32),
     /// The plays' kept answers about these tactics (`plays::memo`), made
     /// anew with them.
     memo: plays::memo::Memo,
@@ -1130,6 +1132,7 @@ impl Bots {
             polls: Default::default(),
             tactics: None,
             bases: Vec::new(),
+            base_counts: (0, 0),
             memo: Default::default(),
             teams: [team_state(tunings.of(0)), team_state(tunings.of(1))],
             bots,
@@ -1554,7 +1557,10 @@ impl Bots {
 
     /// [Gap 8] Each bot's enemies that cannot be hurt and until when, by its team's rule (`combat.spawn_protection`,
     /// `cheats.enemy_protection_exact`): after a world.
-    pub fn share_protection(&mut self) {
+    /// Returns each base entry that added an enemy to a bot's list or moved his end later (bot, enemy, his base's team,
+    /// until), for the log; counted for the match's end ([`Self::base_report`]).
+    pub fn share_protection(&mut self) -> Vec<(Place, Place, u8, u32)> {
+        let mut changes = Vec::new();
         for bot in self.bots.iter_mut().flatten() {
             let tuning = self.tunings.of(bot.team);
             let exact = tuning.cheats.enemy_protection_exact;
@@ -1577,13 +1583,29 @@ impl Bots {
                         continue;
                     };
                     match list.iter_mut().find(|(place, _)| *place == track.who) {
-                        Some((_, was)) => *was = (*was).max(until),
-                        None => list.push((track.who, until)),
+                        Some((_, was)) if *was >= until => {}
+                        Some((_, was)) => {
+                            *was = until;
+                            self.base_counts.1 += 1;
+                            changes.push((bot.place, track.who, team, until));
+                        }
+                        None => {
+                            list.push((track.who, until));
+                            self.base_counts.0 += 1;
+                            changes.push((bot.place, track.who, team, until));
+                        }
                     }
                 }
             }
             bot.reflex.set_protected(list);
         }
+        changes
+    }
+
+    /// [item 4] The base rule's entries over the match as the match-end log line: added, and those that moved the spawn
+    /// rule's end later, a world and a bot each.
+    pub fn base_report(&self) -> String {
+        format!("added {}, ends moved later {}", self.base_counts.0, self.base_counts.1)
     }
 
     /// [Gap 7] A trusted world's hand wounds of one place: a bot's own weapon is gated as the client gates it

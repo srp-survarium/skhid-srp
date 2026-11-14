@@ -934,7 +934,12 @@ impl Game {
             }
         }
         // [Gap 8] Each bot's enemies that cannot be hurt now.
-        walkers.bots.share_protection();
+        for (bot, enemy, team, until) in walkers.bots.share_protection() {
+            log::debug!(
+                "Match {id:#x}: player {bot} (the server's bot) takes player {enemy} as protected by team {team}'s base until {until} ms (world {} ms)",
+                snapshot.time
+            );
+        }
         let notes = walkers.bots.facts(world_facts(snapshot.time, decoded));
         log_notes(id, notes);
         walkers
