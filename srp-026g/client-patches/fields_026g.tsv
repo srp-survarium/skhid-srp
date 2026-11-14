@@ -1220,3 +1220,8 @@ survarium::grenade_set_core	config	0x25C	ptr<survarium::grenade_set_config>	its 
 survarium::grenade_set_core	amount	0x260	u16	a stacked set's amount: pull_pin 0x30A120 stores amount-1 and indexes its grenades with that new amount's low byte (0x30A1B3), 1 for a set not stacked
 survarium::grenade_set_config	stacked	0x22A	u8	is_stack (pull_pin 0x30A16C, 0x30A1AA): not 0, the pull indexes by the amount
 survarium::grenade_choice_frame	wanted	0x4	u8	0x33A730's argument at the site ESP (no push before 0x33A73F; ret 4): it returns whether (the inventory's grenade slot == the set's slot) equals it
+survarium::game_world	sound_scene	0x94	ptr<vostok::sound::sound_scene>	its sound scene: on_after_tick 0x1F764C gives it the listener every tick (set_listener_properties 0x587D0, with no test for 0)
+vostok::sound::sound_scene	world	0x11C	ptr<vostok::sound::sound_world>	its sound world (notify_listener2 0x5C390)
+vostok::sound::sound_world	panning	0xCC	obj<vostok::sound::panning_lut>	its panning table, inside it: 512 directions of 9 gains, filled once by its constructor 0x5E150 in the sound world's (0x58D90); notify_listener2 0x5C396 gives its address to calculate_3d_pan
+vostok::sound::sound_instance_proxy	sound_type	0x80	u32	its sound_type: 0 point, 1 cone (spot), 2 volumetric, 3 hud (calculate_3d_pan 0x57D88, the only field it reads of a point sound's proxy; notify_listener2 0x5C37C)
+vostok::sound::sound_instance_proxy	size	0x90	size	a proxy is 144 bytes (new_helper<sound_instance_proxy_internal> over single_size_buffer_allocator<144>, 0x65450)

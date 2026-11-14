@@ -122,7 +122,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `sites_026g.tsv` | The game sites the Rust patches hook, by name: each a VA, a kind (call/splice/...), the callee it uses and a short note. A patch names a site; the addresses live here, not in the patch (`docs/notes/rust_patches.md`, "The design principle") |
 | `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
-| `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
+| `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills every body part's pool, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_artefact_glow_026g.py` | No patch: the artefacts' first-person glow is the content pack `artefact-glow` (`../scripts/artefact-glow/make_pack.py`, `../docs/notes/artefacts.md`). Runs the game's own effect code, in the original and the build: the particle cook's `view` (0x25A86F) on the pack's composite, the first- and third-person presenters' constructors (their particle presenters' views 0 and 1), the particle presenter's handler 0x2AC400 (an activation plays an effect only in the presenters of its view), the whole chain from player::set_effect_presenter and game_effect_player's dispatch 0x2DE3A0 and the artefact's effect calculator 0x313640 (the effect ends when the artefact is no longer active) (needs Unicorn) |
 | `rust/patches/src/blackout.rs`, `src/blackout.toml`, `check_blackout_026g.py` | Patch 65 (a prototype): Blackout, a battery match with no interface, the teammates' markers kept and their names on Tab, the player's input on Tab as in every mode: five `lohook`s at sites of its own (`sites_026g.tsv`); its check runs each from the game's code before the site on made-up objects, the original beside (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
@@ -3241,9 +3241,12 @@ does what no config of 0.26g could.
   seventh node there, +3C8h with `active/stopping_power_mod` (-1), linked and unlinked as the
   aim node; the object is 0x3D8 bytes. A hit's stamina damage is not changed.
 - **Lifebone's heal.** Its enable_active (0x312250) removed the hand and leg injuries only. After
-  them (0x3122AA, where the time is still its argument) the pools `pain`, `body` and `head` are
+  them (0x3122AA, where the time is still its argument) every body part's pool (the table
+  `heals`: `pain`, `body`, `head`, `left_hand`, `right_hand`, `left_leg`, `right_leg`) is
   found by name (0x2E58B0) and filled with increase_health (0x32A420, Hmax - H), as a medkit
-  heals a pool (0x33D9C3).
+  heals a pool (0x33D9C3). The four limbs since the owner's 2026-11-14 report ("larkspur doesn't
+  heal body parts when active"): before, a limb lost its injury and kept its health, which the
+  hud's doll and a leg's slow read (`../docs/notes/artefacts.md`). `infection` is not filled.
 - **One press, every artefact of a kind.** artefact_base::action (0x313300) activated the
   artefact pressed only, when it was in its passive with no cooldown. At its entry a key-down
   now activates the pressed one and every other artefact of the same class (vtable) and kind 1
@@ -3306,8 +3309,8 @@ relocation or branch inside, the code, its exits and calls, its texts), the aren
 `check_artefacts_026g.py` (Unicorn, the game's own code: the loader with the config lookup on
 a binary config of the release's numbers, both Springs' links with the getter: aim time x0.95
 passive, x0.85 active, x0.7 for two active Springs, speed x1.05 / x1.15 / x1.3; Lifebone's
-enable_active with made-up pools: pain, body and head full, a limb, a full pool and a missing
-one left alone; an
+enable_active with made-up pools: every body part's full (a limb's at the maximum Strong Bones
+gives it too), `infection`, a full pool and a missing one left alone; an
 inventory of two Springs, an Onyx, a Spring cooling and one active: one press fires the ready
 Springs alone, the Onyx alone, a key-up nothing, a cooling Spring's key the ready one; the stagger with made-up hits: -0.45, -0.5 at
 most, an old hit out, and 0 with an active Spring in the build; through the game's own callers, a
@@ -3598,9 +3601,10 @@ without it, or of another version (unloaded), voice is off.
 - `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
   (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied;
 - `game_world.after_move` (every frame of a match): the options to the DLL on a change, the muted
-  places, the far ones (a teammate, in a free-for-all any player, beyond 15 m, or either of the two
-  dead: the radio filter), the
-  near ones' pans (`sv_direction`: the sine of the bearing, heard from that side) and the
+  places, how each place is heard (`sv_hear`: a teammate, in a free-for-all any player, from 10 m
+  on or with either of the two dead through the radio; nearer, plain in the world, its gains in the
+  two ears the engine's own pan of a sound at its place, `sound_scene::calculate_3d_pan` 0x57D70,
+  times a gain by its distance) and the
   hud's `root.srp_voice_talking(name, ...)` on a change; a push-to-talk whose key or button is up
   (user32's GetAsyncKeyState: the numpad's keys by either key NumLock gives, NumLock and Pause by
   their own, a button by its VK_*BUTTON) or with the game out of focus is let go;
@@ -3650,8 +3654,8 @@ microphone test's button).
 Checked: `selftest_026g.py` check 66 (the sites in the original, the eleven hooks in the build, the
 game's ptt entry unchanged, the main menu's `srp_mic_test`) and check 62 (the Controls rows: push-to-talk's in the game group, its
 key settable), `check_hide_ui_026g.py` (the list sent to the movie), `cargo test` in `rust/` (the
-mutes' text, malformed records, direct to 15 m and its pan, the radio past it and for the dead, the keys a held input is polled by,
-the microphone test's press and texts), `scripts/mic-test/check.sh` (Ruffle: the button).
+mutes' text, malformed records, plain under 10 m with the pan it is given and its fall by distance, the radio from 10 m and for the dead, the two distances apart, the keys a held input is polled by,
+the microphone test's press and texts), `check_voice_pan_026g.py` (Unicorn: the original exe's calculate_3d_pan as the patch calls it: its law, what it reads and writes), `scripts/mic-test/check.sh` (Ruffle: the button).
 Played locally 2026-11-11 (two games under Wine, one microphone): talking and hearing in a team.
 
 ### 67. The kill feed shows a kill through a wall, by a ricochet and by pain (the next release's revision)

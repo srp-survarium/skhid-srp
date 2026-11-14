@@ -1653,14 +1653,14 @@ def test_artefacts(original, image, before):
     check(P.artefacts_backs(linked) == list(P.ARTEFACTS_BACKS) and not unknown,
           "its entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
           + "); its calls are known targets" + "".join(f"; {t:#x}" for t in unknown))
-    heals = artefacts_va + names + 47
-    check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0"
-          + struct.pack("<III", *(artefacts_va + names + at for at in (32, 37, 42)))
+    heals = artefacts_va + names + 87
+    check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0left_hand\0right_hand\0left_leg\0"
+          b"right_leg\0" + struct.pack("<7I", *(artefacts_va + names + at for at in (32, 37, 42, 47, 57, 68, 77)))
           and f"mov ebp,{artefacts_va + names + 13:#x}" in texts
           and f"mov ebp,{artefacts_va + names:#x}" in texts and f"mov ebx,{heals:#x}" in texts
-          and f"cmp ebx,{heals + 12:#x}" in texts,
+          and f"cmp ebx,{heals + 28:#x}" in texts,
           "its data: the keys aim_time_mod and stopping_power_mod, and the pools Lifebone's active fills (pain, "
-          "body, head)")
+          "body, head, both hands, both legs)")
     hud_source = open(os.path.join(HERE, "..", "flash", "hud", "src", "HUD.as"), encoding="utf-8").read()
     from localization_026g import CATALOG, LANGUAGES, read_translations
     hints = [read_translations(CATALOG / f'{language}.tsv')['st_onyx_activation_hint']

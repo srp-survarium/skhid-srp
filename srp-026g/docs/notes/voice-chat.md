@@ -44,7 +44,8 @@ All of it is the unused front end of a feature the 0.26g engine never had. PROVE
   (lobby.md). Not used.
 - **Sound output.** XAudio2 2.7 through COM (`CoCreateInstance`; ole32 is delay-loaded):
   `sound_world::initialize_xaudio` 0x59080, `create_sound_voice` 0x59E70,
-  `create_submix_voice` 0x59B80.
+  `create_submix_voice` 0x59B80. How it plays a sound in the world: "The game's sound engine",
+  below.
 - **No capture and no codec.**
   - The delay imports (17 DLLs) have no `waveIn*`, no DirectSound and no capture API.
   - There is no Opus, Speex or CELT. Vorbis is a decoder only, for the game's sounds.
@@ -86,19 +87,106 @@ All of it is the unused front end of a feature the 0.26g engine never had. PROVE
   - 0.26g has no quick commands.
   - Voice chat in 0.69 has no filter of any kind (above).
 
+## The game's sound engine (study, 2026-11-14)
+
+For the plain voice in the world ("As built"). 0.26g, static, base 0x10000; names from the re-kit
+(0.21d's PDB) and 0.10b's sources (`vostok/sound/sources`). PROVEN (read in the exe, the pan also
+run on its bytes in Unicorn) unless marked.
+
+- **From `emit_point_sound` to a voice.**
+  - The game's thread: `sound_emitter::emit_point_sound` 0x65670 takes a proxy of the scene's pool
+    (`new_point_sound_instance_proxy` 0x64F80; 144 bytes, +80h its sound_type: 0 point, 1 cone, 2
+    volumetric, 3 hud). Playing it is an order to the sound thread (LIKELY: the world user's
+    `sound_order` channel, by its names; `play` 0x5ABA0 was not read).
+  - The sound thread: `sound_world::tick` 0x59A60 runs the orders, then every active scene's tick
+    (0x57B80), which calls `notify_listener2` 0x5C280 once the scene has a listener (+2FAh,
+    0x57C9C). At its end the scenes' submix volumes and one CommitChanges (audio_device.md).
+  - The listener is three atomic `half3` in the scene (+120h place, +128h front, +130h top: 16-bit
+    floats). The game's thread writes them every tick (`game_world::on_after_tick` 0x1F7620:
+    `set_listener_properties` 0x587D0 with the game world's +3Ch, +2Ch, +1Ch, for its sound scene
+    +94h); every reader reads them with a locked `cmpxchg8b` that leaves them as they are
+    (`get_listenet_position` 0x57560, `..._orient_front` 0x575F0, `..._orient_top` 0x57680).
+  - `notify_listener2` first has `calculate_hdr_audio_frame` 0x5C7A0 give every propagator its
+    gain by distance and ask for voices, then gives each voice its pan and its volume.
+- **The gain by distance** (0x5C9B5..0x5CA37) is the sound's options' (`<sound>.raw_options`):
+  - with an `spl_preset`: that preset's `volume` curve at the distance (`sounds/spl/<preset>.spl`:
+    keys by metres, linear or cubic; the curve at the preset's +128h, `curve_line_points<float>::
+    evaluate` 0x25F30);
+  - with none (`default`: 2042 of the stock sounds): 1 to 2 m, 2 / d past it (2.0 at 0x9CC87C);
+  - held to 0..1, kept at the propagator's +4Ch; the distance is never under 1 m
+    (weapon-reverb-layers.md). A voice is asked for only above 0.01 (0xA2D774).
+  - The voice's volume is that gain times `volume_k` (0x5C72D..0x5C743), held to 0..1
+    (`voice_bridge::set_volume_impl` 0x633F0).
+- **The pan** is `sound_scene::calculate_3d_pan` 0x57D70 (the scene, the world's panning table,
+  the proxy, the sound's place, the distance; out: two gains and a low-pass coefficient; pops 28).
+  - It is 0.10b's `calculate_channel_matrix` (OpenAL Soft's table panning). The table
+    (`panning_lut`, inside the sound world at +0CCh) is 512 directions of 9 speaker gains, filled
+    once by its constructor 0x5E150 for two speakers at the sides.
+  - Run on the exe's bytes (`check_voice_pan_026g.py`): constant power; ahead and behind 0.707 in
+    both ears, 30 degrees to the right 0.499 / 0.867, at the side 0 / 1, above towards the centre;
+    no gain by distance in it. The low-pass coefficient is 1 ahead and falls to 0.80 straight
+    behind.
+  - Of a point sound it reads the proxy's +80h, the place, the table and the scene's three
+    listener vectors, and writes its two gains and the coefficient: nothing else outside its stack.
+  - A mono sound's two gains are its output matrix into its scene's two-channel submix
+    (`voice_bridge::set_output_matrix_impl` 0x5DC40). A hud sound (type 3) is not panned: 1 and 1.
+- **The volumes.** A scene's submix gets its fade volume times the general volume
+  (`s_general_volume`; fields_026g.tsv, the scene's +2E4h and +2E8h); the master is at unity.
+- **Threads.** Every XAudio2 call is the sound thread's. The game's thread writes the listener's
+  atomics and queues orders. With patch 100 the engine and every voice the game makes are its
+  proxies, whose list only the sound thread's step changes (audio_device.md).
+- **The characters' own voices.** 0.26g has no speech. Its voices are the death scream
+  (`sounds/single/animations/death/male_scream/death_0N_m`, as others hear it: preset
+  `death_scream_close`, `volume_k` 1.3; the player's own `death_0N`: `default`) and the breath of
+  an exhausted player (`human/stamina/*_m`: preset `steps`, `volume_k` 0.2 to 0.5). They fall fast:
+
+  | the gain at | 1 m | 5 m | 9 m | 10 m | ends |
+  |---|---|---|---|---|---|
+  | `death_scream_close` | 0.86 | 0.38 (-7 dB) | 0.10 (-19 dB) | 0.07 (-21 dB) | 15 m |
+  | `steps` | 0.67 | 0.23 (-9 dB) | 0.10 (-17 dB) | 0.08 (-18 dB) | 17 m |
+  | none (`default`: 2 / d) | 1 | 0.40 (-8 dB) | 0.22 (-13 dB) | 0.20 (-14 dB) | never |
+  | `material_hit` (a bullet's hit) | 0.92 | 0.64 (-3.2 dB) | 0.44 (-6.5 dB) | 0.40 (-7.3 dB) | 35 m |
+  | `weapon_echo_loud` | 0.96 | 0.74 (-2.3 dB) | 0.51 (-5.6 dB) | 0.46 (-6.4 dB) | 40 m |
+  | `weapon_shot_mosin` | 0.92 | 0.64 (-3.1 dB) | 0.47 (-5.8 dB) | 0.43 (-6.6 dB) | 100 m |
+  | `weapon_shot_40` | 0.97 | 0.84 (-1.2 dB) | 0.71 (-2.7 dB) | 0.67 (-3.1 dB) | 45 m |
+  | `weapon_echo_close_mid` | 0.97 | 0.85 (-1.2 dB) | 0.72 (-2.6 dB) | 0.69 (-3.0 dB) | 85 m |
+
+  (the stock db's 52 presets, their `volume` keys read linearly between the keys: within a few
+  tenths of a dB of the engine's cubic keys, LIKELY; the dB are against the gain at 1 m).
+- **Can a live voice be a sound of the scene?**
+  - Not a sound instance. One plays an emitter resource: a single sound with its Ogg, its `.rms`
+    and its options, of a known length, decoded into the voice's buffers as they end
+    (`sound_voice::refill_buffers` 0x632A0, `ogg_encoded_sound_interface::decompress` 0x64ED0;
+    LIKELY, from the names and 0.10b's sources). A stream of no known length is none of that
+    without made-up engine objects.
+  - A source voice of ours on the engine's XAudio2 (the sound world's +0C0h; `IXAudio2::
+    CreateSourceVoice`, +20h by XAudio2 2.7's declaration): possible, and the engine-function library has COM calls. It would
+    be made, fed and placed on the sound thread (`sound_world.tick`, patch 88's site), sent to the
+    scene's submix so the game's volume and device apply, its matrix the same `calculate_3d_pan`.
+    What it needs and nothing here can run: the decoded frames handed from the DLL's worker to the
+    sound thread and kept until XAudio2 ends them; the voices gone before their scene's submix and
+    the engine go (the match's end, the game's exit, patch 100's rebuild of every voice on a
+    device change); XAudio2 2.7's and Wine's behaviour with a 16 kHz streamed voice. A mistake
+    there is a crash or a silent sound thread for every player. **Not built blind** (2026-11-14);
+    the next step when it can be played.
+  - Built instead: the DLL keeps playing, and the gains it mixes a plain voice by are the
+    engine's (below, "Plain in the world").
+
 ## The rules (v1)
 
 - **Who hears whom.** Team-only, in a match, as in 0.69. Enemies never hear, near or far. No
   voice in the lobby, no squad channel, no "common" channel (0.69 had that only as a room
   option; a later rooms feature).
 - **The radio effect** (an owner decision, default on):
-  - A teammate within `VOICE_NEAR` (25 m; 15 m since 2026-11-13) is heard plain (since
-    2026-11-13 from its side: "As built", the radio). One farther away is heard through a radio
+  - A teammate within `VOICE_NEAR` (25 m; 15 m since 2026-11-13; 10 m since 2026-11-14) is heard
+    plain (since 2026-11-13 from its side, since 2026-11-14 in the world, falling with its
+    distance: "As built"). One farther away is heard through a radio
     filter: band-pass 300-3400 Hz, light clipping and a little noise.
   - This is the quick commands' idea applied to voice. 0.69's voice had no such effect.
   - Each client decides it from its own simulation (it knows every player's position). The
     server does not take part.
-  - The volume stays the same near and far; it is not proximity chat.
+  - The volume stays the same near and far; it is not proximity chat (until 2026-11-14: the plain
+    voice now falls with its distance, gently; the radio's level is as it was).
 - **Push-to-talk** on the stock `ptt` action. The key is P by default, rebindable in the
   options' chat keys, and kept in `user.cfg`.
   - Hold to talk.
@@ -319,15 +407,17 @@ Where the build differs from or adds to the design above:
   (the interface forced hidden) it shows only while Tab is held, with the Tab list (the owner,
   2026-11-11: "we need to also show in blackout only when tabbed that someone is speaking";
   HUD.keptOnTab). 0.69's speaker over heads was not picked.
-- **The radio** (the DLL): a teammate farther than 15 m (25 m until 2026-11-13), or either player
+- **The radio** (the DLL): a teammate from 10 m on (15 m 2026-11-13, 25 m before), or either player
   dead (a spectator too: no body in the world), through a filter
   fitted to 0.69's `_radio` quick-command recordings (high-pass 405 Hz, peaks and dips up to 6.3
   kHz), retail static under it (`tutorial_interference_02`, -44 dBFS; half of it in the mix since
   #1635), and retail's squelch at the
   start and end of a far utterance (the static lead-in and tail of 0.69's `_radio` phrases: 0.69 has
   no separate squelch file). Near: plain, no squelch. The sounds are compiled into the DLL
-  (`client-voice/make_radio_sounds.py`). The switch at 15 m is as it was at 25 m: the filter on or
-  off from the next 20 ms frame, no crossfade (the ears' gains ramp over that frame).
+  (`client-voice/make_radio_sounds.py`). The switch at 10 m takes one 20 ms frame: the plain voice
+  ramps out and the radio in over it (until 2026-11-14 the filter went on or off from the next
+  frame, only the ears' gains ramped). An utterance that starts on the radio has its squelch, one
+  that starts plain none, as before.
   **Loudness** (2026-11-13): #1635's +6 dB on speech is undone for near voices, which play as
   decoded, as on revision 58 (the owner, after playing revision 58: "sound close by right now was
   very good in game"). The radio's words are raised 3 dB (`radio::VOICE`; the owner: "static is
@@ -343,16 +433,75 @@ Where the build differs from or adds to the design above:
   -47.7 (K), about 21 dB under the far words. Near speech peaks at 0.15-0.22 of full scale at the
   default sensitivity, 0.3-0.45 at the highest, under the soft limit's knee (0.5); full to one side
   (+3 dB in that ear) only the highest sensitivity's loudest reaches into the knee (0.63).
-- **Directional near** (the owner, 2026-11-13: "I would also make the voice directional in first 15
-  meters before radio"): a teammate heard plain comes from its side. The exe tells the DLL each
-  near teammate's pan (`sv_direction(place, sine)`, ABI 2): the sine of its bearing from where the
-  local player faces, on the ground (from its feet to theirs, against its eyes' right: the eye
-  transform's first row). The DLL pans equal-power, scaled so the centre is unity in both ears (as
-  the mono mix was, and as the radio is): left √2·cos θ, right √2·sin θ, θ = (sine + 1)·π/4. The
-  same power at every bearing, no fall-off with distance (not proximity chat); full to one side
-  +3 dB in that ear. Behind is centred as ahead (no HRTF). The mix is stereo since (waveOut 16 kHz
-  16-bit stereo, 64 kB/s to the driver instead of 32; the microphone stays mono); the radio and
-  the squelch are centred.
+- **Plain in the world** (2026-11-14; before it, 2026-11-13, "directional near": plain within 15 m
+  at one loudness, panned by a law of the DLL's, equal power by the sine of the bearing).
+  - The owner, 2026-11-14, of the merged and unreleased #1782:
+    - "let's do directional in 10 m and it should also be really directional and fall the further
+      from 10 meters you go", "like normal voice does";
+    - "the game already has audio engine", "maybe we can tie into it?";
+    - "no the voice fall of start immediately and drops completely at 10 meters, radio starts at 10
+      too" (they floated "maybe drop completely at 15 and radio starts at 10" and withdrew it:
+      "no", "this isnot good");
+    - "should be still fine at 9m";
+    - "fall off should not be big", and, told that a voice 6 dB down at 9 m would come back
+      full on the radio at 10 m, "so you always hear normally".
+  - So:
+    - under 10 m (`PLAIN_TO_M`) a speaker is heard plain, as a sound in the game's world: from its
+      side, and quieter the farther it is, gently: 0.7 of itself (3 dB down) at 9 m (`AT_9_M`,
+      the one number of the fall; 0.5, 6 dB, in the first build of the same day);
+    - at 10 m the plain voice is cut and the radio starts (`RADIO_FROM_M`): a switch, as it was
+      at 15 m. Nothing of the radio nearer, nothing of the plain voice farther;
+    - the two distances are two constants (patch 66, `voice.rs`) and may differ: with the plain
+      voice reaching past the radio's start both are heard between them, with the radio starting
+      past the plain voice's end neither;
+    - dead or a spectator (either of the two): the radio only, as before. Free for all: the same
+      rule for everyone heard. Team modes: teammates only. The relay and the wire: unchanged.
+  - **The engine's part.** Each frame (`game_world.after_move`) the exe asks the engine's own pan
+    of a point sound, `sound_scene::calculate_3d_pan` (0x57D70: the function every point sound's
+    voice gets its output matrix from at each sound tick), for each speaker: with the game world's
+    sound scene (the game's listener: the camera's place, front and top, as every game sound has
+    it), the sound world's panning table, a proxy of ours of 144 zero bytes (a point sound) and the
+    speaker's place: its offset from the listener, feet to feet (so one on the same floor is at the
+    ears' height), added to the listener's place as the engine keeps it. On the game's thread: the
+    function reads only atomics and the table ("The game's sound engine"). No listener yet (the
+    world's first tick): the centre.
+  - **Not the engine's** (said plainly):
+    - the gain by distance is the patch's own arithmetic, in the form of the engine's distance
+      presets (a `volume` curve, the distance not under 1 m, held to 0..1): two linear keys, 1 to
+      1 m and `AT_9_M` at 9 m, on to the cut. With 0.7 it is the stock `weapon_shot_40` within
+      0.3 dB and `weapon_echo_close_mid` within 0.4 dB from 1 to 10 m (the table above; with 0.5 it
+      was `weapon_echo_loud` within 0.5 dB). No stock preset
+      is loaded and the engine's curve reader (0x25F30) is not called: that needs a `.spl` asked
+      of the resource manager, and a number in the patch is turned by ear sooner;
+    - the characters' own voice presets are not used: a scream is 19 dB down at 9 m, the engine's
+      law for a sound with no preset 13 dB (the owner: "fall off should not be big");
+    - the output: the DLL still plays through waveOut (the default device, stereo, its own
+      volume option), not through the game's XAudio2: no surround layout, no game volume, no
+      low-pass behind the listener (the engine's coefficient is not used);
+    - `LEVEL` (the square root of 2): the engine pans a point sound at constant power, 0.707 in
+      each ear ahead, and holds a voice's volume to 1; the plain voice ahead and beside the
+      listener is raised to 1 in both ears, as decoded: revision 58's near level (the owner then:
+      "sound close by right now was very good in game") and the radio's.
+  - **What a listener gets** (the plain voice straight ahead, both ears, against the voice as
+    decoded: until now every near voice's level, and the radio's words' loudness; at the side the
+    same power, 3 dB more in that ear and nothing in the other):
+
+    | the speaker at | 1 m | 5 m | 8 m | 9 m | 9.5 m | 9.99 m | 10 m and past |
+    |---|---|---|---|---|---|---|---|
+    | until now (#1782) | plain 0 dB | 0 | 0 | 0 | 0 | 0 | plain 0 dB to 15 m, then the radio |
+    | now | plain 0 dB | -1.4 | -2.6 | -3.1 | -3.3 | -3.6 | the radio, 0 dB |
+
+    So the voice comes back about 3.6 dB louder where it turns into the radio. Both levels stay
+    as the owner left them (the near voice beside the listener, the radio): `LEVEL` or the
+    radio's `VOICE` would move a level that was tuned by ear. `AT_9_M` is what sets the step: 0.5
+    (6 dB down at 9 m) made it 7.2 dB, which the owner's "so you always hear normally" ruled out;
+    1 would be no fall and no step.
+  - **The interface** (ABI 3 in #1801; 4 with the microphone test): `sv_hear(place, left, right, radio)` tells a place's whole state in
+    one call (`voice_abi::Heard`: plain with its two gains, the radio, or both), in place of the
+    radio's mask and a pan a place (`sv_radio`, `sv_direction`), which could disagree. The DLL
+    has no law of its own left: it mixes the plain voice by the two gains and the radio at unity,
+    each ramped over a frame from the last frame's. The mix is stereo (waveOut 16 kHz 16-bit
+    stereo, since 2026-11-13); the radio and the squelch are centred.
 - **Free for all: voice for all** (the owner, 2026-11-13: "in FFA I would enable voice chat for
   all"): in a free-for-all every player hears every other of the match (each is a side of its
   own, so by teams nobody heard anyone), by the same rule of near and far. One decision a side,
@@ -441,7 +590,7 @@ Where the build differs from or adds to the design above:
 
 ## Open for the owner (decided 2026-10-25)
 
-- **Radio effect: on.** A teammate within 25 m (`VOICE_NEAR`; 15 m and directional since 2026-11-13) is heard plain; farther, through
+- **Radio effect: on.** A teammate within 25 m (`VOICE_NEAR`; 15 m and directional since 2026-11-13; 10 m and in the world since 2026-11-14) is heard plain; farther, through
   the radio filter (band-pass 300-3400 Hz, light clipping, a little noise). Same volume near and
   far: not proximity chat. Each client decides from its own simulation.
 - **Push-to-talk: P**, the stock `ptt` action, rebindable in Controls.
@@ -535,7 +684,7 @@ As built:
 - **The seconds.** The recording lasts 10 s of the worker's clock; its seconds left are the
   clock's, counted up (10 at the press, 1 in the last). The playback's are those of the frames
   left.
-- **ABI 3** (`voice-abi`): `sv_test_press(volume, sensitivity)` (each 0..1), `sv_test_stop()`,
+- **ABI 3** (in #1803; 4 with `sv_hear`) (`voice-abi`): `sv_test_press(volume, sensitivity)` (each 0..1), `sv_test_stop()`,
   `sv_test_state() -> u32`, the word of `MicTest`: `Idle`, `Recording(seconds)`,
   `Playing(seconds)`, `NoMicrophone`, `NoPlayback`.
 - **The exe** (patch 66, three more lohooks). `options.callback`: the sound tab shown asks
@@ -560,9 +709,11 @@ As built:
 - The DLL's Rust tests cover protocol bounds, Opus round trips, jitter and packet loss/reorder,
   the fitted radio response, retail squelch, muting, timeouts and the press/release lifecycle,
   and the automatic gain: speech-like input from -50 to -13 dB of full scale comes out within
-  2 dB of one level (-29 dB), the sensitivity's ends 12 dB apart; the panning law at a few
-  bearings (equal power, centre at unity), a voice to the right mixed into the right ear, and a
-  radio voice's words within 2 dB of a direct one's (loudness summed over critical bands).
+  2 dB of one level (-29 dB), the sensitivity's ends 12 dB apart; a plain voice mixed by the
+  gains it is given (to the right: nothing in the left ear; half: half), the switch to the radio
+  ramped over a frame with no step between two samples, the plain voice and the radio both heard
+  when told so, and a radio voice's words within 2 dB of a plain one's (loudness summed over
+  critical bands). `voice-abi`'s own test: a place's state through its one call.
 - The match server's headless loopback test runs its actual UDP relay with two Rust client cores.
   Each sends a different synthetic tone through Opus, the wire, routing and jitter playback.
   The received audio's energy and frequency must match the other client. No microphone or fake
@@ -571,9 +722,18 @@ As built:
   while the listener misses the new START packet.
 - `scripts/tab-row-menu/check.sh` (Ruffle) runs the Tab menu with the voice entries: offered,
   muted, unmuted, not done, none without the exe's answer.
-- `cargo test` in `client-patches/rust/`: the saved mutes' text (malformed records), direct to
-  15 m (14.9 m direct, 15.1 m radio), radio for the dead, a near teammate's pan by its side
-  (right, left, ahead, behind). The old `check_voice_026g.py` (Unicorn over the 2026-10-25 hooks) went with
+- `cargo test` in `client-patches/rust/`: the saved mutes' text (malformed records), plain under
+  10 m (9.9 m plain, 10 m and 50 m the radio), the radio for the dead and for a broken place, the
+  pan asked of the speaker's offset and its gains raised and lowered by the distance (1 to 1 m,
+  `AT_9_M` at 9 m), the two distances apart (both between them, or neither).
+- `check_voice_pan_026g.py` (Unicorn, `tools/check voice-pan`): the original exe's
+  `calculate_3d_pan` called as the patch calls it, on a scene whose listener the engine's own
+  `set_listener_properties` set and with the table its own constructor filled: the law (above),
+  a listener moved and turned, what it reads and writes; and `get_listenet_position` (0x57560)
+  as the patch calls it beside the pan every frame (the scene in EAX, the three floats' room in
+  ESI): the place the engine keeps, nothing read but the scene's +120h, nothing written but the
+  three floats. `check_engine_026g.py` holds the two new
+  engine functions' thunks to the re-kit's rows. The old `check_voice_026g.py` (Unicorn over the 2026-10-25 hooks) went with
   those hooks; the lohooks' handlers are not run in Unicorn.
 - The Windows/Wine DLL smoke test covers loading, the ABI, relay handshake, mute/volume updates,
   and stopping/restarting with PTT held. It uses a fake relay; the Rust integration above uses
@@ -601,8 +761,15 @@ As built:
   rest, for a transmission as for the test: not changed here.
 
 Real microphone capture and audible playback still require an in-game test with two games, a
-microphone on one, and both near (walking round the listener: the voice from its side) and
-beyond 15 m. The microphone test needs one game and a microphone: in the lobby and in a match,
+microphone on one, and both near (walking round the speaker and away from it: the voice from its
+side, falling to 10 m) and beyond 10 m (the radio). **Nobody has heard the plain voice in the
+world yet** (2026-11-14): the patch's handler is not run in Unicorn, only the engine's function it
+calls. One player with one microphone cannot test it as it is: push-to-talk is let go when its
+window loses the keyboard, so the window that talks cannot be left to walk round it in the other.
+What would do it (not built): a local switch of the DLL, an environment variable read once at
+`sv_start` naming a 16 kHz mono WAV, with which the worker talks by itself, the file as the
+microphone, in utterances with a pause between (so the squelch is heard too), whatever the key.
+The microphone test needs one game and a microphone: in the lobby and in a match,
 the button's countdown, how the playback sounds at a few sensitivities, a push-to-talk during it,
 closing the options during it. Also check the Tab menu's voice mute, the
 talking list's fade, the automatic gain with a quiet and a loud microphone, disable voice chat,

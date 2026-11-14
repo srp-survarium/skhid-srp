@@ -13,7 +13,7 @@ mod windows;
 pub mod wire;
 pub use codec::{AGC_LEVEL, Decoder, Encoder, Preprocessor, agc_level};
 pub use radio::Radio;
-pub use receiver::{Core, Heard, Hearing, Pan, Stats, Stereo, gains};
+pub use receiver::{Core, Ears, Heard, Hearing, Stats, Stereo};
 pub use sender::Sender;
 pub const RATE: usize = 16_000;
 pub const FRAME: usize = 320;

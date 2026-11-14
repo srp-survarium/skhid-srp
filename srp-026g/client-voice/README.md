@@ -4,7 +4,9 @@
 capture/playback, the microphone's noise suppression and automatic gain (speexdsp's
 preprocessor, as 0.69), per-speaker jitter buffers, mutes and the retail radio effect, and
 the options' microphone test (`src/mic_test.rs`: 10 s recorded through a transmission's path
-and played back, in a match or with none; `docs/notes/voice-chat.md`, "Microphone test").
+and played back, in a match or with none; `docs/notes/voice-chat.md`, "Microphone test"). A plain
+voice's gains in the two ears are the game's: patch 66 asks its sound engine for each speaker's
+and tells them (`sv_hear`); the DLL only mixes by them.
 The arena patch loads its optional interface from `crates/voice-abi`; missing or
 incompatible DLLs leave voice disabled.
 

@@ -1,7 +1,7 @@
 ammo	damage	pierce	near_k	far_k	far_damage_k	speed	mass	pellets	pellet_spread	ricochet	ricochet_angle	ricochet_spread	pierce_spread	clip	clip_weight	bags	level	mm_level
 ammo_.30-30	1	1	1	1	1	760	0.1	1	0	0.6	10	10	2	20	0.45	1	3	3
 ammo_.357m	1	1	1	1	1	430	0.02	1	0	0.6	10	10	5	20	0.22	1	3	3
-ammo_12.7x54_pt	1	1	1	1	1	320	0.2	1	0	0.6	10	10	5	10	0.3	1	15	15
+ammo_12.7x54_pt	1	1	1	1	1	370	0.2	1	0	0.6	10	10	5	10	0.3	1	15	15
 ammo_12.7x54_vps	1.2	1.2	1	1	1	320	0.2	1	0	0.6	10	10	5	10	0.3	1	15	15
 ammo_12.7x55	1	1	1	1	1	350	0.1	1	0	0.6	10	10	5	20	0.3	1	15	15
 ammo_12mm_buck	0.2	0.2	1	1	1	250	0.01	10	4	0	0	0	0	15	0.6	1	1	1
