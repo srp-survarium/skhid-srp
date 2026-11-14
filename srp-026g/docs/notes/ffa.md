@@ -386,15 +386,16 @@ rules, spawns, pay and results, every kit's guns changed by the server.
 - **Where:** each free-for-all card of a vote (the third card; all three in a pool of
   free-for-alls alone) draws its twist with the card, by its share (`twist::SHARES`):
   - plain Free for all 45 %, **Racket** 45 % (my pick);
-  - **Cowboy**, "Showdown" in the lobby, 10 % (the owner, 2026-11-14: "cowboy version should be
+  - **Cowboy**, "Saloon" in the lobby, 10 % (the owner, 2026-11-14: "cowboy version should be
     rare with only 10% chance"): every kit a Colt Python alone (`ffa-cowboy.md`).
 
   No tick of its own in the create window: a room with Free for all has its twists. Won, the card's
   match plays its twist.
 - **Names** (one word each, as Blackout; the owner's: Racket, Движ; mine for the others):
   `st_srp_mode_racket` Racket, Движ, Двіж (uk, be), Raban, Radau, Rambajz, Galama, Zsivaj, Meteli.
-  `st_srp_mode_cowboy` (mine): Showdown, Дуэль, Дуель, Дуэль (be), Pojedynek, Showdown, Souboj,
-  Duel, Párbaj, Kaksintaistelu.
+  `st_srp_mode_cowboy` (mine): Saloon, Салун (ru, uk, be), Saloon (pl, de, cs), Salun, Szalon,
+  Saluuna: a saloon brawl, everyone against everyone (the owner, 2026-11-14, of an earlier "Showdown"
+  / "Дуэль": "duel usually means 1vs1").
   The lobby's mode numbers 9 Racket and 10 Cowboy (`Twist::lobby_number`; 7 is Scarcity's): a card's tag and colour, the
   room's banner of its match (`lobby.md`, rooms' `C` and `L` rows), the log's "mode". The game's
   own screens (loading, results, the HUD) say Free for all: they read the map's config.

@@ -1,6 +1,6 @@
 # Free for all: everyone has a Colt Python
 
-The owner (2026-11-14): a version of Free for All (`ffa.md`) "where everyone has colt Python", a twist of it (`ffa.md`, "Twists": 10 % of the free-for-all cards, "Showdown" in the lobby).
+The owner (2026-11-14): a version of Free for All (`ffa.md`) "where everyone has colt Python", a twist of it (`ffa.md`, "Twists": 10 % of the free-for-all cards, "Saloon" in the lobby).
 srp rewrites each player's match profile before the static info is sent
 (`survarium::v026g::cowboy::arm`); every game cooks each life from those profiles, so every client,
 a late joiner and a replay see the same kits.

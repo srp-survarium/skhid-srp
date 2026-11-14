@@ -31,7 +31,7 @@ pub const SHARE_TOTAL: u32 = {
 pub enum Twist {
     /// Every sniper rifle and silenced gun an AK-12 ([`super::racket`]).
     Racket,
-    /// Every kit a Colt Python alone ([`super::cowboy`]); "Showdown" in the lobby.
+    /// Every kit a Colt Python alone ([`super::cowboy`]); "Saloon" in the lobby.
     Cowboy,
 }
 
