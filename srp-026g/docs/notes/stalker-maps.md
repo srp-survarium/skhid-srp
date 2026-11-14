@@ -230,6 +230,172 @@ Training Camp's meadow.
   has its meadow already; Station and Depository need their level folders
   again.
 
+## Bushes rustle (the owner, 2026-11-14)
+
+"Bushes should have rustling sound just like on normal survarium maps": walking
+through a bush of a ported map was silent. Pack `stalker-bushes@2` and
+`content-edit/stalker-bushes-1.json` give Experimental Pool, Military Warehouses
+and Training Camp the foliage step of stock's bushes. Built and read back
+(below); **not heard in the game yet**.
+
+### What rustles in stock 0.26g (the exe and the data, read statically)
+
+- A step is the walk animation's sound event (`crouch_steps.md`):
+  `player_equipment_sound_effect::on_foot_step` 0x2A6520 ->
+  `step_manager::on_step` 0x248AD0 (a landing too, 0x23FBE0). `on_step` casts
+  one ray from 1 m above the foot straight down, 2 m long, with filter group
+  30h and mask 8 (0x248AED..0x248B58, `ray_test` 0x75E20). The closest hit's
+  triangle gives a game material (`bt_static_rigid_body::get_triangle_material`
+  0x3570A0); the pair of the foot's material and it (0x306D50) gives the sound.
+  Nothing else plays a pair of a foot material: `material_pair`'s other seven
+  callers are the bullet's four and the thrown things' marks (0x248160,
+  0x248720, 0x248980). PROVEN.
+- An object is tried by a ray when its group has a bit of the ray's mask and
+  its mask a bit of the ray's group (`needsCollision` 0x75BD0). PROVEN.
+- The physics world's level is the project's `collision_objects` and nothing
+  else: `project_cooker_simple::create_game_objects` 0x22C010 asks for each
+  entry's `lib_name` as a collision resource with its `cgroup` and `cmask`
+  (`static_collision::insert` 0x2F8850 adds the body with them), and for each
+  `render_visuals` entry as a drawn model only. The exe has no `hq_collision`
+  string: a model's `hq_collision` is not the game's (an editor's mesh).
+  PROVEN.
+- A triangle's material: `collision_shape_cook` (0x82590, 0x829E0) reads
+  `<lib_name>/vertices`, `indices`, `face_data` and the model's `settings`; a
+  face's name in `face_data`'s dictionary names
+  `game_material_settings/<name>/game_material_id`. PROVEN.
+- The sounds: `game_materials/material.pairs` gives foliage_deciduous (44)
+  `material/foliage_2/step/foliage_2_step` for the walker's own steps
+  (actor_local, 42), `..._m` and `..._sprint_m` for the others' (actor 10,
+  actor_sprint 53), the crouched ones of `crouch-steps-1`; **the walker's own
+  sprint and landing (actor_local_sprint, 56: every boot's
+  `sprint_1st_view_material_id` and `jump_1st_view_material_id`) have none**:
+  sprinting through a bush, he hears no step of his own for the steps that
+  meet a leaf, in stock too; the others hear his. These collections are named
+  by nothing but the pairs (the stock db's bytes).
+- Which bushes: of the 808 stock collision meshes, five bushes have faces of
+  foliage_deciduous, their whole `collision`: `models/flora/vine/bush_big`,
+  `bush_low`, `bush_wide`, `bush_corner_in`, `bush_corner_out` (768 to 1,642
+  triangles; cgroup 8, cmask 16), each with a smaller `walker_collision`
+  inside. Tarakanovsky Fort has 147 of them and Vector 319: a walker goes into
+  their leaves and the ray meets a leaf before the ground (of 3,040 standing
+  places sampled at the Fort's vine bushes, 235). The free-standing bushes
+  (`flora/bush_s_*`: School 82, Chemical Plant 5; `flora/fruit_2/yablo_kust_*`:
+  Rudnya 71, the Fort 43) are render visuals with no collision object: silent
+  in stock, as the ported ones were. Vector's `level/07/base_v_born_place` has
+  1,848 foliage faces of its own, and one fir (`flora/elka_green_05`) is
+  foliage_coniferous.
+- Why the ports were silent: resource-porter drops X-Ray's passable collision
+  triangles (`materials\bush`, `bush_sux`; `src/soc/build.rs`): 3,328 on
+  Experimental Pool, 8,373 on Military Warehouses, 866 on Training Camp.
+
+### What the pack is
+
+`scripts/stalker-bushes/make_pack.py` (its docstring has the rule) makes, from
+`stalker-maps@6`'s own files (its `pack.json` and each map's inputs pinned by
+sha256), one model a map, `models/srp/<level>_bushes`: `settings` and a
+`collision` mesh alone, every triangle of game material foliage_deciduous (44).
+
+- Its triangles are the leaves the map draws: the level chunks' surfaces of
+  foliage material (`flora`) with a branch or needle texture
+  (`trees_vetkagreen1/3/5`, `trees_vetkabig`, `trees_vetkasux2`, `trees_sosna`,
+  `trees_sosna_sux`, `trees_dub`, `trees_elka`), a leaf's two drawn sides once.
+- Every other drawn surface is on a list of what is not leaves: bark, stumps
+  and Training Camp's planks (`wood_collect`), the four other kinds of
+  material, one surface drawn with no material. A surface on no list stops the
+  script with its name.
+- Only what a step can meet: a triangle is kept when a point of it is at most
+  1.2 m above a floor of the level's collision (the ray starts 1 m above the
+  foot), and is cut off 1.2 m above the highest such floor. A floor faces up
+  (the level's ground has its normal up in every triangle) and is no tree's
+  wood: the port gives X-Ray's trunks, branches and planks one game material,
+  wood_silent, and a branch's top would keep the crown over it (846 leaves on
+  Experimental Pool); leaves over a plank floor are kept only where another
+  floor is in reach. The leaves over a walker's head and the crowns are not
+  in it.
+- X-Ray's own bush triangles would be the truer set (the level's `level.cform`);
+  Clear Sky is not installed on this machine any more, so the drawn leaves are
+  used.
+
+| map | leaves drawn | within a step of a floor | triangles | where a step rustles |
+| --- | ---: | ---: | ---: | ---: |
+| Experimental Pool | 20,666 | 5,059 | 6,945 | about 630 m² |
+| Military Warehouses | 50,271 | 20,503 | 28,772 | about 3,900 m² |
+| Training Camp | 4,212 | 2,011 | 2,704 | about 340 m² |
+
+The last column: standing places of a 1 m grid over the level's collision
+where the step's ray meets a leaf first. That is roughly two thirds of the
+ground where leaves are within a walker's height: the other steps there sound
+of the ground, as at the Fort's bushes.
+
+`@1` (never released) took a triangle for a floor by the size of its normal's
+y alone: undersides counted and branches' tops did, and leaves high in the
+crowns were kept (9,098, 31,833 and 3,242 triangles).
+
+### Where it stands in the project, and who meets it
+
+`stalker-bushes-1.json` adds the model as one collision object of each map's
+Team Deathmatch project (`day_4`), after the level's own chunks, before
+`ffa-projects-1` in `release/content.tsv`: Free for All's project is a copy
+and has it too. Each entry says one file must take it (`expected_files`, new
+in `content_edit.py`: an `add_entry` whose anchor is gone was passed over):
+the build stops at a project the object cannot be placed in, it cannot leave
+the bushes out silently. **cgroup 8, cmask 32**, a pair no object of the game
+had (every project's are 2/4, 8/16 and 10/20):
+
+| who asks | its group / mask | meets the bushes |
+| --- | --- | --- |
+| a step (`on_step` 0x248B58) | 30h / 8 | yes: the foliage step |
+| a bullet (`check_collision` 0x32D625) | 10h / 48h | no |
+| a blast's rays, the lobby's and the warm-up's cameras | 10h / 8 | no |
+| a grenade's body, a battery's | 818h / 8, 0A18h / 418h | no (each side's group must have a bit of the other's mask, 0xB3EDC) |
+| a walker's body, the foot placing, carried things | 824h / 3, 24h / 2 | no |
+| the use ray (`detect_usable_object`) | 114h / 8Ah | no |
+| a trap being placed (0x3064D2, 0x3066E5) | 404h / 202h, 414h / 20Ah | no |
+| a spot (`apply_new_input` 0x2D87EB) | 0FFFFh / 80Ah | yes, as a hittable thing that is not walkable: the ray goes on |
+| a dead body and its dropped gun (the ragdoll patch's level ray) | 414h / 20Ah | no: they fall through the leaves (it was 434h; `ragdoll.md` section 19) |
+
+The rows are every call of the physics world's ray test, ray query and
+penetration test in the game's code whose filter is pushed as a number, the
+bodies the notes know, and the patches' own rays. A requester that takes its
+filter from elsewhere would not be in it; none was found.
+
+- Bullets, grenades and blasts pass as before: no foliage hit effect either
+  (the Fort's bushes have one, and turn each bullet through them by up to the
+  round's `pierce_dispersion_angle`, `try_pierce` 0x32D960; cmask 16 would do
+  the same here, with a grenade bouncing off the leaves).
+- A spot's walk stops once it has met both something hittable (8) and
+  something walkable (2). The level's chunks are both (10) and stop it as
+  before. A sight line through a bush's lowest 1.2 m that also crosses
+  walker-only collision (on these maps Training Camp's alone: its crater
+  boundary in Free for All, its bonfires' walker meshes) now stops there,
+  where it went on: the one thing a match computes otherwise, hence the words
+  in `simulation_changes.tsv`.
+- The mesh is inside the level's collision box, so the physics world's box
+  (which the level's groups 8 and 2 make) is the same.
+- The ragdoll patch's level ray had bit 20h through the foot placing's group
+  24h, and a body and its gun would have come to rest on the leaves. Its
+  group is 414h now (`LEVEL_GROUP`, `rust/patches/src/ragdoll.rs`): of every
+  group and mask in the live data, the bushes' are the one pair that 434h met
+  and 414h does not (`ragdoll.md` section 19).
+
+### Not done
+
+- Repair Depot, Station and Depository (not played): a row each in the
+  script's `MAPS` once they are.
+- The walker's own sprint and landing on leaves are silent (stock's pair,
+  above): a `collision_sound` for pair 56/44 in `material.pairs` would give
+  them one, on the Fort's and Vector's bushes too.
+- Bot map data and the site's renders do not read it.
+
+To make it again: `python3 -I srp-026g/scripts/stalker-bushes/make_pack.py
+--packs $SKHID_PACKS_DIR --out $SKHID_PACKS_DIR/stalker-bushes-2
+--edits srp-026g/scripts/content-edit/stalker-bushes-1.json` (the same bytes
+every run: `pack.json` sha256 `a0b9ea98...d167`, the script's pin and the
+manifest's). `tools/check stalker-bushes` makes it again from the pinned source
+pack and compares the pack and the list; `stalker-bushes-manifest` holds the
+manifest's rows (the `stalker-maps` pack it is made from, this pack, the list
+before `ffa-projects-1`) to the script's pins, without making anything.
+
 ## Ladders
 
 0.26g cannot climb. Every ladder stays as the source has it: no ramp, lid or
