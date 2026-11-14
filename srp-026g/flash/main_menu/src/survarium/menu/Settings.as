@@ -1,5 +1,6 @@
 package survarium.menu
 {
+   import flash.display.DisplayObject;
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.events.Event;
@@ -786,6 +787,16 @@ package survarium.menu
                option.enabled = true;
             }
          }
+         // The sound tab's stock "PTT" checkbox (its option 6, s_ptt_button: the stock game's
+         // push-to-talk or open microphone switch) is never shown: voice is push-to-talk only and
+         // the option names no variable, so it did nothing, greyed (the owner, 2026-11-14: "let's
+         // remove the button then"). The exe's options still bind it by name: it stays in the
+         // timeline, hidden after each bind. The push-to-talk key is the Controls tab's.
+         var ptt:DisplayObject = this.settings_content["_ptt"] as DisplayObject;
+         if(ptt)
+         {
+            ptt.visible = false;
+         }
          SrpVideoTab.finish(this,this._renderer);
          SrpDistanceDetail.finish(this);
          // the HUD group, after the tab's settings are bound (their labels set)
@@ -794,7 +805,18 @@ package survarium.menu
          this.layoutGameplay();
          this._mouse.bind();
          this.layoutControls();
-         this._micTest.layout();
+         this.layoutVoice();
+      }
+      
+      // The sound tab's voice column under its sensitivity slider, the stock PTT checkbox hidden: the
+      // "Test microphone" button in the checkbox's row (the timeline's, the first under the slider).
+      protected function layoutVoice() : void
+      {
+         var row:DisplayObject = this.settings_content.currentFrame == 4 ? this.settings_content["_ptt"] as DisplayObject : null;
+         if(row)
+         {
+            this._micTest.layout(row.y);
+         }
       }
       
       protected function someOneSelected(event:Event) : void

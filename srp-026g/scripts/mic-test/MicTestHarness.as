@@ -132,20 +132,21 @@ package
             require(calls.length == 2 && calls[0] == null && calls[1] == null, "each bind of the sound tab asks the exe once: " + calls);
             require(b.label == texts[0][IDLE], "its text is the exe's: " + b.label);
             require(getQualifiedClassName(b) == "SetingsButton", "it is the tab's own button");
-            // under the voice column's controls (the sensitivity slider, then the PTT checkbox), from the
-            // column's left edge, clear of every other control
+            // the stock PTT checkbox hidden (the owner, 2026-11-14: "let's remove the button then")
+            require(c._ptt != null && !c._ptt.visible, "the PTT checkbox is hidden");
+            // under the voice column's controls (the sensitivity slider), in the PTT checkbox's row, from
+            // the column's left edge, clear of every other control
             var slider:Rectangle = c._mic_sens.getBounds(c);
             var at:Rectangle = b.getBounds(c);
             require(Math.abs(at.left - slider.left) <= 1 && Math.abs(at.left - c._use_mik.x) <= 1,
                 "its left edge is the voice column's (" + at.left + ", " + slider.left + ")");
-            require(at.top >= slider.bottom && at.top >= c._ptt.y + 26, "it is under the sensitivity slider and the PTT box ("
-                + at.top + ", " + slider.bottom + ", " + c._ptt.y + ")");
+            require(at.top >= slider.bottom && at.top < slider.bottom + 20, "it is just under the sensitivity slider ("
+                + at.top + ", " + slider.bottom + ")");
             require(at.right <= slider.right, "it ends within the column (" + at.right + ", " + slider.right + ")");
             for (var i:int = 0; i < c.numChildren; ++i)
             {
                 var other:DisplayObject = c.getChildAt(i);
-                // (the PTT checkbox's bounds are its label's room, two lines high: its box is checked above)
-                if (other == b || !other.visible || other.name == "_ptt") continue;
+                if (other == b || !other.visible) continue;
                 require(!at.intersects(other.getBounds(c)), "it lies over " + other.name + " (" + at + ", " + other.getBounds(c) + ")");
             }
             trace("MICTEST button " + Math.round(at.width) + "x" + Math.round(at.height) + " at " + Math.round(at.left) + "," + Math.round(at.top)
@@ -211,6 +212,7 @@ package
             require(calls.length == 0, "the gameplay tab does not ask: " + calls);
             settings.selectIndex(3);
             require(b.visible && calls.length == 1 && calls[0] == null && b.label == word, "back on the sound tab it asks: " + calls + ", " + b.label);
+            require(!content._ptt.visible, "back on the sound tab the PTT checkbox is still hidden");
             word = texts[0][IDLE];
             menu.srp_mic_test(word);
         }
@@ -246,17 +248,18 @@ package
                     check();
                     trace("MICTEST RESULT pass");
                 }
-                // the states, for the screenshots (the first dictionary's)
+                // the states, for the screenshots (the first dictionary's), each held a second so check.sh's
+                // screenshot is taken before the next
                 if (frames == 50) trace("MICTEST SHOT idle");
-                if (frames == 70) menu.srp_mic_test(numbered(texts[0][RECORDING], 7));
-                if (frames == 90) trace("MICTEST SHOT recording");
-                if (frames == 110) menu.srp_mic_test(numbered(texts[0][PLAYING], 4));
-                if (frames == 130) trace("MICTEST SHOT playing");
-                if (frames == 150) menu.srp_mic_test(texts[0][NO_MICROPHONE]);
-                if (frames == 170) trace("MICTEST SHOT no-microphone");
-                if (frames == 190) menu.srp_mic_test(texts[0][NO_PLAYBACK]);
-                if (frames == 210) trace("MICTEST SHOT no-playback");
-                if (frames == 230) trace("MICTEST END");
+                if (frames == 110) menu.srp_mic_test(numbered(texts[0][RECORDING], 7));
+                if (frames == 130) trace("MICTEST SHOT recording");
+                if (frames == 190) menu.srp_mic_test(numbered(texts[0][PLAYING], 4));
+                if (frames == 210) trace("MICTEST SHOT playing");
+                if (frames == 270) menu.srp_mic_test(texts[0][NO_MICROPHONE]);
+                if (frames == 290) trace("MICTEST SHOT no-microphone");
+                if (frames == 350) menu.srp_mic_test(texts[0][NO_PLAYBACK]);
+                if (frames == 370) trace("MICTEST SHOT no-playback");
+                if (frames == 430) trace("MICTEST END");
             }
             catch (error:Error)
             {

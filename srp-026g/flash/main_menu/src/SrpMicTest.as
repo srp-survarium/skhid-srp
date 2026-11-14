@@ -6,8 +6,8 @@ package
 
     // The Sound tab's "Test microphone" button (exe patch 66, docs/notes/voice-chat.md, "Microphone
     // test"; the owner, 2026-11-14: "you press button, it records for 10 seconds, then plays it back"),
-    // the last of the tab's voice controls, under the Microphone sensitivity slider and its PTT
-    // checkbox: the tab's own button (SetingsButton, the Controls and Graphics tabs' Default, as the
+    // the last of the tab's voice controls, under the Microphone sensitivity slider (Settings.layoutVoice):
+    // the tab's own button (SetingsButton, the Controls and Graphics tabs' Default, as the
     // Vulkan options' is). A press tells the exe the two voice sliders as they stand, accepted or
     // not: ExternalInterface.call("srp_mic_test", "<volume> <sensitivity>"). The voice DLL then records,
     // plays back and is idle again, or stops if it was doing so; the Settings window closed tells the
@@ -60,20 +60,17 @@ package
             }
         }
 
-        // After the tab's settings are bound: under the voice column's last control (the PTT checkbox)
-        // as the sensitivity slider, by its label's top, is under the column's first (Use microphone),
-        // from the column's left edge.
-        public function layout():void
+        // After the tab's settings are bound (Settings.layoutVoice): its top at `top`, from the voice
+        // column's left edge.
+        public function layout(top:Number):void
         {
             var sensitivity:DisplayObject = slider(SENSITIVITY) as DisplayObject;
-            var first:DisplayObject = content.currentFrame == SOUND_FRAME ? content._use_mik : null;
-            var last:DisplayObject = content.currentFrame == SOUND_FRAME ? content._ptt : null;
-            if (sensitivity == null || first == null || last == null)
+            if (sensitivity == null)
             {
                 return;
             }
             button.x = sensitivity.x;
-            button.y = Math.round(last.y + sensitivity.getBounds(content).top - first.y);
+            button.y = Math.round(top);
             button.width = WIDTH;
         }
 

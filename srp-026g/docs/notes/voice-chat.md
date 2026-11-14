@@ -197,6 +197,11 @@ run on its bytes in Unicorn) unless marked.
   - "Microphone sensitivity" (`s_mic_sens`, 0..1, default 0.5): the mic gain (as built: the
     aim of the automatic gain, below).
   - The "PTT" checkbox (`s_ptt_button`, open mic when off) stays disabled: v1 is push-to-talk only.
+    Removed from the tab since (the owner, 2026-11-14, told it is the stock game's push-to-talk or
+    open microphone switch, kept greyed because it does nothing: "let's remove the button then"):
+    the movie hides it after each bind of the tab (the exe's options still bind its option 6 by
+    name, so it stays in the timeline), and the voice column closes up under the sensitivity
+    slider. The push-to-talk key and its Controls row are unchanged.
 - **Speaking indicator.** On the HUD, a short list of who is talking, as 0.69's (below, "As
   built").
 - **Who can talk.** Dead players talk to their team too (0.69's rule is not known). Bots never
@@ -630,8 +635,8 @@ The owner: "can we add feature to test your microphone? you press button, it rec
 seconds, then plays it back". Until it, a player could not tell whether the microphone works, or
 how it sounds, without asking a teammate in a match.
 
-- **Where.** Options, Sound tab, the last of the voice controls (under "Microphone sensitivity" and
-  the stock PTT checkbox): one button, "Test microphone".
+- **Where.** Options, Sound tab, the last of the voice controls (under "Microphone sensitivity"; under
+  the stock PTT checkbox until it was removed, 2026-11-14): one button, "Test microphone".
 - **A press.** The microphone is recorded for 10 s, then the recording plays back once, then the
   button is as before. The button itself shows the state and the seconds left ("Recording 7",
   "Playing 4"). A press while it records or plays stops it.
@@ -756,8 +761,9 @@ As built:
   a microphone ahead of the clock, the door); `cargo test` in `client-patches/rust/` the press's
   two sliders and each state's text; `scripts/mic-test/check.sh` (Ruffle) the button: none until
   the exe answers, its place, a press sending the sliders as they stand and no change for Apply,
-  every dictionary's texts on its one line, the other tabs. The smoke test starts and stops the
-  test with no match and in one, with whatever devices it finds.
+  every dictionary's texts on its one line, the other tabs, the PTT checkbox hidden (also after a
+  tab's change). The smoke test starts and stops the test with no match and in one, with whatever
+  devices it finds.
 - The built DLL's microphone test was run 2026-11-14 with the smoke test under Wine 11.8, in a
   sandbox with none of the machine's audio (no `/dev/snd`, no user sound server; a private
   PulseAudio server instead). With no device: "no microphone" for its 2 s, twice, in a match too.
