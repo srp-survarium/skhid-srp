@@ -2554,6 +2554,79 @@ impl LipWatch {
     }
 }
 
+/// [A388 step 2b] Everything [`lip_guard_with`] reads that changes within a match, bit for bit: the view's feet, velocity, yaw,
+/// pitch and keys, the tick's turn and keys, the route's drop landings, the hold and the full guard (the grid and the tuning are the
+/// match's; the forecast reads no time while no jump is under way, and none is in a forecast of keys without the jump). The same ask
+/// gets the same answer, so a memo of the last one changes no decision.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct LipAsk {
+    feet: [u32; 3],
+    velocity: [u32; 2],
+    yaw: u32,
+    pitch: u32,
+    view_keys: u32,
+    turn: u32,
+    keys: u32,
+    planned: Vec<[u32; 3]>,
+    hold: u32,
+    full: bool,
+}
+
+impl LipAsk {
+    fn of(me: &PlaceView, turn: f32, keys: u32, planned: &[Vec3], hold: u32, full: bool) -> Self {
+        let bits = |v: Vec3| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
+        Self {
+            feet: bits(me.feet),
+            velocity: [me.velocity[0].to_bits(), me.velocity[1].to_bits()],
+            yaw: me.yaw.to_bits(),
+            pitch: me.pitch.to_bits(),
+            view_keys: me.keys,
+            turn: turn.to_bits(),
+            keys,
+            planned: planned.iter().map(|&p| bits(p)).collect(),
+            hold,
+            full,
+        }
+    }
+}
+
+/// [A388 step 2b] A bot's last lip guard forecast and its ask ([`LipAsk`]), and the match's counts: forecasts asked anew, and the
+/// same ask's answer used again (the log's match-end line). A body standing or pushing at a lip asks the same each tick.
+#[derive(Clone, Debug, Default)]
+pub(super) struct LipMemo {
+    last: Option<(LipAsk, LipGuard)>,
+    /// The bench's reasons the forecast left (`GUARD_WHY`, `GUARD_FLOOR`), put back with a reused answer.
+    #[cfg(test)]
+    why: (u8, usize),
+    pub(super) asked: u32,
+    pub(super) reused: u32,
+}
+
+impl LipMemo {
+    /// The answer to `ask`: the last one when it was the same ask, else `forecast`'s (kept for the next).
+    fn answer(&mut self, ask: LipAsk, forecast: impl FnOnce() -> LipGuard) -> LipGuard {
+        if let Some((last, guard)) = &self.last
+            && *last == ask
+        {
+            self.reused += 1;
+            #[cfg(test)]
+            {
+                GUARD_WHY.set(self.why.0);
+                GUARD_FLOOR.set(self.why.1);
+            }
+            return *guard;
+        }
+        self.asked += 1;
+        let guard = forecast();
+        #[cfg(test)]
+        {
+            self.why = (GUARD_WHY.get(), GUARD_FLOOR.get());
+        }
+        self.last = Some((ask, guard));
+        guard
+    }
+}
+
 /// What the lip guard made of a tick's keys.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum LipGuard {
@@ -2720,7 +2793,9 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     let guard = if matches!(bot.lip_watch, LipWatch::Off(until) if time < until) {
         LipGuard::Clear
     } else {
-        lip_guard_with(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, bot.motor.feel.lip_guard_ticks, full)
+        let hold = bot.motor.feel.lip_guard_ticks;
+        let ask = LipAsk::of(me, decision.turn.0, decision.keys, &planned, hold, full);
+        bot.lip_memo.answer(ask, || lip_guard_with(&tactics.world.grid, &tuning.kin, me, decision.turn.0, decision.keys, &planned, hold, full))
     };
     let guard = if full {
         const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
