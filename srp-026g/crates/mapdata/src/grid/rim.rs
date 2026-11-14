@@ -20,7 +20,7 @@
 //! away). Made after the erosion, with no press from a floor only a crouched body fits (a jump is never pressed from a crouch:
 //! the jump's gate 0x2FBDC0 -> 0x2FC230 reads `on_ground` 0x7EF90, false for a crouched capsule, exactness 2026-11-14), and
 //! before the reach, so a top only a rim jump gets to is kept.
-use super::gap::{self, OffLink, PressLead, Share, Takeoff};
+use super::gap::{self, Aim, OffLink, PressLead, Share, Takeoff};
 use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, NONE, RIM_REACH_M};
 use crate::controller::jump::{self, FlightStep, Kind, Kits, Neighbour};
 use crate::controller::tick::Settings;
@@ -62,8 +62,39 @@ pub struct RimStats {
     pub climbed: usize,
     /// [S1] Of the pressed risers, those climbed at a sprint.
     pub risers_climbed: usize,
+    /// [R83] Rim jumps no press on the line made, one of whose flights came near the top ([`RimPress::near`]), flown again with
+    /// the aimed presses ([`AIMS`]) …
+    pub aimed_tried: usize,
+    /// … made by one …
+    pub aimed_made: usize,
+    /// … in this many flights (in [`Self::flights`] too).
+    pub aimed_flights: usize,
     /// Flights flown.
     pub flights: usize,
+}
+
+/// [R83] The aims flown at a rim jump no press on the line makes and one of whose flights came near the top (`R83-FORMAT.md`,
+/// the bounded sweep), as (side, turn) in [`Aim::STEP`]s: the side 0.3 m with the heading turned 0.2 rad either way, the side
+/// 0.15 m, the heading turned 0.3 rad. The presses that make R83, R85, R94, R95, R98 in the exe's tick lie at side 0.15-0.3 m,
+/// turn 0.1-0.3 rad (`a385-lost-links-client-truth.md` §1). Flown in this order; the best share wins, the first on a tie.
+pub const AIMS: [(i8, i8); 8] = [(-6, 4), (-6, -4), (6, 4), (6, -4), (-3, 0), (3, 0), (0, 6), (0, -6)];
+
+/// [R83] The leads an aimed press is flown at, m: three of the gap leads, a walk and a sprint at each.
+pub const AIMED_LEADS: [f32; 3] = [0.6, 1.0, 1.4];
+
+/// [R83] A flight came near a rim jump's top when one of its steps was within this of the top floor's height, below or above,
+/// m, and within [`NEAR_FLAT_M`] of its centre across: the bound of the aimed presses' sweep (a cost bound, not a claim of the
+/// client's).
+pub const NEAR_HEIGHT_M: f32 = 0.5;
+/// [R83] See [`NEAR_HEIGHT_M`], m.
+pub const NEAR_FLAT_M: f32 = 1.0;
+
+/// [R83] What [`WalkGrid::best_press_with`] found: the links made, the flights flown, and whether a flight came near the top
+/// ([`NEAR_HEIGHT_M`]).
+pub(super) struct RimPress {
+    pub(super) made: Vec<Made>,
+    pub(super) flights: usize,
+    pub(super) near: bool,
 }
 
 /// A press that lands: its gait and lead, the floor it lands on.
@@ -130,6 +161,8 @@ pub(super) struct Made {
     pub(super) press: Takeoff,
     pub(super) share: Share,
     pub(super) walk: Option<(PressLead, Share)>,
+    /// [R83] Where its press is aimed ([`Aim::STRAIGHT`]: on the link's line).
+    pub(super) aim: Aim,
 }
 
 impl WalkGrid {
@@ -223,15 +256,37 @@ impl WalkGrid {
         leads: &[f32],
         lands: impl Fn(&[FlightStep]) -> Option<NodeId>,
         kits: Kits,
-    ) -> (Vec<Made>, usize) {
+    ) -> RimPress {
+        self.best_press_with(world, s, a, b, way, &presses(leads), Aim::STRAIGHT, lands, kits)
+    }
+
+    /// [`Self::best_press`] over `presses` (each kind with its leads), every press and neighbour aimed by `aim` ([R83]: its
+    /// press point moved `aim`'s side to the way's right and its heading turned by `aim`'s turn, [`jump::press_point`],
+    /// [`jump::neighbour_flights`]).
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn best_press_with(
+        &self,
+        world: &Collision,
+        s: &Settings,
+        a: NodeId,
+        b: NodeId,
+        way: (f32, f32),
+        presses: &[(Kind, Vec<f32>)],
+        aim: Aim,
+        lands: impl Fn(&[FlightStep]) -> Option<NodeId>,
+        kits: Kits,
+    ) -> RimPress {
         let takeoff = self.position(a);
         let own = jump::neighbourhood()[0];
         let mut flights = 0;
+        let (top, top_at) = (self.height[b as usize], self.position(b));
+        let mut near = false;
         // Rule (e): no jump is pressed from a crouch (the jump's gate 0x2FBDC0 -> 0x2FC230 reads `on_ground` 0x7EF90, false for a
         // crouched capsule): a press whose press point is over a floor only a crouched body fits ([`WalkGrid::can_stand`]) is not
         // flown and does not land. The press point, not the take-off floor: the body presses `lead` back and flies over the
         // take-off, which may be under the top's overhang (Mamayev Kurgan: 17,363 of 48,606 rim take-offs are crouch-only floors).
         let fly = |kind: Kind, lead: f32, n: Neighbour| {
+            let n = Neighbour { side: n.side + aim.side_m(), turn: n.turn + aim.turn_rad(), ..n };
             let at = jump::press_point(takeoff, way, lead, n);
             if self.floor_under(at).is_some_and(|f| !self.can_stand(f)) {
                 return None;
@@ -240,13 +295,15 @@ impl WalkGrid {
         };
         // Step 1: every press at the press itself: the floors its flights land on (one, or one per sprint variant).
         let mut flown: Vec<(Kind, f32, Vec<Option<NodeId>>)> = Vec::new();
-        for (kind, leads) in presses(leads) {
-            for lead in leads {
-                let floors = fly(kind, lead, own).map_or_else(Vec::new, |fl| {
+        for (kind, leads) in presses {
+            for &lead in leads {
+                let floors = fly(*kind, lead, own).map_or_else(Vec::new, |fl| {
                     flights += fl.len();
+                    // [R83] Whether a flight came near the top, the aimed sweep's bound.
+                    near |= fl.iter().flatten().any(|f| (f.feet.y - top).abs() <= NEAR_HEIGHT_M && f.feet.distance_xz(top_at) <= NEAR_FLAT_M);
                     fl.iter().map(|st| lands(st)).collect()
                 });
-                flown.push((kind, lead, floors));
+                flown.push((*kind, lead, floors));
             }
         }
         // A press is a candidate when some flight of it lands: a sprint press some of whose variants land is a way a client
@@ -274,8 +331,8 @@ impl WalkGrid {
         if let Some(c) = floor_of(&climbs).filter(|c| !floors.contains(c) && !climbs.iter().any(|l| floors.contains(&l.to))) {
             floors.push(c);
         }
-        let made = floors.into_iter().map(|to| press_onto(&flown, &landings, to, &lands, &fly, &mut flights)).collect();
-        (made, flights)
+        let made = floors.into_iter().map(|to| Made { aim, ..press_onto(&flown, &landings, to, &lands, &fly, &mut flights) }).collect();
+        RimPress { made, flights, near }
     }
 }
 
@@ -335,7 +392,7 @@ let reused = |kind: Kind, lead: f32| {
         Kind::Slow(steps) => Takeoff::Slow { lead: PressLead::from_metres(lead), steps },
         Kind::Climb => Takeoff::Climb,
     };
-    Made { to, press, share: Share::landed(landed), walk }
+    Made { to, press, share: Share::landed(landed), walk, aim: Aim::STRAIGHT }
 }
 
 /// [A385] The presses flown, with their leads: the walk and the sprint at the gap links' `leads`, and the slow presses
@@ -434,23 +491,55 @@ impl WalkGrid {
         let todo = self.edges_up(wide, body.step, RIM_REACH_M);
         let leads = gap_leads();
         let kits = Kits { body: jump::WALK_CAP_MS, fastest: body.fastest_walk_cap };
-        let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
-            let (di, dk) = DIRS[d];
-            let l = ((di * di + dk * dk) as f32).sqrt();
-            // The floors `a` has a link to already (its sides and its off-mesh links): a landing there makes no link.
+        // The floors `a` has a link to already (its sides and its off-mesh links): a landing there makes no link.
+        let linked = |a: NodeId| {
             let mut linked: Vec<NodeId> = wide.links[a as usize].iter().copied().filter(|&n| n != NONE).collect();
             let off = wide.off.partition_point(|o| o.from < a);
             linked.extend(wide.off[off..].iter().take_while(|o| o.from == a).map(|o| o.to));
-            self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, |st| self.rim_lands_on(st, a, &linked), kits)
+            linked
+        };
+        let way = |d: usize| {
+            let (di, dk) = DIRS[d];
+            let l = ((di * di + dk * dk) as f32).sqrt();
+            (di as f32 / l, dk as f32 / l)
+        };
+        let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
+            let linked = linked(a);
+            self.best_press(world, s, a, b, way(d), &leads, |st| self.rim_lands_on(st, a, &linked), kits)
         });
-        let mut stats = RimStats { tried: todo.len(), ..RimStats::default() };
+        // [R83] The aimed presses (`R83-FORMAT.md`, the bounded sweep): at the jumps no press on the line made, one of whose
+        // flights came near the top, the walk and the sprint at [`AIMED_LEADS`] at each of [`AIMS`]; the best share wins.
+        let near: Vec<(u32, u32, usize)> =
+            todo.iter().zip(&flown).filter(|(_, p)| p.made.is_empty() && p.near).map(|(&t, _)| t).collect();
+        let aimed_presses = [(Kind::Walk, AIMED_LEADS.to_vec()), (Kind::Sprint, AIMED_LEADS.to_vec())];
+        let aimed = super::controlled::parallel(&near, |&(a, b, d)| {
+            let linked = linked(a);
+            let mut flights = 0;
+            let mut best: Option<Made> = None;
+            for (side, turn) in AIMS {
+                let aim = Aim::new(side, turn).expect("an aim in range");
+                let p = self.best_press_with(world, s, a, b, way(d), &aimed_presses, aim, |st| self.rim_lands_on(st, a, &linked), kits);
+                flights += p.flights;
+                if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.byte() > b.share.byte())) {
+                    best = Some(m);
+                }
+            }
+            (best, flights)
+        });
+        let mut stats = RimStats { tried: todo.len(), aimed_tried: near.len(), ..RimStats::default() };
+        let aimed_of: std::collections::HashMap<(u32, u32), Made> =
+            near.iter().zip(&aimed).filter_map(|(&(a, b, _), &(m, _))| m.map(|m| ((a, b), m))).collect();
+        stats.aimed_made = aimed_of.len();
+        stats.aimed_flights = aimed.iter().map(|&(_, f)| f).sum();
+        stats.flights += stats.aimed_flights;
         let mut none = Vec::new();
-        for (&(a, b, _), (made, flights)) in todo.iter().zip(&flown) {
-            stats.flights += flights;
-            if made.is_empty() {
+        for (&(a, b, _), p) in todo.iter().zip(&flown) {
+            stats.flights += p.flights;
+            let aimed = aimed_of.get(&(a, b)).copied();
+            if p.made.is_empty() && aimed.is_none() {
                 none.push((a, b));
             }
-            for &Made { to, press, share, walk } in made {
+            for &Made { to, press, share, walk, aim } in p.made.iter().chain(aimed.as_ref()) {
                 match press {
                     Takeoff::Press(_) => stats.walked += 1,
                     Takeoff::Slow { .. } => stats.slowed += 1,
@@ -460,7 +549,7 @@ impl WalkGrid {
                 stats.retargeted += usize::from(to != b);
                 stats.with_walk += usize::from(walk.is_some());
                 stats.by_share[share.class()] += 1;
-                wide.off.push(OffLink { from: a, to, kind: LinkKind::GapJump, press, share, walk });
+                wide.off.push(OffLink { from: a, to, kind: LinkKind::GapJump, press, share, walk, aim });
             }
         }
         // Two candidates of one take-off may land on the same floor: one link (the first, by the way's order).
@@ -497,10 +586,10 @@ impl WalkGrid {
             self.best_press(world, s, a, b, (di as f32 / l, dk as f32 / l), &leads, |st| self.riser_lands_on(st, b), kits)
         });
         stats.risers += todo.len();
-        for (&(a, b, _), (made, flights)) in todo.iter().zip(&flown) {
-            stats.flights += flights;
+        for (&(a, b, _), p) in todo.iter().zip(&flown) {
+            stats.flights += p.flights;
             // A riser's presses all land on its top ([`Self::riser_lands_on`]): one floor, so one press at most.
-            let riser = match made.first().copied() {
+            let riser = match p.made.first().copied() {
                 Some(Made { press, share, .. }) => {
                     match press {
                         Takeoff::Sprint(_) => stats.risers_sprinted += 1,

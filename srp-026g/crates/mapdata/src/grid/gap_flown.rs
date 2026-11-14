@@ -193,7 +193,7 @@ impl WalkGrid {
                 stats.made += 1;
                 stats.sprint += usize::from(matches!(press, super::gap::Takeoff::Sprint(_)));
                 stats.by_share[share.class()] += 1;
-                found.push((OffLink { from: g.a, to, kind, press, share, walk }, g.d));
+                found.push((OffLink { from: g.a, to, kind, press, share, walk, aim: super::gap::Aim::STRAIGHT }, g.d));
             }
         }
         found.extend(clip);

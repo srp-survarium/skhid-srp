@@ -352,6 +352,9 @@ impl Maps {
                             (world_bytes(&base.world) + base.memory_bytes()) >> 20
                         );
                         log_removed_floors(&name, &base.world.grid);
+                        // [R83] Its rim jumps aimed off the line (debug; read or built).
+                        let aimed = base.world.grid.off_links().iter().filter(|l| !l.aim.is_straight()).count();
+                        log::info!("Bot map {name} grid: {aimed} rim jumps pressed aimed off the line");
                         // [S7] Its crouched walks and, of them, the crouched climbs (debug).
                         let grid = &base.world.grid;
                         log::info!(
@@ -668,7 +671,21 @@ fn build(
                     |path| WalkGrid::read(path, grid_key, body),
                     // [A364 C2 rows 11/12] The rim jumps fly on the game's shapes (a format 6 map), built for the grid only: by the
                     // one entry the bench's worlds build their grids by too.
-                    || World::map_grid(&map, &walker, cell, body, links),
+                    || {
+                        // [R83] The aimed presses' line (debug): made, tried, flights, and the grid's build time.
+                        let started = Instant::now();
+                        let (grid, stats) = World::map_grid_with_stats(&map, &walker, cell, body, links);
+                        let rim = stats.rim;
+                        log::info!(
+                            "Bot map grid built in {:.1} s: aimed presses made {} of {} near misses tried, {} aimed flights of {} rim flights",
+                            started.elapsed().as_secs_f32(),
+                            rim.aimed_made,
+                            rim.aimed_tried,
+                            rim.aimed_flights,
+                            rim.flights
+                        );
+                        grid
+                    },
                     |grid, path| grid.write(path, grid_key),
                 );
                 // [A346] The tables the tuning in force needs ([`Tuning::needs_wall_clearance`], [`Tuning::needs_open_sides`]) and

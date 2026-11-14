@@ -702,7 +702,7 @@ impl WalkGrid {
         }
         for &(a, b) in &new {
             if over_drop.contains(&(a, b)) || self.bridge_run(&all, a, b) >= BRIDGE_MIN_RUN {
-                wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapJump, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None });
+                wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapJump, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: super::gap::Aim::STRAIGHT });
                 stats.bridges_walked += 1;
                 stats.bridges_added += 1;
             } else {

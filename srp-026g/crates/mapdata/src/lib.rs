@@ -174,7 +174,7 @@ pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
 pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c03;
 /// The same for the rim jumps flown on the exact tick ([`Body::rim_jumps`], A364 C2 rows 11/12), in [`grid_key_with_links`] only
 /// for a body that asks for it. A value of its own.
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b05;
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b06;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
@@ -337,13 +337,18 @@ impl World {
     /// bench's grid is the server's: the bench built its rim jumps on the walker triangles while the store flew them on the
     /// shapes.
     pub fn map_grid(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> WalkGrid {
+        Self::map_grid_with_stats(map, walker, cell, body, links).0
+    }
+
+    /// [`Self::map_grid`] with what its build did ([R83] the server's log line of the aimed presses).
+    pub fn map_grid_with_stats(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> (WalkGrid, BuildStats) {
         // [A389] Every pass that walks or flies the client's body takes the shapes: the rim jumps, the gap flights, the Drop links'
         // walk, the rest and held floors.
         let flown = body.rim_jumps || body.gap_flights || body.rest_floors || body.held_floors || (body.drop_check && body.drop_lands);
         let shapes = flown.then(|| controller::Collision::build_exe(map)).flatten();
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let area = map.play_area(AREA_MARGIN);
-        WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links).0
+        WalkGrid::build_kept_with_shapes(walker, shapes.as_ref(), area, cell, body, &map.grid_seeds(), &spawns, links)
     }
 
     /// The key of [`Self::map_grid`]'s grid: what it is built from, so a grid read back under this key (a pre-built file, or
