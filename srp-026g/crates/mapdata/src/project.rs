@@ -474,7 +474,9 @@ impl Shape {
             ShapeKind::Cylinder => {
                 let (p, c) = (local(), core());
                 let rho = p.x.hypot(p.z);
-                if !(p.y.abs() < c.y) || rho == 0.0 {
+                // Strictly under the core half height (NaN is not): the axis segment's `0 < t < 1`.
+                let within = p.y.abs() < c.y;
+                if !within || rho == 0.0 {
                     1.0
                 } else {
                     ratio((rho * rho + p.y * p.y).sqrt(), (c.x * c.x + p.y * p.y).sqrt())
