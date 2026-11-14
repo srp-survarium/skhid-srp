@@ -10,6 +10,7 @@ package survarium.controls
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.geom.Point;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextLineMetrics;
    import flash.ui.Keyboard;
@@ -51,7 +52,6 @@ package survarium.controls
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemCondition;
    import survarium.constants.ItemDefaults;
-   import survarium.constants.ItemDictId;
    import survarium.constants.ItemPlace;
    import survarium.constants.ItemPrice;
    import survarium.constants.ModificationState;
@@ -599,11 +599,12 @@ package survarium.controls
          this.sellObject(itemData);
       }
 
-      // The items Sell duplicates sells (the owner, 2026-11-14; docs/notes/sell-duplicates.md): of
-      // each item, every copy past the ones kept. Kept: a copy a loadout uses, a worn cosmetic, an
-      // item wearing one; of an item with none of these, the copy of the highest rank. Never sold:
-      // stacks, ammo, golden items (golden ones of different rolls suit different play), and the plain
-      // copies of a weapon with a golden version while no golden one of it is owned.
+      // The items Sell duplicates sells (the owner, 2026-11-14; docs/notes/sell-duplicates.md). Copies of
+      // an item (one dictionary id) are kept to be combined until one of them has all its modifications
+      // (rank ItemRank.MAX, its name gold: "gold means three modifiers"); then the others are spares
+      // ("people who got golden gun no longer care about duplicates"). Never sold: a copy of that rank
+      // (different rolls suit different play), a copy a loadout uses, a worn cosmetic or an item wearing
+      // one; stacks and ammo.
       public function duplicates() : Array
       {
          var sold:Array = [];
@@ -612,57 +613,25 @@ package survarium.controls
             return sold;
          }
          var item:ItemData;
-         var goldenOwned:Object = {};
+         var full:Object = {};
          for each(item in this._inventoryItems)
          {
-            if(ItemFactory.isGolden(item.dictId))
+            if(item.rank >= ItemRank.MAX)
             {
-               goldenOwned[ItemFactory.plainOf(item.dictId)] = true;
+               full[item.dictId] = true;
             }
          }
-         var copiesOf:Object = {};
          for each(item in this._inventoryItems)
          {
-            if(item.isStack || item.superCategory == SuperCategory.AMMO || ItemFactory.isGolden(item.dictId) || ItemDictId.GOLDEN_PLAIN.indexOf(item.dictId) != -1 && !goldenOwned[item.dictId])
+            if(full[item.dictId] && item.rank < ItemRank.MAX && !item.isStack && item.superCategory != SuperCategory.AMMO && !LocalPlayerProfile.inLoadout(item.itemId) && item.slotTarget == 0 && (item.upgrades == null || item.upgrades.length == 0))
             {
-               continue;
+               sold.push(item);
             }
-            if(copiesOf[item.dictId] == null)
-            {
-               copiesOf[item.dictId] = [];
-            }
-            copiesOf[item.dictId].push(item);
-         }
-         for each(var copies:Array in copiesOf)
-         {
-            if(copies.length < 2)
-            {
-               continue;
-            }
-            copies.sortOn("rank",Array.NUMERIC | Array.DESCENDING);
-            var spares:Array = [];
-            var anyKept:Boolean = false;
-            for each(item in copies)
-            {
-               if(LocalPlayerProfile.inLoadout(item.itemId) || item.slotTarget != 0 || item.upgrades != null && item.upgrades.length > 0)
-               {
-                  anyKept = true;
-               }
-               else
-               {
-                  spares.push(item);
-               }
-            }
-            if(!anyKept)
-            {
-               spares.shift();
-            }
-            sold = sold.concat(spares);
          }
          return sold;
       }
 
-      // ItemControlPanel's Sell duplicates: one question, then a sale (`47 01`) of each; the list is
+      // The Sell duplicates button: one question, then a sale (`47 01`) of each; the list is
       // made again on Yes, from the inventory then.
       public function sellDuplicates() : void
       {
@@ -2156,7 +2125,9 @@ package survarium.controls
       }
 
       // Its text's width and the row's right end, the window's margin as the compare box's from its
-      // left; centred on the row's height. Placed when the texts come.
+      // left; its middle at the compare box's square's (the box without its label; the square sits in
+      // the row's middle, the label lower: the owner, 2026-11-14, "not aligned vertically"). Placed when
+      // the texts come.
       private function placeSellDuplicates() : void
       {
          var compare:Button = this.checkboxCompareItems;
@@ -2164,7 +2135,18 @@ package survarium.controls
          this._sellDuplicates.validateNow();
          this._sellDuplicates.width = Math.ceil(this._sellDuplicates.textField.textWidth) + SELL_DUPLICATES_PADDING;
          this._sellDuplicates.x = Math.round(background.width - compare.x - this._sellDuplicates.width);
-         this._sellDuplicates.y = Math.round(compare.y + (compare.height - this._sellDuplicates.height) / 2);
+         var square:Rectangle = null;
+         for(var i:int = 0; i < compare.numChildren; i++)
+         {
+            var part:DisplayObject = compare.getChildAt(i);
+            if(part != compare.textField && part.visible)
+            {
+               square = square == null ? part.getBounds(this) : square.union(part.getBounds(this));
+            }
+         }
+         var button:Rectangle = this._sellDuplicates.getBounds(this);
+         var middle:Number = square != null ? square.y + square.height / 2 : compare.y + compare.height / 2;
+         this._sellDuplicates.y = Math.round(this._sellDuplicates.y + middle - (button.y + button.height / 2));
       }
 
       // The room left and right of the button's text, together.
