@@ -109,6 +109,8 @@ pub mod replay_keys;
 pub mod replay_map;
 // patch 133: the console command `where`
 pub mod console_where;
+// its local build's tool, the spawn marks (cfg srp_spawn_marks: never a release's)
+pub mod spawn_marks;
 
 pub mod replay_file;
 pub mod free_for_all;

@@ -101,10 +101,7 @@ fn describe(map: Option<LoadedMap>, seen: Seen, now: u32, line: &mut Line) {
         line.push(" eye");
         line.point(view.eye, 3);
     }
-    let [x, y, z] = view.forward;
-    let length = sqrt(x * x + y * y + z * z);
-    if length > 0.0 {
-        let forward = [x / length, y / length, z / length];
+    if let Some(forward) = unit(view.forward) {
         line.push(" dir");
         line.point(forward, 3);
         line.push(" yaw ");
@@ -126,46 +123,52 @@ fn same_to_the_millimetre(a: [f32; 3], b: [f32; 3]) -> bool {
     a.iter().zip(b).all(|(a, b)| (a - b).abs() < 0.0005)
 }
 
+/// `v` as a unit vector; none for one with no length.
+pub(crate) fn unit([x, y, z]: [f32; 3]) -> Option<[f32; 3]> {
+    let length = sqrt(x * x + y * y + z * z);
+    (length > 0.0).then(|| [x / length, y / length, z / length])
+}
+
 const DEGREES: f32 = 180.0 / core::f32::consts::PI;
 
 /// The heading of a unit vector: degrees from +Z towards +X, 0 to 360.
-fn yaw_degrees([x, _, z]: [f32; 3]) -> f32 {
+pub(crate) fn yaw_degrees([x, _, z]: [f32; 3]) -> f32 {
     let yaw = atan2(x, z) * DEGREES;
     if yaw < 0.0 { yaw + 360.0 } else { yaw }
 }
 
 /// The angle of a unit vector above the horizontal, degrees.
-fn pitch_degrees([x, y, z]: [f32; 3]) -> f32 {
+pub(crate) fn pitch_degrees([x, y, z]: [f32; 3]) -> f32 {
     atan2(y, sqrt(x * x + z * z)) * DEGREES
 }
 
 /// The longest line (a longer one is cut), its zero after it.
-const MOST: usize = 240;
+pub(crate) const MOST: usize = 240;
 
 /// A line of text, ASCII, with room for its zero.
-struct Line {
+pub(crate) struct Line {
     bytes: [u8; MOST + 1],
     len: usize,
 }
 
 impl Line {
-    fn new() -> Line {
+    pub(crate) fn new() -> Line {
         Line { bytes: [0; MOST + 1], len: 0 }
     }
 
-    fn byte(&mut self, byte: u8) {
+    pub(crate) fn byte(&mut self, byte: u8) {
         if self.len < MOST {
             self.bytes[self.len] = byte;
             self.len += 1;
         }
     }
 
-    fn push(&mut self, text: &str) {
+    pub(crate) fn push(&mut self, text: &str) {
         text.bytes().for_each(|b| self.byte(b));
     }
 
     /// ` x y z`, each to `decimals`.
-    fn point(&mut self, point: [f32; 3], decimals: u32) {
+    pub(crate) fn point(&mut self, point: [f32; 3], decimals: u32) {
         for value in point {
             self.byte(b' ');
             self.fixed(value, decimals);
@@ -174,7 +177,7 @@ impl Line {
 
     /// `value` rounded to `decimals` (at most 3): `-51.899`; `nan`, `inf`,
     /// or `big` past a million.
-    fn fixed(&mut self, value: f32, decimals: u32) {
+    pub(crate) fn fixed(&mut self, value: f32, decimals: u32) {
         if value.is_nan() {
             return self.push("nan");
         }
@@ -202,7 +205,7 @@ impl Line {
         }
     }
 
-    fn number(&mut self, value: u32) {
+    pub(crate) fn number(&mut self, value: u32) {
         let mut digits = [0u8; 10];
         let mut n = 0;
         let mut v = value;
@@ -217,11 +220,11 @@ impl Line {
         digits[..n].iter().rev().for_each(|&d| self.byte(d));
     }
 
-    fn text(&self) -> &str {
+    pub(crate) fn text(&self) -> &str {
         core::str::from_utf8(&self.bytes[..self.len]).unwrap_or("where: ?")
     }
 
-    fn c_str(&self) -> &core::ffi::CStr {
+    pub(crate) fn c_str(&self) -> &core::ffi::CStr {
         core::ffi::CStr::from_bytes_until_nul(&self.bytes[..=self.len]).unwrap_or(c"where: ?")
     }
 }

@@ -26,6 +26,9 @@ publish = false
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
+# srp_spawn_marks: a local build's spawn marks tool (patch_026g.py --spawn-marks,
+# link_026g.py's RUST_CFGS), which no release's build is given.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(srp_spawn_marks)"] }
 
 # The patches keep their state in fixed static tables (no heap, so no Box):
 # a state enum's largest variant is its table row's size, never a copy cost,

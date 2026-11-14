@@ -30,6 +30,9 @@ pub mod explosion;
 pub mod files;
 pub mod footstep;
 pub mod camera;
+// a local build's spawn marks alone (patch_026g.py --spawn-marks): never a release's
+#[cfg(any(srp_spawn_marks, test))]
+pub mod free_fly;
 pub mod carry_runtime;
 pub mod carry_ground;
 pub mod carry_flower;

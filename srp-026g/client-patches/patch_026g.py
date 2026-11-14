@@ -35,6 +35,15 @@ USAGE (this script never touches the source exe):
         user data folder. A local build for us (never a release's:
         release/build-zip does not pass it); only the Rust crate's
         SRP_DIAGNOSTICS and the PE checksum differ
+    python patch_026g.py <survarium.exe> <survarium_srp.exe> --spawn-marks
+        the default build with the spawn marks, a tool for our own machine
+        (rust/patches/src/spawn_marks.rs: F7 the free-fly camera in a live
+        match, F8 and F9 a mark in srp_spawn_marks.tsv). A free camera is a
+        cheat, so this is the one build whose arena is not the lock's: its
+        Rust crates are compiled with `--cfg srp_spawn_marks`, and every
+        other build has none of the tool's code. Never a release's
+        (release/build-zip does not pass it). Goes with --revision,
+        --required-patches, --server and --ragdoll-trace
     python patch_026g.py <survarium.exe> --check [--cave=...] [--cert-only]
         every check and patch in memory, nothing written
     python selftest_026g.py
@@ -2929,8 +2938,11 @@ def our_ranges(data, writes):
 
 def arena_data_ranges():
     """[(lo, hi)] of the arena's data and state blocks (arena_026g.lock.json,
-    which every build's link must be): no code is there, so an address of one
-    the game is given (a table it reads) is data, not an install."""
+    which every build's link must be; the link's own for the one build whose
+    arena is not the lock's, --spawn-marks): no code is there, so an address
+    of one the game is given (a table it reads) is data, not an install."""
+    if linker.RUST_CFGS:
+        return [(b.va, b.va + b.size) for b in arena().blocks.values() if b.kind != "code"]
     lock = linker.read_lock()
     blocks = lock["blocks"].values() if lock else ()
     return [(int(b["va"], 16), int(b["va"], 16) + b["size"]) for b in blocks if b["kind"] != "code"]
@@ -3078,7 +3090,9 @@ ARENA = (
 def arena(blocks=None, tools=None):
     """The linked arena (link_026g.Linked) of `blocks` (ARENA when None, or
     the self-test's made-up arenas); the build stops when it cannot be
-    linked, or when ARENA's is not arena_026g.lock.json's."""
+    linked, or when ARENA's is not arena_026g.lock.json's. The one arena
+    that is not the lock's is --spawn-marks's (linker.RUST_CFGS: a local
+    build with a tool no release has), which is linked and not compared."""
     default = blocks is None
     blocks = ARENA if default else tuple(blocks)
     if default:
@@ -3090,7 +3104,7 @@ def arena(blocks=None, tools=None):
         linked = linker.link(blocks, ARENA_VA, ARENA_LIMIT, tools)
     except linker.LinkError as error:
         sys.exit(f".srpx: {error}")
-    if default:
+    if default and not linker.RUST_CFGS:
         why = linker.lock_differs(linked, linker.read_lock())
         if why is not None:
             sys.exit(f".srpx: the arena linked from its sources is not {linker.LOCK.name}'s: {why}. After a "
@@ -4544,6 +4558,7 @@ def main():
     mode, bin_path, server, list_installs = "section", None, None, False
     late_join, late_join_path, revision, required = True, None, None, None
     diagnostics = False
+    spawn_marks = False
     for option in options:
         if option == "--installs":
             list_installs = True
@@ -4565,6 +4580,8 @@ def main():
             required = parse_required_patches(option[len("--required-patches="):])
         elif option == "--ragdoll-trace":
             diagnostics = True
+        elif option == "--spawn-marks":
+            spawn_marks = True
         else:
             sys.exit(f"unknown option {option}\n\n{__doc__}")
     if len(args) == 3:                                    # the draft's form: <exe> <out> <bin>
@@ -4585,6 +4602,11 @@ def main():
     if (revision is not None or required is not None) and late_join_code is None:
         sys.exit("--revision and --required-patches go with the default build only "
                  "(not --no-late-join, --cave=hash-mismatch or --cert-only)")
+    if spawn_marks:
+        if late_join_code is None:
+            sys.exit("--spawn-marks goes with the default build only (its tool is in the late join's arena)")
+        # before anything links the arena: this build's Rust crates have the tool, the lock's have not
+        linker.RUST_CFGS = ("srp_spawn_marks",)
     data, description = build(open(source, "rb").read(), mode, code, server, late_join_code, revision=revision,
                               required_patches=required)
     if diagnostics:
@@ -4592,6 +4614,8 @@ def main():
             sys.exit("--ragdoll-trace goes with the default build only (patch 76 is in the late join's arena)")
         data = with_diagnostics(data)
         description += ", the ragdoll's diagnostics on (srp_ragdoll.csv; a local build, never a release)"
+    if spawn_marks:
+        description += ", the spawn marks' tool in (F7 the free camera, F8 and F9 a mark; a local build, never a release)"
     if target != "--check":
         with open(target, "wb") as out:
             out.write(data)

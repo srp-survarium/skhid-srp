@@ -230,6 +230,8 @@ global engine_message_box_a
 global engine_exit_process
 global engine_respawn_point_clear
 global engine_respawn_points_push
+global engine_switch_to_camera
+global engine_switch_to_player_camera
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -2703,6 +2705,38 @@ engine_respawn_points_push:
     push dword [esp + 24]   ; point -> 4
     mov esi, [esp + 24]   ; vector
     call 0x3174c0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_switch_to_camera:
+    ; 0x243510 survarium::camera_director::switch_to_camera: director ESI, camera EDI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; director
+    mov edi, [esp + 24]   ; camera
+    call 0x243510
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_switch_to_player_camera:
+    ; 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; first_person -> 4
+    mov eax, [esp + 24]   ; world
+    call 0x1f8200
     pop edi
     pop esi
     pop ebx

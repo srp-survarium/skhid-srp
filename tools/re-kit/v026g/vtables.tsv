@@ -136,3 +136,15 @@ vtable	slot	va	class	base	basis
 0x00a16084	0x5c	0x00316da0	survarium::player_respawn_rule_core	survarium::player_respawn_rule_base	observed: called by the tick 0x3169B9 for each player given a point
 0x00a06e8c	0x44	0x00267b10	survarium::timelimit_rule	survarium::game_match_rule_base	observed: called for each rule by game_world_core::fill_match_hud_state (0x2D36D4); the core's vtable 0xA06E2C holds a `ret 8` (0x15A4B0) there
 0x00a177d4	0x44	0x00323980	survarium::kd_stats_rule	survarium::game_match_rule_base	observed: the same slot (0xA17818); the vtable set by the constructor 0x3237A4
+0x00a047f0	0x4	0x00249920	survarium::free_fly_camera	survarium::game_camera	observed: on_activate (camera_director::switch_to_camera 0x243551: the new camera vtable+4, the director pushed); the vtable set by the constructor 0x2493A3
+0x00a047f0	0x8	0x00249a10	survarium::free_fly_camera	survarium::game_camera	observed: on_deactivate (switch_to_camera 0x243540: the old camera vtable+8)
+0x00a047f0	0xc	0x002498b0	survarium::free_fly_camera	survarium::game_camera	observed: on_focus (switch_to_camera 0x243531 with 0 for the old camera, 0x243565 with 1 for the new one, while the scene is active)
+0x00a047f0	0x10	0x00249a30	survarium::free_fly_camera	survarium::game_camera	observed: tick, by the slot order of game_camera in the 0.10b source (get_projection_matrix, on_activate, on_deactivate, on_focus, tick)
+0x00a04808	0x0	0x002494d0	survarium::free_fly_camera	vostok::input::handler	observed: on_keyboard_action, the camera input handler base (+94h; the constructor 0x2493A9)
+0x00a04808	0x4	0x002495b0	survarium::free_fly_camera	vostok::input::handler	observed: on_gamepad_action
+0x00a04808	0x8	0x00249660	survarium::free_fly_camera	vostok::input::handler	observed: on_mouse_key_action
+0x00a04808	0xc	0x002496a0	survarium::free_fly_camera	vostok::input::handler	observed: on_mouse_move
+0x00a0406c	0x4	0x00242850	survarium::player_input_handler	survarium::game_camera	observed: on_activate, game_camera own (the handler game_camera base, +4)
+0x00a0406c	0xc	0x00242500	survarium::player_input_handler	survarium::game_camera	observed: on_focus (switch_to_camera 0x243531, 0x243565)
+0x009ffb14	0x5c	0x00242b90	survarium::network_client	survarium::base_network_client	observed: bind_local_player (set_camera_for_match_state 0x27B1C1; the replay follow_player 0x26D5BF calls the same body)
+0x009ffb14	0x60	0x00242cc0	survarium::network_client	survarium::base_network_client	observed: unbind_local_player (bind_local_player 0x242B95 calls it first; the replay follow_nobody 0x26D633 calls the same body)

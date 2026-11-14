@@ -3482,3 +3482,5 @@ va	status	ref_021d	name
 0x00310450	inferred-medium		survarium::weapon_core_throw_grenade_idle_substate::is_ready_for_transition [descriptive]
 0x0033a730	inferred-medium		survarium::weapon_core_throw_grenade_state::grenade_selection_matches [descriptive]
 0x0030a090	inferred-medium		survarium::grenade_set_core::has_grenade_to_throw [descriptive]
+0x00242b90	inferred-medium		survarium::base_network_client::bind_local_player [descriptive]
+0x00242cc0	inferred-medium		survarium::base_network_client::unbind_local_player [descriptive]

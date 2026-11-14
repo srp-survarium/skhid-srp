@@ -64,6 +64,10 @@ impl Dik {
     pub const F3: Dik = Dik(0x3D);
     pub const F5: Dik = Dik(0x3F);
     pub const F6: Dik = Dik(0x40);
+    /// F7 to F9: bound to nothing by the game (hide-ui-key.md), the keys of a local build's spawn marks.
+    pub const F7: Dik = Dik(0x41);
+    pub const F8: Dik = Dik(0x42);
+    pub const F9: Dik = Dik(0x43);
     pub const LEFT: Dik = Dik(0xCB);
     pub const RIGHT: Dik = Dik(0xCD);
 

@@ -43,6 +43,11 @@ The lock: the arena is built from source by every build (the self-test's,
 the release's), and the bytes must be the lock's: a change of a source is
 followed by `--write` (and the lock's diff shows what moved), and an
 unexpected change (another compiler, another NASM) stops the build.
+
+One arena is not the lock's: a local tool's, whose Rust crates are built with
+a `--cfg` name (RUST_CFGS below: patch_026g.py --spawn-marks). Code behind
+the name is not compiled without it, so the lock's arena, every release's,
+has none of it.
 """
 import collections
 import hashlib
@@ -345,6 +350,19 @@ RUST_EDITION = "2024"
 RUSTFLAGS = ["--target", RUST_TARGET, "-C", "relocation-model=static", "-C", "target-cpu=pentium4",
              "-C", "opt-level=s", "-C", "panic=abort", "-C", "codegen-units=1", "-C", "debuginfo=0",
              "-C", "force-frame-pointers=no", "-C", "embed-bitcode=yes"]
+# The `--cfg` names a Rust crate is built with: none for the arena the lock
+# describes, which is every build's but a local tool's. patch_026g.py
+# --spawn-marks sets ("srp_spawn_marks",): the spawn marks, a free camera in
+# a live match (rust/patches/src/spawn_marks.rs), which no release may have.
+# Code behind such a name is not compiled at all without it, so the lock's
+# arena has no byte of it.
+RUST_CFGS = ()
+
+
+def rust_cfg_flags():
+    return [flag for name in RUST_CFGS for flag in ("--cfg", name)]
+
+
 # rustc links every `no_std` crate against a crate named compiler_builtins.
 # The arena takes none of its code (a call to an intrinsic is an undefined
 # symbol, which the link refuses), so an empty one stands in for it.
@@ -442,7 +460,8 @@ def build_crate(manifest, tools, out):
             built.add(name)
             target = Path(folder) / f"lib{name}.rlib"
             rustc(tools, ["--edition", RUST_EDITION, "--crate-name", name, "--crate-type", "rlib", *RUSTFLAGS, *remap,
-                          "--sysroot", str(sysroot), "-L", folder, *externs, str(root), "-o", str(target)], name)
+                          *rust_cfg_flags(), "--sysroot", str(sysroot), "-L", folder, *externs, str(root),
+                          "-o", str(target)], name)
             externs.extend(["--extern", f"{name}={target}"])
 
         name, root, deps = crate_of(manifest)
@@ -450,8 +469,8 @@ def build_crate(manifest, tools, out):
             rlib(dep)
         archive = Path(folder) / f"lib{name}.a"
         rustc(tools, ["--edition", RUST_EDITION, "--crate-name", name, "--crate-type", "staticlib", *RUSTFLAGS, *remap,
-                      "-C", "lto=fat", "--sysroot", str(sysroot), "-L", folder, *externs, str(root),
-                      "-o", str(archive)], name)
+                      *rust_cfg_flags(), "-C", "lto=fat", "--sysroot", str(sysroot), "-L", folder, *externs,
+                      str(root), "-o", str(archive)], name)
         own = [body for member, body in ar_members(archive.read_bytes(), archive.name)
                if member.endswith(".o") and f".{name}." in member]
         if len(own) != 1:
@@ -467,7 +486,7 @@ def compile_source(source, tools, folder, name):
     if digest is None:
         raise LinkError(f"{source}: no such source")
     path = None if isinstance(source, RustEntry) else source_path(source)
-    key = (str(path or source), digest, tuple(sorted(tools.items())))
+    key = (str(path or source), digest, tuple(sorted(tools.items())), RUST_CFGS)
     if key not in _objects:
         out = Path(folder) / ("obj-" + name)
         if path is None:
@@ -502,7 +521,7 @@ def link(blocks, va, limit, tools=None):
     check_blocks(blocks)
     tools = toolchain() if tools is None else tools
     sources = list(dict.fromkeys(s for b in blocks for s in b.sources))
-    key = (blocks, va, limit, tuple(sorted(tools.items())), tuple(source_digest(s) for s in sources))
+    key = (blocks, va, limit, tuple(sorted(tools.items())), tuple(source_digest(s) for s in sources), RUST_CFGS)
     if key in _links:
         return _links[key]
     with tempfile.TemporaryDirectory(prefix="srp-arena-") as folder:

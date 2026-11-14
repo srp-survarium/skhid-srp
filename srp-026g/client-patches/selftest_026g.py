@@ -3192,9 +3192,47 @@ def test_variant(original, source, mode, server):
     test_windows(path, source, mode)
 
 
+def test_spawn_marks():
+    """The spawn marks (rust/patches/src/spawn_marks.rs, vostok/free_fly.rs):
+    a free camera in a live match, a cheat, so the arena every build links
+    (the lock's) has none of it: its handler in the keys' chain is empty,
+    no other symbol is the tool's, and nothing calls the camera director's
+    switch. The arena of `patch_026g.py --spawn-marks` (link_026g.py's
+    RUST_CFGS) has the tool: the three are true of the lock's arena because
+    the tool is not in it, not because nothing has such symbols."""
+    print("  the spawn marks: only in a --spawn-marks build")
+
+    def tool(linked):
+        names = sorted(name for name, _, _, _ in linked.every if "spawn_marks" in name or "free_fly" in name)
+        shim = linked.symbols["hook_spawn_marks_on_key"] - linked.va
+        target = linked.symbols["engine_switch_to_camera"]
+        code = [b for b in linked.blocks.values() if b.kind == "code"]
+        callers = [linked.va + at for at in range(linked.size - 4) if linked.image[at] in (0xE8, 0xE9)
+                   and any(b.va <= linked.va + at < b.va + b.size for b in code)
+                   and linked.va + at + 5 + struct.unpack_from("<i", linked.image, at + 1)[0] == target]
+        return names, linked.image[shim:shim + 3], callers
+
+    check(P.linker.RUST_CFGS == (), "the builds here give the Rust crates no --cfg (link_026g.RUST_CFGS)")
+    names, shim, callers = tool(P.arena())
+    check(names == ["hook_spawn_marks_on_key"] and shim == bytes.fromhex("31c0c3") and not callers,
+          "the lock's arena: the tool's handler in the game world's keys' chain is `xor eax,eax / ret`, no other "
+          "symbol is the tool's, and nothing calls engine_switch_to_camera"
+          + ("" if names == ["hook_spawn_marks_on_key"] else f": {names}")
+          + "".join(f"; a call at {va:#x}" for va in callers))
+    P.linker.RUST_CFGS = ("srp_spawn_marks",)
+    try:
+        names, shim, callers = tool(P.arena())
+    finally:
+        P.linker.RUST_CFGS = ()
+    check(len(names) > 1 and shim != bytes.fromhex("31c0c3") and len(callers) == 1,
+          f"the arena of --spawn-marks (--cfg srp_spawn_marks) has the tool: {len(names)} symbols, a handler with "
+          f"a body, and its one call of engine_switch_to_camera")
+
+
 def test_calls(original):
     print("variant section, the arena and the call shapes")
     test_arena(original)
+    test_spawn_marks()
     test_engine(original)
     test_hook_kinds(original)
     test_apply(original)

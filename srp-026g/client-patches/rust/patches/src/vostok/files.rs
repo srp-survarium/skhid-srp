@@ -35,9 +35,11 @@ impl<'a> Path<'a> {
 const INVALID: usize = usize::MAX;
 const GENERIC_READ: u32 = 1 << 31;
 const GENERIC_WRITE: u32 = 1 << 30;
+const FILE_APPEND_DATA: u32 = 4;
 const FILE_SHARE_READ: u32 = 1;
 const CREATE_ALWAYS: u32 = 2;
 const OPEN_EXISTING: u32 = 3;
+const OPEN_ALWAYS: u32 = 4;
 const FILE_ATTRIBUTE_NORMAL: u32 = 0x80;
 const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x10;
 
@@ -53,6 +55,12 @@ impl File {
     /// The file made anew (emptied when it was there), for writing.
     pub fn create_always(path: Path) -> Option<File> {
         File::create(path, GENERIC_WRITE, CREATE_ALWAYS)
+    }
+
+    /// The file opened to add at its end (made when it is not there): every
+    /// write goes after what it holds, whoever wrote that.
+    pub fn append(path: Path) -> Option<File> {
+        File::create(path, FILE_APPEND_DATA, OPEN_ALWAYS)
     }
 
     fn create(path: Path, access: u32, disposition: u32) -> Option<File> {
@@ -83,6 +91,16 @@ impl File {
         unsafe {
             (raw::engine_write_file)(self.0, bytes.as_ptr().cast(), bytes.len() as u32, &mut wrote, null_mut());
         }
+    }
+
+    /// Writes `bytes`: whether WriteFile took every one of them.
+    pub fn write_all(&mut self, bytes: &[u8]) -> bool {
+        let mut wrote = 0;
+        // SAFETY: an open handle, `bytes` readable for its length, `wrote` ours.
+        let done = unsafe {
+            (raw::engine_write_file)(self.0, bytes.as_ptr().cast(), bytes.len() as u32, &mut wrote, null_mut())
+        };
+        done != 0 && wrote as usize == bytes.len()
     }
 }
 
