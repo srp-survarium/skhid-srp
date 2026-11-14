@@ -1042,6 +1042,8 @@ pub struct Bots {
     pub client_tests: Option<client_tests::Link>,
     polls: polls::PollStats,
     tactics: Option<Tactics>,
+    /// [item 4] The map's team bases with their protection ([`protection::Base`]), from the map at `tactics_ready`.
+    bases: Vec<protection::Base>,
     /// The plays' kept answers about these tactics (`plays::memo`), made
     /// anew with them.
     memo: plays::memo::Memo,
@@ -1127,6 +1129,7 @@ impl Bots {
             client_tests: None,
             polls: Default::default(),
             tactics: None,
+            bases: Vec::new(),
             memo: Default::default(),
             teams: [team_state(tunings.of(0)), team_state(tunings.of(1))],
             bots,
@@ -1334,6 +1337,7 @@ impl Bots {
         tactics.clear_step_sees_lip = tuning.aim.combat.clear_step_sees_lip;
         // The anomalies that switch (level_03's electric pairs, level_02's
         // cloud) run on the match clock from the seed.
+        self.bases = protection::Base::of_map(&tactics.world.map);
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
         tactics.hazards.attach(anomalies);
         self.features.artefacts = tuning
@@ -1553,11 +1557,31 @@ impl Bots {
     pub fn share_protection(&mut self) {
         for bot in self.bots.iter_mut().flatten() {
             let tuning = self.tunings.of(bot.team);
-            let list = if tuning.aim.combat.spawn_protection {
-                self.tracker.protected_enemies(bot.team, tuning.cheats.enemy_protection_exact)
+            let exact = tuning.cheats.enemy_protection_exact;
+            let mut list = if tuning.aim.combat.spawn_protection {
+                self.tracker.protected_enemies(bot.team, exact)
             } else {
                 Vec::new()
             };
+            // [item 4] An enemy its own senses (or its team's word) last put inside his team's base is protected for the
+            // base's duration after that: the fair rule (the exact one is the world's end, which holds the base's too).
+            if tuning.aim.combat.spawn_protection && !exact {
+                for track in bot.memory.tracks() {
+                    let Some((at, time)) = track.own else {
+                        continue;
+                    };
+                    let Some(team) = self.tracker.living_team(track.who).filter(|&team| team != bot.team) else {
+                        continue;
+                    };
+                    let Some(until) = protection::base_until(&self.bases, team, at, time) else {
+                        continue;
+                    };
+                    match list.iter_mut().find(|(place, _)| *place == track.who) {
+                        Some((_, was)) => *was = (*was).max(until),
+                        None => list.push((track.who, until)),
+                    }
+                }
+            }
             bot.reflex.set_protected(list);
         }
     }
