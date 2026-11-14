@@ -214,7 +214,7 @@ run on its bytes in Unicorn) unless marked.
     +-------------------+           +------------------------+         +-------------------+
     | P held            |           | session -> seat        |         | jitter buffer     |
     | waveIn 16 kHz     |  START    | (match, team, slot)    |  START  | Opus decode       |
-    | Opus 16 kbps      | --------> | IP == match conn's IP? | ------> | radio filter if   |
+    | Opus 16 kbps      | --------> | same /16 as match conn | ------> | radio filter if   |
     | 2 x 20 ms / dgram |  AUDIO    | forward to teammates   |  AUDIO  |   > VOICE_NEAR    |
     | P released        | --------> | with a live HELLO      | ------> | waveOut           |
     |                   |  END      | tap (none by default)  |  END    | HUD: name talking |
@@ -229,10 +229,12 @@ run on its bytes in Unicorn) unless marked.
     (default: the match port + 1).
   - 0.69 kept voice apart too (`voice_chat_client`).
 - **Who a datagram is from.** The `u32 session` of the client's 0xD8 connect (match.md),
-  checked two ways: the session holds a seat in a running match, and the datagram's IP is the
-  IP of that seat's match connection. A datagram that fails either, or is malformed, is dropped
-  and logged (a line per source IP at most every 10 s, with its count; "As built"). Ports may
-  differ (NAT).
+  checked two ways: the session holds a seat in a running match, and the datagram's IP is of
+  the network of that seat's match connection (the same /16 of IPv4, /48 of IPv6). A datagram
+  that fails either, or is malformed, is dropped and logged (a line per source IP at most every
+  10 s, with its count; "As built"). Ports may differ (NAT), and so may the address within the
+  network: Cloudflare WARP gives each connection its own exit, and carrier NAT pools do too
+  (2026-11-14: an exact match shut about six such players out of voice for whole matches).
 
 ## The wire (voice port)
 

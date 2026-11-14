@@ -286,7 +286,13 @@ fn a_datagram_from_another_ip_or_without_a_seat_is_dropped() {
     // Session 1's own IP on another port (a NAT): fine.
     let other_port = SocketAddr::new(addr(1).ip(), 6000);
     assert_eq!(sent_to(&bench.send_from(other_port, &start(1, 1))).len(), 2);
-    // Another IP with session 1's number: dropped.
+    // Another IP of its network (a WARP exit, a carrier NAT pool): fine.
+    let other_exit = SocketAddr::new(ip("10.0.77.200"), 7000);
+    assert_eq!(
+        sent_to(&bench.send_from(other_exit, &audio(1, 1, 0))).len(),
+        2
+    );
+    // Another network with session 1's number: dropped.
     let spoofed = SocketAddr::new(ip("10.9.9.9"), 5001);
     assert!(bench.send_from(spoofed, &audio(1, 1, 0)).is_empty());
     assert!(bench.send_from(spoofed, &hello(1, true)).is_empty());
@@ -305,6 +311,22 @@ fn a_datagram_from_another_ip_or_without_a_seat_is_dropped() {
         lines.iter().all(|line| !line.contains("10.0.0.3")),
         "{lines:?}"
     );
+}
+
+#[test]
+fn a_seats_network_is_its_ipv4_16_or_ipv6_48() {
+    // The live pairs that were shut out: WARP exits, a carrier NAT pool.
+    assert!(same_network(ip("104.28.230.246"), ip("104.28.198.247")));
+    assert!(same_network(ip("31.170.22.174"), ip("31.170.22.220")));
+    assert!(!same_network(ip("104.28.230.246"), ip("104.29.230.246")));
+    assert!(same_network(
+        ip("2a09:bac1:1::1"),
+        ip("2a09:bac1:1:ffff::2")
+    ));
+    assert!(!same_network(ip("2a09:bac1:1::1"), ip("2a09:bac1:2::1")));
+    // An IPv4 game seen through IPv6 (a mapped address) is the same.
+    assert!(same_network(ip("31.170.22.174"), ip("::ffff:31.170.9.9")));
+    assert!(!same_network(ip("31.170.22.174"), ip("1f:aa16::1")));
 }
 
 #[test]
@@ -1199,9 +1221,11 @@ fn a_refused_game_does_not_stop_the_others_on_its_ip() {
     bench.table.seat(5, MATCH, 6, 0);
     bench.table.0.borrow_mut().get_mut(&5).unwrap().ip = Some(addr(1).ip());
     let shared = |port: u16| SocketAddr::new(addr(1).ip(), port);
+    // Session 4's match connection now from another network.
+    bench.table.0.borrow_mut().get_mut(&4).unwrap().ip = Some(ip("10.4.0.4"));
     let lookups = bench.table.1.get();
     // A game of the same exit refused: its match over (no seat) while it
-    // holds push-to-talk, and another whose voice left by another exit
+    // holds push-to-talk, and another whose voice left from another network
     // than its match connection (session 4's, from session 1's IP).
     for seq in 0..1_000u16 {
         bench.at(u64::from(seq));

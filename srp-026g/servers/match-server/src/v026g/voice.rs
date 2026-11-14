@@ -4,9 +4,10 @@
 //! The players' games (`skhid_voice.dll`, `srp-026g/client-voice`) send
 //! their talk here as utterances (START, AUDIO, END) and get their team's.
 //! The relay knows a talker by the session of its match connection (the
-//! 0xD8), and takes its datagrams only from the IP that connection came from
-//! ([`VoiceSeat::ip`]). It forwards each AUDIO to the speaker's teammates (in
-//! a free-for-all, everyone in the match: [`VoiceChannel`]) who
+//! 0xD8), and takes its datagrams only from the network that connection came
+//! from ([`VoiceSeat::ip`], [`same_network`]). It forwards each AUDIO to the
+//! speaker's teammates (in a free-for-all, everyone in the match:
+//! [`VoiceChannel`]) who
 //! said HELLO lately and hear (their volume is above 0), and keeps nothing:
 //! no audio past the forward, no file, no audio, text or speaker list in the
 //! logs (counts only, per match). The simulation never sees any of it, so no
@@ -362,7 +363,8 @@ pub enum Dropped {
     Lookups,
     /// A session with no seat.
     NoSeat,
-    /// From another IP than its seat's match connection.
+    /// From another network than its seat's match connection
+    /// ([`same_network`]).
     WrongIp,
     /// A talker over [`MAX_PER_SECOND`].
     RateLimit,
@@ -388,10 +390,26 @@ impl std::fmt::Display for Dropped {
                 FAILED_LOOKUPS.per_second
             ),
             Self::NoSeat => write!(f, "no seat"),
-            Self::WrongIp => write!(f, "not its seat's IP"),
+            Self::WrongIp => write!(f, "not its seat's network"),
             Self::RateLimit => write!(f, "over {MAX_PER_SECOND} a second"),
             Self::AudioRate => write!(f, "audio over {} a second", AUDIO_RATE.per_second),
         }
+    }
+}
+
+/// Whether a voice datagram from `source` may be of the seat whose match
+/// connection came from `seat`: the same /16 of IPv4, or /48 of IPv6. One game
+/// can reach the server from several addresses of its network: Cloudflare WARP
+/// gives each connection its own exit (a game at 104.28.230.246 talked from
+/// .247 and from 104.28.198.247), and so do carrier NAT pools (31.170.22.174,
+/// voice from .220). An exact match shut those players out of voice for whole
+/// matches. A datagram from such a network still needs the seat's session,
+/// which only its game knows (guessing costs [`FAILED_LOOKUPS`]).
+pub fn same_network(seat: IpAddr, source: IpAddr) -> bool {
+    match (seat.to_canonical(), source.to_canonical()) {
+        (IpAddr::V4(seat), IpAddr::V4(source)) => seat.octets()[..2] == source.octets()[..2],
+        (IpAddr::V6(seat), IpAddr::V6(source)) => seat.segments()[..3] == source.segments()[..3],
+        _ => false,
     }
 }
 
@@ -853,21 +871,21 @@ impl<S: Seats> Relay<S> {
         let known = self
             .listeners
             .get(&session)
-            .is_some_and(|listener| listener.seat.ip == Some(source));
+            .is_some_and(|listener| listener.seat.ip.is_some_and(|ip| same_network(ip, source)));
         if !known && !self.source(source, now).failed.has_room(now) {
             self.reject(source, None, Dropped::Lookups);
             return out;
         }
-        // The session holds a seat, and the datagram comes from the IP its
-        // game connected to the match from. Anything else: dropped (and in
-        // the drop log, by its source).
+        // The session holds a seat, and the datagram comes from the network
+        // its game connected to the match from. Anything else: dropped (and
+        // in the drop log, by its source).
         let Some(seat) = self.seats.voice_seat(session) else {
             self.listeners.remove(&session);
             self.refuse(source, session, Dropped::NoSeat, None, now);
             return out;
         };
         match seat.ip {
-            Some(ip) if ip == source => (),
+            Some(ip) if same_network(ip, source) => (),
             // The game starts voice as it connects to the match, before its
             // 0xD8 gives the seat its IP: too early, not malformed. Neither
             // counted nor logged; the game says HELLO again until WELCOME.
