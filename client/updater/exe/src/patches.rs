@@ -469,7 +469,7 @@ impl Run<'_> {
     fn list(&mut self) -> Result<List, Fail> {
         let server = match &self.source {
             Source::Server(server) => *server,
-            Source::BuiltIn(list) => return Ok(list.clone()),
+            Source::BuiltIn(list) | Source::Torrent(list) => return Ok(list.clone()),
         };
         let mut last = String::new();
         for attempt in 1..=LIST_TRIES {
@@ -571,6 +571,12 @@ impl Run<'_> {
         if let Some(at) = self.torrented.iter().position(|(number, _)| *number == patch.number) {
             let (_, identity) = self.torrented.remove(at);
             return self.put(patch, &part, &target, identity, "by torrent", 0);
+        }
+        if patch.addresses.is_empty() {
+            return Err(Fail::Blocked(
+                text::patches_download(&name, "it is the revision's torrent's alone, and no peer gave it."),
+                format!("{name}: no address, and the torrent did not give it"),
+            ));
         }
         let count = patch.addresses.len();
         // Which addresses a second round tries, the first failure's words,
@@ -1038,6 +1044,9 @@ fn list_error(error: &ListError) -> String {
 enum Source<'a> {
     /// `GET <server>/patches`.
     Server(&'a Url),
+    /// The server could not be asked: the revision's signed torrent's
+    /// patches ([`torrent_list`]), a list as the server's.
+    Torrent(List),
     /// The server could not be reached: the list built in ([`built_in`]).
     BuiltIn(List),
 }
@@ -1087,7 +1096,32 @@ fn offline(
             log!("patches: stopped");
             Outcome::Stopped
         }
-        Err(Some(why)) => match built_in() {
+        Err(Some(why)) => match torrent_list(session, layout) {
+            Ok(Some(list)) => {
+                log!("patches: the server could not be asked and {why}: the torrent's patches");
+                step(session, layout, Source::Torrent(list), overlay, look, record)
+            }
+            Err(fail) => {
+                log!("patches: BLOCKED: {fail}. The player is told: {message}");
+                Outcome::Blocked(message.into())
+            }
+            Ok(None) => offline_built_in(session, layout, overlay, record, look, message, &why),
+        },
+    }
+}
+
+/// The list built into this updater, when the server could not be asked
+/// and nothing else can be checked against.
+fn offline_built_in(
+    session: &mut Session,
+    layout: &Layout,
+    overlay: &[&str],
+    record: &mut Record,
+    look: Look,
+    message: &str,
+    why: &str,
+) -> Outcome {
+    match built_in() {
             Some(list) => {
                 log!(
                     "patches: the server could not be asked and {why}: the list built into this \
@@ -1106,8 +1140,83 @@ fn offline(
                 log!("patches: BLOCKED: {why}. The player is told: {message}");
                 Outcome::Blocked(message.into())
             }
-        },
     }
+}
+
+/// The revision's signed torrent's patches as a list, when the server
+/// could not be asked (`torrent::offered`): each `resources.db.patch_<n>` of
+/// it in place, checked piece by piece against the torrent, fetched by it
+/// when missing or damaged; its SHA-256 taken from the checked file. The
+/// addresses are the kept list's for the same file, else none: the torrent
+/// alone gives it, until the server's list names it again. `Ok(None)`: no
+/// torrent, or one that has none.
+fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, String> {
+    let Some(offered) = torrent::offered(session, layout) else {
+        return Ok(None);
+    };
+    let torrent = &offered.torrent;
+    let ours: Vec<(u8, usize)> = (0..torrent.files.len())
+        .filter_map(|index| {
+            let name = torrent.files[index].path.strip_prefix("game/")?;
+            Some((updater_logic::patches::file_number(name)?, index))
+        })
+        .collect();
+    if ours.is_empty() {
+        return Ok(None);
+    }
+    let missing: Vec<(usize, String)> = ours
+        .iter()
+        .filter(|(number, index)| {
+            !torrent::whole(torrent, *index, &place(layout, &format!("{FILE_PREFIX}{number}")))
+        })
+        .map(|(number, index)| (*index, format!("{}{PART}", place(layout, &format!("{FILE_PREFIX}{number}")))))
+        .collect();
+    if !missing.is_empty() {
+        log!("patches: {} of the torrent's to fetch by it", missing.len());
+        match torrent::fetch(session, &offered, &missing) {
+            torrent::Fetched::Done => {}
+            torrent::Fetched::Stopped => return Err("stopped".into()),
+            torrent::Fetched::Not(why) => {
+                for (_, part) in &missing {
+                    let _ = win::delete(part);
+                }
+                return Err(format!("the torrent did not give its patches: {why}"));
+            }
+        }
+        for (_, part) in &missing {
+            let target = part.strip_suffix(PART).expect("a part");
+            if let Err(code) = File::alone(&place(layout, DB_NAME))
+                .map(drop)
+                .or_else(|code| if win::is_missing(code) { Ok(()) } else { Err(code) })
+                .and_then(|()| win::rename(part, target, true))
+            {
+                let _ = win::delete(part);
+                return Err(format!("{target} cannot be put in place: {}", win::error_text(code)));
+            }
+        }
+    }
+    let kept = win::read_file(&beside(layout, LIST_FILE), MAX_LIST)
+        .ok()
+        .and_then(|bytes| parse_list(&bytes).ok())
+        .unwrap_or_default();
+    let mut patches = Vec::new();
+    for (number, _) in &ours {
+        let path = place(layout, &format!("{FILE_PREFIX}{number}"));
+        let (_, sha256) = win::hash_file(&path).map_err(|code| format!("{path}: {}", win::error_text(code)))?;
+        let addresses = kept
+            .get(*number)
+            .filter(|patch| patch.sha256 == sha256)
+            .map(|patch| patch.addresses.clone())
+            .unwrap_or_default();
+        patches.push(Patch {
+            number: *number,
+            sha256,
+            addresses,
+        });
+    }
+    patches.sort_by_key(|patch| patch.number);
+    log!("patches: the torrent lists {} patch(es)", patches.len());
+    Ok(Some(List { patches }))
 }
 
 /// The patch step. `server`: `Err(why)` when the server could not be asked

@@ -90,6 +90,7 @@ library's).
 | `"<exe>" "copy" "<pipe>" ...` | the unpatched launcher | Answers "copy done" at once: nothing needs copying |
 | `updater_skhid.exe check` | a person, a script | The update without a launcher, every patch file hashed whole whatever the quick check's record says: the repair, when a patch file may be damaged in a way the quick check does not see (bytes changed in place with the size and the time kept, as no program does by chance). When the ZIP replaces the updater itself, the new one is run at once (`check`, `quiet` as given) to restore resources.db and do the patch step, and its exit code is this one's. An error is a message box |
 | `updater_skhid.exe check quiet` | a script | No box either. Exit code 0: done or nothing to do; 1: failed (the reason is in the log) |
+| `updater_skhid.exe check ... torrent` / `direct` | `Skhid-get.bat` (`check`), the tests (`direct`) | `check` takes torrent as the word says, else as the launcher saved its "Allow torrent" (`HKCU\Software\Vostok Games\Survarium`, `download_type`, `port_number`), else on (the launcher's default) |
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
@@ -394,6 +395,21 @@ updater, a file of the ZIP, taken as the ZIP installed it (its SHA-256 in
 `updater_skhid.state`). While the file in its place is the bootstrap's (every
 piece checked), each is copied into `updater_skhid.bootstrap\`, and shared
 from there while the updater shares, after it has replaced itself too.
+
+**Without our site** (a bare bootstrap folder, a blocked network after a
+release): when the update server cannot be asked, the rendezvous is asked
+(below), and when the run's torrent is newer than what is installed, or
+nothing is, every file of it but the original game's and the patches (the
+Skhid files: the updater and the launcher too) comes from it, each checked
+piece by piece, one already whole kept, installed as an archive's files are
+(all or none); `updater_skhid.state` then names the torrent's v2 info hash as
+the archive, so the server's archive is installed over it once it answers.
+The original game follows (by torrent, its pins). The patches: the torrent's
+are the list (each in place, checked against the torrent, fetched by it when
+missing or damaged, its SHA-256 from the checked file), kept with the
+addresses the kept list had for the same file, else none (`"urls": []`: the
+torrent alone gives it, until the server's list names it again); `ready`
+then holds.
 
 **The rendezvous** (`logic/src/rendezvous.rs`; the spec's "The rendezvous"):
 while it shares, the updater is also a peer of one fixed swarm whose info

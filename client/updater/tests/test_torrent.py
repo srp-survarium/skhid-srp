@@ -539,6 +539,45 @@ class TorrentTest(wine.WineTest):
         self.write(f"{X86}/7zr.exe", b"another 7zr")
         self.leech_from_updater(bootstrap, bootstrap_files)
 
+    def test_a_bare_folder_installs_everything_from_the_rendezvous_without_the_site(self):
+        # The bootstrap's folder: the updater alone (and the original game,
+        # whose pins are the real files: it is there), the site not
+        # answering. The newest release only at the rendezvous, its files
+        # at a seed.
+        self.site.manifest_status = 502
+        self.site.patch_list_status = 502
+        overlay = self.bundle()
+        patches = self.make_patches(12)
+        files = {**overlay, "game/resources.db.patch_12": patches[12]}
+        seed_dir = tempfile.mkdtemp(dir=self.peers_dir)
+        newest = make_torrent(seed_dir, files, self.tracker.urls, revision=61)
+        seed_port, _ = self.seed(newest, seed_dir)
+        meeter = Meeter(61, newest)
+        self.tracker.peers = [("127.0.0.1", meeter.port), ("127.0.0.1", seed_port)]
+        # An older signed torrent beside it, of this test's trackers: the
+        # rendezvous is asked on them, not on the public ones.
+        older = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), {"README.txt": b"old"}, self.tracker.urls,
+                             revision=59)
+        self.write(f"{X86}/updater_skhid.found.torrent", older)
+        # `check`, as Skhid-get.bat runs it: torrent on (nothing saved).
+        command, env = windows([self.exe(), "check", "quiet"])
+        code = wine.subprocess.run(command, cwd=self.x86, env=env, timeout=600,
+                                   stdout=wine.subprocess.DEVNULL, stderr=wine.subprocess.DEVNULL).returncode
+        log = self.log()
+        self.assertEqual(code, 0, log[-4000:])
+        self.assertIn("the rendezvous gave a signed torrent of revision 61", log)
+        for name, data in files.items():
+            self.assertEqual(sha256(self.read(name)), sha256(data), name)
+        self.assertEqual(self.store_requests(), [])
+        state = self.read(f"{X86}/updater_skhid.state").decode()
+        info = hashlib.sha256(lt.bencode(lt.bdecode(newest)[b"info"])).hexdigest()
+        self.assertIn(f"archive {info}", state)
+        self.assertEqual(self.read(f"{X86}/updater_skhid.patches.status"), b"ready\r\n")
+        kept = self.read(f"{X86}/updater_skhid.patches").decode()
+        self.assertIn('"urls": []', kept)
+        # And `ready` (play_skhid.bat's) lets the game start.
+        self.assertEqual(self.run_ready(), 0)
+
     def test_torrent_not_allowed_is_https_as_before(self):
         patches, _, _, _ = self.release(12)
         self.launch(allow="direct")

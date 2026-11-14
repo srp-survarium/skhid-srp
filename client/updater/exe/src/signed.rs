@@ -26,12 +26,17 @@ pub fn key() -> Option<[u8; 32]> {
     KEY.and_then(signed::public_key)
 }
 
-/// The least revision taken: the highest taken before, the game's.
-pub fn installed(layout: &Layout) -> u64 {
-    let game = gate::game_revision(layout)
+/// The revision the installed game exe says (0 when it cannot be told).
+pub fn game_number(layout: &Layout) -> u64 {
+    gate::game_revision(layout)
         .ok()
         .and_then(|revision| revision.number())
-        .map_or(0, u64::from);
+        .map_or(0, u64::from)
+}
+
+/// The least revision taken: the highest taken before, the game's.
+pub fn installed(layout: &Layout) -> u64 {
+    let game = game_number(layout);
     let taken = win::read_file(&format!("{}\\{TAKEN}", layout.exe_dir), 16)
         .ok()
         .and_then(|bytes| String::from_utf8(bytes).ok())

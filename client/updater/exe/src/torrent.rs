@@ -546,7 +546,7 @@ const BOOTSTRAP: &str = "skhid-bootstrap.torrent";
 const KEPT: &str = "updater_skhid.bootstrap";
 
 /// Whether the file at `path` is file `file` of `torrent`, every piece.
-fn whole(torrent: &Torrent, file: usize, path: &str) -> bool {
+pub fn whole(torrent: &Torrent, file: usize, path: &str) -> bool {
     if win::file_size(path).ok() != Some(torrent.files[file].size) {
         return false;
     }
@@ -588,9 +588,9 @@ fn bootstrap(layout: &Layout) -> Option<(Torrent, Vec<Role>)> {
             }
             let staged = format!("{copy}.skhid-new");
             let copied = win::create_folders(&kept)
-                .map_err(|code| win::error_text(code))
+                .map_err(win::error_text)
                 .and_then(|()| std::fs::copy(&live, &staged).map(|_| ()).map_err(|error| format!("{error}")))
-                .and_then(|()| win::rename(&staged, &copy, true).map_err(|code| win::error_text(code)));
+                .and_then(|()| win::rename(&staged, &copy, true).map_err(win::error_text));
             match copied {
                 Ok(()) => {
                     log!("torrent: the bootstrap's {file_name} kept in {KEPT}");

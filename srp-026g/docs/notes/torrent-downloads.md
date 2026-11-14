@@ -129,6 +129,13 @@ How an updater finds a newer release without our site (`client/updater/logic/src
   ZIP's is the torrent of the run.
 - When: an updater that cannot reach the update server asks the rendezvous for 20 s before it
   goes on (a blocked network, our servers down); one that shares serves it the whole time.
+- No server of ours needed: when the update server cannot be asked and the run's torrent is
+  newer than what is installed (or nothing is: `Skhid-get.bat`'s bare folder, whose
+  `updater_skhid.exe check` takes "Allow torrent" as the launcher saved it, on when nothing is),
+  the updater installs every file of it from it: the Skhid files (all or none, the torrent's info
+  hash recorded as the installed archive), the original game, the patches. A patch known only
+  from a verified torrent is kept in the patch list with no addresses (`"urls": []`, its SHA-256
+  from the checked file) and gets the `/patches` addresses when the site answers again.
 
 ## Signed releases
 
