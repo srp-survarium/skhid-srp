@@ -6154,3 +6154,12 @@ va	name	location	role	basis
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	EDX	the throw state (mov edx,esi at 0x33A453 before the call)	observed
 0x0033a4e0	survarium::weapon_core_throw_grenade_state::serialize	at 0x33A51B..0x33A53D	the set's slot byte saved: [[state+17Ch]+254h] (any item's inventory slot, 17h absent), the set not tested and not null-tested. Patch 115 saves 17h with no grenade set	observed
 0x00252b20	survarium::weapon_sound_events_handler_state<survarium::double_barreled_weapon_core_fire_state>::deserialize	ECX	the fire state (mov edi,ecx at 0x252B38)	observed
+0x00248ad0	survarium::step_manager::on_step	at 0x248AED..0x248B58	the ground ray: physics world (game world +4D4Ch, +130h) vtable+48h ray_test with filter group 30h and mask 8 (pushed at 0x248B14, 0x248B02), 0 and 1: it meets the collision objects of cgroup & 8 whose cmask has 10h or 20h (cmask 16 and 20: the level; walker_collision, cgroup 2, never)	observed
+0x00248ad0	survarium::step_manager::on_step	at 0x248B75	the hit object's vtable+10h (bt_static_rigid_body::get_triangle_material 0x3570A0) with the hit's triangle index and compound flag: the ground's material id for material_pair 0x306D50 (EDI); the foliage step is a foliage triangle met before the ground	observed
+0x002f8850	survarium::static_collision::insert	at 0x2F892E..0x2F8944	the world's add (vtable+2Ch, 0x758B0) with the body, the entry's cgroup (u16 +44h) as its group and cmask (u16 +46h) as its mask	observed
+0x003570a0	vostok::physics::bt_static_rigid_body::get_triangle_material	ECX	the static body (this; +10h its shape)	observed
+0x003570a0	vostok::physics::bt_static_rigid_body::get_triangle_material	entry ESP+4	the triangle index of a mesh hit, or the primitive's of a compound one (ray result +20h)	observed
+0x003570a0	vostok::physics::bt_static_rigid_body::get_triangle_material	entry ESP+8	byte: the index is a compound child's (ray result +24h)	observed
+0x00082590	vostok::physics::collision_shape_cook::translate_query	ECX	the cook (+20h byte: with game materials, the game's 1)	observed
+0x00082590	vostok::physics::collision_shape_cook::translate_query	entry ESP+4	the query (+0F8h / +0FCh its name)	observed
+0x0032d4e0	survarium::bullet::check_collision	at 0x32D5EE..0x32D625	the bullet's ray: ray_test (the manager's world +98h, vtable+48h) with filter group 10h and mask 48h (pushed at 0x32D5F3, 0x32D5F1), the shooter and 1: collision objects of cgroup & 8 whose cmask has 10h, and hit models (40h)	observed
