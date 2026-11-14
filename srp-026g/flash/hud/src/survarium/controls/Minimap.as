@@ -85,7 +85,11 @@ package survarium.controls
          "cs_training_camp":new minimap_cs_training_camp(),
          "cs_mp_rembasa":new minimap_cs_mp_rembasa(),
          "soc_ug_station":new minimap_soc_ug_station(),
-         "soc_ug_depository":new minimap_soc_ug_depository()
+         "soc_ug_depository":new minimap_soc_ug_depository(),
+         "cs_mp_darkvalley":new minimap_cs_mp_darkvalley(),
+         "cs_mp_atp":new minimap_cs_mp_atp(),
+         "cs_mp_firestation":new minimap_cs_mp_firestation(),
+         "cs_mp_sport_center":new minimap_cs_mp_sport_center()
       };
       
       protected var _objects:Dictionary = new Dictionary(true);
@@ -202,6 +206,27 @@ package survarium.controls
             "size":73.143,
             "posX":30.285,
             "posY":6.97
+         };
+         // stalker-maps-2 (the frame of render_minimap.py on what a walker reaches, the added ways up too).
+         this._minimapProps.cs_mp_darkvalley = {
+            "size":76.509,
+            "posX":278.25,
+            "posY":-207.54
+         };
+         this._minimapProps.cs_mp_atp = {
+            "size":73.143,
+            "posX":135.325,
+            "posY":-26.975
+         };
+         this._minimapProps.cs_mp_firestation = {
+            "size":73.143,
+            "posX":-8.48,
+            "posY":14.84
+         };
+         this._minimapProps.cs_mp_sport_center = {
+            "size":73.143,
+            "posX":-58.66,
+            "posY":-36.47
          };
          this._minimapProps.level_05 = {
             "size":90,

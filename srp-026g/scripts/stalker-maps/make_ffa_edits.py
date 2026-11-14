@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Generate ffa-stalker-1.json from checked FFA points and stalker-maps@6.
+"""Generate ffa-stalker-1.json from checked FFA points and stalker-maps@6, or
+(--second) ffa-stalker-2.json from ffa-spawns-2.tsv and stalker-maps-2@1.
 
 --pack is the source pack folder (pack.json and files/). --dictionary is the
 composed gameplay/db_static_dictionaries, used to refuse occupied FFA IDs.
 The edit is applied after the map pack and the existing FFA content edits.
-It requires the current FFA runtime (mode 8, two seconds of protection).
+It requires the current FFA runtime (mode 8; the first list two seconds of
+protection, the second 500 ms, the key the client hook of revision 57 reads).
 """
 import argparse
 import csv
@@ -177,6 +179,151 @@ def edits(pack, dictionary):
     return out
 
 
+# The second list: Dark Valley, Vehicle Station, Fire Station and Sports Center (pack stalker-maps-2@1,
+# maps_dict 33-36 held out of the dictionary by stalker-tdm-hold-1.json), each with its own Free for
+# All config on its own project (`day_8`, copied by ffa-projects-1.json) and the points of
+# ffa-spawns-2.tsv: the STALKER planner's 24 (ffa-points) made twice as many by the spawn rule
+# (check-points' to_cover --times 2), as the first list's maps have them after ffa-cover-maps-1.
+OUT_2 = HERE.parent / 'content-edit/ffa-stalker-2.json'
+POINTS_2 = HERE / 'ffa-spawns-2.tsv'
+PACK_2 = ('stalker-maps-2', '1')
+MAPS_2 = [('cs_mp_darkvalley', 33, 37), ('cs_mp_atp', 34, 38), ('cs_mp_firestation', 35, 39), ('cs_mp_sport_center', 36, 40)]
+# 24 planned, twice as many by the rule: 48 a map, less the points left out (EXCLUDED_2).
+COUNT_2 = 48
+# Points the rule keeps where no spawn may stand (the owner, 2026-11-14: no spawn on what only a ladder
+# reaches): (project as to_cover names it, point id) -> why. The points after one take the ids down.
+EXCLUDED_2 = {('v010b_cs_mp_atp/day_8', 14): 'the roof ladder clmbl#4 (111.1, -33.9; -2.5 -> 1.0) leads to, '
+                                            '333 m2 only that ladder reaches on foot'}
+RADIUS_2 = 20.0                 # ffa-radius-1: 20 m on every map
+PROTECTION_MS_2 = 500           # ffa-protection-ms-1: 0.5 s on every map
+
+
+def count_2(project_name):
+    """A map's points in ffa-spawns-2.tsv: COUNT_2 less those left out."""
+    return COUNT_2 - sum(p == project_name.replace('/day_4', '/day_8') for p, _ in EXCLUDED_2)
+
+
+def points_2(count=None):
+    """{project: [rows]} of ffa-spawns-2.tsv, by point id: `count` a map (the planner's 24 alone, as
+    to_cover is given them: --planned)."""
+    by = {project(key): [] for key, _, _ in MAPS_2}
+    with POINTS_2.open() as f:
+        for row in csv.DictReader(f, delimiter='\t'):
+            if row['project'] not in by:
+                raise ValueError(f"{row['project']}: not a map of the second list")
+            for key in ('x', 'y', 'z', 'ry'):
+                row[key] = float(row[key])
+                if not math.isfinite(row[key]):
+                    raise ValueError(f'non-finite {key}')
+            row['point'] = int(row['point'])
+            by[row['project']].append(row)
+    for name, rows in by.items():
+        n = count or count_2(name)
+        if [r['point'] for r in rows] != list(range(n)):
+            raise ValueError(f'{name}: expected points 0..{n - 1} in order')
+    return by
+
+
+def table_2(planned, cover):
+    """ffa-spawns-2.tsv's rows: the planner's points (ffa-points' table of the four day_4 projects) with
+    to_cover's rows over them (`replaced` and `turned` take the point's place, `added` are new points),
+    on day_8 as to_cover names the projects; a point to_cover keeps stays as planned."""
+    rows = {}
+    with Path(planned).open() as f:
+        for r in csv.DictReader(f, delimiter='\t'):
+            point = int(r['point'].removeprefix('ported_'))
+            rows[(r['project'].replace('/day_4', '/day_8'), point)] = dict(
+                x=r['x'], y=r['y'], z=r['z'], ry=r['ry'], verdict='planned', reason=r['reason'])
+    with Path(cover).open() as f:
+        for r in csv.DictReader(f, delimiter='\t'):
+            key = (r['project'], int(r['point']))
+            if r['verdict'] not in ('replaced', 'turned', 'added') or (r['verdict'] == 'added') == (key in rows):
+                raise ValueError(f'{key}: to_cover says {r["verdict"]}')
+            rows[key] = dict(x=r['x'], y=r['y'], z=r['z'], ry=r['ry'], verdict=r['verdict'], reason=r['reason'])
+    for key in EXCLUDED_2:
+        rows.pop(key)
+    head = ['project', 'point', 'x', 'y', 'z', 'ry', 'verdict', 'reason']
+    lines = ['\t'.join(head)]
+    order = [k for k, _, _ in MAPS_2]
+    for proj in sorted({p for p, _ in rows}, key=lambda p: order.index(p.split('/')[0].removeprefix('v010b_'))):
+        for point, (_, old) in enumerate(sorted(k for k in rows if k[0] == proj)):
+            r = rows[(proj, old)]
+            lines.append('\t'.join([proj.replace('/day_8', '/day_4'), str(point), r['x'], r['y'], r['z'], r['ry'], r['verdict'], r['reason']]))
+    return '\n'.join(lines) + '\n'
+
+
+def edits_2(pack, dictionary, count=None):
+    manifest = json.loads((pack / 'pack.json').read_text())
+    if (manifest['id'], str(manifest['version'])) != PACK_2:
+        raise ValueError('recheck the collision and the points for a pack other than stalker-maps-2@1')
+    rows = tree(dictionary.read_bytes())['maps_dict']
+    used = {r['id'] for r in rows}
+    names = {r['cfg_mode_name'] for r in rows}
+    if len(used) != len(rows) or len(names) != len(rows):
+        raise ValueError('input maps_dict has duplicate IDs or config names')
+    checked = points_2(count)
+    points = (f'{count} team-2 points a map' if count else
+              f'{COUNT_2} team-2 points a map (Vehicle Station 47: none on the roof only its ladder clmbl#4 reaches)')
+    out = {'_about': 'Free for All on Dark Valley, Vehicle Station, Fire Station and Sports Center (pack stalker-maps-2@1; '
+           'maps_dict 37-40, their Team Deathmatch rows 33-36 held out by stalker-tdm-hold-1). Generated by '
+           'scripts/stalker-maps/make_ffa_edits.py --second from ffa-spawns-2.tsv. Each map\'s config is a copy of its '
+           'Team Deathmatch config as mode 8 (rules 93/91/94, 30 kills) on its own project, day_8 (ffa-projects-1); '
+           f'{points} by the spawn rule (cover, past the perimeter band; ffa.md), '
+           f'{RADIUS_2:g} m enemy exclusion and {PROTECTION_MS_2} ms protection; the maps have no ammo crates. '
+           'TDM points unchanged. Requires the current FFA runtime.',
+           'copy': [], 'set': [], 'replace_string': [], 'remove_item': [], 'add_value': [], 'add_entry': []}
+    for key, tdm_id, ffa_id in MAPS_2:
+        tdm = f'gameplay/game_modes/v010b_{key}_level_03_day_4.options'
+        ffa = f'gameplay/game_modes/ffa/v010b_{key}_day_8.options'
+        if not any(r['id'] == tdm_id and r['cfg_mode_name'] == tdm.removeprefix('gameplay/game_modes/') for r in rows):
+            raise ValueError(f'missing STALKER TDM map {tdm_id}; compose stalker-maps-2@1 first')
+        if ffa_id in used or ffa.removeprefix('gameplay/game_modes/') in names:
+            raise ValueError(f'FFA map {ffa_id} or config is already present')
+        mode = tree((pack / 'files' / tdm).read_bytes())['mode']
+        if (mode['mode'], mode['rules'], mode['match_making_params']['map_name']) != (4, [93, 91, 90, 94], project(key)):
+            raise ValueError(f'{tdm}: unexpected source config')
+        out['copy'].append({'files': tdm, 'from': tdm, 'to': ffa})
+        out['set'].append({'file': ffa, 'path': 'mode/mode', 'from': 4, 'to': FFA})
+        for old, new in [(mode['name'], f'v010b_{key}_8'), ('st_mode_04_name', 'st_mode_08_name'),
+                         ('st_mode_04_description', 'st_mode_08_description'),
+                         (project(key), ffa_copy(f'projects/{project(key)}/client_project')
+                          .removeprefix('projects/').removesuffix('/client_project'))]:
+            out['replace_string'].append({'files': ffa, 'from': old, 'to': new})
+        out['remove_item'].append({'file': ffa, 'path': 'mode/rules', 'value': 90})
+        if 'kills_to_win' in mode['parameters']:
+            raise ValueError(f'{tdm}: kills_to_win already exists')
+        out['add_value'].append({'files': [ffa], 'table': 'mode/parameters', 'key': 'kills_to_win', 'value': 30})
+        out['add_entry'].append({'files': DICTIONARY, 'list': 'maps_dict', 'after': {'id': tdm_id},
+                                 'like': {'id': tdm_id}, 'values': {'id': ffa_id,
+                                 'cfg_mode_name': ffa.removeprefix('gameplay/game_modes/')}})
+        source = f'projects/{project(key)}/client_project'
+        path = ffa_copy(source)
+        buf = (pack / 'files' / source).read_bytes()
+        existing = tree(buf)['server_objects']['respawn_points']
+        teams = [sum(r['team'] == t for r in existing) for t in (0, 1)]
+        if [(r['team'], r['point_id']) for r in existing] != [(t, i) for t in (0, 1) for i in range(teams[t])]:
+            raise ValueError(f'{path}: unexpected TDM spawn layout')
+        if any(existing[0][kind]['collision_geometries'] for kind in ('enemy_zones', 'ally_zones')):
+            raise ValueError(f'{path}: template has team-base zones; cannot clone it for FFA')
+        for radius in ('enemy_check_radius', 'ally_check_radius'):
+            if c.rec(buf, c.find(buf, f'{POINTS}[0]/{radius}'))[3] != c.T_FLOAT:
+                raise ValueError(f'{path}: source radius is not a float')
+        previous = {'team': 1, 'point_id': teams[1] - 1}
+        for row in checked[project(key)]:
+            i = row['point']
+            name = f'ffa_stalker_{i:02d}'
+            out['add_entry'].append({'files': path, 'list': POINTS, 'after': previous,
+                                     'like': {'team': 0, 'point_id': 0}, 'values': {
+                'name': name, 'full_name': 'logic/modes/ffa/respawn/' + name, 'point_id': i, 'team': 2,
+                'position': [row[k] for k in ('x', 'y', 'z')], 'rotation': [0.0, row['ry'], 0.0],
+                'enemy_check_radius': RADIUS_2, 'ally_check_radius': 1.0,
+                'invulnerability_time': 0, 'priority': 1, 'is_temporary': 0}})
+            out['add_value'].append({'files': [path], 'table': f'{POINTS}[{len(existing) + i}]',
+                                     'key': 'invulnerability_time_ms', 'value': PROTECTION_MS_2})
+            previous = {'team': 2, 'point_id': i}
+    return out
+
+
 def encoded(edits):
     lines = ['{', ' "_about": ' + json.dumps(edits['_about']) + ',']
     keys = [k for k in edits if k != '_about']
@@ -189,12 +336,23 @@ def encoded(edits):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--pack', type=Path, required=True)
-    ap.add_argument('--dictionary', type=Path, required=True)
-    ap.add_argument('--out', type=Path, default=OUT)
+    ap.add_argument('--table', nargs=2, metavar=('PLANNED', 'COVER'),
+                    help="write ffa-spawns-2.tsv from ffa-points' table and to_cover's rows, and nothing else")
+    ap.add_argument('--pack', type=Path)
+    ap.add_argument('--dictionary', type=Path)
+    ap.add_argument('--second', action='store_true', help='the second list: ffa-stalker-2.json over stalker-maps-2@1')
+    ap.add_argument('--planned', type=int, metavar='N', help="--second with the planner's N points a map alone (to_cover's input)")
+    ap.add_argument('--out', type=Path)
     ap.add_argument('--check', action='store_true')
     a = ap.parse_args()
-    text = encoded(edits(a.pack, a.dictionary))
+    if a.table:
+        POINTS_2.write_text(table_2(*a.table))
+        print(POINTS_2)
+        return
+    if not (a.pack and a.dictionary):
+        ap.error('--pack and --dictionary are required')
+    a.out = a.out or (OUT_2 if a.second else OUT)
+    text = encoded(edits_2(a.pack, a.dictionary, a.planned) if a.second else edits(a.pack, a.dictionary))
     if a.check:
         if a.out.read_text() != text:
             raise SystemExit('FFA edit list differs from its sources')

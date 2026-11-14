@@ -883,9 +883,13 @@ st_crosshair_static_option	Celownik statyczny
 st_crosshair_type_option	Wybierz celownik
 st_crouch_action	Kucanie (przytrzymaj)
 st_crouch_toggle_action	Kucanie
+st_cs_mp_atp_name	Dworzec autobusowy
 st_cs_mp_bath_name	Basen
+st_cs_mp_darkvalley_name	Dolina Mroku
+st_cs_mp_firestation_name	Remiza
 st_cs_mp_military_1_name	Magazyny wojskowe
 st_cs_mp_rembasa_name	Baza remontowa
+st_cs_mp_sport_center_name	Centrum sportowe
 st_cs_training_camp_name	Training Camp
 st_ct_max_members_count_error	Błąd dodawania. Drużyna klanu osiągnęła już maksymalną liczbę graczy.
 st_current_value	\nBieżąca wartość:
@@ -2580,9 +2584,13 @@ st_srp_login_ban_forever	Ban jest stały.
 st_srp_map_chemical_plant	Zakłady chemiczne
 st_srp_map_chemical_plant_v011	Zakłady chemiczne (v0.11)
 st_srp_map_cologne	Most w Kolonii
+st_srp_map_cs_mp_atp	Dworzec autobusowy
 st_srp_map_cs_mp_bath	Basen
+st_srp_map_cs_mp_darkvalley	Dolina Mroku
+st_srp_map_cs_mp_firestation	Remiza
 st_srp_map_cs_mp_military_1	Magazyny wojskowe
 st_srp_map_cs_mp_rembasa	Baza remontowa
+st_srp_map_cs_mp_sport_center	Centrum sportowe
 st_srp_map_cs_training_camp	Training Camp
 st_srp_map_london	Londyn
 st_srp_map_mamayev_kurgan	Kurhan Mamaja

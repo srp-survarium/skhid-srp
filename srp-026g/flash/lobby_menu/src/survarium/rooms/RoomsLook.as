@@ -48,7 +48,7 @@ package survarium.rooms
         // The render a level is drawn with: the v0.21 ports with the map they
         // are an older look of, the v0.11 and v0.69 ones with their one loading image.
         private static const RENDER_LEVEL:Object = {"10": 3, "11": 6};
-        private static const RENDER_ONE:Object = {"12": "Level_v011e", "13": "Level_v011e", "14": "Level_v069d_rudnya", "15": "Level_cs_mp_bath", "16": "Level_cs_mp_military_1", "17": "Level_cs_training_camp", "18": "Level_cs_mp_rembasa", "19": "Level_soc_ug_station", "20": "Level_soc_ug_depository"};
+        private static const RENDER_ONE:Object = {"12": "Level_v011e", "13": "Level_v011e", "14": "Level_v069d_rudnya", "15": "Level_cs_mp_bath", "16": "Level_cs_mp_military_1", "17": "Level_cs_training_camp", "18": "Level_cs_mp_rembasa", "19": "Level_soc_ug_station", "20": "Level_soc_ug_depository", "21": "Level_cs_mp_darkvalley", "22": "Level_cs_mp_atp", "23": "Level_cs_mp_firestation", "24": "Level_cs_mp_sport_center"};
         private static const RENDER:Object = {"1": "day", "2": "rain", "3": "evn", "4": "night", "5": "prerain"};
         private static var _renders:Object = {};
         // A vote card's mode tag: the protective devices blue, team

@@ -116,9 +116,13 @@ v069d_level_01_day_2	14	1	2	900	20	10	5	0.8			10								30	0
 v069d_level_01_day_3	14	1	3	900	20	10	5	0.8		3	10	60	10						30	0
 v069d_level_01_day_4	14	1	4	900	20	8	5	0.8	100										30	2
 v069d_level_01_day_5	14	1	5	900	20	10	5	0.8						100	0.38	0.9	100	0.5	30	1
+v010b_cs_mp_atp_level_03_day_4	22	1	4	900	20	8	5	0.8	100										38	2
 v010b_cs_mp_bath_level_03_day_4	15	1	4	900	20	8	5	0.8	100										31	2
+v010b_cs_mp_darkvalley_level_03_day_4	21	1	4	900	20	8	5	0.8	100										37	2
+v010b_cs_mp_firestation_level_03_day_4	23	1	4	900	20	8	5	0.8	100										39	2
 v010b_cs_mp_military_1_level_03_day_4	16	1	4	900	20	8	5	0.8	100										32	2
 v010b_cs_mp_rembasa_level_03_day_4	18	1	4	900	20	8	5	0.8	100										34	2
+v010b_cs_mp_sport_center_level_03_day_4	24	1	4	900	20	8	5	0.8	100										40	2
 v010b_cs_training_camp_level_03_day_4	17	1	4	900	20	8	5	0.8	100										33	2
 v010b_soc_ug_depository_level_03_day_4	20	1	4	900	20	8	5	0.8	100										36	2
 v010b_soc_ug_station_level_03_day_4	19	1	4	900	20	8	5	0.8	100										35	2

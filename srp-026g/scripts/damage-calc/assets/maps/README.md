@@ -24,6 +24,10 @@ elevation grid for every map.
 | v010b_cs_mp_bath | Experimental Pool | 0.0952 | 42 (STALKER port, patch 57; Free for All) |
 | v010b_cs_mp_military_1 | Military Warehouses | 0.1843 | 43 (STALKER port, patch 57; Free for All) |
 | v010b_cs_training_camp | Training Camp | 0.1038 | 44 (STALKER port, patch 57; Free for All) |
+| v010b_cs_mp_darkvalley | Dark Valley | 0.0996 | 37 (STALKER port, pack stalker-maps-2@1; Free for All) |
+| v010b_cs_mp_atp | Vehicle Station | 0.0952 | 38 (STALKER port, pack stalker-maps-2@1; Free for All) |
+| v010b_cs_mp_firestation | Fire Station | 0.0952 | 39 (STALKER port, pack stalker-maps-2@1; Free for All) |
+| v010b_cs_mp_sport_center | Sports Center | 0.0952 | 40 (STALKER port, pack stalker-maps-2@1; Free for All) |
 
 All weathers and modes of a level share one image. The mode projects differ only
 in mode props such as battery racks, containers and charging stations; the
@@ -157,6 +161,7 @@ Always use `python3 -I`.
     # release/patches.tsv over the db; day_8's raw client_project of each goes to $W/db
     ALL=$(grep -v '^#' <skhid-srp>/release/patches.tsv | cut -f1 | while read n; do printf ' --patch %s' <patches>/$n; done)
     for k in v010b_cs_mp_bath v010b_cs_mp_military_1 v010b_cs_training_camp; do python3 -I extract_level.py $DBGRAB $DB $k/day_8 $W/lv/$k $ALL; done
+    # the four of pack stalker-maps-2 the same way, their patch (not yet listed) after $ALL; their bitmaps are FFDec's names in that hud.swf
     # (extract_level.py before 2026-10-19 lost every surface whose name ends in "_", e.g. level_08's moss
     # and ground cover, level_03's terrain_all; all 13 maps were re-rendered with the fix)
     # 4. render + shade + check + webp (~1 min per map)
