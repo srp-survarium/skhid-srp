@@ -409,7 +409,7 @@ guess of 1.3 m), and the engine's own collision with the truck's mesh.
 ### The raised spawns (2026-11-14)
 
 Not played, and not seen in the game: every check below is offline, on a quick
-`build-content 59` of this branch with main (`261e3411b`) merged in, and the
+`build-content 59` of this branch with main (`377aa2794`, the bushes of #1798 among it) merged in, and the
 pictures are software renders of the files
 (`private/renders/training-camp-raised-spawns/` of the main checkout).
 
@@ -417,9 +417,9 @@ pictures are software renders of the files
   (not the edit tool's): team 2's ids 0 to 25 at the table's places and
   facings, 20 m, 1 m and 500 ms each; the 24 Team Deathmatch points and every
   other value as the same tree builds them without this change (17 points'
-  position and rotation differ, nothing else). `day_4` is byte for byte that
-  build's: six environment values of main's lists (#1793) apart from live,
-  and no list of this change names it.
+  position and rotation differ, nothing else; checked before #1798 merged,
+  which then adds its bushes' collision object to `day_4` and `day_8` and
+  nothing else). No list of this change names `day_4`.
 - Each of the 26 against the built collision, apart from the planner (rays on
   the walker triangles, the walk grid of every floor): collision within 5 cm
   under its feet, 1.8 m clear over it, the body's 64 side rays clear, a
