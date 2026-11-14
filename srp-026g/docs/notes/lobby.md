@@ -404,7 +404,7 @@ Requests: `request_players_range(start, count)` with `int` arguments (§2.16.1).
 | 2 060 000 000 | the list of the rooms, `count` rows at most (the header counted) | list |
 | 2 060 000 001 | the asker's room | state |
 | 2 060 000 002 | leave it (the room's LEAVE) | state |
-| 2 060 000 006 | Play (the movie's Play button): into a public room in its equipment bracket (up to 10, or above 10 up to 15); none in that bracket: create its first 8 v 8 room; all full: queue. Four ready Play users waiting in the same bracket open another room. Explicit room queues stay chosen. No old search screen | state |
+| 2 060 000 006 | Play (the movie's Play button): into a public room in its equipment bracket (up to 10, or above 10 up to 15); none in that bracket: create its first 8 v 8 room; all full: queue. Three ready players waiting in the same bracket (Play's or a public room's Queue) open another room. No old search screen | state |
 | 2 060 000 007 | leave the queue the asker waits in | state |
 | 2 060 000 008 | go into the asker's room's match being played now, without waiting for its `J` seconds (a member who comes while the match is played sees the room first and goes in 15 s later, `late_join_wait_s` of `rooms.tsv`) | state |
 | 2 060 000 003 + card | vote, card 0 to 2 | state |

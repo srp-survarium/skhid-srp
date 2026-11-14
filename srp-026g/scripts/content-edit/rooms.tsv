@@ -11,7 +11,8 @@
 #   after_match_s            what the vote after a match has more (its players back from the results)
 #   late_join_wait_s         a member who comes while its room's match is played sees the room this
 #                            long before it is put into the match
-#   scale_players            this many ready Play users waiting in one equipment bracket open a room
+#   scale_players            this many ready players waiting in one equipment bracket's public queues
+#                            (Play's or a room's Queue) open a room
 #   rooms_most               the most rooms at once
 #   match_start_wait_ms      with no countdown this long after a match's first entry, it starts with
 #                            who is in (match ms)
@@ -40,7 +41,7 @@ default_wait	30
 vote_s	15
 after_match_s	10
 late_join_wait_s	15
-scale_players	4
+scale_players	3
 rooms_most	50
 match_start_wait_ms	30000
 pvb/sizes[0]	6

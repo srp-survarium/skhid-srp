@@ -43,8 +43,8 @@
 //!   it came in (Play or a join; the owner's of 2026-10-31).
 //! - **Play.** Public rooms start empty and grow with demand: the first
 //!   Play creates an 8 v 8 room in its equipment bracket (up to 10 or 15).
-//!   Full rooms queue newcomers; four ready Play waiters in the same bracket
-//!   open another room. Explicit room queues stay chosen.
+//!   Full rooms queue newcomers; three ready waiters in the same bracket
+//!   (Play's or a public room's Queue alike) open another room.
 //!   Only private rooms may be created by a client.
 //! - **Squads** (two at most; the owner's of 2026-10-31,
 //!   `docs/notes/squads.md`): Play, Join and a queue take the mate along
@@ -1149,8 +1149,9 @@ impl Core<'_> {
         Ok(key)
     }
 
-    /// Only connected, ready Play users count toward demand. A changed
-    /// loadout is routed again before counting, and explicit queues stay put.
+    /// Only connected, ready waiters count toward demand: Play's and a
+    /// public room's Queue alike. A changed loadout of Play's is routed again
+    /// before counting.
     fn room_scale_queues(&mut self, now: Instant) {
         if self.maintenance_is_near() {
             return;
@@ -1183,7 +1184,7 @@ impl Core<'_> {
                 // its Play takes, `play_party`), by the pair's gear.
                 let waiting: Vec<_> = self
                     .rooms
-                    .play_queue()
+                    .public_queue()
                     .into_iter()
                     .filter_map(|(waiting, _)| {
                         let account_id = waiting.lead();
