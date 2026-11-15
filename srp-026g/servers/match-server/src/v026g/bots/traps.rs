@@ -797,6 +797,10 @@ pub fn hidden_by_crouching(sight: &mapdata::RayTree, held: Vec3, feet: Vec3) -> 
     super::aimpoint::body_shows(sight, super::lane_ahead::camper_eye(held), feet, false) && out_of_his_sight(sight, held, feet)
 }
 
+/// [#2081] A sent bot runs the job's play from its first thinks: two at `ThinkTuning::think_ms`'s upper 400 ms and one commander
+/// tick (`ThinkTuning::commander_ms`, 500 ms), ms.
+const LEFT_PLAY_GRACE_MS: u32 = 1_300;
+
 /// [A324] The team's camper trap jobs at a commander tick (`TrapTuning::camper_job`): a trap on the way in of a place an enemy
 /// holds: of 91 human traps at an enemy's killing hold in the live traps record, the 8 on his way in caught him 3 times, the 83
 /// others never (small n; `docs/notes/bear_traps.md`, "Human traps at a holder's place"). The places:
@@ -857,10 +861,16 @@ pub(super) fn camper_tick(
         if body.is_some_and(|b| b.feet.distance_xz(c.at) <= j.within_m + t.reach_m + 1.0) && camper::arrived(team, c.spot, since) {
             eprintln!("  camper life: team {team} spot {} {:?} arrived t {now} placer {placer} walked {:.1}", c.spot, c.kind, now.saturating_sub(since) as f32 / 1000.0);
         }
+        // [#2081] A bot that left the job's play is let go: the job stayed sent to it while it ran another (12 of 26 sends of the
+        // bench's m7: Retreat, Flank, Ambush, Trade, PairUp, none). Past its first thinks ([`LEFT_PLAY_GRACE_MS`]).
+        let left_play = now.saturating_sub(since) > LEFT_PLAY_GRACE_MS
+            && bot_of(placer).is_some_and(|b| b.assignment.as_ref().is_none_or(|a| a.kind != PlayKind::TrapSpot));
         let why = if body.is_none() {
             Some(if alive(placer) { "carrying" } else { "dead" })
         } else if now.saturating_sub(since) > give_up_ms {
             Some("its time is out")
+        } else if left_play {
+            Some("it left the job's play")
         } else {
             None
         };
@@ -1838,29 +1848,25 @@ pub fn press_of(
 
 impl TeamState {
     /// The team's field again if its list changed; whether it did.
-    /// [keep_off] With `keep_off` the field shuts its floors within `hard_m` and a narrow one within [`FIELD_M`] is kept for the
-    /// searches' fallback; without it the two are the same field.
+    /// [keep_off] With `keep_off` the field shuts its floors within `hard_m` ([`OWN_TRAP_CLEAR_M`]), else within [`FIELD_M`].
+    /// [#2081] No narrower fallback field: a search's route is checked by the same clearance ([`own_trap_route`]).
     pub(super) fn refresh_traps(&mut self, grid: &WalkGrid, ring_m: f32, keep_off: Option<super::tuning::KeepOff>) -> bool {
         let version = self.knowledge.traps.version();
         if version == self.features.traps.field_version {
             return false;
         }
-        let (field, narrow) = fields_of(&self.knowledge.traps, grid, ring_m, keep_off);
-        self.features.traps.field = field;
-        self.features.traps.narrow = narrow;
+        self.features.traps.field = field_of(&self.knowledge.traps, grid, ring_m, keep_off);
         self.features.traps.field_version = version;
         true
     }
 }
 
-/// The field of the standing traps of `list` and the narrow one ([`TeamState::refresh_traps`]).
-fn fields_of(list: &super::trap_know::TrapList, grid: &WalkGrid, ring_m: f32, keep_off: Option<super::tuning::KeepOff>) -> (Arc<TrapField>, Arc<TrapField>) {
-    let narrow = Arc::new(TrapField::of_ringed(list, grid, ring_m));
-    let field = match keep_off {
+/// The field of the standing traps of `list` ([`TeamState::refresh_traps`]).
+fn field_of(list: &super::trap_know::TrapList, grid: &WalkGrid, ring_m: f32, keep_off: Option<super::tuning::KeepOff>) -> Arc<TrapField> {
+    match keep_off {
         Some(k) => Arc::new(TrapField::of_ringed_within(list, grid, ring_m, k.hard_m)),
-        None => narrow.clone(),
-    };
-    (field, narrow)
+        None => Arc::new(TrapField::of_ringed(list, grid, ring_m)),
+    }
 }
 
 /// [G61] The fields of a bot's team's traps with the ones only it knows ([`BotState::mine`]), and the versions of the two lists
@@ -1868,7 +1874,6 @@ fn fields_of(list: &super::trap_know::TrapList, grid: &WalkGrid, ring_m: f32, ke
 pub struct MineFields {
     versions: (u64, u64),
     field: Arc<TrapField>,
-    narrow: Arc<TrapField>,
 }
 
 /// [G61] The trap fields `bot` keeps off: its team's ([`TeamState::refresh_traps`]), and with them the traps only it knows
@@ -1878,22 +1883,122 @@ pub(super) fn take_fields(bot: &mut Bot, state: &TeamState, grid: &WalkGrid, rin
     if traps.mine.standing_count() == 0 {
         traps.mine_fields = None;
         traps.field = state.features.traps.field.clone();
-        traps.narrow = state.features.traps.narrow.clone();
         return;
     }
     let versions = (state.knowledge.traps.version(), traps.mine.version());
     if traps.mine_fields.as_ref().is_none_or(|built| built.versions != versions) {
-        let (field, narrow) = fields_of(&state.knowledge.traps.with(&traps.mine), grid, ring_m, keep_off);
-        traps.mine_fields = Some(MineFields { versions, field, narrow });
+        let field = field_of(&state.knowledge.traps.with(&traps.mine), grid, ring_m, keep_off);
+        traps.mine_fields = Some(MineFields { versions, field });
     }
     if let Some(built) = &traps.mine_fields {
         traps.field = built.field.clone();
-        traps.narrow = built.narrow.clone();
     }
 }
 
 /// How far ahead a route is kept off the traps' discs, metres.
 const KEEP_OFF_M: f32 = 15.0;
+
+/// [#2081] The one clearance from the team's own known traps, metres: the searches' shut discs (`TrapTuning::keep_off`'s
+/// `hard_m` default), their check of the route they return ([`own_trap_route`]), [`keep_off`]'s check of the route ahead and the
+/// fight's side step ([`step_keeps_clear`]) all read it, through the field's own reach ([`TrapField::reach`]), so a route the search
+/// gives is never one `keep_off` drops. Contact 0.67 m = the sensor cylinder's radius 0.25 m (`booby_trap_core::on_enter` 0x304BD0,
+/// `docs/notes/thrown_and_placed.md`) + the body capsule's radius 0.38 m (`mapdata` `grid/controlled.rs`: startup.cfg's stand size
+/// 0.76 x 1.8) + the controller's 0.04 m move margin (`mapdata` `controller/tick.rs`); the live trigger, 0.6 m from a foot point
+/// (565 of 566 samples, `bear_traps.md`), agrees. Walk 0.80 m = the 90th percentile of the feet off the route of the bots walking
+/// one (261,076 samples, farming-camper cell seed 5, tip dab73194; median 0.25, p95 1.25).
+pub const OWN_TRAP_CLEAR_M: f32 = 1.47;
+
+/// The slack of the clearance test, metres: a leg between two open floors of the walk grid (`mapdata::CELL` 0.25 m apart, a
+/// diagonal 0.354 m) passes at most 0.011 m nearer a disc of 1.47 m than its two ends.
+const CLEAR_SLACK_M: f32 = 0.05;
+
+/// A trap this far above or below a leg's ends is on another floor (the field's own rule for its shut floors).
+const OTHER_FLOOR_M: f32 = 1.0;
+
+/// [#2081] Whether the polyline `points`, walked from `from`, keeps `reach` from every disc of `discs` on its floor: never nearer
+/// than `reach`, nor, when `from` is already nearer, than `from` is (a body inside a disc walks out, never in, as the searches'
+/// floors inside a disc are opened only farther than the feet, [`keep_off_open`]). The one rule of the search's check, keep_off
+/// and the side step.
+pub fn keeps_clear(points: &[Vec3], discs: &[Vec3], from: Vec3, reach: f32) -> bool {
+    discs.iter().all(|disc| {
+        let need = reach.min(from.distance_xz(*disc)) - CLEAR_SLACK_M;
+        let near = |p: Vec3| (p.y - disc.y).abs() < OTHER_FLOOR_M;
+        match points {
+            [] => true,
+            [one] => !near(*one) || one.distance_xz(*disc) >= need,
+            _ => points.windows(2).all(|leg| (!near(leg[0]) && !near(leg[1])) || off_route_m(leg, *disc) >= need),
+        }
+    })
+}
+
+/// The points of `route` a metre apart from its progress at `feet`, `ahead` metres of it (all of it with `f32::MAX`).
+fn route_points(route: &super::path::Route, feet: Vec3, ahead: f32) -> Vec<Vec3> {
+    // A copy: the motor's own progress along the route is not touched.
+    let mut route = route.clone();
+    let (s, _) = route.progress(feet);
+    let end = (s + ahead).min(route.length());
+    let n = (end - s).max(0.0).ceil() as usize;
+    (0..=n).map(|k| route.point_at((s + k as f32).min(end))).collect()
+}
+
+/// [#2081] The route a search gave `bot`, if it keeps the clearance from its team's own traps ([`keeps_clear`] over all of it);
+/// else none, with a note: the search's way is never one [`keep_off`] would drop at the next think.
+pub(super) fn own_trap_route(bot: &mut Bot, feet: Vec3, route: Option<super::path::Route>, now: u32) -> Option<super::path::Route> {
+    let route = route?;
+    let field = bot.features.traps.field.clone();
+    let reach = field.reach().max(FIELD_M);
+    if field.is_empty() || keeps_clear(&route_points(&route, feet, f32::MAX), field.discs(), feet, reach) {
+        return Some(route);
+    }
+    #[cfg(test)]
+    keep_off_counts::count(keep_off_counts::REFUSED);
+    own_trap_note(bot, now, format!("a route of {:.1} m refused: it passes an own trap nearer than {reach:.2} m", route.length()));
+    None
+}
+
+/// [#2081] Whether the step from `from` to `to` keeps the clearance from the team's own traps of `field` ([`keeps_clear`]): the
+/// fight's side step and the step apart from a mate take no step onto one.
+pub(super) fn step_keeps_clear(field: &TrapField, from: Vec3, to: Vec3) -> bool {
+    field.is_empty() || keeps_clear(&[from, to], field.discs(), from, field.reach().max(FIELD_M))
+}
+
+/// [#2081] A note of a refusal or a re-route for an own trap, at most one a second a bot (a side step is asked every tick); the
+/// bench counts every one.
+pub(super) fn own_trap_note(bot: &mut Bot, now: u32, what: String) {
+    #[cfg(test)]
+    own_trap_counts::count(&what);
+    if bot.features.traps.own_trap_noted.is_some_and(|t| now < t.saturating_add(1_000)) {
+        return;
+    }
+    bot.features.traps.own_trap_noted = Some(now);
+    bot.features.traps.notes.push((now, format!("{}own trap: {what}", tally::PREFIX)));
+}
+
+/// [#2081] The bench's counts of the refusals and re-routes for own traps, by kind.
+#[cfg(test)]
+pub mod own_trap_counts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub const NAMES: [&str; 4] = ["route refused", "route dropped", "side step refused", "step apart refused"];
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+    pub fn count(what: &str) {
+        let k = if what.starts_with("a route of") {
+            0
+        } else if what.starts_with("the route ahead") {
+            1
+        } else if what.starts_with("a side step") {
+            2
+        } else {
+            3
+        };
+        COUNTS[k].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn line() -> String {
+        NAMES.iter().zip(&COUNTS).map(|(n, c)| format!("{n} {}", c.load(Ordering::Relaxed))).collect::<Vec<_>>().join(", ")
+    }
+}
 
 /// A route that runs over a trap's disc within [`KEEP_OFF_M`] is dropped, to
 /// be searched again round it (the searches shut the floors of the discs,
@@ -1905,6 +2010,7 @@ pub(super) fn keep_off(bot: &mut Bot, due: &Due) {
     let field = bot.features.traps.field.clone();
     if route_hits(bot, &field, due.me.feet) {
         bot.end_route(RouteEnd::TrapAhead, due.now);
+        own_trap_note(bot, due.now, format!("the route ahead dropped: it passes an own trap nearer than {:.2} m", field.reach().max(FIELD_M)));
         return;
     }
     // The ring: a route planned before the trap, or before this change of the traps, that runs within it is
@@ -1923,10 +2029,16 @@ fn near_a_disc(field: &TrapField, feet: Vec3) -> bool {
     field.discs().iter().any(|disc| disc.distance_xz(feet) < KEEP_OFF_M)
 }
 
-/// Whether the route of the bot runs over a disc of `field` within
-/// [`KEEP_OFF_M`] ahead of `feet`.
+/// Whether the route of the bot, within [`KEEP_OFF_M`] ahead of `feet`, breaks the clearance from a disc of `field`
+/// ([`keeps_clear`], the rule its search's route was checked by).
 pub(super) fn route_hits(bot: &Bot, field: &TrapField, feet: Vec3) -> bool {
-    route_within(bot, field, feet, field.reach().max(FIELD_M) - 0.05)
+    if !near_a_disc(field, feet) {
+        return false;
+    }
+    let Some((route, _)) = bot.route.as_ref() else {
+        return false;
+    };
+    !keeps_clear(&route_points(route, feet, KEEP_OFF_M), field.discs(), feet, field.reach().max(FIELD_M))
 }
 
 /// Whether the route of the bot runs within `reach` metres of a disc of `field` within [`KEEP_OFF_M`] ahead of
@@ -1964,11 +2076,6 @@ pub(super) fn soften(bot: &Bot, filter: RouteFilter, start: Option<NodeId>) -> R
 /// (`start`: a trap let go of a metre off must not shut the way out).
 pub(super) fn filter(bot: &Bot, landings: Vec<super::stuck::Shut>, start: Option<NodeId>) -> RouteFilter {
     filter_of(bot, &bot.features.traps.field, landings, start)
-}
-
-/// [keep_off] [`filter`] with the team's traps shut only within `FIELD_M`: a search's fallback when the wider field leaves it no way.
-pub(super) fn filter_narrow(bot: &Bot, landings: Vec<super::stuck::Shut>, start: Option<NodeId>) -> RouteFilter {
-    filter_of(bot, &bot.features.traps.narrow, landings, start)
 }
 
 /// [`filter`] with the team's traps of `field`.
@@ -2053,8 +2160,10 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     if let Some((at, released)) = bot.features.traps.placed.take() {
         state.knowledge.traps.promise(bot.place, at, released);
         state.refresh_traps(&due.tactics.world.grid, t.ring_m, t.keep_off);
-        take_fields(bot, state, &due.tactics.world.grid, t.ring_m, t.keep_off);
     }
+    // [#2081] Every bot takes its team's field at each think: a mate knows a trap the placer promised at its own next think (the
+    // game draws an armed trap for every team, 0x247EF0), not at the next commander tick.
+    take_fields(bot, state, &due.tactics.world.grid, t.ring_m, t.keep_off);
     fresh_shut(bot, due, t.ring_m);
     keep_off_open(bot, due, t);
     #[cfg(test)]
@@ -2797,6 +2906,11 @@ pub(super) fn enemy_near_at(bot: &Bot, feet: Vec3, now: u32, clock: u32, t: &Tra
         || bot.memory.tracks().iter().any(|track| sensed_lately(t, track, feet, now, quiet) || track.at.distance_xz(feet) < t.enemy_near_m)
 }
 
+/// [#2081] The nearest alive enemy when live humans placed a trap, P10, metres (P25 14.7, P50 26.0; 534 placings of the traps
+/// record, 402 matches of 12+ humans, the world nearest the placing within 2.5 s; fight-world `record_place_context.py`). Live human
+/// placers were killed within 5 s after placing 23.6 % of the time with an enemy nearer than it, 10.4 % in all.
+pub const HUMAN_PLACING_ENEMY_P10_M: f32 = 7.7;
+
 /// [`trap_calm`]'s one exception: the reflex's look the trap look took the view over.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OverHeard {
@@ -2843,6 +2957,10 @@ pub fn trap_calm(f: CalmFacts, t: &TrapTuning) -> (bool, Option<OverHeard>) {
         None if over.glance => Some(OverHeard::Glance { m: look.distance_xz(f.feet) }),
         None => None,
     };
+    // [#2081] Only over an enemy as far as the live humans' nearest one at a placing, P10, or farther.
+    let heard = heard.filter(|h| match *h {
+        OverHeard::Aim { m, .. } | OverHeard::Glance { m } => m >= HUMAN_PLACING_ENEMY_P10_M,
+    });
     (heard.is_some(), heard)
 }
 
@@ -3221,9 +3339,6 @@ pub struct BotState {
     pub placed: Option<(mapdata::Vec3, u32)>,
     pub react: super::trap_react::React,
     pub field: std::sync::Arc<super::trap_know::TrapField>,
-    /// [keep_off] The team's traps shut only within `FIELD_M`: the searches' fallback ([`filter_narrow`]); the same as `field`
-    /// without `TrapTuning::keep_off`.
-    pub narrow: std::sync::Arc<super::trap_know::TrapField>,
     /// [G61] The traps it put down that only it knows, its team not told: the bench's stand-in human's
     /// (`Bots::bench_placer_knows_trap`), whose team learns them as a live team learns a human mate's. A bot's own release goes to
     /// its team's list instead, so a bot's is empty. Followed by the worlds as the team's list is; kept across its lives.
@@ -3249,6 +3364,8 @@ pub struct BotState {
     pub notes: Vec<(u32, String)>,
     /// [traps.look_over_heard] The look (its start) whose taking of the view over a heard aim or a glance was noted.
     pub over_heard_noted: Option<u32>,
+    /// [#2081] When it last noted a refusal or a re-route for an own trap ([`own_trap_note`]).
+    pub own_trap_noted: Option<u32>,
     /// The bench's: the standing own trap this body last came within 3 m of, and the class it came with
     /// ([`passes`]).
     #[cfg(test)]
@@ -4208,6 +4325,71 @@ mod tests {
         assert!(bot.route.is_some());
     }
 
+    /// [#2081] One clearance: a route the search gives past an own trap keeps `OWN_TRAP_CLEAR_M` from it, and keep_off keeps that
+    /// route at every think along it; a route nearer is refused by the search's check and dropped by keep_off alike; a body inside
+    /// the disc may walk out (never nearer than its feet) and not in; the side step and the step apart take no step onto it.
+    #[test]
+    fn one_clearance_from_own_traps_holds_for_the_search_keep_off_and_the_side_step() {
+        use crate::v026g::bots::path::{Route, Waypoint};
+        use crate::v026g::bots::route_filter::RouteFilter;
+        use crate::v026g::bots::think::Due;
+        use crate::v026g::bots::trap_know::TrapList;
+        let s = Scenario::field(Mode::TeamDeathmatch);
+        let grid = &s.tactics.world.grid;
+        let trap = Vec3::new(25.0, 0.0, 10.0);
+        let mut list = TrapList::default();
+        list.promise(0, trap, 500);
+        let keep = crate::v026g::bots::tuning::KeepOff::default();
+        assert_eq!(keep.hard_m, OWN_TRAP_CLEAR_M, "the tuning's default is the one constant");
+        let field = Arc::new(TrapField::of_ringed_within(&list, grid, 0.0, keep.hard_m));
+        assert_eq!(field.reach(), OWN_TRAP_CLEAR_M);
+        // The search with the field's floors shut, from one side of the trap to the other: its way keeps the clearance.
+        let shut = field.clone();
+        let filter = RouteFilter::open().with_floors(move |n| shut.open(n));
+        let (from, to) = (grid.locate(Vec3::new(15.0, 0.0, 10.0), 1.5).unwrap(), grid.locate(Vec3::new(35.0, 0.0, 10.0), 1.5).unwrap());
+        let way = s.tactics.route_nodes(from, to, 0, Some(0), false, &filter).expect("a way round the trap");
+        let feet = grid.position(from);
+        let tuning = crate::v026g::bots::tuning::Tuning::all_off();
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.features.traps.field = field.clone();
+        let kept = own_trap_route(&mut bot, feet, Some(way.clone()), 1_000).expect("the search's way is kept by its check");
+        let points = route_points(&kept, feet, f32::MAX);
+        assert!(off_route_m(&points, trap) >= OWN_TRAP_CLEAR_M - CLEAR_SLACK_M, "{}", off_route_m(&points, trap));
+        // keep_off keeps it, from its start and from each point along it.
+        let goal = grid.position(to);
+        for k in 0..points.len() {
+            let mut s2 = Scenario::field(Mode::TeamDeathmatch);
+            s2.bot(0, 0, points[k]);
+            let me = s2.view.places[0].clone();
+            let due = Due { now: 1_000, view: &s2.view, me: &me, tactics: &s2.tactics, tuning: &tuning };
+            bot.route = Some((kept.clone(), goal));
+            keep_off(&mut bot, &due);
+            assert!(bot.route.is_some(), "keep_off dropped the search's way at {:?}", points[k]);
+        }
+        // A way 1.0 m off the trap: refused by the search's check and dropped by keep_off.
+        let waypoint = |x: f32, z: f32| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
+        let near = Route::new(vec![waypoint(15.0, 11.0), waypoint(35.0, 11.0)]);
+        assert!(own_trap_route(&mut bot, Vec3::new(15.0, 0.0, 11.0), Some(near.clone()), 2_000).is_none());
+        let mut s3 = Scenario::field(Mode::TeamDeathmatch);
+        s3.bot(0, 0, Vec3::new(15.0, 0.0, 11.0));
+        let me = s3.view.places[0].clone();
+        let due = Due { now: 2_000, view: &s3.view, me: &me, tactics: &s3.tactics, tuning: &tuning };
+        bot.route = Some((near, goal));
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_none(), "keep_off drops what the check refuses");
+        // From inside the disc (1.1 m off, a placer by its own trap): out is clear, in is not.
+        let inside = trap + Vec3::new(-1.1, 0.0, 0.0);
+        assert!(keeps_clear(&[inside, trap + Vec3::new(-2.5, 0.0, 0.0)], field.discs(), inside, OWN_TRAP_CLEAR_M));
+        assert!(!keeps_clear(&[inside, trap + Vec3::new(-0.5, 0.0, 0.3)], field.discs(), inside, OWN_TRAP_CLEAR_M));
+        // A trap on another floor (2 m above) is no matter.
+        assert!(keeps_clear(&[Vec3::new(15.0, 2.0, 10.0), Vec3::new(35.0, 2.0, 10.0)], field.discs(), Vec3::new(15.0, 2.0, 10.0), OWN_TRAP_CLEAR_M));
+        // The side step (`STRAFE_CLEAR_M` long): onto the trap refused, away from it taken; with no trap, any.
+        let by = trap + Vec3::new(-1.8, 0.0, 0.0);
+        assert!(!step_keeps_clear(&field, by, by + Vec3::new(0.7, 0.0, 0.0)));
+        assert!(step_keeps_clear(&field, by, by + Vec3::new(-0.7, 0.0, 0.0)));
+        assert!(step_keeps_clear(&TrapField::default(), by, by + Vec3::new(0.7, 0.0, 0.0)));
+    }
+
     #[test]
     fn the_pass_rule_waits_for_a_richer_cell_ahead_and_places_here_otherwise() {
         // Nothing ahead to look at: here.
@@ -4725,6 +4907,40 @@ mod tests {
         assert!(k.camper_traps.is_empty());
     }
 
+    /// [#2081] A sent bot that runs another play than the job's past its first thinks is let go (the point is open again); within
+    /// them it stays sent. A walk longer than the hold's typical remaining time is never sent (`max_walk_m` 22.75 m).
+    #[test]
+    fn the_camper_job_lets_go_a_bot_that_left_its_play() {
+        use crate::v026g::bots::know::{CamperTrap, CamperTrapKind, CamperTrapState, SeenRefusals, TeamKnowledge};
+        use crate::v026g::bots::threat::HeldLine;
+        let t = TrapTuning::default();
+        assert_eq!(t.camper_job.unwrap().max_walk_m, 22.75);
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(15.0, 0.0, 10.0));
+        let held = Vec3::new(42.0, 0.0, 10.0);
+        s.human(11, 1, held);
+        let line = HeldLine::for_test(7, 11, held, &[], Some(1_000));
+        let tuning = crate::v026g::bots::tuning::Tuning::all_off();
+        let bots = vec![Some(Bot::new(1, 0, 0, None, &tuning))];
+        assert!(bots[0].as_ref().unwrap().assignment.is_none(), "on no play");
+        let mut k = TeamKnowledge::default();
+        k.camper_traps.push(CamperTrap {
+            spot: 7,
+            shooter: 11,
+            held,
+            at: Vec3::new(30.0, 0.0, 10.0),
+            kind: CamperTrapKind::Job,
+            state: CamperTrapState::Sent { placer: 0, since: 1_000, placed_before: 0 },
+            seen: SeenRefusals::default(),
+        });
+        let mut notes = Vec::new();
+        camper_tick(&bots, &mut k, &s.view, &s.tactics, &t, 0, std::slice::from_ref(&line), 1_000 + LEFT_PLAY_GRACE_MS, &mut notes);
+        assert!(matches!(k.camper_traps[0].state, CamperTrapState::Sent { .. }), "within its first thinks");
+        camper_tick(&bots, &mut k, &s.view, &s.tactics, &t, 0, std::slice::from_ref(&line), 1_001 + LEFT_PLAY_GRACE_MS, &mut notes);
+        assert_eq!(k.camper_traps[0].state, CamperTrapState::Open);
+        assert!(notes.iter().any(|n| n.text.contains("it left the job's play")), "{notes:?}");
+    }
+
     /// [traps.look_over_heard] The trap look survives a glance and a sights-up aim at an enemy only heard or told of while the
     /// gate's enemy-near check is clear; a seen target, a hit or near shot (a threat look), fire, legs, a use, an aim that is no
     /// heard aim (a partner's death spot) or an enemy near take the view back at once; the switch off gives the old calm.
@@ -4740,6 +4956,13 @@ mod tests {
         assert_eq!(trap_calm(facts(&heard), &t), (true, Some(OverHeard::Aim { m: 30.0, age_ms: 3_000 })));
         assert_eq!(trap_calm(facts(&glance), &t), (true, Some(OverHeard::Glance { m: 25.0 })));
         assert_eq!(trap_calm(facts(&Override::default()), &t), (true, None), "no look: calm as before");
+        // [#2081] Not over an enemy nearer than the live humans' nearest one at a placing, P10 (7.7 m).
+        let near_aim = Override { look_at: Some(Vec3::new(6.0, 1.3, 0.0)), heard_aim: Some((Vec3::new(6.0, 0.0, 0.0), 1_000)), ..Override::default() };
+        let near_glance = Override { look_at: Some(Vec3::new(0.0, 1.4, 7.0)), glance: true, ..Override::default() };
+        assert_eq!(trap_calm(facts(&near_aim), &t), (false, None));
+        assert_eq!(trap_calm(facts(&near_glance), &t), (false, None));
+        let at_p10 = Override { look_at: Some(Vec3::new(HUMAN_PLACING_ENEMY_P10_M, 1.3, 0.0)), heard_aim: Some((Vec3::new(HUMAN_PLACING_ENEMY_P10_M, 0.0, 0.0), 1_000)), ..Override::default() };
+        assert!(trap_calm(facts(&at_p10), &t).0);
         // What still wins at once, mid-look.
         for (why, f) in [
             ("a seen target", CalmFacts { target: true, ..facts(&heard) }),
@@ -4807,25 +5030,22 @@ mod tests {
     }
 }
 
-/// [keep_off] Bench counts (`tests::tallies::route`): the route searches made with `traps.keep_off` on, and the ones with no way
-/// at `hard_m` searched again with only the narrow discs: a way found, none, past the poll's floors. The fallback rate is
-/// (found + none + left) / searches.
+/// [keep_off] Bench counts (`tests::tallies::route`): the route searches made with `traps.keep_off` on, and the routes refused for
+/// an own trap ([`own_trap_route`], #2081: the narrow fallback search is gone).
 #[cfg(test)]
 pub mod keep_off_counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     pub const SEARCHES: usize = 0;
-    pub const NARROW_FOUND: usize = 1;
-    pub const NARROW_NONE: usize = 2;
-    pub const NARROW_LEFT: usize = 3;
+    pub const REFUSED: usize = 1;
 
-    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
 
     pub fn count(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 4] {
+    pub fn counts() -> [u64; 2] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }

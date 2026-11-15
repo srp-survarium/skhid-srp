@@ -1215,6 +1215,8 @@ fn drive_tick_inner(
             // Why it has no route, if it has none after this.
             let mut no_route = path::NoRoute::Searched;
             if let Some((goal, route, crossed)) = found {
+                // [#2081] The way keeps the clearance from the team's own traps, or there is none.
+                let route = traps::own_trap_route(bot, me.feet, route, time);
                 bot.no_way = route.is_none().then_some((goal, time + NO_WAY_RETRY_MS));
                 bot.features.crossing.goal = crossed.then_some(goal);
                 // Both ends were on floors, from one it may walk on: proven, unless the body's own shut drops are what
@@ -1320,8 +1322,6 @@ fn drive_tick_inner(
                     .drop_shut_last_resort
                     .then(|| stuck::without_drops(&landings))
                     .flatten();
-                // [traps.keep_off] The landings again for the search with only the narrow trap discs (below).
-                let narrow_landings = tuning.traps.keep_off.map(|_| landings.clone());
                 let hard_with = |landings, trap_filter: fn(&Bot, Vec<stuck::Shut>, Option<NodeId>) -> RouteFilter| {
                     let mut hard = trap_filter(bot, landings, grid.locate(me.feet, 1.5));
                     // [S6] A carrier's body ([`body_reach`]).
@@ -1334,7 +1334,6 @@ fn drive_tick_inner(
                 };
                 let hard_of = |landings| hard_with(landings, traps::filter);
                 let mut hard = hard_of(landings);
-                let narrow = narrow_landings.map(|landings| hard_with(landings, traps::filter_narrow));
                 let unshut = unshut_landings.map(hard_of);
                 let filter = traps::soften(
                     bot,
@@ -1460,33 +1459,12 @@ fn drive_tick_inner(
                 // again (a shut is a preference, as the stuck spots are), and no way without them either is proof for the
                 // plays. Off: it stands until the shut ends, the search no proof (Chemical Plant's walkway beams, 45 s).
                 let mut unshut_proof = false;
-                // [traps.keep_off] No way with the team's traps shut to `hard_m`: the way through their wider ring is the only
-                // one, so it is searched again with only the narrow discs (FIELD_M) shut, as the default does.
+                // [traps.keep_off] #2081: no second search with narrower trap discs: its way passed an own trap nearer than the
+                // clearance keep_off holds the route to, which dropped it at the next think while the body walked it, onto the
+                // trap (the bench's own catches). A way is kept only at the one clearance (`traps::own_trap_route`).
                 #[cfg(test)]
-                if narrow.is_some() && ends.is_some() && !escaping && !there {
+                if tuning.traps.keep_off.is_some() && ends.is_some() && !escaping && !there {
                     traps::keep_off_counts::count(traps::keep_off_counts::SEARCHES);
-                }
-                if route.is_none()
-                    && left.is_none()
-                    && !escaping
-                    && !there
-                    && let (Some(narrow), Some((from, to))) = (narrow.as_ref(), ends)
-                {
-                    let found = tactics.start_route(from, to, time, side, objective, narrow, floors);
-                    #[cfg(test)]
-                    traps::keep_off_counts::count(match found {
-                        Ok(Some(_)) => traps::keep_off_counts::NARROW_FOUND,
-                        Ok(None) => traps::keep_off_counts::NARROW_NONE,
-                        Err(_) => traps::keep_off_counts::NARROW_LEFT,
-                    });
-                    match found {
-                        Ok(Some(way)) => route = Some(way),
-                        Ok(None) => {}
-                        Err(planning) => {
-                            hard = narrow.clone();
-                            left = Some((false, planning));
-                        }
-                    }
                 }
                 if route.is_none()
                     && left.is_none()
@@ -1747,7 +1725,7 @@ fn drive_tick_inner(
                 if let (Some((planning, second)), Some(ends)) = (second, ends) {
                     // It goes on at the next polls; the plain route (a long
                     // one) meanwhile, else the old one.
-                    if let Some(plain) = second.plain.clone() {
+                    if let Some(plain) = traps::own_trap_route(bot, me.feet, second.plain.clone(), time) {
                         #[cfg(test)]
                         {
                             bot.bench_route = why::PLAIN;
@@ -1775,7 +1753,7 @@ fn drive_tick_inner(
                     // toward the goal, not standing (else the old route).
                     let filter = if round { filter } else { hard };
                     if let Some(partial) =
-                        tactics.partial_route(&planning, ends, time, side, objective, &filter)
+                        traps::own_trap_route(bot, me.feet, tactics.partial_route(&planning, ends, time, side, objective, &filter), time)
                     {
                         #[cfg(test)]
                         {
@@ -1802,6 +1780,8 @@ fn drive_tick_inner(
                         second: None,
                     });
                 } else {
+                    // [#2081] The way keeps the clearance from the team's own traps, or there is none (not a way out of a zone).
+                    let route = if escaping { route } else { traps::own_trap_route(bot, me.feet, route, time) };
                     #[cfg(test)]
                     if let Some((from, to)) = ends
                         && !escaping
@@ -1817,7 +1797,6 @@ fn drive_tick_inner(
                     if route.is_none() && !escaping && !there {
                         let retried = NoWayRetries {
                             stuck_spots: avoiding,
-                            trap_discs: narrow.is_some(),
                             drop_shuts: unshut.is_some(),
                             unshut_proof,
                             reach: hard.reach(),
@@ -2171,9 +2150,17 @@ fn drive_tick_inner(
     if let Some(keys) = stepped.filter(|_| over.strafe != 0 && !using) {
         let (side, objective) = (bot.side, intent.objective);
         let sees_open = tuning.aim.combat.clear_step_sees_open;
+        // [#2081] No side step onto an own trap: the one clearance (`traps::step_keeps_clear`).
+        let own = bot.features.traps.field.clone();
+        let refused_own = std::cell::Cell::new(false);
         let ask = |keys: u32, strafe: u32| {
             let to = me.feet + side_step(keys, strafe, me.yaw, tactics.clear_step_sees_lip);
-            tactics.clear_step_seeing(me.feet, to, time, side, objective, sees_open)
+            let ground = tactics.clear_step_seeing(me.feet, to, time, side, objective, sees_open);
+            let trap_clear = traps::step_keeps_clear(&own, me.feet, to);
+            if ground && !trap_clear {
+                refused_own.set(true);
+            }
+            ground && trap_clear
         };
         let slides = tuning.aim.combat.clear_step_slides_along;
         let (step, other_clear) = choose_step(
@@ -2207,6 +2194,9 @@ fn drive_tick_inner(
         }
         #[cfg(not(test))]
         let _ = other_clear;
+        if refused_own.get() {
+            traps::own_trap_note(bot, time, format!("a side step refused: it ends nearer an own trap than {:.2} m", own.reach().max(traps::FIELD_M)));
+        }
         if let Step::Own(keys) | Step::Slid(keys) = step {
             decision.keys = keys;
             #[cfg(test)]
@@ -2240,7 +2230,14 @@ fn drive_tick_inner(
             let keys = decision.keys | away.key;
             let to = me.feet + side_step(keys, away.key, me.yaw, tactics.clear_step_sees_lip);
             let sees_open = tuning.aim.combat.clear_step_sees_open;
-            let clear = !held_off && tactics.clear_step_seeing(me.feet, to, time, bot.side, intent.objective, sees_open);
+            // [#2081] No step apart onto an own trap: the one clearance (`traps::step_keeps_clear`).
+            let own = bot.features.traps.field.clone();
+            let ground = !held_off && tactics.clear_step_seeing(me.feet, to, time, bot.side, intent.objective, sees_open);
+            let trap_clear = traps::step_keeps_clear(&own, me.feet, to);
+            if ground && !trap_clear {
+                traps::own_trap_note(bot, time, format!("a step apart refused: it ends nearer an own trap than {:.2} m", own.reach().max(traps::FIELD_M)));
+            }
+            let clear = ground && trap_clear;
             if clear {
                 decision.keys = keys;
             }
@@ -2250,6 +2247,7 @@ fn drive_tick_inner(
                 let other = away.other_key();
                 let other_to = me.feet + side_step(decision.keys | other, other, me.yaw, tactics.clear_step_sees_lip);
                 tactics.clear_step_seeing(me.feet, other_to, time, bot.side, intent.objective, sees_open)
+                    && traps::step_keeps_clear(&own, me.feet, other_to)
             };
             let tied = tie && other_clear;
             if tied {
@@ -3342,8 +3340,6 @@ impl Gates {
 pub(super) struct NoWayRetries {
     /// Searched again through its stuck spots (the filter's soft part).
     pub(super) stuck_spots: bool,
-    /// Searched again with only the traps' narrow discs shut (`traps.keep_off`).
-    pub(super) trap_discs: bool,
     /// Searched again with the drops it shut opened (`unstick.drop_shut_last_resort`).
     pub(super) drop_shuts: bool,
     /// That last search found no way either.
@@ -3378,9 +3374,6 @@ pub(super) fn no_way_line(
             }
             if retried.stuck_spots {
                 v.push_str("; searched again through its stuck spots");
-            }
-            if retried.trap_discs {
-                v.push_str("; searched again past the traps' wide rings");
             }
             // [S6] A body with no sprint: its searches took no sprint link without a walking press.
             if let mapdata::SprintReach::Cannot { max_rise } = retried.reach.sprint {

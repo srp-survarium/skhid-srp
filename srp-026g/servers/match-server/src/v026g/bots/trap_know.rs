@@ -402,9 +402,6 @@ pub struct TeamTraps {
     /// The floors of the traps its bots put down, and the list's version it was built for.
     pub field: std::sync::Arc<TrapField>,
     pub field_version: u64,
-    /// [keep_off] The same traps shut only within [`FIELD_M`]: the searches' fallback when the wider field leaves no way; the
-    /// same field as `field` without `TrapTuning::keep_off`.
-    pub narrow: std::sync::Arc<TrapField>,
     /// The armed traps the last world showed, for the bots' notice (`trap_react.rs`); empty while the switch is off.
     pub world_traps: std::sync::Arc<Vec<survarium::v026g::match_msgs::traps::PlacedTrap>>,
     /// Bots that began shooting a trap lately: which, who, when (`trap_react.rs`, the count of double shooters).

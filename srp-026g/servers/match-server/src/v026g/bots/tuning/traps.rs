@@ -179,13 +179,14 @@ pub struct KeepOff {
     /// radius 0.38 m (`mapdata` `grid/controlled.rs`: startup.cfg's stand size 0.76 x 1.8) + the controller's 0.04 m move margin
     /// (`mapdata` `controller/tick.rs`, the exe's under Unicorn); the live trigger, 0.6 m from a foot point, agrees. Walk 0.80 m =
     /// the 90th percentile of the feet off the route of the bots walking one (261,076 samples, farming-camper cell seed 5, tip
-    /// dab73194; median 0.25, p95 1.25).
+    /// dab73194; median 0.25, p95 1.25). [#2081] The default is `traps::OWN_TRAP_CLEAR_M`, the one clearance the searches, their
+    /// route check, keep_off and the side step read (through the field's reach).
     pub hard_m: f32,
 }
 
 impl Default for KeepOff {
     fn default() -> Self {
-        Self { hard_m: 1.47 }
+        Self { hard_m: crate::v026g::bots::traps::OWN_TRAP_CLEAR_M }
     }
 }
 
@@ -364,7 +365,11 @@ pub struct CamperJob {
     pub near_m: f32,
     pub far_m: f32,
     pub step_m: f32,
-    /// The job's bot is the nearest with a trap within this of the point, metres on the ground.
+    /// The job's bot is the nearest with a trap within this of the point, metres on the ground. [#2081] The walk must fit the
+    /// hold's typical remaining time: 6.5 s (the bench's held places, 16 plain matches m6: of 139 battery holds noted, half of those
+    /// still held at 2 s / 4 s lasted 6.7 s / 6.5 s more; of 115 job holds, 6.3 s / 7.2 s) at the body's forward walk, 3.5 m/s
+    /// (`kin.rs`, PROVEN): 22.75 m on the ground at most (a route is longer). Was 30 m: of 27 sends 3 arrived, 17 ended with
+    /// the hold first.
     pub max_walk_m: f32,
     /// A bot sent and not done in this long is let go (another may be sent), seconds.
     pub give_up_s: f32,
@@ -377,7 +382,7 @@ pub struct CamperJob {
 
 impl Default for CamperJob {
     fn default() -> Self {
-        Self { near_m: 6.0, far_m: 20.0, step_m: 3.0, max_walk_m: 30.0, give_up_s: 45.0, within_m: 1.5, friend_m: 4.0 }
+        Self { near_m: 6.0, far_m: 20.0, step_m: 3.0, max_walk_m: 22.75, give_up_s: 45.0, within_m: 1.5, friend_m: 4.0 }
     }
 }
 

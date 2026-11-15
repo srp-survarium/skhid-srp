@@ -853,15 +853,15 @@ pub(super) fn self_kills() -> Box<dyn RouteTopic> {
     )
 }
 
-/// [traps.keep_off] The route searches with the wider trap discs, and those with no way searched again with the narrow ones
-/// (`traps::keep_off_counts`): a way found, none, past the poll's floors.
+/// [traps.keep_off] The route searches with the trap discs at the one clearance, and the routes refused for passing an own trap
+/// nearer (`traps::keep_off_counts`, #2081).
 pub(super) fn keep_off() -> Box<dyn RouteTopic> {
     Delta::of(
         || crate::v026g::bots::traps::keep_off_counts::counts().to_vec(),
         |d, line| {
             line.ends.push(format!(
-                "keep_off_searches {} keep_off_narrow_found {} keep_off_narrow_none {} keep_off_narrow_left {}",
-                d[0], d[1], d[2], d[3]
+                "keep_off_searches {} own_trap_routes_refused {}",
+                d[0], d[1]
             ));
         },
     )
