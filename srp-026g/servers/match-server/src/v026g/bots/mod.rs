@@ -245,17 +245,24 @@ fn gates_line(keys: u32, gates: sprint_gates::WorldGates) -> String {
     )
 }
 
-/// [S6] What may stop a lethal fall's hit, as a bot's latest world shows it: the damage model's second chance armed
-/// (`m_have_second_chance`, `damage_model::second_chance` 0x332940), or a drug course on (`medkit::reduce_damage` 0x33DB30
-/// lowers a hit's amount while a course is active). A fall is closed as lethal ([`mapdata::FallRoom::Survives`]) only with
-/// [`Self::Nothing`].
+/// [S6] What may lower a lethal fall's hit, as a bot's latest world shows it, so that a fall is closed as lethal
+/// ([`mapdata::FallRoom::Survives`]) only with [`Self::Nothing`]:
+/// - the damage model's second chance armed (`m_have_second_chance`: `damage_model::second_chance` 0x332940 runs in every
+///   `hit_by_type`, 0x32A121, and zeroes the first part's hit, the right foot's, halving the fall's pain; never armed in 0.26g,
+///   `docs/notes/hand-kill.md`);
+/// - an artefact held: an active Onyx absorbs part of a hit (`docs/notes/hand-kill.md` has it take 75 % of a blunt one,
+///   `drugs_zones_artefacts.md` ranged only; not settled, so any artefact held leaves every fall open).
+///
+/// A drug course does not: `medkit::reduce_damage` 0x33DB30 lowers a hit only by the drug's protection for that part and
+/// type (0x33DAC0; none, unchanged at 0x33DB4A), and the stock drugs protect pain from ranged hits and infection from toxic
+/// ones only (`drugs_zones_artefacts.md`, PROVEN), never a fall's blunt hit (the exe review of #1969).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FallSave {
     /// No world read yet.
     Unread,
     /// Neither: the fall's hit lands whole.
     Nothing,
-    /// One of them may lower or stop it.
+    /// One of them may lower it.
     May,
 }
 
@@ -1594,11 +1601,11 @@ impl Bots {
     }
 
     /// [S6] A trusted world's word on what may stop a lethal fall's hit for one place ([`FallSave`]).
-    pub fn fall_save(&mut self, place: Place, second_chance: Option<bool>, course_on: bool) {
+    pub fn fall_save(&mut self, place: Place, second_chance: Option<bool>, artefact_held: bool) {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
             bot.fall_save = match second_chance {
                 None => FallSave::Unread,
-                Some(false) if !course_on => FallSave::Nothing,
+                Some(false) if !artefact_held => FallSave::Nothing,
                 Some(_) => FallSave::May,
             };
         }
