@@ -444,6 +444,9 @@ const LIVE_LEAVE_DELAY_S: [(f32, f32); 5] = [(0.1, 1.3), (0.25, 2.6), (0.5, 3.9)
 /// `camper_trace_leave_v1.py`). Before it was taken off, his kill to 10 m off ran 3.9-12.8 s (median about 6.2 s) against the
 /// live table's 3.9 s.
 const LEAVE_WALK_TO_OFF_MS: u32 = 3_200;
+/// [camper leave timing] A world's kill time older than this is not the kill he just saw (worlds come at most 2 s apart in a bench,
+/// `DEFAULT_PVB_WORLD_MS`, and he thinks at most 0.4 s later), ms.
+const KILL_SEEN_WITHIN_MS: u32 = 3_000;
 /// [A239c] After a death at his spot, a live camper against the old bots started his next run back within 10 m of it in 140 of
 /// 1,030 (`camp_leave.py`); those that did killed 4.69 a run, those elsewhere 2.21.
 const LIVE_BACK_P: f32 = 0.14;
@@ -580,6 +583,12 @@ pub(crate) struct Think<'a> {
     /// [G7] The time of his last hit as the world says it (the damage model's last hit, `motor::Hurt::last_hit_ms`; none
     /// this life): a hit is a newer one.
     pub(crate) last_hit_ms: Option<u32>,
+    /// [camper leave timing] The time of his last kill as the world says it (his statistics' `last_killed_enemy_ms`,
+    /// `WorldView::kill_times`; none if the world does not say). He sees the kill's count rise only at the next world, a median
+    /// 1.1 s after it (0.6-2.3 s, 11 kills, the camper trace of 2026-11-15); the leave's live draw runs from the kill itself.
+    pub(crate) kill_ms: Option<u32>,
+    /// [strong camper] His reflex has a seen target: he fights where he is and starts no peek.
+    pub(crate) engaged: bool,
 }
 
 /// How a motion begins.
@@ -753,7 +762,9 @@ impl CamperMotion {
         let Stayed { area, mut here, mut kills, mut last_kill, mut leave_at } = stayed;
         if killed {
             kills += 1;
-            last_kill = Some(now);
+            // [camper leave timing] The kill's own time, when the world says it (no later than now, within a world's lag).
+            let kill_at = t.kill_ms.filter(|&ms| ms <= now && now - ms <= KILL_SEEN_WITHIN_MS).unwrap_or(now);
+            last_kill = Some(kill_at);
             leave_at = match self.moving {
                 // Two kills make it a hold; he goes when nothing new comes for a few seconds.
                 MoveOptions::Area { dwell_s } => Some(
@@ -768,7 +779,7 @@ impl CamperMotion {
                     if self.rng.range(0.0, 1.0) < p {
                         self.counts.leaves_by_kill += 1;
                         // The draw is to 10 m off: the leave begins his walk there earlier.
-                        Some(now + from_quantiles_ms(&LIVE_LEAVE_DELAY_S, self.rng.range(0.0, 1.0)).saturating_sub(LEAVE_WALK_TO_OFF_MS))
+                        Some(kill_at + from_quantiles_ms(&LIVE_LEAVE_DELAY_S, self.rng.range(0.0, 1.0)).saturating_sub(LEAVE_WALK_TO_OFF_MS))
                     } else {
                         None
                     }
@@ -835,7 +846,8 @@ impl CamperMotion {
             }
             Hold::Out { until, side } if now >= until => self.cover(now, side),
             Hold::Out { until, side } => Hold::Out { until, side },
-            Hold::Cover { peek_at, side } if now >= peek_at && t.enemy.is_some() => {
+            // [strong camper] No new peek while he fights a seen target: he holds where he is and fires.
+            Hold::Cover { peek_at, side } if now >= peek_at && t.enemy.is_some() && !t.engaged => {
                 self.counts.peeks += 1;
                 Hold::Out {
                     until: now + rng_ms(&mut self.rng, OUT_MS.0, OUT_MS.1),
@@ -1482,7 +1494,8 @@ impl BenchCamper {
                 };
                 bot.control = Driver::BenchCamper;
                 let enemy = nearest_known(bot.memory.tracks(), me.feet, now);
-                bot.intent = motion.step(&Think { now, me, enemy, tactics, side, last_hit_ms: bot.hurt.last_hit_ms });
+                let kill_ms = due.view.kill_times.get(bot.place).copied().filter(|&ms| ms > 0);
+                bot.intent = motion.step(&Think { now, me, enemy, tactics, side, last_hit_ms: bot.hurt.last_hit_ms, kill_ms, engaged: bot.reflex.target().is_some() });
                 motion.holds_cover().then(|| motion.spot())
             }
         };
@@ -1593,7 +1606,7 @@ mod tests {
         let mut asked: Vec<Vec3> = Vec::new();
         let mut feet = here(m);
         for now in (from..to).step_by(100) {
-            let t = Think { now, me: &me_at(feet, kills(now), 1.0, life(now)), enemy, tactics, side: 0, last_hit_ms: None };
+            let t = Think { now, me: &me_at(feet, kills(now), 1.0, life(now)), enemy, tactics, side: 0, last_hit_ms: None, kill_ms: None, engaged: false };
             let intent = m.step(&t);
             if let Go::To { at, .. } = intent.go {
                 feet = at;
@@ -1633,11 +1646,11 @@ mod tests {
         assert!((2.4..=3.6).contains(&moved), "{moved}");
         // A hit: the world's last hit time is newer than the last think's.
         let mut h = motion();
-        h.step(&Think { now: 0, me: &me_at(here(&h), 0, 1.0, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None });
-        h.step(&Think { now: 100, me: &me_at(here(&h), 0, 0.7, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: Some(80) });
+        h.step(&Think { now: 0, me: &me_at(here(&h), 0, 1.0, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None, kill_ms: None, engaged: false });
+        h.step(&Think { now: 100, me: &me_at(here(&h), 0, 0.7, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: Some(80), kill_ms: None, engaged: false });
         assert_eq!(h.counts.after_hit, 1);
         // [G7] A loss with no hit (a zone, a fall) is no hit, and the same hit is not counted twice.
-        h.step(&Think { now: 200, me: &me_at(here(&h), 0, 0.5, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: Some(80) });
+        h.step(&Think { now: 200, me: &me_at(here(&h), 0, 0.5, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: Some(80), kill_ms: None, engaged: false });
         assert_eq!(h.counts.after_hit, 1);
     }
 
@@ -1727,14 +1740,14 @@ mod tests {
         let mut died = motion_with(live, 1);
         let spot = here(&died);
         died.mode = Mode::Leave { to: Vec3::new(30.0, 0.0, 0.0), since: 1_000, after_kill: Some(KillLeave { kill_at: 500, spot }) };
-        died.step(&Think { now: 1_100, me: &me_at(spot, 0, 1.0, 9_000), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None });
+        died.step(&Think { now: 1_100, me: &me_at(spot, 0, 1.0, 9_000), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None, kill_ms: None, engaged: false });
         assert_eq!((died.counts.kill_leaves_cut, died.kill_to_off_ms.len()), (1, 0), "{:?}", died.counts);
         // A next spot 8 m off (an anchored scenario's `ANCHORED_MIN_M`): he arrives short of 10 m off, counted short.
         let mut short = motion_with(live, 1);
         let spot = here(&short);
         let next = spot + Vec3::new(8.0, 0.0, 0.0);
         short.mode = Mode::Leave { to: next, since: 1_000, after_kill: Some(KillLeave { kill_at: 500, spot }) };
-        short.step(&Think { now: 1_100, me: &me_at(next, 0, 1.0, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None });
+        short.step(&Think { now: 1_100, me: &me_at(next, 0, 1.0, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None, kill_ms: None, engaged: false });
         assert!(matches!(short.mode, Mode::Stay { .. }), "arrived: {:?}", short.mode);
         assert_eq!((short.counts.kill_leaves_short, short.counts.kill_leaves_cut, short.kill_to_off_ms.len()), (1, 0, 0), "{:?}", short.counts);
         assert!(short.kill_to_off_line().contains("(n 0, cut 0, arrived short 1;"), "{}", short.kill_to_off_line());
@@ -1807,7 +1820,7 @@ mod tests {
         let (first, _) = camper_spot_at(&tactics, 0, &live).expect("a spot");
         let mut m = motion_with(live, 1);
         // A new life far from it: he heads for the first spot.
-        m.step(&Think { now: 1_000, me: &me_at(Vec3::new(5.0, 0.0, 10.0), 0, 1.0, 900), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None });
+        m.step(&Think { now: 1_000, me: &me_at(Vec3::new(5.0, 0.0, 10.0), 0, 1.0, 900), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None, kill_ms: None, engaged: false });
         assert!(matches!(m.mode, Mode::Leave { to, .. } if to == first), "{:?}", m.mode);
     }
 
@@ -1854,7 +1867,7 @@ mod tests {
         let mut now = 0;
         let feet = Vec3::new(0.0, 0.0, 0.0);
         while now < 120_000 {
-            stuck.step(&Think { now, me: &me_at(feet, 0, 1.0, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None });
+            stuck.step(&Think { now, me: &me_at(feet, 0, 1.0, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None, kill_ms: None, engaged: false });
             now += 100;
         }
         assert!(stuck.counts.gave_up >= 1, "{:?}", stuck.counts);
@@ -1872,7 +1885,7 @@ mod tests {
             let spot = here(&m);
             // Alive to 3 s, dead for 8 s, a new life from 11 s.
             run_lives(&mut m, &tactics, 0, 3_000, None, |_| 0, |_| 0);
-            m.step(&Think { now: 11_000, me: &me_at(spot, 0, 1.0, 7), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None });
+            m.step(&Think { now: 11_000, me: &me_at(spot, 0, 1.0, 7), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None, kill_ms: None, engaged: false });
             match m.mode {
                 Mode::Return { at, to } if to == spot => {
                     back += 1;
