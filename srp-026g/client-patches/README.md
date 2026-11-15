@@ -4191,7 +4191,10 @@ The melee key while carrying a battery swings it (`docs/notes/battery-hit.md`). 
   put's and take -> carry's functors), each tried once its clip ended.
 - **The strike**, the swing's finalize once its clip ended (the impact): the gun-stock hit's bullet
   (`emit_bullet` as 0x33AB50 gives it) of the carrier's slot-7 gun, else slot 10's, from the eye
-  along its forward row. Patch 108 makes it kill. The gun is deactivated (no user, no posture)
+  along the first of 15 rays over the battery's face (a fixed 5 x 3 grid 0.7 m ahead, the look
+  first; each the game's ray test 0x75E20 as check_collision's, its requester a stand-in of the
+  carrier's bullet owner) whose first hit is a living player's body, else along the look. Patch 108
+  makes it kill. The gun is deactivated (no user, no posture)
   and the bullet reads both through it all its life (player_stance 0x2E43A0 at the constructor,
   the melee damage 0x2E1CF0 / 0x2E1C80 at every step and hit): four filtered lohooks at those
   reads (0x2E43A3, 0x2E43B9, 0x2E1D00, 0x2E1C99, called only for a null read) give the gun's

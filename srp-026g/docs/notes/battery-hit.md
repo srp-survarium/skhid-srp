@@ -37,9 +37,22 @@
   so sprinting may swing as the gun may; read from the battery's clip set). The gun's other
   rule, not aimed (+5E8h), has no carrier's counterpart. melee_pred has no +5ECh test.
 - **Who:** every carrier, bots too (their `attack_melee` presses the key in melee range).
-- **Effect:** at the swing's end, one melee bullet as the gun-stock hit's: from the eye, along
-  the look, the carrier's primary gun's (slot 7) melee data and distance. The carrier keeps the
-  battery.
+- **Effect:** at the swing's end, one melee bullet as the gun-stock hit's: from the eye, the
+  carrier's primary gun's (slot 7) melee data and distance, aimed over the battery's face (below).
+  The carrier keeps the battery.
+- **The hitbox** (the owner, 2026-11-15: "the hitbox should be bigger to cover more than a gun
+  stock"): before the bullet, 15 rays from the eye with the game's own ray test, through a fixed,
+  ordered grid of 5 x 3 points on the plane square to the look 0.7 m ahead (the battery's front at
+  the impact: the swing's last frame posed as the game mixes it spans 0.28..0.71 m ahead, 0.38 m
+  left to 0.27 m right, 0.06..0.35 m below the look): 0.6 m wide around the look (-0.3, -0.15, 0,
+  0.15, 0.3 m), 0.35 m from the look down to the battery's lower edge (0, -0.175, -0.35 m); the
+  look first, then by distance from it, left before right. Each ray is the bullet's own length (the
+  gun's melee distance, 1.7 m: 1.0 m past the battery's front on the look, 0.72 m at the corners),
+  so the bullet reaches whatever its ray found. The first ray whose first hit is a living player's
+  body (a wall, a lamp or anything else first blocks that ray) is the bullet's direction; none: the
+  look, as the gun-stock hit. One bullet: one victim a strike, its walls, teams and damage the
+  native bullet's. Every game computes the same: the eye, the look and the physics world of the
+  same tick.
 - **Damage (assumed):** the gun's melee data is blunt with an attacker, so patch 108 kills at
   once wherever it lands. A battery's own damage would need its own bullet data: the owner's
   call.
@@ -196,7 +209,23 @@
 - A battery whose machine is not the three states, or no memory, or a carrier who cannot
   strike: a crash (`expect`), not a skip.
 - The strike: `emit_bullet` with the arguments the gun-stock hit gives it (0x33AB50), EDI the
-  gun (slot 7, else 10), the time the carrier's. Nothing of the gun is written.
+  gun (slot 7, else 10), the time the carrier's, its velocity along the aim. Nothing of the gun
+  is written.
+- **The aim** (PROVEN, static and in the check): each ray is bullet_physics_world::ray_test
+  0x75E20 (engine_ray_test; abi.tsv) as check_collision makes the bullet's own (0x32D5EE: group
+  10h, mask 48h, the hittable level and the hit models; unflipped). Its requester (the bullet in
+  check_collision) is read only by a hit model's delegate (needsCollision 0x75BD0 -> 0x205E0 ->
+  base_player::recompute_damage_collision_bones 0x2DA5B0), which reads only its [+8]+4, the
+  shooter's place, and skips that player's body (0x2DA5E3): the strike's requester is a stand-in
+  whose +8 is the carrier's bullet owner (+110h), so the bullet is made once, along the aim. A
+  living player's body is what patch 103 and vostok::bullet call one: a bt_animated_rigid_body
+  (vtable 0x9E2AF4) of material actor (+38h, 10); check_collision itself tells a hittable from the
+  level by the object's game object (+0Ch, cast to the hit target, 0x32D705). A carried battery
+  has no body in the physics world (picked_up_by_player 0x300D0E -> 0x300690 -> 0x301DB0 takes it
+  out), so the rays through the battery's own place meet nothing of it. The aim sees the bodies
+  where this tick's physics left them; the bullet's own flight (patch 103) meets a moving one where
+  it stood when crossed, so a fast target at a ray's edge may be missed after all, as by the
+  gun-stock hit.
 - **The bullet and the deactivated gun.** A carrier's guns are deactivated (deactivate
   0x2E2EE0: user +8 0, its clip set's posture +278h -> +20h 0). The bullet keeps its gun (+0Ch,
   the gun's item, 0x32BB12) and reads that user and posture through it all its life:
@@ -280,9 +309,15 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
   - the melee key while the carrier's posture is a jump: the carry stays (sprint, run: the
     swing); a strike whose gun has no player: the substitution's named panic;
   - controls in the original exe: the constructor faults at 0x2E43A3, the flight at 0x2E1D00.
+  - the aim: 15 ray tests from the eye as check_collision's (the melee distance, group 10h, mask
+    48h, unflipped, the requester's shooter the carrier's); a body off the look within the
+    battery's width (0.22..0.4 m right) or below the look at its height: the bullet along the
+    first ray to it, one hit (the game's bullet::tick); a body just past its width (0.36 m) or
+    under its lower edge (0.4 m down): along the look, no hit; a wall in front of the body: no
+    hit; a body 9 rays meet: one bullet, one hit.
   Stubbed: the allocator, a clip's time scale, the animation event channels, the battery's
-  transform calls, the bullet pool's room and live-list add, the physics world's ray test and
-  bounds, the struck target.
+  transform calls, the bullet pool's room and live-list add, the physics world's ray test (a scene
+  of boxes on the battery's front) and bounds, the struck target.
 - `cargo test` and Clippy of the patches crate and srp-validate (states 3 and 4 read, 5 refused).
 - The clips: `make_clips.py --check` (the committed files are the keys'); the offline previews
   (no near-plane crossing, no body inside the battery, every frame).

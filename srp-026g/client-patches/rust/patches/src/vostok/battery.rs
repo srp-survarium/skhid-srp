@@ -318,8 +318,10 @@ impl<'t> Carrier<'t> {
     }
 
     /// The gun-stock hit's bullet (0x33AB50's emit_bullet) of its first gun
-    /// (slot 7, else 10): from the eye's place along its forward row times
-    /// the gun's melee distance, the gun's melee data, now.
+    /// (slot 7, else 10): from the eye's place, the gun's melee data and
+    /// distance, now; along the first of the [`strike_rays`] over the
+    /// battery's face whose first hit is a living player's body, else along
+    /// the look as the gun-stock hit. One bullet, so one victim a strike.
     ///
     /// The gun is deactivated while the battery is held (weapon_core's
     /// deactivate 0x2E2EE0: no user, its clip set no posture). Where the
@@ -339,9 +341,16 @@ impl<'t> Carrier<'t> {
                     .then(|| gun.weapon())
             }).ok_or(NoStrike::NoGun)?;
             let manager = gun.bullet_manager().ok_or(NoStrike::NoBulletManager)?;
+            let physics = manager.physics().ok_or(NoStrike::NoPhysics)?;
             let eye = self.player.eye();
+            let row = |r: usize| [0, 1, 2].map(|i| read(eye.add(4 * r + i)));
+            let (right, up, forward, place) = (row(0), row(1), row(2), row(3));
             let distance = read(gun.melee_distance());
-            let velocity = [8, 9, 10].map(|i| read(eye.add(i)) * distance);
+            let requester = RayRequester { _unread: [0; 2], shooter: self.player.bullet_owner() };
+            let direction = strike_rays(right, up, forward)
+                .find(|direction| first_hits_body(physics, &requester, place, *direction, distance))
+                .unwrap_or(forward);
+            let velocity = direction.map(|v| v * distance);
             raw::engine_emit_bullet(Some(gun), Some(manager), eye.add(12), velocity.as_ptr(),
                                     gun.melee_data().cast(), read(self.player.time()),
                                     Some(self.player.bullet_owner()), self.player.bullet_subject().cast(), 0);
@@ -350,15 +359,88 @@ impl<'t> Carrier<'t> {
     }
 }
 
+/// The battery's front at the impact, m ahead of the eye (the swing's last
+/// frame posed as the game mixes it, scripts/battery-hit/preview.py: the
+/// battery spans 0.28..0.71 m ahead, 0.38 m left to 0.27 m right, 0.06 to
+/// 0.35 m below the look).
+const STRIKE_FACE: f32 = 0.7;
+/// The strike's grid on the plane square to the look [`STRIKE_FACE`] ahead,
+/// (right, up) m: 5 x 3 points 0.6 m wide around the look and 0.35 m from
+/// the look down to the battery's lower edge, nearest the look first, left
+/// before right: a fixed order, so every game picks the same ray.
+const STRIKE_GRID: [(f32, f32); 15] = [
+    (0.0, 0.0),
+    (-0.15, 0.0), (0.15, 0.0),
+    (0.0, -0.175),
+    (-0.15, -0.175), (0.15, -0.175),
+    (-0.3, 0.0), (0.3, 0.0),
+    (-0.3, -0.175), (0.3, -0.175),
+    (0.0, -0.35),
+    (-0.15, -0.35), (0.15, -0.35),
+    (-0.3, -0.35), (0.3, -0.35),
+];
+
+/// The strike's rays from the eye whose rows are `right`, `up` and
+/// `forward` (unit): through each point of [`STRIKE_GRID`], in its order,
+/// the first the look itself. Each is cast the bullet's own length (the
+/// gun's melee distance, 1.7 m: 1.0 m past the battery's front on the look,
+/// 0.72 m at the grid's corners), so the bullet reaches what its ray found.
+pub fn strike_rays(right: [f32; 3], up: [f32; 3], forward: [f32; 3]) -> impl Iterator<Item = [f32; 3]> {
+    STRIKE_GRID.into_iter().map(move |(x, y)| {
+        if (x, y) == (0.0, 0.0) {
+            return forward;
+        }
+        let ray = [0, 1, 2].map(|i| forward[i] * STRIKE_FACE + right[i] * x + up[i] * y);
+        let length = core::f32::math::sqrt(ray[0] * ray[0] + ray[1] * ray[1] + ray[2] * ray[2]);
+        ray.map(|v| v / length)
+    })
+}
+
+/// check_collision's ray (0x32D5EE..0x32D5F5): group 10h, mask 48h (the
+/// hittable level and the hit models), the unflipped normal.
+const BULLET_GROUP: u32 = 0x10;
+const BULLET_MASK: u32 = 0x48;
+
+/// What a ray test hands a hit model's delegate as check_collision's bullet
+/// (needsCollision 0x75BD0 passes its requester to it, 0x75BFB):
+/// recompute_damage_collision_bones 0x2DA5B0 reads only its +8, the
+/// shooter, whose place (+4) it skips (0x2DA5E3), so the carrier's own body
+/// is not met.
+#[repr(C)]
+struct RayRequester {
+    _unread: [u32; 2],
+    shooter: raw::BulletOwner,
+}
+
+/// Whether the ray's first hit is a living player's body: the game's own
+/// ray test as the bullet's check_collision makes it, so a wall in front
+/// stops it.
+///
+/// # Safety
+/// `physics` is alive, on the simulation's thread.
+unsafe fn first_hits_body(physics: raw::BulletPhysicsWorld, requester: &RayRequester, origin: [f32; 3],
+                          direction: [f32; 3], length: f32) -> bool {
+    let mut room = raw::RayResultStorage::zeroed();
+    let result = room.handle();
+    // SAFETY: our result, float3s and requester, alive for the call.
+    unsafe {
+        raw::engine_ray_test(Some(physics), Some(result), origin.as_ptr(), direction.as_ptr(), length, BULLET_GROUP,
+                             BULLET_MASK, (requester as *const RayRequester).cast(), 1);
+        result.object().is_some_and(|object| super::ray_test::living_body(object))
+    }
+}
+
 /// Why a carrier could not strike. None happens in a match: a living
 /// player has an inventory, a kit without guns in slots 7 and 10 crashes
 /// every game at the spawn, and every roster gun has its bullet manager
-/// (base_player::set_bullet_manager 0x2D7570).
+/// (base_player::set_bullet_manager 0x2D7570), every manager the match's
+/// physics world.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NoStrike {
     NoInventory,
     NoGun,
     NoBulletManager,
+    NoPhysics,
 }
 
 /// The player a gun belongs to: the holder of its inventory (its item's
@@ -428,4 +510,25 @@ pub fn substitute_posture(ctx: &mut Context<'_>) {
     };
     let posture = posture.expect("patch 143: a deactivated gun's player holds a battery with a posture");
     ctx.set_reg(super::Reg::Eax, posture.address());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strike_rays_start_on_the_look_and_cover_the_face() {
+        let (right, up, forward) = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
+        let rays: Vec<[f32; 3]> = strike_rays(right, up, forward).collect();
+        assert_eq!(rays.len(), 15);
+        assert_eq!(rays[0], forward, "the look first, as the gun-stock hit");
+        for ray in &rays {
+            assert!((ray[0] * ray[0] + ray[1] * ray[1] + ray[2] * ray[2] - 1.0).abs() < 1e-6);
+        }
+        // each crosses the battery's front at its grid point
+        for (ray, (x, y)) in rays.iter().zip(STRIKE_GRID) {
+            assert!((ray[0] / ray[2] * STRIKE_FACE - x).abs() < 1e-6 && (ray[1] / ray[2] * STRIKE_FACE - y).abs() < 1e-6);
+        }
+        assert!(rays.iter().all(|ray| ray[1] <= 0.0), "from the look down to the battery's lower edge");
+    }
 }

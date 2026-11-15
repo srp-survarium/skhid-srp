@@ -22,8 +22,10 @@ clip's time scale (0x30D750: its time argument kept), the animation
 player's event channels (subscribe 0x391C40, unsubscribe 0x3921A0), the
 battery's get_transform / set_transform (victory_item's vtable +24h,
 +0A4h), the bullet pool's room (0x323200) and live-list add (0x322A30),
-the physics world (its ray test +48h: nothing, or a body; its bounds +64h),
-the struck body (its material, its cast, its hit +24h kept), the world
+the physics world (its ray test, +48h and 0x75E20 called directly by the
+strike's aim: nothing, a body, or a scene of a body and a wall on the
+battery's front; its bounds +64h), the struck body (a hit model's body:
+the game's vtable, material actor; its cast, its hit +24h kept), the world
 writers (their bytes kept). Checked:
 
 - the cook's site: the original leaves the three states; the patched exe
@@ -45,6 +47,13 @@ writers (their bytes kept). Checked:
   reading the gun's melee damage) and a hit (a body met: try_pierce hits it
   once, the carrier the shooter, the gun's item the source, the damage read
   again at 0x32DA5A); the gun never written;
+- the strike's aim: 15 ray tests from the eye as check_collision's (the
+  melee distance, group 10h, mask 48h, the carrier's own body skipped);
+  a body off the look within the battery's width, or below the look at
+  its height: the bullet along the first ray to it, one hit; a body just
+  past its width or under its lower edge: along the look, no hit; a wall
+  in front of the body: no hit; a body several rays meet: one bullet, one
+  hit;
 - put away mid-swing (deactivate): the strike only with its clip ended and
   its carrier alive; a dead carrier's swing may be put away, a living
   one's not; left before its clip ended: no strike;
@@ -92,6 +101,12 @@ GUN_ANIMS, BATTERY_ANIMS, POSTURE = DATA + 0x92000, DATA + 0x93000, DATA + 0x940
 # meets (its collision object, game object and the hit target the object casts to)
 PHYS, RESULT, BOUNDS = DATA + 0x95000, DATA + 0x95200, DATA + 0x95300
 COLLISION, GAME_OBJECT, TARGET, MATERIAL = DATA + 0x96000, DATA + 0x96100, DATA + 0x96200, DATA + 0x97000
+WALL = DATA + 0x96400            # a level object between (not a hit model's body, no game object)
+RAY_TEST = 0x75E20               # bullet_physics_world::ray_test, called directly by the strike's aim (ret 20h)
+ANIMATED_BODY_VTABLE = 0x9E2AF4  # a hit model's body (bt_animated_rigid_body; its +10h 0x70C00 reads +38h)
+ACTOR = 10                       # its material (+38h)
+STRIKE_FACE = 0.7                # battery.rs STRIKE_FACE
+RIGHT, UP, FORWARD = (1.0, 0.0, 0.0), (0.0, 0.8, -0.6), (0.0, 0.6, 0.8)   # the carrier's eye
 BULLET_TICK, AFTER_PIERCE = 0x32C180, 0x32D886   # bullet::tick (EAX now; the bullet; ret 4); check_collision after try_pierce
 PIERCE_DAMAGE, STEP_DAMAGE = 0x32DA5A, 0x32F09A     # try_pierce's and update_bullet_position's damage calls
 MELEE_DAMAGE_READ = 0x2E1D00
@@ -117,6 +132,7 @@ class Run(hide.Run):
         for at, handler in ((MALLOC, self.malloc), (NAME, self.name), (SCALE, self.scale),
                             (SUBSCRIBE, self.subscribe), (UNSUBSCRIBE, self.unsubscribe), (EMIT, self.emit),
                             (POOL, self.pool), (LISTED, self.listed), (STUBS + 0x40, self.ray), (STUBS + 0x80, self.hit),
+                            (RAY_TEST, self.ray_direct),
                             (PIERCE_DAMAGE, self.pierce_damage), (STEP_DAMAGE, self.step_damage)):
             self.emu.hook_add(UC_HOOK_CODE, handler, begin=at, end=at)
         self.written = bytearray()
@@ -198,16 +214,41 @@ class Run(hide.Run):
 
     def ray(self, emu, *_):
         """The physics world's ray test (+48h, thiscall, 8 arguments): what
-        the case says the ray meets, in the 28h bytes check_collision copies
-        (the point, the normal, +1Ch the collision object)."""
+        the case says the ray meets, in the result it was given (28h bytes:
+        the point, the normal, +1Ch the collision object), EAX the result.
+        With a scene: the nearest object whose box on the battery's front
+        (right and up spans, STRIKE_FACE ahead of the eye) the ray crosses;
+        else `meets`: the body."""
+        result = self.arg(1)
         origin = struct.unpack("<3f", self.read(self.arg(2), 12))
+        direction = struct.unpack("<3f", self.read(self.arg(3), 12))
         self.rays.append(origin)
-        self.emu.mem_write(RESULT, bytes(0x28))
-        if self.meets:
-            self.floats(RESULT, [origin[0], origin[1], origin[2] + 0.01])
-            self.floats(RESULT + 0x10, [0.0, 0.0, -1.0])
-            self.word(RESULT + 0x1C, COLLISION)
-        emu.reg_write(UC_X86_REG_EAX, RESULT)
+        self.emu.mem_write(result, bytes(0x28))
+        met = None
+        if self.scene is None:
+            met = (COLLISION, 0.01) if self.meets else None
+        else:
+            dot = lambda axis: sum(a * b for a, b in zip(axis, direction))
+            right, up = (dot(RIGHT) / dot(FORWARD) * STRIKE_FACE, dot(UP) / dot(FORWARD) * STRIKE_FACE)
+            for thing, (left, right_edge), (low, high), distance in self.scene:
+                if left <= right <= right_edge and low <= up <= high and (met is None or distance < met[1]):
+                    met = (thing, distance)
+        if met is not None:
+            self.floats(result, [origin[i] + direction[i] * met[1] for i in range(3)])
+            self.floats(result + 0x10, [0.0, 0.0, -1.0])
+            self.word(result + 0x1C, met[0])
+        emu.reg_write(UC_X86_REG_EAX, result)
+
+    def ray_direct(self, emu, *_):
+        """ray_test 0x75E20 called directly (the strike's aim): as the stub,
+        then its ret 20h; what it was asked: (origin, length, group, mask,
+        the requester's +8, unflipped)."""
+        requester = self.arg(7)
+        self.aims.append((struct.unpack("<3f", self.read(self.arg(2), 12)),
+                          struct.unpack("<f", struct.pack("<I", self.arg(4)))[0], self.arg(5), self.arg(6),
+                          requester and self.read(requester + 8), self.arg(8) & 0xFF))
+        self.ray(emu)
+        self.ret(0x20, self.arg(1))
 
     def pierce_damage(self, emu, *_):
         self.reads.append(("pierce", emu.reg_read(UC_X86_REG_ECX)))
@@ -234,9 +275,11 @@ class Run(hide.Run):
         self.emu.mem_write(DATA, bytes(SIZE))
         self.next, self.allocated, self.times, self.channels, self.emitted = HEAP, [], [], [], []
         self.bullets, self.rays, self.hits, self.meets, self.reads = [], [], [], False, []
+        self.scene, self.aims = None, []
         # the physics world: its ray test (a hook of ours at STUBS+40h, then
         # ret 20h), the level's bounds (a box of 10 km); a body: its
-        # collision object (its material +10h: none, 0FFFFh), its game
+        # collision object (a hit model's: the game's vtable, its material
+        # +38h actor, which the vtable's +10h 0x70C00 reads), its game
         # object (+0Ch; its +0 casts to the target), the target (its hit
         # +24h a hook of ours at STUBS+80h, then ret 28h; +8h: pierceable)
         stubs = {0x40: b"\xC2\x20\x00", 0x60: b"\xB8" + struct.pack("<I", BOUNDS) + b"\xC2\x04\x00",
@@ -249,8 +292,10 @@ class Run(hide.Run):
         self.word(PHYS + 0x100 + 0x48, STUBS + 0x40)
         self.word(PHYS + 0x100 + 0x64, STUBS + 0x60)
         self.floats(BOUNDS, [-1e4, -1e4, -1e4, 1e4, 1e4, 1e4])
-        self.word(COLLISION, COLLISION + 0x80)
-        self.word(COLLISION + 0x80 + 0x10, STUBS + 0xA0)
+        self.word(COLLISION, ANIMATED_BODY_VTABLE)
+        self.emu.mem_write(COLLISION + 0x38, struct.pack("<H", ACTOR))
+        self.word(WALL, WALL + 0x80)
+        self.word(WALL + 0x80 + 0x10, STUBS + 0xA0)
         self.word(COLLISION + 0xC, GAME_OBJECT)
         self.word(GAME_OBJECT, GAME_OBJECT + 0x80)
         self.word(GAME_OBJECT + 0x80, STUBS + 0xC0)
@@ -273,12 +318,12 @@ class Run(hide.Run):
                 self.word(QUERIES + 0x128 + 0x2E0 * (2 + 6 * state + i), clip)
         self.word(QUERIES + 0x38, 2 + 6 * 5)            # the config, the skeleton, five states' clips
         # the carrier: alive, holding the battery, at 1000 ms; its eye at
-        # (1, 2, 3) looking along (0, 0, 1); its guns in slots 7 and 10
+        # (1, 2, 3) looking along FORWARD; its guns in slots 7 and 10
         self.emu.mem_write(PLAYER + 0x33C, b"\x01")
         self.word(PLAYER + 0x128, BATTERY)
         self.word(PLAYER + 0x12C, BATTERY)
         self.word(PLAYER + 0x324, 1000)
-        self.floats(PLAYER + 0x44C, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0.6, 0.8, 0, 1, 2, 3, 1])
+        self.floats(PLAYER + 0x44C, [*RIGHT, 0, *UP, 0, *FORWARD, 0, 1, 2, 3, 1])
         self.word(PLAYER + 0x10C, INVENTORY)
         self.word(INVENTORY + 0x174, PLAYER + 0x108)  # the inventory's holder: the player's +108h interface
         self.word(PLAYER + 0x128, BATTERY)
@@ -553,6 +598,67 @@ def main():
           "meeting a body: check_collision 0x32D4E0, its step to the point and try_pierce 0x32D960 hit the target "
           "once (the carrier its shooter, the gun's item the source) and read the gun's melee damage again "
           "(0x32DA5A); the gun never written")
+
+    print("the strike's aim over the battery's face (battery.rs STRIKE_GRID: the game's ray test from the eye)")
+
+    def aimed(scene):
+        """A strike in `scene` and its bullet's first tick there: (bullets
+        made, its velocity, its start velocity, the targets hit)."""
+        swing = swinging()
+        new.scene = scene
+        new.emu.mem_write(swing + 0x28, b"\x01")
+        try:
+            assert new.tick() == new.states()[4]
+        except UcError:
+            print("DEBUG fault at", hex(new.emu.reg_read(UC_X86_REG_EIP)), [hex(new.read(new.emu.reg_read(hide.UC_X86_REG_ESP) + 4 * i)) for i in range(6)])
+            raise
+        made = len(new.emitted)
+        velocity = struct.unpack("<3f", new.read(BULLET + 0x1C, 12))
+        start = struct.unpack("<3f", new.read(BULLET + 0x34, 12))
+        new.hits = []
+        sp = hide.STACK + 0x9000
+        new.word(sp, hide.SENTINEL)
+        new.word(sp + 4, BULLET)
+        new.run(BULLET_TICK, (hide.SENTINEL, AFTER_PIERCE), sp, {**hide.GAME, UC_X86_REG_EAX: 1050})
+        return made, velocity, start, len(new.hits)
+
+    def toward(x, y):
+        """The bullet's velocity along the ray through (x right, y up) on the battery's front."""
+        ray = [FORWARD[i] * STRIKE_FACE + RIGHT[i] * x + UP[i] * y for i in range(3)]
+        length = sum(v * v for v in ray) ** 0.5
+        return [v / length * 1.7 for v in ray]
+
+    def near(a, b):
+        return all(abs(p - q) < 1e-4 for p, q in zip(a, b))
+
+    TALL = (-1.0, 1.0)
+    made, velocity, start, hits = aimed([(COLLISION, (0.36, 0.6), TALL, 0.9)])
+    check(len(new.aims) == 15 and all(aim == ((1.0, 2.0, 3.0), f32(1.7), 0x10, 0x48, PLAYER + 0x110, 1) for aim in new.aims),
+          "nothing on the battery's face: its 15 rays, each the game's ray test as check_collision's (from the eye, the "
+          "melee distance 1.7 m, group 10h, mask 48h, unflipped), its requester's shooter the carrier's (+110h: his "
+          "own body skipped, 0x2DA5E3)")
+    centre = toward(0.0, 0.0)
+    made, velocity, start, hits = aimed([(COLLISION, (0.22, 0.4), TALL, 0.9)])
+    check(made == 1 and near(velocity, toward(0.3, 0.0)) and near(start, velocity) and hits == 1,
+          "a body off the look, within the battery's width (0.22..0.4 m right on its front): the one bullet along the "
+          "grid's first ray to it (0.3 m right on the look's row), and it hits once")
+    made, velocity, start, hits = aimed([(COLLISION, (-0.1, 0.1), (-0.4, -0.1), 0.9)])
+    check(made == 1 and near(velocity, toward(0.0, -0.175)) and hits == 1,
+          "a body below the look at the battery's height (0.1..0.4 m down): along the ray 0.175 m down, one hit")
+    made, velocity, start, hits = aimed([(COLLISION, (0.36, 0.6), TALL, 0.9)])
+    check(made == 1 and near(velocity, centre) and near(start, centre) and hits == 0,
+          "a body just past the battery's width (0.36..0.6 m right): along the look, as the gun-stock hit, no hit")
+    made, velocity, start, hits = aimed([(COLLISION, (-0.1, 0.1), (-0.6, -0.4), 0.9)])
+    check(made == 1 and near(velocity, centre) and hits == 0,
+          "a body just under the battery's lower edge (0.4..0.6 m down): along the look, no hit")
+    made, velocity, start, hits = aimed([(COLLISION, (0.22, 0.4), TALL, 0.9), (WALL, (0.1, 0.5), TALL, 0.5)])
+    check(made == 1 and near(velocity, centre) and hits == 0,
+          "the same body behind a wall (0.1..0.5 m right, 0.5 m ahead): the wall is each such ray's first hit, along "
+          "the look, no hit")
+    made, velocity, start, hits = aimed([(COLLISION, (-0.2, 0.2), TALL, 0.9)])
+    check(made == 1 and near(velocity, centre) and hits == 1,
+          "a body in front that 9 of the rays meet (0.2 m each side): one bullet, along the look (the first ray), "
+          "one hit")
     swing = swinging()
     new.word(INVENTORY + 0x10C + 4 * 7, 0)
     new.emu.mem_write(swing + 0x28, b"\x01")
