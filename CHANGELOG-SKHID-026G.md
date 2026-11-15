@@ -9,6 +9,19 @@ release that made it what it is now.
 
 ---
 
+## 15 Nov, 21:20 — TODO: the owner's words (update required)
+
+<!-- Revision 61 (026g-rev61), released 2026-11-15 21:20 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2078 Winchester 1894: damage 0.94, two body hits through every armour
+- TODO: #2079 Training Camp: no map theme
+- TODO: #2083 Training Camp: its bonfires burn (the game's own fire zone)
+- TODO: #2080 Shop: "Hide owned" remembered with the account
+- TODO: #2084 Training Camp minimap: the three trucks in their gateways
+- TODO: #2085 Training Camp Free for All at the owner's 47 picks; the map test's counts brought to the data
+- TODO: #2086 Vostok Free for All: a spawn on the checkpoint's roof, and roofs walkers stand on
+- TODO: #2095 Complete 0.69 scope coverage and fix attachment alignment
+
 ## 15 Nov, 16:26 — TODO: the owner's words (update required)
 
 <!-- Revision 60 (026g-rev60), released 2026-11-15 16:26 UTC. To be worded for players; what it shipped: -->
