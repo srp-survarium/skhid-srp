@@ -4371,7 +4371,7 @@ mod tests {
     /// nothing after his death: the point goes with the job;
     /// taken off the list, one point a man. Every step is a note.
     #[test]
-    fn the_camper_job_traps_the_way_in_of_held_places_and_keeps_it_for_his_return() {
+    fn the_camper_job_traps_the_way_in_of_held_places_while_they_are_held() {
         use crate::v026g::bots::know::{CamperTrapKind, CamperTrapState, TeamKnowledge};
         use crate::v026g::bots::threat::HeldLine;
         let world = crate::v026g::bots::tactics::tests::field_with(|map| map.spawns.retain(|s| s.team == 0));
