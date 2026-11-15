@@ -1,9 +1,9 @@
 {
-  "_comment": "The battery swing (exe patch 143, docs/notes/battery-hit.md): a forward ram, authored on the stock rig (scripts/battery-hit: swing.py's keys, make_clips.py writes them) as the game plays a battery state: its player clips move the carrier's arms alone (bone mask 2), its battery clips the battery by its own offset bone. The battery's states 3 (the swing: wind-up and push, ending on the impact) and 4 (the recovery: held out, back to the carry idle), which the cook loads as it loads states 0 to 2. The states are known by their index, as the game reads them (the cook's states[0] take_time, states[2] put_time; the machine's order).",
+  "_comment": "The battery swing (exe patch 143, docs/notes/battery-hit.md): a forward ram, authored on the stock rig (scripts/battery-hit: swing.py's keys, make_clips.py writes them) as the game plays a battery state: its player clips move the carrier's shoulders and arms alone (bone mask 2), its battery clips the battery by its own offset bone. The battery's states 3 (the swing: the gather and the drive, ending on the strike, the battery at its fastest) and 4 (the recovery: the follow-through to full reach, the settle and the way back to the carry idle), which the cook loads as it loads states 0 to 2. The states are known by their index, as the game reads them (the cook's states[0] take_time, states[2] put_time; the machine's order).",
   "files_from_repo": [
     {
       "source": "../battery-hit/clips/battery_hit.b-spline",
-      "sha256": "7d05d9bc4807d0b4e45decbb3590184bbfa6e8904c67e357d7931eff37d356f4",
+      "sha256": "95851f5ca61a5c2bf8b5d54bb722b0d7ada163940206194f77ce77fa38896483",
       "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit.b-spline"
     },
     {
@@ -13,7 +13,7 @@
     },
     {
       "source": "../battery-hit/clips/battery_hit_recover.b-spline",
-      "sha256": "4f1882d5b577aefb110c3a2b58266ba60a01b2992dbad975a16f2bb7fcfc9e32",
+      "sha256": "a6ab36a5e4e315eb55a66c4a32242d0f774305ff407b10fba6494abd5dca2fe7",
       "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_recover.b-spline"
     },
     {
@@ -23,7 +23,7 @@
     },
     {
       "source": "../battery-hit/clips/battery_hit_electrobox.b-spline",
-      "sha256": "e79a2eb47b19f97ed6f40d1d66d9a76935672ac5ec6f238820399582db0e0a38",
+      "sha256": "f520e7bb041660f27340166a3c6f85c18f2804c9958d6f37d9e10d0171449796",
       "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_electrobox.b-spline"
     },
     {
@@ -33,7 +33,7 @@
     },
     {
       "source": "../battery-hit/clips/battery_hit_recover_electrobox.b-spline",
-      "sha256": "e0d472025e8e5f415b2ce9b67218ffebf39594816e58d224001d2f0c73ace7db",
+      "sha256": "79dd909e35a05602c7cad53170a3248e64ccdfbc13628f23bd458b1e946a965c",
       "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_recover_electrobox.b-spline"
     },
     {

@@ -3521,7 +3521,7 @@ va	name	location	role	basis
 0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+4	the state (+1Ch the battery, its +8 the user)	observed
 0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+8	out matrix (world)	observed
 0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+0Ch	out matrix (before the user's transform)	observed
-0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	XMM0 low32	float, 0.0 from the take and put expressions	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	XMM0 low32	the hands' weight interpolator's time, s: 0.0 from the take (0x338B32: at once, the instant interpolator 0xA17130 at 0x344F92), 0.3 from the carry (0x338DF7) and the put (0x339107)	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+20	float time scale of the hands' animation ([state+0E8h] at the take and put)	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+4	the victory item state; its item [+1Ch], whose user [+8] is animated	observed
 0x0034be30	vostok::render::culling::portal_sector_structure::portal_sector_structure	EAX	owner storage copied ESI	observed
@@ -6233,3 +6233,7 @@ va	name	location	role	basis
 0x002da5b0	survarium::base_player::recompute_damage_collision_bones	entry ESP+4 (reads)	only [arg+8]+4 is read (0x2DA5E3; +8 of its frame is a local after 0x2DA5FF): the ray requester needsCollision 0x75BD0 hands it (0x75BFB), a bullet or any object whose +8 is a bullet_owner	observed
 0x0032d4e0	survarium::bullet::check_collision	the ray result's object at 0x32D705	its +0Ch (the game object) cast by its vtable +0 to the hit target (0x32D70D); none: the level (a back-face hit then goes on through 0x32E740); its vtable +10h the material (0x32D839: a hit model's body, bt_animated_rigid_body 0x9E2AF4, gives +38h, 10 actor, 0x70C00)	observed
 0x002da170	survarium::base_player::generate_killed_event	EDX at 0x2DA3CB	the kill event's weapon icon about to be written to its node's +2 (EAX the node): the bullet's data +50h, else the damage source's +224h (0x2DA35A..0x2DA382); read by the hud's event handler 0x23B5F0 as on_player_killed's object_icon	observed
+0x003917d0	vostok::animation::animation_player::tick	ESI	the animation player (its mixing tree at +0E100h)	observed
+0x003917d0	vostok::animation::animation_player::tick	stack+4	u32 time, ms	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+12	the time synchronization group (parameters +4Ch): 2 from the take and the put, 3 from the carry; a new clip starts where another of its group stands only if that one is not frozen at its end	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+16	the playback type (parameters +48h): 1 once and frozen at the end (the take, the put), 0 cyclic (the carry)	observed

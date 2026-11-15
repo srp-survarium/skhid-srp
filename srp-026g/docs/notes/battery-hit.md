@@ -43,16 +43,17 @@
 - **The hitbox** (the owner, 2026-11-15: "the hitbox should be bigger to cover more than a gun
   stock"): before the bullet, 15 rays from the eye with the game's own ray test, through a fixed,
   ordered grid of 5 x 3 points on the plane square to the look 0.7 m ahead (the battery's front at
-  the impact: the swing's last frame posed as the game mixes it spans 0.28..0.71 m ahead, 0.38 m
-  left to 0.27 m right, 0.06..0.35 m below the look): 0.6 m wide around the look (-0.3, -0.15, 0,
-  0.15, 0.3 m), 0.35 m from the look down to the battery's lower edge (0, -0.175, -0.35 m); the
-  look first, then by distance from it, left before right. Each ray is the bullet's own length (the
-  gun's melee distance, 1.7 m: 1.0 m past the battery's front on the look, 0.72 m at the corners),
-  so the bullet reaches whatever its ray found. The first ray whose first hit is a living player's
-  body (a wall, a lamp or anything else first blocks that ray) is the bullet's direction; none: the
-  look, as the gun-stock hit. One bullet: one victim a strike, its walls, teams and damage the
-  native bullet's. Every game computes the same: the eye, the look and the physics world of the
-  same tick.
+  the end of its push, 0.045 s after the strike: posed as the game mixes it, it spans 0.28..0.70 m
+  ahead, 0.38 m left to 0.27 m right, 0.06..0.35 m below the look; at the strike itself, the
+  push's fastest moment, it is 5 cm short of that and 7 cm lower): 0.6 m wide around the look
+  (-0.3, -0.15, 0, 0.15, 0.3 m), 0.35 m from the look down to the battery's lower edge (0, -0.175,
+  -0.35 m); the look first, then by distance from it, left before right. Each ray is the
+  bullet's own length (the gun's melee distance, 1.7 m: 1.0 m past the battery's front on the
+  look, 0.72 m at the corners), so the bullet reaches whatever its ray found. The first ray whose
+  first hit is a living player's body (a wall, a lamp or anything else first blocks that ray) is
+  the bullet's direction; none: the look, as the gun-stock hit. One bullet: one victim a strike,
+  its walls, teams and damage the native bullet's. Every game computes the same: the eye, the look
+  and the physics world of the same tick.
 - **Damage (assumed):** the gun's melee data is blunt with an attacker, so patch 108 kills at
   once wherever it lands. A battery's own damage would need its own bullet data: the owner's
   call.
@@ -105,47 +106,102 @@
     under the base clip's Weapon bone with the carry's battery clip, stayed put. The previews'
     "before" posed so shows that: the battery 0 cm off its carry place, the hands up to 65 cm off
     its handles.
-- **Authored** (`scripts/battery-hit`) as the game plays it: the battery moved by its own clip's
-  `offset` bone, the arms (the only carrier bones) solved onto its handles every frame (two-bone
-  IK, the elbow in its idle plane), over the carry idle as the game mixes it. A forward ram, timed
-  on Dirty Bomb's two-handed objective shove (measured offline as a reference only, with the
-  owner's leave; none of its files in the repo or the content):
-  - pull (to 0.1 s): in and up 12 cm toward the chest, the elbows from 112/94 to 89/83 deg;
-  - cocked: one still frame (0.1-0.13 s);
-  - struck in 2 frames to the impact (0.2 s, the strike): out 29 cm forward and 24 cm up from
-    the carry, both elbows straight (175 deg), as far as both arms reach (the carry stands with
-    its right shoulder back); in first person the battery comes up into the lower centre of the
-    view, both hands on it;
-  - held out 3 frames (to 0.3 s), then a soft recovery to the carry by 0.55 s.
-  No torso lean and no camera punch: the spine and the Item bone are not the battery clips' to
-  move (mask 1).
-- **Smooth between frames** (the owner on 326858cb5: "you can see it jump from one frame to
-  another"): the game draws a carried battery's and its carrier's skeletons at its own frame
-  rate, the clips evaluated at any time (object_skeleton_visual::calculate_animation_bone_matrices_if_needs
-  0x292620 ticks the visual's animation player to its timer's now; the battery's bones under the
-  carrier's visual Weapon bone, portable_interactive_object_core::update_bones_matrices 0x2FF600).
-  326858cb5's channels were fitted with more control points than samples (a near-singular least
-  squares), so they passed through each whole frame and swung wildly between: at 240 evaluations a
-  second (the game's own baker and evaluate_frame, engine_bake.py) a hand jumped up to 21 cm in
-  4 ms and the hands left the battery by up to 48 cm. The clips are now written as the game's
-  own are (`clips.Channel.bezier`: one cubic Bezier segment per sample pair, each inner knot three
-  times), from samples every 1/60 s: at 240 a second the battery moves at most 1.75 cm a step and
-  the hands stay within 21 mm of it (`battery_hit_smoothness.png`, `metrics.txt`). The recovery is
-  0.35 s (7 ticks), so both clips end on a tick.
+- **The owner (2026-11-15, after playing 02465a20d):** "animation is still not smooth (but
+  better!)"; then "it should feel human like", "with momentum and force".
+- **What was uneven** was in the clips, not in how the game plays them. 02465a20d's clips over
+  the cycle carry -> swing -> recovery -> carry, every millisecond (the game's animation time;
+  `preview.py`, `metrics.txt`, `battery_hit_velocity.png`):
+  - they began and ended with speed (a clip's first and last Bezier slopes were one-sided
+    differences): the battery went from rest to 1.4 m/s in the swing's first millisecond, from
+    1.1 m/s to rest at the strike, from 0.3 m/s to rest at the recovery's end;
+  - the motion stopped twice on its way, cocked (0.07-0.10 s) and held (0.20-0.31 s): go, stop,
+    go, stop, go, every stretch an ease in and out on one curve for all six values;
+  - the pull was as violent as the push: 3.4 m/s against 4.2 m/s;
+  - the right hand left the battery by up to 21 mm between two samples in the push. Its upper
+    arm's Euler y angle reaches 85 degrees there, the other two then swing 100 degrees in 10 ms,
+    and one cubic per 1/60 s cannot follow that; both hands were 13 mm off for the whole hold
+    (the pose was past the arms' reach);
+  - of the carrier only the upper arms, the forearms and the hands moved: the shoulders
+    (clavicles, mask 2 too) never.
+- **How the game times the states** (from the exe, with the 0.10b source's mixer, the same
+  code; not watched in game):
+  - a frame draws the world's last step: `game_world_core::move` 0x2D2E40 loads the newest kept
+    state at or before the frame's time when the world is not at it (0x2D3568..0x2D357A) and
+    steps on to that time (tick_events 0x2D21E0); `base_player::tick` 0x2DAA60 ticks the
+    animation player in it (tick_animations 0x2D8EE0, `animation_player::tick` 0x3917D0, whole
+    milliseconds), and the draw does not tick a living player's again (`player::mt_draw`
+    0x24751C). So the clips are sampled at each frame's time, the arms and the battery at the
+    same one: both lexemes play in the carrier's animation player, the battery's driven by the
+    hands' (0x338B86);
+  - the battery's machine is ticked only when the carrier's animations are selected again
+    (`select_animations` 0x2D9690 -> tick_active_object 0x2D7650 -> the held item's vtable +2Ch,
+    victory_item_core::tick 0x301240; base_player::tick's own call, +28h, is a `ret` for a
+    battery, 0x75AF0): at a change of the action keys (apply_new_input 0x2D899D) and at an
+    animation event that asks for it, as a take state's clip end does (on_animation_end 0x344830
+    -> 0x338EF0);
+  - carry -> swing: at the melee key's input, the swing's clip from its frame 0 at that time
+    and at full weight at once (a take state's hands lexeme: the instant interpolator, time
+    group 2, played once and frozen at its end, 0x338B32; the carry's is linear over 0.3 s,
+    group 3, cyclic, 0x338DF7; a new clip starts where another stands only inside one group and
+    not from a frozen one). The carry idle, the stand set's base clip and the swing's first
+    frame are one still pose: nothing pops;
+  - swing -> recovery: the end event's time is the start + floor(length / scale x 1000) ms
+    (n_ary_tree_time_in_ms_calculator 0x3B6C5F); the scale (0x30D750) of 6 frames in 0.2 s is
+    1.0000001, the time 199 ms. At that millisecond, inside the step, the machine goes on (the
+    strike), the recovery's clip starts at its frame 0, and the step is played on: no gap. One
+    millisecond of the swing's clip is never shown (6 mm along the motion at the strike);
+  - recovery -> carry: the same, 349 or 350 ms on; the recovery's last frame is the carry's pose;
+  - a carrier's own swing starts twice in his own game: his input is played at its own time
+    until the next 50 ms tick, then moved onto that tick (snap_player_inputs 0x2D4E40,
+    0x2D4F0A..0x2D4F3B) and the world played again from it: up to 50 ms of the swing are shown
+    and it starts over. Every key but fire has this (`match.md` 5.2); a clip can only keep
+    still meanwhile. 02465a20d's battery had moved 4.8 cm 25 ms in and 12.9 cm 50 ms in.
+- **Authored** (`scripts/battery-hit/swing.py`) as the game plays it: the battery moved by its
+  own clip's `offset` bone, the carrier's shoulders, arms and hands (his only bones the clips
+  move) following it, over the carry idle as the game mixes it. A keyed curve for each thing
+  that moves (the battery's place on three axes and its turn on three, each shoulder joint
+  forward and up, each elbow's lean), each with its own times, a quintic between keys (place,
+  speed and acceleration continuous). A forward ram with weight, its beats those of Dirty
+  Bomb's two-handed objective shove (measured offline as a reference only, with the owner's
+  leave; none of its files in the repo or the content):
+  - the gather (to 0.10 s): slow from rest (0.9 m/s at most; 0.4 cm in the first 25 ms, 2.2 cm
+    in 50), the battery drawn 4 cm back and 4 up against the body, the shoulders up and back
+    before it, the elbows folding from 112/94 to 101/87 degrees and leaning out;
+  - the drive (0.10-0.20 s): one push that only gains speed (8 g), the shoulders thrown forward
+    ahead of the arms, the battery's turn trailing its travel; the strike (0.2 s, the swing
+    clip's end) is on the fastest frame, 6.2 m/s, three quarters of the way out;
+  - the follow-through (to 0.245 s): the battery's weight carries it on to full reach (29 cm
+    forward and 24 up from the carry, the place the owner called "almost"), pulling the arms
+    straight (elbows 155 degrees) and the shoulders forward until they check it (24 g); each arm
+    gives its shoulder way as it nears its length (`REACH`), so no hand leaves its handle;
+  - the settle (to 0.30 s): it sinks 1.5 cm at 0.5 m/s, its turn still arriving;
+  - the way back (to 0.55 s): one reach, slow to start and slow to land (2.7 m/s at most), the
+    shoulders easing last.
+  The speed stops nowhere but for the turn at full reach. No torso lean and no camera punch:
+  the spine and the Item bone are not the battery clips' to move (mask 1); giving the swing's
+  lexeme mask 1 too would move the eye the strike is aimed from.
+- **Stored** as the game stores its own clips (`clips.Channel.bezier`: one cubic Bezier segment
+  per sample pair), with the motion's own slopes at the samples (none at the swing's start and
+  the recovery's end, where it rests) and, bone by bone, a sample halfway wherever the cubic
+  between two would leave the motion's pose by 0.02 degrees or 0.02 mm (`swing.track`: down to
+  1/480 s for the right upper arm at the end of the push). The clips keep the motion within
+  0.3 mm at every millisecond.
 - **Four clips**, written in the engine's format with its own spline basis (`clips.py`): the
-  carrier's `battery_hit` (6 frames, its last the impact) and `battery_hit_recover` (10.5 frames) with the carry idle's bone names, the battery's
-  `battery_hit_electrobox` and `battery_hit_recover_electrobox` with its own; shipped by the edit
-  list `battery-hit-1.json` (op `files_from_repo`, pinned by sha256, `make_clips.py --check`) as
-  `states[3]` and `states[4]` (user_animations and animations), which the cook loads.
-- **Checked offline** (`preview.py`, the renders in `private/renders/battery-hit/`, with
-  `metrics.txt`), posed as the game mixes (the arms from the state's clip, the rest from the base
-  clip, the battery by its own clip under the Weapon bone): the battery travels 29 cm forward;
-  the hands stay on the handles within 13 mm; in first person the battery is on screen from
-  0.13 to 0.33 s (73 % at the impact, both hands); nothing crosses the near plane in view and no
-  torso, neck, head or helmet vertex is inside the battery on any frame. `engine_bake.py` runs
-  the game's baker (0x3B3250) and evaluate_frame (0x3B3180) under Unicorn on the four clips: within
-  1e-6 of `clips.py` on every track. Not run in the game's code: the mixer's blending in and out
-  of a state (weights over time) and the bone matrices' composition (the standard parent chain).
+  carrier's `battery_hit` (6 frames, its last the strike) and `battery_hit_recover` (10.5
+  frames) with the carry idle's bone names, the battery's `battery_hit_electrobox` and
+  `battery_hit_recover_electrobox` with its own; shipped by the edit list `battery-hit-1.json`
+  (op `files_from_repo`, pinned by sha256, `make_clips.py --check`) as `states[3]` and
+  `states[4]` (user_animations and animations), which the cook loads.
+- **Checked offline** (`preview.py`, the renders in `private/renders/battery-hit/`: the films
+  before beside after in first and third person, `battery_hit_velocity.png`,
+  `battery_hit_joints.png`, `metrics.txt`), posed as the game mixes (the arms from the state's
+  clip, the rest from the base clip, the battery by its own clip under the Weapon bone), every
+  millisecond of the cycle: the largest change of speed in one millisecond is 0.23 m/s (was
+  1.38); the hands stay on the handles within 0.2 mm (was 20.8); in first person the battery is
+  on screen from 0.17 to 0.43 s (29 % at the strike, 72 % at full reach, both hands); nothing
+  crosses the near plane in view and no torso, neck, head or helmet vertex is inside the
+  battery. `engine_bake.py` runs the game's baker (0x3B3250) and evaluate_frame (0x3B3180)
+  under Unicorn on the four clips: within 1e-6 of `clips.py` on every track.
 - **Seen by all:** the swing and the recovery are states of the battery's machine; the
   player's animation tree is simulation state, drawn for every view; first person draws the
   same body. The battery follows the Weapon bone each tick (0x344E40).
@@ -154,17 +210,21 @@
   their melee pairs; concrete, ground, stone and glass are silent, as for the gun-stock hit.
   Heavier candidates (STALKER SoC thuds, a port) are in `private/renders/battery-hit/sounds/`
   for the owner to pick; none wired.
-- **Not seen in game yet:** the engine's blending between clips, locomotion, the look pitch.
+- **Not seen in game yet:** the new clips; the states' timing above is read from the exe, not
+  watched; locomotion under the swing, the look pitch.
 
 ## Timing
 
 - Press to impact 0.2 s (`battery_hit::SWING_S`, the clip's 6 frames; the take state scales
-  its clip to it), the strike on the swing's end; the recovery 0.35 s (`RECOVER_S`), then the
+  its clip to it), the strike on the swing's end, the battery at its fastest and three quarters
+  of the way out (it is at full reach 0.045 s later); the recovery 0.35 s (`RECOVER_S`), then the
   carry. Held, the next swing starts from the carry: one strike every 0.55 s at most. The
   gun-stock strike's clip (`ak/.../kick`) is 6 frames too.
 
 - The strike is when the swing's clip ends (the state's readiness, set by the animation
-  player's end event, as the take's), on the same tick in every game.
+  player's end event, as the take's): 199 ms after the swing's start, in the same step of the
+  world in every game. The machine goes on in that very millisecond (the animation above), so a
+  state's time need not be whole ticks.
 
 ## Edge cases
 

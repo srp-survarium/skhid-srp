@@ -75,21 +75,26 @@ class Channel:
         return u * (u * (u * c[3] + c[2]) + c[1]) + c[0]
 
     @staticmethod
-    def bezier(times, values):
+    def bezier(times, values, slopes=None):
         """The curve through (times, values), as the game's own clips store
         theirs: one cubic Bezier segment per pair of samples (each inner knot
         three times, the first four times, the last once with an unused
-        point), the tangents the samples' central differences (one-sided at
-        the ends): it passes through every sample, its slope continuous, and
-        between two samples it never leaves their neighbourhood."""
+        point). `slopes` are the curve's slopes at the samples (a unit of
+        time); without them, the samples' central differences (one-sided at
+        the ends, so such a curve starts and ends with speed). It passes
+        through every sample, its slope continuous, and between two samples
+        it never leaves their neighbourhood."""
         if all(v == values[0] for v in values):
             return Channel.constant(values[0], times[-1])
         t, v = [float(x) for x in times], [float(x) for x in values]
         n = len(t)
-        slope = []
-        for i in range(n):
-            lo, hi = max(i - 1, 0), min(i + 1, n - 1)
-            slope.append((v[hi] - v[lo]) / (t[hi] - t[lo]))
+        if slopes is None:
+            slope = []
+            for i in range(n):
+                lo, hi = max(i - 1, 0), min(i + 1, n - 1)
+                slope.append((v[hi] - v[lo]) / (t[hi] - t[lo]))
+        else:
+            slope = [float(x) for x in slopes]
         knots, points = [t[0]] * 4, [v[0]]
         for i in range(n - 1):
             h = t[i + 1] - t[i]
