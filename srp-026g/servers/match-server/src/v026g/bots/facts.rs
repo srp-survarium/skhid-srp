@@ -168,6 +168,8 @@ impl Bots {
             if self.tunings.of(1 - team as u8).threat.spots {
                 self.teams[1 - team].features.threat.spots.shooter_died(a.place, time);
             }
+            // [D1 threat.holder] His death ends his stay for the team that held him a holder.
+            self.teams[1 - team].features.threat.stays.died(a.place);
             // [threat.breach, traps.at_cleared] The killing team's kill feed: the enemy it killed, and its killer when one's
             // kills rose.
             let winners = self.tunings.of(1 - team as u8);

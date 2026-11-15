@@ -2301,6 +2301,8 @@ pub struct Picture {
     /// [threat.concede] The held lines whose shooter's area the team has conceded or tried (`concede.rs`): the plays aimed
     /// into a conceded one are refused, or weighed down for the objective; a try on a tried one differs from its last.
     pub concede: super::concede::Offers,
+    /// [D2 `threat.holder`] The enemies the team knows to hold one place now ([`HolderStays::holders`]); empty with the rule off.
+    pub holders: Vec<KnownHolder>,
 }
 
 impl Picture {
@@ -2871,6 +2873,87 @@ pub struct TeamThreat {
     pub kills: Vec<super::breach::Kill>,
     /// [A342c `threat.replan_on_cue`] The cued spots its bots were told to look at their routes for.
     pub cued_seen: Vec<u32>,
+    /// [D1 `threat.holder`] Each enemy's stay as the team's own senses give it.
+    pub stays: HolderStays,
+}
+
+/// [D1 `threat.holder`] Each enemy's stay as the team's own senses (`Track::own`: sight, hearing, callouts) place him: from
+/// his first sense within `hold_m` of one place, to his last. A stay of `hold_ms` or more is a hold. A sense farther than
+/// `hold_m` from its first place, or `memory_ms` after the last one, starts a new stay; his death ends it.
+#[derive(Clone, Debug, Default)]
+pub struct HolderStays {
+    /// By the enemy's place.
+    by_place: Vec<Option<Stay>>,
+}
+
+/// One enemy's stay: where it began (the place every later sense is measured from), when, its last sense and where.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Stay {
+    at: Vec3,
+    since: u32,
+    last: u32,
+    last_at: Vec3,
+}
+
+/// [`HolderStays::sensed`]: what one sense of an enemy made of his stay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StayNow {
+    /// No news: a sense no later than the stay's last (another bot's of the same moment, or older).
+    Same,
+    /// His stay, not a hold (yet): held this long, ms.
+    Staying { ms: u32 },
+    /// A hold: he has stayed this long, ms.
+    Holding { ms: u32 },
+}
+
+/// [D2] A known holder, as the plays read him ([`Picture::holders`]): who, his last sensed place, since when his stay began and
+/// when it was last sensed (ms of the match clock).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct KnownHolder {
+    pub who: Place,
+    pub at: Vec3,
+    pub since: u32,
+    pub last: u32,
+}
+
+impl HolderStays {
+    /// The team's own senses placed `who` at `at` at `time`, under `rule`.
+    pub fn sensed(&mut self, who: Place, at: Vec3, time: u32, rule: crate::v026g::bots::tuning::Holder) -> StayNow {
+        if self.by_place.len() <= who {
+            self.by_place.resize(who + 1, None);
+        }
+        let slot = &mut self.by_place[who];
+        let stay = match *slot {
+            Some(stay) if time <= stay.last => return StayNow::Same,
+            Some(stay) if (at - stay.at).length() <= rule.hold_m && time - stay.last <= rule.memory_ms => {
+                Stay { last: time, last_at: at, ..stay }
+            }
+            _ => Stay { at, since: time, last: time, last_at: at },
+        };
+        *slot = Some(stay);
+        let ms = stay.last - stay.since;
+        if ms >= rule.hold_ms { StayNow::Holding { ms } } else { StayNow::Staying { ms } }
+    }
+
+    /// The enemies known to hold at `now` under `rule`: a stay of `hold_ms` or more last sensed within `memory_ms`.
+    pub fn holders(&self, now: u32, rule: crate::v026g::bots::tuning::Holder) -> Vec<KnownHolder> {
+        self.by_place
+            .iter()
+            .enumerate()
+            .filter_map(|(who, stay)| {
+                let s = (*stay)?;
+                (s.last - s.since >= rule.hold_ms && now.saturating_sub(s.last) <= rule.memory_ms)
+                    .then_some(KnownHolder { who, at: s.last_at, since: s.since, last: s.last })
+            })
+            .collect()
+    }
+
+    /// `who` died: his stay ends.
+    pub fn died(&mut self, who: Place) {
+        if let Some(slot) = self.by_place.get_mut(who) {
+            *slot = None;
+        }
+    }
 }
 
 /// A death of the team: who, by whom if the kill feed told, when.
@@ -3258,6 +3341,51 @@ mod tests {
         spots.shooter_died(5, 4_000);
         assert!(spots.spots.iter().all(|s| !s.is_sensed()));
         assert_eq!(spots.sniper_stats().unfair, 0);
+    }
+
+    /// [D1 `threat.holder`] The twice-sensed rule: a stay is a hold once the team's senses have him within 5 m of its first
+    /// place 3 s or more apart; farther, or after a 15 s gap, a new stay begins; his death ends it. A known holder is listed
+    /// for 15 s after the last sense of his hold, at that sense's place.
+    #[test]
+    fn a_holder_is_sensed_twice_within_five_metres_three_seconds_apart_and_known_fifteen_seconds() {
+        let rule = crate::v026g::bots::tuning::Holder::default();
+        assert_eq!((rule.hold_m, rule.hold_ms, rule.memory_ms), (5.0, 3_000, 15_000), "the cited values");
+        let mut stays = HolderStays::default();
+        let p = Vec3::new(10.0, 0.0, 10.0);
+        assert_eq!(stays.sensed(4, p, 1_000, rule), StayNow::Staying { ms: 0 });
+        assert_eq!(stays.sensed(4, p, 1_000, rule), StayNow::Same, "another bot's sense of the same moment");
+        assert_eq!(stays.sensed(4, p + Vec3::new(3.0, 0.0, 3.0), 3_900, rule), StayNow::Staying { ms: 2_900 }, "4.2 m off, 2.9 s");
+        assert!(stays.holders(3_900, rule).is_empty(), "no hold yet");
+        let last = p + Vec3::new(4.0, 0.0, 0.0);
+        assert_eq!(stays.sensed(4, last, 4_000, rule), StayNow::Holding { ms: 3_000 }, "3 s within 5 m: a hold");
+        assert_eq!(stays.holders(4_000, rule), vec![KnownHolder { who: 4, at: last, since: 1_000, last: 4_000 }]);
+        assert_eq!(stays.holders(4_000 + 15_000, rule).len(), 1, "known 15 s after the last sense");
+        assert!(stays.holders(4_000 + 15_001, rule).is_empty(), "not after");
+        // A walker through: 3.5 m/s puts him 10.5 m off in 3 s.
+        let mut walk = HolderStays::default();
+        for k in 0..=6 {
+            let now = walk.sensed(2, Vec3::new(1.75 * k as f32, 0.0, 0.0), 1_000 + k * 500, rule);
+            assert!(!matches!(now, StayNow::Holding { .. }), "a walk at 3.5 m/s is no hold ({k}: {now:?})");
+        }
+        // 5.1 m from the stay's first place: a new stay; a sense more than 15 s after the last: a new stay.
+        assert_eq!(stays.sensed(4, p + Vec3::new(5.1, 0.0, 0.0), 5_000, rule), StayNow::Staying { ms: 0 });
+        assert_eq!(stays.sensed(4, p + Vec3::new(5.1, 0.0, 0.0), 20_000, rule), StayNow::Holding { ms: 15_000 });
+        assert_eq!(stays.sensed(4, p + Vec3::new(5.1, 0.0, 0.0), 35_001, rule), StayNow::Staying { ms: 0 }, "15.001 s since");
+        stays.died(4);
+        assert!(stays.holders(35_001, rule).is_empty());
+        assert_eq!(stays.sensed(4, p, 36_000, rule), StayNow::Staying { ms: 0 }, "his death ends it");
+    }
+
+    /// [D2] Only the team's own senses make a holder: the HUD's place is no sense ([`Sense::of`]), and the commander feeds the
+    /// stays from `Track::own` alone (its sight, its hearing, a callout), never a cheat's place.
+    #[test]
+    fn a_holder_is_made_of_the_teams_own_senses_only() {
+        use crate::v026g::bots::know::Source;
+        assert_eq!(Sense::of(Source::Hud), None);
+        let src = include_str!("commander.rs");
+        let feed = src.find("threat.stays.sensed(track.who, at, time, rule)").expect("the stays are fed in the commander");
+        let own = src[..feed].rfind("if let Some((at, time)) = track.own").expect("from the track's own place");
+        assert!(feed - own < 3_000, "the stays' feed is inside the `track.own` block");
     }
 
     /// [A308] A camp place (2 kills from within 3 m) is remembered across his death, which clears the spot; a latest kill from

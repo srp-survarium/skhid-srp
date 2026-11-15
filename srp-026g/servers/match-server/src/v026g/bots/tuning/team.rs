@@ -769,6 +769,14 @@ pub struct ThreatTuning {
     /// walk takes no sprint, so the objective plays lost theirs (Intercept sprinting -59 %, Escort -43 %): delivered -8 %
     /// (z -2.4), enemy carriers killed -24 % (z -3.1), own carriers lost +32 % (z +3.1)
     /// (`traces-20261028/fx-threat-obj-a229-a231-note.md` §6).
+    ///
+    /// [D2, anti-camper] ON with the near band (A290: watched within 25 m, the sights up within 15 m) and the team's known
+    /// holders as its known places ([`WatchKnown::Holders`]), so the sprint is lost only in the last 25 m to a man known to hold
+    /// one place, not on every walk. The strong stand-in camper's exchanges with today's bots (anti-camper `bench_line_open_v2.py`,
+    /// L1, 198): a bot that fired the first aimed shot killed him in 49 % against 7 %; one whose view was within 10 deg of him at
+    /// the line's opening fired first in 46 % against 19 %, its first aimed shot then as soon as his (P50 750 ms each). Live
+    /// human-only matches (`live_line_open_hvh_v1.py`, 1,621 exchanges with a known camper): a player sprinting as the fight began
+    /// lost it more (the camper died in 32 % against 44 %).
     pub walk_watch: Option<WalkWatch>,
     /// A320 (`traces-20261028/fx-fights-a320-flank-routes-design.md`, `camp_flank.rs`): the job's flanker on a held spot
     /// within 5 m of a known camp spot of the other side walks one of the routes made ahead of time round it (hidden from
@@ -802,6 +810,36 @@ pub struct ThreatTuning {
     /// (`replan`, every change of the cover) stays off for its cost; this looks once a cue. A bot holding a post with no route
     /// is not moved. Off: as before.
     pub replan_on_cue: bool,
+    /// `threat.holder` [D1's rule, used by D2]: an enemy the team's own senses (`Track::own`: its sight, its hearing, a mate's
+    /// callout; never a cheat or the HUD) place within [`Holder::hold_m`] of one place for [`Holder::hold_ms`] or more is a
+    /// known holder for [`Holder::memory_ms`] after the last such sense (`threat::HolderStays`, told to the plays in
+    /// `threat::Picture::holders`); `walk_watch` with [`WatchKnown::Holders`] watches him. The strong stand-in camper's kills
+    /// (anti-camper `walk_in_v1.py`, fe8c7a797, TDM): the victim's own senses had placed him before it entered his sight in
+    /// 79-100 %. None: no holders.
+    pub holder: Option<Holder>,
+}
+
+/// [D1] [`ThreatTuning::holder`]: when a sensed enemy holds a place. Every value from live data or a client value.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Holder {
+    /// His senses this near the first of his stay count as one place, m. A342's "at the spot" (5 m, the live camper spots of
+    /// 744 human matches) and the live human camper's radius holding 90 % of his time, a median 5.8 m (A199 §3.4, 710 human
+    /// camper episodes).
+    pub hold_m: f32,
+    /// A stay this long or longer is a hold, ms: a walk through crosses a circle of `hold_m` round in 2 x 5 m / 3.5 m/s =
+    /// 2.9 s at the walk cap (3.5 m/s, `plays::crossfire::WALK_M_S`, PROVEN), so a stay of 3 s within it is no walk through.
+    pub hold_ms: u32,
+    /// He is a known holder this long after the team last sensed him holding, and a sense this much later than the one before
+    /// starts a new stay, ms. Live (A199 §3.5, 710 human camper episodes): on his spot 5 s after the cue in 80 %, 15 s after
+    /// in 54 %, 30 s after in 36 %: 15 s is the last point where he is more likely there than gone.
+    pub memory_ms: u32,
+}
+
+impl Default for Holder {
+    fn default() -> Self {
+        Self { hold_m: 5.0, hold_ms: 3_000, memory_ms: 15_000 }
+    }
 }
 
 /// A320 [`ThreatTuning::camp_flank`]: the flank routes round the known camp spots, and what the flanker does when the camper
@@ -883,19 +921,28 @@ impl Default for WatchNear {
     }
 }
 
-/// [`WalkWatch::known`]: the last place the bot's or its team's own senses gave an enemy (`Track::own`), ahead and near.
+/// [`WalkWatch::known`]: which enemies' places a walk watches besides the held lanes' spots, ahead.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct WatchKnown {
-    /// A place given within this is known, ms (as the detour count's `KNOWN_MS`). GUESS.
-    pub ms: u32,
-    /// At most this far, m: a rifle's fight range (A220: kills at about 15 m, A221 bands to 65 m). GUESS.
-    pub max_m: f32,
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum WatchKnown {
+    /// A229: the last place the bot's or its team's own senses gave any enemy (`Track::own`), given within `ms` and at most
+    /// `max_m` off.
+    Sensed {
+        /// A place given within this is known, ms (as the detour count's `KNOWN_MS`). GUESS.
+        ms: u32,
+        /// At most this far, m: a rifle's fight range (A220: kills at about 15 m, A221 bands to 65 m). GUESS.
+        max_m: f32,
+    },
+    /// [D2, anti-camper] The team's known holders (`threat.holder`: an enemy its own senses had within `hold_m` of one place for
+    /// `hold_ms` or more, last sensed holding within `memory_ms`), at his last sensed place: the walk clears the angle of a man
+    /// it knows holds one, its sights up near him ([`WalkWatch::near`]), and takes no sprint into his line
+    /// (`motor::walk_aiming`). How far it watches is the near band's alone.
+    Holders,
 }
 
 impl Default for WatchKnown {
     fn default() -> Self {
-        Self { ms: 10_000, max_m: 60.0 }
+        Self::Sensed { ms: 10_000, max_m: 60.0 }
     }
 }
 
@@ -1047,13 +1094,14 @@ impl Default for ThreatTuning {
             breach: Some(Breach::default()),
             spawn_exit_breach: true,
             pair_target: None,
-            walk_watch: None,
+            walk_watch: Some(WalkWatch { known: Some(WatchKnown::Holders), ..WalkWatch::default() }),
             camp_flank: None,
             spot_follows_m: None,
             lane_goal_weight: None,
             no_lone_m: None,
             cue_merge_m: None,
             replan_on_cue: false,
+            holder: Some(Holder::default()),
         }
     }
 }

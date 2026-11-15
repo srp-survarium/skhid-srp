@@ -197,6 +197,8 @@
     "pair_up_hidden": false,
     "recast": false,
     "sniper_memory": null,
+    "holder": null,
+    "walk_watch": null,
     "trade_out_of_lines": false,
     "whole_route": false,
     "whole_route_booked": false

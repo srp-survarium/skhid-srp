@@ -353,10 +353,15 @@ pub enum Kind {
     WalkOff,
     /// [take.known_threats] A take within reach waiting for a man known by its battery (`plays/collect.rs` `take`).
     Take,
+    /// [D2 `threat.walk_watch`] A walk's watch on a known holder (or a held spot) begun: the view on him, the sprint given up
+    /// (`plays/watch.rs`), with his range and how old the team's sense of him is.
+    Watch,
+    /// [D2] The same walk's sights up, nearer.
+    WatchAim,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 15;
+const KINDS: usize = 17;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused

@@ -186,6 +186,7 @@ pub use team::CommitTuning;
 pub use team::Concede;
 pub use team::GangRule;
 pub use team::GangUp;
+pub use team::Holder;
 pub use team::LonePeek;
 pub use team::ModTuning;
 pub use team::PairTarget;

@@ -218,7 +218,10 @@ fn threat_tick(
     let threat = &mut state.features.threat;
     // A sensed sniper is a spot (#836's `sniper_lanes`, or #25b's area memory).
     let sniper_spots = tuning.threat.sniper_lanes || tuning.threat.sniper_memory.is_some();
+    // [D2 threat.holder] A sensed enemy holding one place is a known holder.
+    let holder = tuning.threat.holder;
     if !sniper_spots
+        && holder.is_none()
         && threat.spots.is_empty()
         && threat.covered.is_none()
         && threat.jobs.is_empty()
@@ -275,6 +278,10 @@ fn threat_tick(
                     // since, and the spot keeps how it knew him).
                     let how = (track.time == time).then(|| threat::Sense::of(track.source)).flatten();
                     threat.spots.sniper_sensed(track.who, at, time, how, reach, now, rules);
+                }
+                // [D2 threat.holder] His stay as the team's own senses give it (`Track::own`: never the HUD or a cheat).
+                if let Some(rule) = holder {
+                    threat.stays.sensed(track.who, at, time, rule);
                 }
             }
         }
@@ -665,7 +672,9 @@ fn threat_tick(
     let snipers = if tuning.threat.answer_sniper { threat.spots.sniper_spots(now) } else { Vec::new() };
     // [take.clear_first] The plays read a battery's held line as any (a crosser's target, a pinner's spot).
     let held = held.into_iter().chain(battery_lines).collect();
-    let picture = threat::Picture { held, jobs: threat.jobs.clone(), sniper_regions, snipers, concede };
+    // [D2 threat.holder] The known holders, for the walks' watch (`plays/watch.rs`).
+    let holders = holder.map(|rule| threat.stays.holders(now, rule)).unwrap_or_default();
+    let picture = threat::Picture { held, jobs: threat.jobs.clone(), sniper_regions, snipers, concede, holders };
     if *state.knowledge.threat != picture {
         state.knowledge.threat = Arc::new(picture);
     }

@@ -10,9 +10,11 @@
 
 use mapdata::Vec3;
 
-use super::{Ctx, Go, Intent, Look};
+use super::{Ctx, Go, Intent, Look, Pace};
 use crate::v026g::bots::kin;
-use crate::v026g::bots::tuning::{WalkWatch, WatchNear};
+use crate::v026g::bots::nav_log::Kind;
+use crate::v026g::bots::threat::KnownHolder;
+use crate::v026g::bots::tuning::{WalkWatch, WatchKnown, WatchNear};
 use crate::v026g::drive::key;
 
 /// A walk is a heading this fast at least, m/s: a bot standing, or pressing into a wall, has none.
@@ -25,6 +27,8 @@ pub enum Watched {
     Lane(Vec3),
     /// An enemy's last known place, ahead and near.
     Known(Vec3),
+    /// [D2] A known holder of the team (`threat.holder`), ahead.
+    Holder(KnownHolder),
     /// In a held lane whose spot is not ahead: a crossing, walked on with the route's view.
     Crossing,
     /// Carrying: home first, with the sprint.
@@ -38,6 +42,7 @@ impl Watched {
     pub fn at(self) -> Option<Vec3> {
         match self {
             Watched::Lane(p) | Watched::Known(p) => Some(p),
+            Watched::Holder(h) => Some(h.at),
             Watched::Crossing | Watched::Carrying | Watched::Nothing => None,
         }
     }
@@ -62,17 +67,27 @@ pub fn watched(cx: &Ctx, watch: &WalkWatch, intent: &Intent) -> Option<Watched> 
     if let Some(line) = lanes.iter().filter(|l| ahead(l.at)).min_by(|a, b| near(a.at).total_cmp(&near(b.at))) {
         return Some(Watched::Lane(line.at));
     }
-    if let Some(known) = watch.known {
-        let place = cx
-            .memory
-            .tracks()
-            .iter()
-            .filter_map(|t| t.own.filter(|&(_, when)| cx.now.wrapping_sub(when) <= known.ms).map(|(at, _)| at))
-            .filter(|&at| near(at) <= known.max_m && ahead(at))
-            .min_by(|a, b| near(*a).total_cmp(&near(*b)));
-        if let Some(at) = place {
-            return Some(Watched::Known(at));
+    match watch.known {
+        Some(WatchKnown::Sensed { ms, max_m }) => {
+            let place = cx
+                .memory
+                .tracks()
+                .iter()
+                .filter_map(|t| t.own.filter(|&(_, when)| cx.now.wrapping_sub(when) <= ms).map(|(at, _)| at))
+                .filter(|&at| near(at) <= max_m && ahead(at))
+                .min_by(|a, b| near(*a).total_cmp(&near(*b)));
+            if let Some(at) = place {
+                return Some(Watched::Known(at));
+            }
         }
+        // [D2] The team's known holders (only its own senses made them, `threat::HolderStays`), the nearest ahead.
+        Some(WatchKnown::Holders) => {
+            let holder = cx.team.threat.holders.iter().filter(|h| ahead(h.at)).min_by(|a, b| near(a.at).total_cmp(&near(b.at)));
+            if let Some(h) = holder {
+                return Some(Watched::Holder(*h));
+            }
+        }
+        None => {}
     }
     Some(if lanes.is_empty() { Watched::Nothing } else { Watched::Crossing })
 }
@@ -89,20 +104,50 @@ pub fn walk_watch(cx: &Ctx, intent: Intent) -> Intent {
     let Some(at) = watched.at() else {
         return intent;
     };
-    match near_watch(watch.near, at.distance_xz(cx.me.feet)) {
-        Near::Far => {
-            tally::near_one(cx.me.team, Near::Far);
-            intent
-        }
-        Near::Watch => {
-            tally::near_one(cx.me.team, Near::Watch);
-            intent.looking(Look::At(at))
-        }
-        Near::SightsUp => {
-            tally::near_one(cx.me.team, Near::SightsUp);
-            Intent { hold: intent.hold | key::AIM, ..intent.looking(Look::At(at)) }
-        }
+    let range_m = at.distance_xz(cx.me.feet);
+    let near = near_watch(watch.near, range_m);
+    tally::near_one(cx.me.team, near);
+    if near != Near::Far {
+        note(cx, watched, near, range_m, &intent);
     }
+    match near {
+        Near::Far => intent,
+        Near::Watch => intent.looking(Look::At(at)),
+        Near::SightsUp => Intent { hold: intent.hold | key::AIM, ..intent.looking(Look::At(at)) },
+    }
+}
+
+/// [D2] The log's line of a watch begun or its sights up: once a watched thing (a holder's stay, a held spot) and step a bot,
+/// with his range, how old the team's sense of him is, and whether the play's sprint was given up (`motor::walk_aiming`: no
+/// sprint aimed).
+fn note(cx: &Ctx, watched: Watched, near: Near, range_m: f32, intent: &Intent) {
+    let sprint = if matches!(intent.pace, Pace::Run | Pace::Cruise | Pace::Arrive) { "; sprint suppressed" } else { "" };
+    let (what, key) = match watched {
+        Watched::Holder(h) => (
+            format!(
+                "a known holder (player {}) {:.0} m off, holding {:.1} s, last sensed {:.1} s ago",
+                h.who,
+                range_m,
+                h.last.saturating_sub(h.since) as f32 / 1000.0,
+                cx.now.saturating_sub(h.last) as f32 / 1000.0
+            ),
+            (h.who as u64) << 32 | u64::from(h.since),
+        ),
+        Watched::Lane(p) => (
+            format!("a held spot at ({:.1}, {:.1}, {:.1}) {:.0} m off", p.x, p.y, p.z, range_m),
+            (u64::from(p.x.to_bits()) << 32) | u64::from(p.z.to_bits()),
+        ),
+        Watched::Known(p) => (
+            format!("an enemy's known place {:.0} m off", range_m),
+            (u64::from(p.x.to_bits()) << 32) | u64::from(p.z.to_bits()),
+        ),
+        Watched::Crossing | Watched::Carrying | Watched::Nothing => return,
+    };
+    let (kind, step) = match near {
+        Near::SightsUp => (Kind::WatchAim, "aim-up"),
+        _ => (Kind::Watch, "watch start"),
+    };
+    cx.lines.push(kind, Some(key), format!("walk {step}: {what}{sprint}"));
 }
 
 /// [A290] What a walk does with a watched point `distance` m off ([`WalkWatch::near`]).
@@ -143,7 +188,7 @@ pub mod tally {
     pub fn counted_one(team: u8, watched: Watched) {
         let k = match watched {
             Watched::Lane(_) => 0,
-            Watched::Known(_) => 1,
+            Watched::Known(_) | Watched::Holder(_) => 1,
             Watched::Crossing => 2,
             Watched::Carrying => 3,
             Watched::Nothing => 4,
@@ -288,5 +333,64 @@ mod tests {
         let watched = walk_watch(&s.cx(0), walk());
         assert_eq!(watched.look, Look::At(Vec3::new(70.0, 0.0, 30.0)));
         assert_ne!(watched.hold & key::AIM, 0);
+    }
+
+    /// [D2] With the holders as its known places, a walk toward a known holder ahead watches him (no other sensed enemy), puts
+    /// its sights up within 15 m, keeps its route's view and sprint farther than 25 m, and logs the watch's start and its sights up
+    /// with his range and age, and the sprint given up.
+    #[test]
+    fn a_walk_toward_a_known_holder_clears_his_angle_near_him_and_logs_it() {
+        use crate::v026g::bots::threat::KnownHolder;
+        let mut s = walking([3.0, 0.0]);
+        std::sync::Arc::make_mut(&mut s.team.threat).held.clear();
+        let holders = WalkWatch { known: Some(WatchKnown::Holders), ..WalkWatch::default() };
+        s.tuning.threat.walk_watch = Some(holders);
+        let now = s.view.clock;
+        // Another enemy sensed ahead is not a holder: nothing watched.
+        let seen = Vec3::new(55.0, 0.0, 31.0);
+        s.memory.update(&[Percept { who: 1, at: seen, error_m: 0.0, time: now, source: Source::Seen, busy: false }], now, |_| 200, 3_000, 20_000);
+        assert_eq!(watched(&s.cx(0), &holders, &walk()), Some(Watched::Nothing));
+        // A holder 30 m ahead: past the near band, the route's view and the sprint.
+        let him = KnownHolder { who: 1, at: Vec3::new(70.0, 0.0, 30.0), since: now.saturating_sub(6_000), last: now.saturating_sub(1_000) };
+        std::sync::Arc::make_mut(&mut s.team.threat).holders.push(him);
+        assert_eq!(watched(&s.cx(0), &holders, &walk()), Some(Watched::Holder(him)));
+        assert_eq!(walk_watch(&s.cx(0), walk()), walk());
+        // 20 m: looked at (the motor takes no sprint aimed), logged once.
+        s.view.places[0].feet = Vec3::new(50.0, 0.0, 30.0);
+        let cx = s.cx(0);
+        let watched_walk = walk_watch(&cx, walk());
+        assert_eq!(watched_walk.look, Look::At(him.at));
+        assert_eq!(watched_walk.hold & key::AIM, 0);
+        let lines = cx.lines.take();
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].0, Kind::Watch);
+        assert!(lines[0].2.contains("player 1") && lines[0].2.contains("20 m off") && lines[0].2.contains("holding 5.0 s"));
+        assert!(lines[0].2.contains("last sensed 1.0 s ago") && lines[0].2.ends_with("sprint suppressed"), "{}", lines[0].2);
+        // 12 m: the sights up, its own line.
+        s.view.places[0].feet = Vec3::new(58.0, 0.0, 30.0);
+        let cx = s.cx(0);
+        let aimed = walk_watch(&cx, walk());
+        assert_ne!(aimed.hold & key::AIM, 0);
+        let lines = cx.lines.take();
+        assert_eq!((lines.len(), lines[0].0), (1, Kind::WatchAim));
+        assert!(lines[0].2.starts_with("walk aim-up: a known holder (player 1) 12 m off"), "{}", lines[0].2);
+        // A walk not toward him (he is behind): nothing.
+        let s2 = {
+            let mut s2 = walking([-3.0, 0.0]);
+            std::sync::Arc::make_mut(&mut s2.team.threat).held.clear();
+            std::sync::Arc::make_mut(&mut s2.team.threat).holders.push(him);
+            s2
+        };
+        assert_eq!(watched(&s2.cx(0), &holders, &walk()), Some(Watched::Nothing));
+    }
+
+    /// [D2] The defaults: the watch ON with the holders and the near band (A290: 25 m, 15 m); `all_off` names it off.
+    #[test]
+    fn the_watch_is_on_with_the_holders_and_the_near_band() {
+        let t = crate::v026g::bots::tuning::Tuning::default();
+        let watch = t.threat.walk_watch.expect("ON");
+        assert_eq!(watch.known, Some(WatchKnown::Holders));
+        assert_eq!(watch.near, Some(WatchNear { watch_m: 25.0, aim_m: 15.0 }));
+        assert!(t.threat.holder.is_some());
     }
 }
