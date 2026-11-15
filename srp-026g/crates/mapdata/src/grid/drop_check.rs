@@ -792,6 +792,18 @@ mod tests {
         let release = Some((Takeoff::Release { at: PressLead::from_metres(0.0), crouched: false }, Share::landed(9)));
         for (first, second) in [(None, None), (release, None), (None, release)] {
             let mut wide = grid.link(&vec![false; grid.len()]);
+            // Off-mesh links already there from later floors: a link this pass adds sits after them, out of a binary search's
+            // reach until the pass sorts (the old pass then added the pair again).
+            let later = |k: u32| super::super::gap::OffLink {
+                from: b + k,
+                to: a,
+                kind: LinkKind::GapDrop,
+                press: Takeoff::WalkOff,
+                share: Share::UNFLOWN,
+                walk: None,
+                aim: super::super::gap::Aim::STRAIGHT,
+            };
+            wide.off = (1..=3).map(later).collect();
             let ds: Vec<usize> = (0..8).filter(|&d| wide.links[a as usize][d] != NONE).take(2).collect();
             assert_eq!(ds.len(), 2);
             let reaim: Reaims = vec![(a, ds[0], b, first), (a, ds[1], b, second)];
