@@ -864,6 +864,22 @@ mod tests {
             std::fs::remove_file(&path).ok();
             assert!(back.is_ok(), "{:?}", back.err());
         }
+        // A release onto a pair whose release link is already in the table (an earlier pass's): the higher share stays.
+        for (there, new, kept) in [(12, 9, 12), (9, 12, 12)] {
+            let mut wide = grid.link(&vec![false; grid.len()]);
+            let d = (0..8).find(|&d| wide.links[a as usize][d] != NONE).unwrap();
+            wide.off = vec![super::super::gap::OffLink {
+                from: a,
+                to: b,
+                kind: LinkKind::GapDrop,
+                press: released,
+                share: Share::landed(there),
+                walk: None,
+                aim: super::super::gap::Aim::STRAIGHT,
+            }];
+            grid.reaim_drops(&mut wide, &vec![(a, d, b, Some((released, Share::landed(new))))]);
+            assert_eq!((wide.off.len(), wide.off[0].share), (1, Share::landed(kept)));
+        }
         // Two releases onto one landing: the higher share is the link, whichever came first.
         for (first, second) in [(9, 12), (12, 9)] {
             let mut wide = grid.link(&vec![false; grid.len()]);
