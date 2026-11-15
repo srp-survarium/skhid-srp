@@ -3,7 +3,7 @@
   "files_from_repo": [
     {
       "source": "../battery-hit/clips/battery_hit.b-spline",
-      "sha256": "48157b2a1636928a4102d82c3e2297a701695441fa34870af199594883cdb085",
+      "sha256": "6854815e2c534469bb09849d9c27cd05b7afeffaff70956230db9d465c500aa6",
       "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit.b-spline"
     },
     {
@@ -13,7 +13,7 @@
     },
     {
       "source": "../battery-hit/clips/battery_hit_recover.b-spline",
-      "sha256": "1bb46aa1d63e1882b2f734f69bb5e8ca29be845bb1bd0682e8fd670f1caf87e5",
+      "sha256": "6d93b06a60d098b4602d6b181d2623886761c2741e81373f45cb6ce852bf2a24",
       "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_recover.b-spline"
     },
     {

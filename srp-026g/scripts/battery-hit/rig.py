@@ -16,6 +16,7 @@ CHAR = 'models_character_human_black_market_'
 KEY = 'animations_single_weapons_key_objects_'
 HANDS = KEY + 'player_nonadditive_stand_3rd_view_on_site_hands_only_'
 ITEM = KEY + 'item_stand_3rd_view_'
+LOOK = KEY + 'player_stand_3rd_view_hands_only_idle_look'
 
 
 def matrix(r, p):
@@ -80,6 +81,8 @@ class Rig:
         self.names = clips.parse_names((a / (HANDS + 'idle.bones_names')).read_bytes())
         self.item_names = clips.parse_names((a / (ITEM + 'idle_electrobox.bones_names')).read_bytes())
         self.item_idle = self.clip(ITEM + 'idle_electrobox')
+        self.item_put = self.clip(ITEM + 'hidetest_electrobox')
+        self.look = clips.parse_clip((a / (LOOK + '.b-spline')).read_bytes())[0]
         part = lambda model, surface, color: Skinned(
             bind_pose((a / (CHAR + model + '.skinned_model_render_bind_pose')).read_bytes()),
             (a / (CHAR + model + '.skinned_model_render_' + surface + '_converted_model')).read_bytes(), color)
@@ -90,6 +93,10 @@ class Rig:
                      part('black_market_01_hand', 'black_market_01_hand_s', [170, 160, 140]),
                      part('black_market_01_helmet', 'black_market_01_helmet_s', [70, 80, 70])]
         head_bind = bind_pose((a / 'models_character_human_base_base_character_head.skinned_model_render_bind_pose').read_bytes())
+        # first person draws the body but the head (and what is on it) with the
+        # hud hands for the hands (the AK's idle against a screenshot: the
+        # sleeve and the hand where the game draws them)
+        self.fp = self.body[:3] + self.hud
         self.body.append(Skinned(head_bind, (a / 'models_character_human_base_base_character_head.skinned_model_render_black_market_01_head_s_converted_model').read_bytes(), [190, 160, 140]))
         self.battery = Skinned(bind_pose((a / 'models_weapons_electrobox.skinned_model_render_bind_pose').read_bytes()),
                                (a / 'models_weapons_electrobox.skinned_model_render_electrobox_s_converted_model').read_bytes(),
@@ -98,13 +105,29 @@ class Rig:
     def clip(self, stem):
         return clips.parse_clip((self.a / (stem + '.b-spline')).read_bytes())[0]
 
-    def world(self, clip, t):
-        return clips.world_pose(clips.local_pose(clip, self.names, t), self.parents, self.names)
+    def world(self, clip, t, look=0.0):
+        """The pose at frame t, the carrier looking `look` degrees down: the
+        additive idle_look of the battery's clip set over it at the frame where
+        its Item (the camera) pitches that much (frame 18 level, 36 the most
+        down, 66 degrees)."""
+        local = clips.local_pose(clip, self.names, t)
+        if look:
+            item = self.names.index('Item')
+            pitch = lambda f: -math.degrees(self.look[item][3].evaluate(f))
+            lo, hi = 18.0, 36.0
+            for _ in range(40):
+                mid = (lo + hi) / 2
+                lo, hi = (mid, hi) if pitch(mid) < look else (lo, mid)
+            delta = clips.local_pose(self.look, self.names, lo)
+            local = {n: (delta[n][0] @ r, p + delta[n][1]) for n, (r, p) in local.items()}
+        return clips.world_pose(local, self.parents, self.names)
 
-    def battery_world(self, world, t=0):
-        """The battery skeleton's bones in the player's model space."""
+    def battery_world(self, world, t=0, clip=None):
+        """The battery skeleton's bones in the player's model space, posed by
+        its own clip (the carry's idle_electrobox unless given)."""
         root = matrix(clips.rotation([0, math.pi, 0]), [0, 0, 0]) @ matrix(*world['Weapon'])
-        local = clips.world_pose(clips.local_pose(self.item_idle, self.item_names, t), self.item_parents, self.item_names)
+        clip = self.item_idle if clip is None else clip
+        local = clips.world_pose(clips.local_pose(clip, self.item_names, t), self.item_parents, self.item_names)
         out = {}
         for n, (r, p) in local.items():
             m = matrix(r, p) @ root

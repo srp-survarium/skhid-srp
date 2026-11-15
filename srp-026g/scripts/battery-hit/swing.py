@@ -18,16 +18,25 @@ FPS = 30.0
 IMPACT = 6          # frames: 0.2 s, the swing clip's end and the strike
 END = 17            # frames: 0.567 s, the recovery's end (back on the carry idle)
 
-# keys: frame -> values; `hold` keys have zero tangent (an extreme), others pass through with speed
+# keys: frame -> values; `hold` keys have zero tangent (an extreme), others pass through with speed.
+# Designed for the first-person view (the Item bone, 65 degrees vertical, looking level), where
+# the carry idle shows nothing (the battery is 40 degrees and more below the view): the battery
+# rises in from the lower right (lift), is cocked high at the right edge of the screen with the
+# chest wound right (wind-up; the carry idle already stands turned right), sweeps down across the
+# lower half (impact at the centre, both hands on screen), leaves at the lower left (follow-
+# through) and drops back out of view. In third person: up over the right shoulder, across the
+# chest, down past the left hip. The camera is a child of Root and only dips with the punch. The
+# offsets were solved so the battery's centre lands on a chosen screen point at a chosen depth
+# with both arms within reach of the handles (preview.py prints what each frame shows).
 KEYS = {
-    #            frame: (cx,    cy,    cz,   pitch, yaw,  roll, twist, lean, kick_pitch, kick_yaw)
-    'rest':      (0,  (0.00,  0.00,  0.00,   0,    0,    0,    0,    0,    0,    0)),
-    'lift':      (2,  (0.18,  0.08,  0.24,  10,    5,   20,  -18,   -3,    0,    0)),
-    'windup':    (4,  (0.22,  0.30,  0.08,  30,  -30,  -35,  -35,   -6,    0,    0)),
-    'impact':    (6,  (-0.04, 0.38,  0.46, -25,   18,   10,   15,    9,    0,    0)),
-    'follow':    (9,  (-0.30, 0.06,  0.34, -55,   38,   25,   30,   12,   -5.0,  2.5)),
-    'return':    (13, (-0.12, -0.02, 0.20, -25,   15,   10,   12,    5,   -1.0,  0.5)),
-    'recover':   (END, (0.00,  0.00,  0.00,   0,    0,    0,    0,    0,    0,    0)),
+    #            frame: (cx,     cy,     cz,    pitch,  yaw,  roll,  twist, lean, kick_pitch, kick_yaw)
+    'rest':      (0,  (0.000,  0.000,  0.000,    0,     0,     0,     0,    0,    0,    0)),
+    'lift':      (2,  (0.078,  0.368,  0.185,  -39,    -7.5,  10.1,  -0.4,  9,    0,    0)),
+    'windup':    (4,  (-0.030, 0.390,  0.200,    2.2,  29.7, -42.6, -13.5, -5.4,  0,    0)),
+    'impact':    (6,  (0.076,  0.449,  0.196,    7.3,   4.2,  -9.5,  19.9, 13,    0,    0)),
+    'follow':    (9,  (0.138,  0.234,  0.222,  -11.3,   3.4, -42.9,  45,    3.4, -5.0,  2.5)),
+    'return':    (13, (-0.042, 0.139,  0.183,   -5,     2,   -15,    20,    1,   -1.0,  0.5)),
+    'recover':   (END, (0.000, 0.000,  0.000,    0,     0,     0,     0,    0,    0,    0)),
 }
 HOLD = {'rest', 'windup', 'follow', 'recover'}
 
@@ -132,53 +141,57 @@ def solve_arm(pose, side, wrist_target, hand_rot_target, elbow_hint):
     return np.linalg.norm(pose.world()[hand][1] - wrist)
 
 
-def author(rig, idle):
-    """Every frame's local pose, 0..END."""
-    base_local = clips.local_pose(idle, rig.names, 0)
-    base = Pose(rig, base_local)
-    bw = base.world()
-    yflip = matrix(clips.rotation([0, math.pi, 0]), [0, 0, 0])
-    battery0 = yflip @ matrix(*bw['Weapon'])                  # the battery root in model space
-    centre0 = rig.battery.pose(rig.battery_world(bw)).mean(axis=0)
-    grips = {s: matrix(*bw[s + 'Hand']) @ np.linalg.inv(battery0) for s in ('Left', 'Right')}
-    hints = {s: bw[s + 'ForeArm'][1] for s in ('Left', 'Right')}
-    chest0 = matrix(*bw['Chest'])
-    frames = []
-    for f in range(END + 1):
-        v = curve(float(f))
+class Swing:
+    """The carry idle's pose, the battery's attachment and grips there: what
+    every authored frame starts from."""
+    def __init__(self, rig, idle):
+        self.rig = rig
+        self.base_local = clips.local_pose(idle, rig.names, 0)
+        bw = Pose(rig, self.base_local).world()
+        self.yflip = matrix(clips.rotation([0, math.pi, 0]), [0, 0, 0])
+        self.battery0 = self.yflip @ matrix(*bw['Weapon'])         # the battery root in model space
+        self.centre0 = rig.battery.pose(rig.battery_world(bw)).mean(axis=0)
+        self.grips = {s: matrix(*bw[s + 'Hand']) @ np.linalg.inv(self.battery0) for s in ('Left', 'Right')}
+        self.hints = {s: bw[s + 'ForeArm'][1] for s in ('Left', 'Right')}
+        self.chest0 = matrix(*bw['Chest'])
+
+    def pose(self, v):
+        """The pose for one set of key values (KEYS' columns)."""
         cx, cy, cz, pitch, yaw, roll, twist, lean, kick_p, kick_y = v
-        pose = Pose(rig, base_local)
+        pose = Pose(self.rig, self.base_local)
         # the upper body: twist about the vertical, lean about the right axis, spread over the spine
         for bone, share in (('Spin', 0.3), ('Spin_1', 0.3), ('Chest', 0.4)):
             pose.rotate_world(bone, rot_axis([0, 1, 0], math.radians(-twist) * share)
                               @ rot_axis([1, 0, 0], math.radians(lean) * share))
-        # the head keeps looking ahead (third person); the camera is the Item bone
+        # the head keeps looking ahead (third person); the camera is the Item bone, a child of Root
         pose.rotate_world('Neck', rot_axis([0, 1, 0], math.radians(twist) * 0.7))
-        chest = matrix(*pose.world()['Chest'])
+        turned = np.linalg.inv(self.chest0) @ matrix(*pose.world()['Chest'])
         # the battery: its keyed offset about its centre, carried with the chest
-        offset = np.array([cx, cy, cz])
         r = (rot_axis([1, 0, 0], math.radians(-pitch)) @ rot_axis([0, 1, 0], math.radians(-yaw))
              @ rot_axis([0, 0, 1], math.radians(roll)))
-        about = np.eye(4); about[3, :3] = -centre0
-        back = np.eye(4); back[3, :3] = centre0 + offset
+        about = np.eye(4); about[3, :3] = -self.centre0
+        back = np.eye(4); back[3, :3] = self.centre0 + np.array([cx, cy, cz])
         turn = np.eye(4); turn[:3, :3] = r
-        battery = battery0 @ about @ turn @ back                # in the idle chest's frame
-        battery = battery @ np.linalg.inv(chest0) @ chest       # carried by the turned chest
+        battery = self.battery0 @ about @ turn @ back @ turned     # carried by the turned chest
         # the hands on its handles
         for side in ('Left', 'Right'):
-            target = grips[side] @ battery
-            hint = hints[side] @ np.linalg.inv(chest0)[:3, :3] if False else hints[side]
-            hint = (np.r_[hints[side], 1] @ np.linalg.inv(chest0) @ chest)[:3]
+            target = self.grips[side] @ battery
+            hint = (np.r_[self.hints[side], 1] @ turned)[:3]
             solve_arm(pose, side, target[3, :3], target[:3, :3], hint)
         # the Weapon bone carries the battery (the game attaches it there)
-        weapon = np.linalg.inv(yflip) @ battery
+        weapon = np.linalg.inv(self.yflip) @ battery
         pose.set_world('Weapon', weapon[:3, :3], weapon[3, :3])
         # the camera punch
-        r_item, p_item = pose.world()['Item']
+        r_item, _ = pose.world()['Item']
         pose.set_world('Item', rot_axis([1, 0, 0], math.radians(-kick_p))
                        @ rot_axis([0, 1, 0], math.radians(kick_y)) @ r_item)
-        frames.append(pose)
-    return frames
+        return pose
+
+
+def author(rig, idle):
+    """Every frame's local pose, 0..END."""
+    swing = Swing(rig, idle)
+    return [swing.pose(curve(float(f))) for f in range(END + 1)]
 
 
 def write(rig, idle, frames, first, last):

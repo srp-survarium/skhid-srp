@@ -82,7 +82,15 @@ def draw(meshes, eye, axes, label='', fov=FOV, near=NEAR, size=(W, H)):
 
 
 def fp_camera(world):
-    """The first-person camera: the Item bone (computed_head_transform 0x2DA4B0)."""
+    """The first-person camera: the Item bone. computed_head_transform
+    (0x2DA4B0) stores the bone "Item" (0x9DE38C) of the player's animation
+    times his transform (+40Ch) as the eye (+44Ch); update_camera (0x1F3480,
+    the player's own view: camera mode +358h 0 or 4) hands +44Ch to the game
+    camera (0x2422B0) unchanged and sets the near plane +8Ch to 0.05 (0x9CC878)
+    times the zoom (1 unaimed; a carrier aims nothing); the projection
+    (0x242900, patch 22) is uro_fov degrees vertical, 65.0 by default and in
+    the owner's user.cfg. Item is a child of Root: the carry's body moves do
+    not move the view, the look pitch does (Rig.world's look)."""
     r, p = world['Item']
     return p, r
 

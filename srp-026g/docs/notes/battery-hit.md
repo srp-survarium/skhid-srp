@@ -53,15 +53,37 @@
   with weight: a clear wind-up, a snappy strike, follow-through, a camera punch); "it should
   properly do that, we don't even need a game for animating": authored offline on the real
   assets, previewed before any in-game test.
+- **The first-person camera** (where the keys are judged): the Item bone. computed_head_transform
+  (0x2DA4B0) stores bone "Item" (0x9DE38C) times the player's transform (+40Ch) as the eye
+  (+44Ch); update_camera (0x1F3480) hands +44Ch to the game camera (0x2422B0) unchanged and sets
+  the near plane to 0.05 (0x9CC878) times the zoom (1 unaimed); the projection is uro_fov
+  degrees vertical (patch 22; 65.0 by default and in the owner's user.cfg). Item is a child of
+  Root, so the body's moves do not move the view; the look pitch does (the battery clip set's
+  additive `idle_look`, frame 18 level, Item 66 deg down at 36). First person draws the body
+  without the head, the hud hands for the hands: the AK's idle drawn so puts the hand and the
+  sleeve where a screenshot of the game has them.
+- **What the stock carry shows in first person:** nothing, looking level. The battery's nearest
+  edge is 40 deg below the view (the screen's edge is 32.5): it shows only when looking 10 deg
+  down or more (`carry_idle_fp.png`: 0, 20 and 35 deg). The put's clips that the first swing
+  played (`hidetest`, `hidetest_electrobox`) move the hands 7-9 cm and the battery a few cm and
+  nothing else, so that swing showed nothing either, looking level.
 - **Authored** (`scripts/battery-hit`): keys over the stock carry idle on the stock rig, both
   hands solved onto the battery's handles every frame (two-bone IK, the elbow in its idle
   plane), the battery attached as the game attaches it (Ry(pi) x the Weapon bone, which on the
-  carry idle puts both handle bones exactly on the hands):
-  - lift (0.07 s), wind-up over the right shoulder (0.13 s), the upper body turned away 35 deg;
-  - the strike across and down, the impact at 0.2 s in front of the chest, the body turned into it;
-  - follow-through to the lower left (0.3 s), a camera punch (the Item bone, the first-person
-    camera: 5 deg down, 2.5 deg aside, after the impact so the strike's aim is the clip's own);
-  - recovery to the carry idle by 0.57 s.
+  carry idle puts both handle bones exactly on the hands); designed for the first-person view,
+  each key's battery centre solved onto a chosen point of the screen at a chosen depth within the
+  arms' reach:
+  - lift (0.07 s): in from the lower right;
+  - wind-up (0.13 s): cocked high at the screen's right edge (over the right shoulder in third
+    person), the chest wound right;
+  - the strike down across the lower half, the impact at 0.2 s at the screen's centre, both
+    hands on screen, the chest turned into it;
+  - follow-through to the lower left (0.3 s, past the left hip), a camera punch (the Item bone:
+    5 deg down, 2.5 deg aside, after the impact so the strike's aim is the clip's own);
+  - recovery: down out of view, the carry idle by 0.57 s.
+  The battery (0.66 x 0.36 x 0.31 m) held within reach is 0.25-0.45 m from the eye, where it
+  spans most of the screen's width: at the wind-up and the follow-through one handle (and its
+  hand) is past the screen's edge.
 - **Two clips** at 30 fps, written in the engine's format with its own spline basis
   (`clips.py`, resource-porter's `skeleton_animation.rs` transcribed): `battery_hit` (6 frames,
   the wind-up and strike, its last frame the impact) and `battery_hit_recover` (11 frames), with
@@ -69,10 +91,16 @@
   `files_from_repo`, the files pinned by sha256, `make_clips.py --check` keeps them equal to
   the keys) as the battery config's `states[3]` and `states[4]`, which the cook loads as it
   loads states 0-2.
-- **Checked offline** (`preview.py`, the renders in `private/renders/battery-hit/`): in first
-  person (the Item bone's camera, 65 deg, near plane 0.05 m) nothing crosses the near plane in
-  view on any frame; in third person no torso, neck, head or helmet vertex is inside the
-  battery's box on any frame; the before (the put clip) beside it.
+- **Checked offline** (`preview.py`, the renders in `private/renders/battery-hit/`, with
+  `metrics.txt`): in first person (the camera above) the battery is on screen from 0.07 s to
+  0.43 s, both hands from 0.17 to 0.23 s (the impact at 0.2 s), and nothing crosses the near
+  plane in view on any frame; in third person (three views, every frame) no torso, neck, head
+  or helmet vertex is inside the battery's box and the hands are on the handles within 12 mm;
+  the before (the put's clips) beside it.
+- **The spine and the camera in a hands_only clip:** the stock gun-stock hit's clip
+  (`ak/.../hands_only/kick`, additive) turns the spine 16 deg and moves the neck, head and Item,
+  so the engine plays those bones of such a clip; these clips (non-additive, as the battery's
+  stock ones) are not seen in game yet.
 - **Seen by all:** the swing and the recovery are states of the battery's machine; the
   player's animation tree is simulation state, drawn for every view; first person draws the
   same body. The battery follows the Weapon bone each tick (0x344E40).
