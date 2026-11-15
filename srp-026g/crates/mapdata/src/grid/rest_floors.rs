@@ -81,7 +81,11 @@ pub(super) fn holds(world: &Collision, s: &Settings, feet: Vec3, room: f32, step
     let start = out_of_walls(world, feet + Vec3::new(0.0, over, 0.0));
     let mut body = Controller::standing_at(start);
     let still = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting: false };
-    let mut ground: Option<f32> = None;
+    // The fall is measured from the floor's own height until a step finds ground: a body that slides off on a steep way down with
+    // no step finding ground on it (`step_down` 0x7E1B0 finds none there) lands 1.7-2.0 m lower and would set the ground there,
+    // held (the exe review of #1914, Mamayev Kurgan (-22.851, 121.875): 1.73 m under the floor, counted held).
+    let mut ground = feet.y;
+    let mut landed = false;
     for _ in 0..REST_STEPS_MAX {
         body.velocity.y = body.velocity.y.min(-FALL_MPS);
         let notes = body.tick(world, DT, s, still);
@@ -89,15 +93,17 @@ pub(super) fn holds(world: &Collision, s: &Settings, feet: Vec3, room: f32, step
         // On the ground only where the step's own down sweep found it (`step_down` 0x7E1B0): `on_ground` 0x7EF90 is the jump's
         // gate and stays true while a body walked off an edge falls its first 0.69 m (the exe's tick, a 2 m ledge).
         if !notes.airborne && !body.jumping && body.on_ground(s) {
-            ground = Some(y);
-        } else if let Some(g) = ground
-            && g - y > step
-        {
+            if ground - y > step {
+                return false;
+            }
+            ground = y;
+            landed = true;
+        } else if ground - y > step {
             return false;
         }
     }
     // Never landed: it fell the whole time.
-    ground.is_some()
+    landed
 }
 
 impl WalkGrid {
