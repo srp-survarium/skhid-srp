@@ -352,6 +352,9 @@ pub struct Bot {
     /// [take.world_stand] The feet the latest world put its body at, and that world's time (alive; `body::Fix`), set before
     /// each think: a take presses at a stand only where the world, not only the reckoning, has the body.
     world_feet: Option<(Vec3, u32)>,
+    /// [take.on_the_move] The USE the drive pressed for the play's [`Intent::use_on_meet`]: the battery's position and the
+    /// tick (`drive::press_on_meet`); cleared once the play's intent asks for no such press (`think`).
+    use_pressed: Option<(Vec3, u32)>,
     /// The enemy and the place its Crossfire began on, and when
     /// (`commit.crossfire_point`): the choke after the memory forgot him.
     held_choke: Option<(Place, Vec3, u32)>,
@@ -636,6 +639,7 @@ impl Bot {
             no_way: None,
             no_way_to: Vec::new(),
             world_feet: None,
+            use_pressed: None,
             held_choke: None,
             lip_watch: drive::LipWatch::default(),
             lip_memo: drive::LipMemo::default(),
