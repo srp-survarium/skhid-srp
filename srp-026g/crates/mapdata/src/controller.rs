@@ -284,6 +284,30 @@ pub fn sweep_ties() -> SweepTies {
     SweepTies { sweeps: n(0), one_mesh: n(1), same_object_parts: n(2), across_objects: n(3), faces: n(4), same_object_unordered: n(5) }
 }
 
+/// [L36] Where the sweeps' compound-child cull (`Solids::sweep_each`: a child offered only where its box in the compound's
+/// child tree meets the cast's volume, as the exe's `collideTV`) parted from the test it replaced (the child's world box
+/// against the padded swept box). Totals of this process, for the logs: no decision reads them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SweepCull {
+    /// Children the old test offered and the tree does not.
+    pub skipped: u64,
+    /// Children the tree offers and the old test did not.
+    pub added: u64,
+}
+
+static CULL_COUNTS: [std::sync::atomic::AtomicU64; 2] = [const { std::sync::atomic::AtomicU64::new(0) }; 2];
+
+/// The process's [`SweepCull`] so far.
+pub fn sweep_cull() -> SweepCull {
+    let n = |i: usize| CULL_COUNTS[i].load(std::sync::atomic::Ordering::Relaxed);
+    SweepCull { skipped: n(0), added: n(1) }
+}
+
+/// [L36] Counts one child where the cull and the old test part ([`SweepCull`]).
+fn count_cull_parting(offered_now: bool) {
+    CULL_COUNTS[usize::from(offered_now)].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// One sweep's ties at its closest fraction so far: the closest, what the first contact there was, and the counts.
 struct Ties {
     closest: f32,

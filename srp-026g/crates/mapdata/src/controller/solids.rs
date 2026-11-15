@@ -723,7 +723,11 @@ impl Solids {
                             v
                         }
                     };
-                    tree_meets(&tree_box, &volume)
+                    let now = tree_meets(&tree_box, &volume);
+                    if now != overlaps(&self.boxes[i], &swept) {
+                        super::count_cull_parting(now);
+                    }
+                    now
                 }
                 None => overlaps(&self.boxes[i], &swept),
             };
