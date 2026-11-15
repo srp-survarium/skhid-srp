@@ -682,7 +682,7 @@ pub struct HeldMods {
 impl HeldMods {
     /// A bot holding `held`.
     pub fn add(&mut self, held: &Gun) {
-        let Some(base) = gun(held.item).filter(|base| *base != held) else {
+        let Some(base) = gun(held.item).filter(|_| held.is_modded()) else {
             return;
         };
         let ratio = |now: u32, then: u32| if then == 0 { 1.0 } else { now as f32 / then as f32 };
@@ -1978,7 +1978,12 @@ mod tests {
         let none = Factors::default();
         let mut held = HeldMods::default();
         held.add(gun("ak_74u").unwrap());
+        // [A307] The kick's factor of worn gloves alone is no mod (`Gun::is_modded`).
+        held.add(gun_with("ak_74u", &[], Factors { recoil: -0.08, ..none }).unwrap());
         assert_eq!(held, HeldMods::default());
+        let mut counts = ModCounts::default();
+        counts.reload(gun_with("ak_74u", &[], Factors { recoil: -0.08, ..none }).unwrap());
+        assert_eq!((counts.reloads, counts.reloads_modded), (1, 0));
         // The owner's 13-15 rusher: weapon -12 %, gloves +10 %, skill 101 -10 %.
         let owners = Factors { reload_speed: 0.10, aim_time: -0.10, recoil: 0.0 };
         let mut held = HeldMods::default();
