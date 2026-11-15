@@ -218,6 +218,45 @@ pub(crate) fn a_stand_in_shot_leaves_from_the_position_before_its_ticks_move() {
     );
 }
 
+/// `CombatTuning::live_eye` off: the stand-in's shot leaves after its tick's move, from where the body is then, at the
+/// old eye (1.6 m standing): the order before the fix (`a_stand_in_shot_leaves_from_the_position_before_its_ticks_move`).
+#[test]
+pub(crate) fn with_the_switch_off_a_stand_in_shot_leaves_from_after_its_ticks_move() {
+    let _off = EyeOff::new();
+    let world = soak_world();
+    let mut game = Game::new(world.clone(), &[0, 0], 1, None, None);
+    let gun = Arms::fallback().primary.0;
+    let start = Vec3::new(20.0, 0.0, 10.0);
+    // A teammate dead ahead, 14 m: a shot at him is a team hit, which keeps the shot's eye.
+    for (place, feet) in [(0, start), (1, start + Vec3::new(0.0, 0.0, 14.0))] {
+        let body = &mut game.bodies[place];
+        body.node = world.grid.locate(feet, 1.0);
+        body.feet = feet;
+        body.yaw = 0.0;
+        body.alive = true;
+    }
+    // Walking for 1.5 s, then walking and firing.
+    for tick in (TICK_MS..=1_500).step_by(TICK_MS as usize) {
+        game.inputs[0].push_back((tick, key::FORWARD, (0.0, 0.0), None, gun));
+        game.inputs[1].push_back((tick, 0, (0.0, 0.0), None, gun));
+    }
+    while game.tick < 1_500 {
+        game.step();
+    }
+    assert!(game.bodies[0].step_m > 0.05, "walking: {}", game.bodies[0].step_m);
+    let tick = game.tick + TICK_MS;
+    game.inputs[0].push_back((tick, key::FORWARD | key::FIRE, (0.0, 0.0), None, gun));
+    game.inputs[1].push_back((tick, 0, (0.0, 0.0), None, gun));
+    let before = game.bodies[0].feet;
+    game.step();
+    let after = game.bodies[0].feet;
+    assert!(after.distance_xz(before) > 0.05, "the body moved in the tick");
+    let &(shooter, victim, eye, _, _, _) = game.team_hit_shots.first().expect("a team hit at 14 m");
+    assert_eq!((shooter, victim), (0, 1));
+    let want = after + Vec3::new(0.0, 1.6, 0.0);
+    assert!((eye - want).length() < 1e-4, "the shot left from {eye:?}, after the move {want:?}, before {before:?}");
+}
+
 /// The stand-in's eye is the bots' function at its pace and view.
 #[test]
 pub(crate) fn the_stand_ins_eye_is_the_bots_eye_function() {

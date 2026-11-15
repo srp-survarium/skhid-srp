@@ -518,6 +518,41 @@ mod tests {
         );
     }
 
+    /// `CombatTuning::live_eye` off: a container's stands are the use test's at the old guessed eyes
+    /// (`GUESSED_EYE_STANDING`, `GUESSED_EYE_CROUCHED`); on, at the game's (`EYE_STANDING`, `EYE_CROUCHED`).
+    #[test]
+    fn with_the_switch_off_the_stands_are_found_at_the_guessed_eyes() {
+        use super::super::tests::Scenario;
+        use crate::v026g::bots::view::{Mode, set_live_eye, use_ray_m};
+        struct On;
+        impl Drop for On {
+            fn drop(&mut self) {
+                set_live_eye(true);
+            }
+        }
+        let _on = On;
+        let ours = Vec3::new(12.0, 0.0, 30.0);
+        let middle = ours + Vec3::new(0.0, 1.0, 0.0);
+        let half = Vec3::new(1.0, 0.85, 0.65);
+        let body = Shape { kind: ShapeKind::Box, center: middle, rotation: Rotation::IDENTITY, half };
+        let world = crate::v026g::bots::tactics::tests::field_with_solids(&solid_box(middle, half), |map| {
+            map.containers.push(mapdata::Container { position: ours, team: 0, id: 0, use_shapes: vec![body] });
+        });
+        let built = |on: bool| {
+            set_live_eye(on);
+            let mut s = Scenario::field(Mode::Batteries);
+            s.bot(0, 0, Vec3::new(20.0, 0.0, 30.0));
+            s.tactics = Tactics::new(world.clone(), 1.0);
+            s.cx(0).use_stands(0).to_vec()
+        };
+        let (off, on) = (built(false), built(true));
+        let guessed = UseStands::build_ray(&world, GUESSED_EYE_STANDING, GUESSED_EYE_CROUCHED, use_ray_m()).of(0).to_vec();
+        let measured = UseStands::build_ray(&world, EYE_STANDING, EYE_CROUCHED, use_ray_m()).of(0).to_vec();
+        assert_ne!(guessed, measured, "the premise: the two eyes find other stands at this box");
+        assert_eq!(off, guessed);
+        assert_eq!(on, measured);
+    }
+
     const IN_ZONE: Vec3 = Vec3::new(25.0, 0.0, 32.0);
 
     /// Kept answers are the question's own, for each stand, side and stop
