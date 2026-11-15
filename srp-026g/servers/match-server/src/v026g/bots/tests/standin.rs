@@ -642,6 +642,9 @@ pub(crate) struct Game {
     /// Every kill: (tick, the shooter, the killed), for the bench's
     /// events (`SRP_BENCH_EVENTS`).
     pub(crate) kill_log: Vec<(u32, Place, Place)>,
+    /// [camper trace] The kills whose lethal shot landed on the head (`HitParam::Brain` or `Face`, the box shapes' hits): (tick,
+    /// killer, killed). Read by the camper trace only.
+    pub(crate) head_kill_log: Vec<(u32, Place, Place)>,
     /// Every teammate's death ([`TeamKill`]), for the owner counts.
     pub(crate) team_kill_log: Vec<TeamKill>,
     /// The next [`Self::kill`] is a grenade's blast (set around its call).
@@ -1015,6 +1018,7 @@ impl Game {
             carrier_kills: Vec::new(),
             carry_kill_lines: Vec::new(),
             kill_log: Vec::new(),
+            head_kill_log: Vec::new(),
             team_kill_log: Vec::new(),
             kill_by_frag: false,
             hit_log: Vec::new(),
@@ -2314,6 +2318,13 @@ impl Game {
             self.settle(shooter, target, team_hit, pain_before, tick);
             if through_cover && !team_hit && was_alive && !self.bodies[target].alive {
                 self.cover_kills_by[usize::from(team).min(1)] += 1;
+            }
+            if !team_hit
+                && was_alive
+                && !self.bodies[target].alive
+                && landed.iter().any(|(param, _)| matches!(param, standin_hitbox::HitParam::Brain | standin_hitbox::HitParam::Face))
+            {
+                self.head_kill_log.push((tick, shooter, target));
             }
         }
         if enemy_hit {

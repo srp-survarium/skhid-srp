@@ -1,7 +1,8 @@
 //! [camper trace] The stand-in camper's match tick by tick, for a reader outside the bench (`SRP_BENCH_CAMPER_TRACE=<dir>`):
 //! one JSON line a tick with his body, what his motion is doing (a stay, a leave, a return) and its spot, and each living enemy's
 //! body with the lines of sight between the two and when each one's own senses last placed the other; then each hit and kill he
-//! is in. It counts nothing and prints only the file's name; unset, it keeps nothing. Its rays are its own (not the tallies').
+//! is in, and every kill of the match with whether its lethal shot landed on the head (`Game::head_kill_log`). It counts nothing
+//! and prints only the file's name; unset, it keeps nothing. Its rays are its own (not the tallies').
 
 use super::*;
 
@@ -20,6 +21,7 @@ pub(super) struct CamperTrace {
     now: Option<(char, Vec3, bool)>,
     hits_seen: usize,
     kills_seen: usize,
+    all_kills_seen: usize,
     ticks: u64,
 }
 
@@ -122,6 +124,7 @@ impl Topic for CamperTrace {
                     u8::from(i_see),
                     own(p, camper),
                     own(camper, p),
+                    b.keys,
                 ])
             })
             .collect();
@@ -161,6 +164,12 @@ impl Topic for CamperTrace {
         self.kills_seen = run.kills.len();
         for (t, s, v) in kills {
             self.write(serde_json::json!({"t": t, "kill": [s, v]}));
+        }
+        let every: Vec<(u32, Place, Place)> = run.kills[self.all_kills_seen.min(run.kills.len())..].to_vec();
+        self.all_kills_seen = run.kills.len();
+        for (t, s, v) in every {
+            let head = game.head_kill_log.iter().any(|&(ht, hs, hv)| ht == t && hs == s && hv == v);
+            self.write(serde_json::json!({"t": t, "k": [s, v], "head": head}));
         }
     }
 
