@@ -11114,6 +11114,9 @@ mod tests {
                 aim.combat.recoil_pull_low = pull_low;
                 aim.combat.fire.smg = vec![long];
                 aim.combat.fire.rifle = vec![long];
+                // The rows' one long hold, not the humans' draw: the test's client counts no magazine, so its window must
+                // stay inside one burst of under a magazine.
+                aim.combat.fire.burst_human = None;
                 let (over, shots, gaps) = kicked_fight_gaps(Some(arms), 52.0, &aim, 200, 0.5);
                 assert!(shots >= 16, "{shots} shots");
                 // The first burst, to its 16th round.
