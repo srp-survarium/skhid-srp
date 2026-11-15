@@ -843,6 +843,29 @@ pub fn segment_triangle(p: Vec3, q: Vec3, v: &[Vec3; 3]) -> (f32, Vec3, Vec3) {
 mod tests {
     use super::*;
 
+    /// [L36] At an equal fraction a later triangle of the same mesh query takes the place (keep-last); one of another part or
+    /// object, an unranked one, or a farther one does not (keep-first).
+    #[test]
+    fn a_tie_inside_one_mesh_keeps_the_later_triangle() {
+        let c = |t: f32, object: u32, part: u32, rank: Option<u32>| Contact {
+            t,
+            point: Vec3::ZERO,
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            on: Surface::Face { walker: WalkerBehaviour::Walk, normal: Vec3::new(0.0, 1.0, 0.0) },
+            object: Some(SolidId(object)),
+            part: Some(part),
+            rank,
+        };
+        let kept = c(0.0, 1, 2, Some(10));
+        assert!(c(0.0, 1, 2, Some(11)).replaces(&kept), "later in the same mesh");
+        assert!(!c(0.0, 1, 2, Some(9)).replaces(&kept), "earlier in the same mesh");
+        assert!(!c(0.0, 1, 3, Some(11)).replaces(&kept), "another part of the object");
+        assert!(!c(0.0, 4, 2, Some(11)).replaces(&kept), "another object");
+        assert!(!c(0.0, 1, 2, None).replaces(&kept), "no rank");
+        assert!(c(-0.0, 1, 3, None).t == kept.t && !c(-0.0, 1, 3, None).replaces(&kept));
+        assert!(c(0.0, 4, 2, None).replaces(&c(0.5, 1, 2, Some(1))), "nearer");
+    }
+
     fn tri(a: Vec3, b: Vec3, c: Vec3) -> Triangle {
         Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope }
     }

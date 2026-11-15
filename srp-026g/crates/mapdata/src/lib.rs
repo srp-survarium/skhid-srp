@@ -258,6 +258,10 @@ pub const CLIENT_BODY_ALGO: u32 = 1;
 pub const SIGHT_ALGO: u32 = 3;
 /// [`World::map_grid_key`]'s own part (the spawns, and the map file when the rim jumps fly on the game's shapes).
 pub const MAP_GRID_KEY_ALGO: u32 = 1;
+/// [L36] The game's shapes' sweeps keep, at an equal fraction inside one mesh, the later triangle of the mesh tree's order
+/// (`controller::Contact::replaces`): in [`MapData::map_grid_key`] for every body whose passes take the shapes
+/// ([`MapData::takes_shapes`]). A value of its own.
+pub const SHAPES_TIE_ORDER_ALGO: u32 = 0x5388_0001;
 
 /// One map ready for bots: its data, walk grid and sight tree.
 pub struct World {
@@ -385,6 +389,7 @@ impl World {
         // digest is in the key for every such pass ([`Self::takes_shapes`]; it was for the rim jumps only).
         if Self::takes_shapes(body) && map.bullet.is_some() {
             digest.u64(map_file);
+            digest.u32(SHAPES_TIE_ORDER_ALGO);
         }
         digest.finish()
     }
