@@ -45,7 +45,7 @@
 //!
 //! Frames: the map's (x, z on the ground, y up); a yaw `a` faces
 //! `(-sin a, cos a)` ([`kin::forward`]), a positive pitch looks up (the
-//! game clamps it at ±1, [`PITCH_LIMIT`]).
+//! game clamps the view between [`PITCH_LOW`] and [`PITCH_HIGH`]).
 
 use mapdata::{RayTree, Vec3};
 
@@ -69,9 +69,12 @@ pub const LAUNCH_DELAY_S: f32 = 1.1;
 /// launch frame. GUESS (the data cannot tell it from the eye; 0.3 m
 /// shortens a level throw from 9.3 to 8.4 m).
 pub const HAND_DOWN_M: f32 = 0.3;
-/// The most the game lets the view tilt, either way, radians. PROVEN
-/// ([`kin`]).
-pub const PITCH_LIMIT: f32 = 1.0;
+/// The lowest elevation the game lets the view have, radians: 67.48 degrees down, the pitch unit's -1 (PROVEN,
+/// `mapdata::stands::VIEW_DOWN_DEG`; it was taken as -1 radian, -57.3 degrees).
+pub const PITCH_LOW: f32 = -mapdata::stands::VIEW_DOWN_RAD;
+/// The highest elevation the game lets the view have, radians: 60.0 degrees up, the pitch unit's 1 (PROVEN,
+/// `mapdata::stands::VIEW_UP_DEG`; it was taken as 1 radian, 57.3 degrees).
+pub const PITCH_HIGH: f32 = mapdata::stands::VIEW_UP_RAD;
 
 /// A surface whose normal leans less than this from level (its `y` under
 /// it) is a wall: the grenade falls at its foot. LIKELY (20 of the 45
@@ -259,7 +262,7 @@ impl Grenade {
 
     /// The view pitch whose first contact is `range_m` out on a level ground `drop_m` under the
     /// launch point, radians: the flat arc (the high one lands a second or more later and is no
-    /// use before a fuse). None beyond [`Self::max_range`], nearer than a throw at [`PITCH_LIMIT`]
+    /// use before a fuse). None beyond [`Self::max_range`], nearer than a throw at [`PITCH_LOW`]
     /// down lands, and where the longest throw would outlast [`Self::flight_s`]. Solved on the same
     /// steps as [`Flight`], so `level_range(pitch_for(d, h)?, h)` is `d`.
     pub fn pitch_for(&self, range_m: f32, drop_m: f32) -> Option<f32> {
@@ -267,7 +270,8 @@ impl Grenade {
         if self.level_range(top, drop_m)? < range_m {
             return None;
         }
-        let mut low = -PITCH_LIMIT;
+        log_view_limits();
+        let mut low = PITCH_LOW;
         if self.level_range(low, drop_m).is_some_and(|r| r > range_m) {
             return None;
         }
@@ -281,6 +285,19 @@ impl Grenade {
         }
         Some(0.5 * (low + high))
     }
+}
+
+/// Says once, in the server's log, the view's limits the throws are searched between (the client's, [`PITCH_LOW`] and
+/// [`PITCH_HIGH`]).
+fn log_view_limits() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        log::info!(
+            "bots: grenade arcs between the view's elevations {:.2} and {:.2} degrees (the pitch unit's clamp, 0x2E0F60)",
+            PITCH_LOW.to_degrees(),
+            PITCH_HIGH.to_degrees()
+        );
+    });
 }
 
 /// The unit direction of the view, `pitch` up.
@@ -752,8 +769,8 @@ mod tests {
     fn a_throw_out_of_reach_has_no_pitch() {
         assert_eq!(pitch_for(31.0, EYE_M), None);
         assert_eq!(pitch_for(max_range(EYE_M).unwrap() + 0.1, EYE_M), None);
-        // Nearer than the steepest throw lands (about 1 m from 1.6 m up).
-        let nearest = level_range(-PITCH_LIMIT, EYE_M).unwrap();
+        // Nearer than the steepest throw lands (about 0.65 m from 1.6 m up, 67.48 degrees down).
+        let nearest = level_range(PITCH_LOW, EYE_M).unwrap();
         assert!(nearest > 0.5 && nearest < 1.5, "{nearest}");
         assert_eq!(pitch_for(nearest - 0.1, EYE_M), None);
         assert!(pitch_for(nearest + 0.1, EYE_M).is_some());

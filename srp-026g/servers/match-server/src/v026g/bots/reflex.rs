@@ -2869,7 +2869,7 @@ fn grazes_near(eye: Vec3, (yaw, pitch): (f32, f32), margin_m: f32, c: &CombatTun
 /// by 6, 12, 20 and 30 degrees either way (coarser pitches), at most
 /// `grenade_search_traces` traces. The first whose first contact is within
 /// `grenade_search_off_m` of the place and which passes every check of
-/// [`weigh_view`]. A pitch is clamped at [`arc::PITCH_LIMIT`]: a lob that
+/// [`weigh_view`]. A pitch is clamped at [`arc::PITCH_HIGH`]: a lob that
 /// clears cover lands 22-29 m out and no nearer.
 fn search_arc(
     me: &PlaceView,
@@ -2887,7 +2887,7 @@ fn search_arc(
     let mut traces = 0;
     for dyaw_deg in DYAWS_DEG {
         let step = if dyaw_deg == 0.0 { 3.0 } else { 6.0 };
-        let top = arc::PITCH_LIMIT.to_degrees();
+        let top = arc::PITCH_HIGH.to_degrees();
         let mut pitches: Vec<f32> = (0..)
             .map(|k| LOW_DEG + step * k as f32)
             .take_while(|p| *p <= top)

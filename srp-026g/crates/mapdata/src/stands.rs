@@ -31,8 +31,18 @@ pub const USE_RAY_M: f32 = 2.0;
 /// sets `usable_objects_detection_distance` to 1.80 (PROVEN; the cvar is the
 /// float `detect_usable_object` 0x2D84C0 loads as the ray's length).
 pub const USE_RAY_CLIENT_M: f32 = 1.8;
-/// The view's pitch limit, radians (LIKELY; `kin.rs`).
-pub const PITCH_MAX_RAD: f32 = 1.0;
+/// The view's highest elevation, degrees over the horizontal (PROVEN). The game keeps the view's pitch as a unit clamped to
+/// `[-1, 1]` (`weapon_core::look_pitch` 0x2E0F60), and the eye and the bullet follow the "Item" bone that the look clip
+/// poses by it: its forward axis rises +60.24 degrees at 1 and -67.24 at -1, +0.24 at 0 (the stock clips,
+/// `player_bots_weapons.md` "The view's pitch unit"; the match server's `bots/pitch.rs`). So a unit is 60.0 degrees up and
+/// 67.48 down, not a radian.
+pub const VIEW_UP_DEG: f32 = 60.0;
+/// The view's lowest elevation, degrees under the horizontal (PROVEN, as [`VIEW_UP_DEG`]).
+pub const VIEW_DOWN_DEG: f32 = 67.48;
+/// [`VIEW_UP_DEG`] in radians: the highest elevation a view has.
+pub const VIEW_UP_RAD: f32 = VIEW_UP_DEG * (std::f32::consts::PI / 180.0);
+/// [`VIEW_DOWN_DEG`] in radians: the lowest elevation a view has is minus this.
+pub const VIEW_DOWN_RAD: f32 = VIEW_DOWN_DEG * (std::f32::consts::PI / 180.0);
 /// The two eye heights over the feet a standing stand must pass at, metres:
 /// the bullet's 1.46 m with the view's pitch within a quarter radian
 /// (1.42-1.50) and the spread of live bullets (sd 0.03) round it.
@@ -225,7 +235,7 @@ pub fn press(sight: &RayTree, eye: Vec3, shape: &Shape, ray_m: f32) -> Option<(V
         }
         let dir = v * (1.0 / len);
         let pitch = dir.y.atan2(dir.x.hypot(dir.z));
-        if pitch.abs() > PITCH_MAX_RAD {
+        if !(-VIEW_DOWN_RAD..=VIEW_UP_RAD).contains(&pitch) {
             continue;
         }
         let Some(t) = ray_box(eye, dir, shape.center, &shape.rotation, shape.half) else {

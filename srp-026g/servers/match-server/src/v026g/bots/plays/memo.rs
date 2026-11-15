@@ -267,6 +267,11 @@ impl Memo {
     pub fn use_stands(&self, tactics: &Tactics) -> &UseStands {
         self.stands.get_or_init(|| {
             let ray_m = crate::v026g::bots::view::use_ray_m();
+            log::info!(
+                "bots: use stands within the view's elevations -{:.2} to +{:.2} degrees (the pitch unit's clamp, 0x2E0F60), ray {ray_m} m",
+                mapdata::stands::VIEW_DOWN_DEG,
+                mapdata::stands::VIEW_UP_DEG
+            );
             if crate::v026g::bots::view::live_eye() {
                 UseStands::build_ray(&tactics.world, EYE_STANDING, EYE_CROUCHED, ray_m)
             } else {
