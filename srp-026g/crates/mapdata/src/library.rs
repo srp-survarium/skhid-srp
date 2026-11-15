@@ -41,7 +41,9 @@ const CHUNK_FACE_DATA: u32 = 0x1c;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum WalkerBehaviour {
-    /// Ground where the slope is at most 60° (LIKELY 60°).
+    /// Ground where the slope is at most 55° (PROVEN): the down sweep's callback 0x84420 takes such a face's normal
+    /// against `cc_max_slope_cos` 0.57358 (`startup.cfg`; [`crate::controller::tick::Settings::LIVE`]), as the grid's
+    /// client body does ([`crate::grid::Body::client`] `min_ground_normal_y`).
     #[default]
     BySlope = 0,
     /// Always ground (`walk` faces: stairs, steep paths).
