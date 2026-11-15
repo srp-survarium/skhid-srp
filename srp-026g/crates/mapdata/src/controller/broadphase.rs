@@ -99,9 +99,19 @@ pub fn creation_boxes(map: &MapData) -> Vec<Option<(V3, V3)>> {
 /// where a placement's box is not known ([`creation_boxes`]).
 pub fn walk_order(map: &MapData) -> Option<Vec<u32>> {
     let boxes: Vec<(V3, V3)> = creation_boxes(map).into_iter().collect::<Option<_>>()?;
+    Some(walk_order_of(&boxes.into_iter().map(Some).collect::<Vec<_>>()))
+}
+
+/// [`walk_order`] of objects given by their creation boxes in creation order (`None`: an object not in the tree), each
+/// object named by its index.
+pub fn walk_order_of(boxes: &[Option<(V3, V3)>]) -> Vec<u32> {
     let mut tree = Dbvt::default();
-    let leaves: Vec<usize> = boxes.iter().enumerate().map(|(i, b)| tree.insert(Volume::of(b.0, b.1), i as u32)).collect();
-    for (b, &leaf) in boxes.iter().zip(&leaves) {
+    let leaves: Vec<(usize, (V3, V3))> = boxes
+        .iter()
+        .enumerate()
+        .filter_map(|(i, b)| b.map(|b| (tree.insert(Volume::of(b.0, b.1), i as u32), b)))
+        .collect();
+    for &(leaf, b) in &leaves {
         let proxy = Volume::of(b.0.map(|v| v - CONTACT_THRESHOLD), b.1.map(|v| v + CONTACT_THRESHOLD));
         let held = tree.volume(leaf);
         // 0xB5183..0xB51B0: a box that no longer meets the leaf is a teleport, reinserted as it is (0xAA710).
@@ -116,7 +126,7 @@ pub fn walk_order(map: &MapData) -> Option<Vec<u32>> {
             tree.update(leaf, widened);
         }
     }
-    Some(tree.offering_order())
+    tree.offering_order()
 }
 
 fn flip(v: V3) -> V3 {
