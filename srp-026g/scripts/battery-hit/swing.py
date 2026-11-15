@@ -20,24 +20,25 @@ END = 17            # frames: 0.567 s, the recovery's end (back on the carry idl
 
 # keys: frame -> values; `hold` keys have zero tangent (an extreme), others pass through with speed.
 # A forward ram (the owner, 2026-11-15: "the battery should clearly move forward with hands
-# straightening out"): pulled in and up to the chest, elbows bent (wind-up, 0.1 s), pushed
-# straight out until both arms are straight (the impact at 0.2 s, the strike), held there, back to
-# the carry. Values: the battery's move from its carry pose (its centre's offset in metres, body
-# frame: x right, y up, z forward; its turn about the centre in degrees), which its own clip's
-# `offset` bone makes; the arms follow it, the only bones of the carrier its clips can move.
-# The impact is as far forward as both arms reach with the carry's shoulders (the right one
-# stands back): 0.29 m, the elbows straight (175 deg), the battery at the lower centre of the
-# first-person view.
+# straightening out"), timed on Dirty Bomb's two-handed objective shove (measured as a reference,
+# private/renders/battery-hit/dirty-bomb-reference): pulled in to the chest, elbows bent, by 0.1 s,
+# one still frame cocked, struck out in 2 frames until both arms are straight (the impact at 0.2 s,
+# the strike), held there 3 frames, a soft recovery to the carry. Values: the battery's move from
+# its carry pose (its centre's offset in metres, body frame: x right, y up, z forward; its turn
+# about the centre in degrees), which its own clip's `offset` bone makes; the arms follow it, the
+# only bones of the carrier its clips can move. The impact is as far forward as both arms reach
+# with the carry's shoulders (the right one stands back): 0.29 m, the elbows straight (175 deg),
+# the battery at the lower centre of the first-person view.
 KEYS = {
     #            frame: (cx,     cy,     cz,     pitch, yaw,  roll)
     'rest':      (0,  (0.000,  0.000,  0.000,    0,     0,    0)),
-    'pull':      (3,  (-0.080, 0.160,  0.020,    5,    12,    0)),
+    'pull':      (3,  (-0.080, 0.120,  0.050,    0,    12,    0)),
+    'cocked':    (4,  (-0.080, 0.120,  0.050,    0,    12,    0)),
     'impact':    (IMPACT, (-0.161, 0.243, 0.288, 12.6, 17.3, 10.5)),
-    'extended':  (8,  (-0.161, 0.243,  0.288,   12.6,  17.3, 10.5)),
-    'return':    (12, (-0.050, 0.080,  0.080,    4,     6,    3)),
+    'held':      (9,  (-0.161, 0.243,  0.288,   12.6,  17.3, 10.5)),
     'recover':   (END, (0.000, 0.000,  0.000,    0,     0,    0)),
 }
-HOLD = {'rest', 'pull', 'impact', 'extended', 'recover'}
+HOLD = {'rest', 'pull', 'cocked', 'impact', 'held', 'recover'}
 
 
 def curve(t):

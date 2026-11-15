@@ -93,12 +93,16 @@
     its handles.
 - **Authored** (`scripts/battery-hit`) as the game plays it: the battery moved by its own clip's
   `offset` bone, the arms (the only carrier bones) solved onto its handles every frame (two-bone
-  IK, the elbow in its idle plane), over the carry idle as the game mixes it. A forward ram:
-  - pull (0.1 s): up 16 cm to the chest, elbows bent;
-  - push to the impact (0.2 s, the strike): out 29 cm forward and 24 cm up from the carry, both
-    elbows straight (175 deg), as far as both arms reach (the carry stands with its right
-    shoulder back); in first person the battery comes up into the lower centre of the view;
-  - held out to 0.27 s, then back to the carry by 0.57 s.
+  IK, the elbow in its idle plane), over the carry idle as the game mixes it. A forward ram, timed
+  on Dirty Bomb's two-handed objective shove (measured offline as a reference only, with the
+  owner's leave; none of its files in the repo or the content):
+  - pull (to 0.1 s): in and up 12 cm toward the chest, the elbows from 112/94 to 89/83 deg;
+  - cocked: one still frame (0.1-0.13 s);
+  - struck in 2 frames to the impact (0.2 s, the strike): out 29 cm forward and 24 cm up from
+    the carry, both elbows straight (175 deg), as far as both arms reach (the carry stands with
+    its right shoulder back); in first person the battery comes up into the lower centre of the
+    view, both hands on it;
+  - held out 3 frames (to 0.3 s), then a soft recovery to the carry by 0.57 s.
   No torso lean and no camera punch: the spine and the Item bone are not the battery clips' to
   move (mask 1).
 - **Four clips** at 30 fps, written in the engine's format with its own spline basis

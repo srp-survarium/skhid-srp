@@ -158,8 +158,17 @@ for name, view in (('three_quarter', THREE_QUARTER), ('side', (1.9, 0.15, 0.3)),
         sheet.paste(img, ((f % 3) * BIG[0], (f // 3) * BIG[1]))
     sheet.save(out / ('battery_hit_tp_%s.png' % name))
 
+# between frames too (the game draws at its own frame rate): a quarter frame apart
+between = 0
+for q in range(swing.END * 4 + 1):
+    w, bw = game_pose(after, q / 4)
+    eye, r = render.fp_camera(w)
+    between += render.draw([(m.pose(w), m.triangles, m.color) for m in rig.fp]
+                           + [(rig.battery.pose(bw), rig.battery.triangles, rig.battery.color)], eye, r, size=(160, 90))[1]
+
 lines = ['frame | before: battery moved cm, grip mm, FP on-screen %, near, body'
          ' | after: battery moved x y z cm, grip mm, FP on-screen %, hands, near, body']
 lines += ['%5d | %5.1f %6.0f %5.0f%% %3d %4d | %+6.1f %+6.1f %+6.1f %5.0f %5.0f%% %3s %3d %4d' % r for r in report]
+lines.append('after, every quarter frame: %d triangles crossing the near plane in view' % between)
 (out / 'metrics.txt').write_text('\n'.join(lines) + '\n')
 print('\n'.join(lines))
