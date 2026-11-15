@@ -144,7 +144,7 @@ struct Live {
     /// The key or button push-to-talk is held by.
     talk: Option<TalkInput>,
     /// The speakers the hud's list was told.
-    shown: Option<Places>,
+    shown: Option<Speakers>,
     trace: Trace,
 }
 
@@ -340,10 +340,10 @@ fn stop(thread: &Thread, scene: Option<Scene<'_>>) {
     if let Voice::Live(dll, live) = VOICE.get(thread) {
         dll.talk(false);
         dll.stop();
-        if live.shown.is_some_and(|shown| shown != Places::NONE)
+        if live.shown.is_some_and(|shown| shown != Speakers::NONE)
             && let Some(scene) = scene
         {
-            show_speakers(&scene, &Roster::EMPTY, Places::NONE);
+            show_speakers(&scene, &Roster::EMPTY, Speakers::NONE);
         }
         VOICE.set(thread, Voice::Idle(dll));
     }
@@ -484,7 +484,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Settings::Off => Places::NONE,
         Settings::On { .. } => dll.talking(),
     };
-    let speakers = speakers(talking, &told.hearing, roster.local(), told.muted);
+    let speakers = speakers(talking, &told.hearing, &roster, told.muted);
     if live.shown != Some(speakers) && show_speakers(&scene, &roster, speakers) {
         live.shown = Some(speakers);
     }
@@ -492,28 +492,51 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// Who the hud's list shows of those `talking`: the players heard (a mate
-/// always, an opponent while it is near: [`hearing`]), and the local player's
-/// own place (`own`) while its microphone is sent (the owner, 2026-11-11:
-/// "when I speak I want to see this with an icon"); none `muted`.
-fn speakers(talking: Places, hearing: &Hearing, own: Option<Place>, muted: Places) -> Places {
-    Place::all()
-        .filter(|&p| talking.has(p) && (audible(hearing.of(p)) || own == Some(p)))
-        .fold(Places::NONE, Places::with)
-        .without(muted)
+/// The speakers the hud's list shows, each with the [`Side`] its speaker is
+/// drawn as: a mate's blue, an opponent's pale red (the owner, 2026-11-15);
+/// the local player's own as a mate's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Speakers([Option<Side>; Place::COUNT]);
+
+impl Speakers {
+    const NONE: Speakers = Speakers([None; Place::COUNT]);
+
+    fn iter(&self) -> impl Iterator<Item = (Place, Side)> + '_ {
+        Place::all().filter_map(|p| Some((p, self.0[p.index()]?)))
+    }
 }
 
-/// The hud's list (`root.srp_voice_talking`): the speakers' names (as 0.69's
-/// list; the local player's own while it is sent).
-fn show_speakers(scene: &Scene<'_>, roster: &Roster, speakers: Places) -> bool {
-    let Some(movie) = scene.movie() else { return false };
-    let mut names: [&CStr; Place::COUNT] = [c""; Place::COUNT];
-    let mut n = 0;
-    for seat in Place::all().filter(|&p| speakers.has(p)).filter_map(|p| roster.seat(p)) {
-        names[n] = name_text(&seat.name);
-        n += 1;
+/// Who the hud's list shows of those `talking`: the players heard (a mate
+/// always, an opponent while it is near: [`hearing`]), and the local player's
+/// own place while its microphone is sent (the owner, 2026-11-11: "when I
+/// speak I want to see this with an icon"); none `muted`.
+fn speakers(talking: Places, hearing: &Hearing, roster: &Roster, muted: Places) -> Speakers {
+    let mut shown = Speakers::NONE;
+    for p in Place::all().filter(|&p| talking.without(muted).has(p)) {
+        shown.0[p.index()] = match roster.side(p) {
+            Some(side) => audible(hearing.of(p)).then_some(side),
+            None => (roster.local() == Some(p)).then_some(Side::Mate),
+        };
     }
-    movie.invoke_strings(c"root.srp_voice_talking", &names[..n])
+    shown
+}
+
+/// The hud's list (`root.srp_voice_talking`): each speaker's name and side,
+/// `"mate"` or `"opponent"` (as 0.69's list; the local player's own while it
+/// is sent).
+fn show_speakers(scene: &Scene<'_>, roster: &Roster, speakers: Speakers) -> bool {
+    let Some(movie) = scene.movie() else { return false };
+    let mut texts: [&CStr; 2 * Place::COUNT] = [c""; 2 * Place::COUNT];
+    let mut n = 0;
+    for (seat, side) in speakers.iter().filter_map(|(p, side)| Some((roster.seat(p)?, side))) {
+        texts[n] = name_text(&seat.name);
+        texts[n + 1] = match side {
+            Side::Mate => c"mate",
+            Side::Opponent => c"opponent",
+        };
+        n += 2;
+    }
+    movie.invoke_strings(c"root.srp_voice_talking", &texts[..n])
 }
 
 pub fn on_key(ctx: &mut Context<'_>) -> Flow<NoExit> {
@@ -1009,10 +1032,19 @@ mod tests {
         let r = roster(&[(0, at(0.0)), (0, at(40.0)), (1, at(3.0)), (1, at(40.0))]);
         let heard = hearing(&r, pan);
         let all = [p(0), p(1), p(2), p(3)].into_iter().fold(Places::NONE, Places::with);
-        let shown = speakers(all, &heard, Some(p(0)), Places::NONE);
-        assert_eq!(shown, [p(0), p(1), p(2)].into_iter().fold(Places::NONE, Places::with));
+        let shown = |s: Speakers| s.iter().collect::<Vec<_>>();
+        // The own place drawn as a mate's; the near opponent as an opponent.
+        assert_eq!(
+            shown(speakers(all, &heard, &r, Places::NONE)),
+            [(p(0), Side::Mate), (p(1), Side::Mate), (p(2), Side::Opponent)]
+        );
         // Muted ones are not; nor anyone not talking.
-        assert_eq!(speakers(all, &heard, Some(p(0)), Places::NONE.with(p(2))), Places::NONE.with(p(0)).with(p(1)));
-        assert_eq!(speakers(Places::NONE.with(p(3)), &heard, Some(p(0)), Places::NONE), Places::NONE);
+        assert_eq!(shown(speakers(all, &heard, &r, Places::NONE.with(p(2)))), [(p(0), Side::Mate), (p(1), Side::Mate)]);
+        assert_eq!(speakers(Places::NONE.with(p(3)), &heard, &r, Places::NONE), Speakers::NONE);
+        // In a free-for-all the near one is a mate.
+        let mut ffa = r;
+        ffa.set_channel(crate::vostok::voice::Channel::Match);
+        let heard = hearing(&ffa, pan);
+        assert_eq!(shown(speakers(all, &heard, &ffa, Places::NONE)), [(p(0), Side::Mate), (p(1), Side::Mate), (p(2), Side::Mate), (p(3), Side::Mate)]);
     }
 }

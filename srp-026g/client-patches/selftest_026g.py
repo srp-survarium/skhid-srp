@@ -1762,7 +1762,7 @@ def test_voice(original, image, before):
           and "SrpExe.call(USE, null);" in microphone,
           "the main menu has root.srp_microphone; the sound tab's Microphone list asks srp_microphone, sends "
           "Apply's pick by its id, a pick at once by srp_microphone_use and the saved one again at its revert")
-    check("public function srp_voice_talking(... names)" in hud
+    check("public function srp_voice_talking(... speakers)" in hud
           and "public function srp_voice_menu(place:uint, offered:uint, muted:uint)" in hud
           and "public function srp_voice_mute(place:uint, done:uint)" in hud
           and 'this.call("srp_voice_menu",String(row.id));' in menu

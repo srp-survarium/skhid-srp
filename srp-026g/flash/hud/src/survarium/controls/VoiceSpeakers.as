@@ -9,10 +9,11 @@ package survarium.controls
    import flash.text.TextFormat;
    import scaleform.clik.core.UIComponent;
 
-   // Voice chat: who is talking (exe patch 66 calls HUD.srp_voice_talking with the names on every
-   // change; docs/notes/voice-chat.md): the teammates heard, and the player's own name while its
-   // microphone is sent. As 0.69's VoiceChatTalkingPanel shows it: a row each, a light-blue
-   // speaker and the name, 25 px apart, the newest talker on top; a name stays while its player
+   // Voice chat: who is talking (exe patch 66 calls HUD.srp_voice_talking with each speaker's name
+   // and side on every change; docs/notes/voice-chat.md): the teammates heard, the opponents heard
+   // near, and the player's own name while its microphone is sent. As 0.69's VoiceChatTalkingPanel
+   // shows it: a row each, a speaker and the name, 25 px apart, the newest talker on top; the
+   // speaker light blue, an opponent's pale red (the owner, 2026-11-15); a name stays while its player
    // talks and fades out over 1 s, 0.5 s after the player stops. Muted players never show (the exe
    // leaves them out). The rows end at the component's x (the hud puts it at the right edge): the
    // name, the speaker left of it. Not clickable.
@@ -39,9 +40,16 @@ package survarium.controls
       // 0.69's speaker (HudVoicePanelTalkingPlayer's)
       protected static const SPEAKER:uint = 0x73B9FF;
 
+      // An opponent's: the game's enemy red (a name over an enemy's head, 0xFF0000: PlayerRed) half
+      // way to white, about as light as the blue.
+      protected static const OPPONENT_SPEAKER:uint = 0xFF8080;
+
+      // A speaker's side, as the exe sends it.
+      public static const OPPONENT:String = "opponent";
+
       protected static const NAME:uint = 0xFFFFFF;
 
-      // The rows, top first: {sprite, name, talking}.
+      // The rows, top first: {sprite, mark, name, speaker (its colour), talking}.
       protected var _rows:Array = [];
 
       // DefaultLabel3's embedded font, as the Tab list's player menu takes it: the label supplies
@@ -64,20 +72,22 @@ package survarium.controls
          this._format.align = "left";
       }
 
-      // names: the teammates talking now.
-      public function update(names:Array) : void
+      // speakers: those talking now, a name and its side ("mate" or OPPONENT) each.
+      public function update(speakers:Array) : void
       {
-         var talking:Array = names.slice(0,MAX_ROWS);
+         var talking:Array = [];
          var now:Object = {};
          var name:String;
-         for each(name in talking)
+         for(var i:int = 0; i + 1 < speakers.length && talking.length < MAX_ROWS; i += 2)
          {
-            now[name] = true;
+            name = speakers[i];
+            talking.push(name);
+            now[name] = speakers[i + 1] == OPPONENT ? OPPONENT_SPEAKER : SPEAKER;
          }
          var row:Object;
          for each(row in this._rows)
          {
-            if(row.talking && !now[row.name])
+            if(row.talking && !now.hasOwnProperty(row.name))
             {
                row.talking = false;
                this.fade(row);
@@ -86,6 +96,11 @@ package survarium.controls
          for each(name in talking)
          {
             row = this.rowOf(name);
+            if(row != null && row.speaker != now[name])
+            {
+               row.speaker = now[name];
+               drawSpeaker(row.mark.graphics,row.speaker);
+            }
             if(row != null && row.talking)
             {
                continue;
@@ -96,7 +111,7 @@ package survarium.controls
             }
             else
             {
-               row = this.makeRow(name);
+               row = this.makeRow(name,now[name]);
             }
             row.talking = true;
             TweenLite.killTweensOf(row.sprite);
@@ -159,7 +174,7 @@ package survarium.controls
          }
       }
 
-      protected function makeRow(name:String) : Object
+      protected function makeRow(name:String, speaker:uint) : Object
       {
          var sprite:Sprite = new Sprite();
          var field:TextField = new TextField();
@@ -176,29 +191,30 @@ package survarium.controls
          field.y = SPEAKER_MIDDLE - field.height / 2;
          sprite.addChild(field);
          var mark:Shape = new Shape();
-         drawSpeaker(mark.graphics);
+         drawSpeaker(mark.graphics,speaker);
          mark.x = field.x - SPEAKER_WIDTH - 2;
          sprite.addChild(mark);
          addChild(sprite);
-         return {sprite:sprite, name:name, talking:false};
+         return {sprite:sprite, mark:mark, name:name, speaker:speaker, talking:false};
       }
 
       // 0.69's speaker: a box, a cone, two waves (lines, no circles: a circle after lineStyle
       // draws a stray line from the pen).
-      protected static function drawSpeaker(g:Graphics) : void
+      protected static function drawSpeaker(g:Graphics, colour:uint) : void
       {
+         g.clear();
          g.lineStyle();
-         g.beginFill(SPEAKER,1);
+         g.beginFill(colour,1);
          g.drawRect(2,9,5,8);
          g.endFill();
-         g.beginFill(SPEAKER,1);
+         g.beginFill(colour,1);
          g.moveTo(7,9);
          g.lineTo(13,4);
          g.lineTo(13,22);
          g.lineTo(7,17);
          g.lineTo(7,9);
          g.endFill();
-         g.lineStyle(2,SPEAKER,1);
+         g.lineStyle(2,colour,1);
          g.moveTo(16,9);
          g.curveTo(18,13,16,17);
          g.moveTo(19,6);
