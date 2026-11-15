@@ -160,6 +160,12 @@ pub enum Placed {
     Arc,
     /// The grenade's body at rest as a trusted world showed it (`match_msgs::grenades`): the world's time, the body.
     Seen { world_ms: u32, id: GrenadeId },
+    /// Where its thrower's body fell: he died with the pin out, before the launch. A smoke runs a frag's fuse (the exe
+    /// has one grenade class, `grenade_core`, whose tick 0x303A60 its constructor binds, 0x3036F5; read 2026-11-15) and
+    /// so goes off in the dead hand at the press and its fuse, as a frag does there
+    /// ([`super::live_grenades::Phase::InDeadHand`]); the smoke's own blast (its vtable +28h, the effect's start
+    /// 0x248720) was not read.
+    DeadHand,
 }
 
 /// A world's grenade is a cloud's when its blast is the cloud's within this, ms (the world's blast time is the press
@@ -468,7 +474,8 @@ pub struct SmokeCounts {
     pub thrown: [u32; 2],
     /// Clouds placed (the arc found a rest).
     pub clouds: [u32; 2],
-    /// Dropped: the thrower died before the launch, or the arc found no ground.
+    /// Dropped: the arc found no ground, or the thrower died before the launch with his body never placed (a dead
+    /// thrower's smoke is otherwise a cloud in his hand, [`Placed::DeadHand`]).
     pub dropped: [u32; 2],
     /// Clouds whose grenade a world showed, and how far the first sighting moved them from the arc's rest, decimetres
     /// summed (the arc's error, measured live).

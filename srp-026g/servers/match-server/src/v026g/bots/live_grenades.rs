@@ -105,10 +105,13 @@ pub enum Phase {
         rest: Vec3,
     },
     /// The thrower died with it in his hand, the pin out: it goes off on time there, never thrown nor dropped (PROVEN,
-    /// read 2026-11-15: `on_player_death` 0x2E3390 puts the weapon to idle with no launch and no stop of the fuse, the
-    /// grenade set's 0x309E10 only clears the wanted slot; the fuse's blast is at `hand_transform` 0x309F00, the dead
-    /// owner's right hand, while no launch made it a body, 0x303AEA). `at`: where his body was last placed (`died`); the
-    /// pose of a dead body's hand was not read, so the blast is taken there.
+    /// read 2026-11-15: `on_player_death` 0x2E3390 puts the weapon to idle with no launch and no stop of the fuse; the
+    /// grenade set's 0x309E10 clears the wanted slot (0x17 at +17Ch) and, unless its +22Ah flag is set, first lowers its
+    /// +260h by its +234h (0x309E1F..0x309E3B), neither of which stops the fuse; the fuse's blast is at
+    /// `hand_transform` 0x309F00, the dead holder's right hand, while no launch made it a body, 0x303AEA). `at`: where
+    /// his body fell (`died`); the pose of a dead body's hand was not read, so the blast is taken there. Whether the
+    /// grenade is drawn in a dead hand was not read either: an enemy knows it as a landed one seen on the ground
+    /// (`grenade_threat::knows`), which takes it as drawn there.
     InDeadHand { died: u32, at: Vec3 },
 }
 
@@ -997,6 +1000,31 @@ mod tests {
         press(&mut tracker, 1, 8_000, key::QUICK[2]);
         let counts = tracker.throw_counts();
         assert_eq!((counts.frag, counts.smoke, counts.no_pockets), (2, 1, 0));
+    }
+
+    /// [read 2026-11-15] A smoke thrower dead with the pin out: the cloud pours in his hand, where his body fell, at the
+    /// press and the fuse ([`Placed::DeadHand`]), not dropped.
+    #[test]
+    fn a_smoke_in_a_dead_hand_pours_there() {
+        use crate::v026g::bots::smoke::{MatchMs, Placed, SmokeGrenade};
+        let world = floor_world();
+        let pockets = Pockets::new([Some((Pocketed::Smoke, 1)), None, None, None, None, None]);
+        let mut tracker = stand(Some(pockets));
+        press(&mut tracker, 1, 1_000, key::GRENADE);
+        let dead = Fix { fall: None, controller: None, gates: None, jump: None,
+            alive: false,
+            feet: None,
+            speed: None,
+            ..fix(1_200, 10)
+        };
+        tracker.fixed(1, dead, Some(0.0), &Kinematics::default(), None);
+        tracker.launch_grenades(1_250, Some(&*world));
+        let clouds = tracker.clouds().to_vec();
+        assert_eq!(clouds.len(), 1, "poured in the dead hand");
+        assert_eq!((clouds[0].by, clouds[0].placed, clouds[0].thrown), (1, Placed::DeadHand, MatchMs(1_000)));
+        assert_eq!(clouds[0].pours, MatchMs(1_000 + SmokeGrenade::of_game_data().cloud.fuse_ms));
+        assert!(clouds[0].centre.distance_xz(Vec3::ZERO) < 1.0, "{:?}", clouds[0].centre);
+        assert_eq!(tracker.smoke_counts().dropped, [0, 0]);
     }
 
     #[test]
