@@ -798,12 +798,17 @@ mod tests {
         assert_eq!(Part::LeftEdge.height(false), Part::Chest.height(false));
     }
 
-    /// The parts take the hip rows whether a target aims in or not: the table's aimed rows (the rifles'
-    /// `aimed_on_site_idle` clips) are its hip rows, every shape of both stances. The standing aimed clips are the idle
-    /// clips byte for byte; the crouched ones differ in their bytes but pose every hit shape the same at all the times
-    /// and looks sampled (7 times over 3 s of the 1.2 s loop, looks -1, 0 and +1: `body/aimed_vs_hip_t.py` of the
-    /// exactness notes). Should a table give the aimed pose shapes of its own, this fails and the parts must take the
-    /// target's aim.
+    /// The parts take the hip rows whether a target aims in or not: the table's aimed rows are its hip rows, every shape
+    /// of both stances. The clips (resources.db, `animations/single/weapons/ak/player/`):
+    /// - standing, `stand/3rd_view/on_site/aimed_on_site_idle` and `.../aimed_on_site_idle_look` are
+    ///   `stand/3rd_view/on_site/on_site_idle` and `.../on_site_idle_look` byte for byte (their `.b-spline` files);
+    /// - crouched, `crouch/3rd_view/aimed_on_site_idle` and `..._look` differ from `crouch/3rd_view/on_site_idle` and
+    ///   `..._look` in their bytes but pose every hit shape the same (centres and axes) at 7 times over 3 s of the 1.2 s
+    ///   loop and looks -1, 0 and +1.
+    ///
+    /// Posed by the table's own script, `private/pvb-343-check/fighting-record/scripts/hitbox/hbpose.py` (its `CLIPS`),
+    /// through `wsl-out/bench/exactness-20261115/body/aimed_vs_hip_t.py` (both under `E:/sur-res-pro`). Should a table
+    /// give the aimed pose shapes of its own, this fails and the parts must take the target's aim.
     #[test]
     fn the_aimed_rows_are_the_hip_rows() {
         let rows = |aimed: &str| -> Vec<Vec<&str>> {
