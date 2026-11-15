@@ -2397,6 +2397,7 @@ va	status	ref_021d	name
 0x000aa540	reviewed		btDbvt::optimizeIncremental
 0x000aa690	reviewed		btDbvt::insert
 0x000aa710	reviewed		btDbvt::update
+0x000b4c80	reviewed		btDbvtBroadphase::btDbvtBroadphase (body after the sets; this in esi; m_dupdates +70h 0, m_fupdates +6Ch 1, m_cupdates +74h 10)
 0x000b4fe0	reviewed		btDbvtBroadphase::rayTest
 0x000b5370	reviewed		btDbvtBroadphase::calculateOverlappingPairs
 0x000b53a0	reviewed		btDbvtBroadphase::performDeferredRemoval
