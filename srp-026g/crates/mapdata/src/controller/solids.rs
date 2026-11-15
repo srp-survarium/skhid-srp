@@ -634,9 +634,8 @@ impl Solids {
     /// closest-ray callback (0x83FD0, its flags 0). The normal the callback holds after, in the map frame.
     ///
     /// A compound's children and a mesh's triangles are offered where their boxes meet the ray's box: a hit needs the ray
-    /// through the box, so the hits are the exe's. [L36] A mesh's triangles in its tree's leaf order (0xC39B0), so of two
-    /// at exactly one distance the exe's first is kept; a compound's children in this world's order (0xA54A0's walk is not
-    /// ported for the ray).
+    /// through the box, so the hits are the exe's. [L36] A mesh's triangles in its tree's leaf order (0xC39B0) and a
+    /// compound's children in its child tree's order (0xA54A0), so of two at exactly one distance the exe's first is kept.
     pub(super) fn look_ray(&self, object: u32, a: Vec3, b: Vec3) -> Option<Vec3> {
         let end = |p: Vec3| Transform { basis: exe_cast::IDENTITY.basis, origin: flip(p.to_array()) };
         let (from, to) = (end(a), end(b));
@@ -645,7 +644,14 @@ impl Solids {
             [0, 1, 2].map(|i| from.origin[i].max(to.origin[i]) + BOX_PAD_M),
         );
         let mut callback = ClosestRayCallback::new(from.origin, to.origin);
-        for i in self.objects[object as usize].clone() {
+        // [L36] A compound's children in its child tree's order (`btDbvt::rayTest` 0xA54A0 walks it as `collideTV` does: it pops
+        // the last node and pushes `childs[0]` then `childs[1]`, 0xA58A5..0xA58B2), so of two at exactly one fraction the
+        // first is kept (the strict test); where the compound has no order, this world's.
+        let mut parts: Vec<u32> = self.objects[object as usize].clone().collect();
+        if parts.iter().all(|&i| self.leaves[i as usize].child.is_some()) {
+            parts.sort_by_key(|&i| self.leaves[i as usize].child);
+        }
+        for i in parts {
             if !overlaps(&self.boxes[i as usize], &bounds) {
                 continue;
             }

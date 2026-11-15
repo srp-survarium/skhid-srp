@@ -2403,6 +2403,7 @@ va	status	ref_021d	name
 0x000b55d0	reviewed		btDbvtBroadphase::collide
 0x000b5ca0	reviewed		btDbvt::rayTestInternal
 0x000a36e0	reviewed		btCollisionWorld::convexSweepTest
+0x000a54a0	reviewed		btDbvt::rayTest
 0x000a3420	reviewed		btSingleSweepCallback::btSingleSweepCallback
 0x000a14e0	reviewed		btCollisionWorld::objectQuerySingle
 0x000a29f0	reviewed		BridgeTriangleConvexcastCallback::BridgeTriangleConvexcastCallback
