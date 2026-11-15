@@ -293,14 +293,17 @@ pub struct SweepCull {
     pub skipped: u64,
     /// Children the tree offers and the old test did not.
     pub added: u64,
+    /// Sweeps given their end ([`Way::To`]) whose end the start plus the way would not rebuild to the same bits (the volume read
+    /// `from + by` before).
+    pub end_rebuilt_differs: u64,
 }
 
-static CULL_COUNTS: [std::sync::atomic::AtomicU64; 2] = [const { std::sync::atomic::AtomicU64::new(0) }; 2];
+static CULL_COUNTS: [std::sync::atomic::AtomicU64; 3] = [const { std::sync::atomic::AtomicU64::new(0) }; 3];
 
 /// The process's [`SweepCull`] so far.
 pub fn sweep_cull() -> SweepCull {
     let n = |i: usize| CULL_COUNTS[i].load(std::sync::atomic::Ordering::Relaxed);
-    SweepCull { skipped: n(0), added: n(1) }
+    SweepCull { skipped: n(0), added: n(1), end_rebuilt_differs: n(2) }
 }
 
 /// [L36] Counts one child where the cull and the old test part ([`SweepCull`]).
@@ -575,6 +578,11 @@ impl Collision {
 
     fn sweep_way(&self, shape: Shape, way: Way, mut each: impl FnMut(Contact)) {
         let by = way.by(shape);
+        if let Way::To(to) = way
+            && cast_origin(shape) + by != to
+        {
+            CULL_COUNTS[2].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
         // [L36] Ties at the closest fraction, counted for the logs ([`sweep_ties`]); the contacts go on unchanged.
         let mut ties = Ties::new();
         let mut each = |c: Contact| {
