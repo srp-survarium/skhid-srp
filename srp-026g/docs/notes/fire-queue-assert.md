@@ -43,7 +43,7 @@ The owner, 2026-11-15: "weapon should not change". Moving the Python's mark to f
 the replay above) changes when its bullet leaves, so the clip stays. `EMPTY_SHOT_QUIET`
 (patch_026g.py) makes the assert's own skip (0x30EC1F, `je 0x30ECB2`, taken when its counter
 0xAE2DF4 runs out) always taken: on_shot_event returns 0 for a spent queue at once, as it did
-after the report. Nothing else changes: the shot of a queued round, the queue, the clip's
+after the report (and the int3 it hits with a debugger attached). Nothing else changes: the shot of a queued round, the queue, the clip's
 restarts, and the bang a restart plays (its `sound_events` mark is crossed too).
 `check_empty_shot_026g.py` runs the function in the original and the patched exe.
 
