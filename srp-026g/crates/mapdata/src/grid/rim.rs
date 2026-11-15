@@ -41,9 +41,13 @@ pub struct RimStats {
     /// … and of those, replaced by the flown link (a press landed on the Jump link's own top that a body with no sprint takes
     /// too) …
     pub jumps_replaced: usize,
-    /// [S2] … or kept beside it: the presses that land on its top need the sprint and have no walking press (a sprint climb or
-    /// jump only), so the Jump link stays the way of a body with no sprint (S6's per-state choice prices both) …
+    /// [S2] … or kept beside it: the best presses that land on its top need the sprint and carry no walking press, but a slow
+    /// press lands there too ([`Made::walker_lands`]), so the Jump link stays the way of a body with no sprint (S6's per-state
+    /// choice prices both) …
     pub jumps_beside: usize,
+    /// [S2] … and of the replaced, those only sprint presses land on the top of (no walking or slow press does): a body with
+    /// no sprint has no way up there by the flights …
+    pub jumps_sprint_only: usize,
     /// … or cut: no client press, straight or aimed, lands on its top (as a rim jump no press lands is not made) …
     pub jumps_cut: usize,
     /// … except those kept as a floor's only way in or back (`cut_keeping_reach`, [`super::Body::keep_last_resorts`]: a pit's
@@ -215,6 +219,9 @@ pub(super) struct Made {
     pub(super) walk: Option<(PressLead, Share)>,
     /// [R83] Where its press is aimed ([`Aim::STRAIGHT`]: on the link's line).
     pub(super) aim: Aim,
+    /// [S2] Whether a press a body with no sprint plays (a walking or a slow one, [`Kind::Walk`], [`Kind::Slow`]) lands on `to`
+    /// too, whatever press won: [`Self::walk`] carries a walking press only, so a slow one that lands shows here alone.
+    pub(super) walker_lands: bool,
 }
 
 impl WalkGrid {
@@ -473,7 +480,8 @@ let reused = |kind: Kind, lead: f32| {
         Kind::Slow(steps) => Takeoff::Slow { lead: PressLead::from_metres(lead), steps },
         Kind::Climb => Takeoff::Climb,
     };
-    Made { to, press, share: Share::landed(landed), walk, aim: Aim::STRAIGHT }
+    let walker_lands = scored.iter().any(|s| matches!(s.0, Kind::Walk | Kind::Slow(_)));
+    Made { to, press, share: Share::landed(landed), walk, aim: Aim::STRAIGHT, walker_lands }
 }
 
 /// [A385] The presses flown, with their leads: the walk and the sprint at the gap links' `leads`, and the slow presses
@@ -659,14 +667,20 @@ impl WalkGrid {
             // not made, as a rim jump no press lands is not (the plain link's fixed price was a GUESS). Either way it is reported
             // with the jumps no press made when no flown link lands on its top. [S2] Where every press that lands on its top needs
             // the sprint with no walking press beside it ([`Takeoff::sprint_run_m`], [`Made::walk`]), it stays beside the flown
-            // link: a body with no sprint keeps the Jump link, a sprinting one has both (S6's reach chooses).
+            // link: a body with no sprint keeps the Jump link, a sprinting one has both (S6's reach chooses). Only where a press
+            // such a body plays lands on that top ([`Made::walker_lands`]: a slow press, which [`Made::walk`] cannot carry);
+            // where none does, it goes and the flown sprint link is the one way up (owner-5's review: the flights show none for
+            // that body, and S6 prices the sprint link at infinity for it).
             if plain {
                 stats.jumps_flown += 1;
                 let onto: Vec<&Made> = p.made.iter().chain(aimed.as_ref()).filter(|m| m.to == b).collect();
                 if onto.iter().any(|m| m.press.sprint_run_m().is_none() || m.walk.is_some()) {
                     replaced.push((a as usize, d));
-                } else if !onto.is_empty() {
+                } else if onto.iter().any(|m| m.walker_lands) {
                     stats.jumps_beside += 1;
+                } else if !onto.is_empty() {
+                    stats.jumps_sprint_only += 1;
+                    replaced.push((a as usize, d));
                 } else {
                     cut.push((a, d, 0.0));
                     if !(p.made.is_empty() && aimed.is_none()) {
@@ -677,7 +691,7 @@ impl WalkGrid {
             if p.made.is_empty() && aimed.is_none() {
                 none.push((a, b));
             }
-            for &Made { to, press, share, walk, aim } in p.made.iter().chain(aimed.as_ref()) {
+            for &Made { to, press, share, walk, aim, .. } in p.made.iter().chain(aimed.as_ref()) {
                 match press {
                     Takeoff::Press(_) => stats.walked += 1,
                     Takeoff::Slow { .. } => stats.slowed += 1,
