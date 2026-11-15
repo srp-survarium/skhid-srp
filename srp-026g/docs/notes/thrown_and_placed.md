@@ -72,7 +72,8 @@ position and velocity while it is in the physics world, its explode time and its
   across the incoming heading's flat direction). 223 of the 911 (24.5 %) fell outside the zone of P10 to P90 along and
   P90 across in some direction: 92 short, 93 past, 92 wider. Counted (n 911) by
   `private/pvb-343-check/fight-world/landing/fly_variants.py` (output `fly-variants.txt`; the flights flown by the S7
-  tool's `fly` copied with switches, `landing/flytool/src/main.rs`) and `landing/zone_share.py` (`zone-share.txt`). Taking the swept sphere's radius as the hit's reach instead of the capsule's 0.05 is
+  tool's `fly` copied with switches, `landing/flytool/src/main.rs`) and `landing/zone_share.py` (`zone-share.txt`).
+  Taking the swept sphere's radius as the hit's reach instead of the capsule's 0.05 is
   worse (0.01 stock: P50 0.63, 525 within 1 m; 0.04 with patch 105: P50 0.54, P90 8.99), as is flying with no support
   contact (P90 10.6): by the recount, the capsule's own contacts stop it (the narrowphase and the solver are not read).
 
