@@ -1,4 +1,5 @@
 """UI reload metadata follows the animation files, including nonzero clip starts."""
+import hashlib
 import struct
 import unittest
 
@@ -90,7 +91,8 @@ class RetimeReload(unittest.TestCase):
                   for name, frames in [('tactical', 100), ('empty', 150),
                                        ('item_tactical', 80), ('item_empty', 120)]
                   for ext, data in [('.b-spline', clip(0, frames)), ('.bones_names', b'bone names')]}
-        generated, written = ce.retime_reload(b, 'wpn_test', assets.__getitem__)
+        generated, written, notes = ce.retime_reload(b, 'wpn_test', assets.__getitem__)
+        self.assertEqual(notes, [])
         self.assertEqual(len(generated), 20)
         self.assertEqual(len(written), 11)
         ratio = ce.reload_clip_ratio(b, generated.__getitem__)
@@ -113,12 +115,97 @@ class RetimeReload(unittest.TestCase):
 
     def test_absent_pair_is_untouched_and_invalid_pair_refused(self):
         b = config()
-        self.assertEqual(ce.retime_reload(b, 'wpn_test', self.fail), ({}, []))
+        self.assertEqual(ce.retime_reload(b, 'wpn_test', self.fail), ({}, [], []))
         for value in (0, -1, float('inf'), float('nan')):
             b = config()
             ce.add_value(b, '', 'parameters', {'reload_time': 2.4, 'reload_empty_time': value})
             with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'positive'):
                 ce.retime_reload(b, 'wpn_test', self.fail)
+
+
+
+def ramp(frames, moving):
+    """A clip of `frames` frames whose one curve rises 1 mm a frame up to `moving`, then holds."""
+    pairs = [(0, 0), (0, 0), (0, 0)] + [(t, min(t, moving) / 1000) for t in range(frames + 1)] + [(frames, -1e9)]
+    track = struct.pack('<I', len(pairs)) + b''.join(struct.pack('<ff', *p) for p in pairs)
+    still = struct.pack('<Iffff', 2, 0, 0, frames, 0)
+    return ce.CLIP_HEAD.pack(1, 0, 0) + bytes(ce.CLIP_BONE) + track + still * 8
+
+
+def pace(hands, item, frames, moving, shipped):
+    return ce.Pace({'hands': hands, 'item': item, 'hands_sha256': hashlib.sha256(ramp(frames, moving)).hexdigest(),
+                    'item_sha256': hashlib.sha256(ramp(frames, moving)).hexdigest(), 'shipped': shipped,
+                    'by': 'a test', 'frames': frames, 'speed': [300 if t < moving else 0 for t in range(frames)]})
+
+
+def gun(state, names, items, reload_time, empty=None):
+    b = config(state, names)
+    ce.add_value(b, '', 'parameters', {'reload_time': reload_time} if empty is None
+                 else {'reload_time': reload_time, 'reload_empty_time': empty})
+    ce.add_value(b, 'states/reload', 'animations', {i: 'resources/animations/' + n for i, n in enumerate(items)})
+    return b
+
+
+class ReloadPace(unittest.TestCase):
+    def assets(self, clips):
+        return {f'animations/{name}{ext}': data for name, c in clips.items()
+                for ext, data in [('.b-spline', c), ('.bones_names', b'bone names')]}
+
+    def test_longer_reload_keeps_the_motion_and_holds_the_rest(self):
+        # 100 frames, moving for 50; a build played it in 2 s; the reload now lasts 3 s.
+        p = pace('animations/one', 'animations/one_item', 100, 50, [2.0, 2.0])
+        at, speed = ce.pace_warp(p, 100, 3.0)
+        self.assertAlmostEqual(at[-1], 90)
+        self.assertAlmostEqual(speed, 1)
+        # Until the motion ends (and the smoothing window before it), 0.6 output frames a frame.
+        for f in range(0, 40):
+            self.assertAlmostEqual(at[f], 0.6 * f, places=6)
+        self.assertGreater(at[90] - at[50], 0.6 * 40)
+        # The last tenth is never lengthened.
+        self.assertAlmostEqual(at[100] - at[90], 6, places=6)
+
+    def test_paced_one_clip_reload_keeps_its_time(self):
+        b = gun(303, ['one'] * 4, ['one_item'], 3.0)
+        clips = self.assets({'one': ramp(100, 50), 'one_item': ramp(100, 50)})
+        p = pace('animations/one', 'animations/one_item', 100, 50, [2.0, 2.0])
+        made, written, notes = ce.retime_reload(b, 'wpn_test', clips.__getitem__, {(p.hands, p.item): p})
+        # One clip, one compiled file: the four slots still play one clip.
+        self.assertEqual(sorted(made), ['animations/single/weapons/srp_reload/wpn_test/hands_0.b-spline',
+                                        'animations/single/weapons/srp_reload/wpn_test/hands_0.bones_names',
+                                        'animations/single/weapons/srp_reload/wpn_test/item_0.b-spline',
+                                        'animations/single/weapons/srp_reload/wpn_test/item_0.bones_names'])
+        self.assertEqual(len(notes), 1)
+        tracks = ce.clip_parse(made['animations/single/weapons/srp_reload/wpn_test/hands_0.b-spline'])[2]
+        self.assertAlmostEqual(ce.clip_end(tracks) / 30, 3.0, places=5)
+        # The rising curve reaches its top at the natural pace: knot 50 at output frame 30-ish.
+        knots, values = ce.channel_curves(tracks)[0]
+        top = knots[values.index(struct.unpack('<f', struct.pack('<f', 0.05))[0])]
+        self.assertLess(abs(top - 30), 2)
+
+    def test_two_clip_reload_without_a_pair_keeps_both_times(self):
+        # The engine plays the empty clip at the tactical one's speed: 3 s and 4.5 s.
+        b = gun(314, ['t', 'e'] * 4, ['t_item', 'e_item'], 3.0)
+        clips = self.assets({'t': ramp(100, 50), 'e': ramp(150, 50), 't_item': ramp(100, 50), 'e_item': ramp(150, 50)})
+        p = pace('animations/t', 'animations/t_item', 100, 50, [2.0, 2.0])
+        before = ce.reload_clip_ratio(b, clips.__getitem__)
+        made, written, notes = ce.retime_reload(b, 'wpn_test', clips.__getitem__, {(p.hands, p.item): p})
+        self.assertAlmostEqual(ce.reload_clip_ratio(b, made.__getitem__), before, places=5)
+        for i, seconds in [(0, 3.0), (1, 4.5)]:
+            tracks = ce.clip_parse(made[f'animations/single/weapons/srp_reload/wpn_test/hands_{i}.b-spline'])[2]
+            self.assertAlmostEqual(ce.clip_end(tracks) / 30, seconds, places=5)
+
+    def test_a_reload_its_builds_played_is_left_alone(self):
+        b = gun(303, ['one'] * 4, ['one_item'], 2.05)
+        p = pace('animations/one', 'animations/one_item', 100, 50, [2.0, 2.0])
+        clips = self.assets({'one': ramp(100, 50), 'one_item': ramp(100, 50)})
+        self.assertEqual(ce.retime_reload(b, 'wpn_test', clips.__getitem__, {(p.hands, p.item): p}), ({}, [], []))
+
+    def test_a_pace_of_other_clips_is_refused(self):
+        b = gun(303, ['one'] * 4, ['one_item'], 3.0)
+        p = pace('animations/one', 'animations/one_item', 100, 40, [2.0, 2.0])
+        clips = self.assets({'one': ramp(100, 50), 'one_item': ramp(100, 50)})
+        with self.assertRaisesRegex(ValueError, 'other clips'):
+            ce.retime_reload(b, 'wpn_test', clips.__getitem__, {(p.hands, p.item): p})
 
 
 if __name__ == '__main__':

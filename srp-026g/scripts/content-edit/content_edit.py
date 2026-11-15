@@ -56,7 +56,15 @@ Edits (edits.json):
                     gameplay/db_static_dictionaries here.
   "retime_reload":  [{"files" (glob)}]               compile explicit reload_empty_time pairs after
                     weapon-stats.tsv. Private hands/item clips and event times follow the pair;
-                    declare source .b-spline and .bones_names dependencies in _inputs.
+                    declare source .b-spline and .bones_names dependencies in _inputs. A reload
+                    whose clips `reload_pace` lists and that plays them outside the lengths their
+                    builds played them at is compiled too, its times as they are, its motion at
+                    the nearest build's pace (retime_reload, pace_warp)
+  "reload_pace":    [{"hands", "item", "hands_sha256", "item_sha256", "shipped": [lo, hi], "by",
+                      "frames", "speed": [cm/s a source frame]}]
+                    a reload clip pair's pace (resource-porter's reload-motion --pace): the
+                    seconds original builds played the hands clip in (`by` says which), and its
+                    fastest moving part a frame; a pair no reload plays stops the build
   "append_entry":   [{"file", "list", "expected_count", "unique_key", "value"}]
                     append a new indexed record, refusing stale counts and duplicate identities;
                     arrays in the new value are indexed tables, leaving existing records intact;
@@ -155,6 +163,7 @@ that grows gets a new array and the old one stays, unreferenced.
 Every edited file is read back with an independent walk: only the intended values, names and order
 may differ from the live file (the check prints each difference).
 """
+import bisect
 import decimal
 import fnmatch
 import json
@@ -1971,10 +1980,9 @@ def reload_clip_ratio(config, read_clip):
     return durations[1] / durations[0]
 
 
-def retime_clip(source, scale):
-    """Scale the time axis of every bone curve and event; keep poses and event payloads exact."""
-    if not math.isfinite(scale) or scale <= 0:
-        raise ValueError('invalid animation time scale')
+def warp_clip(source, warp):
+    """`source` with every bone-curve knot and event time t moved to warp(t), a rising map of
+    the clip's time; poses (the control values), event payloads, names and bindings stay exact."""
     start, heads, tracks, channels, pads = clip_parse(source)
     if clip_bytes(start, heads, tracks, channels, pads) != source:
         raise ValueError('reload clip does not roundtrip')
@@ -1984,57 +1992,364 @@ def retime_clip(source, scale):
         count = struct.unpack_from('<I', tracks, off)[0]
         for i in range(count):
             at = off + 4 + 8 * i
-            time = struct.unpack_from('<f', tracks, at)[0] * scale
+            time = warp(struct.unpack_from('<f', tracks, at)[0])
             if not math.isfinite(time):
                 raise ValueError('invalid animation knot')
             struct.pack_into('<f', changed, at, time)
         off += 4 + count * 8
-    events = [dict(c, knots=[k * scale for k in c['knots']]) for c in channels]
+    events = [dict(c, knots=[warp(k) for k in c['knots']]) for c in channels]
     if any(not math.isfinite(k) for c in events for k in c['knots']):
         raise ValueError('invalid animation event time')
     return clip_bytes(start, heads, changed, events, pads)
 
 
-def retime_reload(config, weapon, read_asset):
-    """Compile an explicit tactical/empty pair to private clips for the unmodified 0.26g engine.
+def retime_clip(source, scale):
+    """Scale the time axis of every bone curve and event; keep poses and event payloads exact."""
+    if not math.isfinite(scale) or scale <= 0:
+        raise ValueError('invalid animation time scale')
+    return warp_clip(source, lambda t: t * scale)
 
-    Returns generated assets and changed config paths. Item clips use the corresponding hands'
-    scale, preserving their timing relative to the hands. All stances/views must agree.
-    """
+
+# How a reload clip is given a length its builds never played it at (reload_pace in
+# reload-timings-1.json). A clip within PACE_TOLERANCE of a length some original build played
+# it at keeps one speed. Otherwise its motion keeps the speed of the nearest such length and the
+# difference goes where the hands, the gun and its parts are slowest: a source frame whose
+# fastest part moves under PACE_STILL m/s (at that speed) takes all of its share, one over
+# PACE_MOVING none, in between in proportion. A still frame lasts at most PACE_STRETCH times
+# its natural length, at least PACE_SQUEEZE times; what the slow frames cannot take, every frame
+# takes alike. The clip's first PACE_LEAD and last PACE_TAIL of frames are never lengthened, so
+# the reload starts at once and is visibly done when it is done.
+PACE_TOLERANCE = 0.03
+PACE_STILL, PACE_MOVING = 0.1, 0.6
+PACE_STRETCH, PACE_SQUEEZE = 5.0, 0.15
+PACE_LEAD, PACE_TAIL = 0.05, 0.1
+PACE_SMOOTH = 6  # frames each side of the weights' moving average
+# A warped clip's channels may part from the source's (each read at its own time of a source
+# frame) by at most these: the knots move as an animator moves keys, so a channel with keys far
+# apart takes the new timing between them (the worst: the G3SG/1's empty reload's left arm roll bone,
+# 0.10 rad; the vz. 58's and Valmet's, 5 mm); anything more is refused.
+PACE_ROTATION, PACE_TRANSLATION = 0.12, 0.01
+
+
+class Pace:
+    """A reload clip's pace: the lengths original builds played it at (seconds, `shipped`), and
+    its fastest moving part a source frame (`speed`: cm/s at 30 source frames a second), measured
+    with resource-porter's `reload-motion --pace` from the hands and item clips of those hashes."""
+
+    def __init__(self, entry):
+        keys = {'hands', 'item', 'hands_sha256', 'item_sha256', 'shipped', 'by', 'frames', 'speed'}
+        if set(entry) != keys:
+            raise ValueError('reload_pace: an entry has %s, not %s' % (sorted(entry), sorted(keys)))
+        self.hands, self.item = entry['hands'], entry['item']
+        self.sha256 = (entry['hands_sha256'], entry['item_sha256'])
+        lo, hi = entry['shipped']
+        if not (isinstance(lo, (int, float)) and isinstance(hi, (int, float))
+                and math.isfinite(lo) and math.isfinite(hi) and 0 < lo <= hi):
+            raise ValueError('reload_pace %s: shipped must be 0 < lo <= hi' % self.hands)
+        self.shipped = (float(lo), float(hi))
+        self.frames = entry['frames']
+        speed = entry['speed']
+        if not speed or not all(isinstance(v, int) and v >= 0 for v in speed) \
+                or len(speed) != round(self.frames):
+            raise ValueError('reload_pace %s: speed is a whole cm/s a frame, %s of them'
+                             % (self.hands, round(self.frames)))
+        self.speed = speed
+
+    def natural(self, seconds):
+        """The length nearest `seconds` that a build played this clip at."""
+        return min(max(seconds, self.shipped[0]), self.shipped[1])
+
+    def check(self, hands, item):
+        got = (hashlib.sha256(hands).hexdigest(), hashlib.sha256(item).hexdigest())
+        if got != self.sha256:
+            raise ValueError('reload_pace %s: measured on other clips (%s, %s)' % ((self.hands,) + got))
+
+
+def parse_paces(entries):
+    paces = {}
+    for e in entries:
+        p = Pace(e)
+        if (p.hands, p.item) in paces:
+            raise ValueError('reload_pace: %s with %s listed twice' % (p.hands, p.item))
+        paces[(p.hands, p.item)] = p
+    return paces
+
+
+def pace_warp(pace, frames, seconds):
+    """The output frame of each source frame boundary 0..n (30 a second, the clip lasting
+    `seconds`), and the speed of its motion against the nearest length a build played it at."""
+    n = len(pace.speed)
+    natural = pace.natural(seconds)
+    k = 30 * natural / frames  # output frames a source frame at the natural pace
+    length = 30 * seconds
+    moving = [v / 100 * frames / (30 * natural) for v in pace.speed]
+    raw = [min(max((PACE_MOVING - v) / (PACE_MOVING - PACE_STILL), 0), 1) for v in moving]
+    longer = length > k * n
+    if longer:
+        lead, tail = math.ceil(n * PACE_LEAD), n - math.ceil(n * PACE_TAIL)
+        raw = [x if lead <= i < tail else 0 for i, x in enumerate(raw)]
+    # A moving average, so that the map's slope changes over many frames, not at one.
+    window = lambda i: raw[max(0, i - PACE_SMOOTH):i + PACE_SMOOTH + 1]
+    w = [sum(window(i)) / len(window(i)) for i in range(n)]
+    if longer:
+        w = [x if lead <= i < tail else 0 for i, x in enumerate(w)]
+    total = sum(w)
+    slopes = [k] * n
+    if total > 0:
+        if longer:
+            a = min((length / k - n) / total, PACE_STRETCH - 1)
+            slopes = [k * (1 + a * x) for x in w]
+        else:
+            b = min((n - length / k) / total, 1 - PACE_SQUEEZE)
+            slopes = [k * (1 - b * x) for x in w]
+    rest = length / sum(slopes)  # what the slow frames could not take
+    at = [0.0]
+    for s in slopes:
+        at.append(at[-1] + s * rest)
+    at[-1] = length
+    return at, 1 / rest
+
+
+def frame_map(at, frames, start):
+    """A clip time (source frames) to output frames: linear between the frame boundaries `at`
+    (`frames` long, starting at `start`), on with the end slopes outside."""
+    n = len(at) - 1
+    step = frames / n
+
+    def warp(t):
+        x = (t - start) / step
+        if x <= 0:
+            return start * at[-1] / frames + x * (at[1] - at[0])
+        i = min(int(x), n - 1)
+        return start * at[-1] / frames + at[i] + (x - i) * (at[i + 1] - at[i])
+    return warp
+
+
+def channel_curves(tracks):
+    """Each bone curve's (knots, values) of a clip's track bytes."""
+    curves, off = [], 0
+    while off < len(tracks):
+        count = struct.unpack_from('<I', tracks, off)[0]
+        pairs = struct.unpack_from('<%df' % (2 * count), tracks, off + 4)
+        curves.append((pairs[0::2], pairs[1::2]))
+        off += 4 + count * 8
+    return curves
+
+
+def curve_spans(knots, values):
+    """poly_curve's spans as resource-porter's skeleton_animation transcribes them (pairs 3 to the
+    second-to-last; a repeated knot makes none): their start knots and cubic coefficients."""
+    n = len(knots)
+    kn = lambda i: knots[i if 0 <= i < n else n - 1]
+    pt = lambda i: values[i if 0 <= i < n else n - 1]
+    starts, coefficients = [], []
+    for i in range(3, n - 1):
+        if knots[i + 1] - knots[i] < 1e-7:
+            continue
+        dm1, d0, d1, d2, d3 = (kn(i - 1) - kn(i - 2), kn(i) - kn(i - 1), kn(i + 1) - kn(i),
+                               kn(i + 2) - kn(i + 1), kn(i + 3) - kn(i + 2))
+        k0 = 1 / (d1 * (d1 + d0) * (d1 + d0 + dm1))
+        k11 = 1 / (d1 * (d1 + d0) * (d1 + d0 + d2))
+        k12 = 1 / (d1 * (d1 + d2) * (d1 + d0 + d2))
+        k22 = 1 / (d1 * (d1 + d2) * (d1 + d2 + d3))
+        k10, k20, k21, k3 = k0, k11, k12, k22
+        f = [[k3, -k20 - k21 - k22, k10 + k11 + k12, -k0],
+             [0, k20 * (d1 - 2 * d0) + k21 * (d1 + d2 - d0) + k22 * (d1 + d2 + d3),
+              k10 * (dm1 + d0 - 2 * d1) + k11 * (-2 * d1 - d2 + d0) + k12 * (-2 * (d1 + d2)), k0 * 3 * d1],
+             [0, k20 * (2 * d0 * d1 - d0 * d0) + k21 * (d0 * (d1 + d2)),
+              k10 * (d1 * d1 - 2 * d1 * (dm1 + d0)) + k11 * (-d0 * d1 + (d1 - d0) * (d1 + d2))
+              + k12 * ((d1 + d2) * (d1 + d2)), -k0 * 3 * d1 * d1],
+             [0, k20 * (d1 * d0 * d0), k10 * (d1 * d1 * (dm1 + d0)) + k11 * (d1 * d0 * (d1 + d2)),
+              k0 * d1 ** 3]]
+        p = [pt(i), pt(i - 1), pt(i - 2), pt(i - 3)]
+        starts.append(knots[i])
+        coefficients.append([sum(r * q for r, q in zip(row, p)) for row in f])
+    return starts, coefficients, knots[-1]
+
+
+def curve_at(spans, values, time):
+    """poly_curve::evaluate: the cubic of the span holding  (clamped to the curve)."""
+    starts, coefficients, last = spans
+    if not starts:
+        return values[0]
+    time = min(max(time, starts[0]), last)
+    i = max(bisect.bisect_right(starts, time) - 1, 0)
+    c, u = coefficients[i], time - starts[i]
+    return ((c[0] * u + c[1]) * u + c[2]) * u + c[3]
+
+
+def warp_parting(source, warped, warp, frames, start):
+    """How far `warped` parts from `source`, each read at its own time of every source frame
+    (and half frame): the largest rotation (radians) and translation (metres) difference."""
+    a, b = channel_curves(clip_parse(source)[2]), channel_curves(clip_parse(warped)[2])
+    rot = tra = 0.0
+    times = [start + i / 2 for i in range(int(2 * frames) + 1)]
+    for c, ((ka, va), (kb, vb)) in enumerate(zip(a, b)):
+        if len(ka) < 5:
+            continue
+        kind = c % 9
+        if kind >= 6:
+            continue  # scale
+        sa, sb = curve_spans(ka, va), curve_spans(kb, vb)
+        d = max(abs(curve_at(sa, va, t) - curve_at(sb, vb, warp(t))) for t in times)
+        if kind < 3:
+            tra = max(tra, d)
+        else:
+            rot = max(rot, d)
+    return rot, tra
+
+
+def reload_plan(config, read_asset):
+    """The reload's clips and how long each slot plays as the engine plays them now: its state,
+    the hands clips (8 for 314, 4 for 303), the item clips (2 or 1), and per slot (tactical,
+    empty; or the one) its seconds. 314 normalizes the first hands clip to reload_time and plays
+    the empty one at that speed (0x30FC50), unless reload_empty_time pairs them; 303 plays its
+    one clip in reload_time (0x30E000)."""
+    try:
+        state = value_of(config, find(config, 'states/reload/state_type'))
+    except KeyError:
+        return None
+    if state not in (303, 314):
+        return None
+    tactical = value_of(config, find(config, 'parameters/reload_time'))
     try:
         empty = value_of(config, find(config, 'parameters/reload_empty_time'))
     except KeyError:
-        return {}, []
-    tactical = value_of(config, find(config, 'parameters/reload_time'))
-    if any(not math.isfinite(t) or t <= 0 for t in (tactical, empty)):
+        empty = None
+    if any(not math.isfinite(t) or t <= 0 for t in (tactical, empty) if t is not None):
         raise ValueError('reload times must be finite and positive')
-    if reload_clip_ratio(config, read_asset) is None:
+    hands = [value_of(config, o) for o in children(config, find(config, 'states/reload/user_animations'))]
+    items = [value_of(config, o) for o in children(config, find(config, 'states/reload/animations'))]
+    if (len(hands), len(items)) != ((8, 2) if state == 314 else (4, 1)):
+        raise ValueError(f'reload state {state} with {len(hands)} hands and {len(items)} item clips')
+    frames = []
+    for name in hands[:2 if state == 314 else 1]:
+        tracks = clip_parse(read_asset(name.removeprefix('resources/') + '.b-spline'))[2]
+        frames.append(clip_end(tracks) - struct.unpack_from('<f', tracks, 4)[0])
+    if state == 303:
+        seconds = [tactical]
+    elif empty is not None:
+        seconds = [tactical, empty]
+    else:
+        seconds = [tactical, tactical * frames[1] / frames[0]]
+    return state, hands, items, seconds, empty is not None
+
+
+def retime_reload(config, weapon, read_asset, paces=None):
+    """Compile a reload's clips to private ones for the unmodified 0.26g engine: an explicit
+    tactical/empty pair (reload_empty_time) always, any other 303 or 314 reload whose clips a
+    `reload_pace` entry says play outside the lengths their builds played them at. Each slot
+    lasts what it lasts now (the pair, or as the engine plays the clips), so no time changes;
+    within it the motion keeps the nearest build's pace ([`pace_warp`]), or, without a pace or
+    within PACE_TOLERANCE, one speed. Item clips take their hands' map, keeping the hands/item
+    phase. Returns generated assets, changed config paths and a line per warped slot."""
+    paces = paces or {}
+    try:
+        find(config, 'parameters/reload_empty_time')
+    except KeyError:
+        # Without a pair, only a reload whose clips have a pace may need compiling.
+        try:
+            named = [value_of(config, o).removeprefix('resources/') for key in ('user_animations', 'animations')
+                     for o in children(config, find(config, 'states/reload/' + key))]
+        except KeyError:
+            return {}, [], []
+        if not any(p.hands in named and p.item in named for p in paces.values()):
+            return {}, [], []
+    plan = reload_plan(config, read_asset)
+    if plan is None:
+        try:
+            find(config, 'parameters/reload_empty_time')
+        except KeyError:
+            return {}, [], []
+        raise ValueError('explicit empty time requires distinct state-314 reload clips')
+    state, hands, items, seconds, explicit = plan
+    slots = len(seconds)
+    if explicit and reload_clip_ratio(config, read_asset) is None:
         raise ValueError('explicit empty time requires distinct state-314 reload clips')
     if not re.fullmatch(r'wpn_[a-z0-9_]+', weapon):
         raise ValueError('invalid reload weapon name')
-    hands = [value_of(config, o) for o in children(config, find(config, 'states/reload/user_animations'))]
-    scales = []
-    for name, seconds in zip(hands[:2], (tactical, empty)):
-        tracks = clip_parse(read_asset(name.removeprefix('resources/') + '.b-spline'))[2]
-        frames = clip_end(tracks) - struct.unpack_from('<f', tracks, 4)[0]
-        scales.append(30 * seconds / frames)
-    assets, written = {}, []
-    for key, count, label in [('user_animations', 8, 'hands'), ('animations', 2, 'item')]:
-        path = 'states/reload/' + key
-        names = [value_of(config, o) for o in children(config, find(config, path))]
-        if len(names) != count:
-            raise ValueError(f'reload {key} must have {count} clips')
-        for i, name in enumerate(names):
-            source = name.removeprefix('resources/')
-            stem = f'animations/single/weapons/srp_reload/{weapon}/{label}_{i}'
-            if source.startswith('animations/single/weapons/srp_reload/'):
-                raise ValueError('reload retiming must start from the original clips')
-            assets[stem + '.b-spline'] = retime_clip(read_asset(source + '.b-spline'), scales[i % 2])
-            assets[stem + '.bones_names'] = read_asset(source + '.bones_names')
-            edit_text(config, f'{path}[{i}]', name, 'resources/' + stem)
-            written.append(f'/{path}[{i}]')
+    strip = lambda name: name.removeprefix('resources/')
+    for name in hands + items:
+        if strip(name).startswith('animations/single/weapons/srp_reload/'):
+            raise ValueError('reload retiming must start from the original clips')
+    # Per hands clip: its pace if its seconds lie outside what its builds played.
+    warps, notes = {}, []
+    for i, name in enumerate(hands):
+        slot = i % slots
+        pace = paces.get((strip(name), strip(items[slot])))
+        if pace is None:
+            continue
+        natural = pace.natural(seconds[slot])
+        if abs(seconds[slot] / natural - 1) <= PACE_TOLERANCE:
+            continue
+        warps[i] = pace
+    if not explicit and not warps:
+        return {}, [], []
+    if state == 314 and not explicit and reload_clip_ratio(config, read_asset) is not None:
+        before = reload_clip_ratio(config, read_asset)
+    else:
+        before = None
+    assets, written, maps, made = {}, [], {}, {}
+    for i, name in enumerate(hands):
+        slot = i % slots
+        key = (strip(name), strip(items[slot]), seconds[slot], i in warps)
+        if key not in made:
+            source = read_asset(strip(name) + '.b-spline')
+            tracks = clip_parse(source)[2]
+            start = struct.unpack_from('<f', tracks, 4)[0]
+            frames = clip_end(tracks) - start
+            if i in warps:
+                pace = warps[i]
+                pace.check(source, read_asset(strip(items[slot]) + '.b-spline'))
+                at, speed = pace_warp(pace, frames, seconds[slot])
+                warp = frame_map(at, frames, start)
+                clip = warp_clip(source, warp)
+                rot, tra = warp_parting(source, clip, warp, frames, start)
+                if rot > PACE_ROTATION or tra > PACE_TRANSLATION:
+                    raise ValueError(f'{weapon}: the warped {strip(name)} parts from its source by '
+                                     f'{rot:.4f} rad / {tra * 1000:.1f} mm')
+                notes.append(f'{strip(name).rsplit("/", 1)[-1]}: {frames:g} frames in {seconds[slot]:.3f} s, '
+                             f'its builds {pace.shipped[0]:g}-{pace.shipped[1]:g} s; motion at {speed:.2f} '
+                             f'the speed of {pace.natural(seconds[slot]):g} s; parts by {rot:.4f} rad, '
+                             f'{tra * 1000:.2f} mm')
+            else:
+                scale = 30 * seconds[slot] / frames
+                warp = lambda t, scale=scale: t * scale
+                clip = warp_clip(source, warp)
+            made[key] = (warp, clip)
+        warp, clip = made[key]
+        maps.setdefault(slot, warp)
+        # An explicit pair's clips keep the paths they always had (hands_<i>); a reload compiled
+        # for its pace names one file a source clip and map, so slots that played one clip still
+        # play one (the Jackhammer's and SVU-A's eight).
+        first = i if explicit else next(j for j in range(len(hands)) if (strip(hands[j]), strip(items[j % slots]), seconds[j % slots], j in warps) == key)
+        stem = f'animations/single/weapons/srp_reload/{weapon}/hands_{first}'
+        assets[stem + '.b-spline'] = clip
+        assets[stem + '.bones_names'] = read_asset(strip(name) + '.bones_names')
+        edit_text(config, f'states/reload/user_animations[{i}]', name, 'resources/' + stem)
+        written.append(f'/states/reload/user_animations[{i}]')
+    for i, name in enumerate(items):
+        source = read_asset(strip(name) + '.b-spline')
+        first = i if explicit else next(j for j in range(len(items)) if items[j] == name and maps[j] is maps[i])
+        stem = f'animations/single/weapons/srp_reload/{weapon}/item_{first}'
+        assets[stem + '.b-spline'] = warp_clip(source, maps[i])
+        assets[stem + '.bones_names'] = read_asset(strip(name) + '.bones_names')
+        edit_text(config, f'states/reload/animations[{i}]', name, 'resources/' + stem)
+        written.append(f'/states/reload/animations[{i}]')
+    # Every hands clip lasts its slot's seconds at 30 frames a second.
+    for i, o in enumerate(children(config, find(config, 'states/reload/user_animations'))):
+        tracks = clip_parse(assets[strip(value_of(config, o)) + '.b-spline'])[2]
+        got = (clip_end(tracks) - struct.unpack_from('<f', tracks, 4)[0]) / 30
+        if not math.isclose(got, seconds[i % slots], rel_tol=1e-5):
+            raise ValueError(f'{weapon}: hands clip {i} lasts {got} s, not {seconds[i % slots]}')
+    if state == 303:
+        return assets, written, notes
     actual = reload_clip_ratio(config, assets.__getitem__)
-    if not math.isclose(actual, empty / tactical, rel_tol=1e-6):
+    if not explicit:
+        if before is not None and not math.isclose(actual, before, rel_tol=1e-5):
+            raise ValueError(f'{weapon}: the compiled reload changes its empty/tactical ratio')
+        return assets, written, notes
+    if not math.isclose(actual, seconds[1] / seconds[0], rel_tol=1e-6):
         raise ValueError('retimed reload does not reproduce the explicit durations')
     # UI metadata was generated before the stat table and must follow the compiled pair.
     props = children(config, find(config, 'ui_desc/props_list'))
@@ -2045,7 +2360,7 @@ def retime_reload(config, weapon, read_asset):
             break
     else:
         raise ValueError('retimed reload lacks tactical UI metadata')
-    return assets, written
+    return assets, written, notes
 
 
 def f32(values):
@@ -2549,22 +2864,35 @@ def main():
             sys.exit('remove_entry: %s[%d] is an entry this list adds' % (lst, at))
         added[e['file']] = [unshifted(a, lst, at) for a in added.get(e['file'], ())]
     clips = {}  # animation clips: not configs, so add_event_channel reads them back itself
+    paces = parse_paces(edits.get('reload_pace', []))
+    paced = set()
     for e in edits.get('retime_reload', []):
         paths = sorted(fnmatch.filter(files, e['files']))
         if not paths:
             raise ValueError('retime_reload: no matching weapons')
         for p in paths:
             b = bytearray(open(files[p], 'rb').read())
-            assets, written = retime_reload(b, os.path.basename(p).removesuffix('.options'),
-                                           lambda path: open(files[path], 'rb').read())
+            try:
+                paced.update(value_of(b, o).removeprefix('resources/') for key in ('user_animations', 'animations')
+                             for o in children(b, find(b, 'states/reload/' + key)))
+            except KeyError:
+                pass
+            assets, written, notes = retime_reload(b, os.path.basename(p).removesuffix('.options'),
+                                                   lambda path: open(files[path], 'rb').read(), paces)
             if not assets:
                 continue
+            for note in notes:
+                print('  %s %s' % (os.path.basename(p).removesuffix('.options'), note))
+
             if p in bufs or set(assets) & (set(files) | set(clips)):
                 raise ValueError('retime_reload: conflicting output for ' + p)
             bufs[p] = b
             allowed.setdefault(p, set()).update(written)
             clips.update(assets)
             print('retimed reload %s: %d private animation resources' % (p, len(assets)))
+    stale = sorted(k for k in paces if not set(k) <= paced)
+    if stale:
+        raise ValueError('reload_pace: no reload plays %s' % stale)
     for e in edits.get('make_held_flower', []):
         made = make_held_flower({p: open(files[p], 'rb').read() for p in e['files']}, e)
         for p, data in made.items():
