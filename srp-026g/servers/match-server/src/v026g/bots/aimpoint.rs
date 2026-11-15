@@ -3,17 +3,17 @@
 //! part of him shows, aim at that part, not at a head or chest behind
 //! something).
 //!
-//! - **Parts** ([`Part`]): points on the body by stance, from the game's
-//!   own hit boxes: the 0.100b server poses the player model with the
-//!   game's clips (`srp-0100b` `combat/pose.rs`) and puts the head sphere
-//!   at 1.602 m standing, 1.026 m crouched (its tests), the upper and lower
-//!   body capsules at 1.262 and 1.020 m (radius 0.215 and 0.201), the
-//!   thighs near 0.68 m and the shins near 0.30 m standing; crouched 0.717,
-//!   0.477, 0.21-0.43 and 0.12-0.29 m. PROVEN for the 0.100b model; that
-//!   0.26g's `base_character_full` has the same heights is a GUESS (the
-//!   0.100b model is absent from 0.26g). The parts sit on the body's
-//!   upright axis; the edges lie across the line of sight, inside the upper
-//!   body capsule.
+//! - **Parts** ([`Part`]): points on the body by stance, at the heights of
+//!   0.26g's own hit boxes ([`HIT_BOXES`]: `base_character_full`'s
+//!   `hit_targets` on the `scavengers_01` skeleton, placed by the rifles'
+//!   `on_site_idle` clips with their look clip at pitch 0, the posing of
+//!   `srp-0100b` `combat/pose.rs`; two ports of it on the same files agree
+//!   to 0.1 mm): the head the `brain` sphere (1.554 m standing, 1.097 m
+//!   crouched), the chest and the belly the front `Chest` and `Spin` boxes
+//!   (1.220 / 0.767 and 0.928 / 0.474 m), the thighs and the shins the means
+//!   of the two legs' capsules. PROVEN (data). The parts sit on the body's
+//!   upright axis over the feet; the edges lie across the line of sight,
+//!   inside the front `Chest` box (0.229 m to either side).
 //! - **Sight** ([`any_part_visible`]): an enemy counts as seen when a line
 //!   from the bot's eyes reaches some part, so legs on a stair or a head
 //!   over a wall are seen.
@@ -73,6 +73,61 @@ const SHORT_M: f32 = 0.3;
 /// a tick is up to 100 ms ahead of it), at most this far ahead, ms.
 const AHEAD_MAX_MS: u32 = 300;
 
+/// 0.26g's player hit boxes at rest, standing and crouched, hip and aimed (tab-separated, its header says the
+/// columns): the shapes of `models/character/human/base/base_character_full.skinned_model/hit_targets` on
+/// `animations/skeletons/scavengers_01`, placed by the rifles' `on_site_idle` and `on_site_idle_look` clips (pitch 0).
+pub const HIT_BOXES: &str = include_str!("hitboxes-026g-idle.tsv");
+
+/// The edges' offset across the line of sight from the chest, metres: inside the front `Chest` box's 0.229 m half width.
+const EDGE_M: f32 = 0.18;
+
+/// The heights over the feet of [`Part`]'s points, standing and crouched, read once from [`HIT_BOXES`] (hip, not
+/// aimed): head, chest, belly, pelvis, thighs, shins.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PartHeights {
+    stand: [f32; 6],
+    crouch: [f32; 6],
+}
+
+impl PartHeights {
+    /// The table's centre height of a shape, by stance, hit part and bone (the hip rows).
+    fn centre(table: &str, stance: &str, part: &str, bone: &str) -> f32 {
+        table
+            .lines()
+            .filter(|l| !l.starts_with('#') && !l.starts_with("stance"))
+            .map(|l| l.split('\t').collect::<Vec<_>>())
+            .find(|c| c.len() > 6 && c[0] == stance && c[1] == "0" && c[2] == part && c[3] == bone)
+            .and_then(|c| c[6].parse::<f32>().ok())
+            .unwrap_or_else(|| panic!("hit box table: no {stance} {part} on {bone}"))
+    }
+
+    /// The points of a stance: the head the `brain` sphere, the chest and the belly the front `Chest` and `Spin`
+    /// boxes, the thighs and the shins the means of the legs' capsules, the pelvis halfway between the belly and the
+    /// thighs (the table has no shape of its own there).
+    fn of(table: &str, stance: &str) -> [f32; 6] {
+        let at = |part: &str, bone: &str| Self::centre(table, stance, part, bone);
+        let head = at("brain", "Head");
+        let chest = at("front", "Chest");
+        let belly = at("front", "Spin");
+        let thighs = (at("right_hip", "RightUpLeg") + at("left_hip", "LeftUpLeg")) * 0.5;
+        let shins = (at("right_hip", "RightLeg") + at("left_hip", "LeftLeg")) * 0.5;
+        [head, chest, belly, (belly + thighs) * 0.5, thighs, shins]
+    }
+
+    fn get() -> &'static PartHeights {
+        static HEIGHTS: std::sync::OnceLock<PartHeights> = std::sync::OnceLock::new();
+        HEIGHTS.get_or_init(|| {
+            let h = PartHeights { stand: Self::of(HIT_BOXES, "stand"), crouch: Self::of(HIT_BOXES, "crouch") };
+            log::info!(
+                "bots' body parts from 0.26g's hit boxes (head, chest, belly, pelvis, thighs, shins over the feet): \
+                 standing {:?}, crouched {:?}",
+                h.stand, h.crouch
+            );
+            h
+        })
+    }
+}
+
 /// A point on a body that a bot may see and aim at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Part {
@@ -116,19 +171,27 @@ impl Part {
         Part::Shins,
     ];
 
-    /// Height over the feet, standing and crouched, and the offset across
-    /// the line of sight (to the shooter's right), metres.
+    /// Height over the feet, standing and crouched ([`PartHeights`]), and the offset across the line of sight (to
+    /// the shooter's right), metres.
     fn place(self) -> (f32, f32, f32) {
-        match self {
-            Part::Head => (1.60, 1.03, 0.0),
-            Part::Chest => (1.26, 0.72, 0.0),
-            Part::Belly => (1.02, 0.48, 0.0),
-            Part::Pelvis => (0.84, 0.38, 0.0),
-            Part::Thighs => (0.66, 0.32, 0.0),
-            Part::Shins => (0.30, 0.20, 0.0),
-            Part::LeftEdge => (1.26, 0.72, -0.18),
-            Part::RightEdge => (1.26, 0.72, 0.18),
-        }
+        let h = PartHeights::get();
+        let (k, side) = match self {
+            Part::Head => (0, 0.0),
+            Part::Chest => (1, 0.0),
+            Part::Belly => (2, 0.0),
+            Part::Pelvis => (3, 0.0),
+            Part::Thighs => (4, 0.0),
+            Part::Shins => (5, 0.0),
+            Part::LeftEdge => (1, -EDGE_M),
+            Part::RightEdge => (1, EDGE_M),
+        };
+        (h.stand[k], h.crouch[k], side)
+    }
+
+    /// Height of the point over the feet, standing or crouched, metres.
+    pub fn height(self, crouched: bool) -> f32 {
+        let (standing, low, _) = self.place();
+        if crouched { low } else { standing }
     }
 
     /// The part of `body` as seen from `eye`.
@@ -657,6 +720,21 @@ impl Sight {
 
 #[cfg(test)]
 mod tests {
+    /// The parts' heights are 0.26g's hit boxes as the table gives them (`hitboxes-026g-idle.tsv`, the hip rows).
+    #[test]
+    fn the_parts_stand_at_the_hit_boxes_of_the_026g_model() {
+        use super::Part;
+        let near = |a: f32, b: f32| (a - b).abs() < 1e-4;
+        assert!(near(Part::Head.height(false), 1.5535) && near(Part::Head.height(true), 1.0969), "the brain sphere");
+        assert!(near(Part::Chest.height(false), 1.2203) && near(Part::Chest.height(true), 0.7670), "the front Chest box");
+        assert!(near(Part::Belly.height(false), 0.9277) && near(Part::Belly.height(true), 0.4744), "the front Spin box");
+        assert!(near(Part::Thighs.height(false), (0.6011 + 0.6599) / 2.0), "the up legs' capsules");
+        assert!(near(Part::Shins.height(false), (0.2582 + 0.3207) / 2.0), "the legs' capsules");
+        let pelvis = Part::Pelvis.height(false);
+        assert!(Part::Thighs.height(false) < pelvis && pelvis < Part::Belly.height(false));
+        assert_eq!(Part::LeftEdge.height(false), Part::Chest.height(false));
+    }
+
     /// [A302 camper calibration] The head-first draw keeps its pick for a target and takes about the share over many.
     #[test]
     fn the_head_first_draw_keeps_its_pick_and_takes_the_share() {
@@ -799,7 +877,7 @@ mod tests {
         let (points, fired) = duel(&world, enemy);
         assert!(fired);
         assert!(
-            points.iter().all(|p| (p.y - 1.26).abs() < 1e-3),
+            points.iter().all(|p| (p.y - Part::Chest.height(false)).abs() < 1e-3),
             "{points:?}"
         );
     }
@@ -850,7 +928,7 @@ mod tests {
         assert_eq!(aim_part(eye, &enemy, &world.sight), Some(Part::Head));
         let (points, fired) = duel(&world, enemy);
         assert!(fired);
-        assert!(points.iter().all(|p| (p.y - 1.60).abs() < 1e-3));
+        assert!(points.iter().all(|p| (p.y - Part::Head.height(false)).abs() < 1e-3));
     }
 
     /// A bot at the origin facing +z, an enemy at `enemy` (seen and
@@ -1069,7 +1147,7 @@ mod tests {
         });
         let rule = CoverRule { pierce: mapdata::Pierce::new(0.3125).unwrap(), max_share: 0.5, spot_cost: None };
         let eye = body(0, 0, Vec3::ZERO, false).eye();
-        let share = shut.sight.follow(eye, Vec3::new(0.0, 1.02, 20.0), rule.pierce, 0.0).share.value();
+        let share = shut.sight.follow(eye, Vec3::new(0.0, Part::Belly.height(false), 20.0), rule.pierce, 0.0).share.value();
         let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
         let mut me = body(0, 0, Vec3::ZERO, false);
         let view = view_of(vec![me.clone(), enemy.clone()]);
@@ -1122,7 +1200,7 @@ mod tests {
         let last = fired.last().unwrap().0;
         assert!(last <= shut_at + on.combat.fire_through_ms, "fired to {last}: {fired:?}");
         // Aimed low at the place he went down (his belly standing), not at the chest it last saw over the crate.
-        assert!(fired.iter().all(|(_, at)| (at.y - 1.02).abs() < 0.01 && at.z > 19.9), "{fired:?}");
+        assert!(fired.iter().all(|(_, at)| (at.y - Part::Belly.height(false)).abs() < 0.01 && at.z > 19.9), "{fired:?}");
         // One burst a gap: the bursts begun are no closer than the gap.
         assert!(stats.bursts <= 1 + on.combat.fire_through_ms / on.combat.fire_through_gap_ms, "{stats:?}");
         // Switched off: it does not fire at what it does not see.
@@ -1211,7 +1289,7 @@ mod tests {
         facing(&mut me, enemy.chest());
         look.update(&me, Some(1), &view, &world, &SmokeTuning::default(), 1_000);
         let aim = look.aim(1, Some(&enemy), enemy.chest(), enemy.chest());
-        assert!(aim.may_fire() && (aim.point().y - 1.60).abs() < 1e-3);
+        assert!(aim.may_fire() && (aim.point().y - Part::Head.height(false)).abs() < 1e-3);
         assert!(!look.clear_shot(&me, &aim, (0.0, 0.0)));
         facing(&mut me, aim.point());
         assert!(look.clear_shot(&me, &aim, (0.0, 0.0)));
@@ -1222,7 +1300,7 @@ mod tests {
         let hidden = world_of(&[wall(19.0, -3.0, 3.0, 0.0, 3.0)]);
         look.update(&me, Some(1), &view, &hidden, &SmokeTuning::default(), 1_200);
         let aim = look.aim(1, Some(&enemy), enemy.chest(), enemy.chest());
-        assert!(!aim.may_fire() && (aim.point().y - 1.60).abs() < 1e-3);
+        assert!(!aim.may_fire() && (aim.point().y - Part::Head.height(false)).abs() < 1e-3);
         assert!(!look.clear_shot(&me, &aim, (0.0, 0.0)));
         look.update(&me, None, &view, &hidden, &SmokeTuning::default(), 1_300);
         assert!(look.pre_aim(1_300).is_some());
