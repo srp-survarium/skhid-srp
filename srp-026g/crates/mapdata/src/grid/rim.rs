@@ -21,7 +21,7 @@
 //! the jump's gate 0x2FBDC0 -> 0x2FC230 reads `on_ground` 0x7EF90, false for a crouched capsule, exactness 2026-11-14), and
 //! before the reach, so a top only a rim jump gets to is kept.
 use super::gap::{self, Aim, OffLink, PressLead, Share, Takeoff};
-use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, NONE, RIM_REACH_M};
+use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, MARGINAL_JUMP_M, NONE, RIM_REACH_M};
 use crate::controller::jump::{self, FlightStep, Kind, Kits, Neighbour};
 use crate::controller::tick::Settings;
 use crate::controller::Collision;
@@ -36,6 +36,10 @@ const LAND_HEIGHT_M: f32 = 0.2;
 pub struct RimStats {
     /// Rim jumps flown …
     pub tried: usize,
+    /// [C2 rows 11/12] … of them plain Jump links rising over [`MARGINAL_JUMP_M`] …
+    pub jumps_flown: usize,
+    /// … and of those, replaced by the flown link (a press landed on the Jump link's own top).
+    pub jumps_replaced: usize,
     /// … made with a walking press …
     pub walked: usize,
     /// … with a sprint press …
@@ -475,7 +479,7 @@ impl WalkGrid {
             let (i, k) = self.cell_xz(self.cell_of[a] as usize);
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
                 let stride = self.cell * ((di * di + dk * dk) as f32).sqrt();
-                if wide.links[a][d] != NONE && wide.kinds[a][d] != LinkKind::Drop {
+                if wide.links[a][d] != NONE && wide.kinds[a][d] != LinkKind::Drop && !self.marginal_jump(wide, a, d) {
                     continue;
                 }
                 let mut g = 1;
@@ -505,6 +509,14 @@ impl WalkGrid {
         todo
     }
 
+    /// [C2 rows 11/12] Whether `a`'s side `d` is a plain Jump link rising over [`MARGINAL_JUMP_M`]: flown as a rim jump too (a
+    /// School crate's +0.99 m, below the plain Jump links' cap, was priced by a fixed penalty with no client basis: the client's
+    /// walking jump from a run-up gets onto a rim to apex 0.998 + 0.66 m, exactness `notes-mapflights.md` §2).
+    fn marginal_jump(&self, wide: &Wide, a: usize, d: usize) -> bool {
+        let b = wide.links[a][d];
+        b != NONE && wide.kinds[a][d] == LinkKind::Jump && self.height[b as usize] - self.height[a] > MARGINAL_JUMP_M
+    }
+
     /// [`Body::rim_jumps`]: every edge up from a floor whose side has no link up ([`Self::edges_up`]: across cells with no floor
     /// within a step, the first floor more than a step up and no higher than [`RIM_REACH_M`]; a Jump link up a ledge takes the
     /// side), flown over the presses ([`Self::best_press`]: the jumps and, [S1], the sprint climb) and made a GapJump with the
@@ -529,17 +541,33 @@ impl WalkGrid {
             let l = ((di * di + dk * dk) as f32).sqrt();
             (di as f32 / l, dk as f32 / l)
         };
-        let flown = super::controlled::parallel(&todo, |&(a, b, d)| {
-            let linked = linked(a);
+        // [C2 rows 11/12] A plain Jump link's own top is no link yet for its flight: the flown link may replace it.
+        let plain: Vec<bool> =
+            todo.iter().map(|&(a, b, d)| self.marginal_jump(wide, a as usize, d) && wide.links[a as usize][d] == b).collect();
+        let jobs: Vec<((u32, u32, usize), bool)> = todo.iter().copied().zip(plain.iter().copied()).collect();
+        let flown = super::controlled::parallel(&jobs, |&((a, b, d), plain)| {
+            let mut linked = linked(a);
+            if plain {
+                linked.retain(|&n| n != b);
+            }
             self.best_press(world, s, a, b, way(d), &leads, |st| self.rim_lands_on(st, a, &linked), kits)
         });
         // [R83] The aimed presses (`R83-FORMAT.md`, the bounded sweep): at the jumps no press on the line made, one of whose
         // flights came near the top, the walk and the sprint at [`AIMED_LEADS`] at each of [`AIMS`]; the best share wins.
-        let near: Vec<(u32, u32, usize)> =
-            todo.iter().zip(&flown).filter(|(_, p)| p.made.is_empty() && p.near).map(|(&t, _)| t).collect();
+        let near: Vec<((u32, u32, usize), bool)> = todo
+            .iter()
+            .zip(&flown)
+            .zip(&plain)
+            .filter(|((_, p), _)| p.made.is_empty() && p.near)
+            .map(|((&t, _), &plain)| (t, plain))
+            .collect();
         let aimed_presses = [(Kind::Walk, AIMED_LEADS.to_vec()), (Kind::Sprint, AIMED_LEADS.to_vec())];
-        let aimed = super::controlled::parallel(&near, |&(a, b, d)| {
-            let linked = linked(a);
+        let aimed = super::controlled::parallel(&near, |&((a, b, d), plain)| {
+            // [C2 rows 11/12] As in the flights above: a plain Jump link's own top is no link yet.
+            let mut linked = linked(a);
+            if plain {
+                linked.retain(|&n| n != b);
+            }
             let mut flights = 0;
             let mut best: Option<Made> = None;
             for (side, turn) in AIMS {
@@ -554,14 +582,23 @@ impl WalkGrid {
         });
         let mut stats = RimStats { tried: todo.len(), aimed_tried: near.len(), ..RimStats::default() };
         let aimed_of: std::collections::HashMap<(u32, u32), Made> =
-            near.iter().zip(&aimed).filter_map(|(&(a, b, _), &(m, _))| m.map(|m| ((a, b), m))).collect();
+            near.iter().zip(&aimed).filter_map(|(&((a, b, _), _), &(m, _))| m.map(|m| ((a, b), m))).collect();
         stats.aimed_made = aimed_of.len();
         stats.aimed_flights = aimed.iter().map(|&(_, f)| f).sum();
         stats.flights += stats.aimed_flights;
         let mut none = Vec::new();
-        for (&(a, b, _), p) in todo.iter().zip(&flown) {
+        let mut replaced: Vec<(usize, usize)> = Vec::new();
+        for ((&(a, b, d), p), &plain) in todo.iter().zip(&flown).zip(&plain) {
             stats.flights += p.flights;
             let aimed = aimed_of.get(&(a, b)).copied();
+            // [C2 rows 11/12] A plain Jump link a press lands on the top of goes: the flown link (its press and share) is the way
+            // up. One no press lands on stays as it was (taught, not cut).
+            if plain {
+                stats.jumps_flown += 1;
+                if p.made.iter().chain(aimed.as_ref()).any(|m| m.to == b) {
+                    replaced.push((a as usize, d));
+                }
+            }
             if p.made.is_empty() && aimed.is_none() {
                 none.push((a, b));
             }
@@ -577,6 +614,10 @@ impl WalkGrid {
                 stats.by_share[share.class()] += 1;
                 wide.off.push(OffLink { from: a, to, kind: LinkKind::GapJump, press, share, walk, aim });
             }
+        }
+        stats.jumps_replaced = replaced.len();
+        for (a, d) in replaced {
+            wide.links[a][d] = NONE;
         }
         // Two candidates of one take-off may land on the same floor: one link (the first, by the way's order).
         wide.off.sort_by_key(|l| (l.from, l.to));
