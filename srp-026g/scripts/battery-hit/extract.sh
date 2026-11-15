@@ -14,6 +14,8 @@ for p in \
   $K/item/stand/3rd_view/idle_electrobox.b-spline $K/item/stand/3rd_view/idle_electrobox.bones_names \
   $K/item/stand/3rd_view/hidetest_electrobox.b-spline $K/item/stand/3rd_view/hidetest_electrobox.bones_names \
   $K/player/stand/3rd_view/hands_only/idle_look.b-spline $K/player/stand/3rd_view/hands_only/idle_look.bones_names \
+  animations/single/weapons/ak/player/stand/3rd_view/on_site/on_site_idle.b-spline \
+  animations/single/weapons/ak/player/stand/3rd_view/on_site/on_site_idle.bones_names \
   animations/skeletons/scavengers_01.skeleton animations/skeletons/weapons/electrobox.skeleton \
   models/weapons/electrobox.skinned_model/render/bind_pose \
   models/weapons/electrobox.skinned_model/render/electrobox_s/converted_model \

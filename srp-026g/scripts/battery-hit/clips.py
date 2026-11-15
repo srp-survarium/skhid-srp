@@ -156,6 +156,18 @@ def skeleton_parents(data):
     return parents
 
 
+def skeleton_masks(data):
+    """Each bone's `mask` (the skeleton's bone groups: 1 the spine, head,
+    Root, Weapon, Item; 2 the arms from the clavicles to the fingers; 4 the
+    hips and legs). An animation moves a bone only if its lexeme's bone mask
+    and the bone's share a bit (computed_local_bone_transform 0x3B20F2)."""
+    masks = {}
+    for path, kind, value in content.walk(data):
+        if path.endswith('/mask') and kind == content.T_INT:
+            masks[path.split('/')[-2]] = value
+    return masks
+
+
 def local_pose(clip, names, t):
     """Each bone's local (rotation basis, translation) at frame t."""
     out = {}

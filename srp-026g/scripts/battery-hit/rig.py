@@ -17,6 +17,13 @@ KEY = 'animations_single_weapons_key_objects_'
 HANDS = KEY + 'player_nonadditive_stand_3rd_view_on_site_hands_only_'
 ITEM = KEY + 'item_stand_3rd_view_'
 LOOK = KEY + 'player_stand_3rd_view_hands_only_idle_look'
+BASE = 'animations_single_weapons_ak_player_stand_3rd_view_on_site_on_site_idle'
+# The battery's player clips play with the arms' bone mask (the lexeme the
+# take state's item_and_hands_expression 0x338B20 builds: 0x344F60 sets its
+# bone mask +58h to 2); its own clips with every bone (0x345070 leaves the
+# default -1, 0x31E9F1). The carrier's other bones come from the stand set's
+# base clip (default.user_animations stand/stand_hud: ak/.../on_site_idle).
+ARMS = 2
 
 
 def matrix(r, p):
@@ -76,13 +83,16 @@ class Rig:
     def __init__(self, assets):
         a = Path(assets)
         self.a = a
-        self.parents = clips.skeleton_parents((a / 'animations_skeletons_scavengers_01.skeleton').read_bytes())
+        skeleton = (a / 'animations_skeletons_scavengers_01.skeleton').read_bytes()
+        self.parents = clips.skeleton_parents(skeleton)
+        self.masks = clips.skeleton_masks(skeleton)
         self.item_parents = clips.skeleton_parents((a / 'animations_skeletons_weapons_electrobox.skeleton').read_bytes())
         self.names = clips.parse_names((a / (HANDS + 'idle.bones_names')).read_bytes())
         self.item_names = clips.parse_names((a / (ITEM + 'idle_electrobox.bones_names')).read_bytes())
         self.item_idle = self.clip(ITEM + 'idle_electrobox')
         self.item_put = self.clip(ITEM + 'hidetest_electrobox')
         self.look = clips.parse_clip((a / (LOOK + '.b-spline')).read_bytes())[0]
+        self.base = self.clip(BASE)
         part = lambda model, surface, color: Skinned(
             bind_pose((a / (CHAR + model + '.skinned_model_render_bind_pose')).read_bytes()),
             (a / (CHAR + model + '.skinned_model_render_' + surface + '_converted_model')).read_bytes(), color)
@@ -106,11 +116,23 @@ class Rig:
         return clips.parse_clip((self.a / (stem + '.b-spline')).read_bytes())[0]
 
     def world(self, clip, t, look=0.0):
-        """The pose at frame t, the carrier looking `look` degrees down: the
-        additive idle_look of the battery's clip set over it at the frame where
-        its Item (the camera) pitches that much (frame 18 level, 36 the most
-        down, 66 degrees)."""
-        local = clips.local_pose(clip, self.names, t)
+        """The pose of one clip alone at frame t (every bone from it), the
+        carrier looking `look` degrees down (the battery clip set's additive
+        idle_look at the frame where its Item, the camera, pitches that much:
+        frame 18 level, 36 the most down, 66 degrees)."""
+        return self.compose(clips.local_pose(clip, self.names, t), look)
+
+    def game_world(self, user_clip, t, look=0.0):
+        """The carrier's pose as the game mixes it while a battery state plays
+        `user_clip` at frame t: its arm bones (mask 2) from the clip, every
+        other bone from the stand set's base clip (frame 0), the look pitch's
+        additive over all."""
+        user = clips.local_pose(user_clip, self.names, t)
+        base = clips.local_pose(self.base, self.names, 0)
+        local = {n: (user[n] if self.masks.get(n, 0) & ARMS else base[n]) for n in self.names}
+        return self.compose(local, look)
+
+    def compose(self, local, look=0.0):
         if look:
             item = self.names.index('Item')
             pitch = lambda f: -math.degrees(self.look[item][3].evaluate(f))
@@ -121,6 +143,16 @@ class Rig:
             delta = clips.local_pose(self.look, self.names, lo)
             local = {n: (delta[n][0] @ r, p + delta[n][1]) for n, (r, p) in local.items()}
         return clips.world_pose(local, self.parents, self.names)
+
+    def battery_world_local(self, world, local):
+        """The battery skeleton's bones in the player's model space from its
+        own bones' local transforms."""
+        root = matrix(clips.rotation([0, math.pi, 0]), [0, 0, 0]) @ matrix(*world['Weapon'])
+        out = {}
+        for n, (r, p) in clips.world_pose(local, self.item_parents, self.item_names).items():
+            m = matrix(r, p) @ root
+            out[n] = (m[:3, :3], m[3, :3])
+        return out
 
     def battery_world(self, world, t=0, clip=None):
         """The battery skeleton's bones in the player's model space, posed by

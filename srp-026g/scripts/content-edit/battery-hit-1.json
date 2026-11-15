@@ -1,9 +1,9 @@
 {
-  "_comment": "The battery swing (exe patch 143, docs/notes/battery-hit.md): its two player clips, authored on the stock rig (scripts/battery-hit: swing.py's keys, make_clips.py writes them), and the battery's states 3 (the swing: wind-up and strike, ending on the impact) and 4 (the recovery: follow-through back to the carry idle), which the cook loads as it loads states 0 to 2. The states are known by their index, as the game reads them (the cook's states[0] take_time, states[2] put_time; the machine's order).",
+  "_comment": "The battery swing (exe patch 143, docs/notes/battery-hit.md): a forward ram, authored on the stock rig (scripts/battery-hit: swing.py's keys, make_clips.py writes them) as the game plays a battery state: its player clips move the carrier's arms alone (bone mask 2), its battery clips the battery by its own offset bone. The battery's states 3 (the swing: wind-up and push, ending on the impact) and 4 (the recovery: held out, back to the carry idle), which the cook loads as it loads states 0 to 2. The states are known by their index, as the game reads them (the cook's states[0] take_time, states[2] put_time; the machine's order).",
   "files_from_repo": [
     {
       "source": "../battery-hit/clips/battery_hit.b-spline",
-      "sha256": "6854815e2c534469bb09849d9c27cd05b7afeffaff70956230db9d465c500aa6",
+      "sha256": "c6eb0f828a9c7b14ea6dd4c184d28b477957e5e1fa84bd35efe1f0d6d4626d2c",
       "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit.b-spline"
     },
     {
@@ -13,13 +13,33 @@
     },
     {
       "source": "../battery-hit/clips/battery_hit_recover.b-spline",
-      "sha256": "6d93b06a60d098b4602d6b181d2623886761c2741e81373f45cb6ce852bf2a24",
+      "sha256": "70b8e52915daf3db927f6f5a8a2585f8d9f87fb63a612677aa5e5a13094fd7bb",
       "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_recover.b-spline"
     },
     {
       "source": "../battery-hit/clips/battery_hit_recover.bones_names",
       "sha256": "6206285a608a1a99a96418adc1eea023035cf7eec011f14bb5db1d116aa55af8",
       "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_recover.bones_names"
+    },
+    {
+      "source": "../battery-hit/clips/battery_hit_electrobox.b-spline",
+      "sha256": "18c3617bf77768c61608384e27ae2db04ad2b85956924dce6d94ae955401e205",
+      "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_electrobox.b-spline"
+    },
+    {
+      "source": "../battery-hit/clips/battery_hit_electrobox.bones_names",
+      "sha256": "0574545815d70cbd92b94dfb9c24db1bf6e8694d0da846b36b9aebe899e12b26",
+      "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_electrobox.bones_names"
+    },
+    {
+      "source": "../battery-hit/clips/battery_hit_recover_electrobox.b-spline",
+      "sha256": "a8888a0208d4b7e42fe99c62ba88e9b605e67707c5fed189e022e72f86e4773f",
+      "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_recover_electrobox.b-spline"
+    },
+    {
+      "source": "../battery-hit/clips/battery_hit_recover_electrobox.bones_names",
+      "sha256": "0574545815d70cbd92b94dfb9c24db1bf6e8694d0da846b36b9aebe899e12b26",
+      "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_recover_electrobox.bones_names"
     }
   ],
   "append_entry": [
@@ -36,8 +56,8 @@
           "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit"
         ],
         "animations": [
-          "resources/animations/single/weapons/key_objects/item/stand/3rd_view/idle_electrobox",
-          "resources/animations/single/weapons/key_objects/item/stand/3rd_view/idle_electrobox"
+          "resources/animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_electrobox",
+          "resources/animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_electrobox"
         ]
       }
     },
@@ -54,8 +74,8 @@
           "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_recover"
         ],
         "animations": [
-          "resources/animations/single/weapons/key_objects/item/stand/3rd_view/idle_electrobox",
-          "resources/animations/single/weapons/key_objects/item/stand/3rd_view/idle_electrobox"
+          "resources/animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_recover_electrobox",
+          "resources/animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_recover_electrobox"
         ]
       }
     }

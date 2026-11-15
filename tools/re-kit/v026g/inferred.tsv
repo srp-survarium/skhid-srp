@@ -3510,3 +3510,4 @@ va	status	ref_021d	name
 0x003b4ea0	inferred-medium		vostok::animation::fix_up_b_spline_clip [descriptive]
 0x003b4f40	inferred-high		vostok::animation::create_baked_animation [descriptive]
 0x003b50d0	inferred-high		vostok::animation::baked_animation_size [descriptive]
+0x0031e960	inferred-medium		vostok::animation::mixing::animation_lexeme_parameters::animation_lexeme_parameters [descriptive]
