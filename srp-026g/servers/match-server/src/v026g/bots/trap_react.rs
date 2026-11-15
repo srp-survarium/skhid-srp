@@ -864,7 +864,8 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState) {
     if !t.on || !me.alive {
         return;
     }
-    let own: Vec<Vec3> = state.knowledge.traps.standing().map(|k| k.at).collect();
+    // The team's traps, and those only this bot knows ([G61] `traps::BotState::mine`): not others' to notice.
+    let own: Vec<Vec3> = state.knowledge.traps.standing().chain(bot.features.traps.mine.standing()).map(|k| k.at).collect();
     let others: Vec<(PlacedTrap, TrapKey, Vec3)> = state
         .features.traps.world_traps
         .iter()

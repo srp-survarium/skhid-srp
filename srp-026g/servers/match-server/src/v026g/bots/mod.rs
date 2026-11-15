@@ -2642,6 +2642,21 @@ impl Bots {
         }
     }
 
+    /// [G61] The bench's stand-in human at `place` put a trap down that his team is not told of (`SRP_BENCH_HUMAN_TRAPS_KNOWN=off`, the
+    /// live way): he knows it, as a live player knows the trap he laid, so he keeps off it and does not take it for another's
+    /// (`traps::BotState::mine`); his field is built again at once, as a bot's own release makes it at its next think.
+    #[cfg(test)]
+    pub(crate) fn bench_placer_knows_trap(&mut self, place: Place, at: Vec3, released: u32) {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        bot.features.traps.mine.promise(place, at, released);
+        let tuning = self.tunings.of(bot.team).clone();
+        if let Some(tactics) = self.tactics.as_ref() {
+            traps::take_fields(bot, &self.teams[usize::from(bot.team)], &tactics.world.grid, tuning.traps.ring_m, tuning.traps.keep_off);
+        }
+    }
+
     /// A trusted world's objects section: the bear traps the teams' bots
     /// promised confirmed, followed and dropped (`trap_know.rs`). Returns
     /// the traps the world shows (0 while no bot has put one down).
@@ -2649,10 +2664,12 @@ impl Bots {
         let react = self.tunings.match_wide().traps.react.on;
         let hear = self.tunings.match_wide().traps.react.hear;
         let own = self.teams.iter().any(|team| !team.knowledge.traps.all().is_empty());
+        // [G61] A bot that put down traps only it knows (the bench's stand-in human).
+        let mine = self.bots.iter().flatten().any(|bot| !bot.features.traps.mine.all().is_empty());
         let found = survarium::v026g::match_msgs::traps::find(objects, time);
         // [A302] For the match log, whatever the tuning, before the teams drop what went off.
         self.log_went_off(&found, time);
-        if !own && !react && !hear {
+        if !own && !mine && !react && !hear {
             return 0;
         }
         if hear {
@@ -2679,6 +2696,13 @@ impl Bots {
                 }
             }
             state.features.traps.world_traps = armed.clone();
+        }
+        // [G61] The traps only their placer knows, followed as the team's are; what became of them is the bench's to count (no own-trap
+        // count: they are not the bots').
+        if mine {
+            for bot in self.bots.iter_mut().flatten().filter(|bot| !bot.features.traps.mine.all().is_empty()) {
+                bot.features.traps.mine.sync(time, &found, matches[usize::from(bot.team) & 1]);
+            }
         }
         if !went_off.is_empty() {
             self.count_own_traps(time, &went_off);
