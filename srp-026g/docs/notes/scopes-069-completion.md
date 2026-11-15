@@ -149,3 +149,30 @@ on SCAR-H and VHS-2, SVU optics, and the Glock preview. Use `combined-pairs.tsv`
 for supported combinations. Attach one purchased scope to multiple weapons,
 replace it with an old scope, remove it, and re-login to check persistence;
 then inspect stationary aim, aim-in/out, reload, reticle size and native materials.
+
+## Follow-up audit: historical Glock preview crash
+
+The old handoff's crash happened on 2026-11-01 at 08:02:37 with weapons-046@3,
+before `1b91ee659` (13:56 that day) changed imported weapons' `preview_item`
+from their template's clip to their own idle clip. That fix addressed lobby
+crashes in `bone_matrices_computer`, the subsystem named by the Glock report.
+This is a plausible connection, not proof that it fixed this particular crash.
+The old dump's documented temporary and archive locations no longer exist.
+
+The final candidate archive's Glock config was extracted independently into
+`artifacts/scopes-069/glock-audit/`. Its configuration equals the released one
+apart from the new `addons` placeholder. Its `preview_item` is
+`resources/animations/single/weapons/glock_17/item/stand/3rd_view/idle`.
+The DeltaPoint, NcSTAR 4 and RSA-S variants use two copied weapon models;
+both preserve the released skeleton and bind-pose bytes. The base and copied
+models evaluate with finite vertices at preview times 0, 0.5 and 1 (nine
+poses), with all skeletal animation channels belonging to their bind pose.
+The separate `object_movement` root-motion channel is excluded from that
+bone-name comparison, as defined by resource-porter's
+`skeleton_animation::ROOT_MOTION_CHANNEL`.
+
+The audit script and result are `glock-audit/check.py` and `result.log` beside
+the extracted config. These checks narrow the historical risk but do not
+reproduce or clear the crash. The current client's Attachments-window test
+remains required and is deferred under the owner's instruction to keep the
+game closed.
