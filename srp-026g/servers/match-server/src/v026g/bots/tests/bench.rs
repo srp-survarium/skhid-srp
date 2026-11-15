@@ -1830,6 +1830,8 @@ pub(crate) fn real_bot_cost() {
                     let period_ms = u32::try_from(period.as_millis()).unwrap_or(u32::MAX);
                     worlds_waiting += u32::from(bots.need_world());
                     next_world = clock + period_ms;
+                    // [shot origin] The bots' shots from now on are scattered at this world's age.
+                    game.note_world(clock);
                     events.world(clock, &mut game, &bots);
                     let world_tick = clock / TICK_MS * TICK_MS - 300;
                     let hurts = game.hurts_at(world_tick).unwrap_or_default();
@@ -2492,6 +2494,9 @@ pub(crate) fn real_bot_cost() {
                 "stand_in": if game.honest { "honest" } else { "old" },
                 "owner": owner_sums,
             });
+            if let Some(line) = game.scatter_drawn_line() {
+                eprintln!("  {line}");
+            }
             say_whole(&format!("  sums: {sums}"));
             // The same JSON in a file of its own (logs from before `say_whole` have the line cut by libtest's
             // "has been running for over 60 seconds" when a cell is slow).
