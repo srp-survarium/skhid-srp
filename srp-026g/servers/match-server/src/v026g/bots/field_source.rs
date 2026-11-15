@@ -51,9 +51,10 @@ pub fn timed(anomaly: &Anomaly) -> bool {
         && state(ARTEFACT).is_some_and(|s| s.active_time_s == 0)
 }
 
-/// The shape and kind of a timed core's damage zone: the harmful zone of its damage state (the charge zone beside it
-/// hurts nobody).
-fn damage_zone(anomaly: &Anomaly, map: &MapData) -> Option<(Shape, FieldKind)> {
+/// The shape, kind and hit a second of a timed core's damage zone: the harmful zone of its damage state (the charge zone
+/// beside it hurts nobody), its rate the client's ([`mapdata::Damage::rate_per_s`]: the pack's `max_hit` a part, its
+/// parts and interval).
+fn damage_zone(anomaly: &Anomaly, map: &MapData) -> Option<(Shape, FieldKind, f32)> {
     let damage = anomaly
         .states
         .iter()
@@ -70,7 +71,8 @@ fn damage_zone(anomaly: &Anomaly, map: &MapData) -> Option<(Shape, FieldKind)> {
         // The lifebone's toxic zone, and any other taken as the strongest of the three kinds' hit.
         _ => FieldKind::Lifebone,
     };
-    Some((*zone.shapes.first()?, kind))
+    let hit_per_s = zone.damage.as_ref()?.rate_per_s();
+    Some((*zone.shapes.first()?, kind, hit_per_s))
 }
 
 /// The fields the timed cores of `map` show now: those a world gave in the charging, damage or artefact state (the
@@ -91,10 +93,10 @@ pub fn v1(anomalies: &Anomalies, map: &MapData) -> Vec<WorldField> {
             Some(ARTEFACT) => FieldPhase::Holding,
             _ => continue,
         };
-        let Some((shape, kind)) = damage_zone(anomaly, map) else {
+        let Some((shape, kind, hit_per_s)) = damage_zone(anomaly, map) else {
             continue;
         };
-        fields.push(WorldField { id: FieldId(c as u32), kind, shape, phase });
+        fields.push(WorldField { id: FieldId(c as u32), kind, shape, phase, hit_per_s });
     }
     fields
 }

@@ -50,13 +50,9 @@ pub struct WorldField {
     /// Where it hurts, in the map's frame.
     pub shape: Shape,
     pub phase: FieldPhase,
-}
-
-/// A field's hit a second, of a body's health, by kind (GUESS: the pack's lethal anomalies take an unarmoured body in
-/// 2 s at full intensity, the release's lifebone, spring and onyx alike; the map's zones are read the same way,
-/// `Hazard::hit_per_s`).
-pub fn hit_per_s(_kind: FieldKind) -> f32 {
-    0.5
+    /// What a body takes a second inside at full intensity, before armour, health 1.0: its damage zone's client rate
+    /// ([`mapdata::Damage::rate_per_s`], as the baked zones' `Hazard::hit_per_s`), read from the map by the source.
+    pub hit_per_s: f32,
 }
 
 /// One field the board holds.
@@ -66,7 +62,7 @@ pub struct LiveHazard {
     pub kind: FieldKind,
     /// What the world said of it last (a changed field is the same id with another value).
     field: WorldField,
-    /// Its hit a second while on ([`hit_per_s`]).
+    /// Its hit a second while on ([`WorldField::hit_per_s`]).
     pub hit_per_s: f32,
     /// When it hurts, widened by [`SWITCH_MARGIN_MS`].
     pub activity: Activity,
@@ -185,14 +181,20 @@ impl FieldBoard {
                     activity: LiveHazard::activity_of(field.phase),
                     ..self.fields[k].clone()
                 },
-                _ => LiveHazard {
-                    id: field.id,
-                    kind: field.kind,
-                    field: *field,
-                    hit_per_s: hit_per_s(field.kind),
-                    activity: LiveHazard::activity_of(field.phase),
-                    floors: floors_of(grid, &field.shape, margin),
-                },
+                _ => {
+                    log::info!(
+                        "live field {} ({:?}): {:.4} a second at full intensity, its damage zone's rate",
+                        field.id.0, field.kind, field.hit_per_s
+                    );
+                    LiveHazard {
+                        id: field.id,
+                        kind: field.kind,
+                        field: *field,
+                        hit_per_s: field.hit_per_s,
+                        activity: LiveHazard::activity_of(field.phase),
+                        floors: floors_of(grid, &field.shape, margin),
+                    }
+                }
             };
             next.push(hazard);
         }

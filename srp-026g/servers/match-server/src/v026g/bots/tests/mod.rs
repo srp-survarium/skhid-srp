@@ -102,7 +102,7 @@ mod standin_body;
 mod standin_capsule;
 mod standin_climb;
 mod standin_damage;
-mod standin_fields;
+pub(crate) mod standin_fields;
 mod standin_grenade;
 mod standin_heal;
 mod standin_hitbox;
