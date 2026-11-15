@@ -371,6 +371,8 @@ fn threat_tick(
             objective_areas: &areas,
             breach_roles,
             flank_from: spare.then_some(&starts_at as &dyn Fn(Vec3) -> Vec<Vec3>),
+            role_offer: tuning.threat.job_role_offer,
+            strongest_first: tuning.threat.job_strongest_first,
         };
         let spots = &threat.spots;
         // [threat.concede] A job on an area conceded ends: the fight side's (`Concede::refuse_fights`).
