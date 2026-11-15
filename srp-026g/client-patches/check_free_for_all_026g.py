@@ -21,6 +21,17 @@ harness: Scaleform's Invoke 0x511600 a stub that records each call):
   300 seeded random ones against this file's own model of the rule. The
   callee-saved registers and the stack as the game's ret 18h leaves them. A
   vector of teams 0 and 1 takes the game's own path;
+- never the last two: tick after tick of one match, neither the pool nor
+  the fallback offers a player one of the two points he last spawned at,
+  but on a map of no other point; 300 seeded random ticks against the
+  model with each place's history;
+- the history is the world's: the whole player_respawn_rule_core::serialize
+  (0x316F10) writes the game's own bytes (as the original's) and then the
+  40 of the history (respawn.save, 0x316FB8); its deserialize (0x316FC0)
+  reads them back (respawn.load, 0x317038) in a game that joins late and in
+  one that loads an earlier world, which save the same bytes and choose as
+  the game that saved it; on_player_entered_match (0x316BC0) empties the
+  place's; in another mode neither writes nor reads a byte of its own;
 - resupply_zone_core::can_use and use_hint before their test of the team
   (0x2F8086, 0x2F80C6): the original's bytes (the maps a free-for-all is
   played on have no ammo crates, content edit no-ammo-crates-1); patch 85's
@@ -84,6 +95,15 @@ PVP, CORE = DATA + 0x70000, DATA + 0x701F8
 TIME_RULE, KD_RULE, RULE_LIST, EVENT = DATA + 0xB000, DATA + 0xA000, DATA + 0xB800, DATA + 0xB900
 CLIENT, CLIENT_TABLE, STALE_OPTIONS = 0x33000000, DATA + 0x9000, 0x35000000
 PLACES = blackout.PLACE_COUNT                  # empty_options' places
+POINTS = DATA + 0x50000                        # the team-2 group: room for 128 points, 38h each
+# The spawn history (patch 142): the respawn rule's serialize and deserialize (thiscall, ret 4 and ret 8), their
+# ends the sites respawn.save (0x316FB8) and respawn.load (0x317038); the rule's on_player_entered_match (thiscall
+# (place, time), ret 8), its entry respawn.entered.
+SERIALIZE, DESERIALIZE, ENTERED = 0x316F10, 0x316FC0, 0x316BC0
+WRITERS = {0x1F3DE0: 1, 0x1F48A0: 4}           # w<u8>, w<u32>: EAX the value; the writer + 4 names; ret 14h
+WRITER, READER, STREAM, CHECKERS = DATA + 0x54000, DATA + 0x54100, DATA + 0x55000, DATA + 0x56000
+HISTORY = 40                                   # 20 places, two bytes each: the latest point, the one before
+FFA = blackout.empty_options(blackout.srpx((3, struct.pack("<H", 30))))
 
 
 def player(i):
@@ -101,6 +121,9 @@ class Run(blackout.Run):
         self.native_messages = []
         self.emu.hook_add(UC_HOOK_CODE, self.show_message, begin=SHOW_MESSAGE, end=SHOW_MESSAGE)
         self.emu.hook_add(UC_HOOK_CODE, self.translate, begin=TRANSLATE, end=TRANSLATE)
+        self.written = bytearray()
+        for at in WRITERS:
+            self.emu.hook_add(UC_HOOK_CODE, self.write, begin=at, end=at)
         self.word(HUD + 0x18, UI_WORLD)
         self.word(UI_WORLD + 0x9C, UI_GAME)
         self.emu.mem_map(CLIENT, 0x200000)
@@ -183,11 +206,76 @@ class Run(blackout.Run):
         self.word(head + 4, array + 4 * len(items))
         self.word(head + 8, array + 4 * capacity)
 
-    def select(self, points, due, living, time, team=0):
-        """points: (position, enemy radius) of the team-2 group (ally radius
-        1); due, living: player indices. The chosen points' indices."""
+    def write(self, emu, address, *_):
+        """The game's w<u8> / w<u32>: the value's bytes kept; ret 14h."""
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        assert self.read(sp + 4) == WRITER, hex(self.read(sp + 4))
+        self.written.extend(emu.mem_read(emu.reg_read(UC_X86_REG_EAX), WRITERS[address]))
+        self.leave(emu, 20)
+
+    def options_read(self):
+        """A free-for-all's options read (the static info): its match begins, nobody has spawned."""
+        assert self.static_info(FFA)[0]
+
+    def rule(self, points):
+        """The respawn rule: no place waiting, groups 0 and 1 empty, `points` (position, enemy radius) its team-2
+        group (ally radius 1), each point's two checkers with their counts (+20h) 2k + 1 and 2k + 2."""
         self.emu.mem_write(RULE, bytes(0x1000))
-        first = RULE + 0x200
+        self.emu.mem_write(RULE + 0x138, b"\xFF" * 80)
+        self.word(RULE + 0x1A0, 0x11223344)
+        first = POINTS
+        self.emu.mem_write(first, bytes(128 * POINT_SIZE))
+        for k, (position, radius) in enumerate(points):
+            p = first + POINT_SIZE * k
+            self.emu.mem_write(p + 8, struct.pack("<3f", *position))
+            self.emu.mem_write(p + 0x30, struct.pack("<2f", 1.0, radius))
+            for n in range(2):
+                checker = CHECKERS + 0x40 * (2 * k + n)
+                self.word(p + 0x28 + 4 * n, checker)
+                self.emu.mem_write(checker + 0x20, bytes([2 * k + n + 1]))
+        self.word(RULE + 0x190, first if points else 0)
+        self.word(RULE + 0x19C, len(points))
+
+    def serialize(self):
+        """The respawn rule's serialize, the patch's site at its end included: the bytes it writes."""
+        sp = hide.STACK + 0x9000 - 8
+        self.emu.mem_write(sp, struct.pack("<II", RETURN, WRITER))
+        self.written = bytearray()
+        after, sp_after = self.run(SERIALIZE, (RETURN,), sp, {**hide.GAME, UC_X86_REG_ECX: RULE})
+        assert self.stopped == RETURN and sp_after == sp + 8, hex(self.stopped or 0)
+        assert all(after[r] == hide.GAME[r] for r in (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP))
+        return bytes(self.written)
+
+    def deserialize(self, stream):
+        """The respawn rule's deserialize of `stream` (and 16 bytes after it, the next rule's): how many it read."""
+        self.emu.mem_write(STREAM, stream + bytes(16))
+        for offset, value in ((0, STREAM), (4, STREAM), (8, len(stream) + 16)):
+            self.word(READER + offset, value)
+        sp = hide.STACK + 0x9000 - 12
+        self.emu.mem_write(sp, struct.pack("<III", RETURN, READER, 0x0F0F0F0F))
+        after, sp_after = self.run(DESERIALIZE, (RETURN,), sp, {**hide.GAME, UC_X86_REG_ECX: RULE})
+        assert self.stopped == RETURN and sp_after == sp + 12, hex(self.stopped or 0)
+        assert all(after[r] == hide.GAME[r] for r in (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP))
+        return self.read(READER + 4) - STREAM
+
+    def enter(self, place, time):
+        """A tick's entry of `place` at `time`: the rule's on_player_entered_match."""
+        sp = hide.STACK + 0x9000 - 12
+        self.emu.mem_write(sp, struct.pack("<III", RETURN, 0xABCD0000 | place, time))
+        after, sp_after = self.run(ENTERED, (RETURN,), sp, {**hide.GAME, UC_X86_REG_ECX: RULE})
+        assert self.stopped == RETURN and sp_after == sp + 12, hex(self.stopped or 0)
+        assert self.read(RULE + 0x138 + 4 * place) == time
+
+    def select(self, points, due, living, time, team=0, fresh=True):
+        """points: (position, enemy radius) of the team-2 group (ally radius
+        1); due, living: player indices. The chosen points' indices. Fresh:
+        in a free-for-all just read, so that nobody has spawned yet; else
+        after the selections before."""
+        if fresh:
+            self.options_read()
+        self.emu.mem_write(RULE, bytes(0x1000))
+        first = POINTS
+        self.emu.mem_write(first, bytes(128 * POINT_SIZE))
         for k, (position, radius) in enumerate(points):
             p = first + POINT_SIZE * k
             self.emu.mem_write(p + 8, struct.pack("<3f", *position))
@@ -276,24 +364,41 @@ class Run(blackout.Run):
         return kept, self.native_messages, ours
 
 
-def model(points, due, living, time):
+def model(points, due, living, time, last=None):
     """This file's own statement of the rule: for each due (place) in order,
     the point he gets. points: (position, radius); living: positions. The
-    coordinates are multiples of 0.25 m, so every square and sum is exact."""
+    coordinates are multiples of 0.25 m, so every square and sum is exact.
+    last: {place: [his latest point, the one before]}, which the choices
+    update (None: nobody has spawned); neither the pool nor the fallback
+    offers them, unless every point of the map is one of them."""
     def d2(a, b):
         return sum((x - y) ** 2 for x, y in zip(a, b))
+    last = {} if last is None else last
     chosen = []
     for place in due:
+        recent = last.get(place, [])
+        excluded = set(recent) if any(j not in recent for j in range(len(points))) else set()
         others = living + [points[k][0] for k in chosen]
         rank = [min((d2(p, o) for o in others), default=float("inf")) for p, _ in points]
         passing = [j for j, (p, r) in enumerate(points)
-                   if j not in chosen and all(d2(p, o) >= r * r for o in others)]
-        pool = passing or sorted(range(len(points)), key=lambda j: (-rank[j], j))[:5]
+                   if j not in chosen and j not in excluded and all(d2(p, o) >= r * r for o in others)]
+        best = sorted(range(len(points)), key=lambda j: (-rank[j], j))[:5]
+        pool = passing or [j for j in best if j not in excluded]
         mixed = (time + place * 0x9e3779b9) & 0xffffffff
         mixed = ((mixed ^ (mixed >> 16)) * 0x7feb352d) & 0xffffffff
         mixed = ((mixed ^ (mixed >> 15)) * 0x846ca68b) & 0xffffffff
         chosen.append(pool[(mixed ^ (mixed >> 16)) % len(pool)])
+        last[place] = [chosen[-1]] + recent[:1]
     return chosen
+
+
+def history_bytes(last):
+    """The spawn history as the world carries it: for each of the 20 places, its latest point and the one before,
+    0xFF for none."""
+    out = bytearray(b"\xFF" * HISTORY)
+    for place, points in last.items():
+        out[2 * place:2 * place + len(points)] = bytes(points)
+    return bytes(out)
 
 
 def check_protection(patched):
@@ -400,6 +505,14 @@ def main():
     print('ok the clear test is of the due player\'s own side (a player of his team: the ally radius, 1 m)')
     assert r.select([], [0], [], 0) == []
     print('ok a map without team-2 points: nobody spawns')
+    points = line(*(100 + 40 * i for i in range(74)))
+    seen = set()
+    for time in range(0, 20_000, 50):
+        got = r.select(points, [0], [20], time)
+        assert got == model(points, [0], [(0, 0, 0)], time), (time, got)
+        seen.update(got)
+    assert seen == set(range(74)), sorted(set(range(74)) - seen)
+    print('ok a group of 74 points (Vostok\'s): every one chosen, the 65th to the 74th too')
 
     # The final content uses 20 m: a nearby 19.75 m point is rejected,
     # while a 20.25 m point is eligible even when a much farther one exists.
@@ -423,6 +536,100 @@ def main():
         got = r.select(points, due, list(range(20, 20 + len(living))), time)
         assert got == model(points, due, living, time), (case, got, model(points, due, living, time))
     print('ok 300 random matches (1 to 33 points, up to 19 living, up to 20 due): the points this file\'s model gives')
+
+    # Never the last two (ffa.md "Choice"): the game's own select, tick after tick of one match.
+    r.make_player(20, 30, 10, (0, 0, 0))
+    r.options_read()
+    points, last, got = line(100, 200, 300, 400), {}, []
+    for event in range(200):
+        got += r.select(points, [0], [20], event * 5_000, fresh=False)
+        assert got[-1:] == model(points, [0], [(0, 0, 0)], event * 5_000, last), event
+        assert got[-1] not in got[-3:-1], got[-3:]
+    assert all(40 <= got.count(j) <= 60 for j in range(4)), [got.count(j) for j in range(4)]
+    print('ok a player never respawns at one of his last two points; the two others the same share')
+    r.options_read()
+    last = {}
+    crowded = [((x, 0, 0), 20) for x in (1, 19, 3, 17, 5, 15, 7, 13, 9, 11)]
+    got = []
+    for event in range(200):
+        got += r.select(crowded, [0], [20], event * 5_000, fresh=False)
+        assert got[-1:] == model(crowded, [0], [(0, 0, 0)], event * 5_000, last), event
+        assert got[-1] not in got[-3:-1] and got[-1] % 2 == 1, got[-3:]
+    print('ok the crowded fallback: the five best-separated less his last two, never a nearer point instead')
+    r.options_read()
+    for count in (1, 2):
+        for event in range(20):
+            assert r.select(line(100, 200)[:count], [0], [20], event * 5_000, fresh=False)[0] < count
+    print('ok a map of one or two points: his last ones again (no other point)')
+    r.options_read()
+    last = {}
+    for case in range(300):
+        points = [(grid(), rng.choice((20.0, 30.0))) for _ in range(rng.randrange(1, 34))]
+        living = [grid() for _ in range(rng.randrange(0, 20))]
+        due = rng.sample(range(20), rng.randrange(1, 21 - len(living)))
+        for i, position in enumerate(living):
+            r.make_player(20 + i, 100 + i, 0, position)
+        for place in due:
+            r.make_player(place, 4 + place, place, grid())
+        time = rng.randrange(0, 900_000)
+        got = r.select(points, due, list(range(20, 20 + len(living))), time, fresh=False)
+        assert got == model(points, due, living, time, last), (case, got)
+    print('ok 300 random ticks of one match, each place by his own last two: the points this file\'s model gives')
+
+    # The history is the world's: after the respawn rule's own bytes, read back by a game that joins late, and by
+    # this one when it loads an earlier world (a rollback, a replay's seek).
+    points = line(100, 200, 300, 400, 500, 600)
+    for place in range(4):
+        r.make_player(place, 4 + place, place, (0, 0, 0))
+    r.make_player(20, 30, 10, (0, 0, 0))
+    r.options_read()
+    last = {}
+    for event in range(5):
+        r.select(points, [0, 1, 2, 3], [20], event * 5_000, fresh=False)
+        model(points, [0, 1, 2, 3], [(0, 0, 0)], event * 5_000, last)
+    r.rule(points)
+    stock.rule(points)
+    native, world = stock.serialize(), r.serialize()
+    assert world == native + history_bytes(last), (world.hex(), native.hex())
+    assert len(native) == 4 + 4 + 12 and world[-HISTORY:][:8] != b"\xFF" * 8
+    ticks = [5_000 * event for event in range(5, 15)]
+    ahead = [r.select(points, [0, 1, 2, 3], [20], time, fresh=False) for time in ticks]
+    joiner = Run(bytes(patched))
+    for place in range(4):
+        joiner.make_player(place, 4 + place, place, (0, 0, 0))
+    joiner.make_player(20, 30, 10, (0, 0, 0))
+    joiner.options_read()
+    joiner.rule(points)
+    assert joiner.deserialize(world) == len(world)
+    assert joiner.serialize() == world
+    assert [joiner.select(points, [0, 1, 2, 3], [20], time, fresh=False) for time in ticks] == ahead
+    r.rule(points)
+    assert r.deserialize(world) == len(world)
+    assert [r.select(points, [0, 1, 2, 3], [20], time, fresh=False) for time in ticks] == ahead
+    fresh = Run(bytes(patched))
+    for place in range(4):
+        fresh.make_player(place, 4 + place, place, (0, 0, 0))
+    fresh.make_player(20, 30, 10, (0, 0, 0))
+    fresh.options_read()
+    assert [fresh.select(points, [0, 1, 2, 3], [20], time, fresh=False) for time in ticks] != ahead
+    print('ok the history saved after the respawn rule\'s bytes (40: two a place); a late joiner and a rollback '
+          'load it, save the same bytes and choose as the game that saved it; a game without it would not')
+
+    # A place entering (a tick's 0xE9: a new player, or one back) starts with none; the others keep theirs.
+    r.rule(points)
+    r.deserialize(world)
+    r.enter(2, 77_000)
+    after = bytearray(world)
+    after[-HISTORY + 4:-HISTORY + 6] = b"\xFF\xFF"
+    assert r.serialize()[-HISTORY:] == bytes(after[-HISTORY:])
+    print('ok a place that enters starts with no last spawns (the rule\'s own respawn time set as before)')
+
+    # Another mode (no free-for-all entry): the rule's bytes as the game's, nothing before or after them.
+    assert r.static_info(blackout.empty_options(b""))[0]
+    r.rule(points)
+    assert r.serialize() == native
+    assert r.deserialize(native) == len(native)
+    print('ok another mode: the respawn rule\'s bytes the game\'s alone, saved and loaded')
 
     for i in range(4):
         r.make_player(i, i % 2, i, (0, 0, 0))

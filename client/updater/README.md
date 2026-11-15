@@ -12,14 +12,14 @@ itself stays as the game ships it (an earlier updater changed parts of it
 in place: those get their stock bytes back once, "Restoring resources.db"
 below).
 
-An ordinary 32-bit Windows program of about 380 KB, like `../bugtrap`: Rust's
+An ordinary 32-bit Windows program of about 480 KB, like `../bugtrap`: Rust's
 standard library and Microsoft's C runtime, linked in (`+crt-static`, as
 `cl /MT`; no runtime DLL beside it), the game's icon, a version resource
 (Skhid, "Skhid updater", the release revision) and its `asInvoker` manifest.
-Windows 7 and later. It imports `kernel32.dll`, `user32.dll` (its message
+Windows 10 and later. It imports `kernel32.dll`, `user32.dll` (its message
 box), `winhttp.dll`, `advapi32.dll` (per-user replay registration), `shell32.dll` (file associations and the Documents folder, where the game's
-user.cfg says the language its messages are in) and `ntdll.dll` (two
-functions of the standard library's).
+user.cfg says the language its messages are in), and `ntdll.dll` and
+`api-ms-win-core-synch-l1-2-0.dll` (the standard library's).
 
 ## What it does, and does not
 
@@ -50,6 +50,10 @@ functions of the standard library's).
   them) get their stock bytes back, from the copies it kept, else from
   `GET /resources/<sha256>`. Best effort, once: it never fails the update
   ("Restoring resources.db" below).
+- Before PLAY, the drive of the Documents folder needs 5 GB free
+  (`logic/src/disk.rs`; patch 70 keeps up to 3 GB of baked textures there).
+  With less, PLAY stays off and a box in the game's language says so; Retry
+  asks again, Cancel leaves PLAY off until the next start.
 - Then, at every start, the patch step: `GET /patches`, the server's list
   of resources.db's patches, each with its SHA-256 and the addresses of its
   file (1 to 8, tried in order: mirrors; plain HTTP or HTTPS, any host);
@@ -69,13 +73,33 @@ functions of the standard library's).
   another program, the update stops with PLAY off and a box that says what
   to do, with Retry; else the file is repaired, or the failure names it.
 - Writes `updater_skhid.state` (what is installed)
-  and `updater_skhid.log` (what it did; no account name, no password; it
-  does hold the game folder's path) beside itself. `updater_skhid.lock`
+  and its log (what it did; no account name, no password; it does hold
+  the game folder's path) beside itself, a file of its own each run (see
+  "The log" below). `updater_skhid.lock`
   prevents simultaneous installs in the same folder. The patch step writes
   its own files beside it too (listed under "Patches").
 - No BitTorrent, no listening port, no UPnP, no service, no crash upload, no administrator rights (its manifest says `asInvoker`;
   without one Windows takes a program named "updater" for an installer and
   asks for elevation).
+
+## The log
+
+Each run of the updater writes its own file beside it,
+`updater_skhid.<start>.log`, `<start>` the run's start in local time
+(`updater_skhid.2026-11-15_14-03-07.log`), with `_2` .. `_99` past the
+highest a run of the same second made (`logic/src/run_log.rs`,
+`exe/src/log.rs`). A run's file is made new (never another run's, never cut)
+and grows to 16 MiB at most; a last line says when the rest of a run is not
+written. Before it is made, the least recently written runs' files (by their
+last write, not their names: a clock set back) are deleted while 100 or
+more, or 500 MiB or more, are there, so at most 100 remain; the files of
+this run's second are never deleted, and one Windows refuses is passed
+over. Only names of
+exactly that form count; the `updater_skhid.log` of the updaters before is
+not read, written or deleted. A box that names the log gives that run's
+file; a text written in advance says "the newest
+`game\binaries\x86\updater_skhid.<date>.log`". The crash reporter
+(`client/bugtrap`) takes the recent ones.
 
 ## How it is started
 
@@ -100,7 +124,7 @@ says so and does nothing.
 | Folder | What |
 |---|---|
 | `logic/` | Everything that needs no Windows, as a library with no dependencies: SHA-256, DEFLATE and CRC-32, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
-| `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-win7-windows-msvc` with `-Z build-std=std,panic_abort`, `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource |
+| `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-pc-windows-msvc` with `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource |
 | `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
 
 ## PLAY and the server's revision
@@ -192,7 +216,7 @@ the box of "The player's boxes" below:
 Game files removed by antivirus: survarium_skhid.exe
 Windows Security or another antivirus took it for a threat (a false positive). PLAY stays off until it is let through.
 Run Skhid-defender-setup.cmd (beside Skhid.bat); with another antivirus, exclude this folder: E:\Survarium_SkhidSRP_0_26\game\binaries\x86
-Log: E:\Survarium_SkhidSRP_0_26\game\binaries\x86\updater_skhid.log
+Log: E:\Survarium_SkhidSRP_0_26\game\binaries\x86\updater_skhid.2026-11-15_14-03-07.log
 ```
 
 ```text
@@ -222,7 +246,7 @@ box to its line. The title begins with fixed words for the problem and goes
 on with what failed: the file, the host, how. Then what happened, one line
 of what to run (a file beside `Skhid.bat`), and the log's path. In the
 game's language (English, Russian, Ukrainian, German, Polish); the box's
-caption is `Skhid updater: <the fixed words>` in English always.
+caption is `Skhid: <the fixed words>` in English always.
 
 | Title begins | When | What to run |
 |---|---|---|
@@ -242,7 +266,7 @@ blocked.
 Blocked on this network: skhid.link did not answer (timed out)
 Other sites answer: this network blocks it (the internet provider, or the VPN in use).
 Use a VPN with launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe in its split tunnelling, or turn the VPN off (see VPN.txt). Then try again.
-Log: E:\Survarium_SkhidSRP_0_26\game\binaries\x86\updater_skhid.log
+Log: E:\Survarium_SkhidSRP_0_26\game\binaries\x86\updater_skhid.2026-11-15_14-03-07.log
 ```
 
 The box is shown when the run ends in an error, or in PLAY without an
@@ -314,7 +338,7 @@ Every problem is a message box in the game's language (the `localization`
 line of `<Documents>\survarium\user.cfg`, which the game's Settings and the
 launcher's menu write, read only; English for a language the messages are
 not written in, or without one) and a line `replay: FAILED (<problem>): <text>`
-in `updater_skhid.log`. The log names the token by its first 6 hex digits
+in the run's log. The log names the token by its first 6 hex digits
 only. No progress is shown while the replay downloads (at most 64 MiB).
 
 The one call of the message box in the replay's code is `notify` in
@@ -352,7 +376,7 @@ a `206` from byte n is appended, a `206` of another range is a failure, a
 file of the whole size that is not the pinned one is deleted and fetched
 anew; one that broke off stays for the next start, which goes on from it.
 The whole file is checked by its size and SHA-256; a mismatch deletes it and
-fails that address. One line of `updater_skhid.log` a try, a failure and the
+fails that address. One line of the run's log a try, a failure and the
 success (`download::line`; `Skhid-without-updater.bat` writes the same
 lines to `skhid-download.log`):
 
@@ -374,7 +398,7 @@ remains: the last one is waited for, however slow), `cut short at byte <n> of
 <size>`, `larger than the file`, `wrong SHA-256`, `more than 5 redirects`.
 When every address failed the player is told each one's host and reason,
 then where to send the log (`text::reported`, as the crash reporter words
-it: `Send game\binaries\x86\updater_skhid.log to #bugreports in Discord
+it: `Send the newest game\binaries\x86\updater_skhid.<date>.log to #bugreports in Discord
 (tag: install): discord.gg/QUmJg3gBhg`; the reason is cut to leave it room
 in the launcher's 255 characters, the log has the whole). So does every
 other failure the run ends on.
@@ -429,7 +453,7 @@ What the extractor prints (its messages, its errors and its percentage,
 it runs. Meanwhile the updater reads the last percentage there for the
 launcher's bar ("Extracting file Survarium 0.26g", over the five files'
 bytes). When it has ended, whatever its exit number, the updater copies
-those lines into `updater_skhid.log`, each after `7zr:` (a line its
+those lines into the run's log, each after `7zr:` (a line its
 percentage rewrote with `\r` or `\b` as its last text only), and deletes
 the file: a failed extraction then says in the log which file could not
 be written and why, not "exit 2" alone. A file left by a killed updater is copied and deleted
@@ -697,12 +721,12 @@ done." after it:
 | The list is not one (above; a Wi-Fi sign-in page too) | "The list of the game's patches from <host> cannot be used (<what>). Tell the server's operator." |
 | A file of one address cannot be downloaded (network, a status, a web page, too many redirects, cut short) | "game\resources.db.patch_<n> could not be downloaded. <the network error>" |
 | A file of one address has another SHA-256 | "<host> sent game\resources.db.patch_<n> with another checksum than its list says. Tell the server's operator." |
-| None of a patch's addresses (two or more) gave its file | "game\resources.db.patch_<n> could not be downloaded from any of its <k> addresses (each is in updater_skhid.log). The first: <its failure>" |
+| None of a patch's addresses (two or more) gave its file | "game\resources.db.patch_<n> could not be downloaded from any of its <k> addresses (each is in updater_skhid.<date>.log). The first: <its failure>" |
 | Not enough disk | "Not enough free disk space to update the game's files in <folder>: N MB needed, M MB free. ..." (N: the file's size and 64 MB) |
 | resources.db is held (the game runs) and a patch file is to change | "The game is running, so Skhid could not update the game's patches ... Close the game, then start the launcher again." |
 | A patch file stays held by another program | "Another program holds game\resources.db.patch_<n>, so Skhid could not update the game's patches. An antivirus may be scanning it: wait a minute, then start the launcher again." |
 | The server could not be asked and the patches were not checked in place | "The game's patches could not be checked: <why the server could not be asked>" |
-| Anything else (a file that cannot be written or deleted, the ZIP bringing a `resources.db.patch_*` anywhere) | "Skhid could not finish updating the game's patches ...; the reason is in game\binaries\x86\updater_skhid.log. ..." |
+| Anything else (a file that cannot be written or deleted, the ZIP bringing a `resources.db.patch_*` anywhere) | "Skhid could not finish updating the game's patches ...; the reason is in the newest game\binaries\x86\updater_skhid.<date>.log. ..." |
 
 The next start tries again. A file that is never half written in place:
 what the game mounts is a checked file or nothing.
@@ -715,14 +739,14 @@ after a new overlay until the step has run with the server's list.
 ## Build and test
 
 Use the dev shell of `srp-026g/flake.nix` (`nix develop ./srp-026g`): the
-nightly Rust of the game workspaces with `rust-src`, `llvm-rc` and Microsoft's
+nightly Rust of the game workspaces with `llvm-rc` and Microsoft's
 C runtime and import libraries for 32-bit x86 (`SKHID_MSVC_LIB`, as
 `../bugtrap/README.md` "Build" says). No Windows or Visual Studio installation
 is needed. The two locked dependencies of `exe/` are Microsoft's `windows-sys`
 and `windows-link`.
 
 ```sh
-./build.sh                                   # exe/target/i686-win7-windows-msvc/release/updater_skhid.exe
+./build.sh                                   # exe/target/i686-pc-windows-msvc/release/updater_skhid.exe
 SKHID_UPDATE_URL=https://test.example ./build.sh   # another default server
 SKHID_REVISION=27 ./build.sh                 # as release/build-zip builds revision 27
 (cd logic && cargo test)

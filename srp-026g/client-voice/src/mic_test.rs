@@ -262,7 +262,9 @@ impl Playing {
     fn next(&mut self) -> Option<[f32; FRAME]> {
         let frame = self.frames.next()?;
         let pcm = self.voice.frame(&frame).unwrap_or([0.; FRAME]);
-        Some(pcm.map(|sample| sample * self.volume * crate::receiver::LOUDER))
+        // As the mix multiplies a plain voice: by the volume and LOUDER together.
+        let gain = self.volume * crate::receiver::LOUDER;
+        Some(pcm.map(|sample| sample * gain))
     }
 }
 

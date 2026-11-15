@@ -23,7 +23,7 @@ package
     // The Settings' gameplay tab with its "HUD:" group (exe patch 83,
     // docs/notes/hide-hit-markers-scores.md) in the rebuilt main menu: the
     // exe's answers (root.srp_check_option, root.srp_hud_texts), the tab's two
-    // columns (Friends and Language; HUD: the crosshair list, Hide hit markers,
+    // columns (Friends and Language; HUD: the crosshair list, the hit marker list,
     // Hide player scores, Hide quests, Static minimap, the minimap position
     // list), their edges, spacing and fit in every dictionary; Hide quests as
     // the stock quest progress inverted; the crosshair list's Dynamic and
@@ -35,9 +35,11 @@ package
     // pass" or "SETTINGS RESULT fail: ...". No game or server.
     public class SettingsHarness extends Sprite
     {
-        private static const NAMES:Array = ["srp_hide_hit_markers", "srp_hide_scores", "srp_map_names"];
+        private static const NAMES:Array = ["srp_hide_scores", "srp_map_names"];
         // Each name's label in a row of check.sh's texts.
-        private static const LABELS:Array = [0, 1, 13];
+        private static const LABELS:Array = [1, 13];
+        // The hit marker list's three choices in a row of check.sh's texts.
+        private static const HIT_CHOICES:Array = [0, 35, 36];
 
         private static const STOCK_LABELS:Array = ["Invitations from friends only", "Notify when friends are online",
             "Enable message censorship", "Accept private messages from friends only", "Hide chat in match", "Hide spam",
@@ -121,9 +123,15 @@ package
                 if (frames == 100) trace("SETTINGS SHOT checked");
                 if (frames == 110) settings.settings_content.getChildByName("_srp_crosshair").open();
                 if (frames == 130) trace("SETTINGS SHOT open");
-                if (frames == 200)
+                if (frames == 150)
                 {
                     settings.settings_content.getChildByName("_srp_crosshair").close();
+                    settings.settings_content.getChildByName("_srp_hit_markers").open();
+                }
+                if (frames == 160) trace("SETTINGS SHOT hits");
+                if (frames == 200)
+                {
+                    settings.settings_content.getChildByName("_srp_hit_markers").close();
                     settings.settings_content._setter_static_minimap_position.open();
                 }
                 if (frames == 230) trace("SETTINGS SHOT minimap");
@@ -309,7 +317,7 @@ package
         }
 
         // The gameplay tab's two columns: on the left "Friends:", then Language (its note under the list
-        // while it shows); on the right "HUD:": the crosshair list, Hide hit markers, Hide player scores,
+        // while it shows); on the right "HUD:": the crosshair list, the hit marker list, Hide player scores,
         // Hide quests (the stock quest progress checkbox), Static minimap (the stock fixed minimap
         // checkbox), the minimap position list. Not shown: the stock "Crosshair:" and "Quest progress:"
         // headings, the static crosshair checkbox, the quest progress transparency slider. Each heading
@@ -322,6 +330,7 @@ package
             var heading:TextField = content.getChildByName("_srp_check_group") as TextField;
             var menu:* = content.getChildByName("_srp_language");
             var cross:* = content.getChildByName("_srp_crosshair");
+            var hits:* = content.getChildByName("_srp_hit_markers");
             var language:TextField = null, note:TextField = null;
             for (var i:int = 0; i < content.numChildren; ++i)
             {
@@ -335,7 +344,7 @@ package
                 c._hide_spam, language, menu];
             if (note.visible) left.push(note);
             // Names on map (the last box) with the map's rows, over Static minimap
-            var right:Array = [heading, cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap,
+            var right:Array = [heading, cross, hits, boxes[0], c._setter_static_show_quests, boxes[1], c._setter_static_minimap,
                 c._setter_static_minimap_position, fov];
             var bottom:Number = c.bottomContainer.getBounds(content).bottom;
             for each (var column:Array in [left, right])
@@ -362,7 +371,8 @@ package
             {
                 require(near(control.x, stock.rightControl), when + ": " + control.name + " at the right controls' x");
             }
-            require(near(cross.x, stock.rightControl + stock.dropdownX) && near(c._setter_static_minimap_position.x, stock.rightControl + stock.dropdownX),
+            require(near(cross.x, stock.rightControl + stock.dropdownX) && near(hits.x, stock.rightControl + stock.dropdownX)
+                && near(c._setter_static_minimap_position.x, stock.rightControl + stock.dropdownX),
                 when + ": the right column's lists one further");
             // spacing: as the tab's own
             require(near(language.y - c._hide_spam.y, stock.gap) && near(menu.y - language.y, stock.leftFirst),
@@ -382,7 +392,7 @@ package
                 + Number(theirs.color).toString(16) + ", size " + mine.size + " / " + theirs.size + ", font " + mine.font + " / "
                 + theirs.font + ", filters " + fov.textField.filters.length + " / " + language.filters.length + ")");
             require(near(cross.y - heading.y, stock.rightFirst), when + ": the crosshair list under the heading as Crosshair's first control was");
-            var steps:Array = [cross, boxes[0], boxes[1], c._setter_static_show_quests, boxes[2], c._setter_static_minimap];
+            var steps:Array = [cross, hits, boxes[0], c._setter_static_show_quests, boxes[1], c._setter_static_minimap];
             for (i = 1; i < steps.length; ++i)
             {
                 require(near(steps[i].y - steps[i - 1].y, stock.step), when + ": the HUD rows a step apart (" + steps[i].name + ")");
@@ -436,7 +446,7 @@ package
             trace("SETTINGS layout " + when + ": left Friends " + c.s_friends.y + ", Language " + language.y + " (list " + menu.y
                 + (note.visible ? ", note " + note.y : "") + ", to " + span(left[left.length - 1])[1]
                 + "); right HUD " + heading.y
-                + " (crosshair " + cross.y + ", " + boxes.map(function(b:*, ...rest):Number { return b.y; }).join(", ") + ", quests " + c._setter_static_show_quests.y
+                + " (crosshair " + cross.y + ", hit markers " + hits.y + ", " + boxes.map(function(b:*, ...rest):Number { return b.y; }).join(", ") + ", quests " + c._setter_static_show_quests.y
                 + ", minimap " + c._setter_static_minimap.y + ", position " + c._setter_static_minimap_position.y
                 + ", field of view " + (fov.y + fov.textField.y) + ", to "
                 + span(right[right.length - 1])[1] + "); bottom " + bottom);
@@ -1169,7 +1179,7 @@ package
 
         private function check():void
         {
-            // [[hit markers' label, scores' label, the group's heading, "Language:", its restart note, "Hide quests",
+            // [[the hit marker list's first choice, scores' label, the group's heading, "Language:", its restart note, "Hide quests",
             //   the crosshair list's three choices, "Static minimap", the minimap position list's three
             //   (st_minimap_off, _bottom, _top)], ...] for every dictionary
             texts = JSON.parse(loaderInfo.parameters.texts) as Array;
@@ -1225,6 +1235,18 @@ package
             }
             var cross:* = content.getChildByName("_srp_crosshair");
             require(cross != null && !cross.visible, "the crosshair list waits for the exe's answers");
+            var hits:* = content.getChildByName("_srp_hit_markers");
+            require(hits != null && !hits.visible, "the hit marker list waits for the exe's answer");
+            var hitAnswer:Function = function(saved:String):void {
+                root.srp_check_option("srp_hide_hit_markers", "", saved, saved, texts[0][HIT_CHOICES[0]],
+                    texts[0][HIT_CHOICES[1]], texts[0][HIT_CHOICES[2]]);
+            };
+            root.srp_check_option("srp_hide_hit_markers", "", "3", "3", "a", "b", "c");
+            require(!hits.visible, "the hit marker list ignores an index past its choices");
+            hitAnswer("0");
+            require(hits.visible && hits.alpha == 1 && hits.dataProvider.length == 3 && hits.selectedIndex == 0
+                && hits.dataProvider[0] == texts[0][0] && hits.dataProvider[1] == texts[0][35] && hits.dataProvider[2] == texts[0][36]
+                && !settings.btn_accept.enabled, "the hit marker list: the exe's three choices, the saved one (All) shown");
             for (i = 0; i < NAMES.length; ++i)
             {
                 root.srp_check_option(NAMES[i], texts[0][LABELS[i]], "0");
@@ -1296,6 +1318,20 @@ package
                         + cross.textField.textWidth + " of " + cross.textField.width * cross.scaleX + ")");
                 }
             }
+            // every dictionary's hit marker choices inside their list
+            for each (row in texts)
+            {
+                hits.dataProvider = new (domain.getDefinition("scaleform.clik.data.DataProvider") as Class)(
+                    HIT_CHOICES.map(function(n:int, ...rest):String { return row[n]; }));
+                for (i = 0; i < 3; ++i)
+                {
+                    hits.selectedIndex = i;
+                    hits.validateNow();
+                    require(hits.textField.textWidth + 4 < hits.textField.width * hits.scaleX, row[HIT_CHOICES[i]]
+                        + " fits the hit marker list (" + hits.textField.textWidth + " of " + hits.textField.width * hits.scaleX + ")");
+                }
+            }
+            hitAnswer("0");
             // every dictionary's minimap position choices inside their list
             var position:* = c._setter_static_minimap_position;
             var positions:Object = position.dataProvider;
@@ -1407,6 +1443,29 @@ package
             require(!cross.selected, "a press outside closes the crosshair list");
             trace("SETTINGS crosshair list: Dynamic/Static the stock checkbox, Hidden patch 83's, Apply and Cancel, closes outside");
 
+            // the hit marker list: a pick pending until Apply, Cancel puts the saved one back
+            pick(hits, 1);
+            require(hits.selectedIndex == 1 && settings.btn_accept.enabled, "Kill marker only picked: Apply enabled");
+            pick(hits, 0);
+            require(!settings.btn_accept.enabled, "All picked back: nothing pending");
+            pick(hits, 2);
+            click(settings.btn_cancel);
+            require(hits.selectedIndex == 0 && !settings.btn_accept.enabled, "Cancel: All back");
+            pick(hits, 1);
+            click(settings.btn_accept);
+            require(hits.selectedIndex == 1 && !settings.btn_accept.enabled, "Apply saves Kill marker only");
+            hitAnswer("1");
+            require(hits.selectedIndex == 1 && !settings.btn_accept.enabled && crosshair(content).join() == "1,true",
+                "the exe's answer keeps it, the crosshair list unchanged");
+            pick(hits, 2);
+            require(settings.btn_accept.enabled, "from Kill marker only, Hidden: pending");
+            click(settings.btn_accept);
+            hitAnswer("2");
+            require(hits.selectedIndex == 2 && !settings.btn_accept.enabled, "Apply: Hidden");
+            hitAnswer("0");
+            require(hits.selectedIndex == 0 && !settings.btn_accept.enabled, "the exe's All shown");
+            trace("SETTINGS hit marker list: three choices, each pending until Apply, Cancel");
+
             for (i = 0; i < boxes.length; ++i)
             {
                 box = boxes[i];
@@ -1435,11 +1494,13 @@ package
             content.gotoAndStop(2);
             root.set_settings(0, settingsList);
             root.set_values(0, values);
-            require(!boxes.some(function(b:*, ...rest):Boolean { return b.visible; }) && !cross.visible, "not on another tab");
+            require(!boxes.some(function(b:*, ...rest):Boolean { return b.visible; }) && !cross.visible && !hits.visible,
+                "not on another tab");
             content.gotoAndStop(1);
             root.set_settings(0, settingsList);
             root.set_values(0, values);
-            require(boxes.every(function(b:*, ...rest):Boolean { return b.visible; }) && cross.visible, "back on the gameplay tab");
+            require(boxes.every(function(b:*, ...rest):Boolean { return b.visible; }) && cross.visible && hits.visible
+                && hits.selectedIndex == 0, "back on the gameplay tab");
             require(c._setter_static_show_quests.label == texts[0][5] && !c._setter_static_show_quests.selected
                 && crosshair(content).join() == "1,true", "the new tab content: Hide quests and the crosshair list as before");
             var panelIndex:int = content.getChildIndex(content.bottomContainer);

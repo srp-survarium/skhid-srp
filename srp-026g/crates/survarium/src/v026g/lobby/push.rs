@@ -731,9 +731,11 @@ pub fn ranking_flush(top: &[Ranked]) -> Option<Result<ServerMessage, WireError>>
 /// never sends one. Only "Player vs Bots" ([`PVB_STATUS_START`],
 /// [`PVB_CHOOSE_BASE`]), the rooms (`rooms::ROOMS_FIRST` to
 /// `rooms::ROOMS_LAST`), the kit presets (`presets::PRESETS_FIRST` to
-/// `presets::PRESETS_LAST`) and the replay poll ([`REPLAY_START`]) are
-/// answered (a lobby pick, `lobby_pick::LOBBY_PICK_BASE` + id, is kept and
-/// shown back in `0xA1`, not answered); every other one gets no answer (the "matches now" list and
+/// `presets::PRESETS_LAST`), the ask of the shop's "Hide owned" box
+/// (`shop_filter::SHOP_FILTER_FIRST`) and the replay poll ([`REPLAY_START`])
+/// are answered (a lobby pick, `lobby_pick::LOBBY_PICK_BASE` + id, is kept and
+/// shown back in `0xA1`, and the box's click, the next two starts, is kept,
+/// not answered); every other one gets no answer (the "matches now" list and
 /// its JOIN, at 2 000 000 000 and from 2 100 000 000, went with the queue:
 /// the owner's of 2026-10-17).
 pub const RESERVED_START: u32 = 2_000_000_000;

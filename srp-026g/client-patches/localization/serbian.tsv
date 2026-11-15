@@ -2515,9 +2515,11 @@ st_srp_equipment069_snow_20_legs_7_desc	Opis još nije dostupan.
 st_srp_equipment069_snow_20_legs_7_name	Pantalone Sneg-20
 st_srp_equipment069_snow_20_torso_7_desc	Opis još nije dostupan.
 st_srp_equipment069_snow_20_torso_7_name	Pancir Sneg-20
-st_srp_hide_hit_markers_option	Sakrij oznake pogodaka
 st_srp_hide_quests_option	Sakrij zadatke
 st_srp_hide_scores_option	Sakrij poene igrača
+st_srp_hit_markers_all	Sve oznake pogodaka
+st_srp_hit_markers_hidden	Bez oznaka pogodaka
+st_srp_hit_markers_kill	Samo oznaka ubistva
 st_srp_hud_add_friend	Dodaj u prijatelje
 st_srp_hud_blackout_intro	Zamračenje: donesi baterije do uređaja svog tima. Interfejs i oznake pogodaka su skriveni radi uživljavanja. Drži Tab: municija, zdravlje, čet; posle smrti — izbor opreme.
 st_srp_hud_blackout_start	Zamračenje\nDonesi baterije do uređaja svog tima.\nInterfejs i oznake pogodaka su skriveni. Drži Tab da vidiš municiju i zdravlje.
@@ -2670,6 +2672,7 @@ st_srp_microphone_default	Podrazumevani
 st_srp_mode_blackout	Zaštitni uređaj: zamračenje
 st_srp_mode_chargers	Zaštitni uređaj: punjači
 st_srp_mode_cowboy	FFA: Salun
+st_srp_mode_cowboy_winchester	FFA: Salun (Winchester)
 st_srp_mode_free_for_all	Svako protiv svakoga
 st_srp_mode_protective_device	Zaštitni uređaj
 st_srp_mode_racket	FFA: Galama

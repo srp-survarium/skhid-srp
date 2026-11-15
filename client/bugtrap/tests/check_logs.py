@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
         os.utime(path, (now - age, now - age))
         return path
 
-    def check(expected, mode="none", lock=None, messages=(), forbidden=(), args=()):
+    def check(expected, mode="none", lock=None, messages=(), forbidden=(), args=(), members=()):
         old = set(game.glob("*.zip"))
         result = subprocess.run(["wine", str(game / "logs_probe.exe"), "Z:" + str(docs), mode,
                         "Z:" + str(lock or folder), *args], cwd=root, check=True,
@@ -56,7 +56,13 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
             assert f"compressed_log_zip_bytes={contribution}" in manifest, manifest
             logs = {n: archive.read(n) for n in archive.namelist()
                     if n not in (dump, "crash.txt", "logs/collection.txt")}
-            assert all(re.fullmatch(r"logs/[a-z-]+/source-[0-9]{2}\.txt", n) for n in logs), list(logs)
+            # A source's ID (a run's log adds its kind and stamp); the crashed run's patch log, its own name.
+            stamp = r"[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}(_[1-9][0-9]?)?"
+            member = (rf"logs/[a-z-]+/source-[0-9]{{2}}(\.(game|srp_patches|updater_skhid)\.{stamp})?\.txt"
+                      rf"|logs/game-exe/srp_patches(\.{stamp})?\.log")
+            assert all(re.fullmatch(member, n) for n in logs), list(logs)
+            for name in members:
+                assert name in logs, (name, list(logs))
             actual = Counter((n.split("/")[1], data) for n, data in logs.items())
             wanted = Counter((n.split("/")[1], data) for n, data in expected.items())
             assert actual == wanted, (list(logs), list(expected), manifest)
@@ -243,3 +249,39 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
     assert source.read_bytes() == raw
     source.unlink()
     print("PASS cp1251/cp1250/cp1252/Latin-1 logs transcoded by the game's -localization; control bytes still refused; cp1251 credentials removed", flush=True)
+    # Each run's logs are files of their own, named by the run's start: the
+    # crashed run's patch log (the newest srp_patches.<stamp>.log) first, its
+    # tail, by its own name; the earlier runs' logs as sources whose IDs say
+    # their kind and stamp, never the rest of the name (the Windows user).
+    user = "Survarium_SYNTHETIC_FILENAME_SECRET"
+    runs = [(folder, "documents", f"{user}.2026-11-15_14-03-07.log", 30),
+            (folder, "documents", f"{user}.2026-11-15_12-00-00.log", 3100),
+            (game, "game-exe", "updater_skhid.2026-11-15_14-03-05.log", 20),
+            (game, "game-exe", "updater_skhid.log", 9000),
+            (game, "game-exe", "srp_patches.2026-11-15_12-00-00_2.log", 2000),
+            (game, "game-exe", "srp_patches.2026-11-15_12-00-00.log", 3000)]
+    expected = {}
+    for where, scope, name, age in runs:
+        data = f"srp: run log {name[-24:]}\r\n".encode()
+        add(name, data, age, where)
+        expected[f"logs/{scope}/{name}"] = data
+    add("srp_patches.2026-11-15_14-03-07.log", b"srp: the crashed run\r\n", 5, game)
+    expected["logs/game-exe/srp_patches.2026-11-15_14-03-07.log"] = b"srp: the crashed run\r\n"
+    add("srp_patches.log", b"srp: the log before runs were named\r\n", 10000, game)
+    add("srp_patches.old.log", b"srp: its old part\r\n", 10000, game)
+    check(expected, forbidden=(b"SYNTHETIC_FILENAME_SECRET",), members=(
+        "logs/game-exe/srp_patches.2026-11-15_14-03-07.log",
+        "logs/game-exe/source-01.updater_skhid.2026-11-15_14-03-05.txt",
+        "logs/documents/source-02.game.2026-11-15_14-03-07.txt",
+        "logs/game-exe/source-03.srp_patches.2026-11-15_12-00-00_2.txt",
+        "logs/game-exe/source-04.srp_patches.2026-11-15_12-00-00.txt",
+        "logs/documents/source-05.game.2026-11-15_12-00-00.txt",
+        "logs/game-exe/source-06.txt"))
+    # No run's patch log: the old srp_patches.log is the crashed run's.
+    for path in game.glob("srp_patches.2026-*.log"):
+        path.unlink()
+    expected = {k: v for k, v in expected.items() if "srp_patches.2026" not in k}
+    expected["logs/game-exe/srp_patches.log"] = b"srp: the log before runs were named\r\n"
+    check(expected, members=("logs/game-exe/srp_patches.log",))
+    print("PASS run logs: the crashed run's patch log first by its stamp, earlier runs' by kind and stamp, "
+          "no user name; the old srp_patches.log when no run's is there", flush=True)

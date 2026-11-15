@@ -55,6 +55,7 @@ pub mod login;
 pub mod openssl;
 pub mod mouse;
 pub mod log;
+pub mod run_log;
 pub mod melee;
 pub mod memory;
 pub mod memory_profile;

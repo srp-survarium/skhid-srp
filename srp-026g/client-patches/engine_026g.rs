@@ -243,6 +243,8 @@ unsafe extern "C" {
     pub fn engine_context_unmap(context: *mut c_void, resource: *mut c_void, subresource: u32);
     /// COM ID3D11DeviceContext+0x1bc (stdcall through the interface's vtable): context ESP+4; pops 4
     pub fn engine_context_flush(context: *mut c_void);
+    /// COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX
+    pub fn engine_voice_set_volume(voice: *mut c_void, volume: f32, operation_set: u32) -> u32;
     /// 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12
     pub fn engine_ray_callback(callback: *mut c_void, from: *const f32, to: *const f32, group: u32, mask: u32, requester: *mut c_void);
     /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL

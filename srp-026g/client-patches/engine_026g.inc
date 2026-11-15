@@ -618,6 +618,9 @@ extern engine_context_unmap
 ; void engine_context_flush(struct immediate_context *context)
 ; COM ID3D11DeviceContext+0x1bc (stdcall through the interface's vtable): context ESP+4; pops 4
 extern engine_context_flush
+; unsigned int engine_voice_set_volume(struct submix_voice *voice, float volume, unsigned int operation_set)
+; COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX
+extern engine_voice_set_volume
 ; void engine_ray_callback(struct closest_ray_result_callback *callback, const float *from, const float *to, unsigned int group, unsigned int mask, struct bullet *requester)
 ; 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12
 extern engine_ray_callback
