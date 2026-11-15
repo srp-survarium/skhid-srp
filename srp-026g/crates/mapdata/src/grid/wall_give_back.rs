@@ -40,8 +40,9 @@ pub const STAND_MOVED_M: f32 = 0.1;
 /// it off as the client's.
 ///
 /// The feet are pushed out of the walls at the floor's height first (the faces about a body standing there), then the body is put
-/// over them and pushed out again at that height ([`super::rest_floors::rest`]). Across, the rest is measured from where the body
-/// was put ([`super::rest_floors::Rest::put`]). Measured from the first push (before), a body under a roof lower than a standing
+/// over them and pushed out again at that height ([`super::rest_floors::rest`]). Across, a rest within [`STAND_MOVED_M`] of either
+/// place the test set the body, the first push or where it was put ([`super::rest_floors::Rest::put`]), has not slid. Measured
+/// from the first push only (before), a body under a roof lower than a standing
 /// body (still in the walls after one push, so pushed 0.15 m again when put) read its own put as a slide and was refused where it
 /// never moved (Chemical Plant day_2 (32.125, 5.657, 12.414) and (28.625, 5.756, 12.164), 1.24 and 1.28 m under the roof: 0.150 m
 /// "across" with 0.000 of moving; the exe rests a body put at the players' feet there, the exactness rig 2026-11-15).
@@ -52,9 +53,10 @@ pub(super) fn stands(world: &Collision, s: &Settings, feet: Vec3, room: f32) -> 
         // Down: no more than STAND_MOVED_M (no slide, no fall). Up: a floor names a place within NAME_HEIGHT_M of its height
         // (`rest_floors`), and `out_of_walls` moves the start across a slope at the floor's height, so an honest rest may sit
         // a little higher than the floor's sampled height.
-        (at.x - put.x).hypot(at.z - put.z) < STAND_MOVED_M && feet.y - at.y < STAND_MOVED_M && at.y - feet.y <= super::rest_floors::NAME_HEIGHT_M
+        let near = |p: Vec3| (at.x - p.x).hypot(at.z - p.z) < STAND_MOVED_M;
+        (near(put) || near(start)) && feet.y - at.y < STAND_MOVED_M && at.y - feet.y <= super::rest_floors::NAME_HEIGHT_M
     });
-    count_stand(ok, rest.is_some_and(|r| (r.put.x - start.x).hypot(r.put.z - start.z) >= STAND_MOVED_M));
+    count_stand(ok, rest.is_some_and(|r| (r.at.x - start.x).hypot(r.at.z - start.z) >= STAND_MOVED_M));
     ok
 }
 
@@ -65,8 +67,8 @@ pub struct GiveBackStands {
     pub tests: u64,
     /// … the body stood …
     pub stood: u64,
-    /// … and of those, put [`STAND_MOVED_M`] or more across from the first push by the second: the stands a measure from the
-    /// first push read as a slide (before).
+    /// … and of those, at rest [`STAND_MOVED_M`] or more across from the first push (near where it was put): the stands a
+    /// measure from the first push only read as a slide (before).
     pub stood_put_aside: u64,
 }
 
