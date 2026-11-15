@@ -217,7 +217,9 @@ impl Protection {
 /// - else one hit of `max_hit × intensity` to each part, at most once per
 ///   `interval_ms` per zone, the first on entry;
 /// - `intensity = hit_curve(d)`, `d` 0 at the centre and 1 at the edge
-///   (LIKELY); every shipped speed curve is 1.
+///   (PROVEN: [`Shape::normalised_distance`], 0x2F9860, the least over the
+///   zone's shapes, 0x307870), times the speed curve at the body's
+///   horizontal speed (0x31A410); every shipped speed curve is 1.
 ///
 /// Raw values before armour; health is 1.0.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -433,8 +435,9 @@ pub enum ShapeKind {
     Sphere = 0,
     Box = 1,
     /// Round about the local y axis: radius `half.x`, half height `half.y`
-    /// (mesh type 2; axis and half height LIKELY: the editor draws
-    /// `radius, half_length, radius`).
+    /// (mesh type 2; PROVEN: the client's cylinder helper 0x2F9550 measures
+    /// round the shape's own y axis with the size getter 0x747E0's radius
+    /// and half height, [`Shape::normalised_distance`]).
     Cylinder = 2,
 }
 
