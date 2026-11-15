@@ -210,6 +210,19 @@ fn check(
     Ok(pin.matches(size, hash).then_some(file))
 }
 
+/// How the archive's download ended.
+enum Archive {
+    /// Here, checked: a read lock on it.
+    Got(win::LockedFile),
+    /// The launcher turned torrent on, which has the files: what came is
+    /// kept, for HTTPS to go on from if the torrent gives none.
+    ToTorrent,
+}
+
+/// The torrent's path of the original game's exe: whether the torrent has
+/// the original files, for a download of the archive to leave it to it.
+const BY_TORRENT: &str = "game/binaries/x86/survarium.exe";
+
 /// Returns a read lock only after hashing the bytes actually on disk. The lock
 /// stays alive until the extractor exits, preventing replacement after checking.
 ///
@@ -217,15 +230,18 @@ fn check(
 /// moves on to the next, which goes on from the bytes on disk (they are
 /// the same file at every address). A download left by a run that stopped
 /// is gone on from the same way. One line of the log a try and a failure.
+/// Left for the torrent when the launcher turns it on meanwhile
+/// ([`torrent::takes_over`]).
 fn fetch(
     session: &mut Session,
+    layout: &Layout,
     addresses: &[Address],
     path: &str,
     pin: Pin,
-) -> Result<win::LockedFile, Option<String>> {
+) -> Result<Archive, Option<String>> {
     if let Some(file) = check(path, pin, session)? {
         log!("reusing verified download: {path}");
-        return Ok(file);
+        return Ok(Archive::Got(file));
     }
     let count = addresses.len();
     let mut failed: Vec<(String, String)> = Vec::new();
@@ -262,7 +278,19 @@ fn fetch(
         } else {
             http::Slow::Wait
         };
-        let (result, received) = get(session, address, path, have, pin, slow)?;
+        let (result, received) = get(session, layout, address, path, have, pin, slow)?;
+        if let Err(HttpError::Stopped) = result {
+            log!(
+                "{}",
+                download::line(
+                    LABEL,
+                    "left",
+                    host,
+                    &format!("the launcher turned torrent on ({received} bytes received, kept)")
+                )
+            );
+            return Ok(Archive::ToTorrent);
+        }
         let (why, miss) = match result {
             Ok(()) => match win::file_size(path).unwrap_or(0) {
                 size if size != pin.size => (
@@ -280,7 +308,7 @@ fn fetch(
                                 &format!("{} bytes, SHA-256 verified", pin.size)
                             )
                         );
-                        return Ok(file);
+                        return Ok(Archive::Got(file));
                     }
                     None => {
                         let _ = win::delete(path);
@@ -318,15 +346,19 @@ fn fetch(
 /// One try of one address: its bytes into `path` from byte `from` on, or
 /// from 0 when it gives the whole file again. What it answered and the
 /// bytes received of it; `Err` for a failure here (the disk), not of the
-/// address, and when told to stop (the bytes stay for the next run).
+/// address, and when told to stop (the bytes stay for the next run). An
+/// answer `Stopped`: the launcher turned torrent on, which takes the rest
+/// ([`torrent::takes_over`]; the bytes stay too).
 fn get(
     session: &mut Session,
+    layout: &Layout,
     address: &Address,
     path: &str,
     from: u64,
     pin: Pin,
     slow: http::Slow,
 ) -> Result<(Result<(), HttpError>, u64), Option<String>> {
+    let turn = session.torrents.turn();
     let opened = if from == 0 {
         win::File::create(path)
     } else {
@@ -361,12 +393,17 @@ fn get(
             received += chunk.len() as u64;
             Ok(())
         },
-        &mut |done, _| session.progress(done, pin.size),
+        &mut |done, _| {
+            session.progress(done, pin.size)
+                && !torrent::takes_over(session, layout, turn, BY_TORRENT)
+        },
     );
     let flushed = file.as_ref().map_or(Ok(()), win::File::flush);
     drop(file);
     match result {
-        Err(HttpError::Stopped) => return Err(None),
+        Err(HttpError::Stopped) if !torrent::takes_over(session, layout, turn, BY_TORRENT) => {
+            return Err(None);
+        }
         Err(HttpError::Network(WRITE_STEP, code)) => {
             return Err(io_error("save the game download", code));
         }
@@ -528,7 +565,20 @@ pub fn ensure(
         )));
     }
     let addresses = addresses(session, server)?;
-    let archive = fetch(session, &addresses, &archive_path, game::ARCHIVE)?;
+    let archive = loop {
+        match fetch(session, layout, &addresses, &archive_path, game::ARCHIVE)? {
+            Archive::Got(file) => break file,
+            // The launcher turned torrent on: the files by it, the bytes
+            // of the archive kept for HTTPS to go on from if it gives none.
+            Archive::ToTorrent => {
+                if let Some(added) = by_torrent(session, layout)? {
+                    drop(extractor);
+                    let _ = win::delete(&archive_path);
+                    return Ok(added);
+                }
+            }
+        }
+    };
     let stage = win::staging_dir(&layout.game_dir)
         .map_err(|code| io_error("create an extraction folder", code))?;
     let result = (|| {

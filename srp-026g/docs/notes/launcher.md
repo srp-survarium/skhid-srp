@@ -255,7 +255,7 @@ even byte count; forces a terminating NUL. `REG_EXPAND_SZ` is rejected.
 | 6 | `start_updater` 0x15997 | HKLM (0x159A4) | product key | `update server` | R | 260 | key: MessageBoxW "Can't open survarium registry key"; value: "Can't retrieve updater server string from survarium registry key"; both -> state 8 |
 | 7 | `restart_launcher` 0x162F4 | HKLM (0x16301) | product key | `launcher` | R | 260 | assertion "Can't restart launcher", `PostQuitMessage(7)` |
 | 8 | `get_game_launch_parameters` 0x17092 | HKLM (0x170AD) | product key | `file to execute`, `arguments`, `working folder` | R | 260 / rest of 0x8000 / 260 | any missing -> assertion "Can't get game launch parameters", `PostQuitMessage(8)` |
-| 9 | `settings::reload` 0x1D4C4 | **HKCU** (0x1D4E3) | product key | `port_number` (REG_SZ), `download_type` (REG_DWORD) | R | 6 / dword | defaults: torrent allowed, port "" |
+| 9 | `settings::reload` 0x1D4C4 | **HKCU** (0x1D4E3) | product key | `port_number` (REG_SZ), `download_type` (REG_DWORD) | R | 6 / dword | defaults: torrent allowed (the Skhid launcher: not, its patch 15), port "" |
 | 10 | `settings::save` 0x1D71A | **HKCU** (0x1D72F), `RegCreateKeyExW`, KEY_SET_VALUE | product key | `download_type` (REG_DWORD 1 = torrent, 0 = direct), `port_number` (REG_SZ) | W | | silent |
 | 11 | `settings::reload_language` 0x1D852 | **HKCU** (0x1D871) | product key | `language` (REG_DWORD 0..4) | R | | see section 10 |
 | 12 | `settings::save_language` 0x1D8DA | **HKCU** (0x1D8E8), `RegCreateKeyExW`, KEY_SET_VALUE | product key | `language` | W | | silent |
@@ -956,7 +956,7 @@ row arrays cannot grow; the Skhid launcher opens a Windows menu from the click i
 
 | Offset | Field |
 |---|---|
-| +0x00 / +0x01 | allow torrent: current / last saved (default 1) |
+| +0x00 / +0x01 | allow torrent: current / last saved (default 1, set at 0x1D4CE; the Skhid launcher 0, its patch 15) |
 | +0x02 / +0x0E | port text wchar[6]: current / last saved |
 | +0x1A | "port accepted" flag (1 at start; message 20 clears, message 21 sets) |
 | +0x1C | language |

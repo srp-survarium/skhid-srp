@@ -224,6 +224,8 @@ if ([IO.File]::Exists($updater)) {
 }
 if ($env:SKHID_GET_NO_START) { exit 0 }
 Say 'The updater installs the game now (about 10 GB; it can take a while)...'
-$run = Start-Process -FilePath $updater -ArgumentList 'check' -WorkingDirectory $bin -Wait -PassThru
+# Torrent on: whoever runs this script chose BitTorrent (the updater's
+# default, with nothing the launcher saved, is off).
+$run = Start-Process -FilePath $updater -ArgumentList 'check', 'torrent' -WorkingDirectory $bin -Wait -PassThru
 if ($run.ExitCode -ne 0) { throw "the updater stopped (exit $($run.ExitCode)): see $(Under $bin 'updater_skhid.log')" }
 Start-Process -FilePath (Under $root 'Skhid.bat') -WorkingDirectory $root

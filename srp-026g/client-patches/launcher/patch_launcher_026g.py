@@ -141,6 +141,12 @@ PATCHES = [
     (0x1BD16, "83", "c3", "Facebook click: ret"),
     (0x1BD29, "83", "c3", "Twitter click: ret"),
     (0x1BD3C, "83", "c3", "VK click: ret"),
+    # 15. "Allow torrent" is off until the player turns it on: the settings'
+    # default (current and last saved), kept when HKCU's product key or its
+    # download_type is missing, is 0, not 1. What the box shows is what the
+    # updater is told (its 4th argument, then 1A).
+    (0x1D4CE, "c60301c6430101", "c60300c6430100",
+     "settings::reload: mov byte [ebx],0 / mov byte [ebx+1],0: torrent off by default"),
 ]
 
 # start_updater, when no version could be read (the game exe PLAY starts is
@@ -207,7 +213,6 @@ URLS = [
 # and never under the mouse.
 GONE = 30000
 RECTS = [
-    (0x45814, 819, 12, GONE, "settings (torrent, port): nothing of it applies"),
     (0x45844, 750, 47, GONE, "SHOP: silver and gold are exchanged in the lobby"),
     (0x45854, 614, 47, GONE, "CREATE ACCOUNT: an account is made by the first sign-in"),
     (0x45864, 478, 47, 750, "PROJECT WEBSITE: moved to SHOP's place, at the right"),

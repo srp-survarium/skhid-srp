@@ -202,7 +202,13 @@ pub struct Torrents {
     limit: Option<u64>,
     offered: Offered,
     banned: Banned,
+    turn: Turn,
 }
+
+/// The times the launcher turned torrent on in this run (`1A`): what a
+/// download by HTTPS or the watch compares, to see it happen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Turn(u32);
 
 enum Mode {
     /// `port`: the launcher's, kept for when it allows torrent.
@@ -238,7 +244,7 @@ fn bound_port(listener: &Option<TcpListener>, port: Option<u16>) -> u16 {
 impl Torrents {
     pub fn new(settings: Torrenting) -> Self {
         let mode = match settings {
-            Torrenting::Off => Mode::Off { port: None },
+            Torrenting::Off { port } => Mode::Off { port },
             Torrenting::On { port } => {
                 let listener = listen(port);
                 log!(
@@ -260,7 +266,12 @@ impl Torrents {
             limit: None,
             offered: Offered::Unread,
             banned: Banned::default(),
+            turn: Turn(0),
         }
+    }
+
+    pub fn turn(&self) -> Turn {
+        self.turn
     }
 
     /// The folder changed (the overlay): the torrent is read again.
@@ -279,6 +290,7 @@ impl Torrents {
                         listener: listen(port),
                         engine: None,
                     };
+                    self.turn = Turn(self.turn.0.wrapping_add(1));
                 }
                 None
             }
@@ -466,6 +478,17 @@ pub fn offered(session: &mut Session, layout: &Layout) -> Option<Arc<Signed>> {
             None
         }
     }
+}
+
+/// Whether a download by HTTPS of `path` (a path of the torrent) leaves
+/// the rest to the torrent: the launcher turned torrent on since `since`
+/// (the download's start), the run goes on, and the run's torrent has the
+/// file. What HTTPS got stays: the torrent checks its pieces first.
+pub fn takes_over(session: &mut Session, layout: &Layout, since: Turn, path: &str) -> bool {
+    !session.stopped
+        && session.torrents.turn() != since
+        && offered(session, layout)
+            .is_some_and(|offered| file_index(&offered.torrent, path).is_some())
 }
 
 /// How a download by torrent ended.
@@ -906,6 +929,17 @@ fn check_parts(
                 }
             }
         }
+    }
+    let wanted = start
+        .iter()
+        .filter(|start| matches!(start, Start::Checked | Start::Missing))
+        .count();
+    if wanted > 0 {
+        let here = start
+            .iter()
+            .filter(|start| matches!(start, Start::Checked))
+            .count();
+        log!("torrent: {here} of the {wanted} pieces to fetch are in the parts already, checked");
     }
     Some(start)
 }

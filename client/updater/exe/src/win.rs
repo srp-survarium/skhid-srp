@@ -874,13 +874,15 @@ pub fn run_wait(
 /// The launcher's saved torrent settings (`HKCU\Software\Vostok Games\
 /// Survarium`: `download_type`, 1 torrent and 0 direct, and `port_number`),
 /// as the launcher would pass them: (`torrent` or `direct`, the port).
-/// Nothing saved: torrent, as the launcher's default, and no port.
+/// Torrent only for a `download_type` of 1, as the launcher reads it;
+/// nothing saved: direct (the Skhid launcher's default, its patch 15), and
+/// no port.
 pub fn launcher_torrent_setting() -> (&'static str, String) {
     use windows_sys::Win32::System::Registry::{
         HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RRF_RT_REG_SZ, RegGetValueW,
     };
     let key = wide("Software\\Vostok Games\\Survarium");
-    let mut kind = 1_u32;
+    let mut kind = 0_u32;
     let mut size = 4_u32;
     let read = unsafe {
         RegGetValueW(
@@ -893,7 +895,7 @@ pub fn launcher_torrent_setting() -> (&'static str, String) {
             &mut size,
         )
     };
-    let allowed = read != 0 || kind != 0;
+    let allowed = read == 0 && kind == 1;
     let mut port = [0_u16; 16];
     let mut size = (port.len() * 2) as u32;
     let read = unsafe {

@@ -24,6 +24,8 @@ import make_client_026g as overlay
 # The programs that open connections to the Skhid hosts: the ones VPN.txt
 # and Skhid-network-setup.cmd name.
 PROGRAMS = ('launcher_skhid.exe', 'survarium_skhid.exe', 'updater_skhid.exe')
+# The one the network setup lets in (it shares by BitTorrent).
+SHARER = 'updater_skhid.exe'
 WINE = shutil.which('wine')
 
 
@@ -617,11 +619,12 @@ class ReleaseTests(unittest.TestCase):
         if os.name != 'nt':
             x86 = 'Z:' + x86.replace('/', '\\')
         top_windows = x86.rsplit('\\game\\', 1)[0]
-        # Out only, TCP and UDP: nothing comes in.
-        rules = [(program, protocol) for program in PROGRAMS for protocol in ('TCP', 'UDP')]
+        # Out, TCP and UDP; in, the updater alone (TCP: it shares by BitTorrent).
+        rules = [(program, protocol, 'out') for program in PROGRAMS for protocol in ('TCP', 'UDP')]
+        rules.append((SHARER, 'TCP', 'in'))
 
-        def delete(program, protocol):
-            return f'[dry-run] netsh advfirewall firewall delete rule name="Skhid {program} {protocol} out"'
+        def delete(program, protocol, direction):
+            return f'[dry-run] netsh advfirewall firewall delete rule name="Skhid {program} {protocol} {direction}"'
 
         def commands(lines):
             return [line for line in lines if line.startswith('[dry-run] ') and 'elevate:' not in line]
@@ -658,15 +661,21 @@ class ReleaseTests(unittest.TestCase):
         for program in PROGRAMS:
             self.assertIn(said(f'Брандмауэр: {program} разрешены исходящие соединения (TCP и UDP)',
                                f'Firewall: {program} is allowed outgoing connections (TCP and UDP)'), added)
+        self.assertIn(said(f'Брандмауэр: {SHARER} разрешены входящие соединения TCP (BitTorrent)',
+                           f'Firewall: {SHARER} is allowed incoming TCP connections (BitTorrent)'), added)
         expected = []
-        for program, protocol in rules:
-            expected += [delete(program, protocol),
-                         f'[dry-run] netsh advfirewall firewall add rule name="Skhid {program} {protocol} out" '
-                         f'dir=out action=allow program="{x86}\\{program}" protocol={protocol} enable=yes '
+        for program, protocol, direction in rules:
+            expected += [delete(program, protocol, direction),
+                         f'[dry-run] netsh advfirewall firewall add rule name="Skhid {program} {protocol} {direction}" '
+                         f'dir={direction} action=allow program="{x86}\\{program}" protocol={protocol} enable=yes '
                          f'profile=any']
         expected += ['[dry-run] look for firewall rules that block the three programs']
         shown(commands(added), expected)
-        self.assertNotIn(' dir=in ', '\n'.join(added))
+        # In: the updater's program alone, every port (the launcher's setting).
+        inward = [line for line in added if ' dir=in ' in line]
+        self.assertEqual(len(inward), 1, '\n'.join(added))
+        self.assertIn(f'\\{SHARER}" protocol=TCP', inward[0])
+        self.assertNotIn('localport', inward[0])
         # The command line the elevation starts cmd.exe with, and that run.
         elevate = [line for line in added if 'elevate:' in line]
         shown(elevate, [f'[dry-run] elevate: cmd.exe /d /c ""{top_windows}\\Skhid-network-setup.cmd" '
@@ -678,7 +687,7 @@ class ReleaseTests(unittest.TestCase):
         # Every rule is removed by its name before it is added: a second run
         # adds none twice.
         self.assertEqual(setup('--dry-run'), added)
-        # --undo: the same six rules.
+        # --undo: the same seven rules.
         undone = setup('--dry-run', '--undo')
         shown(commands(undone), [delete(*rule) for rule in rules])
         shown([line for line in undone if 'elevate:' in line],
@@ -1256,6 +1265,7 @@ class ReleaseTests(unittest.TestCase):
         for ui in ('ru', 'en'):
             if ui == 'ru':
                 firewall = [f'Брандмауэр: {program} разрешены исходящие соединения (TCP и UDP)' for program in PROGRAMS]
+                firewall.append(f'Брандмауэр: {SHARER} разрешены входящие соединения TCP (BitTorrent)')
                 scripts = (
                     (overlay.NETWORK_SETUP, 'Для правил брандмауэра нужны права администратора. Сейчас Windows',
                      'настроил брандмауэр.', 'Брандмауэр:',
@@ -1271,6 +1281,7 @@ class ReleaseTests(unittest.TestCase):
                 not_admin = 'Ничего не изменено: у этого окна нет прав администратора.'
             else:
                 firewall = [f'Firewall: {program} is allowed outgoing connections (TCP and UDP)' for program in PROGRAMS]
+                firewall.append(f'Firewall: {SHARER} is allowed incoming TCP connections (BitTorrent)')
                 scripts = (
                     (overlay.NETWORK_SETUP, 'The firewall rules need administrator rights. Windows will now ask',
                      'sets up the firewall.', 'Firewall:',

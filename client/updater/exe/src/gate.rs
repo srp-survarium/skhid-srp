@@ -137,9 +137,17 @@ pub fn watch(session: &mut Session, layout: &Layout, product: &str, seen: &Seen)
     let mut missed = 0;
     let mut down = false;
     // Meanwhile the torrent's files this folder has are shared, when the
-    // launcher allows it (again once it is allowed again).
+    // launcher allows it: at once when it turns it on (and again after
+    // each ask, should the engine have stopped).
+    let mut turn = session.torrents.turn();
     torrent::share(session, layout);
-    while session.pipe.is_some() && session.pause(WATCH_MS) {
+    let mut each = |session: &mut Session| {
+        if session.torrents.turn() != turn {
+            turn = session.torrents.turn();
+            torrent::share(session, layout);
+        }
+    };
+    while session.pipe.is_some() && session.pause_with(WATCH_MS, &mut each) {
         torrent::share(session, layout);
         let result = http::get(&seen.server, "/api/client-files", 4096, &mut |_, _| {
             session.pump()

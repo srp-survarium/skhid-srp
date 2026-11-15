@@ -191,20 +191,22 @@ pub enum FromLauncher {
 
 /// The launcher's torrent settings: its "Allow torrent" switch, given as
 /// the update's 4th argument (`torrent` or `direct`) and then by `1A`, and
-/// its port (the 13th, `""` when it has none, then `21`).
+/// its port (the 13th, `""` when it has none, then `21`), kept while it is
+/// off for when the launcher turns it on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Torrenting {
-    Off,
     /// `port`: `None` when the launcher has none (a port the system picks).
+    Off { port: Option<u16> },
     On { port: Option<u16> },
 }
 
 impl Torrenting {
     pub fn of_arguments(download_type: &str, port: &str) -> Self {
+        let port = port_number(port);
         if download_type != "torrent" {
-            return Self::Off;
+            return Self::Off { port };
         }
-        Self::On { port: port_number(port) }
+        Self::On { port }
     }
 }
 
@@ -361,8 +363,8 @@ mod torrenting {
         assert_eq!(Torrenting::of_arguments("torrent", "6881"), Torrenting::On { port: Some(6881) });
         assert_eq!(Torrenting::of_arguments("torrent", ""), Torrenting::On { port: None });
         assert_eq!(Torrenting::of_arguments("torrent", "65535"), Torrenting::On { port: None });
-        assert_eq!(Torrenting::of_arguments("direct", "6881"), Torrenting::Off);
-        assert_eq!(Torrenting::of_arguments("", ""), Torrenting::Off);
+        assert_eq!(Torrenting::of_arguments("direct", "6881"), Torrenting::Off { port: Some(6881) });
+        assert_eq!(Torrenting::of_arguments("", ""), Torrenting::Off { port: None });
         assert_eq!(port_number("0"), None);
         assert_eq!(port_number("123456"), None);
         assert_eq!(frame(ToLauncher::PortBusy), [1, 0, 0x14]);

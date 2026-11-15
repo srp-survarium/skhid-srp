@@ -195,11 +195,17 @@ impl Session {
 
     /// Sleeps, looking at the pipe meanwhile. `false` when told to stop.
     fn pause(&mut self, milliseconds: u32) -> bool {
+        self.pause_with(milliseconds, &mut |_| {})
+    }
+
+    /// [`Session::pause`], `each` run after every look at the pipe.
+    fn pause_with(&mut self, milliseconds: u32, each: &mut dyn FnMut(&mut Self)) -> bool {
         let until = win::ticks() + u64::from(milliseconds);
         while win::ticks() < until {
             if !self.pump() {
                 return false;
             }
+            each(self);
             win::sleep(100);
         }
         self.pump()
@@ -1040,7 +1046,7 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
                 patches::Look::Quick
             },
             // `check`: the word given (`torrent`, `direct`), else the
-            // launcher's saved "Allow torrent" (on when nothing is saved);
+            // launcher's saved "Allow torrent" (off when nothing is saved);
             // `ready` reads only.
             torrenting: if action == "check" {
                 let said = rest.iter().find_map(|argument| {
@@ -1051,7 +1057,7 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
                 let (saved, port) = win::launcher_torrent_setting();
                 Torrenting::of_arguments(said.unwrap_or(saved), &port)
             } else {
-                Torrenting::Off
+                Torrenting::Off { port: None }
             },
         }),
         "update" | "full_update" => Ok(Options {
@@ -1071,7 +1077,7 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
             ready: false,
             quiet: false,
             look: patches::Look::Quick,
-            torrenting: Torrenting::Off,
+            torrenting: Torrenting::Off { port: None },
         }),
         _ => Err(text::usage()),
     }

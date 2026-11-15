@@ -13,7 +13,16 @@ corrections from the owner go here.
   - their own client (qBittorrent, Transmission...) with the `.torrent` or the magnet of the
     site's download page;
   - the updater, when the launcher's own "Allow torrent" switch is on (the original launcher's
-    setting, with its port). Off: the updater downloads as now, by HTTPS.
+    setting, with its port, in its settings: the gear). Off: the updater downloads as now, by
+    HTTPS.
+- **Off by default** (the owner, 2026-11-15): a player turns it on. With nothing saved
+  (`download_type` in `HKCU\Software\Vostok Games\Survarium`) the launcher's box is unticked
+  (launcher patch 15) and the updater takes it as off, from the launcher and in `check` alike;
+  `Skhid-get.bat` says `torrent` (whoever runs it chose BitTorrent).
+- Turned on, it is used at once, without a restart; turned off, it stops at once (below).
+- The firewall: `Skhid-network-setup.cmd` lets `updater_skhid.exe` in too (TCP, every port: the
+  port is the launcher's setting), so a player who ran it gets no firewall question when they
+  turn torrent on; `--undo` removes that rule with the others.
 
 ## The torrent
 
@@ -45,8 +54,8 @@ corrections from the owner go here.
 - `Skhid-get.bat`: one plain-text script (a `.bat` with PowerShell inside; Windows 7's PowerShell 2
   and later, no administrator rights) that anyone can pass around. Put beside an empty place and
   run, it gets the Skhid updater and `7zr.exe`, lays them out in a `Survarium` folder beside
-  itself (`game/binaries/x86/`), runs the updater (`updater_skhid.exe check`), which installs the
-  original game and the Skhid files, and starts `Skhid.bat`.
+  itself (`game/binaries/x86/`), runs the updater (`updater_skhid.exe check torrent`), which
+  installs the original game and the Skhid files, and starts `Skhid.bat`.
 - It gets the two files by BitTorrent first, from the bootstrap torrent: those two files at one
   version, in the players' layout, hybrid like the revision's (`release/bootstrap.torrent`). It
   announces the torrent's v1 info hash to the public UDP trackers (BEP 15) and fetches from the
@@ -86,6 +95,12 @@ and `client/updater/logic/src/swarm.rs` are the code.
   upload limit (`1E`; the 0.26g launcher sends none: no limit), and shows the launcher's states
   (`08` checking the pieces already on disk, `09` downloading;
   `srp-026g/docs/notes/launcher_updater.md`).
+- `1A` on takes effect at once: while it watches (PLAY shown) it starts sharing; while a
+  download by HTTPS runs (the original game's archive, a patch) and the torrent has that file,
+  the rest of the download moves to the torrent, as the original updater's `restart_downloading`
+  did: what HTTPS got stays (a patch's part is the torrent's part, its pieces checked first; the
+  archive's bytes stay for HTTPS to go on from if the torrent gives nothing). `1A` off stops the
+  engine at once: sharing ends, a download by torrent goes on by HTTPS.
 - The torrent is trusted by its signature alone: the release's Ed25519 key is built into the
   updater ("Signed releases"), and a torrent whose signature does not verify, or whose revision
   is lower than the highest it has taken (`updater_skhid.torrent.revision` beside it), than the
@@ -143,7 +158,7 @@ How an updater finds a newer release without our site (`client/updater/logic/src
   one that shares serves it the whole time.
 - No server of ours needed: when the update server cannot be asked and the run's torrent is
   newer than what is installed (or nothing is: `Skhid-get.bat`'s bare folder, whose
-  `updater_skhid.exe check` takes "Allow torrent" as the launcher saved it, on when nothing is),
+  `updater_skhid.exe check torrent`),
   the updater installs every file of it from it: the Skhid files (all or none, the torrent's info
   hash recorded as the installed archive), the original game, the patches. A patch known only
   from a verified torrent is kept in the patch list with no addresses (`"urls": []`, its SHA-256

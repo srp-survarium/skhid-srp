@@ -20,6 +20,12 @@ RegQueryValueExW) and no message box:
 Then revision 39's patch 4 (the opens moved to HKCU's product key, no jumps)
 must show "Can't open survarium registry key": the check sees the failure
 it guards against.
+
+And settings::reload (0x1D4C4, patch 15), whole: "Allow torrent" (the
+settings' bytes +0 current, +1 last saved) is off with no product key and
+with the key but no `download_type`, on only for `download_type` 1, and the
+port is `port_number` through patch 4's get_string; the original launcher,
+with no key, has it on (the default patch 15 changes).
 """
 from pathlib import Path
 import struct
@@ -41,13 +47,15 @@ IAT = {0x3B028: ('RegOpenKeyExW', 5), 0x3B024: ('RegCloseKey', 1), 0x3B020: ('Re
 NAMES = [name for name, _ in IAT.values()]
 COUNT = dict(IAT.values())
 PRODUCT_KEY_PATH = 0x14080              # get_product_registry_path, stubbed for the unfixed build
+SETTINGS_KEY_PATH = 0x1D496             # get_settings_registry_path, stubbed: the product key
+RELOAD = 0x1D4C4                        # settings::reload(settings), stdcall
 SWPRINTF = 0x264E0                      # _snwprintf(buffer, count, format, ...), cdecl
 CANT_OPEN = "Can't open survarium registry key"
 
 
 class Launcher:
-    def __init__(self, data, delta, keys):
-        self.delta, self.keys = delta, keys
+    def __init__(self, data, delta, keys, values=None):
+        self.delta, self.keys, self.values = delta, keys, values or {}
         self.u = u = Uc(UC_ARCH_X86, UC_MODE_32)
         for _, rva, vs, raw, rs, _ in L.P.Headers(data).sections(data):
             address = L.IMAGE_BASE + delta + rva
@@ -90,7 +98,7 @@ class Launcher:
             u.emu_stop()
             return
         sp = u.reg_read(UC_X86_REG_ESP)
-        if address == PRODUCT_KEY_PATH + self.delta:
+        if address in (PRODUCT_KEY_PATH + self.delta, SETTINGS_KEY_PATH + self.delta):
             self.ret(self.new_wide(PRODUCT_KEY), 0)
             return
         if address == SWPRINTF + self.delta:
@@ -121,8 +129,19 @@ class Launcher:
         return 0
 
     def RegQueryValueExW(self, key, name, reserved, kind, data, size):
-        self.calls.append(('RegQueryValueExW', self.wide(name)))
-        return 2
+        name = self.wide(name)
+        self.calls.append(('RegQueryValueExW', name))
+        if name not in self.values:
+            return 2                    # ERROR_FILE_NOT_FOUND
+        value_kind, value = self.values[name]
+        if data and len(value) > self.word(size):
+            return 234                  # ERROR_MORE_DATA
+        if data:
+            self.u.mem_write(data, value)
+        if kind:
+            self.word(kind, value_kind)
+        self.word(size, len(value))
+        return 0
 
     def GetModuleFileNameW(self, module, buffer, size):
         assert module == 0
@@ -205,6 +224,33 @@ def check(data, delta, keys):
     return out
 
 
+def reload(data, keys, values):
+    """settings::reload on a settings object of other bytes: its torrent
+    bytes (+0, +1), its port text and the registry calls."""
+    one = Launcher(data, 0, keys, values)
+    settings = one.heap
+    one.heap += 0x100
+    # As launcher::launcher makes it (0x141DF): the port empty; the torrent
+    # bytes other than both answers, to see reload write them.
+    one.u.mem_write(settings, b'\x5a\x5a' + bytes(0x5e))
+    one.run(RELOAD, STOP, args=(settings,))
+    torrent = tuple(one.u.mem_read(settings, 2))
+    port = bytes(one.u.mem_read(settings + 2, 12)).decode('utf-16-le').split('\0')[0]
+    return one, torrent, port
+
+
+REG_SZ, REG_DWORD = 1, 4
+SETTINGS = [
+    # (case, keys, values, the patched launcher's torrent bytes)
+    ('no product key', set(), {}, (0, 0)),
+    ('the key, no download_type', {(HKCU, PRODUCT_KEY.lower())}, {}, (0, 0)),
+    ('download_type 1, port_number 6881', {(HKCU, PRODUCT_KEY.lower())},
+     {'download_type': (REG_DWORD, struct.pack('<I', 1)),
+      'port_number': (REG_SZ, '6881'.encode('utf-16-le') + b'\0\0')}, (1, 1)),
+    ('download_type 0', {(HKCU, PRODUCT_KEY.lower())}, {'download_type': (REG_DWORD, struct.pack('<I', 0))}, (0, 0)),
+]
+
+
 REGISTRIES = {
     'no product key': set(),
     'the key in HKCU (an older launcher made it)': {(HKCU, PRODUCT_KEY.lower())},
@@ -242,6 +288,20 @@ def main():
     failures += not seen
     print(f"{'ok  ' if seen else 'FAIL'} revision 39's launcher, no product key: start_updater calls "
           f"{one.calls}, shows {one.boxes}")
+
+    # settings::reload: "Allow torrent" off unless download_type is 1.
+    for case, keys, values, expected in SETTINGS:
+        one, torrent, port = reload(bytes(patched), keys, values)
+        want_port = '6881' if 'port_number' in values else ''
+        ok = (torrent == expected and port == want_port and not one.boxes
+              and one.calls[:1] == [('RegOpenKeyExW', HKCU, PRODUCT_KEY)])
+        failures += not ok
+        print(f"{'ok  ' if ok else 'FAIL'} settings::reload, {case}: allow torrent {torrent}, port {port!r}"
+              + ('' if ok else f"; calls {one.calls}, boxes {one.boxes}"))
+    one, torrent, port = reload(original, set(), {})
+    seen = torrent == (1, 1)
+    failures += not seen
+    print(f"{'ok  ' if seen else 'FAIL'} the original launcher, no product key: allow torrent {torrent}")
     if failures:
         sys.exit(f'{failures} REGISTRY CASE(S) FAILED')
     print('ALL REGISTRY CASES PASSED')

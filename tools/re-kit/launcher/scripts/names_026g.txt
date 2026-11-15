@@ -112,11 +112,15 @@
 1CBB1 settings_window::close_window
 1CC0C settings_window::save_settings
 1CDD5 settings_window::torrent_checkbox_click
+1CE0E settings_window::show_torrent_checkbox   # its picture by settings+0 (allow torrent)
+1CF7D settings_window::show_port        # the port field: text and enabled by settings+0
+1CFB5 settings_window::refresh          # checkbox, port field, then 0x1D082
 1D3EF get_product_name                 # -product_name= or "Survarium"
 1D496 get_settings_registry_path
-1D4C4 settings::reload
+1D4C4 settings::reload                 # HKCU product key: port_number, download_type (1: allow torrent); default at 0x1D4CE
 1D567 get_command_line_language        # -language=
-1D71A settings::save
+1D71A settings::save                   # download_type only when settings+0 != +1, then the 1A callback
+1D82F settings::set_port               # wcscpy_s(settings+2, 6, text or "")
 1D852 settings::reload_language
 1D8DA settings::save_language
 1D926 settings::set_language

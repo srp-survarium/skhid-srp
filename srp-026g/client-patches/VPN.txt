@@ -11,9 +11,10 @@ game\binaries\x86\ of the game:
 
 If nothing connects (in Russia too), allow the game in your firewall: run
 Skhid-network-setup.cmd (beside Skhid.bat). It adds Windows Firewall rules
-that let these three programs out. It turns nothing off. It asks for
-administrator rights: answer Yes when Windows asks. Its messages are in
-Russian.
+that let these three programs out, and the updater in (TCP), for sharing
+the game when "Allow torrent" (the launcher's settings) is on. It turns
+nothing off. It asks for administrator rights: answer Yes when Windows
+asks. Its messages are in Russian.
 Skhid-network-setup.cmd --undo removes what it added.
 
 HAPP (Windows)
@@ -49,8 +50,9 @@ Zapret
   other combinations of "Fake Types" (scroll up in that window for how to
   use it).
 
-Hosts and ports (all outgoing; nothing comes in). Rules by program, above,
-are the better way: they need none of this.
+Hosts and ports (all outgoing; with "Allow torrent" on, the updater also
+takes TCP in on the launcher's port). Rules by program, above, are the
+better way: they need none of this.
   skhid.link        TCP 443 (HTTPS)   launcher and updater: page, files, patch list
   patch server      TCP 8090 (HTTP)   updater: patch downloads (Google Drive,
                                       TCP 443, if it fails)
@@ -79,8 +81,10 @@ SKHID - НЕТ СВЯЗИ С СЕРВЕРОМ?
 Если ничего не подключается (и в России тоже), разрешите игру в
 брандмауэре: запустите Skhid-network-setup.cmd (рядом со Skhid.bat). Он добавляет
 правила брандмауэра Windows, разрешающие этим трём программам исходящие
-соединения. Он ничего не отключает. Ему нужны права администратора: когда
-Windows спросит, нажмите «Да».
+соединения, а программе обновления входящие (TCP), для раздачи игры, когда
+в настройках лаунчера включено «Разрешить торренты». Он ничего не
+отключает. Ему нужны права администратора: когда Windows спросит, нажмите
+«Да».
 Skhid-network-setup.cmd --undo удаляет то, что он добавил.
 
 HAPP (Windows)
@@ -120,7 +124,8 @@ Zapret
   пробуйте разные комбинации «Fake Types» (если пролистать окно вверх,
   там есть инструкция).
 
-Адреса и порты (все исходящие, входящих нет). Правила по программам, выше,
+Адреса и порты (все исходящие; с «Разрешить торренты» программа обновления
+принимает и входящие TCP на порт лаунчера). Правила по программам, выше,
 лучше: с ними это не нужно.
   skhid.link        TCP 443 (HTTPS)   лаунчер и обновление: страница, файлы, список патчей
   сервер патчей     TCP 8090 (HTTP)   обновление: загрузка патчей (если не вышло,

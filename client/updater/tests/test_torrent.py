@@ -30,6 +30,7 @@ import hashlib
 import http.server
 import os
 import random
+import re
 import socket
 import struct
 import sys
@@ -365,15 +366,15 @@ class TorrentTest(wine.WineTest):
         self.sessions.clear()
         super().tearDown()
 
-    def release(self, *numbers, torrent=True, exe=None, **signing):
-        """What the server offers: the patches `numbers`, and the overlay
-        with the torrent of the folder (the patches, two of the overlay's
-        files) beside the updater (`torrent`). The torrent, its files and
-        the seed's folder."""
+    def release(self, *numbers, torrent=True, exe=None, size=200_000, **signing):
+        """What the server offers: the patches `numbers` (of about `size`
+        bytes), and the overlay with the torrent of the folder (the patches,
+        two of the overlay's files) beside the updater (`torrent`). The
+        torrent, its files and the seed's folder."""
         overlay = self.bundle()
         if exe is not None:
             overlay[f"{X86}/survarium_skhid.exe"] = exe
-        patches = self.make_patches(*numbers)
+        patches = self.make_patches(*numbers, size=size)
         files = {f"game/resources.db.patch_{n}": data for n, data in patches.items()}
         files["README.txt"] = overlay["README.txt"]
         files[f"{X86}/bugtrap.dll"] = overlay[f"{X86}/bugtrap.dll"]
@@ -579,8 +580,8 @@ class TorrentTest(wine.WineTest):
         older = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), {"README.txt": b"old"}, self.tracker.urls,
                              revision=59)
         self.write(f"{X86}/updater_skhid.found.torrent", older)
-        # `check`, as Skhid-get.bat runs it: torrent on (nothing saved).
-        command, env = windows([self.exe(), "check", "quiet"])
+        # `check torrent`, as Skhid-get.bat runs it.
+        command, env = windows([self.exe(), "check", "torrent", "quiet"])
         code = wine.subprocess.run(command, cwd=self.x86, env=env, timeout=600,
                                    stdout=wine.subprocess.DEVNULL, stderr=wine.subprocess.DEVNULL).returncode
         log = self.log()
@@ -597,6 +598,65 @@ class TorrentTest(wine.WineTest):
         self.assertIn('"urls": []', kept)
         # And `ready` (play_skhid.bat's) lets the game start.
         self.assertEqual(self.run_ready(), 0)
+
+    def test_allow_torrent_while_watching_shares_at_once_and_off_stops_at_once(self):
+        _, torrent, _, files = self.release(12)
+        self.launch(allow="direct")
+        self.wait_latest()
+        self.assertNotIn("torrent: sharing", self.log())
+        # "Allow torrent" ticked: shared before the watch's next ask (10 s),
+        # on the launcher's port.
+        ticked = time.time()
+        self.say(bytes([0x1A, 0]))
+        wait(lambda: "torrent: sharing 3 of its 3 files" in self.log(), 30, "sharing")
+        self.assertLess(time.time() - ticked, 5, "sharing began only with the watch's next ask")
+        self.leech_from_updater(torrent, files)
+        # Unticked: nothing listens at once.
+        self.say(bytes([0x1A, 1]))
+        wait(lambda: "torrent: not allowed by the launcher" in self.log(), 30, "torrent off")
+        time.sleep(0.5)
+        with self.assertRaises(OSError):
+            socket.create_connection(("127.0.0.1", self.port), timeout=5).close()
+
+    def test_allow_torrent_during_an_https_download_moves_the_rest_to_the_torrent(self):
+        # A patch of 64 pieces, slow by HTTPS (64 KiB every 0.3 s: about
+        # 10 s), at a seed too.
+        patches, torrent, seed_dir, _ = self.release(12, size=2 << 20)
+        seed_port, _ = self.seed(torrent, seed_dir)
+        self.tracker.peers = [("127.0.0.1", seed_port)]
+        self.site.patch_slow = 0.3
+        self.launch(allow="direct")
+        log_file = self.path(f"{X86}/updater_skhid.log")
+        wait(lambda: os.path.exists(log_file) and "resources.db.patch_12: address 1 of 1" in self.log(), 120,
+             "the download by HTTPS")
+        time.sleep(3)
+        self.say(bytes([0x1A, 0]))
+        self.wait_latest()
+        self.assert_patches(patches)
+        log = self.log()
+        self.assertIn("patches: resources.db.patch_12: address 1 of 1: the launcher turned torrent on: "
+                      "the rest by torrent", log)
+        self.assertIn("downloaded by torrent, checksum right", log)
+        self.assertEqual(self.store_requests(), ["/store/patch_12"], "HTTPS asked once")
+        # What came by HTTPS was kept: the torrent found some of the pieces
+        # in the part, checked, and fetched only the others.
+        found = re.search(r"torrent: (\d+) of the (\d+) pieces to fetch are in the parts already", log)
+        self.assertIsNotNone(found, log[-3000:])
+        kept, wanted = int(found[1]), int(found[2])
+        self.assertTrue(0 < kept < wanted, found[0])
+
+    def test_check_with_nothing_saved_is_https(self):
+        # No "Allow torrent" saved by the launcher (this prefix has no
+        # HKCU\Software\Vostok Games\Survarium): `check` is direct.
+        patches, _, _, _ = self.release(12)
+        command, env = windows([self.exe(), "check", "quiet"])
+        code = wine.subprocess.run(command, cwd=self.x86, env=env, timeout=600,
+                                   stdout=wine.subprocess.DEVNULL, stderr=wine.subprocess.DEVNULL).returncode
+        self.assertEqual(code, 0, self.log()[-4000:])
+        self.assert_patches(patches)
+        self.assertEqual(self.store_requests(), ["/store/patch_12"])
+        self.assertEqual(self.tracker.asked, [])
+        self.assertNotIn("torrent: allowed", self.log())
 
     def test_torrent_not_allowed_is_https_as_before(self):
         patches, _, _, _ = self.release(12)

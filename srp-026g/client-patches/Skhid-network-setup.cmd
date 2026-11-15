@@ -1,6 +1,8 @@
 @echo off
 rem Skhid-network-setup.cmd: lets the Skhid game's three programs out through
-rem Windows Firewall. It turns nothing off: the firewall stays on. It belongs
+rem Windows Firewall, and the updater in (TCP: it shares the game by
+rem BitTorrent when the launcher's "Allow torrent" is on, on the launcher's
+rem port). It turns nothing off: the firewall stays on. It belongs
 rem beside Skhid.bat, in the folder that holds the folder named game. It
 rem speaks Russian when the Windows display language is Russian, Ukrainian
 rem or Belarusian, English otherwise. The Microsoft Defender exclusion it
@@ -60,6 +62,9 @@ goto args
 
 set "X86=%TOP%\game\binaries\x86"
 set "PROGRAMS=launcher_skhid.exe survarium_skhid.exe updater_skhid.exe"
+rem The one program that is let in: its port is the launcher's setting, so
+rem the rule is the program's, every port.
+set "SHARER=updater_skhid.exe"
 if not exist "%X86%\survarium_skhid.exe" goto wrong_place
 
 rem (No echo of Russian text inside a bracketed block: a ")" in it would end
@@ -74,6 +79,8 @@ if "%MODE%"=="undo" goto intro_undo
 %EN% Adds Windows Firewall rules that allow the game's three programs in
 %EN% the folder game\binaries\x86 outgoing connections (TCP and UDP):
 echo   launcher_skhid.exe, survarium_skhid.exe, updater_skhid.exe
+%RU% и updater_skhid.exe входящие (TCP: раздача игры по BitTorrent).
+%EN% and updater_skhid.exe incoming ones (TCP: sharing the game by BitTorrent).
 %RU% Брандмауэр остаётся включённым.
 %EN% The firewall stays on.
 goto intro_done
@@ -130,6 +137,7 @@ if "%MODE%"=="undo" goto undo
 
 rem --- add -------------------------------------------------------------
 for %%P in (%PROGRAMS%) do call :allow %%P
+call :allow_in %SHARER%
 echo.
 call :blocking
 echo.
@@ -140,6 +148,7 @@ goto end
 rem --- undo ------------------------------------------------------------
 :undo
 for %%P in (%PROGRAMS%) do call :remove %%P
+call :remove_in %SHARER%
 rem The Defender exclusion it once added is Skhid-defender-setup.cmd's to undo.
 if exist "%TOP%\Skhid-network-setup.defender" %RU% Defender: исключение папки игры удаляет Skhid-defender-setup.cmd --undo
 if exist "%TOP%\Skhid-network-setup.defender" %EN% Defender: the game folder's exclusion is removed by Skhid-defender-setup.cmd --undo
@@ -156,6 +165,13 @@ for %%T in (TCP UDP) do call :rule %1 out %%T
 %EN% Firewall: %1 is allowed outgoing connections (TCP and UDP)
 exit /b 0
 
+rem The updater's rule in: TCP (the peers that connect to it), every port.
+:allow_in
+call :rule %1 in TCP
+%RU% Брандмауэр: %1 разрешены входящие соединения TCP (BitTorrent)
+%EN% Firewall: %1 is allowed incoming TCP connections (BitTorrent)
+exit /b 0
+
 :rule
 set "NAME=Skhid %~1 %3 %2"
 call :run_quiet netsh advfirewall firewall delete rule name="%NAME%"
@@ -168,6 +184,12 @@ exit /b 0
 for %%T in (TCP UDP) do call :run_quiet netsh advfirewall firewall delete rule name="Skhid %~1 %%T out"
 %RU% Брандмауэр: правила "Skhid %~1 ..." удалены
 %EN% Firewall: the rules "Skhid %~1 ..." are removed
+exit /b 0
+
+:remove_in
+call :run_quiet netsh advfirewall firewall delete rule name="Skhid %~1 TCP in"
+%RU% Брандмауэр: правило "Skhid %~1 TCP in" удалено
+%EN% Firewall: the rule "Skhid %~1 TCP in" is removed
 exit /b 0
 
 rem A rule that blocks one of the programs wins over the ones above; Windows
