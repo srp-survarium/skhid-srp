@@ -132,3 +132,44 @@ pub fn walk_order_of(boxes: &[Option<(V3, V3)>]) -> Vec<u32> {
 fn flip(v: V3) -> V3 {
     [v[0], v[1], -v[2]]
 }
+
+/// WIP experiment (not for a PR): ways the tree may have been built, for checking against a capture. 0: insert all, then the
+/// first step's reinsert of each (as [`walk_order_of`]); 1: each object inserted and at once reinserted; 2: each inserted
+/// with its widened box only; 3: insert all, then two reinsert passes.
+pub fn walk_order_experiment(boxes: &[Option<(V3, V3)>], mode: u32) -> Vec<u32> {
+    let widened = |b: (V3, V3)| {
+        let proxy = Volume::of(b.0.map(|v| v - CONTACT_THRESHOLD), b.1.map(|v| v + CONTACT_THRESHOLD));
+        Volume::of([0, 1, 2].map(|k| proxy.mi[k] - DBVT_MARGIN), [0, 1, 2].map(|k| proxy.mx[k] + DBVT_MARGIN))
+    };
+    let mut tree = Dbvt::default();
+    match mode {
+        1 => {
+            for (i, b) in boxes.iter().enumerate() {
+                if let Some(b) = *b {
+                    let leaf = tree.insert(Volume::of(b.0, b.1), i as u32);
+                    tree.update(leaf, widened(b));
+                }
+            }
+        }
+        2 => {
+            for (i, b) in boxes.iter().enumerate() {
+                if let Some(b) = *b {
+                    tree.insert(widened(b), i as u32);
+                }
+            }
+        }
+        _ => {
+            let leaves: Vec<(usize, (V3, V3))> =
+                boxes.iter().enumerate().filter_map(|(i, b)| b.map(|b| (tree.insert(Volume::of(b.0, b.1), i as u32), b))).collect();
+            for pass in 0..if mode == 3 { 2 } else { 1 } {
+                for &(leaf, b) in &leaves {
+                    let w = widened(b);
+                    if pass == 0 || !contains(&tree.volume(leaf), &w) {
+                        tree.update(leaf, w);
+                    }
+                }
+            }
+        }
+    }
+    tree.offering_order()
+}
