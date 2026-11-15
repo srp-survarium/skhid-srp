@@ -21,7 +21,7 @@
 //! the jump's gate 0x2FBDC0 -> 0x2FC230 reads `on_ground` 0x7EF90, false for a crouched capsule, exactness 2026-11-14), and
 //! before the reach, so a top only a rim jump gets to is kept.
 use super::gap::{self, Aim, OffLink, PressLead, Share, Takeoff};
-use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, MARGINAL_JUMP_M, NONE, RIM_REACH_M};
+use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, NONE, RIM_REACH_M};
 use crate::controller::jump::{self, FlightStep, Kind, Kits, Neighbour};
 use crate::controller::tick::Settings;
 use crate::controller::Collision;
@@ -546,8 +546,8 @@ impl WalkGrid {
         todo
     }
 
-    /// [C2 rows 11/12, S2] Whether `a`'s side `d` is a plain Jump link: flown as a rim jump too. Over [`MARGINAL_JUMP_M`] (C2:
-    /// a School crate's +0.99 m was priced by a fixed penalty with no client basis; the client's walking jump from a run-up gets
+    /// [C2 rows 11/12, S2] Whether `a`'s side `d` is a plain Jump link: flown as a rim jump too. Over
+    /// [`MARGINAL_JUMP_M`](super::MARGINAL_JUMP_M) (C2: a School crate's +0.99 m was priced by a fixed penalty with no client basis; the client's walking jump from a run-up gets
     /// onto a rim to apex 0.998 + 0.66 m, exactness `notes-mapflights.md` §2), and [S2] from a step up (0.80-0.95 m: a
     /// sprinting body climbs it with no jump, owner-5 `railings-design.md` §2, S2; two ways for one pair, chosen per state by
     /// S6's reach, `WalkGrid::link_cost_reaching`).
