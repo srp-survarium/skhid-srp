@@ -1967,8 +1967,8 @@ impl Motor {
         );
         self.walk_off = walk_off;
         keys = effect.keys(keys);
-        if let Some((link, end)) = effect.ended {
-            self.walk_off_line = Some(super::walk_off::line(link, end));
+        if let Some(ended) = effect.ended {
+            self.walk_off_line = Some(super::walk_off::line(ended));
         }
         // A landing run against the way is braked, not walked out.
         let mut braked = false;

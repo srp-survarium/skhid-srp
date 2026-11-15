@@ -31,8 +31,9 @@ pub enum WalkOff {
     Idle,
     /// On the link's leg past its take-off, short of the release: the route's walk, crouched when the press says.
     Approach { link: WalkOffRelease },
-    /// The walk key let go at motor tick `since`, the body's feet `from` then, until it is down and still.
-    LetGo { link: WalkOffRelease, since: u32, from: Vec3 },
+    /// The walk key let go at motor tick `since`, the body's feet `from` then and `along` m past the take-off, until it is
+    /// down and still.
+    LetGo { link: WalkOffRelease, since: u32, from: Vec3, along: f32 },
     /// The let-go of `link` ended (landed, overshot or timed out): the route's walk, and no new release of the same link while
     /// the body is still on its leg (a body down short of the landing's point is still on it).
     Done { link: WalkOffRelease },
@@ -62,6 +63,17 @@ pub enum End {
     TimedOut(Vec3),
 }
 
+/// A let-go that ended, for its log line: where it began (the body `along` m past the take-off, its feet `from`), how long it
+/// took, and how it ended.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Ended {
+    pub link: WalkOffRelease,
+    pub from: Vec3,
+    pub along: f32,
+    pub after_ms: u32,
+    pub end: End,
+}
+
 /// What a tick of [`step`] does to the keys, and the let-go it ended.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Effect {
@@ -69,7 +81,7 @@ pub struct Effect {
     pub crouch: bool,
     /// Let every move key go.
     pub let_go: bool,
-    pub ended: Option<(WalkOffRelease, End)>,
+    pub ended: Option<Ended>,
 }
 
 impl Effect {
@@ -86,10 +98,10 @@ impl Effect {
 pub fn step(state: WalkOff, input: Input) -> (WalkOff, Effect) {
     let held = |link: WalkOffRelease| Effect { crouch: link.crouched, ..Effect::ROUTE };
     let let_go = |link: WalkOffRelease| Effect { crouch: link.crouched, let_go: true, ended: None };
-    let begin = |link: WalkOffRelease| (WalkOff::LetGo { link, since: input.clock, from: input.feet }, let_go(link));
+    let begin = |link: WalkOffRelease, along: f32| (WalkOff::LetGo { link, since: input.clock, from: input.feet, along }, let_go(link));
     match state {
         WalkOff::Idle | WalkOff::Approach { .. } => match input.on_leg {
-            Some((link, along)) if along >= link.at => begin(link),
+            Some((link, along)) if along >= link.at => begin(link, along),
             Some((link, _)) => (WalkOff::Approach { link }, held(link)),
             None => (WalkOff::Idle, Effect::ROUTE),
         },
@@ -98,7 +110,7 @@ pub fn step(state: WalkOff, input: Input) -> (WalkOff, Effect) {
             // Off its leg: a release ahead (another link's) starts as from Idle.
             _ => step(WalkOff::Idle, input),
         },
-        WalkOff::LetGo { link, since, from } => {
+        WalkOff::LetGo { link, since, from, along } => {
             let down = input.footing == Footing::Ground && input.speed < STILL_MS && input.feet.y < from.y - ARRIVE_HEIGHT_M;
             let end = if down {
                 let on_landing =
@@ -110,16 +122,21 @@ pub fn step(state: WalkOff, input: Input) -> (WalkOff, Effect) {
                 None
             };
             match end {
-                Some(end) => (WalkOff::Done { link }, Effect { ended: Some((link, end)), ..Effect::ROUTE }),
+                Some(end) => {
+                    let after_ms = (input.clock.wrapping_sub(since) as f32 * TICK_S * 1000.0).round() as u32;
+                    (WalkOff::Done { link }, Effect { ended: Some(Ended { link, from, along, after_ms, end }), ..Effect::ROUTE })
+                }
                 None => (state, let_go(link)),
             }
         }
     }
 }
 
-/// The log line of an ended let-go: `nav: release walk-off from (..) at +X.XX m crouched|standing -> landed (..) | overshot
-/// (..) | timed out (..)`.
-pub fn line(link: WalkOffRelease, end: End) -> String {
+/// The log line of an ended let-go, its start, its end and its time in one (two lines of a kind within `nav_log::EVERY_MS`
+/// would hold the second back): `nav: release walk-off from (..) to (..) at +X.XX m crouched|standing: let go at +Y.YY m (..),
+/// after N ms landed|overshot|timed out (..)`. A let-go of the same link again shows as another line (or its held count).
+pub fn line(ended: Ended) -> String {
+    let Ended { link, from, along, after_ms, end } = ended;
     let p = |v: Vec3| format!("({:.2} {:.2} {:.2})", v.x, v.y, v.z);
     let (word, feet) = match end {
         End::Landed(feet) => ("landed", feet),
@@ -127,12 +144,13 @@ pub fn line(link: WalkOffRelease, end: End) -> String {
         End::TimedOut(feet) => ("timed out", feet),
     };
     format!(
-        "{}release walk-off from {} to {} at +{:.2} m {} -> {word} {}",
+        "{}release walk-off from {} to {} at +{:.2} m {}: let go at +{along:.2} m {}, after {after_ms} ms {word} {}",
         super::nav_log::PREFIX,
         p(link.take_off),
         p(link.landing),
         link.at,
         if link.crouched { "crouched" } else { "standing" },
+        p(from),
         p(feet)
     )
 }
@@ -162,7 +180,7 @@ mod tests {
         assert!(matches!(s, WalkOff::LetGo { .. }) && e.let_go);
         let (s, e) = step(s, input(None, Vec3::new(0.5, 1.0, 0.0), Footing::Ground, 0.1, 4));
         assert_eq!(s, WalkOff::Done { link: link() });
-        assert!(matches!(e.ended, Some((_, End::Landed(_)))));
+        assert!(matches!(e.ended, Some(Ended { end: End::Landed(_), .. })));
     }
 
     /// Down on the landing with the route's progress still on the link's leg past `at`: no new let-go, the route's keys come
@@ -187,8 +205,8 @@ mod tests {
         for t in 1..=ticks {
             let (next, e) = step(s, input(None, top, Footing::Ground, 0.0, t));
             s = next;
-            if let Some((_, end)) = e.ended {
-                assert!(matches!(end, End::TimedOut(_)));
+            if let Some(ended) = e.ended {
+                assert!(matches!(ended.end, End::TimedOut(_)));
                 return;
             }
         }
