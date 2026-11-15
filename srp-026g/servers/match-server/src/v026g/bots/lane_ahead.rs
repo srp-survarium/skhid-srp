@@ -68,9 +68,15 @@ pub struct LaneAhead<'a> {
     pub in_line: bool,
 }
 
-/// The eye over a spot and the chest over a floor point, m.
-pub const EYE_M: f32 = 1.6;
+/// The chest over a floor point, m.
 pub const CHEST_M: f32 = 1.3;
+
+/// The eye of a lane's camper: a standing body's that holds still and looks level over his spot ([`super::view::still_eye`],
+/// the game's bullet origin, 1.46 m measured; the old 1.6 m under `CombatTuning::live_eye` off). A held spot keeps no stance;
+/// the spots' own lanes are cast from this same standing eye (`threat`).
+pub fn camper_eye(at: Vec3) -> Vec3 {
+    super::view::still_eye(at, false)
+}
 
 /// The nearest-ahead known lane the way enters: `at(s)` is the way's point `s` metres from its start, sampled every `step_m`
 /// from `from_s` to `to_s`; `feet` is the bot's (in the line when a known spot sees it); `sees(eye, point)` the line test. A
@@ -86,7 +92,7 @@ pub fn known_lane_ahead<'a>(
     sees: impl Fn(Vec3, Vec3) -> bool,
 ) -> Option<LaneAhead<'a>> {
     let up = |h: f32| Vec3::new(0.0, h, 0.0);
-    let sees_point = |l: &HeldLane, p: Vec3| l.at.distance_xz(p) <= l.reach_m && sees(l.at + up(EYE_M), p + up(CHEST_M));
+    let sees_point = |l: &HeldLane, p: Vec3| l.at.distance_xz(p) <= l.reach_m && sees(camper_eye(l.at), p + up(CHEST_M));
     let known_lanes: Vec<&HeldLane> = lanes.iter().filter(|l| known.holds(l, clock)).collect();
     if let Some(lane) = known_lanes.iter().copied().find(|l| sees_point(l, feet)) {
         return Some(LaneAhead { lane, crossing_s: from_s, crossing: feet, in_line: true });

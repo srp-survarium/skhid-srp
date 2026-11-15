@@ -973,7 +973,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         if ahead.in_line || ahead.crossing_s - start < lead_m {
             return None;
         }
-        let eye = ahead.lane.at + Vec3::new(0.0, super::lane_ahead::EYE_M, 0.0);
+        let eye = super::lane_ahead::camper_eye(ahead.lane.at);
         let crossing = ahead.crossing;
         if smoke_there(eye, crossing + chest_over) || !open_from(&[eye], ahead.crossing_s) {
             return None;
