@@ -319,7 +319,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
             if me.distance_xz(via) <= num("via_reach_m") {
                 return Step::Done("got out with it");
             }
-            // A carrier cannot shoot, and does not sprint (LIKELY); the way
+            // A carrier cannot shoot, and does not sprint (PROVEN, `collect`'s carry); the way
             // out may start in their spawn area.
             Step::Continue(
                 Intent::to(via, Pace::Walk)
