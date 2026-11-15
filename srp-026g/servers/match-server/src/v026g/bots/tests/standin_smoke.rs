@@ -1,7 +1,12 @@
 //! The stand-in human's smoke habit: a live player throws a smoke now and then, and the bots have to meet the cloud. The stand-in human
 //! (`SRP_BENCH_HUMAN`) is a bot place, which the tracker reads as a bot (only a frag key throws for it), so its smokes are put in as
-//! clouds ([`Tracker::add_cloud`]) from the live players' numbers (`fx-smoke-data.md` §5, `smoke_use.py`: the 402 live recordings, 39,547
-//! lives, LIKELY unless said):
+//! clouds ([`Tracker::add_cloud`]) from the live players' numbers (`fx-smoke-data.md` §5, `smoke_use.py`: the 402 live recordings of
+//! 12+ players, 235 with decoded kits, 39,547 lives; its output `smoke-tools/out/smoke_use.txt`). The counts are PROVEN, each with its
+//! count: 1,173 smoke throws (2.97 per 100 lives); the times since the spawn over the 1,173; the rest points, the nearest enemy and the
+//! shares (between, on him, elsewhere) over the 893 throws whose landing is on a known map (the nearest enemy over those of them with an
+//! enemy's place at the press). A throw is defined as a press of the grenade
+//! key, or of a quick key whose kit slot holds a smoke, with presses within 1.25 s merged (grenades-record's cases). The after-blast
+//! numbers read 5-s player tables that are no longer kept; they stand as recorded:
 //!
 //! - **how often:** 2.97 throws per 100 lives: a life draws once, at its spawn, at that rate over [`COMPLETION`] (the share of the draws
 //!   that end in a throw; the rest end with the life before the press can be made).

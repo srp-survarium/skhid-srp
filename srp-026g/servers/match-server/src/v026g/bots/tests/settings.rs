@@ -273,9 +273,11 @@ pub(crate) fn models_line(settings: &BenchSettings) -> String {
 /// - `SRP_BENCH_WEAPONS`: PROVEN, the server gives every bot its weapon class (`game/driven.rs`, `set_weapons`).
 /// - `SRP_BENCH_BODY_BLOCK_M`: PROVEN, 0.76 m from the J0 matches' bodies files (`standin.rs`).
 /// - `SRP_BENCH_DRAW_TIME`: PROVEN, the weapons' own `show_time` in the configs (`standin.rs`).
-/// - `SRP_BENCH_ENEMY_HUMAN_LANES`: LIKELY, not exact: in a live Player vs Bots match only team 1's bots meet a human
-///   (`team1`, `player_bots.md` section 8); `on` gives both teams the lanes, as the sweep did (sides swap in a head to
-///   head, so no team has them alone).
+/// - `SRP_BENCH_ENEMY_HUMAN_LANES`: PROVEN that in a live Player vs Bots match only team 1's bots meet a human (`team1`,
+///   `player_bots.md` section 8): the match is its one player alone on team 0 against the server's bots (the lobby's
+///   `pvb.rs`, `Matchmaking::seat_solo`; a player in a squad is refused, `PvbCode` 2; no late joiner,
+///   `play::late_admission`). `on` gives both teams the lanes, as the sweep did: a choice for a head to head, whose sides
+///   swap, so no team has them alone.
 /// - `SRP_BENCH_STAND_IN_LEVEL`: PROVEN, the server hands every bot its kit's movement level (`game/driven.rs`); the stand-in
 ///   human goes at 1.02, the median of 841 live bodies (`standin_level.rs`).
 const LIVE_DEFAULTS: [(&str, &str); 5] = [
