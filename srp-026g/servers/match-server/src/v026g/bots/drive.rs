@@ -369,12 +369,14 @@ pub(super) fn drive_tick(
 }
 
 /// [F42] The log lines of a creep ([`super::nav_log::creep_begun_line`], [`super::nav_log::creep_ended_line`]): begun on the
-/// first tick both legs hold (`LegGate::Stand`) with the crouch key and a move key sent, ended on the first tick without.
+/// first tick both legs hold (`LegGate::Stand`) with the crouch key and a move sent (the client's test: forward xor back, or
+/// left xor right), ended on the first tick without.
 /// Decides nothing.
 pub(super) fn creep_watch(bot: &mut Bot, me: &PlaceView, keys: u32, time: u32) {
-    let creeping = bot.hurt.leg_damage.at(time) == super::legs::LegGate::Stand
-        && keys & key::CROUCH != 0
-        && keys & (key::FORWARD | key::BACK | key::LEFT | key::RIGHT) != 0;
+    // The client's move test (0x2FBE50, 0x2FBE78..0x2FBE89): forward xor back, or left xor right.
+    let along = (keys & key::FORWARD != 0) != (keys & key::BACK != 0);
+    let side = (keys & key::LEFT != 0) != (keys & key::RIGHT != 0);
+    let creeping = bot.hurt.leg_damage.at(time) == super::legs::LegGate::Stand && keys & key::CROUCH != 0 && (along || side);
     match (bot.creep, creeping) {
         (None, true) => {
             bot.creep = Some((me.feet, time));
