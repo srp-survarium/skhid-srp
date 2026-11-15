@@ -436,23 +436,17 @@ pub enum Jump {
     Flown(FlownJump),
 }
 
-/// [A388 step 3] The most steps of a flight from its press to its landing step (`controller::jump`'s sprint landing step 18).
-const FLOWN_STEPS: usize = 19;
-
-/// [A388 step 3] A forward jump flown at its press by the client's own jump from the reckoning's kept controller
-/// ([`JumpFlight::Controller`], `WalkGrid::kept_fly`): the feet of each of its steps, moved onto the reckoned feet, played one a
-/// tick; at its landing step the controller the flight left is the body's kept one.
+/// [A388 step 3] A forward jump of the reckoning flown by the client's own jump from its kept controller ([`JumpFlight::Controller`]),
+/// one step a reckoned tick (`controller::jump::Flying`, `WalkGrid::kept_fly_step`): each step with that tick's heading (the yaw
+/// after the input before it, as the client turns each step, `apply_rotation` 0x2D8AD0) and its forward key's air control. At its
+/// landing step the controller is the body's kept one.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FlownJump {
-    feet: [Vec3; FLOWN_STEPS],
-    len: u8,
-    next: u8,
-    /// The flight's last step on the ground (the client's `on_ground`).
-    landed: bool,
-    /// The controller the flight left, at the reckoned feet.
-    after: KeptBody,
-    /// The capsule's vertical speed after the flight (m/s, up positive).
-    vertical: f32,
+    flying: mapdata::controller::jump::Flying,
+    /// The flying body: its controller, and the reckoned feet less the controller's (where the reckoning has the body against
+    /// the controller's own feet, kept across the flight).
+    body: KeptBody,
+    shift: Vec3,
 }
 
 /// [A388 step 3] A step of a [`FlownJump`].
@@ -460,22 +454,22 @@ pub struct FlownJump {
 enum FlownStep {
     /// In the air (or before the take-off, on the ground) at these feet.
     Air(Vec3),
-    /// The landing step: its feet, whether it is on the ground, the controller after it and its vertical speed.
+    /// The landing step: its feet, whether it is on the ground, the controller after it and its vertical speed (m/s, up).
     Last { feet: Vec3, landed: bool, after: KeptBody, vertical: f32 },
 }
 
 impl FlownJump {
-    /// The jump a reckoned body at `feet` with yaw `yaw`, its kept controller `kept`, presses with `keys`, its last move `moved`
-    /// m/s, at the speed level `level`: flown forward along the yaw. None for a press with a side or back key (the clip's), and
-    /// without the grid's walker.
-    fn pressed(grid: &WalkGrid, kept: Option<KeptBody>, feet: Vec3, yaw: f32, keys: u32, moved: f32, level: f32) -> Option<Self> {
-        use mapdata::controller::jump::{Flight, Keys, Leg, Press, SPRINT_FIRST_AIR_FRAMES, WALK_CAP_MS as CAP};
+    /// The jump a reckoned body at `feet`, its kept controller `kept`, presses with `keys`, its last move `moved` m/s, at the speed
+    /// level `level`: the client's kind (a sprint jump with forward and sprint held, none of back, fire, crouch or aim, and the
+    /// last move at the walk cap or more; else the short jump at that move's speed). None for a press with a side or back key (the
+    /// clip's: the flyer has the forward clips only) and without the grid's walker.
+    fn pressed(grid: &WalkGrid, kept: Option<KeptBody>, feet: Vec3, keys: u32, moved: f32, level: f32) -> Option<Self> {
+        use mapdata::controller::jump::{Flight, Flying, Leg, Press, SPRINT_FIRST_AIR_FRAMES, WALK_CAP_MS as CAP};
         if super::jump_arc::Direction::of(keys) != super::jump_arc::Direction::Forward {
             flown_jumps::count(flown_jumps::Kind::NotForward);
             return None;
         }
-        let started = std::time::Instant::now();
-        let mut body = match kept {
+        let body = match kept {
             Some(body) if body.feet.distance_xz(feet) <= KEPT_SAME_M => body,
             _ => KeptBody { controller: grid.kept_controller_at(feet)?, feet, airborne: false },
         };
@@ -488,33 +482,23 @@ impl FlownJump {
         } else {
             Press::Walk { speed: moved }
         };
-        let [fx, fz] = super::kin::forward(yaw);
-        let start = body.controller.feet();
-        let flown_keys = Keys { air_forward: keys & key::FORWARD != 0, held_after: true };
-        let steps = grid.kept_fly(&mut body.controller, (fx, fz), press, flown_keys, Flight { cap, dy: 0.0 })?;
-        let len = steps.len().min(FLOWN_STEPS);
-        let last = *steps.get(len.checked_sub(1)?)?;
-        let shift = Vec3::new(feet.x - start.x, feet.y - start.y, feet.z - start.z);
-        let mut out = [feet; FLOWN_STEPS];
-        for (slot, step) in out.iter_mut().zip(&steps) {
-            *slot = step.feet + shift;
-        }
-        body.feet = last.feet + shift;
-        body.airborne = !last.on_ground;
         flown_jumps::count(if sprint { flown_jumps::Kind::Sprint } else { flown_jumps::Kind::Short });
-        kept_clock::add(kept_clock::Of::Reckoning, started.elapsed().as_nanos() as u64);
-        let vertical = body.controller.velocity.y;
-        Some(Self { feet: out, len: len as u8, next: 0, landed: last.on_ground, after: body, vertical })
+        Some(Self { flying: Flying::new(press, Flight { cap, dy: 0.0 }), body, shift: feet - body.controller.feet() })
     }
 
-    fn step(&mut self) -> FlownStep {
-        let i = usize::from(self.next.min(self.len - 1));
-        self.next = self.next.saturating_add(1);
-        if self.next >= self.len {
-            FlownStep::Last { feet: self.feet[i], landed: self.landed, after: self.after, vertical: self.vertical }
-        } else {
-            FlownStep::Air(self.feet[i])
+    /// The next step on `grid` with the step's yaw `yaw` and keys `keys`. None without the grid's walker.
+    fn step(&mut self, grid: &WalkGrid, yaw: f32, keys: u32) -> Option<FlownStep> {
+        let started = std::time::Instant::now();
+        let [fx, fz] = super::kin::forward(yaw);
+        let air = mapdata::controller::jump::Flying::air_of(self.flying.press(), keys & key::FORWARD != 0);
+        let step = grid.kept_fly_step(&mut self.body.controller, &mut self.flying, (fx, fz), air)?;
+        kept_clock::add(kept_clock::Of::Reckoning, started.elapsed().as_nanos() as u64);
+        let feet = step.feet + self.shift;
+        if !self.flying.landed() {
+            return Some(FlownStep::Air(feet));
         }
+        let after = KeptBody { controller: self.body.controller, feet, airborne: !step.on_ground };
+        Some(FlownStep::Last { feet, landed: step.on_ground, after, vertical: self.body.controller.velocity.y })
     }
 }
 
@@ -1290,7 +1274,12 @@ fn advance(
         // [A388 step 3] The client's own flight: its next step's feet; at its landing step the controller it left is the body's kept
         // one, on the ground or falling on from there (`fall_step`, the client's fall).
         if let (Some(Jump::Flown(mut flown)), Some(grid), Some(node)) = (at.arc, grid, at.node) {
-            match flown.step() {
+            let Some(out) = flown.step(grid, step_yaw, step_keys) else {
+                // No walker any more (no grid change does that within a match): the jump is over where it is.
+                at.arc = None;
+                continue;
+            };
+            match out {
                 FlownStep::Air(feet) => {
                     at.velocity = [(feet.x - at.feet.x) / TICK_S, (feet.z - at.feet.z) / TICK_S];
                     at.feet = feet;
@@ -1516,7 +1505,7 @@ fn advance(
             // or back one, the stop forecasts' and a grid with no walker keep the clip.
             let flown = match (kin.jump_flight, role, grid) {
                 (JumpFlight::Controller, Role::Reckoning, Some(grid)) => {
-                    FlownJump::pressed(grid, at.kept, at.feet, at.yaw, tick.keys, moved[0].hypot(moved[1]), level)
+                    FlownJump::pressed(grid, at.kept, at.feet, tick.keys, moved[0].hypot(moved[1]), level)
                 }
                 _ => None,
             };
