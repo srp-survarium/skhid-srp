@@ -29,6 +29,7 @@
   "drop_fall": "client",
   "step_input": "previous",
   "client_step": "grid",
+  "forecast_step": "grid",
   "fix_fall": "world",
   "open_edge_cost": 0.0,
   "walk_off_landing": "by_speed",
@@ -43,7 +44,9 @@
   "carrier_sprint": "refused",
   "leg_damage": "client",
   "sprint_gates": "keys",
+  "aim_gates": "keys",
   "ramp_min_deg": 35.0,
   "walk_bridges": true,
-  "jump_arc": false
+  "jump_arc": false,
+  "jump_flight": "clip"
 }
