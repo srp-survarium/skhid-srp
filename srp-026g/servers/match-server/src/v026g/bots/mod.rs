@@ -232,6 +232,18 @@ pub struct Note {
     pub text: String,
 }
 
+/// [Gap 5] The line for a body's world gates as they change: its keys' SPRINT and AIM and what the world saves.
+fn gates_line(keys: u32, gates: sprint_gates::WorldGates) -> String {
+    let held = |k: u32| if keys & k != 0 { "held" } else { "up" };
+    format!(
+        "world gates: keys SPRINT {} AIM {}, world sprinting {}, hands {:?}",
+        held(crate::v026g::drive::key::SPRINT),
+        held(crate::v026g::drive::key::AIM),
+        gates.sprinting,
+        gates.hands
+    )
+}
+
 /// [A395a] A bot's walk over a zone's floors (`Bot::zone_walk`): since when (ms) its lines are tested over them,
 /// whether the route it walks was planned since (`Tactics::route_shut_ahead`), and its ticks on floors a zone on hurts
 /// by the client's contact test (`Hazards::hits_at`), for the log.
@@ -1872,7 +1884,7 @@ impl Bots {
         let rows = self.jump_test.as_mut().map(jump_test::JumpTest::take_fresh).unwrap_or_default();
         let mut notes = Vec::new();
         for row in rows {
-            let fix = Fix { fall: None, controller: None,
+            let fix = Fix { fall: None, controller: None, gates: None,
                 time: row.time,
                 alive: row.alive,
                 inserted: row.inserted,
@@ -1900,6 +1912,12 @@ impl Bots {
             (before, body.reckoned_at(time))
         });
         let speed = fix.speed;
+        // [Gap 5] The world's sprint and aim gates, when they change (decision-neutral): the keys beside them.
+        if let Some(gates) = fix.gates
+            && self.tracker.body(place).and_then(|body| body.fix()).map(|last| last.gates) != Some(Some(gates))
+        {
+            notes.push(Note { place, time, text: gates_line(keys, gates) });
+        }
         let new_life = self
             .tracker
             .fixed(place, fix, health, &self.tunings.match_wide().kin, world.as_deref());
