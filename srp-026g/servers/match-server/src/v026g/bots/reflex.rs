@@ -537,8 +537,13 @@ pub struct CombatTuning {
     pub grenade_repick: bool,
     /// [A260] A throw is the client's once its key has gone down: the throw starts at the first weapon update with the
     /// grenade wanted, the weapon in its ready mode (6 at +0x5EC: not sprinting) and not reloading (0x2E4090, PROVEN),
-    /// and the throw state's way out reads only its animation (0x33A650), not the key: a key let go after that does not
-    /// take the grenade back (LIKELY). So from the press to the launch (`arc::launch_at`) a refusal never gives the throw
+    /// and nothing takes it back (PROVEN, read 2026-11-15). The throw state is left only when 0x33A650 says it is
+    /// ready: at its last stage's end, or once the grenade in the hand has gone off (+0x154); its four ways out
+    /// (`add_weapon_state_transitions` 0x2DF780: chamber a round, throw, fire, idle) are all behind that. The key's
+    /// release only moves the pull to the throw (`test_input_throw_action` 0x33A730); a weapon switch waits for the hide
+    /// state, which no throw reaches (`tick_active_object` 0x2D7650, the only writer of the put-away byte 0x30DFE7); a
+    /// sprint, a jump and the aim are refused in it (its kind 7, `can_sprint` 0x2E3A10); a death puts the weapon to idle
+    /// with the fuse running (`on_player_death` 0x2E3390). So from the press to the launch (`arc::launch_at`) a refusal never gives the throw
     /// up: the arc is found again for the place (`grenade_repick`), else an arc away from it that keeps the thrower and the
     /// teammates out of the blast ([`away_arc`]), else the view is kept; and the view is weighed at every tick from the
     /// let-go to the launch too. Off: as before (a refusal in the hold lets the key go and the view free, and nothing weighs

@@ -13,8 +13,9 @@
 //!   there (the walk-ins). Whether it knows of it: the thrower's team from the launch (**Told**: the owner's rule, a
 //!   justified cheat: a human team can call a landing, few do; in the live matches mates are no quicker to leave
 //!   than enemies); the other team from the launch when the bot had the thrower in sight (within
-//!   [`AvoidTuning::see_m`], in its view cone, a line to his chest) during his pull-pin swing or his throw clip
-//!   ([`ThrowSeen`]: both clips are on his body, as a player who sees him sees them), else once it lies on the ground
+//!   [`AvoidTuning::see_m`], in its view cone, a line to his chest) during his throw clip ([`ThrowSeen`]: the clip is on
+//!   his body, as a player who sees him sees it, and the arm's last move tells where; his swing alone tells when, not
+//!   where), else once it lies on the ground
 //!   and the bot is within [`AvoidTuning::hear_m`] of it (**Heard**, the first bounce) or within
 //!   [`AvoidTuning::see_m`] of it, in its view cone with a line to it (**Saw**). The client shows no warning and plays
 //!   no fuse cue; what a player has is the thrower's arm, the model and the bounce.
@@ -71,44 +72,80 @@ impl GrenadeId {
 }
 
 /// How a bot saw an enemy's throw, with the thrower in sight: during his pull-pin swing (the throw state's first stage,
-/// `grenade_swing`, from the press for [`arc::PULL_PIN_MS`]) or during his throw clip (from `max(press + 400, release)`
-/// to the launch, [`arc::RELEASE_TO_LAUNCH_MS`]). Both are the weapon's hands lexeme: layer 1, mask -1, every bone of
-/// the body (`get_user_hands_lexeme_impl` 0x31EBD0 from `get_weapon_lexeme` 0x310350), from the `stand/3rd_view` lists
-/// whatever the view (the weapon configs' `throw_grenade` substates), so another player sees them on the thrower's body
-/// (read 2026-11-15).
+/// `grenade_swing`, from the press for [`arc::PULL_PIN_MS`]) and/or during his throw clip (from `max(press + 400,
+/// release)` to the launch, [`arc::RELEASE_TO_LAUNCH_MS`]). Both are the weapon's hands lexeme: layer 1, mask -1, every
+/// bone of the body (`get_user_hands_lexeme_impl` 0x31EBD0 from `get_weapon_lexeme` 0x310350), from the `stand/3rd_view`
+/// lists whatever the view (the weapon configs' `throw_grenade` substates), so another player sees them on the thrower's
+/// body (read 2026-11-15). The two do not overlap: the clip starts at the swing's end or later.
+///
+/// What each tells, as it tells a player: the swing, when (the press, and so the blast); the throw clip, where too (the
+/// arm's last move before the grenade leaves it). A swing seen with the clip out of sight tells nobody where it went: the
+/// grenade is then known only once it lands, as an unseen one is. The pin-out sound, which the swing plays for every
+/// other player as a point sound at the thrower (`weapon_sound_effect::on_sound_event` 0x297C50, `third_view` to
+/// `emit_point_sound` 0x65670; read 2026-11-15), tells when too, and so changes nothing a bot does either; its reach
+/// (the `melee_wear` curve's scale in playback) was not read, and it is not modelled.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThrowSeen {
-    /// In sight during the swing: the press is known, and so the blast (the fuse from the press).
-    Press,
-    /// In sight during the throw clip only, which began at `clip`: the press was at least the swing before it, so the
-    /// blast is at most `clip - PULL_PIN_MS + fuse` (the latest it can be; a key held longer cooked it, and it goes off
-    /// sooner).
-    Release { clip: u32 },
+    /// The swing only: the press is known, not where; known by the landing ([`knows`]), the blast from the press.
+    Swing,
+    /// The throw clip only, which began at `clip`: known from the launch; the press was at least the swing before it, so
+    /// the blast is at most `clip - PULL_PIN_MS + fuse` (the latest it can be; a key held longer cooked it, and it goes
+    /// off sooner).
+    Clip { clip: u32 },
+    /// The swing and the throw clip: known from the launch, the blast from the press.
+    Both,
+}
+
+/// What the thrower's body shows at one moment ([`ThrowSeen::showing`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Showing {
+    Swing,
+    Clip { clip: u32 },
 }
 
 impl ThrowSeen {
-    pub const ALL: usize = 3;
+    pub const ALL: usize = 4;
 
-    /// The index of the counts: from the press, from the release, and (`None`) by the landing.
+    /// The index of the counts: from the press and the launch ([`Self::Both`]), from the release ([`Self::Clip`]), the
+    /// swing only (by the landing, [`Self::Swing`]), and (`None`) by the landing unseen.
     pub fn index(seen: Option<Self>) -> usize {
         match seen {
-            Some(Self::Press) => 0,
-            Some(Self::Release { .. }) => 1,
-            None => 2,
+            Some(Self::Both) => 0,
+            Some(Self::Clip { .. }) => 1,
+            Some(Self::Swing) => 2,
+            None => 3,
+        }
+    }
+
+    /// Whether it tells where: the throw clip seen, so known from the launch.
+    fn saw_clip(self) -> bool {
+        matches!(self, Self::Clip { .. } | Self::Both)
+    }
+
+    /// What was seen, with what the body shows `now` seen too.
+    fn and(had: Option<Self>, now: Showing) -> Self {
+        match (had, now) {
+            (None | Some(Self::Swing), Showing::Swing) => Self::Swing,
+            (None, Showing::Clip { clip }) => Self::Clip { clip },
+            (Some(Self::Swing | Self::Both), Showing::Clip { .. }) => Self::Both,
+            (Some(Self::Clip { clip }), Showing::Clip { .. }) => Self::Clip { clip },
+            // The swing ends before the clip starts: what was seen of the clip stays.
+            (Some(seen @ (Self::Clip { .. } | Self::Both)), Showing::Swing) => seen,
         }
     }
 
     /// Which of the two `g`'s thrower's body shows at `now`, if either.
-    fn showing(g: &LiveGrenade, now: u32) -> Option<Self> {
+    fn showing(g: &LiveGrenade, now: u32) -> Option<Showing> {
         if (g.press..g.press + arc::PULL_PIN_MS).contains(&now) {
-            return Some(Self::Press);
+            return Some(Showing::Swing);
         }
         let clip = match g.phase {
             Phase::Pressed { release: Some(release), .. } => (g.press + arc::PULL_PIN_MS).max(release),
             Phase::Pressed { release: None, .. } => return None,
             Phase::Flying { launched, .. } => launched - arc::RELEASE_TO_LAUNCH_MS,
+            Phase::InDeadHand { .. } => return None,
         };
-        (clip..clip + arc::RELEASE_TO_LAUNCH_MS).contains(&now).then_some(Self::Release { clip })
+        (clip..clip + arc::RELEASE_TO_LAUNCH_MS).contains(&now).then_some(Showing::Clip { clip })
     }
 }
 
@@ -252,7 +289,8 @@ pub struct AvoidStats {
     pub refused: u32,
     /// From the first chance to know to the start of the step: up to 0.5, 1, 1.5, 2 s, more.
     pub react: [[u32; 5]; 3],
-    /// Of the enemies' grenades noticed: known from the press, from the release ([`ThrowSeen`]), by the landing.
+    /// Of the enemies' grenades noticed: known from the press and the launch, from the release, the swing only (known
+    /// by the landing), and by the landing unseen ([`ThrowSeen::index`]).
     pub seen_throw: [u32; ThrowSeen::ALL],
 }
 
@@ -430,7 +468,7 @@ impl Avoid {
     }
 
     /// The enemies' throws whose swing or throw clip its eyes are on this tick ([`ThrowSeen`]: the thrower alive,
-    /// within [`AvoidTuning::see_m`], in its view cone, a line to his chest); a swing seen stands for the throw.
+    /// within [`AvoidTuning::see_m`], in its view cone, a line to his chest).
     fn see_throws(&mut self, tick: &Tick, c: &AvoidTuning, around: &dyn Surroundings) {
         self.seen.retain(|(id, _)| tick.grenades.iter().any(|g| id.is(g)));
         for g in tick.grenades.iter().filter(|g| g.team != tick.me.team) {
@@ -439,7 +477,8 @@ impl Avoid {
             let Some(showing) = ThrowSeen::showing(g, tick.now) else {
                 continue;
             };
-            if had.is_some_and(|k| self.seen[k].1 == ThrowSeen::Press || showing != ThrowSeen::Press) {
+            let was = had.map(|k| self.seen[k].1);
+            if was.is_some_and(|was| ThrowSeen::and(Some(was), showing) == was) {
                 continue;
             }
             let Some(him) = tick.bodies.iter().find(|b| b.place == g.by && b.alive) else {
@@ -452,9 +491,10 @@ impl Avoid {
             if !sees {
                 continue;
             }
+            let seen = ThrowSeen::and(was, showing);
             match had {
-                Some(k) => self.seen[k].1 = showing,
-                None => self.seen.push((id, showing)),
+                Some(k) => self.seen[k].1 = seen,
+                None => self.seen.push((id, seen)),
             }
         }
     }
@@ -497,13 +537,11 @@ pub fn step(
             // The nearest blast of those that matter and that it knows of.
             let mut pick: Option<Known> = None;
             for g in grenades {
-                let Phase::Flying {
-                    launched,
-                    lands,
-                    rest,
-                } = g.phase
-                else {
-                    continue;
+                // In a dead thrower's hand: known from his death as a landed one is, with no bounce to hear.
+                let (launched, lands, rest, bounced) = match g.phase {
+                    Phase::Flying { launched, lands, rest } => (launched, lands, rest, true),
+                    Phase::InDeadHand { died, at } => (died, died, at, false),
+                    Phase::Pressed { .. } => continue,
                 };
                 if now >= g.blast_at()
                     || pick.is_some_and(|p| p.blast_at <= g.blast_at())
@@ -512,7 +550,7 @@ pub fn step(
                     continue;
                 }
                 let saw = seen.iter().find(|(id, _)| id.is(g)).map(|(_, s)| *s).filter(|_| g.team != me.team);
-                let Some((how, first)) = knows(me, g, saw, launched, lands, rest, now, c, around) else {
+                let Some((how, first)) = knows(me, g, saw, (launched, lands, rest, bounced), now, c, around) else {
                     continue;
                 };
                 // A team that reads the bots' pockets (`bot_pockets`) does not dodge a grenade the list holds from a bot's
@@ -523,9 +561,9 @@ pub fn step(
                     continue;
                 }
                 // Its blast as the bot knows it: the fuse from the press; from the throw clip's start less the swing
-                // when only the release was seen (the latest it can be).
+                // when only the throw clip was seen (the latest it can be).
                 let blast_at = match saw {
-                    Some(ThrowSeen::Release { clip }) => clip - arc::PULL_PIN_MS + g.grenade.fuse_ms(),
+                    Some(ThrowSeen::Clip { clip }) => clip - arc::PULL_PIN_MS + g.grenade.fuse_ms(),
                     _ => g.blast_at(),
                 };
                 if g.team != me.team {
@@ -682,9 +720,7 @@ fn knows(
     me: &PlaceView,
     g: &LiveGrenade,
     saw: Option<ThrowSeen>,
-    launched: u32,
-    lands: u32,
-    rest: Vec3,
+    (launched, lands, rest, bounced): (u32, u32, Vec3, bool),
     now: u32,
     c: &AvoidTuning,
     around: &dyn Surroundings,
@@ -692,15 +728,16 @@ fn knows(
     if g.team == me.team {
         return (now >= launched).then_some((Notice::Told, launched));
     }
-    // The thrower seen throwing: from the launch, the view he threw with telling where.
-    if saw.is_some() {
+    // The thrower seen in his throw clip: from the launch, the arm's last move telling where. His swing alone tells
+    // when, not where: known as an unseen one is, below.
+    if saw.is_some_and(ThrowSeen::saw_clip) {
         return (now >= launched).then_some((Notice::Saw, launched));
     }
     if now < lands {
         return None;
     }
     let d = (me.chest() - rest).length();
-    if d <= c.hear_m {
+    if bounced && d <= c.hear_m {
         return Some((Notice::Heard, lands));
     }
     let sees = d <= c.see_m
@@ -787,11 +824,12 @@ mod tests {
         }
     }
 
-    /// [rule (a)] An enemy who throws with the bot's eyes on him: known from the launch, not the landing. Seen in his
-    /// swing (from the press, 400 ms) the blast is the fuse from the press; seen only in his throw clip (the 500 ms
-    /// before the launch) it is the latest the swing allows; out of sight at both, not known before the landing.
+    /// [rule (a)] An enemy who throws with the bot's eyes on him in his throw clip (the 500 ms before the launch): known
+    /// from the launch, not the landing; the blast the fuse from the press when his swing (from the press, 400 ms) was
+    /// seen too, else the latest the swing allows. Seen in his swing only: known when it lands, as an unseen one, the
+    /// swing telling when and not where. Out of sight at both: not known before the landing.
     #[test]
-    fn an_enemys_throw_seen_in_his_swing_or_throw_clip_is_known_from_the_launch() {
+    fn an_enemys_throw_seen_in_his_throw_clip_is_known_from_the_launch_his_swing_alone_by_the_landing() {
         let me = view(1, Vec3::new(0.0, 0.0, 4.0), [0.0, 0.0]);
         let him = PlaceView { place: 7, ..view(0, Vec3::new(0.0, 0.0, 20.0), [0.0, 0.0]) };
         let bodies = [me.clone(), him];
@@ -800,24 +838,34 @@ mod tests {
             let mut avoid = Avoid::default();
             let mut rng = Rng::new(1);
             let around = Around { sees, out: Some(Vec3::new(0.0, 0.0, -10.0)) };
-            for &now in looks.iter().chain([2_100].iter()) {
+            for &now in looks {
                 avoid.tick(Tick { now, me: &me, grenades: &grenades, bodies: &bodies }, &tuning(), &mut rng, &around);
             }
             avoid
         };
-        // In sight in his swing (press 1000): from the launch, the blast at press + 4000.
-        let swing = run(&[1_100], true);
-        let GrenadeThreat::Noticed { known, .. } = swing.state else { panic!("{:?}", swing.state) };
+        // In sight in his swing (press 1000) and his throw clip (from 1600, the launch at 2100): from the launch, the
+        // blast at press + 4000.
+        let both = run(&[1_100, 1_700, 2_100], true);
+        let GrenadeThreat::Noticed { known, .. } = both.state else { panic!("{:?}", both.state) };
         assert_eq!((known.how, known.first, known.blast_at), (Notice::Saw, 2_100, 5_000));
-        assert_eq!(swing.stats.seen_throw, [1, 0, 0]);
-        // In sight only in his throw clip (from 1600, the launch at 2100): the press at most 1200, the blast at most 5200.
-        let clip = run(&[1_700], true);
+        assert_eq!(both.stats.seen_throw, [1, 0, 0, 0]);
+        // In sight only in his throw clip: the press at most 1200, the blast at most 5200.
+        let clip = run(&[1_700, 2_100], true);
         let GrenadeThreat::Noticed { known, .. } = clip.state else { panic!("{:?}", clip.state) };
         assert_eq!((known.how, known.first, known.blast_at), (Notice::Saw, 2_100, 5_200));
-        assert_eq!(clip.stats.seen_throw, [0, 1, 0]);
-        // Between the two (his idle hold) and out of sight at both: not known at the launch.
-        assert!(matches!(run(&[1_500], true).state, GrenadeThreat::Unaware { .. }));
-        assert!(matches!(run(&[1_100, 1_700], false).state, GrenadeThreat::Unaware { .. }));
+        assert_eq!(clip.stats.seen_throw, [0, 1, 0, 0]);
+        // In sight in his swing only: not known at the launch; known where it lands (seen on the ground at 2600, 8 m
+        // ahead), the blast from the press.
+        assert!(matches!(run(&[1_100, 2_100], true).state, GrenadeThreat::Unaware { .. }));
+        let swing = run(&[1_100, 2_100, 2_600], true);
+        let GrenadeThreat::Noticed { known, .. } = swing.state else { panic!("{:?}", swing.state) };
+        assert_eq!((known.how, known.first, known.blast_at), (Notice::Saw, 2_600, 5_000));
+        assert_eq!(swing.stats.seen_throw, [0, 0, 1, 0]);
+        // Between the two (his idle hold) and out of sight at both: not known at the launch; by the landing, unseen.
+        assert!(matches!(run(&[1_500, 2_100], true).state, GrenadeThreat::Unaware { .. }));
+        assert!(matches!(run(&[1_100, 1_700, 2_100], false).state, GrenadeThreat::Unaware { .. }));
+        let unseen = run(&[1_500, 2_100, 2_600], true);
+        assert_eq!(unseen.stats.seen_throw, [0, 0, 0, 1]);
     }
 
     fn tuning() -> AvoidTuning {
