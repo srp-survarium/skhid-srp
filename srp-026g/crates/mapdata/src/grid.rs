@@ -814,10 +814,13 @@ pub struct FallBody {
 /// gate never closes a drop the body survives.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SecondLanding {
-    /// No drug course that gives pain back may be running; `weaker_leg` is the lower of its two leg pools now. A landing
-    /// whose foot hit empties a leg breaks it (the crouch forced, `0x2FBDF0`): the body no longer walks on to the second
-    /// landing as the build walked it, so then the hardest landing alone is judged.
-    Adds { weaker_leg: f32 },
+    /// No drug course that gives pain back may be running; `stronger_leg` is the higher of its two leg pools now. A foot's
+    /// fall hit reaches its leg whole (`hit_by_type` 0x329FF0 again for the leg, blunt coefficient 1, no armour) and empties
+    /// it at the pool or more (0x32A25A..0x32A28B). With both legs emptied the crouch is forced (0x2FBDF0, +388h == 2 at
+    /// 0x2FBE05 / 0x2FBE0C; one leg takes only the sprint and the jump): the body stops on the ledge, so the hardest landing
+    /// alone is judged. That under-closes: the body goes on after the wound's 8 s (or creeps) and takes the second landing
+    /// with only the pain regenerated since (0.1 a second after the 8 s delay).
+    Adds { stronger_leg: f32 },
     /// A drug course that gives pain back may be running (`medkit::tick` 0x33D790 restores the pain pool each tick of its
     /// active time; a fall's hit ends no course, patch 84 being ranged only): the pool may hold more at the second landing
     /// than the sum counts, so the hardest landing alone is judged.
@@ -825,10 +828,10 @@ pub enum SecondLanding {
 }
 
 impl SecondLanding {
-    /// The one that sums less: [`Self::HardestOnly`] if either is, else the weaker leg of the two.
+    /// The one that sums less: [`Self::HardestOnly`] if either is, else the lower of the two stronger legs.
     pub fn and(self, other: Self) -> Self {
         match (self, other) {
-            (Self::Adds { weaker_leg: a }, Self::Adds { weaker_leg: b }) => Self::Adds { weaker_leg: a.min(b) },
+            (Self::Adds { stronger_leg: a }, Self::Adds { stronger_leg: b }) => Self::Adds { stronger_leg: a.min(b) },
             _ => Self::HardestOnly,
         }
     }

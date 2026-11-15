@@ -40,7 +40,7 @@ fn body_reach(bot: &Bot, me: &PlaceView, time: u32) -> mapdata::Reach {
             let second = if super::plays::heal::pain_course_may_run(&bot.features.stock.pantry, time) {
                 mapdata::SecondLanding::HardestOnly
             } else {
-                mapdata::SecondLanding::Adds { weaker_leg: pools.legs[0].min(pools.legs[1]) }
+                mapdata::SecondLanding::Adds { stronger_leg: pools.legs[0].max(pools.legs[1]) }
             };
             let body = mapdata::FallBody { pain: pools.pain, fall_scale, jumps: super::jump_arc::jump_ends(), second };
             match bot.fall_save {
