@@ -773,10 +773,10 @@ pub enum Reach {
     /// The grid's own body: every link.
     #[default]
     Full,
-    /// A body the client gives no sprint for the whole route (a battery carrier: `base_player::can_sprint`, A331). A link it
-    /// leaves at a sprint ([`gap::Takeoff::sprint_run_m`]: a sprint gap or rim jump, a sprint climb) is taken by its walking
-    /// press ([`OffLink::walk`]), priced by that press's share; with none it is no way. No jump link rises above `max_rise`
-    /// metres (`None`: the grid's own).
+    /// A body the client gives no sprint for the whole route (a battery carrier: `base_player::can_sprint`, A331). A sprint
+    /// gap or rim jump is taken by its walking press ([`OffLink::walk`]), priced by that press's share; with none it is no
+    /// way. A sprint climb ([`gap::Takeoff::Climb`]) is no way: the motor plays no walking press on a climb. No jump link
+    /// rises above `max_rise` metres (`None`: the grid's own).
     NoSprint { max_rise: Option<f32> },
 }
 
@@ -4567,13 +4567,15 @@ impl WalkGrid {
         };
         let (p, q) = (self.position(from), self.position(to));
         if kind.is_off_mesh() {
-            // [S6] The press the body plays: a body with no sprint plays a sprint link's walking press (as the motor does,
-            // A385-FORMAT §5), and has no way over one without.
+            // [S6] The press the body plays: a body with no sprint plays a sprint jump's walking press (as the motor does,
+            // A385-FORMAT §5), and has no way over one without. A sprint climb is no way for it even with a walking press:
+            // the motor plays no press on a climb (the route's riser is sprinted into, `path.rs` `Leap::of_press`).
             let press = match self.off_link(from, to) {
                 None => None,
-                Some(l) => match (reach, l.press.sprint_run_m(), l.walk) {
-                    (Reach::NoSprint { .. }, Some(_), Some((lead, share))) => Some((gap::Takeoff::Press(lead), share)),
-                    (Reach::NoSprint { .. }, Some(_), None) => return f32::INFINITY,
+                Some(l) => match (reach, l.press, l.walk) {
+                    (Reach::NoSprint { .. }, gap::Takeoff::Climb, _) => return f32::INFINITY,
+                    (Reach::NoSprint { .. }, gap::Takeoff::Sprint(_), Some((lead, share))) => Some((gap::Takeoff::Press(lead), share)),
+                    (Reach::NoSprint { .. }, gap::Takeoff::Sprint(_), None) => return f32::INFINITY,
                     _ => Some((l.press, l.share)),
                 },
             };
