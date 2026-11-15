@@ -54,7 +54,7 @@ pub mod stands;
 
 pub use grid::{
     Body, BuildStats, DistanceMap, Erosion, ExitJump, ExitReach, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead, Share,
-    PocketExit, PocketId, Reach, Search, FallClosed, FallRoom, SprintReach, take_falls_closed, SlicedSearch, WalkGrid,
+    PocketExit, PocketId, Reach, Search, FallBody, FallClosed, FallRoom, FallStart, FallVerdict, JumpEnd, JumpEnds, SprintReach, take_falls_closed, SlicedSearch, WalkGrid,
 };
 pub use library::{Face, Library, Materials, Surface, WalkerBehaviour};
 pub use pierce::{Armor, Crossing, DamageShare, FaceArmor, Load, Pierce};

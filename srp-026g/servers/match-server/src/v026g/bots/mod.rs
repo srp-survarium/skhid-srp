@@ -250,8 +250,10 @@ fn gates_line(keys: u32, gates: sprint_gates::WorldGates) -> String {
 /// - the damage model's second chance armed (`m_have_second_chance`: `damage_model::second_chance` 0x332940 runs in every
 ///   `hit_by_type`, 0x32A121, and zeroes the first part's hit, the right foot's, halving the fall's pain; never armed in 0.26g,
 ///   `docs/notes/hand-kill.md`);
-/// - an artefact held: an active Onyx absorbs part of a hit (`docs/notes/hand-kill.md` has it take 75 % of a blunt one,
-///   `drugs_zones_artefacts.md` ranged only; not settled, so any artefact held leaves every fall open).
+/// - an artefact held: Onyx's own protection acts only on its configured hit type (`artefact_onyx_core` protect 0x312BF0
+///   compares the hit's +1Ch with +EE8h; ranged in the data), but Onyx II takes all fall damage away while an Onyx is active
+///   (exe patch 54, `artefact.landing` at 0x2D8220, `docs/notes/artefact-skills.md`). Which artefact and whether active is
+///   not read here, so any artefact held keeps every lethal drop open, noted.
 ///
 /// A drug course does not: `medkit::reduce_damage` 0x33DB30 lowers a hit only by the drug's protection for that part and
 /// type (0x33DAC0; none, unchanged at 0x33DB4A), and the stock drugs protect pain from ranged hits and infection from toxic
@@ -262,8 +264,10 @@ pub enum FallSave {
     Unread,
     /// Neither: the fall's hit lands whole.
     Nothing,
-    /// One of them may lower it.
-    May,
+    /// The second chance armed: no fall is closed.
+    SecondChance,
+    /// An artefact held: a drop that would kill is kept open, and noted.
+    Artefact,
 }
 
 /// [A395a] A bot's walk over a zone's floors (`Bot::zone_walk`): since when (ms) its lines are tested over them,
@@ -1607,10 +1611,11 @@ impl Bots {
     /// [S6] A trusted world's word on what may stop a lethal fall's hit for one place ([`FallSave`]).
     pub fn fall_save(&mut self, place: Place, second_chance: Option<bool>, artefact_held: bool) {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
-            bot.fall_save = match second_chance {
-                None => FallSave::Unread,
-                Some(false) if !artefact_held => FallSave::Nothing,
-                Some(_) => FallSave::May,
+            bot.fall_save = match (second_chance, artefact_held) {
+                (None, _) => FallSave::Unread,
+                (Some(true), _) => FallSave::SecondChance,
+                (Some(false), true) => FallSave::Artefact,
+                (Some(false), false) => FallSave::Nothing,
             };
         }
     }

@@ -107,6 +107,40 @@ pub fn fall_pain(height: f32, fall_scale: f32) -> f32 {
     2.0 * PAIN_PER_FOOT * fall_hit(walk_off_landing_speed((height - RIM_SLIDE_M).max(0.0)), fall_scale)
 }
 
+/// [S6] The pain of a drop `height` m below the take-off taken by a jump whose clip ends at `end` ([`super::JumpEnd`]), at the
+/// least the client takes: the fall starts at the clip's end, `end.rise` over the take-off, at its descent `end.descent`
+/// (`end_jump` 0x7F050 keeps the downward speed; the jump's own landing never hurts, `step_jump_down` 0x7D0F0 has no
+/// callback: a drop the clip's end is not over is no fall). Two readings of the air after a jump's end: the reckoning's
+/// whole ticks (gravity after the move, `step_down` 0x7E1B0) and the note's air step (`(|v| + 0.49) x 0.05` a tick, 91 of 91
+/// traced, `docs/notes/fall_damage.md`), the landing at the tick's starting speed; the lower landing speed of the two is
+/// taken, so the pain is never overstated.
+pub fn jumped_fall_pain(height: f32, end: super::JumpEnd, fall_scale: f32) -> f32 {
+    let fall = height + end.rise;
+    if fall <= 0.0 {
+        return 0.0;
+    }
+    let s = Settings::LIVE;
+    let land = |gravity_first: bool| {
+        let (mut speed, mut fallen) = (end.descent.max(0.0), 0.0f32);
+        for _ in 0..200 {
+            let down = if gravity_first {
+                (speed + GRAVITY * FALL_TICK_S) * FALL_TICK_S
+            } else if speed < s.on_ground_max_vertical_speed {
+                s.additional_down_speed
+            } else {
+                speed * FALL_TICK_S
+            };
+            if fallen + down >= fall {
+                return speed;
+            }
+            fallen += down;
+            speed += GRAVITY * FALL_TICK_S;
+        }
+        speed
+    };
+    2.0 * PAIN_PER_FOOT * fall_hit(land(false).min(land(true)), fall_scale)
+}
+
 /// [S6] How far a body walked off a ledge slides down over its rim on ticks that still find ground, before its fall begins,
 /// m (an exe run of a 2 m ledge: 0.05 m on 3 such ticks, no gravity yet; the exe review of #1969).
 const RIM_SLIDE_M: f32 = 0.05;
@@ -270,6 +304,13 @@ mod tests {
         assert!(near(fall_hit(walk_off_landing_speed(10.0), 1.0), 1.0));
         assert!(fall_pain(8.1, 1.0) >= 1.0 && fall_pain(8.0, 1.0) < 1.0 && fall_pain(7.0, 1.0) < 1.0);
         assert!(fall_pain(8.1, 0.7) < 1.0, "{}", fall_pain(8.1, 0.7));
+        // [S6] A jumped drop falls from its clip's end at its descent: the note's "a jump off a ledge" (5.5453 m/s, counted
+        // from where the clip ends) is lethal from a full pool from about 7.1 m, where a walk-off is not.
+        let end = crate::grid::JumpEnd { rise: 0.0, descent: 5.5453 };
+        assert!(jumped_fall_pain(7.3, end, 1.0) >= 1.0 && fall_pain(7.3, 1.0) < 1.0, "{}", jumped_fall_pain(7.3, end, 1.0));
+        assert!(jumped_fall_pain(6.5, end, 1.0) < 1.0);
+        // Over the clip's end the jump lands in its clip: no fall.
+        assert_eq!(jumped_fall_pain(-0.5, crate::grid::JumpEnd { rise: 0.35, descent: 5.5 }, 1.0), 0.0);
     }
 
     /// The fall rule's table (`docs/notes/fall_damage.md`, fatal_damage 1.0): nothing to 5 m, 0.23 at 6 m, 0.44 at 7 m, 1.0 from

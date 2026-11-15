@@ -278,6 +278,12 @@ impl Clip {
         (0..table.len()).max_by(|&a, &b| table[a][0].total_cmp(&table[b][0])).unwrap_or(0) as f32
     }
 
+    /// [S6] Where this clip leaves the body falling ([`mapdata::JumpEnd`]): its root over the start at the air phase's end, and
+    /// [`Self::end_descent`].
+    pub fn jump_end(self) -> mapdata::JumpEnd {
+        mapdata::JumpEnd { rise: self.root(self.air_end_frame())[0], descent: self.end_descent() }
+    }
+
     /// The speed the body falls at when the clip ends in the air, m/s (down positive): `end_jump` 0x7F050 keeps only a downward
     /// vertical speed (velocity := up * min(velocity . up, 0)), and in the jump the air branch 0x7BF2C sets it to the root's vertical
     /// speed (up * walk.y / dt), so the fall starts at the root's descent over the clip's last tick (fx-gear-2's read).
@@ -344,6 +350,13 @@ impl Clip {
         let [a, l] = direction.local();
         [a * AIR_CONTROL_MS, l * AIR_CONTROL_MS]
     }
+}
+
+/// [S6] Where a route's jumps leave the body falling, for the search's fall gate ([`mapdata::JumpEnds`]): a gap's walking
+/// press is a short jump forward, a sprint press the sprint jump forward (its left leg's clip, the one the reckoning plays;
+/// the right leg's ends higher, a longer fall: the gate's count is the least).
+pub fn jump_ends() -> mapdata::JumpEnds {
+    mapdata::JumpEnds { short: Clip::Short(Direction::Forward).jump_end(), sprint: Clip::Sprint(Direction::Forward).jump_end() }
 }
 
 /// [A388] The clip's time at the tick ending at `time` for a press decided at `pressed` (ms): one tick behind the press's stamp.
