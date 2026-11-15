@@ -1911,7 +1911,7 @@ impl Game {
         let ages: Vec<f32> = self.scatter_drawn.iter().map(|&(a, _, _)| a as f32).collect();
         let flats: Vec<f32> = self.scatter_drawn.iter().map(|&(_, f, _)| f).collect();
         let heights: Vec<f32> = self.scatter_drawn.iter().map(|&(_, _, h)| h.abs()).collect();
-        let tail = flats.iter().filter(|&&f| f >= standin_hitbox::TAIL_M).count();
+        let tail = flats.iter().filter(|&&f| f >= standin_hitbox::TAIL_COUNT_M).count();
         Some(format!(
             "bench hit scatter drawn: {} bot shots; world age P10/P50/P90 {:.0}/{:.0}/{:.0} ms; flat offset P50/P75/P90/P95 \
              {:.3}/{:.3}/{:.3}/{:.3} m, {:.1} % at {} m or more; height P50/P90 {:.3}/{:.3} m",
