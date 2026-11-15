@@ -166,11 +166,12 @@ def info_bytes(data):
 # The bootstrap (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap").
 BOOTSTRAP_HEAD = r"""@echo off
 rem Skhid-get.bat: gets Skhid (Survarium 0.26g) into a Survarium folder beside
-rem this file. Plain text: read it. It fetches the Skhid updater, its DLL and
-rem 7zr.exe by BitTorrent from anyone who shares them (the public trackers below),
-rem else from the addresses below, checks every piece and file against the
-rem hashes below, then runs the updater, which installs the rest, and starts
-rem Skhid.bat. No administrator rights. Made by release/build-bootstrap.
+rem this file. Plain text: read it. It asks once for administrator rights to let
+rem the game through Windows Firewall and exclude its folder from Microsoft
+rem Defender scans (both stay on), fetches the Skhid updater, its DLL and 7zr.exe
+rem by BitTorrent (the trackers below), else from the addresses below, checks
+rem them against the hashes below, runs the updater, which installs the rest,
+rem then starts Skhid.bat. Made by release/build-bootstrap.
 set "SKHID_GET_SCRIPT=%~f0"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$t = [IO.File]::ReadAllText($env:SKHID_GET_SCRIPT); iex $t.Substring($t.IndexOf('<#' + 'PS#>'))"
 if errorlevel 1 pause

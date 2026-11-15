@@ -63,11 +63,15 @@ corrections from the owner go here.
 ## Bootstrap: the game without our site
 
 - `Skhid-get.bat`: one plain-text script (a `.bat` with PowerShell inside; Windows 10's
-  PowerShell 5.1 and later, no administrator rights) that anyone can pass around. Put beside an
-  empty place and run, it gets the Skhid updater, its `skhid_torrent.dll` and `7zr.exe`, lays them
-  out in a `Survarium` folder beside
-  itself (`game/binaries/x86/`), runs the updater (`updater_skhid.exe check torrent`), which
-  installs the original game and the Skhid files, and starts `Skhid.bat`.
+  PowerShell 5.1 and later) that anyone can pass around. Put beside an empty place and run, it
+  asks once for administrator rights (one UAC prompt, a hidden elevated PowerShell) to add
+  `Skhid-network-setup.cmd`'s firewall rules (the same names: its `--undo` removes them) and a
+  Microsoft Defender exclusion of the `Survarium` folder it makes beside itself, with
+  `Skhid-defender-setup.cmd`'s marker (its `--undo` removes it); Defender and the firewall stay
+  on. Declined: one line says Windows may block the game, and it goes on. Then it gets the Skhid
+  updater, its `skhid_torrent.dll` and `7zr.exe` into `Survarium/game/binaries/x86/`, runs the
+  updater (`updater_skhid.exe check torrent`, "Allow torrent" left as it is), which installs
+  the original game and the Skhid files, and starts `Skhid.bat`.
 - It gets the three files by BitTorrent first, from the bootstrap torrent: those three files at
   one version, in the players' layout, hybrid like the revision's (`release/bootstrap.torrent`). It
   announces the torrent's v1 info hash to the public UDP trackers (BEP 15) and fetches from the
