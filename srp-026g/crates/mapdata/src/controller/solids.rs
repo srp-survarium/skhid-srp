@@ -351,8 +351,11 @@ impl Primitive {
 /// and half extents under the transform, here the identity, which every way of ordering that arithmetic gives the same bits
 /// for). None where one is not known: a file older than version 8, a cylinder that is not y-up, a mesh with no local box or
 /// under another transform.
+/// [L36] A compound's children's places in its tree's order, and each child's box in the tree ([`Leaf::tree_box`]).
+type CompoundOrder = (Vec<u32>, Vec<Box3>);
+
 /// With each child's box in the tree (the leaf's volume after the scaling: [`Leaf::tree_box`]).
-fn compound_ranks(library: &crate::Library, children: &[bullet::Child]) -> Option<(Vec<u32>, Vec<Box3>)> {
+fn compound_ranks(library: &crate::Library, children: &[bullet::Child]) -> Option<CompoundOrder> {
     let boxes = children
         .iter()
         .map(|child| match (&child.part, child.added) {
@@ -498,7 +501,8 @@ impl Builder {
         (self.solids.primitives.len() - 1) as u32
     }
 
-    /// A new object: the parts placed until the next one are its.
+    /// A new object: the parts placed until the next one are its (the tests', at the identity).
+    #[cfg(test)]
     fn object(&mut self) {
         self.object_at(exe_cast::IDENTITY);
     }
@@ -560,7 +564,7 @@ impl Solids {
         let mut meshes: HashMap<(u32, usize), u32> = HashMap::new();
         let mut primitives: HashMap<(u32, usize), u32> = HashMap::new();
         // [L36] A compound library's children's places in its tree's order, made once.
-        let mut compound_orders: HashMap<u32, Option<(Vec<u32>, Vec<Box3>)>> = HashMap::new();
+        let mut compound_orders: HashMap<u32, Option<CompoundOrder>> = HashMap::new();
         for (index, placement) in map.placements.iter().enumerate() {
             if !filter.meets(placement.cgroup, placement.cmask) {
                 continue;
