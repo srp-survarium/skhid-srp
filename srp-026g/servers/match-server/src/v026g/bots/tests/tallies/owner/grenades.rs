@@ -4,23 +4,19 @@ use crate::v026g::bots::live_grenades::{LiveGrenade, Phase, ThrowCounts};
 use crate::v026g::bots::pitch::{Pitch, PitchScale};
 use crate::v026g::bots::reflex::GrenadeStats;
 use crate::v026g::bots::tests::standin_grenade;
-use crate::v026g::bots::view::{eye_height, still_eye};
 
 use super::*;
 
-/// The grenade leaves the hand this long after the key goes down, ms
-/// (`arc::LAUNCH_DELAY_S`, 1.1 s). Not the client's rule: the client
-/// launches at S + 500 ms with S = max(press + 400, release) on the 50 ms
-/// grid (a tap at press + 900 in 88 throws; the `shoot` knot at frame 16,
-/// 533 ms, the flight starting at S + 500 by the tick's lists, 0x2D1E20):
-/// PROVEN, FIXES F21 amended, the rig's register L57, s7-thrown
-/// `notes-thrown.md` 1.1. Kept as the bench's model until changed
-/// (register G70).
-const LAUNCH_MS: u32 = (arc::LAUNCH_DELAY_S * 1000.0) as u32;
-
-/// The bot is to hold its look, and not fire, this long after the press, ms:
-/// the launch and the 300 ms of `CombatTuning::grenade_look_after_ms`.
-const HELD_MS: u32 = LAUNCH_MS + 300;
+/// A throw leaves the hand at the client's launch, `arc::launch_at(press, release)`: S + 500 ms with S = max(press +
+/// 400, release) on the 50 ms grid (a tap at press + 900 in 88 throws; the `shoot` knot at frame 16, 533 ms, the flight
+/// starting at S + 500 by the tick's lists, 0x2D1E20; `docs/notes/thrown_and_placed.md`), from the measured release
+/// point (`arc::release_point`). The release is the bot's let-go: its note's time.
+///
+/// The bot is to hold its look, and not fire, from the press to this long after the launch, ms
+/// (`CombatTuning::grenade_look_after_ms`).
+fn look_after_ms() -> u32 {
+    crate::v026g::bots::reflex::CombatTuning::default().grenade_look_after_ms
+}
 
 /// The fuse from the press, ms: the bots' grenade's (`arc::Grenade::bots`, the game data's `ttl_ms`).
 fn fuse_ms() -> u32 {
@@ -44,6 +40,15 @@ pub(crate) struct Throw {
     pub(crate) team: u8,
     pub(crate) aim: Vec3,
     pub(crate) press: u32,
+    /// The let-go: the bot's note of the throw.
+    pub(crate) release: u32,
+}
+
+impl Throw {
+    /// When it leaves the hand ([`arc::launch_at`]).
+    fn launch(&self) -> u32 {
+        arc::launch_at(self.press, self.release)
+    }
 }
 
 /// What the bots' grenade logic counted (`reflex::GrenadeStats`, one reflex a life), added up over the
@@ -69,11 +74,12 @@ pub(super) struct GrenadeCounts {
     pub(super) same_spot_log: Vec<(Place, u8, Vec3, u32)>,
     pub(super) same_spot: [u32; 3],
     pub(super) blasts: Vec<Blast>,
-    /// The throws noted, not yet at their launch ([`LAUNCH_MS`] after the
-    /// press): the blast is where the thrower's view then sends it.
+    /// The throws noted, not yet at their launch ([`Throw::launch`]): the blast is where the thrower's view then sends
+    /// it.
     pub(super) throws: Vec<Throw>,
-    /// By bot: the tick of the press whose hold (to [`HELD_MS`]) is on.
-    pub(super) holds: BTreeMap<Place, u32>,
+    /// By bot: the tick of the press whose hold (to the launch and [`look_after_ms`]) is on, and of its key's let-go
+    /// once seen.
+    pub(super) holds: BTreeMap<Place, (u32, Option<u32>)>,
     /// [A260] With `SRP_BENCH_GRENADE_LET_GO=throws`: the throws given up after their key went down, launched all the same.
     pub(super) given_up_thrown: u32,
     /// Throws whose first contact fell within [`SHORT_M`] of a thrower who
@@ -268,7 +274,8 @@ pub(crate) fn a_grenade_at_ones_feet_hurts_the_thrower_and_mates_and_one_walked_
     // Pressed at 0 ms, noted late, gone off at 4000 ms already: once more ticks run.
     let note = Note {
         place: 0,
-        time: game.tick,
+        // The let-go: 700 ms after the press, the bots' median hold (its launch at 1,200 ms).
+        time: 700,
         text: "throws a grenade at (11, 0, 10), blast at 4000".to_owned(),
     };
     tally.note(&note, &game);
@@ -307,7 +314,8 @@ pub(crate) fn the_bodies_inside_the_radius_at_the_launch_are_counted_by_group() 
         });
         let note = Note {
             place: 0,
-            time: game.tick,
+            // The let-go: 700 ms after the press (the launch at 1,200 ms).
+            time: 700,
             text: "throws a grenade at (11, 0, 10), blast at 4000".to_owned(),
         };
         tally.note(&note, &game);
@@ -361,7 +369,7 @@ pub(crate) fn only_a_throw_with_a_grenade_in_hand_goes_off() {
     assert!((0..3).all(|_| free.carries(&mut open, 0, 0)));
     assert_eq!((free.carried_throws, free.phantom_throws), (0, 0), "unchecked throws are not split");
     // A throw is pending until its launch.
-    free.grenade_thrown(0, 0, at, 5_000);
+    free.grenade_thrown(0, 0, at, 5_000, 1_700);
     assert_eq!(free.throws.len(), 1);
 }
 
@@ -455,7 +463,8 @@ fn thrown_with_pitch(pitch: f32) -> serde_json::Value {
     });
     let note = Note {
         place: 0,
-        time: game.tick,
+        // Pressed at 0 (the blast 1000 is before a 4 s fuse: the press is 0), let go at 700: launched at 1,200.
+        time: 700,
         text: "throws a grenade at (10.0, 0.0, 30.0), blast at 1000".to_owned(),
     };
     tally.note(&note, &game);
@@ -478,7 +487,8 @@ fn blast_rest_with_view(scale: PitchScale, pitch: f32) -> Vec3 {
     });
     let note = Note {
         place: 0,
-        time: game.tick,
+        // Pressed at 0 (the blast 1000 is before a 4 s fuse: the press is 0), let go at 700: launched at 1,200.
+        time: 700,
         text: "throws a grenade at (10.0, 0.0, 30.0), blast at 1000".to_owned(),
     };
     tally.note(&note, &game);
@@ -503,11 +513,11 @@ pub(crate) fn the_blast_goes_off_where_the_views_elevation_sends_it_in_the_clien
 
 #[test]
 pub(crate) fn a_throw_that_lands_near_the_thrower_though_aimed_far_is_short() {
-    // The flat throw: a level view lands 8 m out (the hand 0.3 m under the eye).
+    // The flat throw: a level view lands about 10 m out (the release point 1.73 m over the feet).
     let level = thrown_with_pitch(0.0);
     assert_eq!(level["grenade_short"], 1, "{level}");
     // The pitch that lands it at 20 m: not short.
-    let pitch = arc::pitch_for(20.0, still_eye(Vec3::ZERO, false).y - arc::HAND_DOWN_M).unwrap();
+    let pitch = arc::pitch_for(20.0, arc::RELEASE_UP_M.0).unwrap();
     let aimed = thrown_with_pitch(pitch);
     assert_eq!(aimed["grenade_short"], 0, "{aimed}");
 }
@@ -645,9 +655,13 @@ pub(crate) fn a_bots_alive_time_and_its_throws_are_counted_by_its_nearest_enemy(
 
 #[test]
 pub(crate) fn the_launch_constants_are_the_arcs() {
-    assert_eq!(LAUNCH_MS, 1100);
+    // A tap: the client's 900 ms; a key held 700 ms: 1,200 ms (the bots' median hold and launch,
+    // `thrown_and_placed.md`).
+    let throw = |release| Throw { thrower: 0, team: 0, aim: Vec3::ZERO, press: 1_000, release };
+    assert_eq!(throw(1_000).launch(), 1_900);
+    assert_eq!(throw(1_700).launch(), 2_200);
     assert_eq!(fuse_ms(), blast_params().ttl_ms);
-    assert_eq!(HELD_MS, 1400);
+    assert_eq!(look_after_ms(), 300);
 }
 
 impl GrenadeCounts {
@@ -689,7 +703,7 @@ impl Topic for GrenadeCounts {
         match *kind {
             NoteKind::Thrown { aim, blast } => {
                 let team = game.bodies.get(note.place).map_or(0, |b| b.team);
-                self.grenade_thrown(note.place, team, aim, blast);
+                self.grenade_thrown(note.place, team, aim, blast, note.time);
                 if note.place < game.bodies.len() {
                     self.thrown_by_enemy[enemy_bin(game, note.place)] += 1;
                 }
@@ -698,11 +712,11 @@ impl Topic for GrenadeCounts {
             NoteKind::HeldBack(why) => {
                 self.grenade_refused(why);
                 // [A260] The key went down: the client's throw has started, and the grenade leaves at the launch.
-                if let (true, Some(&press)) = (let_go_throws(), self.holds.get(&note.place)) {
+                if let (true, Some(&(press, _))) = (let_go_throws(), self.holds.get(&note.place)) {
                     let team = game.bodies.get(note.place).map_or(0, |b| b.team);
                     let aim = held_back_at(&note.text).unwrap_or(Vec3::ZERO);
                     self.given_up_thrown += 1;
-                    self.throws.push(Throw { thrower: note.place, team, aim, press });
+                    self.throws.push(Throw { thrower: note.place, team, aim, press, release: note.time });
                 }
                 // A throw given up in its hold (a mate walked in) is over: the shots after it are the bot's own.
                 self.grenade_given_up(note.place);
@@ -733,9 +747,9 @@ impl Topic for GrenadeCounts {
 }
 
 impl GrenadeCounts {
-    /// A throw noted at its let-go: the blast is the fuse after the press; where it lands is worked out at
+    /// A throw noted at its let-go (`release`): the blast is the fuse after the press; where it lands is worked out at
     /// the launch ([`Self::grenade_launches`]).
-    pub(super) fn grenade_thrown(&mut self, thrower: Place, team: u8, aim: Vec3, blast: u32) {
+    pub(super) fn grenade_thrown(&mut self, thrower: Place, team: u8, aim: Vec3, blast: u32, release: u32) {
         let press = blast.saturating_sub(fuse_ms());
         // Teammates' throws at one spot, a throw counted once for each radius it lands within of an
         // earlier throw of another bot of its team in the last SAME_SPOT_MS (the bot's own volley is not).
@@ -755,7 +769,7 @@ impl GrenadeCounts {
         }
         self.same_spot_log.push((thrower, team, aim, press));
         self.grenades += 1;
-        self.throws.push(Throw { thrower, team, aim, press });
+        self.throws.push(Throw { thrower, team, aim, press, release });
     }
 
     /// A throw is let go: whether the body had a grenade in the hand (taken from it, [`standin_grenade::Stock`]). The client throws
@@ -814,36 +828,41 @@ impl GrenadeCounts {
         self.holds.remove(&thrower);
     }
 
-    /// A bot's grenade key at this tick: a press opens a hold of [`HELD_MS`]; in it, the thrower dying before
-    /// the launch and a fire press are counted. From the stand-in's keys, not the bot's word.
+    /// A bot's grenade key at this tick: a press opens a hold to the launch ([`arc::launch_at`] of the press and the
+    /// key's let-go) and [`look_after_ms`] more; in it, the thrower dying before the launch and a fire press are counted.
+    /// From the stand-in's keys, not the bot's word.
     pub(super) fn grenades_keys(&mut self, place: Place, tick: u32, body: &super::super::Body, prev: &Rec) {
         let g = &mut *self;
         if body.keys & key::GRENADE != 0 && prev.keys & key::GRENADE == 0 {
-            g.holds.entry(place).or_insert(tick);
+            g.holds.entry(place).or_insert((tick, None));
         }
-        let Some(&press) = g.holds.get(&place) else {
+        let Some(hold) = g.holds.get_mut(&place) else {
             return;
         };
-        if tick >= press + HELD_MS {
+        if hold.1.is_none() && body.keys & key::GRENADE == 0 && prev.keys & key::GRENADE != 0 {
+            hold.1 = Some(tick);
+        }
+        let (press, release) = *hold;
+        let launch = release.map(|release| arc::launch_at(press, release));
+        if launch.is_some_and(|launch| tick >= launch + look_after_ms()) {
             g.holds.remove(&place);
         } else if !body.alive {
-            g.died_throwing += u32::from(tick < press + LAUNCH_MS);
+            g.died_throwing += u32::from(launch.is_none_or(|launch| tick < launch));
             g.holds.remove(&place);
         } else if body.keys & key::FIRE != 0 && prev.keys & key::FIRE == 0 {
             g.fired_after_held += 1;
         }
     }
 
-    /// The throws at their launch: the grenade leaves [`LAUNCH_MS`] after the press along the thrower's view
+    /// The throws at their launch ([`Throw::launch`]): the grenade leaves the release point along the thrower's view
     /// then (his record), and comes down on the bullet mesh where `arc` says; the blast is there, at the rest
     /// point, the fuse after the press. Who is inside is by the bodies' places at the launch.
     fn grenade_launches(&mut self, run: &Run, game: &mut Game, tick: u32) {
-        let (due, later): (Vec<Throw>, Vec<Throw>) = std::mem::take(&mut self.throws)
-            .into_iter()
-            .partition(|t| tick >= t.press + LAUNCH_MS);
+        let (due, later): (Vec<Throw>, Vec<Throw>) =
+            std::mem::take(&mut self.throws).into_iter().partition(|t| tick >= t.launch());
         self.throws = later;
         for throw in due {
-            let k = run.index(throw.press + LAUNCH_MS);
+            let k = run.index(throw.launch());
             let bodies: Vec<Option<Rec>> = run.recs.iter().map(|r| r.get(k).or(r.last()).copied()).collect();
             let Some(rec) = bodies.get(throw.thrower).copied().flatten().filter(|r| r.alive) else {
                 continue;
@@ -851,10 +870,13 @@ impl GrenadeCounts {
             if !self.carries(game, throw.thrower, throw.team) {
                 continue;
             }
-            let up = eye_height(rec.keys & key::CROUCH != 0, rec.speed, rec.pitch);
-            let eye = rec.feet + Vec3::new(0.0, up, 0.0);
+            let thrower = arc::Thrower {
+                feet: rec.feet,
+                crouched: rec.keys & key::CROUCH != 0,
+                launch_ms: throw.launch() - throw.press,
+            };
             let Some(landing) =
-                arc::Flight::thrown(eye, rec.yaw, rec.pitch).landing(&arc::Mesh(&game.world.sight))
+                arc::Flight::thrown(&thrower, rec.yaw, rec.pitch).landing(&arc::Mesh(&game.world.sight))
             else {
                 continue;
             };
@@ -893,7 +915,7 @@ impl GrenadeCounts {
         let live = &mut self.live_blasts;
         match found.map(|g| g.phase) {
             None => live.missing += 1,
-            Some(Phase::Pressed) => live.pending += 1,
+            Some(Phase::Pressed { .. }) => live.pending += 1,
             Some(Phase::Flying { rest, .. }) => {
                 live.matched += 1;
                 let d = rest.distance_xz(blast.at);

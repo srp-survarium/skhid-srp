@@ -146,7 +146,6 @@
     "grenade_recheck": true,
     "grenade_lead_s": 2.5,
     "grenade_trace": true,
-    "grenade_launch_ms": 1100,
     "grenade_look_after_ms": 300,
     "grenade_land_m": 10.0,
     "grenade_wall_m": 10.0,
