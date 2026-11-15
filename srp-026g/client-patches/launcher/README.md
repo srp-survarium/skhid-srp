@@ -642,12 +642,13 @@ language the game has. `docs/notes/language-option.md` has the rule.
   there): another language shows them in English.
 - **The store.** `settings.language` is the index in that list. The start
   (`settings::reload_language` 0x1D852) reads the `localization` line of
-  `<Documents>\survarium\user.cfg` (SHGetFolderPathA(CSIDL_PERSONAL), as the
-  game finds its folder, client_patch.md); without a registered one, the
+  `<Documents>\survarium\user.cfg` (SHGetFolderPathW(CSIDL_PERSONAL), the
+  game's folder, client_patch.md; UTF-16 paths and the W file functions, so a
+  Documents folder outside the ANSI code page works); without a registered one, the
   Windows user locale's language (patch 79's rule), else English; it writes
   nothing. `settings::save_language` (0x1D8DA) writes that line: replaced
   where it is, added at the end when missing, the file (and its folder) made
-  when missing; written to `user.cfg.new`, then renamed over (MoveFileExA), so
+  when missing; written to `user.cfg.new`, then renamed over (MoveFileExW), so
   the game never finds it half written. A user.cfg it cannot read whole
   (64 KiB or more, or locked) is left alone.
 - **The menu.** The button's click (`language_menu::expand_button_click`
@@ -671,7 +672,8 @@ language the game has. `docs/notes/language-option.md` has the rule.
   the locale, English; nothing written), the save (replaced, added, made,
   through a new file; a file it cannot read whole left alone), the menu
   (every language by its own name, the current one checked, the pick handed
-  on), and every language's label, LANGID and page. Not yet run in a real
+  on), and every language's label, LANGID and page; each with a Documents
+  folder of ASCII and one of Cyrillic and Chinese. Not yet run in a real
   launcher window.
 
 ### 15. "Allow torrent" on the main window, kept in user.cfg
@@ -708,8 +710,9 @@ for settings"), and it stays as they left it, kept as the language is.
   - 0x1B4D9, `set_status_texts`' copy of the panel's picture from its
     resource (`panel_restored`): the copy, then the text again (each status
     change copies the picture anew);
-  - 0x1BD03, YouTube's click (`torrent_click`): settings+0 and +1
-    toggled, user.cfg's line written at once, the callback settings::save
+  - 0x1BD03, YouTube's click (`torrent_click`): user.cfg's line written
+    at once with the other value; only once it is written, settings+0 and
+    +1 toggled, the callback settings::save
     fires for a changed box (`function0` at settings+0x28: 1A to the updater
     while the pipe is connected, 0x172FA), the pictures as
     `settings_window::show_torrent_checkbox` (0x1CE0E) shows them. The text
@@ -739,7 +742,8 @@ for settings"), and it stays as they left it, kept as the language is.
   line whatever `download_type` says; the text and the opaque pictures; the
   box ticked or not; three clicks, each writing the line (others kept),
   firing the callback once, no registry call, and a fresh start reading
-  the box as it was left; the reset (`on` becomes `off` once, the file
+  the box as it was left; a click whose line cannot be written changing
+  nothing (box, callback, file); the reset (`on` becomes `off` once, the file
   made; a locked user.cfg makes no file; a tick after it stays across
   restarts). `check_language_026g.py` still passes (the shared user.cfg
   code). Run in the real launcher under Wine (headless, with a stand-in

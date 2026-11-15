@@ -25,22 +25,23 @@ sys.path.insert(0, str(HERE.parent))
 from localization_026g import LANGUAGES, LAUNCHER_UI  # noqa: E402
 
 STACK, HEAP, STUBS, SETTINGS, MENU, STOP = 0x30008000, 0x40000000, 0x50000000, 0x31000000, 0x31001000, 0x32000000
-DOCUMENTS = 'C:\\Users\\p\\Documents'
-CFG = DOCUMENTS + '\\survarium\\user.cfg'
+# The Documents folders the checks run with: the second outside every ANSI
+# code page (the paths are UTF-16).
+DOCUMENTS_FOLDERS = ('C:\\Users\\p\\Documents', 'C:\\Users\\\u0422\u0430\u0440\u0430\u0441 \u4e2d\u6587\\Documents')
+DOCUMENTS = CFG = None
 SELF = 'C:\\Games\\Survarium\\game\\binaries\\x86\\launcher_skhid.exe'
 # "Allow torrent"'s one-time reset done (check_torrent_box_026g.py runs it).
 MARKER = SELF.rsplit('\\', 1)[0] + '\\launcher_skhid.torrent_reset'
 # (IAT slot, stub name)
 IAT = {0x3B098: 'CloseHandle', 0x3B0EC: 'ReadFile', 0x3B0F8: 'WriteFile', 0x3B118: 'GetProcessHeap',
-       0x3B238: 'HeapFree', 0x3B23C: 'HeapAlloc', 0x3B254: 'CreateFileA', 0x3B258: 'GetModuleHandleA',
-       0x3B1D8: 'GetProcAddress', 0x3B218: 'GetLastError', 0x3B110: 'DeleteFileA',
-       0x3B2BC: 'SHGetFolderPathA', 0x3B2C0: 'SHCreateDirectoryExA', 0x3B394: 'GetWindowRect',
+       0x3B238: 'HeapFree', 0x3B23C: 'HeapAlloc', 0x3B258: 'GetModuleHandleA',
+       0x3B1D8: 'GetProcAddress', 0x3B218: 'GetLastError', 0x3B394: 'GetWindowRect',
        0x3B0BC: 'GetModuleFileNameW', 0x3B1BC: 'GetFileAttributesW', 0x3B12C: 'CreateFileW'}
 # Stubs: name -> number of stdcall arguments.
 ARGS = {'CloseHandle': 1, 'ReadFile': 5, 'WriteFile': 5, 'GetProcessHeap': 0, 'HeapFree': 3, 'HeapAlloc': 3,
-        'CreateFileA': 7, 'GetModuleHandleA': 1, 'GetProcAddress': 2, 'GetLastError': 0, 'DeleteFileA': 1,
-        'SHGetFolderPathA': 5, 'SHCreateDirectoryExA': 3, 'GetWindowRect': 2, 'GetUserDefaultLCID': 0,
-        'MoveFileExA': 3, 'CreatePopupMenu': 0, 'AppendMenuW': 4, 'TrackPopupMenu': 7, 'DestroyMenu': 1,
+        'GetModuleHandleA': 1, 'GetProcAddress': 2, 'GetLastError': 0, 'DeleteFileW': 1,
+        'SHGetFolderPathW': 5, 'SHCreateDirectoryExW': 3, 'GetWindowRect': 2, 'GetUserDefaultLCID': 0,
+        'MoveFileExW': 3, 'CreatePopupMenu': 0, 'AppendMenuW': 4, 'TrackPopupMenu': 7, 'DestroyMenu': 1,
         'GetModuleFileNameW': 3, 'GetFileAttributesW': 1, 'CreateFileW': 7}
 NAMES = list(ARGS)
 LANGUAGE_SELECTED = 0x19A20
@@ -110,21 +111,26 @@ class Launcher:
         self.u.reg_write(UC_X86_REG_ESP, sp + 4 + 4 * count)
 
     # --- Windows, as far as the code uses it ---
-    def SHGetFolderPathA(self, hwnd, csidl, token, flags, path):
+    def SHGetFolderPathW(self, hwnd, csidl, token, flags, path):
         assert csidl == 5 and path
-        self.u.mem_write(path, DOCUMENTS.encode() + b'\0')
+        self.u.mem_write(path, DOCUMENTS.encode('utf-16-le') + b'\0\0')
         return 0
 
-    def SHCreateDirectoryExA(self, hwnd, path, attributes):
-        self.folders.add(self.ansi(path).lower())
+    def SHCreateDirectoryExW(self, hwnd, path, attributes):
+        self.folders.add(self.wide(path).lower())
         return 0
 
-    def CreateFileA(self, path, access, share, security, disposition, flags, template):
-        path = self.ansi(path)
-        if path.lower() in self.locked:
+    def CreateFileW(self, path, access, share, security, disposition, flags, template):
+        path = self.wide(path)
+        if path == MARKER:
+            assert access == 0x40000000 and disposition == 1  # CREATE_NEW
+            self.marker = True
+            self.markers_made += 1
+            data = b''
+        elif path.lower() in self.locked:
             self.last_error = 32
             return -1
-        if disposition == 3:                        # OPEN_EXISTING, to read
+        elif disposition == 3:                      # OPEN_EXISTING, to read
             assert access == 0x80000000
             if path not in self.files:
                 folder = path.rsplit('\\', 1)[0].lower()
@@ -169,24 +175,16 @@ class Launcher:
         self.last_error = 2
         return 0xFFFFFFFF
 
-    def CreateFileW(self, path, access, share, security, disposition, flags, template):
-        assert self.wide(path) == MARKER and access == 0x40000000 and disposition == 1  # CREATE_NEW
-        self.marker = True
-        self.markers_made += 1
-        handle = 0x100 + len(self.handles) * 4
-        self.handles[handle] = [MARKER, b'', 0]
-        return handle
-
     def GetLastError(self):
         return self.last_error
 
-    def DeleteFileA(self, path):
-        self.files.pop(self.ansi(path), None)
+    def DeleteFileW(self, path):
+        self.files.pop(self.wide(path), None)
         return 1
 
-    def MoveFileExA(self, existing, new, flags):
+    def MoveFileExW(self, existing, new, flags):
         assert flags == 1
-        self.files[self.ansi(new)] = self.files.pop(self.ansi(existing))
+        self.files[self.wide(new)] = self.files.pop(self.wide(existing))
         return 1
 
     def GetProcessHeap(self):
@@ -202,11 +200,12 @@ class Launcher:
         return 1
 
     def GetModuleHandleA(self, name):
-        return {'kernel32.dll': 0x7100, 'user32.dll': 0x7200}[self.ansi(name).lower()]
+        return {'kernel32.dll': 0x7100, 'user32.dll': 0x7200, 'shell32.dll': 0x7300}[self.ansi(name).lower()]
 
     def GetProcAddress(self, module, name):
         name = self.ansi(name)
-        assert (module, name) in {(0x7100, 'GetUserDefaultLCID'), (0x7100, 'MoveFileExA'),
+        assert (module, name) in {(0x7100, 'GetUserDefaultLCID'), (0x7100, 'MoveFileExW'), (0x7100, 'DeleteFileW'),
+                                  (0x7300, 'SHGetFolderPathW'), (0x7300, 'SHCreateDirectoryExW'),
                                   (0x7200, 'CreatePopupMenu'), (0x7200, 'AppendMenuW'),
                                   (0x7200, 'TrackPopupMenu'), (0x7200, 'DestroyMenu')}, name
         return STUBS + 4 * NAMES.index(name)
@@ -360,13 +359,20 @@ def check(data, delta):
 
 
 
+def use_documents(folder):
+    global DOCUMENTS, CFG
+    DOCUMENTS, CFG = folder, folder + '\\survarium\\user.cfg'
+
+
 def main():
     original = Path(sys.argv[1]).read_bytes()
     code = (HERE / 'launcher_values_026g.bin').read_bytes()
     patched, _ = L.build(original, code)
-    for delta in (0, 0x100000):
-        count = check(bytes(patched), delta)
-        print(f'base+{delta:#x}: {count} language cases pass')
+    for folder in DOCUMENTS_FOLDERS:
+        use_documents(folder)
+        for delta in (0, 0x100000):
+            count = check(bytes(patched), delta)
+            print(f'{folder}, base+{delta:#x}: {count} language cases pass')
     print('ALL LANGUAGE CASES PASSED')
 
 

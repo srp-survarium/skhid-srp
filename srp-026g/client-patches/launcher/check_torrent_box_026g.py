@@ -287,6 +287,18 @@ def check(data, delta):
         again.files = dict(one.files)
         assert again.start() == (state, state)
         count += 1
+    # A click whose line cannot be written: the box, the updater and the
+    # file stay as they were.
+    one.log.clear()
+    one.locked.add(C.CFG.lower())
+    one.u.mem_write(control + 0x14, b'\0\0')
+    one.go(0x126F4, C.STOP, args=(CONTROL_WINDOW, 0x201, 1, 0), ecx=control)
+    assert tuple(one.u.mem_read(C.SETTINGS, 2)) == (1, 1)
+    assert one.files == {C.CFG: BODY + b'enable_torrent_seeding on\r\n'}, one.files
+    assert not [e for e in one.log if e[0] == 'download type changed']
+    assert [one.word(control + 8), one.word(control + 0xC)] == [PNGS[3], PNGS[3]]
+    assert not one.live and not one.handles
+    count += 1
 
     # The one-time reset: the original game's `on` becomes `off` once.
     legacy = BODY + b'enable_torrent_seeding on\r\n'
@@ -333,8 +345,10 @@ def main():
     original = Path(sys.argv[1]).read_bytes()
     code = (HERE / 'launcher_values_026g.bin').read_bytes()
     patched, _ = L.build(original, code)
-    for delta in (0, 0x100000):
-        print(f'base+{delta:#x}: {check(bytes(patched), delta)} Allow torrent cases pass')
+    for folder in C.DOCUMENTS_FOLDERS:
+        C.use_documents(folder)
+        for delta in (0, 0x100000):
+            print(f'{folder}, base+{delta:#x}: {check(bytes(patched), delta)} Allow torrent cases pass')
     print('ALL ALLOW TORRENT CASES PASSED')
 
 

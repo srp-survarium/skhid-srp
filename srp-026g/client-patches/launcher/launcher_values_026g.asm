@@ -238,8 +238,9 @@ install_status:
 ;   pick_language     0x19A08  the button's click: a menu of every language (it opened
 ;                              the five-row drop-down)
 ;
-; The game finds its folder as SHGetFolderPathA(CSIDL_PERSONAL) + "\survarium"
-; (client_patch.md, the user folder); so does this, with the same function.
+; user.cfg is in SHGetFolderPath(CSIDL_PERSONAL) + "\survarium", the game's
+; folder (client_patch.md, the user folder); paths are UTF-16 here, so that a
+; Documents folder outside the ANSI code page works.
 
 IAT_CloseHandle         equ 0x3B098
 IAT_ReadFile            equ 0x3B0EC
@@ -247,13 +248,9 @@ IAT_WriteFile           equ 0x3B0F8
 IAT_GetProcessHeap      equ 0x3B118
 IAT_HeapFree            equ 0x3B238
 IAT_HeapAlloc           equ 0x3B23C
-IAT_CreateFileA         equ 0x3B254
 IAT_GetModuleHandleA    equ 0x3B258
 IAT_GetProcAddress      equ 0x3B1D8
 IAT_GetLastError        equ 0x3B218
-IAT_DeleteFileA         equ 0x3B110
-IAT_SHGetFolderPathA    equ 0x3B2BC
-IAT_SHCreateDirectoryExA equ 0x3B2C0
 IAT_GetWindowRect       equ 0x3B394
 IAT_GetFileAttributesW  equ 0x3B1BC
 IAT_CreateFileW         equ 0x3B12C
@@ -265,7 +262,7 @@ MENU_WINDOW             equ 0x4         ; language_menu: its window
 MENU_SETTINGS           equ 0x154       ; language_menu: the settings
 
 CFG_SIZE                equ 0x10000     ; a user.cfg up to this is read (the game's is ~3 KB)
-PATH_SIZE               equ 320         ; MAX_PATH and the two names after it
+PATH_SIZE               equ 640         ; bytes: MAX_PATH and the names after it, UTF-16
 CSIDL_PERSONAL          equ 5
 TPM_FLAGS               equ 0x180       ; TPM_RETURNCMD | TPM_NONOTIFY
 MF_CHECKED              equ 8
@@ -338,50 +335,65 @@ language_page:
         ret
 
 ; edi = a PATH_SIZE buffer, dl = 1 to make the folder -> the path of user.cfg
-; in it (ANSI), eax = 1; eax = 0 when there is no Documents folder.
+; in it, eax = 1; eax = 0 when there is no Documents folder. edi kept.
 config_path:
         push    esi
-        movzx   esi, dl
+        push    edi
+        movzx   eax, dl
+        push    eax                     ; [esp]: make the folder
+        lea     esi, [ebx + shell32_name]
+        lea     edi, [ebx + folder_path_name]
+        call    procedure               ; SHGetFolderPathW: not imported
+        mov     edi, [esp + 4]
+        test    eax, eax
+        jz      .fail
         push    edi
         push    0
         push    0
         push    CSIDL_PERSONAL
         push    0
-        call    [ebx + IAT_SHGetFolderPathA]
+        call    eax
         test    eax, eax
         jnz     .fail
         mov     ecx, edi
-.end:   cmp     byte [ecx], 0
+.end:   cmp     word [ecx], 0
         je      .folder
-        inc     ecx
+        add     ecx, 2
         jmp     .end
 .folder:
         lea     edx, [ebx + folder_name]
         call    append
-        test    esi, esi
-        jz      .file
+        cmp     dword [esp], 0
+        je      .file
         push    ecx
+        lea     esi, [ebx + shell32_name]
+        lea     edi, [ebx + make_folder_name]
+        call    procedure               ; SHCreateDirectoryExW
+        mov     edi, [esp + 8]
+        test    eax, eax
+        jz      .made
         push    0
         push    edi
         push    0
-        call    [ebx + IAT_SHCreateDirectoryExA]        ; or it is there already
-        pop     ecx
+        call    eax                     ; or it is there already
+.made:  pop     ecx
 .file:  lea     edx, [ebx + file_name]
         call    append
         mov     eax, 1
-        pop     esi
-        ret
+        jmp     .out
 .fail:  xor     eax, eax
+.out:   add     esp, 4
+        pop     edi
         pop     esi
         ret
 
-; The zero-ended text at edx to ecx, its zero included; ecx = that zero.
-append: mov     al, [edx]
-        mov     [ecx], al
-        test    al, al
+; The zero-ended UTF-16 text at edx to ecx, its zero included; ecx = that zero.
+append: mov     ax, [edx]
+        mov     [ecx], ax
+        test    ax, ax
         jz      .done
-        inc     edx
-        inc     ecx
+        add     edx, 2
+        add     ecx, 2
         jmp     append
 .done:  ret
 
@@ -407,7 +419,7 @@ load_config:
         push    3                       ; FILE_SHARE_READ | FILE_SHARE_WRITE
         push    0x80000000              ; GENERIC_READ
         push    edi
-        call    [ebx + IAT_CreateFileA]
+        call    [ebx + IAT_CreateFileW]
         cmp     eax, -1
         je      .no_file
         push    eax                     ; the handle
@@ -722,19 +734,21 @@ torrent_reset:
         popad
         ret
 
-; esi = the settings: user.cfg's `enable_torrent_seeding` line becomes
-; settings+0's: `on` or `off`, as the game writes it. Every register kept.
+; al = "Allow torrent" -> user.cfg's `enable_torrent_seeding` line `on` or
+; `off`, as the game writes it; eax = 1 when written, else 0. Every other
+; register kept.
 save_torrent:
         pushad
         DELTA
-        lea     eax, [ebx + off_text]
-        cmp     byte [esi], 0
-        je      .save
-        lea     eax, [ebx + on_text]
-.save:  push    eax
+        lea     ecx, [ebx + off_text]
+        test    al, al
+        jz      .save
+        lea     ecx, [ebx + on_text]
+.save:  push    ecx
         lea     eax, [ebx + torrent_key]
         push    eax
         call    save_setting
+        mov     [esp + 28], eax         ; popad's eax
         popad
         ret
 
@@ -854,7 +868,7 @@ save_setting:
         push    0
         push    0x40000000              ; GENERIC_WRITE
         push    edi
-        call    [ebx + IAT_CreateFileA]
+        call    [ebx + IAT_CreateFileW]
         cmp     eax, -1
         je      .free_out
         mov     esi, eax
@@ -887,14 +901,19 @@ save_setting:
         push    ecx
         lea     ecx, [esp + 8 + SAVE_NEW]
         push    ecx
-        call    eax                     ; MoveFileExA(new, path)
+        call    eax                     ; MoveFileExW(new, path)
         test    eax, eax
         jz      .drop
         mov     dword [esp + SAVE_DONE], 1
         jmp     .free_out
-.drop:  lea     ecx, [esp + SAVE_NEW]
+.drop:  lea     esi, [ebx + kernel32_name]
+        lea     edi, [ebx + delete_name]
+        call    procedure
+        test    eax, eax
+        jz      .free_out
+        lea     ecx, [esp + SAVE_NEW]
         push    ecx
-        call    [ebx + IAT_DeleteFileA]
+        call    eax                     ; DeleteFileW(new)
 .free_out:
         mov     esi, [esp + SAVE_OUT]
         call    free_buffer
@@ -1042,7 +1061,8 @@ pick_language:
 ; saved command `enable_torrent_seeding on` / `off` (`reload_torrent` at the
 ; start, `save_torrent`), so it stays as the player left it until they
 ; change it. A click (the control calls its callback at the button's press,
-; 0x1275B) toggles settings+0 (and +1), writes the line at once, fires the
+; 0x1275B) writes the other value's line at once; only once it is written
+; does it toggle settings+0 (and +1), fire the
 ; callback settings::save fires for a changed box (0x1D780: 1A to the
 ; updater while the pipe is connected, 0x172FA) and shows the pictures as
 ; settings_window::show_torrent_checkbox (0x1CE0E) does. The registry's
@@ -1227,9 +1247,13 @@ torrent_click:
         mov     esi, [ebx + FORM_SETTINGS]
         cmp     byte [esi], 0
         sete    al
+        push    eax
+        call    save_torrent
+        test    eax, eax
+        pop     eax
+        jz      .done                   ; not saved: the box stays as it is
         mov     [esi], al
         mov     [esi + 1], al           ; saved
-        call    save_torrent
         cmp     dword [esi + SETTINGS_TORRENT_CHANGED], 0
         je      .show
         lea     eax, [esi + SETTINGS_TORRENT_CHANGED]
@@ -1244,7 +1268,7 @@ torrent_click:
         lea     eax, [ebx + FORM_BOX]
         mov     [eax + CONTROL_HOVER], edx
         call    SET_PICTURE
-        pop     esi
+.done:  pop     esi
         pop     ebx
         ret
 
@@ -1255,13 +1279,17 @@ off_text:       db 'off', 0
         align   2, db 0
 reset_name:     dw __utf16__('launcher_skhid.torrent_reset'), 0
 RESET_NAME_CHARS equ ($ - reset_name) / 2
-folder_name:    db '\survarium', 0
-file_name:      db '\user.cfg', 0
-new_suffix:     db '.new', 0
+folder_name:    dw __utf16__('\survarium'), 0
+file_name:      dw __utf16__('\user.cfg'), 0
+new_suffix:     dw __utf16__('.new'), 0
+shell32_name:   db 'shell32.dll', 0
+folder_path_name: db 'SHGetFolderPathW', 0
+make_folder_name: db 'SHCreateDirectoryExW', 0
+delete_name:    db 'DeleteFileW', 0
 kernel32_name:  db 'kernel32.dll', 0
 user32_name:    db 'user32.dll', 0
 lcid_name:      db 'GetUserDefaultLCID', 0
-move_name:      db 'MoveFileExA', 0
+move_name:      db 'MoveFileExW', 0
 create_name:    db 'CreatePopupMenu', 0
 append_name:    db 'AppendMenuW', 0
 track_name:     db 'TrackPopupMenu', 0
