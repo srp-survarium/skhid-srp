@@ -82,6 +82,10 @@ pub(crate) struct OwnPositionRow {
 /// The flat error the rows give the share at or over, metres.
 pub(crate) const TAIL_M: f32 = 0.25;
 
+/// A drawn flat error counts as at [`TAIL_M`] or more from this much under it, metres: a draw held at the tail's value
+/// comes back a hair under it once turned to its direction and measured again (f32).
+pub(crate) const TAIL_COUNT_M: f32 = TAIL_M - 1e-4;
+
 /// The bots' own-position error while firing (the drift lab, `bots::tests::drift_replay::drift_on_a_real_match`: the
 /// server's reckoning of each bot's body from each world against the client's feet at the next world, the intervals with
 /// FIRE held), build 8d9d1f606 (2026-11-12) on fourteen local PvB matches: worlds every 250 ms (12,074 intervals), 500 ms
@@ -1682,7 +1686,7 @@ mod game_tests {
             flat.sort_by(f32::total_cmp);
             height.sort_by(f32::total_cmp);
             let q = |v: &[f32], p: f32| v[((v.len() - 1) as f32 * p).round() as usize];
-            let over = flat.iter().filter(|&&f| f >= TAIL_M).count() as f32 / flat.len() as f32;
+            let over = flat.iter().filter(|&&f| f >= TAIL_COUNT_M).count() as f32 / flat.len() as f32;
             ([q(&flat, 0.5), q(&flat, 0.75), q(&flat, 0.9), q(&flat, 0.95)], over, [q(&height, 0.5), q(&height, 0.9)])
         };
         for row in &OWN_POSITION_ROWS {
