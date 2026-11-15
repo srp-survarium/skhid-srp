@@ -1107,7 +1107,7 @@ fn drive_tick_inner(
                         )
                     });
                     if let Some(line) = line {
-                        bot.nav_log.push(super::nav_log::Kind::Replan, time, line);
+                        bot.nav_log.push(super::nav_log::Kind::Replanned, time, line);
                     }
                     bot.features.threat.replanned = None;
                 }
@@ -1118,7 +1118,7 @@ fn drive_tick_inner(
                         from.left_m,
                         from.exposed_m
                     );
-                    bot.nav_log.push(super::nav_log::Kind::Replan, time, line);
+                    bot.nav_log.push(super::nav_log::Kind::Replanned, time, line);
                     bot.features.threat.replanned = None;
                 }
                 _ => {}
