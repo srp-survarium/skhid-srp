@@ -89,8 +89,10 @@ better names too"). Exe patch 83
 - The crosshair's hit marker: the white bars around the crosshair on a hit on an enemy, and on a
   kill the red mark at each bar's end (`root.crosshair_enemy_hit`, `Crosshair.setDamage`).
 - **All hit markers:** the stock markers (the default).
-- **Kill marker only:** a hit that does not kill shows nothing; a kill shows the red mark alone
-  (each bar's white hit parts not shown; `../images/kill-marker-only.png`; the list
+- **Kill marker only:** a hit that does not kill shows nothing; a kill shows the stock kill
+  marker, white at the centre and the red ends (the owner, 2026-11-15, after a test with the red
+  ends alone: "the final kill marker should also show white at the center";
+  `../images/kill-marker-only.png`; the list
   `../images/hit-marker-list.png`).
 - **Hidden hit markers:** none.
 - A marker on screen when the choice changes is cleared.

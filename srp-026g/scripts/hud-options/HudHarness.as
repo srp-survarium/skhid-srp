@@ -142,7 +142,7 @@ package
                 && bars.damage3[last].currentFrame == 2 && bars.damage4[last].currentFrame == 2;
         }
 
-        // The kill's white hit parts (each bar's parts under its red last one): all `shown` or all not;
+        // The kill marker's white parts (each bar's parts under its red last one): all `shown` or all not;
         // false without such parts.
         private function hitParts(shown:Boolean):Boolean
         {
@@ -185,15 +185,11 @@ package
             crosshair.setDamage(0.8, 1000, false, false);
             require(!markerShown(), "Kill marker only: a hit shows nothing");
             crosshair.setDamage(1, 1000, true, false);
-            require(killShown() && hitParts(false), "Kill marker only: a kill shows its red mark alone");
+            require(killShown() && hitParts(true), "Kill marker only: a kill shows the whole kill marker (white at the centre, red tips)");
             crosshair.setDamage(0.3, 1000, false, false);
             require(killShown(), "Kill marker only: a hit after it leaves the kill's mark");
             crosshair.hitMarkers = 7;
             require(crosshair.hitMarkers == ALL && !markerShown(), "another number: All, the mark shown cleared");
-            crosshair.hitMarkers = ALL;
-            crosshair.setDamage(1, 1000, true, false);
-            require(killShown() && hitParts(true), "All after Kill marker only: a kill's white parts shown again");
-            crosshair.hitMarkers = HIDDEN;
             crosshair.hitMarkers = ALL;
             // Hidden crosshair affects only aiming lines. Weapon updates cannot restore
             // them, and the separate hit-marker choice works in either crosshair mode.
