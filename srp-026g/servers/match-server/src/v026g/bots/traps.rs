@@ -766,9 +766,7 @@ pub fn approach_points(tactics: &super::tactics::Tactics, home: Vec3, spot: Vec3
     points
 }
 
-/// [A324] The eye of a camper on his spot, for the "out of his sight" test (a standing eye: `view::eye_height`).
-const CAMPER_EYE_M: f32 = 1.6;
-/// [A324] ... and the part of a placer it would see: a crouched body's chest.
+/// [A324] The part of a placer a camper on his spot would see: a crouched body's chest.
 const PLACER_CHEST_M: f32 = 0.9;
 
 /// [A324] The team's camper trap jobs at a commander tick (`TrapTuning::camper_job`): `held` the team's held spots, `job_spots`
@@ -828,7 +826,8 @@ pub(super) fn camper_tick(
             continue;
         }
         let home = homes.iter().copied().min_by(|a, b| a.distance_xz(line.at).total_cmp(&b.distance_xz(line.at)));
-        let eye = line.at + Vec3::new(0.0, CAMPER_EYE_M, 0.0);
+        // [A324] The camper's eye on his spot, for the "out of his sight" test: a lane's camper's (`lane_ahead::camper_eye`).
+        let eye = super::lane_ahead::camper_eye(line.at);
         let point = home.map(|home| approach_points(tactics, home, line.at, &j, now)).unwrap_or_default().into_iter().find(|p| {
             !tactics.in_spawn_area(*p, side) && !super::rays::visible(&tactics.world.sight, eye, *p + Vec3::new(0.0, PLACER_CHEST_M, 0.0))
         });
@@ -1444,14 +1443,50 @@ impl TeamState {
         if version == self.features.traps.field_version {
             return false;
         }
-        let narrow = Arc::new(TrapField::of_ringed(&self.knowledge.traps, grid, ring_m));
-        self.features.traps.field = match keep_off {
-            Some(k) => Arc::new(TrapField::of_ringed_within(&self.knowledge.traps, grid, ring_m, k.hard_m)),
-            None => narrow.clone(),
-        };
+        let (field, narrow) = fields_of(&self.knowledge.traps, grid, ring_m, keep_off);
+        self.features.traps.field = field;
         self.features.traps.narrow = narrow;
         self.features.traps.field_version = version;
         true
+    }
+}
+
+/// The field of the standing traps of `list` and the narrow one ([`TeamState::refresh_traps`]).
+fn fields_of(list: &super::trap_know::TrapList, grid: &WalkGrid, ring_m: f32, keep_off: Option<super::tuning::KeepOff>) -> (Arc<TrapField>, Arc<TrapField>) {
+    let narrow = Arc::new(TrapField::of_ringed(list, grid, ring_m));
+    let field = match keep_off {
+        Some(k) => Arc::new(TrapField::of_ringed_within(list, grid, ring_m, k.hard_m)),
+        None => narrow.clone(),
+    };
+    (field, narrow)
+}
+
+/// [G61] The fields of a bot's team's traps with the ones only it knows ([`BotState::mine`]), and the versions of the two lists
+/// (the team's, its own) they were built for.
+pub struct MineFields {
+    versions: (u64, u64),
+    field: Arc<TrapField>,
+    narrow: Arc<TrapField>,
+}
+
+/// [G61] The trap fields `bot` keeps off: its team's ([`TeamState::refresh_traps`]), and with them the traps only it knows
+/// ([`BotState::mine`]) while one of those stands, built once for each version of the two lists.
+pub(super) fn take_fields(bot: &mut Bot, state: &TeamState, grid: &WalkGrid, ring_m: f32, keep_off: Option<super::tuning::KeepOff>) {
+    let traps = &mut bot.features.traps;
+    if traps.mine.standing_count() == 0 {
+        traps.mine_fields = None;
+        traps.field = state.features.traps.field.clone();
+        traps.narrow = state.features.traps.narrow.clone();
+        return;
+    }
+    let versions = (state.knowledge.traps.version(), traps.mine.version());
+    if traps.mine_fields.as_ref().is_none_or(|built| built.versions != versions) {
+        let (field, narrow) = fields_of(&state.knowledge.traps.with(&traps.mine), grid, ring_m, keep_off);
+        traps.mine_fields = Some(MineFields { versions, field, narrow });
+    }
+    if let Some(built) = &traps.mine_fields {
+        traps.field = built.field.clone();
+        traps.narrow = built.narrow.clone();
     }
 }
 
@@ -1616,8 +1651,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     if let Some((at, released)) = bot.features.traps.placed.take() {
         state.knowledge.traps.promise(bot.place, at, released);
         state.refresh_traps(&due.tactics.world.grid, t.ring_m, t.keep_off);
-        bot.features.traps.field = state.features.traps.field.clone();
-        bot.features.traps.narrow = state.features.traps.narrow.clone();
+        take_fields(bot, state, &due.tactics.world.grid, t.ring_m, t.keep_off);
     }
     fresh_shut(bot, due, t.ring_m);
     keep_off_open(bot, due, t);
@@ -2735,6 +2769,12 @@ pub struct BotState {
     /// [keep_off] The team's traps shut only within `FIELD_M`: the searches' fallback ([`filter_narrow`]); the same as `field`
     /// without `TrapTuning::keep_off`.
     pub narrow: std::sync::Arc<super::trap_know::TrapField>,
+    /// [G61] The traps it put down that only it knows, its team not told: the bench's stand-in human's
+    /// (`Bots::bench_placer_knows_trap`), whose team learns them as a live team learns a human mate's. A bot's own release goes to
+    /// its team's list instead, so a bot's is empty. Followed by the worlds as the team's list is; kept across its lives.
+    pub mine: super::trap_know::TrapList,
+    /// [G61] The fields of its team's traps with [`Self::mine`] ([`take_fields`]); none while none of `mine` stands.
+    pub mine_fields: Option<MineFields>,
     /// [keep_off] The floors of the wider field it may still take: within the disc of a trap it stands inside, farther from the
     /// trap than its feet were at its last think (sorted): so it walks out, never round.
     pub keep_off_open: std::sync::Arc<Vec<NodeId>>,

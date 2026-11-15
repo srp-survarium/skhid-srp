@@ -729,6 +729,13 @@ pub struct CombatTuning {
     /// gives, so the ledger's own time is only its estimate. Off: the ledger's time alone. That old value is wrong by the
     /// client, so it is on by default and the all-off patch keeps it (`KEPT_RIGHT`).
     pub reload_end_from_world: bool,
+    /// [3B (a)] With [`Self::reload_end_from_world`]: when the reload node's next event is a channel knot before the clip's
+    /// end (most reload worlds: 71,193 of 91,347 reload-node rows in the 60 recordings), the end is foretold from the
+    /// node's time-scale operand and the hands clip's length in the game data ([`super::guns::ReloadClip::Foretold`]),
+    /// as the client reaches it (0x3B6C36..0x3B6C58, within a ms: [`super::clip_tree::TimeScale::reaches`]). Off: those worlds leave the ledger's end. That old value is wrong by the
+    /// client (the ledger's start is its own key, not the state's), so it is on by default and the all-off patch keeps it
+    /// (`KEPT_RIGHT`).
+    pub reload_end_from_knot: bool,
     /// [Gap 8] An enemy who cannot be hurt now (spawn protection: [`super::protection`]) is no target while another
     /// seen enemy in range can be hurt, and no shot goes at him (a hit does nothing: `hit_impl` 0x2D9BBE). Which enemies
     /// are protected follows the rule a player can apply (his life's start and his team's points' time), or the world's
@@ -1639,6 +1646,7 @@ impl Default for CombatTuning {
             hands_from_world: true,
             hit_kind: true,
             reload_end_from_world: true,
+            reload_end_from_knot: true,
             spawn_protection: true,
             stacks_from_world: true,
             reload_aim_control: true,
@@ -7357,21 +7365,25 @@ impl Reflex {
     }
 
     /// [Gap 3] A world made at `at` that shows the weapon reloading shows its reload clip `clip` ([`ReloadClip`]): a
-    /// magazine reload the ledger counts under way since the world or before ends at the clip's end (the gate, the note,
+    /// magazine reload (303, or [3B (a)] the empty-clip reload 314: both proven, `settle-tree` 3.3 and the knot count of
+    /// [`ReloadClip`]) the ledger counts under way since the world or before ends at the clip's end (the gate, the note,
     /// the kept ticks). Returns the ledger's end before and after when it moved, for the log.
     pub fn reload_clip(&mut self, at: u32, clip: ReloadClip) -> Option<(u32, u32)> {
         let end = match clip {
-            ReloadClip::Ends(end) => end,
+            ReloadClip::Ends(end) | ReloadClip::Foretold(end) => end,
             ReloadClip::Cancelled => {
                 self.gun_reads.clip_cancelled += 1;
                 return None;
             }
         };
-        if self.hands().pistol_out || !matches!(self.hands().held().gun.reload, Reload::Magazine { .. }) {
+        if self.hands().pistol_out || !matches!(self.hands().held().gun.reload, Reload::Magazine { .. } | Reload::Pistol { .. }) {
             return None;
         }
         let note = self.reload_note.as_mut().filter(|note| note.at <= at && end > at)?;
         self.gun_reads.clip_read += 1;
+        if matches!(clip, ReloadClip::Foretold(_)) {
+            self.gun_reads.clip_foretold += 1;
+        }
         let (began, was) = (note.at, note.until);
         if was == end {
             return None;
@@ -8423,10 +8435,10 @@ impl Reflex {
     ) -> Option<Override> {
         let c = &aim.combat;
         let rule = self.cover_rule.filter(|_| fire_allowed && c.fire_through_ms > 0 && !self.dry())?;
-        let (who, feet, _) = self.sight.last_place(now, c.fire_through_ms)?;
+        let (who, body, _) = self.sight.last_place(now, c.fire_through_ms)?;
         // Low, at his belly standing (a crouched head): the place a body that ducked behind a crate is, which the part he showed
         // last, over the crate, is not.
-        let at = super::aimpoint::Part::Belly.point_of(feet, false, me.eye());
+        let at = super::aimpoint::Part::Belly.point_at(super::aimpoint::BodyAt { crouched: false, ..body }, me.eye());
         // Fire already going at him.
         self.last_fire.filter(|&(shot_who, shot_at)| shot_who == who && now <= shot_at + c.fire_through_ms)?;
         // He is hidden: one that is seen is the seen branch's.

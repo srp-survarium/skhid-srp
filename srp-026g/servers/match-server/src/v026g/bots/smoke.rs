@@ -1776,6 +1776,8 @@ pub mod tally {
         pub eye: super::Vec3,
         pub feet: super::Vec3,
         pub crouched: bool,
+        /// His yaw as the view had it (the parts turn with it, `aimpoint::BodyAt`).
+        pub yaw: f32,
     }
 
     thread_local! {
@@ -1798,7 +1800,7 @@ pub mod tally {
         looked_seen(
             me.place,
             enemy.place,
-            SeenLook { time: clock, eye: me.eye(), feet: enemy.feet, crouched: enemy.crouched() },
+            SeenLook { time: clock, eye: me.eye(), feet: enemy.feet, crouched: enemy.crouched(), yaw: enemy.yaw },
         );
     }
 }

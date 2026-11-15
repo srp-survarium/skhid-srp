@@ -287,6 +287,27 @@ pub(crate) fn a_trap_of_the_stand_in_human_is_in_his_teams_list() {
     assert_eq!((known[0].by, known[0].placed_ms, known[0].phase), (0, 5_000, crate::v026g::bots::trap_know::Phase::Armed));
 }
 
+/// [G61] A trap the stand-in human put down with his team not told is his alone: in his own field (he keeps off it), not in his
+/// team's list nor in a mate's field. The next world that shows it confirms it, and one without it drops it.
+#[test]
+fn a_trap_only_its_placer_knows_is_in_his_field_alone() {
+    let (_, mut bots) = run(None, Tuning::all_off(), 4);
+    let at = Vec3::new(25.0, 0.0, 10.0);
+    let team = usize::from(bots.bots[0].as_ref().expect("a bot at 0").team);
+    bots.bench_placer_knows_trap(0, at, 5_000);
+    let placer = bots.bots[0].as_ref().expect("a bot at 0");
+    assert_eq!(placer.features.traps.mine.standing_count(), 1);
+    assert_eq!(placer.features.traps.field.discs(), &[at][..], "he keeps off it");
+    assert!(bots.teams[team].knowledge.traps.all().is_empty(), "his team is not told");
+    // The team's field is what every other bot of the team is given (`traps::take_fields` with nothing of its own).
+    assert!(bots.teams[team].features.traps.field.is_empty(), "nor does a mate keep off it");
+    bots.traps_from_world(&objects_with(at + Vec3::new(0.2, 0.0, 0.0), 1, 5_000), 5_500);
+    let mine = bots.bots[0].as_ref().expect("a bot at 0").features.traps.mine.all();
+    assert_eq!((mine.len(), mine[0].phase), (1, crate::v026g::bots::trap_know::Phase::Armed));
+    bots.traps_from_world(&[0u8; 20], 60_000);
+    assert!(bots.bots[0].as_ref().expect("a bot at 0").features.traps.mine.all().is_empty(), "gone from the worlds, gone");
+}
+
 /// A trap of the team that goes off with a broken-legged body of the same
 /// team near it is an own-team catch; with the legs whole, or the body far,
 /// it is not.

@@ -17,6 +17,7 @@ vtable	slot	va	class	base	basis
 0x00a199cc	0x20	0x00333220	survarium::client_effect_wrapper_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made at 0x333134; client effect wrapper by elimination (the one cook left)
 0x00a19a24	0x1c	0x001f65d0	survarium::hit_player_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made by hit_player_game_effect_emitter_cook::translate_query (0x2EE3A2)
 0x00a19a24	0x20	0x00333360	survarium::hit_player_game_effect_emitter	survarium::pure_game_effect_emitter	observed: made by hit_player_game_effect_emitter_cook::translate_query (0x2EE3A2)
+0x00a1a03c	0x20	0x00335ea0	survarium::player_logic_stand_on_site_state	survarium::player_logic_stand_on_site_state	observed: RTTI 0xA53D44 at 0xA1A038; selected_animations, the one reference to 0x335EA0
 0x009ffe74	0x0	0x0021d2e0	survarium::lobby_menu	survarium::base_game_scene	observed: the active scene's on_activate (game::switch_to_lobby 0x1ED249: [scene]+0)
 0x009ffe74	0x4	0x0021d4a0	survarium::lobby_menu	survarium::base_game_scene	observed: the active scene's on_deactivate (game::switch_to_lobby 0x1ED23B, game::clear_resources 0x1ED0B0: [scene]+4)
 0x009ffe74	0x28	0x0021d080	survarium::lobby_menu	survarium::lobby_menu	observed: lobby_menu::clear_resources

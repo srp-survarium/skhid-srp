@@ -910,7 +910,7 @@ impl Game {
                     .find(|block| usize::from(block.place) == place)
                     .and_then(|block| block.animation)
                     .and_then(crate::v026g::bots::clip_tree::AnimEvents::read)
-                    .and_then(|events| crate::v026g::bots::guns::ReloadClip::of(&events, snapshot.time));
+                    .and_then(|events| crate::v026g::bots::guns::ReloadClip::of(&events, snapshot.time, None));
                 walkers.bots.world_reload(place, snapshot.time, clip);
             }
             let notes = walkers.bots.fixed(place, fix, health);
@@ -964,7 +964,10 @@ impl Game {
                         .find(|block| usize::from(block.place) == place)
                         .and_then(|block| block.animation)
                         .and_then(crate::v026g::bots::clip_tree::AnimEvents::read)
-                        .and_then(|events| crate::v026g::bots::guns::ReloadClip::of(&events, snapshot.time))
+                        .and_then(|events| {
+                            let clip_s = crate::v026g::bots::guns::world_reload_clip_s(&world.supplies, &world.guns);
+                            crate::v026g::bots::guns::ReloadClip::of(&events, snapshot.time, clip_s)
+                        })
                 {
                     let moved = walkers.bots.reload_clip(place, snapshot.time, clip);
                     log::debug!(

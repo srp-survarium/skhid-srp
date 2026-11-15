@@ -54,7 +54,7 @@ pub mod stands;
 
 pub use grid::{
     Body, BuildStats, DistanceMap, Erosion, ExitJump, ExitReach, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead, Share,
-    PocketExit, PocketId, Reach, Search, FallBody, FallClosed, FallRoom, FallStart, JumpEnd, JumpEnds, SprintReach, take_falls_closed, SlicedSearch, WalkGrid,
+    PocketExit, PocketId, Reach, Search, FallBody, FallClosed, FallRoom, FallStart, SecondLanding, JumpEnd, JumpEnds, SprintReach, take_falls_closed, SlicedSearch, WalkGrid,
 };
 pub use library::{Face, Library, Materials, Surface, WalkerBehaviour};
 pub use pierce::{Armor, Crossing, DamageShare, FaceArmor, Load, Pierce};
@@ -202,8 +202,9 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// arrives on re-aimed by the client's other ways down (a walk line's own landing, the crouched walk-off, a jump off the edge)
 /// before any cut (A389). 0004: [A1b] the walk-off at release (`gap::Takeoff::Release`), the walk key let go on the step before
 /// the body leaves the top, re-aims a link before the walk line's landing elsewhere and the crouched walk-off. 0005: [S6] each
-/// held floor's drop stores the speed its walk-off lands at (`WalkGrid::drop_landing_speed`), for the search's fall gate.
-pub const DROP_LANDS_ALGO: u32 = 0x5067_0005;
+/// held floor's drop stores the speed its walk-off lands at (`WalkGrid::drop_landings`), for the search's fall gate. 0006:
+/// [S6] and a second landing of the same walk that hurts too (`held_floors::Landings`), whose pain the gate adds.
+pub const DROP_LANDS_ALGO: u32 = 0x5067_0006;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
 /// body that asks for it. A value of its own.
 pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0006;

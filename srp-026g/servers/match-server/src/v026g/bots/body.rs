@@ -367,6 +367,10 @@ pub(crate) mod creep_steps {
     static UNKNOWN: AtomicU64 = AtomicU64::new(0);
     static WORLDS: AtomicU64 = AtomicU64::new(0);
     static STAGGER: AtomicU64 = AtomicU64::new(0);
+    static AGREED: AtomicU64 = AtomicU64::new(0);
+    static MISSED_RUN: AtomicU64 = AtomicU64::new(0);
+    static MISSED_ON_SITE: AtomicU64 = AtomicU64::new(0);
+    static NOT_RECKONED: AtomicU64 = AtomicU64::new(0);
 
     /// A stagger event the reckoning saw (its value moved, [`super::BodyTrack`]'s `stagger_edge`), any body's.
     pub(crate) fn stagger() {
@@ -388,9 +392,61 @@ pub(crate) mod creep_steps {
         WORLDS.fetch_add(1, Relaxed);
     }
 
-    /// (on site, run, unknown, worlds, stagger events) since the last call, and zero again.
-    pub(crate) fn take() -> (u64, u64, u64, u64, u64) {
-        (ON_SITE.swap(0, Relaxed), RUN.swap(0, Relaxed), UNKNOWN.swap(0, Relaxed), WORLDS.swap(0, Relaxed), STAGGER.swap(0, Relaxed))
+    /// A world's state (`said`, on site or run) against the reckoned state at its tick (`reckoned`, none when the trail has no
+    /// tick there): the same; a run the reckoning had on site, an on-site state it had running (each an event it did not see);
+    /// or not reckoned (no tick, or the state not known).
+    pub(crate) fn said(reckoned: Option<super::Creep>, said: super::Creep) {
+        match Against::of(reckoned, said) {
+            Against::Agreed => &AGREED,
+            Against::MissedRun => &MISSED_RUN,
+            Against::MissedOnSite => &MISSED_ON_SITE,
+            Against::NotReckoned => &NOT_RECKONED,
+        }
+        .fetch_add(1, Relaxed);
+    }
+
+    /// A world's state against the reckoned one at its tick ([`said`]).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(crate) enum Against {
+        Agreed,
+        /// The world has the run, the reckoning had the body on site.
+        MissedRun,
+        /// The world has it on site, the reckoning had the run.
+        MissedOnSite,
+        /// No reckoned tick there, or its state not known (or the legs not broken in the reckoning yet).
+        NotReckoned,
+    }
+
+    impl Against {
+        pub(crate) fn of(reckoned: Option<super::Creep>, said: super::Creep) -> Self {
+            use super::Creep::{OnSite, Run};
+            match (reckoned, said) {
+                (Some(OnSite), OnSite) | (Some(Run), Run) => Self::Agreed,
+                (Some(OnSite), Run) => Self::MissedRun,
+                (Some(Run), OnSite) => Self::MissedOnSite,
+                _ => Self::NotReckoned,
+            }
+        }
+    }
+
+    /// The worlds' states against the reckoned ones ([`said`]) since the last call, and zero again.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub(crate) struct Said {
+        pub(crate) agreed: u64,
+        pub(crate) missed_run: u64,
+        pub(crate) missed_on_site: u64,
+        pub(crate) not_reckoned: u64,
+    }
+
+    /// (on site, run, unknown, worlds, stagger events, the worlds against the reckoning) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64, u64, u64, u64, Said) {
+        let said = Said {
+            agreed: AGREED.swap(0, Relaxed),
+            missed_run: MISSED_RUN.swap(0, Relaxed),
+            missed_on_site: MISSED_ON_SITE.swap(0, Relaxed),
+            not_reckoned: NOT_RECKONED.swap(0, Relaxed),
+        };
+        (ON_SITE.swap(0, Relaxed), RUN.swap(0, Relaxed), UNKNOWN.swap(0, Relaxed), WORLDS.swap(0, Relaxed), STAGGER.swap(0, Relaxed), said)
     }
 }
 
@@ -786,6 +842,8 @@ struct Reckoned {
     held: bool,
     /// [A318] The step's [`Estimate::grid_extra`].
     grid_extra: GridExtra,
+    /// [F42] The crouch selector state after the tick's input ([`Estimate::creep`]): what a world of this tick would show.
+    creep: Creep,
 }
 
 /// The decided ticks from the world before to the last one of a life (A302: what the drift line reports of them).
@@ -1194,7 +1252,7 @@ impl BodyTrack {
         if let Some(estimate) = self.estimate.as_mut() {
             let held;
             (*estimate, held) = advance_held(*estimate, tick, kin, level, grid, self.walls.as_ref().map(|w| &*w.0), event);
-            self.trail.push_back(Reckoned { time, feet: estimate.feet, held, grid_extra: estimate.grid_extra });
+            self.trail.push_back(Reckoned { time, feet: estimate.feet, held, grid_extra: estimate.grid_extra, creep: estimate.creep });
             while self
                 .trail
                 .front()
@@ -1448,6 +1506,9 @@ impl BodyTrack {
         };
         if creep_at_fix != Creep::Unknown && self.leg_damage.at(fix.time) == LegGate::Stand {
             creep_steps::world();
+            // [F42] The state the reckoning had at the world's tick, against the world's: a differing one is a flip by an event
+            // the reckoning does not see (a leg's movement value, the weight, the gun's aim or ammo, ...: [`Creep`]).
+            creep_steps::said(self.trail.iter().find(|r| r.time == fix.time).map(|r| r.creep), creep_at_fix);
         }
         let mut estimate = Estimate {
             time: fix.time,
@@ -1541,7 +1602,7 @@ impl BodyTrack {
                 self.walls.as_ref().map(|w| &*w.0),
                 event,
             );
-            self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held, grid_extra: estimate.grid_extra });
+            self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held, grid_extra: estimate.grid_extra, creep: estimate.creep });
         }
         // A world newer than every decided tick: the body is as it shows.
         self.estimate = Some(estimate);
@@ -2719,6 +2780,14 @@ pub(super) mod tests {
         assert_eq!(Creep::Free.target([2.0, 0.0]), [2.0, 0.0]);
         assert_eq!(Creep::OnSite.target([2.0, 0.0]), [0.0, 0.0]);
         assert_eq!(Creep::Run.target([2.0, 0.0]), [2.0, 0.0]);
+        use creep_steps::Against;
+        assert_eq!(Against::of(Some(Creep::OnSite), Creep::OnSite), Against::Agreed);
+        assert_eq!(Against::of(Some(Creep::Run), Creep::Run), Against::Agreed);
+        assert_eq!(Against::of(Some(Creep::OnSite), Creep::Run), Against::MissedRun);
+        assert_eq!(Against::of(Some(Creep::Run), Creep::OnSite), Against::MissedOnSite);
+        assert_eq!(Against::of(Some(Creep::Unknown), Creep::Run), Against::NotReckoned);
+        assert_eq!(Against::of(Some(Creep::Free), Creep::OnSite), Against::NotReckoned, "the legs broke after the reckoned tick");
+        assert_eq!(Against::of(None, Creep::OnSite), Against::NotReckoned);
     }
 
     /// A flat floor from (x0, z0) to (x1, z1) at height y (as the mapdata

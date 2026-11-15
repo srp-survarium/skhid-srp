@@ -258,6 +258,20 @@ fn busy(held: &Held, now: u32, stops: DrugStops, f: DrugFactors) -> bool {
         .is_some_and(|press| now < item(held.drug).ends(press, stops, f))
 }
 
+/// [S6] Whether a drug pressed may still give the pain pool back at `now` (an item whose pools include pain, pressed and its
+/// window or the world's course not over; a hit is not taken to have stopped it): the fall gate then judges a walk-off by
+/// its hardest landing alone (`mapdata::SecondLanding::HardestOnly`).
+pub fn pain_course_may_run(pantry: &Pantry, now: u32) -> bool {
+    let f = pantry.factors();
+    pantry.held().iter().any(|held| {
+        let it = item(held.drug);
+        held.pressed.is_some_and(|press| {
+            it.treats.iter().chain(it.also).any(|&(pool, amount)| pool == Pool::Pain && amount > 0.0)
+                && now < it.ends(press, DrugStops::Unknown, f)
+        })
+    })
+}
+
 /// Its pools as they will be once every drug pressed has acted: the last
 /// world's, and for each press the part of its effect after that world.
 pub fn projected(cx: &Ctx) -> Pools {

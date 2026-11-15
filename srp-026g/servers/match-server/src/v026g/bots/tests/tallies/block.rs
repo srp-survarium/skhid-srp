@@ -185,7 +185,7 @@ impl BlockTally {
                 })
                 .filter(|&(e, _)| {
                     let b = &game.bodies[e];
-                    super::aimpoint::shows(eye, b.feet, b.keys & key::CROUCH != 0, &game.world.sight, || true)
+                    super::aimpoint::shows(eye, super::aimpoint::BodyAt { feet: b.feet, crouched: b.keys & key::CROUCH != 0, yaw: b.yaw }, &game.world.sight, || true)
                 })
                 .min_by(|a, b| a.1.total_cmp(&b.1))
                 .map(|(e, _)| e)

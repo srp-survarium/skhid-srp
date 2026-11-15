@@ -1768,7 +1768,8 @@ impl Bots {
         let Some(Some(bot)) = self.bots.get_mut(place) else {
             return None;
         };
-        if !self.tunings.of(bot.team).aim.combat.reload_end_from_world {
+        let combat = &self.tunings.of(bot.team).aim.combat;
+        if !combat.reload_end_from_world || (matches!(clip, guns::ReloadClip::Foretold(_)) && !combat.reload_end_from_knot) {
             return None;
         }
         bot.reflex.reload_clip(at, clip)
@@ -1814,7 +1815,7 @@ impl Bots {
     /// tree has it (`None`: its end not read). The body's reckoned sights and sprint are refused until the clip's end.
     pub fn world_reload(&mut self, place: Place, at: u32, clip: Option<guns::ReloadClip>) {
         match clip {
-            Some(guns::ReloadClip::Ends(until)) => sprint_gates::world_reloads::read(self.tracker.world_reload(place, at, until)),
+            Some(guns::ReloadClip::Ends(until) | guns::ReloadClip::Foretold(until)) => sprint_gates::world_reloads::read(self.tracker.world_reload(place, at, until)),
             Some(guns::ReloadClip::Cancelled) | None => sprint_gates::world_reloads::not_read(),
         }
     }
@@ -2499,9 +2500,15 @@ impl Bots {
             "{}steady creep ticks since the last match end (every match on this server): {steady}, of them {unparks} letting the move go to leave on site",
             nav_log::PREFIX
         ));
-        let (on_site, run, unknown, worlds, stagger) = body::creep_steps::take();
+        let (on_site, run, unknown, worlds, stagger, said) = body::creep_steps::take();
         lines.push(format!(
             "{}both-legs-broken steps reckoned since the last match end (every match on this server): {on_site} on site, {run} crouch run, {unknown} state not known; {worlds} worlds said the state; {stagger} stagger events seen (any body)",
+            nav_log::PREFIX
+        ));
+        // [F42] How often an event the reckoning does not see flipped the state between two worlds.
+        let body::creep_steps::Said { agreed, missed_run, missed_on_site, not_reckoned } = said;
+        lines.push(format!(
+            "{}both-legs-broken worlds against the reckoned state at their tick since the last match end (every match on this server): {agreed} the same, {missed_run} run where it reckoned on site, {missed_on_site} on site where it reckoned the run (unseen events), {not_reckoned} with no reckoned state there",
             nav_log::PREFIX
         ));
         // [A388 (e) gap 5] Every body's reloads from the worlds: the reckoned sights and sprint refused to the clip's end.
@@ -2642,6 +2649,21 @@ impl Bots {
         }
     }
 
+    /// [G61] The bench's stand-in human at `place` put a trap down that his team is not told of (`SRP_BENCH_HUMAN_TRAPS_KNOWN=off`, the
+    /// live way): he knows it, as a live player knows the trap he laid, so he keeps off it and does not take it for another's
+    /// (`traps::BotState::mine`); his field is built again at once, as a bot's own release makes it at its next think.
+    #[cfg(test)]
+    pub(crate) fn bench_placer_knows_trap(&mut self, place: Place, at: Vec3, released: u32) {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        bot.features.traps.mine.promise(place, at, released);
+        let tuning = self.tunings.of(bot.team).clone();
+        if let Some(tactics) = self.tactics.as_ref() {
+            traps::take_fields(bot, &self.teams[usize::from(bot.team)], &tactics.world.grid, tuning.traps.ring_m, tuning.traps.keep_off);
+        }
+    }
+
     /// A trusted world's objects section: the bear traps the teams' bots
     /// promised confirmed, followed and dropped (`trap_know.rs`). Returns
     /// the traps the world shows (0 while no bot has put one down).
@@ -2649,10 +2671,12 @@ impl Bots {
         let react = self.tunings.match_wide().traps.react.on;
         let hear = self.tunings.match_wide().traps.react.hear;
         let own = self.teams.iter().any(|team| !team.knowledge.traps.all().is_empty());
+        // [G61] A bot that put down traps only it knows (the bench's stand-in human).
+        let mine = self.bots.iter().flatten().any(|bot| !bot.features.traps.mine.all().is_empty());
         let found = survarium::v026g::match_msgs::traps::find(objects, time);
         // [A302] For the match log, whatever the tuning, before the teams drop what went off.
         self.log_went_off(&found, time);
-        if !own && !react && !hear {
+        if !own && !mine && !react && !hear {
             return 0;
         }
         if hear {
@@ -2679,6 +2703,13 @@ impl Bots {
                 }
             }
             state.features.traps.world_traps = armed.clone();
+        }
+        // [G61] The traps only their placer knows, followed as the team's are; what became of them is the bench's to count (no own-trap
+        // count: they are not the bots').
+        if mine {
+            for bot in self.bots.iter_mut().flatten().filter(|bot| !bot.features.traps.mine.all().is_empty()) {
+                bot.features.traps.mine.sync(time, &found, matches[usize::from(bot.team) & 1]);
+            }
         }
         if !went_off.is_empty() {
             self.count_own_traps(time, &went_off);

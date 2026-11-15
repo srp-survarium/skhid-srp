@@ -799,12 +799,43 @@ pub enum FallRoom {
 
 /// [S6] What a body's fall takes: its pain pool now (the latest world's: lethal at 0, `on_affect` 0x2DA480), its fall-damage
 /// scale (`max(0, 1 + modifier 30)`: the `fall_damage` modifier through `apply_modifier` 0x2D5AE0 at 0x2D82C8), and where its
-/// jumps' clips leave it falling ([`JumpEnds`]).
+/// jumps' clips leave it falling ([`JumpEnds`]), and whether a walk-off's second hurting landing adds its pain
+/// ([`SecondLanding`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FallBody {
     pub pain: f32,
     pub fall_scale: f32,
     pub jumps: JumpEnds,
+    pub second: SecondLanding,
+}
+
+/// [S6] Whether a walk-off's second hurting landing ([`held_floors::Landings::also`]) adds its pain to the first's, for this
+/// body (the exe reviews of #2025 and #2029).
+///
+/// Both legs broken at the first landing (a foot's fall hit reaches its leg whole, `hit_by_type` 0x329FF0 again for the
+/// leg, blunt coefficient 1, no armour, and empties it at the pool or more, 0x32A25A..0x32A28B; with both emptied the crouch
+/// is forced, 0x2FBDF0, +388h == 2 at 0x2FBE05 / 0x2FBE0C) stop the body on the ledge: it goes on after the wound's 8 s, or
+/// creeps, and takes the second landing then. The sum is kept there: only the pain regenerated meanwhile comes back (0.1 a
+/// second after the stock 8 s delay), so it over-closes by that at most, while the hardest landing alone would leave open a
+/// drop that kills at the second landing; and the link strands a body with both legs broken for 8 s either way.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SecondLanding {
+    /// No drug course that gives pain back may be running: the landings' pains add.
+    Adds,
+    /// A drug course that gives pain back may be running (`medkit::tick` 0x33D790 restores the pain pool each tick of its
+    /// active time; a fall's hit ends no course, patch 84 being ranged only): the pool may hold more at the second landing
+    /// than the sum counts, so the hardest landing alone is judged.
+    HardestOnly,
+}
+
+impl SecondLanding {
+    /// The one that sums less: [`Self::HardestOnly`] if either is.
+    pub fn and(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Adds, Self::Adds) => Self::Adds,
+            _ => Self::HardestOnly,
+        }
+    }
 }
 
 /// [S6] Where a jump's clip leaves the body falling: the root over the take-off at the air phase's end (m) and its descent
@@ -828,8 +859,9 @@ pub struct JumpEnds {
 pub enum FallStart {
     /// Walked off: from rest at the ledge (a `Drop`, or a `GapDrop` left with no key), its landing not walked by the build.
     WalkOff,
-    /// Walked off a held floor's drop, landing at the speed the build walked it to (m/s down, [`WalkGrid::drop_landing_speed`]).
-    Landed(f32),
+    /// Walked off a held floor's drop, landing as the build walked it ([`WalkGrid::drop_landings`]: the hardest landing, m/s
+    /// down, and a second one that hurts too).
+    Landed(held_floors::Landings),
     /// A short jump pressed (a gap drop's walking press, or a sprint press a body with no sprint plays by its walking press).
     Short,
     /// A sprint jump pressed.
@@ -841,7 +873,7 @@ impl FallBody {
     pub fn pain_of(&self, height: f32, start: FallStart) -> f32 {
         match start {
             FallStart::WalkOff => held_floors::fall_pain(height, self.fall_scale),
-            FallStart::Landed(speed) => held_floors::landing_pain(speed, self.fall_scale),
+            FallStart::Landed(landings) => landings.pain(self.fall_scale, self.second),
             FallStart::Short => held_floors::jumped_fall_pain(height, self.jumps.short, self.fall_scale),
             FallStart::Sprint => held_floors::jumped_fall_pain(height, self.jumps.sprint, self.fall_scale),
         }
@@ -889,19 +921,25 @@ impl Reach {
                 pain: x.pain.min(y.pain),
                 fall_scale: x.fall_scale.max(y.fall_scale),
                 jumps: x.jumps,
+                second: x.second.and(y.second),
             }),
         };
         Self { sprint, fall }
     }
 
-    /// [S6] Whether a drop of `height` metres started `start` kills this body ([`FallBody::pain_of`]): its pain and the pool;
-    /// `None` for one it survives, or a body whose falls are not known.
-    pub fn lethal_fall(self, height: f32, start: FallStart) -> Option<(f32, f32)> {
+    /// [S6] Whether a drop of `height` metres started `start` kills this body ([`FallBody::pain_of`]): its pain, the pool and
+    /// the start as judged (a walk-off's landings as [`held_floors::Landings::judged`] counts them); `None` for one it
+    /// survives, or a body whose falls are not known.
+    pub fn lethal_fall(self, height: f32, start: FallStart) -> Option<(f32, f32, FallStart)> {
         let FallRoom::Survives(body) = self.fall else {
             return None;
         };
         let hurt = body.pain_of(height, start);
-        (hurt >= body.pain).then_some((hurt, body.pain))
+        let judged = match start {
+            FallStart::Landed(landings) => FallStart::Landed(landings.judged(body.second)),
+            other => other,
+        };
+        (hurt >= body.pain).then_some((hurt, body.pain, judged))
     }
 }
 
@@ -1359,7 +1397,7 @@ pub struct WalkGrid {
     /// ([`Self::held_taken`]): for the logs only (a route's goal or failure near one, a player's spot the build lost). In the file
     /// (the last table) but not the digest: no decision reads it. Empty without the switch.
     held_taken: Vec<Vec3>,
-    /// [S6] [`Body::held_floors`] The held floors' walked-off drops' landing speeds ([`Self::drop_landing_speed`]), as (take-off,
+    /// [S6] [`Body::held_floors`] The held floors' walked-off drops' landing speeds ([`Self::drop_landings`]), as (take-off,
     /// landing, speed), sorted: each the least of its walk-offs ([`held_floors::LANDING_WALKS_MPS`]). In the file (after the
     /// taken floors) and the digest. Empty without the switch.
     drop_speed: Vec<(NodeId, NodeId, held_floors::LandingSpeed)>,
@@ -3699,8 +3737,10 @@ impl WalkGrid {
         if self.drop_lips.iter().any(|&(a, b)| a as usize >= n || b as usize >= n) || self.drop_lips.windows(2).any(|w| w[0] >= w[1]) {
             return Err("bad drop lips".into());
         }
+        // [S6] One row a drop, two when a second landing hurts ([`held_floors::Landings`]), sorted by drop then speed.
         if self.drop_speed.iter().any(|&(a, b, _)| a as usize >= n || b as usize >= n || a == b)
-            || self.drop_speed.windows(2).any(|w| (w[0].0, w[0].1) >= (w[1].0, w[1].1))
+            || self.drop_speed.windows(2).any(|w| (w[0].0, w[0].1, w[0].2) > (w[1].0, w[1].1, w[1].2))
+            || self.drop_speed.windows(3).any(|w| (w[0].0, w[0].1) == (w[2].0, w[2].1))
         {
             return Err("bad drop landing speeds".into());
         }
@@ -4449,10 +4489,11 @@ impl WalkGrid {
         self.riser_of(a, b)
     }
 
-    /// [S6] The speed the client's body lands at walked off the drop `a` -> `b`, m/s down, where the build walked it
-    /// ([`Self::drop_speed`]: a held floor's drop); `None` for another.
-    pub fn drop_landing_speed(&self, a: NodeId, b: NodeId) -> Option<f32> {
-        self.drop_speed.binary_search_by_key(&(a, b), |&(f, t, _)| (f, t)).ok().map(|i| self.drop_speed[i].2.mps())
+    /// [S6] How the client's body lands walked off the drop `a` -> `b`, where the build walked it ([`Self::drop_speed`]: a held
+    /// floor's drop, one row or two); `None` for another.
+    pub fn drop_landings(&self, a: NodeId, b: NodeId) -> Option<held_floors::Landings> {
+        let first = self.drop_speed.partition_point(|&(f, t, _)| (f, t) < (a, b));
+        held_floors::Landings::of_rows(self.drop_speed[first..].iter().take_while(|&&(f, t, _)| (f, t) == (a, b)).map(|&(_, _, v)| v))
     }
 
     fn riser_of(&self, a: NodeId, b: NodeId) -> Option<Riser> {
@@ -4766,9 +4807,9 @@ impl WalkGrid {
                 (LinkKind::GapDrop, Some(gap::Takeoff::Press(_) | gap::Takeoff::Slow { .. })) => FallStart::Short,
                 (LinkKind::GapDrop, Some(gap::Takeoff::Sprint(_))) if reach.sprints() => FallStart::Sprint,
                 (LinkKind::GapDrop, Some(gap::Takeoff::Sprint(_))) => FallStart::Short,
-                _ => self.drop_landing_speed(from, to).map_or(FallStart::WalkOff, FallStart::Landed),
+                _ => self.drop_landings(from, to).map_or(FallStart::WalkOff, FallStart::Landed),
             };
-            if let Some((pain, pool)) = reach.lethal_fall(height, start) {
+            if let Some((pain, pool, start)) = reach.lethal_fall(height, start) {
                 note_fall_closed(FallClosed { from, to, height, start, pain, pool });
                 return f32::INFINITY;
             }

@@ -215,7 +215,7 @@ impl SmokeCounts {
     /// that skims a cloud's flat top or bottom, or its rim, is hidden from one and not the other
     /// (`h2h-radio-vs-off-20261029T1211`: of 74 counts with one eye, 34 crossed 2-4 m of smoke at a rim and 32 ran
     /// within 0.5 m of a top or bottom; every bot path to a `Seen` sighting goes through the veil).
-    fn hides_body(&self, tick: u32, eye: Vec3, feet: Vec3) -> bool {
+    fn hides_body(&self, tick: u32, eye: Vec3, feet: Vec3, yaw: f32) -> bool {
         let clouds = Clouds::new(self.clouds.clone());
         let default = client_eyes();
         let tuning = SmokeTuning {
@@ -231,7 +231,7 @@ impl SmokeCounts {
             [false, true].iter().all(|&crouched| {
                 BodyPart::SIGHT_ORDER
                     .iter()
-                    .all(|part| veil.hides(from, part.point_of(feet, crouched, from)))
+                    .all(|part| veil.hides(from, part.point_at(crate::v026g::bots::aimpoint::BodyAt { feet, crouched, yaw }, from)))
             })
         })
     }
@@ -245,7 +245,7 @@ impl SmokeCounts {
         let veil = clouds.veil(look.time, &tuning);
         BodyPart::SIGHT_ORDER
             .iter()
-            .all(|part| veil.hides(look.eye, part.point_of(look.feet, look.crouched, look.eye)))
+            .all(|part| veil.hides(look.eye, part.point_at(crate::v026g::bots::aimpoint::BodyAt { feet: look.feet, crouched: look.crouched, yaw: look.yaw }, look.eye)))
     }
 
     /// The death of the bot at `place` at `tick`: its class, crowded or not, and whether its killer stood behind smoke from its
@@ -422,7 +422,7 @@ impl SmokeCounts {
                 let (eye, _, team) = Self::line(game, fact.shooter, target);
                 // Where the shooter's eyes have him (its memory's sight), else the game's body.
                 let feet = self.sensed.get(&(fact.shooter, target)).copied().unwrap_or(game.bodies[target].feet);
-                if fact.tick == tick && self.hides_body(tick, eye, feet) && !Self::sprayed(fact.shooter, tick) {
+                if fact.tick == tick && self.hides_body(tick, eye, feet, game.bodies[target].yaw) && !Self::sprayed(fact.shooter, tick) {
                     self.fire_through_margin[team] += 1;
                     // Fair: the shooter's last look that found him, replayed with the team's rule, showed him within
                     // the spray's time (`smoke.spray_ms`, the owner's cap for fire through cover): fire continued.
@@ -433,7 +433,7 @@ impl SmokeCounts {
                     if crate::v026g::bots::tests::bench_settings().flag("SRP_BENCH_SMOKE_FAIR_DUMP") {
                         // The shooter's last sight of him: its age, and whether the clouds hid him then too.
                         let seen = self.seen_times.get(&(fact.shooter, target)).copied();
-                        let hidden_then = seen.map(|t| self.hides_body(t, eye, feet));
+                        let hidden_then = seen.map(|t| self.hides_body(t, eye, feet, game.bodies[target].yaw));
                         let spray = smoke::tally::last_spray(fact.shooter).map(|t| tick as i64 - t as i64);
                         eprintln!(
                             "FAIR-SHOT bot {} (team {team}) at {target} tick {tick} seen {:?} (age {:?} ms) hidden-then {:?} spray-ago {:?} ms sensed {} eye ({:.1},{:.1},{:.1}) at ({:.1},{:.1},{:.1}) look-age {:?} look-replay-hidden {:?} counted {}",
@@ -486,7 +486,7 @@ impl SmokeCounts {
             let look = smoke::tally::seen_look(place, who).filter(|look| look.time == time);
             let replay = look.as_ref().map(|look| self.replay_hides(look));
             // [diagnosis] With the game's bodies, every eye and the margin, at the sensing's time.
-            let margin = self.hides_body(time, eye, at);
+            let margin = self.hides_body(time, eye, at, game.bodies[who].yaw);
             self.seen_through_margin[team] += u32::from(margin);
             let counted = match replay {
                 None => {
@@ -907,7 +907,7 @@ mod tests {
         counts.through(&game);
         assert_eq!(counts.fire_through, [1, 0]);
         // A look that showed him 100 ms before (he stood clear of the cloud then): fire continued, not counted.
-        let clear = smoke::tally::SeenLook { time: 5_900, eye: Game::eye(&game.bodies[0]), feet: Vec3::new(10.0, 0.0, 40.0), crouched: false };
+        let clear = smoke::tally::SeenLook { time: 5_900, eye: Game::eye(&game.bodies[0]), feet: Vec3::new(10.0, 0.0, 40.0), crouched: false, yaw: game.bodies[1].yaw };
         smoke::tally::looked_seen(0, 1, clear);
         counts.through(&game);
         assert_eq!((counts.fire_through, counts.fire_through_margin), ([1, 0], [2, 0]), "a clear look 100 ms before");
@@ -1052,7 +1052,7 @@ mod tests {
             missed: None,
             held_until: 0,
         };
-        let look = |time| smoke::tally::SeenLook { time, eye: Game::eye(&game.bodies[0]), feet: game.bodies[1].feet, crouched: false };
+        let look = |time| smoke::tally::SeenLook { time, eye: Game::eye(&game.bodies[0]), feet: game.bodies[1].feet, crouched: false, yaw: game.bodies[1].yaw };
         counts.clouds = vec![cloud(20.0, 10.0)];
         smoke::tally::looked_seen(0, 1, look(5_000));
         counts.read_seen(0, &[track(5_000)]);

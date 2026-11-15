@@ -184,8 +184,9 @@ pub enum DropWalk {
     /// Left the take-off's level and came to stand elsewhere: its feet there (a ledge partway, a floor past the landing), and
     /// [S6] the speed it landed at, m/s down: the body's downward speed at the start of the tick that landed it on walkable
     /// ground (the ported `step_down`'s landing, which zeroes the velocity: `on_physical_controller_landing` 0x2D8220 gets that
-    /// tick's starting speed, the exe review of #1969), the most of the walk's landings.
-    LandsAt(Vec3, f32),
+    /// tick's starting speed, the exe review of #1969): its landings that count ([`super::held_floors::Landings`], the hardest
+    /// and a second that hurts too).
+    LandsAt(Vec3, super::held_floors::Landings),
     /// Left the take-off's level and not standing [`LAND_STEPS`] later (falling on, sliding down a steep face).
     Unsettled,
     /// Walked [`MOVED_M`] or more from its start and never left the take-off's level (a rim the erosion took, a deck over the
@@ -220,7 +221,7 @@ pub fn walk_drop_as(world: &Collision, s: &Settings, start: WalkStart, stance: S
     let line = Vec3::new((to.x - from.x) / len, 0.0, (to.z - from.z) / len);
     let mut moved = 0.0f32;
     let mut left: Option<usize> = None;
-    let mut landed = 0.0f32;
+    let mut landed = super::held_floors::Landings::NONE;
     for n in 1..=LEAVE_STEPS + LAND_STEPS {
         let feet = c.feet();
         let d = flat(feet, to);
@@ -237,7 +238,7 @@ pub fn walk_drop_as(world: &Collision, s: &Settings, start: WalkStart, stance: S
             sprinting: false,
         });
         if notes.landed {
-            landed = landed.max(falling);
+            landed = landed.and(falling);
         }
         let feet = c.feet();
         moved = moved.max(flat(feet, first));
@@ -810,7 +811,9 @@ mod tests {
         let mut ledge = tris.clone();
         ledge.extend(quad(0.0, 3.0, -2.0, 2.0, 1.0));
         let world = Collision::build(&ledge);
-        let DropWalk::LandsAt(feet, speed) = walk_drop(&world, &s, start, from, to) else { panic!("lands elsewhere") };
+        let DropWalk::LandsAt(feet, landings) = walk_drop(&world, &s, start, from, to) else { panic!("lands elsewhere") };
+        assert_eq!(landings.also, None, "a 1 m drop's landing hurts nothing");
+        let speed = landings.most;
         assert!((feet.y - 1.0).abs() < 0.1, "{feet:?}");
         // [S6] A 1 m drop lands at the speed `step_down` 0x7E1B0 gives a fall from rest: 0.05 m a tick while slower than
         // 2 m/s (five ticks, 0.25 m), then the speed's own step, gaining 0.49 m/s every tick throughout; the tick that
