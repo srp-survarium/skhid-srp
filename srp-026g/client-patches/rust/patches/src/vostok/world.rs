@@ -372,7 +372,8 @@ impl ModifierIndex {
     /// apply_modifier or apply_modifiers call names it) and nothing sets it
     /// but skill 205's 0; additive (0x927E08's list). srp's: the Force
     /// Protein's built-in modification 1330 gives 15: its carrier's
-    /// gun-stock kills push the ragdoll 1 + 15 times (shot::knocked_back).
+    /// gun-stock kills push the ragdoll 1 + 15 times, its battery strikes
+    /// 1 + 15 + 7.5 (shot::knocked_back).
     pub const MELEE_KNOCKBACK: ModifierIndex = ModifierIndex(29);
 }
 

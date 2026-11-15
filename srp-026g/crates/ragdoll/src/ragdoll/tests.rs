@@ -3,6 +3,7 @@
 use super::*;
 extern crate std;
 use crate::limits::{angle_between, signed_angle};
+use crate::shot::{BATTERY_STRIKE_KNOCKBACK, Blow, FORCE_PROTEIN_KNOCKBACK};
 use crate::skeleton::{BONES, Bone};
 
 /// A plane at height `floor` (and, if set, a wall at z = `wall` facing -Z).
@@ -1307,15 +1308,31 @@ fn a_lone_gun_sliding_on_the_ground_stops() {
     assert!(gun.body.end_speed() < SLOW && frames < 300, "{frames} frames");
 }
 
-/// A gun-stock hit (the weapon's melee/data: mass 0.01, 1000 m/s) by a
-/// shooter whose kit sums `knockback` (the Force Protein's 15).
-fn gun_stock(direction: Vec3, point: Vec3, knockback: f32) -> crate::shot::Hit {
+/// A melee hit (the weapon's melee/data: mass 0.01, 1000 m/s) struck with
+/// `blow` by a shooter whose kit sums `kit` (the Force Protein's 15).
+fn gun_stock(direction: Vec3, point: Vec3, blow: Blow, kit: f32) -> crate::shot::Hit {
     let push = crate::shot::impulse(direction, 0.01, 1000.0);
     crate::shot::Hit {
         point,
-        impulse: crate::shot::knocked_back(push, knockback),
+        impulse: crate::shot::knocked_back(push, blow, kit),
     }
 }
+
+/// The melee hits the renders and the throw test compare: a plain gun
+/// stock, the Force Protein's, a battery strike, a strike with the protein.
+const MELEE: [(&str, Blow, f32); 4] = [
+    ("stock", Blow::GunStock, 0.0),
+    ("protein", Blow::GunStock, FORCE_PROTEIN_KNOCKBACK),
+    ("strike", Blow::BatteryStrike, 0.0),
+    ("strike_protein", Blow::BatteryStrike, FORCE_PROTEIN_KNOCKBACK),
+];
+
+/// A melee hit's scenes: from the front on the chest, from the side.
+const KNOCK_SCENES: [(&str, Vec3, Vec3); 2] = [
+    ("front", Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12)),
+    ("side", Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
+];
+
 
 /// A standing body killed by `hit`, 300 frames at 60 a second, `each`
 /// frame's ragdoll seen: how high its centre of mass went and how far on
@@ -1351,18 +1368,38 @@ fn a_force_protein_gun_stock_kill_flies_on_and_rests_by_friction() {
     // cap): the throw goes on past it and the ground's friction stops it,
     // the rest rules settle it before the age cap; a plain gun stock falls
     // about where it stood
-    let scenes = [
-        (Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12)),
-        (Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
-    ];
     let rested = |settled: Option<f32>| settled.is_some_and(|t| t < MAX_AGE - 0.5);
-    for (direction, point) in scenes {
-        let (rise, on, settled) = thrown(gun_stock(direction, point, 15.0), |_| {});
+    for (_, direction, point) in KNOCK_SCENES {
+        let (rise, on, settled) = thrown(gun_stock(direction, point, Blow::GunStock, 15.0), |_| {});
         let seen = std::format!("up {rise:.2}, on {on:.2}, settled {settled:?}");
         assert!(rise > 0.15 && on > 3.0 && rested(settled), "thrown: {seen}");
-        let (rise, on, settled) = thrown(gun_stock(direction, point, 0.0), |_| {});
+        let (rise, on, settled) = thrown(gun_stock(direction, point, Blow::GunStock, 0.0), |_| {});
         let seen = std::format!("up {rise:.2}, on {on:.2}, settled {settled:?}");
         assert!(rise < 0.02 && on < 1.1 && rested(settled), "plain: {seen}");
+    }
+}
+
+#[test]
+fn a_battery_strike_knocks_back_half_the_protein_and_adds_to_it() {
+    // its own knockback half the protein's, added to the kit's: 8.5 times
+    // a gun stock's push alone, 23.5 with the protein
+    assert_eq!(BATTERY_STRIKE_KNOCKBACK * 2.0, FORCE_PROTEIN_KNOCKBACK);
+    let push = crate::shot::impulse(Vec3::new(0.0, 0.0, -1.0), 0.01, 1000.0);
+    for k in [0.0, -1.0, f32::NAN] {
+        assert_eq!(crate::shot::knocked_back(push, Blow::BatteryStrike, k), push * 8.5);
+    }
+    assert_eq!(crate::shot::knocked_back(push, Blow::BatteryStrike, FORCE_PROTEIN_KNOCKBACK), push * 23.5);
+    // a strike alone is no heavy hit (68 N s): the body goes farther than a
+    // plain gun stock's, not lifted, less far than the protein's; with the
+    // protein, farther and higher than the protein alone
+    let rested = |settled: Option<f32>| settled.is_some_and(|t| t < MAX_AGE - 0.5);
+    for (scene, direction, point) in KNOCK_SCENES {
+        let [stock, protein, strike, both] =
+            MELEE.map(|(_, blow, kit)| thrown(gun_stock(direction, point, blow, kit), |_| {}));
+        let seen = std::format!("{scene}: {stock:?} {protein:?} {strike:?} {both:?}");
+        assert!(stock.1 + 0.3 < strike.1 && strike.1 + 1.0 < protein.1 && strike.0 < 0.02, "strike: {seen}");
+        assert!(protein.1 + 1.0 < both.1 && protein.0 < both.0, "strike with the protein: {seen}");
+        assert!(rested(strike.2) && rested(both.2), "{seen}");
     }
 }
 
@@ -1373,9 +1410,9 @@ fn no_bullet_and_no_plain_gun_stock_is_a_heavy_hit() {
     assert!(crate::shot::impulse(d, 0.999, 2999.0).length() < tuning::HEAVY_HIT);
     let push = crate::shot::impulse(d, 0.01, 1000.0);
     for k in [0.0, -1.0, f32::NAN] {
-        assert_eq!(crate::shot::knocked_back(push, k), push);
+        assert_eq!(crate::shot::knocked_back(push, Blow::GunStock, k), push);
     }
-    assert_eq!(crate::shot::knocked_back(push, 15.0), push * 16.0);
+    assert_eq!(crate::shot::knocked_back(push, Blow::GunStock, 15.0), push * 16.0);
     assert!((push * 16.0).length() >= tuning::HEAVY_HIT);
 }
 
@@ -1385,18 +1422,11 @@ fn render_knockback() {
     use std::io::Write;
     let out = std::env::var("RAGDOLL_DUMP").unwrap();
     let mut file = std::fs::File::create(out).unwrap();
-    let scenes = [
-        (
-            "front",
-            Vec3::new(0.0, 0.0, -1.0),
-            Vec3::new(0.0, 1.3, 0.12),
-        ),
-        ("side", Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
-    ];
-    for (name, direction, point) in scenes {
-        for k in [0.0, 15.0] {
+    for (scene, direction, point) in KNOCK_SCENES {
+        for (hit, blow, kit) in MELEE {
             let mut frames = std::vec::Vec::new();
-            thrown(gun_stock(direction, point, k), |r| {
+            let push = gun_stock(direction, point, blow, kit);
+            thrown(push, |r| {
                 let mut caps = std::vec::Vec::new();
                 for b in r.bodies.iter().chain(r.gun.iter()) {
                     let (a, c) = b.shape.ends(b.pose);
@@ -1415,7 +1445,8 @@ fn render_knockback() {
             });
             writeln!(
                 file,
-                "{{\"name\":\"{name}\",\"k\":{k},\"frames\":[{}]}}",
+                "{{\"name\":\"{scene}\",\"hit\":\"{hit}\",\"push\":{:.1},\"frames\":[{}]}}",
+                push.impulse.length(),
                 frames.join(",")
             )
             .unwrap();

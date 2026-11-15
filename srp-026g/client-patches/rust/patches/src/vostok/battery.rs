@@ -492,11 +492,12 @@ pub fn kill_feed_icon(ctx: &mut Context<'_>) {
 /// strike's (a gun-stock hit needs the gun held). The gun is the bullet's
 /// item's active object (+0Ch less 10h), as the constructor and
 /// generate_killed_event take it; read as a gun only once the bullet's data
-/// is that gun's melee data.
+/// is that gun's melee data. The kill feed's icon and the ragdoll's push
+/// (`BulletRay::melee`) both tell a strike by it.
 ///
 /// # Safety
 /// `bullet` is alive, on this thread.
-unsafe fn struck_by_battery(bullet: raw::Bullet) -> bool {
+pub(in crate::vostok) unsafe fn struck_by_battery(bullet: raw::Bullet) -> bool {
     unsafe {
         let (Some(item), Some(data)) = (bullet.weapon_item(), bullet.ammo()) else { return false };
         let gun = item.active_object().weapon();

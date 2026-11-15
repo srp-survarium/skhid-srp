@@ -173,16 +173,42 @@ pub fn impulse(direction: Vec3, mass: f32, speed: f32) -> Vec3 {
     direction * size
 }
 
-/// A gun-stock hit's push by a shooter whose kit sums `knockback` of
-/// MELEE_KNOCKBACK (the Anomalous Force Protein's +15,
-/// docs/notes/force-protein-knockback.md): 1 + it times `push`; +15 makes
-/// 16, a heavy hit ([`tuning::HEAVY_HIT`]: the body thrown). `knockback`
-/// counts at most 99, nothing when not above 0.
-pub fn knocked_back(push: Vec3, knockback: f32) -> Vec3 {
-    if knockback.is_nan() || knockback <= 0.0 {
-        return push;
+/// What a melee hit struck with (its bullet's data a weapon's melee/data).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Blow {
+    /// The gun's stock.
+    GunStock,
+    /// A carried battery's swing (patch 143, docs/notes/battery-hit.md).
+    BatteryStrike,
+}
+
+/// The Anomalous Force Protein's MELEE_KNOCKBACK: its built-in modification
+/// 1330 (`scripts/content-edit/modifications.tsv`,
+/// docs/notes/force-protein-knockback.md).
+pub const FORCE_PROTEIN_KNOCKBACK: f32 = 15.0;
+
+/// A battery strike's own knockback, added to its shooter's kit's: half the
+/// Force Protein's (the owner, 2026-11-15: "half as strong as anomalous
+/// protein and it should also be additive with it").
+pub const BATTERY_STRIKE_KNOCKBACK: f32 = FORCE_PROTEIN_KNOCKBACK / 2.0;
+
+impl Blow {
+    /// The knockback it brings itself, whatever the kit.
+    pub const fn knockback(self) -> f32 {
+        match self {
+            Blow::GunStock => 0.0,
+            Blow::BatteryStrike => BATTERY_STRIKE_KNOCKBACK,
+        }
     }
-    push * (1.0 + min(knockback, 99.0))
+}
+
+/// A melee hit's push by a shooter whose kit sums `kit` of MELEE_KNOCKBACK
+/// (nothing when not above 0): 1 + the kit's and the blow's own knockback
+/// (at most 99) times `push`. A gun stock with the protein makes 16, a
+/// battery strike 8.5, both 23.5.
+pub fn knocked_back(push: Vec3, blow: Blow, kit: f32) -> Vec3 {
+    let kit = if kit > 0.0 { kit } else { 0.0 };
+    push * (1.0 + min(kit + blow.knockback(), 99.0))
 }
 
 /// A bullet that hit a living player: where, and its push (N s).
@@ -436,5 +462,22 @@ mod tests {
         // the ring drops the oldest
         recent.record(2.25, hit(5.0));
         assert!(recent.hits.iter().flatten().all(|h| h.0 > 1.5));
+    }
+
+    #[test]
+    fn the_force_protein_knockback_is_its_modifications() {
+        // modification 1330's value, as modifications.tsv writes it: so a
+        // retune of the protein moves the battery strike's half with it
+        let table = include_str!("../../../scripts/content-edit/modifications.tsv");
+        let value = table.lines().find_map(|line| {
+            let mut fields = line.split('\t');
+            (fields.next() == Some("1330"))
+                .then(|| fields.nth(1))
+                .flatten()
+        });
+        assert_eq!(
+            value.and_then(|v| v.parse::<f32>().ok()),
+            Some(FORCE_PROTEIN_KNOCKBACK)
+        );
     }
 }

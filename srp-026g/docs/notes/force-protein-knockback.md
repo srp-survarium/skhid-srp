@@ -26,6 +26,15 @@
   (gone, ragdoll.md section 7); the plain gun stock does not go up and ends 0.69 and 0.98 m on. Renders of the played build: `private/renders/force-protein/knockback-front.gif`,
   `-side.gif`, `.png` (before left, after right; `cargo test -p ragdoll render_knockback --
   --ignored` with `RAGDOLL_DUMP`).
+- **A battery strike** (patch 143, battery-hit.md; the owner, 2026-11-15: "also when hitting
+  with battery the force push back should be stronger, half as strong as anomalous protein and
+  it should also be additive with it"): modifier 29 is additive, so the kit's sum is every
+  source's; a strike adds its own half of the protein's, `BATTERY_STRIKE_KNOCKBACK` =
+  `FORCE_PROTEIN_KNOCKBACK` / 2 = 7.5, to that sum (`shot::Blow`): 8.5 times (68 N s) alone,
+  23.5 (188 N s) with the protein. `FORCE_PROTEIN_KNOCKBACK` is checked against modification
+  1330's value in `modifications.tsv` (a retune there fails `cargo test -p ragdoll` until it
+  follows). 68 N s is no heavy hit: the body ends 1.44 / 1.39 m on (front / side), not lifted;
+  with the protein 6.18 m, 0.41 m up. Renders: `private/renders/battery-hit/knockback_*`.
 - **Every client the same:** each reads the killer's kit, which every game has (the static info);
   the ragdoll is drawn by each game alone, never in the simulation: no `next` row.
 - **Checked:** `cargo test -p ragdoll` (the protein's throw as far as the played build, a plain

@@ -37,7 +37,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use ::ragdoll::corpse::{Corpse, CorpseHit, Corpses, Death, DeathKey, Drawn, Frame, MAX_PLACES, Seen, SlotId};
 use ::ragdoll::math::{Pose, Quat, Vec3, abs};
 use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearShape, Knock, Level, Skeleton, StartReport, Sweep};
-use ::ragdoll::shot::{Hit, Recent, Shot, ShotKey, ShotLog, impulse, knocked_back};
+use ::ragdoll::shot::{Blow, Hit, Recent, Shot, ShotKey, ShotLog, impulse, knocked_back};
 use ::ragdoll::skeleton::{BONE_COUNT, BONES, PARTS, Part};
 
 use crate::vostok::bullet::BulletRay;
@@ -210,7 +210,7 @@ enum Clock {
 
 /// A bullet's round as the trace says it: the ammo's mass and muzzle speed
 /// (its identity), its speed at the hit, its segment, its id and shooter,
-/// and whether it is a gun-stock hit.
+/// and what a melee hit struck with (none a round).
 #[derive(Clone, Copy)]
 struct Round {
     mass: f32,
@@ -219,7 +219,7 @@ struct Round {
     segment: u32,
     bullet: u32,
     shooter: u8,
-    gun_stock: bool,
+    melee: Option<Blow>,
 }
 
 /// A shot's push on a corpse, for the next step.
@@ -439,18 +439,17 @@ fn seen(
     (Seen::Dead(death), Some(index))
 }
 
-/// A living hit as its death takes it: a gun-stock hit is knocked back by
-/// its shooter's kit (MELEE_KNOCKBACK: the Anomalous Force Protein in a
-/// pocket, its built-in modification 1330, +15); every other hit as it came.
-/// Every client knows every kit, so each draws the same.
+/// A living hit as its death takes it: a melee hit is knocked back by its
+/// shooter's kit (MELEE_KNOCKBACK: the Anomalous Force Protein in a pocket,
+/// its built-in modification 1330, +15) and, a battery strike, by its own
+/// half of the protein's on top; every other hit as it came. Every client
+/// knows every kit and every carried battery, so each draws the same.
 fn pushed(living: &Living, client: &NetworkClient<'_>) -> Hit {
     let Living { hit, round, .. } = *living;
-    if !round.gun_stock || round.shooter == u8::MAX {
-        return hit;
-    }
-    let shooter = client.player(u32::from(round.shooter));
-    let knockback = shooter.and_then(|p| p.kit_modifier(ModifierIndex::MELEE_KNOCKBACK));
-    knockback.map_or(hit, |k| Hit { impulse: knocked_back(hit.impulse, k), ..hit })
+    let Some(blow) = round.melee else { return hit };
+    let shooter = (round.shooter != u8::MAX).then(|| client.player(u32::from(round.shooter))).flatten();
+    let kit = shooter.and_then(|p| p.kit_modifier(ModifierIndex::MELEE_KNOCKBACK)).unwrap_or(0.0);
+    Hit { impulse: knocked_back(hit.impulse, blow, kit), ..hit }
 }
 
 /// Record the native death event without changing simulation state.
@@ -605,7 +604,7 @@ fn spike_of_death(file: &mut TraceState, thread: &Thread, time: f32, place: usiz
                   r: &StartReport) {
     let body: f32 = Part::ALL.iter().map(|p| p.mass()).sum();
     let none = Round { mass: f32::NAN, muzzle: f32::NAN, speed: f32::NAN, segment: 0, bullet: 0, shooter: 0,
-                       gun_stock: false };
+                       melee: None };
     let round = round.unwrap_or(&none);
     trace_line(file, thread, |w| {
         w.text("spike,");
@@ -780,7 +779,7 @@ fn bullet(ray: &BulletRay<'_>, thread: &Thread) {
         segment: ray.segment(),
         bullet: ray.id(),
         shooter: shooter.unwrap_or(u8::MAX),
-        gun_stock: ray.gun_stock(),
+        melee: ray.melee(),
     };
     let push = |direction: Vec3| impulse(direction, round.mass, round.speed);
     // a living player hit: kept for its death's push, once a bullet

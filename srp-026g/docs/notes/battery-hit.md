@@ -60,6 +60,12 @@
 - **Kill feed** (the owner, 2026-11-15: "whether we can add killfeed battery icon"): a battery
   icon (200) in the weapon's place, no headshot mark (patch 67's melee rule); statistics count a
   melee kill (13) of the kit, as before.
+- **Knockback** (the owner, 2026-11-15: "also when hitting with battery the force push back should
+  be stronger, half as strong as anomalous protein and it should also be additive with it"): a
+  strike's ragdoll push adds half the Force Protein's knockback, +7.5, to what the killer's kit
+  sums (force-protein-knockback.md): 1 + 7.5 = 8.5 times a gun stock's push, with the protein
+  1 + 15 + 7.5 = 23.5. A plain gun stock (x1), the protein's (x16) and every round as before.
+  Visual only (the ragdoll is drawn by each game alone).
 
 ## The animation
 
@@ -302,6 +308,19 @@
   three-quarter view with its two cell wells, and the gun-stock icon's impact burst, in the weapon
   icons' style (`scripts/kill-feed-icons/make_battery_icon.py`, `kill-feed-icons.md`). No
   simulation change (the hud alone reads the icon).
+- **The ragdoll's knockback.** The same rule (`vostok::battery::struck_by_battery`, one copy)
+  tells a strike where the ragdoll records a living player's hit, its bullet's ray
+  (`bullet.ray_traced`, `BulletRay::melee`): a blunt bullet is `Blow::BatteryStrike` by it,
+  else `Blow::GunStock`; a round none (`Round::melee: Option<Blow>`). At the death
+  `shot::knocked_back(push, blow, kit)` pushes 1 + kit + the blow's own knockback times the hit
+  (`BATTERY_STRIKE_KNOCKBACK = FORCE_PROTEIN_KNOCKBACK / 2`; the crate's test ties
+  `FORCE_PROTEIN_KNOCKBACK` to modification 1330's value in `modifications.tsv`, so a retune of
+  the protein fails it until the constant follows). Read only, drawn by each game alone: no
+  `next` row. Edge: as the icon's, a strike landing after its carrier put the battery away
+  pushes as a gun stock. A strike alone (68 N s) is under `HEAVY_HIT` (100): its whole-body share
+  is capped as a bullet's and not lifted, so the body ends 1.44 m on (front; the protein's 3.70,
+  a plain gun stock's 0.69), not half the protein's throw; strike with the protein 6.18 m, 0.41 m
+  up. Renders: `private/renders/battery-hit/knockback_{front,side}.{gif,png}`.
 - **The bullet and the deactivated gun.** A carrier's guns are deactivated (deactivate
   0x2E2EE0: user +8 0, its clip set's posture +278h -> +20h 0). The bullet keeps its gun (+0Ch,
   the gun's item, 0x32BB12) and reads that user and posture through it all its life:
@@ -400,6 +419,11 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
   (`scripts/kill-feed-icons/check-combat-log/check.sh`, Ruffle): icon 200 shows
   `CombatLogBatteryIcon` 25 x 19 in the weapon's place, the clip hidden; every other icon as before.
 - `cargo test` and Clippy of the patches crate and srp-validate (states 3 and 4 read, 5 refused).
+- The knockback: `cargo test -p ragdoll` (a strike 8.5 times, with the protein 23.5, a NaN or
+  negative kit counting nothing; thrown farther than a plain gun stock, less far than the
+  protein, with it farther and higher than the protein alone; the protein's +15 is
+  modifications.tsv's), Clippy, `check_ragdoll_026g.py` and `check_battery_hit_026g.py` with
+  the relinked arena. Not played.
 - The clips: `make_clips.py --check` (the committed files are the keys'); the offline previews
   (no near-plane crossing, no body inside the battery, every frame).
 - `check_world_roundtrip_026g.py`: its three worlds pass; its three coverage failures (0x252B48,
@@ -437,6 +461,8 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
 
 - The look: the authored swing (the previews); faster, bigger, overhead?
 - Kill at once (patch 108) or a battery's own damage?
+- The strike's knockback: +7.5 (x8.5) is under the heavy-hit line, so alone it is not thrown
+  (1.44 m against the protein's 3.70). As a heavy hit it would end 1.95 m, 0.05 m up, about half.
 - Speed: impact at 0.2 s, 0.55 s a swing; a cooldown?
 - A sound: the stock body thud plays already; a heavier one (the SoC candidates) or a swing
   whoosh (the rifles' `melee_rifle`)?
