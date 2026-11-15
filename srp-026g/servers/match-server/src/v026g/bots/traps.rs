@@ -1937,14 +1937,24 @@ pub fn keeps_clear(points: &[Vec3], discs: &[Vec3], from: Vec3, reach: f32) -> b
     })
 }
 
-/// The points of `route` a metre apart from its progress at `feet`, `ahead` metres of it (all of it with `f32::MAX`).
+/// The polyline of `route` from its progress at `feet`, `ahead` metres of it (all of it with `f32::MAX`): the point there, the
+/// route's own waypoints after it, and the point `ahead` on. Its legs are the route's legs, each at its own floor's height (points
+/// sampled along it would join two legs of different floors: a jump above a trap read as a pass on its floor).
 fn route_points(route: &super::path::Route, feet: Vec3, ahead: f32) -> Vec<Vec3> {
     // A copy: the motor's own progress along the route is not touched.
-    let mut route = route.clone();
-    let (s, _) = route.progress(feet);
+    let mut copy = route.clone();
+    let (s, _) = copy.progress(feet);
     let end = (s + ahead).min(route.length());
-    let n = (end - s).max(0.0).ceil() as usize;
-    (0..=n).map(|k| route.point_at((s + k as f32).min(end))).collect()
+    let mut points = vec![route.point_at(s)];
+    let mut along = 0.0;
+    for pair in route.points().windows(2) {
+        along += pair[0].at.distance_xz(pair[1].at);
+        if along > s && along < end {
+            points.push(pair[1].at);
+        }
+    }
+    points.push(route.point_at(end));
+    points
 }
 
 /// [#2081] How far past the clearance a step out of an own trap's disc goes, metres: a body's drift off its route, median 0.25 m
@@ -4491,6 +4501,12 @@ mod tests {
         };
         assert!(keeps_clear(&arc(1.26), field.discs(), at136, OWN_TRAP_CLEAR_M));
         assert!(!keeps_clear(&arc(0.85), field.discs(), at136, OWN_TRAP_CLEAR_M));
+        // A route whose leg over the trap's spot runs on the floor above (1.2 to 2.0 m up), its legs walked one by one: clear, though
+        // its points a metre apart would join the floors.
+        let w3 = |x: f32, y: f32, z: f32| Waypoint { at: Vec3::new(x, y, z), node: 0, jump: None, low: false };
+        let above = Route::new(vec![w3(20.0, 0.0, 12.5), w3(21.0, 1.2, 12.0), w3(25.0, 2.0, 10.0), w3(30.0, 2.0, 10.0)]);
+        let feet3 = Vec3::new(20.0, 0.0, 12.5);
+        assert!(keeps_clear(&route_points(&above, feet3, f32::MAX), field.discs(), feet3, OWN_TRAP_CLEAR_M));
         // A trap on another floor (2 m above) is no matter.
         assert!(keeps_clear(&[Vec3::new(15.0, 2.0, 10.0), Vec3::new(35.0, 2.0, 10.0)], field.discs(), Vec3::new(15.0, 2.0, 10.0), OWN_TRAP_CLEAR_M));
         // The side step (`STRAFE_CLEAR_M` long): onto the trap refused, away from it taken; with no trap, any.
