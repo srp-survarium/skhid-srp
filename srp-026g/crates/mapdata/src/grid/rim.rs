@@ -92,9 +92,11 @@ pub struct RimStats {
 /// (`a385-lost-links-client-truth.md` §1, the exe's tick): R83 (-0.3, 0.2) = (-6, 4), R94 (-0.3, -0.3) = (-6, -6), R95
 /// (0.3, 0.2) = (6, 4), R85 (0.15, -0.3) = (3, -6), R98 (0.15, 0.2) = (3, 4); and the side 0.3 m straight, Mamayev Kurgan
 /// day_2's gap jump from the rock pile onto the 1.80 m box (sprint at lead 0.0, side 0.3 = (6, 0); at lead 0.1, side 0.15 =
-/// (3, 0): 6 of 7 replayed in the exe rest on the top, owner-5 `owner-5-mamayev-box-press-20261115.md`). Flown in this order;
-/// the best share wins, the first on a tie.
-pub const AIMS: [(i8, i8); 22] = [
+/// (3, 0): 6 of 7 replayed in the exe rest on the top, owner-5 `owner-5-mamayev-box-press-20261115.md`); and the heading
+/// turned 0.1 rad, straight or with the side 0.15 m: Mamayev Kurgan day_4's top at (-38.15, 35.88, 84.13) on the grid's
+/// diagonal, a sprint at lead 0.0, side 0.15, turn 0.1 = (3, 2) (all six variants rest on the top: the port on the game's shapes;
+/// the exe on the export in both tie orders seen; owner-5 `owner-5-item10-old-runup-edges-20261115.md`). Flown in this order; the best share wins, the first on a tie.
+pub const AIMS: [(i8, i8); 28] = [
     (-6, 4),
     (-6, -4),
     (6, 4),
@@ -115,13 +117,20 @@ pub const AIMS: [(i8, i8); 22] = [
     (3, 0),
     (-6, 0),
     (6, 0),
+    (-3, 2),
+    (-3, -2),
+    (3, 2),
+    (3, -2),
+    (0, 2),
+    (0, -2),
     (0, 6),
     (0, -6),
 ];
 
 /// [R83] The leads an aimed press is flown at, m, a walk and a sprint at each: every proven row's lead is one (R98's walk at
 /// the take-off's centre, [`gap::PRESS_LEAD_LOWEST_M`]; R94's sprint at 0.1; R94's kit walk and R95 at 0.3; R85 at 0.7; R83
-/// at 1.2), with the gap leads 0.6, 1.0 and 1.4.
+/// at 1.2), with the gap leads 0.6, 1.0 and 1.4. Not 0.2: Mamayev Kurgan day_4's top along (0, -1) at lead 0.2 rests only at
+/// turn 0.2 (0.18 and 0.22 miss: a knife edge), owner-5; the diagonal (3, 2) at the lowest lead carries that top.
 pub const AIMED_LEADS: [f32; 8] = [gap::PRESS_LEAD_LOWEST_M, 0.1, 0.3, 0.6, 0.7, 1.0, 1.2, 1.4];
 
 /// [R83] A flight came near a rim jump's top when one of its steps was within this of the top floor's height, below or above,

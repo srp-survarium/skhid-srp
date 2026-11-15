@@ -278,6 +278,7 @@ fn reference_replay() {
                     speed: num("speed"),
                     fall: None,
                     controller: None,
+                    gates: None,
                 },
             })
         })

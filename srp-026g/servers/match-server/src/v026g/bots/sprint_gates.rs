@@ -14,6 +14,135 @@
 
 use crate::v026g::drive::key;
 
+/// [Gap 5] A body's sprint and aim gates as a world saves them, every body's (a human's too): what `base_player::can_sprint`
+/// 0x2DBF40 and the hands' `can_sprint` 0x2E3A10 read at the world. Read once at the world's boundary (`driven.rs`, from
+/// srp-validate's typed views); the reckoning's use is [`super::body`]'s. The stamina's low flag is not here: it comes with the
+/// stamina record (`stamina::Saved`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorldGates {
+    /// The controller's `m_is_sprinting` (+204h, `bullet_character_controller::serialize` 0x7F7F0): the client's sprint state.
+    pub sprinting: bool,
+    pub hands: WorldHands,
+}
+
+/// [Gap 5] What the hands hold, for the sprint gate.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WorldHands {
+    /// No gun has a user (no gun's state machine saved with a user: a battery, a grenade, a swap's gap).
+    NoGun,
+    /// The one gun with a user.
+    Gun(GunGate),
+    /// More than one gun saved with a user, or an aim transition outside the client's values: the gate is not known.
+    Unread,
+}
+
+/// [Gap 5] The gun in hands' gate: its state machine's state, its aim transition, the sprint clip it waits for.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GunGate {
+    pub state: HandsState,
+    pub aim: AimAt,
+    /// `m_sprint_animation_to_wait_for` (+5ECh; srp-validate `InHand::sprint_animation_to_wait_for`, `None` for 6).
+    pub sprint_wait: Option<u8>,
+}
+
+/// [Gap 5] The gun's state machine's state as the sprint gate tells them apart (`can_sprint` 0x2E3A10 takes idle, and melee
+/// while a sprint clip is awaited).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HandsState {
+    Idle,
+    Reloading,
+    /// The melee state (srp-validate `StateData::Melee`: its index moves by gun).
+    Melee,
+    /// Show, hide, fire, chamber, throw.
+    Busy,
+}
+
+impl HandsState {
+    /// From the gun's saved state: its index ([`super::guns::GunAt::of_index`], idle 2 and reload 3 on every gun) and its
+    /// data's class (melee's).
+    pub fn of(in_hand: &srp_validate::world::InHand) -> Self {
+        if matches!(in_hand.state(), srp_validate::world::StateData::Melee { .. }) {
+            return Self::Melee;
+        }
+        match super::guns::GunAt::of_index(in_hand.state_index()) {
+            super::guns::GunAt::Idle => Self::Idle,
+            super::guns::GunAt::Reloading => Self::Reloading,
+            super::guns::GunAt::Busy => Self::Busy,
+        }
+    }
+}
+
+/// [Gap 5] The gun's aim transition (`m_aim_progress`, weapon +5FCh): the hands' `can_sprint` needs its current value at
+/// exactly 0.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AimAt {
+    /// Settled at 0.
+    Down,
+    /// Under way (`m_start_transition_time_in_ms` saved).
+    Moving {
+        /// Its target is 1 (up), else 0.
+        target_up: bool,
+        /// `m_current_value`.
+        current: f32,
+        /// `m_start_transition_time_in_ms` RAW, on the weapon tick's clock (0x2E1C76 stores weapon +5A4h, from
+        /// `weapon_core::tick` 0x2E09E0), not the world's: its link to the world's clock is not traced.
+        start_weapon_ms: u32,
+        /// `m_transition_time`, as saved.
+        transition_time: f32,
+    },
+    /// Settled at 1.
+    Up,
+}
+
+impl AimAt {
+    /// From the saved transition: `None` for values the client does not use (a target other than 0 or 1, a settled value
+    /// other than 0 or 1).
+    pub fn of(aim: &srp_validate::world::Transition) -> Option<Self> {
+        let (current, target) = (aim.current_value().get(), aim.target_value().get());
+        match aim.start_transition_time_ms() {
+            Some(start) => {
+                let target_up = match target {
+                    1.0 => true,
+                    0.0 => false,
+                    _ => return None,
+                };
+                Some(Self::Moving {
+                    target_up,
+                    current,
+                    start_weapon_ms: start,
+                    transition_time: aim.transition_time().get(),
+                })
+            }
+            None => match current {
+                0.0 => Some(Self::Down),
+                1.0 => Some(Self::Up),
+                _ => None,
+            },
+        }
+    }
+}
+
+impl WorldHands {
+    /// From the place's guns by slot (`PlaceWorld::guns`): the one saved with a user ([`Self::Unread`] for more than one).
+    pub fn of(guns: &[(u8, srp_validate::world::WeaponState)]) -> Self {
+        let mut held = guns.iter().filter_map(|(_, gun)| gun.in_hand());
+        let Some(in_hand) = held.next() else {
+            return Self::NoGun;
+        };
+        if held.next().is_some() {
+            return Self::Unread;
+        }
+        match AimAt::of(&in_hand.aim_progress()) {
+            Some(aim) => Self::Gun(GunGate {
+                state: HandsState::of(&in_hand),
+                aim,
+                sprint_wait: in_hand.sprint_animation_to_wait_for().map(|s| s.get()),
+            }),
+            None => Self::Unread,
+        }
+    }
+}
+
 /// `stagger_duration`, ms (`default.player`'s `stagger_params`, PROVEN).
 pub const STAGGER_MS: u32 = 500;
 /// `max_stagger`: the most the hits take off the speed factor (PROVEN).

@@ -824,6 +824,11 @@ impl Game {
                     ceiling_normal: Vec3::from_array(body.blocking_ceiling_normal),
                     ceiling_slide: Vec3::from_array(body.blocking_ceiling_slide_velocity),
                 }),
+                // [Gap 5] Its sprint and aim gates: the controller's sprint flag and the gun with a user.
+                gates: motion.body.as_ref().map(|body| crate::v026g::bots::sprint_gates::WorldGates {
+                    sprinting: body.sprinting,
+                    hands: crate::v026g::bots::sprint_gates::WorldHands::of(&world.guns),
+                }),
             };
             let health = motion
                 .damage
