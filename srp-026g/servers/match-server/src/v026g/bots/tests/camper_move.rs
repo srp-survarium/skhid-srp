@@ -307,10 +307,12 @@ const PERIOD_MS: (f32, f32) = (800.0, 1_200.0);
 /// A peek steps this far sideways, m. [G6] DERIVED from the client's strafe and the live peek: the side walk is 2.5 m/s
 /// standing (2.0 aiming; `default.player`'s `movement_speed`, PROVEN config, `mapdata::controller::speed`), and a change of
 /// direction blends the two clips' root moves over 0.3 s with a linear weight (the walk vector is their plain weighted sum:
-/// `walk_blend.md`, 0x921804, 0x3B0CD0, 0x3B1B60; PROVEN, 82 clean stops counted). A strafe held for T between two
-/// changes moves the body, from one standstill to the next, v (T - 0.3) + 0.15 v: at the live peek's out time T = 0.40 s
-/// (`an-anticamper.md` 8.4: 31 peeks a minute, out 0.40 s, period 0.8 s, 8,474 holds) 0.25 v, 0.625 m standing (0.50 m
-/// aiming). It was 1.2 m (0.4 s at a walk with no blend).
+/// `walk_blend.md`, 0x921804, 0x3B0CD0, 0x3B1B60; PROVEN, 82 clean stops counted). The live peeks run on, out and back
+/// with no rest (`an-anticamper.md` 8.4: 31 peeks a minute, out 0.40 s, period 0.8 s, 8,474 holds), so the body swings
+/// between two turning points (its speed 0, 0.15 s after each key change): from the cover side's to the far one, a strafe
+/// held T moves it 0.075 v + v (T - 0.3) + 0.075 v, at T = 0.40 s 0.25 v: 0.625 m standing (0.50 m aiming). The first
+/// peek of a run, from rest, reaches 0.15 v + v (T - 0.3) + 0.075 v = 0.325 v (0.81 m). The stand-in's peek is the cover
+/// point to the far turning point of the running peeks. It was 1.2 m (0.4 s at a walk with no blend).
 const PEEK_M: f32 = 0.625;
 /// Area points lie this far from the spot, m.
 const AREA_NEAR_M: f32 = 3.0;
