@@ -822,6 +822,11 @@ impl BodyTrack {
         self.own.world_reload(at, until)
     }
 
+    /// [A388 (e)] A world's word on this body's tube reload loop ([`super::sprint_gates::OwnGates::world_tube_reload`]).
+    pub fn world_tube_reload(&mut self, at: u32, under_way: bool) -> bool {
+        self.own.world_tube_reload(at, under_way)
+    }
+
     /// [2e] The bot's gun in hands' `aim_time`, ms.
     pub fn set_aim_out_ms(&mut self, ms: u32) {
         self.own.set_aim_out_ms(ms);

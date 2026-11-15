@@ -854,6 +854,11 @@ impl Tracker {
         self.places.get_mut(place).is_some_and(|state| state.body.world_reload(at, until))
     }
 
+    /// [A388 (e)] A world's word on `place`'s tube reload loop ([`BodyTrack::world_tube_reload`]).
+    pub fn world_tube_reload(&mut self, place: Place, at: u32, under_way: bool) -> bool {
+        self.places.get_mut(place).is_some_and(|state| state.body.world_tube_reload(at, under_way))
+    }
+
     /// [2e] A bot's own sprint gates for its body: its last reload (from, until), its gun's `aim_time`, ms, and its reckoned bar's
     /// low flag ([`BodyTrack::note_reload`], [`BodyTrack::set_aim_out_ms`], [`BodyTrack::set_low_stamina`]).
     pub fn set_own_gates(&mut self, place: Place, reload: Option<(u32, u32)>, aim_out_ms: u32, low_stamina: bool) {

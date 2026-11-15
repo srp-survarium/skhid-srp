@@ -33,6 +33,9 @@ pub struct OwnGates {
     /// [A364 P10] The bot's reckoned bar's low flag: `can_sprint` 0x2DBF40 refuses the sprint under it (PROVEN,
     /// `docs/notes/sprint_state.md`).
     low_stamina: bool,
+    /// [A388 (e)] A tube's reload loop the worlds show under way (`StateData::ShotgunReload`, state id 4): since this world's
+    /// time, held until a world shows the gun out of it ([`Self::world_tube_reload`]).
+    tube_since: Option<u32>,
 }
 
 impl OwnGates {
@@ -86,7 +89,20 @@ impl OwnGates {
 
     /// Whether a reload is under way at `time`.
     pub fn reloading(&self, time: u32) -> bool {
-        self.reloads.iter().any(|&(from, until)| from <= time && time < until)
+        self.tube_since.is_some_and(|since| since <= time) || self.reloads.iter().any(|&(from, until)| from <= time && time < until)
+    }
+
+    /// [A388 (e)] A world made at `at` on a tube's reload loop: `true` while the world shows the gun in it. The loop's end is
+    /// not in the world (its round clips are not read), so a loop seen under way is held until a world shows it over: exact
+    /// at each world, at most one world's interval long past the loop's end. Returns whether the gates changed.
+    pub fn world_tube_reload(&mut self, at: u32, under_way: bool) -> bool {
+        let was = self.tube_since;
+        self.tube_since = match (was, under_way) {
+            (Some(since), true) => Some(since),
+            (None, true) => Some(at),
+            (_, false) => None,
+        };
+        self.tube_since != was
     }
 
     /// The keys of a tick at `time` as the client takes them: a reload has the sights down (no AIM) and no sprint; the low
@@ -138,6 +154,7 @@ pub(crate) mod world_reloads {
     static READ: AtomicU64 = AtomicU64::new(0);
     static CHANGED: AtomicU64 = AtomicU64::new(0);
     static NOT_READ: AtomicU64 = AtomicU64::new(0);
+    static TUBE: AtomicU64 = AtomicU64::new(0);
 
     pub(crate) fn read(changed: bool) {
         READ.fetch_add(1, Relaxed);
@@ -146,14 +163,19 @@ pub(crate) mod world_reloads {
         }
     }
 
-    /// A body reloading in a world whose reload's end is not read (a tube's loop, a cancelled clip, no clip in the tree).
+    /// A world showing a body in a tube's reload loop (held to the next world, [`super::OwnGates::world_tube_reload`]).
+    pub(crate) fn tube() {
+        TUBE.fetch_add(1, Relaxed);
+    }
+
+    /// A body reloading in a world whose reload's end is not read (a cancelled clip, no clip in the tree).
     pub(crate) fn not_read() {
         NOT_READ.fetch_add(1, Relaxed);
     }
 
-    /// (read, changed, not read) since the last call, and zero again.
-    pub(crate) fn take() -> (u64, u64, u64) {
-        (READ.swap(0, Relaxed), CHANGED.swap(0, Relaxed), NOT_READ.swap(0, Relaxed))
+    /// (read, changed, not read, tube) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64, u64, u64) {
+        (READ.swap(0, Relaxed), CHANGED.swap(0, Relaxed), NOT_READ.swap(0, Relaxed), TUBE.swap(0, Relaxed))
     }
 }
 
@@ -163,6 +185,21 @@ mod tests {
 
     /// [A388 (e) gap 5] A world's reload refuses the sights and the sprint from the world to the clip's end; a kept reload under
     /// way at the world ends at the clip's end; the same word again changes nothing.
+    /// [A388 (e)] A tube's loop seen under way refuses the sights and the sprint from that world until a world shows it over.
+    #[test]
+    fn a_tubes_loop_is_held_until_a_world_shows_it_over() {
+        let mut gates = OwnGates::default();
+        let run = key::FORWARD | key::SPRINT | key::AIM;
+        assert!(!gates.world_tube_reload(500, false));
+        assert!(gates.world_tube_reload(1_000, true));
+        assert_eq!(gates.taken(999, run), run, "before the world that showed it");
+        assert_eq!(gates.taken(1_000, run), key::FORWARD);
+        assert!(!gates.world_tube_reload(1_200, true), "the loop still under way: held from its first world");
+        assert_eq!(gates.taken(5_000, run), key::FORWARD);
+        assert!(gates.world_tube_reload(5_100, false));
+        assert_eq!(gates.taken(5_100, run), run);
+    }
+
     #[test]
     fn a_worlds_reload_gates_to_its_clips_end() {
         let mut gates = OwnGates::default();

@@ -1725,6 +1725,15 @@ impl Bots {
         }
     }
 
+    /// [A388 (e)] A world's word on `place`'s tube reload loop, every world of every place: `under_way` while its gun in hands is
+    /// in it. The sights and sprint are refused from the first such world until a world shows it over.
+    pub fn world_tube_reload(&mut self, place: Place, at: u32, under_way: bool) {
+        if under_way {
+            sprint_gates::world_reloads::tube();
+        }
+        self.tracker.world_tube_reload(place, at, under_way);
+    }
+
     /// What the bot at `place` counts of its drugs, for the tests.
     #[cfg(test)]
     pub(crate) fn pantry_of(&self, place: Place) -> Option<&stock::Pantry> {
@@ -2345,9 +2354,9 @@ impl Bots {
             survarium::v026g::bot_skills::carried_battery_term().map_or_else(|| "not in the data".to_string(), |term| format!("{term:+.3}"))
         ));
         // [A388 (e) gap 5] Every body's reloads from the worlds: the reckoned sights and sprint refused to the clip's end.
-        let (read, changed, not_read) = sprint_gates::world_reloads::take();
+        let (read, changed, not_read, tube) = sprint_gates::world_reloads::take();
         lines.push(format!(
-            "{}world reloads since the last match end (every match on this server): {read} with the clip's end read, {changed} of them changed a reckoned body's gates, {not_read} with no end read",
+            "{}world reloads since the last match end (every match on this server): {read} with the clip's end read, {changed} of them changed a reckoned body's gates, {not_read} with no end read, {tube} worlds in a tube's loop (held to the next world)",
             nav_log::PREFIX
         ));
         // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
