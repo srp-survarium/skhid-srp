@@ -806,17 +806,16 @@ pub struct CombatTuning {
     /// 1: the view stays where the turn takes it; 0: the kick lifts it.
     /// The one number here mixed by the skill (the owner, 2026-10-23):
     /// `recoil_pull` at skill 1, `recoil_pull_low` at skill 0, linear between.
-    /// [range-fire] `recoil_pull_low` 0.85 (was 0.5, a design number): of the
-    /// bench's pull cells (the tier 4-5 AKS-74U at skill 0.3, hit shapes, 32
-    /// logs each; hits by burst length 1 / 2-3 / 4-6 / 7-10 / 11+ rounds) 0.5
-    /// fell from the first round (14.0 / 11.1 / 9.4 / 7.4 / 5.7 %) and left
-    /// the later rounds over the target at 40+ m (the rifle range trace); 0.85
-    /// is the first flat through 10 rounds with 11+ under (13.2 / 12.1 / 13.1 /
-    /// 12.6 / 8.9 %), the live humans' shape (4-6 20.4, 7-10 21.2, 11+ 13.3 %;
-    /// their 11+ is biased low: a human lets go when he misses); 1.0 is flat
-    /// through 11+ too (14.2 / 13.2 / 12.9 / 13.7 / 12.5 %), which the humans
-    /// are not. The rise to 1.0 with the skill is a design rule: the humans'
-    /// median and top tenth pull alike, so it is not measured.
+    /// [range-fire] `recoil_pull_low` 0.85 (was 0.5, a design number). The
+    /// bench's cells by the round's place in the burst (the tier 4-5 AKS-74U at
+    /// skill 0.3, 40-65 m, the stand-in's hit shapes with the bots' scatter as
+    /// measured): the hit rate of rounds 4-10 over that of rounds 1-3 is 0.34 /
+    /// 0.55 / 0.85 / 1.16 at 0.5 / 0.7 / 0.85 / 1.0, the live humans' 0.77 ±
+    /// 0.11 (the fair human by-place sample). 0.85 is the lowest measured value
+    /// inside the humans' interval (linear between the cells their point is
+    /// about 0.81); 1.0 is over it. The humans' fall at rounds 11+ is their
+    /// hold length, which no pull gives. The rise to 1.0 with the skill is a
+    /// design rule: the humans' median and top tenth pull alike.
     pub recoil_pull: f32,
     pub recoil_pull_low: f32,
     /// [A241] Down the sights an automatic's shot leaves right of the view by the client's aim sway
