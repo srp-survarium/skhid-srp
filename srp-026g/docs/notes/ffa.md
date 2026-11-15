@@ -625,8 +625,10 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     lobby's (`loadouts::KitLayout`): the player's 3, plus the `ammo_bags_modifier` of its worn
     items' modifications (their defaults and their own) and its skills' (modifier 16); the ammo it
     keeps takes a clip's `required_bags` for every clip it holds, the last one begun. That ammo
-    goes in the first slot emptied or else its first empty ammo slot. A kit that holds ammo the
-    gun fires already keeps its own (in a level-10 room any 5.45x39 the AK-74N takes); one with no
+    goes in the first slot emptied or else its first empty ammo slot. A kit that already holds
+    the gun's own ammo (7N10, 6.5x39) keeps it; one holding only other ammo the gun fires (7N6M
+    beside the AK-74N) still gets its clips of the gun's own (the owner, 2026-11-15, of the clean
+    review's finding: "let's quickly fix that"); one with no
     ammo slot or no bag free has the gun's magazine alone. (A sniper's kit of three bags: 90
     rounds. A Val beside an SR-3M on one SP-6: the SR-3M keeps the SP-6, the AK-12 has the bags it
     leaves.)
