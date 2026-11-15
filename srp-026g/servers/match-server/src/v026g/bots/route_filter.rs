@@ -306,6 +306,12 @@ impl RouteFilter {
             && self.soft_floors.as_ref().is_none_or(|f| f(node))
     }
 
+    /// [A390] This filter with the landings of the jumps and drops the body gave up open again (its other rules kept): a body
+    /// a zone's way out would leave under its give-up takes any way out (`crossing::escape_borne`).
+    pub fn landings_opened(&self) -> RouteFilter {
+        RouteFilter { landings: Vec::new(), ..self.clone() }
+    }
+
     /// Whether floor `node` is open to a search that drops the soft part
     /// (a crossing's, [`super::crossing`]).
     pub fn hard_open(&self, grid: &WalkGrid, node: NodeId) -> bool {
@@ -395,6 +401,19 @@ mod tests {
         assert_eq!(open.without_soft().weight(grid, edge), 3.0, "a cost, not a soft rule");
         let bare = field_with_solids(&slab, |_| {});
         assert_eq!(open.weight(&bare.grid, at(&bare.grid, 55.9)), 1.0, "no table, no weight");
+    }
+
+    /// [A390] With the landings opened, a floor a shut landing covers is open again, and the filter's other hard rules stay.
+    #[test]
+    fn opened_landings_open_their_floors_and_keep_the_other_rules() {
+        let (world, _) = field();
+        let grid = &world.grid;
+        let (a, b) = (grid.locate(Vec3::new(20.0, 0.0, 20.0), 1.5).unwrap(), grid.locate(Vec3::new(30.0, 0.0, 20.0), 1.5).unwrap());
+        let shut = RouteFilter::shutting_landings(vec![stuck::Shut::jump(grid.position(a))]).with_floors(move |n| n != b);
+        assert!(!shut.hard_open(grid, a) && !shut.hard_open(grid, b));
+        let opened = shut.landings_opened();
+        assert!(opened.hard_open(grid, a), "the landing's floor is open again");
+        assert!(!opened.hard_open(grid, b), "the floor rule stays");
     }
 
     /// A grid and its regions to test on.

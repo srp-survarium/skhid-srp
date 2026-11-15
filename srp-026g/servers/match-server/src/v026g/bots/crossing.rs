@@ -320,6 +320,38 @@ pub fn still_borne(tactics: &Tactics, route: &Route, walked: f32, body: &CrossBo
     body.leaves(hurt(tactics, route, walked, route.length(), body.armour()))
 }
 
+/// [A390] The way out of a zone from floor `from` for `body` ([`Tactics::escape`] with `hard`, toward `goal`), by any way when
+/// its pool falls: when that way out would leave a pool under the body's give-up (`CrossBody::leaves`, the zone price rows'
+/// `give_up_left`), or there is none, the way out with the landings it gave up open again ([`RouteFilter::landings_opened`]:
+/// a jump or a drop it shut, Vector Laboratory's radiation pit's riser) is searched too, and the cheaper of the two in the
+/// pools that kill ([`hurt`]) taken. With the log's line when the second is taken (decision-neutral).
+#[allow(clippy::too_many_arguments)]
+pub fn escape_borne(
+    tactics: &Tactics,
+    from: NodeId,
+    goal: Option<Vec3>,
+    time: u32,
+    side: Option<i32>,
+    objective: bool,
+    hard: &RouteFilter,
+    body: &CrossBody,
+) -> (Option<Route>, Option<String>) {
+    let kept = tactics.escape(from, goal, time, side, objective, hard);
+    let cost = |route: &Route| hurt(tactics, route, 0.0, route.length(), body.armour());
+    if kept.as_ref().is_some_and(|route| body.leaves(cost(route))) {
+        return (kept, None);
+    }
+    let any = tactics.escape(from, goal, time, side, objective, &hard.landings_opened());
+    match any {
+        Some(any) if kept.as_ref().is_none_or(|kept| cost(&any).most() < cost(kept).most()) => {
+            let why = if kept.is_some() { "the way out keeping off shut landings leaves too little" } else { "no way out keeping off shut landings" };
+            let line = priced_line("zone way out over a shut landing", why, cost(&any), body, any.length());
+            (Some(any), Some(line))
+        }
+        _ => (kept, None),
+    }
+}
+
 /// What the motor takes after a crossing's search from floor `from`: the
 /// route, whether it is a crossing, and whether it is the plain route kept
 /// (a long one: not searched again soon, [`LONG_RETRY_MS`]). `plain` is the
