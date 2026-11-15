@@ -121,6 +121,14 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   on the card with most votes then, a tie or none drawn at random. Fewer members than the
   minimum stop it; a member changing kit stops nothing. A match that could not be made
   gives the room its wait again, the vote open, its votes kept.
+  - **A card is drawn map first, then weather** (the owner's of 2026-11-15: "make 3 new stalker
+    maps 3 times as likely in FFA", "the pick should be first map, then weather"; after the
+    revision 59 restart Training Camp was played twice in about 35 free-for-alls): every card,
+    every mode, server's and private rooms alike. A map of the pool (`match_making_params.map_id`)
+    alike, then one of its ids in the pool (weather and mode) alike: a map of one weather (the
+    STALKER maps, London, the ports) comes as often as a levels 1-8 map of three (before, every
+    id alike: a third as often). The cards are on different maps while the pool has as many (a
+    map drawn leaves with all its ids), then on other ids of the maps shown (`rooms::Left`).
   - **The third card is a free-for-all** (the owner's of 2026-11-12: "ffa should be a third
     pane always, blackout should be in general pool"; Blackout had the card from 2026-11-02
     until then): cards 1 and 2 drawn from the rest of the pool (Blackout's maps as any
