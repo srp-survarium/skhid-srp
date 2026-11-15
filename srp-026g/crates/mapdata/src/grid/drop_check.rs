@@ -605,7 +605,7 @@ impl WalkGrid {
         };
         // [A1b] The walk-off at release: on the link's own landing before a walk line's landing elsewhere (the shallow ledge a
         // steady walk overshoots), on another lower floor before the crouched walk-off.
-        let release = self.released(world, s, start, from, to, &lower);
+        let release = self.released(world, s, start, from, to, lower);
         if let Some((b, press, share)) = release
             && flat(self.position(b), to) <= ARRIVE_FLAT_M
             && (self.position(b).y - to.y).abs() <= ARRIVE_HEIGHT_M
