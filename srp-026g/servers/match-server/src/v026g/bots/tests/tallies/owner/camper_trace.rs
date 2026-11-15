@@ -26,7 +26,7 @@ pub(super) struct CamperTrace {
 impl CamperTrace {
     fn open(&mut self) {
         self.tried = true;
-        let settings = bench_settings();
+        let settings = crate::v026g::bots::tests::bench_settings();
         let Some(dir) = settings.var_os("SRP_BENCH_CAMPER_TRACE") else {
             return;
         };
