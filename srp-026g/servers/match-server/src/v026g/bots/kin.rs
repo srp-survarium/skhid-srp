@@ -292,7 +292,7 @@ pub enum AimGates {
     Keys,
     /// The client's: a battery carrier is never aimed, and a world that shows AIM held with the gun not aimed (not in a reload,
     /// which takes the sights down already, nor in the sprint state, which AIM ends) holds the unaimed class from that world
-    /// until a world shows the gun aimed or AIM up ([`super::sprint_gates::OwnGates::world_aim_refusal`]). The bot's keys do not
+    /// until a world shows the gun aimed, AIM up or no gun ([`super::sprint_gates::OwnGates::world_aim_refusal`]). The bot's keys do not
     /// change, only its reckoned place. ON and KEPT_RIGHT.
     #[default]
     World,

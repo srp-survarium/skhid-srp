@@ -318,15 +318,17 @@ impl WorldGates {
 
 impl WorldGates {
     /// [register #24] Whether this world shows the aim refused for keys `keys` (the world's own): AIM held with the gun not aimed.
-    /// `Some(false)`: AIM up, the gun aimed, a reload (its own gate takes the sights down), or the sprint state (which AIM ends on
-    /// its own, A318). `None`: no gun with a user or an unread gate (a carrier's is `body::Hands`), which leaves a hold as it was.
+    /// `Some(false)`: AIM up, the gun aimed, a reload (its own gate takes the sights down), the sprint state (which AIM ends on
+    /// its own, A318), or no gun with a user (the gun's hold is over; a battery carrier's class is `body::Hands`'s). `None`: an
+    /// unread gate, which leaves a hold as it was.
     pub fn refuses_aim(&self, keys: u32) -> Option<bool> {
         if keys & key::AIM == 0 || self.sprinting {
             return Some(false);
         }
         match self.hands {
             WorldHands::Gun(gun) => Some(gun.state != HandsState::Reloading && !gun.aimed),
-            WorldHands::NoGun | WorldHands::Unread => None,
+            WorldHands::NoGun => Some(false),
+            WorldHands::Unread => None,
         }
     }
 }
@@ -467,8 +469,8 @@ mod tests {
         assert_eq!(gates.taken(1_400, run), run);
     }
 
-    /// [register #24] A world with AIM held and the gun not aimed refuses the aim (not in a reload or the sprint state, not without
-    /// a gun read); the refusal holds from that world until a world shows the gun aimed or AIM up.
+    /// [register #24] A world with AIM held and the gun not aimed refuses the aim (not in a reload or the sprint state); the refusal
+    /// holds from that world until a world shows the gun aimed, AIM up or no gun; an unread gate leaves it.
     #[test]
     fn a_worlds_aim_refusal_holds_until_a_world_shows_the_gun_aimed() {
         let gun = |state, aimed| WorldGates {
@@ -483,7 +485,9 @@ mod tests {
         let sprinting = WorldGates { sprinting: true, ..gun(HandsState::Idle, false) };
         assert_eq!(sprinting.refuses_aim(aim), Some(false), "the sprint state, which AIM ends");
         let no_gun = WorldGates { sprinting: false, hands: WorldHands::NoGun };
-        assert_eq!(no_gun.refuses_aim(aim), None);
+        assert_eq!(no_gun.refuses_aim(aim), Some(false), "no gun: the gun's hold is over");
+        let unread = WorldGates { sprinting: false, hands: WorldHands::Unread };
+        assert_eq!(unread.refuses_aim(aim), None);
         let mut gates = OwnGates::default();
         assert!(gates.world_aim_refusal(1_000, true));
         assert!(!gates.aim_refused(999) && gates.aim_refused(1_000));
