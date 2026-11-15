@@ -103,7 +103,8 @@ impl PartHeights {
 
     /// The points of a stance: the head the `brain` sphere, the chest and the belly the front `Chest` and `Spin`
     /// boxes, the thighs and the shins the means of the legs' capsules, the pelvis halfway between the belly and the
-    /// thighs (the table has no shape of its own there).
+    /// thighs (no shape of the table is centred there). The pelvis point is not in empty air: its height lies within
+    /// the front `Spin` box's height span (0.78 in 0.740..1.116 standing, 0.40 in 0.286..0.662 crouched).
     fn of(table: &str, stance: &str) -> [f32; 6] {
         let at = |part: &str, bone: &str| Self::centre(table, stance, part, bone);
         let head = at("brain", "Head");
