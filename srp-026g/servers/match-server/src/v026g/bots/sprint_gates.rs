@@ -43,6 +43,9 @@ pub struct GunGate {
     pub aim: AimAt,
     /// `m_sprint_animation_to_wait_for` (+5ECh; srp-validate `InHand::sprint_animation_to_wait_for`, `None` for 6).
     pub sprint_wait: Option<u8>,
+    /// [register #24] `m_aimed` (+5E8h; srp-validate `InHand::aimed`): the aim state that picks the aimed movement class
+    /// (`kin::AimGates`).
+    pub aimed: bool,
 }
 
 /// [Gap 5] The gun's state machine's state as the sprint gate tells them apart (`can_sprint` 0x2E3A10 takes idle, and melee
@@ -137,6 +140,7 @@ impl WorldHands {
                 state: HandsState::of(&in_hand),
                 aim,
                 sprint_wait: in_hand.sprint_animation_to_wait_for().map(|s| s.get()),
+                aimed: in_hand.aimed(),
             }),
             None => Self::Unread,
         }
@@ -168,6 +172,9 @@ pub struct OwnGates {
     /// [Gap 5] The hands' sprint refusal the worlds show ([`WorldGates::refuses_sprint`]): since this world's time, held until a world
     /// shows it over ([`Self::world_sprint_refusal`]).
     refused_since: Option<(u32, SprintRefusal)>,
+    /// [register #24] Since when a world showed AIM held with the gun not aimed ([`WorldGates::refuses_aim`]): held until a world
+    /// shows the gun aimed or AIM up ([`Self::world_aim_refusal`]).
+    aim_refused_since: Option<u32>,
 }
 
 impl OwnGates {
@@ -245,6 +252,24 @@ impl OwnGates {
         if refused { keys & !key::SPRINT } else { keys }
     }
 
+    /// [register #24] A world made at `at` shows the aim refused (AIM held, the gun not aimed: `refused`) or not. A refusal is held
+    /// from its first world until a world shows it over: the aim's start is not in the world (the hands' own gate), so the hold
+    /// is exact at each world and at most one world's interval long past its end. Returns whether the hold changed.
+    pub fn world_aim_refusal(&mut self, at: u32, refused: bool) -> bool {
+        let was = self.aim_refused_since;
+        self.aim_refused_since = match (was, refused) {
+            (Some(since), true) => Some(since),
+            (None, true) => Some(at),
+            (_, false) => None,
+        };
+        self.aim_refused_since != was
+    }
+
+    /// [register #24] Whether the aim is held refused at `time` ([`Self::world_aim_refusal`]).
+    pub fn aim_refused(&self, time: u32) -> bool {
+        self.aim_refused_since.is_some_and(|since| since <= time)
+    }
+
     /// [Gap 5] A world made at `at` and the hands' sprint refusal it shows, if any ([`WorldGates::refuses_sprint`]). The end of such a
     /// refusal is not in the world (the gun's clip ends, its aim transition's clock), so one seen is held until a world shows it over:
     /// exact at each world, at most one world's interval long past its end. A refusal of another kind replaces it from this world.
@@ -288,6 +313,44 @@ impl WorldGates {
             (HandsState::Idle | HandsState::Melee, _, AimAt::Moving { .. } | AimAt::Up) => Some(SprintRefusal::Aim),
             (HandsState::Idle | HandsState::Melee, _, AimAt::Down) => None,
         }
+    }
+}
+
+impl WorldGates {
+    /// [register #24] Whether this world shows the aim refused for keys `keys` (the world's own): AIM held with the gun not aimed.
+    /// `Some(false)`: AIM up, the gun aimed, a reload (its own gate takes the sights down), or the sprint state (which AIM ends on
+    /// its own, A318). `None`: no gun with a user or an unread gate (a carrier's is `body::Hands`), which leaves a hold as it was.
+    pub fn refuses_aim(&self, keys: u32) -> Option<bool> {
+        if keys & key::AIM == 0 || self.sprinting {
+            return Some(false);
+        }
+        match self.hands {
+            WorldHands::Gun(gun) => Some(gun.state != HandsState::Reloading && !gun.aimed),
+            WorldHands::NoGun | WorldHands::Unread => None,
+        }
+    }
+}
+
+/// [register #24] The worlds that showed the aim refused (AIM held, the gun not aimed), and those that changed a reckoned body's
+/// hold, on this server (the match-end line). Decides nothing.
+pub(crate) mod world_aim_refusals {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static SEEN: AtomicU64 = AtomicU64::new(0);
+    static CHANGED: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn seen(refused: bool, changed: bool) {
+        if refused {
+            SEEN.fetch_add(1, Relaxed);
+        }
+        if changed {
+            CHANGED.fetch_add(1, Relaxed);
+        }
+    }
+
+    /// (refused worlds, changes) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64) {
+        (SEEN.swap(0, Relaxed), CHANGED.swap(0, Relaxed))
     }
 }
 
@@ -386,7 +449,7 @@ mod tests {
     /// down; the refusal holds from that world until a world shows it over; a reload is #1946's and no gun proves nothing.
     #[test]
     fn a_worlds_hands_refusal_holds_until_a_world_shows_it_over() {
-        let gun = |state, sprint_wait, aim| WorldGates { sprinting: false, hands: WorldHands::Gun(GunGate { state, aim, sprint_wait }) };
+        let gun = |state, sprint_wait, aim| WorldGates { sprinting: false, hands: WorldHands::Gun(GunGate { state, aim, sprint_wait, aimed: false }) };
         assert_eq!(gun(HandsState::Busy, None, AimAt::Down).refuses_sprint(), Some(SprintRefusal::Busy));
         assert_eq!(gun(HandsState::Melee, None, AimAt::Down).refuses_sprint(), Some(SprintRefusal::Melee));
         assert_eq!(gun(HandsState::Melee, Some(2), AimAt::Down).refuses_sprint(), None);
@@ -402,6 +465,32 @@ mod tests {
         assert!(!gates.world_sprint_refusal(1_200, Some(SprintRefusal::Busy)), "the same refusal: held from its first world");
         assert!(gates.world_sprint_refusal(1_400, None));
         assert_eq!(gates.taken(1_400, run), run);
+    }
+
+    /// [register #24] A world with AIM held and the gun not aimed refuses the aim (not in a reload or the sprint state, not without
+    /// a gun read); the refusal holds from that world until a world shows the gun aimed or AIM up.
+    #[test]
+    fn a_worlds_aim_refusal_holds_until_a_world_shows_the_gun_aimed() {
+        let gun = |state, aimed| WorldGates {
+            sprinting: false,
+            hands: WorldHands::Gun(GunGate { state, aim: AimAt::Down, sprint_wait: None, aimed }),
+        };
+        let aim = key::FORWARD | key::AIM;
+        assert_eq!(gun(HandsState::Busy, false).refuses_aim(aim), Some(true));
+        assert_eq!(gun(HandsState::Idle, true).refuses_aim(aim), Some(false));
+        assert_eq!(gun(HandsState::Reloading, false).refuses_aim(aim), Some(false), "the reload's own gate");
+        assert_eq!(gun(HandsState::Busy, false).refuses_aim(key::FORWARD), Some(false), "AIM up");
+        let sprinting = WorldGates { sprinting: true, ..gun(HandsState::Idle, false) };
+        assert_eq!(sprinting.refuses_aim(aim), Some(false), "the sprint state, which AIM ends");
+        let no_gun = WorldGates { sprinting: false, hands: WorldHands::NoGun };
+        assert_eq!(no_gun.refuses_aim(aim), None);
+        let mut gates = OwnGates::default();
+        assert!(gates.world_aim_refusal(1_000, true));
+        assert!(!gates.aim_refused(999) && gates.aim_refused(1_000));
+        assert!(!gates.world_aim_refusal(1_200, true), "held from its first world");
+        assert!(gates.aim_refused(1_100));
+        assert!(gates.world_aim_refusal(1_400, false));
+        assert!(!gates.aim_refused(1_400));
     }
 
     /// [A388 (e) gap 5] A world's reload refuses the sights and the sprint from the world to the clip's end; a kept reload under

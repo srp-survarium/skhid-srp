@@ -36,7 +36,7 @@ use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
 use super::kin::{Blend, DropFall, Edge, ForecastStep, JumpFlight, StepInput, ClientStep, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
-use super::kin::{SpeedTerms, SprintGates};
+use super::kin::{AimGates, SpeedTerms, SprintGates};
 use super::legs::{LegDamage, LegGate};
 use super::sprint_gates::{OwnGates, Stagger};
 use super::pitch::{Pitch, PitchScale};
@@ -991,6 +991,12 @@ impl BodyTrack {
         if kin.sprint_gates == SprintGates::Client {
             keys = self.own.taken(tick.time, keys);
         }
+        // [register #24 `kin.aim_gates`] The aimed class is the hands' aim state: never for a battery carrier (its hands put in 0,
+        // 0x30130C), and not while a world showed the gun not aimed under AIM ([`AimGates::World`]). AIM held refuses the sprint in
+        // the client either way, so the sprint goes with it and nothing else reads AIM here.
+        if kin.aim_gates == AimGates::World && keys & key::AIM != 0 && (self.hands == Hands::Battery || self.own.aim_refused(tick.time)) {
+            keys &= !(key::AIM | key::SPRINT);
+        }
         if kin.sprint_gates == SprintGates::Client && keys & key::SPRINT != 0 {
             let aim_out = self.own.aim_out_ms();
             let aiming_out = aim_out > 0
@@ -1163,6 +1169,26 @@ impl BodyTrack {
             let changed = self.own.world_sprint_refusal(fix.time, refusal);
             if let Some(why) = refusal {
                 super::sprint_gates::world_refusals::seen(why, changed);
+            }
+            // [register #24] The aim the world shows refused (AIM held, the gun not aimed), held to the next world that shows it
+            // over; a world without a gun read leaves the hold as it was.
+            if kin.aim_gates == AimGates::World
+                && let Some(refused) = gates.refuses_aim(fix.keys)
+            {
+                let changed = self.own.world_aim_refusal(fix.time, refused);
+                super::sprint_gates::world_aim_refusals::seen(refused, changed);
+                if changed {
+                    log::debug!(
+                        "{}reckoned body at {} ms: {}",
+                        super::nav_log::PREFIX,
+                        fix.time,
+                        if refused {
+                            "AIM held, the gun not aimed: the unaimed class until a world shows it aimed"
+                        } else {
+                            "the aimed class back (the gun aimed or AIM up)"
+                        }
+                    );
+                }
             }
         }
         let new_life = fix.alive

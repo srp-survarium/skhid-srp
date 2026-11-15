@@ -2472,6 +2472,12 @@ impl Bots {
             "{}world sprint refusals since the last match end (every match on this server): gun busy {busy}, melee {melee}, aim not down {aim}; {changed} changed a reckoned body's gates",
             nav_log::PREFIX
         ));
+        // [register #24] The worlds that showed the aim refused (AIM held, the gun not aimed), held to the next world.
+        let (refused, changed) = sprint_gates::world_aim_refusals::take();
+        lines.push(format!(
+            "{}world aim refusals since the last match end (every match on this server): {refused} worlds with AIM held and the gun not aimed; {changed} changed a reckoned body's aimed class",
+            nav_log::PREFIX
+        ));
         // [F42] The reckoned steps of bodies with both legs broken by their crouch selector state.
         let (steady, unparks) = drive::steady_creeps::take();
         lines.push(format!(
