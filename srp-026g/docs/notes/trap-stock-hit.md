@@ -30,5 +30,5 @@
 - **Simulation:** every client runs every bullet: a `next` row.
 - **Checked:** `check_trap_stock_hit_026g.py` (Unicorn: the hit from its entry on a made-up trap, in
   the original and the patched exe); `cargo test`, Clippy.
-- **Played** (the owner, 2026-11-15, revision 61 test build, the stock hit shape): a stock hit
-  disarms the trap, only dead centre. The wider shape: built (`release/build-content`), not played.
+- **Played** (the owner, 2026-11-15, revision 61 test builds): with the stock hit shape a stock hit
+  disarms the trap, only dead centre; with the wider shape: "good".
