@@ -28,14 +28,16 @@ def check(pack, live, donor, report):
         modules = {row['name']: row['module'] for row in lib.scopes()}
         aimed_models = {row['name']: 'weapons/modules/' + row['module'] + '/' + row['module_name'] + '_aim'
                         for row in lib.scopes()}
-    elif manifest['id'] == 'scope-fits':
+    elif manifest['id'] in ('scope-fits', 'scope-coverage'):
         table = Path(__file__).resolve().parents[1] / 'scope-fits/optics.tsv'
         optics = [line.split('\t') for line in table.read_text().splitlines() if line and not line.startswith('#')]
+        if manifest['id'] == 'scope-coverage':
+            optics.append(['shop_scope_pu_3_5x', 'pu_35x22_scope', 'scopes/pu_35x22_scope'])
         modules = {row[0]: row[2] for row in optics}
         game = lib.leaves(donor / 'gameplay/game.options')
         aimed_models = {row[0]: game[f'/weapon_modules/{row[1]}/aimed_model'] for row in optics}
     else:
-        raise ValueError('expected a rifle-scopes or scope-fits pack')
+        raise ValueError('expected a rifle-scopes, scope-fits or scope-coverage pack')
     weapons = builder.weapon_models(live)
     donor_modules = lib.Modules(donor)
     rows = ['variant\tweapon\tkind\ttime\terror_m\taim_bone\tmount_bone']

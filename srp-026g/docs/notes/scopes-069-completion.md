@@ -243,3 +243,93 @@ idle server was stopped through its own launcher; its account, inventory and
 SVU PSO-1 record (`72:3111:0:3`) remain intact. No new window was opened over the
 owner's separate game session. The next isolated launch will use pack 12.
 Post-fix native rendering and aiming are still for the owner's visual retest.
+
+## Complete standalone coverage and attachment audit (2026-11-15)
+
+The owner requested the missing weapon fits and correct attachment/centering
+for every scope. The earlier preservation check did not prove donor coverage.
+`scripts/scope-coverage/audit.py` now checks all 103 weapon entries against all
+20 sold optics using 0.69's complete slot graph, including default modules,
+weapon-specific exceptions, premium aliases and `srp_like`. Optical modules
+cannot serve as intermediate mounts for a standalone fit.
+
+The final archive readback has **1,205 combinations on 102 weapons**: all 565
+previous combinations retained with their original variant IDs, plus **640**
+new combinations (dictionary IDs 4000–4639). There are **zero missing standalone
+fits**. The other 66 linked combinations require another scope or lack a usable
+standalone slot; 789 are not offered by the donor. The Mauser M.712 is the only
+weapon without a standalone fit. New coverage includes the AKS-74U, TOZ-66,
+TT-33, UZI, PM, Winchester 1894, PPSh, SKS, APS and Groza families and their
+premium copies. The renamed MP7 Silencer entry is included through `srp_like`.
+
+The source is `scripts/scope-coverage/`, pack **scope-coverage@2**, and the
+coverage/centering edit lists in `release/content.tsv`. `inputs.json` pins the
+15,874-file prepared live tree and 947-file donor tree; `variants.tsv` locks IDs.
+No patch revision was changed or reserved. The existing `next` simulation row
+records the added attachments and changed aiming models.
+
+Mounts use the full native rigid transform on the appropriate weapon bone.
+The older weapon meshes are registered against donor meshes before transferring
+locators; weak matches stop generation. The UZI's different receiver has an
+explicit measured top-cover rail. Groza and Valmet handguard replacements remove
+only exact matching default-module triangles. Scope and camera follow the same
+bone, including hinged barrels and moving receiver covers.
+
+The side/top review exposed a second generic issue: static module sockets are
+already in mesh coordinates. Applying the weapon's half-turn at that boundary
+mirrored longitudinal offsets. The corrected builder applies the half-turn only
+at the weapon attachment. `check_mounts.py` independently recovers each rendered
+rail's transform from its vertices and compares its socket to the optic body.
+It rejects the earlier prototype (first failure: a 1.902 mm mirrored dovetail
+offset), even though its camera checks passed. Twelve representative families
+were reviewed in `artifacts/scopes-069/coverage-mount-review-2.png`; the Groza and
+Valmet optics now sit on their replacement handguard rails.
+
+**455 existing variant configurations** (473 weapon/scope pairs) receive camera
+or mount corrections. This includes **92 existing adapter assemblies** whose
+optic bodies and reticles move together onto their physical rail socket.
+Collimators align to the emitter axis. Legacy optical overlays retain their
+view relative to the optic on the attachment bone, eliminating animation drift.
+Existing configurations are edited after earlier content edits; post-edit
+snapshots are not packed over their source. Item IDs, scope properties and
+compatibility are retained.
+
+Validation of the corrected candidate:
+
+- Registered `scope-coverage-assets` passed: 640 new variants / 1,920 animated
+  native-camera checks; 525 rendered adapter socket checks; 455 existing
+  configurations / 3,696 idle-and-reload camera checks. It applies the actual
+  centering edit list, with zero unexpected differences, before checking it.
+- The standalone graph regressions passed. The extraction helper built and
+  passed Clippy with `-D warnings` under the project's Nix environment.
+- Registered `scope-geometry` and `scope-assets` passed for the shared native
+  camera oracle and the earlier 396 generated variants after the checker update
+  (`coverage-existing-checks.log`).
+- `release/build-content 60 --full` passed, including complete source-manifest
+  comparison, patch readback and item tables. The candidate is
+  `artifacts/scopes-069/coverage-content-2/`, not the superseded prototype in
+  `coverage-content/`.
+- The server's preservation checker compared the corrected prior candidate
+  with this candidate: **565 preserved, 640 added, 20 scopes on 102 weapons**;
+  no global modification-ID collisions. `coverage-pairs.tsv` records the pairs.
+- Registered `scope-preservation` also passed its independent source build and
+  comparison against the released catalog (`coverage-preservation-check.log`).
+- `coverage-final-audit.tsv`, read from the actual archive stack, reports
+  1,205 preserved, 66 not standalone, 789 not offered, and no missing rows.
+
+Pack manifest SHA-256:
+`daa4e5baed7215d735020663db52014fcd7a11c5dc05e074eaed1dd64520c03e`.
+The 838,053,591-byte local patch SHA-256 is
+`4c745a23136699718e24bd67520ec8765aedd81cd228cc4e5e64fe04ba45d2c0`;
+server-game-data.db is
+`b226720e7fd739c86482f79846764f14c905af7de7a6b1415e2659c8823f5df3`.
+
+The stopped isolated Scopes069Review configuration and its patch symlink now
+point to `coverage-content-2`. The config was backed up. The account and saved
+attachments remain intact. `artifacts/scopes-069/review-scopes.sh` restarts that
+setup with one fullscreen 2560×1440 client. No client was opened for this pass.
+This work is implemented and statically tested; the corrected candidate has
+not been played or released. Native shader appearance and play feel remain
+for the owner's review. The asset checker still reports the same two pre-existing
+weapon-material references (SV-98 camo roughness and Vepr attach normal); no new
+scope material or texture dependency is missing.
