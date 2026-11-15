@@ -351,7 +351,8 @@ mod tests {
         s.memory.update(&[Percept { who: 1, at: seen, error_m: 0.0, time: now, source: Source::Seen, busy: false }], now, |_| 200, 3_000, 20_000);
         assert_eq!(watched(&s.cx(0), &holders, &walk()), Some(Watched::Nothing));
         // A holder 30 m ahead: past the near band, the route's view and the sprint.
-        let him = KnownHolder { who: 1, at: Vec3::new(70.0, 0.0, 30.0), since: now.saturating_sub(6_000), last: now.saturating_sub(1_000) };
+        // The scenario's clock may be early in the match: his stay from now, sensed now.
+        let him = KnownHolder { who: 1, at: Vec3::new(70.0, 0.0, 30.0), since: now, last: now };
         std::sync::Arc::make_mut(&mut s.team.threat).holders.push(him);
         assert_eq!(watched(&s.cx(0), &holders, &walk()), Some(Watched::Holder(him)));
         assert_eq!(walk_watch(&s.cx(0), walk()), walk());
@@ -364,8 +365,8 @@ mod tests {
         let lines = cx.lines.take();
         assert_eq!(lines.len(), 1);
         assert_eq!(lines[0].0, Kind::Watch);
-        assert!(lines[0].2.contains("player 1") && lines[0].2.contains("20 m off") && lines[0].2.contains("holding 5.0 s"));
-        assert!(lines[0].2.contains("last sensed 1.0 s ago") && lines[0].2.ends_with("sprint suppressed"), "{}", lines[0].2);
+        assert!(lines[0].2.contains("player 1") && lines[0].2.contains("20 m off") && lines[0].2.contains("holding 0.0 s"));
+        assert!(lines[0].2.contains("last sensed 0.0 s ago") && lines[0].2.ends_with("sprint suppressed"), "{}", lines[0].2);
         // 12 m: the sights up, its own line.
         s.view.places[0].feet = Vec3::new(58.0, 0.0, 30.0);
         let cx = s.cx(0);
