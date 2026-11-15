@@ -522,7 +522,7 @@ impl Body {
 
     /// The highest rise a Jump link is made for: [`Self::max_jump`], and with the clients' numbers the sprint
     /// jump's [`SPRINT_JUMP_LOW_M`] (a link above `max_jump` is a sprint jump: a run-up with sprint held, not for a
-    /// body that cannot sprint, `with_max_jump_rise`).
+    /// body that cannot sprint, [`Reach::NoSprint`]).
     pub fn jump_cap(&self) -> f32 {
         if self.client_slope() { SPRINT_JUMP_LOW_M.max(self.max_jump) } else { self.max_jump }
     }
@@ -770,6 +770,43 @@ pub const STEP_UP_M: f32 = 0.8 - MOVE_STEP_MARGIN_M;
 /// [A364 C2] `cc_move_step_margin` (`startup.cfg`, 0.040): the margin under the walking move test's cylinder ([`Body::walked_step`]).
 pub const MOVE_STEP_MARGIN_M: f32 = 0.04;
 pub const STANDING_JUMP_M: f32 = 0.998;
+
+/// [S6] What the body a route search plans for can take of the grid's links, where it is less than the grid's own body
+/// ([`WalkGrid::start_search_reaching`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Reach {
+    /// The grid's own body: every link.
+    #[default]
+    Full,
+    /// A body the client gives no sprint for the whole route (a battery carrier: `base_player::can_sprint`, A331). A link it
+    /// leaves at a sprint ([`gap::Takeoff::sprint_run_m`]: a sprint gap or rim jump, a sprint climb) is taken by its walking
+    /// press ([`OffLink::walk`]), priced by that press's share; with none it is no way. No jump link rises above `max_rise`
+    /// metres (`None`: the grid's own).
+    NoSprint { max_rise: Option<f32> },
+}
+
+impl Reach {
+    /// The highest jump link the body takes, if limited.
+    pub fn max_rise(self) -> Option<f32> {
+        match self {
+            Reach::Full => None,
+            Reach::NoSprint { max_rise } => max_rise,
+        }
+    }
+
+    /// Both limits at once: the lesser body.
+    pub fn and(self, other: Self) -> Self {
+        match (self, other) {
+            (Reach::Full, r) | (r, Reach::Full) => r,
+            (Reach::NoSprint { max_rise: a }, Reach::NoSprint { max_rise: b }) => Reach::NoSprint {
+                max_rise: match (a, b) {
+                    (Some(a), Some(b)) => Some(a.min(b)),
+                    (a, b) => a.or(b),
+                },
+            },
+        }
+    }
+}
 /// The lowest top of the client's sprint jump (1.282-1.350 m by clip, PROVEN, the jump study): the highest rise a
 /// sprint-jump link is made for with the clients' numbers ([`Body::client`]), metres. The owner's Vector chain
 /// (1.26-1.35, F+J+S at 4.8 m/s) and the 8f rows (+1.36 mounted 4 of 6, at the limit) bound it.
@@ -4502,6 +4539,12 @@ impl WalkGrid {
     }
 
     pub fn link_cost(&self, from: NodeId, to: NodeId, kind: LinkKind) -> f32 {
+        self.link_cost_reaching(from, to, kind, Reach::Full)
+    }
+
+    /// [S6] [`Self::link_cost`] for a body that may take less than the grid's own ([`Reach`]): infinite for a link it cannot
+    /// take, a sprint link it takes by its walking press priced by that press's share.
+    pub fn link_cost_reaching(&self, from: NodeId, to: NodeId, kind: LinkKind, reach: Reach) -> f32 {
         if !self.plans(from, to) {
             return f32::INFINITY;
         }
@@ -4535,14 +4578,23 @@ impl WalkGrid {
         };
         let (p, q) = (self.position(from), self.position(to));
         if kind.is_off_mesh() {
-            let link = self.off_link(from, to);
+            // [S6] The press the body plays: a body with no sprint plays a sprint link's walking press (as the motor does,
+            // A385-FORMAT §5), and has no way over one without.
+            let press = match self.off_link(from, to) {
+                None => None,
+                Some(l) => match (reach, l.press.sprint_run_m(), l.walk) {
+                    (Reach::NoSprint { .. }, Some(_), Some((lead, share))) => Some((gap::Takeoff::Press(lead), share)),
+                    (Reach::NoSprint { .. }, Some(_), None) => return f32::INFINITY,
+                    _ => Some((l.press, l.share)),
+                },
+            };
             let cost = gap_cost(kind, (q - p).length(), p.distance_xz(q), p.y - q.y);
             // [A385] A flown link is priced by its share: the tries that fail for each that lands, each the link and its run-up
             // again (A385-FORMAT §4), in place of the press's and the marginal height's fixed penalties.
-            if let Some(l) = link.filter(|l| l.share.flown().is_some()) {
-                return cost + l.share.failed_tries() * (cost + l.press.run_up_m()) + lip + fall;
+            if let Some((press, share)) = press.filter(|(_, share)| share.flown().is_some()) {
+                return cost + share.failed_tries() * (cost + press.run_up_m()) + lip + fall;
             }
-            let takeoff = link.map_or(0.0, |l| l.press.penalty());
+            let takeoff = press.map_or(0.0, |(press, _)| press.penalty());
             return cost + takeoff + lip + marginal + fall;
         }
         let descent = if kind == LinkKind::Drop {
@@ -4753,21 +4805,19 @@ impl WalkGrid {
         to: NodeId,
         budget: usize,
     ) -> Result<SlicedSearch, Search> {
-        self.start_search_reaching(from, to, budget, None)
+        self.start_search_reaching(from, to, budget, Reach::Full)
     }
 
-    /// [`Self::start_search`] for a body whose jumps rise at most
-    /// `max_rise` metres (`None`: as high as the grid's own links, the
-    /// grid body's [`Body::max_jump`]): a body that cannot sprint (a battery
-    /// carrier) clears [`STANDING_JUMP_M`] at most, and a jump link above
-    /// that is a link it cannot take. (A Walk link up a riser only a sprint or
+    /// [`Self::start_search`] for a body that may take less than the grid's own ([`Reach`]): a body that cannot sprint (a
+    /// battery carrier) clears [`STANDING_JUMP_M`] at most, so a jump link above that is a link it cannot take, and [S6] it
+    /// takes a sprint link only by its walking press ([`Self::link_cost_reaching`]). (A Walk link up a riser only a sprint or
     /// a jump climbs, [`WalkGait::SprintOrJump`], stays: a carrier jumps.)
     pub fn start_search_reaching(
         &self,
         from: NodeId,
         to: NodeId,
         budget: usize,
-        max_rise: Option<f32>,
+        reach: Reach,
     ) -> Result<SlicedSearch, Search> {
         let n = self.len();
         if from as usize >= n || to as usize >= n || !self.may_reach(from, to) {
@@ -4812,7 +4862,7 @@ impl WalkGrid {
             closed,
             expanded: 0,
             budget,
-            max_rise,
+            reach,
             best: from,
             best_h: f32::INFINITY,
         })
@@ -5014,8 +5064,8 @@ pub struct SlicedSearch {
     closed: u16,
     expanded: usize,
     budget: usize,
-    /// The highest jump link the body takes ([`WalkGrid::start_search_reaching`]).
-    max_rise: Option<f32>,
+    /// What the body takes of the links ([`WalkGrid::start_search_reaching`]).
+    reach: Reach,
     /// The floor expanded so far that is nearest the goal (by the
     /// heuristic), and how near: where [`Self::partial`] leads.
     best: NodeId,
@@ -5054,11 +5104,12 @@ impl SlicedSearch {
             closed,
             expanded,
             budget,
-            max_rise,
+            reach,
             best,
             best_h,
         } = self;
-        let max_rise = *max_rise;
+        let reach = *reach;
+        let max_rise = reach.max_rise();
         let (from, to, goal, seen, closed) = (*from, *to, *goal, *seen, *closed);
         loop {
             if *iters == 0 {
@@ -5100,7 +5151,7 @@ impl SlicedSearch {
                 {
                     continue;
                 }
-                let c = cu + grid.link_cost(u, v, kind) * weight(v);
+                let c = cu + grid.link_cost_reaching(u, v, kind, reach) * weight(v);
                 if !c.is_finite() {
                     continue;
                 }
@@ -5839,7 +5890,7 @@ pub(crate) mod tests {
                 _ => None,
             };
             let walker = grid.search(from, to, |_| true, usize::MAX);
-            let mut carrier = grid.start_search_reaching(from, to, usize::MAX, Some(STANDING_JUMP_M)).unwrap();
+            let mut carrier = grid.start_search_reaching(from, to, usize::MAX, Reach::NoSprint { max_rise: Some(STANDING_JUMP_M) }).unwrap();
             let mut iters = usize::MAX;
             let carrier = carrier.step(&grid, |_| true, |_| 1.0, &mut iters).unwrap();
             (jumps(walker), jumps(carrier))
@@ -6536,7 +6587,7 @@ pub(crate) mod tests {
             assert_eq!(grid.link_gait(top, low), Some(WalkGait::Any), "down {height}");
             assert_eq!(grid.link_gait(low, low), None);
             // A body that cannot sprint (a carrier's search, with a jump limit) still takes the riser: it jumps it.
-            let carrier = |a: NodeId, b: NodeId| match grid.start_search_reaching(a, b, usize::MAX, Some(STANDING_JUMP_M)) {
+            let carrier = |a: NodeId, b: NodeId| match grid.start_search_reaching(a, b, usize::MAX, Reach::NoSprint { max_rise: Some(STANDING_JUMP_M) }) {
                 Err(search) => search,
                 Ok(mut search) => {
                     let mut iters = usize::MAX;
