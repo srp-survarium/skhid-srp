@@ -812,13 +812,32 @@ mod tests {
         let world = Collision::build(&ledge);
         let DropWalk::LandsAt(feet, speed) = walk_drop(&world, &s, start, from, to) else { panic!("lands elsewhere") };
         assert!((feet.y - 1.0).abs() < 0.1, "{feet:?}");
-        // [S6] A 1 m drop lands slow: under the 2 m/s slow-fall line's next steps (0.05 m a tick from rest, then 2.45 m/s).
-        assert!(speed < 4.0, "{speed}");
+        // [S6] A 1 m drop lands at the speed `step_down` 0x7E1B0 gives a fall from rest: 0.05 m a tick while slower than
+        // 2 m/s (five ticks, 0.25 m), then the speed's own step, gaining 0.49 m/s every tick throughout; the tick that
+        // starts at 4.41 m/s is the one that reaches 1 m down (0.887 m before it).
+        let c = body_at(&world, start, Stance::Standing, from);
+        assert_eq!(speed, fall_from_rest_lands_at(1.0, &s, c.gravity, c.tick), "{speed}");
         assert_eq!(walk_drop(&world, &s, start, from, Vec3::new(0.25, 1.0, 0.0)), DropWalk::Arrives);
 
         let mut deck = tris.clone();
         deck.extend(quad(0.0, 5.0, -2.0, 2.0, 2.0));
         assert_eq!(walk_drop(&Collision::build(&deck), &s, start, from, to), DropWalk::Held);
+    }
+
+    /// [S6] The downward speed at the start of the tick on which a fall from rest reaches `height` m down, by `step_down`
+    /// 0x7E1B0's rule (`Controller::step_down`): a tick that starts slower than `on_ground_max_vertical_speed` moves
+    /// `additional_down_speed`, any other its speed x `tick`; gravity adds `gravity` x `tick` to the speed every tick. A fall
+    /// off a level floor only: it leaves out the slide acceleration's part of the move and the step's rise, both 0 there.
+    fn fall_from_rest_lands_at(height: f32, s: &Settings, gravity: f32, tick: f32) -> f32 {
+        let (mut v, mut fell) = (0.0f32, 0.0f32);
+        loop {
+            let d = if s.on_ground_max_vertical_speed > v.abs() { s.additional_down_speed } else { -v * tick };
+            if fell + d >= height {
+                return -v;
+            }
+            fell += d;
+            v -= gravity * tick;
+        }
     }
 
     /// [A377] A body walked off a slab at a ledge 0.9 m down and let go there stays on a wide ledge, and goes on down to the
