@@ -262,6 +262,11 @@ impl Config {
         }
         Self { bot_maps, map_files, ..self }
     }
+
+    /// [A197] The maps a room with bots may hold now: [`Self::bot_maps`] whose bots' built files are there at this call.
+    pub fn bot_maps_ready(&self) -> Vec<u8> {
+        self.bot_maps.iter().copied().filter(|&id| maps::map_mode(id).is_some_and(|map| self.map_files.ready(map).is_ok())).collect()
+    }
 }
 
 /// `SRP_PVB_RUSHER_KIT`: empty is the default (the owner's kits); else one kit

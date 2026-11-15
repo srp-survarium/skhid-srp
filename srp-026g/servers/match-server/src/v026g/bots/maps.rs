@@ -327,7 +327,12 @@ impl Maps {
         let revived = match cache.entries.get_mut(project) {
             Some(Entry::Loading) => return MapState::Loading,
             Some(Entry::Failed(reason)) => return MapState::Absent(reason.clone()),
-            Some(Entry::NotPrebuilt(reason)) => return MapState::NotPrebuilt(reason.clone()),
+            // Not kept: files put in since are read at the next ask (the lobby checks them live too).
+            Some(Entry::NotPrebuilt(reason)) => {
+                let reason = reason.clone();
+                cache.entries.remove(project);
+                return MapState::NotPrebuilt(reason);
+            }
             Some(Entry::Ready { base, used }) => {
                 *used = clock;
                 return MapState::Ready(base.clone());
@@ -1357,7 +1362,15 @@ mod tests {
         let line = not_prebuilt_line(project, &reason);
         assert!(line.contains("stage 0 script") && line.contains(AtLoad::ENV) && line.contains(&wanted), "{line}");
         assert_eq!(server.made(project), None, "nothing built");
-        assert!(matches!(server.get(project), MapState::NotPrebuilt(_)), "each ask is told so");
+        // Not kept: the next ask reads again (files put in since are found), and is told so again.
+        let started = Instant::now();
+        loop {
+            match server.get(project) {
+                MapState::NotPrebuilt(_) => break,
+                MapState::Loading if started.elapsed() < Duration::from_secs(10) => std::thread::sleep(Duration::from_millis(5)),
+                other => panic!("asked again: {other:?}"),
+            }
+        }
         let local =
             crate::v026g::parse_mapdata_dir(dir.to_str(), KEEP as u32, AT_ONCE as u32, built.to_str(), &other, AtLoad::Build).unwrap();
         wait_ready(&local, project, Duration::from_secs(10));

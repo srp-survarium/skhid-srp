@@ -481,7 +481,8 @@ impl Stack {
         let bot_tuning = matches::bot_tuning_from_env()?;
         // [A197] The maps the lobby offers against bots: those whose built files are there at the match server's keys (its
         // store, its tuning at the start). The match server builds no map at load.
-        if options.lobby.pvb.enabled {
+        // A lobby left `Unchecked` (`Options::local`, the end-to-end tests: no match files) stays so.
+        if options.lobby.pvb.enabled && options.lobby.pvb.map_files != lobby::pvb::MapFiles::Unchecked {
             let mut projects: Vec<&str> = survarium::v026g::maps::playable().map(|map| map.project).collect();
             projects.sort_unstable();
             projects.dedup();
