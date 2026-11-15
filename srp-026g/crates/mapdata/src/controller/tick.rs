@@ -226,6 +226,9 @@ pub struct StepNotes {
     pub ceiling: bool,
     pub side_slide: bool,
     pub down_slide: bool,
+    /// A side slide (on an impassable slope, or under a low ceiling) ended slid on the normal its step down's first sweep
+    /// wrote, the slope-acceleration retry having met nothing ([`SideSlide::OnFirstNormal`]).
+    pub slid_on_first_normal: bool,
 }
 
 fn dims_of((w, h): (f32, f32)) -> (f32, f32) {
@@ -642,14 +645,14 @@ impl Controller {
     /// `side_slide_on_low_ceiling` 0x7DF20 (PROVEN in the reading): the walk move turned off the ceiling or the ground, the
     /// less vertical of the two, and slid as on an impassable slope. `n` in/out.
     #[allow(clippy::too_many_arguments)]
-    fn low_ceiling_slide(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, cn: Vec3, s: &Settings) -> bool {
+    fn low_ceiling_slide(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, cn: Vec3, s: &Settings) -> SideSlide {
         if !s.low_ceiling_slide || ((w.y * w.y + w.z * w.z) + w.x * w.x).abs() < TINY {
-            return false;
+            return SideSlide::Refused;
         }
         let a = ((cn.y * UP.y + cn.z * UP.z) + cn.x * UP.x).abs();
         let b = ((n.y * UP.y + n.z * UP.z) + n.x * UP.x).abs();
         if (a - 1.0).abs() < 1e-5 && (b - 1.0).abs() < 1e-5 {
-            return false;
+            return SideSlide::Refused;
         }
         let m = if b > a { cn } else { *n };
         let inv = 1.0 / ((w.y * w.y + w.z * w.z) + w.x * w.x).sqrt();
@@ -1106,16 +1109,16 @@ impl Controller {
 
     /// `slide_in_impassable_case_impl` 0x7D660 (the side slide). `n` in/out.
     #[allow(clippy::too_many_arguments)]
-    fn side_slide(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, s: &Settings) -> bool {
+    fn side_slide(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, s: &Settings) -> SideSlide {
         if !s.impassable_slope_side_slide || ((w.x * w.x + w.y * w.y) + w.z * w.z).abs() < TINY {
-            return false;
+            return SideSlide::Refused;
         }
         self.side_slide_core(world, w, p1, sb, dist, step, n, s)
     }
 
     /// `slide_in_impassable_case_impl` 0x7D660.
     #[allow(clippy::too_many_arguments)]
-    fn side_slide_core(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, s: &Settings) -> bool {
+    fn side_slide_core(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, s: &Settings) -> SideSlide {
         let c = (n.x * UP.x + n.z * UP.z) + n.y * UP.y;
         let t = Vec3::new(n.x - UP.x * c, n.y - UP.y * c, n.z - UP.z * c);
         let inv = 1.0 / ((t.z * t.z + t.y * t.y) + t.x * t.x).sqrt();
@@ -1123,12 +1126,12 @@ impl Controller {
         let sv = wall_slide(w, nh, s);
         let s2 = (sv.x * sv.x + sv.y * sv.y) + sv.z * sv.z;
         if s2.abs() < TINY {
-            return false;
+            return SideSlide::Refused;
         }
         let q = p1 + sv;
         if len2(q - p1).abs() < TINY {
             self.pos = p1;
-            return false;
+            return SideSlide::Refused;
         }
         // 0x7D864..0x7D88A: the console's test whatever the sprint byte.
         match self.move_sweep(world, p1, q, self.console_move_test(s), s) {
@@ -1138,17 +1141,17 @@ impl Controller {
         // 0x7D96C: the step down writes this slide's own normal (its +20h); with no hit reported (0x7D973) the slide ends
         // there, slid (0x7D9A8), the normal whatever the step down left in it.
         match self.step_down_test(world, dist, sb, s2, p1, s) {
-            DownTest::Missed => return true,
-            DownTest::RetryMissed { normal, .. } => {
+            DownTest::Missed => return SideSlide::Slid,
+            DownTest::RetryMissed { normal } => {
                 *n = normal;
-                return true;
+                return SideSlide::OnFirstNormal;
             }
             DownTest::Hit { normal, .. } => *n = normal,
         }
-        if self.impassable(*n, sb, s) {
-            return false;
+        if self.impassable(*n, sb, s) || !self.can_straighten(world, sb, step) {
+            return SideSlide::Refused;
         }
-        self.can_straighten(world, sb, step)
+        SideSlide::Slid
     }
 
     /// `impassable_slope_down_slide` 0x7DA50. `n` in/out.
@@ -1210,7 +1213,11 @@ impl Controller {
             Some((_, mut n)) => {
                 let ceiling = self.straighten(world, sb, step);
                 let slid = match ceiling {
-                    Some(cn) => self.low_ceiling_slide(world, w, p1, sb, dist, step, &mut n, cn, s),
+                    Some(cn) => {
+                        let low = self.low_ceiling_slide(world, w, p1, sb, dist, step, &mut n, cn, s);
+                        notes.slid_on_first_normal |= low == SideSlide::OnFirstNormal;
+                        low.slid()
+                    }
                     None => true,
                 };
                 if !slid {
@@ -1220,8 +1227,9 @@ impl Controller {
                 } else if self.impassable(n, sb, s)
                     && !{
                         let side = self.side_slide(world, w, p1, sb, dist, step, &mut n, s);
-                        notes.side_slide = side;
-                        side
+                        notes.side_slide = side.slid();
+                        notes.slid_on_first_normal |= side == SideSlide::OnFirstNormal;
+                        side.slid()
                     }
                     && !{
                         let down = self.down_slide(world, w, sb, dist, &mut n, p1, s);
@@ -1306,6 +1314,28 @@ impl Controller {
                 let ah = normalized_safe(a, Vec3::ZERO);
                 self.velocity = Vec3::new(ah.x * sdot + v.x, ah.y * sdot + v.y, ah.z * sdot + v.z);
             }
+        }
+    }
+}
+
+/// How `slide_in_impassable_case_impl` 0x7D660 ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SideSlide {
+    /// It returned 0: no slide, or one the body may not keep.
+    Refused,
+    /// It returned 1, with the normal its step down's hit wrote (or the one it came with, when the step down met nothing).
+    Slid,
+    /// It returned 1 (0x7D973 -> 0x7D9A8) with the normal its step down's first sweep wrote, the retry having met nothing
+    /// ([`DownTest::RetryMissed`]).
+    OnFirstNormal,
+}
+
+impl SideSlide {
+    /// Its answer (AL).
+    fn slid(self) -> bool {
+        match self {
+            SideSlide::Refused => false,
+            SideSlide::Slid | SideSlide::OnFirstNormal => true,
         }
     }
 }
