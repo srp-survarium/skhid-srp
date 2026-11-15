@@ -875,6 +875,10 @@ pub struct Motor {
     sprinted_drop: Option<(u32, f32)>,
     /// A release of the sprint before a planned drop that is on (the trace of #671).
     release: Option<Release>,
+    /// [A1b] The walk-off at release under way ([`super::walk_off`]).
+    walk_off: super::walk_off::WalkOff,
+    /// [A1b] The log line of the last let-go that ended, for the driver ([`Self::take_walk_off_line`]).
+    walk_off_line: Option<String>,
     /// The sway's phase and the time, seconds, for it.
     phase: f32,
     t: f32,
@@ -1346,6 +1350,8 @@ impl Motor {
             last_s: None,
             sprinted_drop: None,
             release: None,
+            walk_off: super::walk_off::WalkOff::Idle,
+            walk_off_line: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
             look: None,
@@ -1954,9 +1960,21 @@ impl Motor {
             keys |= self.jump_key(&jump, still, pose, false);
         }
         keys = self.stay_keys(pose, keys);
+        // [A1b] A drop link walked off at release: crouched on its leg, every move key let go from its point until down and still.
+        let (walk_off, effect) = super::walk_off::step(
+            self.walk_off,
+            super::walk_off::Input { on_leg: route.walk_off_at(s), feet: pose.feet, footing: pose.footing, speed: pose.speed, clock: self.clock },
+        );
+        self.walk_off = walk_off;
+        keys = effect.keys(keys);
+        if let Some((link, end)) = effect.ended {
+            self.walk_off_line = Some(super::walk_off::line(link, end));
+        }
         // A landing run against the way is braked, not walked out.
         let mut braked = false;
-        if let Some(brake) = self.landing_brake(route, pose, s, &clear) {
+        if !self.letting_go()
+            && let Some(brake) = self.landing_brake(route, pose, s, &clear)
+        {
             keys = (keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT)) | brake;
             braked = true;
         }
@@ -1990,6 +2008,17 @@ impl Motor {
             let stop = rng.range(stop_lo, stop_hi);
             (stop, stop + rng.range(gap_lo, gap_hi))
         });
+    }
+
+    /// [A1b] Whether the body was let go at a walk-off's release and is not yet down and still ([`super::walk_off::WalkOff::LetGo`]):
+    /// the lip guard and the stuck and progress watches leave it be.
+    pub fn letting_go(&self) -> bool {
+        matches!(self.walk_off, super::walk_off::WalkOff::LetGo { .. })
+    }
+
+    /// [A1b] The log line of the last walk-off at release that ended, once.
+    pub fn take_walk_off_line(&mut self) -> Option<String> {
+        self.walk_off_line.take()
     }
 
     /// Whether the sprint was let go of this tick at the life's reserve (the bar), not at the map.

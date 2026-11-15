@@ -109,6 +109,7 @@ pub mod trap_react;
 pub mod traps;
 pub mod tuning;
 pub mod view;
+pub mod walk_off;
 pub mod worth;
 pub mod zone_cost;
 pub mod zone_search;
@@ -2083,7 +2084,8 @@ impl Bots {
         // [A325f] Both legs holding `leg_damage`: the client stands it whatever its keys until the first ends (`legs`): not
         // stuck, and no watch counts the stand (the walk watch, the progress watch).
         let leg_held = bot.hurt.leg_damage.at(time) == legs::LegGate::Stand;
-        if trying || leg_held {
+        // [A1b] A body let go at a walk-off's release stands still on purpose until it is down: not stuck.
+        if trying || leg_held || bot.motor.letting_go() {
             bot.stuck.reset();
         } else if ends_check {
             #[cfg(test)]
@@ -2285,6 +2287,7 @@ impl Bots {
         // The progress watch (`UnstickTuning::progress_ms`): a body that walks without getting further along its route.
         if bot.control.reacts()
             && !leg_held
+            && !bot.motor.letting_go()
             && let Some(window_ms) = self.tunings.of(bot.team).unstick.progress_ms
             && let Some((route, goal)) = bot.route.as_ref()
         {

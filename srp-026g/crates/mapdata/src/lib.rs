@@ -188,8 +188,9 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// ([`Body::drop_lands`], feed 67), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0002: the
 /// lips by where the body stops on a landing (A377). 0003: walked on the game's shapes world, and a link no walk line
 /// arrives on re-aimed by the client's other ways down (a walk line's own landing, the crouched walk-off, a jump off the edge)
-/// before any cut (A389).
-pub const DROP_LANDS_ALGO: u32 = 0x5067_0003;
+/// before any cut (A389). 0004: [A1b] the walk-off at release (`gap::Takeoff::Release`), the walk key let go on the step before
+/// the body leaves the top, re-aims a link before the walk line's landing elsewhere and the crouched walk-off.
+pub const DROP_LANDS_ALGO: u32 = 0x5067_0004;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
 /// body that asks for it. A value of its own.
 pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0005;

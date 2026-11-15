@@ -349,10 +349,12 @@ pub enum Kind {
     /// [F42] A bot with both legs broken creeping (the crouch key with its move keys): begun, and ended with how far it went
     /// (`drive.rs` `creep_watch`).
     Creep,
+    /// [A1b] A drop link walked off at release, let go at its point: where the body came to rest (`walk_off.rs`).
+    WalkOff,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 13;
+const KINDS: usize = 14;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused

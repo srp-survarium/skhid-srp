@@ -127,7 +127,15 @@ pub enum Takeoff {
     /// [S1] No jump: the edge is climbed at a sprint (a sprinting body climbs an edge to [`jump::SPRINT_CLIMB_MAX_M`]), the
     /// sprint run up to the take-off's centre and held on ([`jump::climb_flight`]).
     Climb,
+    /// [A1b] Walked off at the link's walk, crouched or standing: the walk key goes (no jump, the stance kept) once the body's
+    /// centre is `at` m along the link's way past the take-off floor's centre, and nothing is pressed until it rests
+    /// ([`super::drop_check`]'s release flight; exactness `mapflights` §2 A1b: a steady walk overshoots a shallow ledge below,
+    /// a let-go body lands on it).
+    Release { at: PressLead, crouched: bool },
 }
+
+/// [A1b] The farthest a release is past the take-off floor's centre, m: the body leaves a floor within 0.6 m.
+pub const RELEASE_AT_MAX_M: f32 = 1.0;
 
 /// A sprint link's press in a built file: this bit over its centimetres.
 const SPRINT_BIT: u16 = 0x8000;
@@ -138,6 +146,10 @@ const SLOW_STEPS_SHIFT: u16 = 10;
 const SLOW_CM_MASK: u16 = (1 << SLOW_STEPS_SHIFT) - 1;
 /// [S1] A sprint climb in a built file: the sprint and the slow bit together, nothing else.
 const CLIMB_CODE: u16 = SPRINT_BIT | SLOW_BIT;
+/// [A1b] A release in a built file: the sprint and the slow bit, this bit when crouched, and its centimetres plus one under
+/// them (1..0x1FFF, never 0, so never [`CLIMB_CODE`]).
+const RELEASE_CROUCH_BIT: u16 = 0x2000;
+const RELEASE_CM_MASK: u16 = RELEASE_CROUCH_BIT - 1;
 
 impl Takeoff {
     /// In a built file: a press's centimetres, a walk-off 0 (no press is
@@ -150,6 +162,9 @@ impl Takeoff {
             Takeoff::Sprint(lead) => SPRINT_BIT | lead.centimetres(),
             Takeoff::Slow { lead, steps } => SLOW_BIT | (u16::from(steps) << SLOW_STEPS_SHIFT) | (lead.centimetres() & SLOW_CM_MASK),
             Takeoff::Climb => CLIMB_CODE,
+            Takeoff::Release { at, crouched } => {
+                CLIMB_CODE | if crouched { RELEASE_CROUCH_BIT } else { 0 } | (at.centimetres().min(RELEASE_CM_MASK - 1) + 1)
+            }
         }
     }
 
@@ -157,6 +172,10 @@ impl Takeoff {
         match cm {
             0 => Takeoff::WalkOff,
             CLIMB_CODE => Takeoff::Climb,
+            cm if cm & CLIMB_CODE == CLIMB_CODE => Takeoff::Release {
+                at: PressLead::from_centimetres((cm & RELEASE_CM_MASK).saturating_sub(1)),
+                crouched: cm & RELEASE_CROUCH_BIT != 0,
+            },
             cm if cm & SPRINT_BIT != 0 => Takeoff::Sprint(PressLead::from_centimetres(cm & !SPRINT_BIT)),
             cm if cm & SLOW_BIT != 0 => Takeoff::Slow {
                 lead: PressLead::from_centimetres(cm & SLOW_CM_MASK),
@@ -173,6 +192,8 @@ impl Takeoff {
             Takeoff::Sprint(lead) => (0.0..=SPRINT_PRESS_MAX_M + 1e-3).contains(&lead.metres()),
             Takeoff::Slow { lead, steps } => lead.metres() <= GAP_PRESS_MAX_M + 1e-3 && steps <= jump::SLOW_STEPS_MAX,
             Takeoff::Climb => true,
+            // On its own metres, not `PressLead::is_valid` (whose floor is a walking press's).
+            Takeoff::Release { at, .. } => at.metres() <= RELEASE_AT_MAX_M + 1e-3,
         }
     }
 
@@ -180,7 +201,7 @@ impl Takeoff {
     /// lower success ([`SPRINT_GAP_PENALTY`]).
     pub fn penalty(self) -> f32 {
         match self {
-            Takeoff::Press(_) | Takeoff::WalkOff | Takeoff::Slow { .. } | Takeoff::Climb => 0.0,
+            Takeoff::Press(_) | Takeoff::WalkOff | Takeoff::Slow { .. } | Takeoff::Climb | Takeoff::Release { .. } => 0.0,
             Takeoff::Sprint(_) => SPRINT_GAP_PENALTY,
         }
     }
@@ -190,7 +211,7 @@ impl Takeoff {
     /// must hold, with the jump's own cost (the owner's A56 rule).
     pub fn sprint_run_m(self) -> Option<f32> {
         match self {
-            Takeoff::Press(_) | Takeoff::WalkOff | Takeoff::Slow { .. } => None,
+            Takeoff::Press(_) | Takeoff::WalkOff | Takeoff::Slow { .. } | Takeoff::Release { .. } => None,
             Takeoff::Sprint(_) | Takeoff::Climb => Some(SPRINT_RUN_UP_M),
         }
     }
@@ -205,6 +226,8 @@ impl Takeoff {
             Takeoff::Climb => SPRINT_RUN_UP_M,
             Takeoff::Sprint(_) => SPRINT_RUN_UP_M,
             Takeoff::WalkOff => 0.0,
+            // [A1b] The walk-up to its walk cap.
+            Takeoff::Release { .. } => jump::blend_m(jump::WALK_CAP_MS),
         }
     }
 }
@@ -1794,7 +1817,7 @@ impl WalkGrid {
         // [A389] A press flown by the client's jump (it has a share) before the clip pass's in its group: the clip's is kept only
         // where no flown press covers its group (`gap_flights`; with none flown the order is the clip pass's own).
         found.sort_by_key(|&(link, _)| match link.press {
-            Takeoff::WalkOff => 0,
+            Takeoff::WalkOff | Takeoff::Release { .. } => 0,
             _ if link.share.flown().is_some() => 1,
             Takeoff::Press(_) | Takeoff::Slow { .. } => 2,
             Takeoff::Sprint(_) | Takeoff::Climb => 3,
@@ -2635,7 +2658,16 @@ mod tests {
 
     #[test]
     fn a_sprint_press_reads_back_from_its_file_word() {
-        for t in [Takeoff::WalkOff, Takeoff::Press(PressLead::from_metres(1.2)), Takeoff::Sprint(PressLead::from_metres(0.0)), Takeoff::Sprint(PressLead::from_metres(2.4))] {
+        for t in [
+            Takeoff::WalkOff,
+            Takeoff::Press(PressLead::from_metres(1.2)),
+            Takeoff::Sprint(PressLead::from_metres(0.0)),
+            Takeoff::Sprint(PressLead::from_metres(2.4)),
+            Takeoff::Climb,
+            Takeoff::Release { at: PressLead::from_metres(0.0), crouched: true },
+            Takeoff::Release { at: PressLead::from_metres(0.6), crouched: false },
+            Takeoff::Release { at: PressLead::from_metres(RELEASE_AT_MAX_M), crouched: true },
+        ] {
             assert_eq!(Takeoff::from_centimetres(t.centimetres()), t);
             assert!(t.is_valid());
         }

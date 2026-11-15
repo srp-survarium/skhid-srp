@@ -191,9 +191,21 @@ impl Leap {
                 aim,
             })),
             // [S1] A sprint climb presses nothing: its top is a riser of the route (`Route::risers`), sprinted into.
-            Takeoff::Climb | Takeoff::WalkOff => None,
+            // [A1b] A walk-off at release presses nothing either: the route keeps it ([`Route::walk_off_at`]).
+            Takeoff::Climb | Takeoff::WalkOff | Takeoff::Release { .. } => None,
         }
     }
+}
+
+/// [A1b] A drop link walked off at release (`mapdata::grid::gap::Takeoff::Release`): walked from its take-off along its way,
+/// crouched when `crouched`, and the walk key let go once the body's centre is `at` m along the way past the take-off
+/// (`walk_off.rs`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WalkOffRelease {
+    pub take_off: Vec3,
+    pub landing: Vec3,
+    pub at: f32,
+    pub crouched: bool,
 }
 
 /// A corner of a route.
@@ -259,6 +271,8 @@ pub struct Route {
     crouch_climbs: Vec<(Vec3, Vec3)>,
     /// Made by the planner from a path of floors ([`pull_straight`]), so `sprint_drops` holds every Drop link of it.
     planned: bool,
+    /// [A1b] The route's drop links walked off at release, by their landing; the planner sets them ([`Route::walk_off_at`]).
+    walk_offs: Vec<WalkOffRelease>,
 }
 
 /// What the planner knows of the drops of a route within a stretch, as to a sprint ([`Route::drop_record`]).
@@ -1099,6 +1113,7 @@ fn pull_straight(
     }];
     let mut sprint_drops = Vec::new();
     let mut ledge_leads = Vec::new();
+    let mut walk_offs = Vec::new();
     let mut ledge_tops = Vec::new();
     // The floors of the leg from node `from` to node `to`, by distance
     // along the route (`start` at `from`).
@@ -1162,6 +1177,14 @@ fn pull_straight(
                 // fall: the lip guard (its take-off is a lip) lets the body over the edge. Only with `grid.walk_off_lips`:
                 // without it the take-off is no lip and nothing brakes the body there.
                 sprint_drops.push((grid.position(nodes[i]), true));
+            } else if into[i] == LinkKind::GapDrop
+                && let Some(mapdata::grid::gap::Takeoff::Release { at, crouched }) = grid.off_link(nodes[i - 1], nodes[i]).map(|l| l.press)
+            {
+                // [A1b] A drop walked off at release: a planned drop the lip guard lets the body over, never sprinted into (the
+                // release is the walk's), and its release for the motor.
+                let (take_off, landing) = (grid.position(nodes[i - 1]), grid.position(nodes[i]));
+                sprint_drops.push((landing, false));
+                walk_offs.push(WalkOffRelease { take_off, landing, at: at.metres(), crouched });
             }
             leg(i - 1, i, &mut floors);
             continue;
@@ -1228,6 +1251,7 @@ fn pull_straight(
     let mut route = Route::with_floors(points, floors);
     route.sprint_drops = sprint_drops;
     route.ledge_leads = ledge_leads;
+    route.walk_offs = walk_offs;
     route.ledge_tops = ledge_tops;
     // [S1] And the tops of its sprint climbs (`mapdata::grid::gap::Takeoff::Climb`): a sprinting body climbs an edge to 1.15 m
     // with no jump, so the riser's way (sprint into it) is the client's for both.
@@ -1439,9 +1463,10 @@ impl Route {
             new_at.push(total);
         }
         let floors = self.rescaled_floors(&new_at);
-        let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, risers, crouch_climbs, planned, below_walk_m, past_drop, .. } = self;
+        let Self { sprint_drops, ledge_leads, ledge_tops, mut gates, risers, crouch_climbs, planned, below_walk_m, past_drop, walk_offs, .. } = self;
         gates.extend(corner.iter().flatten());
         let mut route = Self::with_floors(points, floors);
+        route.walk_offs = walk_offs;
         route.sprint_drops = sprint_drops;
         route.ledge_leads = ledge_leads;
         route.ledge_tops = ledge_tops;
@@ -1471,6 +1496,7 @@ impl Route {
             gates,
             risers,
             crouch_climbs,
+            walk_offs,
             ..
         } = self;
         // A planned walk has its start at least (an escape's walk to an
@@ -1488,6 +1514,7 @@ impl Route {
         });
         floors.push((along + last.at.distance_xz(to), to.y));
         let mut route = Self::with_floors(points, floors);
+        route.walk_offs = walk_offs;
         route.sprint_drops = sprint_drops;
         route.ledge_leads = ledge_leads;
         route.ledge_tops = ledge_tops;
@@ -1537,6 +1564,7 @@ impl Route {
         route.gates = self.gates.iter().chain(&mid.gates).copied().collect();
         route.risers = self.risers.iter().chain(&mid.risers).copied().collect();
         route.crouch_climbs = self.crouch_climbs.iter().chain(&mid.crouch_climbs).copied().collect();
+        route.walk_offs = self.walk_offs.iter().chain(&mid.walk_offs).copied().collect();
         route.planned = self.planned && mid.planned;
         route
     }
@@ -1575,6 +1603,7 @@ impl Route {
             risers: Vec::new(),
             crouch_climbs: Vec::new(),
             planned: false,
+            walk_offs: Vec::new(),
         }
     }
 
@@ -1598,6 +1627,7 @@ impl Route {
         route.gates = self.gates;
         route.risers = self.risers;
         route.crouch_climbs = self.crouch_climbs;
+        route.walk_offs = self.walk_offs;
         route.planned = self.planned;
         route
     }
@@ -2012,6 +2042,15 @@ impl Route {
             }
         }
         record
+    }
+
+    /// [A1b] The drop link walked off at release whose leg the body at `s` metres along the route is on (past its take-off, short
+    /// of its landing), and how far along the leg the body is, m: the link's way is the leg.
+    pub fn walk_off_at(&self, s: f32) -> Option<(WalkOffRelease, f32)> {
+        let k = self.along.partition_point(|&a| a <= s).max(1);
+        let landing = self.points.get(k)?.at;
+        let release = *self.walk_offs.iter().find(|w| w.landing == landing)?;
+        Some((release, s - self.along[k - 1]))
     }
 
     /// How far along the route the take-off of the first drop of a lip's height or more from `s` to `within` metres on is
