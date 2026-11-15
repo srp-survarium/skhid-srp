@@ -15,15 +15,15 @@
 //!
 //! A taken floor comes back when all hold:
 //! - no floor the erosion kept is within the capsule's radius across and [`NAME_HEIGHT_M`] of its centre;
-//! - the client's walk tick rests a standing body there: come down onto its centre from [`PUT_OVER_M`] over it, out of the
-//!   walls (a body arrives by a move), with no keys until it stands still on the ground (`on_ground` 0x7EF90; [`rests_at`]),
-//!   its feet within the radius across and [`NAME_HEIGHT_M`] of the centre;
+//! - the client's walk tick rests a standing body there: set on its centre's own point (no push out of the walls, [`settle`]),
+//!   with no keys, it comes down and stands still on the ground (`on_ground` 0x7EF90; a body jammed in faces, which never
+//!   moves, is no rest), its feet within the radius across and [`NAME_HEIGHT_M`] of the centre;
 //! - no floor the erosion kept is within the radius across and [`NAME_HEIGHT_M`] of where it rests either.
 //!
 //! It comes back as a floor like any other (its links as the cells made them), before the passes that read the floors (the gap
 //! links, the rim jumps): a landing there is named.
 
-use super::controlled::{out_of_walls, parallel};
+use super::controlled::{out_of_walls, parallel, Stance};
 use super::*;
 use crate::controller::tick::{Controller, CrouchInput, Settings, TickInput};
 use crate::controller::Collision;
@@ -53,20 +53,6 @@ const FALL_MPS: f32 = 0.01;
 /// (at most `room` m: the floor's room over a standing body) out of the walls, it falls with no keys; its feet once it has stood
 /// still on the ground [`STILL_STEPS`] steps in a row; None when it has not within [`REST_STEPS_MAX`] (it falls on, slides on).
 pub(super) fn rests_at(world: &Collision, s: &Settings, feet: Vec3, room: f32) -> Option<Vec3> {
-    rest(world, s, feet, room).map(|r| r.at)
-}
-
-/// A rest of [`rest`]: where the test body was put (over the floor and out of the walls, as the client's world pushes it) and
-/// where its feet came to rest.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct Rest {
-    pub(super) put: Vec3,
-    pub(super) at: Vec3,
-}
-
-/// [`rests_at`] with the point the body was put at: a test that asks whether the body stayed where it was set (the wall
-/// give-back's stand test) measures from there, after the push out of the walls this makes.
-pub(super) fn rest(world: &Collision, s: &Settings, feet: Vec3, room: f32) -> Option<Rest> {
     let over = PUT_OVER_M.min(room).max(0.005);
     let start = out_of_walls(world, feet + Vec3::new(0.0, over, 0.0));
     let mut body = Controller::standing_at(start);
@@ -78,10 +64,56 @@ pub(super) fn rest(world: &Collision, s: &Settings, feet: Vec3, room: f32) -> Op
         body.tick(world, DT, s, still);
         run = if !body.jumping && body.on_ground(s) && (body.feet() - before).length() < 1e-3 { run + 1 } else { 0 };
         if run >= STILL_STEPS {
-            return Some(Rest { put: start, at: body.feet() });
+            return Some(body.feet());
         }
     }
     None
+}
+
+/// The own-point test's put over the floor, m: the exactness rig's (`held_spot_v2.py`, put 5 mm up).
+const PUT_OWN_M: f32 = 0.005;
+/// How far a body that rests must have come down from its put, m: a supported body settles the put's 5 mm (0 to 42 mm on the
+/// exactness rig's 35 holding floors); a body jammed in faces never moves (the rig's 14 jammed floors stay at +0.005).
+const CAME_DOWN_M: f32 = 0.001;
+
+/// How the own-point test ended ([`settle`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum Settle {
+    /// Came down onto the ground and stood still there: the feet.
+    Rests(Vec3),
+    /// Stood still where it was put, never coming down: held by the faces it overlaps, not by a floor.
+    Jammed,
+    /// Never stood still (it falls, it slides on).
+    Moving,
+}
+
+/// [the own-point stand test] Where the client's walk tick rests a body set on the floor's own point `feet` in `stance`: put
+/// [`PUT_OWN_M`] over it with no push out of the walls (the client's world sets a body where it is put: the exe never moves it
+/// sideways), no keys but the crouch key for [`Stance::Crouched`], the rest test's steps. The exactness rig ran the exe's own tick
+/// so on 53 floors the wall give-back brought back (rig/s7-20261114/own-point-all-20261116.tsv): it holds 35, jams 14 and drops 4
+/// (on a slab's underside, or down a slope); this test gives the same class on all 53 (nav-builder phase4/variants-20261116.txt).
+/// Put over the floor and pushed out of the walls (before), it agreed on 18 to 41 of them: a pushed body rests 0.25-0.40 m
+/// from the floor's point, where the exe's body never goes.
+pub(super) fn settle(world: &Collision, s: &Settings, feet: Vec3, stance: Stance) -> Settle {
+    let put = feet + Vec3::new(0.0, PUT_OWN_M, 0.0);
+    let mut body = Controller::standing_at(put);
+    let key = stance == Stance::Crouched;
+    if key {
+        body.crouch_key(true);
+    }
+    let input = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key, legs_broken: false }, sprinting: false };
+    let mut run = 0;
+    for _ in 0..REST_STEPS_MAX {
+        let before = body.feet();
+        body.velocity.y = body.velocity.y.min(-FALL_MPS);
+        body.tick(world, DT, s, input);
+        run = if !body.jumping && body.on_ground(s) && (body.feet() - before).length() < 1e-3 { run + 1 } else { 0 };
+        if run >= STILL_STEPS {
+            let at = body.feet();
+            return if at.y < put.y - CAME_DOWN_M { Settle::Rests(at) } else { Settle::Jammed };
+        }
+    }
+    Settle::Moving
 }
 
 /// [A389] Whether the client's walk tick holds a standing body come down onto `feet` (as [`rests_at`] brings it, `room` the
@@ -145,11 +177,13 @@ impl WalkGrid {
         let candidates: Vec<usize> = (0..alive.len())
             .filter(|&a| !alive[a] && self.ceiling[a] - self.height[a] >= self.body.stand_height && !self.named(alive, self.position(a as NodeId)))
             .collect();
+        // The own-point test ([`settle`]), standing: every candidate has a standing body's room.
         let back = parallel(&candidates, |&a| {
             let centre = self.position(a as NodeId);
-            rests_at(world, s, centre, self.ceiling[a] - self.height[a] - self.body.stand_height).is_some_and(|rest| {
-                rest.distance_xz(centre) <= r && (rest.y - centre.y).abs() <= NAME_HEIGHT_M && !self.named(alive, rest)
-            })
+            match settle(world, s, centre, Stance::Standing) {
+                Settle::Rests(rest) => rest.distance_xz(centre) <= r && (rest.y - centre.y).abs() <= NAME_HEIGHT_M && !self.named(alive, rest),
+                Settle::Jammed | Settle::Moving => false,
+            }
         });
         candidates.into_iter().zip(back).filter(|&(_, b)| b).map(|(a, _)| a).collect()
     }
