@@ -325,19 +325,29 @@ and no step names a map. `stalker-maps@7` and `stalker-maps-2@3` are built so
   Station go back to X-Ray's density (142,346 and 384,112 placed), thinned to
   120,000.
 - Gloss: of the ported materials only those whose gloss map is their colour
-  texture come out mirror-like: X-Ray grass (Experimental Pool, Military
-  Warehouses, Dark Valley, Vehicle Station, Fire Station), Training Camp's
-  meadow grass and two leaf materials. X-Ray specular maps as gloss maps (the
-  concrete) average about 0.01 (`concrete_01_spec` 0.007): matte. The
-  untextured bark materials use their constant, as stock's do. The 19
-  "complex" materials at gloss 1 (`tiled/window/glass` as gloss map) are glass
-  and metal (fences, barbed wire, wagons, beds, grates): left as they are.
+  texture, and drives their gloss, come out mirror-like: X-Ray grass
+  (Experimental Pool, Military Warehouses, Dark Valley, Vehicle Station, Fire
+  Station), Training Camp's meadow (its wildflowers and the v0.10b grass
+  models `level/03/flora/gra_green_01`, whose `flora/grass_l03_alt` copy had
+  0.3..1 x its colour, gloss 0.57 on average) and the unused v0.10b
+  `flora/poplar_leaves_02` copy. X-Ray specular maps as gloss maps (the
+  concrete) average about 0.01 (`concrete_01_spec` 0.007): matte. The ported
+  leaves take the poplar template's map over 0..1, 0.26 (stock 0.26g's own
+  poplar 0.34). The untextured bark materials use their constant, as stock's
+  do. Glass's map is its colour too, but 1 at both ends of its range: the rule
+  leaves a constant range alone. The 19 "translucent" materials (X-Ray's
+  alpha-blended shaders, the `tiled/window/glass` template, gloss 1) are
+  windows and the metal fences, grates, barbed wire, beds and a wagon, and
+  one camouflage net on Station: left as they are. resource-porter's
+  `tools/playable-map-pack/gloss_check.py`, run by `build-pack.sh` on every
+  build, lists them and stops a build where any other material is over 0.3.
 - Dark Valley's white plane in `n-yard` and `ne-yard` (2026-11-14 captures):
   those poses stand at y 1.7, under the ground there (10.17 and 4.91 by the
   collision): the camera was inside the level, not over a glossy floor.
-- Station and Depository keep @4's terrain: `port-map.sh` needs their level
-  folders, which are not on the build machine any more (their sha256 are in
-  resource-porter `ports/stalker-tdm/sources/`).
+- Station and Depository are built again from their level folders too: the
+  community downloads (`mp_station.rar`, `mp_depository.zip`, X-Ray `.xdb0`
+  archives) unpacked give exactly the files of resource-porter's
+  `ports/stalker-tdm/sources/dl-mp_*.sha256`.
 
 ## The old builds' post-process (the owner, 2026-11-13/14)
 
