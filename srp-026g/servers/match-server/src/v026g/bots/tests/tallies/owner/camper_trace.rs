@@ -173,8 +173,21 @@ impl Topic for CamperTrace {
         }
     }
 
-    fn parts(&mut self, _run: &Run, _game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
+    fn parts(&mut self, run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
         use std::io::Write;
+        if self.out.is_some() {
+            // Each shooter's rounds and rounds on an enemy by gun (`Game::shots_hits_by_gun`), with his team and whether he is the
+            // camper: the live statistics' counters.
+            let rows: Vec<serde_json::Value> = game
+                .shots_hits_by_gun
+                .iter()
+                .map(|(&(place, item), &(shots, hits))| {
+                    let team = game.bodies.get(place).map(|b| b.team);
+                    serde_json::json!([place, team, run.camper == Some(place), item, shots, hits])
+                })
+                .collect();
+            self.write(serde_json::json!({"shots_by_gun": rows}));
+        }
         if let Some((mut file, path)) = self.out.take() {
             file.flush().unwrap();
             eprintln!("camper trace: {} ticks to {path}", self.ticks);

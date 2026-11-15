@@ -556,6 +556,9 @@ pub(crate) struct Game {
     pub(crate) hits: u32,
     /// By place: shots, and hits on an enemy.
     pub(crate) shots_hits: Vec<(u32, u32)>,
+    /// [camper trace] The same by place and gun item (the live statistics' per-kit counters, events 22 and 23, count a round and
+    /// a round on an enemy for a one-bullet gun): read by the camper trace only.
+    pub(crate) shots_hits_by_gun: std::collections::BTreeMap<(Place, &'static str), (u32, u32)>,
     /// The places that put a battery in at the last step.
     pub(crate) put_in: Vec<Place>,
     /// The team hits of the last step: shooter, victim, the shot's eye
@@ -980,6 +983,7 @@ impl Game {
             shots: 0,
             hits: 0,
             shots_hits: vec![(0, 0); teams.len()],
+            shots_hits_by_gun: std::collections::BTreeMap::new(),
             put_in: Vec::new(),
             team_hit_shots: Vec::new(),
             team_hits: 0,
@@ -1866,6 +1870,7 @@ impl Game {
     pub(crate) fn shot(&mut self, shooter: Place, at: f32) {
         self.shots += 1;
         self.shots_hits[shooter].0 += 1;
+        self.shots_hits_by_gun.entry((shooter, self.bodies[shooter].gun.item)).or_default().0 += 1;
         let body = &self.bodies[shooter];
         let eye = Self::eye(body);
         // [A241] Down the sights an automatic's shot leaves right of the view by the client's aim sway (a smaller yaw is right).
@@ -2027,6 +2032,7 @@ impl Game {
                 if enemy_hit {
                     self.hits += 1;
                     self.shots_hits[shooter].1 += 1;
+                    self.shots_hits_by_gun.entry((shooter, self.bodies[shooter].gun.item)).or_default().1 += 1;
                 }
             }
             HitVolume::Boxes { .. } => self.land_boxes(shooter, &boxes, [eye, dir, view_dir], cone, tick),
@@ -2330,6 +2336,7 @@ impl Game {
         if enemy_hit {
             self.hits += 1;
             self.shots_hits[shooter].1 += 1;
+            self.shots_hits_by_gun.entry((shooter, gun.item)).or_default().1 += 1;
         }
     }
 
