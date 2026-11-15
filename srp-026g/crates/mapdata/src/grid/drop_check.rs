@@ -826,7 +826,8 @@ mod tests {
 
     /// [S6] The downward speed at the start of the tick on which a fall from rest reaches `height` m down, by `step_down`
     /// 0x7E1B0's rule (`Controller::step_down`): a tick that starts slower than `on_ground_max_vertical_speed` moves
-    /// `additional_down_speed`, any other its speed x `tick`; gravity adds `gravity` x `tick` to the speed every tick.
+    /// `additional_down_speed`, any other its speed x `tick`; gravity adds `gravity` x `tick` to the speed every tick. A fall
+    /// off a level floor only: it leaves out the slide acceleration's part of the move and the step's rise, both 0 there.
     fn fall_from_rest_lands_at(height: f32, s: &Settings, gravity: f32, tick: f32) -> f32 {
         let (mut v, mut fell) = (0.0f32, 0.0f32);
         loop {
