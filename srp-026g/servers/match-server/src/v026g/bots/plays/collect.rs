@@ -2322,7 +2322,10 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     );
                 }
             }
-            // A carrier cannot shoot, and does not sprint (LIKELY).
+            // A carrier cannot shoot, and does not sprint (PROVEN): the held item is the battery.
+            // `base_player::can_sprint` 0x2DBF40 asks the held item's (player +128h) vtable +60h, on the
+            // battery's hands vtable 0xA13DBC 0x397C20 (`xor al, al`: never); its hands `update_logic`
+            // (+2Ch) 0x301240 ticks only its own state machine and selector, never the weapon's fire (0x2E0BA0).
             Step::Continue(
                 Intent::to(home, Pace::Walk)
                     .within(num("reach_m"))

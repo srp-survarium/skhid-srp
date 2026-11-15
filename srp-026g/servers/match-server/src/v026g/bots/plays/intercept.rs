@@ -44,8 +44,8 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // A walk is the ground distance times this (as `Ctx::path_dist`).
     ("path_factor", 1.25),
     // The bot's speed on the way (sprinting where it may; GUESS between
-    // walk 3.5 and sprint 5.0 m/s) and a carrier's (he does not sprint,
-    // LIKELY, as `collect` assumes).
+    // walk 3.5 and sprint 5.0 m/s) and a carrier's (he does not sprint, PROVEN:
+    // the battery's hands refuse it, 0x2DBF9B -> 0x397C20; see `collect`'s carry).
     ("my_speed", 4.5),
     ("carrier_speed", 3.5),
     // The bot is at the meet this long before him, drawn per run.

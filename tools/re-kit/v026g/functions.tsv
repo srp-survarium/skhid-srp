@@ -2274,6 +2274,7 @@ va	status	ref_021d	name
 0x00331ff0	observed		survarium::recoil_calculator::serialize
 0x0032b720	reviewed	0x00200d54	stlp_std::for_each<stlp_std::pair<enum survarium::hit_affects_type_enum,unsigned int> const *,survarium::serialize_affect_functor>
 0x00300d30	reviewed	0x001e76d9	survarium::victory_item_core::taken_from_container
+0x00301240	reviewed		survarium::victory_item_core::update_logic
 0x00337280	reviewed	0x00206cd3	survarium::player_logic_stand_jump_state::initialize_weight_for_on_site_animation
 0x003422f0	reviewed	0x0020cf4f	survarium::short_jump_landing_state::serialize
 0x002ab6e0	reviewed	0x001afe7d	boost::random::detail::new_uniform_01<float>::operator()<boost::random::linear_congruential_engine<unsigned int,48271,0,2147483647> >
@@ -2284,6 +2285,7 @@ va	status	ref_021d	name
 0x00397040	reviewed	0x0024df70	vostok::animation::mixing::n_ary_tree_serializer::save_floats
 0x00397810	reviewed		stlp_std::unique<float *>
 0x00397880	reviewed		stlp_std::find<float *,float>
+0x00397c20	reviewed		survarium::victory_item_core::can_sprint
 0x002a9e70	observed		survarium::sound_game_effect_presenter::clear
 0x002a9ef0	observed		survarium::sound_game_effect_presenter::on_event
 0x002ac400	observed		survarium::particle_game_effect_presenter::on_event
