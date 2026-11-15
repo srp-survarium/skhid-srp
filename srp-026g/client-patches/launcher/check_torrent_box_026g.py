@@ -27,11 +27,11 @@ Checks:
   the box as it was left: it stays ticked until it is unticked;
 - set_status_texts (0x1B4D9..0x1B4DE): the panel's picture copied anew as
   before, then the text drawn again;
-- the one-time reset at the start: an install without
-  `launcher_skhid.torrent_reset` beside the launcher has user.cfg's line
-  written `off` (the original game saved `on` for every player), then that
-  file made; a user.cfg that cannot be written makes no file (the next
-  start tries again); with the file there, a tick stays across restarts.
+- the one-time reset at the start: without `launcher_skhid.torrent_reset`
+  beside user.cfg, that file is made and the line written `off` (the
+  original game saved `on` for every player); a user.cfg that cannot be
+  written (locked, read-only) keeps no file and its `on` is not taken (the
+  next start tries again); with the file there, a tick stays across restarts.
 """
 from pathlib import Path
 import struct
@@ -309,13 +309,17 @@ def check(data, delta):
         assert one.start() == (0, 0)
         assert one.files == after and one.marker and one.markers_made == 1, (one.files, one.markers_made)
         count += 1
-    one = Box(data, delta)
-    one.files, one.marker = {C.CFG: legacy}, False
-    one.locked.add(C.CFG.lower())
-    one.start()
-    assert one.files == {C.CFG: legacy} and not one.marker, 'a user.cfg not written: no file, tried again'
-    one.locked.clear()
-    assert one.start() == (0, 0) and one.marker and one.markers_made == 1
+    # A user.cfg that cannot be written (locked, read-only): the marker made
+    # goes again, the old `on` is not taken, the next start tries again.
+    for blocked in ('locked', 'readonly'):
+        one = Box(data, delta)
+        one.files, one.marker = {C.CFG: legacy}, False
+        getattr(one, blocked).add(C.CFG.lower())
+        assert one.start() == (0, 0), blocked
+        assert one.files == {C.CFG: legacy} and not one.marker, (blocked, one.files)
+        count += 1
+    getattr(one, blocked).clear()
+    assert one.start() == (0, 0) and one.marker and one.markers_made == 2
     # Then ticked: it stays ticked, the reset done.
     form(one, C.SETTINGS)
     one.u.mem_write(C.SETTINGS, bytes(0x60))
@@ -325,7 +329,7 @@ def check(data, delta):
     one.go(0x126F4, C.STOP, args=(CONTROL_WINDOW, 0x201, 1, 0), ecx=FORM + BOX)
     assert one.files == {C.CFG: legacy}
     for _ in range(2):
-        assert one.start() == (1, 1) and one.files == {C.CFG: legacy} and one.markers_made == 1
+        assert one.start() == (1, 1) and one.files == {C.CFG: legacy} and one.markers_made == 2
     count += 2
 
     # set_status_texts: the copy as before, then the text again.

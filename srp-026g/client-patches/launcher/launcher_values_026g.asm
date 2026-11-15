@@ -629,18 +629,17 @@ reload_language:
         popad
         ret
 
-; eax = the settings: "Allow torrent" (settings+0 current, +1 last saved:
-; what start_updater's 4th argument and 1A say) is user.cfg's
-; `enable_torrent_seeding on`, the game's own saved command (exe 0x1EE580);
-; off without that line, with any other value, without a user.cfg. Run
-; right after settings::reload (0x14200), whose registry `download_type` it
-; replaces. Nothing written; every register kept.
+; eax = the settings: "Allow torrent" (settings+0 current, +1 last saved) is
+; on only for user.cfg's `enable_torrent_seeding on` once the one-time reset
+; is done, in the place of the registry's `download_type`. Every register kept.
 reload_torrent:
-        call    torrent_reset
         pushad
         DELTA
+        call    torrent_reset
         sub     esp, PATH_SIZE
         push    0                       ; off
+        test    eax, eax
+        jz      .set                    ; no reset: the line is not the player's
         lea     edi, [esp + 4]
         xor     edx, edx
         call    config_path
@@ -669,53 +668,31 @@ reload_torrent:
         popad
         ret
 
-; The one-time reset: "Allow torrent" is off on every install until the
-; player ticks it, though the original game saved its default,
-; `enable_torrent_seeding on`, in every player's user.cfg. Once an install
-; (no RESET_NAME beside the launcher): the line is written `off`, then that
-; file is made, and from then on the line is the player's alone. A user.cfg
-; that cannot be written makes no file: the next start tries again. Every
-; register kept.
-RESET_CHARS             equ 300         ; the file's path, UTF-16 characters
-
+; The one-time reset: the original game saved `enable_torrent_seeding on` for
+; every player. RESET_NAME beside user.cfg (both are the Windows user's) says
+; the line was written `off` once; it is made first and removed again when the
+; line cannot be written, so the next start tries again. -> eax = 1 when the
+; reset is done; every other register kept.
 torrent_reset:
         pushad
         DELTA
-        sub     esp, 2*RESET_CHARS
+        sub     esp, PATH_SIZE
         mov     edi, esp
-        push    RESET_CHARS
-        push    edi
-        push    0
-        call    [ebx + IAT_GetModuleFileNameW]
+        xor     edx, edx
+        call    marker_path
         test    eax, eax
         jz      .done
-        cmp     eax, RESET_CHARS - RESET_NAME_CHARS - 1
-        jae     .done                   ; no room for the name after the folder
-        lea     ecx, [edi + eax*2]
-.back:  sub     ecx, 2                  ; back to the last backslash
-        cmp     ecx, edi
-        jb      .done
-        cmp     word [ecx], 0x5C
-        jne     .back
-        lea     edx, [ebx + reset_name]
-.copy:  add     ecx, 2                  ; the name after it, its zero included
-        mov     ax, [edx]
-        mov     [ecx], ax
-        add     edx, 2
-        test    ax, ax
-        jnz     .copy
         push    edi
         call    [ebx + IAT_GetFileAttributesW]
         cmp     eax, -1
-        jne     .done                   ; there: done before
+        jne     .reset                  ; there: done before
         call    [ebx + IAT_GetLastError]
-        cmp     eax, 2                  ; ERROR_FILE_NOT_FOUND, nothing else
-        jne     .done
-        lea     eax, [ebx + off_text]
-        push    eax
-        lea     eax, [ebx + torrent_key]
-        push    eax
-        call    save_setting
+        cmp     eax, 2                  ; ERROR_FILE_NOT_FOUND
+        je      .make
+        cmp     eax, 3                  ; ERROR_PATH_NOT_FOUND: no folder yet
+        jne     .not
+.make:  mov     dl, 1
+        call    marker_path
         test    eax, eax
         jz      .done
         push    0
@@ -727,12 +704,51 @@ torrent_reset:
         push    edi
         call    [ebx + IAT_CreateFileW]
         cmp     eax, -1
-        je      .done
+        je      .not
         push    eax
         call    [ebx + IAT_CloseHandle]
-.done:  add     esp, 2*RESET_CHARS
+        lea     eax, [ebx + off_text]
+        push    eax
+        lea     eax, [ebx + torrent_key]
+        push    eax
+        call    save_setting
+        test    eax, eax
+        jnz     .reset
+        mov     ebp, edi
+        lea     esi, [ebx + kernel32_name]
+        lea     edi, [ebx + delete_name]
+        call    procedure
+        test    eax, eax
+        jz      .not
+        push    ebp
+        call    eax                     ; DeleteFileW(the marker)
+.not:   xor     eax, eax
+        jmp     .done
+.reset: mov     eax, 1
+.done:  add     esp, PATH_SIZE
+        mov     [esp + 28], eax         ; popad's eax
         popad
         ret
+
+; edi = a PATH_SIZE buffer, dl = 1 to make the folder -> RESET_NAME's path
+; beside user.cfg, eax = 1; eax = 0 when there is no Documents folder.
+marker_path:
+        call    config_path
+        test    eax, eax
+        jz      .done
+        mov     ecx, edi                ; user.cfg's name becomes RESET_NAME
+.end:   cmp     word [ecx], 0
+        je      .back
+        add     ecx, 2
+        jmp     .end
+.back:  sub     ecx, 2
+        cmp     word [ecx], 0x5C
+        jne     .back
+        add     ecx, 2
+        lea     edx, [ebx + reset_name]
+        call    append
+        mov     eax, 1
+.done:  ret
 
 ; al = "Allow torrent" -> user.cfg's `enable_torrent_seeding` line `on` or
 ; `off`, as the game writes it; eax = 1 when written, else 0. Every other
@@ -1036,37 +1052,17 @@ pick_language:
         ret
 
 ; ---------------------------------------------------------------------------
-; "Allow torrent" on the main window (patch 15). The settings window (the
-; gear) stays out of sight (patch 8); its one setting that applies is a box
-; in the bottom panel, left of the status line: YouTube's control (form+648h,
-; out of sight since patch 8, moved there by patch_launcher_026g.py RECTS)
-; with the settings window's own pictures (PNG 347 unticked, 345 under the
-; pointer, 346 pressed, 344 ticked, loaded in the place of YouTube's three
-; and Facebook's first), and its own text (string 0D3h, the launcher's
-; language) in its font and colour (Calibri bold 18, white), where the
-; settings window has it beside its box (0x1D1D4).
+; "Allow torrent" on the main window (patch 15; README.md there has the
+; sites): YouTube's control, out of sight since patch 8, is the box, with the
+; settings window's pictures and text. The text is painted into the bottom
+; panel's picture whenever that picture is made anew (`panel_made`,
+; `panel_restored`). The box's pictures are made opaque over the panel
+; (`bake_box`): under Wine a transparent control keeps what its window last
+; showed, so an unticked box would keep the check.
 ;
-; The text is painted into the panel's picture (form+0ECh, JPG 301), as the
-; status line's texts are: when the picture is made (`panel_made`) and every
-; time launcher_form::set_status_texts (0x1B48D) copies it anew from its
-; resource before it writes the status (`panel_restored`).
-;
-; The box's four pictures are made opaque once, over the panel's picture
-; where the box is (`bake_box`, in `panel_made`): a transparent control is
-; drawn over what its window last showed, and only Windows composes the
-; launcher's windows (WS_EX_COMPOSITED) so that the panel is under it again;
-; under Wine the check of a ticked box would stay when it is unticked.
-;
-; The setting is kept as the language is: in user.cfg, as the game's own
-; saved command `enable_torrent_seeding on` / `off` (`reload_torrent` at the
-; start, `save_torrent`), so it stays as the player left it until they
-; change it. A click (the control calls its callback at the button's press,
-; 0x1275B) writes the other value's line at once; only once it is written
-; does it toggle settings+0 (and +1), fire the
-; callback settings::save fires for a changed box (0x1D780: 1A to the
-; updater while the pipe is connected, 0x172FA) and shows the pictures as
-; settings_window::show_torrent_checkbox (0x1CE0E) does. The registry's
-; `download_type` is neither read (`reload_torrent`) nor written.
+; The setting is user.cfg's `enable_torrent_seeding on` / `off`, kept as the
+; language is (`reload_torrent`, `save_torrent`). A click writes the line
+; first; only a written line changes the box and tells the updater (1A).
 
 TRANSPARENT_CONTROL     equ 0x12548     ; transparent_control::transparent_control
 IMAGE_WINDOW            equ 0x12140     ; image_window::image_window
@@ -1278,7 +1274,6 @@ on_text:        db 'on', 0
 off_text:       db 'off', 0
         align   2, db 0
 reset_name:     dw __utf16__('launcher_skhid.torrent_reset'), 0
-RESET_NAME_CHARS equ ($ - reset_name) / 2
 folder_name:    dw __utf16__('\survarium'), 0
 file_name:      dw __utf16__('\user.cfg'), 0
 new_suffix:     dw __utf16__('.new'), 0

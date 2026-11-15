@@ -28,10 +28,8 @@ STACK, HEAP, STUBS, SETTINGS, MENU, STOP = 0x30008000, 0x40000000, 0x50000000, 0
 # The Documents folders the checks run with: the second outside every ANSI
 # code page (the paths are UTF-16).
 DOCUMENTS_FOLDERS = ('C:\\Users\\p\\Documents', 'C:\\Users\\\u0422\u0430\u0440\u0430\u0441 \u4e2d\u6587\\Documents')
-DOCUMENTS = CFG = None
+DOCUMENTS = CFG = MARKER = None
 SELF = 'C:\\Games\\Survarium\\game\\binaries\\x86\\launcher_skhid.exe'
-# "Allow torrent"'s one-time reset done (check_torrent_box_026g.py runs it).
-MARKER = SELF.rsplit('\\', 1)[0] + '\\launcher_skhid.torrent_reset'
 # (IAT slot, stub name)
 IAT = {0x3B098: 'CloseHandle', 0x3B0EC: 'ReadFile', 0x3B0F8: 'WriteFile', 0x3B118: 'GetProcessHeap',
        0x3B238: 'HeapFree', 0x3B23C: 'HeapAlloc', 0x3B258: 'GetModuleHandleA',
@@ -67,7 +65,7 @@ class Launcher:
         self.files, self.folders, self.handles = {}, set(), {}
         self.heap, self.live = HEAP, set()
         self.lcid, self.last_error, self.menu, self.pick, self.selected = 0x0409, 0, [], 0, []
-        self.locked = set()
+        self.locked, self.readonly = set(), set()
         self.marker, self.markers_made = True, 0
         u.hook_add(UC_HOOK_CODE, self.hook)
 
@@ -179,11 +177,16 @@ class Launcher:
         return self.last_error
 
     def DeleteFileW(self, path):
+        if self.wide(path) == MARKER:
+            self.marker = False
         self.files.pop(self.wide(path), None)
         return 1
 
     def MoveFileExW(self, existing, new, flags):
         assert flags == 1
+        if self.wide(new).lower() in self.readonly:
+            self.last_error = 5
+            return 0
         self.files[self.wide(new)] = self.files.pop(self.wide(existing))
         return 1
 
@@ -360,8 +363,10 @@ def check(data, delta):
 
 
 def use_documents(folder):
-    global DOCUMENTS, CFG
+    global DOCUMENTS, CFG, MARKER
     DOCUMENTS, CFG = folder, folder + '\\survarium\\user.cfg'
+    # "Allow torrent"'s one-time reset done (check_torrent_box_026g.py runs it).
+    MARKER = folder + '\\survarium\\launcher_skhid.torrent_reset'
 
 
 def main():

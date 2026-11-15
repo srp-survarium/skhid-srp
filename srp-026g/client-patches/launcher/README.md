@@ -712,9 +712,9 @@ for settings"), and it stays as they left it, kept as the language is.
     change copies the picture anew);
   - 0x1BD03, YouTube's click (`torrent_click`): user.cfg's line written
     at once with the other value; only once it is written, settings+0 and
-    +1 toggled, the callback settings::save
-    fires for a changed box (`function0` at settings+0x28: 1A to the updater
-    while the pipe is connected, 0x172FA), the pictures as
+    +1 toggled, the callback settings::save fires for a changed box
+    (`function0` at settings+0x28: 1A to the updater while the pipe is
+    connected, 0x172FA), the pictures as
     `settings_window::show_torrent_checkbox` (0x1CE0E) shows them. The text
     beside the box is not clickable.
 - **The store:** user.cfg (`<Documents>\survarium\user.cfg`, patch 14),
@@ -728,10 +728,11 @@ for settings"), and it stays as they left it, kept as the language is.
   (settings::reload still reads it; its result is replaced at once).
 - **The one-time reset:** the original game saved its default,
   `enable_torrent_seeding on`, in every player's user.cfg. Before the line
-  is read, an install without `launcher_skhid.torrent_reset` beside the
-  launcher has the line written `off`, then that empty file made; from then
+  is read, a Windows user without `launcher_skhid.torrent_reset` beside
+  user.cfg gets that empty file made, then the line written `off`; from then
   on the line is the player's alone. A user.cfg that cannot be written
-  makes no file: the next start tries again. The updater takes the line
+  takes the file away again (the next start tries again), and without the
+  file the box is off, whatever the line. The updater takes the line
   only with that file there (`client/updater`, `win::launcher_torrent_allowed`).
 - **Why it is the one place:** every reader takes `settings+0`:
   `start_updater`'s 4th argument (0x1580B: `torrent` or `direct`) and
