@@ -20,6 +20,12 @@
 //! (#1450's default `client_step = client` made him reckon by the client's walk tick, and two harm runs met two different
 //! humans). The file is the kin of the build it was written in, with `client_step = grid`.
 //!
+//! His other kin (`camper_client_kin.json`, `SRP_BENCH_CAMPER_KIN=client`) is a whole file too: the client's rules where they
+//! are proven (every kin switch of `tuning::KEPT_RIGHT` at its proven value, the F5 speeds, and the kept controller's edge that
+//! `client_step = kept` and `forecast_step = kept` leave the floor by). A human sees his own body, so his brain's picture of it
+//! is the client's; whether the stand-in with it still plays as the humans do (A193's bolt hit % and crossing kills) is the
+//! bench's to say, against `camper_human_kin.json` on the same build. The file the bench keeps becomes the default.
+//!
 //! [A318] And his grid (`camper_human_grid.json`, a whole `grid` section, with its key test): his route rules read it, so a grid
 //! READ switch in an A/B leaves his routes alone. The graph he plans on is the match's one world, built by the arm's grid: a
 //! grid BUILD switch still moves it (a world of his own read team state built on the arm's: TASKS A346). The file is the grid of
@@ -43,6 +49,38 @@ const HUMAN_KIN: &str = include_str!("camper_human_kin.json");
 /// The movement model of the stand-in camper: [`HUMAN_KIN`].
 pub(crate) fn human_kin() -> Kinematics {
     serde_json::from_str(HUMAN_KIN).expect("camper_human_kin.json is a whole kin section")
+}
+
+/// The camper's `kin` section of the client's rules, as written (`SRP_BENCH_CAMPER_KIN=client`).
+const CLIENT_KIN: &str = include_str!("camper_client_kin.json");
+
+/// `SRP_BENCH_CAMPER_KIN`: which pinned `kin` section the stand-in camper reckons his own body by. Either is a whole file, so a
+/// bot kin switch put to an A/B moves neither.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CamperKin {
+    /// `camper_human_kin.json` (unset, `human`): the kin he was measured with against the humans (A193, A318).
+    Human,
+    /// `camper_client_kin.json` (`client`): the client's rules where they are proven.
+    Client,
+}
+
+impl CamperKin {
+    /// The setting's value: unset or `human` is [`Self::Human`], `client` is [`Self::Client`]; anything else is refused.
+    pub(crate) fn parse(value: Option<&str>) -> Result<Self, String> {
+        match value {
+            None | Some("human") => Ok(Self::Human),
+            Some("client") => Ok(Self::Client),
+            Some(other) => Err(format!("SRP_BENCH_CAMPER_KIN={other:?}: human or client")),
+        }
+    }
+
+    /// The `kin` section this choice names.
+    pub(crate) fn kin(self) -> Kinematics {
+        match self {
+            Self::Human => human_kin(),
+            Self::Client => serde_json::from_str(CLIENT_KIN).expect("camper_client_kin.json is a whole kin section"),
+        }
+    }
 }
 
 /// The camper's `grid` section, as written.
@@ -112,19 +150,36 @@ mod tests {
     }
 
     #[test]
-    fn the_camper_file_names_every_key_of_the_kin() {
+    fn the_camper_files_name_every_key_of_the_kin() {
         let mut default = Vec::new();
         key_paths(&serde_json::to_value(Kinematics::default()).expect("JSON"), "", &mut default);
-        let mut pinned = Vec::new();
-        key_paths(&serde_json::from_str(HUMAN_KIN).expect("JSON"), "", &mut pinned);
         default.sort();
-        pinned.sort();
-        let missing: Vec<_> = default.iter().filter(|key| !pinned.contains(key)).collect();
-        let extra: Vec<_> = pinned.iter().filter(|key| !default.contains(key)).collect();
-        assert!(
-            missing.is_empty() && extra.is_empty(),
-            "tests/camper_human_kin.json: write the camper's value for {missing:?}, drop {extra:?}"
-        );
+        for (file, text) in [("camper_human_kin.json", HUMAN_KIN), ("camper_client_kin.json", CLIENT_KIN)] {
+            let mut pinned = Vec::new();
+            key_paths(&serde_json::from_str(text).expect("JSON"), "", &mut pinned);
+            pinned.sort();
+            let missing: Vec<_> = default.iter().filter(|key| !pinned.contains(key)).collect();
+            let extra: Vec<_> = pinned.iter().filter(|key| !default.contains(key)).collect();
+            assert!(
+                missing.is_empty() && extra.is_empty(),
+                "tests/{file}: write the camper's value for {missing:?}, drop {extra:?}"
+            );
+        }
+    }
+
+    /// The setting names the two files and refuses anything else.
+    #[test]
+    fn the_campers_kin_setting_picks_a_whole_file() {
+        assert_eq!(CamperKin::parse(None), Ok(CamperKin::Human));
+        assert_eq!(CamperKin::parse(Some("human")), Ok(CamperKin::Human));
+        assert_eq!(CamperKin::parse(Some("client")), Ok(CamperKin::Client));
+        assert!(CamperKin::parse(Some("kept")).is_err());
+        assert_eq!(CamperKin::Human.kin(), human_kin());
+        let client = CamperKin::Client.kin();
+        assert_eq!(client.client_step, crate::v026g::bots::kin::ClientStep::Kept);
+        assert_eq!(client.forecast_step, crate::v026g::bots::kin::ForecastStep::Kept);
+        let tuning = Tuning { kin: client, ..human_tuning() };
+        tuning.validate().expect("the camper's tuning with the client's kin is a valid one");
     }
 
     #[test]

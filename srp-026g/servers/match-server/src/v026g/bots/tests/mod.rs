@@ -139,7 +139,7 @@ use bench::*;
 pub(crate) use camper::*;
 mod camper_move;
 pub(crate) use camper_move::{Arrival, BenchCamper, CamperAt, CamperStart, LiveLeave, MoveOptions};
-pub(crate) use standin_aim::human_tuning;
+pub(crate) use standin_aim::{human_tuning, CamperKin};
 pub(crate) use bench::bench_tuning;
 pub(crate) use standin_hunter::{HumanPlay, Hunt, camper_tuning, hunter_tuning};
 pub(crate) use team_kit::scope as team_kit_scope;
