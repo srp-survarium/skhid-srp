@@ -2428,9 +2428,11 @@ impl Bot {
 /// (`apply_new_input` 0x2D86E0, `detect_usable_object` 0x2D84C0, PROVEN), whatever the movement, so a take walked in at the
 /// route's pace presses as it passes through the use's reach, not only at a play step (250-325 ms apart: a body coasting
 /// past its stop crossed the reach between two). The view is this tick's (`me`: the base pitch and the kick, as an
-/// elevation): the client's ray starts at the head's transform (player+47Ch along +46Ch, `client_patch.md` 3.23), which the
-/// frame before computed, and `apply_new_input` tests the use's down edge (0x2D88B1) having only stored this input's rotation
-/// (+32Ch; 0x2D8BB0 between is `process_quick_slots`), so this tick's turn is not in it. Only while the play asks; once per
+/// elevation): the client's ray starts at the pose's "Item" bone transform (player+44Ch: the bone times the player's +40Ch,
+/// written only by 0x2DA4B0; +47Ch along +46Ch), which the frame before computed with the look's pitch and the weapon's kick
+/// (`look_pitch` 0x2E0F60), and `apply_new_input` tests the use's down edge (0x2D88B1) having only stored this input's rotation
+/// (+32Ch; 0x2D8BB0 between is `process_quick_slots`; the rotation is applied after, 0x2D8AD0), so this tick's turn is not in
+/// it and the kick is. Only while the play asks; once per
 /// battery until the play reads the press (`Bot::use_pressed`). Each press is logged with its tick and the ray's distance; a
 /// tick whose eye had the box within the use ray and whose view passed it by, and a meeting ray while the view is held for a
 /// throw ([`Gates::using`]: no press), are counted (`take_counts::OnTheMoveRayMissed`, `OnTheMoveRefused`).
