@@ -138,8 +138,8 @@ pub enum PlayKind {
     Answer,
     /// A crosser of a Breach on a held spot (`threat.breach`, design-p1c §1): gather out of his lanes, go on one tick, hold.
     Breach,
-    /// [A324] The camper trap job's bot (`traps.camper_job`): to a held spot's point (his way back, his death point), and stays
-    /// there while it puts a trap down.
+    /// [A324] The camper trap job's bot (`traps.camper_job`): to the way in of a place an enemy holds, crouched where that hides
+    /// it, and stays there crouched while it puts a trap down.
     TrapSpot,
 }
 

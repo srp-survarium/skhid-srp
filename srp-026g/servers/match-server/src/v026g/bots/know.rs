@@ -791,6 +791,10 @@ pub struct Fighting {
     pub since: u32,
 }
 
+/// [A324] The keys of killed holders' way-in jobs ([`TeamKnowledge::camper_key`]): `CAMPER_KEY` and the next `CAMPER_KEYS`.
+pub const CAMPER_KEY: u32 = 0x2000_0000;
+const CAMPER_KEYS: u32 = 0x1000_0000;
+
 /// Losses are kept this long, ms.
 pub const LOSS_KEEP_MS: u32 = 120_000;
 
@@ -806,35 +810,32 @@ pub struct Defeated {
     pub kind: DefeatedKind,
 }
 
-/// [A145, `TrapTuning::at_cleared`] Where a camper stood when a team job killed him (his death point), and the job's bot
-/// wished to put a trap there.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Cleared {
-    pub at: Vec3,
-    pub time: u32,
-    pub shooter: Place,
-    pub placer: Place,
-    pub by: ClearedBy,
-}
-
-/// [A324, `TrapTuning::camper_job`] A point of a held spot the team wants a trap on, and how far its job has come.
+/// [A324, `TrapTuning::camper_job`] A held place's way-in point the team wants a trap on, and how far its job has come.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CamperTrap {
-    /// The held spot (`threat::Spot::id`) and its shooter.
+    /// The job's key: the held line's id (`threat::HeldLine::id`: a held spot's, or a battery hold's), or for a killed
+    /// holder's place one of [`TeamKnowledge::camper_key`]'s.
     pub spot: u32,
     pub shooter: Place,
+    /// The place he holds (held), where his eye is for the "out of his sight" tests.
+    pub held: Vec3,
+    /// The point on his way in.
     pub at: Vec3,
     pub kind: CamperTrapKind,
     pub state: CamperTrapState,
+    /// The sent bot's "enemy seen" refusals at the point, this job.
+    pub seen: SeenRefusals,
 }
 
-/// Which point of the spot it is.
+/// Why the team wants the point, and so for how long.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CamperTrapKind {
-    /// On his way back to the spot from his side's spawns, out of the spot's sight; wanted while the team's job on it runs.
-    Approach,
-    /// Where he died on it; wanted `death_keep_s` from `died`.
-    Death { died: u32 },
+    /// A held spot the team's K2 job runs on: while it runs.
+    Job,
+    /// A man the team holds off from at a loose battery (`take.clear_first`): while his hold lives.
+    Battery,
+    /// [`TrapTuning::at_cleared`, `at_defeated`] He died holding it: for his return, `death_keep_s` from `died`.
+    Returning { died: u32 },
 }
 
 /// Its job.
@@ -846,13 +847,40 @@ pub enum CamperTrapState {
     Sent { placer: Place, since: u32, placed_before: u8 },
 }
 
-/// The team job that killed him.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ClearedBy {
-    /// A Breach after its go (`breach.rs`).
-    Breach,
-    /// A K2 Flank job's flanker or pinner.
-    Flank,
+/// [A324] What a sent bot's job gate saw when it refused for an enemy seen at the point: its camper (the point's holder) or
+/// another enemy, with the bot crouched or standing, and the nearest enemy seen, metres.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SeenRefusals {
+    /// [crouched, standing]
+    pub camper: [u16; 2],
+    pub other: [u16; 2],
+    pub nearest_m: Option<f32>,
+}
+
+impl SeenRefusals {
+    /// One refusal: whether its camper was among the enemies seen, the bot's pose, the nearest enemy seen (metres).
+    pub fn add(&mut self, camper: bool, crouched: bool, nearest_m: f32) {
+        let pose = usize::from(!crouched);
+        let n = if camper { &mut self.camper[pose] } else { &mut self.other[pose] };
+        *n = n.saturating_add(1);
+        self.nearest_m = Some(self.nearest_m.map_or(nearest_m, |m| m.min(nearest_m)));
+    }
+
+    pub fn total(&self) -> u32 {
+        self.camper.iter().chain(&self.other).map(|&n| u32::from(n)).sum()
+    }
+
+    /// For a note: `its camper crouched N / standing N, another enemy crouched N / standing N, nearest N m`.
+    pub fn said(&self) -> String {
+        format!(
+            "its camper crouched {} / standing {}, another enemy crouched {} / standing {}{}",
+            self.camper[0],
+            self.camper[1],
+            self.other[0],
+            self.other[1],
+            self.nearest_m.map_or(String::new(), |m| format!(", nearest {m:.1} m")),
+        )
+    }
 }
 
 /// How the killed enemy was known to have held the place.
@@ -1150,14 +1178,14 @@ pub struct TeamKnowledge {
     pub squad_leaders: Vec<(Place, Place)>,
     /// The team's deaths of the last [`LOSS_KEEP_MS`].
     pub losses: Vec<Loss>,
-    /// The places enemies that held them were killed at, kept `TrapTuning::at_defeated`'s `keep_s` ([`Self::defeat`]).
+    /// The places enemies that held them were killed at ([`Self::defeat`]), each taken by the next commander tick for its
+    /// way-in job (`traps::camper_tick`, `TrapTuning::at_defeated`).
     pub defeated: Vec<Defeated>,
-    /// [A145] The death points of campers team jobs killed, kept `TrapTuning::at_cleared`'s `keep_s` (one taken off when its
-    /// trap is placed).
-    pub cleared: Vec<Cleared>,
     /// [A324] The camper trap points the team wants a trap on, and their jobs (`traps::camper_tick`).
     pub camper_traps: Vec<CamperTrap>,
-    /// [A324] Spots whose job runs and on which no way back out of the spot's sight was found (not searched again while it runs).
+    /// [A324] The keys handed to killed holders' way-in jobs so far ([`Self::camper_key`]).
+    pub camper_keys: u32,
+    /// [A324] Held places (their line's id) on which no way in out of his sight was found (not searched again while held).
     pub camper_no_way: Vec<u32>,
     /// Enemies seen carrying lately.
     pub carriers_seen: Vec<CarrierSeen>,
@@ -1199,6 +1227,13 @@ pub struct TeamKnowledge {
 impl TeamKnowledge {
     /// A holder was killed at `at`: kept for `keep_ms`; one within 4 m of an earlier record renews it (its time, its latest holder).
     /// Returns whether the record is new.
+    /// [A324] A new key for a killed holder's way-in job: above every held spot's id (`ThreatSpots` counts from 0) and under
+    /// the battery holds' (`threat::BATTERY_LINE_ID`).
+    pub fn camper_key(&mut self) -> u32 {
+        self.camper_keys = (self.camper_keys + 1) % CAMPER_KEYS;
+        CAMPER_KEY + self.camper_keys
+    }
+
     pub fn defeat(&mut self, defeated: Defeated, keep_ms: u32) -> bool {
         self.defeated.retain(|d| defeated.time.saturating_sub(d.time) <= keep_ms);
         if let Some(old) = self.defeated.iter_mut().find(|d| d.at.distance_xz(defeated.at) < 4.0) {

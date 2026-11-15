@@ -99,12 +99,14 @@ impl Bots {
                     spawner,
                 });
             }
-            // [A145] Where an enemy that held a place died: the killing team's held spots of his, and the places its killers'
-            // own senses had him staying at. Taken before his death takes the spots' sense.
-            if let Some(defeated) = self.tunings.of(1 - team as u8).traps.at_defeated {
+            // [A145, A324] Where an enemy that held a place died: the killing team's held spots of his, and the places its killers'
+            // own senses had him staying at. Taken before his death takes the spots' sense; the next commander tick sends a bot
+            // to his way in (`traps::camper_tick`), wanted the camper job's `death_keep_s`.
+            let killing = &self.tunings.of(1 - team as u8).traps;
+            if let (Some(defeated), Some(job)) = (killing.at_defeated, killing.camper_job) {
                 use super::know::{Defeated, DefeatedKind};
                 let winners = 1 - team;
-                let keep_ms = (defeated.keep_s * 1000.0) as u32;
+                let keep_ms = (job.death_keep_s * 1000.0) as u32;
                 let mut held: Vec<(Vec3, DefeatedKind)> = self.teams[winners]
                     .features
                     .threat
@@ -168,10 +170,9 @@ impl Bots {
             if self.tunings.of(1 - team as u8).threat.spots {
                 self.teams[1 - team].features.threat.spots.shooter_died(a.place, time);
             }
-            // [threat.breach, traps.at_cleared] The killing team's kill feed: the enemy it killed, and its killer when one's
-            // kills rose.
+            // [threat.breach] The killing team's kill feed: the enemy it killed, and its killer when one's kills rose.
             let winners = self.tunings.of(1 - team as u8);
-            if winners.threat.breach.is_some() || winners.traps.at_cleared.is_some() {
+            if winners.threat.breach.is_some() {
                 let killers: Vec<Place> = after
                     .places
                     .iter()

@@ -35,3 +35,25 @@ traps of 402 live matches of 12+ humans. The full record with scripts is outside
 `booby_trap_core::serialize` 0x3052E0 in the world's game-objects section: a placed trap is 77 bytes (state 1/2/3, a u32, the
 64-byte transform, a u32, the placing time in ms); `survarium::v026g::match_msgs::traps::find` reads them. The server simulates none
 of this; the clients do.
+
+## Where humans trap a holder (live, 2026-11-08..12)
+The 329 recorded human matches of 6+ players, 1,554 placed traps (`booby_trap_core` in the objects section: owner, deploy time,
+place) against every body's feet and life in the 5 s worlds. A HOLD: one body's feet within 5 m for 30 s or more; KILLING: 2 or
+more of the other team died within 60 m during it (the bots' 2-kill cue; the worlds carry deaths, not killers). His WAY IN and WAY
+OUT: his feet over the 30 s before and after it. A trap is ON his way within 2 m of it; a STEP is a body's straight way between two
+worlds passing within 1 m of the trap while it stands (an estimate: worlds are 5 s apart).
+
+| Traps within 40 m of an enemy killing hold (span within 120 s), 633 | n | holder stepped | other enemy | mate | median m from the hold |
+|---|---|---|---|---|---|
+| on his way in | 83 | 9 | 2 | 0 | 15.6 (P25 5.8, P75 22.1, P90 26.9) |
+| on his way out | 15 | 0 | 0 | 0 | 8.5 |
+| within 10 m, not on his ways | 50 | 2 | 4 | 6 | 5.9 |
+| elsewhere within 40 m | 485 | 1 | 23 | 33 | 27.0 |
+
+- 9 of the 12 steps by a holder were on traps on his way in. With 3+ deaths within 40 m instead: 51 on his way in, holder 3;
+  elsewhere 1 of 359.
+- The way-in traps' timing: 49 down before his hold (a lane he then came in by), 17 after he left, 9 after his death, 8 during it.
+- Of 2,334 killing holds 680 ended with his death; 5 traps lay within 10 m of such a hold after his death (a death point).
+
+Script `private/pvb-343-check/fight-world/traps/human_traps_killing_holds.py` (outputs beside it, `human-traps-killing-holds-k2-r60.txt`
+and the `k3-r40`, `k4-r30` cuts) over the routes measure tables (`ht/traps.csv`, `rt/rec_worlds.csv`, `rt/rec_levels.csv`).

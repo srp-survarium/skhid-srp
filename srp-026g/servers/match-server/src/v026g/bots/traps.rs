@@ -766,15 +766,45 @@ pub fn approach_points(tactics: &super::tactics::Tactics, home: Vec3, spot: Vec3
     points
 }
 
-/// [A324] The part of a placer a camper on his spot would see: a crouched body's chest.
-const PLACER_CHEST_M: f32 = 0.9;
+/// [A324] The way-in point of a place `held` (the first point of his way there from `home`, `near_m`..`far_m` before it, that
+/// his eye there does not see), not in the team's spawn area. His eye is a held spot's (`lane_ahead::camper_eye`); the placer's
+/// is crouched and moving (`view::eye_height`: 1.14 m, the higher of the crouched eyes, the still one 1.04 m), as the `TrapSpot`
+/// play comes to the point crouched where that hides it and stays on it crouched: if he cannot see that eye, the bot there
+/// cannot see him (a sight line is the same line both ways).
+fn way_in(tactics: &super::tactics::Tactics, home: Vec3, held: Vec3, j: &super::tuning::CamperJob, side: Option<i32>, now: u32) -> Option<Vec3> {
+    approach_points(tactics, home, held, j, now)
+        .into_iter()
+        .find(|p| !tactics.in_spawn_area(*p, side) && out_of_his_sight(&tactics.world.sight, held, *p))
+}
 
-/// [A324] The team's camper trap jobs at a commander tick (`TrapTuning::camper_job`): `held` the team's held spots, `job_spots`
-/// the spots its K2 jobs run on, `died` the jobs its shooter's death ended this tick (spot, shooter). A point is added for his way
-/// back on each job's spot (the first point of the way from his side's nearest spawn, `near_m`..`far_m` before the spot, that the
-/// spot's eye does not see), and for his death point when he dies there; the nearest free bot with a trap within `max_walk_m` is
-/// sent to each (`plays::trap_spot`); a point is dropped when its bot put a trap down, when the job is over (his way back) or its
-/// time is (his death point). A bot not done in `give_up_s` is let go.
+/// The eye over the feet of a body moving crouched (`view::eye_height`: any speed over the still class's).
+fn crouched_moving_eye(feet: Vec3) -> Vec3 {
+    feet + Vec3::new(0.0, super::view::eye_height(true, f32::MAX, 0.0), 0.0)
+}
+
+/// [A324] Whether a bot crouched at `feet` is out of the sight of a man on `held` (a held spot's eye,
+/// `lane_ahead::camper_eye`): its crouched moving eye, the higher crouched one, is not in his sight.
+pub fn out_of_his_sight(sight: &mapdata::RayTree, held: Vec3, feet: Vec3) -> bool {
+    !super::rays::visible(sight, super::lane_ahead::camper_eye(held), crouched_moving_eye(feet))
+}
+
+/// [A324] Whether crouching hides a bot at `feet` from a man on `held`: its standing eye is in his sight, its crouched one
+/// not (`view::eye_height`: 1.46 m standing, 1.14 m crouched and moving).
+pub fn hidden_by_crouching(sight: &mapdata::RayTree, held: Vec3, feet: Vec3) -> bool {
+    super::rays::visible(sight, super::lane_ahead::camper_eye(held), super::view::still_eye(feet, false)) && out_of_his_sight(sight, held, feet)
+}
+
+/// [A324] The team's camper trap jobs at a commander tick (`TrapTuning::camper_job`): a trap on the way in of a place an enemy
+/// holds, where a trap catches its holder (live: of 633 human traps near an enemy's killing hold, the 83 on his way in caught
+/// him 9 times, the 485 elsewhere once; `docs/notes/bear_traps.md`). The places:
+/// - `sources`: the held spots its K2 jobs run on and the men it holds off from at a loose battery (`take.clear_first`), wanted
+///   while that lasts;
+/// - with `at_cleared`, such a place's point stays wanted for his return when he dies there (`death_keep_s` from his death);
+/// - with `at_defeated`, the places of the holders the team killed (`know::Defeated`, taken from the list here), for his return.
+///
+/// The point is the first of his way from his side's nearest spawn, `near_m`..`far_m` before the place, that his eye there does
+/// not see ([`way_in`]); the nearest free bot with a trap within `max_walk_m` is sent (`plays::trap_spot`); a bot not done in
+/// `give_up_s` is let go. Every decision is a note.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn camper_tick(
     bots: &[Option<Bot>],
@@ -783,13 +813,11 @@ pub(super) fn camper_tick(
     tactics: &super::tactics::Tactics,
     t: &TrapTuning,
     team: u8,
-    held: &[super::threat::HeldLine],
-    job_spots: &[u32],
-    died: &[(u32, super::view::Place)],
+    sources: &[super::threat::HeldLine],
     now: u32,
     notes: &mut Vec<super::Note>,
 ) {
-    use super::know::{CamperTrap, CamperTrapKind, CamperTrapState};
+    use super::know::{CamperTrap, CamperTrapKind, CamperTrapState, SeenRefusals};
     let Some(j) = t.camper_job else {
         knowledge.camper_traps.clear();
         knowledge.camper_no_way.clear();
@@ -797,80 +825,168 @@ pub(super) fn camper_tick(
     };
     let side = bots.iter().flatten().find(|b| b.team == team).and_then(|b| b.side);
     let mut said = Vec::new();
-    // His death on a spot: its point.
-    for &(spot, shooter) in died {
-        let Some(at) = view.deaths.iter().rev().find(|d| d.place == shooter).map(|d| d.at) else {
-            continue;
+    let bot_of = |p: super::view::Place| bots.iter().flatten().find(|b| b.place == p);
+    let alive = |p: super::view::Place| view.place(p).is_some_and(|b| b.alive);
+    let xyz = |v: Vec3| format!("({:.1}, {:.1}, {:.1})", v.x, v.y, v.z);
+    // The sent bots: who is done, who is let go.
+    let give_up_ms = (j.give_up_s * 1000.0) as u32;
+    knowledge.camper_traps.retain_mut(|c| {
+        let CamperTrapState::Sent { placer, since, placed_before } = c.state else {
+            return true;
         };
-        knowledge.camper_traps.retain(|c| c.spot != spot);
-        knowledge.camper_traps.push(CamperTrap { spot, shooter, at, kind: CamperTrapKind::Death { died: now }, state: CamperTrapState::Open });
-        #[cfg(test)]
-        camper::count(team, camper::NOTED_DEATH);
-        said.push(format!("team {team}: camper {shooter} died on spot {spot}: his death point ({:.1}, {:.1}, {:.1}) wants a trap", at.x, at.y, at.z));
-    }
-    // What is over: his way back with no job on the spot, his death point after its time, a point a standing trap of the team is on.
+        if bot_of(placer).is_some_and(|b| b.features.traps.habit.placed_this_life() > placed_before) {
+            #[cfg(test)]
+            camper::count(team, camper::PLACED);
+            said.push(format!(
+                "team {team}: bot {placer} put its trap on {}'s way in at {} ({:?} of player {}); at the point its gate refused {} thinks for an enemy seen ({})",
+                c.spot,
+                xyz(c.at),
+                c.kind,
+                c.shooter,
+                c.seen.total(),
+                c.seen.said()
+            ));
+            return false;
+        }
+        let body = view.place(placer).filter(|b| b.alive && b.carrying.is_none());
+        let why = if body.is_none() {
+            Some(if alive(placer) { "carrying" } else { "dead" })
+        } else if now.saturating_sub(since) > give_up_ms {
+            Some("its time is out")
+        } else {
+            None
+        };
+        if let Some(why) = why {
+            #[cfg(test)]
+            {
+                camper::count(team, camper::GAVE_UP);
+                let playing = bot_of(placer).and_then(|b| b.assignment.as_ref()).is_some_and(|a| a.kind == PlayKind::TrapSpot);
+                let near = view.place(placer).is_some_and(|b| b.feet.distance_xz(c.at) <= j.within_m + t.reach_m + 1.0);
+                camper::count(
+                    team,
+                    if why == "dead" {
+                        camper::GAVE_UP_DEAD
+                    } else if !playing {
+                        camper::GAVE_UP_NOT_PLAYING
+                    } else if near {
+                        camper::GAVE_UP_AT
+                    } else {
+                        camper::GAVE_UP_FAR
+                    },
+                );
+            }
+            said.push(format!(
+                "team {team}: bot {placer} let go of {}'s way in at {}: {why}; at the point its gate refused {} thinks for an enemy seen ({})",
+                c.spot,
+                xyz(c.at),
+                c.seen.total(),
+                c.seen.said()
+            ));
+            c.state = CamperTrapState::Open;
+        }
+        true
+    });
+    // What is over: a place no longer held (or, with `at_cleared`, kept for his return when he died there), a return's time
+    // out, a point a standing trap of the team is on.
     let standing: Vec<Vec3> = knowledge.traps.standing().map(|k| k.at).collect();
     let death_ms = (j.death_keep_s * 1000.0) as u32;
-    knowledge.camper_traps.retain(|c| {
-        let live = match c.kind {
-            CamperTrapKind::Approach => job_spots.contains(&c.spot),
-            CamperTrapKind::Death { died } => now.saturating_sub(died) <= death_ms,
+    knowledge.camper_traps.retain_mut(|c| {
+        let over = match c.kind {
+            CamperTrapKind::Job | CamperTrapKind::Battery if sources.iter().any(|l| l.id == c.spot) => None,
+            CamperTrapKind::Job | CamperTrapKind::Battery if t.at_cleared.is_some() && !alive(c.shooter) => {
+                c.kind = CamperTrapKind::Returning { died: now };
+                #[cfg(test)]
+                camper::count(team, camper::RETURNING);
+                said.push(format!(
+                    "team {team}: player {} died holding {}: its way in at {} still wants a trap for his return, {:.0} s",
+                    c.shooter,
+                    c.spot,
+                    xyz(c.at),
+                    j.death_keep_s
+                ));
+                None
+            }
+            CamperTrapKind::Job | CamperTrapKind::Battery => Some("the place is no longer held"),
+            CamperTrapKind::Returning { died } if now.saturating_sub(died) > death_ms => Some("his return's time is out"),
+            CamperTrapKind::Returning { .. } => None,
         };
-        live && !standing.iter().any(|s| s.distance_xz(c.at) <= j.within_m)
+        let over = over.or_else(|| standing.iter().any(|s| s.distance_xz(c.at) <= j.within_m).then_some("a trap of the team stands on it"));
+        if let Some(why) = over {
+            #[cfg(test)]
+            camper::count(team, camper::DROPPED);
+            said.push(format!("team {team}: {}'s way in at {} dropped: {why}", c.spot, xyz(c.at)));
+        }
+        over.is_none()
     });
-    knowledge.camper_no_way.retain(|spot| job_spots.contains(spot));
-    // His way back on each job's spot, found once a job.
+    knowledge.camper_no_way.retain(|spot| sources.iter().any(|l| l.id == *spot));
+    // The way in of each held place without a point, searched once while it is held.
     let homes: Vec<Vec3> = tactics.world.map.spawns.iter().filter(|s| Some(s.team) != side).map(|s| s.position).collect();
-    for line in held.iter().filter(|l| job_spots.contains(&l.id)) {
+    let nearest_home = |at: Vec3| homes.iter().copied().min_by(|a, b| a.distance_xz(at).total_cmp(&b.distance_xz(at)));
+    for line in sources {
         if knowledge.camper_traps.iter().any(|c| c.spot == line.id) || knowledge.camper_no_way.contains(&line.id) {
             continue;
         }
-        let home = homes.iter().copied().min_by(|a, b| a.distance_xz(line.at).total_cmp(&b.distance_xz(line.at)));
-        // [A324] The camper's eye on his spot, for the "out of his sight" test: a lane's camper's (`lane_ahead::camper_eye`).
-        let eye = super::lane_ahead::camper_eye(line.at);
-        let point = home.map(|home| approach_points(tactics, home, line.at, &j, now)).unwrap_or_default().into_iter().find(|p| {
-            !tactics.in_spawn_area(*p, side) && !super::rays::visible(&tactics.world.sight, eye, *p + Vec3::new(0.0, PLACER_CHEST_M, 0.0))
-        });
-        match point {
+        let kind = if line.battery.is_some() { CamperTrapKind::Battery } else { CamperTrapKind::Job };
+        match nearest_home(line.at).and_then(|home| way_in(tactics, home, line.at, &j, side, now)) {
             Some(at) => {
-                knowledge.camper_traps.push(CamperTrap { spot: line.id, shooter: line.shooter, at, kind: CamperTrapKind::Approach, state: CamperTrapState::Open });
+                knowledge.camper_traps.push(CamperTrap {
+                    spot: line.id,
+                    shooter: line.shooter,
+                    held: line.at,
+                    at,
+                    kind,
+                    state: CamperTrapState::Open,
+                    seen: SeenRefusals::default(),
+                });
                 #[cfg(test)]
-                camper::count(team, camper::NOTED_APPROACH);
-                said.push(format!("team {team}: spot {} held by {}: his way back at ({:.1}, {:.1}, {:.1}) wants a trap", line.id, line.shooter, at.x, at.y, at.z));
+                camper::count(team, if kind == CamperTrapKind::Battery { camper::NOTED_BATTERY } else { camper::NOTED_JOB });
+                said.push(format!("team {team}: {:?} {} held by player {} at {}: his way in at {} wants a trap", kind, line.id, line.shooter, xyz(line.at), xyz(at)));
             }
             None => {
                 knowledge.camper_no_way.push(line.id);
                 #[cfg(test)]
                 camper::count(team, camper::NO_WAY);
+                said.push(format!("team {team}: {:?} {} held by player {} at {}: no way in out of his sight", kind, line.id, line.shooter, xyz(line.at)));
             }
         }
     }
-    // The bots: who is done, who gave up, who goes.
-    let give_up_ms = (j.give_up_s * 1000.0) as u32;
-    let bot_of = |p: super::view::Place| bots.iter().flatten().find(|b| b.place == p);
-    let mut done = Vec::new();
-    for (i, c) in knowledge.camper_traps.iter_mut().enumerate() {
-        if let CamperTrapState::Sent { placer, since, placed_before } = c.state {
-            let alive = view.place(placer).is_some_and(|b| b.alive && b.carrying.is_none());
-            if bot_of(placer).is_some_and(|b| b.features.traps.habit.placed_this_life() > placed_before) {
-                #[cfg(test)]
-                camper::count(team, camper::PLACED);
-                done.push(i);
-            } else if !alive || now.saturating_sub(since) > give_up_ms {
-                #[cfg(test)]
-                {
-                    camper::count(team, camper::GAVE_UP);
-                    let playing = bot_of(placer).and_then(|b| b.assignment.as_ref()).is_some_and(|a| a.kind == PlayKind::TrapSpot);
-                    let near = view.place(placer).is_some_and(|b| b.feet.distance_xz(c.at) <= j.within_m + t.reach_m + 1.0);
-                    camper::count(team, if !playing { camper::GAVE_UP_NOT_PLAYING } else if near { camper::GAVE_UP_AT } else { camper::GAVE_UP_FAR });
+    // [at_defeated] The holders the team killed: the way in of each one's place, for his return (one point a man).
+    if t.at_defeated.is_some() {
+        for d in std::mem::take(&mut knowledge.defeated) {
+            if now.saturating_sub(d.time) > death_ms || knowledge.camper_traps.iter().any(|c| c.shooter == d.shooter) {
+                continue;
+            }
+            match nearest_home(d.at).and_then(|home| way_in(tactics, home, d.at, &j, side, now)) {
+                Some(at) => {
+                    let spot = knowledge.camper_key();
+                    knowledge.camper_traps.push(CamperTrap {
+                        spot,
+                        shooter: d.shooter,
+                        held: d.at,
+                        at,
+                        kind: CamperTrapKind::Returning { died: d.time },
+                        state: CamperTrapState::Open,
+                        seen: SeenRefusals::default(),
+                    });
+                    #[cfg(test)]
+                    camper::count(team, camper::NOTED_DEFEATED);
+                    said.push(format!(
+                        "team {team}: player {} killed holding {} ({:?}): his way in at {} wants a trap for his return ({spot})",
+                        d.shooter,
+                        xyz(d.at),
+                        d.kind,
+                        xyz(at)
+                    ));
                 }
-                c.state = CamperTrapState::Open;
+                None => {
+                    #[cfg(test)]
+                    camper::count(team, camper::NO_WAY);
+                    said.push(format!("team {team}: player {} killed holding {}: no way in out of his sight", d.shooter, xyz(d.at)));
+                }
             }
         }
     }
-    for i in done.into_iter().rev() {
-        knowledge.camper_traps.remove(i);
-    }
+    // Who goes.
     let mut taken: Vec<super::view::Place> = knowledge
         .camper_traps
         .iter()
@@ -898,10 +1014,11 @@ pub(super) fn camper_tick(
             continue;
         };
         c.state = CamperTrapState::Sent { placer: b.place, since: now, placed_before: b.features.traps.habit.placed_this_life() };
+        c.seen = SeenRefusals::default();
         taken.push(b.place);
         #[cfg(test)]
         camper::count(team, camper::SENT);
-        said.push(format!("team {team}: bot {} sent to trap spot {}'s {:?} point, {d:.1} m off", b.place, c.spot, c.kind));
+        said.push(format!("team {team}: bot {} sent to trap {}'s way in at {} ({:?} of player {}), {d:.1} m off", b.place, c.spot, xyz(c.at), c.kind, c.shooter));
     }
     for text in said {
         notes.push(super::Note { place: usize::MAX, time: now, text });
@@ -913,61 +1030,126 @@ pub fn camper_point(knowledge: &super::know::TeamKnowledge, place: super::view::
     knowledge.camper_traps.iter().find(|c| matches!(c.state, super::know::CamperTrapState::Sent { placer, .. } if placer == place))
 }
 
-/// [A324] The bench's counts of the camper trap jobs, by team: points noted (his way back, his death point), spots with no way
-/// back out of his sight, ticks with an open point and no free bot, bots sent, let go, and traps put down by a sent bot.
+/// [A324] The bench's counts of the camper trap jobs, by team: points noted (a K2 job's spot, a battery hold, a killed holder's
+/// place), points kept for his return, dropped, places with no way in out of his sight, ticks with an open point and no free bot,
+/// bots sent, let go (by why) and traps put down by a sent bot; the sent bots' thinks by outcome and the job gate's refusals by
+/// reason, the "enemy seen" ones split by whom (its camper, another) and the bot's pose, with the nearest enemy's distances; and
+/// the plans (placer, time, the point's holder) to match the catches by. Kept per thread (a match runs on one) for the tallies,
+/// and summed over threads for the bench's line.
 #[cfg(test)]
 pub mod camper {
+    use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    pub const NOTED_APPROACH: usize = 0;
-    pub const NOTED_DEATH: usize = 1;
-    pub const NO_WAY: usize = 2;
-    pub const NO_PLACER: usize = 3;
-    pub const SENT: usize = 4;
-    pub const GAVE_UP: usize = 5;
-    pub const PLACED: usize = 6;
-    /// Let go: its play was not `TrapSpot` then; it was farther from the point than it places from; it was at the point.
-    pub const GAVE_UP_NOT_PLAYING: usize = 7;
-    pub const GAVE_UP_FAR: usize = 8;
-    pub const GAVE_UP_AT: usize = 9;
+    pub const NOTED_JOB: usize = 0;
+    pub const NOTED_BATTERY: usize = 1;
+    pub const NOTED_DEFEATED: usize = 2;
+    pub const RETURNING: usize = 3;
+    pub const DROPPED: usize = 4;
+    pub const NO_WAY: usize = 5;
+    pub const NO_PLACER: usize = 6;
+    pub const SENT: usize = 7;
+    pub const GAVE_UP: usize = 8;
+    pub const PLACED: usize = 9;
+    /// Let go: dead; its play was not `TrapSpot` then; it was farther from the point than it places from; it was at the point.
+    pub const GAVE_UP_DEAD: usize = 10;
+    pub const GAVE_UP_NOT_PLAYING: usize = 11;
+    pub const GAVE_UP_FAR: usize = 12;
+    pub const GAVE_UP_AT: usize = 13;
     /// Thinks of a sent bot: on its way; at the point refused by the gate; no look; no spot by the point; waited for it; a trap
     /// planned by the point; one planned elsewhere; a `TrapSpot` play whose job is over (nothing planned).
-    pub const THINK_WALKING: usize = 10;
-    pub const THINK_GATE: usize = 11;
-    pub const THINK_NO_LOOK: usize = 12;
-    pub const THINK_NO_SPOT: usize = 13;
-    pub const THINK_WAITED: usize = 14;
-    pub const THINK_PLANNED: usize = 15;
-    pub const THINK_PLANNED_ELSE: usize = 16;
-    pub const THINK_JOB_OVER: usize = 17;
-    pub const NAMES: [&str; 18] = [
-        "noted_approach", "noted_death", "no_way", "no_placer_ticks", "sent", "gave_up", "placed", "gave_up_not_playing", "gave_up_far",
-        "gave_up_at", "think_walking", "think_gate", "think_no_look", "think_no_spot", "think_waited", "think_planned",
-        "think_planned_else", "think_job_over",
+    pub const THINK_WALKING: usize = 14;
+    pub const THINK_GATE: usize = 15;
+    pub const THINK_NO_LOOK: usize = 16;
+    pub const THINK_NO_SPOT: usize = 17;
+    pub const THINK_WAITED: usize = 18;
+    pub const THINK_PLANNED: usize = 19;
+    pub const THINK_PLANNED_ELSE: usize = 20;
+    pub const THINK_JOB_OVER: usize = 21;
+    /// The gate's "enemy seen" refusals at the point: its camper seen (crouched, standing), only others seen (crouched, standing).
+    pub const SEEN_CAMPER_CROUCHED: usize = 22;
+    pub const SEEN_CAMPER_STANDING: usize = 23;
+    pub const SEEN_OTHER_CROUCHED: usize = 24;
+    pub const SEEN_OTHER_STANDING: usize = 25;
+    pub const N: usize = 26;
+    pub const NAMES: [&str; N] = [
+        "noted_job", "noted_battery", "noted_defeated", "returning", "dropped", "no_way", "no_placer_ticks", "sent", "gave_up", "placed",
+        "gave_up_dead", "gave_up_not_playing", "gave_up_far", "gave_up_at", "think_walking", "think_gate", "think_no_look",
+        "think_no_spot", "think_waited", "think_planned", "think_planned_else", "think_job_over", "seen_camper_crouched",
+        "seen_camper_standing", "seen_other_crouched", "seen_other_standing",
     ];
-    static TEAM: [[AtomicU64; 18]; 2] = [const { [const { AtomicU64::new(0) }; 18] }; 2];
-
-    pub fn count(team: u8, kind: usize) {
-        TEAM[usize::from(team & 1)][kind].fetch_add(1, Ordering::Relaxed);
-    }
-
+    static TEAM: [[AtomicU64; N]; 2] = [const { [const { AtomicU64::new(0) }; N] }; 2];
     /// The gate's refusals of a sent bot at its point, in `gates::of` order from Play on.
     pub const GATE_NAMES: [&str; 8] = ["play", "carrying", "health", "enemy", "hit", "reloading", "team_cap", "other"];
     static GATE: [[AtomicU64; 8]; 2] = [const { [const { AtomicU64::new(0) }; 8] }; 2];
+    /// The nearest enemy seen at an "enemy seen" refusal, metres: [its camper seen, only others].
+    static SEEN_M: Mutex<[Vec<f32>; 2]> = Mutex::new([Vec::new(), Vec::new()]);
+
+    thread_local! {
+        static MINE: std::cell::Cell<[[u64; N]; 2]> = const { std::cell::Cell::new([[0; N]; 2]) };
+        static PLANS: std::cell::RefCell<Vec<(usize, u32, usize)>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    pub fn count(team: u8, kind: usize) {
+        TEAM[usize::from(team & 1)][kind].fetch_add(1, Ordering::Relaxed);
+        MINE.with(|cell| {
+            let mut all = cell.get();
+            all[usize::from(team & 1)][kind] += 1;
+            cell.set(all);
+        });
+    }
 
     pub fn gate(team: u8, k: usize) {
         GATE[usize::from(team & 1)][k.min(7)].fetch_add(1, Ordering::Relaxed);
     }
 
+    /// An "enemy seen" refusal at the point: its camper among those seen or not, the bot's pose, the nearest seen (metres).
+    pub fn seen(team: u8, camper: bool, crouched: bool, nearest_m: f32) {
+        count(
+            team,
+            match (camper, crouched) {
+                (true, true) => SEEN_CAMPER_CROUCHED,
+                (true, false) => SEEN_CAMPER_STANDING,
+                (false, true) => SEEN_OTHER_CROUCHED,
+                (false, false) => SEEN_OTHER_STANDING,
+            },
+        );
+        if let Ok(mut m) = SEEN_M.lock() {
+            m[usize::from(!camper)].push(nearest_m);
+        }
+    }
+
+    /// A trap planned by a sent bot `placer` at `now` on the way in of `holder`'s place.
+    pub fn planned(placer: usize, now: u32, holder: usize) {
+        PLANS.with(|p| p.borrow_mut().push((placer, now, holder)));
+    }
+
+    /// This thread's counts.
+    pub fn counted() -> [[u64; N]; 2] {
+        MINE.with(|cell| cell.get())
+    }
+
+    /// This thread's plans so far, from the `from`th on.
+    pub fn plans(from: usize) -> Vec<(usize, u32, usize)> {
+        PLANS.with(|p| p.borrow().get(from..).map(<[_]>::to_vec).unwrap_or_default())
+    }
+
     pub fn line() -> String {
-        (0..2)
+        let p50 = |v: &[f32]| {
+            let mut v = v.to_vec();
+            v.sort_by(f32::total_cmp);
+            v.get(v.len() / 2).map_or("-".to_string(), |m| format!("{m:.1} m"))
+        };
+        let seen = SEEN_M.lock().map(|m| format!("; nearest enemy seen P50: with its camper {}, others only {}", p50(&m[0]), p50(&m[1]))).unwrap_or_default();
+        let teams = (0..2)
             .map(|team| {
                 let mut parts: Vec<String> = NAMES.iter().enumerate().map(|(k, n)| format!("{n} {}", TEAM[team][k].load(Ordering::Relaxed))).collect();
                 parts.extend(GATE_NAMES.iter().enumerate().map(|(k, n)| format!("gate_{n} {}", GATE[team][k].load(Ordering::Relaxed))));
                 format!("team {team}: {}", parts.join(", "))
             })
             .collect::<Vec<_>>()
-            .join("; ")
+            .join("; ");
+        format!("{teams}{seen}")
     }
 }
 
@@ -1701,6 +1883,21 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     if let Err(refusal) = gate(&facts, t) {
         let near = (refusal == Refusal::Enemy).then(|| enemy_near_kind(bot, due)).flatten();
         bot.features.traps.tally.refused(refusal, near);
+        // [A324] A sent bot's "enemy seen" at its point: whom it saw (its camper among them, or only others), from what pose,
+        // the nearest how far; summed on its job for the job's note, and counted.
+        if refusal == Refusal::Enemy
+            && job.is_some()
+            && let Some(point) = state.knowledge.camper_traps.iter_mut().find(
+                |c| matches!(c.state, super::know::CamperTrapState::Sent { placer, .. } if placer == bot.place),
+            )
+        {
+            let seen = bot.memory.all_seen(due.now, due.view.clock);
+            let camper = seen.iter().any(|s| s.track().who == point.shooter);
+            let nearest = seen.iter().map(|s| s.track().at.distance_xz(me.feet)).fold(f32::INFINITY, f32::min);
+            point.seen.add(camper, me.crouched(), nearest);
+            #[cfg(test)]
+            camper::seen(me.team, camper, me.crouched(), nearest);
+        }
         #[cfg(test)]
         {
             gates::count(gates::of(refusal));
@@ -1777,72 +1974,9 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         .standing()
         .map(|trap| trap.at)
         .collect();
-    // [A145] The spots of killed holders this route passes, that no trap of the team stands on.
-    let wished_spots: Vec<Vec3> = match t.at_defeated {
-        Some(d) => {
-            let keep_ms = (d.keep_s * 1000.0) as u32;
-            let route = &ahead[..(d.ahead_m as usize).min(ahead.len())];
-            state
-                .knowledge
-                .defeated
-                .iter()
-                .filter(|w| due.now.saturating_sub(w.time) <= keep_ms)
-                .map(|w| w.at)
-                .filter(|at| !own.iter().any(|own| own.distance_xz(*at) <= d.within_m))
-                .filter(|at| {
-                    if staying {
-                        me.feet.distance_xz(*at) <= d.within_m + reach_m
-                    } else {
-                        off_route_m(route, *at) <= d.within_m
-                    }
-                })
-                .collect()
-        }
-        None => Vec::new(),
-    };
-    // [A145, at_cleared] The death point of a camper a team job just killed, wished of this bot (the job's placer), when its route
-    // passes it or it stands by it: it goes before the defeated holders' spots.
-    let cleared_spots: Vec<Vec3> = match t.at_cleared {
-        Some(c) => {
-            let keep_ms = (c.keep_s * 1000.0) as u32;
-            let route = &ahead[..(c.ahead_m as usize).min(ahead.len())];
-            state
-                .knowledge
-                .cleared
-                .iter()
-                .filter(|w| w.placer == bot.place && due.now.saturating_sub(w.time) <= keep_ms)
-                .map(|w| w.at)
-                .filter(|at| !own.iter().any(|own| own.distance_xz(*at) <= c.within_m))
-                .filter(|at| {
-                    if staying {
-                        me.feet.distance_xz(*at) <= c.within_m + reach_m
-                    } else {
-                        off_route_m(route, *at) <= c.within_m
-                    }
-                })
-                .collect()
-        }
-        None => Vec::new(),
-    };
+    // [A324] A sent bot's point is the one wished spot (the calm habit wishes none: a camper's place is the job's).
     let job_spots: Vec<Vec3> = job.map(|(at, _)| at).into_iter().collect();
-    let wish = match t.at_cleared.filter(|_| !cleared_spots.is_empty()) {
-        Some(c) => Some(Wish {
-            spots: &cleared_spots,
-            within_m: c.within_m,
-            friend_m: c.friend_m,
-        }),
-        None => t.at_defeated.filter(|_| !wished_spots.is_empty()).map(|d| Wish {
-            spots: &wished_spots,
-            within_m: d.within_m,
-            friend_m: d.friend_m,
-        }),
-    };
-    // [A324] The job's point goes before every other.
-    let wish = match job {
-        Some((_, j)) => Some(Wish { spots: &job_spots, within_m: j.within_m, friend_m: j.friend_m }),
-        None => wish,
-    };
-    let on_cleared = !cleared_spots.is_empty() && job.is_none();
+    let wish = job.map(|(_, j)| Wish { spots: &job_spots, within_m: j.within_m, friend_m: j.friend_m });
     let search = Search {
         t,
         reach_m,
@@ -1873,18 +2007,10 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     // [A145] A spot of a killed holder ahead on the route that no candidate here is on yet: wait for the body to reach it.
     if let Some(wish) = wish {
         #[cfg(test)]
-        if on_cleared {
-            cleared::count(me.team, cleared::THINKS);
-        } else {
-            defeated::count_team(me.team, defeated::THINKS);
-        }
+        defeated::count_team(me.team, defeated::THINKS);
         if !chosen.is_some_and(|c| c.wished) && wish.spots.iter().any(|at| me.feet.distance_xz(*at) > wish.within_m + reach_m + 1.0) {
             #[cfg(test)]
-            if on_cleared {
-                cleared::count(me.team, cleared::WAITED);
-            } else {
-                defeated::count_team(me.team, defeated::WAITED);
-            }
+            defeated::count_team(me.team, defeated::WAITED);
             bot.features.traps.tally.waited_wish();
             #[cfg(test)]
             if job.is_some() {
@@ -1943,14 +2069,11 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     // [A324] A sent bot puts its trap only by its point.
     if let Some(chosen) = chosen.filter(|c| job.is_none() || c.wished) {
         #[cfg(test)]
-        if chosen.wished && on_cleared {
-            cleared::placed(me.team, bot.place, due.now);
-        } else if chosen.wished {
+        if chosen.wished {
             defeated::count_team(me.team, defeated::PLACED);
-        }
-        // [A145] A death point wished of this bot is spent once it plans its trap there.
-        if chosen.wished && on_cleared {
-            state.knowledge.cleared.retain(|w| !(w.placer == bot.place && w.at.distance_xz(chosen.spot) <= t.at_cleared.map_or(0.0, |c| c.within_m) + 0.5));
+            if let Some(point) = camper_point(&state.knowledge, bot.place) {
+                camper::planned(bot.place, due.now, point.shooter);
+            }
         }
         #[cfg(test)]
         {
@@ -1968,10 +2091,8 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         // [A309] The bench's record of the plan for its press line.
         #[cfg(test)]
         {
-            let source = if chosen.wished && on_cleared {
-                "cleared"
-            } else if chosen.wished {
-                "defeated"
+            let source = if chosen.wished {
+                "camper"
             } else if on_pass {
                 "pass"
             } else {
@@ -2018,7 +2139,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
                     Some((who, m)) => format!(" (nearest lane cell of player {who}, {m:.1} m)"),
                     None => String::new(),
                 },
-                if chosen.wished { ", on a wished spot" } else { "" },
+                if chosen.wished { ", on its camper job's point" } else { "" },
                 if on_pass { ", after a wait on its route" } else if staying { ", standing" } else { ", walking" },
             ),
         );
@@ -2185,48 +2306,6 @@ pub mod defeated {
             n(R_BODY),
             n(R_FRIEND)
         )
-    }
-}
-
-/// [A145, at_cleared] The bench's counts of the traps at cleared campers' death points, by team: points noted after a
-/// Breach's or a flanker's kill, kills with no job bot that had a trap, thinks with such a point wished (past the gate),
-/// waits for it along the route, plans placed on it; and the plans (placer, time) to match the catches by.
-#[cfg(test)]
-pub mod cleared {
-    pub const NOTED_BREACH: usize = 0;
-    pub const NOTED_FLANK: usize = 1;
-    pub const NO_PLACER: usize = 2;
-    pub const THINKS: usize = 3;
-    pub const WAITED: usize = 4;
-    pub const PLACED: usize = 5;
-    pub const NAMES: [&str; 6] = ["noted_breach", "noted_flank", "no_placer", "thinks", "waited", "placed"];
-
-    thread_local! {
-        static TEAM: std::cell::Cell<[[u64; 6]; 2]> = const { std::cell::Cell::new([[0; 6]; 2]) };
-        static PLANS: std::cell::RefCell<Vec<(usize, u32)>> = const { std::cell::RefCell::new(Vec::new()) };
-    }
-
-    pub fn count(team: u8, kind: usize) {
-        TEAM.with(|cell| {
-            let mut all = cell.get();
-            all[usize::from(team & 1)][kind] += 1;
-            cell.set(all);
-        });
-    }
-
-    /// A trap planned on a cleared point by `placer` at `now`.
-    pub fn placed(team: u8, placer: usize, now: u32) {
-        count(team, PLACED);
-        PLANS.with(|p| p.borrow_mut().push((placer, now)));
-    }
-
-    pub fn counted() -> [[u64; 6]; 2] {
-        TEAM.with(|cell| cell.get())
-    }
-
-    /// The plans so far, from the `from`th on.
-    pub fn plans(from: usize) -> Vec<(usize, u32)> {
-        PLANS.with(|p| p.borrow().get(from..).map(<[_]>::to_vec).unwrap_or_default())
     }
 }
 
@@ -3743,23 +3822,22 @@ mod tests {
         assert_eq!(far.validate().unwrap_err(), "traps.press_landing_m");
     }
 
-    /// [A145] The rule for killed holders' spots is off by default (benched inert), validated and read from a patch.
+    /// [A324] The camper trap job and its two sources after a death are on by default, off in the all-off arm, validated and
+    /// read from a patch.
     #[test]
-    fn the_defeated_rule_is_off_by_default_validated_and_read_from_a_patch() {
+    fn the_camper_job_and_its_sources_are_on_by_default_validated_and_read_from_a_patch() {
         use crate::v026g::bots::tuning::{DefeatedTuning, Tuning};
-        assert_eq!(Tuning::default().traps.at_defeated, None);
-        assert_eq!(Tuning::all_off().traps.at_defeated, None);
+        let on = Tuning::default();
+        assert!(on.traps.camper_job.is_some() && on.traps.at_defeated.is_some() && on.traps.at_cleared.is_some());
+        let off = Tuning::all_off();
+        assert!(off.traps.camper_job.is_none() && off.traps.at_defeated.is_none() && off.traps.at_cleared.is_none());
         assert_eq!(DefeatedTuning::default().min_kills, 2);
         let mut bad = Tuning::default();
         assert!(bad.validate().is_ok());
-        bad.traps.at_defeated = Some(DefeatedTuning { within_m: 0.5, ..DefeatedTuning::default() });
+        bad.traps.at_defeated = Some(DefeatedTuning { min_kills: 6 });
         assert_eq!(bad.validate().unwrap_err(), "traps.at_defeated");
-        bad.traps.at_defeated = Some(DefeatedTuning { friend_m: 1.0, ..DefeatedTuning::default() });
-        assert_eq!(bad.validate().unwrap_err(), "traps.at_defeated", "a guard under the ordinary one");
-        bad.traps.at_defeated = Some(DefeatedTuning { ahead_m: 40.0, ..DefeatedTuning::default() });
-        assert_eq!(bad.validate().unwrap_err(), "traps.at_defeated", "farther than the route is read");
-        let patched = Tuning::patched(serde_json::json!({"traps": {"at_defeated": {"keep_s": 60.0}}})).unwrap();
-        assert_eq!(patched.traps.at_defeated.map(|d| (d.keep_s, d.within_m)), Some((60.0, 3.0)));
+        let patched = Tuning::patched(serde_json::json!({"traps": {"at_defeated": {"min_kills": 3}}})).unwrap();
+        assert_eq!(patched.traps.at_defeated.map(|d| d.min_kills), Some(3));
     }
 
     /// The eye of a pose at the pitch a look down has (`view::eye_height`, up positive).
@@ -4146,6 +4224,104 @@ mod tests {
             assert!(at.x < spot.x, "on home's side: {at:?}");
         }
         assert!(approach_points(&s.tactics, Vec3::new(46.0, 0.0, 10.0), spot, &j, 1_000).is_empty());
+    }
+
+    /// [A324] The camper job's points: a K2 job's spot and a battery hold each get their way in, out of his sight (here past
+    /// the field's wall end, the way from the one spawn kept); when the holder dies the point stays for his return with
+    /// `at_cleared` until `death_keep_s`, and goes with the job without it; a killed holder's place (`at_defeated`) gets one,
+    /// taken off the list, one point a man. Every step is a note.
+    #[test]
+    fn the_camper_job_traps_the_way_in_of_held_places_and_keeps_it_for_his_return() {
+        use crate::v026g::bots::know::{CamperTrapKind, Defeated, DefeatedKind, TeamKnowledge};
+        use crate::v026g::bots::threat::HeldLine;
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| map.spawns.retain(|s| s.team == 0));
+        let tactics = crate::v026g::bots::tactics::Tactics::new(world, 1.0);
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let held = Vec3::new(42.0, 0.0, 10.0);
+        s.human(11, 1, held);
+        s.human(12, 1, Vec3::new(60.0, 0.0, 30.0));
+        let t = TrapTuning::default();
+        let j = t.camper_job.unwrap();
+        let line = HeldLine::for_test(7, 11, held, &[], Some(1_000));
+        let mut battery = HeldLine::for_test(crate::v026g::bots::threat::BATTERY_LINE_ID + 12, 12, Vec3::new(60.0, 0.0, 30.0), &[], Some(1_000));
+        battery.battery = Some(2);
+        let mut k = TeamKnowledge::default();
+        let mut notes = Vec::new();
+        let tick = |k: &mut TeamKnowledge, t: &TrapTuning, view: &crate::v026g::bots::view::MatchView, sources: &[HeldLine], now: u32, notes: &mut Vec<super::super::Note>| {
+            camper_tick(&[], k, view, &tactics, t, 0, sources, now, notes)
+        };
+        tick(&mut k, &t, &s.view, &[line.clone(), battery.clone()], 1_000, &mut notes);
+        let point = k.camper_traps.iter().find(|c| c.spot == 7).expect("the job's way in");
+        assert_eq!(point.kind, CamperTrapKind::Job);
+        assert!(out_of_his_sight(&tactics.world.sight, held, point.at), "{point:?}");
+        let d = point.at.distance_xz(held);
+        assert!(d >= j.near_m - 1.0, "{d} m from his place");
+        assert!(notes.iter().any(|n| n.text.contains("his way in at")), "{notes:?}");
+        // The battery's man stands in the open field's east half, seen from all of his way from the west spawn: no way in.
+        assert!(k.camper_no_way.contains(&battery.id) || k.camper_traps.iter().any(|c| c.kind == CamperTrapKind::Battery));
+        // He dies: kept for his return, then its time is out.
+        s.view.places.iter_mut().find(|p| p.place == 11).unwrap().alive = false;
+        tick(&mut k, &t, &s.view, &[], 2_000, &mut notes);
+        assert_eq!(k.camper_traps.iter().find(|c| c.spot == 7).map(|c| c.kind), Some(CamperTrapKind::Returning { died: 2_000 }));
+        let out = 2_000 + (j.death_keep_s * 1000.0) as u32 + 1;
+        tick(&mut k, &t, &s.view, &[], out, &mut notes);
+        assert!(k.camper_traps.is_empty(), "{:?}", k.camper_traps);
+        // Without `at_cleared` it goes with the job.
+        let no_return = TrapTuning { at_cleared: None, ..t.clone() };
+        s.view.places.iter_mut().find(|p| p.place == 11).unwrap().alive = true;
+        tick(&mut k, &no_return, &s.view, std::slice::from_ref(&line), out + 1, &mut notes);
+        assert_eq!(k.camper_traps.len(), 1);
+        s.view.places.iter_mut().find(|p| p.place == 11).unwrap().alive = false;
+        tick(&mut k, &no_return, &s.view, &[], out + 2, &mut notes);
+        assert!(k.camper_traps.is_empty(), "{:?}", k.camper_traps);
+        // A killed holder's place: one point a man, the list taken.
+        let at = out + 3;
+        k.defeated.push(Defeated { at: held, time: at, shooter: 11, kind: DefeatedKind::Spot });
+        k.defeated.push(Defeated { at: held + Vec3::new(0.0, 0.0, 2.0), time: at, shooter: 11, kind: DefeatedKind::Camp });
+        tick(&mut k, &t, &s.view, &[], at, &mut notes);
+        assert_eq!(k.camper_traps.len(), 1, "{:?}", k.camper_traps);
+        assert_eq!(k.camper_traps[0].kind, CamperTrapKind::Returning { died: at });
+        assert!(k.camper_traps[0].spot >= crate::v026g::bots::know::CAMPER_KEY);
+        assert!(k.defeated.is_empty());
+        // Off: nothing.
+        tick(&mut k, &TrapTuning { camper_job: None, ..t.clone() }, &s.view, std::slice::from_ref(&line), at + 1, &mut notes);
+        assert!(k.camper_traps.is_empty());
+    }
+
+    /// A floor with a wall across x = 25 from z = 5 to 15, `high` metres tall, between a man on (30, 0, 10) and a point at
+    /// (24, 0, 10).
+    fn low_wall(high: f32) -> mapdata::RayTree {
+        use crate::v026g::bots::body::tests::floor;
+        let walker = mapdata::WalkerBehaviour::BySlope;
+        let (a, b, c, d) = (Vec3::new(25.0, 0.0, 5.0), Vec3::new(25.0, 0.0, 15.0), Vec3::new(25.0, high, 15.0), Vec3::new(25.0, high, 5.0));
+        let mut triangles = floor(0.0, 0.0, 40.0, 20.0, 0.0).to_vec();
+        triangles.push(mapdata::Triangle { v: [a, b, c], walker });
+        triangles.push(mapdata::Triangle { v: [a, c, d], walker });
+        mapdata::RayTree::build(&triangles)
+    }
+
+    /// [A324] The way-in point is out of his sight for the placer's crouched eye, not a crouched chest: a 1.0 m wall 1 m in
+    /// front of the point hides a 0.9 m chest from a held spot's eye 6 m off but not a crouched eye (1.14 m), so the bot
+    /// there would see him (the old test took it); a 1.3 m wall hides the crouched eye; on open ground nothing does.
+    #[test]
+    fn a_way_in_point_is_out_of_his_sight_for_the_placer_s_crouched_eye() {
+        let (held, point) = (Vec3::new(30.0, 0.0, 10.0), Vec3::new(24.0, 0.0, 10.0));
+        let eye = crate::v026g::bots::lane_ahead::camper_eye(held);
+        let one = low_wall(1.0);
+        assert!(!crate::v026g::bots::rays::visible(&one, eye, point + Vec3::new(0.0, 0.9, 0.0)), "the chest is hidden");
+        assert!(!out_of_his_sight(&one, held, point), "the crouched eye is not");
+        assert!(out_of_his_sight(&low_wall(1.3), held, point));
+        assert!(!out_of_his_sight(&low_wall(0.05), held, point), "a 5 cm kerb hides nothing");
+    }
+
+    /// [A324] The `TrapSpot` play crouches where that hides it: behind a 1.3 m wall (its standing eye seen over it, its
+    /// crouched one not); not behind a 1.0 m one (crouched it is still seen), nor a 3 m one (hidden standing too).
+    #[test]
+    fn crouching_hides_the_placer_only_where_its_standing_eye_shows_and_its_crouched_one_not() {
+        let (held, point) = (Vec3::new(30.0, 0.0, 10.0), Vec3::new(24.0, 0.0, 10.0));
+        assert!(hidden_by_crouching(&low_wall(1.3), held, point));
+        assert!(!hidden_by_crouching(&low_wall(1.0), held, point));
+        assert!(!hidden_by_crouching(&low_wall(3.0), held, point));
     }
 }
 
