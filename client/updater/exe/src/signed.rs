@@ -15,8 +15,8 @@ use crate::win;
 /// 64 hex digits from `release/signing.pub` or `SKHID_TEST_PUBLIC_KEY`
 /// (`build.rs`); a build without either takes no torrent.
 const KEY: Option<&str> = option_env!("SKHID_BUILT_PUBLIC_KEY");
-/// Beside the updater: the highest revision taken.
-const TAKEN: &str = "updater_skhid.torrent.revision";
+/// In `game\torrent`: the highest revision taken.
+const TAKEN: &str = "revision";
 
 pub fn key() -> Option<[u8; 32]> {
     KEY.and_then(signed::public_key)
@@ -41,7 +41,7 @@ fn built() -> u64 {
 /// game's and this updater's own.
 pub fn installed(layout: &Layout) -> u64 {
     let game = game_number(layout).max(built());
-    let taken = win::read_file(&format!("{}\\{TAKEN}", layout.exe_dir), 16)
+    let taken = win::read_file(&format!("{}\\{TAKEN}", layout.torrent_dir), 16)
         .ok()
         .and_then(|bytes| String::from_utf8(bytes).ok())
         .and_then(|text| text.trim().parse::<u64>().ok())
@@ -51,9 +51,9 @@ pub fn installed(layout: &Layout) -> u64 {
 
 pub fn taken(layout: &Layout, revision: u64) {
     if revision > installed(layout) {
-        let path = format!("{}\\{TAKEN}", layout.exe_dir);
+        let path = format!("{}\\{TAKEN}", layout.torrent_dir);
         if let Err(code) = win::write_file(&path, format!("{revision}\r\n").as_bytes()) {
-            log!("torrent: {TAKEN} cannot be written: {}", win::error_text(code));
+            log!("torrent: torrent\\{TAKEN} cannot be written: {}", win::error_text(code));
         }
     }
 }

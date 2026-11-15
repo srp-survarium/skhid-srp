@@ -208,7 +208,7 @@ class Build(unittest.TestCase):
             self.assertEqual(archive.read(T.BOOTSTRAP_COPIES + 'updater_skhid.exe'), old)
             self.assertEqual(archive.read(T.BOOTSTRAP_ENTRY), bootstrap.read_bytes())
         # The revision's torrent leaves them out, as the bootstrap torrent.
-        self.assertNotIn(b'updater_skhid.bootstrap', out.read_bytes())
+        self.assertNotIn(b'9:bootstrap', out.read_bytes())
         wrong = self.run_build(self.root / 'i.torrent', extra=['--bootstrap', str(bootstrap), '--bootstrap-copy',
                                                                'updater_skhid.exe', str(self.root / 'other.exe')])
         self.assertNotEqual(wrong.returncode, 0)

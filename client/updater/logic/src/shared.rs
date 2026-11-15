@@ -3,7 +3,7 @@
 //! file whose identity is still the one checked is trusted; a file is still
 //! checked against its pin before it is installed, whatever this says.
 //!
-//! `updater_skhid.torrent.checked`, beside the updater:
+//! `game\torrent\checked`:
 //!
 //! ```text
 //! skhid-torrent-checked 1

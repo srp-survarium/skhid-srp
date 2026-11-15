@@ -387,7 +387,7 @@ The order, as it runs:
    `build-zip` (of the commit checked in step 1), `build-torrent` (the
    torrent of the whole game folder, `skhid-rev<n>.torrent`, signed with the
    release's key, `private/release/torrent-signing.pem`, and put into the ZIP
-   as `game/binaries/x86/skhid.torrent`: `srp-026g/docs/notes/torrent-downloads.md`;
+   as `game/torrent/skhid.torrent`: `srp-026g/docs/notes/torrent-downloads.md`;
    no key, or one that is not the commit's `release/signing.pub`'s pair: the
    preflight stops; the owner makes it once with `release/make-signing-key`
    and commits `release/signing.pub`; `--test` signs with the test

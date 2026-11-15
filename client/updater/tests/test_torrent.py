@@ -3,7 +3,7 @@ libtorrent in `skhid_torrent.dll`; `srp-026g/docs/notes/torrent-downloads.md`):
 the real updater_skhid.exe and its DLL, started by the stand-in launcher with
 its "Allow torrent" and port (the launcher's 4th and 13th arguments), against
 the web server of the other tests, whose ZIP has the revision's torrent
-beside the updater (`skhid.torrent`, signed with a throwaway key), a tracker
+in game/torrent (`skhid.torrent`, signed with a throwaway key), a tracker
 on 127.0.0.1 (HTTP and UDP), a DHT of libtorrent nodes on 127.0.0.1 (BEP 46:
 the release's item), and libtorrent (2.0, Python bindings) as the other
 peers: a seed, a leech that takes the folder from the updater, and a peer
@@ -51,6 +51,8 @@ import warnings
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_db_patches as wine  # noqa: E402
 from test_db_patches import X86, sha256, windows, windows_path  # noqa: E402
+
+TORRENT = "game/torrent"
 from test_play_gate import game_exe  # noqa: E402
 
 try:
@@ -446,8 +448,8 @@ class TorrentTest(wine.WineTest):
     def release(self, *numbers, torrent=True, exe=None, size=200_000, overlay=None, **signing):
         """What the server offers: the patches `numbers` (of about `size`
         bytes), and the overlay (with `overlay`'s files) with the torrent of
-        the folder (the patches, two of the overlay's files) beside the
-        updater (`torrent`). The torrent, its files and the seed's folder."""
+        the folder (the patches, two of the overlay's files) in game/torrent
+        (`torrent`). The torrent, its files and the seed's folder."""
         overlay = self.bundle(**(overlay or {}))
         if exe is not None:
             overlay[f"{X86}/survarium_skhid.exe"] = exe
@@ -458,7 +460,7 @@ class TorrentTest(wine.WineTest):
         seed_dir = tempfile.mkdtemp(dir=self.peers_dir)
         data = make_torrent(seed_dir, files, self.tracker.urls, **signing)
         if torrent:
-            overlay[f"{X86}/skhid.torrent"] = data
+            overlay[f"{TORRENT}/skhid.torrent"] = data
         self.offer(overlay)
         return patches, data, seed_dir, files
 
@@ -643,7 +645,7 @@ class TorrentTest(wine.WineTest):
         self.assertIn("torrent: revision 61's info came from its swarm", log)
         # Kept as the release signed it, without what is outside the
         # signature (its trackers).
-        self.assertEqual(self.read(f"{X86}/updater_skhid.found.torrent"), found(newer))
+        self.assertEqual(self.read(f"{TORRENT}/found.torrent"), found(newer))
         self.assertNotIn(b"announce", found(newer))
 
     @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
@@ -661,7 +663,7 @@ class TorrentTest(wine.WineTest):
         self.launch()
         wait(lambda: "torrent: the DHT named no newer release" in self.log(), 120, "the DHT asked")
         self.assertIn("torrent: the DHT named no newer release", self.log())
-        self.assertFalse(self.exists(f"{X86}/updater_skhid.found.torrent"))
+        self.assertFalse(self.exists(f"{TORRENT}/found.torrent"))
 
     @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
     def test_the_updater_puts_the_releases_item_on_the_dht(self):
@@ -682,7 +684,7 @@ class TorrentTest(wine.WineTest):
         files = {f"{X86}/7zr.exe": seven, f"{X86}/skhid_torrent.dll": dll,
                  f"{X86}/updater_skhid.exe": updater or self.updater_bytes}
         bootstrap = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), files, self.tracker.urls, signed=False)
-        return bootstrap, files, {f"{X86}/7zr.exe": seven, f"{X86}/skhid-bootstrap.torrent": bootstrap}
+        return bootstrap, files, {f"{X86}/7zr.exe": seven, f"{TORRENT}/skhid-bootstrap.torrent": bootstrap}
 
     def test_the_bootstrap_beside_the_torrent_keeps_what_was_checked_of_it(self):
         _, _, in_zip = self.bootstrap()
@@ -700,11 +702,16 @@ class TorrentTest(wine.WineTest):
         # Alone in the ZIP: no revision torrent.
         bootstrap, bootstrap_files, in_zip = self.bootstrap()
         self.offer(self.bundle(**in_zip))
+        # An earlier build's state beside the updater: gone.
+        old = [f"{X86}/updater_skhid.port", f"{X86}/updater_skhid.bootstrap/7zr.exe"]
+        for name in old:
+            self.write(name, b"old")
         self.launch()
         self.wait_latest()
         wait(lambda: "torrent: sharing the bootstrap's 3 of 3 files" in self.log(), 60, "sharing the bootstrap")
-        kept = os.path.join(self.x86, "updater_skhid.bootstrap")
+        kept = self.path(f"{TORRENT}/bootstrap")
         self.assertEqual(sorted(os.listdir(kept)), ["7zr.exe", "skhid_torrent.dll", "updater_skhid.exe"])
+        self.assertFalse(self.exists(old[0]) or self.exists(f"{X86}/updater_skhid.bootstrap"))
         # The file in its place is another now (an update): the kept copy is
         # what is shared.
         self.write(f"{X86}/7zr.exe", b"another 7zr")
@@ -712,10 +719,10 @@ class TorrentTest(wine.WineTest):
 
     def test_a_bootstrap_of_an_older_updater_is_shared_from_the_copy_in_the_zip(self):
         # The release after the bootstrap's: the ZIP brings the pinned updater
-        # in the kept copies' folder, beside its own newer one.
+        # in the kept copies' folder; its own newer one is the live one.
         older = self.updater_bytes + b"\0an older build"
         bootstrap, bootstrap_files, in_zip = self.bootstrap(updater=older)
-        self.offer(self.bundle(**in_zip, **{f"{X86}/updater_skhid.bootstrap/updater_skhid.exe": older}))
+        self.offer(self.bundle(**in_zip, **{f"{TORRENT}/bootstrap/updater_skhid.exe": older}))
         self.launch()
         self.wait_latest()
         wait(lambda: "torrent: sharing the bootstrap's 3 of 3 files" in self.log(), 60, "sharing the bootstrap")
@@ -856,7 +863,7 @@ class TorrentTest(wine.WineTest):
 
     def test_with_no_port_from_the_launcher_one_is_picked_kept_and_changed_when_busy(self):
         self.release(12)
-        kept = self.path(f"{X86}/updater_skhid.port")
+        kept = self.path(f"{TORRENT}/port")
 
         def listening_on_the_kept_port():
             self.wait_latest()
@@ -870,7 +877,7 @@ class TorrentTest(wine.WineTest):
 
         self.launch(port="")
         first = listening_on_the_kept_port()
-        self.assertIn(f"torrent: port {first} picked, kept in updater_skhid.port", self.log())
+        self.assertIn(f"torrent: port {first} picked, kept in torrent\\port", self.log())
         # The next start: the same port.
         self.launch(port="")
         self.assertEqual(listening_on_the_kept_port(), first)

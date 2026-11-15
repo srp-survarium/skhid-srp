@@ -84,12 +84,12 @@ class SeedTest(wine.WineTest):
             os.remove(marker)
 
     def set_port(self, port):
-        """The port the updaters keep (`updater_skhid.port`), the one it shares on."""
-        self.write(f"{X86}/updater_skhid.port", f"{port}\r\n".encode())
+        """The port the updaters keep (`game/torrent/port`), the one it shares on."""
+        self.write(f"{t.TORRENT}/port", f"{port}\r\n".encode())
 
     def installed(self, size=200_000):
         """A folder as an update left it: the revision's files in their
-        places and its torrent beside the updater. The torrent and its files."""
+        places and its torrent in game/torrent. The torrent and its files."""
         overlay = self.bundle()
         files = {f"game/resources.db.patch_{n}": random.randbytes(size) for n in (12, 14)}
         files["README.txt"] = overlay["README.txt"]
@@ -97,7 +97,7 @@ class SeedTest(wine.WineTest):
         torrent = t.make_torrent(tempfile.mkdtemp(dir=self.peers_dir), files, self.tracker.urls)
         for name, data in files.items():
             self.write(name, data)
-        self.write(f"{X86}/skhid.torrent", torrent)
+        self.write(f"{t.TORRENT}/skhid.torrent", torrent)
         return torrent, files
 
     def start_game(self):

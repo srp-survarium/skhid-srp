@@ -87,7 +87,7 @@
 #      list, with the new patch, whose every patch the exe requires at its
 #      start: patch 49), then release/build-torrent over that ZIP's files
 #      (skhid-rev<n>.torrent of the whole game folder, which goes into the
-#      ZIP as game/binaries/x86/skhid.torrent:
+#      ZIP as game/torrent/skhid.torrent:
 #      srp-026g/docs/notes/torrent-downloads.md); the world check: every upload of those recordings
 #      checked as the new server checks an upload before it relays it, with
 #      the new server data (srp-world-check): one refused, or none checked,
@@ -1806,7 +1806,7 @@ else
         say
         say "the players' ZIP, against the one the site hands out now:"
         grep -E '^  (CHANGED|ADDED|REMOVED) |^updater_skhid.exe' "$work/build-zip.log" || say "  (no entry changed)"
-        say "  the torrents (release/build-torrent, not compared): game/binaries/x86/skhid.torrent, btmh 1220$TORRENT_SHA$([[ ${#bootstrap[@]} -gt 0 ]] && printf ', and the commit'"'"'s skhid-bootstrap.torrent')"
+        say "  the torrents (release/build-torrent, not compared): game/torrent/skhid.torrent, btmh 1220$TORRENT_SHA$([[ ${#bootstrap[@]} -gt 0 ]] && printf ', and the commit'"'"'s skhid-bootstrap.torrent')"
         say
         say "the bots' data (release/bot-data.tsv), against the $TARGET volume: ${bd_line:-not checked}"
         if ((${#BD_TODO[@]})); then printf '  %s\n' "${BD_REPORT[@]:-put in as listed}"; fi
@@ -1951,7 +1951,7 @@ if ((!DRY_RUN)); then
     say "It becomes:"
     say "  download/$ZIP_NAME: $ZIP_SIZE bytes, sha256 $ZIP_SHA (revision $live_rev -> $rev)"
     say "  download/$DATA_NAME: sha256 $DATA_SHA"
-    say "  the ZIP's game/binaries/x86/skhid.torrent: skhid-rev$rev.torrent, info hash (btmh) 1220$TORRENT_SHA"
+    say "  the ZIP's game/torrent/skhid.torrent: skhid-rev$rev.torrent, info hash (btmh) 1220$TORRENT_SHA"
     say "  .env: SRP_MIN_PATCH_REVISION $OLD_MIN -> $rev"
     say "  .env: SRP_RELEASED_EXE_SHA256 -> $EXE_SHA (the ZIP's game exe: no game that reports it is asked for its file)"
     if ((${#BD_TODO[@]})); then

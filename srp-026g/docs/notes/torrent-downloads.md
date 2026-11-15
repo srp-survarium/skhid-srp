@@ -29,7 +29,7 @@ corrections from the owner go here.
   file is there (`check`); `Skhid-get.bat` says `torrent` (whoever runs it chose BitTorrent).
 - Turned on, it is used at once, without a restart; turned off, it stops at once (below).
 - The port: no setting. The updater picks a free port the first time it listens and keeps it
-  (`updater_skhid.port` beside it), the same at every start after; if another program holds it,
+  (`game\torrent\port`), the same at every start after; if another program holds it,
   it takes another and keeps that. A port the launcher names (its 13th argument, then `21`)
   still wins; the Skhid launcher names none.
 - The firewall: `Skhid-network-setup.cmd` lets `updater_skhid.exe` in too (TCP, every port: the
@@ -49,8 +49,8 @@ corrections from the owner go here.
 - Hybrid v1 + v2 (BEP 52): every file piece-aligned, SHA-256 piece hashes. Files that did not
   change between revisions keep the same v2 hashes, so their seeders keep sharing them.
 - Trackers: a few public ones, so the torrent works without our servers. No web seed for now.
-- It travels inside that revision's ZIP, as `game/binaries/x86/skhid.torrent` beside the
-  updater (the torrent itself leaves that one file out: it cannot hold its own hash). The ZIP is
+- It travels inside that revision's ZIP, as `game/torrent/skhid.torrent` (the torrents' own
+  folder, which the torrent itself leaves out: it cannot hold its own hash). The ZIP is
   checked (its SHA-256 in `/api/client-files`), so the updater has the revision's `.torrent` with
   it. A ZIP without the file (an older one, `release/deploy`'s) means no torrent: HTTPS.
 - The site's download page shows the `.torrent` and the magnet (v1 and v2 hashes, name,
@@ -86,15 +86,15 @@ corrections from the owner go here.
   answer checked by its size and SHA-256 (HTTPS by TLS 1.2). Our server is never needed; peers
   come first.
 - Who seeds it: updaters with "Allow torrent" on, and anyone with the torrent. The release puts
-  `release/bootstrap.torrent` in the players' ZIP too, as `game/binaries/x86/skhid-bootstrap.torrent`
-  (left out of the revision's torrent, as `skhid.torrent`); the updater takes it as the checked
+  `release/bootstrap.torrent` in the players' ZIP too, as `game/torrent/skhid-bootstrap.torrent`
+  (left out of the revision's torrent, as all of `game/torrent/`); the updater takes it as the checked
   ZIP installed it (its SHA-256 in `updater_skhid.state`; it is not signed, the script pins it),
-  keeps a copy of each of its three files in `updater_skhid.bootstrap\` beside itself while the file
+  keeps a copy of each of its three files in `game\torrent\bootstrap\` while the file
   in its place is the bootstrap's (every piece checked), and shares them from there while it
   shares, after it has updated itself too. The updater changes at every release, so the release
   puts the bootstrap's pinned files the ZIP has other bytes of in the ZIP's
-  `game/binaries/x86/updater_skhid.bootstrap/` (checked against the bootstrap torrent; left out
-  of the revision's torrent): every updater has all three to share.
+  `game/torrent/bootstrap/` (checked against the bootstrap torrent; left out of the revision's
+  torrent): every updater has all three to share.
 - `release/build-bootstrap <players' ZIP>` makes it, once for an updater version: the three
   files from the ZIP (7zr.exe the pinned one), each published on the patches server at
   `bootstrap/<sha256>/<name>`, its row in `release/bootstrap.tsv`, the torrent and the script
@@ -114,6 +114,11 @@ corrections from the owner go here.
   the repo by nix, pinned and reproducible), a file of the players' ZIP and so of the torrent.
   The updater loads it at run time; no DLL, one that does not load (Windows before 10: Windows 10
   is the requirement) or lacks a function: no torrent, HTTPS as without it.
+- **Its files are in `game\torrent\`** (the owner, 2026-11-15; the original updater kept its
+  torrents in their own folder too): the ZIP's torrents and bootstrap copies, and what the updater
+  keeps (the found torrent, the check record, the port, the revision taken, an empty `none\`).
+  The DLL stays beside the updater. An earlier build's copies beside the updater go: the ZIP's
+  with the install (a file the new archive has not), the updater's own at its start.
 - It answers the launcher's torrent messages instead of ignoring them: "Allow torrent" (its 4th
   argument, then `1A`), port (its 13th argument, then `21`, answered port ok `15` or busy `14`;
   none named: the kept one, above),
@@ -128,9 +133,9 @@ corrections from the owner go here.
   engine at once: sharing ends, a download by torrent goes on by HTTPS.
 - The torrent is trusted by its signature alone: the release's Ed25519 key is built into the
   updater ("Signed releases"), and a torrent whose signature does not verify, or whose revision
-  is lower than the highest it has taken (`updater_skhid.torrent.revision` beside it), than the
+  is lower than the highest it has taken (`game\torrent\revision`), than the
   installed game's or than the updater's own, is never taken. Where it came from does not
-  matter: the ZIP's `game/binaries/x86/skhid.torrent` beside the updater, or the newest one the
+  matter: the ZIP's `game/torrent/skhid.torrent`, or the newest one the
   DHT named (below). One function decides it (`torrent::trusted`).
 - No torrent (an older ZIP, one released without it), or none it takes: it downloads by HTTPS
   exactly as today, switch on or off. Torrent is only ever an extra source, never a
@@ -143,8 +148,8 @@ corrections from the owner go here.
   each upload. Each finished file is also checked against the pins the updater has (the original
   files' build-2777 SHA-256, `logic/src/game.rs` `FILES`; the patches' SHA-256 in `/patches`)
   before it is installed, and is fetched into a part beside its place, renamed only after that.
-- **What was checked is not hashed again**: the updater keeps beside itself
-  (`updater_skhid.torrent.checked`) each file libtorrent found whole, with what Windows said of
+- **What was checked is not hashed again**: the updater keeps
+  (`game\torrent\checked`) each file libtorrent found whole, with what Windows said of
   it then (size, last-write time, file ID). A file still so at a later start is shared as checked
   (15.5 GB are not read again at every start); any other is checked again (libtorrent hashes from
   its first piece on). A wrong file is still caught by its pin before it is installed.
@@ -215,7 +220,7 @@ How an updater finds a newer release without our site: the release's signed item
   fetches that torrent's `info` from its swarm (BEP 9, `ut_metadata`; the swarm's peers from the
   trackers and the DHT; 60 s at most), checks its SHA-256 is the item's info hash, and makes the
   signed torrent again (`info` and `skhid`; no piece layers, libtorrent gets them from peers),
-  kept beside itself as `updater_skhid.found.torrent`. It is trusted as any torrent is, by its
+  kept as `game\torrent\found.torrent`. It is trusted as any torrent is, by its
   signature; the highest revision of it and the ZIP's is the torrent of the run.
 - No server of ours needed: when the update server cannot be asked and the run's torrent is
   newer than what is installed (or nothing is: `Skhid-get.bat`'s bare folder, whose
@@ -270,8 +275,8 @@ top folder). In it, at their paths (`/` between parts):
   | `game/resources.db` | 6285533906 | `c74078be…75492c` (stock) |
 
 - every file of that revision's players' ZIP at its ZIP path (`game/binaries/x86/…`, `Skhid.bat`,
-  `README.txt`...), over an original of the same path; but `game/binaries/x86/skhid.torrent`,
-  which is the torrent itself;
+  `README.txt`...), over an original of the same path; but `game/torrent/` (the torrent
+  itself, the bootstrap torrent and its copies);
 - every patch of the offered-patch list (`release/patches.tsv`) as `game/resources.db.patch_<n>`,
   read against its row's sha256.
 
@@ -319,7 +324,7 @@ The public key is `release/signing.pub`: one line, the 32-byte Ed25519 public ke
 hex (64 digits). Ed25519 is deterministic, so the same inputs still make the same bytes.
 
 **In the ZIP.** The release (`release.sh` step 2) builds the ZIP (`build-zip`), then the torrent
-over its files, then appends the torrent to it as `game/binaries/x86/skhid.torrent`, stored (not
+over its files, then appends the torrent to it as `game/torrent/skhid.torrent`, stored (not
 compressed), mode 644; that ZIP is the one shipped, and its SHA-256 is the one `/api/client-files`
 names (`sha256`; the format there is unchanged: no torrent line). The tag of the release names the
 info hash.

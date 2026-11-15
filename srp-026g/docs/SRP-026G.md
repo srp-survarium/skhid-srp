@@ -347,7 +347,7 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
   such route.
 - `/torrent` (`GET` and `HEAD`; the 0.26g page only): the torrent of the
   whole game folder that the ZIP of `SRP_DOWNLOAD_FILE` holds as
-  `game/binaries/x86/skhid.torrent` (the release puts it in, signed), as
+  `game/torrent/skhid.torrent` (the release puts it in, signed), as
   `skhid-rev<SRP_MIN_PATCH_REVISION>.torrent`; "not found" when the ZIP has
   none, or it is not a stored torrent of at most 4 MiB.
   The home page links it and its magnet under the ZIP's button. The format:

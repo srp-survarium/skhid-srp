@@ -15,7 +15,7 @@ pub(super) const PATH: &str = "/torrent";
 pub(super) const BOOTSTRAP_PATH: &str = "/Skhid-get.bat";
 pub(super) const BOOTSTRAP: Option<&[u8]> = include!(concat!(env!("OUT_DIR"), "/bootstrap.rs"));
 /// Stored, not compressed.
-const ENTRY: &[u8] = b"game/binaries/x86/skhid.torrent";
+const ENTRY: &[u8] = b"game/torrent/skhid.torrent";
 /// The release's are about 200 KB.
 pub(super) const MAX_SIZE: u64 = 4 << 20;
 /// The players' ZIP has some 80 entries.

@@ -39,11 +39,20 @@ const PUT_RETRY_MS: u64 = 30_000;
 const DHT_BOOTSTRAP: &str =
     "dht.libtorrent.org:25401,router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881";
 
-/// Beside the updater: the check record ([`updater_logic::shared`]), and an
+/// In `game\torrent`: the check record ([`updater_logic::shared`]), and an
 /// empty folder for the files a session neither fetches nor shares, so none
 /// of them is read.
-const CHECKED: &str = "updater_skhid.torrent.checked";
-const NOWHERE: &str = "updater_skhid.torrent-none";
+const CHECKED: &str = "checked";
+const NOWHERE: &str = "none";
+
+/// Where an earlier build kept its torrent state, beside the updater.
+const OLD_FILES: [&str; 4] = [
+    "updater_skhid.torrent.checked",
+    "updater_skhid.port",
+    "updater_skhid.found.torrent",
+    "updater_skhid.torrent.revision",
+];
+const OLD_FOLDERS: [&str; 2] = ["updater_skhid.torrent-none", "updater_skhid.bootstrap"];
 
 /// Built for `tests/test_torrent.py`: loopback peers only.
 fn test_build() -> bool {
@@ -100,8 +109,10 @@ pub struct Turn(u32);
 /// The launcher's torrent settings and the session that runs them.
 pub struct Torrents {
     mode: Mode,
-    /// The updater's folder: the DLL, the record.
+    /// The updater's folder: the DLL.
     dir: String,
+    /// `game\torrent`: the record, the empty folder.
+    state: String,
     /// Path of [`PORT_FILE`].
     kept_port: String,
     /// Bytes a second, all sharing together.
@@ -158,7 +169,7 @@ impl Want {
 
 /// The port picked the first time, used when the launcher names none, so
 /// peers that knew it find it again.
-const PORT_FILE: &str = "updater_skhid.port";
+const PORT_FILE: &str = "port";
 
 fn kept_port_number(kept: &str) -> Option<u16> {
     let text = win::read_file(kept, 16).ok()?;
@@ -272,8 +283,8 @@ impl Engine {
         }
         if let Listen::Asked { want: Want::Any, .. } = self.listen {
             match win::write_file(kept_port, format!("{port}\r\n").as_bytes()) {
-                Ok(()) => log!("torrent: port {port} picked, kept in {PORT_FILE}"),
-                Err(code) => log!("torrent: port {port} picked; {PORT_FILE}: {}", win::error_text(code)),
+                Ok(()) => log!("torrent: port {port} picked, kept in torrent\\{PORT_FILE}"),
+                Err(code) => log!("torrent: port {port} picked; torrent\\{PORT_FILE}: {}", win::error_text(code)),
             }
         }
         self.listen = Listen::Listening(port);
@@ -386,10 +397,19 @@ impl Torrents {
             Torrenting::Off { port } => (port, false),
             Torrenting::On { port } => (port, true),
         };
+        let _ = win::create_folders(&layout.torrent_dir);
+        // An earlier build's state, beside the updater, goes.
+        for name in OLD_FILES {
+            let _ = win::delete(&format!("{}\\{name}", layout.exe_dir));
+        }
+        for name in OLD_FOLDERS {
+            let _ = std::fs::remove_dir_all(format!("{}\\{name}", layout.exe_dir));
+        }
         let mut torrents = Self {
             mode: Mode::Off { port },
             dir: layout.exe_dir.clone(),
-            kept_port: format!("{}\\{PORT_FILE}", layout.exe_dir),
+            state: layout.torrent_dir.clone(),
+            kept_port: format!("{}\\{PORT_FILE}", layout.torrent_dir),
             rate: upload::CAP,
             offered: Offered::Unread,
             banned: Vec::new(),
@@ -568,7 +588,7 @@ impl Torrents {
             answer = self.on(event).or(answer);
         }
         if let Mode::On { engine, .. } = &mut self.mode {
-            engine.follow_checks(&self.dir, &self.known);
+            engine.follow_checks(&self.state, &self.known);
         }
         self.put_due();
         answer
@@ -659,7 +679,7 @@ impl Torrents {
 
     /// `files`: (file index, path, role).
     fn add(&mut self, bytes: &[u8], torrent: &Torrent, files: Vec<(usize, String, Role)>) -> Result<Added, String> {
-        let nowhere = format!("{}\\{NOWHERE}", self.dir);
+        let nowhere = format!("{}\\{NOWHERE}", self.state);
         self.know(torrent.v2);
         let Some(engine) = self.engine() else {
             return Err("torrent is not allowed".into());
@@ -694,7 +714,7 @@ impl Torrents {
     /// Trusted (not hashed again) when the record says it was checked as it
     /// is.
     fn shared_roles(&self, torrent: &Torrent, files: &[(usize, String)]) -> Vec<(usize, String, Role)> {
-        let record = read_record(&self.dir);
+        let record = read_record(&self.state);
         files
             .iter()
             .map(|(index, path)| {
@@ -876,7 +896,7 @@ impl Torrents {
     /// file still matches, because the updater replaces itself every release.
     fn bootstrap(&mut self, layout: &Layout, alive: &mut dyn FnMut() -> bool) -> Option<Bootstrap> {
         let (bytes, torrent) = installed_bootstrap(layout)?;
-        let kept = format!("{}\\{KEPT}", layout.exe_dir);
+        let kept = format!("{}\\{KEPT}", layout.torrent_dir);
         let copy = |file: usize| {
             let name = torrent.files[file].path.rsplit('/').next().unwrap_or_default();
             format!("{kept}\\{name}")
@@ -893,7 +913,7 @@ impl Torrents {
             let name = &torrent.files[file].path;
             match keep_copy(&live, &copy(file), &kept) {
                 Ok(()) => {
-                    log!("torrent: the bootstrap's {name} kept in {KEPT}");
+                    log!("torrent: the bootstrap's {name} kept in torrent\\{KEPT}");
                     ready.push((file, copy(file)));
                 }
                 Err(why) => log!("torrent: the bootstrap's {name} cannot be kept: {why}"),
@@ -929,7 +949,7 @@ impl Torrents {
     /// `true` while it goes on; `until`: the current step's deadline.
     fn discovering(&mut self, until: &mut u64) -> bool {
         let Some(key) = crate::signed::key() else { return false };
-        let nowhere = format!("{}\\{NOWHERE}", self.dir);
+        let nowhere = format!("{}\\{NOWHERE}", self.state);
         let Some(engine) = self.engine() else { return false };
         let now = win::ticks();
         let Job::Discovering(discovery) = &mut engine.job else { return false };
@@ -1009,7 +1029,7 @@ fn record_checked(added: &Added, done: &[u64], dir: &str, known: &[[u8; 32]]) {
     let path = format!("{dir}\\{CHECKED}");
     let staged = format!("{path}.skhid-new");
     if let Err(code) = win::write_file(&staged, &shared::write_record(&record)).and_then(|()| win::rename(&staged, &path, true)) {
-        log!("torrent: {CHECKED} cannot be written: {}", win::error_text(code));
+        log!("torrent: torrent\\{CHECKED} cannot be written: {}", win::error_text(code));
     }
 }
 
@@ -1048,7 +1068,7 @@ const RESHARE_MS: u64 = 10_000;
 /// times a second); fetches and installs nothing.
 pub fn share_while(layout: &Layout, port: Option<u16>, go_on: &mut dyn FnMut(&Sharing) -> bool) -> Result<(), NotShared> {
     // The launcher's updater's kept port, waited for: never a second one.
-    let port = port.or_else(|| kept_port_number(&format!("{}\\{PORT_FILE}", layout.exe_dir)));
+    let port = port.or_else(|| kept_port_number(&format!("{}\\{PORT_FILE}", layout.torrent_dir)));
     let until = win::ticks() + PORT_WAIT_MS;
     let mut torrents = loop {
         let torrents = Torrents::new(Torrenting::On { port }, layout);
@@ -1097,14 +1117,14 @@ pub fn share_while(layout: &Layout, port: Option<u16>, go_on: &mut dyn FnMut(&Sh
     Ok(())
 }
 
-/// From the players' ZIP, beside the updater.
+/// From the players' ZIP, in `game\torrent`.
 const FILE: &str = "skhid.torrent";
 /// The newest one the DHT named ([`discover`]).
-const FOUND: &str = "updater_skhid.found.torrent";
+const FOUND: &str = "found.torrent";
 
-/// `name` beside the updater, when the release signed it.
+/// `name` in `game\torrent`, when the release signed it.
 fn signed(layout: &Layout, name: &str) -> Result<Signed, String> {
-    let path = format!("{}\\{name}", layout.exe_dir);
+    let path = format!("{}\\{name}", layout.torrent_dir);
     let bytes = win::read_file(&path, MAX_TORRENT).map_err(|code| {
         if win::is_missing(code) {
             format!("no {name}")
@@ -1232,13 +1252,13 @@ pub fn whole(session: &mut Session, signed: &Signed, files: &[(usize, String)]) 
     }
 }
 
-/// From the ZIP, beside the updater.
+/// From the ZIP, in `game\torrent`.
 const BOOTSTRAP: &str = "skhid-bootstrap.torrent";
 
 /// Unsigned, so taken only as the checked ZIP installed it; the script that
 /// fetches its files pins them.
 fn installed_bootstrap(layout: &Layout) -> Option<(Vec<u8>, Torrent)> {
-    let name = format!("game/binaries/x86/{BOOTSTRAP}");
+    let name = format!("game/torrent/{BOOTSTRAP}");
     let installed = crate::read_installed(layout)?;
     let entry = installed.files.iter().find(|file| file.name == name)?;
     let bytes = win::read_file(&layout.place(&name), MAX_TORRENT).ok()?;
@@ -1256,8 +1276,8 @@ fn keep_copy(live: &str, copy: &str, kept: &str) -> Result<(), String> {
     win::rename(&staged, copy, true).map_err(win::error_text)
 }
 
-/// Beside the updater: the bootstrap's kept files.
-const KEPT: &str = "updater_skhid.bootstrap";
+/// In `game\torrent`: the bootstrap's kept files.
+const KEPT: &str = "bootstrap";
 
 /// For when the update server cannot be reached: a newer signed torrent
 /// from the DHT item (`updater_logic::newest`) and its swarm, kept as
@@ -1285,7 +1305,7 @@ pub fn discover(session: &mut Session, layout: &Layout) {
 }
 
 fn keep(layout: &Layout, revision: u64, bytes: &[u8]) {
-    let path = format!("{}\\{FOUND}", layout.exe_dir);
+    let path = format!("{}\\{FOUND}", layout.torrent_dir);
     if win::read_file(&path, MAX_TORRENT).is_ok_and(|kept| kept == bytes) {
         return;
     }

@@ -380,13 +380,21 @@ no LSD, UPnP, NAT-PMP, uTP or PEX, the extensions `smart_ban` and
 `ut_metadata` alone, libtorrent's own connection limits, a busy port busy
 (not another one instead), every tracker of the list asked.
 
+**Its files** are in `game\torrent\` (`Layout::torrent_dir`): the ZIP's
+torrents and bootstrap copies, and the updater's own (below); the DLL stays
+beside the updater. The names an earlier build kept beside the updater
+(`updater_skhid.port`, `.torrent.checked`, `.torrent.revision`,
+`.found.torrent`, `.torrent-none\`, `.bootstrap\`) are deleted when the
+session's owner is made (`Torrents::new`); the ZIP's old copies go with the
+install, as any file the new archive has not.
+
 **The launcher's settings.** The update's 4th argument is `torrent` when the
 launcher's "Allow torrent" (the box on its main screen, kept in user.cfg as
 `enable_torrent_seeding`, launcher patch 15) is on, else `direct` (off until
 the player ticks it); the 13th a port (`""`: none, the Skhid launcher has no
 port setting; one an older launcher saved still wins), kept while torrent is
 off. With no port named, the updater listens on the one it keeps in
-`updater_skhid.port` beside it: picked free the first time, the same at
+`game\torrent\port`: picked free the first time, the same at
 every start after (peers that knew it find it again), another one, kept
 from then on, when another program holds it. While the updater
 runs, the launcher's `1A` turns it on or off at once: on, the watch starts
@@ -409,10 +417,10 @@ public key (`release/signing.pub`, read by `exe/build.rs`; a test build
 takes `SKHID_TEST_PUBLIC_KEY`) is built in (`logic/src/signed.rs`,
 `exe/src/signed.rs`), and a torrent is taken only when its signature
 verifies and its revision is not lower than the highest taken before
-(`updater_skhid.torrent.revision` beside the updater), than the installed
+(`game\torrent\revision`), than the installed
 game exe's, nor than this updater's own (`SKHID_REVISION` of its build).
-Today it comes as `skhid.torrent` beside the updater, a file of the players'
-ZIP, or as `updater_skhid.found.torrent`, the newest one the DHT named
+Today it comes as `game\torrent\skhid.torrent`, a file of the players'
+ZIP, or as `game\torrent\found.torrent`, the newest one the DHT named
 (below); the highest revision of them is the run's. Missing, unsigned,
 another key's, older: no torrent, HTTPS as before. Where it comes from and
 why it is trusted is one function (`torrent::trusted`). It is kept and passed
@@ -429,7 +437,7 @@ and the listed patches that are missing or damaged, each against the list's
 SHA-256 before it is renamed into place. A part (`<file>.skhid-torrent` for
 the game, `.skhid-part` for a patch) is libtorrent's file of it (each file of
 the session's torrent has its own path: a part, a place, or for the files it
-neither fetches nor shares a name in `updater_skhid.torrent-none\`, where
+neither fetches nor shares a name in `game\torrent\none\`, where
 nothing is, so nothing is read of them); it is checked piece by piece when a
 run finds it ("checking", state 08), so a game download goes on at the next
 start; a part longer than its file is cut to its size, and a finished one is
@@ -446,8 +454,8 @@ the end of the update until the launcher closes (`gate::watch`), read only
 is added, not again before each upload. So the first players of a revision,
 who get it by HTTPS, seed it. What was checked is not hashed again
 (`logic/src/shared.rs`): once libtorrent has checked a torrent's files, each
-it found whole is written into `updater_skhid.torrent.checked` beside the
-updater with what Windows says of it (size, last-write time, file ID, as the
+it found whole is written into `game\torrent\checked` with what Windows
+says of it (size, last-write time, file ID, as the
 patches' quick check); at the next start a file still so is given to
 libtorrent as had (no read), and libtorrent checks from the first piece of
 the first file that is not (to the end of the torrent: a have-list that
@@ -467,15 +475,15 @@ session of it starts from those bans). "No peer within 20 s" counts the
 peers connected.
 
 **The bootstrap** (`Skhid-get.bat`'s torrent of the updater, its DLL and
-7zr.exe at one version, the spec's "Bootstrap"): `skhid-bootstrap.torrent` beside the
-updater, a file of the ZIP, taken as the ZIP installed it (its SHA-256 in
+7zr.exe at one version, the spec's "Bootstrap"): `game\torrent\skhid-bootstrap.torrent`,
+a file of the ZIP, taken as the ZIP installed it (its SHA-256 in
 `updater_skhid.state`). While the file in its place is the bootstrap's (every
-piece checked by libtorrent), each is copied into `updater_skhid.bootstrap\`,
+piece checked by libtorrent), each is copied into `game\torrent\bootstrap\`,
 and shared from there while the updater shares, after it has replaced
 itself too; a copy is shared only while every piece of it checks (else it
 is copied again). The release's ZIP brings there the pinned files that are
 not the live ones (the updater changes at every release); the overlay's
-restart rule counts only the programs in `game/binaries/x86/` itself.
+restart rule counts only the programs in `game/binaries/x86/`.
 
 **Without our site** (a bare bootstrap folder, a blocked network after a
 release): when the update server cannot be asked, the DHT is asked
@@ -507,8 +515,8 @@ signature verifies with the built-in key and its revision is higher than
 the run's torrent (none: not lower than the folder's), fetches that
 torrent's `info` from its swarm (a torrent of its v2 info hash alone,
 libtorrent's `ut_metadata`, 60 s at most), checks it is the item's, and
-keeps the signed torrent made of the two (`info` and `skhid`) beside itself
-as `updater_skhid.found.torrent`.
+keeps the signed torrent made of the two (`info` and `skhid`) as
+`game\torrent\found.torrent`.
 
 **The upload cap** (`logic/src/upload.rs`): all the sharing of a run, every
 torrent and the DHT, within 1 MiB a second (1,048,576 bytes; "1 MB/s"): the
@@ -530,7 +538,7 @@ still has the original game's default `on`). Then it shares the folder's
 torrent as the launcher's updater does while it watches (`torrent::share_while`, its one
 call into the engine: the trusted torrent's files the folder has, the
 bootstrap's, the DHT item; nothing fetched), on the port the updaters keep
-(`updater_skhid.port`; a free one, then kept, when none is), and ends when the pipe closes: the game entering a match,
+(`game\torrent\port`; a free one, then kept, when none is), and ends when the pipe closes: the game entering a match,
 or ending. It takes no lock and shows no box; its run logs go in `updater_skhid.seed-logs\` (a seed runs at every lobby: beside the others it would push them out). A port that
 is held (another updater shares on it, or is closing) is tried for 10 s,
 then the run ends, logged. On the pipe (the launcher's framing) the game

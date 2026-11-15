@@ -33,6 +33,8 @@ pub struct Layout {
     pub exe_dir: String,
     /// The game folder, two above: the archive's `game/`.
     pub game_dir: String,
+    /// `...\game\torrent`: the torrents and their state.
+    pub torrent_dir: String,
     /// The archive's top folder: the one that holds the game folder when
     /// that is named `game` (as it is unpacked), else the game folder itself.
     pub top_dir: String,
@@ -70,6 +72,7 @@ impl Layout {
         };
         Some(Self {
             exe_dir: exe_dir.into(),
+            torrent_dir: format!("{game_dir}\\torrent"),
             game_dir: game_dir.into(),
             top_dir: top_dir.into(),
             exe_name: exe_name.into(),

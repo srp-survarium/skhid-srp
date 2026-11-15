@@ -5,10 +5,10 @@
 #
 # The signed torrent of a revision's whole game folder
 # (srp-026g/docs/notes/torrent-downloads.md, "The format"), and --zip-out: the
-# ZIP with it as game/binaries/x86/skhid.torrent, with --bootstrap's torrent
-# as skhid-bootstrap.torrent, and (--bootstrap-list) the bootstrap's pinned
-# files the ZIP has other bytes of, fetched by their rows' URLs, in
-# updater_skhid.bootstrap/: the updaters seed the bootstrap from there.
+# ZIP with it as game/torrent/skhid.torrent, with --bootstrap's torrent
+# as game/torrent/skhid-bootstrap.torrent, and (--bootstrap-list) the
+# bootstrap's pinned files the ZIP has other bytes of, fetched by their rows'
+# URLs, in game/torrent/bootstrap/: the updaters seed the bootstrap from there.
 # The folder: the original game's files (from $SKHID_GAME and
 # $SKHID_STOCK_DB, each against build 2777's sha256), the ZIP's files over
 # them, and the offered patches (lib.sh cache_patches). Signed with

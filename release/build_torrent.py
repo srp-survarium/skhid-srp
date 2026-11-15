@@ -37,12 +37,14 @@ import zipfile
 NAME = 'Survarium'
 # What the release's signature is of starts with this (then the revision, then SHA-256 of info).
 DOMAIN = b'skhid torrent signature 1\0'
-ENTRY = 'game/binaries/x86/skhid.torrent'
+# The torrents' own folder, all of it left out of the revision's torrent.
+FOLDER = 'game/torrent/'
+ENTRY = FOLDER + 'skhid.torrent'
 # The bootstrap torrent, in the ZIP too (--bootstrap): the updater seeds it while it shares, from
 # the copies in BOOTSTRAP_COPIES. The ZIP brings the pinned files that are no longer the live ones
-# (--bootstrap-copy: the updater changes at every release). Both left out of the revision's torrent.
-BOOTSTRAP_ENTRY = 'game/binaries/x86/skhid-bootstrap.torrent'
-BOOTSTRAP_COPIES = 'game/binaries/x86/updater_skhid.bootstrap/'
+# (--bootstrap-copy: the updater changes at every release).
+BOOTSTRAP_ENTRY = FOLDER + 'skhid-bootstrap.torrent'
+BOOTSTRAP_COPIES = FOLDER + 'bootstrap/'
 PIECE = 4 << 20
 BLOCK = 16 << 10
 TRACKERS = (
@@ -391,8 +393,7 @@ def main():
         for entry in archive.infolist():
             if entry.is_dir():
                 continue
-            if not safe(entry.filename) or entry.filename in (ENTRY, BOOTSTRAP_ENTRY) \
-                    or entry.filename.startswith(BOOTSTRAP_COPIES):
+            if not safe(entry.filename) or entry.filename.startswith(FOLDER):
                 sys.exit(f'{args.zip}: {entry.filename} is not a path of the folder, or the torrent')
             if entry.filename in files:
                 print(f"  {entry.filename}: the ZIP's, over the original")
