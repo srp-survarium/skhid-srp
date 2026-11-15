@@ -270,8 +270,9 @@ pub const MAP_GRID_KEY_ALGO: u32 = 1;
 /// (`controller::Contact::replaces`): in [`MapData::map_grid_key`] for every body whose passes take the shapes
 /// ([`MapData::takes_shapes`]). A value of its own. 0002: and between a compound's children the first its child tree offers
 /// (from a version 8 map data file). 0003: the ray looks offer a compound's children in its child tree's order too. 0004: and only
-/// the children whose box in the tree the ray crosses (the exe's `btRayAabb2`).
-pub const SHAPES_TIE_ORDER_ALGO: u32 = 0x5388_0004;
+/// the children whose box in the tree the ray crosses (the exe's `btRayAabb2`). 0005: and a sweep, only the children whose box
+/// in the tree meets the cast's volume in the compound's frame (`objectQuerySingle`'s compound branch, `collideTV`).
+pub const SHAPES_TIE_ORDER_ALGO: u32 = 0x5388_0005;
 
 /// One map ready for bots: its data, walk grid and sight tree.
 pub struct World {
