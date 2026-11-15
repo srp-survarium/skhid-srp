@@ -194,9 +194,13 @@ impl Ground for Floor {
 }
 
 /// The bullet mesh as the ground (`mapdata::MapData::bullet_triangles`: what
-/// the game's grenade meets, collision group 0x818 against mask 8, PROVEN;
-/// a player's hit model also stops it, which is not in the mesh). The
-/// normal is the hit triangle's own ([`RayTree::ray_hit`]).
+/// the game's grenade meets, collision group 0x818 against mask 8, PROVEN).
+/// A player's body does not stop it: the grenade (group 818h, mask 8,
+/// 0x303C73..0x303C7B) and a player's hit body (40h, 11h, `activate_physics`
+/// 0x2D9958..0x2D995D) or his controller's ghost (824h, 3) make no pair
+/// (`addOverlappingPair` 0xB3EDC..0xB3EEE), so it flies and rolls through
+/// players. PROVEN (exe review of #2057). The normal is the hit triangle's
+/// own ([`RayTree::ray_hit`]).
 #[derive(Clone, Copy)]
 pub struct Mesh<'a>(pub &'a RayTree);
 
@@ -217,11 +221,16 @@ impl Ground for Mesh<'_> {
 /// - `fuse_s`: from the press to the blast, seconds (`ttl_ms`, 0x30A120). PROVEN.
 /// - `splash_m`: the blast's reach, metres (`splash_radius`; lethal within about 2.4 m of the
 ///   centre).
+/// - `most`, `least`: the blast's damage at its middle and at its edge, shares of a body's health
+///   (`splash_max_damage`, `splash_min_damage`; the client's amount falls linearly between them,
+///   `bullet_manager::explode` 0x339736..0x339750). PROVEN.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Grenade {
     pub speed: f32,
     pub fuse_s: f32,
     pub splash_m: f32,
+    pub most: f32,
+    pub least: f32,
 }
 
 impl Grenade {
@@ -231,7 +240,29 @@ impl Grenade {
             speed: params.throw_power,
             fuse_s: params.ttl_ms as f32 / 1000.0,
             splash_m: params.splash_radius,
+            most: params.splash_max_damage,
+            least: params.splash_min_damage,
         }
+    }
+
+    /// How far from the blast's middle (a body's origin, its feet) its damage is at least `amount` of a body's health,
+    /// metres: the client's linear law, `least + (most - least) (R - d) / R` (0x339736..0x339750), solved for
+    /// `amount`. Zero for a blast that never does that much (a smoke), the whole reach for one that does it to the
+    /// edge.
+    pub fn reach_of_m(&self, amount: f32) -> f32 {
+        if self.most <= amount {
+            0.0
+        } else if self.least >= amount {
+            self.splash_m
+        } else {
+            self.splash_m * (self.most - amount) / (self.most - self.least)
+        }
+    }
+
+    /// [`Self::reach_of_m`] of half a body's health: 6.4 m for the RGD-5 (10 m, 1.3 to 0.05), where both leg
+    /// pools (0.5) empty too.
+    pub fn half_health_m(&self) -> f32 {
+        self.reach_of_m(0.5)
     }
 
     /// The fuse from the press, ms.
@@ -260,6 +291,8 @@ impl Grenade {
                         speed: 17.0,
                         fuse_s: 4.0,
                         splash_m: 10.0,
+                        most: 1.3,
+                        least: 0.05,
                     }
                 }
             }
@@ -973,9 +1006,17 @@ mod tests {
             Grenade {
                 speed: 20.0,
                 fuse_s: 3.0,
-                splash_m: 8.0
+                splash_m: 8.0,
+                most: rgd.splash_max_damage,
+                least: rgd.splash_min_damage,
             }
         );
+        // Half a body's health 6.4 m out of the stock blast (10 m, 1.3 to 0.05); 5.12 m of the patched 8 m.
+        near(Grenade::bots().half_health_m(), 6.4, 1e-4, "stock half health");
+        near(patched.half_health_m(), 5.12, 1e-4, "patched half health");
+        // A smoke does no half a body's health anywhere; a blast that does it at its edge, all its reach.
+        assert_eq!(Grenade { most: 0.0, least: 0.0, ..*Grenade::bots() }.half_health_m(), 0.0);
+        assert_eq!(Grenade { most: 0.9, least: 0.6, ..*Grenade::bots() }.half_health_m(), 10.0);
         assert_eq!(patched.fuse_ms(), 3_000);
         let stock = *Grenade::bots();
         // Faster: a flat throw lands farther.

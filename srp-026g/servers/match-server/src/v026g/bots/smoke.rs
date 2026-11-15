@@ -127,6 +127,8 @@ impl SmokeGrenade {
             speed: 17.0,
             fuse_s: 4.0,
             splash_m: 0.0,
+            most: 0.0,
+            least: 0.0,
         },
         cloud: CloudShape {
             fuse_ms: 4_000,
