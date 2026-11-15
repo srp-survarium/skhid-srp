@@ -312,6 +312,22 @@ impl Breach {
     }
 }
 
+/// The Flank job a Breach just opened on `spot` takes over, if any: the job on that spot, or, for a battery's held line
+/// ([take.clear_first], `threat::BATTERY_LINE_ID`), its shooter's job wherever it is (one job a shooter).
+pub fn taken_over(jobs: &[super::threat::Job], spot: u32, breaches: &[Breach]) -> Option<usize> {
+    let battery_shooter =
+        (spot >= super::threat::BATTERY_LINE_ID).then(|| breaches.iter().find(|b| b.spot == spot).map(|b| b.shooter)).flatten();
+    jobs.iter().position(|j| j.spot == spot || Some(j.shooter) == battery_shooter)
+}
+
+/// [take.clear_first] The holds a Flank job may open on: none of a shooter a running Breach on a battery's held line works
+/// (it took his Flank over, and his kill spot's rest, `threat::JOB_REST_MS`, is shorter than a Breach may run).
+pub fn flank_holds(holds: &mut Vec<HeldLine>, breaches: &[Breach]) {
+    holds.retain(|l| {
+        !breaches.iter().any(|b| b.spot >= super::threat::BATTERY_LINE_ID && b.shooter == l.shooter && !b.phase.ended())
+    });
+}
+
 /// A role of a Breach.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BreachRole {
@@ -652,7 +668,10 @@ pub fn tick(
     // Objective spots first (§13), then the oldest due.
     let mut order: Vec<(bool, Due)> = due
         .iter()
-        .filter_map(|d| holds.iter().find(|l| l.id == d.spot).map(|l| (team.objective_areas.iter().any(|&a| l.covers(a)), *d)))
+        // [take.clear_first] A held line at a loose battery is objective work.
+        .filter_map(|d| {
+            holds.iter().find(|l| l.id == d.spot).map(|l| (l.battery.is_some() || team.objective_areas.iter().any(|&a| l.covers(a)), *d))
+        })
         .collect();
     order.sort_by_key(|(objective, d)| (!*objective, d.until));
     let mut spent = Vec::new();
@@ -664,14 +683,19 @@ pub fn tick(
             continue;
         };
         // A Flank job on this spot is taken over (its bots are free for the Breach, its pinner first); one on another spot of
-        // the same shooter keeps him (one job a shooter).
-        if team.flank_jobs.iter().any(|j| j.spot != line.id && j.shooter == line.shooter) || breaches.iter().any(|b| b.shooter == line.shooter) {
+        // the same shooter keeps him (one job a shooter). [take.clear_first] A battery's held line takes over its shooter's
+        // Flank job wherever it is: the Breach replaces it.
+        let replaced = team.flank_jobs.iter().find(|j| j.spot == line.id || (line.battery.is_some() && j.shooter == line.shooter));
+        let replaced_spot = replaced.map(|j| j.spot);
+        if team.flank_jobs.iter().any(|j| j.shooter == line.shooter && Some(j.spot) != replaced_spot)
+            || breaches.iter().any(|b| b.shooter == line.shooter)
+        {
             continue;
         }
-        let replaced = team.flank_jobs.iter().find(|j| j.spot == line.id);
         let freed = replaced.filter(|j| !j.objective).map_or(0, |j| usize::from(j.flanker.is_some()) + usize::from(j.pinner.is_some()));
         let busy = |place: Place| {
-            team.flank_jobs.iter().any(|j| j.spot != line.id && j.role_of(place).is_some()) || breaches.iter().any(|b| b.role_of(place).is_some())
+            team.flank_jobs.iter().any(|j| Some(j.spot) != replaced_spot && j.role_of(place).is_some())
+                || breaches.iter().any(|b| b.role_of(place).is_some())
         };
         spent.push(d.spot);
         let mut free: Vec<&Mate> = team
@@ -775,7 +799,16 @@ pub mod tally {
     pub const OBJECTIVE_WAITS: usize = NAMES.len() + 2;
     /// Frags a Breach's bots let go at a held spot while in the job (A170's held-spot rule: the Breach has no throw of its own).
     pub const FRAGS_AT_SPOT: usize = NAMES.len() + 3;
-    pub const ALL: usize = NAMES.len() + 4;
+    /// [take.clear_first] The planner's runs ([`super::plan`]) and their time, µs.
+    pub const PLAN_RUNS: usize = NAMES.len() + 4;
+    pub const PLAN_US: usize = NAMES.len() + 5;
+    pub const ALL: usize = NAMES.len() + 6;
+
+    /// One run of the planner, `took` long.
+    pub fn planned(team: u8, took: std::time::Duration) {
+        add(team, PLAN_RUNS, 1);
+        add(team, PLAN_US, took.as_micros() as u64);
+    }
 
     // A match runs on one thread: its counts are the thread's (the topic reads the difference from its start).
     thread_local! {
@@ -1060,6 +1093,84 @@ mod tests {
             matches!(events.last(), Some(Event::Stepped { step: Step::Ended(Phase::Failed { why: Failed::Aborted(Abort::NoCrossers), .. }), .. })),
             "{events:?}"
         );
+    }
+
+    /// [take.clear_first] A man held off from at a loose battery: his held line of no lanes opens a Breach as objective work
+    /// (outside the team's cap) with every free mate near him a crosser (no lanes to stand in), and his spot's fading ends it.
+    #[test]
+    fn a_battery_line_opens_as_objective_work_and_ends_when_his_spot_fades() {
+        let hold = crate::v026g::bots::know::BatteryHold::new(9, Vec3::new(0.0, 0.0, 30.0), 900, 2, Vec3::new(0.0, 0.0, 28.0));
+        let line = HeldLine::at_battery(&hold);
+        let held = [line.clone()];
+        let mut breaches = Vec::new();
+        let mut due = vec![Due { spot: line.id, until: 20_000 }];
+        let mates = [mate(1, 20.0, 20.0, None), mate(2, -20.0, 20.0, None), mate(5, 0.0, 50.0, None)];
+        let mut plan = |_: &HeldLine, feet: [Vec3; CROSSERS]| Ok(feet.map(|f| Plan { gather: f, cover: f, walk_m: 0.0 }));
+        let ok = |_: &HeldLine, _: Vec3| Ok(());
+        let events = tick(&mut breaches, &mut due, &held, &held, &team(&mates, &[]), &ok, &mut plan, 1_000, &RULES);
+        assert!(matches!(events[..], [Event::Opened { objective: true, .. }]), "{events:?}");
+        assert_eq!(breaches[0].spot, line.id);
+        // His spot faded: the line is gone from the held lines, the Breach is done (unheld).
+        let events = tick(&mut breaches, &mut due, &[], &[], &team(&mates, &[]), &ok, &mut plan, 2_000, &RULES);
+        assert!(matches!(events[..], [Event::Stepped { step: Step::Ended(Phase::Done { done: Done::Unheld, .. }), .. }]), "{events:?}");
+    }
+
+    /// [take.clear_first] A Flank job on his kill spot already runs when he holds a loose battery: the battery's Breach is not
+    /// blocked by it (one job a shooter) but takes it over, its flanker a crosser; a kill spot's own due line of his stays
+    /// blocked by that Flank as before.
+    #[test]
+    fn a_battery_line_takes_over_a_flank_on_its_shooter() {
+        use crate::v026g::bots::threat::Job;
+        let hold = crate::v026g::bots::know::BatteryHold::new(9, Vec3::new(0.0, 0.0, 30.0), 900, 2, Vec3::new(0.0, 0.0, 28.0));
+        let line = HeldLine::at_battery(&hold);
+        let held = [line.clone(), HeldLine::for_test(7, 9, Vec3::new(0.0, 0.0, 30.0), &[Vec3::new(0.0, 0.0, 60.0)], Some(0))];
+        let flank = [Job::for_test(4, 9, 0, Some(Holder { place: 1, since: 0 }), Some(Holder { place: 3, since: 0 }))];
+        let mates = [mate(1, 20.0, 20.0, Some((Role::Flanker, 4))), mate(2, -20.0, 20.0, None), mate(3, 25.0, 0.0, Some((Role::Pinner, 4)))];
+        let team = Team { mates: &mates, size: 12, objective_areas: &[], flank_jobs: &flank, kills: &[], points: None, in_fight: &[] };
+        let mut plan = |_: &HeldLine, feet: [Vec3; CROSSERS]| Ok(feet.map(|f| Plan { gather: f, cover: f, walk_m: 0.0 }));
+        let ok = |_: &HeldLine, _: Vec3| Ok(());
+        // His kill spot 7's own due line: blocked by the Flank on spot 4 (one job a shooter).
+        let (mut breaches, mut due) = (Vec::new(), vec![Due { spot: 7, until: 20_000 }]);
+        tick(&mut breaches, &mut due, &held, &held, &team, &ok, &mut plan, 1_000, &RULES);
+        assert!(breaches.is_empty());
+        // The battery's line: opens, the flanker a crosser, the pinner kept pinning.
+        let (mut breaches, mut due) = (Vec::new(), vec![Due { spot: line.id, until: 20_000 }]);
+        let events = tick(&mut breaches, &mut due, &held, &held, &team, &ok, &mut plan, 1_000, &RULES);
+        assert!(matches!(events[..], [Event::Opened { objective: true, .. }]), "{events:?}");
+        let b = &breaches[0];
+        assert!(b.crossers.iter().any(|c| c.holder.place == 1), "the flanker crosses: {b:?}");
+        assert_eq!(b.pinner.map(|p| p.place), Some(3), "the pinner keeps the pin");
+        // The commander's takeover (`commander.rs`, Opened): the Flank job on his kill spot 4 is the one taken over; it is
+        // removed and its own spot rests.
+        let mut jobs = flank.to_vec();
+        let i = taken_over(&jobs, line.id, &breaches).expect("his Flank is taken over");
+        let job = jobs.remove(i);
+        assert_eq!((job.spot, job.shooter), (4, 9));
+        let mut rested = vec![(job.spot, 1_000 + crate::v026g::bots::threat::JOB_REST_MS)];
+        // The next ticks: his kill spot 4 (held, no job on it or on him) opens no Flank while the battery's Breach runs, even
+        // once the spot's rest is over; without the hold-off it would.
+        use crate::v026g::bots::threat::{JobEnd, JobTeam, Opening, jobs_tick};
+        let kill = HeldLine::for_test(4, 9, Vec3::new(0.0, 0.0, 30.0), &[Vec3::new(0.0, 0.0, 60.0)], Some(0));
+        let others: Vec<Mate> = (10..14).map(|p| mate(p, -25.0 - p as f32, 10.0, None)).collect();
+        let job_team = JobTeam {
+            mates: &others,
+            size: 12,
+            objective_areas: &[],
+            breach_roles: 3,
+            flank_from: None,
+            role_offer: false,
+            strongest_first: false,
+        };
+        let unheld = |_| JobEnd::Faded;
+        for now in [1_500, 1_000 + crate::v026g::bots::threat::JOB_REST_MS + 500] {
+            let mut holds = vec![kill.clone()];
+            flank_holds(&mut holds, &breaches);
+            jobs_tick(&mut jobs, &mut rested, &holds, &held, Opening::Staffed, &job_team, &unheld, now);
+            assert!(jobs.is_empty(), "no second job on him at {now} ms: {jobs:?}");
+        }
+        let mut without = Vec::new();
+        jobs_tick(&mut without, &mut Vec::new(), std::slice::from_ref(&kill), &held, Opening::Staffed, &job_team, &unheld, 30_000);
+        assert!(without.iter().any(|j| j.shooter == 9), "without the hold-off a Flank opens on him: {without:?}");
     }
 
     /// [Breach] No Breach without two free crossers, over the cap, or where the memory refuses it; the refusals are events.

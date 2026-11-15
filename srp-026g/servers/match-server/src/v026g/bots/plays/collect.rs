@@ -687,7 +687,7 @@ pub fn finishing(state: &State, target: TargetRef, cx: &Ctx) -> bool {
         None => true,
         Some(TakeThreat { by: ThreatBy::Sight, .. }) => false,
         // [take.known_threats] Not held against another play with a man known by the battery.
-        Some(TakeThreat { by: ThreatBy::Spot(_), .. }) => {
+        Some(TakeThreat { by: ThreatBy::Spot { .. }, .. }) => {
             take_counts::count(take_counts::Count::FinishRefusedKnown);
             false
         }
@@ -911,7 +911,8 @@ pub fn tuning() -> PlayTuning {
 const ENEMIES_OUT: f32 = 4.0;
 
 /// [take.known_threats] The enemies known by a battery lying at `at`, for its score: each whose last spot the team's own
-/// senses gave within `sense.forget_ms` (`Track::own`, as [`Ctx::take_threat`] reads him), not heard reloading within
+/// senses gave and that still lives (`Track::own`, [`Ctx::spot_lives`], as [`Ctx::take_threat`] reads him), not heard
+/// reloading within
 /// `reload_cover_s` ([`Ctx::reloading`]), and not kept busy by a teammate (only a man the bot sees now can be: a clear
 /// line to him within `cover_m`, no cloud on it, [`Ctx::covers`]; a line to a spot nobody sees keeps nobody busy) by his
 /// distance from it ([`held_weight`]); any other remembered enemy within [`ENEMIES_NEAR_M`] one, as
@@ -930,7 +931,7 @@ fn enemies_weighed(cx: &Ctx, at: Vec3) -> f32 {
     cx.memory
         .tracks()
         .iter()
-        .map(|t| match t.own.filter(|&(_, time)| cx.now <= time + cx.tuning.sense.forget_ms) {
+        .map(|t| match t.own.filter(|&(_, time)| cx.spot_lives(t.who, time)) {
             Some((spot, _))
                 if !cx.reloading(t.who, reload_ms)
                     && !(seen_now(t) && mates.iter().any(|mate| cx.covers(mate, Ctx::standing_eye(spot), cover_m, veil))) =>
@@ -2730,7 +2731,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
         *arrived = None;
         return Step::Continue(match threat {
             TakeThreat { by: ThreatBy::Sight, .. } => Intent::stay(),
-            TakeThreat { who, by: ThreatBy::Spot(spot) } => {
+            TakeThreat { who, by: ThreatBy::Spot { at: spot, .. } } => {
                 take_counts::count(take_counts::Count::WaitKnown);
                 let started = cx.bot.current.map_or(0, |(_, _, since)| since);
                 let key = crate::v026g::bots::nav_log::key(("take waits", battery, who, started));
@@ -6320,9 +6321,9 @@ mod tests {
         let now = s.view.clock;
         s.view.sounds.push(Sound { from: 1, kind: SoundKind::Reload, at: spot, time: now, reach_m: None });
         assert!(!waits(&s), "reloading");
-        // His spot faded (`sense.forget_ms`).
+        // His spot faded: his track's life gone (`sense.drop_ms`), or the team saw it empty (below).
         let mut s = setup(Source::Heard);
-        s.view.clock += s.tuning.sense.forget_ms + 1;
+        s.view.clock += s.tuning.sense.drop_ms + 1;
         assert!(!waits(&s), "faded");
         // Far from the battery (over `exposed_m`).
         let mut s = take_field(&[], Vec3::new(26.4, 0.0, 12.0));

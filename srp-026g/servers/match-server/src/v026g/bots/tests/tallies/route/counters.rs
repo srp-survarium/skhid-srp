@@ -166,6 +166,27 @@ pub(super) fn take_fixes() -> Box<dyn RouteTopic> {
     )
 }
 
+/// [take.clear_first] Each play's walks held off a battery an enemy holds (`clear_first::tally`): clearings begun holding
+/// where it stood, begun walking to a stand, thinks spent clearing, clearings ended with the play walking on.
+pub(super) fn clear_first() -> Box<dyn RouteTopic> {
+    use crate::v026g::bots::plays::{PlayKind, clear_first::tally};
+    Delta::of(
+        || tally::counts().iter().flatten().copied().collect::<Vec<u64>>(),
+        |d, line| {
+            let plays: Vec<String> = PlayKind::ALL
+                .iter()
+                .zip(d.chunks(tally::EVENTS))
+                .filter(|(_, c)| c.iter().any(|&n| n > 0))
+                .map(|(kind, c)| {
+                    let parts: Vec<String> = tally::NAMES.iter().zip(c).map(|(name, n)| format!("{name} {n}")).collect();
+                    format!("{kind:?} {}", parts.join(" "))
+                })
+                .collect();
+            line.main.push(format!("clear_first {}", if plays.is_empty() { "none".to_string() } else { plays.join("; ") }));
+        },
+    )
+}
+
 /// [A296 item 2] Commander ticks under each team plan (`team::plan_tally`): usual, comeback bringing home, comeback late.
 pub(super) fn team_plans() -> Box<dyn RouteTopic> {
     Delta::of(

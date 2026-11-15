@@ -964,6 +964,64 @@ pub struct Claim {
     pub time: u32,
 }
 
+/// [take.clear_first] A man one of the team's bots knows by his spot alone holding a loose battery (`Ctx::held_battery`): who,
+/// his last spot and when the team's own senses gave it, the battery and where it lies, and what the team's looks at his
+/// spot found. The commander makes it a held line for a Breach (`threat::HeldLine::at_battery`) while it is not cleared, and
+/// keeps it while his track lives ([`keep_hold`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BatteryHold {
+    pub who: Place,
+    pub at: Vec3,
+    pub sensed: u32,
+    pub battery: usize,
+    pub battery_at: Vec3,
+    pub look: HoldLook,
+}
+
+impl BatteryHold {
+    /// A hold no look has tested yet.
+    pub fn new(who: Place, at: Vec3, sensed: u32, battery: usize, battery_at: Vec3) -> Self {
+        Self { who, at, sensed, battery, battery_at, look: HoldLook::Open }
+    }
+}
+
+/// What the team's looks at a held battery's man's spot found (the held spots' clearing rule, `threat::seen_empty_now`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HoldLook {
+    /// Not seen empty (no teammate's line to it, or a man sensed on it).
+    Open,
+    /// Seen empty since then, for less than `threat::CLEAR_MS`.
+    EmptySince(u32),
+    /// Seen empty for `threat::CLEAR_MS`: he is not there; no Breach, no wait, until he is sensed again.
+    Cleared,
+}
+
+/// [take.clear_first] A commander tick's verdict on `hold`, true to keep it: kept while his track lives (`drop_ms` from its
+/// sensing: a player remembers where a man was until he sees otherwise), moved to a newer sensing of him (`newer`: his
+/// spot and its time) within `exposed_m` of the battery (the look starts over), dropped when he is dead, sensed elsewhere
+/// (a newer sensing farther than `exposed_m` from the battery) or his track is gone. `empty`: a teammate sees his spot empty
+/// now (`threat::seen_empty_now`); empty for `threat::CLEAR_MS` it is cleared, and kept so (a bot's own spot of him no newer
+/// is no threat, `TeamKnowledge::hold_cleared`).
+pub fn keep_hold(hold: &mut BatteryHold, alive: bool, newer: Option<(Vec3, u32)>, empty: bool, now: u32, drop_ms: u32, exposed_m: f32) -> bool {
+    if !alive {
+        return false;
+    }
+    if let Some((at, sensed)) = newer.filter(|&(_, t)| t > hold.sensed) {
+        if at.distance_xz(hold.battery_at) > exposed_m {
+            return false;
+        }
+        (hold.at, hold.sensed, hold.look) = (at, sensed, HoldLook::Open);
+    }
+    hold.look = match hold.look {
+        HoldLook::Cleared => HoldLook::Cleared,
+        _ if !empty => HoldLook::Open,
+        HoldLook::EmptySince(since) if now >= since.saturating_add(super::threat::CLEAR_MS) => HoldLook::Cleared,
+        HoldLook::EmptySince(since) => HoldLook::EmptySince(since),
+        HoldLook::Open => HoldLook::EmptySince(now),
+    };
+    now <= hold.sensed.saturating_add(drop_ms)
+}
+
 /// A claim is dropped when not renewed for this long, ms.
 pub const CLAIM_KEEP_MS: u32 = 2_000;
 
@@ -1127,6 +1185,8 @@ pub struct TeamKnowledge {
     pub breaches: std::sync::Arc<Vec<super::breach::Breach>>,
     /// The team's bots' claims on spots, one a bot ([`Self::claim`]).
     claims: Vec<Claim>,
+    /// [take.clear_first] The men the team's bots hold off from at a loose battery ([`BatteryHold`]), one a man, the latest.
+    pub battery_holds: Vec<BatteryHold>,
     /// The routes the team's Roam runs were drawn on, one a bot ([`Self::claim_route`]).
     route_claims: Vec<RouteClaim>,
     /// The places the team's bots decided to throw at, each throw a claim
@@ -1190,6 +1250,21 @@ impl TeamKnowledge {
     /// Danger spots of the last `ms`.
     pub fn danger_within(&self, now: u32, ms: u32) -> impl Iterator<Item = &DangerSpot> {
         self.danger.iter().filter(move |spot| spot.time + ms >= now)
+    }
+
+    /// [take.clear_first] A bot knows `hold`'s man by his spot at a loose battery: kept, one a man, the latest sensing (a
+    /// newer one starts the look over; the same one keeps what the looks found).
+    pub fn hold_battery(&mut self, hold: BatteryHold) {
+        match self.battery_holds.iter_mut().find(|h| h.who == hold.who) {
+            Some(h) if h.sensed < hold.sensed => *h = hold,
+            Some(_) => {}
+            None => self.battery_holds.push(hold),
+        }
+    }
+
+    /// [take.clear_first] Whether the team saw `who`'s spot sensed at `sensed` (or later) empty: that spot of him is no threat.
+    pub fn hold_cleared(&self, who: Place, sensed: u32) -> bool {
+        self.battery_holds.iter().any(|h| h.who == who && h.look == HoldLook::Cleared && h.sensed >= sensed)
     }
 
     /// `who` means to be at `at` (made again at every think).

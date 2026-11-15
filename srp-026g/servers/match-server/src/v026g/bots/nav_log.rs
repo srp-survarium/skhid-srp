@@ -481,6 +481,24 @@ pub fn take_wait_line(battery: usize, item: Vec3, who: usize, spot: Vec3) -> Str
     )
 }
 
+/// [take.clear_first] A walk held off a battery a man holds: `nav: <play> holds off battery <b> at (..): player <p> known at
+/// (..), waits out of his sight here | at (..)`.
+pub fn clear_line(
+    play: crate::v026g::bots::plays::PlayKind,
+    battery: usize,
+    item: Vec3,
+    who: usize,
+    spot: Vec3,
+    stand: crate::v026g::bots::plays::clear_first::Stand,
+) -> String {
+    use crate::v026g::bots::plays::clear_first::Stand;
+    let from = match stand {
+        Stand::Here => "here".to_string(),
+        Stand::To(at_stand) => format!("at {}", at(at_stand)),
+    };
+    format!("{PREFIX}{play:?} holds off battery {battery} at {}: player {who} known at {}, waits out of his sight {from}", at(item), at(spot))
+}
+
 /// [owner-5] A route search that found no way: `nav: no way from (..) to (..): <verdict>`.
 pub fn route_line(from: Option<Vec3>, goal: Vec3, verdict: &str) -> String {
     let from = from.map_or("no floor".to_string(), at);
