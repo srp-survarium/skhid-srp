@@ -151,6 +151,16 @@ impl DeadLinks {
     pub fn made(&mut self, time: u32, place: usize, link: &FailedLink) -> Option<NewlyMade> {
         let Some(known) = self.links.iter_mut().find(|known| known.link.same(link)) else {
             if !self.made_first.iter().any(|(made, _, _)| made.same(link)) && self.made_first.len() < DEAD_LINKS_MAX {
+                log::debug!(
+                    "link made first: {:?} ({:.1}, {:.1}, {:.1}) -> ({:.1}, {:.1}, {:.1}) by player {place} at {time} ms, before any failure: never shut",
+                    link.kind,
+                    link.take_off.x,
+                    link.take_off.y,
+                    link.take_off.z,
+                    link.landing.x,
+                    link.landing.y,
+                    link.landing.z
+                );
                 self.made_first.push((*link, time, place));
             }
             return None;
