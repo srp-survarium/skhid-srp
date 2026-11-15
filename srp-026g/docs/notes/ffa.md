@@ -329,6 +329,21 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - The owner's against the checks: 17, 30 and 31, 1.01, 1.77 and 0.17 m from `fire_soft_damage`,
     and 55 and 57, inside and 1.44 m from `frogs_damage_zone`. 35 hold the rule; 33 have no cover
     or stand in the perimeter band, kept as his.
+- **Training Camp at the owner's picks** (2026-11-15: 47 `where` places on day_8, "i also set
+  spawns", `private/spawn-examples/training-camp-2026-11-15.tsv`). Content edit
+  `ffa-training-camp-picks-1`, from `scripts/ffa-mode/training-camp-picks.tsv` (`picks --as-stood
+  13,25,26,27,28,44,45,46,47 --project v010b_cs_training_camp/day_8`) and `make_picks_edits.py
+  training-camp`, in its own project only, after `training-camp-arena-1`, `ffa-cover-maps-1` and
+  `training-camp-fires-1`:
+  - All 47 facing as he faced, in point_ids 0-46 (position and rotation only); 47-51 go. 52 -> 47
+    points: only his, none of the planner's raised places or the cover rule's (`stalker-ffa.md`).
+  - All on raised floors, 4.8 to 28.5 m up (the base's ground is at about -1 m): none on the
+    ground. 38 on their floor (0 to 20 cm). The owner's against the checks: 13, 25-28 and 44-47
+    where he stood, on the middle island under the hub (25, 26, 27, 44, 45, 46) and three small islands
+    (13, 28, 47), floors the walk model (1.3 m jumps, 5 m drops) does not reach from the other
+    spawns, so no way down is checked there. Every one body clear, 2 m from the bonfires' fire
+    zones and inside the fence (the nearest 4.1 m from it); 37 hold the rule, 10 have no cover,
+    kept as his.
 - A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
