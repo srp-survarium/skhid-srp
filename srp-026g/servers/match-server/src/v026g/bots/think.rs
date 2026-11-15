@@ -71,6 +71,11 @@ impl Bots {
         sense_batteries(&due, bot, state, rays, notes);
         rays.allow(None);
         remember(&due, bot, &percepts);
+        // [A393] The sights-up window: the memory's track lifetime, the bot's own weapon's shot reach.
+        bot.reflex.set_sights_up(self.tracker.shot_reach_of(bot.place).map(|reach_m| reflex::SightsUp {
+            fresh_ms: tuning.cheats.forget_ms.max(tuning.sense.forget_ms),
+            reach_m,
+        }));
         react(&due, bot, state, &self.features.weapons, notes);
         self_kill(&due, bot, state, notes);
         if now < bot.pause_until {
@@ -1174,6 +1179,9 @@ pub(super) fn react(
         .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);
     for text in bot.reflex.take_throw_notes() {
         bot.note(notes, now, text);
+    }
+    for text in bot.reflex.take_debug_notes() {
+        log::debug!("player {} (the server's bot) at {now} ms: {text}", bot.place);
     }
     for text in bot.reflex.take_smoke_notes() {
         bot.note(notes, now, text);

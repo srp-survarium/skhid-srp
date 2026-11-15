@@ -775,6 +775,11 @@ impl Tracker {
     }
 
     /// [Gap 6] One place's shot reach, metres: its weapon in hands changed.
+    /// [A393] The reach `place`'s shots are heard at (its weapon in hands), m; `None`: not known.
+    pub fn shot_reach_of(&self, place: Place) -> Option<f32> {
+        self.shot_reach.get(place).copied().flatten()
+    }
+
     pub fn set_shot_reach_of(&mut self, place: Place, reach: Option<f32>) {
         if self.shot_reach.len() <= place {
             self.shot_reach.resize(place + 1, None);
