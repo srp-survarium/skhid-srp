@@ -746,8 +746,14 @@ pub struct ThreatTuning {
     /// no route +4.7 % (z +1.5); the camper's kills 364 vs 368 (z -0.23).
     pub concede: Option<Concede>,
     /// design-p1c §1, items 13, 14, 16, 18 ([`Breach`], `breach.rs`): the group push on a held spot whose Flank failed or
-    /// found no flank spot. OFF by default until its by-side bench.
+    /// found no flank spot. ON by default since A391 (its by-side bench, A252, found no harm: the camper's kills a life
+    /// 1.31 vs 1.27, z +0.13; whole-match kill share z -0.11; it was nearly dormant). `None`: off.
     pub breach: Option<Breach>,
+    /// [A391] A held spot with `job_kills` kills or more whose lanes cover one of the team's own spawn points (the way out of
+    /// its spawn: the two 9-kill farms of the A391 ground lay 38-43 m from the spawn they shot into) is due a Breach at once,
+    /// not only after a failed Flank; at the go the first crosser with a frag throws first at the spot (A170's held-spot
+    /// throw, its roll not paced). Only with `breach` on. Off: as before.
+    pub spawn_exit_breach: bool,
     /// design-p1c §6, two campers covering one lane ([`PairTarget`]): of two holds whose lanes cover common ground, a job
     /// opens only on the one with more kills. `None` (off): each hold gets its own job, up to `threat::JOBS_MAX`. OFF by
     /// default: the bench has one stand-in camper, so no by-side bench of a pair yet.
@@ -1032,7 +1038,8 @@ impl Default for ThreatTuning {
             sniper_lanes: false,
             sniper_memory: Some(SniperMemory::default()),
             concede: Some(Concede::default()),
-            breach: None,
+            breach: Some(Breach::default()),
+            spawn_exit_breach: true,
             pair_target: None,
             walk_watch: None,
             camp_flank: None,

@@ -3721,6 +3721,9 @@ pub struct Reflex {
     /// [A393] Sights up at a heard or told enemy: the last tick they were (a new start logs a line when a second has
     /// gone since), and the debug lines ([`Reflex::take_debug_notes`]).
     sights_up_last: Option<u32>,
+    /// [A391] Until when a Breach's go asked this crosser to throw first: its grenade roll is not paced meanwhile, so the
+    /// A170 held-spot throw (`grenade_at_held`) goes at the go, not at the next paced roll ([`Reflex::throw_first`]).
+    breach_throw_until: Option<u32>,
     /// [A393] The window `sights_up` takes its enemy in ([`Reflex::set_sights_up`]); none: no reach known.
     sights_up_window: Option<SightsUp>,
     debug_notes: Vec<String>,
@@ -4371,6 +4374,11 @@ impl Reflex {
     /// shot reach (`None`: none known, no sights up).
     pub fn set_sights_up(&mut self, window: Option<SightsUp>) {
         self.sights_up_window = window;
+    }
+
+    /// [A391] A Breach's go: throw first, the next grenade roll not paced until `until` (the go's time).
+    pub fn throw_first(&mut self, until: u32) {
+        self.breach_throw_until = Some(until);
     }
 
     /// [A393] The debug lines since the last think (the think logs them at debug level with the bot's place).
@@ -6259,7 +6267,7 @@ impl Reflex {
             Some(1)
         } else if self.thrown >= c.grenades {
             Some(2)
-        } else if now < self.next_grenade_roll {
+        } else if now < self.next_grenade_roll && !self.breach_throw_until.is_some_and(|until| now < until) {
             Some(3)
         } else {
             None
