@@ -1014,9 +1014,11 @@ impl Tracker {
             let floor = world.and_then(|world| super::smoke::floor_under(&world.sight, at));
             let centre = floor.map_or(at, |y| Vec3::new(at.x, y, at.z));
             let moved = cloud.centre.distance_xz(centre);
-            let first = cloud.placed == Placed::Arc;
+            let was = cloud.placed;
+            let first = !matches!(was, Placed::Seen { .. });
+            let arc_error = was == Placed::Arc;
             let team = usize::from(cloud.team & 1);
-            if first {
+            if arc_error {
                 // The arc's error, against a resting body only.
                 self.smoke_counts.bodies_seen[team] += 1;
                 self.smoke_counts.moved_dm[team] += (moved * 10.0).round() as u32;
@@ -1029,7 +1031,11 @@ impl Tracker {
                     at.x,
                     at.y,
                     at.z,
-                    if first { "the arc's rest" } else { "its last sighting" },
+                    match was {
+                        Placed::Arc => "the arc's rest",
+                        Placed::DeadHand => "the dead thrower's body",
+                        Placed::Seen { .. } => "its last sighting",
+                    },
                 ));
             }
             cloud.centre = centre;
@@ -1327,11 +1333,29 @@ impl Tracker {
         let mut kept = Vec::with_capacity(throws.len());
         for throw in throws {
             let launch = throw.release.map(|release| arc::launch_at(throw.press.0, release.0));
+            let team = usize::from(throw.team & 1);
+            // A thrower dead with the pin out: the smoke goes off in his hand ([`super::smoke::Placed::DeadHand`]).
+            if !self.places.get(throw.by).is_some_and(|s| s.alive) {
+                match self.last_feet(throw.by) {
+                    Some(at) => {
+                        let mut cloud =
+                            throw.cloud_at(at, |rest| world.and_then(|world| super::smoke::floor_under(&world.sight, rest)));
+                        cloud.placed = super::smoke::Placed::DeadHand;
+                        self.notes.push(format!(
+                            "smoke cloud by player {} (team {}) in his dead hand at ({:.1}, {:.1}, {:.1}), pours at {} ms",
+                            cloud.by, cloud.team, cloud.centre.x, cloud.centre.y, cloud.centre.z, cloud.pours.0
+                        ));
+                        self.clouds.push(cloud);
+                        self.smoke_counts.clouds[team] += 1;
+                    }
+                    None => self.smoke_counts.dropped[team] += 1,
+                }
+                continue;
+            }
             let (Some(world), Some(launch)) = (world, launch.filter(|&launch| clock >= launch)) else {
                 kept.push(throw);
                 continue;
             };
-            let team = usize::from(throw.team & 1);
             match self.launch_of(throw.by, throw.grenade.flight, launch - throw.press.0, world) {
                 Launch::Lands(landing) => {
                     // The floor under the rest: straight down the bullet mesh from just over it.
@@ -1356,13 +1380,13 @@ impl Tracker {
         self.smoke_throws = kept;
     }
 
-    /// Where a grenade `grenade` let go by `by` lands, from its thrower's body now: from his release point, with the
-    /// fuse left after a launch `launch_ms` after the press.
     /// Where `by`'s body was last placed: its reckoning while alive, where it fell once dead (the body's `last_alive`).
     fn last_feet(&self, by: Place) -> Option<Vec3> {
         self.places.get(by).and_then(|state| state.body.last_alive()).map(|(_, feet)| feet)
     }
 
+    /// Where a grenade `grenade` let go by `by` lands, from its thrower's body now: from his release point, with the
+    /// fuse left after a launch `launch_ms` after the press.
     fn launch_of(&self, by: Place, grenade: Grenade, launch_ms: u32, world: &World) -> Launch {
         let Some(state) = self.places.get(by).filter(|state| state.alive) else {
             return Launch::Dead;

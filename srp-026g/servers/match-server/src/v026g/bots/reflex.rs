@@ -1257,7 +1257,7 @@ const SHOT_MARK_CONFIRM_MS: u32 = 3_000;
 
 /// [hold] The live humans' frag-key holds, ms, as `(share, hold)` knots of their distribution: the frag throws of the
 /// live recordings (PvB and PvP, matches of 6+ players) whose press and release the relayed keys hold, 5,959 throws
-/// (`docs/notes/thrown_and_placed.md`, Counted; the s7-thrown tables): 86 % are taps under 400 ms (the launch at the
+/// (`docs/notes/thrown_and_placed.md`, Counted; the s7-thrown tables): 86 % are taps of at most 400 ms (the launch at the
 /// press + 900, whatever the hold), the rest a cook. The top 1 % is left out: held past 2,621 ms (38 of the 5,959 past
 /// 3,500 ms, the grenade going off in the hand). The bots' own, 500-800 ms drawn evenly, launched 100-400 ms later than a
 /// human's tap.
@@ -1335,15 +1335,18 @@ impl HoldDraw {
     }
 }
 
-/// [hold] Once: the hold the bots draw.
+/// [hold] Once: the hold the bots draw, and whose table it is.
 fn log_hold_model(draw: &HoldDraw) {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
+        let whose = if *draw == HoldDraw::humans() {
+            "the live humans', 5,959 throws, the top 1 % left out"
+        } else {
+            "the tuning's own table, not the humans'"
+        };
         log::info!(
-            "bots: a frag's key hold is drawn from the knots (share, ms) {:?} (the live humans', 5,959 throws, the top 1 % \
-             left out), the throw planned with it; a smoke's {} ms (the humans' median)",
-            draw.0,
-            HUMAN_SMOKE_HOLD_MS
+            "bots: a frag's key hold is drawn from the knots (share, ms) {:?} ({whose}), the throw planned with it",
+            draw.0
         );
     });
 }
@@ -2653,7 +2656,7 @@ pub struct GrenadeStats {
     pub rechecks: [u32; 2],
     /// Throws let go, by the source of their place.
     pub thrown_from: [u32; GRENADE_SOURCES],
-    /// [hold] Throws let go, by their key's hold: a tap (under [`arc::PULL_PIN_MS`], the launch at the press + 900), up to
+    /// [hold] Throws let go, by their key's hold: a tap (at most [`arc::PULL_PIN_MS`], the launch at the press + 900), up to
     /// 1 s, longer (the humans' 86.2 / 3.3 / 10.5 % of 5,959, [`HUMAN_FRAG_HOLD_MS`]): a long hold that the planning
     /// refuses more often shows as fewer here.
     pub thrown_hold: [u32; 3],
@@ -7067,7 +7070,7 @@ impl Reflex {
                     self.grenade_stats.nth[(self.thrown as usize - 1).min(2)] += 1;
                     self.grenade_stats.thrown_from[throw.source.index()] += 1;
                     self.grenade_stats.thrown_hold[match throw.hold_ms {
-                        ms if ms < arc::PULL_PIN_MS => 0,
+                        ms if ms <= arc::PULL_PIN_MS => 0,
                         ms if ms <= 1_000 => 1,
                         _ => 2,
                     }] += 1;
@@ -8871,7 +8874,7 @@ mod tests {
     }
 
     /// [hold] The bots' hold is drawn as the live humans hold it ([`HUMAN_FRAG_HOLD_MS`]): of 20,000 draws the median is a
-    /// tap's 150 ms, 86 % are taps under 400 ms (the humans' share under 400 ms with the top 1 % left out), none past
+    /// tap's 150 ms, 86 % are taps of at most 400 ms (the humans' share with the top 1 % left out), none past
     /// their P99; a table that is not a distribution's is refused, also as the tuning's JSON.
     #[test]
     fn the_hold_is_drawn_as_the_live_humans_hold_it() {
@@ -8881,7 +8884,7 @@ mod tests {
         let mut rng = Rng::new(7);
         let mut holds: Vec<u32> = (0..20_000).map(|_| draw.draw(&mut rng)).collect();
         holds.sort_unstable();
-        let share = |ms: u32| holds.iter().filter(|&&h| h < ms).count() as f32 / holds.len() as f32;
+        let share = |ms: u32| holds.iter().filter(|&&h| h <= ms).count() as f32 / holds.len() as f32;
         assert_eq!(holds[holds.len() / 2], 150);
         assert!((0.85..0.88).contains(&share(400)), "{}", share(400));
         assert!(holds[0] >= 50 && *holds.last().unwrap() <= 2_621, "{} {}", holds[0], holds[holds.len() - 1]);
