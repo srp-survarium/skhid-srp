@@ -703,7 +703,7 @@ impl Controller {
                     return;
                 }
             }
-            if best.is_none_or(|b| c.t < b.t) {
+            if best.is_none_or(|b| c.replaces(&b)) {
                 best = Some(c);
             }
         });
@@ -827,7 +827,7 @@ impl Controller {
                         return;
                     }
                 }
-                if best.is_none_or(|b| c.t < b.t) {
+                if best.is_none_or(|b| c.replaces(&b)) {
                     best = Some(c);
                 }
             });
@@ -930,18 +930,29 @@ impl Controller {
         let mut hits: Vec<Contact> = Vec::new();
         world.sweep_each(self.capsule_at(from), by, |c| hits.push(c));
         hits.sort_by(|a, b| a.t.total_cmp(&b.t));
-        for c in hits {
+        let taken = |c: &Contact| {
             let at = from + by * c.t;
             // On the lower hemisphere only.
             if (UP.y * c.point.y + UP.z * c.point.z) + UP.x * c.point.x > floor + by.y * c.t {
-                continue;
+                return false;
             }
             // A rim or wall hit: not under the capsule and a normal across up.
             let hx = c.point.x - at.x;
             let hz = c.point.z - at.z;
-            if !(hx * hx + hz * hz < r * r - 1e-5) && c.normal.y.abs() < 0.001 {
-                continue;
+            hx * hx + hz * hz < r * r - 1e-5 || !(c.normal.y.abs() < 0.001)
+        };
+        // The nearest hit the callback takes; [L36] at its fraction a later triangle of the same mesh query instead
+        // ([`Contact::replaces`]).
+        let mut kept: Option<Contact> = None;
+        for c in hits {
+            match kept {
+                Some(k) if c.t > k.t => break,
+                _ if !taken(&c) => {}
+                Some(k) if !c.replaces(&k) => {}
+                _ => kept = Some(c),
             }
+        }
+        if let Some(c) = kept {
             let n = match c.on.walker() {
                 WalkerBehaviour::Walk => UP,
                 WalkerBehaviour::DontWalk => {
@@ -1083,7 +1094,7 @@ impl Controller {
             if TINY > (s - r).abs() || !(r > s) {
                 return;
             }
-            if best.is_none_or(|b| c.t < b.t) {
+            if best.is_none_or(|b| c.replaces(&b)) {
                 best = Some(c);
             }
         });
