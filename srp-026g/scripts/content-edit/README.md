@@ -50,6 +50,14 @@ produce the authored pair; no extra gameplay timer or executable hook is needed.
 The compiler also refreshes lobby property 162's empty/tactical ratio. Bots read
 the explicit pair from the same weapon config.
 
+Its `reload_pace` lists the reload clips some gun plays outside every length an
+original build played them at (the AK-12, Uzi, VSS, SKS, MP5, Glock and 35
+others). Those reloads are compiled too, with or without a pair: the times stay,
+the motion runs at the nearest build's pace, and the difference goes into the
+clip's slow and still frames (`srp-026g/docs/notes/reload-pace.md`). Such a gun's
+new clip needs its entry measured again (resource-porter
+`examples/reload-motion.rs --pace`); a stale entry stops the build.
+
 Change the two table cells for future tuning; do not edit generated animations.
 The paths remain stable across retunes. Such changes require a `next` simulation
 row and the normal `release/build-content` validation.
