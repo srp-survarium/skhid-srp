@@ -45,9 +45,9 @@ pub struct RouteFilter {
     soft_floors: Option<FloorRule>,
     /// A rule over regions, true for open (hard).
     regions: Option<RegionRule>,
-    /// The highest jump link the body takes, metres (hard): a body that
-    /// cannot sprint clears [`mapdata::grid::STANDING_JUMP_M`] at most.
-    max_jump_rise: Option<f32>,
+    /// What the body takes of the grid's links (hard, [`mapdata::Reach`]): a body that cannot sprint takes a sprint link
+    /// only by its walking press and clears [`mapdata::grid::STANDING_JUMP_M`] at most.
+    reach: mapdata::Reach,
     /// The regions a held threat spot sees (soft, K1): kept out but near
     /// the route's ends.
     threat: Option<Arc<Threat>>,
@@ -120,7 +120,7 @@ impl std::fmt::Debug for RouteFilter {
             .field("floors", &self.floors.is_some())
             .field("soft_floors", &self.soft_floors.is_some())
             .field("regions", &self.regions.is_some())
-            .field("max_jump_rise", &self.max_jump_rise)
+            .field("reach", &self.reach)
             .field("threat", &self.threat.is_some())
             .field("soft", &self.soft)
             .field("open_sides", &self.open_sides)
@@ -242,16 +242,16 @@ impl RouteFilter {
         self
     }
 
-    /// With the jump links above `rise` metres kept out (hard): the
-    /// body cannot take them.
-    pub fn with_max_jump_rise(mut self, rise: f32) -> Self {
-        self.max_jump_rise = Some(rise);
+    /// [S6] For a body the client gives no sprint (hard, [`mapdata::Reach::NoSprint`]): a sprint link only by its walking
+    /// press, no jump link above `max_rise` metres (`None`: the grid's own).
+    pub fn without_sprint(mut self, max_rise: Option<f32>) -> Self {
+        self.reach = self.reach.and(mapdata::Reach::NoSprint { max_rise });
         self
     }
 
-    /// The highest jump link the body takes, if limited.
-    pub fn max_jump_rise(&self) -> Option<f32> {
-        self.max_jump_rise
+    /// What the body takes of the grid's links.
+    pub fn reach(&self) -> mapdata::Reach {
+        self.reach
     }
 
     /// Keeps out the regions `shut` gives true for, and every floor of
@@ -306,6 +306,15 @@ impl RouteFilter {
             && self.soft_floors.as_ref().is_none_or(|f| f(node))
     }
 
+    /// [A390] This filter with the landings of the jumps and drops the body gave up open again (its other rules kept, and the
+    /// sprint links the client refuses it now, [`stuck::ShutKind::Refused`], still shut): a body a zone's way out would leave
+    /// under its give-up takes any way out (`crossing::escape_borne`).
+    pub fn landings_opened(&self) -> RouteFilter {
+        let mut opened = self.clone();
+        opened.landings.retain(|shut| shut.kind == stuck::ShutKind::Refused);
+        opened
+    }
+
     /// Whether floor `node` is open to a search that drops the soft part
     /// (a crossing's, [`super::crossing`]).
     pub fn hard_open(&self, grid: &WalkGrid, node: NodeId) -> bool {
@@ -331,10 +340,7 @@ impl RouteFilter {
     pub fn and(mut self, other: &Self) -> Self {
         self.landings.extend(other.landings.iter().copied());
         self.spots.extend(other.spots.iter().copied());
-        self.max_jump_rise = match (self.max_jump_rise, other.max_jump_rise) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        };
+        self.reach = self.reach.and(other.reach);
         if self.threat.is_none() {
             self.threat = other.threat.clone();
         }
@@ -397,6 +403,22 @@ mod tests {
         assert_eq!(open.weight(&bare.grid, at(&bare.grid, 55.9)), 1.0, "no table, no weight");
     }
 
+    /// [A390] With the landings opened, a floor a shut landing covers is open again, and the filter's other hard rules stay.
+    #[test]
+    fn opened_landings_open_their_floors_and_keep_the_other_rules() {
+        let (world, _) = field();
+        let grid = &world.grid;
+        let (a, b) = (grid.locate(Vec3::new(20.0, 0.0, 20.0), 1.5).unwrap(), grid.locate(Vec3::new(30.0, 0.0, 20.0), 1.5).unwrap());
+        let c = grid.locate(Vec3::new(40.0, 0.0, 20.0), 1.5).unwrap();
+        let refused = stuck::Shut { kind: stuck::ShutKind::Refused, landing: grid.position(c), lasts: stuck::Lasts::Until(u32::MAX) };
+        let shut = RouteFilter::shutting_landings(vec![stuck::Shut::jump(grid.position(a)), refused]).with_floors(move |n| n != b);
+        assert!(!shut.hard_open(grid, a) && !shut.hard_open(grid, b) && !shut.hard_open(grid, c));
+        let opened = shut.landings_opened();
+        assert!(opened.hard_open(grid, a), "the landing's floor is open again");
+        assert!(!opened.hard_open(grid, b), "the floor rule stays");
+        assert!(!opened.hard_open(grid, c), "a sprint the client refuses stays shut");
+    }
+
     /// A grid and its regions to test on.
     fn field() -> (Arc<mapdata::World>, Arc<Regions>) {
         let world = field_with(|_| {});
@@ -434,14 +456,18 @@ mod tests {
 
     #[test]
     fn two_filters_keep_the_lower_jump() {
-        let high = RouteFilter::open().with_max_jump_rise(1.0);
-        let low = RouteFilter::open().with_max_jump_rise(0.8);
-        assert_eq!(RouteFilter::open().max_jump_rise(), None);
-        assert_eq!(high.clone().and(&RouteFilter::open()).max_jump_rise(), Some(1.0));
-        assert_eq!(RouteFilter::open().and(&low).max_jump_rise(), Some(0.8));
-        assert_eq!(high.and(&low).max_jump_rise(), Some(0.8));
+        use mapdata::Reach;
+        let high = RouteFilter::open().without_sprint(Some(1.0));
+        let low = RouteFilter::open().without_sprint(Some(0.8));
+        assert_eq!(RouteFilter::open().reach(), Reach::Full);
+        assert_eq!(high.clone().and(&RouteFilter::open()).reach(), Reach::NoSprint { max_rise: Some(1.0) });
+        assert_eq!(RouteFilter::open().and(&low).reach(), Reach::NoSprint { max_rise: Some(0.8) });
+        assert_eq!(high.and(&low).reach(), Reach::NoSprint { max_rise: Some(0.8) });
+        // No sprint without a jump limit still keeps the other's limit.
+        let no_sprint = RouteFilter::open().without_sprint(None);
+        assert_eq!(no_sprint.and(&low.clone()).reach(), Reach::NoSprint { max_rise: Some(0.8) });
         // Not a soft part: the second search without the spots keeps it.
-        assert_eq!(low.without_soft().max_jump_rise(), Some(0.8));
+        assert_eq!(low.without_soft().reach(), Reach::NoSprint { max_rise: Some(0.8) });
     }
 
     #[test]
@@ -534,7 +560,7 @@ mod tests {
                 nb,
                 |n| filter.floor_open(grid, n),
                 |r| filter.region_open(r),
-                None,
+                filter.reach(),
                 filter.weighs().then_some(&weight as &dyn Fn(NodeId) -> f32),
                 &mut iters,
             )

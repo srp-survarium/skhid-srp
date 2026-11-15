@@ -369,9 +369,35 @@ pub struct WorldFacts {
     /// [Gap 9] By place, its statistics' `last_killed_enemy_ms` (the time of its last kill; 0 none); empty: not used
     /// (`think.kill_time` off).
     pub kill_times: Vec<u32>,
-    /// [Gap 2] By place, whether the world names it carrying a battery (its inventory's `m_carried_item`, srp-validate's
-    /// `InventoryHeader::carried`): `None` where its state was not read; empty: the world did not say.
-    pub holders: Vec<Option<bool>>,
+    /// [Gap 2] By place, what the world says it carries (its inventory's `m_carried_item`, srp-validate's
+    /// `InventoryHeader::carried`); empty: the world did not say.
+    pub holders: Vec<Holding>,
+}
+
+/// [Gap 2] What a world says a place carries ([`WorldFacts::holders`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Holding {
+    /// Its state was not read.
+    #[default]
+    Unread,
+    /// No battery.
+    Nothing,
+    /// The battery whose carried id this is: an entry of the 255-entry active-objects table, which the battery rule fills
+    /// first and in its own order, so the id is the rule's battery number (the exe read of `inventory::serialize`
+    /// 0x2FE360, the rule's push 0x313F80..0x313F9D, attached before any player 0x2D3B40; checked on every world,
+    /// [`ViewTracker::carriers_seen`]).
+    Battery(u8),
+}
+
+impl Holding {
+    /// Whether it carries a battery; `None`: not read.
+    pub fn carries(self) -> Option<bool> {
+        match self {
+            Self::Unread => None,
+            Self::Nothing => Some(false),
+            Self::Battery(_) => Some(true),
+        }
+    }
 }
 
 /// Sounds are kept this long, ms.
@@ -821,6 +847,16 @@ impl Tracker {
         if let Some(state) = self.places.get_mut(place) {
             state.body.set_hits(hits);
         }
+    }
+
+    /// [A388 (e) gap 5] A world's word on `place`'s reload ([`BodyTrack::world_reload`]). Returns whether its gates changed.
+    pub fn world_reload(&mut self, place: Place, at: u32, until: u32) -> bool {
+        self.places.get_mut(place).is_some_and(|state| state.body.world_reload(at, until))
+    }
+
+    /// [A388 (e)] A world's word on `place`'s tube reload loop ([`BodyTrack::world_tube_reload`]).
+    pub fn world_tube_reload(&mut self, place: Place, at: u32, under_way: bool) -> bool {
+        self.places.get_mut(place).is_some_and(|state| state.body.world_tube_reload(at, under_way))
     }
 
     /// [2e] A bot's own sprint gates for its body: its last reload (from, until), its gun's `aim_time`, ms, and its reckoned bar's
@@ -1414,12 +1450,15 @@ impl Tracker {
         let walls = self.arc_walls(kin, world);
         // [A331] A battery carrier does not sprint (the owner; `can_sprint` 0x2DBF40, LIKELY): the believed carrier's world keys
         // move its body at a run, and its level is read against the run.
-        if kin.carrier_sprint == super::kin::CarrierSprint::Refused && self.carries.iter().any(|carry| carry.carrier == Some(place)) {
+        let carrying = self.carries.iter().any(|carry| carry.carrier == Some(place));
+        if kin.carrier_sprint == super::kin::CarrierSprint::Refused && carrying {
             fix.keys &= !key::SPRINT;
         }
         let Some(state) = self.places.get_mut(place) else {
             return false;
         };
+        // [A388 (e) gap 18] A carrier's level is its kit's with empty hands and the battery's term.
+        state.body.set_hands(if carrying { super::body::Hands::Battery } else { super::body::Hands::Kit });
         state.alive = fix.alive;
         if state.spawned != fix.inserted
             && let Some(pockets) = state.throws.pockets_mut()
@@ -1511,6 +1550,7 @@ impl Tracker {
             return new_deaths;
         }
         self.carriers_seen(&facts.batteries, &facts.holders, facts.time);
+        self.carriers_named(&facts.batteries, &facts.holders);
         self.batteries = facts.batteries;
         self.batteries_time = facts.time;
         self.marks = facts.marks;
@@ -1599,7 +1639,9 @@ impl Tracker {
 
     /// The carriers, from a world's batteries (`self.batteries` is still
     /// the world before's) and, by place, who the world names carrying one (`holders`, [`WorldFacts::holders`]).
-    fn carriers_seen(&mut self, batteries: &[BatteryState], holders: &[Option<bool>], time: u32) {
+    fn carriers_seen(&mut self, batteries: &[BatteryState], holding: &[Holding], time: u32) {
+        let holders: Vec<Option<bool>> = holding.iter().map(|h| h.carries()).collect();
+        let holders = &holders[..];
         let holds = |place: Place| holders.get(place).copied().flatten();
         self.carries.resize_with(batteries.len(), Carry::default);
         // Batteries no longer carried; and their carriers' deaths.
@@ -1812,6 +1854,51 @@ impl Tracker {
                     (None, None) => "nobody known".to_string(),
                 }
             ));
+        }
+    }
+
+    /// [Gap 2] Each carrier's battery as the world names it: a holder's carried id is the rule's battery number. Checked
+    /// on every world first, as a one-to-one match of holders and carried batteries: the holders' numbers distinct, each
+    /// under the battery count and that battery carried, and as many carried as holders (a battery in a container has no
+    /// carrier). A place whose state was not read names nothing; with the match one-to-one no carried battery is left to
+    /// it. Where the check holds the world's carriers replace the beliefs ([`Self::carriers_seen`]'s); where it fails the
+    /// beliefs stand, and, with every place read, a note says so.
+    fn carriers_named(&mut self, batteries: &[BatteryState], holding: &[Holding]) {
+        if holding.is_empty() || batteries.is_empty() {
+            return;
+        }
+        let carried = batteries.iter().filter(|b| matches!(b, BatteryState::Carried(_))).count();
+        let named: Vec<(usize, Place)> = holding
+            .iter()
+            .enumerate()
+            .filter_map(|(place, h)| match h {
+                Holding::Battery(id) => Some((usize::from(*id), place)),
+                Holding::Unread | Holding::Nothing => None,
+            })
+            .collect();
+        let distinct = named.iter().enumerate().all(|(i, &(battery, _))| named[..i].iter().all(|&(other, _)| other != battery));
+        let one_to_one = distinct
+            && named.len() == carried
+            && named.iter().all(|&(battery, _)| matches!(batteries.get(battery), Some(BatteryState::Carried(_))));
+        if !one_to_one {
+            if holding.iter().all(|h| *h != Holding::Unread) {
+                self.notes.push(format!(
+                    "the world's carried ids do not name its {carried} carried batteries one to one: the carriers stay believed"
+                ));
+            }
+            return;
+        }
+        for (battery, place) in named {
+            let carry = &mut self.carries[battery];
+            if carry.carrier != Some(place) {
+                self.notes.push(format!(
+                    "battery {battery} carried by player {place}, as the world names it (believed {})",
+                    carry.carrier.map_or("nobody".to_string(), |p| format!("player {p}"))
+                ));
+                carry.carrier = Some(place);
+                carry.put_ins.clear();
+                carry.died = None;
+            }
         }
     }
 
@@ -2418,7 +2505,7 @@ mod tests {
         }
 
         /// [Gap 2] A world that also names, by place, who carries a battery.
-        fn world_holding(&mut self, time: u32, batteries: Vec<BatteryState>, holders: Vec<Option<bool>>) {
+        fn world_holding(&mut self, time: u32, batteries: Vec<BatteryState>, holders: Vec<Holding>) {
             self.tracker.facts(WorldFacts { time, batteries, holders, ..WorldFacts::default() });
         }
     }
@@ -2433,7 +2520,7 @@ mod tests {
         at.world(2_000, vec![BatteryState::Carried(None)]);
         assert_eq!(at.tracker.carrier(0), Some(1), "the use that met it, the world silent on its carrier");
         at.tracker.take_notes();
-        at.world_holding(3_000, vec![BatteryState::Carried(None)], vec![Some(true), Some(false)]);
+        at.world_holding(3_000, vec![BatteryState::Carried(None)], vec![Holding::Battery(0), Holding::Nothing]);
         assert_eq!(at.tracker.carrier(0), Some(0));
         let notes = at.tracker.take_notes();
         assert!(
@@ -2445,8 +2532,30 @@ mod tests {
         let mut at = AtTheContainer::new();
         at.press(1, 1_100, key::CROUCH);
         at.press(0, 1_600, 0);
-        at.world_holding(2_000, vec![BatteryState::Carried(None)], vec![Some(true), Some(false)]);
+        at.world_holding(2_000, vec![BatteryState::Carried(None)], vec![Holding::Battery(0), Holding::Nothing]);
         assert_eq!(at.tracker.carrier(0), Some(0));
+        // A carried id that names no carried battery fails the world's check: the belief stands, with a note.
+        at.tracker.take_notes();
+        at.world_holding(3_000, vec![BatteryState::Carried(None)], vec![Holding::Battery(5), Holding::Nothing]);
+        assert_eq!(at.tracker.carrier(0), Some(0));
+        let notes = at.tracker.take_notes();
+        assert!(notes.iter().any(|n| n.starts_with("the world's carried ids do not name")), "{notes:?}");
+    }
+
+    /// [Gap 2] The world's carried id is the battery's number: two batteries picked up at once are each its holder's, as
+    /// the world names them, whatever the presses made of it.
+    #[test]
+    fn each_carrier_holds_the_battery_its_carried_id_names() {
+        let mut at = AtTheContainer::new();
+        at.world(1_000, vec![BatteryState::Free(BATTERY), BatteryState::Free(BATTERY)]);
+        at.press(1, 1_100, key::CROUCH);
+        at.press(0, 1_600, 0);
+        at.world_holding(
+            2_000,
+            vec![BatteryState::Carried(None), BatteryState::Carried(None)],
+            vec![Holding::Battery(1), Holding::Battery(0)],
+        );
+        assert_eq!((at.tracker.carrier(0), at.tracker.carrier(1)), (Some(1), Some(0)));
     }
 
     /// The bot beside the battery whose use's ray passed through it takes

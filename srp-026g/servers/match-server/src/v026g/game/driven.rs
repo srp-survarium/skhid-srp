@@ -660,7 +660,13 @@ fn world_facts(time: u32, decoded: &Decoded, checked: &world_validation::Checked
         holders: checked
             .places
             .iter()
-            .map(|place| place.as_ref().filter(|world| world.motion.is_some()).map(|world| world.carried.is_some()))
+            .map(|place| match place.as_ref().filter(|world| world.motion.is_some()) {
+                None => crate::v026g::bots::view::Holding::Unread,
+                Some(world) => world
+                    .carried
+                    .as_ref()
+                    .map_or(crate::v026g::bots::view::Holding::Nothing, |c| crate::v026g::bots::view::Holding::Battery(c.id())),
+            })
             .collect(),
         // [Gap 9] Each place's last kill's time.
         kill_times: decoded
@@ -775,7 +781,7 @@ impl Game {
                 .as_ref()
                 .map(|statistics| statistics.players.iter().map(|player| player.received_damage.iter().flatten().sum()).collect()),
         );
-        // [Gap 3] The player blocks, for the bots' own mixing trees: split at the first bot seen reloading, else never.
+        // [Gap 3, A388 (e) gap 5] The player blocks, for the mixing trees: split at the first body seen reloading, else never.
         let mut blocks: Option<Vec<survarium::v026g::match_msgs::players::PlayerBlock>> = None;
         for (place, world) in checked.places.iter().enumerate() {
             let Some(world) = world else {
@@ -856,6 +862,35 @@ impl Game {
                         saved.spending_speed_modifier().get(),
                     ),
                 );
+            }
+            // [A388 (e) gap 5] Any body's gun in hands reloading (index 3 for every gun, `guns::GunAt`): the client refuses its
+            // sights and sprint (`weapon_core::can_sprint` 0x2E3A10 wants idle, `can_aim` 0x2E3AA0 ends the aim in a reload)
+            // until the reload clip's end, which the place's mixing tree holds (F55, `guns::ReloadClip`). A tube's reload loop
+            // (`StateData::ShotgunReload`, the same id 4) is held from the world until a world shows it over (its round clips'
+            // time group is not read: `world_tube_reload`). Before the body is fixed, so its reckoned ticks take the gate.
+            let in_hand = (world.supplies.alive && world.supplies.inventory_read)
+                .then_some(world.supplies.hands_slot)
+                .flatten()
+                .and_then(|slot| world.guns.iter().find(|(at, _)| *at == slot))
+                .and_then(|(_, gun)| gun.in_hand());
+            let tube = in_hand.is_some_and(|in_hand| {
+                crate::v026g::bots::guns::GunAt::of_index(in_hand.state_index()) == crate::v026g::bots::guns::GunAt::Reloading
+                    && matches!(in_hand.state(), srp_validate::world::StateData::ShotgunReload { .. })
+            });
+            walkers.bots.world_tube_reload(place, snapshot.time, tube);
+            if !tube
+                && in_hand.is_some_and(|in_hand| {
+                    crate::v026g::bots::guns::GunAt::of_index(in_hand.state_index()) == crate::v026g::bots::guns::GunAt::Reloading
+                })
+            {
+                let clip = blocks
+                    .get_or_insert_with(|| survarium::v026g::match_msgs::players::blocks(decoded.sections.players).unwrap_or_default())
+                    .iter()
+                    .find(|block| usize::from(block.place) == place)
+                    .and_then(|block| block.animation)
+                    .and_then(crate::v026g::bots::clip_tree::AnimEvents::read)
+                    .and_then(|events| crate::v026g::bots::guns::ReloadClip::of(&events, snapshot.time));
+                walkers.bots.world_reload(place, snapshot.time, clip);
             }
             let notes = walkers.bots.fixed(place, fix, health);
             log_notes(id, notes);

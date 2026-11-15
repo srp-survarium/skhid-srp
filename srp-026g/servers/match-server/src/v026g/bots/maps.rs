@@ -673,7 +673,20 @@ fn build(
                     // one entry the bench's worlds build their grids by too.
                     || {
                         let started = Instant::now();
+                        let ties_before = mapdata::controller::sweep_ties();
                         let (grid, stats) = World::map_grid_with_stats(&map, &walker, cell, body, links);
+                        // [L36] The sweeps' ties at their closest fraction during this build (the process's counters' growth: a
+                        // build that runs beside another counts its ties too). A log's only.
+                        let ties = mapdata::controller::sweep_ties();
+                        log::info!(
+                            "Bot map {} sweep ties: {} sweeps tied; one mesh {}, one object's parts {}, across objects {}, faces {}",
+                            path.display(),
+                            ties.sweeps - ties_before.sweeps,
+                            ties.one_mesh - ties_before.one_mesh,
+                            ties.same_object_parts - ties_before.same_object_parts,
+                            ties.across_objects - ties_before.across_objects,
+                            ties.faces - ties_before.faces
+                        );
                         // A log's only: what each pass of the build did (a grid read from the cache has no such line).
                         log::info!(
                             "Bot map {} grid built: {} floors; wall give-back {}, rest floors {}, held {:?}, drops walked {:?} re-aimed {}, gaps {:?}",

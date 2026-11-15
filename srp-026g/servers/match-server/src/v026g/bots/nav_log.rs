@@ -346,10 +346,13 @@ pub enum Kind {
     /// [Gap 2] An enemy's carry the world names and the bot's team does not know of, kept from the intercept
     /// (`plays/intercept.rs`).
     Carry,
+    /// [F42] A bot with both legs broken creeping (the crouch key with its move keys): begun, and ended with how far it went
+    /// (`drive.rs` `creep_watch`).
+    Creep,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 12;
+const KINDS: usize = 13;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -423,6 +426,26 @@ pub fn crouch_climb_line(up: bool, take_off: Vec3, top: Vec3, after_ms: u32, fee
     )
 }
 
+/// [F42] A creep begun: `nav: creep begun (both legs broken): at (..), the crouch key with move keys; speed in the reckoning
+/// pending (the selector's run / on-site alternation)`.
+pub fn creep_begun_line(feet: Vec3) -> String {
+    format!(
+        "{PREFIX}creep begun (both legs broken): at {}, the crouch key with move keys; speed in the reckoning pending (the selector's run / on-site alternation)",
+        at(feet)
+    )
+}
+
+/// [F42] A creep ended: `nav: creep ended: from (..) to (..), D m flat in T ms (S m/s)`.
+pub fn creep_ended_line(from: Vec3, feet: Vec3, ms: u32) -> String {
+    let d = from.distance_xz(feet);
+    format!(
+        "{PREFIX}creep ended: from {} to {}, {d:.2} m flat in {ms} ms ({:.2} m/s)",
+        at(from),
+        at(feet),
+        if ms > 0 { d * 1_000.0 / ms as f32 } else { 0.0 }
+    )
+}
+
 /// [owner-5] A sprint link pressed without sprint: `nav: sprint link pressed unsprinted: from (..) to (..), before B m, gate G`.
 pub fn sprint_line(take_off: Vec3, landing: Vec3, before: f32, gate: &str) -> String {
     format!("{PREFIX}sprint link pressed unsprinted: from {} to {}, before {before:.2} m, gate {gate}", at(take_off), at(landing))
@@ -468,6 +491,12 @@ pub fn walkout_line(from: Vec3, hit: Option<bool>, goal: Vec3, next: Option<Vec3
 /// from (..) to (..), next (..), lines tested over the band's floors up to R m`. Its lines cross no floor a zone hurts.
 /// [A395a] The line for a walk out whose held route goes on across the zone past the way out's reach
 /// (`Tactics::route_shut_ahead`): the route is planned again from where the body stands.
+/// [S6] The line for a pocket escape begun by a body with no sprint (a carrier): the exits whose take-offs it walks to by
+/// its own reach (no sprint link without its walking press).
+pub fn carrier_escape_line(feet: Vec3, exits: usize) -> String {
+    format!("{PREFIX}pocket escape with no sprint (a carrier) from {}: {exits} exits whose take-offs it walks to", at(feet))
+}
+
 pub fn walk_route_shut_line(from: Vec3, reach: f32) -> String {
     format!("{PREFIX}zone walk's held route goes on across the zone from {}, past the way out's {reach:.1} m: planned again", at(from))
 }

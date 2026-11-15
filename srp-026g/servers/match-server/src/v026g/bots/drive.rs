@@ -24,6 +24,16 @@ pub(super) const REPLAN_ERROR_M: f32 = 2.0;
 /// side, metres (no step off a ledge or into a wall).
 pub(super) const STRAFE_CLEAR_M: f32 = 1.5;
 
+/// [S6] What the body takes of the grid's links: a carrier's body, which the client gives no sprint (A331), takes a sprint
+/// link only by its walking press and no jump link above its standing jump (`motor.carrier_jump_m`).
+fn body_reach(bot: &Bot, me: &PlaceView) -> mapdata::Reach {
+    if me.carrying.is_some() {
+        mapdata::Reach::NoSprint { max_rise: bot.motor.feel.carrier_jump_m.map(f32::from) }
+    } else {
+        mapdata::Reach::Full
+    }
+}
+
 /// [A331] The keys a bot sends while it carries a battery: no SPRINT (a carrier cannot sprint). Others as they are.
 fn carrier_keys(keys: u32, carrying: bool) -> u32 {
     if carrying { keys & !key::SPRINT } else { keys }
@@ -206,6 +216,7 @@ pub(super) fn zone_way_out(
     feet: Vec3,
     time: u32,
     objective: bool,
+    body: &crossing::CrossBody,
 ) -> Option<Vec3> {
     let from = tactics.world.grid.locate(feet, 1.5)?;
     // A dry island is walked off as a zone's floor is ([`Tactics::on_island`]).
@@ -220,7 +231,12 @@ pub(super) fn zone_way_out(
     }
     let landings = bot.stuck.shut_landings(time).collect();
     let hard = traps::filter(bot, landings, Some(from));
-    let out = tactics.escape(from, None, time, bot.side, objective, &hard)?;
+    // [A390] By any way when its pool falls (`crossing::escape_borne`): the landings it gave up open again.
+    let (out, line) = crossing::escape_borne(tactics, from, None, time, bot.side, objective, &hard, body);
+    if let Some(line) = line {
+        bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+    }
+    let out = out?;
     let to = out.point_at(out.length());
     bot.stuck.zone_out = Some((to, time + stuck::ZONE_OUT_KEPT_MS));
     Some(to)
@@ -362,9 +378,33 @@ pub(super) fn drive_tick(
         decision.keys |= key::CROUCH;
     }
     decision.keys = bot.hurt.leg_damage.at(time).keys(decision.keys);
+    creep_watch(bot, me, decision.keys, time);
     bot.sent_keys = decision.keys;
     crouch_climb_watch(bot, me, decision.keys, time);
     decision
+}
+
+/// [F42] The log lines of a creep ([`super::nav_log::creep_begun_line`], [`super::nav_log::creep_ended_line`]): begun on the
+/// first tick both legs hold (`LegGate::Stand`) with the crouch key and a move sent (the client's test: forward xor back, or
+/// left xor right), ended on the first tick without.
+/// Decides nothing.
+pub(super) fn creep_watch(bot: &mut Bot, me: &PlaceView, keys: u32, time: u32) {
+    // The client's move test (0x2FBE50, 0x2FBE78..0x2FBE89): forward xor back, or left xor right.
+    let along = (keys & key::FORWARD != 0) != (keys & key::BACK != 0);
+    let side = (keys & key::LEFT != 0) != (keys & key::RIGHT != 0);
+    let creeping = bot.hurt.leg_damage.at(time) == super::legs::LegGate::Stand && keys & key::CROUCH != 0 && (along || side);
+    match (bot.creep, creeping) {
+        (None, true) => {
+            bot.creep = Some((me.feet, time));
+            bot.nav_log.push(super::nav_log::Kind::Creep, time, super::nav_log::creep_begun_line(me.feet));
+        }
+        (Some((from, at)), false) => {
+            bot.creep = None;
+            let line = super::nav_log::creep_ended_line(from, me.feet, time.saturating_sub(at));
+            bot.nav_log.push(super::nav_log::Kind::Creep, time, line);
+        }
+        _ => {}
+    }
 }
 
 /// [S7] How far from a crouched climb's take-off a crouched body is taken to be at it, m (flat).
@@ -776,7 +816,8 @@ fn drive_tick_inner(
         .map_or(ZoneSet::default(), |node| tactics.hazards.set_of(node));
     bot.stuck.zone_on(zone_set);
     let zone_out = if reacts && Gates::wants_zone_way_out(&intent, goal) {
-        zone_way_out(bot, tactics, me.feet, time, intent.objective)
+        let body = crossing::CrossBody::of(tuning, view, me, bot.features.stock.pools, &bot.features.crossing.armour);
+        zone_way_out(bot, tactics, me.feet, time, intent.objective, &body)
     } else {
         None
     };
@@ -806,6 +847,8 @@ fn drive_tick_inner(
         let grid = &tactics.world.grid;
         #[cfg(any(test, feature = "jump-test"))]
         let had_route = bot.route.is_some();
+        let escaping_before = bot.stuck.escape.is_some();
+        let reach = body_reach(bot, me);
         let out = escape::tick(
             &mut bot.stuck.escape,
             &mut bot.route,
@@ -817,7 +860,13 @@ fn drive_tick_inner(
             goal.unwrap_or(me.feet),
             time,
             bot.hurt.may_jump(time),
+            reach,
         );
+        // [S6] A carrier's escape begun: the exits its walk reaches, for the log.
+        if let (false, mapdata::Reach::NoSprint { .. }, Some(state)) = (escaping_before, reach, bot.stuck.escape.as_ref()) {
+            let line = super::nav_log::carrier_escape_line(me.feet, state.exits_count());
+            bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+        }
         #[cfg(any(test, feature = "jump-test"))]
         if had_route && bot.route.is_none() {
             bot.route_ended(RouteEnd::EscapeStep, time);
@@ -1155,9 +1204,9 @@ fn drive_tick_inner(
                 let narrow_landings = tuning.traps.keep_off.map(|_| landings.clone());
                 let hard_with = |landings, trap_filter: fn(&Bot, Vec<stuck::Shut>, Option<NodeId>) -> RouteFilter| {
                     let mut hard = trap_filter(bot, landings, grid.locate(me.feet, 1.5));
-                    // A body that cannot sprint takes no jump link above its standing jump.
-                    if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
-                        hard = hard.with_max_jump_rise(rise);
+                    // [S6] A carrier's body ([`body_reach`]).
+                    if let mapdata::Reach::NoSprint { max_rise } = body_reach(bot, me) {
+                        hard = hard.without_sprint(max_rise);
                     }
                     // [kin.open_edge_cost] A269c: the way keeps a body's width in from an open side where the floor allows.
                     if tuning.kin.open_edge_cost > 0.0 {
@@ -1206,9 +1255,14 @@ fn drive_tick_inner(
                 // spots, and the search.
                 let mut left = None;
                 let mut route = if escaping {
-                    let route = ends.and_then(|(from, _)| {
-                        tactics.escape(from, Some(at), time, side, objective, &hard)
+                    // [A390] By any way when its pool falls (`crossing::escape_borne`): the landings it gave up open again.
+                    let body = crossing::CrossBody::of(tuning, view, me, bot.features.stock.pools, &bot.features.crossing.armour);
+                    let (route, line) = ends.map_or((None, None), |(from, _)| {
+                        crossing::escape_borne(tactics, from, Some(at), time, side, objective, &hard, &body)
                     });
+                    if let Some(line) = line {
+                        bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+                    }
                     // [zones] Out of the same zones toward the same goal
                     // twice lately: the way there keeps going into them;
                     // the goal is given up for the play to choose again.
@@ -1643,7 +1697,13 @@ fn drive_tick_inner(
                     bot.no_way = route.is_none().then_some((at, time + NO_WAY_RETRY_MS));
                     // [owner-5] A search that found no way: why, for the log (one line per bot, goal and verdict in a match).
                     if route.is_none() && !escaping && !there {
-                        let retried = NoWayRetries { stuck_spots: avoiding, trap_discs: narrow.is_some(), drop_shuts: unshut.is_some(), unshut_proof };
+                        let retried = NoWayRetries {
+                            stuck_spots: avoiding,
+                            trap_discs: narrow.is_some(),
+                            drop_shuts: unshut.is_some(),
+                            unshut_proof,
+                            reach: hard.reach(),
+                        };
                         no_way_line(bot, tactics, (start_floor, ends.map(|(_, to)| to)), at, path::last_end(), retried, (time, side, objective));
                     }
                     // With `think.goal_off_floor_no_way`: a goal on no floor near it (`path::goal_floor`), from a start floor,
@@ -3014,6 +3074,8 @@ pub(super) struct NoWayRetries {
     pub(super) drop_shuts: bool,
     /// That last search found no way either.
     pub(super) unshut_proof: bool,
+    /// [S6] What the body took of the grid's links in its searches.
+    pub(super) reach: mapdata::Reach,
 }
 
 /// [owner-5] The log's line for a search that found no way from the floor `ends.0` to the goal `at` (its floor `ends.1`):
@@ -3045,6 +3107,13 @@ pub(super) fn no_way_line(
             }
             if retried.trap_discs {
                 v.push_str("; searched again past the traps' wide rings");
+            }
+            // [S6] A body with no sprint: its searches took no sprint link without a walking press.
+            if let mapdata::Reach::NoSprint { max_rise } = retried.reach {
+                v.push_str("; planned with no sprint (a carrier): sprint links by their walking press only");
+                if let Some(rise) = max_rise {
+                    v.push_str(&format!(", no jump above {rise:.3} m"));
+                }
             }
             if retried.drop_shuts {
                 v.push_str(if retried.unshut_proof { "; none with its shut drops open either" } else { "; its shut drops open searched" });

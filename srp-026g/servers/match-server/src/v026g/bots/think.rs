@@ -1344,6 +1344,7 @@ pub(super) fn decide(
         tuning,
         memo,
         lines: Default::default(),
+        offers: Default::default(),
     };
     let mut rng = bot.rng.clone();
     #[cfg(test)]

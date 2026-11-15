@@ -442,8 +442,13 @@ pub struct Bot {
     jump_watch: Option<JumpWatch>,
     /// [S7] The crouched climb under way, for its log line ([`drive::crouch_climb_watch`]): (take-off, top, crouched at).
     crouch_climb: Option<(Vec3, Vec3, u32)>,
+    /// [F42] A creep under way (both legs broken, the crouch key with move keys): where and when it began
+    /// ([`drive::creep_watch`]).
+    creep: Option<(Vec3, u32)>,
     /// Its falls and route jumps for the log (A285, `nav_log.rs`): written, never read back.
     nav_log: nav_log::NavLog,
+    /// [A391] Its last offer of each job role since it was given ([`threat::LastOffers`]): the class of a role let go.
+    offers: threat::LastOffers,
     /// Its drift over the match for the match-end table (A294, `nav_drift.rs`): written, never read back.
     drift: nav_drift::Tally,
     /// Whether the match traces, and the trace lines made while driving
@@ -656,7 +661,9 @@ impl Bot {
             fight_hit_ms: None,
             jump_watch: None,
             crouch_climb: None,
+            creep: None,
             nav_log: nav_log::NavLog::default(),
+            offers: threat::LastOffers::default(),
             drift: nav_drift::Tally::default(),
             tracing: false,
             traced: Vec::new(),
@@ -1713,6 +1720,24 @@ impl Bots {
         self.tracker.set_hits(place, hits);
     }
 
+    /// [A388 (e) gap 5] A world's word on `place`'s reload, any body's: under way at `at`, its reload clip as the world's mixing
+    /// tree has it (`None`: its end not read). The body's reckoned sights and sprint are refused until the clip's end.
+    pub fn world_reload(&mut self, place: Place, at: u32, clip: Option<guns::ReloadClip>) {
+        match clip {
+            Some(guns::ReloadClip::Ends(until)) => sprint_gates::world_reloads::read(self.tracker.world_reload(place, at, until)),
+            Some(guns::ReloadClip::Cancelled) | None => sprint_gates::world_reloads::not_read(),
+        }
+    }
+
+    /// [A388 (e)] A world's word on `place`'s tube reload loop, every world of every place: `under_way` while its gun in hands is
+    /// in it. The sights and sprint are refused from the first such world until a world shows it over.
+    pub fn world_tube_reload(&mut self, place: Place, at: u32, under_way: bool) {
+        if under_way {
+            sprint_gates::world_reloads::tube();
+        }
+        self.tracker.world_tube_reload(place, at, under_way);
+    }
+
     /// What the bot at `place` counts of its drugs, for the tests.
     #[cfg(test)]
     pub(crate) fn pantry_of(&self, place: Place) -> Option<&stock::Pantry> {
@@ -1914,6 +1939,27 @@ impl Bots {
             {
                 watch.up.get_or_insert(time);
                 bot.motor.link_up_seen(route.take_off, route.landing);
+                // [unstick.link_made] No failure on the model's word: a jump given up that this world shows made is taken back
+                // (its shut, its failure not told), and the match hears it made (`dead_links.rs`).
+                if self.tunings.of(bot.team).unstick.link_made && bot.stuck.link_made(route.take_off, route.landing) {
+                    log::debug!(
+                        "link made: player {place} up ({:.1}, {:.1}, {:.1}) -> ({:.1}, {:.1}, {:.1}) at {time} ms: its failure taken back",
+                        route.take_off.x,
+                        route.take_off.y,
+                        route.take_off.z,
+                        route.landing.x,
+                        route.landing.y,
+                        route.landing.z
+                    );
+                    bot.note(
+                        &mut notes,
+                        time,
+                        format!(
+                            "a world shows it up the jump to {:?}: the jump it gave up is taken back (its shut lifted, not told failed)",
+                            route.landing.to_array()
+                        ),
+                    );
+                }
             }
             if !new_life
                 && let Some(fall) = before.and_then(|before| nav_log::Fall::between(before, (time, feet), reckoned))
@@ -2298,6 +2344,25 @@ impl Bots {
         // [A388 step 2b] The lip guard's forecasts this match: asked anew, and the same ask's answer used again.
         let (asked, reused) = self.bots.iter().flatten().fold((0u64, 0u64), |(a, r), bot| (a + u64::from(bot.lip_memo.asked), r + u64::from(bot.lip_memo.reused)));
         lines.push(format!("{}lip guard forecasts this match: asked {asked}, the same ask's answer used again {reused}", nav_log::PREFIX));
+        // [A388 (e) gap 16] The reckoning's steps the client's legs crouched (both broken, the key up).
+        lines.push(format!(
+            "{}kept controller steps crouched by both legs broken with the crouch key up since the last match end (every match on this server): {}",
+            nav_log::PREFIX,
+            body::kept_clock::take_legs_crouched()
+        ));
+        // [A388 (e) gap 18] The worlds a carrier's computed level gave the body's speed level, and the battery's term read.
+        lines.push(format!(
+            "{}carrier levels applied since the last match end (every match on this server): {} worlds; the battery's term {}",
+            nav_log::PREFIX,
+            body::carrier_levels::take(),
+            survarium::v026g::bot_skills::carried_battery_term().map_or_else(|| "not in the data".to_string(), |term| format!("{term:+.3}"))
+        ));
+        // [A388 (e) gap 5] Every body's reloads from the worlds: the reckoned sights and sprint refused to the clip's end.
+        let (read, changed, not_read, tube) = sprint_gates::world_reloads::take();
+        lines.push(format!(
+            "{}world reloads since the last match end (every match on this server): {read} with the clip's end read, {changed} of them changed a reckoned body's gates, {not_read} with no end read, {tube} worlds in a tube's loop (held to the next world)",
+            nav_log::PREFIX
+        ));
         // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
         // time a step took.
         let (steps, ns) = body::kept_clock::take(body::kept_clock::Of::Reckoning);

@@ -54,7 +54,7 @@ pub mod stands;
 
 pub use grid::{
     Body, BuildStats, DistanceMap, Erosion, ExitJump, ExitReach, LinkKind, NodeId, OffLink, OffMeshLinks, Path, PocketEntry, PressLead, Share,
-    PocketExit, PocketId, Search, SlicedSearch, WalkGrid,
+    PocketExit, PocketId, Reach, Search, SlicedSearch, WalkGrid,
 };
 pub use library::{Face, Library, Materials, Surface, WalkerBehaviour};
 pub use pierce::{Armor, Crossing, DamageShare, FaceArmor, Load, Pierce};
@@ -179,8 +179,9 @@ pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c03;
 /// for a body that asks for it. A value of its own.
 /// 0b07: the plain Jump links rising over `MARGINAL_JUMP_M` are flown too, and replaced where a press lands on their top (C2 rows
 /// 11/12, the School crate's +0.99 m). 0b08: [S4] the Jump links the landing carry rule takes away are flown too. 0b09: [R83] the
-/// aims (±6, 0) and the gap links' aimed sweep.
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b0B;
+/// aims (±6, 0) and the gap links' aimed sweep. 0b0A: a plain Jump link no press lands on the top of is cut (keeping a floor's
+/// only way in or back), not kept. 0b0b: [R83] the turns of 0.1 rad ((±3, ±2), (0, ±2)).
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b0b;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;

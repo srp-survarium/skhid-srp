@@ -1532,7 +1532,7 @@ impl Tactics {
             goal,
             |node| self.route_floor_open(node, time, side, objective, at, filter, &legs),
             |region| self.route_region_open(region, time, side, objective, at, filter, &legs),
-            filter.max_jump_rise(),
+            filter.reach(),
             filter.weighs().then_some(&weight as &dyn Fn(NodeId) -> f32),
             iters,
         )
@@ -1646,7 +1646,7 @@ impl Tactics {
             goal,
             |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
-            None,
+            mapdata::Reach::Full,
             None,
             iters,
         )
@@ -4145,7 +4145,7 @@ pub(super) mod tests {
     }
 
     /// A route for a body that cannot sprint (a battery carrier) takes no jump
-    /// link above the standing jump (`RouteFilter::with_max_jump_rise`): a
+    /// link above the standing jump (`RouteFilter::without_sprint`): a
     /// 1.0 m platform is a jump away for the walker and no way for the
     /// carrier, a 0.9 m one is a way for both.
     #[test]
@@ -4159,7 +4159,7 @@ pub(super) mod tests {
             let to = grid.locate(Vec3::new(12.0, rise, 7.0), 0.3).unwrap();
             tactics.route_nodes(from, to, 0, Some(0), false, filter)
         };
-        let carrier = RouteFilter::open().with_max_jump_rise(mapdata::grid::STANDING_JUMP_M);
+        let carrier = RouteFilter::open().without_sprint(Some(mapdata::grid::STANDING_JUMP_M));
         assert!(route(1.0, &RouteFilter::open()).is_some(), "the walker jumps onto 1.0 m");
         assert!(route(1.0, &carrier).is_none(), "the carrier has no way onto 1.0 m");
         assert!(route(0.9, &carrier).is_some(), "the carrier jumps onto 0.9 m");
