@@ -63,6 +63,13 @@ impl Pipe {
         self.open
     }
 
+    /// Whether the other end is still there; what it wrote is kept for the
+    /// next look.
+    pub fn alive(&mut self) -> bool {
+        self.fill();
+        self.open
+    }
+
     /// Writes one message. `false` when the launcher is gone.
     pub fn send(&mut self, message: ToLauncher) -> bool {
         self.send_bytes(&frame(message))

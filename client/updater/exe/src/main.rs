@@ -649,7 +649,14 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
                         Err(Some(why)) => return Done::Failed(why),
                     }
                 }
-                return done;
+                // Still without the server: the rest of the run is offline.
+                return match done {
+                    Done::Installed { restart: false, .. } => {
+                        patches::overlay_changed(layout);
+                        Done::Offline(text::offline(&message), message)
+                    }
+                    done => done,
+                };
             }
             // The original game from the addresses built into this updater
             // (a provider that blocks the server need not block them).

@@ -31,6 +31,7 @@ use updater_logic::url::Url;
 use crate::http::{self, HttpError};
 use crate::install::Layout;
 use crate::log::log;
+use crate::pipe::Pipe;
 use crate::win::{self, File};
 use crate::{Session, restart_launcher, text};
 
@@ -140,15 +141,15 @@ pub fn watch(session: &mut Session, layout: &Layout, product: &str, seen: &Seen)
     // launcher allows it: at once when it turns it on (and again after
     // each ask, should the engine have stopped).
     let mut turn = session.torrents.turn();
-    session.torrents.share(layout);
+    share(session, layout);
     let mut each = |session: &mut Session| {
         if session.torrents.turn() != turn {
             turn = session.torrents.turn();
-            session.torrents.share(layout);
+            share(session, layout);
         }
     };
     while session.pipe.is_some() && session.pause_with(WATCH_MS, &mut each) {
-        session.torrents.share(layout);
+        share(session, layout);
         let result = http::get(&seen.server, "/api/client-files", 4096, &mut |_, _| {
             session.pump()
         });
@@ -192,4 +193,9 @@ pub fn watch(session: &mut Session, layout: &Layout, product: &str, seen: &Seen)
         }
     }
     session.leave();
+}
+
+/// The torrent's files shared, while the launcher is there.
+fn share(session: &mut Session, layout: &Layout) {
+    session.torrents.share(layout, &mut || session.pipe.as_mut().is_some_and(Pipe::alive));
 }

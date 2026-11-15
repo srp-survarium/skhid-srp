@@ -557,8 +557,16 @@ pub fn ensure(
     let downloaded = win::file_size(&archive_path).is_ok_and(|size| size == game::ARCHIVE.size);
     let unpacked = game::FILES.iter().map(|(_, pin)| pin.size).sum::<u64>();
     let needed = if downloaded { 0 } else { game::ARCHIVE.size } + unpacked + (256 << 20);
-    let free = win::free_space(&layout.game_dir)
-        .ok_or_else(|| Some("Cannot check free disk space for the game installation.".into()))?;
+    let free_space = || {
+        win::free_space(&layout.game_dir)
+            .ok_or_else(|| Some(String::from("Cannot check free disk space for the game installation.")))
+    };
+    let mut free = free_space()?;
+    if free < needed {
+        // The torrent's parts, kept for its next try, are room the archive needs.
+        remove_parts(layout);
+        free = free_space()?;
+    }
     if free < needed {
         return Err(Some(format!(
             "The game installation needs {needed} bytes of free space; this disk has {free}."

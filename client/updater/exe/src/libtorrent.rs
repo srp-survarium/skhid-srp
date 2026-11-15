@@ -178,8 +178,6 @@ pub enum Event {
     HashFailed { piece: i64 },
     /// A peer that sent a piece that failed: banned in its torrent.
     Banned { ip: String },
-    /// A torrent's files checked.
-    Checked(TorrentId),
     /// A magnet's info came ([`Session::info`]).
     Metadata(TorrentId),
     Error { text: String },
@@ -396,13 +394,13 @@ fn torrent_of(id: i32) -> Option<TorrentId> {
     (id >= 0).then_some(TorrentId(id))
 }
 
-/// skt.h's `SKT_EV_*`; FINISHED is not taken (a fetch looks at its status).
+/// skt.h's `SKT_EV_*`; CHECKED and FINISHED are not taken: a check and a
+/// fetch are followed by their status (an alert can be dropped).
 mod kind {
     pub const LISTEN_OK: i32 = 1;
     pub const LISTEN_FAILED: i32 = 2;
     pub const HASH_FAILED: i32 = 3;
     pub const PEER_BANNED: i32 = 4;
-    pub const CHECKED: i32 = 5;
     pub const METADATA: i32 = 7;
     pub const ERROR: i32 = 8;
     pub const DHT_ITEM: i32 = 9;
@@ -416,7 +414,6 @@ fn parse_event(raw: &RawEvent) -> Option<Event> {
         kind::LISTEN_FAILED => Event::ListenFailed { port: port(), why: text(&raw.text) },
         kind::HASH_FAILED => Event::HashFailed { piece: raw.a },
         kind::PEER_BANNED => Event::Banned { ip: text(&raw.text) },
-        kind::CHECKED => Event::Checked(torrent_of(raw.torrent)?),
         kind::METADATA => Event::Metadata(torrent_of(raw.torrent)?),
         kind::ERROR => Event::Error { text: text(&raw.text) },
         kind::DHT_ITEM => Event::DhtItem(Item {

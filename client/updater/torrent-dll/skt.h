@@ -87,8 +87,8 @@ SKT_API void SKT_CALL skt_set_upload_limit(skt_session *s, int32_t bytes_per_sec
 SKT_API int SKT_CALL skt_ban(skt_session *s, const char *ip);
 
 /* A torrent from its bytes; save_path: a folder where nothing of it is.
-   trackers replace the torrent's own (its announce-list and web seeds are
-   never used). Returns the torrent's id (>= 0) or -1 and err. */
+   trackers replace the torrent's own (its announce-list, web seeds and DHT
+   nodes are never used). Returns the torrent's id (>= 0) or -1 and err. */
 SKT_API int SKT_CALL skt_add(skt_session *s, const uint8_t *torrent, size_t len, const char *save_path,
                              const skt_file *files, size_t nfiles, const char *const *trackers,
                              size_t ntrackers, char *err, int errlen);

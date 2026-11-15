@@ -204,6 +204,8 @@ SKT_API int SKT_CALL skt_add(skt_session *s, const uint8_t *bytes, size_t len, c
     atp.ti->clear_trackers();
     atp.ti->set_web_seeds({});
     atp.url_seeds.clear();
+    atp.http_seeds.clear();
+    atp.dht_nodes.clear();
     atp.trackers.clear();
     atp.tracker_tiers.clear();
     for (size_t i = 0; i < ntrackers; ++i) {

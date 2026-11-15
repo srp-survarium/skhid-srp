@@ -54,16 +54,17 @@ impl Record {
                 .any(|file| file.torrent == *torrent && file.path.eq_ignore_ascii_case(path) && file.identity == *identity)
     }
 
-    /// `torrent`'s files are now `files`; the records of torrents not in
-    /// `kept` go.
-    pub fn set(&mut self, torrent: &[u8; 32], files: Vec<(String, Identity)>, kept: &[[u8; 32]]) {
-        self.files.retain(|file| file.torrent != *torrent && kept.contains(&file.torrent));
-        self.files.extend(
-            files
-                .into_iter()
-                .filter(|(_, identity)| identity.usable())
-                .map(|(path, identity)| Shared { torrent: *torrent, identity, path }),
-        );
+    /// The files of `torrent` just checked: each path, with what it is when
+    /// it was found whole. Only those paths change (a check of some files
+    /// keeps what the others were); the records of torrents not in `kept` go.
+    pub fn set(&mut self, torrent: &[u8; 32], checked: Vec<(String, Option<Identity>)>, kept: &[[u8; 32]]) {
+        self.files.retain(|file| {
+            let again = file.torrent == *torrent && checked.iter().any(|(path, _)| path.eq_ignore_ascii_case(&file.path));
+            kept.contains(&file.torrent) && !again
+        });
+        self.files.extend(checked.into_iter().filter_map(|(path, identity)| {
+            identity.filter(Identity::usable).map(|identity| Shared { torrent: *torrent, identity, path })
+        }));
     }
 }
 
@@ -129,8 +130,8 @@ mod tests {
         let mut record = Record::default();
         let a = [1; 32];
         let b = [2; 32];
-        record.set(&a, alloc::vec![("C:\\Game\\game\\resources.db".into(), identity(10))], &[a]);
-        record.set(&b, alloc::vec![("C:\\Game\\x y.exe".into(), identity(3))], &[a, b]);
+        record.set(&a, alloc::vec![("C:\\Game\\game\\resources.db".into(), Some(identity(10)))], &[a]);
+        record.set(&b, alloc::vec![("C:\\Game\\x y.exe".into(), Some(identity(3)))], &[a, b]);
         let again = parse_record(&write_record(&record)).unwrap();
         assert_eq!(again, record);
         assert!(again.trusted(&a, "c:\\game\\game\\resources.db", &identity(10)));
@@ -139,17 +140,30 @@ mod tests {
         assert!(again.trusted(&b, "C:\\Game\\x y.exe", &identity(3)));
         // A file system that cannot tell its files: never trusted.
         let unusable = Identity { index: 0, ..identity(3) };
-        record.set(&b, alloc::vec![("C:\\other".into(), unusable)], &[a, b]);
+        record.set(&b, alloc::vec![("C:\\other".into(), Some(unusable))], &[a, b]);
         assert!(!record.trusted(&b, "C:\\other", &unusable));
-        // Another torrent's set, `a` no longer kept: its files go.
-        record.set(&b, alloc::vec![], &[b]);
+        // `a` no longer kept: its files go; `b`'s file not whole now: it goes.
+        record.set(&b, alloc::vec![("C:\\Game\\x y.exe".into(), None)], &[b]);
         assert!(record.files.is_empty());
+    }
+
+    #[test]
+    fn a_check_of_some_files_keeps_the_others() {
+        let mut record = Record::default();
+        let a = [1; 32];
+        let (db, patch) = ("C:\\Game\\game\\resources.db", "C:\\Game\\game\\resources.db.patch_12");
+        record.set(&a, alloc::vec![(db.into(), Some(identity(10))), (patch.into(), Some(identity(4)))], &[a]);
+        record.set(&a, alloc::vec![(patch.into(), None)], &[a]);
+        assert!(record.trusted(&a, db, &identity(10)));
+        assert!(!record.trusted(&a, patch, &identity(4)));
+        record.set(&a, alloc::vec![(patch.into(), Some(identity(5)))], &[a]);
+        assert!(record.trusted(&a, db, &identity(10)) && record.trusted(&a, patch, &identity(5)));
     }
 
     #[test]
     fn a_record_cut_short_is_none() {
         let mut record = Record::default();
-        record.set(&[1; 32], alloc::vec![("C:\\a".into(), identity(1))], &[]);
+        record.set(&[1; 32], alloc::vec![("C:\\a".into(), Some(identity(1)))], &[]);
         let data = write_record(&record);
         assert!(parse_record(&data[..data.len() - 5]).is_none());
         assert!(parse_record(b"skhid-torrent-checked 2\r\nend\r\n").is_none());

@@ -450,7 +450,10 @@ patches' quick check); at the next start a file still so is given to
 libtorrent as had (no read), and libtorrent checks from the first piece of
 the first file that is not (to the end of the torrent: a have-list that
 stops says the check stopped there). The record keeps the torrents of the
-run only.
+run only, the run's own from its start; a check of some files changes only
+theirs. A check is followed by the torrent's status, not an alert (one can
+be dropped): one that ends in a read error, or makes no progress for 60 s,
+is a failed check (HTTPS, or not shared).
 
 **Peers** come from the updater's own trackers (the release's list,
 `exe/src/torrent.rs` `TRACKERS`; a test build `SKHID_TEST_TRACKERS`), never a

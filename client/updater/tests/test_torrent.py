@@ -410,12 +410,12 @@ class TorrentTest(wine.WineTest):
         close_nodes()
         super().tearDown()
 
-    def release(self, *numbers, torrent=True, exe=None, size=200_000, **signing):
+    def release(self, *numbers, torrent=True, exe=None, size=200_000, overlay=None, **signing):
         """What the server offers: the patches `numbers` (of about `size`
-        bytes), and the overlay with the torrent of the folder (the patches,
-        two of the overlay's files) beside the updater (`torrent`). The
-        torrent, its files and the seed's folder."""
-        overlay = self.bundle()
+        bytes), and the overlay (with `overlay`'s files) with the torrent of
+        the folder (the patches, two of the overlay's files) beside the
+        updater (`torrent`). The torrent, its files and the seed's folder."""
+        overlay = self.bundle(**(overlay or {}))
         if exe is not None:
             overlay[f"{X86}/survarium_skhid.exe"] = exe
         patches = self.make_patches(*numbers, size=size)
@@ -632,18 +632,32 @@ class TorrentTest(wine.WineTest):
         seq, value, _ = item_of(torrent)
         self.assertEqual(dht.get(120), (seq, value), self.log()[-3000:])
 
-    def test_the_bootstrap_is_shared_from_copies_kept_of_its_files(self):
-        # The bootstrap torrent: this updater, its DLL and a 7zr.exe,
-        # unsigned, in the ZIP beside the updater (no revision torrent: it
-        # is shared alone).
+    def bootstrap(self):
+        """The bootstrap torrent (this updater, its DLL and a 7zr.exe,
+        unsigned), its files, and the ZIP's files that bring it."""
         seven = b"7z stand-in " * 5000
         with open(harness.TORRENT_DLL, "rb") as file:
             dll = file.read()
-        bootstrap_files = {f"{X86}/7zr.exe": seven, f"{X86}/skhid_torrent.dll": dll,
-                           f"{X86}/updater_skhid.exe": self.updater_bytes}
-        bootstrap = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), bootstrap_files, self.tracker.urls,
-                                 signed=False)
-        self.offer(self.bundle(**{f"{X86}/7zr.exe": seven, f"{X86}/skhid-bootstrap.torrent": bootstrap}))
+        files = {f"{X86}/7zr.exe": seven, f"{X86}/skhid_torrent.dll": dll, f"{X86}/updater_skhid.exe": self.updater_bytes}
+        bootstrap = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), files, self.tracker.urls, signed=False)
+        return bootstrap, files, {f"{X86}/7zr.exe": seven, f"{X86}/skhid-bootstrap.torrent": bootstrap}
+
+    def test_the_bootstrap_beside_the_torrent_keeps_what_was_checked_of_it(self):
+        _, _, in_zip = self.bootstrap()
+        self.release(12, overlay=in_zip)
+        self.launch()
+        self.wait_latest()
+        wait(lambda: "torrent: sharing 3 of its 3 files" in self.log()
+             and self.log().count("files checked whole") >= 2, 60, "the bootstrap's and the torrent's checks")
+        self.stop()
+        self.launch()
+        self.wait_latest()
+        wait(lambda: "torrent: sharing 3 of its 3 files (3 checked before)" in self.log(), 60, "sharing as checked")
+
+    def test_the_bootstrap_is_shared_from_copies_kept_of_its_files(self):
+        # Alone in the ZIP: no revision torrent.
+        bootstrap, bootstrap_files, in_zip = self.bootstrap()
+        self.offer(self.bundle(**in_zip))
         self.launch()
         self.wait_latest()
         wait(lambda: "torrent: sharing the bootstrap's 3 of 3 files" in self.log(), 60, "sharing the bootstrap")

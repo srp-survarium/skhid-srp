@@ -208,11 +208,11 @@ enum Job {
 }
 
 impl Job {
-    fn added(&mut self, id: TorrentId) -> Option<&mut Added> {
+    fn added(&mut self) -> Vec<&mut Added> {
         match self {
-            Job::Fetching(added) | Job::Checking(added) => Some(added).filter(|added| added.id == id),
-            Job::Sharing { swarm, bootstrap, .. } => swarm.iter_mut().chain(bootstrap.iter_mut()).find(|added| added.id == id),
-            Job::Idle | Job::Discovering(_) => None,
+            Job::Fetching(added) | Job::Checking(added) => alloc::vec![added],
+            Job::Sharing { swarm, bootstrap, .. } => swarm.iter_mut().chain(bootstrap.iter_mut()).collect(),
+            Job::Idle | Job::Discovering(_) => Vec::new(),
         }
     }
 }
@@ -223,8 +223,20 @@ struct Added {
     v2: [u8; 32],
     piece_length: u32,
     files: Vec<Placed>,
-    checked: bool,
+    check: Check,
 }
+
+/// libtorrent's check of an added torrent's files, as its status says (an
+/// alert can be dropped, and a check that fails posts none).
+enum Check {
+    /// `moved`: when its progress (`ppm`) last changed.
+    Running { ppm: u32, moved: u64 },
+    Done,
+    /// A file it could not read, or no progress for [`CHECK_STALL_MS`].
+    Failed,
+}
+
+const CHECK_STALL_MS: u64 = 60_000;
 
 /// A file of an added torrent: where it is, what it is to the session, and
 /// (shared) what Windows said of it when it was added.
@@ -313,11 +325,33 @@ impl Engine {
         answer.then_some(ToLauncher::PortBusy)
     }
 
-    fn checked(&mut self, id: TorrentId, dir: &str, known: &[[u8; 32]]) {
-        let Some(added) = self.job.added(id) else { return };
-        added.checked = true;
-        if let Some(done) = self.session.file_progress(id, added.files.len()) {
-            record_checked(added, &done, dir, known);
+    /// Each running check of the job, by the torrent's status: done (its
+    /// files recorded), failed, or still running.
+    fn follow_checks(&mut self, dir: &str, known: &[[u8; 32]]) {
+        let now = win::ticks();
+        let session = &mut self.session;
+        for added in self.job.added() {
+            let Check::Running { ppm, moved } = added.check else { continue };
+            added.check = match session.status(added.id) {
+                Some(libtorrent::Status { error: Some(error), .. }) => {
+                    log!("torrent: its files cannot be checked: {error}");
+                    Check::Failed
+                }
+                Some(libtorrent::Status { checking: Some(at), .. }) if at != ppm => {
+                    Check::Running { ppm: at, moved: now }
+                }
+                Some(libtorrent::Status { checking: Some(_), .. }) if now.saturating_sub(moved) < CHECK_STALL_MS => continue,
+                Some(libtorrent::Status { checking: Some(_), .. }) | None => {
+                    log!("torrent: the check of its files stopped moving");
+                    Check::Failed
+                }
+                Some(_) => {
+                    if let Some(done) = session.file_progress(added.id, added.files.len()) {
+                        record_checked(added, &done, dir, known);
+                    }
+                    Check::Done
+                }
+            };
         }
     }
 
@@ -477,11 +511,15 @@ impl Torrents {
                 match &mut self.mode {
                     Mode::On { port, engine } => {
                         *port = wanted;
-                        // Listened on already: libtorrent says nothing again.
-                        if let Listen::Listening(at) = engine.listen
-                            && want.port().is_none_or(|wanted| wanted == at)
-                        {
-                            return Some(ToLauncher::PortOk);
+                        // The same port again: libtorrent says nothing.
+                        match engine.listen {
+                            Listen::Listening(at) if want.port().is_none_or(|wanted| wanted == at) => {
+                                return Some(ToLauncher::PortOk);
+                            }
+                            Listen::Busy(at) if want.port().is_some() && want.port() == at => {
+                                return Some(ToLauncher::PortBusy);
+                            }
+                            _ => {}
                         }
                         engine.session.listen(want.port());
                         engine.listen = Listen::Asked { want, answer: true };
@@ -555,6 +593,9 @@ impl Torrents {
         for event in events {
             answer = self.on(event).or(answer);
         }
+        if let Mode::On { engine, .. } = &mut self.mode {
+            engine.follow_checks(&self.dir, &self.known);
+        }
         self.put_due();
         answer
     }
@@ -573,7 +614,6 @@ impl Torrents {
                     self.banned.push(ip);
                 }
             }
-            Event::Checked(id) => engine.checked(id, &self.dir, &self.known),
             Event::Metadata(id) => engine.metadata(id),
             Event::Error { text } => log!("torrent: {text}"),
             Event::DhtItem(item) => engine.dht_item(item),
@@ -623,6 +663,9 @@ impl Torrents {
                     torrent.piece_length
                 );
                 crate::signed::taken(layout, signed.revision);
+                // Before any check of the bootstrap records: the record keeps
+                // what was checked of the run's torrent.
+                self.know(signed.torrent.v2);
                 let torrent = Arc::new(signed);
                 self.offered = Offered::Read(torrent.clone());
                 Some(torrent)
@@ -635,12 +678,17 @@ impl Torrents {
         }
     }
 
+    /// A torrent of this run: the record keeps what was checked of it.
+    fn know(&mut self, v2: [u8; 32]) {
+        if !self.known.contains(&v2) {
+            self.known.push(v2);
+        }
+    }
+
     /// Adds `bytes` (a torrent) with `files` (its file, where, how).
     fn add(&mut self, bytes: &[u8], torrent: &Torrent, files: Vec<(usize, String, Role)>) -> Result<Added, String> {
         let nowhere = format!("{}\\{NOWHERE}", self.dir);
-        if !self.known.contains(&torrent.v2) {
-            self.known.push(torrent.v2);
-        }
+        self.know(torrent.v2);
         let Some(engine) = self.engine() else {
             return Err("torrent is not allowed".into());
         };
@@ -667,7 +715,7 @@ impl Torrents {
             v2: torrent.v2,
             piece_length: torrent.piece_length,
             files: placed,
-            checked: false,
+            check: Check::Running { ppm: 0, moved: win::ticks() },
         })
     }
 
@@ -702,12 +750,17 @@ impl Torrents {
     }
 
     /// The check's answer once done: whether each file is whole. `Err`:
-    /// not checking any more (torrent turned off).
+    /// not checking any more (torrent turned off, the check failed).
     fn checked_files(&mut self) -> Result<Option<Vec<bool>>, ()> {
         let Some(engine) = self.engine() else { return Err(()) };
         let Job::Checking(added) = &engine.job else { return Err(()) };
-        if !added.checked {
-            return Ok(None);
+        match added.check {
+            Check::Running { .. } => return Ok(None),
+            Check::Failed => {
+                self.stop();
+                return Err(());
+            }
+            Check::Done => {}
         }
         let (id, count) = (added.id, added.files.len());
         let sizes: Vec<u64> = added.files.iter().map(|file| file.size).collect();
@@ -719,9 +772,16 @@ impl Torrents {
         whole.map(Some).ok_or(())
     }
 
-    /// Those of `files` that are whole, as [`whole`] checks them but
-    /// without the launcher's pipe: the bootstrap's few small files.
-    fn whole_now(&mut self, bytes: &[u8], torrent: &Torrent, files: Vec<(usize, String)>) -> Option<Vec<(usize, String)>> {
+    /// Those of `files` that are whole, as [`whole`] checks them, while
+    /// `alive` (the launcher or the game still there): the bootstrap's few
+    /// small files.
+    fn whole_now(
+        &mut self,
+        bytes: &[u8],
+        torrent: &Torrent,
+        files: Vec<(usize, String)>,
+        alive: &mut dyn FnMut() -> bool,
+    ) -> Option<Vec<(usize, String)>> {
         if files.is_empty() {
             return Some(files);
         }
@@ -732,7 +792,11 @@ impl Torrents {
             self.service();
             match self.checked_files() {
                 Ok(Some(whole)) => break whole,
-                Ok(None) => win::sleep(50),
+                Ok(None) if alive() => win::sleep(50),
+                Ok(None) => {
+                    self.stop();
+                    return None;
+                }
                 Err(()) => return None,
             }
         };
@@ -766,7 +830,11 @@ impl Torrents {
         let engine = self.engine()?;
         let Job::Fetching(added) = &engine.job else { return None };
         let total: u64 = added.files.iter().map(|file| file.size).sum();
-        let (id, checked) = (added.id, added.checked);
+        let (id, check) = (added.id, &added.check);
+        if let Check::Failed = check {
+            return Some(Progress::Failed("the parts could not be checked".into()));
+        }
+        let checked = matches!(check, Check::Done);
         let status = engine.session.status(id)?;
         Some(match status {
             libtorrent::Status { error: Some(error), .. } => Progress::Failed(error),
@@ -786,13 +854,13 @@ impl Torrents {
     /// Shares every file of the torrent this folder has at its size, however
     /// it came, and the bootstrap's kept copies, and puts the release's
     /// signed item on the DHT. Nothing when torrent is not allowed, or it
-    /// shares already.
-    pub fn share(&mut self, layout: &Layout) {
+    /// shares already. `alive`: the launcher or the game is still there.
+    pub fn share(&mut self, layout: &Layout, alive: &mut dyn FnMut() -> bool) {
         if self.sharing() || !self.allowed() {
             return;
         }
         let signed = self.offered(layout);
-        let bootstrap = self.bootstrap(layout);
+        let bootstrap = self.bootstrap(layout, alive);
         let mut swarm = None;
         let mut put = None;
         if let Some(signed) = &signed {
@@ -840,7 +908,7 @@ impl Torrents {
     /// version) and its files' kept copies to share: each made from the file
     /// in its place while that is the bootstrap's, since the updater replaces
     /// itself at every release.
-    fn bootstrap(&mut self, layout: &Layout) -> Option<Bootstrap> {
+    fn bootstrap(&mut self, layout: &Layout, alive: &mut dyn FnMut() -> bool) -> Option<Bootstrap> {
         let (bytes, torrent) = installed_bootstrap(layout)?;
         let kept = format!("{}\\{KEPT}", layout.exe_dir);
         let copy = |file: usize| {
@@ -849,13 +917,13 @@ impl Torrents {
         };
         // A copy of the right size can be anything: every piece checked.
         let copies = (0..torrent.files.len()).map(|file| (file, copy(file))).filter(|(_, path)| win::exists(path)).collect();
-        let mut ready = self.whole_now(&bytes, &torrent, copies)?;
+        let mut ready = self.whole_now(&bytes, &torrent, copies, alive)?;
         let lives = (0..torrent.files.len())
             .filter(|file| !ready.iter().any(|(ready, _)| ready == file))
             .map(|file| (file, layout.place(&torrent.files[file].path)))
             .filter(|(file, path)| win::file_size(path).ok() == Some(torrent.files[*file].size))
             .collect();
-        for (file, live) in self.whole_now(&bytes, &torrent, lives)? {
+        for (file, live) in self.whole_now(&bytes, &torrent, lives, alive)? {
             let name = &torrent.files[file].path;
             match keep_copy(&live, &copy(file), &kept) {
                 Ok(()) => {
@@ -961,19 +1029,21 @@ fn record_checked(added: &Added, done: &[u64], dir: &str, known: &[[u8; 32]]) {
         log!("torrent: {here} of the {wanted} pieces to fetch are in the parts already, checked");
         return;
     }
-    let whole: Vec<(String, Identity)> = added
+    let checked: Vec<(String, Option<Identity>)> = added
         .files
         .iter()
         .zip(done)
-        .filter(|(file, done)| matches!(file.role, Role::Share { .. }) && **done == file.size)
-        .filter_map(|(file, _)| {
-            let now = win::identity(&file.path).ok()?;
-            (Some(now) == file.identity).then(|| (file.path.clone(), now))
+        .filter(|(file, _)| matches!(file.role, Role::Share { .. }))
+        .map(|(file, done)| {
+            // Whole, and not changed while it was checked.
+            let now = win::identity(&file.path).ok().filter(|now| *done == file.size && Some(*now) == file.identity);
+            (file.path.clone(), now)
         })
         .collect();
-    log!("torrent: {} of its {} files checked whole", whole.len(), added.files.len());
+    let whole = checked.iter().filter(|(_, identity)| identity.is_some()).count();
+    log!("torrent: {whole} of its {} files checked whole", added.files.len());
     let mut record = read_record(dir);
-    record.set(&added.v2, whole, known);
+    record.set(&added.v2, checked, known);
     let path = format!("{dir}\\{CHECKED}");
     let staged = format!("{path}.skhid-new");
     if let Err(code) = win::write_file(&staged, &shared::write_record(&record)).and_then(|()| win::rename(&staged, &path, true)) {
@@ -1034,8 +1104,8 @@ pub fn share_while(layout: &Layout, port: Option<u16>, go_on: &mut dyn FnMut(&Sh
             torrents.service();
             match torrents.engine().map(|engine| &engine.listen) {
                 Some(Listen::Listening(_)) => break true,
-                Some(Listen::Busy(_)) | None => break false,
-                Some(Listen::Asked { .. }) => win::sleep(50),
+                Some(Listen::Asked { .. }) if win::ticks() < until => win::sleep(50),
+                Some(Listen::Asked { .. } | Listen::Busy(_)) | None => break false,
             }
         };
         if listening {
@@ -1047,7 +1117,11 @@ pub fn share_while(layout: &Layout, port: Option<u16>, go_on: &mut dyn FnMut(&Sh
         }
         win::sleep(1000);
     };
-    torrents.share(layout);
+    let share = |torrents: &mut Torrents, go_on: &mut dyn FnMut(&Sharing) -> bool| {
+        let before = torrents.sharing_now();
+        torrents.share(layout, &mut || go_on(&before));
+    };
+    share(&mut torrents, go_on);
     if !torrents.sharing() {
         return Err(NotShared::Nothing);
     }
@@ -1059,7 +1133,7 @@ pub fn share_while(layout: &Layout, port: Option<u16>, go_on: &mut dyn FnMut(&Sh
         }
         if win::ticks().saturating_sub(shared) >= RESHARE_MS {
             shared = win::ticks();
-            torrents.share(layout);
+            share(&mut torrents, go_on);
         }
         win::sleep(100);
     }
