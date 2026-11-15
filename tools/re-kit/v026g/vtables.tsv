@@ -145,3 +145,7 @@ vtable	slot	va	class	base	basis
 0x009e4da4	0x28	0x000b3f20	btHashedOverlappingPairCache	btOverlappingPairCache	observed: RTTI as slot 4; setOverlapFilterCallback (Bullet's source: m_overlapFilterCallback +18h := the argument); no call of it found (the slot is its one reference, no overlap filter class in the RTTI)
 0x009fc4f4	0x08	0x001f77e0	survarium::game_world	survarium::game_world	observed: tick, in the primary vtable (the constructor writes 0x9FC4F4 at the object's +0, 0x1F682D)
 0x009fc4f4	0x0c	0x001f7620	survarium::game_world	survarium::game_world	observed: on_after_tick, the slot after tick in the primary vtable: its this is the game world as tick's (its +9Ch the game, +94h the sound scene it gives the listener)
+0x00a141a4	0x20	0x00305580	survarium::booby_trap_core	survarium::hit_receiver	observed: hit without a hit type (ret 20h), in the primary vtable
+0x00a141a4	0x24	0x00305540	survarium::booby_trap_core	survarium::hit_receiver	observed: hit with a hit type (ret 28h), the slot bullet::try_pierce calls on what its ray met (0x32DA0D mov edx,[edx+24h], 0x32DA3A)
+0x00a0455c	0x20	0x00305580	survarium::booby_trap	survarium::hit_receiver	observed: booby_trap_core::hit without a hit type, not overridden
+0x00a0455c	0x24	0x00305540	survarium::booby_trap	survarium::hit_receiver	observed: booby_trap_core::hit with a hit type, not overridden (the client trap takes a bullet here)

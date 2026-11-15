@@ -22789,6 +22789,30 @@ impl GrenadeChoiceFrame {
     }
 }
 
+/// A survarium::trap_hit_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TrapHitFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TrapHitFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (u32): booby_trap_core::hit fourth argument by its entry ESP: the hit type (hit_type_enum; a bullet ammo damage_type, pushed by bullet::try_pierce 0x32DA2E), which 0x30554C compares with the trap set defuse_by_hit
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kind(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -27637,6 +27661,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<RespawnEnteredFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(RespawnEnteredFrame)
+        }
+    }
+
+    /// trap.hit (0x305540): booby_trap_core::hit with a hit type, its entry (mov eax,[ecx+194h]; then the set defuse_by_hit against the hit type, 0x30554C): ECX the trap, ESP the return address and the ten arguments; defuse is where a hit of the trap own type goes on (cmp byte [ecx+220h],0: ECX alone is read)
+    pub mod trap_hit {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::trap_hit_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<TrapHitFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(TrapHitFrame)
         }
     }
 }
