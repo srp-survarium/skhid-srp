@@ -23,7 +23,7 @@
 //! It comes back as a floor like any other (its links as the cells made them), before the passes that read the floors (the gap
 //! links, the rim jumps): a landing there is named.
 
-use super::controlled::{out_of_walls, parallel, Stance};
+use super::controlled::{out_of_walls, parallel};
 use super::*;
 use crate::controller::tick::{Controller, CrouchInput, Settings, TickInput};
 use crate::controller::Collision;
@@ -87,21 +87,20 @@ pub(super) enum Settle {
     Moving,
 }
 
-/// [the own-point stand test] Where the client's walk tick rests a body set on the floor's own point `feet` in `stance`: put
+/// [the own-point stand test] Where the client's walk tick rests a standing body set on the floor's own point `feet`: put
 /// [`PUT_OWN_M`] over it with no push out of the walls (the client's world sets a body where it is put: the exe never moves it
-/// sideways), no keys but the crouch key for [`Stance::Crouched`], the rest test's steps. The exactness rig ran the exe's own tick
-/// so on 53 floors the wall give-back brought back (rig/s7-20261114/own-point-all-20261116.tsv): it holds 35, jams 14 and drops 4
-/// (on a slab's underside, or down a slope); this test gives the same class on all 53 (nav-builder phase4/variants-20261116.txt).
-/// Put over the floor and pushed out of the walls (before), it agreed on 18 to 41 of them: a pushed body rests 0.25-0.40 m
-/// from the floor's point, where the exe's body never goes.
-pub(super) fn settle(world: &Collision, s: &Settings, feet: Vec3, stance: Stance) -> Settle {
+/// sideways), no keys, the rest test's steps. The exactness rig ran the exe's own tick so on 53 floors the wall give-back brought
+/// back (rig/s7-20261114/own-point-all-20261116.tsv): it holds 35, jams 14 and drops 4 (on a slab's underside, or down a slope);
+/// this test, standing, gives the same class on 52 (nav-builder phase4/settle-20261116.txt; the one other is a box's underside,
+/// which the ground filter takes out). Put over the floor and pushed out of the walls (before), it agreed on 18 to 41 of them: a
+/// pushed body rests 0.25-0.40 m from the floor's point, where the exe's body never goes.
+///
+/// Standing only: the port's crouched body never stands still in the rest test's steps (`Moving` on all 53), where the exe's
+/// holds on most of them, so a crouched test would refuse every floor it ran on.
+pub(super) fn settle(world: &Collision, s: &Settings, feet: Vec3) -> Settle {
     let put = feet + Vec3::new(0.0, PUT_OWN_M, 0.0);
     let mut body = Controller::standing_at(put);
-    let key = stance == Stance::Crouched;
-    if key {
-        body.crouch_key(true);
-    }
-    let input = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key, legs_broken: false }, sprinting: false };
+    let input = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting: false };
     let mut run = 0;
     for _ in 0..REST_STEPS_MAX {
         let before = body.feet();
@@ -177,10 +176,10 @@ impl WalkGrid {
         let candidates: Vec<usize> = (0..alive.len())
             .filter(|&a| !alive[a] && self.ceiling[a] - self.height[a] >= self.body.stand_height && !self.named(alive, self.position(a as NodeId)))
             .collect();
-        // The own-point test ([`settle`]), standing: every candidate has a standing body's room.
+        // The own-point test ([`settle`]): every candidate has a standing body's room.
         let back = parallel(&candidates, |&a| {
             let centre = self.position(a as NodeId);
-            match settle(world, s, centre, Stance::Standing) {
+            match settle(world, s, centre) {
                 Settle::Rests(rest) => rest.distance_xz(centre) <= r && (rest.y - centre.y).abs() <= NAME_HEIGHT_M && !self.named(alive, rest),
                 Settle::Jammed | Settle::Moving => false,
             }
