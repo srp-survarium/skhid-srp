@@ -434,7 +434,9 @@ const LIVE_LEAVE_KILLS: u32 = 4;
 /// rhythm, not the enemy's coming.
 const LIVE_LEAVE_AFTER_KILL_P: [f32; 6] = [0.38, 0.33, 0.27, 0.23, 0.20, 0.17];
 /// [A239c] From that kill to his leaving 10 m of the spot, s, at the quantiles 0.1, 0.25, 0.5, 0.75 and 0.9 (6,312 runs that left).
-/// The stand-in's leave begins at the draw and takes a second or two to be 10 m off: LIKELY up to 2 s later than live.
+/// The stand-in's leave begins at the draw and takes a second or two to be 10 m off: LIKELY up to 2 s later than live. [G10] The
+/// camper's log line counts it as the table does (`CamperMotion::kill_to_off_line`: each leave from a stay with a kill, from that
+/// kill to [`LIVE_OFF_M`] off the stay's spot, at these quantiles), for a bench to read against this table.
 const LIVE_LEAVE_DELAY_S: [(f32, f32); 5] = [(0.1, 1.3), (0.25, 2.6), (0.5, 3.9), (0.75, 6.3), (0.9, 9.8)];
 /// [A239c] After a death at his spot, a live camper against the old bots started his next run back within 10 m of it in 140 of
 /// 1,030 (`camp_leave.py`); those that did killed 4.69 a run, those elsewhere 2.21.
@@ -480,11 +482,23 @@ enum Mode {
     /// Holding a spot: the area (the spot first), the point he is at, his kills this stay and the last one's time, and when to leave
     /// (none: no clock, [`MoveOptions::Live`] until an enemy comes near after a kill).
     Stay { area: Vec<Vec3>, here: usize, kills: u32, last_kill: Option<u32>, leave_at: Option<u32>, hold: Hold },
-    /// Walking to a new spot, since this time.
-    Leave { to: Vec3, since: u32 },
+    /// Walking to a new spot, since this time; [G10] after a stay with a kill, that kill and the spot left until he is
+    /// [`LIVE_OFF_M`] off it.
+    Leave { to: Vec3, since: u32, after_kill: Option<KillLeave> },
     /// Back from the dead, waiting where he spawned until this time to walk back to `to`.
     Return { at: u32, to: Vec3 },
 }
+
+/// [G10] A leave from a stay with a kill, timed as the live table [`LIVE_LEAVE_DELAY_S`] is: from that stay's last kill to his
+/// feet [`LIVE_OFF_M`] off the stay's spot.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct KillLeave {
+    kill_at: u32,
+    spot: Vec3,
+}
+
+/// [G10] The live table's "left": 10 m off the spot held ([A239c], `LIVE_LEAVE_DELAY_S`).
+const LIVE_OFF_M: f32 = 10.0;
 
 /// His stance over time: standing with a crouch spell now and then.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -519,6 +533,8 @@ pub(crate) struct CamperMotion {
     rng: Rng,
     /// What happened, for the notes and the tests: moves counted by cause.
     pub(crate) counts: MotionCounts,
+    /// [G10] Each timed leave ([`KillLeave`]): ms from the kill to [`LIVE_OFF_M`] off the spot.
+    pub(crate) kill_to_off_ms: Vec<u32>,
 }
 
 /// Counted as it goes.
@@ -540,6 +556,11 @@ pub(crate) struct MotionCounts {
     pub(crate) life_starts_elsewhere: u32,
     /// [A239c] Leaves decided by the draw after a kill ([`LiveLeave::PerKill`]).
     pub(crate) leaves_by_kill: u32,
+    /// [G10] Timed leaves ([`KillLeave`]) that ended before he was [`LIVE_OFF_M`] off the spot: a death, or a walk given up.
+    pub(crate) kill_leaves_cut: u32,
+    /// [G10] Timed leaves that arrived at their next spot short of [`LIVE_OFF_M`] off the one he left (the live table's "not
+    /// left"): timed leaves are the timed ([`CamperMotion::kill_to_off_ms`]), the cut and these.
+    pub(crate) kill_leaves_short: u32,
 }
 
 /// What a think of the camper knows.
@@ -594,6 +615,7 @@ impl CamperMotion {
             chosen_after: None,
             rng,
             counts: MotionCounts::default(),
+            kill_to_off_ms: Vec::new(),
         }
     }
 
@@ -608,6 +630,28 @@ impl CamperMotion {
     /// Whether he is in the cover hold of a stay (not on a peek, a step to another point, nor on his way).
     pub(crate) fn holds_cover(&self) -> bool {
         matches!(&self.mode, Mode::Stay { hold: Hold::Cover { .. }, .. })
+    }
+
+    /// [G10] The timed leaves for the log: seconds from the kill to [`LIVE_OFF_M`] off the spot at the live table's quantiles, how
+    /// many, how many were cut and how many arrived short, and the live values ([`LIVE_LEAVE_DELAY_S`], 6,312 runs). Empty with
+    /// none of the three.
+    pub(crate) fn kill_to_off_line(&self) -> String {
+        if self.kill_to_off_ms.is_empty() && self.counts.kill_leaves_cut == 0 && self.counts.kill_leaves_short == 0 {
+            return String::new();
+        }
+        let mut ms = self.kill_to_off_ms.clone();
+        ms.sort_unstable();
+        let at = |q: f32| ms.get(((ms.len().saturating_sub(1)) as f32 * q).round() as usize).map_or(f32::NAN, |&v| v as f32 / 1000.0);
+        let join = |values: Vec<f32>| values.iter().map(|v| format!("{v:.1}")).collect::<Vec<_>>().join("/");
+        format!(
+            " kill to {LIVE_OFF_M} m off, s, P{}: {} (n {}, cut {}, arrived short {}; live {}, 6,312 runs)",
+            LIVE_LEAVE_DELAY_S.iter().map(|(q, _)| format!("{:.0}", q * 100.0)).collect::<Vec<_>>().join("/"),
+            join(LIVE_LEAVE_DELAY_S.iter().map(|(q, _)| at(*q)).collect()),
+            ms.len(),
+            self.counts.kill_leaves_cut,
+            self.counts.kill_leaves_short,
+            join(LIVE_LEAVE_DELAY_S.iter().map(|(_, s)| *s).collect()),
+        )
     }
 
     /// The area point, other than `here`, whose distance from it is nearest a draw in `range`.
@@ -634,18 +678,33 @@ impl CamperMotion {
         self.last_think = now;
         if t.me.spawned != self.life {
             self.life = t.me.spawned;
+            // [G10] A timed leave the death ended before he was off.
+            if matches!(self.mode, Mode::Leave { after_kill: Some(_), .. }) {
+                self.counts.kill_leaves_cut += 1;
+            }
             self.respawned(t, away);
         }
         self.mode = match self.mode.clone() {
-            Mode::Return { at, to } if now >= at => Mode::Leave { to, since: now },
+            Mode::Return { at, to } if now >= at => Mode::Leave { to, since: now, after_kill: None },
             Mode::Return { at, to } => Mode::Return { at, to },
-            Mode::Leave { to, .. } if t.me.feet.distance_xz(to) <= ARRIVED_M => self.arrive(t, to),
-            Mode::Leave { since, .. } if now.saturating_sub(since) >= LEAVE_TIMEOUT_MS => {
+            // [G10] Off the spot he left after a kill: timed.
+            Mode::Leave { to, since, after_kill: Some(k) } if t.me.feet.distance_xz(k.spot) >= LIVE_OFF_M => {
+                self.kill_to_off_ms.push(now.saturating_sub(k.kill_at));
+                Mode::Leave { to, since, after_kill: None }
+            }
+            // [G10] An arrival can come first: an anchored scenario's next spot lies `ANCHORED_MIN_M` (8 m) off, and a free one's
+            // 10 m off is reached within `ARRIVED_M` of it. Such a timed leave never left 10 m in the live table's sense: counted short.
+            Mode::Leave { to, after_kill, .. } if t.me.feet.distance_xz(to) <= ARRIVED_M => {
+                self.counts.kill_leaves_short += u32::from(after_kill.is_some());
+                self.arrive(t, to)
+            }
+            Mode::Leave { since, after_kill, .. } if now.saturating_sub(since) >= LEAVE_TIMEOUT_MS => {
                 // Unreachable: he holds where he stands.
                 self.counts.gave_up += 1;
+                self.counts.kill_leaves_cut += u32::from(after_kill.is_some());
                 self.arrive(t, t.me.feet)
             }
-            Mode::Leave { to, since } => Mode::Leave { to, since },
+            Mode::Leave { to, since, after_kill } => Mode::Leave { to, since, after_kill },
             Mode::Stay { area, here, kills, last_kill, leave_at, hold } => self.stay(t, Stayed { area, here, kills, last_kill, leave_at }, hold, killed, hit),
         };
         self.stance = self.next_stance(now);
@@ -659,7 +718,7 @@ impl CamperMotion {
         if matches!(self.moving, MoveOptions::Live(_))
             && let Some(to) = self.life_start.take().or_else(|| camper_spot_at(t.tactics, t.side, &self.options).map(|(at, _)| at))
         {
-            self.mode = Mode::Leave { to, since: t.now };
+            self.mode = Mode::Leave { to, since: t.now, after_kill: None };
             return;
         }
         let spot = self.spot();
@@ -676,7 +735,7 @@ impl CamperMotion {
             Some(to) => {
                 self.counts.moved_on += 1;
                 self.previous = Some(spot);
-                self.mode = Mode::Leave { to, since: t.now };
+                self.mode = Mode::Leave { to, since: t.now, after_kill: None };
             }
             // No other spot on this map for his scenario: he goes back at once.
             None => self.mode = Mode::Return { at: t.now, to: spot },
@@ -731,7 +790,8 @@ impl CamperMotion {
                 Some(to) => {
                     self.counts.leaves += 1;
                     self.previous = Some(area[0]);
-                    Mode::Leave { to, since: now }
+                    let after_kill = last_kill.map(|kill_at| KillLeave { kill_at, spot: area[0] });
+                    Mode::Leave { to, since: now, after_kill }
                 }
                 // No other spot: he stays and the clock restarts.
                 None => {
@@ -1280,7 +1340,7 @@ impl BenchCamper {
             _ => format!("{:?}", self.first_spot()),
         };
         let counts = match &self.state {
-            CamperState::Moving { motion, .. } => format!(" moves {:?}", motion.counts),
+            CamperState::Moving { motion, .. } => format!(" moves {:?}{}", motion.counts, motion.kill_to_off_line()),
             CamperState::Returning { live, .. } => format!(" returns {:?}", live.counts),
             _ => String::new(),
         };
@@ -1594,6 +1654,42 @@ mod tests {
         let mut busy = motion_with(live, 1);
         run(&mut busy, &tactics, 0, 9_100, Some(Vec3::new(40.0, 0.0, 0.0)), |now| (now / 1_000).min(4));
         assert_eq!(busy.counts.leaves, 1, "{:?}", busy.counts);
+    }
+
+    /// [G10] A leave after a kill is timed from that kill to 10 m off the spot, as the live table is; a leave with no kill is not;
+    /// a death on the way cuts it.
+    #[test]
+    fn a_leave_after_a_kill_is_timed_to_ten_metres_off_the_spot() {
+        let tactics = tactics();
+        let live = CamperOptions { moving: Some(MoveOptions::Live(LiveLeave::NearEnemy)), ..CamperOptions::OFF };
+        // A kill at 1 s with an enemy 10 m off: he goes 1-3 s later; the body arrives at once, so the next think is off.
+        let mut near = motion_with(live, 1);
+        run(&mut near, &tactics, 0, 6_000, Some(Vec3::new(10.0, 0.0, 0.0)), |now| u32::from(now >= 1_000));
+        assert_eq!(near.counts.leaves, 1, "{:?}", near.counts);
+        assert_eq!(near.kill_to_off_ms.len(), 1, "{:?}", near.mode);
+        assert!((1_100..=3_200).contains(&near.kill_to_off_ms[0]), "{:?}", near.kill_to_off_ms);
+        let line = near.kill_to_off_line();
+        assert!(line.contains("P10/25/50/75/90") && line.contains("(n 1, cut 0, arrived short 0; live 1.3/2.6/3.9/6.3/9.8"), "{line}");
+        // A leave on the dwell clock, with no kill: not timed.
+        let mut idle = motion();
+        run(&mut idle, &tactics, 0, 30_000, None, |_| 0);
+        assert_eq!((idle.counts.leaves, idle.kill_to_off_ms.len()), (1, 0), "{:?}", idle.counts);
+        assert!(idle.kill_to_off_line().is_empty());
+        // A death on a timed leave, before 10 m off: cut.
+        let mut died = motion_with(live, 1);
+        let spot = here(&died);
+        died.mode = Mode::Leave { to: Vec3::new(30.0, 0.0, 0.0), since: 1_000, after_kill: Some(KillLeave { kill_at: 500, spot }) };
+        died.step(&Think { now: 1_100, me: &me_at(spot, 0, 1.0, 9_000), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None });
+        assert_eq!((died.counts.kill_leaves_cut, died.kill_to_off_ms.len()), (1, 0), "{:?}", died.counts);
+        // A next spot 8 m off (an anchored scenario's `ANCHORED_MIN_M`): he arrives short of 10 m off, counted short.
+        let mut short = motion_with(live, 1);
+        let spot = here(&short);
+        let next = spot + Vec3::new(8.0, 0.0, 0.0);
+        short.mode = Mode::Leave { to: next, since: 1_000, after_kill: Some(KillLeave { kill_at: 500, spot }) };
+        short.step(&Think { now: 1_100, me: &me_at(next, 0, 1.0, 0), enemy: None, tactics: &tactics, side: 0, last_hit_ms: None });
+        assert!(matches!(short.mode, Mode::Stay { .. }), "arrived: {:?}", short.mode);
+        assert_eq!((short.counts.kill_leaves_short, short.counts.kill_leaves_cut, short.kill_to_off_ms.len()), (1, 0, 0), "{:?}", short.counts);
+        assert!(short.kill_to_off_line().contains("(n 0, cut 0, arrived short 1;"), "{}", short.kill_to_off_line());
     }
 
     /// [A239c] The live runs' leave rule: quiet, he holds; after a kill he leaves with the runs' chance for its rank, a live while
