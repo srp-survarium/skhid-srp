@@ -675,6 +675,7 @@ fn build(
                         let started = Instant::now();
                         let ties_before = mapdata::controller::sweep_ties();
                         let cull_before = mapdata::controller::sweep_cull();
+                        let top_before = mapdata::controller::top_check_start();
                         let (grid, stats) = World::map_grid_with_stats(&map, &walker, cell, body, links);
                         // [L36] The sweeps' ties at their closest fraction during this build (the process's counters' growth: a
                         // build that runs beside another counts its ties too). A log's only.
@@ -698,6 +699,15 @@ fn build(
                             cull.skipped - cull_before.skipped,
                             cull.added - cull_before.added,
                             cull.end_rebuilt_differs - cull_before.end_rebuilt_differs
+                        );
+                        // [L36] Where the move test's top check, with the main start, answered otherwise than with each shape's
+                        // own start during this build (the counters' growth). A log's only.
+                        let top = mapdata::controller::top_check_start();
+                        log::info!(
+                            "Bot map {} top check start: {} fraction-0 contacts and {} wall rays answered otherwise than with the shape's own start",
+                            path.display(),
+                            top.fraction_zero - top_before.fraction_zero,
+                            top.wall_ray - top_before.wall_ray
                         );
                         // A log's only: what each pass of the build did (a grid read from the cache has no such line).
                         log::info!(

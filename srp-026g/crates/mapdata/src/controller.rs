@@ -311,6 +311,40 @@ fn count_cull_parting(offered_now: bool) {
     CULL_COUNTS[usize::from(offered_now)].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
+/// [L36] Where the move test's top check (0x85F50), whose callbacks take the main start, would have answered otherwise with each
+/// shape's own start (the port's before). Totals of this process, for the logs: no decision reads them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TopCheckStart {
+    /// Contacts at fraction 0 the fraction-0 test (0x896EA..0x8972A) keeps or drops otherwise.
+    pub fraction_zero: u64,
+    /// Wall rays (0x89B80) whose normal comes out otherwise.
+    pub wall_ray: u64,
+}
+
+/// What [`TopCheckStart`] counts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TopCheckParting {
+    FractionZero,
+    WallRay,
+}
+
+static TOP_CHECK_COUNTS: [std::sync::atomic::AtomicU64; 2] = [const { std::sync::atomic::AtomicU64::new(0) }; 2];
+
+/// The process's [`TopCheckStart`] so far.
+pub fn top_check_start() -> TopCheckStart {
+    let n = |i: usize| TOP_CHECK_COUNTS[i].load(std::sync::atomic::Ordering::Relaxed);
+    TopCheckStart { fraction_zero: n(0), wall_ray: n(1) }
+}
+
+/// [L36] Counts one parting ([`TopCheckStart`]).
+fn count_top_check_parting(what: TopCheckParting) {
+    let i = match what {
+        TopCheckParting::FractionZero => 0,
+        TopCheckParting::WallRay => 1,
+    };
+    TOP_CHECK_COUNTS[i].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// One sweep's ties at its closest fraction so far: the closest, what the first contact there was, and the counts.
 struct Ties {
     closest: f32,
