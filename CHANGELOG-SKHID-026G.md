@@ -9,6 +9,39 @@ release that made it what it is now.
 
 ---
 
+## 15 Nov, 16:26 — TODO: the owner's words (update required)
+
+<!-- Revision 60 (026g-rev60), released 2026-11-15 16:26 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1714 Patch 70: the baked textures' folder holds 3 GiB, the list grows, the oldest let go first
+- TODO: #1849 Artefact tree: row V at 17 points
+- TODO: #1865 Read a target shown with its clan tag as the player
+- TODO: #1848 Rooms: any public queue of three opens another room
+- TODO: #1876 Voice: take a seat's datagrams from its network, not only its exact IP
+- TODO: #1844 Keep every item's built-in bonuses in one order, ammo bags first
+- TODO: #1871 Free for All: Experimental Pool, School and Vostok (with its ports) spawns at the owner's picks
+- TODO: #1877 Freedom suit: hip-fire accuracy in place of stamina regeneration
+- TODO: #1908 Free for All: Mamayev Kurgan (native and v0.21) spawns at the owner's picks
+- TODO: #1851 Voice: the whole mix 6 dB louder before its limiter
+- TODO: #1887 Patch 144: the Settings' Game slider lowers the game's sounds, not the music or the voice chat
+- TODO: #1924 Free for all: choose from a map's whole team-2 group, up to 128 points
+- TODO: #1920 Free for all: never respawn at one of the last two points
+- TODO: #1967 Settings: hit marker list (All, Kill marker only, Hidden)
+- TODO: #1964 Every run's logs in files of their own (patch 147, updater, crash reporter)
+- TODO: #2021 Voice: opponents within 10 m hear the plain voice in every mode
+- TODO: #2022 Hit marker list: Kill marker only shows the whole kill marker
+- TODO: #1999 Patch 148: an empty shot is not logged
+- TODO: #2056 Voice: an opponent's speaker in the talking list is pale red
+- TODO: #2060 Voice list: a name never a key of an object
+- TODO: #2061 Rooms: "(owner)" only in a private room
+- TODO: #2055 Updater: PLAY stays off under 5 GB free on the Documents drive
+- TODO: #1854 Winchester and Colt level 10 and pricier; Saloon 20 % in two variations; Racket's AK-74N in level-10 rooms; no twists in private rooms
+- TODO: #2063 Rooms: each card picks a map, then its weather (every map alike)
+- TODO: #2067 Drop Windows 7: client programs on i686-pc-windows-msvc
+- TODO: #2066 FFA: Saloon (Winchester) by name, Saloon 5 / Winchester 15; STALKER maps last in the create window
+- TODO: #2071 Rooms: each card draws its mode, map and weather from pools (no mode or map twice)
+- TODO: #2075 Racket: clips of the gun's own ammo unless the kit already holds that ammo
+
 ## 14 Nov, 15:39 — TODO: the owner's words (update required)
 
 <!-- Revision 59 (026g-rev59), released 2026-11-14 15:39 UTC. To be worded for players; what it shipped: -->

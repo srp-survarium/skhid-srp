@@ -62,10 +62,10 @@ fort_401	Fort-401	Machine guns	14		43	43	30	65	60	750	100	6.9	0.36	6.5	1.5–2	-
 pkp_pecheneg	PKP "Pecheneg"	Machine guns	15		45	45	30	50	60	650	100	10	0.4	7	2.5–3	-0.5–0.5	0.85	0.1	3	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 mosin_nagant	Mosin carbine	Sniper rifles	0		110	40	30	100	60	160	5	2.5	0.35	3.5	3	0	1	0.1	10	25	8		Damage, Distance, Dispersion, Reload speed, Chambering time, Weight, Aiming speed, Weapon recoil, Armor penetration
 toz_122	TOZ-122	Sniper rifles	3		120	45	30	100	60	200	5	3	0.35	3.5	3	0	1	0.1	5	20	10		Damage, Distance, Dispersion, Reload speed, Chambering time, Weight, Aiming speed, Weapon recoil, Armor penetration
-winchester_1894	Winchester Model 1894	Sniper rifles	3		100	40	30	100	80	200	6	2.4	0.3	3.1	3	0	1	0.15	1	20	10		Damage, Distance, Dispersion, Reload speed, Chambering time, Weight, Aiming speed, Weapon recoil, Armor penetration
 rem_700	Remington 700	Sniper rifles	5		120	45	30	100	60	120	5	3	0.35	3.6	3	0	1	0.05	10	20	5		Damage, Distance, Dispersion, Reload speed, Chambering time, Weight, Aiming speed, Weapon recoil, Armor penetration
 rem_700_premium	Remington 700 "Executioner"	Sniper rifles	5	yes	120	45	30	100	60	120	5	3	0.35	3.6	3	0	1	0.05	10	20	5		Damage, Distance, Dispersion, Reload speed, Chambering time, Weight, Aiming speed, Weapon recoil, Armor penetration
 sv_98	SV-98	Sniper rifles	9		120	50	30	100	60	220	10	5	0.35	6.2	3	0	1	0.05	10	20	5		Damage, Distance, Dispersion, Reload speed, Chambering time, Weight, Aiming speed, Weapon recoil, Armor penetration
+winchester_1894	Winchester Model 1894	Sniper rifles	10		100	55	30	100	80	200	6	2.4	0.3	3.1	3	0	1	0.15	1	20	10		Damage, Distance, Dispersion, Reload speed, Chambering time, Weight, Aiming speed, Weapon recoil, Armor penetration
 vss	VSS "Vintorez"	Sniper rifles	12		50	30	20	50	80	600	20	2.7	0.3	3.1	0.3–0.4	-0.1–0.1	0.4	0.15	2	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 vss_premium	VSS "Vintorez"	Sniper rifles	12	yes	50	30	20	50	80	600	20	2.7	0.3	3.1	0.3–0.4	-0.1–0.1	0.4	0.15	2	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 vsk_94	VSK-94	Sniper rifles	14		50	30	20	50	60	600	20	2.6	0.3	2.8	0.6–0.8	-0.2–0.2	0.4	0.15	2	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
@@ -101,4 +101,4 @@ fort_17	Fort 17	Pistols	6		35	20	15	40	60	300	12	1.6	0.2	0.75	0.8	0	0.5	0.4	1.5	
 mauser_m712	Mauser M.712	Pistols	6		35	25	15	40	60	580	10	1.5	0.25	1.7	1–1.2	-0.4–0.4	0.6	0.35	1.5	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 mp443	MP-443 Grach	Pistols	6		40	20	15	40	60	300	18	1.4	0.15	0.95	0.8–1	-0.25–0.25	0.5	0.4	1.5	20	15		Damage, Distance, Dispersion, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
 glock_17	Glock 17	Pistols	7		36	20	15	40	60	375	17	1.25	0.2	0.7	1.1–1.4	-0.4–0.4	0.6	0.35	1.5	20	10		Damage, Distance, Dispersion, Rate of fire, Reload speed, Weight, Aiming speed, Weapon recoil, Armor penetration
-magnum	Colt Python	Pistols	14		80	65	25	50	70	120	6	3.5	0.2	1.1	0.8	0	0.5	0.3	1.5	20	15		Damage, Distance, Dispersion, Weight, Aiming speed, Weapon recoil, Armor penetration
+magnum	Colt Python	Pistols	10		80	65	25	50	70	120	6	3.5	0.2	1.1	0.8	0	0.5	0.3	1.5	20	15		Damage, Distance, Dispersion, Weight, Aiming speed, Weapon recoil, Armor penetration
