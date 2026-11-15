@@ -30,13 +30,15 @@ site = "carry.load"
 handler = "on_load"
 
 # Shared sites compose explicitly in ragdoll's on_bones/on_cull; there is one
-# installed detour at each address. The input builder's end is this patch's
-# own (patch 65 no longer filters the input, 2026-11-11); its handler goes on
-# to patch 85's pickup.
+# installed detour at each address. The input builder's end: patch 149's item
+# keys put their quick-use bits in first (item_hotkeys.toml, order 0), then
+# this patch's chord (patch 65 no longer filters the input, 2026-11-11); its
+# handler goes on to patch 85's pickup.
 
 [[hook]]
 site = "input_builder.end"
 handler = "on_input_end"
+order = 1
 
 [[hook]]
 site = "carry.weapon"

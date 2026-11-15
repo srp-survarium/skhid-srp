@@ -5881,3 +5881,20 @@ match). `EMPTY_SHOT_QUIET` makes the assert's own skip (0x30EC1F, taken when its
 always taken, to the function's return: the original's empty shot, without the report. Shots,
 queues, animations and sounds are unchanged. `check_empty_shot_026g.py` runs the function in both
 exes (needs Unicorn).
+
+## A key per item type (patch 149, unreleased)
+
+Fourteen new game actions, unbound, one Options > Controls row each (game group): Onyx, Spring,
+Lifebone, the seven medicines, RGD-5, RDG-M, the trap and the oxygen tank
+(`docs/notes/item-hotkeys.md`). A key is a press of the quick-use key (3..8) of the first quick
+slot holding its item: at the input builder's end (0x2421B0), before patch 78's chord, the Rust
+patch `item_hotkeys` sets that slot's quick-use bit while the game would set it for the slot's
+key; nothing of that type, nothing. Only the input bits the game already has: nothing a match
+computes. The game's action table ends where the key names begin, so `item_hotkeys_026g.asm`
+(block item_hotkeys.data) is the table again, the game's 60 rows (artefact's default H, patch 78's)
+and the fourteen (ids 4Ah..57h); `ITEM_HOTKEYS_TABLE_REFS` / `_END` / `_COUNTS` repoint the key
+binder's four readers of it. The binder's bindings (one per action id) grow from 48h to 60h:
+`ITEM_HOTKEYS_BINDER` makes its allocation, construction, get_binded_action, bind_key's pass and
+the save's loop 60h, and moves its game pointer (+360h) after them. The rows are patch 62's
+`controls` (56 rows). `check_item_hotkeys_026g.py` runs the binder's functions and the whole input
+builder in both exes (needs Unicorn); `docs/notes/client_patch.md` 3.82.

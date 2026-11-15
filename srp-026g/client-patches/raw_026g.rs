@@ -23149,6 +23149,9 @@ pub mod image {
     /// 0xa1c79c (u32, survarium::image): medkit's primary vtable, written by ctor 0x33CAE6 (all medical consumables)
     pub const MEDKIT_VTABLE: u32 = 0xa1c79c;
 
+    /// 0xa1c874 (u32, survarium::image): oxygen_tank's primary vtable, written by its ctor 0x33E010 at 0x33E029 (every oxygen pack: a back item, the back slot's quick item)
+    pub const OXYGEN_TANK_VTABLE: u32 = 0xa1c874;
+
     /// 0x21e75e0 (obj<vostok::buffer_string>, vostok::core::image): the game language, a buffer_string {begin, end, capacity end} over 16 bytes at 21E75ECh: "original" (0x84E3E0) or -localization= (core::preinitialize 0xE3C52); every reader of the dictionary's name reads it (load_text_localization 0x1FEED6, the swear filter 0x1EA868, the Flash texts 0x21EC9E, the chat language 0x26C1DE)
     #[inline(always)]
     pub fn localization() -> BufferString {

@@ -5,6 +5,7 @@
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use artefact_carry::{Artefact, ArtefactId, ContainerIndex, Refused};
+use artefact_carry::carry::QuickSlot;
 
 
 use super::hook::Thread;
@@ -13,6 +14,35 @@ use crate::raw;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContainerSpace { Missing, Full, Available }
+
+/// An item's dictionary id (items_dict: its entry's u16 at +0; the id the
+/// lobby and the server name it by, scripts/content-edit/items.tsv).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DictId(pub u16);
+
+/// The class of an item, where a patch tells classes apart (its primary
+/// vtable): an oxygen pack (oxygen_tank, whatever its dictionary id), or
+/// another.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemClass {
+    OxygenTank,
+    Other,
+}
+
+/// What a quick slot holds: its item's dictionary id and class.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QuickItem {
+    pub id: DictId,
+    pub class: ItemClass,
+}
+
+/// Where a quick slot's item is: one of the 23 fixed slots, or an artefact
+/// container (their own allocation).
+#[derive(Clone, Copy)]
+enum QuickPlace {
+    Slot(raw::InventorySlot),
+    Container(ContainerIndex),
+}
 
 /// A player's inventory on the simulation thread. These views are not
 /// stored between hooks; a later interaction resolves the player again.
@@ -92,27 +122,63 @@ impl<'t> Inventory<'t> {
         self.passive_item(expected).map(|item| item.address())
     }
 
-    /// Resolve a quick-use ordinal with the native ordering, then require a
-    /// passive, owned artefact. Medkits and empty containers return None.
-    pub fn quick_artefact(&self, quick: u8) -> Option<Artefact> {
-        if quick >= 6 || !self.alive() {
-            return None;
-        }
+    /// Where quick-use ordinal `quick` is, by the game's ordering
+    /// (quick_slot_to_inventory_slot 0x2FE7F0, as the hud's quick slots and
+    /// process_quick_slots read it: the pockets, the gear's quick items, then
+    /// every artefact container, an empty one too). The game's answer is a
+    /// fixed slot, or a container's place relative to the fixed slots (native
+    /// wrapping arithmetic); it is parsed against the 23 slots and the
+    /// containers' allocation before anything is read through it.
+    fn quick_place(&self, quick: QuickSlot) -> Option<QuickPlace> {
         // SAFETY: native lookup, verified ABI; it only reads this inventory.
-        let slot = unsafe { raw::engine_quick_inventory_slot(Some(self.this), u32::from(quick)) };
-        if slot == 23 {
+        let slot = unsafe { raw::engine_quick_inventory_slot(Some(self.this), u32::from(quick.get())) };
+        if slot < u32::from(SLOTS) {
+            // SAFETY: one of this live inventory's 23 slots (+10Ch + 4 x slot).
+            return Some(QuickPlace::Slot(unsafe { self.this.slots().at(slot as usize) }));
+        }
+        if slot == u32::from(SLOTS) {
             return None;
         }
         let containers = self.containers()?;
-        // Reconstruct an address using native wrapping arithmetic, then
-        // parse it against the external allocation before dereferencing.
+        // SAFETY: the slots' address as a value, never read through here.
         let base = unsafe { self.this.slots().address() };
         let entry = base.wrapping_add(slot.wrapping_mul(4));
         let offset = entry.checked_sub(containers.first.address())?;
         if offset % 4 != 0 {
             return None;
         }
-        let slot = ContainerIndex::parse(u8::try_from(offset / 4).ok()?)?;
+        let index = ContainerIndex::parse(u8::try_from(offset / 4).ok()?)?;
+        containers.entry(index).map(|_| QuickPlace::Container(index))
+    }
+
+    /// The item quick-use ordinal `quick` holds, as the hud shows it
+    /// (game_world_ui::update_local_player_state 0x23B740): none past the last
+    /// quick slot, or for an empty artefact container.
+    pub fn quick_item(&self, quick: QuickSlot) -> Option<QuickItem> {
+        let entry = match self.quick_place(quick)? {
+            QuickPlace::Slot(entry) => entry,
+            QuickPlace::Container(index) => self.containers()?.entry(index)?,
+        };
+        // SAFETY: a slot of this live inventory, its item alive while the slot
+        // holds it, its vtable its own, and its dictionary entry the game's
+        // (static data).
+        unsafe {
+            let item = entry.item()?;
+            let class = match read(item.vtable()) {
+                raw::image::OXYGEN_TANK_VTABLE => ItemClass::OxygenTank,
+                _ => ItemClass::Other,
+            };
+            Some(QuickItem { id: DictId(read(item.entry()?.dict_id())), class })
+        }
+    }
+
+    /// Resolve a quick-use ordinal with the native ordering, then require a
+    /// passive, owned artefact. Medkits and empty containers return None.
+    pub fn quick_artefact(&self, quick: QuickSlot) -> Option<Artefact> {
+        if !self.alive() {
+            return None;
+        }
+        let QuickPlace::Container(slot) = self.quick_place(quick)? else { return None };
         let item = self.item_in(slot)?;
         // SAFETY: the item came from a native artefact slot, not a drug slot.
         let id = ArtefactId::parse(unsafe { read(item.id()) })?;

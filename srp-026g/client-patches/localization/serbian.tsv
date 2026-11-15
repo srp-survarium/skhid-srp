@@ -3052,12 +3052,26 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Neutralan
 st_unlimited_upload	bez ograničenja
 st_use_action	Upotrebi
+st_use_antitoxin_action	Upotrebi protivotrov
 st_use_artefact_container	Izvadi artefakt ({USE})
+st_use_bandages_action	Upotrebi paket zavoja
+st_use_blackmarket_medkit_action	Upotrebi prvu pomoć Crnog tržišta
 st_use_fix_voucher	Komplet za popravku
 st_use_item_message	Želite li zaista da upotrebite ovaj predmet?
 st_use_ladder	Merdevine
+st_use_lifebone_action	Upotrebi Živokost
+st_use_medkit_action	Upotrebi prvu pomoć
 st_use_microphone_option	Koristi mikrofon
+st_use_military_medkit_action	Upotrebi vojnu prvu pomoć
+st_use_onyx_action	Upotrebi Oniks
+st_use_oxygen_tank_action	Upotrebi bocu sa kiseonikom
+st_use_painkiller_action	Upotrebi anestetik
+st_use_rdgm_action	Baci dimnu granatu RDG-M
 st_use_resupply_zone	Dopuni municiju ({USE})
+st_use_rgd5_action	Baci granatu RGD-5
+st_use_science_medkit_action	Upotrebi naučnu prvu pomoć
+st_use_spring_action	Upotrebi Feder
+st_use_trap_action	Upotrebi zamku
 st_use_two_double_handed_weapons_description	Možete poneti dva dvoručna oružja u meč.
 st_use_two_double_handed_weapons_name	Terminator
 st_using_progress_message	Napredak:

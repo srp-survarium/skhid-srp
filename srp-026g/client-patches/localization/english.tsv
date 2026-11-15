@@ -3052,12 +3052,26 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Neutral
 st_unlimited_upload	unlimit
 st_use_action	Use
+st_use_antitoxin_action	Use Antitoxin
 st_use_artefact_container	Procure artifact ({USE})
+st_use_bandages_action	Use bandages
+st_use_blackmarket_medkit_action	Use Black Market Medkit
 st_use_fix_voucher	Repair kit
 st_use_item_message	Are you sure you want to use this item?
 st_use_ladder	Ladder
+st_use_lifebone_action	Use Larkspur
+st_use_medkit_action	Use Medikit
 st_use_microphone_option	Use microphone
+st_use_military_medkit_action	Use Military Medkit
+st_use_onyx_action	Use Onyx
+st_use_oxygen_tank_action	Use oxygen tank
+st_use_painkiller_action	Use Anesthetic
+st_use_rdgm_action	Throw smoke grenade RDG-M
 st_use_resupply_zone	Add ammunition ({USE})
+st_use_rgd5_action	Throw RGD-5 grenade
+st_use_science_medkit_action	Use Science Medkit
+st_use_spring_action	Use Spring
+st_use_trap_action	Use trap
 st_use_two_double_handed_weapons_description	You can carry two two-handed weapons into a match.
 st_use_two_double_handed_weapons_name	Terminator
 st_using_progress_message	Progress:

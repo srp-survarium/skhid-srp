@@ -3052,12 +3052,26 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Neutral
 st_unlimited_upload	unbegrenzt
 st_use_action	Anwenden
+st_use_antitoxin_action	Gegengift anwenden
 st_use_artefact_container	Das Artefakt erhalten ({USE})
+st_use_bandages_action	Verbandpackung anwenden
+st_use_blackmarket_medkit_action	Schwarzmarkt-Kit anwenden
 st_use_fix_voucher	Reparatur Kit
 st_use_item_message	Wollen sie den Gegenstand wirklich verwenden?
 st_use_ladder	Treppe
+st_use_lifebone_action	Lebknochen anwenden
+st_use_medkit_action	Erste-Hilfe anwenden
 st_use_microphone_option	Das Mikrofon nutzen.
+st_use_military_medkit_action	Armee-Kit anwenden
+st_use_onyx_action	Onyx anwenden
+st_use_oxygen_tank_action	Sauerstoffflasche anwenden
+st_use_painkiller_action	Schmerzmittel anwenden
+st_use_rdgm_action	Rauchgranate RDG-M werfen
 st_use_resupply_zone	Munition ergänzen ({USE})
+st_use_rgd5_action	Granate RGD-5 werfen
+st_use_science_medkit_action	Wissenschafts-Kit anwenden
+st_use_spring_action	Feder anwenden
+st_use_trap_action	Falle anwenden
 st_use_two_double_handed_weapons_description	Sie können in den Kampf zwei Zweihandwaffen nehmen.
 st_use_two_double_handed_weapons_name	Terminator
 st_using_progress_message	Fortschritt:

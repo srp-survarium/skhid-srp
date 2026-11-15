@@ -3052,12 +3052,26 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Neutraali
 st_unlimited_upload	rajaton
 st_use_action	Käytä
+st_use_antitoxin_action	Käytä vastamyrkkyä
 st_use_artefact_container	Kerää artefakti ({USE})
+st_use_bandages_action	Käytä sidepakkausta
+st_use_blackmarket_medkit_action	Käytä mustan pörssin ensiapupakkausta
 st_use_fix_voucher	Korjaussarja
 st_use_item_message	Haluatko varmasti käyttää tämän esineen?
 st_use_ladder	Tikapuut
+st_use_lifebone_action	Käytä Ritarinkannusta
+st_use_medkit_action	Käytä ensiapupakkausta
 st_use_microphone_option	Käytä mikrofonia
+st_use_military_medkit_action	Käytä sotilasensiapupakkausta
+st_use_onyx_action	Käytä Onyksia
+st_use_oxygen_tank_action	Käytä happipulloa
+st_use_painkiller_action	Käytä kipulääkettä
+st_use_rdgm_action	Heitä RDG-M-savukranaatti
 st_use_resupply_zone	Täydennä ammukset ({USE})
+st_use_rgd5_action	Heitä RGD-5-kranaatti
+st_use_science_medkit_action	Käytä tieteellistä ensiapupakkausta
+st_use_spring_action	Käytä Jousta
+st_use_trap_action	Käytä ansaa
 st_use_two_double_handed_weapons_description	Voit ottaa otteluun kaksi kahden käden asetta.
 st_use_two_double_handed_weapons_name	Terminaattori
 st_using_progress_message	Edistyminen:

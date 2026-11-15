@@ -3052,12 +3052,26 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Нейтрал
 st_unlimited_upload	без обмежень
 st_use_action	Використати
+st_use_antitoxin_action	Використати антитоксин
 st_use_artefact_container	Дістати артефакт ({USE})
+st_use_bandages_action	Використати перев'язувальний пакет
+st_use_blackmarket_medkit_action	Використати аптечку Чорного Ринку
 st_use_fix_voucher	Ремнабір
 st_use_item_message	Ви дійсно хочете використати предмет?
 st_use_ladder	Драбина
+st_use_lifebone_action	Використати Живокіст
+st_use_medkit_action	Використати аптечку
 st_use_microphone_option	Використовувати мікрофон
+st_use_military_medkit_action	Використати військову аптечку
+st_use_onyx_action	Використати Онікс
+st_use_oxygen_tank_action	Використати кисневий балон
+st_use_painkiller_action	Використати знеболювальне
+st_use_rdgm_action	Кидок димової гранати РДГ-М
 st_use_resupply_zone	Поповнити амуніцію ({USE})
+st_use_rgd5_action	Кидок гранати РГД-5
+st_use_science_medkit_action	Використати наукову аптечку
+st_use_spring_action	Використати Пружину
+st_use_trap_action	Використати пастку
 st_use_two_double_handed_weapons_description	Ваша додаткова зброя також може бути дворучною.
 st_use_two_double_handed_weapons_name	Термінатор
 st_using_progress_message	Прогрес:

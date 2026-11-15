@@ -3052,12 +3052,26 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Нейтрал
 st_unlimited_upload	неабмежавана
 st_use_action	Выкарыстаць
+st_use_antitoxin_action	Выкарыстаць антытаксін
 st_use_artefact_container	Дастаць артэфакт ({USE})
+st_use_bandages_action	Выкарыстаць перавязачны пакет
+st_use_blackmarket_medkit_action	Выкарыстаць аптэчку Чорнага Рынку
 st_use_fix_voucher	Рэмнабор
 st_use_item_message	Вы сапраўды хочаце выкарыстаць прадмет?
 st_use_ladder	Лесвіца
+st_use_lifebone_action	Выкарыстаць Жывакост
+st_use_medkit_action	Выкарыстаць аптэчку
 st_use_microphone_option	Выкарыстоўваць мікрафон
+st_use_military_medkit_action	Выкарыстаць армейскую аптэчку
+st_use_onyx_action	Выкарыстаць Онікс
+st_use_oxygen_tank_action	Выкарыстаць кіслародны балон
+st_use_painkiller_action	Выкарыстаць абязбольвальнае
+st_use_rdgm_action	Кідок дымавой гранаты РДГ-М
 st_use_resupply_zone	Папоўніць амуніцыю ({USE})
+st_use_rgd5_action	Кідок гранаты РГД-5
+st_use_science_medkit_action	Выкарыстаць навуковую аптэчку
+st_use_spring_action	Выкарыстаць Спружыну
+st_use_trap_action	Выкарыстаць пастку
 st_use_two_double_handed_weapons_description	Вы можаце ўзяць у бой дзве адзінкі двухручнай зброі.
 st_use_two_double_handed_weapons_name	Тэрмінатар
 st_using_progress_message	Прагрэс:

@@ -363,10 +363,10 @@ artefact_carry_on_load_replay:
     db 0x80, 0xbb, 0x3c, 0x03, 0x00, 0x00, 0x00
     jmp 0x2dbabc
 
-; 0x2421b0 process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too): lohook -> artefact_carry_on_input_end
-global artefact_carry_on_input_end
-extern hook_artefact_carry_on_input_end
-artefact_carry_on_input_end:
+; 0x2421b0 process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too): lohook -> item_hotkeys_on_input_end
+global item_hotkeys_on_input_end
+extern hook_item_hotkeys_on_input_end_chain
+item_hotkeys_on_input_end:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -383,22 +383,22 @@ artefact_carry_on_input_end:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_artefact_carry_on_input_end
-    mov edx, artefact_carry_on_input_end_replay
+    call hook_item_hotkeys_on_input_end_chain
+    mov edx, item_hotkeys_on_input_end_replay
     cmp eax, 0
-    je artefact_carry_on_input_end_go
+    je item_hotkeys_on_input_end_go
     mov edx, 0x2421b5
     cmp eax, 1
-    je artefact_carry_on_input_end_go
+    je item_hotkeys_on_input_end_go
     ud2
-artefact_carry_on_input_end_go:
+item_hotkeys_on_input_end_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-artefact_carry_on_input_end_replay:
+item_hotkeys_on_input_end_replay:
     db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5
     jmp 0x2421b5
 

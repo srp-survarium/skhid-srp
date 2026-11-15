@@ -1776,6 +1776,35 @@ def test_voice(original, image, before):
           "root.srp_voice_mute, its row menu asks srp_voice_menu and sends srp_voice_mute; the options enable "
           "Disable voice chat (_hide_spam), Use microphone, the voice volume and the microphone's sensitivity")
 
+def test_item_hotkeys(original, image, before):
+    """Check 149: a key per item type uses it (patch 149: the moved action
+    table, the key binder's 60h bindings, item_hotkeys.toml's hook at the input
+    builder's end). check_item_hotkeys_026g.py runs the binder's functions and
+    the input builder on made-up objects beside the original."""
+    stock = Image(original)
+    linked = P.arena()
+    block, actions = linked.blocks["item_hotkeys.data"], linked.symbols["actions"]
+    rows, game = P.ITEM_HOTKEYS_ROWS, P.ITEM_HOTKEYS_GAME_ROWS
+    check(block.va <= actions and actions + 20 * rows <= block.va + block.size,
+          f"`actions` ({actions:#x}): {rows} rows in item_hotkeys.data")
+    moved = [struct.unpack("<5I", image.read(actions + 20 * i, 20)) for i in range(rows)]
+    table = [struct.unpack("<5I", stock.read(P.ITEM_HOTKEYS_TABLE + 20 * i, 20)) for i in range(game)]
+    with_h = [r[:4] + (0x9FDCA8,) if r[1] == 0x23 else r for r in table]
+    added = P.CONTROLS_ADDED[2:]
+    cstr = lambda va: image.read(va, 40).split(b"\0")[0]
+    check(moved[:game] == with_h and stock.read(0x9FDCA8, 3) == b"kH\0"
+          and [(r[1], r[2], r[3], r[4]) for r in moved[game:]] == [(action, 5, 0, 0) for action, _ in added]
+          and all(cstr(r[0]) == key[3:-7].encode() for r, (_, key) in zip(moved[game:], added)),
+          "the game's 60 rows (artefact's default key kH), then use_onyx .. use_oxygen_tank, 4Ah..57h, kinds 5, "
+          "no toggle, no default key; each a row of `controls` (CONTROLS_ADDED)")
+    check(all(0x4A <= action < P.ITEM_HOTKEYS_BINDINGS for action, _ in added),
+          f"their ids past the game's (48h the options' none, 49h the binder's) and below the binder's "
+          f"{P.ITEM_HOTKEYS_BINDINGS:#x} bindings")
+    for va, old, new in P.item_hotkeys_table_writes(linked) + P.item_hotkeys_binder_writes():
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+              f"{va:#x}: {old.hex()} in the original, {new.hex()} in the build")
+
+
 def test_hide_ui(original, image, before):
     """Check 62: the key that hides the interface (patch 62,
     HIDE_UI_HOOKS). check_hide_ui_026g.py runs the three entries from the
@@ -3113,6 +3142,7 @@ def test_late_join(original, without, server, source):
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
     test_hide_ui(original, image, before)
+    test_item_hotkeys(original, image, before)
     test_voice(original, image, before)
     test_kill_feed(original, image, before)
     test_detail(original, image)

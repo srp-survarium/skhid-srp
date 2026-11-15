@@ -66,7 +66,7 @@ pub fn on_input(ctx: &mut Context<'_>) -> Flow<NoExit> {
         event(&player, ctx, Event::Gone);
     }
     let artefact = QuickSlot::from_actions(actions).filter(|_| allowed)
-        .and_then(|slot| player.inventory()?.quick_artefact(slot.get()));
+        .and_then(|slot| player.inventory()?.quick_artefact(slot));
     event(&player, ctx, Event::Input { now, actions, artefact });
     // Use is ours only when a take happens; otherwise the game has it
     // (a battery, a trap, a native pickup).

@@ -289,6 +289,21 @@ pub extern "C" fn hook_artefact_carry_on_load(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- item_hotkeys (patch 149) ----
+
+/// The entry `item_hotkeys_on_input_end` (0x2421b0, process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_item_hotkeys_on_input_end(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `item_hotkeys_on_input_end` calls this, from the game's jump at 0x2421b0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::item_hotkeys::on_input_end(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- artefact_carry (patch 78) ----
 
 /// The entry `artefact_carry_on_input_end` (0x2421b0, process_first_person_mode's epilogue (ebx the handler; the early exit 0x241284 comes here too)) calls this with the saved machine.
@@ -5211,6 +5226,15 @@ pub extern "C" fn hook_world_check_on_raw(frame: &mut Frame) -> u32 {
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_item_hotkeys_on_input_end_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_item_hotkeys_on_input_end(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_artefact_carry_on_input_end(frame);
+    if flow != 0 { return flow; }
+    0
 }
 
 #[unsafe(no_mangle)]

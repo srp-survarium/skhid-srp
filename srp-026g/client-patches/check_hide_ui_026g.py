@@ -40,9 +40,10 @@ answers root.interface_hidden with a bool:
   object (its movie, the game, the binder above), GFx objects, the strings'
   look-up, buffer_string's printf and the CRT's sscanf_s stubbed: the rows
   sent to the movie (0x2019E0) are the original's 40, a 41st (19h,
-  st_hide_interface_action, group 2, type 1) and patch 78's 42nd (23h,
-  st_hold_artifact_action); the keys read from the binder (0x201CF0) the
-  original's 40, (19h, kF11) and (23h, kH, its new default); a key kF9 set for 19h
+  st_hide_interface_action, group 2, type 1), patch 78's 42nd (23h,
+  st_hold_artifact_action) and patch 149's fourteen (patch_026g.py's
+  CONTROLS_ADDED); the keys read from the binder (0x201CF0) the original's
+  40, (19h, kF11), (23h, kH, its new default) and none for the fourteen; a key kF9 set for 19h
   (0x2013A0) is kept in the 41st row and in no row of the original; the
   accept (0x201F20) runs `bind toggle_replay_ui kF9` through the console (the
   original nothing); the binder's own bind (0x207DC0) binds 19h to kF9, its
@@ -448,13 +449,14 @@ def main():
     s_opt, p_opt = Options(original), Options(bytes(built))
     a_rows, _ = s_opt.table()
     b_rows, b_calls = p_opt.table()
-    new = [{"action_id": 0x19, "group_id": 2, "type": 1, "label": "st_hide_interface_action"},
-           {"action_id": 0x23, "group_id": 2, "type": 1, "label": "st_hold_artifact_action"}]
+    # 41st and 42nd: patch 62's 19h, patch 78's 23h; then patch 149's fourteen (check_item_hotkeys_026g.py)
+    new = [{"action_id": action, "group_id": 2, "type": 1, "label": label} for action, label in base.CONTROLS_ADDED]
     # push-to-talk (47h): the original's row is the chat group's with its key button disabled (type 0);
     # the build's is a game key that can be set
     ptt = [row for row in a_rows if row["action_id"] == 0x47]
     moved = [dict(row, group_id=2, type=1) if row["action_id"] == 0x47 else row for row in a_rows]
-    report(len(a_rows) == 40 and len(b_rows) == 42 and b_rows[:40] == moved and b_rows[40:] == new
+    report(len(a_rows) == 40 and len(b_rows) == 40 + len(new) and b_rows[:40] == moved and b_rows[40:] == new
+           and [row["action_id"] for row in new[:2]] == [0x19, 0x23]
            and [(row["group_id"], row["type"]) for row in ptt] == [(1, 0)]
            and [c[2] for c in b_calls] == [b"root.set_keybindings"],
            f"the list sent to the movie (root.set_keybindings): the original's {len(a_rows)} rows, "
@@ -462,7 +464,9 @@ def main():
     s_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     p_opt.call(KEYS_FROM_BINDER, [OPTIONS, 1])
     a_keys, b_keys = s_opt.set_keybind_calls(), p_opt.set_keybind_calls()
-    report(len(a_keys) == 40 and b_keys[:40] == a_keys and b_keys[40:] == [(0x19, "kF11", 1), (0x23, "kH", 1)],
+    unbound = [(action, "", 1) for action, _ in base.CONTROLS_ADDED[2:]]      # patch 149's: no default key
+    report(len(a_keys) == 40 and b_keys[:40] == a_keys
+           and b_keys[40:] == [(0x19, "kF11", 1), (0x23, "kH", 1)] + unbound,
            f"the keys from the binder (root.set_keybind): the original's 40, then {b_keys[40:]}")
     for run in (s_opt, p_opt):
         run.emu.mem_write(OUT, b"kF9\0")

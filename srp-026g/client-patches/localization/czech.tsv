@@ -3052,12 +3052,26 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Neutrální
 st_unlimited_upload	bez omezení
 st_use_action	Použít
+st_use_antitoxin_action	Použít antitoxin
 st_use_artefact_container	Vyjmout artefakt ({USE})
+st_use_bandages_action	Použít balíček obvazů
+st_use_blackmarket_medkit_action	Použít lékárničku Černého trhu
 st_use_fix_voucher	Sada na opravy
 st_use_item_message	Opravdu chceš použít tento předmět?
 st_use_ladder	Žebřík
+st_use_lifebone_action	Použít Ostrožku
+st_use_medkit_action	Použít lékárničku
 st_use_microphone_option	Použít mikrofon
+st_use_military_medkit_action	Použít vojenskou lékárničku
+st_use_onyx_action	Použít Onyx
+st_use_oxygen_tank_action	Použít kyslíkovou láhev
+st_use_painkiller_action	Použít anestetikum
+st_use_rdgm_action	Hodit kouřový granát RDG-M
 st_use_resupply_zone	Doplnit munici ({USE})
+st_use_rgd5_action	Hodit granát RGD-5
+st_use_science_medkit_action	Použít vědeckou lékárničku
+st_use_spring_action	Použít Pružinu
+st_use_trap_action	Použít past
 st_use_two_double_handed_weapons_description	Do zápasu si můžeš vzít dvě obouruční zbraně.
 st_use_two_double_handed_weapons_name	Terminátor
 st_using_progress_message	Postup:

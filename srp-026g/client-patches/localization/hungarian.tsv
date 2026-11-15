@@ -3052,12 +3052,26 @@ st_ump45_name	H&K UMP45
 st_unknown_faction	Semleges
 st_unlimited_upload	korlátlan
 st_use_action	Használat
+st_use_antitoxin_action	Antitoxin használata
 st_use_artefact_container	Artefaktum begyűjtése ({USE})
+st_use_bandages_action	Kötszercsomag használata
+st_use_blackmarket_medkit_action	Feketepiaci elsősegélycsomag használata
 st_use_fix_voucher	Javítókészlet
 st_use_item_message	Biztosan használod ezt a tárgyat?
 st_use_ladder	Létra
+st_use_lifebone_action	Szarkaláb használata
+st_use_medkit_action	Elsősegélycsomag használata
 st_use_microphone_option	Mikrofon használata
+st_use_military_medkit_action	Katonai elsősegélycsomag használata
+st_use_onyx_action	Ónix használata
+st_use_oxygen_tank_action	Oxigénpalack használata
+st_use_painkiller_action	Érzéstelenítő használata
+st_use_rdgm_action	RDG-M füstgránát dobása
 st_use_resupply_zone	Lőszer feltöltése ({USE})
+st_use_rgd5_action	RGD-5 gránát dobása
+st_use_science_medkit_action	Tudományos elsősegélycsomag használata
+st_use_spring_action	Rugó használata
+st_use_trap_action	Csapda használata
 st_use_two_double_handed_weapons_description	Két kétkezes fegyvert vihetsz a meccsbe.
 st_use_two_double_handed_weapons_name	Terminátor
 st_using_progress_message	Haladás:

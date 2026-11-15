@@ -639,6 +639,15 @@ Patches:
   walk (no engine call), to srp_patches.log and in 0xE0 carriers
   (srp_validate::report); the server only logs them. Nothing a match
   computes;
+- a key per item type uses it (patch 149, item_hotkeys; docs/notes/item-hotkeys.md):
+  fourteen actions (use_onyx .. use_oxygen_tank: the artefacts, medicines,
+  grenades, the trap, the oxygen tank), unbound, one row each in the
+  options' controls, ids 4Ah..57h; the game's action table moved into the
+  arena (item_hotkeys_026g.asm, ITEM_HOTKEYS_TABLE_REFS) with them appended,
+  and the key binder's bindings 60h instead of 48h (ITEM_HOTKEYS_BINDER); at
+  the input builder's end (0x2421B0) a key of them that is present sets the
+  quick-use bit of the first quick slot holding its item, as that slot's
+  key does, before patch 78's chord. Only the input a key makes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
@@ -2496,15 +2505,111 @@ def hide_ui_table_writes(linked):
     return out
 
 
-# The rows `controls` adds after the game's 28h: (action, label key).
-CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"))
-# Patch 78's carry key (../docs/notes/held_artefact_transfer.md): the game's
-# own action `artefact` (23h, kinds 5; action table entry 0xA74D5C), which
-# nothing in the game reads and had no default key, gets H (the binder's
-# set_default_controls 0x2078A0 binds each entry's +10h at its construction,
-# before user.cfg; a key name the exe has, "kH" at 0x9FDCA8). Its row is the
-# 42nd of `controls`.
-ARTEFACT_KEY_DEFAULT = (0xA74D6C, bytes(4), struct.pack("<I", 0x9FDCA8))
+# The rows `controls` adds after the game's 28h: (action, label key). Patch
+# 78's carry key (../docs/notes/held_artefact_transfer.md) is the game's own
+# action `artefact` (23h), which nothing in the game reads; patch 149's
+# fourteen (../docs/notes/item-hotkeys.md) are `actions`' (below).
+CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"),
+                  (0x4A, "st_use_onyx_action"),
+                  (0x4B, "st_use_spring_action"),
+                  (0x4C, "st_use_lifebone_action"),
+                  (0x4D, "st_use_bandages_action"),
+                  (0x4E, "st_use_medkit_action"),
+                  (0x4F, "st_use_military_medkit_action"),
+                  (0x50, "st_use_blackmarket_medkit_action"),
+                  (0x51, "st_use_science_medkit_action"),
+                  (0x52, "st_use_antitoxin_action"),
+                  (0x53, "st_use_painkiller_action"),
+                  (0x54, "st_use_rgd5_action"),
+                  (0x55, "st_use_rdgm_action"),
+                  (0x56, "st_use_trap_action"),
+                  (0x57, "st_use_oxygen_tank_action"))
+
+# A key per item type uses it (patch 149, README; client_patch.md section
+# 3.82; the rules: ../docs/notes/item-hotkeys.md). The game's action table (60
+# rows of 20 bytes at 0xA74AF0: name, id, kinds, toggle, default key's name)
+# ends where the key names' table begins (0xA74FA0), so its rows are moved:
+# `actions` (item_hotkeys_026g.asm, the arena's block item_hotkeys.data) is the
+# game's 60 and fourteen more (ids 4Ah..57h, ITEM_HOTKEYS_BINDER below). The four functions of the key binder that read the table by its
+# address read `actions`: (site, its bytes, where in them the address is, the
+# row's field it names); the binder's construction compares its pointer with
+# the table's end (ITEM_HOTKEYS_TABLE_END), the other three count its bytes,
+# 4B0h (ITEM_HOTKEYS_TABLE_COUNTS: site, bytes, where the count is). Every
+# other reader takes a row through a binding's description pointer. Patch 78's
+# default H for `artefact` (set_default_controls 0x2078A0 binds a row's +10h at
+# the binder's construction, before user.cfg) is in the moved row: the game's
+# row 0xA74D5C has none and is no longer read. Each address has its base
+# relocation, kept: the new one is the image's too (the arena); no relocation
+# is under a count.
+ITEM_HOTKEYS_TABLE = 0xA74AF0
+ITEM_HOTKEYS_GAME_ROWS = 60
+ITEM_HOTKEYS_ROWS = 74
+ITEM_HOTKEYS_TABLE_REFS = (
+    (0x20755B, bytes.fromhex("b8f04aa700"), 1, 0x0),           # the binder's construction: mov eax,table
+    (0x2078AB, bytes.fromhex("8b83004ba700"), 2, 0x10),        # set_default_controls: mov eax,[ebx+table+10h]
+    (0x2078B5, bytes.fromhex("8bbbf04aa700"), 2, 0x0),         # its name: mov edi,[ebx+table]
+    (0x2079E5, bytes.fromhex("3b90f44aa700"), 2, 0x4),         # id_to_action_name: cmp edx,[eax+table+4]
+    (0x207A52, bytes.fromhex("8b0485f04aa700"), 3, 0x0),       # its name: mov eax,[eax*4+table]
+    (0x207AE6, bytes.fromhex("8b86f04aa700"), 2, 0x0),         # action_name_to_ptr: mov eax,[esi+table]
+    (0x207B65, bytes.fromhex("8d0485f04aa700"), 3, 0x0),       # its row: lea eax,[eax*4+table]
+)
+ITEM_HOTKEYS_TABLE_END = (0x20756C, bytes.fromhex("3da04fa700"), 1)    # the construction: cmp eax,table end
+ITEM_HOTKEYS_TABLE_COUNTS = (
+    (0x2078F0, bytes.fromhex("81fbb0040000"), 2),              # set_default_controls: cmp ebx,4B0h
+    (0x2079F1, bytes.fromhex("3db0040000"), 1),                # id_to_action_name: cmp eax,4B0h
+    (0x207B01, bytes.fromhex("81feb0040000"), 2),              # action_name_to_ptr: cmp esi,4B0h
+)
+
+
+def item_hotkeys_table_writes(linked):
+    """[(site, its bytes, the new bytes)] of the four functions' table, end
+    and counts, `actions` being the link's."""
+    table, size = linked.symbols["actions"], 20 * ITEM_HOTKEYS_ROWS
+    put = lambda old, at, value: old[:at] + struct.pack("<I", value) + old[at + 4:]
+    out = [(va, old, put(old, at, table + field)) for va, old, at, field in ITEM_HOTKEYS_TABLE_REFS]
+    va, old, at = ITEM_HOTKEYS_TABLE_END
+    out.append((va, old, put(old, at, table + size)))
+    out += [(va, old, put(old, at, size)) for va, old, at in ITEM_HOTKEYS_TABLE_COUNTS]
+    return out
+
+
+# The key binder's bindings, more of them (the same patch). The binder (a heap
+# object of 364h bytes, game+5344h) is 48h bindings of 0Ch bytes indexed by
+# the action id ({description, key, second key}), then the game at +360h. Its
+# readers (every load of game+5344h, 16, and the bind commands' +64h): the
+# allocation (0x1EA265), the construction (0x207544 the memset, 0x20754D the
+# game's place), get_binded_action (0x207D87, its loop over the bindings),
+# bind_key (0x207E8E: its loop clearing the key from the others, 6 bindings a
+# pass), the bind command's save (0x207524), the key names' translation
+# (0x207937, the game at +360h); the options, the hud, the chat and the input
+# handlers index a binding by an action id (layout unchanged), unbind
+# (0x207FF0) too. The binder becomes ITEM_HOTKEYS_BINDINGS bindings (a multiple
+# of 6, under 80h: get_binded_action's count is a signed byte), the game after
+# them. 48h and 49h stay without an action: 48h is the options' "no key being
+# set" (game_options +3Ch), 49h get_binded_action's "none", and the binding an
+# unbind of an unknown name clears (0x20801D: in the game, past the binder's
+# 364h bytes). (site, its bytes, where in them the value is, its size, what it
+# is: "bytes" the bindings' size, "end" the game's place (the same), "object"
+# the allocation, "count" the bindings, "passes" bind_key's passes of 6.)
+ITEM_HOTKEYS_BINDINGS = 0x60
+ITEM_HOTKEYS_BINDER = (
+    (0x1EA265, bytes.fromhex("b864030000"), 1, 4, "object"),          # the game's init: mov eax,364h / call alloc
+    (0x207544, bytes.fromhex("6860030000"), 1, 4, "bytes"),            # the construction: push 360h (memset)
+    (0x20754D, bytes.fromhex("898660030000"), 2, 4, "end"),            # mov [esi+360h],eax (the game)
+    (0x207524, bytes.fromhex("81fa60030000"), 2, 4, "bytes"),          # the bind command's save: cmp edx,360h
+    (0x207937, bytes.fromhex("8b8860030000"), 2, 4, "end"),            # the key names: mov ecx,[eax+360h]
+    (0x207D87, bytes.fromhex("83fa48"), 2, 1, "count"),                # get_binded_action: cmp edx,48h
+    (0x207E8E, bytes.fromhex("c744240c0c000000"), 4, 4, "passes"),     # bind_key: mov dword [esp+0Ch],0Ch
+)
+
+
+def item_hotkeys_binder_writes():
+    """[(site, its bytes, the new bytes)] of the binder's readers."""
+    n = ITEM_HOTKEYS_BINDINGS
+    assert n % 6 == 0 and n < 0x80
+    values = {"object": 12 * n + 4, "bytes": 12 * n, "end": 12 * n, "count": n, "passes": n // 6}
+    return [(va, old, old[:at] + values[what].to_bytes(size, "little") + old[at + size:])
+            for va, old, at, size, what in ITEM_HOTKEYS_BINDER]
 
 
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
@@ -3087,7 +3192,8 @@ ARENA = (
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
-    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
+    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 56 controls
+    ArenaBlock("item_hotkeys.data", "data", 0x10, ("item_hotkeys_026g.asm",)),   # patch 149: the action table
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("audio_device.code", "code", 0x1000, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # patch 100
     ArenaBlock("audio_device.state", "state", 0x10, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # its engine
@@ -4183,7 +4289,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch_section_value(data, slot, old, struct.pack("<I", callbacks))
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
-                patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
+                for va, old, new in item_hotkeys_table_writes(linked) + item_hotkeys_binder_writes():
+                    patch(data, va, old, new)
                 for change in DETAIL_PATCHES:
                     patch(data, *change)
                 patch(data, *KILL_FEED_ARGUMENT)

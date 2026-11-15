@@ -1162,7 +1162,6 @@ va	status	ref_021d	name
 0x00205950	inferred-medium	0x00161fc6	vostok::buffer_vector<vostok::variant<32> const *>::resize
 0x00205cb0	inferred-medium	0x00162397	vostok::detail::concrete_type_helper<survarium::inventory_cooker_data *>::copy_helper
 0x00205d10	inferred-medium	0x00162400	vostok::detail::concrete_type_helper<vostok::collision::animated_object_cook_data>::copy_helper
-0x002078a0	inferred-medium	0x00155843	survarium::key_binder::set_default_controls
 0x00207bf0	inferred-medium		survarium::key_binder::keycode_to_ptr
 0x00207d50	inferred-medium	0x00155bcf	survarium::key_binder::get_binded_action
 0x00207dc0	inferred-medium	0x00155c1b	survarium::key_binder::bind_key
@@ -1313,7 +1312,6 @@ va	status	ref_021d	name
 0x0023aa10	inferred-medium		survarium::game_world_ui::update_player_icons
 0x0023b200	inferred-medium	0x00183502	survarium::game_world_ui::update_ui
 0x0023b550	inferred-medium	0x00183771	survarium::game_world_ui::clear_player
-0x0023b740	inferred-medium		survarium::game_world_ui::update_local_player_state
 0x0023b820	inferred-medium	0x001839aa	survarium::game_world_ui::update_current_object
 0x0023bd60	inferred-high	0x00183c01	survarium::game_world_ui::create_hud_icon
 0x0023bea0	inferred-high	0x00183c7c	survarium::game_world_ui::set_hud_icon_type
@@ -3048,7 +3046,6 @@ va	status	ref_021d	name
 0x0026db80	inferred-high		survarium::base_game_statistics_handler::on_event
 0x0026db60	inferred-high		survarium::base_game_statistics_handler::deserialize
 0x0026dc30	inferred-high		survarium::base_game_statistics_handler::recalculate_scores
-0x00207450	inferred-medium		survarium::key_binder::bind_command_save
 0x0023b5f0	inferred-medium		survarium::game_world_ui::on_world_event
 0x002d43b0	inferred-medium		survarium::game_world_core::new_world_event
 0x002d0a60	inferred-medium		survarium::game_world_core::push_world_event
