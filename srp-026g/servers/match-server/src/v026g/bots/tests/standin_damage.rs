@@ -145,47 +145,30 @@ fn by_data() -> bool {
     *ON.get_or_init(|| super::bench::bench_tuning().aim.combat.fire.weapon_class_by_data)
 }
 
-/// Where the hits of each class of weapon land: shares of a class's hits on
-/// the torso, the head, an arm and a leg, **a fixed table from the live
-/// matches with 12 or more human players** (119 of the recorded 177,
-/// 2026-10-14 to 17, 29 000 gun kills), made by
-/// `private/pvb-343-check/damage7b/pools.py`:
-/// - the recordings' snapshots of each player carry the health of every body
-///   pool (`wplayers.parts`); the pools a victim's life lost, summed between
-///   consecutive snapshots up to the killing shot, by the killer's weapon
-///   class, give the damage that went to the body, the hands and the legs
-///   (the head's is mostly lost in the one shot that kills, which no
-///   snapshot sees). The numbers are PROVEN counts; what they say is the
-///   client's routing, PROVEN (`damage_model.md`, `hit_by_type` 0x329FF0, the
-///   shares to the pools 0x33FA80): a hit on the back or the front goes to the
-///   body pool, on the brain or the face to the head, on a hip or a foot to its
-///   leg, on an arm or a forearm to the hand, each x 1. The legs' losses also
-///   hold falls (a fall is a blunt hit to each foot, `fall_damage.md`), which
-///   the table does not take apart [G33];
-/// - each pool's damage is turned into hits by the factor the median worn
-///   armour leaves of a hit of the class's median `bullet_pierce` (torso 0.6,
-///   upper arm 0.2, forearm 0.5, legs 0.5: `REAL-ARMOUR-CHECK.md`);
-/// - the head's share is the one for which 2 hits a kill (the live mean)
-///   give the class's share of headshot kills (`kills.csv` `hs`: 14 to 28 %).
+/// Where the hits of each class of weapon land: shares of a class's hits on the torso, the head, an arm and a leg, **counted
+/// from the worlds' own hit records** [G33, G34] (2026-11-08..12, the 329 human matches of 6+ players of the live
+/// recordings; the world check's typed views, `measure-20261115/g34_records.py`):
+/// - each body part keeps one hit record a bullet (`BodyPart::hits`, `hit_id`; `damage_model.md` 0x32A13F..0x32A215), and a
+///   dead body's world keeps its life's records, the killing bullet's too (of the 769 given lives that ended with that
+///   shooter's headshot count rising, 607 have a head record; the others are a headshot on another body in the same span);
+/// - a record on a hit box says where the bullet landed: back or front the torso, brain or face the head, a hip or a foot a
+///   leg, an arm or a forearm an arm (`damage_model.md`'s boxes; the pools' own records repeat them and are not counted);
+/// - a life whose received damage names one shooter (14,437 lives) gives all its records to the class of the weapon in his
+///   hands (`WeaponClass::of`, as the bench's [`Class::of`]); a life several shot (2,416 records) is not counted: the rows are
+///   the hits of lives one shooter hit, a stated condition that his hits land as anyone's do.
 ///
-/// So the torso against the limbs is DERIVED (the routing PROVEN, the damage turned into hits by the medians worn), and the
-/// head is derived from an assumed 2 hits a kill. [G34] Counted on 2026-11-08..12 (the 329 human matches of 6+ players,
-/// `measure-20261115/g34_class.py`; by the class of the weapon in the shooter's hands): the head's share of the hits (the
-/// game's statistic 23) is at least rifle 0.052 (92,904 hits), marksman 0.075 (23,542), SMG 0.046 (12,451), shotgun 0.020
-/// (9,868; its pellets each count a hit), MG 0.045 (9,533), bolt 0.099 (3,887), pistol 0.042 (667): headshot kills
-/// (statistic 15) plus the head-pool losses of bodies alive in both worlds. A lower bound: a head hit in a body's last span
-/// before its death (its worlds about 3.5 s apart) is not seen. Every row's head share lies above its bound but the bolt's
-/// (0.093 against 0.099: 385 head hits of 3,887, a binomial standard error of 0.005, so 1.3 of them). The exact share needs the worlds' own hit records of each
-/// part (`srp_validate`'s `BodyPart::hits`, one a bullet), not read yet.
-/// Rows in [`Part`]'s order; each sums to 1.
+/// The rows' counts: rifle 17,713 records, marksman (Dmr) 5,091, SMG 2,603, shotgun 1,794 (a pellet a record), MG 1,679,
+/// bolt 1,192, pistol 190. The table before was the pools' losses turned into hits by the median armour worn (its legs held
+/// falls) with the head from an assumed 2 hits a kill: rifle 0.417 / 0.115 / 0.226 / 0.242. Rows in [`Part`]'s order; each
+/// sums to 1 (rounded by the largest remainder).
 pub(crate) const HIT_SHARES: [(Class, [f32; 4]); 7] = [
-    (Class::Rifle, [0.417, 0.115, 0.226, 0.242]),
-    (Class::Smg, [0.442, 0.083, 0.218, 0.257]),
-    (Class::Lmg, [0.370, 0.150, 0.191, 0.289]),
-    (Class::Pistol, [0.450, 0.100, 0.215, 0.235]),
-    (Class::Shotgun, [0.441, 0.074, 0.215, 0.270]),
-    (Class::Dmr, [0.457, 0.091, 0.240, 0.212]),
-    (Class::Bolt, [0.446, 0.093, 0.245, 0.216]),
+    (Class::Rifle, [0.455, 0.165, 0.259, 0.121]),
+    (Class::Smg, [0.449, 0.149, 0.288, 0.114]),
+    (Class::Lmg, [0.434, 0.162, 0.264, 0.140]),
+    (Class::Pistol, [0.395, 0.210, 0.258, 0.137]),
+    (Class::Shotgun, [0.555, 0.096, 0.254, 0.095]),
+    (Class::Dmr, [0.430, 0.187, 0.274, 0.109]),
+    (Class::Bolt, [0.457, 0.173, 0.253, 0.117]),
 ];
 
 /// The part of a hit by `class` for the draw `r` in [0, 1).
@@ -823,7 +806,7 @@ mod tests {
             }
         }
         assert_eq!(part_for(Class::Rifle, 0.0), Part::Torso);
-        assert_eq!(part_for(Class::Rifle, 0.43), Part::Head);
+        assert_eq!(part_for(Class::Rifle, 0.5), Part::Head);
         assert_eq!(part_for(Class::Rifle, 0.999), Part::Leg);
     }
 

@@ -13,7 +13,8 @@
 //!   ([`DEPTH_SHARES`], 159 / 228 / 154 traps). The stand-in's life ends before it reaches the enemy third more often than before the
 //!   middle, so a trap's third is drawn from the live shares over each third's completion ([`COMPLETION_BY_THIRD`]) and the traps put
 //!   down come out in the live shares (a calibration of the stand-in, as the smoke habit's `COMPLETION`).
-//!   The trap lies where the view meets the floor, [`AHEAD_M`] from his feet and to the side of his heading ([`TURN_RAD`]), cut to what
+//!   The trap lies where the view meets the floor, [`AHEAD_M`] from his feet (the live distances) and to the side of his heading
+//!   ([`TURN_RAD`], a bench choice: live humans lay theirs ahead), cut to what
 //!   the model's 2 m reach from the eye allows (about 1 m for a standing body; the census's distance from the placer is dead-reckoned
 //!   and cannot say). To the side because the stand-in's walk ignores traps, as live passers-by's do, and one laid in front of him
 //!   was caught by its placer at once (105 of 141 in the first batch; live placers are 4 % of the catches).
@@ -51,9 +52,18 @@ const ENEMY_THIRD: f32 = 0.66;
 /// The spot is looked for only when the human is within this depth of the third (a metre to the side is far inside it): it saves a
 /// ray on every tick of a due plan and keeps the refused spots to those in or beside the third.
 const NEAR_BAND: f32 = 0.05;
-/// How far from its feet the view meets the floor, metres on the ground (GUESS; `Game::trap_aim_ahead` cuts it to the model's reach).
-const AHEAD_M: (f32, f32) = (0.9, 1.15);
-/// ... and how far from its heading, radians, to the left or the right (GUESS: to the side, 60 to 120 degrees).
+/// How far from its feet the trap lies, metres on the ground: (fraction of traps, value), linear between, held at the ends
+/// (`Game::trap_aim_ahead` cuts it to the model's reach). [G60] Counted: live humans' placed traps against their feet at their last
+/// world, standing still there (speed under 0.3 m/s), 247 traps of the 329 human matches of 6+ players of 2026-11-08..12 (the
+/// traps' records read by the world check's typed views, `booby_trap_core` 0x3052E0: the transform and `m_deploy_time_in_ms`; the
+/// owner by the objects list's order; `measure-20261115/g60_g61_traps.py`): P10 0.84, P25 1.02, median 1.19, P75 1.38, P90 1.55 m.
+/// It was 0.9-1.15 m.
+const AHEAD_M: [(f32, f32); 7] = [(0.0, 0.84), (0.1, 0.84), (0.25, 1.02), (0.5, 1.19), (0.75, 1.38), (0.9, 1.55), (1.0, 1.55)];
+/// ... and how far from his heading, radians, to the left or the right: to the side, 60 to 120 degrees, **a bench choice**, not the
+/// live way. [G61] Counted on the same 247 traps: live humans lay theirs straight ahead (the angle from the heading P10 0.05, median
+/// 0.09, P75 0.31, P90 0.58 rad; 5 of 247 within this range). The stand-in's walk ignores traps, so one laid ahead was caught by
+/// its own placer at once (105 of 141 in the first batch, against the live placers' 4 % of the catches): the side keeps it off
+/// his way until his walk keeps off his own traps.
 const TURN_RAD: (f32, f32) = (1.05, 2.1);
 
 /// A third of the map.
@@ -170,7 +180,7 @@ fn draw_plans(rng: &mut Rng, spawned: u32) -> Vec<Plan> {
         .map(|_| Plan {
             from: spawned + (at_fraction(&SINCE_SPAWN_S, rng.unit()) * 1000.0) as u32,
             want: Third::ALL[pick(&shares, rng.unit())],
-            ahead_m: rng.range(AHEAD_M.0, AHEAD_M.1),
+            ahead_m: at_fraction(&AHEAD_M, rng.unit()),
             turn: rng.range(TURN_RAD.0, TURN_RAD.1) * if rng.unit() < 0.5 { 1.0 } else { -1.0 },
         })
         .collect();

@@ -304,8 +304,14 @@ fn sector_deg(mut bearings: Vec<f32>) -> f32 {
 const OUT_MS: (f32, f32) = (400.0, 450.0);
 /// From one peek's start to the next, ms (the owner's 1.2 s, the live 0.8 s).
 const PERIOD_MS: (f32, f32) = (800.0, 1_200.0);
-/// A peek steps this far sideways, m (0.4 s at a walk). GUESS.
-const PEEK_M: f32 = 1.2;
+/// A peek steps this far sideways, m. [G6] DERIVED from the client's strafe and the live peek: the side walk is 2.5 m/s
+/// standing (2.0 aiming; `default.player`'s `movement_speed`, PROVEN config, `mapdata::controller::speed`), and a change of
+/// direction blends the two clips' root moves over 0.3 s with a linear weight (the walk vector is their plain weighted sum:
+/// `walk_blend.md`, 0x921804, 0x3B0CD0, 0x3B1B60; PROVEN, 82 clean stops counted). A strafe held for T between two
+/// changes moves the body, from one standstill to the next, v (T - 0.3) + 0.15 v: at the live peek's out time T = 0.40 s
+/// (`an-anticamper.md` 8.4: 31 peeks a minute, out 0.40 s, period 0.8 s, 8,474 holds) 0.25 v, 0.625 m standing (0.50 m
+/// aiming). It was 1.2 m (0.4 s at a walk with no blend).
+const PEEK_M: f32 = 0.625;
 /// Area points lie this far from the spot, m.
 const AREA_NEAR_M: f32 = 3.0;
 const AREA_FAR_M: f32 = 8.0;
