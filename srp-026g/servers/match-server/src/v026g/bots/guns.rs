@@ -993,7 +993,8 @@ pub struct Arms {
 /// (`BOT_AMMO_SLOTS`) and their storage. With the bots' upgrades on
 /// ([`upgrades_on`]) the weapon is the one the client fires: its own mods,
 /// the reload speed and aim time of the bot's skills (`modifiers`) and worn
-/// items; off, the weapon's base config as ever.
+/// items; off, the weapon's base config with the kick's factor of the worn
+/// items (their default modifications, which are no upgrade, A307).
 fn arms_of(kit: &Loadout, modifiers: &[f32; MODIFIERS]) -> Option<Arms> {
     arms_of_in(kit, modifiers, upgrades_on())
 }
@@ -1020,7 +1021,11 @@ pub fn arms_in(
     let primary = if on {
         gun_with_in(table, &weapon.name, slot.mods, Factors::of_kit(kit, modifiers))?
     } else {
-        gun_in(table.guns, &weapon.name)?
+        // [A307] The kick's factor of the kit's worn items is no upgrade: their own default modifications (`ren_gloves_1`
+        // -8 %), which the client applies whatever the bots' upgrades are (0x331C50 through 0x2D5AE0), so the mirror takes it
+        // with them off too; the skills' share and every other factor stay the upgrades'.
+        let worn = Factors { recoil: Factors::of_kit(kit, &[0.0; MODIFIERS]).recoil, ..Factors::default() };
+        gun_with_in(table, &weapon.name, &[], worn)?
     };
     let ammo = kit
         .items
@@ -1858,7 +1863,8 @@ mod tests {
     }
 
     /// The kits' weapons with the upgrades on carry their mods, the gloves'
-    /// reload speed and the bots' aim skill; off, they are the table's.
+    /// reload speed and the bots' aim skill; off, they are the table's but
+    /// for the kick's factor of the worn items (A307).
     #[test]
     fn the_upgrades_switch_decides_whether_a_kit_has_modded_guns() {
         // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
@@ -1875,8 +1881,11 @@ mod tests {
                     let weapon = Dictionary::shared().item(kit.slot(7).unwrap().dict_id).unwrap();
                     let base = gun(&weapon.name).unwrap();
                     let at = format!("{tier} {role} {}", weapon.name);
-                    let off = arms_of_in(kit, &modifiers, false).unwrap();
-                    assert!(std::ptr::eq(off.primary.0, base), "{at}");
+                    let off = arms_of_in(kit, &modifiers, false).unwrap().primary.0;
+                    // Off: the table's gun but the kick's factor of the worn items (A307), which is no upgrade.
+                    let worn = (1.0 + Factors::of_kit(kit, &[0.0; MODIFIERS]).recoil).max(0.0);
+                    assert_eq!(Gun { recoil_scale: 1.0, ..*off }, *base, "{at}");
+                    assert!((off.recoil_scale - worn).abs() < 1e-6, "{at}: {} against {worn}", off.recoil_scale);
                     let on = arms_of_in(kit, &modifiers, true).unwrap().primary.0;
                     // Skill 101, five levels: the sights up 10 % sooner.
                     assert_eq!(on.aim_ms, (base.aim_ms as f32 * 0.9).round() as u32, "{at}");
@@ -1904,6 +1913,23 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    /// [A307] The tier 9-10 support's AKM kicks 0.92 of its config with its `ren_gloves_1` (-8 %, the item's default
+    /// modification), with the bots' upgrades on or off: the client applies it either way.
+    #[test]
+    fn the_gloves_factor_reaches_the_gun_with_the_upgrades_on_or_off() {
+        use survarium::v026g::bot_skills::bot_modifiers;
+        use survarium::v026g::loadouts::bot_kits_in;
+        let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
+        for upgrades in [true, false] {
+            let kits = bot_kits_in(equipment, BotRole::Support, true, upgrades);
+            let refs: Vec<&Loadout> = kits.iter().collect();
+            let modifiers = bot_modifiers(&refs);
+            let gun = arms_of_in(&kits[0], &modifiers, upgrades).unwrap().primary.0;
+            assert_eq!(gun.item, "akmn", "upgrades {upgrades}");
+            assert!((gun.recoil_scale - 0.92).abs() < 1e-6, "upgrades {upgrades}: {}", gun.recoil_scale);
         }
     }
 
