@@ -535,7 +535,8 @@ Patches:
   (options.callback), its button told the test's state at a frame
   (game.tick), the test stopped as the main menu closes
   (options.deactivate); the options' Microphone list (srp_microphone,
-  options.callback: the DLL's capture devices, the pick in user.cfg);
+  options.callback: the DLL's capture devices, a pick used at once by
+  srp_microphone_use, Apply's in user.cfg);
 - the kill feed shows a kill through a wall, by a ricochet and by pain (patch 67,
   with the late join; docs/notes/kill-feed-icons.md). kill_feed_026g.asm
   (the arena's block kill_feed.code): generate_killed_event (0x2DA170, at
@@ -642,7 +643,7 @@ Patches:
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
   Rust patch bake_cache (the arena's blocks patches.code, .data and
-  .state; seven lohooks): game::game deletes user_data/streamed_textures
+  .state; eight lohooks): game::game deletes user_data/streamed_textures
   only when its stamp file names another bake format or other game data
   (a fingerprint of the patches' files a bake reads) (0x1E944E), and puts its
   whole DDS files back into the baker's list (CRC 0, the first load's taken
@@ -650,8 +651,9 @@ Patches:
   look-up (0x12D4C5) lets a query whose path is under way wait, and the
   texture made (0x12F194 a bake, 0x12DDB9 a load) is given to it; an owner
   that ends otherwise has its waiting queries made again (finish_query,
-  0xF0D00); the CRC-32 step (0x42050) goes 64 bytes a step (PCLMULQDQ)
-  or eight bytes a step. Textures
+  0xF0D00); the folder holds 3 GiB, the list as many records as it needs, the oldest let
+  go first (remove_unwanted_files whole, 0x131F90); the CRC-32 step
+  (0x42050) goes 64 bytes a step (PCLMULQDQ) or eight bytes a step. Textures
   only;
 - a weapon's upgrades in at most three upgrade records, the weapon kit
   (patch 68, with the late join; docs/notes/weapon-kit.md): the Rust patch
@@ -854,7 +856,7 @@ WORLD_UNPACK = (
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 58
+REVISION = 60
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -2542,7 +2544,8 @@ KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb757
 # rust/patches/src/bake_cache.toml, sites_026g.tsv bake.* and crc32.step:
 # game::game before its delete 0x1E944E, check_loaded's CRC compare
 # 0x131C90, translate_query before its look-up 0x12D4C5, the textures made
-# 0x12F194 and 0x12DDB9, finish_query 0xF0D00, the CRC-32 step 0x42050), and
+# 0x12F194 and 0x12DDB9, finish_query 0xF0D00, remove_unwanted_files 0x131F90,
+# the CRC-32 step 0x42050), and
 # game::exit's delete (0x1EC832) nops (BAKE_CACHE_KEEP).
 BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440000"))   # game::exit's delete
 
@@ -2568,6 +2571,18 @@ LOBBY_SEEDING_DEFAULT = (0xA712B6, b"\x01", b"\x00")
 # match's first seconds). Swapping the two adds makes every copy one function
 # of the patch. No relocation is under the site; 0x1603B0 has no other caller.
 GRASS_SORT_ORDER = (0x160430, bytes.fromhex("f30f58f2" "f30f58f0"), bytes.fromhex("f30f58f0" "f30f58f2"))
+
+# An empty shot is not logged (patch 148, README; docs/notes/fire-queue-assert.md).
+# weapon_core_fire_state_base::on_shot_event (0x30EBF0) fires nothing for a
+# "shoot" mark that comes with the queue (+13Ch) spent; it asserts
+# m_bullets_in_queue > 0 first (~25 ms of logging each). A semi-automatic fire
+# state refilled by a quick second press restarts its clip at each input change,
+# and the Colt Python's mark at frame 2 is then crossed again: 61 of them in
+# 2.4 s in match 0x30ffba2c. The assert's own skip (taken when its counter
+# 0xAE2DF4 runs out) jumps to the function's return 0x30ECB2: it is always
+# taken. The shot, its queue, the animation and the sounds are the original's.
+# No relocation is under the site.
+EMPTY_SHOT_QUIET = (0x30EC1F, bytes.fromhex("0f848d000000"), bytes.fromhex("90e98d000000"))
 
 
 def weapon_camo_va(late_join):
@@ -4185,6 +4200,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch(data, *BAKE_CACHE_KEEP)
                 patch_section_value(data, *LOBBY_SEEDING_DEFAULT)
                 patch(data, *GRASS_SORT_ORDER)
+                patch(data, *EMPTY_SHOT_QUIET)
                 patch(data, *EXPAND_TEXT_UNBOUND)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "

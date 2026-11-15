@@ -6,21 +6,27 @@ package
     import flash.text.TextField;
     import flash.text.TextFormat;
     import scaleform.clik.data.DataProvider;
+    import scaleform.clik.events.ListEvent;
 
     // The Sound tab's "Microphone" list (exe patch 66, docs/notes/voice-chat.md, "Microphone"; the
     // owner asked for a microphone list): "Default" (Windows' default recording device) first, then each
     // capture device by its name as Windows shows it, which the voice DLL finds. The exe answers
     // ExternalInterface.call("srp_microphone"[, id]) with root.srp_microphone(label, default, shown, id,
     // name, ...): shown is the saved device's id while it is there, else "" (the default). It is asked as
-    // the tab is shown and again as the list is opened, so a device plugged in since is there. Settings
-    // owns it as a change of the tab, as the Language list: a pick is pending, Apply saves it (the call
-    // with the device's id, "" for the default), Cancel or leaving without Apply puts the saved one back.
-    // Its label in the sensitivity slider's look, the list under it (Settings.layoutVoice). Script-added
+    // the tab is shown and again as the list is opened, so a device plugged in since is there. A pick
+    // takes effect at once (the owner, 2026-11-14): ExternalInterface.call("srp_microphone_use", id) has
+    // the voice DLL use it, unsaved, so "Test microphone" and push-to-talk open it from their next press.
+    // Settings owns it as a change of the tab, as the Language list: a pick is pending, Apply saves it
+    // (the call "srp_microphone" with the device's id, "" for the default), Cancel or leaving without
+    // Apply puts the saved one back, and "srp_microphone_use" with no id has the DLL use the saved one
+    // again. Its label in the sensitivity slider's look, the list under it (Settings.layoutVoice). Script-added
     // children of the tab content, shown on the Sound frame once the exe has answered (without the voice
     // DLL it never does).
     public class SrpMicrophone
     {
         public static const NAME:String = "srp_microphone";
+        // The exe's call of the device used now: a pick's id, or none for the saved one.
+        private static const USE:String = "srp_microphone_use";
         private static const SOUND_FRAME:int = 4;
         // Its width until it is laid out (the Settings' lists').
         private static const WIDTH:Number = 184;
@@ -58,6 +64,9 @@ package
             menu.alpha = 1;
             // Pressed while closed: the exe is asked again before the click opens it.
             menu.addEventListener(MouseEvent.MOUSE_DOWN, onPress);
+            // A pick in the open list (CLIK dispatches it only while the list is open, so not for the
+            // selections answer and revert make).
+            menu.addEventListener(ListEvent.INDEX_CHANGE, onPick);
             content.addChild(menu);
             show();
         }
@@ -77,7 +86,8 @@ package
         }
 
         // The exe's answer: label, the default's text, the pick it shows, then id and name pairs. A
-        // pick not applied yet stays while its device is listed; else the shown one is selected.
+        // pick not applied yet stays while its device is listed; else the shown one is selected (a pick
+        // whose device is gone: the DLL uses the saved one again).
         public function answer(values:Array):void
         {
             if (values.length < 3)
@@ -99,6 +109,10 @@ package
             var index:int = picked != null ? ids.indexOf(picked) : -1;
             menu.selectedIndex = index >= 0 ? index : Math.max(0, ids.indexOf(saved));
             show();
+            if (picked != null && index < 0)
+            {
+                SrpExe.call(USE, null);
+            }
         }
 
         // The selected device is not the saved one: a change for Apply.
@@ -119,10 +133,15 @@ package
             SrpExe.call(NAME, saved);
         }
 
-        // Cancel: the saved device is selected again.
+        // Cancel (or leaving without Apply): the saved device is selected again, and used again (once
+        // the exe has answered: before, nothing was picked).
         public function revert():void
         {
             menu.selectedIndex = Math.max(0, ids.indexOf(saved));
+            if (ids.length > 0)
+            {
+                SrpExe.call(USE, null);
+            }
         }
 
         // The label at (x, top) in the look of `style` (the sensitivity slider's label), the list `drop`
@@ -146,6 +165,13 @@ package
             {
                 SrpExe.call(NAME, null);
             }
+        }
+
+        // A pick: the voice DLL uses it at once, unsaved; the saved one picked again is the saved one
+        // (the exe's, also while its device is unplugged and the list shows the default).
+        private function onPick(event:ListEvent):void
+        {
+            SrpExe.call(USE, pending ? ids[menu.selectedIndex] : null);
         }
 
         private function show():void

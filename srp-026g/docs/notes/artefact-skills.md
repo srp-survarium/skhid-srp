@@ -47,8 +47,9 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
 - Points (25 ranks in all; one of Resonance and Cascade): row I holds 8, rows I-II 14, rows
   I-III 20, rows I-IV 23, a full build 24. Without Forest Protection rows I-IV hold 19: row V
   needs at least one of its ranks.
-- Thresholds 0/5/10/15/20, the stock rows (the owner, 2026-11-07): every row opens (row I holds 8
-  for 5; rows I-IV hold 23 for 20, 19 without Forest Protection).
+- Thresholds 0/5/10/15/17 (the owner, 2026-11-14: row V at 17; the stock 0/5/10/15/20 from
+  2026-11-07): every row opens (row I holds 8 for 5; rows I-IV hold 23 for 17, 19 without Forest
+  Protection).
 - Quick Hands: 3 ranks of -8% search time (max -24%; the owner, 2026-11-09, "should be 3", with
   more a rank; 4 of -6% from 2026-11-07, the saved ranks past 3 settled and refunded). Resistance: 5 ranks
   of +5 isolation (max +25; the owner, 2026-11-07, back from 4 of +6).

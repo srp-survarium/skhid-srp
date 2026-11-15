@@ -9,6 +9,88 @@ release that made it what it is now.
 
 ---
 
+## 15 Nov, 16:26 — TODO: the owner's words (update required)
+
+<!-- Revision 60 (026g-rev60), released 2026-11-15 16:26 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1714 Patch 70: the baked textures' folder holds 3 GiB, the list grows, the oldest let go first
+- TODO: #1849 Artefact tree: row V at 17 points
+- TODO: #1865 Read a target shown with its clan tag as the player
+- TODO: #1848 Rooms: any public queue of three opens another room
+- TODO: #1876 Voice: take a seat's datagrams from its network, not only its exact IP
+- TODO: #1844 Keep every item's built-in bonuses in one order, ammo bags first
+- TODO: #1871 Free for All: Experimental Pool, School and Vostok (with its ports) spawns at the owner's picks
+- TODO: #1877 Freedom suit: hip-fire accuracy in place of stamina regeneration
+- TODO: #1908 Free for All: Mamayev Kurgan (native and v0.21) spawns at the owner's picks
+- TODO: #1851 Voice: the whole mix 6 dB louder before its limiter
+- TODO: #1887 Patch 144: the Settings' Game slider lowers the game's sounds, not the music or the voice chat
+- TODO: #1924 Free for all: choose from a map's whole team-2 group, up to 128 points
+- TODO: #1920 Free for all: never respawn at one of the last two points
+- TODO: #1967 Settings: hit marker list (All, Kill marker only, Hidden)
+- TODO: #1964 Every run's logs in files of their own (patch 147, updater, crash reporter)
+- TODO: #2021 Voice: opponents within 10 m hear the plain voice in every mode
+- TODO: #2022 Hit marker list: Kill marker only shows the whole kill marker
+- TODO: #1999 Patch 148: an empty shot is not logged
+- TODO: #2056 Voice: an opponent's speaker in the talking list is pale red
+- TODO: #2060 Voice list: a name never a key of an object
+- TODO: #2061 Rooms: "(owner)" only in a private room
+- TODO: #2055 Updater: PLAY stays off under 5 GB free on the Documents drive
+- TODO: #1854 Winchester and Colt level 10 and pricier; Saloon 20 % in two variations; Racket's AK-74N in level-10 rooms; no twists in private rooms
+- TODO: #2063 Rooms: each card picks a map, then its weather (every map alike)
+- TODO: #2067 Drop Windows 7: client programs on i686-pc-windows-msvc
+- TODO: #2066 FFA: Saloon (Winchester) by name, Saloon 5 / Winchester 15; STALKER maps last in the create window
+- TODO: #2071 Rooms: each card draws its mode, map and weather from pools (no mode or map twice)
+- TODO: #2075 Racket: clips of the gun's own ammo unless the kit already holds that ammo
+
+## 14 Nov, 15:39 — TODO: the owner's words (update required)
+
+<!-- Revision 59 (026g-rev59), released 2026-11-14 15:39 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #1635 Voice: speech 6 dB louder with a soft limiter, the radio's static a quarter
+- TODO: #1780 Rooms list: the member panel never shows who is on which side
+- TODO: #1781 Weapon pickup: a late joiner cooks a departed donor's gun before the load
+- TODO: #1782 Voice: directional within 15 m, radio past it, near level as revision 58
+- TODO: #1783 Voice: in a free-for-all everyone hears everyone (stacked on #1782)
+- TODO: #1785 One-off release script: 1000 rounds of every ammo type for every account
+- TODO: #1787 Military Warehouses: not played, its Free for All row out of the dictionary
+- TODO: #1788 Wiki maps: Free for All with its spawns, and the maps played in it alone
+- TODO: #1795 Freedom exoskeleton: lighter, two ammo bags, top mobility rows
+- TODO: #1794 Colt Python: a level-14 pistol, one hit to the head and two to the body
+- TODO: #1799 Colt Python: damage falls to 70 % at the most
+- TODO: #1804 12.7x54 PT: the bullet 50 m/s faster (370)
+- TODO: #1796 Freedom exoskeleton: armour 88, 17 kg, more slots, and built-in bonuses for the rolls it lacks
+- TODO: #1806 Duty exoskeleton: 22 kg, two item slots and ammo bags, three gun rows built in
+- TODO: #1793 Ported maps: stock film grain; the STALKER maps' sun, matte grass and stock ambient occlusion strength
+- TODO: #1802 STALKER maps: loading pictures captured again, with grass
+- TODO: #1811 Larkspur's activation heals every body part
+- TODO: #1809 Military Warehouses: played again in Free for All (revert of #1787)
+- TODO: #1812 Skills: Brothers in Arms a tier-1 single point of -50%; Battle stance +4% a rank
+- TODO: #1798 STALKER maps: bushes rustle under a walker's feet
+- TODO: #1790 Training Camp: Free for All inside the base's fence, a truck in each gateway, spawns on the raised floors
+- TODO: #1801 Voice: plain and from its side under 10 m with a gentle fall, the radio from 10 m
+- TODO: #1815 Voice: the plain voice 1.5 times louder, the radio's static at the live level
+- TODO: #1803 Options: test the microphone (10 s recorded, then played back)
+- TODO: #1792 London Free for All: no spawn on the rotunda's third storey
+- TODO: #1817 docs: document GE-Proton11-7 WoW64 startup setting
+- TODO: #1818 Sniper pants: their pocket size +1 back
+- TODO: #1819 Free for All: half a second of spawn protection on every map
+- TODO: #1820 Training Camp: its own map theme (music@2)
+- TODO: #1821 Exoskeletons: eight built-ins, the client's most; refuse more
+- TODO: #1823 Lobby: the stock Fix button is not in the movie at all
+- TODO: #1816 Inventory: Sell duplicates in the Fix button's place
+- TODO: #1824 Free for All: the cover rule, no spacing between spawns; Rudnya at the owner's 56 picks and 4 roofs
+- TODO: #1827 Free for all twists: Racket (sniper rifles and silenced guns become an AK-12)
+- TODO: #1828 Free for all twists: Cowboy ("Showdown"), everyone a Colt Python, 10 %
+- TODO: #1829 Free for all twists: Cowboy is "Saloon" (Салун), not a duel
+- TODO: #1822 Options: choose the microphone; the greyed PTT checkbox gone
+- TODO: #1826 Free for All: every other map's spawns by the cover rule (stacked on #1824)
+- TODO: #1830 Free for all twists: every life has its ammo, the twist's ammo never charged
+- TODO: #1834 Patch 146: the grass sort's comparator sums the distance in one order
+- TODO: #1836 Free for all twists: Racket's ammo the simplest way, its arms read once
+- TODO: #1837 FFA twists: named "FFA: Racket" and "FFA: Saloon", tickable in private rooms
+- TODO: #1839 Microphone list: a pick takes effect at once, Apply saves it
+- TODO: #1840 Racket: one AK-12 magazine per free ammo bag
+
 ## 13 Nov, 12:31 — TODO: the owner's words (update required)
 
 <!-- Revision 58 (026g-rev58), released 2026-11-13 12:31 UTC. To be worded for players; what it shipped: -->

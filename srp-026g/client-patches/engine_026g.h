@@ -124,6 +124,7 @@ struct sound_world;
 struct static_collision;
 struct static_model_instance;
 struct statistics_listener;
+struct submix_voice;
 struct system_renderer;
 struct text_translator;
 struct usable_list;
@@ -260,6 +261,9 @@ extern unsigned int (__attribute__((stdcall)) *const engine_close_handle)(void *
 
 /* the IAT slot 0x87021c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_delete_file_a)(const char * name);
+
+/* the IAT slot 0x870174 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_disk_free_space_ex_w)(const void * folder, void * free_for_caller, void * total, void * free);
 
 /* the IAT slot 0x870080 (an import, stdcall) */
 extern void * (__attribute__((stdcall)) *const engine_load_library_a)(const char * name);
@@ -677,6 +681,9 @@ void engine_context_unmap(struct immediate_context *context, struct hw_resource 
 
 /* COM ID3D11DeviceContext+0x1bc (stdcall through the interface's vtable): context ESP+4; pops 4 */
 void engine_context_flush(struct immediate_context *context);
+
+/* COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX */
+unsigned int engine_voice_set_volume(struct submix_voice *voice, float volume, unsigned int operation_set);
 
 /* 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12 */
 void engine_ray_callback(struct closest_ray_result_callback *callback, const float *from, const float *to, unsigned int group, unsigned int mask, struct bullet *requester);

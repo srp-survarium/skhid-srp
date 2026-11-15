@@ -243,6 +243,8 @@ unsafe extern "C" {
     pub fn engine_context_unmap(context: *mut c_void, resource: *mut c_void, subresource: u32);
     /// COM ID3D11DeviceContext+0x1bc (stdcall through the interface's vtable): context ESP+4; pops 4
     pub fn engine_context_flush(context: *mut c_void);
+    /// COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX
+    pub fn engine_voice_set_volume(voice: *mut c_void, volume: f32, operation_set: u32) -> u32;
     /// 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12
     pub fn engine_ray_callback(callback: *mut c_void, from: *const f32, to: *const f32, group: u32, mask: u32, requester: *mut c_void);
     /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
@@ -403,6 +405,8 @@ unsafe extern "C" {
     pub static engine_close_handle: unsafe extern "stdcall" fn(*mut c_void) -> u32;
     /// the IAT slot 0x87021c (an import, stdcall): unsigned int engine_delete_file_a(const char *name)
     pub static engine_delete_file_a: unsafe extern "stdcall" fn(*const u8) -> u32;
+    /// the IAT slot 0x870174 (an import, stdcall): unsigned int engine_get_disk_free_space_ex_w(const void *folder, void *free_for_caller, void *total, void *free)
+    pub static engine_get_disk_free_space_ex_w: unsafe extern "stdcall" fn(*const c_void, *mut c_void, *mut c_void, *mut c_void) -> u32;
     /// the IAT slot 0x870080 (an import, stdcall): void *engine_load_library_a(const char *name)
     pub static engine_load_library_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
     /// the IAT slot 0x870084 (an import, stdcall): void *engine_get_proc_address(void *module, const char *name)

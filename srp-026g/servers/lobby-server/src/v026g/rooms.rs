@@ -43,8 +43,8 @@
 //!   it came in (Play or a join; the owner's of 2026-10-31).
 //! - **Play.** Public rooms start empty and grow with demand: the first
 //!   Play creates an 8 v 8 room in its equipment bracket (up to 10 or 15).
-//!   Full rooms queue newcomers; four ready Play waiters in the same bracket
-//!   open another room. Explicit room queues stay chosen.
+//!   Full rooms queue newcomers; three ready waiters in the same bracket
+//!   (Play's or a public room's Queue alike) open another room.
 //!   Only private rooms may be created by a client.
 //! - **Squads** (two at most; the owner's of 2026-10-31,
 //!   `docs/notes/squads.md`): Play, Join and a queue take the mate along
@@ -243,8 +243,12 @@ struct Ready {
 }
 
 impl Core<'_> {
-    /// The maps a pool may hold, in the order their bits name them: the
-    /// match pool (Blackout's maps too, mode 6), then the experimental maps.
+    /// The maps a pool may hold, in the order their bits name them and the
+    /// create window lists them: the match pool (Blackout's maps too, mode
+    /// 6), then the experimental maps, the STALKER maps of both after every
+    /// other (the owner's of 2026-11-15: "also when creating private rooms,
+    /// stalker maps should be at the bottom of the list"), each part in its
+    /// order.
     pub(super) fn room_entries(&self) -> Vec<PoolEntry> {
         let pool = &self.settings.maps;
         let extra = self
@@ -253,21 +257,28 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        pool
+        let mut entries: Vec<(bool, PoolEntry)> = pool
             .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
             .filter_map(|(id, extra)| {
                 let map = maps::map_mode(id)?;
-                Some(PoolEntry {
+                let entry = PoolEntry {
                     map_id: id,
                     level: map.level,
                     weather: map.weather,
                     mode: map.mode.lobby_number(),
                     extra,
                     bots: self.settings.pvb.bot_maps.contains(&id),
-                })
+                };
+                Some((map.is_stalker(), entry))
             })
+            .collect();
+        // Stable: the others first, the STALKER maps after, each as it came.
+        entries.sort_by_key(|&(stalker, _)| stalker);
+        entries
+            .into_iter()
+            .map(|(_, entry)| entry)
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()
@@ -1128,8 +1139,9 @@ impl Core<'_> {
         Ok(key)
     }
 
-    /// Only connected, ready Play users count toward demand. A changed
-    /// loadout is routed again before counting, and explicit queues stay put.
+    /// Only connected, ready waiters count toward demand: Play's and a
+    /// public room's Queue alike. A changed loadout of Play's is routed again
+    /// before counting.
     fn room_scale_queues(&mut self, now: Instant) {
         if self.maintenance_is_near() {
             return;
@@ -1162,7 +1174,7 @@ impl Core<'_> {
                 // its Play takes, `play_party`), by the pair's gear.
                 let waiting: Vec<_> = self
                     .rooms
-                    .play_queue()
+                    .public_queue()
                     .into_iter()
                     .filter_map(|(waiting, _)| {
                         let account_id = waiting.lead();
@@ -1196,7 +1208,7 @@ impl Core<'_> {
                     let _ = self.rooms.join_with(who.account_id, *gear, *mate, key, now);
                 }
                 log::info!(
-                    "Room {key}: opened for queued Play users, max level {}",
+                    "Room {key}: opened for queued players, max level {}",
                     bracket.max_level()
                 );
             }
@@ -2271,7 +2283,7 @@ impl Core<'_> {
             "Room {key}: match {match_id:#x} on map {}{}, {} v {} with {} and {} of the \
              server's bots",
             played.map().id,
-            played.twist().map_or(String::new(), |twist| format!(" ({twist:?})")),
+            played.armed().map_or(String::new(), |twist| format!(" ({twist:?})")),
             teams[0].len(),
             teams[1].len(),
             bots[0],

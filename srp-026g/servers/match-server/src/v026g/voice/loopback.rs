@@ -69,7 +69,8 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
         assert!(matches!(welcome, wire::Message::Welcome { slot } if slot == place as u8));
         cores[index].receive(&welcome, 0);
         let roster = receive(&games[index]);
-        assert!(matches!(&roster, wire::Message::Roster { entries } if entries.len() == 2));
+        // The whole match: both teams' places.
+        assert!(matches!(&roster, wire::Message::Roster { entries } if entries.len() == 4));
         cores[index].receive(&roster, 0);
     }
     let mut encoders = [Encoder::new().unwrap(), Encoder::new().unwrap()];
@@ -133,7 +134,7 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
         let projection = (sin * sin + cos * cos).sqrt() / (energy * sound.len() as f64).sqrt();
         assert!(
             projection > 0.4,
-            "client {index}: received the teammate's {hz}Hz tone ({projection})"
+            "client {index}: received the other client's {hz}Hz tone ({projection})"
         );
     }
 }

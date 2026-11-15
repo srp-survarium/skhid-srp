@@ -2387,3 +2387,9 @@ va	status	ref_021d	name
 0x001f60a0	reviewed		survarium::network_stats_lobby_torrent's row update (seeding, peers, upload, max upload limit)
 0x00262250	reviewed		survarium::options_torrent_seeding_selector's read of change_seeding_upload_rate
 0x002622a0	reviewed		survarium::options_torrent_seeding_selector's apply (executes change_seeding_upload_rate <KiB/s>)
+0x0005c060	reviewed		vostok::sound::sound_scene::process_fade
+0x00316bc0	observed		survarium::player_respawn_rule_base::on_player_entered_match
+0x00316c90	observed		survarium::player_respawn_rule_base::serialize
+0x00316d50	observed		survarium::player_respawn_rule_base::deserialize
+0x00316f10	observed		survarium::player_respawn_rule_core::serialize
+0x00316fc0	observed		survarium::player_respawn_rule_core::deserialize

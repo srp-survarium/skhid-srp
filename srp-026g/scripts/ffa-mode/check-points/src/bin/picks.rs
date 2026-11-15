@@ -4,7 +4,8 @@
 //!
 //! ```text
 //! picks --db <resources.db> --patch <resources.db.patch_12> ... \
-//!     --points <tsv> [--roofs 49,8,10,42] [--harmful-ok 45] \
+//!     --points <tsv> [--roofs 49,8,10,42] [--stranded-ok 13] [--harmful-ok 45] [--as-stood 12] \
+//!     [--shift 1.5] \
 //!     --project level_01/day_8 [--project level_01/evening_8 ...]
 //! ```
 //!
@@ -12,7 +13,12 @@
 //! floor within 0.5 m, body clear, a reachable floor of the walk grid) and
 //! kept 2 m from harmful zones (but the picks `--harmful-ok` names: the
 //! owner's, 2026-11-14, "45 can stay too", 1.5 m from Rudnya's swamp anomaly);
-//! a pick failing either is dropped. Every other pick is kept, however near
+//! a pick failing either is dropped, but one `--as-stood` names that fails the
+//! first stays at its own `where` position (the owner, 2026-11-14, "keep all
+//! my positions": he stood there; the check's collision has no floor under its
+//! centre). `--shift <m>`: a dropped pick goes to the nearest place within
+//! that many metres in plan that passes both (picks of one map on its ports,
+//! where he did not stand). Every other pick is kept, however near
 //! another (the owner, 2026-11-14: "we don't need this rules at all", of the
 //! 12 m spacing; the respawn's choice keeps players apart). They face as the
 //! owner faced: the rotation `[0, -yaw, 0]` (the `where` yaw turns +z towards
@@ -24,7 +30,8 @@
 //! project's last; solo spawns left over (the highest ids, the project's last
 //! entries) go. `--roofs`: after them, a new point on the roof of the
 //! building at each of these picks ([`roof`]), its facing the longest view,
-//! the nearest spawn said. Prints
+//! the nearest spawn said; `--stranded-ok`: those of these picks whose roof
+//! may have no way down within 5 m drops. Prints
 //! checked.tsv rows (`point` the point id, verdict `moved`, `added`, `roof`
 //! or `removed`: make_picks_edits.py makes them an edit list) and, on stderr,
 //! each dropped pick and why.
@@ -34,6 +41,9 @@ use mapdata::{Materials, Resources, Vec3};
 use std::{path::PathBuf, process::ExitCode};
 
 const HAZARD_MARGIN: f32 = 2.0;
+/// `--shift`'s rings and directions round a pick.
+const SHIFT_STEP: f32 = 0.25;
+const SHIFT_DIRECTIONS: u32 = 16;
 /// How far ahead the facing is looked along, for the reason column.
 const SIGHT: f32 = 20.0;
 
@@ -43,12 +53,41 @@ struct Pick {
     yaw: f32,
 }
 
+/// Where a pick stands, by the spawn check.
+enum Ground {
+    On,
+    /// Moved this far up (or down) to the check's floor.
+    Nudged(f32),
+    /// Dropped by the checks there for this; kept this far off (`--shift`).
+    Shifted { by: f32, why: String },
+    /// Dropped by the check for this; kept where he stood (`--as-stood`).
+    AsStood(String),
+}
+
+impl Ground {
+    fn said(&self) -> String {
+        match self {
+            Ground::On => "on its ground".to_owned(),
+            Ground::Nudged(d) => format!("ground {d:+.3} m"),
+            Ground::Shifted { by, why } => format!("shifted {by:.2} m, --shift; at his place: {why}"),
+            Ground::AsStood(why) => format!("as he stood, --as-stood; the check: {why}"),
+        }
+    }
+
+    fn body(&self) -> &'static str {
+        match self {
+            Ground::AsStood(_) => "body as he stood",
+            Ground::On | Ground::Nudged(_) | Ground::Shifted { .. } => "body clear",
+        }
+    }
+}
+
 /// A pick on its ground, with its place by the rule.
 struct Placed {
     n: u32,
     feet: Vec3,
     yaw: f32,
-    ground: String,
+    ground: Ground,
     /// Within HAZARD_MARGIN of a harmful zone, kept by `--harmful-ok`.
     harm: Option<String>,
     place: Placement,
@@ -115,6 +154,10 @@ enum Down {
     Walks,
     /// With drops, the highest this one (the walk model takes 5 m at most).
     Drops(f32),
+    /// None within 5 m drops: on a roof `--stranded-ok` names (the owner,
+    /// 2026-11-14, of Vostok's at 13: "set one spawn on top of the building
+    /// where 13 is").
+    Stranded,
 }
 
 /// A spawn on the roof of the building at an owner's pick (the owner,
@@ -144,8 +187,9 @@ struct Roof {
 /// has none), body clear and 2 m from harmful zones, with a way down by the
 /// walk model's links (drops of 5 m at most) to a floor the map's players
 /// walk; of those, the one farthest in plan from every spawn of `set` (a
-/// preference for spread, no minimum).
-fn roof(map: &Map, pick: &Placed, set: &[Vec3]) -> Result<Roof, String> {
+/// preference for spread, no minimum). With `stranded_ok`, the nearest roof
+/// with such a floor, a way down or not.
+fn roof(map: &Map, pick: &Placed, set: &[Vec3], stranded_ok: bool) -> Result<Roof, String> {
     use mapdata::{Body, LinkKind, WalkGrid};
     let at = pick.feet;
     let r = ROOF_REACH + 13.0;
@@ -259,18 +303,22 @@ fn roof(map: &Map, pick: &Placed, set: &[Vec3]) -> Result<Roof, String> {
         let (d, h) = nearest[id];
         match candidates.iter().find_map(|&n| way_down(n).map(|drop| (n, drop))) {
             Some((n, drop)) => {
-                found = Some((n, drop, slope(n).unwrap_or(0.0)));
+                found = Some((n, drop.map_or(Down::Walks, Down::Drops), slope(n).unwrap_or(0.0)));
                 break;
             }
             None if candidates.is_empty() => {
                 skipped.push(format!("the roof at {h:.1} m, {d:.1} m off: no flat, clear floor"))
+            }
+            None if stranded_ok => {
+                found = Some((candidates[0], Down::Stranded, slope(candidates[0]).unwrap_or(0.0)));
+                break;
             }
             None => skipped.push(format!(
                 "the roof at {h:.1} m, {d:.1} m off: no way down a player survives (drops of 5 m at most)"
             )),
         }
     }
-    let (node, drop, slope) = found.ok_or_else(|| {
+    let (node, down, slope) = found.ok_or_else(|| {
         format!("pick {}: no roof spawn within {ROOF_REACH} m ({})", pick.n, skipped.join("; "))
     })?;
     let feet = local.position(node);
@@ -292,7 +340,7 @@ fn roof(map: &Map, pick: &Placed, set: &[Vec3]) -> Result<Roof, String> {
         yaw,
         height: feet.y - at.y,
         on_foot: walked(feet),
-        down: drop.map_or(Down::Walks, Down::Drops),
+        down,
         slope: slope.atan().to_degrees(),
         skipped,
     })
@@ -301,7 +349,9 @@ fn roof(map: &Map, pick: &Placed, set: &[Vec3]) -> Result<Roof, String> {
 fn run() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
     let (mut layers, mut projects, mut points) = (Vec::new(), Vec::new(), None);
-    let (mut roofs, mut harmful_ok) = (Vec::<u32>::new(), Vec::<u32>::new());
+    let (mut roofs, mut harmful_ok, mut as_stood) = (Vec::<u32>::new(), Vec::<u32>::new(), Vec::<u32>::new());
+    let mut stranded_ok = Vec::<u32>::new();
+    let mut shift = 0f32;
     let numbers = |value: &str, flag: &str| -> Result<Vec<u32>, String> {
         value
             .split(',')
@@ -316,6 +366,15 @@ fn run() -> Result<(), String> {
             "--points" => points = Some(PathBuf::from(value)),
             "--roofs" => roofs = numbers(&value, &flag)?,
             "--harmful-ok" => harmful_ok = numbers(&value, &flag)?,
+            "--as-stood" => as_stood = numbers(&value, &flag)?,
+            "--stranded-ok" => stranded_ok = numbers(&value, &flag)?,
+            "--shift" => {
+                shift = value
+                    .parse()
+                    .ok()
+                    .filter(|m: &f32| m.is_finite() && *m >= 0.0)
+                    .ok_or_else(|| format!("bad --shift {value}"))?
+            }
             _ => return Err(format!("unknown flag {flag}")),
         }
     }
@@ -341,29 +400,59 @@ fn run() -> Result<(), String> {
             .map(|s| s.point_id)
             .collect();
         ids.sort_unstable();
+        // `--shift`: the nearest place within `shift` m in plan of a pick
+        // the checks drop where it passes them all (rings 0.25 m apart).
+        let shifted = |at: Vec3| -> Option<(Vec3, f32)> {
+            let rings = (shift / SHIFT_STEP).floor() as u32;
+            (1..=rings).find_map(|ring| {
+                let r = ring as f32 * SHIFT_STEP;
+                (0..SHIFT_DIRECTIONS).find_map(|k| {
+                    let a = k as f32 * std::f32::consts::TAU / SHIFT_DIRECTIONS as f32;
+                    let q = at + Vec3::new(a.sin() * r, 0.0, a.cos() * r);
+                    let feet = match map.check(q) {
+                        Verdict::Kept => q,
+                        Verdict::Nudged { ground } => Vec3::new(q.x, ground, q.z),
+                        Verdict::Dropped(_) => return None,
+                    };
+                    (!map.harmful(feet, HAZARD_MARGIN)).then_some((feet, r))
+                })
+            })
+        };
         let mut placed = Vec::new();
         for pick in &picks {
-            let (feet, ground) = match map.check(pick.at) {
-                Verdict::Kept => (pick.at, "on its ground".to_owned()),
+            let (mut feet, mut ground) = match map.check(pick.at) {
+                Verdict::Kept => (pick.at, Ground::On),
                 Verdict::Nudged { ground } => (
                     Vec3::new(pick.at.x, ground, pick.at.z),
-                    format!("ground {:+.3} m", ground - pick.at.y),
+                    Ground::Nudged(ground - pick.at.y),
                 ),
-                Verdict::Dropped(why) => {
+                Verdict::Dropped(why) if as_stood.contains(&pick.n) => {
+                    eprintln!("{project}: pick {} kept as he stood (--as-stood): {why}", pick.n);
+                    (pick.at, Ground::AsStood(why))
+                }
+                Verdict::Dropped(why) => match shifted(pick.at) {
+                    Some((feet, by)) => {
+                        eprintln!("{project}: pick {} shifted {by:.2} m: {why}", pick.n);
+                        (feet, Ground::Shifted { by, why })
+                    }
+                    None => {
+                        eprintln!("{project}: pick {} dropped: {why}", pick.n);
+                        continue;
+                    }
+                },
+            };
+            let mut near_harm = map.harmful_zone(feet, HAZARD_MARGIN);
+            if let Some((zone, d)) = near_harm {
+                let why = format!("{d:.2} m from harmful zone {zone} (under {HAZARD_MARGIN} m)");
+                if harmful_ok.contains(&pick.n) {
+                    eprintln!("{project}: pick {} kept {d:.2} m from harmful zone {zone} (--harmful-ok)", pick.n);
+                } else if let Some((there, by)) = shifted(pick.at) {
+                    eprintln!("{project}: pick {} shifted {by:.2} m: {why}", pick.n);
+                    (feet, ground, near_harm) = (there, Ground::Shifted { by, why }, None);
+                } else {
                     eprintln!("{project}: pick {} dropped: {why}", pick.n);
                     continue;
                 }
-            };
-            let near_harm = map.harmful_zone(feet, HAZARD_MARGIN);
-            if let Some((zone, d)) = near_harm {
-                if !harmful_ok.contains(&pick.n) {
-                    eprintln!(
-                        "{project}: pick {} dropped: {d:.2} m from harmful zone {zone} (under {HAZARD_MARGIN} m)",
-                        pick.n
-                    );
-                    continue;
-                }
-                eprintln!("{project}: pick {} kept {d:.2} m from harmful zone {zone} (--harmful-ok)", pick.n);
             }
             placed.push(Placed {
                 n: pick.n,
@@ -400,14 +489,15 @@ fn run() -> Result<(), String> {
                 (false, false) => "no cover and in the perimeter band (fails the spawn rule)".to_owned(),
             };
             println!(
-                "{project}\t{id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\t{verdict}\t\tthe owner's pick {} (where yaw {:.1}, {}); body clear; {}; cover {}; {rule}; {ahead} m clear ahead",
+                "{project}\t{id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\t{verdict}\t\tthe owner's pick {} (where yaw {:.1}, {}); {}; {}; cover {}; {rule}; {ahead} m clear ahead",
                 p.feet.x,
                 p.feet.y,
                 p.feet.z,
                 rotation_y(p.yaw),
                 p.n,
                 p.yaw,
-                p.ground,
+                p.ground.said(),
+                p.ground.body(),
                 p.harm.as_deref().unwrap_or("harmful zones >=2m"),
                 place.cover.name()
             );
@@ -427,7 +517,7 @@ fn run() -> Result<(), String> {
                 .iter()
                 .find(|p| p.n == *n)
                 .ok_or_else(|| format!("--roofs {n}: no such pick on a floor"))?;
-            let r = roof(&map, pick, &set)?;
+            let r = roof(&map, pick, &set, stranded_ok.contains(n))?;
             let (near, plan, solid) = set
                 .iter()
                 .zip(kept.iter().map(|&i| format!("pick {}", placed[i].n)).chain(roofs.iter().map(|n| format!("the roof spawn over pick {n}"))))
@@ -438,6 +528,7 @@ fn run() -> Result<(), String> {
             let down = match r.down {
                 Down::Walks => "down on foot".to_owned(),
                 Down::Drops(h) => format!("down by a drop of {h:.1} m"),
+                Down::Stranded => "no way down within 5 m drops (--stranded-ok, the owner's)".to_owned(),
             };
             println!(
                 "{project}\t{next_id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\troof\t\troof spawn of the building at the owner's pick {} (facing {:.1} as where turns, the longest view); its floor {:.1} m over the pick's, sloping {:.0} deg; {}; {down}; body clear; harmful zones >=2m; nearest spawn {near}: {plan:.1} m in plan, {solid:.1} m in 3D; cover {}{}{}",

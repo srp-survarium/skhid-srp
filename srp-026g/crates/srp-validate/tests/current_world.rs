@@ -11,6 +11,7 @@ fn context(places: usize, game_mode: u8, batteries: usize) -> Context<'static> {
         game_mode,
         batteries,
         respawn_points: Some(3),
+        team_2_points: None,
         profiles: None,
         artefacts: None,
         objects: None,
@@ -132,6 +133,7 @@ fn current_tdm_rules_and_time_are_checked() {
             active_players_mask: 3,
         }),
         research: None,
+        free_for_all: None,
         kills_deaths: vec![
             native::KillsDeaths {
                 kills: 0,

@@ -19,6 +19,20 @@ handler = "on_due_team"
 site = "respawn.select"
 handler = "on_select"
 
+# each place's last two spawn points, the world's: after the respawn rule's
+# own bytes, and empty again when a place enters
+[[hook]]
+site = "respawn.save"
+handler = "on_spawns_save"
+
+[[hook]]
+site = "respawn.load"
+handler = "on_spawns_load"
+
+[[hook]]
+site = "respawn.entered"
+handler = "on_entered"
+
 # the kill target: srp's block after the match's options
 [[hook]]
 site = "static_info.options_read"

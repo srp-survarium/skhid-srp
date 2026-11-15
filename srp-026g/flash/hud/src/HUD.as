@@ -1374,17 +1374,17 @@ package
          this.crosshair.setDamage(size,delay,killed,debug);
       }
       
-      // The Settings' "Hide hit markers", "Hide player scores", "Hidden crosshair" and "Names on map" (exe
-      // patch 83, told at once and again at each change; docs/notes/hide-hit-markers-scores.md): the
-      // crosshair shows no hit marker; the Tab list shows the players' names only; no aiming cross; the
-      // Tab map's names shown, Alt hiding them.
-      public function srp_hud_options(hideHitMarkers:Boolean, hideScores:Boolean, hideCrosshair:Boolean, mapNames:Boolean) : void
+      // The Settings' hit marker list, "Hide player scores", "Hidden crosshair" and "Names on map" (exe
+      // patch 83, told at once and again at each change, as numbers; docs/notes/hide-hit-markers-scores.md):
+      // the crosshair's hit markers (Crosshair.HIT_MARKERS_*: all, the kill's only, none); the Tab list
+      // shows the players' names only; no aiming cross; the Tab map's names shown, Alt hiding them.
+      public function srp_hud_options(hitMarkers:uint, hideScores:uint, hideCrosshair:uint, mapNames:uint) : void
       {
-         this.crosshair.hitMarkersHidden = hideHitMarkers;
-         this._scoresHidden = hideScores;
+         this.crosshair.hitMarkers = hitMarkers;
+         this._scoresHidden = hideScores != 0;
          this.showScores();
-         this.crosshair.crosshairHidden = hideCrosshair;
-         this._mapNamesAlways = mapNames;
+         this.crosshair.crosshairHidden = hideCrosshair != 0;
+         this._mapNamesAlways = mapNames != 0;
          this.showMapNames();
       }
 
@@ -1668,11 +1668,11 @@ package
          }
       }
       
-      // Voice chat (exe patch 66, docs/notes/voice-chat.md): the names of the teammates talking now
-      // (none: nobody). Called on a change only.
-      public function srp_voice_talking(... names) : void
+      // Voice chat (exe patch 66, docs/notes/voice-chat.md): those talking now, each its name and
+      // side, "mate" or "opponent" (none: nobody). Called on a change only.
+      public function srp_voice_talking(... speakers) : void
       {
-         this.voiceSpeakers.update(names);
+         this.voiceSpeakers.update(speakers);
       }
 
       // The exe's answers to the Tab list's player menu's voice entries (exe patch 66): whether a

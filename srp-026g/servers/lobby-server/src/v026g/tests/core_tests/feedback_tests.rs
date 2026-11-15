@@ -427,7 +427,7 @@ impl World {
             match_id,
             map_id: made.map().id,
             mode: made.mode(),
-            twist: made.twist(),
+            twist: made.armed(),
             match_level: 0,
             end: MatchEnd::ModeRule,
             winner: Some(0),

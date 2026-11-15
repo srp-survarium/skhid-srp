@@ -2029,6 +2029,7 @@ va	name	source	ret_cleanup	result
 0x0023b200	survarium::game_world_ui::update_ui	manual	12	
 0x001e8da0	survarium::delete_folder	manual	0	
 0x00131ed0	vostok::render::camouflage_decal_texture_type_baker_cook::find_baked_texture	manual	4	AL: 1 when the path has a record (its first now marked loading +120h)
+0x00131f90	vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files	manual	4	nothing (stdcall, `ret 4` at 0x132639; ebx, ebp, esi, edi kept); one caller, process_compression 0x12F405 after its push_back
 0x0012d1d0	vostok::render::camouflage_decal_texture_type_baker_cook::translate_query	manual	4	
 0x000f0d00	vostok::resources::query_result_for_cook::finish_query_impl	manual	16	
 0x000f0080	vostok::resources::query_result_for_cook::set_unmanaged_resource	manual	12	
@@ -2624,3 +2625,11 @@ va	name	source	ret_cleanup	result
 0x001ed260	survarium::game::switch_to_login	manual	4	none; network client vtable +20h true: login_menu::set_status(game+5394h, the argument), torrent_client+1Ch := 0, start_seeding (0x1ED2AD) only while enable_torrent_seeding is set (the je 0x1ED29D); the login menu made the active scene; game+586Ch := 1
 0x000e4390	the product name (narrow)	manual	0	EAX: the product's narrow name ("survarium"), which start_seeding_impl formats into its pipe's wide name with %s (0x373CB5: garbled) and into "<product> Update Service" (0x373D28)
 0x003745b0	a wide snprintf into EDX's buffer (start_seeding_impl's names)	manual	0	none (cdecl, the caller pops the format and its arguments); start_seeding_impl gives it [ebp-4B8h] and L"%s-%s" with L"\\.\pipe\vostok_updater_pipe" and the narrow product name (0x373CC6), and Software\Vostok Games\%s (0x373EAD)
+0x0005c060	vostok::sound::sound_scene::process_fade	manual	0	none; state +2FCh 1 (fading in): volume +2E4h += elapsed / +2ECh, at 1 the state 0; 2 (fading out): -= elapsed / +2F0h, at 0 the scene leaves the active list (0x5A320) and +2F9h is cleared; either way its submix +2E0h gets SetVolume(+2E8h x +2E4h, 0) (vtable +30h; 0x5C0E8, 0x5C1B3); state 0 writes nothing
+0x00316bc0	survarium::player_respawn_rule_base::on_player_entered_match	manual	8	
+0x00316c90	survarium::player_respawn_rule_base::serialize	manual	4	
+0x00316d50	survarium::player_respawn_rule_base::deserialize	manual	8	
+0x00316f10	survarium::player_respawn_rule_core::serialize	manual	4	
+0x00316fc0	survarium::player_respawn_rule_core::deserialize	manual	8	
+0x000e29c0	vostok::core::generate_log_file_name	manual	0	the name in EDI's buffer_string: user_data_directory (+ "\\" + the application name, appended as a path) + "_%s" (0x9E6248) of the Windows user name when it has one + ".%s" (0x9E624C) of "log" (0x9E62E4, the extension inlined); its only call 0xE31F3 (logging_initialize)
+0x001128d0	vostok::logging::new_log_file	manual	0	EAX the log_file (0x4460 bytes of the allocator 0x1F1D61C) or 0; log_file::log_file 0x112340 with g_log_file_usage 0x1B3A1B8: usage 1 (create_log) opens the file create_always, any other append_or_create (0x11245F: dec/neg/sbb/and 2); the name copied (0x1123E9); cdecl, its only call 0xE31FD
