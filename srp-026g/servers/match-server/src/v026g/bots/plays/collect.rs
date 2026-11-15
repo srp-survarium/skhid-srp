@@ -912,10 +912,11 @@ const ENEMIES_OUT: f32 = 4.0;
 
 /// [take.known_threats] The enemies known by a battery lying at `at`, for its score: each whose last spot the team's own
 /// senses gave within `sense.forget_ms` (`Track::own`, as [`Ctx::take_threat`] reads him), not heard reloading within
-/// `reload_cover_s` ([`Ctx::reloading`]), and whom no teammate keeps busy (a clear line to that spot within `cover_m`,
-/// no cloud on it: [`Ctx::covers`]) by his distance from it ([`held_weight`]); any other remembered enemy within
-/// [`ENEMIES_NEAR_M`] one, as [`Input::EnemiesNearTarget`] counts him. A man reloading or kept busy is one the take goes
-/// past, as the take itself reads him.
+/// `reload_cover_s` ([`Ctx::reloading`]), and not kept busy by a teammate (only a man the bot sees now can be: a clear
+/// line to him within `cover_m`, no cloud on it, [`Ctx::covers`]; a line to a spot nobody sees keeps nobody busy) by his
+/// distance from it ([`held_weight`]); any other remembered enemy within [`ENEMIES_NEAR_M`] one, as
+/// [`Input::EnemiesNearTarget`] counts him. A man reloading or kept busy is one the take goes past, as the take itself
+/// reads him.
 fn enemies_weighed(cx: &Ctx, at: Vec3) -> f32 {
     let num = |name| cx.num(PlayKind::Collect, name);
     let (held_m, exposed_m, cover_m) = (num("hold_near_m"), num("exposed_m"), num("cover_m"));
@@ -923,13 +924,16 @@ fn enemies_weighed(cx: &Ctx, at: Vec3) -> f32 {
     let veil = Some(cx.view.smoke.veil(cx.view.clock, &cx.tuning.smoke));
     let mates = cx.coverers();
     let count = |t: &crate::v026g::bots::know::Track| f32::from(t.at.distance_xz(at) < ENEMIES_NEAR_M);
+    let seen_now = |t: &crate::v026g::bots::know::Track| {
+        t.source == crate::v026g::bots::know::Source::Seen && cx.now <= t.time + SEEN_NOW_MS
+    };
     cx.memory
         .tracks()
         .iter()
         .map(|t| match t.own.filter(|&(_, time)| cx.now <= time + cx.tuning.sense.forget_ms) {
             Some((spot, _))
                 if !cx.reloading(t.who, reload_ms)
-                    && !mates.iter().any(|mate| cx.covers(mate, Ctx::standing_eye(spot), cover_m, veil)) =>
+                    && !(seen_now(t) && mates.iter().any(|mate| cx.covers(mate, Ctx::standing_eye(spot), cover_m, veil))) =>
             {
                 held_weight(spot.distance_xz(at), held_m, exposed_m)
             }
@@ -999,7 +1003,7 @@ fn battery_candidate(cx: &Ctx, battery: usize) -> Option<Candidate> {
         .battery_lying(battery)
         .and_then(|at| cx.crossing(at))
         .map_or(1.0, |c| (1.0 - cx.budget().reserve.share(c.cost())).max(0.0));
-    battery_candidate_given(cx, target, slot, on_it, near).map(|mut candidate| {
+    battery_candidate_given(cx, target, slot, on_it, counted, near).map(|mut candidate| {
         if dry < 1.0 {
             candidate.score = Score::new(candidate.score.get() * dry);
         }
@@ -1013,11 +1017,14 @@ fn battery_candidate_given(
     target: TargetRef,
     slot: Option<u32>,
     on_it: bool,
+    counted: f32,
     near: f32,
 ) -> Option<Candidate> {
     let mut given = [(Input::PathDist, 0.0); 2];
     let mut n = 0;
-    // [take.known_threats] `near` is the enemies weighed by their distance (`enemies_weighed`), given as it is.
+    // [take.known_threats] `near` is the enemies weighed by their distance (`enemies_weighed`), given as it is; the margin
+    // still goes by the COUNT (`counted`) at the cut-off, the flicker it was made for (a fourth enemy's spot crossing
+    // 25 m): on the weighed sum a lone man on the battery, who weighs `ENEMIES_OUT` alone, would bring it back at 3.
     // The floor paths off (`GridTuning::floor_paths`, off by default): only a
     // battery a storey off is as far as the way between the floors, as
     // before every play's `path_dist` was.
@@ -1030,7 +1037,7 @@ fn battery_candidate_given(
         given[n] = (Input::PathDist, walk);
         n += 1;
     }
-    if on_it && near >= ENEMIES_OUT && cx.memory.all_seen(cx.now, cx.view.clock).is_empty() {
+    if on_it && counted >= ENEMIES_OUT && cx.memory.all_seen(cx.now, cx.view.clock).is_empty() {
         given[n] = (Input::EnemiesNearTarget, near - COLLECT_ENEMY_MARGIN);
         n += 1;
     } else if cx.tuning.take.known_threats {
@@ -6322,30 +6329,40 @@ mod tests {
         s.tuning.take.known_threats = true;
         s.enemy(1, 1, TAKE_AT + Vec3::new(26.0, 0.0, 0.0), Some(Source::Heard));
         assert!(!waits(&s), "far");
-        // A mate 15 m off with a line to his spot keeps him busy ...
+        // A mate 15 m off with a line to his spot keeps nobody busy: nobody sees him (the live recordings' "covering"
+        // mates were other bots walking in, killed with the bot).
         let mut s = setup(Source::Heard);
         s.bot(2, 0, spot + Vec3::new(0.0, 0.0, 15.0));
-        assert!(!waits(&s), "covered");
-        // ... unless a cloud stands on him: the mate sees nothing there.
+        assert!(waits(&s), "a heard man is covered by nobody");
+        // A man seen, with that mate's line to him: kept busy, the take goes ...
+        let mut s = setup(Source::Seen);
+        s.bot(2, 0, spot + Vec3::new(0.0, 0.0, 15.0));
+        assert_eq!(take_threat(&s.cx(0), TAKE_AT), None, "seen and covered");
+        // ... unless a cloud stands on the mate's line (not on the bot's): the mate sees nothing there.
         let shape = SmokeGrenade::RDG_M.cloud;
         let pours = MatchMs(s.view.clock - 10_000);
         s.view.smoke = Clouds::new(vec![Cloud {
             by: 1,
             team: 1,
             placed: Placed::Arc,
-            centre: spot,
+            centre: spot + Vec3::new(0.0, 0.0, 9.0),
             thrown: MatchMs(pours.0 - shape.fuse_ms),
             pours,
             shape,
         }]);
         s.tuning.smoke.sight = true;
-        assert!(waits(&s), "the mate's line through the cloud");
+        assert_eq!(
+            take_threat(&s.cx(0), TAKE_AT),
+            Some(TakeThreat { who: 1, by: ThreatBy::Sight }),
+            "the mate's line through the cloud"
+        );
     }
 
     /// [take.known_threats] A battery's enemies weighed by distance: a man within `hold_near_m` of it holds it alone
     /// (`ENEMIES_OUT`), one at `exposed_m` or past it counts one to `ENEMIES_NEAR_M` and none beyond, a straight line
     /// between. A man heard 2 m from a battery scores it out of Collect, and at 3.6 m leaves it under a tenth of what the
-    /// count left (which read him as a quarter off); a man a teammate keeps busy weighs one; off, the count as before.
+    /// count left (which read him as a quarter off), also for a bot already on it; a man seen whom a teammate keeps busy
+    /// weighs one, a man only heard is kept busy by nobody; off, the count as before.
     #[test]
     fn a_man_heard_by_a_battery_holds_it_by_his_distance() {
         use crate::v026g::bots::know::Source;
@@ -6369,12 +6386,26 @@ mod tests {
         assert_eq!(score(true, at_it), 0.0, "on: within hold_near_m, held");
         let (off, on) = (score(false, by_it), score(true, by_it));
         assert!(on > 0.0 && on < 0.1 * off, "on: 3.6 m off it, {on} against {off}");
-        // A teammate 15 m off him with a line to his spot keeps him busy: one, as the count.
+        // A teammate 15 m off with a line to his spot keeps a heard man busy no more than the take reads him: held.
+        let mate = TAKE_AT + at_it + Vec3::new(0.0, 0.0, -15.0);
         let mut s = scene(true, at_it);
-        s.bot(2, 0, TAKE_AT + at_it + Vec3::new(0.0, 0.0, -15.0));
-        let covered = score_of(&s);
-        let mut s = scene(false, at_it);
-        s.bot(2, 0, TAKE_AT + at_it + Vec3::new(0.0, 0.0, -15.0));
-        assert!((covered - score_of(&s)).abs() < 1e-6, "covered: {covered} against off {}", score_of(&s));
+        s.bot(2, 0, mate);
+        assert_eq!(score_of(&s), 0.0, "heard, a mate's line to his spot: held");
+        // A man seen with that line weighs one, as the count.
+        let seen = |on: bool| {
+            let mut s = Scenario::field(Mode::Batteries);
+            s.tuning.take.known_threats = on;
+            s.battery(BatteryState::Free(TAKE_AT));
+            s.bot(0, 0, TAKE_AT + Vec3::new(0.0, 0.0, 20.0));
+            s.enemy(1, 1, TAKE_AT + at_it, Some(Source::Seen));
+            s.bot(2, 0, mate);
+            score_of(&s)
+        };
+        assert!((seen(true) - seen(false)).abs() < 1e-6, "seen and covered: {} against off {}", seen(true), seen(false));
+        // A bot already on the battery with nobody in sight: the margin goes by the count (one here), so a lone man at
+        // the battery still holds it (on the weighed sum, 4, it came back at 3).
+        let mut s = scene(true, at_it);
+        s.current = Some((PlayKind::Collect, TargetRef::Battery(0), s.view.clock));
+        assert_eq!(score_of(&s), 0.0, "on it, heard at it: held");
     }
 }

@@ -971,8 +971,9 @@ impl Ctx<'_> {
     /// (`Track::own`: seen, heard or told, never a cheat's) within `sense.forget_ms` and within `exposed_m` of the battery
     /// ([`ThreatBy::Spot`]): a man heard or told of by the battery, or one lost from sight a moment ago (in a cloud, round
     /// a corner), is no less there than one in sight. A player hears steps and shots and gets his team's calls, and does
-    /// not walk to a battery a man he knows of stands by. Each needs a teammate of his own to cover him, as in
-    /// [`Self::exposed_to`]; with `battery`, a teammate's line to him that a cloud hides (`Clouds::veil`) covers nothing.
+    /// not walk to a battery a man he knows of stands by. A man seen needs a teammate of his own to cover him, as in
+    /// [`Self::exposed_to`], and with `battery` a teammate's line to him that a cloud hides (`Clouds::veil`) covers
+    /// nothing; a man known only by his spot is covered by nobody (no one sees him to keep him busy).
     /// Without `battery`, [`Self::exposed_to`] as it was.
     pub fn take_threat(&self, battery: Option<Vec3>, exposed_m: f32, reload_ms: u32, cover_m: f32) -> Option<TakeThreat> {
         let eye = self.me.eye();
@@ -1017,7 +1018,12 @@ impl Ctx<'_> {
         let mates = self.coverers();
         let sees: Vec<Vec<bool>> = threats
             .iter()
-            .map(|&(_, at)| mates.iter().map(|mate| self.covers(mate, at, cover_m, veil)).collect())
+            .map(|&(threat, at)| match threat.by {
+                ThreatBy::Sight => mates.iter().map(|mate| self.covers(mate, at, cover_m, veil)).collect(),
+                // A man nobody sees: a line to his remembered spot keeps nobody busy. In the live recordings such
+                // "covering" mates were other bots walking in, killed with the bot.
+                ThreatBy::Spot(_) => vec![false; mates.len()],
+            })
             .collect();
         cover_each(&sees).map(|free| threats[free].0)
     }
