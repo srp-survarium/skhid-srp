@@ -341,7 +341,8 @@ pub struct CombatTuning {
     /// hold back throws at held spots, where a teammate is often near). The
     /// client's blast measures to a body's transform origin
     /// (0x3396D3..0x33971A), the player's `m_transform` (+40Ch, given to the
-    /// hit body at 0x2D948A..0x2D94A9), whose translation is his feet
+    /// hit body at 0x2D948A..0x2D94A9 and 0x2DACC3..0x2DACD5), whose
+    /// translation is his feet
     /// (`client_patch.md`, "A player's transform is his feet"). A hurt
     /// teammate dies farther out than a whole one (one at half health
     /// within this distance). The default is where the

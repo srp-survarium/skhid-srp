@@ -70,7 +70,9 @@ position and velocity while it is in the physics world, its explode time and its
   0x9CB6D). The 911 flights flown again with both: P50 0.54 m, P80 4.34, P90 8.72 (as before); along the heading P10
   -1.24, P90 +3.95, P95 +8.92 m; across it P50 0.18, P90 1.82 m (the seen burst less the flown one, split along and
   across the incoming heading's flat direction). 223 of the 911 (24.5 %) fell outside the zone of P10 to P90 along and
-  P90 across in some direction: 92 short, 93 past, 92 wider. Taking the swept sphere's radius as the hit's reach instead of the capsule's 0.05 is
+  P90 across in some direction: 92 short, 93 past, 92 wider. Counted (n 911) by
+  `private/pvb-343-check/fight-world/landing/fly_variants.py` (output `fly-variants.txt`; the flights flown by the S7
+  tool's `fly` copied with switches, `landing/flytool/src/main.rs`) and `landing/zone_share.py` (`zone-share.txt`). Taking the swept sphere's radius as the hit's reach instead of the capsule's 0.05 is
   worse (0.01 stock: P50 0.63, 525 within 1 m; 0.04 with patch 105: P50 0.54, P90 8.99), as is flying with no support
   contact (P90 10.6): by the recount, the capsule's own contacts stop it (the narrowphase and the solver are not read).
 
