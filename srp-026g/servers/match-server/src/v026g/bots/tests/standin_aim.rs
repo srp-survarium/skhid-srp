@@ -69,6 +69,15 @@ pub(crate) fn human_tuning() -> Tuning {
     Tuning { aim: human_aim(), kin: human_kin(), grid: human_grid(), ..Tuning::default() }
 }
 
+/// [strong camper] His aim's angles (the error, the wander, the settled wander, at both ends of the skill) times `factor`
+/// (`SRP_BENCH_CAMPER_AIM_SCALE`).
+pub(crate) fn scale_aim_angles(tuning: &mut Tuning, factor: f32) {
+    let aim = &mut tuning.aim;
+    for pair in [&mut aim.error_deg, &mut aim.wander_deg, &mut aim.settled_wander_deg] {
+        *pair = (pair.0 * factor, pair.1 * factor);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

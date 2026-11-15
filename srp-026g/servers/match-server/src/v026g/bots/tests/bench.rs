@@ -1338,7 +1338,12 @@ pub(crate) fn real_bot_cost() {
             // [A302] `SRP_BENCH_CAMPER_AIM=hunter`: the hunter's tuning instead, a camping owner.
             let camper_options = camper::CamperOptions::from_env();
             let camper_aim = bench_settings().var("SRP_BENCH_CAMPER_AIM").ok();
-            let camper_plays_by = Arc::new(camper_tuning(camper_aim.as_deref()).unwrap_or_else(|e| panic!("{e}")));
+            let mut camper_tuned = camper_tuning(camper_aim.as_deref()).unwrap_or_else(|e| panic!("{e}"));
+            // [strong camper] `SRP_BENCH_CAMPER_AIM_SCALE`: his aim's angles times the factor.
+            if let Some(factor) = camper_options.aim_scale {
+                super::standin_aim::scale_aim_angles(&mut camper_tuned, factor);
+            }
+            let camper_plays_by = Arc::new(camper_tuned);
             bots.bench_camper = bench_settings()
                 .number_or_refuse::<Place>("SRP_BENCH_CAMPER")
                 .map(|place| BenchCamper::new(camper_options.side.place(place, per_team, seed), camper_options, seed, camper_plays_by));
