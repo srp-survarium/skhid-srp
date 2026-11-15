@@ -68,7 +68,7 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
         layout.exe_dir,
         if quiet { " (quiet)" } else { "" }
     );
-    let language = win::game_language();
+    let language = win::documents().as_deref().and_then(win::game_language);
     let request = match replay::parse(arguments) {
         Ok(request) => request,
         Err(error) => {
@@ -126,7 +126,7 @@ pub fn run_local(arguments: &[String], quiet: bool) -> u32 {
     };
     crate::log::start(&layout.exe_dir);
     log!("---- updater local replay started{}", if quiet { " (quiet)" } else { "" });
-    let language = win::game_language();
+    let language = win::documents().as_deref().and_then(win::game_language);
     let Some(file) = updater_logic::local_replay::LocalReplay::parse(arguments) else {
         return tell(quiet, language, &Problem::BadFile);
     };
