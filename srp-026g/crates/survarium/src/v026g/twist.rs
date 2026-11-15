@@ -13,16 +13,18 @@ use super::racket::Gun;
 /// The shares of a free-for-all card's draw ([`draw`]): the plain mode's and each twist's,
 /// in hundredths, a twist's by what its match arms. Cowboy 20 in all (the owner, 2026-11-15:
 /// "let's make saloon 20% with two variations (no need to name them)"; was 10, "cowboy version
-/// should be rare with only 10% chance", 2026-11-14), its two variations half and half (the
-/// owner, 2026-11-14: "saloon should have two variations with winchesters and colts or just with
-/// colts"; half and half my pick); Racket as often as the plain mode (my pick). Racket's gun is
-/// its room's (`racket`, `Gun::of_room`).
+/// should be rare with only 10% chance", 2026-11-14), in two variations (the owner, 2026-11-14:
+/// "saloon should have two variations with winchesters and colts or just with colts"), the
+/// Winchester and Colt 15 and the Colt alone 5 (the owner, 2026-11-15, once each had its own
+/// name: "and now since those are two modes, simple saloon can stay at 5, and new one get 15";
+/// half and half before); Racket as often as the plain mode (my pick). Racket's gun is its room's
+/// (`racket`, `Gun::of_room`).
 pub const fn shares(racket: Gun) -> [(Option<Armed>, u32); 4] {
     [
         (None, 40),
         (Some(Armed::Racket(racket)), 40),
-        (Some(Armed::Cowboy(Variation::WinchesterAndColt)), 10),
-        (Some(Armed::Cowboy(Variation::Colt)), 10),
+        (Some(Armed::Cowboy(Variation::WinchesterAndColt)), 15),
+        (Some(Armed::Cowboy(Variation::Colt)), 5),
     ]
 }
 
@@ -58,7 +60,7 @@ pub fn draw(roll: u32, racket: Gun) -> Option<Armed> {
 /// would last one life. More than any match has: 15:00 with a 5 s respawn is 180.
 pub const STORE_LIVES: u32 = 1_000;
 
-/// What a twist does to the kits: a card's mode in the lobby. What a match of it arms is an
+/// What a twist does to the kits. What a match of it arms, and its mode in the lobby, is an
 /// [`Armed`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Twist {
@@ -66,27 +68,8 @@ pub enum Twist {
     /// ([`super::racket`]).
     Racket,
     /// Every kit a Winchester 1894 and a Colt Python, or a Colt Python alone
-    /// ([`super::cowboy`]); "Saloon" in the lobby.
+    /// ([`super::cowboy`]); "Saloon (Winchester)" and "Saloon" in the lobby.
     Cowboy,
-}
-
-impl Twist {
-    /// Every twist.
-    pub const ALL: [Self; 2] = [Self::Racket, Self::Cowboy];
-
-    /// Its number in the lobby: the rooms' cards, rows and banners, the matches' list. After every
-    /// mode's ([`GameMode::lobby_number`]: 7 is Scarcity's, 8 Free for All's).
-    pub const fn lobby_number(self) -> u8 {
-        match self {
-            Self::Racket => 9,
-            Self::Cowboy => 10,
-        }
-    }
-
-    /// The twist of a lobby number.
-    pub fn of_lobby_number(number: u8) -> Option<Self> {
-        Self::ALL.into_iter().find(|twist| twist.lobby_number() == number)
-    }
 }
 
 /// A twist as its match arms the kits: Cowboy's with its variation, drawn with the card
@@ -105,6 +88,18 @@ impl Armed {
         match self {
             Self::Racket(_) => Twist::Racket,
             Self::Cowboy(_) => Twist::Cowboy,
+        }
+    }
+
+    /// Its number in the lobby: the rooms' cards, rows and banners, the matches' list. After every
+    /// mode's ([`GameMode::lobby_number`]: 7 is Scarcity's, 8 Free for All's); Saloon's by its
+    /// variation (the owner, 2026-11-15: "make it visible in names", "so people know what they get
+    /// and can vote based on this").
+    pub const fn lobby_number(self) -> u8 {
+        match self {
+            Self::Racket(_) => 9,
+            Self::Cowboy(Variation::Colt) => 10,
+            Self::Cowboy(Variation::WinchesterAndColt) => 11,
         }
     }
 
@@ -176,8 +171,8 @@ impl Played {
 
     /// Its number in the lobby: the twist's, else the mode's.
     pub fn lobby_number(self) -> u8 {
-        self.twist()
-            .map_or_else(|| self.mode().lobby_number(), Twist::lobby_number)
+        self.twist
+            .map_or_else(|| self.mode().lobby_number(), Armed::lobby_number)
     }
 
     /// `profile`'s kits for the match: the twist's arms, or as they are.
@@ -205,7 +200,7 @@ mod tests {
         let racket = Armed::Racket(Gun::Ak12);
         let racket = Played::twisted(MatchMap::of(ffa.id).unwrap(), racket).unwrap();
         assert_eq!((racket.lobby_number(), racket.mode()), (9, GameMode::FreeForAll));
-        // Every roll below the shares' sum: each its share, 40 / 40 / 10 / 10, Racket with the
+        // Every roll below the shares' sum: each its share, 40 / 40 / 15 / 5, Racket with the
         // room's gun.
         for gun in Gun::ALL {
             let drawn = |play| (0..SHARE_TOTAL).filter(|&roll| draw(roll, gun) == play).count();
@@ -219,12 +214,15 @@ mod tests {
         let ak_12 = Some(Armed::Racket(Gun::Ak12));
         assert_eq!((SHARE_TOTAL, drawn(None), drawn(ak_12)), (100, 40, 0));
         let (rifle, colt) = (Variation::WinchesterAndColt, Variation::Colt);
-        assert_eq!((saloon(rifle), saloon(colt)), (10, 10));
-        // No twist shares a number with a mode (nor with Scarcity's 7, not on main).
-        for twist in Twist::ALL {
-            assert_eq!(GameMode::of_lobby_number(twist.lobby_number()), None);
-            assert_ne!(twist.lobby_number(), 7);
-            assert_eq!(Twist::of_lobby_number(twist.lobby_number()), Some(twist));
+        assert_eq!((saloon(rifle), saloon(colt)), (15, 5));
+        // Each twist as it arms its own number, Racket's of any gun; none a mode's (nor Scarcity's
+        // 7, not on main).
+        for gun in Gun::ALL {
+            let numbers = shares(gun).map(|(play, _)| play.map(Armed::lobby_number));
+            assert_eq!(numbers, [None, Some(9), Some(11), Some(10)]);
+        }
+        for number in [9, 10, 11] {
+            assert_eq!(GameMode::of_lobby_number(number), None);
         }
     }
 }

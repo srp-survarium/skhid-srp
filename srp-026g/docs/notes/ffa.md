@@ -559,9 +559,14 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   - **Cowboy**, "Saloon" in the lobby, 20 % (the owner, 2026-11-15: "let's make saloon 20% with
     two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be
     rare with only 10% chance"), in two variations (the owner, 2026-11-14: "saloon should have
-    two variations with winchesters and colts or just with colts"), half and half (my pick: 10 %
-    each, `twist::Armed`): every kit a Winchester 1894 and a Colt Python, or a Colt Python alone
-    (`ffa-cowboy.md`). One name for both: the card draws its variation with its twist.
+    two variations with winchesters and colts or just with colts"), the Winchester and Colt 15 %
+    and the Colt alone 5 % (the owner, 2026-11-15, once each had its own name: "and now since
+    those are two modes, simple saloon can stay at 5, and new one get 15"; half and half before,
+    my pick, `twist::Armed`): every kit a Winchester 1894 and a Colt Python, or a Colt Python alone
+    (`ffa-cowboy.md`). The card draws its variation with its twist and names it (the owner,
+    2026-11-15: "let's make Sallon (winchester) variation, and make it visible in names", "this
+    is easier, since we already have Saloon (Colt), so people know what they get and can vote
+    based on this"): "FFA: Saloon (Winchester)" and "FFA: Saloon" (the Colt alone).
 
   Won, the card's match plays its twist.
 - **Not in private rooms** (the owner, 2026-11-15: "we can also remove from private lobbies FFA:
@@ -575,10 +580,16 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   `st_srp_mode_racket` FFA: Racket, Движ, Двіж (uk, be), Raban, Radau, Rambajz, Galama, Zsivaj,
   Meteli. `st_srp_mode_cowboy` (mine) FFA: Saloon, Салун (ru, uk, be), Saloon (pl, de, cs, hu),
   Salun, Saluuna: a saloon brawl, everyone against everyone (the owner, 2026-11-14, of an earlier
-  "Showdown" / "Дуэль": "duel usually means 1vs1").
-  The lobby's mode numbers 9 Racket and 10 Cowboy (`Twist::lobby_number`; 7 is Scarcity's): a card's tag and colour, the
-  room's banner of its match (`lobby.md`, rooms' `C` and `L` rows), the log's "mode". The game's
-  own screens (loading, results, the HUD) say Free for all: they read the map's config.
+  "Showdown" / "Дуэль": "duel usually means 1vs1"). `st_srp_mode_cowboy_winchester` (since
+  2026-11-15) its Saloon word and its Winchester in parentheses: FFA: Saloon (Winchester), Салун
+  (Винчестер), Салун (Вінчестер) (uk), Салун (Вінчэстар) (be), Saloon (Winchester) (pl, de, cs,
+  hu), Salun (Winchester), Saluuna (Winchester) (the game's own words for the Winchester: its
+  item's and its ammunition's).
+  The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone) and 11 Saloon (Winchester)
+  (`Armed::lobby_number`: the twist as it arms; 7 is Scarcity's; the two Saloons' tags one
+  colour): a card's tag and colour, the room's banner of its match (`lobby.md`, rooms' `C` and `L`
+  rows), the log's "mode". The game's own screens (loading, results, the HUD) say Free for all:
+  they read the map's config.
 - **The kits:** the server owns what spawns: the static info's profiles, which every game cooks
   each life from. The match server arms every profile it gives (the first players', each late
   joiner's) before the Keeper's draw; the clients, late joiners and replays get the armed ones.

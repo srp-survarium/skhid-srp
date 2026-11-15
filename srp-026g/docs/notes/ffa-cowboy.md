@@ -1,18 +1,23 @@
 # Free for all: Saloon, everyone with a Winchester and a Colt Python, or a Colt Python alone
 
-The owner (2026-11-14): a version of Free for All (`ffa.md`) "where everyone has colt Python", a twist of it (`ffa.md`, "Twists": 20 % of the free-for-all cards since 2026-11-15, "let's make saloon 20% with two variations (no need to name them)", "Saloon" in the lobby), and "saloon should have two variations with winchesters and colts or just with colts".
+The owner (2026-11-14): a version of Free for All (`ffa.md`) "where everyone has colt Python", a twist of it (`ffa.md`, "Twists": 20 % of the free-for-all cards since 2026-11-15, "let's make saloon 20% with two variations (no need to name them)"), and "saloon should have two variations with winchesters and colts or just with colts"; each named in the lobby (2026-11-15: "let's make Sallon (winchester) variation, and make it visible in names", "this is easier, since we already have Saloon (Colt), so people know what they get and can vote based on this").
 srp rewrites each player's match profile before the static info is sent
 (`survarium::v026g::cowboy::arm`); every game cooks each life from those profiles, so every client,
 a late joiner and a replay see the same kits.
 
 ## Rules
 
-- **Two variations** (`cowboy::Variation`), drawn with the card, half and half (my pick: 10 % each
-  of the free-for-all cards, `twist::shares`); one name ("FFA: Saloon") for both. A match plays
-  one for every kit:
-  - **Winchester and Colt:** the Winchester 1894 in slot 7 and the Colt Python in slot 10;
-  - **the Colt alone:** the Colt Python in slot 7, slot 10 emptied (everyone has the same one gun,
-    and a second Python would only save a reload).
+- **Two variations** (`cowboy::Variation`), drawn with the card, the Winchester and Colt 15 % of the
+  free-for-all cards and the Colt alone 5 % (`twist::shares`; the owner, 2026-11-15: "and now
+  since those are two modes, simple saloon can stay at 5, and new one get 15"; half and half
+  before, my pick), each its own name and lobby mode number
+  (`twist::Armed::lobby_number`, `ffa.md` "Names"), the tag's colour the same. A match plays one
+  for every kit:
+  - **Winchester and Colt**, "FFA: Saloon (Winchester)", mode 11
+    (`st_srp_mode_cowboy_winchester`): the Winchester 1894 in slot 7 and the Colt Python in slot 10;
+  - **the Colt alone**, "FFA: Saloon", mode 10 (`st_srp_mode_cowboy`): the Colt Python in slot 7,
+    slot 10 emptied (everyone has the same one gun, and a second Python would only save a
+    reload).
 - **The guns:** the dictionary items named `winchester_1894` (Winchester 1894, a sniper rifle by
   category, 13) and `magnum` (Colt Python), looked up by name. srp refuses to start on game data
   without either of them, its states, its fit for its slots (the Winchester 7, the Colt 7 and 10),

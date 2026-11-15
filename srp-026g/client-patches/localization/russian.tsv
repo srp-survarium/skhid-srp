@@ -2664,6 +2664,7 @@ st_srp_microphone_default	По умолчанию
 st_srp_mode_blackout	Защитное устройство: блэкаут
 st_srp_mode_chargers	Защитное устройство: зарядники
 st_srp_mode_cowboy	FFA: Салун
+st_srp_mode_cowboy_winchester	FFA: Салун (Винчестер)
 st_srp_mode_free_for_all	Все против всех
 st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_racket	FFA: Движ

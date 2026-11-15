@@ -34,6 +34,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   PIN and a chosen map/mode pool. No team-size, minimum, max-level or countdown
   controls. The server refuses a public CREATE request (code 16), including from
   older movies, without changing the player's current room or queue.
+  - **The STALKER maps last** (the owner's of 2026-11-15: "also when creating private
+    rooms, stalker maps should be at the bottom of the list"): the window lists the maps in
+    the order of the server's pool (`Core::room_entries`, the match pool then the
+    experimental maps), the STALKER maps of every mode (projects `v010b_*`,
+    `MapMode::is_stalker`) after every other, each part in its order. A saved window keeps
+    its tiles by map and weather, not by place: the order changes none of them.
   - **Remembered** (the owner's of 2026-10-20: "when you set up your room with the specific
     levels, specific maps and game modes is for it to persist next time"): a room made by
     hand is its maker's next create window, kept with the account in srp.db (restarts,
@@ -136,7 +142,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     theirs while there is one; a pool without a free-for-all or of free-for-alls alone draws
     its three as before (`ffa.md`, "Where it is played"; `rooms::THIRD_CARD` names the mode).
   - **A free-for-all card's twist** (`ffa.md`, "Twists"): an open room's (the server's) card
-    draws "FFA: Racket" or "FFA: Saloon" or none by the owner's shares (40 / 40 / 20); a private
+    draws "FFA: Racket", "FFA: Saloon (Winchester)", "FFA: Saloon" (the Colt alone) or none by the
+    owner's shares (40 / 15 / 5 / 40; the two Saloons by their own names since 2026-11-15, "so
+    people know what they get and can vote based on this"); a private
     room's is always plain Free for all, and the create window has no twist tick (the owner's of
     2026-11-15: "we can also remove from private lobbies FFA: Saloon and FFA: Racket"; ticks from
     2026-11-14 to then). A window saved with them loads, the twists' modes left out.
