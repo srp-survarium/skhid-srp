@@ -121,18 +121,23 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   on the card with most votes then, a tie or none drawn at random. Fewer members than the
   minimum stop it; a member changing kit stops nothing. A match that could not be made
   gives the room its wait again, the vote open, its votes kept.
-  - **A card is drawn map first, then weather** (the owner's of 2026-11-15: "make 3 new stalker
-    maps 3 times as likely in FFA", "the pick should be first map, then weather"; after the
-    revision 59 restart Training Camp was played twice in about 35 free-for-alls): every card,
-    every mode, server's and private rooms alike. A map of the pool (`match_making_params.map_id`)
-    alike, then one of its ids in the pool (weather and mode) alike: a map of one weather (the
-    STALKER maps, London, the ports) comes as often as a levels 1-8 map of three (before, every
-    id alike: a third as often). The cards are on different maps while the pool has as many (a
-    map drawn leaves with all its ids), then on other ids of the maps shown (`rooms::Left`).
+  - **Each card is drawn from pools: mode, then map, then weather** (the owner's of 2026-11-15:
+    "the mode/map picks should come from pools, that means if research was chosen, it cannot be
+    chosen again", "that means no map repeats", "no mode repeats"; earlier that day: "make 3 new
+    stalker maps 3 times as likely in FFA", "the pick should be first map, then weather", after
+    the revision 59 restart had played Training Camp twice in about 35 free-for-alls): every
+    card, server's and private rooms alike. Its mode alike among the pool's modes no card shows,
+    then its map (`match_making_params.map_id`) alike among that mode's maps no card shows, then
+    its weather alike among that map's ids of that mode. A drawn mode and a drawn map leave for
+    the next cards: no mode and no map twice on a vote while the pool has others. A map of one
+    weather (the STALKER maps, London, the ports) comes as often as a levels 1-8 map of three
+    (before 2026-11-15, every id alike: a third as often). A pool with too few (a private room's
+    maker ticked one mode or few maps) draws the shown ones again once no other is left (a mode
+    no card shows first, even on a shown map), never a card fewer (`rooms::Left`).
   - **The third card is a free-for-all** (the owner's of 2026-11-12: "ffa should be a third
     pane always, blackout should be in general pool"; Blackout had the card from 2026-11-02
-    until then): cards 1 and 2 drawn from the rest of the pool (Blackout's maps as any
-    other's, never a free-for-all), card 3 one of its free-for-alls, on another map than
+    until then): cards 1 and 2 drawn from the rest of the pool (two other modes while it has
+    them, never a free-for-all), card 3 one of its free-for-alls, on another map than
     theirs while there is one; a pool without a free-for-all or of free-for-alls alone draws
     its three as before (`ffa.md`, "Where it is played"; `rooms::THIRD_CARD` names the mode).
   - **A free-for-all card's twist** (`ffa.md`, "Twists"): an open room's (the server's) card
@@ -142,8 +147,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     2026-11-14 to then). A window saved with them loads, the twists' modes left out.
   - **Blackout is on one card at the most** (the owner's of 2026-11-12: "Make it so blackout
     cannot be on two cards at the same time"): in every vote, one without a free-for-all card
-    too. A second Blackout card drawn gives its place to a map of another mode while the pool
-    has one the vote does not show; a pool with nothing else keeps it, never a card fewer
+    too. A case of no mode repeats (above): a mode comes again only when the pool has no other,
+    Blackout the last of those; a pool with nothing else keeps it, never a card fewer
     (`blackout.md`; `rooms::ONE_CARD_AT_MOST` names the mode).
 - **The match starts at the room's minimum** (the owner's of 2026-10-20: "threshold is 2
   players though, not 4"; "just let people play, since rules are in rooms"; live, room 5209
