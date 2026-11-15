@@ -10722,10 +10722,12 @@ mod tests {
         // Top players with a rifle within 20 m (6+ matches of 2026-10-16..
         // 22): holds of 400-1200 ms, taps (< 250 ms) 16 %; pauses 150 /
         // 300 / 600 ms.
-        let aim = AimTuning {
+        let mut aim = AimTuning {
             fire_within_deg: 180.0,
             ..AimTuning::default()
         };
+        // The best players' rows, not the humans' draw ([`HumanBursts`], on by default), are what this tests.
+        aim.combat.fire.burst_human = None;
         let row = aim.combat.fire.rifle[0];
         // 24 s: the AK-74U's 120 rounds, four magazines (then the pistol).
         let ticks = facing_fight("support", 18.0, &aim, 480);
