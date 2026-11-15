@@ -136,7 +136,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     theirs while there is one; a pool without a free-for-all or of free-for-alls alone draws
     its three as before (`ffa.md`, "Where it is played"; `rooms::THIRD_CARD` names the mode).
   - **A free-for-all card's twist** (`ffa.md`, "Twists"): an open room's (the server's) card
-    draws "FFA: Racket" or "FFA: Saloon" or none by the owner's shares (40 / 40 / 20); a private
+    draws "FFA: Racket", "FFA: Saloon (Winchester)", "FFA: Saloon" (the Colt alone) or none by the
+    owner's shares (40 / 15 / 5 / 40; the two Saloons by their own names since 2026-11-15, "so
+    people know what they get and can vote based on this"); a private
     room's is always plain Free for all, and the create window has no twist tick (the owner's of
     2026-11-15: "we can also remove from private lobbies FFA: Saloon and FFA: Racket"; ticks from
     2026-11-14 to then). A window saved with them loads, the twists' modes left out.
