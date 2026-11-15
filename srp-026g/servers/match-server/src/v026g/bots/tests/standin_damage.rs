@@ -155,14 +155,28 @@ fn by_data() -> bool {
 ///   consecutive snapshots up to the killing shot, by the killer's weapon
 ///   class, give the damage that went to the body, the hands and the legs
 ///   (the head's is mostly lost in the one shot that kills, which no
-///   snapshot sees: PROVEN for the numbers, LIKELY for what they say);
+///   snapshot sees). The numbers are PROVEN counts; what they say is the
+///   client's routing, PROVEN (`damage_model.md`, `hit_by_type` 0x329FF0, the
+///   shares to the pools 0x33FA80): a hit on the back or the front goes to the
+///   body pool, on the brain or the face to the head, on a hip or a foot to its
+///   leg, on an arm or a forearm to the hand, each x 1. The legs' losses also
+///   hold falls (a fall is a blunt hit to each foot, `fall_damage.md`), which
+///   the table does not take apart [G33];
 /// - each pool's damage is turned into hits by the factor the median worn
 ///   armour leaves of a hit of the class's median `bullet_pierce` (torso 0.6,
 ///   upper arm 0.2, forearm 0.5, legs 0.5: `REAL-ARMOUR-CHECK.md`);
 /// - the head's share is the one for which 2 hits a kill (the live mean)
 ///   give the class's share of headshot kills (`kills.csv` `hs`: 14 to 28 %).
 ///
-/// So the table is LIKELY for the torso against limbs, GUESS for the head.
+/// So the torso against the limbs is DERIVED (the routing PROVEN, the damage turned into hits by the medians worn), and the
+/// head is derived from an assumed 2 hits a kill. [G34] Counted on 2026-11-08..12 (the 329 human matches of 6+ players,
+/// `measure-20261115/g34_class.py`; by the class of the weapon in the shooter's hands): the head's share of the hits (the
+/// game's statistic 23) is at least rifle 0.052 (92,904 hits), marksman 0.075 (23,542), SMG 0.046 (12,451), shotgun 0.020
+/// (9,868; its pellets each count a hit), MG 0.045 (9,533), bolt 0.099 (3,887), pistol 0.042 (667): headshot kills
+/// (statistic 15) plus the head-pool losses of bodies alive in both worlds. A lower bound: a head hit in a body's last span
+/// before its death (its worlds about 3.5 s apart) is not seen. Every row's head share lies above its bound but the bolt's
+/// (0.093 against 0.099: 385 head hits of 3,887, a binomial standard error of 0.005, so 1.3 of them). The exact share needs the worlds' own hit records of each
+/// part (`srp_validate`'s `BodyPart::hits`, one a bullet), not read yet.
 /// Rows in [`Part`]'s order; each sums to 1.
 pub(crate) const HIT_SHARES: [(Class, [f32; 4]); 7] = [
     (Class::Rifle, [0.417, 0.115, 0.226, 0.242]),

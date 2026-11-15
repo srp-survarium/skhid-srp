@@ -4,9 +4,14 @@
 //! game the picture is reckoned from a world fix that is never under 0.5 s old (median 1.16 s) with the bots' movement model
 //! on a body the client moves by its own physics, and is 0.2-0.4 m off (median) and 1-3 m at the tails (stairs, drops, jumps,
 //! stops). That makes the bots' picture say "hidden" in 22 % of the moments a body is truly visible and "visible" in 20 % of
-//! the moments it is truly hidden (the flip test, LIKELY: an-sight §8.1, 16,365 pairs of the owner's 8 matches, "15-25 %", chest
-//! and head; the bench samples the chest only and each bot's 2 nearest enemies, so the target and so the scale are LIKELY, not
-//! PROVEN). The model's tails are drawn for every fix of a still body; the table's "just after a stop or start" tail (p90 1.05 m,
+//! the moments it is truly hidden (the flip test: an-sight §8.1, 16,365 pairs of the owner's 8 matches, the bots' lines to the
+//! owner's chest and head). [G77, G78] Counted again with the bench's own sampling (the chest only, each bot's 2 nearest living
+//! enemies within 80 m, human or bot, every 2nd world of the same 8 matches, the errors drawn as an-sight drew them;
+//! `measure-20261115/flip_bench.py`, an-sight's rays tool): the picture says hidden in **14.9 %** of the truly visible moments
+//! (1,245 of 8,337), and of the moments it says visible **14.0 %** are truly hidden (1,153 of 8,245); on the owner alone it is
+//! 21.1 % (81 of 384) and 23.7 % (94 of 397), as an-sight's. So the target the scale below was set to (22 % / 20 %) is the
+//! owner-only sample's, over the bench's own by about a third: setting the scale to 14.9 % / 14.0 % needs the calibration runs
+//! again (a bench). The model's tails are drawn for every fix of a still body; the table's "just after a stop or start" tail (p90 1.05 m,
 //! p99 2.9 m) is therefore over-drawn for a body still for minutes, which the scale absorbs (LIKELY): a recalibration should draw
 //! near zero after about a second still.
 //!
