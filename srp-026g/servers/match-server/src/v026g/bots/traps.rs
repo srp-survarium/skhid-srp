@@ -1925,9 +1925,21 @@ const INSIDE_FLOOR_M: f32 = 0.67 + 0.25;
 /// [`INSIDE_FLOOR_M`]: it walks out or round, never in (the searches' floors inside a disc are opened only farther than the feet,
 /// [`keep_off_open`]). The one rule of the search's check, keep_off and the side step.
 pub fn keeps_clear(points: &[Vec3], discs: &[Vec3], from: Vec3, reach: f32) -> bool {
+    route_keeps_clear(points, discs, from, None, reach)
+}
+
+/// [#2081] The nearest `points` may come to a disc, for an end `at` metres from it ([`keeps_clear`]'s rule).
+fn clearance_for(at: f32, reach: f32) -> f32 {
+    if at >= reach { reach - CLEAR_SLACK_M } else { (at - mapdata::CELL).max(INSIDE_FLOOR_M).min(reach) }
+}
+
+/// [#2081] [`keeps_clear`] for a route to `goal`: its end is held to the same rule as its start, so a goal inside a disc (a guard's
+/// spot by the trap it put down there, 1.2-1.4 m off on the bench) is reached, never nearer than a floor short of it nor under
+/// [`INSIDE_FLOOR_M`]. A step (no goal) keeps the start's rule alone: it never steps in.
+pub fn route_keeps_clear(points: &[Vec3], discs: &[Vec3], from: Vec3, goal: Option<Vec3>, reach: f32) -> bool {
     discs.iter().all(|disc| {
-        let at = from.distance_xz(*disc);
-        let need = if at >= reach { reach - CLEAR_SLACK_M } else { (at - mapdata::CELL).max(INSIDE_FLOOR_M).min(reach) };
+        let need = clearance_for(from.distance_xz(*disc), reach);
+        let need = goal.map_or(need, |g| need.min(clearance_for(g.distance_xz(*disc), reach)));
         let near = |p: Vec3| (p.y - disc.y).abs() < OTHER_FLOOR_M;
         match points {
             [] => true,
@@ -1975,7 +1987,7 @@ pub(super) fn own_trap_route(
     let route = route?;
     let field = bot.features.traps.field.clone();
     let reach = field.reach().max(FIELD_M);
-    if field.is_empty() || keeps_clear(&route_points(&route, feet, f32::MAX), field.discs(), feet, reach) {
+    if field.is_empty() || route_keeps_clear(&route_points(&route, feet, f32::MAX), field.discs(), feet, Some(route.end()), reach) {
         return Some(route);
     }
     #[cfg(test)]
@@ -2136,7 +2148,7 @@ pub(super) fn route_hits(bot: &Bot, field: &TrapField, feet: Vec3) -> bool {
     let Some((route, _)) = bot.route.as_ref() else {
         return false;
     };
-    !keeps_clear(&route_points(route, feet, KEEP_OFF_M), field.discs(), feet, field.reach().max(FIELD_M))
+    !route_keeps_clear(&route_points(route, feet, KEEP_OFF_M), field.discs(), feet, Some(route.end()), field.reach().max(FIELD_M))
 }
 
 /// Whether the route of the bot runs within `reach` metres of a disc of `field` within [`KEEP_OFF_M`] ahead of
@@ -4507,6 +4519,14 @@ mod tests {
         let above = Route::new(vec![w3(20.0, 0.0, 12.5), w3(21.0, 1.2, 12.0), w3(25.0, 2.0, 10.0), w3(30.0, 2.0, 10.0)]);
         let feet3 = Vec3::new(20.0, 0.0, 12.5);
         assert!(keeps_clear(&route_points(&above, feet3, f32::MAX), field.discs(), feet3, OWN_TRAP_CLEAR_M));
+        // A route to a goal 1.3 m from the trap (a guard's spot by its own trap) is kept, and keep_off keeps it; a goal on the trap
+        // (0.5 m) is not; a step toward that goal is still refused (it would step in).
+        let start = Vec3::new(20.0, 0.0, 10.0);
+        let to_guard = Route::new(vec![w3(20.0, 0.0, 10.0), w3(23.7, 0.0, 10.0)]);
+        assert!(own_trap_route(&mut bot, start, Some(to_guard.clone()), 4_000, &s.tactics, false).is_some());
+        let on_it = Route::new(vec![w3(20.0, 0.0, 10.0), w3(24.5, 0.0, 10.0)]);
+        assert!(!route_keeps_clear(&route_points(&on_it, start, f32::MAX), field.discs(), start, Some(on_it.end()), OWN_TRAP_CLEAR_M));
+        assert!(!step_keeps_clear(&field, trap + Vec3::new(-1.9, 0.0, 0.0), trap + Vec3::new(-1.3, 0.0, 0.0)));
         // A trap on another floor (2 m above) is no matter.
         assert!(keeps_clear(&[Vec3::new(15.0, 2.0, 10.0), Vec3::new(35.0, 2.0, 10.0)], field.discs(), Vec3::new(15.0, 2.0, 10.0), OWN_TRAP_CLEAR_M));
         // The side step (`STRAFE_CLEAR_M` long): onto the trap refused, away from it taken; with no trap, any.
