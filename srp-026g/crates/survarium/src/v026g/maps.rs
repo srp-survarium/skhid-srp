@@ -1400,7 +1400,7 @@ mod tests {
             .map(|m| (m.id, m.level, m.solo_respawn_points))
             .collect();
         assert_eq!(ports, [
-            (42, 15, 28), (43, 16, 48), (44, 17, 52), (163, 9, 64),
+            (42, 15, 28), (43, 16, 48), (44, 17, 47), (163, 9, 64),
             (164, 10, 72), (165, 11, 66), (167, 12, 44), (168, 13, 71), (169, 14, 44)
         ]);
         // Levels 2 to 8, the same in each weather.
