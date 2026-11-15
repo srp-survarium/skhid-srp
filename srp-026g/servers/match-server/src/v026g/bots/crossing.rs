@@ -132,6 +132,17 @@ impl CrossBody {
     pub fn leaves(&self, cost: Cost) -> bool {
         self.budget.reserve.leaves(cost, self.give_up_left)
     }
+
+    /// [A390] The least a walk that costs `cost` leaves in the pools [`Self::leaves`] reads: the body pool, and each other pool
+    /// it takes from (its reserve less its cost).
+    pub fn tightest_left(&self, cost: Cost) -> f32 {
+        let r = &self.budget.reserve;
+        [(r.head, cost.head), (r.infection, cost.infection), (r.pain, cost.pain)]
+            .into_iter()
+            .filter(|&(_, c)| c > 0.0)
+            .map(|(have, c)| have - c)
+            .fold(r.body - cost.body, f32::min)
+    }
 }
 
 /// Whether a crossing's search lets a bot of `health` onto floor `node`:
@@ -323,8 +334,9 @@ pub fn still_borne(tactics: &Tactics, route: &Route, walked: f32, body: &CrossBo
 /// [A390] The way out of a zone from floor `from` for `body` ([`Tactics::escape`] with `hard`, toward `goal`), by any way when
 /// its pool falls: when that way out would leave a pool under the body's give-up (`CrossBody::leaves`, the zone price rows'
 /// `give_up_left`), or there is none, the way out with the landings it gave up open again ([`RouteFilter::landings_opened`]:
-/// a jump or a drop it shut, Vector Laboratory's radiation pit's riser) is searched too, and the cheaper of the two in the
-/// pools that kill ([`hurt`]) taken. With the log's line when the second is taken (decision-neutral).
+/// a jump or a drop it shut, Vector Laboratory's radiation pit's riser) is searched too. That one is taken when it leaves the
+/// give-up, or when the first is none, or when neither does and it leaves more in its tightest pool
+/// ([`CrossBody::tightest_left`]: each pool against what it holds). With the log's line when it is taken (decision-neutral).
 #[allow(clippy::too_many_arguments)]
 pub fn escape_borne(
     tactics: &Tactics,
@@ -343,7 +355,10 @@ pub fn escape_borne(
     }
     let any = tactics.escape(from, goal, time, side, objective, &hard.landings_opened());
     match any {
-        Some(any) if kept.as_ref().is_none_or(|kept| cost(&any).most() < cost(kept).most()) => {
+        Some(any)
+            if body.leaves(cost(&any))
+                || kept.as_ref().is_none_or(|kept| body.tightest_left(cost(&any)) > body.tightest_left(cost(kept))) =>
+        {
             let why = if kept.is_some() { "the way out keeping off shut landings leaves too little" } else { "no way out keeping off shut landings" };
             let line = priced_line("zone way out over a shut landing", why, cost(&any), body, any.length());
             (Some(any), Some(line))

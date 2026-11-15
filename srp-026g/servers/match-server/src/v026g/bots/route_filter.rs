@@ -306,10 +306,13 @@ impl RouteFilter {
             && self.soft_floors.as_ref().is_none_or(|f| f(node))
     }
 
-    /// [A390] This filter with the landings of the jumps and drops the body gave up open again (its other rules kept): a body
-    /// a zone's way out would leave under its give-up takes any way out (`crossing::escape_borne`).
+    /// [A390] This filter with the landings of the jumps and drops the body gave up open again (its other rules kept, and the
+    /// sprint links the client refuses it now, [`stuck::ShutKind::Refused`], still shut): a body a zone's way out would leave
+    /// under its give-up takes any way out (`crossing::escape_borne`).
     pub fn landings_opened(&self) -> RouteFilter {
-        RouteFilter { landings: Vec::new(), ..self.clone() }
+        let mut opened = self.clone();
+        opened.landings.retain(|shut| shut.kind == stuck::ShutKind::Refused);
+        opened
     }
 
     /// Whether floor `node` is open to a search that drops the soft part
@@ -409,11 +412,14 @@ mod tests {
         let (world, _) = field();
         let grid = &world.grid;
         let (a, b) = (grid.locate(Vec3::new(20.0, 0.0, 20.0), 1.5).unwrap(), grid.locate(Vec3::new(30.0, 0.0, 20.0), 1.5).unwrap());
-        let shut = RouteFilter::shutting_landings(vec![stuck::Shut::jump(grid.position(a))]).with_floors(move |n| n != b);
-        assert!(!shut.hard_open(grid, a) && !shut.hard_open(grid, b));
+        let c = grid.locate(Vec3::new(40.0, 0.0, 20.0), 1.5).unwrap();
+        let refused = stuck::Shut { kind: stuck::ShutKind::Refused, landing: grid.position(c), lasts: stuck::Lasts::Until(u32::MAX) };
+        let shut = RouteFilter::shutting_landings(vec![stuck::Shut::jump(grid.position(a)), refused]).with_floors(move |n| n != b);
+        assert!(!shut.hard_open(grid, a) && !shut.hard_open(grid, b) && !shut.hard_open(grid, c));
         let opened = shut.landings_opened();
         assert!(opened.hard_open(grid, a), "the landing's floor is open again");
         assert!(!opened.hard_open(grid, b), "the floor rule stays");
+        assert!(!opened.hard_open(grid, c), "a sprint the client refuses stays shut");
     }
 
     /// A grid and its regions to test on.
