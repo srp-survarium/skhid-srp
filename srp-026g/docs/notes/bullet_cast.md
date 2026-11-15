@@ -121,7 +121,7 @@ After load, every step (PROVEN, exe-read):
   node, `sort` swaps the node with its parent when the parent's ADDRESS is higher (`cmp eax,esi; jna` at 0xAA584). The leaf it
   reaches is removed (0xAA330) and inserted again from the root (0xAA180), and `m_opath` goes up by one.
 - The world forces every object's box update each step (`m_forceUpdateAllAabbs` +54h is 1 in the game's memory). Each
-  `setAabb` puts the proxy back in the current stage's list, so with two stages (0xB5651: modulo 2) no static is ever moved
+  `setAabb` puts the proxy back in the current stage's list on every path, a box unchanged included (0xB52AD..0xB5325), so with two stages (0xB5651: modulo 2) no static is ever moved
   to the fixed set. The statics stay in the dynamic tree, where the passes reach them.
 
 So the order across objects changes as the game runs. It depends on the steps since load, on the moving bodies' proxies in
