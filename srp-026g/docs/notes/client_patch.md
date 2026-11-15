@@ -3595,7 +3595,8 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   that can be set (the game's row: the chat group, type 0, its key button disabled); muting is the
   Tab menu's.
 - **The Tab list's player menu** (`hud.callback`, after patch 86's): `srp_voice_menu(place)` is
-  answered `root.srp_voice_menu(place, offered, muted)` (a teammate whose voice id the relay sent),
+  answered `root.srp_voice_menu(place, offered, muted)` (another player of either team whose voice
+  id the relay sent),
   `srp_voice_mute(place, "1"|"0")` `root.srp_voice_mute(place, done)`; the menu shows "Mute voice"
   or "Unmute voice" after the chat's entries.
 - **The options' microphone test** (the owner, 2026-11-14; `voice-chat.md`, "Microphone test":
