@@ -27,10 +27,26 @@ pub(super) const STRAFE_CLEAR_M: f32 = 1.5;
 /// [S6] What the body takes of the grid's links: a carrier's body, which the client gives no sprint (A331), takes a sprint
 /// link only by its walking press and no jump link above its standing jump (`motor.carrier_jump_m`).
 fn body_reach(bot: &Bot, me: &PlaceView) -> mapdata::Reach {
-    if me.carrying.is_some() {
-        mapdata::Reach::NoSprint { max_rise: bot.motor.feel.carrier_jump_m.map(f32::from) }
+    let sprint = if me.carrying.is_some() {
+        mapdata::SprintReach::Cannot { max_rise: bot.motor.feel.carrier_jump_m.map(f32::from) }
     } else {
-        mapdata::Reach::Full
+        mapdata::SprintReach::Can
+    };
+    // [S6] The falls it survives: its pain pool in the latest world, its fall-damage scale, nothing that may stop the hit.
+    let fall = match (bot.features.stock.pools, bot.fall_scale, bot.fall_save) {
+        (Some(pools), Some(fall_scale), super::FallSave::Nothing) => mapdata::FallRoom::Survives { pain: pools.pain, fall_scale },
+        _ => mapdata::FallRoom::Any,
+    };
+    mapdata::Reach { sprint, fall }
+}
+
+/// [S6] The log's line for each drop this bot's searches closed as lethal since the last take ([`mapdata::take_falls_closed`]):
+/// once per drop and pool.
+fn log_falls_closed(bot: &mut Bot, grid: &mapdata::WalkGrid, time: u32) {
+    for closed in mapdata::take_falls_closed() {
+        let line = super::nav_log::fall_closed_line(grid.position(closed.from), grid.position(closed.to), closed.height, closed.pain, closed.pool);
+        let key = super::nav_log::key(("fall closed", closed.from, closed.to, (closed.pool * 100.0) as i32));
+        bot.nav_log.push_once(super::nav_log::Kind::Route, key, time, line);
     }
 }
 
@@ -345,7 +361,10 @@ pub(super) fn drive_tick(
     bot.motor.gauge = tuning.think.stamina.then(|| bot.stamina.gauge());
     // [2d] In a carried route jump no other jump is pressed (`jump_carry`).
     bot.motor.carrying = tuning.feel.carry_jumps && bot.carry.holds(time);
+    // [S6] The closed drops of this bot's searches only.
+    drop(mapdata::take_falls_closed());
     let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching);
+    log_falls_closed(bot, &tactics.world.grid, time);
     // The motor turned the view's elevation; the input carries the game's pitch unit (`pitch.rs`).
     decision.turn.1 = Pitch::view(me.pitch, bot.reflex.kick_before()).turn_for(tuning.kin.pitch_scale, decision.turn.1);
     // [A277] At the clip end of the shot that emptied the weapon: the count's reload and its key, the sprint taken off.
@@ -917,7 +936,7 @@ fn drive_tick_inner(
             reach,
         );
         // [S6] A carrier's escape begun: the exits its walk reaches, for the log.
-        if let (false, mapdata::Reach::NoSprint { .. }, Some(state)) = (escaping_before, reach, bot.stuck.escape.as_ref()) {
+        if let (false, false, Some(state)) = (escaping_before, reach.sprints(), bot.stuck.escape.as_ref()) {
             let line = super::nav_log::carrier_escape_line(me.feet, state.exits_count());
             bot.nav_log.push(super::nav_log::Kind::Route, time, line);
         }
@@ -1259,9 +1278,7 @@ fn drive_tick_inner(
                 let hard_with = |landings, trap_filter: fn(&Bot, Vec<stuck::Shut>, Option<NodeId>) -> RouteFilter| {
                     let mut hard = trap_filter(bot, landings, grid.locate(me.feet, 1.5));
                     // [S6] A carrier's body ([`body_reach`]).
-                    if let mapdata::Reach::NoSprint { max_rise } = body_reach(bot, me) {
-                        hard = hard.without_sprint(max_rise);
-                    }
+                    hard = hard.with_reach(body_reach(bot, me));
                     // [kin.open_edge_cost] A269c: the way keeps a body's width in from an open side where the floor allows.
                     if tuning.kin.open_edge_cost > 0.0 {
                         hard = hard.weighing_open_sides(1.0 + tuning.kin.open_edge_cost);
@@ -3211,11 +3228,15 @@ pub(super) fn no_way_line(
                 v.push_str("; searched again past the traps' wide rings");
             }
             // [S6] A body with no sprint: its searches took no sprint link without a walking press.
-            if let mapdata::Reach::NoSprint { max_rise } = retried.reach {
+            if let mapdata::SprintReach::Cannot { max_rise } = retried.reach.sprint {
                 v.push_str("; planned with no sprint (a carrier): sprint links by their walking press only");
                 if let Some(rise) = max_rise {
                     v.push_str(&format!(", no jump above {rise:.3} m"));
                 }
+            }
+            // [S6] A body whose falls are known: its searches closed the drops that kill it.
+            if let mapdata::FallRoom::Survives { pain, .. } = retried.reach.fall {
+                v.push_str(&format!("; drops whose fall empties its pain pool ({pain:.2}) closed"));
             }
             if retried.drop_shuts {
                 v.push_str(if retried.unshut_proof { "; none with its shut drops open either" } else { "; its shut drops open searched" });

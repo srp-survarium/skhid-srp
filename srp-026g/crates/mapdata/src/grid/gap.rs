@@ -2617,11 +2617,11 @@ mod tests {
         assert!(sprints_across(&grid, 3.0, 2.0, 0.3), "{:?}", grid.off_links());
         // [S6] A body with no sprint (a carrier) takes a sprint link only by its walking press, priced by that press's share;
         // with none it has no way over. The grid's own body takes it at its own price.
-        let no_sprint = crate::grid::Reach::NoSprint { max_rise: None };
+        let no_sprint = crate::grid::Reach::no_sprint(None);
         for l in grid.off_links().iter().filter(|l| matches!(l.press, Takeoff::Sprint(_))) {
             let own = grid.link_cost(l.from, l.to, l.kind);
             assert!(own.is_finite(), "{l:?}");
-            assert_eq!(grid.link_cost_reaching(l.from, l.to, l.kind, crate::grid::Reach::Full), own);
+            assert_eq!(grid.link_cost_reaching(l.from, l.to, l.kind, crate::grid::Reach::FULL), own);
             let walked = grid.link_cost_reaching(l.from, l.to, l.kind, no_sprint);
             match l.walk {
                 None => assert!(walked.is_infinite(), "{l:?}: {walked}"),

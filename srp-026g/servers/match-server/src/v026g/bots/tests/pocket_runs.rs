@@ -169,7 +169,7 @@ fn a_hurt_bot_spends_no_try_on_a_pit() {
     let (mut state, mut route) = (None, None);
     let mut tick = |time: u32, may_jump: bool| {
         escape::tick(
-            &mut state, &mut route, grid, &board, 0, 0, feet, goal, time, may_jump, mapdata::Reach::Full,
+            &mut state, &mut route, grid, &board, 0, 0, feet, goal, time, may_jump, mapdata::Reach::FULL,
         )
         .events
     };
@@ -212,7 +212,7 @@ fn a_bot_given_up_in_a_pit_gives_up_once_as_its_goal_moves() {
             goal,
             k * 500,
             true,
-            mapdata::Reach::Full,
+            mapdata::Reach::FULL,
         );
         gave_up += out
             .events

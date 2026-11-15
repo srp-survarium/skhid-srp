@@ -1646,7 +1646,7 @@ impl Tactics {
             goal,
             |node| self.crossing_allowed(node, time, side, objective, at, &crossable),
             |region| self.spawn_ok(self.base.regions.middle(region), side, objective),
-            mapdata::Reach::Full,
+            mapdata::Reach::FULL,
             None,
             iters,
         )

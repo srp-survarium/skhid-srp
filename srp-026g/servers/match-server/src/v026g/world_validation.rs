@@ -162,6 +162,9 @@ pub struct PlaceWorld {
     /// The damage model's `m_invulnerability_attenuation` (+330h): the fade after that end, ms (0: none); 0 when
     /// `motion` is `None`.
     pub invulnerability_fade_ms: u32,
+    /// [S6] The damage model's protector `m_have_second_chance` (`damage_model::second_chance` 0x332940 acts only while it is
+    /// set, +4 of the protector); `None` when `motion` is.
+    pub have_second_chance: Option<bool>,
 }
 
 impl PlaceWorld {
@@ -216,6 +219,7 @@ impl PlaceWorld {
             }),
             invulnerability_time_ms: rest.and_then(|rest| rest.damage_model().invulnerability_time_ms()),
             invulnerability_fade_ms: rest.map_or(0, |rest| rest.damage_model().invulnerability_attenuation()),
+            have_second_chance: rest.map(|rest| rest.damage_model().have_second_chance()),
         }
     }
 }

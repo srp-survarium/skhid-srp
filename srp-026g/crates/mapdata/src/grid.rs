@@ -522,7 +522,7 @@ impl Body {
 
     /// The highest rise a Jump link is made for: [`Self::max_jump`], and with the clients' numbers the sprint
     /// jump's [`SPRINT_JUMP_LOW_M`] (a link above `max_jump` is a sprint jump: a run-up with sprint held, not for a
-    /// body that cannot sprint, [`Reach::NoSprint`]).
+    /// body that cannot sprint, [`SprintReach::Cannot`]).
     pub fn jump_cap(&self) -> f32 {
         if self.client_slope() { SPRINT_JUMP_LOW_M.max(self.max_jump) } else { self.max_jump }
     }
@@ -767,41 +767,125 @@ pub const MOVE_STEP_MARGIN_M: f32 = 0.04;
 pub const STANDING_JUMP_M: f32 = 0.998;
 
 /// [S6] What the body a route search plans for can take of the grid's links, where it is less than the grid's own body
-/// ([`WalkGrid::start_search_reaching`]).
+/// ([`WalkGrid::start_search_reaching`]): its sprint and the falls it survives.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub enum Reach {
-    /// The grid's own body: every link.
+pub struct Reach {
+    pub sprint: SprintReach,
+    pub fall: FallRoom,
+}
+
+/// [S6] Whether the body sprints on the route.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum SprintReach {
+    /// The grid's own body.
     #[default]
-    Full,
+    Can,
     /// A body the client gives no sprint for the whole route (a battery carrier: `base_player::can_sprint`, A331). A sprint
     /// gap or rim jump is taken by its walking press ([`OffLink::walk`]), priced by that press's share; with none it is no
     /// way. A sprint climb ([`gap::Takeoff::Climb`]) likewise, by its walking press on its own line ([`Aim::STRAIGHT`]: the
     /// route's riser plays it facing the climb's way). No jump link rises above `max_rise` metres (`None`: the grid's own).
-    NoSprint { max_rise: Option<f32> },
+    Cannot { max_rise: Option<f32> },
+}
+
+/// [S6] The falls the body survives: a drop whose fall's pain empties its pain pool kills it ([`held_floors::fall_pain`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum FallRoom {
+    /// Not known (no pool or no modifier read): no drop is closed for its fall.
+    #[default]
+    Any,
+    /// The body's pain pool now (`pain`, the latest world's: lethal at 0, `on_affect` 0x2DA480) and its fall-damage scale
+    /// (`max(0, 1 + modifier 30)`, the `fall_damage` modifier through `apply_modifier` 0x2D5AE0 at 0x2D82C8): a drop whose
+    /// fall's pain reaches `pain` is no way.
+    Survives { pain: f32, fall_scale: f32 },
 }
 
 impl Reach {
+    /// The grid's own body, every fall taken.
+    pub const FULL: Self = Self { sprint: SprintReach::Can, fall: FallRoom::Any };
+
+    /// A body that cannot sprint ([`SprintReach::Cannot`]), every fall taken.
+    pub const fn no_sprint(max_rise: Option<f32>) -> Self {
+        Self { sprint: SprintReach::Cannot { max_rise }, fall: FallRoom::Any }
+    }
+
     /// The highest jump link the body takes, if limited.
     pub fn max_rise(self) -> Option<f32> {
-        match self {
-            Reach::Full => None,
-            Reach::NoSprint { max_rise } => max_rise,
+        match self.sprint {
+            SprintReach::Can => None,
+            SprintReach::Cannot { max_rise } => max_rise,
         }
+    }
+
+    /// Whether it sprints.
+    pub fn sprints(self) -> bool {
+        self.sprint == SprintReach::Can
     }
 
     /// Both limits at once: the lesser body.
     pub fn and(self, other: Self) -> Self {
-        match (self, other) {
-            (Reach::Full, r) | (r, Reach::Full) => r,
-            (Reach::NoSprint { max_rise: a }, Reach::NoSprint { max_rise: b }) => Reach::NoSprint {
+        let sprint = match (self.sprint, other.sprint) {
+            (SprintReach::Can, r) | (r, SprintReach::Can) => r,
+            (SprintReach::Cannot { max_rise: a }, SprintReach::Cannot { max_rise: b }) => SprintReach::Cannot {
                 max_rise: match (a, b) {
                     (Some(a), Some(b)) => Some(a.min(b)),
                     (a, b) => a.or(b),
                 },
             },
+        };
+        let fall = match (self.fall, other.fall) {
+            (FallRoom::Any, r) | (r, FallRoom::Any) => r,
+            (FallRoom::Survives { pain: a, fall_scale: x }, FallRoom::Survives { pain: b, fall_scale: y }) => {
+                FallRoom::Survives { pain: a.min(b), fall_scale: x.max(y) }
+            }
+        };
+        Self { sprint, fall }
+    }
+
+    /// [S6] Whether a drop of `height` metres kills this body: its fall's pain ([`held_floors::fall_pain`]) and the pool,
+    /// `Some` for a lethal one.
+    pub fn lethal_fall(self, height: f32) -> Option<(f32, f32)> {
+        match self.fall {
+            FallRoom::Any => None,
+            FallRoom::Survives { pain, fall_scale } => {
+                let hurt = held_floors::fall_pain(height, fall_scale);
+                (hurt >= pain).then_some((hurt, pain))
+            }
         }
     }
 }
+
+/// [S6] A drop a search closed as lethal for its body ([`Reach::lethal_fall`]), for the log ([`take_falls_closed`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FallClosed {
+    pub from: NodeId,
+    pub to: NodeId,
+    pub height: f32,
+    /// The fall's pain, and the body's pain pool it reaches.
+    pub pain: f32,
+    pub pool: f32,
+}
+
+/// [S6] The most closed drops kept for the log between takes.
+const FALLS_CLOSED_KEPT: usize = 32;
+
+thread_local! {
+    static FALLS_CLOSED: std::cell::RefCell<Vec<FallClosed>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// [S6] The drops this thread's searches closed as lethal since the last take (each once, at most [`FALLS_CLOSED_KEPT`]).
+pub fn take_falls_closed() -> Vec<FallClosed> {
+    FALLS_CLOSED.with(|closed| std::mem::take(&mut *closed.borrow_mut()))
+}
+
+fn note_fall_closed(closed: FallClosed) {
+    FALLS_CLOSED.with(|list| {
+        let mut list = list.borrow_mut();
+        if list.len() < FALLS_CLOSED_KEPT && !list.iter().any(|c| c.from == closed.from && c.to == closed.to) {
+            list.push(closed);
+        }
+    });
+}
+
 /// The lowest top of the client's sprint jump (1.282-1.350 m by clip, PROVEN, the jump study): the highest rise a
 /// sprint-jump link is made for with the clients' numbers ([`Body::client`]), metres. The owner's Vector chain
 /// (1.26-1.35, F+J+S at 4.8 m/s) and the 8f rows (+1.36 mounted 4 of 6, at the limit) bound it.
@@ -4549,7 +4633,7 @@ impl WalkGrid {
     }
 
     pub fn link_cost(&self, from: NodeId, to: NodeId, kind: LinkKind) -> f32 {
-        self.link_cost_reaching(from, to, kind, Reach::Full)
+        self.link_cost_reaching(from, to, kind, Reach::FULL)
     }
 
     /// [S6] [`Self::link_cost`] for a body that may take less than the grid's own ([`Reach`]): infinite for a link it cannot
@@ -4559,6 +4643,14 @@ impl WalkGrid {
             return f32::INFINITY;
         }
         let down = matches!(kind, LinkKind::Drop | LinkKind::GapDrop);
+        // [S6] A drop whose fall kills the body ([`Reach::lethal_fall`]) is no way for it.
+        if down {
+            let height = self.height[from as usize] - self.height[to as usize];
+            if let Some((pain, pool)) = reach.lethal_fall(height) {
+                note_fall_closed(FallClosed { from, to, height, pain, pool });
+                return f32::INFINITY;
+            }
+        }
         let lip = if !down && self.is_lip(to) {
             LIP_PENALTY
         } else {
@@ -4586,13 +4678,15 @@ impl WalkGrid {
             // on the climb's own line only), and has no way over one without.
             let press = match self.off_link(from, to) {
                 None => None,
-                Some(l) => match (reach, l.press, l.walk) {
-                    (Reach::NoSprint { .. }, gap::Takeoff::Climb, Some((lead, share))) if l.aim == Aim::STRAIGHT => {
+                Some(l) => match (reach.sprint, l.press, l.walk) {
+                    (SprintReach::Cannot { .. }, gap::Takeoff::Climb, Some((lead, share))) if l.aim == Aim::STRAIGHT => {
                         Some((gap::Takeoff::Press(lead), share))
                     }
-                    (Reach::NoSprint { .. }, gap::Takeoff::Climb, _) => return f32::INFINITY,
-                    (Reach::NoSprint { .. }, gap::Takeoff::Sprint(_), Some((lead, share))) => Some((gap::Takeoff::Press(lead), share)),
-                    (Reach::NoSprint { .. }, gap::Takeoff::Sprint(_), None) => return f32::INFINITY,
+                    (SprintReach::Cannot { .. }, gap::Takeoff::Climb, _) => return f32::INFINITY,
+                    (SprintReach::Cannot { .. }, gap::Takeoff::Sprint(_), Some((lead, share))) => {
+                        Some((gap::Takeoff::Press(lead), share))
+                    }
+                    (SprintReach::Cannot { .. }, gap::Takeoff::Sprint(_), None) => return f32::INFINITY,
                     _ => Some((l.press, l.share)),
                 },
             };
@@ -4770,7 +4864,7 @@ impl WalkGrid {
         to: NodeId,
         allowed: impl Fn(NodeId) -> bool,
     ) -> Option<Path> {
-        self.path_where_reaching(from, to, allowed, Reach::Full)
+        self.path_where_reaching(from, to, allowed, Reach::FULL)
     }
 
     /// [S6] [`Self::path_where`] for a body that may take less than the grid's own links ([`Reach`],
@@ -4832,7 +4926,7 @@ impl WalkGrid {
         to: NodeId,
         budget: usize,
     ) -> Result<SlicedSearch, Search> {
-        self.start_search_reaching(from, to, budget, Reach::Full)
+        self.start_search_reaching(from, to, budget, Reach::FULL)
     }
 
     /// [`Self::start_search`] for a body that may take less than the grid's own ([`Reach`]): a body that cannot sprint (a
@@ -5901,7 +5995,7 @@ pub(crate) mod tests {
                 _ => None,
             };
             let walker = grid.search(from, to, |_| true, usize::MAX);
-            let mut carrier = grid.start_search_reaching(from, to, usize::MAX, Reach::NoSprint { max_rise: Some(STANDING_JUMP_M) }).unwrap();
+            let mut carrier = grid.start_search_reaching(from, to, usize::MAX, Reach::no_sprint(Some(STANDING_JUMP_M))).unwrap();
             let mut iters = usize::MAX;
             let carrier = carrier.step(&grid, |_| true, |_| 1.0, &mut iters).unwrap();
             (jumps(walker), jumps(carrier))
@@ -6598,7 +6692,7 @@ pub(crate) mod tests {
             assert_eq!(grid.link_gait(top, low), Some(WalkGait::Any), "down {height}");
             assert_eq!(grid.link_gait(low, low), None);
             // A body that cannot sprint (a carrier's search, with a jump limit) still takes the riser: it jumps it.
-            let carrier = |a: NodeId, b: NodeId| match grid.start_search_reaching(a, b, usize::MAX, Reach::NoSprint { max_rise: Some(STANDING_JUMP_M) }) {
+            let carrier = |a: NodeId, b: NodeId| match grid.start_search_reaching(a, b, usize::MAX, Reach::no_sprint(Some(STANDING_JUMP_M))) {
                 Err(search) => search,
                 Ok(mut search) => {
                     let mut iters = usize::MAX;

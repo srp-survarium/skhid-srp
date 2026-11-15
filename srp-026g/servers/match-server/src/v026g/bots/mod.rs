@@ -245,6 +245,20 @@ fn gates_line(keys: u32, gates: sprint_gates::WorldGates) -> String {
     )
 }
 
+/// [S6] What may stop a lethal fall's hit, as a bot's latest world shows it: the damage model's second chance armed
+/// (`m_have_second_chance`, `damage_model::second_chance` 0x332940), or a drug course on (`medkit::reduce_damage` 0x33DB30
+/// lowers a hit's amount while a course is active). A fall is closed as lethal ([`mapdata::FallRoom::Survives`]) only with
+/// [`Self::Nothing`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FallSave {
+    /// No world read yet.
+    Unread,
+    /// Neither: the fall's hit lands whole.
+    Nothing,
+    /// One of them may lower or stop it.
+    May,
+}
+
 /// [A395a] A bot's walk over a zone's floors (`Bot::zone_walk`): since when (ms) its lines are tested over them,
 /// whether the route it walks was planned since (`Tactics::route_shut_ahead`), and its ticks on floors a zone on hurts
 /// by the client's contact test (`Hazards::hits_at`), for the log.
@@ -497,6 +511,12 @@ pub struct Bot {
     /// The stamina rates of each of its kits, by the same index (`stamina::Rates::of_kit`); empty for a bot of no role
     /// (the light kit's then). A life's reckoning takes them with `think.stamina_rates` kit.
     kit_rates: Vec<stamina::Rates>,
+    /// [S6] Its fall-damage scale, `max(0, 1 + modifier 30)` of its kit's modifier block (`bot_skills::bot_modifiers`: the
+    /// `fall_damage` modifier, `apply_modifier` 0x2D5AE0 at 0x2D82C8, PROVEN `docs/notes/fall_damage.md`); `None` for a bot of
+    /// no role (its block not known).
+    pub(super) fall_scale: Option<f32>,
+    /// [S6] What may stop a lethal fall's hit, as its latest world shows ([`FallSave`]).
+    pub(super) fall_save: FallSave,
     /// The rounds this life started with (what its kit's storage gave).
     life_carried: u32,
     /// Its role, read from its gear (`Bots::new`'s `roles`).
@@ -696,6 +716,8 @@ impl Bot {
             zone_note: None,
             kits,
             kit_rates: Vec::new(),
+            fall_scale: None,
+            fall_save: FallSave::Unread,
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             frag_rolls_refused: 0,
@@ -744,6 +766,12 @@ impl Bot {
                 .filter(|&k| guns::Arms::of_kit(equipment, role, k).is_some())
                 .map(|k| stamina::Rates::of_kit(loadouts[k], &modifiers))
                 .collect()
+        });
+        self.fall_scale = self.role.map(|role| {
+            let loadouts = survarium::v026g::loadouts::bot_kits(equipment, role);
+            let modifiers = survarium::v026g::bot_skills::bot_modifiers(&loadouts);
+            let fall = survarium::v026g::skills::modifier_index("fall_damage").expect("a modifier of the 68");
+            (1.0 + modifiers[fall]).max(0.0)
         });
         self.kit = 0;
         self.kit_chosen = 0;
@@ -1566,6 +1594,17 @@ impl Bots {
             if let Some(hit) = hurt.last_hit_ms {
                 bot.features.stock.pantry.hit(hit);
             }
+        }
+    }
+
+    /// [S6] A trusted world's word on what may stop a lethal fall's hit for one place ([`FallSave`]).
+    pub fn fall_save(&mut self, place: Place, second_chance: Option<bool>, course_on: bool) {
+        if let Some(Some(bot)) = self.bots.get_mut(place) {
+            bot.fall_save = match second_chance {
+                None => FallSave::Unread,
+                Some(false) if !course_on => FallSave::Nothing,
+                Some(_) => FallSave::May,
+            };
         }
     }
 

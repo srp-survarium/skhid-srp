@@ -504,6 +504,12 @@ pub fn carrier_escape_line(feet: Vec3, exits: usize) -> String {
     format!("{PREFIX}pocket escape with no sprint (a carrier) from {}: {exits} exits whose take-offs it walks to", at(feet))
 }
 
+/// [S6] The line for a drop a search closed as lethal for the body (`mapdata::Reach::lethal_fall`): the fall's pain against
+/// the pain pool it empties.
+pub fn fall_closed_line(from: Vec3, to: Vec3, height: f32, pain: f32, pool: f32) -> String {
+    format!("{PREFIX}drop from {} to {} ({height:.2} m) closed: its fall takes pain {pain:.3}, the pool is {pool:.3}", at(from), at(to))
+}
+
 pub fn walk_route_shut_line(from: Vec3, reach: f32) -> String {
     format!("{PREFIX}zone walk's held route goes on across the zone from {}, past the way out's {reach:.1} m: planned again", at(from))
 }
