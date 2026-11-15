@@ -805,8 +805,18 @@ pub struct CombatTuning {
     /// as the best players pull the mouse down against it; any weapon.
     /// 1: the view stays where the turn takes it; 0: the kick lifts it.
     /// The one number here mixed by the skill (the owner, 2026-10-23):
-    /// `recoil_pull` at skill 1, `recoil_pull_low` at skill 0, so the best
-    /// bots take back twice what the weakest do.
+    /// `recoil_pull` at skill 1, `recoil_pull_low` at skill 0, linear between.
+    /// [range-fire] `recoil_pull_low` 0.85 (was 0.5, a design number): of the
+    /// bench's pull cells (the tier 4-5 AKS-74U at skill 0.3, hit shapes, 32
+    /// logs each; hits by burst length 1 / 2-3 / 4-6 / 7-10 / 11+ rounds) 0.5
+    /// fell from the first round (14.0 / 11.1 / 9.4 / 7.4 / 5.7 %) and left
+    /// the later rounds over the target at 40+ m (the rifle range trace); 0.85
+    /// is the first flat through 10 rounds with 11+ under (13.2 / 12.1 / 13.1 /
+    /// 12.6 / 8.9 %), the live humans' shape (4-6 20.4, 7-10 21.2, 11+ 13.3 %;
+    /// their 11+ is biased low: a human lets go when he misses); 1.0 is flat
+    /// through 11+ too (14.2 / 13.2 / 12.9 / 13.7 / 12.5 %), which the humans
+    /// are not. The rise to 1.0 with the skill is a design rule: the humans'
+    /// median and top tenth pull alike, so it is not measured.
     pub recoil_pull: f32,
     pub recoil_pull_low: f32,
     /// [A241] Down the sights an automatic's shot leaves right of the view by the client's aim sway
@@ -1774,7 +1784,7 @@ impl Default for CombatTuning {
             press_ms: 100,
             press_gap_ms: 50,
             recoil_pull: 1.0,
-            recoil_pull_low: 0.5,
+            recoil_pull_low: 0.85,
             aim_sway_counter: true,
             ads_near_m: 10.0,
             ads_near_chance: 0.85,
@@ -10772,8 +10782,8 @@ mod tests {
         }
     }
 
-    /// The best bots take back about twice the kick the weakest do: the
-    /// view climbs off the chest in a burst at skill 0, much less at 1.
+    /// The best bots take back all the kick, the weakest 0.85 of it: the
+    /// view climbs off the chest in a burst at skill 0 more than at 1.
     #[test]
     fn the_pull_against_the_kick_grows_with_the_skill() {
         let aim = AimTuning {
@@ -10782,8 +10792,8 @@ mod tests {
             wander_deg: (0.0, 0.0),
             ..AimTuning::default()
         };
-        let climb = |skill: f32| {
-            let (over, _) = kicked_fight_with(Arms::of_test_role("support"), 20.0, &aim, 300, skill);
+        let climb = |aim: &AimTuning, skill: f32| {
+            let (over, _) = kicked_fight_with(Arms::of_test_role("support"), 20.0, aim, 300, skill);
             let v: Vec<f32> = over
                 .iter()
                 .filter(|(h, _)| *h >= 250)
@@ -10791,9 +10801,28 @@ mod tests {
                 .collect();
             median(v)
         };
-        let (weak, best) = (climb(0.0), climb(1.0));
+        let (weak, best) = (climb(&aim, 0.0), climb(&aim, 1.0));
         assert!(best.abs() < 0.1, "{best}");
-        assert!(weak > 0.2 && weak > 3.0 * best.abs(), "{weak} {best}");
+        assert!(weak > best, "{weak} {best}");
+        // [range-fire] The old low end (0.5) left the weakest bots' view climbing more than the new (0.85).
+        let mut old = aim.clone();
+        old.combat.recoil_pull_low = 0.5;
+        let weak_old = climb(&old, 0.0);
+        assert!(weak_old > 0.2 && weak_old > weak + 0.1, "0.5: {weak_old}, 0.85: {weak}");
+    }
+
+    /// [range-fire] The pull against the kick by the skill: 0.85 at skill 0, 1.0 at skill 1, linear between, so each 0.1 of
+    /// skill adds 0.015 and none takes any away; never over 1.
+    #[test]
+    fn the_pull_rises_from_085_to_1_with_the_skill() {
+        let c = CombatTuning::default();
+        assert_eq!((c.recoil_pull_low, c.recoil_pull), (0.85, 1.0));
+        let pull: Vec<f32> = (0..=10).map(|i| mix((c.recoil_pull_low, c.recoil_pull), i as f32 / 10.0)).collect();
+        for w in pull.windows(2) {
+            assert!(w[1] > w[0] && w[1] <= 1.0 && w[1] - w[0] <= 0.015 + 1e-6, "{pull:?}");
+        }
+        assert!((pull[0] - 0.85).abs() < 1e-6 && (pull[10] - 1.0).abs() < 1e-6, "{pull:?}");
+        assert_eq!(super::super::tuning::Tuning::all_off().aim.combat.recoil_pull_low, 0.5);
     }
 
     #[test]
