@@ -312,7 +312,7 @@ pub(crate) fn camper_candidates(
             let sees = theirs
                 .iter()
                 .filter(near)
-                .filter(|&&q| super::aimpoint::shows(eye, q, false, sight, || true))
+                .filter(|&&q| super::aimpoint::shows(eye, super::aimpoint::BodyAt::facing(q, false, eye), sight, || true))
                 .count() as u32;
             // Seen from only matters to the hidden rule, and only where it sees some.
             let seen = if rule == SpotRule::Hidden && sees > 0 {
@@ -320,7 +320,7 @@ pub(crate) fn camper_candidates(
                 theirs
                     .iter()
                     .filter(near)
-                    .filter(|&&q| super::aimpoint::shows(q + standing, p, crouched, sight, || true))
+                    .filter(|&&q| super::aimpoint::shows(q + standing, super::aimpoint::BodyAt::facing(p, crouched, q + standing), sight, || true))
                     .count() as u32
             } else {
                 0
@@ -482,13 +482,15 @@ pub(crate) fn the_long_gunned_stand_in_is_known_as_a_sniper() {
 
 /// 300 s of a Team Deathmatch on the soak field with the game's seed `seed` and the bots' `tuning`: for the
 /// stand-in camper (bot 0) and its teammate (the near miss) the living ticks they were at the camper's spot in
-/// the life they reached it in, of them those within 2 m of it, and their living ticks in all.
-fn stand_in_camper_run(seed: u64, tuning: Tuning) -> [(u32, u32, u32); 2] {
+/// the life they reached it in, of them those within 2 m of it, their living ticks in all, and of the first those
+/// farther than 2 m that the bot's reflex walked (it had the legs: a fight's play, play 7's break sight or play 11's
+/// range) or that its motor walked back to the spot after it.
+fn stand_in_camper_run(seed: u64, tuning: Tuning) -> [(u32, u32, u32, u32); 2] {
     stand_in_camper_with(seed, tuning, CamperOptions::OFF).0
 }
 
 /// [`stand_in_camper_run`] for a camper with `options`, and the ticks its intent held the scope key (`key::AIM`) while it was within 1 m of its spot (the reflex scopes for a target itself, which is not the intent).
-fn stand_in_camper_with(seed: u64, tuning: Tuning, options: CamperOptions) -> ([(u32, u32, u32); 2], u32) {
+fn stand_in_camper_with(seed: u64, tuning: Tuning, options: CamperOptions) -> ([(u32, u32, u32, u32); 2], u32) {
     let world = soak_world();
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new(
@@ -512,9 +514,10 @@ fn stand_in_camper_with(seed: u64, tuning: Tuning, options: CamperOptions) -> ([
     }
     let spot = Vec3::new(35.0, 0.0, 33.0);
     // By bot: in this life at the spot (within 1 m) yet; living ticks
-    // since, and of them those within 2 m of it; living ticks in all.
+    // since, and of them those within 2 m of it; living ticks in all; of the
+    // first, those farther off by the reflex's legs or on the way back.
     let mut there = [false; 2];
-    let mut held = [(0u32, 0u32, 0u32); 2];
+    let mut held = [(0u32, 0u32, 0u32, 0u32); 2];
     let mut scoped = 0u32;
     // Long enough for the camper to live to its spot: with the weapon's own
     // damage (3-4 hits kill) its lives are 5-10 s and it reaches the spot
@@ -534,6 +537,10 @@ fn stand_in_camper_with(seed: u64, tuning: Tuning, options: CamperOptions) -> ([
                 if there[place] {
                     held.0 += 1;
                     held.1 += u32::from(off <= 2.0);
+                    let fight = bots.bots[place].as_ref().is_some_and(|bot| {
+                        bot.bench_legs || matches!(bot.bench_go, Some(crate::v026g::bots::plays::Go::To { at, .. }) if at.distance_xz(spot) <= 1.0)
+                    });
+                    held.3 += u32::from(off > 2.0 && fight);
                 }
             }
         }
@@ -601,16 +608,18 @@ pub(crate) fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
     let mut tuning = Tuning::default();
     tuning.kin.step_input = crate::v026g::bots::kin::StepInput::Same;
     let held = stand_in_camper_run(1, tuning);
-    // The camper got there and held it while alive (the reflex never moves
-    // it off; 3 s of it at least: how soon it arrives depends on the
-    // match's draws); its mate spent little of its life there.
+    // The camper got there and held it while alive (3 s of it at least: how
+    // soon it arrives depends on the match's draws); its mate spent little of
+    // its life there. Its play never walks it off; its reflex may, in a fight
+    // (play 7's break sight: in seed 1, hit at 95 s, it goes to a hide 6 m
+    // off at 99.55 s, then play 11), and its motor walks it back.
     let [camper, mate] = held;
     // Its lives end by kills, so the ticks it spends at the spot move with
     // any change to the other bodies of the game (a stuck recovery among
     // them: 117 and 67 in two runs of this soak that differ in one back-off's
     // keys). The floor is "got there for a few seconds"; the property is
-    // that it holds the spot all the while it is there.
-    assert!(camper.0 >= 50 && camper.1 == camper.0, "camper {camper:?}, mate {mate:?}");
+    // that it holds the spot all the while it is there, bar the fight's moves.
+    assert!(camper.0 >= 50 && camper.1 + camper.3 == camper.0, "camper {camper:?}, mate {mate:?}");
     assert!(f64::from(mate.1) <= 0.2 * f64::from(mate.2), "camper {camper:?}, mate {mate:?}");
 }
 

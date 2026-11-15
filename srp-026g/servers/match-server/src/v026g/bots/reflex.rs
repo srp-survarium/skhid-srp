@@ -8435,10 +8435,10 @@ impl Reflex {
     ) -> Option<Override> {
         let c = &aim.combat;
         let rule = self.cover_rule.filter(|_| fire_allowed && c.fire_through_ms > 0 && !self.dry())?;
-        let (who, feet, _) = self.sight.last_place(now, c.fire_through_ms)?;
+        let (who, body, _) = self.sight.last_place(now, c.fire_through_ms)?;
         // Low, at his belly standing (a crouched head): the place a body that ducked behind a crate is, which the part he showed
         // last, over the crate, is not.
-        let at = super::aimpoint::Part::Belly.point_of(feet, false, me.eye());
+        let at = super::aimpoint::Part::Belly.point_at(super::aimpoint::BodyAt { crouched: false, ..body }, me.eye());
         // Fire already going at him.
         self.last_fire.filter(|&(shot_who, shot_at)| shot_who == who && now <= shot_at + c.fire_through_ms)?;
         // He is hidden: one that is seen is the seen branch's.

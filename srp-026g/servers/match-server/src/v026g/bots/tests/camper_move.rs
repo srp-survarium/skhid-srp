@@ -232,7 +232,7 @@ pub(crate) fn camper_pool(tactics: &Tactics, side: i32, options: &CamperOptions)
             let bearings: Vec<f32> = theirs
                 .iter()
                 .filter(|q| q.distance_xz(c.at) <= CAMPER_SEES_M)
-                .filter(|&&q| super::super::aimpoint::shows(c.at + eye_up, q, false, sight, || true))
+                .filter(|&&q| super::super::aimpoint::shows(c.at + eye_up, super::super::aimpoint::BodyAt::facing(q, false, c.at + eye_up), sight, || true))
                 .map(|q| (q.z - c.at.z).atan2(q.x - c.at.x))
                 .collect();
             (bearings.len() >= 3).then(|| (sector_deg(bearings), c))
@@ -259,7 +259,7 @@ fn live_ranked(tactics: &Tactics, side: i32, options: &CamperOptions, candidates
             let close = theirs
                 .iter()
                 .filter(|q| (LIVE_SIGHT_M.0..=LIVE_SIGHT_M.1).contains(&q.distance_xz(c.at)))
-                .filter(|&&q| super::super::aimpoint::shows(c.at + eye_up, q, false, sight, || true))
+                .filter(|&&q| super::super::aimpoint::shows(c.at + eye_up, super::super::aimpoint::BodyAt::facing(q, false, c.at + eye_up), sight, || true))
                 .count() as u32;
             (close > 0).then(|| (spawn_gap_m(&spawns, c.at), close, c))
         })
@@ -933,7 +933,7 @@ pub(crate) fn live_area(tactics: &Tactics, side: i32, spot: Vec3, crouched: bool
         theirs
             .iter()
             .filter(|q| q.distance_xz(p) <= CAMPER_SEES_M)
-            .filter(|&&q| super::super::aimpoint::shows(q + standing, p, crouched, sight, || true))
+            .filter(|&&q| super::super::aimpoint::shows(q + standing, super::super::aimpoint::BodyAt::facing(p, crouched, q + standing), sight, || true))
             .count()
     };
     let mut near: Vec<(usize, Vec3)> = Vec::new();
@@ -979,7 +979,7 @@ pub(crate) fn plan_area(tactics: &Tactics, side: i32, spot: Vec3, crouched: bool
         theirs
             .iter()
             .filter(|q| q.distance_xz(p) <= CAMPER_SEES_M)
-            .filter(|&&q| super::super::aimpoint::shows(q + standing, p, crouched, sight, || true))
+            .filter(|&&q| super::super::aimpoint::shows(q + standing, super::super::aimpoint::BodyAt::facing(p, crouched, q + standing), sight, || true))
             .count()
     };
     let mut near: Vec<(usize, Vec3)> = Vec::new();
