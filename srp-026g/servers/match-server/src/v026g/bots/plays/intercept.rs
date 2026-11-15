@@ -580,7 +580,7 @@ mod tests {
     use super::super::tests::Scenario;
     use super::*;
     use crate::v026g::bots::know::{CheatKind, Source, Theft};
-    use crate::v026g::bots::team::{Asking, Assignment, assign};
+    use crate::v026g::bots::team::{Asking, Commit, Assignment, assign};
     use crate::v026g::bots::view::Mode;
 
     const THIEF: Vec3 = Vec3::new(22.0, 0.0, 36.0);
@@ -750,7 +750,7 @@ mod tests {
                 place,
                 candidates: intercepts(&s, place),
                 current: None,
-                committed: false,
+                commit: Commit::Free,
             })
             .collect();
         let out = assign(asking, s.view.clock);
@@ -802,7 +802,7 @@ mod tests {
                 place: 0,
                 candidates: all,
                 current: Some(&current),
-                committed: false,
+                commit: Commit::Free,
             }],
             s.view.clock,
         );

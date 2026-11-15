@@ -50,6 +50,7 @@
     "crossfire_apart_mates": false,
     "crossfire_point": false,
     "cut_given_crowd": false,
+    "finish_take": false,
     "held_in_pass": false,
     "hold_to_arrival": false
   },
