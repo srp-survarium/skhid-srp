@@ -82,6 +82,7 @@ pub mod pitch;
 pub mod plays;
 pub mod pockets;
 pub mod pools;
+pub mod precise;
 pub mod protection;
 pub mod recoil;
 pub mod reflex;
