@@ -542,6 +542,35 @@ mod tests {
 
     const FACING_Z: [f32; 2] = [0.0, 1.0];
 
+    /// The bots' aim points (`aimpoint::Part`) lie on the body as the stand-in's hit model turns it (the same table):
+    /// for every yaw of the body, a ray from 10 m at the part's height on every side, at the point the bots aim at for
+    /// that eye, hits a hit box, standing and crouched. Every part: the shapes' own centres, the nearer leg, the
+    /// pelvis, and the edges 0.18 m across the line of sight.
+    #[test]
+    fn the_bots_aim_points_are_on_the_body_from_every_side_and_yaw() {
+        use crate::v026g::bots::aimpoint::{BodyAt, Part as AimPart};
+        use crate::v026g::bots::kin::forward;
+        let step = std::f32::consts::TAU / 16.0;
+        let mut rays = 0;
+        for crouched in [false, true] {
+            for k in 0..16 {
+                let body = BodyAt { feet: Vec3::ZERO, crouched, yaw: k as f32 * step };
+                for j in 0..16 {
+                    let (s, c) = (j as f32 * step).sin_cos();
+                    for part in AimPart::AIM_ORDER {
+                        let eye = Vec3::new(10.0 * s, part.height(crouched), 10.0 * c);
+                        let at = part.point_at(body, eye);
+                        let dir = (at - eye) * (1.0 / (at - eye).length());
+                        let hit = ray_at_body(body.feet, forward(body.yaw), crouched, false, eye, dir, 100.0);
+                        assert!(hit.is_some(), "{part:?} crouched {crouched} yaw step {k} eye step {j}: at {at:?} misses");
+                        rays += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(rays, 2 * 16 * 16 * 8);
+    }
+
     /// A ray meets the same shape from 2 m as from 60 m: the shapes are tested from where the ray comes to the bounding sphere,
     /// so the distance of the origin does not change the answer (f32 on a quadratic of 3,600 against a shape's 0.0025 made the
     /// thin arm shapes hit by rounding alone, 60 m out: 51 % of the bench's hits landed on an arm).

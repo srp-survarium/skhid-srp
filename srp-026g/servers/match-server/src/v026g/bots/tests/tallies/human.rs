@@ -78,7 +78,7 @@ impl HumanTally {
                 b.alive
                     && b.team != me.team
                     && b.feet.distance_xz(me.feet) <= MEET_M
-                    && super::aimpoint::shows(Game::eye(b), me.feet, crouched, &game.world.sight, || {
+                    && super::aimpoint::shows(Game::eye(b), super::aimpoint::BodyAt { feet: me.feet, crouched, yaw: me.yaw }, &game.world.sight, || {
                         true
                     })
             });
