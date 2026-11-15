@@ -1941,9 +1941,21 @@ fn route_points(route: &super::path::Route, feet: Vec3, ahead: f32) -> Vec<Vec3>
     (0..=n).map(|k| route.point_at((s + k as f32).min(end))).collect()
 }
 
+/// [#2081] How far past the clearance a step out of an own trap's disc goes, metres: a body's drift off its route, median 0.25 m
+/// ([`OWN_TRAP_CLEAR_M`]'s walk sample), rounded up to the grid's floors (`mapdata::CELL` 0.25 m) and their slack.
+const STEP_OUT_PAST_M: f32 = 0.3;
+
 /// [#2081] The route a search gave `bot`, if it keeps the clearance from its team's own traps ([`keeps_clear`] over all of it);
-/// else none, with a note: the search's way is never one [`keep_off`] would drop at the next think.
-pub(super) fn own_trap_route(bot: &mut Bot, feet: Vec3, route: Option<super::path::Route>, now: u32) -> Option<super::path::Route> {
+/// else none, with a note: the search's way is never one [`keep_off`] would drop at the next think. A body inside a disc whose
+/// way is refused steps straight out of it first ([`step_out`]), as a player steps off his own trap, and searches from there.
+pub(super) fn own_trap_route(
+    bot: &mut Bot,
+    feet: Vec3,
+    route: Option<super::path::Route>,
+    now: u32,
+    tactics: &super::tactics::Tactics,
+    objective: bool,
+) -> Option<super::path::Route> {
     let route = route?;
     let field = bot.features.traps.field.clone();
     let reach = field.reach().max(FIELD_M);
@@ -1974,7 +1986,34 @@ pub(super) fn own_trap_route(bot: &mut Bot, feet: Vec3, route: Option<super::pat
         );
     }
     own_trap_note(bot, now, format!("a route of {:.1} m refused: it passes an own trap nearer than {reach:.2} m", route.length()));
-    None
+    let out = step_out(&field, feet, |to| tactics.clear_step_for(feet, to, now, bot.side, objective), &tactics.world.grid);
+    if out.is_some() {
+        own_trap_note(bot, now, "a step out of an own trap's disc instead".to_string());
+    }
+    out
+}
+
+/// [#2081] From inside the disc of the own trap of `field` nearest `feet`, the straight step away from it to `OWN_TRAP_CLEAR_M` +
+/// [`STEP_OUT_PAST_M`]: a two-point route, if its end is a floor of the feet's level, the ground there is clear for a step (`clear`),
+/// and it keeps the clearance from every other disc. None outside every disc.
+fn step_out(field: &TrapField, feet: Vec3, clear: impl Fn(Vec3) -> bool, grid: &WalkGrid) -> Option<super::path::Route> {
+    use super::path::{Route, Waypoint};
+    let reach = field.reach().max(FIELD_M);
+    let disc = field
+        .discs()
+        .iter()
+        .filter(|d| d.distance_xz(feet) < reach && (d.y - feet.y).abs() < OTHER_FLOOR_M)
+        .min_by(|a, b| a.distance_xz(feet).total_cmp(&b.distance_xz(feet)))?;
+    let (dx, dz) = (feet.x - disc.x, feet.z - disc.z);
+    let d = dx.hypot(dz).max(1e-3);
+    let want = Vec3::new(disc.x + dx / d * (reach + STEP_OUT_PAST_M), feet.y, disc.z + dz / d * (reach + STEP_OUT_PAST_M));
+    let (from, to) = (grid.locate(feet, 1.5)?, grid.locate(want, 0.6)?);
+    let end = grid.position(to);
+    if (end.y - feet.y).abs() >= 1.0 || !clear(end) || !keeps_clear(&[feet, end], field.discs(), feet, reach) {
+        return None;
+    }
+    let point = |at: Vec3, node| Waypoint { at, node, jump: None, low: false };
+    Some(Route::new(vec![point(feet, from), point(end, to)]))
 }
 
 /// [#2081] Whether the step from `from` to `to` keeps the clearance from the team's own traps of `field` ([`keeps_clear`]): the
@@ -4373,7 +4412,7 @@ mod tests {
         let tuning = crate::v026g::bots::tuning::Tuning::all_off();
         let mut bot = Bot::new(1, 0, 0, None, &tuning);
         bot.features.traps.field = field.clone();
-        let kept = own_trap_route(&mut bot, feet, Some(way.clone()), 1_000).expect("the search's way is kept by its check");
+        let kept = own_trap_route(&mut bot, feet, Some(way.clone()), 1_000, &s.tactics, false).expect("the search's way is kept by its check");
         let points = route_points(&kept, feet, f32::MAX);
         assert!(off_route_m(&points, trap) >= OWN_TRAP_CLEAR_M - CLEAR_SLACK_M, "{}", off_route_m(&points, trap));
         // keep_off keeps it, from its start and from each point along it.
@@ -4390,7 +4429,16 @@ mod tests {
         // A way 1.0 m off the trap: refused by the search's check and dropped by keep_off.
         let waypoint = |x: f32, z: f32| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
         let near = Route::new(vec![waypoint(15.0, 11.0), waypoint(35.0, 11.0)]);
-        assert!(own_trap_route(&mut bot, Vec3::new(15.0, 0.0, 11.0), Some(near.clone()), 2_000).is_none());
+        assert!(own_trap_route(&mut bot, Vec3::new(15.0, 0.0, 11.0), Some(near.clone()), 2_000, &s.tactics, false).is_none());
+        // From inside the disc (1.04 m off, a guard by its own trap) a way over the trap is refused for a step straight out of the
+        // disc, which keep_off keeps.
+        let guard = trap + Vec3::new(-1.04, 0.0, 0.0);
+        let over = Route::new(vec![waypoint(guard.x, guard.z), waypoint(35.0, 10.0)]);
+        let out = own_trap_route(&mut bot, guard, Some(over), 3_000, &s.tactics, false).expect("a step out");
+        let end = out.point_at(out.length());
+        assert!(end.distance_xz(trap) >= OWN_TRAP_CLEAR_M, "{end:?}");
+        assert!(end.x < guard.x, "away from the trap: {end:?}");
+        assert!(keeps_clear(&route_points(&out, guard, f32::MAX), field.discs(), guard, OWN_TRAP_CLEAR_M));
         let mut s3 = Scenario::field(Mode::TeamDeathmatch);
         s3.bot(0, 0, Vec3::new(15.0, 0.0, 11.0));
         let me = s3.view.places[0].clone();

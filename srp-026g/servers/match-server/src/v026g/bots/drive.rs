@@ -1216,7 +1216,7 @@ fn drive_tick_inner(
             let mut no_route = path::NoRoute::Searched;
             if let Some((goal, route, crossed)) = found {
                 // [#2081] The way keeps the clearance from the team's own traps, or there is none.
-                let route = traps::own_trap_route(bot, me.feet, route, time);
+                let route = traps::own_trap_route(bot, me.feet, route, time, tactics, intent.objective);
                 bot.no_way = route.is_none().then_some((goal, time + NO_WAY_RETRY_MS));
                 bot.features.crossing.goal = crossed.then_some(goal);
                 // Both ends were on floors, from one it may walk on: proven, unless the body's own shut drops are what
@@ -1725,7 +1725,7 @@ fn drive_tick_inner(
                 if let (Some((planning, second)), Some(ends)) = (second, ends) {
                     // It goes on at the next polls; the plain route (a long
                     // one) meanwhile, else the old one.
-                    if let Some(plain) = traps::own_trap_route(bot, me.feet, second.plain.clone(), time) {
+                    if let Some(plain) = traps::own_trap_route(bot, me.feet, second.plain.clone(), time, tactics, objective) {
                         #[cfg(test)]
                         {
                             bot.bench_route = why::PLAIN;
@@ -1753,7 +1753,7 @@ fn drive_tick_inner(
                     // toward the goal, not standing (else the old route).
                     let filter = if round { filter } else { hard };
                     if let Some(partial) =
-                        traps::own_trap_route(bot, me.feet, tactics.partial_route(&planning, ends, time, side, objective, &filter), time)
+                        traps::own_trap_route(bot, me.feet, tactics.partial_route(&planning, ends, time, side, objective, &filter), time, tactics, objective)
                     {
                         #[cfg(test)]
                         {
@@ -1781,7 +1781,7 @@ fn drive_tick_inner(
                     });
                 } else {
                     // [#2081] The way keeps the clearance from the team's own traps, or there is none (not a way out of a zone).
-                    let route = if escaping { route } else { traps::own_trap_route(bot, me.feet, route, time) };
+                    let route = if escaping { route } else { traps::own_trap_route(bot, me.feet, route, time, tactics, objective) };
                     #[cfg(test)]
                     if let Some((from, to)) = ends
                         && !escaping
