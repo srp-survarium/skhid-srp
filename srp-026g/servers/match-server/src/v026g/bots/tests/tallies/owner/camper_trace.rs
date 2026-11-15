@@ -178,7 +178,7 @@ impl Topic for CamperTrace {
             self.write(serde_json::json!({"t": t, "kill": [s, v]}));
         }
         // Every round he fired or that was fired at him: shooter, target, flat distance, the gun's class, the shooter team's skill.
-        let shots: Vec<(u32, Place, Option<(Place, f32)>, &'static str)> = game.shot_log[self.shots_seen.min(game.shot_log.len())..]
+        let shots: Vec<crate::v026g::bots::tests::standin::ShotRecord> = game.shot_log[self.shots_seen.min(game.shot_log.len())..]
             .iter()
             .copied()
             .filter(|&(_, s, aimed, _)| s == camper || aimed.is_some_and(|(t, _)| t == camper))

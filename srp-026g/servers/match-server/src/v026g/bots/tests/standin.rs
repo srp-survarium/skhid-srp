@@ -519,6 +519,9 @@ pub(crate) const STAND_IN_STAGGER: f32 = 0.75;
 
 pub(crate) const STAND_IN_STAGGER_MS: u32 = 500;
 
+/// [camper trace] One round of [`Game::shot_log`]: its tick, the shooter, his target and its flat distance at the shot, the gun's class.
+pub(crate) type ShotRecord = (u32, Place, Option<(Place, f32)>, &'static str);
+
 /// The stand-in game.
 pub(crate) struct Game {
     pub(crate) world: Arc<World>,
@@ -561,7 +564,7 @@ pub(crate) struct Game {
     pub(crate) shots_hits_by_gun: std::collections::BTreeMap<(Place, &'static str), (u32, u32)>,
     /// [camper trace] Every round: (tick, shooter, his target and its flat distance at the shot, the gun's class). Read by the
     /// camper trace only.
-    pub(crate) shot_log: Vec<(u32, Place, Option<(Place, f32)>, &'static str)>,
+    pub(crate) shot_log: Vec<ShotRecord>,
     /// The places that put a battery in at the last step.
     pub(crate) put_in: Vec<Place>,
     /// The team hits of the last step: shooter, victim, the shot's eye
