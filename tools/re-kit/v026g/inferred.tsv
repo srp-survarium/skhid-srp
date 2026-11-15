@@ -2618,8 +2618,6 @@ va	status	ref_021d	name
 0x00372b50	inferred-medium	0x0022e51b	vostok::particle::particle_system::load_binary
 0x00372d80	inferred-medium	0x0022e7db	vostok::particle::particle_emitter::particle_emitter
 0x00372e20	inferred-medium	0x0022e862	vostok::particle::particle_emitter::set_defaults
-0x00373c20	inferred-medium		vostok::network::torrent_client::start_seeding_impl
-0x00374050	inferred-medium		vostok::network::torrent_client::change_upload_speed_limit_impl
 0x003758f0	inferred-medium	0x00234f0e	boost::asio::ssl::detail::openssl_init_base::do_init::openssl_id_func
 0x00375a00	inferred-medium	0x00234fab	boost::asio::error::detail::ssl_category::name
 0x00375a10	inferred-medium	0x00234fb1	boost::asio::error::detail::ssl_category::message

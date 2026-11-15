@@ -2363,3 +2363,27 @@ va	status	ref_021d	name
 0x001610b0	reviewed		stlp_std::sort<vostok::render::grass_patch **> (grass_world::process_culling's)
 0x00161e50	reviewed		stlp_std::priv::__linear_insert<vostok::render::grass_patch **>
 0x00162060	reviewed		stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>
+0x003737f0	observed		vostok::network::torrent_client::start_seeding
+0x00373910	observed		vostok::network::torrent_client::stop_seeding
+0x003739e0	observed		vostok::network::torrent_client::change_upload_speed_limit
+0x00373ad0	observed		vostok::network::torrent_client::set_debug_info_state
+0x00373c20	observed		vostok::network::torrent_client::start_seeding_impl
+0x00374050	observed		vostok::network::torrent_client::change_upload_speed_limit_impl
+0x00374020	reviewed		vostok::network::torrent_client::stop_seeding_impl (the task stop_seeding posts)
+0x00374260	reviewed		vostok::network::torrent_client::set_debug_info_state_impl (the task set_debug_info_state posts)
+0x00373bd0	reviewed		vostok::network::torrent_client::start_seeding_impl's pipe message handler (seeding debug info)
+0x003736d0	reviewed		vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)
+0x00373730	reviewed		vostok::network::torrent_client's product GUID (HKLM Software\Vostok Games\<product>, "product GUID")
+0x003e36a1	reviewed		get_install_location (InstallLocation of an uninstall key, HKCU then HKLM)
+0x00373090	reviewed		vostok::win_utils::pipe::pipe
+0x00373140	reviewed		vostok::win_utils::pipe::~pipe
+0x00373230	reviewed		vostok::win_utils::pipe::accept (CreateNamedPipeW server, overlapped ConnectNamedPipe)
+0x003733c0	reviewed		vostok::win_utils::pipe::disconnect
+0x00373400	reviewed		vostok::win_utils::pipe::send
+0x00373510	reviewed		vostok::win_utils::pipe's accept completion (state 3, on_connected, first read)
+0x001ee550	reviewed		survarium::game's change_seeding_upload_rate command callback
+0x001ee580	reviewed		survarium::game's enable_torrent_seeding command callback
+0x001ee5d0	reviewed		survarium::game's lobby_torrent_stats command callback
+0x001f60a0	reviewed		survarium::network_stats_lobby_torrent's row update (seeding, peers, upload, max upload limit)
+0x00262250	reviewed		survarium::options_torrent_seeding_selector's read of change_seeding_upload_rate
+0x002622a0	reviewed		survarium::options_torrent_seeding_selector's apply (executes change_seeding_upload_rate <KiB/s>)

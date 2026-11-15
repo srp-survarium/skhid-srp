@@ -142,3 +142,6 @@ vtable	slot	va	class	base	basis
 0x009e4da4	0x28	0x000b3f20	btHashedOverlappingPairCache	btOverlappingPairCache	observed: RTTI as slot 4; setOverlapFilterCallback (Bullet's source: m_overlapFilterCallback +18h := the argument); no call of it found (the slot is its one reference, no overlap filter class in the RTTI)
 0x009fc4f4	0x08	0x001f77e0	survarium::game_world	survarium::game_world	observed: tick, in the primary vtable (the constructor writes 0x9FC4F4 at the object's +0, 0x1F682D)
 0x009fc4f4	0x0c	0x001f7620	survarium::game_world	survarium::game_world	observed: on_after_tick, the slot after tick in the primary vtable: its this is the game world as tick's (its +9Ch the game, +94h the sound scene it gives the listener)
+0x009ffb14	0x20	0x00372420	survarium::network_client	survarium::base_network_client	observed: returns 1; gates the lobby seeding (game::switch_to_lobby 0x1ED1EF, switch_to_login, switch_to_game_world, the seeding commands' callbacks 0x1EE550..0x1EE5D0)
+0x009ffb14	0x48	0x00219980	survarium::network_client	survarium::base_network_client	observed: returns this+1EE8B8h, the torrent_client the seeding calls take (game::switch_to_lobby 0x1ED200, start_seeding 0x1ED21D)
+0x009ff344	0x20	0x00397c20	survarium::replay_network_client	survarium::base_network_client	observed: returns 0, so a replay never starts or stops seeding

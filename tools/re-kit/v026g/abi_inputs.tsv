@@ -6188,3 +6188,35 @@ va	name	location	role	basis
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	EDI	the value (patch pointer)	observed
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+4	last (the value's slot)	observed
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+8	the camera position by value (3 floats)	observed
+0x003737f0	vostok::network::torrent_client::start_seeding	entry ESP+4	the torrent_client (network client vtable +48h: network_client+1EE8B8h); +0 the network world (+94h task queue, +11Ch allocator), +4 the pipe, +8 the debug flag sent, +0Ch debug info (u8 seeding, u32 upload rate, u32 limit, u32 peers), +1Ch in a match	observed
+0x00373910	vostok::network::torrent_client::stop_seeding	entry ESP+4	the torrent_client	observed
+0x003739e0	vostok::network::torrent_client::change_upload_speed_limit	entry ESP+4	the torrent_client	observed
+0x00373ad0	vostok::network::torrent_client::set_debug_info_state	entry ESP+4	the torrent_client	observed
+0x00373c20	vostok::network::torrent_client::start_seeding_impl	ECX	the torrent_client	observed
+0x00373c20	vostok::network::torrent_client::start_seeding_impl	entry ESP+4	bool debug (lobby_torrent_stats): argv 7 "true"/"false"	observed
+0x00373c20	vostok::network::torrent_client::start_seeding_impl	entry ESP+8	u32 upload limit in KiB/s (change_seeding_upload_rate); argv 8 is it x 1024	observed
+0x00374020	vostok::network::torrent_client::stop_seeding_impl	ECX	the torrent_client	observed
+0x00374050	vostok::network::torrent_client::change_upload_speed_limit_impl	ECX	the torrent_client	observed
+0x00374050	vostok::network::torrent_client::change_upload_speed_limit_impl	entry ESP+4	u32 limit in KiB/s	observed
+0x00374260	vostok::network::torrent_client::set_debug_info_state_impl	ECX	the torrent_client	observed
+0x00374260	vostok::network::torrent_client::set_debug_info_state_impl	entry ESP+4	bool flag	observed
+0x00373bd0	vostok::network::torrent_client::start_seeding_impl's pipe message handler (seeding debug info)	entry ESP+4	the debug info (torrent_client+0Ch)	observed
+0x00373bd0	vostok::network::torrent_client::start_seeding_impl's pipe message handler (seeding debug info)	entry ESP+8	the received packet (+4 its bytes: u16 length, u8 id, fields)	observed
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	ESI	wide buffer	observed
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	EDI	buffer capacity in characters	observed
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	entry ESP+4	pointer to the open HKEY	observed
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	entry ESP+8	wide value name	observed
+0x003e36a1	get_install_location (InstallLocation of an uninstall key, HKCU then HKLM)	entry ESP+4	wide uninstall key path	observed
+0x003e36a1	get_install_location (InstallLocation of an uninstall key, HKCU then HKLM)	entry ESP+8	wide out buffer, 104h characters	observed
+0x00373090	vostok::win_utils::pipe::pipe	ESI	the pipe (10D0h bytes, allocated with pipe's RTTI 0xAE7728 as tag)	observed
+0x00373090	vostok::win_utils::pipe::pipe	EDI	the io_service (stored at +94h)	observed
+0x00373140	vostok::win_utils::pipe::~pipe	entry ESP+4	the pipe (~network_client 0x219F98 and start_seeding_impl, then freed)	observed
+0x00373230	vostok::win_utils::pipe::accept (CreateNamedPipeW server, overlapped ConnectNamedPipe)	ECX	the pipe	observed
+0x00373230	vostok::win_utils::pipe::accept (CreateNamedPipeW server, overlapped ConnectNamedPipe)	EAX	wide pipe name	observed
+0x003733c0	vostok::win_utils::pipe::disconnect	EDI	the pipe	observed
+0x00373400	vostok::win_utils::pipe::send	EAX	the pipe	observed
+0x00373400	vostok::win_utils::pipe::send	ECX	the packet (mutable_buffer: +4 bytes, +0Ch size)	observed
+0x001f60a0	survarium::network_stats_lobby_torrent's row update (seeding, peers, upload, max upload limit)	EAX	the stats screen (+2CCh its movie)	observed
+0x001f60a0	survarium::network_stats_lobby_torrent's row update (seeding, peers, upload, max upload limit)	entry ESP+4	the 16-byte debug info by value (from network_client::draw_match_stats 0x27FD3B)	observed
+0x00262250	survarium::options_torrent_seeding_selector's read of change_seeding_upload_rate	ECX	the selector (+8 the command, +18h labels, +1Ch count 7, +1Dh selected)	observed
+0x002622a0	survarium::options_torrent_seeding_selector's apply (executes change_seeding_upload_rate <KiB/s>)	ECX	the selector	observed
