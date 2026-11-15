@@ -194,8 +194,10 @@ pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0002;
 /// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const REST_FLOORS_ALGO: u32 = 0x5389_0101;
 /// The same for the floors kept only where the client's capsule is held and the drops from the last held floors
-/// ([`Body::held_floors`], A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own.
-pub const HELD_FLOORS_ALGO: u32 = 0x5389_0201;
+/// ([`Body::held_floors`], A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0202: a floor a
+/// body come down 0.15 m off its centre rests on is held (the ring, R2 F3).
+/// 0203: the held test's fall is measured from the floor's own height until a step finds ground; no ring under a low roof.
+pub const HELD_FLOORS_ALGO: u32 = 0x5389_0203;
 /// The same for a body named by a `walk` face's floor anywhere down the face in the cell ([`Body::walk_face_stands`], A389), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0301;

@@ -1416,6 +1416,11 @@ impl Running {
         }
     }
 
+    /// [A394 (b)] Whether this is a Collect take to finish before another play ([`collect::finishing`]).
+    pub fn finishing_take(&self, target: TargetRef, cx: &Ctx) -> bool {
+        matches!(self, Self::Collect(state) if collect::finishing(state, target, cx))
+    }
+
     /// [A320] Whether this is a flank route's walk or hold (`threat.camp_flank`).
     pub fn camp_flank_walk(&self) -> bool {
         matches!(self, Self::Flank(flank::State::Route { .. } | flank::State::Hold { .. }))

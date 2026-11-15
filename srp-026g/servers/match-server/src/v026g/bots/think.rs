@@ -71,6 +71,11 @@ impl Bots {
         sense_batteries(&due, bot, state, rays, notes);
         rays.allow(None);
         remember(&due, bot, &percepts);
+        // [A393] The sights-up window: the memory's track lifetime, the bot's own weapon's shot reach.
+        bot.reflex.set_sights_up(self.tracker.shot_reach_of(bot.place).map(|reach_m| reflex::SightsUp {
+            fresh_ms: tuning.cheats.forget_ms.max(tuning.sense.forget_ms),
+            reach_m,
+        }));
         react(&due, bot, state, &self.features.weapons, notes);
         self_kill(&due, bot, state, notes);
         if now < bot.pause_until {
@@ -1175,6 +1180,9 @@ pub(super) fn react(
     for text in bot.reflex.take_throw_notes() {
         bot.note(notes, now, text);
     }
+    for text in bot.reflex.take_debug_notes() {
+        log::debug!("player {} (the server's bot) at {now} ms: {text}", bot.place);
+    }
     for text in bot.reflex.take_smoke_notes() {
         bot.note(notes, now, text);
     }
@@ -1420,13 +1428,14 @@ pub(super) fn decide(
                 };
                 bot.features.memory.set_aside.push((a.kind, a.target, now + keep));
             }
-            if let Some(a) = bot.assignment.as_ref()
-                && why.starts_with("could not take it")
-            {
+            // [A394] Every failed Collect play is one for the team's memory, whatever its reason.
+            if let Some(a) = bot.assignment.as_ref() {
                 let end = if why == plays::collect::NO_STAND_LEFT {
                     plays::collect::TakeEnd::NoStandLeft
-                } else {
+                } else if why.starts_with("could not take it") {
                     plays::collect::TakeEnd::StandsLeft
+                } else {
+                    plays::collect::TakeEnd::Failed
                 };
                 take_ended(tuning, state, bot, a.kind, a.target, end, now, notes);
             }

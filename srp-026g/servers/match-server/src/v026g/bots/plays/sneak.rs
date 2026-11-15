@@ -336,7 +336,7 @@ mod tests {
     use super::super::tests::Scenario;
     use super::*;
     use crate::v026g::bots::know::Source;
-    use crate::v026g::bots::team::{Asking, assign};
+    use crate::v026g::bots::team::{Asking, Commit, assign};
     use crate::v026g::bots::view::Mode;
 
     const THEIRS: Vec3 = Vec3::new(68.0, 0.0, 30.0);
@@ -404,7 +404,7 @@ mod tests {
                 place,
                 candidates: sneaks(&s, place),
                 current: None,
-                committed: false,
+                commit: Commit::Free,
             })
             .collect();
         assert_eq!(assign(asking, s.view.clock).len(), 1);

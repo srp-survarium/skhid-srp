@@ -119,14 +119,27 @@ impl Ctx<'_> {
             .is_some_and(|p| p.team != self.me.team)
     }
 
+    /// [Gap 2] The carrier of `battery` as this bot may know him: the view's (the world names every carrier) for its own
+    /// team or with `cheats.batteries`; an enemy only if its team saw him carrying it or saw him take it
+    /// (`TeamKnowledge::knew_carrying`), as a human knows an enemy carrier (in sight, the thief of his team's container,
+    /// or a teammate's word). Else none, and a line for the log.
+    fn intercept_known_carrier(&self, battery: usize, carrier: Option<Place>) -> Option<Place> {
+        let carrier = carrier?;
+        let known = !self.intercept_is_enemy(carrier) || self.tuning.cheats.batteries || self.team.knew_carrying(carrier, battery);
+        if !known {
+            let key = (battery as u64) << 8 | carrier as u64;
+            self.lines.push(super::super::nav_log::Kind::Carry, Some(key), super::super::nav_log::hidden_carry_line(battery, carrier));
+        }
+        known.then_some(carrier)
+    }
+
     /// The carry the target stands for, while an enemy carries.
     fn intercept_carry(&self, target: TargetRef) -> Option<Carry> {
         match target {
             TargetRef::Place(p) => (self.intercept_is_enemy(p)
-                && self
-                    .view
-                    .batteries
-                    .contains(&BatteryState::Carried(Some(p))))
+                && self.view.batteries.iter().enumerate().any(|(battery, state)| {
+                    *state == BatteryState::Carried(Some(p)) && self.intercept_known_carrier(battery, Some(p)).is_some()
+                }))
             .then_some(Carry { carrier: Some(p) }),
             TargetRef::Point(at) => {
                 let theft = self.team.thefts.iter().rev().find(|t| t.at == at)?;
@@ -135,7 +148,7 @@ impl Ctx<'_> {
                         if carrier.is_none_or(|p| self.intercept_is_enemy(p)) =>
                     {
                         Some(Carry {
-                            carrier: carrier.or(theft.thief),
+                            carrier: self.intercept_known_carrier(theft.battery, *carrier).or(theft.thief),
                         })
                     }
                     _ => None,
@@ -380,6 +393,8 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         if carrier.is_some_and(|p| !cx.intercept_is_enemy(p)) {
             continue;
         }
+        // [Gap 2] An enemy carrier only as the team knows him; else the theft's spot.
+        let carrier = cx.intercept_known_carrier(battery, carrier);
         let theft = cx
             .team
             .thefts
@@ -565,7 +580,7 @@ mod tests {
     use super::super::tests::Scenario;
     use super::*;
     use crate::v026g::bots::know::{CheatKind, Source, Theft};
-    use crate::v026g::bots::team::{Asking, Assignment, assign};
+    use crate::v026g::bots::team::{Asking, Commit, Assignment, assign};
     use crate::v026g::bots::view::Mode;
 
     const THIEF: Vec3 = Vec3::new(22.0, 0.0, 36.0);
@@ -735,7 +750,7 @@ mod tests {
                 place,
                 candidates: intercepts(&s, place),
                 current: None,
-                committed: false,
+                commit: Commit::Free,
             })
             .collect();
         let out = assign(asking, s.view.clock);
@@ -787,7 +802,7 @@ mod tests {
                 place: 0,
                 candidates: all,
                 current: Some(&current),
-                committed: false,
+                commit: Commit::Free,
             }],
             s.view.clock,
         );

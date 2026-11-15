@@ -343,10 +343,13 @@ pub enum Kind {
     /// [S7] A crouched climb of the route (a Walk link only a crouching body climbs): crouched at its foot, and whether it got
     /// up (`drive.rs` `crouch_climb_watch`).
     CrouchClimb,
+    /// [Gap 2] An enemy's carry the world names and the bot's team does not know of, kept from the intercept
+    /// (`plays/intercept.rs`).
+    Carry,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 11;
+const KINDS: usize = 12;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -530,6 +533,12 @@ impl Lines {
 pub fn band_stand_line(feet: Vec3, allowed: bool) -> String {
     let verdict = if allowed { "allowed: the capsule touches no zone on there" } else { "refused" };
     format!("{PREFIX}stand on the margin's band at {}: {verdict}", at(feet))
+}
+
+/// [Gap 2] The line for an enemy's carry kept from the intercept: the world names `carrier` holding `battery`, and the
+/// team neither saw him carrying it nor saw him take it (`TeamKnowledge::knew_carrying`).
+pub fn hidden_carry_line(battery: usize, carrier: usize) -> String {
+    format!("{PREFIX}carry of battery {battery} by player {carrier} not known to the team: chased at the theft's spot, if any")
 }
 
 #[cfg(test)]

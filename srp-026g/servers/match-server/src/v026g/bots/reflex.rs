@@ -1008,6 +1008,14 @@ pub struct CombatTuning {
     /// aimed at him, each 0-1.2 s before death). Only Heard and Told tracks (what a player hears and is told). `None`: off (the
     /// last target's last seen spot only).
     pub pre_aim_heard: Option<PreAimHeard>,
+    /// [A393] Sights up at the last corner: with no target seen and an enemy heard or told of, the bot walks aimed (the
+    /// aim key held) at his bearing, so its sights are up when he shows: raising them takes the weapon's aim time
+    /// (`aim_time`, the client's 0x2E1B50), and 38 % of a reference player's victims died with the weapon down (A393).
+    /// Which enemy ([`SightsUp`], set each think): a Heard or Told track the bot's memory still holds as sensed (sensed
+    /// within `sense.forget_ms`, the memory's own track lifetime: itself a bots' value with no source yet), within the
+    /// distance the bot's own weapon's shot is heard (`shot_reach.rs`, PROVEN per weapon: the distance its shot could
+    /// answer). Not while carrying a battery; no reach known: none. Off: as before.
+    pub sights_up: bool,
     /// [fx-grid aim gates, `private/grid/aim-gates/FINDINGS.md`] The aim-in counts from when the client lets the sights
     /// come up ([`Reflex::aim_open`]), not from the AIM press: the client refuses the sights (`can_aim` 0x2E3AC0) and the
     /// shot (0x2E3CB0) while it sprints and until the sprint animation's end ([`ClientGate::sprint_out_ms`]), through a
@@ -1683,6 +1691,7 @@ impl Default for CombatTuning {
             kit_recoil: false,
             aim_last_known: true,
             pre_aim_heard: None,
+            sights_up: true,
             gate_from_client: Some(ClientGate { sprint_out_ms: 300, jump_ms: 1_200 }),
             lead_most_ms: 300,
             lead_own: true,
@@ -1943,6 +1952,21 @@ impl PreAimHeard {
             .filter(|t| now.saturating_sub(t.time) <= self.fresh_ms && t.at.distance_xz(feet) <= self.max_m)
             .min_by(|a, b| a.at.distance_xz(feet).total_cmp(&b.at.distance_xz(feet)))
             .map(|t| t.at)
+    }
+}
+
+/// [A393] [`CombatTuning::sights_up`]'s window: a Heard or Told track sensed within `fresh_ms` (the memory's track lifetime,
+/// `sense.forget_ms`) and within `reach_m` (the bot's own weapon's shot reach, `shot_reach.rs`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SightsUp {
+    pub fresh_ms: u32,
+    pub reach_m: f32,
+}
+
+impl SightsUp {
+    /// The nearest such track's place.
+    pub fn place(&self, memory: &Memory, feet: Vec3, now: u32) -> Option<Vec3> {
+        PreAimHeard { fresh_ms: self.fresh_ms, max_m: self.reach_m }.place(memory, feet, now)
     }
 }
 
@@ -3694,6 +3718,12 @@ pub struct Reflex {
     /// [play 20] Throws made and given up since the last think, for the
     /// bot's notes ([`Reflex::take_throw_notes`]).
     throw_notes: Vec<String>,
+    /// [A393] Sights up at a heard or told enemy: the last tick they were (a new start logs a line when a second has
+    /// gone since), and the debug lines ([`Reflex::take_debug_notes`]).
+    sights_up_last: Option<u32>,
+    /// [A393] The window `sights_up` takes its enemy in ([`Reflex::set_sights_up`]); none: no reach known.
+    sights_up_window: Option<SightsUp>,
+    debug_notes: Vec<String>,
     /// Enemies seen holding an angle: who, where, when.
     held: Vec<(Place, Vec3, u32)>,
     camps: Vec<Camp>,
@@ -4335,6 +4365,17 @@ impl Reflex {
     /// the blast ("holds a grenade back at (x, y, z): teammate <place>").
     pub fn take_throw_notes(&mut self) -> Vec<String> {
         std::mem::take(&mut self.throw_notes)
+    }
+
+    /// [A393] The window `sights_up` takes its enemy in, each think: the memory's track lifetime and the bot's own weapon's
+    /// shot reach (`None`: none known, no sights up).
+    pub fn set_sights_up(&mut self, window: Option<SightsUp>) {
+        self.sights_up_window = window;
+    }
+
+    /// [A393] The debug lines since the last think (the think logs them at debug level with the bot's place).
+    pub fn take_debug_notes(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.debug_notes)
     }
 
     /// [measure] How long ago, ms, the last grenade was let go.
@@ -7925,7 +7966,31 @@ impl Reflex {
                         glance: true,
                         ..Override::default()
                     },
-                    None => match c.pre_aim_heard.and_then(|pre| pre.place(memory, me.feet, now)) {
+                    None => match self
+                        .sights_up_window
+                        .filter(|_| c.sights_up && me.carrying.is_none())
+                        .and_then(|window| window.place(memory, me.feet, now))
+                    {
+                        // [A393] The nearest enemy heard or told of within the pre-aim range: walked aimed at his bearing.
+                        Some(at) => {
+                            if self.sights_up_last.is_none_or(|last| now > last.saturating_add(1_000)) {
+                                self.debug_notes.push(format!(
+                                    "sights up at a heard or told enemy {:.1} m off at ({:.1}, {:.1})",
+                                    at.distance_xz(me.feet),
+                                    at.x,
+                                    at.z
+                                ));
+                            }
+                            self.sights_up_last = Some(now);
+                            self.aim_since = Some(aim_since.unwrap_or(now));
+                            Override {
+                                look_at: Some(at + Vec3::new(0.0, 1.3, 0.0)),
+                                keys: key::AIM | reload,
+                                legs,
+                                ..Override::default()
+                            }
+                        }
+                        None => match c.pre_aim_heard.and_then(|pre| pre.place(memory, me.feet, now)) {
                         // [A302 #3] The nearest enemy heard or told of lately: a glance, so a use or a carry keeps the view.
                         Some(at) => Override {
                             look_at: Some(at + Vec3::new(0.0, 1.4, 0.0)),
@@ -7941,6 +8006,7 @@ impl Reflex {
                             legs,
                             ..Override::default()
                         },
+                    },
                     },
                 },
             };
