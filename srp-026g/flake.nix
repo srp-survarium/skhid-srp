@@ -19,10 +19,12 @@
         overlays = [ rust-overlay.overlays.default ];
       };
 
-      # Nightly toolchain — the workspace uses `edition = "2024"` and several
-      # nightly `#![feature(...)]` gates (generic_atomic, iter_intersperse,
-      # slice_split_once; core_float_math, linkage, compiler_builtins in the
-      # client patches and ragdoll), so stable will not build it.
+      # Nightly toolchain: stable will not build what forces it, all in the
+      # game's code: `#![feature(core_float_math)]` (crates/ragdoll,
+      # client-patches/rust/patches, client-patches/research_arena),
+      # `#![feature(linkage)]` (client-patches/arena_rt), and link_026g.py's
+      # own `core` (`-Zforce-unstable-if-unmarked`) with its stub of
+      # `#![feature(compiler_builtins)]`. The servers' crates use none.
       # Pinned by date: nightly-2026-07-12 (rustc 1.99.0-nightly be8e82435) is
       # the first with the fix of rust-lang/rust#159035, an LLVM load-combining
       # miscompile of enum tags (out-of-bounds reads; LLVM fix #159106 merged
