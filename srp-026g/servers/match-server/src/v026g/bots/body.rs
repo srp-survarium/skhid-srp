@@ -387,6 +387,25 @@ pub(crate) mod creep_steps {
     }
 }
 
+/// [A388 step 2b] The lip guard's stop forecasts that the margin point's walker-ground test alone called off ([`stays_up`]), on this
+/// server (the match-end line). Decides nothing itself.
+pub(crate) mod margin_walk_offs {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static ONLY: AtomicU64 = AtomicU64::new(0);
+
+    /// A forecast called off at its margin; `only`: by the walker-ground test alone.
+    pub(crate) fn count(only: bool) {
+        if only {
+            ONLY.fetch_add(1, Relaxed);
+        }
+    }
+
+    pub(crate) fn take() -> u64 {
+        ONLY.swap(0, Relaxed)
+    }
+}
+
 /// [A318] Whether the reckoned body is on its floor or coming down onto it ([`DropFall::Gravity`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Fall {
@@ -520,7 +539,14 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
             let over_open = kin.edge == Edge::ClientWalksOff
                 && margin.distance_xz(to) > 1e-3
                 && grid.open_toward(margin_node, to.x - margin.x, to.z - margin.z) == Some(true);
-            if falls(margin) || over_open {
+            // [A388 step 2b, the exe review of #1892] At a ledge the grid holds the margin point up to 0.435 m past a floor's centre
+            // while the client's body leaves 0.18-0.25 m past the rim: the margin point is off its floor where the client's walker
+            // has no ground within a step under it and a floor lies below (the same two tests as a reckoned step's,
+            // [`kept_off_ground`]): at most 0.25 m early, the safe side.
+            let walks_off = kin.margin_edge == MarginEdge::Body
+                && matches!(kept_off_ground(grid, Vec3::new(margin.x, top, margin.z), top), KeptOff::Left(_, landing) if falls(landing));
+            if falls(margin) || over_open || walks_off {
+                margin_walk_offs::count(walks_off && !falls(margin) && !over_open);
                 return false;
             }
         }
