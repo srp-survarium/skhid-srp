@@ -1000,7 +1000,7 @@ impl Reach<'_> {
     }
 
     /// The throw at `at`: the flat arc's pitch for its distance and drop, flown against the bullet mesh
-    /// (`arc::Flight::landing`: the first contact and the roll after it); its rest on the floor there. None when no
+    /// (`arc::Flight::landing`: the first contact and the rest the client's flight comes to); its rest on the floor there. None when no
     /// pitch reaches, the flight meets nothing in its time, or the rest has no floor under it.
     pub fn aim(&self, at: Vec3) -> Option<SmokeAim> {
         let (yaw, release) = self.thrower.aim(at);

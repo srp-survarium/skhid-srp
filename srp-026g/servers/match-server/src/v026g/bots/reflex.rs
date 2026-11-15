@@ -330,9 +330,11 @@ pub struct CombatTuning {
     pub smoke_hold_ms: u32,
     pub grenade_within_deg: f32,
     /// Not with a teammate this near the blast, metres: the blast may be
-    /// anywhere from the first contact to [`arc::ROLL_P80_M`] along the
-    /// grenade's heading, or at its rest point ([`arc::Landing`]), where it
-    /// was the place the throw was at. GUESS: the RGD-5's blast
+    /// anywhere the usual spread puts it ([`arc::Spread::Usual`]: on the
+    /// slide from the first contact to the flown rest, or along the heading
+    /// to [`arc::REST_AHEAD_M`] past the rest, its measured 90th percentile;
+    /// [`arc::Landing`]), where it was the place the throw was at. GUESS:
+    /// the RGD-5's blast
     /// (`splash_radius` 10 m, damage 1.3 to 0.05 of a body's health from its
     /// middle to its edge) falls under half a body's health at 6.4 m if it
     /// falls evenly.
@@ -363,6 +365,14 @@ pub struct CombatTuning {
     /// is a teammate near the place. The look is held and the legs stand
     /// from the press to the launch either way.
     pub grenade_trace: bool,
+    /// [owner-5 14] A traced throw's rest is where the client's grenade is at the blast: flown through its contacts by the
+    /// physics world's rule, the speed cut to 1.8 m/s at a swept hit, then friction and no bounce ([`arc::Flight::rest_at_blast`],
+    /// `thrown_and_placed.md`: a median 0.53 m from the recorded bursts on 911 flights, the old roll's 2.13 m), and the
+    /// checks spread the blast by that rule's measured error ([`arc::Spread`]). For the smoke's cloud and the grenades the
+    /// bots see thrown too. Off: the old roll, 2 m past the first contact. The old value is wrong by the client, so it is
+    /// on by default and the all-off patch keeps it (`KEPT_RIGHT`). It is the thread's rule ([`arc::set_rest_flown`],
+    /// both teams of a one-sided run), set from the match-wide tuning as `live_eye` is.
+    pub grenade_rest_flown: bool,
     /// The look is held, and the legs stand, this long after the launch,
     /// ms. GUESS: the fit's error and a tick more.
     pub grenade_look_after_ms: u32,
@@ -409,12 +419,11 @@ pub struct CombatTuning {
     /// in 64 pairs, 414 throws against 476) and the team takes 20 % less `damage other` (144.1 against 180.6, z -3.0), but the outcome is
     /// not moved: score +0.6 % (z +0.4), kills +0.9 %, deaths -1.0 %, and the by-side table disagrees (side A +11.8, side B -10.0). OFF.
     pub grenade_off_y_m: Option<f32>,
-    /// A teammate this near the line the grenade may run on, the first
-    /// contact to [`arc::ROLL_WORST_M`] along its heading, and so on it:
-    /// not thrown, metres. One in five blasts lay 8 m or more beyond the
-    /// first contact, up to 16 m on the flat model (LIKELY: the recorded
-    /// blasts), which `grenade_friend_m` around the P80 end does not reach;
-    /// GUESS: a body's width and the grenade's.
+    /// A teammate this near where the worst spread puts the blast
+    /// ([`arc::Spread::Worst`]: to [`arc::REST_AHEAD_WORST_M`] past the
+    /// flown rest along the heading, its measured 95th percentile), which
+    /// `grenade_friend_m` around the usual spread does not reach: not
+    /// thrown, metres. GUESS: a body's width and the grenade's.
     pub grenade_lane_m: f32,
     /// How many places a roll weighs, nearest first, before it gives the
     /// throw up: the first that passes every check is thrown at, none that
@@ -1688,6 +1697,7 @@ impl Default for CombatTuning {
             grenade_recheck: true,
             grenade_lead_s: 2.5,
             grenade_trace: true,
+            grenade_rest_flown: true,
             grenade_look_after_ms: 300,
             grenade_land_m: 10.0,
             grenade_wall_m: 10.0,
@@ -2696,7 +2706,23 @@ pub struct GrenadeStats {
     /// taken back): in the hold, between the let-go and the launch; and what followed one: the arc found again for the
     /// place, an arc away from it ([`away_arc`]), none (the view kept).
     pub committed: [u32; 5],
+    /// [owner-5 14] Throws let go whose landing was traced at the let-go, by how far the client's flown rest lies from the
+    /// old roll's (`grenade_rest_flown`, [`arc::Landing::rolled`]): under each of [`REST_APART_M`], and farther.
+    pub rest_apart: [u32; REST_APART_M.len() + 1],
 }
+
+/// [owner-5 14] The bounds of [`GrenadeStats::rest_apart`], metres.
+pub const REST_APART_M: [f32; 6] = [0.5, 1.0, 2.0, 4.0, 8.0, 16.0];
+
+/// [owner-5 14] The names of the refusal reasons by [`Refuse::index`], for the match-end line.
+const REFUSE_NAMES: [&str; GRENADE_REASONS] = [
+    "lands in the thrower's blast",
+    "hits a wall near the thrower",
+    "a teammate",
+    "out of reach",
+    "lands nowhere before the blast",
+    "lands off the place",
+];
 
 impl GrenadeStats {
     /// [measure] The frags this life let go at a held threat spot (`grenade_at_held`).
@@ -2739,6 +2765,7 @@ impl GrenadeStats {
             held_busy: sub(self.held_busy, before.held_busy),
             held_dropped: sub(self.held_dropped, before.held_dropped),
             committed: sub(self.committed, before.committed),
+            rest_apart: sub(self.rest_apart, before.rest_apart),
         };
         (change, false)
     }
@@ -2779,6 +2806,31 @@ impl GrenadeStats {
         plus(&mut self.held_busy, &other.held_busy);
         plus(&mut self.held_dropped, &other.held_dropped);
         plus(&mut self.committed, &other.committed);
+        plus(&mut self.rest_apart, &other.rest_apart);
+    }
+
+    /// [owner-5 14] The throws, the flown rests against the old roll's and the refusals by reason, as a match-end log
+    /// line: `thrown 3; the flown rest from the old roll's, under 0.5/1/2/4/8/16 m and farther: 1/1/0/1/0/0/0; places
+    /// held back: lands in the thrower's blast 4, ...; throws given up: ...`.
+    pub fn landing_line(&self) -> String {
+        let join = |n: &[u32]| n.iter().map(u32::to_string).collect::<Vec<_>>().join("/");
+        let bounds = REST_APART_M.iter().map(|m| format!("{m}")).collect::<Vec<_>>().join("/");
+        let mut held = [0u32; GRENADE_REASONS];
+        for by_source in &self.refused {
+            for (sum, n) in held.iter_mut().zip(by_source) {
+                *sum += n;
+            }
+        }
+        let by_reason = |n: &[u32; GRENADE_REASONS]| {
+            REFUSE_NAMES.iter().zip(n).map(|(name, n)| format!("{name} {n}")).collect::<Vec<_>>().join(", ")
+        };
+        format!(
+            "thrown {}; the flown rest from the old roll's, under {bounds} m and farther: {}; places held back: {}; throws given up: {}",
+            self.nth.iter().sum::<u32>(),
+            join(&self.rest_apart),
+            by_reason(&held),
+            by_reason(&self.given_up)
+        )
     }
 }
 
@@ -2865,8 +2917,8 @@ fn mate_in_blast(
             let walk = Vec3::new(p.velocity[0], 0.0, p.velocity[1]) * lead;
             (0..=steps).any(|k| {
                 let at = p.chest() + walk * (k as f32 / steps as f32);
-                landing.blast_distance(at, arc::ROLL_P80_M) < c.grenade_friend_m
-                    || landing.blast_distance(at, arc::ROLL_WORST_M) < c.grenade_lane_m
+                landing.blast_distance(at, arc::Spread::Usual) < c.grenade_friend_m
+                    || landing.blast_distance(at, arc::Spread::Worst) < c.grenade_lane_m
             })
         })
         .map(|p| p.place)
@@ -2923,9 +2975,14 @@ fn weigh_view(
     off_m: Option<f32>,
 ) -> Result<(), Refuse> {
     let by = planned_thrower(me, hold_ms);
-    let landing = arc::Flight::thrown(&by, yaw + error.0, pitch + error.1)
-        .landing(ground)
-        .ok_or(Refuse::Nowhere)?;
+    let flight = arc::Flight::thrown(&by, yaw + error.0, pitch + error.1);
+    let contact = flight.first_contact(ground, flight.max_s).ok_or(Refuse::Nowhere)?;
+    // A first contact in the thrower's blast is that whatever the rest (the nearer of the two counts): the flight to
+    // the rest is not flown for it.
+    if (me.chest() - contact.point).length() < c.grenade_land_m {
+        return Err(Refuse::Thrower);
+    }
+    let landing = flight.landing_at(contact, ground);
     let thrower = landing.thrower_distance(me.chest());
     // The thrower's own blast first: a wall or a ceiling within it is that
     // (17 of the 19 places a smoke refused for "a steep wall" were).
@@ -3259,8 +3316,8 @@ fn close_floor(c: &CombatTuning) -> CombatTuning {
     }
 }
 
-/// [close] Whether the thrower can walk out of the blast wherever it goes off: from the first contact, at the rest point,
-/// at [`arc::ROLL_P80_M`] and at [`arc::ROLL_WORST_M`] along the heading. Each is [`can_retreat`]'s walk (the floors he may
+/// [close] Whether the thrower can walk out of the blast wherever it goes off: at the first contact, the rest point and the
+/// ends of the usual and the worst spread along the heading ([`arc::Landing::blast_points`]). Each is [`can_retreat`]'s walk (the floors he may
 /// stand on, within what the fuse leaves, at [`ARRIVE_MPS`]) to a floor whose chest is past the radius, by more than the
 /// avoidance's margin (`grenade_close_margin_m`), and the way never leads nearer the blast than he stands
 /// ([`Tactics::step_out_where`]): no walk toward the landing and back out.
@@ -3285,8 +3342,8 @@ fn close_way_out(
     };
     let radius = arc::Grenade::bots().splash_m + retreat.margin_m.max(c.grenade_close_margin_m);
     let open = RouteFilter::open();
-    let from_contact = |m: f32| landing.contact.point + landing.heading * m;
-    [landing.contact.point, landing.rest, from_contact(arc::ROLL_P80_M), from_contact(arc::ROLL_WORST_M)]
+    landing
+        .blast_points()
         .into_iter()
         .all(|blast| {
             tactics
@@ -7124,6 +7181,31 @@ impl Reflex {
                             _ => String::new(),
                         }
                     ));
+                    // [owner-5 14] Where it is to rest by the rule in use and by the other one: the view of the let-go.
+                    let landing = throw_view_of(me, throw.at, c, throw.hold_ms, throw.pick).and_then(|(yaw, pitch)| {
+                        over_ground(mesh.as_deref(), throw.at.y, |ground| {
+                            arc::Flight::thrown(&planned_thrower(me, throw.hold_ms), yaw + throw.error.0, pitch + throw.error.1)
+                                .landing(ground)
+                        })
+                    });
+                    if let Some(landing) = landing {
+                        let apart = (landing.rest - landing.rolled).length();
+                        self.grenade_stats.rest_apart[REST_APART_M.iter().take_while(|&&m| apart >= m).count()] += 1;
+                        let (r, o) = (landing.rest, landing.rolled);
+                        self.throw_notes.push(format!(
+                            "its grenade first touches ({:.1}, {:.1}, {:.1}) and rests at ({:.1}, {:.1}, {:.1}) ({:?}), at ({:.1}, {:.1}, {:.1}) by the old roll: {apart:.1} m apart",
+                            landing.contact.point.x,
+                            landing.contact.point.y,
+                            landing.contact.point.z,
+                            r.x,
+                            r.y,
+                            r.z,
+                            landing.rule,
+                            o.x,
+                            o.y,
+                            o.z
+                        ));
+                    }
                 } else if committed && now < pressed + arc::launch_after_ms(throw.hold_ms) {
                     // [A260] Weighed to the launch: the grenade leaves along the view then, whatever the key does, and
                     // the thrower's own step can have put a face before it since the let-go.
@@ -12642,8 +12724,8 @@ mod tests {
     }
 
     /// A mate beyond the place, on the grenade's line, 8 m past a landing 25
-    /// m out: more than the old 6 m from the place, but in the P80 reach of
-    /// the roll.
+    /// m out: more than the old 6 m from the place, but within 6 m of the
+    /// usual spread's end (4.14 m past the flown rest).
     #[test]
     fn a_mate_on_the_blast_segment_refuses_the_throw() {
         let c = earlier_habit();
@@ -12666,12 +12748,14 @@ mod tests {
             let clear = throw_run(25.0, &[mate_at(x, z)], c.clone(), None, 6_000);
             assert!(!clear.thrown.is_empty(), "{x} {z}: {:?}", clear.notes);
         }
-        // 15 m past the landing, 7 m past the P80 end: out of the 6 m round
-        // it, but on the line a runaway grenade takes (16 m): refused; 4 m
-        // aside he is off it.
-        let lane = throw_run(25.0, &[mate_at(0.0, 40.0)], c.clone(), None, 6_000);
+        // With a 3 m round of the usual end (4.14 m past the rest, which lies
+        // 0.3-0.5 m past the place): 10.5 m past the place he is out of it,
+        // but within 2 m of the worst end (9.08 m past the rest): refused;
+        // 4 m aside he is off it.
+        let narrow = CombatTuning { grenade_friend_m: 3.0, ..c.clone() };
+        let lane = throw_run(25.0, &[mate_at(0.0, 35.5)], narrow.clone(), None, 6_000);
         assert!(lane.thrown.is_empty(), "{:?}", lane.notes);
-        let beside = throw_run(25.0, &[mate_at(4.0, 40.0)], c.clone(), None, 6_000);
+        let beside = throw_run(25.0, &[mate_at(4.0, 35.5)], narrow, None, 6_000);
         assert!(!beside.thrown.is_empty(), "{:?}", beside.notes);
         // A mate walking at the landing from 15 m aside: his four seconds'
         // walk (3 m/s) ends in it.
