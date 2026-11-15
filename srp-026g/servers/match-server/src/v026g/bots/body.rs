@@ -1336,7 +1336,7 @@ impl BodyTrack {
             Some(super::jump_arc::WorldJump::Jumping { kind, .. }) => super::jump_arc::Clip::of_world(kind),
             _ => None,
         };
-        let arc = if kin.jump_arc { self.arc_at(fix.time, feet, fix.yaw, world_clip).map(Jump::Clip) } else { None };
+        let arc = if kin.jump_arc { self.arc_at(fix.time, feet, fix.yaw, world_clip, false).map(Jump::Clip) } else { None };
         // [Gap 10] The world's selector (PROVEN, the exe review of gap 10): the stand jump is entered only by the jump transition,
         // whose test is the client's gate (0x2FBDC0 -> 0x2FC230), by the tick of the input after the press (the key change sets
         // +33Eh at 0x2D8995; saved worlds show it at the press's own tick too, so a tick later is safe); in the normal case it is
@@ -1349,9 +1349,20 @@ impl BodyTrack {
                 super::jump_arc::world_jumps::dropped();
                 None
             }
-            (None, Some(super::jump_arc::WorldJump::Jumping { .. })) => {
-                super::jump_arc::world_jumps::unseen();
-                None
+            // [Gap 10 (a)] The world's selector before the landing with no reckoned jump: the client took a press the reckoning's
+            // gates held back. The jump is the last press at or before the world (saved worlds show the jump at the press's own
+            // tick), on the world's clip, where it is by then. In the landing's substate the selector outlasts the reckoned clip
+            // (0x337330: a short jump about a step past its first ground step, a sprint jump 400-500 ms past `end_jump`): no miss.
+            (
+                None,
+                Some(super::jump_arc::WorldJump::Jumping {
+                    phase: super::jump_arc::JumpPhase::Prepare | super::jump_arc::JumpPhase::Start | super::jump_arc::JumpPhase::ShortStart,
+                    ..
+                }),
+            ) if kin.jump_arc => {
+                let started = self.arc_at(fix.time, feet, fix.yaw, world_clip, true).map(Jump::Clip);
+                super::jump_arc::world_jumps::unseen(started.is_some());
+                started
             }
             (arc, _) => arc,
         };
@@ -1506,14 +1517,22 @@ impl BodyTrack {
 
     /// [A318] The client's jump a world at `time` with its feet at `feet` and its yaw `yaw` is in ([`Kinematics::jump_arc`]): the last press at
     /// or before it, uncrouched, whose clip has not ended; the press's speed as the ticks show it (forward held long enough for
-    /// the walk cap).
-    fn arc_at(&self, time: u32, feet: Vec3, yaw: f32, world: Option<super::jump_arc::Clip>) -> Option<JumpArc> {
+    /// the walk cap). [Gap 10] `accepted`: the world's selector is in the jump, so the client took the last JUMP hold whatever the
+    /// reckoning's own jump gate said. Its gate is level on the key, not an edge (0x2FC230 tests the current actions' JUMP bit), and
+    /// the crouch states have no jump test (the crouch tests come first in the still, walk and sprint lists; the crouch lists have
+    /// none: the exe review of #1979), so a hold is taken no earlier than its first tick with CROUCH up: that tick starts the jump.
+    fn arc_at(&self, time: u32, feet: Vec3, yaw: f32, world: Option<super::jump_arc::Clip>, accepted: bool) -> Option<JumpArc> {
         let mut held = false;
         let mut pressed = None;
         let mut forward = 0u32;
+        let mut taken = false;
         for tick in self.ticks.iter().take_while(|tick| tick.time <= time) {
             let jump = tick.keys & key::JUMP != 0;
-            if jump && !held && tick.keys & key::CROUCH == 0 && tick.jump == JumpGate::Open {
+            let uncrouched = tick.keys & key::CROUCH == 0;
+            taken &= jump;
+            let starts = if accepted { jump && !taken && uncrouched } else { jump && !held && uncrouched && tick.jump == JumpGate::Open };
+            if starts {
+                taken = true;
                 // [A364 P6] The press's walk: the walk cap along the view once forward was held long enough (a world's body mid-jump
                 // shows no walk vector), else at rest.
                 let speed = if forward >= MOVING_TICKS { WALK_CAP_MS } else { 0.0 };

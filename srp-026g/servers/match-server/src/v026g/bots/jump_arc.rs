@@ -126,6 +126,7 @@ pub(crate) mod world_jumps {
 
     static DROPPED: AtomicU64 = AtomicU64::new(0);
     static UNSEEN: AtomicU64 = AtomicU64::new(0);
+    static STARTED: AtomicU64 = AtomicU64::new(0);
     static CLIPS: AtomicU64 = AtomicU64::new(0);
     static CLIPS_CHANGED: AtomicU64 = AtomicU64::new(0);
 
@@ -141,14 +142,18 @@ pub(crate) mod world_jumps {
         DROPPED.fetch_add(1, Relaxed);
     }
 
-    /// A world in the stand jump where the reckoning had none.
-    pub(crate) fn unseen() {
+    /// A world before the jump's landing where the reckoning had none, and whether the press was found and the jump started.
+    pub(crate) fn unseen(started: bool) {
         UNSEEN.fetch_add(1, Relaxed);
+        if started {
+            STARTED.fetch_add(1, Relaxed);
+        }
     }
 
-    /// (dropped, unseen, the world's clip taken, of them differing from the keys') since the last call, and zero again.
-    pub(crate) fn take() -> (u64, u64, u64, u64) {
-        (DROPPED.swap(0, Relaxed), UNSEEN.swap(0, Relaxed), CLIPS.swap(0, Relaxed), CLIPS_CHANGED.swap(0, Relaxed))
+    /// (dropped, unseen, of them started, the world's clip taken, of them differing from the keys') since the last call, and zero
+    /// again.
+    pub(crate) fn take() -> (u64, u64, u64, u64, u64) {
+        (DROPPED.swap(0, Relaxed), UNSEEN.swap(0, Relaxed), STARTED.swap(0, Relaxed), CLIPS.swap(0, Relaxed), CLIPS_CHANGED.swap(0, Relaxed))
     }
 }
 
