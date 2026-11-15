@@ -1558,7 +1558,7 @@ impl Game {
                     // reckoning's `ClientStep::Kept`): the lattice walks to where it ends.
                     if super::standin_jump::stand_in_kept() {
                         let by = Vec3::new(to.x - body.feet.x, 0.0, to.z - body.feet.z);
-                        if let Some(step) = body::kept_step(grid, &mut body.kept, body.feet, by, keys, sprint_state, body::kept_clock::Of::StandIn) {
+                        if let Some(step) = body::kept_step(grid, &mut body.kept, body.feet, by, body::crouch_input(keys, false), sprint_state, body::kept_clock::Of::StandIn) {
                             // [A388 step 2] Where its kept controller leaves the ground (`step_down` finds none under the capsule),
                             // the body leaves its floor there and falls (the walk-off below), not held by the lattice to
                             // `body::SUPPORT_M` past its floor's centre (`SRP_BENCH_STAND_IN_KEPT_EDGE`).
