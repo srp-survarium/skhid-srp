@@ -2239,7 +2239,11 @@ fn drive_tick_inner(
     };
     // [C2 riser] A route's walk up a 0.76-0.80 m riser (`WalkGait::SprintOrJump`): sprint into it, else a walking jump at it.
     let by = match riser_gait(bot, me, &mut decision.keys, time, tuning) {
-        Some(riser) if by.is_none() && !bot.motor.carrying => Some(riser),
+        Some((riser, line)) if by.is_none() && !bot.motor.carrying => {
+            // [S6] The riser's press and why it is pressed, not sprinted into, for the log.
+            bot.nav_log.push(super::nav_log::Kind::Jump, time, line);
+            Some(riser)
+        }
         _ => by,
     };
     if lift_face {
@@ -2489,16 +2493,18 @@ const RISER_JUMP_AGAIN_MS: u32 = super::body::JUMP_AIR_MS;
 /// tick whose jump step starts nearest its lead ([`motor::press_due`]), facing the riser's way within [`motor::JUMP_FACING`];
 /// a press this body cannot make here (a slow one from a stand, or the sprint jump of a body that may not sprint), or none
 /// that lands, is not pressed and is counted. A grid without flown risers keeps the jump at the face ([`RISER_JUMP_M`]).
-fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tuning) -> Option<&'static str> {
+/// [S6] With the jump, the log's line: the press (at the face, or the flown walking press and its lead: a sprint climb's comes
+/// from its walking press, `path::RiserPress::of_climb`) and why the riser is not sprinted into.
+fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tuning) -> Option<(&'static str, String)> {
     let riser = bot.route.as_ref().and_then(|(route, _)| route.riser_ahead(me.feet, RISER_SPRINT_M))?;
     let top = riser.top;
     if *keys & key::FORWARD == 0 {
         return None;
     }
     let leg_free = bot.hurt.leg_damage.at(time) == super::legs::LegGate::Free;
-    let may_sprint = sprint_block(bot, me, time, tuning.think.stamina).is_none()
-        && leg_free
-        && *keys & (key::CROUCH | key::AIM | key::FIRE | key::BACK) == 0;
+    let block = sprint_block(bot, me, time, tuning.think.stamina);
+    let held = *keys & (key::CROUCH | key::AIM | key::FIRE | key::BACK);
+    let may_sprint = block.is_none() && leg_free && held == 0;
     if may_sprint {
         *keys |= key::SPRINT;
         riser_counts::note(0);
@@ -2534,7 +2540,17 @@ fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tun
         None
     } else if near && !again && bot.jump_hold == 0 {
         riser_counts::note(1);
-        Some("riser")
+        let press = match riser.press {
+            path::RiserPress::Flown(path::Leap::Gap(path::GapPress { lead, .. })) => format!("its flown walking press at {:.2} m", lead.metres()),
+            _ => "the jump at its face".to_string(),
+        };
+        let why = match block {
+            Some(motor::SprintBlock::Carrying) => "a battery carried".to_string(),
+            Some(block) => format!("sprint refused: {block:?}"),
+            None if !leg_free => "sprint refused: a leg wound".to_string(),
+            None => format!("sprint refused: keys {held:#x} held"),
+        };
+        Some(("riser", format!("nav: riser up to {} pressed by {press} ({why})", super::nav_log::at(top))))
     } else {
         None
     }

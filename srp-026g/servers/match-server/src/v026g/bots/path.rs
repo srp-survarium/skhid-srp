@@ -147,6 +147,19 @@ impl RiserPress {
             Some(mapdata::grid::Riser::NoPress) => Self::NoPress,
         }
     }
+
+    /// [S6] A sprint climb's riser ([`mapdata::grid::gap::Takeoff::Climb`]): its walking press (`OffLink::walk`, #1953), the
+    /// press a body that may not sprint plays at it (`drive.rs` `riser_gait`), as a sprint gap link's walking press is played
+    /// (A385-FORMAT §5). Only a press on the climb's own line ([`PressAim::STRAIGHT`]): the riser gait presses facing the
+    /// riser's way. With none, nothing is pressed (counted), as before.
+    fn of_climb(link: &mapdata::grid::gap::OffLink) -> Self {
+        match link.walk {
+            Some((lead, share)) if link.aim == PressAim::STRAIGHT => {
+                Self::Flown(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share, aim: PressAim::STRAIGHT }))
+            }
+            _ => Self::NoPress,
+        }
+    }
 }
 
 impl Leap {
@@ -1252,18 +1265,26 @@ fn pull_straight(
     route.ledge_tops = ledge_tops;
     // [S1] And the tops of its sprint climbs (`mapdata::grid::gap::Takeoff::Climb`): a sprinting body climbs an edge to 1.15 m
     // with no jump, so the riser's way (sprint into it) is the client's for both.
-    let climbed = |i: usize| {
-        into[i].is_off_mesh() && grid.off_link(nodes[i - 1], nodes[i]).is_some_and(|l| l.press == mapdata::grid::gap::Takeoff::Climb)
+    let climb = |i: usize| {
+        if !into[i].is_off_mesh() {
+            return None;
+        }
+        grid.off_link(nodes[i - 1], nodes[i]).filter(|l| l.press == mapdata::grid::gap::Takeoff::Climb)
     };
     route.risers = (1..nodes.len())
         .filter(|&i| {
-            (into[i] == LinkKind::Walk && grid.link_gait(nodes[i - 1], nodes[i]) == Some(mapdata::grid::WalkGait::SprintOrJump)) || climbed(i)
+            (into[i] == LinkKind::Walk && grid.link_gait(nodes[i - 1], nodes[i]) == Some(mapdata::grid::WalkGait::SprintOrJump))
+                || climb(i).is_some()
         })
         .map(|i| RiserUp {
             top: grid.position(nodes[i]),
             take_off: grid.position(nodes[i - 1]),
-            // [S1] A sprint climb presses nothing ([`Leap::of_press`]): sprinted into, else counted as a riser with no press.
-            press: if climbed(i) { RiserPress::NoPress } else { RiserPress::of(grid.riser(nodes[i - 1], nodes[i])) },
+            // [S1] A sprint climb is sprinted into; [S6] a body that may not sprint plays its walking press
+            // ([`RiserPress::of_climb`]), else it is counted as a riser with no press.
+            press: match climb(i) {
+                Some(link) => RiserPress::of_climb(&link),
+                None => RiserPress::of(grid.riser(nodes[i - 1], nodes[i])),
+            },
         })
         .collect();
     // [S7] Its crouched climbs, for the log.
