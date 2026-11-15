@@ -47,8 +47,10 @@ fn nothing() {}
 #[test]
 fn an_option_of_a_two_variant_enum_is_read_by_its_own_tag() {
     assert_eq!(run(std::hint::black_box(None)), None);
-    let big = Checksum::X(Big { _pad: 7, inner: Inner::B(0x1234_5678) });
-    assert_eq!(run(std::hint::black_box(Some(big))), Some(0x1234_5678));
+    let a = Checksum::X(Big { _pad: 7, inner: Inner::A(0x0BAD_F00D) });
+    assert_eq!(run(std::hint::black_box(Some(a))), Some(0x0BAD_F00D));
+    let b = Checksum::X(Big { _pad: 7, inner: Inner::B(0x1234_5678) });
+    assert_eq!(run(std::hint::black_box(Some(b))), Some(0x1234_5678));
     let small = Checksum::Y(Small { a: 0x0102, b: 0x0304, _f: nothing });
     assert_eq!(run(std::hint::black_box(Some(small))), Some(0x0304_0102));
 }
