@@ -335,6 +335,14 @@ fn limit_walkable(n: Vec3, s: &Settings) -> Vec3 {
 }
 
 /// `get_wall_slide_vector` 0x7AC50 with the live factors.
+/// 0x7B7F0 on each component: `floor(x * 1000 + 0.5) * 0.001` (proven against the exe in Unicorn), in the exe's frame. The
+/// controller's values are in the map frame, z negated against Bullet's, and the rounding is not odd (a component at an exact
+/// half rounds up), so z is rounded as the exe holds it: `-round(-z)`.
+fn to_mm(v: Vec3) -> Vec3 {
+    let mm = |x: f32| (x * 1000.0 + 0.5).floor() * 0.001;
+    Vec3::new(mm(v.x), mm(v.y), -mm(-v.z))
+}
+
 fn wall_slide(m: Vec3, n: Vec3, s: &Settings) -> Vec3 {
     let l2 = (m.y * m.y + m.z * m.z) + m.x * m.x;
     let inv = 1.0 / l2.sqrt();
@@ -550,10 +558,8 @@ impl Controller {
                 (((sv * UP.z) * be) + ((pv2 * UP.z) * al)) + h.z,
             );
         }
-        // 0x7B7F0: floor(x * 1000 + 0.5) * 0.001 (proven against the exe in Unicorn).
-        let mm = |x: f32| (x * 1000.0 + 0.5).floor() * 0.001;
-        self.pos = Vec3::new(mm(self.pos.x), mm(self.pos.y), mm(self.pos.z));
-        self.contact_normal = Vec3::new(mm(self.contact_normal.x), mm(self.contact_normal.y), mm(self.contact_normal.z));
+        self.pos = to_mm(self.pos);
+        self.contact_normal = to_mm(self.contact_normal);
         self.walk = Vec3::ZERO;
         notes
     }
@@ -782,9 +788,8 @@ impl Controller {
         let be = 1.0 - al;
         let p = self.pos;
         self.origin = Vec3::new((be * start.x) + (p.x * al), (p.y * al) + (start.y * be), (p.z * al) + (start.z * be));
-        let mm = |x: f32| (x * 1000.0 + 0.5).floor() * 0.001;
-        self.pos = Vec3::new(mm(self.pos.x), mm(self.pos.y), mm(self.pos.z));
-        self.contact_normal = Vec3::new(mm(self.contact_normal.x), mm(self.contact_normal.y), mm(self.contact_normal.z));
+        self.pos = to_mm(self.pos);
+        self.contact_normal = to_mm(self.contact_normal);
         self.walk = Vec3::ZERO;
         self.air_control = Vec3::ZERO;
     }
