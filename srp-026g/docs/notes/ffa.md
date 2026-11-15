@@ -440,8 +440,9 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   future"): a twist is no `maps_dict` row, no config, no content. `survarium::v026g::twist::Played`
   is what a match plays: a map, and on a free-for-all's a twist or none (no other mode's map can
   hold one).
-- **Where:** each free-for-all card of a vote (the third card; all three in a pool of
-  free-for-alls alone) draws its twist with the card, by its share (`twist::SHARES`):
+- **Where:** in the server's rooms (Play's, the open ones) alone, each free-for-all card of a
+  vote (the third card; all three in a pool of free-for-alls alone) draws its twist with the card,
+  by its share (`twist::SHARES`, `twist::draw`):
   - plain Free for all 40 %, **Racket** 40 % (my pick: as often as each other);
   - **Cowboy**, "Saloon" in the lobby, 20 % (the owner, 2026-11-15: "let's make saloon 20% with
     two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be
@@ -451,21 +452,12 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     (`ffa-cowboy.md`). One name for both: the card draws its variation with its twist.
 
   Won, the card's match plays its twist.
-- **A mode of its own in the create window** (the owner, 2026-11-14: "they are not present in
-  private room creations"): "FFA: Racket" and "FFA: Saloon" are ticks beside Free for all, as the
-  other modes are. The pool offered (`room_pool`) has each free-for-all map once plain (mode 8) and
-  once with each twist (modes 9, 10), after the other entries: a tile (map and weather) takes all
-  three, a mode tick its entries; a room's pool is the entries ticked (`rooms::Entry`: a map and its
-  twist or none). A free-for-all card draws its map from the pool's maps, then what it plays among
-  that map's entries in the pool, each by its share (`twist::Plays`):
-  - Free for all alone: plain, always; a twist alone: that twist, always;
-  - Racket and Saloon: 40 to 20; all three: the shares above (my pick: the simplest rule, one
-    draw for every room).
-
-  The server's rooms (Play's) hold every entry but the experimental maps, so their cards draw by
-  the owner's shares as before. A window with nothing kept ticks every mode, the twists too; a kept
-  window from before them has them ticked (a mode added later is in, `rooms.md`). A room with bots
-  has no free-for-all, so no twist (their ticks greyed).
+- **Not in private rooms** (the owner, 2026-11-15: "we can also remove from private lobbies FFA:
+  Saloon and FFA: Racket"; they were ticks of the create window from 2026-11-14, "they are not
+  present in private room creations"): a private room's free-for-all card is always plain Free for
+  all (`rooms::Rooms::deal` by the room's door), and the create window has no twist tick: the pool
+  offered (`room_pool`) has each free-for-all map once, mode 8. A create window saved with the
+  twist ticks loads as before: modes no longer offered are left out (`room_settings`).
 - **Names** (the owner, 2026-11-14: "they shoud be FFA: Saloon — and FFA: Racket"): "FFA: " and one
   word, in every language (the owner's: Racket, Движ; mine for the others):
   `st_srp_mode_racket` FFA: Racket, Движ, Двіж (uk, be), Raban, Radau, Rambajz, Galama, Zsivaj,
