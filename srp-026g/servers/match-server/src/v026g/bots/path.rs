@@ -710,7 +710,7 @@ pub fn plan_where_reaching(
     reach: mapdata::Reach,
 ) -> Option<Route> {
     let path = grid.path_where_reaching(from, to, &allowed, reach)?;
-    Some(pull(grid, path.nodes, allowed))
+    Some(pull(grid, path, allowed))
 }
 
 /// [`plan_where`] by `regions` first ([`Regions::route_search`]): a goal
@@ -845,7 +845,7 @@ impl Planning {
     /// None till a floor past the start was expanded.
     pub fn partial(&self, grid: &WalkGrid, allowed: impl Fn(NodeId) -> bool) -> Option<Route> {
         let path = self.search.partial(grid)?;
-        (path.nodes.len() >= 2).then(|| pull(grid, path.nodes, allowed))
+        (path.nodes.len() >= 2).then(|| pull(grid, path, allowed))
     }
 }
 
@@ -902,10 +902,10 @@ fn finish(
 ) -> Option<Route> {
     LAST_END.with(|e| e.set(Some(SearchEnd::of(&found))));
     match (found, weight) {
-        (Search::Found(path), None) => Some(pull(grid, path.nodes, allowed)),
+        (Search::Found(path), None) => Some(pull(grid, path, allowed)),
         (Search::Found(path), Some(w)) => {
             let own: std::collections::HashSet<NodeId> = path.nodes.iter().copied().collect();
-            Some(pull(grid, path.nodes, |n| allowed(n) && (w(n) <= 1.0 || own.contains(&n))))
+            Some(pull(grid, path, |n| allowed(n) && (w(n) <= 1.0 || own.contains(&n))))
         }
         (Search::NoWay | Search::TooFar, _) => None,
     }
@@ -1032,12 +1032,12 @@ pub mod past_drop {
 
 /// A grid path pulled straight: only the real corners left (module
 /// documentation).
-fn pull(grid: &WalkGrid, nodes: Vec<NodeId>, allowed: impl Fn(NodeId) -> bool) -> Route {
+fn pull(grid: &WalkGrid, path: mapdata::Path, allowed: impl Fn(NodeId) -> bool) -> Route {
     #[cfg(test)]
-    let (started, floors) = (std::time::Instant::now(), nodes.len() as u64);
+    let (started, floors) = (std::time::Instant::now(), path.nodes.len() as u64);
     #[cfg(test)]
     let checks = std::cell::Cell::new(0u64);
-    let route = pull_straight(grid, nodes, &allowed, &|a, b| grid.walk_crouched(a, b), &|| {
+    let route = pull_straight(grid, path, &allowed, &|a, b| grid.walk_crouched(a, b), &|| {
         #[cfg(test)]
         checks.set(checks.get() + 1);
     });
@@ -1057,18 +1057,28 @@ fn pull(grid: &WalkGrid, nodes: Vec<NodeId>, allowed: impl Fn(NodeId) -> bool) -
 /// marks its own).
 fn pull_straight(
     grid: &WalkGrid,
-    nodes: Vec<NodeId>,
+    path: mapdata::Path,
     allowed: impl Fn(NodeId) -> bool,
     walk_crouched: &dyn Fn(NodeId, NodeId) -> bool,
     checked: &dyn Fn(),
 ) -> Route {
-    // The kind of the link into each node.
-    let mut into = vec![LinkKind::Walk; nodes.len()];
+    // [S6] The kind of the link into each node: the one the search took and priced (`Path::kinds`). One pair of floors may
+    // have both a plain Jump and a flown GapJump (#1953); the first link a -> b was taken before, the Jump even where the
+    // search priced the flown one.
+    let mapdata::Path { nodes, kinds: into, .. } = path;
+    debug_assert_eq!(into.len(), nodes.len(), "a path's link kinds, one per floor");
     for k in 1..nodes.len() {
-        into[k] = grid
-            .links(nodes[k - 1])
-            .find(|(next, _)| *next == nodes[k])
-            .map_or(LinkKind::Walk, |(_, kind)| kind);
+        if let Some((_, first)) = grid.links(nodes[k - 1]).find(|(next, _)| *next == nodes[k])
+            && first != into[k]
+        {
+            log::debug!(
+                "nav: route step {} -> {}: searched {:?}, first link {:?}",
+                nodes[k - 1],
+                nodes[k],
+                into[k],
+                first
+            );
+        }
     }
     // A leg is walked crouched where a floor of its path has no standing room, or a Walk link of its path only a crouching body
     // walks (`WalkGrid::walk_crouched`, [`mapdata::grid::WalkGait::Crouch`]: both floors may have standing room, the client's tick
@@ -2201,7 +2211,7 @@ mod tests {
         assert!(!grid.can_stand(under), "the slab's floor is low: {}", grid.headroom(under));
         // The search kept off the low floors; the pull may take any.
         let path = grid.path_where(at(5.0, 5.0), at(15.0, 5.0), |n| grid.can_stand(n)).unwrap();
-        let route = pull(&grid, path.nodes, |_| true);
+        let route = pull(&grid, path, |_| true);
         for k in 1..route.points.len() {
             let (from, to) = (route.points[k - 1], route.points[k]);
             let crossed = std::cell::RefCell::new(Vec::new());
@@ -2232,7 +2242,7 @@ mod tests {
         };
         // A path straight under the beam: the leg over it is low; the legs before and after it are not walked crouched for it.
         let path = grid.path(at(2.0, 2.0), at(8.0, 2.0)).unwrap();
-        let route = pull_straight(&grid, path.nodes, |_| true, &crouch, &|| {});
+        let route = pull_straight(&grid, path, |_| true, &crouch, &|| {});
         let over = |k: usize| route.points[k - 1].at.x < 5.0 && route.points[k].at.x > 5.0;
         assert!((1..route.points.len()).any(over), "{:?}", route.points);
         for k in 1..route.points.len() {
@@ -2240,11 +2250,11 @@ mod tests {
         }
         // Without the marks the same path is all standing.
         let path = grid.path(at(2.0, 2.0), at(8.0, 2.0)).unwrap();
-        assert!(pull_straight(&grid, path.nodes, |_| true, &|_, _| false, &|| {}).points.iter().all(|p| !p.low));
+        assert!(pull_straight(&grid, path, |_| true, &|_, _| false, &|| {}).points.iter().all(|p| !p.low));
         // A path round the beam (searched over z 4-6) is not pulled straight under it: no leg crosses a crouch link standing.
         let path = grid.path_where(at(2.0, 3.0), at(8.0, 3.0), |n| (grid.position(n).x - 5.0).abs() > 0.3 || grid.position(n).z > 4.0).unwrap();
         let nodes = path.nodes.clone();
-        let route = pull_straight(&grid, path.nodes, |_| true, &crouch, &|| {});
+        let route = pull_straight(&grid, path, |_| true, &crouch, &|| {});
         assert!(nodes.windows(2).all(|w| !crouch(w[0], w[1])), "the search went round");
         for k in 1..route.points.len() {
             let (a, b) = (route.points[k - 1].node, route.points[k].node);
