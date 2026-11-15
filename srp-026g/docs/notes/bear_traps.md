@@ -36,24 +36,26 @@ traps of 402 live matches of 12+ humans. The full record with scripts is outside
 64-byte transform, a u32, the placing time in ms); `survarium::v026g::match_msgs::traps::find` reads them. The server simulates none
 of this; the clients do.
 
-## Where humans trap a holder (live, 2026-11-08..12)
-The 329 recorded human matches of 6+ players, 1,554 placed traps (`booby_trap_core` in the objects section: owner, deploy time,
-place) against every body's feet and life in the 5 s worlds. A HOLD: one body's feet within 5 m for 30 s or more; KILLING: 2 or
-more of the other team died within 60 m during it (the bots' 2-kill cue; the worlds carry deaths, not killers). His WAY IN and WAY
-OUT: his feet over the 30 s before and after it. A trap is ON his way within 2 m of it; a STEP is a body's straight way between two
-worlds passing within 1 m of the trap while it stands (an estimate: worlds are 5 s apart).
+## Human traps at a holder's place
+**Catches** (the traps record of the counts above: 402 live matches of 12+ humans, every trap followed through the worlds' objects to
+its fate; a fired trap's victim the body whose legs went to 0 beside it; kills by killer). A HOLD: one life's feet within 5 m for
+30 s or more; KILLING: its holder killed 2 or more enemies during it (the bots' 2-kill cue); his WAY IN: his feet over the 30 s
+before it. A trap of a known placer (541 of 987) is at a hold when the nearest killing hold of the placer's enemy within 40 m spans
+to within 120 s of the placing; on his way in within 2 m of it.
 
-| Traps within 40 m of an enemy killing hold (span within 120 s), 633 | n | holder stepped | other enemy | mate | median m from the hold |
+| Traps at an enemy killing hold, 91 | n | caught the holder | another enemy | an ally | fired, victim not named |
 |---|---|---|---|---|---|
-| on his way in | 83 | 9 | 2 | 0 | 15.6 (P25 5.8, P75 22.1, P90 26.9) |
-| on his way out | 15 | 0 | 0 | 0 | 8.5 |
-| within 10 m, not on his ways | 50 | 2 | 4 | 6 | 5.9 |
-| elsewhere within 40 m | 485 | 1 | 23 | 33 | 27.0 |
+| on his way in | 8 | 3 | 1 | 0 | 3 |
+| within 10 m, not on his way in | 13 | 0 | 1 | 0 | 5 |
+| elsewhere within 40 m | 70 | 0 | 25 | 6 | 14 |
 
-- 9 of the 12 steps by a holder were on traps on his way in. With 3+ deaths within 40 m instead: 51 on his way in, holder 3;
-  elsewhere 1 of 359.
-- The way-in traps' timing: 49 down before his hold (a lane he then came in by), 17 after he left, 9 after his death, 8 during it.
-- Of 2,334 killing holds 680 ended with his death; 5 traps lay within 10 m of such a hold after his death (a death point).
+- All 3 holder catches were of traps laid before his hold (on a way he then came in by); of the 3 laid on his way in after his
+  hold had begun, 2 fired with the victim not named. Small n: with 3 kills a hold, 3 traps on his way in and no holder caught.
+- The placers' own catches (11) were all away from killing holds.
+- Script `private/pvb-343-check/fight-world/traps/record_holds_catches.py` (`record-holds-catches.txt`, `-k3.txt`).
 
-Script `private/pvb-343-check/fight-world/traps/human_traps_killing_holds.py` (outputs beside it, `human-traps-killing-holds-k2-r60.txt`
-and the `k3-r40`, `k4-r30` cuts) over the routes measure tables (`ht/traps.csv`, `rt/rec_worlds.csv`, `rt/rec_levels.csv`).
+**Where** (2026-11-08..12: 329 recorded human matches of 6+, 1,554 placed traps against every body's feet in the 5 s worlds; there
+each trap is read once, when laid, so its fate is not known). With the same hold, 2+ deaths of the other team within 60 m for
+killing (the worlds carry deaths, not killers): 633 traps lay within 40 m of an enemy killing hold, 83 of them on his way in, a
+median 15.6 m from his place (P25 5.8, P75 22.1, P90 26.9); 49 of the 83 were down before his hold. Script
+`private/pvb-343-check/fight-world/traps/human_traps_killing_holds.py` (`human-traps-killing-holds-k2-r60.txt`).

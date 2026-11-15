@@ -61,8 +61,12 @@ pub fn step(_state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> 
         // sight for (`traps::way_in`).
         return Step::Continue(Intent::stay().crouched());
     }
-    // On the way: crouched (`Pace::Sneak`, the game's crouched walk) where that hides it from his eye: its standing eye in his
-    // sight there and its crouched one not (`view::eye_height`: 1.46 m standing, 1.14 m crouched and moving).
-    let crouch = crate::v026g::bots::traps::hidden_by_crouching(&cx.tactics.world.sight, point.held, cx.me.feet);
+    // On the way: crouched (`Pace::Sneak`, the CROUCH key) where that hides it from him (`traps::hidden_by_crouching`), here or
+    // where its walk takes it by its next think at the latest (`ThinkTuning::think_ms`, the longer gap): the crouch is down
+    // before it comes into his sight standing.
+    let sight = &cx.tactics.world.sight;
+    let ahead_s = cx.tuning.think.think_ms.1 as f32 / 1000.0;
+    let ahead = cx.me.feet + Vec3::new(cx.me.velocity[0] * ahead_s, 0.0, cx.me.velocity[1] * ahead_s);
+    let crouch = [cx.me.feet, ahead].iter().any(|&at| crate::v026g::bots::traps::hidden_by_crouching(sight, point.held, at));
     Step::Continue(Intent::to(point.at, if crouch { Pace::Sneak } else { Pace::Run }).within(reach))
 }

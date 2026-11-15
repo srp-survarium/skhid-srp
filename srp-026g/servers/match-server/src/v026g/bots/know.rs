@@ -843,8 +843,11 @@ pub enum CamperTrapKind {
 pub enum CamperTrapState {
     /// No bot sent (none free with a trap within reach).
     Open,
-    /// `placer` was sent at `since`; it had put `placed_before` traps down this life then (one more: done).
+    /// `placer` was sent at `since`; it had put `placed_before` traps down this life then (one more: trapped).
     Sent { placer: Place, since: u32, placed_before: u8 },
+    /// A trap of the team stands on the point (its bot's, or one there already): nothing is sent and the place is not searched
+    /// again while the trap stands and the place lasts; when the trap is gone the point is open again.
+    Trapped,
 }
 
 /// [A324] What a sent bot's job gate saw when it refused for an enemy seen at the point: its camper (the point's holder) or

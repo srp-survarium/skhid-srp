@@ -31,7 +31,8 @@ owner-test camper trap job: team 0: way-in points noted for a K2 spot 0 / a batt
     "think_planned": 0,
     "think_planned_else": 0,
     "think_waited": 0,
-    "think_walking": 0
+    "think_walking": 0,
+    "trap_gone": 0
   },
   "team1": {
     "caught_enemy": 0,
@@ -64,6 +65,7 @@ owner-test camper trap job: team 0: way-in points noted for a K2 spot 0 / a batt
     "think_planned": 0,
     "think_planned_else": 0,
     "think_waited": 0,
-    "think_walking": 0
+    "think_walking": 0,
+    "trap_gone": 0
   }
 }

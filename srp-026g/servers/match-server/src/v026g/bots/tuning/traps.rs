@@ -44,8 +44,8 @@ pub struct TrapTuning {
     /// placed only where a carrier's own route passed the spot) fired 3-5 times in 56 matches: the calm gate refused first near
     /// the spot (1,387 of the thinks within 10 m of one: an enemy known within 20 m, his mates and his own track), and no bot
     /// was sent there (`fx-gear-a324-root-cause.md`). Live: he is back within 10 m of a cleared place in 50 % of cases within
-    /// 120 s (`fx-gear-trap-payoff.md`); a human trap on a killing holder's way in caught him 9 times in 83, elsewhere near him
-    /// once in 485 (`docs/notes/bear_traps.md`). On by default.
+    /// 120 s (`fx-gear-trap-payoff.md`); of 91 human traps at an enemy's killing hold only those on his way in caught him (3 of
+    /// 8; `docs/notes/bear_traps.md`). On by default.
     pub at_defeated: Option<DefeatedTuning>,
     /// [keep_off] The team's searches keep every known trap of the team at `hard_m`, hard, instead of `FIELD_M` (0.75 m) and the
     /// soft ring; where that leaves no way (a corridor), the search falls back to `FIELD_M`. At the defaults the habit caught its own
@@ -78,13 +78,14 @@ pub struct TrapTuning {
     pub release: TrapRelease,
     /// [A324] The camper trap job: a place an enemy holds (a held spot the team has a K2 job on, the 2-kill cue; a man it holds
     /// off from at a loose battery; with `at_cleared` / `at_defeated` such a place after his death) gets a bot with a trap SENT
-    /// to put one on his way in (the way from his side's spawns, `near_m`..`far_m` before the place, out of his sight for the
-    /// placer's crouched eye); it walks there in its own play (`TrapSpot`, crouched where that hides it and at the point) and
-    /// places with the job's own gate (an enemy seen, not one only known near; no chance roll). Live (329 human matches of 6+,
-    /// 2026-11-08..12, `docs/notes/bear_traps.md`): of 633 human traps near an enemy's killing hold, the 83 on his way in caught
-    /// him 9 times, the 485 elsewhere once; none of 15 on his way out caught him. The calm habit's no-detour wish, which near
-    /// such a place its enemy gate refuses first, is gone (A324 root cause). On by default; every point, sending, letting go and
-    /// trap is a note, and a let-go or trap note gives the gate's "enemy seen" refusals at the point by whom and pose.
+    /// to put one on his way in (the way from his side's spawns, `near_m`..`far_m` before the place, where a crouched placer and
+    /// he cannot see each other, `traps::out_of_his_sight`). It walks there in its own play (`TrapSpot`, crouched where that
+    /// hides it and at the point) and places with the job's own gate (an enemy seen, not one only known near; no chance roll).
+    /// Live (`docs/notes/bear_traps.md`, "Human traps at a holder's place"): of 91 human traps at an enemy's killing hold in the
+    /// live traps record, the 8 on his way in caught him 3 times, the 83 others never (small n). The calm habit's no-detour wish,
+    /// which near such a place its enemy gate refuses first, is gone (A324 root cause). On by default; every point, sending,
+    /// letting go and trap is a note, and a let-go or trap note gives the gate's "enemy seen" refusals at the point by whom and
+    /// pose.
     pub camper_job: Option<CamperJob>,
     /// The ring round a standing own trap the team's searches keep out as a preference (soft: a way round where
     /// that is not much longer, else through), metres from its centre; a route that runs within it is searched
