@@ -330,12 +330,14 @@ pub struct CombatTuning {
     pub smoke_hold_ms: u32,
     pub grenade_within_deg: f32,
     /// Not with a teammate's feet this near where the grenade may land and go
-    /// off, metres: its landing zone by the worst spread
-    /// ([`arc::Spread::Worst`], [`arc::Landing::blast_distance`]): the slide
+    /// off, metres: its landing zone by the usual spread
+    /// ([`arc::Spread::Usual`], [`arc::Landing::blast_distance`]): the slide
     /// from the first contact to the flown rest, and along the heading from
-    /// [`arc::REST_BEHIND_M`] short of the rest to [`arc::REST_AHEAD_WORST_M`]
+    /// [`arc::REST_BEHIND_M`] short of the rest to [`arc::REST_AHEAD_M`]
     /// past it, widened by [`arc::REST_ACROSS_M`] across it (the flown rest's
-    /// measured P10, P95 and across P90). The client's blast measures to a
+    /// measured P10, P90 and across P90: one landing in ten falls farther
+    /// along, an accepted risk, as P95's 8.92 m would hold back throws at
+    /// held spots, where a teammate is often near). The client's blast measures to a
     /// body's transform origin (0x3396D3..0x33971A), its feet by the note's
     /// recount (41 of 68 still victims fit from the feet, 29 from the
     /// capsule's centre). A hurt teammate dies farther out than a whole one
@@ -2520,8 +2522,9 @@ enum Refuse {
     Thrower,
     /// The first contact is far from the place.
     Off,
-    /// A teammate may be in the blast.
-    Mate(Place),
+    /// A teammate may be in the blast: his place, and how far his feet are from the landing zone, decimetres (none for
+    /// a check that measures no zone).
+    Mate(Place, Option<u16>),
 }
 
 impl Refuse {
@@ -2533,7 +2536,8 @@ impl Refuse {
             Self::Wall => "hits a wall near the thrower".to_owned(),
             Self::Thrower => "lands in the thrower's blast".to_owned(),
             Self::Off => "lands off the place".to_owned(),
-            Self::Mate(mate) => format!("teammate {mate}"),
+            Self::Mate(mate, None) => format!("teammate {mate}"),
+            Self::Mate(mate, Some(dm)) => format!("teammate {mate} ({:.1} m from the landing zone)", f32::from(dm) / 10.0),
         }
     }
 
@@ -2542,7 +2546,7 @@ impl Refuse {
         match self {
             Self::Thrower => 0,
             Self::Wall => 1,
-            Self::Mate(_) => 2,
+            Self::Mate(..) => 2,
             Self::Reach => 3,
             Self::Nowhere => 4,
             Self::Off => 5,
@@ -2897,13 +2901,14 @@ fn over_ground<R>(
 /// [play 20] A teammate of `me` who may be in the blast of `landing`: now
 /// and along his velocity for `grenade_lead_s` (none with
 /// `grenade_recheck` off), his feet within `grenade_friend_m` of the
-/// landing zone of its worst spread.
+/// landing zone of its usual spread. With the nearest his feet come to the
+/// zone, metres.
 fn mate_in_blast(
     me: &PlaceView,
     view: &MatchView,
     landing: &arc::Landing,
     c: &CombatTuning,
-) -> Option<Place> {
+) -> Option<(Place, f32)> {
     /// The teammate's line is looked at every this many seconds.
     const SAMPLE_S: f32 = 0.5;
     let lead = if c.grenade_recheck {
@@ -2914,14 +2919,13 @@ fn mate_in_blast(
     let steps = (lead / SAMPLE_S).ceil().max(1.0) as u32;
     view.team(me.team)
         .filter(|p| p.place != me.place)
-        .find(|p| {
+        .find_map(|p| {
             let walk = Vec3::new(p.velocity[0], 0.0, p.velocity[1]) * lead;
-            (0..=steps).any(|k| {
-                let feet = p.feet + walk * (k as f32 / steps as f32);
-                landing.blast_distance(feet, arc::Spread::Worst) < c.grenade_friend_m
-            })
+            let nearest = (0..=steps)
+                .map(|k| landing.blast_distance(p.feet + walk * (k as f32 / steps as f32), arc::Spread::Usual))
+                .fold(f32::INFINITY, f32::min);
+            (nearest < c.grenade_friend_m).then_some((p.place, nearest))
         })
-        .map(|p| p.place)
 }
 
 /// [play 20] Whether `me` may throw at `at` with an aim `error` off the
@@ -2953,7 +2957,7 @@ fn weigh_throw(
                 .find(|p| p.place != me.place && p.feet.distance_xz(at) < c.grenade_friend_m)
                 .map(|p| p.place)
         };
-        return near.map_or(Ok(()), |mate| Err(Refuse::Mate(mate)));
+        return near.map_or(Ok(()), |mate| Err(Refuse::Mate(mate, None)));
     }
     let view_yp = throw_view(me, at, c, hold_ms).ok_or(Refuse::Reach)?;
     weigh_view(me, view, at, view_yp, error, c, hold_ms, mates, ground, Some(c.grenade_off_m))
@@ -3000,7 +3004,7 @@ fn weigh_view(
     }
     let mate = mates.then(|| mate_in_blast(me, view, &landing, c));
     match mate.flatten() {
-        Some(mate) => Err(Refuse::Mate(mate)),
+        Some((mate, zone_m)) => Err(Refuse::Mate(mate, Some((zone_m * 10.0).round() as u16))),
         // [A260] Last, as it takes six short traces: the same view from a start off by the margin.
         None if c
             .grenade_start_margin_m
@@ -3292,7 +3296,7 @@ fn close_fresh(me: &PlaceView, view: &MatchView, c: &CombatTuning) -> Result<(),
         .filter(|p| p.place != me.place)
         .find(|p| view.clock.saturating_sub(p.seen_at) > c.grenade_close_fresh_ms)
     {
-        Some(mate) => Err(Refuse::Mate(mate.place)),
+        Some(mate) => Err(Refuse::Mate(mate.place, None)),
         None => Ok(()),
     }
 }
@@ -6960,7 +6964,7 @@ impl Reflex {
         self.grenade_stats.committed[usize::from(after)] += 1;
         let found = match self.repick(mesh, throw, me, view, c, why) {
             Some(pick) => Some((pick, 2)),
-            None if matches!(why, Refuse::Thrower | Refuse::Wall | Refuse::Mate(_)) => {
+            None if matches!(why, Refuse::Thrower | Refuse::Wall | Refuse::Mate(..)) => {
                 over_ground(mesh, throw.at.y, |ground| away_arc(me, view, throw.at, throw.error, c, throw.hold_ms, ground))
                     .map(|pick| (pick, 3))
             }
@@ -11954,7 +11958,7 @@ mod tests {
                 held_back += reflex
                     .take_throw_notes()
                     .iter()
-                    .filter(|n| n.starts_with("holds a grenade back") && n.ends_with("teammate 3"))
+                    .filter(|n| n.starts_with("holds a grenade back") && n.contains(": teammate 3"))
                     .count();
                 now += 50;
             }
@@ -12369,7 +12373,7 @@ mod tests {
             Some(ArcPick::Flat)
         );
         assert_eq!(reflex.grenade_stats().rechecks, [1, 0]);
-        assert_eq!(reflex.repick(None, &throw, &me, &view, &on, Refuse::Mate(3)), None);
+        assert_eq!(reflex.repick(None, &throw, &me, &view, &on, Refuse::Mate(3, None)), None);
         assert_eq!(reflex.repick(None, &throw, &me, &view, &combat_off(), Refuse::Thrower), None);
         assert_eq!(reflex.grenade_stats().rechecks, [1, 0], "no search, no count");
     }
@@ -12738,7 +12742,7 @@ mod tests {
         assert!(
             past.notes
                 .iter()
-                .any(|n| n.starts_with("holds a grenade back") && n.ends_with("teammate 3")),
+                .any(|n| n.starts_with("holds a grenade back") && n.contains(": teammate 3")),
             "{:?}",
             past.notes
         );
@@ -12762,8 +12766,8 @@ mod tests {
     }
 
     /// [G200] A mate whose feet are within half a body's health of the blast (6.4 m) of its landing zone refuses the
-    /// throw: the zone the worst spread puts the blast in, out to its end (8.92 m past the rest) and 1.82 m to either
-    /// side. Farther aside or past the end he is clear.
+    /// throw: the zone the usual spread puts the blast in, out to its end (3.95 m past the rest) and 1.82 m to either
+    /// side. Farther aside or past the end he is clear. The refusal says how far his feet are from the zone.
     #[test]
     fn a_mate_near_the_landing_zone_refuses_the_throw() {
         let c = CombatTuning::default();
@@ -12780,13 +12784,17 @@ mod tests {
             let view = view_of(vec![me.clone(), body(3, 0, Vec3::new(x, 0.0, z), 0.0)]);
             mate_in_blast(&me, &view, &landing, &c)
         };
-        // On the line 8 m past the rest; 8 m aside of it (6.4 + 1.82 = 8.22 m reach); 8 m past the worst end (34.42 m).
-        assert_eq!(with(0.0, 33.5), Some(3));
-        assert_eq!(with(8.0, 30.0), Some(3));
-        assert_eq!(with(0.0, 42.4), Some(3));
-        // 8.5 m aside, or 8.5 m past the worst end: clear.
-        assert_eq!(with(8.5, 30.0), None);
-        assert_eq!(with(0.0, 42.9), None);
+        let place = |r: Option<(Place, f32)>| r.map(|(p, _)| p);
+        // On the line 8 m past the rest (4.05 m past the usual end, 29.45 m: 2.23 m from the zone); 8 m aside of it
+        // (6.4 + 1.82 = 8.22 m reach); 7.9 m past the usual end.
+        let (on, zone_m) = with(0.0, 33.5).unwrap();
+        assert_eq!(on, 3);
+        assert!((zone_m - (33.5 - 29.45 - arc::REST_ACROSS_M)).abs() < 0.01, "{zone_m}");
+        assert_eq!(place(with(8.0, 28.0)), Some(3));
+        assert_eq!(place(with(0.0, 37.35)), Some(3));
+        // 8.5 m aside, or 8.3 m past the usual end: clear.
+        assert_eq!(place(with(8.5, 28.0)), None);
+        assert_eq!(place(with(0.0, 37.75)), None);
     }
 
     #[test]
