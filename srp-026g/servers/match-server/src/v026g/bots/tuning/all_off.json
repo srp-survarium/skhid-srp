@@ -163,6 +163,7 @@
     "wait_for_cloud": null
   },
   "take": {
+    "team_memory": null,
     "zone_look": null,
     "zone_take": null
   },
