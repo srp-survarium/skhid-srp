@@ -160,6 +160,9 @@ struct Acc {
     first_dwell: [[u32; 15]; 4],
     /// By the burst the shot was in (its length): bursts, shots, hits.
     by_burst: [[u32; 3]; 5],
+    /// [pull value] The shots on his line (as `by_band`) by distance band ([`BANDS_M`]'s first three, the rest together) and by
+    /// the shot's place in its burst (the 1st, 2nd-3rd, 4th-6th, 7th-10th, 11th on, [`BURST_BINS`]): shots, hits.
+    by_place: [[[u32; 2]; 5]; 4],
     /// Pauses between bursts, by [`PAUSE_BINS_MS`].
     pauses: [u32; 4],
 }
@@ -366,6 +369,7 @@ impl Topic for GunShots {
             b.last = tick;
             b.shots += 1;
             b.hits += u32::from(hit);
+            let place_bin = BURST_BINS.iter().position(|&edge| b.shots <= edge).unwrap_or(BURST_BINS.len());
             let Some((target, distance, off)) = fact.target else { continue };
             let a = self.groups.entry(key).or_default();
             if off <= ON_DEG && !self.was_firing.get(shooter).copied().unwrap_or(true) {
@@ -387,6 +391,7 @@ impl Topic for GunShots {
             a.hits += h as u32;
             let band = BANDS_M.iter().position(|&edge| distance < edge).unwrap_or(BANDS_M.len());
             tally(&mut a.by_band[band]);
+            tally(&mut a.by_place[band.min(3)][place_bin]);
             if let Some(shooter) = game.bodies.get(fact.shooter) {
                 tally(&mut a.by_band_team[usize::from(shooter.team != 0)][band]);
             }
@@ -507,6 +512,7 @@ impl Topic for GunShots {
                     "aimed_side": a.aimed_side,
                     "aimed_run": a.aimed_run,
                     "by_burst": a.by_burst,
+                    "by_place": a.by_place,
                     "pauses": a.pauses,
                 }),
             );
@@ -631,6 +637,10 @@ mod tests {
         assert_eq!(g["hits"], 2, "{json}");
         assert_eq!(g["by_burst"][1], serde_json::json!([1, 3, 2]), "{json}");
         assert_eq!(g["by_burst"][0], serde_json::json!([1, 1, 0]), "{json}");
+        // By place in the burst, at 30 m (the 20-40 m band): the 1st shots of the two bursts (one hit), the 2nd and 3rd (one hit).
+        assert_eq!(g["by_place"][1][0], serde_json::json!([2, 1]), "{json}");
+        assert_eq!(g["by_place"][1][1], serde_json::json!([2, 1]), "{json}");
+        assert_eq!(g["by_place"][1][2], serde_json::json!([0, 0]), "{json}");
         assert_eq!(g["pauses"], serde_json::json!([0, 0, 1, 0]), "{json}");
     }
 }
