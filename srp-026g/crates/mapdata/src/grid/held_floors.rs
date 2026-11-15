@@ -211,7 +211,7 @@ pub struct HeldStats {
 impl WalkGrid {
     /// [`super::Body::held_floors`] (module documentation): takes the edge floors no body stays on and returns the drops from
     /// the last held floors as (take-off, landing) positions, to be made off-mesh links once the floors are renumbered.
-    pub(super) fn drop_unheld(&mut self, wide: &mut Wide, world: &Collision, s: &Settings) -> (HeldStats, Vec<(Vec3, Vec3)>) {
+    pub(super) fn drop_unheld(&mut self, wide: &mut Wide, world: &Collision, s: &Settings) -> (HeldStats, Vec<(Vec3, Vec3, f32)>) {
         let n = self.len();
         let step = self.body.step;
         let edge: Vec<usize> = (0..n)
