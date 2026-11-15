@@ -1,20 +1,8 @@
-//! BitTorrent, when the launcher's "Allow torrent" is on
-//! (`srp-026g/docs/notes/torrent-downloads.md`): the revision's torrent
-//! (signed by the release: [`trusted`]) as an extra source of the original
-//! game's files and of missing patches, and the sharing of every file of it
-//! this folder has, while the updater runs.
-//!
-//! The engine is libtorrent, in `skhid_torrent.dll` beside the updater
-//! (`crate::libtorrent`, its one owner): no DLL, or one that does not load,
-//! and torrent stays off, HTTPS as without it. [`Torrents`] is the one owner
-//! of the session: the launcher's settings, the port, the upload cap, and
-//! what the session does ([`Job`]: one at a time), driven by its events
-//! ([`Torrents::service`], from the update's every look at the pipe).
-//!
-//! Peers come from this updater's own trackers ([`trackers`]: never a
-//! torrent's, which are outside its signature) and the DHT; no LSD, PEX,
-//! UPnP, NAT-PMP or uTP. A peer that sent a piece that failed its hash is
-//! banned for the updater's run.
+//! BitTorrent, when the launcher allows it: the release-signed torrent as an
+//! extra source of the game's files and missing patches, and sharing of what
+//! this folder has. Engine: libtorrent in `skhid_torrent.dll`
+//! (`crate::libtorrent`); without it, HTTPS only. [`Torrents`] owns the
+//! session. Spec: `srp-026g/docs/notes/torrent-downloads.md`.
 
 use alloc::boxed::Box;
 use alloc::format;
@@ -34,34 +22,30 @@ use crate::libtorrent::{self, Event, FileSpec, Role, TorrentId};
 use crate::log::log;
 use crate::{Session, win};
 
-/// A download by torrent is left (for HTTPS) when no peer is connected
-/// this long after its check, or no piece came for this long.
+/// A torrent download falls back to HTTPS with no peer this long after its
+/// check, or no piece for this long.
 const NO_PEER_MS: u64 = 20_000;
 const STALL_MS: u64 = 60_000;
-/// How long the DHT is asked for the newest release's item, and how long
-/// its torrent's info is then waited for from its swarm.
+/// Discovery: how long the DHT is asked, then the swarm for the info.
 const NEWEST_MS: u64 = 20_000;
 const METADATA_MS: u64 = 60_000;
-/// The DHT is asked again this often meanwhile; once an item came, a higher
-/// one is waited for this long.
+/// The DHT is asked again this often; after an item, a higher one is
+/// waited for this long.
 const ASK_AGAIN_MS: u64 = 5_000;
 const HIGHER_MS: u64 = 3_000;
-/// The signed item is put again this often while it shares (DHT nodes
-/// forget an item in about two hours).
+/// DHT nodes forget an item in about two hours.
 const PUT_AGAIN_MS: u64 = 30 * 60_000;
 const PUT_RETRY_MS: u64 = 30_000;
-/// The DHT's way in.
 const DHT_BOOTSTRAP: &str =
     "dht.libtorrent.org:25401,router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881";
 
-/// Beside the updater: what was checked ([`updater_logic::shared`]), and a
-/// folder where nothing of a torrent is (the files a session neither
-/// fetches nor shares are named there, so that nothing is read of them).
+/// Beside the updater: the check record ([`updater_logic::shared`]), and an
+/// empty folder for the files a session neither fetches nor shares, so none
+/// of them is read.
 const CHECKED: &str = "updater_skhid.torrent.checked";
 const NOWHERE: &str = "updater_skhid.torrent-none";
 
-/// A test build (`SKHID_TEST_TRACKERS`): 127.0.0.1 only, its DHT
-/// (`SKHID_TEST_DHT`, else none to be found).
+/// Built for `tests/test_torrent.py`: loopback peers only.
 fn test_build() -> bool {
     option_env!("SKHID_TEST_TRACKERS").is_some()
 }
@@ -69,12 +53,12 @@ fn test_build() -> bool {
 fn dht_bootstrap() -> &'static str {
     match option_env!("SKHID_TEST_DHT") {
         Some(nodes) => nodes,
-        None if test_build() => "127.0.0.1:1",
+        None if test_build() => "127.0.0.1:1", // no DHT
         None => DHT_BOOTSTRAP,
     }
 }
 
-/// The release's trackers (`release/build_torrent.py` TRACKERS).
+/// Same as TRACKERS in `release/build_torrent.py`.
 const TRACKERS: &[&str] = &[
     "udp://tracker.opentrackr.org:1337/announce",
     "http://tracker.opentrackr.org:1337/announce",
@@ -83,10 +67,8 @@ const TRACKERS: &[&str] = &[
     "udp://exodus.desync.com:6969/announce",
 ];
 
-/// The trackers of every torrent: the release's, never a torrent's (its
-/// trackers are outside the signature: whoever handed it over could name
-/// its own, and be the only one to give peers). A test build has its own
-/// (`SKHID_TEST_TRACKERS`, space-separated; `tests/test_torrent.py`).
+/// Never a torrent's own: those are outside the signature, so whoever
+/// handed it over could name trackers that list only itself.
 fn trackers() -> Vec<String> {
     match option_env!("SKHID_TEST_TRACKERS") {
         Some(list) => list.split_whitespace().map(String::from).collect(),
@@ -94,8 +76,7 @@ fn trackers() -> Vec<String> {
     }
 }
 
-/// A torrent signed by the release: what it is, its revision, its bytes
-/// (`torrent::canonical`: what the signature covers, and the piece layers).
+/// A torrent signed by the release; `bytes` are canonical, as signed.
 pub struct Signed {
     pub torrent: Torrent,
     pub revision: u64,
@@ -104,69 +85,65 @@ pub struct Signed {
 
 /// The revision's torrent as this run knows it.
 enum Offered {
-    /// Not read yet (or read before the overlay changed the folder).
+    /// Not read yet, or stale since the overlay changed the folder.
     Unread,
     Read(Arc<Signed>),
-    /// None, or none this updater takes: HTTPS only this run.
+    /// None this updater takes: HTTPS only this run.
     None,
 }
 
-/// The times the launcher turned torrent on in this run (`1A`): what a
-/// download by HTTPS or the watch compares, to see it happen.
+/// Counts the launcher turning torrent on (`1A`), so an HTTPS download can
+/// see it happen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Turn(u32);
 
 /// The launcher's torrent settings and the session that runs them.
 pub struct Torrents {
     mode: Mode,
-    /// Beside the updater: the DLL, the record.
+    /// The updater's folder: the DLL, the record.
     dir: String,
-    /// [`PORT_FILE`] beside the updater.
+    /// Path of [`PORT_FILE`].
     kept_port: String,
-    /// Bytes a second, all the sharing together (`updater_logic::upload`).
+    /// Bytes a second, all sharing together.
     rate: u64,
     offered: Offered,
-    /// The addresses banned in this run, for every session of it.
+    /// Banned for the whole run, across sessions.
     banned: Vec<String>,
-    /// The torrents of this run (their v2 info hashes): the record keeps
-    /// theirs.
+    /// v2 info hashes of this run's torrents: the record keeps only theirs.
     known: Vec<[u8; 32]>,
-    /// Bytes sent by the torrents of this run that are gone.
+    /// Uploaded by this run's torrents already removed.
     sent: u64,
     turn: Turn,
 }
 
 enum Mode {
-    /// `port`: the launcher's, kept for when it allows torrent.
+    /// `port`: the launcher's, for when it allows torrent.
     Off { port: Option<u16> },
     On { port: Option<u16>, engine: Box<Engine> },
-    /// For good: another updater runs now, on the same port.
+    /// For good: another updater takes the port.
     Closed,
 }
 
-/// The libtorrent session and what it does.
 struct Engine {
     session: libtorrent::Session,
     listen: Listen,
     job: Job,
 }
 
-/// The session's port.
 enum Listen {
-    /// Asked for; `answer`: the launcher waits for the answer (`21`).
+    /// `answer`: the launcher waits for it (`21`).
     Asked { want: Want, answer: bool },
     Listening(u16),
     Busy(Option<u16>),
 }
 
-/// The port asked of the session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Want {
-    /// The launcher's (busy: busy).
+    /// The launcher's; if busy, reported busy.
     Named(u16),
-    /// The one kept beside the updater ([`PORT_FILE`]; busy: any).
+    /// From [`PORT_FILE`]; if busy, any.
     Kept(u16),
-    /// Any: the one the system picks is kept.
+    /// The one picked is kept.
     Any,
 }
 
@@ -179,11 +156,10 @@ impl Want {
     }
 }
 
-/// The port listened on when the launcher names none, beside the updater:
-/// the one picked the first time, so that peers that knew it find it again.
+/// The port picked the first time, used when the launcher names none, so
+/// peers that knew it find it again.
 const PORT_FILE: &str = "updater_skhid.port";
 
-/// The port kept in `kept` ([`PORT_FILE`]), if it holds one.
 fn kept_port_number(kept: &str) -> Option<u16> {
     let text = win::read_file(kept, 16).ok()?;
     updater_logic::pipe::port_number(core::str::from_utf8(&text).ok()?.trim())
@@ -192,14 +168,13 @@ fn kept_port_number(kept: &str) -> Option<u16> {
 /// What the session does: one thing at a time.
 enum Job {
     Idle,
-    /// Files into their parts.
     Fetching(Added),
-    /// Whether files are a torrent's, every piece (nothing after).
+    /// Hashes every piece of files, nothing more.
     Checking(Added),
     /// The newest release, from the DHT and its swarm.
     Discovering(Discovery),
-    /// The folder's files of the revision's torrent, the bootstrap's kept
-    /// copies, and the signed item on the DHT.
+    /// The folder's files of the run's torrent, the bootstrap's kept copies,
+    /// and the signed item on the DHT.
     Sharing {
         swarm: Option<Added>,
         bootstrap: Option<Added>,
@@ -217,7 +192,6 @@ impl Job {
     }
 }
 
-/// A torrent added to the session.
 struct Added {
     id: TorrentId,
     v2: [u8; 32],
@@ -226,20 +200,19 @@ struct Added {
     check: Check,
 }
 
-/// libtorrent's check of an added torrent's files, as its status says (an
-/// alert can be dropped, and a check that fails posts none).
+/// Read from the torrent's status, not alerts: an alert can be dropped, and
+/// a failed check posts none.
 enum Check {
-    /// `moved`: when its progress (`ppm`) last changed.
+    /// `moved`: when `ppm` last changed.
     Running { ppm: u32, moved: u64 },
     Done,
-    /// A file it could not read, or no progress for [`CHECK_STALL_MS`].
+    /// An unreadable file, or no progress for [`CHECK_STALL_MS`].
     Failed,
 }
 
 const CHECK_STALL_MS: u64 = 60_000;
 
-/// A file of an added torrent: where it is, what it is to the session, and
-/// (shared) what Windows said of it when it was added.
+/// `identity`: as when added, to see a shared file change during its check.
 struct Placed {
     path: String,
     size: u64,
@@ -247,25 +220,25 @@ struct Placed {
     identity: Option<Identity>,
 }
 
-/// The signed item this updater puts on the DHT, and when it last did.
+/// The signed item this updater puts on the DHT.
 struct Put {
     item: Item,
     state: PutState,
 }
 
-/// Where the item's put is.
 enum PutState {
     /// Not put yet in this sharing.
     Due,
-    /// Put at this time, stored on no node yet (the DHT may not have been
-    /// found then): put again [`PUT_RETRY_MS`] after.
+    /// Stored on no node yet (the DHT may not have been found): retried
+    /// after [`PUT_RETRY_MS`].
     Sent(u64),
-    /// Stored at this time: put again [`PUT_AGAIN_MS`] after.
+    /// Put again after [`PUT_AGAIN_MS`].
     Stored(u64),
 }
 
 enum Discovery {
-    /// Asking the DHT; the best item that verified, newer than `floor`.
+    /// `best`: the highest verified item of `floor` or higher, and when it
+    /// came.
     Asking {
         floor: u64,
         asked: u64,
@@ -273,18 +246,17 @@ enum Discovery {
     },
     /// Its torrent's info from the swarm.
     Fetching { newest: Newest, item: Item, id: TorrentId },
-    /// The signed torrent, made again.
+    /// The signed torrent, rebuilt from the item and the info.
     Found { revision: u64, bytes: Vec<u8> },
 }
 
-/// The bootstrap torrent to share, and its kept copies (its file, the copy).
+/// `copies`: (file index, kept copy).
 struct Bootstrap {
     bytes: Vec<u8>,
     torrent: Torrent,
     copies: Vec<(usize, String)>,
 }
 
-/// What a fetch looks like at a look ([`fetch`]).
 enum Progress {
     Checking { done: u64, total: u64 },
     Running { done: u64, total: u64, peers: u32 },
@@ -292,7 +264,7 @@ enum Progress {
 }
 
 impl Engine {
-    /// The port's answer for the launcher, when it waits for one.
+    /// The launcher's answer, when it waits for one.
     fn listening(&mut self, port: u16, kept_port: &str) -> Option<ToLauncher<'static>> {
         let answer = matches!(self.listen, Listen::Asked { answer: true, .. });
         if !matches!(self.listen, Listen::Listening(at) if at == port) {
@@ -310,8 +282,15 @@ impl Engine {
 
     fn listen_failed(&mut self, port: u16, why: &str) -> Option<ToLauncher<'static>> {
         log!("torrent: port {port} cannot be listened on ({why})");
+        // Each interface reports its own failure: one for a port no longer asked
+        // (the kept one, after the switch to any) is old news.
+        if let Listen::Asked { want, .. } = self.listen
+            && want.port() != Some(port)
+        {
+            return None;
+        }
         let (asked, answer) = match self.listen {
-            // The kept one is another program's now: any, kept.
+            // The kept port is taken: any, and keep that one.
             Listen::Asked { want: Want::Kept(_), answer } => {
                 self.session.listen(None);
                 self.listen = Listen::Asked { want: Want::Any, answer };
@@ -325,8 +304,7 @@ impl Engine {
         answer.then_some(ToLauncher::PortBusy)
     }
 
-    /// Each running check of the job, by the torrent's status: done (its
-    /// files recorded), failed, or still running.
+    /// Advances each running check from its status; a done one is recorded.
     fn follow_checks(&mut self, dir: &str, known: &[[u8; 32]]) {
         let now = win::ticks();
         let session = &mut self.session;
@@ -355,8 +333,8 @@ impl Engine {
         }
     }
 
-    /// The discovered torrent's info from its swarm: the signed torrent
-    /// made again, when it is the item's.
+    /// Rebuilds the signed torrent from the discovered item and the swarm's
+    /// info.
     fn metadata(&mut self, id: TorrentId) {
         let Job::Discovering(Discovery::Fetching { newest, item, id: of }) = &self.job else { return };
         if *of != id {
@@ -377,8 +355,8 @@ impl Engine {
         self.job = Job::Discovering(Discovery::Found { revision: u64::from(newest.revision), bytes });
     }
 
-    /// An answer of the DHT: kept when the release signed it, of the floor
-    /// or higher, and the highest yet.
+    /// Kept when the release signed it, of the floor or higher, and the
+    /// highest yet.
     fn dht_item(&mut self, item: Item) {
         let Job::Discovering(Discovery::Asking { floor, best, .. }) = &mut self.job else { return };
         let Some(key) = crate::signed::key() else { return };
@@ -403,7 +381,6 @@ impl Engine {
 }
 
 impl Torrents {
-    /// The launcher's settings, for the updater of `layout`.
     pub fn new(settings: Torrenting, layout: &Layout) -> Self {
         let (port, on) = match settings {
             Torrenting::Off { port } => (port, false),
@@ -426,8 +403,7 @@ impl Torrents {
         torrents
     }
 
-    /// What to listen on: the launcher's port when it names one; else the
-    /// one kept; else any (then kept).
+    /// The launcher's port; else the kept one; else any (then kept).
     fn want(&self, port: Option<u16>) -> Want {
         match port {
             Some(port) => Want::Named(port),
@@ -435,7 +411,7 @@ impl Torrents {
         }
     }
 
-    /// On, when the DLL loads and makes a session; else it stays off.
+    /// `false`: the DLL did not load or make a session; torrent stays off.
     fn turn_on(&mut self, port: Option<u16>) -> bool {
         let want = self.want(port);
         let config = libtorrent::Config {
@@ -472,7 +448,7 @@ impl Torrents {
         self.turn
     }
 
-    /// The folder changed (the overlay): the torrent is read again.
+    /// After the overlay changed the folder: the torrent is read again.
     pub fn forget(&mut self) {
         self.offered = Offered::Unread;
     }
@@ -484,8 +460,8 @@ impl Torrents {
         }
     }
 
-    /// One of the launcher's torrent messages; what to answer it now (a
-    /// port asked while on is answered once it is listened on: [`service`]).
+    /// The answer due now; a port asked while on is answered by [`service`]
+    /// once listened on.
     pub fn on_message(&mut self, message: FromLauncher) -> Option<ToLauncher<'static>> {
         match message {
             FromLauncher::AllowTorrent(true) => {
@@ -525,8 +501,7 @@ impl Torrents {
                         engine.listen = Listen::Asked { want, answer: true };
                         None
                     }
-                    // Off: nothing listens, so any port is "ok"; it is the
-                    // one listened on once torrent is allowed.
+                    // Nothing listens until torrent is allowed.
                     Mode::Off { port } => {
                         *port = wanted;
                         Some(ToLauncher::PortOk)
@@ -561,14 +536,13 @@ impl Torrents {
         self.set_job(Job::Idle);
     }
 
-    /// Stops the session and lets go of the port, for good: before another
-    /// updater runs, which listens on the same port.
+    /// Lets go of the port for good, before another updater listens on it.
     pub fn close(&mut self) {
         self.stop();
         self.mode = Mode::Closed;
     }
 
-    /// The job from now on; the torrents of the one before go.
+    /// The old job's torrents are removed, their upload counted.
     fn set_job(&mut self, job: Job) {
         let Mode::On { engine, .. } = &mut self.mode else { return };
         let old = core::mem::replace(&mut engine.job, job);
@@ -585,8 +559,8 @@ impl Torrents {
         }
     }
 
-    /// What the session said since the last look: the port's answer for
-    /// the launcher, if one is due. Called at every look at the pipe.
+    /// Handles the session's events; returns the port answer if one is due.
+    /// Called at every look at the pipe.
     pub fn service(&mut self) -> Option<ToLauncher<'static>> {
         let events = self.engine().map(|engine| engine.session.poll(0))?;
         let mut answer = None;
@@ -600,7 +574,6 @@ impl Torrents {
         answer
     }
 
-    /// One event of the session.
     fn on(&mut self, event: Event) -> Option<ToLauncher<'static>> {
         let Mode::On { engine, .. } = &mut self.mode else { return None };
         match event {
@@ -622,7 +595,6 @@ impl Torrents {
         None
     }
 
-    /// The signed item put on the DHT again, when it is time.
     fn put_due(&mut self) {
         let Some(key) = crate::signed::key() else { return };
         let Some(engine) = self.engine() else { return };
@@ -641,8 +613,8 @@ impl Torrents {
         engine.session.dht_put(&key, newest::SALT, &put.item);
     }
 
-    /// The revision's torrent, when the launcher allows torrent and there is
-    /// one this updater trusts ([`trusted`]); read once a run.
+    /// The run's torrent ([`trusted`]) while torrent is allowed; read once a
+    /// run.
     pub fn offered(&mut self, layout: &Layout) -> Option<Arc<Signed>> {
         if !self.allowed() {
             return None;
@@ -663,8 +635,8 @@ impl Torrents {
                     torrent.piece_length
                 );
                 crate::signed::taken(layout, signed.revision);
-                // Before any check of the bootstrap records: the record keeps
-                // what was checked of the run's torrent.
+                // Before a bootstrap check writes the record, which drops
+                // unknown torrents.
                 self.know(signed.torrent.v2);
                 let torrent = Arc::new(signed);
                 self.offered = Offered::Read(torrent.clone());
@@ -678,14 +650,14 @@ impl Torrents {
         }
     }
 
-    /// A torrent of this run: the record keeps what was checked of it.
+    /// The record keeps the checks of known torrents only.
     fn know(&mut self, v2: [u8; 32]) {
         if !self.known.contains(&v2) {
             self.known.push(v2);
         }
     }
 
-    /// Adds `bytes` (a torrent) with `files` (its file, where, how).
+    /// `files`: (file index, path, role).
     fn add(&mut self, bytes: &[u8], torrent: &Torrent, files: Vec<(usize, String, Role)>) -> Result<Added, String> {
         let nowhere = format!("{}\\{NOWHERE}", self.dir);
         self.know(torrent.v2);
@@ -719,8 +691,8 @@ impl Torrents {
         })
     }
 
-    /// `files` (the torrent's file, where it is) as shared: each trusted
-    /// when the record says it was checked as it is.
+    /// Trusted (not hashed again) when the record says it was checked as it
+    /// is.
     fn shared_roles(&self, torrent: &Torrent, files: &[(usize, String)]) -> Vec<(usize, String, Role)> {
         let record = read_record(&self.dir);
         files
@@ -732,8 +704,7 @@ impl Torrents {
             .collect()
     }
 
-    /// Starts checking `files` of `signed`: [`Torrents::checked_files`]
-    /// says when it is done.
+    /// [`Torrents::checked_files`] gives the result.
     fn start_check(&mut self, bytes: &[u8], torrent: &Torrent, files: &[(usize, String)]) -> bool {
         let roles = self.shared_roles(torrent, files);
         self.stop();
@@ -749,8 +720,8 @@ impl Torrents {
         }
     }
 
-    /// The check's answer once done: whether each file is whole. `Err`:
-    /// not checking any more (torrent turned off, the check failed).
+    /// Whether each file is whole; `Ok(None)`: still running; `Err`: not
+    /// checking any more (torrent turned off, the check failed).
     fn checked_files(&mut self) -> Result<Option<Vec<bool>>, ()> {
         let Some(engine) = self.engine() else { return Err(()) };
         let Job::Checking(added) = &engine.job else { return Err(()) };
@@ -772,9 +743,8 @@ impl Torrents {
         whole.map(Some).ok_or(())
     }
 
-    /// Those of `files` that are whole, as [`whole`] checks them, while
-    /// `alive` (the launcher or the game still there): the bootstrap's few
-    /// small files.
+    /// The whole ones of `files`, as [`whole`] but waiting on `alive`
+    /// instead of the pipe: for the bootstrap's few small files.
     fn whole_now(
         &mut self,
         bytes: &[u8],
@@ -803,13 +773,12 @@ impl Torrents {
         Some(files.into_iter().zip(whole).filter(|(_, whole)| *whole).map(|(file, _)| file).collect())
     }
 
-    /// Starts fetching `files` (the torrent's file, its part).
+    /// `files`: (file index, part).
     fn start_fetch(&mut self, signed: &Signed, files: &[(usize, String)]) -> Result<(), String> {
         self.stop();
         for (index, part) in files {
-            // A part longer than the file (left by another torrent's file of
-            // that name): what is past its size goes, so that a finished
-            // part is the file, byte for byte.
+            // A longer part (left by another torrent's file of that name) is
+            // cut, so a finished part is the file byte for byte.
             let size = signed.torrent.files[*index].size;
             if win::file_size(part).is_ok_and(|had| had > size) {
                 std::fs::OpenOptions::new()
@@ -835,7 +804,11 @@ impl Torrents {
             return Some(Progress::Failed("the parts could not be checked".into()));
         }
         let checked = matches!(check, Check::Done);
+        let count = added.files.len();
         let status = engine.session.status(id)?;
+        // Whole pieces that passed their hash only: the status counts blocks
+        // not yet hashed, which a lying peer can send.
+        let hashed: u64 = engine.session.file_progress(id, count)?.iter().sum();
         Some(match status {
             libtorrent::Status { error: Some(error), .. } => Progress::Failed(error),
             libtorrent::Status { checking: Some(ppm), .. } => Progress::Checking {
@@ -843,18 +816,13 @@ impl Torrents {
                 total,
             },
             _ if !checked => Progress::Checking { done: 0, total },
-            status => Progress::Running {
-                done: status.wanted_done,
-                total: status.wanted,
-                peers: status.peers,
-            },
+            status => Progress::Running { done: hashed, total, peers: status.peers },
         })
     }
 
-    /// Shares every file of the torrent this folder has at its size, however
-    /// it came, and the bootstrap's kept copies, and puts the release's
-    /// signed item on the DHT. Nothing when torrent is not allowed, or it
-    /// shares already. `alive`: the launcher or the game is still there.
+    /// Shares every file of the run's torrent present at its size, the
+    /// bootstrap's kept copies, and the signed item on the DHT. `alive`: the
+    /// launcher or the game is still there.
     pub fn share(&mut self, layout: &Layout, alive: &mut dyn FnMut() -> bool) {
         if self.sharing() || !self.allowed() {
             return;
@@ -904,10 +872,8 @@ impl Torrents {
         self.put_due();
     }
 
-    /// The bootstrap torrent (`Skhid-get.bat`'s three files at one
-    /// version) and its files' kept copies to share: each made from the file
-    /// in its place while that is the bootstrap's, since the updater replaces
-    /// itself at every release.
+    /// Copies of `Skhid-get.bat`'s files are kept, made while the installed
+    /// file still matches, because the updater replaces itself every release.
     fn bootstrap(&mut self, layout: &Layout, alive: &mut dyn FnMut() -> bool) -> Option<Bootstrap> {
         let (bytes, torrent) = installed_bootstrap(layout)?;
         let kept = format!("{}\\{KEPT}", layout.exe_dir);
@@ -937,7 +903,6 @@ impl Torrents {
         (!ready.is_empty()).then_some(Bootstrap { bytes, torrent, copies: ready })
     }
 
-    /// What the sharing is now.
     fn sharing_now(&mut self) -> Sharing {
         let rate = self.rate;
         let mut sent = self.sent;
@@ -956,13 +921,12 @@ impl Torrents {
         Sharing { sent, rate, peers }
     }
 
-    /// Starts asking the DHT for an item newer than `floor`.
     fn start_discovery(&mut self, floor: u64) {
         self.stop();
         self.set_job(Job::Discovering(Discovery::Asking { floor, asked: 0, best: None }));
     }
 
-    /// The discovery's next step at a look; `true` while it goes on.
+    /// `true` while it goes on; `until`: the current step's deadline.
     fn discovering(&mut self, until: &mut u64) -> bool {
         let Some(key) = crate::signed::key() else { return false };
         let nowhere = format!("{}\\{NOWHERE}", self.dir);
@@ -1005,7 +969,6 @@ impl Torrents {
         }
     }
 
-    /// The torrent the discovery made, when it did.
     fn discovered(&mut self) -> Option<(u64, Vec<u8>)> {
         let engine = self.engine()?;
         let Job::Discovering(Discovery::Found { revision, bytes }) = &mut engine.job else { return None };
@@ -1013,9 +976,8 @@ impl Torrents {
     }
 }
 
-/// The files of `added` it found whole, every piece, as Windows says they
-/// still are: the record's (shared ones; a fetched part is checked
-/// against its pin, then renamed: it is checked again where it is).
+/// Records the shared files found whole and unchanged. Fetched parts are not
+/// recorded: checked against their pin and renamed, they are checked again.
 fn record_checked(added: &Added, done: &[u64], dir: &str, known: &[[u8; 32]]) {
     if added.files.iter().all(|file| file.role == Role::Fetch) {
         let pieces = |size: u64| size.div_ceil(u64::from(added.piece_length));
@@ -1058,40 +1020,34 @@ fn read_record(dir: &str) -> Record {
         .unwrap_or_default()
 }
 
-/// What the sharing is at a look ([`share_while`]).
 #[derive(Debug, Clone, Copy)]
 pub struct Sharing {
     /// Bytes sent in the run, by every torrent.
     pub sent: u64,
-    /// What the run's cap lets go, bytes a second.
+    /// The run's upload cap, bytes a second.
     pub rate: u64,
-    /// Peers connected.
     pub peers: usize,
 }
 
 /// Why [`share_while`] shared nothing.
 #[derive(Debug)]
 pub enum NotShared {
-    /// The port is another program's (another updater that shares).
+    /// Likely another updater that shares.
     PortBusy,
-    /// No torrent this updater takes, no bootstrap, or no engine: nothing
-    /// to share.
+    /// No trusted torrent, no bootstrap, or no engine.
     Nothing,
 }
 
-/// How long a port another program holds is tried again: an updater that
-/// shared on it may be closing.
+/// A taken port is tried again this long: the updater sharing on it may be
+/// closing.
 const PORT_WAIT_MS: u64 = 10_000;
-/// How often the sharing is looked at again: the session's job started
-/// again should it have stopped.
+/// Sharing is started again this often, should it have stopped.
 const RESHARE_MS: u64 = 10_000;
 
-/// The game's sharing (`crate::seed`) in one call: [`Torrents::share`] on
-/// `port` until `go_on` says stop (asked ten times a second). Nothing is
-/// fetched or installed.
+/// For `crate::seed`: shares on `port` until `go_on` says stop (asked ten
+/// times a second); fetches and installs nothing.
 pub fn share_while(layout: &Layout, port: Option<u16>, go_on: &mut dyn FnMut(&Sharing) -> bool) -> Result<(), NotShared> {
-    // The port the launcher's updater shares on too, when one is kept: the
-    // same, waited for, never a second one beside it.
+    // The launcher's updater's kept port, waited for: never a second one.
     let port = port.or_else(|| kept_port_number(&format!("{}\\{PORT_FILE}", layout.exe_dir)));
     let until = win::ticks() + PORT_WAIT_MS;
     let mut torrents = loop {
@@ -1141,12 +1097,12 @@ pub fn share_while(layout: &Layout, port: Option<u16>, go_on: &mut dyn FnMut(&Sh
     Ok(())
 }
 
-/// The torrent beside the updater, a file of the players' ZIP.
+/// From the players' ZIP, beside the updater.
 const FILE: &str = "skhid.torrent";
-/// The newest one the DHT named ([`discover`]), beside it.
+/// The newest one the DHT named ([`discover`]).
 const FOUND: &str = "updater_skhid.found.torrent";
 
-/// One torrent beside the updater, when it is the release's.
+/// `name` beside the updater, when the release signed it.
 fn signed(layout: &Layout, name: &str) -> Result<Signed, String> {
     let path = format!("{}\\{name}", layout.exe_dir);
     let bytes = win::read_file(&path, MAX_TORRENT).map_err(|code| {
@@ -1164,9 +1120,8 @@ fn signed(layout: &Layout, name: &str) -> Result<Signed, String> {
     Ok(Signed { torrent, revision, bytes })
 }
 
-/// The run's torrent, the one place that decides it: the highest revision of
-/// the ZIP's and the one the DHT named, each trusted by its signature alone
-/// (`crate::signed`), whoever handed it over.
+/// The run's torrent: the higher revision of the ZIP's and the DHT's, each
+/// trusted by its signature alone, whoever handed it over.
 fn trusted(layout: &Layout) -> Result<Signed, String> {
     let zip = signed(layout, FILE);
     let found = signed(layout, FOUND);
@@ -1177,39 +1132,35 @@ fn trusted(layout: &Layout) -> Result<Signed, String> {
     }
 }
 
-/// [`Torrents::offered`], of the session's.
 pub fn offered(session: &mut Session, layout: &Layout) -> Option<Arc<Signed>> {
     session.torrents.offered(layout)
 }
 
-/// Whether a download by HTTPS of `path` (a path of the torrent) leaves
-/// the rest to the torrent: the launcher turned torrent on since `since`
-/// (the download's start), the run goes on, and the run's torrent has the
-/// file. What HTTPS got stays: the torrent checks its pieces first.
+/// Whether an HTTPS download of `path`, started at `since`, hands over to
+/// torrent: it was turned on since and the run's torrent has the file. The
+/// bytes HTTPS got stay; torrent checks them first.
 pub fn takes_over(session: &mut Session, layout: &Layout, since: Turn, path: &str) -> bool {
     !session.stopped
         && session.torrents.turn() != since
         && offered(session, layout).is_some_and(|offered| file_index(&offered.torrent, path).is_some())
 }
 
-/// How a download by torrent ended.
 pub enum Fetched {
     /// Every file is in its part, every piece checked.
     Done,
-    /// Not (no peer, it stalled, torrent turned off, a file): the reason.
+    /// No peer, a stall, torrent turned off, a file error: why.
     Not(String),
     Stopped,
 }
 
-/// Fetches `files` (the torrent's file, its part) by torrent: the launcher
-/// shows "checking" (pieces in the parts already) and "downloading" with
-/// its bar. Left for HTTPS when no peer comes or the pieces stop coming.
+/// `files`: (file index, part). Gives up, for HTTPS, when no peer comes or
+/// pieces stop coming.
 pub fn fetch(session: &mut Session, signed: &Signed, files: &[(usize, String)]) -> Fetched {
     if let Err(why) = session.torrents.start_fetch(signed, files) {
         return Fetched::Not(why);
     }
     let mut shown = None;
-    // Since the check: when, and when the bytes last grew.
+    // From the check's end: (started, last progress, bytes then).
     let mut running: Option<(u64, u64, u64)> = None;
     let outcome = loop {
         if !session.pump() {
@@ -1255,13 +1206,26 @@ pub fn fetch(session: &mut Session, signed: &Signed, files: &[(usize, String)]) 
         win::sleep(100);
     };
     session.torrents.stop();
-    outcome
+    match outcome {
+        Fetched::Done => checked_again(session, signed, files),
+        outcome => outcome,
+    }
 }
 
-/// Whether each of `files` (the torrent's file, where it is) is that file
-/// of the torrent, every piece (libtorrent checks them; a file the record
-/// says was checked as it is now is not read again). `None`: not checked
-/// (torrent off or stopped).
+/// A finished fetch's parts hashed again against the torrent before anything
+/// installs them: the Skhid files and the list's patches have no other pin.
+fn checked_again(session: &mut Session, signed: &Signed, files: &[(usize, String)]) -> Fetched {
+    match whole(session, signed, files) {
+        Some(whole) if whole.iter().all(|whole| *whole) => Fetched::Done,
+        Some(_) => Fetched::Not("a part is not the torrent's file".into()),
+        None if session.stopped => Fetched::Stopped,
+        None => Fetched::Not("the parts could not be checked again".into()),
+    }
+}
+
+/// Whether each of `files` (index, path) is whole, every piece hashed unless
+/// the record says it was checked as it is now. `None`: torrent off or
+/// stopped.
 pub fn whole(session: &mut Session, signed: &Signed, files: &[(usize, String)]) -> Option<Vec<bool>> {
     if files.is_empty() {
         return Some(Vec::new());
@@ -1282,11 +1246,11 @@ pub fn whole(session: &mut Session, signed: &Signed, files: &[(usize, String)]) 
     }
 }
 
-/// The bootstrap torrent, a file of the ZIP beside the updater.
+/// From the ZIP, beside the updater.
 const BOOTSTRAP: &str = "skhid-bootstrap.torrent";
 
-/// The bootstrap torrent as the checked ZIP installed it (it is not signed:
-/// the script that fetches its files pins them).
+/// Unsigned, so taken only as the checked ZIP installed it; the script that
+/// fetches its files pins them.
 fn installed_bootstrap(layout: &Layout) -> Option<(Vec<u8>, Torrent)> {
     let name = format!("game/binaries/x86/{BOOTSTRAP}");
     let installed = crate::read_installed(layout)?;
@@ -1306,15 +1270,12 @@ fn keep_copy(live: &str, copy: &str, kept: &str) -> Result<(), String> {
     win::rename(&staged, copy, true).map_err(win::error_text)
 }
 
-/// Where the bootstrap's files are kept, beside the updater.
+/// Beside the updater: the bootstrap's kept files.
 const KEPT: &str = "updater_skhid.bootstrap";
 
-/// Looks for a newer signed torrent than this updater has, on the DHT (the
-/// release's item, `updater_logic::newest`) and then its swarm: when the
-/// update server cannot be reached (a blocked network, our servers down, a
-/// bare folder). The torrent made again from the item and the swarm's info
-/// is kept beside the updater ([`FOUND`]) and is the run's torrent from
-/// then (once [`trusted`] takes it, by its signature).
+/// For when the update server cannot be reached: a newer signed torrent
+/// from the DHT item (`updater_logic::newest`) and its swarm, kept as
+/// [`FOUND`] for [`trusted`].
 pub fn discover(session: &mut Session, layout: &Layout) {
     if !session.torrents.allowed() || crate::signed::key().is_none() {
         return;
@@ -1337,7 +1298,6 @@ pub fn discover(session: &mut Session, layout: &Layout) {
     session.torrents.forget();
 }
 
-/// A newer torrent the DHT named, kept beside the updater ([`FOUND`]).
 fn keep(layout: &Layout, revision: u64, bytes: &[u8]) {
     let path = format!("{}\\{FOUND}", layout.exe_dir);
     if win::read_file(&path, MAX_TORRENT).is_ok_and(|kept| kept == bytes) {
@@ -1350,7 +1310,6 @@ fn keep(layout: &Layout, revision: u64, bytes: &[u8]) {
     }
 }
 
-/// A file of the torrent by its path.
 pub fn file_index(torrent: &Torrent, path: &str) -> Option<usize> {
     torrent.files.iter().position(|file| file.path == path)
 }
@@ -1378,9 +1337,8 @@ pub fn skhid_part(layout: &Layout, path: &str) -> String {
     format!("{}.skhid-torrent", layout.place(path))
 }
 
-/// What a download of the Skhid files by torrent left (the server could
-/// not be asked then): removed once the server answers, whose archive is
-/// installed from then on.
+/// Once the server answers, its archive is installed: the Skhid files
+/// fetched by torrent while it could not be reached go.
 pub fn remove_skhid_parts(layout: &Layout) {
     let Ok(signed) = trusted(layout) else { return };
     for index in skhid_files(&signed.torrent) {

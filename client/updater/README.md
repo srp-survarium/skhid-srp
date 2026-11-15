@@ -116,7 +116,7 @@ file; a text written in advance says "the newest
 | `"<exe>" "copy" "<pipe>" ...` | the unpatched launcher | Answers "copy done" at once: nothing needs copying |
 | `updater_skhid.exe check` | a person, a script | The update without a launcher, every patch file hashed whole whatever the quick check's record says: the repair, when a patch file may be damaged in a way the quick check does not see (bytes changed in place with the size and the time kept, as no program does by chance). When the ZIP replaces the updater itself, the new one is run at once (`check`, `quiet` as given) to restore resources.db and do the patch step, and its exit code is this one's. An error is a message box |
 | `updater_skhid.exe check quiet` | a script | No box either. Exit code 0: done or nothing to do; 1: failed (the reason is in the log) |
-| `updater_skhid.exe check ... torrent` / `direct` | `Skhid-get.bat` (`check torrent`), the tests (`direct`) | `check` takes torrent as the word says, else as the launcher keeps its "Allow torrent": user.cfg's `enable_torrent_seeding on` (`<Documents>\survarium\user.cfg`, as the language), taken only once the launcher's one-time reset is done (`launcher_skhid.torrent_reset` beside it, launcher patch 15); else off |
+| `updater_skhid.exe check ... torrent` / `direct` | `Skhid-get.bat` (`check torrent`), the tests (`direct`) | `check` takes torrent as the word says, else as the launcher keeps its "Allow torrent": user.cfg's `enable_torrent_seeding on` (`<Documents>\survarium\user.cfg`, as the language), taken only once the launcher's one-time reset is done (`launcher_skhid.torrent_reset` beside user.cfg, launcher patch 15); else off |
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
@@ -435,7 +435,10 @@ run finds it ("checking", state 08), so a game download goes on at the next
 start; a part longer than its file is cut to its size, and a finished one is
 installed only at the torrent's size. No peer within 20 s, no piece for
 60 s, torrent turned off, the signature or the pin wrong: the HTTPS download
-as without torrent. PLAY never waits on a peer.
+as without torrent. PLAY never waits on a peer. Progress, the stall rule and
+the end count only pieces that passed their hash (a peer can send blocks
+that fail it), and a finished fetch is hashed again against the torrent
+before anything installs it.
 
 **What it shares**: every file of the torrent the folder has at the
 torrent's size, however it came (by torrent, by HTTPS, from the ZIP), from
@@ -471,7 +474,9 @@ updater, a file of the ZIP, taken as the ZIP installed it (its SHA-256 in
 piece checked by libtorrent), each is copied into `updater_skhid.bootstrap\`,
 and shared from there while the updater shares, after it has replaced
 itself too; a copy is shared only while every piece of it checks (else it
-is copied again).
+is copied again). The release's ZIP brings there the pinned files that are
+not the live ones (the updater changes at every release); the overlay's
+restart rule counts only the programs in `game/binaries/x86/` itself.
 
 **Without our site** (a bare bootstrap folder, a blocked network after a
 release): when the update server cannot be asked, the DHT is asked
@@ -950,7 +955,7 @@ python tests/test_unreadable.py              # Windows or Wine (a Skhid file tha
 SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) \
     SKHID_TEST_TRACKERS="$(python tests/test_torrent.py --trackers)" \
     SKHID_TEST_DHT=$(python tests/test_torrent.py --dht) ./build.sh   # the tests' key, trackers and DHT
-SKHID_DHT_TOOL=$(nix build --no-link --print-out-paths ../../srp-026g#skhid-dht)/bin/skhid-dht \
+SKHID_DHT_TOOL=$(nix build --out-link exe/target/skhid-dht --print-out-paths ../../srp-026g#skhid-dht)/bin/skhid-dht \
     python tests/test_torrent.py             # Windows or Wine; Python with libtorrent and cryptography
 python tests/test_seed.py                    # the same build and Python: the game's sharing (`seed`)
 SKHID_TEST_BUNDLE=<a players' zip> python tests/test_updater.py
@@ -1135,7 +1140,7 @@ Run on 2026-11-15 (Linux, Wine 11.8, headless), with libtorrent in
 built with the tests' key, trackers and DHT; Python's libtorrent 2.0.12 as
 the other peers, `skhid-dht` for the release's item): a patch by torrent and
 the folder then shared, a second start sharing without hashing again, no
-peer then HTTPS, a lying peer banned, a newer release from the DHT, an item
+peer then HTTPS, a peer lying about one piece banned (that piece never counted, HTTPS after), a newer release from the DHT, an item
 of another key or an older revision refused, the updater putting the item, the
 bootstrap shared from kept copies, a bare folder installed from the DHT
 without the site, `1A` on and off, the HTTPS download taken over, the kept

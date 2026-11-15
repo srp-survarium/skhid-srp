@@ -74,12 +74,12 @@ class SeedTest(wine.WineTest):
 
     def allow(self, on, reset=True):
         """The launcher's "Allow torrent": its line in user.cfg, and its
-        one-time reset done (`launcher_skhid.torrent_reset` beside it)."""
+        one-time reset done (`launcher_skhid.torrent_reset` beside user.cfg)."""
         with open(user_cfg(), "w", newline="\r\n") as file:
             file.write(f"localization en\nenable_torrent_seeding {'on' if on else 'off'}\n")
-        marker = self.path(f"{X86}/launcher_skhid.torrent_reset")
+        marker = os.path.join(os.path.dirname(user_cfg()), "launcher_skhid.torrent_reset")
         if reset:
-            self.write(f"{X86}/launcher_skhid.torrent_reset", b"")
+            open(marker, "wb").close()
         elif os.path.exists(marker):
             os.remove(marker)
 

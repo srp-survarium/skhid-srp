@@ -1,14 +1,6 @@
-//! `updater_skhid.exe seed <pipe>`: the game's sharing
-//! (`srp-026g/docs/notes/torrent-downloads.md`, "Sharing from the game").
-//! The patched game, while its `enable_torrent_seeding` ("Allow torrent",
-//! user.cfg) is on, starts it on its login screen and in its lobby and closes the pipe when
-//! a match starts or the game ends; this shares the folder's torrent while
-//! the pipe is open (`torrent::share_while`, the one call into the engine),
-//! and answers the game's stats switch with ticks (`updater_logic::seed`).
-//!
-//! No window, no box, no lock, nothing installed or fetched. Its run logs
-//! go in a folder of their own: a seed runs at every lobby, and would push
-//! the launcher's updater's logs out of the kept 100.
+//! `updater_skhid.exe seed <pipe>`: sharing while the game keeps the pipe
+//! open (spec: `srp-026g/docs/notes/torrent-downloads.md`, "Sharing from the
+//! game"). No window, no lock, nothing fetched or installed.
 
 use alloc::format;
 
@@ -19,10 +11,13 @@ use crate::log::log;
 use crate::pipe::Pipe;
 use crate::{exit, log as logging, torrent, win};
 
+/// Its own: a seed runs at every lobby and would push the launcher's
+/// updater's logs out of the kept 100.
 const LOG_FOLDER: &str = "updater_skhid.seed-logs";
+/// How often "Allow torrent" is read again while it shares.
+const RECHECK_MS: u64 = 10_000;
 
-/// Shares until the game closes `pipe`. `pipe`: `None` when the command
-/// line was not the game's.
+/// `pipe`: `None` when the command line was not the game's.
 pub fn run(pipe: Option<GamePipe>) -> u32 {
     let Ok(layout) = Layout::find() else {
         return exit::FAILED;
@@ -42,19 +37,18 @@ pub fn run(pipe: Option<GamePipe>) -> u32 {
             return exit::NO_PIPE;
         }
     };
-    // The launcher's "Allow torrent" too, as the launcher's updater reads it
-    // (`win::launcher_torrent_allowed`): a game started without the launcher,
-    // in a folder the Skhid launcher never reset, has the original game's
-    // default `on` saved, which no player chose. Off: nothing, at once.
+    // A folder the Skhid launcher never reset has the original game's
+    // default `on` saved, which no player chose.
     if !win::launcher_torrent_allowed() {
         log!("seed: \"Allow torrent\" is not on (user.cfg, after the launcher's reset): nothing shared");
         channel.close();
         log!("exit 0");
         return exit::OK;
     }
-    // The port is the one the updaters keep (`torrent::share_while`).
     let mut stats = Stats::Hidden;
     let mut meter = Meter::new(win::ticks(), 0);
+    let mut looked = win::ticks();
+    let mut allowed = true;
     let shared = torrent::share_while(&layout, None, &mut |sharing| {
         let now = win::ticks();
         let mut events: alloc::vec::Vec<Event> = channel
@@ -79,7 +73,15 @@ pub fn run(pipe: Option<GamePipe>) -> u32 {
                 channel.send_bytes(&frame(tick));
             }
         }
-        channel.is_open()
+        // The launcher may untick the box while the game runs.
+        if now.saturating_sub(looked) >= RECHECK_MS {
+            looked = now;
+            allowed = win::launcher_torrent_allowed();
+            if !allowed {
+                log!("seed: \"Allow torrent\" was turned off: stopped");
+            }
+        }
+        allowed && channel.is_open()
     });
     match shared {
         Ok(()) => log!("seed: the game closed the pipe: done"),

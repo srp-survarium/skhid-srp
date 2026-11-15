@@ -1,8 +1,6 @@
-//! `skhid_torrent.dll` (libtorrent-rasterbar 2.0 behind the C API of
-//! `client/updater/torrent-dll/skt.h`): its one owner. Loaded from beside
-//! the updater at run time, once; a DLL that is missing, does not load or
-//! lacks a function means no torrent, HTTPS as without it. Every raw call
-//! is here; what comes back is parsed once into the types below.
+//! `skhid_torrent.dll`: libtorrent-rasterbar 2.0 behind the C API of
+//! `client/updater/torrent-dll/skt.h`, loaded once from beside the updater.
+//! Every raw call is here; a missing or incomplete DLL means HTTPS only.
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -20,7 +18,6 @@ use updater_logic::newest::Item;
 
 use crate::win;
 
-/// Its name, beside the updater.
 pub const DLL: &str = "skhid_torrent.dll";
 
 #[repr(C)]
@@ -64,7 +61,7 @@ struct RawStatus {
 enum RawSession {}
 type S = *mut RawSession;
 
-/// The DLL's functions (skt.h), each by its name.
+/// The DLL's functions (skt.h) by name.
 macro_rules! library {
     ($($field:ident = $name:literal: fn($($arg:ty),*) $(-> $ret:ty)?;)*) => {
         struct Library {
@@ -76,8 +73,7 @@ macro_rules! library {
                 $($field: {
                     let address = unsafe { GetProcAddress(module, concat!($name, "\0").as_ptr()) }
                         .ok_or_else(|| alloc::format!("{DLL} has no {}", $name))?;
-                    // SAFETY: the DLL exports it with skt.h's signature,
-                    // which is the field's.
+                    // SAFETY: the DLL exports it with skt.h's signature, the field's.
                     unsafe {
                         core::mem::transmute::<unsafe extern "system" fn() -> isize, unsafe extern "C" fn($($arg),*) $(-> $ret)?>(address)
                     }
@@ -111,8 +107,7 @@ fn load(dir: &str) -> Result<Library, String> {
         return Err(alloc::format!("no {DLL}"));
     }
     let wide = win::wide(&path);
-    // Its own folder and the system's only: nothing of the current
-    // folder's or the PATH's.
+    // Its own folder and System32 only, never the current folder or PATH.
     let module = unsafe {
         LoadLibraryExW(wide.as_ptr(), core::ptr::null_mut(), LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32)
     };
@@ -133,16 +128,15 @@ fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(&bytes[..end]).into_owned()
 }
 
-/// A text for the DLL (none of ours has a zero byte).
+/// Zero bytes are dropped (none of ours has one).
 fn c(text: &str) -> CString {
     CString::new(text.replace('\0', "")).expect("no zero byte")
 }
 
-/// A torrent of the session (the id `add` gave).
+/// The id `add` gave.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TorrentId(i32);
 
-/// How a session is made.
 pub struct Config<'a> {
     /// `None`: the system picks one.
     pub port: Option<u16>,
@@ -158,15 +152,15 @@ pub struct Config<'a> {
 pub enum Role {
     /// Fetched into its path; what is there checked first.
     Fetch,
-    /// Shared from its path, never written. `trusted`: checked before and
-    /// not changed since (`updater_logic::shared`): not hashed again.
+    /// Never written. `trusted`: checked before and unchanged since
+    /// (`updater_logic::shared`), so not hashed again.
     Share { trusted: bool },
 }
 
 pub struct FileSpec<'a> {
     /// Its path in the torrent.
     pub name: &'a str,
-    /// Where it is.
+    /// On disk.
     pub path: &'a str,
     pub role: Role,
 }
@@ -187,10 +181,8 @@ pub enum Event {
 
 #[derive(Debug, Clone, Default)]
 pub struct Status {
-    /// Its files being checked: how much of them, in millionths.
+    /// While its files are checked: progress in millionths.
     pub checking: Option<u32>,
-    pub wanted: u64,
-    pub wanted_done: u64,
     pub peers: u32,
     pub uploaded: u64,
     pub error: Option<String>,
@@ -203,7 +195,7 @@ pub struct Session {
 }
 
 impl Session {
-    /// A session, when the DLL beside the updater (`dir`) loads.
+    /// `dir`: the DLL's folder.
     pub fn new(dir: &str, config: &Config) -> Result<Self, String> {
         let library = library(dir)?;
         let bootstrap = c(config.dht_bootstrap);
@@ -247,9 +239,8 @@ impl Session {
         unsafe { (self.library.ban)(self.s(), ip.as_ptr()) };
     }
 
-    /// A torrent (its bytes) with `files`, the others neither fetched nor
-    /// shared; `nowhere`: a folder where nothing of it is; `trackers`: the
-    /// only ones asked.
+    /// Only `files` are fetched or shared, the others placed in the empty
+    /// `nowhere`; `trackers`: the only ones asked.
     pub fn add(&mut self, torrent: &[u8], nowhere: &str, files: &[FileSpec], trackers: &[String]) -> Result<TorrentId, String> {
         let names: Vec<(CString, CString)> = files.iter().map(|file| (c(file.name), c(file.path))).collect();
         let raw: Vec<RawFile> = files
@@ -283,8 +274,7 @@ impl Session {
         if id < 0 { Err(text(&error)) } else { Ok(TorrentId(id)) }
     }
 
-    /// The torrent of v2 info hash `v2`, for its info only (from its peers:
-    /// [`Event::Metadata`], then [`Session::info`]).
+    /// For its info only: [`Event::Metadata`], then [`Session::info`].
     pub fn add_magnet(&mut self, v2: &[u8; 32], nowhere: &str, trackers: &[String]) -> Result<TorrentId, String> {
         let trackers: Vec<CString> = trackers.iter().map(|tracker| c(tracker)).collect();
         let tracker_pointers: Vec<*const c_char> = trackers.iter().map(|tracker| tracker.as_ptr()).collect();
@@ -321,8 +311,6 @@ impl Session {
         let error = text(&raw.error);
         Some(Status {
             checking: (raw.checking != 0).then_some(u32::try_from(raw.progress_ppm).unwrap_or(0)),
-            wanted: u64::try_from(raw.wanted).unwrap_or(0),
-            wanted_done: u64::try_from(raw.wanted_done).unwrap_or(0),
             peers: u32::try_from(raw.peers).unwrap_or(0),
             uploaded: u64::try_from(raw.uploaded).unwrap_or(0),
             error: (!error.is_empty()).then_some(error),
@@ -338,7 +326,7 @@ impl Session {
         Some(out.into_iter().map(|done| u64::try_from(done).unwrap_or(0)).collect())
     }
 
-    /// The torrent goes (its files stay).
+    /// Its files stay.
     pub fn remove(&mut self, torrent: TorrentId) {
         unsafe { (self.library.remove)(self.s(), torrent.0) };
     }

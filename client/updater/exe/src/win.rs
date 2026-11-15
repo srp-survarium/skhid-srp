@@ -927,15 +927,12 @@ pub fn run_wait(
     Ok(code)
 }
 
-/// The launcher's "Allow torrent", which it keeps in user.cfg as it keeps
-/// the language (`enable_torrent_seeding on`, `updater_logic::user_cfg`):
-/// off without a user.cfg or without the line, and before the launcher's
-/// one-time reset of the original game's `on` (`launcher_skhid.torrent_reset`
-/// beside it and this program: launcher patch 15), so that a line the player
-/// never chose is never taken.
+/// The launcher's "Allow torrent" in user.cfg (`updater_logic::user_cfg`).
+/// Off until the launcher's one-time reset of the original game's default
+/// `on` (launcher patch 15), so a line the player never chose is never taken.
 pub fn launcher_torrent_allowed() -> bool {
-    let reset = module_path().is_ok_and(|path| {
-        exists(&alloc::format!("{}\\{}", split_path(&path).0, updater_logic::user_cfg::RESET_FILE))
-    });
-    reset && documents().and_then(|documents| user_cfg(&documents)).is_some_and(|text| updater_logic::user_cfg::torrent_allowed(&text))
+    documents().is_some_and(|documents| {
+        let reset = alloc::format!("{documents}\\survarium\\{}", updater_logic::user_cfg::RESET_FILE);
+        exists(&reset) && user_cfg(&documents).is_some_and(|text| updater_logic::user_cfg::torrent_allowed(&text))
+    })
 }

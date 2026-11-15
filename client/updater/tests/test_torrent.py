@@ -346,28 +346,61 @@ def found(torrent):
     return lt.bencode({b"info": entry[b"info"], b"skhid": entry[b"skhid"]})
 
 
-class WrongPeer:
-    """A peer that says it has every piece and sends 0xAA for each block
-    asked: `closed` once the updater ends the connection."""
+def v1_stream(torrent, folder):
+    """The torrent's v1 bytes from `folder` (its files, zeros for its pads)."""
+    files = lt.torrent_info(lt.bdecode(torrent)).files()
+    out = bytearray(files.total_size())
+    for index in range(files.num_files()):
+        if not files.file_flags(index) & lt.file_storage.flag_pad_file:
+            with open(os.path.join(folder, files.file_path(index)), "rb") as file:
+                data = file.read()
+            out[files.file_offset(index):files.file_offset(index) + len(data)] = data
+    return bytes(out)
 
-    def __init__(self, info_hash_v1, pieces):
+
+class WrongPeer:
+    """A peer that says it has every piece and sends `data`'s bytes for each
+    block asked, but 0xAA for the pieces in `wrong` (every piece when there
+    is no `data`); it answers the info hash it is asked for (a hybrid
+    torrent's v1 or v2), on every connection. `closed` once the updater ended
+    one."""
+
+    def __init__(self, info_hash_v1, pieces, data=None, wrong=None):
         self.listener = socket.socket()
         self.listener.bind(("127.0.0.1", 0))
         self.listener.listen()
         self.port = self.listener.getsockname()[1]
         self.closed = False
-        self.info_hash, self.pieces = info_hash_v1, pieces
-        threading.Thread(target=self.serve, daemon=True).start()
+        self.info_hash, self.pieces, self.data = info_hash_v1, pieces, data
+        self.wrong = set(range(pieces)) if wrong is None else wrong
+        threading.Thread(target=self.accept, daemon=True).start()
 
-    def serve(self):
+    def accept(self):
+        while True:
+            try:
+                peer, _ = self.listener.accept()
+            except OSError:
+                return
+            threading.Thread(target=self.serve, args=(peer,), daemon=True).start()
+
+    def block(self, index, begin, size):
+        if index in self.wrong:
+            return b"\xaa" * size
+        return self.data[index * PIECE + begin:index * PIECE + begin + size]
+
+    def serve(self, peer):
         try:
-            peer, _ = self.listener.accept()
-            peer.settimeout(60)
-            peer.recv(68)
+            peer.settimeout(120)
+            hello = b""
+            while len(hello) < 68:
+                part = peer.recv(68 - len(hello))
+                if not part:
+                    raise OSError("closed")
+                hello += part
             bits = bytearray((self.pieces + 7) // 8)
             for piece in range(self.pieces):
                 bits[piece // 8] |= 0x80 >> (piece % 8)
-            peer.sendall(b"\x13BitTorrent protocol" + bytes(8) + self.info_hash + b"-XX0000-wrongwrongwr"
+            peer.sendall(b"\x13BitTorrent protocol" + bytes(8) + hello[28:48] + b"-XX0000-wrongwrongwr"
                          + struct.pack(">IB", 1 + len(bits), 5) + bits + struct.pack(">IB", 1, 1))
             buffer = b""
             while True:
@@ -380,7 +413,7 @@ class WrongPeer:
                     body, buffer = buffer[4:4 + length], buffer[4 + length:]
                     if body[:1] == b"\x06":
                         index, begin, size = struct.unpack(">III", body[1:13])
-                        peer.sendall(struct.pack(">IBII", 9 + size, 7, index, begin) + b"\xaa" * size)
+                        peer.sendall(struct.pack(">IBII", 9 + size, 7, index, begin) + self.block(index, begin, size))
         except OSError:
             pass
         self.closed = True
@@ -568,17 +601,25 @@ class TorrentTest(wine.WineTest):
         wait(lambda: "torrent: sharing 3 of its 3 files" in self.log(), 60, "sharing")
         self.leech_from_updater(torrent, files)
 
-    def test_a_peer_that_sends_wrong_bytes_is_banned(self):
-        patches, torrent, seed_dir, _ = self.release(12)
+    def test_a_peer_that_sends_a_wrong_last_piece_is_banned_and_nothing_wrong_counts(self):
+        # The only peer: right bytes but for the patch's last piece. That
+        # piece fails its hash, the peer is banned, and the download is left
+        # for HTTPS: the blocks it sent never count as done.
+        patches, torrent, seed_dir, _ = self.release(12, size=5 * PIECE)
         info = lt.torrent_info(lt.bdecode(torrent))
-        wrong = WrongPeer(bytes.fromhex(str(info.info_hashes().v1)), info.num_pieces())
-        seed_port, _ = self.seed(torrent, seed_dir)
-        self.tracker.peers = [("127.0.0.1", wrong.port), ("127.0.0.1", seed_port)]
+        files = info.files()
+        patch = next(i for i in range(files.num_files()) if files.file_path(i).endswith("resources.db.patch_12"))
+        last = (files.file_offset(patch) + files.file_size(patch) - 1) // PIECE
+        liar = WrongPeer(bytes.fromhex(str(info.info_hashes().v1)), info.num_pieces(), v1_stream(torrent, seed_dir), {last})
+        self.tracker.peers = [("127.0.0.1", liar.port)]
         self.launch()
-        self.wait_latest()
+        self.wait_latest(300)
         self.assert_patches(patches)
-        wait(lambda: wrong.closed, 30, "the wrong peer dropped")
-        self.assertEqual(self.store_requests(), [])
+        log = self.log()
+        self.assertIn(f"torrent: piece {last} failed its hash", log)
+        self.assertIn("banned for this run", log)
+        self.assertRegex(log, r"patches: by torrent: no (peer in 20|piece for 60) s: from their addresses")
+        self.assertEqual(self.store_requests(), ["/store/patch_12"])
 
     @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
     def test_a_newer_release_comes_from_the_dht_when_the_site_cannot_be_reached(self):
@@ -632,13 +673,14 @@ class TorrentTest(wine.WineTest):
         seq, value, _ = item_of(torrent)
         self.assertEqual(dht.get(120), (seq, value), self.log()[-3000:])
 
-    def bootstrap(self):
-        """The bootstrap torrent (this updater, its DLL and a 7zr.exe,
-        unsigned), its files, and the ZIP's files that bring it."""
+    def bootstrap(self, updater=None):
+        """The bootstrap torrent (a 7zr.exe, this DLL and `updater`, else this
+        updater; unsigned), its files, and the ZIP's files that bring it."""
         seven = b"7z stand-in " * 5000
         with open(harness.TORRENT_DLL, "rb") as file:
             dll = file.read()
-        files = {f"{X86}/7zr.exe": seven, f"{X86}/skhid_torrent.dll": dll, f"{X86}/updater_skhid.exe": self.updater_bytes}
+        files = {f"{X86}/7zr.exe": seven, f"{X86}/skhid_torrent.dll": dll,
+                 f"{X86}/updater_skhid.exe": updater or self.updater_bytes}
         bootstrap = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), files, self.tracker.urls, signed=False)
         return bootstrap, files, {f"{X86}/7zr.exe": seven, f"{X86}/skhid-bootstrap.torrent": bootstrap}
 
@@ -666,6 +708,18 @@ class TorrentTest(wine.WineTest):
         # The file in its place is another now (an update): the kept copy is
         # what is shared.
         self.write(f"{X86}/7zr.exe", b"another 7zr")
+        self.leech_from_updater(bootstrap, bootstrap_files)
+
+    def test_a_bootstrap_of_an_older_updater_is_shared_from_the_copy_in_the_zip(self):
+        # The release after the bootstrap's: the ZIP brings the pinned updater
+        # in the kept copies' folder, beside its own newer one.
+        older = self.updater_bytes + b"\0an older build"
+        bootstrap, bootstrap_files, in_zip = self.bootstrap(updater=older)
+        self.offer(self.bundle(**in_zip, **{f"{X86}/updater_skhid.bootstrap/updater_skhid.exe": older}))
+        self.launch()
+        self.wait_latest()
+        wait(lambda: "torrent: sharing the bootstrap's 3 of 3 files" in self.log(), 60, "sharing the bootstrap")
+        self.assertEqual(self.read(f"{X86}/updater_skhid.exe"), self.updater_bytes)
         self.leech_from_updater(bootstrap, bootstrap_files)
 
     @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")

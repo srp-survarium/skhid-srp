@@ -1,17 +1,13 @@
-//! The game's `<Documents>\survarium\user.cfg`: its saved console commands,
-//! a line each (`<name> <value>`). The launcher keeps two of the player's
-//! choices there, as the game's Settings do: the language (`localization`)
-//! and "Allow torrent" (the game's own `enable_torrent_seeding`), so that
-//! they stay as the player left them, whatever is installed or replaced.
+//! The game's `<Documents>\survarium\user.cfg`: saved console commands,
+//! `<name> <value>` a line. The launcher keeps "Allow torrent" there so it
+//! stays as the player left it, whatever is installed or replaced.
 
-/// The file the launcher makes beside itself once it has reset the original
-/// game's `enable_torrent_seeding on` (its default, saved in every player's
-/// user.cfg) to `off` (launcher patch 15): until then the line is not the
-/// player's choice.
+/// Beside user.cfg (both are the Windows user's), made by the launcher once it
+/// has reset the original default `enable_torrent_seeding on`: until then the
+/// line is not the player's choice.
 pub const RESET_FILE: &str = "launcher_skhid.torrent_reset";
 
-/// The value of a saved command: the first word after the name of its
-/// first line (`name`, a blank, the value), as the launcher reads it.
+/// The first word after `name` on its first line, as the launcher reads it.
 pub fn setting<'a>(text: &'a [u8], name: &[u8]) -> Option<&'a [u8]> {
     let line = text.split(|&byte| byte == b'\n').find_map(|line| {
         let rest = line.strip_prefix(name)?;
@@ -21,9 +17,7 @@ pub fn setting<'a>(text: &'a [u8], name: &[u8]) -> Option<&'a [u8]> {
     line.split(|&byte| byte <= b' ').find(|word| !word.is_empty())
 }
 
-/// The launcher's "Allow torrent": `enable_torrent_seeding on`, as the
-/// launcher writes it (and the game); off without the line or with any
-/// other value.
+/// The launcher's "Allow torrent"; off without the line.
 pub fn torrent_allowed(text: &[u8]) -> bool {
     setting(text, b"enable_torrent_seeding") == Some(b"on")
 }

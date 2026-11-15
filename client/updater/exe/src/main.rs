@@ -16,9 +16,10 @@
 //! it always did.
 //!
 //! It asks its configured server for Skhid updates. Missing original game
-//! files come from a separate HTTPS mirror with compiled-in SHA-256 pins, or, when
-//! the launcher allows torrent, from the revision's torrent too, whose files it then
-//! shares while the launcher is open (`torrent.rs`). No crash upload, no administrator rights. Successful launcher updates
+//! files come from a separate HTTPS mirror with compiled-in SHA-256 pins, and,
+//! when the launcher allows torrent, from the release's torrent, shared while
+//! the launcher is open (`torrent.rs`). No crash upload, no administrator
+//! rights. Successful launcher updates
 //! register Skhid Replay for .sur files in this user's Open With choices.
 #![windows_subsystem = "windows"]
 
@@ -192,7 +193,7 @@ impl Session {
                 self.stopped = true;
             }
         }
-        // What the torrent session said meanwhile: a port asked for, answered.
+        // A port asked for is answered once the session listens on it.
         if let Some(answer) = self.torrents.service()
             && let Some(pipe) = &mut self.pipe
         {
@@ -286,8 +287,7 @@ impl Session {
     /// Tells the launcher this updater is done for good, and closes the
     /// pipe. A launcher that did not ask for it closes itself on that.
     fn leave(&mut self) {
-        // Sharing ends with the launcher: the files and the port closed
-        // before the next updater runs.
+        // Sharing ends with the launcher, before the next updater takes the port.
         self.torrents.close();
         if let Some(mut pipe) = self.pipe.take() {
             pipe.send(ToLauncher::State(state::ABORTED));
@@ -616,8 +616,6 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     );
     let mut manifest = match ask(session, server) {
         Ok(manifest) => {
-            // The server's archive is what is installed from here: what a
-            // download of the Skhid files by torrent left goes.
             torrent::remove_skhid_parts(layout);
             session.seen = Some(gate::Seen {
                 server: server.clone(),
@@ -635,13 +633,10 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
                 min_revision: None,
                 online: false,
             });
-            // A newer release than this folder has, named by the release's
-            // item on the DHT (`torrent::discover`): the run's torrent from
-            // here on.
             torrent::discover(session, layout);
-            // The Skhid files from it, when this folder has none or an older
-            // revision's: no server of ours needed.
             if let Some(done) = torrent_overlay(session, layout, installed.as_ref()) {
+                // Nothing installed (stopped, failed): no game download either.
+                let Done::Installed { restart, .. } = done else { return done };
                 if !game::present(layout) {
                     match game::ensure(session, layout, None) {
                         Ok(_) => {}
@@ -649,14 +644,12 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
                         Err(Some(why)) => return Done::Failed(why),
                     }
                 }
+                if restart {
+                    return done;
+                }
                 // Still without the server: the rest of the run is offline.
-                return match done {
-                    Done::Installed { restart: false, .. } => {
-                        patches::overlay_changed(layout);
-                        Done::Offline(text::offline(&message), message)
-                    }
-                    done => done,
-                };
+                patches::overlay_changed(layout);
+                return Done::Offline(text::offline(&message), message);
             }
             // The original game from the addresses built into this updater
             // (a provider that blocks the server need not block them).
@@ -699,8 +692,8 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     // archive. With that file in place the game comes first, as a player's
     // own copy of it would be there first. Without it (deleted, damaged, the
     // archive only half unpacked) the Skhid files come first, which brings
-    // it, and the game after them. So do they when torrent is allowed:
-    // the revision's torrent is a file of the archive (`torrent.rs`).
+    // it, and the game after them. So do they when torrent is allowed: the
+    // torrent is a file of the archive.
     let game_after = !game::present(layout)
         && (!game::extractor_ready(layout) || session.torrents.allowed());
     let game_added = if game_after {
@@ -791,12 +784,8 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     }
 }
 
-/// Puts the files of an archive (`archive`: its SHA-256, or a torrent's
-/// info hash) in place, whatever brought them: the launcher's "installing"
-/// line, a file Windows Security does not let be written or that is gone
-/// the moment it was put in place (an antivirus) a stop, the files the
-/// archive before (`installed`) had and this one has not removed, then
-/// `updater_skhid.state`. `repair`: that archive is installed already.
+/// Installs an archive's files, whatever brought them. `archive`: its
+/// SHA-256 or a torrent's v2 info hash; `repair`: it is installed already.
 fn put_in_place(
     session: &mut Session,
     layout: &Layout,
@@ -895,15 +884,10 @@ fn put_in_place(
     Ok(outcome)
 }
 
-/// When the update server cannot be asked: the Skhid files (every file of
-/// the revision's signed torrent but the original game's and the patches)
-/// from the torrent, when this folder has none installed, or an older
-/// revision's than it (a bare bootstrap folder, a blocked network after a
-/// release). Each file is checked piece by piece against the torrent (one
-/// already whole stays); then they are installed as an archive's are, all
-/// or none, and the torrent's info hash is the installed archive: once the
-/// server answers again, its archive is installed over them. `None`: not by
-/// torrent (none, not newer, no peer): as without it.
+/// When the server cannot be asked: the Skhid files from the signed
+/// torrent, if this folder has none or an older revision's. Installed as an
+/// archive whose id is the torrent's info hash, so the server's archive goes
+/// over them once it answers. `None`: not by torrent.
 fn torrent_overlay(session: &mut Session, layout: &Layout, installed: Option<&Installed>) -> Option<Done> {
     let signed = torrent::offered(session, layout)?;
     let torrent = &signed.torrent;
@@ -957,8 +941,7 @@ fn torrent_overlay(session: &mut Session, layout: &Layout, installed: Option<&In
             Ok(data) => data,
             Err(code) => return Some(Done::Failed(format!("Cannot read {from}: {}.", win::error_text(code)))),
         };
-        // Every piece of it was checked: it is the file at the torrent's
-        // size, not a byte more.
+        // Every piece was checked; only extra bytes could be wrong.
         if data.len() as u64 != file.size {
             return Some(Done::Failed(format!(
                 "{from} has {} bytes, not the {} of the torrent's {}.",
@@ -1065,9 +1048,8 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
             } else {
                 patches::Look::Quick
             },
-            // `check`: the word given (`torrent`, `direct`), else the
-            // launcher's "Allow torrent" (user.cfg; off when it has none);
-            // no port: the one kept beside the updater. `ready` reads only.
+            // `torrent`/`direct` as `finish_by_new` passes it, else the
+            // launcher's setting; the kept port. `ready` only reads.
             torrenting: if action == "check" {
                 let said = rest.iter().find_map(|argument| {
                     ["torrent", "direct"]
@@ -1107,8 +1089,7 @@ fn run() -> u32 {
     // "Watch replay": started by the patched game with a replay link
     // (`replay.rs`). Exactly this word, as the game's patch sends it.
     let arguments = arguments();
-    // The game's sharing (`seed.rs`): started by the patched game on its
-    // login screen and in its lobby. No box, no lock, its own log.
+    // Started by the patched game on its login screen and in its lobby.
     if let Some(pipe) = updater_logic::seed::command(&arguments) {
         return seed::run(pipe);
     }
