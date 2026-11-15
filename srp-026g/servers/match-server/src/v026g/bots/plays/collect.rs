@@ -461,7 +461,13 @@ fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3, crossing: bool) -> Vec<(TakeStand,
                 } else {
                     // [A395a] A stand where the client hurts no body: on the margin's band too, reached by its shortest
                     // walk in (`Tactics::band_way`).
-                    cx.tactics.stand_allowed(node, cx.now, cx.bot.side, false)
+                    let allowed = cx.tactics.stand_allowed(node, cx.now, cx.bot.side, false);
+                    // The log's line where the client's capsule decides a stand the margin alone would refuse.
+                    if cx.tactics.hazards.in_band(node) {
+                        let line = crate::v026g::bots::nav_log::band_stand_line(feet, allowed);
+                        cx.lines.push(crate::v026g::bots::nav_log::Kind::Zone, Some(u64::from(node)), line);
+                    }
+                    allowed
                 }
             {
                 continue;

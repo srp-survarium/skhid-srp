@@ -525,6 +525,13 @@ impl Lines {
     }
 }
 
+/// [A395a] The line for a battery's stand on the margin's band, which the margin alone refuses: whether the client's
+/// capsule rule (`Hazards::stand_allowed` with `hazard.capsule_goals`) lets a body stand there now.
+pub fn band_stand_line(feet: Vec3, allowed: bool) -> String {
+    let verdict = if allowed { "allowed: the capsule touches no zone on there" } else { "refused" };
+    format!("{PREFIX}stand on the margin's band at {}: {verdict}", at(feet))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

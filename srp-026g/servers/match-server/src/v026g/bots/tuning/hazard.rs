@@ -25,11 +25,13 @@ pub struct HazardTuning {
     /// (or the first from a start on it), by the shortest walk (`Tactics::band_way`): a safety margin for our motor,
     /// not a client rule (`hazards::Marking::Capsule`: routes over the band carried bodies onto hurt floors 196 times
     /// against 11 on the A395a bench, 2026-11-14), to lift after A388. Off: the whole margin is refused, as it was.
-    /// Off by default: on the A395a option (a) bench (2026-11-14, 37 of 64 matches) bodies spent 289 seconds on hurt
-    /// floors against 101 off, 9 of the 15 spells traced on Vector Laboratory starting within 3 s of leaving the band:
-    /// at the pit rim's gap jumps the grid held the body in the jump, and at the drop onto the battery floor it landed
-    /// 2.7-3.0 m off that floor, both into the pit. Those are faults of our motor and grid builder (A388 the model and
-    /// the edge, A389 drops from where the body leaves), not of the zone rule; to bench again after them.
+    /// ON and KEPT_RIGHT (a correctness fix: the client's own contact rule). It was off after the A395a option (a) bench
+    /// (2026-11-14, 37 of 64 matches: bodies spent 289 seconds on hurt floors against 101 off, 9 of the 15 spells traced
+    /// on Vector Laboratory starting within 3 s of leaving the band). Those were faults of our motor and grid builder, not
+    /// of the zone rule, now fixed: at the pit rim's gap jumps the grid held the body in the jump (A389, #1882: gap and
+    /// drop links by the client's own jump and walk, floors only where a body is held), and at the drop onto the battery
+    /// floor the body landed 2.7-3.0 m off that floor (A388, #1878 and #1892: the reckoned body walks the game's shapes,
+    /// leaves a ledge where the client's controller does, and the lip guard's stop forecast plays the kept controller).
     pub capsule_goals: bool,
     /// [A395a] The other half of the client's rule (`hazards::CapsuleUse::Exits`): the walk out of a zone
     /// (`Tactics::zone_exit`) starts only on the floors the capsule touches ([`Self::capsule_goals`] says which); from
@@ -200,7 +202,7 @@ impl Default for HazardTuning {
         Self {
             margin_m: Metres::of(1.0),
             capsule_exits: true,
-            capsule_goals: false,
+            capsule_goals: true,
             escape: EscapeRule::UnderStartZone,
             artefact_know: true,
             live_zones: true,
