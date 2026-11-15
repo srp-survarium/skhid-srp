@@ -376,12 +376,66 @@ pub(super) fn drive_tick(
     // (exactness L30, PROVEN: 0x2FBDF0 / 0x2FBE50; 16 of 16 pairs of worlds moved): a move is asked with the crouch key.
     if bot.hurt.leg_damage.at(time) == super::legs::LegGate::Stand && decision.keys & (key::FORWARD | key::BACK | key::LEFT | key::RIGHT) != 0 {
         decision.keys |= key::CROUCH;
+        decision = steady_creep(bot, decision, time);
     }
     decision.keys = bot.hurt.leg_damage.at(time).keys(decision.keys);
     creep_watch(bot, me, decision.keys, time);
     bot.sent_keys = decision.keys;
     crouch_climb_watch(bot, me, decision.keys, time);
     decision
+}
+
+/// [F42] A creep's keys and turn with the key word held steady ([`super::body::Creep`]): the client's crouch selector flips run <->
+/// on site at each change of the key word, and stays with steady keys, so a creep that changes its keys as it steers stops every
+/// other change. The move keys' way is taken by the turn instead (left of facing is a quarter turn to the positive side,
+/// `kin::to_world`; a tick's turn comes before its keys move the body): FORWARD and the crouch, turned by the keys' angle. In the
+/// on-site state with the steady word already sent, one tick lets the move go (the crouch alone: an event that keeps on site), so
+/// the next tick's steady word is the event that flips to the run. Not with the sights or the trigger (the look is the fight's),
+/// nor a turn over the encoder's [`super::encode::MAX_TURN`].
+fn steady_creep(bot: &mut Bot, decision: Decision, time: u32) -> Decision {
+    if decision.keys & (key::AIM | key::FIRE) != 0 {
+        return decision;
+    }
+    let held = |bit| f32::from(u8::from(decision.keys & bit != 0));
+    let (ahead, left) = (held(key::FORWARD) - held(key::BACK), held(key::LEFT) - held(key::RIGHT));
+    if ahead == 0.0 && left == 0.0 {
+        return decision;
+    }
+    let turn = decision.turn.0 + left.atan2(ahead);
+    if turn.abs() > super::encode::MAX_TURN {
+        return decision;
+    }
+    let steady = (decision.keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT)) | key::CROUCH | key::FORWARD;
+    // The word the client gets is the steady one less what the legs refuse (`bot.sent_keys` is after the gate).
+    let parked = bot.reckoned_creep == super::body::Creep::OnSite && bot.sent_keys == bot.hurt.leg_damage.at(time).keys(steady);
+    let keys = if parked { steady & !key::FORWARD } else { steady };
+    steady_creeps::count(parked);
+    if parked {
+        let line = super::nav_log::creep_unpark_line(time);
+        bot.nav_log.push(super::nav_log::Kind::Creep, time, line);
+    }
+    Decision { keys, turn: (turn, decision.turn.1) }
+}
+
+/// [F42] The bots' steady creep ticks and the ticks that let the move go to leave the on-site state, on this server (the match-end
+/// line). Decides nothing.
+pub(crate) mod steady_creeps {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static TICKS: AtomicU64 = AtomicU64::new(0);
+    static UNPARKS: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn count(unpark: bool) {
+        TICKS.fetch_add(1, Relaxed);
+        if unpark {
+            UNPARKS.fetch_add(1, Relaxed);
+        }
+    }
+
+    /// (ticks, unparks) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64) {
+        (TICKS.swap(0, Relaxed), UNPARKS.swap(0, Relaxed))
+    }
 }
 
 /// [F42] The log lines of a creep ([`super::nav_log::creep_begun_line`], [`super::nav_log::creep_ended_line`]): begun on the

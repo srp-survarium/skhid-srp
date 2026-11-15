@@ -437,6 +437,11 @@ pub fn creep_begun_line(feet: Vec3) -> String {
     )
 }
 
+/// [F42] A steady creep reckoned in the crouch on-site state: one tick lets the move go so the next is the event to the run.
+pub fn creep_unpark_line(time: u32) -> String {
+    format!("{PREFIX}creep on site at {time} ms: the move let go one tick, the steady keys next flip it to the crouch run")
+}
+
 /// [F42] A creep ended: `nav: creep ended: from (..) to (..), D m flat in T ms (S m/s)`.
 pub fn creep_ended_line(from: Vec3, feet: Vec3, ms: u32) -> String {
     let d = from.distance_xz(feet);

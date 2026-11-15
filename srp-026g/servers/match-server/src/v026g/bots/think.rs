@@ -193,6 +193,7 @@ impl Bots {
                         bot.pace.learn_spots(&self.teams[usize::from(team)].knowledge, time, tuning.pace.ring_death_spots);
                         #[cfg(test)]
                         path::take_last_no_route();
+                        bot.reckoned_creep = at.creep;
                         let decision = drive_tick(bot, &me, view, tactics, &tuning, time, searching);
                         #[cfg(test)]
                         if let Some(life) = bot.bench_life.as_mut() {

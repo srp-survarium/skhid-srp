@@ -458,6 +458,9 @@ pub struct Bot {
     /// [F42] A creep under way (both legs broken, the crouch key with move keys): where and when it began
     /// ([`drive::creep_watch`]).
     creep: Option<(Vec3, u32)>,
+    /// [F42] Its own reckoned body's crouch selector state at its last decided tick ([`body::Creep`]), for the steady creep
+    /// ([`drive::steady_creep`]); set before each drive.
+    reckoned_creep: body::Creep,
     /// Its falls and route jumps for the log (A285, `nav_log.rs`): written, never read back.
     nav_log: nav_log::NavLog,
     /// [A391] Its last offer of each job role since it was given ([`threat::LastOffers`]): the class of a role let go.
@@ -675,6 +678,7 @@ impl Bot {
             jump_watch: None,
             crouch_climb: None,
             creep: None,
+            reckoned_creep: body::Creep::Unknown,
             nav_log: nav_log::NavLog::default(),
             offers: threat::LastOffers::default(),
             drift: nav_drift::Tally::default(),
@@ -2414,6 +2418,11 @@ impl Bots {
             nav_log::PREFIX
         ));
         // [F42] The reckoned steps of bodies with both legs broken by their crouch selector state.
+        let (steady, unparks) = drive::steady_creeps::take();
+        lines.push(format!(
+            "{}steady creep ticks since the last match end (every match on this server): {steady}, of them {unparks} letting the move go to leave on site",
+            nav_log::PREFIX
+        ));
         let (on_site, run, unknown, worlds, stagger) = body::creep_steps::take();
         lines.push(format!(
             "{}both-legs-broken steps reckoned since the last match end (every match on this server): {on_site} on site, {run} crouch run, {unknown} state not known; {worlds} worlds said the state; {stagger} stagger events seen (any body)",
