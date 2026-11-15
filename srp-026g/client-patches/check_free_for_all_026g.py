@@ -84,6 +84,7 @@ PVP, CORE = DATA + 0x70000, DATA + 0x701F8
 TIME_RULE, KD_RULE, RULE_LIST, EVENT = DATA + 0xB000, DATA + 0xA000, DATA + 0xB800, DATA + 0xB900
 CLIENT, CLIENT_TABLE, STALE_OPTIONS = 0x33000000, DATA + 0x9000, 0x35000000
 PLACES = blackout.PLACE_COUNT                  # empty_options' places
+POINTS = DATA + 0x50000                        # the team-2 group: room for 128 points, 38h each
 
 
 def player(i):
@@ -187,7 +188,8 @@ class Run(blackout.Run):
         """points: (position, enemy radius) of the team-2 group (ally radius
         1); due, living: player indices. The chosen points' indices."""
         self.emu.mem_write(RULE, bytes(0x1000))
-        first = RULE + 0x200
+        first = POINTS
+        self.emu.mem_write(first, bytes(128 * POINT_SIZE))
         for k, (position, radius) in enumerate(points):
             p = first + POINT_SIZE * k
             self.emu.mem_write(p + 8, struct.pack("<3f", *position))
@@ -400,6 +402,14 @@ def main():
     print('ok the clear test is of the due player\'s own side (a player of his team: the ally radius, 1 m)')
     assert r.select([], [0], [], 0) == []
     print('ok a map without team-2 points: nobody spawns')
+    points = line(*(100 + 40 * i for i in range(74)))
+    seen = set()
+    for time in range(0, 20_000, 50):
+        got = r.select(points, [0], [20], time)
+        assert got == model(points, [0], [(0, 0, 0)], time), (time, got)
+        seen.update(got)
+    assert seen == set(range(74)), sorted(set(range(74)) - seen)
+    print('ok a group of 74 points (Vostok\'s): every one chosen, the 65th to the 74th too')
 
     # The final content uses 20 m: a nearby 19.75 m point is rejected,
     # while a 20.25 m point is eligible even when a much farther one exists.

@@ -47,8 +47,11 @@ use crate::vostok::{
 const MAX_DUE: usize = Place::COUNT;
 /// The living players a selection measures from.
 const MAX_LIVING: usize = Place::COUNT;
-/// The points a selection considers (0.31's maps have 22 to 30).
-const MAX_POINTS: usize = 64;
+/// The points a selection considers: a map's whole team-2 group (Free for
+/// All's have 44 to 74 since 2026-11-14; the survarium crate's map test
+/// holds every one to this). Room for two of a selection's arrays on the
+/// stack, 2.5 KiB.
+const MAX_POINTS: usize = 128;
 /// A crowded map still offers several of its best-separated points.
 const FALLBACK_POINTS: usize = 5;
 
@@ -654,6 +657,25 @@ mod tests {
             }
         }
         assert_eq!(turn(u32::MAX, 19, 1), 0);
+    }
+
+    #[test]
+    fn a_point_past_the_64th_can_be_chosen() {
+        // Vostok's 74 team-2 points: the owner's last picks and its roof
+        // spawn are the group's 64th to 73rd, which a cap of 64 never offered.
+        let points: Vec<_> = (0..74).map(|i| at(i as f32 * 40.0)).collect();
+        for time in (0..5_000).step_by(50) {
+            assert_eq!(planned(&[solo(0)], &points, &[], time, |j, _| j == 73), [73]);
+            assert_eq!(planned(&[solo(0)], &points, &[], time, |j, _| j == 64), [64]);
+        }
+        let mut seen = [false; 74];
+        for time in (0..200_000).step_by(50) {
+            seen[planned(&[solo(0)], &points, &[], time, |_, _| true)[0]] = true;
+        }
+        assert!(seen.into_iter().all(|visited| visited));
+        // The whole group of MAX_POINTS, every place.
+        let points: Vec<_> = (0..MAX_POINTS).map(|i| at(i as f32 * 40.0)).collect();
+        assert_eq!(planned(&[solo(5)], &points, &[], 0, |j, _| j == MAX_POINTS - 1), [MAX_POINTS - 1]);
     }
 
     #[test]
