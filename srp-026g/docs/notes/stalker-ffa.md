@@ -353,9 +353,10 @@ does; Free for All takes team 2's only. Most of them are at the gateways,
 outside the wall, and one (team 0's point 2) is where the south gateway's
 second truck stands.
 
-Nothing else of the mode is outside: `day_8` has no zones, crates, batteries or
-stations; its four campfires are inside the fence; its one anomaly is the
-Keeper's hidden pool at y = -1000.
+Nothing else of the mode is outside: `day_8` has no crates, batteries or
+stations; its four campfires are inside the fence, and their one fire damage
+zone over them (training-camp-fires-1, `stalker-maps.md`); its one anomaly is
+the Keeper's hidden pool at y = -1000.
 
 ## Millisecond protection
 
