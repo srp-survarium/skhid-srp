@@ -136,4 +136,8 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
 - Icon 200, past every weapon's: the exe sends it for a kill by a battery strike
   (`kill_feed.weapon_icon`); `CombatLogItem` shows it as `CombatLogBatteryIcon` (not a
   `CombatLogWeapon<n>`: no weapon has it, so the lobby's index leaves it out), drawn by
-  `scripts/kill-feed-icons/make_battery_icon.py` from the hud's own battery rows' glyph.
+  `scripts/kill-feed-icons/make_battery_icon.py`, drawn as the weapon icons are (white, details cut
+  out, a black shadow at 40 % one pixel right and two down): the battery's own mesh
+  (`electrobox_s`) from the front and 38 degrees above, 20 px high, its two cell wells cut out (the
+  hud's battery rows' glyph: a box with two cells), then the gun-stock icon's (48) impact burst, as
+  a melee hit. 53 x 22. The owner on the first one (the glyph doubled): "not in the style".

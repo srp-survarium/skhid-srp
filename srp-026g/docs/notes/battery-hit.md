@@ -238,9 +238,9 @@
   0x32BB59, the melee flag above, the damage functions), which a copy would break. Edge (a melee
   bullet's flight): a gun-stock hit landing after its shooter took a battery shows the battery; a
   strike landing after its carrier put the battery away the gun stock. The hud movie's
-  `CombatLogItem` shows icon 200 as the bitmap `CombatLogBatteryIcon`: the battery of its own
-  battery rows (found, lost, bring: sprites 702, 705, 708, a 12 x 9 px box with two cells) at twice
-  its size, white with the feed's shadow (`scripts/kill-feed-icons/make_battery_icon.py`). No
+  `CombatLogItem` shows icon 200 as the bitmap `CombatLogBatteryIcon`: the battery's model from
+  the front and above with its two cell wells, and the gun-stock icon's impact burst, in the weapon
+  icons' style (`scripts/kill-feed-icons/make_battery_icon.py`, `kill-feed-icons.md`). No
   simulation change (the hud alone reads the icon).
 - **The bullet and the deactivated gun.** A carrier's guns are deactivated (deactivate
   0x2E2EE0: user +8 0, its clip set's posture +278h -> +20h 0). The bullet keeps its gun (+0Ch,
