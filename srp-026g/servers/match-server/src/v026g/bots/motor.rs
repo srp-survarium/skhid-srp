@@ -3010,9 +3010,11 @@ impl Motor {
             aim: ahead.leap.aim(),
         });
         self.jump = Some(JumpBy::Route);
-        // [item 10] A held sprint holds the forward key on after its landing whether or not the route goes on off the top.
+        // [item 10] A held sprint holds the forward key on after its landing whether or not the route goes on off the top; only
+        // when the press goes out as the sprint jump the grid flew held (a short clip, a sprint link pressed without the sprint,
+        // lands as any walking press: let go).
         let landing = match ahead.leap {
-            Leap::SprintGap(SprintPress { after: AfterLanding::Held { steps }, .. }) => {
+            Leap::SprintGap(SprintPress { after: AfterLanding::Held { steps }, .. }) if !short_clip => {
                 let then = if ahead.let_go { AfterHeld::Settle } else { AfterHeld::WalkOn };
                 Some(StayLanding::Held(HeldWalk { steps, heading: ahead.way, landing: jump.landing, then }))
             }
@@ -3140,11 +3142,13 @@ impl Motor {
         matches!(self.stay, Stay::Held { .. })
     }
 
-    /// [item 10] In a held sprint's held steps, the yaw toward the press's heading (pitch as `turn`), as flown
-    /// (`jump::held_flight` walks along it); else `turn`.
+    /// [item 10] From a held sprint's press through its flight and its held steps, the yaw toward the press's heading (pitch as
+    /// `turn`): the grid flew it on one heading (`jump::held_flight` walks the held steps along it); else `turn`.
     fn held_turn(&self, pose: &Pose, turn: (f32, f32)) -> (f32, f32) {
         match self.stay {
-            Stay::Held { walk, .. } => (wrap(yaw_of(walk.heading) - pose.yaw), turn.1),
+            Stay::Pressed { landing: StayLanding::Held(walk), .. }
+            | Stay::Flying { landing: StayLanding::Held(walk) }
+            | Stay::Held { walk, .. } => (wrap(yaw_of(walk.heading) - pose.yaw), turn.1),
             _ => turn,
         }
     }
