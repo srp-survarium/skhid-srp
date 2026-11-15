@@ -560,7 +560,7 @@ impl Solids {
         let mut meshes: HashMap<(u32, usize), u32> = HashMap::new();
         let mut primitives: HashMap<(u32, usize), u32> = HashMap::new();
         // [L36] A compound library's children's places in its tree's order, made once.
-        let mut compound_orders: HashMap<u32, Option<Vec<u32>>> = HashMap::new();
+        let mut compound_orders: HashMap<u32, Option<(Vec<u32>, Vec<Box3>)>> = HashMap::new();
         for (index, placement) in map.placements.iter().enumerate() {
             if !filter.meets(placement.cgroup, placement.cmask) {
                 continue;
