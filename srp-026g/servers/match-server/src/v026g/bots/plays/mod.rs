@@ -582,6 +582,9 @@ pub struct Ctx<'a> {
     /// [owner-5] The log's lines the plays write while asked (why an offer or a battery was refused): for the bot's
     /// `NavLog` once the poll lets go of it. Written, never read back by a decision.
     pub lines: super::nav_log::Lines,
+    /// [A391] The job role offers this think made (`job_offer`), for the bot's [`super::threat::LastOffers`] once the think
+    /// lets go of the context. Written, never read back by a decision.
+    pub offers: std::cell::RefCell<Vec<(super::threat::Role, super::threat::Offer)>>,
 }
 
 impl Ctx<'_> {
@@ -1246,6 +1249,7 @@ impl Ctx<'_> {
             Offer::LowHealth
         };
         threat::offered(self.me.place, role, offer);
+        self.offers.borrow_mut().push((role, offer));
         // The holding the offer belongs to: a role given again is a new decision.
         let since = self.team.threat.job_of(self.me.place).and_then(|(job, r, _)| (r == role).then(|| job.holder(role)).flatten()).map(|h| h.since);
         self.lines.push(

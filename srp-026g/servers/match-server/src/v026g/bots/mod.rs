@@ -444,6 +444,8 @@ pub struct Bot {
     crouch_climb: Option<(Vec3, Vec3, u32)>,
     /// Its falls and route jumps for the log (A285, `nav_log.rs`): written, never read back.
     nav_log: nav_log::NavLog,
+    /// [A391] Its last offer of each job role since it was given ([`threat::LastOffers`]): the class of a role let go.
+    offers: threat::LastOffers,
     /// Its drift over the match for the match-end table (A294, `nav_drift.rs`): written, never read back.
     drift: nav_drift::Tally,
     /// Whether the match traces, and the trace lines made while driving
@@ -657,6 +659,7 @@ impl Bot {
             jump_watch: None,
             crouch_climb: None,
             nav_log: nav_log::NavLog::default(),
+            offers: threat::LastOffers::default(),
             drift: nav_drift::Tally::default(),
             tracing: false,
             traced: Vec::new(),

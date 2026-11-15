@@ -343,6 +343,7 @@ impl Scenario {
             tuning: &self.tuning,
             memo: &self.memo,
             lines: Default::default(),
+            offers: Default::default(),
         }
     }
 

@@ -411,6 +411,9 @@ fn threat_tick(
                 }
                 threat::JobEvent::Given { spot, role, place } => {
                     threat::offers_reset(place, role);
+                    if let Some(bot) = bots.iter_mut().flatten().find(|b| b.place == place) {
+                        bot.offers.reset(role);
+                    }
                     // Fairness: a role on a spot whose shooter the team has
                     // not sensed for `SEEN_MS`.
                     let stale = held
@@ -425,8 +428,18 @@ fn threat_tick(
                     // The bench's class of a role let go unplayed: its last offer, and the play its bot runs.
                     let running = bots.iter().flatten().find(|b| b.place == place).and_then(|b| b.assignment.as_ref()).map(|a| format!("{:?}", a.kind));
                     threat::passed_unplayed(place, role, running.as_deref());
+                    // [A391] The same class in the live log (decision-neutral).
+                    if let Some(bot) = bots.iter_mut().flatten().find(|b| b.place == place) {
+                        text.push_str(&format!(", class {}", bot.offers.class(role, running.as_deref())));
+                    }
                 }
-                threat::JobEvent::Passed { .. } => {}
+                threat::JobEvent::Passed { role, place, .. } => {
+                    // [A391] Let go for not being free: its last offer goes with it.
+                    if let Some(bot) = bots.iter_mut().flatten().find(|b| b.place == place) {
+                        bot.offers.reset(role);
+                    }
+                    text.push_str(", class not_free");
+                }
             }
             // [traps.at_cleared] A Flank job its flanker's kill ended: its bots trap his death point.
             if let threat::JobEvent::Ended { spot, shooter, end: threat::JobEnd::ShooterDied, .. } = event
@@ -1073,6 +1086,7 @@ impl Bots {
                 tuning: &tuning,
                 memo: &self.memo,
                 lines: Default::default(),
+                offers: Default::default(),
             };
             let mut candidates = Vec::new();
             plays::candidates(&cx, &mut candidates);
@@ -1280,6 +1294,7 @@ impl Bots {
                 tuning: &tuning,
                 memo: &self.memo,
                 lines: Default::default(),
+                offers: Default::default(),
             };
             let mut rng = bot.rng.clone();
             let running = plays::start(
