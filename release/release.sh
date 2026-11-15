@@ -296,11 +296,16 @@ if ((test_server)); then
     use_patches test
     load_env SKHID_TEST_GAME_SERVER
     step_flags=(--test)
+    signing_which='test'
 else
     use_target live
     use_patches live
     load_env SKHID_GAME_SERVER
+    signing_which=live
 fi
+# The torrents' key pair of this environment (lib.sh signing_key): the test
+# environment's is its own, so a test torrent is never a player's.
+signing=$(signing_key "$signing_which") signing_pub=$(signing_pub "$signing_which")
 read_patch_list
 if [[ -n $minutes ]]; then
     if [[ ! $minutes =~ ^[1-9][0-9]{0,4}$ ]] || ((minutes > 10080)); then die "--minutes: a whole number from 1 to 10080"; fi
@@ -1050,8 +1055,14 @@ else
 fi
 # The torrent's signing key (build-torrent signs every torrent with it; its
 # public key in the commit to build: below).
-signing=$(signing_key)
-if [[ -f $signing && $(stat -c %a "$signing") == 600 ]]; then okay "the signing key: there, mode 600"; else problem "the signing key $signing: missing or not mode 600 (release/make-signing-key, once)"; fi
+signing_hex=''
+if [[ -f $signing && $(stat -c %a "$signing") == 600 ]]; then
+    okay "the signing key: there, mode 600"
+    signing_hex=$(public_hex "$(openssl_program)" "$signing" 2>/dev/null) || signing_hex=''
+    [[ $signing_hex =~ ^[0-9a-f]{64}$ ]] || { problem "the signing key $signing: openssl reads no Ed25519 key in it"; signing_hex=''; }
+else
+    problem "the signing key $signing: missing or not mode 600 (release/make-signing-key$([[ $signing_which == test ]] && printf ' --test'), once)"
+fi
 need=${SKHID_MIN_FREE_MB:-4096}
 have=$(free_mb "$work")
 if ((have >= need)); then okay "free here: $have MB in ${work%/*}"; else problem "free here: $have MB in ${work%/*}, $need wanted (SKHID_MIN_FREE_MB)"; fi
@@ -1060,11 +1071,21 @@ if bin=$(game_data_bin 2>"$work/game-data-build.log"); then okay "srp-game-data:
 # The revision of this release: the target exe's + 1 (or --revision), built
 # so (build-zip --revision); main's REVISION is the last release's, which
 # the record of this one sets (live only).
-main_rev='' main_commit='' live_rev=unknown rev=''
+main_rev='' main_commit='' live_rev=unknown rev='' SERVED_ZIPS=''
 if git -C "$REPO" fetch --quiet origin "$ref:refs/remotes/origin/$ref" 2>"$work/fetch.log"; then
     main_commit=$(git -C "$REPO" rev-parse "origin/$ref")
     main_rev=$(revision_at "$REPO" "$main_commit")
-    if git -C "$REPO" cat-file -e "$main_commit:$SIGNING_PUB" 2>/dev/null; then okay "$SIGNING_PUB: in the commit to build"; else problem "$SIGNING_PUB: not in the commit to build (release/make-signing-key writes it: commit it)"; fi
+    # The commit's public key is the one its updater is built with: the
+    # signing key must be its pair, or every player refuses the torrent.
+    if ! committed=$(git -C "$REPO" show "$main_commit:$signing_pub" 2>/dev/null); then
+        problem "$signing_pub: not in the commit to build (release/make-signing-key$([[ $signing_which == test ]] && printf ' --test') writes it: commit it)"
+    elif [[ -z $signing_hex ]]; then
+        say "  note     $signing_pub: in the commit to build (the signing key is not read: above)"
+    elif [[ $(tr -d '[:space:]' <<<"$committed") == "$signing_hex" ]]; then
+        okay "$signing_pub: in the commit to build, the signing key's public key"
+    else
+        problem "$signing_pub of the commit to build is not the public key of $signing: the torrent would be refused by the updater built with it"
+    fi
     if is_revision "${main_rev:-x}"; then okay "origin/$ref: $(git -C "$REPO" log -1 --format='%h %s' "$main_commit"), REVISION $main_rev (the last release's)"; else problem "no REVISION in patch_026g.py of origin/$ref"; main_rev=''; fi
 else
     problem "git fetch origin $ref failed ($(tr '\n' ' ' <"$work/fetch.log"))"
@@ -1243,6 +1264,15 @@ if ((target_ok)); then
     if ((have >= need)); then okay "free on the $TARGET host: $have MB"; else problem "free on the $TARGET host: $have MB in $TARGET_DIR, $need wanted (SKHID_LIVE_MIN_FREE_MB)"; fi
     left=$(on_target "cd $D && for f in release-rev*/state; do if test -f \"\$f\"; then case \$(cat \"\$f\") in staging | swapping) echo \"\${f%/state} (\$(cat \"\$f\"))\" ;; esac; fi; done; ls -d download/.*.new 2>/dev/null; true")
     if [[ -z $left ]]; then okay "no release folder left unfinished"; else problem "left unfinished in $TARGET_DIR: $(tr '\n' ' ' <<<"$left")— look at it (its release.log), finish or roll it back (release/rollback${step_flags[*]:+ ${step_flags[*]}} <folder>), then set its state to stopped"; fi
+    # A revision whose files were handed out (srp came up on them: the
+    # swap's `served`), then rolled back, is never released again with other
+    # files: players may have its signed torrent, and would take either. Its
+    # ZIP of then (new.sha): this one must be the same (step 2), or
+    # --revision <next>.
+    if ((!test_server)) && [[ -n $rev ]]; then
+        SERVED_ZIPS=$(on_target "cd $D && for f in release-rev$rev-*/served; do if test -f \"\$f\"; then echo \"\${f%/served} \$(sed -n 's/^\\([0-9a-f]\\{64\\}\\)  $ZIP_NAME\$/\\1/p' \"\${f%/served}/new.sha\")\"; fi; done; true")
+        if [[ -n $SERVED_ZIPS ]]; then say "  note     revision $rev went out before (srp came up on its files: $(cut -d' ' -f1 <<<"$SERVED_ZIPS" | tr '\n' ' ')): this release stops after its build unless its ZIP is the same (else --revision $((rev + 1)))"; fi
+    fi
     fs=$(on_target "cd $D && stat -L -c %d . download" || true)
     if [[ $(sort -u <<<"$fs" | grep -c .) == 1 ]]; then okay "download/ is on the file system of $TARGET_DIR (a release folder's files go in by rename)"; else problem "download/ is not on the file system of $TARGET_DIR (or not there): the swap hard-links the release folder's files into it"; fi
     blobs=$(missing_original_blobs)
@@ -1654,7 +1684,7 @@ if ((DRY_RUN)); then
     say "[dry run] 2. build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
     say "[dry run]    then the world check of $WORLDS_SAID with it: $WORLD_CHECK --data $data $WORLDS (one world refused stops the release)"
     say "[dry run]    and: ${build_zip[*]}"
-    say "[dry run]    and: $BUILD_TORRENT${step_flags[*]:+ ${step_flags[*]}} --patches $PATCH_LIST --zip $zip --out $work/skhid-rev$rev.torrent --zip-out <the ZIP with it> --revision $rev --public-key <the commit's $SIGNING_PUB>, which replaces the ZIP"
+    say "[dry run]    and: $BUILD_TORRENT${step_flags[*]:+ ${step_flags[*]}} --patches $PATCH_LIST --zip $zip --out $work/skhid-rev$rev.torrent --zip-out <the ZIP with it> --revision $rev --public-key <the commit's $signing_pub>$(git -C "$REPO" cat-file -e "$main_commit:$BOOTSTRAP_TORRENT" 2>/dev/null && printf ' --bootstrap <the commit'"'"'s %s>' "$BOOTSTRAP_TORRENT"), which replaces the ZIP"
     if ((build_code)); then say "[dry run]    and the server's image of main's source (podman): $image"; fi
     if ((no_selftest)); then
         say "[dry run]    WARNING no exe patches' self-test (--no-selftest)"
@@ -1688,10 +1718,15 @@ else
     torrent=$work/skhid-rev$rev.torrent
     # Signed with the release's key, checked with the public key the
     # commit's updater is built with.
-    git -C "$REPO" show "$main_commit:$SIGNING_PUB" >"$work/signing.pub" ||
-        die "$SIGNING_PUB is not in the commit built: make the key (release/make-signing-key) and commit it"
+    git -C "$REPO" show "$main_commit:$signing_pub" >"$work/signing.pub" ||
+        die "$signing_pub is not in the commit built: make the key (release/make-signing-key) and commit it"
+    # The bootstrap torrent the ZIP carries: the commit's, as its key.
+    bootstrap=()
+    if git -C "$REPO" show "$main_commit:$BOOTSTRAP_TORRENT" >"$work/bootstrap.torrent" 2>/dev/null; then
+        bootstrap=(--bootstrap "$work/bootstrap.torrent")
+    fi
     "$BUILD_TORRENT" "${step_flags[@]}" --patches "$PATCH_LIST" --zip "$zip" --out "$torrent" --zip-out "$zip.torrent" \
-        --revision "$rev" --public-key "$work/signing.pub" </dev/null 2>&1 |
+        --revision "$rev" --public-key "$work/signing.pub" "${bootstrap[@]}" </dev/null 2>&1 |
         grep -v ': in the cache$' | tee "$work/build-torrent.log" || die "build-torrent failed"
     TORRENT_SHA=$(sed -n 's/^btmh 1220\([0-9a-f]\{64\}\)$/\1/p' "$work/build-torrent.log")
     [[ -n $TORRENT_SHA && -s $torrent && -s $zip.torrent ]] || die "build-torrent made no torrent, or said no info hash ($work/build-torrent.log)"
@@ -1719,6 +1754,12 @@ else
     [[ $OFFERED_GAME == "$GAME_ROW" ]] ||
         die "$data does not name the game's archive of $GAME_LIST: ${OFFERED_GAME:-none}"
     check_exe_requires "$zip" "$work"
+    # A revision that went out once never names other files (the preflight's
+    # note): its signed torrent may be with players.
+    while read -r folder sha; do
+        [[ -z $folder || $sha == "$ZIP_SHA" ]] ||
+            die "revision $rev went out before with another ZIP (sha256 ${sha:-unknown}, $folder): its number never names other files: --revision $((rev + 1))"
+    done <<<"$SERVED_ZIPS"
     if ((build_code)); then
         progress "2. building the server's image here from main's source (podman)"
         build_image "$work/src" "$image" >"$work/build-image.log" 2>&1 ||
@@ -1745,6 +1786,7 @@ else
         say
         say "the players' ZIP, against the one the site hands out now:"
         grep -E '^  (CHANGED|ADDED|REMOVED) |^updater_skhid.exe' "$work/build-zip.log" || say "  (no entry changed)"
+        say "  the torrents (release/build-torrent, not compared): game/binaries/x86/skhid.torrent, btmh 1220$TORRENT_SHA$([[ ${#bootstrap[@]} -gt 0 ]] && printf ', and the commit'"'"'s skhid-bootstrap.torrent')"
         say
         say "the bots' data (release/bot-data.tsv), against the $TARGET volume: ${bd_line:-not checked}"
         if ((${#BD_TODO[@]})); then printf '  %s\n' "${BD_REPORT[@]:-put in as listed}"; fi

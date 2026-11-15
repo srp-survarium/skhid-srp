@@ -29,6 +29,13 @@ else
     echo "skip shellcheck (none here)"
 fi
 
+# Skhid-get.bat's making (build_torrent.py bootstrap), without pwsh; its
+# PowerShell runs in test_bootstrap.py with pwsh.
+if out=$(python3 -I "$here/test_bootstrap.py" Script 2>&1); then echo "ok   the bootstrap script is made (test_bootstrap.py Script)"; else
+    echo "FAIL the bootstrap script is made (test_bootstrap.py Script): $out"
+    exit 1
+fi
+
 bin=${SRP_GAME_DATA_BIN:-$root/srp-026g/target/release/srp-game-data}
 if [[ ! -x $bin ]]; then
     (cd "$root" && nix develop ./srp-026g -c bash -c \
@@ -1051,6 +1058,7 @@ check "deploy: ... the game exe's line back, once" test "$(grep '^SRP_RELEASED_E
 check "deploy: ... srp.db back from the new start's backup (its writes gone)" bash -c "! grep -q '^start $((starts + 1)) ' $T/volume/srp.db && grep -q '^start $((starts + 2)) ' $T/volume/srp.db"
 check "deploy: ... srp26 running again" test "$(cat "$T/docker/state")" = running
 check "deploy: ... the folder says rolled-back" grep -qx rolled-back "$F/state"
+check "deploy: ... and served (srp came up on its files: 13 went out)" test -e "$F/served"
 check "deploy: ... nothing half-done" bash -c "! ls $T/live/download/.*.new 2>/dev/null"
 # /api/client-files that is not the release's after the start (the ZIP in
 # place before it): the rollback puts the old ZIP back.
@@ -1130,11 +1138,16 @@ echo "REVISION = 11" >"$src/client-patches/patch_026g.py"
 printf '# Client patches\n\n| | |\n|---|---|\n| Revision 10 | ten |\n| Revision 11 | eleven |\n| Revision 4 | four |\n| The players'"'"' download | the zip |\n' \
     >"$src/client-patches/README.md"
 printf '# Skhid 0.26g — what changed\n\nNewest first.\n\n---\n\n## 15 Oct, 20:02 — an older entry\n\n- something\n' >"$T/repo/CHANGELOG-SKHID-026G.md"
-# The torrents' signing key: its public key committed, the key beside
-# release.env (the stand-in build-torrent signs nothing).
+# The torrents' signing keys, live and test: each public key committed, the
+# keys beside release.env (the stand-in build-torrent signs nothing; the
+# preflight reads each key's public key).
 mkdir -p "$T/repo/release"
-printf '%064d\n' 0 >"$T/repo/release/signing.pub"
-(umask 077 && echo 'a stand-in key' >"$T/torrent-signing.pem")
+openssl=$(command -v openssl || printf '%s/bin/openssl\n' "$("$real_nix" build --no-link --print-out-paths nixpkgs#openssl.bin | head -n 1)")
+for pair in torrent-signing:signing torrent-signing-test:signing-test; do
+    (umask 077 && "$openssl" genpkey -algorithm ed25519 -out "$T/${pair%%:*}.pem")
+    "$openssl" pkey -in "$T/${pair%%:*}.pem" -pubout -outform DER | tail -c 32 | od -An -v -tx1 | tr -d ' \n' >"$T/repo/release/${pair#*:}.pub"
+    echo >>"$T/repo/release/${pair#*:}.pub"
+done
 commit "revision 11, as released"
 git -C "$T/repo" archive HEAD:srp-026g Cargo.toml Cargo.lock Dockerfile .dockerignore docker-compose.yml certs crates \
     resources/binary-config-examples resources/game-026g scripts servers | tar -x -C "$T/live"
@@ -1166,6 +1179,10 @@ if [[ -e $TEST_DIR/build-zip-stale-required ]]; then numbers=$(head -n -1 <<<"$n
 # shellcheck disable=SC2086 # one argument a number
 python3 "$TEST_DIR/requiring.py" "$TEST_DIR/work/r$revision.zip" $numbers
 cp "$TEST_DIR/work/r$revision.zip" "$work/Survarium-0.26g-srp-files.zip"
+# $TEST_DIR/build-zip-other: another ZIP of the revision (one more file).
+if [[ -e $TEST_DIR/build-zip-other ]]; then
+    python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1], "a").writestr("other.txt", "other")' "$work/Survarium-0.26g-srp-files.zip"
+fi
 printf '%s with-server\n%s without-server\n' "$(printf 'with %s' "$revision" | sha256sum | cut -c1-64)" \
     "$(printf 'without %s' "$revision" | sha256sum | cut -c1-64)" >"$work/exe.sha256"
 echo "  CHANGED  game/binaries/x86/survarium_skhid.exe"
@@ -1358,6 +1375,15 @@ chmod 644 "$T/torrent-signing.pem"
 expect_refused "release: a signing key others may read is a preflight problem" \
     "MISSING  the signing key $T/torrent-signing.pem: missing or not mode 600" "$here/release.sh"
 chmod 600 "$T/torrent-signing.pem"
+# The committed public key must be the signing key's (the updater built with
+# it takes only what that key signed).
+cp "$T/repo/release/signing.pub" "$T/signing.pub.kept"
+cp "$T/repo/release/signing-test.pub" "$T/repo/release/signing.pub"
+commit "another public key"
+expect_refused "release: a committed public key that is not the signing key's is a preflight problem" \
+    "MISSING  release/signing.pub of the commit to build is not the public key of $T/torrent-signing.pem" "$here/release.sh"
+cp "$T/signing.pub.kept" "$T/repo/release/signing.pub"
+commit "the public key back"
 
 # A whole release, no new content (patch_3 and patch_12 listed), the server
 # code as live; a feature PR merged since the last release (11, no tag yet).
@@ -1400,6 +1426,9 @@ check "release: waits for no match" has "$out" "5. no match is running"
 check "release: checks /patches and /api/client-files" has "$out" "/api/client-files: the new ZIP"
 check "release: builds the signed torrent of the ZIP and the list" bash -c "tail -n 1 $T/build-torrent.args | grep -q -- '--patches $T/patches.tsv --zip .*/Survarium-0.26g-srp-files.zip --out .*/skhid-rev12.torrent --zip-out .* --revision 12 --public-key .*/signing.pub'"
 check "release: the preflight sees the signing key" has "$out" "the signing key: there, mode 600"
+check "release: ... and the commit's public key is its own" has "$out" "release/signing.pub: in the commit to build, the signing key's public key"
+check "release: srp came up on the new files: the folder says served" test -e "$(folder 12 a)/served"
+check "release: the folder's changed.txt names the torrent" grep -q "skhid.torrent, btmh 1220[0-9a-f]\{64\}" "$(folder 12 a)/changed.txt"
 check "release: checks the log's game data line" has "$out" "log: INFO game data: .* 2 patch(es) offered"
 check "release: prints the rollback" has "$out" "release/rollback release-rev12-[0-9-]*-a"
 check "release: the rollback puts the running image back, by its ID" grep -qx "OLD_IMAGE=sha256:[0-9a-f]*" "$(folder 12 a)/rollback.env"
@@ -1486,6 +1515,17 @@ printf 'next\ta new kit before the start (#8)\n' >>"$sim"
 commit "a change of what a match computes"
 expect_refused "release: a change of what a match computes needs the server built" \
     "simulation_changes.tsv has a \`next\` row, but the server code is not built (--server-code no)" "$here/release.sh" --server-code no
+# Revision 13 went out with the deploy above (its folders say served): a
+# release of 13 says so in the preflight, and stops after its build, its
+# ZIP being another; then the tests below release 13 anew, as if that
+# deploy had never reached players.
+touch "$T/build-zip-other"
+run yes --minutes 2 --label other || true
+rm "$T/build-zip-other"
+check "release: a revision that went out is said in the preflight" has "$out" "note     revision 13 went out before (srp came up on its files: release-rev13-"
+check "release: ... and stops after its build, its ZIP being another" has "$out" "revision 13 went out before with another ZIP (sha256 [0-9a-f]\{64\}, release-rev13-.*--revision 14"
+check "release: ... nothing staged" nothing_staged
+rm -f "$T"/live/release-rev13-*/served
 mkdir -p "$T/p13/gameplay/items" "$T/r13"
 echo "item 13" >"$T/p13/gameplay/items/d.txt"
 "$bin" pack --dir "$T/p13" --out "$T/r13/resources.db.patch_13" >/dev/null
@@ -2066,6 +2106,10 @@ check "release: ... srp26 running" test "$(cat "$T/docker/state")" = running
 check "release: ... the old ZIP back in place" cmp -s "$T/work/r13.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "release: ... nothing staged" nothing_staged
 check "release: ... the setting as it was" grep -qx "SRP_MIN_PATCH_REVISION=13" "$T/live/.env"
+check "release: ... and served (srp came up on its files)" test -e "$(folder 14 k)/served"
+# Revision 14 went out for those seconds, before each rollback: the tests
+# below release 14 anew (other ZIPs), as if no player had got it.
+rm -f "$T"/live/release-rev14-*/served
 
 # A match that does not end.
 : >"$T/state/admin.log"
@@ -2100,6 +2144,7 @@ check "release: ... the source back" grep -qx "crates 2" "$T/live/crates/a/src/l
 check "release: ... srp.db as it was (the refused start never opened it)" bash -c "grep -q '^start $((starts + 1)) $running_before' $T/volume/srp.db && test \$(grep -c '^start ' $T/volume/srp.db) -le $((starts + 1))"
 check "release: ... nothing staged" nothing_staged
 check "release: ... the folder says rolled-back" grep -qx rolled-back "$(folder 14 f)/state"
+check "release: ... and not served (srp never came up on it: 14 may be released again)" test ! -e "$(folder 14 f)/served"
 check "release: ... the patch stays published and listed" bash -c "test -f $T/patches/resources.db.patch_14 && grep -q '^resources.db.patch_14' $T/patches.tsv"
 check "release: ... the lock freed" test ! -e "$T/lock"
 check "release: ... and no record (a rolled-back release leaves none)" no_record 14
@@ -2160,6 +2205,7 @@ check "rollback --keep-db: the bots' data as it was (the old routes table back)"
 check "rollback --keep-db: the folder says rolled-back" grep -qx rolled-back "$(folder 14 d)/state"
 # Revision 14 went out and came back: the next release is not 14 again.
 expect_refused "release after a rollback: main's REVISION says 14 went out" "main's REVISION 14 says revision 14 went out already, and the live exe says 13 .*--revision 15" "$here/release.sh"
+expect_refused "release after a rollback: ... and it went out (its folder says served)" "revision 14 went out before (srp came up on its files: release-rev14-[0-9-]*-[a-z]* .*--revision 15)" "$here/release.sh"
 expect_refused "release after a rollback: ... and its record is on origin" "the record of revision 14 is on origin already: refs/heads/release/record-rev14 refs/tags/026g-rev14" "$here/release.sh"
 run quiet --dry-run --revision 15 --minutes 1 || fail "release.sh --revision 15 --dry-run: $out"
 check "release --revision 15 after the rollback: accepted (the dry run)" has "$out" "the release: revision 13 -> 15 to the live server"

@@ -363,8 +363,8 @@ def main():
         entry.compress_type = zipfile.ZIP_STORED
         archive.writestr(entry, torrent)
         if args.bootstrap:
-            with open(args.bootstrap, 'rb') as bootstrap:
-                data = bootstrap.read()
+            with open(args.bootstrap, 'rb') as bootstrap_torrent:
+                data = bootstrap_torrent.read()
             entry = zipfile.ZipInfo(BOOTSTRAP_ENTRY)
             entry.create_system = 3
             entry.external_attr = 0o100644 << 16

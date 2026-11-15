@@ -28,12 +28,33 @@ ZIP_EXE=game/binaries/x86/survarium_skhid.exe
 # (release/make-signing-key, srp-026g/docs/notes/torrent-downloads.md): its
 # file beside release.env (private/release/, mode 600, never committed, never
 # printed), its public key committed as SIGNING_PUB (64 hex digits), which the
-# updater is built with.
+# updater is built with. The test environment has its own pair
+# (torrent-signing-test.pem, release/signing-test.pub; make-signing-key
+# --test): its updater is built with that public key (SKHID_TEST_PUBLIC_KEY),
+# so a test torrent is never trusted by a player's updater.
+# signing_pub [live|test]: the committed public key's path in a checkout.
+signing_pub() {
+    case ${1:-live} in
+    live) printf '%s\n' release/signing.pub ;;
+    test) printf '%s\n' release/signing-test.pub ;;
+    *) die "signing_pub: $1" ;;
+    esac
+}
 # shellcheck disable=SC2034 # used by the scripts that source this
 SIGNING_PUB=release/signing.pub
+# signing_key [live|test]: the private key's file.
 signing_key() {
     load_env
-    printf '%s\n' "$(dirname "$RELEASE_ENV")/torrent-signing.pem"
+    case ${1:-live} in
+    live) printf '%s\n' "$(dirname "$RELEASE_ENV")/torrent-signing.pem" ;;
+    test) printf '%s\n' "$(dirname "$RELEASE_ENV")/torrent-signing-test.pem" ;;
+    *) die "signing_key: $1" ;;
+    esac
+}
+# public_hex <openssl> <private key file>: its public key, 64 hex digits
+# (the DER of an Ed25519 public key ends with its 32 bytes, RFC 8410).
+public_hex() {
+    "$1" pkey -in "$2" -pubout -outform DER | tail -c 32 | od -An -v -tx1 | tr -d ' \n'
 }
 # The bootstrap (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap"): the
 # list of its two files in the form of the offered-patch list (their URLs in
@@ -1357,6 +1378,10 @@ check_server() {
         return 1
     fi
     say "srp26: ${state#ok }"
+    # Up on the new files: from now on its ZIP (and the signed torrent in
+    # it) may be handed out, so this revision's number never names other
+    # files again, rolled back or not (release.sh's preflight reads this).
+    on_target "touch $REL_DIR/served" || say "WARNING $REL_DIR/served could not be written: this revision may have gone out; never release its number again with other files"
     # The whole log of the container just made: a first start can log hundreds of
     # lines after the game data line (rev54: the silver pay-back, a line an account).
     line=$(on_target "cd $D && $TARGET_COMPOSE logs --no-log-prefix srp26 2>&1 | grep 'game data:' | tail -n 1" || true)

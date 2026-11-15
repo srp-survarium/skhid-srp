@@ -388,8 +388,13 @@ The order, as it runs:
    torrent of the whole game folder, `skhid-rev<n>.torrent`, signed with the
    release's key, `private/release/torrent-signing.pem`, and put into the ZIP
    as `game/binaries/x86/skhid.torrent`: `srp-026g/docs/notes/torrent-downloads.md`;
-   no key: the preflight stops; the owner makes it once with
-   `release/make-signing-key` and commits `release/signing.pub`); then the **exe patches'
+   no key, or one that is not the commit's `release/signing.pub`'s pair: the
+   preflight stops; the owner makes it once with `release/make-signing-key`
+   and commits `release/signing.pub`; `--test` signs with the test
+   environment's own pair, `torrent-signing-test.pem` and
+   `release/signing-test.pub`, `make-signing-key --test`, so a test torrent is
+   never a player's; a revision srp came up on once, then rolled back,
+   must build the same ZIP again or it stops: `--revision` the next); then the **exe patches'
    self-test** of that commit started in the background
    (`srp-026g/client-patches/selftest_026g.py`, its Linux part, on
    `$SKHID_GAME`'s `survarium.exe`, in the commit's dev shell with nixpkgs'
@@ -713,7 +718,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 | `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
 | `release/build-torrent --zip <zip> --out <file> --zip-out <zip> --revision <n> [--public-key] [--test] [--patches <list>]` | the signed torrent of the whole game folder (`srp-026g/docs/notes/torrent-downloads.md`): the original game's files (`$SKHID_GAME`, `$SKHID_STOCK_DB`, each by its pinned sha256), the ZIP's files over them, the list's patches (the patch cache); and the ZIP with it in; prints its info hashes; the same inputs, the same bytes | local files, the patch cache |
 | `release/build-bootstrap [--dry-run] <players' ZIP>` | once for an updater version: the bootstrap's two files (the updater, 7zr.exe) published on the patches server at `bootstrap/<sha256>/<name>`, their rows in `release/bootstrap.tsv`, `release/bootstrap.torrent` and `srp-026g/servers/web-server/bootstrap/Skhid-get.bat` (`srp-026g/docs/notes/torrent-downloads.md`, "Bootstrap"); more URLs: `release/add-mirror <name> <url>`, which makes the script again | the patches server, the checkout |
-| `release/make-signing-key` | once, by the owner: the torrents' Ed25519 key beside `release.env` (mode 600) and `release/signing.pub` to commit; never replaces one | private/release/, the checkout |
+| `release/make-signing-key [--test]` | once, by the owner: the torrents' Ed25519 key beside `release.env` (mode 600) and `release/signing.pub` to commit (`--test`: the test environment's, `torrent-signing-test.pem` and `release/signing-test.pub`); never replaces one | private/release/, the checkout |
 | `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own (a ZIP from it has no torrent unless it was release.sh's), in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
 | `release/rollback [--test] [--keep-db] [<folder>]` | a release folder's rollback | the target |
 | `release/setup-patches-server [--test] [--check]` | once: the patches folder and Caddy's site block for it (validate and reload; either failing puts the backup back) | the jump host's Caddy |

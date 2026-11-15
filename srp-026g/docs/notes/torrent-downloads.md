@@ -149,8 +149,16 @@ How an updater finds a newer release without our site (`client/updater/logic/src
   (mode 600, never committed, never printed, never on a host); its public key committed as
   `release/signing.pub` (64 hex digits), which the updater build reads. `release/make-signing-key`
   makes both, once, by the owner (it never replaces a key). Without the key, or with a public key
-  it does not verify with, the release builds no torrent and stops.
-- No rollback: an updater never takes a torrent of a lower revision than the highest it has taken.
+  it does not verify with, the release builds no torrent and stops (the preflight compares the
+  key's public key with the commit's). The players' updater carries that public key: `build-zip`
+  checks it is in the ZIP's updater.
+- The test environment has its own pair (`torrent-signing-test.pem`, `release/signing-test.pub`;
+  `release/make-signing-key --test`): `release.sh --test` signs with it and its updater is built
+  with it (`SKHID_TEST_PUBLIC_KEY`), so a test torrent is never one a player's updater takes.
+- No rollback: an updater never takes a torrent of a lower revision than the highest it has
+  taken. And a revision's number never names other files: once srp came up on
+  a release's files (its folder's `served`), a later release of that number must build the same
+  ZIP, or it stops after its build (`--revision` the next).
 
 ## The format (fixed; the updater reads exactly this)
 

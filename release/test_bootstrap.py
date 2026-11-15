@@ -127,8 +127,9 @@ class MirrorHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
-@unittest.skipUnless(shutil.which('pwsh'), 'pwsh is needed')
-class Bootstrap(unittest.TestCase):
+class Script(unittest.TestCase):
+    """The script's making (build_torrent.py bootstrap), no pwsh: release/test.sh runs this."""
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
@@ -161,6 +162,17 @@ class Bootstrap(unittest.TestCase):
         self.info_hash = hashlib.sha1(build_torrent.info_bytes(raw)).digest()
         self.pieces = -(-len(stream()) // PIECE)
 
+    def test_the_bat_is_crlf_and_pins_the_files(self):
+        text = self.out.read_bytes()
+        self.assertNotIn(b'\n', text.replace(b'\r\n', b''))
+        for data in FILES.values():
+            self.assertIn(hashlib.sha256(data).hexdigest().encode(), text)
+        self.assertIn(self.info_hash.hex().encode(), text)
+        self.assertIn(b"$InfoHash = '" + self.info_hash.hex().encode() + b"'", text)
+
+
+@unittest.skipUnless(shutil.which('pwsh'), 'pwsh is needed')
+class Bootstrap(Script):
     def run_script(self):
         # As the .bat runs it: its text from the marker on.
         env = dict(os.environ, SKHID_GET_SCRIPT=str(self.out), SKHID_GET_NO_START='1')
@@ -171,13 +183,6 @@ class Bootstrap(unittest.TestCase):
     def installed(self):
         return {p: (self.out.parent / 'Survarium' / p).read_bytes() for p in FILES
                 if (self.out.parent / 'Survarium' / p).exists()}
-
-    def test_the_bat_is_crlf_and_pins_the_files(self):
-        text = self.out.read_bytes()
-        self.assertNotIn(b'\n', text.replace(b'\r\n', b''))
-        for data in FILES.values():
-            self.assertIn(hashlib.sha256(data).hexdigest().encode(), text)
-        self.assertIn(self.info_hash.hex().encode(), text)
 
     def test_from_a_peer(self):
         peer = Peer(self.info_hash, stream(), self.pieces)

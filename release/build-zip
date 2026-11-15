@@ -12,7 +12,10 @@
 #   3. bugtrap.dll and updater_skhid.exe (nix develop ./srp-026g,
 #      SKHID_REVISION=<n>: their version resource says it;
 #      SKHID_BUILTIN_PATCHES and SKHID_BUILTIN_GAME: the list's /patches and
-#      /game, which the updater uses when the server cannot be reached),
+#      /game, which the updater uses when the server cannot be reached; the
+#      torrents' public key built in: the commit's release/signing.pub, with
+#      SKHID_TEST_PUBLIC_KEY unset; --test: its release/signing-test.pub as
+#      SKHID_TEST_PUBLIC_KEY; the ZIP's updater is read back for it),
 #      skhid_voice.dll (srp-026g/client-voice/build.sh: Rust voice chat, exe
 #      patch 66), then
 #      make_client_026g.py $SKHID_GAME ... --pack-zip --revision=<n>
@@ -33,7 +36,8 @@
 #      launcher again", without one the release's server offers; both exes
 #      are read back for it;
 #   4. prints every entry as same / CHANGED / ADDED / REMOVED against the
-#      current ZIP, and says whether updater_skhid.exe changed.
+#      current ZIP, and says whether updater_skhid.exe changed (the two
+#      torrents are not compared: release/build-torrent adds them after).
 # <work>/exe.sha256: `<sha256> with-server` (the ZIP's exe) and
 # `<sha256> without-server`, for the record (release.sh reads it).
 #
@@ -126,11 +130,22 @@ elif ((revision <= live_revision)); then
 fi
 
 # 3. The build.
+# The torrents' public key the updater is built with (client/updater/exe/
+# build.rs): the commit's release/signing.pub, or for the test environment its
+# own (lib.sh signing_pub), given as SKHID_TEST_PUBLIC_KEY; a live build never
+# has that set.
+if ((test_server)); then which='test'; else which=live; fi
+pub=$work/src/$(signing_pub "$which")
+[[ -f $pub ]] || die "$ref has no $(signing_pub "$which"): its updater would take no torrent (release/make-signing-key$( ((test_server)) && printf ' --test'))"
+public_key=$(tr -d '[:space:]' <"$pub")
+[[ $public_key =~ ^[0-9a-f]{64}$ ]] || die "$(signing_pub "$which") of $ref is not 64 lower-case hex digits"
+key_env=(-u SKHID_TEST_PUBLIC_KEY)
+if ((test_server)); then key_env=(SKHID_TEST_PUBLIC_KEY="$public_key"); fi
 say "building bugtrap.dll and updater_skhid.exe (log: $work/build.log) ..."
 # SKHID_REVISION: their version resource says this release's revision
 # (FileVersion <n>.0.0.0, ProductVersion "revision <n>"; client/windows_build.rs).
-if ! (cd "$work/src" && SKHID_REVISION=$revision SKHID_BUILTIN_PATCHES=$builtin_patches \
-    SKHID_BUILTIN_GAME=$builtin_game nix develop ./srp-026g -c bash -c \
+if ! (cd "$work/src" && env "${key_env[@]}" SKHID_REVISION="$revision" SKHID_BUILTIN_PATCHES="$builtin_patches" \
+    SKHID_BUILTIN_GAME="$builtin_game" nix develop ./srp-026g -c bash -c \
     'client/bugtrap/build.sh && bash client/updater/build.sh') >"$work/build.log" 2>&1; then
     tail -n 30 "$work/build.log" >&2
     die "the build failed (log: $work/build.log)"
@@ -162,6 +177,10 @@ if [[ ! -f $original ]]; then original=$SKHID_GAME/game/binaries/x86/survarium.e
     die "make_client_026g.py or patch_026g.py failed (log: $work/make_client.log)"
 }
 zip_extract "$zip" "$ZIP_EXE" "$work/new.exe" || die "$zip has no $ZIP_EXE"
+# The ZIP's updater carries the public key of this environment (as text).
+zip_extract "$zip" game/binaries/x86/updater_skhid.exe "$work/updater.exe" || die "$zip has no updater_skhid.exe"
+LC_ALL=C grep -qF "$public_key" "$work/updater.exe" ||
+    die "the ZIP's updater_skhid.exe does not carry $(signing_pub "$which")'s key $public_key: it would refuse this release's torrent"
 built_revision=$(exe_revision "$work/new.exe")
 [[ $built_revision == "$revision" ]] || die "the built exe says revision $built_revision, not $revision"
 [[ $(exe_revision "$work/without-server.exe") == "$revision" ]] || die "the exe without a server does not say revision $revision"
@@ -179,6 +198,8 @@ say
 say "the new ZIP against the live one ($live_url):"
 changed=0
 while IFS= read -r path; do
+    # The torrents: release/build-torrent adds them after this.
+    case $path in game/binaries/x86/skhid.torrent | game/binaries/x86/skhid-bootstrap.torrent) continue ;; esac
     if [[ -z ${old[$path]:-} ]]; then
         state=ADDED changed=1
     elif [[ -z ${new[$path]:-} ]]; then
@@ -203,4 +224,4 @@ fi
 say "Every other change must be explained by a merged change; anything else is unreleased work riding along: stop."
 say
 say "the exe: sha256 $(sha256_of "$work/new.exe") (--server=$server), $(sha256_of "$work/without-server.exe") without a server"
-say "$zip: $(size_of "$zip") bytes, sha256 $(sha256_of "$zip"), revision $revision, server $server, requires patches ${required//,/, }"
+say "$zip: $(size_of "$zip") bytes, sha256 $(sha256_of "$zip") (before the torrents: release/build-torrent adds them), revision $revision, server $server, requires patches ${required//,/, }"

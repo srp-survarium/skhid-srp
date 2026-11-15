@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# usage: release/make-signing-key
+# usage: release/make-signing-key [--test]
 #
 # Once, by the owner: the release's Ed25519 key, which signs every
 # revision's torrent (srp-026g/docs/notes/torrent-downloads.md, "Signed
@@ -10,21 +10,26 @@
 # it, and release/build-torrent signs nothing it does not verify with. Never
 # over a key that is there (a new key: players' updaters built with the old
 # public key refuse every torrent signed by it).
+#
+#   --test   the test environment's own pair (torrent-signing-test.pem,
+#            release/signing-test.pub): its updater is built with it, so a
+#            test torrent is never one a player's updater takes.
 . "$(dirname "$0")/lib.sh"
+which=live
 case ${1:-} in
 '') ;;
+--test) which='test' ;;
 -h | --help) usage ;;
 *) die "unknown argument $1 (--help)" ;;
 esac
-key=$(signing_key)
-public=$ROOT/$SIGNING_PUB
+key=$(signing_key "$which")
+public=$ROOT/$(signing_pub "$which")
 [[ ! -e $key ]] || die "$key: there is a key already; never replaced"
 [[ ! -e $public ]] || die "$public: there is a public key already; never replaced"
 openssl=$(openssl_program)
 (umask 077 && "$openssl" genpkey -algorithm ed25519 -out "$key")
 chmod 600 "$key"
-# The DER of an Ed25519 public key ends with its 32 bytes (RFC 8410).
-hex=$("$openssl" pkey -in "$key" -pubout -outform DER | tail -c 32 | od -An -v -tx1 | tr -d ' \n')
+hex=$(public_hex "$openssl" "$key")
 [[ $hex =~ ^[0-9a-f]{64}$ ]] || die "the public key did not come out as 64 hex digits"
 printf '%s\n' "$hex" >"$public"
 say "the key: $key (mode 600; keep a copy offline, never commit it)"
