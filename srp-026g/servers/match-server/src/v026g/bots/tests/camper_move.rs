@@ -320,9 +320,13 @@ const KNOWN_M: f32 = 60.0;
 /// A crouch spell lasts this long, ms, and comes this often, ms.
 const CROUCH_MS: (f32, f32) = (1_000.0, 2_000.0);
 const CROUCH_EVERY_MS: (f32, f32) = (10_000.0, 16_000.0);
-/// The next spot lies at least this far from the last, m (GUESS: a human relocates "elsewhere"), and, when the spots are
-/// anchored ([`CamperAt`]), this far (the anchored spots all lie within [`AT_NEAR_M`] of the anchors).
-pub(crate) const LEAVE_MIN_M: f32 = 25.0;
+/// The next spot lies at least this far from the last, m, and, when the spots are anchored ([`CamperAt`]), this far (the
+/// anchored spots all lie within [`AT_NEAR_M`] of the anchors). [G9] DERIVED from the live count: a live camper's next hold
+/// (2+ kills within 120 s and 10 m, one life) lies P5 6.5 / P10 9.6 / P25 13.7 / median 23.4 m from his last one's centre in
+/// the same life (654 pairs), P10 7.0 / median 30.7 m across a death (1,736), in the 329 human matches of 6+ players of
+/// 2026-11-08..12 (`measure-20261115/g9_g11_holds.py`); 349 of the 654 were under the 25 m this was, which kept him from half
+/// the live moves. 10 m is the hold's own radius (a new hold starts outside it), with 9 of 10 live next holds farther.
+pub(crate) const LEAVE_MIN_M: f32 = 10.0;
 pub(crate) const ANCHORED_MIN_M: f32 = 8.0;
 /// A body this near its goal has arrived, m; the motor is asked for [`ASK_M`], which is nearer, so it stops inside the arrival.
 const ARRIVED_M: f32 = 0.9;
@@ -1016,7 +1020,11 @@ pub(crate) enum CamperState {
 
 /// [`ReturnRule::Live`] After a death the live camper of 6+ player matches is back within 1 m of the point he held (where a
 /// trap on it would catch him) within 120 s in this share of cases: 230 of 1,070 cleared campers of 2+ kills (A145 payoff,
-/// `fx-gear-trap-payoff.md`, PROVEN count, LIKELY place: reckoned tracks, 5 s worlds) ...
+/// `fx-gear-trap-payoff.md`, 2026-10-16..22: his path reckoned every 50 ms between 5 s worlds) ... [G11] The share rests on
+/// how the path between a place's worlds is read: no live recording of 6+ players has them under 1 s (2026-11-08..12: a
+/// place's worlds 3.5 s apart at the median within a life, 777,775 gaps). Read as straight lines between the worlds, the
+/// same count on those matches gives 177 of 1,433 cleared campers within 1 m (12.4 %) and 626 within 10 m of the spot (43.7 %)
+/// (`measure-20261115/g9_g11_holds.py`). The two readings bound it; the stand-in takes the reckoned one's, a choice ...
 pub(crate) const LIVE_SAME_P: f32 = 0.215;
 /// ... and within 10 m of it, but not within 1 m, in this share: 308 of 1,070 (in all 537 of 1,070 within 10 m).
 pub(crate) const LIVE_NEAR_P: f32 = 0.288;
