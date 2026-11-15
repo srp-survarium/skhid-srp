@@ -1902,6 +1902,10 @@ fn drive_tick_inner(
                     {
                         bot.bench_lane = bot.motor.lane_use;
                     }
+                    // [A1b] A walk-off at release that ended: where the body came to rest (decision-neutral).
+                    if let Some(line) = bot.motor.take_walk_off_line() {
+                        bot.nav_log.push(super::nav_log::Kind::WalkOff, time, line);
+                    }
                     // Pressing against something while walking the route: counted, nothing is decided from it.
                     let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
                     contact::contacts::count(counted, me.feet);
@@ -2887,8 +2891,8 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     if bot.motor.feel.lip_guard_ticks == 0 {
         return;
     }
-    // A jump (the route's, a hop) goes off the floor on purpose.
-    if decision.keys & key::JUMP != 0 || bot.motor.lining_up() {
+    // A jump (the route's, a hop) goes off the floor on purpose; [A1b] so does a body let go at a walk-off's release.
+    if decision.keys & key::JUMP != 0 || bot.motor.lining_up() || bot.motor.letting_go() {
         #[cfg(test)]
         {
             bot.bench_guard = 5;
