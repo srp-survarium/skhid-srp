@@ -346,10 +346,13 @@ pub enum Kind {
     /// [Gap 2] An enemy's carry the world names and the bot's team does not know of, kept from the intercept
     /// (`plays/intercept.rs`).
     Carry,
+    /// [F42] A bot with both legs broken creeping (the crouch key with its move keys): begun, and ended with how far it went
+    /// (`drive.rs` `creep_watch`).
+    Creep,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 12;
+const KINDS: usize = 13;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -420,6 +423,26 @@ pub fn crouch_climb_line(up: bool, take_off: Vec3, top: Vec3, after_ms: u32, fee
         at(top),
         top.y - take_off.y,
         at(feet)
+    )
+}
+
+/// [F42] A creep begun: `nav: creep begun (both legs broken): at (..), the crouch key with move keys; speed in the reckoning
+/// pending (the selector's run / on-site alternation)`.
+pub fn creep_begun_line(feet: Vec3) -> String {
+    format!(
+        "{PREFIX}creep begun (both legs broken): at {}, the crouch key with move keys; speed in the reckoning pending (the selector's run / on-site alternation)",
+        at(feet)
+    )
+}
+
+/// [F42] A creep ended: `nav: creep ended: from (..) to (..), D m flat in T ms (S m/s)`.
+pub fn creep_ended_line(from: Vec3, feet: Vec3, ms: u32) -> String {
+    let d = from.distance_xz(feet);
+    format!(
+        "{PREFIX}creep ended: from {} to {}, {d:.2} m flat in {ms} ms ({:.2} m/s)",
+        at(from),
+        at(feet),
+        if ms > 0 { d * 1_000.0 / ms as f32 } else { 0.0 }
     )
 }
 
