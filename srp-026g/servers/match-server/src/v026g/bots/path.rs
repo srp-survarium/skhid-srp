@@ -698,7 +698,18 @@ pub fn plan_where(
     to: NodeId,
     allowed: impl Fn(NodeId) -> bool,
 ) -> Option<Route> {
-    let path = grid.path_where(from, to, &allowed)?;
+    plan_where_reaching(grid, from, to, allowed, mapdata::Reach::Full)
+}
+
+/// [S6] [`plan_where`] for a body that may take less than the grid's own links (`reach`, [`mapdata::Reach`]).
+pub fn plan_where_reaching(
+    grid: &WalkGrid,
+    from: NodeId,
+    to: NodeId,
+    allowed: impl Fn(NodeId) -> bool,
+    reach: mapdata::Reach,
+) -> Option<Route> {
+    let path = grid.path_where_reaching(from, to, &allowed, reach)?;
     Some(pull(grid, path.nodes, allowed))
 }
 
