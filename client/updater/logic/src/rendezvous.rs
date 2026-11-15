@@ -65,11 +65,14 @@ pub fn extension_handshake(revision: Option<u64>) -> Vec<u8> {
     extended(0, &payload)
 }
 
-/// The newest torrent this end has: its revision and bytes.
+/// The newest torrent this end has: its revision and bytes, and whether
+/// it may be sent on this connection (the program limits what it gives
+/// away: so many an address, within the upload limit).
 #[derive(Debug, Clone, Copy)]
 pub struct Ours<'a> {
     pub revision: u64,
     pub torrent: &'a [u8],
+    pub give: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -78,7 +81,8 @@ enum Stage {
     Handshake,
     /// Their extension handshake is awaited.
     Extensions,
-    /// They said a newer revision than ours: their torrent is awaited.
+    /// They said a newer revision than ours: their torrent is awaited (and
+    /// ours, older, was not sent).
     Waiting,
 }
 
@@ -87,6 +91,8 @@ enum Stage {
 pub struct Exchange {
     stage: Stage,
     buffer: Vec<u8>,
+    /// Where the next message starts in `buffer`.
+    at: usize,
 }
 
 /// What a connection's bytes lead to.
@@ -95,8 +101,13 @@ pub enum Outcome {
     /// Bytes to send; the exchange goes on.
     Going(Vec<u8>),
     /// Done: bytes to send, then the connection ends; `torrent`: the one
-    /// the peer sent, to be checked by the caller.
-    Done { send: Vec<u8>, torrent: Option<Vec<u8>> },
+    /// the peer sent, to be checked by the caller; `gave`: this end's
+    /// torrent is in `send`.
+    Done {
+        send: Vec<u8>,
+        torrent: Option<Vec<u8>>,
+        gave: bool,
+    },
     /// The peer broke the rules: the connection ends.
     Refused,
 }
@@ -111,6 +122,7 @@ impl Exchange {
             Self {
                 stage: Stage::Handshake,
                 buffer: Vec::new(),
+                at: 0,
             },
             hello,
         )
@@ -122,14 +134,17 @@ impl Exchange {
         info_hash: &[u8; 20],
         ours: Option<Ours>,
     ) -> Outcome {
+        // What was read goes once a push; messages are cut at a cursor.
+        self.buffer.drain(..self.at);
+        self.at = 0;
         self.buffer.extend_from_slice(bytes);
         let mut send = Vec::new();
         loop {
+            let rest = &self.buffer[self.at..];
             if self.stage == Stage::Handshake {
-                if self.buffer.len() < HANDSHAKE_LEN {
+                let Some(hello) = rest.get(..HANDSHAKE_LEN) else {
                     return Outcome::Going(send);
-                }
-                let hello = &self.buffer[..HANDSHAKE_LEN];
+                };
                 if hello[0] != 19
                     || &hello[1..20] != PROTOCOL
                     || hello[25] & 0x10 == 0
@@ -137,11 +152,11 @@ impl Exchange {
                 {
                     return Outcome::Refused;
                 }
-                self.buffer.drain(..HANDSHAKE_LEN);
+                self.at += HANDSHAKE_LEN;
                 self.stage = Stage::Extensions;
                 continue;
             }
-            let Some(head) = self.buffer.get(..4) else {
+            let Some(head) = rest.get(..4) else {
                 return Outcome::Going(send);
             };
             let length = u32::from_be_bytes(head.try_into().expect("4 bytes")) as usize;
@@ -152,10 +167,10 @@ impl Exchange {
             if length > limit {
                 return Outcome::Refused;
             }
-            if self.buffer.len() < 4 + length {
+            let Some(body) = rest.get(4..4 + length) else {
                 return Outcome::Going(send);
-            }
-            let body: Vec<u8> = self.buffer.drain(..4 + length).skip(4).collect();
+            };
+            self.at += 4 + length;
             if body.is_empty() {
                 continue; // a keep-alive
             }
@@ -181,10 +196,13 @@ impl Exchange {
                         return Outcome::Refused;
                     };
                     let our_revision = ours.map(|ours| ours.revision);
+                    let mut gave = false;
                     if let Some(ours) = ours
+                        && ours.give
                         && their_revision.is_none_or(|theirs| theirs < ours.revision)
                     {
                         send.extend(extended(their_id, ours.torrent));
+                        gave = true;
                     }
                     if their_revision.is_some_and(|theirs| our_revision.is_none_or(|ours| theirs > ours)) {
                         self.stage = Stage::Waiting;
@@ -193,12 +211,14 @@ impl Exchange {
                     return Outcome::Done {
                         send,
                         torrent: None,
+                        gave,
                     };
                 }
                 (Stage::Waiting, OUR_ID) => {
                     return Outcome::Done {
                         send,
                         torrent: Some(body[2..].to_vec()),
+                        gave: false,
                     };
                 }
                 _ => return Outcome::Refused,
@@ -223,7 +243,7 @@ mod tests {
             if !right_done {
                 match right.received(&core::mem::take(&mut to_right), &HASH, b) {
                     Outcome::Going(send) => to_left.extend(send),
-                    Outcome::Done { send, torrent } => {
+                    Outcome::Done { send, torrent, .. } => {
                         to_left.extend(send);
                         got_right = torrent;
                         right_done = true;
@@ -234,7 +254,7 @@ mod tests {
             if !left_done {
                 match left.received(&core::mem::take(&mut to_left), &HASH, a) {
                     Outcome::Going(send) => to_right.extend(send),
-                    Outcome::Done { send, torrent } => {
+                    Outcome::Done { send, torrent, .. } => {
                         to_right.extend(send);
                         got_left = torrent;
                         left_done = true;
@@ -249,18 +269,43 @@ mod tests {
 
     #[test]
     fn the_newer_torrent_goes_to_the_older_end_only() {
-        let new = Ours { revision: 61, torrent: b"new torrent" };
-        let old = Ours { revision: 60, torrent: b"old torrent" };
+        let new = Ours { revision: 61, torrent: b"new torrent", give: true };
+        let old = Ours { revision: 60, torrent: b"old torrent", give: true };
         assert_eq!(talk(Some(new), Some(old)), (None, Some(b"new torrent".to_vec())));
         assert_eq!(talk(Some(old), Some(new)), (Some(b"new torrent".to_vec()), None));
         assert_eq!(talk(None, Some(old)), (Some(b"old torrent".to_vec()), None));
         assert_eq!(talk(Some(new), Some(new)), (None, None));
         assert_eq!(talk(None, None), (None, None));
+        // Not to be given on this connection: it says its revision only
+        // (the other end waits, until the program ends the connection).
+        let kept = Some(Ours { give: false, ..new });
+        let (mut left, _) = Exchange::start(&HASH, &[1; 20], kept);
+        let (_, from_right) = Exchange::start(&HASH, &[2; 20], Some(old));
+        assert_eq!(
+            left.received(&from_right, &HASH, kept),
+            Outcome::Done { send: Vec::new(), torrent: None, gave: false }
+        );
+    }
+
+    #[test]
+    fn keep_alives_come_in_their_own_bytes() {
+        // A megabyte of keep-alives, a byte a push: each costs its bytes.
+        let (mut exchange, _) = Exchange::start(&HASH, &[1; 20], None);
+        let hello = handshake(&HASH, &[2; 20]);
+        assert_eq!(exchange.received(&hello, &HASH, None), Outcome::Going(Vec::new()));
+        let alive = alloc::vec![0_u8; 1 << 20];
+        assert_eq!(exchange.received(&alive, &HASH, None), Outcome::Going(Vec::new()));
+        for _ in 0..1000 {
+            assert_eq!(exchange.received(&[0, 0, 0, 0], &HASH, None), Outcome::Going(Vec::new()));
+        }
+        assert!(exchange.buffer.len() < 8);
+        let theirs = extension_handshake(None);
+        assert!(matches!(exchange.received(&theirs, &HASH, None), Outcome::Done { torrent: None, gave: false, .. }));
     }
 
     #[test]
     fn what_a_stranger_may_not_do() {
-        let ours = Some(Ours { revision: 60, torrent: b"t" });
+        let ours = Some(Ours { revision: 60, torrent: b"t", give: true });
         let refused = |bytes: &[u8]| {
             let (mut exchange, _) = Exchange::start(&HASH, &[1; 20], ours);
             exchange.received(bytes, &HASH, ours)

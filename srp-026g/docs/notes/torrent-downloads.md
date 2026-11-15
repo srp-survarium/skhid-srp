@@ -104,12 +104,17 @@ and `client/updater/logic/src/swarm.rs` are the code.
   launcher is open), within the launcher's upload limit, on the launcher's port.
 - If the torrent gives nothing (no peer in 20 s, no piece for 60 s), it downloads by HTTPS as
   now. PLAY never waits on the torrent.
-- Peers from the trackers only (the torrent's; the release's list for the rendezvous). No DHT,
-  PEX, UPnP or uTP.
+- Peers from the trackers only: the updater's own list (the release's, "Top level"), for every
+  swarm and the rendezvous; never a torrent's (they are outside the signature: whoever hands a
+  torrent over could name its own trackers, and be the only one to give peers). No DHT, PEX,
+  UPnP or uTP. A torrent is kept and passed on as its `info`, `piece layers` and `skhid` only.
 - Peers are strangers: everything they send is parsed once, with fixed limits (40 connections,
-  4 of an address; 16 KiB blocks; 16 requests in flight, 256 queued; 32 MiB of pieces held until
-  checked; a 4 MiB torrent at the rendezvous), and refused otherwise. A peer that sent a block of
-  a piece that fails its hash is dropped and banned for the run.
+  4 of an address in all, a handshake in 15 s; 16 KiB blocks; 16 requests in flight, 256 queued;
+  32 MiB of pieces held until checked; 2048 messages that change nothing in 30 s; a 4 MiB
+  torrent at the rendezvous), and refused otherwise. A piece that fails its hash, all of it
+  from one peer: that peer is dropped and its address banned for the updater's run; of several
+  peers: no one is known to have lied, and the piece is fetched again from one peer alone. A
+  piece being fetched that no peer can go on with goes back to the missing ones.
 
 ## The rendezvous
 
@@ -121,8 +126,9 @@ How an updater finds a newer release without our site (`client/updater/logic/src
 - Its handshake sets the extension bit (BEP 10). The extension handshake says
   `m: {skhid_torrent: <id>}` and `skhid_revision: <n>`, the revision of the newest signed torrent
   it has (no `skhid_revision`: none). An end whose revision is higher sends its torrent, whole,
-  as one `skhid_torrent` message (at most 4 MiB) to an end with an older one or none; an end that
-  said the higher revision is waited for; then the connection ends. Anything else ends it.
+  as one `skhid_torrent` message (at most 4 MiB) to an end with an older one or none (twice a run
+  to an address at most, within the upload limit); an end that said the higher revision is
+  waited for; then the connection ends. Anything else ends it.
 - A torrent that comes is taken only when its signature is the release's and its revision is
   higher than the one this end has (or, having none, not lower than the installed game's). It is
   kept beside the updater as `updater_skhid.found.torrent`; the highest revision of it and the

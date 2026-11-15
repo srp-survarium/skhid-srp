@@ -932,6 +932,15 @@ fn torrent_overlay(session: &mut Session, layout: &Layout, installed: Option<&In
             Ok(data) => data,
             Err(code) => return Some(Done::Failed(format!("Cannot read {from}: {}.", win::error_text(code)))),
         };
+        // Every piece of it was checked: it is the file at the torrent's
+        // size, not a byte more.
+        if data.len() as u64 != torrent.files[index].size {
+            return Some(Done::Failed(format!(
+                "{from} has {} bytes, not the {} of the torrent's {name}.",
+                data.len(),
+                torrent.files[index].size
+            )));
+        }
         files.push(NewFile {
             sha256: digest(&data),
             name,

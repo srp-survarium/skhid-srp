@@ -1183,7 +1183,14 @@ fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, 
                 return Err(format!("the torrent did not give its patches: {why}"));
             }
         }
-        for (_, part) in &missing {
+        for (index, part) in &missing {
+            // Every piece checked: the file at the torrent's size, no more
+            // (what is hashed and recorded below is what is renamed).
+            let size = torrent.files[*index].size;
+            if win::file_size(part).ok() != Some(size) {
+                let _ = win::delete(part);
+                return Err(format!("{part} is not of the torrent's {size} bytes"));
+            }
             let target = part.strip_suffix(PART).expect("a part");
             if let Err(code) = File::alone(&place(layout, DB_NAME))
                 .map(drop)

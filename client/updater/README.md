@@ -354,7 +354,9 @@ rendezvous gave (below); the highest revision of them is the run's. Missing,
 unsigned, another key's, older: no torrent, HTTPS as before. Where it comes
 from and why it is trusted is one function (`torrent::trusted`). Everything in it is
 then checked by SHA-256: its piece layers against each file's v2 root, and
-every piece against its layer before it counts, is written, or is sent.
+every piece against its layer before it counts, is written, or is sent. It
+is kept and passed on as its `info`, `piece layers` and `skhid` only
+(`logic/src/torrent.rs` `canonical`): the rest is outside the signature.
 
 **What it fetches**, when the launcher allows it: the original game's files
 that are missing (in the place of the 7z from the mirrors; the Skhid files
@@ -364,9 +366,10 @@ and the listed patches that are missing or damaged, each against the list's
 SHA-256 before it is renamed into place. A part (`<file>.skhid-torrent` for
 the game, `.skhid-part` for a patch) is checked piece by piece when a run
 finds it ("checking", state 08), so a game download goes on at the next
-start. No peer within 20 s, no piece for 60 s, torrent turned off, the
-signature or the pin wrong: the HTTPS download as without torrent. PLAY
-never waits on a peer.
+start; a part longer than its file is cut to its size, and a finished one is
+installed only at the torrent's size. No peer within 20 s, no piece for
+60 s, torrent turned off, the signature or the pin wrong: the HTTPS download
+as without torrent. PLAY never waits on a peer.
 
 **What it shares**: every file of the torrent the folder has at the
 torrent's size, however it came (by torrent, by HTTPS, from the ZIP), from
@@ -380,14 +383,25 @@ extension is spoken (no reserved bit set, an extension message refused);
 every message is read once against the torrent's numbers (a request within
 its piece, at a 16 KiB block, 16 KiB at most; a bitfield of its size, spare
 bits zero; 16 KiB + 9 bytes the longest) and anything else closes the
-connection. At most 40 connections, 4 of one address; 16 requests in flight
-to a peer, 256 queued from one; 32 MiB of pieces held until checked; a
-handshake within 15 s, a request answered within 60 s, a word every 150 s.
-A piece that fails its hash closes and bans for the run every peer that sent
-a block of it. Uploads go to 4 peers at a time (one rotated every 30 s),
-within the upload limit. Trackers: HTTP (compact answers) and UDP (BEP 15),
-IPv4, 200 peers an answer at most, asked again after 60 s to an hour as they
-say.
+connection (messages are cut at a cursor: many small ones cost each its own
+bytes). At most 40 connections, 4 of one address in all (taken, made, being
+made, routed or not); 16 requests in flight to a peer, 256 queued from one;
+32 MiB of pieces held until checked; a handshake within 15 s, a request
+answered within 60 s, a word every 150 s; 2048 messages that change nothing
+(keep-alives, blocks not asked for, haves said before...) in 30 s. A piece
+that fails its hash, all of it from one peer, closes and bans that peer's
+address for the updater's run (every engine after starts from those bans);
+one that several peers sent bans no one and is fetched again from one peer
+alone, which a wrong byte then names. A piece being fetched that nothing is
+asked of for 60 s and that no unchoked peer has goes back to the missing
+ones. Uploads go to 4 peers at a time (one rotated every 30 s), within the
+upload limit. Trackers: the updater's own (the release's list,
+`exe/src/torrent.rs` `TRACKERS`; a test build `SKHID_TEST_TRACKERS`) for
+every swarm and the rendezvous, never a torrent's; HTTP (compact answers, the
+whole answer within 20 s) and UDP (BEP 15), IPv4, 200 peers an answer at
+most, asked again after 60 s to an hour as they say; 500 peers kept, 4 of an
+address in a swarm, one that does not connect forgotten. "No peer within
+20 s" counts peers past their handshake that have a piece wanted.
 
 **The bootstrap** (`Skhid-get.bat`'s torrent of the updater and 7zr.exe at
 one version, the spec's "Bootstrap"): `skhid-bootstrap.torrent` beside the
@@ -830,7 +844,8 @@ python tests/test_play_gate.py               # Windows or Wine (PLAY and the ser
 python tests/test_replay.py                  # Windows; the replay, in its no-window mode only
 python tests/test_game_download.py           # Windows or Wine
 python tests/test_unreadable.py              # Windows or Wine (a Skhid file that cannot be read)
-SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) ./build.sh   # the tests' signing key
+SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) \
+    SKHID_TEST_TRACKERS="$(python tests/test_torrent.py --trackers)" ./build.sh   # the tests' key and trackers
 python tests/test_torrent.py                 # Windows or Wine; Python with libtorrent and cryptography
 SKHID_TEST_BUNDLE=<a players' zip> python tests/test_updater.py
 ```

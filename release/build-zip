@@ -133,14 +133,14 @@ fi
 # The torrents' public key the updater is built with (client/updater/exe/
 # build.rs): the commit's release/signing.pub, or for the test environment its
 # own (lib.sh signing_pub), given as SKHID_TEST_PUBLIC_KEY; a live build never
-# has that set.
+# has that set, and neither has the tests' trackers (SKHID_TEST_TRACKERS).
 if ((test_server)); then which='test'; else which=live; fi
 pub=$work/src/$(signing_pub "$which")
 [[ -f $pub ]] || die "$ref has no $(signing_pub "$which"): its updater would take no torrent (release/make-signing-key$( ((test_server)) && printf ' --test'))"
 public_key=$(tr -d '[:space:]' <"$pub")
 [[ $public_key =~ ^[0-9a-f]{64}$ ]] || die "$(signing_pub "$which") of $ref is not 64 lower-case hex digits"
-key_env=(-u SKHID_TEST_PUBLIC_KEY)
-if ((test_server)); then key_env=(SKHID_TEST_PUBLIC_KEY="$public_key"); fi
+key_env=(-u SKHID_TEST_PUBLIC_KEY -u SKHID_TEST_TRACKERS)
+if ((test_server)); then key_env=(-u SKHID_TEST_TRACKERS SKHID_TEST_PUBLIC_KEY="$public_key"); fi
 say "building bugtrap.dll and updater_skhid.exe (log: $work/build.log) ..."
 # SKHID_REVISION: their version resource says this release's revision
 # (FileVersion <n>.0.0.0, ProductVersion "revision <n>"; client/windows_build.rs).

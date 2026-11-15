@@ -13,9 +13,11 @@ wrong bytes (a few lines of Python).
     python tests/test_torrent.py [-v] [TestName ...]
 
 Windows, or Linux under Wine (as test_db_patches.py, whose harness this
-uses). The updater must be built to trust the tests' key:
+uses). The updater must be built to trust the tests' key and to ask the
+tests' trackers (it asks only its own, never a torrent's):
 
-    SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) ./build.sh
+    SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) \
+        SKHID_TEST_TRACKERS="$(python tests/test_torrent.py --trackers)" ./build.sh
 
 and Python needs libtorrent and cryptography, for example
 `nix build --impure --expr '(import <nixpkgs> {}).python3.withPackages (p: [ p.libtorrent-rasterbar p.cryptography ])'`.
@@ -76,8 +78,9 @@ def setUpModule():
     if lt is None:
         raise unittest.SkipTest("no libtorrent or cryptography in this Python (see the docstring)")
     with open(harness.UPDATER, "rb") as file:
-        if public_key_hex().encode() not in file.read():
-            raise unittest.SkipTest("the updater is not built with the tests' key (see the docstring)")
+        built = file.read()
+        if public_key_hex().encode() not in built or TRACKERS.encode() not in built:
+            raise unittest.SkipTest("the updater is not built with the tests' key and trackers (see the docstring)")
     wine.setUpModule()
 
 
@@ -104,9 +107,16 @@ def compact(peers):
     return b"".join(socket.inet_aton(ip) + struct.pack(">H", port) for ip, port in peers)
 
 
+# The tests' trackers, at fixed ports: the updater is built with them
+# (`SKHID_TEST_TRACKERS`).
+UDP_PORT, HTTP_PORT = 47613, 47614
+TRACKERS = f"udp://127.0.0.1:{UDP_PORT}/announce http://127.0.0.1:{HTTP_PORT}/announce"
+
+
 class Tracker:
-    """An HTTP tracker and a UDP one (BEP 15) on 127.0.0.1: both answer
-    `peers`; `asked` says who asked how, with the port they said."""
+    """An HTTP tracker and a UDP one (BEP 15) on 127.0.0.1, the updater's
+    (`TRACKERS`): both answer `peers`; `asked` says who asked how, with the
+    port they said."""
 
     def __init__(self):
         self.peers = []
@@ -127,10 +137,11 @@ class Tracker:
                 self.end_headers()
                 self.wfile.write(body)
 
-        self.http = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.http = http.server.ThreadingHTTPServer(("127.0.0.1", HTTP_PORT), Handler)
         threading.Thread(target=self.http.serve_forever, daemon=True).start()
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.udp.bind(("127.0.0.1", 0))
+        self.udp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.udp.bind(("127.0.0.1", UDP_PORT))
         self.udp.settimeout(0.2)
         self.running = True
         threading.Thread(target=self.serve_udp, daemon=True).start()
@@ -227,6 +238,13 @@ def read_frame(peer):
             raise OSError("closed")
         body += part
     return body
+
+
+def canonical(torrent):
+    """`torrent` as the updater keeps and gives it (`logic/src/torrent.rs`
+    `canonical`): its info, piece layers and signature, nothing else."""
+    entry = lt.bdecode(torrent)
+    return lt.bencode({key: value for key, value in entry.items() if key in (b"info", b"piece layers", b"skhid")})
 
 
 def meet(peer, revision, torrent=None):
@@ -504,7 +522,9 @@ class TorrentTest(wine.WineTest):
         self.wait_latest()
         log = self.log()
         self.assertIn("the rendezvous gave a signed torrent of revision 61", log)
-        self.assertEqual(self.read(f"{X86}/updater_skhid.found.torrent"), newer)
+        # Kept without what is outside the signature (its trackers).
+        self.assertEqual(self.read(f"{X86}/updater_skhid.found.torrent"), canonical(newer))
+        self.assertNotIn(b"announce", canonical(newer))
         self.stop()
 
     def test_the_updater_gives_its_torrent_at_the_rendezvous(self):
@@ -515,7 +535,7 @@ class TorrentTest(wine.WineTest):
         for revision in (None, 59):
             with socket.create_connection(("127.0.0.1", self.port), timeout=30) as peer:
                 peer.settimeout(30)
-                self.assertEqual(meet(peer, revision), torrent)
+                self.assertEqual(meet(peer, revision), canonical(torrent))
         # One of the same revision gets nothing, and gives nothing.
         with socket.create_connection(("127.0.0.1", self.port), timeout=30) as peer:
             peer.settimeout(30)
@@ -635,5 +655,8 @@ class TorrentTest(wine.WineTest):
 if __name__ == "__main__":
     if sys.argv[1:] == ["--key"]:
         print(public_key_hex())
+        sys.exit(0)
+    if sys.argv[1:] == ["--trackers"]:
+        print(TRACKERS)
         sys.exit(0)
     unittest.main()

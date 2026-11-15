@@ -3,8 +3,8 @@
 //! (BEP 47 pad files), read once into [`Torrent`] and refused whole when it
 //! is anything else.
 //!
-//! What is trusted, and how: the torrent is trusted as a whole by where it
-//! comes from (the program decides that: `exe/src/torrent.rs`, `trusted`).
+//! What is trusted, and how: the torrent is trusted as a whole by the
+//! release's signature (`crate::signed`; the program decides: `exe/src/torrent.rs`, `trusted`).
 //! Its `info` holds each file's v2 "pieces root", a SHA-256 merkle root of
 //! its 16 KiB blocks; the torrent's "piece layers" are checked against those
 //! roots here, so every piece is then checked by SHA-256
@@ -27,7 +27,6 @@ pub const MAX_TORRENT: usize = 8 << 20;
 pub const BLOCK: u32 = 16 * 1024;
 const MAX_PIECE: u32 = 16 << 20;
 const MAX_FILES: usize = 10_000;
-const MAX_TRACKERS: usize = 16;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct File {
@@ -55,10 +54,9 @@ pub struct Torrent {
     pub piece_length: u32,
     /// The v1 piece space's length, the pads in it.
     pub length: u64,
-    /// The files, in the v1 list's order (no pads).
+    /// The files, in the v1 list's order (no pads). (No trackers: the
+    /// torrent's are outside its signature; the updater has its own.)
     pub files: Vec<File>,
-    /// Its trackers' addresses (`http://`, `https://`, `udp://`).
-    pub trackers: Vec<String>,
     /// For each piece: the file it is of, and the SHA-256 merkle root its
     /// blocks must make.
     pieces: Vec<(u32, [u8; 32])>,
@@ -107,40 +105,6 @@ fn zero_root(leaves: u32) -> [u8; 32] {
 
 fn text(value: Option<&Value>) -> Option<String> {
     String::from_utf8(value?.bytes()?.into()).ok()
-}
-
-fn tracker(address: &str) -> bool {
-    address.len() <= 1024
-        && ["http://", "https://", "udp://"]
-            .iter()
-            .any(|scheme| address.starts_with(scheme))
-        && address.bytes().all(|c| c.is_ascii_graphic())
-}
-
-fn trackers(document: &Value) -> Vec<String> {
-    let mut all: Vec<String> = Vec::new();
-    let mut add = |value: &Value| {
-        if let Some(address) = text(Some(value))
-            && tracker(&address)
-            && !all.contains(&address)
-            && all.len() < MAX_TRACKERS
-        {
-            all.push(address);
-        }
-    };
-    if let Some(announce) = document.get(b"announce") {
-        add(announce);
-    }
-    for tier in document
-        .get(b"announce-list")
-        .and_then(Value::list)
-        .unwrap_or(&[])
-    {
-        for address in tier.list().unwrap_or(&[]) {
-            add(address);
-        }
-    }
-    all
 }
 
 /// The v2 file tree's files: path, size, pieces root (none for an empty
@@ -289,9 +253,27 @@ pub fn parse(data: &[u8]) -> Result<Torrent, TorrentError> {
         piece_length,
         length: offset,
         files,
-        trackers: trackers(&document),
         pieces,
     })
+}
+
+/// The torrent as the updater keeps and passes it on: its `info`, `piece
+/// layers` and `skhid` (the signature) as they are, nothing else. The rest
+/// (trackers, a comment...) is outside the signature: whoever handed the
+/// torrent over could have put anything there.
+pub fn canonical(data: &[u8]) -> Option<Vec<u8>> {
+    let document = bencode::parse(data)?;
+    let mut out = alloc::vec![b'd'];
+    // In the order of their keys' bytes, as bencoding has them.
+    for key in [&b"info"[..], b"piece layers", b"skhid"] {
+        if let Some((_, raw)) = document.entry(key) {
+            out.extend_from_slice(alloc::format!("{}:", key.len()).as_bytes());
+            out.extend_from_slice(key);
+            out.extend_from_slice(raw);
+        }
+    }
+    out.push(b'e');
+    Some(out)
 }
 
 impl Torrent {
@@ -491,7 +473,10 @@ mod tests {
     fn a_hybrid_torrent_and_its_pieces() {
         let (data, big, small) = sample();
         let torrent = parse(&data).unwrap();
-        assert_eq!(torrent.trackers, ["udp://127.0.0.1:1/announce"]);
+        // Kept and passed on without what is outside the signature.
+        let kept = canonical(&data).unwrap();
+        assert!(!kept.windows(8).any(|w| w == b"announce"));
+        assert_eq!(parse(&kept).unwrap(), torrent);
         assert_eq!(torrent.files.len(), 2);
         assert_eq!(torrent.files[1].offset, 4 * 32 * 1024);
         assert_eq!(torrent.piece_count(), 5);

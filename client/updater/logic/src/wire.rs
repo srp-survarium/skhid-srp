@@ -192,42 +192,49 @@ pub fn frame(message: &Message) -> Vec<u8> {
     out
 }
 
-/// Cuts the bytes of a connection into messages, as they come.
+/// Cuts the bytes of a connection into messages, as they come: read from
+/// a cursor, the bytes read dropped once a push (so many small messages
+/// cost each its own bytes, never the whole buffer's).
 #[derive(Debug, Default)]
 pub struct Reader {
     buffer: Vec<u8>,
+    /// Where the next message starts.
+    at: usize,
 }
 
 impl Reader {
     pub fn push(&mut self, bytes: &[u8]) {
+        self.buffer.drain(..self.at);
+        self.at = 0;
         self.buffer.extend_from_slice(bytes);
+    }
+
+    fn rest(&self) -> &[u8] {
+        &self.buffer[self.at..]
     }
 
     /// The handshake, once all of its bytes are here.
     pub fn handshake(&mut self) -> Option<[u8; HANDSHAKE_LEN]> {
-        if self.buffer.len() < HANDSHAKE_LEN {
-            return None;
-        }
-        let bytes = self.buffer[..HANDSHAKE_LEN].try_into().expect("68 bytes");
-        self.buffer.drain(..HANDSHAKE_LEN);
+        let bytes = self.rest().get(..HANDSHAKE_LEN)?.try_into().expect("68 bytes");
+        self.at += HANDSHAKE_LEN;
         Some(bytes)
     }
 
     /// The next whole message. A length past what the torrent allows is
     /// refused before its bytes are waited for.
     pub fn message(&mut self, shape: &Shape) -> Result<Option<Message>, Refused> {
-        let Some(head) = self.buffer.get(..4) else {
+        let Some(head) = self.rest().get(..4) else {
             return Ok(None);
         };
         let length = u32::from_be_bytes(head.try_into().expect("4 bytes")) as usize;
         if length > shape.max_message() {
             return Err(Refused);
         }
-        if self.buffer.len() < 4 + length {
+        let Some(body) = self.rest().get(4..4 + length) else {
             return Ok(None);
-        }
-        let message = parse(&self.buffer[4..4 + length], shape);
-        self.buffer.drain(..4 + length);
+        };
+        let message = parse(body, shape);
+        self.at += 4 + length;
         message.map(Some)
     }
 }

@@ -11,8 +11,12 @@
 //! hand back what they got. The update's thread starts and stops the engine
 //! ([`Torrents`]) and reads its [`Status`].
 //!
-//! Only peers from the torrent's trackers (HTTP and UDP); IPv4; no DHT,
-//! PEX, UPnP, uTP or encryption.
+//! Only peers from this updater's own trackers ([`trackers`]: never a
+//! torrent's, which are outside its signature), HTTP and UDP; IPv4; no DHT,
+//! PEX, UPnP, uTP or encryption. Peers are strangers, here too: so many
+//! connections an address in all ([`PER_ADDRESS`]), a handshake in time,
+//! one set of banned addresses for the updater's run, the torrent given
+//! to so many at the rendezvous.
 
 use alloc::format;
 use alloc::string::String;
@@ -29,7 +33,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use updater_logic::pipe::{FromLauncher, ToLauncher, Torrenting};
-use updater_logic::swarm::{Action, Event, MAX_PEERS, PeerKey, Start, Swarm};
+use updater_logic::swarm::{Action, Event, HANDSHAKE_MS, MAX_PEERS, PER_ADDRESS, PeerKey, Start, Swarm};
 use updater_logic::torrent::{self, MAX_TORRENT, Torrent};
 use updater_logic::rendezvous::{self, Exchange, Outcome, Ours};
 use updater_logic::tracker::{self, Address, Announce, Ask, Peer};
@@ -55,6 +59,14 @@ const NO_PEER_MS: u64 = 20_000;
 const STALL_MS: u64 = 60_000;
 /// How long the rendezvous is asked for a newer torrent.
 const DISCOVER_MS: u64 = 20_000;
+/// The peers the trackers named that are kept (to connect to), and of one
+/// address in a swarm.
+const MAX_KNOWN: usize = 500;
+/// An HTTP tracker's whole answer comes in this time.
+const TRACKER_MS: u64 = 20_000;
+/// The times this end's torrent is given to one address at the rendezvous
+/// in a run (each a few hundred KB, within the upload limit too).
+const GIVES_PER_ADDRESS: u32 = 2;
 
 /// What each file of the torrent is here, for one run of the engine.
 #[derive(Debug, Clone)]
@@ -83,7 +95,7 @@ pub enum Phase {
 #[derive(Debug, Clone)]
 pub struct Status {
     pub phase: Phase,
-    /// Connections open now.
+    /// Peers past their handshake that have a piece wanted.
     pub peers: usize,
     /// When the engine started fetching, and when a piece last came.
     pub started: u64,
@@ -99,8 +111,11 @@ pub struct Status {
 pub struct Job {
     files: Vec<(Torrent, Vec<Role>)>,
     meeting: Option<Meeting>,
-    meeting_trackers: Vec<String>,
 }
+
+/// The addresses banned in this updater's run (a piece that failed, of one
+/// sender), whichever engine banned them: every engine starts from them.
+type Banned = Arc<Mutex<Vec<[u8; 4]>>>;
 
 enum Command {
     Listen(Option<TcpListener>, u16),
@@ -115,7 +130,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    fn start(job: Job, listener: Option<TcpListener>, port: u16, limit: Option<u64>) -> Self {
+    fn start(job: Job, listener: Option<TcpListener>, port: u16, limit: Option<u64>, banned: Banned) -> Self {
         let (commands, receiver) = mpsc::channel();
         let now = win::ticks();
         let status = Arc::new(Mutex::new(Status {
@@ -129,7 +144,7 @@ impl Engine {
         let thread = std::thread::Builder::new()
             .name("torrent".into())
             .spawn(move || {
-                let outcome = run(job, listener, port, limit, &receiver, &shared);
+                let outcome = run(job, listener, port, limit, &receiver, &shared, &banned);
                 if let Err(why) = outcome {
                     log!("torrent: stopped: {why}");
                     shared.lock().expect("status").phase = Phase::Failed(why);
@@ -163,7 +178,8 @@ impl Drop for Engine {
     }
 }
 
-/// A torrent signed by the release: what it is, its revision, its bytes.
+/// A torrent signed by the release: what it is, its revision, its bytes
+/// (`torrent::canonical`: what the signature covers, and the piece layers).
 pub struct Signed {
     pub torrent: Torrent,
     pub revision: u64,
@@ -185,6 +201,7 @@ pub struct Torrents {
     mode: Mode,
     limit: Option<u64>,
     offered: Offered,
+    banned: Banned,
 }
 
 enum Mode {
@@ -241,6 +258,7 @@ impl Torrents {
             mode,
             limit: None,
             offered: Offered::Unread,
+            banned: Banned::default(),
         }
     }
 
@@ -333,7 +351,7 @@ impl Torrents {
         *engine = None;
         let bound = bound_port(listener, *port);
         let socket = listener.as_ref().and_then(|l| l.try_clone().ok());
-        *engine = Some(Engine::start(job, socket, bound, limit));
+        *engine = Some(Engine::start(job, socket, bound, limit, self.banned.clone()));
         true
     }
 
@@ -371,6 +389,7 @@ fn signed(layout: &Layout, name: &str) -> Result<Signed, String> {
             format!("{name}: {}", win::error_text(code))
         }
     })?;
+    let bytes = torrent::canonical(&bytes).ok_or_else(|| format!("{name} is not bencoded"))?;
     let revision = crate::signed::check(&bytes, layout).map_err(|why| format!("{name}: {why}"))?;
     let torrent = torrent::parse(&bytes)
         .map_err(|error| format!("{name} is not one this updater reads ({error:?})"))?;
@@ -412,12 +431,11 @@ pub fn offered(session: &mut Session, layout: &Layout) -> Option<Arc<Signed>> {
         Ok(signed) => {
             let torrent = &signed.torrent;
             log!(
-                "torrent: revision {}: {} files, {} pieces of {} bytes, {} tracker(s)",
+                "torrent: revision {}: {} files, {} pieces of {} bytes",
                 signed.revision,
                 torrent.files.len(),
                 torrent.piece_count(),
-                torrent.piece_length,
-                torrent.trackers.len()
+                torrent.piece_length
             );
             crate::signed::taken(layout, signed.revision);
             let torrent = signed;
@@ -530,7 +548,6 @@ pub fn share(session: &mut Session, layout: &Layout) {
         None => Job {
             files: Vec::new(),
             meeting: None,
-            meeting_trackers: Vec::new(),
         },
     };
     job.files.extend(bootstrap(layout));
@@ -611,8 +628,7 @@ fn bootstrap(layout: &Layout) -> Option<(Torrent, Vec<Role>)> {
     Some((torrent, roles))
 }
 
-/// The rendezvous's trackers when no torrent names any: the release's
-/// (`release/build_torrent.py`).
+/// The release's trackers (`release/build_torrent.py` TRACKERS).
 const TRACKERS: &[&str] = &[
     "udp://tracker.opentrackr.org:1337/announce",
     "http://tracker.opentrackr.org:1337/announce",
@@ -620,6 +636,18 @@ const TRACKERS: &[&str] = &[
     "udp://tracker.torrent.eu.org:451/announce",
     "udp://exodus.desync.com:6969/announce",
 ];
+
+/// The trackers of every swarm and of the rendezvous: the release's, never
+/// a torrent's (its trackers are outside the signature: whoever handed it
+/// over could name its own, and be the only one to give peers). A test
+/// build has its own (`SKHID_TEST_TRACKERS`, space-separated;
+/// `tests/test_torrent.py`); `release/build-zip` builds none.
+fn trackers() -> Vec<String> {
+    match option_env!("SKHID_TEST_TRACKERS") {
+        Some(list) => list.split_whitespace().map(String::from).collect(),
+        None => TRACKERS.iter().map(|text| String::from(*text)).collect(),
+    }
+}
 
 /// An engine's job: the torrent's swarm with `roles` (when given), and the
 /// rendezvous when this updater has the release's key. `layout`: the
@@ -636,10 +664,6 @@ fn job(signed: Option<&Signed>, roles: Option<Vec<Role>>, layout: Option<&Layout
             (None, None) => u64::MAX,
         },
     });
-    let meeting_trackers = match signed {
-        Some(signed) if !signed.torrent.trackers.is_empty() => signed.torrent.trackers.clone(),
-        _ => TRACKERS.iter().map(|text| String::from(*text)).collect(),
-    };
     Job {
         files: signed
             .zip(roles)
@@ -647,7 +671,6 @@ fn job(signed: Option<&Signed>, roles: Option<Vec<Role>>, layout: Option<&Layout
             .into_iter()
             .collect(),
         meeting,
-        meeting_trackers,
     }
 }
 
@@ -708,7 +731,7 @@ pub fn file_index(torrent: &Torrent, path: &str) -> Option<usize> {
 enum Found {
     Tracker(usize, Result<Announce, String>),
     Connected(TcpStream, Which, Peer),
-    NotConnected,
+    NotConnected(Which, Peer),
 }
 
 struct Storage {
@@ -717,15 +740,25 @@ struct Storage {
 }
 
 impl Storage {
-    fn open(&mut self, file: usize) -> std::io::Result<&mut std::fs::File> {
+    /// File `file` of the torrent, of `size` bytes.
+    fn open(&mut self, file: usize, size: u64) -> std::io::Result<&mut std::fs::File> {
         if !self.files.contains_key(&file) {
             let opened = match &self.roles[file] {
-                Role::Fetch(path) => std::fs::OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .truncate(false)
-                    .open(path)?,
+                Role::Fetch(path) => {
+                    let part = std::fs::OpenOptions::new()
+                        .read(true)
+                        .write(true)
+                        .create(true)
+                        .truncate(false)
+                        .open(path)?;
+                    // A part longer than the file (left by another
+                    // torrent's file of that name): what is past its size
+                    // goes, so a finished part is the file, byte for byte.
+                    if part.metadata()?.len() > size {
+                        part.set_len(size)?;
+                    }
+                    part
+                }
                 Role::Share(path) => std::fs::File::open(path)?,
                 Role::Skip => return Err(ErrorKind::NotFound.into()),
             };
@@ -738,7 +771,7 @@ impl Storage {
     fn read(&mut self, torrent: &Torrent, piece: u32) -> Option<Vec<u8>> {
         let (file, of_file) = torrent.piece_file(piece);
         let at = u64::from(piece) * u64::from(torrent.piece_length) - torrent.files[file].offset;
-        let handle = self.open(file).ok()?;
+        let handle = self.open(file, torrent.files[file].size).ok()?;
         let mut data = alloc::vec![0_u8; torrent.piece_size(piece) as usize];
         handle.seek(SeekFrom::Start(at)).ok()?;
         handle.read_exact(&mut data[..of_file as usize]).ok()?;
@@ -753,7 +786,7 @@ impl Storage {
         };
         let path = path.clone();
         let handle = self
-            .open(file)
+            .open(file, torrent.files[file].size)
             .map_err(|error| format!("cannot open {path}: {error}"))?;
         handle
             .seek(SeekFrom::Start(at))
@@ -819,7 +852,6 @@ fn check_parts(
 }
 
 /// A tracker, asked for one of the engine's swarms.
-/// A tracker, asked for one of the engine's swarms.
 struct Tracker {
     address: Address,
     swarm: Which,
@@ -842,6 +874,9 @@ fn announce(address: Address, ask: Ask, transaction: u32) -> Result<Announce, St
             let text = tracker::http_url(&base, &ask);
             let url = url::patch(&text).ok_or("not an address")?;
             let mut body = Vec::new();
+            // The whole answer in its time: a tracker that trickles holds
+            // this thread no longer.
+            let until = win::ticks() + TRACKER_MS;
             http::get_file(
                 &url,
                 0,
@@ -852,7 +887,7 @@ fn announce(address: Address, ask: Ask, transaction: u32) -> Result<Announce, St
                     body.extend_from_slice(chunk);
                     Ok(())
                 },
-                &mut |_, _| true,
+                &mut |_, _| win::ticks() < until,
             )
             .map_err(|error: HttpError| format!("{error:?}"))?;
             tracker::parse_http(&body).map_err(|error| format!("{error:?}"))
@@ -936,10 +971,14 @@ struct Meeting {
 }
 
 impl Meeting {
-    fn ours(&self) -> Option<Ours<'_>> {
+    /// This end's torrent for a connection with `ip`: given while that
+    /// address had it fewer than [`GIVES_PER_ADDRESS`] times and the upload
+    /// limit has room (`room`).
+    fn ours(&self, given: &BTreeMap<[u8; 4], u32>, ip: [u8; 4], room: bool) -> Option<Ours<'_>> {
         self.ours.as_ref().map(|(revision, bytes)| Ours {
             revision: *revision,
             torrent: bytes,
+            give: room && given.get(&ip).copied().unwrap_or(0) < GIVES_PER_ADDRESS,
         })
     }
 }
@@ -955,11 +994,14 @@ fn run(
     limit: Option<u64>,
     commands: &mpsc::Receiver<Command>,
     status: &Mutex<Status>,
+    shared_bans: &Mutex<Vec<[u8; 4]>>,
 ) -> Result<(), String> {
     let peer_id = peer_id();
+    let mut banned: Vec<[u8; 4]> = shared_bans.lock().expect("bans").clone();
     let mut trackers: Vec<Tracker> = Vec::new();
-    let mut add_trackers = |list: &[String], swarm: Which| {
-        for text in list {
+    let list = self::trackers();
+    let mut add_trackers = |swarm: Which| {
+        for text in &list {
             if let Some(address) = tracker::address(text) {
                 trackers.push(Tracker {
                     address,
@@ -972,7 +1014,7 @@ fn run(
     };
     let mut swarms: Vec<Files> = Vec::new();
     for (index, (torrent, roles)) in job.files.into_iter().enumerate() {
-        add_trackers(&torrent.trackers, Which::Files(index));
+        add_trackers(Which::Files(index));
         let fetching = roles.iter().any(|role| matches!(role, Role::Fetch(_)));
         let mut storage = Storage {
             roles,
@@ -981,7 +1023,7 @@ fn run(
         let Some(start) = check_parts(&torrent, &mut storage, status, commands) else {
             return Ok(());
         };
-        let mut swarm = Swarm::new(torrent, peer_id, &start, win::ticks());
+        let mut swarm = Swarm::new(torrent, peer_id, &start, banned.clone(), win::ticks());
         let pending = swarm.step(Event::UploadLimit(limit));
         swarms.push(Files {
             swarm,
@@ -992,7 +1034,7 @@ fn run(
     }
     let meeting = job.meeting;
     if meeting.is_some() {
-        add_trackers(&job.meeting_trackers, Which::Rendezvous);
+        add_trackers(Which::Rendezvous);
     }
     let now = win::ticks();
     {
@@ -1006,7 +1048,10 @@ fn run(
     let mut next_key: PeerKey = 0;
     // Peers the trackers named, of which swarm, and when each was tried.
     let mut known: BTreeMap<(Which, Peer), u64> = BTreeMap::new();
-    let mut connecting = 0_usize;
+    // Outgoing connections being made, by address.
+    let mut connecting: BTreeMap<[u8; 4], usize> = BTreeMap::new();
+    // The times this end's torrent was given to each address.
+    let mut given: BTreeMap<[u8; 4], u32> = BTreeMap::new();
     let mut last_tick = 0;
     let mut best: Option<(u64, Arc<Vec<u8>>)> = None;
     let mut buffer = alloc::vec![0_u8; 64 * 1024];
@@ -1032,15 +1077,25 @@ fn run(
         }
         let now = win::ticks();
         let mut busy = false;
-        let room = |swarms: &[Files], connections: &BTreeMap<PeerKey, Connection>, ip: [u8; 4]| {
-            connections.len() < MAX_PEERS + 8 && swarms.iter().all(|files| files.swarm.may_connect(ip))
+        // Room for one more connection with `ip`: not banned, and fewer
+        // than PER_ADDRESS with it in all (taken, made, being made, of any
+        // swarm or of none yet).
+        let room = |connections: &BTreeMap<PeerKey, Connection>,
+                    connecting: &BTreeMap<[u8; 4], usize>,
+                    banned: &[[u8; 4]],
+                    ip: [u8; 4]| {
+            connections.len() < MAX_PEERS + 8
+                && !banned.contains(&ip)
+                && connections.values().filter(|connection| connection.ip == ip).count()
+                    + connecting.get(&ip).copied().unwrap_or(0)
+                    < PER_ADDRESS
         };
         // Peers that connect: which swarm, their handshake says.
         while let Some(socket) = &listener {
             match socket.accept() {
                 Ok((stream, address)) => {
                     busy = true;
-                    match ip_of(address).filter(|&ip| room(&swarms, &connections, ip)) {
+                    match ip_of(address).filter(|&ip| room(&connections, &connecting, &banned, ip)) {
                         Some(ip) if stream.set_nonblocking(true).is_ok() => {
                             next_key += 1;
                             connections.insert(next_key, Connection {
@@ -1074,9 +1129,7 @@ fn run(
                             );
                             tracker.next = now + answer.interval_s * 1000;
                             for peer in answer.peers {
-                                if known.len() < 500 {
-                                    known.entry((tracker.swarm, peer)).or_insert(0);
-                                }
+                                learn(&mut known, tracker.swarm, peer);
                             }
                         }
                         Err(why) => {
@@ -1086,8 +1139,8 @@ fn run(
                     }
                 }
                 Found::Connected(stream, which, peer) => {
-                    connecting -= 1;
-                    if !room(&swarms, &connections, peer.ip) || stream.set_nonblocking(true).is_err() {
+                    connected(&mut connecting, peer.ip);
+                    if !room(&connections, &connecting, &banned, peer.ip) || stream.set_nonblocking(true).is_err() {
                         continue;
                     }
                     next_key += 1;
@@ -1110,15 +1163,19 @@ fn run(
                         }
                         Which::Rendezvous => {
                             let Some(meeting) = &meeting else { continue };
-                            let (exchange, hello) =
-                                Exchange::start(&meeting.hash, &peer_id, meeting.ours());
+                            let ours = meeting.ours(&given, peer.ip, false);
+                            let (exchange, hello) = Exchange::start(&meeting.hash, &peer_id, ours);
                             connection.link = Link::Rendezvous(exchange);
                             connection.out = hello;
                         }
                     }
                     connections.insert(next_key, connection);
                 }
-                Found::NotConnected => connecting -= 1,
+                Found::NotConnected(which, peer) => {
+                    connected(&mut connecting, peer.ip);
+                    // Not tried again: room for others the trackers name.
+                    known.remove(&(which, peer));
+                }
             }
         }
         // Trackers due.
@@ -1172,11 +1229,15 @@ fn run(
             .map(|(key, _)| *key)
             .collect();
         for (which, peer) in candidates {
-            if connecting >= CONNECTING || connections.len() + connecting >= MAX_PEERS {
+            let pending: usize = connecting.values().sum();
+            if pending >= CONNECTING || connections.len() + pending >= MAX_PEERS {
                 break;
             }
+            if !room(&connections, &connecting, &banned, peer.ip) {
+                continue;
+            }
             known.insert((which, peer), now.max(1));
-            connecting += 1;
+            *connecting.entry(peer.ip).or_insert(0) += 1;
             let sender = found_sender.clone();
             let spawned = std::thread::Builder::new()
                 .stack_size(64 * 1024)
@@ -1185,12 +1246,12 @@ fn run(
                     let _ = sender.send(
                         match TcpStream::connect_timeout(&address, Duration::from_secs(5)) {
                             Ok(stream) => Found::Connected(stream, which, peer),
-                            Err(_) => Found::NotConnected,
+                            Err(_) => Found::NotConnected(which, peer),
                         },
                     );
                 });
             if spawned.is_err() {
-                connecting -= 1;
+                connected(&mut connecting, peer.ip);
             }
         }
         // What the peers sent.
@@ -1213,6 +1274,10 @@ fn run(
                 };
                 busy = true;
                 let bytes = &buffer[..read];
+                let ip = connection.ip;
+                // This end's torrent may go to the rendezvous peer: within
+                // the upload limit (the first swarm's), so many an address.
+                let room_up = swarms.first().is_none_or(|files| files.swarm.may_upload());
                 // A peer that connected: its handshake routes it.
                 if let Link::Unrouted(head) = &mut connection.link {
                     head.extend_from_slice(bytes);
@@ -1231,12 +1296,14 @@ fn run(
                         more.extend(files.swarm.step(Event::Received(key, &head)));
                         files.pending.extend(more);
                     } else if let Some(meeting) = meeting.as_ref().filter(|meeting| hash == meeting.hash) {
-                        let (mut exchange, hello) =
-                            Exchange::start(&meeting.hash, &peer_id, meeting.ours());
+                        let ours = meeting.ours(&given, ip, room_up);
+                        let (mut exchange, hello) = Exchange::start(&meeting.hash, &peer_id, ours);
                         connection.out.extend(hello);
-                        let outcome = exchange.received(&head, &meeting.hash, meeting.ours());
+                        let outcome = exchange.received(&head, &meeting.hash, ours);
                         connection.link = Link::Rendezvous(exchange);
-                        met(connection, outcome, meeting, &mut best);
+                        if let Some(bytes) = met(connection, outcome, meeting, &mut best) {
+                            gave(&mut given, &mut swarms, ip, bytes);
+                        }
                     } else {
                         connection.link = Link::Closing;
                     }
@@ -1250,8 +1317,11 @@ fn run(
                     }
                     Link::Rendezvous(exchange) => {
                         if let Some(meeting) = &meeting {
-                            let outcome = exchange.received(bytes, &meeting.hash, meeting.ours());
-                            met(connection, outcome, meeting, &mut best);
+                            let ours = meeting.ours(&given, ip, room_up);
+                            let outcome = exchange.received(bytes, &meeting.hash, ours);
+                            if let Some(bytes) = met(connection, outcome, meeting, &mut best) {
+                                gave(&mut given, &mut swarms, ip, bytes);
+                            }
                         }
                     }
                     Link::Unrouted(_) | Link::Closing => {}
@@ -1270,12 +1340,17 @@ fn run(
                 let more = files.swarm.step(Event::Tick(now));
                 files.pending.extend(more);
             }
-            // A connection that does not route or meet in time goes.
+            // A connection that does not route in a handshake's time, or
+            // meet in a meeting's, goes.
             let late: Vec<PeerKey> = connections
                 .iter()
                 .filter(|(_, connection)| {
-                    matches!(connection.link, Link::Unrouted(_) | Link::Rendezvous(_) | Link::Closing)
-                        && now.saturating_sub(connection.since) > MEETING_MS
+                    let age = now.saturating_sub(connection.since);
+                    match connection.link {
+                        Link::Unrouted(_) => age > HANDSHAKE_MS,
+                        Link::Rendezvous(_) | Link::Closing => age > MEETING_MS,
+                        Link::Files(_) => false,
+                    }
                 })
                 .map(|(key, _)| *key)
                 .collect();
@@ -1285,6 +1360,19 @@ fn run(
         }
         for files in &mut swarms {
             apply(files, &mut connections)?;
+        }
+        // The addresses a swarm banned: banned for every swarm and engine
+        // of this run.
+        for files in &swarms {
+            for ip in files.swarm.banned() {
+                if !banned.contains(ip) {
+                    banned.push(*ip);
+                    let mut shared = shared_bans.lock().expect("bans");
+                    if !shared.contains(ip) {
+                        shared.push(*ip);
+                    }
+                }
+            }
         }
         // What goes to the peers.
         let mut closed = Vec::new();
@@ -1308,6 +1396,7 @@ fn run(
             }
             if connection.out.len() > MAX_OUT + rendezvous::MAX_TORRENT
                 || (matches!(connection.link, Link::Closing) && connection.out.is_empty())
+                || banned.contains(&connection.ip)
             {
                 closed.push(*key);
             }
@@ -1317,7 +1406,7 @@ fn run(
         }
         {
             let mut status = status.lock().expect("status");
-            status.peers = connections.len();
+            status.peers = swarms.iter().map(|files| files.swarm.useful_peers()).sum();
             status.found = best.clone();
             // A fetch's job has one torrent: its progress is the engine's.
             if let Some(files) = swarms.first() {
@@ -1336,31 +1425,84 @@ fn run(
     }
 }
 
+/// A peer a tracker named, kept to be connected to: [`PER_ADDRESS`] of an
+/// address in a swarm at most, [`MAX_KNOWN`] in all (the one tried longest
+/// ago makes room; one never tried yet stays).
+fn learn(known: &mut BTreeMap<(Which, Peer), u64>, which: Which, peer: Peer) {
+    if known.contains_key(&(which, peer)) {
+        return;
+    }
+    let same = known.keys().filter(|(other, known)| *other == which && known.ip == peer.ip).count();
+    if same >= PER_ADDRESS {
+        return;
+    }
+    if known.len() >= MAX_KNOWN {
+        let oldest = known
+            .iter()
+            .filter(|(_, tried)| **tried > 0)
+            .min_by_key(|(_, tried)| **tried)
+            .map(|(key, _)| *key);
+        match oldest {
+            Some(key) => {
+                known.remove(&key);
+            }
+            None => return,
+        }
+    }
+    known.insert((which, peer), 0);
+}
+
+/// An outgoing connection with `ip` is made, or not: no longer being made.
+fn connected(connecting: &mut BTreeMap<[u8; 4], usize>, ip: [u8; 4]) {
+    if let Some(count) = connecting.get_mut(&ip) {
+        *count -= 1;
+        if *count == 0 {
+            connecting.remove(&ip);
+        }
+    }
+}
+
+/// This end's torrent (`bytes` of it) went to `ip` at the rendezvous: once
+/// more for that address, and out of the upload limit.
+fn gave(given: &mut BTreeMap<[u8; 4], u32>, swarms: &mut [Files], ip: [u8; 4], bytes: usize) {
+    *given.entry(ip).or_insert(0) += 1;
+    if let Some(files) = swarms.first_mut() {
+        files.swarm.spend(bytes as u64);
+    }
+}
+
 /// What a rendezvous connection's bytes led to: a torrent it sent, kept
-/// when it is the release's and newer than any so far.
+/// when it is the release's and newer than any so far (as
+/// `torrent::canonical` has it). The bytes of this end's torrent when it
+/// went to the peer.
 fn met(
     connection: &mut Connection,
     outcome: Outcome,
     meeting: &Meeting,
     best: &mut Option<(u64, Arc<Vec<u8>>)>,
-) {
+) -> Option<usize> {
+    let mut gave = None;
     match outcome {
         Outcome::Going(send) => connection.out.extend(send),
-        Outcome::Done { send, torrent } => {
+        Outcome::Done { send, torrent, gave: given } => {
+            if given {
+                gave = Some(send.len());
+            }
             connection.out.extend(send);
             connection.link = Link::Closing;
-            let Some(torrent) = torrent else { return };
-            match updater_logic::signed::verify(&torrent, &meeting.key) {
-                Ok(revision)
-                    if u64::from(revision) >= meeting.floor
-                        && best.as_ref().is_none_or(|(best, _)| u64::from(revision) > *best)
-                        && torrent::parse(&torrent).is_ok() =>
-                {
-                    log!("torrent: the rendezvous gave a signed torrent of revision {revision}");
-                    *best = Some((u64::from(revision), Arc::new(torrent)));
+            if let Some(torrent) = torrent.and_then(|torrent| torrent::canonical(&torrent)) {
+                match updater_logic::signed::verify(&torrent, &meeting.key) {
+                    Ok(revision)
+                        if u64::from(revision) >= meeting.floor
+                            && best.as_ref().is_none_or(|(best, _)| u64::from(revision) > *best)
+                            && torrent::parse(&torrent).is_ok() =>
+                    {
+                        log!("torrent: the rendezvous gave a signed torrent of revision {revision}");
+                        *best = Some((u64::from(revision), Arc::new(torrent)));
+                    }
+                    Ok(revision) => log!("torrent: the rendezvous gave revision {revision}: not taken"),
+                    Err(error) => log!("torrent: the rendezvous gave a torrent: {error:?}: not taken"),
                 }
-                Ok(revision) => log!("torrent: the rendezvous gave revision {revision}: not taken"),
-                Err(error) => log!("torrent: the rendezvous gave a torrent: {error:?}: not taken"),
             }
         }
         Outcome::Refused => connection.link = Link::Closing,
@@ -1368,6 +1510,7 @@ fn met(
     if let Link::Closing = connection.link {
         let _ = connection.stream.flush();
     }
+    gave
 }
 
 fn close(connections: &mut BTreeMap<PeerKey, Connection>, swarms: &mut [Files], key: PeerKey) {

@@ -6,13 +6,17 @@
 //!
 //! The rules (`srp-026g/docs/notes/torrent-downloads.md`):
 //! - a piece counts only once its SHA-256 is checked (`Torrent::piece_ok`);
-//!   a piece that fails closes, and bans for the run, every peer that sent
-//!   a block of it;
+//!   a piece that fails names its sender when one peer sent all of it: that
+//!   peer is closed and banned for the run; one that several peers sent is
+//!   fetched again from one peer alone, so a liar cannot get honest peers
+//!   banned;
 //! - only checked pieces are uploaded: a piece on disk is offered, and
 //!   checked when it is read, before any byte of it is sent;
 //! - fixed limits: peers, requests a peer may queue, requests in flight,
 //!   pieces being fetched (their bytes are held until checked), the time a
-//!   peer may take; past them the connection ends;
+//!   peer may take, the messages that change nothing; past them the
+//!   connection ends. A piece being fetched that no peer can go on with
+//!   goes back to the missing ones;
 //! - uploads within the upload limit, to [`UPLOAD_SLOTS`] peers at a time.
 
 use alloc::collections::{BTreeMap, VecDeque};
@@ -28,7 +32,7 @@ pub type PeerKey = u32;
 pub const MAX_PEERS: usize = 40;
 /// Connections with one address at a time (players behind one NAT share
 /// theirs).
-const PER_ADDRESS: usize = 4;
+pub const PER_ADDRESS: usize = 4;
 /// Peers uploaded to at a time.
 pub const UPLOAD_SLOTS: usize = 4;
 /// Requests a peer may have queued with this end; past that it is closed.
@@ -40,12 +44,16 @@ const FETCH_BYTES: u64 = 32 << 20;
 const MAX_FETCHING: usize = 16;
 /// Pieces read from the disk kept for the next requests of them.
 const CACHE: usize = 4;
-const HANDSHAKE_MS: u64 = 15_000;
+pub const HANDSHAKE_MS: u64 = 15_000;
 const SILENT_MS: u64 = 150_000;
 const KEEP_ALIVE_MS: u64 = 90_000;
 /// A request not answered in this time: the peer is closed.
 const REQUEST_MS: u64 = 60_000;
 const ROTATE_MS: u64 = 30_000;
+/// Messages that change nothing (keep-alives, blocks not asked for, a have
+/// of a piece it said it has...) a peer may send in [`ROTATE_MS`]; past
+/// that it is closed.
+const MAX_USELESS: u32 = 2048;
 
 /// What a piece is at the start, as the program found the disk.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,7 +64,7 @@ pub enum Start {
     Missing,
     /// On disk, not checked yet: offered, checked when read.
     Offered,
-    /// On disk and checked.
+    /// Wanted, on disk and checked.
     Checked,
 }
 
@@ -67,30 +75,72 @@ enum Ask {
     Got,
 }
 
+/// Who may send a missing piece's blocks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Sourcing {
+    /// Any peers, a block each.
+    Any,
+    /// It failed with blocks of several peers: one peer sends all of it, so
+    /// that a wrong one names its sender.
+    One,
+}
+
+/// Who sends a piece being fetched.
+#[derive(Debug)]
+enum Senders {
+    /// Peers that sent a block of it, with their addresses (kept here: a
+    /// peer that left is still banned by its address).
+    Any(Vec<(PeerKey, [u8; 4])>),
+    /// The one peer asked for all of it.
+    One(PeerKey, [u8; 4]),
+}
+
+impl Senders {
+    fn sourcing(&self) -> Sourcing {
+        match self {
+            Senders::Any(_) => Sourcing::Any,
+            Senders::One(..) => Sourcing::One,
+        }
+    }
+
+    /// Whether `peer` may be asked a block.
+    fn may_ask(&self, peer: PeerKey) -> bool {
+        match self {
+            Senders::Any(_) => true,
+            Senders::One(one, _) => *one == peer,
+        }
+    }
+}
+
 #[derive(Debug)]
 struct Fetch {
     data: Vec<u8>,
     blocks: Vec<Ask>,
-    /// Who sent its blocks: closed and banned if it fails.
-    from: Vec<PeerKey>,
+    senders: Senders,
+    /// When a block of it was last asked for or came.
+    touched: u64,
 }
 
 #[derive(Debug)]
 enum Piece {
     Absent,
-    Missing,
+    Missing(Sourcing),
     Fetching(Fetch),
+    /// Of a file shared, on disk: offered, checked when read.
     Offered,
+    /// Of a file shared, read and checked.
+    Shared,
+    /// Wanted and here, checked (fetched, or found in its part).
     Checked,
 }
 
 impl Piece {
     fn wanted(&self) -> bool {
-        matches!(self, Piece::Missing | Piece::Fetching(_))
+        matches!(self, Piece::Missing(_) | Piece::Fetching(_))
     }
 
     fn here(&self) -> bool {
-        matches!(self, Piece::Offered | Piece::Checked)
+        matches!(self, Piece::Offered | Piece::Shared | Piece::Checked)
     }
 }
 
@@ -154,6 +204,8 @@ struct Peer {
     link: Link,
     heard: u64,
     sent: u64,
+    /// Messages that changed nothing since the last rotation.
+    useless: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,6 +232,17 @@ pub enum Event<'a> {
     UploadLimit(Option<u64>),
 }
 
+/// What a message of a peer did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Effect {
+    /// Nothing changed: counted against [`MAX_USELESS`].
+    Useless,
+    /// Something changed; nothing more to ask of the peer.
+    Noted,
+    /// What this end asks of the peer may change.
+    Ask,
+}
+
 pub struct Swarm {
     torrent: Torrent,
     shape: Shape,
@@ -189,7 +252,9 @@ pub struct Swarm {
     banned: Vec<[u8; 4]>,
     now: u64,
     limit: Option<u64>,
-    tokens: u64,
+    /// Upload bytes the limit allows now; below zero: owed (see
+    /// [`Swarm::spend`]).
+    tokens: i64,
     loading: Option<u32>,
     cache: VecDeque<(u32, Vec<u8>)>,
     rotated: u64,
@@ -208,7 +273,8 @@ fn bit(bits: &[u8], piece: u32) -> bool {
 }
 
 impl Swarm {
-    pub fn new(torrent: Torrent, peer_id: [u8; 20], start: &[Start], now: u64) -> Self {
+    /// `banned`: the addresses banned so far this run (by other swarms).
+    pub fn new(torrent: Torrent, peer_id: [u8; 20], start: &[Start], banned: Vec<[u8; 4]>, now: u64) -> Self {
         let count = torrent.piece_count();
         let shape = Shape {
             pieces: count,
@@ -221,7 +287,7 @@ impl Swarm {
                 Start::Absent => Piece::Absent,
                 Start::Missing => {
                     wanted += u64::from(shape.piece_size(piece));
-                    Piece::Missing
+                    Piece::Missing(Sourcing::Any)
                 }
                 Start::Offered => Piece::Offered,
                 Start::Checked => Piece::Checked,
@@ -233,7 +299,7 @@ impl Swarm {
             peer_id,
             pieces,
             peers: BTreeMap::new(),
-            banned: Vec::new(),
+            banned,
             now,
             limit: None,
             tokens: 0,
@@ -270,12 +336,40 @@ impl Swarm {
         self.peers.len()
     }
 
+    /// Peers past their handshake that have a piece this end wants.
+    pub fn useful_peers(&self) -> usize {
+        self.peers
+            .values()
+            .filter(|peer| matches!(&peer.link, Link::Open(open) if open.download.told() == Interest::Yes))
+            .count()
+    }
+
+    /// The addresses banned this run, by this swarm or given at its start.
+    pub fn banned(&self) -> &[[u8; 4]] {
+        &self.banned
+    }
+
     /// Whether a connection with `ip` may be made or taken: room, not
     /// banned, not [`PER_ADDRESS`] connections with it already.
     pub fn may_connect(&self, ip: [u8; 4]) -> bool {
         self.peers.len() < MAX_PEERS
             && !self.banned.contains(&ip)
             && self.peers.values().filter(|peer| peer.ip == ip).count() < PER_ADDRESS
+    }
+
+    /// Whether the upload limit lets this end upload now: none set, or
+    /// nothing owed ([`Swarm::spend`]).
+    pub fn may_upload(&self) -> bool {
+        self.limit.is_none() || self.tokens >= 0
+    }
+
+    /// Bytes this end uploaded outside the swarm (the rendezvous' torrent),
+    /// out of the same upload limit: owed when more than it has, and paid
+    /// back before the swarm uploads again.
+    pub fn spend(&mut self, bytes: u64) {
+        if self.limit.is_some() {
+            self.tokens = self.tokens.saturating_sub(i64::try_from(bytes).unwrap_or(i64::MAX));
+        }
     }
 
     pub fn step(&mut self, event: Event) -> Vec<Action> {
@@ -293,6 +387,7 @@ impl Swarm {
                             link: Link::Handshake { since: self.now },
                             heard: self.now,
                             sent: self.now,
+                            useless: 0,
                         },
                     );
                     let hello = wire::handshake(&self.torrent.v1, &self.peer_id);
@@ -361,11 +456,18 @@ impl Swarm {
                 return;
             };
             match peer.reader.message(&self.shape) {
-                Ok(Some(message)) => {
-                    if self.message(key, message, out).is_err() {
-                        return self.close(key, out);
+                Ok(Some(message)) => match self.message(key, message, out) {
+                    Ok(Effect::Useless) => {
+                        let Some(peer) = self.peers.get_mut(&key) else { return };
+                        peer.useless += 1;
+                        if peer.useless > MAX_USELESS {
+                            return self.close(key, out);
+                        }
                     }
-                }
+                    Ok(Effect::Noted) => {}
+                    Ok(Effect::Ask) => self.request(key, out),
+                    Err(wire::Refused) => return self.close(key, out),
+                },
                 Ok(None) => return,
                 Err(wire::Refused) => return self.close(key, out),
             }
@@ -389,111 +491,148 @@ impl Swarm {
         }
     }
 
-    /// One message of an open connection. `Err`: refused.
-    fn message(
-        &mut self,
-        key: PeerKey,
-        message: Message,
-        out: &mut Vec<Action>,
-    ) -> Result<(), wire::Refused> {
+    /// One message of an open connection: what it did. `Err`: refused.
+    fn message(&mut self, key: PeerKey, message: Message, out: &mut Vec<Action>) -> Result<Effect, wire::Refused> {
         let now = self.now;
         let len = self.shape.bitfield_len();
-        match message {
-            Message::KeepAlive => {}
+        Ok(match message {
+            Message::KeepAlive => Effect::Useless,
             Message::Bitfield(bits) => {
                 let open = self.open(key).ok_or(wire::Refused)?;
                 match open.has {
                     Has::Nothing => open.has = Has::Pieces(bits),
                     Has::Pieces(_) => return Err(wire::Refused),
                 }
+                self.interest(key, out);
+                Effect::Ask
             }
             Message::Have(piece) => {
+                let wanted = self.pieces[piece as usize].wanted();
                 let open = self.open(key).ok_or(wire::Refused)?;
-                if let Has::Nothing = open.has {
-                    open.has = Has::Pieces(alloc::vec![0; len]);
+                let bits = match &mut open.has {
+                    Has::Pieces(bits) => bits,
+                    has @ Has::Nothing => {
+                        *has = Has::Pieces(alloc::vec![0; len]);
+                        let Has::Pieces(bits) = has else { unreachable!() };
+                        bits
+                    }
+                };
+                if bit(bits, piece) {
+                    return Ok(Effect::Useless);
                 }
-                if let Has::Pieces(bits) = &mut open.has {
-                    bits[piece as usize / 8] |= 0x80 >> (piece % 8);
+                bits[piece as usize / 8] |= 0x80 >> (piece % 8);
+                // A have only ever makes this end interested.
+                if wanted && open.download.told() == Interest::No {
+                    self.interest(key, out);
                 }
+                Effect::Ask
             }
             Message::Choke => {
                 let open = self.open(key).ok_or(wire::Refused)?;
-                let told = open.download.told();
+                let Download::Unchoked { told, .. } = open.download else {
+                    return Ok(Effect::Useless);
+                };
                 // What was asked of it is asked of others.
                 open.download = Download::Choked { told };
                 self.release(key);
+                Effect::Noted
             }
             Message::Unchoke => {
                 let open = self.open(key).ok_or(wire::Refused)?;
-                if let Download::Choked { told } = open.download {
-                    open.download = Download::Unchoked {
-                        told,
-                        asked: Vec::new(),
-                    };
-                }
+                let Download::Choked { told } = open.download else {
+                    return Ok(Effect::Useless);
+                };
+                open.download = Download::Unchoked {
+                    told,
+                    asked: Vec::new(),
+                };
+                Effect::Ask
             }
             Message::Interested => {
                 let open = self.open(key).ok_or(wire::Refused)?;
-                if let Upload::Idle = open.upload {
-                    open.upload = Upload::Waiting { since: now };
-                }
+                let Upload::Idle = open.upload else {
+                    return Ok(Effect::Useless);
+                };
+                open.upload = Upload::Waiting { since: now };
+                Effect::Noted
             }
             Message::NotInterested => {
                 let open = self.open(key).ok_or(wire::Refused)?;
-                let serving = matches!(open.upload, Upload::Serving { .. });
+                let serving = match open.upload {
+                    Upload::Idle => return Ok(Effect::Useless),
+                    Upload::Waiting { .. } => false,
+                    Upload::Serving { .. } => true,
+                };
                 open.upload = Upload::Idle;
                 if serving {
                     self.send(key, &Message::Choke, out);
                 }
+                Effect::Noted
             }
             Message::Request(block) => {
                 // A request of a choked peer is dropped (BEP 3), and so is
                 // one of a piece not here.
                 let here = self.pieces[block.piece as usize].here();
                 let open = self.open(key).ok_or(wire::Refused)?;
-                if let Upload::Serving { queue, .. } = &mut open.upload
-                    && here
-                    && !queue.contains(&block)
-                {
-                    if queue.len() >= MAX_QUEUE {
-                        return Err(wire::Refused);
+                match &mut open.upload {
+                    Upload::Serving { queue, .. } if here && !queue.contains(&block) => {
+                        if queue.len() >= MAX_QUEUE {
+                            return Err(wire::Refused);
+                        }
+                        queue.push_back(block);
+                        Effect::Noted
                     }
-                    queue.push_back(block);
+                    _ => Effect::Useless,
                 }
             }
             Message::Cancel(block) => {
                 let open = self.open(key).ok_or(wire::Refused)?;
-                if let Upload::Serving { queue, .. } = &mut open.upload {
-                    queue.retain(|queued| *queued != block);
+                match &mut open.upload {
+                    Upload::Serving { queue, .. } if queue.contains(&block) => {
+                        queue.retain(|queued| *queued != block);
+                        Effect::Noted
+                    }
+                    _ => Effect::Useless,
                 }
             }
             Message::Piece { block, data } => {
                 let open = self.open(key).ok_or(wire::Refused)?;
-                if let Download::Unchoked { asked, .. } = &mut open.download {
-                    asked.retain(|a| *a != block);
-                }
+                let Download::Unchoked { asked, .. } = &mut open.download else {
+                    return Ok(Effect::Useless);
+                };
+                let Some(at) = asked.iter().position(|a| *a == block) else {
+                    return Ok(Effect::Useless);
+                };
+                asked.swap_remove(at);
                 self.block(key, block, &data, out);
+                Effect::Ask
             }
-        }
-        self.interest(key, out);
-        self.request(key, out);
-        Ok(())
+        })
     }
 
-    /// The requests in flight to `key` go back to be asked of others.
+    /// The requests in flight to `key` go back to be asked of others; a
+    /// piece only it was to send goes back to the missing ones.
     fn release(&mut self, key: PeerKey) {
         for piece in &mut self.pieces {
-            if let Piece::Fetching(fetch) = piece {
-                for ask in &mut fetch.blocks {
-                    if matches!(ask, Ask::Asked { peer, .. } if *peer == key) {
-                        *ask = Ask::Open;
-                    }
+            let Piece::Fetching(fetch) = piece else { continue };
+            if let Senders::One(one, _) = fetch.senders
+                && one == key
+            {
+                *piece = Piece::Missing(Sourcing::One);
+                continue;
+            }
+            for ask in &mut fetch.blocks {
+                if matches!(ask, Ask::Asked { peer, .. } if *peer == key) {
+                    *ask = Ask::Open;
                 }
             }
         }
     }
 
     fn block(&mut self, key: PeerKey, block: Block, data: &[u8], out: &mut Vec<Action>) {
+        let Some(ip) = self.peers.get(&key).map(|peer| peer.ip) else {
+            return;
+        };
         let Piece::Fetching(fetch) = &mut self.pieces[block.piece as usize] else {
             return;
         };
@@ -508,12 +647,15 @@ impl Swarm {
         let at = block.begin as usize;
         fetch.data[at..at + data.len()].copy_from_slice(data);
         fetch.blocks[index] = Ask::Got;
-        if !fetch.from.contains(&key) {
-            fetch.from.push(key);
+        fetch.touched = self.now;
+        if let Senders::Any(from) = &mut fetch.senders
+            && !from.iter().any(|(peer, _)| *peer == key)
+        {
+            from.push((key, ip));
         }
         if fetch.blocks.iter().all(|ask| *ask == Ask::Got) {
             let Piece::Fetching(fetch) =
-                core::mem::replace(&mut self.pieces[block.piece as usize], Piece::Missing)
+                core::mem::replace(&mut self.pieces[block.piece as usize], Piece::Missing(Sourcing::Any))
             else {
                 unreachable!()
             };
@@ -523,16 +665,33 @@ impl Swarm {
 
     fn fetched(&mut self, piece: u32, fetch: Fetch, out: &mut Vec<Action>) {
         if !self.torrent.piece_ok(piece, &fetch.data) {
-            // Somebody sent a wrong byte: every peer that sent a block of it
-            // goes, and does not come back this run.
-            for peer in fetch.from {
-                if let Some(state) = self.peers.get(&peer) {
-                    let ip = state.ip;
+            // A wrong byte. One peer sent it all: that one goes, and does
+            // not come back this run (by its address, even if it left).
+            // Several did: none is known to be the liar; the piece comes
+            // again from one peer alone.
+            let guilty = match fetch.senders {
+                Senders::One(peer, ip) => Some((peer, ip)),
+                Senders::Any(from) if from.len() == 1 => from.first().copied(),
+                Senders::Any(_) => None,
+            };
+            match guilty {
+                Some((peer, ip)) => {
                     if !self.banned.contains(&ip) {
                         self.banned.push(ip);
                     }
+                    let same: Vec<PeerKey> = self
+                        .peers
+                        .iter()
+                        .filter(|(_, state)| state.ip == ip)
+                        .map(|(key, _)| *key)
+                        .chain([peer])
+                        .collect();
+                    for key in same {
+                        self.close(key, out);
+                    }
+                    self.pieces[piece as usize] = Piece::Missing(Sourcing::Any);
                 }
-                self.close(peer, out);
+                None => self.pieces[piece as usize] = Piece::Missing(Sourcing::One),
             }
             return;
         }
@@ -595,11 +754,13 @@ impl Swarm {
         let Some(Peer {
             link: Link::Open(open),
             sent,
+            ip,
             ..
         }) = self.peers.get_mut(&key)
         else {
             return;
         };
+        let ip = *ip;
         let (Has::Pieces(bits), Download::Unchoked { told: Interest::Yes, asked }) =
             (&open.has, &mut open.download)
         else {
@@ -612,26 +773,33 @@ impl Swarm {
                 if let Piece::Fetching(fetch) = state {
                     fetching += 1;
                     if bit(bits, piece as u32)
+                        && fetch.senders.may_ask(key)
                         && let Some(index) = fetch.blocks.iter().position(|a| *a == Ask::Open)
                     {
                         fetch.blocks[index] = Ask::Asked { peer: key, at: now };
+                        fetch.touched = now;
                         found = Some((piece as u32, index as u32));
                         break;
                     }
                 }
             }
             if found.is_none() && fetching < max_fetching {
-                let new = (0..shape.pieces).find(|&piece| {
-                    matches!(self.pieces[piece as usize], Piece::Missing) && bit(bits, piece)
+                let new = (0..shape.pieces).find_map(|piece| match self.pieces[piece as usize] {
+                    Piece::Missing(sourcing) if bit(bits, piece) => Some((piece, sourcing)),
+                    _ => None,
                 });
-                if let Some(piece) = new {
+                if let Some((piece, sourcing)) = new {
                     let size = shape.piece_size(piece);
                     let mut blocks = alloc::vec![Ask::Open; size.div_ceil(BLOCK) as usize];
                     blocks[0] = Ask::Asked { peer: key, at: now };
                     self.pieces[piece as usize] = Piece::Fetching(Fetch {
                         data: alloc::vec![0; size as usize],
                         blocks,
-                        from: Vec::new(),
+                        senders: match sourcing {
+                            Sourcing::Any => Senders::Any(Vec::new()),
+                            Sourcing::One => Senders::One(key, ip),
+                        },
+                        touched: now,
                     });
                     found = Some((piece, 0));
                 }
@@ -649,12 +817,40 @@ impl Swarm {
         }
     }
 
+    /// A piece being fetched that nothing is asked of, untouched for
+    /// [`REQUEST_MS`], and that no unchoked peer has: back to the missing
+    /// ones (its bytes dropped), so it holds no room of the pieces fetched.
+    fn idle_fetches(&mut self) {
+        let now = self.now;
+        for index in 0..self.pieces.len() {
+            let Piece::Fetching(fetch) = &self.pieces[index] else { continue };
+            if now.saturating_sub(fetch.touched) <= REQUEST_MS
+                || fetch.blocks.iter().any(|ask| matches!(ask, Ask::Asked { .. }))
+            {
+                continue;
+            }
+            let servable = self.peers.iter().any(|(key, peer)| {
+                matches!(&peer.link, Link::Open(Open {
+                    has: Has::Pieces(bits),
+                    download: Download::Unchoked { .. },
+                    ..
+                }) if bit(bits, index as u32) && fetch.senders.may_ask(*key))
+            });
+            if !servable {
+                let sourcing = fetch.senders.sourcing();
+                self.pieces[index] = Piece::Missing(sourcing);
+            }
+        }
+    }
+
     fn tick(&mut self, now: u64, out: &mut Vec<Action>) {
         let elapsed = now.saturating_sub(self.now);
         self.now = now;
         if let Some(limit) = self.limit {
             let burst = limit.max(u64::from(BLOCK) * 4);
-            self.tokens = (self.tokens + limit * elapsed / 1000).min(burst);
+            let more = limit.saturating_mul(elapsed) / 1000;
+            let tokens = self.tokens.saturating_add(i64::try_from(more).unwrap_or(i64::MAX));
+            self.tokens = tokens.min(i64::try_from(burst).unwrap_or(i64::MAX));
         }
         let keys: Vec<PeerKey> = self.peers.keys().copied().collect();
         for key in keys {
@@ -678,8 +874,12 @@ impl Swarm {
         }
         if now.saturating_sub(self.rotated) >= ROTATE_MS {
             self.rotated = now;
+            for peer in self.peers.values_mut() {
+                peer.useless = 0;
+            }
             self.rotate(out);
         }
+        self.idle_fetches();
         let keys: Vec<PeerKey> = self.peers.keys().copied().collect();
         for key in keys {
             self.request(key, out);
@@ -750,7 +950,7 @@ impl Swarm {
         let keys: Vec<PeerKey> = self.peers.keys().copied().collect();
         for key in keys {
             loop {
-                if self.limit.is_some() && self.tokens < u64::from(BLOCK) {
+                if self.limit.is_some() && self.tokens < i64::from(BLOCK) {
                     return;
                 }
                 let queue = match self.peers.get_mut(&key).map(|peer| &mut peer.link) {
@@ -773,7 +973,7 @@ impl Swarm {
                 let data = data[at..at + block.length as usize].to_vec();
                 queue.pop_front();
                 if self.limit.is_some() {
-                    self.tokens -= u64::from(block.length);
+                    self.tokens -= i64::from(block.length);
                 }
                 self.uploaded += u64::from(block.length);
                 self.send(key, &Message::Piece { block, data }, out);
@@ -789,7 +989,7 @@ impl Swarm {
         match data.filter(|data| self.torrent.piece_ok(piece, data)) {
             Some(data) => {
                 if let state @ Piece::Offered = &mut self.pieces[piece as usize] {
-                    *state = Piece::Checked;
+                    *state = Piece::Shared;
                 }
                 if self.cache.len() >= CACHE {
                     self.cache.pop_front();
@@ -798,8 +998,17 @@ impl Swarm {
             }
             None => {
                 // Not the piece: it is not offered again, and no request of
-                // it is answered (the peers ask others).
-                self.pieces[piece as usize] = Piece::Absent;
+                // it is answered (the peers ask others). A piece of a file
+                // being fetched is wanted again: the fetch is not complete
+                // without it.
+                let state = &mut self.pieces[piece as usize];
+                *state = match state {
+                    Piece::Checked => {
+                        self.wanted += u64::from(self.shape.piece_size(piece));
+                        Piece::Missing(Sourcing::Any)
+                    }
+                    _ => Piece::Absent,
+                };
                 for peer in self.peers.values_mut() {
                     if let Link::Open(Open {
                         upload: Upload::Serving { queue, .. },
@@ -900,8 +1109,8 @@ mod tests {
     fn pair(seed: Start, leech: &[Start]) -> (Pair, Vec<Action>, Vec<Action>) {
         let torrent = torrent();
         let count = torrent.piece_count() as usize;
-        let a = Swarm::new(torrent.clone(), [1; 20], &alloc::vec![seed; count], 0);
-        let b = Swarm::new(torrent, [2; 20], leech, 0);
+        let a = Swarm::new(torrent.clone(), [1; 20], &alloc::vec![seed; count], Vec::new(), 0);
+        let b = Swarm::new(torrent, [2; 20], leech, Vec::new(), 0);
         let mut pair = Pair { a, b, disk_b: BTreeMap::new(), closed: false, junk_a: false };
         let to_a = pair.a.step(Event::Connected { peer: 1, ip: [10, 0, 0, 2] });
         let to_b = pair.b.step(Event::Connected { peer: 1, ip: [10, 0, 0, 1] });
@@ -949,7 +1158,7 @@ mod tests {
     fn a_peer_that_sends_a_wrong_block_is_closed_and_banned() {
         let torrent = torrent();
         let count = torrent.piece_count() as usize;
-        let mut leech = Swarm::new(torrent.clone(), [2; 20], &alloc::vec![Start::Missing; count], 0);
+        let mut leech = Swarm::new(torrent.clone(), [2; 20], &alloc::vec![Start::Missing; count], Vec::new(), 0);
         leech.step(Event::Connected { peer: 3, ip: [6, 6, 6, 6] });
         let mut bytes = wire::handshake(&torrent.v1, &[9; 20]).to_vec();
         bytes.extend(wire::frame(&Message::Bitfield(alloc::vec![0xFC])));
@@ -991,16 +1200,16 @@ mod tests {
         let mut huge = hello.clone();
         huge.extend(&100_000_u32.to_be_bytes());
         for bytes in [other, mine, twice, huge] {
-            let mut swarm = Swarm::new(torrent.clone(), [2; 20], &alloc::vec![Start::Missing; count], 0);
+            let mut swarm = Swarm::new(torrent.clone(), [2; 20], &alloc::vec![Start::Missing; count], Vec::new(), 0);
             swarm.step(Event::Connected { peer: 1, ip: [5, 5, 5, 5] });
             assert!(swarm.step(Event::Received(1, &bytes)).contains(&Action::Close(1)));
         }
         // Silence, and a handshake that does not come.
-        let mut swarm = Swarm::new(torrent.clone(), [2; 20], &alloc::vec![Start::Missing; count], 0);
+        let mut swarm = Swarm::new(torrent.clone(), [2; 20], &alloc::vec![Start::Missing; count], Vec::new(), 0);
         swarm.step(Event::Connected { peer: 1, ip: [5, 5, 5, 5] });
         assert!(swarm.step(Event::Tick(HANDSHAKE_MS + 1)).contains(&Action::Close(1)));
         // Room for MAX_PEERS, PER_ADDRESS of each address.
-        let mut swarm = Swarm::new(torrent, [2; 20], &alloc::vec![Start::Missing; count], 0);
+        let mut swarm = Swarm::new(torrent, [2; 20], &alloc::vec![Start::Missing; count], Vec::new(), 0);
         for peer in 0..MAX_PEERS as u32 {
             let ip = [1, 0, 0, (peer / PER_ADDRESS as u32) as u8];
             assert!(!swarm.step(Event::Connected { peer, ip }).contains(&Action::Close(peer)));
@@ -1025,5 +1234,129 @@ mod tests {
         // The burst (4 blocks) and one a second.
         assert!(pair.a.uploaded <= u64::from(BLOCK) * 4, "{}", pair.a.uploaded);
         assert!(pair.a.uploaded >= u64::from(BLOCK));
+    }
+
+    /// A peer `key` at `ip` past its handshake with `swarm`, saying it has
+    /// the pieces of `bits` and unchoking it: what the swarm did.
+    fn open_peer(swarm: &mut Swarm, key: PeerKey, ip: [u8; 4], bits: u8) -> Vec<Action> {
+        let mut actions = swarm.step(Event::Connected { peer: key, ip });
+        let mut bytes = wire::handshake(&swarm.torrent.v1, &[key as u8; 20]).to_vec();
+        bytes.extend(wire::frame(&Message::Bitfield(alloc::vec![bits])));
+        bytes.extend(wire::frame(&Message::Unchoke));
+        actions.extend(swarm.step(Event::Received(key, &bytes)));
+        actions
+    }
+
+    /// The blocks asked of `key` in `actions`.
+    fn asked(swarm: &Swarm, actions: &[Action], key: PeerKey) -> Vec<Block> {
+        actions
+            .iter()
+            .filter_map(|action| match action {
+                Action::Send(to, bytes) if *to == key => match wire::parse(&bytes[4..], &swarm.shape) {
+                    Ok(Message::Request(block)) => Some(block),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// `block` as a peer sends it: right, or of junk.
+    fn sent(swarm: &mut Swarm, key: PeerKey, block: Block, right: bool) -> Vec<Action> {
+        let mut data = piece(&swarm.torrent, block.piece)[block.begin as usize..][..block.length as usize].to_vec();
+        if !right {
+            data.fill(0xAA);
+        }
+        swarm.step(Event::Received(key, &wire::frame(&Message::Piece { block, data })))
+    }
+
+    #[test]
+    fn a_wrong_block_among_others_bans_no_one_and_the_piece_comes_from_one_peer() {
+        let torrent = torrent();
+        let count = torrent.piece_count() as usize;
+        let mut leech = Swarm::new(torrent, [2; 20], &alloc::vec![Start::Missing; count], Vec::new(), 0);
+        // The liar has piece 0 only: both its blocks are asked of it; it
+        // sends the first, of junk, and leaves.
+        let actions = open_peer(&mut leech, 3, [6, 6, 6, 6], 0x80);
+        let of_liar = asked(&leech, &actions, 3);
+        assert_eq!(of_liar.iter().map(|b| b.piece).collect::<Vec<_>>(), [0, 0]);
+        sent(&mut leech, 3, of_liar[0], false);
+        leech.step(Event::Closed(3));
+        // An honest peer sends the second: the piece fails, of two senders.
+        let actions = open_peer(&mut leech, 4, [7, 7, 7, 7], 0xFC);
+        let of_honest = asked(&leech, &actions, 4);
+        assert_eq!(of_honest[0], of_liar[1]);
+        let actions = sent(&mut leech, 4, of_honest[0], true);
+        assert!(!actions.iter().any(|a| matches!(a, Action::Close(_) | Action::Write(0, _))));
+        assert!(leech.may_connect([6, 6, 6, 6]) && leech.may_connect([7, 7, 7, 7]));
+        // Asked again at once, all of it of one peer: the honest one.
+        assert!(matches!(&leech.pieces[0], Piece::Fetching(Fetch { senders: Senders::One(4, _), .. })));
+        let again: Vec<Block> = asked(&leech, &actions, 4).into_iter().filter(|b| b.piece == 0).collect();
+        assert_eq!(again.len(), 2);
+        let mut actions = Vec::new();
+        for block in again {
+            actions.extend(sent(&mut leech, 4, block, true));
+        }
+        assert!(actions.iter().any(|a| matches!(a, Action::Write(0, _))));
+    }
+
+    #[test]
+    fn a_fetch_no_peer_goes_on_with_goes_back_to_the_missing_pieces() {
+        let torrent = torrent();
+        let count = torrent.piece_count() as usize;
+        let mut leech = Swarm::new(torrent, [2; 20], &alloc::vec![Start::Missing; count], Vec::new(), 0);
+        // A peer that says it has piece 0 and answers nothing.
+        let actions = open_peer(&mut leech, 3, [6, 6, 6, 6], 0x80);
+        assert_eq!(asked(&leech, &actions, 3).len(), 2);
+        assert!(leech.step(Event::Tick(REQUEST_MS + 1)).contains(&Action::Close(3)));
+        assert!(matches!(leech.pieces[0], Piece::Missing(Sourcing::Any)));
+        // The next peer that has it is asked for it.
+        let actions = open_peer(&mut leech, 4, [7, 7, 7, 7], 0xFC);
+        assert!(asked(&leech, &actions, 4).iter().any(|b| b.piece == 0));
+    }
+
+    #[test]
+    fn a_wanted_piece_that_reads_wrong_is_wanted_again() {
+        let torrent = torrent();
+        let count = torrent.piece_count() as usize;
+        let mut swarm = Swarm::new(torrent, [2; 20], &alloc::vec![Start::Checked; count], Vec::new(), 0);
+        assert!(swarm.complete());
+        swarm.step(Event::Connected { peer: 3, ip: [6, 6, 6, 6] });
+        let mut bytes = wire::handshake(&swarm.torrent.v1, &[3; 20]).to_vec();
+        bytes.extend(wire::frame(&Message::Interested));
+        swarm.step(Event::Received(3, &bytes));
+        let block = Block { piece: 0, begin: 0, length: BLOCK };
+        let actions = swarm.step(Event::Received(3, &wire::frame(&Message::Request(block))));
+        assert!(actions.contains(&Action::Load(0)));
+        swarm.step(Event::Loaded(0, Some(alloc::vec![9; PIECE as usize])));
+        assert!(!swarm.complete());
+        assert_eq!(swarm.progress(), (0, u64::from(PIECE)));
+    }
+
+    #[test]
+    fn a_peer_that_sends_only_what_changes_nothing_is_closed() {
+        let torrent = torrent();
+        let count = torrent.piece_count() as usize;
+        let mut swarm = Swarm::new(torrent, [2; 20], &alloc::vec![Start::Missing; count], Vec::new(), 0);
+        swarm.step(Event::Connected { peer: 3, ip: [6, 6, 6, 6] });
+        let mut bytes = wire::handshake(&swarm.torrent.v1, &[3; 20]).to_vec();
+        for _ in 0..MAX_USELESS {
+            bytes.extend(wire::frame(&Message::KeepAlive));
+        }
+        assert!(!swarm.step(Event::Received(3, &bytes)).contains(&Action::Close(3)));
+        // A new window: as many again are fine; one more is not.
+        swarm.step(Event::Tick(ROTATE_MS));
+        let alive = wire::frame(&Message::KeepAlive).repeat(MAX_USELESS as usize);
+        assert!(!swarm.step(Event::Received(3, &alive)).contains(&Action::Close(3)));
+        assert!(swarm.step(Event::Received(3, &wire::frame(&Message::KeepAlive))).contains(&Action::Close(3)));
+    }
+
+    #[test]
+    fn bans_given_at_the_start_hold() {
+        let torrent = torrent();
+        let count = torrent.piece_count() as usize;
+        let mut swarm = Swarm::new(torrent, [2; 20], &alloc::vec![Start::Missing; count], alloc::vec![[6, 6, 6, 6]], 0);
+        assert!(swarm.step(Event::Connected { peer: 3, ip: [6, 6, 6, 6] }).contains(&Action::Close(3)));
+        assert_eq!(swarm.banned(), [[6, 6, 6, 6]]);
     }
 }
