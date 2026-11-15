@@ -206,6 +206,7 @@ pub(super) fn zone_way_out(
     feet: Vec3,
     time: u32,
     objective: bool,
+    body: &crossing::CrossBody,
 ) -> Option<Vec3> {
     let from = tactics.world.grid.locate(feet, 1.5)?;
     // A dry island is walked off as a zone's floor is ([`Tactics::on_island`]).
@@ -220,7 +221,12 @@ pub(super) fn zone_way_out(
     }
     let landings = bot.stuck.shut_landings(time).collect();
     let hard = traps::filter(bot, landings, Some(from));
-    let out = tactics.escape(from, None, time, bot.side, objective, &hard)?;
+    // [A390] By any way when its pool falls (`crossing::escape_borne`): the landings it gave up open again.
+    let (out, line) = crossing::escape_borne(tactics, from, None, time, bot.side, objective, &hard, body);
+    if let Some(line) = line {
+        bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+    }
+    let out = out?;
     let to = out.point_at(out.length());
     bot.stuck.zone_out = Some((to, time + stuck::ZONE_OUT_KEPT_MS));
     Some(to)
@@ -776,7 +782,8 @@ fn drive_tick_inner(
         .map_or(ZoneSet::default(), |node| tactics.hazards.set_of(node));
     bot.stuck.zone_on(zone_set);
     let zone_out = if reacts && Gates::wants_zone_way_out(&intent, goal) {
-        zone_way_out(bot, tactics, me.feet, time, intent.objective)
+        let body = crossing::CrossBody::of(tuning, view, me, bot.features.stock.pools, &bot.features.crossing.armour);
+        zone_way_out(bot, tactics, me.feet, time, intent.objective, &body)
     } else {
         None
     };
@@ -1206,9 +1213,14 @@ fn drive_tick_inner(
                 // spots, and the search.
                 let mut left = None;
                 let mut route = if escaping {
-                    let route = ends.and_then(|(from, _)| {
-                        tactics.escape(from, Some(at), time, side, objective, &hard)
+                    // [A390] By any way when its pool falls (`crossing::escape_borne`): the landings it gave up open again.
+                    let body = crossing::CrossBody::of(tuning, view, me, bot.features.stock.pools, &bot.features.crossing.armour);
+                    let (route, line) = ends.map_or((None, None), |(from, _)| {
+                        crossing::escape_borne(tactics, from, Some(at), time, side, objective, &hard, &body)
                     });
+                    if let Some(line) = line {
+                        bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+                    }
                     // [zones] Out of the same zones toward the same goal
                     // twice lately: the way there keeps going into them;
                     // the goal is given up for the play to choose again.
