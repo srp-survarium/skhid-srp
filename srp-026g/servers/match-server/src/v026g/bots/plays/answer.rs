@@ -458,9 +458,12 @@ mod tests {
         assert!(answers(&off).is_empty());
         let mut not_a_sniper = sniper();
         not_a_sniper.weapons = vec![None, Some(WeaponKind::Rifle)];
+        let seen = not_a_sniper.view.clock;
+        not_a_sniper.team.weapons.learn(1, Some(WeaponKind::Rifle), seen);
         assert!(answers(&not_a_sniper).is_empty(), "he is not a sniper");
         let mut unknown = sniper();
         unknown.weapons = Vec::new();
+        unknown.team.weapons.forget(1);
         assert!(answers(&unknown).is_empty(), "his weapon is not known");
     }
 
