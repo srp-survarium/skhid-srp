@@ -168,7 +168,15 @@ fn by_data() -> bool {
 /// - the head's share is the one for which 2 hits a kill (the live mean)
 ///   give the class's share of headshot kills (`kills.csv` `hs`: 14 to 28 %).
 ///
-/// So the table is LIKELY for the torso against limbs, GUESS for the head.
+/// So the torso against the limbs is DERIVED (the routing PROVEN, the damage turned into hits by the medians worn), and the
+/// head is derived from an assumed 2 hits a kill. [G34] Counted on 2026-11-08..12 (the 329 human matches of 6+ players,
+/// `measure-20261115/g34_class.py`; by the class of the weapon in the shooter's hands): the head's share of the hits (the
+/// game's statistic 23) is at least rifle 0.052 (92,904 hits), marksman 0.075 (23,542), SMG 0.046 (12,451), shotgun 0.020
+/// (9,868; its pellets each count a hit), MG 0.045 (9,533), bolt 0.099 (3,887), pistol 0.042 (667): headshot kills
+/// (statistic 15) plus the head-pool losses of bodies alive in both worlds. A lower bound: a head hit in a body's last span
+/// before its death (its worlds about 3.5 s apart) is not seen. Every row's head share lies above its bound but the bolt's
+/// (0.093 against 0.099: 385 head hits of 3,887, a binomial standard error of 0.005, so 1.3 of them). The exact share needs the worlds' own hit records of each
+/// part (`srp_validate`'s `BodyPart::hits`, one a bullet), not read yet.
 /// Rows in [`Part`]'s order; each sums to 1.
 pub(crate) const HIT_SHARES: [(Class, [f32; 4]); 7] = [
     (Class::Rifle, [0.417, 0.115, 0.226, 0.242]),
