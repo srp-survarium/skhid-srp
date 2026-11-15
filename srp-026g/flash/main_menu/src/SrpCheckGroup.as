@@ -7,7 +7,7 @@ package
 
     // A group of the gameplay tab: a heading, as the tab's own group headings
     // ("Friends:", "Crosshair:"), with checkboxes the exe keeps in user.cfg
-    // in it (SrpCheckOption; exe patch 83's "Hide hit markers" and "Hide
+    // in it (SrpCheckOption; exe patch 83's "Names on map" and "Hide
     // player scores", docs/notes/hide-hit-markers-scores.md). The exe gives the
     // heading with the group's other texts (root.srp_hud_texts, asked at each
     // bind of the gameplay tab). Settings places the heading (layout) and the

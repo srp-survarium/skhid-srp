@@ -1,20 +1,23 @@
 //! Patch 83: the Settings' "HUD:" group (docs/notes/hide-hit-markers-scores.md):
-//! four settings of the match hud kept in user.cfg, "Hide hit markers", "Hide
-//! player scores", "Names on map" and the crosshair list's "Hidden crosshair"; and the
+//! four settings of the match hud kept in user.cfg, the hit marker list (All hit
+//! markers, Kill marker only, Hidden hit markers), "Hide player scores", "Names on
+//! map" and the crosshair list's "Hidden crosshair"; and the
 //! Graphics tab's Renderer list and its Vulkan options
 //! (docs/notes/dxvk-option.md), which the next start reads. The hooks are
 //! `hud_options.toml`'s, each a `lohook` after another patch's at the same site:
 //!
 //! - on_configs_loaded before user.cfg (`configs.start`, after patch 79):
-//!   the console variables `srp_hide_hit_markers`, `srp_hide_scores`,
-//!   `srp_map_names`, `srp_hide_crosshair` and `srp_dxvk`, saved in user.cfg, off by default,
+//!   the console variables `srp_hide_scores`, `srp_map_names`, `srp_hide_crosshair`
+//!   and `srp_dxvk`, saved in user.cfg, off by default, the hit marker list's
+//!   `srp_hide_hit_markers` (`off`, `hits`, `on`: [`HitMarkers`]),
 //!   and the Vulkan options' `srp_dxvk_frame_limit`, `srp_dxvk_low_latency`,
 //!   `srp_dxvk_tear_free`, `srp_dxvk_dedicated_gpu` (on by default) and `srp_dxvk_overlay`;
 //! - the Settings' call (`options.callback`, after patch 79): a setting's
 //!   name answers the main menu with `root.srp_check_option(name, label,
 //!   saved)`, and with "1" or "0" (a list: its index) saves that first
 //!   (user.cfg at once); the Renderer and the Vulkan options answer what this
-//!   process runs too, a list its choices' texts; `uro_fov` (the Gameplay
+//!   process runs too, a list its choices' texts (the hit marker list no
+//!   label, its saved index as the running one); `uro_fov` (the Gameplay
 //!   tab's field of view, patch 22's variable) answers
 //!   `root.srp_slider_option(name, label, degrees, least, most)`, setting
 //!   whole degrees within the range first;
@@ -23,8 +26,8 @@
 //!   "Static minimap");
 //! - each frame's player icons update (`player_icons.update_start`, after
 //!   patch 65): the hud movie is told the four settings
-//!   (`root.srp_hud_options(hide hit markers, hide scores, hide crosshair,
-//!   map names)`),
+//!   (`root.srp_hud_options(hit markers, hide scores, hide crosshair,
+//!   map names)`, as numbers: [`HudView::arguments`]),
 //!   once for each change of the movie or of a setting;
 //! - the process's start (`memory.allocate_arenas`, the engine's first
 //!   memory set-up, before the VRAM check's Direct3DCreate9 0xE9C3F and the
@@ -57,8 +60,8 @@
 //!   `replay.options_read`, after patch 65): a new match, whose hud may be
 //!   another at the last one's address, is told again.
 //!
-//! What the hud does with them is the hud's (HUD.as): no hit marker on the
-//! crosshair; a Tab list of names only; no crosshair; the Tab map's names
+//! What the hud does with them is the hud's (HUD.as): the crosshair's hit
+//! markers, all, the kill's only or none; a Tab list of names only; no crosshair; the Tab map's names
 //! shown unless Alt is held (patch 82 tells it Alt). Nothing a match
 //! computes: the interface only.
 
@@ -119,7 +122,6 @@ fn user_cfg_word<'t>(text: &'t [u8], name: &CStr) -> Option<&'t [u8]> {
     rest.split(|&b| b <= b' ').find(|w| !w.is_empty())
 }
 
-pub static HIDE_HIT_MARKERS: Setting = Setting::new(c"srp_hide_hit_markers", c"st_srp_hide_hit_markers_option");
 pub static HIDE_SCORES: Setting = Setting::new(c"srp_hide_scores", c"st_srp_hide_scores_option");
 /// The Tab map's player names always shown, Alt hiding them (patch 82's Alt
 /// reversed; docs/notes/tab-map-names.md).
@@ -240,6 +242,56 @@ impl ListChoice for Overlay {
             Overlay::Fps => ChoiceText::Key(c"st_srp_vulkan_overlay_fps"),
             Overlay::FrameTimes => ChoiceText::Key(c"st_srp_vulkan_overlay_frametimes"),
             Overlay::Full => ChoiceText::Key(c"st_srp_vulkan_overlay_full"),
+        }
+    }
+}
+
+/// The HUD group's hit marker list, kept in user.cfg as `srp_hide_hit_markers
+/// <word>`: the checkbox it was ("Hide hit markers") wrote `off` and `on`,
+/// which stay All and Hidden.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HitMarkers {
+    /// The stock markers: a hit's bars, a kill's mark.
+    All,
+    /// A kill's mark alone: a hit that does not kill shows nothing.
+    KillOnly,
+    Hidden,
+}
+
+impl ListChoice for HitMarkers {
+    const ALL: &'static [HitMarkers] = &[HitMarkers::All, HitMarkers::KillOnly, HitMarkers::Hidden];
+
+    fn word(self) -> &'static CStr {
+        match self {
+            HitMarkers::All => c"off",
+            HitMarkers::KillOnly => c"hits",
+            HitMarkers::Hidden => c"on",
+        }
+    }
+
+    fn text(self) -> ChoiceText {
+        match self {
+            HitMarkers::All => ChoiceText::Key(c"st_srp_hit_markers_all"),
+            HitMarkers::KillOnly => ChoiceText::Key(c"st_srp_hit_markers_kill"),
+            HitMarkers::Hidden => ChoiceText::Key(c"st_srp_hit_markers_hidden"),
+        }
+    }
+}
+
+pub const HIT_MARKERS: &CStr = c"srp_hide_hit_markers";
+static HIT_MARKERS_SAVED: ConsoleString<8> = ConsoleString::new();
+
+impl HitMarkers {
+    fn saved(thread: &Thread) -> HitMarkers {
+        HitMarkers::of_word(Some(HIT_MARKERS_SAVED.get(thread)))
+    }
+
+    /// The hud's number for it (Crosshair.as: ALL, KILL_ONLY, HIDDEN).
+    pub fn hud(self) -> u32 {
+        match self {
+            HitMarkers::All => 0,
+            HitMarkers::KillOnly => 1,
+            HitMarkers::Hidden => 2,
         }
     }
 }
@@ -997,8 +1049,8 @@ fn load_dxvk(thread: &Thread) -> Result<(), Stopped> {
 }
 
 /// Every setting of this patch, as the Settings call them.
-pub static SETTINGS: [&Setting; 8] =
-    [&HIDE_HIT_MARKERS, &HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR, &DXVK, &LOW_LATENCY, &TEAR_FREE, &DEDICATED_GPU];
+pub static SETTINGS: [&Setting; 7] =
+    [&HIDE_SCORES, &MAP_NAMES, &HIDE_CROSSHAIR, &DXVK, &LOW_LATENCY, &TEAR_FREE, &DEDICATED_GPU];
 
 /// The Settings' "HUD:" group's own texts (dictionary keys), in the order
 /// `root.srp_hud_texts` gives them: the heading, the stock quest progress
@@ -1031,7 +1083,7 @@ fn choice(text: &CStr) -> Option<bool> {
 /// What the hud is told: the four settings.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HudView {
-    pub hit_markers_hidden: bool,
+    pub hit_markers: HitMarkers,
     pub scores_hidden: bool,
     pub crosshair_hidden: bool,
     pub map_names: bool,
@@ -1040,11 +1092,18 @@ pub struct HudView {
 impl HudView {
     fn now(thread: &Thread) -> HudView {
         HudView {
-            hit_markers_hidden: HIDE_HIT_MARKERS.on(thread),
+            hit_markers: HitMarkers::saved(thread),
             scores_hidden: HIDE_SCORES.on(thread),
             crosshair_hidden: HIDE_CROSSHAIR.on(thread),
             map_names: MAP_NAMES.on(thread),
         }
+    }
+
+    /// `root.srp_hud_options`' numbers: the hit markers' [`HitMarkers::hud`],
+    /// then 1 or 0 for each other setting.
+    pub fn arguments(self) -> [u32; 4] {
+        [self.hit_markers.hud(), u32::from(self.scores_hidden), u32::from(self.crosshair_hidden),
+         u32::from(self.map_names)]
     }
 }
 
@@ -1065,6 +1124,7 @@ pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
     for list in VulkanList::ALL {
         list.register(ctx.thread());
     }
+    HIT_MARKERS_SAVED.register(ctx.thread(), HIT_MARKERS);
     Flow::Continue
 }
 
@@ -1081,6 +1141,7 @@ pub fn on_process_start(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// The Settings' calls: a setting's name answers its label and saved state
 /// (`root.srp_check_option`), saving a "1" or "0" (a list's index) first;
+/// the hit marker list answers no label, its saved choice twice and its texts;
 /// the Renderer and the Vulkan options answer the value this process runs
 /// after it (for their note), a list its choices' texts after that.
 /// `srp_hud_texts` answers the groups' texts (`root.srp_hud_texts`).
@@ -1133,18 +1194,35 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
         };
         return Flow::Exit(HudOptionsOnOptionsCallExit::Done);
     }
+    if method == HIT_MARKERS {
+        if let Some(choice) = call.string_argument(0).and_then(HitMarkers::of_index) {
+            HIT_MARKERS_SAVED.set(thread, choice.word().to_bytes());
+            save_user_config(thread);
+        }
+        // it applies at once: what runs is the saved one
+        let saved = HitMarkers::saved(thread).index();
+        answer_list(&call, HIT_MARKERS, c"", saved, saved, HitMarkers::ALL.iter().map(|c| c.text()));
+        return Flow::Exit(HudOptionsOnOptionsCallExit::Done);
+    }
     let Some(list) = VulkanList::named(method) else { return Flow::Continue };
     if call.string_argument(0).is_some_and(|index| list.set(thread, index)) {
         save_user_config(thread);
     }
+    let label = call.translate(list.label(), &mut label);
+    answer_list(&call, list.name(), label, VulkanOptions::saved(thread).index(list),
+                VulkanOptions::running(thread).index(list), list.texts());
+    Flow::Exit(HudOptionsOnOptionsCallExit::Done)
+}
+
+/// A list's answer (`root.srp_check_option`): its name, label, saved and
+/// running choices' indexes, then its choices' texts (at most [`MAX_CHOICES`]).
+fn answer_list(call: &OptionsCall<'_>, name: &CStr, label: &CStr, saved: usize, running: usize,
+               texts: impl Iterator<Item = ChoiceText>) {
     let mut values: [&CStr; 4 + MAX_CHOICES] = [c""; 4 + MAX_CHOICES];
     let mut rooms = [[0; 0x200]; MAX_CHOICES];
-    values[0] = list.name();
-    values[1] = call.translate(list.label(), &mut label);
-    values[2] = DIGITS[VulkanOptions::saved(thread).index(list)];
-    values[3] = DIGITS[VulkanOptions::running(thread).index(list)];
+    values[..4].copy_from_slice(&[name, label, DIGITS[saved], DIGITS[running]]);
     let mut count = 4;
-    for (text, room) in list.texts().zip(rooms.iter_mut()) {
+    for (text, room) in texts.zip(rooms.iter_mut()) {
         values[count] = match text {
             ChoiceText::Key(key) => call.translate(key, room),
             ChoiceText::Plain(plain) => plain,
@@ -1152,7 +1230,6 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<HudOptionsOnOptionsCallExi
         count += 1;
     }
     call.answer(c"root.srp_check_option", &values[..count]);
-    Flow::Exit(HudOptionsOnOptionsCallExit::Done)
 }
 
 /// The login screen shown (login_menu::on_activate 0x21EAC8): the renderer
@@ -1241,9 +1318,7 @@ pub fn on_update_icons(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let thread = ctx.thread();
     let now = Told { movie: movie.id(), view: HudView::now(thread) };
     if TOLD.get(thread) != Some(now)
-        && movie.invoke_bools(c"root.srp_hud_options",
-                           [now.view.hit_markers_hidden, now.view.scores_hidden, now.view.crosshair_hidden,
-                            now.view.map_names])
+        && movie.invoke_uints(c"root.srp_hud_options", &now.view.arguments())
     {
         TOLD.set(thread, Some(now));
     }
@@ -1264,7 +1339,7 @@ mod tests {
 
     #[test]
     fn a_setting_is_found_by_its_name_only() {
-        assert!(core::ptr::eq(setting(c"srp_hide_hit_markers").unwrap(), &HIDE_HIT_MARKERS));
+        assert!(setting(HIT_MARKERS).is_none());
         assert!(core::ptr::eq(setting(c"srp_hide_scores").unwrap(), &HIDE_SCORES));
         assert!(core::ptr::eq(setting(c"srp_map_names").unwrap(), &MAP_NAMES));
         assert!(core::ptr::eq(setting(c"srp_dxvk").unwrap(), &DXVK));
@@ -1453,6 +1528,7 @@ mod tests {
             assert_eq!(VulkanList::named(list.name()), Some(list));
         }
         assert_eq!(VulkanList::FrameLimit.texts().nth(3), Some(ChoiceText::Plain(c"144")));
+        assert!(HitMarkers::of_index(c"1") == Some(HitMarkers::KillOnly) && HitMarkers::of_index(c"3").is_none());
         assert!(DEFAULTS.shown(c"srp_dxvk_dedicated_gpu") == Some(c"1") && DEFAULTS.shown(c"srp_dxvk_tear_free") == Some(c"0"));
         let options = VulkanOptions { frame_limit: FrameLimit::Fps165, overlay: Overlay::FrameTimes, ..DEFAULTS };
         assert!(options.shown(c"srp_dxvk_frame_limit") == Some(c"4") && options.shown(c"srp_dxvk_overlay") == Some(c"2"));
@@ -1566,5 +1642,23 @@ mod tests {
         // the lists' words fit their console variables (with the NUL)
         assert!(FrameLimit::ALL.iter().all(|c| c.word().count_bytes() < 8));
         assert!(Overlay::ALL.iter().all(|c| c.word().count_bytes() < 16));
+        assert!(HitMarkers::ALL.iter().all(|c| c.word().count_bytes() < 8) && HitMarkers::ALL.len() <= MAX_CHOICES);
+        assert!(VulkanList::named(HIT_MARKERS).is_none());
+    }
+
+    /// The checkbox's `on` and `off` lines keep their meaning; no line, or
+    /// another word, is the stock markers.
+    #[test]
+    fn the_hit_marker_list_reads_the_checkbox_it_was() {
+        let of = |text: &[u8]| HitMarkers::of_word(user_cfg_word(text, HIT_MARKERS));
+        assert_eq!(of(b"srp_hide_hit_markers on\n"), HitMarkers::Hidden);
+        assert_eq!(of(b"srp_hide_hit_markers off\n"), HitMarkers::All);
+        assert_eq!(of(b"srp_hide_hit_markers hits\n"), HitMarkers::KillOnly);
+        assert_eq!(of(b"srp_hide_hit_markers \n"), HitMarkers::All);
+        assert_eq!(of(b""), HitMarkers::All);
+        let view = HudView { hit_markers: HitMarkers::KillOnly, scores_hidden: true, crosshair_hidden: false,
+                             map_names: true };
+        assert_eq!(view.arguments(), [1, 1, 0, 1]);
+        assert!(HitMarkers::ALL.iter().map(|c| c.hud()).eq([0, 1, 2]));
     }
 }

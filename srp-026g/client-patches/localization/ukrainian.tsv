@@ -2511,9 +2511,11 @@ st_srp_equipment069_snow_20_legs_7_desc	Опис поки недоступний
 st_srp_equipment069_snow_20_legs_7_name	Штани "Сніг-20"
 st_srp_equipment069_snow_20_torso_7_desc	Опис поки недоступний.
 st_srp_equipment069_snow_20_torso_7_name	Бронежилет "Сніг-20"
-st_srp_hide_hit_markers_option	Приховати хітмаркери
 st_srp_hide_quests_option	Приховати завдання
 st_srp_hide_scores_option	Приховати очки гравців
+st_srp_hit_markers_all	Усі хітмаркери
+st_srp_hit_markers_hidden	Приховані хітмаркери
+st_srp_hit_markers_kill	Лише при вбивстві
 st_srp_hud_add_friend	Долучити до друзів
 st_srp_hud_blackout_intro	Блекаут: несіть батареї до пристрою своєї команди. Інтерфейс і маркери влучань приховані для занурення. Утримуйте Tab: боєзапас, здоров’я, чат; після смерті — вибір комплекту.
 st_srp_hud_blackout_start	Блекаут\nНесіть батареї до пристрою своєї команди.\nІнтерфейс і маркери влучань приховані. Утримуйте Tab, щоб побачити боєзапас і здоров’я.
