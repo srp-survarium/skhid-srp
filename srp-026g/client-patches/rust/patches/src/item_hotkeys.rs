@@ -1,9 +1,11 @@
 //! Patch 149: a key per item type uses it (the rules: docs/notes/item-hotkeys.md;
 //! client_patch.md section 3.82).
 //!
-//! Fourteen actions of the moved action table (item_hotkeys_026g.asm), one per
-//! item type, unbound until a player binds them in Options, Controls. A key of
-//! them is a press of the quick-use key of the quick slot that holds its item:
+//! Sixteen actions of the moved action table (item_hotkeys_026g.asm), one per
+//! item type and two for a group (the next artefact, the next medkit: the
+//! first of the group a press would use now), unbound until a player binds
+//! them in Options, Controls. A key of them is a press of the quick-use key of
+//! the quick slot that holds its item:
 //! at the input builder's end, before patch 78's chord reads the mask (the
 //! chain's order 0), each of them the builder would find (the test it makes
 //! for every bit: action_present, whatever the state) sets the quick-use bit
@@ -15,7 +17,7 @@
 
 use artefact_carry::carry::QuickSlot;
 
-use crate::vostok::inventory::{DictId, ItemClass, QuickItem};
+use crate::vostok::inventory::{DictId, ItemClass, QuickItem, Readiness};
 use crate::vostok::{Action, ActionMask, Context, Flow, InputHandler, NoExit};
 
 /// An item type a key uses.
@@ -35,27 +37,46 @@ pub enum ItemKey {
     RdgM,
     Trap,
     OxygenTank,
+    NextArtefact,
+    NextMedkit,
 }
 
-/// What a quick slot must hold for a key: an item of the dictionary, or an
-/// item of a class whatever its id (the oxygen packs: a kit has one back).
+/// The medkits of "the next medkit": the bandages and the four medkits
+/// (scripts/medicines/medicines.tsv; not the antitoxin or the painkiller).
+const MEDKITS: [ItemKey; 5] = [
+    ItemKey::Bandages,
+    ItemKey::Medikit,
+    ItemKey::MilitaryMedkit,
+    ItemKey::BlackMarketMedkit,
+    ItemKey::ScienceMedkit,
+];
+
+/// What a quick slot must hold for a key: an item of the dictionary; any
+/// oxygen pack (a kit has one back); a ready artefact; a ready medkit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Target {
     Item(DictId),
-    Class(ItemClass),
+    OxygenTank,
+    ReadyArtefact,
+    ReadyMedkit,
 }
 
 impl Target {
     fn holds(self, item: QuickItem) -> bool {
         match self {
             Target::Item(id) => item.id == id,
-            Target::Class(class) => item.class == class,
+            Target::OxygenTank => item.class == ItemClass::OxygenTank,
+            Target::ReadyArtefact => item.class == ItemClass::Artefact(Readiness::Ready),
+            Target::ReadyMedkit => {
+                item.class == ItemClass::Medicine(Readiness::Ready)
+                    && MEDKITS.iter().any(|key| key.target() == Target::Item(item.id))
+            }
         }
     }
 }
 
 impl ItemKey {
-    pub const ALL: [ItemKey; 14] = [
+    pub const ALL: [ItemKey; 16] = [
         ItemKey::Onyx,
         ItemKey::Spring,
         ItemKey::Lifebone,
@@ -70,10 +91,12 @@ impl ItemKey {
         ItemKey::RdgM,
         ItemKey::Trap,
         ItemKey::OxygenTank,
+        ItemKey::NextArtefact,
+        ItemKey::NextMedkit,
     ];
 
     /// Its action: its row of `actions` (item_hotkeys_026g.asm) and of the
-    /// options' `controls` (hide_ui_026g.asm), 4Ah..57h: bindings the patch
+    /// options' `controls` (hide_ui_026g.asm), 4Ah..59h: bindings the patch
     /// adds to the key binder's (60h, not the game's 48h).
     pub const fn action(self) -> Action {
         Action(match self {
@@ -91,11 +114,14 @@ impl ItemKey {
             ItemKey::RdgM => 0x55,
             ItemKey::Trap => 0x56,
             ItemKey::OxygenTank => 0x57,
+            ItemKey::NextArtefact => 0x58,
+            ItemKey::NextMedkit => 0x59,
         })
     }
 
     /// Its item (scripts/content-edit/items.tsv; the medicines'
-    /// scripts/medicines/medicines.tsv), or the oxygen packs' class.
+    /// scripts/medicines/medicines.tsv), the oxygen packs' class, or a group's
+    /// first ready item.
     pub const fn target(self) -> Target {
         Target::Item(DictId(match self {
             ItemKey::Onyx => 76,
@@ -111,7 +137,9 @@ impl ItemKey {
             ItemKey::Rgd5 => 5,
             ItemKey::RdgM => 219,
             ItemKey::Trap => 68,
-            ItemKey::OxygenTank => return Target::Class(ItemClass::OxygenTank),
+            ItemKey::OxygenTank => return Target::OxygenTank,
+            ItemKey::NextArtefact => return Target::ReadyArtefact,
+            ItemKey::NextMedkit => return Target::ReadyMedkit,
         }))
     }
 }
@@ -152,6 +180,28 @@ mod tests {
             let class = if id == OXYGEN { ItemClass::OxygenTank } else { ItemClass::Other };
             Some(QuickItem { id: DictId(id), class })
         }
+    }
+
+    fn ready(items: &[Option<(u16, ItemClass)>]) -> impl Fn(QuickSlot) -> Option<QuickItem> + '_ {
+        |slot| items.get(usize::from(slot.get())).copied().flatten().map(|(id, class)| QuickItem { id: DictId(id), class })
+    }
+
+    #[test]
+    fn a_group_key_is_its_first_ready_item() {
+        use ItemClass::{Artefact, Medicine};
+        use Readiness::{Busy, Ready};
+        let items = [
+            Some((82, Medicine(Ready))), // the antitoxin: no medkit
+            Some((67, Medicine(Busy))),  // a Medikit in use
+            Some((66, Medicine(Ready))), // bandages
+            Some((76, Artefact(Busy))),  // a cooling Onyx
+            Some((74, Artefact(Ready))), // a ready Spring
+            Some((390, Medicine(Ready))),
+        ];
+        assert_eq!(quick_bits([ItemKey::NextMedkit].into_iter(), ready(&items)).bits(), bit(2));
+        assert_eq!(quick_bits([ItemKey::NextArtefact].into_iter(), ready(&items)).bits(), bit(4));
+        let busy = [Some((76, Artefact(Busy))), Some((67, Medicine(Busy))), Some((65, Medicine(Ready)))];
+        assert_eq!(quick_bits([ItemKey::NextArtefact, ItemKey::NextMedkit].into_iter(), ready(&busy)), ActionMask::NONE);
     }
 
     fn bit(n: u32) -> u32 {

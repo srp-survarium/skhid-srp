@@ -3063,6 +3063,8 @@ st_use_lifebone_action	Use Larkspur
 st_use_medkit_action	Use Medikit
 st_use_microphone_option	Use microphone
 st_use_military_medkit_action	Use Military Medkit
+st_use_next_artefact_action	Next artifact
+st_use_next_medkit_action	Next medkit
 st_use_onyx_action	Use Onyx
 st_use_oxygen_tank_action	Use oxygen tank
 st_use_painkiller_action	Use Anesthetic

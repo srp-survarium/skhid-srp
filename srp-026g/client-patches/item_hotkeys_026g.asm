@@ -1,7 +1,8 @@
 ; Patch 149: a key per item type uses it (the rules: ../docs/notes/item-hotkeys.md;
 ; client_patch.md section 3.82). The arena's block item_hotkeys.data: the game's
-; action table again, its 60 rows and fourteen more, a row per item type a key
-; can use.
+; action table again, its 60 rows and sixteen more: a row per item type a key
+; can use, and two for a group's first ready item (the next artefact, the next
+; medkit).
 ;
 ; The game's action table is 60 rows of 20 bytes at 0xA74AF0 (static data:
 ; {name, id, kinds, toggle, the default key's name}), and the key names'
@@ -15,11 +16,11 @@
 ; (get_binded_action 0x207D50: +4 the id, +8 the kinds, +0Ch the toggle).
 ; `actions` below is that table: the game's 60 rows in their order (one
 ; changed: `artefact`'s default key is H, patch 78's carry key; the game's row
-; has none), then the fourteen. patch_026g.py's ITEM_HOTKEYS_TABLE_REFS,
+; has none), then the sixteen. patch_026g.py's ITEM_HOTKEYS_TABLE_REFS,
 ; ITEM_HOTKEYS_TABLE_END and ITEM_HOTKEYS_TABLE_COUNTS point the four
 ; functions at it.
 ;
-; Their ids are 4Ah..57h: the key binder holds a binding per id (0Ch bytes,
+; Their ids are 4Ah..59h: the key binder holds a binding per id (0Ch bytes,
 ; indexed by it), 48h of them in the game; patch_026g.py's
 ; ITEM_HOTKEYS_BINDER makes them 60h (the binder's allocation, its
 ; construction, get_binded_action, bind and the save). 48h and 49h stay
@@ -29,7 +30,7 @@
 ; the player's input handler's 4), no toggle, no default key: a player binds
 ; them in Options, Controls (patch 62's `controls`, hide_ui_026g.asm).
 BITS 32
-global actions                     ; the action table, 74 rows (patch_026g.py's ITEM_HOTKEYS_TABLE_REFS)
+global actions                     ; the action table, 76 rows (patch_026g.py's ITEM_HOTKEYS_TABLE_REFS)
 
 ; A row: its name, id, kinds, toggle and default key's name (0: none).
 %macro ACTION 5
@@ -99,7 +100,7 @@ actions:                           ; the game's 60 rows (0xA74AF0), in their ord
     ACTION 0x9FDD10, 0x45, 8, 0, 0x9FDD08    ; send_message, kRETURN
     ACTION 0x9FDD00, 0x46, 8, 0, 0x9FDCF8    ; send_to, kTAB
     ACTION 0x9FDCF4, 0x47, 8, 0, 0x9FDDD4    ; ptt, kP
-                                   ; patch 149's fourteen, one per item type, ids 4Ah..57h
+                                   ; patch 149's sixteen: one per item type, then two per group, ids 4Ah..59h
     ACTION use_onyx, 0x4A, 5, 0, 0
     ACTION use_spring, 0x4B, 5, 0, 0
     ACTION use_lifebone, 0x4C, 5, 0, 0
@@ -114,6 +115,8 @@ actions:                           ; the game's 60 rows (0xA74AF0), in their ord
     ACTION use_rdgm, 0x55, 5, 0, 0
     ACTION use_trap, 0x56, 5, 0, 0
     ACTION use_oxygen_tank, 0x57, 5, 0, 0
+    ACTION use_next_artefact, 0x58, 5, 0, 0
+    ACTION use_next_medkit, 0x59, 5, 0, 0
 
 ; Their names: what user.cfg's `bind <action> <key>` names.
 use_onyx:
@@ -144,3 +147,7 @@ use_trap:
     db "use_trap", 0
 use_oxygen_tank:
     db "use_oxygen_tank", 0
+use_next_artefact:
+    db "use_next_artefact", 0
+use_next_medkit:
+    db "use_next_medkit", 0

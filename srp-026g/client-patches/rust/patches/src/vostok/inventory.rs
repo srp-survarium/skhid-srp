@@ -20,11 +20,25 @@ pub enum ContainerSpace { Missing, Full, Available }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DictId(pub u16);
 
-/// The class of an item, where a patch tells classes apart (its primary
-/// vtable): an oxygen pack (oxygen_tank, whatever its dictionary id), or
-/// another.
+/// Whether a press of an item's quick key would use it now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Readiness {
+    Ready,
+    /// In use, cooling down, or used up.
+    Busy,
+}
+
+/// The class of an item, where a patch tells classes apart: an artefact (an
+/// artefact container's), a medicine (medkit's vtable: every drug), an oxygen
+/// pack (oxygen_tank's vtable, whatever its dictionary id), or another.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ItemClass {
+    /// Ready: passive (state 3) with no cooldown left, what artefact_base::action
+    /// (0x313300, patch 54's entry) fires.
+    Artefact(Readiness),
+    /// Ready: not active (+2B0h) and, a stack, not empty: what medkit::action
+    /// (0x33D700) uses.
+    Medicine(Readiness),
     OxygenTank,
     Other,
 }
@@ -155,20 +169,31 @@ impl<'t> Inventory<'t> {
     /// (game_world_ui::update_local_player_state 0x23B740): none past the last
     /// quick slot, or for an empty artefact container.
     pub fn quick_item(&self, quick: QuickSlot) -> Option<QuickItem> {
-        let entry = match self.quick_place(quick)? {
+        let ready = |ready: bool| if ready { Readiness::Ready } else { Readiness::Busy };
+        let place = self.quick_place(quick)?;
+        let entry = match place {
             QuickPlace::Slot(entry) => entry,
             QuickPlace::Container(index) => self.containers()?.entry(index)?,
         };
         // SAFETY: a slot of this live inventory, its item alive while the slot
-        // holds it, its vtable its own, and its dictionary entry the game's
-        // (static data).
+        // holds it, its vtable its own, its dictionary entry the game's (static
+        // data); a container's item is an artefact, a medkit's fields read only
+        // after its vtable says it is one.
         unsafe {
             let item = entry.item()?;
-            let class = match read(item.vtable()) {
-                raw::image::OXYGEN_TANK_VTABLE => ItemClass::OxygenTank,
-                _ => ItemClass::Other,
+            let dictionary = item.entry()?;
+            let class = if let QuickPlace::Container(_) = place {
+                let artefact = item.artefact();
+                ItemClass::Artefact(ready(read(artefact.state()) == 3 && read(artefact.cooldown_left()) == 0))
+            } else {
+                match read(item.vtable()) {
+                    raw::image::MEDKIT_VTABLE => ItemClass::Medicine(ready(
+                        read(item.medkit().active()) == 0 && (read(dictionary.stack()) == 0 || read(item.count()) > 0))),
+                    raw::image::OXYGEN_TANK_VTABLE => ItemClass::OxygenTank,
+                    _ => ItemClass::Other,
+                }
             };
-            Some(QuickItem { id: DictId(read(item.entry()?.dict_id())), class })
+            Some(QuickItem { id: DictId(read(dictionary.dict_id())), class })
         }
     }
 

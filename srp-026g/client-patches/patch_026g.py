@@ -640,9 +640,10 @@ Patches:
   (srp_validate::report); the server only logs them. Nothing a match
   computes;
 - a key per item type uses it (patch 149, item_hotkeys; docs/notes/item-hotkeys.md):
-  fourteen actions (use_onyx .. use_oxygen_tank: the artefacts, medicines,
-  grenades, the trap, the oxygen tank), unbound, one row each in the
-  options' controls, ids 4Ah..57h; the game's action table moved into the
+  sixteen actions (use_onyx .. use_oxygen_tank: the artefacts, medicines,
+  grenades, the trap, the oxygen tank; use_next_artefact and use_next_medkit:
+  a group's first ready item), unbound, one row each in the options'
+  controls, ids 4Ah..59h; the game's action table moved into the
   arena (item_hotkeys_026g.asm, ITEM_HOTKEYS_TABLE_REFS) with them appended,
   and the key binder's bindings 60h instead of 48h (ITEM_HOTKEYS_BINDER); at
   the input builder's end (0x2421B0) a key of them that is present sets the
@@ -2508,7 +2509,7 @@ def hide_ui_table_writes(linked):
 # The rows `controls` adds after the game's 28h: (action, label key). Patch
 # 78's carry key (../docs/notes/held_artefact_transfer.md) is the game's own
 # action `artefact` (23h), which nothing in the game reads; patch 149's
-# fourteen (../docs/notes/item-hotkeys.md) are `actions`' (below).
+# sixteen (../docs/notes/item-hotkeys.md) are `actions`' (below).
 CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"),
                   (0x4A, "st_use_onyx_action"),
                   (0x4B, "st_use_spring_action"),
@@ -2523,14 +2524,16 @@ CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_a
                   (0x54, "st_use_rgd5_action"),
                   (0x55, "st_use_rdgm_action"),
                   (0x56, "st_use_trap_action"),
-                  (0x57, "st_use_oxygen_tank_action"))
+                  (0x57, "st_use_oxygen_tank_action"),
+                  (0x58, "st_use_next_artefact_action"),
+                  (0x59, "st_use_next_medkit_action"))
 
 # A key per item type uses it (patch 149, README; client_patch.md section
 # 3.82; the rules: ../docs/notes/item-hotkeys.md). The game's action table (60
 # rows of 20 bytes at 0xA74AF0: name, id, kinds, toggle, default key's name)
 # ends where the key names' table begins (0xA74FA0), so its rows are moved:
 # `actions` (item_hotkeys_026g.asm, the arena's block item_hotkeys.data) is the
-# game's 60 and fourteen more (ids 4Ah..57h, ITEM_HOTKEYS_BINDER below). The four functions of the key binder that read the table by its
+# game's 60 and sixteen more (ids 4Ah..59h, ITEM_HOTKEYS_BINDER below). The four functions of the key binder that read the table by its
 # address read `actions`: (site, its bytes, where in them the address is, the
 # row's field it names); the binder's construction compares its pointer with
 # the table's end (ITEM_HOTKEYS_TABLE_END), the other three count its bytes,
@@ -2543,7 +2546,7 @@ CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_a
 # is under a count.
 ITEM_HOTKEYS_TABLE = 0xA74AF0
 ITEM_HOTKEYS_GAME_ROWS = 60
-ITEM_HOTKEYS_ROWS = 74
+ITEM_HOTKEYS_ROWS = 76
 ITEM_HOTKEYS_TABLE_REFS = (
     (0x20755B, bytes.fromhex("b8f04aa700"), 1, 0x0),           # the binder's construction: mov eax,table
     (0x2078AB, bytes.fromhex("8b83004ba700"), 2, 0x10),        # set_default_controls: mov eax,[ebx+table+10h]
@@ -3192,7 +3195,7 @@ ARENA = (
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
-    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 56 controls
+    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 58 controls
     ArenaBlock("item_hotkeys.data", "data", 0x10, ("item_hotkeys_026g.asm",)),   # patch 149: the action table
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("audio_device.code", "code", 0x1000, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # patch 100

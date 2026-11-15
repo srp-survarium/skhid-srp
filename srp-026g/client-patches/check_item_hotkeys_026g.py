@@ -10,13 +10,13 @@ arena with them; check_hide_ui_026g.py's and check_blackout_026g.py's
 harnesses. The game's own code runs:
 
 - the action table: the build's `actions` is the game's 60 rows (artefact's
-  default key kH, patch 78's), then the fourteen (4Ah..57h); id_to_action_name
+  default key kH, patch 78's), then the sixteen (4Ah..59h); id_to_action_name
   (0x2079D0) and action_name_to_ptr (0x207AD0) answer every row of the build,
   the game's as the original;
 - the key binder's bindings, 60h of them: the game's init allocates the
   binder 60h x 0Ch + 4 bytes (0x1EA265; the original 364h); its construction
   (0x207540 to 0x207573) clears the 60h, gives every id the original gives a
-  description the same row's bytes (artefact's key aside) and the fourteen
+  description the same row's bytes (artefact's key aside) and the sixteen
   their rows, 48h, 49h and 58h.. none, and puts the game after the bindings,
   nothing past it; the binder's bind (0x207DC0, `use_onyx kF5` and
   `use_oxygen_tank kF6` as user.cfg's lines have them) makes them those
@@ -32,11 +32,15 @@ harnesses. The game's own code runs:
   look) on a made-up handler whose game world's network client's local
   player holds a kit (pockets, gear, artefact containers: the game's own
   quick_slot_to_inventory_slot 0x2FE7F0 orders them; an oxygen pack has the
-  game's oxygen_tank vtable 0xA1C874). For each of the fourteen,
+  game's oxygen_tank vtable 0xA1C874). For each of the fourteen type keys,
   each kit, each event (down, held, up, held from before) the build's mask
   for that key is the original's for the quick-use key (39h + n) of the
   first quick slot holding its item, and the original's mask with nothing
-  pressed when no quick slot of the six does; two keys at once are both
+  pressed when no quick slot of the six does; the group keys (the next
+  artefact, the next medkit) on three kits of ready and busy items (a
+  medicine active or a used-up stack, the antitoxin and the painkiller no
+  medkit; an artefact active or cooling) are the quick key of the first
+  quick slot a press would use, nothing when none; two keys at once are both
   quick keys; with H (patch 78's carry key) held the build's masks for the
   key are its masks for that quick key, tick by tick.
 """
@@ -70,6 +74,25 @@ KEYS = (("use_onyx", 0x4A, 76), ("use_spring", 0x4B, 74), ("use_lifebone", 0x4C,
         ("use_blackmarket_medkit", 0x50, 1196), ("use_science_medkit", 0x51, 391),
         ("use_antitoxin", 0x52, 82), ("use_painkiller", 0x53, 65), ("use_rgd5", 0x54, 5), ("use_rdgm", 0x55, 219),
         ("use_trap", 0x56, 68), ("use_oxygen_tank", 0x57, OXYGEN))
+GROUPS = (("use_next_artefact", 0x58), ("use_next_medkit", 0x59))   # a group's first ready item
+MEDKIT_VTABLE = 0xA1C79C                            # every drug's (medkit's ctor 0x33CAE6)
+# Group kits: (slot or "c" for the next container, dict id, vtable, {offset: (struct format, value)}), then
+# the quick ordinal (0-based) each group key must press, None for none. A medicine: +2B0h active, its
+# entry's +22Ah stack, +260h count (medkit::action 0x33D700); an artefact: +280h state (3 passive, 4
+# active), +28Ch cooldown left (artefact_base::action 0x313300).
+ACTIVE, STACK, COUNT, STATE, COOLDOWN = 0x2B0, -0x22A, 0x260, 0x280, 0x28C   # STACK: in the item's entry
+GROUP_KITS = (
+    ("antitoxin; a Medikit in use; Military; an active Onyx, a cooling Onyx, a ready Spring",
+     [(13, 82, MEDKIT_VTABLE, {}), (14, 67, MEDKIT_VTABLE, {ACTIVE: ("B", 1)}), (15, 390, MEDKIT_VTABLE, {}),
+      ("c", 76, None, {STATE: ("I", 4)}), ("c", 76, None, {STATE: ("I", 3), COOLDOWN: ("I", 5000)}),
+      ("c", 74, None, {STATE: ("I", 3)})], {"use_next_medkit": 2, "use_next_artefact": 5}),
+    ("used-up bandages; a painkiller; a ready Lifebone, a cooling Spring",
+     [(13, 66, MEDKIT_VTABLE, {STACK: ("B", 1), COUNT: ("H", 0)}), (14, 65, MEDKIT_VTABLE, {}),
+      ("c", 54, None, {STATE: ("I", 3)}), ("c", 74, None, {STATE: ("I", 3), COOLDOWN: ("I", 1)})],
+     {"use_next_medkit": None, "use_next_artefact": 2}),
+    ("a Science Medkit (a stack of 2); no artefact",
+     [(13, 391, MEDKIT_VTABLE, {STACK: ("B", 1), COUNT: ("H", 2)})], {"use_next_medkit": 0, "use_next_artefact": None}),
+)
 ONYX, BANDAGES, OXYGEN_KEY = 0x4A, 0x4D, 0x57
 BINDINGS = base.ITEM_HOTKEYS_BINDINGS               # the build's bindings (the game's 48h)
 ALLOCATE, ALLOCATED, ALLOCATOR = 0x1EA265, 0x1EA26F, 0xE4F90     # the game's init: mov eax,size / call alloc
@@ -117,15 +140,20 @@ class Game(blackout.Run):
         n = 0
 
         def item(dict_id):
-            """An item: a dict id (a made-up class, its +58h 0), or (dict id, its game vtable)."""
+            """An item: a dict id (a made-up class, its +58h 0), (dict id, its game vtable), or
+            (dict id, vtable or None, {offset: (format, value)}: negative an offset of its entry)."""
             nonlocal n
-            dict_id, vtable = dict_id if isinstance(dict_id, tuple) else (dict_id, VTABLE)
-            at, entry = ITEMS + 0x400 * n, ITEMS + 0x400 * n + 0x300
+            spec = dict_id if isinstance(dict_id, tuple) else (dict_id,)
+            dict_id, vtable, fields = spec[0], spec[1] if len(spec) > 1 else None, spec[2] if len(spec) > 2 else {}
+            vtable = vtable or VTABLE
+            at, entry = ITEMS + 0x800 * n, ITEMS + 0x800 * n + 0x400
             n += 1
             self.word(at, vtable)
             self.word(at + 0x24C, 1)
             self.word(at + 0x25C, entry)
             emu.mem_write(entry, struct.pack("<H", dict_id))
+            for offset, (form, value) in fields.items():
+                emu.mem_write(entry - offset if offset < 0 else at + offset, struct.pack("<" + form, value))
             return at
         for slot, dict_id in fixed.items():
             self.word(INVENTORY + 0x10C + 4 * slot, item(dict_id))
@@ -264,11 +292,11 @@ def main():
     moved = [row(patched, actions + 20 * i) for i in range(ROWS)]
     named = lambda run, r: (run.string(r[0]),) + r[1:]
     want = [named(stock, r[:4] + (KH,) if r[1] == ARTEFACT else r) for r in game] \
-        + [(name, action, 5, 0, 0) for name, action, _ in KEYS]
+        + [(name, action, 5, 0, 0) for name, action, _ in KEYS] + [(name, action, 5, 0, 0) for name, action in GROUPS]
     report([named(patched, r) for r in moved] == want
            and game == [row(patched, GAME_TABLE + 20 * i) for i in range(GAME_ROWS)],
-           f"`actions` ({actions:#x}): the game's {GAME_ROWS} rows (artefact's default key kH), then the fourteen "
-           "(4Ah..57h, kinds 5, no toggle, no default key); the game's table unchanged in the build")
+           f"`actions` ({actions:#x}): the game's {GAME_ROWS} rows (artefact's default key kH), then the sixteen "
+           "(4Ah..59h, kinds 5, no toggle, no default key); the game's table unchanged in the build")
 
     print(f"the key binder's bindings: {BINDINGS:#x} (the game's 48h; 0x1EA265, 0x207540, 0x207D50, 0x207DC0, "
           "0x207450, 0x207FF0)")
@@ -277,7 +305,7 @@ def main():
            f"the game's init allocates the binder: {asked[1][0][0]:#x} bytes ({BINDINGS:#x} bindings and the game), "
            f"the original {asked[0][0][0]:#x}")
     (a, a_bytes), (b, b_bytes) = stock.construct(hide.BINDER), patched.construct(hide.BINDER)
-    new = {action for _, action, _ in KEYS}
+    new = {action for _, action, _ in KEYS} | {action for _, action in GROUPS}
     at = {action: actions + 20 * i for i, (_, action, *_) in enumerate(moved)}
     game_place = lambda written, n: struct.unpack_from("<I", written, 12 * n)[0]
 
@@ -287,12 +315,12 @@ def main():
         want = row(stock, x)
         return y and row(patched, y) == (want[:4] + (KH,) if action == ARTEFACT else want)
     report(all(same(i, x, y) for i, (x, y) in enumerate(zip(a[:0x48], b)))
-           and all(b[action] == at[action] for action in new) and not any(b[0x48:0x4A]) and not any(b[0x58:])
+           and all(b[action] == at[action] for action in new) and not any(b[0x48:0x4A]) and not any(b[0x5A:])
            and all(actions <= y < actions + 20 * ROWS for y in b if y)
            and game_place(b_bytes, BINDINGS) == 0x12345678 and b_bytes[12 * BINDINGS + 4:] == b"\x5a" * (0x600 - 12 * BINDINGS - 4)
            and game_place(a_bytes, 0x48) == 0x12345678 and a_bytes[0x364:] == b"\x5a" * (0x600 - 0x364),
            f"the construction: {BINDINGS:#x} bindings cleared, every game id's description the same row as the "
-           "original's (in `actions`), 4Ah..57h theirs, 48h, 49h and 58h.. none; the game at "
+           "original's (in `actions`), 4Ah..59h theirs, 48h, 49h and 5Ah.. none; the game at "
            f"+{12 * BINDINGS:#x} (the original's +360h), nothing past it")
     names = [(patched.string(r[0]), r[1]) for r in moved]
     report(all(patched.id_to_name(action) == name for name, action in names)
@@ -377,6 +405,28 @@ def main():
             lines.append(f"{name} {'slot %d' % (slot + 1) if slot is not None else 'nothing'}")
         report(not wrong, f"{what}: down, held, up and held from before as the original's quick key of "
                           + ", ".join(lines))
+    # the group keys: the first quick slot whose item a press would use now
+    for what, items, want_slots in GROUP_KITS:
+        fixed = {slot: (d, v, f) for slot, d, v, f in items if slot != "c"}
+        containers = [(d, v, f) for slot, d, v, f in items if slot == "c"]
+        for run in (stock, patched):
+            run.kit(fixed, containers)
+        nothing, _ = stock.build()
+        wrong = 0
+        for name, action in GROUPS:
+            slot = want_slots[name]
+            quick = None if slot is None else QUICK_USE + slot
+            for state in (DOWN, HOLD, UP, None):
+                events = [] if state is None else [(action, state)]
+                mask, kept = patched.build(events, [action] if state is None else [])
+                want, stock_kept = stock.build([] if quick is None or state is None else [(quick, state)],
+                                               [quick] if quick and state is None else [])
+                ok = kept and stock_kept and mask == want and (quick is not None or mask == nothing)
+                wrong += not ok
+                if not ok:
+                    print(f"  FAIL  {what}: {name} state {state}: {mask:#x}, the original's quick key {want:#x}")
+        report(not wrong, f"{what}: " + ", ".join(f"{name} {'slot %d' % (want_slots[name] + 1) if want_slots[name] is not None else 'nothing'}"
+                                                 for name, _ in GROUPS) + ", as the original's quick key")
     # two keys at once
     stock.kit(*KITS[0][1:])
     patched.kit(*KITS[0][1:])

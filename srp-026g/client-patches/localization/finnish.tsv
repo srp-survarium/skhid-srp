@@ -3063,6 +3063,8 @@ st_use_lifebone_action	Käytä Ritarinkannusta
 st_use_medkit_action	Käytä ensiapupakkausta
 st_use_microphone_option	Käytä mikrofonia
 st_use_military_medkit_action	Käytä sotilasensiapupakkausta
+st_use_next_artefact_action	Seuraava artefakti
+st_use_next_medkit_action	Seuraava ensiapupakkaus
 st_use_onyx_action	Käytä Onyksia
 st_use_oxygen_tank_action	Käytä happipulloa
 st_use_painkiller_action	Käytä kipulääkettä

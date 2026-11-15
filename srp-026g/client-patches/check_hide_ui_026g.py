@@ -41,9 +41,9 @@ answers root.interface_hidden with a bool:
   look-up, buffer_string's printf and the CRT's sscanf_s stubbed: the rows
   sent to the movie (0x2019E0) are the original's 40, a 41st (19h,
   st_hide_interface_action, group 2, type 1), patch 78's 42nd (23h,
-  st_hold_artifact_action) and patch 149's fourteen (patch_026g.py's
+  st_hold_artifact_action) and patch 149's sixteen (patch_026g.py's
   CONTROLS_ADDED); the keys read from the binder (0x201CF0) the original's
-  40, (19h, kF11), (23h, kH, its new default) and none for the fourteen; a key kF9 set for 19h
+  40, (19h, kF11), (23h, kH, its new default) and none for the sixteen; a key kF9 set for 19h
   (0x2013A0) is kept in the 41st row and in no row of the original; the
   accept (0x201F20) runs `bind toggle_replay_ui kF9` through the console (the
   original nothing); the binder's own bind (0x207DC0) binds 19h to kF9, its
@@ -449,7 +449,7 @@ def main():
     s_opt, p_opt = Options(original), Options(bytes(built))
     a_rows, _ = s_opt.table()
     b_rows, b_calls = p_opt.table()
-    # 41st and 42nd: patch 62's 19h, patch 78's 23h; then patch 149's fourteen (check_item_hotkeys_026g.py)
+    # 41st and 42nd: patch 62's 19h, patch 78's 23h; then patch 149's sixteen (check_item_hotkeys_026g.py)
     new = [{"action_id": action, "group_id": 2, "type": 1, "label": label} for action, label in base.CONTROLS_ADDED]
     # push-to-talk (47h): the original's row is the chat group's with its key button disabled (type 0);
     # the build's is a game key that can be set

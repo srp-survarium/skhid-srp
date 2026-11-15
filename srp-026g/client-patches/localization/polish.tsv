@@ -3063,6 +3063,8 @@ st_use_lifebone_action	Użyj Żywokostu
 st_use_medkit_action	Użyj apteczki
 st_use_microphone_option	Włącz mikrofon
 st_use_military_medkit_action	Użyj apteczki wojskowej
+st_use_next_artefact_action	Następny artefakt
+st_use_next_medkit_action	Następna apteczka
 st_use_onyx_action	Użyj Onyksu
 st_use_oxygen_tank_action	Użyj butli tlenowej
 st_use_painkiller_action	Użyj środków przeciwbólowych

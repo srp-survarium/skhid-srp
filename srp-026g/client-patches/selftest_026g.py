@@ -1795,7 +1795,7 @@ def test_item_hotkeys(original, image, before):
     check(moved[:game] == with_h and stock.read(0x9FDCA8, 3) == b"kH\0"
           and [(r[1], r[2], r[3], r[4]) for r in moved[game:]] == [(action, 5, 0, 0) for action, _ in added]
           and all(cstr(r[0]) == key[3:-7].encode() for r, (_, key) in zip(moved[game:], added)),
-          "the game's 60 rows (artefact's default key kH), then use_onyx .. use_oxygen_tank, 4Ah..57h, kinds 5, "
+          "the game's 60 rows (artefact's default key kH), then use_onyx .. use_next_medkit, 4Ah..59h, kinds 5, "
           "no toggle, no default key; each a row of `controls` (CONTROLS_ADDED)")
     check(all(0x4A <= action < P.ITEM_HOTKEYS_BINDINGS for action, _ in added),
           f"their ids past the game's (48h the options' none, 49h the binder's) and below the binder's "

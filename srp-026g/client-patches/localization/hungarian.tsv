@@ -3063,6 +3063,8 @@ st_use_lifebone_action	Szarkaláb használata
 st_use_medkit_action	Elsősegélycsomag használata
 st_use_microphone_option	Mikrofon használata
 st_use_military_medkit_action	Katonai elsősegélycsomag használata
+st_use_next_artefact_action	Következő artefaktum
+st_use_next_medkit_action	Következő elsősegélycsomag
 st_use_onyx_action	Ónix használata
 st_use_oxygen_tank_action	Oxigénpalack használata
 st_use_painkiller_action	Érzéstelenítő használata

@@ -3063,6 +3063,8 @@ st_use_lifebone_action	Použít Ostrožku
 st_use_medkit_action	Použít lékárničku
 st_use_microphone_option	Použít mikrofon
 st_use_military_medkit_action	Použít vojenskou lékárničku
+st_use_next_artefact_action	Další artefakt
+st_use_next_medkit_action	Další lékárnička
 st_use_onyx_action	Použít Onyx
 st_use_oxygen_tank_action	Použít kyslíkovou láhev
 st_use_painkiller_action	Použít anestetikum

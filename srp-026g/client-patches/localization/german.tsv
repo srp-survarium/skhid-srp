@@ -3063,6 +3063,8 @@ st_use_lifebone_action	Lebknochen anwenden
 st_use_medkit_action	Erste-Hilfe anwenden
 st_use_microphone_option	Das Mikrofon nutzen.
 st_use_military_medkit_action	Armee-Kit anwenden
+st_use_next_artefact_action	Nächstes Artefakt
+st_use_next_medkit_action	Nächstes Erste-Hilfe-Kit
 st_use_onyx_action	Onyx anwenden
 st_use_oxygen_tank_action	Sauerstoffflasche anwenden
 st_use_painkiller_action	Schmerzmittel anwenden

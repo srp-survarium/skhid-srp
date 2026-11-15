@@ -3063,6 +3063,8 @@ st_use_lifebone_action	Upotrebi Živokost
 st_use_medkit_action	Upotrebi prvu pomoć
 st_use_microphone_option	Koristi mikrofon
 st_use_military_medkit_action	Upotrebi vojnu prvu pomoć
+st_use_next_artefact_action	Sledeći artefakt
+st_use_next_medkit_action	Sledeća prva pomoć
 st_use_onyx_action	Upotrebi Oniks
 st_use_oxygen_tank_action	Upotrebi bocu sa kiseonikom
 st_use_painkiller_action	Upotrebi anestetik

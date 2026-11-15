@@ -3063,6 +3063,8 @@ st_use_lifebone_action	Використати Живокіст
 st_use_medkit_action	Використати аптечку
 st_use_microphone_option	Використовувати мікрофон
 st_use_military_medkit_action	Використати військову аптечку
+st_use_next_artefact_action	Наступний артефакт
+st_use_next_medkit_action	Наступна аптечка
 st_use_onyx_action	Використати Онікс
 st_use_oxygen_tank_action	Використати кисневий балон
 st_use_painkiller_action	Використати знеболювальне

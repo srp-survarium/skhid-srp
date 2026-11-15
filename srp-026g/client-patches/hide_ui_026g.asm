@@ -58,16 +58,16 @@
 ; (its text in client-patches/localization/*.tsv), and a 42nd for patch 78:
 ; artefact (23h, default H, its default key in
 ; the moved action table's row, item_hotkeys_026g.asm), st_hold_artifact_action,
-; and patch 149's fourteen (43rd to 56th: use_onyx .. use_oxygen_tank, no
+; and patch 149's sixteen (43rd to 58th: use_onyx .. use_next_medkit, no
 ; default key, labelled st_use_<item>_action); patch_026g.py points the six
-; functions at it and makes their counts 38h. The binding is the binder's
+; functions at it and makes their counts 3Ah. The binding is the binder's
 ; as any other: applied with `bind toggle_replay_ui <key>`, saved and read
 ; back by the binder's own bind command (its save 0x207450 writes every bound
 ; action).
 BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_lobby, hide_ui_reset
-global controls                    ; the options' controls, 56 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
+global controls                    ; the options' controls, 58 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
 section .text
 
 %define REPLAY_TOGGLE 0x25CEDB     ; the case 19h after its replay test: the replay's controls
@@ -338,6 +338,12 @@ use_trap_label:
 use_oxygen_tank_label:
     db "st_use_oxygen_tank_action", 0
 
+use_next_artefact_label:
+    db "st_use_next_artefact_action", 0
+
+use_next_medkit_label:
+    db "st_use_next_medkit_action", 0
+
 ; A row of the controls: the action, its label's key, the group, the type, and
 ; two empty buffer_strings (begin, end, the buffer's end; 32 bytes).
 %macro CONTROL 4
@@ -395,7 +401,7 @@ controls:                          ; the game's 40 rows (0xA9DB28), in their ord
                                    ; disabled, BindKeyRender.as); patch 66's push-to-talk is a game key, rebindable
     CONTROL TOGGLE_UI, hide_interface_label, 2, 1   ; st_hide_interface_action (F11)
     CONTROL HOLD_ARTIFACT, hold_artifact_label, 2, 1   ; st_hold_artifact_action (H): patch 78's carry chord
-    ; patch 149's fourteen (item_hotkeys_026g.asm's `actions`), no default key
+    ; patch 149's sixteen (item_hotkeys_026g.asm's `actions`), no default key
     CONTROL 0x4A, use_onyx_label, 2, 1   ; st_use_onyx_action
     CONTROL 0x4B, use_spring_label, 2, 1   ; st_use_spring_action
     CONTROL 0x4C, use_lifebone_label, 2, 1   ; st_use_lifebone_action
@@ -410,3 +416,5 @@ controls:                          ; the game's 40 rows (0xA9DB28), in their ord
     CONTROL 0x55, use_rdgm_label, 2, 1   ; st_use_rdgm_action
     CONTROL 0x56, use_trap_label, 2, 1   ; st_use_trap_action
     CONTROL 0x57, use_oxygen_tank_label, 2, 1   ; st_use_oxygen_tank_action
+    CONTROL 0x58, use_next_artefact_label, 2, 1   ; st_use_next_artefact_action
+    CONTROL 0x59, use_next_medkit_label, 2, 1   ; st_use_next_medkit_action
