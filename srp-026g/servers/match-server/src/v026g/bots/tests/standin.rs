@@ -433,11 +433,6 @@ impl Body {
     pub(crate) fn view_elevation(&self) -> f32 {
         Pitch::view(self.pitch, self.recoil.y()).elevation(self.scale)
     }
-
-    /// The elevation of the base pitch alone, radians.
-    pub(crate) fn base_elevation(&self) -> f32 {
-        Pitch::new(self.pitch).elevation(self.scale)
-    }
 }
 
 /// A bench run has begun (the bench's setup calls it before any game is made): the pitch unit is then the game's unless
@@ -2746,8 +2741,18 @@ impl Game {
         self.restart_zone_clocks(&struck, tick);
     }
 
-    /// Whether the view's ray from `body`'s eye (its base pitch) comes
-    /// within `radius` of `point` no farther than the use's 2 m.
+    /// The direction of `body`'s use ray: its yaw and the view's elevation, the pitch WITH the weapon's kick. The client's
+    /// use ray (`detect_usable_object` 0x2D84C0) runs along the pose's "Item" bone transform (player+44Ch, rows +46Ch and
+    /// +47Ch, written only by 0x2DA4B0), whose pitch is `look_pitch` 0x2E0F60 = clamp(the look's pitch + the weapon's kick
+    /// +478h, -1, 1): the kick is in it (exe review of #2013).
+    pub(crate) fn use_dir(body: &Body) -> Vec3 {
+        let [fx, fz] = forward(body.yaw);
+        let (c, s) = { let e = body.view_elevation(); (e.cos(), e.sin()) };
+        Vec3::new(fx * c, s, fz * c)
+    }
+
+    /// Whether the view's ray from `body`'s eye ([`Self::use_dir`]) comes
+    /// within `radius` of `point` no farther than the use's ray.
     pub(crate) fn uses(body: &Body, point: Vec3, radius: f32) -> bool {
         Self::uses_reach(body, point, radius, super::view::use_ray_m())
     }
@@ -2755,9 +2760,7 @@ impl Game {
     /// [`Self::uses`] with a ray of `reach` m.
     fn uses_reach(body: &Body, point: Vec3, radius: f32, reach: f32) -> bool {
         let eye = Self::eye(body);
-        let [fx, fz] = forward(body.yaw);
-        let (c, s) = { let e = body.base_elevation(); (e.cos(), e.sin()) };
-        let dir = Vec3::new(fx * c, s, fz * c);
+        let dir = Self::use_dir(body);
         let to = point - eye;
         let along = to.x * dir.x + to.y * dir.y + to.z * dir.z;
         if !(0.0..=reach).contains(&along) {
@@ -2769,18 +2772,14 @@ impl Game {
     /// How far along `body`'s view ray from the eye `point` lies (m).
     pub(crate) fn ray_along(body: &Body, point: Vec3) -> f32 {
         let eye = Self::eye(body);
-        let [fx, fz] = forward(body.yaw);
-        let (c, s) = { let e = body.base_elevation(); (e.cos(), e.sin()) };
-        (point - eye).dot(Vec3::new(fx * c, s, fz * c))
+        (point - eye).dot(Self::use_dir(body))
     }
 
     /// How far `body`'s use ray (from the eye, [`super::view::use_ray_m`] long)
     /// passes `point`.
     pub(crate) fn ray_miss(body: &Body, point: Vec3) -> f32 {
         let eye = Self::eye(body);
-        let [fx, fz] = forward(body.yaw);
-        let (c, s) = { let e = body.base_elevation(); (e.cos(), e.sin()) };
-        let dir = Vec3::new(fx * c, s, fz * c);
+        let dir = Self::use_dir(body);
         let along = (point - eye).dot(dir).clamp(0.0, super::view::use_ray_m());
         (eye + dir * along - point).length()
     }
@@ -2796,9 +2795,7 @@ impl Game {
             .find(|c| c.id == id as i32)
             .and_then(|c| c.use_shapes.first())?;
         let eye = Self::eye(body);
-        let [fx, fz] = forward(body.yaw);
-        let (c, s) = { let e = body.base_elevation(); (e.cos(), e.sin()) };
-        mapdata::stands::ray_distance(eye, Vec3::new(fx * c, s, fz * c), shape)
+        mapdata::stands::ray_distance(eye, Self::use_dir(body), shape)
     }
 
     /// Whether the view's ray from `body`'s eye meets container `id`'s use
@@ -2823,9 +2820,7 @@ impl Game {
     /// use rule ([`Self::uses_container_box`]).
     pub(crate) fn uses_shape(&self, body: &Body, shape: &mapdata::Shape) -> bool {
         let eye = Self::eye(body);
-        let [fx, fz] = forward(body.yaw);
-        let (c, s) = { let e = body.base_elevation(); (e.cos(), e.sin()) };
-        let dir = Vec3::new(fx * c, s, fz * c);
+        let dir = Self::use_dir(body);
         mapdata::stands::ray_meets(&self.world.sight, eye, dir, shape, super::view::use_ray_m())
     }
 
@@ -2852,9 +2847,7 @@ impl Game {
             return true;
         }
         let eye = Self::eye(body);
-        let [fx, fz] = forward(body.yaw);
-        let (c, s) = { let e = body.base_elevation(); (e.cos(), e.sin()) };
-        let dir = Vec3::new(fx * c, s, fz * c);
+        let dir = Self::use_dir(body);
         let to = point - eye;
         let along = to.x * dir.x + to.y * dir.y + to.z * dir.z;
         along <= 0.15 || self.world.sight.ray_cast(eye, dir, along - 0.15).is_none()
