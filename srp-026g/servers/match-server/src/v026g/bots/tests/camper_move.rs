@@ -1287,6 +1287,8 @@ pub(crate) struct BenchCamper {
     walks: Option<Walks>,
     /// [A302 calibration] Since when he holds the scope on his lane (`CamperOptions::scoped`).
     scoped_since: Option<u32>,
+    /// [camper leave timing] By place, the world's last kill time (`WorldFacts::kill_times`, set by `Bots::facts`; empty: none).
+    pub(crate) kill_times: Vec<u32>,
 }
 
 /// [A239b] The stand-in camper's walks to his spot after his deaths ([`Arrival::LiveWalk`]): each drawn once per death.
@@ -1308,14 +1310,24 @@ impl BenchCamper {
             drawn: 0,
             sum_ms: 0,
         });
-        Self { place, options, seed, tuning, state: CamperState::Seeking, lane: None, walks, scoped_since: None }
+        Self { place, options, seed, tuning, state: CamperState::Seeking, lane: None, walks, scoped_since: None, kill_times: Vec::new() }
     }
 
     /// [A290] The pre-aiming stand-in human at `place` ([`Hunt`]), by `tuning` ([`hunter_tuning`]): the camper's options unset
     /// (no spot, no long gun, no start spot).
     pub(crate) fn hunter(place: Place, seed: u32, tuning: Arc<Tuning>) -> Self {
         let options = CamperOptions::parse(&|_| None).expect("the unset camper options parse");
-        Self { place, options, seed, tuning, state: CamperState::Hunting(Box::default()), lane: None, walks: None, scoped_since: None }
+        Self {
+            place,
+            options,
+            seed,
+            tuning,
+            state: CamperState::Hunting(Box::default()),
+            lane: None,
+            walks: None,
+            scoped_since: None,
+            kill_times: Vec::new(),
+        }
     }
 
     /// [A239b] While he is dead after his death at tick `died`: how long his next life, on his spot, waits after the respawn, ms: a
@@ -1494,7 +1506,7 @@ impl BenchCamper {
                 };
                 bot.control = Driver::BenchCamper;
                 let enemy = nearest_known(bot.memory.tracks(), me.feet, now);
-                let kill_ms = due.view.kill_times.get(bot.place).copied().filter(|&ms| ms > 0);
+                let kill_ms = self.kill_times.get(bot.place).copied().filter(|&ms| ms > 0);
                 bot.intent = motion.step(&Think { now, me, enemy, tactics, side, last_hit_ms: bot.hurt.last_hit_ms, kill_ms, engaged: bot.reflex.target().is_some() });
                 motion.holds_cover().then(|| motion.spot())
             }

@@ -33,6 +33,11 @@ impl Bots {
         if !self.tunings.match_wide().think.kill_time {
             facts.kill_times.clear();
         }
+        // [camper leave timing] The bench's stand-in camper reads his own kill time from these facts (`BenchCamper::kill_times`).
+        #[cfg(test)]
+        if let Some(camper) = self.bench_camper.as_mut() {
+            camper.kill_times.clone_from(&facts.kill_times);
+        }
         let time = facts.time;
         let at = |clock| Clock {
             clock,
