@@ -836,6 +836,8 @@ pub(super) fn camper_tick(
         if bot_of(placer).is_some_and(|b| b.features.traps.habit.placed_this_life() > placed_before) {
             #[cfg(test)]
             camper::count(team, camper::PLACED);
+            #[cfg(test)]
+            eprintln!("  camper life: team {team} spot {} {:?} placed t {now} placer {placer} walked {:.1}", c.spot, c.kind, now.saturating_sub(since) as f32 / 1000.0);
             said.push(format!(
                 "team {team}: bot {placer} put its trap on {}'s way in at {} ({:?} of player {}); at the point its gate refused {} thinks for an enemy seen ({}); the place is trapped while its trap stands",
                 c.spot,
@@ -849,6 +851,10 @@ pub(super) fn camper_tick(
             return true;
         }
         let body = view.place(placer).filter(|b| b.alive && b.carrying.is_none());
+        #[cfg(test)]
+        if body.is_some_and(|b| b.feet.distance_xz(c.at) <= j.within_m + t.reach_m + 1.0) && camper::arrived(team, c.spot, since) {
+            eprintln!("  camper life: team {team} spot {} {:?} arrived t {now} placer {placer} walked {:.1}", c.spot, c.kind, now.saturating_sub(since) as f32 / 1000.0);
+        }
         let why = if body.is_none() {
             Some(if alive(placer) { "carrying" } else { "dead" })
         } else if now.saturating_sub(since) > give_up_ms {
@@ -859,6 +865,14 @@ pub(super) fn camper_tick(
         if let Some(why) = why {
             #[cfg(test)]
             {
+                eprintln!(
+                    "  camper life: team {team} spot {} {:?} let_go t {now} placer {placer} walked {:.1} why {} left {:.1}",
+                    c.spot,
+                    c.kind,
+                    now.saturating_sub(since) as f32 / 1000.0,
+                    why.replace(' ', "_"),
+                    view.place(placer).map_or(-1.0, |b| b.feet.distance_xz(c.at))
+                );
                 camper::count(team, camper::GAVE_UP);
                 let playing = bot_of(placer).and_then(|b| b.assignment.as_ref()).is_some_and(|a| a.kind == PlayKind::TrapSpot);
                 let near = view.place(placer).is_some_and(|b| b.feet.distance_xz(c.at) <= j.within_m + t.reach_m + 1.0);
@@ -915,6 +929,19 @@ pub(super) fn camper_tick(
         if let Some(why) = over {
             #[cfg(test)]
             camper::count(team, camper::DROPPED);
+            #[cfg(test)]
+            {
+                let sent = match c.state {
+                    CamperTrapState::Sent { placer, since, .. } => format!(
+                        "sent placer {placer} walked {:.1} left {:.1}",
+                        now.saturating_sub(since) as f32 / 1000.0,
+                        view.place(placer).map_or(-1.0, |b| b.feet.distance_xz(c.at))
+                    ),
+                    CamperTrapState::Open => "open".to_string(),
+                    CamperTrapState::Trapped => "trapped".to_string(),
+                };
+                eprintln!("  camper life: team {team} spot {} {:?} dropped t {now} {sent}", c.spot, c.kind);
+            }
             said.push(format!("team {team}: {}'s way in at {} dropped: {why}", c.spot, xyz(c.at)));
         }
         over.is_none()
@@ -941,6 +968,13 @@ pub(super) fn camper_tick(
                 });
                 #[cfg(test)]
                 camper::count(team, if kind == CamperTrapKind::Battery { camper::NOTED_BATTERY } else { camper::NOTED_JOB });
+                #[cfg(test)]
+                eprintln!(
+                    "  camper life: team {team} spot {} {:?} noted t {now} seen_age {}",
+                    line.id,
+                    kind,
+                    line.seen.map_or("-".to_string(), |s| format!("{:.1}", now.saturating_sub(s) as f32 / 1000.0))
+                );
                 said.push(format!("team {team}: {:?} {} held by player {} at {}: his way in at {} wants a trap", kind, line.id, line.shooter, xyz(line.at), xyz(at)));
             }
             None => {
@@ -983,6 +1017,17 @@ pub(super) fn camper_tick(
         taken.push(b.place);
         #[cfg(test)]
         camper::count(team, camper::SENT);
+        #[cfg(test)]
+        {
+            let seen = sources.iter().find(|l| l.id == c.spot).and_then(|l| l.seen);
+            eprintln!(
+                "  camper life: team {team} spot {} {:?} sent t {now} placer {} d {d:.1} seen_age {}",
+                c.spot,
+                c.kind,
+                b.place,
+                seen.map_or("-".to_string(), |s| format!("{:.1}", now.saturating_sub(s) as f32 / 1000.0))
+            );
+        }
         said.push(format!("team {team}: bot {} sent to trap {}'s way in at {} ({:?} of player {}), {d:.1} m off", b.place, c.spot, xyz(c.at), c.kind, c.shooter));
     }
     for text in said {
@@ -1099,6 +1144,19 @@ pub mod camper {
         }
     }
 
+    static ARRIVED: Mutex<Vec<(u8, u32, u32)>> = Mutex::new(Vec::new());
+
+    /// [#2081 v6 measure] Whether this is the first tick the bot sent at `since` to `spot` is at its point.
+    pub fn arrived(team: u8, spot: u32, since: u32) -> bool {
+        ARRIVED.lock().is_ok_and(|mut a| {
+            let new = !a.contains(&(team, spot, since));
+            if new {
+                a.push((team, spot, since));
+            }
+            new
+        })
+    }
+
     /// A trap planned by a sent bot `placer` at `now` on the way in of `holder`'s place.
     pub fn planned(placer: usize, now: u32, holder: usize) {
         PLANS.with(|p| p.borrow_mut().push((placer, now, holder)));
@@ -1131,6 +1189,74 @@ pub mod camper {
             .join("; ");
         let deaths = DEATHS.lock().map(|d| format!("; sent bots' deaths [{}]", d.join(" "))).unwrap_or_default();
         format!("{teams}{seen}{deaths}")
+    }
+}
+
+/// [#2081 v6 measure] The bench's record of each trap look (plan to its end, or to the placer's death): the nearest alive enemy
+/// body at the plan and at the last think (the truth, any enemy, seen or not, as the live record measures humans), the bot's own
+/// nearest track at the plan (metres, age, who), and the reflex look the trap look took the view over first (`look_over_heard`).
+/// The deaths are joined with the stand-in game's kills by the bench (the killer).
+#[cfg(test)]
+pub mod placing {
+    use std::sync::Mutex;
+
+    use super::OverHeard;
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq)]
+    pub struct Ctx {
+        pub place: usize,
+        pub team: u8,
+        pub planned: u32,
+        pub last: u32,
+        pub truth_plan_m: Option<f32>,
+        pub truth_last_m: Option<f32>,
+        pub track: Option<(f32, u32, usize)>,
+        pub heard: Option<OverHeard>,
+    }
+
+    impl Ctx {
+        pub fn line(&self) -> String {
+            let m = |v: Option<f32>| v.map_or("-".to_string(), |m| format!("{m:.1}"));
+            let track = self.track.map_or("-".to_string(), |(m, age, who)| format!("{m:.1}/{:.1}/{who}", age as f32 / 1000.0));
+            let heard = match self.heard {
+                Some(OverHeard::Aim { m, age_ms }) => format!("aim {m:.1}/{:.1}", age_ms as f32 / 1000.0),
+                Some(OverHeard::Glance { m }) => format!("glance {m:.1}"),
+                None => "none".to_string(),
+            };
+            format!(
+                "place {} team {} planned {} last {} look {:.1} s truth_plan {} truth_last {} track {track} over {heard}",
+                self.place,
+                self.team,
+                self.planned,
+                self.last,
+                self.last.saturating_sub(self.planned) as f32 / 1000.0,
+                m(self.truth_plan_m),
+                m(self.truth_last_m)
+            )
+        }
+    }
+
+    static DEATHS: Mutex<Vec<Ctx>> = Mutex::new(Vec::new());
+
+    /// A look ended (`placed`, `called away`, `gave up`): its line at once.
+    pub fn ended(c: &Ctx, how: &str) {
+        eprintln!("  trap look end: {how} {}", c.line());
+    }
+
+    /// A life ended in the middle of a look or a press.
+    pub fn died(c: Ctx) {
+        if let Ok(mut d) = DEATHS.lock() {
+            d.push(c);
+        }
+    }
+
+    pub fn deaths() -> Vec<Ctx> {
+        DEATHS.lock().map(|d| d.clone()).unwrap_or_default()
+    }
+
+    /// The nearest alive enemy body to `feet` in `view`, metres.
+    pub fn truth(view: &super::super::view::MatchView, team: u8, feet: mapdata::Vec3) -> Option<f32> {
+        view.places.iter().filter(|p| p.alive && p.team != team).map(|p| p.feet.distance_xz(feet)).min_by(f32::total_cmp)
     }
 }
 
@@ -1916,6 +2042,12 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     keep_off(bot, due);
     #[cfg(test)]
     passes::observe(bot, due, state);
+    #[cfg(test)]
+    if !matches!(bot.features.traps.habit.state(), State::Idle)
+        && let Some(c) = bot.features.traps.look_ctx.as_mut()
+    {
+        c.truth_last_m = placing::truth(due.view, me.team, me.feet);
+    }
     if let Err(refusal) = bot.features.traps.habit.may_plan(t) {
         bot.features.traps.tally.may_not(refusal);
         return;
@@ -2164,6 +2296,26 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         bot.features.traps.pass_wait = None;
         bot.features.traps.habit.plan(chosen.yaw, chosen.spot, due.now);
         bot.features.traps.tally.planned();
+        #[cfg(test)]
+        {
+            let truth = placing::truth(due.view, me.team, me.feet);
+            let track = bot
+                .memory
+                .tracks()
+                .iter()
+                .map(|k| (k.at.distance_xz(me.feet), due.now.saturating_sub(k.time), k.who))
+                .min_by(|a, b| a.0.total_cmp(&b.0));
+            bot.features.traps.look_ctx = Some(placing::Ctx {
+                place: bot.place,
+                team: me.team,
+                planned: due.now,
+                last: due.now,
+                truth_plan_m: truth,
+                truth_last_m: truth,
+                track,
+                heard: None,
+            });
+        }
         // [A309] The bench's record of the plan for its press line.
         #[cfg(test)]
         {
@@ -2426,6 +2578,25 @@ pub mod passes {
 
     pub(in crate::v026g::bots) fn observe(bot: &mut Bot, due: &Due, state: &TeamState) {
         let feet = due.me.feet;
+        // [#2081 v6 measure] What moved its legs while within 2 m of a standing own trap (the own-catch line's).
+        if let Some(d) = state.knowledge.traps.standing().map(|k| k.at.distance_xz(feet)).filter(|&d| d < 2.0).min_by(f32::total_cmp) {
+            let m = super::NearMove {
+                t: due.now,
+                d,
+                keys_from: bot.bench_keys_from,
+                apart: bot.bench_apart,
+                stepped: bot.bench_stepped,
+                route: bot.route.is_some(),
+                stay: matches!(bot.intent.go, crate::v026g::bots::plays::Go::Stay),
+                hold: bot.intent.hold != 0,
+                speed: due.me.speed(),
+            };
+            let moves = &mut bot.features.traps.near_moves;
+            if moves.len() == 6 {
+                moves.remove(0);
+            }
+            moves.push(m);
+        }
         let nearest = state
             .knowledge
             .traps
@@ -2711,6 +2882,12 @@ pub(super) fn drive(
         bot.features.traps.over_heard_noted = Some(since);
         #[cfg(test)]
         called::over_heard(matches!(heard, OverHeard::Aim { .. }));
+        #[cfg(test)]
+        if let Some(c) = bot.features.traps.look_ctx.as_mut()
+            && c.heard.is_none()
+        {
+            c.heard = Some(heard);
+        }
         let what = match heard {
             OverHeard::Aim { m, age_ms } => format!("a sights-up aim at an enemy heard or told of {m:.1} m off, {:.1} s ago", age_ms as f32 / 1000.0),
             OverHeard::Glance { m } => format!("a glance {m:.1} m off"),
@@ -2737,8 +2914,23 @@ pub(super) fn drive(
         },
         t,
     );
+    #[cfg(test)]
+    if let Some(c) = bot.features.traps.look_ctx.as_mut() {
+        c.last = now;
+    }
     if let Some(ended) = out.ended {
         bot.features.traps.habit.record(ended);
+        #[cfg(test)]
+        if let Some(c) = bot.features.traps.look_ctx.take() {
+            placing::ended(
+                &c,
+                match ended {
+                    Ended::Placed => "placed",
+                    Ended::CalledAway => "called_away",
+                    Ended::GaveUp(_) => "gave_up",
+                },
+            );
+        }
         #[cfg(test)]
         if matches!(ended, Ended::CalledAway) {
             called::count(why_not_calm, bot.assignment.as_ref().is_some_and(|a| a.kind == PlayKind::TrapSpot));
@@ -2791,7 +2983,7 @@ pub(super) fn drive(
             // [A309] The bench's press line: where, what chose it, which way the placer walked.
             let (source, way, to_home, share) = bot.features.traps.planned_by.unwrap_or(("unknown", "unknown", 0.0, -1.0));
             eprintln!(
-                "  trap press: place {} team {} at ({:.1}, {:.1}) t {} source {source} way {way} home {to_home:.0} m forward {share:.2} play {:?} speed {:.1} path1s {:.2}",
+                "  trap press: place {} team {} at ({:.1}, {:.1}) t {} source {source} way {way} home {to_home:.0} m forward {share:.2} play {:?} speed {:.1} path1s {:.2} from_feet {:.2} route {}",
                 bot.place,
                 bot.team,
                 at.x,
@@ -2800,7 +2992,9 @@ pub(super) fn drive(
                 bot.assignment.as_ref().map(|a| a.kind),
                 me.speed(),
                 // [A324] How near the landing lies to the body's own path over the next second (`traps.press_clear`).
-                swept_m(me.feet, me.velocity, 1.0, at)
+                swept_m(me.feet, me.velocity, 1.0, at),
+                at.distance_xz(me.feet),
+                bot.route.is_some()
             );
         }
         // [A292] The press: its note and count.
@@ -3029,10 +3223,68 @@ pub struct BotState {
     /// far home was, for the press line.
     #[cfg(test)]
     pub planned_by: Option<(&'static str, &'static str, f32, f32)>,
+    /// [#2081 v6 measure] The bench's: its thinks within 2 m of a standing own trap (newest last, at most 6) and what moved its
+    /// legs then, for the own-catch line.
+    #[cfg(test)]
+    pub near_moves: Vec<NearMove>,
+    /// [#2081 v6 measure] The bench's: the look in hand ([`placing`]).
+    #[cfg(test)]
+    pub look_ctx: Option<placing::Ctx>,
+}
+
+/// [#2081 v6 measure] One think of a bot within 2 m of a standing own trap: when, how near, and what moved its legs at its last
+/// tick (`Bot::bench_keys_from`: 0 the walk or stand, 1 the fight's side step, 2 the step apart from a mate; `bench_apart`,
+/// `bench_stepped` as the drive set them), whether it had a route, an order to stay, a hold, and its speed.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug)]
+pub struct NearMove {
+    pub t: u32,
+    pub d: f32,
+    pub keys_from: u8,
+    pub apart: u8,
+    pub stepped: u8,
+    pub route: bool,
+    pub stay: bool,
+    pub hold: bool,
+    pub speed: f32,
+}
+
+#[cfg(test)]
+impl NearMove {
+    pub fn line(moves: &[NearMove], now: u32) -> String {
+        moves
+            .iter()
+            .map(|m| {
+                format!(
+                    "-{:.1}s {:.2}m from{} ap{} st{} {}{}{} {:.1}",
+                    now.saturating_sub(m.t) as f32 / 1000.0,
+                    m.d,
+                    m.keys_from,
+                    m.apart,
+                    m.stepped,
+                    if m.route { "R" } else { "r" },
+                    if m.stay { "S" } else { "g" },
+                    if m.hold { "H" } else { "h" },
+                    m.speed
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" | ")
+    }
 }
 
 impl super::features::Feature for BotState {
     fn new_life(&mut self, _life: &super::features::Life) {
+        #[cfg(test)]
+        {
+            if !matches!(self.habit.state(), State::Idle)
+                && let Some(c) = self.look_ctx
+            {
+                placing::died(c);
+            }
+            self.look_ctx = None;
+            self.near_moves.clear();
+        }
         self.habit.new_life();
         self.react.new_life();
         self.pass_wait = None;

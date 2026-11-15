@@ -2273,6 +2273,25 @@ pub(crate) fn real_bot_cost() {
                 eprintln!("  trap looks, team 1: {}", looks[1].line());
                 eprintln!("  {}", bots.react_counts().line());
             }
+            // [#2081 v6 measure] Each life that ended while placing: the look's record and its killer (the stand-in game's
+            // last kill of it up to 6 s after the look's last tick).
+            for c in crate::v026g::bots::traps::placing::deaths() {
+                let killer = game
+                    .kills_all
+                    .iter()
+                    .rev()
+                    .find(|&&(t, _, victim)| victim == c.place && t + 1_000 >= c.last && t <= c.last + 6_000)
+                    .map(|&(t, killer, _)| (t, killer));
+                let killer = killer.map_or("none".to_string(), |(t, k)| {
+                    format!(
+                        "{k} {} at +{:.1} s{}",
+                        if bots.is_bot(k) { "bot" } else { "human" },
+                        t.saturating_sub(c.last) as f32 / 1000.0,
+                        if c.track.is_some_and(|(_, _, who)| who == k) { " (its nearest track)" } else { "" }
+                    )
+                });
+                eprintln!("  trap placing death: {} killer {killer}", c.line());
+            }
             // The stand-in's bear traps (none carried: no line, the log as it was).
             if !game.traps.events.is_empty() {
                 let [placed, enemy, mate, own, shot, hand] = game.traps.counts();

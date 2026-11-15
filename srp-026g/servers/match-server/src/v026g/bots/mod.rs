@@ -2968,12 +2968,13 @@ impl Bots {
                     plays::Go::To { at: to, .. } => format!("to {:.1} m off (target {:.1} m from the trap)", to.distance_xz(me.feet), to.distance_xz(at)),
                 };
                 eprintln!(
-                    "  trap own catch: {who}, {after} after the press, heading {heading} off the placer's at the press, speed {:.1}, play {:?}, go {go}, route {}, fresh guard {} ({} floors shut)",
+                    "  trap own catch: {who}, {after} after the press, heading {heading} off the placer's at the press, speed {:.1}, play {:?}, go {go}, route {}, fresh guard {} ({} floors shut); thinks near it [{}]",
                     me.speed(),
                     bot.assignment.as_ref().map(|a| a.kind),
                     bot.route.is_some(),
                     bot.features.traps.fresh.is_some(),
-                    bot.features.traps.fresh_shut.len()
+                    bot.features.traps.fresh_shut.len(),
+                    traps::NearMove::line(&bot.features.traps.near_moves, time)
                 );
             }
             #[cfg(test)]
