@@ -3081,7 +3081,12 @@ impl Game {
         let facts = WorldFacts {
             // [Gap 2] Who carries a battery, as each place's inventory says it (`m_carried_item`).
             holders: (0..self.bodies.len())
-                .map(|place| Some(self.batteries.contains(&Lying::Carried(place))))
+                .map(|place| {
+                    self.batteries.iter().position(|b| *b == Lying::Carried(place)).map_or(
+                        crate::v026g::bots::view::Holding::Nothing,
+                        |battery| crate::v026g::bots::view::Holding::Battery(battery as u8),
+                    )
+                })
                 .collect(),
             respawns: Some(respawns),
             kill_times: self.last_kills.clone(),
