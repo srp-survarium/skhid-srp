@@ -23,3 +23,36 @@ check = "check_battery_hit_026g.py"
 site = "battery_state.finalize"
 handler = "on_finalize"
 proof = "the strike through fsm::tick"
+
+# The strike's bullet reads its deactivated gun's user and posture all its
+# life (its stance at the constructor, its melee damage at every step): the
+# gun's player and its held battery's posture instead. Hot functions (every
+# shot's stance, every melee step): the entries call the handlers for a null
+# read only (`only`), which natively never happens.
+[[hook]]
+site = "gun.stance_user"
+handler = "on_stance_user"
+only = { user = "NONE" }
+
+[[hook]]
+site = "gun.stance_posture"
+handler = "on_stance_posture"
+only = { posture = "NONE" }
+
+[[hook]]
+site = "gun.melee_damage_user"
+handler = "on_melee_damage_user"
+only = { user = "NONE" }
+
+[[hook]]
+site = "gun.melee_falloff_user"
+handler = "on_melee_falloff_user"
+only = { user = "NONE" }
+
+# the swing may be put away as the carry may: when its carrier is dead (the
+# take's slot answers never, which would keep a dead carrier's battery until
+# the swing's clip ends)
+[[hook]]
+site = "battery_state.deactivatable"
+handler = "on_deactivatable"
+proof = "a dead carrier's swing put away through victory_item_core::deactivate"

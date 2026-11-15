@@ -841,4 +841,7 @@ void __attribute__((thiscall)) engine_battery_state_finalize(struct battery_stat
 /* 0x372420 survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition: buffer ESP+4; pops 0; AL; cdecl, called directly */
 unsigned char __attribute__((cdecl)) engine_fsm_always(const struct predicate_buffer *buffer);
 
+/* 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly */
+unsigned char __attribute__((thiscall)) engine_take_deactivatable(struct battery_state *state);
+
 #endif

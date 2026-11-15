@@ -3502,3 +3502,5 @@ va	status	ref_021d	name
 0x00303450	inferred-high		boost::detail::function::function_invoker0<bool (__cdecl*)(void),bool>::invoke [descriptive]
 0x0028f040	inferred-high		boost::function0<bool>::function0 (copy) [descriptive]
 0x002fa400	inferred-high		survarium::victory_item_core_cook::on_animations_loaded [descriptive]
+0x00397c20	inferred-high		survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]
+0x00338e90	inferred-high		survarium::victory_item_core_carry_state::is_ready_to_be_deactivated [descriptive]

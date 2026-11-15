@@ -195,10 +195,9 @@ impl<'t> PredicateBuffer<'t> {
     }
 }
 
-/// A battery's carrier (its +8, alive), and the battery.
+/// A battery's carrier (its +8, alive).
 pub struct Carrier<'t> {
     player: raw::Player,
-    battery: raw::VictoryItemCore,
     _thread: &'t Thread,
 }
 
@@ -208,7 +207,7 @@ impl<'t> Carrier<'t> {
     unsafe fn of(thread: &'t Thread, battery: raw::VictoryItemCore) -> Option<Carrier<'t>> {
         unsafe {
             let player = battery.user()?;
-            (read(player.alive()) != 0).then_some(Carrier { player, battery, _thread: thread })
+            (read(player.alive()) != 0).then_some(Carrier { player, _thread: thread })
         }
     }
 
@@ -224,78 +223,112 @@ impl<'t> Carrier<'t> {
     /// the gun's melee distance, the gun's melee data, now.
     ///
     /// The gun is deactivated while the battery is held (weapon_core's
-    /// deactivate 0x2E2EE0: no user, its clip set no posture), and the
-    /// bullet's constructor reads both through the gun: the shot's stance
-    /// (its vtable +7Ch, 0x2E43A0: the user alive, the posture's kind) and
-    /// the melee damage (0x2E1CF0: the user's kit modifiers). For the one
-    /// call the gun is lent the carrier and the battery's posture (the
-    /// carrier's posture now), as a held gun has them at its own gun-stock
-    /// hit; both are given back when it returns.
-    pub fn strike(&self) -> Result<(), NoGun> {
-        // SAFETY: the live carrier's inventory, eye and battery; a slot's
-        // item read as a gun only after its active object's vtable says it
-        // is one; the arguments as 0x33AB50 gives them, EDI the gun; the
-        // lent fields restored by LentGun's drop, on this thread, before
-        // anything else runs.
+    /// deactivate 0x2E2EE0: no user, its clip set no posture). Where the
+    /// bullet reads them through the gun, all its life (its stance at the
+    /// constructor, its melee damage each step), [`substitute_player`] and
+    /// [`substitute_posture`] give it the gun's player and that player's
+    /// posture instead; nothing of the gun is written.
+    pub fn strike(&self) -> Result<(), NoStrike> {
+        // SAFETY: the live carrier's inventory and eye; a slot's item read
+        // as a gun only after its active object's vtable says it is one; the
+        // arguments as 0x33AB50 gives them, EDI the gun.
         unsafe {
-            let inventory = self.player.inventory().ok_or(NoGun)?;
+            let inventory = self.player.inventory().ok_or(NoStrike::NoInventory)?;
             let gun = GUN_SLOTS.iter().find_map(|&slot| {
                 let gun = inventory.slots().at(slot).item()?.active_object();
                 [raw::image::WEAPON_VTABLE, raw::image::WEAPON_CORE_VTABLE].contains(&read(gun.vtable()))
                     .then(|| gun.weapon())
-            }).ok_or(NoGun)?;
-            let manager = gun.bullet_manager().ok_or(NoGun)?;
-            let posture = self.battery.user_animations().and_then(|a| a.posture()).ok_or(NoGun)?;
-            let lent = LentGun::lend(gun, self.player, posture).ok_or(NoGun)?;
+            }).ok_or(NoStrike::NoGun)?;
+            let manager = gun.bullet_manager().ok_or(NoStrike::NoBulletManager)?;
             let eye = self.player.eye();
             let distance = read(gun.melee_distance());
             let velocity = [8, 9, 10].map(|i| read(eye.add(i)) * distance);
             raw::engine_emit_bullet(Some(gun), Some(manager), eye.add(12), velocity.as_ptr(),
                                     gun.melee_data().cast(), read(self.player.time()),
                                     Some(self.player.bullet_owner()), self.player.bullet_subject().cast(), 0);
-            drop(lent);
         }
         Ok(())
     }
 }
 
-/// A deactivated gun lent a user and a posture for one call; what it had
-/// is given back on drop.
-struct LentGun {
-    gun: raw::Weapon,
-    animations: raw::UserAnimations,
-    user: Option<raw::Player>,
-    posture: Option<raw::PostureState>,
-}
-
-impl LentGun {
-    /// # Safety
-    /// `gun`, `user` and `posture` are alive for as long as the lend, on
-    /// this thread.
-    unsafe fn lend(gun: raw::Weapon, user: raw::Player, posture: raw::PostureState) -> Option<LentGun> {
-        unsafe {
-            let animations = gun.user_animations()?;
-            let lent = LentGun { gun, animations, user: gun.user(), posture: animations.posture() };
-            gun.set_user(Some(user));
-            animations.set_posture(Some(posture));
-            Some(lent)
-        }
-    }
-}
-
-impl Drop for LentGun {
-    fn drop(&mut self) {
-        // SAFETY: the gun and its clip set lend() wrote, still alive (the
-        // lend lives for one call on this thread).
-        unsafe {
-            self.gun.set_user(self.user);
-            self.animations.set_posture(self.posture);
-        }
-    }
-}
-
-/// No strike: no gun in slot 7 or 10 (never in a match: a kit without both
-/// crashes every game at the spawn), or the battery has no posture (it is
-/// ticked while carried, so it always has one).
+/// Why a carrier could not strike. None happens in a match: a living
+/// player has an inventory, a kit without guns in slots 7 and 10 crashes
+/// every game at the spawn, and every roster gun has its bullet manager
+/// (base_player::set_bullet_manager 0x2D7570).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NoGun;
+pub enum NoStrike {
+    NoInventory,
+    NoGun,
+    NoBulletManager,
+}
+
+/// The player a gun belongs to: the holder of its inventory (its item's
+/// +250h, the inventory's +174h, the player's +108h interface, 0x1F17A0 for
+/// both player classes), which every game builds with the kit, a late
+/// joiner's and a replay's too.
+///
+/// # Safety
+/// `gun` is alive, on this thread.
+unsafe fn player_of(gun: raw::Weapon) -> Option<raw::Player> {
+    unsafe { Some(gun.item().inventory()?.holder()?.player()) }
+}
+
+/// The posture of `player`'s held battery (its clip set's, +1ACh -> +20h),
+/// none when it holds no battery.
+///
+/// # Safety
+/// `player` is alive, on this thread.
+unsafe fn battery_posture(player: raw::Player) -> Option<raw::PostureState> {
+    unsafe {
+        let held = player.held_item()?;
+        [raw::image::VICTORY_ITEM_VTABLE, raw::image::VICTORY_ITEM_CORE_VTABLE].contains(&read(held.vtable()))
+            .then(|| held.battery())?
+            .user_animations()?.posture()
+    }
+}
+
+/// The sites where a bullet reads its gun's user (`gun.stance_user`,
+/// `gun.melee_damage_user`, `gun.melee_falloff_user`), their entries
+/// filtered to EAX 0: a deactivated gun, whose bullets are only the swing's
+/// strike (no gun shoots natively while it is not held). EAX becomes the
+/// gun's player, so the game reads that player's alive byte, kit and
+/// profile, as it reads a held gun's user's. A gun with no player is left
+/// as it is (the game's own fault, not a skip).
+pub fn substitute_player(ctx: &mut Context<'_>, site: UserSite) {
+    // SAFETY: each site's ECX, the gun whose user (EAX) it just read, alive
+    // while the game reads it, on its thread.
+    let player = unsafe {
+        let gun = match site {
+            UserSite::Stance => raw::site::gun_stance_user::gun(ctx),
+            UserSite::MeleeDamage => raw::site::gun_melee_damage_user::gun(ctx),
+            UserSite::MeleeFalloff => raw::site::gun_melee_falloff_user::gun(ctx),
+        };
+        gun.and_then(|gun| player_of(gun))
+    };
+    if let Some(player) = player {
+        ctx.set_reg(super::Reg::Eax, player.address());
+    }
+}
+
+/// A site reading a gun's user.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UserSite {
+    Stance,
+    MeleeDamage,
+    MeleeFalloff,
+}
+
+/// `gun.stance_posture`, filtered to EAX 0 (a deactivated gun's clip set has
+/// no posture): EAX becomes the posture of the gun's player's held battery,
+/// the carrier's posture now, so the strike's stance is the one a held gun
+/// gives in it. None (no battery held) is left as it is.
+pub fn substitute_posture(ctx: &mut Context<'_>) {
+    // SAFETY: the site's ECX, the gun whose posture (EAX) it just read,
+    // alive, on its thread.
+    let posture = unsafe {
+        raw::site::gun_stance_posture::gun(ctx).and_then(|gun| battery_posture(player_of(gun)?))
+    };
+    if let Some(posture) = posture {
+        ctx.set_reg(super::Reg::Eax, posture.address());
+    }
+}

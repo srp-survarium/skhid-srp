@@ -401,6 +401,8 @@ unsafe extern "thiscall" {
     pub fn engine_cc_delegate_execute(command: *mut c_void, arguments: *const u8);
     /// 0x3447f0 survarium::victory_item_core_animation_end_aware_state::finalize: state ECX; pops 0; thiscall, called directly
     pub fn engine_battery_state_finalize(state: *mut c_void);
+    /// 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
+    pub fn engine_take_deactivatable(state: *mut c_void) -> u8;
 }
 
 #[allow(dead_code, non_upper_case_globals)]

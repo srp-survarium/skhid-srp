@@ -6209,3 +6209,4 @@ va	name	location	role	basis
 0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+32	unused: 0 (both callers)	observed
 0x00322830	survarium::bullet_manager::emit_bullet	EDI	the gun (the bullet's constructor 0x32BA60 calls its vtable +7Ch)	observed
 0x00372420	survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition	entry ESP+4	the predicate buffer, as a function-pointer functor's invoker 0x303450 leaves it (unread)	observed
+0x00397c20	survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]	ECX	the state (unread)	observed

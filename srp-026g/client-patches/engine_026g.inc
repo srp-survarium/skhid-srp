@@ -796,3 +796,7 @@ extern engine_battery_state_finalize
 ; 0x372420 survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition: buffer ESP+4; pops 0; AL; cdecl, called directly
 ; cdecl: push (and ECX for thiscall) as that convention says
 extern engine_fsm_always
+; unsigned char engine_take_deactivatable(struct battery_state *state)
+; 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_take_deactivatable

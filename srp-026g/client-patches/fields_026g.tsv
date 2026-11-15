@@ -1261,3 +1261,6 @@ survarium::weapon	user	0x8	ptr<survarium::player>	its user (weapon_core::set_use
 survarium::weapon	user_animations	0x278	ptr<survarium::user_animations>	its clip set (weapon_core 0x30AAE1); +20h its posture now, 0 while the gun is deactivated; read by the shot's stance (vtable +7Ch, 0x2E43B0)
 survarium::user_animations	posture	0x20	ptr<survarium::posture_state>	the posture state now of its machine (+10h the list's count, +18h its head): 0x2E43B6, 0x301450; 0 for a deactivated gun's
 survarium::posture_state	kind	0x20	u32	what posture it is (0x2E43B9 tests 1, 0x301450 tests 1)
+survarium::weapon	item	0x10	obj<survarium::item>	its inventory item (the one its inventory slot holds, a bullet's +0Ch: 0x32BB12)
+survarium::item	battery	0	obj<survarium::victory_item_core>	itself as a battery: only after checking its vtable is victory_item's (0xA042AC) or victory_item_core's (0xA13DBC)
+survarium::image	victory_item_core_vtable	0xA13DBC	u32	victory_item_core's vtable (its main one: set_user +10h 0x300B00, register_animations +20h 0x3018E0, tick +2Ch 0x301240, is_carrying +64h 0x3018C0)

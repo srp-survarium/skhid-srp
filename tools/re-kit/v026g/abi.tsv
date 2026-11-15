@@ -2613,3 +2613,5 @@ va	name	source	ret_cleanup	result
 0x00301920	survarium::victory_item_core::initialize_logic	manual	20	
 0x00322830	survarium::bullet_manager::emit_bullet	manual	32	EAX: the bullet
 0x00372420	survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition	manual	0	AL: 1 (mov al,1 / ret; folded: also take -> carry's and hit -> carry's predicate)
+0x00397c20	survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]	manual	0	AL: 0 (xor al,al / ret, folded): the take state's vtable +20h (0xA1BFA4); victory_item_core::is_ready_to_be_deactivated 0x301270 asks the current state
+0x00338e90	survarium::victory_item_core_carry_state::is_ready_to_be_deactivated [descriptive]	manual	0	AL: 1 when the battery's user ([[ECX+1Ch]+8]) is not alive (+33Ch 0): the carry's vtable +20h (0xA1BFD8); a living carrier leaves through carry -> put

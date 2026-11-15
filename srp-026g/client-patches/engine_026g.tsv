@@ -266,3 +266,4 @@ engine_fsm_append_transition	0x38c970	ESP+4:source ESP+8:destination ESP+12:pred
 engine_emit_bullet	0x322830	EDI:gun ESP+4:manager ESP+8:point ESP+12:velocity ESP+16:data ESP+20:time ESP+24:owner ESP+28:second ESP+32:unused	void *engine_emit_bullet(struct weapon *gun, struct bullet_manager *manager, const float *point, const float *velocity, const void *data, unsigned int time, struct bullet_owner *owner, void *second, unsigned int unused)	thunk	
 engine_battery_state_finalize	0x3447f0	ECX:state	void engine_battery_state_finalize(struct battery_state *state)	thiscall	state: BatteryState ->
 engine_fsm_always	0x372420	ESP+4:buffer	unsigned char engine_fsm_always(const struct predicate_buffer *buffer)	cdecl	buffer: PredicateBuffer -> bool
+engine_take_deactivatable	0x397c20	ECX:state	unsigned char engine_take_deactivatable(struct battery_state *state)	thiscall	state: BatteryState -> bool

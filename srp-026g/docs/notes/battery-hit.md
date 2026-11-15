@@ -73,60 +73,104 @@
 
 - **Dropping or switching mid-swing:** the swing ends first (the state goes on only once its
   clip ended), then the put; the strike still lands (PROVEN in the check).
-- **Delivering mid-swing:** GUESS: a container takes the battery as from the carry (its use is
-  instant, 0x31CC40; not traced through the swing).
-- **Death mid-swing:** LIKELY the battery is dropped as from the carry (the death path not
-  traced); its finalize then strikes nothing, the clip not ended (PROVEN in the check). A new
-  pickup starts at the take (initialize 0x300BF6).
+- **Put away mid-swing** (a delivery, a drop, a death: `victory_item_core::deactivate` 0x300F40
+  calls the current state's finalize, 0x300FA5): the swing's finalize strikes only when its clip
+  ended and its carrier lives (PROVEN in the check, the game's own deactivate). So a battery put
+  away on the tick its thrust ended still strikes; a dead carrier never does.
+- **Death mid-swing:** the swing answers "may be put away" as the carry does (its vtable +20h:
+  yes once the carrier is dead, 0x338E90's rule; the take's own answers never, 0x397C20), so a
+  dead carrier's battery is let go as from the carry (PROVEN in the check through
+  is_ready_to_be_deactivated 0x301270). A new pickup starts at the take (initialize 0x300BF6).
 - **Crouch, prone, sprint:** the put's clips as they are (its 4 player clips are one).
 - **Late join, resync, replays:** the swing is the machine's fourth state (index 3), saved and
   loaded by the game's own fsm serialize (0x38CC90: the index, then the state's fields, a
-  take's layout); `srp-validate` reads index 3 as `BatteryState::Swing`. Replays recorded before
-  the release are refused (`simulation_changes.tsv` `next`).
+  take's layout; PROVEN in the check: saved mid-swing, loaded by another game into its own
+  swing, every field the same); `srp-validate` reads index 3 as `BatteryState::Swing`. A bullet
+  in flight is loaded with its gun from the shooter's slot (0x32BDA1..0x32BDAE), deactivated
+  there too: the substitutions below need nothing the loading game lacks. Replays recorded
+  before the release are refused (`simulation_changes.tsv` `next`).
 
 ## The change (exe patch 143, Rust `battery_hit`)
 
 - `battery.logic` (0x2FA7E9, the cook callback after `initialize_logic`): a fourth state, a
-  take state (0x338940) on the put's six clips with `SWING_S`, kind 3 (carry, so every native
-  "is carrying" test holds through it), its vtable a copy whose finalize strikes; appended to
-  the machine's list; transitions carry -> swing (a function-pointer functor, our function: the
-  carrier alive, melee down; after carry -> put), swing -> put and swing -> carry (byte copies of
-  carry -> put's and take -> carry's functors), tried once its clip ended.
-- A battery whose machine is not the three states, or no memory: a crash (`expect`), not a
-  game left without the swing (it would play otherwise than the others).
+  take state (0x338940) on the put's six clips with `SWING_S`; appended to the machine's list;
+  transitions carry -> swing (a function-pointer functor, our function: the carrier alive, melee
+  down; after carry -> put), swing -> put and swing -> carry (byte copies of carry -> put's and
+  take -> carry's functors), tried once its clip ended.
+- Its identity, slot by slot: kind 3, the carry's (read by is_carrying 0x3018C8 and the clip
+  set's key 0x3012EA: the carrier's body animates and counts as carrying through it); its
+  vtable a copy of the take's (readiness +18h: its clip ended; expression +24h: the take's, the
+  thrust starts at once, the put's blends in over 0.3 s, 0x339107; is_user_dead +28h shared by
+  all three), with finalize (+0Ch: the strike) and may-be-put-away (+20h: the carry's rule) ours.
+- A battery whose machine is not the three states, or no memory, or a carrier who cannot
+  strike: a crash (`expect`), not a skip.
 - The strike: `emit_bullet` with the arguments the gun-stock hit gives it (0x33AB50), EDI the
-  gun (slot 7, else 10; none: no strike), the time the carrier's. The gun is deactivated while
-  the battery is held (deactivate 0x2E2EE0: user +8 cleared, its clip set's posture +278h -> +20h
-  none), and the bullet's constructor reads both through it: the shot's stance (vtable +7Ch,
-  0x2E43A0: the user's +33Ch, the posture's kind) and the melee damage (0x2E1CF0: the user's kit
-  modifiers). So for the one call the gun is lent the carrier and the battery's posture (the
-  carrier's posture now, its clip set +1ACh -> +20h), as a held gun has them at its own gun-stock
-  hit, and given them back when it returns (`LentGun`, restored on drop). The bullet's flight
-  reads the gun's fields, not its user (melee branches 0x32C5E0, 0x32E385, 0x32F0F6; a scan of
-  0x2D0000..0x340000 finds no read of a source gun's user: static, not exhaustive).
+  gun (slot 7, else 10), the time the carrier's. Nothing of the gun is written.
+- **The bullet and the deactivated gun.** A carrier's guns are deactivated (deactivate
+  0x2E2EE0: user +8 0, its clip set's posture +278h -> +20h 0). The bullet keeps its gun (+0Ch,
+  the gun's item, 0x32BB12) and reads that user and posture through it all its life:
+  - the stance at the constructor (`weapon_core::player_stance` 0x2E43A0, the gun's vtable
+    +7Ch: the user's alive +33Ch, the posture's kind);
+  - the melee damage, `weapon::damage` 0x2E1CF0 and `weapon::min_damage` 0x2E1C80, melee branch
+    (the user's kit +115h, profile +6B8h): the constructor 0x32BB38, update_bullet_position at
+    every flight step 0x32F09A and 0x32F0B6, the hit dispatch 0x32DA5A, the pierce or ricochet
+    0x32E35C (the five callers).
+  Four filtered lohooks at those reads (`gun.stance_user` 0x2E43A3, `gun.stance_posture`
+  0x2E43B9, `gun.melee_damage_user` 0x2E1D00, `gun.melee_falloff_user` 0x2E1C99), their entries
+  calling the handler only when the read gave 0 (never natively: no gun shoots while not held),
+  put in the register what a held gun would give: the gun's player (its item's inventory +250h,
+  the inventory's holder +174h, the player's +108h interface: 0x1F17A0 in both player classes'
+  vtables, so every game has it, a late joiner's and a replay's too) and that player's held
+  battery's posture (+1ACh -> +20h, the clip set states of the gun's own kind). No write, so no
+  lifetime and nothing in a saved world. Not used: the gun's +594h (only set_user writes it; a
+  joiner's never-held gun has 0); a lend of the user (weapon_core::serialize writes its in-hand
+  part only when +8 is set, 0x2E3232: a lend alive at a save would misalign every loading game).
 
-## The first in-game test (2026-11-14, build 56dfcf96d)
+## The in-game tests
 
-- The owner pressed melee while carrying: the game crashed at 0x2E43A3 reading 0x33C (EAX 0).
-  The full dump: the gun 0x7C932B48 (vtable 0xA04174, the client weapon) has user +8 = 0 and
-  its posture none; the stack 0x32BAE2 (the constructor's call of the gun's +7Ch), 0x3228A4
-  (emit_bullet), 0xA4373BD (the strike); the battery's machine had 4 states, the swing
-  current. The first Unicorn check stubbed emit_bullet whole, so the constructor never ran on
-  the deactivated gun. The fix above; the check now runs emit_bullet and the constructor and
-  has the crash as its control.
+- **2026-11-14, build 56dfcf96d:** the owner pressed melee while carrying: a crash at 0x2E43A3
+  reading 0x33C. The dump: the gun 0x7C932B48 (vtable 0xA04174) with user +8 0 and no posture;
+  0x32BAE2 (the constructor's call of +7Ch), 0x3228A4 (emit_bullet), 0xA4373BD (the strike).
+  The first check had stubbed emit_bullet whole.
+- **2026-11-15, build 30f8ea538** (the gun lent its user and posture for the emit only): a
+  crash at 0x2E1D00 reading 0x115. The dump: the bullet 0x02AC323C (+0Ch 0x7C944990 the gun's
+  item, +40h the gun's melee data, +8 its shooter), the gun 0x7C944980 with user 0 again;
+  0x32F09F (update_bullet_position after 0x2E1CF0), 0x32C2AC (bullet::tick), 0x32271A
+  (tick_bullets), 0x321E77 (bullet_manager::tick). That check stubbed the live-list add, so
+  bullet::tick never ran; and the spec's "the flight reads no user" scan looked for direct
+  reads only, not for calls of 0x2E1CF0 / 0x2E1C80.
+- Both are the check's controls now, in the original exe.
 
 ## Checked
 
-- `check_battery_hit_026g.py` (Unicorn, the patched exe beside the original): initialize_logic
-  and the site make the four states and five transitions as above; fsm::tick from the carry takes
-  the swing only for the melee key and a living carrier, the put first on a switch; in the swing
-  nothing until its clip ended, then the carry (or the put) and one strike with the gun-stock
-  arguments (slot 10's gun when 7 is empty); left early (a drop), no strike. Stubbed: the
-  allocator, a clip's time scale, the animation event channels, the battery's transform calls,
-  emit_bullet's pool room and list add (emit_bullet and the bullet's constructor run).
-  Its control: the gun not lent faults at 0x2E43A3, the in-game crash.
+- `check_battery_hit_026g.py` (Unicorn, the patched exe beside the original):
+  - initialize_logic and the site make the four states and five transitions; the vtable copy
+    has exactly slots +0Ch and +20h ours;
+  - fsm::tick from the carry takes the swing only for the melee key and a living carrier, the
+    put first on a switch;
+  - in the swing nothing until the animation player's end event (0x344830) of its own clip,
+    another clip's end changes nothing; then the carry (or the put) and one strike, made by the
+    game's own emit_bullet and bullet constructor: the gun's item its source, the melee data,
+    damage 1.5, its stance the one the original gives a held gun in that posture; the gun's
+    bytes unchanged;
+  - the bullet's flight with the game's own bullet::tick 0x32C180: a tick meeting nothing (every
+    step reading the gun's melee damage), and one meeting a body (check_collision, the step to
+    the point, try_pierce hitting the target once with the carrier as shooter and the gun's item
+    as source, reading the damage again at 0x32DA5A); the gun never written;
+  - put away mid-swing through the game's deactivate: the strike only with the clip ended and
+    the carrier alive; a dead carrier's swing may be put away, a living one's not;
+  - saved mid-swing and loaded by another game: its swing current, every field the same;
+  - no gun in either slot (never in a match): the patch's own crash;
+  - controls in the original exe: the constructor faults at 0x2E43A3, the flight at 0x2E1D00.
+  Stubbed: the allocator, a clip's time scale, the animation event channels, the battery's
+  transform calls, the bullet pool's room and live-list add, the physics world's ray test and
+  bounds, the struck target.
 - `cargo test` and Clippy of the patches crate and srp-validate (state 3 read, 4 refused).
-- Not played: the clip at this speed, a real clip end, the bullet's hit in a match.
+- Not proven: the pierce or ricochet at 0x32E35C (the same 0x2E1C80, its lohook, not run);
+  other hittables' hit (+24h) with a strike's source item (lamps, a battery's body): not
+  traced; the victim's hit_impl and the kill and hit events read the source item's slot and
+  dictionary entry, never its gun's user (static, 0x2D9F97, 0x2DA1EA, 0x2DA3F7).
+- Not played: the clip at this speed, the bullet's hit in a match.
 
 ## Release
 

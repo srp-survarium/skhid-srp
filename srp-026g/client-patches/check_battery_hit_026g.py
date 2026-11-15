@@ -6,47 +6,56 @@ a battery's carrier hits with it (docs/notes/battery-hit.md).
 
 Requires Python `unicorn`. check_hide_ui_026g.py's harness (the exe's
 sections and the arena loaded as they are), the original beside the build.
-The game's own code runs: initialize_logic (0x301920) making a made-up
-battery's take, carry and put with their transitions, the cook callback's
+The game's own code runs: initialize_logic (0x301920), the cook callback's
 site after it (`battery.logic`, 0x2FA7E9), the take state's constructor
-(0x338940), fsm::append_transition (0x38C970), fsm::tick (0x38CA20) with the
-states' initialize, execute and finalize, the functors' invokers and the
-game's carry -> put predicate (0x301B30). Stubbed: the allocator
-(0xE4F90, a bump of ours), the allocation name (0x420789), a clip's time
-scale (0x30D750: its time argument kept), the animation player's event
-channels (subscribe 0x391C40, unsubscribe 0x3921A0), the battery's own
-get_transform / set_transform (its vtable +24h, +0A4h), and emit_bullet's pool room (0x323200)
-and live-list add (0x322A30): emit_bullet (its EDI and eight arguments
-kept) and the bullet's constructor (0x32BA60) are the game's own. Checked:
+(0x338940), fsm::append_transition, fsm::tick (0x38CA20) with the states'
+initialize, execute and finalize, the functors' invokers, the carry -> put
+predicate (0x301B30), the animation player's clip-end handler (0x344830),
+emit_bullet (0x322830) with the bullet's constructor (0x32BA60),
+player_stance (0x2E43A0), the melee damage functions (0x2E1CF0, 0x2E1C80),
+bullet::tick (0x32C180) with check_collision, update_bullet_position and
+try_pierce, victory_item_core::deactivate (0x300F40, to past its state's
+finalize) and is_ready_to_be_deactivated (0x301270), fsm::serialize and
+deserialize (0x38CC90, 0x38CCF0) with the take's own. Stubbed: the
+allocator (0xE4F90, a bump of ours), the allocation name (0x420789), a
+clip's time scale (0x30D750: its time argument kept), the animation
+player's event channels (subscribe 0x391C40, unsubscribe 0x3921A0), the
+battery's get_transform / set_transform (victory_item's vtable +24h,
++0A4h), the bullet pool's room (0x323200) and live-list add (0x322A30),
+the physics world (its ray test +48h: nothing, or a body; its bounds +64h),
+the struck body (its material, its cast, its hit +24h kept), the world
+writers (their bytes kept). Checked:
 
 - the cook's site: the original leaves the three states; the patched exe
-  appends a fourth, the swing (the machine 4, its list take, carry, put,
-  swing), a take state of 0ECh bytes from the game's allocator with the
-  take's allocation name, over the put's six clips, its time 0.3 s, its
-  kind 3 (the carry's), its vtable the take's copy (RTTI and every slot the
-  game's but finalize, +0Ch, ours in the arena); the carry's transitions
-  put then swing (a function-pointer functor, 0xA13CAC | 1, its function
-  ours, the battery its buffer's second word), the swing's put (a byte copy
-  of carry -> put's functor) then carry (of take -> carry's);
-- fsm::tick from the carry: the melee key down (bit 27) and alive: the
-  swing, its clip waited for; the key up, another key, a dead carrier: the
-  carry stays; a switch away (held != next, alive): the put, before the
-  swing; the original stays in the carry with the key down;
-- fsm::tick in the swing: before its clip ended nothing; once ended, back to
-  the carry with one strike: emit_bullet with EDI the carrier's slot-7 gun,
-  its bullet manager (+5A0h), the eye's place (+44Ch + 30h), its forward row
-  (+20h) times the gun's melee distance (+578h), the gun's melee data
-  (+53Ch), the carrier's time, its owner (+110h) and +118h, 0, the gun (deactivated:
-  no user, no posture) lent the carrier and the battery's posture while the
-  bullet is made and given them back after, the bullet made by the game's
-  own constructor (source the gun, the melee data, damage 1.5); slot 7 empty:
-  slot 10's gun; a switch away at the end: the put, the strike still made;
-- the swing left before its clip ended (finalize, as a drop on a death
-  calls it): no strike; no gun in either slot, or the battery with no posture:
-  none;
-- the control: emit_bullet with the deactivated gun not lent faults at
-  0x2E43A3 reading +33Ch of no user, the owner's crash (2026-11-14).
-Says nothing about what the clip looks like or about the bullet's flight.
+  appends a fourth, the swing (0ECh bytes of the game's allocator, the
+  take's allocation name; over the put's six clips; 0.3 s; kind 3; its
+  vtable the take's with exactly finalize +0Ch and may-be-put-away +20h
+  ours), the carry's transitions put then swing (a function-pointer
+  functor whose function is ours, the battery its buffer's second word),
+  the swing's put then carry (byte copies of the native functors);
+- fsm::tick from the carry: the swing only for the melee key (bit 27) and
+  a living carrier; a switch away: the put first; the original stays;
+- in the swing: nothing until its own clip's end event (another clip's
+  changes nothing); then the carry (or, switching, the put) and one strike
+  through fsm::tick: the game's emit_bullet and constructor make the
+  bullet (its source the slot-7 gun's item, else slot 10's; the melee
+  data; damage 1.5; its stance the original's for a held gun in that
+  posture), the deactivated gun's bytes never written;
+- the bullet's flight (bullet::tick, a tick meeting nothing, every step
+  reading the gun's melee damage) and a hit (a body met: try_pierce hits it
+  once, the carrier the shooter, the gun's item the source, the damage read
+  again at 0x32DA5A); the gun never written;
+- put away mid-swing (deactivate): the strike only with its clip ended and
+  its carrier alive; a dead carrier's swing may be put away, a living
+  one's not; left before its clip ended: no strike;
+- a world saved mid-swing and loaded by another game: its own swing
+  current, every field the saver's;
+- no gun in slot 7 or 10 (never in a match): the patch's own crash;
+- the controls, the original exe: the deactivated gun's bullet constructor
+  faults at 0x2E43A3 (the first in-game crash), its flight at 0x2E1D00
+  (the second).
+Says nothing about what the clip looks like, the pierce or ricochet at
+0x32E35C, or a struck body's own hit code.
 """
 import struct
 import sys
@@ -69,13 +78,26 @@ WEAPON_VTABLE = 0xA04174
 MELEE = 1 << 27
 
 DATA = 0x30000000
-BATTERY, BATTERY_VTABLE, IDENTITY = DATA, DATA + 0x800, DATA + 0x900
+BATTERY, IDENTITY = DATA, DATA + 0x900
+BATTERY_VTABLE = 0xA042AC         # victory_item's (the client's battery); its +24h and +0A4h stubbed below
 PLAYER, INVENTORY = DATA + 0x10000, DATA + 0x20000
 GUN7, GUN10, MANAGER = DATA + 0x30000, DATA + 0x34000, DATA + 0x38000
 CLIPS = DATA + 0x40000           # the three states' six clips each, then the clips
 HEAP = DATA + 0x50000
 OWNER_WORLD, PROFILE, BULLET = DATA + 0x60000, DATA + 0x80000, DATA + 0x90000
 GUN_ANIMS, BATTERY_ANIMS, POSTURE = DATA + 0x92000, DATA + 0x93000, DATA + 0x94000
+# the bullet manager's physics world (+98h: ray test +48h, the level's bounds +64h), a body the ray
+# meets (its collision object, game object and the hit target the object casts to)
+PHYS, RESULT, BOUNDS = DATA + 0x95000, DATA + 0x95200, DATA + 0x95300
+COLLISION, GAME_OBJECT, TARGET, MATERIAL = DATA + 0x96000, DATA + 0x96100, DATA + 0x96200, DATA + 0x97000
+BULLET_TICK, AFTER_PIERCE = 0x32C180, 0x32D886   # bullet::tick (EAX now; the bullet; ret 4); check_collision after try_pierce
+PIERCE_DAMAGE, STEP_DAMAGE = 0x32DA5A, 0x32F09A     # try_pierce's and update_bullet_position's damage calls
+MELEE_DAMAGE_READ = 0x2E1D00
+CLIP_END = 0x344830          # victory_item_core_animation_end_aware_state::on_animation_end (ECX the state; the event; ret 4)
+DEACTIVATE, DEACTIVATED = 0x300F40, 0x300FBE   # victory_item_core::deactivate (ECX, a bool; ret 4), past its state's finalize
+PUT_AWAY = 0x301270          # victory_item_core::is_ready_to_be_deactivated (ECX the battery)
+SERIALIZE, DESERIALIZE = 0x38CC90, 0x38CCF0    # fsm::serialize (ESI the fsm, EDI the writer; ret 4) / deserialize (EDI the reader; ret 8)
+WRITERS = {0x1F3DE0: 1, 0x80FA0: 1, 0x81A70: 12, 0x301DE0: 64, 0x1F48A0: 4}  # w<u8>, w<bool>, w<float3>, w<float4x4>, w<u32>                      # 0x2E1CF0's read of its gun's user's kit (the second crash)
 STUBS = DATA + 0xF0000           # get_transform / set_transform of the battery: ret 4
 SIZE = 0x100000
 ALLOCATOR, AI_ALLOCATOR = DATA + 0xE8000, DATA + 0xE9000   # the slots 0x1F1D9C4, 0x1F1DA44 (run-time in the game)
@@ -92,8 +114,38 @@ class Run(hide.Run):
         self.emu.mem_map(DATA, SIZE, UC_PROT_ALL)
         for at, handler in ((MALLOC, self.malloc), (NAME, self.name), (SCALE, self.scale),
                             (SUBSCRIBE, self.subscribe), (UNSUBSCRIBE, self.unsubscribe), (EMIT, self.emit),
-                            (POOL, self.pool), (LISTED, self.listed)):
+                            (POOL, self.pool), (LISTED, self.listed), (STUBS + 0x40, self.ray), (STUBS + 0x80, self.hit),
+                            (PIERCE_DAMAGE, self.pierce_damage), (STEP_DAMAGE, self.step_damage)):
             self.emu.hook_add(UC_HOOK_CODE, handler, begin=at, end=at)
+        self.written = bytearray()
+        for at in WRITERS:
+            self.emu.hook_add(UC_HOOK_CODE, self.write, begin=at, end=at)
+
+    def write(self, emu, address, *_):
+        """A world writer (EAX the value, the writer and four names; ret 14h): its bytes kept."""
+        self.written.extend(emu.mem_read(emu.reg_read(UC_X86_REG_EAX), WRITERS[address]))
+        self.ret(0x14)
+
+    def clip_end(self, state, clip):
+        """The animation player's end event of `clip` (+4 of the event), through the state's own handler."""
+        event = DATA + 0xE1000
+        self.emu.mem_write(event, bytes(0x40))
+        self.word(event + 4, clip)
+        sp = hide.STACK + 0x9000
+        self.word(sp, hide.SENTINEL)
+        self.word(sp + 4, event)
+        self.run(CLIP_END, (hide.SENTINEL,), sp, {**hide.GAME, UC_X86_REG_ECX: state})
+        assert self.stopped == hide.SENTINEL
+
+    def call(self, at, ecx, args=(), stop=hide.SENTINEL, regs=None):
+        sp = hide.STACK + 0x9000
+        self.word(sp, hide.SENTINEL)
+        for i, value in enumerate(args):
+            self.word(sp + 4 + 4 * i, value)
+        self.emitted, self.channels = [], []
+        out, _ = self.run(at, (stop,), sp, {**hide.GAME, UC_X86_REG_ECX: ecx, **(regs or {})})
+        assert self.stopped == stop, hex(self.stopped or 0)
+        return out
 
     def ret(self, pops, eax=None):
         sp = self.emu.reg_read(UC_X86_REG_ESP)
@@ -137,11 +189,34 @@ class Run(hide.Run):
         velocity = struct.unpack("<3f", self.read(args[2], 12))
         gun = emu.reg_read(UC_X86_REG_EDI)
         self.emitted.append((gun, args[0], args[1], point, velocity, *args[3:]))
-        self.held.append((self.read(gun + 8), self.read(self.read(gun + 0x278) + 0x20)))
 
     def pool(self, emu, *_):
         self.emu.mem_write(BULLET, bytes(0x100))
         self.ret(0, BULLET)
+
+    def ray(self, emu, *_):
+        """The physics world's ray test (+48h, thiscall, 8 arguments): what
+        the case says the ray meets, in the 28h bytes check_collision copies
+        (the point, the normal, +1Ch the collision object)."""
+        origin = struct.unpack("<3f", self.read(self.arg(2), 12))
+        self.rays.append(origin)
+        self.emu.mem_write(RESULT, bytes(0x28))
+        if self.meets:
+            self.floats(RESULT, [origin[0], origin[1], origin[2] + 0.01])
+            self.floats(RESULT + 0x10, [0.0, 0.0, -1.0])
+            self.word(RESULT + 0x1C, COLLISION)
+        emu.reg_write(UC_X86_REG_EAX, RESULT)
+
+    def pierce_damage(self, emu, *_):
+        self.reads.append(("pierce", emu.reg_read(UC_X86_REG_ECX)))
+
+    def step_damage(self, emu, *_):
+        self.reads.append(("step", emu.reg_read(UC_X86_REG_ECX)))
+
+    def hit(self, emu, *_):
+        """The struck target's hit (+24h, thiscall, 10 arguments), as
+        try_pierce calls it: its arguments kept."""
+        self.hits.append(tuple(self.arg(i) for i in range(1, 11)))
 
     def listed(self, emu, *_):
         bullet = self.read(self.arg(1))
@@ -156,7 +231,30 @@ class Run(hide.Run):
         guns; the machine's current state the carry."""
         self.emu.mem_write(DATA, bytes(SIZE))
         self.next, self.allocated, self.times, self.channels, self.emitted = HEAP, [], [], [], []
-        self.held, self.bullets = [], []
+        self.bullets, self.rays, self.hits, self.meets, self.reads = [], [], [], False, []
+        # the physics world: its ray test (a hook of ours at STUBS+40h, then
+        # ret 20h), the level's bounds (a box of 10 km); a body: its
+        # collision object (its material +10h: none, 0FFFFh), its game
+        # object (+0Ch; its +0 casts to the target), the target (its hit
+        # +24h a hook of ours at STUBS+80h, then ret 28h; +8h: pierceable)
+        stubs = {0x40: b"\xC2\x20\x00", 0x60: b"\xB8" + struct.pack("<I", BOUNDS) + b"\xC2\x04\x00",
+                 0x80: b"\xC2\x28\x00", 0xA0: b"\x66\xB8\xFF\xFF\xC2\x08\x00",
+                 0xC0: b"\xB8" + struct.pack("<I", TARGET) + b"\xC3", 0xE0: b"\xB8\x01\x00\x00\x00\xC3"}
+        for at, code in stubs.items():
+            self.emu.mem_write(STUBS + at, code)
+        self.word(MANAGER + 0x98, PHYS)
+        self.word(PHYS, PHYS + 0x100)
+        self.word(PHYS + 0x100 + 0x48, STUBS + 0x40)
+        self.word(PHYS + 0x100 + 0x64, STUBS + 0x60)
+        self.floats(BOUNDS, [-1e4, -1e4, -1e4, 1e4, 1e4, 1e4])
+        self.word(COLLISION, COLLISION + 0x80)
+        self.word(COLLISION + 0x80 + 0x10, STUBS + 0xA0)
+        self.word(COLLISION + 0xC, GAME_OBJECT)
+        self.word(GAME_OBJECT, GAME_OBJECT + 0x80)
+        self.word(GAME_OBJECT + 0x80, STUBS + 0xC0)
+        self.word(TARGET, TARGET + 0x80)
+        self.word(TARGET + 0x80 + 0x24, STUBS + 0x80)
+        self.word(TARGET + 0x80 + 0x8, STUBS + 0xE0)
         self.word(0x1F1D9C4, ALLOCATOR)
         self.word(0x1F1DA44, AI_ALLOCATOR)
         self.word(BATTERY, BATTERY_VTABLE)
@@ -178,6 +276,8 @@ class Run(hide.Run):
         self.word(PLAYER + 0x324, 1000)
         self.floats(PLAYER + 0x44C, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0.6, 0.8, 0, 1, 2, 3, 1])
         self.word(PLAYER + 0x10C, INVENTORY)
+        self.word(INVENTORY + 0x174, PLAYER + 0x108)  # the inventory's holder: the player's +108h interface
+        self.word(PLAYER + 0x128, BATTERY)
         # its battery's clip set's posture now (kind 1, +24h 1); the guns
         # deactivated as a carrier's are (weapon_core's deactivate 0x2E2EE0:
         # no user, their clip sets no posture), their melee data's damage 1.5;
@@ -190,15 +290,18 @@ class Run(hide.Run):
         self.word(MANAGER + 0x80, MANAGER + 0x400)
         self.word(MANAGER + 0x400 + 0x34, 1)
         self.word(MANAGER + 0x94, OWNER_WORLD)
-        self.word(OWNER_WORLD + 0x108, 0xC0FFEE)
+        self.word(OWNER_WORLD + 0x108, MATERIAL)     # the materials: every one the same made-up one
+        self.word(OWNER_WORLD + 0x10308, MATERIAL)
         self.word(PLAYER + 0x6B8, PROFILE)
         for gun, slot in ((GUN7, 7), (GUN10, 10)):
             self.word(gun, WEAPON_VTABLE)
             self.word(gun + 0x5A0, MANAGER)
             self.word(gun + 0x278, GUN_ANIMS + (0x100 if gun == GUN10 else 0))
+            self.floats(gun + 0x53C, [1.7])          # melee/data: its distance (+0), its damage (+8)
             self.floats(gun + 0x53C + 8, [1.5])
             self.floats(gun + 0x578, [1.7 if gun == GUN7 else 1.5])
             self.word(INVENTORY + 0x10C + 4 * slot, gun + 0x10)
+            self.word(gun + 0x10 + 0x250, INVENTORY)  # its item's inventory, as the kit's build sets it
         sp = hide.STACK + 0x9000
         self.word(sp, hide.SENTINEL)
         for i, value in enumerate((CLIPS, struct.unpack("<I", struct.pack("<f", 0.5))[0], CLIPS + 0x18, CLIPS + 0x30,
@@ -296,8 +399,9 @@ def main():
     vtable = new.read(swing)
     ours = [new.read(vtable - 4 + 4 * i) for i in range(13)]
     stock = [new.read(TAKE_VTABLE - 4 + 4 * i) for i in range(13)]
-    check(vtable != TAKE_VTABLE and ours[:4] + ours[5:] == stock[:4] + stock[5:] and ours[4] != stock[4]
-          and ours[4] >= 0xA42D000, "its vtable: the take's RTTI and slots, finalize (+0Ch) ours in the arena")
+    mine = [i for i in range(13) if ours[i] != stock[i]]
+    check(vtable != TAKE_VTABLE and mine == [4, 9] and all(ours[i] >= 0xA42D000 for i in mine),
+          "its vtable: the take's RTTI and slots, finalize (+0Ch) and may-be-put-away (+20h) ours in the arena")
     carry = new.transitions(new.carry)
     take = new.transitions(new.take)
     check([d for d, _, _ in carry] == [new.put, swing] and [d for d, _, _ in take] == [new.carry],
@@ -344,23 +448,68 @@ def main():
         new.actions(0)
         return swing
 
+    # what 0x2E43A0 gives a held gun (its user the carrier, its posture
+    # the battery's), run in the original exe: the stance to expect
+    old.made()
+    old.word(GUN7 + 8, PLAYER)
+    old.word(GUN_ANIMS + 0x20, POSTURE)
+    sp = hide.STACK + 0x9000
+    old.word(sp, hide.SENTINEL)
+    regs, _ = old.run(0x2E43A0, (hide.SENTINEL,), sp, {**hide.GAME, UC_X86_REG_ECX: GUN7})
+    stance = regs[UC_X86_REG_EAX]
     swing = swinging()
+    gun7_before = new.read(GUN7, 0x600)
     check(new.tick() == swing and new.emitted == [], "before its clip ended: nothing")
-    new.emu.mem_write(swing + 0x28, b"\x01")
-    check(new.tick() == new.carry, "once ended: back to the carry")
+    # the clip it waits for: the one its expression plays (+0C8h's, index
+    # +0CCh: 0 the first person's), as 0x338B6B sets it
+    new.emu.mem_write(swing + 0xCC, b"\x00")
+    clip = new.read(new.read(swing + 0xC8))
+    new.clip_end(swing, clip + 0x100)
+    check(new.read(swing + 0x28, 1) == b"\0" and new.tick() == swing,
+          "another clip's end (the event 0x344830): still the swing")
+    new.clip_end(swing, clip)
+    check(new.read(swing + 0x28, 1) == b"\x01", "its own clip's end (the event 0x344830): ended")
+    check(new.tick() == new.carry, "then fsm::tick: back to the carry, the strike through fsm::tick")
     gun = (GUN7, MANAGER, PLAYER + 0x47C, eye, (0.0, f32(f32(0.6) * f32(1.7)), f32(f32(0.8) * f32(1.7))), GUN7 + 0x53C, 1000,
            PLAYER + 0x110, PLAYER + 0x118, 0)
     check(new.emitted == [gun], "one strike: the slot-7 gun's melee bullet from the eye along its forward, now")
-    check(new.held == [(PLAYER, POSTURE)],
-          "while the bullet is made, the deactivated gun is lent the carrier and the battery's posture")
     check(len(new.bullets) == 1 and new.bullets[0][0xC] == GUN7 + 0x10 and new.bullets[0][0x40] == GUN7 + 0x53C
-          and new.bullets[0][0x48] == 0xC0FFEE
+          and new.bullets[0][0x48] == MATERIAL
           and new.bullets[0][0x70] == struct.unpack("<I", struct.pack("<f", 1.5))[0],
           "the game's own emit_bullet and bullet constructor (0x32BA60) make it: its gun the source, the melee data, "
           "the gun-stock damage (1.5 through the kit's melee modifier)")
-    check(new.read(GUN7 + 8) == 0 and new.read(GUN_ANIMS + 0x20) == 0,
-          "after the strike the gun is as deactivated again (no user, no posture)")
+    check(new.read(GUN7 + 8) == 0 and new.read(GUN_ANIMS + 0x20) == 0 and new.read(GUN7, 0x600) == gun7_before,
+          "the gun is never written: still no user, no posture")
+    check(new.bullets[0][0x58] == stance,
+          "its stance (bullet +58h) the one the game gives a held gun in the carrier's posture")
     check(("unsubscribe", swing) in new.channels, "the swing's own finalize ran (its channel left)")
+
+    print("the bullet's flight and hit (bullet::tick 0x32C180, the game's own)")
+    struck = new.read(BULLET, 0x100)
+
+    def flight(r, meets, stops=(hide.SENTINEL,)):
+        r.emu.mem_write(BULLET, struck)
+        r.meets, r.rays, r.hits, r.reads = meets, [], [], []
+        sp = hide.STACK + 0x9000
+        r.word(sp, hide.SENTINEL)
+        r.word(sp + 4, BULLET)
+        try:
+            r.run(BULLET_TICK, stops, sp, {**hide.GAME, UC_X86_REG_EAX: 1050})
+            return r.stopped
+        except UcError:
+            return ("fault", r.emu.reg_read(UC_X86_REG_EIP))
+
+    end = flight(new, False)
+    check(end == hide.SENTINEL and new.rays and ("step", GUN7) in new.reads and new.read(GUN7, 0x600) == gun7_before,
+          "a tick in which it meets nothing: its steps (update_bullet_position 0x32EE90, its melee damage "
+          "0x2E1CF0 and 0x2E1C80 through the gun) run to the tick's end; the gun never written")
+    end = flight(new, True, (hide.SENTINEL, AFTER_PIERCE))
+    check(end == AFTER_PIERCE and len(new.hits) == 1 and new.hits[0][1] == PLAYER + 0x110
+          and new.hits[0][9] == GUN7 + 0x10 and ("pierce", GUN7) in new.reads and ("step", GUN7) in new.reads
+          and new.read(GUN7, 0x600) == gun7_before,
+          "meeting a body: check_collision 0x32D4E0, its step to the point and try_pierce 0x32D960 hit the target "
+          "once (the carrier its shooter, the gun's item the source) and read the gun's melee damage again "
+          "(0x32DA5A); the gun never written")
     swing = swinging()
     new.word(INVENTORY + 0x10C + 4 * 7, 0)
     new.emu.mem_write(swing + 0x28, b"\x01")
@@ -380,28 +529,71 @@ def main():
     new.word(INVENTORY + 0x10C + 4 * 7, 0)
     new.word(INVENTORY + 0x10C + 4 * 10, 0)
     new.emu.mem_write(swing + 0x28, b"\x01")
-    new.finalize(swing)
-    check(new.emitted == [], "no gun in slot 7 or 10: none")
+    try:
+        new.finalize(swing)
+        crashed = None
+    except UcError:
+        crashed = new.emu.reg_read(UC_X86_REG_EIP)
+    check(new.emitted == [] and crashed is not None and crashed >= 0xA42D000,
+          "no gun in slot 7 or 10 (never in a match): the patch's own crash in the arena, not a skipped strike")
+
+    print("put away mid-swing (victory_item_core::deactivate 0x300F40, to past its state's finalize)")
+    for alive, ended, want in ((1, 0, False), (1, 1, True), (0, 1, False), (0, 0, False)):
+        swing = swinging()
+        new.emu.mem_write(swing + 0x28, bytes([ended]))
+        new.emu.mem_write(PLAYER + 0x33C, bytes([alive]))
+        new.call(DEACTIVATE, BATTERY, (0,), DEACTIVATED)
+        check(new.read(BATTERY + 0x178) == 0 and (len(new.emitted) == 1) == want
+              and ("unsubscribe", swing) in new.channels,
+              f"carrier {'alive' if alive else 'dead'}, clip {'ended' if ended else 'playing'}: its finalize runs, "
+              f"{'the strike' if want else 'no strike'}")
     swing = swinging()
-    new.word(BATTERY_ANIMS + 0x20, 0)
-    new.emu.mem_write(swing + 0x28, b"\x01")
-    new.finalize(swing)
-    check(new.emitted == [] and new.read(GUN7 + 8) == 0, "the battery without a posture: none, the gun untouched")
-    # The control: emit_bullet with the deactivated gun as it is (what the
-    # first build did) faults where the owner's game crashed.
+    new.emu.mem_write(POSTURE + 0x2B, b"\x01")      # the clip set's own readiness (0x30128D)
+    ready = lambda: new.call(PUT_AWAY, BATTERY)[UC_X86_REG_EAX] & 0xFF
+    alive_ready = ready()
+    new.emu.mem_write(PLAYER + 0x33C, b"\0")
+    check(alive_ready == 0 and ready() == 1,
+          "is_ready_to_be_deactivated 0x301270 in the swing: no for a living carrier (he leaves through the put), "
+          "yes for a dead one, as from the carry: a dead carrier's swing put away through victory_item_core::deactivate")
+
+    print("a world saved and loaded mid-swing (fsm::serialize 0x38CC90 / deserialize 0x38CCF0, the take's own)")
+    swing = swinging()
+    new.emu.mem_write(swing + 0xCC, b"\x02")
+    fields = new.read(swing + 0x28, 1) + new.read(swing + 0x2C, 0xC8 - 0x2C) + new.read(swing + 0xCC, 1)
+    new.written = bytearray()
+    new.call(SERIALIZE, 0, (0,), regs={UC_X86_REG_ESI: FSM, UC_X86_REG_EDI: DATA + 0xE2000})
+    stream = bytes(new.written)
+    check(stream[0] == 3, "the world holds the machine's index 3, the swing (then its take-layout fields)")
     new.made()
+    new.site()
+    reader = DATA + 0xE3000
+    new.emu.mem_write(DATA + 0xE4000, stream)
+    new.word(reader + 4, DATA + 0xE4000)
+    new.call(DESERIALIZE, 0, (0, 0), regs={UC_X86_REG_ESI: FSM, UC_X86_REG_EDI: reader})
+    loaded = new.read(BATTERY + 0x178)
+    check(loaded == new.states()[3] and new.read(reader + 4) == DATA + 0xE4000 + len(stream)
+          and new.read(loaded + 0x28, 1) + new.read(loaded + 0x2C, 0xC8 - 0x2C) + new.read(loaded + 0xCC, 1) == fields,
+          "another game loading it: its own swing current, every field the saver's, the stream read to its end")
+
+    print("the controls: the game's own code without the patch (the original exe)")
+    # emit_bullet with the deactivated gun: the first build's strike
+    old.made()
     sp = hide.STACK + 0x9000
-    new.word(sp, hide.SENTINEL)
+    old.word(sp, hide.SENTINEL)
     for i, value in enumerate((MANAGER, PLAYER + 0x47C, PLAYER + 0x47C, GUN7 + 0x53C, 1000, PLAYER + 0x110,
                                PLAYER + 0x118, 0)):
-        new.word(sp + 4 + 4 * i, value)
+        old.word(sp + 4 + 4 * i, value)
     try:
-        new.run(EMIT, (hide.SENTINEL,), sp, {**hide.GAME, UC_X86_REG_EDI: GUN7})
+        old.run(EMIT, (hide.SENTINEL,), sp, {**hide.GAME, UC_X86_REG_EDI: GUN7})
         fault = None
     except UcError:
-        fault = new.emu.reg_read(UC_X86_REG_EIP)
-    check(fault == 0x2E43A3, "the control: the gun not lent, the bullet's constructor reads the missing user's +33Ch "
-                             "at 0x2E43A3 (the owner's crash, 2026-11-14)")
+        fault = old.emu.reg_read(UC_X86_REG_EIP)
+    check(fault == 0x2E43A3, "the bullet's constructor reads the deactivated gun's missing user's +33Ch at 0x2E43A3 "
+                             "(the owner's first crash, 2026-11-14)")
+    # the same bullet's flight: the second build's (it lent the gun only while the bullet was made)
+    check(flight(old, False) == ("fault", MELEE_DAMAGE_READ),
+          "its flight's melee damage reads the deactivated gun's missing user's +115h at 0x2E1D00 "
+          "(the owner's second crash, 2026-11-15)")
     print("battery_hit: all checks passed")
 
 

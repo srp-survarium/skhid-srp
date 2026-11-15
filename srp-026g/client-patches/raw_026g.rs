@@ -407,6 +407,8 @@ unsafe extern "thiscall" {
     pub fn engine_cc_delegate_execute(command: Option<CcDelegate>, arguments: *const u8);
     /// 0x3447f0 survarium::victory_item_core_animation_end_aware_state::finalize: state ECX; pops 0; thiscall, called directly
     pub fn engine_battery_state_finalize(state: Option<BatteryState>);
+    /// 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
+    pub fn engine_take_deactivatable(state: Option<BatteryState>) -> u8;
 }
 
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_instance(const void *info, const void *allocator, void **instance)
@@ -2627,6 +2629,15 @@ impl Item {
     #[inline(always)]
     pub unsafe fn active_object(self) -> Item {
         Item(unsafe { self.0.byte_sub(0x10) })
+    }
+
+    /// +0x0 (obj<survarium::victory_item_core>): itself as a battery: only after checking its vtable is victory_item's (0xA042AC) or victory_item_core's (0xA13DBC)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn battery(self) -> VictoryItemCore {
+        VictoryItemCore(unsafe { self.0.byte_add(0x0) })
     }
 }
 
@@ -7220,6 +7231,15 @@ impl Weapon {
     #[inline(always)]
     pub unsafe fn set_user_animations(self, value: Option<UserAnimations>) {
         unsafe { self.0.byte_add(0x278).cast::<Option<UserAnimations>>().write_volatile(value) }
+    }
+
+    /// +0x10 (obj<survarium::item>): its inventory item (the one its inventory slot holds, a bullet's +0Ch: 0x32BB12)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn item(self) -> Item {
+        Item(unsafe { self.0.byte_add(0x10) })
     }
 }
 
@@ -24073,6 +24093,9 @@ pub mod image {
 
     /// 0xa13cac (u32, survarium::image): the functor vtable of a plain bool(*)() predicate: manager 0x303420, invoker 0x303450 (initialize_logic 0x301A7A, tagged | 1)
     pub const FSM_FUNCTION_PREDICATE: u32 = 0xa13cac;
+
+    /// 0xa13dbc (u32, survarium::image): victory_item_core's vtable (its main one: set_user +10h 0x300B00, register_animations +20h 0x3018E0, tick +2Ch 0x301240, is_carrying +64h 0x3018C0)
+    pub const VICTORY_ITEM_CORE_VTABLE: u32 = 0xa13dbc;
 }
 
 /// A general-purpose register at a hook's site.
@@ -28095,6 +28118,102 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<BatteryLogicFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(BatteryLogicFrame)
+        }
+    }
+
+    /// gun.stance_user (0x2e43a3): weapon_core::player_stance 0x2E43A0 (the gun's vtable +7Ch; the bullet's constructor 0x32BADE, base_player hit events for no bullet 0x2D9FB2) once it read its user (mov eax,[ecx+8]), before that user's alive byte: ECX the gun, EAX the user (0 for a deactivated gun, which natively never shoots); replayed: mov al,[eax+33Ch]
+    pub mod gun_stance_user {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn gun(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Weapon)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn user(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+    }
+
+    /// gun.stance_posture (0x2e43b9): weapon_core::player_stance once it read its clip set's posture (mov eax,[ecx+278h] / mov eax,[eax+20h]), before the posture's kind: ECX the gun, EAX the posture (0 for a deactivated gun's); replayed: cmp dword [eax+20h],1 / sete dl
+    pub mod gun_stance_posture {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn gun(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Weapon)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn posture(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+    }
+
+    /// gun.melee_damage_user (0x2e1d00): the melee data's damage 0x2E1CF0 (the bullet's constructor 0x32BB38, update_bullet_position 0x32F09A each step), melee branch, once it read the gun's user (mov eax,[ecx+8]), before the user's kit: ECX the gun, EAX the user (0 for a deactivated gun); replayed: movzx ecx,byte [eax+115h]
+    pub mod gun_melee_damage_user {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn gun(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Weapon)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn user(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+    }
+
+    /// gun.melee_falloff_user (0x2e1c99): the melee data's minimum damage 0x2E1C80 (update_bullet_position 0x32F0B6 each step, the pierce 0x32DA5A, the ricochet 0x32E35C), melee branch, once it read the gun's user (mov eax,[ecx+8]), before the user's kit: ECX the gun, EAX the user (0 for a deactivated gun); replayed: movzx ecx,byte [eax+115h]
+    pub mod gun_melee_falloff_user {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn gun(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Weapon)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn user(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
         }
     }
 }
