@@ -1308,7 +1308,8 @@ pub(crate) fn real_bot_cost() {
             bots.bench_human_dial = bench_settings().var("SRP_BENCH_HUMAN_DIAL").as_deref() == Ok("on");
             bots.bench_enemy_lanes = EnemyLanes::from_env();
             let mut blocks = BlockTally::default();
-            // `SRP_BENCH_VIEW_ERROR=1`: every world fix the bots are given is moved by the live error (view_error.rs).
+            // `SRP_BENCH_VIEW_ERROR=1`: every world fix the bots are given of a body not a bot is moved by the live error
+            // (view_error.rs); a bot's own body never is.
             let mut view_error = ViewError::from_env(game.bodies.len(), seed);
             let mut hits = HitTally::default();
             let mut owner = owner::OwnerTally::new(game.bodies.len());
@@ -1843,7 +1844,10 @@ pub(crate) fn real_bot_cost() {
                     if let Some((_, fixes, health, facts)) = game.world_at(world_tick) {
                         for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
                             let fix = match view_error.as_mut() {
-                                Some(error) => error.perturb(place, fix, clock, period_ms),
+                                Some(error) => {
+                                    let fix_of = if bots.is_bot(place) { FixOf::Bot } else { FixOf::Other };
+                                    error.perturb(place, fix_of, fix, clock, period_ms)
+                                }
                                 None => fix,
                             };
                             handling = thread_cpu();

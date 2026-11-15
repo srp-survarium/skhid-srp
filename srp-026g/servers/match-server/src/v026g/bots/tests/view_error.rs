@@ -18,8 +18,15 @@
 //! The model: every world fix a bot is given is moved by an error drawn once for the fix from the measured tables, by what the
 //! body was doing and how old the fix will be when the next one replaces it; the reckoning then carries the error along until
 //! the next fix, which is how the live error behaves (a picture off by the fix's age of movement). The stand-in's own hits go by
-//! the true bodies, so a shot at the picture goes where the picture is. The error applies to every body, the bots' own too
-//! (the table's bots rows, median 0.36 m).
+//! the true bodies, so a shot at the picture goes where the picture is.
+//!
+//! The error applies to the bodies that are not bots ([`FixOf::Other`]): the humans and the stand-ins. A bot's own body is the
+//! server's own reckoning from its own keys, put right by each world, and is never seen through the live picture: the drift
+//! lab's own-position read (`drift_on_a_real_match` on real matches, 2026-11-15) gives a firing bot's flat error a median of
+//! 0.037 / 0.045 / 0.060 m at a world age of 250 / 500 / 1,000 ms. Until 2026-11-16 the model moved the bots' own fixes too
+//! (the table's bots rows, median 0.36 m): with it on, the bench's own-position error was 30-36 cm at a 1 s world age (p50,
+//! each of 18 cells) against 2-7 cm with it off (#2103). The scale below was calibrated with the bots' own fixes moved, so
+//! their lines started off their true eye; it needs the calibration runs again before an arm turns the model on.
 //!
 //! Off by default: no arm has it until the owner of the bench scripts turns it on. Calibrated on 9 matches a side (School and
 //! Cologne batteries, Vector Laboratory TDM, 10 a side, tier 13-15, with the live pings) against the flip counts of
@@ -90,6 +97,14 @@ pub(crate) fn age_factor(age_ms: u32) -> f32 {
 /// The scale that puts the flip counts at the live 22 % / 20 % with the bench's pings on (see the module docs).
 pub(crate) const DEFAULT_SCALE: f32 = 0.7;
 
+/// Whose body a fix is: one of the bots (the server reckons it from its own keys) or any other (a human, a stand-in), which
+/// the bots see only through worlds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum FixOf {
+    Bot,
+    Other,
+}
+
 /// The error model of a run.
 pub(crate) struct ViewError {
     rng: Rng,
@@ -144,7 +159,12 @@ impl ViewError {
 
     /// `fix` with its place moved by the error of the body's state, in a direction drawn evenly round; a dead body's fix is
     /// as it was. `period_ms` is how often fixes come (the next replaces this one then).
-    pub(crate) fn perturb(&mut self, place: usize, mut fix: Fix, clock: u32, period_ms: u32) -> Fix {
+    /// A bot's own body ([`FixOf::Bot`]) is never moved: the server reckons it itself, and its error is the drift lab's own
+    /// one, not the live picture's.
+    pub(crate) fn perturb(&mut self, place: usize, fix_of: FixOf, mut fix: Fix, clock: u32, period_ms: u32) -> Fix {
+        if fix_of == FixOf::Bot {
+            return fix;
+        }
         let Some(feet) = fix.feet else {
             if let Some(slot) = self.last_y.get_mut(place) {
                 *slot = None;
@@ -222,7 +242,7 @@ mod tests {
         // 4,000 walking fixes: the median is the table's, 0.36 m (the age factor on it, 0.89).
         let mut distances: Vec<f32> = (0..4_000)
             .map(|_| {
-                let moved = error.perturb(1, fix(key::FORWARD, 0.0), 1_300, 1_000);
+                let moved = error.perturb(1, FixOf::Other, fix(key::FORWARD, 0.0), 1_300, 1_000);
                 moved.feet.expect("alive").distance_xz(Vec3::new(10.0, 0.0, 10.0))
             })
             .collect();
@@ -230,6 +250,35 @@ mod tests {
         let median = distances[2_000];
         assert!((0.28..=0.36).contains(&median), "{median}");
         let dead = Fix { fall: None, controller: None, gates: None, jump: None, feet: None, alive: false, ..fix(0, 0.0) };
-        assert_eq!(error.perturb(1, dead.clone(), 1_300, 1_000), dead);
+        assert_eq!(error.perturb(1, FixOf::Other, dead.clone(), 1_300, 1_000), dead);
+    }
+
+    /// With the model on, a bot's own fix is the world's as it is, in every state and at every age, exactly as with the model
+    /// off: its own-position error stays the reckoning's (the drift lab's own-position read), and it draws nothing, so the other
+    /// bodies' errors are drawn as if the bots' fixes were not there.
+    #[test]
+    fn a_bots_own_fix_is_never_moved() {
+        let fix = |keys: u32, y: f32| Fix { fall: None, controller: None, gates: None, jump: None,
+            time: 1_000,
+            alive: true,
+            inserted: 1,
+            feet: Some(Vec3::new(10.0, y, 10.0)),
+            yaw: 0.0,
+            pitch: 0.0,
+            keys,
+            speed: Some(3.5),
+        };
+        let mut on = ViewError { rng: Rng::new(7), scale: 1.0, last_y: vec![None; 2], fixes: 0, metres: 0.0 };
+        let mut fresh = ViewError { rng: Rng::new(7), scale: 1.0, last_y: vec![None; 2], fixes: 0, metres: 0.0 };
+        for keys in [0, key::FORWARD, key::FORWARD | key::SPRINT, key::FORWARD | key::CROUCH, key::JUMP | key::FORWARD] {
+            for (y, age) in [(0.0, 1_300), (1.0, 3_000), (0.0, 1_000)] {
+                assert_eq!(on.perturb(0, FixOf::Bot, fix(keys, y), age, 1_000), fix(keys, y), "keys {keys:#x} y {y} at {age}");
+            }
+        }
+        assert_eq!((on.fixes, on.metres), (0, 0.0));
+        // The next other body's fix draws what a model that never saw the bot's fixes draws.
+        let other = on.perturb(1, FixOf::Other, fix(key::FORWARD, 0.0), 1_300, 1_000);
+        assert_eq!(other, fresh.perturb(1, FixOf::Other, fix(key::FORWARD, 0.0), 1_300, 1_000));
+        assert_ne!(other.feet, fix(key::FORWARD, 0.0).feet);
     }
 }
