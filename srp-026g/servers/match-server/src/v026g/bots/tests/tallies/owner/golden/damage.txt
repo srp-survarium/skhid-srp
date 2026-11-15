@@ -1,4 +1,4 @@
-owner-test damage (lives, by team): dealt [0.0, 0.0] taken [0.146, 1.0] other (grenade, fall, zone, bleed, mate) [0.146, 1.0]
+owner-test damage (lives, by team): dealt [0.0, 0.0] taken [0.147, 1.0] other (grenade, fall, zone, bleed, mate) [0.147, 1.0]
 {
   "damage": {
     "dealt": [
@@ -6,11 +6,11 @@ owner-test damage (lives, by team): dealt [0.0, 0.0] taken [0.146, 1.0] other (g
       0.0
     ],
     "other": [
-      0.146,
+      0.147,
       1.0
     ],
     "taken": [
-      0.146,
+      0.147,
       1.0
     ]
   }

@@ -118,15 +118,21 @@ pub const CCD_MOTION_M: f32 = 0.03;
 /// The speed a swept hit leaves the body at most, m/s: the threshold over the step, 0.03 / (1 / 60) = 1.8
 /// (`integrateTransforms` 0x9CA78..0x9CB60 scales the linear velocity down to it). PROVEN (`thrown_and_placed.md`).
 pub const CCD_SPEED_CAP: f32 = CCD_MOTION_M / STEP_S;
+/// The sweep's result filter, metres: a hit whose step moves this much or less along the hit's normal is dropped, so
+/// the step is not cut and the speed not capped (`(to - from) . normal >= -[cb+64h]`, 0x9C6B0's test at
+/// 0x9C6DD..0x9C72D; the value the collision world's +38h, 0.04, set by its constructor at 0x9FCC5..0x9FCE7). A touch
+/// at 0.04 x 60 = 2.4 m/s or less into the surface is not capped. PROVEN (exe review of #2050).
+pub const SWEEP_FILTER_M: f32 = 0.04;
 /// Where the client's grenade went off against the flown rest, along the throw's heading, metres: 911 recorded frag
 /// flights flown by [`Flight::rest_at_blast`]'s rule from a sighting in the air, against the last sighting before the
-/// blast (3D error P50 0.53 m, P80 4.32, P90 8.72; the old roll's P50 2.13 m). Along the heading: P10 1.22 m short of
-/// the rest ([`REST_BEHIND_M`]), P90 4.14 m past it ([`REST_AHEAD_M`]), P95 9.08 m past it ([`REST_AHEAD_WORST_M`]);
+/// blast (3D error P50 0.54 m, P80 4.34, P90 8.72; the old roll's P50 2.13 m). Along the heading: P10 1.24 m short of
+/// the rest ([`REST_BEHIND_M`]), P90 3.95 m past it ([`REST_AHEAD_M`]), P95 8.92 m past it ([`REST_AHEAD_WORST_M`]);
 /// across it P90 1.82 m (a body's reach covers it). 142 of the 911 had fallen through the floor (the stock CCD, before
-/// exe patch 105). PROVEN (counted: `thrown_and_placed.md`, its flights' errors split along and across the heading).
-pub const REST_BEHIND_M: f32 = 1.22;
-pub const REST_AHEAD_M: f32 = 4.14;
-pub const REST_AHEAD_WORST_M: f32 = 9.08;
+/// exe patch 105). PROVEN (counted: the flights of `thrown_and_placed.md` flown again by this rule, the S7 tool's `fly`
+/// with the sweep's filter and the capped step's stop; its errors split along and across the heading).
+pub const REST_BEHIND_M: f32 = 1.24;
+pub const REST_AHEAD_M: f32 = 3.95;
+pub const REST_AHEAD_WORST_M: f32 = 8.92;
 
 thread_local! {
     static REST_FLOWN: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
@@ -581,20 +587,23 @@ impl Flight {
     /// the 911 recorded flights were counted with (`thrown_and_placed.md`, "After the first contact"):
     /// - steps of [`STEP_S`], gravity into the velocity and then the move, no damping; the body a sphere of
     ///   [`RADIUS_M`] (the capsule's radius);
-    /// - a step's move that meets the ground stops at the surface; a move longer than [`CCD_MOTION_M`] has its speed
-    ///   cut to [`CCD_SPEED_CAP`] (the client's swept test, `integrateTransforms` 0x9CA78..0x9CB60); then the contact
-    ///   ([`touch`]): the velocity into the surface is lost (restitution 0 and friction 0.5 a body: the collision
-    ///   object's defaults 0x8E8B1..0x8E8D5 and the grenade's own info 0x303919..0x303944) and the tangential speed
-    ///   loses [`FRICTION`] times it; what is left of the step's move is made once more the same way, without the cap;
+    /// - a step's move that meets the ground stops at the surface. The client's swept test
+    ///   (`integrateTransforms`) takes it when the move is longer than [`CCD_MOTION_M`] and goes more than
+    ///   [`SWEEP_FILTER_M`] along the hit's normal (the sweep's result filter 0x9C6B0): the speed is cut to
+    ///   [`CCD_SPEED_CAP`] (0x9CA78..0x9CB60), the contact made ([`touch`]), and the step ends there (the rest of it is
+    ///   not moved, 0x9CB6D);
+    /// - any other hit is the contact alone: the velocity into the surface is lost (restitution 0 and friction 0.5 a
+    ///   body: the collision object's defaults 0x8E8B1..0x8E8D5 and the grenade's own info 0x303919..0x303944) and the
+    ///   tangential speed loses [`FRICTION`] times it; what is left of the step's move is made once more the same way;
     /// - then the support: a body within [`RADIUS_M`] + 2 cm over a surface is set on it and touches it, so it slides
     ///   where the slope's pull beats friction (`tan θ >` [`FRICTION`]) and holds elsewhere.
     ///
-    /// The cap is the client's; which touches it takes is this rule's stand-in. The client leaves a hit uncapped when
-    /// the step's move along the hit's normal is 4 cm or less (the sweep's result filter 0x9C6B0, the collision world's
-    /// +38h), and its capsule touches without a swept hit within its reach less the swept sphere's radius, at any
-    /// surface; it does not move the rest of a capped step. Here every move hit over the threshold is capped and only a
-    /// floor under the support's reach is touched without it. The error the checks take ([`REST_AHEAD_M`]) was counted
-    /// with this same rule.
+    /// Which hits are capped and how a capped step ends are the client's. The stand-ins are the contact solving: a hit
+    /// is met at the capsule's radius (the client's swept sphere is smaller, 0.01 stock and 0.04 with exe patch 105,
+    /// and the capsule's own contact stops it: flown with the sweep's radius as the reach the 911 flights' error is
+    /// worse, P50 0.63 m at 0.01, 0.54 at 0.04), and an uncapped contact by the support's ray and the rest of the move
+    /// (without the support ray the error is worse, P90 10.6 m). The error the checks take ([`REST_AHEAD_M`]) was
+    /// counted with this rule.
     ///
     /// A step that leaves a still body where it was is every later step too: the flight stops there.
     pub fn rest_at_blast(&self, ground: &(impl Ground + ?Sized)) -> Vec3 {
@@ -614,7 +623,8 @@ impl Flight {
                     Some(hit) => {
                         let travel = (hit.t - RADIUS_M).max(0.0);
                         p = p + dir * travel;
-                        if length > CCD_MOTION_M {
+                        let swept = swept(d, hit.normal);
+                        if swept {
                             let speed = v.length();
                             if speed > CCD_SPEED_CAP {
                                 v = v * (CCD_SPEED_CAP / speed);
@@ -623,7 +633,7 @@ impl Flight {
                         touch(&mut v, hit.normal);
                         let d2 = v * (STEP_S * (length - travel) / length);
                         let l2 = d2.length();
-                        if l2 > 1e-7 {
+                        if !swept && l2 > 1e-7 {
                             let dir2 = d2 * (1.0 / l2);
                             match ground.cast(p, dir2, l2 + RADIUS_M) {
                                 Some(again) => {
@@ -649,6 +659,13 @@ impl Flight {
         }
         p
     }
+}
+
+/// Whether the client's swept test takes a step's move `d` that meets a surface of unit normal `normal` (its speed
+/// then capped at [`CCD_SPEED_CAP`] and the step ended at the hit): the move is longer than [`CCD_MOTION_M`]
+/// (0x9C84E..0x9C887) and goes more than [`SWEEP_FILTER_M`] into the surface (the result filter 0x9C6B0).
+fn swept(d: Vec3, normal: Vec3) -> bool {
+    d.length() > CCD_MOTION_M && -d.dot(normal) > SWEEP_FILTER_M
 }
 
 /// A contact with a surface of unit normal `normal`: the velocity into it is lost (restitution 0) and the tangential
@@ -1335,12 +1352,26 @@ mod tests {
     }
 
     #[test]
+    fn the_swept_test_takes_a_move_over_its_threshold_that_goes_more_than_four_centimetres_into_the_surface() {
+        // Straight into a wall at 15 m/s: 0.25 m a step into it.
+        assert!(swept(Vec3::new(0.0, 0.0, 0.25), Vec3::new(0.0, 0.0, -1.0)));
+        // Along a floor, 3 cm a step down into it (1.8 m/s): dropped by the filter, whatever the speed along it.
+        assert!(!swept(Vec3::new(0.0, -0.03, 0.25), Vec3::Y));
+        // 4 cm is still dropped (2.4 m/s), 5 cm is taken.
+        assert!(!swept(Vec3::new(0.0, -0.04, 0.25), Vec3::Y));
+        assert!(swept(Vec3::new(0.0, -0.05, 0.25), Vec3::Y));
+        // A move of 3 cm or less is not swept at all.
+        assert!(!swept(Vec3::new(0.0, -0.02, 0.02), Vec3::Y));
+        near(SWEEP_FILTER_M * 60.0, 2.4, 1e-5, "the speed into the surface under which a hit is not capped");
+    }
+
+    #[test]
     fn a_flight_the_support_meets_first_is_not_capped_and_slides_on() {
         // A level throw from the eye on a perfect plane: in its last step in the air the body comes within reach of
         // the support (2 cm under the sphere) before a move meets the floor, so no swept hit cuts its speed: the
         // support's contact takes the speed into the floor, friction takes a quarter of that, and it slides on to the
-        // blast, as 205 of the 911 counted flights did (kept 10 m/s or more: flown on a median 6.0 m past the contact,
-        // seen 4.9 m). On real ground the next rise of the mesh meets a move and cuts it.
+        // blast, as 209 of the 911 counted flights did (they kept 10 m/s or more after it). On real ground the next
+        // rise of the mesh meets a move that goes far enough into it and cuts it.
         let floor = Counted { ground: Floor { y: 0.0 }, casts: std::cell::Cell::new(0) };
         let landing = Flight::new(Vec3::new(0.0, EYE_M, 0.0), throw_velocity(0.0, 0.0)).landing(&floor).unwrap();
         let slid = landing.rest.z - landing.contact.point.z;
