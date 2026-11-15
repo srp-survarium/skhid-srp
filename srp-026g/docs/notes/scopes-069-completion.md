@@ -333,3 +333,31 @@ not been played or released. Native shader appearance and play feel remain
 for the owner's review. The asset checker still reports the same two pre-existing
 weapon-material references (SV-98 camo roughness and Vepr attach normal); no new
 scope material or texture dependency is missing.
+
+## Merge review (2026-11-15)
+
+The owner requested and received one fullscreen 2560×1440 Scopes069Review
+client on the isolated server with `coverage-content-2`. The owner subsequently
+accepted merging the completed scope work. This is acceptance for merge, not
+evidence that every weapon/scope combination was played.
+
+The hover tooltip's long compatible-weapons list was reported as disorienting.
+The owner explicitly deferred that UX change to the next task; this branch
+does not change the tooltip.
+
+Main `c7fa003dd` was integrated before merging. Both content additions are
+preserved, released revision 60's simulation history stays unchanged, and the
+scope simulation entry remains under `next`. No release was performed and the
+running local review setup was not replaced during integration.
+
+The integrated source passed `release/build-content 61 --full`, including
+31,858-file archive readback, comparison against the complete player resource
+stack and item-table generation. This is a local build number, not a reserved
+release revision. Its output is `artifacts/scopes-069/merge-content-61/`:
+
+- Patch SHA-256: `3c3131781ecefa8074c85eb56164e52d2ffeccd414b5fba30178e754431e1856`.
+- Server-data SHA-256: `eba296a2a37b004a527ab920aa9fc5d5664b5328cd7715dfcb39bf132db686ff`.
+
+The registered content build produced the same patch and server-data bytes.
+Its item-table comparison includes main's Winchester damage change (100 to 94);
+no generated release tables were written into this feature branch.
