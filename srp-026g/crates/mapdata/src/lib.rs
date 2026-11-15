@@ -157,8 +157,9 @@ pub const GAP_NO_VAULTS_ALGO: u32 = 0x5293_0001;
 /// for it. A value of its own.
 pub const RAMP_FACES_ALGO: u32 = 0x5304_0101;
 /// The same for the links the client's walk tick decides ([`Body::client_controller`], A313), in [`grid_key_with_links`] only for
-/// a body that asks for it. A value of its own.
-pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0002;
+/// a body that asks for it. A value of its own. 0003: the side slide keeps its step down's first normal when the slope-acceleration
+/// retry misses (`step_down_sweep_test_impl` 0x7EA80, `slide_in_impassable_case_impl` 0x7D660).
+pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0003;
 /// The same for the walk-off walls with the steep `walk` faces ([`Body::drop_room_walk_faces`], A304), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own.
 pub const DROP_ROOM_WALK_FACES_ALGO: u32 = 0x5304_0201;
@@ -169,8 +170,9 @@ pub const NARROW_DOORS_ALGO: u32 = 0x5313_0101;
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
 /// The same for the Drop links' walk without [`Body::drop_lands`] stepped at the client's 50 ms (C2 row 44; it was 1/30 s): in the
-/// key only for a body with the check and without `drop_lands`, so a grid built with `drop_lands` keeps its key.
-pub const DROP_CHECK_TICK_ALGO: u32 = 0x5313_0202;
+/// key only for a body with the check and without `drop_lands`, so a grid built with `drop_lands` keeps its key. 0203: the tick's
+/// side slide as [`CLIENT_CONTROLLER_ALGO`] 0003 has it.
+pub const DROP_CHECK_TICK_ALGO: u32 = 0x5313_0203;
 /// The same for the walk check's refusals under a low ceiling as failures ([`Body::walk_ceiling_stalls`]), and [S7] its
 /// crouched retry of a standing walk that stops short, in [`grid_key_with_links`] only for a body that asks for it. A value of
 /// its own.
