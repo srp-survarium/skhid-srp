@@ -313,7 +313,7 @@ pub fn fly_as(
     let mut flying = Flying::new(press, flight);
     let landing = press.landing_n();
     let mut steps = Vec::with_capacity((landing + ground_steps) as usize + 1);
-    let air = Flying::air_of(press, keys.air_forward);
+    let air = Flying::air_of(press, i8::from(keys.air_forward), 0);
     while !flying.landed() {
         steps.push(flying.step(world, s, c, heading, air));
     }
@@ -384,13 +384,16 @@ impl Flying {
         self.last_travel
     }
 
-    /// The air control of `keys`' direction keys in a jump of `press`, in the body's frame (ahead, right), m/s: the forward key
-    /// 1 m/s ahead in a short jump and none in a sprint jump ([`fly_as`]); the side keys are not flown here (the flyer has the
-    /// forward clips only).
-    pub fn air_of(press: Press, forward: bool) -> (f32, f32) {
+    /// The air control of a step's direction keys in a jump of `press`, in the body's frame (ahead, right), m/s, from the keys'
+    /// signs `ahead` (forward 1, back -1) and `right` (right 1, left -1): their unit direction at [`AIR_CONTROL_MS`], and none
+    /// for no key, or for the forward key alone in a sprint jump (rig rule 7, 1,392 of 1,392 air steps; the exe review of #1938).
+    pub fn air_of(press: Press, ahead: i8, right: i8) -> (f32, f32) {
+        let (a, r) = (f32::from(ahead), f32::from(right));
+        let n = a.hypot(r);
         match press {
-            Press::Walk { .. } if forward => (AIR_CONTROL_MS, 0.0),
-            _ => (0.0, 0.0),
+            _ if ahead == 0 && right == 0 => (0.0, 0.0),
+            Press::Sprint { .. } if ahead > 0 && right == 0 => (0.0, 0.0),
+            _ => (a / n * AIR_CONTROL_MS, r / n * AIR_CONTROL_MS),
         }
     }
 
@@ -744,6 +747,21 @@ pub fn score(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [A388 step 3] The air control: the keys' unit direction at 1 m/s, none for no key and for forward alone in a sprint jump
+    /// (rig rule 7; the exe review of #1938).
+    #[test]
+    fn the_air_control_is_the_keys_unit_direction_but_a_sprint_jumps_forward() {
+        let walk = Press::Walk { speed: 3.5 };
+        let sprint = Press::Sprint { speed: 5.0, leg: Leg::Left, first_air_frame: 6.57 };
+        assert_eq!(Flying::air_of(walk, 1, 0), (AIR_CONTROL_MS, 0.0));
+        assert_eq!(Flying::air_of(walk, 0, 0), (0.0, 0.0));
+        assert_eq!(Flying::air_of(walk, -1, 0), (-AIR_CONTROL_MS, 0.0));
+        assert_eq!(Flying::air_of(sprint, 1, 0), (0.0, 0.0));
+        let (a, r) = Flying::air_of(sprint, 1, 1);
+        assert!((a - r).abs() < 1e-6 && (a.hypot(r) - AIR_CONTROL_MS).abs() < 1e-6, "{a} {r}");
+        assert_eq!(Flying::air_of(walk, 0, -1), (0.0, -AIR_CONTROL_MS));
+    }
     use crate::{Triangle, WalkerBehaviour};
 
     fn quad(tris: &mut Vec<Triangle>, a: Vec3, b: Vec3, c: Vec3, d: Vec3) {

@@ -531,11 +531,19 @@ impl FlownJump {
         Some(Self { flying: Flying::new(press, Flight { cap, dy: 0.0 }), body, shift: feet - body.controller.feet() })
     }
 
-    /// The next step on `grid` with the step's yaw `yaw` and keys `keys`. None without the grid's walker.
-    fn step(&mut self, grid: &WalkGrid, yaw: f32, keys: u32) -> Option<FlownStep> {
+    /// The next step on `grid`: the walk in the heading `yaw` (the step's: after the input before its own, rig rule 7), the air
+    /// control from the step's own input, its keys `air_keys` in its heading `air_yaw` (one input later than the walk's: rig rule 7,
+    /// 1,392 of 1,392 air steps; the exe review of #1938). The controller turns both by the walk's heading, so the air control is
+    /// handed over already turned into it. None without the grid's walker.
+    fn step(&mut self, grid: &WalkGrid, yaw: f32, air_keys: u32, air_yaw: f32) -> Option<FlownStep> {
         let started = std::time::Instant::now();
         let [fx, fz] = super::kin::forward(yaw);
-        let air = mapdata::controller::jump::Flying::air_of(self.flying.press(), keys & key::FORWARD != 0);
+        let sign = |plus, minus| i8::from(air_keys & plus != 0) - i8::from(air_keys & minus != 0);
+        let (a, r) = mapdata::controller::jump::Flying::air_of(self.flying.press(), sign(key::FORWARD, key::BACK), sign(key::RIGHT, key::LEFT));
+        // The air input's frame is `d` turned from the walk's (a positive yaw turns left): (a, r) there is
+        // (a cos d + r sin d, r cos d - a sin d) in the walk's (ahead, right).
+        let (sin, cos) = super::kin::wrap(air_yaw - yaw).sin_cos();
+        let air = (a * cos + r * sin, r * cos - a * sin);
         let step = grid.kept_fly_step(&mut self.body.controller, &mut self.flying, (fx, fz), air)?;
         kept_clock::add(kept_clock::Of::Reckoning, started.elapsed().as_nanos() as u64);
         let feet = step.feet + self.shift;
@@ -1370,7 +1378,7 @@ fn advance(
         // [A388 step 3] The client's own flight: its next step's feet; at its landing step the controller it left is the body's kept
         // one, on the ground or falling on from there (`fall_step`, the client's fall).
         if let (Some(Jump::Flown(mut flown)), Some(grid), Some(node)) = (at.arc, grid, at.node) {
-            let Some(out) = flown.step(grid, step_yaw, step_keys) else {
+            let Some(out) = flown.step(grid, step_yaw, at.keys, at.yaw) else {
                 // No walker any more (no grid change does that within a match): the jump is over where it is.
                 at.arc = None;
                 continue;
