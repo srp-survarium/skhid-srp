@@ -149,11 +149,13 @@ fn group(cx: &Ctx) -> Option<GroupUp> {
     cx.tuning.tdm.group.or_else(|| cx.tuning.tdm.squad.map(|_| GroupUp::default())).filter(|_| !cx.view.objective().has_homes())
 }
 
-/// [A396] Whether the bot can reach `at` in the trade's longest time (`trade_max_s`) at the sprint's ground speed over the
-/// path distance (`threat.trade_reach`; off: always).
+/// [A396] A trade reaches the killer from at most this path distance, m: the A396 finding's own cut (of 243 trades in the
+/// five reference matches, 120 started over 25 m away and 2 of those reached the killer; the A396 row of `TASKS.md`).
+pub const TRADE_REACH_M: f32 = 25.0;
+
+/// [A396] Whether the bot is within [`TRADE_REACH_M`] of `at` by the path distance (`threat.trade_reach`; off: always).
 fn reaches_in_time(cx: &Ctx, at: Vec3) -> bool {
-    !cx.tuning.threat.trade_reach
-        || cx.path_dist(at) <= crate::v026g::bots::stamina::SPRINT_MPS * cx.num(PlayKind::Trade, "trade_max_s")
+    !cx.tuning.threat.trade_reach || cx.path_dist(at) <= TRADE_REACH_M
 }
 
 /// The rules of a trade's cover spot: TDM's `tdm.group`, else [A302 #1] `threat.trade_cover` in any mode.
