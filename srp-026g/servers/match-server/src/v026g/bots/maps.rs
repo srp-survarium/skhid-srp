@@ -550,6 +550,8 @@ fn read_or_build<T>(
     write: impl FnOnce(&T, &Path) -> Result<(), mapdata::Error>,
 ) -> (T, Source) {
     let Some(built) = built else {
+        // No built folder (`SRP_MAPDATA_BUILT=off`): every load builds the map here.
+        log::warn!("Bot map file {file_name}: no built folder (SRP_MAPDATA_BUILT=off): built here now, at each load (its bots stand until it is ready)");
         stage::detail("building (no built files)");
         return (build(), Source::Built);
     };
@@ -560,6 +562,11 @@ fn read_or_build<T>(
             Ok(value) => return (value, Source::Read),
             Err(why) => log::warn!("Bot map file refused ({why}); built again"),
         }
+    } else {
+        // A built file the store looks for and does not find: built here, on this host's cores. A pre-build
+        // (`srp-build-maps`) writes it so; on the live host it is a release without the file, or a key that changed since
+        // (the file's name is its key), and the map's bots stand until it is built.
+        log::warn!("Bot map file {} is not there: built here now (its bots stand until it is ready)", path.display());
     }
     stage::detail("building");
     let value = build();
@@ -846,7 +853,7 @@ fn ready(maps: &Maps, project: &str, limit: std::time::Duration) -> Result<Arc<T
             MapState::Loading | MapState::Waiting(_) if started.elapsed() < limit => {
                 std::thread::sleep(std::time::Duration::from_millis(20));
             }
-            other => return Err(format!("{project}: {other:?} after {:?}", started.elapsed())),
+            other => return Err(format!("{project}: {other:?} after {:?}, over the limit of {limit:?}", started.elapsed())),
         }
     }
 }
