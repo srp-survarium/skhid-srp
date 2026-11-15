@@ -849,6 +849,11 @@ impl Tracker {
         }
     }
 
+    /// [A388 (e) gap 5] A world's word on `place`'s reload ([`BodyTrack::world_reload`]). Returns whether its gates changed.
+    pub fn world_reload(&mut self, place: Place, at: u32, until: u32) -> bool {
+        self.places.get_mut(place).is_some_and(|state| state.body.world_reload(at, until))
+    }
+
     /// [2e] A bot's own sprint gates for its body: its last reload (from, until), its gun's `aim_time`, ms, and its reckoned bar's
     /// low flag ([`BodyTrack::note_reload`], [`BodyTrack::set_aim_out_ms`], [`BodyTrack::set_low_stamina`]).
     pub fn set_own_gates(&mut self, place: Place, reload: Option<(u32, u32)>, aim_out_ms: u32, low_stamina: bool) {

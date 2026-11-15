@@ -55,6 +55,23 @@ impl OwnGates {
         }
     }
 
+    /// [A388 (e) gap 5] A world made at `at` shows the body's gun reloading with its reload clip ending at `until` (the world's
+    /// mixing tree, F55; [`super::guns::ReloadClip`]): the client's reload runs from `at` at the latest until then. A kept
+    /// reload under way at `at` ends at the clip's end (the world's word over a table's); else the span is kept anew. Returns
+    /// whether the gates changed.
+    pub fn world_reload(&mut self, at: u32, until: u32) -> bool {
+        if until <= at {
+            return false;
+        }
+        if let Some(kept) = self.reloads.iter_mut().find(|kept| kept.0 <= at && at < kept.1) {
+            let changed = kept.1 != until;
+            kept.1 = until;
+            return changed;
+        }
+        self.reload(at, until);
+        true
+    }
+
     pub fn set_aim_out_ms(&mut self, ms: u32) {
         self.aim_out_ms = ms;
     }
@@ -113,9 +130,53 @@ impl Stagger {
     }
 }
 
+/// [A388 (e) gap 5] The worlds that showed a body reloading with its clip's end read, and those that changed its reckoned
+/// body's gates, on this server (the match-end line). Decides nothing.
+pub(crate) mod world_reloads {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static READ: AtomicU64 = AtomicU64::new(0);
+    static CHANGED: AtomicU64 = AtomicU64::new(0);
+    static NOT_READ: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn read(changed: bool) {
+        READ.fetch_add(1, Relaxed);
+        if changed {
+            CHANGED.fetch_add(1, Relaxed);
+        }
+    }
+
+    /// A body reloading in a world whose reload's end is not read (a tube's loop, a cancelled clip, no clip in the tree).
+    pub(crate) fn not_read() {
+        NOT_READ.fetch_add(1, Relaxed);
+    }
+
+    /// (read, changed, not read) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64, u64) {
+        (READ.swap(0, Relaxed), CHANGED.swap(0, Relaxed), NOT_READ.swap(0, Relaxed))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [A388 (e) gap 5] A world's reload refuses the sights and the sprint from the world to the clip's end; a kept reload under
+    /// way at the world ends at the clip's end; the same word again changes nothing.
+    #[test]
+    fn a_worlds_reload_gates_to_its_clips_end() {
+        let mut gates = OwnGates::default();
+        let run = key::FORWARD | key::SPRINT | key::AIM;
+        assert!(gates.world_reload(1_000, 2_400));
+        assert_eq!(gates.taken(1_000, run), key::FORWARD);
+        assert_eq!(gates.taken(2_399, run), key::FORWARD);
+        assert_eq!(gates.taken(2_400, run), run);
+        assert!(!gates.world_reload(1_100, 2_400), "the next world's same clip");
+        gates.reload(3_000, 6_000);
+        assert!(gates.world_reload(3_500, 5_200), "the clip ends sooner than the table");
+        assert_eq!(gates.taken(5_200, run), run);
+        assert!(!gates.world_reload(7_000, 7_000), "an end not after the world is no reload");
+    }
 
     #[test]
     fn a_reload_takes_the_sights_and_the_sprint() {

@@ -1716,6 +1716,15 @@ impl Bots {
         self.tracker.set_hits(place, hits);
     }
 
+    /// [A388 (e) gap 5] A world's word on `place`'s reload, any body's: under way at `at`, its reload clip as the world's mixing
+    /// tree has it (`None`: its end not read). The body's reckoned sights and sprint are refused until the clip's end.
+    pub fn world_reload(&mut self, place: Place, at: u32, clip: Option<guns::ReloadClip>) {
+        match clip {
+            Some(guns::ReloadClip::Ends(until)) => sprint_gates::world_reloads::read(self.tracker.world_reload(place, at, until)),
+            Some(guns::ReloadClip::Cancelled) | None => sprint_gates::world_reloads::not_read(),
+        }
+    }
+
     /// What the bot at `place` counts of its drugs, for the tests.
     #[cfg(test)]
     pub(crate) fn pantry_of(&self, place: Place) -> Option<&stock::Pantry> {
@@ -2334,6 +2343,12 @@ impl Bots {
             nav_log::PREFIX,
             body::carrier_levels::take(),
             survarium::v026g::bot_skills::carried_battery_term().map_or_else(|| "not in the data".to_string(), |term| format!("{term:+.3}"))
+        ));
+        // [A388 (e) gap 5] Every body's reloads from the worlds: the reckoned sights and sprint refused to the clip's end.
+        let (read, changed, not_read) = sprint_gates::world_reloads::take();
+        lines.push(format!(
+            "{}world reloads since the last match end (every match on this server): {read} with the clip's end read, {changed} of them changed a reckoned body's gates, {not_read} with no end read",
+            nav_log::PREFIX
         ));
         // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
         // time a step took.
