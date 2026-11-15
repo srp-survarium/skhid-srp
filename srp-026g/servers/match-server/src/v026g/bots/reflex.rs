@@ -423,13 +423,12 @@ pub struct CombatTuning {
     /// in 64 pairs, 414 throws against 476) and the team takes 20 % less `damage other` (144.1 against 180.6, z -3.0), but the outcome is
     /// not moved: score +0.6 % (z +0.4), kills +0.9 %, deaths -1.0 %, and the by-side table disagrees (side A +11.8, side B -10.0). OFF.
     pub grenade_off_y_m: Option<f32>,
-    /// A teammate whose feet are this near where the worst spread puts the
-    /// blast ([`arc::Spread::Worst`]: to [`arc::REST_AHEAD_WORST_M`] past the
+    /// A teammate this near where the worst spread puts the blast
+    /// ([`arc::Spread::Worst`]: to [`arc::REST_AHEAD_WORST_M`] past the
     /// flown rest along the heading, its measured 95th percentile): not
-    /// thrown, metres. The default is where the bots' grenade's blast kills
-    /// ([`arc::Grenade::lethal_m`]: the client's linear law from a body's
-    /// origin, its feet, 0x339736..0x339750, PROVEN; 2.4 m for the RGD-5),
-    /// so a blast at the far end of its spread still does not kill him.
+    /// thrown, metres. GUESS (register row G200). Its old basis, a body's
+    /// width and the grenade's, does not hold: a player's body does not
+    /// stop a grenade (`arc::Mesh`).
     pub grenade_lane_m: f32,
     /// How many places a roll weighs, nearest first, before it gives the
     /// throw up: the first that passes every check is thrown at, none that
@@ -1710,7 +1709,7 @@ impl Default for CombatTuning {
             grenade_start_margin_m: None,
             grenade_off_m: 8.0,
             grenade_off_y_m: None,
-            grenade_lane_m: arc::Grenade::bots().lethal_m(),
+            grenade_lane_m: 2.0,
             grenade_places: 3,
             grenade_tracks: true,
             grenade_track_ms: 4_000,
@@ -2901,9 +2900,8 @@ fn over_ground<R>(
 /// [play 20] A teammate of `me` who may be in the blast of `landing`: now
 /// and along his velocity for `grenade_lead_s` (none with
 /// `grenade_recheck` off), his chest within `grenade_friend_m` of where the
-/// grenade may go off, or his feet within `grenade_lane_m` of where its
-/// worst spread may put it (the client's blast measures to a body's origin,
-/// its feet).
+/// grenade may go off, or within `grenade_lane_m` of where its worst spread
+/// may put it.
 fn mate_in_blast(
     me: &PlaceView,
     view: &MatchView,
@@ -2926,7 +2924,7 @@ fn mate_in_blast(
                 let moved = walk * (k as f32 / steps as f32);
                 let at = p.chest() + moved;
                 landing.blast_distance(at, arc::Spread::Usual) < c.grenade_friend_m
-                    || landing.blast_distance(p.feet + moved, arc::Spread::Worst) < c.grenade_lane_m
+                    || landing.blast_distance(at, arc::Spread::Worst) < c.grenade_lane_m
             })
         })
         .map(|p| p.place)
@@ -12770,13 +12768,13 @@ mod tests {
         assert!(!throw_run(25.0, &[walking], short, None, 6_000).thrown.is_empty());
     }
 
-    /// [G200] A mate whose feet are within the blast's lethal reach (2.4 m for the RGD-5) of where the worst spread
-    /// may put it, out to its end, refuses the throw. His chest is out of a 3 m round of the usual spread here; farther
-    /// aside or past the end he is clear.
+    /// [G200] A mate whose chest is within `grenade_lane_m` (2 m) of where the worst spread may put the blast, out to
+    /// its end (8.92 m past the rest), refuses the throw. His chest is out of a 3 m round of the usual spread here;
+    /// farther aside or past the end he is clear.
     #[test]
-    fn a_mate_in_the_lethal_reach_of_the_worst_spread_refuses_the_throw() {
+    fn a_mate_near_the_worst_spread_refuses_the_throw() {
         let c = CombatTuning { grenade_friend_m: 3.0, ..CombatTuning::default() };
-        assert!((c.grenade_lane_m - 2.4).abs() < 1e-4, "{}", c.grenade_lane_m);
+        assert_eq!(c.grenade_lane_m, 2.0);
         let contact = arc::Contact {
             point: Vec3::new(0.0, arc::RADIUS_M, 25.0),
             normal: Vec3::Y,
@@ -12789,13 +12787,11 @@ mod tests {
             let view = view_of(vec![me.clone(), body(3, 0, Vec3::new(x, 0.0, z), 0.0)]);
             mate_in_blast(&me, &view, &landing, &c)
         };
-        // 8 m past the rest (the worst end is 8.92 m past it), on the line or 2.3 m aside: in its reach.
+        // 8 m past the rest (the worst end is 8.92 m past it), on the line: his chest 1.3 m over it.
         assert_eq!(with(0.0, 33.5), Some(3));
-        assert_eq!(with(2.3, 33.5), Some(3));
-        // 2.6 m aside, or 2.6 m past the worst end: clear; 2.2 m past it: in.
-        assert_eq!(with(2.6, 33.5), None);
-        assert_eq!(with(0.0, 37.0), None);
-        assert_eq!(with(0.0, 36.6), Some(3));
+        // 2 m aside (2.4 m from his chest), or 2 m past the worst end: clear.
+        assert_eq!(with(2.0, 33.5), None);
+        assert_eq!(with(0.0, 36.4), None);
     }
 
     #[test]

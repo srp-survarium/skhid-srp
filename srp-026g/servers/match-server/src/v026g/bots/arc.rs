@@ -265,12 +265,6 @@ impl Grenade {
         self.reach_of_m(0.5)
     }
 
-    /// [`Self::reach_of_m`] of a whole body's health, where the blast kills (the body and the pain pools emptied):
-    /// 2.4 m for the RGD-5.
-    pub fn lethal_m(&self) -> f32 {
-        self.reach_of_m(1.0)
-    }
-
     /// The fuse from the press, ms.
     pub fn fuse_ms(&self) -> u32 {
         (self.fuse_s * 1000.0).round() as u32
@@ -1020,10 +1014,9 @@ mod tests {
         // Half a body's health 6.4 m out of the stock blast (10 m, 1.3 to 0.05); 5.12 m of the patched 8 m.
         near(Grenade::bots().half_health_m(), 6.4, 1e-4, "stock half health");
         near(patched.half_health_m(), 5.12, 1e-4, "patched half health");
-        // Lethal within 2.4 m of the stock blast, 1.92 m of the patched one; a smoke does nothing anywhere.
-        near(Grenade::bots().lethal_m(), 2.4, 1e-4, "stock lethal");
-        near(patched.lethal_m(), 1.92, 1e-4, "patched lethal");
-        assert_eq!(Grenade { most: 0.0, least: 0.0, ..*Grenade::bots() }.lethal_m(), 0.0);
+        // A smoke does no half a body's health anywhere; a blast that does it at its edge, all its reach.
+        assert_eq!(Grenade { most: 0.0, least: 0.0, ..*Grenade::bots() }.half_health_m(), 0.0);
+        assert_eq!(Grenade { most: 0.9, least: 0.6, ..*Grenade::bots() }.half_health_m(), 10.0);
         assert_eq!(patched.fuse_ms(), 3_000);
         let stock = *Grenade::bots();
         // Faster: a flat throw lands farther.
