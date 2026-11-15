@@ -582,20 +582,19 @@ impl WalkGrid {
         Some(body.tick(world, 0.05, &s, input))
     }
 
-    /// [A388 step 3] A pressed jump of a kept body `c` flown on the grid's walker with its body's settings
-    /// ([`crate::controller::jump::fly_as`]): each step from the press to the landing step, the body left where the flight left
-    /// it. None without [`Self::with_client_walker`].
-    pub fn kept_fly(
+    /// [A388 step 3] The next step of a jump `flying` of a kept body `c` on the grid's walker with its body's settings, heading
+    /// `heading` with the air control `air` ([`crate::controller::jump::Flying::step`]). None (nothing moved) without
+    /// [`Self::with_client_walker`].
+    pub fn kept_fly_step(
         &self,
         c: &mut Controller,
+        flying: &mut crate::controller::jump::Flying,
         heading: (f32, f32),
-        press: crate::controller::jump::Press,
-        keys: crate::controller::jump::Keys,
-        flight: crate::controller::jump::Flight,
-    ) -> Option<Vec<crate::controller::jump::FlightStep>> {
+        air: (f32, f32),
+    ) -> Option<crate::controller::jump::FlightStep> {
         let world = self.walker.as_deref()?;
         let (_, s) = self.body.controller();
-        Some(crate::controller::jump::fly_as(world, &s, c, heading, press, keys, 0, flight))
+        Some(flying.step(world, &s, c, heading, air))
     }
 
     /// [A388] Whether the grid keeps the client's walker ([`Self::with_client_walker`], [`Self::with_client_world`]).

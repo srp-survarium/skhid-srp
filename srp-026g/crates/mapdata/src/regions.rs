@@ -468,11 +468,11 @@ impl Regions {
         region_ok: impl Fn(u32) -> bool,
         budget: usize,
     ) -> Result<RouteSearch, (Search, Stage)> {
-        self.start_route_search_reaching(grid, from, to, allowed, region_ok, budget, None)
+        self.start_route_search_reaching(grid, from, to, allowed, region_ok, budget, crate::grid::Reach::Full)
     }
 
-    /// [`Self::start_route_search`] for a body whose jumps rise at most
-    /// `max_rise` metres ([`WalkGrid::start_search_reaching`]). The regions'
+    /// [`Self::start_route_search`] for a body that may take less than the grid's own ([`crate::grid::Reach`],
+    /// [`WalkGrid::start_search_reaching`]). The regions'
     /// own search knows no heights: a corridor that needs a higher jump
     /// finds no way, and the search goes on widening to the whole grid.
     #[allow(clippy::too_many_arguments)]
@@ -484,7 +484,7 @@ impl Regions {
         allowed: impl Fn(NodeId) -> bool,
         region_ok: impl Fn(u32) -> bool,
         budget: usize,
-        max_rise: Option<f32>,
+        reach: crate::grid::Reach,
     ) -> Result<RouteSearch, (Search, Stage)> {
         let n = grid.len();
         if from as usize >= n || to as usize >= n || !grid.may_reach(from, to) {
@@ -514,7 +514,7 @@ impl Regions {
             inside: vec![0; self.len().div_ceil(64)],
             search: None,
             expanded: 0,
-            max_rise,
+            reach,
         };
         search.widen(self, grid, CORRIDOR_RINGS, &region_ok)?;
         Ok(search)
@@ -537,8 +537,8 @@ pub struct RouteSearch {
     search: Option<SlicedSearch>,
     /// Floors expanded by the stages done.
     expanded: usize,
-    /// The highest jump link the body takes.
-    max_rise: Option<f32>,
+    /// What the body takes of the links.
+    reach: crate::grid::Reach,
 }
 
 impl RouteSearch {
@@ -587,7 +587,7 @@ impl RouteSearch {
             } else {
                 self.stage = Stage::Whole;
                 self.search = None;
-                grid.start_search_reaching(self.from, self.to, self.budget, self.max_rise)
+                grid.start_search_reaching(self.from, self.to, self.budget, self.reach)
                     .map(|search| self.search = Some(search))
                     .map_err(|done| (done, Stage::Whole))
             };
@@ -648,7 +648,7 @@ impl RouteSearch {
         }
         self.search = None;
         let search = grid
-            .start_search_reaching(self.from, self.to, usize::MAX, self.max_rise)
+            .start_search_reaching(self.from, self.to, usize::MAX, self.reach)
             .map_err(|done| (done, self.stage))?;
         self.search = Some(search);
         Ok(())
@@ -671,7 +671,7 @@ mod tests {
             let from = grid.locate(Vec3::new(9.0, 0.0, 1.0), 0.3).unwrap();
             let to = grid.locate(Vec3::new(11.5, rise, 1.0), 0.3).unwrap();
             let mut search = regions
-                .start_route_search_reaching(&grid, from, to, |_| true, |_| true, usize::MAX, Some(STANDING_JUMP_M))
+                .start_route_search_reaching(&grid, from, to, |_| true, |_| true, usize::MAX, crate::grid::Reach::NoSprint { max_rise: Some(STANDING_JUMP_M) })
                 .unwrap();
             let mut iters = usize::MAX;
             let (found, _) = search.step(&regions, &grid, |_| true, |_| true, |_| 1.0, &mut iters).unwrap();

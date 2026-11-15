@@ -1155,9 +1155,10 @@ fn drive_tick_inner(
                 let narrow_landings = tuning.traps.keep_off.map(|_| landings.clone());
                 let hard_with = |landings, trap_filter: fn(&Bot, Vec<stuck::Shut>, Option<NodeId>) -> RouteFilter| {
                     let mut hard = trap_filter(bot, landings, grid.locate(me.feet, 1.5));
-                    // A body that cannot sprint takes no jump link above its standing jump.
-                    if let Some(rise) = bot.motor.feel.carrier_jump_m.map(f32::from).filter(|_| me.carrying.is_some()) {
-                        hard = hard.with_max_jump_rise(rise);
+                    // [S6] A carrier's body: the client gives it no sprint (A331), so a sprint link only by its walking
+                    // press, and no jump link above its standing jump (`motor.carrier_jump_m`).
+                    if me.carrying.is_some() {
+                        hard = hard.without_sprint(bot.motor.feel.carrier_jump_m.map(f32::from));
                     }
                     // [kin.open_edge_cost] A269c: the way keeps a body's width in from an open side where the floor allows.
                     if tuning.kin.open_edge_cost > 0.0 {
@@ -1643,7 +1644,13 @@ fn drive_tick_inner(
                     bot.no_way = route.is_none().then_some((at, time + NO_WAY_RETRY_MS));
                     // [owner-5] A search that found no way: why, for the log (one line per bot, goal and verdict in a match).
                     if route.is_none() && !escaping && !there {
-                        let retried = NoWayRetries { stuck_spots: avoiding, trap_discs: narrow.is_some(), drop_shuts: unshut.is_some(), unshut_proof };
+                        let retried = NoWayRetries {
+                            stuck_spots: avoiding,
+                            trap_discs: narrow.is_some(),
+                            drop_shuts: unshut.is_some(),
+                            unshut_proof,
+                            reach: hard.reach(),
+                        };
                         no_way_line(bot, tactics, (start_floor, ends.map(|(_, to)| to)), at, path::last_end(), retried, (time, side, objective));
                     }
                     // With `think.goal_off_floor_no_way`: a goal on no floor near it (`path::goal_floor`), from a start floor,
@@ -3014,6 +3021,8 @@ pub(super) struct NoWayRetries {
     pub(super) drop_shuts: bool,
     /// That last search found no way either.
     pub(super) unshut_proof: bool,
+    /// [S6] What the body took of the grid's links in its searches.
+    pub(super) reach: mapdata::Reach,
 }
 
 /// [owner-5] The log's line for a search that found no way from the floor `ends.0` to the goal `at` (its floor `ends.1`):
@@ -3045,6 +3054,13 @@ pub(super) fn no_way_line(
             }
             if retried.trap_discs {
                 v.push_str("; searched again past the traps' wide rings");
+            }
+            // [S6] A body with no sprint: its searches took no sprint link without a walking press.
+            if let mapdata::Reach::NoSprint { max_rise } = retried.reach {
+                v.push_str("; planned with no sprint (a carrier): sprint links by their walking press only");
+                if let Some(rise) = max_rise {
+                    v.push_str(&format!(", no jump above {rise:.3} m"));
+                }
             }
             if retried.drop_shuts {
                 v.push_str(if retried.unshut_proof { "; none with its shut drops open either" } else { "; its shut drops open searched" });

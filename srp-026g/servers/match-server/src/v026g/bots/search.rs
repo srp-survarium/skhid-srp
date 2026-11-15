@@ -663,7 +663,8 @@ impl Bots {
         let last_end = super::path::last_end();
         if let Some(Some(bot)) = self.bots.get_mut(pending.place) {
             if route.is_none() {
-                let retried = super::drive::NoWayRetries { stuck_spots: filter.has_soft(), ..Default::default() };
+                let retried =
+                    super::drive::NoWayRetries { stuck_spots: filter.has_soft(), reach: filter.reach(), ..Default::default() };
                 super::drive::no_way_line(bot, tactics, (Some(from), Some(to)), pending.goal, last_end, retried, (time, side, objective));
             }
             if kept {

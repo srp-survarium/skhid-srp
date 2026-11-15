@@ -84,6 +84,11 @@ enum LinkState {
 #[derive(Clone, Debug, Default)]
 pub struct DeadLinks {
     links: Vec<Link>,
+    /// [`unstick.link_made`] The links a world showed a body up before the match heard any of them failed: (the link, when,
+    /// by whom). A failure of one later enters [`Self::links`] made, so the order of the two never makes a link dead on the
+    /// model's word. Kept apart from the failed links (every route jump made would crowd them out), at most
+    /// [`DEAD_LINKS_MAX`] (past it a new one is not kept: its later failures count as before).
+    made_first: Vec<(FailedLink, u32, usize)>,
 }
 
 /// A link just shut for the match, for the log ([`DeadLinks::learn`]).
@@ -112,7 +117,15 @@ impl DeadLinks {
             let known = match self.links.iter_mut().position(|known| known.link.same(link)) {
                 Some(i) => &mut self.links[i],
                 None if self.links.len() < DEAD_LINKS_MAX => {
-                    self.links.push(Link { link: *link, by: Vec::new(), state: LinkState::Failing });
+                    // A link a world showed made first enters made (`unstick.link_made`).
+                    let state = match self.made_first.iter().position(|(made, _, _)| made.same(link)) {
+                        Some(i) => {
+                            let (_, at, by) = self.made_first.remove(i);
+                            LinkState::Made { at, by }
+                        }
+                        None => LinkState::Failing,
+                    };
+                    self.links.push(Link { link: *link, by: Vec::new(), state });
                     self.links.last_mut().expect("just pushed")
                 }
                 None => continue,
@@ -133,9 +146,25 @@ impl DeadLinks {
 
     /// [`unstick.link_made`] A world at `time` showed bot `place` up `link` (`motor::on_top`): a link the match knew failed is
     /// made for the rest of it (opened again if it was shut; no later failure shuts it), and returned for the log. A link the
-    /// match never heard failed, or already made, gives none: nothing is kept for it.
+    /// match never heard failed is kept as made first ([`Self::made_first`]: its later failures never shut it) and gives
+    /// none, as one already made.
     pub fn made(&mut self, time: u32, place: usize, link: &FailedLink) -> Option<NewlyMade> {
-        let known = self.links.iter_mut().find(|known| known.link.same(link))?;
+        let Some(known) = self.links.iter_mut().find(|known| known.link.same(link)) else {
+            if !self.made_first.iter().any(|(made, _, _)| made.same(link)) && self.made_first.len() < DEAD_LINKS_MAX {
+                log::debug!(
+                    "link made first: {:?} ({:.1}, {:.1}, {:.1}) -> ({:.1}, {:.1}, {:.1}) by player {place} at {time} ms, before any failure: never shut",
+                    link.kind,
+                    link.take_off.x,
+                    link.take_off.y,
+                    link.take_off.z,
+                    link.landing.x,
+                    link.landing.y,
+                    link.landing.z
+                );
+                self.made_first.push((*link, time, place));
+            }
+            return None;
+        };
         let was_shut = match known.state {
             LinkState::Made { .. } => return None,
             LinkState::Shut { at } => Some(at),
@@ -281,8 +310,13 @@ mod tests {
         links.learn(6_000, 2, &[other], &tuning);
         assert_eq!(links.made(7_000, 2, &other).map(|m| m.was_shut), Some(None));
         assert!(links.learn(8_000, 3, &[other], &tuning).is_empty());
-        // Never failed: nothing kept.
-        assert!(links.made(9_000, 1, &jump(Vec3::new(40.0, 0.0, 0.0), Vec3::new(41.0, 1.0, 0.0))).is_none());
+        // Made before any failure: nothing to log, and its later failures never shut it.
+        let first = jump(Vec3::new(40.0, 0.0, 0.0), Vec3::new(41.0, 1.0, 0.0));
+        assert!(links.made(9_000, 1, &first).is_none());
+        assert!(links.learn(10_000, 2, &[first], &tuning).is_empty());
+        assert!(links.learn(11_000, 3, &[first], &tuning).is_empty(), "made first: never shut");
+        assert!(links.made(12_000, 4, &first).is_none(), "made already");
+        assert_eq!(links.count(), 0);
     }
 
     /// Past [`DEAD_LINKS_MAX`] links a new one is not kept; the kept ones still count.
