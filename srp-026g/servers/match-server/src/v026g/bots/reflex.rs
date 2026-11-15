@@ -1463,8 +1463,9 @@ pub struct HeldGroups {
     pub best: Vec<HeldPoint>,
 }
 
-/// [range-fire] **Switch (default on).** An automatic weapon's burst drawn from the live humans' held ms of a burst
-/// (`FireTuning::burst_human`) instead of the best players' tap-or-hold rows (`FireTuning::smg`, `rifle`).
+/// [range-fire] **Switch (default on).** An automatic SMG's or rifle's burst drawn from the live humans' held ms of a burst
+/// (`FireTuning::burst_human`) instead of the best players' tap-or-hold rows (`FireTuning::smg`, `rifle`). The classes the
+/// data has no group for (a machine gun, an automatic pistol or shotgun) keep the rows.
 ///
 /// The data: every burst with a class of the accounts of 150+ bullets of the class, humans against humans (the live sets
 /// A 190, 2026-10-16..22, and A 50, 2026-11-01..04, pooled); a burst is a run of 50 ms ticks with the fire key held in the
@@ -1622,7 +1623,7 @@ impl BurstStats {
         };
         let pull = if self.bursts == 0 { 0.0 } else { self.pull_milli as f64 / 1000.0 / f64::from(self.bursts) };
         format!(
-            "human bursts/taps/mean ms by band 0-10 10-20 20-40 40+: smg [{}] rifle [{}]; from the rows: smg {:?} rifle {:?}; pull in effect mean {pull:.3} over {} bursts",
+            "human bursts/taps/mean ms by band 0-10 10-20 20-40 40+: smg [{}] rifle [{}]; from the rows (switch off, or a class with no human data: machine gun, automatic pistol or shotgun): smg {:?} rifle {:?}; pull in effect mean {pull:.3} over {} bursts",
             class(0),
             class(1),
             self.rows[0],
@@ -8851,7 +8852,9 @@ impl Reflex {
                 let class = c.fire.auto_class(gun, class);
                 let (c_i, band) = (usize::from(class == AutoClass::Rifle), BurstStats::band(distance));
                 let pull = mix((c.recoil_pull_low, c.recoil_pull), skill);
-                let hold = match &c.fire.burst_human {
+                // Only the classes routes' data has (an SMG, a rifle); a machine gun, an automatic pistol or shotgun keeps the rows.
+                let has_data = matches!(c.fire.class_of(gun), WeaponClass::Smg | WeaponClass::Rifle);
+                let hold = match c.fire.burst_human.as_ref().filter(|_| has_data) {
                     Some(human) => {
                         let u = rng.unit();
                         let drawn = human.held_ms(class, distance, skill, u);
@@ -8878,6 +8881,7 @@ impl Reflex {
                         self.burst_stats.rows[c_i][band] += 1;
                         self.burst_note = Some(serde_json::json!({
                             "t": now, "burst": "rows", "class": if c_i == 1 { "rifle" } else { "smg" },
+                            "why": if c.fire.burst_human.is_none() { "off" } else { "no_human_data" }, "gun_class": format!("{:?}", c.fire.class_of(gun)),
                             "distance": (distance * 10.0).round() / 10.0, "band": band, "hold_ms": hold,
                             "pull": (pull * 1000.0).round() / 1000.0,
                         }));
@@ -10868,6 +10872,36 @@ mod tests {
         let share = taps as f32 / n as f32;
         let expected = 0.1 + 0.1 * (cycle - 50.0) / 50.0;
         assert!((share - expected).abs() < 0.01, "{share} against {expected}");
+    }
+
+    /// [range-fire] An SMG's and a rifle's burst is drawn from the humans' deciles; a machine gun, an automatic pistol or
+    /// shotgun (no group in the data) keeps the rows; the note names the band and the pull in effect.
+    #[test]
+    fn only_an_smg_or_a_rifle_draws_a_human_burst() {
+        let known = Arms::of_test_role("support").expect("a support kit").primary.0;
+        assert!(matches!(known.handling, Handling::Burst(_)), "{:?}", known.handling);
+        let aim = AimTuning::default();
+        let mut rng = Rng::new(3);
+        for (class, human) in [
+            (WeaponClass::Rifle, true),
+            (WeaponClass::Smg, true),
+            (WeaponClass::MachineGun, false),
+            (WeaponClass::Pistol, false),
+            (WeaponClass::Shotgun, false),
+        ] {
+            let gun = Gun { class, ..*known };
+            let mut reflex = Reflex::default();
+            assert!(reflex.shot_wanted(&gun, 1_000, 50.0, (&aim, 0.3), &mut rng), "{class:?}");
+            let stats = reflex.burst_stats();
+            let drawn = (stats.human.iter().flatten().sum::<u32>(), stats.rows.iter().flatten().sum::<u32>());
+            assert_eq!(drawn, if human { (1, 0) } else { (0, 1) }, "{class:?}");
+            assert_eq!(stats.bursts, 1);
+            let note = reflex.take_burst_note().expect("a note");
+            assert_eq!(note["band"], 3, "{note}");
+            let pull = mix((aim.combat.recoil_pull_low, aim.combat.recoil_pull), 0.3);
+            assert_eq!(note["pull"], serde_json::json!((pull * 1000.0).round() / 1000.0), "{note}");
+            assert_eq!(note["burst"], if human { "human" } else { "rows" }, "{note}");
+        }
     }
 
     /// [range-fire] The check refuses points out of order, a falling decile, a zero decile and an empty list; the all-off
