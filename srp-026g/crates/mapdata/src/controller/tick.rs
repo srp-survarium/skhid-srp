@@ -232,6 +232,9 @@ pub struct StepNotes {
     /// A down sweep kept a hit whose point is over the floor limit lowered to the hit's fraction, under the start's limit the
     /// exe tests (`floor` in [`Controller::down_sweep`]): a hit the port dropped before it tested the start's limit.
     pub kept_over_lowered_floor: bool,
+    /// The step's end rounding met a z (of the position or the contact normal) at an exact half, which the exe rounds in its own
+    /// frame ([`to_mm`]): one the port rounded the other way before.
+    pub z_rounded_at_half: bool,
 }
 
 fn dims_of((w, h): (f32, f32)) -> (f32, f32) {
@@ -334,15 +337,23 @@ fn limit_walkable(n: Vec3, s: &Settings) -> Vec3 {
     UP * c + h * ((1.0 - c * c) / hl2).sqrt()
 }
 
-/// `get_wall_slide_vector` 0x7AC50 with the live factors.
-/// 0x7B7F0 on each component: `floor(x * 1000 + 0.5) * 0.001` (proven against the exe in Unicorn), in the exe's frame. The
-/// controller's values are in the map frame, z negated against Bullet's, and the rounding is not odd (a component at an exact
-/// half rounds up), so z is rounded as the exe holds it: `-round(-z)`.
+/// 0x7B7F0: `floor(x * 1000 + 0.5) * 0.001` (proven against the exe in Unicorn).
+fn mm(x: f32) -> f32 {
+    (x * 1000.0 + 0.5).floor() * 0.001
+}
+
+/// [`mm`] on each component, in the exe's frame. The controller's values are in the map frame, z negated against Bullet's, and
+/// the rounding is not odd (a component at an exact half rounds up), so z is rounded as the exe holds it: `-mm(-z)`.
 fn to_mm(v: Vec3) -> Vec3 {
-    let mm = |x: f32| (x * 1000.0 + 0.5).floor() * 0.001;
     Vec3::new(mm(v.x), mm(v.y), -mm(-v.z))
 }
 
+/// Whether `z` (map frame) sits at an exact half, where rounding it in the map frame would go the other way.
+fn z_at_half(z: f32) -> bool {
+    -mm(-z) != mm(z)
+}
+
+/// `get_wall_slide_vector` 0x7AC50 with the live factors.
 fn wall_slide(m: Vec3, n: Vec3, s: &Settings) -> Vec3 {
     let l2 = (m.y * m.y + m.z * m.z) + m.x * m.x;
     let inv = 1.0 / l2.sqrt();
@@ -489,7 +500,7 @@ impl Controller {
         self.pos = start;
         let foot = start - UP * self.d();
         if self.jumping {
-            self.air_step(world, dt, s);
+            notes.z_rounded_at_half = self.air_step(world, dt, s);
             notes.airborne = true;
             return notes;
         }
@@ -558,8 +569,7 @@ impl Controller {
                 (((sv * UP.z) * be) + ((pv2 * UP.z) * al)) + h.z,
             );
         }
-        self.pos = to_mm(self.pos);
-        self.contact_normal = to_mm(self.contact_normal);
+        notes.z_rounded_at_half = self.round_to_mm();
         self.walk = Vec3::ZERO;
         notes
     }
@@ -724,7 +734,8 @@ impl Controller {
 
     /// The AIR branch of `player_step` (0x7BF2C): no gravity; the vertical part of the walk vector (the jump clip's root
     /// motion) and the air control move the body: up, then across (sliding on walls), then down.
-    fn air_step(&mut self, world: &Collision, dt: f32, s: &Settings) {
+    /// Returns whether a z sat at an exact half in its end rounding ([`Self::round_to_mm`]).
+    fn air_step(&mut self, world: &Collision, dt: f32, s: &Settings) -> bool {
         let start = self.origin;
         let tick = self.tick;
         let inv = 1.0 / dt;
@@ -788,10 +799,18 @@ impl Controller {
         let be = 1.0 - al;
         let p = self.pos;
         self.origin = Vec3::new((be * start.x) + (p.x * al), (p.y * al) + (start.y * be), (p.z * al) + (start.z * be));
-        self.pos = to_mm(self.pos);
-        self.contact_normal = to_mm(self.contact_normal);
+        let half = self.round_to_mm();
         self.walk = Vec3::ZERO;
         self.air_control = Vec3::ZERO;
+        half
+    }
+
+    /// The step's end rounding of the position and the contact normal ([`to_mm`]); whether a z of them sat at an exact half.
+    fn round_to_mm(&mut self) -> bool {
+        let half = z_at_half(self.pos.z) || z_at_half(self.contact_normal.z);
+        self.pos = to_mm(self.pos);
+        self.contact_normal = to_mm(self.contact_normal);
+        half
     }
 
     /// `step_up` 0x7C900: the capsule cut from below by the step, its top kept; the rise of its bottom.
