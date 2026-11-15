@@ -528,6 +528,13 @@ impl Lines {
     }
 }
 
+/// [A395a] The line for a battery's stand on the margin's band, which the margin alone refuses: whether the client's
+/// capsule rule (`Hazards::stand_allowed` with `hazard.capsule_goals`) lets a body stand there now.
+pub fn band_stand_line(feet: Vec3, allowed: bool) -> String {
+    let verdict = if allowed { "allowed: the capsule touches no zone on there" } else { "refused" };
+    format!("{PREFIX}stand on the margin's band at {}: {verdict}", at(feet))
+}
+
 /// [Gap 2] The line for an enemy's carry kept from the intercept: the world names `carrier` holding `battery`, and the
 /// team neither saw him carrying it nor saw him take it (`TeamKnowledge::knew_carrying`).
 pub fn hidden_carry_line(battery: usize, carrier: usize) -> String {
