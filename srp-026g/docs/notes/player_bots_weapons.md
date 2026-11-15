@@ -321,9 +321,9 @@ their median.
   - `start` and `min` are used for a tier with no row. With the default rows,
     a file's `skill.start` therefore no longer changes the start.
 - **Pull against the kick:** `recoil_pull` (skill 1) is 1.0 and
-  `recoil_pull_low` (skill 0) is 0.85 (0.5 before the range-fire change: the
-  bench's pull cells, see `CombatTuning::recoil_pull`); the estimates below
-  are of the old 0.5.
+  `recoil_pull_low` (skill 0) is 0.78 (0.5 before the range-fire change: the
+  human pull read, see `CombatTuning::recoil_pull`); the estimates below are
+  of the old 0.5.
   - The top players took back about all of the kick: their base pitch sat 1.4
     / 3.5 / 5.8 / 5.6° under the chest over a burst, while their hits rode the
     kick (`TOP-PLAYERS.md`).

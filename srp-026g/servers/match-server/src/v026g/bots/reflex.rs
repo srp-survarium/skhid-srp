@@ -806,16 +806,21 @@ pub struct CombatTuning {
     /// 1: the view stays where the turn takes it; 0: the kick lifts it.
     /// The one number here mixed by the skill (the owner, 2026-10-23):
     /// `recoil_pull` at skill 1, `recoil_pull_low` at skill 0, linear between.
-    /// [range-fire] `recoil_pull_low` 0.85 (was 0.5, a design number). The
-    /// bench's cells by the round's place in the burst (the tier 4-5 AKS-74U at
-    /// skill 0.3, 40-65 m, the stand-in's hit shapes with the bots' scatter as
-    /// measured): the hit rate of rounds 4-10 over that of rounds 1-3 is 0.34 /
-    /// 0.55 / 0.85 / 1.16 at 0.5 / 0.7 / 0.85 / 1.0, the live humans' 0.77 ±
-    /// 0.11 (the fair human by-place sample). 0.85 is the lowest measured value
-    /// inside the humans' interval (linear between the cells their point is
-    /// about 0.81); 1.0 is over it. The humans' fall at rounds 11+ is their
-    /// hold length, which no pull gives. The rise to 1.0 with the skill is a
-    /// design rule: the humans' median and top tenth pull alike.
+    /// [range-fire] `recoil_pull_low` 0.78 (was 0.5, a design number). The
+    /// human pull read: the exe builds about 0.6 of a weapon's config kick a
+    /// round (the ramp to the shot time, the return controller in the rest of
+    /// the tick, the fall-off; `recoil.rs` replays it), and of the kick it
+    /// builds the live humans take off 0.89, in this number's own unit (the
+    /// share of the tick's kick step); by account P10 / P50 / P90 rifles 0.78
+    /// / 0.90 / 0.95, SMGs 0.81 / 0.88 / 0.98. So skill 0 pulls as the weakest
+    /// tenth and skill 0.5 (0.89) as the median human. The check, the bench's
+    /// cells by the round's place in the burst (the tier 4-5 AKS-74U at skill
+    /// 0.3, 40-65 m, the stand-in's hit shapes with the bots' measured
+    /// scatter): the hit rate of rounds 4-10 over that of rounds 1-3 is 0.34 /
+    /// 0.55 / 0.85 / 1.16 (± 0.05-0.09) at 0.5 / 0.7 / 0.85 / 1.0, against the
+    /// humans' SMGs 1.15 ± 0.34 and rifles 0.64 ± 0.13 there (a floor: a human
+    /// lets go when he misses). Not proven for the 600 rpm guns (AKM, UMP45) in
+    /// the replay. `recoil_pull` stays 1.0, over the best tenth's 0.95.
     pub recoil_pull: f32,
     pub recoil_pull_low: f32,
     /// [A241] Down the sights an automatic's shot leaves right of the view by the client's aim sway
@@ -1783,7 +1788,7 @@ impl Default for CombatTuning {
             press_ms: 100,
             press_gap_ms: 50,
             recoil_pull: 1.0,
-            recoil_pull_low: 0.85,
+            recoil_pull_low: 0.78,
             aim_sway_counter: true,
             ads_near_m: 10.0,
             ads_near_chance: 0.85,
@@ -10781,7 +10786,7 @@ mod tests {
         }
     }
 
-    /// The best bots take back all the kick, the weakest 0.85 of it: the
+    /// The best bots take back all the kick, the weakest 0.78 of it: the
     /// view climbs off the chest in a burst at skill 0 more than at 1.
     #[test]
     fn the_pull_against_the_kick_grows_with_the_skill() {
@@ -10803,24 +10808,24 @@ mod tests {
         let (weak, best) = (climb(&aim, 0.0), climb(&aim, 1.0));
         assert!(best.abs() < 0.1, "{best}");
         assert!(weak > best, "{weak} {best}");
-        // [range-fire] The old low end (0.5) left the weakest bots' view climbing more than the new (0.85).
+        // [range-fire] The old low end (0.5) left the weakest bots' view climbing more than the new (0.78).
         let mut old = aim.clone();
         old.combat.recoil_pull_low = 0.5;
         let weak_old = climb(&old, 0.0);
-        assert!(weak_old > 0.2 && weak_old > weak + 0.1, "0.5: {weak_old}, 0.85: {weak}");
+        assert!(weak_old > 0.2 && weak_old > weak + 0.1, "0.5: {weak_old}, 0.78: {weak}");
     }
 
-    /// [range-fire] The pull against the kick by the skill: 0.85 at skill 0, 1.0 at skill 1, linear between, so each 0.1 of
-    /// skill adds 0.015 and none takes any away; never over 1.
+    /// [range-fire] The pull against the kick by the skill: 0.78 at skill 0 (the humans' weakest tenth), 0.89 at 0.5 (their
+    /// median), 1.0 at skill 1, linear between, so each 0.1 of skill adds 0.022 and none takes any away; never over 1.
     #[test]
-    fn the_pull_rises_from_085_to_1_with_the_skill() {
+    fn the_pull_rises_from_078_to_1_with_the_skill() {
         let c = CombatTuning::default();
-        assert_eq!((c.recoil_pull_low, c.recoil_pull), (0.85, 1.0));
+        assert_eq!((c.recoil_pull_low, c.recoil_pull), (0.78, 1.0));
         let pull: Vec<f32> = (0..=10).map(|i| mix((c.recoil_pull_low, c.recoil_pull), i as f32 / 10.0)).collect();
         for w in pull.windows(2) {
-            assert!(w[1] > w[0] && w[1] <= 1.0 && w[1] - w[0] <= 0.015 + 1e-6, "{pull:?}");
+            assert!(w[1] > w[0] && w[1] <= 1.0 && w[1] - w[0] <= 0.022 + 1e-6, "{pull:?}");
         }
-        assert!((pull[0] - 0.85).abs() < 1e-6 && (pull[10] - 1.0).abs() < 1e-6, "{pull:?}");
+        assert!((pull[0] - 0.78).abs() < 1e-6 && (pull[5] - 0.89).abs() < 1e-6 && (pull[10] - 1.0).abs() < 1e-6, "{pull:?}");
         assert_eq!(super::super::tuning::Tuning::all_off().aim.combat.recoil_pull_low, 0.5);
     }
 
