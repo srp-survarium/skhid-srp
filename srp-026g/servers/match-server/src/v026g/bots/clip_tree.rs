@@ -34,8 +34,13 @@ pub struct TimeScale {
 
 impl TimeScale {
     /// When the clip reaches `clip_s` seconds, on the tree's clock: `start + floor(f32(f32(f32(clip_s - self.clip_s) /
-    /// scale) x 1000))`, the next interval end from the base as the client computes it (0x3B6C5F; settle-tree L39, the
-    /// fire clip's 8,685 of 8,685 passes). `None`: a scale not above 0, or a time before the base's.
+    /// scale) x 1000))`, the next event from the operand's base as the client computes it when the operand starts after
+    /// its own base (0x3B6C36..0x3B6C58, truncated at 0x1E800; settle-tree L39, the fire clip's 8,685 of 8,685 passes).
+    /// The client computes each next event again from the base it has then (`compute_next_event` 0x3B42F0's visitor,
+    /// 0x3B6C5F..0x3B6C81), each truncated, so this one step can be off by under a ms an event in between: on the 60
+    /// recordings' 34,615 reload knots with an operand it gives the saved knot time in 34,586, 1 ms later in 24, 1 ms
+    /// sooner in 5 (`settle-tree/out/pvb60-reload-knot-exact.txt`). `None`: a scale not above 0, or a time before the
+    /// base's.
     pub fn reaches(&self, clip_s: f32) -> Option<u32> {
         if !(self.scale > 0.0 && clip_s >= self.clip_s) {
             return None;
