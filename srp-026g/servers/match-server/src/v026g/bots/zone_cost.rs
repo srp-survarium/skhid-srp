@@ -379,6 +379,89 @@ impl Budget {
     }
 }
 
+/// [Gap 12] A walk's loss by the client's rule of when a zone hits (`damage_zone_core::hit_objects` 0x319AF0): a continuous
+/// zone hits on every tick, its rate a second; an interval zone (`Damage::continuous` false) skips while its last hit
+/// plus its interval is still ahead (0x319B01..0x319B1B), and a hit sets the ZONE's last hit to now (0x319D0E..0x319D15):
+/// the cadence is the zone's, not the visit's, and an empty zone keeps its last hit (`hit_objects` runs only while its
+/// sensor has members, 0x307E80). So an idle zone hits a body at once on entry, then every `interval_ms` while it is
+/// in it; one that left and comes back before the interval is up takes no new hit. Priced so, each hit at the weight of
+/// the step it falls in, not as the rate's fraction: a 0.3 s cut through a 0.6-a-second electro zone of Vostok Radar
+/// Station takes 0.6, which the rate priced at 0.18. Each zone is idle when the walk begins (the most a walk can take;
+/// a zone another body keeps hitting may be mid-cadence). Feed it the walk's steps in order ([`Self::step`]). 150 of
+/// the 537 damage zones of the shipped projects are interval zones (fire 0.1 every 500 ms, electro 0.6 every 1,000 ms,
+/// windmills and the underbridge).
+#[derive(Clone, Debug, Default)]
+pub struct WalkPrice {
+    /// The walk's time so far, s.
+    clock: f32,
+    /// The loss so far.
+    loss: Cost,
+    /// Each interval zone met: when, on the walk's clock, it may hit next.
+    zones: Vec<ZoneClock>,
+}
+
+/// An interval zone's cadence on a walk's clock ([`WalkPrice`]).
+#[derive(Clone, Copy, Debug)]
+struct ZoneClock {
+    /// The zone (`Hazard::zone`).
+    zone: usize,
+    /// Its interval, s.
+    interval_s: f32,
+    /// When it may hit next, s: its last hit plus its interval.
+    next_s: f32,
+}
+
+impl WalkPrice {
+    /// `seconds` on a floor where the zones `zones` hit, each at its weight of its full hit (the intensity there, or
+    /// 1), under `armour` (`None`: the raw hit in the body pool), and live fields `live_per_s` a second (their rate,
+    /// in the body pool). A step in no zone is `zones` empty.
+    pub fn step<'z>(
+        &mut self,
+        zones: impl Iterator<Item = (&'z Hazard, f32)>,
+        armour: Option<&ZoneArmour>,
+        seconds: f32,
+        live_per_s: f32,
+    ) {
+        let (start, end) = (self.clock, self.clock + seconds);
+        self.loss = self.loss + Cost::body(live_per_s) * seconds;
+        for (zone, weight) in zones {
+            let per_s = match armour {
+                None => Cost::body(zone.hit_per_s()),
+                Some(armour) => zone.cost_per_s(armour),
+            } * weight;
+            let Some(interval_ms) = zone.damage.as_ref().filter(|d| !d.continuous && d.interval_ms > 0).map(|d| d.interval_ms)
+            else {
+                self.loss = self.loss + per_s * seconds;
+                continue;
+            };
+            let interval_s = interval_ms as f32 / 1000.0;
+            // One hit at this step's weight: the rate over one interval.
+            let hit = per_s * interval_s;
+            let at = match self.zones.iter().position(|c| c.zone == zone.zone) {
+                Some(at) => at,
+                None => {
+                    self.zones.push(ZoneClock { zone: zone.zone, interval_s, next_s: start });
+                    self.zones.len() - 1
+                }
+            };
+            let clock = &mut self.zones[at];
+            // Its hits in the step: from when it may hit next (or the step's start), every interval.
+            let mut when = clock.next_s.max(start);
+            while when < end {
+                self.loss = self.loss + hit;
+                when += clock.interval_s;
+            }
+            clock.next_s = clock.next_s.max(when);
+        }
+        self.clock = end;
+    }
+
+    /// The walk's loss so far.
+    pub fn total(&self) -> Cost {
+        self.loss
+    }
+}
+
 impl Hazard {
     /// What standing in this zone costs a second at full intensity under `armour`, in the pools
     /// that kill. A zone the map file gives no hit for is lethal (infinite, as
@@ -474,6 +557,33 @@ mod tests {
 
     fn near(a: f32, b: f32) -> bool {
         (a - b).abs() < 1e-5
+    }
+
+    /// [Gap 12] An interval zone takes whole hits: one on entry, one each interval after (`ceil(t / interval)`), on the
+    /// zone's own cadence (leaving it and coming back within the interval takes none). A continuous zone takes its rate.
+    #[test]
+    fn an_interval_zone_takes_whole_hits_a_continuous_one_its_rate() {
+        let mut electro = zone("shock", &[], 0.6, 0.0);
+        electro.damage.as_mut().unwrap().continuous = false;
+        let hit = electro.hit_per_s(); // a second's rate: one hit every 1000 ms
+        let walk = |steps: &[(bool, f32)]| {
+            let mut price = WalkPrice::default();
+            for &(inside, seconds) in steps {
+                let zones: Vec<(&Hazard, f32)> = if inside { vec![(&electro, 1.0)] } else { Vec::new() };
+                price.step(zones.into_iter(), None, seconds, 0.0);
+            }
+            price.total().body
+        };
+        assert!(near(walk(&[(true, 0.1), (true, 0.1), (true, 0.1)]), hit), "a 0.3 s cut takes one whole hit");
+        assert!(near(walk(&[(true, 0.5), (true, 0.5)]), hit), "one second: one hit");
+        assert!(near(walk(&[(true, 0.6), (true, 0.6)]), 2.0 * hit), "1.2 s: a second hit");
+        // The cadence is the zone's: back in before its interval is up, no new hit; after it, a hit at once.
+        assert!(near(walk(&[(true, 0.2), (false, 0.2), (true, 0.2)]), hit), "back in within the interval: no new hit");
+        assert!(near(walk(&[(true, 0.2), (false, 1.0), (true, 0.2)]), 2.0 * hit), "back in after it: a hit");
+        let fire = zone("fire", &[], 0.1, 0.0);
+        let mut price = WalkPrice::default();
+        price.step(std::iter::once((&fire, 1.0)), None, 0.3, 0.0);
+        assert!(near(price.total().body, 0.3 * fire.hit_per_s()), "continuous: its rate");
     }
 
     /// Acid on the face costs the infection pool, not the body; a mask lowers it.

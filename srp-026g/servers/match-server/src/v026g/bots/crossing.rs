@@ -224,15 +224,16 @@ pub fn hurt(tactics: &Tactics, route: &Route, from_m: f32, to_m: f32, armour: Op
     let d = (to_m - from_m).max(0.0);
     let n = (d / CROSS_STEP_M).ceil().max(1.0) as usize;
     let ds = d / n as f32;
-    (0..n)
-        .map(|i| {
-            let point = route.floor_point(from_m + (i as f32 + 0.5) * ds);
-            grid.locate(point, 0.6)
-                .filter(|&node| tactics.hazards.only_fixed_at(node))
-                .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour))
-                * (ds / CROSS_MPS)
-        })
-        .sum()
+    // [Gap 12] By the client's rule of when a zone hits (`zone_cost::WalkPrice`): an interval zone's whole hits.
+    let mut walk = super::zone_cost::WalkPrice::default();
+    for i in 0..n {
+        let point = route.floor_point(from_m + (i as f32 + 0.5) * ds);
+        match grid.locate(point, 0.6).filter(|&node| tactics.hazards.only_fixed_at(node)) {
+            Some(node) => tactics.hazards.walk_step(&mut walk, node, armour, ds / CROSS_MPS, |_| 1.0),
+            None => walk.step(std::iter::empty(), armour, ds / CROSS_MPS, 0.0),
+        }
+    }
+    walk.total()
 }
 
 /// A crossing's search from floor `from` to floor `to` for a bot of
