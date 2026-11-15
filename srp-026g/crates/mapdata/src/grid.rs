@@ -790,14 +790,61 @@ pub enum SprintReach {
 /// [S6] The falls the body survives: a drop whose fall's pain empties its pain pool kills it ([`held_floors::fall_pain`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum FallRoom {
-    /// Not known (no pool or no modifier read): no drop is closed for its fall.
+    /// Not known (no pool or no modifier read, or the second chance armed): no drop is closed for its fall.
     #[default]
     Any,
-    /// The body's pain pool now (`pain`, the latest world's: lethal at 0, `on_affect` 0x2DA480) and its fall-damage scale
-    /// (`max(0, 1 + modifier 30)`, the `fall_damage` modifier through `apply_modifier` 0x2D5AE0 at 0x2D82C8): a drop whose
-    /// fall's pain reaches `pain` is no way.
-    Survives { pain: f32, fall_scale: f32 },
+    /// The body's falls known ([`FallBody`]): a drop whose fall's pain reaches its pool is no way.
+    Survives(FallBody),
 }
+
+/// [S6] What a body's fall takes: its pain pool now (the latest world's: lethal at 0, `on_affect` 0x2DA480), its fall-damage
+/// scale (`max(0, 1 + modifier 30)`: the `fall_damage` modifier through `apply_modifier` 0x2D5AE0 at 0x2D82C8), and where its
+/// jumps' clips leave it falling ([`JumpEnds`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FallBody {
+    pub pain: f32,
+    pub fall_scale: f32,
+    pub jumps: JumpEnds,
+}
+
+/// [S6] Where a jump's clip leaves the body falling: the root over the take-off at the air phase's end (m) and its descent
+/// over the last air tick (m/s, down): `end_jump` 0x7F050 keeps only the downward speed (`docs/notes/fall_damage.md` "a jump
+/// off a ledge"). From the clips' root tables the server plays (`jump_arc::Clip`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct JumpEnd {
+    pub rise: f32,
+    pub descent: f32,
+}
+
+/// [S6] The short jump's end and the sprint jump's ([`JumpEnd`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct JumpEnds {
+    pub short: JumpEnd,
+    pub sprint: JumpEnd,
+}
+
+/// [S6] How a drop's fall starts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FallStart {
+    /// Walked off: from rest at the ledge (a `Drop`, or a `GapDrop` left with no key).
+    WalkOff,
+    /// A short jump pressed (a gap drop's walking press, or a sprint press a body with no sprint plays by its walking press).
+    Short,
+    /// A sprint jump pressed.
+    Sprint,
+}
+
+impl FallBody {
+    /// The pain of a drop of `height` m below the take-off started `start`, at the least the client takes.
+    pub fn pain_of(&self, height: f32, start: FallStart) -> f32 {
+        match start {
+            FallStart::WalkOff => held_floors::fall_pain(height, self.fall_scale),
+            FallStart::Short => held_floors::jumped_fall_pain(height, self.jumps.short, self.fall_scale),
+            FallStart::Sprint => held_floors::jumped_fall_pain(height, self.jumps.sprint, self.fall_scale),
+        }
+    }
+}
+
 
 impl Reach {
     /// The grid's own body, every fall taken.
@@ -834,23 +881,24 @@ impl Reach {
         };
         let fall = match (self.fall, other.fall) {
             (FallRoom::Any, r) | (r, FallRoom::Any) => r,
-            (FallRoom::Survives { pain: a, fall_scale: x }, FallRoom::Survives { pain: b, fall_scale: y }) => {
-                FallRoom::Survives { pain: a.min(b), fall_scale: x.max(y) }
-            }
+            // The lower pool and the higher scale.
+            (FallRoom::Survives(x), FallRoom::Survives(y)) => FallRoom::Survives(FallBody {
+                pain: x.pain.min(y.pain),
+                fall_scale: x.fall_scale.max(y.fall_scale),
+                jumps: x.jumps,
+            }),
         };
         Self { sprint, fall }
     }
 
-    /// [S6] Whether a drop of `height` metres kills this body: its fall's pain ([`held_floors::fall_pain`]) and the pool,
-    /// `Some` for a lethal one.
-    pub fn lethal_fall(self, height: f32) -> Option<(f32, f32)> {
-        match self.fall {
-            FallRoom::Any => None,
-            FallRoom::Survives { pain, fall_scale } => {
-                let hurt = held_floors::fall_pain(height, fall_scale);
-                (hurt >= pain).then_some((hurt, pain))
-            }
-        }
+    /// [S6] Whether a drop of `height` metres started `start` kills this body ([`FallBody::pain_of`]): its pain and the pool;
+    /// `None` for one it survives, or a body whose falls are not known.
+    pub fn lethal_fall(self, height: f32, start: FallStart) -> Option<(f32, f32)> {
+        let FallRoom::Survives(body) = self.fall else {
+            return None;
+        };
+        let hurt = body.pain_of(height, start);
+        (hurt >= body.pain).then_some((hurt, body.pain))
     }
 }
 
@@ -860,6 +908,7 @@ pub struct FallClosed {
     pub from: NodeId,
     pub to: NodeId,
     pub height: f32,
+    pub start: FallStart,
     /// The fall's pain, and the body's pain pool it reaches.
     pub pain: f32,
     pub pool: f32,
@@ -4643,11 +4692,18 @@ impl WalkGrid {
             return f32::INFINITY;
         }
         let down = matches!(kind, LinkKind::Drop | LinkKind::GapDrop);
-        // [S6] A drop whose fall kills the body ([`Reach::lethal_fall`]) is no way for it.
-        if down {
+        // [S6] A drop whose fall kills the body ([`Reach::lethal_fall`]) is no way for it; a jumped one counts from the clip's
+        // end.
+        if down && reach.fall != FallRoom::Any {
             let height = self.height[from as usize] - self.height[to as usize];
-            if let Some((pain, pool)) = reach.lethal_fall(height) {
-                note_fall_closed(FallClosed { from, to, height, pain, pool });
+            let start = match (kind, self.off_link(from, to).map(|l| l.press)) {
+                (LinkKind::GapDrop, Some(gap::Takeoff::Press(_) | gap::Takeoff::Slow { .. })) => FallStart::Short,
+                (LinkKind::GapDrop, Some(gap::Takeoff::Sprint(_))) if reach.sprints() => FallStart::Sprint,
+                (LinkKind::GapDrop, Some(gap::Takeoff::Sprint(_))) => FallStart::Short,
+                _ => FallStart::WalkOff,
+            };
+            if let Some((pain, pool)) = reach.lethal_fall(height, start) {
+                note_fall_closed(FallClosed { from, to, height, start, pain, pool });
                 return f32::INFINITY;
             }
         }

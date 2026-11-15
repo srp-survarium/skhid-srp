@@ -32,9 +32,15 @@ fn body_reach(bot: &Bot, me: &PlaceView) -> mapdata::Reach {
     } else {
         mapdata::SprintReach::Can
     };
-    // [S6] The falls it survives: its pain pool in the latest world, its fall-damage scale, nothing that may stop the hit.
-    let fall = match (bot.features.stock.pools, bot.fall_scale, bot.fall_save) {
-        (Some(pools), Some(fall_scale), super::FallSave::Nothing) => mapdata::FallRoom::Survives { pain: pools.pain, fall_scale },
+    // [S6] The falls it survives: its pain pool in the latest world, its fall-damage scale, nothing that may lower the hit.
+    let fall = match (bot.features.stock.pools, bot.fall_scale) {
+        (Some(pools), Some(fall_scale)) => {
+            let body = mapdata::FallBody { pain: pools.pain, fall_scale, jumps: super::jump_arc::jump_ends() };
+            match bot.fall_save {
+                super::FallSave::Nothing => mapdata::FallRoom::Survives(body),
+                super::FallSave::Unread | super::FallSave::SecondChance => mapdata::FallRoom::Any,
+            }
+        }
         _ => mapdata::FallRoom::Any,
     };
     mapdata::Reach { sprint, fall }
@@ -44,9 +50,8 @@ fn body_reach(bot: &Bot, me: &PlaceView) -> mapdata::Reach {
 /// once per drop and pool.
 fn log_falls_closed(bot: &mut Bot, grid: &mapdata::WalkGrid, time: u32) {
     for closed in mapdata::take_falls_closed() {
-        let line = super::nav_log::fall_closed_line(grid.position(closed.from), grid.position(closed.to), closed.height, closed.pain, closed.pool);
-        let key = super::nav_log::key(("fall closed", closed.from, closed.to, (closed.pool * 100.0) as i32));
-        bot.nav_log.push_once(super::nav_log::Kind::Route, key, time, line);
+        let line = super::nav_log::fall_closed_line(grid, &closed);
+        bot.nav_log.push_once(super::nav_log::Kind::Route, super::nav_log::fall_closed_key(&closed), time, line);
     }
 }
 
@@ -3235,8 +3240,8 @@ pub(super) fn no_way_line(
                 }
             }
             // [S6] A body whose falls are known: its searches closed the drops that kill it.
-            if let mapdata::FallRoom::Survives { pain, .. } = retried.reach.fall {
-                v.push_str(&format!("; drops whose fall empties its pain pool ({pain:.2}) closed"));
+            if let mapdata::FallRoom::Survives(body) = retried.reach.fall {
+                v.push_str(&format!("; drops whose fall empties its pain pool ({:.2}) closed", body.pain));
             }
             if retried.drop_shuts {
                 v.push_str(if retried.unshut_proof { "; none with its shut drops open either" } else { "; its shut drops open searched" });
