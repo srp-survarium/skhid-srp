@@ -106,8 +106,9 @@ pub enum Phase {
     },
     /// The thrower died with it in his hand, the pin out: it goes off on time there, never thrown nor dropped (PROVEN,
     /// read 2026-11-15: `on_player_death` 0x2E3390 puts the weapon to idle with no launch and no stop of the fuse; the
-    /// grenade set's 0x309E10 clears the wanted slot (0x17 at +17Ch) and, unless its +22Ah flag is set, first lowers its
-    /// +260h by its +234h (0x309E1F..0x309E3B), neither of which stops the fuse; the fuse's blast is at
+    /// grenade set's 0x309E10 clears the wanted slot (0x17 at +17Ch of the object at its +250h, the inventory) and,
+    /// unless the +22Ah flag of the object at its +25Ch is set, first lowers its own +260h by its +234h, to 0 at least
+    /// (0x309E1F..0x309E3B), neither of which stops the fuse; the fuse's blast is at
     /// `hand_transform` 0x309F00, the dead holder's right hand, while no launch made it a body, 0x303AEA). `at`: where
     /// his body fell (`died`); the pose of a dead body's hand was not read, so the blast is taken there. Whether the
     /// grenade is drawn in a dead hand was not read either: an enemy knows it as a landed one seen on the ground
