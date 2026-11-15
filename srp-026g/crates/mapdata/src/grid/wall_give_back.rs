@@ -201,7 +201,7 @@ mod tests {
 
     /// A wall at x = 5.22: the floor centred at x 4.875 is 0.345 m off it, so the rounds take it (the wall is in the cell beside)
     /// and the exact pass (0.3175 m) keeps it: a candidate. A standing body (radius 0.38) set on its point overlaps the wall and
-    /// never comes down (jammed); put 0.10 m away from the wall (the ring) it rests: it comes back. The one at 5.125 (0.095 m
+    /// never comes down (jammed); put 0.05 m away from the wall (the ring), 0.395 m off it, it rests: it comes back. The one at 5.125 (0.095 m
     /// off) jams on the whole ring: it stays taken.
     #[test]
     fn a_floor_the_rounds_took_beside_a_wall_the_body_clears_comes_back() {
@@ -214,7 +214,7 @@ mod tests {
         let (world, s) = (Collision::build(&tris), &Settings::LIVE);
         let feet = Vec3::new(4.875, 0.0, 5.125);
         assert_eq!(settle(&world, s, feet), Settle::Jammed, "0.345 m off the wall the standing body overlaps it");
-        assert!(matches!(settle_near(&world, s, feet), Settle::Rests { put, .. } if put.x < feet.x - 0.09), "rests from the ring");
+        assert!(matches!(settle_near(&world, s, feet), Settle::Rests { put, .. } if put.x < feet.x - 0.04), "rests from the ring, put away from the wall");
         assert!(at(&on, 4.875), "comes back");
         assert!(!at(&on, 5.125), "under the clearance stays taken");
         let far = |g: &WalkGrid| g.floors_in(AREA).map(|n| g.position(n)).filter(|p| (p.x - 5.22).abs() > 1.0).count();
