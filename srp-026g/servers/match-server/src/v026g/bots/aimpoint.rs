@@ -10,10 +10,12 @@
 //!   `srp-0100b` `combat/pose.rs`; two ports of it on the same files agree
 //!   to 0.1 mm): the head the `brain` sphere (1.554 m standing, 1.097 m
 //!   crouched), the chest and the belly the front `Chest` and `Spin` boxes
-//!   (1.220 / 0.767 and 0.928 / 0.474 m), the thighs and the shins the means
-//!   of the two legs' capsules. PROVEN (data). The parts sit on the body's
-//!   upright axis over the feet; the edges lie across the line of sight,
-//!   inside the front `Chest` box (0.229 m to either side).
+//!   (1.220 / 0.767 and 0.928 / 0.474 m), the thighs and the shins the legs'
+//!   capsules. PROVEN (data). Each part is its shape's own
+//!   centre in the model frame, turned by the body's yaw as the game turns
+//!   its hit body ([`BodyAt`]); a leg part is the nearer leg; the edges lie
+//!   0.18 m across the line of sight from the chest point, where a level line
+//!   meets a hit shape from every yaw ([`EDGE_M`]).
 //! - **Sight** ([`any_part_visible`]): an enemy counts as seen when a line
 //!   from the bot's eyes reaches some part, so legs on a stair or a head
 //!   over a wall are seen.
@@ -78,54 +80,116 @@ const AHEAD_MAX_MS: u32 = 300;
 /// `animations/skeletons/scavengers_01`, placed by the rifles' `on_site_idle` and `on_site_idle_look` clips (pitch 0).
 pub const HIT_BOXES: &str = include_str!("hitboxes-026g-idle.tsv");
 
-/// The edges' offset across the line of sight from the chest, metres: inside the front `Chest` box's 0.229 m half width.
+/// The edges' offset across the line of sight from the chest point, metres. A level line through the chest point
+/// offset this far to either side meets one of the body's hit shapes from every yaw, standing and crouched (every 2
+/// degrees, all the table's shapes; a cylinder taken as its capsule); at the body's upright axis it met none on 56 of
+/// the 360 standing lines. Measured on [`HIT_BOXES`] by `body/edge_cover.py` of the exactness notes.
 const EDGE_M: f32 = 0.18;
 
-/// The heights over the feet of [`Part`]'s points, standing and crouched, read once from [`HIT_BOXES`] (hip, not
-/// aimed): head, chest, belly, pelvis, thighs, shins.
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct PartHeights {
-    stand: [f32; 6],
-    crouch: [f32; 6],
+/// A body as its parts are placed: its feet, its stance, and the yaw its model is turned by. The game turns a player's
+/// hit body by the world's `rotation_y` (player +490h, saved at 0x2DB021; `base_player` 0x2DAB70 makes the player's
+/// transform +40Ch from it with `create_rotation_y` 0x15AE50, and 0x2D942A..0x2D94A9 hands +40Ch on to the hit body),
+/// the yaw the bots read for every place (`driven.rs`, `PlaceView::yaw`). `create_rotation_y`'s rows are
+/// (cos a, 0, sin a), (0, 1, 0), (-sin a, 0, cos a): the model's +z (its facing) is [`forward`]`(a)` on the ground,
+/// its +x (its right) `forward(a - pi/2)`.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct BodyAt {
+    pub feet: Vec3,
+    pub crouched: bool,
+    pub yaw: f32,
 }
 
-impl PartHeights {
-    /// The table's centre height of a shape, by stance, hit part and bone (the hip rows).
-    fn centre(table: &str, stance: &str, part: &str, bone: &str) -> f32 {
+impl BodyAt {
+    /// A place's body as the view has it.
+    pub fn of(body: &PlaceView) -> Self {
+        Self { feet: body.feet, crouched: body.crouched(), yaw: body.yaw }
+    }
+
+    /// A body at `feet` facing `eye` (tests and tallies that know no yaw of the body).
+    #[cfg(test)]
+    pub fn facing(feet: Vec3, crouched: bool, eye: Vec3) -> Self {
+        Self { feet, crouched, yaw: yaw_of([eye.x - feet.x, eye.z - feet.z]) }
+    }
+
+    /// The model-frame point `m` (x its right, y up, z its facing, from its feet) in the map's frame.
+    fn to_map(self, m: Vec3) -> Vec3 {
+        let (s, c) = self.yaw.sin_cos();
+        self.feet + Vec3::new(m.x * c - m.z * s, m.y, m.x * s + m.z * c)
+    }
+}
+
+/// [`Part`]'s points in the model frame of one stance (x its right, y up, z its facing, from the feet), the centres of
+/// the table's shapes (hip, not aimed).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Points {
+    /// The `brain` sphere.
+    head: Vec3,
+    /// The front `Chest` box.
+    chest: Vec3,
+    /// The front `Spin` box.
+    belly: Vec3,
+    /// Halfway between the belly and the mean of the two up legs (no shape of the table is centred there): a level
+    /// line through it meets a hit shape from every yaw, standing and crouched (`body/part_cover.py`).
+    pelvis: Vec3,
+    /// The up legs' capsules, right and left.
+    thighs: [Vec3; 2],
+    /// The legs' capsules, right and left.
+    shins: [Vec3; 2],
+}
+
+/// [`Points`] standing and crouched, read once from [`HIT_BOXES`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PartPlaces {
+    stand: Points,
+    crouch: Points,
+}
+
+impl PartPlaces {
+    /// The table's centre of a shape, by stance, hit part and bone (the hip rows), in the model frame.
+    fn centre(table: &str, stance: &str, part: &str, bone: &str) -> Vec3 {
         table
             .lines()
             .filter(|l| !l.starts_with('#') && !l.starts_with("stance"))
             .map(|l| l.split('\t').collect::<Vec<_>>())
-            .find(|c| c.len() > 6 && c[0] == stance && c[1] == "0" && c[2] == part && c[3] == bone)
-            .and_then(|c| c[6].parse::<f32>().ok())
+            .find(|c| c.len() > 7 && c[0] == stance && c[1] == "0" && c[2] == part && c[3] == bone)
+            .and_then(|c| Some(Vec3::new(c[5].parse().ok()?, c[6].parse().ok()?, c[7].parse().ok()?)))
             .unwrap_or_else(|| panic!("hit box table: no {stance} {part} on {bone}"))
     }
 
-    /// The points of a stance: the head the `brain` sphere, the chest and the belly the front `Chest` and `Spin`
-    /// boxes, the thighs and the shins the means of the legs' capsules, the pelvis halfway between the belly and the
-    /// thighs (no shape of the table is centred there). The pelvis point is not in empty air: its height lies within
-    /// the front `Spin` box's height span (0.78 in 0.740..1.116 standing, 0.40 in 0.286..0.662 crouched).
-    fn of(table: &str, stance: &str) -> [f32; 6] {
+    /// The points of a stance. Each is a shape's own centre but the pelvis: a level line through any of them meets a
+    /// hit shape from every yaw. The two legs' mean, which the parts were before, lies between the legs and met none
+    /// on 84 (thighs) and 126 (shins) of 180 standing lines; so a leg part is one leg, the nearer
+    /// ([`Part::point_at`]).
+    fn of(table: &str, stance: &str) -> Points {
         let at = |part: &str, bone: &str| Self::centre(table, stance, part, bone);
-        let head = at("brain", "Head");
-        let chest = at("front", "Chest");
         let belly = at("front", "Spin");
-        let thighs = (at("right_hip", "RightUpLeg") + at("left_hip", "LeftUpLeg")) * 0.5;
-        let shins = (at("right_hip", "RightLeg") + at("left_hip", "LeftLeg")) * 0.5;
-        [head, chest, belly, (belly + thighs) * 0.5, thighs, shins]
+        let thighs = [at("right_hip", "RightUpLeg"), at("left_hip", "LeftUpLeg")];
+        Points {
+            head: at("brain", "Head"),
+            chest: at("front", "Chest"),
+            belly,
+            pelvis: (belly + (thighs[0] + thighs[1]) * 0.5) * 0.5,
+            thighs,
+            shins: [at("right_hip", "RightLeg"), at("left_hip", "LeftLeg")],
+        }
     }
 
-    fn get() -> &'static PartHeights {
-        static HEIGHTS: std::sync::OnceLock<PartHeights> = std::sync::OnceLock::new();
-        HEIGHTS.get_or_init(|| {
-            let h = PartHeights { stand: Self::of(HIT_BOXES, "stand"), crouch: Self::of(HIT_BOXES, "crouch") };
+    fn get() -> &'static PartPlaces {
+        static PLACES: std::sync::OnceLock<PartPlaces> = std::sync::OnceLock::new();
+        PLACES.get_or_init(|| {
+            let p = PartPlaces { stand: Self::of(HIT_BOXES, "stand"), crouch: Self::of(HIT_BOXES, "crouch") };
             log::info!(
-                "bots' body parts from 0.26g's hit boxes (head, chest, belly, pelvis, thighs, shins over the feet): \
-                 standing {:?}, crouched {:?}",
-                h.stand, h.crouch
+                "bots' body parts from 0.26g's hit boxes, model frame (x right, y up, z facing, from the feet), turned by \
+                 the body's yaw: standing {:?}, crouched {:?}",
+                p.stand, p.crouch
             );
-            h
+            p
         })
+    }
+
+    fn of_stance(crouched: bool) -> &'static Points {
+        let p = Self::get();
+        if crouched { &p.crouch } else { &p.stand }
     }
 }
 
@@ -138,7 +202,9 @@ pub enum Part {
     /// The lower body hit box.
     Belly,
     Pelvis,
+    /// The nearer up leg.
     Thighs,
+    /// The nearer leg below the knee.
     Shins,
     /// The chest's edges across the line of sight, as the shooter sees
     /// them (a body half behind a corner).
@@ -172,47 +238,47 @@ impl Part {
         Part::Shins,
     ];
 
-    /// Height over the feet, standing and crouched ([`PartHeights`]), and the offset across the line of sight (to
-    /// the shooter's right), metres.
-    fn place(self) -> (f32, f32, f32) {
-        let h = PartHeights::get();
-        let (k, side) = match self {
-            Part::Head => (0, 0.0),
-            Part::Chest => (1, 0.0),
-            Part::Belly => (2, 0.0),
-            Part::Pelvis => (3, 0.0),
-            Part::Thighs => (4, 0.0),
-            Part::Shins => (5, 0.0),
-            Part::LeftEdge => (1, -EDGE_M),
-            Part::RightEdge => (1, EDGE_M),
-        };
-        (h.stand[k], h.crouch[k], side)
-    }
-
-    /// Height of the point over the feet, standing or crouched, metres.
+    /// Height of the point over the feet, standing or crouched, metres (a leg part: the mean of the two legs').
     pub fn height(self, crouched: bool) -> f32 {
-        let (standing, low, _) = self.place();
-        if crouched { low } else { standing }
+        let p = PartPlaces::of_stance(crouched);
+        match self {
+            Part::Head => p.head.y,
+            Part::Chest | Part::LeftEdge | Part::RightEdge => p.chest.y,
+            Part::Belly => p.belly.y,
+            Part::Pelvis => p.pelvis.y,
+            Part::Thighs => (p.thighs[0].y + p.thighs[1].y) * 0.5,
+            Part::Shins => (p.shins[0].y + p.shins[1].y) * 0.5,
+        }
     }
 
     /// The part of `body` as seen from `eye`.
     pub fn point(self, body: &PlaceView, eye: Vec3) -> Vec3 {
-        self.point_of(body.feet, body.crouched(), eye)
+        self.point_at(BodyAt::of(body), eye)
     }
 
-    /// The part of a body with its feet at `feet`, as seen from `eye`.
-    pub fn point_of(self, feet: Vec3, crouched: bool, eye: Vec3) -> Vec3 {
-        let (standing, low, side) = self.place();
-        let up = if crouched { low } else { standing };
-        let mut at = feet + Vec3::new(0.0, up, 0.0);
-        if side != 0.0 {
-            // To the shooter's right: the line of sight turned a quarter
-            // clockwise seen from above (yaw grows to the left, `kin`).
-            let (dx, dz) = (at.x - eye.x, at.z - eye.z);
-            let right = forward(yaw_of([dx, dz]) - std::f32::consts::FRAC_PI_2);
-            at = at + Vec3::new(right[0] * side, 0.0, right[1] * side);
-        }
-        at
+    /// The part of `body` as seen from `eye`: its shape's centre turned by the body's yaw; a leg part the nearer leg
+    /// to `eye`; an edge the chest point moved [`EDGE_M`] across the line of sight.
+    pub fn point_at(self, body: BodyAt, eye: Vec3) -> Vec3 {
+        let p = PartPlaces::of_stance(body.crouched);
+        let nearer = |legs: [Vec3; 2]| {
+            let [right, left] = legs.map(|m| body.to_map(m));
+            if (left - eye).length() < (right - eye).length() { left } else { right }
+        };
+        let side = match self {
+            Part::Head => return body.to_map(p.head),
+            Part::Chest => return body.to_map(p.chest),
+            Part::Belly => return body.to_map(p.belly),
+            Part::Pelvis => return body.to_map(p.pelvis),
+            Part::Thighs => return nearer(p.thighs),
+            Part::Shins => return nearer(p.shins),
+            Part::LeftEdge => -EDGE_M,
+            Part::RightEdge => EDGE_M,
+        };
+        let at = body.to_map(p.chest);
+        // To the shooter's right: the line of sight turned a quarter clockwise seen from above (yaw grows to the left,
+        // `kin`).
+        let right = forward(yaw_of([at.x - eye.x, at.z - eye.z]) - std::f32::consts::FRAC_PI_2);
+        at + Vec3::new(right[0] * side, 0.0, right[1] * side)
     }
 }
 
@@ -270,7 +336,7 @@ pub fn any_part_visible(
     sight: &RayTree,
     budget: impl FnMut() -> bool,
 ) -> bool {
-    shows(eye, body.feet, body.crouched(), sight, budget)
+    shows(eye, BodyAt::of(body), sight, budget)
 }
 
 /// What a look at a body's parts came to, smoke read ([`look_parts`]).
@@ -294,10 +360,10 @@ pub fn look_parts(
     veil: Veil<'_>,
     mut budget: impl FnMut() -> bool,
 ) -> PartsLook {
-    let (feet, crouched) = (body.feet, body.crouched());
+    let at = BodyAt::of(body);
     let mut smoke = false;
     for part in Part::SIGHT_ORDER {
-        let point = part.point_of(feet, crouched, eye);
+        let point = part.point_at(at, eye);
         if veil.hides(eye, point) {
             smoke = true;
             continue;
@@ -309,19 +375,11 @@ pub fn look_parts(
     if smoke { PartsLook::Smoke } else { PartsLook::Hidden }
 }
 
-/// [`any_part_visible`] for a body with its feet at `feet`, on the bullet mesh alone (tests and the bench's
-/// stand-in, which model a human's eyes; a bot's go through [`look_parts`]).
+/// [`any_part_visible`] for `body`, on the bullet mesh alone (tests and the bench's stand-in, which model a human's
+/// eyes; a bot's go through [`look_parts`]).
 #[cfg(test)]
-pub fn shows(
-    eye: Vec3,
-    feet: Vec3,
-    crouched: bool,
-    sight: &RayTree,
-    mut budget: impl FnMut() -> bool,
-) -> bool {
-    Part::SIGHT_ORDER
-        .iter()
-        .any(|part| budget() && visible(sight, eye, part.point_of(feet, crouched, eye)))
+pub fn shows(eye: Vec3, body: BodyAt, sight: &RayTree, mut budget: impl FnMut() -> bool) -> bool {
+    Part::SIGHT_ORDER.iter().any(|part| budget() && visible(sight, eye, part.point_at(body, eye)))
 }
 
 /// The first part of `body` in [`Part::AIM_ORDER`] that shows from `eye`, on the bullet mesh alone (tests: a bot's
@@ -367,7 +425,8 @@ fn aim_part_moving_in(
     veil: Veil<'_>,
 ) -> (Option<Part>, PartsLook) {
     let moves = then.distance_xz(body.feet) > 0.05;
-    let crouched = body.crouched();
+    // Where his speed takes him: the same stance and yaw (no turn foreseen).
+    let there = BodyAt { feet: then, ..BodyAt::of(body) };
     let mut shown = false;
     let mut smoke = false;
     let mut seen = |point: Vec3| {
@@ -380,7 +439,7 @@ fn aim_part_moving_in(
     let part = order.iter().copied().find(|part| {
         let now = seen(part.point(body, eye));
         shown |= now && *part != Part::Pelvis;
-        now && (!moves || seen(part.point_of(then, crouched, eye)))
+        now && (!moves || seen(part.point_at(there, eye)))
     });
     let look = match (shown || part.is_some(), smoke) {
         (true, _) => PartsLook::Shows,
@@ -478,8 +537,8 @@ pub struct Sight {
     reach: f32,
     /// The last part seen of a target, where it was, and when.
     last_seen: Option<(Place, Vec3, u32)>,
-    /// Where the feet of that last target were then (fire through cover aims low at the place he went down).
-    last_feet: Vec3,
+    /// That last target's body then (fire through cover aims low at the place he went down).
+    last_body: BodyAt,
     /// The target just went into smoke: the spray at the last part seen of him is open (`SmokeTuning::
     /// spray_ms` from that sight), for this target.
     spray: Option<Place>,
@@ -608,10 +667,10 @@ impl Sight {
         };
         let point = part.point(body, eye);
         self.last_seen = Some((who, point, now));
-        self.last_feet = body.feet;
+        self.last_body = BodyAt::of(body);
         self.reach = (point - eye)
             .length()
-            .min((part.point_of(then, body.crouched(), eye) - eye).length())
+            .min((part.point_at(BodyAt { feet: then, ..BodyAt::of(body) }, eye) - eye).length())
             - SHORT_M;
         Some(TargetLook { look, fresh: due })
     }
@@ -703,12 +762,12 @@ impl Sight {
             .map(|(_, at, _)| at)
     }
 
-    /// Who was last seen, where his feet were, and when, if it is within `within_ms` of `now` (fire through cover goes at the
+    /// Who was last seen, his body then, and when, if it is within `within_ms` of `now` (fire through cover goes at the
     /// place he was: the shot is aimed low there, at a belly standing, where a body that ducked or stepped behind a crate is).
-    pub fn last_place(&self, now: u32, within_ms: u32) -> Option<(Place, Vec3, u32)> {
+    pub fn last_place(&self, now: u32, within_ms: u32) -> Option<(Place, BodyAt, u32)> {
         self.last_seen
             .filter(|(_, _, at)| now <= at + within_ms)
-            .map(|(who, _, at)| (who, self.last_feet, at))
+            .map(|(who, _, at)| (who, self.last_body, at))
     }
 
     /// The share of a bullet's damage that reaches `to` from the bot's eye (`from`), by the game's rule `rule`: the line followed

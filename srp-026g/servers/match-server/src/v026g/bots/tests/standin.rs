@@ -1911,7 +1911,7 @@ impl Game {
             let before = super::aimpoint::rays_cast();
             let crouched = target.keys & key::CROUCH != 0;
             let team = usize::from(body.team).min(1);
-            if !super::aimpoint::shows(eye, target.feet, crouched, &self.world.sight, || true) {
+            if !super::aimpoint::shows(eye, super::aimpoint::BodyAt { feet: target.feet, crouched, yaw: target.yaw }, &self.world.sight, || true) {
                 self.hidden += 1;
                 self.hidden_by[team] += 1;
             }

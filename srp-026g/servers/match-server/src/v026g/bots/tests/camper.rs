@@ -312,7 +312,7 @@ pub(crate) fn camper_candidates(
             let sees = theirs
                 .iter()
                 .filter(near)
-                .filter(|&&q| super::aimpoint::shows(eye, q, false, sight, || true))
+                .filter(|&&q| super::aimpoint::shows(eye, super::aimpoint::BodyAt::facing(q, false, eye), sight, || true))
                 .count() as u32;
             // Seen from only matters to the hidden rule, and only where it sees some.
             let seen = if rule == SpotRule::Hidden && sees > 0 {
@@ -320,7 +320,7 @@ pub(crate) fn camper_candidates(
                 theirs
                     .iter()
                     .filter(near)
-                    .filter(|&&q| super::aimpoint::shows(q + standing, p, crouched, sight, || true))
+                    .filter(|&&q| super::aimpoint::shows(q + standing, super::aimpoint::BodyAt::facing(p, crouched, q + standing), sight, || true))
                     .count() as u32
             } else {
                 0

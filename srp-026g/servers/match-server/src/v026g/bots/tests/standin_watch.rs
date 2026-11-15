@@ -70,7 +70,7 @@ pub(crate) fn lane_look(tactics: &super::tactics::Tactics, side: i32, spot: Vec3
         .routes_of(1 - side)
         .flat_map(|r| r.points.iter().copied())
         .filter(|q| q.is_finite() && q.distance_xz(spot) <= CAMPER_SEES_M)
-        .filter(|&q| super::aimpoint::shows(eye, q, false, sight, || true))
+        .filter(|&q| super::aimpoint::shows(eye, super::aimpoint::BodyAt::facing(q, false, eye), sight, || true))
         .map(|q| (q.z - spot.z).atan2(q.x - spot.x))
         .collect();
     let b = lane_bearing(&bearings)?;

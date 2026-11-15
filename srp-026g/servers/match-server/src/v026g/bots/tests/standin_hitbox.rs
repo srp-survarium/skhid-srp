@@ -1207,7 +1207,7 @@ mod game_tests {
             let before = super::super::aimpoint::rays_cast();
             let crouched = target.keys & key::CROUCH != 0;
             let team = usize::from(body.team).min(1);
-            if !super::super::aimpoint::shows(eye, target.feet, crouched, &game.world.sight, || true) {
+            if !super::super::aimpoint::shows(eye, super::super::aimpoint::BodyAt { feet: target.feet, crouched, yaw: target.yaw }, &game.world.sight, || true) {
                 game.hidden += 1;
                 game.hidden_by[team] += 1;
             }
