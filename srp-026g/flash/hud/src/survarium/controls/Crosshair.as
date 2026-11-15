@@ -181,18 +181,6 @@ package survarium.controls
             container.damage3[lastPart].gotoAndStop(2);
             container.damage4[lastPart].gotoAndStop(2);
          }
-         // Kill marker only: each bar's red kill part alone, its white hit parts not shown
-         for each(var bar:MovieClip in [container.damage1,container.damage2,container.damage3,container.damage4])
-         {
-            for(var k:int = 1; k < frame; k++)
-            {
-               var part:MovieClip = bar["part_" + k] as MovieClip;
-               if(part != null)
-               {
-                  part.visible = this._hitMarkers == HIT_MARKERS_ALL || k == frame - 1;
-               }
-            }
-         }
          if(debug)
          {
             hitTex = new HitText();

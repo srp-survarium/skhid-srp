@@ -253,7 +253,7 @@ impl ListChoice for Overlay {
 pub enum HitMarkers {
     /// The stock markers: a hit's bars, a kill's mark.
     All,
-    /// A kill's mark alone: a hit that does not kill shows nothing.
+    /// The kill marker only (white and red, as stock): a hit that does not kill shows nothing.
     KillOnly,
     Hidden,
 }

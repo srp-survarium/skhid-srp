@@ -4094,7 +4094,7 @@ and the list's saved string at
 texts) at `options.callback` (after patch 79's hooks there, sharing `vostok::settings` with it), and
 tells the hud movie the four at `player_icons.update_start` (after patch 65's hook) when the movie
 or a setting changes, and again after each match's or replay's options read (a new hud can be made
-at the last one's address). The hud shows the crosshair's hit markers, the kill's red mark alone or
+at the last one's address). The hud shows the crosshair's hit markers, the kill's only or
 none, shows the Tab list as names
 only, hides the crosshair, and shows the Tab map's names without Alt (Alt hiding them, patch
 82). The stock quest progress and minimap controls are moved into the
