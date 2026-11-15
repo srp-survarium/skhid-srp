@@ -190,6 +190,13 @@ pub struct Duel {
     pub bot_won: bool,
 }
 
+/// [A392] Which way a self-balancing step went.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepWay {
+    Down,
+    Up,
+}
+
 /// A team's skill and its self-balancing (play 23).
 #[derive(Clone, Debug)]
 pub struct Skill {
@@ -198,6 +205,8 @@ pub struct Skill {
     steps_up: u32,
     duels: VecDeque<Duel>,
     last_look: u32,
+    /// [A392 `step_reset`] The other way's step count the last step set back to 0, for the commander's log line.
+    reset: Option<(StepWay, u32)>,
     /// The floor and the ceiling of its tier's bracket ([`SkillTuning::of_tier`], A244).
     floor: f32,
     ceiling: f32,
@@ -215,7 +224,13 @@ impl Skill {
             steps_up: 0,
             duels: VecDeque::new(),
             last_look: 0,
+            reset: None,
         }
+    }
+
+    /// [A392] The step count the last step set back to 0 (the way it counted, and its count), once.
+    pub fn take_reset(&mut self) -> Option<(StepWay, u32)> {
+        self.reset.take()
     }
 
     pub fn duel(&mut self, duel: Duel) {
@@ -246,9 +261,17 @@ impl Skill {
         }
         let before = self.skill;
         if kd > tuning.kd_high {
+            if tuning.step_reset && self.steps_up > 0 {
+                self.reset = Some((StepWay::Up, self.steps_up));
+                self.steps_up = 0;
+            }
             self.steps_down += 1;
             self.skill -= tuning.step / self.steps_down.min(10) as f32;
         } else if kd < tuning.kd_low {
+            if tuning.step_reset && self.steps_down > 0 {
+                self.reset = Some((StepWay::Down, self.steps_down));
+                self.steps_down = 0;
+            }
             self.steps_up += 1;
             self.skill += tuning.step / self.steps_up.min(10) as f32;
         } else {

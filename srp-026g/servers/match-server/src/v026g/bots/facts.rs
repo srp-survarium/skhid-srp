@@ -244,17 +244,50 @@ impl Bots {
                 self.lost_carrier(a.place, 1 - team, (&before, &after), time, &mut notes);
             }
             // Self-balancing counts duels between bots and humans.
-            if is_bot(a) && human_kills {
-                self.teams[team].skill.duel(Duel {
-                    time,
-                    bot_won: false,
-                });
-            }
-            if !is_bot(a) && bot_kills {
-                self.teams[1 - team].skill.duel(Duel {
-                    time,
-                    bot_won: true,
-                });
+            // [A392 `skill.duel_by_killer`] Only when the death's killer is the other side: the enemies whose kills rose since
+            // the last world (the kill feed's interval) are all humans for a bot's death, all bots for a human's.
+            let killers: Vec<(Place, bool)> = after
+                .places
+                .iter()
+                .zip(&before.places)
+                .filter(|(now, was)| usize::from(now.team & 1) != team && now.kills > was.kills)
+                .map(|(now, _)| (now.place, is_bot(now)))
+                .collect();
+            let killed_by = |bots: bool| !killers.is_empty() && killers.iter().all(|&(_, bot)| bot == bots);
+            let by_killer = |side: usize| self.tunings.of(side as u8).skill.duel_by_killer;
+            if is_bot(a) {
+                let (booked, by) = if by_killer(team) { (killed_by(false), true) } else { (human_kills, false) };
+                if booked {
+                    self.teams[team].skill.duel(Duel {
+                        time,
+                        bot_won: false,
+                    });
+                }
+                if by {
+                    log::debug!(
+                        "team {team} at {time} ms: bot {} died, killers {:?}: duel {}",
+                        a.place,
+                        killers,
+                        if booked { "booked (a human killed it)" } else { "not booked" }
+                    );
+                }
+            } else {
+                let winners = 1 - team;
+                let (booked, by) = if by_killer(winners) { (killed_by(true), true) } else { (bot_kills, false) };
+                if booked {
+                    self.teams[winners].skill.duel(Duel {
+                        time,
+                        bot_won: true,
+                    });
+                }
+                if by {
+                    log::debug!(
+                        "team {winners} at {time} ms: human {} died, killers {:?}: duel {}",
+                        a.place,
+                        killers,
+                        if booked { "booked (a bot killed him)" } else { "not booked" }
+                    );
+                }
             }
             for bot in self.bots.iter_mut().flatten() {
                 bot.memory.forget(a.place);

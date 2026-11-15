@@ -135,6 +135,8 @@
     "sight_refresh": false
   },
   "skill": {
+    "duel_by_killer": false,
+    "step_reset": false,
     "tiers": {
       "13-15": {
         "max": 1.0,

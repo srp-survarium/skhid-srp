@@ -855,6 +855,10 @@ impl Bots {
                     "team {team}'s skill {before:.2} -> {after:.2} (K/D against humans {kd:.2})"
                 ),
             });
+            // [A392 `skill.step_reset`] The other way's step count set back by this step.
+            if let Some((way, count)) = state.skill.take_reset() {
+                log::debug!("team {team} at {now} ms: skill step {:?} count {count} reset by a step the other way", way);
+            }
         }
         // Partners for play 21: the team's bots two by two (pairs, play
         // 25); an odd one out partners its nearest living teammate bot one
