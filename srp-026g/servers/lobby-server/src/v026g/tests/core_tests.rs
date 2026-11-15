@@ -1756,6 +1756,39 @@ fn a_squad_info_carries_the_lobby_picks() {
 }
 
 #[test]
+fn the_shops_hide_owned_box_is_kept_with_the_account() {
+    use survarium::v026g::lobby::shop_filter::{OwnedItems, SHOP_FILTER_FIRST};
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let answers = |decoded: &[Decoded]| -> Vec<String> {
+        decoded
+            .iter()
+            .filter_map(|message| match message {
+                Decoded::EloList(rows) if rows.first().is_some_and(|row| row.1 == SHOP_FILTER_FIRST) => {
+                    Some(rows[0].0.clone())
+                }
+                _ => None,
+            })
+            .collect()
+    };
+    let ask = |world: &mut World, offset: u32| world.ask(alice, request::ranking(SHOP_FILTER_FIRST + offset, 1));
+    world.take(alice);
+    // Nothing kept: unticked.
+    ask(&mut world, 0);
+    assert_eq!(answers(&world.take(alice)), ["H1;0"]);
+    // A click's is kept, not answered.
+    ask(&mut world, 2);
+    assert!(answers(&world.take(alice)).is_empty());
+    assert_eq!(world.account(alice).extras.shop_owned, OwnedItems::Hidden);
+    ask(&mut world, 0);
+    assert_eq!(answers(&world.take(alice)), ["H1;1"]);
+    ask(&mut world, 1);
+    ask(&mut world, 0);
+    assert_eq!(answers(&world.take(alice)), ["H1;0"]);
+    assert_eq!(world.account(alice).extras.shop_owned, OwnedItems::Shown);
+}
+
+#[test]
 fn a_squad_of_two_forms_shows_each_mate_and_plays_together() {
     let mut world = World::new();
     let alice = world.connect("Alice");

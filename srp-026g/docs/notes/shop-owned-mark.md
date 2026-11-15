@@ -23,8 +23,15 @@ items".
   Ruffle draws the compare box's square stretched and some labels in another weight, the game
   does not). Label `st_srp_shop_not_owned`, tooltip `st_srp_shop_not_owned_hint`. Checked, the
   shop leaves out the entries of items owned, by the mark's own check, so the two never disagree;
-  it works with every tab and filter. Shop only; off when the lobby opens, kept as set while it is
-  open.
+  it works with every tab and filter. Shop only.
+  - **Kept with the account** (the owner, 2026-11-15: "hide owned button in shop, it should be
+    sticky", "if someone clicked it once, after restarting, it shoould be saved"): a click's
+    choice, ticked or not, is srp's (`Extras::shop_owned`, `g26_extras.shop_owned`, srp.db), so
+    the shop opens with it after a restart, a reinstall, on another PC. srp's wire (`lobby.md`
+    2.16.6, `shop_filter.rs`): the movie asks at the lobby sign-in of another account than the
+    box's (`InventoryList.signedIn`, from `set_account_name`), and the box takes the answer unless
+    it was clicked first. Until then, and with nothing kept (an account that never clicked, an
+    older srp that never answers, a value that is not 1), unticked, as before.
   - A box whose label fits its text (`UnfocusedCheckBox.fitLabel`, Autobuy's and this one's) sizes
     the label again at every state change: each state's frame may hold a text field of its own, and
     a checked box's label was cut to the symbol's width otherwise (seen in Ruffle).
@@ -41,11 +48,13 @@ items".
 - **When it changes:** the shop's list is drawn again whenever the account comes (after every buy
   and sale): a bought item gets the mark at once, or leaves the list with the box on; a sold one
   loses it.
-- **From the inventory the movie has:** no server change.
+- **From the inventory the movie has:** the mark and the filter need no server change; only the
+  box's choice is the server's.
 - Code: `InventoryList.hasItem` (the one ownership check, also the buy's "already purchased"),
   `InventoryList.owned` (the same for the shop's tiles), `ItemRendererInv.updateOwnedMark`;
   `InventoryList.makeOwnedToggle`, `placeOwnedToggle`, `hiddenAsOwned` (`ApplyInventoryFilter`'s base
-  options), `UnfocusedCheckBox.fitLabel`.
+  options), `UnfocusedCheckBox.fitLabel`; the kept choice: `InventoryList.signedIn`, `ownedTake`,
+  `onOwnedClick`, srp's `lobby::shop_filter`, `Core::shop_filter` (lobby-server `shop.rs`).
 - Checked by `scripts/shop-owned-mark/check.sh` (Ruffle: owned and not owned entries, an empty
   stack, a scope loose and one worn on a weapon, a camouflage, a bundle, a buy and a sale; the box
   on, with the upgrades tab, a buy while it is on, off again; the box the compare box's symbol;
