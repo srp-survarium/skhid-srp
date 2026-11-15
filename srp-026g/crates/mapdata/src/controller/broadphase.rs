@@ -173,3 +173,25 @@ pub fn walk_order_experiment(boxes: &[Option<(V3, V3)>], mode: u32) -> Vec<u32> 
     }
     tree.offering_order()
 }
+
+/// WIP experiment (not for a PR): objects added in batches, a world step after each batch reinserting that batch's objects
+/// in index order with their widened boxes. `step_after(i)`: a step comes after object `i` is added.
+pub fn walk_order_batches(boxes: &[Option<(V3, V3)>], step_after: &dyn Fn(usize) -> bool) -> Vec<u32> {
+    let widened = |b: (V3, V3)| {
+        let proxy = Volume::of(b.0.map(|v| v - CONTACT_THRESHOLD), b.1.map(|v| v + CONTACT_THRESHOLD));
+        Volume::of([0, 1, 2].map(|k| proxy.mi[k] - DBVT_MARGIN), [0, 1, 2].map(|k| proxy.mx[k] + DBVT_MARGIN))
+    };
+    let mut tree = Dbvt::default();
+    let mut pending: Vec<(usize, (V3, V3))> = Vec::new();
+    for (i, b) in boxes.iter().enumerate() {
+        if let Some(b) = *b {
+            pending.push((tree.insert(Volume::of(b.0, b.1), i as u32), b));
+        }
+        if step_after(i) || i + 1 == boxes.len() {
+            for (leaf, b) in pending.drain(..) {
+                tree.update(leaf, widened(b));
+            }
+        }
+    }
+    tree.offering_order()
+}
