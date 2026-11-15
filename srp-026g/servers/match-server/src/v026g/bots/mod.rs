@@ -2102,6 +2102,13 @@ impl Bots {
                     speed,
                     play: bot.assignment.as_ref().map(|a| format!("{:?}", a.kind)),
                 };
+                // [S5] Its error along and across the world's own move, at a ground world (log only).
+                if !facts.in_jump
+                    && facts.dropped_m < nav_log::FALL_M
+                    && let Some((along, across)) = before.and_then(|(_, from)| nav_drift::cross_track::split(from, feet, reckoned))
+                {
+                    nav_drift::cross_track::count(along, across);
+                }
                 if facts.drifts() {
                     let cause = nav_drift::Cause::of(&facts);
                     bot.drift.world(Some((&facts, cause)));
@@ -2447,6 +2454,9 @@ impl Bots {
     pub fn drift_report(&self) -> Vec<String> {
         let tallies: Vec<(usize, &nav_drift::Tally)> = self.bots.iter().flatten().map(|bot| (bot.place, &bot.drift)).collect();
         let mut lines = nav_drift::report(&tallies);
+        // [S5] The reckoning's error at ground worlds, along and across the world's own move.
+        let (along, across) = nav_drift::cross_track::take();
+        lines.push(format!("{}{}", nav_log::PREFIX, nav_drift::cross_track::line(&along, &across)));
         // [A388 step 2b] The lip guard's forecasts this match: asked anew, and the same ask's answer used again.
         let (asked, reused) = self.bots.iter().flatten().fold((0u64, 0u64), |(a, r), bot| (a + u64::from(bot.lip_memo.asked), r + u64::from(bot.lip_memo.reused)));
         lines.push(format!("{}lip guard forecasts this match: asked {asked}, the same ask's answer used again {reused}", nav_log::PREFIX));
