@@ -5433,6 +5433,11 @@ impl Game {
                 walkers.bots.landing_report()
             );
             log::info!(
+                "Match {:#x}: the bots' bursts: {}",
+                self.id,
+                walkers.bots.burst_report()
+            );
+            log::info!(
                 "Match {:#x}: the bots' traps: {}",
                 self.id,
                 walkers.bots.trap_report()

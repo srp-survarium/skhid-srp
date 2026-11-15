@@ -16,6 +16,7 @@
       "sights_up": false,
       "fire": {
         "burst_pause": null,
+        "burst_human": null,
         "weapon_class_by_data": false
       },
       "fire_through_ms": 0,

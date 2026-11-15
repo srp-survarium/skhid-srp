@@ -753,6 +753,7 @@ impl Check for AimTuning {
             "aim.combat.recoil_pull",
         )?;
         check(c.worth.valid(), "aim.combat.worth")?;
+        check(c.fire.burst_human.as_ref().is_none_or(|h| h.valid()), "aim.combat.fire.burst_human")?;
         check(c.band_cross_deg.is_none_or(|deg| (0.0..90.0).contains(&deg)), "aim.combat.band_cross_deg")?;
         Ok(())
     }

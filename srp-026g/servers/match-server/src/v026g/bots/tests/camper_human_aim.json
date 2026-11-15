@@ -388,6 +388,7 @@
           ]
         }
       ],
+      "burst_human": null,
       "burst_pause": {
         "floor_ms": 100,
         "top_ms": 700,
