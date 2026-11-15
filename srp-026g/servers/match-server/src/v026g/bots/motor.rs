@@ -3896,8 +3896,12 @@ pub mod stays {
     /// left the ground): counted, and its nav line, the end against the link's `landing`.
     pub fn held(feet: mapdata::Vec3, landing: mapdata::Vec3, steps: u32, off_ground: bool) -> String {
         HELD.fetch_add(1, Ordering::Relaxed);
+        // Up when the walk ended at the landing's height (within the grid's landing band, `mapdata::grid::LAND_HEIGHT_M`); a
+        // miss ends under it (Rudnya day 2's: 0.35 m under the take-off, the try again from there).
+        let up = (feet.y - landing.y).abs() <= mapdata::grid::LAND_HEIGHT_M;
         format!(
-            "nav: held sprint: forward held {steps} steps{}, ended at ({:.2}, {:.2}, {:.2}), {:.2} m across and {:+.2} m from the landing ({:.2}, {:.2}, {:.2})",
+            "nav: held sprint {}: forward held {steps} steps{}, ended at ({:.2}, {:.2}, {:.2}), {:.2} m across and {:+.2} m from the landing ({:.2}, {:.2}, {:.2})",
+            if up { "up" } else { "missed" },
             if off_ground { " (left the ground)" } else { "" },
             feet.x,
             feet.y,

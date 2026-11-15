@@ -29,7 +29,7 @@ use crate::math::Vec3;
 
 /// A flight lands when the feet end within this of the landing floor's height, metres (the walk check's [`super::controlled`]
 /// arrival band, `AT_HEIGHT_M`).
-const LAND_HEIGHT_M: f32 = 0.2;
+pub const LAND_HEIGHT_M: f32 = 0.2;
 
 /// What the rim pass did ([`super::BuildStats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

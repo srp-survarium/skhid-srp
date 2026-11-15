@@ -98,7 +98,7 @@ mod gap_flown;
 pub mod held_floors;
 mod rest_floors;
 pub use gap::{Aim, GapStats, OffLink, OffMeshLinks, PressLead, Share};
-pub use rim::Riser;
+pub use rim::{Riser, LAND_HEIGHT_M};
 use gap::gap_cost;
 
 /// The body and how it moves. Defaults: the 0.26g client's character
