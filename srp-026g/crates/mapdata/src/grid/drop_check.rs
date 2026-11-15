@@ -202,6 +202,9 @@ pub fn walk_drop(world: &Collision, s: &Settings, start: WalkStart, from: Vec3, 
 
 /// [A389] The crouched walk's speed forward, m/s: `player_params`' crouch forward 2.5 x the body's factor 1.0 (0x337D5E,
 /// `docs/notes/crouch_logic.md`). A body walked off a drop crouched comes down nearer the edge than a walking one.
+/// A literal from the docs, flagged: no reader of the game data's `player_params` `movement_speed/desired/crouch_fwd` exists
+/// in this crate yet, as for the walk's [`WALK_MPS`]. [A1b] The release (`gap::Takeoff::Release`) does not hang on it: it is
+/// by position, and a let-go body carries no walk of its own past the stop blend.
 pub const CROUCH_MPS: f32 = 2.5;
 
 /// [A389] [`walk_drop`] in `stance` at `speed` m/s (the crouch key held throughout for [`Stance::Crouched`]).
