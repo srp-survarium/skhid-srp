@@ -19,10 +19,23 @@
         overlays = [ rust-overlay.overlays.default ];
       };
 
-      # Nightly toolchain — the workspace uses `edition = "2024"` and several
-      # nightly `#![feature(...)]` gates (generic_atomic, iter_intersperse,
-      # slice_split_once), so stable will not build it.
-      rust = pkgs.rust-bin.nightly.latest.default.override {
+      # Nightly toolchain: stable will not build what forces it, all in the
+      # game's code: `#![feature(core_float_math)]` (crates/ragdoll,
+      # client-patches/rust/patches, client-patches/research_arena),
+      # `#![feature(linkage)]` (client-patches/arena_rt), and link_026g.py's
+      # own `core` (`-Zforce-unstable-if-unmarked`) with its stub of
+      # `#![feature(compiler_builtins)]`. The servers' crates use none.
+      # Pinned by date: nightly-2026-08-15 (rustc 1.99.0-nightly d453bdd8f,
+      # LLVM 23.1.0). It has the fix of rust-lang/rust#159035, an LLVM
+      # load-combining miscompile of enum tags (out-of-bounds reads; LLVM fix
+      # #159106 merged 489aa105d, the -1 None-tag revert #159047 merged
+      # 31e4b8481), first in nightly-2026-07-12; nightly-2026-05-30 (rustc 6368fd52c, committed 2026-05-29)
+      # before it segfaulted a bot test. 07-12 itself (LLVM 22.1.8) gave
+      # bots::breach's plan another answer on a second identical call in
+      # release only (debug, the old nightly and 08-15, 10-15, 11-15 agree;
+      # AddressSanitizer clean): not taken. Move the date on only with the
+      # exactness goldens checked against the old one.
+      rust = pkgs.rust-bin.nightly."2026-08-15".default.override {
         extensions = [ "rust-src" "rustfmt" "clippy" "rust-analyzer" ];
         # The Rust exe patches (client-patches/rust) are tested and linted for
         # the game's i686, never the host's x86_64 (rust_patches.md).

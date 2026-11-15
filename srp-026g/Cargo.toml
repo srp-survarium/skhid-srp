@@ -41,6 +41,9 @@ needless_range_loop = "allow"
 # srp-validate's views are no_std and allocation-free: a state's largest
 # variant cannot be boxed, and each view is built once in place.
 large_enum_variant = "allow"
+# New in clippy since nightly-2026-07-12. srp-validate is also linked into the game's exe arena (patch 87): rewriting its chunk
+# loops as `as_chunks` would change the arena's code for no gain, and a toolchain bump must leave the exe's code as it was.
+chunks_exact_to_as_chunks = "allow"
 
 [workspace.dependencies]
 arrayref = "0.3.9" # TODO: Remove
