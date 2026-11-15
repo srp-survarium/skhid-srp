@@ -82,7 +82,7 @@ pub fn walk_off_landing_speed(height: f32) -> f32 {
 pub const LANDING_WALKS_MPS: [f32; 1] = [1.4];
 
 /// [S6] A drop's landing speed as stored ([`WalkGrid::drop_landing_speed`]): cm/s down, rounded down, so it never overstates.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LandingSpeed(u16);
 
 impl LandingSpeed {
@@ -106,6 +106,71 @@ impl LandingSpeed {
 /// [S6] The pain of a fall that lands at `speed` m/s ([`fall_hit`] by the stored landing, [`PAIN_PER_FOOT`] of each foot's).
 pub fn landing_pain(speed: f32, fall_scale: f32) -> f32 {
     2.0 * PAIN_PER_FOOT * fall_hit(speed, fall_scale)
+}
+
+/// [S6] Whether a landing at `speed` m/s hurts at all: over the harmless height's speed ([`fall_hit`]'s lower bound; the scale
+/// only multiplies the hit, so this holds for every body).
+pub fn landing_hurts(speed: f32) -> bool {
+    fall_hit(speed, 1.0) > 0.0
+}
+
+/// [S6] The landings of a walk-off that hurt the body, m/s down: the hardest (`most`, stored even when it hurts nothing), and a
+/// second landing of the same walk that hurts too (`also`). The client deals each landing its own two foot hits
+/// (`on_physical_controller_landing` 0x2D8220 runs on every landing), and nothing gives the pain back between them: a pool
+/// regenerates only after its delay since its last damaging hit (`damage_model.md`, 0x32A547..0x32A551: `regeneration_timeout`
+/// 8 s, at least 3.5 s with Metabolism's 2.5 s and the Regeneration booster's 2 s off), and a walk's landings all lie within
+/// [`super::drop_check::walk_drop`]'s landing window (2 s after the feet leave the take-off's level). So the pains add up.
+/// A third hurting landing cannot fit that window: a hurting fall from rest takes 22 of the client's ticks (a fall of 5 m
+/// lands on the 21st at 9.80 m/s, under the harmless 9.90 m/s), and the window is 47 ticks from the first fall's start (7 to
+/// go 0.4 m down, then 40).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Landings {
+    pub most: f32,
+    pub also: Option<f32>,
+}
+
+impl Landings {
+    /// No landing yet.
+    pub const NONE: Self = Self { most: 0.0, also: None };
+
+    /// One landing's speed.
+    pub fn one(speed: f32) -> Self {
+        Self { most: speed, also: None }
+    }
+
+    /// With a landing at `speed` m/s added: the hardest stays `most`; of the others, the hardest that hurts is `also`.
+    pub fn and(self, speed: f32) -> Self {
+        let (most, other) = if speed > self.most { (speed, self.most) } else { (self.most, speed) };
+        let also = [self.also, landing_hurts(other).then_some(other)].into_iter().flatten().reduce(f32::max);
+        Self { most, also }
+    }
+
+    /// The landings' pain, summed ([`landing_pain`] of each).
+    pub fn pain(self, fall_scale: f32) -> f32 {
+        landing_pain(self.most, fall_scale) + self.also.map_or(0.0, |v| landing_pain(v, fall_scale))
+    }
+
+    /// The lesser of two walks' landings: by the summed hit (scale-free, [`fall_hit`] at scale 1), then by the hardest
+    /// landing.
+    pub fn least(self, other: Self) -> Self {
+        let key = |l: Self| (fall_hit(l.most, 1.0) + l.also.map_or(0.0, |v| fall_hit(v, 1.0)), l.most);
+        if key(other) < key(self) { other } else { self }
+    }
+
+    /// The speeds as stored ([`LandingSpeed`], rounded down): one row, or two when a second landing hurts.
+    pub(super) fn rows(self) -> impl Iterator<Item = LandingSpeed> {
+        std::iter::once(LandingSpeed::of_mps(self.most)).chain(self.also.map(LandingSpeed::of_mps))
+    }
+
+    /// From a drop's stored rows (one or two, [`Self::rows`]); `None` with none.
+    pub(super) fn of_rows(rows: impl Iterator<Item = LandingSpeed>) -> Option<Self> {
+        let mut speeds = rows.map(LandingSpeed::mps);
+        let first = speeds.next()?;
+        Some(speeds.fold(Self::one(first), |l, v| {
+            let (most, other) = if v > l.most { (v, l.most) } else { (l.most, v) };
+            Self { most, also: Some(l.also.map_or(other, |a| a.max(other))) }
+        }))
+    }
 }
 
 /// [S6] The client's tick, s (`docs/notes/fall_damage.md`, PROVEN: the lockstep's 50 ms).
@@ -211,7 +276,7 @@ pub struct HeldStats {
 impl WalkGrid {
     /// [`super::Body::held_floors`] (module documentation): takes the edge floors no body stays on and returns the drops from
     /// the last held floors as (take-off, landing) positions, to be made off-mesh links once the floors are renumbered.
-    pub(super) fn drop_unheld(&mut self, wide: &mut Wide, world: &Collision, s: &Settings) -> (HeldStats, Vec<(Vec3, Vec3, f32)>) {
+    pub(super) fn drop_unheld(&mut self, wide: &mut Wide, world: &Collision, s: &Settings) -> (HeldStats, Vec<(Vec3, Vec3, Landings)>) {
         let n = self.len();
         let step = self.body.step;
         let edge: Vec<usize> = (0..n)
@@ -272,31 +337,31 @@ impl WalkGrid {
         let lands = parallel(&ways, |&(a, d)| {
             let (from, to) = (self.position(a as NodeId), self.position(wide.links[a][d]));
             match walk_drop(world, s, start, from, to) {
-                DropWalk::LandsAt(feet, speed) => self
+                DropWalk::LandsAt(feet, landings) => self
                     .locate_within(feet, 0.5, 0.2)
                     .filter(|&b| alive[b as usize] && self.height[b as usize] < from.y - step && (self.height[b as usize] - feet.y).abs() <= 0.2)
                     .map(|b| {
-                        // [S6] The landing's speed, the least of the walk-offs at the walk's speeds ([`LANDING_WALKS_MPS`]):
-                        // a slower walk slides farther over the rim and may land a tick slower.
+                        // [S6] The landings, the least of the walk-offs at the walk's speeds ([`LANDING_WALKS_MPS`],
+                        // [`Landings::least`]): a slower walk slides farther over the rim and may land a tick slower.
                         let slow = LANDING_WALKS_MPS
                             .into_iter()
                             .filter_map(|v| match walk_drop_as(world, s, start, Stance::Standing, v, from, to) {
                                 DropWalk::LandsAt(_, slower) => Some(slower),
                                 _ => None,
                             })
-                            .fold(speed, f32::min);
+                            .fold(landings, Landings::least);
                         (self.position(b), slow)
                     }),
                 _ => None,
             }
         });
-        let mut drops: Vec<(Vec3, Vec3, f32)> = Vec::new();
+        let mut drops: Vec<(Vec3, Vec3, Landings)> = Vec::new();
         for (&(a, _), to) in ways.iter().zip(lands) {
-            if let Some((to, speed)) = to {
+            if let Some((to, landings)) = to {
                 let from = self.position(a as NodeId);
                 match drops.iter_mut().find(|(f, t, _)| *f == from && *t == to) {
-                    Some(drop) => drop.2 = drop.2.min(speed),
-                    None => drops.push((from, to, speed)),
+                    Some(drop) => drop.2 = drop.2.least(landings),
+                    None => drops.push((from, to, landings)),
                 }
             }
         }
@@ -311,13 +376,14 @@ impl WalkGrid {
     /// body gets to from `seeds` or `spawns` over `wide`'s links and has no link to the landing yet. Returns the drops not made
     /// for an unreached take-off: a drop out of a region no body gets into would make the region lead in, and the build would
     /// keep it (School: 12,862 falls of 10 m or more off roofs, 976,594 roof floors kept).
-    pub(super) fn add_unheld_drops(&self, wide: &mut Wide, drops: &[(Vec3, Vec3, f32)], seeds: &[Vec3], spawns: &[Vec3]) -> usize {
+    pub(super) fn add_unheld_drops(&self, wide: &mut Wide, drops: &[(Vec3, Vec3, Landings)], seeds: &[Vec3], spawns: &[Vec3]) -> usize {
         if drops.is_empty() {
             return 0;
         }
         let reached = self.reached_floors(wide, seeds, spawns);
         let mut unreached = 0;
-        for &(from, to, speed) in drops {
+        let mut made: std::collections::HashSet<(NodeId, NodeId)> = std::collections::HashSet::new();
+        for &(from, to, landings) in drops {
             let (Some(a), Some(b)) = (self.locate_within(from, 0.01, 0.01), self.locate_within(to, 0.01, 0.01)) else { continue };
             if !reached[a as usize] {
                 unreached += 1;
@@ -327,13 +393,15 @@ impl WalkGrid {
                 continue;
             }
             wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: super::gap::Aim::STRAIGHT });
-            // [S6] Its landing's speed, for the search's fall gate ([`WalkGrid::drop_landing_speed`]).
-            wide.drop_speed.push((a, b, LandingSpeed::of_mps(speed)));
+            // [S6] Its landings, for the search's fall gate ([`WalkGrid::drop_landings`]): one row, two when a second hurts. A
+            // drop made twice keeps its first rows.
+            if made.insert((a, b)) {
+                wide.drop_speed.extend(landings.rows().map(|v| (a, b, v)));
+            }
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
         wide.off.dedup_by_key(|l| (l.from, l.to));
-        wide.drop_speed.sort_by_key(|&(a, b, _)| (a, b));
-        wide.drop_speed.dedup_by_key(|&mut (a, b, _)| (a, b));
+        wide.drop_speed.sort_by_key(|&(a, b, v)| (a, b, v.centimetres()));
         unreached
     }
 }
@@ -341,6 +409,28 @@ impl WalkGrid {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [S6] A walk's landings: the hardest is kept, a second that hurts is kept beside it and its pain added, a harmless one
+    /// adds nothing; the least of two walks is the one with the smaller summed hit; the stored rows give the landings back
+    /// (rounded down to the cm/s).
+    #[test]
+    fn a_second_hurting_landing_adds_its_pain() {
+        let (soft, hard, harder) = (3.0f32, walk_off_landing_speed(6.0), walk_off_landing_speed(8.0));
+        assert!(!landing_hurts(soft) && landing_hurts(hard) && landing_hurts(harder));
+        let one = Landings::NONE.and(soft).and(harder);
+        assert_eq!(one, Landings { most: harder, also: None }, "a harmless landing is not kept");
+        let two = Landings::NONE.and(hard).and(harder).and(soft);
+        assert_eq!(two, Landings { most: harder, also: Some(hard) });
+        assert!((two.pain(1.0) - (landing_pain(harder, 1.0) + landing_pain(hard, 1.0))).abs() < 1e-6);
+        assert!(two.pain(1.0) > one.pain(1.0));
+        assert_eq!(one.least(two), one);
+        assert_eq!(two.least(one), one);
+        let back = Landings::of_rows(two.rows()).expect("rows");
+        assert!(back.most <= two.most && two.most - back.most < 0.01, "{back:?}");
+        assert!(back.also.is_some_and(|v| v <= hard && hard - v < 0.01), "{back:?}");
+        assert_eq!(Landings::of_rows(one.rows()).map(|l| l.also), Some(None));
+        assert_eq!(Landings::of_rows(std::iter::empty()), None);
+    }
 
     /// [S6] The walk-off fall by the client's whole ticks lands as the note's tick table has it (`docs/notes/fall_damage.md`
     /// "Walking or sprinting off": 4 m 8.8 m/s 0; 6 m 10.8, 0.21; 8 m 12.7, 0.69; 10 m 14.2, 1.0). Counted from the rim's

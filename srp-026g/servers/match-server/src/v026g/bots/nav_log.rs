@@ -509,7 +509,10 @@ pub fn carrier_escape_line(feet: Vec3, exits: usize) -> String {
 pub fn fall_closed_line(grid: &mapdata::WalkGrid, closed: &mapdata::FallClosed) -> String {
     let start = match closed.start {
         mapdata::FallStart::WalkOff => "walked off".to_string(),
-        mapdata::FallStart::Landed(speed) => format!("walked off, landing at {speed:.2} m/s as the build walked it"),
+        mapdata::FallStart::Landed(landings) => match landings.also {
+            None => format!("walked off, landing at {:.2} m/s as the build walked it", landings.most),
+            Some(also) => format!("walked off, landing at {:.2} m/s and again at {also:.2} m/s as the build walked it", landings.most),
+        },
         mapdata::FallStart::Short => "a short jump".to_string(),
         mapdata::FallStart::Sprint => "a sprint jump".to_string(),
     };
