@@ -1509,15 +1509,22 @@ impl BodyTrack {
 
     /// [A318] The client's jump a world at `time` with its feet at `feet` and its yaw `yaw` is in ([`Kinematics::jump_arc`]): the last press at
     /// or before it, uncrouched, whose clip has not ended; the press's speed as the ticks show it (forward held long enough for
-    /// the walk cap). [Gap 10] `accepted`: the world's selector is in the jump, so the client took the last press whatever the
-    /// reckoning's own gates said (the crouch, its jump gate).
+    /// the walk cap). [Gap 10] `accepted`: the world's selector is in the jump, so the client took the last JUMP hold whatever the
+    /// reckoning's own jump gate said. Its gate is level on the key, not an edge (0x2FC230 tests the current actions' JUMP bit), and
+    /// the crouch states have no jump test (the crouch tests come first in the still, walk and sprint lists; the crouch lists have
+    /// none: the exe review of #1979), so a hold is taken no earlier than its first tick with CROUCH up: that tick starts the jump.
     fn arc_at(&self, time: u32, feet: Vec3, yaw: f32, world: Option<super::jump_arc::Clip>, accepted: bool) -> Option<JumpArc> {
         let mut held = false;
         let mut pressed = None;
         let mut forward = 0u32;
+        let mut taken = false;
         for tick in self.ticks.iter().take_while(|tick| tick.time <= time) {
             let jump = tick.keys & key::JUMP != 0;
-            if jump && !held && (accepted || (tick.keys & key::CROUCH == 0 && tick.jump == JumpGate::Open)) {
+            let uncrouched = tick.keys & key::CROUCH == 0;
+            taken &= jump;
+            let starts = if accepted { jump && !taken && uncrouched } else { jump && !held && uncrouched && tick.jump == JumpGate::Open };
+            if starts {
+                taken = true;
                 // [A364 P6] The press's walk: the walk cap along the view once forward was held long enough (a world's body mid-jump
                 // shows no walk vector), else at rest.
                 let speed = if forward >= MOVING_TICKS { WALK_CAP_MS } else { 0.0 };
