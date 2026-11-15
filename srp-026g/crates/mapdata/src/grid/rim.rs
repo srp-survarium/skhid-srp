@@ -86,8 +86,8 @@ pub struct RimStats {
     pub aimed_made: usize,
     /// … in this many flights (in [`Self::flights`] too).
     pub aimed_flights: usize,
-    /// [item 10] Rim jumps the aimed presses did not make either, where a let-go sprint flight came to rest on the ground under
-    /// the top ([`AimedSweep::under`]), flown again with the forward key held after the landing ([`Kind::SprintHeld`] at
+    /// [item 10] Rim jumps the aimed presses did not make either, where a let-go sprint flight of the line's or the aimed presses
+    /// came to rest on the ground under the top ([`RimPress::under`], [`AimedSweep::under`]), flown again with the forward key held after the landing ([`Kind::SprintHeld`] at
     /// [`HELD_LEADS`], straight and at each of [`AIMS`]) …
     pub held_tried: usize,
     /// … made by one …
@@ -382,7 +382,7 @@ impl WalkGrid {
     /// [item 10] The best held sprint from `a` toward `b` along `way` ([`Kind::SprintHeld`]: the forward key held
     /// [`jump::HELD_STEPS`] ground steps after the landing, then let go) at [`HELD_LEADS`], on the line and at each of [`AIMS`]
     /// ([`Self::best_press_with`]), the best share, the first on a tie; with the flights flown. For the rim jumps neither the
-    /// line's presses nor the aimed ones make, where a let-go sprint came to rest under the top ([`AimedSweep::under`]).
+    /// line's presses nor the aimed ones make, where a let-go sprint of either came to rest under the top ([`RimPress::under`]).
     #[allow(clippy::too_many_arguments)]
     pub(super) fn best_held(
         &self,
@@ -707,14 +707,17 @@ impl WalkGrid {
         });
         // [R83] The aimed presses (`R83-FORMAT.md`, the bounded sweep): at the jumps no press on the line made, one of whose
         // flights came near the top, the walk and the sprint at [`AIMED_LEADS`] at each of [`AIMS`]; the best share wins.
-        let near: Vec<((u32, u32, usize), bool)> = todo
+        // [item 10] With whether a let-go sprint of the line's presses came to rest under the top (the held sweep's bound with
+        // the aimed sweep's: Rudnya day 2's rest is the line's sprint at 1.6 m, a lead the aimed sweep does not fly; owner-5
+        // `owner-5-pr1980-review-20261115.md` §3).
+        let near: Vec<((u32, u32, usize), bool, bool)> = todo
             .iter()
             .zip(&flown)
             .zip(&plain)
             .filter(|((_, p), _)| p.made.is_empty() && p.near)
-            .map(|((&t, _), &plain)| (t, plain))
+            .map(|((&t, p), &plain)| (t, plain, p.under))
             .collect();
-        let aimed = super::controlled::parallel(&near, |&((a, b, d), plain)| {
+        let aimed = super::controlled::parallel(&near, |&((a, b, d), plain, line_under)| {
             // [C2 rows 11/12] As in the flights above: a plain Jump link's own top is no link yet.
             let mut linked = linked(a);
             if plain {
@@ -724,14 +727,14 @@ impl WalkGrid {
             let sweep = self.best_aimed(world, s, a, b, way(d), &lands, kits);
             // [item 10] Neither the line's presses nor the aimed ones made it, and a let-go sprint came to rest under the top:
             // the held sprints (`Kind::SprintHeld`).
-            let held = (sweep.made.is_none() && sweep.under).then(|| self.best_held(world, s, a, b, way(d), &lands, kits));
+            let held = (sweep.made.is_none() && (line_under || sweep.under)).then(|| self.best_held(world, s, a, b, way(d), &lands, kits));
             (sweep, held)
         });
         let mut stats = RimStats { tried: todo.len(), aimed_tried: near.len(), ..RimStats::default() };
         let aimed_of: std::collections::HashMap<(u32, u32), Made> = near
             .iter()
             .zip(&aimed)
-            .filter_map(|(&((a, b, _), _), (sweep, held))| sweep.made.or(held.and_then(|(m, _)| m)).map(|m| ((a, b), m)))
+            .filter_map(|(&((a, b, _), _, _), (sweep, held))| sweep.made.or(held.and_then(|(m, _)| m)).map(|m| ((a, b), m)))
             .collect();
         stats.aimed_made = aimed.iter().filter(|(sweep, _)| sweep.made.is_some()).count();
         stats.aimed_flights = aimed.iter().map(|(sweep, _)| sweep.flights).sum();
