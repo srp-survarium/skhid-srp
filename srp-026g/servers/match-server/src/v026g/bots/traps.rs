@@ -766,9 +766,7 @@ pub fn approach_points(tactics: &super::tactics::Tactics, home: Vec3, spot: Vec3
     points
 }
 
-/// [A324] The eye of a camper on his spot, for the "out of his sight" test (a standing eye: `view::eye_height`).
-const CAMPER_EYE_M: f32 = 1.6;
-/// [A324] ... and the part of a placer it would see: a crouched body's chest.
+/// [A324] The part of a placer a camper on his spot would see: a crouched body's chest.
 const PLACER_CHEST_M: f32 = 0.9;
 
 /// [A324] The team's camper trap jobs at a commander tick (`TrapTuning::camper_job`): `held` the team's held spots, `job_spots`
@@ -828,7 +826,8 @@ pub(super) fn camper_tick(
             continue;
         }
         let home = homes.iter().copied().min_by(|a, b| a.distance_xz(line.at).total_cmp(&b.distance_xz(line.at)));
-        let eye = line.at + Vec3::new(0.0, CAMPER_EYE_M, 0.0);
+        // [A324] The camper's eye on his spot, for the "out of his sight" test: a lane's camper's (`lane_ahead::camper_eye`).
+        let eye = super::lane_ahead::camper_eye(line.at);
         let point = home.map(|home| approach_points(tactics, home, line.at, &j, now)).unwrap_or_default().into_iter().find(|p| {
             !tactics.in_spawn_area(*p, side) && !super::rays::visible(&tactics.world.sight, eye, *p + Vec3::new(0.0, PLACER_CHEST_M, 0.0))
         });

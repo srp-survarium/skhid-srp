@@ -567,9 +567,9 @@ fn threat_tick(
     let planning = view.smoke.planning(now, team, super::smoke::Forming::of(&tuning.smoke));
     let mut regions = if tuning.smoke.spot_rules && !planning.is_empty() {
         let (grid, map) = (&tactics.world.grid, tactics.regions());
-        let (eye, chest) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.3, 0.0));
+        let chest = Vec3::new(0.0, 1.3, 0.0);
         let (covered, opened) = threat.spots.covered_regions_smoked(now, threat::KeptOut::All, |at, r| {
-            planning.covers(now, &tuning.smoke, at + eye, grid.position(map.middle(r)) + chest)
+            planning.covers(now, &tuning.smoke, super::lane_ahead::camper_eye(at), grid.position(map.middle(r)) + chest)
         });
         // The regions opened are counted by the bench only (crossings under a cloud).
         #[cfg(test)]
@@ -585,9 +585,9 @@ fn threat_tick(
         #[cfg(test)]
         if !planning.is_empty() {
             let (grid, map) = (&tactics.world.grid, tactics.regions());
-            let (eye, chest) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.3, 0.0));
+            let chest = Vec3::new(0.0, 1.3, 0.0);
             let (_, opened) = threat.spots.covered_regions_smoked(now, threat::KeptOut::All, |at, r| {
-                planning.covers(now, &tuning.smoke, at + eye, grid.position(map.middle(r)) + chest)
+                planning.covers(now, &tuning.smoke, super::lane_ahead::camper_eye(at), grid.position(map.middle(r)) + chest)
             });
             if !opened.is_empty() {
                 under_cloud(bots, team, grid, map, &opened, tuning, now);
@@ -602,9 +602,9 @@ fn threat_tick(
     let kills_regions = kept.any_kills_only().then(|| {
         let mut r = if tuning.smoke.spot_rules && !planning.is_empty() {
             let (grid, map) = (&tactics.world.grid, tactics.regions());
-            let (eye, chest) = (Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.3, 0.0));
+            let chest = Vec3::new(0.0, 1.3, 0.0);
             threat.spots.covered_regions_smoked(now, threat::KeptOut::KillsOnly, |at, r| {
-                planning.covers(now, &tuning.smoke, at + eye, grid.position(map.middle(r)) + chest)
+                planning.covers(now, &tuning.smoke, super::lane_ahead::camper_eye(at), grid.position(map.middle(r)) + chest)
             }).0
         } else {
             threat.spots.covered_regions_kept(now, threat::KeptOut::KillsOnly)

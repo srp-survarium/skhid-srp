@@ -36,8 +36,6 @@ const POST_SEARCH_M: f32 = 16.0;
 /// ... at these distances from him, metres, in this many directions.
 const POST_RINGS_M: [f32; 5] = [3.0, 5.0, 8.0, 12.0, POST_SEARCH_M];
 const POST_DIRECTIONS: usize = 16;
-/// The height of an eye over the feet for the post's sight line, metres (a standing body's).
-const POST_EYE_M: f32 = 1.5;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // The post ahead of him on his way home, metres, drawn per run.
@@ -139,10 +137,12 @@ impl Ctx<'_> {
 }
 
 /// The dry floor nearest `target` within [`POST_SEARCH_M`] of `from` that a walk reaches (`walkable`, past the zones on
-/// all match: a dry island in a swamp is none) and from which the carrier at `from` is seen.
+/// all match: a dry island in a swamp is none) and from which the carrier at `from` is seen: eye to eye, both standing and
+/// holding still ([`still_eye`], the game's bullet origin, 1.46 m measured; the post is kept by the carrier's floor, not his
+/// stance; was a guessed 1.5 m).
 fn ring_post(tactics: &Tactics, from: Vec3, target: Vec3, now: u32, side: Option<i32>) -> Option<Vec3> {
+    use crate::v026g::bots::view::still_eye;
     let grid = &tactics.world.grid;
-    let eye = Vec3::new(0.0, POST_EYE_M, 0.0);
     POST_RINGS_M
         .iter()
         .flat_map(|&r| {
@@ -157,7 +157,7 @@ fn ring_post(tactics: &Tactics, from: Vec3, target: Vec3, now: u32, side: Option
             tactics.fine_goal(p, now, side)
                 && tactics.past_fixed_zones(node)
                 && (p.y - from.y).abs() < 3.0
-                && tactics.sees(p + eye, from + eye)
+                && tactics.sees(still_eye(p, false), still_eye(from, false))
         })
         .map(|node| grid.position(node))
         .min_by(|a, b| a.distance_xz(target).total_cmp(&b.distance_xz(target)))

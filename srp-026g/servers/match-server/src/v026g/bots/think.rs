@@ -699,7 +699,8 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         smoke::tally::add(bot.team, smoke::tally::Event::OutrangedAny);
     }
     let grenade = smoke::SmokeGrenade::RDG_M;
-    let eye_over = Vec3::new(0.0, 1.6, 0.0);
+    // A held lane's shooter sees from a camper's eye on his spot (`lane_ahead::camper_eye`: the body's own, standing).
+    let camper_eye = super::lane_ahead::camper_eye;
     let chest_over = Vec3::new(0.0, 1.3, 0.0);
     // The first point of its route within `lane_ahead_m` that `exposed` holds for (2 m steps), and how far on.
     let crossing_of = |exposed: &dyn Fn(Vec3) -> bool| -> Option<(f32, Vec3)> {
@@ -748,13 +749,13 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
                 .lanes
                 .iter()
                 .filter(|l| l.sensed.is_some_and(now_there) && l.at.distance_xz(crossing) <= l.reach_m)
-                .filter(|l| tactics.sees(l.at + eye_over, chest))
+                .filter(|l| tactics.sees(camper_eye(l.at), chest))
                 .min_by(|a, b| a.at.distance_xz(crossing).total_cmp(&b.at.distance_xz(crossing)));
             if let Some(held) = held
-                && planning.covers(view.clock, t, held.at + eye_over, chest)
-                && !veil.hides(held.at + eye_over, chest)
+                && planning.covers(view.clock, t, camper_eye(held.at), chest)
+                && !veil.hides(camper_eye(held.at), chest)
             {
-                let line = smoke::SmokeLine { eye: held.at + eye_over, target: chest, crossing };
+                let line = smoke::SmokeLine { eye: camper_eye(held.at), target: chest, crossing };
                 let hold = hold_short(crossing_s, &exposed);
                 if let Some(w) = smoke::CloudWait::of(t, &grenade, line, Some(held.shooter), smoke::WaitsFor::Mates, hold)
                     && bot.reflex.hold_for_cloud(w, me, now)
@@ -877,7 +878,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         // standing guess. With a flat 1.6 m (over the game's 1.46 m standing, 1.04 m crouched) 13 of 40 smokes were thrown onto
         // crossings he had no line on (`h2h-sniper-vs-off-20261030T0220`, the throw classes).
         let seen_crouched = view.place(who).is_some_and(|him| him.crouched());
-        let up = view.place(who).map_or(eye_over.y, |_| super::view::eye_height(seen_crouched, 0.0, 0.0));
+        let up = view.place(who).map_or(super::view::eye_height(false, 0.0, 0.0), |_| super::view::eye_height(seen_crouched, 0.0, 0.0));
         let eye = at + Vec3::new(0.0, up, 0.0);
         // Where he is is known to a few decimetres (the sensing's lag and the view's), and a crossing seen through a sliver
         // from one point is not his: it is his when he sees it from every eye of that spread (`sniper_eye_spread_m` to either
@@ -924,7 +925,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         plan_line(&eyes, crossing_s, crossing, SmokeUse::AntiSniper).map(|(plan, stretch)| {
             let why = format!(
                 "player {who}, a sniper at ({:.1}, {:.1}, {:.1}) out of its reach, crossing at ({:.1}, {:.1}, {:.1})",
-                eye.x, eye.y - eye_over.y, eye.z, crossing.x, crossing.y, crossing.z
+                eye.x, eye.y - super::view::eye_height(false, 0.0, 0.0), eye.z, crossing.x, crossing.y, crossing.z
             );
             // [A208] Short of it where none of his eyes sees the chest.
             let hold = t.wait_for_cloud.map(|_| hold_short(crossing_s, &|p| eyes.iter().any(|&e| tactics.sees(e, p + chest_over))));
@@ -973,7 +974,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         if ahead.in_line || ahead.crossing_s - start < lead_m {
             return None;
         }
-        let eye = ahead.lane.at + Vec3::new(0.0, super::lane_ahead::EYE_M, 0.0);
+        let eye = super::lane_ahead::camper_eye(ahead.lane.at);
         let crossing = ahead.crossing;
         if smoke_there(eye, crossing + chest_over) || !open_from(&[eye], ahead.crossing_s) {
             return None;
@@ -1016,15 +1017,15 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             .lanes
             .iter()
             .filter(|l| l.sensed.is_some_and(now_there) && l.at.distance_xz(crossing) <= l.reach_m)
-            .filter(|l| tactics.sees(l.at + eye_over, chest))
+            .filter(|l| tactics.sees(camper_eye(l.at), chest))
             .min_by(|a, b| a.at.distance_xz(crossing).total_cmp(&b.at.distance_xz(crossing)))?;
         // A lane a cloud already covers (a mate's smoke, in plain sight) needs no second one.
-        if smoke_there(held.at + eye_over, chest) {
+        if smoke_there(camper_eye(held.at), chest) {
             return None;
         }
         // [A291 `smoke.objective`] A route that ends in the lane (its goal: it stops there in his sight) is smoked though the
         // stretch after the crossing is short: the objective smoke.
-        let for_use = if open_from(&[held.at + eye_over], crossing_s) {
+        let for_use = if open_from(&[camper_eye(held.at)], crossing_s) {
             SmokeUse::CrossLane
         } else if t.objective.is_some()
             && bot.route.as_ref().is_some_and(|(route, _)| {
@@ -1035,14 +1036,14 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         } else {
             return None;
         };
-        plan_line(&[held.at + eye_over], crossing_s, crossing, for_use).map(|(plan, stretch)| {
+        plan_line(&[camper_eye(held.at)], crossing_s, crossing, for_use).map(|(plan, stretch)| {
             let why = format!(
                 "the lane of player {} at ({:.1}, {:.1}, {:.1}), crossing at ({:.1}, {:.1}, {:.1})",
                 held.shooter, held.at.x, held.at.y, held.at.z, crossing.x, crossing.y, crossing.z
             );
             // [A208] Short of it, out of the held lanes.
             let hold = t.wait_for_cloud.map(|_| hold_short(crossing_s, &|p| bot.smoke_threat.exposed_at(grid, p)));
-            (plan, why, held.at + eye_over, hold, Some(held.shooter), stretch)
+            (plan, why, camper_eye(held.at), hold, Some(held.shooter), stretch)
         })
     };
     // [A291 `smoke.objective`] Our carrier near: the first held lane on his way home (a carrier cannot throw), its cloud
@@ -1075,9 +1076,9 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             .lanes
             .iter()
             .filter(|l| l.sensed.is_some_and(now_there) && l.at.distance_xz(crossing) <= l.reach_m)
-            .filter(|l| tactics.sees(l.at + eye_over, chest))
+            .filter(|l| tactics.sees(camper_eye(l.at), chest))
             .min_by(|a, b| a.at.distance_xz(crossing).total_cmp(&b.at.distance_xz(crossing)))?;
-        let eye = held.at + eye_over;
+        let eye = camper_eye(held.at);
         if smoke_there(eye, chest) {
             return None;
         }
