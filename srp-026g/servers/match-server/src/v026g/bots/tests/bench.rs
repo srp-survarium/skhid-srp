@@ -1339,7 +1339,7 @@ pub(crate) fn real_bot_cost() {
             let camper_options = camper::CamperOptions::from_env();
             let camper_aim = bench_settings().var("SRP_BENCH_CAMPER_AIM").ok();
             let mut camper_plays_by = camper_tuning(camper_aim.as_deref()).unwrap_or_else(|e| panic!("{e}"));
-            // `SRP_BENCH_CAMPER_KIN=client`: he reckons his own body by the client's rules (`camper_client_kin.json`).
+            // `SRP_BENCH_CAMPER_KIN=client`: he reckons his own body by the build's kin defaults as written (`camper_client_kin.json`).
             let camper_kin = bench_settings().var("SRP_BENCH_CAMPER_KIN").ok();
             camper_plays_by.kin = CamperKin::parse(camper_kin.as_deref()).unwrap_or_else(|e| panic!("{e}")).kin();
             let camper_plays_by = Arc::new(camper_plays_by);
