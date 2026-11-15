@@ -110,17 +110,18 @@ that would differ stops the build), so it needs that pack beside it.
   shift by 4 (as `stalker-maps@6`'s six did); `artefact-keeper-1` gives the
   four TDM projects their Keeper pool (Free for All's copies take it);
   `simulation_changes.tsv` has the `next` row.
-- Grass: X-Ray's detail objects on Dark Valley (55,959 tufts at `density`
-  0.5; 142,346 at the level's 0.3), Vehicle Station (71,179) and Fire Station
-  (49,767 at `density` 1.0; 384,112 at the level's); Sports Center's level
-  has none. The client cooks a map's grass on the resource thread with
-  count x 20 bytes of stack (`grass_cook::on_layers_loaded` 0x12A820,
-  `_chkstk` from 0x12AC7E), and patch 128 gives that thread 2 MiB
-  (`THREAD_STACKS`, 0xE37BA): with 142,346 and 147,551 tufts the rev59
-  client died loading Dark Valley and Fire Station (`STACK_OVERFLOW`, 3 of
-  3; reports in `/mnt/hdd/Projects/stalker-maps-026/previews-maps2/crashes/`),
-  hence the thinner grass (at most 71,179, 1.4 MB: pack @2; @1, never released, had them all). Experimental Pool's
-  125,844 (2.5 MB) is over that line too: to check on the live client.
+- Grass: X-Ray's detail objects at the level's density (0.3 m) on Dark
+  Valley (142,346 placed), Vehicle Station (71,179) and Fire Station
+  (384,112); Sports Center's level has none. The client cooks a map's grass on
+  the resource thread with 16 bytes of stack an instance
+  (`grass_cook::on_layers_loaded` 0x12A820, `_chkstk` from 0x12AC7E), and
+  patch 128 gives that thread 2 MiB (`THREAD_STACKS`, 0xE37BA): with 142,346
+  and 147,551 tufts the rev59 client died loading Dark Valley and Fire Station
+  (`STACK_OVERFLOW`, 3 of 3; reports in
+  `/mnt/hdd/Projects/stalker-maps-026/previews-maps2/crashes/`). @2 thinned
+  them by hand (`density` 0.5 and 1.0: 55,959 and 49,767); since @3 the
+  importer thins every map to 120,000 ("One pipeline", below): Dark Valley and
+  Fire Station 120,000 each.
 - Static render geometry (`geometry.py`): Dark Valley 16.3 MiB, Vehicle
   Station 22.9, Fire Station 11.8, Sports Center 9.2 (native maps 43-48,
   the vertex pool 88 MB). Collision 194,093, 312,969, 190,097 and 88,835
@@ -198,15 +199,9 @@ appended (the manifest's state before the list).
 
 ### Not done for them yet
 
-- What the six maps' later lists gave the played three, these four do not
-  have (their environments are the old builds', as the six's were): film
-  grain 0.08 at 2 (`ported-maps-grain-1`: 0.02 at 1), god rays 1.0 at 1.0 and
-  flares x2 (`stalker-maps-sun-1`: 0.2 at 3.0, x0.7), `ao_saturation` 2
-  (`stalker-maps-ao-1`: 1), the grass material's gloss
-  (`stalker-grass-matte-1`: Dark Valley, Vehicle Station, Fire Station) and
-  the bushes' rustle (`stalker-bushes`, made from `stalker-maps@6` only: a
-  row each of `make_pack.py`'s `MAPS` and a pack of their leaves). Each is a
-  row more in that list or script.
+- What the six maps' later lists gave the played three (stock day grain, the
+  0.11e sun, `ao_saturation` 1, matte grass, the bushes' rustle) the four
+  have from the port since `stalker-maps-2@3` ("One pipeline", below).
 - Loading pictures: frames of the game, headless at 2560 x 1440, highest
   settings, hfov 100 (Dark Valley `sw-high` (200, 28, -262) yaw 55.2 pitch
   -15.7; Vehicle Station `e-high` (196, 18, -27) -90 / -20.7; Fire Station
@@ -341,9 +336,14 @@ and no step names a map. `stalker-maps@7` and `stalker-maps-2@3` are built so
   one camouflage net on Station: left as they are. resource-porter's
   `tools/playable-map-pack/gloss_check.py`, run by `build-pack.sh` on every
   build, lists them and stops a build where any other material is over 0.3.
-- Dark Valley's white plane in `n-yard` and `ne-yard` (2026-11-14 captures):
-  those poses stand at y 1.7, under the ground there (10.17 and 4.91 by the
-  collision): the camera was inside the level, not over a glossy floor.
+- Dark Valley's white planes in `n-yard` and `ne-yard` (2026-11-14 captures)
+  are the level seen from under it, not a glossy floor: those poses stand at
+  y 1.7, where the collision's top is 10.17 and 4.91 (`ne-yard`'s concrete
+  platform, and the terrain under it, `shader_0166` / `shader_0020`, terrain
+  materials without a gloss map). The same pose 1.7 m over that floor
+  (`ne-yard-ground`, 6.6) shows the platform's concrete as it should
+  (`private/renders/stalker-ground/`). The floor `shader_0119`
+  (`floor_dirty_gr`, gloss map `concrete_01_spec`, 0..1) has gloss 0.007.
 - Station and Depository are built again from their level folders too: the
   community downloads (`mp_station.rar`, `mp_depository.zip`, X-Ray `.xdb0`
   archives) unpacked give exactly the files of resource-porter's
