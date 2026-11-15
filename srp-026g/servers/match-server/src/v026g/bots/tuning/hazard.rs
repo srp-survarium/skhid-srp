@@ -36,7 +36,7 @@ pub struct HazardTuning {
     /// [A395a] The other half of the client's rule (`hazards::CapsuleUse::Exits`): the walk out of a zone
     /// (`Tactics::zone_exit`) starts only on the floors the capsule touches ([`Self::capsule_goals`] says which); from
     /// the band a body leaves over floors it may stand on, never one the zone hurts. A recorded match had 74 of 84
-    /// walk-outs start on such dry floors, 10 of them into the zone. On by default: benched apart from the goals' half
+    /// walk-outs start on such dry floors, 10 of them into the zone. ON and KEPT_RIGHT: benched apart from the goals' half
     /// (2026-11-14), its walk-outs from dry floors went 140 -> 0 on Rudnya, Mamayev Kurgan and Vector Laboratory; its
     /// extra seconds on hurt floors there were the walk out's held route across the zone, which both rules had
     /// (`Tactics::route_shut_ahead`, fixed with it): per exit the same, 16 % of band exits and 17 % of walk-outs
