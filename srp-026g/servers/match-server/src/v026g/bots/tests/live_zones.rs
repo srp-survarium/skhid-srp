@@ -24,6 +24,7 @@ fn field(id: u32, x: f32, z: f32, radius: f32, phase: FieldPhase) -> WorldField 
             half: Vec3::new(radius, 2.0, radius),
         },
         phase,
+        hit_per_s: crate::v026g::bots::tests::standin_fields::STANDIN_HIT_PER_S,
     }
 }
 
@@ -314,6 +315,8 @@ fn the_timed_core_of_a_world_is_a_field_that_follows_its_states() {
     assert_eq!(charging[0].id, FieldId(1));
     assert_eq!(charging[0].kind, FieldKind::Spring, "the zone's damage type");
     assert_eq!(charging[0].phase, FieldPhase::Charging { damage_from: 60_000 });
+    let zone_rate = world.map.zones.iter().find(|z| z.name == "damage").and_then(|z| z.damage.as_ref()).unwrap().rate_per_s();
+    assert_eq!(charging[0].hit_per_s, zone_rate, "the damage zone's own rate, read from the map");
     assert!(hazards.set_fields(&charging, &world.grid, 40_000));
     assert!(hazards.allowed(inside, 41_000) && !hazards.allowed(inside, 57_000));
     // Run on to the first tick past 60 s: the simulation follows the state chain to the damage state.
