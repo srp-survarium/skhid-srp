@@ -219,3 +219,26 @@ pub fn walk_order_then_again(boxes: &[Option<(V3, V3)>], again: &[usize]) -> Vec
     }
     tree.offering_order()
 }
+
+/// WIP experiment (not for a PR): one object per step, and object `again` reinserted once more right after object `at` comes in.
+pub fn walk_order_again_at(boxes: &[Option<(V3, V3)>], again: usize, at: usize) -> Vec<u32> {
+    let widened = |b: (V3, V3)| {
+        let proxy = Volume::of(b.0.map(|v| v - CONTACT_THRESHOLD), b.1.map(|v| v + CONTACT_THRESHOLD));
+        Volume::of([0, 1, 2].map(|k| proxy.mi[k] - DBVT_MARGIN), [0, 1, 2].map(|k| proxy.mx[k] + DBVT_MARGIN))
+    };
+    let mut tree = Dbvt::default();
+    let mut leaf_of = vec![None; boxes.len()];
+    for (i, b) in boxes.iter().enumerate() {
+        if let Some(b) = *b {
+            let leaf = tree.insert(Volume::of(b.0, b.1), i as u32);
+            tree.update(leaf, widened(b));
+            leaf_of[i] = Some(leaf);
+        }
+        if i == at
+            && let (Some(leaf), Some(b)) = (leaf_of[again], boxes[again])
+        {
+            tree.update(leaf, widened(b));
+        }
+    }
+    tree.offering_order()
+}
