@@ -545,6 +545,47 @@ pub enum Kind {
     Climb,
     /// The sprint jump from the sprint, all its variants ([`sprint_variants`]).
     Sprint,
+    /// [item 10] [`Self::Sprint`] with the forward key held on [`HELD_STEPS`] ground steps after the landing, then let go
+    /// ([`held_flight`]).
+    SprintHeld,
+}
+
+/// [item 10] The ground steps a held sprint ([`Kind::SprintHeld`]) keeps the forward key down after its landing: owner-5's
+/// flights of Rudnya day 2's top (`owner-5-item10-old-runup-edges-20261115.md` §2: the sprint comes down 0.25 m under the top and
+/// three held steps walk it up; let go at the landing, 1 to 3 of the six variants get there).
+pub const HELD_STEPS: u32 = 3;
+
+/// [item 10] A held sprint's flight from the body `b` at the press ([`fly_as`]'s loop, the keys as [`Keys::BOT`] to the end of
+/// the held steps): the jump; [`HELD_STEPS`] ground steps with the key held (a sprint jump's at the walk cap, the sprint flag
+/// being down through its landing, owner-5 `owner-5-sprint-after-landing-20261115.md` §1; a short jump's walk going back up to
+/// the cap over 6 steps); then the key let go, the last held step's speed run down over 6 steps and one step at rest
+/// ([`STAY_STEPS`], as a let-go flight's from its landing).
+pub fn held_flight(world: &Collision, s: &Settings, b: &mut Controller, heading: (f32, f32), press: Press, flight: Flight) -> Vec<FlightStep> {
+    let cap = flight.cap;
+    let mut flying = Flying::new(press, flight);
+    let landing = press.landing_n();
+    let mut steps = Vec::with_capacity((landing + HELD_STEPS + STAY_STEPS) as usize + 1);
+    let air = Flying::air_of(press, 1, 0);
+    while !flying.landed() {
+        steps.push(flying.step(world, s, b, heading, air));
+    }
+    let last_travel = flying.last_travel();
+    let way = Vec3::new(heading.0, 0.0, heading.1);
+    let mut held = last_travel;
+    for m in 1..=HELD_STEPS {
+        held = match press {
+            Press::Sprint { .. } => cap,
+            Press::Walk { .. } => last_travel + (cap - last_travel) * (m.min(6) as f32 / 6.0),
+        };
+        walk_step(b, world, s, way * (held * DT), false);
+        steps.push(FlightStep { n: landing + m, feet: b.feet(), in_jump: b.jumping, on_ground: b.on_ground(s) });
+    }
+    for m in 1..=STAY_STEPS {
+        let speed = held * (1.0 - m.min(6) as f32 / 6.0);
+        walk_step(b, world, s, way * (speed * DT), false);
+        steps.push(FlightStep { n: landing + HELD_STEPS + m, feet: b.feet(), in_jump: b.jumping, on_ground: b.on_ground(s) });
+    }
+    steps
 }
 
 /// [A385] The neighbourhood's offsets (A385-FORMAT §2; the motor's measured spread, owner-5 §2.2): the lead earlier / later.
@@ -696,7 +737,7 @@ pub fn neighbour_flights(
             let RunUp { body: mut b, speed } = run_up_slow(world, s, at, heading, flight.cap, steps)?;
             Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, STAY_STEPS, flight)])
         }
-        Kind::Sprint => {
+        Kind::Sprint | Kind::SprintHeld => {
             let run = run_up(world, s, at, heading, flight.sprint_ms(), true)?;
             Some(
                 sprint_variants()
@@ -707,7 +748,11 @@ pub fn neighbour_flights(
                             Press::Walk { speed: run.speed }
                         };
                         let mut b = run.body;
-                        fly_as(world, s, &mut b, heading, press, STAY_KEYS, STAY_STEPS, flight)
+                        if kind == Kind::SprintHeld {
+                            held_flight(world, s, &mut b, heading, press, flight)
+                        } else {
+                            fly_as(world, s, &mut b, heading, press, STAY_KEYS, STAY_STEPS, flight)
+                        }
                     })
                     .collect(),
             )

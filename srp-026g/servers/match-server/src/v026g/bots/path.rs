@@ -117,6 +117,18 @@ pub struct SprintPress {
     pub walk: Option<GapPress>,
     /// [A386 R83/R94] Where the press is aimed off the link's line ([`PressAim`]).
     pub aim: PressAim,
+    /// [item 10] What the keys do once the jump has landed, as the grid flew it ([`AfterLanding`]).
+    pub after: AfterLanding,
+}
+
+/// [item 10] The keys after a sprint link's landing, as the grid flew it (`mapdata::controller::jump::Kind::SprintHeld`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AfterLanding {
+    /// Let go at the landing (A385-FORMAT §1 "stays"; `Takeoff::Sprint`).
+    LetGo,
+    /// The forward key held on this many ground steps after the landing, at the walk cap, then let go (`Takeoff::SprintHeld`,
+    /// `jump::HELD_STEPS`).
+    Held { steps: u32 },
 }
 
 /// [C2 riser] A route's Walk link up a riser ([`Route::riser_ahead`]): its top, its take-off, and [A386] how the grid flew its
@@ -202,6 +214,15 @@ impl Leap {
                 share,
                 walk: walk.map(|(lead, share)| GapPress { lead, walk: WalkPress::Cap, share, aim }),
                 aim,
+                after: AfterLanding::LetGo,
+            })),
+            // [item 10] The held sprint: the same jump, the forward key held on after the landing.
+            Takeoff::SprintHeld(lead) => Some(Leap::SprintGap(SprintPress {
+                lead,
+                share,
+                walk: walk.map(|(lead, share)| GapPress { lead, walk: WalkPress::Cap, share, aim }),
+                aim,
+                after: AfterLanding::Held { steps: mapdata::controller::jump::HELD_STEPS },
             })),
             // [S1] A sprint climb presses nothing: its top is a riser of the route (`Route::risers`), sprinted into.
             // [A1b] A walk-off at release presses nothing either: the route keeps it ([`Route::walk_off_at`]).
@@ -2238,8 +2259,14 @@ mod tests {
                 share: Share::landed(11),
                 walk: Some(GapPress { lead: walk, walk: WalkPress::Cap, share: Share::landed(4), aim: PressAim::STRAIGHT }),
                 aim: PressAim::STRAIGHT,
+                after: AfterLanding::LetGo,
             }))
         );
+        // [item 10] A held sprint: the same press, the forward key held on after the landing.
+        assert!(matches!(
+            Leap::of_link(&link(Takeoff::SprintHeld(lead), None)),
+            Some(Leap::SprintGap(SprintPress { after: AfterLanding::Held { steps: mapdata::controller::jump::HELD_STEPS }, .. }))
+        ));
         assert_eq!(Leap::of_link(&link(Takeoff::WalkOff, None)), None);
         // [A386 R83/R94] The link's aim is its press's, a sprint link's walking press's too (flown aimed by the builder).
         let aim = mapdata::grid::Aim::new(-6, 4).expect("within the record's steps");

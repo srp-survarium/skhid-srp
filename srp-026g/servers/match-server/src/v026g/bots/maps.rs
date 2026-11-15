@@ -703,7 +703,7 @@ fn build(
                         let rim = stats.rim;
                         log::info!(
                             "Bot map {} grid built in {:.1} s: aimed presses made {} of {} near misses tried, {} aimed flights of {} rim flights; \
-                             jumps the carry rule took away flown: {} made of {}",
+                             jumps the carry rule took away flown: {} made of {}; held sprints made {} of {} tried, {} held flights",
                             path.display(),
                             started.elapsed().as_secs_f32(),
                             rim.aimed_made,
@@ -711,8 +711,28 @@ fn build(
                             rim.aimed_flights,
                             rim.flights,
                             stats.carry_flown.walked + stats.carry_flown.sprinted + stats.carry_flown.slowed + stats.carry_flown.climbed,
-                            stats.carry_flown.tried
+                            stats.carry_flown.tried,
+                            rim.held_made,
+                            rim.held_tried,
+                            rim.held_flights
                         );
+                        // [item 10] Each held sprint built (`Takeoff::SprintHeld`: the forward key held on after the landing).
+                        for l in grid.off_links().iter().filter(|l| matches!(l.press, mapdata::grid::gap::Takeoff::SprintHeld(_))) {
+                            let (from, to) = (grid.position(l.from), grid.position(l.to));
+                            log::debug!(
+                                "Bot map {} held sprint built: ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2}), press {:?}, aim {:?}, share {:?}",
+                                path.display(),
+                                from.x,
+                                from.y,
+                                from.z,
+                                to.x,
+                                to.y,
+                                to.z,
+                                l.press,
+                                l.aim,
+                                l.share
+                            );
+                        }
                         grid
                     },
                     |grid, path| grid.write(path, grid_key),
