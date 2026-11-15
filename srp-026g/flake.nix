@@ -29,7 +29,7 @@
       # LLVM 23.1.0). It has the fix of rust-lang/rust#159035, an LLVM
       # load-combining miscompile of enum tags (out-of-bounds reads; LLVM fix
       # #159106 merged 489aa105d, the -1 None-tag revert #159047 merged
-      # 31e4b8481), first in nightly-2026-07-12; the nightly of 2026-05-29
+      # 31e4b8481), first in nightly-2026-07-12; nightly-2026-05-30 (rustc 6368fd52c, committed 2026-05-29)
       # before it segfaulted a bot test. 07-12 itself (LLVM 22.1.8) gave
       # bots::breach's plan another answer on a second identical call in
       # release only (debug, the old nightly and 08-15, 10-15, 11-15 agree;

@@ -1,6 +1,6 @@
 //! The toolchain's fix of rust-lang/rust#159035 (`flake.nix` pins nightly-2026-08-15; the fix came in 2026-07-12): LLVM combined loads of an enum's tag
 //! across a `None` whose tag is -1 into a read at an offset of 2^32 - 1, out of bounds (a segfault when unmapped, a wrong value
-//! when mapped). The nightly of 2026-05-29 before it segfaulted a bot test (`goals.rs`, a_wooden_crate_is_no_cover). This is
+//! when mapped). nightly-2026-05-30 before it (rustc 6368fd52c, committed 2026-05-29) segfaulted a bot test (`goals.rs`, a_wooden_crate_is_no_cover). This is
 //! rust-lang/rust's own regression test, `tests/ui/codegen/dont-miscompile-enums.rs` (MIT or Apache-2.0, as Rust), as a test of
 //! ours: it crashes or answers wrong when built with the old toolchain in release, as the suite builds it.
 
