@@ -1324,6 +1324,23 @@ impl BodyTrack {
         let local = blend.now(kin.blend_ticks);
         let (air_until, air_cap) = self.air_at(fix.time, kin);
         let arc = if kin.jump_arc { self.arc_at(fix.time, feet, fix.yaw).map(Jump::Clip) } else { None };
+        // [Gap 10] The world's selector (PROVEN, the exe review of gap 10): the stand jump is entered only by the jump transition,
+        // whose test is the client's gate (0x2FBDC0 -> 0x2FC230), in the tick of the input after the press (the key change sets
+        // +33Eh at 0x2D8995, the selection runs in the next input's tick); in the normal case it is left only after the landing's
+        // substate is finished (0x337330), after the reckoned flight is over. So a world a tick or more after the press that shows
+        // the selector out of the jump means the client refused the press, or left the jump early (both legs broken, death): the
+        // reckoned jump is dropped. A world before that tick says nothing of it.
+        let arc = match (arc, fix.jump) {
+            (Some(Jump::Clip(clip)), Some(super::jump_arc::WorldJump::NotJumping)) if clip.pressed_at() + TICK_MS <= fix.time => {
+                super::jump_arc::world_jumps::dropped();
+                None
+            }
+            (None, Some(super::jump_arc::WorldJump::Jumping { .. })) => {
+                super::jump_arc::world_jumps::unseen();
+                None
+            }
+            (arc, _) => arc,
+        };
         let creep_at_fix = match self.world_creep {
             _ if self.leg_damage.at(fix.time) != LegGate::Stand => Creep::Free,
             Some((at, creep)) if at == fix.time => creep,

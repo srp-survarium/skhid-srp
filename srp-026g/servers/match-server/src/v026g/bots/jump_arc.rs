@@ -118,6 +118,30 @@ pub enum WorldJump {
     },
 }
 
+/// [Gap 10] The reckoned jumps a world's selector refused ([`WorldJump::NotJumping`] a tick or more after the press, so the client
+/// refused the press or left the jump early), and the worlds whose selector was in a jump with no reckoned one, on this server (the
+/// match-end line). Decides nothing.
+pub(crate) mod world_jumps {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static DROPPED: AtomicU64 = AtomicU64::new(0);
+    static UNSEEN: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn dropped() {
+        DROPPED.fetch_add(1, Relaxed);
+    }
+
+    /// A world in the stand jump where the reckoning had none.
+    pub(crate) fn unseen() {
+        UNSEEN.fetch_add(1, Relaxed);
+    }
+
+    /// (dropped, unseen) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64) {
+        (DROPPED.swap(0, Relaxed), UNSEEN.swap(0, Relaxed))
+    }
+}
+
 /// [Gap 10] A leg.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Leg {
@@ -419,6 +443,11 @@ impl JumpArc {
             arc.phase = Phase::Air { base: feet.y - rise };
         }
         Some(arc)
+    }
+
+    /// [Gap 10] The press's time, ms.
+    pub fn pressed_at(&self) -> u32 {
+        self.pressed
     }
 
     pub fn clip(&self) -> Clip {
