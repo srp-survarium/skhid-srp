@@ -483,8 +483,18 @@ The spawns do not come from the level: they are the planner's.
   (resource-porter `fix/training-camp-minimap`). Free for All's wall has since
   moved in to the base's fence (`stalker-ffa.md`); the frame has not: the
   fenced base is 73 x 67 m of the frame's 159 m, its middle 9 m east of the
-  frame's. Repair Depot's south edge has
-  the same 45 m circles; it is not played.
+  frame's. Free for All's three trucks in the fence's gateways are drawn
+  since 2026-11-15 (the owner: "training camp map doesn't show new trucks
+  we added"): the renderer still reads Team Deathmatch's `day_4` (Free for
+  All's `day_8` also has the walker wall, which would cut the meadow off)
+  and adds the trucks, drawn and solid, from `training-trucks.tsv` and the
+  pack `training-camp-truck@1`: `... --place srp/training_camp_truck
+  srp-026g/scripts/stalker-maps/training-trucks.tsv --models
+  <packs>/training-camp-truck-1/files` (resource-porter
+  `fix/training-camp-minimap-trucks`, on the stalker-maps@6 overlay). The
+  level's own photo still sets the exposure, so the bitmap differs from the
+  earlier one only at the three trucks (1,303 pixels); the frame is the same.
+  Repair Depot's south edge has the same 45 m circles; it is not played.
 - `tools/actionscript` adds a bitmap the original movie lacks from the tree's
   `bitmaps/<class>.png` (lossless) or `.jpg`; `srp-026g/scripts/stalker-maps/ui_images.py`
   writes them from the porter's minimap render and a loading picture.

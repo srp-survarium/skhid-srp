@@ -8,9 +8,11 @@ KEY is the map's project_name (the HUD minimap key, e.g. cs_mp_rembasa).
 MINIMAP.png is resource-porter's tools/playable-map-pack/render_minimap.py
 output (512 x 512 RGBA, the 0.26 HUD's style); its <KEY>.json beside it gives
 the frame (size, posX, posY), written into Minimap.as's _minimapProps by hand.
-Training Camp's is framed on its crater wall:
+Training Camp's is framed on its crater wall, with Free for All's gateway trucks:
 
-    render_minimap.py --map 212 --frame-outline srp-026g/scripts/stalker-maps/training-arena.tsv
+    render_minimap.py --map 212 --frame-outline srp-026g/scripts/stalker-maps/training-arena.tsv \
+        --place srp/training_camp_truck srp-026g/scripts/stalker-maps/training-trucks.tsv \
+        --models <packs>/training-camp-truck-1/files
 
 PICTURE is cut to the lobby's 1920 x 798 (its middle band, scaled to cover).
 
