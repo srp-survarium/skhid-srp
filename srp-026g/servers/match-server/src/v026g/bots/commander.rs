@@ -301,7 +301,7 @@ fn threat_tick(
                     _ => None,
                 });
                 // [A391] The last offer of the role it holds (none held: none).
-                let offer = threat.job_of(b.place).and_then(|(_, role, _)| b.offers.last(role).map(|offer| (role, offer)));
+                let offer = threat.jobs.iter().find_map(|j| j.role_of(b.place)).and_then(|role| b.offers.last(role).map(|offer| (role, offer)));
                 Some(threat::Mate { place: b.place, feet: p.feet, free: !objective.is_actor(p) && !b.reflex.dry(), playing, offer })
             })
             .collect();
