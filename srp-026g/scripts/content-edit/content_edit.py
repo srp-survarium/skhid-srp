@@ -60,6 +60,8 @@ Edits (edits.json):
                     declare source .b-spline and .bones_names dependencies in _inputs.
   "append_entry":   [{"file", "list", "expected_count", "unique_key", "value"}]
                     append a new indexed record, refusing stale counts and duplicate identities;
+                    "unique_key": null for a list whose entries are known by their index (the
+                    game reads them by it: a battery's `states`), the count check alone;
                     arrays in the new value are indexed tables, leaving existing records intact;
                     "files" and "expected_counts" (two lists, a count a file) in place of
                     "file" and "expected_count" append the same record to each file; with
@@ -604,11 +606,14 @@ def append_entry(buf, path, expected_count, unique_key, value, vectors=False):
     _, name, crc, kind, count = rec(buf, off)
     if kind != T_INDEXED or count != expected_count:
         raise ValueError(f'{path}: expected indexed table of {expected_count}, got {kind}/{count}')
-    if not isinstance(value, dict) or unique_key not in value:
-        raise ValueError(f'{path}: new entry must have {unique_key}')
     entries = children(buf, off)
-    if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
-        raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    if unique_key is not None:
+        if not isinstance(value, dict) or unique_key not in value:
+            raise ValueError(f'{path}: new entry must have {unique_key}')
+        if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
+            raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    elif not isinstance(value, dict):
+        raise ValueError(f'{path}: a new entry is a table')
     records = [bytes(buf[entry:entry + 24]) for entry in entries]
     records.append(value_record(buf, 0, '', as_table(value, vectors)))
     REC.pack_into(buf, off, append_array(buf, records), name, crc, kind, count + 1)
