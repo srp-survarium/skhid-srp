@@ -96,6 +96,42 @@ class Lamps(unittest.TestCase):
         problems = edits.check_built('p', built(spec))
         self.assertEqual(len(problems), 3, problems)  # the intact model, its broken one, the light
 
+    def test_a_lit_alarm_owns_the_red_ambient_light_beside_it(self):
+        # Vector's alarm lamp (screenshot 2026-11-15-20-23-12: broken, its red
+        # glow stayed) beside a room's grey fill, a red glow too far away and
+        # an unlit alarm lamp, which glows through a light object if at all.
+        alarm = dict(visual_name='props/light/alarm_red_light', position=[10.675, 15.371, -6.341],
+                     rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        unlit = dict(alarm, visual_name='props/light/alarm_red', position=[30., 15., 0.])
+        def ambient(name, position, colour):
+            return dict(game_object_type='ambient_light', full_name=name, position=position,
+                        color=colour & 0xffffffff)   # the serializer packs an i32's bits
+        objects = [ambient('glow', [10.911, 14.843, -6.414], -15857931),   # red 245, green 6, blue 14
+                   ambient('fill', [10.5, 15., -6.], -9737365),            # grey
+                   ambient('far', [14., 15.371, -6.341], -15857931),
+                   ambient('unlit', [30.3, 15., 0.], -15857931)]
+        def record(value):
+            kinds = {list: 7, int: 1, str: 5}
+            return (3, [(k, (kinds[type(v)], v)) for k, v in value.items()])
+        for v in (alarm, unlit):
+            v['lib_name'] = v['visual_name']
+        original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(alarm), record(unlit)])),
+                                                 ('client_objects', (4, [record(o) for o in objects]))])))
+        box = ([-.1, -.2, -.1], [.1, 0., .1])
+        _, additions, spec = edits.author('p', original, {alarm['visual_name']: box, unlit['visual_name']: box}, 29, 7)
+        lit, other = spec['value']['lamps'].values()
+        self.assertEqual([light['name'] for light in lit['ambient_lights'].values()], ['glow'])
+        self.assertNotIn('ambient_lights', other)
+        data = bytearray(original)
+        for add in additions:
+            edits.c.add_entry(data, add['list'], add['after'], add['like'], add['values'])
+        built = bytearray(data)
+        edits.c.add_value(built, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(edits.check_built('p', built), [])
+        lit['ambient_lights']['light0']['y'] += .1   # the map editor moved it
+        edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(len(edits.check_built('p', data)), 1)
+
     def assert_glow_alignment(self, fixture, cone, box, expected_tip, moves_expected=1):
         scenery = dict(cone, position=[100., 10., 100.])
         for v in (fixture, cone, scenery):

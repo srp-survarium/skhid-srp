@@ -1957,6 +1957,8 @@ va	status	ref_021d	name
 0x002855b0	verified		survarium::simple_game_project::remove_static
 0x00285fa0	verified		survarium::render_visual::insert
 0x00285fe0	verified		survarium::render_visual::remove
+0x00290930	verified	0x001a7008	survarium::object_ambient_light::insert
+0x00290ae0	verified		survarium::object_ambient_light::remove
 0x00291720	verified		survarium::object_light::load
 0x00291790	verified		survarium::object_light::insert
 0x002917d0	verified		survarium::object_light::remove

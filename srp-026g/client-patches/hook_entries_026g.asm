@@ -5371,6 +5371,12 @@ lamps_on_load_replay:
 ; 0xa0ae10 object_light remove slot 9: vtable -> lamps_on_light_remove (wraps engine_light_remove 0x2917d0)
     RUST_THISCALL lamps_on_light_remove, hook_lamps_on_light_remove, 0
 
+; 0xa0ac6c object_ambient_light insert slot 8: vtable -> lamps_on_ambient_light_insert (wraps engine_ambient_light_insert 0x290930)
+    RUST_THISCALL lamps_on_ambient_light_insert, hook_lamps_on_ambient_light_insert, 0
+
+; 0xa0ac70 object_ambient_light remove slot 9: vtable -> lamps_on_ambient_light_remove (wraps engine_ambient_light_remove 0x290ae0)
+    RUST_THISCALL lamps_on_ambient_light_remove, hook_lamps_on_ambient_light_remove, 0
+
 ; 0x32e672 process_front_face_piercing at the pair's entry decal (cmp [esi+8],0; lea edi): EBP the bullet, EBX its hit; skip is the particle/sound part after add_decal, EDI unused there: lohook -> lamps_on_decal_enter
 global lamps_on_decal_enter
 extern hook_lamps_on_decal_enter
@@ -9312,3 +9318,19 @@ lamps_light_vtable:
     dd 0x291720
     dd lamps_on_light_insert
     dd lamps_on_light_remove
+
+section .rodata
+align 4
+global lamps_ambient_light_vtable
+lamps_ambient_light_vtable:
+    dd 0xa4d884
+    dd 0x290770
+    dd 0xf1900
+    dd 0xf1f00
+    dd 0xf1f40
+    dd 0xfda90
+    dd 0xfda90
+    dd 0xfda90
+    dd 0x2907a0
+    dd lamps_on_ambient_light_insert
+    dd lamps_on_ambient_light_remove
