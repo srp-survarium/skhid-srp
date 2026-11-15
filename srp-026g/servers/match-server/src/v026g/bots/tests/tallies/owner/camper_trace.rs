@@ -22,6 +22,9 @@ pub(super) struct CamperTrace {
     hits_seen: usize,
     kills_seen: usize,
     all_kills_seen: usize,
+    shots_seen: usize,
+    /// Each team's skill at the last tick (`signals::Skill`).
+    team_skill: [f32; 2],
     ticks: u64,
 }
 
@@ -83,6 +86,11 @@ impl Topic for CamperTrace {
 
     fn bots(&mut self, bots: &Bots, _game: &Game) {
         self.now = bots.bench_camper.as_ref().and_then(|c| c.trace_now());
+        for (team, skill) in self.team_skill.iter_mut().enumerate() {
+            if let Some(state) = bots.teams.get(team) {
+                *skill = state.skill.skill;
+            }
+        }
     }
 
     fn end(&mut self, run: &Run, game: &mut Game, sight: &mapdata::RayTree, _rays: &mut u64) {
@@ -164,6 +172,18 @@ impl Topic for CamperTrace {
         self.kills_seen = run.kills.len();
         for (t, s, v) in kills {
             self.write(serde_json::json!({"t": t, "kill": [s, v]}));
+        }
+        // Every round he fired or that was fired at him: shooter, target, flat distance, the gun's class, the shooter team's skill.
+        let shots: Vec<(u32, Place, Option<(Place, f32)>, &'static str)> = game.shot_log[self.shots_seen.min(game.shot_log.len())..]
+            .iter()
+            .copied()
+            .filter(|&(_, s, aimed, _)| s == camper || aimed.is_some_and(|(t, _)| t == camper))
+            .collect();
+        self.shots_seen = game.shot_log.len();
+        for (t, s, aimed, class) in shots {
+            let skill = game.bodies.get(s).map(|b| self.team_skill[usize::from(b.team).min(1)]);
+            let (target, dist) = aimed.map_or((None, None), |(p, d)| (Some(p), Some(r2(d))));
+            self.write(serde_json::json!({"t": t, "shot": [s, target, dist, class, skill.map(r3)]}));
         }
         let every: Vec<(u32, Place, Place)> = run.kills[self.all_kills_seen.min(run.kills.len())..].to_vec();
         self.all_kills_seen = run.kills.len();
