@@ -160,6 +160,10 @@ struct Acc {
     first_dwell: [[u32; 15]; 4],
     /// By the burst the shot was in (its length): bursts, shots, hits.
     by_burst: [[u32; 3]; 5],
+    /// [range-fire] Shots and hits by the target's distance band ([`ON_HIM_BANDS_M`]: 0-20, 20-40, 40+ m) and the shot's place
+    /// in its burst ([`BURST_BINS`]: the 1st, 2nd-3rd, 4th-6th, 7th-10th, 11th and later): whether the later shots of a burst
+    /// fall off at range (the rifle range trace).
+    by_nth: [[[u32; 2]; 5]; 3],
     /// Pauses between bursts, by [`PAUSE_BINS_MS`].
     pauses: [u32; 4],
 }
@@ -366,6 +370,7 @@ impl Topic for GunShots {
             b.last = tick;
             b.shots += 1;
             b.hits += u32::from(hit);
+            let nth = BURST_BINS.iter().position(|&edge| b.shots <= edge).unwrap_or(BURST_BINS.len());
             let Some((target, distance, off)) = fact.target else { continue };
             let a = self.groups.entry(key).or_default();
             if off <= ON_DEG && !self.was_firing.get(shooter).copied().unwrap_or(true) {
@@ -387,6 +392,7 @@ impl Topic for GunShots {
             a.hits += h as u32;
             let band = BANDS_M.iter().position(|&edge| distance < edge).unwrap_or(BANDS_M.len());
             tally(&mut a.by_band[band]);
+            tally(&mut a.by_nth[ON_HIM_BANDS_M.iter().position(|&edge| distance < edge).unwrap_or(ON_HIM_BANDS_M.len())][nth]);
             if let Some(shooter) = game.bodies.get(fact.shooter) {
                 tally(&mut a.by_band_team[usize::from(shooter.team != 0)][band]);
             }
@@ -507,6 +513,7 @@ impl Topic for GunShots {
                     "aimed_side": a.aimed_side,
                     "aimed_run": a.aimed_run,
                     "by_burst": a.by_burst,
+                    "by_nth": a.by_nth,
                     "pauses": a.pauses,
                 }),
             );
@@ -632,5 +639,8 @@ mod tests {
         assert_eq!(g["by_burst"][1], serde_json::json!([1, 3, 2]), "{json}");
         assert_eq!(g["by_burst"][0], serde_json::json!([1, 1, 0]), "{json}");
         assert_eq!(g["pauses"], serde_json::json!([0, 0, 1, 0]), "{json}");
+        // By the place in the burst at 30 m (band 20-40): the 1st shots (one hit, one not), the 2nd and 3rd (one hit).
+        assert_eq!(g["by_nth"][1], serde_json::json!([[2, 1], [2, 1], [0, 0], [0, 0], [0, 0]]), "{json}");
+        assert_eq!(g["by_nth"][0], serde_json::json!([[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]), "{json}");
     }
 }
