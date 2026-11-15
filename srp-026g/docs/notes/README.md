@@ -18,6 +18,7 @@ given), LIKELY or GUESS.
 
 | Note | Covers |
 |---|---|
+| [0.69 scope completion](scopes-069-completion.md) | Current port, preserved released fits, native optical eyes and validation evidence |
 | [login_chat.md](login_chat.md) | Command line, login over TLS, the browser server (removed), presence, chat transport and layouts |
 | [player-to-player.md](player-to-player.md) | **Everything players' games send each other** (inputs, pickups, kit choices, worlds, lobby text), with examples, and how the server and each game check it |
 | [lobby.md](lobby.md) | Lobby transport, every server→client message, **crash hazards and the safe push order** (§3) |
@@ -30,7 +31,7 @@ given), LIKELY or GUESS.
 | [drop_cards.md](drop_cards.md) | Drop cards: one per player of a match, own matches only, finished (the owner, 2026-10-20; the server refusal ships, the greyed button does not), the original screen's rule, what `allow_drop_card` is, the logging of sales and exchanges |
 | [progression_pace.md](progression_pace.md) | How long levels, faction ranks and gear tiers take, measured on the players' server, and the pay rates chosen from it |
 | [items.md](items.md) | Modifications, defects, cosmetics, reroll, craft, repair: the data, the wire, the rules |
-| [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs |
+| [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs; the rifle scopes from 0.69d0 (section 6); every scope on the release-41 guns and the Walther Competition II (section 7) |
 | [sight-alignment.md](sight-alignment.md) | The 9A-91's Cobra dot at the screen's centre: the aimed view as the exe builds it, retail 0.29a3's misplaced eye (14.5 px high), the eye moved onto the optic's axis; the other collimators measured off, left alone |
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
 | [imported_weapon_balance.md](imported_weapon_balance.md) | Imported guns against Zubr +8: stock weapons, best ammo, TTK across distance, kills per magazine, recoil and kick, 0.69 evidence and level-10 placement |
