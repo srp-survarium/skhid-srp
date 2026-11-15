@@ -173,8 +173,8 @@ All file and folder calls of this DLL are the Windows wide (W) calls.
 Nothing is uploaded automatically. Email/upload entry points fail with
 `ERROR_NOT_SUPPORTED`, and legacy support destinations are discarded. The DLL
 imports `kernel32.dll`, `user32.dll`, `gdi32.dll`, `shell32.dll` (for the browser
-link and the Documents folder of the start-up notice) and `ntdll.dll` (two
-functions of the standard library's), no C runtime DLL; it loads `dbghelp.dll` by absolute path from beside the EXE or the Windows
+link and the Documents folder of the start-up notice), and `ntdll.dll` and
+`api-ms-win-core-synch-l1-2-0.dll` (the standard library's), no C runtime DLL; it loads `dbghelp.dll` by absolute path from beside the EXE or the Windows
 system directory when capturing a dump.
 
 ## Start-up notice: the game cannot save its files
@@ -459,7 +459,8 @@ Win32/DbgHelp may allocate internally. Callers must supply valid native pointers
 ## Build
 
 Use the dev shell of `srp-026g/flake.nix`: the nightly Rust of the game
-workspaces with `rust-src`, `rust-lld`, `llvm-rc` (the version resource) and
+workspaces with its `i686-pc-windows-msvc` standard library, `rust-lld`,
+`llvm-rc` (the version resource) and
 Microsoft's C runtime and import libraries for 32-bit x86
 (`SKHID_MSVC_LIB`: libcmt, libvcruntime, libucrt of the Visual Studio 2022
 build tools 14.44.17.14 and the Windows SDK 10.0.26100, fetched by `xwin` at
@@ -475,10 +476,8 @@ cd client/bugtrap
 SKHID_REVISION=27 ./build.sh     # as release/build-zip builds revision 27
 ```
 
-The target is `i686-win7-windows-msvc` (Windows 7 and later, as the game; the
-standard library of `i686-win7-windows-msvc` asks for Windows 10), its standard
-library built here with `-Z build-std=std,panic_abort`. Output:
-`target/i686-win7-windows-msvc/release/BugTrap.dll`. `DllMain` is called by the
+The target is `i686-pc-windows-msvc` (Windows 10 and later). Output:
+`target/i686-pc-windows-msvc/release/BugTrap.dll`. `DllMain` is called by the
 C runtime's `_DllMainCRTStartup`, which sets the runtime up first (no thread,
 no library load); `DllMain` then does what it always did and makes the panic
 hook end the game with `0xE0000001`, as the panic handler of the `no_std` DLL
@@ -509,8 +508,8 @@ run `tests\build.cmd` to build them. VS2008 was used for validation.
 On Linux with Wine and an X server (Xvfb works), use an isolated test prefix:
 
 ```sh
-python3 tests/check_abi.py target/i686-win7-windows-msvc/release/BugTrap.dll
-WINEPREFIX=/path/to/test-prefix python3 tests/check_dumps.py target/i686-win7-windows-msvc/release
+python3 tests/check_abi.py target/i686-pc-windows-msvc/release/BugTrap.dll
+WINEPREFIX=/path/to/test-prefix python3 tests/check_dumps.py target/i686-pc-windows-msvc/release
 rustc --edition 2024 --test tests/text_tests.rs -o target/text-tests
 ./target/text-tests
 rustc --edition 2024 -O --test src/zip.rs -o target/zip-test
@@ -544,11 +543,11 @@ by where the error came from, the stack scan's call test, the log tail and
 the non-ASCII folder line.
 For the dialog itself, `tests/build.cmd` also builds `ui_probe.exe`. On Linux
 it can be built with `i686-w64-mingw32-g++ -static -O2 tests/ui_probe.cpp
--o target/i686-win7-windows-msvc/release/ui_probe.exe -luser32 -lgdi32` (with the
+-o target/i686-pc-windows-msvc/release/ui_probe.exe -luser32 -lgdi32` (with the
 MinGW runtime libraries on the linker's search path). Run under Wine/Xvfb:
 
 ```sh
-WINEPREFIX=/path/to/test-prefix python3 tests/check_localization.py target/i686-win7-windows-msvc/release
+WINEPREFIX=/path/to/test-prefix python3 tests/check_localization.py target/i686-pc-windows-msvc/release
 ```
 
 This checks all five languages on real Win32 dialogs: ZIP, raw-dump fallback,
@@ -590,11 +589,11 @@ changes and checks all 82 legacy ordinals.
 
 Log collection has a separate integration test. Build `tests/logs_probe.cpp`
 with MinGW (`i686-w64-mingw32-g++ -static -municode -O2 tests/logs_probe.cpp
--o target/i686-win7-windows-msvc/release/logs_probe.exe -ladvapi32`) or MSVC
+-o target/i686-pc-windows-msvc/release/logs_probe.exe -ladvapi32`) or MSVC
 (`cl tests\logs_probe.cpp advapi32.lib`). Then run:
 
 ```sh
-WINEPREFIX=/path/to/disposable-prefix python3 tests/check_logs.py target/i686-win7-windows-msvc/release
+WINEPREFIX=/path/to/disposable-prefix python3 tests/check_logs.py target/i686-pc-windows-msvc/release
 ```
 
 This test redirects **that disposable prefix's Documents folder** to temporary
@@ -639,10 +638,10 @@ Python `zipfile` checks every member and its CRC.
 
 The text report of a real, unhandled crash: build `tests/report_probe.cpp`
 (`i686-w64-mingw32-g++ -static -municode -O2 tests/report_probe.cpp -o
-target/i686-win7-windows-msvc/release/report_probe.exe -ladvapi32`), then
+target/i686-pc-windows-msvc/release/report_probe.exe -ladvapi32`), then
 
 ```sh
-WINEPREFIX=/path/to/disposable-prefix python3 tests/check_report.py target/i686-win7-windows-msvc/release
+WINEPREFIX=/path/to/disposable-prefix python3 tests/check_report.py target/i686-pc-windows-msvc/release
 ```
 
 It redirects that prefix's Documents to a folder with a game log, crashes

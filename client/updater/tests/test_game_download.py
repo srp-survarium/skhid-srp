@@ -26,7 +26,7 @@ import zipfile
 
 import run_logs
 
-UPDATER = Path(__file__).resolve().parents[1] / "exe/target/i686-win7-windows-msvc/release/updater_skhid.exe"
+UPDATER = Path(__file__).resolve().parents[1] / "exe/target/i686-pc-windows-msvc/release/updater_skhid.exe"
 EXTRACTOR = Path(__file__).resolve().parents[1] / "extractor/7zr.exe"
 EXTRACTOR_SIZE = 602624
 GAME_SIZE = 2906544103

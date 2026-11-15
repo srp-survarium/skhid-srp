@@ -25,8 +25,10 @@
       rust = pkgs.rust-bin.nightly.latest.default.override {
         extensions = [ "rust-src" "rustfmt" "clippy" "rust-analyzer" ];
         # The Rust exe patches (client-patches/rust) are tested and linted for
-        # the game's i686, never the host's x86_64 (rust_patches.md).
-        targets = [ "i686-unknown-linux-gnu" ];
+        # the game's i686, never the host's x86_64 (rust_patches.md). The
+        # players' Windows programs (client/bugtrap, client/updater,
+        # client-voice) are built for i686-pc-windows-msvc.
+        targets = [ "i686-unknown-linux-gnu" "i686-pc-windows-msvc" ];
       };
 
       # The players' Windows programs (client/bugtrap, client/updater) are

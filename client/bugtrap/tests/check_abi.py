@@ -12,7 +12,9 @@ for line in Path(__file__).with_name("exports.txt").read_text().splitlines():
     assert actual.get(name) == int(ordinal), (name, actual.get(name), ordinal)
 imports = re.findall(r"Import \{\s+Name: (\S+)", text)
 # The C runtime is linked in (no msvcr*, vcruntime*, ucrtbase or api-ms-win-crt-*);
-# ntdll.dll is the standard library's (NtWriteFile, RtlNtStatusToDosError).
-assert set(name.lower() for name in imports) == {"kernel32.dll", "user32.dll", "gdi32.dll", "shell32.dll", "ntdll.dll"}, imports
+# ntdll.dll and api-ms-win-core-synch-l1-2-0.dll are the standard library's
+# (NtWriteFile, RtlNtStatusToDosError; WaitOnAddress, WakeByAddress*).
+assert set(name.lower() for name in imports) == {"kernel32.dll", "user32.dll", "gdi32.dll", "shell32.dll", "ntdll.dll",
+                                                 "api-ms-win-core-synch-l1-2-0.dll"}, imports
 assert "Arch: i386" in text
-print("PASS ABI: all 82 legacy exports and ordinals; Win32; imports only kernel32/user32/gdi32/shell32/ntdll")
+print("PASS ABI: all 82 legacy exports and ordinals; Win32; imports only kernel32/user32/gdi32/shell32/ntdll/api-ms-win-core-synch")

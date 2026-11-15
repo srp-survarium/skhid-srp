@@ -42,9 +42,8 @@ rem The code page: this file is kept in UTF-8, and make_client_026g.py ships
 rem it in code page 866 (DOS Cyrillic). cmd reads each line of a script in
 rem the console's code page at the time, so it switches the console to 866 here,
 rem before the first line with a Russian letter, and back at the end: the
-rem text is right on a Russian Windows (866 already) and on any other. (Not
-rem 65001: Windows 7's cmd stops reading a script in it.) Every line above
-rem the chcp is ASCII. PowerShell reads its code below in 866 too.
+rem text is right on a Russian Windows (866 already) and on any other.
+rem Every line above the chcp is ASCII. PowerShell reads its code below in 866 too.
 setlocal EnableExtensions DisableDelayedExpansion
 set "SKHID_CP="
 for /f "tokens=2 delims=:" %%C in ('chcp') do set "SKHID_CP=%%C"
@@ -176,8 +175,8 @@ rem line above runs.
 # Reads only: nothing of the game, its folder or Windows is changed. It
 # writes its own folder Skhid-logs-<date>-<time> on the Desktop (else in
 # the game folder, when the Desktop cannot be written), makes the ZIP of it
-# beside it and deletes the folder. Windows PowerShell 2 (Windows 7) to 5.1;
-# PowerShell 7 elsewhere (the tests). What Windows has not (Defender's,
+# beside it and deletes the folder. Windows PowerShell 5.1; PowerShell 7
+# elsewhere (the tests). What Windows has not (Defender's,
 # the firewall's cmdlets, the event log) is said in the report, not failed.
 $ErrorActionPreference = 'Stop'
 $global:skhidStatus = 1
@@ -627,10 +626,7 @@ try {
     }
 
     Part 'Other antivirus programs' {
-        $products = $null
-        try { $products = @(Get-CimInstance -Namespace 'root/SecurityCenter2' -ClassName AntiVirusProduct -ErrorAction Stop) } catch {
-            $products = @(Get-WmiObject -Namespace 'root\SecurityCenter2' -Class AntiVirusProduct -ErrorAction Stop)
-        }
+        $products = @(Get-CimInstance -Namespace 'root/SecurityCenter2' -ClassName AntiVirusProduct -ErrorAction Stop)
         foreach ($p in $products) { Line ('  ' + $p.displayName + ' (state ' + $p.productState + ')') }
         if (-not $products) { Line '  none registered' }
     }

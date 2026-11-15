@@ -373,8 +373,6 @@ fallback that would hide which renderer failed).
 ## Known limits
 
 - A start that fails with DXVK costs one start; the next is DirectX 11 again by itself.
-- DXVK's DLLs import the Universal C Runtime (`api-ms-win-crt-*`): Windows 10 and 11 have it, a
-  Windows 7 or 8.1 without its update fails at the start with DXVK (and then falls back, above).
 - The Vulkan look runs in the game's process: a Vulkan layer that hangs there hangs the start
   (one that crashes leaves the marker).
 - Antivirus: DXVK's 3.1.1 release notes say some antivirus programs flag its 32-bit builds. A

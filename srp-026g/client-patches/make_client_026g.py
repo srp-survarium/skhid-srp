@@ -187,7 +187,7 @@ import launcher_pages  # noqa: E402
 import patch_launcher_026g as L  # noqa: E402
 
 UPDATER_EXE = os.path.abspath(os.path.join(
-    HERE, "..", "..", "client", "updater", "exe", "target", "i686-win7-windows-msvc", "release", L.UPDATER_NAME))
+    HERE, "..", "..", "client", "updater", "exe", "target", "i686-pc-windows-msvc", "release", L.UPDATER_NAME))
 # The extractor the updater runs, and the size and sha256 the updater is
 # built with (EXTRACTOR in client/updater/logic/src/game.rs; a test here
 # reads them from that file and compares).
@@ -211,7 +211,7 @@ DXVK_DLLS = {
 }
 DXVK_CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache", "skhid", f"dxvk-{DXVK_VERSION}.tar.gz")
 BUGTRAP_DLL = os.path.abspath(os.path.join(
-    HERE, "..", "..", "client", "bugtrap", "target", "i686-win7-windows-msvc", "release", "BugTrap.dll"))
+    HERE, "..", "..", "client", "bugtrap", "target", "i686-pc-windows-msvc", "release", "BugTrap.dll"))
 # Where the original game is had by hand: the patches server's address of its
 # row in release/game.tsv (no download quota), the bytes
 # client/updater/logic/src/game.rs pins (the
@@ -267,7 +267,7 @@ def read_bugtrap(path):
     return data
 
 
-VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "target-voice", "i686-win7-windows-msvc", "release", "skhid_voice.dll"))
+VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "target-voice", "i686-pc-windows-msvc", "release", "skhid_voice.dll"))
 # What patch 66 asks of the DLL by name (the shared voice-abi crate).
 VOICE_EXPORTS = (b"sv_version", b"sv_start", b"sv_stop", b"sv_ptt", b"sv_settings", b"sv_hear",
                  b"sv_mute", b"sv_talking", b"sv_slot", b"sv_voice_id", b"sv_test_press", b"sv_test_stop",
