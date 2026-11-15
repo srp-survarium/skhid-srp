@@ -146,9 +146,11 @@ Read from the 0.26g exe (no game run); the labels are in `tools/re-kit/v026g`.
     0x7f0a7). A jump off a ledge then counts from where the jump ended, like
     walking off. Risk: the fall restarts at 0.05 m a tick, a short hang after a
     jump;
-  - steep slopes: no callback unless the ground is walkable (step_down
-    0x7e660). Only the bottom of a slide counts. Risk: falls onto steep roofs
-    hurt less;
+  - a slide on steep ground: no callback while the body only slides
+    (`-(n·v̂) < 0.2`, update_slide_velocity 0x7fea0). A head-on hit on steep
+    ground is a landing (the steep slopes rule above, PROVEN, which replaced
+    the earlier reading here that only walkable ground calls back); the grid's
+    held drops count it (DROP 0x5067_0009);
   - by height: keep the highest point since the last landing in the controller
     and pass sqrt(2 · g · drop) instead of v. The plainest rule ("a fall of N
     metres does X"), the biggest change: a cave in step_down and new controller

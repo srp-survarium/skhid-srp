@@ -27,7 +27,7 @@ use super::drop_check::{walk_drop, walk_drop_as, DropWalk};
 use super::gap::{OffLink, Share, Takeoff};
 use super::rest_floors::{NAME_HEIGHT_M, holds, rests_at};
 use super::*;
-use crate::controller::tick::Settings;
+use crate::controller::tick::{LandingGround, Settings};
 use crate::controller::Collision;
 
 /// `fall_params.harmless_height`, m: a fall no higher hurts nothing (`docs/notes/fall_damage.md`, PROVEN; the bots' drops'
@@ -120,9 +120,12 @@ pub fn landing_hurts(speed: f32) -> bool {
 /// regenerates only after its delay since its last damaging hit (`damage_model.md`, 0x32A547..0x32A551: `regeneration_timeout`
 /// 8 s, at least 3.5 s with Metabolism's 2.5 s and the Regeneration booster's 2 s off), and a walk's landings all lie within
 /// [`super::drop_check::walk_drop`]'s landing window (2 s after the feet leave the take-off's level). So the pains add up.
-/// A third hurting landing cannot fit that window: a hurting fall from rest takes 22 of the client's ticks (a fall of 5 m
-/// lands on the 21st at 9.80 m/s, under the harmless 9.90 m/s), and the window is 47 ticks from the first fall's start (7 to
-/// go 0.4 m down, then 40).
+/// [item 2] A landing on ground too steep to stand on keeps the body's speed along the face (`docs/notes/fall_damage.md`
+/// "steep slopes": a steep roof can hurt twice, and the slide's bottom again), so a walk may land hurting three times; the two
+/// hardest are kept and a third's pain is left out, which can only leave a drop open, never close one. (Off walkable ground
+/// alone a third cannot fit the window: a hurting fall from rest takes 22 of the client's ticks, a fall of 5 m landing on the
+/// 21st at 9.80 m/s under the harmless 9.90 m/s, and the window is 47 ticks from the first fall's start, 7 to go 0.4 m down
+/// then 40.)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Landings {
     pub most: f32,
@@ -180,6 +183,58 @@ impl Landings {
             let (most, other) = if v > l.most { (v, l.most) } else { (l.most, v) };
             Self { most, also: Some(l.also.map_or(other, |a| a.max(other))) }
         }))
+    }
+}
+
+/// [item 2] A walk-off's landings ([`super::drop_check::DropWalk::LandsAt`]): every landing the client counts (`all`, on
+/// walkable ground and on steep ground, [`LandingGround`]), and of them those on walkable ground (`walkable`), all a build counted
+/// before DROP 0x5067_0009, kept for the build's log of the drops a steep landing closes ([`SteepClosed`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Landed {
+    pub all: Landings,
+    pub walkable: Landings,
+}
+
+impl Landed {
+    /// No landing yet.
+    pub const NONE: Self = Self { all: Landings::NONE, walkable: Landings::NONE };
+
+    /// With a landing on `ground` at `speed` m/s added.
+    pub fn and(self, ground: LandingGround, speed: f32) -> Self {
+        let walkable = match ground {
+            LandingGround::Walkable => self.walkable.and(speed),
+            LandingGround::Steep | LandingGround::Stopped => self.walkable,
+        };
+        Self { all: self.all.and(speed), walkable }
+    }
+
+    /// The lesser of two walks' landings, by what counts ([`Landings::least`] of `all`; `self` on a tie).
+    pub fn least(self, other: Self) -> Self {
+        if self.all.least(other.all) == self.all { self } else { other }
+    }
+}
+
+/// [item 2] A full pain pool (`docs/notes/damage_model.md`: the pain pool 1.0, lethal at 0): what the build's log of the
+/// drops a steep landing closes judges by ([`SteepClosed`]); the route search judges each body by its own pool.
+const FULL_POOL: f32 = 1.0;
+
+/// [item 2] A held floor's drop that its steep landings close for a full pool ([`FULL_POOL`], the stock fall scale, both
+/// landings added): lethal by every landing the walk counts, not by its walkable landings alone. For the build's log, with
+/// what re-walks it from data: the take-off, the point the walk aimed at (the taken floor next to it, which the built grid no
+/// longer holds), and the landing floor.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SteepClosed {
+    pub from: Vec3,
+    pub aim: Vec3,
+    pub to: Vec3,
+    pub landed: Landed,
+}
+
+impl SteepClosed {
+    /// The drop when its steep landings close it ([`Self`]).
+    pub(super) fn of(from: Vec3, aim: Vec3, to: Vec3, landed: Landed) -> Option<Self> {
+        let pain = |l: Landings| l.pain(1.0, super::SecondLanding::Adds);
+        (pain(landed.all) >= FULL_POOL && pain(landed.walkable) < FULL_POOL).then_some(Self { from, aim, to, landed })
     }
 }
 
@@ -281,12 +336,14 @@ pub struct HeldStats {
     pub hurting: usize,
     /// … and not made: their take-off is a floor no body gets to from the seeds or spawns (a roof's edge).
     pub unreached: usize,
+    /// [item 2] The drops a steep landing closes for a full pool ([`SteepClosed`], each logged).
+    pub steep_closed: usize,
 }
 
 impl WalkGrid {
     /// [`super::Body::held_floors`] (module documentation): takes the edge floors no body stays on and returns the drops from
     /// the last held floors as (take-off, landing) positions, to be made off-mesh links once the floors are renumbered.
-    pub(super) fn drop_unheld(&mut self, wide: &mut Wide, world: &Collision, s: &Settings) -> (HeldStats, Vec<(Vec3, Vec3, Landings)>) {
+    pub(super) fn drop_unheld(&mut self, wide: &mut Wide, world: &Collision, s: &Settings) -> (HeldStats, Vec<(Vec3, Vec3, Landings)>, Vec<SteepClosed>) {
         let n = self.len();
         let step = self.body.step;
         let edge: Vec<usize> = (0..n)
@@ -335,7 +392,7 @@ impl WalkGrid {
             ..HeldStats::default()
         };
         if stats.taken == 0 {
-            return (stats, Vec::new());
+            return (stats, Vec::new(), Vec::new());
         }
         // Rule 2: from each kept floor with a link onto a taken one, where the client's body walked at it stands.
         let ways: Vec<(usize, usize)> = (0..n)
@@ -359,27 +416,36 @@ impl WalkGrid {
                                 DropWalk::LandsAt(_, slower) => Some(slower),
                                 _ => None,
                             })
-                            .fold(landings, Landings::least);
-                        (self.position(b), slow)
+                            .fold(landings, Landed::least);
+                        (self.position(b), slow, to)
                     }),
                 _ => None,
             }
         });
-        let mut drops: Vec<(Vec3, Vec3, Landings)> = Vec::new();
+        // Each (take-off, landing) pair once, by its least walk ([`Landed::least`]), with the point that walk aimed at.
+        let mut walked: Vec<(Vec3, Vec3, Landed, Vec3)> = Vec::new();
         for (&(a, _), to) in ways.iter().zip(lands) {
-            if let Some((to, landings)) = to {
+            if let Some((to, landed, aim)) = to {
                 let from = self.position(a as NodeId);
-                match drops.iter_mut().find(|(f, t, _)| *f == from && *t == to) {
-                    Some(drop) => drop.2 = drop.2.least(landings),
-                    None => drops.push((from, to, landings)),
+                match walked.iter_mut().find(|(f, t, _, _)| *f == from && *t == to) {
+                    Some(drop) => {
+                        if drop.2.least(landed) != drop.2 {
+                            (drop.2, drop.3) = (landed, aim);
+                        }
+                    }
+                    None => walked.push((from, to, landed, aim)),
                 }
             }
         }
+        let steep_closed: Vec<SteepClosed> =
+            walked.iter().filter_map(|&(from, to, landed, aim)| SteepClosed::of(from, aim, to, landed)).collect();
+        stats.steep_closed = steep_closed.len();
+        let drops: Vec<(Vec3, Vec3, Landings)> = walked.into_iter().map(|(from, to, landed, _)| (from, to, landed.all)).collect();
         stats.drops = drops.len();
         stats.hurting = drops.iter().filter(|(f, t, _)| f.y - t.y > HARMLESS_HEIGHT_M).count();
         self.held_taken = (0..n).filter(|&a| !alive[a]).map(|a| self.position(a as NodeId)).collect();
         self.compact(wide, &alive);
-        (stats, drops)
+        (stats, drops, steep_closed)
     }
 
     /// The drops of [`Self::drop_unheld`] made off-mesh walk-offs in `wide.off` (kept sorted), where the take-off is a floor a

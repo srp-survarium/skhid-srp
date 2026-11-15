@@ -209,8 +209,10 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// (the later one was kept before; a release then a walk-off made two links, a grid its read refused; and the old lookup's
 /// binary search over the unsorted table could also find another take-off's link onto the landing and skip a re-aim, in a grid
 /// that read back). 0008: a release onto a pair whose link the pass found already there keeps the higher share too (one rule
-/// for every pair: a release never replaces a better-landing release link).
-pub const DROP_LANDS_ALGO: u32 = 0x5067_0008;
+/// for every pair: a release never replaces a better-landing release link). 0009: [item 2] a held floor's drop counts its walk's
+/// landings on ground too steep to stand on too (`controller::tick::LandingGround`; `docs/notes/fall_damage.md` "steep slopes",
+/// PROVEN: `step_down` 0x7E527..0x7E6D1 and 0x7E408..0x7E4F2 keep the tick's starting speed for the landing's callback).
+pub const DROP_LANDS_ALGO: u32 = 0x5067_0009;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
 /// body that asks for it. A value of its own.
 pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0006;

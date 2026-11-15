@@ -214,12 +214,28 @@ enum MoveTest {
     Complex,
 }
 
+/// [item 2] Where `step_down` 0x7E1B0 stopped a falling body on ground it hit: each is a landing, the downward speed at the
+/// tick's start kept for the landing's callback (`[esp+14h]`, read at 0x7E75C onward; `docs/notes/fall_damage.md` "steep
+/// slopes", PROVEN). A hit that only slides the body on (`update_slide_velocity` 0x7FEA0) is none.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LandingGround {
+    /// Ground a body stands on (0x7E4BD..0x7E51A, the speed at 0x7E4F9): the body stops.
+    Walkable,
+    /// Ground too steep to stand on, met head-on enough: `-(n . v^) >= already_sliding_on_slope_dp` (0x7E527..0x7E6D1, the
+    /// speed at 0x7E660). The velocity keeps its part along the face and the body slides on.
+    Steep,
+    /// Ground too steep that the feet rose onto and no side or down slide took the body (0x7E408..0x7E4F2, the speed at
+    /// 0x7E4F9): the body is set back and stopped.
+    Stopped,
+}
+
 /// What one step did, for the reader.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct StepNotes {
     pub skipped: bool,
     pub forward_hit: bool,
-    pub landed: bool,
+    /// [item 2] The ground the step's fall stopped on, if it was a landing ([`LandingGround`]).
+    pub landing: Option<LandingGround>,
     pub airborne: bool,
     pub refused: bool,
     /// Refused because the body could not straighten under something.
@@ -1292,19 +1308,21 @@ impl Controller {
                     }
                 {
                     notes.refused = true;
+                    notes.landing = Some(LandingGround::Stopped);
                     self.pos = sb + UP * self.d();
                     self.velocity = Vec3::ZERO;
                 } else {
                     self.contact_normal = n;
                     let c = (n.y * UP.y + n.z * UP.z) + n.x * UP.x;
                     if c > s.max_slope_cos {
-                        notes.landed = true;
+                        notes.landing = Some(LandingGround::Walkable);
                         self.velocity = Vec3::ZERO;
                     } else {
                         let vh = normalized_safe(v, -UP);
                         if -((n.y * vh.y + n.z * vh.z) + vh.x * n.x) < s.already_sliding_on_slope_dp || len2(v).abs() < 1e-5 {
                             self.update_slide_velocity(adt, sb);
                         } else {
+                            notes.landing = Some(LandingGround::Steep);
                             let k = (v.x * n.x + v.y * n.y) + v.z * n.z;
                             self.velocity = Vec3::new(v.x - k * n.x, v.y - k * n.y, v.z - k * n.z);
                         }
