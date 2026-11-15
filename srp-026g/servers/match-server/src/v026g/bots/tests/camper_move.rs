@@ -1267,6 +1267,8 @@ pub(crate) struct TraceNow {
     pub(crate) spot: Vec3,
     pub(crate) cover: bool,
     pub(crate) hold: char,
+    /// The point his hold walks to (the cover point, a step's point, a leave's spot; none for a peek out or a return).
+    pub(crate) goal: Option<Vec3>,
     pub(crate) enemy_near: u32,
     pub(crate) leaves_by_kill: u32,
 }
@@ -1375,18 +1377,19 @@ impl BenchCamper {
         let CamperState::Moving { motion, .. } = &self.state else {
             return None;
         };
-        let (mode, hold) = match &motion.mode {
-            Mode::Stay { hold: Hold::Cover { .. }, .. } => ('S', 'C'),
-            Mode::Stay { hold: Hold::Out { .. }, .. } => ('S', 'O'),
-            Mode::Stay { hold: Hold::Shift { .. }, .. } => ('S', 'H'),
-            Mode::Leave { .. } => ('L', '-'),
-            Mode::Return { .. } => ('R', '-'),
+        let (mode, hold, goal) = match &motion.mode {
+            Mode::Stay { hold: Hold::Cover { .. }, area, here, .. } => ('S', 'C', Some(area[*here])),
+            Mode::Stay { hold: Hold::Out { .. }, .. } => ('S', 'O', None),
+            Mode::Stay { hold: Hold::Shift { to, .. }, area, .. } => ('S', 'H', Some(area[*to])),
+            Mode::Leave { to, .. } => ('L', '-', Some(*to)),
+            Mode::Return { .. } => ('R', '-', None),
         };
         Some(TraceNow {
             mode,
             spot: motion.spot(),
             cover: motion.holds_cover(),
             hold,
+            goal,
             enemy_near: motion.counts.enemy_near,
             leaves_by_kill: motion.counts.leaves_by_kill,
         })

@@ -142,6 +142,7 @@ impl Topic for CamperTrace {
             None => (None, None, false),
         };
         let (hold, enemy_near, leaves_by_kill) = self.now.map_or((None, None, None), |n| (Some(n.hold.to_string()), Some(n.enemy_near), Some(n.leaves_by_kill)));
+        let goal_m = self.now.and_then(|n| n.goal).map(|g| r2(g.distance_xz(me.feet)));
         let line = serde_json::json!({
             "t": tick,
             "c": [
@@ -161,6 +162,7 @@ impl Topic for CamperTrace {
                 hold,
                 enemy_near,
                 leaves_by_kill,
+                goal_m,
             ],
             "e": enemies,
         });
