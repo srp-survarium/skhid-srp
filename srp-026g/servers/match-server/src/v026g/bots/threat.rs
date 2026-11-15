@@ -1002,7 +1002,7 @@ impl SpotRules {
     }
 
     /// The distance within which the shooter is on a spot, m.
-    fn on_m(self) -> f32 {
+    pub(super) fn on_m(self) -> f32 {
         match self.model {
             SpotModel::Point => SEEN_ON_M,
             SpotModel::Area { m } => m,
@@ -1717,17 +1717,7 @@ impl ThreatSpots {
                 gone.push((s.id, JobEnd::Faded));
                 return false;
             }
-            let at = s.at + Vec3::new(0.0, eye_height(false, 0.0, 0.0), 0.0);
-            let empty = !enemies.iter().any(|e| e.distance_xz(s.at) <= on_m) && {
-                // The nearest few teammates within reach look: a sight ray each.
-                let mut near: Vec<Vec3> = watchers
-                    .iter()
-                    .copied()
-                    .filter(|w| w.distance_xz(s.at) <= CLEAR_LINE_M)
-                    .collect();
-                near.sort_by(|a, b| a.distance_xz(s.at).total_cmp(&b.distance_xz(s.at)));
-                near.iter().take(WATCHERS_ASKED).any(|&w| eyes.sees(w, at))
-            };
+            let empty = seen_empty_now(s.at, on_m, watchers, enemies, eyes);
             if !empty {
                 s.empty_since = None;
                 return true;
@@ -1868,6 +1858,7 @@ impl ThreatSpots {
                 reach_m: s.reach_m,
                 kills: s.kill_count(),
                 seen: s.sensed(),
+                battery: None,
             })
             .collect()
     }
@@ -1924,9 +1915,65 @@ pub struct HeldLine {
     pub kills: usize,
     /// When the team last sensed him on it, if since his last death.
     pub seen: Option<u32>,
+    /// [take.clear_first] The loose battery a man holds whom the team knows by his spot alone: a line of no lanes (no kills
+    /// there to give them), made for a Breach (`breach.rs`) whose gather and cover points go by his sight alone
+    /// ([`HeldLine::at_battery`]); none for a spot made of his kills.
+    pub battery: Option<usize>,
 }
 
+/// Whether a spot at `at` is seen empty now: no enemy sensed (`enemies`, sensed points) within `on_m` of it, and one of the
+/// nearest [`WATCHERS_ASKED`] teammates within [`CLEAR_LINE_M`] (`watchers`, eye points) has a line to a standing eye there.
+/// The held spots' clearing rule ([`ThreatSpots::tick`], seen empty for [`CLEAR_MS`]) and a held battery's
+/// (`know::keep_hold`).
+pub fn seen_empty_now(at: Vec3, on_m: f32, watchers: &[Vec3], enemies: &[Vec3], eyes: &dyn Eyes) -> bool {
+    let eye = at + Vec3::new(0.0, eye_height(false, 0.0, 0.0), 0.0);
+    !enemies.iter().any(|e| e.distance_xz(at) <= on_m) && {
+        // The nearest few teammates within reach look: a sight ray each.
+        let mut near: Vec<Vec3> = watchers.iter().copied().filter(|w| w.distance_xz(at) <= CLEAR_LINE_M).collect();
+        near.sort_by(|a, b| a.distance_xz(at).total_cmp(&b.distance_xz(at)));
+        near.iter().take(WATCHERS_ASKED).any(|&w| eyes.sees(w, eye))
+    }
+}
+
+/// [take.clear_first] A Breach refused on a battery's held line `spot`: where his spot was, how many of the team's bots were
+/// free for crossers (free and out of a fight), and until when the refusal stands at most (`breach::DUE_MS`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BatteryRefused {
+    pub spot: u32,
+    pub at: Vec3,
+    pub free: usize,
+    pub until: u32,
+}
+
+impl BatteryRefused {
+    /// Whether the refusal still stands at `now` for the line at `at` with `free` bots free for crossers: within its time,
+    /// his spot not moved off it (within `on_m`, the held spots' own "on the spot"), and no more bots free than then.
+    pub fn stands(&self, at: Vec3, free: usize, now: u32, on_m: f32) -> bool {
+        now < self.until && at.distance_xz(self.at) <= on_m && free <= self.free
+    }
+}
+
+/// [take.clear_first] The ids of the held lines at a loose battery ([`HeldLine::at_battery`]) start here, one a shooter: above
+/// every spot's id (`ThreatSpots` counts its spots from 0).
+pub const BATTERY_LINE_ID: u32 = 0x4000_0000;
+
 impl HeldLine {
+    /// [take.clear_first] The held line of a man holding a loose battery whom the team knows by his spot alone
+    /// (`know::BatteryHold`): no lanes and no reach (it covers no ground), his spot, his last sensing.
+    pub fn at_battery(hold: &super::know::BatteryHold) -> Self {
+        Self {
+            id: BATTERY_LINE_ID + hold.who as u32,
+            at: hold.at,
+            shooter: hold.who,
+            lanes: Vec::new(),
+            facing: 0.0,
+            reach_m: 0.0,
+            kills: 0,
+            seen: Some(hold.sensed),
+            battery: Some(hold.battery),
+        }
+    }
+
     /// A line for the tests of those who read one: a shooter at `at` who killed `victims`, sensed on it at `seen`.
     #[cfg(test)]
     pub(super) fn for_test(id: u32, shooter: Place, at: Vec3, victims: &[Vec3], seen: Option<u32>) -> Self {
@@ -1940,6 +1987,7 @@ impl HeldLine {
             reach_m: 50.0,
             kills: victims.len(),
             seen,
+            battery: None,
         }
     }
 
@@ -2007,6 +2055,12 @@ pub struct Job {
 }
 
 impl Job {
+    /// A job for the tests of those who read one.
+    #[cfg(test)]
+    pub(super) fn for_test(spot: u32, shooter: Place, since: u32, flanker: Option<Holder>, pinner: Option<Holder>) -> Self {
+        Self { spot, objective: false, shooter, since, flanker, pinner, passed: Vec::new() }
+    }
+
     /// How many bots let a role of this job go (a flanker who died among them): the next flanker's route (A320).
     pub fn passed_count(&self) -> usize {
         self.passed.len()
@@ -2706,6 +2760,11 @@ impl ThreatSpots {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BreachCounts {
     pub spawn_exit_due: u32,
+    /// [take.clear_first] Held lines at a loose battery made due, and Breaches on one that took over its shooter's Flank job.
+    pub battery_due: u32,
+    pub battery_takeovers: u32,
+    /// Breaches refused on a battery's held line.
+    pub battery_refused: u32,
     pub opened: u32,
     pub went: u32,
     pub throws_asked: u32,
@@ -2714,6 +2773,9 @@ pub struct BreachCounts {
 impl BreachCounts {
     pub fn add(&mut self, other: &Self) {
         self.spawn_exit_due += other.spawn_exit_due;
+        self.battery_due += other.battery_due;
+        self.battery_takeovers += other.battery_takeovers;
+        self.battery_refused += other.battery_refused;
         self.opened += other.opened;
         self.went += other.went;
         self.throws_asked += other.throws_asked;
@@ -2742,6 +2804,11 @@ pub struct TeamThreat {
     /// [threat.breach] The team's Breaches (`breach.rs`), and the held spots whose Flank failed, due one.
     pub breaches: Vec<super::breach::Breach>,
     pub breach_due: Vec<super::breach::Due>,
+    /// [take.clear_first] A battery's held line a Breach was refused on: not made due again until what it was refused for
+    /// changes ([`BatteryRefused::stands`]) or `breach::DUE_MS` passes.
+    pub battery_refused: Vec<BatteryRefused>,
+    /// The battery lines a Breach was refused on at this commander tick, for the caller to rest.
+    pub battery_refused_now: Vec<u32>,
     /// [A391] The team's Breaches over the match: spawn-exit spots made due, Breaches opened, gone, and crossers asked to
     /// throw first at the go ([`BreachCounts`]).
     pub breach_counts: BreachCounts,
@@ -3238,6 +3305,7 @@ mod tests {
             reach_m: 50.0,
             kills: bearings.len(),
             seen: None,
+            battery: None,
         }
     }
 

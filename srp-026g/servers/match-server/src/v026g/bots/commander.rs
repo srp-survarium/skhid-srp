@@ -70,8 +70,14 @@ fn breach_tick(
         _ => Ok(()),
     };
     let mut plan = |line: &threat::HeldLine, feet: [Vec3; breach::CROSSERS]| {
+        #[cfg(test)]
+        let started = std::time::Instant::now();
         let mut rng = super::rng::Rng::new((u64::from(line.id) << 32) ^ u64::from(now) ^ u64::from(team));
-        breach::plan(tactics, line, held, feet, side, now, rules, &mut rng)
+        let planned = breach::plan(tactics, line, held, feet, side, now, rules, &mut rng);
+        // [take.clear_first] The planner's runs and time (the bench's CPU line, the Breach tally).
+        #[cfg(test)]
+        breach::tally::planned(team, started.elapsed());
+        planned
     };
     let points = objective.has_homes().then(|| [view.points[usize::from(team & 1)], view.points[usize::from(1 - (team & 1))]]);
     let breach_team = breach::Team { mates, size: view.team(team).count(), objective_areas: areas, flank_jobs: &threat.jobs, kills: &threat.kills, points, in_fight };
@@ -82,18 +88,33 @@ fn breach_tick(
         // [A391] Each Breach's start, gather and go at debug (its note line goes to the log at info as before).
         log::debug!("team {team} at {now} ms: Breach {}", event.note());
         match event {
+            // [take.clear_first] A battery's line refused: it rests (the caller, which knows the bots free).
+            breach::Event::NotOpened { spot, .. } if spot >= threat::BATTERY_LINE_ID => threat.battery_refused_now.push(spot),
             // [A391] The go: its bots, for the throw first.
             breach::Event::Stepped { spot, step: breach::Step::Went { .. }, bots, .. } => {
                 threat.breach_counts.went += 1;
                 went.push((spot, bots));
             }
-            // A Flank job on its spot ends: the Breach is the try now.
+            // A Flank job on its spot ends: the Breach is the try now. [take.clear_first] A Breach on a battery's held line
+            // takes over its shooter's Flank job (one job a shooter: the Breach replaces it, its bots its crossers first).
             breach::Event::Opened { spot, .. } => {
                 threat.breach_counts.opened += 1;
-                if let Some(i) = threat.jobs.iter().position(|j| j.spot == spot) {
+                let battery_shooter =
+                    (spot >= threat::BATTERY_LINE_ID).then(|| threat.breaches.iter().find(|b| b.spot == spot).map(|b| b.shooter)).flatten();
+                if let Some(i) = threat.jobs.iter().position(|j| j.spot == spot || Some(j.shooter) == battery_shooter) {
+                    if battery_shooter.is_some() {
+                        threat.breach_counts.battery_takeovers += 1;
+                        log::debug!(
+                            "team {team} at {now} ms: Breach on battery line {spot} takes over the Flank job on spot {} of player {}",
+                            threat.jobs[i].spot,
+                            threat.jobs[i].shooter
+                        );
+                    }
                     let job = threat.jobs.remove(i);
-                    threat.rested.push((spot, now + threat::JOB_REST_MS));
-                    let ended = threat::JobEvent::Ended { spot, shooter: job.shooter, end: threat::JobEnd::Breached, life_ms: now.saturating_sub(job.since) };
+                    // The job's own spot rests (on a takeover, his kill spot, not the battery's line).
+                    threat.rested.push((job.spot, now + threat::JOB_REST_MS));
+                    let ended =
+                        threat::JobEvent::Ended { spot: job.spot, shooter: job.shooter, end: threat::JobEnd::Breached, life_ms: now.saturating_sub(job.since) };
                     threat::job_tally(team, threat::JobTally::EndBreached);
                     threat::job_life(team, now.saturating_sub(job.since));
                     notes.push(Note { place: usize::MAX, time: now, text: format!("team {team}: {ended}") });
@@ -199,7 +220,13 @@ fn threat_tick(
     let threat = &mut state.features.threat;
     // A sensed sniper is a spot (#836's `sniper_lanes`, or #25b's area memory).
     let sniper_spots = tuning.threat.sniper_lanes || tuning.threat.sniper_memory.is_some();
-    if !sniper_spots && threat.spots.is_empty() && threat.covered.is_none() && threat.jobs.is_empty() && threat.breaches.is_empty() {
+    if !sniper_spots
+        && threat.spots.is_empty()
+        && threat.covered.is_none()
+        && threat.jobs.is_empty()
+        && threat.breaches.is_empty()
+        && state.knowledge.battery_holds.is_empty()
+    {
         if !state.knowledge.threat.held.is_empty() || !state.knowledge.threat.jobs.is_empty() {
             state.knowledge.threat = Arc::default();
         }
@@ -250,6 +277,32 @@ fn threat_tick(
     } else {
         threat.spots.tick(now, &watchers, &enemies, tactics, rules);
     }
+    // [take.clear_first] The men held off from at a loose battery (`know::keep_hold`): kept while each track lives, moved to a
+    // newer sensing by the battery, dropped when he is dead or sensed elsewhere, cleared when the team sees his spot empty for
+    // `CLEAR_MS` (the held spots' rule); each one not cleared a held line of no lanes for a Breach.
+    if !state.knowledge.battery_holds.is_empty() {
+        let exposed_m = tuning.number(plays::PlayKind::Collect, "exposed_m");
+        let newest = |who: Place| {
+            bots.iter()
+                .flatten()
+                .filter(|b| b.team == team)
+                .flat_map(|b| b.memory.tracks().iter().filter(move |t| t.who == who).filter_map(|t| t.own))
+                .max_by_key(|&(_, time)| time)
+        };
+        let on_m = rules.on_m();
+        state.knowledge.battery_holds.retain_mut(|h| {
+            let alive = view.place(h.who).is_some_and(|p| p.alive && p.present);
+            let empty = threat::seen_empty_now(h.at, on_m, &watchers, &enemies, tactics);
+            know::keep_hold(h, alive, newest(h.who), empty, now, tuning.sense.drop_ms, exposed_m)
+        });
+    }
+    let battery_lines: Vec<threat::HeldLine> = state
+        .knowledge
+        .battery_holds
+        .iter()
+        .filter(|h| h.look != know::HoldLook::Cleared)
+        .map(threat::HeldLine::at_battery)
+        .collect();
     // [smoke] The held lanes, for a smoke across one (`smoke.cross_lane`).
     if tuning.smoke.cross_lane {
         let lanes: Arc<[threat::HeldLane]> = threat.spots.lanes_kept(now, kept.smoke).into();
@@ -365,6 +418,9 @@ fn threat_tick(
         if let Some(pair) = tuning.threat.pair_target {
             holds = threat::one_of_each_pair(holds, &threat.jobs, pair.step_m);
         }
+        // [take.clear_first] One job a shooter: no Flank opens on a man a Breach on his battery's line works (it took his
+        // Flank over; his kill spot's rest is shorter than a Breach may run).
+        holds.retain(|l| !threat.breaches.iter().any(|b| b.spot >= threat::BATTERY_LINE_ID && b.shooter == l.shooter && !b.phase.ended()));
         let areas = objective.home_spots(&tactics.world.map);
         // [threat.breach] The bots in a Breach are not the Flank jobs' to give roles to, and the cap counts them.
         let breach_rules = tuning.threat.breach.map(|b| b.rules());
@@ -523,8 +579,41 @@ fn threat_tick(
                     }
                 }
             }
+            // [take.clear_first] A man held off from at a loose battery is due a Breach at once (no Flank first: no lanes to
+            // flank), his line among the holds and the held lines its job reads; a line refused lately is not made due
+            // again until what it was refused for changes (more bots free, his spot moved) or DUE_MS passes.
+            let free = mates.iter().filter(|m| m.free && !in_fight.contains(&m.place)).count();
+            // The held spots' own "on the spot" (`rules` here is the Breach's).
+            let on_m = threat::SpotRules::of(&tuning.threat).on_m();
+            threat.battery_refused.retain(|r| now < r.until);
+            for line in &battery_lines {
+                let fresh = !threat.breach_due.iter().any(|d| d.spot == line.id)
+                    && !threat.breaches.iter().any(|b| b.spot == line.id)
+                    && !threat.rested.iter().any(|&(id, _)| id == line.id)
+                    && !threat.battery_refused.iter().any(|r| r.spot == line.id && r.stands(line.at, free, now, on_m));
+                if fresh {
+                    threat.breach_due.push(breach::Due { spot: line.id, until: now + breach::DUE_MS });
+                    threat.breach_counts.battery_due += 1;
+                    log::debug!(
+                        "team {team} at {now} ms: player {} holds battery {:?} at {:?}: due a Breach",
+                        line.shooter,
+                        line.battery,
+                        line.at
+                    );
+                }
+            }
+            let holds_b: Vec<threat::HeldLine> = holds.iter().chain(&battery_lines).cloned().collect();
+            let held_b: Vec<threat::HeldLine> = held.iter().chain(&battery_lines).cloned().collect();
             let (killed, went) =
-                breach_tick(tactics, threat, team, view, now, tuning, &rules, (&holds, &held), &mates, &in_fight, &areas, objective, side, notes);
+                breach_tick(tactics, threat, team, view, now, tuning, &rules, (&holds_b, &held_b), &mates, &in_fight, &areas, objective, side, notes);
+            // [take.clear_first] The battery lines refused this tick rest until what they were refused for changes.
+            for spot in std::mem::take(&mut threat.battery_refused_now) {
+                if let Some(line) = battery_lines.iter().find(|l| l.id == spot) {
+                    threat.battery_refused.retain(|r| r.spot != spot);
+                    threat.battery_refused.push(threat::BatteryRefused { spot, at: line.at, free, until: now + breach::DUE_MS });
+                    threat.breach_counts.battery_refused += 1;
+                }
+            }
             // [A391] At the go, the first crosser with a frag (or frags not known) throws first at the spot.
             for (spot, holders) in went {
                 let thrower = bots.iter_mut().flatten().find(|b| {
@@ -558,6 +647,8 @@ fn threat_tick(
     let sniper_regions = if tuning.threat.sniper_memory.is_some() { threat.spots.sniper_regions(now) } else { Vec::new() };
     // [threat.answer_sniper, A210] Play 28 answers a sniper the team remembers, not only one the bot sensed lately.
     let snipers = if tuning.threat.answer_sniper { threat.spots.sniper_spots(now) } else { Vec::new() };
+    // [take.clear_first] The plays read a battery's held line as any (a crosser's target, a pinner's spot).
+    let held = held.into_iter().chain(battery_lines).collect();
     let picture = threat::Picture { held, jobs: threat.jobs.clone(), sniper_regions, snipers, concede };
     if *state.knowledge.threat != picture {
         state.knowledge.threat = Arc::new(picture);

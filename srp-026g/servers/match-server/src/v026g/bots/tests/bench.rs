@@ -2547,6 +2547,18 @@ pub(crate) fn real_bot_cost() {
                 world_max_at.1[2].as_secs_f64() * 1e6,
                 world_bots.as_secs_f64() * 1e3 / f64::from(limit_s.max(1)),
             );
+            // [take.clear_first] The Breach planner's share (`breach::plan`, its runs and their time on this thread).
+            {
+                use crate::v026g::bots::breach::tally::{PLAN_RUNS, PLAN_US, counted};
+                let c = counted();
+                let (runs, us) = (c[0][PLAN_RUNS] + c[1][PLAN_RUNS], c[0][PLAN_US] + c[1][PLAN_US]);
+                eprintln!(
+                    "{project} {per_team}v{per_team}: Breach planner {runs} runs in {:.1} ms of the thread's CPU = {:.2} µs a world, {:.3} ms a second of play",
+                    us as f64 / 1000.0,
+                    us as f64 / f64::from(worlds_fed.max(1)),
+                    us as f64 / 1000.0 / f64::from(limit_s.max(1)),
+                );
+            }
             eprintln!(
                 "{project} {per_team}v{per_team}: pull walk ticks a poll: max {}",
                 mapdata::grid::controlled::pull_walk_ticks_max_take()

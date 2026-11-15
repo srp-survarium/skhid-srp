@@ -28,6 +28,7 @@ pub mod ambush;
 pub mod answer;
 pub mod breach;
 pub mod buddy;
+pub mod clear_first;
 pub mod collect;
 pub mod cover_human;
 pub mod crossfire;
@@ -597,14 +598,22 @@ pub struct TakeThreat {
     pub by: ThreatBy,
 }
 
+/// [take.clear_first] A loose battery an enemy holds ([`Ctx::held_battery`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HeldBattery {
+    pub battery: usize,
+    pub at: Vec3,
+    pub threat: TakeThreat,
+}
+
 /// How a take's threat is had ([`TakeThreat`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ThreatBy {
     /// Seen now ([`SEEN_NOW_MS`]) within `exposed_m` of the bot with his shot reaching it: the fight first (the reflex aims).
     Sight,
-    /// Known by the battery: his last spot from the team's own senses, lately (`sense.forget_ms`), within `exposed_m` of
-    /// the battery.
-    Spot(Vec3),
+    /// Known by the battery: his last spot from the team's own senses, `at`, and when it was sensed, `sensed`, while it lives
+    /// ([`Ctx::spot_lives`]), within `exposed_m` of the battery.
+    Spot { at: Vec3, sensed: u32 },
 }
 
 /// What a play sees: the match, the bot, its knowledge, the team's, the
@@ -968,7 +977,8 @@ impl Ctx<'_> {
 
     /// [take.known_threats] The enemy a take of the battery lying at `battery` waits for, if any: [`Self::exposed_to`]'s
     /// threats, and with `battery` (the switch on) also each enemy whose last spot the bot's or its team's own senses gave
-    /// (`Track::own`: seen, heard or told, never a cheat's) within `sense.forget_ms` and within `exposed_m` of the battery
+    /// (`Track::own`: seen, heard or told, never a cheat's) that still lives ([`Self::spot_lives`]: his track's life, unless
+    /// the team saw that spot empty) and lies within `exposed_m` of the battery
     /// ([`ThreatBy::Spot`]): a man heard or told of by the battery, or one lost from sight a moment ago (in a cloud, round
     /// a corner), is no less there than one in sight. A player hears steps and shots and gets his team's calls, and does
     /// not walk to a battery a man he knows of stands by. A man seen needs a teammate of his own to cover him, as in
@@ -1001,14 +1011,14 @@ impl Ctx<'_> {
             for track in self.memory.tracks() {
                 let Some((at, time)) = track.own else { continue };
                 if threats.iter().any(|(threat, _)| threat.who == track.who)
-                    || self.now > time + self.tuning.sense.forget_ms
+                    || !self.spot_lives(track.who, time)
                     || at.distance_xz(battery) > exposed_m
                     || enemy_of(track.who).is_none()
                 {
                     continue;
                 }
                 fairness::read(self.me.team, fairness::Site::Near, track, self.now);
-                threats.push((TakeThreat { who: track.who, by: ThreatBy::Spot(at) }, Self::standing_eye(at)));
+                threats.push((TakeThreat { who: track.who, by: ThreatBy::Spot { at, sensed: time } }, Self::standing_eye(at)));
             }
         }
         if threats.is_empty() {
@@ -1022,10 +1032,35 @@ impl Ctx<'_> {
                 ThreatBy::Sight => mates.iter().map(|mate| self.covers(mate, at, cover_m, veil)).collect(),
                 // A man nobody sees: a line to his remembered spot keeps nobody busy. In the live recordings such
                 // "covering" mates were other bots walking in, killed with the bot.
-                ThreatBy::Spot(_) => vec![false; mates.len()],
+                ThreatBy::Spot { .. } => vec![false; mates.len()],
             })
             .collect();
         cover_each(&sees).map(|free| threats[free].0)
+    }
+
+    /// [take.clear_first] The loose battery nearest the bot within the take's `exposed_m` that an enemy holds: the take's
+    /// own threat by it ([`Self::take_threat`] with Collect's numbers: seen and not kept busy, or known by his spot), the
+    /// one place every play reads it from ([`clear_first::clear_first`]). None with `take.known_threats` off.
+    pub fn held_battery(&self) -> Option<HeldBattery> {
+        if !self.tuning.take.known_threats {
+            return None;
+        }
+        let num = |name| self.num(PlayKind::Collect, name);
+        let (exposed_m, reload_ms, cover_m) = (num("exposed_m"), (num("reload_cover_s") * 1000.0) as u32, num("cover_m"));
+        (0..self.view.batteries.len())
+            .filter_map(|battery| self.battery_lying(battery).map(|at| (battery, at)))
+            .filter(|&(_, at)| self.me.feet.distance_xz(at) <= exposed_m)
+            .filter_map(|(battery, at)| {
+                self.take_threat(Some(at), exposed_m, reload_ms, cover_m).map(|threat| HeldBattery { battery, at, threat })
+            })
+            .min_by(|a, b| self.me.feet.distance_xz(a.at).total_cmp(&self.me.feet.distance_xz(b.at)))
+    }
+
+    /// [take.known_threats] Whether a man's spot the team's own senses gave at `sensed` still counts: while his track lives
+    /// (`sense.drop_ms` from it: a player remembers where a man was until he sees otherwise), unless the team saw that spot
+    /// empty since (`TeamKnowledge::hold_cleared`).
+    pub fn spot_lives(&self, who: Place, sensed: u32) -> bool {
+        self.now <= sensed.saturating_add(self.tuning.sense.drop_ms) && !self.team.hold_cleared(who, sensed)
     }
 
     /// Whether the enemy at `who` was heard reloading within `reload_ms` (a take goes while he does: [`Self::take_threat`]).

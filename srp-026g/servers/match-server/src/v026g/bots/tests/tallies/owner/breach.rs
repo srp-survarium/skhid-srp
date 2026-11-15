@@ -57,11 +57,12 @@ impl BreachCounts {
             t.insert("crosser_downs".into(), n(tally::CROSSER_DOWNS).into());
             t.insert("objective_waits".into(), n(tally::OBJECTIVE_WAITS).into());
             t.insert("frags_at_spot".into(), n(tally::FRAGS_AT_SPOT).into());
+            t.insert("plan_runs".into(), n(tally::PLAN_RUNS).into());
             let get = |name: &str| t.get(name).and_then(serde_json::Value::as_u64).unwrap_or(0);
             let went = get("went");
             let traded = get("traded");
             text.push(format!(
-                "team {team}: due {}, opened {} (pinner {}, objective {}), refused no cover {} / no pair {} / no gather {} / too far {} / no crossers {} / cap {} / conceded {} / like the last {}; went {} (gather wait mean {:.1} s), held {}, first deaths {} traded {} (mean {:.1} s); ended his death by the job {} / by another {} / unheld {}; failed holder down {} / untraded {} / gather timeout {} / objective worse {} / no crossers {} / time {}; pinners lost {}, crossers down {}; objective player waits (thinks) {}; frags at the spot by its bots {}",
+                "team {team}: due {}, opened {} (pinner {}, objective {}), refused no cover {} / no pair {} / no gather {} / too far {} / no crossers {} / cap {} / conceded {} / like the last {}; went {} (gather wait mean {:.1} s), held {}, first deaths {} traded {} (mean {:.1} s); ended his death by the job {} / by another {} / unheld {}; failed holder down {} / untraded {} / gather timeout {} / objective worse {} / no crossers {} / time {}; pinners lost {}, crossers down {}; objective player waits (thinks) {}; frags at the spot by its bots {}; planner runs {}",
                 get("due"),
                 get("opened"),
                 get("opened_with_pinner"),
@@ -93,6 +94,7 @@ impl BreachCounts {
                 n(tally::CROSSER_DOWNS),
                 n(tally::OBJECTIVE_WAITS),
                 n(tally::FRAGS_AT_SPOT),
+                n(tally::PLAN_RUNS),
             ));
             json.insert(format!("team{team}"), serde_json::Value::Object(t));
         }
