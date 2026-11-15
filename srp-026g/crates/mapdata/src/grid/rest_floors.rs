@@ -65,7 +65,7 @@ pub(super) struct Rest {
 }
 
 /// [`rests_at`] with the point the body was put at: a test that asks whether the body stayed where it was set (the wall
-/// give-back's stand test) measures from there, the one push out of the walls this makes.
+/// give-back's stand test) measures from there, after the push out of the walls this makes.
 pub(super) fn rest(world: &Collision, s: &Settings, feet: Vec3, room: f32) -> Option<Rest> {
     let over = PUT_OVER_M.min(room).max(0.005);
     let start = out_of_walls(world, feet + Vec3::new(0.0, over, 0.0));
