@@ -70,7 +70,7 @@ position and velocity while it is in the physics world, its explode time and its
   0x9CB6D). The 911 flights flown again with both: P50 0.54 m, P80 4.34, P90 8.72 (as before); along the heading P10
   -1.24, P90 +3.95, P95 +8.92 m. Taking the swept sphere's radius as the hit's reach instead of the capsule's 0.05 is
   worse (0.01 stock: P50 0.63, 525 within 1 m; 0.04 with patch 105: P50 0.54, P90 8.99), as is flying with no support
-  contact (P90 10.6): the capsule's own contacts stop it.
+  contact (P90 10.6): by the recount, the capsule's own contacts stop it (the narrowphase and the solver are not read).
 
 ## The blast (`bullet_manager::explode` 0x339630)
 

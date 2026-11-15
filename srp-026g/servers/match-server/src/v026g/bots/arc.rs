@@ -599,9 +599,10 @@ impl Flight {
     ///   where the slope's pull beats friction (`tan θ >` [`FRICTION`]) and holds elsewhere.
     ///
     /// Which hits are capped and how a capped step ends are the client's. The stand-ins are the contact solving: a hit
-    /// is met at the capsule's radius (the client's swept sphere is smaller, 0.01 stock and 0.04 with exe patch 105,
-    /// and the capsule's own contact stops it: flown with the sweep's radius as the reach the 911 flights' error is
-    /// worse, P50 0.63 m at 0.01, 0.54 at 0.04), and an uncapped contact by the support's ray and the rest of the move
+    /// is met at the capsule's radius (the client's swept sphere is smaller, 0.01 stock and 0.04 with exe patch 105;
+    /// by the recount the capsule's own contact stops it, the narrowphase and the solver not read: flown with the
+    /// sweep's radius as the reach the 911 flights' error is worse, P50 0.63 m at 0.01, 0.54 at 0.04), and an uncapped
+    /// contact by the support's ray and the rest of the move
     /// (without the support ray the error is worse, P90 10.6 m). The error the checks take ([`REST_AHEAD_M`]) was
     /// counted with this rule.
     ///
