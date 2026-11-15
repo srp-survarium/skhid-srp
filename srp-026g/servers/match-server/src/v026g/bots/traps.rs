@@ -864,6 +864,13 @@ pub(super) fn camper_tick(
                 camper::count(team, camper::GAVE_UP);
                 let playing = bot_of(placer).and_then(|b| b.assignment.as_ref()).is_some_and(|a| a.kind == PlayKind::TrapSpot);
                 let near = view.place(placer).is_some_and(|b| b.feet.distance_xz(c.at) <= j.within_m + t.reach_m + 1.0);
+                if why == "dead" {
+                    let at = view.deaths.iter().rev().find(|d| d.place == placer).map(|d| d.at);
+                    camper::died(team, placer, now, c.kind, at.map(|at| {
+                        let seen = super::aimpoint::body_shows(&tactics.world.sight, super::lane_ahead::camper_eye(c.held), at, false);
+                        (at.distance_xz(c.at), at.distance_xz(c.held), seen)
+                    }), c.shooter);
+                }
                 camper::count(
                     team,
                     if why == "dead" {
@@ -1102,6 +1109,8 @@ pub mod camper {
     static GATE: [[AtomicU64; 8]; 2] = [const { [const { AtomicU64::new(0) }; 8] }; 2];
     /// The nearest enemy seen at an "enemy seen" refusal, metres: [its camper seen, only others].
     static SEEN_M: Mutex<[Vec<f32>; 2]> = Mutex::new([Vec::new(), Vec::new()]);
+    /// The sent bots' deaths, `time:place:team:kind:to point/to his place/seen from him:holder`.
+    static DEATHS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
     thread_local! {
         static MINE: std::cell::Cell<[[u64; N]; 2]> = const { std::cell::Cell::new([[0; N]; 2]) };
@@ -1137,6 +1146,20 @@ pub mod camper {
         }
     }
 
+    /// A sent bot died: its team, place, the time, its point's kind, where it died (metres to its point, to his place, and whether
+    /// a body standing there shows from his eye), and the point's holder.
+    pub fn died(team: u8, placer: usize, now: u32, kind: super::super::know::CamperTrapKind, at: Option<(f32, f32, bool)>, holder: usize) {
+        let kind = match kind {
+            super::super::know::CamperTrapKind::Job => "job",
+            super::super::know::CamperTrapKind::Battery => "battery",
+            super::super::know::CamperTrapKind::Returning { .. } => "returning",
+        };
+        let at = at.map_or("-".to_string(), |(p, h, seen)| format!("{p:.1}/{h:.1}/{}", if seen { "seen" } else { "hidden" }));
+        if let Ok(mut d) = DEATHS.lock() {
+            d.push(format!("{now}:{placer}:{team}:{kind}:{at}:{holder}"));
+        }
+    }
+
     /// A trap planned by a sent bot `placer` at `now` on the way in of `holder`'s place.
     pub fn planned(placer: usize, now: u32, holder: usize) {
         PLANS.with(|p| p.borrow_mut().push((placer, now, holder)));
@@ -1167,7 +1190,8 @@ pub mod camper {
             })
             .collect::<Vec<_>>()
             .join("; ");
-        format!("{teams}{seen}")
+        let deaths = DEATHS.lock().map(|d| format!("; sent bots' deaths [{}]", d.join(" "))).unwrap_or_default();
+        format!("{teams}{seen}{deaths}")
     }
 }
 
@@ -1176,6 +1200,71 @@ pub mod camper {
 pub fn forward_share(own: Vec3, enemy: Vec3, at: Vec3) -> f32 {
     let (a, b) = (at.distance_xz(own), at.distance_xz(enemy));
     if a + b <= 1e-3 { 0.5 } else { a / (a + b) }
+}
+
+/// [A324 measure] Why trap looks are called away (`drive`'s calm false: a reflex look, fire, legs, a use or a target): the reflex's
+/// seen target (by its distance), a threat look (`reflex::gate::THREAT`: a hit's shooter, a near shot), or another of its looks,
+/// fire, legs or a use (a watch, a sound, a glance, a pre-aim); a `TrapSpot` bot's looks apart. Decisions are not touched.
+#[cfg(test)]
+pub mod called {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use super::{Bot, PlaceView};
+
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub enum Why {
+        Target(f32),
+        Threat,
+        Other,
+    }
+
+    impl Why {
+        pub fn of(bot: &Bot, me: &PlaceView) -> Self {
+            if let Some(who) = bot.reflex.target() {
+                let at = bot.memory.tracks().iter().find(|t| t.who == who).map(|t| t.at);
+                return Self::Target(at.map_or(f32::INFINITY, |at| at.distance_xz(me.feet)));
+            }
+            if bot.reflex.gates().bits & super::super::reflex::gate::THREAT != 0 {
+                Self::Threat
+            } else {
+                Self::Other
+            }
+        }
+    }
+
+    /// [habit, TrapSpot] x [target <15 m, 15-40, 40+ or unknown, threat, other, not judged]
+    static N: [[AtomicU64; 6]; 2] = [const { [const { AtomicU64::new(0) }; 6] }; 2];
+
+    pub fn count(why: Option<Why>, job: bool) {
+        let k = match why {
+            Some(Why::Target(m)) if m < 15.0 => 0,
+            Some(Why::Target(m)) if m < 40.0 => 1,
+            Some(Why::Target(_)) => 2,
+            Some(Why::Threat) => 3,
+            Some(Why::Other) => 4,
+            None => 5,
+        };
+        N[usize::from(job)][k].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn line() -> String {
+        (0..2)
+            .map(|j| {
+                let n = |k: usize| N[j][k].load(Ordering::Relaxed);
+                format!(
+                    "{}: target <15 m {}, 15-40 m {}, 40+ m {}, threat look {}, another look/fire/legs/use {}, not judged {}",
+                    if j == 0 { "habit" } else { "TrapSpot" },
+                    n(0),
+                    n(1),
+                    n(2),
+                    n(3),
+                    n(4),
+                    n(5)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
 }
 
 /// [A145] The spots of killed holders (`know::Defeated`) a search wants a trap on (`TrapTuning::at_defeated`).
@@ -2603,6 +2692,9 @@ pub(super) fn drive(
         _ => crouch,
     };
     let aim = aim_of(bot, me, crouched, t, mesh);
+    // [A324 measure] What keeps this tick from calm, for the count of a look called away.
+    #[cfg(test)]
+    let why_not_calm = (!calm).then(|| called::Why::of(bot, me));
     let out = bot.features.traps.habit.tick(
         Tick {
             now,
@@ -2616,6 +2708,10 @@ pub(super) fn drive(
     );
     if let Some(ended) = out.ended {
         bot.features.traps.habit.record(ended);
+        #[cfg(test)]
+        if matches!(ended, Ended::CalledAway) {
+            called::count(why_not_calm, bot.assignment.as_ref().is_some_and(|a| a.kind == PlayKind::TrapSpot));
+        }
         if bot.tracing && !matches!(ended, Ended::Placed) {
             bot.traced.push(serde_json::json!({
                 "t": now, "bot": bot.place, "trap_look_ended": format!("{ended:?}"),
