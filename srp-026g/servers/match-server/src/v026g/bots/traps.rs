@@ -1952,6 +1952,27 @@ pub(super) fn own_trap_route(bot: &mut Bot, feet: Vec3, route: Option<super::pat
     }
     #[cfg(test)]
     keep_off_counts::count(keep_off_counts::REFUSED);
+    #[cfg(test)]
+    {
+        let points = route_points(&route, feet, f32::MAX);
+        let end = route.point_at(route.length());
+        let (disc, pass) = field
+            .discs()
+            .iter()
+            .map(|d| (*d, off_route_m(&points, *d)))
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .unwrap_or((feet, f32::MAX));
+        eprintln!(
+            "  own trap route refused: t {now} place {} play {:?} start {:.2} m end {:.2} m nearest pass {pass:.2} m length {:.1} at ({:.1}, {:.1})",
+            bot.place,
+            bot.assignment.as_ref().map(|a| a.kind),
+            feet.distance_xz(disc),
+            end.distance_xz(disc),
+            route.length(),
+            disc.x,
+            disc.z
+        );
+    }
     own_trap_note(bot, now, format!("a route of {:.1} m refused: it passes an own trap nearer than {reach:.2} m", route.length()));
     None
 }
