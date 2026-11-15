@@ -582,8 +582,8 @@ pub struct Ctx<'a> {
     /// [owner-5] The log's lines the plays write while asked (why an offer or a battery was refused): for the bot's
     /// `NavLog` once the poll lets go of it. Written, never read back by a decision.
     pub lines: super::nav_log::Lines,
-    /// [A391] The job role offers this think made (`job_offer`), for the bot's [`super::threat::LastOffers`] once the think
-    /// lets go of the context. Written, never read back by a decision.
+    /// [A391] The job role offers the commander's poll made (`job_offer`, from the plays' candidates), for the bot's
+    /// [`super::threat::LastOffers`] once the poll lets go of the bots. Written, never read back by a decision.
     pub offers: std::cell::RefCell<Vec<(super::threat::Role, super::threat::Offer)>>,
 }
 

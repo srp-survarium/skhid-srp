@@ -1370,10 +1370,6 @@ pub(super) fn decide(
     bot.rng = rng;
     // [owner-5] The log's lines the play's step wrote.
     super::nav_log::Lines::write(cx.lines.take(), &mut bot.nav_log, now);
-    // [A391] The job role offers of this think, for the class of a role let go.
-    for (role, offer) in cx.offers.take() {
-        bot.offers.note(role, offer);
-    }
     let step_name = running.step_name();
     #[cfg(test)]
     if crossfire_going && step_name == "Hold" {
