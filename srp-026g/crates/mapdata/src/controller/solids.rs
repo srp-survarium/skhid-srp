@@ -237,6 +237,9 @@ struct Leaf {
     part: Part,
     /// The object it is a part of (an index into the objects).
     object: u32,
+    /// [L36] A compound's child's place in the order the compound's tree offers its children; none for an object's whole
+    /// shape or a compound the port has no order for.
+    child: Option<u32>,
 }
 
 /// The game's objects a walking body meets.
@@ -301,35 +304,87 @@ fn face_of(v: [Vec3; 3], walker: WalkerBehaviour) -> Face {
     Face { v, normal: if l > 1e-12 { n * (1.0 / l) } else { Vec3::ZERO }, walker }
 }
 
+/// The convex as the exe's virtual calls read it (`localGetSupportingVertex`, `getAabb`: [`ConvexShape`]); none for a
+/// cylinder that is not y-up (the game makes none: `create_bt_primitive` 0x7A1F0).
+fn class_shape(convex: &bullet::Convex) -> Option<ConvexShape> {
+    let (dims, m) = (convex.dims, convex.margin);
+    match convex.kind {
+        ConvexKind::Box => Some(ConvexShape::Box { implicit: dims, margin: m }),
+        ConvexKind::Sphere => Some(ConvexShape::sphere(dims[0], convex.scaling[0])),
+        ConvexKind::Cylinder { up } => (up == Axis::Y).then_some(ConvexShape::CylinderY { implicit: dims, margin: m }),
+        ConvexKind::Capsule { up } => Some(ConvexShape::Capsule { implicit: dims, scaling: convex.scaling, margin: m, up }),
+    }
+}
+
 impl Primitive {
     fn new(convex: &bullet::Convex) -> Primitive {
         let (dims, m) = (convex.dims, convex.margin);
-        let (shape, margin, half, ray) = match convex.kind {
-            ConvexKind::Box => {
-                (WorldShape::Box { half_extents: dims }, m, dims.map(|d| d + m), Some(ConvexShape::Box { implicit: dims, margin: m }))
-            }
+        let (shape, margin, half) = match convex.kind {
+            ConvexKind::Box => (WorldShape::Box { half_extents: dims }, m, dims.map(|d| d + m)),
             ConvexKind::Sphere => {
                 // `btSphereShape::getMargin`: the radius (+20h) times the scaling (+10h).
-                let ray = ConvexShape::sphere(dims[0], convex.scaling[0]);
                 let radius = dims[0] * convex.scaling[0];
-                (WorldShape::Sphere, radius, [radius; 3], Some(ray))
+                (WorldShape::Sphere, radius, [radius; 3])
             }
-            ConvexKind::Cylinder { up } => {
-                let ray = (up == Axis::Y).then_some(ConvexShape::CylinderY { implicit: dims, margin: m });
-                (WorldShape::cylinder(dims, up), m, dims.map(|d| d + m), ray)
-            }
+            ConvexKind::Cylinder { up } => (WorldShape::cylinder(dims, up), m, dims.map(|d| d + m)),
             ConvexKind::Capsule { up } => {
                 // The support reaches the radius times the scaling from the axis' ends (0x8D9BB).
                 let radius = dims[(up.index() + 2) % 3];
                 let reach = radius * convex.scaling.iter().fold(1.0f32, |a, &s| a.max(s));
                 let mut half = [reach; 3];
                 half[up.index()] = dims[up.index()] + reach;
-                let ray = ConvexShape::Capsule { implicit: dims, scaling: convex.scaling, margin: m, up };
-                (WorldShape::capsule(dims, convex.scaling, m, up), m, half, Some(ray))
+                (WorldShape::capsule(dims, convex.scaling, m, up), m, half)
             }
         };
-        Primitive { shape, margin, half, ray }
+        Primitive { shape, margin, half, ray: class_shape(convex) }
     }
+}
+
+/// [L36] A compound's children's places in the order its child tree offers them ([`super::compound_dbvt`]), from how each came
+/// into the tree ([`bullet::Added`]) and its `getAabb` boxes: a primitive's under its transform before the compound's scaling
+/// (its implicit dimensions then, scaling 1) and after it, the mesh's (`btTriangleMeshShape::getAabb`: its local box's centre
+/// and half extents under the transform, here the identity, which every way of ordering that arithmetic gives the same bits
+/// for). None where one is not known: a file older than version 8, a cylinder that is not y-up, a mesh with no local box or
+/// under another transform.
+fn compound_ranks(library: &crate::Library, children: &[bullet::Child]) -> Option<Vec<u32>> {
+    let boxes = children
+        .iter()
+        .map(|child| match (&child.part, child.added) {
+            (bullet::Part::Convex(convex), bullet::Added::BeforeScaling { origin, dims }) => {
+                let unscaled = bullet::Convex { scaling: [1.0; 3], dims, ..convex.clone() };
+                let before = Transform { basis: child.transform.basis, origin };
+                Some(super::compound_dbvt::ChildBox::BeforeScaling {
+                    inserted: class_shape(&unscaled)?.aabb(&before),
+                    scaled: class_shape(convex)?.aabb(&child.transform),
+                })
+            }
+            (bullet::Part::Mesh(mesh), bullet::Added::AfterScaling) => {
+                let identity = child.transform.origin.iter().all(|&o| o == 0.0)
+                    && child.transform.basis.iter().flatten().all(|&b| b == 0.0 || b.abs() == 1.0);
+                if !identity {
+                    return None;
+                }
+                let corners: Vec<[V3; 3]> = library.faces[mesh.faces.start as usize..mesh.faces.end as usize]
+                    .iter()
+                    .map(|face| face.corners.map(|i| flip(library.vertices[i as usize].to_array())))
+                    .collect();
+                let (lo, hi) = super::mesh_bvh::local_box(&corners)?;
+                // The local box's centre and half extents (the mesh's margin 0) under the transform: an identity up to the
+                // signs of its rows, so the extents are the half extents and the centre the basis times the centre.
+                let centre = [0, 1, 2].map(|k| 0.5 * (hi[k] + lo[k]));
+                let half = [0, 1, 2].map(|k| 0.5 * (hi[k] - lo[k]));
+                let b = &child.transform.basis;
+                let c = [0, 1, 2].map(|r| (b[r][0] * centre[0] + b[r][1] * centre[1]) + b[r][2] * centre[2]);
+                let e = [0, 1, 2].map(|r| (b[r][0].abs() * half[0] + b[r][1].abs() * half[1]) + b[r][2].abs() * half[2]);
+                Some(super::compound_dbvt::ChildBox::AfterScaling((
+                    [0, 1, 2].map(|k| c[k] - e[k]),
+                    [0, 1, 2].map(|k| c[k] + e[k]),
+                )))
+            }
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(super::compound_dbvt::offering_ranks(&boxes))
 }
 
 /// What 0x84810 reads of a round primitive under `rotation`, the matrix 0x84190 and `setRotation` 0x72A50 make of the
@@ -393,27 +448,27 @@ impl Builder {
         self.solids.objects.push(at..at);
     }
 
-    fn leaf(&mut self, bounds: Box3, transform: Transform, ray_transform: Transform, part: Part) {
+    fn leaf(&mut self, bounds: Box3, transform: Transform, ray_transform: Transform, part: Part, child: Option<u32>) {
         let object = self.solids.objects.last_mut().expect("an object begun before its parts");
         object.end += 1;
         let object = (self.solids.objects.len() - 1) as u32;
         self.solids.boxes.push(bounds);
-        self.solids.leaves.push(Leaf { transform, ray_transform, part, object });
+        self.solids.leaves.push(Leaf { transform, ray_transform, part, object, child });
     }
 
     /// A mesh under `transform` (the sweep's) and `ray_transform` (the ray test's: the same but for a compound's child).
-    fn place_mesh(&mut self, transform: Transform, ray_transform: Transform, mesh: u32) {
+    fn place_mesh(&mut self, transform: Transform, ray_transform: Transform, mesh: u32, child: Option<u32>) {
         let m = &self.solids.meshes[mesh as usize];
         let Some(root) = m.tree.nodes.first() else { return };
         let (lo, hi) = root.bounds;
         let centre = [0, 1, 2].map(|i| (lo[i] + hi[i]) * 0.5);
         let half = [0, 1, 2].map(|i| (hi[i] - lo[i]) * 0.5);
-        self.leaf(world_box(&transform, centre, half), transform, ray_transform, Part::Mesh(mesh));
+        self.leaf(world_box(&transform, centre, half), transform, ray_transform, Part::Mesh(mesh), child);
     }
 
-    fn place_primitive(&mut self, transform: Transform, ray_transform: Transform, shape: u32, on: Surface) {
+    fn place_primitive(&mut self, transform: Transform, ray_transform: Transform, shape: u32, on: Surface, child: Option<u32>) {
         let half = self.solids.primitives[shape as usize].half;
-        self.leaf(world_box(&transform, [0.0; 3], half), transform, ray_transform, Part::Primitive { shape, on });
+        self.leaf(world_box(&transform, [0.0; 3], half), transform, ray_transform, Part::Primitive { shape, on }, child);
     }
 
     fn finish(mut self) -> Solids {
@@ -433,6 +488,8 @@ impl Solids {
         // A library's parts, made once: (library, part) to the mesh or the primitive.
         let mut meshes: HashMap<(u32, usize), u32> = HashMap::new();
         let mut primitives: HashMap<(u32, usize), u32> = HashMap::new();
+        // [L36] A compound library's children's places in its tree's order, made once.
+        let mut compound_orders: HashMap<u32, Option<Vec<u32>>> = HashMap::new();
         for (index, placement) in map.placements.iter().enumerate() {
             if !filter.meets(placement.cgroup, placement.cmask) {
                 continue;
@@ -470,27 +527,29 @@ impl Solids {
                 bullet::Shape::Empty => {}
                 bullet::Shape::Mesh(mesh) => {
                     let id = mesh_of(&mut builder, 0, mesh);
-                    builder.place_mesh(object, object, id);
+                    builder.place_mesh(object, object, id, None);
                 }
                 // An object's whole shape: the callback gets no shape info and takes the walker behaviour 0.
                 bullet::Shape::Convex(convex) => {
                     let id = primitive_of(&mut builder, 0, convex);
                     let on = Surface::Primitive { walker: WalkerBehaviour::BySlope, round: small_round(convex, &exe_cast::through_quaternion(&object.basis)) };
-                    builder.place_primitive(object, object, id, on);
+                    builder.place_primitive(object, object, id, on, None);
                 }
                 bullet::Shape::Compound { children, .. } => {
+                    let order = compound_orders.entry(library_index).or_insert_with(|| compound_ranks(library, children)).clone();
                     for (part, child) in children.iter().enumerate() {
+                        let place = order.as_ref().map(|o| o[part]);
                         let transform = exe_cast::compose(&object, &child.transform);
                         let ray_transform = exe_ray::compose_child(&object, &child.transform);
                         match &child.part {
                             bullet::Part::Mesh(mesh) => {
                                 let id = mesh_of(&mut builder, part, mesh);
-                                builder.place_mesh(transform, ray_transform, id);
+                                builder.place_mesh(transform, ray_transform, id, place);
                             }
                             bullet::Part::Convex(convex) => {
                                 let id = primitive_of(&mut builder, part, convex);
                                 let on = Surface::Primitive { walker: convex.walker, round: small_round(convex, &exe_cast::child_hit_rotation(&object.basis, &child.transform.basis)) };
-                                builder.place_primitive(transform, ray_transform, id, on);
+                                builder.place_primitive(transform, ray_transform, id, on, place);
                             }
                         }
                     }
@@ -534,6 +593,7 @@ impl Solids {
                 object,
                 part: Some(i as u32),
                 rank,
+                child: leaf.child,
             };
             match leaf.part {
                 Part::Primitive { shape: id, on } => {
@@ -573,9 +633,10 @@ impl Solids {
     /// to `b` (the map frame; identity bases) against the object's whole shape under its transform, into a fresh
     /// closest-ray callback (0x83FD0, its flags 0). The normal the callback holds after, in the map frame.
     ///
-    /// A compound's children and a mesh's triangles are offered where their boxes meet the ray's box, in this
-    /// world's order (the exe's own trees' walks, 0xA54A0 and 0xC39B0, are not ported): a hit needs the ray through
-    /// the box, so the hits are the exe's; which of two at exactly one fraction comes first can differ.
+    /// A compound's children and a mesh's triangles are offered where their boxes meet the ray's box: a hit needs the ray
+    /// through the box, so the hits are the exe's. [L36] A mesh's triangles in its tree's leaf order (0xC39B0), so of two
+    /// at exactly one distance the exe's first is kept; a compound's children in this world's order (0xA54A0's walk is not
+    /// ported for the ray).
     pub(super) fn look_ray(&self, object: u32, a: Vec3, b: Vec3) -> Option<Vec3> {
         let end = |p: Vec3| Transform { basis: exe_cast::IDENTITY.basis, origin: flip(p.to_array()) };
         let (from, to) = (end(a), end(b));
@@ -606,13 +667,20 @@ impl Solids {
                     );
                     // `rcb.m_hitFraction = resultCallback.m_closestHitFraction` (0xA09A4), then each report's answer.
                     let mut hit_fraction = callback.closest;
-                    mesh.tree.each_in(&local, |k| {
+                    // [L36] In the mesh tree's leaf order (0xC39B0 walks it as the sweep's 0xC2FF0 does): the ray keeps the FIRST
+                    // triangle at an equal distance (0xB81C8 strict), so the order picks among ties (the exe review of #1970).
+                    let mut candidates: Vec<usize> = Vec::new();
+                    mesh.tree.each_in(&local, |k| candidates.push(k));
+                    if let Some(rank) = &mesh.rank {
+                        candidates.sort_unstable_by_key(|&k| rank[k]);
+                    }
+                    for k in candidates {
                         let triangle = &mesh.triangles[k];
                         if let TriangleRay::Hit { normal, distance } = exe_ray::ray_triangle(local_from, local_to, RayFlags(0), hit_fraction, &triangle.v) {
                             let n = exe_ray::bridge_normal(&world.basis, normal);
                             hit_fraction = callback.add_single_result(object, n, distance, NormalSpace::World);
                         }
-                    });
+                    }
                 }
             }
         }
@@ -664,7 +732,7 @@ mod tests {
         let mut builder = Builder::default();
         let mesh = builder.mesh(mesh_of(&floor()), None);
         builder.object();
-        builder.place_mesh(IDENTITY, IDENTITY, mesh);
+        builder.place_mesh(IDENTITY, IDENTITY, mesh, None);
         let shapes = world(builder.finish());
         let soup = Collision::build(&floor()).with_caster(Caster::Exe);
         for (shape, by) in [
@@ -698,7 +766,7 @@ mod tests {
         let mut builder = Builder::default();
         let mesh = builder.mesh(local, None);
         builder.object();
-        builder.place_mesh(quarter, quarter, mesh);
+        builder.place_mesh(quarter, quarter, mesh, None);
         let shapes = world(builder.finish());
         let soup = Collision::build(&floor()).with_caster(Caster::Exe);
         let (shape, by) = (capsule(1.0, 3.0, 4.0), Vec3::new(0.25, -3.0, 0.5));
@@ -724,7 +792,7 @@ mod tests {
         let on = Surface::Primitive { walker: WalkerBehaviour::BySlope, round: None };
         // The box's centre at map (2, 0.5, 3): Bullet's z is -3.
         builder.object();
-        builder.place_primitive(at(2.0, 0.5, -3.0), at(2.0, 0.5, -3.0), id, on);
+        builder.place_primitive(at(2.0, 0.5, -3.0), at(2.0, 0.5, -3.0), id, on, None);
         let shapes = world(builder.finish());
         let top = hits(&shapes, capsule(2.0, 3.0, 3.0), Vec3::new(0.0, -3.0, 0.0));
         assert_eq!(top.len(), 1);
@@ -848,7 +916,7 @@ mod tests {
         let mut builder = Builder::default();
         let mesh = builder.mesh(triangles.clone(), None);
         builder.object();
-        builder.place_mesh(transform, transform, mesh);
+        builder.place_mesh(transform, transform, mesh, None);
         let shapes = world(builder.finish());
 
         let key = |t: f32, p: [f32; 3], n: [f32; 3]| (t.to_bits(), p.map(f32::to_bits), n.map(f32::to_bits));
