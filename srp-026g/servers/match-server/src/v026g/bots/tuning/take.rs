@@ -275,6 +275,14 @@ pub struct TakeTuning {
     /// level; no guard FAIL. Alone, `zone_look` was worse (wins -18.6 %, z -2.1): it walked to batteries no bot then took.
     pub zone_look: Option<ZoneLook>,
     pub zone_take: Option<ZoneTake>,
+    /// [A353] A take's first press is made on the move (`collect::FirstPress`): walked in upright at the route's pace,
+    /// looking at the battery, pressed on the first tick the bot's view ray meets the box within the client's 1.80 m use
+    /// ray; the crouch, the settle wait and the ring of stands only after a press that started nothing. The client starts a
+    /// use on the key's down edge when one ray meets the shape, with no angle, stance, movement or look-settle test
+    /// (`using_the_world.md`, PROVEN). Off: the last stretch walked crouched, a press only once the view settled (0.06 rad
+    /// or 1.5 s); the live recordings had 2.66 s median from 3 m to the press against a player's 0.45 s, 73 % of the bots'
+    /// presses crouched against none of the player's (the batteries findings of 2026-11-14, C1).
+    pub on_the_move: bool,
 }
 
 impl Default for TakeTuning {
@@ -288,6 +296,7 @@ impl Default for TakeTuning {
             drop_impossible: Some(DropImpossible::default()),
             zone_look: Some(ZoneLook::default()),
             zone_take: Some(ZoneTake::default()),
+            on_the_move: true,
         }
     }
 }

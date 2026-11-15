@@ -164,6 +164,7 @@
     "wait_for_cloud": null
   },
   "take": {
+    "on_the_move": false,
     "team_memory": null,
     "zone_look": null,
     "zone_take": null
