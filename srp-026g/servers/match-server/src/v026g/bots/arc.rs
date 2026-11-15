@@ -31,11 +31,15 @@
 //! - **After the first contact** the body keeps its tangential speed and
 //!   loses the normal one (restitution 0), with the two frictions' product
 //!   [`FRICTION`] (0x8E870, nothing sets either afterwards; the contact
-//!   callback 0x1F1D3B4 is never written). PROVEN. Nothing stops it before
-//!   the fuse, but on the real maps it stops soon: [`roll_m`] is what the
-//!   recorded blasts say. LIKELY (26 kill cases, a median 2 m beyond the
-//!   first contact, 80 % within 8 m; only grenades that killed are in it,
-//!   so the tail is a lower bound).
+//!   callback 0x1F1D3B4 is never written). PROVEN. And the physics world's
+//!   swept test caps the speed at the hit: a step that moves more than the
+//!   motion threshold and whose swept sphere meets something puts the body
+//!   at the time of impact with its speed cut to the threshold over the
+//!   step, 1.8 m/s ([`CCD_SPEED_CAP`], `integrateTransforms` 0x9CA78..
+//!   0x9CB60; `docs/notes/thrown_and_placed.md`, `grenade_ccd.md`). PROVEN.
+//!   [`Flight::rest_at_blast`] flies that rule to the blast (the rest of
+//!   [`Landing`], `aim.combat.grenade_rest_flown`); the old rest,
+//!   [`roll_m`] past the contact, was a fit of 26 recorded kills.
 //! - **No explosion on contact** (`explode_on_contact` false, `safe_time`
 //!   0, 0x248A33); the blast is [`Grenade::splash_m`] around the grenade.
 //!   The three numbers are the grenade's config (`weapons::grenade_named`),
@@ -108,6 +112,36 @@ pub const ROLL_WORST_M: f32 = 16.0;
 /// The time a downhill roll runs, seconds (2.2 s are left between the
 /// landing and the blast). LIKELY.
 pub const ROLL_S: f32 = 2.0;
+/// The body's motion threshold for the swept test, metres a step (`m_ccdMotionThreshold` +104h, set at 0x303A0B):
+/// a step that moves more than this is swept. PROVEN (`grenade_ccd.md`).
+pub const CCD_MOTION_M: f32 = 0.03;
+/// The speed a swept hit leaves the body at most, m/s: the threshold over the step, 0.03 / (1 / 60) = 1.8
+/// (`integrateTransforms` 0x9CA78..0x9CB60 scales the linear velocity down to it). PROVEN (`thrown_and_placed.md`).
+pub const CCD_SPEED_CAP: f32 = CCD_MOTION_M / STEP_S;
+/// Where the client's grenade went off against the flown rest, along the throw's heading, metres: 911 recorded frag
+/// flights flown by [`Flight::rest_at_blast`]'s rule from a sighting in the air, against the last sighting before the
+/// blast (3D error P50 0.53 m, P80 4.32, P90 8.72; the old roll's P50 2.13 m). Along the heading: P10 1.22 m short of
+/// the rest ([`REST_BEHIND_M`]), P90 4.14 m past it ([`REST_AHEAD_M`]), P95 9.08 m past it ([`REST_AHEAD_WORST_M`]);
+/// across it P90 1.82 m (a body's reach covers it). 142 of the 911 had fallen through the floor (the stock CCD, before
+/// exe patch 105). PROVEN (counted: `thrown_and_placed.md`, its flights' errors split along and across the heading).
+pub const REST_BEHIND_M: f32 = 1.22;
+pub const REST_AHEAD_M: f32 = 4.14;
+pub const REST_AHEAD_WORST_M: f32 = 9.08;
+
+thread_local! {
+    static REST_FLOWN: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+}
+
+/// Whether a [`Flight::landing`]'s rest is the client's flown one ([`Flight::rest_at_blast`]) or the old roll
+/// ([`roll_m`]): `aim.combat.grenade_rest_flown`, which `Bots` sets for its thread at each call. On by default.
+pub fn rest_flown() -> bool {
+    REST_FLOWN.with(|on| on.get())
+}
+
+/// Sets [`rest_flown`] for this thread.
+pub fn set_rest_flown(on: bool) {
+    REST_FLOWN.with(|cell| cell.set(on));
+}
 
 /// How far past a step's end the ground is asked: the capsule touches when
 /// its centre is [`RADIUS_M`] from the surface, which a ray of the centre's
@@ -526,10 +560,108 @@ impl Flight {
     }
 
     /// Where it lands and where it rests: [`Self::first_contact`] within
-    /// [`Self::max_s`], with its [`Landing`].
+    /// [`Self::max_s`], with its [`Landing`]: the rest flown to the blast
+    /// ([`Self::rest_at_blast`]) or, with [`rest_flown`] off, the old roll.
     pub fn landing(&self, ground: &(impl Ground + ?Sized)) -> Option<Landing> {
-        self.first_contact(ground, self.max_s)
-            .map(|contact| Landing::of(contact, self.grenade.splash_m))
+        let contact = self.first_contact(ground, self.max_s)?;
+        Some(self.landing_at(contact, ground))
+    }
+
+    /// [`Self::landing`] of the flight's own first contact `contact` (a caller that weighs the contact first flies the
+    /// rest only when it needs it).
+    pub fn landing_at(&self, contact: Contact, ground: &(impl Ground + ?Sized)) -> Landing {
+        if rest_flown() {
+            Landing::flown(contact, self.grenade.splash_m, self.rest_at_blast(ground))
+        } else {
+            Landing::of(contact, self.grenade.splash_m)
+        }
+    }
+
+    /// Where the body is when the fuse ends ([`Self::max_s`] after the launch), flown through every contact by the rule
+    /// the 911 recorded flights were counted with (`thrown_and_placed.md`, "After the first contact"):
+    /// - steps of [`STEP_S`], gravity into the velocity and then the move, no damping; the body a sphere of
+    ///   [`RADIUS_M`] (the capsule's radius);
+    /// - a step's move that meets the ground stops at the surface; a move longer than [`CCD_MOTION_M`] has its speed
+    ///   cut to [`CCD_SPEED_CAP`] (the client's swept test, `integrateTransforms` 0x9CA78..0x9CB60); then the contact
+    ///   ([`touch`]): the velocity into the surface is lost (restitution 0 and friction 0.5 a body: the collision
+    ///   object's defaults 0x8E8B1..0x8E8D5 and the grenade's own info 0x303919..0x303944) and the tangential speed
+    ///   loses [`FRICTION`] times it; what is left of the step's move is made once more the same way, without the cap;
+    /// - then the support: a body within [`RADIUS_M`] + 2 cm over a surface is set on it and touches it, so it slides
+    ///   where the slope's pull beats friction (`tan θ >` [`FRICTION`]) and holds elsewhere.
+    ///
+    /// The cap is the client's; which touches it takes is this rule's stand-in. The client leaves a hit uncapped when
+    /// the step's move along the hit's normal is 4 cm or less (the sweep's result filter 0x9C6B0, the collision world's
+    /// +38h), and its capsule touches without a swept hit within its reach less the swept sphere's radius, at any
+    /// surface; it does not move the rest of a capped step. Here every move hit over the threshold is capped and only a
+    /// floor under the support's reach is touched without it. The error the checks take ([`REST_AHEAD_M`]) was counted
+    /// with this same rule.
+    ///
+    /// A step that leaves a still body where it was is every later step too: the flight stops there.
+    pub fn rest_at_blast(&self, ground: &(impl Ground + ?Sized)) -> Vec3 {
+        /// The support's reach under the sphere, metres.
+        const SUPPORT_M: f32 = 0.02;
+        let down = Vec3::new(0.0, -1.0, 0.0);
+        let (mut p, mut v) = (self.start, self.velocity);
+        let steps = (self.max_s / STEP_S).ceil() as u32;
+        for _ in 0..steps {
+            let (was, was_v) = (p, v);
+            v.y -= GRAVITY * STEP_S;
+            let d = v * STEP_S;
+            let length = d.length();
+            if length > 1e-7 {
+                let dir = d * (1.0 / length);
+                match ground.cast(p, dir, length + RADIUS_M) {
+                    Some(hit) => {
+                        let travel = (hit.t - RADIUS_M).max(0.0);
+                        p = p + dir * travel;
+                        if length > CCD_MOTION_M {
+                            let speed = v.length();
+                            if speed > CCD_SPEED_CAP {
+                                v = v * (CCD_SPEED_CAP / speed);
+                            }
+                        }
+                        touch(&mut v, hit.normal);
+                        let d2 = v * (STEP_S * (length - travel) / length);
+                        let l2 = d2.length();
+                        if l2 > 1e-7 {
+                            let dir2 = d2 * (1.0 / l2);
+                            match ground.cast(p, dir2, l2 + RADIUS_M) {
+                                Some(again) => {
+                                    p = p + dir2 * (again.t - RADIUS_M).max(0.0);
+                                    touch(&mut v, again.normal);
+                                }
+                                None => p = p + d2,
+                            }
+                        }
+                    }
+                    None => p = p + d,
+                }
+            }
+            if let Some(hit) = ground.cast(p, down, RADIUS_M + SUPPORT_M) {
+                if hit.t < RADIUS_M {
+                    p.y += RADIUS_M - hit.t;
+                }
+                touch(&mut v, hit.normal);
+            }
+            if p == was && v == Vec3::ZERO && was_v == Vec3::ZERO {
+                break;
+            }
+        }
+        p
+    }
+}
+
+/// A contact with a surface of unit normal `normal`: the velocity into it is lost (restitution 0) and the tangential
+/// speed loses [`FRICTION`] times that (Coulomb, the two bodies' 0.5 x 0.5); a velocity leaving the surface is kept.
+fn touch(v: &mut Vec3, normal: Vec3) {
+    let into = v.dot(normal);
+    if into >= 0.0 {
+        return;
+    }
+    *v = *v - normal * into;
+    let along = v.length();
+    if along > 0.0 {
+        *v = *v * ((along + FRICTION * into).max(0.0) / along);
     }
 }
 
@@ -587,46 +719,107 @@ pub fn roll_m(contact: &Contact) -> f32 {
     }
 }
 
+/// Which rule gave a [`Landing`]'s rest.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RestRule {
+    /// The old one: [`roll_m`] past the contact along the heading; the blast may be anywhere from the contact to
+    /// [`ROLL_P80_M`] (usual) or [`ROLL_WORST_M`] (worst) along it.
+    Rolled,
+    /// The client's flight to the blast ([`Flight::rest_at_blast`]); the blast may be anywhere on its slide from the
+    /// contact to the rest, or along the heading from [`REST_BEHIND_M`] short of the rest to [`REST_AHEAD_M`] (usual)
+    /// or [`REST_AHEAD_WORST_M`] (worst) past it.
+    Flown,
+}
+
+/// How far a check reaches past a landing's rest ([`Landing::blast_distance`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Spread {
+    /// The contact and the rest only.
+    Rest,
+    /// The usual check: the 90th percentile past the rest (flown) or the roll's 80th (rolled).
+    Usual,
+    /// The worst case: the 95th percentile past the rest (flown) or the longest recorded roll (rolled).
+    Worst,
+}
+
 /// Where a throw lands and where it is likely to lie when it goes off.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Landing {
     pub contact: Contact,
     /// [`Contact::heading`].
     pub heading: Vec3,
-    /// The expected blast: the contact moved [`roll_m`] along the heading,
-    /// at the contact's height.
+    /// The expected blast, by [`Self::rule`].
     pub rest: Vec3,
+    /// The old rule's rest whatever the rule: the contact moved [`roll_m`] along the heading, at the contact's height
+    /// (the logs compare the two).
+    pub rolled: Vec3,
+    pub rule: RestRule,
     /// The blast's reach, metres ([`Grenade::splash_m`]).
     pub splash_m: f32,
 }
 
 impl Landing {
+    /// The old rule's landing: the rest [`roll_m`] past the contact.
     pub fn of(contact: Contact, splash_m: f32) -> Self {
         let heading = contact.heading();
-        Self {
-            contact,
-            heading,
-            splash_m,
-            rest: contact.point + heading * roll_m(&contact),
-        }
+        let rolled = contact.point + heading * roll_m(&contact);
+        Self { contact, heading, splash_m, rest: rolled, rolled, rule: RestRule::Rolled }
     }
 
-    /// How far `at` is from the nearest place the blast may be: the rest
-    /// point, or any point from the contact to `reach_m` along the heading
-    /// ([`ROLL_P80_M`] for the usual check, [`ROLL_WORST_M`] for the worst
-    /// case), metres. For a wall the segment still runs along the incoming
-    /// heading (through the wall: a mate behind it is counted).
-    pub fn blast_distance(&self, at: Vec3, reach_m: f32) -> f32 {
-        let from = self.contact.point;
-        let end = from + self.heading * reach_m;
-        distance_to_segment(at, from, end).min((at - self.rest).length())
+    /// The client's landing: the rest flown to the blast ([`Flight::rest_at_blast`]).
+    pub fn flown(contact: Contact, splash_m: f32, rest: Vec3) -> Self {
+        Self { rest, rule: RestRule::Flown, ..Self::of(contact, splash_m) }
+    }
+
+    /// How far `at` is from the nearest place the blast may be, metres, by the rule:
+    /// - flown: any point of the slide from the contact to the rest (a straight line), or along the heading from
+    ///   [`REST_BEHIND_M`] short of the rest to [`REST_AHEAD_M`] (`Usual`) or [`REST_AHEAD_WORST_M`] (`Worst`) past it;
+    /// - rolled: the rest point, or any point from the contact to [`ROLL_P80_M`] (`Usual`) or [`ROLL_WORST_M`]
+    ///   (`Worst`) along the heading. For a wall the segment still runs along the incoming heading (through the
+    ///   wall: a mate behind it is counted).
+    ///
+    /// `Rest`: the slide (flown), the contact and the rest (rolled), with no spread.
+    pub fn blast_distance(&self, at: Vec3, spread: Spread) -> f32 {
+        let to_rest = (at - self.rest).length();
+        match self.rule {
+            RestRule::Flown => {
+                let (behind, ahead) = match spread {
+                    Spread::Rest => (0.0, 0.0),
+                    Spread::Usual => (REST_BEHIND_M, REST_AHEAD_M),
+                    Spread::Worst => (REST_BEHIND_M, REST_AHEAD_WORST_M),
+                };
+                let slide = distance_to_segment(at, self.contact.point, self.rest);
+                let spread = distance_to_segment(at, self.rest - self.heading * behind, self.rest + self.heading * ahead);
+                slide.min(spread)
+            }
+            RestRule::Rolled => {
+                let reach_m = match spread {
+                    Spread::Rest => 0.0,
+                    Spread::Usual => ROLL_P80_M,
+                    Spread::Worst => ROLL_WORST_M,
+                };
+                let from = self.contact.point;
+                distance_to_segment(at, from, from + self.heading * reach_m).min(to_rest)
+            }
+        }
     }
 
     /// Whether `at` (a mate's body: the chest is the nearer than the feet to
     /// a blast above the ground) is inside the splash of a blast anywhere
-    /// from the contact to `reach_m` along the heading, or at the rest point.
-    pub fn splashes(&self, at: Vec3, reach_m: f32) -> bool {
-        self.blast_distance(at, reach_m) < self.splash_m
+    /// the `spread` puts it ([`Self::blast_distance`]).
+    pub fn splashes(&self, at: Vec3, spread: Spread) -> bool {
+        self.blast_distance(at, spread) < self.splash_m
+    }
+
+    /// The places the blast is checked at for a walk out of it: the contact, the rest, and, along the heading, the
+    /// usual and the worst spread's ends (from the rest by [`REST_AHEAD_M`] and [`REST_AHEAD_WORST_M`] when flown;
+    /// from the contact by [`ROLL_P80_M`] and [`ROLL_WORST_M`] when rolled).
+    pub fn blast_points(&self) -> [Vec3; 4] {
+        let (from, usual, worst) = match self.rule {
+            RestRule::Flown => (self.rest, REST_AHEAD_M, REST_AHEAD_WORST_M),
+            RestRule::Rolled => (self.contact.point, ROLL_P80_M, ROLL_WORST_M),
+        };
+        [self.contact.point, self.rest, from + self.heading * usual, from + self.heading * worst]
     }
 
     /// How far the thrower (`at`) is from the blast, metres: from the
@@ -711,6 +904,12 @@ mod tests {
     }
 
     /// The bots' grenade's throw velocity (the tests' flights are of it).
+    /// The old rule's landing of `flight` on `ground` (`aim.combat.grenade_rest_flown` off): the rest [`roll_m`] past
+    /// the first contact.
+    fn rolled(flight: &Flight, ground: &(impl Ground + ?Sized)) -> Landing {
+        Landing::of(flight.first_contact(ground, flight.max_s).unwrap(), flight.grenade.splash_m)
+    }
+
     fn throw_velocity(yaw: f32, pitch: f32) -> Vec3 {
         Grenade::bots().throw_velocity(yaw, pitch)
     }
@@ -788,8 +987,8 @@ mod tests {
             own.rest + Vec3::new(9.0, 0.0, 0.0),
             fast.rest + Vec3::new(9.0, 0.0, 0.0),
         );
-        assert!(own.splashes(near_own, 0.0));
-        assert!(!fast.splashes(near_fast, 0.0));
+        assert!(own.splashes(near_own, Spread::Rest));
+        assert!(!fast.splashes(near_fast, Spread::Rest));
         // The thrower: his own blast is the grenade's.
         assert!(own.splashes_thrower(own.rest + Vec3::new(0.0, 0.0, 9.0)));
         assert!(!fast.splashes_thrower(fast.rest + Vec3::new(0.0, 0.0, 9.0)));
@@ -961,10 +1160,10 @@ mod tests {
     }
 
     #[test]
-    fn a_floor_rolls_two_metres_and_a_wall_none() {
+    fn the_old_rule_rolls_two_metres_on_a_floor_and_none_at_a_wall() {
         let eye = Vec3::new(0.0, EYE_M, 0.0);
         let flight = Flight::new(eye, throw_velocity(0.0, 0.0));
-        let floor = flight.landing(&Floor { y: 0.0 }).unwrap();
+        let floor = rolled(&flight, &Floor { y: 0.0 });
         assert!(!floor.contact.is_wall());
         near(floor.heading.z, 1.0, 1e-5, "heading");
         near(
@@ -977,7 +1176,7 @@ mod tests {
 
         // A wall across the throw 6 m out: the grenade is at its foot.
         let wall = plane(Vec3::new(0.0, 0.0, 6.0), Vec3::new(0.0, 0.0, -1.0));
-        let wall = flight.landing(&wall).unwrap();
+        let wall = rolled(&flight, &wall);
         assert!(wall.contact.is_wall());
         near(wall.contact.point.z, 6.0 - RADIUS_M, 1e-3, "at the wall");
         assert_eq!(wall.rest, wall.contact.point);
@@ -998,7 +1197,7 @@ mod tests {
     }
 
     #[test]
-    fn a_downhill_slope_over_fourteen_degrees_rolls_further() {
+    fn the_old_rule_rolls_further_down_a_slope_over_fourteen_degrees() {
         let eye = Vec3::new(0.0, EYE_M, 0.0);
         let flight = Flight::new(eye, throw_velocity(0.0, 0.0));
         // A slope falling away along +z; the normal leans the way it falls.
@@ -1006,7 +1205,7 @@ mod tests {
             let t = deg.to_radians();
             let normal = Vec3::new(0.0, t.cos(), t.sin());
             let slope = plane(Vec3::ZERO, normal);
-            flight.landing(&slope).unwrap()
+            rolled(&flight, &slope)
         };
         // 20 deg: a = 10 (sin 20 - 0.25 cos 20) = 1.07 m/s², ½ a 2² = 2.14 m.
         let a20 = GRAVITY * (20f32.to_radians().sin() - FRICTION * 20f32.to_radians().cos());
@@ -1037,7 +1236,7 @@ mod tests {
         // Uphill (the normal leaning back at the thrower): the plain roll.
         let t = 30f32.to_radians();
         let uphill = plane(Vec3::new(0.0, 0.0, 4.0), Vec3::new(0.0, t.cos(), -t.sin()));
-        let uphill = flight.landing(&uphill).unwrap();
+        let uphill = rolled(&flight, &uphill);
         near(
             (uphill.rest - uphill.contact.point).length(),
             ROLL_M,
@@ -1046,7 +1245,7 @@ mod tests {
         );
         // A slope the throw crosses along: no push along the heading.
         let across = plane(Vec3::new(0.0, 0.0, 4.0), Vec3::new(t.sin(), t.cos(), 0.0));
-        let across = flight.landing(&across).unwrap();
+        let across = rolled(&flight, &across);
         near(
             (across.rest - across.contact.point).length(),
             ROLL_M,
@@ -1056,38 +1255,36 @@ mod tests {
     }
 
     #[test]
-    fn a_mate_on_the_line_beyond_the_landing_is_in_the_blast_segment() {
+    fn the_old_rule_puts_a_mate_on_the_line_beyond_the_landing_in_the_blast_segment() {
         let eye = Vec3::new(0.0, EYE_M, 0.0);
-        let landing = Flight::new(eye, throw_velocity(0.0, 10f32.to_radians()))
-            .landing(&Floor { y: 0.0 })
-            .unwrap();
+        let landing = rolled(&Flight::new(eye, throw_velocity(0.0, 10f32.to_radians())), &Floor { y: 0.0 });
         let first = landing.contact.point;
         let at = |along: f32, side: f32| first + Vec3::new(side, 0.0, along);
         // 15 m past the contact: out of 10 m of it and of the rest point
         // (13 m), in range of the P80 end (7 m) and of the worst end (1 m).
         let mate = at(15.0, 0.0);
-        assert!(landing.blast_distance(mate, 0.0) > Grenade::bots().splash_m);
-        assert!(!landing.splashes(mate, 0.0));
-        assert!(landing.splashes(mate, ROLL_P80_M));
-        assert!(landing.splashes(mate, ROLL_WORST_M));
+        assert!(landing.blast_distance(mate, Spread::Rest) > Grenade::bots().splash_m);
+        assert!(!landing.splashes(mate, Spread::Rest));
+        assert!(landing.splashes(mate, Spread::Usual));
+        assert!(landing.splashes(mate, Spread::Worst));
         near(
-            landing.blast_distance(mate, ROLL_P80_M),
+            landing.blast_distance(mate, Spread::Usual),
             7.0,
             1e-3,
             "to the P80 end",
         );
         // 20 m past: only the worst case reaches (4 m from its end).
         let far = at(20.0, 0.0);
-        assert!(!landing.splashes(far, ROLL_P80_M));
-        assert!(landing.splashes(far, ROLL_WORST_M));
+        assert!(!landing.splashes(far, Spread::Usual));
+        assert!(landing.splashes(far, Spread::Worst));
         // 27 m past, or 12 m to the side: clear of all.
-        assert!(!landing.splashes(at(27.0, 0.0), ROLL_WORST_M));
-        assert!(!landing.splashes(at(4.0, 12.0), ROLL_WORST_M));
+        assert!(!landing.splashes(at(27.0, 0.0), Spread::Worst));
+        assert!(!landing.splashes(at(4.0, 12.0), Spread::Worst));
         // Beside the line the segment counts: 9 m aside, mid-way.
-        assert!(landing.splashes(at(4.0, 9.0), ROLL_P80_M));
+        assert!(landing.splashes(at(4.0, 9.0), Spread::Usual));
         // Behind the landing it is the contact that counts, as for a point.
         near(
-            landing.blast_distance(at(-6.0, 0.0), ROLL_P80_M),
+            landing.blast_distance(at(-6.0, 0.0), Spread::Usual),
             6.0,
             1e-3,
             "behind",
@@ -1097,8 +1294,123 @@ mod tests {
             rest: first + Vec3::new(0.0, 0.0, 12.0),
             ..landing
         };
-        assert!(long.splashes(at(21.0, 0.0), 0.0));
-        assert!(!landing.splashes(at(21.0, 0.0), 0.0));
+        assert!(long.splashes(at(21.0, 0.0), Spread::Rest));
+        assert!(!landing.splashes(at(21.0, 0.0), Spread::Rest));
+    }
+
+    /// A ground that counts the rays it is asked.
+    struct Counted<G> {
+        ground: G,
+        casts: std::cell::Cell<u32>,
+    }
+
+    impl<G: Ground> Ground for Counted<G> {
+        fn cast(&self, from: Vec3, dir: Vec3, max_t: f32) -> Option<Hit> {
+            self.casts.set(self.casts.get() + 1);
+            self.ground.cast(from, dir, max_t)
+        }
+    }
+
+    /// A grenade 0.2 m over a floor falling fast (12 m/s down, 6 along): its first step's move meets the floor.
+    fn steep_fall() -> Flight {
+        Flight::new(Vec3::new(0.0, 0.2, 0.0), Vec3::new(0.0, -12.0, 6.0))
+    }
+
+    #[test]
+    fn the_flown_rest_caps_the_speed_at_a_swept_hit_and_lies_by_the_contact() {
+        near(CCD_SPEED_CAP, 1.8, 1e-5, "the cap");
+        let floor = Counted { ground: Floor { y: 0.0 }, casts: std::cell::Cell::new(0) };
+        let landing = steep_fall().landing(&floor).unwrap();
+        assert_eq!(landing.rule, RestRule::Flown);
+        // The step's move (0.22 m) is over the threshold and meets the floor: 13.4 m/s cut to 1.8, the 1.6 into the
+        // floor lost and the 0.8 along it less 0.25 x 1.6: 0.4 m/s, which friction stops within a few centimetres.
+        let slid = landing.rest.z - landing.contact.point.z;
+        assert!((0.0..0.1).contains(&slid), "{slid}");
+        near(landing.rest.x, 0.0, 1e-5, "along the throw");
+        near(landing.rest.y, RADIUS_M, 1e-4, "on the floor");
+        // The old rule's rest is kept for the logs: 2 m past the contact.
+        near(landing.rolled.z - landing.contact.point.z, ROLL_M, 1e-4, "the old roll");
+        // [CPU] It stops once it lies still: the whole landing's casts, the first contact's and the flight's.
+        assert!(floor.casts.get() < 40, "{} casts", floor.casts.get());
+    }
+
+    #[test]
+    fn a_flight_the_support_meets_first_is_not_capped_and_slides_on() {
+        // A level throw from the eye on a perfect plane: in its last step in the air the body comes within reach of
+        // the support (2 cm under the sphere) before a move meets the floor, so no swept hit cuts its speed: the
+        // support's contact takes the speed into the floor, friction takes a quarter of that, and it slides on to the
+        // blast, as 205 of the 911 counted flights did (kept 10 m/s or more: flown on a median 6.0 m past the contact,
+        // seen 4.9 m). On real ground the next rise of the mesh meets a move and cuts it.
+        let floor = Counted { ground: Floor { y: 0.0 }, casts: std::cell::Cell::new(0) };
+        let landing = Flight::new(Vec3::new(0.0, EYE_M, 0.0), throw_velocity(0.0, 0.0)).landing(&floor).unwrap();
+        let slid = landing.rest.z - landing.contact.point.z;
+        assert!(slid > 20.0, "{slid}");
+        near(landing.rest.y, RADIUS_M, 1e-4, "on the floor");
+        // [CPU] It slides to the fuse's end: two casts a step at most, and the first contact's.
+        let steps = (landing_fuse_s() / STEP_S).ceil() as u32;
+        assert!(floor.casts.get() <= 3 * steps, "{} casts for {steps} steps", floor.casts.get());
+    }
+
+    /// The flight time a tap's throw has, s.
+    fn landing_fuse_s() -> f32 {
+        Grenade::bots().flight_s(TAP_LAUNCH_MS)
+    }
+
+    #[test]
+    fn the_flown_rest_slides_down_a_slope_over_fourteen_degrees_and_holds_on_a_gentler_one() {
+        let on = |deg: f32| {
+            let t = deg.to_radians();
+            let slope = plane(Vec3::ZERO, Vec3::new(0.0, t.cos(), t.sin()));
+            Flight::new(Vec3::new(0.0, 0.3, 0.0), Vec3::new(0.0, -12.0, 3.0)).landing(&slope).unwrap()
+        };
+        let slid = |l: &Landing| (l.rest - l.contact.point).length();
+        // 30 deg: the pull (10 sin 30 = 5) beats friction (2.5 cos 30 = 2.2): it slides on down to the blast.
+        let steep = on(30.0);
+        // 10 deg holds a body (tan 10 deg under 0.25): the capped speed's few centimetres only.
+        let gentle = on(10.0);
+        assert!(slid(&gentle) < 0.3, "{}", slid(&gentle));
+        assert!(slid(&steep) > 5.0, "{}", slid(&steep));
+        // Down the slope.
+        assert!(steep.rest.z > steep.contact.point.z && steep.rest.y < steep.contact.point.y);
+    }
+
+    #[test]
+    fn the_flown_blast_spreads_over_the_slide_and_along_the_heading_by_its_measured_error() {
+        let landing = Flight::new(Vec3::new(0.0, EYE_M, 0.0), throw_velocity(0.0, 0.0)).landing(&Floor { y: 0.0 }).unwrap();
+        let (contact, rest) = (landing.contact.point, landing.rest);
+        assert!(rest.z > contact.z + 20.0);
+        // On the slide, half-way: in the blast's reach whatever the spread.
+        let mid = (contact + rest) * 0.5;
+        assert!(landing.blast_distance(mid, Spread::Rest) < 0.1);
+        // Past the rest along the heading: the spread's ends.
+        let at = |along: f32| rest + Vec3::new(0.0, 0.0, along);
+        near(landing.blast_distance(at(15.0), Spread::Rest), 15.0, 1e-3, "to the rest");
+        near(landing.blast_distance(at(15.0), Spread::Usual), 15.0 - REST_AHEAD_M, 1e-3, "usual");
+        near(landing.blast_distance(at(15.0), Spread::Worst), 15.0 - REST_AHEAD_WORST_M, 1e-3, "worst");
+        // Beside the slide: its distance across.
+        near(landing.blast_distance(mid + Vec3::new(7.0, 0.0, 0.0), Spread::Usual), 7.0, 1e-3, "beside");
+        // Behind the contact: the contact.
+        near(landing.blast_distance(contact - Vec3::new(0.0, 0.0, 6.0), Spread::Usual), 6.0, 1e-3, "behind");
+        // The walk out of the blast is checked at the contact, the rest and the spread's ends along the heading.
+        let [first, at_rest, usual, worst] = landing.blast_points();
+        assert_eq!((first, at_rest), (contact, rest));
+        near(usual.z - rest.z, REST_AHEAD_M, 1e-4, "usual end");
+        near(worst.z - rest.z, REST_AHEAD_WORST_M, 1e-4, "worst end");
+        // A rest by the contact: the spread reaches behind it by its P10.
+        let short = steep_fall().landing(&Floor { y: 0.0 }).unwrap();
+        let back = short.rest - Vec3::new(0.0, 0.0, REST_BEHIND_M + 1.0);
+        near(short.blast_distance(back, Spread::Usual), 1.0, 0.05, "short of the rest");
+    }
+
+    #[test]
+    fn the_switch_off_gives_the_old_roll() {
+        let flight = Flight::new(Vec3::new(0.0, EYE_M, 0.0), throw_velocity(0.0, 0.0));
+        set_rest_flown(false);
+        let off = flight.landing(&Floor { y: 0.0 }).unwrap();
+        set_rest_flown(true);
+        assert_eq!(off, rolled(&flight, &Floor { y: 0.0 }));
+        assert_eq!(off.rule, RestRule::Rolled);
+        assert_ne!(flight.landing(&Floor { y: 0.0 }).unwrap().rest, off.rest);
     }
 
     #[test]
@@ -1179,7 +1491,10 @@ mod tests {
         assert!(wall.contact.is_wall(), "{:?}", wall.contact.normal);
         assert!(wall.contact.normal.z < -0.99, "{:?}", wall.contact.normal);
         near(wall.contact.point.z, 5.0 - RADIUS_M, 0.02, "at the wall");
-        assert_eq!(wall.rest, wall.contact.point);
+        // It falls down the wall (no bounce) and lies at its foot.
+        near(wall.rest.z, 5.0 - RADIUS_M, 0.05, "at the wall's foot");
+        near(wall.rest.y, RADIUS_M, 0.01, "on the floor");
+        assert_eq!(wall.rolled, wall.contact.point);
         // A throw from above the wall's top lands on the floor behind it.
         let over = Flight::new(Vec3::new(0.0, 12.0, 0.0), throw_velocity(0.0, 0.0));
         let behind = over.landing(&Mesh(&tree)).unwrap();
