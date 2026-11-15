@@ -67,6 +67,15 @@ const PATCHED_REACH_M: f32 = 4.0;
 const PATCHED_ACROSS_M: f32 = 1.0;
 const PATCHED_BELOW_M: f32 = 0.2;
 
+/// Where a battery dropped by a body at `feet` lies, its position: the box's centre, 0.12 m over the floor. The client's
+/// battery is a plain box collision object of half sizes 0.30 x 0.12 x 0.16 m with no offset (the Chemical Plant memory
+/// capture `level_04_2-case15.bwc`: implicit 0.288 x 0.108 x 0.148 + margin 0.012), so a battery lying flat rests with its
+/// origin 0.12 m over the floor, and a world's saved position is that origin (`docs/notes/using_the_world.md`: hits from
+/// above land a median 0.114 m over it).
+pub(crate) fn dropped_at(feet: Vec3) -> Vec3 {
+    feet + Vec3::new(0.0, 0.12, 0.0)
+}
+
 /// How near the use ray must pass a lying battery's position, the centre of its box (`docs/notes/using_the_world.md`: the
 /// saved position is the box's centre, 0.12 m over its floor; the box's half sizes are 0.30 x 0.12 x 0.16 m).
 pub(crate) const BATTERY_M: f32 = 0.2;
@@ -2338,7 +2347,7 @@ impl Game {
             if self.took[target].is_some_and(|at| tick <= at + TAKEN_KILLED_MS) {
                 self.taken_killed += 1;
             }
-            self.batteries[battery] = Lying::Free(other.feet, 1 << other.team);
+            self.batteries[battery] = Lying::Free(dropped_at(other.feet), 1 << other.team);
             if kind != Kill::Own {
                 self.carrier_kills.push((killer, target));
                 let (c, k) = (other.feet, killer_feet.unwrap_or(other.feet));
@@ -2513,7 +2522,7 @@ impl Game {
             body.alive = false;
             body.dead_at = tick;
             if let Some(battery) = body.carrying.take() {
-                self.batteries[battery] = Lying::Free(body.feet, 1 << body.team);
+                self.batteries[battery] = Lying::Free(dropped_at(body.feet), 1 << body.team);
             }
             let team = usize::from(body.team);
             self.zone_deaths += 1;
@@ -2732,7 +2741,7 @@ impl Game {
             body.alive = false;
             body.dead_at = tick;
             if let Some(battery) = body.carrying.take() {
-                self.batteries[battery] = Lying::Free(body.feet, 1 << body.team);
+                self.batteries[battery] = Lying::Free(dropped_at(body.feet), 1 << body.team);
             }
             let team = usize::from(body.team);
             self.zone_deaths += 1;
@@ -2890,7 +2899,7 @@ impl Game {
             if (body.keys & key::DROP != 0 || by_fire)
                 && let Some(battery) = body.carrying
             {
-                self.batteries[battery] = Lying::Free(body.feet, 1 << body.team);
+                self.batteries[battery] = Lying::Free(dropped_at(body.feet), 1 << body.team);
                 self.bodies[place].carrying = None;
                 self.bodies[place].drawn_at = self.tick + draw_ms(body.gun);
                 self.drops[usize::from(!by_fire)] += 1;
