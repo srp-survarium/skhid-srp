@@ -30,14 +30,14 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use mapdata::controller::tick::{Controller, Saved, TickInput};
+use mapdata::controller::tick::{Controller, CrouchInput, Saved, TickInput};
 use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
 use super::kin::{Blend, DropFall, Edge, ForecastStep, JumpFlight, StepInput, ClientStep, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::kin::{SpeedTerms, SprintGates};
-use super::legs::LegDamage;
+use super::legs::{LegDamage, LegGate};
 use super::sprint_gates::{OwnGates, Stagger};
 use super::pitch::{Pitch, PitchScale};
 use crate::v026g::drive::key;
@@ -151,7 +151,7 @@ pub(crate) fn kept_step(
     kept: &mut Option<KeptBody>,
     feet: Vec3,
     by: Vec3,
-    keys: u32,
+    crouch: CrouchInput,
     sprinting: bool,
     clock: kept_clock::Of,
 ) -> Option<KeptStep> {
@@ -163,14 +163,16 @@ pub(crate) fn kept_step(
     let input = TickInput {
         walk: Vec3::new(by.x, 0.0, by.z),
         air_control: Vec3::ZERO,
-        // Both legs broken (the damage model's +388h == 2) is not in the worlds the reckoning reads: the key alone.
-        crouch: mapdata::controller::tick::CrouchInput::Tested { key: keys & crate::v026g::drive::key::CROUCH != 0, legs_broken: false },
+        crouch,
         sprinting,
     };
     let start = body.controller.feet();
     let notes = grid.kept_tick(&mut body.controller, input)?;
     let ns = started.elapsed().as_nanos() as u64;
     kept_clock::add(clock, ns);
+    if crouch == (CrouchInput::Tested { key: false, legs_broken: true }) && clock == kept_clock::Of::Reckoning {
+        kept_clock::legs_crouched();
+    }
     #[cfg(test)]
     client_steps::kept(ns);
     // The controller's own move, from the reckoned feet: a controller set anew stands where the walk start placed it (out of the
@@ -181,6 +183,39 @@ pub(crate) fn kept_step(
     body.airborne = notes.airborne;
     *kept = Some(body);
     Some(KeptStep { to, airborne: notes.airborne })
+}
+
+/// [A388 (e) gap 16] The crouch a kept controller's step is handed (`CrouchInput::Tested`): the crouch key as `input_crouch`, and both
+/// legs broken (the damage model's +388h == 2, from the world's leg wounds: [`LegGate::Stand`]), for which the client's logic asks
+/// for the crouch whatever the key (0x2FBDF0 / 0x2FBE50).
+pub(crate) fn crouch_input(keys: u32, legs_broken: bool) -> CrouchInput {
+    CrouchInput::Tested { key: keys & key::CROUCH != 0, legs_broken }
+}
+
+/// [A388 (e) gap 18] What a body holds in its hands, for its speed level: its kit's own (a gun's term, or none, read from the
+/// worlds against the kit's values), or a battery (the gun's term unlinked: `deactivate` 0x2E2DB0 removes the gun's node, 0x2E2E9F,
+/// when `tick_active_object` 0x2D7650 switches to the carried battery; exactness notes-reckoning-inputs §2, PROVEN).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Hands {
+    #[default]
+    Kit,
+    Battery,
+}
+
+/// [A388 (e) gap 18] The worlds whose speed level a carrier's computed level gave, on this server (the match-end line).
+pub(crate) mod carrier_levels {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn count() {
+        COUNT.fetch_add(1, Relaxed);
+    }
+
+    /// The count since the last call, and zero again.
+    pub(crate) fn take() -> u64 {
+        COUNT.swap(0, Relaxed)
+    }
 }
 
 /// [A388 step 2] Where a ground step whose kept controller left the ground ([`KeptStep::airborne`]) goes: the floor it falls onto,
@@ -339,7 +374,7 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
     for k in 0..kin.blend_ticks + hold + 2 {
         // The keys count a tick more than the model's one-tick lag (the game may take them at once).
         let (held, turn) = if k < hold { (keys, if k == 0 { turn } else { 0.0 }) } else { (keys & !MOVE_KEYS, 0.0) };
-        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0, jump: JumpGate::Open }, kin, level, Some(grid), None, Role::Forecast);
+        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false }, kin, level, Some(grid), None, Role::Forecast);
         // A fall that lands where the route drops is the route's.
         let falls = |feet: Vec3| top - feet.y >= mapdata::grid::LIP_DROP_M && !planned.iter().any(|landing| landing.distance_xz(feet) <= PLANNED_LANDING_M);
         if falls(at.feet) {
@@ -382,6 +417,10 @@ struct Tick {
     kick: f32,
     /// [A318] Whether a jump pressed in this tick goes ([`JumpGate`]).
     jump: JumpGate,
+    /// [A388 (e) gap 16] Both legs hold `leg_damage` at this tick (`damage_model` +388h == 2, [`LegGate::Stand`]): the client's logic
+    /// asks for the crouch whatever the key (0x2FBDF0 / 0x2FBE50, `CrouchInput::Tested`'s `legs_broken`). Set by
+    /// [`BodyTrack::as_taken`] from the legs a world showed; false for a tick as decided.
+    legs_broken: bool,
 }
 
 /// [A318] The map's walls for a jump in the air ([`BodyTrack::set_walls`]): its walker mesh's rays, shared.
@@ -631,6 +670,8 @@ pub struct BodyTrack {
     /// [A331] The kit in use's computed speed factor for each weapon it could have in hands, the primary's first
     /// ([`Self::set_speed_candidates`], [`LevelSource::Computed`]); empty: not known.
     candidates: Vec<f32>,
+    /// [A388 (e) gap 18] What the body holds in its hands for its speed level ([`Hands`]).
+    hands: Hands,
     /// [A313] The legs' term of the speed factor (`Kinematics::speed_terms`); none is 1. Kept out of the level: a world's level is
     /// read without it and the body moves by both.
     legs: Option<f32>,
@@ -729,9 +770,34 @@ impl BodyTrack {
         }
     }
 
+    /// [A388 (e) gap 18] What the body holds ([`Hands`]), from the bots' word on who carries a battery (the world's
+    /// `m_carried_item`, #1896).
+    pub fn set_hands(&mut self, hands: Hands) {
+        self.hands = hands;
+    }
+
+    /// [A388 (e) gap 18] A carrier's speed factor: the kit's with empty hands (the last of [`Self::set_speed_candidates`]'s, the
+    /// gun's term unlinked while the battery is held) with the battery's term (`bot_skills::carried_battery_term`), never under
+    /// 0. None while the body holds its kit's own, or without the kit's values or the term.
+    fn carrier_level(&self) -> Option<f32> {
+        match self.hands {
+            Hands::Battery => {
+                let none = *self.candidates.last()?;
+                let term = survarium::v026g::bot_skills::carried_battery_term()?;
+                Some((none + term).max(0.0))
+            }
+            Hands::Kit => None,
+        }
+    }
+
     /// [A331] A world's speed level (`raw`, the speed over the keys' desired one, the legs' term out) as the body takes it: by
-    /// [`Kinematics::level_source`] and the kit's computed values.
+    /// [`Kinematics::level_source`] and the kit's computed values. [A388 (e) gap 18] A carrier's is its computed level
+    /// ([`Self::carrier_level`]).
     fn read_level(&self, kin: &Kinematics, keys: u32, speed: f32) -> Option<f32> {
+        if let Some(level) = self.carrier_level() {
+            carrier_levels::count();
+            return Some(level);
+        }
         match (kin.level_source, self.candidates.as_slice()) {
             (LevelSource::Computed, candidates) if !candidates.is_empty() => {
                 let raw = kin.level_raw(keys, speed)?;
@@ -780,7 +846,9 @@ impl BodyTrack {
     /// [`SprintGates::Client`] also without what `can_sprint` refuses: no sights and no sprint in a reload, no sprint in a stagger
     /// or for the gun's `aim_time` after AIM went up ([`super::sprint_gates`]).
     fn as_taken(&self, tick: Tick, kin: &Kinematics) -> Tick {
-        let mut keys = self.leg_damage.at(tick.time).keys(tick.keys);
+        let legs = self.leg_damage.at(tick.time);
+        let legs_broken = legs == LegGate::Stand;
+        let mut keys = legs.keys(tick.keys);
         if kin.sprint_gates == SprintGates::Client {
             keys = self.own.taken(tick.time, keys);
         }
@@ -799,7 +867,7 @@ impl BodyTrack {
                 keys &= !key::SPRINT;
             }
         }
-        Tick { keys, ..tick }
+        Tick { keys, legs_broken, ..tick }
     }
 
     /// The speed level the body moves by at `time`: [`Self::level`], less a hit's stagger with [`SpeedTerms::LegsStagger`].
@@ -823,7 +891,7 @@ impl BodyTrack {
     /// The speed level the body is moved at: this life's from a world, else
     /// its profile's, else the nominal 1; times the legs' term.
     pub fn level(&self) -> f32 {
-        self.level.or(self.prior_level).unwrap_or(1.0) * self.legs.unwrap_or(1.0)
+        self.carrier_level().or(self.level).or(self.prior_level).unwrap_or(1.0) * self.legs.unwrap_or(1.0)
     }
 
     /// How far the body was reckoned to move between the last two worlds
@@ -868,6 +936,7 @@ impl BodyTrack {
             turn: (0.0, 0.0),
             kick: estimate.kick,
             jump: JumpGate::Open,
+            legs_broken: false,
         };
         Some(advance(estimate, self.as_taken(tick, kin), kin, self.level_at(tick.time, kin), grid, self.walls.as_ref().map(|w| &*w.0), Role::Reckoning))
     }
@@ -906,6 +975,7 @@ impl BodyTrack {
             turn,
             kick,
             jump: self.jump_gate,
+            legs_broken: false,
         };
         self.ticks.push_back(tick);
         while self
@@ -1391,7 +1461,7 @@ fn advance(
                     {
                         let by = Vec3::new(to.x - at.feet.x, 0.0, to.z - at.feet.z);
                         let clock = if role == Role::Reckoning { kept_clock::Of::Reckoning } else { kept_clock::Of::Forecast };
-                        kept_step(grid, &mut at.kept, at.feet, by, step_keys, Kinematics::sprint_state(at.keys), clock).map(|step| {
+                        kept_step(grid, &mut at.kept, at.feet, by, crouch_input(step_keys, tick.legs_broken), Kinematics::sprint_state(at.keys), clock).map(|step| {
                             airborne = step.airborne;
                             step.to
                         })
@@ -1740,6 +1810,18 @@ pub(crate) mod kept_clock {
     pub(crate) fn add(of: Of, ns: u64) {
         STEPS[of as usize].fetch_add(1, Relaxed);
         NS[of as usize].fetch_add(ns, Relaxed);
+    }
+
+    /// [A388 (e) gap 16] The reckoning's controller steps crouched by both legs broken with the crouch key up.
+    static LEGS_CROUCHED: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn legs_crouched() {
+        LEGS_CROUCHED.fetch_add(1, Relaxed);
+    }
+
+    /// [`legs_crouched`]'s count since the last call, and zero again.
+    pub(crate) fn take_legs_crouched() -> u64 {
+        LEGS_CROUCHED.swap(0, Relaxed)
     }
 
     /// `of`'s steps and their time (ns) since the last call, and zero again.
@@ -2804,6 +2886,20 @@ pub(super) mod tests {
         assert!((track.level() - 0.9).abs() < 1e-5);
     }
 
+    /// [A388 (e) gap 18] A body the bots believe carries a battery moves at its kit's empty-hands level (the last computed value) with
+    /// the battery's term from the game data, never under 0; back at the kit's own once it holds none.
+    #[test]
+    fn a_carriers_level_is_its_kits_empty_hands_level_with_the_batterys_term() {
+        let mut track = BodyTrack::default();
+        track.set_speed_candidates(vec![0.83, 0.78]);
+        let kit = track.level();
+        track.set_hands(Hands::Battery);
+        let expected = survarium::v026g::bot_skills::carried_battery_term().map_or(kit, |term| (0.78 + term).max(0.0));
+        assert!((track.level() - expected).abs() < 1e-6, "{} {expected}", track.level());
+        track.set_hands(Hands::Kit);
+        assert!((track.level() - kit).abs() < 1e-6);
+    }
+
     /// [A331] [`LevelSource::Computed`]: a settled world's reading takes the nearest of the kit's values when within
     /// [`LEVEL_SNAP`], stands when farther (a battery's -0.05), and is dropped beyond [`LEVEL_REACH`]; before any, the primary's.
     #[test]
@@ -2955,7 +3051,7 @@ pub(super) mod tests {
         let falling = Estimate { fall: Fall::Falling { speed: 1.0 }, arc: None, ..at };
         let pressed = advance(
             falling,
-            Tick { time: at.time + TICK_MS, keys: key::JUMP, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open },
+            Tick { time: at.time + TICK_MS, keys: key::JUMP, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false },
             &kin,
             1.0,
             Some(&grid),

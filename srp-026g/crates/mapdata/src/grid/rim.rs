@@ -86,9 +86,11 @@ pub struct RimStats {
 /// the bounded sweep), as (side, turn) in [`Aim::STEP`]s: the side 0.3 m or 0.15 m with the heading turned 0.2 or 0.3 rad,
 /// the side 0.15 m straight, the heading turned 0.3 rad, every sign. Every proven row's press is one of them
 /// (`a385-lost-links-client-truth.md` §1, the exe's tick): R83 (-0.3, 0.2) = (-6, 4), R94 (-0.3, -0.3) = (-6, -6), R95
-/// (0.3, 0.2) = (6, 4), R85 (0.15, -0.3) = (3, -6), R98 (0.15, 0.2) = (3, 4). Flown in this order; the best share wins, the
-/// first on a tie.
-pub const AIMS: [(i8, i8); 20] = [
+/// (0.3, 0.2) = (6, 4), R85 (0.15, -0.3) = (3, -6), R98 (0.15, 0.2) = (3, 4); and the side 0.3 m straight, Mamayev Kurgan
+/// day_2's gap jump from the rock pile onto the 1.80 m box (sprint at lead 0.0, side 0.3 = (6, 0); at lead 0.1, side 0.15 =
+/// (3, 0): 6 of 7 replayed in the exe rest on the top, owner-5 `owner-5-mamayev-box-press-20261115.md`). Flown in this order;
+/// the best share wins, the first on a tie.
+pub const AIMS: [(i8, i8); 22] = [
     (-6, 4),
     (-6, -4),
     (6, 4),
@@ -107,6 +109,8 @@ pub const AIMS: [(i8, i8); 20] = [
     (3, -6),
     (-3, 0),
     (3, 0),
+    (-6, 0),
+    (6, 0),
     (0, 6),
     (0, -6),
 ];
@@ -293,6 +297,34 @@ impl WalkGrid {
         kits: Kits,
     ) -> RimPress {
         self.best_press_with(world, s, a, b, way, &presses(leads), Aim::STRAIGHT, lands, kits)
+    }
+
+    /// [R83] The best aimed press from `a` toward `b` along `way` (`R83-FORMAT.md`): the walk and the sprint at [`AIMED_LEADS`] at
+    /// each of [`AIMS`] ([`Self::best_press_with`]), the best share, the first aim on a tie; with the flights flown. For the rim
+    /// jumps and [A389]'s gap links no press on the line makes.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn best_aimed(
+        &self,
+        world: &Collision,
+        s: &Settings,
+        a: NodeId,
+        b: NodeId,
+        way: (f32, f32),
+        lands: &impl Fn(&[FlightStep]) -> Option<NodeId>,
+        kits: Kits,
+    ) -> (Option<Made>, usize) {
+        let presses = [(Kind::Walk, AIMED_LEADS.to_vec()), (Kind::Sprint, AIMED_LEADS.to_vec())];
+        let mut flights = 0;
+        let mut best: Option<Made> = None;
+        for (side, turn) in AIMS {
+            let aim = Aim::new(side, turn).expect("an aim in range");
+            let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits);
+            flights += p.flights;
+            if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.byte() > b.share.byte())) {
+                best = Some(m);
+            }
+        }
+        (best, flights)
     }
 
     /// [`Self::best_press`] over `presses` (each kind with its leads), every press and neighbour aimed by `aim` ([R83]: its
@@ -535,10 +567,23 @@ impl WalkGrid {
         world: &Collision,
         s: &Settings,
     ) -> (RimStats, Vec<(NodeId, NodeId)>, Vec<(u32, usize, f32)>) {
-        let body = &self.body;
         // [S1] From a step up: a sprinting body climbs an edge from 0.80 to 1.15 m with no jump ([`Kind::Climb`]), and an
         // edge there whose side has no link (no Jump link) is the builder's to fly.
-        let todo = self.edges_up(wide, body.step, RIM_REACH_M);
+        let todo = self.edges_up(wide, self.body.step, RIM_REACH_M);
+        self.fly_rim_todo(wide, world, s, todo)
+    }
+
+    /// [`Self::fly_rim_jumps`] over the jumps `todo` (take-off, top, way): each flown over the presses and made a GapJump with
+    /// the press that lands and stays. [S4] Also the Jump links the landing carry rule took away ([`super::Body::landing_carry`]):
+    /// whether a body stays on a short top is the flight's to say, priced by its share, not a width's.
+    pub(super) fn fly_rim_todo(
+        &self,
+        wide: &mut Wide,
+        world: &Collision,
+        s: &Settings,
+        todo: Vec<(u32, u32, usize)>,
+    ) -> (RimStats, Vec<(NodeId, NodeId)>, Vec<(u32, usize, f32)>) {
+        let body = &self.body;
         let leads = gap_leads();
         let kits = Kits { body: jump::WALK_CAP_MS, fastest: body.fastest_walk_cap };
         // The floors `a` has a link to already (its sides and its off-mesh links): a landing there makes no link.
@@ -573,24 +618,13 @@ impl WalkGrid {
             .filter(|((_, p), _)| p.made.is_empty() && p.near)
             .map(|((&t, _), &plain)| (t, plain))
             .collect();
-        let aimed_presses = [(Kind::Walk, AIMED_LEADS.to_vec()), (Kind::Sprint, AIMED_LEADS.to_vec())];
         let aimed = super::controlled::parallel(&near, |&((a, b, d), plain)| {
             // [C2 rows 11/12] As in the flights above: a plain Jump link's own top is no link yet.
             let mut linked = linked(a);
             if plain {
                 linked.retain(|&n| n != b);
             }
-            let mut flights = 0;
-            let mut best: Option<Made> = None;
-            for (side, turn) in AIMS {
-                let aim = Aim::new(side, turn).expect("an aim in range");
-                let p = self.best_press_with(world, s, a, b, way(d), &aimed_presses, aim, |st| self.rim_lands_on(st, a, &linked), kits);
-                flights += p.flights;
-                if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.byte() > b.share.byte())) {
-                    best = Some(m);
-                }
-            }
-            (best, flights)
+            self.best_aimed(world, s, a, b, way(d), &|st| self.rim_lands_on(st, a, &linked), kits)
         });
         let mut stats = RimStats { tried: todo.len(), aimed_tried: near.len(), ..RimStats::default() };
         let aimed_of: std::collections::HashMap<(u32, u32), Made> =

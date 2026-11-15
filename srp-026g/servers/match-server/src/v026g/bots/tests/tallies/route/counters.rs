@@ -864,12 +864,15 @@ pub(super) fn drop_shuts() -> Box<dyn RouteTopic> {
 }
 
 /// [unstick.dead_links] The links the bots failed, told to the match, and the links shut for the match (failed twice,
-/// whichever bots; `dead_links::tally`).
+/// whichever bots; `dead_links::tally`); [unstick.link_made] the failing links a world showed made, and the shut ones opened.
 pub(super) fn dead_links() -> Box<dyn RouteTopic> {
     Delta::of(
         || super::super::dead_links::tally::counts().to_vec(),
         |d, line| {
-            line.ends.push(format!("dead_link_failures {} dead_links_shut {}", d[0], d[1]));
+            line.ends.push(format!(
+                "dead_link_failures {} dead_links_shut {} dead_links_made {} dead_links_opened {}",
+                d[0], d[1], d[2], d[3]
+            ));
         },
     )
 }

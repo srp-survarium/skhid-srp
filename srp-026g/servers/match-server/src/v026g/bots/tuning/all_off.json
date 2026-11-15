@@ -91,7 +91,6 @@
   },
   "hazard": {
     "artefact_know": false,
-    "capsule_exits": false,
     "escort_dry_post": false,
     "escort_reach": false,
     "hurt_by_shape": false,
@@ -164,6 +163,7 @@
     "wait_for_cloud": null
   },
   "take": {
+    "on_the_move": false,
     "team_memory": null,
     "zone_look": null,
     "zone_take": null
@@ -222,6 +222,7 @@
     "drop_shut": null,
     "home_gate_max_ms": null,
     "home_no_way_ms": null,
+    "link_made": false,
     "progress_ms": null,
     "suicide_after_ms": null,
     "suicide_loud": null,

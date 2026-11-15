@@ -686,6 +686,23 @@ pub fn profile_movement_candidates(profile: &MatchProfile, kit: usize) -> Option
     profile_kit_speeds(profile, kit).map(|speeds| speeds.candidates())
 }
 
+/// [A388 (e) gap 18] The victory item's (the battery's) config: the only one of `gameplay/victory_items/` (the exe names it at
+/// 0x2F2611, string 0xA12970).
+pub const VICTORY_ITEM: &str = "gameplay/victory_items/default.options";
+
+/// [A388 (e) gap 18] The battery's own movement term, the game data's `parameters/movement_speed_modifier` of [`VICTORY_ITEM`]
+/// (-0.05 in the live data): `victory_item_core`'s constructor 0x3000A0 reads it (0x300163..0x300184: a float, an int converted)
+/// into a movement-speed node (index 4, 0x30019D) that `initialize` 0x300B20 links into its user's kit list while it is held
+/// (0x300C24..0x300C77), so it enters S4 like every other term (F = max(0, 1 + S4), 0x2DBB50). None where the data lacks it.
+pub fn carried_battery_term() -> Option<f32> {
+    static TERM: std::sync::OnceLock<Option<f32>> = std::sync::OnceLock::new();
+    *TERM.get_or_init(|| {
+        let bytes = super::game_data::shared().file(VICTORY_ITEM)?;
+        let config = binary_config_parser::tree::ConfigValue::parse(bytes).ok()?;
+        config.get("parameters")?.get("movement_speed_modifier")?.as_f32()
+    })
+}
+
 /// [A334] A kit's speed factor F with each of its weapons in hands, by the weapon's kit slot, and with none
 /// ([`profile_kit_speeds`]).
 #[derive(Clone, Debug, PartialEq)]

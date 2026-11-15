@@ -1334,6 +1334,9 @@ pub struct BuildStats {
     pub controlled: controlled::ControlledStats,
     /// [A364 C2 rows 11/12] The rim jumps' flights ([`Body::rim_jumps`]).
     pub rim: rim::RimStats,
+    /// [S4] The Jump links the landing carry rule took away ([`Body::landing_carry`]), flown as rim jumps
+    /// ([`WalkGrid::fly_rim_todo`]): `tried` of them, the made by press.
+    pub carry_flown: rim::RimStats,
     /// The floors the exact pass took after the rounds ([`Erosion::Exact`]).
     pub exact_eroded: usize,
     /// The Drop links the honest drops took away ([`Body::drop_flight_mps`]): for a fall deeper than the harmless one
@@ -1712,7 +1715,15 @@ impl WalkGrid {
             stats.drops_blocked = grid.cut_blocked_walk_offs(&mut wide, walls);
         }
         if body.landing_carry {
-            (stats.overshot_cut, stats.overshot_kept) = grid.drop_overshot_landings(&mut wide, seeds, spawns);
+            let gone;
+            (stats.overshot_cut, stats.overshot_kept, gone) = grid.drop_overshot_landings(&mut wide, seeds, spawns);
+            // [S4] The jumps the carry rule took away, flown as rim jumps: a link where a press lands and stays, priced by its share
+            // (`railings-design.md` §8: width is not the limit, the flown share is).
+            if body.rim_jumps && gaps && !gone.is_empty() {
+                let world = world.expect("a world");
+                // Its links are gone already: no plain Jump link is left to cut there (its cut list is empty).
+                (stats.carry_flown, _, _) = grid.fly_rim_todo(&mut wide, world, &s, gone);
+            }
         }
         if body.drop_check {
             let failing = if body.drop_lands {
@@ -1959,7 +1970,7 @@ impl WalkGrid {
     /// A link that is the only way to a floor from the seeds and spawns, or the only way back from it, is kept (the best top
     /// first): the cut disconnects nothing, and a body that has only that jump to take takes it. Returns the links taken away
     /// and those kept for that.
-    fn drop_overshot_landings(&self, wide: &mut Wide, seeds: &[Vec3], spawns: &[Vec3]) -> (usize, usize) {
+    fn drop_overshot_landings(&self, wide: &mut Wide, seeds: &[Vec3], spawns: &[Vec3]) -> (usize, usize, Vec<(u32, u32, usize)>) {
         let mut failing: Vec<(u32, usize, f32)> = Vec::new();
         for a in 0..self.height.len() {
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
@@ -1999,7 +2010,11 @@ impl WalkGrid {
                 }
             }
         }
-        self.cut_keeping_reach(wide, failing, seeds, spawns, self.body.keep_last_resorts, false)
+        // [S4] The jumps taken away, with their tops (the rim pass flies them, [`WalkGrid::fly_rim_todo`]).
+        let tops: Vec<(u32, u32, usize)> = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d], d)).collect();
+        let (cut, kept) = self.cut_keeping_reach(wide, failing, seeds, spawns, self.body.keep_last_resorts, false);
+        let gone = tops.into_iter().filter(|&(a, _, d)| wide.links[a as usize][d] == NONE).collect();
+        (cut, kept, gone)
     }
 
     /// Takes away the links `failing` names (a floor and a direction, with a score: the higher kept first), except one that is
@@ -3330,11 +3345,13 @@ impl WalkGrid {
                         let half = |i: usize| u16::from_le_bytes([bytes[i], bytes[i + 1]]);
                         // An unknown kind is caught by `check`.
                         let kind = LinkKind::from_u8(bytes[8]).unwrap_or(LinkKind::Walk);
-                        // [R83] An aim only on a rim jump's press (a GapJump pressed at a walk or a sprint); any other is bad.
+                        // [R83] An aim only on a jump's press (a rim jump's or a gap link's: a GapJump or a GapDrop pressed at a walk
+                        // or a sprint); any other is bad.
                         let press = gap::Takeoff::from_centimetres(half(10));
                         let aim = gap::Aim::from_byte(bytes[9]).filter(|aim| {
                             aim.is_straight()
-                                || (kind == LinkKind::GapJump && matches!(press, gap::Takeoff::Press(_) | gap::Takeoff::Sprint(_)))
+                                || (matches!(kind, LinkKind::GapJump | LinkKind::GapDrop)
+                                    && matches!(press, gap::Takeoff::Press(_) | gap::Takeoff::Sprint(_)))
                         });
                         let share = gap::Share::from_byte(bytes[12]);
                         let walk = match (half(13), gap::Share::from_byte(bytes[15])) {

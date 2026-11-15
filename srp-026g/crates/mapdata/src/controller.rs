@@ -209,6 +209,76 @@ pub struct Contact {
     pub object: Option<SolidId>,
 }
 
+/// [L36] How many contacts of the sweeps so far ([`Collision::sweep_each`], every sweep of the walk tick and the build's flights)
+/// met something at exactly the sweep's closest fraction besides the first contact there, by what the two are: where the
+/// client's pick among them depends on an order (exactness `grid/rig/s7-20261114/L36-tie-order.md`: inside one mesh the exe
+/// keeps the LAST triangle its BVH offers, across objects and a compound's children the FIRST). The port's own order is not the
+/// exe's for any of these (the BVH and dbvt orders are not ported; the objects' is not portable). Totals of this process, for the
+/// logs: no decision reads them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SweepTies {
+    /// Sweeps with at least one tie at the closest fraction.
+    pub sweeps: u64,
+    /// Ties between two triangles of one object's meshes (the exe: keep-last in its BVH's leaf order).
+    pub same_object_mesh: u64,
+    /// Ties within one object where a primitive (a compound's child) is one of the two (the exe: keep-first in the dbvt's order).
+    pub same_object_other: u64,
+    /// Ties between two objects (the exe: keep-first in the broadphase's order, not portable).
+    pub across_objects: u64,
+    /// Ties in a world of placed triangles with no objects ([`Collision::build`]).
+    pub faces: u64,
+}
+
+static TIE_COUNTS: [std::sync::atomic::AtomicU64; 5] = [const { std::sync::atomic::AtomicU64::new(0) }; 5];
+
+/// The process's [`SweepTies`] so far.
+pub fn sweep_ties() -> SweepTies {
+    let n = |i: usize| TIE_COUNTS[i].load(std::sync::atomic::Ordering::Relaxed);
+    SweepTies { sweeps: n(0), same_object_mesh: n(1), same_object_other: n(2), across_objects: n(3), faces: n(4) }
+}
+
+/// One sweep's ties at its closest fraction so far: the closest, what the first contact there was, and the counts.
+struct Ties {
+    closest: f32,
+    first: Option<(Option<SolidId>, bool)>,
+    counts: [u64; 4],
+}
+
+impl Ties {
+    fn new() -> Self {
+        Self { closest: f32::INFINITY, first: None, counts: [0; 4] }
+    }
+
+    fn offer(&mut self, c: &Contact) {
+        let mesh = matches!(c.on, Surface::Face { .. });
+        if c.t < self.closest {
+            self.closest = c.t;
+            self.first = Some((c.object, mesh));
+            self.counts = [0; 4];
+        } else if c.t == self.closest
+            && let Some((object, first_mesh)) = self.first
+        {
+            let k = match (object, c.object) {
+                (Some(a), Some(b)) if a == b && first_mesh && mesh => 0,
+                (Some(a), Some(b)) if a == b => 1,
+                (Some(_), Some(_)) => 2,
+                _ => 3,
+            };
+            self.counts[k] += 1;
+        }
+    }
+
+    fn flush(&self) {
+        use std::sync::atomic::Ordering::Relaxed;
+        if self.counts.iter().any(|&n| n > 0) {
+            TIE_COUNTS[0].fetch_add(1, Relaxed);
+            for (k, &n) in self.counts.iter().enumerate() {
+                TIE_COUNTS[k + 1].fetch_add(n, Relaxed);
+            }
+        }
+    }
+}
+
 /// One of the game's collision objects in a [`Collision::build_exe`] world (a placement the walking body meets).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SolidId(u32);
@@ -410,9 +480,19 @@ impl Collision {
     /// callbacks are handed, in no order). A face the shape already touches at the start is reported at 0 only when the move
     /// goes into it.
     pub fn sweep_each(&self, shape: Shape, by: Vec3, mut each: impl FnMut(Contact)) {
+        // [L36] Ties at the closest fraction, counted for the logs ([`sweep_ties`]); the contacts go on unchanged.
+        let mut ties = Ties::new();
+        let mut each = |c: Contact| {
+            ties.offer(&c);
+            each(c)
+        };
         let caster = match &self.sweeps {
             Sweeps::Faces(caster) => *caster,
-            Sweeps::Solids(solids) => return solids.sweep_each(shape, by, each),
+            Sweeps::Solids(solids) => {
+                solids.sweep_each(shape, by, &mut each);
+                ties.flush();
+                return;
+            }
         };
         let (lo0, hi0) = shape.aabb();
         let (lo1, hi1) = shape.moved(by).aabb();
@@ -435,6 +515,7 @@ impl Collision {
                 each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal }, object: None });
             }
         });
+        ties.flush();
     }
 
     /// The ray of the walk tick's second looks (`ray_pick` 0x898C0, the steep-ground look 0x849BB) from `a` to `b`: the

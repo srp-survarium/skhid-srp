@@ -12,6 +12,12 @@
 //! Its safety: a search that finds no way with the dead links shut searches once more without them
 //! (`unstick.drop_shut_last_resort`, [`super::stuck::without_drops`]): where a dead link is the only way, the bot takes it
 //! again, as it did before.
+//!
+//! [A351 change, `unstick.link_made`] No link is dead on the model's word when a world shows a body up it: a jump the motor
+//! gave up ("short", judged on the model) whose watched world then shows the body on the top's floors (`motor::on_top`,
+//! A387's judge) is a link the client makes. The match hears it as made ([`DeadLinks::made`]): a link it knew failed is
+//! made for the rest of the match: a shut one is opened again, and no later failure shuts it. The owner-14 review's 12 dead
+//! links held 2 the client makes (the model's wrong "short").
 
 use mapdata::Vec3;
 
@@ -30,7 +36,7 @@ impl FailedLink {
     /// Whether `other` is the same link: the same kind, the landings within [`LANDING_SHUT_M`] across and
     /// [`TAKE_OFF_UP_M`] up or down (as a body's own shut takes a landing, `Shut::covers`), the take-offs within
     /// [`TAKE_OFF_M`] (a ledge's drops land side by side; the same landing from another top is another link).
-    fn same(&self, other: &Self) -> bool {
+    pub fn same(&self, other: &Self) -> bool {
         self.kind == other.kind
             && self.landing.distance_xz(other.landing) < LANDING_SHUT_M
             && (self.landing.y - other.landing.y).abs() < TAKE_OFF_UP_M
@@ -60,8 +66,18 @@ struct Link {
     link: FailedLink,
     /// The places of the bots that failed it, one entry a failure.
     by: Vec<usize>,
-    /// When it was shut for the match, ms; none: not yet.
-    shut_at: Option<u32>,
+    state: LinkState,
+}
+
+/// What the match holds of a link it knew failed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum LinkState {
+    /// Failed, fewer than `after` times so far.
+    Failing,
+    /// Shut for the match since this time, ms.
+    Shut { at: u32 },
+    /// [`unstick.link_made`] A world showed bot `by` up it at `at`, ms: the client makes it, so it is never shut.
+    Made { at: u32, by: usize },
 }
 
 /// The match's links failed, for every bot of the match ([`Self::learn`], [`Self::shut`]).
@@ -77,6 +93,16 @@ pub struct NewlyDead {
     pub by: Vec<usize>,
 }
 
+/// A link the match knew failed that a world showed a body up, for the log ([`DeadLinks::made`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct NewlyMade {
+    pub link: FailedLink,
+    /// Its failures so far, by place.
+    pub failed_by: Vec<usize>,
+    /// It was shut for the match since then, ms: opened now.
+    pub was_shut: Option<u32>,
+}
+
 impl DeadLinks {
     /// The links bot `place` failed since it last told ([`super::stuck::Stuck::tell_failed_links`]) at `time`: the ones
     /// failed `tuning.after` times now are shut for the match, and returned.
@@ -86,7 +112,7 @@ impl DeadLinks {
             let known = match self.links.iter_mut().position(|known| known.link.same(link)) {
                 Some(i) => &mut self.links[i],
                 None if self.links.len() < DEAD_LINKS_MAX => {
-                    self.links.push(Link { link: *link, by: Vec::new(), shut_at: None });
+                    self.links.push(Link { link: *link, by: Vec::new(), state: LinkState::Failing });
                     self.links.last_mut().expect("just pushed")
                 }
                 None => continue,
@@ -94,8 +120,9 @@ impl DeadLinks {
             known.by.push(place);
             #[cfg(test)]
             tally::count(tally::TOLD);
-            if known.shut_at.is_none() && known.by.len() >= usize::from(tuning.after) {
-                known.shut_at = Some(time);
+            // A made link is never shut (`unstick.link_made`): its failures are the model's word.
+            if known.state == LinkState::Failing && known.by.len() >= usize::from(tuning.after) {
+                known.state = LinkState::Shut { at: time };
                 #[cfg(test)]
                 tally::count(tally::SHUT);
                 dead.push(NewlyDead { link: known.link, by: known.by.clone() });
@@ -104,11 +131,27 @@ impl DeadLinks {
         dead
     }
 
+    /// [`unstick.link_made`] A world at `time` showed bot `place` up `link` (`motor::on_top`): a link the match knew failed is
+    /// made for the rest of it (opened again if it was shut; no later failure shuts it), and returned for the log. A link the
+    /// match never heard failed, or already made, gives none: nothing is kept for it.
+    pub fn made(&mut self, time: u32, place: usize, link: &FailedLink) -> Option<NewlyMade> {
+        let known = self.links.iter_mut().find(|known| known.link.same(link))?;
+        let was_shut = match known.state {
+            LinkState::Made { .. } => return None,
+            LinkState::Shut { at } => Some(at),
+            LinkState::Failing => None,
+        };
+        known.state = LinkState::Made { at: time, by: place };
+        #[cfg(test)]
+        tally::count(if was_shut.is_some() { tally::OPENED } else { tally::MADE });
+        Some(NewlyMade { link: known.link, failed_by: known.by.clone(), was_shut })
+    }
+
     /// The landings of the links shut for the match, for every search of a bot ([`super::stuck::Stuck::share_dead`]).
     pub fn shut(&self) -> Vec<Shut> {
         self.links
             .iter()
-            .filter(|link| link.shut_at.is_some())
+            .filter(|link| matches!(link.state, LinkState::Shut { .. }))
             .map(|link| Shut::for_match(link.link.kind, link.link.landing))
             .collect()
     }
@@ -119,7 +162,9 @@ impl DeadLinks {
             .links
             .iter()
             .filter_map(|link| {
-                let at = link.shut_at?;
+                let LinkState::Shut { at } = link.state else {
+                    return None;
+                };
                 let (from, to) = (link.link.take_off, link.link.landing);
                 Some(format!(
                     "{:?} ({:.1}, {:.1}, {:.1}) -> ({:.1}, {:.1}, {:.1}) shut at {at} ms, failed {} times",
@@ -139,25 +184,28 @@ impl DeadLinks {
 
     /// How many links are shut for the match.
     pub fn count(&self) -> usize {
-        self.links.iter().filter(|link| link.shut_at.is_some()).count()
+        self.links.iter().filter(|link| matches!(link.state, LinkState::Shut { .. })).count()
     }
 }
 
-/// The bench's counts: the failed links told to the match, and the links shut for it.
+/// The bench's counts: the failed links told to the match, the links shut for it, and (`unstick.link_made`) the failing
+/// links a world showed made, and the shut ones opened so.
 #[cfg(test)]
 pub mod tally {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     pub const TOLD: usize = 0;
     pub const SHUT: usize = 1;
+    pub const MADE: usize = 2;
+    pub const OPENED: usize = 3;
 
-    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
 
     pub fn count(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 2] {
+    pub fn counts() -> [u64; 4] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -208,6 +256,33 @@ mod tests {
         let link = drop(Vec3::new(0.0, 5.0, 0.0), Vec3::new(1.0, 2.0, 0.0));
         assert!(links.learn(1_000, 2, &[link], &tuning).is_empty());
         assert_eq!(links.learn(47_000, 2, &[link], &tuning).len(), 1);
+    }
+
+    /// [unstick.link_made] A shut link a world showed a body up is opened for the match and never shut again by later
+    /// failures; a failing one made is never shut; one never failed, or made already, gives nothing.
+    #[test]
+    fn a_link_a_world_showed_made_is_never_dead() {
+        let tuning = DeadLinksTuning::default();
+        let mut links = DeadLinks::default();
+        let jump = |take_off: Vec3, landing: Vec3| FailedLink { kind: ShutKind::Jump, take_off, landing };
+        let (top, ground) = (Vec3::new(10.0, 1.2, 0.0), Vec3::new(9.0, 0.0, 0.0));
+        let link = jump(ground, top);
+        links.learn(1_000, 3, &[link], &tuning);
+        assert_eq!(links.learn(2_000, 4, &[link], &tuning).len(), 1);
+        assert_eq!(links.count(), 1);
+        let made = links.made(3_000, 5, &jump(ground + Vec3::new(0.3, 0.0, 0.0), top)).expect("made");
+        assert_eq!(made, NewlyMade { link, failed_by: vec![3, 4], was_shut: Some(2_000) });
+        assert_eq!((links.count(), links.shut()), (0, Vec::new()), "opened");
+        assert!(links.learn(4_000, 6, &[link, link], &tuning).is_empty(), "never shut again");
+        assert_eq!(links.count(), 0);
+        assert!(links.made(5_000, 6, &link).is_none(), "made already");
+        // Failing once, then made: never shut.
+        let other = jump(Vec3::new(0.0, 0.0, 20.0), Vec3::new(0.0, 1.0, 21.0));
+        links.learn(6_000, 2, &[other], &tuning);
+        assert_eq!(links.made(7_000, 2, &other).map(|m| m.was_shut), Some(None));
+        assert!(links.learn(8_000, 3, &[other], &tuning).is_empty());
+        // Never failed: nothing kept.
+        assert!(links.made(9_000, 1, &jump(Vec3::new(40.0, 0.0, 0.0), Vec3::new(41.0, 1.0, 0.0))).is_none());
     }
 
     /// Past [`DEAD_LINKS_MAX`] links a new one is not kept; the kept ones still count.
