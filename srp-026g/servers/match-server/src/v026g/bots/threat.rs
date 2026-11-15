@@ -362,6 +362,10 @@ pub enum Count {
     ReplanNoRoute,
     /// K3: a trade not taken into a proven held line.
     TradeRefused,
+    /// [A396] A trade too far to reach the killer in its time: not taken (the killer not known), or taken from a spot
+    /// that sees his known place.
+    TradeTooFar,
+    TradeFromCover,
     /// K3: a teammate not joined for standing in a held line; a join spot
     /// out of sight found, none found; a wait spot found.
     PairUpMateRefused,
@@ -380,7 +384,7 @@ pub enum Count {
 }
 
 /// The [`Count`]s, in order, and their names in the tally.
-pub const COUNTS: [(Count, &str); 24] = [
+pub const COUNTS: [(Count, &str); 26] = [
     (Count::ReplanAsked, "replan_asked"),
     (Count::ReplanClear, "replan_clear"),
     (Count::Recast, "recast"),
@@ -398,6 +402,8 @@ pub const COUNTS: [(Count, &str); 24] = [
     (Count::ReplanOut, "replan_out"),
     (Count::ReplanNoRoute, "replan_no_route"),
     (Count::TradeRefused, "trade_refused"),
+    (Count::TradeTooFar, "trade_too_far"),
+    (Count::TradeFromCover, "trade_from_cover"),
     (Count::PairUpMateRefused, "pair_up_mate_refused"),
     (Count::PairUpJoinHidden, "pair_up_join_hidden"),
     (Count::PairUpJoinNone, "pair_up_join_none"),
