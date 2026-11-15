@@ -155,6 +155,11 @@ impl FindData {
         (self.word(28) == 0).then(|| self.word(32))
     }
 
+    /// ftLastWriteTime: when it was last written (FILETIME, 100 ns since 1601).
+    pub fn last_written(&self) -> u64 {
+        u64::from(self.word(20)) | u64::from(self.word(24)) << 32
+    }
+
     /// cFileName: the name, up to its NUL.
     pub fn name(&self) -> &[u8] {
         let name = &self.0[44..];
@@ -207,6 +212,8 @@ mod tests {
         data.0[0] = 0x10;
         data.0[32..36].copy_from_slice(&1234u32.to_le_bytes());
         data.0[44..49].copy_from_slice(b"a.dds");
+        data.0[20..28].copy_from_slice(&0x0123_4567_89AB_CDEFu64.to_le_bytes());
+        assert_eq!(data.last_written(), 0x0123_4567_89AB_CDEF);
         assert!(data.is_folder());
         assert_eq!(data.size(), Some(1234));
         assert_eq!(data.name(), b"a.dds");

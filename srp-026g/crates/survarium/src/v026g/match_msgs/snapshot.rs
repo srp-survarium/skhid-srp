@@ -30,6 +30,7 @@
 use std::collections::HashMap;
 
 use super::super::maps::RuleMode;
+use srp_validate::world::SpawnHistory;
 use super::{MAX_PLAYERS, players, rules};
 
 /// Score events (`match_stats_events_dict_enum` grew from 24 to 28).
@@ -1265,6 +1266,9 @@ pub struct Rules {
     pub tdm: Option<Tdm>,
     /// Mode 5: the bytes before the kd stats, as many as its units make.
     pub research: Option<Research>,
+    /// Mode 8: the 40 bytes before the kd stats, exe patch 142's spawn
+    /// history.
+    pub free_for_all: Option<SpawnHistory>,
     /// One for each roster place.
     pub kills_deaths: Vec<KillsDeaths>,
     /// The blackboard's `team_1_respawn`, `team_2_respawn`: whether each
@@ -1289,7 +1293,7 @@ impl Rules {
     /// The respawn rule has two bytes for each respawn point of the map,
     /// and nothing says how many: in mode 4 the rest is the tdm rule's 12
     /// bytes; in mode 5 Research's 21 + 96 a unit (309 with its three
-    /// units); in modes 2 and 3 it is the number with which the gather
+    /// units); in mode 8 the spawn history's 40; in modes 2 and 3 it is the number with which the gather
     /// rule after it reads to the kd stats exactly, the smallest if
     /// several do.
     pub fn decode(
@@ -1347,6 +1351,10 @@ impl Rules {
             Some((at, rule)) => (Some(at), Some(rule)),
             None => (None, None),
         };
+        let free_for_all = (game_mode == RuleMode::FreeForAll)
+            .then(|| middle.len().checked_sub(SpawnHistory::LEN))
+            .flatten()
+            .and_then(|at| SpawnHistory::read(&middle[at..]));
         let mut respawn = None;
         let mut gather = None;
         if let Some((mut head, head_len)) = Respawn::read_head(middle) {
@@ -1355,8 +1363,9 @@ impl Rules {
             let fixed_at = match game_mode {
                 RuleMode::TeamDeathmatch => Some(middle.len().checked_sub(Tdm::LEN)),
                 RuleMode::Research => Some(research_at),
-                // No mode rule: the respawn rule ends where the kd rule begins.
-                RuleMode::FreeForAll => Some(Some(middle.len())),
+                // No mode rule: the respawn rule ends where the spawn
+                // history begins.
+                RuleMode::FreeForAll => Some(middle.len().checked_sub(SpawnHistory::LEN)),
                 RuleMode::Batteries | RuleMode::TimedBatteries => None,
             };
             if let Some(end) = fixed_at {
@@ -1384,6 +1393,7 @@ impl Rules {
             gather,
             tdm,
             research,
+            free_for_all,
             kills_deaths,
             team_respawn,
         })
@@ -1404,6 +1414,9 @@ impl Rules {
         }
         if let Some(research) = &self.research {
             research.write(&mut mode_rule);
+        }
+        if let Some(spawns) = &self.free_for_all {
+            mode_rule.extend(spawns.bytes());
         }
         self.encode(&respawn, &mode_rule)
     }
@@ -2476,6 +2489,7 @@ mod tests {
             gather: Some(gather()),
             tdm: None,
             research: None,
+            free_for_all: None,
             kills_deaths: vec![KillsDeaths::default(); 2],
             team_respawn: [true, true],
         };
@@ -2483,6 +2497,33 @@ mod tests {
         assert_eq!(bytes.len(), 13 + 8 + 60 + 200 + 10 + 2);
         assert_eq!(
             Rules::decode(&bytes, TIME, 2, RuleMode::Batteries, 4),
+            Some(rules)
+        );
+    }
+
+    #[test]
+    fn a_free_for_alls_spawn_history_follows_the_respawn_points() {
+        let mut history = SpawnHistory::EMPTY;
+        let place = srp_validate::Place::new(1).unwrap();
+        history.spawned(place, srp_validate::world::SpawnPoint::new(4).unwrap());
+        let rules = Rules {
+            timelimit: Timelimit::read(&TIMELIMIT).unwrap(),
+            respawn: Some(Respawn {
+                times: vec![],
+                seed: 7,
+                points: vec![[0, 0]; 22],
+            }),
+            gather: None,
+            tdm: None,
+            research: None,
+            free_for_all: Some(history),
+            kills_deaths: vec![KillsDeaths::default(); 2],
+            team_respawn: [true, true],
+        };
+        let bytes = rules.to_bytes();
+        assert_eq!(bytes.len(), 13 + 8 + 44 + 40 + 10 + 2);
+        assert_eq!(
+            Rules::decode(&bytes, TIME, 2, RuleMode::FreeForAll, 0),
             Some(rules)
         );
     }
@@ -2690,6 +2731,7 @@ mod tests {
             gather: Some(won),
             tdm: None,
             research: None,
+            free_for_all: None,
             kills_deaths: vec![KillsDeaths::default(); 2],
             team_respawn: [true, true],
         }

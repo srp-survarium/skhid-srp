@@ -24,6 +24,8 @@ import time
 import unittest
 import zipfile
 
+import run_logs
+
 UPDATER = Path(__file__).resolve().parents[1] / "exe/target/i686-win7-windows-msvc/release/updater_skhid.exe"
 EXTRACTOR = Path(__file__).resolve().parents[1] / "extractor/7zr.exe"
 EXTRACTOR_SIZE = 602624
@@ -113,7 +115,7 @@ class GameDownloadTest(unittest.TestCase):
         # Wine's background services can inherit pipes beyond updater exit.
         # The updater's own log is the diagnostic source on both platforms.
         result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
-        self.log = (self.x86 / "updater_skhid.log").read_text()
+        self.log = run_logs.read(self.x86).decode("utf-8", "replace")
         return result.returncode
 
     def cache_archive(self):
@@ -140,7 +142,7 @@ class GameDownloadTest(unittest.TestCase):
         self.assertNotIn("/download", self.requests)
         self.assertEqual(self.extractor.read_bytes(), EXTRACTOR.read_bytes())
         # Where to send the log, after the reason.
-        self.assertIn("Send game\\binaries\\x86\\updater_skhid.log to #bugreports in Discord "
+        self.assertIn("Send the newest game\\binaries\\x86\\updater_skhid.<date>.log to #bugreports in Discord "
                       "(tag: install): discord.gg/QUmJg3gBhg", self.log)
 
     def test_every_address_failing_says_each_ones_reason(self):
@@ -364,7 +366,7 @@ class GameDownloadTest(unittest.TestCase):
         deadline = time.monotonic() + 180
         while not extractors() and time.monotonic() < deadline:
             if updater.poll() is not None:
-                self.fail("the updater ended early: " + (self.x86 / "updater_skhid.log").read_text())
+                self.fail("the updater ended early: " + run_logs.read(self.x86).decode("utf-8", "replace"))
             time.sleep(0.5)
         self.assertTrue(extractors(), "the extractor never started")
         self.assertTrue(list(self.game.glob(".skhid-extract-*/Survarium/game/resources.db")))

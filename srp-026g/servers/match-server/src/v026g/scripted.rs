@@ -307,8 +307,9 @@ impl Sim {
             }
         });
         // A free-for-all (mode 8) has no rule of its own: none of `gather`,
-        // `tdm` and `research` is written, and the kd stats (`kills_from`)
-        // follow the respawn rule.
+        // `tdm` and `research` is written; exe patch 142's spawn history
+        // (nobody spawned) follows the respawn rule, then the kd stats
+        // (`kills_from`).
         let rules = Rules {
             timelimit: Timelimit {
                 start: rule.start,
@@ -328,6 +329,8 @@ impl Sim {
             gather,
             tdm,
             research,
+            free_for_all: (self.game_mode() == RuleMode::FreeForAll)
+                .then_some(srp_validate::world::SpawnHistory::EMPTY),
             kills_deaths,
             team_respawn: self
                 .team_respawn_from

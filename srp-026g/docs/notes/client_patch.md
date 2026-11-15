@@ -3070,7 +3070,7 @@ equality.
 - `respawn.select` 0x3171DC (`mov edi,[ecx+eax*4+194h]`, 7 bytes, after the frame and pushes; ECX
   the rule, EBP the frame: +8 team, +0Ch due, +10h living, +18h time, +1Ch chosen): when the first
   due player's team is 2 or more, every due player in order gets a point of the team-2 group
-  (+190h, count +19Ch, 38h each; the first 64):
+  (+190h, count +19Ch, 38h each; the first 128, every Free for All map's whole group: the survarium crate's map test holds them to it; the rule's own arrays have no bound, the cook allocates 1A8h + 38h a point, 0x2C6910):
   - a point's rank is the squared distance from its position (+8h) to the nearest living player
     (his simulated transform's translation, player +43Ch: what 0x2F4800 measures from, through
     the collision object's getter 0x1F17C0) and to the nearest point given before at this tick;
@@ -3090,6 +3090,30 @@ equality.
   subss, mulss, addss, minss and ucomiss only (the crate is built for pentium4: no x87
   arithmetic, no fused multiply-add; read in the linked code), each rounded as IEEE 754 says
   under the thread's MXCSR, the one the game's own clear test runs with at the same place.
+- **Never the last two** (the owner, 2026-11-15; ffa.md "Never the last two"): the selection
+  leaves out of the pool, and out of the fallback's five, the two points the player last spawned
+  at, unless no other point is left (a map of two points or fewer). The history is each place's
+  last two indices of the team-2 group, the patch's free-for-all state, and the world's:
+  - nothing the game keeps names the point (PROVEN, 2026-11-15): spawn_player 0x316DA0 sets the
+    place's respawn time (+138h + 4 x place) to -1, calls the player's vtable +1Ch
+    (base_player 0x2DAC00: alive flags, times +324h/+328h/+344h/+358h, set_transform 0x2DAB70 to
+    the point's position and rotation, the input reset at +32Ch/+330h, the body parts, stamina)
+    and, with a protection, sets the damage model's +32Ch to time + the point's +20h ms (the same
+    500 ms on every team-2 point) and +330h to 0; then vtable +20h(1). The respawn rule's own
+    serialized state (0x316F10: base 0x316C90's mask and times, the seed +1A0h, two checker bytes
+    a point) has no player in it either. A position the player walks away from and a protection
+    end shared by every point do not identify it;
+  - so the patch carries it: `respawn.save` 0x316FB8 (player_respawn_rule_core::serialize's end,
+    `pop edi .. pop ecx`, 5 bytes, then `ret 4`; EBX the writer) writes srp-validate's
+    `SpawnHistory`, 40 bytes (for each of the 20 places its latest point and the one before, 0FFh
+    none), with the game's w<u8> 0x1F3DE0, in a free-for-all only (the options' tag 3);
+    `respawn.load` 0x317038 (its deserialize's end, `pop edi .. pop ebx / ret 8`, 7 bytes; ESI
+    the reader) reads them back. So the 40 bytes sit in the rules section between the respawn
+    rule's points and the kd stats (snapshot_rules.md §2.3), where the server and patch 87 read
+    them (srp-validate `ModeRule::FreeForAll`);
+  - `respawn.entered` 0x316BC0 (the rule's on_player_entered_match entry, `movzx eax,byte
+    [esp+4]`, 5 bytes; vtable 0xA16084 +20h, called at a tick's entry by game_world_core
+    0x2D2021): the place's history empties, so a new player (or one back) starts with none.
 - **No resupply hooks.** The maps a free-for-all is played on have no ammo crates (content edit
   `no-ammo-crates-1`, the owner, 2026-11-12/13: "there should just be no ammo crates"), so
   resupply_zone_core's can_use and use_hint (0x2F8080, 0x2F80C0) are the original's: the patch's
@@ -3557,8 +3581,9 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   VK_NUMPADn/VK_DECIMAL a press sets with NumLock on, as the scan code maps to the navigation
   keys; NumLock and Pause, which map swapped, by VK_NUMLOCK and VK_PAUSE; a mouse button by
   VK_LBUTTON..VK_XBUTTON2, those past it by their release only) or the game lost the keyboard; the
-  hud's `root.srp_voice_talking(names...)` on a change (0.69's list: the teammates, newest on top,
-  fading 1 s after 0.5 s; and the player's own while its microphone is sent).
+  hud's `root.srp_voice_talking(name, side, ...)` on a change, each speaker's side `"mate"` or
+  `"opponent"` (0.69's list: those heard, newest on top, fading 1 s after 0.5 s, an opponent's
+  speaker pale red; and the player's own while its microphone is sent).
 - **The key** (`tab_cursor.key`, before patch 86's): the binder's chat key (kind 8, as
   chat_handler::on_keyboard_action asks at 0x208887, the binder [game+5344h]) `ptt` (47h, P) down
   and up. **A mouse button** (`game_world.mouse_key`, 0x25CF70: `mov edi,eax / mov eax,[edi] /
@@ -3571,7 +3596,8 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   that can be set (the game's row: the chat group, type 0, its key button disabled); muting is the
   Tab menu's.
 - **The Tab list's player menu** (`hud.callback`, after patch 86's): `srp_voice_menu(place)` is
-  answered `root.srp_voice_menu(place, offered, muted)` (a teammate whose voice id the relay sent),
+  answered `root.srp_voice_menu(place, offered, muted)` (another player of either team whose voice
+  id the relay sent),
   `srp_voice_mute(place, "1"|"0")` `root.srp_voice_mute(place, done)`; the menu shows "Mute voice"
   or "Unmute voice" after the chat's entries.
 - **The options' microphone test** (the owner, 2026-11-14; `voice-chat.md`, "Microphone test":

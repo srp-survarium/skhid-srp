@@ -294,7 +294,10 @@ package survarium.rooms
             var iconW:Number = member.squad > 0 ? RoomsLook.SQUAD_ICON_W + 8 : 0;
             var nameField:TextField = look.text(inner, "", nameX, my + mid,
                 colW - 46 - 34 * Math.max(1, buttons) - (nameX - mx - 34) - iconW, 16, RoomsLook.memberColour(member));
-            RoomsLook.fitName(nameField, member.name, member.owner ? "  (" + win.say("st_srp_rooms_owner_tag") + ")" : "");
+            // The creator is named only in a private room: a public room (made from Play) has no owner
+            // (the owner, 2026-11-15: "we should also remove from public lobbies ... the (owner) tag",
+            // "since there are no room owners right now").
+            RoomsLook.fitName(nameField, member.name, member.owner && room.pin ? "  (" + win.say("st_srp_rooms_owner_tag") + ")" : "");
             look.squadIcon(inner, nameField, member.squad, member.squad == RoomsLook.ourSquad(room.members), 16);
             var bx:Number = mx + colW - 44;
             // A private room's teams: small buttons inside the row (its rows

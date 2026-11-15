@@ -24,7 +24,7 @@ unplugged), the game has no sound until it is restarted. Survarium 0.59g1's chan
 - The device is picked by the game's own rule (`initialize_xaudio`): the last device of the
   DefaultMultimediaDevice role, else device 0; the mastering voice gets the game's own
   arguments (default channels, 44100 Hz).
-- Each event is a line in `srp_patches.log` (`srp: audio_device: ...`).
+- Each event is a line in the patches' log, the run's `srp_patches.<stamp>.log` (`srp: audio_device: ...`), written through the Rust log (`log.c_line`, patch 147).
 - Sound only: nothing a match computes. No setting.
 
 ## 0.26g (static RE of the original exe)

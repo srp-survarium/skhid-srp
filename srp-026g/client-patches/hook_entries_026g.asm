@@ -4210,6 +4210,123 @@ free_for_all_on_select_replay:
     db 0x8b, 0xbc, 0x81, 0x94, 0x01, 0x00, 0x00
     jmp 0x3171e3
 
+; 0x316fb8 player_respawn_rule_core::serialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / pop ecx, then ret 4; reached only by the fall-through at 0x316FB6): EBX the writer (its argument, 0x316F12): lohook -> free_for_all_on_spawns_save
+global free_for_all_on_spawns_save
+extern hook_free_for_all_on_spawns_save
+free_for_all_on_spawns_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_spawns_save
+    mov edx, free_for_all_on_spawns_save_replay
+    cmp eax, 0
+    je free_for_all_on_spawns_save_go
+    mov edx, 0x316fbd
+    cmp eax, 1
+    je free_for_all_on_spawns_save_go
+    ud2
+free_for_all_on_spawns_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_spawns_save_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0x59
+    jmp 0x316fbd
+
+; 0x317038 player_respawn_rule_core::deserialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / ret 8; reached only by the fall-through at 0x317036): ESI the reader (its argument, 0x316FC7): lohook -> free_for_all_on_spawns_load
+global free_for_all_on_spawns_load
+extern hook_free_for_all_on_spawns_load
+free_for_all_on_spawns_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_spawns_load
+    mov edx, free_for_all_on_spawns_load_replay
+    cmp eax, 0
+    je free_for_all_on_spawns_load_go
+    mov edx, 0x31703f
+    cmp eax, 1
+    je free_for_all_on_spawns_load_go
+    ud2
+free_for_all_on_spawns_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_spawns_load_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0xc2, 0x08, 0x00
+    jmp 0x31703f
+
+; 0x316bc0 player_respawn_rule_base::on_player_entered_match's entry (movzx eax,byte [esp+4]; then mov edx,[esp+8] / mov [ecx+eax*4+138h],edx / ret 8; vtable 0xA16084 slot +20h, called by game_world_core::on_player_entered_match 0x2D2021): [esp+4] the place: lohook -> free_for_all_on_entered
+global free_for_all_on_entered
+extern hook_free_for_all_on_entered
+free_for_all_on_entered:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_entered
+    mov edx, free_for_all_on_entered_replay
+    cmp eax, 0
+    je free_for_all_on_entered_go
+    mov edx, 0x316bc5
+    cmp eax, 1
+    je free_for_all_on_entered_go
+    ud2
+free_for_all_on_entered_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_entered_replay:
+    db 0x0f, 0xb6, 0x44, 0x24, 0x04
+    jmp 0x316bc5
+
 ; 0x234880 game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's: lohook -> hud_cursor_on_match_start
 global hud_cursor_on_match_start
 extern hook_hud_cursor_on_match_start_chain
@@ -4329,6 +4446,48 @@ free_for_all_on_protection_read_go:
 free_for_all_on_protection_read_replay:
     db 0x8b, 0x10, 0x69, 0xd2, 0xe8, 0x03, 0x00, 0x00
     jmp 0x2f4630
+
+; 0x59adf sound_world::tick's general pass, after the active scenes ticked (cmp byte [edi+48F0h],al; the je skips the pass when General is as last applied): the sound thread, EDI the world, EAX s_general_volume's value truncated (cvttss2si [0A7AF90h], 0 to 100); done 0x59B4B, past the pass (ESI 0 there as here: the scenes' walk ended): lohook -> game_volume_on_general
+global game_volume_on_general
+extern hook_game_volume_on_general
+game_volume_on_general:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_game_volume_on_general
+    mov edx, game_volume_on_general_replay
+    cmp eax, 0
+    je game_volume_on_general_go
+    mov edx, 0x59ae5
+    cmp eax, 1
+    je game_volume_on_general_go
+    mov edx, 0x59b4b
+    cmp eax, 2
+    je game_volume_on_general_go
+    ud2
+game_volume_on_general_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+game_volume_on_general_replay:
+    db 0x38, 0x87, 0xf0, 0x48, 0x00, 0x00
+    jmp 0x59ae5
 
 ; 0x2e50c7 EDI damage model ESI hit_info; invulnerability applied: lohook -> hand_kill_on_hit
 global hand_kill_on_hit
@@ -4531,10 +4690,10 @@ hud_cursor_on_menu_close_replay:
     db 0x51, 0x80, 0x7e, 0x44, 0x00
     jmp 0x201045
 
-; 0xe9580 memory::platform::allocate_arenas' start (mov eax,11A8h before its stack probe 0x429F20): once, at the process's start (memory::allocate_region, 0xE11F9), before the VRAM check's get_local_video_memory_size 0x106300 (Direct3DCreate9) at 0xE9C3F and the render device: lohook -> hud_options_on_process_start
-global hud_options_on_process_start
-extern hook_hud_options_on_process_start
-hud_options_on_process_start:
+; 0xe9580 memory::platform::allocate_arenas' start (mov eax,11A8h before its stack probe 0x429F20): once, at the process's start (memory::allocate_region, 0xE11F9), before the VRAM check's get_local_video_memory_size 0x106300 (Direct3DCreate9) at 0xE9C3F and the render device: lohook -> run_logs_on_process_start
+global run_logs_on_process_start
+extern hook_run_logs_on_process_start_chain
+run_logs_on_process_start:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -4551,22 +4710,22 @@ hud_options_on_process_start:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_hud_options_on_process_start
-    mov edx, hud_options_on_process_start_replay
+    call hook_run_logs_on_process_start_chain
+    mov edx, run_logs_on_process_start_replay
     cmp eax, 0
-    je hud_options_on_process_start_go
+    je run_logs_on_process_start_go
     mov edx, 0xe9585
     cmp eax, 1
-    je hud_options_on_process_start_go
+    je run_logs_on_process_start_go
     ud2
-hud_options_on_process_start_go:
+run_logs_on_process_start_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-hud_options_on_process_start_replay:
+run_logs_on_process_start_replay:
     db 0xb8, 0xa8, 0x11, 0x00, 0x00
     jmp 0xe9585
 
@@ -7278,6 +7437,77 @@ replay_map_on_enemy_ids_go:
 replay_map_on_enemy_ids_replay:
     db 0x8b, 0x4e, 0x10, 0x8b, 0x91, 0x08, 0x01, 0x00, 0x00
     jmp 0x235712
+
+; 0xe31f8 logging_initialize (0xE30E0) after generate_log_file_name (0xE29C0, the only call, at 0xE31F3) made the engine log's name in EDI, the frame's buffer_string [esp+0Ch] over its 104h bytes at [esp+18h] (<user data folder><application>_<user>.log), before new_log_file (0x1128D0, the only call, at 0xE31FD) makes the log file of that name anew (create_always: log_file::log_file, as g_log_file_usage 0x1B3A1B8 says); mov eax,[esp+0Ch] / push eax: lohook -> run_logs_on_engine_log
+global run_logs_on_engine_log
+extern hook_run_logs_on_engine_log
+run_logs_on_engine_log:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_run_logs_on_engine_log
+    mov edx, run_logs_on_engine_log_replay
+    cmp eax, 0
+    je run_logs_on_engine_log_go
+    mov edx, 0xe31fd
+    cmp eax, 1
+    je run_logs_on_engine_log_go
+    ud2
+run_logs_on_engine_log_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+run_logs_on_engine_log_replay:
+    db 0x8b, 0x44, 0x24, 0x0c, 0x50
+    jmp 0xe31fd
+
+; log.c_line the arena's C code's line to the patches' log (patch 100's ad_log, audio_device_engine_026g.c): a cdecl call of C (the entry keeps every register), the text and a value; the caller pops the two: entry -> run_logs_on_c_line
+global run_logs_on_c_line
+extern hook_run_logs_on_c_line
+run_logs_on_c_line:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_run_logs_on_c_line
+    cmp eax, 0
+    je run_logs_on_c_line_go
+    ud2
+run_logs_on_c_line_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
 
 ; 0x572675 DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed): lohook -> scaleform_capture_on_next_capture
 global scaleform_capture_on_next_capture

@@ -131,7 +131,8 @@ run on its bytes in Unicorn) unless marked.
   - A mono sound's two gains are its output matrix into its scene's two-channel submix
     (`voice_bridge::set_output_matrix_impl` 0x5DC40). A hud sound (type 3) is not panned: 1 and 1.
 - **The volumes.** A scene's submix gets its fade volume times the general volume
-  (`s_general_volume`; fields_026g.tsv, the scene's +2E4h and +2E8h); the master is at unity.
+  (`s_general_volume`; fields_026g.tsv, the scene's +2E4h and +2E8h), and with patch 144 the Game
+  slider's share for every scene but the music's (`game-volume.md`); the master is at unity.
 - **Threads.** Every XAudio2 call is the sound thread's. The game's thread writes the listener's
   atomics and queues orders. With patch 100 the engine and every voice the game makes are its
   proxies, whose list only the sound thread's step changes (audio_device.md).
@@ -174,7 +175,9 @@ run on its bytes in Unicorn) unless marked.
 
 ## The rules (v1)
 
-- **Who hears whom.** Team-only, in a match, as in 0.69. Enemies never hear, near or far. No
+- **Who hears whom.** Team-only, in a match, as in 0.69. Enemies never hear, near or far (until
+  2026-11-15: since, anyone within 10 m hears the plain voice, opponents too; the radio stays the
+  team's: "Opponents near, in every mode", below). No
   voice in the lobby, no squad channel, no "common" channel (0.69 had that only as a room
   option; a later rooms feature).
 - **The radio effect** (an owner decision, default on):
@@ -214,7 +217,7 @@ run on its bytes in Unicorn) unless marked.
     +-------------------+           +------------------------+         +-------------------+
     | P held            |           | session -> seat        |         | jitter buffer     |
     | waveIn 16 kHz     |  START    | (match, team, slot)    |  START  | Opus decode       |
-    | Opus 16 kbps      | --------> | IP == match conn's IP? | ------> | radio filter if   |
+    | Opus 16 kbps      | --------> | same /16 as match conn | ------> | radio filter if   |
     | 2 x 20 ms / dgram |  AUDIO    | forward to teammates   |  AUDIO  |   > VOICE_NEAR    |
     | P released        | --------> | with a live HELLO      | ------> | waveOut           |
     |                   |  END      | tap (none by default)  |  END    | HUD: name talking |
@@ -229,10 +232,12 @@ run on its bytes in Unicorn) unless marked.
     (default: the match port + 1).
   - 0.69 kept voice apart too (`voice_chat_client`).
 - **Who a datagram is from.** The `u32 session` of the client's 0xD8 connect (match.md),
-  checked two ways: the session holds a seat in a running match, and the datagram's IP is the
-  IP of that seat's match connection. A datagram that fails either, or is malformed, is dropped
-  and logged (a line per source IP at most every 10 s, with its count; "As built"). Ports may
-  differ (NAT).
+  checked two ways: the session holds a seat in a running match, and the datagram's IP is of
+  the network of that seat's match connection (the same /16 of IPv4, /48 of IPv6). A datagram
+  that fails either, or is malformed, is dropped and logged (a line per source IP at most every
+  10 s, with its count; "As built"). Ports may differ (NAT), and so may the address within the
+  network: Cloudflare WARP gives each connection its own exit, and carrier NAT pools do too
+  (2026-11-14: an exact match shut about six such players out of voice for whole matches).
 
 ## The wire (voice port)
 
@@ -252,7 +257,7 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 | 84 END | S->C | `u8 speaker_slot, u16 utt, u8 reason` (0 released, 1 timeout, 2 too long) | relayed |
 | 85 TEXT | S->C | reserved: `u8 speaker_slot, u16 utt, u8 final, u8 lang[2], u8 len, utf8` | later: subtitles |
 | 86-8F | S->C | reserved: an AUDIO-like stream with a language | later: translated audio |
-| 90 ROSTER | S->C | `u8 count, count x (u8 slot, u32 voice_id)` | with each WELCOME: the listener's team |
+| 90 ROSTER | S->C | `u8 count, count x (u8 slot, u32 voice_id)` | with each WELCOME: the listener's team (the whole match since 2026-11-15) |
 
 - **speaker_slot** is the speaker's player index in the match: the order of the match-start
   player list (0xE4, static_info.md). The client gets the name and the team from it without new
@@ -267,7 +272,8 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
 - **Utterances.** srp keeps one open utterance per speaker:
   `{match, team, speaker slot, utt, started_at (server), last_audio_at}`.
   - START opens it and is forwarded at once.
-  - Each AUDIO goes to every teammate with a HELLO in the last 6 s, except the speaker, a
+  - Each AUDIO goes to every teammate (since 2026-11-15 every player of the match, of either
+    team) with a HELLO in the last 6 s, except the speaker, a
     listener whose HELLO mutes the speaker's slot, and a
     listener whose flags say it does not hear.
   - END closes it.
@@ -318,10 +324,11 @@ Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version
     cannot be read or is not 32 bytes turns voice off with an error and is left alone (the
     players' mutes are kept by it);
   - the registry keeps each place's match-connection IP (set at its 0xD8) and answers
-    `voice_seat(session)`: match, place, team, IP; bots' places have none;
+    `voice_seat(session)`: match, place, IP (its team too until 2026-11-15); bots' places have
+    none;
   - a released seat (left by 0xE0, the match's result) neither talks nor hears from the next
     second on;
-  - tests: `cargo test -p match-server --lib voice` (39: team-only, mutes, IP and seat checks,
+  - tests: `cargo test -p match-server --lib voice` (41: the whole match heard, mutes, IP and seat checks,
     every malformed shape with its reason, frames not the games' encoder's, a flood not delaying
     a good sender, the drop log's bounds, lost START, timeout, the 31 s cut after the games' END,
     the rate limits (talker, audio, source, failed lookups; 40 players behind one exit), the
@@ -520,12 +527,48 @@ Where the build differs from or adds to the design above:
     stereo, since 2026-11-13); the radio and the squelch are centred.
 - **Free for all: voice for all** (the owner, 2026-11-13: "in FFA I would enable voice chat for
   all"): in a free-for-all every player hears every other of the match (each is a side of its
-  own, so by teams nobody heard anyone), by the same rule of near and far. One decision a side,
-  from the match's mode: the relay's `registry::VoiceChannel::of` (a team's places, or the
-  match's), which routes the forwards and the ROSTER (so voice ids, and the mutes, cover every
-  player); the game's `channel` in patch 66 (patch 142's free-for-all, read from the options),
-  which the roster's `mate` follows for the hearing, the mutes, the Tab menu's voice entries and
-  the talking list. Team modes as before: teammates only.
+  own, so by teams nobody heard anyone), by the same rule of near and far. Until 2026-11-15 one
+  decision a side, from the match's mode: the relay's `registry::VoiceChannel::of` (gone since,
+  below) and the game's `channel` in patch 66 (patch 142's free-for-all, read from the options).
+- **Opponents near, in every mode** (the owner, 2026-11-14: "in all regimes everyone in 10meters
+  + opponenets should hear it", "only radio is team only"; built 2026-11-15): any living player
+  within 10 m of a living speaker hears its plain voice, opponents too, with the same engine pan
+  and fall as a teammate's. The radio (10 m and beyond, or either player dead) stays a mate's:
+  an opponent is never heard on it, and is silent there. A free-for-all is as before (everyone
+  is a mate there).
+  - **The relay sends the whole match**: every utterance to every listener of the speaker's
+    match, of either team (`to_match`), and the ROSTER lists every place of the match with its
+    voice id, so an opponent heard near can be muted as a teammate is. `VoiceChannel` is gone:
+    the relay knows no teams. The game decides how each speaker is heard.
+  - **Considered and not taken: the relay gating an opponent by distance.** The relay has no
+    positions; the match loop has them only from the trusted worlds the clients upload, every
+    5 s in a PvP match (`Timing::refresh`), checked up to 3 s later, of a tick 250 ms behind, so
+    0.3-8 s old: at 5.2 m/s sprinting 25-40 m off, no margin of a couple of metres. Reckoning
+    every body from the relayed inputs exists only for the server's bots (`bots::view::Tracker`,
+    with server bots in the match), its error on humans not measured.
+  - **The risk, accepted** (the owner, 2026-11-15, told a modified game could hear the other
+    team's callouts across the map: "I am fine with that risk"). An opponent's voice id reaches
+    every game of the match; it is the opaque hash it always was (SHA-256 of the key and the
+    account), stable per account, as a teammate's.
+  - **Patch 66** (`voice.rs`): the roster's `side` of each other place is `Mate` (its team; in
+    a free-for-all, anyone) or `Opponent`. `hearing` gives a mate the rule above and an opponent
+    the same without the radio (`side`: plain near, silent far or dead); the local player's own
+    place and places of nobody are silent (`Hearing::SILENT`), as is everyone from the connect
+    until the match's first frame knows the places (it was every place plain until then: with
+    the whole match sent, an opponent across the map would play during the loading). The
+    mutes, and the Tab menu's voice entry, take every other player of either team; the talking
+    list shows a speaker while it is heard (a mate always, an opponent while near), and the
+    local player's own place while its microphone is sent.
+  - **An opponent's speaker is pale red** (the owner, 2026-11-15: "the voice icon of an opponent
+    should be pale red"): the patch calls `root.srp_voice_talking(name, side, ...)`, each speaker
+    its name and `"mate"` or `"opponent"` (the local player's own: `"mate"`; in a free-for-all
+    everyone is a mate); `VoiceSpeakers` draws a mate's speaker 0.69's blue 0x73B9FF and an
+    opponent's 0xFF8080, the game's enemy red (0xFF0000, a name over an enemy's head) half way to
+    white, about as light as the blue (L* 68 against 73); the names stay white. A speaker whose
+    side changes while it is listed is redrawn. `scripts/voice-speakers/check.sh` (Ruffle) checks
+    it; `docs/images/voice-opponent-icon.png` the before and after.
+  - No change to the DLL, the voice ABI (still 5) or the wire: the DLL plays any slot by what
+    `sv_hear` tells it, and the patch tells all 20 before `sv_start`.
 - **Automatic gain** (the owner, 2026-11-07: as 0.69): before Opus, the microphone goes through
   speexdsp's preprocessor, noise suppression and automatic gain on, as 0.69d0's voice_recorder
   turns them on (0x2006281CA; its level `voice_chat_preprocess_gain`, 12000 of 1..32768, set
@@ -573,7 +616,9 @@ Where the build differs from or adds to the design above:
   28 IP/UDP), 25 datagrams/s, about **24 kbit/s up** for the talker.
 - Each teammate gets **24 kbit/s per teammate talking**. srp sends the speaker's stream to each
   of up to 9 teammates (10v10): about 216 kbit/s per talker. Two talking at once in each team:
-  under 1 Mbit/s for a match.
+  under 1 Mbit/s for a match. Since 2026-11-15 (the whole match sent) each game gets every
+  talker of the match and srp sends a stream to up to 19 others: about 456 kbit/s per talker,
+  four talking at once under 2 Mbit/s for a match.
 - Idle: a HELLO every 2 s (about 40 bytes). The match transport's traffic is unchanged.
 - The most a modified game can push into each teammate (2026-11-13): 30 AUDIO a second of 2
   frames of 120 bytes, about 68 kbit/s with IP/UDP (3 times a real talker); it was 60 of 400
@@ -588,8 +633,8 @@ Where the build differs from or adds to the design above:
   keeps talking and hearing.
 - Replays (`replay.rs`) and the match recordings (`record.rs`, `SRP_RECORD_DIR`) are made from
   the match socket's datagrams only, so **no voice is ever in a replay or a recording**.
-- Releasing or reseating a voice seat stops its old team routing immediately, without waiting
-  for housekeeping. An utterance cannot migrate with the session to another team.
+- Releasing or reseating a voice seat stops its old routing immediately, without waiting for
+  housekeeping. An utterance cannot migrate with the session to another place.
 - What a match computes does not change: no `simulation_changes.tsv` row.
 
 ## Privacy
@@ -800,7 +845,7 @@ As built:
 - The match server's headless loopback test runs its actual UDP relay with two Rust client cores.
   Each sends a different synthetic tone through Opus, the wire, routing and jitter playback.
   The received audio's energy and frequency must match the other client. No microphone or fake
-  codec participates. Relay tests also cover team isolation (and a free-for-all heard by all), mutes, authentication, rate limits,
+  codec participates. Relay tests also cover the routing (the whole match since 2026-11-15; another match never), mutes, authentication, rate limits,
   released seats, immediate reseats, stale utterances and process restarts in the same slot
   while the listener misses the new START packet.
 - `scripts/tab-row-menu/check.sh` (Ruffle) runs the Tab menu with the voice entries: offered,

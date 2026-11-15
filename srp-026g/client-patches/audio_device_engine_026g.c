@@ -43,24 +43,19 @@ ad_u64 ad_frequency(void)
     return frequency;
 }
 
+/* The Rust patches' entry log.c_line (patch 147, run_logs.rs): the line
+ * `srp: <text> 0x<value>` in the patches' log, the run's file, one line at a
+ * time with the Rust side's. Cdecl; it keeps every register. */
+extern void run_logs_on_c_line(const char *text, ad_u32 value);
+
 void ad_log(const char *what, ad_u32 value)
 {
-    char line[200];
+    char text[200];
     ad_u32 n = 0;
-    for (const char *p = "srp: audio_device: "; *p; ++p) line[n++] = *p;
-    for (const char *p = what; *p && n < sizeof line - 16; ++p) line[n++] = *p;
-    line[n++] = ' ';
-    line[n++] = '0';
-    line[n++] = 'x';
-    for (int shift = 28; shift >= 0; shift -= 4) line[n++] = "0123456789abcdef"[(value >> shift) & 0xF];
-    line[n++] = '\r';
-    line[n++] = '\n';
-    /* FILE_APPEND_DATA, share read and write, OPEN_ALWAYS, normal: vostok::log's */
-    void *file = engine_create_file_a("srp_patches.log", 4, 3, 0, 4, 0x80, 0);
-    if (file == (void *)-1) return;
-    unsigned int written = 0;
-    engine_write_file(file, line, n, &written, 0);
-    engine_close_handle(file);
+    for (const char *p = "audio_device: "; *p; ++p) text[n++] = *p;
+    for (const char *p = what; *p && n < sizeof text - 1; ++p) text[n++] = *p;
+    text[n] = 0;
+    run_logs_on_c_line(text, value);
 }
 
 /* sound_world::tick's `push edi / call process_orders` (0x59AAB): the

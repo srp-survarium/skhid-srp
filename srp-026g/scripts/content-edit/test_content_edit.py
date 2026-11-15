@@ -751,7 +751,8 @@ class OtherTables(unittest.TestCase):
         columns, rows = read_table(category, 'armor\tarmor\tback\tarms\tano\tmovement\texperience\tregen\n'
                                              'torso/t\t0.55\t0.4\t0.3\t0.25\t1113\t\t1094\n')
         written, _, gone = ce.stats_write(category, columns, rows, files, 't')
-        self.assertEqual(ce.items_of(torso, 'default_modifications'), [1030, 1113, 1094])
+        # in the columns' order; 1030 (pockets) has no column here, so it goes after them
+        self.assertEqual(ce.items_of(torso, 'default_modifications'), [1113, 1094, 1030])
         self.assertEqual(gone, {'a/torso/t.options': {'/default_modifications'}})
         self.assertEqual((value(torso, 'hit_params/front/hit_types/slash/armor'), value(torso, 'hit_params/back/hit_types/ranged/armor')),
                          (value(torso, 'hit_params/front/hit_types/ranged/armor'), value(torso, 'hit_params/back/hit_types/slash/armor')))
@@ -760,6 +761,21 @@ class OtherTables(unittest.TestCase):
                           'experience': '', 'regen': '1094'})
         self.assertEqual(ce.armour_card(torso)[6], '55')
 
+
+    def test_an_armour_rows_built_ins_are_kept_in_the_columns_order(self):
+        """The card lists them as the config does: ammo bags first, as every piece has them."""
+        category = ce.STATS['armor']
+        columns = {c: k for c, k in category['columns'].items() if c in ('pockets', 'ammo_bags', 'movement', 'weight')}
+        category = dict(category, columns=columns, configs='a/(*/*).options')
+        files = {'a/torso/t.options': config({'parameters': {'weight': 3.0},
+                                               'default_modifications': [1113, 1030, 1220, 1051]})}
+        columns, rows = read_table(category, 'armor\tweight\tpockets\tammo_bags\tmovement\n'
+                                             'torso/t\t3\t1030\t1051\t1113\n')
+        targets = ce.stats_targets(category, files)
+        self.assertEqual(len(ce.stats_problems(category, columns, rows, targets, files, 't')), 1)
+        written, _, _ = ce.stats_write(category, columns, rows, files, 't')
+        self.assertEqual(ce.items_of(files['a/torso/t.options'], 'default_modifications'), [1051, 1030, 1113, 1220])
+        self.assertEqual(ce.stats_problems(category, columns, rows, targets, files, 't'), [])
 
     def test_an_add_bonus_column_makes_the_built_in_list_a_config_lacks(self):
         category = {'configs': 'a/*.options', 'match': set(), 'add': {'aim', 'reload'},

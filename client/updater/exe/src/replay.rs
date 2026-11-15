@@ -13,7 +13,7 @@
 //! (`patches::ready`, the check of play_skhid.bat), and starts the game as
 //! the launcher's PLAY does, with `-match_replay=<the file>`. A problem is a
 //! message box in the launcher's
-//! language and a line in `updater_skhid.log`; the log names the token by
+//! language and a line in the run's log; the log names the token by
 //! its first 6 hex digits only.
 
 use alloc::format;
@@ -61,14 +61,14 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
             return FAILED;
         }
     };
-    crate::log::start(format!("{}\\{}", layout.exe_dir, crate::LOG_FILE));
+    crate::log::start(&layout.exe_dir);
     log!(
         "---- updater {} replay started in {}{}",
         env!("CARGO_PKG_VERSION"),
         layout.exe_dir,
         if quiet { " (quiet)" } else { "" }
     );
-    let language = win::game_language();
+    let language = win::documents().as_deref().and_then(win::game_language);
     let request = match replay::parse(arguments) {
         Ok(request) => request,
         Err(error) => {
@@ -124,9 +124,9 @@ pub fn run_local(arguments: &[String], quiet: bool) -> u32 {
             return FAILED;
         }
     };
-    crate::log::start(format!("{}\\{}", layout.exe_dir, crate::LOG_FILE));
+    crate::log::start(&layout.exe_dir);
     log!("---- updater local replay started{}", if quiet { " (quiet)" } else { "" });
-    let language = win::game_language();
+    let language = win::documents().as_deref().and_then(win::game_language);
     let Some(file) = updater_logic::local_replay::LocalReplay::parse(arguments) else {
         return tell(quiet, language, &Problem::BadFile);
     };

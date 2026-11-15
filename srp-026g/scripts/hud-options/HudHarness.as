@@ -9,21 +9,24 @@ package
     import flash.system.ApplicationDomain;
     import flash.system.LoaderContext;
 
-    // The match hud's "Hide hit markers" and "Hide player scores" (exe patch 83,
+    // The match hud's hit marker list and "Hide player scores" (exe patch 83,
     // docs/notes/hide-hit-markers-scores.md) with the hud movie's own classes,
     // through HUD.srp_hud_options with real controls supplied to the root
-    // (its game-only initialization cannot finish here): hitMarkersHidden and the Tab list's
+    // (its game-only initialization cannot finish here): hitMarkers and the Tab list's
     // (SrvPlayerList.players) namesOnly.
     // - the hit marker (root.crosshair_enemy_hit: Crosshair.setDamage) shown
-    //   while the option is off; hidden on, a shown one (a kill's too) cleared;
-    //   shown again off; Hidden crosshair preserves hit/kill feedback and survives game updates;
+    //   with All; Hidden: none, a shown one (a kill's too) cleared; All again:
+    //   shown; Kill marker only: a hit shows nothing, a kill its mark (its last
+    //   bar part on its kill frame), a hit's marker shown cleared at the pick;
+    //   Hidden crosshair preserves hit/kill feedback and survives game updates;
     // - the Tab list off: each team by score as the game sorts it, every
     //   column shown; on: each team (the board's two lists, as it groups them)
     //   by clan tag, then name (the clanless after the clans, the bots' "BOT" last), case-
     //   insensitive, equal names by id, its score, kills, deaths and rank not shown,
     //   kept so through a player's update and the local player's name; off
     //   again: as before.
-    // Ends showing the list with scores, then names only, for check.sh's
+    // Shows a kill's mark with Kill marker only, then the list with scores,
+    // then names only, for check.sh's
     // screenshots. Prints "HUD ..." lines and "HUD RESULT pass" or "HUD RESULT
     // fail: ...". No game.
     public class HudHarness extends Sprite
@@ -103,11 +106,11 @@ package
             try
             {
                 if (frames == 10) hitMarker();
-                if (frames == 11) mapNames();
-                if (frames == 12) scores();
-                if (frames == 40) trace("HUD SHOT scores");
-                if (frames == 100) namesOnly();
-                if (frames == 130)
+                if (frames == 40) mapNames();
+                if (frames == 41) scores();
+                if (frames == 70) trace("HUD SHOT scores");
+                if (frames == 130) namesOnly();
+                if (frames == 160)
                 {
                     trace("HUD SHOT names");
                     trace("HUD RESULT pass");
@@ -129,32 +132,70 @@ package
                 && bars.damage3.currentFrame > 1 && bars.damage4.currentFrame > 1;
         }
 
+        // A kill's mark: each bar's last part shown on its kill frame (Crosshair.setDamage).
+        private function killShown():Boolean
+        {
+            var bars:* = crosshair.bars.barsContainer;
+            if (!markerShown()) return false;
+            var last:String = "part_" + String(bars.damage1.currentFrame - 1);
+            return bars.damage1[last].currentFrame == 2 && bars.damage2[last].currentFrame == 2
+                && bars.damage3[last].currentFrame == 2 && bars.damage4[last].currentFrame == 2;
+        }
+
+        // The kill marker's white parts (each bar's parts under its red last one): all `shown` or all not;
+        // false without such parts.
+        private function hitParts(shown:Boolean):Boolean
+        {
+            var bars:* = crosshair.bars.barsContainer;
+            var last:int = bars.damage1.currentFrame - 1;
+            for each (var bar:* in [bars.damage1, bars.damage2, bars.damage3, bars.damage4])
+            {
+                for (var k:int = 1; k < last; ++k)
+                {
+                    if (bar["part_" + k].visible != shown) return false;
+                }
+            }
+            return last > 1;
+        }
+
         private function hitMarker():void
         {
-            require(!crosshair.hitMarkersHidden && !markerShown(), "off by default, nothing shown yet");
+            var ALL:uint = 0, KILL_ONLY:uint = 1, HIDDEN:uint = 2;
+            require(crosshair.hitMarkers == ALL && !markerShown(), "All by default, nothing shown yet");
             crosshair.setDamage(0.8, 1000, false, false);
-            require(markerShown(), "off: a hit on an enemy shows the hit marker");
-            crosshair.hitMarkersHidden = true;
-            require(!markerShown(), "on: the marker shown is cleared");
+            require(markerShown() && !killShown(), "All: a hit on an enemy shows the hit marker");
+            crosshair.hitMarkers = HIDDEN;
+            require(!markerShown(), "Hidden: the marker shown is cleared");
             crosshair.setDamage(0.8, 1000, false, false);
-            require(!markerShown(), "on: a hit shows no marker");
+            require(!markerShown(), "Hidden: a hit shows no marker");
             crosshair.setDamage(1, 1000, true, false);
-            require(!markerShown(), "on: a kill shows no marker");
-            crosshair.hitMarkersHidden = false;
+            require(!markerShown(), "Hidden: a kill shows no marker");
+            crosshair.hitMarkers = ALL;
             crosshair.setDamage(1, 1000, true, false);
-            require(markerShown(), "off again: a kill shows the marker");
-            crosshair.hitMarkersHidden = true;
-            require(!markerShown(), "on: a kill's marker is cleared too");
+            require(killShown() && hitParts(true), "All again: a kill shows its mark over the hit's white parts");
+            crosshair.hitMarkers = HIDDEN;
+            require(!markerShown(), "Hidden: a kill's marker is cleared too");
             crosshair.setDamage(0.5, 1000, false, false);
-            require(!markerShown(), "on after a kill's marker: a hit shows nothing");
-            crosshair.hitMarkersHidden = false;
+            require(!markerShown(), "Hidden after a kill's marker: a hit shows nothing");
+            crosshair.hitMarkers = ALL;
             crosshair.setDamage(0.5, 1000, false, false);
-            require(markerShown(), "off: hits shown again");
+            require(markerShown(), "All: hits shown again");
+            crosshair.hitMarkers = KILL_ONLY;
+            require(!markerShown(), "Kill marker only: the hit's marker shown is cleared");
+            crosshair.setDamage(0.8, 1000, false, false);
+            require(!markerShown(), "Kill marker only: a hit shows nothing");
+            crosshair.setDamage(1, 1000, true, false);
+            require(killShown() && hitParts(true), "Kill marker only: a kill shows the whole kill marker (white at the centre, red tips)");
+            crosshair.setDamage(0.3, 1000, false, false);
+            require(killShown(), "Kill marker only: a hit after it leaves the kill's mark");
+            crosshair.hitMarkers = 7;
+            require(crosshair.hitMarkers == ALL && !markerShown(), "another number: All, the mark shown cleared");
+            crosshair.hitMarkers = ALL;
             // Hidden crosshair affects only aiming lines. Weapon updates cannot restore
             // them, and the separate hit-marker choice works in either crosshair mode.
             hud.show_crosshair(true);
             require(crosshair.crosshair_mc.visible, "normal crosshair shows aiming lines");
-            hud.srp_hud_options(false, false, true, false);
+            hud.srp_hud_options(ALL, 0, 1, 0);
             hud.crosshair_enemy_hit(0.5);
             require(!crosshair.crosshair_mc.visible && crosshair.visible && crosshair.bars.visible && markerShown(),
                 "hidden crosshair keeps hit feedback visible");
@@ -164,25 +205,30 @@ package
             hud.crosshair_enemy_hit(1, 1000, true);
             require(markerShown() && crosshair.visible && !crosshair.crosshair_mc.visible,
                 "hidden crosshair keeps kill feedback visible");
-            hud.srp_hud_options(true, false, true, false);
+            hud.srp_hud_options(HIDDEN, 0, 1, 0);
             require(!markerShown(), "separate hit-marker option clears feedback with a hidden crosshair");
             crosshair.setDamage(0.5, 1000, false, false);
             require(!markerShown(), "both hidden options suppress both visuals");
-            hud.srp_hud_options(false, false, true, false);
+            hud.srp_hud_options(ALL, 0, 1, 0);
             crosshair.setDamage(0.5, 1000, false, false);
             require(markerShown() && !crosshair.crosshair_mc.visible, "hit feedback can return independently");
             hud.show_crosshair(false);
-            hud.srp_hud_options(false, false, false, false);
+            hud.srp_hud_options(ALL, 0, 0, 0);
             require(!crosshair.crosshair_mc.visible, "unhiding in ADS or on death respects the game's hidden state");
             hud.show_crosshair(true);
             require(crosshair.crosshair_mc.visible && markerShown(), "leaving ADS restores normal crosshair and feedback");
             hud.show_crosshair(false);
-            hud.srp_hud_options(false, false, true, false);
+            hud.srp_hud_options(ALL, 0, 1, 0);
             hud.show_crosshair(true);
             require(!crosshair.crosshair_mc.visible, "respawn cannot override saved Hidden");
-            hud.srp_hud_options(false, false, false, false);
+            hud.srp_hud_options(ALL, 0, 0, 0);
             require(crosshair.crosshair_mc.visible, "turning Hidden off restores the latest game request");
             trace("HUD hit marker: independent of Hidden crosshair, including kills, weapon updates, aim/death and respawn");
+            // check.sh's kill-marker.png: a kill with Kill marker only, its mark kept a while
+            hud.srp_hud_options(KILL_ONLY, 0, 0, 0);
+            hud.crosshair_enemy_hit(0.6, 3000, true);
+            require(killShown(), "srp_hud_options: Kill marker only, a kill shows its mark");
+            trace("HUD SHOT kill");
         }
 
         private function names(team:*):Array
@@ -282,13 +328,13 @@ package
             require(map.namesShown, "map names: Alt shows them");
             hud.show_map_names(false);
             require(!map.namesShown, "map names: Alt let go hides them");
-            hud.srp_hud_options(false, false, false, true);
+            hud.srp_hud_options(0, 0, 0, 1);
             require(map.namesShown, "Names on map: shown without Alt");
             hud.show_map_names(true);
             require(!map.namesShown, "Names on map: Alt hides them");
             hud.show_map_names(false);
             require(map.namesShown, "Names on map: Alt let go shows them again");
-            hud.srp_hud_options(false, false, false, false);
+            hud.srp_hud_options(0, 0, 0, 0);
             require(!map.namesShown, "Names on map off: hidden again");
             trace("HUD map names: Alt shows them; Names on map reverses Alt");
         }

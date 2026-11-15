@@ -8,12 +8,13 @@ use core::ptr::{null, null_mut};
 use updater_logic::checked::Identity;
 use updater_logic::sha256::Sha256;
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND, FILETIME,
+    CloseHandle, ERROR_ALREADY_EXISTS, ERROR_FILE_EXISTS, ERROR_FILE_NOT_FOUND,
+    ERROR_PATH_NOT_FOUND, FILETIME,
     GENERIC_READ, GENERIC_WRITE, GetLastError, HANDLE, INVALID_HANDLE_VALUE, SYSTEMTIME,
 };
 use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
 use windows_sys::Win32::Storage::FileSystem::{
-    BY_HANDLE_FILE_INFORMATION, CREATE_ALWAYS, CreateDirectoryW, CreateFileW, DeleteFileW,
+    BY_HANDLE_FILE_INFORMATION, CREATE_ALWAYS, CREATE_NEW, CreateDirectoryW, CreateFileW, DeleteFileW,
     FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_DELETE, FILE_SHARE_READ,
     FILE_SHARE_WRITE, FindClose, FindFirstFileW, FindNextFileW, FlushFileBuffers,
     GetDiskFreeSpaceExW, GetFileAttributesW, GetFileInformationByHandle, GetFileSizeEx,
@@ -289,20 +290,24 @@ pub fn write_file(path: &str, data: &[u8]) -> Result<(), Code> {
     Ok(())
 }
 
-/// Adds to the end of a file, making it if it is not there. A file longer
-/// than `limit` is started anew first.
-pub fn append_file(path: &str, data: &[u8], limit: u64) -> Result<(), Code> {
+/// Adds to the end of a file, making it if it is not there.
+pub fn append_file(path: &str, data: &[u8]) -> Result<(), Code> {
     let file = open(path, GENERIC_WRITE, FILE_SHARE_READ, OPEN_ALWAYS)?;
-    let mut size = 0_i64;
-    if unsafe { GetFileSizeEx(file.0, &mut size) } != 0 && size as u64 > limit {
-        drop(file);
-        return write_file(path, data);
-    }
     // 2 = FILE_END.
     if unsafe { SetFilePointerEx(file.0, 0, null_mut(), 2) } == 0 {
         return Err(last_error());
     }
     write_all(&file, data)
+}
+
+/// Makes an empty file of a name nothing has yet: `Ok(false)` when the
+/// name is taken.
+pub fn create_new(path: &str) -> Result<bool, Code> {
+    match open(path, GENERIC_WRITE, FILE_SHARE_READ, CREATE_NEW) {
+        Ok(_) => Ok(true),
+        Err(code) if code == ERROR_FILE_EXISTS || code == ERROR_ALREADY_EXISTS => Ok(false),
+        Err(code) => Err(code),
+    }
 }
 
 pub fn exists(path: &str) -> bool {
@@ -404,6 +409,20 @@ pub fn sleep(milliseconds: u32) {
 /// Milliseconds since the system started.
 pub fn ticks() -> u64 {
     unsafe { GetTickCount64() }
+}
+
+/// The local date and time now, to the second.
+pub fn local_stamp() -> updater_logic::run_log::Stamp {
+    let mut time: SYSTEMTIME = unsafe { core::mem::zeroed() };
+    unsafe { GetLocalTime(&mut time) };
+    updater_logic::run_log::Stamp {
+        year: time.wYear,
+        month: time.wMonth as u8,
+        day: time.wDay as u8,
+        hour: time.wHour as u8,
+        minute: time.wMinute as u8,
+        second: time.wSecond as u8,
+    }
 }
 
 /// The local date and time, `2026-10-13 02:19:27`.
@@ -595,6 +614,33 @@ pub fn lock(folder: &str, name: &str) -> Result<InstallLock, Code> {
     .map(InstallLock)
 }
 
+/// The files in `folder` that match `pattern`, each with its size and the
+/// time it was last written.
+pub fn list_run_files(folder: &str, pattern: &str) -> Vec<updater_logic::run_log::RunFile> {
+    let mut out = Vec::new();
+    let mut found: WIN32_FIND_DATAW = unsafe { core::mem::zeroed() };
+    let query = alloc::format!("{folder}\\{pattern}");
+    let handle = unsafe { FindFirstFileW(wide(&query).as_ptr(), &mut found) };
+    if handle == INVALID_HANDLE_VALUE {
+        return out;
+    }
+    loop {
+        if found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY == 0 {
+            let size = u64::from(found.nFileSizeHigh) << 32 | u64::from(found.nFileSizeLow);
+            let written = u64::from(found.ftLastWriteTime.dwHighDateTime) << 32
+                | u64::from(found.ftLastWriteTime.dwLowDateTime);
+            out.push(updater_logic::run_log::RunFile { name: from_wide(&found.cFileName), size, written });
+        }
+        if unsafe { FindNextFileW(handle, &mut found) } == 0 {
+            break;
+        }
+    }
+    unsafe {
+        FindClose(handle);
+    }
+    out
+}
+
 /// The files in `folder` that match `pattern`, each with the time it was
 /// last written (100 ns since 1601).
 pub fn list_with_times(folder: &str, pattern: &str) -> Vec<(String, u64)> {
@@ -621,10 +667,9 @@ pub fn list_with_times(folder: &str, pattern: &str) -> Vec<(String, u64)> {
     out
 }
 
-/// The game's language, which its Settings and the launcher's menu keep
-/// (`localization` of `<Documents>\survarium\user.cfg`, the folder the game
-/// takes: CSIDL_PERSONAL), as a number of `replay::LANGUAGES`; read only.
-pub fn game_language() -> Option<u32> {
+/// The player's Documents folder, the one the game keeps its settings and
+/// baked textures in (CSIDL_PERSONAL).
+pub fn documents() -> Option<String> {
     use windows_sys::Win32::UI::Shell::SHGetFolderPathW;
     const CSIDL_PERSONAL: i32 = 5;
     let mut folder = [0_u16; 260];
@@ -633,7 +678,14 @@ pub fn game_language() -> Option<u32> {
         return None;
     }
     let end = folder.iter().position(|&unit| unit == 0)?;
-    let path = alloc::format!("{}\\survarium\\user.cfg", from_wide(&folder[..end]));
+    Some(from_wide(&folder[..end]))
+}
+
+/// The game's language, which its Settings and the launcher's menu keep
+/// (`localization` of `<documents>\survarium\user.cfg`), as a number of
+/// `replay::LANGUAGES`; read only.
+pub fn game_language(documents: &str) -> Option<u32> {
+    let path = alloc::format!("{documents}\\survarium\\user.cfg");
     updater_logic::replay::language_of_user_cfg(&read_file(&path, 1 << 16).ok()?)
 }
 

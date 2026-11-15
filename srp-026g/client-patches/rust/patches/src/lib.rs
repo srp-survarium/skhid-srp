@@ -60,12 +60,16 @@ pub mod artefact_score;
 pub mod battery_progress;
 
 pub mod hud_options;
+// patch 147: every run's logs in files of their own
+pub mod run_logs;
 pub mod tab_cursor;
 pub mod scaleform_capture;
 pub mod map_names;
 pub mod world_check;
 pub mod weapon_kit;
 pub mod music;
+// patch 144: the Settings' Game slider
+pub mod game_volume;
 pub mod sound_voices;
 pub mod drug_interrupt;
 pub mod footsteps;

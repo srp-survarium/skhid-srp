@@ -2511,9 +2511,11 @@ st_srp_equipment069_snow_20_legs_7_desc	Апісанне пакуль недас
 st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
 st_srp_equipment069_snow_20_torso_7_desc	Апісанне пакуль недаступнае.
 st_srp_equipment069_snow_20_torso_7_name	Бронекамізэлька "Снег-20"
-st_srp_hide_hit_markers_option	Схаваць хітмаркеры
 st_srp_hide_quests_option	Схаваць заданні
 st_srp_hide_scores_option	Схаваць ачкі гульцоў
+st_srp_hit_markers_all	Усе хітмаркеры
+st_srp_hit_markers_hidden	Схаваныя хітмаркеры
+st_srp_hit_markers_kill	Толькі пры забойстве
 st_srp_hud_add_friend	Дадаць у сябры
 st_srp_hud_blackout_intro	Блэкаўт: нясіце батарэі да прылады сваёй каманды. Інтэрфейс і маркеры траплянняў схаваныя для паглыблення ў гульню. Утрымлівайце Tab: боезапас, здароўе, чат; пасля смерці — выбар камплекта.
 st_srp_hud_blackout_start	Блэкаўт\nНясіце батарэі да прылады сваёй каманды.\nІнтэрфейс і маркеры траплянняў схаваныя. Утрымлівайце Tab, каб убачыць боезапас і здароўе.

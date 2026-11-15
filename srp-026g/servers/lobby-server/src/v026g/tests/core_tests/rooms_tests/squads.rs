@@ -655,6 +655,8 @@ fn a_commanders_play_leaves_its_mate_in_a_queue_of_its_own() {
 #[test]
 fn a_soldier_cannot_queue_so_nobody_is_jumped() {
     let mut world = World::new();
+    // One room: its queue does not open another.
+    world.core.settings.rooms.max_rooms = 1;
     let owner = world.connect("Owner");
     let key = create(&mut world, owner, spec(6), None);
     let members = fill(&mut world, key, 0);

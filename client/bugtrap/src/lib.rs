@@ -16,6 +16,7 @@ mod logs;
 mod notice;
 mod notice_text;
 mod report;
+mod run_name;
 mod sanitize;
 // The updater's SHA-256, for the game exe's hash in the crash report.
 #[allow(dead_code)]

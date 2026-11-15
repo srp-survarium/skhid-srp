@@ -1,12 +1,18 @@
-//! The voice relay: team push-to-talk in a match, on a UDP port of its own
-//! (the match port + 1), beside the match server (`docs/notes/voice-chat.md`).
+//! The voice relay: push-to-talk in a match, on a UDP port of its own (the
+//! match port + 1), beside the match server (`docs/notes/voice-chat.md`).
 //!
 //! The players' games (`skhid_voice.dll`, `srp-026g/client-voice`) send
-//! their talk here as utterances (START, AUDIO, END) and get their team's.
+//! their talk here as utterances (START, AUDIO, END) and get the match's.
 //! The relay knows a talker by the session of its match connection (the
-//! 0xD8), and takes its datagrams only from the IP that connection came from
-//! ([`VoiceSeat::ip`]). It forwards each AUDIO to the speaker's teammates (in
-//! a free-for-all, everyone in the match: [`VoiceChannel`]) who
+//! 0xD8), and takes its datagrams only from the network that connection came
+//! from ([`VoiceSeat::ip`], [`same_network`]). It forwards each AUDIO to
+//! everyone else in the speaker's match, of either team (the owner,
+//! 2026-11-14: "in all regimes everyone in 10meters + opponenets should hear
+//! it", "only radio is team only"): each game decides how it hears a speaker
+//! (a teammate plain near and on the radio far, an opponent plain near and
+//! not at all far: patch 66, `client-patches/rust/patches/src/voice.rs`). So
+//! a modified game can hear the other team's talk across the map (the owner,
+//! 2026-11-15: "I am fine with that risk"). It forwards to those who
 //! said HELLO lately and hear (their volume is above 0), and keeps nothing:
 //! no audio past the forward, no file, no audio, text or speaker list in the
 //! logs (counts only, per match). The simulation never sees any of it, so no
@@ -21,11 +27,12 @@
 //!
 //! Every utterance goes past an [`UtteranceTap`] ([`NoTap`] by default): the
 //! seam for subtitles and translation later. What a tap says goes back to the
-//! team through [`RelayOut`] as a TEXT datagram (type 85h).
+//! match through [`RelayOut`] as a TEXT datagram (type 85h).
 //!
 //! A mute is kept by the speaker's **voice id**, not its name (an account can
 //! be renamed, and another may take the old name): ROSTER gives each place
-//! of the listener's team the first four bytes of SHA-256 of a server key
+//! of the match (both teams: an opponent heard near is muted as a teammate
+//! is) the first four bytes of SHA-256 of a server key
 //! and the account id, stable for the account and opaque to the players
 //! ([`voice_id`]). The key is `<SRP_DATA_DIR>/voice-id.key`, made once
 //! ([`id_key_from_env`]).
@@ -66,7 +73,7 @@ use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use super::registry::{MatchRegistry, VoiceChannel, VoiceSeat};
+use super::registry::{MatchRegistry, VoiceSeat};
 
 pub const MAGIC: u8 = 0x56;
 pub const VERSION: u8 = 1;
@@ -128,7 +135,7 @@ pub const HELLO_FRESH: Duration = Duration::from_secs(6);
 pub const SILENCE: Duration = Duration::from_secs(1);
 /// An utterance this long is cut (END reason 2): a second past the games'
 /// own cap of a press (30 s), so their END comes first. A talker that
-/// presses again and again is left to its teammates' mutes.
+/// presses again and again is left to its listeners' mutes.
 pub const LONGEST: Duration = Duration::from_secs(31);
 const HOUSEKEEPING: Duration = Duration::from_secs(1);
 const RECEIVE_WAIT: Duration = Duration::from_millis(10);
@@ -148,8 +155,6 @@ pub enum EndReason {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Utterance {
     pub match_id: u32,
-    /// Who hears it: the speaker's seat's channel where it began.
-    pub channel: VoiceChannel,
     /// The speaker's roster place: its slot on the wire.
     pub speaker: u8,
     pub utt: u16,
@@ -157,7 +162,7 @@ pub struct Utterance {
     pub started_at: Instant,
 }
 
-/// What a tap sends back to the utterance's team.
+/// What a tap sends back to the utterance's match.
 #[derive(Default)]
 pub struct RelayOut {
     texts: Vec<(Utterance, bool, [u8; 2], String)>,
@@ -197,9 +202,9 @@ impl UtteranceTap for NoTap {}
 pub trait Seats {
     fn voice_seat(&self, session_id: u32) -> Option<VoiceSeat>;
     fn is_open(&self, match_id: u32) -> bool;
-    /// The places of a match's voice channel that a game plays (no bot's): the place
-    /// and its account.
-    fn roster(&self, match_id: u32, channel: VoiceChannel) -> Vec<(u8, u32)>;
+    /// The places of a match that a game plays (no bot's), of every team:
+    /// the place and its account.
+    fn roster(&self, match_id: u32) -> Vec<(u8, u32)>;
 }
 
 impl Seats for MatchRegistry {
@@ -211,8 +216,8 @@ impl Seats for MatchRegistry {
         MatchRegistry::is_open(self, match_id)
     }
 
-    fn roster(&self, match_id: u32, channel: VoiceChannel) -> Vec<(u8, u32)> {
-        self.voice_roster(match_id, channel)
+    fn roster(&self, match_id: u32) -> Vec<(u8, u32)> {
+        self.voice_roster(match_id)
     }
 }
 
@@ -225,8 +230,8 @@ impl<T: Seats + ?Sized> Seats for std::sync::Arc<T> {
         (**self).is_open(match_id)
     }
 
-    fn roster(&self, match_id: u32, channel: VoiceChannel) -> Vec<(u8, u32)> {
-        (**self).roster(match_id, channel)
+    fn roster(&self, match_id: u32) -> Vec<(u8, u32)> {
+        (**self).roster(match_id)
     }
 }
 
@@ -362,7 +367,8 @@ pub enum Dropped {
     Lookups,
     /// A session with no seat.
     NoSeat,
-    /// From another IP than its seat's match connection.
+    /// From another network than its seat's match connection
+    /// ([`same_network`]).
     WrongIp,
     /// A talker over [`MAX_PER_SECOND`].
     RateLimit,
@@ -388,16 +394,32 @@ impl std::fmt::Display for Dropped {
                 FAILED_LOOKUPS.per_second
             ),
             Self::NoSeat => write!(f, "no seat"),
-            Self::WrongIp => write!(f, "not its seat's IP"),
+            Self::WrongIp => write!(f, "not its seat's network"),
             Self::RateLimit => write!(f, "over {MAX_PER_SECOND} a second"),
             Self::AudioRate => write!(f, "audio over {} a second", AUDIO_RATE.per_second),
         }
     }
 }
 
+/// Whether a voice datagram from `source` may be of the seat whose match
+/// connection came from `seat`: the same /16 of IPv4, or /48 of IPv6. One game
+/// can reach the server from several addresses of its network: Cloudflare WARP
+/// gives each connection its own exit (a game at 104.28.230.246 talked from
+/// .247 and from 104.28.198.247), and so do carrier NAT pools (31.170.22.174,
+/// voice from .220). An exact match shut those players out of voice for whole
+/// matches. A datagram from such a network still needs the seat's session,
+/// which only its game knows (guessing costs [`FAILED_LOOKUPS`]).
+pub fn same_network(seat: IpAddr, source: IpAddr) -> bool {
+    match (seat.to_canonical(), source.to_canonical()) {
+        (IpAddr::V4(seat), IpAddr::V4(source)) => seat.octets()[..2] == source.octets()[..2],
+        (IpAddr::V6(seat), IpAddr::V6(source)) => seat.segments()[..3] == source.segments()[..3],
+        _ => false,
+    }
+}
+
 /// Whether `frame` is one the games' encoder makes: of one of
 /// [`FRAME_TOCS`] and at most [`MAX_FRAME_BYTES`]. Nothing else reaches the
-/// teammates' decoders (`client-voice/src/wire.rs` checks the same).
+/// listeners' decoders (`client-voice/src/wire.rs` checks the same).
 pub fn our_frame(frame: &[u8]) -> bool {
     frame.len() <= MAX_FRAME_BYTES && frame.first().is_some_and(|toc| FRAME_TOCS.contains(toc))
 }
@@ -853,21 +875,21 @@ impl<S: Seats> Relay<S> {
         let known = self
             .listeners
             .get(&session)
-            .is_some_and(|listener| listener.seat.ip == Some(source));
+            .is_some_and(|listener| listener.seat.ip.is_some_and(|ip| same_network(ip, source)));
         if !known && !self.source(source, now).failed.has_room(now) {
             self.reject(source, None, Dropped::Lookups);
             return out;
         }
-        // The session holds a seat, and the datagram comes from the IP its
-        // game connected to the match from. Anything else: dropped (and in
-        // the drop log, by its source).
+        // The session holds a seat, and the datagram comes from the network
+        // its game connected to the match from. Anything else: dropped (and
+        // in the drop log, by its source).
         let Some(seat) = self.seats.voice_seat(session) else {
             self.listeners.remove(&session);
             self.refuse(source, session, Dropped::NoSeat, None, now);
             return out;
         };
         match seat.ip {
-            Some(ip) if ip == source => (),
+            Some(ip) if same_network(ip, source) => (),
             // The game starts voice as it connects to the match, before its
             // 0xD8 gives the seat its IP: too early, not malformed. Neither
             // counted nor logged; the game says HELLO again until WELCOME.
@@ -878,16 +900,14 @@ impl<S: Seats> Relay<S> {
             }
         }
         // A session may acquire a new place before housekeeping runs. An
-        // utterance belongs to the seat where it began, never the old team
+        // utterance belongs to the seat where it began, never the old place
         // after a reseat (even if the client reuses its utterance number).
         let moved = self
             .talkers
             .get(&session)
             .and_then(|talker| talker.open.as_ref())
             .is_some_and(|open| {
-                open.utterance.match_id != seat.match_id
-                    || open.utterance.channel != seat.channel
-                    || open.utterance.speaker != seat.place
+                open.utterance.match_id != seat.match_id || open.utterance.speaker != seat.place
             });
         if moved {
             self.close(session, EndReason::Released, now, &mut out);
@@ -923,7 +943,7 @@ impl<S: Seats> Relay<S> {
                 let mut welcome = header(kind::WELCOME);
                 welcome.push(seat.place);
                 out.push((addr, welcome));
-                let places = self.seats.roster(seat.match_id, seat.channel);
+                let places = self.seats.roster(seat.match_id);
                 let mut roster = header(kind::ROSTER);
                 roster.push(places.len().min(20) as u8);
                 for (place, account) in places.into_iter().take(20) {
@@ -978,7 +998,7 @@ impl<S: Seats> Relay<S> {
                 relayed.push(seat.place);
                 relayed.extend_from_slice(&utterance.utt.to_le_bytes());
                 relayed.extend_from_slice(body);
-                self.to_team(&utterance, session, &relayed, now, &mut out);
+                self.to_match(&utterance, session, &relayed, now, &mut out);
                 let mut tap_out = RelayOut::default();
                 self.tap.audio(&utterance, seq, &frames, &mut tap_out);
                 self.send_texts(tap_out, now, &mut out);
@@ -1042,7 +1062,6 @@ impl<S: Seats> Relay<S> {
         let output_utt = *output_utt;
         let utterance = Utterance {
             match_id: seat.match_id,
-            channel: seat.channel,
             speaker: seat.place,
             utt: output_utt,
             started_at: now,
@@ -1051,7 +1070,7 @@ impl<S: Seats> Relay<S> {
         relayed.push(seat.place);
         relayed.extend_from_slice(&output_utt.to_le_bytes());
         relayed.extend_from_slice(&self.server_ms(now).to_le_bytes());
-        self.to_team(&utterance, session, &relayed, now, out);
+        self.to_match(&utterance, session, &relayed, now, out);
         self.counts.entry(seat.match_id).or_default().utterances += 1;
         let mut tap_out = RelayOut::default();
         self.tap.started(&utterance, &mut tap_out);
@@ -1088,16 +1107,15 @@ impl<S: Seats> Relay<S> {
         relayed.push(utterance.speaker);
         relayed.extend_from_slice(&utterance.utt.to_le_bytes());
         relayed.push(reason as u8);
-        self.to_team(&utterance, session, &relayed, now, out);
+        self.to_match(&utterance, session, &relayed, now, out);
         let mut tap_out = RelayOut::default();
         self.tap.ended(&utterance, reason, &mut tap_out);
         self.send_texts(tap_out, now, out);
     }
 
-    /// `datagram` to every listener on the utterance's channel (the speaker's
-    /// teammates; in a free-for-all, the match) that said
-    /// HELLO lately and hears, but the speaker.
-    fn to_team(
+    /// `datagram` to every listener of the utterance's match, of either team,
+    /// that said HELLO lately and hears, but the speaker.
+    fn to_match(
         &self,
         utterance: &Utterance,
         speaker: u32,
@@ -1107,11 +1125,10 @@ impl<S: Seats> Relay<S> {
     ) {
         for (session, listener) in &self.listeners {
             // The registry (a lock the match thread shares) is asked last: only
-            // for a listener of the speaker's match and channel.
+            // for a listener of the speaker's match.
             if *session != speaker
                 && listener.hears
                 && listener.seat.match_id == utterance.match_id
-                && listener.seat.channel == utterance.channel
                 && listener.seat.place != utterance.speaker
                 && !muted(listener.muted, utterance.speaker)
                 && now.saturating_duration_since(listener.last_hello) <= HELLO_FRESH
@@ -1131,8 +1148,8 @@ impl<S: Seats> Relay<S> {
             datagram.extend_from_slice(&lang);
             datagram.push(text.len() as u8);
             datagram.extend_from_slice(text.as_bytes());
-            // Subtitles are for everyone of the team, the speaker too.
-            self.to_team(&utterance, u32::MAX, &datagram, now, out);
+            // Subtitles are for everyone of the match, the speaker too.
+            self.to_match(&utterance, u32::MAX, &datagram, now, out);
             if let Some((_, listener)) = self.listeners.iter().find(|(_, listener)| {
                 listener.seat.match_id == utterance.match_id
                     && listener.seat.place == utterance.speaker

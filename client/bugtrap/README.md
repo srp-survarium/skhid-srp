@@ -73,7 +73,7 @@ Events:    1530 recorded, the last 1024 kept: match 2 world 61 started 1 death 1
   -1.536 s  death: place 4, life 2, at 61000 ms
 Game log:  last 20 lines of the newest Survarium*.log in Documents\Survarium
 ...
-Patch log: last 100 lines of srp_patches.log
+Patch log: last 100 lines of srp_patches.2026-11-15_14-03-07.log
 srp: ...
 ```
 
@@ -128,14 +128,17 @@ srp: ...
   The world's sections have no hook of their own (game_world_core's
   deserialize reads them in one function), so a section is not named.
 - Dump: saved, or why not, with the Windows error.
-- Game log: the last 20 lines of the newest `Survarium*.log` in
-  Documents\Survarium (its last 8 KiB), from the first line that starts a
+- Game log: the last 20 lines of the newest (last written) `Survarium*.log`
+  in Documents\Survarium, the crashed run's `Survarium_<user>.<stamp>.log`
+  (see Recent logs) (its last 8 KiB), from the first line that starts a
   record (a cut inside a sensitive record's continuation lines would not be
   caught), through the same credential filter as the ZIP's logs; the file
   name is not written (it holds the account name).
-- Patch log: the last 100 lines of `srp_patches.log` beside the exe (the
-  client patches' log, `vostok/log.rs`; its last 24 KiB), the same way;
-  each of its `srp: ` lines is a record of its own for the filter.
+- Patch log: the last 100 lines of the crashed run's client patches' log
+  beside the exe (`vostok/log.rs`; its last 24 KiB), the same way, and its
+  name: the newest (last written) `srp_patches.<stamp>[_<n>].log`, else the
+  `srp_patches.log` of before the runs were named; each of its `srp: ` lines
+  is a record of its own for the filter.
 - Every read of the game's memory goes through `ReadProcessMemory`: a
   damaged pointer gives no line, not a second crash. The stack scan reads
   whole dwords only and stops at a short read. The report is made only after
@@ -285,18 +288,34 @@ pointers; not yet measured on Windows: see Dump contents).
   `game/binaries/x86` installation layout, also `game/`, the installation root,
   and its `temp/` folder. Matching is case-insensitive: `Survarium.log`,
   `Survarium_*.log`, `Survarium.journal`, `Survarium_*.journal`,
-  `updater_skhid.log`, `launcher_skhid.log`, and `launcher.log`. This covers the
+  `updater_skhid.log`, `launcher_skhid.log`, `launcher.log`, and every run's
+  log (below). This covers the
   game's and original launcher's username-suffixed logs, game journals, and
   DXVK's `survarium_skhid_d3d11.log` / `survarium_skhid_dxgi.log`. Updater patch
   transaction journals, settings, screenshots, other extensions and unrelated
   files are excluded. Directories and reparse points are excluded when Windows
   reports them as such; Wine may expose host symlinks as ordinary files.
-- The client patches' log: `srp_patches.log` beside the EXE (`vostok/log.rs`;
-  past 8 MiB the game renames it `srp_patches.old.log`, which is not
-  collected, and begins a new one), first, as `logs/game-exe/srp_patches.log`,
-  whatever its age: its last 2 MiB, from the first whole line in them
-  (`collection.txt` says from which byte), under the same filter and budgets.
-  Its `srp: ` lines are each a record of their own for the filter.
+- Every run's logs: since the runs' logs are named (2026-11-15), each start of
+  the game writes `Survarium_<user>.<stamp>.log` (Documents\Survarium) and
+  `srp_patches.<stamp>.log` (beside the EXE), each start of the updater
+  `updater_skhid.<stamp>.log`; `<stamp>` is the start in local time,
+  `YYYY-MM-DD_HH-MM-SS`, with `_<n>` (2 to 99) for a further file of the same
+  stamp (a second start in the same second, the patches' log past 8 MiB). The
+  writers keep each kind's newest 100 files or 500 MB. `src/run_name.rs` reads
+  such a name strictly (the stamp's digits and separators at their places,
+  `<n>` without a leading zero) into its kind and stamp; the old unstamped
+  names stay matched as above. So the ZIP has the crashed run's logs and the
+  runs' before it, newest first, within the bounds below.
+- The client patches' log of the crashed run: the newest (last written)
+  `srp_patches.<stamp>[_<n>].log` beside the EXE (`vostok/log.rs`), or, when
+  there is none, `srp_patches.log` (the one of before the runs were named,
+  which also gets the lines logged before a run's start: none in the game).
+  It comes first, as `logs/game-exe/<its name>`, whatever its age: its last
+  2 MiB, from the first whole line in them (`collection.txt` says from which
+  byte), under the same filter and budgets. Its `srp: ` lines are each a
+  record of their own for the filter. The earlier runs' `srp_patches.<stamp>.log`
+  are recent logs as any other (that one not again); `srp_patches.old.log`
+  (the old rotation's) is not collected.
 - Legacy code pages: the game writes its log in its locale's code page. The
   engine's start-up (`core::preinitialize`, 0.26g 0xE3C10) sets it from
   `-localization`: original and russian cp1251, english cp1252, polish cp1250;
@@ -346,7 +365,11 @@ pointers; not yet measured on Windows: see Dump contents).
   Each location has its own ZIP subfolder (`logs/documents/`, `logs/game-exe/`,
   etc.). Entries use anonymous `source-01.txt` IDs, never original filenames or
   full paths, so a filename containing a username or secret cannot echo into
-  ZIP metadata or the summary. `logs/collection.txt` records each source's
+  ZIP metadata or the summary. A run's log adds its kind's fixed word and the
+  stamp parsed from its name, nothing else of it:
+  `source-02.game.2026-11-15_14-03-07.txt` (any `Survarium[_<user>]`),
+  `source-03.srp_patches.2026-11-15_12-00-00_2.txt`,
+  `source-01.updater_skhid.2026-11-15_14-03-05.txt`. `logs/collection.txt` records each source's
   original size, sanitized size, removed-line count and ZIP contribution,
   omission reasons,
   processed-input totals, and per-folder missing/unavailable status, stale
@@ -594,13 +617,23 @@ original) on the probe's command
 line) come out as UTF-8 with their transcoded lines counted; a control byte
 in a cp1251 line still omits the source, and a cp1251 credential record is
 still removed with its continuation.
+Runs' logs: of three `srp_patches.<stamp>[_2].log` the newest comes first by
+its own name (`logs/game-exe/srp_patches.<stamp>.log`), the other two, the
+game's two runs (a user name holding a synthetic secret) and the updater's
+run as sources named `source-NN.<kind>.<stamp>.txt` in newest order, the old
+`updater_skhid.log` as `source-NN.txt`, `srp_patches.old.log` and the old
+`srp_patches.log` not; with no run's patch log the old `srp_patches.log` is the
+crashed run's.
 A short successful read followed by premature EOF must also roll back the
 source even though filtered output has a different size. Host-only boundary,
-encoding and read-failure tests run with:
+encoding and read-failure tests, and the runs' names (each kind, `_<n>`,
+names that are no run's), run with:
 
 ```sh
 rustc --edition 2024 --test tests/sanitize_tests.rs -o /tmp/sanitize-tests
 /tmp/sanitize-tests
+rustc --edition 2024 --test tests/run_name_tests.rs -o /tmp/run-name-tests
+/tmp/run-name-tests
 ```
 Python `zipfile` checks every member and its CRC.
 
@@ -619,16 +652,24 @@ or not (the scan once hung there), and checks the report beside the ZIP and in i
 exception line, the address inside the faulting function as module+offset,
 the caller on the stack scan, the other lines, and the log tail with a
 password's record and its continuation removed and the records after it kept.
-It also puts a 3 MB `srp_patches.log` beside the probe and checks the UTC
-header with its offset, the report's last 100 patch-log lines (a token's line
-removed), and the ZIP's `logs/game-exe/srp_patches.log`: at most 2 MiB, from
-a whole line, ending with the file's last line. (Nix's MinGW g++ links
+The game log is the newest of a run's `Survarium_tester.<stamp>.log` and an
+older `Survarium_tester.log`. It also puts a 3 MB
+`srp_patches.2026-11-15_14-03-07.log` beside the probe, with an older run's
+and an old `srp_patches.log`, and checks the UTC header with its offset, the
+report's last 100 patch-log lines under that file's name (a token's line
+removed), and the ZIP's `logs/game-exe/srp_patches.2026-11-15_14-03-07.log`:
+at most 2 MiB, from a whole line, ending with the file's last line. (Nix's MinGW g++ links
 mcfgthread: add `-L` of `nixpkgs#pkgsCross.mingw32.windows.mcfgthreads`'s
 `lib`.)
 The probe also keeps a breadcrumb ring in a `.srpx` section of its own (after
 words that look like a header and are not one), and the check reads its
 `Match:` line, the three events and their ages, and the ZIP's
 `breadcrumbs.txt`.
+
+Run on 2026-11-15 for the runs' logs (Linux, Wine 11.8 Staging, the probes
+built with Nix's MinGW g++): `check_logs.py` and `check_report.py` pass,
+`check_abi.py` passes, and so do the host tests (`sanitize_tests.rs`,
+`run_name_tests.rs`); the other checks were not run again.
 
 Run on 2026-10-21 (Linux, Wine, Xvfb), the build with the standard library
 and the C runtime linked in, the C++ probes built with `clang-cl` against the

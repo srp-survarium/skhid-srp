@@ -221,6 +221,15 @@ pub enum Reason {
     },
     NoGatherRule,
     NoResearchRule,
+    /// A free-for-all's rules without exe patch 142's spawn history, or
+    /// with one that does not read.
+    NoSpawnHistory,
+    /// A place's last spawn names a point past the map's team-2 group.
+    SpawnPointPast {
+        place: usize,
+        point: usize,
+        points: usize,
+    },
     ResearchMaskPast {
         places: usize,
     },
@@ -636,6 +645,15 @@ impl fmt::Display for Reason {
             }
             Reason::NoGatherRule => f.write_str("no gather rule"),
             Reason::NoResearchRule => f.write_str("no research rule"),
+            Reason::NoSpawnHistory => f.write_str("no free-for-all spawn history"),
+            Reason::SpawnPointPast {
+                place,
+                point,
+                points,
+            } => write!(
+                f,
+                "place {place} last spawned at point {point}, past the map's {points} team-2 points"
+            ),
             Reason::ResearchMaskPast { places } => {
                 write!(f, "a research mask names a place past the {places} places")
             }

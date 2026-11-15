@@ -249,6 +249,8 @@ unsafe extern "C" {
     pub fn engine_context_unmap(context: Option<ImmediateContext>, resource: Option<HwResource>, subresource: u32);
     /// COM ID3D11DeviceContext+0x1bc (stdcall through the interface's vtable): context ESP+4; pops 4
     pub fn engine_context_flush(context: Option<ImmediateContext>);
+    /// COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX
+    pub fn engine_voice_set_volume(voice: Option<SubmixVoice>, volume: f32, operation_set: u32) -> u32;
     /// 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12
     pub fn engine_ray_callback(callback: Option<ClosestRayResultCallback>, from: *const f32, to: *const f32, group: u32, mask: u32, requester: Option<Bullet>);
     /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
@@ -452,6 +454,17 @@ pub unsafe fn engine_vk_get_physical_device_properties(function: NonNull<c_void>
 pub unsafe fn engine_create_toolhelp32_snapshot(function: NonNull<c_void>, flags: u32, process: u32) -> *mut c_void {
     let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(u32, u32) -> *mut c_void>(function.as_ptr()) };
     unsafe { function(flags, process) }
+}
+
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_is_dbcs_lead_byte(unsigned int byte)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_is_dbcs_lead_byte(function: NonNull<c_void>, byte: u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(u32) -> u32>(function.as_ptr()) };
+    unsafe { function(byte) }
 }
 
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_module32_first_w(void *snapshot, void *entry)
@@ -4404,6 +4417,24 @@ impl BufferString {
     #[inline(always)]
     pub unsafe fn set_end(self, value: *mut u8) {
         unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<u8>): the end of its room: assign (0x127C0) copies while end < it, then writes the NUL at end; logging_initialize's name points it 104h past begin (0xE31E3), at the native path string's separator byte
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn capacity_end(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<u8>): the end of its room: assign (0x127C0) copies while end < it, then writes the NUL at end; logging_initialize's name points it 104h past begin (0xE31E3), at the native path string's separator byte
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_capacity_end(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().write_volatile(value) }
     }
 }
 
@@ -10658,6 +10689,33 @@ impl SoundWorld {
         unsafe { self.0.byte_add(0xb0).cast::<Option<WorldUser>>().write_volatile(value) }
     }
 
+    /// +0x48e4 (ptr<vostok::sound::sound_scene>): the first of its active scenes (each scene's next +108h; add_scene_to_active 0x59FC9, the tick's walks 0x59AB1 and 0x59AE7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first_active(self) -> Option<SoundScene> {
+        unsafe { self.0.byte_add(0x48e4).cast::<Option<SoundScene>>().read_volatile() }
+    }
+
+    /// +0x48e4 (ptr<vostok::sound::sound_scene>): the first of its active scenes (each scene's next +108h; add_scene_to_active 0x59FC9, the tick's walks 0x59AB1 and 0x59AE7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_first_active(self, value: Option<SoundScene>) {
+        unsafe { self.0.byte_add(0x48e4).cast::<Option<SoundScene>>().write_volatile(value) }
+    }
+
+    /// +0x48f0 (u8): General as the tick last applied it, 0 to 100 (100 at the constructor 0x58DD3): the tick's general pass 0x59ADF compares s_general_volume's value (0xA7AF90, cvttss2si) with it and on a change gives every active scene its factor; add_scene_to_active 0x59FE3 reads it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn general(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x48f0).cast::<u8>().as_ptr() }
+    }
+
     /// +0xcc (obj<vostok::sound::panning_lut>): its panning table, inside it: 512 directions of 9 gains, filled once by its constructor 0x5E150 in the sound world's (0x58D90); notify_listener2 0x5C396 gives its address to calculate_3d_pan
     ///
     /// # Safety
@@ -10725,6 +10783,51 @@ impl SoundScene {
     #[inline(always)]
     pub unsafe fn fade_state(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x2fc).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x108 (ptr<vostok::sound::sound_scene>): the next active scene of its world (add_scene_to_active 0x59FB0, the tick 0x59AC7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn next_active(self) -> Option<SoundScene> {
+        unsafe { self.0.byte_add(0x108).cast::<Option<SoundScene>>().read_volatile() }
+    }
+
+    /// +0x108 (ptr<vostok::sound::sound_scene>): the next active scene of its world (add_scene_to_active 0x59FB0, the tick 0x59AC7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_next_active(self, value: Option<SoundScene>) {
+        unsafe { self.0.byte_add(0x108).cast::<Option<SoundScene>>().write_volatile(value) }
+    }
+
+    /// +0x2e0 (ptr<xaudio2::submix_voice>): its XAudio2 submix voice, every voice of its sounds sent to it (0x631E5); its volume (SetVolume, vtable +30h) = volume (+2E4h) x general (+2E8h), set by process_fade 0x5C0D8, add_scene_to_active 0x59FEE and the tick's general pass 0x59B3F
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn submix(self) -> Option<SubmixVoice> {
+        unsafe { self.0.byte_add(0x2e0).cast::<Option<SubmixVoice>>().read_volatile() }
+    }
+
+    /// +0x2e0 (ptr<xaudio2::submix_voice>): its XAudio2 submix voice, every voice of its sounds sent to it (0x631E5); its volume (SetVolume, vtable +30h) = volume (+2E4h) x general (+2E8h), set by process_fade 0x5C0D8, add_scene_to_active 0x59FEE and the tick's general pass 0x59B3F
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_submix(self, value: Option<SubmixVoice>) {
+        unsafe { self.0.byte_add(0x2e0).cast::<Option<SubmixVoice>>().write_volatile(value) }
+    }
+
+    /// +0x2e8 (f32): its factor of General: General x 0.01 (0xA2D774) from add_scene_to_active 0x59FFC and the tick's general pass 0x59B19 (1 at the constructor 0x57955); process_fade 0x5C0D8 multiplies the volume by it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn general(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x2e8).cast::<f32>().as_ptr() }
     }
 
     /// +0x2fa (u8): its listener's position is set (set_listener_properties 0x587E0): only then its tick (0x57C9C) lets notify_listener 0x5C280 give its sounds voices
@@ -20566,6 +20669,48 @@ impl ProfileFrame {
     }
 }
 
+/// A vostok::c_line_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CLineFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CLineFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<u8>): log.c_line's first argument (by the site's ESP, the return address at +0): the line's text, a C string of the caller's (ASCII)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn text(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<u8>): log.c_line's first argument (by the site's ESP, the return address at +0): the line's text, a C string of the caller's (ASCII)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_text(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x8 (u32): its second: the value the line ends with (in hex)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn value(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::memory::out_of_memory_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -22386,6 +22531,30 @@ impl KdEventFrame {
     }
 }
 
+/// A survarium::respawn_entered_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RespawnEnteredFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RespawnEnteredFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u8): player_respawn_rule_base::on_player_entered_match 0x316BC0's place (entry ESP+4, its low byte: movzx eax,byte [esp+4]); entry ESP+8 the enter time, which becomes the place's respawn time (+138h + 4 x place)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn place(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<u8>().as_ptr() }
+    }
+}
+
 /// A survarium::throw_grenade_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -22793,6 +22962,21 @@ pub struct LobbyCharacter(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl LobbyCharacter {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A xaudio2::submix_voice (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SubmixVoice(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SubmixVoice {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -23709,6 +23893,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Inventory)
+        }
+    }
+
+    /// logging.log_named (0xe31f8): logging_initialize (0xE30E0) after generate_log_file_name (0xE29C0, the only call, at 0xE31F3) made the engine log's name in EDI, the frame's buffer_string [esp+0Ch] over its 104h bytes at [esp+18h] (<user data folder><application>_<user>.log), before new_log_file (0x1128D0, the only call, at 0xE31FD) makes the log file of that name anew (create_always: log_file::log_file, as g_log_file_usage 0x1B3A1B8 says); mov eax,[esp+0Ch] / push eax
+    pub mod logging_log_named {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::buffer_string (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn name(machine: &impl Machine) -> Option<BufferString> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BufferString)
+        }
+    }
+
+    /// log.c_line (our entry): the arena's C code's line to the patches' log (patch 100's ad_log, audio_device_engine_026g.c): a cdecl call of C (the entry keeps every register), the text and a value; the caller pops the two
+    pub mod log_c_line {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::c_line_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<CLineFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(CLineFrame)
         }
     }
 
@@ -24912,6 +25126,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn elapsed(machine: &impl Machine) -> u32 {
             machine.register(Register::Ebx)
+        }
+    }
+
+    /// sound_world.general (0x59adf): sound_world::tick's general pass, after the active scenes ticked (cmp byte [edi+48F0h],al; the je skips the pass when General is as last applied): the sound thread, EDI the world, EAX s_general_volume's value truncated (cvttss2si [0A7AF90h], 0 to 100); done 0x59B4B, past the pass (ESI 0 there as here: the scenes' walk ended)
+    pub mod sound_world_general {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::sound::sound_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<SoundWorld> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(SoundWorld)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn general(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
         }
     }
 
@@ -27354,6 +27592,51 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn config(machine: &impl Machine) -> Option<EngineCfg> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EngineCfg)
+        }
+    }
+
+    /// respawn.save (0x316fb8): player_respawn_rule_core::serialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / pop ecx, then ret 4; reached only by the fall-through at 0x316FB6): EBX the writer (its argument, 0x316F12)
+    pub mod respawn_save {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::buffer_writer (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn writer(machine: &impl Machine) -> Option<BufferWriter> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(BufferWriter)
+        }
+    }
+
+    /// respawn.load (0x317038): player_respawn_rule_core::deserialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / ret 8; reached only by the fall-through at 0x317036): ESI the reader (its argument, 0x316FC7)
+    pub mod respawn_load {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::buffer_reader (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(BufferReader)
+        }
+    }
+
+    /// respawn.entered (0x316bc0): player_respawn_rule_base::on_player_entered_match's entry (movzx eax,byte [esp+4]; then mov edx,[esp+8] / mov [ecx+eax*4+138h],edx / ret 8; vtable 0xA16084 slot +20h, called by game_world_core::on_player_entered_match 0x2D2021): [esp+4] the place
+    pub mod respawn_entered {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::respawn_entered_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<RespawnEnteredFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(RespawnEnteredFrame)
         }
     }
 }

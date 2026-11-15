@@ -3,7 +3,7 @@ package
     import flash.display.MovieClip;
 
     // A Settings checkbox that the exe keeps in user.cfg as the console
-    // variable of its name (exe patch 83's "Hide hit markers" and "Hide
+    // variable of its name (exe patch 83's "Names on map" and "Hide
     // scores", docs/notes/hide-hit-markers-scores.md, on the gameplay tab;
     // patch 112's "Lock vertical sensitivity", docs/notes/mouse-pitch.md,
     // on the controls tab). Settings owns it and

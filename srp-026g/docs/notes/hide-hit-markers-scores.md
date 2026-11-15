@@ -1,16 +1,20 @@
 # The HUD group: crosshair, hit markers, player scores, quests, minimap
 
 The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) and player scores
-(and kills/deaths); it should only show names in alphabetic order". Exe patch 83
+(and kills/deaths); it should only show names in alphabetic order". The checkbox became a list of
+three (the owner, 2026-11-15: "Keep red marker, visible markers, hidden markers", "maybe some
+better names too"). Exe patch 83
 (`client-patches/rust/patches/src/hud_options.rs`), the hud movie (`flash/hud/src`: `HUD`,
 `Crosshair`, `PlayerList`, `PlayerListRenderer`) and the main menu movie
-(`flash/main_menu/src`: `SrpCheckGroup`, `SrpCheckOption`, `SrpLanguage`, `Settings`).
+(`flash/main_menu/src`: `SrpCheckGroup`, `SrpCheckOption`, `SrpHitMarkerChoice`, `SrpLanguage`,
+`Settings`).
 
 ## The options
 
 - **Where:** Settings, Gameplay, a group of its own, "HUD:", at the top of the right column
   (`../images/hide-options-settings.png`), in this order: the crosshair list (Dynamic crosshair,
-  Static crosshair, Hidden crosshair), "Hide hit markers", "Hide player scores", "Hide quests",
+  Static crosshair, Hidden crosshair), the hit marker list (All hit markers, Kill marker only,
+  Hidden hit markers), "Hide player scores", "Hide quests",
   then the map's rows: "Names on map" (the Tab map's names without Alt, Alt hiding them:
   `tab-map-names.md`), "Static minimap", the minimap position list. The tab's own look: the heading as "Friends:" is,
   plain checkboxes and the stock list, the same spacing.
@@ -51,7 +55,10 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
   Settings window is the main menu's, whose lists close this way already.)
 - **Texts:** dictionary keys in all ten languages: the heading `st_srp_options_hud` ("HUD:";
   Russian, Ukrainian, Belarusian "Интерфейс боя:"/"Інтерфейс бою:"/"Інтэрфейс бою:", not
-  "Interface", which the Interface level selector may take), `st_srp_hide_hit_markers_option`,
+  "Interface", which the Interface level selector may take), `st_srp_hit_markers_all`,
+  `st_srp_hit_markers_kill`, `st_srp_hit_markers_hidden` (the hit marker list's choices, which the
+  exe gives with its answer; shortened where a language's did not fit the list: Russian "Только
+  при убийстве", Polish "Znaczniki trafień", "Tylko zabójstwa", "Znaczniki ukryte"),
   `st_srp_hide_scores_option`, `st_srp_map_names_option`, `st_srp_hide_quests_option`, `st_srp_static_minimap_option` (each
   language's word for "static" from its "Static crosshair"), `st_srp_crosshair_dynamic`,
   `st_srp_crosshair_static` (the stock "Static crosshair" texts), `st_srp_crosshair_hidden`. The
@@ -62,7 +69,9 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 - **Apply saves:** a toggle or a pick is a pending change of the tab like any option there; Apply
   saves it, Cancel or leaving without Apply puts the saved state back.
 - **At once:** the hud takes a change in its next frame, in a match too (no next-match wait).
-- **Stored in user.cfg** (`Documents\survarium\user.cfg`): `srp_hide_hit_markers on|off`,
+- **Stored in user.cfg** (`Documents\survarium\user.cfg`): `srp_hide_hit_markers off|hits|on` (the
+  hit marker list: All, Kill marker only, Hidden; a saved string, so the checkbox's `on` and `off`
+  carry over as Hidden and All; no line or another word is All),
   `srp_hide_scores on|off`, `srp_map_names on|off`, `srp_hide_crosshair on|off` (saved bools, as the game's own options;
   the file is written at Apply). An older game ignores the lines.
 - **Per player, on this computer:** nothing is sent; other players see what they chose.
@@ -75,11 +84,18 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
   Static respects the game's current aiming/death visibility; it cannot reveal a cross that
   the game currently suppresses. F11 and Blackout still hide the complete HUD.
 
-## Hide hit markers
+## The hit marker list
 
-- The crosshair's hit marker is not shown: the bars around the crosshair on a hit on an enemy,
-  and the kill's mark (`root.crosshair_enemy_hit`, `Crosshair.setDamage`). A marker on screen when
-  the option is turned on is cleared.
+- The crosshair's hit marker: the white bars around the crosshair on a hit on an enemy, and on a
+  kill the red mark at each bar's end (`root.crosshair_enemy_hit`, `Crosshair.setDamage`).
+- **All hit markers:** the stock markers (the default).
+- **Kill marker only:** a hit that does not kill shows nothing; a kill shows the stock kill
+  marker, white at the centre and the red ends (the owner, 2026-11-15, after a test with the red
+  ends alone: "the final kill marker should also show white at the center";
+  `../images/kill-marker-only.png`; the list
+  `../images/hit-marker-list.png`).
+- **Hidden hit markers:** none.
+- A marker on screen when the choice changes is cleared.
 - Unchanged: the marks of where the player is hit from, the kill feed, every sound.
 - The marker is the hud movie's: the exe only invokes `root.crosshair_enemy_hit` (at 0x238387 in
   draw_damage_collector 0x238230, and at 0x23D02D in the function 0x23CF20 that 0x2337D9 calls), so
@@ -101,7 +117,7 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 
 ## With the other interface settings
 
-- **Separate checkboxes**, not part of the Interface level selector (Full / Minimal / Disabled,
+- **Separate settings**, not part of the Interface level selector (Full / Minimal / Disabled,
   branch `feat/interface-level`, not merged): the selector decides which parts of the hud show;
   these change what the crosshair and the Tab list show when they do. Disabled hides both anyway.
 - **F11 (hide interface):** unchanged; both options apply again when the interface shows.
@@ -114,28 +130,34 @@ The owner (2026-10-30, for release 40): "allow hiding hit markers (UI change) an
 
 - **Exe** (Rust, five lohooks of `hud_options.toml`, order 2, each after another patch's hook at
   the same site):
-  - `configs.start` (game::on_configs_loaded's start, after patch 79): registers the four saved
-    bools (cc_value<bool>::cc_value 0x1DDB0, then cc_bool's vtable 0x9E7C4C) before user.cfg runs (and `srp_dxvk`, `dxvk-option.md`, the same way);
+  - `configs.start` (game::on_configs_loaded's start, after patch 79): registers the three saved
+    bools (cc_value<bool>::cc_value 0x1DDB0, then cc_bool's vtable 0x9E7C4C) and the hit marker
+    list's saved cc_string (0xEC860) before user.cfg runs (and `srp_dxvk`, `dxvk-option.md`, the same way);
   - `options.callback` (game_options::scaleform_callback's start, after patch 79): a call named
-    `srp_hide_hit_markers`, `srp_hide_scores`, `srp_map_names` or `srp_hide_crosshair` answers
+    `srp_hide_scores`, `srp_map_names` or `srp_hide_crosshair` answers
     `root.srp_check_option(name, label, "1"|"0")`; with "1" or "0" it saves that first (user.cfg at
-    once); `srp_hud_texts` answers `root.srp_hud_texts(heading, Hide quests, Dynamic, Static,
+    once); `srp_hide_hit_markers` answers `root.srp_check_option(name, "", saved index, saved
+    index, three texts)`, with "0", "1" or "2" saving that choice's word first; `srp_hud_texts` answers `root.srp_hud_texts(heading, Hide quests, Dynamic, Static,
     Hidden, Static minimap)`;
   - `player_icons.update_start` (update_player_icons' start, every frame of a match, after patch
-    65): `root.srp_hud_options(hide hit markers, hide scores, hide crosshair, map names)` to the hud movie,
+    65): `root.srp_hud_options(hit markers, hide scores, hide crosshair, map names)` to the hud movie,
     once for each new hud movie or change;
   - `static_info.options_read`, `replay.options_read` (a match's or a replay's options read,
     after patch 65): the hud is told again, since a new match can make its hud movie at the last
     one's address (as patch 65 tells its own state again).
+- **The list:** `HitMarkers` (a `ListChoice` as the Vulkan options' lists are, kept in a
+  `ConsoleString`); its answer `root.srp_check_option(name, "", saved, saved, three texts)`.
 - **Settings code:** `vostok::settings` (the Settings' call, the save of user.cfg, `ConsoleBool`),
   shared with patch 79's Language choice.
-- **Hud:** `HUD.srp_hud_options` sets `Crosshair.hitMarkersHidden`, the Tab list's
+- **Hud:** `HUD.srp_hud_options` (numbers: the hit markers 0 all, 1 the kill's only, 2 none; 1 or
+  0 each other) sets `Crosshair.hitMarkers`, the Tab list's
   `PlayerList.namesOnly`, `Crosshair.crosshairHidden` and the Tab map's names (with patch 82's Alt). `Crosshair` combines the saved choice
   with `HUD.show_crosshair`'s game visibility request; only `crosshair_mc` is hidden, leaving
   the sibling hit/kill feedback under its independent setting.
 - **Main menu:** `SrpCheckOption` (one checkbox the exe keeps by its name), two in an
   `SrpCheckGroup` (the heading, the texts asked); `SrpCrosshairChoice` (the list over the stock
-  checkbox and `srp_hide_crosshair`); `Settings.layoutGameplay` places them with `SrpLanguage` and
+  checkbox and `srp_hide_crosshair`); `SrpHitMarkerChoice` (the hit marker list, under the
+  crosshair list a checkbox's step apart); `Settings.layoutGameplay` places them with `SrpLanguage` and
   the stock controls; `Settings.flip` inverts Hide quests.
 - Nothing a match computes changes: no `simulation_changes.tsv` row.
 - **Checks:** `../../client-patches/check_hud_options_026g.py` (Unicorn: the registration and

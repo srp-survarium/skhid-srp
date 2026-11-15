@@ -395,7 +395,7 @@ unsafe fn write(
     let mut manifest = crate::logs::Manifest::new();
     let _ = writeln!(
         manifest,
-        "SRP crash log collection\nPolicy: recent 48 hours; newest 32 matching files; whole sources; 16 MiB compressed log ZIP contribution (headers included, summary separate); 256 MiB source bytes read including failed attempts; 5 second collection budget.\nOnly named game/launcher/updater/render logs and game journals in fixed locations. No recursion. The client patches' srp_patches.log beside the exe: its last 2 MiB, from its first whole line there.\nText logs preserve startup diagnostics and crash context except sensitive records and their unframed continuations, which are removed before compression. Attachment IDs never echo source names. Only UTF-8/ASCII text, or text of the legacy code page below (transcoded to UTF-8 before filtering), with lines at most 64 KiB is accepted; NUL/control bytes, UTF-16, unsafe or ambiguous records omit the source. Detection covers labelled credentials and command lines, not arbitrary unidentified secrets. Minidump memory is not sanitized. Buffered writes may be missing. Over-budget or failed sources are omitted atomically, never truncated.\n"
+        "SRP crash log collection\nPolicy: recent 48 hours; newest 32 matching files; whole sources; 16 MiB compressed log ZIP contribution (headers included, summary separate); 256 MiB source bytes read including failed attempts; 5 second collection budget.\nOnly named game/launcher/updater/render logs and game journals in fixed locations, each run's <kind>.<YYYY-MM-DD_HH-MM-SS>.log among them. No recursion. The crashed run's client patch log (the newest srp_patches.<stamp>.log beside the exe, else srp_patches.log) first: its last 2 MiB, from its first whole line there.\nText logs preserve startup diagnostics and crash context except sensitive records and their unframed continuations, which are removed before compression. Attachment IDs never echo source names: a run's log adds only its kind and the stamp of its name. Only UTF-8/ASCII text, or text of the legacy code page below (transcoded to UTF-8 before filtering), with lines at most 64 KiB is accepted; NUL/control bytes, UTF-16, unsafe or ambiguous records omit the source. Detection covers labelled credentials and command lines, not arbitrary unidentified secrets. Minidump memory is not sanitized. Buffered writes may be missing. Over-budget or failed sources are omitted atomically, never truncated.\n"
     );
     let (code_page, code_page_from) = crate::logs::code_page();
     let _ = writeln!(
@@ -405,12 +405,12 @@ unsafe fn write(
     );
     let log_deadline = out.deadline.min(GetTickCount64() + 5_000);
     let mut folders = crate::logs::folders();
-    let candidates = crate::logs::recent(&mut folders, log_deadline, &mut manifest);
+    // The crashed run's patch log first (its own name, a tail), then the recent logs.
+    let patch_log = crate::logs::Candidate::patch_log(&folders[1].buf[..folders[1].len]);
+    let candidates = crate::logs::recent(&mut folders, log_deadline, &mut manifest, &patch_log);
     let mut packed_left = crate::logs::PACKED_BYTES;
     let mut input_left = crate::logs::INPUT_BYTES;
     let mut included_input = 0;
-    // The patch log first (its own name, a tail), then the recent logs.
-    let patch_log = crate::logs::Candidate::patch_log();
     let sources_in_order = core::iter::once((0, &patch_log)).chain(
         candidates
             .iter()

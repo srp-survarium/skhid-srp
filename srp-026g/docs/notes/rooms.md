@@ -18,12 +18,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   - Play fills an eligible room in its bracket first (nearest level, then fullest).
     When all are full it queues, choosing a shortest queue. Repeated Play keeps
     the same queue position.
-  - Four ready Play users waiting across that bracket's queues open another room;
+  - Three ready players waiting across that bracket's queues open another room
+    (owner 2026-11-14: a public room's Queue counts as Play does);
     up to 16 transfer together, oldest first. This repeats with demand: no fixed
     three-plus-one limit. The rooms table's `rooms_most` still applies;
     at that limit, or if creation fails, everyone keeps waiting.
-  - Explicitly chosen queues do not count toward expansion and never move with it.
-    Disconnected games, restarted games not yet told their queue, and unplayable
+  - Only Play's waiters are routed again on a changed loadout. Disconnected games, restarted games not yet told their queue, and unplayable
     loadouts do not count. A changed equipment bracket is routed again.
   - Players up to level 10 may explicitly join a level-15 room through Rooms.
     Play does not put them there automatically. The switch suggestion is only
@@ -408,6 +408,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     "…" (the game's bold Calibri has it); the level is never covered. The room view's names
     the same way, its "(owner)" kept whole; the state's rows cut a name past 32 bytes and end
     it with "…". No hover with the full name (the movie's lists have no tooltips).
+  - **"(owner)" only in a private room** (the owner, 2026-11-15: "we should also remove from
+    public lobbies (which can now only be created from PLAY) the (owner) tag", "since there are
+    no room owners right now"): the room view names its creator in a room with a PIN alone.
   - Anyone may ask, of any room, a room with a PIN too: names are no secret (a PIN keeps
     the door, not the names). Asked when a room is chosen, then every 3 s, whatever else the
     window polls (in a room or a queue too). In the room's window the movie asks for its own

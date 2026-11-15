@@ -7,6 +7,7 @@ extern crate alloc;
 
 pub mod args;
 pub mod checked;
+pub mod disk;
 pub mod download;
 pub mod file_error;
 pub mod game;
@@ -20,6 +21,7 @@ pub mod problem;
 pub mod replay;
 pub mod resources;
 pub mod revision;
+pub mod run_log;
 pub mod sha256;
 pub mod url;
 pub mod zip;

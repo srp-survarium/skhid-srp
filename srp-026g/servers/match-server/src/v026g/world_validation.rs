@@ -163,6 +163,7 @@ pub fn check(body: &[u8], time: u32, places: usize, roster: Roster) -> Result<()
             game_mode: map.mode.rules().number(),
             batteries: map.victory_items_count as usize,
             respawn_points: Some(map.respawn_points),
+            team_2_points: Some(map.solo_respawn_points),
             profiles: Some(&profiles[..known]),
             // The artefacts table is the game's live one; the inventory's
             // artefact ids are bounded by its own check (patch 115).

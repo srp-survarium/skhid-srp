@@ -63,9 +63,10 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
   - **Voice for all** (the owner, 2026-11-13: "in FFA I would enable voice chat for all"; until
     then nobody heard anyone): every player hears every other of the match, by the team modes'
     rule of near and far (plain in the world under 10 m, the radio from it or dead;
-    voice-chat.md). The relay decides it from the match's mode (`registry::VoiceChannel::of`:
-    the match's channel, not a team's), the game from the options' free-for-all entry (patch
-    66's `channel`, by patch 142's `free_for_all::running`). The Tab menu's voice mute and the
+    voice-chat.md). The game decides it from the options' free-for-all entry (patch 66's
+    `channel`, by patch 142's `free_for_all::running`): everyone a mate. The relay sends every
+    match whole since 2026-11-15, when opponents near became heard in the team modes too (it
+    decided by the mode until then, `registry::VoiceChannel::of`). The Tab menu's voice mute and the
     talking list take every player (in Blackout the list still only on Tab).
   - **No team chat** (the owner, 2026-11-12: "i'd rather it didn't have team chat"); the chat
     goes by these sides, never by the seating:
@@ -122,7 +123,32 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     to a subset of points. It needs no persistent random state;
   - with no safe point, choose among the five best-separated points from the
     nearest living player or spawn already assigned at this tick, using the
-    same mix. Equal ranks keep map order; smaller maps use all their points.
+    same mix. Equal ranks keep map order; smaller maps use all their points;
+  - neither offers the player's last two points ("Never the last two", below).
+- **Never the last two** (the owner, 2026-11-15: "players never repeat their last 2 spawns"): a
+  player's respawn point is never one of the two points he last spawned at.
+  - When: every spawn of a free-for-all, the first included; the clear pool and the crowded
+    fallback alike: the pool leaves them out, the fallback is the five best-separated less them.
+  - Who: each player by his own last two, a point by its index in the map's team-2 group.
+    Players spawning at the same tick each by his own.
+  - Fallback: only when that leaves no point at all (a map of one or two points) may one of
+    them be taken; there they are offered again as before.
+  - Starts empty: at a player's first spawn of the match. A place entered (a new player in it,
+    or one back after leaving) starts empty too: the respawn rule's on_player_entered_match, at
+    the same tick in every game.
+  - Late joiners: the history is the world's, 40 bytes after the respawn rule's own (each place
+    its latest point and the one before; snapshot_rules.md §2.3), so a late joiner, a resync and
+    a rollback load it with the rest and choose as the others. Nothing the game kept named the
+    point (client_patch.md, "Free for all (patch 142)"). The server and the game's world check
+    read the 40 bytes; a free-for-all world without them is refused.
+  - Replays: the worlds a replay holds (its chunk 3, replay_watch.md) carry it too, so a replay
+    chooses as the match did. Replays recorded before it are refused (simulation_changes.tsv
+    `next`).
+  - Release impact: a simulation and world-format change of patch 142, Free for All only: the
+    exe and the match server (srp-validate) of the same release. Team Deathmatch and every other
+    mode: bytes and choices unchanged. Offline only (tests, the Unicorn check); not played. To try
+    in a game: a Free for All with one or two players, many respawns (the suicide key), never at
+    either of the last two points.
 - **Deterministic:** the same synchronized inputs give clients, late joiners
   and replays the same result. TDM retains the game's selection.
 - **Protection:** 2 s on every team-2 point (`PROTECTION` in `scripts/ffa-mode/make_edits.py`;
@@ -199,6 +225,87 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     weathers, the other 30 Free for All projects' spawns as before; the released map test passes
     on its server data. Offline only: not played, not released.
   - Review renders: `private/renders/ffa-spawn-cover/` of the main checkout.
+- **Experimental Pool at the owner's picks** (2026-11-14, the same session as Rudnya's: 28 `where`
+  places, `private/spawn-examples/pool-2026-11-14.tsv`). Content edit `ffa-pool-picks-1`, from
+  `scripts/ffa-mode/pool-picks.tsv` (`picks --as-stood 12 --project v010b_cs_mp_bath/day_8`, no
+  roofs asked) and `make_picks_edits.py pool`, in its own project only; Pool's point ids count anew
+  in each team (team 2: 0-47 after `ffa-cover-maps-1`):
+  - All 28 of his places (the owner, of the picks the checks dropped: "keep all my positions"),
+    on their ground (pick 28 lowered 7 cm), facing as he faced, in the places of point_ids 0-27
+    (position and rotation only); 27 hold the rule (20 has no cover). The 20 left over, 28-47, go:
+    48 -> 28 points. After `ffa-cover-maps-1`.
+  - Pick 12 (9.461 9.658 26.795) stays where he stood (`picks --as-stood`): the check's collision
+    has no floor under its centre (he stood, eye 1.45 m over his feet) but one 0.83 m below, where
+    a body meets collision 0.31 m from its axis at 0.65 m: most likely he stood on the edge of
+    something 0.83 m high beside the point.
+- **School at the owner's picks** (2026-11-14, the same session: 49 `where` places,
+  `private/spawn-examples/school-2026-11-14.tsv`). Content edit `ffa-school-picks-1`, from
+  `scripts/ffa-mode/school-picks.tsv` (`picks --harmful-ok 7,8,15,45,46,48,49 --as-stood 17
+  --project level_02/<weather>_8` for day, evening and rain) and `make_picks_edits.py school`, in
+  its three own projects:
+  - All 49 of his places ("keep all my positions"), on their ground, facing as he faced, in the
+    places of point_ids 30-78 (position and rotation only); 48 hold the rule (39 has no cover). The
+    3 left over, 79-81, go: 52 -> 49 points. After `ffa-cover-maps-1`.
+  - The owner's against the checks, the same in the three weathers: 7 and 8 (1.92 and 1.27 m from
+    `stalactite_radiation`), 15 (1.15 m from `fruit_toxic_cloud_lvl4`), 45, 46, 48 and 49 (inside
+    `fruit_toxic_cloud_lvl5`, the low corners), kept by `--harmful-ok` as Rudnya's 45; and 17 where
+    he stood (as Pool's 12: no floor under its centre but one 0.87 m below, there collision 0.20 m
+    from the body's axis at 0.65 m).
+- **Vostok at the owner's picks** (2026-11-14, the same session: 73 `where` places,
+  `private/spawn-examples/vostok-2026-11-14.tsv`; "also for vostok also all"). Content edit
+  `ffa-vostok-picks-1`, from `scripts/ffa-mode/vostok-picks.tsv` (`picks --project
+  level_03/<weather>_8` for day, evening and rain; no pick needed `--harmful-ok` or `--as-stood`)
+  and `make_picks_edits.py vostok`, in its three own projects:
+  - All 73 on their ground (0 to 37 cm), facing as he faced, however near another (21 and 63, 29
+    and 45 are under 1 m apart): the first 48 in the places of point_ids 22-69 (position and
+    rotation only), 25 new points 70-94, copies of the first solo spawn (20 m exclusion, 500 ms
+    protection, no zones). After `ffa-cover-maps-1` and the other picks lists.
+  - A roof spawn, 95, on the long building at pick 13 (the owner: "set one spawn on top of the
+    building where 13 is"; `picks --roofs 13 --stranded-ok 13`): at -61.943 13.519 -19.574, its
+    floor 3.5 m over 13's, 10.9 m from it in plan, flat (1°), facing the longest view. The roof
+    has no way down within the walk model's 5 m drops and is not reached on foot: placed anyway,
+    as he asked (`--stranded-ok` takes the nearest roof with a flat, clear floor without one).
+    48 -> 74 points.
+  - 58 hold the rule; 2, 3, 23 and 38 have no cover, 21, 22, 58-63 and 68-70 are in the perimeter
+    band (5.7 m): kept as his.
+- **Vostok's picks on its ports** (the owner, 2026-11-14: "all of my spawns most likely can be
+  reused on 0.11 and 0.21 maps"). Both ports share native Vostok's world coordinates: the site's
+  maps.json gives the three the same bounds (v0.11's minimap 0.23 m off in x only), and the picks
+  land where they did: v0.21 68 of 71 at the native height (the rest within 12 cm), v0.11 63 of
+  71 (within 33 cm). He did not stand on the ports, so `--as-stood` does not apply there; `picks
+  --shift 1.5` moves a pick the checks drop to the nearest place within 1.5 m that passes them,
+  else it stays out (none found one). Each in its port's own `day_8` project:
+  - v0.21 (`ffa-vostok-v021-picks-1`, `v021d_level_03/day_8`): 71 of 73, the first 44 in point_ids
+    22-65, 27 new 66-92; 67 and 68 out (inside the rust anomaly's `gas_damage_zone` there). The
+    roof spawn at 13, 93, lands on the same roof (3.2 m over 13's floor), here with a way down on
+    foot. 44 -> 72 points.
+  - v0.11 (`ffa-vostok-v011-picks-1`, `v011e_level_03/day_8`): 71 of 73, the first 44 in point_ids
+    28-71, 27 new 72-98; 71 and 72 out (no floor players reach within 1.5 m). No roof spawn: the
+    roof check finds only a surface 144 m up over 13 here. 44 -> 71 points.
+- **Mamayev Kurgan v0.21 at the owner's picks** (2026-11-15: 66 `where` places,
+  `private/spawn-examples/mamayev021-2026-11-14.tsv`; "just mine for all maps"). Content edit
+  `ffa-mamayev-v021-picks-1`, from `scripts/ffa-mode/mamayev-v021-picks.tsv` (`picks --harmful-ok
+  20,21,57 --project v021d_level_06/day_8`) and `make_picks_edits.py mamayev-v021`, in its own
+  project only (native Mamayev's untouched):
+  - All 66 on their ground (0 to 21 cm), facing as he faced, however near another (34 and 35 are
+    0.48 m apart): the first 44 in point_ids 20-63 (position and rotation only), 22 new 64-85,
+    copies of the first solo spawn (20 m exclusion, 500 ms protection, no zones). 44 -> 66 points:
+    only his.
+  - The owner's against the checks: 20 and 21, 1.45 and 1.62 m from `acid_soft_damage_zone`, and
+    57, 0.04 m from `fire_soft_damage(1)`. 41 hold the rule; 25 have no cover or stand in the
+    perimeter band, kept as his.
+- **Mamayev Kurgan at the owner's picks** (2026-11-15: 68 `where` places on day_8,
+  `private/spawn-examples/mamayev026-2026-11-15.tsv`). Content edit `ffa-mamayev-picks-1`, from
+  `scripts/ffa-mode/mamayev-picks.tsv` (`picks --harmful-ok 17,30,31,55,57 --project
+  level_06/<weather>_8` for day, evening and rain) and `make_picks_edits.py mamayev`, in its three
+  own projects:
+  - All 68 on their ground (0 to 41 cm), facing as he faced: the first 50 in point_ids 30-79
+    (position and rotation only), 18 new 80-97, copies of the first solo spawn. 50 -> 68 points:
+    only his.
+  - The owner's against the checks: 17, 30 and 31, 1.01, 1.77 and 0.17 m from `fire_soft_damage`,
+    and 55 and 57, inside and 1.44 m from `frogs_damage_zone`. 35 hold the rule; 33 have no cover
+    or stand in the perimeter band, kept as his.
+- A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
   proposal for all 16 maps below; Training Camp has its own, `stalker-ffa.md`). Content edit

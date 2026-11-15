@@ -1787,6 +1787,21 @@ pub extern "C" fn hook_voice_on_configs(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- game_volume (patch 144) ----
+
+/// The entry `game_volume_on_configs` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_game_volume_on_configs(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `game_volume_on_configs` calls this, from the game's jump at 0x1ea210,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::game_volume::on_configs(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- console_where (patch 133) ----
 
 /// The entry `console_where_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player)) calls this with the saved machine.
@@ -2325,6 +2340,21 @@ pub extern "C" fn hook_voice_on_tick(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- game_volume (patch 144) ----
+
+/// The entry `game_volume_on_frame` (0x1ec8ec, game::tick after its pending call is cleared (lea esi,[ebx+5308h]): every frame, on the game's thread, EBX the game) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_game_volume_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `game_volume_on_frame` calls this, from the game's jump at 0x1ec8ec,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::game_volume::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- memory_report (patch 126) ----
 
 /// The entry `memory_report_on_close` (0x27a790, close_current_match entry push ebp / mov ebp,esp / and esp,-8; clears connection-owned receipt/log state before teardown) calls this with the saved machine.
@@ -2566,6 +2596,51 @@ pub extern "C" fn hook_free_for_all_on_select(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- free_for_all (patch 142) ----
+
+/// The entry `free_for_all_on_spawns_save` (0x316fb8, player_respawn_rule_core::serialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / pop ecx, then ret 4; reached only by the fall-through at 0x316FB6): EBX the writer (its argument, 0x316F12)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_spawns_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_spawns_save` calls this, from the game's jump at 0x316fb8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_spawns_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- free_for_all (patch 142) ----
+
+/// The entry `free_for_all_on_spawns_load` (0x317038, player_respawn_rule_core::deserialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / ret 8; reached only by the fall-through at 0x317036): ESI the reader (its argument, 0x316FC7)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_spawns_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_spawns_load` calls this, from the game's jump at 0x317038,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_spawns_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- free_for_all (patch 142) ----
+
+/// The entry `free_for_all_on_entered` (0x316bc0, player_respawn_rule_base::on_player_entered_match's entry (movzx eax,byte [esp+4]; then mov edx,[esp+8] / mov [ecx+eax*4+138h],edx / ret 8; vtable 0xA16084 slot +20h, called by game_world_core::on_player_entered_match 0x2D2021): [esp+4] the place) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_entered(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `free_for_all_on_entered` calls this, from the game's jump at 0x316bc0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::free_for_all::on_entered(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hud_cursor (patch 113) ----
 
 /// The entry `hud_cursor_on_match_start` (0x234880, game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's) calls this with the saved machine.
@@ -2640,6 +2715,26 @@ pub extern "C" fn hook_free_for_all_on_protection_read(frame: &mut Frame) -> u32
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::free_for_all::on_protection_read(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- game_volume (patch 144) ----
+
+/// The named exits of game_volume::on_general (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum GameVolumeOnGeneralExit { Done }
+/// The entry `game_volume_on_general` (0x59adf, sound_world::tick's general pass, after the active scenes ticked (cmp byte [edi+48F0h],al; the je skips the pass when General is as last applied): the sound thread, EDI the world, EAX s_general_volume's value truncated (cvttss2si [0A7AF90h], 0 to 100); done 0x59B4B, past the pass (ESI 0 there as here: the scenes' walk ended)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_game_volume_on_general(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `game_volume_on_general` calls this, from the game's jump at 0x59adf,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::game_volume::on_general(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -2755,6 +2850,21 @@ pub extern "C" fn hook_voice_on_menu_close(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::voice::on_menu_close(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- run_logs (patch 147) ----
+
+/// The entry `run_logs_on_process_start` (0xe9580, memory::platform::allocate_arenas' start (mov eax,11A8h before its stack probe 0x429F20): once, at the process's start (memory::allocate_region, 0xE11F9), before the VRAM check's get_local_video_memory_size 0x106300 (Direct3DCreate9) at 0xE9C3F and the render device) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_run_logs_on_process_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `run_logs_on_process_start` calls this, from the game's jump at 0xe9580,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::run_logs::on_process_start(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -4259,6 +4369,36 @@ pub extern "C" fn hook_replay_map_on_enemy_ids(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- run_logs (patch 147) ----
+
+/// The entry `run_logs_on_engine_log` (0xe31f8, logging_initialize (0xE30E0) after generate_log_file_name (0xE29C0, the only call, at 0xE31F3) made the engine log's name in EDI, the frame's buffer_string [esp+0Ch] over its 104h bytes at [esp+18h] (<user data folder><application>_<user>.log), before new_log_file (0x1128D0, the only call, at 0xE31FD) makes the log file of that name anew (create_always: log_file::log_file, as g_log_file_usage 0x1B3A1B8 says); mov eax,[esp+0Ch] / push eax) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_run_logs_on_engine_log(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `run_logs_on_engine_log` calls this, from the game's jump at 0xe31f8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::run_logs::on_engine_log(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- run_logs (patch 147) ----
+
+/// The entry `run_logs_on_c_line` (log.c_line, the arena's C code's line to the patches' log (patch 100's ad_log, audio_device_engine_026g.c): a cdecl call of C (the entry keeps every register), the text and a value; the caller pops the two) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_run_logs_on_c_line(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `run_logs_on_c_line` calls this, from our own code's call (log.c_line),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::run_logs::on_c_line(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- scaleform_capture (patch 93) ----
 
 /// The named exits of scaleform_capture::on_next_capture (the order the shim's Flow code
@@ -5205,6 +5345,8 @@ pub extern "C" fn hook_language_on_configs_start_chain(frame: &mut Frame) -> u32
     if flow != 0 { return flow; }
     let flow = hook_voice_on_configs(frame);
     if flow != 0 { return flow; }
+    let flow = hook_game_volume_on_configs(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5219,6 +5361,8 @@ pub extern "C" fn hook_music_on_frame_chain(frame: &mut Frame) -> u32 {
     let flow = hook_executable_report_on_frame(frame);
     if flow != 0 { return flow; }
     let flow = hook_voice_on_tick(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_game_volume_on_frame(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -5288,6 +5432,15 @@ pub extern "C" fn hook_hud_cursor_on_menu_close_chain(frame: &mut Frame) -> u32 
     let flow = hook_hud_cursor_on_menu_close(frame);
     if flow != 0 { return flow; }
     let flow = hook_voice_on_menu_close(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_run_logs_on_process_start_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_run_logs_on_process_start(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_hud_options_on_process_start(frame);
     if flow != 0 { return flow; }
     0
 }

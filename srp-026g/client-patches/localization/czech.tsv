@@ -2511,9 +2511,11 @@ st_srp_equipment069_snow_20_legs_7_desc	Popis zatím není k dispozici.
 st_srp_equipment069_snow_20_legs_7_name	Kalhoty „Sníh-20“
 st_srp_equipment069_snow_20_torso_7_desc	Popis zatím není k dispozici.
 st_srp_equipment069_snow_20_torso_7_name	Neprůstřelná vesta „Sníh-20“
-st_srp_hide_hit_markers_option	Skrýt ukazatele zásahů
 st_srp_hide_quests_option	Skrýt úkoly
 st_srp_hide_scores_option	Skrýt skóre hráčů
+st_srp_hit_markers_all	Ukazatele zásahů
+st_srp_hit_markers_hidden	Bez ukazatelů zásahů
+st_srp_hit_markers_kill	Jen ukazatel zabití
 st_srp_hud_add_friend	Přidat do přátel
 st_srp_hud_blackout_intro	Blackout: noste baterie k zařízení svého týmu. Rozhraní a ukazatele zásahů jsou skryté pro větší vtažení do hry. Podržte Tab: munice, zdraví, chat; po smrti výběr výbavy.
 st_srp_hud_blackout_start	Blackout\nNoste baterie k zařízení svého týmu.\nRozhraní a ukazatele zásahů jsou skryté. Podržte Tab pro zobrazení munice a zdraví.
