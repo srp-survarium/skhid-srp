@@ -620,6 +620,9 @@ pub(crate) fn the_stand_in_camper_holds_its_spot_and_a_teammate_does_not() {
     // keys). The floor is "got there for a few seconds"; the property is
     // that it holds the spot all the while it is there, bar the fight's moves.
     assert!(camper.0 >= 50 && camper.1 + camper.3 == camper.0, "camper {camper:?}, mate {mate:?}");
+    // And the fight's moves are a moment of it: seed 1 has 19 of its 693 ticks there off by the reflex (2.7 %; 674
+    // within 2 m); a reflex that kept it off its spot would not stay under a twentieth.
+    assert!(camper.3 * 20 <= camper.0, "camper {camper:?}, mate {mate:?}");
     assert!(f64::from(mate.1) <= 0.2 * f64::from(mate.2), "camper {camper:?}, mate {mate:?}");
 }
 
