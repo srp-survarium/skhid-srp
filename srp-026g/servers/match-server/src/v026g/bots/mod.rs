@@ -2402,6 +2402,12 @@ impl Bots {
             "{}flown riser presses held off their window since the last match end (every match on this server): height {height}, line {side}, heading {turn}, lead {lead}",
             nav_log::PREFIX
         ));
+        // [Gap 5] The hands' sprint refusals the worlds showed, held to the next world.
+        let ([busy, melee, aim], changed) = sprint_gates::world_refusals::take();
+        lines.push(format!(
+            "{}world sprint refusals since the last match end (every match on this server): gun busy {busy}, melee {melee}, aim not down {aim}; {changed} changed a reckoned body's gates",
+            nav_log::PREFIX
+        ));
         // [A388 (e) gap 5] Every body's reloads from the worlds: the reckoned sights and sprint refused to the clip's end.
         let (read, changed, not_read, tube) = sprint_gates::world_reloads::take();
         lines.push(format!(
