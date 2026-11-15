@@ -160,8 +160,9 @@ pub const RAMP_FACES_ALGO: u32 = 0x5304_0101;
 /// a body that asks for it. A value of its own. 0003: the side slide keeps its step down's first normal when the slope-acceleration
 /// retry misses (`step_down_sweep_test_impl` 0x7EA80, `slide_in_impassable_case_impl` 0x7D660). 0004: the down sweep's callback
 /// tests a hit against the floor limit it was made with (0x84479, +90h), not one lowered to the hit's fraction. 0005: the step's
-/// millimetre rounding (0x7B7F0) in the exe's frame, so a z at an exact half rounds as the game's.
-pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0005;
+/// millimetre rounding (0x7B7F0) in the exe's frame, so a z at an exact half rounds as the game's. 0006: the move test's top
+/// sphere and low cylinder each cast to their own end (0x85F50: the end moved as the start), not by the main cylinder's way.
+pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0006;
 /// The same for the walk-off walls with the steep `walk` faces ([`Body::drop_room_walk_faces`], A304), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own.
 pub const DROP_ROOM_WALK_FACES_ALGO: u32 = 0x5304_0201;
@@ -174,8 +175,8 @@ pub const DROP_CHECK_ALGO: u32 = 0x5313_0201;
 /// The same for the Drop links' walk without [`Body::drop_lands`] stepped at the client's 50 ms (C2 row 44; it was 1/30 s): in the
 /// key only for a body with the check and without `drop_lands`, so a grid built with `drop_lands` keeps its key. 0203: the tick's
 /// side slide as [`CLIENT_CONTROLLER_ALGO`] 0003 has it. 0204: and its down sweep's floor limit as 0004 has it. 0205: and its
-/// rounding as 0005 has it.
-pub const DROP_CHECK_TICK_ALGO: u32 = 0x5313_0205;
+/// rounding as 0005 has it. 0206: and its move test's ends as 0006 has them.
+pub const DROP_CHECK_TICK_ALGO: u32 = 0x5313_0206;
 /// The same for the walk check's refusals under a low ceiling as failures ([`Body::walk_ceiling_stalls`]), and [S7] its
 /// crouched retry of a standing walk that stops short, in [`grid_key_with_links`] only for a body that asks for it. A value of
 /// its own.
@@ -271,8 +272,9 @@ pub const MAP_GRID_KEY_ALGO: u32 = 1;
 /// ([`MapData::takes_shapes`]). A value of its own. 0002: and between a compound's children the first its child tree offers
 /// (from a version 8 map data file). 0003: the ray looks offer a compound's children in its child tree's order too. 0004: and only
 /// the children whose box in the tree the ray crosses (the exe's `btRayAabb2`). 0005: and a sweep, only the children whose box
-/// in the tree meets the cast's volume in the compound's frame (`objectQuerySingle`'s compound branch, `collideTV`).
-pub const SHAPES_TIE_ORDER_ALGO: u32 = 0x5388_0005;
+/// in the tree meets the cast's volume in the compound's frame (`objectQuerySingle`'s compound branch, `collideTV`). 0006: that
+/// volume from the end's origin as the caller gives it, not rebuilt as the start plus the way.
+pub const SHAPES_TIE_ORDER_ALGO: u32 = 0x5388_0006;
 
 /// One map ready for bots: its data, walk grid and sight tree.
 pub struct World {
