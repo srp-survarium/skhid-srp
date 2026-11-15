@@ -483,14 +483,7 @@ pub(crate) fn parse_mapdata_dir(
     tuning: &bots::tuning::Tuning,
     at_load: bots::maps::AtLoad,
 ) -> Option<Arc<bots::maps::Maps>> {
-    let dir = value
-        .map(str::trim)
-        .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("off"))?;
-    let built = match built.map(str::trim).filter(|value| !value.is_empty()) {
-        Some(value) if value.eq_ignore_ascii_case("off") => None,
-        Some(value) => Some(std::path::PathBuf::from(value)),
-        None => Some(std::path::Path::new(dir).join(bots::maps::BUILT_DIR)),
-    };
+    let (dir, built) = mapdata_folders(value, built)?;
     if std::path::Path::new(dir).is_dir() {
         let files = match (&built, at_load) {
             (Some(built), _) => built.display().to_string(),
@@ -512,6 +505,45 @@ pub(crate) fn parse_mapdata_dir(
         log::warn!("SRP_MAPDATA_DIR is `{dir}`, which is no directory; bots will have no maps");
     }
     Some(bot_maps(dir.into(), keep as usize, at_once as usize, built, tuning, at_load))
+}
+
+/// The bots' maps folder (`SRP_MAPDATA_DIR`: none when unset, empty or `off`) and their built folder
+/// (`SRP_MAPDATA_BUILT`: unset or empty for `<dir>/built`, `off` for none).
+fn mapdata_folders<'a>(value: Option<&'a str>, built: Option<&str>) -> Option<(&'a str, Option<std::path::PathBuf>)> {
+    let dir = value
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("off"))?;
+    let built = match built.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(value) if value.eq_ignore_ascii_case("off") => None,
+        Some(value) => Some(std::path::PathBuf::from(value)),
+        None => Some(std::path::Path::new(dir).join(bots::maps::BUILT_DIR)),
+    };
+    Some((dir, built))
+}
+
+/// [A197] The built folder and, for each of `projects`, the names of its grid, sight tree and tactics files at the keys
+/// this server's store computes (its tuning at the start, `tuning`; the folders of `SRP_MAPDATA_DIR`, `SRP_MAPDATA_BUILT`),
+/// or why they could not be named (no map file). Reads each map file once and builds nothing: what the lobby offers
+/// against bots by (`lobby_server::v026g::pvb::BuiltMaps`), as `srp-build-maps --files` names them for a release.
+pub fn bot_map_files(projects: &[&str], tuning: &bots::tuning::Tuning) -> (Option<std::path::PathBuf>, Vec<(String, Result<[String; 3], String>)>) {
+    let var = |name: &str| std::env::var(name).ok();
+    let (dir_var, built_var) = (var("SRP_MAPDATA_DIR"), var("SRP_MAPDATA_BUILT"));
+    let Some((dir, built)) = mapdata_folders(dir_var.as_deref(), built_var.as_deref()) else {
+        return (None, projects.iter().map(|&p| (p.to_owned(), Err("SRP_MAPDATA_DIR is not set".to_owned()))).collect());
+    };
+    bot_map_files_in(dir.into(), built, projects, tuning)
+}
+
+/// [`bot_map_files`] in the folders given.
+pub fn bot_map_files_in(
+    dir: std::path::PathBuf,
+    built: Option<std::path::PathBuf>,
+    projects: &[&str],
+    tuning: &bots::tuning::Tuning,
+) -> (Option<std::path::PathBuf>, Vec<(String, Result<[String; 3], String>)>) {
+    let store = bot_maps(dir, bots::maps::KEEP, bots::maps::AT_ONCE, built.clone(), tuning, bots::maps::AtLoad::Refuse);
+    let files = projects.iter().map(|&p| (p.to_owned(), store.built_file_names(p))).collect();
+    (built, files)
 }
 
 /// The bots' map store of a server whose tuning is `tuning` (`SRP_BOT_TUNING`, loaded once at its start): its grids'
