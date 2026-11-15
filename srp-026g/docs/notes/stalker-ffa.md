@@ -255,6 +255,17 @@ ground inside the fence by the cover rule, with 20 m exclusion and 500 ms
 (`ffa-cover-maps-1`; `ffa.md`, "Every map by the spawn rule, twice the
 spawns"): 52 points.
 
+Replaced since by the owner's own (2026-11-15: he typed `where` at 47 places in
+a local match, "i also set spawns"; `ffa-training-camp-picks-1`, after every
+list above; `ffa.md`, "Training Camp at the owner's picks"): 47 points, ids 0
+to 46, each where he stood and facing as he faced, ids 47 to 51 gone. None of
+the rules above holds them (the owner's picks are kept even when they fail the
+cover rule, and stand however near one another); the standing checks do: all
+47 body clear, 2 m from the bonfires' fire zones and inside the fence. Nine
+(13, 25-28, 44-47) stand on the middle island under the hub and three small
+islands, which the walk model reaches from no other spawn: kept where he stood,
+their way down unchecked. The table below is the planner's, for the record.
+
 | Id | Place | Stands on | Over the ground | On foot to the ground, walking only | Before |
 | --- | --- | --- | --- | --- | --- |
 | 0 | (17.185, 15.548, -20.845) | cabin, the lower one of the south-west tower | 16.3 m | 35 m: the south-west tower's stairs | ground (19.9, 6.2) |
@@ -353,9 +364,10 @@ does; Free for All takes team 2's only. Most of them are at the gateways,
 outside the wall, and one (team 0's point 2) is where the south gateway's
 second truck stands.
 
-Nothing else of the mode is outside: `day_8` has no zones, crates, batteries or
-stations; its four campfires are inside the fence; its one anomaly is the
-Keeper's hidden pool at y = -1000.
+Nothing else of the mode is outside: `day_8` has no crates, batteries or
+stations; its four campfires are inside the fence, and their one fire damage
+zone over them (training-camp-fires-1, `stalker-maps.md`); its one anomaly is
+the Keeper's hidden pool at y = -1000.
 
 ## Millisecond protection
 

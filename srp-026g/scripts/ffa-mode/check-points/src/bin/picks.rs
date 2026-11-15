@@ -5,7 +5,7 @@
 //! ```text
 //! picks --db <resources.db> --patch <resources.db.patch_12> ... \
 //!     --points <tsv> [--roofs 49,8,10,42] [--stranded-ok 13] [--harmful-ok 45] [--as-stood 12] \
-//!     [--shift 1.5] \
+//!     [--shift 1.5] [--roof-at 24.563,0.912,30.789] \
 //!     --project level_01/day_8 [--project level_01/evening_8 ...]
 //! ```
 //!
@@ -31,7 +31,10 @@
 //! entries) go. `--roofs`: after them, a new point on the roof of the
 //! building at each of these picks ([`roof`]), its facing the longest view,
 //! the nearest spawn said; `--stranded-ok`: those of these picks whose roof
-//! may have no way down within 5 m drops. Prints
+//! may have no way down within 5 m drops. `--roof-at <x>,<y>,<z>` (repeatable):
+//! after those, a roof spawn on the building at a `where` place that is no
+//! pick (the owner, 2026-11-15, standing in Vostok's checkpoint: "we want the
+//! spawn on top of the building those coords have"). Prints
 //! checked.tsv rows (`point` the point id, verdict `moved`, `added`, `roof`
 //! or `removed`: make_picks_edits.py makes them an edit list) and, on stderr,
 //! each dropped pick and why.
@@ -165,7 +168,8 @@ enum Down {
 /// builings (roofs)"; "those are silly spawn points usually unreachable, but
 /// they make sense in general").
 struct Roof {
-    over: u32,
+    /// Whose building: `pick 13`, or a `--roof-at` place.
+    of: String,
     feet: Vec3,
     yaw: f32,
     /// Its floor over the pick's.
@@ -179,7 +183,8 @@ struct Roof {
     skipped: Vec<String>,
 }
 
-/// The roof spawn over (or beside) `pick`: on the roof nearest the pick in
+/// The roof spawn over (or beside) `at`, a pick's feet or a `--roof-at`
+/// place, named `of`: on the roof nearest it in
 /// plan that has one (a roof: the floors, joined by walking, of a walk grid of
 /// the map's walker mesh round it, every floor, not only those players get to,
 /// at least ROOF_ABOVE over the pick with the open sky over them), a floor
@@ -189,9 +194,8 @@ struct Roof {
 /// walk; of those, the one farthest in plan from every spawn of `set` (a
 /// preference for spread, no minimum). With `stranded_ok`, the nearest roof
 /// with such a floor, a way down or not.
-fn roof(map: &Map, pick: &Placed, set: &[Vec3], stranded_ok: bool) -> Result<Roof, String> {
+fn roof(map: &Map, at: Vec3, of: &str, set: &[Vec3], stranded_ok: bool) -> Result<Roof, String> {
     use mapdata::{Body, LinkKind, WalkGrid};
-    let at = pick.feet;
     let r = ROOF_REACH + 13.0;
     let local = WalkGrid::build(
         &map.data.walker_triangles(),
@@ -236,7 +240,9 @@ fn roof(map: &Map, pick: &Placed, set: &[Vec3], stranded_ok: bool) -> Result<Roo
         }
     }
     let mut order: Vec<usize> = (0..nearest.len()).collect();
-    order.sort_by(|&a, &b| nearest[a].0.total_cmp(&nearest[b].0));
+    // As near, the lower first: over one place, the building's roof before
+    // a surface far above it (Vostok v0.11's border box ends 140 m up).
+    order.sort_by(|&a, &b| nearest[a].0.total_cmp(&nearest[b].0).then(nearest[a].1.total_cmp(&nearest[b].1)));
     let spacing = |p: Vec3| set.iter().map(|q| q.distance_xz(p)).fold(f32::INFINITY, f32::min);
     // The map's own floor there: players get to it.
     let walked = |p: Vec3| {
@@ -319,7 +325,7 @@ fn roof(map: &Map, pick: &Placed, set: &[Vec3], stranded_ok: bool) -> Result<Roo
         }
     }
     let (node, down, slope) = found.ok_or_else(|| {
-        format!("pick {}: no roof spawn within {ROOF_REACH} m ({})", pick.n, skipped.join("; "))
+        format!("{of}: no roof spawn within {ROOF_REACH} m ({})", skipped.join("; "))
     })?;
     let feet = local.position(node);
     // Facing: the longest view at eye height, then towards the play area.
@@ -335,7 +341,7 @@ fn roof(map: &Map, pick: &Placed, set: &[Vec3], stranded_ok: bool) -> Result<Roo
         .max_by(|a, b| a.1.total_cmp(&b.1).then(a.2.total_cmp(&b.2)))
         .map_or(0.0, |(w, _, _)| w);
     Ok(Roof {
-        over: pick.n,
+        of: of.to_owned(),
         feet,
         yaw,
         height: feet.y - at.y,
@@ -351,6 +357,7 @@ fn run() -> Result<(), String> {
     let (mut layers, mut projects, mut points) = (Vec::new(), Vec::new(), None);
     let (mut roofs, mut harmful_ok, mut as_stood) = (Vec::<u32>::new(), Vec::<u32>::new(), Vec::<u32>::new());
     let mut stranded_ok = Vec::<u32>::new();
+    let mut roof_at = Vec::<Vec3>::new();
     let mut shift = 0f32;
     let numbers = |value: &str, flag: &str| -> Result<Vec<u32>, String> {
         value
@@ -368,6 +375,10 @@ fn run() -> Result<(), String> {
             "--harmful-ok" => harmful_ok = numbers(&value, &flag)?,
             "--as-stood" => as_stood = numbers(&value, &flag)?,
             "--stranded-ok" => stranded_ok = numbers(&value, &flag)?,
+            "--roof-at" => match value.split(',').map(str::parse).collect::<Result<Vec<f32>, _>>().as_deref() {
+                Ok(&[x, y, z]) if x.is_finite() && y.is_finite() && z.is_finite() => roof_at.push(Vec3::new(x, y, z)),
+                _ => return Err(format!("bad --roof-at {value}")),
+            },
             "--shift" => {
                 shift = value
                     .parse()
@@ -512,15 +523,22 @@ fn run() -> Result<(), String> {
         }
         // The roof spawns, after the picks: each spaced from every one before it.
         let mut set: Vec<Vec3> = kept.iter().map(|&i| placed[i].feet).collect();
+        let mut buildings = Vec::new();
         for n in &roofs {
             let pick = placed
                 .iter()
                 .find(|p| p.n == *n)
                 .ok_or_else(|| format!("--roofs {n}: no such pick on a floor"))?;
-            let r = roof(&map, pick, &set, stranded_ok.contains(n))?;
+            buildings.push((format!("pick {n}"), pick.feet, stranded_ok.contains(n)));
+        }
+        for at in &roof_at {
+            buildings.push((format!("place {} {} {}", at.x, at.y, at.z), *at, false));
+        }
+        for (of, at, stranded) in &buildings {
+            let r = roof(&map, *at, of, &set, *stranded)?;
             let (near, plan, solid) = set
                 .iter()
-                .zip(kept.iter().map(|&i| format!("pick {}", placed[i].n)).chain(roofs.iter().map(|n| format!("the roof spawn over pick {n}"))))
+                .zip(kept.iter().map(|&i| format!("pick {}", placed[i].n)).chain(buildings.iter().map(|(of, ..)| format!("the roof spawn over {of}"))))
                 .map(|(q, name)| (name, q.distance_xz(r.feet), (*q - r.feet).length()))
                 .min_by(|a, b| a.1.total_cmp(&b.1))
                 .ok_or("no spawn")?;
@@ -531,12 +549,12 @@ fn run() -> Result<(), String> {
                 Down::Stranded => "no way down within 5 m drops (--stranded-ok, the owner's)".to_owned(),
             };
             println!(
-                "{project}\t{next_id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\troof\t\troof spawn of the building at the owner's pick {} (facing {:.1} as where turns, the longest view); its floor {:.1} m over the pick's, sloping {:.0} deg; {}; {down}; body clear; harmful zones >=2m; nearest spawn {near}: {plan:.1} m in plan, {solid:.1} m in 3D; cover {}{}{}",
+                "{project}\t{next_id}\t{}\t{}\t{}\t0\t{}\t0\t20\t0\troof\t\troof spawn of the building at the owner's {} (facing {:.1} as where turns, the longest view); its floor {:.1} m over the pick's, sloping {:.0} deg; {}; {down}; body clear; harmful zones >=2m; nearest spawn {near}: {plan:.1} m in plan, {solid:.1} m in 3D; cover {}{}{}",
                 r.feet.x,
                 r.feet.y,
                 r.feet.z,
                 rotation_y(r.yaw),
-                r.over,
+                r.of,
                 r.yaw,
                 r.height,
                 r.slope,
