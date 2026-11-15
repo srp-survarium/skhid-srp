@@ -95,6 +95,7 @@ pack	training-camp-truck@1	49da007fb9f38ce72a85884d5843d4d01ce28609fc3757d6a73c7
 pack	rifle-scopes@18	e861b398a48899bbfa011822be3537ca22f3772776871335704e34a0b12f9ee7	Seven 0.69 optics and 184 fits; native optical eyes and aimed models, attachment-bone binding, EOTech XPS2 ring, retail sight folding (scripts/rifle-scopes)
 pack	scope-fits@12	14c26bf27cd5f2a2abab8631c687594019b447e3f67c107ea457aab065e75235	212 additional fits and Walther Competition II; native optical assemblies and animated eyes on current released weapons (scripts/scope-fits)
 pack	scope-coverage@2	daa4e5baed7215d735020663db52014fcd7a11c5dc05e074eaed1dd64520c03e	640 additional standalone fits and corrected attachment-bone cameras for existing variants; IDs and all old fits retained (scripts/scope-coverage)
+pack	range-069@1	2d6962daaa1c9f7977a60fd53bc2523548afa96ccdf2e3722f4de2d8e09a44ae	0.69 firing range in rooms: map 250, level 21, donor geometry, fixed targets, collision, nine spawns and resupply on native Team Deathmatch rules (scripts/range-069)
 edit	v011e-vostok-research-config-1.json	-	Vostok v0.11 Research config from native Vostok; before modes.tsv and music
 edit	weapon-balance-1.json	resources.db.patch_21	weapon balance 1 (#182)
 edit	grenade-bounce-1.json	-	grenade bounces louder: the bounce samples' impact settings (#266)

@@ -120,7 +120,8 @@
     "projects/v010b_cs_mp_rembasa/day_4/client_project",
     "projects/v010b_cs_training_camp/day_4/client_project",
     "projects/v010b_soc_ug_depository/day_4/client_project",
-    "projects/v010b_soc_ug_station/day_4/client_project"
+    "projects/v010b_soc_ug_station/day_4/client_project",
+    "projects/v069d_shooting_range/day_4/client_project"
    ],
    "expected_counts": [
     263,
@@ -240,7 +241,8 @@
     33,
     43,
     15,
-    15
+    15,
+    80
    ],
    "list": "client_objects",
    "unique_key": "full_name",

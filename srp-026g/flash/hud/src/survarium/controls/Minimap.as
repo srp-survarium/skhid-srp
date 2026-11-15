@@ -85,7 +85,8 @@ package survarium.controls
          "cs_training_camp":new minimap_cs_training_camp(),
          "cs_mp_rembasa":new minimap_cs_mp_rembasa(),
          "soc_ug_station":new minimap_soc_ug_station(),
-         "soc_ug_depository":new minimap_soc_ug_depository()
+         "soc_ug_depository":new minimap_soc_ug_depository(),
+         "shooting_range":new minimap_shooting_range()
       };
       
       protected var _objects:Dictionary = new Dictionary(true);
@@ -202,6 +203,12 @@ package survarium.controls
             "size":73.143,
             "posX":30.285,
             "posY":6.97
+         };
+         // 0.69's 100 x 90 m half-extents, padded vertically by range-069/ui.py.
+         this._minimapProps.shooting_range = {
+            "size":100,
+            "posX":-38,
+            "posY":4
          };
          this._minimapProps.level_05 = {
             "size":90,
