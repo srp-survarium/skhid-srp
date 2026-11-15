@@ -81,7 +81,7 @@ pub fn walk_off_landing_speed(height: f32) -> f32 {
 /// find ground, against 0.008 m on one at 3.5 m/s). The least landing is kept.
 pub const LANDING_WALKS_MPS: [f32; 1] = [1.4];
 
-/// [S6] A drop's landing speed as stored ([`WalkGrid::drop_landing_speed`]): cm/s down, rounded down, so it never overstates.
+/// [S6] A drop's landing speed as stored ([`WalkGrid::drop_landings`]): cm/s down, rounded down, so it never overstates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LandingSpeed(u16);
 
