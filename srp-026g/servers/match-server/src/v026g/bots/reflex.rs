@@ -1490,32 +1490,36 @@ pub struct HumanBursts {
 }
 
 impl HumanBursts {
-    /// The live humans' numbers (routes' held ms over every burst, by class, band and group): each burst's band from the
-    /// positions linear between two alive worlds only (a burst with none, mostly a shooter's last fire before his death, left
-    /// out); the rifles without the machine guns, their groups ranked among the rifles alone (117 accounts: median group
-    /// 14.0-15.5 %, 25 accounts; top tenth 18.0 %+, 12). The band rule that also held a world up to 5.3 s gave the same
-    /// deciles within one 50 ms tick at 40+ m but for the SMGs' top tenth (300 ms at its 30 %), and up to 350 ms apart
-    /// within 20 m: these are the ones that need no held position.
+    /// The live humans' numbers (routes' held ms over every burst, by class, band and group), the rifles without the machine
+    /// guns, their groups ranked among the rifles alone (117 accounts: median group 14.0-15.5 %, 25 accounts; top tenth 18.0
+    /// %+, 12). Two band rules: both positions linear between two alive worlds (linear), or else a world held up to 5.3 s
+    /// (current). Where their deciles agree within one 50 ms tick (SMG median and top 20-40 m, median 40+ m; rifle median
+    /// 20-40 m, median and top 40+ m) the band is proven to that margin and the cell is the linear one. Where they do not (0-20
+    /// m: 40-60 % of those bursts have no linear position, mostly a shooter's last fire before his death; SMG top 40+ m 350
+    /// ms at its 0 %, 150 ms within 10-90 %; rifle top 20-40 m 100 ms) the cell is the set nearer today's rows (the mean
+    /// gap of the 10-90 % deciles to `smg` / `rifle`'s draw at the cell's middle), so no change rests on the band rule:
+    /// current for the SMG median 0-10 m and the rifle 0-10, 10-20 m and top 20-40 m; linear for the SMG top 0-10, both
+    /// 10-20 m and top 40+ m (`pick_cells.py`, the other set beside each in the PR).
     pub fn humans() -> Self {
         let p = |at_m, q| HeldPoint { at_m, q };
         Self {
             rifle: HeldGroups {
                 typical: vec![
-                    p(6.9, [50, 100, 250, 500, 600, 750, 900, 1050, 1250, 1650, 3300]),
-                    p(15.5, [50, 100, 250, 450, 600, 750, 900, 1050, 1350, 1650, 3550]),
+                    p(6.8, [50, 150, 450, 600, 700, 800, 900, 1050, 1250, 1550, 3300]),
+                    p(15.4, [50, 100, 300, 550, 650, 800, 900, 1100, 1350, 1650, 3550]),
                     p(28.8, [50, 100, 150, 250, 450, 650, 800, 950, 1200, 1600, 3300]),
                     p(49.7, [50, 50, 100, 150, 200, 450, 650, 850, 1050, 1500, 3450]),
                 ],
                 best: vec![
-                    p(7.0, [50, 100, 150, 200, 300, 450, 600, 750, 900, 1350, 1850]),
-                    p(15.5, [50, 100, 150, 250, 450, 600, 750, 900, 1150, 1500, 3500]),
-                    p(29.4, [50, 100, 150, 250, 400, 550, 650, 800, 1000, 1450, 3100]),
+                    p(6.8, [50, 100, 150, 300, 500, 650, 800, 900, 1100, 1400, 3250]),
+                    p(15.6, [50, 100, 200, 350, 500, 650, 800, 950, 1150, 1500, 3500]),
+                    p(28.9, [50, 100, 150, 250, 500, 600, 700, 900, 1100, 1550, 3100]),
                     p(51.5, [50, 100, 100, 150, 200, 250, 450, 700, 900, 1300, 3100]),
                 ],
             },
             smg: HeldGroups {
                 typical: vec![
-                    p(7.2, [50, 250, 400, 550, 650, 750, 900, 1050, 1300, 1600, 2700]),
+                    p(6.9, [50, 250, 500, 600, 700, 800, 900, 1050, 1200, 1500, 2850]),
                     p(15.2, [50, 200, 350, 500, 600, 750, 850, 1000, 1250, 1600, 3100]),
                     p(28.4, [50, 150, 300, 500, 600, 750, 850, 1050, 1250, 1600, 2900]),
                     p(50.8, [50, 100, 200, 350, 550, 700, 800, 950, 1200, 1550, 2850]),
