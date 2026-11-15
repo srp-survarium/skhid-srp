@@ -3009,7 +3009,7 @@ st_team_member_is_not_commander	A csapattag nem parancsnok.
 st_texture_quality_option	Textúrák minősége
 st_there_is_no_item_in_inventory	A tárgy nem található a leltárban
 st_thief_item	Tároló felvétele
-st_throw_grenade_action	Gránát használata
+st_throw_grenade_action	Következő gránát
 st_time_current	Játékosok keresése:
 st_time_was_resynchronized	Kapcsolat helyreállítása…
 st_to_all	Mindenkinek

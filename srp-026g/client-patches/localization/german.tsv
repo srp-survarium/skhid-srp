@@ -3009,7 +3009,7 @@ st_team_member_is_not_commander	Dieser Team-Mitglied ist kein Kommandant.
 st_texture_quality_option	Texturen Qualität
 st_there_is_no_item_in_inventory	Objekt war am Lager nicht gefunden
 st_thief_item	Container zu ergreifen
-st_throw_grenade_action	Granate werfen
+st_throw_grenade_action	Nächste Granate
 st_time_current	Die Auslese der Spieler:
 st_time_was_resynchronized	Wiederherstellung der Verbindung...
 st_to_all	Für alle

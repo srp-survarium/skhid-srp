@@ -3009,7 +3009,7 @@ st_team_member_is_not_commander	The team member is not a commander.
 st_texture_quality_option	Textures quality
 st_there_is_no_item_in_inventory	Item not found in your inventory
 st_thief_item	Grab container
-st_throw_grenade_action	Use grenade
+st_throw_grenade_action	Next grenade
 st_time_current	Picking up players:
 st_time_was_resynchronized	Restoring connection...
 st_to_all	To all

@@ -3009,7 +3009,7 @@ st_team_member_is_not_commander	Član tima nije komandant.
 st_texture_quality_option	Kvalitet tekstura
 st_there_is_no_item_in_inventory	Predmet nije pronađen u inventaru.
 st_thief_item	Uzmi kontejner
-st_throw_grenade_action	Baci granatu
+st_throw_grenade_action	Sledeća granata
 st_time_current	Traženje igrača:
 st_time_was_resynchronized	Obnavljanje veze…
 st_to_all	Svima

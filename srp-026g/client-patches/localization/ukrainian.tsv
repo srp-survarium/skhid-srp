@@ -3009,7 +3009,7 @@ st_team_member_is_not_commander	Член команди не є командир
 st_texture_quality_option	Якість текстур
 st_there_is_no_item_in_inventory	Предмет не знайдено у сховищі
 st_thief_item	Забрати контейнер
-st_throw_grenade_action	Кидок гранати
+st_throw_grenade_action	Наступна граната
 st_time_current	Добір гравців:
 st_time_was_resynchronized	Відновлення зв’язку...
 st_to_all	Усім
