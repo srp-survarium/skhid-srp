@@ -524,13 +524,17 @@ impl std::fmt::Display for OwnSpot {
 }
 
 /// [own base] A planned cloud that would hold the team's own container, or a battery of ours lying loose, while the
-/// shooter it is thrown against is nearer that than the thrower is, or within the take's own `exposed_m` (Collect's, 25
-/// m) of it: the plan is refused. A cloud takes nothing from a thief (the game reads no cloud: he uses the container and
-/// picks a battery up through it; the HUD tells the defenders of the theft, the container's count, though a battery he
-/// drops is on his own team's HUD only), and it takes the defenders' sight of him. On Tarakanovsky Fort a defender smoked his own container (the crossing 0.4 m from it, the cloud at rest 4.1 m
-/// from it) against a player 14 m from it, who took 3 batteries under the cloud and killed 6 defenders there at 0.8-3.8
-/// m; 3 clouds by one team in 5 matches were decided so. Our carrier's smoke ([`SmokeRule::OurCarrier`]) is for his last
-/// metres home: refused only while the shooter is within `exposed_m` of the spot.
+/// shooter it is thrown against is within the take's own `exposed_m` (Collect's, 25 m) of it: the plan is refused. A
+/// cloud takes nothing from a thief (the game reads no cloud: he uses the container and picks a battery up through it;
+/// the HUD tells the defenders of the theft, the container's count, though a battery he drops is on his own team's HUD
+/// only), and it takes the defenders' sight of him. On Tarakanovsky Fort a defender smoked his own container (the
+/// crossing 0.4 m from it, the cloud at rest 4.1 m from it) against a player 14 m from it, who took 3 batteries under
+/// the cloud and killed 6 defenders there at 0.8-3.8 m; 3 clouds by one team in 5 matches were decided so, all refused
+/// by this, none with the shooter farther than 25 m. A shooter farther out is no threat to the spot that a cloud there
+/// would answer.
+///
+/// For when `smoke.objective` (OFF) goes on: our carrier's smoke for his last metres home ([`SmokeRule::OurCarrier`])
+/// is refused too under a camper within 25 m of the container (20-25 m out, say), which may be the smoke he needs.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OverOwnBase {
     pub spot: OwnSpot,
@@ -543,9 +547,8 @@ pub struct OverOwnBase {
 
 impl OverOwnBase {
     /// The first of `own` (each spot and where it is) that a cloud of `shape` resting at `cloud` holds while the shooter
-    /// at `shooter` is near it (above) for a plan of `rule` thrown from `thrower`; none: the plan stands.
+    /// at `shooter` is within `exposed_m` of it (the thrower at `thrower`, for the note); none: the plan stands.
     pub fn of(
-        rule: SmokeRule,
         shape: &CloudShape,
         cloud: Vec3,
         shooter: Vec3,
@@ -555,8 +558,7 @@ impl OverOwnBase {
     ) -> Option<Self> {
         own.iter().find_map(|&(spot, at)| {
             let (shooter_m, thrower_m) = (shooter.distance_xz(at), thrower.distance_xz(at));
-            let near = shooter_m <= exposed_m || (rule != SmokeRule::OurCarrier && shooter_m < thrower_m);
-            (shape.holds_full(cloud, at) && near).then_some(Self { spot, at, shooter_m, thrower_m })
+            (shape.holds_full(cloud, at) && shooter_m <= exposed_m).then_some(Self { spot, at, shooter_m, thrower_m })
         })
     }
 }
@@ -1949,8 +1951,8 @@ mod tests {
 
     /// [own base] The Tarakanovsky Fort case: a defender 9 m from his container smokes a crossing 0.4 m from it, the cloud
     /// at rest 4.1 m from it, against a shooter 14 m from it: refused, for the container and for a battery of ours lying
-    /// loose beside it. A cloud 20 m from the container stands; so does one against a shooter 30 m out and farther from
-    /// it than the thrower. A shooter 30 m out but nearer it than the thrower: refused, save for our carrier's smoke.
+    /// loose beside it. A cloud 20 m from the container stands; so does one against a shooter 30 m out, whoever is
+    /// nearer the container; 25 m out is refused.
     #[test]
     fn a_cloud_over_our_own_container_against_a_shooter_near_it_is_refused() {
         let shape = SmokeGrenade::RDG_M.cloud;
@@ -1958,25 +1960,27 @@ mod tests {
         let own = [(OwnSpot::Container, container), (OwnSpot::Battery(4), Vec3::new(6.0, 0.0, 0.0))];
         let thrower = Vec3::new(-9.0, 0.0, 0.0);
         let shooter = Vec3::new(14.0, 1.5, 0.0);
-        let fort = OverOwnBase::of(SmokeRule::HeldLane, &shape, Vec3::new(-4.1, 0.0, 0.0), shooter, thrower, &own, 25.0)
+        let fort = OverOwnBase::of(&shape, Vec3::new(-4.1, 0.0, 0.0), shooter, thrower, &own, 25.0)
             .expect("the Fort case is refused");
         assert_eq!((fort.spot, fort.shooter_m, fort.thrower_m), (OwnSpot::Container, 14.0, 9.0));
         let battery_only = [own[1]];
-        let loose = OverOwnBase::of(SmokeRule::HeldLane, &shape, Vec3::new(4.0, 0.0, 0.0), shooter, thrower, &battery_only, 25.0)
+        let loose = OverOwnBase::of(&shape, Vec3::new(4.0, 0.0, 0.0), shooter, thrower, &battery_only, 25.0)
             .expect("a battery of ours lying loose");
         assert_eq!(loose.spot, OwnSpot::Battery(4));
         // Far from the container: it stands.
-        assert_eq!(OverOwnBase::of(SmokeRule::HeldLane, &shape, Vec3::new(-20.0, 0.0, 0.0), shooter, thrower, &own, 25.0), None);
+        assert_eq!(OverOwnBase::of(&shape, Vec3::new(-20.0, 0.0, 0.0), shooter, thrower, &own, 25.0), None);
         // Over it, the shooter 30 m out and farther than the thrower: it stands.
         let far = Vec3::new(30.0, 1.5, 0.0);
-        assert_eq!(OverOwnBase::of(SmokeRule::HeldLane, &shape, Vec3::new(-4.1, 0.0, 0.0), far, thrower, &own[..1], 25.0), None);
-        // The shooter 30 m out, the thrower 40 m: refused, but not our carrier's smoke (only within `exposed_m`).
+        assert_eq!(OverOwnBase::of(&shape, Vec3::new(-4.1, 0.0, 0.0), far, thrower, &own[..1], 25.0), None);
+        // The shooter 30 m out and nearer it than the thrower (40 m): it stands; only within `exposed_m` counts.
         let behind = Vec3::new(-40.0, 0.0, 0.0);
-        assert!(OverOwnBase::of(SmokeRule::HeldLane, &shape, Vec3::new(-4.1, 0.0, 0.0), far, behind, &own[..1], 25.0).is_some());
-        assert_eq!(OverOwnBase::of(SmokeRule::OurCarrier, &shape, Vec3::new(-4.1, 0.0, 0.0), far, behind, &own[..1], 25.0), None);
+        assert_eq!(OverOwnBase::of(&shape, Vec3::new(-4.1, 0.0, 0.0), far, behind, &own[..1], 25.0), None);
+        // At the edge: 25 m out is within it.
+        let edge = Vec3::new(25.0, 1.5, 0.0);
+        assert!(OverOwnBase::of(&shape, Vec3::new(-4.1, 0.0, 0.0), edge, thrower, &own[..1], 25.0).is_some());
         // A container on another floor, out of the cloud's height: it stands.
         let below = [(OwnSpot::Container, Vec3::new(0.0, -6.0, 0.0))];
-        assert_eq!(OverOwnBase::of(SmokeRule::HeldLane, &shape, Vec3::new(-4.1, 0.0, 0.0), shooter, thrower, &below, 25.0), None);
+        assert_eq!(OverOwnBase::of(&shape, Vec3::new(-4.1, 0.0, 0.0), shooter, thrower, &below, 25.0), None);
     }
 
     /// [own base] A run of thinks refusing the same plan counts once; another spot, shooter or rule, or a think with none

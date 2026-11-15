@@ -1103,9 +1103,9 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         Some((plan, why, eye, None, Some(held.shooter), stretch))
     };
     // [own base] The rules in their order, each plan judged against the team's own container and its batteries lying
-    // loose ([`smoke::OverOwnBase`]: refused when its cloud would hold one against a shooter near it); a refused plan
-    // leaves the next rule to try, and none at all leaves the bot to its play (another crossing later, a frag, the wait,
-    // the team's job).
+    // loose ([`smoke::OverOwnBase`]: refused when its cloud would hold one against a shooter within `exposed_m` of it);
+    // a refused plan leaves the next rule to try, and none at all leaves the bot to its play (another crossing later, a
+    // frag, the wait, the team's job).
     let exposed_m = tuning.number(PlayKind::Collect, "exposed_m");
     let own: Vec<(smoke::OwnSpot, Vec3)> = view
         .container_of(bot.team)
@@ -1138,7 +1138,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             continue;
         };
         let (plan, _, against, _, threat, _) = &found;
-        match smoke::OverOwnBase::of(rule, &grenade.cloud, plan.at, *against, me.feet, &own, exposed_m) {
+        match smoke::OverOwnBase::of(&grenade.cloud, plan.at, *against, me.feet, &own, exposed_m) {
             Some(over) => {
                 refused.get_or_insert((rule, over, plan.at, *threat));
             }
