@@ -25,7 +25,7 @@ use crate::controller::tick::Settings;
 /// How near a wall face must be for the round to be its doing, m.
 pub const WALL_NEAR_M: f32 = 0.6;
 /// How far the feet may move (or drop) in the stand test, m.
-const STAND_MOVED_M: f32 = 0.1;
+pub const STAND_MOVED_M: f32 = 0.1;
 /// Whether the client's walk tick stands a body on `feet`: set there out of the walls, the body comes down onto it from up to
 /// 0.6 m over it (`room`: the floor's room over a standing body) with no keys and rests ([`super::rest_floors::rests_at`]: still on
 /// the ground 4 steps in a row within 2 s) within [`STAND_MOVED_M`] of it across and in height. The body is stepped by the grid's
@@ -38,17 +38,53 @@ const STAND_MOVED_M: f32 = 0.1;
 /// the exe and the port drop the body off all 7 slab floors; put on them, both hold 4). Come down from over the floor as
 /// `held_floors` and `rest_floors` bring it, the body lands with the contact it lands on, and on a rim `need_slide` 0x7BC20 slides
 /// it off as the client's.
+///
+/// Across, the rest is measured from where the body was put ([`super::rest_floors::Rest::put`]: over the floor, pushed out of the
+/// walls once). Measured from the feet pushed out of the walls first, a body under a roof lower than a standing body (still in
+/// the walls after one push, so pushed 0.15 m again when put) read its own put as a slide and was refused where it never moved
+/// (Chemical Plant day_2 (32.125, 5.657, 12.414) and (28.625, 5.756, 12.164), 1.24 and 1.28 m under the roof: 0.150 m "across"
+/// with 0.000 of moving; the exe rests a body put at the players' feet there, the exactness rig 2026-11-15).
 pub(super) fn stands(world: &Collision, s: &Settings, feet: Vec3, room: f32) -> bool {
-    let start = out_of_walls(world, feet);
-    super::rest_floors::rests_at(world, s, start, room)
-        .is_some_and(|end| {
-            // Down: no more than STAND_MOVED_M (no slide, no fall). Up: a floor names a place within NAME_HEIGHT_M of its height
-            // (`rest_floors`), and `out_of_walls` moves the start across a slope at the floor's height, so an honest rest may sit
-            // a little higher than the floor's sampled height.
-            (end.x - start.x).hypot(end.z - start.z) < STAND_MOVED_M
-                && start.y - end.y < STAND_MOVED_M
-                && end.y - start.y <= super::rest_floors::NAME_HEIGHT_M
-        })
+    let rest = super::rest_floors::rest(world, s, feet, room);
+    let ok = rest.is_some_and(|super::rest_floors::Rest { put, at }| {
+        // Down: no more than STAND_MOVED_M (no slide, no fall). Up: a floor names a place within NAME_HEIGHT_M of its height
+        // (`rest_floors`), and `out_of_walls` moves the start across a slope at the floor's height, so an honest rest may sit
+        // a little higher than the floor's sampled height.
+        (at.x - put.x).hypot(at.z - put.z) < STAND_MOVED_M && feet.y - at.y < STAND_MOVED_M && at.y - feet.y <= super::rest_floors::NAME_HEIGHT_M
+    });
+    count_stand(ok, rest.is_some_and(|r| (r.put.x - feet.x).hypot(r.put.z - feet.z) >= STAND_MOVED_M));
+    ok
+}
+
+/// The wall give-back's stand tests so far ([`stands`]), for the logs: no decision reads them. Totals of this process.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GiveBackStands {
+    /// Stand tests run.
+    pub tests: u64,
+    /// … the body stood …
+    pub stood: u64,
+    /// … and of those, put [`STAND_MOVED_M`] or more across from the floor's point by the push out of the walls: the stands a
+    /// measure from the floor's point would have read as a slide.
+    pub stood_put_aside: u64,
+}
+
+static STAND_COUNTS: [std::sync::atomic::AtomicU64; 3] = [const { std::sync::atomic::AtomicU64::new(0) }; 3];
+
+fn count_stand(stood: bool, put_aside: bool) {
+    use std::sync::atomic::Ordering::Relaxed;
+    STAND_COUNTS[0].fetch_add(1, Relaxed);
+    if stood {
+        STAND_COUNTS[1].fetch_add(1, Relaxed);
+        if put_aside {
+            STAND_COUNTS[2].fetch_add(1, Relaxed);
+        }
+    }
+}
+
+/// The process's [`GiveBackStands`] so far.
+pub fn give_back_stands() -> GiveBackStands {
+    let n = |i: usize| STAND_COUNTS[i].load(std::sync::atomic::Ordering::Relaxed);
+    GiveBackStands { tests: n(0), stood: n(1), stood_put_aside: n(2) }
 }
 
 /// How [`WalkGrid::give_back_by_walls`] judges a taken floor.
@@ -186,6 +222,29 @@ mod tests {
         assert!(at(&on, 4.875), "the body stands in the cell's far half");
         assert!(!at(&on, 5.375), "pushed out of its cell: stays taken");
         assert!(stands_in_cell(&Collision::build(&tris), &Settings::LIVE, Vec3::new(4.875, 0.0, 5.125), 0.125, f32::INFINITY));
+    }
+
+    /// The push out of the walls moves a body at most `OUT_OF_WALLS_M` (0.15 m) at a time: set 0.12 m from a face the standing
+    /// cylinder (0.42 m with its margin) meets, one push leaves it in the face and the put pushes it again. The rest is measured
+    /// from where the body was put: it never moves there and stands. Measured from the feet pushed first (before), the put's own
+    /// second push read as a slide (Chemical Plant day_2's floors under a 1.24 m roof: 0.150 m "across" with 0.000 of moving).
+    #[test]
+    fn the_stand_test_measures_the_rest_from_where_the_body_was_put() {
+        let mut tris = ground();
+        // A face along x = 5 from 0.9 to 1.7 m over the ground: in the push's cylinder (0.8-1.8 m), open at the feet.
+        let (a, b) = (Vec3::new(5.0, 0.9, 0.0), Vec3::new(5.0, 0.9, 10.0));
+        let (c, d) = (Vec3::new(5.0, 1.7, 10.0), Vec3::new(5.0, 1.7, 0.0));
+        tris.extend([Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope }, Triangle { v: [a, c, d], walker: WalkerBehaviour::BySlope }]);
+        let world = Collision::build(&tris);
+        let feet = Vec3::new(4.88, 0.0, 5.0);
+        let first = out_of_walls(&world, feet);
+        let again = out_of_walls(&world, first);
+        assert!((again.x - first.x).abs() >= STAND_MOVED_M, "one push leaves it in the face: {first:?} -> {again:?}");
+        let rest = super::super::rest_floors::rest(&world, &Settings::LIVE, feet, f32::INFINITY).expect("rests");
+        assert!((rest.at.x - rest.put.x).hypot(rest.at.z - rest.put.z) < 1e-3, "it never moves across: {rest:?}");
+        let old = super::super::rest_floors::rests_at(&world, &Settings::LIVE, first, f32::INFINITY).expect("rests");
+        assert!((old.x - first.x).hypot(old.z - first.z) >= STAND_MOVED_M, "the old measure reads the second push as a slide");
+        assert!(stands(&world, &Settings::LIVE, feet, f32::INFINITY), "measured from where it was put, it stands");
     }
 
     /// [A364 C2 row 45] The stand test runs the client's steps: a body on flat ground stands, one in mid-air or with its centre

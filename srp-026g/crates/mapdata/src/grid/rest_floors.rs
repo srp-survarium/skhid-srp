@@ -53,6 +53,20 @@ const FALL_MPS: f32 = 0.01;
 /// (at most `room` m: the floor's room over a standing body) out of the walls, it falls with no keys; its feet once it has stood
 /// still on the ground [`STILL_STEPS`] steps in a row; None when it has not within [`REST_STEPS_MAX`] (it falls on, slides on).
 pub(super) fn rests_at(world: &Collision, s: &Settings, feet: Vec3, room: f32) -> Option<Vec3> {
+    rest(world, s, feet, room).map(|r| r.at)
+}
+
+/// A rest of [`rest`]: where the test body was put (over the floor and out of the walls, as the client's world pushes it) and
+/// where its feet came to rest.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Rest {
+    pub(super) put: Vec3,
+    pub(super) at: Vec3,
+}
+
+/// [`rests_at`] with the point the body was put at: a test that asks whether the body stayed where it was set (the wall
+/// give-back's stand test) measures from there, the one push out of the walls this makes.
+pub(super) fn rest(world: &Collision, s: &Settings, feet: Vec3, room: f32) -> Option<Rest> {
     let over = PUT_OVER_M.min(room).max(0.005);
     let start = out_of_walls(world, feet + Vec3::new(0.0, over, 0.0));
     let mut body = Controller::standing_at(start);
@@ -64,7 +78,7 @@ pub(super) fn rests_at(world: &Collision, s: &Settings, feet: Vec3, room: f32) -
         body.tick(world, DT, s, still);
         run = if !body.jumping && body.on_ground(s) && (body.feet() - before).length() < 1e-3 { run + 1 } else { 0 };
         if run >= STILL_STEPS {
-            return Some(body.feet());
+            return Some(Rest { put: start, at: body.feet() });
         }
     }
     None

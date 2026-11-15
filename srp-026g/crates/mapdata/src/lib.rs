@@ -229,8 +229,10 @@ pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0301;
 /// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45). 0104: the
 /// test body comes down onto the floor from up to 0.6 m over it and must rest there (A389 follow-up (a)). 0105: on the game's
 /// shapes where the build has them (the world the rest and held floors use). 0106: a rest up to `NAME_HEIGHT_M` (0.2 m) over the
-/// floor stands (it was 0.1 m both ways).
-pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0106;
+/// floor stands (it was 0.1 m both ways). 0107: the rest is measured across from where the body was put (one push out of the
+/// walls), not from the floor's point pushed out of the walls first (a body under a low roof read its own second push as a
+/// slide).
+pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0107;
 /// The same for the walk-tick passes with the exe's collision rules ([`Body::exe_collision`], A325), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const EXE_COLLISION_ALGO: u32 = 0x5325_0101;
