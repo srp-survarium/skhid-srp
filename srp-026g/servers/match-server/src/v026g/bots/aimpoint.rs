@@ -798,6 +798,28 @@ mod tests {
         assert_eq!(Part::LeftEdge.height(false), Part::Chest.height(false));
     }
 
+    /// The parts take the hip rows whether a target aims in or not: the table's aimed rows (the rifles'
+    /// `aimed_on_site_idle` clips) are its hip rows, every shape of both stances. The standing aimed clips are the idle
+    /// clips byte for byte; the crouched ones differ in their bytes but pose every hit shape the same at all the times
+    /// and looks sampled (7 times over 3 s of the 1.2 s loop, looks -1, 0 and +1: `body/aimed_vs_hip_t.py` of the
+    /// exactness notes). Should a table give the aimed pose shapes of its own, this fails and the parts must take the
+    /// target's aim.
+    #[test]
+    fn the_aimed_rows_are_the_hip_rows() {
+        let rows = |aimed: &str| -> Vec<Vec<&str>> {
+            super::HIT_BOXES
+                .lines()
+                .filter(|l| !l.starts_with('#') && !l.starts_with("stance"))
+                .map(|l| l.split('\t').collect::<Vec<_>>())
+                .filter(|c| c[1] == aimed)
+                .map(|c| [&c[..1], &c[2..]].concat())
+                .collect()
+        };
+        let (hip, aimed) = (rows("0"), rows("1"));
+        assert_eq!(hip.len(), 38, "19 shapes a stance");
+        assert_eq!(hip, aimed);
+    }
+
     /// [A302 camper calibration] The head-first draw keeps its pick for a target and takes about the share over many.
     #[test]
     fn the_head_first_draw_keeps_its_pick_and_takes_the_share() {
