@@ -1469,10 +1469,12 @@ pub struct HeldGroups {
 ///
 /// The data: every burst with a class of the accounts of 150+ bullets of the class, humans against humans (the live sets
 /// A 190, 2026-10-16..22, and A 50, 2026-11-01..04, pooled); a burst is a run of 50 ms ticks with the fire key held in the
-/// client's own inputs (PROVEN keys), its band the median distance to the nearest enemy over its fire ticks (routes' band
-/// rule: [0, 10), [10, 20), [20, 40), 40+ m; the positions between two worlds are linear, LIKELY). The groups by each
-/// account's hit rate over every bullet of the class: rifles' median group 13.6-15.5 % (26 accounts), top tenth 17.7 %+ (13);
-/// SMGs' 14.4-16.0 % (22), 20.0 %+ (11).
+/// client's own inputs (PROVEN keys), its band the median distance to the nearest enemy over its fire ticks with both
+/// positions linear between two alive worlds ([0, 10), [10, 20), [20, 40), 40+ m). The groups by each
+/// account's hit rate over every bullet of the class: rifles' (machine guns apart) median group 14.0-15.5 % (25 accounts), top
+/// tenth 18.0 %+ (12); SMGs' 14.4-16.0 % (21-22), 20.0 %+ (11). The AK-74U is an SMG here as in the bots' class
+/// ([`WeaponClass::of`]). The machine guns' own groups are thin (3 accounts in the top tenth, under 100 bursts a band): they
+/// keep the rows.
 ///
 /// The draw ([`Self::held_ms`]): each decile is linear in distance between the points (flat beyond the ends) and mixed by
 /// the skill between the two groups, so the length moves smoothly with both and has no step at a band's edge; one uniform
@@ -1488,36 +1490,41 @@ pub struct HumanBursts {
 }
 
 impl HumanBursts {
-    /// The live humans' numbers (routes' table of held ms over every burst, by class, band and group).
+    /// The live humans' numbers (routes' held ms over every burst, by class, band and group): each burst's band from the
+    /// positions linear between two alive worlds only (a burst with none, mostly a shooter's last fire before his death, left
+    /// out); the rifles without the machine guns, their groups ranked among the rifles alone (117 accounts: median group
+    /// 14.0-15.5 %, 25 accounts; top tenth 18.0 %+, 12). The band rule that also held a world up to 5.3 s gave the same
+    /// deciles within one 50 ms tick at 40+ m but for the SMGs' top tenth (300 ms at its 30 %), and up to 350 ms apart
+    /// within 20 m: these are the ones that need no held position.
     pub fn humans() -> Self {
         let p = |at_m, q| HeldPoint { at_m, q };
         Self {
             rifle: HeldGroups {
                 typical: vec![
-                    p(6.7, [50, 150, 450, 600, 700, 800, 950, 1050, 1250, 1550, 3300]),
-                    p(15.4, [50, 100, 300, 500, 650, 800, 950, 1100, 1350, 1650, 4500]),
-                    p(28.5, [50, 100, 150, 250, 500, 650, 850, 1000, 1200, 1650, 4700]),
-                    p(50.0, [50, 50, 100, 150, 200, 450, 650, 850, 1100, 1500, 3450]),
+                    p(6.9, [50, 100, 250, 500, 600, 750, 900, 1050, 1250, 1650, 3300]),
+                    p(15.5, [50, 100, 250, 450, 600, 750, 900, 1050, 1350, 1650, 3550]),
+                    p(28.8, [50, 100, 150, 250, 450, 650, 800, 950, 1200, 1600, 3300]),
+                    p(49.7, [50, 50, 100, 150, 200, 450, 650, 850, 1050, 1500, 3450]),
                 ],
                 best: vec![
-                    p(7.0, [50, 150, 250, 450, 600, 700, 850, 950, 1150, 1500, 3250]),
-                    p(15.6, [50, 100, 200, 350, 550, 700, 850, 950, 1200, 1500, 3500]),
-                    p(28.7, [50, 100, 150, 200, 450, 600, 700, 900, 1100, 1550, 3100]),
-                    p(50.4, [50, 100, 100, 150, 150, 250, 500, 750, 900, 1300, 3100]),
+                    p(7.0, [50, 100, 150, 200, 300, 450, 600, 750, 900, 1350, 1850]),
+                    p(15.5, [50, 100, 150, 250, 450, 600, 750, 900, 1150, 1500, 3500]),
+                    p(29.4, [50, 100, 150, 250, 400, 550, 650, 800, 1000, 1450, 3100]),
+                    p(51.5, [50, 100, 100, 150, 200, 250, 450, 700, 900, 1300, 3100]),
                 ],
             },
             smg: HeldGroups {
                 typical: vec![
-                    p(6.9, [50, 250, 500, 600, 700, 800, 900, 1050, 1200, 1500, 2850]),
-                    p(15.0, [50, 200, 400, 600, 700, 800, 900, 1050, 1250, 1600, 3100]),
-                    p(27.8, [50, 150, 350, 550, 650, 800, 900, 1100, 1300, 1600, 2900]),
-                    p(50.7, [50, 100, 200, 350, 550, 700, 850, 950, 1200, 1550, 2850]),
+                    p(7.2, [50, 250, 400, 550, 650, 750, 900, 1050, 1300, 1600, 2700]),
+                    p(15.2, [50, 200, 350, 500, 600, 750, 850, 1000, 1250, 1600, 3100]),
+                    p(28.4, [50, 150, 300, 500, 600, 750, 850, 1050, 1250, 1600, 2900]),
+                    p(50.8, [50, 100, 200, 350, 550, 700, 800, 950, 1200, 1550, 2850]),
                 ],
                 best: vec![
-                    p(6.4, [50, 350, 500, 600, 700, 800, 900, 1050, 1300, 1500, 2500]),
-                    p(14.5, [50, 300, 500, 600, 700, 800, 950, 1150, 1350, 1650, 2750]),
-                    p(27.7, [50, 150, 350, 550, 650, 750, 900, 1050, 1300, 1600, 2850]),
-                    p(52.0, [50, 100, 200, 500, 600, 700, 850, 1000, 1250, 1550, 2900]),
+                    p(6.6, [50, 300, 400, 500, 600, 750, 800, 950, 1250, 1550, 2500]),
+                    p(14.8, [50, 250, 400, 500, 650, 750, 900, 1050, 1350, 1700, 2750]),
+                    p(28.3, [50, 150, 350, 500, 600, 700, 850, 1000, 1300, 1600, 2850]),
+                    p(52.4, [50, 100, 150, 450, 600, 700, 800, 950, 1100, 1500, 2550]),
                 ],
             },
         }
@@ -10863,7 +10870,7 @@ mod tests {
     fn a_human_burst_reads_routes_table() {
         let human = HumanBursts::humans();
         assert_eq!(human.held_ms(AutoClass::Rifle, 50.0, 0.0, 0.5), 450.0);
-        assert_eq!(human.held_ms(AutoClass::Rifle, 50.4, 1.0, 0.5), 250.0);
+        assert_eq!(human.held_ms(AutoClass::Rifle, 51.5, 1.0, 0.5), 250.0);
         assert!(human.held_ms(AutoClass::Rifle, 50.0, 0.0, 0.5) < human.held_ms(AutoClass::Rifle, 6.7, 0.0, 0.5));
         let mut rng = Rng::new(17);
         let cycle = 60_000.0 / 700.0;
