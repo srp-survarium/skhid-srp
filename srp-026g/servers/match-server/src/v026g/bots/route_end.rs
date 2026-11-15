@@ -108,6 +108,12 @@ impl Bot {
     /// Puts `route` in place of its route (the old one, if any, ends as
     /// [`RouteEnd::Replanned`]).
     pub(super) fn set_route(&mut self, route: Option<(Route, Vec3)>, now: u32) {
+        // [D1] A threat replan's route is in place: its log line is judged at the next drive.
+        if route.is_some()
+            && let Some(super::threat::Replan::Asked(from)) = self.features.threat.replanned
+        {
+            self.features.threat.replanned = Some(super::threat::Replan::Routed(from));
+        }
         if self.route.is_some() {
             self.motor.link_route_ended(RouteEnd::Replanned as usize);
             self.route_ended(RouteEnd::Replanned, now);

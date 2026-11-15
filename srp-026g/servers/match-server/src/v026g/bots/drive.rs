@@ -1090,34 +1090,38 @@ fn drive_tick_inner(
                     bot.features.threat.asked = None;
                 }
             }
-            // [D1] The replan's log line: the way ahead it replaces, and the route that came of it (or none in `JUDGE_MS`).
-            if let Some(asked) = bot.features.threat.replanned {
-                let grid = &tactics.world.grid;
-                let (covered, heights) = (&bot.threat, bot.motor.heights());
-                if bot.route_born != asked.born
-                    && let Some((route, _)) = bot.route.as_mut()
-                {
-                    let (walked, _) = route.progress(me.feet);
-                    let now_m = threat::exposure_from(route, walked, heights, |p| covered.exposed_at(grid, p), &[me.feet, at]).metres;
-                    let left_m = route.length() - walked;
-                    let line = format!(
-                        "replan: done in {} ms: the way ahead was {:.0} m long with {:.0} m in the team's held lanes, now {left_m:.0} m with {now_m:.0} m",
-                        time.saturating_sub(asked.time),
-                        asked.left_m,
-                        asked.exposed_m
-                    );
-                    bot.nav_log.push(super::nav_log::Kind::Replan, time, line);
+            // [D1] The replan's log line: the way ahead it replaced against the route that came of it (or none in `JUDGE_MS`).
+            match bot.features.threat.replanned {
+                Some(threat::Replan::Routed(from)) => {
+                    let line = bot.route.as_mut().map(|(route, _)| {
+                        let grid = &tactics.world.grid;
+                        let (covered, heights) = (&bot.threat, bot.motor.heights());
+                        let (walked, _) = route.progress(me.feet);
+                        let now_m = threat::exposure_from(route, walked, heights, |p| covered.exposed_at(grid, p), &[me.feet, at]).metres;
+                        format!(
+                            "replan: done in {} ms: the way ahead was {:.0} m long with {:.0} m in the team's held lanes, now {:.0} m with {now_m:.0} m",
+                            time.saturating_sub(from.time),
+                            from.left_m,
+                            from.exposed_m,
+                            route.length() - walked
+                        )
+                    });
+                    if let Some(line) = line {
+                        bot.nav_log.push(super::nav_log::Kind::Replan, time, line);
+                    }
                     bot.features.threat.replanned = None;
-                } else if time >= asked.time + threat::JUDGE_MS {
+                }
+                Some(threat::Replan::Asked(from)) if time >= from.time + threat::JUDGE_MS => {
                     let line = format!(
                         "replan: no new route in {} ms; the way ahead stays {:.0} m long with {:.0} m in the team's held lanes",
                         threat::JUDGE_MS,
-                        asked.left_m,
-                        asked.exposed_m
+                        from.left_m,
+                        from.exposed_m
                     );
                     bot.nav_log.push(super::nav_log::Kind::Replan, time, line);
                     bot.features.threat.replanned = None;
                 }
+                _ => {}
             }
             let mut ahead = None;
             // [A342c, D1] A new cue (or [D1] lanes newly cast) asks for one look, A3's switch off.
@@ -1284,13 +1288,12 @@ fn drive_tick_inner(
                 if threat_ahead {
                     threat::count(threat::Count::ReplanAsked);
                     if let Some((exposed_m, left_m)) = ahead {
-                        let asked = threat::Asked { exposed_m, left_m, born: bot.route_born, time };
                         #[cfg(test)]
                         {
-                            bot.features.threat.asked = Some(asked);
+                            bot.features.threat.asked = Some(threat::Asked { exposed_m, left_m, born: bot.route_born, time });
                         }
                         // [D1] Its log line, judged when the next route is in place.
-                        bot.features.threat.replanned = Some(asked);
+                        bot.features.threat.replanned = Some(threat::Replan::Asked(threat::ReplanFrom { exposed_m, left_m, time }));
                         let line = format!(
                             "replan: {exposed_m:.0} m of its {left_m:.0} m way ahead lies in the team's held lanes; searched again to the same goal"
                         );

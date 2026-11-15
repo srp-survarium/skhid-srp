@@ -725,6 +725,22 @@ pub struct Asked {
     pub time: u32,
 }
 
+/// [D1] A threat replan under way, for its log line: asked (the way ahead it replaces), then a route put in place
+/// (`Bot::set_route`), judged against it at the next drive.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Replan {
+    Asked(ReplanFrom),
+    Routed(ReplanFrom),
+}
+
+/// [D1] The way ahead a threat replan replaces: its metres in the team's held lanes, its length, when it was asked.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ReplanFrom {
+    pub exposed_m: f32,
+    pub left_m: f32,
+    pub time: u32,
+}
+
 /// A replan's next route within this, ms, or none came (a search can go on
 /// over polls).
 pub const JUDGE_MS: u32 = 5_000;
@@ -3090,8 +3106,8 @@ pub struct BotThreat {
     /// [A342c `threat.replan_on_cue`, D1 `threat.replan_on_spot`] A new cue, or lanes newly cast: its route ahead is looked at
     /// once.
     pub cue_due: bool,
-    /// [D1] A threat replan asked: the way ahead it replaces (its log line's judgment, `nav_log::Kind::Replan`).
-    pub replanned: Option<Asked>,
+    /// [D1] A threat replan under way, for its log line (`nav_log::Kind::Replan`).
+    pub replanned: Option<Replan>,
     /// The bench's replan waiting for its judgment ([`judged`]).
     #[cfg(test)]
     pub asked: Option<Asked>,
