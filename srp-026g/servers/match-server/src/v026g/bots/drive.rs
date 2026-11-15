@@ -362,9 +362,31 @@ pub(super) fn drive_tick(
         decision.keys |= key::CROUCH;
     }
     decision.keys = bot.hurt.leg_damage.at(time).keys(decision.keys);
+    creep_watch(bot, me, decision.keys, time);
     bot.sent_keys = decision.keys;
     crouch_climb_watch(bot, me, decision.keys, time);
     decision
+}
+
+/// [F42] The log lines of a creep ([`super::nav_log::creep_begun_line`], [`super::nav_log::creep_ended_line`]): begun on the
+/// first tick both legs hold (`LegGate::Stand`) with the crouch key and a move key sent, ended on the first tick without.
+/// Decides nothing.
+pub(super) fn creep_watch(bot: &mut Bot, me: &PlaceView, keys: u32, time: u32) {
+    let creeping = bot.hurt.leg_damage.at(time) == super::legs::LegGate::Stand
+        && keys & key::CROUCH != 0
+        && keys & (key::FORWARD | key::BACK | key::LEFT | key::RIGHT) != 0;
+    match (bot.creep, creeping) {
+        (None, true) => {
+            bot.creep = Some((me.feet, time));
+            bot.nav_log.push(super::nav_log::Kind::Creep, time, super::nav_log::creep_begun_line(me.feet));
+        }
+        (Some((from, at)), false) => {
+            bot.creep = None;
+            let line = super::nav_log::creep_ended_line(from, me.feet, time.saturating_sub(at));
+            bot.nav_log.push(super::nav_log::Kind::Creep, time, line);
+        }
+        _ => {}
+    }
 }
 
 /// [S7] How far from a crouched climb's take-off a crouched body is taken to be at it, m (flat).

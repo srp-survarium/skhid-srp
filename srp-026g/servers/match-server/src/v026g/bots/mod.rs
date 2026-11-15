@@ -442,6 +442,9 @@ pub struct Bot {
     jump_watch: Option<JumpWatch>,
     /// [S7] The crouched climb under way, for its log line ([`drive::crouch_climb_watch`]): (take-off, top, crouched at).
     crouch_climb: Option<(Vec3, Vec3, u32)>,
+    /// [F42] A creep under way (both legs broken, the crouch key with move keys): where and when it began
+    /// ([`drive::creep_watch`]).
+    creep: Option<(Vec3, u32)>,
     /// Its falls and route jumps for the log (A285, `nav_log.rs`): written, never read back.
     nav_log: nav_log::NavLog,
     /// [A391] Its last offer of each job role since it was given ([`threat::LastOffers`]): the class of a role let go.
@@ -658,6 +661,7 @@ impl Bot {
             fight_hit_ms: None,
             jump_watch: None,
             crouch_climb: None,
+            creep: None,
             nav_log: nav_log::NavLog::default(),
             offers: threat::LastOffers::default(),
             drift: nav_drift::Tally::default(),
