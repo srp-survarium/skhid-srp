@@ -238,8 +238,8 @@
   0x32BB59, the melee flag above, the damage functions), which a copy would break. Edge (a melee
   bullet's flight): a gun-stock hit landing after its shooter took a battery shows the battery; a
   strike landing after its carrier put the battery away the gun stock. The hud movie's
-  `CombatLogItem` shows icon 200 as the bitmap `CombatLogBatteryIcon`: the battery's model from
-  the front and above with its two cell wells, and the gun-stock icon's impact burst, in the weapon
+  `CombatLogItem` shows icon 200 as the bitmap `CombatLogBatteryIcon`: the battery's model in
+  three-quarter view with its two cell wells, and the gun-stock icon's impact burst, in the weapon
   icons' style (`scripts/kill-feed-icons/make_battery_icon.py`, `kill-feed-icons.md`). No
   simulation change (the hud alone reads the icon).
 - **The bullet and the deactivated gun.** A carrier's guns are deactivated (deactivate

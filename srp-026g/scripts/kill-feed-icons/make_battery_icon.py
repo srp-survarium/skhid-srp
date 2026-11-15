@@ -10,11 +10,12 @@ usage: python3 -I make_battery_icon.py --model <converted_model> --out <folder>
 
 CombatLogBatteryIcon.png is drawn as the weapon icons are (frames of the hud's sprite 698): a white
 silhouette, its details cut out of it, a black shadow at 40 % one pixel right and two down. The
-silhouette is the battery's own mesh seen from the front and 38 degrees above: the box, its two
-handles, and on its top the two open cell wells either side of the middle block (cut out; the hud's
-battery rows draw it so, a box with two cells), the top's front edge a cut line. After it, the impact
-burst of the gun-stock icon (48: flash/lobby_menu/bitmaps/KillFeedWeapon48.png, the hud's frame,
-sha256 checked), as the feed draws a melee hit.
+silhouette is the battery's own mesh in three-quarter view (turned 145 degrees, 30 above, 20 px
+high): the box, its faces (top, long side, end) parted by cut lines, the handles ringed by one, and
+in its top's rim the openings of the two cell wells either side of the middle block (cut out; the
+hud's battery rows draw it so, a box with two cells). After it, the impact burst of the gun-stock
+icon (48: flash/lobby_menu/bitmaps/KillFeedWeapon48.png, the hud's frame, sha256 checked), as the
+feed draws a melee hit.
 
 Needs Pillow and numpy.
 """
@@ -33,14 +34,16 @@ MODEL_SHA256 = '5e581cc9a4c589b27fa5f3977b642c4f1630c1f1f424cf38405477d1082d2cab
 STOCK_ICON = HERE.parents[1] / 'flash' / 'lobby_menu' / 'bitmaps' / 'KillFeedWeapon48.png'
 STOCK_ICON_SHA256 = '9017a7b646896927439d620184616b9397d969a7bfc1d7a3bf035f780adb1ac3'
 
-PITCH = -38                      # degrees: looking down on the top
+YAW, PITCH = 145, -30            # degrees: a long side and a handle's end, the top seen from above
 HEIGHT = 20                      # the battery's rows
 SS = 8                           # drawn at 8x, then reduced
 GROW = 9                         # the silhouette thickened 1/2 px a side (the handles' tubes are thin)
-SEAM = 7                         # the top's front edge: a cut 7/8 px wide
-# The mesh's box (metres): inside its walls |x| < 0.257 and -0.137 < z < 0.145; its rim 0.235
-# high, the cells below 0.226; the middle block's top between 0.205 and 0.216.
-INSIDE_X, INSIDE_Z, TOP_Y, BLOCK_Y = 0.257, (-0.137, 0.145), 0.226, (0.205, 0.216)
+SEAM = 7                         # the cut between two faces: 7/8 px wide
+# The mesh's box (metres): its rim's top 0.235 high, open in x -0.226 to 0.228, z -0.115 to 0.122,
+# the middle block in x -0.046 to 0.085 between the two cell wells; its long sides past z -0.137
+# and 0.145; the handles past |x| 0.27.
+RIM_Y, OPEN_X, OPEN_Z, BLOCK_X = 0.235, (-0.226, 0.228), (-0.115, 0.122), (-0.046, 0.085)
+TOP_Y, SIDE_Z, HANDLE_X = 0.226, (-0.137, 0.145), 0.27
 
 
 def mesh(data):
@@ -55,10 +58,11 @@ def mesh(data):
 
 
 def raster(vertices, triangles, rows):
-    """Orthographic, from the front and PITCH above, `rows` high: per pixel the nearest triangle
-    (-1: none) and the point's position on the model."""
-    p = math.radians(PITCH)
-    view = np.array([[1, 0, 0], [0, math.cos(p), -math.sin(p)], [0, math.sin(p), math.cos(p)]])
+    """Orthographic, turned YAW and PITCH, `rows` high: per pixel the nearest triangle (-1: none)
+    and the point's position on the model; and the direction the view looks along."""
+    y, p = math.radians(YAW), math.radians(PITCH)
+    view = (np.array([[1, 0, 0], [0, math.cos(p), -math.sin(p)], [0, math.sin(p), math.cos(p)]])
+            @ np.array([[math.cos(y), 0, math.sin(y)], [0, 1, 0], [-math.sin(y), 0, math.cos(y)]]))
     q = vertices @ view.T
     lo, hi = q[:, :2].min(0), q[:, :2].max(0)
     scale = (rows - 1) / (hi[1] - lo[1])
@@ -83,7 +87,7 @@ def raster(vertices, triangles, rows):
         nearest[y0:y1 + 1, x0:x1 + 1][near] = t
     gx, gy = np.meshgrid(np.arange(width) + .5, np.arange(height) + .5)
     seen = np.stack([gx / scale + lo[0], hi[1] - gy / scale, np.where(nearest >= 0, depth, 0)], -1)
-    return nearest, seen @ view
+    return nearest, seen @ view, view[2]
 
 
 def dilated(mask, size):
@@ -91,20 +95,26 @@ def dilated(mask, size):
 
 
 def battery(vertices, triangles):
-    """The battery's coverage, HEIGHT rows: the silhouette less the cell wells and the top's edge."""
-    nearest, at = raster(vertices, triangles, HEIGHT * SS)
-    a, b, c = (vertices[triangles[:, i]] for i in range(3))
-    normals = np.cross(b - a, c - a)
-    normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-12)
-    normal = np.abs(normals[np.maximum(nearest, 0)])
+    """The battery's coverage, HEIGHT rows: the silhouette, each face of the box (top, long side,
+    end) parted from the next by a cut, the cell wells' openings cut out, the handles ringed by a cut."""
+    nearest, at, look = raster(vertices, triangles, HEIGHT * SS)
     covered = nearest >= 0
-    x, y, z = at[..., 0], at[..., 1], at[..., 2]
-    block = (normal[..., 1] > 0.9) & (y > BLOCK_Y[0]) & (y < BLOCK_Y[1])
-    wells = covered & (np.abs(x) < INSIDE_X) & (z > INSIDE_Z[0]) & (z < INSIDE_Z[1]) & (y < TOP_Y) & ~block
-    top = covered & (normal[..., 1] > 0.7) & (y > TOP_Y)
-    front = covered & (normal[..., 2] > 0.7) & (z < INSIDE_Z[0])
-    edge = (top & np.roll(front, -1, 0)) | (front & np.roll(top, -1, 0))
-    return reduce(dilated(covered, GROW) & ~wells & ~dilated(edge, SEAM))
+    handle = covered & (np.abs(at[..., 0]) > HANDLE_X)
+    # the wells: where the line of sight crosses the rim's plane inside an opening
+    rim = at + ((RIM_Y - at[..., 1]) / look[1])[..., None] * look
+    x, z = rim[..., 0], rim[..., 2]
+    wells = (covered & ~handle & (x > OPEN_X[0]) & (x < OPEN_X[1]) & (z > OPEN_Z[0]) & (z < OPEN_Z[1])
+             & ((x < BLOCK_X[0]) | (x > BLOCK_X[1])))
+    # each point of the box by the face it lies on, by its place (a knob or a plate is its face's)
+    y, z = at[..., 1], at[..., 2]
+    face = np.select([~covered | handle | wells, y > TOP_Y, z < SIDE_Z[0], z > SIDE_Z[1]], [0, 1, 2, 3], 4)
+    edge = np.zeros_like(covered)
+    for axis in (0, 1):
+        other = np.roll(face, -1, axis)
+        edge |= (face != other) & (face > 0) & (other > 0)
+    handle = dilated(handle, GROW)
+    ring = dilated(handle, 2 * SEAM - 1) & ~handle
+    return reduce((dilated(covered, GROW) & ~wells & ~dilated(edge, SEAM) & ~ring) | handle)
 
 
 def reduce(white):
@@ -136,14 +146,14 @@ def burst(stock):
     return white[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
 
 
-def beside(left, right, overlap=3):
-    """`right` after `left`, overlapping it by `overlap` px, both centred on one row."""
-    height, width = max(left.shape[0], right.shape[0]), left.shape[1] + right.shape[1] - overlap
+def beside(left, right):
+    """`right` after `left`, both centred on one row."""
+    height, width = max(left.shape[0], right.shape[0]), left.shape[1] + right.shape[1]
     out = np.zeros((height, width))
     top = (height - left.shape[0]) // 2
     out[top:top + left.shape[0], :left.shape[1]] = left
-    top, x = (height - right.shape[0]) // 2, left.shape[1] - overlap
-    out[top:top + right.shape[0], x:] = np.maximum(out[top:top + right.shape[0], x:], right)
+    top, x = (height - right.shape[0]) // 2, left.shape[1]
+    out[top:top + right.shape[0], x:] = right
     return out
 
 
