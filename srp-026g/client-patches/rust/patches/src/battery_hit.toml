@@ -25,6 +25,8 @@ handler = "on_finalize"
 proof = "the strike through fsm::tick"
 
 # The strike's bullet reads its deactivated gun's user and posture all its
+# Note: at gun.melee_damage_user (after fld [eax+8]) and gun.melee_falloff_user
+# (after fld1) one x87 slot is in use: the handlers must do no x87 float work.
 # life (its stance at the constructor, its melee damage at every step): the
 # gun's player and its held battery's posture instead. Hot functions (every
 # shot's stance, every melee step): the entries call the handlers for a null

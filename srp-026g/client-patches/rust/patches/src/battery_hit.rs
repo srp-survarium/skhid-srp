@@ -26,10 +26,11 @@ pub fn on_logic(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// Carry -> swing: the carrier alive with the melee key down (after
-/// carry -> put, which a switch away takes first).
+/// Carry -> swing: the carrier alive with the melee key down and not in
+/// the air, the gun-stock hit's rules for a carrier (after carry -> put,
+/// which a switch away takes first).
 pub fn on_wants_swing(buffer: PredicateBuffer<'_>) -> bool {
-    buffer.carrier().is_some_and(|carrier| carrier.melee_down())
+    buffer.carrier().is_some_and(|carrier| carrier.melee_down() && !carrier.airborne())
 }
 
 /// The swing left (by its machine, or the battery put away): the native

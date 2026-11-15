@@ -23,11 +23,30 @@ use super::project::NativeVtable;
 use super::world::read;
 use crate::raw;
 
-/// A state's kind (+20h): take, carry and put (their constructors 0x338968,
-/// 0x338C09, 0x338F28).
-const TAKE: u32 = 1;
-const CARRY: u32 = 3;
-const PUT: u32 = 2;
+/// A battery state's kind (+20h, their constructors 0x338968, 0x338C09,
+/// 0x338F28); the swing is of the carry's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kind {
+    Take = 1,
+    Put = 2,
+    Carry = 3,
+}
+
+impl Kind {
+    fn parse(raw: u32) -> Option<Kind> {
+        match raw {
+            1 => Some(Kind::Take),
+            2 => Some(Kind::Put),
+            3 => Some(Kind::Carry),
+            _ => None,
+        }
+    }
+}
+
+/// A posture's motion (+24h) of a jump (player_logic_stand_jump_state,
+/// 0x336B87): in the air, where weapon_core::melee_pred 0x2E4100 refuses
+/// the gun-stock hit.
+const JUMP: u32 = 4;
 
 /// The machine's states as initialize_logic leaves them.
 const MADE_STATES: u32 = 3;
@@ -94,7 +113,7 @@ impl<'t> MadeBattery<'t> {
             }
             let swing = raw::engine_battery_take_state(room, Some(battery), Some(self.put_clips), time)
                 .ok_or(NoSwing::OutOfMemory)?;
-            *swing.kind() = CARRY;
+            *swing.kind() = Kind::Carry as u32;
             *swing.vtable() = methods.address();
             // Appended as initialize_logic appends (0x301A28..0x301A4A).
             swing.set_next(None);
@@ -131,8 +150,8 @@ unsafe fn made_states(battery: raw::VictoryItemCore)
         let take = battery.machine_head()?;
         let carry = take.next()?;
         let put = carry.next()?;
-        let kinds = [take, carry, put].map(|s| read(s.kind()));
-        (kinds == [TAKE, CARRY, PUT] && put.next().is_none() && battery.machine_tail() == Some(put)
+        let kinds = [take, carry, put].map(|s| Kind::parse(read(s.kind())));
+        (kinds == [Some(Kind::Take), Some(Kind::Carry), Some(Kind::Put)] && put.next().is_none() && battery.machine_tail() == Some(put)
             && read(take.vtable()) == raw::image::take_state_methods().address())
             .then_some((take, carry, put))
     }
@@ -195,9 +214,10 @@ impl<'t> PredicateBuffer<'t> {
     }
 }
 
-/// A battery's carrier (its +8, alive).
+/// A battery's carrier (its +8, alive), and the battery.
 pub struct Carrier<'t> {
     player: raw::Player,
+    battery: raw::VictoryItemCore,
     _thread: &'t Thread,
 }
 
@@ -207,7 +227,7 @@ impl<'t> Carrier<'t> {
     unsafe fn of(thread: &'t Thread, battery: raw::VictoryItemCore) -> Option<Carrier<'t>> {
         unsafe {
             let player = battery.user()?;
-            (read(player.alive()) != 0).then_some(Carrier { player, _thread: thread })
+            (read(player.alive()) != 0).then_some(Carrier { player, battery, _thread: thread })
         }
     }
 
@@ -216,6 +236,18 @@ impl<'t> Carrier<'t> {
         // SAFETY: the live carrier's current input (set_input 0x2D876C).
         let actions = ActionMask::from_bits(unsafe { read(self.player.actions()) });
         actions.intersection(ActionMask::MELEE) == ActionMask::MELEE
+    }
+
+    /// In the air: its posture now (the battery's clip set's, +1ACh -> +20h)
+    /// a jump's (+24h 4), as weapon_core::melee_pred 0x2E4100 reads a held
+    /// gun's. The gun's other rule, not aimed (+5E8h), has no carrier's
+    /// counterpart: a carrier does not aim.
+    pub fn airborne(&self) -> bool {
+        // SAFETY: the live battery's clip set, ticked with it.
+        unsafe {
+            self.battery.user_animations().and_then(|a| a.posture())
+                .is_some_and(|posture| read(posture.motion()) == JUMP)
+        }
     }
 
     /// The gun-stock hit's bullet (0x33AB50's emit_bullet) of its first gun
@@ -292,8 +324,8 @@ unsafe fn battery_posture(player: raw::Player) -> Option<raw::PostureState> {
 /// filtered to EAX 0: a deactivated gun, whose bullets are only the swing's
 /// strike (no gun shoots natively while it is not held). EAX becomes the
 /// gun's player, so the game reads that player's alive byte, kit and
-/// profile, as it reads a held gun's user's. A gun with no player is left
-/// as it is (the game's own fault, not a skip).
+/// profile, as it reads a held gun's user's. A gun with no player is the
+/// patch's crash (named), never a skip.
 pub fn substitute_player(ctx: &mut Context<'_>, site: UserSite) {
     // SAFETY: each site's ECX, the gun whose user (EAX) it just read, alive
     // while the game reads it, on its thread.
@@ -305,9 +337,8 @@ pub fn substitute_player(ctx: &mut Context<'_>, site: UserSite) {
         };
         gun.and_then(|gun| player_of(gun))
     };
-    if let Some(player) = player {
-        ctx.set_reg(super::Reg::Eax, player.address());
-    }
+    let player = player.expect("patch 143: a deactivated gun read by a bullet has a player (its inventory's holder)");
+    ctx.set_reg(super::Reg::Eax, player.address());
 }
 
 /// A site reading a gun's user.
@@ -321,14 +352,13 @@ pub enum UserSite {
 /// `gun.stance_posture`, filtered to EAX 0 (a deactivated gun's clip set has
 /// no posture): EAX becomes the posture of the gun's player's held battery,
 /// the carrier's posture now, so the strike's stance is the one a held gun
-/// gives in it. None (no battery held) is left as it is.
+/// gives in it. None (no battery held) is the patch's crash (named).
 pub fn substitute_posture(ctx: &mut Context<'_>) {
     // SAFETY: the site's ECX, the gun whose posture (EAX) it just read,
     // alive, on its thread.
     let posture = unsafe {
         raw::site::gun_stance_posture::gun(ctx).and_then(|gun| battery_posture(player_of(gun)?))
     };
-    if let Some(posture) = posture {
-        ctx.set_reg(super::Reg::Eax, posture.address());
-    }
+    let posture = posture.expect("patch 143: a deactivated gun's player holds a battery with a posture");
+    ctx.set_reg(super::Reg::Eax, posture.address());
 }

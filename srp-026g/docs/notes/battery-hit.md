@@ -31,7 +31,11 @@
 ## The rules
 
 - **When:** carrying (the carry state), the melee key down (level, as the gun's: held, it
-  swings again once a swing ends). Not during the take or the put, not while switching away.
+  swings again once a swing ends). Not during the take or the put, not while switching away,
+  not in the air (the gun-stock hit's rule, weapon_core::melee_pred 0x2E4100: the posture's
+  motion +24h 4 is a jump, player_logic_stand_jump_state 0x336B87; 0 on site, 2 run, 3 sprint,
+  so sprinting may swing as the gun may; read from the battery's clip set). The gun's other
+  rule, not aimed (+5E8h), has no carrier's counterpart. melee_pred has no +5ECh test.
 - **Who:** every carrier, bots too (their `attack_melee` presses the key in melee range).
 - **Effect:** at the swing's end, one melee bullet as the gun-stock hit's: from the eye, along
   the look, the carrier's primary gun's (slot 7) melee data and distance. The carrier keeps the
@@ -122,7 +126,11 @@
   the inventory's holder +174h, the player's +108h interface: 0x1F17A0 in both player classes'
   vtables, so every game has it, a late joiner's and a replay's too) and that player's held
   battery's posture (+1ACh -> +20h, the clip set states of the gun's own kind). No write, so no
-  lifetime and nothing in a saved world. Not used: the gun's +594h (only set_user writes it; a
+  lifetime and nothing in a saved world. Should the gun have no player or its player no
+  battery's posture, the handler panics with the patch's name (never in a match: kits are built
+  with their inventory). At the two damage sites (after `fld [eax+8]`, after `fld1`) one x87
+  slot is in use: their handlers do no x87 work, and must not.
+  Not used: the gun's +594h (only set_user writes it; a
   joiner's never-held gun has 0); a lend of the user (weapon_core::serialize writes its in-hand
   part only when +8 is set, 0x2E3232: a lend alive at a save would misalign every loading game).
 
@@ -161,11 +169,15 @@
     the carrier alive; a dead carrier's swing may be put away, a living one's not;
   - saved mid-swing and loaded by another game: its swing current, every field the same;
   - no gun in either slot (never in a match): the patch's own crash;
+  - the melee key while the carrier's posture is a jump: the carry stays (sprint, run: the
+    swing); a strike whose gun has no player: the substitution's named panic;
   - controls in the original exe: the constructor faults at 0x2E43A3, the flight at 0x2E1D00.
   Stubbed: the allocator, a clip's time scale, the animation event channels, the battery's
   transform calls, the bullet pool's room and live-list add, the physics world's ray test and
   bounds, the struck target.
 - `cargo test` and Clippy of the patches crate and srp-validate (state 3 read, 4 refused).
+- `check_world_roundtrip_026g.py`: its three worlds pass; its three coverage failures (0x252B48,
+  0x310224, 0x33A51B, other patches' sites) fail the same on origin/main.
 - Not proven: the pierce or ricochet at 0x32E35C (the same 0x2E1C80, its lohook, not run);
   other hittables' hit (+24h) with a strike's source item (lamps, a battery's body): not
   traced; the victim's hit_impl and the kill and hit events read the source item's slot and

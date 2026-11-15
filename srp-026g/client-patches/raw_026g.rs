@@ -23342,6 +23342,15 @@ impl PostureState {
     pub unsafe fn kind(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x20).cast::<u32>().as_ptr() }
     }
+
+    /// +0x24 (u32): its motion: 0 on site (0x2FABBF), 2 run (0x2FAC16), 3 sprint (0x2FAC71), 4 a jump (player_logic_stand_jump_state 0x336B87); weapon_core::melee_pred 0x2E4100 refuses 4
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn motion(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x24).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,

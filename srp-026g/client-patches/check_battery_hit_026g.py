@@ -427,6 +427,19 @@ def main():
         state = new.tick()
         check(state == (new.states()[3] if want == "swing" else new.carry) and new.emitted == [],
               f"actions {bits:#x}, alive {alive}: the {want}, no strike")
+    for motion, want in ((4, "carry"), (3, "swing"), (2, "swing")):
+        new.made()
+        new.site()
+        new.actions(MELEE)
+        new.word(POSTURE + 0x24, motion)
+        state = new.tick()
+        check(state == (new.states()[3] if want == "swing" else new.carry),
+              f"the key down, the carrier's posture of motion {motion} ({ {4: 'a jump', 3: 'sprint', 2: 'run'}[motion] }): "
+              f"the {want} (the gun-stock hit's rule, melee_pred 0x2E4100)")
+    new.made()
+    new.site()
+    new.actions(MELEE)
+    new.tick()
     check(any(kind == "subscribe" and new.states()[3] in args for kind, args in new.channels)
           and new.read(new.states()[3] + 0x28, 1) == b"\0",
           "the swing waits for its clip's end (subscribed, not ended)")
@@ -536,6 +549,17 @@ def main():
         crashed = new.emu.reg_read(UC_X86_REG_EIP)
     check(new.emitted == [] and crashed is not None and crashed >= 0xA42D000,
           "no gun in slot 7 or 10 (never in a match): the patch's own crash in the arena, not a skipped strike")
+
+    print("a strike whose gun has no player (no inventory holder): the patch's own crash, named")
+    swing = swinging()
+    new.word(INVENTORY + 0x174, 0)
+    new.emu.mem_write(swing + 0x28, b"\x01")
+    try:
+        new.tick()
+        crashed = None
+    except UcError:
+        crashed = new.emu.reg_read(UC_X86_REG_EIP)
+    check(crashed is not None and crashed >= 0xA42D000, "the substitution's panic in the arena, not a fault in the game's code")
 
     print("put away mid-swing (victory_item_core::deactivate 0x300F40, to past its state's finalize)")
     for alive, ended, want in ((1, 0, False), (1, 1, True), (0, 1, False), (0, 0, False)):

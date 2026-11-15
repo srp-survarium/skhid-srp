@@ -1264,3 +1264,4 @@ survarium::posture_state	kind	0x20	u32	what posture it is (0x2E43B9 tests 1, 0x3
 survarium::weapon	item	0x10	obj<survarium::item>	its inventory item (the one its inventory slot holds, a bullet's +0Ch: 0x32BB12)
 survarium::item	battery	0	obj<survarium::victory_item_core>	itself as a battery: only after checking its vtable is victory_item's (0xA042AC) or victory_item_core's (0xA13DBC)
 survarium::image	victory_item_core_vtable	0xA13DBC	u32	victory_item_core's vtable (its main one: set_user +10h 0x300B00, register_animations +20h 0x3018E0, tick +2Ch 0x301240, is_carrying +64h 0x3018C0)
+survarium::posture_state	motion	0x24	u32	its motion: 0 on site (0x2FABBF), 2 run (0x2FAC16), 3 sprint (0x2FAC71), 4 a jump (player_logic_stand_jump_state 0x336B87); weapon_core::melee_pred 0x2E4100 refuses 4
