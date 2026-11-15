@@ -18,7 +18,7 @@ pub(super) struct CamperTrace {
     /// `[place][who]`: the last tick the place's own senses placed `who` (`Track::own`), bots only.
     own: Vec<Vec<Option<u32>>>,
     /// What his motion is doing now (`BenchCamper::trace_now`).
-    now: Option<(char, Vec3, bool)>,
+    now: Option<crate::v026g::bots::tests::TraceNow>,
     hits_seen: usize,
     kills_seen: usize,
     all_kills_seen: usize,
@@ -137,9 +137,10 @@ impl Topic for CamperTrace {
             })
             .collect();
         let (mode, spot, cover) = match self.now {
-            Some((mode, spot, cover)) => (Some(mode.to_string()), Some([r2(spot.x), r2(spot.y), r2(spot.z)]), cover),
+            Some(n) => (Some(n.mode.to_string()), Some([r2(n.spot.x), r2(n.spot.y), r2(n.spot.z)]), n.cover),
             None => (None, None, false),
         };
+        let (hold, enemy_near, leaves_by_kill) = self.now.map_or((None, None, None), |n| (Some(n.hold.to_string()), Some(n.enemy_near), Some(n.leaves_by_kill)));
         let line = serde_json::json!({
             "t": tick,
             "c": [
@@ -156,6 +157,9 @@ impl Topic for CamperTrace {
                 spot,
                 u8::from(cover),
                 me.keys,
+                hold,
+                enemy_near,
+                leaves_by_kill,
             ],
             "e": enemies,
         });

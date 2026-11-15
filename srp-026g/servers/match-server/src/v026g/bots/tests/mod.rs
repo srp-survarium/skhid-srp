@@ -138,7 +138,7 @@ use tallies::{fight_tally, owner};
 use bench::*;
 pub(crate) use camper::*;
 mod camper_move;
-pub(crate) use camper_move::{Arrival, BenchCamper, CamperAt, CamperStart, LiveLeave, MoveOptions};
+pub(crate) use camper_move::{Arrival, BenchCamper, CamperAt, CamperStart, LiveLeave, MoveOptions, TraceNow};
 pub(crate) use standin_aim::human_tuning;
 pub(crate) use bench::bench_tuning;
 pub(crate) use standin_hunter::{HumanPlay, Hunt, camper_tuning, hunter_tuning};

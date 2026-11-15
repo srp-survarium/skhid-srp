@@ -1248,6 +1248,20 @@ fn other_spot(tactics: &Tactics, side: i32, options: &CamperOptions, from: Vec3)
 /// The stand-in camper of a run (`SRP_BENCH_CAMPER=<place>`, `campers.md` K1 §4): that place's bot goes to a spot and holds it,
 /// whatever its play; the reflex fires on sight.
 #[derive(Clone, Debug)]
+/// [camper trace] What the camper's motion does at a tick: `mode` `S` a stay, `L` a leave, `R` a wait to return after a death; the
+/// spot; whether he holds the stay's cover; the stay's hold, `C` cover, `O` a peek out, `H` a step to another area point (after a
+/// kill or a hit), `-` outside a stay; and the two leave rules' counts so far (the near-enemy rule's and the per-kill draw's
+/// leaves decided), so that a reader can tell which rule set each leave.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct TraceNow {
+    pub(crate) mode: char,
+    pub(crate) spot: Vec3,
+    pub(crate) cover: bool,
+    pub(crate) hold: char,
+    pub(crate) enemy_near: u32,
+    pub(crate) leaves_by_kill: u32,
+}
+
 pub(crate) struct BenchCamper {
     place: Place,
     options: CamperOptions,
@@ -1332,18 +1346,26 @@ impl BenchCamper {
         }
     }
 
-    /// [camper trace] What his motion does now: `S` a stay, `L` a leave, `R` a wait to return after a death; its spot; whether he
-    /// holds the stay's cover. None unless he works an area ([`CamperState::Moving`]).
-    pub(crate) fn trace_now(&self) -> Option<(char, Vec3, bool)> {
+    /// [camper trace] What his motion does now ([`TraceNow`]). None unless he works an area ([`CamperState::Moving`]).
+    pub(crate) fn trace_now(&self) -> Option<TraceNow> {
         let CamperState::Moving { motion, .. } = &self.state else {
             return None;
         };
-        let mode = match &motion.mode {
-            Mode::Stay { .. } => 'S',
-            Mode::Leave { .. } => 'L',
-            Mode::Return { .. } => 'R',
+        let (mode, hold) = match &motion.mode {
+            Mode::Stay { hold: Hold::Cover { .. }, .. } => ('S', 'C'),
+            Mode::Stay { hold: Hold::Out { .. }, .. } => ('S', 'O'),
+            Mode::Stay { hold: Hold::Shift { .. }, .. } => ('S', 'H'),
+            Mode::Leave { .. } => ('L', '-'),
+            Mode::Return { .. } => ('R', '-'),
         };
-        Some((mode, motion.spot(), motion.holds_cover()))
+        Some(TraceNow {
+            mode,
+            spot: motion.spot(),
+            cover: motion.holds_cover(),
+            hold,
+            enemy_near: motion.counts.enemy_near,
+            leaves_by_kill: motion.counts.leaves_by_kill,
+        })
     }
 
     /// The spot he began at and how many route points it sees, once found.
