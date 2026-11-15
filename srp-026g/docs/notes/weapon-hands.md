@@ -93,10 +93,17 @@ copies (`.../hands_only/reload_beretta93r`, `reload_empty_beretta93r`).
 | Glock 17 | 202.0/201.2 -> 0/0 | 339.3/261.4 -> 0/0 | 270.6/266.3 -> 0/0 |
 | Colt M1911 | 202.0/201.2 -> 0/0 | 333.3/261.4 -> 0/0 | 269.6/266.3 -> 0/0 |
 | CZ 75, MP-443 | 202.0/201.2 -> 1.4/1.2 | 203.2/201.5 -> 0/0 | 203.8/201.2 -> 0/0 |
-| Beretta 93R | 202.0/201.2 -> 1.4/1.2 | 203.2/201.5 -> 0/0 | 203.8/201.2 -> 127.3/37.3 (its fast empty reload is mostly blends) |
+| Beretta 93R | 202.0/201.2 -> 1.4/1.2 | 203.2/201.5 -> 0/0 | 203.8/201.2 -> 0/0 (127.3/37.3 was the empty hands measured against the tactical item clip: see below) |
 
 The worst frames left are the IK's own blends (a hand moving from one target to the next over
 100 or 300 ms) and the draws and holsters, where the clips take the hands off the gun.
+
+The pairing: `hand-contact` played a hands clip with the gun's clip of the same name, else the
+first, so the Beretta's own `reload_empty_beretta93r` was measured against its tactical item clip
+(127.3/37.3 mm). Measured with the item of its slot, as the engine plays it (0x30FE90;
+resource-porter #51 and #47), it is on the gun, 0.0/0.0 mm median. The bake was right all along:
+it pairs the donor's names (`pm/reload_empty` with `reload_empty`), and the port rebuilt with the
+slot pairing makes every hands clip of weapons-046 byte for byte.
 
 ## Not done, not seen
 
