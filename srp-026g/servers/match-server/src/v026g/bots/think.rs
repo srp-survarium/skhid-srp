@@ -235,6 +235,7 @@ impl Bots {
                 bot.traced.push(line);
             }
             bot.traced.extend(bot.reflex.take_gate_note());
+            bot.traced.extend(bot.reflex.take_burst_note());
             let (input, turn) = bot.encoder.encode(time, decision);
             let keys = bot.encoder.keys();
             // [recoil] The part of the pitch turn the kick takes, and the

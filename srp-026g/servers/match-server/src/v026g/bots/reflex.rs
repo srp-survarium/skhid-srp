@@ -1445,6 +1445,193 @@ impl Default for BurstPause {
     }
 }
 
+/// [range-fire] One point of the live humans' bursts: at `at_m` (the median distance of the bursts of the band it stands for),
+/// the held ms of a burst at the deciles 0, 10, ... 100 % (`q`, never falling).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HeldPoint {
+    pub at_m: f32,
+    pub q: [u32; 11],
+}
+
+/// [range-fire] The bursts of two groups of live accounts with one weapon class, by distance ([`HumanBursts`]): `typical` is
+/// the median group by hit rate (skill 0), `best` the top tenth (skill 1). Each list is in rising `at_m`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HeldGroups {
+    pub typical: Vec<HeldPoint>,
+    pub best: Vec<HeldPoint>,
+}
+
+/// [range-fire] **Switch (default on).** An automatic weapon's burst drawn from the live humans' held ms of a burst
+/// (`FireTuning::burst_human`) instead of the best players' tap-or-hold rows (`FireTuning::smg`, `rifle`).
+///
+/// The data: every burst with a class of the accounts of 150+ bullets of the class, humans against humans (the live sets
+/// A 190, 2026-10-16..22, and A 50, 2026-11-01..04, pooled); a burst is a run of 50 ms ticks with the fire key held in the
+/// client's own inputs (PROVEN keys), its band the median distance to the nearest enemy over its fire ticks (routes' band
+/// rule: [0, 10), [10, 20), [20, 40), 40+ m; the positions between two worlds are linear, LIKELY). The groups by each
+/// account's hit rate over every bullet of the class: rifles' median group 13.6-15.5 % (26 accounts), top tenth 17.7 %+ (13);
+/// SMGs' 14.4-16.0 % (22), 20.0 %+ (11).
+///
+/// The draw ([`Self::held_ms`]): each decile is linear in distance between the points (flat beyond the ends) and mixed by
+/// the skill between the two groups, so the length moves smoothly with both and has no step at a band's edge; one uniform
+/// draw a burst reads the mixed deciles (linear between two). A length of one cycle of the weapon or less is a tap
+/// (`FireTuning::tap_ms`). Why (the rifle range trace): at skill 0.3 the bots held the best players' long bursts with 35 %
+/// of the kick left on the view, so a rifle's later rounds rose over the target at 40+ m (AKS-74U 16.2 % one round, 10.2 %
+/// at 11+); the humans hold shorter there (rifle 40+ m median held 450 ms, the top tenth 250 ms).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct HumanBursts {
+    pub smg: HeldGroups,
+    pub rifle: HeldGroups,
+}
+
+impl HumanBursts {
+    /// The live humans' numbers (routes' table of held ms over every burst, by class, band and group).
+    pub fn humans() -> Self {
+        let p = |at_m, q| HeldPoint { at_m, q };
+        Self {
+            rifle: HeldGroups {
+                typical: vec![
+                    p(6.7, [50, 150, 450, 600, 700, 800, 950, 1050, 1250, 1550, 3300]),
+                    p(15.4, [50, 100, 300, 500, 650, 800, 950, 1100, 1350, 1650, 4500]),
+                    p(28.5, [50, 100, 150, 250, 500, 650, 850, 1000, 1200, 1650, 4700]),
+                    p(50.0, [50, 50, 100, 150, 200, 450, 650, 850, 1100, 1500, 3450]),
+                ],
+                best: vec![
+                    p(7.0, [50, 150, 250, 450, 600, 700, 850, 950, 1150, 1500, 3250]),
+                    p(15.6, [50, 100, 200, 350, 550, 700, 850, 950, 1200, 1500, 3500]),
+                    p(28.7, [50, 100, 150, 200, 450, 600, 700, 900, 1100, 1550, 3100]),
+                    p(50.4, [50, 100, 100, 150, 150, 250, 500, 750, 900, 1300, 3100]),
+                ],
+            },
+            smg: HeldGroups {
+                typical: vec![
+                    p(6.9, [50, 250, 500, 600, 700, 800, 900, 1050, 1200, 1500, 2850]),
+                    p(15.0, [50, 200, 400, 600, 700, 800, 900, 1050, 1250, 1600, 3100]),
+                    p(27.8, [50, 150, 350, 550, 650, 800, 900, 1100, 1300, 1600, 2900]),
+                    p(50.7, [50, 100, 200, 350, 550, 700, 850, 950, 1200, 1550, 2850]),
+                ],
+                best: vec![
+                    p(6.4, [50, 350, 500, 600, 700, 800, 900, 1050, 1300, 1500, 2500]),
+                    p(14.5, [50, 300, 500, 600, 700, 800, 950, 1150, 1350, 1650, 2750]),
+                    p(27.7, [50, 150, 350, 550, 650, 750, 900, 1050, 1300, 1600, 2850]),
+                    p(52.0, [50, 100, 200, 500, 600, 700, 850, 1000, 1250, 1550, 2900]),
+                ],
+            },
+        }
+    }
+
+    fn groups(&self, class: AutoClass) -> &HeldGroups {
+        match class {
+            AutoClass::Smg => &self.smg,
+            AutoClass::Rifle => &self.rifle,
+        }
+    }
+
+    /// The deciles of a burst's held ms at `distance` metres and `skill` (0 the median group, 1 the top tenth), never
+    /// falling: each group's deciles linear in distance between its points, then mixed by the skill decile by decile.
+    pub fn deciles(&self, class: AutoClass, distance: f32, skill: f32) -> [f32; 11] {
+        let groups = self.groups(class);
+        let (typical, best) = (at_distance(&groups.typical, distance), at_distance(&groups.best, distance));
+        std::array::from_fn(|k| mix((typical[k], best[k]), skill))
+    }
+
+    /// A burst's held ms at `distance` and `skill` for the uniform draw `u`: the mixed deciles read at `u`, linear between
+    /// two.
+    pub fn held_ms(&self, class: AutoClass, distance: f32, skill: f32, u: f32) -> f32 {
+        let q = self.deciles(class, distance, skill);
+        let x = u.clamp(0.0, 1.0) * 10.0;
+        let k = (x as usize).min(9);
+        q[k] + (q[k + 1] - q[k]) * (x - k as f32)
+    }
+
+    /// Each list has a point, its points in strictly rising `at_m` (finite, not negative), each point's deciles above 0 and
+    /// never falling.
+    pub fn valid(&self) -> bool {
+        let list = |points: &[HeldPoint]| {
+            !points.is_empty()
+                && points.iter().all(|p| p.at_m.is_finite() && p.at_m >= 0.0 && p.q[0] > 0 && p.q.windows(2).all(|w| w[0] <= w[1]))
+                && points.windows(2).all(|w| w[0].at_m < w[1].at_m)
+        };
+        [&self.smg, &self.rifle].iter().all(|g| list(&g.typical) && list(&g.best))
+    }
+}
+
+impl Default for HumanBursts {
+    fn default() -> Self {
+        Self::humans()
+    }
+}
+
+/// One group's deciles at `distance`: linear between the two points around it, the nearest point's beyond the ends.
+fn at_distance(points: &[HeldPoint], distance: f32) -> [f32; 11] {
+    let as_f32 = |p: &HeldPoint| p.q.map(|v| v as f32);
+    match points.iter().position(|p| distance <= p.at_m) {
+        Some(0) => as_f32(&points[0]),
+        Some(i) => {
+            let (a, b) = (&points[i - 1], &points[i]);
+            let t = (distance - a.at_m) / (b.at_m - a.at_m);
+            std::array::from_fn(|k| mix((a.q[k] as f32, b.q[k] as f32), t))
+        }
+        None => points.last().map_or([0.0; 11], as_f32),
+    }
+}
+
+/// [range-fire] The bursts begun by bots, as the match-end line (`the bots' bursts: ...`): by class (SMG, rifle) and routes'
+/// band (0-10, 10-20, 20-40, 40+ m, a tally's bins only): bursts drawn from the humans' deciles, of them taps, their planned
+/// ms summed; bursts drawn from the best players' rows (the switch off); and the pull against the kick in effect, summed in
+/// thousandths over every burst begun.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BurstStats {
+    pub human: [[u32; 4]; 2],
+    pub taps: [[u32; 4]; 2],
+    pub planned_ms: [[u64; 4]; 2],
+    pub rows: [[u32; 4]; 2],
+    pub pull_milli: u64,
+    pub bursts: u32,
+}
+
+impl BurstStats {
+    /// The tally's bin of `distance`: routes' bands.
+    pub fn band(distance: f32) -> usize {
+        [10.0, 20.0, 40.0].iter().filter(|&&edge| distance >= edge).count()
+    }
+
+    pub fn add(&mut self, other: &Self) {
+        let add = |a: &mut [[u32; 4]; 2], b: &[[u32; 4]; 2]| a.iter_mut().flatten().zip(b.iter().flatten()).for_each(|(a, b)| *a += b);
+        add(&mut self.human, &other.human);
+        add(&mut self.taps, &other.taps);
+        add(&mut self.rows, &other.rows);
+        self.planned_ms.iter_mut().flatten().zip(other.planned_ms.iter().flatten()).for_each(|(a, b)| *a += b);
+        self.pull_milli += other.pull_milli;
+        self.bursts += other.bursts;
+    }
+
+    /// `smg [h/t/ms ...] rifle [...] rows [...] pull mean`: per band, bursts from the humans' deciles / taps / mean planned ms.
+    pub fn line(&self) -> String {
+        let class = |c: usize| {
+            (0..4)
+                .map(|b| {
+                    let n = self.human[c][b];
+                    let mean = if n == 0 { 0 } else { self.planned_ms[c][b] / u64::from(n) };
+                    format!("{n}/{}/{mean}", self.taps[c][b])
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+        let pull = if self.bursts == 0 { 0.0 } else { self.pull_milli as f64 / 1000.0 / f64::from(self.bursts) };
+        format!(
+            "human bursts/taps/mean ms by band 0-10 10-20 20-40 40+: smg [{}] rifle [{}]; from the rows: smg {:?} rifle {:?}; pull in effect mean {pull:.3} over {} bursts",
+            class(0),
+            class(1),
+            self.rows[0],
+            self.rows[1],
+            self.bursts
+        )
+    }
+}
+
 /// How the bots fire each kind of weapon ([`super::guns::Handling`], read
 /// from the weapon's config), from the best players of the 631 recorded
 /// matches of 6+ players of 2026-10-16..22 (`player_bots_weapons.md` §3,
@@ -1469,6 +1656,9 @@ pub struct FireTuning {
     /// the flat draw; `Some` is on, the players' numbers being [`BurstPause::players`]. On by default (#902: far shots +10 % z +4.3, far
     /// hits +9.6 % z +2.8 in the by-side bench, no cost).
     pub burst_pause: Option<BurstPause>,
+    /// [range-fire] A burst's length drawn from the live humans' bursts by class, distance and skill ([`HumanBursts`]); `None`
+    /// (all-off): the rows above.
+    pub burst_human: Option<HumanBursts>,
     /// A tap's hold, ms.
     pub tap_ms: (u32, u32),
     /// A one-round weapon without a bolt (marksman rifles, pistols,
@@ -1535,6 +1725,7 @@ impl Default for FireTuning {
                 burst(f32::MAX, 0.61, (250, 650)),
             ],
             burst_pause: Some(BurstPause::players()),
+            burst_human: Some(HumanBursts::humans()),
             tap_ms: (100, 200),
             semi_wait: vec![
                 wait(20.0, (0, 150)),
@@ -3806,6 +3997,9 @@ pub struct Reflex {
     /// [measure] [A241] Its ticks with the trigger held and the aim sway taken back (`aim_sway_counter`; an automatic fires at
     /// its own cadence, about every other tick), and the degrees taken back in all.
     sway_taken: (u32, f32),
+    /// [measure] [range-fire] Its bursts begun this life ([`BurstStats`]), and the last one's note for the trace.
+    burst_stats: BurstStats,
+    burst_note: Option<serde_json::Value>,
     /// [A241] Whether the client sways its aimed automatic shots, as its host says ([`Self::set_client_sway`]).
     client_sway: super::recoil::ClientSway,
     /// [A263] The error its view was last turned to, and at whom: what the view carries at the next tick (`fire_body_share`'s gate).
@@ -4453,6 +4647,16 @@ impl Reflex {
     /// [measure] [A241] Its ticks with the trigger held and the aim sway taken back, and the degrees taken back in all.
     pub fn sway_taken(&self) -> (u32, f32) {
         self.sway_taken
+    }
+
+    /// [measure] [range-fire] Its bursts begun this life.
+    pub fn burst_stats(&self) -> BurstStats {
+        self.burst_stats
+    }
+
+    /// [range-fire] The note of the burst begun last, once: planned length, band, the draw and the pull in effect.
+    pub fn take_burst_note(&mut self) -> Option<serde_json::Value> {
+        self.burst_note.take()
     }
 
     /// [A241] What its host says of the client's aim sway, each tick before [`Self::tick`].
@@ -8198,7 +8402,7 @@ impl Reflex {
             self.held_ms = 0;
             self.strafe = 0;
             self.strafe_until = 0;
-            if let Some(over) = self.fire_through((me, view), now, fire_allowed, aim, (legs, reload, carry), rng) {
+            if let Some(over) = self.fire_through((me, view), now, fire_allowed, (aim, skill), (legs, reload, carry), rng) {
                 return over;
             }
             // Play 21: the partner's death spot within `trade_m`, weapon
@@ -8509,7 +8713,7 @@ impl Reflex {
         let mut wants = false;
         let burst = matches!(gun.handling, Handling::Burst(_));
         if open && blocked.is_none() {
-            if self.shot_wanted(gun, now, distance, aim, rng) {
+            if self.shot_wanted(gun, now, distance, (aim, skill), rng) {
                 wants = true;
             } else {
                 failed |= gate::PAUSE;
@@ -8637,15 +8841,51 @@ impl Reflex {
 
     /// Whether the trigger is to be pressed for a shot that may go: an automatic weapon in bursts (a burst begun is held to its
     /// end; a new one after its pause), any other weapon at every cycle of its own. False: in the pause between two bursts.
-    fn shot_wanted(&mut self, gun: &Gun, now: u32, distance: f32, aim: &AimTuning, rng: &mut Rng) -> bool {
+    fn shot_wanted(&mut self, gun: &Gun, now: u32, distance: f32, (aim, skill): (&AimTuning, f32), rng: &mut Rng) -> bool {
         let c = &aim.combat;
         match gun.handling {
             Handling::Burst(_) if now < self.burst_until => true,
-            // A burst as long as the best players hold this kind of
-            // weapon at this distance (a tap, more often far).
+            // [range-fire] A burst as long as the live humans hold this class at this distance, by the skill (a tap when it is
+            // one cycle or less); with the switch off, as the best players hold it (a tap, more often far).
             Handling::Burst(class) if now >= self.pause_until => {
                 let class = c.fire.auto_class(gun, class);
-                let hold = c.fire.burst_ms(class, distance, aim.burst_ms, rng);
+                let (c_i, band) = (usize::from(class == AutoClass::Rifle), BurstStats::band(distance));
+                let pull = mix((c.recoil_pull_low, c.recoil_pull), skill);
+                let hold = match &c.fire.burst_human {
+                    Some(human) => {
+                        let u = rng.unit();
+                        let drawn = human.held_ms(class, distance, skill, u);
+                        let cycle_ms = 60_000.0 / gun.rpm.max(1) as f32;
+                        let tap = drawn <= cycle_ms;
+                        let hold = if tap {
+                            rng.range(c.fire.tap_ms.0 as f32, c.fire.tap_ms.1 as f32) as u32
+                        } else {
+                            drawn as u32
+                        };
+                        self.burst_stats.human[c_i][band] += 1;
+                        self.burst_stats.taps[c_i][band] += u32::from(tap);
+                        self.burst_stats.planned_ms[c_i][band] += u64::from(hold);
+                        self.burst_note = Some(serde_json::json!({
+                            "t": now, "burst": "human", "class": if c_i == 1 { "rifle" } else { "smg" },
+                            "distance": (distance * 10.0).round() / 10.0, "band": band, "skill": (skill * 1000.0).round() / 1000.0,
+                            "u": (u * 1000.0).round() / 1000.0, "drawn_ms": drawn.round(), "cycle_ms": cycle_ms.round(),
+                            "tap": tap, "hold_ms": hold, "pull": (pull * 1000.0).round() / 1000.0,
+                        }));
+                        hold
+                    }
+                    None => {
+                        let hold = c.fire.burst_ms(class, distance, aim.burst_ms, rng);
+                        self.burst_stats.rows[c_i][band] += 1;
+                        self.burst_note = Some(serde_json::json!({
+                            "t": now, "burst": "rows", "class": if c_i == 1 { "rifle" } else { "smg" },
+                            "distance": (distance * 10.0).round() / 10.0, "band": band, "hold_ms": hold,
+                            "pull": (pull * 1000.0).round() / 1000.0,
+                        }));
+                        hold
+                    }
+                };
+                self.burst_stats.pull_milli += (pull * 1000.0).round() as u64;
+                self.burst_stats.bursts += 1;
                 self.burst_until = now + hold;
                 let pause = c
                     .fire
@@ -8671,7 +8911,7 @@ impl Reflex {
         (me, view): (&PlaceView, &MatchView),
         now: u32,
         fire_allowed: bool,
-        aim: &AimTuning,
+        (aim, skill): (&AimTuning, f32),
         (legs, reload, carry): (Option<Legs>, u32, bool),
         rng: &mut Rng,
     ) -> Option<Override> {
@@ -8726,7 +8966,7 @@ impl Reflex {
         // A burst of an automatic weapon begun here leaves the pause after it as it was: the pause belongs to fire at a target
         // seen, and would delay the next real shot (the first bench, -2.9 % shots at a target).
         let (began_burst, pause_before) = (burst_gun && self.burst_until <= now, self.pause_until);
-        if !self.shot_wanted(gun, now, distance, aim, rng) {
+        if !self.shot_wanted(gun, now, distance, (aim, skill), rng) {
             return None;
         }
         if began_burst {
@@ -9123,7 +9363,7 @@ mod tests {
     }
 
     fn combat_off() -> CombatTuning {
-        crate::v026g::bots::tuning::Tuning::all_off().aim.combat
+        super::super::tuning::Tuning::all_off().aim.combat
     }
 
     /// The error angles go with the zoom as the client's look step does: nothing when off, the scope's 0.25 aimed in (halfway
@@ -10546,6 +10786,109 @@ mod tests {
         assert_eq!(c.fire.strafe_chance(rpd), 1.0);
     }
 
+    /// The distances the walks below look at: every point of both groups, routes' band edges and either side of them, near
+    /// and far beyond the points.
+    fn human_distances(groups: &HeldGroups) -> Vec<f32> {
+        let mut at: Vec<f32> = groups.typical.iter().chain(&groups.best).map(|p| p.at_m).collect();
+        at.extend([0.0, 5.0, 9.0, 10.0, 11.0, 19.0, 20.0, 21.0, 39.0, 40.0, 41.0, 60.0, 80.0, 120.0]);
+        at
+    }
+
+    /// [range-fire] Skill 0.0 to 1.0 in steps of 0.1, for each class, at every point and band edge and five draws: the burst
+    /// moves one way only (either way: the data says which), each step by a tenth of its whole change at most; the pull against
+    /// the kick never falls, never passes 1, and each step moves it by a tenth of its range at most.
+    #[test]
+    fn a_human_burst_and_the_pull_move_smoothly_one_way_with_the_skill() {
+        let human = HumanBursts::humans();
+        assert!(human.valid());
+        let steps: Vec<f32> = (0..=10).map(|i| i as f32 / 10.0).collect();
+        for (class, groups) in [(AutoClass::Smg, &human.smg), (AutoClass::Rifle, &human.rifle)] {
+            for d in human_distances(groups) {
+                for u in [0.05, 0.25, 0.5, 0.75, 0.95] {
+                    let len: Vec<f32> = steps.iter().map(|&s| human.held_ms(class, d, s, u)).collect();
+                    let whole = len[10] - len[0];
+                    for w in len.windows(2) {
+                        let step = w[1] - w[0];
+                        assert!(step * whole >= -1e-3, "{class:?} {d} m u {u}: not one way {len:?}");
+                        assert!(step.abs() <= whole.abs() / 10.0 + 0.01, "{class:?} {d} m u {u}: a jump {len:?}");
+                    }
+                }
+            }
+        }
+        let c = CombatTuning::default();
+        let pull: Vec<f32> = steps.iter().map(|&s| mix((c.recoil_pull_low, c.recoil_pull), s)).collect();
+        for w in pull.windows(2) {
+            assert!(w[1] >= w[0] && w[1] <= 1.0, "{pull:?}");
+            assert!(w[1] - w[0] <= (c.recoil_pull - c.recoil_pull_low) / 10.0 + 1e-6, "{pull:?}");
+        }
+        assert!(pull[10] <= 1.0 && pull[0] >= 0.0, "{pull:?}");
+    }
+
+    /// [range-fire] Distance 0 to 120 m in steps of 1 m at skill 0, 0.5 and 1 and five draws: no step moves the burst more
+    /// than the steepest slope of any decile between two neighbouring points (a bot at 39 m and one at 41 m differ by about
+    /// two metres of slope, no band's step); and the mixed deciles never fall.
+    #[test]
+    fn a_human_burst_has_no_step_in_the_distance() {
+        let human = HumanBursts::humans();
+        for (class, groups) in [(AutoClass::Smg, &human.smg), (AutoClass::Rifle, &human.rifle)] {
+            let slope = [&groups.typical, &groups.best]
+                .iter()
+                .flat_map(|points| points.windows(2))
+                .flat_map(|w| (0..11).map(move |k| (w[1].q[k] as f32 - w[0].q[k] as f32).abs() / (w[1].at_m - w[0].at_m)))
+                .fold(0.0f32, f32::max);
+            for s in [0.0, 0.3, 0.5, 0.6, 1.0] {
+                for d in 0..=120 {
+                    let q = human.deciles(class, d as f32, s);
+                    assert!(q.windows(2).all(|w| w[0] <= w[1]), "{class:?} {d} m skill {s}: {q:?}");
+                }
+                for u in [0.05, 0.25, 0.5, 0.75, 0.95] {
+                    let len: Vec<f32> = (0..=120).map(|d| human.held_ms(class, d as f32, s, u)).collect();
+                    for (d, w) in len.windows(2).enumerate() {
+                        assert!((w[1] - w[0]).abs() <= slope + 0.01, "{class:?} skill {s} u {u}: {d}->{} m {w:?} (slope {slope})", d + 1);
+                    }
+                }
+            }
+        }
+    }
+
+    /// [range-fire] The numbers read as routes' table: a rifle's median burst at 40+ m is the median group's 450 ms at skill 0
+    /// and the top tenth's 250 ms at skill 1, shorter than near; a draw of one cycle or less (a tap) comes as often as the
+    /// mixed deciles give (rifle 40+ m, skill 0, a 700 rpm cycle of 85.7 ms: between the 10 % decile, 50 ms, and the 20 %, 100
+    /// ms, so 17.1 %).
+    #[test]
+    fn a_human_burst_reads_routes_table() {
+        let human = HumanBursts::humans();
+        assert_eq!(human.held_ms(AutoClass::Rifle, 50.0, 0.0, 0.5), 450.0);
+        assert_eq!(human.held_ms(AutoClass::Rifle, 50.4, 1.0, 0.5), 250.0);
+        assert!(human.held_ms(AutoClass::Rifle, 50.0, 0.0, 0.5) < human.held_ms(AutoClass::Rifle, 6.7, 0.0, 0.5));
+        let mut rng = Rng::new(17);
+        let cycle = 60_000.0 / 700.0;
+        let n = 40_000;
+        let taps = (0..n).filter(|_| human.held_ms(AutoClass::Rifle, 50.0, 0.0, rng.unit()) <= cycle).count();
+        let share = taps as f32 / n as f32;
+        let expected = 0.1 + 0.1 * (cycle - 50.0) / 50.0;
+        assert!((share - expected).abs() < 0.01, "{share} against {expected}");
+    }
+
+    /// [range-fire] The check refuses points out of order, a falling decile, a zero decile and an empty list; the all-off
+    /// tuning has the switch off.
+    #[test]
+    fn human_bursts_out_of_order_or_falling_are_refused() {
+        let ok = HumanBursts::humans();
+        let mut swapped = ok.clone();
+        swapped.rifle.typical.swap(0, 1);
+        let mut falling = ok.clone();
+        falling.smg.best[2].q[5] = 10;
+        let mut zero = ok.clone();
+        zero.rifle.best[0].q[0] = 0;
+        let mut empty = ok.clone();
+        empty.smg.typical.clear();
+        for bad in [swapped, falling, zero, empty] {
+            assert!(!bad.valid(), "{bad:?}");
+        }
+        assert_eq!(super::super::tuning::Tuning::all_off().aim.combat.fire.burst_human, None);
+    }
+
     /// The best players' bursts get shorter with the distance: a rifle is
     /// held to 35 m and mostly tapped beyond 60 m; a submachine gun is held
     /// longer than a rifle at every distance.
@@ -11886,7 +12229,7 @@ mod tests {
         let retreat = Retreat { margin_m: 0.5, told_ms: 400 };
         let roll = |pace: Option<ClosePace>| {
             let combat = CombatTuning { grenade_close: true, grenade_trace: true, grenade_close_pace: pace, ..combat_off() };
-            let aim = AimTuning { combat, ..crate::v026g::bots::tuning::Tuning::all_off().aim };
+            let aim = AimTuning { combat, ..super::super::tuning::Tuning::all_off().aim };
             let view = view_of(vec![me.clone()]);
             let memory = Memory::default();
             let sit = Situation { tactics: Some(&tactics), side: Some(0), retreat: Some(retreat), ..Situation::of(&view) };
