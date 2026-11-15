@@ -779,10 +779,16 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     if !(t.cross_lane || t.anti_sniper) || !bot.reflex.can_smoke() || me.carrying.is_some() {
         return;
     }
+    // The smoke's hold (`smoke_hold_ms`, `Reflex::smoke_throwing`): its launch after the press.
+    let hold_ms = tuning.aim.combat.smoke_hold_ms;
     let reach = smoke::Reach {
         mesh: &tactics.world.sight,
         grenade,
-        thrower_eye: me.eye(),
+        thrower: super::arc::Thrower {
+            feet: me.feet,
+            crouched: me.crouched(),
+            launch_ms: super::arc::launch_after_ms(hold_ms),
+        },
     };
     let thin = t.thin_m.get();
     // Smoke there already: with `spot_rules` every cloud live or forming and the team's own in the air, at full size.
@@ -932,7 +938,7 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
             (plan, why, eye, hold, Some(who), stretch)
         })
     };
-    let sniper = sniper();
+    let mut sniper = sniper();
     #[cfg(test)]
     if t.anti_sniper && outranged.is_some() {
         smoke::tally::add(
@@ -1096,7 +1102,76 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         );
         Some((plan, why, eye, None, Some(held.shooter), stretch))
     };
-    let Some((plan, why, against, hold, threat, stretch)) = sniper.or_else(camper).or_else(lane).or_else(carrier) else {
+    // [own base] The rules in their order, each plan judged against the team's own container and its batteries lying
+    // loose ([`smoke::OverOwnBase`]: refused when its cloud would hold one against a shooter within `exposed_m` of it);
+    // a refused plan leaves the next rule to try, and none at all leaves the bot to its play (another crossing later, a
+    // frag, the wait, the team's job).
+    let exposed_m = tuning.number(PlayKind::Collect, "exposed_m");
+    let own: Vec<(smoke::OwnSpot, Vec3)> = view
+        .container_of(bot.team)
+        .map(|c| (smoke::OwnSpot::Container, c.at))
+        .into_iter()
+        // Where the team knows a stolen battery lies (its HUD or a bot's sight, as Collect's `battery_lying`): a battery the
+        // thief drops is on his team's HUD only, so the world's own state is the batteries cheat's.
+        .chain(knowledge.thefts.iter().filter_map(|theft| {
+            let at = if tuning.cheats.batteries {
+                match view.batteries.get(theft.battery) {
+                    Some(BatteryState::Free(at)) => Some(*at),
+                    _ => None,
+                }
+            } else {
+                knowledge.battery(theft.battery).map(|known| known.at)
+            };
+            at.map(|at| (smoke::OwnSpot::Battery(theft.battery), at))
+        }))
+        .collect();
+    let mut chosen = None;
+    let mut refused = None;
+    for rule in smoke::SmokeRule::ALL {
+        let found = match rule {
+            smoke::SmokeRule::AntiSniper => sniper.take(),
+            smoke::SmokeRule::KnownCamper => camper(),
+            smoke::SmokeRule::HeldLane => lane(),
+            smoke::SmokeRule::OurCarrier => carrier(),
+        };
+        let Some(found) = found else {
+            continue;
+        };
+        let (plan, _, against, _, threat, _) = &found;
+        match smoke::OverOwnBase::of(&grenade.cloud, plan.at, *against, me.feet, &own, exposed_m) {
+            Some(over) => {
+                refused.get_or_insert((rule, over, plan.at, *threat));
+            }
+            None => {
+                chosen = Some(found);
+                break;
+            }
+        }
+    }
+    if bot.own_base_smokes.think(refused.map(|(rule, over, _, threat)| (rule, over.spot, threat)))
+        && let Some((rule, over, cloud, threat)) = refused
+    {
+        let (at, shooter) = (over.at, threat.map_or("unknown".to_string(), |p| p.to_string()));
+        bot.note(
+            notes,
+            now,
+            format!(
+                "refuses a smoke ({}): its cloud at ({:.1}, {:.1}, {:.1}) would hold our {} at ({:.1}, {:.1}, {:.1}), \
+                 player {shooter} {:.1} m from it, the thrower {:.1} m",
+                rule.name(),
+                cloud.x,
+                cloud.y,
+                cloud.z,
+                over.spot,
+                at.x,
+                at.y,
+                at.z,
+                over.shooter_m,
+                over.thrower_m
+            ),
+        );
+    }
+    let Some((plan, why, against, hold, threat, stretch)) = chosen else {
         return;
     };
     #[cfg(not(test))]

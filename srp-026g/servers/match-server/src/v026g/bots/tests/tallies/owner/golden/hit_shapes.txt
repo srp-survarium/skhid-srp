@@ -1,27 +1,27 @@
-owner-test hit shapes: 343 shots, 784 bullets or pellets fired, 513 landed on an enemy; parts torso 51.3% head 25.6% arm 10.3% leg 12.7%; 0-10 m: 38/53 71.7%; 10-20 m: 55/81 67.9%; 20-35 m: 80/126 63.5%; 35-50 m: 82/135 60.7%; 50-80 m: 162/235 68.9%; 80+ m: 96/154 62.3%
+owner-test hit shapes: 336 shots, 768 bullets or pellets fired, 506 landed on an enemy; parts torso 51.4% head 25.4% arm 10.4% leg 12.8%; 0-10 m: 37/51 72.5%; 10-20 m: 54/71 76.1%; 20-35 m: 79/125 63.2%; 35-50 m: 81/134 60.4%; 50-80 m: 159/234 67.9%; 80+ m: 96/153 62.7%
 {
   "hit_all": {
-    "fired": 784,
-    "landed": 513,
+    "fired": 768,
+    "landed": 506,
     "parts": [
-      342,
-      171,
-      69,
-      85
+      336,
+      166,
+      68,
+      84
     ],
-    "shots": 343
+    "shots": 336
   },
   "hit_cells": {
     "0-10:bolt": {
-      "fired": 4,
-      "landed": 6,
+      "fired": 3,
+      "landed": 5,
       "parts": [
         4,
-        2,
-        2,
+        1,
+        1,
         0
       ],
-      "shots": 4
+      "shots": 3
     },
     "0-10:marksman": {
       "fired": 3,
@@ -35,15 +35,15 @@ owner-test hit shapes: 343 shots, 784 bullets or pellets fired, 513 landed on an
       "shots": 3
     },
     "0-10:mg": {
-      "fired": 4,
+      "fired": 3,
       "landed": 2,
       "parts": [
-        6,
+        4,
         2,
         1,
         0
       ],
-      "shots": 4
+      "shots": 3
     },
     "0-10:pistol": {
       "fired": 4,
@@ -145,15 +145,15 @@ owner-test hit shapes: 343 shots, 784 bullets or pellets fired, 513 landed on an
       "shots": 5
     },
     "10-20:shotgun": {
-      "fired": 50,
-      "landed": 5,
+      "fired": 40,
+      "landed": 4,
       "parts": [
         4,
-        3,
+        2,
         2,
         1
       ],
-      "shots": 5
+      "shots": 4
     },
     "10-20:smg": {
       "fired": 7,
@@ -233,15 +233,15 @@ owner-test hit shapes: 343 shots, 784 bullets or pellets fired, 513 landed on an
       "shots": 8
     },
     "20-35:smg": {
-      "fired": 7,
-      "landed": 10,
+      "fired": 6,
+      "landed": 9,
       "parts": [
         8,
-        4,
+        3,
         1,
         2
       ],
-      "shots": 7
+      "shots": 6
     },
     "35-50:bolt": {
       "fired": 8,
@@ -277,15 +277,15 @@ owner-test hit shapes: 343 shots, 784 bullets or pellets fired, 513 landed on an
       "shots": 8
     },
     "35-50:pistol": {
-      "fired": 8,
-      "landed": 12,
+      "fired": 7,
+      "landed": 11,
       "parts": [
         10,
-        4,
+        3,
         1,
         2
       ],
-      "shots": 8
+      "shots": 7
     },
     "35-50:rifle": {
       "fired": 7,
@@ -387,15 +387,15 @@ owner-test hit shapes: 343 shots, 784 bullets or pellets fired, 513 landed on an
       "shots": 14
     },
     "50-80:smg": {
-      "fired": 16,
-      "landed": 24,
+      "fired": 15,
+      "landed": 21,
       "parts": [
-        14,
-        8,
+        12,
+        7,
         3,
-        4
+        3
       ],
-      "shots": 16
+      "shots": 15
     },
     "80+:bolt": {
       "fired": 8,
@@ -409,15 +409,15 @@ owner-test hit shapes: 343 shots, 784 bullets or pellets fired, 513 landed on an
       "shots": 8
     },
     "80+:marksman": {
-      "fired": 9,
+      "fired": 8,
       "landed": 15,
       "parts": [
-        8,
+        6,
         5,
         1,
         3
       ],
-      "shots": 9
+      "shots": 8
     },
     "80+:mg": {
       "fired": 9,

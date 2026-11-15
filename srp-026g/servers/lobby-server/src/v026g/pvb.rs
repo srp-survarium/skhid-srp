@@ -115,6 +115,54 @@ pub struct Config {
     /// The maps a private room with bots may hold ([`bot_maps`]); none with
     /// the mode off.
     pub bot_maps: Vec<u8>,
+    /// [A197] Which maps have the bots' built files ([`MapFiles`]): only those are offered or played against bots.
+    pub map_files: MapFiles,
+}
+
+/// [A197] Which bots' maps have their built files (the grid, the sight tree and the tactics the match server reads at
+/// load): the match server builds no map at load, so a map without them is neither offered nor played against bots.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MapFiles {
+    /// Not checked: every map (the lobby's own tests, which run no match server).
+    Unchecked,
+    /// Named by the match server's store ([`BuiltMaps`]); a lobby that was given none offers no bots' map.
+    Checked(BuiltMaps),
+}
+
+/// [A197] The built files of the bots' maps, as the match server's store names them at its keys (`srp` asks it at its
+/// start: `match_server::v026g::bot_map_files`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BuiltMaps {
+    /// The built folder (`SRP_MAPDATA_BUILT`); `None`: none, so no map has its files.
+    pub dir: Option<std::path::PathBuf>,
+    /// Each map's project (`level_01/day_4`) and the names of its three files, or why they could not be named.
+    pub files: Vec<(String, Result<[String; 3], String>)>,
+}
+
+impl BuiltMaps {
+    /// Whether `project`'s three files are in the built folder now; else why not (the file it lacks).
+    pub fn ready(&self, project: &str) -> Result<(), String> {
+        let dir = self.dir.as_ref().ok_or("no built folder (SRP_MAPDATA_BUILT=off or SRP_MAPDATA_DIR unset)")?;
+        let names = match self.files.iter().find(|(p, _)| p == project) {
+            None => return Err("its built files were not named at the start".into()),
+            Some((_, Err(why))) => return Err(why.clone()),
+            Some((_, Ok(names))) => names,
+        };
+        match names.iter().map(|name| dir.join(name)).find(|path| !path.is_file()) {
+            Some(path) => Err(format!("{} is not there", path.display())),
+            None => Ok(()),
+        }
+    }
+}
+
+impl MapFiles {
+    /// Whether `map` has its built files now ([`BuiltMaps::ready`]).
+    pub fn ready(&self, map: &MapMode) -> Result<(), String> {
+        match self {
+            Self::Unchecked => Ok(()),
+            Self::Checked(built) => built.ready(map.project),
+        }
+    }
 }
 
 impl Default for Config {
@@ -126,6 +174,7 @@ impl Default for Config {
             max_matches: session::v026g::pvb::DEFAULT_MAX_MATCHES,
             rusher_kits: RusherKits::owners(),
             bot_maps: Vec::new(),
+            map_files: MapFiles::Unchecked,
         }
     }
 }
@@ -171,6 +220,8 @@ impl Config {
                 (true, Some(dir)) => bot_maps(maps::playable(), std::path::Path::new(dir)),
                 _ => Vec::new(),
             },
+            // [A197] None named until the match server's store names them (`srp`, [`Config::with_built`]).
+            map_files: MapFiles::Checked(BuiltMaps::default()),
         };
         if config.enabled {
             log::info!(
@@ -184,6 +235,37 @@ impl Config {
             );
         }
         config
+    }
+}
+
+impl Config {
+    /// [A197] With the bots' built files `built` (`srp` names them through the match server's store at its start): the maps
+    /// against bots, offered and in rooms, are those whose files are there. Logs the maps offered and, as ERROR, each map
+    /// left out with the file it lacks.
+    pub fn with_built(self, built: BuiltMaps) -> Self {
+        let map_files = MapFiles::Checked(built);
+        let bot_maps: Vec<u8> = self.bot_maps.iter().copied().filter(|&id| maps::map_mode(id).is_some_and(|map| map_files.ready(map).is_ok())).collect();
+        if self.enabled {
+            let mut offered = Vec::new();
+            for map in offered_maps().filter(|map| map.is_playable()) {
+                match map_files.ready(map) {
+                    Ok(()) => offered.push(map.id),
+                    Err(why) => log::error!("Player vs Bots: map {} ({}) is not offered: {why}", map.id, map.project),
+                }
+            }
+            log::info!(
+                "Player vs Bots: {} of {} maps offered, with their bots' built files: {offered:?}; {} maps for rooms with bots",
+                offered.len(),
+                MAPS.len(),
+                bot_maps.len()
+            );
+        }
+        Self { bot_maps, map_files, ..self }
+    }
+
+    /// [A197] The maps a room with bots may hold now: [`Self::bot_maps`] whose bots' built files are there at this call.
+    pub fn bot_maps_ready(&self) -> Vec<u8> {
+        self.bot_maps.iter().copied().filter(|&id| maps::map_mode(id).is_some_and(|map| self.map_files.ready(map).is_ok())).collect()
     }
 }
 
@@ -355,7 +437,7 @@ impl Core<'_> {
             0
         };
         let maps: Vec<PvbMap> = offered_maps()
-            .filter(|map| map.is_playable())
+            .filter(|map| map.is_playable() && self.settings.pvb.map_files.ready(map).is_ok())
             .map(|map| PvbMap {
                 map_id: map.id,
                 level: map.level,
@@ -390,6 +472,15 @@ impl Core<'_> {
         self.pvb_holds.remove(&who.account_id);
         let choice = lobby::pvb_choice(start)
             .filter(|(size, map_id)| rules().pvb.sizes.contains(size) && MAPS.contains(map_id));
+        // [A197] A map whose bots' built files are not there is not played against bots (not offered: a choice of it is a
+        // race with the files' removal).
+        let choice = choice.filter(|&(_, map_id)| match maps::map_mode(map_id).map(|map| self.settings.pvb.map_files.ready(map)) {
+            Some(Err(why)) => {
+                log::error!("{}: vs bots on map {map_id}: refused, its bots' built files are not there: {why}", who.name);
+                false
+            }
+            _ => true,
+        });
         let fit = match choice {
             None => Err(PvbCode::UnknownChoice),
             Some(choice) => self.pvb_fit(who, now).map(|()| choice),
@@ -429,6 +520,18 @@ impl Core<'_> {
         }
     }
 
+    /// [A197] `map_id` if its bots' built files are there, else the first offered map whose files are (the default map
+    /// first); else why `map_id` has none.
+    fn pvb_map_with_files(&self, map_id: u8) -> Result<u8, String> {
+        let files = &self.settings.pvb.map_files;
+        let ready = |id: u8| maps::map_mode(id).is_some_and(|map| map.is_playable() && files.ready(map).is_ok());
+        if ready(map_id) {
+            return Ok(map_id);
+        }
+        let why = maps::map_mode(map_id).map_or_else(|| "no such map".to_owned(), |map| files.ready(map).err().unwrap_or_default());
+        std::iter::once(DEFAULT_MAP).chain(MAPS).find(|&id| ready(id)).ok_or(why)
+    }
+
     /// Play with a choice held (`hold`, live): the rule is checked again,
     /// and the match is made at once with this player alone against the
     /// server's bots (`play::launch` takes the choice). Otherwise the Play
@@ -449,6 +552,23 @@ impl Core<'_> {
             refuse(self, format!("{}; code {}", why(code), code as u8));
             return;
         }
+        // [A197] Its map's bots' built files gone since the choice: another offered map that has them, else no match.
+        let hold = match self.pvb_map_with_files(hold.map_id) {
+            Ok(map_id) if map_id == hold.map_id => hold,
+            Ok(map_id) => {
+                log::error!(
+                    "{}: Play vs bots on map {}: its bots' built files are not there; played on map {map_id} instead",
+                    who.name,
+                    hold.map_id
+                );
+                Hold { map_id, ..hold }
+            }
+            Err(why) => {
+                log::error!("{}: Play vs bots on map {}: no offered map has its bots' built files ({why})", who.name, hold.map_id);
+                refuse(self, "no map has its bots' built files".to_owned());
+                return;
+            }
+        };
         let Some(pool) = self.pool_for_sessions([who.session_id]) else {
             refuse(self, "its game's revision is not known".to_owned());
             return;

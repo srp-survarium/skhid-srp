@@ -76,6 +76,13 @@ pub struct CloudShape {
 }
 
 impl CloudShape {
+    /// [own base] Whether a cloud of this shape at its full size, resting at `rest` (the floor under its centre), holds
+    /// `point`: within [`Self::radius_m`] of it across the ground, from [`Self::below_m`] under that floor to
+    /// [`Self::height_m`] over it.
+    pub fn holds_full(&self, rest: Vec3, point: Vec3) -> bool {
+        point.distance_xz(rest) <= self.radius_m && point.y >= rest.y - self.below_m && point.y <= rest.y + self.height_m
+    }
+
     /// The whole life from the blast, ms.
     pub fn life_ms(&self) -> u32 {
         self.gone_ms
@@ -160,6 +167,12 @@ pub enum Placed {
     Arc,
     /// The grenade's body at rest as a trusted world showed it (`match_msgs::grenades`): the world's time, the body.
     Seen { world_ms: u32, id: GrenadeId },
+    /// Where its thrower's body fell: he died with the pin out, before the launch. A smoke runs a frag's fuse (the exe
+    /// has one grenade class, `grenade_core`, whose tick 0x303A60 its constructor binds, 0x3036F5; read 2026-11-15) and
+    /// so goes off in the dead hand at the press and its fuse, as a frag does there
+    /// ([`super::live_grenades::Phase::InDeadHand`]); the smoke's own blast (its vtable +28h, the effect's start
+    /// 0x248720) was not read.
+    DeadHand,
 }
 
 /// A world's grenade is a cloud's when its blast is the cloud's within this, ms (the world's blast time is the press
@@ -431,6 +444,10 @@ pub struct SmokeThrow {
     pub by: Place,
     pub team: u8,
     pub press: MatchMs,
+    /// The throw keys that began it, and when one of them went up, once seen: the launch is `arc::launch_at` of the
+    /// press and it.
+    pub keys: u32,
+    pub release: Option<MatchMs>,
     pub grenade: SmokeGrenade,
 }
 
@@ -457,6 +474,128 @@ impl SmokeThrow {
     }
 }
 
+/// [own base] The rule of `think::smoke_uses` a smoke plan came from, in the order they are tried.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SmokeRule {
+    /// A sniper that outranges the bot's weapon.
+    AntiSniper,
+    /// A known camper's lane (`smoke.threat_lane`).
+    KnownCamper,
+    /// The first held lane its route enters (the cross-lane and the objective smoke of its own route).
+    HeldLane,
+    /// Our carrier's way home (`smoke.objective`).
+    OurCarrier,
+}
+
+impl SmokeRule {
+    pub const ALL: [Self; 4] = [Self::AntiSniper, Self::KnownCamper, Self::HeldLane, Self::OurCarrier];
+
+    pub fn index(self) -> usize {
+        self as usize
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::AntiSniper => "anti-sniper",
+            Self::KnownCamper => "known camper",
+            Self::HeldLane => "held lane",
+            Self::OurCarrier => "our carrier",
+        }
+    }
+}
+
+/// [own base] A thing of the team's own a cloud may hold.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OwnSpot {
+    /// The team's container.
+    Container,
+    /// A battery of ours taken from home (`TeamKnowledge::thefts`) and lying loose where the team knows it lies (its HUD
+    /// or a bot's sight, `TeamKnowledge::battery`), by number.
+    Battery(usize),
+}
+
+impl std::fmt::Display for OwnSpot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Container => write!(f, "container"),
+            Self::Battery(n) => write!(f, "battery {n} lying loose"),
+        }
+    }
+}
+
+/// [own base] A planned cloud that would hold the team's own container, or a battery of ours lying loose, while the
+/// shooter it is thrown against is within the take's own `exposed_m` (Collect's, 25 m) of it: the plan is refused. A
+/// cloud takes nothing from a thief (the game reads no cloud: he uses the container and picks a battery up through it;
+/// the HUD tells the defenders of the theft, the container's count, though a battery he drops is on his own team's HUD
+/// only), and it takes the defenders' sight of him. On Tarakanovsky Fort a defender smoked his own container (the
+/// crossing 0.4 m from it, the cloud at rest 4.1 m from it) against a player 14 m from it, who took 3 batteries under
+/// the cloud and killed 6 defenders there at 0.8-3.8 m; 3 clouds by one team in 5 matches were decided so, all refused
+/// by this, none with the shooter farther than 25 m. A shooter farther out is no threat to the spot that a cloud there
+/// would answer.
+///
+/// For when `smoke.objective` (OFF) goes on: our carrier's smoke for his last metres home ([`SmokeRule::OurCarrier`])
+/// is refused too under a camper within 25 m of the container (20-25 m out, say), which may be the smoke he needs.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OverOwnBase {
+    pub spot: OwnSpot,
+    /// Where the spot is.
+    pub at: Vec3,
+    /// The shooter's and the thrower's distance from it across the ground, metres.
+    pub shooter_m: f32,
+    pub thrower_m: f32,
+}
+
+impl OverOwnBase {
+    /// The first of `own` (each spot and where it is) that a cloud of `shape` resting at `cloud` holds while the shooter
+    /// at `shooter` is within `exposed_m` of it (the thrower at `thrower`, for the note); none: the plan stands.
+    pub fn of(
+        shape: &CloudShape,
+        cloud: Vec3,
+        shooter: Vec3,
+        thrower: Vec3,
+        own: &[(OwnSpot, Vec3)],
+        exposed_m: f32,
+    ) -> Option<Self> {
+        own.iter().find_map(|&(spot, at)| {
+            let (shooter_m, thrower_m) = (shooter.distance_xz(at), thrower.distance_xz(at));
+            (shape.holds_full(cloud, at) && shooter_m <= exposed_m).then_some(Self { spot, at, shooter_m, thrower_m })
+        })
+    }
+}
+
+/// [own base] The smoke plans a bot refused for [`OverOwnBase`], by [`SmokeRule`]: each run of thinks that refuses the
+/// same plan (its rule, spot and shooter) is one.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct OwnBaseRefusals {
+    pub by_rule: [u32; SmokeRule::ALL.len()],
+    /// The last think's refusal: the same one again is not counted again.
+    last: Option<(SmokeRule, OwnSpot, Option<Place>)>,
+}
+
+impl OwnBaseRefusals {
+    /// A think's refusals: whether `refused` (the rule, the spot, the shooter) is new, counted if so. `None`: this
+    /// think refused none.
+    pub fn think(&mut self, refused: Option<(SmokeRule, OwnSpot, Option<Place>)>) -> bool {
+        let new = refused.is_some_and(|r| self.last != Some(r));
+        if let (true, Some((rule, ..))) = (new, refused) {
+            self.by_rule[rule.index()] += 1;
+        }
+        self.last = refused;
+        new
+    }
+
+    /// The sum of `bots`' counts.
+    pub fn sum<'a>(bots: impl IntoIterator<Item = &'a Self>) -> [u32; SmokeRule::ALL.len()] {
+        let mut by_rule = [0; SmokeRule::ALL.len()];
+        for bot in bots {
+            for (sum, n) in by_rule.iter_mut().zip(bot.by_rule) {
+                *sum += n;
+            }
+        }
+        by_rule
+    }
+}
+
 /// What the tracker made of smoke throws (a counter, for the logs and the benches), by the thrower's team.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SmokeCounts {
@@ -464,7 +603,8 @@ pub struct SmokeCounts {
     pub thrown: [u32; 2],
     /// Clouds placed (the arc found a rest).
     pub clouds: [u32; 2],
-    /// Dropped: the thrower died before the launch, or the arc found no ground.
+    /// Dropped: the arc found no ground, or the thrower died before the launch with his body never placed (a dead
+    /// thrower's smoke is otherwise a cloud in his hand, [`Placed::DeadHand`]).
     pub dropped: [u32; 2],
     /// Clouds whose grenade a world showed, and how far the first sighting moved them from the arc's rest, decimetres
     /// summed (the arc's error, measured live).
@@ -844,12 +984,13 @@ pub const PLAN_MARGIN_M: f32 = 1.5;
 /// The points tried along a line, metres apart.
 const PLAN_STEP_M: f32 = 1.0;
 
-/// What a smoke plan reads of the map and the thrower: whether a throw from `thrower_eye` reaches `at` (the arc's
-/// flat throw, `arc::Grenade::pitch_for`, with the smoke's throw power), and the floor under a point.
+/// What a smoke plan reads of the map and the thrower: whether a throw by `thrower` reaches `at` (the arc's flat throw
+/// from his release point, `arc::Thrower::aim` and `arc::Grenade::pitch_for_after`, with the smoke's throw power), and
+/// the floor under a point.
 pub struct Reach<'a> {
     pub mesh: &'a mapdata::RayTree,
     pub grenade: SmokeGrenade,
-    pub thrower_eye: Vec3,
+    pub thrower: super::arc::Thrower,
 }
 
 impl Reach<'_> {
@@ -859,14 +1000,13 @@ impl Reach<'_> {
     }
 
     /// The throw at `at`: the flat arc's pitch for its distance and drop, flown against the bullet mesh
-    /// (`arc::Flight::landing`: the first contact and the roll after it); its rest on the floor there. None when no
+    /// (`arc::Flight::landing`: the first contact and the rest the client's flight comes to); its rest on the floor there. None when no
     /// pitch reaches, the flight meets nothing in its time, or the rest has no floor under it.
     pub fn aim(&self, at: Vec3) -> Option<SmokeAim> {
-        let eye = self.thrower_eye;
-        let hand = super::arc::hand_of(eye);
-        let pitch = self.grenade.flight.pitch_for(hand.distance_xz(at), hand.y - at.y)?;
-        let yaw = super::kin::yaw_of([at.x - eye.x, at.z - eye.z]);
-        let landing = super::arc::Flight::thrown_by(self.grenade.flight, eye, yaw, pitch)
+        let (yaw, release) = self.thrower.aim(at);
+        let pitch =
+            self.grenade.flight.pitch_for_after(release.distance_xz(at), release.y - at.y, self.thrower.launch_ms)?;
+        let landing = super::arc::Flight::thrown_by(self.grenade.flight, &self.thrower, yaw, pitch)
             .landing(&super::arc::Mesh(self.mesh))?;
         let rest = self.floor(landing.rest + Vec3::new(0.0, 0.5, 0.0))?;
         Some(SmokeAim { yaw, pitch, rest })
@@ -1808,6 +1948,56 @@ pub mod tally {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [own base] The Tarakanovsky Fort case: a defender 9 m from his container smokes a crossing 0.4 m from it, the cloud
+    /// at rest 4.1 m from it, against a shooter 14 m from it: refused, for the container and for a battery of ours lying
+    /// loose beside it. A cloud 20 m from the container stands; so does one against a shooter 30 m out, whoever is
+    /// nearer the container; 25 m out is refused.
+    #[test]
+    fn a_cloud_over_our_own_container_against_a_shooter_near_it_is_refused() {
+        let shape = SmokeGrenade::RDG_M.cloud;
+        let container = Vec3::new(0.0, 0.0, 0.0);
+        let own = [(OwnSpot::Container, container), (OwnSpot::Battery(4), Vec3::new(6.0, 0.0, 0.0))];
+        let thrower = Vec3::new(-9.0, 0.0, 0.0);
+        let shooter = Vec3::new(14.0, 1.5, 0.0);
+        let fort = OverOwnBase::of(&shape, Vec3::new(-4.1, 0.0, 0.0), shooter, thrower, &own, 25.0)
+            .expect("the Fort case is refused");
+        assert_eq!((fort.spot, fort.shooter_m, fort.thrower_m), (OwnSpot::Container, 14.0, 9.0));
+        let battery_only = [own[1]];
+        let loose = OverOwnBase::of(&shape, Vec3::new(4.0, 0.0, 0.0), shooter, thrower, &battery_only, 25.0)
+            .expect("a battery of ours lying loose");
+        assert_eq!(loose.spot, OwnSpot::Battery(4));
+        // Far from the container: it stands.
+        assert_eq!(OverOwnBase::of(&shape, Vec3::new(-20.0, 0.0, 0.0), shooter, thrower, &own, 25.0), None);
+        // Over it, the shooter 30 m out and farther than the thrower: it stands.
+        let far = Vec3::new(30.0, 1.5, 0.0);
+        assert_eq!(OverOwnBase::of(&shape, Vec3::new(-4.1, 0.0, 0.0), far, thrower, &own[..1], 25.0), None);
+        // The shooter 30 m out and nearer it than the thrower (40 m): it stands; only within `exposed_m` counts.
+        let behind = Vec3::new(-40.0, 0.0, 0.0);
+        assert_eq!(OverOwnBase::of(&shape, Vec3::new(-4.1, 0.0, 0.0), far, behind, &own[..1], 25.0), None);
+        // At the edge: 25 m out is within it.
+        let edge = Vec3::new(25.0, 1.5, 0.0);
+        assert!(OverOwnBase::of(&shape, Vec3::new(-4.1, 0.0, 0.0), edge, thrower, &own[..1], 25.0).is_some());
+        // A container on another floor, out of the cloud's height: it stands.
+        let below = [(OwnSpot::Container, Vec3::new(0.0, -6.0, 0.0))];
+        assert_eq!(OverOwnBase::of(&shape, Vec3::new(-4.1, 0.0, 0.0), shooter, thrower, &below, 25.0), None);
+    }
+
+    /// [own base] A run of thinks refusing the same plan counts once; another spot, shooter or rule, or a think with none
+    /// between, counts again.
+    #[test]
+    fn a_refusal_is_counted_once_a_run() {
+        let mut refusals = OwnBaseRefusals::default();
+        let fort = Some((SmokeRule::HeldLane, OwnSpot::Container, Some(0)));
+        assert!(refusals.think(fort));
+        assert!(!refusals.think(fort));
+        assert!(refusals.think(Some((SmokeRule::HeldLane, OwnSpot::Battery(4), Some(0)))));
+        assert!(!refusals.think(None));
+        assert!(refusals.think(fort));
+        assert!(refusals.think(Some((SmokeRule::AntiSniper, OwnSpot::Container, Some(0)))));
+        assert_eq!(refusals.by_rule, [1, 0, 3, 0]);
+        assert_eq!(OwnBaseRefusals::sum([&refusals, &refusals]), [2, 0, 6, 0]);
+    }
     use crate::v026g::bots::tuning::SmokeTuning;
 
     #[test]
@@ -1827,6 +2017,8 @@ mod tests {
             by: 0,
             team: 0,
             press: MatchMs(1_000),
+            keys: 0,
+            release: None,
             grenade: SmokeGrenade::RDG_M,
         }
         .cloud_at(at, |_| None)
@@ -2179,6 +2371,8 @@ mod scenarios {
             by: 1,
             team: 1,
             press: MatchMs(0),
+            keys: 0,
+            release: None,
             grenade: SmokeGrenade::RDG_M,
         };
         let floor = |rest: Vec3| {
@@ -2213,14 +2407,18 @@ mod scenarios {
         let reach = Reach {
             mesh: &mesh,
             grenade: SmokeGrenade::RDG_M,
-            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+            thrower: crate::v026g::bots::arc::Thrower {
+                feet: Vec3::ZERO,
+                crouched: false,
+                launch_ms: crate::v026g::bots::arc::TAP_LAUNCH_MS,
+            },
         };
         let tuning = SmokeTuning::default();
         let thin = tuning.thin_m.get();
         // A holder 50 m out, a crossing 15 m to the thrower's side: the line runs from 50 m to 15 m out.
         let (threat, crossing) = (Vec3::new(0.0, 1.6, 50.0), Vec3::new(10.0, 0.0, 15.0));
         let plan = smoke_between(&reach, threat, crossing, thin, SmokeUse::CrossLane).unwrap();
-        let out = plan.at.distance_xz(reach.thrower_eye);
+        let out = plan.at.distance_xz(reach.thrower.feet);
         // The RDG-M's flat throw lands about 30 m out at most: the point is the line's nearest-the-holder reachable one.
         assert!((20.0..32.0).contains(&out), "{plan:?} at {out} m");
         assert!(plan.covers_m > thin + PLAN_MARGIN_M && plan.at.y.abs() < 1e-3, "{plan:?}");
@@ -2250,7 +2448,11 @@ mod scenarios {
         let reach = Reach {
             mesh: &mesh,
             grenade: SmokeGrenade::RDG_M,
-            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+            thrower: crate::v026g::bots::arc::Thrower {
+                feet: Vec3::ZERO,
+                crouched: false,
+                launch_ms: crate::v026g::bots::arc::TAP_LAUNCH_MS,
+            },
         };
         let thin = SmokeTuning::default().thin_m.get();
         let rule = crate::v026g::bots::tuning::MidLine::default();
@@ -2315,7 +2517,11 @@ mod scenarios {
         let reach = Reach {
             mesh: &mesh,
             grenade: SmokeGrenade::RDG_M,
-            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+            thrower: crate::v026g::bots::arc::Thrower {
+                feet: Vec3::ZERO,
+                crouched: false,
+                launch_ms: crate::v026g::bots::arc::TAP_LAUNCH_MS,
+            },
         };
         let thin = SmokeTuning::default().thin_m.get();
         let threat = Vec3::new(0.0, 13.6, 22.0);
@@ -2346,7 +2552,11 @@ mod scenarios {
         let reach = Reach {
             mesh: &mesh,
             grenade: SmokeGrenade::RDG_M,
-            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+            thrower: crate::v026g::bots::arc::Thrower {
+                feet: Vec3::ZERO,
+                crouched: false,
+                launch_ms: crate::v026g::bots::arc::TAP_LAUNCH_MS,
+            },
         };
         let rule = crate::v026g::bots::tuning::ShooterSpot::default();
         let crossing = Vec3::new(0.0, 0.0, 5.0);
@@ -2367,7 +2577,11 @@ mod scenarios {
         let reach = Reach {
             mesh: &mesh,
             grenade: SmokeGrenade::RDG_M,
-            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+            thrower: crate::v026g::bots::arc::Thrower {
+                feet: Vec3::ZERO,
+                crouched: false,
+                launch_ms: crate::v026g::bots::arc::TAP_LAUNCH_MS,
+            },
         };
         let toward = Vec3::new(0.0, 1.6, 0.0);
         let plan = smoke_on(&reach, Vec3::new(5.0, 1.6, 22.0), toward, SmokeUse::Breach).unwrap();

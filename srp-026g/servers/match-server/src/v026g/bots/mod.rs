@@ -285,6 +285,9 @@ pub struct Bot {
     team: u8,
     /// The smoke clouds it knows of, and its watches of their edges (`smoke.rs`).
     clouds: smoke::KnownClouds,
+    /// [own base] The smoke plans it refused for holding the team's own container or a battery of ours lying loose (the
+    /// match's, never reset; [`Bots::smoke_report`]).
+    own_base_smokes: smoke::OwnBaseRefusals,
     rng: Rng,
     encoder: Encoder,
     motor: Motor,
@@ -545,6 +548,8 @@ pub struct Bot {
     empty_reloads: reflex::EmptyReloads,
     /// [Gap 3] [measure] What the worlds did to its gun ledger, the lives before this one's ([`Self::gun_reads`]).
     gun_reads: guns::GunReads,
+    /// [G624] [measure] Its grenade logic's counts, the lives before this one's ([`Self::grenade_stats`]).
+    grenade_stats: reflex::GrenadeStats,
     /// [Gap 15] [measure] Lives put in the world's kit in use, not the one it counted on ([`Self::wear`]).
     worn_kit_moves: u32,
     /// [measure] [A241] Its trigger ticks with the aim sway taken back and the degrees taken back, the lives before this one's
@@ -603,6 +608,7 @@ impl Bot {
             place,
             team,
             clouds: smoke::KnownClouds::default(),
+            own_base_smokes: smoke::OwnBaseRefusals::default(),
             rng,
             encoder: Encoder::default(),
             motor,
@@ -741,6 +747,7 @@ impl Bot {
             frag_rolls_refused: 0,
             empty_reloads: reflex::EmptyReloads::default(),
             gun_reads: guns::GunReads::default(),
+            grenade_stats: reflex::GrenadeStats::default(),
             worn_kit_moves: 0,
             sway_taken: (0, 0.0),
             client_sway: recoil::ClientSway::Absent,
@@ -803,6 +810,7 @@ impl Bot {
         self.frag_rolls_refused += self.reflex.refused_no_frag();
         self.empty_reloads += self.reflex.empty_reloads();
         self.gun_reads += self.reflex.gun_reads();
+        self.grenade_stats.add(&self.reflex.grenade_stats());
         self.sway_taken.0 += self.reflex.sway_taken().0;
         self.sway_taken.1 += self.reflex.sway_taken().1;
         self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
@@ -837,6 +845,13 @@ impl Bot {
     /// [Gap 15] [measure] Lives it was put in the world's kit in use, not the one it counted on.
     pub fn worn_kit_moves(&self) -> u32 {
         self.worn_kit_moves
+    }
+
+    /// [G624] [measure] Its grenade logic's counts in the match, every life's ([`reflex::GrenadeStats`]).
+    pub fn grenade_stats(&self) -> reflex::GrenadeStats {
+        let mut all = self.grenade_stats;
+        all.add(&self.reflex.grenade_stats());
+        all
     }
 
     /// [Gap 3] [measure] What the worlds did to its gun ledger in the match (`CombatTuning::gun_from_world`).
@@ -1031,6 +1046,7 @@ impl Bot {
         self.frag_rolls_refused += self.reflex.refused_no_frag();
         self.empty_reloads += self.reflex.empty_reloads();
         self.gun_reads += self.reflex.gun_reads();
+        self.grenade_stats.add(&self.reflex.grenade_stats());
         self.sway_taken.0 += self.reflex.sway_taken().0;
         self.sway_taken.1 += self.reflex.sway_taken().1;
         self.frag_lives.thrown += u32::from(self.reflex.grenades_thrown());
@@ -1335,6 +1351,16 @@ impl Bots {
         format!("team 0: {}; team 1: {}", sums[0].line(), sums[1].line())
     }
 
+    /// [G624] The bots' grenade throws summed by team, as the match-end log line (`the bots' grenade landings:
+    /// ...`, [`reflex::GrenadeStats::landing_line`]): the flown rest against the old roll's, the refusals by reason.
+    pub fn landing_report(&self) -> String {
+        let mut sums = [reflex::GrenadeStats::default(); 2];
+        for bot in self.bots.iter().flatten() {
+            sums[usize::from(bot.team.min(1))].add(&bot.grenade_stats());
+        }
+        format!("team 0: {}; team 1: {}", sums[0].landing_line(), sums[1].landing_line())
+    }
+
     /// What every bot's pantry has done, summed by team ([`stock::PantryCounts`]).
     pub fn pantry_counts(&self) -> [stock::PantryCounts; 2] {
         let mut sums = [stock::PantryCounts::default(); 2];
@@ -1572,6 +1598,7 @@ impl Bots {
             return;
         }
         view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
+        arc::set_rest_flown(self.tunings.match_wide().aim.combat.grenade_rest_flown);
         view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
         self.tracker.lateness(place, late_ms);
         let r = input.rotation;
@@ -1694,6 +1721,31 @@ impl Bots {
             line(&self.teams[0].features.threat.breach_counts),
             line(&self.teams[1].features.threat.breach_counts)
         )
+    }
+
+    /// [own base] The match-end smoke line: by team, the smoke keys seen, the clouds placed and those dropped (the
+    /// tracker's [`smoke::SmokeCounts`]), and the bots' plans refused for holding the team's own container or a battery of
+    /// ours lying loose, by rule ([`smoke::SmokeRule`]).
+    pub fn smoke_report(&self) -> String {
+        let counts = self.tracker.smoke_counts();
+        (0..2u8)
+            .map(|team| {
+                let i = usize::from(team);
+                let refused = smoke::OwnBaseRefusals::sum(
+                    self.bots.iter().flatten().filter(|bot| bot.team.min(1) == team).map(|bot| &bot.own_base_smokes),
+                );
+                let by_rule = smoke::SmokeRule::ALL
+                    .iter()
+                    .map(|rule| format!("{} {}", rule.name(), refused[rule.index()]))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "team {team}: smoke keys {}, clouds {}, dropped {}; plans refused over our own container or batteries [{by_rule}]",
+                    counts.thrown[i], counts.clouds[i], counts.dropped[i]
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
     }
 
     pub fn base_report(&self) -> String {
@@ -1990,6 +2042,7 @@ impl Bots {
     /// A trusted world's word on one place's body.
     pub fn fixed(&mut self, place: Place, fix: Fix, health: Option<f32>) -> Vec<Note> {
         view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
+        arc::set_rest_flown(self.tunings.match_wide().aim.combat.grenade_rest_flown);
         view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
         let mut notes = Vec::new();
         let (time, feet, keys) = (fix.time, fix.feet, fix.keys);
@@ -2102,6 +2155,13 @@ impl Bots {
                     speed,
                     play: bot.assignment.as_ref().map(|a| format!("{:?}", a.kind)),
                 };
+                // [S5] Its error along and across the world's own move, at a ground world (log only).
+                if !facts.in_jump
+                    && facts.dropped_m < nav_log::FALL_M
+                    && let Some((along, across)) = before.and_then(|(_, from)| nav_drift::cross_track::split(from, feet, reckoned))
+                {
+                    nav_drift::cross_track::count(along, across);
+                }
                 if facts.drifts() {
                     let cause = nav_drift::Cause::of(&facts);
                     bot.drift.world(Some((&facts, cause)));
@@ -2447,6 +2507,9 @@ impl Bots {
     pub fn drift_report(&self) -> Vec<String> {
         let tallies: Vec<(usize, &nav_drift::Tally)> = self.bots.iter().flatten().map(|bot| (bot.place, &bot.drift)).collect();
         let mut lines = nav_drift::report(&tallies);
+        // [S5] The reckoning's error at ground worlds, along and across the world's own move.
+        let (along, across) = nav_drift::cross_track::take();
+        lines.push(format!("{}{}", nav_log::PREFIX, nav_drift::cross_track::line(&along, &across)));
         // [A388 step 2b] The lip guard's forecasts this match: asked anew, and the same ask's answer used again.
         let (asked, reused) = self.bots.iter().flatten().fold((0u64, 0u64), |(a, r), bot| (a + u64::from(bot.lip_memo.asked), r + u64::from(bot.lip_memo.reused)));
         lines.push(format!("{}lip guard forecasts this match: asked {asked}, the same ask's answer used again {reused}", nav_log::PREFIX));
@@ -2980,6 +3043,7 @@ impl Bots {
         #[cfg(test)]
         bench_work::set(bench_work::Who::Shared);
         view::set_live_eye(self.tunings.match_wide().aim.combat.live_eye);
+        arc::set_rest_flown(self.tunings.match_wide().aim.combat.grenade_rest_flown);
         view::set_use_ray_m(self.tunings.match_wide().sense.use_ray_m);
         self.poll_budgets();
         let (mut made, mut notes) = (Vec::new(), Vec::new());

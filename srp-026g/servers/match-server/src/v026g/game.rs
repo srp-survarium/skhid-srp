@@ -5423,6 +5423,16 @@ impl Game {
                 walkers.bots.grenade_report()
             );
             log::info!(
+                "Match {:#x}: the bots' smokes: {}",
+                self.id,
+                walkers.bots.smoke_report()
+            );
+            log::info!(
+                "Match {:#x}: the bots' grenade landings: {}",
+                self.id,
+                walkers.bots.landing_report()
+            );
+            log::info!(
                 "Match {:#x}: the bots' traps: {}",
                 self.id,
                 walkers.bots.trap_report()

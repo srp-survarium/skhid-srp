@@ -195,7 +195,14 @@ impl SmokeHabit {
             return;
         }
         let rest = self.rest_point(body.feet, enemy, to_enemy);
-        let throw = SmokeThrow { by: self.place, team: body.team, press: MatchMs(tick), grenade: *SmokeGrenade::of_game_data() };
+        let throw = SmokeThrow {
+            by: self.place,
+            team: body.team,
+            press: MatchMs(tick),
+            keys: 0,
+            release: None,
+            grenade: *SmokeGrenade::of_game_data(),
+        };
         let cloud = throw.cloud_at(rest, |at| floor_under(&game.world.sight, at));
         tracker.add_cloud(cloud);
         self.counts.thrown += 1;

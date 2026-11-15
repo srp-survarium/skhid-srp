@@ -41,16 +41,27 @@ position and velocity while it is in the physics world, its explode time and its
 - The velocity is `throw_power` 17 m/s x max(0, 1 + S27) along the head's forward (0x30A2D5).
 - The release point, measured on 147 throwers standing still: 1.73 m over the feet standing (1.29 m crouched),
   0.13 m behind the throw line and 0.21 m to its right (the right hand's bone at the event, `hand_transform`
-  0x309F00).
+  0x309F00). P10 to P90: 0.77 to 0.85 m over the capsule centre standing (106 throws), 0.69 to 0.75 crouched (41),
+  0.05 to 0.23 m behind, 0.19 to 0.25 m right. It does not move with the pitch: over all 1,181 frag launches (moving
+  throwers too, so wider), by the launch pitch 0-15, 15-30 and 30-45 degrees (433, 536, 186 throws) the median is
+  0.83, 0.82 and 0.81 m over the capsule centre and 0.19, 0.21 and 0.22 m right; over 45 degrees, 21 throws.
 - A grenade never launched explodes in the hand (0x303AB8). The blast is where the body is at the tick whose time is
-  the explode time (0x303AEA).
+  the explode time (0x303AEA). A thrower who dies with the pin out keeps it there: the death puts the weapon to idle
+  with no launch and no stop of the fuse (`on_player_death` 0x2E3390, the set's 0x309E10), so it goes off at his
+  body's right hand on time; a smoke too (one grenade class, its tick bound at 0x3036F5). Read 2026-11-15.
+- Nothing takes a throw back after the press: the throw state is left only through 0x33A650 (its last stage's end,
+  or the grenade in the hand gone off), and its four ways out (0x2DF780) are all behind it; the key's release only
+  moves the pull to the throw (0x33A730), a weapon switch waits for a hide state no throw reaches, a sprint, a jump
+  and the aim are refused in it (kind 7). Read 2026-11-15.
+- The pin-out sound (`grenade_pin_out_01`, the swing's) is a point sound at the thrower for every other player
+  (`weapon_sound_effect::on_sound_event` 0x297C50, `third_view` to `emit_point_sound` 0x65670). Read 2026-11-15.
 - **After the first contact**: the physics world's swept test caps the speed. When a step's move is over the
   body's motion threshold and the swept sphere meets something, the body is put at the time of impact and its
   speed is cut to the threshold over the step, 0.03 m / (1 / 60 s) = **1.8 m/s** (0x9CA78..0x9CB60); then friction
   and no bounce. Counted on 911 flights flown from a seen position and velocity over the map's mesh: the seen burst
   is a median 1.0 m past the first contact (P80 5.3, P90 10.5). A flight with the cap puts the burst a median 0.53 m
   from the seen one (554 within 1 m); without the cap 4.2 m; stopping at the first contact 1.43 m; a fixed 2 m along
-  the heading (the bots' rule) 2.13 m (84 within 1 m). In 142 of the 911 the grenade fell through the floor
+  the heading (the bots' old rule) 2.13 m (84 within 1 m). In 142 of the 911 the grenade fell through the floor
   (`grenade_ccd.md`).
 
 ## The blast (`bullet_manager::explode` 0x339630)
@@ -114,8 +125,13 @@ is swapped by its state alone (0x247EF0), and the modifier `spot_enemy_traps` (i
 
 ## Against the bots
 
-- The launch is taken at press + 1,100 ms (`arc.rs`, `live_grenades.rs`, `reflex.rs`); the client's is the release's
-  + 500 ms. The release point is taken 0.3 m under the eye, about 0.55 m too low.
+- Fixed since: the launch at max(press + 400, release) + 500 and the release point (#2040); an enemy's throw known
+  from the launch when its throw clip is seen, from the landing when only the swing is (#2040, #2045); the key's hold
+  drawn from the humans' and each throw planned with it (#2044); a grenade or a smoke in a dead thrower's hand going
+  off there (#2045, #2046). Before: the launch at press + 1,100 ms from 0.3 m under the eye, the hold 500-800 ms.
+- Fixed since: the rest after the first contact is this flight (`arc::Flight::rest_at_blast`: the cap at a swept hit,
+  friction 0.25, no bounce), and the teammates' and the walk-out checks spread the blast over its slide and along the
+  heading by the error counted above (`aim.combat.grenade_rest_flown`). Before: 2 m past the contact (walls 0).
 - The comments say worlds are 5 s apart and carry no grenade; they carry every grenade's body, so a landing can be
   seen instead of predicted.
 - The threat's distance is taken from the chest (`grenade_threat.rs`); the client's is from the feet. The bots' own
@@ -129,4 +145,6 @@ is swapped by its state alone (0x247EF0), and the modifier `spot_enemy_traps` (i
 ## Not read
 
 The rest of the roll's error after the speed cap (P80 4.3 m: the capsule's own contacts; a sphere was flown); the
-release point from the hand's bone (it is measured).
+release point from the hand's bone (it is measured); whether a grenade is drawn in a dead hand, and where a dead
+body's hand is; the pin-out sound's reach (how its `melee_wear` curve and `spl_value` 60 scale in playback); a smoke's
+own blast (its vtable +28h, 0x248720); `hit_impl` during a throw.

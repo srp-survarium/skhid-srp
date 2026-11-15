@@ -495,3 +495,59 @@ fn a_bot_match_is_settled_as_one() {
     assert_eq!(player.reward.quest_money, 0);
     assert_eq!(player.reward.rating_after, player.reward.rating_before);
 }
+
+/// [A197] Only maps whose bots' built files are there are offered against bots: a map without them is not listed, a choice
+/// of it is refused, and a Play whose map lost its files since the choice is played on another offered map that has them;
+/// with none left, the Play is refused.
+#[test]
+fn a_map_without_its_bots_built_files_is_not_offered_and_a_play_on_it_is_redirected_or_refused() {
+    let dir = std::env::temp_dir().join(format!("srp-pvb-built-{}-{:?}", std::process::id(), std::thread::current().id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let project = |id: u8| survarium::v026g::maps::map_mode(id).unwrap().project;
+    let names = |id: u8| [0, 1, 2].map(|k| format!("{k}-{}.bin", project(id).replace('/', "_")));
+    // 61 (Rudnya) and 67 have their files; no other map is named.
+    for id in [61, 67] {
+        for name in names(id) {
+            std::fs::write(dir.join(name), b"x").unwrap();
+        }
+    }
+    let built = pvb::BuiltMaps {
+        dir: Some(dir.clone()),
+        files: [61, 67].map(|id| (project(id).to_owned(), Ok(names(id)))).into_iter().collect(),
+    };
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings.pvb = Config { enabled: true, max_matches: 5, ..Config::default() }.with_built(built);
+    let mut world = World::with_settings(settings);
+    let alice = world.connect("Alice");
+    with_gear(&mut world, alice, 5);
+    let (_, maps) = status(&mut world, alice);
+    let listed: Vec<u8> = maps.iter().map(|row| row.split(';').next().unwrap().parse().unwrap()).collect();
+    let ready = |id: &u8| [project(61), project(67)].contains(&project(*id));
+    assert_eq!(listed, MAPS.iter().copied().filter(ready).collect::<Vec<_>>(), "only maps with their files");
+    let without = *MAPS.iter().find(|id| !ready(id)).unwrap();
+    assert!(choose(&mut world, alice, 8, without).starts_with("B2;no;"), "a map without its files is refused");
+
+    // 67's files go after the choice: the Play is made on 61.
+    assert_eq!(choose(&mut world, alice, 8, 67), "B2;ok;8;67");
+    std::fs::remove_file(dir.join(&names(67)[1])).unwrap();
+    world.take(alice);
+    world.ask(alice, request::play(1));
+    world.advance(Duration::from_secs(1));
+    let decoded = world.take(alice);
+    assert_eq!(denial(&decoded, 0x2F), None);
+    sent_to_match(&decoded).expect("sent to a match");
+    assert_eq!(world.host.made.locked().last().unwrap().1.map.map().id, 61, "played on a map with its files");
+
+    // No map has its files: a Play is refused.
+    let bob = world.connect("Bob");
+    with_gear(&mut world, bob, 5);
+    assert_eq!(choose(&mut world, bob, 8, 61), "B2;ok;8;61");
+    std::fs::remove_file(dir.join(&names(61)[0])).unwrap();
+    world.take(bob);
+    world.ask(bob, request::play(1));
+    world.advance(Duration::from_secs(1));
+    let decoded = world.take(bob);
+    assert_eq!(denial(&decoded, 0x2F).as_deref(), Some(PLAY_REFUSED));
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -188,8 +188,9 @@ RUST_LOG=info
 # The bots' maps (docs/notes/player_bots_mapdata.md section 6): the
 # <project>.mapdata files, copied by hand into the data volume (game data:
 # never into a repository). Compose default /srv/srp/data/mapdata; `off`:
-# no maps. The server writes what it builds of them to <dir>/built (or
-# SRP_MAPDATA_BUILT; `off`: built at each load), keeps SRP_MAPDATA_KEEP
+# no maps. The server reads their pre-built grids from <dir>/built (or
+# SRP_MAPDATA_BUILT; `off`: none) and builds nothing at load unless
+# SRP_BOT_MAPS_BUILD_AT_LOAD=on (local servers only), keeps SRP_MAPDATA_KEEP
 # built maps no match holds, and has at most SRP_MAPDATA_AT_ONCE in
 # memory (with Player vs Bots on, at least SRP_PVB_MAX_MATCHES).
 # SRP_MAPDATA_DIR=/srv/srp/data/mapdata

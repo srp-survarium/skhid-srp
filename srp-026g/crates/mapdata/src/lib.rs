@@ -203,8 +203,12 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// before any cut (A389). 0004: [A1b] the walk-off at release (`gap::Takeoff::Release`), the walk key let go on the step before
 /// the body leaves the top, re-aims a link before the walk line's landing elsewhere and the crouched walk-off. 0005: [S6] each
 /// held floor's drop stores the speed its walk-off lands at (`WalkGrid::drop_landings`), for the search's fall gate. 0006:
-/// [S6] and a second landing of the same walk that hurts too (`held_floors::Landings`), whose pain the gate adds.
-pub const DROP_LANDS_ALGO: u32 = 0x5067_0006;
+/// [S6] and a second landing of the same walk that hurts too (`held_floors::Landings`), whose pain the gate adds. 0007: one
+/// re-aim link a (take-off, landing) pair (`WalkGrid::reaim_drops`): a release over a walk-off, of two releases the higher share
+/// (the later one was kept before; a release then a walk-off made two links, a grid its read refused; and the old lookup's
+/// binary search over the unsorted table could also find another take-off's link onto the landing and skip a re-aim, in a grid
+/// that read back).
+pub const DROP_LANDS_ALGO: u32 = 0x5067_0007;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
 /// body that asks for it. A value of its own.
 pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0006;

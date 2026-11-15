@@ -272,9 +272,129 @@ pub fn report(tallies: &[(usize, &Tally)]) -> Vec<String> {
     lines
 }
 
+/// [S5] The reckoning's error at each ground world, split along and across the body's own motion since the world before (log
+/// only), for the thin-top steering of the railings design (owner-5, Part D): the client holds a body on a thin top while its axis
+/// is within width/2 + 0.27 m of the top's line at rest and leaves it at about width/2 + 0.38 m walking (PROVEN F2, F3f), so the
+/// error across a line is what a line floor's steering has to keep under that. The direction is the world's own flat move between
+/// the two worlds (the chord): on a curve it holds the curve's part too. Worlds in a jump or after a fall are not counted.
+pub(crate) mod cross_track {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    use mapdata::Vec3;
+
+    /// The world moved the body at least this far, flat, m, so that its move has a direction (a still body has none).
+    pub const MOVED_M: f32 = 0.5;
+    /// Bins of 1 cm; the last holds everything from `BINS - 1` cm on.
+    pub const BINS: usize = 201;
+    /// The thin top's bars, cm: at rest a 0-wide top's 0.27 m, walking 0.38 m (F2, F3f); a 0.30 m top adds 0.15 m to each.
+    const BARS_CM: [usize; 4] = [27, 38, 42, 53];
+
+    static ALONG: [AtomicU64; BINS] = [const { AtomicU64::new(0) }; BINS];
+    static ACROSS: [AtomicU64; BINS] = [const { AtomicU64::new(0) }; BINS];
+
+    /// (along, across) of the reckoning's error `reckoned - world`, flat, m, by the world's move `from -> world`; none when it
+    /// moved under [`MOVED_M`].
+    pub fn split(from: Vec3, world: Vec3, reckoned: Vec3) -> Option<(f32, f32)> {
+        let (dx, dz) = (world.x - from.x, world.z - from.z);
+        let len = dx.hypot(dz);
+        if len < MOVED_M {
+            return None;
+        }
+        let (ux, uz) = (dx / len, dz / len);
+        let (ex, ez) = (reckoned.x - world.x, reckoned.z - world.z);
+        Some(((ex * ux + ez * uz).abs(), (ez * ux - ex * uz).abs()))
+    }
+
+    fn bin(m: f32) -> usize {
+        ((m * 100.0) as usize).min(BINS - 1)
+    }
+
+    /// One ground world's error.
+    pub fn count(along: f32, across: f32) {
+        ALONG[bin(along)].fetch_add(1, Relaxed);
+        ACROSS[bin(across)].fetch_add(1, Relaxed);
+    }
+
+    /// (along, across) by cm bin since the last call, and zero again.
+    pub fn take() -> ([u64; BINS], [u64; BINS]) {
+        (std::array::from_fn(|i| ALONG[i].swap(0, Relaxed)), std::array::from_fn(|i| ACROSS[i].swap(0, Relaxed)))
+    }
+
+    /// The bin a share `q` of the worlds is at or under, cm (`>=200` for the last).
+    fn quantile(bins: &[u64; BINS], n: u64, q: f64) -> String {
+        let want = (q * n as f64).ceil().max(1.0) as u64;
+        let mut seen = 0;
+        for (i, c) in bins.iter().enumerate() {
+            seen += c;
+            if seen >= want {
+                return if i == BINS - 1 { format!(">={i}") } else { i.to_string() };
+            }
+        }
+        "-".to_string()
+    }
+
+    fn one(bins: &[u64; BINS], n: u64) -> String {
+        let over: Vec<String> = BARS_CM
+            .iter()
+            .map(|bar| {
+                let k: u64 = bins[*bar..].iter().sum();
+                format!("{bar} cm+ {k} ({:.1} %)", if n == 0 { 0.0 } else { 100.0 * k as f64 / n as f64 })
+            })
+            .collect();
+        format!(
+            "p50 {} cm, p90 {} cm, p99 {} cm; {}",
+            quantile(bins, n, 0.5),
+            quantile(bins, n, 0.9),
+            quantile(bins, n, 0.99),
+            over.join(", ")
+        )
+    }
+
+    /// The match-end line's text after its prefix.
+    pub fn line(along: &[u64; BINS], across: &[u64; BINS]) -> String {
+        let n: u64 = across.iter().sum();
+        format!(
+            "reckoning error at ground worlds moved {MOVED_M} m+ since the last match end (every match on this server): {n} worlds; across the move {}; along it {}",
+            one(across, n),
+            one(along, n)
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_cross_track_split_is_by_the_worlds_own_move() {
+        let from = Vec3::new(0.0, 5.0, 0.0);
+        let world = Vec3::new(2.0, 5.0, 0.0);
+        // Ahead 0.3 m and 0.1 m to the side of a move along +x; height is not counted.
+        let (along, across) = cross_track::split(from, world, Vec3::new(2.3, 6.0, -0.1)).unwrap();
+        assert!((along - 0.3).abs() < 1e-5 && (across - 0.1).abs() < 1e-5, "{along} {across}");
+        // A move along +z: the same error is now 0.1 along and 0.3 across.
+        let (along, across) = cross_track::split(from, Vec3::new(0.0, 5.0, 2.0), Vec3::new(0.3, 5.0, 2.1)).unwrap();
+        assert!((along - 0.1).abs() < 1e-5 && (across - 0.3).abs() < 1e-5, "{along} {across}");
+        // Under 0.5 m moved: no direction.
+        assert_eq!(cross_track::split(from, Vec3::new(0.3, 5.0, 0.3), world), None);
+    }
+
+    #[test]
+    fn the_cross_track_line_gives_quantiles_and_the_bars() {
+        let mut across = [0u64; cross_track::BINS];
+        let mut along = [0u64; cross_track::BINS];
+        across[5] = 80;
+        across[30] = 15;
+        across[300.min(cross_track::BINS - 1)] = 5;
+        along[10] = 100;
+        let line = cross_track::line(&along, &across);
+        assert!(
+            line.ends_with(
+                ": 100 worlds; across the move p50 5 cm, p90 30 cm, p99 >=200 cm; 27 cm+ 20 (20.0 %), 38 cm+ 5 (5.0 %), 42 cm+ 5 (5.0 %), 53 cm+ 5 (5.0 %); along it p50 10 cm, p90 10 cm, p99 10 cm; 27 cm+ 0 (0.0 %), 38 cm+ 0 (0.0 %), 42 cm+ 0 (0.0 %), 53 cm+ 0 (0.0 %)"
+            ),
+            "{line}"
+        );
+    }
 
     fn facts() -> Facts {
         Facts {

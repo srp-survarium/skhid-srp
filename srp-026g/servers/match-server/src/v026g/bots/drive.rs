@@ -788,6 +788,7 @@ fn drive_tick_inner(
             now: time,
             me,
             grenades: &view.grenades,
+            bodies: &view.places,
         };
         let action = bot.features.avoid.tick(tick, &tuning.avoid, &mut bot.rng, &around);
         // One trace line for each decision of the avoidance (noticed, set out, no way out, refused).

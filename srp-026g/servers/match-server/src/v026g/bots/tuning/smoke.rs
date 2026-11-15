@@ -105,8 +105,9 @@ pub struct SmokeTuning {
     pub spot_rules: bool,
     /// A mate's planned smoke keeps others off within this of its landing, metres: RDG-M's cloud radius.
     pub claim_m: Metres,
-    /// For this long after it was planned, ms: the throw's turn, hold and launch (`grenade_give_up_ms` 1.5 s +
-    /// `grenade_launch_ms` 1.1 s + the look after 0.3 s); thrown, the cloud in the air counts.
+    /// For this long after it was planned, ms: the throw's turn, hold and launch (`grenade_give_up_ms` 1.5 s + the
+    /// launch after the smoke's 650 ms hold, `arc::launch_after_ms`, 1.15 s + the look after 0.3 s); thrown, the cloud in
+    /// the air counts.
     pub claim_ms: u32,
     /// A bot standing to throw a smoke keeps its route (`LegsWhy::ThrowingSmoke`) and walks on along it once the smoke is
     /// away: the smoke was planned for that route's crossing. Off: standing left it no goal and dropped its route

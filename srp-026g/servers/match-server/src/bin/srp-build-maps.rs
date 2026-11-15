@@ -10,8 +10,8 @@
 //! tuning is the server's: `SRP_BOT_TUNING` as the server reads it (unset: the code's defaults, as the compose file
 //! ships). The store is the server's own (`match_server::v026g::bot_maps`): the files get the keys the server looks
 //! for. Each map is built and written, then a second store (a restart) must read every part back with the same
-//! digests; anything a restart would build again fails the run (exit 1). The built dir must be empty or absent, so
-//! every file in it is this build's.
+//! digests; anything a restart would build again fails the run (exit 1), as does a map whose build takes longer than
+//! `SRP_BUILD_MAPS_LIMIT_S` (default 3 h). The built dir must be empty or absent, so every file in it is this build's.
 //!
 //! `--files` builds nothing: for each project it prints `<project> TAB <grid file> TAB <sight file> TAB <tactics file>`,
 //! the names the server's store reads the map from in its built folder (`Maps::built_file_names`, the same keys, the
@@ -26,8 +26,25 @@ use match_server::v026g::bot_maps;
 use match_server::v026g::bots::maps::{self, Made, Source};
 use match_server::v026g::bots::tuning::LoadedTuning;
 
-/// A map's build may take this long before the run fails (the largest take seconds).
-const LIMIT: Duration = Duration::from_secs(900);
+/// A map's build may take this long before the run fails, s: `SRP_BUILD_MAPS_LIMIT_S`, else [`LIMIT_S`].
+const LIMIT_ENV: &str = "SRP_BUILD_MAPS_LIMIT_S";
+
+/// The default limit, s: 3 h, 2.6 times the longest build measured at b93e83c75 on format 8 maps (Mamayev Kurgan 4,099 s,
+/// Rudnya 2,844 s, Chemical Plant 1,625 s, on 8 cores). It catches a build that never ends, not a slow one: the old 900 s
+/// failed every pre-build of today's grid rules.
+const LIMIT_S: u64 = 10_800;
+
+/// The limit from [`LIMIT_ENV`] (whole seconds over 0), else [`LIMIT_S`].
+fn limit() -> Result<Duration, String> {
+    match std::env::var(LIMIT_ENV) {
+        Err(std::env::VarError::NotPresent) => Ok(Duration::from_secs(LIMIT_S)),
+        Ok(text) => match text.trim().parse::<u64>() {
+            Ok(s) if s > 0 => Ok(Duration::from_secs(s)),
+            _ => Err(format!("{LIMIT_ENV}={text}: whole seconds over 0")),
+        },
+        Err(e) => Err(format!("{LIMIT_ENV}: {e}")),
+    }
+}
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -72,7 +89,7 @@ fn files(dir: &Path, named: &[String]) -> Result<(), String> {
     if projects.is_empty() {
         return Err(format!("no .mapdata in {}", dir.display()));
     }
-    let store = bot_maps(dir.into(), maps::KEEP, maps::AT_ONCE, None, &tuning);
+    let store = bot_maps(dir.into(), maps::KEEP, maps::AT_ONCE, None, &tuning, maps::AtLoad::Refuse);
     for project in &projects {
         let [grid, sight, tactics] = store.built_file_names(project).map_err(|why| format!("{project}: {why}"))?;
         println!("{project}\t{grid}\t{sight}\t{tactics}");
@@ -98,10 +115,20 @@ fn run(dir: &Path, built: &Path, named: &[String]) -> Result<(), String> {
     if projects.is_empty() {
         return Err(format!("no .mapdata in {}", dir.display()));
     }
-    println!("{} maps from {} into {}; {} (hash {:08x})", projects.len(), dir.display(), built.display(), loaded.data_line(), tuning.hash());
+    let limit = limit()?;
+    println!(
+        "{} maps from {} into {}; {} (hash {:08x}); each map's build may take {} s ({LIMIT_ENV})",
+        projects.len(),
+        dir.display(),
+        built.display(),
+        loaded.data_line(),
+        tuning.hash(),
+        limit.as_secs()
+    );
     let (dir, built_dir): (PathBuf, PathBuf) = (dir.into(), built.into());
-    let store = || bot_maps(dir.clone(), maps::KEEP, maps::AT_ONCE, Some(built_dir.clone()), &tuning);
-    let done = maps::prebuild(store, &projects, LIMIT)?;
+    // The pre-build builds what is not there; the restart's read-back (`prebuild`) then finds every file.
+    let store = || bot_maps(dir.clone(), maps::KEEP, maps::AT_ONCE, Some(built_dir.clone()), &tuning, maps::AtLoad::Build);
+    let done = maps::prebuild(store, &projects, limit)?;
     for map in &done {
         let Made { grid, sight, tactics } = map.made;
         println!(

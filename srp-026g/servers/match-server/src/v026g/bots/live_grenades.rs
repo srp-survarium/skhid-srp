@@ -11,10 +11,12 @@
 //!   nothing, as the client's: the list keeps the press as an assumed grenade ([`Whose::Assumed`]) that a team with
 //!   `AvoidTuning::bot_pockets` on does not dodge; a bot whose pockets were not read is [`Whose::Unread`], dodged by
 //!   every team. The pockets are those of the kit in use ([`KitPockets`], the worlds say which).
-//! - **The launch.** [`LAUNCH_MS`] after the press (LIKELY) the grenade leaves the hand along the thrower's
-//!   view: the arc model of `arc.rs` over the map's bullet mesh gives the first contact and where it comes to
-//!   rest ([`arc::Landing`]), once, from the body's reckoning at that time. A thrower that is dead by then
-//!   threw nothing (counted).
+//! - **The launch.** At the client's launch, [`super::arc::launch_at`] of the press and the release (the key that began the
+//!   throw going up, seen in the thrower's input: [`Phase::Pressed`]), the grenade leaves the hand along the thrower's
+//!   view from his release point: the arc model of `arc.rs` over the map's bullet mesh gives the first contact and
+//!   where it comes to rest ([`arc::Landing`]), once, from the body's reckoning at that time. A key held to the blast
+//!   keeps it in the hand (it goes off there, not known to the bots). A thrower that dies before the launch keeps it in
+//!   his hand, where it goes off on time ([`Phase::InDeadHand`], counted).
 //! - **The blast.** The fuse after the press; the entry is kept [`SPENT_MS`] after it.
 //!
 //! The list only records and predicts: nothing reads it unless a bot's tuning asks for it
@@ -25,14 +27,12 @@ use survarium::v026g::loadouts::BotRole;
 use survarium::v026g::match_msgs::static_info::MatchProfile;
 use survarium::v026g::weapons::is_grenade_item;
 
-use super::arc::{self, Grenade};
+use super::arc::Grenade;
 use super::pockets::{ProfilePockets, WorldStack, quick_use_order};
 use super::stock::PRESS_LAG_MS;
 use super::view::Place;
 use crate::v026g::drive::key;
 
-/// The grenade leaves the hand this long after the press, ms (`arc::LAUNCH_DELAY_S`, LIKELY).
-pub const LAUNCH_MS: u32 = (arc::LAUNCH_DELAY_S * 1000.0) as u32;
 /// An entry is kept this long past its blast, ms: a poll or two, so a reader at the blast tick still sees it.
 pub const SPENT_MS: u32 = 300;
 /// A second throw key of one place this soon after the first is the same throw: a quick-use key acts when it
@@ -94,14 +94,26 @@ impl Whose {
 /// Where a grenade is in its life.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Phase {
-    /// The key is down, the pin out, the grenade still in the hand: the view may yet turn, so no landing.
-    Pressed,
+    /// The key is down, the pin out, the grenade still in the hand: the view may yet turn, so no landing. `keys`: the
+    /// throw keys that began it; `release`: when one of them went up, once seen (the launch is
+    /// [`super::arc::launch_at`] of the press and it).
+    Pressed { keys: u32, release: Option<u32> },
     /// Let go: where it first touches the ground, when, and where it comes to rest (the expected blast).
     Flying {
         launched: u32,
         lands: u32,
         rest: Vec3,
     },
+    /// The thrower died with it in his hand, the pin out: it goes off on time there, never thrown nor dropped (PROVEN,
+    /// read 2026-11-15: `on_player_death` 0x2E3390 puts the weapon to idle with no launch and no stop of the fuse; the
+    /// grenade set's 0x309E10 clears the wanted slot (0x17 at +17Ch of the object at its +250h, the inventory) and,
+    /// unless the +22Ah flag of the object at its +25Ch is set, first lowers its own +260h by its +234h, to 0 at least
+    /// (0x309E1F..0x309E3B), neither of which stops the fuse; the fuse's blast is at
+    /// `hand_transform` 0x309F00, the dead holder's right hand, while no launch made it a body, 0x303AEA). `at`: where
+    /// his body fell (`died`); the pose of a dead body's hand was not read, so the blast is taken there. Whether the
+    /// grenade is drawn in a dead hand was not read either: an enemy knows it as a landed one seen on the ground
+    /// (`grenade_threat::knows`), which takes it as drawn there.
+    InDeadHand { died: u32, at: Vec3 },
 }
 
 impl LiveGrenade {
@@ -602,7 +614,8 @@ pub struct ThrowCounts {
     pub launched: u32,
     /// Let go with no first contact within the flight's time (no ground, or off the map): dropped.
     pub unplaced: u32,
-    /// The thrower was dead by the launch: dropped.
+    /// The thrower was dead by the launch: kept in his hand ([`Phase::InDeadHand`]; dropped only when his body was never
+    /// placed).
     pub died_throwing: u32,
 }
 
@@ -621,6 +634,7 @@ impl super::Bots {
     pub fn grenade_report(&self) -> String {
         let counts = self.tracker.throw_counts();
         let trio = |n: [u32; 3]| format!("{}/{}/{}", n[0], n[1], n[2]);
+        let quad = |n: [u32; 4]| format!("{}/{}/{}/{}", n[0], n[1], n[2], n[3]);
         let by_team = self.grenade_counts();
         let avoidance = by_team
             .iter()
@@ -631,9 +645,10 @@ impl super::Bots {
                     .map(|whose| {
                         let a = &by_whose[whose.index()];
                         format!(
-                            "{whose:?}: noticed {} (a mate's {}) stepped {} already out {} out when it came to act {} no way out {} escaped {} caught {} refused {}",
+                            "{whose:?}: noticed {} (a mate's {}; an enemy's known from the press and launch/the release/the swing only, by the landing/the landing unseen {}) stepped {} already out {} out when it came to act {} no way out {} escaped {} caught {} refused {}",
                             trio(a.noticed),
                             a.noticed_mate,
+                            quad(a.seen_throw),
                             trio(a.stepped),
                             trio(a.held),
                             trio(a.out_at_act),
@@ -897,19 +912,20 @@ mod tests {
         let listed = tracker.live_grenades().to_vec();
         assert_eq!(listed.len(), 1);
         assert_eq!((listed[0].by, listed[0].team, listed[0].press), (0, 0, 1_000));
-        assert_eq!(listed[0].phase, Phase::Pressed);
+        assert_eq!(listed[0].phase, Phase::Pressed { keys: key::GRENADE, release: Some(1_050) });
         assert_eq!(listed[0].blast_at(), 5_000);
-        // Before the launch (press + 1100 ms): still in the hand.
-        tracker.launch_grenades(2_099, Some(&*world));
-        assert_eq!(tracker.live_grenades()[0].phase, Phase::Pressed);
-        // At it: a level view from about 1.3 m over a floor comes down 8 to 9 m ahead, rolls 2 m on.
-        tracker.launch_grenades(2_100, Some(&*world));
+        // Let go at 1050, before the pull-pin's end: the launch is press + 400 + 500. Before it, still in the hand.
+        tracker.launch_grenades(1_899, Some(&*world));
+        assert!(matches!(tracker.live_grenades()[0].phase, Phase::Pressed { .. }));
+        // At it: a level view from the release point, 1.73 m over the floor and 0.21 m right, comes down about 10 m
+        // ahead and rolls on.
+        tracker.launch_grenades(1_900, Some(&*world));
         let Phase::Flying { launched, lands, rest } = tracker.live_grenades()[0].phase else {
             panic!("launched: {:?}", tracker.live_grenades());
         };
-        assert_eq!(launched, 2_100);
-        assert!((2_300..2_900).contains(&lands), "{lands}");
-        assert!(rest.x.abs() < 0.1 && (9.0..13.0).contains(&rest.z), "{rest:?}");
+        assert_eq!(launched, 1_900);
+        assert!((2_100..2_700).contains(&lands), "{lands}");
+        assert!((0.1..0.35).contains(&rest.x) && (9.0..13.0).contains(&rest.z), "{rest:?}");
         assert_eq!(tracker.throw_counts().launched, 1);
         // The view carries it until a moment past the blast.
         let clock = Clock {
@@ -923,8 +939,10 @@ mod tests {
         assert!(tracker.live_grenades().is_empty());
     }
 
+    /// [read 2026-11-15] A thrower dead with the pin out: his grenade stays listed and goes off on time where his body
+    /// was last placed ([`Phase::InDeadHand`]); with no map a live thrower's stays in the hand.
     #[test]
-    fn a_thrower_dead_by_the_launch_threw_nothing_and_no_map_leaves_it_in_the_hand() {
+    fn a_thrower_dead_with_the_pin_out_keeps_it_in_his_hand_and_no_map_leaves_it_in_the_hand() {
         let world = floor_world();
         let mut tracker = stand(None);
         press(&mut tracker, 0, 1_000, key::GRENADE);
@@ -938,8 +956,15 @@ mod tests {
         };
         tracker.fixed(0, dead, Some(0.0), &Kinematics::default(), None);
         tracker.launch_grenades(2_200, Some(&*world));
-        assert!(tracker.live_grenades().is_empty());
+        let listed = tracker.live_grenades().to_vec();
+        assert_eq!(listed.len(), 1, "kept: it goes off in his hand");
+        let Phase::InDeadHand { died, at } = listed[0].phase else { panic!("{:?}", listed[0].phase) };
+        assert_eq!(died, 2_200);
+        assert!(at.distance_xz(Vec3::ZERO) < 50.0, "{at:?}");
+        assert_eq!(listed[0].blast_at(), 1_000 + listed[0].grenade.fuse_ms());
         assert_eq!(tracker.throw_counts().died_throwing, 1);
+        tracker.launch_grenades(1_000 + listed[0].grenade.fuse_ms() + SPENT_MS + 50, Some(&*world));
+        assert!(tracker.live_grenades().is_empty(), "spent");
     }
 
     #[test]
@@ -978,6 +1003,31 @@ mod tests {
         assert_eq!((counts.frag, counts.smoke, counts.no_pockets), (2, 1, 0));
     }
 
+    /// [read 2026-11-15] A smoke thrower dead with the pin out: the cloud pours in his hand, where his body fell, at the
+    /// press and the fuse ([`Placed::DeadHand`]), not dropped.
+    #[test]
+    fn a_smoke_in_a_dead_hand_pours_there() {
+        use crate::v026g::bots::smoke::{MatchMs, Placed, SmokeGrenade};
+        let world = floor_world();
+        let pockets = Pockets::new([Some((Pocketed::Smoke, 1)), None, None, None, None, None]);
+        let mut tracker = stand(Some(pockets));
+        press(&mut tracker, 1, 1_000, key::GRENADE);
+        let dead = Fix { fall: None, controller: None, gates: None, jump: None,
+            alive: false,
+            feet: None,
+            speed: None,
+            ..fix(1_200, 10)
+        };
+        tracker.fixed(1, dead, Some(0.0), &Kinematics::default(), None);
+        tracker.launch_grenades(1_250, Some(&*world));
+        let clouds = tracker.clouds().to_vec();
+        assert_eq!(clouds.len(), 1, "poured in the dead hand");
+        assert_eq!((clouds[0].by, clouds[0].placed, clouds[0].thrown), (1, Placed::DeadHand, MatchMs(1_000)));
+        assert_eq!(clouds[0].pours, MatchMs(1_000 + SmokeGrenade::of_game_data().cloud.fuse_ms));
+        assert!(clouds[0].centre.distance_xz(Vec3::ZERO) < 1.0, "{:?}", clouds[0].centre);
+        assert_eq!(tracker.smoke_counts().dropped, [0, 0]);
+    }
+
     #[test]
     fn a_humans_smoke_key_becomes_a_cloud_where_the_arc_rests_it_and_the_view_carries_it() {
         use crate::v026g::bots::smoke::{MatchMs, SmokeGrenade};
@@ -993,10 +1043,14 @@ mod tests {
         assert_eq!(clouds.len(), 1);
         let cloud = clouds[0];
         assert_eq!((cloud.by, cloud.team, cloud.thrown), (1, 1, MatchMs(1_000)));
-        // The fuse from the press (the game data's, else the RDG-M's 4 s), the rest 9-13 m ahead as a frag's.
+        // The fuse from the press (the game data's, else the RDG-M's 4 s), the rest 9-13 m ahead as a frag's, on the
+        // line of the release point (`arc::RELEASE_RIGHT_M` to the thrower's right).
         let smoke = SmokeGrenade::of_game_data();
         assert_eq!(cloud.pours, MatchMs(1_000 + smoke.cloud.fuse_ms));
-        assert!(cloud.centre.x.abs() < 0.1 && (9.0..13.0).contains(&cloud.centre.z), "{cloud:?}");
+        assert!(
+            (cloud.centre.x - crate::v026g::bots::arc::RELEASE_RIGHT_M).abs() < 0.1 && (9.0..13.0).contains(&cloud.centre.z),
+            "{cloud:?}"
+        );
         let counts = tracker.smoke_counts();
         assert_eq!((counts.thrown, counts.clouds, counts.dropped), ([0, 1], [0, 1], [0, 0]));
         let clock = Clock {
@@ -1111,7 +1165,7 @@ mod tests {
             by: 0,
             team: 0,
             press: 1_000,
-            phase: Phase::Pressed,
+            phase: Phase::Pressed { keys: key::GRENADE, release: None },
             grenade: *Grenade::bots(),
             whose: Whose::Human,
         };
