@@ -3397,6 +3397,7 @@ va	name	location	role	basis
 0x003355f0	survarium::intermediate_shared_statistics::deserialize	EAX	reader	inferred
 0x00335750	survarium::player_shared_statistics::serialize	stack+4	player statistics	inferred
 0x00335750	survarium::player_shared_statistics::serialize	stack+8	writer	inferred
+0x00335a50	survarium::player_logic_stand_state::movement_lexemes [descriptive]	entry ESP+10h	the animation request (+0 an argument of the arms' animation_lexeme_init, +4 a kind compared with 5, +8 the bone mask wanted, +0Ch a flag)	observed
 0x003383e0	survarium::player_logic_dead_state::serialize	ECX	dead_state	inferred
 0x003383e0	survarium::player_logic_dead_state::serialize	stack+4	writer	inferred
 0x00338430	survarium::player_logic_dead_state::deserialize	ECX	dead_state	inferred
@@ -5961,6 +5962,11 @@ va	name	location	role	basis
 0x003183a0	survarium::match_options::match_options	ESI	options receiver; 20 profiles of 45FCh bytes, then mov dword [esi+577B0h],FFFFFFFFh at 0x3183D2; holder+577BCh match seed is initialized before the handshake, although its real match value is unknown until options decode	observed
 0x003a8980	anim_decode_read_bits	EAX	entry: number of bits to read (0..32)	observed
 0x003a8980	anim_decode_read_bits	EDI	the bit-stream state: +0x203c current byte ptr, +0x2048 bit position 0..7	observed
+0x003b2050	vostok::animation::bone_matrices_computer::computed_local_bone_transform	entry ESP+4	the node list (+8 begin, +0Ch count; 0B0h-byte entries, the node at +0A8h)	observed
+0x003b2050	vostok::animation::bone_matrices_computer::computed_local_bone_transform	entry ESP+8	the out transform (translation, rotation, scale)	observed
+0x003b2050	vostok::animation::bone_matrices_computer::computed_local_bone_transform	entry ESP+10h	the bone's mask (the skeleton's: legs 4, spine/head 1, arms 2)	observed
+0x003b2050	vostok::animation::bone_matrices_computer::computed_local_bone_transform	entry ESP+14h	the layer	observed
+0x003b2050	vostok::animation::bone_matrices_computer::computed_local_bone_transform	entry ESP+18h	nonzero: mix the scales (0x3B2306)	observed
 0x00317d40	vostok::popcount	ECX	entry: the word whose set bits are counted	observed
 0x002614e0	survarium::options_item_float::initialize	ECX	the float option item (vtable 0xA06728: the video options' option 7, "fov")	observed
 0x002616e0	survarium::options_item_float::apply	ECX	the float option item (vtable 0xA06728)	observed
