@@ -149,13 +149,17 @@ fn group(cx: &Ctx) -> Option<GroupUp> {
     cx.tuning.tdm.group.or_else(|| cx.tuning.tdm.squad.map(|_| GroupUp::default())).filter(|_| !cx.view.objective().has_homes())
 }
 
-/// [A396] A trade reaches the killer from at most this path distance, m: the A396 finding's own cut (of 243 trades in the
-/// five reference matches, 120 started over 25 m away and 2 of those reached the killer; the A396 row of `TASKS.md`).
+/// [A396] A trade reaches the killer from at most this distance to the body, m: the A396 finding's own cut (of 243 trades in
+/// the five reference matches, 120 started over 25 m away and 2 of those reached the killer; the A396 row of `TASKS.md`). The
+/// finding measured the trader's straight ground distance to the trade's spot at the take (`math.hypot` over x and z,
+/// `owner-5/scripts/fights/f9_more.py`), so the bound is that distance, not a path one (`Ctx::path_dist` is at least 1.25
+/// times it) nor one to the killer.
 pub const TRADE_REACH_M: f32 = 25.0;
 
-/// [A396] Whether the bot is within [`TRADE_REACH_M`] of `at` by the path distance (`threat.trade_reach`; off: always).
-fn reaches_in_time(cx: &Ctx, at: Vec3) -> bool {
-    !cx.tuning.threat.trade_reach || cx.path_dist(at) <= TRADE_REACH_M
+/// [A396] Whether the bot is within [`TRADE_REACH_M`] of the trade's spot `body`, by the straight ground distance as the finding
+/// measured it (`threat.trade_reach`; off: always).
+fn reaches_in_time(cx: &Ctx, body: Vec3) -> bool {
+    !cx.tuning.threat.trade_reach || cx.me.feet.distance_xz(body) <= TRADE_REACH_M
 }
 
 /// The rules of a trade's cover spot: TDM's `tdm.group`, else [A302 #1] `threat.trade_cover` in any mode.
@@ -219,7 +223,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     {
         if in_held_line(cx, at) {
             crate::v026g::bots::threat::count(crate::v026g::bots::threat::Count::TradeRefused);
-        } else if !reaches_in_time(cx, killer_near(cx, at).unwrap_or(at)) && killer_near(cx, at).is_none() {
+        } else if !reaches_in_time(cx, at) && killer_near(cx, at).is_none() {
             // [A396] Too far to reach in the trade's time, and no known place of the killer to cover: no trade.
             crate::v026g::bots::threat::count(crate::v026g::bots::threat::Count::TradeTooFar);
         } else {
@@ -261,17 +265,20 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     let far = cx
         .point_of(target)
         .and_then(|body| killer_near(cx, body).map(|killer| (body, killer)))
-        .filter(|&(_, killer)| !reaches_in_time(cx, killer));
+        .filter(|&(body, _)| !reaches_in_time(cx, body));
     let from = match (cover_rules(cx), cx.point_of(target), far) {
         (rules, _, Some((body, killer))) => {
             let rules = rules.unwrap_or_default();
             let spot = cover_spot(cx, &rules, body, killer, rng).unwrap_or(cx.me.feet);
             crate::v026g::bots::threat::count(crate::v026g::bots::threat::Count::TradeFromCover);
             log::debug!(
-                "player {} (the server's bot) at {} ms: trade too far ({:.0} m to the killer's known place): from ({:.1}, {:.1})",
+                "player {} (the server's bot) at {} ms: trade too far ({:.0} m to the body, the killer's known place ({:.1}, {:.1})): \
+                 from ({:.1}, {:.1})",
                 cx.me.place,
                 cx.now,
-                cx.path_dist(killer),
+                cx.me.feet.distance_xz(body),
+                killer.x,
+                killer.z,
                 spot.x,
                 spot.z
             );
@@ -585,6 +592,29 @@ mod tests {
         assert!(spot.distance_xz(SPOT) > 1.0, "{spot:?}");
         s.memory = Memory::default();
         assert_eq!(from(&s), None, "no killer known: on the body");
+    }
+
+    /// [A396] The bound is the straight ground distance to the body (the finding's measure): bot 0 10.2 m from it (20.0 m from
+    /// the killer, 25.0 m of `path_dist`) walks onto the body; 30 m off it starts from a spot that sees the killer, and with
+    /// the killer not known it does not trade; with `threat.trade_reach` off, as before.
+    #[test]
+    fn a_trade_over_25_m_from_the_body_starts_off_it_or_is_not_taken() {
+        let from = |s: &Scenario| match start(TargetRef::Point(SPOT), &s.cx(0), &mut Rng::new(3)) {
+            State::Trade { from, .. } => from,
+            other => panic!("{other:?}"),
+        };
+        let near = widowed(1_000);
+        assert!(near.tuning.threat.trade_reach);
+        assert_eq!(from(&near), None, "10.2 m from the body: onto it");
+        let mut far = widowed(1_000);
+        far.view.places[0].feet = SPOT + Vec3::new(-30.0, 0.0, 0.0);
+        assert_eq!(trades(&far).len(), 1, "the killer known: taken");
+        let spot = from(&far).expect("from a spot off the body");
+        assert!(spot.distance_xz(SPOT) > 1.0, "{spot:?}");
+        far.memory = Memory::default();
+        assert!(trades(&far).is_empty(), "the killer not known: no trade");
+        far.tuning.threat.trade_reach = false;
+        assert_eq!(trades(&far).len(), 1, "off: as before");
     }
 
     /// [A297] TDM: bot 0 at (28, 0, 35), its partner 2 at (38, 0, 33) fighting enemy 1, whom bot 0 heard at (58, 0, 34).
