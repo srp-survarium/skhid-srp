@@ -235,10 +235,13 @@ pub(crate) mod carrier_levels {
 /// slow body's `step_down` looks only 0.05 m under its feet, so the exe finds no ground on most ticks down a ramp steeper than about
 /// 16 degrees walking and on every stair or kerb (exe review of A388, 2026-11-15: a 25 degree slope at 3.5 m/s, no ground on 7
 /// ticks of 8), while the body goes on down it. At a ledge the capsule's axis is already 0.18-0.25 m past the rim on its first
-/// no-ground tick, with no walker ground under it: the walk-off comes on that same tick.
+/// no-ground tick, with no walker ground under it: the walk-off comes on that same tick. [Phase 2] A grid without the client's walker
+/// ([`WalkGrid::has_client_walker`]) cannot make the walker-ground test: [`KeptOff::NoWalker`], not a walk-off.
 pub(crate) fn kept_off_ground(grid: &WalkGrid, to: Vec3, top: f32) -> KeptOff {
     let step = grid.body().step;
-    if grid.walker_ground_below(to, top + WALKER_GROUND_OVER_M, WALKER_GROUND_OVER_M + step).is_some() {
+    if !grid.has_client_walker() {
+        KeptOff::NoWalker
+    } else if grid.walker_ground_below(to, top + WALKER_GROUND_OVER_M, WALKER_GROUND_OVER_M + step).is_some() {
         KeptOff::WalkerGround
     } else {
         match under_edge(grid, to, top, top - step) {
@@ -257,6 +260,10 @@ pub(crate) enum KeptOff {
     WalkerGround,
     /// No floor under the feet to come down on: held as the grid's edge has it.
     NoFloor,
+    /// The grid keeps no client walker ([`WalkGrid::with_client_walker`]): whether the client's body has ground under the feet is
+    /// not known, so it stays on the grid's floors. A kept controller needs the walker, so the reckoning's steps never meet this;
+    /// the lip guard's margin point can (a grid built without it).
+    NoWalker,
 }
 
 /// [A318] The grid's own step less the client tick's, for one reckoned step: its flat length (m, may be negative) and its flat net.
@@ -387,12 +394,14 @@ pub(crate) mod creep_steps {
     }
 }
 
-/// [A388 step 2b] The lip guard's stop forecasts that the margin point's walker-ground test alone called off ([`stays_up`]), on this
-/// server (the match-end line). Decides nothing itself.
+/// [A388 step 2b] The lip guard's stop forecasts that the margin point's walker-ground test alone called off ([`stays_up`]), and
+/// [phase 2] the margin points whose grid had no client walker to test ([`KeptOff::NoWalker`]), on this server (the match-end line).
+/// Decides nothing itself.
 pub(crate) mod margin_walk_offs {
     use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
     static ONLY: AtomicU64 = AtomicU64::new(0);
+    static NO_WALKER: AtomicU64 = AtomicU64::new(0);
 
     /// A forecast called off at its margin; `only`: by the walker-ground test alone.
     pub(crate) fn count(only: bool) {
@@ -401,8 +410,14 @@ pub(crate) mod margin_walk_offs {
         }
     }
 
-    pub(crate) fn take() -> u64 {
-        ONLY.swap(0, Relaxed)
+    /// A margin point the walker-ground test could not be made at (no walker).
+    pub(crate) fn no_walker() {
+        NO_WALKER.fetch_add(1, Relaxed);
+    }
+
+    /// (called off by the test alone, not tested for no walker) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64) {
+        (ONLY.swap(0, Relaxed), NO_WALKER.swap(0, Relaxed))
     }
 }
 
@@ -543,8 +558,16 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
             // while the client's body leaves 0.18-0.25 m past the rim: the margin point is off its floor where the client's walker
             // has no ground within a step under it and a floor lies below (the same two tests as a reckoned step's,
             // [`kept_off_ground`]): at most 0.25 m early, the safe side.
+            // [Phase 2] With no client walker on the grid the test is not made ([`KeptOff::NoWalker`]): the margin is the grid's.
             let walks_off = kin.margin_edge == MarginEdge::Body
-                && matches!(kept_off_ground(grid, Vec3::new(margin.x, top, margin.z), top), KeptOff::Left(_, landing) if falls(landing));
+                && match kept_off_ground(grid, Vec3::new(margin.x, top, margin.z), top) {
+                    KeptOff::Left(_, landing) => falls(landing),
+                    KeptOff::NoWalker => {
+                        margin_walk_offs::no_walker();
+                        false
+                    }
+                    KeptOff::WalkerGround | KeptOff::NoFloor => false,
+                };
             if falls(margin) || over_open || walks_off {
                 margin_walk_offs::count(walks_off && !falls(margin) && !over_open);
                 return false;
@@ -2149,6 +2172,8 @@ pub(crate) mod kept_edges {
             super::KeptOff::Left(..) => 0,
             super::KeptOff::WalkerGround => 1,
             super::KeptOff::NoFloor => 2,
+            // No kept controller without the walker: not a kept step's.
+            super::KeptOff::NoWalker => return,
         };
         OFF[i].fetch_add(1, Relaxed);
     }

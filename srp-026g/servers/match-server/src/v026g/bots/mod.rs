@@ -2464,11 +2464,12 @@ impl Bots {
             "{}flown riser presses held off their window since the last match end (every match on this server): height {height}, line {side}, heading {turn}, lead {lead}",
             nav_log::PREFIX
         ));
-        // [A388 step 2b] The lip guard's forecasts the margin point's walker-ground test alone called off.
+        // [A388 step 2b] The lip guard's forecasts the margin point's walker-ground test alone called off, and the margin points it
+        // could not test (no client walker on the grid).
+        let (walk_offs, no_walker) = body::margin_walk_offs::take();
         lines.push(format!(
-            "{}lip guard forecasts called off by the margin point's walker-ground test alone since the last match end (every match on this server): {}",
-            nav_log::PREFIX,
-            body::margin_walk_offs::take()
+            "{}lip guard forecasts called off by the margin point's walker-ground test alone since the last match end (every match on this server): {walk_offs}; margin points not tested for a grid with no client walker: {no_walker}",
+            nav_log::PREFIX
         ));
         // [Gap 10] The reckoned jumps the worlds' selectors refused, and the worlds in a jump the reckoning had none of.
         let (dropped, unseen, started, clips, changed) = jump_arc::world_jumps::take();
