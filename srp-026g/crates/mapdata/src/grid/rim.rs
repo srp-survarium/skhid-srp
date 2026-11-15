@@ -89,11 +89,18 @@ pub struct RimStats {
     /// [item 10] Rim jumps the aimed presses did not make either, where a let-go sprint flight of the line's or the aimed presses
     /// came to rest on the ground under the top ([`RimPress::under`], [`AimedSweep::under`]), flown again with the forward key held after the landing ([`Kind::SprintHeld`] at
     /// [`HELD_LEADS`], straight and at each of [`AIMS`]) …
+    /// ([item 10b] or that an aimed press made at share 0, the same bound) …
     pub held_tried: usize,
-    /// … made by one …
+    /// … made by one (its link: [item 10b] over a share-0 aimed press only at a higher share) …
     pub held_made: usize,
     /// … in this many flights (in [`Self::flights`] too).
     pub held_flights: usize,
+    /// [item 10b] Rim jumps the aimed presses made at share 0 (one exact press, no neighbour lands) …
+    pub aimed_share0: usize,
+    /// … of them flown again with the held sprints (a let-go sprint rested under the top) …
+    pub held_over_share0: usize,
+    /// … and of those, the links a held sprint at a higher share replaced.
+    pub held_replaced: usize,
     /// Flights flown.
     pub flights: usize,
 }
@@ -583,6 +590,17 @@ fn presses(leads: &[f32]) -> Vec<(Kind, Vec<f32>)> {
     out
 }
 
+/// [item 10b] The rim link of a jump the aimed sweep made (`aimed`) or the held sweep (`held`): the higher share; the aimed
+/// on a tie (a let-go press: no key held after the landing). The held sweep runs beside a made aimed press only where its
+/// share is 0 (`fly_rim_todo`).
+fn aimed_or_held(aimed: Option<Made>, held: Option<Made>) -> Option<Made> {
+    match (aimed, held) {
+        (Some(a), Some(h)) if h.share.flown() > a.share.flown() => Some(h),
+        (Some(a), _) => Some(a),
+        (None, h) => h,
+    }
+}
+
 /// [A385, S1] A press's place on a tie of shares, the lower first: a sprint climb (nothing is pressed, so no press timing to
 /// miss: owner-5 `railings-design.md` §2, S2), a walking press, a slow one (fewer steps first), then a sprint jump (it costs
 /// stamina and needs the speed test).
@@ -738,21 +756,34 @@ impl WalkGrid {
             }
             let lands = |st: &[FlightStep]| self.rim_lands_on(st, a, &linked);
             let sweep = self.best_aimed(world, s, a, b, way(d), &lands, kits);
-            // [item 10] Neither the line's presses nor the aimed ones made it, and a let-go sprint came to rest under the top:
-            // the held sprints (`Kind::SprintHeld`).
-            let held = (sweep.made.is_none() && (line_under || sweep.under)).then(|| self.best_held(world, s, a, b, way(d), &lands, kits));
+            // [item 10] Neither the line's presses nor the aimed ones made it, or [item 10b] the aimed press made it at share 0
+            // (one exact press no neighbour backs: a bot's press error fails it), and a let-go sprint came to rest under the
+            // top: the held sprints (`Kind::SprintHeld`).
+            let held = (sweep.made.is_none_or(|m| m.share == Share::landed(0)) && (line_under || sweep.under))
+                .then(|| self.best_held(world, s, a, b, way(d), &lands, kits));
             (sweep, held)
         });
         let mut stats = RimStats { tried: todo.len(), aimed_tried: near.len(), ..RimStats::default() };
         let aimed_of: std::collections::HashMap<(u32, u32), Made> = near
             .iter()
             .zip(&aimed)
-            .filter_map(|(&((a, b, _), _, _), (sweep, held))| sweep.made.or(held.and_then(|(m, _)| m)).map(|m| ((a, b), m)))
+            .filter_map(|(&((a, b, _), _, _), (sweep, held))| aimed_or_held(sweep.made, held.and_then(|(m, _)| m)).map(|m| ((a, b), m)))
             .collect();
         stats.aimed_made = aimed.iter().filter(|(sweep, _)| sweep.made.is_some()).count();
         stats.aimed_flights = aimed.iter().map(|(sweep, _)| sweep.flights).sum();
         stats.held_tried = aimed.iter().filter(|(_, held)| held.is_some()).count();
-        stats.held_made = aimed.iter().filter(|(_, held)| held.is_some_and(|(m, _)| m.is_some())).count();
+        // [item 10b] The links the held sprint makes: where nothing else made the jump, or over a share-0 aimed press.
+        stats.held_made = aimed
+            .iter()
+            .filter(|(sweep, held)| held.and_then(|(m, _)| m).is_some_and(|h| aimed_or_held(sweep.made, Some(h)) == Some(h)))
+            .count();
+        let share0 = |sweep: &AimedSweep| sweep.made.is_some_and(|m| m.share == Share::landed(0));
+        stats.aimed_share0 = aimed.iter().filter(|(sweep, _)| share0(sweep)).count();
+        stats.held_over_share0 = aimed.iter().filter(|(sweep, held)| share0(sweep) && held.is_some()).count();
+        stats.held_replaced = aimed
+            .iter()
+            .filter(|(sweep, held)| share0(sweep) && held.and_then(|(m, _)| m).is_some_and(|h| aimed_or_held(sweep.made, Some(h)) == Some(h)))
+            .count();
         stats.held_flights = aimed.iter().filter_map(|(_, held)| held.map(|(_, f)| f)).sum();
         stats.flights += stats.aimed_flights + stats.held_flights;
         let mut none = Vec::new();
@@ -940,6 +971,27 @@ mod tests {
                 assert_eq!(climbs, 0, "{top}");
             }
         }
+    }
+
+    /// [item 10b] Over a share-0 aimed press the held sprint's link wins only at a higher share; on a tie the aimed one; with no
+    /// aimed press the held one.
+    #[test]
+    fn a_held_sprint_replaces_an_aimed_press_only_at_a_higher_share() {
+        let made = |press: Takeoff, n: u8| Made {
+            to: 7,
+            press,
+            share: Share::landed(n),
+            walk: None,
+            aim: Aim::new(-3, 6).unwrap(),
+            walker_lands: false,
+        };
+        let aimed0 = made(Takeoff::Sprint(PressLead::from_metres(1.2)), 0);
+        let held = |n| made(Takeoff::SprintHeld(PressLead::from_metres(1.6)), n);
+        assert_eq!(aimed_or_held(Some(aimed0), Some(held(2))), Some(held(2)));
+        assert_eq!(aimed_or_held(Some(aimed0), Some(held(0))), Some(aimed0));
+        assert_eq!(aimed_or_held(Some(aimed0), None), Some(aimed0));
+        assert_eq!(aimed_or_held(None, Some(held(0))), Some(held(0)));
+        assert_eq!(aimed_or_held(None, None), None);
     }
 
     #[test]

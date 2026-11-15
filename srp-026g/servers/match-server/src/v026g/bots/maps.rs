@@ -864,7 +864,7 @@ fn build(
                         let rim = stats.rim;
                         log::info!(
                             "Bot map {} grid built in {:.1} s: aimed presses made {} of {} near misses tried, {} aimed flights of {} rim flights; \
-                             jumps the carry rule took away flown: {} made of {}; held sprints made {} of {} tried, {} held flights",
+                             jumps the carry rule took away flown: {} made of {}; held sprints made {} of {} tried, {} held flights; share-0 aimed presses {}, held sweeps over them {}, replaced {}",
                             path.display(),
                             started.elapsed().as_secs_f32(),
                             rim.aimed_made,
@@ -875,7 +875,10 @@ fn build(
                             stats.carry_flown.tried,
                             rim.held_made,
                             rim.held_tried,
-                            rim.held_flights
+                            rim.held_flights,
+                            rim.aimed_share0,
+                            rim.held_over_share0,
+                            rim.held_replaced
                         );
                         // [item 10] Each held sprint built (`Takeoff::SprintHeld`: the forward key held on after the landing).
                         for l in grid.off_links().iter().filter(|l| matches!(l.press, mapdata::grid::gap::Takeoff::SprintHeld(_))) {
