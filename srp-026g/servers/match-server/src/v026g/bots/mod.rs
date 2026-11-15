@@ -1904,7 +1904,7 @@ impl Bots {
         let rows = self.jump_test.as_mut().map(jump_test::JumpTest::take_fresh).unwrap_or_default();
         let mut notes = Vec::new();
         for row in rows {
-            let fix = Fix { fall: None, controller: None, gates: None,
+            let fix = Fix { fall: None, controller: None, gates: None, jump: None,
                 time: row.time,
                 alive: row.alive,
                 inserted: row.inserted,
@@ -1937,6 +1937,13 @@ impl Bots {
             && self.tracker.body(place).and_then(|body| body.fix()).map(|last| last.gates) != Some(Some(gates))
         {
             notes.push(Note { place, time, text: gates_line(keys, gates) });
+        }
+        // [Gap 10] The world's jump, when it changes (decision-neutral): the JUMP key beside it.
+        if let Some(jump) = fix.jump
+            && self.tracker.body(place).and_then(|body| body.fix()).map(|last| last.jump) != Some(Some(jump))
+        {
+            let held = if keys & crate::v026g::drive::key::JUMP != 0 { "held" } else { "up" };
+            notes.push(Note { place, time, text: format!("world jump: keys JUMP {held}, selector {jump:?}") });
         }
         let new_life = self
             .tracker

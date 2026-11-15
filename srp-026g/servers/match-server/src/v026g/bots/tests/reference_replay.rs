@@ -279,6 +279,7 @@ fn reference_replay() {
                     fall: None,
                     controller: None,
                     gates: None,
+                    jump: None,
                 },
             })
         })
