@@ -211,6 +211,29 @@ impl Topic for CamperTrace {
                 })
                 .collect();
             self.write(serde_json::json!({"shots_by_gun": rows}));
+            // Every bot's rounds at an enemy target and the hits on that target (a hit of the shooter on it in the round's tick), by
+            // the gun's class and the flat range band 0-10, 10-20, 20-40, 40+ m: the bots' side against every target, not only him.
+            let mut hit_ticks: std::collections::BTreeMap<(u32, Place, Place), u32> = std::collections::BTreeMap::new();
+            for &(t, s, v) in &run.hits {
+                *hit_ticks.entry((t, s, v)).or_default() += 1;
+            }
+            let mut bands: std::collections::BTreeMap<(&'static str, usize), (u32, u32)> = std::collections::BTreeMap::new();
+            for &(t, s, aimed, class) in &game.shot_log {
+                let Some((target, dist)) = aimed else { continue };
+                if run.camper == Some(s) || game.bodies.get(s).map(|b| b.team) == game.bodies.get(target).map(|b| b.team) {
+                    continue;
+                }
+                let band = [10.0, 20.0, 40.0].iter().position(|&edge| dist < edge).unwrap_or(3);
+                let cell = bands.entry((class, band)).or_default();
+                cell.0 += 1;
+                if let Some(left) = hit_ticks.get_mut(&(t, s, target)).filter(|n| **n > 0) {
+                    *left -= 1;
+                    cell.1 += 1;
+                }
+            }
+            let rows: Vec<serde_json::Value> =
+                bands.iter().map(|(&(class, band), &(rounds, hits))| serde_json::json!([class, band, rounds, hits])).collect();
+            self.write(serde_json::json!({"bots_rounds_by_band": rows}));
         }
         if let Some((mut file, path)) = self.out.take() {
             file.flush().unwrap();
