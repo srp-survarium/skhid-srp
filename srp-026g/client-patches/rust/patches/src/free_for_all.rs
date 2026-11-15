@@ -11,8 +11,13 @@
 //!   integer mix of match time and player place chooses from that whole
 //!   pool: safe central points compete equally with safe edge points.
 //!   With no safe point, choose among the five best-separated points from
-//!   the nearest living or newly spawned player. No unsynchronized randomness or retained state:
-//!   clients, late joiners and replays choose from the same world's inputs.
+//!   the nearest living or newly spawned player. A player never takes one
+//!   of the two points he last spawned at (the owner, 2026-11-15), in the
+//!   pool or the fallback, unless the map has no other. No unsynchronized
+//!   randomness: the one retained state, each place's last two points, is
+//!   the world's ([`SpawnHistory`], saved after the respawn rule's bytes
+//!   and loaded with them), so clients, late joiners and replays choose
+//!   from the same world's inputs.
 //! - **The kill target:** srp's block after the match's options holds tag 3,
 //!   `kills_to_win` (u16), in a free-for-all only. The hud movie is told
 //!   `root.set_ffa_progress(own, top, target)`: the kills of the place the
@@ -36,6 +41,8 @@ use core::cmp::Ordering;
 use core::ffi::CStr;
 use core::num::NonZeroU16;
 
+use srp_validate::world::{SpawnHistory, SpawnPoint};
+
 use crate::vostok::parse::Reader;
 use crate::vostok::types::Place;
 use crate::vostok::{
@@ -47,8 +54,12 @@ use crate::vostok::{
 const MAX_DUE: usize = Place::COUNT;
 /// The living players a selection measures from.
 const MAX_LIVING: usize = Place::COUNT;
-/// The points a selection considers (0.31's maps have 22 to 30).
-const MAX_POINTS: usize = 64;
+/// The points a selection considers: a map's whole team-2 group (Free for
+/// All's have 44 to 74 since 2026-11-14; the survarium crate's map test
+/// holds every one to this). Room for two of a selection's arrays on the
+/// stack, 2.5 KiB. Each is a [`SpawnPoint`], one byte in the history.
+const MAX_POINTS: usize = 128;
+const _: () = assert!(SpawnPoint::new(MAX_POINTS - 1).is_some());
 /// A crowded map still offers several of its best-separated points.
 const FALLBACK_POINTS: usize = 5;
 
@@ -94,13 +105,19 @@ fn turn(time: u32, place: u8, count: usize) -> usize {
 /// game's test against the living) holds for the player's side. He takes one
 /// of all points that pass, by [`turn`], without ranking safe points by
 /// distance. With none, he chooses among the five best-separated points;
-/// equal fallback ranks go by the point's index. `points` is bounded by `MAX_POINTS` at the boundary.
+/// equal fallback ranks go by the point's index. Neither offers one of the
+/// two points he last spawned at (`spawns`, which each choice updates):
+/// the pool leaves them out, the fallback is the five less them (three at
+/// least, on a map of five points or more). Only on a map where every point
+/// is one of them (two points or fewer) are they offered. `points` is
+/// bounded by `MAX_POINTS` at the boundary.
 fn plan(
     due: &[Due],
     points: &[Point],
     living: &[[f32; 3]],
     time: u32,
     clear: impl Fn(usize, Side) -> bool,
+    spawns: &mut SpawnHistory,
     chosen: &mut [usize; MAX_DUE],
 ) -> usize {
     if points.is_empty() {
@@ -108,6 +125,11 @@ fn plan(
     }
     let mut count = 0;
     for player in due.iter().take(MAX_DUE) {
+        let place = srp_validate::Place::new(player.place);
+        let last = place.map(|place| spawns.of(place)).unwrap_or_default();
+        // A map of no other point offers his last ones again.
+        let offered = (0..points.len()).any(|j| !last.has(j));
+        let recent = |j: usize| offered && last.has(j);
         let given = &chosen[..count];
         let rank = |j: usize| {
             nearest(points[j].position, living.iter().copied().chain(given.iter().map(|&k| points[k].position)))
@@ -135,17 +157,28 @@ fn plan(
                 }
                 fallback[insert] = ranked;
             }
-            if !passes(j) {
+            if recent(j) || !passes(j) {
                 continue;
             }
             safe[held] = j;
             held += 1;
         }
-        chosen[count] = if held == 0 {
-            fallback[turn(time, player.place, fallback_count)].0
+        let j = if held == 0 {
+            // The five best-separated, less his last two.
+            let mut offer = [0usize; FALLBACK_POINTS];
+            let mut offers = 0;
+            for &(j, _) in fallback[..fallback_count].iter().filter(|&&(j, _)| !recent(j)) {
+                offer[offers] = j;
+                offers += 1;
+            }
+            offer[turn(time, player.place, offers)]
         } else {
             safe[turn(time, player.place, held)]
         };
+        if let (Some(place), Some(point)) = (place, SpawnPoint::new(j)) {
+            spawns.spawned(place, point);
+        }
+        chosen[count] = j;
         count += 1;
     }
     count
@@ -160,9 +193,11 @@ pub fn on_due_team(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The tick's selection for a vector: one of players of their own sides is
-/// ours, any other the game's.
+/// The tick's selection for a vector: one of players of their own sides (a
+/// free-for-all's) is ours, any other the game's.
 pub fn on_select(ctx: &mut Context<'_>) -> Flow<FreeForAllOnSelectExit> {
+    let thread = ctx.thread();
+    let Match::FreeForAll(mut game) = MATCH.get(thread) else { return Flow::Continue };
     let Some(mut select) = RespawnSelect::at(ctx) else { return Flow::Continue };
     let mut due = [Due { place: 0, side: Side::Own(0) }; MAX_DUE];
     let mut due_count = 0;
@@ -193,14 +228,51 @@ pub fn on_select(ctx: &mut Context<'_>) -> Flow<FreeForAllOnSelectExit> {
         &living[..living_count],
         select.time(),
         |j, side| select.point(j).is_some_and(|(at, _)| select.is_clear(at, side)),
+        &mut game.spawns,
         &mut chosen,
     );
+    // The tick spawns each due player at his chosen point, in order.
     for &j in &chosen[..count] {
         if let Some((at, _)) = select.point(j) {
             select.choose(at);
         }
     }
+    MATCH.set(thread, Match::FreeForAll(game));
     Flow::Exit(FreeForAllOnSelectExit::Done)
+}
+
+/// The respawn rule's bytes saved: the spawn history after them, in a
+/// free-for-all (srp-validate's `SpawnHistory`, which the server and
+/// patch 87 read there).
+pub fn on_spawns_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Match::FreeForAll(game) = MATCH.get(ctx.thread()) {
+        respawn::save(ctx, &game.spawns.bytes());
+    }
+    Flow::Continue
+}
+
+/// The respawn rule's bytes loaded (a late join, a resync, a rollback, a
+/// replay's seek): the spawn history after them is the world's. A world
+/// without one is refused before its load (patch 87, the server).
+pub fn on_spawns_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    let Match::FreeForAll(game) = MATCH.get(thread) else { return Flow::Continue };
+    let spawns = respawn::load::<{ SpawnHistory::LEN }>(ctx)
+        .and_then(|bytes| SpawnHistory::read(&bytes))
+        .unwrap_or(SpawnHistory::EMPTY);
+    MATCH.set(thread, Match::FreeForAll(FreeForAll { spawns, ..game }));
+    Flow::Continue
+}
+
+/// A place entered the match (at a tick, in every game alike): whoever it
+/// is starts with no last spawns.
+pub fn on_entered(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    if let (Match::FreeForAll(mut game), Some(place)) = (MATCH.get(thread), respawn::entered(ctx)) {
+        game.spawns.entered(place);
+        MATCH.set(thread, Match::FreeForAll(game));
+    }
+    Flow::Continue
 }
 
 /// srp's block after the options: its magic, then `{u8 tag, u8 len, bytes}`
@@ -327,6 +399,9 @@ pub fn on_kill_event(ctx: &mut Context) -> Flow<FreeForAllOnKillEventExit> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct FreeForAll {
     target: NonZeroU16,
+    /// Each place's last two spawn points: the world's (saved and loaded
+    /// with the respawn rule), empty at the options' read.
+    spawns: SpawnHistory,
     phase: Phase,
     /// What a hud movie was last told, and which movie (a new match's may
     /// have the last one's address: the options' read and the hud's
@@ -352,7 +427,7 @@ pub fn running(thread: &Thread) -> bool {
 fn options_read(thread: &Thread, read: Option<OptionsRead>) -> Flow<NoExit> {
     let game = read.and_then(|read| {
         let target = kills_to_win_in(read.rest())?;
-        Some(FreeForAll { target, phase: Phase::Before, told: None })
+        Some(FreeForAll { target, spawns: SpawnHistory::EMPTY, phase: Phase::Before, told: None })
     });
     MATCH.set(thread, game.map_or(Match::Other, Match::FreeForAll));
     Flow::Continue
@@ -477,6 +552,7 @@ mod tests {
         Due { place, side: Side::Own(4 + u32::from(place)) }
     }
 
+    /// A tick's plan for players who have not spawned yet.
     fn planned(
         due: &[Due],
         points: &[Point],
@@ -484,9 +560,30 @@ mod tests {
         time: u32,
         clear: impl Fn(usize, Side) -> bool,
     ) -> Vec<usize> {
+        let mut spawns = SpawnHistory::EMPTY;
+        planned_after(&mut spawns, due, points, living, time, clear)
+    }
+
+    /// A tick's plan with the places' last spawns `spawns`, which it updates.
+    fn planned_after(
+        spawns: &mut SpawnHistory,
+        due: &[Due],
+        points: &[Point],
+        living: &[[f32; 3]],
+        time: u32,
+        clear: impl Fn(usize, Side) -> bool,
+    ) -> Vec<usize> {
         let mut chosen = [0; MAX_DUE];
-        let count = plan(due, points, living, time, clear, &mut chosen);
+        let count = plan(due, points, living, time, clear, spawns, &mut chosen);
         chosen[..count].to_vec()
+    }
+
+    fn place(n: u8) -> srp_validate::Place {
+        srp_validate::Place::new(n).unwrap()
+    }
+
+    fn spawn_point(j: usize) -> SpawnPoint {
+        SpawnPoint::new(j).unwrap()
     }
 
     /// The game's test for a player of his own side: no living player inside
@@ -654,6 +751,177 @@ mod tests {
             }
         }
         assert_eq!(turn(u32::MAX, 19, 1), 0);
+    }
+
+    // ffa.md "Choice", "Never the last two": its bullets, in order.
+
+    #[test]
+    fn a_respawn_is_never_at_one_of_the_players_last_two_points() {
+        // When: every spawn of the match, the first included. Four clear points.
+        let points = [at(0.0), at(100.0), at(200.0), at(300.0)];
+        let mut spawns = SpawnHistory::EMPTY;
+        let mut seen = [0; 4];
+        let mut history: Vec<usize> = Vec::new();
+        for event in 0..2_000 {
+            let chosen = planned_after(&mut spawns, &[solo(3)], &points, &[], event * 5_000, |_, _| true);
+            let j = chosen[0];
+            assert!(!history.iter().rev().take(2).any(|&k| k == j), "{event}: {j} after {history:?}");
+            history.push(j);
+            seen[j] += 1;
+        }
+        // Each of the two others the same share.
+        assert!(seen.iter().all(|&n| (400..=600).contains(&n)), "{seen:?}");
+        // Three points, all clear: the one he has not had in his last two, always.
+        let mut spawns = SpawnHistory::EMPTY;
+        let three = &points[..3];
+        let mut history: Vec<usize> = Vec::new();
+        for event in 0..60 {
+            history.extend(planned_after(&mut spawns, &[solo(3)], three, &[], event * 5_000, |_, _| true));
+        }
+        for window in history.windows(3) {
+            assert_eq!(window[0] + window[1] + window[2], 3, "{history:?}");
+        }
+    }
+
+    #[test]
+    fn the_last_two_are_left_out_of_the_crowded_fallback_too() {
+        // Fallback: no clear point; the five best-separated are the odd
+        // ones (as `crowded_fallback_uses_all_five_best_separated_points`).
+        let points: Vec<_> = [1.0, 19.0, 3.0, 17.0, 5.0, 15.0, 7.0, 13.0, 9.0, 11.0]
+            .into_iter().map(at).collect();
+        let living = [[0.0; 3]];
+        let mut spawns = SpawnHistory::EMPTY;
+        let mut history: Vec<usize> = Vec::new();
+        for event in 0..500 {
+            let j = planned_after(&mut spawns, &[solo(0)], &points, &living, event * 5_000, clear_of(&points, &living))[0];
+            assert!(!history.iter().rev().take(2).any(|&k| k == j), "{event}: {j} after {history:?}");
+            history.push(j);
+        }
+        // Leaving out two does not bring the nearer even points in: the
+        // fallback is the five best less his last two, the three others.
+        let mut visits = [0; 10];
+        for &j in &history {
+            visits[j] += 1;
+        }
+        assert!(visits.iter().enumerate().all(|(i, &n)| if i % 2 == 0 { n == 0 } else { (70..=130).contains(&n) }),
+            "{visits:?}");
+        let mut spawns = SpawnHistory::EMPTY;
+        spawns.spawned(place(0), spawn_point(3));
+        spawns.spawned(place(0), spawn_point(1));
+        let mut seen = [false; 10];
+        for time in (0..5_000).step_by(50) {
+            seen[planned_after(&mut { spawns }, &[solo(0)], &points, &living, time, |_, _| false)[0]] = true;
+        }
+        assert_eq!((0..10).filter(|&j| seen[j]).collect::<Vec<_>>(), [5, 7, 9]);
+    }
+
+    #[test]
+    fn a_map_with_no_other_point_gives_one_of_the_last_two_again() {
+        // Fallback (too few points): one or two points, every spawn there.
+        for count in 1..=2 {
+            let points: Vec<_> = (0..count).map(|i| at(i as f32 * 100.0)).collect();
+            let mut spawns = SpawnHistory::EMPTY;
+            for event in 0..20 {
+                let chosen = planned_after(&mut spawns, &[solo(2)], &points, &[], event * 5_000, |_, _| true);
+                assert_eq!(chosen.len(), 1);
+                assert!(chosen[0] < count);
+            }
+        }
+        // Two points: once both are his last two, either may come again.
+        let points = [at(0.0), at(100.0)];
+        let mut seen = [false; 2];
+        for time in (0..5_000).step_by(50) {
+            let mut spawns = SpawnHistory::EMPTY;
+            spawns.spawned(place(2), spawn_point(0));
+            spawns.spawned(place(2), spawn_point(1));
+            seen[planned_after(&mut spawns, &[solo(2)], &points, &[], time, |_, _| true)[0]] = true;
+        }
+        assert_eq!(seen, [true, true]);
+        // Three points, one of them not his last: that one, even when it
+        // is not clear and both of his last are.
+        let points = [at(0.0), at(100.0), at(200.0)];
+        let mut spawns = SpawnHistory::EMPTY;
+        spawns.spawned(place(2), spawn_point(0));
+        spawns.spawned(place(2), spawn_point(1));
+        for time in (0..5_000).step_by(50) {
+            assert_eq!(planned_after(&mut { spawns }, &[solo(2)], &points, &[], time, |j, _| j != 2), [2]);
+        }
+    }
+
+    #[test]
+    fn each_place_has_its_own_last_two_and_an_entry_starts_them_again() {
+        // Who: each player his own; players at one tick each by his own.
+        let points: Vec<_> = (0..8).map(|i| at(i as f32 * 100.0)).collect();
+        let mut spawns = SpawnHistory::EMPTY;
+        spawns.spawned(place(0), spawn_point(1));
+        spawns.spawned(place(0), spawn_point(0));
+        spawns.spawned(place(1), spawn_point(3));
+        spawns.spawned(place(1), spawn_point(2));
+        for time in (0..5_000).step_by(50) {
+            let mut after = spawns;
+            let chosen = planned_after(&mut after, &[solo(0), solo(1)], &points, &[], time, |_, _| true);
+            assert!(![0, 1].contains(&chosen[0]) && ![2, 3].contains(&chosen[1]), "{time}: {chosen:?}");
+            assert_eq!(after.of(place(0)), srp_validate::world::LastSpawns::Two(spawn_point(chosen[0]), spawn_point(0)));
+            assert_eq!(after.of(place(1)), srp_validate::world::LastSpawns::Two(spawn_point(chosen[1]), spawn_point(2)));
+            // Another place's history is untouched.
+            assert_eq!(after.of(place(5)), spawns.of(place(5)));
+        }
+        // History starts empty: a player new in place 0 may take any point.
+        spawns.entered(place(0));
+        let mut seen = [false; 8];
+        for time in (0..5_000).step_by(50) {
+            seen[planned_after(&mut { spawns }, &[solo(0)], &points, &[], time, |_, _| true)[0]] = true;
+        }
+        assert_eq!(seen, [true; 8]);
+    }
+
+    #[test]
+    fn a_world_loaded_with_its_history_plans_as_the_game_that_saved_it() {
+        // Late joiners and replays: the history's bytes, as the world
+        // carries them, give the same choices as the game that wrote them.
+        let points: Vec<Point> = (0..30)
+            .map(|i| Point { position: [(i * 37 % 200) as f32, (i % 3) as f32, (i * 91 % 170) as f32], enemy_radius: 30.0 })
+            .collect();
+        let living = [[20.0, 0.0, 30.0], [150.0, 1.0, 90.0]];
+        let due = [solo(4), solo(9), solo(17)];
+        let mut playing = SpawnHistory::EMPTY;
+        for event in 0..50 {
+            let time = 1_000 + event * 5_150;
+            let mut joined = SpawnHistory::read(&playing.bytes()).unwrap();
+            let theirs = planned_after(&mut joined, &due, &points, &living, time, clear_of(&points, &living));
+            let ours = planned_after(&mut playing, &due, &points, &living, time, clear_of(&points, &living));
+            assert_eq!(theirs, ours);
+            assert_eq!(joined, playing);
+        }
+        // A game that kept no history would choose otherwise.
+        let fresh = planned(&due, &points, &living, 1_000 + 50 * 5_150, clear_of(&points, &living));
+        let mut kept = playing;
+        let mut differs = fresh != planned_after(&mut kept, &due, &points, &living, 1_000 + 50 * 5_150, clear_of(&points, &living));
+        for event in 51..80 {
+            let time = 1_000 + event * 5_150;
+            differs |= planned(&due, &points, &living, time, clear_of(&points, &living))
+                != planned_after(&mut kept, &due, &points, &living, time, clear_of(&points, &living));
+        }
+        assert!(differs);
+    }
+
+    #[test]
+    fn a_point_past_the_64th_can_be_chosen() {
+        // Vostok's 74 team-2 points: the owner's last picks and its roof
+        // spawn are the group's 64th to 73rd, which a cap of 64 never offered.
+        let points: Vec<_> = (0..74).map(|i| at(i as f32 * 40.0)).collect();
+        for time in (0..5_000).step_by(50) {
+            assert_eq!(planned(&[solo(0)], &points, &[], time, |j, _| j == 73), [73]);
+            assert_eq!(planned(&[solo(0)], &points, &[], time, |j, _| j == 64), [64]);
+        }
+        let mut seen = [false; 74];
+        for time in (0..200_000).step_by(50) {
+            seen[planned(&[solo(0)], &points, &[], time, |_, _| true)[0]] = true;
+        }
+        assert!(seen.into_iter().all(|visited| visited));
+        // The whole group of MAX_POINTS, every place.
+        let points: Vec<_> = (0..MAX_POINTS).map(|i| at(i as f32 * 40.0)).collect();
+        assert_eq!(planned(&[solo(5)], &points, &[], 0, |j, _| j == MAX_POINTS - 1), [MAX_POINTS - 1]);
     }
 
     #[test]

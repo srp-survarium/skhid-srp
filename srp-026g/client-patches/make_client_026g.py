@@ -187,7 +187,7 @@ import launcher_pages  # noqa: E402
 import patch_launcher_026g as L  # noqa: E402
 
 UPDATER_EXE = os.path.abspath(os.path.join(
-    HERE, "..", "..", "client", "updater", "exe", "target", "i686-win7-windows-msvc", "release", L.UPDATER_NAME))
+    HERE, "..", "..", "client", "updater", "exe", "target", "i686-pc-windows-msvc", "release", L.UPDATER_NAME))
 # The extractor the updater runs, and the size and sha256 the updater is
 # built with (EXTRACTOR in client/updater/logic/src/game.rs; a test here
 # reads them from that file and compares).
@@ -211,7 +211,7 @@ DXVK_DLLS = {
 }
 DXVK_CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache", "skhid", f"dxvk-{DXVK_VERSION}.tar.gz")
 BUGTRAP_DLL = os.path.abspath(os.path.join(
-    HERE, "..", "..", "client", "bugtrap", "target", "i686-win7-windows-msvc", "release", "BugTrap.dll"))
+    HERE, "..", "..", "client", "bugtrap", "target", "i686-pc-windows-msvc", "release", "BugTrap.dll"))
 # Where the original game is had by hand: the patches server's address of its
 # row in release/game.tsv (no download quota), the bytes
 # client/updater/logic/src/game.rs pins (the
@@ -267,7 +267,7 @@ def read_bugtrap(path):
     return data
 
 
-VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "target-voice", "i686-win7-windows-msvc", "release", "skhid_voice.dll"))
+VOICE_DLL = os.path.abspath(os.path.join(HERE, "..", "target-voice", "i686-pc-windows-msvc", "release", "skhid_voice.dll"))
 # What patch 66 asks of the DLL by name (the shared voice-abi crate).
 VOICE_EXPORTS = (b"sv_version", b"sv_start", b"sv_stop", b"sv_ptt", b"sv_settings", b"sv_hear",
                  b"sv_mute", b"sv_talking", b"sv_slot", b"sv_voice_id", b"sv_test_press", b"sv_test_stop",
@@ -414,7 +414,7 @@ def bat(server, embedded=False):
         ":not_ready",
         "echo Skhid has not finished updating the game's files (game\\resources.db.patch_*),",
         "echo so the game is not started. Start Skhid.bat (the launcher): it finishes",
-        "echo the update. Details: game\\binaries\\x86\\updater_skhid.log",
+        "echo the update. Details: the newest game\\binaries\\x86\\updater_skhid.^<date^>.log",
         "pause",
         "exit /b 1",
         "",
@@ -596,8 +596,8 @@ def readme(server, description, files, embedded=False, site=None):
             "replaces the files, the launcher and itself included; nothing else of the",
             "existing game is touched. A missing game is installed from the verified",
             "original archive first. It needs no administrator rights. What it did is in",
-            "game\\binaries\\x86\\updater_skhid.log. If it cannot reach the server but the",
-            "files are complete, PLAY still works.",
+            "game\\binaries\\x86\\updater_skhid.<date>.log, a file each run. If it cannot",
+            "reach the server but the files are complete, PLAY still works.",
             "The game's language is chosen in its Settings (Language), the launcher's",
             "at its top. A changed play_skhid.bat or play_skhid.sh is kept until the",
             "server offers a newer archive.",

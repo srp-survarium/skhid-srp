@@ -20,7 +20,8 @@
 //! - The mode's rule ([`ModeRule`]): [`Gather`] (modes 2 and 3,
 //!   `gather_victory_items_rule_core` 0x313CA0, `match_time_vi_spawn_rule_
 //!   core` 0x3149B0), [`Tdm`] (`tdm_rule_core` 0x316340), [`Research`]
-//!   (exe patch 53).
+//!   (exe patch 53); a free-for-all has none, but exe patch 142's
+//!   [`SpawnHistory`] (40 bytes) in its place.
 //! - [`KillsDeaths`] for each place (`kd_stats_rule` 0x323870): u16
 //!   kills, u16 deaths, bool online.
 //! - The blackboard's `team_1_respawn`, `team_2_respawn` (0x323D60).
@@ -39,6 +40,9 @@
 //!   places;
 //! - mode 3's `m_available_victory_items_count` at most the map's
 //!   batteries (LIKELY: the spawner stops there);
+//! - a spawn history: each place none, one or two points (never a second
+//!   without a first), each under the map's team-2 points (the group it
+//!   indexes);
 //! - Research: 1 to 3 units, a progress and every mark at most a whole
 //!   capture (a mark is the progress or its rest at entry, 0x324350:
 //!   research_mode.md; LIKELY), the taking and owning team a team or 2
@@ -229,6 +233,139 @@ impl Tdm {
     /// `m_active_players_mask`.
     pub fn active_players(&self) -> Places {
         self.active_players
+    }
+}
+
+/// A team-2 respawn point a place spawned at in a free-for-all, by its
+/// index in the map's team-2 group (exe patch 142, ffa.md "Choice"):
+/// 0 to 254; 0xFF on the wire is none.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpawnPoint(u8);
+
+impl SpawnPoint {
+    /// The point of index `index` of the team-2 group, if a byte holds it.
+    pub const fn new(index: usize) -> Option<Self> {
+        if index < u8::MAX as usize {
+            Some(Self(index as u8))
+        } else {
+            None
+        }
+    }
+
+    pub const fn index(self) -> usize {
+        self.0 as usize
+    }
+}
+
+/// The points a place last spawned at in a free-for-all, the latest
+/// first: none before its first spawn of the match (or after it entered
+/// again), at most two.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LastSpawns {
+    #[default]
+    None,
+    One(SpawnPoint),
+    Two(SpawnPoint, SpawnPoint),
+}
+
+impl LastSpawns {
+    /// After a spawn at `point`: it, then the latest before it.
+    pub const fn after(self, point: SpawnPoint) -> Self {
+        match self {
+            Self::None => Self::One(point),
+            Self::One(last) | Self::Two(last, _) => Self::Two(point, last),
+        }
+    }
+
+    /// Whether the point of index `index` is one of them.
+    pub fn has(self, index: usize) -> bool {
+        self.points().any(|point| point.index() == index)
+    }
+
+    pub fn points(self) -> impl Iterator<Item = SpawnPoint> {
+        let (last, before) = match self {
+            Self::None => (None, None),
+            Self::One(last) => (Some(last), None),
+            Self::Two(last, before) => (Some(last), Some(before)),
+        };
+        last.into_iter().chain(before)
+    }
+
+    /// `[latest, the one before]`, 0xFF for none; a second without a first
+    /// is no history.
+    fn read(bytes: [u8; 2]) -> Option<Self> {
+        match bytes {
+            [u8::MAX, u8::MAX] => Some(Self::None),
+            [u8::MAX, _] => None,
+            [last, u8::MAX] => Some(Self::One(SpawnPoint(last))),
+            [last, before] => Some(Self::Two(SpawnPoint(last), SpawnPoint(before))),
+        }
+    }
+
+    fn bytes(self) -> [u8; 2] {
+        match self {
+            Self::None => [u8::MAX; 2],
+            Self::One(last) => [last.0, u8::MAX],
+            Self::Two(last, before) => [last.0, before.0],
+        }
+    }
+}
+
+/// Exe patch 142's spawn history: each place's [`LastSpawns`], two bytes a
+/// place for the 20, written in a free-for-all after the respawn rule's own
+/// bytes (at `player_respawn_rule_core::serialize`'s end, 0x316FB8; read
+/// at its deserialize's, 0x317038). It is the world's, so a late joiner,
+/// a resync, a rollback and a replay's seek have it as every game does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpawnHistory([LastSpawns; MAX_PLAYERS]);
+
+impl SpawnHistory {
+    pub const LEN: usize = 2 * MAX_PLAYERS;
+    /// A match's start: nobody spawned yet.
+    pub const EMPTY: Self = Self([LastSpawns::None; MAX_PLAYERS]);
+
+    /// Its [`SpawnHistory::LEN`] bytes, or `None`.
+    pub fn read(bytes: &[u8]) -> Option<Self> {
+        let (pairs, rest) = bytes.as_chunks::<2>();
+        if !rest.is_empty() || pairs.len() != MAX_PLAYERS {
+            return None;
+        }
+        let mut history = Self::EMPTY;
+        for (place, &pair) in history.0.iter_mut().zip(pairs) {
+            *place = LastSpawns::read(pair)?;
+        }
+        Some(history)
+    }
+
+    pub fn bytes(&self) -> [u8; Self::LEN] {
+        let mut out = [u8::MAX; Self::LEN];
+        for (pair, place) in out.as_chunks_mut::<2>().0.iter_mut().zip(self.0) {
+            *pair = place.bytes();
+        }
+        out
+    }
+
+    pub fn of(&self, place: Place) -> LastSpawns {
+        self.0.get(place.index()).copied().unwrap_or_default()
+    }
+
+    /// `place` spawned at `point`.
+    pub fn spawned(&mut self, place: Place, point: SpawnPoint) {
+        if let Some(last) = self.0.get_mut(place.index()) {
+            *last = last.after(point);
+        }
+    }
+
+    /// `place` entered the match: whoever has it starts with none.
+    pub fn entered(&mut self, place: Place) {
+        if let Some(last) = self.0.get_mut(place.index()) {
+            *last = LastSpawns::None;
+        }
+    }
+
+    /// Every place's points, in place order.
+    pub fn points(&self) -> impl Iterator<Item = (Place, SpawnPoint)> + '_ {
+        (0..MAX_PLAYERS as u8).filter_map(Place::new).zip(self.0).flat_map(|(place, last)| last.points().map(move |point| (place, point)))
     }
 }
 
@@ -803,9 +940,9 @@ pub enum ModeRule {
     Tdm(Tdm),
     /// Mode 5.
     Research(Research),
-    /// A free-for-all (mode 8): no rule of its own, the kd stats follow the
-    /// respawn rule.
-    None,
+    /// A free-for-all (mode 8): no rule of its own; exe patch 142's spawn
+    /// history follows the respawn rule, then the kd stats.
+    FreeForAll(SpawnHistory),
 }
 
 /// A roster place in `kd_stats_rule`.
@@ -858,7 +995,7 @@ impl<'a> Rules<'a> {
     /// for each respawn point of the map, and nothing says how many: in
     /// mode 4 the rest is the tdm rule's 12 bytes; in mode 5 Research's 21
     /// plus 96 a unit (its unit count is its byte 20); in a free-for-all
-    /// (mode 8) there is no rest; in modes 2 and 3 it
+    /// (mode 8) the spawn history's 40; in modes 2 and 3 it
     /// is the number with which the gather rule after it reads to the kd
     /// stats exactly (the map's when known, else the smallest that does).
     pub fn read(section: &Section<'a>, context: &Context) -> Result<Self, Refusal> {
@@ -898,7 +1035,16 @@ impl<'a> Rules<'a> {
                 Some((at, research)) => (respawn_to(at), Some(ModeRule::Research(research))),
                 None => (None, None),
             },
-            mode::FREE_FOR_ALL => (respawn_to(middle.len()), Some(ModeRule::None)),
+            mode::FREE_FOR_ALL => match middle.len().checked_sub(SpawnHistory::LEN) {
+                Some(at) => (
+                    respawn_to(at),
+                    middle
+                        .get(at..)
+                        .and_then(SpawnHistory::read)
+                        .map(ModeRule::FreeForAll),
+                ),
+                None => (None, None),
+            },
             _ => {
                 let batteries = battery_records(context);
                 let read = |at: usize| {
@@ -937,6 +1083,7 @@ impl<'a> Rules<'a> {
             refuse(match context.game_mode {
                 mode::TEAM_DEATHMATCH => Reason::NoTdmRule,
                 mode::RESEARCH => Reason::NoResearchRule,
+                mode::FREE_FOR_ALL => Reason::NoSpawnHistory,
                 _ => Reason::NoGatherRule,
             })
         })?;
@@ -1047,7 +1194,22 @@ pub fn rules(section: &Section, context: &Context) -> Result<(), Refusal> {
             Some(reason) => refuse(reason),
             None => Ok(()),
         },
-        ModeRule::None => Ok(()),
+        ModeRule::FreeForAll(history) => {
+            let past = context.team_2_points.and_then(|points| {
+                history
+                    .points()
+                    .find(|(_, point)| point.index() >= points)
+                    .map(|(place, point)| (place, point, points))
+            });
+            match past {
+                Some((place, point, points)) => refuse(Reason::SpawnPointPast {
+                    place: place.index(),
+                    point: point.index(),
+                    points,
+                }),
+                None => Ok(()),
+            }
+        }
     }
 }
 
@@ -1111,6 +1273,8 @@ mod tests {
             game_mode,
             batteries: 0,
             respawn_points,
+            // Every point of these maps is a team-2 one.
+            team_2_points: respawn_points,
             profiles: None,
             artefacts: None,
             objects: None,
@@ -1167,34 +1331,120 @@ mod tests {
         result.err().map(|refusal| refusal.reason)
     }
 
+    fn point(index: usize) -> SpawnPoint {
+        SpawnPoint::new(index).unwrap()
+    }
+
     #[test]
-    fn a_free_for_all_has_no_rule_between_the_respawn_points_and_the_kd_stats() {
-        assert_eq!(check(&[], mode::FREE_FOR_ALL, Some(3)), Ok(()));
-        assert_eq!(check(&[], mode::FREE_FOR_ALL, None), Ok(()));
-        let bytes = bytes(&[]);
+    fn a_free_for_all_has_its_spawn_history_between_the_respawn_points_and_the_kd_stats() {
+        let mut history = SpawnHistory::EMPTY;
+        let place = |n| Place::new(n).unwrap();
+        history.spawned(place(0), point(2));
+        history.spawned(place(0), point(0));
+        history.spawned(place(1), point(1));
+        let block = history.bytes();
+        assert_eq!(block[..4], [0, 2, 1, 0xFF]);
+        assert!(block[4..].iter().all(|&byte| byte == 0xFF));
+        assert_eq!(check(&block, mode::FREE_FOR_ALL, Some(3)), Ok(()));
+        assert_eq!(check(&block, mode::FREE_FOR_ALL, None), Ok(()));
+        let bytes = bytes(&block);
         let section = Section {
             at: 0,
             bytes: &bytes,
         };
         let read = Rules::read(&section, &context(mode::FREE_FOR_ALL, Some(3))).unwrap();
-        assert_eq!(read.mode_rule(), &ModeRule::None);
+        assert_eq!(read.mode_rule(), &ModeRule::FreeForAll(history));
         assert_eq!(read.respawn().points(), &[[0, 0]; 3]);
         assert_eq!(read.kills_deaths()[0].kills(), 3);
         // Another count of points than the map's, or half a point.
+        let more = [&[0, 0][..], &block].concat();
         assert_eq!(
-            reason(check(&[0, 0], mode::FREE_FOR_ALL, Some(3))),
+            reason(check(&more, mode::FREE_FOR_ALL, Some(3))),
             Some(Reason::RespawnPoints { found: 4, map: 3 })
         );
+        let half = [&[0][..], &block].concat();
         assert_eq!(
-            reason(check(&[0], mode::FREE_FOR_ALL, Some(3))),
+            reason(check(&half, mode::FREE_FOR_ALL, Some(3))),
             Some(Reason::NoRespawnAndModeRule)
         );
-        // Team Deathmatch's world is none of a free-for-all's map: its tdm
-        // rule's 12 bytes read as six more points.
+        // A world of before the history (its points end at the kd stats),
+        // or Team Deathmatch's tdm rule: too short for one.
+        assert_eq!(
+            reason(check(&[], mode::FREE_FOR_ALL, Some(3))),
+            Some(Reason::NoRespawnAndModeRule)
+        );
         assert_eq!(
             reason(check(&[97, 0, 100, 0, 3, 0, 0, 0, 3, 0, 0, 0], mode::FREE_FOR_ALL, Some(3))),
-            Some(Reason::RespawnPoints { found: 9, map: 3 })
+            Some(Reason::NoRespawnAndModeRule)
         );
+        // A second spawn without a first, or a point past the map's.
+        let mut broken = block;
+        broken[38] = 0xFF;
+        broken[39] = 1;
+        assert_eq!(
+            reason(check(&broken, mode::FREE_FOR_ALL, Some(3))),
+            Some(Reason::NoSpawnHistory)
+        );
+        let mut past = block;
+        past[39] = 3;
+        past[38] = 1;
+        assert_eq!(
+            reason(check(&past, mode::FREE_FOR_ALL, Some(3))),
+            Some(Reason::SpawnPointPast {
+                place: 19,
+                point: 3,
+                points: 3
+            })
+        );
+        // The map unknown: no bound.
+        assert_eq!(check(&past, mode::FREE_FOR_ALL, None), Ok(()));
+        // The history indexes the team-2 group only: a point within all
+        // the map's points but past its team-2 ones is refused.
+        let mut within = block;
+        within[38] = 1;
+        within[39] = 0xFF;
+        let within = [&TIMELIMIT[..], &RESPAWN, &within, &KD_AND_FLAGS].concat();
+        let section = Section {
+            at: 0,
+            bytes: &within,
+        };
+        let teams = Context {
+            team_2_points: Some(1),
+            ..context(mode::FREE_FOR_ALL, Some(3))
+        };
+        assert_eq!(
+            rules(&section, &teams).err().map(|refusal| refusal.reason),
+            Some(Reason::SpawnPointPast {
+                place: 0,
+                point: 2,
+                points: 1
+            })
+        );
+        let teams = Context {
+            team_2_points: Some(3),
+            ..context(mode::FREE_FOR_ALL, Some(3))
+        };
+        assert_eq!(rules(&section, &teams), Ok(()));
+    }
+
+    #[test]
+    fn a_places_last_spawns_are_the_latest_two_and_start_again_when_it_enters() {
+        let place = Place::new(5).unwrap();
+        let mut history = SpawnHistory::EMPTY;
+        assert_eq!(history.of(place), LastSpawns::None);
+        history.spawned(place, point(7));
+        assert_eq!(history.of(place), LastSpawns::One(point(7)));
+        history.spawned(place, point(3));
+        history.spawned(place, point(9));
+        assert_eq!(history.of(place), LastSpawns::Two(point(9), point(3)));
+        assert!(history.of(place).has(9) && history.of(place).has(3) && !history.of(place).has(7));
+        assert_eq!(SpawnHistory::read(&history.bytes()), Some(history));
+        history.entered(place);
+        assert_eq!(history, SpawnHistory::EMPTY);
+        assert_eq!(SpawnHistory::read(&[0xFF; 39]), None);
+        assert_eq!(SpawnHistory::read(&[0xFF; 41]), None);
+        assert_eq!(SpawnPoint::new(254).map(SpawnPoint::index), Some(254));
+        assert_eq!(SpawnPoint::new(255), None);
     }
 
     #[test]

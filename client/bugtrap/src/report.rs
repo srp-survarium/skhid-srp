@@ -550,16 +550,19 @@ unsafe fn log_tail(w: &mut dyn Write) {
     );
 }
 
-/// `srp_patches.log` beside the exe (vostok/log.rs; the game's working
-/// folder is the exe's): what the client patches said last.
+/// The crashed run's client patch log beside the exe (vostok/log.rs; the
+/// game's working folder is the exe's): the newest
+/// `srp_patches.<stamp>.log`, else `srp_patches.log` (logs::Candidate::patch_log),
+/// what the client patches said last.
 unsafe fn patch_tail(w: &mut dyn Write) {
     // The exe's folder from GetModuleFileNameW alone (logs::folders would
     // ask the shell for Documents too).
     let exe = crate::dump::folder();
+    let log = crate::logs::Candidate::patch_log(&exe.buf[..exe.len]);
     let mut path = Wide::<1400>::new();
     if exe.len == 0
         || path.wide(&exe.buf[..exe.len]).is_err()
-        || write!(path, "{}", crate::logs::PATCH_LOG).is_err()
+        || path.wide(&log.name[..log.len]).is_err()
     {
         let _ = w.write_str("Patch log: no game folder\r\n");
         return;
@@ -570,8 +573,16 @@ unsafe fn patch_tail(w: &mut dyn Write) {
         "Patch log: ",
         PATCH_LINES,
         PATCH_BYTES,
-        format_args!("Patch log: last {PATCH_LINES} lines of srp_patches.log\r\n"),
+        format_args!("Patch log: last {PATCH_LINES} lines of {}\r\n", Name(&log)),
     );
+}
+
+/// The patch log's file name (ours: parsed, or the old fixed one).
+struct Name<'a>(&'a crate::logs::Candidate);
+impl core::fmt::Display for Name<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        self.0.patch_log_name(f)
+    }
 }
 
 /// The last `lines` lines of `path`'s last `bytes`, after `title` (a line
