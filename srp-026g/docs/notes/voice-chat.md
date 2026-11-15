@@ -389,7 +389,15 @@ Where the build differs from or adds to the design above:
   2026-11-11: "P push to talk is not part of chat, it is part of general controls", "and it should
   be rebindable": its Controls row (the game's is the chat group's, its key button disabled) is in
   the game group and can be set (patch 62's `controls`); the action stays the binder's chat kind,
-  as the game made it. A key or a mouse button: the game world's keys (`tab_cursor.key`) and its
+  as the game made it. Its key is taken from, and by, the game's keys as theirs are from each
+  other (the owner, 2026-11-15, "old bug": Push to talk set to Q, spot's key, said nothing): the
+  options take a key as another row's when the two actions' kinds meet (game_options::
+  process_key_input 0x2011AD, the kinds of each row of the action table: 1 the player's keys, 4 the
+  player's while aiming, 2 the lobby's, 8 the chat keys), and `ptt`'s 8 met only the chat keys'.
+  Patch 66 counts push-to-talk there as heard with the player's keys too (8, 1 and 4), as it is in a
+  match, so a key it shares with a game key (spot, an item key, Left Shift's sprint or hold breath)
+  brings the game's "key in use" message, either way, and OK unbinds the other; with a lobby key
+  (C, I, S, O, F) it does not, as before. A key or a mouse button: the game world's keys (`tab_cursor.key`) and its
   mouse buttons (`game_world.mouse_key`, past patch 31's jump) both ask the binder. A held PTT is
   let go when its release comes, when user32's GetAsyncKeyState says it is up (so a release the
   chat box took is seen; the numpad's keys by both the key they map to and the digit NumLock gives,

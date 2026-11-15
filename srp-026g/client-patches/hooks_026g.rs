@@ -4843,6 +4843,26 @@ pub extern "C" fn hook_voice_on_mouse_key(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- voice (patch 66) ----
+
+/// The named exits of voice::on_key_conflict (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum VoiceOnKeyConflictExit { Taken, Free }
+/// The entry `voice_on_key_conflict` (0x20119a, game_options::process_key_input's test of a controls row that has the key just pressed for another action (mov eax,[esp+1Ch] / lea edx,[edi+edi*2], then the two rows' kinds and test [eax+8],ecx / je 0x2011D4): ESI the action being bound ([ebx+3Ch]), EDI the row's; taken 0x2011B2 puts the row's action in the list the reassign message names (and unbinds on OK), free 0x2011D4 goes on to the next row) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_on_key_conflict(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_on_key_conflict` calls this, from the game's jump at 0x20119a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::on_key_conflict(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- weapon_camo (patch 44) ----
 
 /// The named exits of weapon_camo::on_own_camouflage (the order the shim's Flow code

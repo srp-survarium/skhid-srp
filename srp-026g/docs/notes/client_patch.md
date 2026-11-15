@@ -3552,7 +3552,7 @@ What it is for and the owner's rules: [dxvk-option.md](dxvk-option.md). Here: wh
 
 The owner's ask (2026-10-23, answers 2026-10-25, the mute and the list as 0.69's 2026-11-06). Team
 push-to-talk through `skhid_voice.dll` (`../../client-voice`) and srp's voice relay on the match
-port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary `vostok/voice.rs`):
+port + 1. The Rust patch `voice.rs` (`voice.toml`, twelve lohooks; its boundary `vostok/voice.rs`):
 
 - **The variables** (`configs.start`, before user.cfg): the sound tab's stock controls are bound by
   name to `s_chat_volume`, `s_use_microphone`, `s_mic_sens` (0x262DE8..0x262EC9) and nothing
@@ -3595,6 +3595,27 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   a release is seen by the poll above. Patch 62's controls have `ptt` in the game group with a key
   that can be set (the game's row: the chat group, type 0, its key button disabled); muting is the
   Tab menu's.
+- **The options' key test** (`options.key_conflict`; the owner, 2026-11-15: Push to talk set to Q,
+  spot's key, said nothing) (PROVEN in the code). game_options::process_key_input (0x2010E0, the
+  key pressed for the awaited action [options+3Ch]) walks the controls' rows; for a row of another
+  action whose key (+10h) is the key's name it tests the two actions' kinds (0x20119A: the binder
+  [game+5344h] kept at [esp+1Ch], binding n at binder + n x 0Ch, its +0 the action's row of the
+  action table, the row's +8 the kinds; `test [eax+8],ecx / je 0x2011D4`). Kinds that meet put the
+  row's action in the list (0x2011B2) that the reassign message names (`root.show_reassign_message`,
+  0x201317); on its OK (`reassign_ok_clicked`, 0x1FF8B4) assign_binding (0x2013A0) gives the key
+  to the awaited action and "" to each listed one. The same test is 0.21d's (0x15F38B). The kinds:
+  1 the player's keys and 4 the same while aiming (player_input_handler asks the binder with the
+  player's +F544h, 0x241140: weapon::instant_aim_start sets 4, 0x2439BE, instant_aim_end 1,
+  0x243A17), 2 the lobby's (0x26CCCD), 8 the chat keys (0x20888D). `ptt` is 8 and every game key 5
+  (accel 1, delay_breath 4; patch 149's item keys 5), so push-to-talk and a game key never met
+  (the movie only shows the message; nothing in it compares keys). The hook (a lohook over
+  `mov eax,[esp+1Ch] / lea edx,[edi+edi*2]`, ESI the awaited action, EDI the row's; exits taken
+  0x2011B2 and free 0x2011D4) decides the test: each action's kinds as its row says, push-to-talk's
+  with 1 and 4 added (patch 66 hears it in a match before the player's keys, aiming or not); taken
+  when they meet. Any two other actions are decided as the game's test does. The actions are found
+  by id (47h), not by the table's address, so a moved action table (patch 149) needs nothing.
+  `check_key_conflict_026g.py` runs the test from 0x20119A in the original and the build with the
+  game's own action table rows.
 - **The Tab list's player menu** (`hud.callback`, after patch 86's): `srp_voice_menu(place)` is
   answered `root.srp_voice_menu(place, offered, muted)` (another player of either team whose voice
   id the relay sent),
@@ -3619,7 +3640,7 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   it is loaded; `srp_microphone_use(id)`, a pick, calls it at once without saving (the owner: a pick
   takes effect without Apply), and `srp_microphone_use` with nothing (Cancel, leaving without
   Apply) with the saved pick.
-- **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio, the test's press and texts). **Not run**: a game.
+- **Checked**: `selftest_026g.py` check 66, `cargo test` (rust/: the mutes' text, the radio, the test's press and texts, the key test's kinds), `check_key_conflict_026g.py` (Unicorn: the options' key test). **Not run**: a game.
 
 ### Distance detail option
 

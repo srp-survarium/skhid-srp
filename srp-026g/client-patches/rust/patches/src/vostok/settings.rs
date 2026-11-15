@@ -10,6 +10,8 @@ use core::marker::PhantomData;
 
 use super::context::Context;
 use super::hook::Thread;
+use super::input::{Action, ActionKinds};
+use super::world::read;
 use super::ui::{Movie, TEXT_LIMIT, c_string, movie_of, string_argument};
 use crate::raw;
 
@@ -430,5 +432,44 @@ impl FieldOfView {
         // the game's thread.
         unsafe { *raw::image::uro_fov().value() = degrees }
         true
+    }
+}
+
+/// An action of the controls with its kinds (its row of the action table).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeyedAction {
+    pub action: Action,
+    pub kinds: ActionKinds,
+}
+
+/// Options, Controls: a key just pressed for an action, met in a row of the
+/// controls that has that key already (game_options::process_key_input
+/// 0x2010E0, its loop over the rows, at `options.key_conflict`). The game
+/// takes the key as the row's when the two actions' kinds meet; on OK of the
+/// reassign message the row is unbound.
+pub struct KeyTest {
+    /// The action the key is pressed for.
+    pub bound: KeyedAction,
+    /// The row's action, which has the key.
+    pub row: KeyedAction,
+}
+
+impl KeyTest {
+    pub fn at(ctx: &Context<'_>) -> Option<KeyTest> {
+        use raw::site::options_key_conflict as site;
+        // SAFETY: the context is this site's: the two actions' ids and the
+        // function's frame, whose local is the game's binder, alive while the
+        // options run on the game's thread.
+        let (bound, row, binder) = unsafe { (site::bound(ctx), site::row(ctx), site::frame(ctx)?.binder()?) };
+        let keyed = |id: u32| {
+            // SAFETY: the binder's bindings, alive for the options; the id a
+            // controls row's or the bound one's, which the game indexes the
+            // same bindings with at this test (0x2011A1, 0x2011AA).
+            let entry = unsafe { binder.bindings().at(id as usize).action()? };
+            // SAFETY: a row of the action table, static data.
+            let kinds = ActionKinds::of_row(unsafe { read(entry.kinds()) });
+            Some(KeyedAction { action: Action(id), kinds })
+        };
+        Some(KeyTest { bound: keyed(bound)?, row: keyed(row)? })
     }
 }

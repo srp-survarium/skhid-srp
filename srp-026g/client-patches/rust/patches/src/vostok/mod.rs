@@ -117,7 +117,7 @@ pub use sync::{Lock, ThreadBound, ThreadId, YieldingLock};
 pub use context::{Context, Exit, Flag, Flow, NoExit, Reg, Ret};
 pub use generated::*;
 pub use hook::{CallbackEntry, Handle, InstallRefused, OnDemand, Out, Regs, Thread};
-pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, KeyboardAction, Rotation, UnknownActionState};
+pub use input::{Action, ActionKinds, ActionMask, ActionState, InputChange, InputHandler, KeyboardAction, Rotation, UnknownActionState};
 pub use keyboard::{Dik, GameWorldButton, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
 pub use hud_input::{CursorMovie, Hud, HudCall, HudView, MenuChange, MenuClose};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};

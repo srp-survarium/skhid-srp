@@ -1152,7 +1152,6 @@ va	status	ref_021d	name
 0x001fffb0	inferred-medium	0x0015e3db	survarium::game_options::fill_labels
 0x002001e0	inferred-medium	0x0015e8a8	survarium::game_options::fill_menu_buttons
 0x00201080	inferred-medium	0x0015f287	survarium::game_options::tick
-0x002013a0	inferred-medium	0x0015f50d	survarium::game_options::assign_binding
 0x002018d0	inferred-medium	0x0015f83c	survarium::game_options::refill_item_data
 0x002019e0	inferred-medium	0x0015f8c6	survarium::game_options::initialize_bindings
 0x00201cf0	inferred-medium	0x0015fa02	survarium::game_options::reset_bindings
@@ -1164,7 +1163,6 @@ va	status	ref_021d	name
 0x00205d10	inferred-medium	0x00162400	vostok::detail::concrete_type_helper<vostok::collision::animated_object_cook_data>::copy_helper
 0x002078a0	inferred-medium	0x00155843	survarium::key_binder::set_default_controls
 0x00207bf0	inferred-medium		survarium::key_binder::keycode_to_ptr
-0x00207d50	inferred-medium	0x00155bcf	survarium::key_binder::get_binded_action
 0x00207dc0	inferred-medium	0x00155c1b	survarium::key_binder::bind_key
 0x002080c0	inferred-medium	0x00017949	survarium::game_options::input_priority
 0x00208150	inferred-medium	0x00162fc4	survarium::chat_handler::`scalar deleting destructor'

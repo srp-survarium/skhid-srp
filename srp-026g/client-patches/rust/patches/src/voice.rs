@@ -19,6 +19,9 @@
 //!   (`game_world.mouse_key`): push-to-talk (`ptt`, P; the binder's chat
 //!   kind, listed with the game's keys in the options: patch 62's
 //!   `controls`; a key or a button);
+//! - the options' test of a key two actions share (`options.key_conflict`):
+//!   push-to-talk counts as heard with the player's keys too, so binding it
+//!   onto a game key, or a game key onto it, says the key is in use;
 //! - the hud's calls (`hud.callback`): the Tab list's player menu (patch 86's)
 //!   asks `srp_voice_menu(place)`, answered `root.srp_voice_menu(place,
 //!   offered, muted)` (another player of the match, of either team, whose
@@ -54,15 +57,15 @@ use core::ffi::CStr;
 use ::ragdoll::math::sqrt;
 
 use crate::vostok::log::{self, Piece::*};
-use crate::vostok::settings::{Menu, OptionsCall};
+use crate::vostok::settings::{KeyTest, KeyedAction, Menu, OptionsCall};
 use crate::vostok::types::Place;
 use crate::vostok::voice::{
     self as engine, Channel, Connect, Dll, Ears, Heard, Hearing, Listener, MUTES_SIZE, MicTest, Microphone, MicrophoneChoice,
     MicrophoneId, PAN_CENTRE, Places, Roster, Scene, Settings, Side, TalkInput, TalkKey, TestAsk, VoiceId, name_text,
 };
 use crate::vostok::{
-    Context, Flow, GameCell, GameWorldButton, GameWorldKey, HudCall, NoExit, Thread, VoiceOnHudCallExit,
-    VoiceOnOptionsCallExit,
+    Action, ActionKinds, Context, Flow, GameCell, GameWorldButton, GameWorldKey, HudCall, NoExit, Thread,
+    VoiceOnHudCallExit, VoiceOnKeyConflictExit, VoiceOnOptionsCallExit,
 };
 
 /// Where the plain voice ends (the owner, 2026-11-14: "the voice fall of
@@ -824,10 +827,80 @@ pub fn on_menu_close(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// Where an action's key is heard, for the options' test of a key two
+/// actions share: push-to-talk's row says the chat keys' kind, which patch 66
+/// asks its key with, and the key is heard in a match as the player's keys are
+/// (`tab_cursor.key`, before the player's own keys: aiming or not). Any
+/// other action where its row says.
+fn heard(keyed: KeyedAction) -> ActionKinds {
+    if keyed.action == Action::PTT {
+        keyed.kinds.with(ActionKinds::PLAYER).with(ActionKinds::AIMING)
+    } else {
+        keyed.kinds
+    }
+}
+
+/// Options, Controls: a key pressed for an action that a row of the controls
+/// has already (`options.key_conflict`). The row takes it, and the game says
+/// the key is in use (its reassign message: OK unbinds the row), when the two
+/// are heard in the same place: so push-to-talk and a game key (spot's Q, an
+/// item key) take each other's key, as two game keys do; push-to-talk and a
+/// lobby key do not. Any other two actions as the game decides.
+pub fn on_key_conflict(ctx: &mut Context<'_>) -> Flow<VoiceOnKeyConflictExit> {
+    let Some(test) = KeyTest::at(ctx) else { return Flow::Continue };
+    if heard(test.bound).meet(heard(test.row)) {
+        Flow::Exit(VoiceOnKeyConflictExit::Taken)
+    } else {
+        Flow::Exit(VoiceOnKeyConflictExit::Free)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::vostok::voice::{Body, Seat};
+
+    fn keyed(action: Action, kinds: ActionKinds) -> KeyedAction {
+        KeyedAction { action, kinds }
+    }
+
+    #[test]
+    fn push_to_talk_and_a_game_key_take_each_others_key() {
+        let ptt = keyed(Action::PTT, ActionKinds::CHAT);
+        let game = ActionKinds::PLAYER.with(ActionKinds::AIMING);
+        let spot = keyed(Action::SPOT, game);
+        let item = keyed(Action(0x4A), game);
+        let accel = keyed(Action(0x07), ActionKinds::PLAYER);
+        let delay_breath = keyed(Action(0x2A), ActionKinds::AIMING);
+        for other in [spot, item, accel, delay_breath] {
+            assert!(heard(ptt).meet(heard(other)), "{other:?} onto push-to-talk's key");
+            assert!(heard(other).meet(heard(ptt)), "push-to-talk onto {other:?}'s key");
+        }
+    }
+
+    #[test]
+    fn push_to_talk_and_a_chat_key_still_take_each_others_key_and_a_lobby_key_never() {
+        let ptt = keyed(Action::PTT, ActionKinds::CHAT);
+        let send_message = keyed(Action(0x45), ActionKinds::CHAT);
+        let friends = keyed(Action(0x44), ActionKinds::LOBBY);
+        assert!(heard(ptt).meet(heard(send_message)));
+        assert!(!heard(ptt).meet(heard(friends)));
+        assert!(!heard(friends).meet(heard(ptt)));
+    }
+
+    #[test]
+    fn other_actions_meet_as_their_rows_say() {
+        let game = ActionKinds::PLAYER.with(ActionKinds::AIMING);
+        let melee = keyed(Action(0x21), game);
+        let friends = keyed(Action(0x44), ActionKinds::LOBBY);
+        let send_message = keyed(Action(0x45), ActionKinds::CHAT);
+        let accel = keyed(Action(0x07), ActionKinds::PLAYER);
+        let delay_breath = keyed(Action(0x2A), ActionKinds::AIMING);
+        assert!(heard(melee).meet(heard(accel)));
+        assert!(!heard(melee).meet(heard(friends)));
+        assert!(!heard(melee).meet(heard(send_message)));
+        assert!(!heard(accel).meet(heard(delay_breath)));
+    }
 
     fn id(n: u32) -> VoiceId {
         VoiceId::new(n).unwrap()
