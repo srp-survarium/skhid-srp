@@ -1008,6 +1008,15 @@ impl BodyTrack {
         if self.fix.as_ref().is_some_and(|last| last.time >= fix.time) {
             return false;
         }
+        // [Gap 5] The hands' sprint refusal the world shows, every body's, held to the next world that shows it over; a world whose
+        // gates are not read leaves the hold as it was.
+        if let Some(gates) = fix.gates {
+            let refusal = gates.refuses_sprint();
+            let changed = self.own.world_sprint_refusal(fix.time, refusal);
+            if let Some(why) = refusal {
+                super::sprint_gates::world_refusals::seen(why, changed);
+            }
+        }
         let new_life = fix.alive
             && self
                 .fix

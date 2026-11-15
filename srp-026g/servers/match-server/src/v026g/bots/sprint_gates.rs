@@ -165,6 +165,9 @@ pub struct OwnGates {
     /// [A388 (e)] A tube's reload loop the worlds show under way (`StateData::ShotgunReload`, state id 4): since this world's
     /// time, held until a world shows the gun out of it ([`Self::world_tube_reload`]).
     tube_since: Option<u32>,
+    /// [Gap 5] The hands' sprint refusal the worlds show ([`WorldGates::refuses_sprint`]): since this world's time, held until a world
+    /// shows it over ([`Self::world_sprint_refusal`]).
+    refused_since: Option<(u32, SprintRefusal)>,
 }
 
 impl OwnGates {
@@ -238,7 +241,74 @@ impl OwnGates {
     /// stamina flag no sprint.
     pub fn taken(&self, time: u32, keys: u32) -> u32 {
         let keys = if self.reloading(time) { keys & !(key::AIM | key::SPRINT) } else { keys };
-        if self.low_stamina { keys & !key::SPRINT } else { keys }
+        let refused = self.low_stamina || self.refused_since.is_some_and(|(since, _)| since <= time);
+        if refused { keys & !key::SPRINT } else { keys }
+    }
+
+    /// [Gap 5] A world made at `at` and the hands' sprint refusal it shows, if any ([`WorldGates::refuses_sprint`]). The end of such a
+    /// refusal is not in the world (the gun's clip ends, its aim transition's clock), so one seen is held until a world shows it over:
+    /// exact at each world, at most one world's interval long past its end. A refusal of another kind replaces it from this world.
+    /// Returns whether the gates changed.
+    pub fn world_sprint_refusal(&mut self, at: u32, refusal: Option<SprintRefusal>) -> bool {
+        let was = self.refused_since;
+        self.refused_since = match (was, refusal) {
+            (Some((since, kept)), Some(seen)) if kept == seen => Some((since, kept)),
+            (_, Some(seen)) => Some((at, seen)),
+            (_, None) => None,
+        };
+        self.refused_since != was
+    }
+}
+
+/// [Gap 5] Why the hands refuse the sprint at a world, as the world shows it (`weapon_core::can_sprint` 0x2E3A10; PROVEN, exactness
+/// reckoning-inputs §1 and the review of #1952).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SprintRefusal {
+    /// The gun's state is show, hide, fire, chamber or throw: `can_sprint` wants idle (id 3).
+    Busy,
+    /// The melee state with no sprint clip awaited (+5ECh == 6): `can_sprint` takes melee (id 8) only with one.
+    Melee,
+    /// The aim transition not at exactly 0 (+5FCh, 0x2E3A1C..0x2E3A2F): up, or on its way up or down.
+    Aim,
+}
+
+impl WorldGates {
+    /// [Gap 5] The hands' sprint refusal this world proves, if any. The reload's is not here: #1946 holds it to the reload clip's end
+    /// (`OwnGates::world_reload`, `world_tube_reload`). No gun with a user (a battery, a grenade, a swap's gap) and an unread gate
+    /// prove nothing here (a battery's own refusal, `can_sprint` 0x397C20, is the carrier's: `body::Hands`), nor the gun's config
+    /// flag (+5EAh) or the aim wish (0x2FC2A0), which the world does not carry.
+    pub fn refuses_sprint(&self) -> Option<SprintRefusal> {
+        let WorldHands::Gun(gun) = self.hands else {
+            return None;
+        };
+        match (gun.state, gun.sprint_wait, gun.aim) {
+            (HandsState::Busy, _, _) => Some(SprintRefusal::Busy),
+            (HandsState::Melee, None, _) => Some(SprintRefusal::Melee),
+            (HandsState::Reloading, _, _) => None,
+            (HandsState::Idle | HandsState::Melee, _, AimAt::Moving { .. } | AimAt::Up) => Some(SprintRefusal::Aim),
+            (HandsState::Idle | HandsState::Melee, _, AimAt::Down) => None,
+        }
+    }
+}
+
+/// [Gap 5] The worlds whose hands refused the sprint, by why (busy, melee, aim), and those that changed a reckoned body's gates, on
+/// this server (the match-end line). Decides nothing.
+pub(crate) mod world_refusals {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static COUNTS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+    static CHANGED: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn seen(why: super::SprintRefusal, changed: bool) {
+        COUNTS[why as usize].fetch_add(1, Relaxed);
+        if changed {
+            CHANGED.fetch_add(1, Relaxed);
+        }
+    }
+
+    /// ([busy, melee, aim], changed) since the last call, and zero again.
+    pub(crate) fn take() -> ([u64; 3], u64) {
+        (std::array::from_fn(|k| COUNTS[k].swap(0, Relaxed)), CHANGED.swap(0, Relaxed))
     }
 }
 
@@ -311,6 +381,28 @@ pub(crate) mod world_reloads {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [Gap 5] A world's hands refuse the sprint when the gun is busy, in melee with no sprint clip awaited, or with its aim not
+    /// down; the refusal holds from that world until a world shows it over; a reload is #1946's and no gun proves nothing.
+    #[test]
+    fn a_worlds_hands_refusal_holds_until_a_world_shows_it_over() {
+        let gun = |state, sprint_wait, aim| WorldGates { sprinting: false, hands: WorldHands::Gun(GunGate { state, aim, sprint_wait }) };
+        assert_eq!(gun(HandsState::Busy, None, AimAt::Down).refuses_sprint(), Some(SprintRefusal::Busy));
+        assert_eq!(gun(HandsState::Melee, None, AimAt::Down).refuses_sprint(), Some(SprintRefusal::Melee));
+        assert_eq!(gun(HandsState::Melee, Some(2), AimAt::Down).refuses_sprint(), None);
+        assert_eq!(gun(HandsState::Idle, None, AimAt::Up).refuses_sprint(), Some(SprintRefusal::Aim));
+        assert_eq!(gun(HandsState::Idle, None, AimAt::Down).refuses_sprint(), None);
+        assert_eq!(gun(HandsState::Reloading, None, AimAt::Up).refuses_sprint(), None);
+        assert_eq!(WorldGates { sprinting: false, hands: WorldHands::NoGun }.refuses_sprint(), None);
+        let mut gates = OwnGates::default();
+        let run = key::FORWARD | key::SPRINT;
+        assert!(gates.world_sprint_refusal(1_000, Some(SprintRefusal::Busy)));
+        assert_eq!(gates.taken(999, run), run);
+        assert_eq!(gates.taken(1_300, run), key::FORWARD);
+        assert!(!gates.world_sprint_refusal(1_200, Some(SprintRefusal::Busy)), "the same refusal: held from its first world");
+        assert!(gates.world_sprint_refusal(1_400, None));
+        assert_eq!(gates.taken(1_400, run), run);
+    }
 
     /// [A388 (e) gap 5] A world's reload refuses the sights and the sprint from the world to the clip's end; a kept reload under
     /// way at the world ends at the clip's end; the same word again changes nothing.
