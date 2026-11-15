@@ -101,6 +101,11 @@ pub struct Escape {
 }
 
 impl Escape {
+    /// [S6] How many exits it tries (the log's line for a carrier's escape).
+    pub fn exits_count(&self) -> usize {
+        self.exits.len()
+    }
+
     pub fn trapped(&self) -> Trapped {
         Trapped {
             since: self.since,
@@ -254,6 +259,7 @@ fn exits(
     team: u8,
     pocket: PocketId,
     from: NodeId,
+    reach: mapdata::Reach,
 ) -> Vec<(PocketExit, u8)> {
     let all = grid.pocket_exits(from);
     let worked = board.worked(team, pocket);
@@ -262,6 +268,7 @@ fn exits(
         pocket,
         from,
         all.iter().chain(&worked).map(|exit| exit.from).collect(),
+        reach,
     );
     let reached = |exit: &PocketExit| walked.contains(&exit.from);
     let all: Vec<PocketExit> = all.into_iter().filter(reached).collect();
@@ -278,6 +285,7 @@ fn walked_to(
     pocket: PocketId,
     from: NodeId,
     mut wanted: HashSet<NodeId>,
+    reach: mapdata::Reach,
 ) -> HashSet<NodeId> {
     let mut found = HashSet::new();
     if wanted.remove(&from) {
@@ -290,7 +298,7 @@ fn walked_to(
     {
         for (b, kind) in grid.links(a) {
             if grid.pocket_of(b) == Some(pocket)
-                && grid.link_cost(a, b, kind).is_finite()
+                && grid.link_cost_reaching(a, b, kind, reach).is_finite()
                 && seen.insert(b)
             {
                 if wanted.remove(&b) {
@@ -377,7 +385,8 @@ pub struct Out {
 /// it was planned for. In a pocket its goal is out of, a try's route is
 /// set in `route` and its landing given as the goal; out of one, the state
 /// is dropped (a try that got it out is learned by the team). With
-/// `may_jump` false the try's and the giving up's clocks stand still.
+/// `may_jump` false the try's and the giving up's clocks stand still. [S6] `reach`: what the body takes of the grid's links
+/// (a carrier: no sprint link without its walking press), for the walks to the exits' take-offs.
 #[allow(clippy::too_many_arguments)]
 pub fn tick(
     escape: &mut Option<Escape>,
@@ -390,6 +399,7 @@ pub fn tick(
     goal: Vec3,
     time: u32,
     may_jump: bool,
+    reach: mapdata::Reach,
 ) -> Out {
     #[cfg(test)]
     if counts::OFF.load(std::sync::atomic::Ordering::Relaxed) {
@@ -399,7 +409,7 @@ pub fn tick(
         };
     }
     step(
-        escape, route, grid, board, place, team, feet, goal, time, may_jump,
+        escape, route, grid, board, place, team, feet, goal, time, may_jump, reach,
     )
     .counted()
 }
@@ -416,6 +426,7 @@ fn step(
     goal: Vec3,
     time: u32,
     may_jump: bool,
+    reach: mapdata::Reach,
 ) -> Out {
     let mut events = Vec::new();
     // The floor the feet are on or over, never one over them: the reckoned body in a jump's air (`kin.jump_arc`) has its feet over
@@ -475,7 +486,7 @@ fn step(
             escape.insert(Escape {
                 pocket,
                 since: time,
-                exits: exits(grid, board, team, pocket, node),
+                exits: exits(grid, board, team, pocket, node, reach),
                 at: 0,
                 trying: None,
                 gave_up: false,
@@ -538,7 +549,7 @@ fn step(
             && let Some(&(exit, left)) = state.exits.get(state.at)
         {
             let inside = |n: NodeId| grid.pocket_of(n) == Some(pocket);
-            match path::plan_where(grid, node, exit.from, inside) {
+            match path::plan_where_reaching(grid, node, exit.from, inside, reach) {
                 Some(walk) => {
                     next = Some((exit, left, walk));
                     break;

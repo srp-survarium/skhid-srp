@@ -4751,7 +4751,26 @@ impl WalkGrid {
         to: NodeId,
         allowed: impl Fn(NodeId) -> bool,
     ) -> Option<Path> {
-        match self.search(from, to, allowed, usize::MAX) {
+        self.path_where_reaching(from, to, allowed, Reach::Full)
+    }
+
+    /// [S6] [`Self::path_where`] for a body that may take less than the grid's own links ([`Reach`],
+    /// [`Self::start_search_reaching`]).
+    pub fn path_where_reaching(
+        &self,
+        from: NodeId,
+        to: NodeId,
+        allowed: impl Fn(NodeId) -> bool,
+        reach: Reach,
+    ) -> Option<Path> {
+        let found = match self.start_search_reaching(from, to, usize::MAX, reach) {
+            Ok(mut search) => {
+                let mut iters = usize::MAX;
+                search.step(self, allowed, |_| 1.0, &mut iters).expect("an unbounded step ends the search")
+            }
+            Err(done) => done,
+        };
+        match found {
             Search::Found(path) => Some(path),
             Search::NoWay | Search::TooFar => None,
         }
