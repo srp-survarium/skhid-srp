@@ -190,6 +190,20 @@
   joiner's never-held gun has 0); a lend of the user (weapon_core::serialize writes its in-hand
   part only when +8 is set, 0x2E3232: a lend alive at a save would misalign every loading game).
 
+### The cook's requests
+
+The battery's cook (process_loading_victory_item_core 0x2FA050) gathers its resource requests
+in a buffer_vector on its stack with room for 20 (esp+8Ch..12Ch, set at 0x2FA05D and 0x2FA071;
+8 bytes each): the item's user animations, the skeleton, then for each `states[]` entry its 2
+animations and 4 user animations. The stock three states fill it exactly; a fourth state's
+first push asserts "buffer overflow" (push_back 0x5FCB0, the break at 0x5FD0D) while a match
+loads. Patch 143 grows the function's frame by 200h (`sub esp,244h` -> 444h at 0x2FA056) and
+moves the buffer into that new top of it (esp+250h..450h after the three pushes): room for 64
+requests, ten states. No instruction of the function reads its stack at or above the old
+frame's top (its highest local is +248h; its arguments go by ebp), none of the three holds an
+address (no relocation), and the query (query_resources 0xE5B60) and its result (0x101C9A:
+0x2E0 bytes a result, sized by the count) take any count.
+
 ## The in-game tests
 
 - **2026-11-14, build 56dfcf96d:** the owner pressed melee while carrying: a crash at 0x2E43A3
@@ -204,6 +218,11 @@
   bullet::tick never ran; and the spec's "the flight reads no user" scan looked for direct
   reads only, not for calls of 0x2E1CF0 / 0x2E1C80.
 - Both are the check's controls now, in the original exe.
+- **2026-11-15, build adf67b9c6 with its content** (patch_60 1a4aea2f57ba): a crash ~2 s after
+  the match began loading, before any world: BREAKPOINT at 0x5FD0D, from 0x2FA20C (the cook's
+  first push of state 3's animations). The dump: the request buffer's header (ESI 0x69DFF760)
+  begin 0x69DFF76C, end = room 0x69DFF80C, 20 requests (the cook's requests above). The
+  "cook ... failed" texture warnings before it are in runs without patch_60 too.
 
 ## Checked
 
@@ -242,6 +261,20 @@
   other hittables' hit (+24h) with a strike's source item (lamps, a battery's body): not
   traced; the victim's hit_impl and the kill and hit events read the source item's slot and
   dictionary entry, never its gun's user (static, 0x2D9F97, 0x2DA1EA, 0x2DA3F7).
+- The content loads (headless, input-free: a private Xorg dummy display, a replay of a
+  recorded 0.26g battery match, level_01_2 mode 2, rev56 `1112-1832_09c170a5`, with patch_60):
+  - the exe without the room (904d686bfada): the same BREAKPOINT at 0x5FD0D, 23 s in;
+  - with it (db4672efa86b): the cook passes, the world loads, its 33 players are made and the
+    countdown runs; at the first full resync (10.6 s into the match) a crash in evaluate_frame
+    reading an animation channel. That is the old recording, not this content: the same five
+    states over the stock clips (no new animation resource) play the replay through 8 resyncs
+    and 150 s, and the stock hidetest clip's own bytes under the new clips' names crash as
+    ours do. The players' animation state in a world refers to the animation registry
+    (animations_registry::register_animation 0x2EF130), which new clip names change: a
+    revision's replays play only in its own build (`simulation_changes.tsv` `next`);
+  - the authored clips through the game's own baker (bake_time_channel 0x3B3250, the buffer
+    sized by baked_animation_size 0x3B50D0) and evaluate_frame (0x3B3180) under Unicorn: all
+    1260 tracks, 41 times each, within 1e-6 of `clips.py`'s evaluation (the previews').
 - Not played: the authored swing, the bullet's hit in a match.
 
 ## Release

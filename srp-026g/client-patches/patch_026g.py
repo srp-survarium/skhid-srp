@@ -2777,6 +2777,23 @@ INSTALLS[0x29ABE1] = (JUMP, "fill_match_statistic's map name (lobby_menu+313Ch, 
 # which appends nothing: what translate_text("") gives (0.31+ translate
 # st_key_use_not_assigned, a key 0.26g's dictionary does not have).
 EXPAND_TEXT_UNBOUND = (0x1FF073, bytes.fromhex("741b"), bytes.fromhex("7436"))   # je 1FF090 -> je 1FF0AB
+# The battery's cook asks for its clips in room for 64 requests (patch 143,
+# ../docs/notes/battery-hit.md "The cook's requests"). victory_item_core's
+# cook (0x2FA050) gathers its resource requests in a buffer_vector on its
+# stack with room for 20 (esp+8Ch..12Ch at 0x2FA05D, 0x2FA071; 8 bytes
+# each): the user animations and the skeleton, then per states[] entry its
+# 2 animations and 4 user animations. The stock config's three states fill
+# it exactly; a fourth asserts "buffer overflow" (push_back 0x5FCB0, the
+# break at 0x5FD0D) while the match loads. The frame grows by 200h and the
+# buffer moves into that new top of it (esp+250h..450h after the three
+# pushes): 64 requests, ten states. No instruction of the function reads
+# its stack at or above the old frame's top (its highest local is +248h,
+# its arguments go by ebp), and none of these holds an address.
+BATTERY_COOK_REQUESTS = (
+    (0x2FA056, bytes.fromhex("81ec44020000"), bytes.fromhex("81ec44040000")),      # sub esp,244h -> 444h
+    (0x2FA05D, bytes.fromhex("8d84248c000000"), bytes.fromhex("8d842448020000")),  # the buffer's start: esp+8Ch -> 248h
+    (0x2FA071, bytes.fromhex("8d942430010000"), bytes.fromhex("8d94244c040000")),  # its end of room: esp+130h -> 44Ch
+)
 # The game's sound follows the audio output device (patch 100, README;
 # ../docs/notes/audio_device.md): audio_device_026g.c and
 # audio_device_engine_026g.c in the arena's blocks audio_device.code and
@@ -4178,6 +4195,10 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch(data, *BAKE_CACHE_KEEP)
                 patch(data, *GRASS_SORT_ORDER)
                 patch(data, *EXPAND_TEXT_UNBOUND)
+                for change in BATTERY_COOK_REQUESTS:
+                    patch(data, *change)
+                if neutralize_relocs(data, [(va, va + len(old)) for va, old, _ in BATTERY_COOK_REQUESTS]):
+                    sys.exit("a base relocation under the battery cook's request buffer")
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
                              "says")
