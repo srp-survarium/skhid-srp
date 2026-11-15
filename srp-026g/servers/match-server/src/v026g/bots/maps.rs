@@ -79,7 +79,41 @@ pub enum MapState {
     Ready(Arc<TacticsBase>),
     /// A built file of it is not there (or refused) and the store builds nothing at load ([`AtLoad::Refuse`]): its bots run
     /// the stage 0 script. The reason names the file and its key, for the log's ERROR line.
-    NotPrebuilt(String),
+    NotPrebuilt(Unbuilt),
+}
+
+/// [A197] Why a map's built file could not be read, on a store that builds nothing at load.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Unbuilt {
+    /// No built folder (`SRP_MAPDATA_BUILT=off`) for this file.
+    NoFolder { file: String },
+    /// The file is not there (its name is its key): a release without it, a key that changed, or removed; `others` says
+    /// what the folder holds of its kind.
+    Missing { path: PathBuf, others: String },
+    /// The file is there and was refused (a bad copy, another version or key inside).
+    Refused { path: PathBuf, why: String },
+}
+
+impl fmt::Display for Unbuilt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NoFolder { file } => write!(f, "no built folder (SRP_MAPDATA_BUILT=off) for its {file}"),
+            Self::Missing { path, others } => write!(f, "its built file {} is not there (the key it wants); {others}", path.display()),
+            Self::Refused { path, why } => write!(f, "its built file {} was refused ({why})", path.display()),
+        }
+    }
+}
+
+impl Unbuilt {
+    /// What a match that asked for the map knows of it, the lobby having found its files there before the Play
+    /// (`lobby_server::v026g::pvb::MapFiles`): only facts.
+    pub fn after_the_lobby(&self) -> &'static str {
+        match self {
+            Self::Missing { .. } => "files removed after the lobby check",
+            Self::Refused { .. } => "a built file the lobby found there was refused",
+            Self::NoFolder { .. } => "no built folder",
+        }
+    }
 }
 
 /// [A197] What a store does when a map's built file is not there, or is refused.
@@ -216,7 +250,7 @@ enum Entry {
     Dropped(Weak<TacticsBase>, Weak<World>),
     Failed(String),
     /// [`MapState::NotPrebuilt`].
-    NotPrebuilt(String),
+    NotPrebuilt(Unbuilt),
 }
 
 impl Maps {
@@ -595,7 +629,7 @@ enum BuildFail {
     /// The map file or the build failed.
     Failed(String),
     /// A built file is not there (or refused) and the store builds nothing at load ([`AtLoad::Refuse`]).
-    NotPrebuilt(String),
+    NotPrebuilt(Unbuilt),
 }
 
 impl From<String> for BuildFail {
@@ -606,7 +640,7 @@ impl From<String> for BuildFail {
 
 /// [A197] The ERROR line of a map whose built file is not there on a store that builds nothing at load: once when found,
 /// and once by each match that asks for the map (`game/driven.rs`).
-pub fn not_prebuilt_line(project: &str, reason: &str) -> String {
+pub fn not_prebuilt_line(project: &str, reason: &Unbuilt) -> String {
     format!(
         "Bot map {project}: not pre-built: {reason}; nothing is built at load ({} is off): its bots run the stage 0 script",
         AtLoad::ENV
@@ -635,10 +669,10 @@ fn read_or_build<T>(
     read: impl FnOnce(&Path) -> Result<T, mapdata::Error>,
     build: impl FnOnce() -> T,
     write: impl FnOnce(&T, &Path) -> Result<(), mapdata::Error>,
-) -> Result<(T, Source), String> {
+) -> Result<(T, Source), Unbuilt> {
     let Some(built) = built else {
         if at_load == AtLoad::Refuse {
-            return Err(format!("no built folder (SRP_MAPDATA_BUILT=off) for its {file_name}"));
+            return Err(Unbuilt::NoFolder { file: file_name });
         }
         log::warn!("Bot map file {file_name}: no built folder (SRP_MAPDATA_BUILT=off): built here now ({}=on), and at each load", AtLoad::ENV);
         stage::detail("building (no built files)");
@@ -649,12 +683,12 @@ fn read_or_build<T>(
         stage::detail("reading the built file");
         match read(&path) {
             Ok(value) => return Ok((value, Source::Read)),
-            Err(why) if at_load == AtLoad::Refuse => return Err(format!("its built file {} was refused ({why})", path.display())),
+            Err(why) if at_load == AtLoad::Refuse => return Err(Unbuilt::Refused { path, why: why.to_string() }),
             Err(why) => log::warn!("Bot map file refused ({why}); built again"),
         }
     } else if at_load == AtLoad::Refuse {
         // The file's name is its key: a release without the file, or a key that changed since the pre-build.
-        return Err(format!("its built file {} is not there (the key it wants); {}", path.display(), others_of_kind(built, &file_name)));
+        return Err(Unbuilt::Missing { others: others_of_kind(built, &file_name), path });
     } else {
         log::warn!("Bot map file {} is not there: built here now ({}=on)", path.display(), AtLoad::ENV);
     }
@@ -910,7 +944,7 @@ fn build(
             || TacticsBase::build(world.clone(), marking),
             |base, path| base.write(path, key),
         )?;
-        Ok::<_, String>((base, grid_source, sight_source, tactics_source, tactics_started.elapsed().as_secs_f32(), grid_key))
+        Ok::<_, Unbuilt>((base, grid_source, sight_source, tactics_source, tactics_started.elapsed().as_secs_f32(), grid_key))
     }))
     .map_err(|_| format!("{}: the build panicked", path.display()))?
     .map_err(BuildFail::NotPrebuilt)?;
@@ -944,7 +978,8 @@ fn ready(maps: &Maps, project: &str, limit: std::time::Duration) -> Result<Arc<T
     loop {
         match maps.get(project) {
             MapState::Ready(base) => return Ok(base),
-            MapState::Absent(why) | MapState::NotPrebuilt(why) => return Err(format!("{project}: {why}")),
+            MapState::Absent(why) => return Err(format!("{project}: {why}")),
+            MapState::NotPrebuilt(why) => return Err(format!("{project}: {why}")),
             MapState::Loading | MapState::Waiting(_) if started.elapsed() < limit => {
                 std::thread::sleep(std::time::Duration::from_millis(20));
             }
@@ -1358,7 +1393,8 @@ mod tests {
             }
         };
         let [wanted, _, _] = server.built_file_names(project).unwrap();
-        assert!(reason.contains(&wanted) && reason.contains("is not there"), "{reason}");
+        assert!(matches!(reason, Unbuilt::Missing { .. }) && reason.to_string().contains(&wanted), "{reason}");
+        assert_eq!(reason.after_the_lobby(), "files removed after the lobby check");
         let line = not_prebuilt_line(project, &reason);
         assert!(line.contains("stage 0 script") && line.contains(AtLoad::ENV) && line.contains(&wanted), "{line}");
         assert_eq!(server.made(project), None, "nothing built");
