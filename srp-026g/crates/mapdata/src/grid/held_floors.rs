@@ -22,7 +22,8 @@
 //!    it only when it pays.
 
 use super::controlled::parallel;
-use super::drop_check::{walk_drop, DropWalk};
+use super::controlled::Stance;
+use super::drop_check::{walk_drop, walk_drop_as, DropWalk};
 use super::gap::{OffLink, Share, Takeoff};
 use super::rest_floors::{NAME_HEIGHT_M, holds, rests_at};
 use super::*;
@@ -73,6 +74,38 @@ pub fn walk_off_landing_speed(height: f32) -> f32 {
         speed += GRAVITY * FALL_TICK_S;
     }
     speed
+}
+
+/// [S6] The walk speeds a held floor's drop is also walked off at for its landing's speed ([`walk_drop`] walks the client's
+/// cap, 3.5 m/s): the exe review of #1969's slow run (1.4 m/s: a 0.05 m slide over a 2 m ledge's rim on 3 ticks that still
+/// find ground, against 0.008 m on one at 3.5 m/s). The least landing is kept.
+pub const LANDING_WALKS_MPS: [f32; 1] = [1.4];
+
+/// [S6] A drop's landing speed as stored ([`WalkGrid::drop_landing_speed`]): cm/s down, rounded down, so it never overstates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LandingSpeed(u16);
+
+impl LandingSpeed {
+    pub fn of_mps(speed: f32) -> Self {
+        Self((speed.max(0.0) * 100.0).floor().min(f32::from(u16::MAX)) as u16)
+    }
+
+    pub fn mps(self) -> f32 {
+        f32::from(self.0) / 100.0
+    }
+
+    pub(super) fn centimetres(self) -> u16 {
+        self.0
+    }
+
+    pub(super) fn from_centimetres(cm: u16) -> Self {
+        Self(cm)
+    }
+}
+
+/// [S6] The pain of a fall that lands at `speed` m/s ([`fall_hit`] by the stored landing, [`PAIN_PER_FOOT`] of each foot's).
+pub fn landing_pain(speed: f32, fall_scale: f32) -> f32 {
+    2.0 * PAIN_PER_FOOT * fall_hit(speed, fall_scale)
 }
 
 /// [S6] The client's tick, s (`docs/notes/fall_damage.md`, PROVEN: the lockstep's 50 ms).
@@ -239,24 +272,36 @@ impl WalkGrid {
         let lands = parallel(&ways, |&(a, d)| {
             let (from, to) = (self.position(a as NodeId), self.position(wide.links[a][d]));
             match walk_drop(world, s, start, from, to) {
-                DropWalk::LandsAt(feet) => self
+                DropWalk::LandsAt(feet, speed) => self
                     .locate_within(feet, 0.5, 0.2)
                     .filter(|&b| alive[b as usize] && self.height[b as usize] < from.y - step && (self.height[b as usize] - feet.y).abs() <= 0.2)
-                    .map(|b| self.position(b)),
+                    .map(|b| {
+                        // [S6] The landing's speed, the least of the walk-offs at the walk's speeds ([`LANDING_WALKS_MPS`]):
+                        // a slower walk slides farther over the rim and may land a tick slower.
+                        let slow = LANDING_WALKS_MPS
+                            .into_iter()
+                            .filter_map(|v| match walk_drop_as(world, s, start, Stance::Standing, v, from, to) {
+                                DropWalk::LandsAt(_, slower) => Some(slower),
+                                _ => None,
+                            })
+                            .fold(speed, f32::min);
+                        (self.position(b), slow)
+                    }),
                 _ => None,
             }
         });
-        let mut drops: Vec<(Vec3, Vec3)> = Vec::new();
+        let mut drops: Vec<(Vec3, Vec3, f32)> = Vec::new();
         for (&(a, _), to) in ways.iter().zip(lands) {
-            if let Some(to) = to {
+            if let Some((to, speed)) = to {
                 let from = self.position(a as NodeId);
-                if !drops.iter().any(|&(f, t)| f == from && t == to) {
-                    drops.push((from, to));
+                match drops.iter_mut().find(|(f, t, _)| *f == from && *t == to) {
+                    Some(drop) => drop.2 = drop.2.min(speed),
+                    None => drops.push((from, to, speed)),
                 }
             }
         }
         stats.drops = drops.len();
-        stats.hurting = drops.iter().filter(|(f, t)| f.y - t.y > HARMLESS_HEIGHT_M).count();
+        stats.hurting = drops.iter().filter(|(f, t, _)| f.y - t.y > HARMLESS_HEIGHT_M).count();
         self.held_taken = (0..n).filter(|&a| !alive[a]).map(|a| self.position(a as NodeId)).collect();
         self.compact(wide, &alive);
         (stats, drops)
@@ -266,13 +311,13 @@ impl WalkGrid {
     /// body gets to from `seeds` or `spawns` over `wide`'s links and has no link to the landing yet. Returns the drops not made
     /// for an unreached take-off: a drop out of a region no body gets into would make the region lead in, and the build would
     /// keep it (School: 12,862 falls of 10 m or more off roofs, 976,594 roof floors kept).
-    pub(super) fn add_unheld_drops(&self, wide: &mut Wide, drops: &[(Vec3, Vec3)], seeds: &[Vec3], spawns: &[Vec3]) -> usize {
+    pub(super) fn add_unheld_drops(&self, wide: &mut Wide, drops: &[(Vec3, Vec3, f32)], seeds: &[Vec3], spawns: &[Vec3]) -> usize {
         if drops.is_empty() {
             return 0;
         }
         let reached = self.reached_floors(wide, seeds, spawns);
         let mut unreached = 0;
-        for &(from, to) in drops {
+        for &(from, to, speed) in drops {
             let (Some(a), Some(b)) = (self.locate_within(from, 0.01, 0.01), self.locate_within(to, 0.01, 0.01)) else { continue };
             if !reached[a as usize] {
                 unreached += 1;
@@ -282,9 +327,13 @@ impl WalkGrid {
                 continue;
             }
             wide.off.push(OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: super::gap::Aim::STRAIGHT });
+            // [S6] Its landing's speed, for the search's fall gate ([`WalkGrid::drop_landing_speed`]).
+            wide.drop_speed.push((a, b, LandingSpeed::of_mps(speed)));
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
         wide.off.dedup_by_key(|l| (l.from, l.to));
+        wide.drop_speed.sort_by_key(|&(a, b, _)| (a, b));
+        wide.drop_speed.dedup_by_key(|&mut (a, b, _)| (a, b));
         unreached
     }
 }

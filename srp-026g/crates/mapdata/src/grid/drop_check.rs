@@ -181,8 +181,11 @@ pub enum DropWalk {
     /// Standing on the to-point's floor ([`ARRIVE_FLAT_M`] across, [`ARRIVE_HEIGHT_M`] in height) within [`LAND_STEPS`] of
     /// leaving the take-off's level.
     Arrives,
-    /// Left the take-off's level and came to stand elsewhere: its feet there (a ledge partway, a floor past the landing).
-    LandsAt(Vec3),
+    /// Left the take-off's level and came to stand elsewhere: its feet there (a ledge partway, a floor past the landing), and
+    /// [S6] the speed it landed at, m/s down: the body's downward speed at the start of the tick that landed it on walkable
+    /// ground (the ported `step_down`'s landing, which zeroes the velocity: `on_physical_controller_landing` 0x2D8220 gets that
+    /// tick's starting speed, the exe review of #1969), the most of the walk's landings.
+    LandsAt(Vec3, f32),
     /// Left the take-off's level and not standing [`LAND_STEPS`] later (falling on, sliding down a steep face).
     Unsettled,
     /// Walked [`MOVED_M`] or more from its start and never left the take-off's level (a rim the erosion took, a deck over the
@@ -217,20 +220,25 @@ pub fn walk_drop_as(world: &Collision, s: &Settings, start: WalkStart, stance: S
     let line = Vec3::new((to.x - from.x) / len, 0.0, (to.z - from.z) / len);
     let mut moved = 0.0f32;
     let mut left: Option<usize> = None;
+    let mut landed = 0.0f32;
     for n in 1..=LEAVE_STEPS + LAND_STEPS {
         let feet = c.feet();
         let d = flat(feet, to);
+        let falling = -c.velocity.y;
         let walk = if d <= WALK_ON_WITHIN_M {
             line * (speed * LAND_DT)
         } else {
             Vec3::new((to.x - feet.x) / d, 0.0, (to.z - feet.z) / d) * (speed * LAND_DT).min(d)
         };
-        c.tick(world, LAND_DT, s, TickInput {
+        let notes = c.tick(world, LAND_DT, s, TickInput {
             walk,
             air_control: Vec3::ZERO,
             crouch: CrouchInput::Tested { key, legs_broken: false },
             sprinting: false,
         });
+        if notes.landed {
+            landed = landed.max(falling);
+        }
         let feet = c.feet();
         moved = moved.max(flat(feet, first));
         if left.is_none() && feet.y <= down {
@@ -245,7 +253,7 @@ pub fn walk_drop_as(world: &Collision, s: &Settings, start: WalkStart, stance: S
                     return DropWalk::Arrives;
                 }
                 if n - t >= LAND_STEPS {
-                    return if standing { DropWalk::LandsAt(feet) } else { DropWalk::Unsettled };
+                    return if standing { DropWalk::LandsAt(feet, landed) } else { DropWalk::Unsettled };
                 }
             }
         }
@@ -586,7 +594,7 @@ impl WalkGrid {
             return Verdict::Keep;
         }
         for (w, off) in walks.iter().zip(STARTS) {
-            let DropWalk::LandsAt(feet) = *w else { continue };
+            let DropWalk::LandsAt(feet, _) = *w else { continue };
             let Some(b) = self.locate_within(feet, ARRIVE_FLAT_M, ARRIVE_HEIGHT_M) else { continue };
             let at = self.position(b);
             if b == a || (at.y - feet.y).abs() > ARRIVE_HEIGHT_M || at.y >= from.y - self.body.step {
@@ -612,7 +620,7 @@ impl WalkGrid {
         {
             return Verdict::Released(b, press, share);
         }
-        if let Some(b) = walks.iter().find_map(|w| if let DropWalk::LandsAt(feet) = *w { lower(feet) } else { None }) {
+        if let Some(b) = walks.iter().find_map(|w| if let DropWalk::LandsAt(feet, _) = *w { lower(feet) } else { None }) {
             return Verdict::Taught(b);
         }
         if let Some((b, press, share)) = release {
@@ -621,7 +629,7 @@ impl WalkGrid {
         for off in STARTS {
             match walk_drop_as(world, s, start, Stance::Crouched, CROUCH_MPS, from + side * off, to + side * off) {
                 DropWalk::Arrives => return Verdict::Keep,
-                DropWalk::LandsAt(feet) => {
+                DropWalk::LandsAt(feet, _) => {
                     if let Some(b) = lower(feet) {
                         return Verdict::Taught(b);
                     }
@@ -802,8 +810,10 @@ mod tests {
         let mut ledge = tris.clone();
         ledge.extend(quad(0.0, 3.0, -2.0, 2.0, 1.0));
         let world = Collision::build(&ledge);
-        let DropWalk::LandsAt(feet) = walk_drop(&world, &s, start, from, to) else { panic!("lands elsewhere") };
+        let DropWalk::LandsAt(feet, speed) = walk_drop(&world, &s, start, from, to) else { panic!("lands elsewhere") };
         assert!((feet.y - 1.0).abs() < 0.1, "{feet:?}");
+        // [S6] A 1 m drop lands slow: under the 2 m/s slow-fall line's next steps (0.05 m a tick from rest, then 2.45 m/s).
+        assert!(speed < 4.0, "{speed}");
         assert_eq!(walk_drop(&world, &s, start, from, Vec3::new(0.25, 1.0, 0.0)), DropWalk::Arrives);
 
         let mut deck = tris.clone();

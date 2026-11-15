@@ -508,9 +508,10 @@ pub fn carrier_escape_line(feet: Vec3, exits: usize) -> String {
 /// the pain pool it empties.
 pub fn fall_closed_line(grid: &mapdata::WalkGrid, closed: &mapdata::FallClosed) -> String {
     let start = match closed.start {
-        mapdata::FallStart::WalkOff => "walked off",
-        mapdata::FallStart::Short => "a short jump",
-        mapdata::FallStart::Sprint => "a sprint jump",
+        mapdata::FallStart::WalkOff => "walked off".to_string(),
+        mapdata::FallStart::Landed(speed) => format!("walked off, landing at {speed:.2} m/s as the build walked it"),
+        mapdata::FallStart::Short => "a short jump".to_string(),
+        mapdata::FallStart::Sprint => "a sprint jump".to_string(),
     };
     format!(
         "{PREFIX}drop from {} to {} ({:.2} m, {start}) closed: its fall takes pain {:.3}, the pool is {:.3}",
