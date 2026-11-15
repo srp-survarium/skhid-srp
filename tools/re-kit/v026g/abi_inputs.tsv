@@ -6205,3 +6205,6 @@ va	name	location	role	basis
 0x00316fc0	survarium::player_respawn_rule_core::deserialize	entry ESP+8	a dword of the caller, passed on to the base's deserialize; popped (ret 8)	observed
 0x000e29c0	vostok::core::generate_log_file_name	EDI	the buffer_string the name is written to (cleared first, 0xE2A1D)	observed
 0x001128d0	vostok::logging::new_log_file	entry ESP+4	the file name, a C string	observed
+0x0030ebf0	survarium::weapon_core_fire_state_base::on_shot_event	entry ESP+4	the animation_callback_params: +10h the event's time in ms (the shot's; replays of 0x30ffba2c, fire-queue-assert.md); with +13Ch (the queue) 0 it asserts m_bullets_in_queue > 0 and fires nothing	observed
+0x0030ecc0	survarium::weapon_core_fire_state_base::reset_fire_queue [descriptive]	ESI	the fire state: +13Ch the queue = min(fire_queue_types[weapon core +5E6h] (+5E0h the table), magazine +5E5h + (chambered +5F1h != 0)), +13Dh (may refill) 0; called by execute 0x30EA00 on a press (weapon object +330h bit 5) while +13Dh is set	observed
+0x0030ea50	survarium::weapon_core_fire_state_base::on_animation_end_impl	ECX	the fire state: over (+12Dh and both flags) when its queue +13Ch is spent, or for fire_queue_types 0FFh with the trigger up; a semi-automatic state a press refilled is not over at its clip's end, and each later input change starts its clip again (fire-queue-assert.md)	observed
