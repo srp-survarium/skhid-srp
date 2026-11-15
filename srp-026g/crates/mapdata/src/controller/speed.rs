@@ -28,6 +28,13 @@ pub enum Heading {
 /// caller's).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Gait {
+    /// `aiming`: the weapon's aim state `weapon_core::is_aimed` (`+0x5E8`), not the AIM key (register #24, PROVEN): the movement
+    /// struct `base_player::movement_speed` 0x2DBB50 reads its aim byte from (`+0xC`, via the stand builders 0x335EA0 / 0x336400,
+    /// vtable slot `+0x20` of `player_logic_stand_on_site_state` / `player_logic_stand_run_state`) is filled by `weapon_core`
+    /// at 0x2E1110 (`mov al, [esi+0x5E8]`; `+4` the state `[player+0x124]`); the other caller (0x30130C) passes 0. The state
+    /// follows the AIM key through the aim gate 0x2FB9C1: aim starts (vfunc `+0x98`) while 0x2FC2A0 holds (AIM, keys `+0x330`
+    /// bit 7; the movement state not sprint 3 or 4; the hands' `+0x389` not 2) and the hands' vfunc `+0x68` agrees, and stops
+    /// (vfunc `+0x9C`) when they fail.
     Move { stance: Stance, heading: Heading, aiming: bool },
     Sprint,
 }
