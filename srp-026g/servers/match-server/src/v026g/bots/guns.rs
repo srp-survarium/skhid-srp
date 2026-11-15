@@ -1916,21 +1916,26 @@ mod tests {
         }
     }
 
-    /// [A307] The tier 9-10 support's AKM kicks 0.92 of its config with its `ren_gloves_1` (-8 %, the item's default
-    /// modification), with the bots' upgrades on or off: the client applies it either way.
+    /// [A307] The tier 9-10 support's AKM kicks less than its config by its `ren_gloves_1` (the item's default modification:
+    /// -8 % since revision 38, -2 % in this build's revision 34 test data), the same with the bots' upgrades on or off: the
+    /// client applies it either way.
     #[test]
     fn the_gloves_factor_reaches_the_gun_with_the_upgrades_on_or_off() {
         use survarium::v026g::bot_skills::bot_modifiers;
         use survarium::v026g::loadouts::bot_kits_in;
         let equipment = BotEquipment::of(BotTier::Mid, RusherKits::default());
+        let mut scales = Vec::new();
         for upgrades in [true, false] {
             let kits = bot_kits_in(equipment, BotRole::Support, true, upgrades);
             let refs: Vec<&Loadout> = kits.iter().collect();
             let modifiers = bot_modifiers(&refs);
             let gun = arms_of_in(&kits[0], &modifiers, upgrades).unwrap().primary.0;
             assert_eq!(gun.item, "akmn", "upgrades {upgrades}");
-            assert!((gun.recoil_scale - 0.92).abs() < 1e-6, "upgrades {upgrades}: {}", gun.recoil_scale);
+            let worn = (1.0 + Factors::of_kit(&kits[0], &[0.0; MODIFIERS]).recoil).max(0.0);
+            assert!(worn < 1.0 && (gun.recoil_scale - worn).abs() < 1e-6, "upgrades {upgrades}: {} against {worn}", gun.recoil_scale);
+            scales.push(gun.recoil_scale);
         }
+        assert_eq!(scales[0], scales[1]);
     }
 
     #[test]
