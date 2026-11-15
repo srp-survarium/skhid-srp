@@ -182,8 +182,10 @@ pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c03;
 /// aims (±6, 0) and the gap links' aimed sweep. 0b0A: a plain Jump link no press lands on the top of is cut (keeping a floor's
 /// only way in or back), not kept. 0b0b: [R83] the turns of 0.1 rad ((±3, ±2), (0, ±2)). 0b0c: [S2] every plain Jump link
 /// rising over a step is flown, replaced only where a body with no sprint takes the flown link too (else both kept, S6's reach
-/// chooses), and a sprint climb carries its walking press.
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b0c;
+/// chooses), and a sprint climb carries its walking press. 0b0d: [item 10] the held sprint (`Takeoff::SprintHeld`: the forward
+/// key held 3 ground steps after the landing), flown where neither the line's nor the aimed presses make a rim jump and a
+/// let-go sprint came to rest under its top.
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b0d;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;

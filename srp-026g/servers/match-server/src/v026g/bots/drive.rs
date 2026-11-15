@@ -1982,6 +1982,10 @@ fn drive_tick_inner(
                     if let Some(line) = bot.motor.take_walk_off_line() {
                         bot.nav_log.push(super::nav_log::Kind::WalkOff, time, line);
                     }
+                    // [item 10] A held sprint's walk that ended: where the held steps left the body (decision-neutral).
+                    if let Some(line) = bot.motor.take_held_line() {
+                        bot.nav_log.push(super::nav_log::Kind::Jump, time, line);
+                    }
                     // Pressing against something while walking the route: counted, nothing is decided from it.
                     let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
                     contact::contacts::count(counted, me.feet);

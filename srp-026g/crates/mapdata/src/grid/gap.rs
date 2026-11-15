@@ -132,6 +132,12 @@ pub enum Takeoff {
     /// ([`super::drop_check`]'s release flight; exactness `mapflights` §2 A1b: a steady walk overshoots a shallow ledge below,
     /// a let-go body lands on it).
     Release { at: PressLead, crouched: bool },
+    /// [item 10] The sprint jump as [`Self::Sprint`], with the forward key held on [`jump::HELD_STEPS`] ground steps after the
+    /// landing (at the walk cap: the sprint flag is down through a sprint jump's landing, owner-5
+    /// `owner-5-sprint-after-landing-20261115.md` §1), then let go ([`jump::Kind::SprintHeld`]): the held steps walk the body from
+    /// where the jump comes down up onto the top (Rudnya day 2's (39.43, 18.50, 53.10) -> 20.61, owner-5
+    /// `owner-5-item10-old-runup-edges-20261115.md` §2).
+    SprintHeld(PressLead),
 }
 
 /// [A1b] The farthest a release is past the take-off floor's centre, m: the body leaves a floor within 0.6 m.
@@ -150,6 +156,10 @@ const CLIMB_CODE: u16 = SPRINT_BIT | SLOW_BIT;
 /// them (1..0x1FFF, never 0, so never [`CLIMB_CODE`]).
 const RELEASE_CROUCH_BIT: u16 = 0x2000;
 const RELEASE_CM_MASK: u16 = RELEASE_CROUCH_BIT - 1;
+/// [item 10] A held sprint in a built file: the sprint bit, this bit (not the slow bit: never a climb or a release), its
+/// centimetres under them.
+const HELD_BIT: u16 = 0x2000;
+const HELD_CODE_MASK: u16 = SPRINT_BIT | SLOW_BIT | HELD_BIT;
 
 impl Takeoff {
     /// In a built file: a press's centimetres, a walk-off 0 (no press is
@@ -160,6 +170,7 @@ impl Takeoff {
             Takeoff::Press(lead) => lead.centimetres(),
             Takeoff::WalkOff => 0,
             Takeoff::Sprint(lead) => SPRINT_BIT | lead.centimetres(),
+            Takeoff::SprintHeld(lead) => SPRINT_BIT | HELD_BIT | lead.centimetres(),
             Takeoff::Slow { lead, steps } => SLOW_BIT | (u16::from(steps) << SLOW_STEPS_SHIFT) | (lead.centimetres() & SLOW_CM_MASK),
             Takeoff::Climb => CLIMB_CODE,
             Takeoff::Release { at, crouched } => {
@@ -176,6 +187,9 @@ impl Takeoff {
                 at: PressLead::from_centimetres((cm & RELEASE_CM_MASK).saturating_sub(1)),
                 crouched: cm & RELEASE_CROUCH_BIT != 0,
             },
+            cm if cm & HELD_CODE_MASK == SPRINT_BIT | HELD_BIT => {
+                Takeoff::SprintHeld(PressLead::from_centimetres(cm & !(SPRINT_BIT | HELD_BIT)))
+            }
             cm if cm & SPRINT_BIT != 0 => Takeoff::Sprint(PressLead::from_centimetres(cm & !SPRINT_BIT)),
             cm if cm & SLOW_BIT != 0 => Takeoff::Slow {
                 lead: PressLead::from_centimetres(cm & SLOW_CM_MASK),
@@ -189,7 +203,7 @@ impl Takeoff {
         match self {
             Takeoff::Press(lead) => lead.is_valid(),
             Takeoff::WalkOff => true,
-            Takeoff::Sprint(lead) => (0.0..=SPRINT_PRESS_MAX_M + 1e-3).contains(&lead.metres()),
+            Takeoff::Sprint(lead) | Takeoff::SprintHeld(lead) => (0.0..=SPRINT_PRESS_MAX_M + 1e-3).contains(&lead.metres()),
             Takeoff::Slow { lead, steps } => lead.metres() <= GAP_PRESS_MAX_M + 1e-3 && steps <= jump::SLOW_STEPS_MAX,
             Takeoff::Climb => true,
             // On its own metres, not `PressLead::is_valid` (whose floor is a walking press's).
@@ -202,7 +216,7 @@ impl Takeoff {
     pub fn penalty(self) -> f32 {
         match self {
             Takeoff::Press(_) | Takeoff::WalkOff | Takeoff::Slow { .. } | Takeoff::Climb | Takeoff::Release { .. } => 0.0,
-            Takeoff::Sprint(_) => SPRINT_GAP_PENALTY,
+            Takeoff::Sprint(_) | Takeoff::SprintHeld(_) => SPRINT_GAP_PENALTY,
         }
     }
 
@@ -212,7 +226,7 @@ impl Takeoff {
     pub fn sprint_run_m(self) -> Option<f32> {
         match self {
             Takeoff::Press(_) | Takeoff::WalkOff | Takeoff::Slow { .. } | Takeoff::Release { .. } => None,
-            Takeoff::Sprint(_) | Takeoff::Climb => Some(SPRINT_RUN_UP_M),
+            Takeoff::Sprint(_) | Takeoff::SprintHeld(_) | Takeoff::Climb => Some(SPRINT_RUN_UP_M),
         }
     }
 
@@ -224,7 +238,7 @@ impl Takeoff {
             Takeoff::Press(_) => GAP_RUN_UP_M + jump::blend_m(jump::WALK_CAP_MS),
             Takeoff::Slow { steps, .. } => GAP_RUN_UP_M + jump::blend_steps_m(jump::WALK_CAP_MS, steps),
             Takeoff::Climb => SPRINT_RUN_UP_M,
-            Takeoff::Sprint(_) => SPRINT_RUN_UP_M,
+            Takeoff::Sprint(_) | Takeoff::SprintHeld(_) => SPRINT_RUN_UP_M,
             Takeoff::WalkOff => 0.0,
             // [A1b] The walk-up to its walk cap.
             Takeoff::Release { .. } => jump::blend_m(jump::WALK_CAP_MS),
@@ -1820,7 +1834,7 @@ impl WalkGrid {
             Takeoff::WalkOff | Takeoff::Release { .. } => 0,
             _ if link.share.flown().is_some() => 1,
             Takeoff::Press(_) | Takeoff::Slow { .. } => 2,
-            Takeoff::Sprint(_) | Takeoff::Climb => 3,
+            Takeoff::Sprint(_) | Takeoff::SprintHeld(_) | Takeoff::Climb => 3,
         });
         let mut seen = std::collections::HashSet::new();
         found.retain(|&(link, d)| {
@@ -2672,6 +2686,13 @@ mod tests {
             assert!(t.is_valid());
         }
         assert_eq!(Takeoff::Sprint(PressLead::from_metres(0.3)).sprint_run_m(), Some(SPRINT_RUN_UP_M));
+        // [item 10] A held sprint reads back as itself, apart from a sprint, a climb and a release.
+        for lead in [0.0, 0.3, 1.6] {
+            let held = Takeoff::SprintHeld(PressLead::from_metres(lead));
+            assert_eq!(Takeoff::from_centimetres(held.centimetres()), held);
+            assert!(held.is_valid());
+            assert_eq!(held.sprint_run_m(), Some(SPRINT_RUN_UP_M));
+        }
         assert_eq!(Takeoff::WalkOff.sprint_run_m(), None);
     }
 

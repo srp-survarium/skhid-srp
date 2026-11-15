@@ -267,7 +267,7 @@ impl WalkGrid {
             for g in ends {
                 tried += 1;
                 let linked = linked(g);
-                let super::rim::RimPress { made, flights: f, near: close } =
+                let super::rim::RimPress { made, flights: f, near: close, .. } =
                     self.best_press(world, s, g.a, g.b, way(g), &leads, |st| self.gap_lands_on(st, g.a, &linked, g.over, g.past), kits);
                 flights += f;
                 // Every press it makes (a jump's, and [S1] a sprint climb's onto its own floor), as the rim pass keeps them.
@@ -282,7 +282,8 @@ impl WalkGrid {
             // (`R83-FORMAT.md`; Mamayev Kurgan day_2's box from the rock pile is a gap made only aimed).
             if let Some(g) = near {
                 let linked = linked(&g);
-                let (made, f) = self.best_aimed(world, s, g.a, g.b, way(&g), &|st| self.gap_lands_on(st, g.a, &linked, g.over, g.past), kits);
+                let sweep = self.best_aimed(world, s, g.a, g.b, way(&g), &|st| self.gap_lands_on(st, g.a, &linked, g.over, g.past), kits);
+                let (made, f) = (sweep.made, sweep.flights);
                 flights += f;
                 return (made.map(|m| (g, vec![m])), tried, flights, Some(f));
             }
@@ -304,7 +305,7 @@ impl WalkGrid {
                 let rise = self.height[to as usize] - self.height[g.a as usize];
                 let kind = if rise > -self.body.step { LinkKind::GapJump } else { LinkKind::GapDrop };
                 stats.made += 1;
-                stats.sprint += usize::from(matches!(press, super::gap::Takeoff::Sprint(_)));
+                stats.sprint += usize::from(matches!(press, super::gap::Takeoff::Sprint(_) | super::gap::Takeoff::SprintHeld(_)));
                 stats.by_share[share.class()] += 1;
                 found.push((OffLink { from: g.a, to, kind, press, share, walk, aim }, g.d));
             }

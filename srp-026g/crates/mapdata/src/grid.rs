@@ -98,7 +98,7 @@ mod gap_flown;
 pub mod held_floors;
 mod rest_floors;
 pub use gap::{Aim, GapStats, OffLink, OffMeshLinks, PressLead, Share};
-pub use rim::Riser;
+pub use rim::{Riser, LAND_HEIGHT_M};
 use gap::gap_cost;
 
 /// The body and how it moves. Defaults: the 0.26g client's character
@@ -3557,7 +3557,7 @@ impl WalkGrid {
                         let aim = gap::Aim::from_byte(bytes[9]).filter(|aim| {
                             aim.is_straight()
                                 || (matches!(kind, LinkKind::GapJump | LinkKind::GapDrop)
-                                    && matches!(press, gap::Takeoff::Press(_) | gap::Takeoff::Sprint(_)))
+                                    && matches!(press, gap::Takeoff::Press(_) | gap::Takeoff::Sprint(_) | gap::Takeoff::SprintHeld(_)))
                         });
                         let share = gap::Share::from_byte(bytes[12]);
                         let walk = match (half(13), gap::Share::from_byte(bytes[15])) {
@@ -4805,10 +4805,10 @@ impl WalkGrid {
                         Some((gap::Takeoff::Press(lead), share))
                     }
                     (SprintReach::Cannot { .. }, gap::Takeoff::Climb, _) => return f32::INFINITY,
-                    (SprintReach::Cannot { .. }, gap::Takeoff::Sprint(_), Some((lead, share))) => {
+                    (SprintReach::Cannot { .. }, gap::Takeoff::Sprint(_) | gap::Takeoff::SprintHeld(_), Some((lead, share))) => {
                         Some((gap::Takeoff::Press(lead), share))
                     }
-                    (SprintReach::Cannot { .. }, gap::Takeoff::Sprint(_), None) => return f32::INFINITY,
+                    (SprintReach::Cannot { .. }, gap::Takeoff::Sprint(_) | gap::Takeoff::SprintHeld(_), None) => return f32::INFINITY,
                     _ => Some((l.press, l.share)),
                 },
             };

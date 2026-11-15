@@ -42,7 +42,7 @@ use mapdata::grid::{SPRINT_JUMP_LOW_M, STANDING_JUMP_M};
 use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
 use super::link_time;
-use super::path::{DropTruth, GapPress, Leap, PressAim, Route, RouteHeight, SprintPress, WalkPress};
+use super::path::{AfterLanding, DropTruth, GapPress, Leap, PressAim, Route, RouteHeight, SprintPress, WalkPress};
 use super::rng::Rng;
 use super::tuning::{Metres, Positive, Span};
 use crate::v026g::drive::key;
@@ -430,17 +430,48 @@ pub enum Footing {
 /// the body comes to rest on the top. After such a press the motor follows the reckoned body into the air and, on its first
 /// step on the ground, lets go of the move keys until it is at rest ([`STILL_MS`]), unless the route's next corner is on the
 /// same top (then the walk on is the route's).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 enum Stay {
     /// No such landing under way.
     #[default]
     Idle,
     /// Pressed at this motor tick; not yet in the air.
-    Pressed { at: u32 },
+    Pressed { at: u32, landing: StayLanding },
     /// In the air.
-    Flying,
+    Flying { landing: StayLanding },
+    /// [item 10] Landed from a held sprint (`path::AfterLanding::Held`): the forward key alone along the press's heading, `left`
+    /// more ticks (a motor tick is the client's 50 ms step, `kin::TICK_S`), then its `walk.then`.
+    Held { walk: HeldWalk, left: u32 },
     /// Landed: the move keys let go until at rest.
     Settling,
+}
+
+/// [item 10] What a pressed link's landing does ([`Stay`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum StayLanding {
+    /// The move keys let go at the landing until at rest (A385-FORMAT §1).
+    LetGo,
+    /// The forward key held after the landing (`path::AfterLanding::Held`, [`HeldWalk`]).
+    Held(HeldWalk),
+}
+
+/// [item 10] A held sprint's walk after its landing, as pressed: `steps` ticks of the forward key alone along `heading` (the
+/// press's line, unit map x/z: `jump::held_flight` walks along it), then `then`; `landing` the link's, for the log.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct HeldWalk {
+    steps: u32,
+    heading: [f32; 2],
+    landing: Vec3,
+    then: AfterHeld,
+}
+
+/// [item 10] After a held sprint's held steps ([`Stay::Held`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AfterHeld {
+    /// The move keys let go until at rest, as a let-go landing ([`Stay::Settling`]): the route goes on off the top.
+    Settle,
+    /// The route's walk goes on: its next corner is on the same top.
+    WalkOn,
 }
 
 /// [A386] A body's walk cap, m/s: the client's `base_player::max_speed` 0x2DC010 times `long_jump_speed_factor` 1.0, which the
@@ -879,6 +910,8 @@ pub struct Motor {
     walk_off: super::walk_off::WalkOff,
     /// [A1b] The log line of the last let-go that ended, for the driver ([`Self::take_walk_off_line`]).
     walk_off_line: Option<String>,
+    /// [item 10] The log line of the last held sprint's walk that ended ([`Self::take_held_line`]).
+    held_line: Option<String>,
     /// The sway's phase and the time, seconds, for it.
     phase: f32,
     t: f32,
@@ -1383,6 +1416,7 @@ impl Motor {
             release: None,
             walk_off: super::walk_off::WalkOff::Idle,
             walk_off_line: None,
+            held_line: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
             look: None,
@@ -2028,6 +2062,9 @@ impl Motor {
         // A hop goes the way the keys do: only with forward held.
         let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
         keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may, pose.held_short_m);
+        // [item 10] A held sprint's held steps keep the heading it flew (`jump::held_flight` walks along it).
+        let turn = self.held_turn(pose, turn);
+        let keys = if self.holding_landing() { key::FORWARD } else { keys };
         (Decision { keys, turn }, Walked::OnTheWay)
     }
 
@@ -2041,10 +2078,11 @@ impl Motor {
         });
     }
 
-    /// [A1b] Whether the body was let go at a walk-off's release and is not yet down and still ([`super::walk_off::WalkOff::LetGo`]):
-    /// the lip guard and the stuck and progress watches leave it be.
+    /// [A1b] Whether the body was let go at a walk-off's release and is not yet down and still ([`super::walk_off::WalkOff::LetGo`]),
+    /// or [item 10] is in a held sprint's held steps ([`Stay::Held`]): the lip guard, the landing brake and the stuck and
+    /// progress watches leave it be.
     pub fn letting_go(&self) -> bool {
-        matches!(self.walk_off, super::walk_off::WalkOff::LetGo { .. })
+        matches!(self.walk_off, super::walk_off::WalkOff::LetGo { .. }) || self.holding_landing()
     }
 
     /// [A1b] The log line of the last walk-off at release that ended, once.
@@ -2305,13 +2343,18 @@ impl Motor {
             keys |= self.jump_key(&jump, still, pose, true);
         }
         keys = self.stay_keys(pose, keys);
-        // A landing run against the way is braked, not walked out.
-        if let Some(brake) = self.landing_brake(route, pose, s, &clear) {
+        // A landing run against the way is braked, not walked out ([item 10] not a held sprint's held steps).
+        if !self.holding_landing()
+            && let Some(brake) = self.landing_brake(route, pose, s, &clear)
+        {
             keys = (keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT)) | brake;
         }
         // A hop goes the way the keys do: only with forward held.
         let may = keys & key::FORWARD != 0 && keys & key::BACK == 0 && !pose.no_jump;
         keys |= self.hop_key(route, s, pose.feet, unit(dx, dz), may, pose.held_short_m);
+        // [item 10] A held sprint's held steps keep the heading it flew (`jump::held_flight` walks along it).
+        let turn = self.held_turn(pose, turn);
+        let keys = if self.holding_landing() { key::FORWARD } else { keys };
         (Decision { keys, turn }, Walked::OnTheWay)
     }
 
@@ -2967,8 +3010,18 @@ impl Motor {
             aim: ahead.leap.aim(),
         });
         self.jump = Some(JumpBy::Route);
-        if ahead.let_go {
-            self.stay = Stay::Pressed { at: self.clock };
+        // [item 10] A held sprint holds the forward key on after its landing whether or not the route goes on off the top; only
+        // when the press goes out as the sprint jump the grid flew held (a short clip, a sprint link pressed without the sprint,
+        // lands as any walking press: let go).
+        let landing = match ahead.leap {
+            Leap::SprintGap(SprintPress { after: AfterLanding::Held { steps }, .. }) if !short_clip => {
+                let then = if ahead.let_go { AfterHeld::Settle } else { AfterHeld::WalkOn };
+                Some(StayLanding::Held(HeldWalk { steps, heading: ahead.way, landing: jump.landing, then }))
+            }
+            _ => ahead.let_go.then_some(StayLanding::LetGo),
+        };
+        if let Some(landing) = landing {
+            self.stay = Stay::Pressed { at: self.clock, landing };
         }
         self.last_press = Some(LandingWatch { at: self.clock, counted: false, from: LandingFrom::Jump });
         if matches!(ahead.leap, Leap::Ledge | Leap::SprintLedge) && ahead.rise <= LIFT_MAX_RISE_M {
@@ -3053,18 +3106,56 @@ impl Motor {
     /// [`CARRY_S`] is let be.
     fn stay_keys(&mut self, pose: &Pose, keys: u32) -> u32 {
         self.stay = match (self.stay, pose.footing) {
-            (Stay::Pressed { .. }, Footing::Air) => Stay::Flying,
-            (Stay::Pressed { at }, Footing::Ground) if self.since(at) > CARRY_S => Stay::Idle,
-            (Stay::Flying, Footing::Ground) => Stay::Settling,
+            (Stay::Pressed { landing, .. }, Footing::Air) => Stay::Flying { landing },
+            (Stay::Pressed { at, .. }, Footing::Ground) if self.since(at) > CARRY_S => Stay::Idle,
+            (Stay::Flying { landing: StayLanding::LetGo }, Footing::Ground) => Stay::Settling,
+            // [item 10] The landing tick is the first held step. The walk ends after its steps, or when the body leaves the
+            // ground (then let go, as a let-go landing).
+            (Stay::Flying { landing: StayLanding::Held(walk) }, Footing::Ground) => Stay::Held { walk, left: walk.steps },
+            (Stay::Held { walk, left }, Footing::Ground) if left > 1 => Stay::Held { walk, left: left - 1 },
+            (Stay::Held { walk, left }, footing) => {
+                let off_ground = footing == Footing::Air;
+                self.held_line = Some(stays::held(pose.feet, walk.landing, walk.steps - left + 1, off_ground));
+                match walk.then {
+                    _ if off_ground => Stay::Settling,
+                    AfterHeld::Settle => Stay::Settling,
+                    AfterHeld::WalkOn => Stay::Idle,
+                }
+            }
             (Stay::Settling, _) if pose.speed < STILL_MS => Stay::Idle,
             (stay, _) => stay,
         };
-        if self.stay == Stay::Settling {
-            stays::let_go();
-            keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT)
-        } else {
-            keys
+        match self.stay {
+            Stay::Settling => {
+                stays::let_go();
+                keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT)
+            }
+            // [item 10] The forward key alone, as the grid flew it (`jump::held_flight`: at the walk cap, the sprint flag down
+            // through the landing; no jump, no side key).
+            Stay::Held { .. } => key::FORWARD,
+            _ => keys,
         }
+    }
+
+    /// [item 10] Whether the body is in a held sprint's held steps ([`Stay::Held`]).
+    fn holding_landing(&self) -> bool {
+        matches!(self.stay, Stay::Held { .. })
+    }
+
+    /// [item 10] From a held sprint's press through its flight and its held steps, the yaw toward the press's heading (pitch as
+    /// `turn`): the grid flew it on one heading (`jump::held_flight` walks the held steps along it); else `turn`.
+    fn held_turn(&self, pose: &Pose, turn: (f32, f32)) -> (f32, f32) {
+        match self.stay {
+            Stay::Pressed { landing: StayLanding::Held(walk), .. }
+            | Stay::Flying { landing: StayLanding::Held(walk) }
+            | Stay::Held { walk, .. } => (wrap(yaw_of(walk.heading) - pose.yaw), turn.1),
+            _ => turn,
+        }
+    }
+
+    /// [item 10] The log line of the last held sprint's walk that ended, once (for the driver's nav log).
+    pub fn take_held_line(&mut self) -> Option<String> {
+        self.held_line.take()
     }
 
     /// The route jump's try as it now is, its tries kept for the link ([`LinkTries`]).
@@ -3791,6 +3882,7 @@ pub mod stays {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static LET_GO: AtomicU64 = AtomicU64::new(0);
+    static HELD: AtomicU64 = AtomicU64::new(0);
 
     pub fn let_go() {
         LET_GO.fetch_add(1, Ordering::Relaxed);
@@ -3798,6 +3890,33 @@ pub mod stays {
 
     pub fn count() -> u64 {
         LET_GO.load(Ordering::Relaxed)
+    }
+
+    /// [item 10] A held sprint's walk played (`Stay::Held`) and ended at `feet` after `steps` held steps (`off_ground`: the body
+    /// left the ground): counted, and its nav line, the end against the link's `landing`.
+    pub fn held(feet: mapdata::Vec3, landing: mapdata::Vec3, steps: u32, off_ground: bool) -> String {
+        HELD.fetch_add(1, Ordering::Relaxed);
+        // Up when the walk ended at the landing's height (within the grid's landing band, `mapdata::grid::LAND_HEIGHT_M`); a
+        // miss ends under it (Rudnya day 2's: 0.35 m under the take-off, the try again from there).
+        let up = (feet.y - landing.y).abs() <= mapdata::grid::LAND_HEIGHT_M;
+        format!(
+            "nav: held sprint {}: forward held {steps} steps{}, ended at ({:.2}, {:.2}, {:.2}), {:.2} m across and {:+.2} m from the landing ({:.2}, {:.2}, {:.2})",
+            if up { "up" } else { "missed" },
+            if off_ground { " (left the ground)" } else { "" },
+            feet.x,
+            feet.y,
+            feet.z,
+            feet.distance_xz(landing),
+            feet.y - landing.y,
+            landing.x,
+            landing.y,
+            landing.z
+        )
+    }
+
+    /// [item 10] The held sprints' landings played.
+    pub fn held_count() -> u64 {
+        HELD.load(Ordering::Relaxed)
     }
 }
 
@@ -5858,7 +5977,7 @@ mod tests {
         let p = |x: f32, y: f32, z: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, z),
             node: 0,
-            jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None, aim: PressAim::STRAIGHT })),
+            jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None, aim: PressAim::STRAIGHT, after: AfterLanding::LetGo })),
             low: false,
         };
         let keeps = |gate: bool| {
@@ -6004,7 +6123,7 @@ mod tests {
             let p = |x: f32, jump: bool| Waypoint {
                 at: Vec3::new(x, if jump { -1.7 } else { 0.0 }, 0.0),
                 node: 0,
-                jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None, aim: PressAim::STRAIGHT })),
+                jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None, aim: PressAim::STRAIGHT, after: AfterLanding::LetGo })),
                 low: false,
             };
             let route = Route::new(vec![p(-20.0, false), p(0.0, false), p(3.0, true), p(6.0, false)]);
@@ -6107,7 +6226,7 @@ mod tests {
     }
 
     fn sprint_link(walk: Option<GapPress>) -> Leap {
-        Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk, aim: PressAim::STRAIGHT })
+        Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk, aim: PressAim::STRAIGHT, after: AfterLanding::LetGo })
     }
 
     /// [A386] [`press_due`]: the key moves the body a step later (`StepInput::Previous`), so the press is the tick whose next
@@ -6235,7 +6354,7 @@ mod tests {
         assert_eq!(aimed_line(take_off, way, straight), (take_off, way));
         let aim = PressAim::new(-6, 4).expect("within the record's steps");
         let lead = mapdata::PressLead::from_metres(1.2);
-        let aimed = Leap::SprintGap(SprintPress { lead, share: mapdata::Share::FULL, walk: None, aim });
+        let aimed = Leap::SprintGap(SprintPress { lead, share: mapdata::Share::FULL, walk: None, aim, after: AfterLanding::LetGo });
         let (origin, heading) = aimed_line(take_off, way, aimed);
         let n = mapdata::controller::jump::Neighbour { lead: 0.0, side: aim.side_m(), turn: aim.turn_rad(), dy: 0.0, fastest: false };
         let flown = mapdata::controller::jump::press_point(take_off, (way[0], way[1]), lead.metres(), n);
