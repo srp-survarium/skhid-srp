@@ -65,11 +65,6 @@ pub const STEP_S: f32 = 1.0 / 60.0;
 /// The capsule's radius, metres: the grenade's centre is this far from the
 /// surface it lies on (`create_bt_primitive` type 3, 0x303900). PROVEN.
 pub const RADIUS_M: f32 = 0.05;
-/// A standing body's radius, metres: half the client's `stand_capsule_width` 0.76 (startup.cfg; the controller's
-/// capsule, `mapdata::controller`). PROVEN.
-pub const BODY_RADIUS_M: f32 = 0.38;
-/// A standing body's height, metres: the client's standing capsule, 1.8 m (startup.cfg's stand size 0.76 x 1.8). PROVEN.
-pub const BODY_HEIGHT_M: f32 = 1.8;
 /// The two bodies' combined friction on the level, 0.5 × 0.5 (0x8E870;
 /// Bullet multiplies them in `addContactPoint`, 0xAE310). PROVEN.
 pub const FRICTION: f32 = 0.25;
@@ -199,9 +194,13 @@ impl Ground for Floor {
 }
 
 /// The bullet mesh as the ground (`mapdata::MapData::bullet_triangles`: what
-/// the game's grenade meets, collision group 0x818 against mask 8, PROVEN;
-/// a player's hit model also stops it, which is not in the mesh). The
-/// normal is the hit triangle's own ([`RayTree::ray_hit`]).
+/// the game's grenade meets, collision group 0x818 against mask 8, PROVEN).
+/// A player's body does not stop it: the grenade (group 818h, mask 8,
+/// 0x303C73..0x303C7B) and a player's hit body (40h, 11h, `activate_physics`
+/// 0x2D9958..0x2D995D) or his controller's ghost (824h, 3) make no pair
+/// (`addOverlappingPair` 0xB3EDC..0xB3EEE), so it flies and rolls through
+/// players. PROVEN (exe review of #2057). The normal is the hit triangle's
+/// own ([`RayTree::ray_hit`]).
 #[derive(Clone, Copy)]
 pub struct Mesh<'a>(pub &'a RayTree);
 
@@ -246,17 +245,30 @@ impl Grenade {
         }
     }
 
-    /// How far from the blast's middle its damage falls to half a body's health, metres: the client's
-    /// linear law, `least + (most - least) (R - d) / R` (0x339736..0x339750), solved for 0.5. Zero for a
-    /// blast that never does half (a smoke), the whole reach for one that does it to the edge.
-    pub fn half_health_m(&self) -> f32 {
-        if self.most <= 0.5 {
+    /// How far from the blast's middle (a body's origin, its feet) its damage is at least `amount` of a body's health,
+    /// metres: the client's linear law, `least + (most - least) (R - d) / R` (0x339736..0x339750), solved for
+    /// `amount`. Zero for a blast that never does that much (a smoke), the whole reach for one that does it to the
+    /// edge.
+    pub fn reach_of_m(&self, amount: f32) -> f32 {
+        if self.most <= amount {
             0.0
-        } else if self.least >= 0.5 {
+        } else if self.least >= amount {
             self.splash_m
         } else {
-            self.splash_m * (self.most - 0.5) / (self.most - self.least)
+            self.splash_m * (self.most - amount) / (self.most - self.least)
         }
+    }
+
+    /// [`Self::reach_of_m`] of half a body's health: 6.4 m for the RGD-5 (10 m, 1.3 to 0.05), where both leg
+    /// pools (0.5) empty too.
+    pub fn half_health_m(&self) -> f32 {
+        self.reach_of_m(0.5)
+    }
+
+    /// [`Self::reach_of_m`] of a whole body's health, where the blast kills (the body and the pain pools emptied):
+    /// 2.4 m for the RGD-5.
+    pub fn lethal_m(&self) -> f32 {
+        self.reach_of_m(1.0)
     }
 
     /// The fuse from the press, ms.
@@ -1008,6 +1020,10 @@ mod tests {
         // Half a body's health 6.4 m out of the stock blast (10 m, 1.3 to 0.05); 5.12 m of the patched 8 m.
         near(Grenade::bots().half_health_m(), 6.4, 1e-4, "stock half health");
         near(patched.half_health_m(), 5.12, 1e-4, "patched half health");
+        // Lethal within 2.4 m of the stock blast, 1.92 m of the patched one; a smoke does nothing anywhere.
+        near(Grenade::bots().lethal_m(), 2.4, 1e-4, "stock lethal");
+        near(patched.lethal_m(), 1.92, 1e-4, "patched lethal");
+        assert_eq!(Grenade { most: 0.0, least: 0.0, ..*Grenade::bots() }.lethal_m(), 0.0);
         assert_eq!(patched.fuse_ms(), 3_000);
         let stock = *Grenade::bots();
         // Faster: a flat throw lands farther.
