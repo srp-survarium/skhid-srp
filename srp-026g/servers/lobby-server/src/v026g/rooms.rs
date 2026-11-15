@@ -264,7 +264,7 @@ impl Core<'_> {
                     weather: map.weather,
                     mode: map.mode.lobby_number(),
                     extra,
-                    bots: self.settings.pvb.bot_maps.contains(&id),
+                    bots: self.settings.pvb.bot_maps_ready().contains(&id),
                 })
             })
             // A create names its entries by bit: no more than the bits.
@@ -602,7 +602,7 @@ impl Core<'_> {
                 };
                 let code = match self
                     .room_fit(who)
-                    .and(if self.settings.pvb.bot_maps.is_empty() {
+                    .and(if self.settings.pvb.bot_maps_ready().is_empty() {
                         Err(RoomCode::Bad)
                     } else {
                         Ok(())
@@ -895,7 +895,7 @@ impl Core<'_> {
             },
             &entries,
             &default,
-            &self.settings.pvb.bot_maps,
+            &self.settings.pvb.bot_maps_ready(),
             self.settings.rooms.max_rooms,
             now,
             &mut |bound| rng.below(bound as u32) as usize,

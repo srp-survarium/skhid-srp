@@ -89,7 +89,7 @@ fn files(dir: &Path, named: &[String]) -> Result<(), String> {
     if projects.is_empty() {
         return Err(format!("no .mapdata in {}", dir.display()));
     }
-    let store = bot_maps(dir.into(), maps::KEEP, maps::AT_ONCE, None, &tuning);
+    let store = bot_maps(dir.into(), maps::KEEP, maps::AT_ONCE, None, &tuning, maps::AtLoad::Refuse);
     for project in &projects {
         let [grid, sight, tactics] = store.built_file_names(project).map_err(|why| format!("{project}: {why}"))?;
         println!("{project}\t{grid}\t{sight}\t{tactics}");
@@ -126,7 +126,8 @@ fn run(dir: &Path, built: &Path, named: &[String]) -> Result<(), String> {
         limit.as_secs()
     );
     let (dir, built_dir): (PathBuf, PathBuf) = (dir.into(), built.into());
-    let store = || bot_maps(dir.clone(), maps::KEEP, maps::AT_ONCE, Some(built_dir.clone()), &tuning);
+    // The pre-build builds what is not there; the restart's read-back (`prebuild`) then finds every file.
+    let store = || bot_maps(dir.clone(), maps::KEEP, maps::AT_ONCE, Some(built_dir.clone()), &tuning, maps::AtLoad::Build);
     let done = maps::prebuild(store, &projects, limit)?;
     for map in &done {
         let Made { grid, sight, tactics } = map.made;

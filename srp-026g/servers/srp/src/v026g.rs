@@ -474,11 +474,23 @@ impl Stack {
     pub fn start(
         store: Arc<SessionStore>,
         accounts: Arc<GameAccounts>,
-        options: Options,
+        mut options: Options,
     ) -> io::Result<Self> {
         // The bots' tuning file, read here: one the server cannot use stops srp here, with the reason, and never
         // starts the matches on the defaults. Each match takes it again, with the admin page's changes.
         let bot_tuning = matches::bot_tuning_from_env()?;
+        // [A197] The maps the lobby offers against bots: those whose built files are there at the match server's keys (its
+        // store, its tuning at the start). The match server builds no map at load.
+        // A lobby left `Unchecked` (`Options::local`, the end-to-end tests: no match files) stays so.
+        if options.lobby.pvb.enabled && options.lobby.pvb.map_files != lobby::pvb::MapFiles::Unchecked {
+            let mut projects: Vec<&str> = survarium::v026g::maps::playable().map(|map| map.project).collect();
+            projects.sort_unstable();
+            projects.dedup();
+            let started = std::time::Instant::now();
+            let (dir, files) = matches::bot_map_files(&projects, bot_tuning.at_start());
+            log::info!("srp: the bots' maps' built files of {} maps named in {:.1} s", projects.len(), started.elapsed().as_secs_f32());
+            options.lobby.pvb = options.lobby.pvb.clone().with_built(lobby::pvb::BuiltMaps { dir, files });
+        }
         // Kept in the accounts' repository: a restart forgets neither a
         // results screen not shown yet nor an account's play period.
         let results = Results::attached(&accounts);

@@ -126,6 +126,7 @@ fn drift_on_a_real_match() {
                 tuning.grid.clone(),
                 tuning.needs_wall_clearance(),
                 tuning.needs_open_sides(),
+                crate::v026g::bots::maps::AtLoad::Build,
             );
             loop {
                 match maps.get(&project) {
