@@ -2718,6 +2718,45 @@ battery_hit_on_melee_falloff_user_replay:
 ; 0xa1bfa4 the take state's vtable slot 8 (+20h, 0xA1BF84): may the battery be put away now (victory_item_core::is_ready_to_be_deactivated 0x301270 asks the current state; the item switch 0x2D76A0 calls that), thiscall; the take's answers no (0x397C20), the carry's whether its user is dead (0x338E90): vtable -> battery_hit_on_deactivatable (wraps engine_take_deactivatable 0x397c20)
     RUST_THISCALL battery_hit_on_deactivatable, hook_battery_hit_on_deactivatable, 0
 
+; 0x2da3cb generate_killed_event 0x2DA170 about to write the kill event's killer and weapon icon (mov [eax+1],cl / mov [eax+2],dl; EAX the event node, EDX the icon: the bullet's data +50h, else the damage source's +224h, 0x2DA35A..0x2DA382; EBP the bullet or 0); the hud's handler 0x23B5F0 reads +2 for on_player_killed's object_icon; replayed: mov [eax+1],cl / mov [eax+2],dl: lohook -> battery_hit_on_kill_feed_icon
+global battery_hit_on_kill_feed_icon
+extern hook_battery_hit_on_kill_feed_icon
+battery_hit_on_kill_feed_icon:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_kill_feed_icon
+    mov edx, battery_hit_on_kill_feed_icon_replay
+    cmp eax, 0
+    je battery_hit_on_kill_feed_icon_go
+    mov edx, 0x2da3d1
+    cmp eax, 1
+    je battery_hit_on_kill_feed_icon_go
+    ud2
+battery_hit_on_kill_feed_icon_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_kill_feed_icon_replay:
+    db 0x88, 0x48, 0x01, 0x88, 0x50, 0x02
+    jmp 0x2da3d1
+
 ; 0x334999 victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set: lohook -> battery_progress_on_match_start
 global battery_progress_on_match_start
 extern hook_battery_progress_on_match_start

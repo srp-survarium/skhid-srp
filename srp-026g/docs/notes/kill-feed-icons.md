@@ -129,3 +129,11 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
   taller than the other icons. With a weapon row the card's icon column is that wide; the other
   icons stay centred in it, every text after it. The generator trims a transparent margin (the
   hud's images have none today: their alpha reaches every edge).
+
+## A battery strike (exe patch 143, 2026-11-15)
+
+- **The owner:** "whether we can add killfeed battery icon" (`battery-hit.md`).
+- Icon 200, past every weapon's: the exe sends it for a kill by a battery strike
+  (`kill_feed.weapon_icon`); `CombatLogItem` shows it as `CombatLogBatteryIcon` (not a
+  `CombatLogWeapon<n>`: no weapon has it, so the lobby's index leaves it out), drawn by
+  `scripts/kill-feed-icons/make_battery_icon.py` from the hud's own battery rows' glyph.

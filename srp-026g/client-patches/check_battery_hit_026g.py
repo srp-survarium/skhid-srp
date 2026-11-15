@@ -54,6 +54,9 @@ writers (their bytes kept). Checked:
   past its width or under its lower edge: along the look, no hit; a wall
   in front of the body: no hit; a body several rays meet: one bullet, one
   hit;
+- the kill feed: a strike's kill event (its gun's melee data, its gun's
+  player holding the battery) gets the battery's icon 200; a gun-stock
+  hit's, a round's and a bulletless one keep theirs;
 - put away mid-swing (deactivate): the strike only with its clip ended and
   its carrier alive; a dead carrier's swing may be put away, a living
   one's not; left before its clip ended: no strike;
@@ -70,7 +73,7 @@ import struct
 import sys
 
 from unicorn import UC_HOOK_CODE, UC_PROT_ALL, UcError
-from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EIP, UC_X86_REG_ESI,
+from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EDX, UC_X86_REG_EIP, UC_X86_REG_ESI,
                                UC_X86_REG_ESP, UC_X86_REG_XMM0)
 
 import patch_026g as base
@@ -734,6 +737,31 @@ def main():
     check(loaded == new.states()[3] and new.read(reader + 4) == DATA + 0xE4000 + len(stream)
           and new.read(loaded + 0x28, 1) + new.read(loaded + 0x2C, 0xC8 - 0x2C) + new.read(loaded + 0xCC, 1) == fields,
           "another game loading it: its own swing current, every field the saver's, the stream read to its end")
+
+    print("the kill feed's weapon icon (kill_feed.weapon_icon 0x2DA3CB: generate_killed_event writing the event)")
+    node, round_data = DATA + 0xE6000, DATA + 0xE7000
+
+    def kill_icon(r, data, held):
+        """generate_killed_event's write of the event's killer (5) and weapon
+        icon (48, what it took from the bullet's data) for a bullet of
+        GUN7's item with `data` (None: no bullet), its player holding `held`:
+        (killer, icon) of the event."""
+        r.made()
+        r.word(PLAYER + 0x128, held)
+        r.emu.mem_write(node, bytes(0x28))
+        r.emu.mem_write(BULLET, bytes(0x100))
+        r.word(BULLET + 0xC, GUN7 + 0x10)
+        r.word(BULLET + 0x40, data or 0)
+        r.run(0x2DA3CB, (0x2DA3D1,), hide.STACK + 0x9000, {**hide.GAME, UC_X86_REG_EAX: node, UC_X86_REG_ECX: 5,
+                                                          UC_X86_REG_EDX: 48, UC_X86_REG_EBP: BULLET if data else 0})
+        return tuple(r.read(node + 1, 2))
+
+    check(kill_icon(new, GUN7 + 0x53C, BATTERY) == (5, 200) and kill_icon(old, GUN7 + 0x53C, BATTERY) == (5, 48),
+          "a strike's kill (its gun's melee data, its player holding the battery): the battery's icon 200 (the "
+          "original: the gun stock's 48)")
+    check(kill_icon(new, GUN7 + 0x53C, GUN7) == (5, 48), "a gun-stock hit's (the gun held): its icon")
+    check(kill_icon(new, round_data, BATTERY) == (5, 48), "a round's, its shooter holding a battery now: its icon")
+    check(kill_icon(new, None, BATTERY) == (5, 48), "no bullet: the icon the function took")
 
     print("the controls: the game's own code without the patch (the original exe)")
     # emit_bullet with the deactivated gun: the first build's strike

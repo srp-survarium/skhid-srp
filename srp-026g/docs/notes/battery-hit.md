@@ -56,8 +56,9 @@
 - **Damage (assumed):** the gun's melee data is blunt with an attacker, so patch 108 kills at
   once wherever it lands. A battery's own damage would need its own bullet data: the owner's
   call.
-- **Kill feed:** the melee icon (the data's `combat_log_icon` 48), no headshot mark (patch
-  67's melee rule); statistics count a melee kill (13) of the kit.
+- **Kill feed** (the owner, 2026-11-15: "whether we can add killfeed battery icon"): a battery
+  icon (200) in the weapon's place, no headshot mark (patch 67's melee rule); statistics count a
+  melee kill (13) of the kit, as before.
 
 ## The animation
 
@@ -226,6 +227,21 @@
   where this tick's physics left them; the bullet's own flight (patch 103) meets a moving one where
   it stood when crossed, so a fast target at a ray's edge may be missed after all, as by the
   gun-stock hit.
+- **The kill feed's icon.** The kill event's weapon icon (its node's +2) is the bullet's data's
+  +50h (the gun's melee data: 48), else the damage source's +224h (generate_killed_event
+  0x2DA35A..0x2DA382); the hud's handler (0x23B5F0) alone reads it, as on_player_killed's
+  `object_icon`. A lohook at `kill_feed.weapon_icon` (0x2DA3CB, just before the event's killer
+  and icon are written, EDX the icon, EBP the bullet; next to patch 67's 0x2DA3D1) makes it 200 for
+  a strike's kill: a bullet whose data is its gun's melee data (the function's own melee test,
+  0x2DA2BC..0x2DA2D4) and whose gun's player holds a battery at the kill. Not a copy of the melee
+  data with its own icon: the game tells melee by the data's address (the bullet's constructor
+  0x32BB59, the melee flag above, the damage functions), which a copy would break. Edge (a melee
+  bullet's flight): a gun-stock hit landing after its shooter took a battery shows the battery; a
+  strike landing after its carrier put the battery away the gun stock. The hud movie's
+  `CombatLogItem` shows icon 200 as the bitmap `CombatLogBatteryIcon`: the battery of its own
+  battery rows (found, lost, bring: sprites 702, 705, 708, a 12 x 9 px box with two cells) at twice
+  its size, white with the feed's shadow (`scripts/kill-feed-icons/make_battery_icon.py`). No
+  simulation change (the hud alone reads the icon).
 - **The bullet and the deactivated gun.** A carrier's guns are deactivated (deactivate
   0x2E2EE0: user +8 0, its clip set's posture +278h -> +20h 0). The bullet keeps its gun (+0Ch,
   the gun's item, 0x32BB12) and reads that user and posture through it all its life:
@@ -318,6 +334,11 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
   Stubbed: the allocator, a clip's time scale, the animation event channels, the battery's
   transform calls, the bullet pool's room and live-list add, the physics world's ray test (a scene
   of boxes on the battery's front) and bounds, the struck target.
+- the kill feed's icon (`check_battery_hit_026g.py`, the site run in both exes): a strike's kill
+  event gets 200 (the original 48); a gun-stock hit's (the gun held), a round's (a battery held) and
+  a bulletless one keep the icon generate_killed_event took. The hud movie
+  (`scripts/kill-feed-icons/check-combat-log/check.sh`, Ruffle): icon 200 shows
+  `CombatLogBatteryIcon` 25 x 19 in the weapon's place, the clip hidden; every other icon as before.
 - `cargo test` and Clippy of the patches crate and srp-validate (states 3 and 4 read, 5 refused).
 - The clips: `make_clips.py --check` (the committed files are the keys'); the offline previews
   (no near-plane crossing, no body inside the battery, every frame).
@@ -349,6 +370,8 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
 - World format: battery states 3 and 4 (srp-validate, and so patch 87's check in every game).
 - Content: `battery-hit-1.json` (the two clips, the config's states 3 and 4). The exe needs it:
   without it every battery crashes the game at its cook (by design: it would play otherwise).
+- Content: the hud movie (`CombatLogBatteryIcon`); without it a strike's kill shows the weapon
+  clip's last frame (as an icon past the clip with no bitmap).
 
 ## Open questions for the owner
 
@@ -357,4 +380,5 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
 - Speed: impact at 0.2 s, 0.55 s a swing; a cooldown?
 - A sound: the stock body thud plays already; a heavier one (the SoC candidates) or a swing
   whoosh (the rifles' `melee_rifle`)?
-- A battery icon in the kill feed instead of the melee one?
+- The kill feed's battery icon: the hud's own small battery glyph doubled
+  (`private/renders/battery-hit/kill_feed_before_after.png`); a bigger or drawn one?

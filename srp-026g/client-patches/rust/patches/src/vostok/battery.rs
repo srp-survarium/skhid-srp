@@ -468,6 +468,47 @@ unsafe fn battery_posture(player: raw::Player) -> Option<raw::PostureState> {
     }
 }
 
+/// The kill feed's weapon icon of a strike's kill: the hud movie's
+/// CombatLogBatteryIcon (CombatLogItem.BATTERY_ICON), past every weapon's
+/// `combat_log_icon` (0 to 99).
+pub const KILL_FEED_ICON: u32 = 200;
+
+/// `kill_feed.weapon_icon`: generate_killed_event about to write the kill
+/// event's weapon icon (EDX). A kill by a strike's bullet shows the battery's
+/// icon instead of the gun stock's: its data the gun's melee data (the
+/// function's own melee test, 0x2DA2BC..0x2DA2D4) and the gun's player
+/// holding a battery. The hud's handler alone reads the icon: what a match
+/// computes is the same.
+pub fn kill_feed_icon(ctx: &mut Context<'_>) {
+    // SAFETY: the site's EBP, the killing bullet, alive while the function
+    // runs, on its thread.
+    let strike = unsafe { raw::site::kill_feed_weapon_icon::bullet(ctx).is_some_and(|bullet| struck_by_battery(bullet)) };
+    if strike {
+        ctx.set_reg(super::Reg::Edx, KILL_FEED_ICON);
+    }
+}
+
+/// Whether `bullet` is a melee bullet whose gun's player holds a battery: a
+/// strike's (a gun-stock hit needs the gun held). The gun is the bullet's
+/// item's active object (+0Ch less 10h), as the constructor and
+/// generate_killed_event take it; read as a gun only once the bullet's data
+/// is that gun's melee data.
+///
+/// # Safety
+/// `bullet` is alive, on this thread.
+unsafe fn struck_by_battery(bullet: raw::Bullet) -> bool {
+    unsafe {
+        let (Some(item), Some(data)) = (bullet.weapon_item(), bullet.ammo()) else { return false };
+        let gun = item.active_object().weapon();
+        if data.address() != gun.melee_data() as usize as u32 {
+            return false;
+        }
+        player_of(gun).and_then(|player| player.held_item()).is_some_and(|held| {
+            [raw::image::VICTORY_ITEM_VTABLE, raw::image::VICTORY_ITEM_CORE_VTABLE].contains(&read(held.vtable()))
+        })
+    }
+}
+
 /// The sites where a bullet reads its gun's user (`gun.stance_user`,
 /// `gun.melee_damage_user`, `gun.melee_falloff_user`), their entries
 /// filtered to EAX 0: a deactivated gun, whose bullets are only the swing's

@@ -58,3 +58,9 @@ only = { user = "NONE" }
 site = "battery_state.deactivatable"
 handler = "on_deactivatable"
 proof = "a dead carrier's swing put away through victory_item_core::deactivate"
+
+# the kill feed: a kill by a strike shows the battery's icon in the weapon's
+# place (the hud movie's CombatLogBatteryIcon); the hud alone reads it
+[[hook]]
+site = "kill_feed.weapon_icon"
+handler = "on_kill_feed_icon"

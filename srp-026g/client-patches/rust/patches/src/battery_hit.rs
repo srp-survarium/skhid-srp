@@ -84,3 +84,9 @@ pub fn on_melee_falloff_user(ctx: &mut Context<'_>) -> Flow<NoExit> {
     battery::substitute_player(ctx, UserSite::MeleeFalloff);
     Flow::Continue
 }
+
+/// The kill event's weapon icon: the battery's for a strike's kill.
+pub fn on_kill_feed_icon(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    battery::kill_feed_icon(ctx);
+    Flow::Continue
+}

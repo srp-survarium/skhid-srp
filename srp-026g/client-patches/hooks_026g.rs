@@ -1550,6 +1550,21 @@ pub unsafe extern "C" fn hook_battery_hit_on_deactivatable(a0: Option<raw::Batte
     u32::from(crate::battery_hit::on_deactivatable(&orig, &mut state))
 }
 
+// ---- battery_hit (patch 143) ----
+
+/// The entry `battery_hit_on_kill_feed_icon` (0x2da3cb, generate_killed_event 0x2DA170 about to write the kill event's killer and weapon icon (mov [eax+1],cl / mov [eax+2],dl; EAX the event node, EDX the icon: the bullet's data +50h, else the damage source's +224h, 0x2DA35A..0x2DA382; EBP the bullet or 0); the hud's handler 0x23B5F0 reads +2 for on_player_killed's object_icon; replayed: mov [eax+1],cl / mov [eax+2],dl) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_kill_feed_icon(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_kill_feed_icon` calls this, from the game's jump at 0x2da3cb,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_kill_feed_icon(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- battery_progress (patch 92) ----
 
 /// The entry `battery_progress_on_match_start` (0x334999, victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set) calls this with the saved machine.
