@@ -50,6 +50,9 @@ functions of the standard library's).
   them) get their stock bytes back, from the copies it kept, else from
   `GET /resources/<sha256>`. Best effort, once: it never fails the update
   ("Restoring resources.db" below).
+- Before PLAY, when the Documents drive has less than 1 GB free: a box
+  says to free some space (the game keeps up to 3 GB of baked textures in
+  Documents, patch 70). PLAY is not held for it.
 - Then, at every start, the patch step: `GET /patches`, the server's list
   of resources.db's patches, each with its SHA-256 and the addresses of its
   file (1 to 8, tried in order: mirrors; plain HTTP or HTTPS, any host);

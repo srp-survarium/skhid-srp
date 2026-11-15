@@ -38,9 +38,11 @@
 //!   into pages of our own twice its room (`room_for_one`; stock, the
 //!   baker's 1024 records, and its push_back's assertion past them).
 //!
-//! Textures only: nothing a match computes. The look-up, the textures made
-//! and finish_query run on the resource threads too: the tables are behind
-//! a [`Lock`].
+//! Textures only: nothing a match computes. finish_query runs on any
+//! thread: the tables are behind a [`Lock`]. The baker's list is one
+//! thread's, the baker's translate thread (baker+14h, the main thread):
+//! its look-up in translate_query, its loads' checks in callbacks of that
+//! thread's queries, the bake's push_back and the trim (`room_for_one`).
 
 #![forbid(unsafe_code)]
 

@@ -43,6 +43,18 @@ fn megabytes(bytes: u64) -> u64 {
     bytes.div_ceil(1 << 20)
 }
 
+/// The Documents drive is nearly full (`LOW_DISK`).
+pub fn low_disk(documents: &str) -> String {
+    let drive = match documents.as_bytes() {
+        [letter, b':', ..] => format!("drive {}:", *letter as char),
+        _ => documents.into(),
+    };
+    format!(
+        "Less than 1 GB is free on {drive}. The game keeps up to 3 GB of textures in Documents: \
+         free some space, or the game may stutter."
+    )
+}
+
 pub fn usage() -> String {
     "The Skhid updater is started by launcher_skhid.exe. To update by hand, every patch file \
      hashed again, start it as: updater_skhid.exe check (to see whether the game's files are \
