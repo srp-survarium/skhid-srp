@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Run patch 83 (rust/patches/src/hud_options.rs, its lohooks of
-hud_options.toml: the Settings' "Hide hit markers" and "Hide player scores", kept in
+hud_options.toml: the Settings' hit marker list and "Hide player scores", kept in
 user.cfg, and the Graphics tab's Renderer list, `srp_dxvk`, which the next start reads: DXVK loaded from dxvk\\) in the default build on made-up game objects, each from the game's
 own code before its site to past it, the original beside it.
 
@@ -12,13 +12,13 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
 0x1FF0F0 the key's English text; game::save_user_config 0x1E9030 counted):
 
 - on_configs_loaded's start (0x1EA210 to 0x1EA216, the chain: patch 79's
-  hook, then this one): the console variables `srp_hide_hit_markers`,
+  hook, then this one): the console variables
   `srp_hide_scores`, `srp_map_names`, `srp_hide_crosshair`, `srp_dxvk` and the Vulkan options'
   `srp_dxvk_low_latency`, `srp_dxvk_tear_free` and `srp_dxvk_dedicated_gpu` registered once, after patch 79's `localization`, with
   the game's own cc_value<bool>::cc_value (a cc_bool, saved, kind 2: user.cfg's
   lines set them), off (`srp_dxvk_dedicated_gpu` on); the game's own cc_bool::execute sets each from a
-  user.cfg line's value; then the two lists `srp_dxvk_frame_limit` and `srp_dxvk_overlay`, saved
-  cc_strings, empty; registers and stack as the original's, no file
+  user.cfg line's value; then the three lists `srp_dxvk_frame_limit`, `srp_dxvk_overlay` and
+  the hit markers' `srp_hide_hit_markers` (`off`, `hits`, `on`), saved cc_strings, empty; registers and stack as the original's, no file
   opened;
 - the process's start (memory::platform::allocate_arenas 0xE9580 to past its
   first instruction, `mov eax,11A8h`), kernel32's and shell32's imports and
@@ -62,7 +62,8 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   "1" in a process that loaded DXVK at its start, "0" otherwise; a Vulkan
   option's the value DXVK was given at the start (without DXVK the saved one);
   a list's index ("0", "1", ...) saves its choice's word, other values nothing,
-  and its answer is (name, label, saved index, running index, the choices' texts); `uro_fov` (the
+  and its answer is (name, label, saved index, running index, the choices' texts; the hit
+  marker list no label, its saved index as the running one); `uro_fov` (the
   Gameplay tab's field of view) sets whole degrees within the variable's range (50 to 100), saves
   user.cfg once, and answers root.srp_slider_option(name, label, degrees, least, most), the
   nearest whole degrees for a fraction; other values set nothing; the original answers nothing;
@@ -77,8 +78,8 @@ Scaleform's Invoke 0x511600 a stub that records each call; translate_text
   reaches patch 79; the original answers nothing;
 - each frame's player icons update (update_ui's `push edi / call 0x23AA10`
   at 0x23B206 to update_player_icons' prologue's end 0x23AA16, through patch
-  65's hook): the hud movie told root.srp_hud_options(hide hit markers, hide
-  scores, hide crosshair, map names), after patch 65's root.force_interface_hidden, exactly at a change
+  65's hook): the hud movie told root.srp_hud_options(hit markers 0 all, 1
+  the kill's only, 2 none, hide scores, hide crosshair, map names), after patch 65's root.force_interface_hidden, exactly at a change
   of the hud movie or of a setting, and again at the next frame while the
   movie refuses it (Invoke answering 0), and again after a match's or a
   replay's options read (a new match's hud can be made at the last one's
@@ -99,7 +100,7 @@ import check_blackout_026g as blackout
 import check_language_026g as language
 
 EXECUTE_BOOL, CC_BOOL_VTABLE = 0xECA30, 0x9E7C4C
-SETTINGS = {"srp_hide_hit_markers": "Hide hit markers", "srp_hide_scores": "Hide player scores",
+SETTINGS = {"srp_hide_scores": "Hide player scores",
             "srp_map_names": "Names on map", "srp_hide_crosshair": "Hidden crosshair",
             "srp_dxvk": "Renderer", "srp_dxvk_low_latency": "Reduce input lag",
             "srp_dxvk_tear_free": "Tear-free with vsync off", "srp_dxvk_dedicated_gpu": "Prefer the dedicated GPU"}
@@ -111,7 +112,8 @@ RUNNING = {"srp_dxvk", "srp_dxvk_low_latency", "srp_dxvk_tear_free", "srp_dxvk_d
 LISTS = {"srp_dxvk_frame_limit": ("Frame rate limit", ("0", "60", "120", "144", "165", "240"),
                                   ("Off", "60", "120", "144", "165", "240")),
          "srp_dxvk_overlay": ("Performance overlay", ("off", "fps", "frametimes", "full"),
-                              ("Off", "FPS", "FPS+graph", "Full"))}
+                              ("Off", "FPS", "FPS+graph", "Full")),
+         "srp_hide_hit_markers": ("", ("off", "hits", "on"), ("All hit markers", "Kill marker only", "Hidden hit markers"))}
 # the group's own texts, in root.srp_hud_texts' order
 TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests", "st_srp_crosshair_dynamic": "Dynamic crosshair",
          "st_srp_crosshair_static": "Static crosshair", "st_srp_crosshair_hidden": "Hidden crosshair",
@@ -124,7 +126,8 @@ TEXTS = {"st_srp_options_hud": "HUD:", "st_srp_hide_quests_option": "Hide quests
          "st_srp_vulkan_tear_free_hint": "Keeps the picture whole when vertical sync is off.\n+ No torn lines when turning fast\n- A bit more input delay than plain vsync off",
          "st_srp_vulkan_dedicated_gpu_hint": "Picks the stronger graphics card on laptops.\n+ Better performance on laptops\n- Uses more battery"}
 language.ENGLISH.update({key: text.encode() for key, text in TEXTS.items()})
-language.ENGLISH.update({"st_srp_hide_hit_markers_option": b"Hide hit markers", "st_srp_hide_scores_option": b"Hide player scores",
+language.ENGLISH.update({"st_srp_hit_markers_all": b"All hit markers", "st_srp_hit_markers_kill": b"Kill marker only",
+                         "st_srp_hit_markers_hidden": b"Hidden hit markers", "st_srp_hide_scores_option": b"Hide player scores",
                          "st_srp_map_names_option": b"Names on map",
                          "st_srp_renderer_option": b"Renderer", "st_srp_vulkan_low_latency": b"Reduce input lag",
                          "st_srp_vulkan_tear_free": b"Tear-free with vsync off",
@@ -675,24 +678,24 @@ def main():
     a_regs, a_sp, a_head = stock.start()
     b_regs, b_sp, b_head = ours.start()
     # patch 81's `srp_lobby`, a later member of the site's chain, registers after these; patch
-    # 133's command `where` (order 6), then patch 66's voice variables (order 7) last, at the head
+    # 133's command `where` (order 6), then patch 66's voice variables (order 7) and the game volume's last, at the head
     nodes = [node for node in registered(ours, b_head, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
     names = [ours.text(ours.read(node + 0x10)).decode() for node in nodes]
     variables = {name: console_bool(ours, node) for name, node in zip(names, nodes) if name in SETTINGS}
     expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before
-           and names == ["srp_voice_mutes", "g_hide_spam", "s_use_microphone", "s_mic_sens", "s_chat_volume",
-                         "where", "srp_mouse_vertical", "srp_mouse_vertical_locked", "s_music_volume", "srp_dxvk_overlay",
-                         "srp_dxvk_frame_limit", "srp_dxvk_dedicated_gpu", "srp_dxvk_tear_free", "srp_dxvk_low_latency",
-                         "srp_dxvk", "srp_hide_crosshair", "srp_map_names", "srp_hide_scores", "srp_hide_hit_markers",
-                         "localization"]
+           and names == ["s_ingame_volume", "srp_microphone", "srp_voice_mutes", "g_hide_spam", "s_use_microphone", "s_mic_sens", "s_chat_volume",
+                         "where", "srp_mouse_vertical", "srp_mouse_vertical_locked", "s_music_volume",
+                         "srp_hide_hit_markers", "srp_dxvk_overlay", "srp_dxvk_frame_limit", "srp_dxvk_dedicated_gpu",
+                         "srp_dxvk_tear_free", "srp_dxvk_low_latency", "srp_dxvk", "srp_hide_crosshair", "srp_map_names",
+                         "srp_hide_scores", "localization"]
            and all((kind, saved) == (2, 1) and ours.read(value, 1) == (b"\x01" if name in ON_BY_DEFAULT else b"\0")
                    for name, (_, kind, saved, value) in variables.items()),
-           "configs.start: registers and stack as the original's; the eight settings, "
+           "configs.start: registers and stack as the original's; the seven settings, "
            "saved bools of kind 2, off (Prefer the dedicated GPU on), registered after patch 79's `localization`, "
-           "then the Vulkan options' two lists (the original registers nothing)")
+           "then the Vulkan options' two lists and the hit marker list (the original registers nothing)")
     lists = {name: language.console_variable(ours, node) for name, node in zip(names, nodes) if name in LISTS}
     expect(all(size in (8, 16) and saved == 1 and ours.read(buffer, 1) == b"\0" for _, buffer, size, saved in lists.values()),
-           f"configs.start: the two lists saved cc_strings, empty (the first choice) ({lists})")
+           f"configs.start: the three lists saved cc_strings, empty (the first choice) ({lists})")
     _, _, again = ours.start()
     again_nodes = [node for node in registered(ours, again, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
     expect(again_nodes == nodes, "configs.start again: each registered once")
@@ -733,26 +736,26 @@ def main():
             stock_invokes, stock_saves = stock.callback(name, argument)
             expect(stock_invokes == [] and stock_saves == 0, f"the original ignores {name} ({case})")
         ours.callback(name, "1" if name in ON_BY_DEFAULT else "0")
-    # the Vulkan options' lists: an index saves its choice's word, the answer the saved index, the running one and
-    # the choices' texts
-    buffers = {name: lists[name][1] for name in LISTS}
+    # the lists: an index saves its choice's word, the answer the saved index, the running one and the choices'
+    # texts
+    buffers = {name: lists[name][1:3] for name in LISTS}
+    others = lambda name: {n: ours.read(*buffers[n]) for n in LISTS if n != name}
     for name, (label, words, choices) in LISTS.items():
-        other = next(n for n in LISTS if n != name)
         for case, argument, index, saves in [
-            ("\"3\"", "3", 3, 1),
+            ("\"2\"", "2", 2, 1),
             ("its last", str(len(words) - 1), len(words) - 1, 1),
             ("past its last", str(len(words)), len(words) - 1, 0),
             ("another value", "fps", len(words) - 1, 0),
             ("no argument", None, len(words) - 1, 0),
             ("\"0\"", "0", 0, 1),
         ]:
-            before_other = ours.read(buffers[other], 16)
+            before_others = others(name)
             invokes, count = ours.callback(name, argument)
-            saved = ours.text(buffers[name]).decode()
+            saved = ours.text(buffers[name][0]).decode()
             answer = (name, label, str(index), str(index)) + choices
             expect(invokes == [(language.MOVIE, "root.srp_check_option", answer)] and count == saves
-                   and saved == words[index] and ours.read(buffers[other], 16) == before_other,
-                   f"{name} with {case}: user.cfg's word {words[index]!r} (the other list unchanged), user.cfg written "
+                   and saved == words[index] and others(name) == before_others,
+                   f"{name} with {case}: user.cfg's word {words[index]!r} (the other lists unchanged), user.cfg written "
                    f"{saves} time(s), the answer its index {index} saved and running (no DXVK) and the choices' texts"
                    + ("" if invokes == [(language.MOVIE, "root.srp_check_option", answer)] else f": {invokes}"))
             stock_invokes, stock_saves = stock.callback(name, argument)
@@ -781,12 +784,12 @@ def main():
         # the hud movie (0 none), it refuses, the hud's Invokes wanted)
         ("the first frame, both off", [], hide.HUD_MOVIE, False, told(hide.HUD_MOVIE, 0, 0)),
         ("the next frame", [], hide.HUD_MOVIE, False, []),
-        ("Hide hit markers checked", [("srp_hide_hit_markers", "1")], hide.HUD_MOVIE, False,
-         told(hide.HUD_MOVIE, 1, 0)),
+        ("Hidden hit markers picked", [("srp_hide_hit_markers", "2")], hide.HUD_MOVIE, False,
+         told(hide.HUD_MOVIE, 2, 0)),
         ("the next frame", [], hide.HUD_MOVIE, False, []),
-        ("Hide player scores checked too", [("srp_hide_scores", "1")], hide.HUD_MOVIE, False, told(hide.HUD_MOVIE, 1, 1)),
+        ("Hide player scores checked too", [("srp_hide_scores", "1")], hide.HUD_MOVIE, False, told(hide.HUD_MOVIE, 2, 1)),
         ("a Settings answer that changes nothing", [("srp_hide_scores", None)], hide.HUD_MOVIE, False, []),
-        ("Hide hit markers unchecked", [("srp_hide_hit_markers", "0")], hide.HUD_MOVIE, False,
+        ("All hit markers picked", [("srp_hide_hit_markers", "0")], hide.HUD_MOVIE, False,
          told(hide.HUD_MOVIE, 0, 1)),
         ("another hud movie (a new game world's)", [], OTHER_HUD, False, told(OTHER_HUD, 0, 1)),
         ("its next frame", [], OTHER_HUD, False, []),
@@ -799,7 +802,7 @@ def main():
         ("the hud back, refusing (no root yet)", [], hide.HUD_MOVIE, True, told(hide.HUD_MOVIE, 0, 0)),
         ("the next frame, the movie taking it", [], hide.HUD_MOVIE, False, told(hide.HUD_MOVIE, 0, 0)),
         ("the frame after", [], hide.HUD_MOVIE, False, []),
-        ("Hide hit markers checked", [("srp_hide_hit_markers", "1")], hide.HUD_MOVIE, False,
+        ("Kill marker only picked", [("srp_hide_hit_markers", "1")], hide.HUD_MOVIE, False,
          told(hide.HUD_MOVIE, 1, 0)),
         ("a new match, its hud at the last one's address (a new root)", [None], hide.HUD_MOVIE, False,
          told(hide.HUD_MOVIE, 1, 0)),

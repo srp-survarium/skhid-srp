@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check.sh <main_menu.swf> <hud.swf> [work dir]: the Settings' "Hide hit markers" and "Hide player
+# check.sh <main_menu.swf> <hud.swf> [work dir]: the Settings' hit marker list and "Hide player
 # scores" (exe patch 83, docs/notes/hide-hit-markers-scores.md) in Ruffle, on a private CPU-only
 # virtual display:
 # - SettingsHarness.as: the HUD group (its heading, the two checkboxes) from the exe's answers, the
@@ -11,18 +11,18 @@
 #   moved, every dictionary's label in the column, Apply, Cancel) and its Vulkan options... button under it: disabled
 #   while the list shows DirectX 11, its panel over the column (the five options, every dictionary's texts
 #   inside it), closed by a press outside it or Esc, each option pending until Apply, Cancel, the note;
-# - HudHarness.as: the crosshair's hit marker shown off and hidden on; the Tab list off as today,
+# - HudHarness.as: the crosshair's hit marker: all, a kill's mark only, none; the Tab list off as today,
 #   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive);
 #   the Tab map's names with Alt, and "Names on map" reversing Alt.
 # - SettingsHarness.as also: the controls tab's "Lock vertical sensitivity" and its slider (exe
 #   patch 112, docs/notes/mouse-pitch.md): locked it follows the main slider x 0.5625, unlocked it is its own;
 #   both sliders at their borders (0.01, 10), Apply and the exe's answers there.
 # Screenshots into the work dir: settings.png (at rest), settings-checked.png (a toggle, Apply
-# enabled), settings-crosshair-open.png, settings-minimap-open.png, settings-graphics.png (Vulkan picked),
+# enabled), settings-crosshair-open.png, settings-hit-markers-open.png, settings-minimap-open.png, settings-graphics.png (Vulkan picked),
 # settings-vulkan.png (its options' panel open), settings-hint.png (an option's hint),
 # settings-renderer-open.png (the Renderer list open); the Graphics shots draw checkbox labels centred on their
 # box, as Scaleform does (Ruffle draws them at their field's top),
-# settings-controls-off.png, settings-controls-on.png, list-scores.png, list-names.png. Exits 0 when both say
+# settings-controls-off.png, settings-controls-on.png, kill-marker.png (Kill marker only, a kill), list-scores.png, list-names.png. Exits 0 when both say
 # pass. No game, no server.
 set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
@@ -36,7 +36,7 @@ texts=$("${PYTHON:-python3}" - "$here/../../client-patches" <<'PY'
 import json, sys
 sys.path.insert(0, sys.argv[1])
 from localization_026g import CATALOG, LANGUAGES, read_translations
-keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_options_hud', 'st_srp_language_option',
+keys = ('st_srp_hit_markers_all', 'st_srp_hide_scores_option', 'st_srp_options_hud', 'st_srp_language_option',
         'st_srp_language_restart', 'st_srp_hide_quests_option', 'st_srp_crosshair_dynamic', 'st_srp_crosshair_static',
         'st_srp_crosshair_hidden', 'st_srp_static_minimap_option', 'st_minimap_off', 'st_minimap_bottom', 'st_minimap_top',
         'st_srp_map_names_option', 'st_srp_renderer_option', 'st_srp_renderer_dx11', 'st_srp_renderer_dxvk',
@@ -45,7 +45,8 @@ keys = ('st_srp_hide_hit_markers_option', 'st_srp_hide_scores_option', 'st_srp_o
         'st_srp_vulkan_dedicated_gpu', 'st_srp_vulkan_overlay', 'st_srp_vulkan_overlay_fps',
         'st_srp_vulkan_overlay_frametimes', 'st_srp_vulkan_overlay_full', 'st_fov_option',
         'st_srp_vulkan_frame_limit_hint', 'st_srp_vulkan_overlay_hint', 'st_srp_vulkan_low_latency_hint',
-        'st_srp_vulkan_tear_free_hint', 'st_srp_vulkan_dedicated_gpu_hint')
+        'st_srp_vulkan_tear_free_hint', 'st_srp_vulkan_dedicated_gpu_hint', 'st_srp_hit_markers_kill',
+        'st_srp_hit_markers_hidden')
 print(json.dumps([[read_translations(CATALOG / f'{name}.tsv')[k] for k in keys] for name, *_ in LANGUAGES],
                  ensure_ascii=False, separators=(',', ':')))
 PY
@@ -66,6 +67,7 @@ run SettingsHarness
 wait_for SettingsHarness.log 'SETTINGS SHOT settings' && shot settings.png
 wait_for SettingsHarness.log 'SETTINGS SHOT checked' && shot settings-checked.png
 wait_for SettingsHarness.log 'SETTINGS SHOT open' && shot settings-crosshair-open.png
+wait_for SettingsHarness.log 'SETTINGS SHOT hits' && shot settings-hit-markers-open.png
 wait_for SettingsHarness.log 'SETTINGS SHOT minimap' && shot settings-minimap-open.png
 wait_for SettingsHarness.log 'SETTINGS SHOT graphics' && shot settings-graphics.png
 wait_for SettingsHarness.log 'SETTINGS SHOT vulkan' && shot settings-vulkan.png
@@ -75,6 +77,7 @@ wait_for SettingsHarness.log 'SETTINGS SHOT controls-off' && shot settings-contr
 wait_for SettingsHarness.log 'SETTINGS SHOT controls-on' && shot settings-controls-on.png
 kill $ruffle_pid 2>/dev/null || true
 run HudHarness
+wait_for HudHarness.log 'HUD SHOT kill' && shot kill-marker.png
 wait_for HudHarness.log 'HUD SHOT scores' && shot list-scores.png
 wait_for HudHarness.log 'HUD SHOT names' && shot list-names.png
 harness_stop

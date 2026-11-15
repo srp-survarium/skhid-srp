@@ -22,8 +22,15 @@ package survarium.controls
       
       protected var _maxDisp:Number = 50;
       
-      // The Settings' "Hide hit markers" (exe patch 83): the hits on enemies are not shown.
-      protected var _hitMarkersHidden:Boolean = false;
+      // The Settings' hit marker list (exe patch 83's numbers): every marker; a kill's mark
+      // alone (a hit that does not kill shows nothing); none.
+      public static const HIT_MARKERS_ALL:uint = 0;
+
+      public static const HIT_MARKERS_KILL_ONLY:uint = 1;
+
+      public static const HIT_MARKERS_HIDDEN:uint = 2;
+
+      protected var _hitMarkers:uint = HIT_MARKERS_ALL;
 
       // Independent inputs: the game's weapon/aim state and the saved HUD choice.
       // This class alone combines them into the aiming lines' visibility.
@@ -88,25 +95,32 @@ package survarium.controls
          this.crosshair_mc.visible = this._crosshairRequested && !this._crosshairHidden;
       }
       
-      // Hidden, the marker shown is cleared first (a kill's too).
-      public function set hitMarkersHidden(hidden:Boolean) : void
+      // Another choice clears the marker shown (a kill's too); another number is all of them.
+      public function set hitMarkers(choice:uint) : void
       {
-         if(hidden && !this._hitMarkersHidden)
+         if(choice != HIT_MARKERS_KILL_ONLY && choice != HIT_MARKERS_HIDDEN)
+         {
+            choice = HIT_MARKERS_ALL;
+         }
+         if(choice != this._hitMarkers)
          {
             _ignoreNewValues = false;
             this.setDamage(0,0,false,false);
          }
-         _hitMarkersHidden = hidden;
+         _hitMarkers = choice;
       }
       
-      public function get hitMarkersHidden() : Boolean
+      public function get hitMarkers() : uint
       {
-         return this._hitMarkersHidden;
+         return this._hitMarkers;
       }
       
       public function setDamage(value:Number, delay:uint, killed:Boolean, debug:Boolean) : void
       {
-         if(this._hitMarkersHidden)
+         // a clear (no damage) always goes through: it shows nothing
+         var shown:Boolean = this._hitMarkers == HIT_MARKERS_ALL
+            || this._hitMarkers == HIT_MARKERS_KILL_ONLY && killed;
+         if(!shown && (value > 0 || killed))
          {
             return;
          }
@@ -166,6 +180,18 @@ package survarium.controls
             container.damage2[lastPart].gotoAndStop(2);
             container.damage3[lastPart].gotoAndStop(2);
             container.damage4[lastPart].gotoAndStop(2);
+         }
+         // Kill marker only: each bar's red kill part alone, its white hit parts not shown
+         for each(var bar:MovieClip in [container.damage1,container.damage2,container.damage3,container.damage4])
+         {
+            for(var k:int = 1; k < frame; k++)
+            {
+               var part:MovieClip = bar["part_" + k] as MovieClip;
+               if(part != null)
+               {
+                  part.visible = this._hitMarkers == HIT_MARKERS_ALL || k == frame - 1;
+               }
+            }
          }
          if(debug)
          {

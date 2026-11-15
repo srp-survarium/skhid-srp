@@ -2511,9 +2511,11 @@ st_srp_equipment069_snow_20_legs_7_desc	Description not available yet.
 st_srp_equipment069_snow_20_legs_7_name	Snow-20 Pants
 st_srp_equipment069_snow_20_torso_7_desc	Description not available yet.
 st_srp_equipment069_snow_20_torso_7_name	Snow-20 Vest
-st_srp_hide_hit_markers_option	Hide hit markers
 st_srp_hide_quests_option	Hide quests
 st_srp_hide_scores_option	Hide player scores
+st_srp_hit_markers_all	All hit markers
+st_srp_hit_markers_hidden	Hidden hit markers
+st_srp_hit_markers_kill	Kill marker only
 st_srp_hud_add_friend	Add to friends
 st_srp_hud_blackout_intro	Blackout: bring batteries to your team’s device. HUD and hitmarkers are hidden for immersion. Hold Tab for ammo, health, chat and kit selection when dead.
 st_srp_hud_blackout_start	Blackout\nBring batteries to your team’s device.\nHUD and hit markers are hidden. Hold Tab to check ammo and health.
