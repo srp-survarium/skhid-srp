@@ -47,6 +47,10 @@ pub const USE_NEAR_M: f32 = 1.6;
 /// its middle closer than about 0.3 m on the ground (`bots::tests`): that
 /// is a look down of about 1.2 rad. Past this the bot steps off first.
 pub const TAKE_PITCH_MAX_RAD: f32 = 1.15;
+/// [take.on_the_move] The ball inside a lying battery's box, metres: the box's smallest half size. The battery's shape is
+/// a box of half sizes 0.30 x 0.12 x 0.16 m and its saved position is the box's centre (`using_the_world.md`, PROVEN), so
+/// a ray passing within this of the position meets the box however the box lies.
+pub const BATTERY_INNER_M: f32 = 0.12;
 /// The look down a take stands for, radians: the eye about 1.2 m from a
 /// battery on the floor, the use's ray 1.5 m long. A take walks in to
 /// there, and of the stands round the battery prefers one near it.
@@ -587,9 +591,15 @@ pub mod take_counts {
         FinishKept,
         /// ... and one where a heal or a retreat, the bot's best, took it.
         FinishLeftToSurvive,
+        /// [take.on_the_move] A take's first press, made on the move (the bot's view ray met the box) ...
+        PressOnTheMove,
+        /// ... one that started no use (the old take after it) ...
+        OnTheMoveMissed,
+        /// ... and a walk in that made no press (the old take after it).
+        OnTheMoveNoPress,
     }
 
-    pub const ALL: usize = 17;
+    pub const ALL: usize = 20;
 
     /// The names of the counts, in order, for the bench's line.
     pub const NAMES: [&str; ALL] = [
@@ -610,6 +620,9 @@ pub mod take_counts {
         "zone_look_walk",
         "finish_kept",
         "finish_left_to_survive",
+        "press_on_the_move",
+        "on_the_move_missed",
+        "on_the_move_no_press",
     ];
 
     #[cfg(test)]
@@ -638,7 +651,11 @@ pub fn finishing(state: &State, target: TargetRef, cx: &Ctx) -> bool {
     let num = |name| cx.num(PlayKind::Collect, name);
     let unpressed = match state {
         State::Fetch => true,
-        State::Take { tries, tried, .. } => *tries == 0 && tried.is_empty(),
+        State::Take { tries, tried, first, .. } => match first {
+            FirstPress::OnTheMove => true,
+            FirstPress::Pressed(_) | FirstPress::Stands { pressed: true } => false,
+            FirstPress::Stands { pressed: false } => *tries == 0 && tried.is_empty(),
+        },
         _ => false,
     };
     let TargetRef::Battery(battery) = target else {
@@ -720,8 +737,15 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // within `exposed_m` sees the bot, not reloading (a reload pressed
     // within `reload_cover_s`) and kept busy by no teammate with a clear
     // line to him from within `cover_m` (`Ctx::exposed_to`): it fights
-    // first. GUESSES; measured on the battery soak and the real-map bench
-    // (docs/notes/player_bots_behaviour.md §2.3).
+    // first; within it and unseen, the take is finished before another play
+    // (`commit.finish_take`, [`finishing`]). `hold_near_m` 3 m: the live
+    // recordings had 21 Collect plays replaced within 3 m of their battery,
+    // 20 of those bots killed there (the batteries findings of 2026-11-14,
+    // C2). `exposed_m` 25 m: benched against 0 and 40 m on the battery soak
+    // and the real-map bench (docs/notes/player_bots_behaviour.md §2.3: at
+    // 25 m a third of the flat floor's takers' deaths go and the batteries
+    // brought stay; at 40 m 9 % fewer are brought). `reload_cover_s` and
+    // `cover_m` were not measured (§2.3).
     ("hold_near_m", 3.0),
     ("exposed_m", 25.0),
     ("reload_cover_s", 1.5),
@@ -1939,6 +1963,8 @@ pub enum State {
         /// the battery's stand over that stand's floor ([`over_goal`]) with
         /// the route down not taking it there.
         over_since: Option<u32>,
+        /// [take.on_the_move] Where its first press is.
+        first: FirstPress,
     },
     /// Home with the battery; `via`: the points of a safer way home along
     /// a human route (`way_home`), chosen at the first step.
@@ -1970,6 +1996,25 @@ pub enum State {
         /// Stands it stood on that long and could not press from.
         passed: Vec<Vec3>,
     },
+}
+
+/// [take.on_the_move] A take's first press (A353; the batteries findings of 2026-11-14, C1). The client starts a use on the
+/// use key's down edge when one ray from the eye, 1.80 m long, meets the object's shape: no angle, stance, movement or
+/// look-settle test (`apply_new_input` 0x2D86E0, edge 0x2D88B1; `detect_usable_object` 0x2D84C0; `using_the_world.md`,
+/// PROVEN); a use started goes on with the eye carried within 1.80 m of the point, no key and no look (0x300830). So the
+/// first press is made on the move, upright, on the first tick the bot's view ray meets the box; the crouch, the settle
+/// wait and the ring of stands are the bots' own, and come only after a press that started nothing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FirstPress {
+    /// Walking in upright at the route's pace, looking at the battery ([`approach`]); pressing on the first tick the view
+    /// ray meets the box ([`view_ray_meets`]).
+    OnTheMove,
+    /// Pressed on the move at this time, ms: standing, looking at it, until the press is judged by a world
+    /// ([`use_seen`]).
+    Pressed(u32),
+    /// The take's stands (crouch, settle, ring): after a press on the move that started nothing (`pressed`), or with none
+    /// (the switch off, no walk in for this battery, or the walk in made no press).
+    Stands { pressed: bool },
 }
 
 pub fn start(target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> State {
@@ -2098,6 +2143,8 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 if routed {
                     routed_asks::count(routed_asks::Ask::Begun);
                 }
+                // [take.on_the_move] A crossing's take walks its line in: its stands.
+                let on_the_move = cx.tuning.take.on_the_move && crossing.is_none();
                 *state = State::Take {
                     tries: 0,
                     last_use: 0,
@@ -2109,7 +2156,12 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     backing: None,
                     crossing,
                     over_since: None,
+                    first: if on_the_move { FirstPress::OnTheMove } else { FirstPress::Stands { pressed: false } },
                 };
+                // [take.on_the_move] On the move: the take's first step at once, no stop.
+                if on_the_move {
+                    return step(state, target, cx, _rng);
+                }
                 return Step::Continue(Intent::stay().looking(Look::At(at)));
             }
             // Near across but over its floor (an overhang, a box top): a
@@ -2527,6 +2579,7 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
         from,
         backing,
         crossing,
+        first,
         ..
     } = state
     else {
@@ -2605,6 +2658,42 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
         }
         *backing = None;
         *since = cx.now;
+    }
+    // [take.on_the_move] The first press on the move ([`FirstPress`]); the stands below only after it.
+    match *first {
+        FirstPress::OnTheMove => {
+            let walk = approach(cx, at, crossing.is_some());
+            if view_ray_meets(cx, at) {
+                take_counts::count(take_counts::Count::PressOnTheMove);
+                log::debug!(
+                    "take: battery {battery} pressed on the move at {} ms, {:.2} m from the eye",
+                    cx.now,
+                    (at - cx.me.eye()).length()
+                );
+                *first = FirstPress::Pressed(cx.now);
+                *last_use = cx.now;
+                return Step::Continue(walk.unwrap_or_else(|| Intent::stay().looking(Look::Use(at))).pressing(key::USE));
+            }
+            match walk {
+                Some(intent) if cx.now < *since + walk_ms => return Step::Continue(intent),
+                _ => {
+                    take_counts::count(take_counts::Count::OnTheMoveNoPress);
+                    log::debug!("take: battery {battery}: no press on the move by {} ms, the stands", cx.now);
+                    *first = FirstPress::Stands { pressed: false };
+                    *since = cx.now;
+                }
+            }
+        }
+        FirstPress::Pressed(pressed) => {
+            if cx.now < pressed + every || !use_seen(cx, pressed, 0) {
+                return Step::Continue(Intent::stay().looking(Look::Use(at)));
+            }
+            take_counts::count(take_counts::Count::OnTheMoveMissed);
+            log::debug!("take: battery {battery}: the press on the move at {pressed} ms started no use, the stands");
+            *first = FirstPress::Stands { pressed: true };
+            *since = cx.now;
+        }
+        FirstPress::Stands { .. } => {}
     }
     let mut failed = None;
     // The first stand: where it stopped, if a use reaches from there.
@@ -2908,6 +2997,67 @@ fn back_off(cx: &Ctx, at: Vec3, aim: Vec3, from: Option<Vec3>) -> Intent {
         .crouched()
         .straight()
         .looking(Look::Use(ahead))
+}
+
+/// [take.on_the_move] Whether the ray of the bot's view (from its eye along its yaw and pitch, the view it sent) meets the
+/// box of the battery whose position is `at` within the client's use ray ([`view::use_ray_m`], 1.80 m): it passes within
+/// [`BATTERY_INNER_M`] of the position, enters that ball within the ray's length, and the bullet mesh has nothing in the
+/// way short of it (as [`use_from`]). A battery whose centre is under the feet is the patched client's take through the
+/// floor (patch 23, [`sunk_take`]): not this test.
+fn view_ray_meets(cx: &Ctx, at: Vec3) -> bool {
+    let eye = cx.me.eye();
+    if at.y < cx.me.feet.y {
+        return false;
+    }
+    let [fx, fz] = crate::v026g::bots::kin::forward(cx.me.yaw);
+    let (sin, cos) = cx.me.pitch.sin_cos();
+    let dir = Vec3::new(fx * cos, sin, fz * cos);
+    let to = at - eye;
+    let along = to.dot(dir);
+    let off2 = (to.dot(to) - along * along).max(0.0);
+    let r2 = BATTERY_INNER_M * BATTERY_INNER_M;
+    if along <= 0.0 || off2 > r2 {
+        return false;
+    }
+    let enter = along - (r2 - off2).sqrt();
+    enter <= view::use_ray_m()
+        && (enter <= USE_LINE_SLACK_M
+            || crate::v026g::bots::rays::ray_cast(&cx.tactics.world.sight, eye, dir, enter - USE_LINE_SLACK_M).is_none())
+}
+
+/// [take.on_the_move] How far across from a battery on the floor whose position is `at` a body standing at `feet` has its
+/// standing eye within the use ray ([`view::use_ray_m`]) of the battery's inner ball ([`BATTERY_INNER_M`]): there a view
+/// on the battery's position meets the box. At least 0.25 m (the take's own stop on a shelf).
+fn upright_reach_m(feet: Vec3, at: Vec3) -> f32 {
+    let reach = view::use_ray_m() - BATTERY_INNER_M;
+    let dy = view::still_eye(feet, false).y - at.y;
+    (reach * reach - dy * dy).max(0.0).sqrt().max(0.25)
+}
+
+/// [take.on_the_move] The walk in of a take's first press: to the battery's stand ([`Tactics::stand_to_take`]) upright at
+/// the route's pace (`Ctx::pace_toward`), looking at the battery's position, stopping within [`upright_reach_m`] of a
+/// battery on the floor (0.25 m of a stand beside it); there, standing, turning onto it while a use reaches from the
+/// standing eye ([`use_from`]). None: no such walk (a crossing's line, a battery under the feet, no stand), or there with
+/// the view on it and no use from there: the take's stands.
+fn approach(cx: &Ctx, at: Vec3, crossing: bool) -> Option<Intent> {
+    if crossing {
+        return None;
+    }
+    let to = cx.tactics.stand_to_take(at)?;
+    if to.y >= at.y + SUNK_MIN_M {
+        return None;
+    }
+    let me = cx.me.feet;
+    let within = if (to - at).length() < 0.01 { upright_reach_m(to, at) } else { 0.25 };
+    if me.distance_xz(to) > within {
+        let intent = Intent::to(to, cx.pace_toward(to)).within(within);
+        return Some(straight_if_clear(cx, intent, to, false).looking(Look::Use(at)));
+    }
+    let here = TakeStand { feet: me, crouch: false };
+    match use_from(cx, here, at, at, view::use_ray_m(), take_pitch_limits(cx).1) {
+        UseFrom::Clear(_) if !aimed_at(cx, at) => Some(Intent::stay().looking(Look::Use(at))),
+        _ => None,
+    }
 }
 
 /// Whether the view looks at `aim` from the stand's eye (its own estimate
@@ -4669,7 +4819,57 @@ mod tests {
         s.bot(0, 0, feet);
         s.battery(BatteryState::Free(TAKE_AT));
         s.current = Some((PlayKind::Collect, TargetRef::Battery(0), s.view.clock));
+        // The take's stands (crouch, settle, ring) are what these tests read: with `take.on_the_move` they come after a
+        // press on the move, which `a_take_presses_on_the_move_once_its_view_ray_meets_the_box` reads.
+        s.tuning.take.on_the_move = false;
         s
+    }
+
+    /// [take.on_the_move] A take from the walk: upright at the route's pace, looking at the battery, no press while the view
+    /// ray misses the box; standing within reach with the view on it, the first press at once (no settle, no crouch), not
+    /// pressed again before a world judged it; one that started nothing gives way to the take's stands.
+    #[test]
+    fn a_take_presses_on_the_move_once_its_view_ray_meets_the_box() {
+        use crate::v026g::bots::kin::yaw_of;
+        let target = TargetRef::Battery(0);
+        // In from 1.4 m across, the view away from the battery: the walk in, no press.
+        let mut s = take_field(&[], Vec3::new(26.4, 0.0, 12.0));
+        s.tuning.take.on_the_move = true;
+        s.view.places[0].yaw = yaw_of([1.0, 0.0]);
+        s.view.places[0].pitch = 0.0;
+        let mut rng = Rng::new(1);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        let walk = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(matches!(state, State::Take { first: FirstPress::OnTheMove, .. }), "{state:?}");
+        assert_eq!(walk.press & key::USE, 0, "no press: the view ray misses");
+        assert!(!walk.crouch, "upright");
+        let to = s.cx(0).tactics.stand_to_take(TAKE_AT);
+        assert!(matches!(walk.go, Go::To { at, .. } if Some(at) == to), "{walk:?}");
+        assert!(matches!(walk.look, Look::Use(at) if at == TAKE_AT), "{walk:?}");
+        // Within reach, standing, the view on the battery: pressed at once.
+        let feet = Vec3::new(26.0, 0.0, 12.0);
+        stand_at_as(&mut s, feet, TAKE_AT, false);
+        assert!(view_ray_meets(&s.cx(0), TAKE_AT));
+        let pressed = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_ne!(pressed.press & key::USE, 0, "pressed on the move");
+        assert!(!pressed.crouch, "no crouch");
+        let clock = s.view.clock;
+        assert!(matches!(state, State::Take { first: FirstPress::Pressed(at), .. } if at == clock), "{state:?}");
+        assert!(!finishing(&state, target, &s.cx(0)), "a press made: no longer a take to finish first");
+        // Not pressed again before a world judged it.
+        s.view.clock += 1_200;
+        let waiting = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_eq!(waiting.press & key::USE, 0, "the press not judged yet");
+        assert!(!waiting.fire, "no fire: it may carry");
+        // Judged, no carry: the take's stands.
+        s.view.world_time = s.view.clock;
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Take { first: FirstPress::Stands { pressed: true }, .. }), "{state:?}");
+        // The view ray: away, or beyond the use ray, meets nothing.
+        stand_at_as(&mut s, feet, TAKE_AT + Vec3::new(0.0, 1.0, 0.0), false);
+        assert!(!view_ray_meets(&s.cx(0), TAKE_AT), "looking over it");
+        stand_at_as(&mut s, Vec3::new(28.5, 0.0, 12.0), TAKE_AT, false);
+        assert!(!view_ray_meets(&s.cx(0), TAKE_AT), "beyond the use ray");
     }
 
     const TAKE_AT: Vec3 = Vec3::new(25.0, 0.0, 12.0);
@@ -4687,6 +4887,7 @@ mod tests {
             backing: None,
             crossing: None,
             over_since: None,
+            first: FirstPress::Stands { pressed: false },
         }
     }
 
@@ -5713,6 +5914,7 @@ mod tests {
             backing: None,
             crossing: None,
             over_since: None,
+            first: FirstPress::Stands { pressed: false },
         };
         let mut rng = Rng::new(1);
         let step = step(&mut state, target, &s.cx(0), &mut rng);
