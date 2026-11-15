@@ -2499,9 +2499,15 @@ impl Bots {
             "{}steady creep ticks since the last match end (every match on this server): {steady}, of them {unparks} letting the move go to leave on site",
             nav_log::PREFIX
         ));
-        let (on_site, run, unknown, worlds, stagger) = body::creep_steps::take();
+        let (on_site, run, unknown, worlds, stagger, said) = body::creep_steps::take();
         lines.push(format!(
             "{}both-legs-broken steps reckoned since the last match end (every match on this server): {on_site} on site, {run} crouch run, {unknown} state not known; {worlds} worlds said the state; {stagger} stagger events seen (any body)",
+            nav_log::PREFIX
+        ));
+        // [F42] How often an event the reckoning does not see flipped the state between two worlds.
+        let body::creep_steps::Said { agreed, missed_run, missed_on_site, not_reckoned } = said;
+        lines.push(format!(
+            "{}both-legs-broken worlds against the reckoned state at their tick since the last match end (every match on this server): {agreed} the same, {missed_run} run where it reckoned on site, {missed_on_site} on site where it reckoned the run (unseen events), {not_reckoned} with no reckoned state there",
             nav_log::PREFIX
         ));
         // [A388 (e) gap 5] Every body's reloads from the worlds: the reckoned sights and sprint refused to the clip's end.
