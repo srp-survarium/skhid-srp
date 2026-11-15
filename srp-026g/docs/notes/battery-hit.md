@@ -102,12 +102,24 @@
     the carry, both elbows straight (175 deg), as far as both arms reach (the carry stands with
     its right shoulder back); in first person the battery comes up into the lower centre of the
     view, both hands on it;
-  - held out 3 frames (to 0.3 s), then a soft recovery to the carry by 0.57 s.
+  - held out 3 frames (to 0.3 s), then a soft recovery to the carry by 0.55 s.
   No torso lean and no camera punch: the spine and the Item bone are not the battery clips' to
   move (mask 1).
-- **Four clips** at 30 fps, written in the engine's format with its own spline basis
-  (`clips.py`): the carrier's `battery_hit` (6 frames, its last the impact) and
-  `battery_hit_recover` (11 frames) with the carry idle's bone names, the battery's
+- **Smooth between frames** (the owner on 326858cb5: "you can see it jump from one frame to
+  another"): the game draws a carried battery's and its carrier's skeletons at its own frame
+  rate, the clips evaluated at any time (object_skeleton_visual::calculate_animation_bone_matrices_if_needs
+  0x292620 ticks the visual's animation player to its timer's now; the battery's bones under the
+  carrier's visual Weapon bone, portable_interactive_object_core::update_bones_matrices 0x2FF600).
+  326858cb5's channels were fitted with more control points than samples (a near-singular least
+  squares), so they passed through each whole frame and swung wildly between: at 240 evaluations a
+  second (the game's own baker and evaluate_frame, engine_bake.py) a hand jumped up to 21 cm in
+  4 ms and the hands left the battery by up to 48 cm. The clips are now written as the game's
+  own are (`clips.Channel.bezier`: one cubic Bezier segment per sample pair, each inner knot three
+  times), from samples every 1/60 s: at 240 a second the battery moves at most 1.75 cm a step and
+  the hands stay within 21 mm of it (`battery_hit_smoothness.png`, `metrics.txt`). The recovery is
+  0.35 s (7 ticks), so both clips end on a tick.
+- **Four clips**, written in the engine's format with its own spline basis (`clips.py`): the
+  carrier's `battery_hit` (6 frames, its last the impact) and `battery_hit_recover` (10.5 frames) with the carry idle's bone names, the battery's
   `battery_hit_electrobox` and `battery_hit_recover_electrobox` with its own; shipped by the edit
   list `battery-hit-1.json` (op `files_from_repo`, pinned by sha256, `make_clips.py --check`) as
   `states[3]` and `states[4]` (user_animations and animations), which the cook loads.
@@ -133,8 +145,8 @@
 ## Timing
 
 - Press to impact 0.2 s (`battery_hit::SWING_S`, the clip's 6 frames; the take state scales
-  its clip to it), the strike on the swing's end; the recovery 0.37 s (`RECOVER_S`), then the
-  carry. Held, the next swing starts from the carry: one strike every 0.57 s at most. The
+  its clip to it), the strike on the swing's end; the recovery 0.35 s (`RECOVER_S`), then the
+  carry. Held, the next swing starts from the carry: one strike every 0.55 s at most. The
   gun-stock strike's clip (`ak/.../kick`) is 6 frames too.
 
 - The strike is when the swing's clip ends (the state's readiness, set by the animation
@@ -247,7 +259,7 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
 
 - `check_battery_hit_026g.py` (Unicorn, the patched exe beside the original):
   - initialize_logic and the site make the five states (the swing and the recovery over the
-    cook's clips of states 3 and 4, scaled to 0.2 s and 0.367 s) and their transitions; the
+    cook's clips of states 3 and 4, scaled to 0.2 s and 0.35 s) and their transitions; the
     vtable copy has exactly slots +0Ch and +20h ours; results without states 3 and 4: the
     patch's crash;
   - fsm::tick from the carry takes the swing only for the melee key and a living carrier, the
@@ -307,7 +319,7 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
 
 - The look: the authored swing (the previews); faster, bigger, overhead?
 - Kill at once (patch 108) or a battery's own damage?
-- Speed: impact at 0.2 s, 0.57 s a swing; a cooldown?
+- Speed: impact at 0.2 s, 0.55 s a swing; a cooldown?
 - A sound: the stock body thud plays already; a heavier one (the SoC candidates) or a swing
   whoosh (the rifles' `melee_rifle`)?
 - A battery icon in the kill feed instead of the melee one?

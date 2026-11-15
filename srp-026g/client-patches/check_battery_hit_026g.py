@@ -85,7 +85,7 @@ GUN7, GUN10, MANAGER = DATA + 0x30000, DATA + 0x34000, DATA + 0x38000
 CLIPS = DATA + 0x40000           # the three states' six clips each, then the clips
 HEAP = DATA + 0x50000
 QUERIES = DATA + 0xC0000         # the cook's queries_result: count +38h, results' managed resources +128h, 2E0h apart
-SWING_S, RECOVER_S = 6.0 / 30.0, 11.0 / 30.0
+SWING_S, RECOVER_S = 6.0 / 30.0, 10.5 / 30.0
 OWNER_WORLD, PROFILE, BULLET = DATA + 0x60000, DATA + 0x80000, DATA + 0x90000
 GUN_ANIMS, BATTERY_ANIMS, POSTURE = DATA + 0x92000, DATA + 0x93000, DATA + 0x94000
 # the bullet manager's physics world (+98h: ray test +48h, the level's bounds +64h), a body the ray
@@ -407,7 +407,7 @@ def main():
               f"config state {index}: a take state over the cook's six clips of it (results {2 + 6 * index}.."
               f"{7 + 6 * index}), of the carry's kind (3), its battery, not ended")
     check(new.times == [f32(SWING_S), f32(RECOVER_S)] and new.read(swing + 0xE8) == 0x40200000
-          and new.read(recover + 4) == 0, "scaled to 0.2 s and 0.367 s (the authored clips' own lengths), the recovery last")
+          and new.read(recover + 4) == 0, "scaled to 0.2 s and 0.35 s, the recovery last")
     check(new.read(recover) == new.read(swing), "both with the patch's vtable copy")
     vtable = new.read(swing)
     ours = [new.read(vtable - 4 + 4 * i) for i in range(13)]

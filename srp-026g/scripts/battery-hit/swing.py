@@ -15,8 +15,9 @@ import clips
 from rig import matrix
 
 FPS = 30.0
-IMPACT = 6          # frames: 0.2 s, the swing clip's end and the strike
-END = 17            # frames: 0.567 s, the recovery's end (back on the carry idle)
+IMPACT = 6          # frames: 0.2 s, the swing clip's end and the strike (battery_hit::SWING_S)
+END = 16.5          # frames: 0.55 s, the recovery's end, back on the carry idle (RECOVER_S 0.35 s)
+STEP = 0.5          # frames between the clips' samples: 60 a second
 
 # keys: frame -> values; `hold` keys have zero tangent (an extreme), others pass through with speed.
 # A forward ram (the owner, 2026-11-15: "the battery should clearly move forward with hands
@@ -32,8 +33,8 @@ END = 17            # frames: 0.567 s, the recovery's end (back on the carry idl
 KEYS = {
     #            frame: (cx,     cy,     cz,     pitch, yaw,  roll)
     'rest':      (0,  (0.000,  0.000,  0.000,    0,     0,    0)),
-    'pull':      (3,  (-0.080, 0.120,  0.050,    0,    12,    0)),
-    'cocked':    (4,  (-0.080, 0.120,  0.050,    0,    12,    0)),
+    'pull':      (2,  (-0.080, 0.120,  0.050,    0,    12,    0)),
+    'cocked':    (3,  (-0.080, 0.120,  0.050,    0,    12,    0)),
     'impact':    (IMPACT, (-0.161, 0.243, 0.288, 12.6, 17.3, 10.5)),
     'held':      (9,  (-0.161, 0.243,  0.288,   12.6,  17.3, 10.5)),
     'recover':   (END, (0.000, 0.000,  0.000,    0,     0,    0)),
@@ -193,24 +194,31 @@ class Swing:
         return pose, item_local
 
 
+def sample_times():
+    """The clips' sample times (frames): every STEP from 0 to END."""
+    return [i * STEP for i in range(int(round(END / STEP)) + 1)]
+
+
 def author(rig, idle):
-    """Every frame's (player pose, battery bones' locals), 0..END."""
+    """Every sample's (player pose, battery bones' locals), at sample_times()."""
     swing = Swing(rig, idle)
-    return [swing.pose(curve(float(f))) for f in range(END + 1)]
+    return [swing.pose(curve(t)) for t in sample_times()]
 
 
-def write(names, scales, locals_, first, last):
-    """A clip of frames [first, last] (`locals_[f]`: each bone's local
-    rotation and position), rebased to 0, each bone's nine channels fitted
-    with the engine's basis; the scale channels `scales`' (a clip of the same
-    bones) rest values; a channel that does not move is a constant."""
-    times = [float(f - first) for f in range(first, last + 1)]
+def write(names, scales, samples, first, last):
+    """A clip of the samples (time in frames, each bone's local rotation and
+    position) from `first` to `last`, rebased to 0, each bone's nine channels
+    the game's Bezier form through them (clips.Channel.bezier); the scale
+    channels `scales`' (a clip of the same bones) rest values; a channel that
+    does not move is a constant."""
+    picked = [(t, local) for t, local in samples if first - 1e-9 <= t <= last + 1e-9]
+    times = [t - first for t, _ in picked]
     out = []
     for name, scale_channels in zip(names, scales):
         values = [[] for _ in range(9)]
         prev = None
-        for f in range(first, last + 1):
-            r, p = locals_[f][name]
+        for _, local in picked:
+            r, p = local[name]
             e = clips.euler(r)
             if prev is not None:
                 e = [a + 2 * math.pi * round((b - a) / (2 * math.pi)) for a, b in zip(e, prev)]
@@ -226,14 +234,15 @@ def write(names, scales, locals_, first, last):
             if max(vs) - min(vs) < 1e-6:
                 channels.append(clips.Channel.constant(vs[0], times[-1]))
             else:
-                channels.append(clips.Channel.fit(times, vs))
+                channels.append(clips.Channel.bezier(times, vs))
         out.append(channels)
     return out
 
 
 def clips_of(rig, idle, frames):
     """The four clips: (player swing, player recovery, battery swing, battery recovery)."""
-    player = [pose.local for pose, _ in frames]
-    item = [item for _, item in frames]
+    times = sample_times()
+    player = [(t, pose.local) for t, (pose, _) in zip(times, frames)]
+    item = [(t, item) for t, (_, item) in zip(times, frames)]
     return (write(rig.names, idle, player, 0, IMPACT), write(rig.names, idle, player, IMPACT, END),
             write(rig.item_names, rig.item_idle, item, 0, IMPACT), write(rig.item_names, rig.item_idle, item, IMPACT, END))

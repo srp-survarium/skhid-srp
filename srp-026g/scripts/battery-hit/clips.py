@@ -75,22 +75,27 @@ class Channel:
         return u * (u * (u * c[3] + c[2]) + c[1]) + c[0]
 
     @staticmethod
-    def fit(times, values):
+    def bezier(times, values):
+        """The curve through (times, values), as the game's own clips store
+        theirs: one cubic Bezier segment per pair of samples (each inner knot
+        three times, the first four times, the last once with an unused
+        point), the tangents the samples' central differences (one-sided at
+        the ends): it passes through every sample, its slope continuous, and
+        between two samples it never leaves their neighbourhood."""
         if all(v == values[0] for v in values):
             return Channel.constant(values[0], times[-1])
-        knots = [times[0]] * 4 + list(times[1:])
-        pairs = len(knots)
-        basis = np.zeros((len(times), pairs - 1))
-        for j in range(pairs - 1):
-            points = [0.0] * pairs
-            points[j] = 1.0
-            probe = Channel(knots, points)
-            spans = probe.spans()
-            for r, t in enumerate(times):
-                basis[r, j] = probe.evaluate(t)
-        a = basis.T @ basis + 1e-6 * np.eye(pairs - 1)
-        solved = np.linalg.solve(a, basis.T @ np.array(values, dtype=float))
-        return Channel(knots, [float(x) for x in solved] + [UNUSED])
+        t, v = [float(x) for x in times], [float(x) for x in values]
+        n = len(t)
+        slope = []
+        for i in range(n):
+            lo, hi = max(i - 1, 0), min(i + 1, n - 1)
+            slope.append((v[hi] - v[lo]) / (t[hi] - t[lo]))
+        knots, points = [t[0]] * 4, [v[0]]
+        for i in range(n - 1):
+            h = t[i + 1] - t[i]
+            points += [v[i] + slope[i] * h / 3, v[i + 1] - slope[i + 1] * h / 3, v[i + 1]]
+            knots += [t[i + 1]] * 3 if i < n - 2 else [t[i + 1]]
+        return Channel(knots, points + [UNUSED])
 
 
 def parse_names(data):

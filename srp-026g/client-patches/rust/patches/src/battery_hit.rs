@@ -17,9 +17,10 @@ use crate::vostok::{Context, Flow, NoExit, OrigBatteryStateFinalize, OrigTakeDea
 /// authored clip's 6 frames at 30 fps, scripts/battery-hit/swing.py IMPACT).
 pub const SWING_S: f32 = 6.0 / 30.0;
 
-/// The recovery's length, s: follow-through and back to the carry idle (its
-/// 11 frames, swing.py END - IMPACT).
-pub const RECOVER_S: f32 = 11.0 / 30.0;
+/// The recovery's length, s: held out, then back to the carry idle (its
+/// 10.5 frames, swing.py END - IMPACT): 7 ticks of 50 ms, so it ends on a
+/// tick as the swing does.
+pub const RECOVER_S: f32 = 10.5 / 30.0;
 
 /// The cook's callback once initialize_logic made the take, carry and put:
 /// the swing and the recovery appended. A battery without them would play

@@ -44,15 +44,18 @@ load = lambda path: clips.parse_clip(Path(path).read_bytes())[0]
 after = {'user': (load(here / 'battery_hit.b-spline'), load(here / 'battery_hit_recover.b-spline')),
          'item': (load(here / 'battery_hit_electrobox.b-spline'), load(here / 'battery_hit_recover_electrobox.b-spline'))}
 before = {'user': (load(before_dir / 'battery_hit.b-spline'), load(before_dir / 'battery_hit_recover.b-spline')),
-          'item': (rig.item_idle, rig.item_idle)}
+          'item': ((load(before_dir / 'battery_hit_electrobox.b-spline'), load(before_dir / 'battery_hit_recover_electrobox.b-spline'))
+                   if (before_dir / 'battery_hit_electrobox.b-spline').exists() else (rig.item_idle, rig.item_idle))}
 FP_SIZE = (640, 360)
+FRAMES = sorted(set(range(int(swing.END) + 1)) | {swing.END})
 CORE = {'Hip', 'Spin', 'Spin_1', 'Chest', 'Neck', 'Head'}
 
 
 def game_pose(set_, f, look=0.0):
     """The carrier and the battery at swing frame f (the swing state's clips
-    to the impact, the recovery's after), as the game mixes them."""
-    k, t = (0, float(f)) if f <= swing.IMPACT else (1, float(f - swing.IMPACT))
+    to their end, the recovery's after), as the game mixes them."""
+    end = clips.clip_end(set_['user'][0])
+    k, t = (0, float(f)) if f <= end else (1, min(float(f - end), clips.clip_end(set_['user'][1])))
     world = rig.game_world(set_['user'][k], t, look)
     bw = rig.battery_world(world, t, set_['item'][k])
     return world, bw
@@ -120,8 +123,9 @@ for k, t in enumerate(tiles):
 sheet.save(out / 'carry_idle_fp.png')
 
 THREE_QUARTER = (1.3, 0.2, 1.6)
-rows, report = [], []
-for f in range(swing.END + 1):
+rows, report, sheet_rows = [], [], []
+HALF = [i * 0.5 for i in range(int(swing.END * 2) + 1)]   # every 1/60 s
+for f in HALF:
     t = f / swing.FPS
     wb, bb = game_pose(before, f)
     wa, ba = game_pose(after, f)
@@ -132,16 +136,20 @@ for f in range(swing.END + 1):
     ai = render.penetration(rig.battery.pose(ba), core_vertices(wa))
     btp = third_person(wb, bb, THREE_QUARTER, FP_SIZE, 'before %.2fs  TP  body-in-box %d' % (t, bi))
     atp = third_person(wa, ba, THREE_QUARTER, FP_SIZE, 'after %.2fs  TP  body-in-box %d' % (t, ai))
-    report.append((f, np.linalg.norm(battery_travel(bb)) * 100, grip_error(wb, bb) * 1000, bs * 100, bn, bi,
+    if f in FRAMES:
+      report.append((f, np.linalg.norm(battery_travel(bb)) * 100, grip_error(wb, bb) * 1000, bs * 100, bn, bi,
                    *(battery_travel(ba) * 100), grip_error(wa, ba) * 1000, as_ * 100, ah, an, ai))
     W, H = FP_SIZE
     tile = Image.new('RGB', (W * 2, H * 2))
     tile.paste(bfp, (0, 0)); tile.paste(afp, (W, 0)); tile.paste(btp, (0, H)); tile.paste(atp, (W, H))
     rows.append(tile)
+    if f in FRAMES:
+        sheet_rows.append(tile)
 rows[0].save(out / 'battery_hit_before_after.gif', save_all=True, append_images=rows[1:] + [rows[-1]],
-             duration=[33] * len(rows) + [1200], loop=0)
+             duration=[17] * len(rows) + [1200], loop=0)
 rows[0].save(out / 'battery_hit_before_after_slow.gif', save_all=True, append_images=rows[1:] + [rows[-1]],
-             duration=[400] * len(rows) + [1500], loop=0)
+             duration=[200] * len(rows) + [1500], loop=0)
+rows = sheet_rows
 W, H = FP_SIZE
 sheet = Image.new('RGB', (W * 2 * 3, H * 2 * ((len(rows) + 2) // 3)))
 for k, tile in enumerate(rows):
@@ -150,25 +158,73 @@ sheet.save(out / 'battery_hit_frames.png')
 
 BIG = (640, 480)
 for name, view in (('three_quarter', THREE_QUARTER), ('side', (1.9, 0.15, 0.3)), ('front', (0.15, 0.2, 2.0))):
-    sheet = Image.new('RGB', (BIG[0] * 3, BIG[1] * ((swing.END + 3) // 3)))
-    for f in range(swing.END + 1):
+    sheet = Image.new('RGB', (BIG[0] * 3, BIG[1] * ((len(FRAMES) + 2) // 3)))
+    for i, f in enumerate(FRAMES):
         w, bw = game_pose(after, f)
         img = third_person(w, bw, view, BIG, 'after frame %d  %.2fs%s' % (
             f, f / swing.FPS, '  IMPACT' if f == swing.IMPACT else ''))
-        sheet.paste(img, ((f % 3) * BIG[0], (f // 3) * BIG[1]))
+        sheet.paste(img, ((i % 3) * BIG[0], (i // 3) * BIG[1]))
     sheet.save(out / ('battery_hit_tp_%s.png' % name))
 
 # between frames too (the game draws at its own frame rate): a quarter frame apart
 between = 0
-for q in range(swing.END * 4 + 1):
+for q in range(int(swing.END * 4) + 1):
     w, bw = game_pose(after, q / 4)
     eye, r = render.fp_camera(w)
     between += render.draw([(m.pose(w), m.triangles, m.color) for m in rig.fp]
                            + [(rig.battery.pose(bw), rig.battery.triangles, rig.battery.color)], eye, r, size=(160, 90))[1]
 
+# smoothness: how far the battery and the hands move from one drawn frame to the next, and how
+# far the hands are off the battery, at 60 and 240 frames a second (the clips are evaluated at
+# any time, as the game's visual skeleton does: object_skeleton_visual 0x292620 ticks to its
+# timer's now)
+def steps(set_, rate):
+    total = clips.clip_end(set_['user'][0]) + clips.clip_end(set_['user'][1])
+    prev, out = None, []
+    for k in range(int(total / swing.FPS * rate) + 1):
+        f = k / rate * swing.FPS
+        w, bw = game_pose(set_, f)
+        c = rig.battery.pose(bw).mean(axis=0)
+        h = np.array([w['LeftHand'][1], w['RightHand'][1]])
+        if prev is not None:
+            out.append((f / swing.FPS, np.linalg.norm(c - prev[0]) * 100, np.abs(h - prev[1]).max() * 100,
+                        grip_error(w, bw) * 1000))
+        prev = (c, h)
+    return np.array(out)
+
+
+smooth = {}
+for name, set_ in (('before', before), ('after', after)):
+    for rate in (60, 240):
+        smooth[name, rate] = steps(set_, rate)
+plot = Image.new('RGB', (960, 600), (24, 28, 36))
+draw = ImageDraw.Draw(plot)
+for row, (title, col, scale) in enumerate((('battery step per 1/240 s (cm)', 1, 10), ('hand step per 1/240 s (cm)', 2, 10),
+                                          ('hands off the battery (mm)', 3, 1000))):
+    y0 = 20 + row * 195
+    draw.text((10, y0 - 14), title + '   grey: before (the build played), yellow: after', fill=(220, 220, 220))
+    draw.rectangle((40, y0, 940, y0 + 170), outline=(90, 90, 90))
+    for name, colour in (('before', (150, 150, 150)), ('after', (240, 200, 60))):
+        d = smooth[name, 240]
+        top = max(smooth['before', 240][:, col].max(), smooth['after', 240][:, col].max(), 1e-6)
+        pts = [(40 + 900 * t / 0.6, y0 + 170 - 170 * v / top) for t, v in zip(d[:, 0], d[:, col])]
+        draw.line(pts, fill=colour, width=2)
+    draw.text((44, y0 + 2), 'max %.1f' % max(smooth['before', 240][:, col].max(), smooth['after', 240][:, col].max()),
+              fill=(200, 200, 200))
+plot.save(out / 'battery_hit_smoothness.png')
+
 lines = ['frame | before: battery moved cm, grip mm, FP on-screen %, near, body'
          ' | after: battery moved x y z cm, grip mm, FP on-screen %, hands, near, body']
-lines += ['%5d | %5.1f %6.0f %5.0f%% %3d %4d | %+6.1f %+6.1f %+6.1f %5.0f %5.0f%% %3s %3d %4d' % r for r in report]
+lines += ['%5.1f | %5.1f %6.0f %5.0f%% %3d %4d | %+6.1f %+6.1f %+6.1f %5.0f %5.0f%% %3s %3d %4d' % r for r in report]
 lines.append('after, every quarter frame: %d triangles crossing the near plane in view' % between)
+lines.append('')
+lines.append('smoothness (the clips evaluated between frames, as the game draws them):')
+for name in ('before', 'after'):
+    for rate in (60, 240):
+        d = smooth[name, rate]
+        lines.append('  %-6s at %3d/s: battery moves at most %5.2f cm a frame, a hand %5.2f cm, the hands at most %5.1f mm off the battery'
+                     % (name, rate, d[:, 1].max(), d[:, 2].max(), d[:, 3].max()))
+lines.append('  after, every 1/60 s: t, battery step cm, hand step cm, hands off mm')
+lines += ['    %.3f %5.2f %5.2f %5.1f' % tuple(r) for r in smooth['after', 60]]
 (out / 'metrics.txt').write_text('\n'.join(lines) + '\n')
 print('\n'.join(lines))

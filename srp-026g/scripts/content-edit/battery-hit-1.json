@@ -3,7 +3,7 @@
   "files_from_repo": [
     {
       "source": "../battery-hit/clips/battery_hit.b-spline",
-      "sha256": "d7071da7c74b81de645cb949373aafd3f7a0a1ef0445cc2c37a2902cc1993df2",
+      "sha256": "7d05d9bc4807d0b4e45decbb3590184bbfa6e8904c67e357d7931eff37d356f4",
       "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit.b-spline"
     },
     {
@@ -13,7 +13,7 @@
     },
     {
       "source": "../battery-hit/clips/battery_hit_recover.b-spline",
-      "sha256": "3f87d50cc314c57554d2a4126d943f958f11ee54e4a21ede1d3ce8b99e91ea2c",
+      "sha256": "4f1882d5b577aefb110c3a2b58266ba60a01b2992dbad975a16f2bb7fcfc9e32",
       "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_recover.b-spline"
     },
     {
@@ -23,7 +23,7 @@
     },
     {
       "source": "../battery-hit/clips/battery_hit_electrobox.b-spline",
-      "sha256": "605470f2032dcfcbd0793ff07f17a0280812c3f0aafba0564c304c5d260e01f3",
+      "sha256": "e79a2eb47b19f97ed6f40d1d66d9a76935672ac5ec6f238820399582db0e0a38",
       "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_electrobox.b-spline"
     },
     {
@@ -33,7 +33,7 @@
     },
     {
       "source": "../battery-hit/clips/battery_hit_recover_electrobox.b-spline",
-      "sha256": "e1e5766398d3fee8dd1d2d36392425fb3d53a9f4de2973c2686512574f1e3fbf",
+      "sha256": "e0d472025e8e5f415b2ce9b67218ffebf39594816e58d224001d2f0c73ace7db",
       "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_recover_electrobox.b-spline"
     },
     {
