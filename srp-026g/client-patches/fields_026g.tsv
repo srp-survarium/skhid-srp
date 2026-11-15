@@ -1234,3 +1234,4 @@ vostok::sound::sound_scene	world	0x11C	ptr<vostok::sound::sound_world>	its sound
 vostok::sound::sound_world	panning	0xCC	obj<vostok::sound::panning_lut>	its panning table, inside it: 512 directions of 9 gains, filled once by its constructor 0x5E150 in the sound world's (0x58D90); notify_listener2 0x5C396 gives its address to calculate_3d_pan
 vostok::sound::sound_instance_proxy	sound_type	0x80	u32	its sound_type: 0 point, 1 cone (spot), 2 volumetric, 3 hud (calculate_3d_pan 0x57D88, the only field it reads of a point sound's proxy; notify_listener2 0x5C37C)
 vostok::sound::sound_instance_proxy	size	0x90	size	a proxy is 144 bytes (new_helper<sound_instance_proxy_internal> over single_size_buffer_allocator<144>, 0x65450)
+survarium::trap_hit_frame	kind	0x10	u32	booby_trap_core::hit fourth argument by its entry ESP: the hit type (hit_type_enum; a bullet ammo damage_type, pushed by bullet::try_pierce 0x32DA2E), which 0x30554C compares with the trap set defuse_by_hit
