@@ -511,6 +511,13 @@ are 3h's contacts at one fraction. Only `Caster::Exe` changes: the bots' grids a
 
   On the shapes world the port now holds case 15's body at the game's origin and support normal, to the bit, every
   tick of the stop.
+- **Which runner to compare with.** The first `port-runner` (§3) predates this rule: it sets
+  `stand_move_complex_test = !sprinting` for every move sweep of a sprinting body, so a sprinting body's side slide
+  sweeps with the simple test and slides where the game holds it. Its counts are not the port's: on the long replay
+  (§3h) it gave 188 held sprinting bodies as off that the port gets right. Compare only with the runner that calls
+  `Controller::step_as(.., sprinting)` and leaves the cvars alone (`tick-likely/runner-sprint`). The exe in Unicorn on
+  five of those steps holds each body still, every field the game's bits: the side slide's complex test (the
+  cylinder) meets a compound's child at fraction 0.
 
 ## 4. What was read on the way (PROVEN)
 
