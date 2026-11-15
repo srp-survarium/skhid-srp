@@ -126,6 +126,16 @@ pub(crate) mod world_jumps {
 
     static DROPPED: AtomicU64 = AtomicU64::new(0);
     static UNSEEN: AtomicU64 = AtomicU64::new(0);
+    static CLIPS: AtomicU64 = AtomicU64::new(0);
+    static CLIPS_CHANGED: AtomicU64 = AtomicU64::new(0);
+
+    /// A reckoned jump that took the world's clip, and whether it differed from the keys' guess.
+    pub(crate) fn clip(changed: bool) {
+        CLIPS.fetch_add(1, Relaxed);
+        if changed {
+            CLIPS_CHANGED.fetch_add(1, Relaxed);
+        }
+    }
 
     pub(crate) fn dropped() {
         DROPPED.fetch_add(1, Relaxed);
@@ -136,9 +146,9 @@ pub(crate) mod world_jumps {
         UNSEEN.fetch_add(1, Relaxed);
     }
 
-    /// (dropped, unseen) since the last call, and zero again.
-    pub(crate) fn take() -> (u64, u64) {
-        (DROPPED.swap(0, Relaxed), UNSEEN.swap(0, Relaxed))
+    /// (dropped, unseen, the world's clip taken, of them differing from the keys') since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64, u64, u64) {
+        (DROPPED.swap(0, Relaxed), UNSEEN.swap(0, Relaxed), CLIPS.swap(0, Relaxed), CLIPS_CHANGED.swap(0, Relaxed))
     }
 }
 
@@ -260,6 +270,28 @@ impl Clip {
             && speed >= WALK_CAP_MS
             && matches!(direction, Direction::Forward | Direction::ForwardRight | Direction::ForwardLeft);
         if sprint { Self::Sprint(direction) } else { Self::Short(direction) }
+    }
+
+    /// [Gap 10] The clip of the jump type a world's selector saves (`m_jump_type`, written once at the jump's `initialize` 0x337040,
+    /// the clips chosen from it: the exe review of gap 10): 1 on site, 2-4 the sprint jumps forward and the two front diagonals,
+    /// 5, 6 and 12 their short twins, 7-11 the other directions. None for `NoJump` (never saved in the jump).
+    pub fn of_world(kind: srp_validate::world::JumpType) -> Option<Self> {
+        use srp_validate::world::JumpType as T;
+        Some(match kind {
+            T::NoJump => return None,
+            T::OnSite => Self::Short(Direction::None),
+            T::SprintFwd => Self::Sprint(Direction::Forward),
+            T::SprintFwdRight => Self::Sprint(Direction::ForwardRight),
+            T::SprintFwdLeft => Self::Sprint(Direction::ForwardLeft),
+            T::FromSiteFwd => Self::Short(Direction::Forward),
+            T::FromSiteFwdRight => Self::Short(Direction::ForwardRight),
+            T::FromSiteRight => Self::Short(Direction::Right),
+            T::FromSiteBackRight => Self::Short(Direction::BackRight),
+            T::FromSiteBack => Self::Short(Direction::Back),
+            T::FromSiteBackLeft => Self::Short(Direction::BackLeft),
+            T::FromSiteLeft => Self::Short(Direction::Left),
+            T::FromSiteFwdLeft => Self::Short(Direction::ForwardLeft),
+        })
     }
 
     fn table(self) -> &'static Root {
@@ -430,8 +462,14 @@ impl JumpArc {
 
     /// The jump a world at `time` finds under way, its feet at `feet` and its yaw `yaw`: the press's feet are the clip's root
     /// back from them, the floor it left the rise under them. None once the clip is over (a fall is the world's).
-    pub fn seen(pressed: u32, keys: u32, walk: [f32; 2], time: u32, feet: Vec3, yaw: f32) -> Option<Self> {
+    /// [Gap 10] `world`: the clip of the jump the world's selector is in ([`Clip::of_world`]), which is the client's own choice and
+    /// takes the place of the keys' guess.
+    pub fn seen(pressed: u32, keys: u32, walk: [f32; 2], time: u32, feet: Vec3, yaw: f32, world: Option<Clip>) -> Option<Self> {
         let mut arc = Self::pressed(pressed, keys, walk, feet, yaw);
+        if let Some(clip) = world {
+            world_jumps::clip(clip != arc.clip);
+            arc.clip = clip;
+        }
         let ms = clip_ms(time, pressed);
         let (frame, travel) = arc.root(ms);
         if frame >= arc.clip.air_end_frame() + AIR_END_EPS {
