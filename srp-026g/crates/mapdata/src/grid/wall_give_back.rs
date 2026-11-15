@@ -224,27 +224,36 @@ mod tests {
         assert!(stands_in_cell(&Collision::build(&tris), &Settings::LIVE, Vec3::new(4.875, 0.0, 5.125), 0.125, f32::INFINITY));
     }
 
-    /// The push out of the walls moves a body at most `OUT_OF_WALLS_M` (0.15 m) at a time: set 0.12 m from a face the standing
-    /// cylinder (0.42 m with its margin) meets, one push leaves it in the face and the put pushes it again. The rest is measured
-    /// from where the body was put: it never moves there and stands. Measured from the feet pushed first (before), the put's own
-    /// second push read as a slide (Chemical Plant day_2's floors under a 1.24 m roof: 0.150 m "across" with 0.000 of moving).
+    /// The push out of the walls moves a body at most `OUT_OF_WALLS_M` (0.15 m) at a time. Under a slab 1.24 m over the floor (a
+    /// roof lower than a standing body, as Chemical Plant day_2's floors at (32.125, 12.414) and (28.625, 12.164)), set 0.07 m from
+    /// its side face, one push leaves the standing cylinder (0.42 m with its margin) in the slab and the put pushes it again. The
+    /// rest is measured from where the body was put: it never moves there and stands. Measured from the feet pushed first
+    /// (before), the put's own second push read as a slide and the floor was refused (0.150 m "across" with 0.000 of moving there).
     #[test]
     fn the_stand_test_measures_the_rest_from_where_the_body_was_put() {
         let mut tris = ground();
-        // A face along x = 5 from 0.9 to 1.7 m over the ground: in the push's cylinder (0.8-1.8 m), open at the feet.
-        let (a, b) = (Vec3::new(5.0, 0.9, 0.0), Vec3::new(5.0, 0.9, 10.0));
-        let (c, d) = (Vec3::new(5.0, 1.7, 10.0), Vec3::new(5.0, 1.7, 0.0));
-        tris.extend([Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope }, Triangle { v: [a, c, d], walker: WalkerBehaviour::BySlope }]);
+        // A slab over x 4.95..7 from 1.24 to 1.6 m: its underside and its side face at x 4.95 (in the push's cylinder, 0.8-1.8 m).
+        let t = |a: Vec3, b: Vec3, c: Vec3| Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope };
+        let (lo, hi) = (1.24, 1.6);
+        let p = |x: f32, y: f32, z: f32| Vec3::new(x, y, z);
+        tris.extend([
+            t(p(4.95, lo, 0.0), p(7.0, lo, 0.0), p(7.0, lo, 10.0)),
+            t(p(4.95, lo, 0.0), p(7.0, lo, 10.0), p(4.95, lo, 10.0)),
+            t(p(4.95, lo, 0.0), p(4.95, lo, 10.0), p(4.95, hi, 10.0)),
+            t(p(4.95, lo, 0.0), p(4.95, hi, 10.0), p(4.95, hi, 0.0)),
+            t(p(4.95, hi, 0.0), p(4.95, hi, 10.0), p(7.0, hi, 10.0)),
+            t(p(4.95, hi, 0.0), p(7.0, hi, 10.0), p(7.0, hi, 0.0)),
+        ]);
         let world = Collision::build(&tris);
-        let feet = Vec3::new(4.88, 0.0, 5.0);
+        let (feet, room) = (Vec3::new(4.88, 0.0, 5.0), lo - 1.8);
         let first = out_of_walls(&world, feet);
-        let again = out_of_walls(&world, first);
-        assert!((again.x - first.x).abs() >= STAND_MOVED_M, "one push leaves it in the face: {first:?} -> {again:?}");
-        let rest = super::super::rest_floors::rest(&world, &Settings::LIVE, feet, f32::INFINITY).expect("rests");
+        let again = out_of_walls(&world, first + Vec3::new(0.0, 0.005, 0.0));
+        assert!((again.x - first.x).abs() >= STAND_MOVED_M, "one push leaves it in the slab: {first:?} -> {again:?}");
+        let rest = super::super::rest_floors::rest(&world, &Settings::LIVE, feet, room).expect("rests");
         assert!((rest.at.x - rest.put.x).hypot(rest.at.z - rest.put.z) < 1e-3, "it never moves across: {rest:?}");
-        let old = super::super::rest_floors::rests_at(&world, &Settings::LIVE, first, f32::INFINITY).expect("rests");
-        assert!((old.x - first.x).hypot(old.z - first.z) >= STAND_MOVED_M, "the old measure reads the second push as a slide");
-        assert!(stands(&world, &Settings::LIVE, feet, f32::INFINITY), "measured from where it was put, it stands");
+        let old = super::super::rest_floors::rests_at(&world, &Settings::LIVE, first, room).expect("rests");
+        assert!((old.x - first.x).hypot(old.z - first.z) >= STAND_MOVED_M, "the old measure reads the second push as a slide: {old:?}");
+        assert!(stands(&world, &Settings::LIVE, feet, room), "measured from where it was put, it stands");
     }
 
     /// [A364 C2 row 45] The stand test runs the client's steps: a body on flat ground stands, one in mid-air or with its centre
