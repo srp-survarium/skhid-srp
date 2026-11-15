@@ -246,6 +246,8 @@ pub struct Stuck {
     shut_landings: Vec<Shut>,
     /// The links it failed since the match last heard ([`Self::tell_failed_links`], `dead_links.rs`).
     failed_links: Vec<super::dead_links::FailedLink>,
+    /// [unstick.link_made] The route jumps a world showed it up since the match last heard ([`Self::link_made`]).
+    made_links: Vec<super::dead_links::FailedLink>,
     /// The match's dead links, as last shared ([`Self::share_dead`]): shut to every search of this body, with its own.
     dead: Vec<Shut>,
     /// The drops it shut last, watched for what followed (the bench's counts, [`drop_shuts`]): when, and where it was held.
@@ -706,6 +708,27 @@ impl Stuck {
     /// The links it failed since the match last heard, for `DeadLinks::learn`.
     pub fn tell_failed_links(&mut self) -> Vec<super::dead_links::FailedLink> {
         std::mem::take(&mut self.failed_links)
+    }
+
+    /// [unstick.link_made] A world showed this body up its route jump from `take_off` to `landing` (`motor::on_top`, A387's
+    /// judge): a failure of it the motor declared on the model's word ([`Self::failed_jump`]) is taken back: the landing's
+    /// jump shut to this body's searches is lifted, and the failure not yet told to the match is dropped. The link is told to
+    /// the match as made ([`Self::tell_made_links`], `DeadLinks::made`). Gives whether a shut or a failure was taken back.
+    /// The fall spot [`Self::failed_jump`] set stays (a cost, not a shut).
+    pub fn link_made(&mut self, take_off: Vec3, landing: Vec3) -> bool {
+        let link = super::dead_links::FailedLink { kind: ShutKind::Jump, take_off, landing };
+        let before = (self.shut_landings.len(), self.failed_links.len());
+        self.shut_landings.retain(|shut| !(shut.kind == ShutKind::Jump && shut.covers(landing)));
+        self.failed_links.retain(|failed| !failed.same(&link));
+        if !self.made_links.iter().any(|made| made.same(&link)) {
+            self.made_links.push(link);
+        }
+        before != (self.shut_landings.len(), self.failed_links.len())
+    }
+
+    /// The route jumps a world showed it up since the match last heard, for `DeadLinks::made`.
+    pub fn tell_made_links(&mut self) -> Vec<super::dead_links::FailedLink> {
+        std::mem::take(&mut self.made_links)
     }
 
     /// The match's dead links (`DeadLinks::shut`; none while its team's `unstick.dead_links` is off): every search of this
@@ -1513,6 +1536,26 @@ mod tests {
         assert_eq!(without_evidence(&tagged), plain);
         let off = "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7] [fix gap 4000 ms]";
         assert_eq!(without_evidence(off), "was 13.9 m off its reckoning; plans again to [2.2, 16.3, 105.7]");
+    }
+
+    /// [unstick.link_made] A jump the motor gave up that a world then showed the body up: its shut lifted, its failure not
+    /// told, the link told as made once; another landing's shut stays.
+    #[test]
+    fn a_jump_a_world_showed_made_is_not_failed() {
+        let mut stuck = Stuck::default();
+        let (take_off, landing) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 1.2, 0.0));
+        let other = Vec3::new(20.0, 1.0, 0.0);
+        stuck.failed_jump(1_000, take_off, Some(landing));
+        stuck.failed_jump(1_000, Vec3::new(19.0, 0.0, 0.0), Some(other));
+        assert!(stuck.link_made(take_off + Vec3::new(0.2, 0.0, 0.0), landing));
+        let told = stuck.tell_failed_links();
+        assert_eq!(told.len(), 1, "{told:?}");
+        assert_eq!(told[0].landing, other);
+        assert!(!stuck.shut_landings.iter().any(|s| s.covers(landing)), "its shut lifted");
+        assert!(stuck.shut_landings.iter().any(|s| s.covers(other)), "the other's stays");
+        assert!(!stuck.link_made(take_off, landing), "nothing more to take back");
+        assert_eq!(stuck.tell_made_links().len(), 1, "told once");
+        assert!(stuck.tell_made_links().is_empty());
     }
 
     /// [unstick.dead_links] A failed jump and a failed drop are told to the match once (the drop as its route's own link,

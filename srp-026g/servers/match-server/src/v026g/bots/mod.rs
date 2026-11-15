@@ -1914,6 +1914,27 @@ impl Bots {
             {
                 watch.up.get_or_insert(time);
                 bot.motor.link_up_seen(route.take_off, route.landing);
+                // [unstick.link_made] No failure on the model's word: a jump given up that this world shows made is taken back
+                // (its shut, its failure not told), and the match hears it made (`dead_links.rs`).
+                if self.tunings.of(bot.team).unstick.link_made && bot.stuck.link_made(route.take_off, route.landing) {
+                    log::debug!(
+                        "link made: player {place} up ({:.1}, {:.1}, {:.1}) -> ({:.1}, {:.1}, {:.1}) at {time} ms: its failure taken back",
+                        route.take_off.x,
+                        route.take_off.y,
+                        route.take_off.z,
+                        route.landing.x,
+                        route.landing.y,
+                        route.landing.z
+                    );
+                    bot.note(
+                        &mut notes,
+                        time,
+                        format!(
+                            "a world shows it up the jump to {:?}: the jump it gave up is taken back (its shut lifted, not told failed)",
+                            route.landing.to_array()
+                        ),
+                    );
+                }
             }
             if !new_life
                 && let Some(fall) = before.and_then(|before| nav_log::Fall::between(before, (time, feet), reckoned))
