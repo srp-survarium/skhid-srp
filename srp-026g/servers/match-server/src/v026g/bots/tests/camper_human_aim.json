@@ -213,6 +213,7 @@
     "weapon_in_hands": false,
     "hands_from_world": false,
     "reload_end_from_world": false,
+    "reload_end_from_knot": false,
     "stacks_from_world": false,
     "hit_kind": false,
     "reload_aim_control": true,

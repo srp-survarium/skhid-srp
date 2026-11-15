@@ -510,6 +510,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/aim/combat/hands_from_world",
     "/aim/combat/hit_kind",
     "/aim/combat/reload_end_from_world",
+    "/aim/combat/reload_end_from_knot",
     "/aim/combat/spawn_protection",
     "/aim/combat/stacks_from_world",
     "/aim/combat/worn_kit_from_world",
