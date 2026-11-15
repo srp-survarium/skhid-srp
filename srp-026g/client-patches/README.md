@@ -4144,9 +4144,12 @@ A free-for-all (mode 8) gives each player a team of his own (srp: 4 + his place;
   ffa-1: 0.31's free-for-all points): each point is ranked by the squared distance to the nearest
   living player, a point given to another player at the same tick counting as a player; of the
   points that pass the game's own clear test (0x2F4800, with his own team) and have no given point
-  inside their enemy radius, he chooses among all of them using a wrapping u32 mix of match
-  milliseconds and player place, modulo the safe pool size. Safe central points have the same
-  eligibility as safe edges; regular respawn intervals do not lock a player to a short rotation.
+  inside their enemy radius, ordered by the squared distance to the nearest living player, he
+  chooses among the nearest max(3, ceil(pool x players / 10)) (players: the places in the match,
+  the world core's `[rule+134h]+18FD8h`; all of them, in map order, in a match of 10 or more, or with nobody
+  living; the owner, 2026-11-15, closer when few) using a wrapping u32 mix of match milliseconds
+  and player place, modulo that count. Regular respawn intervals do not lock a player to a short
+  rotation.
   With none safe, he chooses among the five best-separated points (or all on a smaller map). Nobody waits; clients and replays agree.
 - **Never the last two** (the owner, 2026-11-15). Neither the pool nor the fallback offers a player
   the two points he last spawned at, unless the map has no other. Each place's last two point

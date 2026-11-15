@@ -22046,6 +22046,24 @@ impl PlayerRespawnRuleBase {
     pub unsafe fn team_2_count(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x19c).cast::<u32>().as_ptr() }
     }
+
+    /// +0x134 (ptr<survarium::core_world>): its world core: the tick (0x316820) asks it each place's player, core_active_player 0x2D0AB0 at 0x3168A8 with [rule+134h] (0x31689F); spawn_player 0x316DA0 reads its places
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn core(self) -> Option<CoreWorld> {
+        unsafe { self.0.byte_add(0x134).cast::<Option<CoreWorld>>().read_volatile() }
+    }
+
+    /// +0x134 (ptr<survarium::core_world>): its world core: the tick (0x316820) asks it each place's player, core_active_player 0x2D0AB0 at 0x3168A8 with [rule+134h] (0x31689F); spawn_player 0x316DA0 reads its places
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_core(self, value: Option<CoreWorld>) {
+        unsafe { self.0.byte_add(0x134).cast::<Option<CoreWorld>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::respawn_point_core (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,

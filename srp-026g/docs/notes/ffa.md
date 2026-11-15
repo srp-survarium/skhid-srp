@@ -116,8 +116,9 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - every point that passes the game's clear test (no other player within its
     enemy radius: 20 m on every map), and has no point already assigned
     at this tick inside that radius, enters the pool in map order;
-  - choose from the whole safe pool, without favouring greater distance;
-    safe central points are as eligible as safe edge points;
+  - closer when few ("Closer when few", below): the pool, nearest to a living player first, is
+    cut to its nearest max(3, ceil(pool x players / 10)); a match of 10 players or more, or one
+    with nobody living, keeps the whole pool in map order, without favouring greater distance;
   - a wrapping u32 integer mix of match milliseconds and player place picks
     the pool index. Mixing before modulo avoids locking regular respawns
     to a subset of points. It needs no persistent random state;
@@ -125,6 +126,37 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     nearest living player or spawn already assigned at this tick, using the
     same mix. Equal ranks keep map order; smaller maps use all their points;
   - neither offers the player's last two points ("Never the last two", below).
+- **Closer when few** (the owner, 2026-11-15: "I want when there are not many people for spawns to
+  be closer"): with 2-4 players on a map of 50-70 points the whole pool put them far apart, running
+  round an empty map.
+  - What stays: the clear test (20 m), the tick's separation, the last two, the crowded fallback,
+    the turn (no unsynchronized randomness).
+  - Order: the pool's points by the squared distance to the nearest living player (any other: in a
+    free-for-all every one is an enemy), nearest first, equal ones by the point's index.
+  - How many: the nearest max(3, ceil(pool x players / 10)), at most the pool; players are the
+    places in the match (the world core's active places, `[rule+134h]+18FD8h`: the core the
+    respawn tick asks each place's player of, world state, so every game, late joiner and replay
+    counts alike). 2 players on a pool of 50: the nearest 10; 4: 20; 8: 40; 10 or more: all.
+  - All of them (10 players or more), or nobody living (the match's start, or everyone dead at
+    once): the whole pool in map order, the very point of before.
+  - Tuned offline (mine; a sketch, not in the repo) on the team-2 points of a rev-61 content
+    build: the others alive, each within 15 m of a random spawn; the median distance from a
+    respawn to the nearest living enemy, before -> now:
+
+    | Map (points) | 2 players | 4 | 8 | 16 |
+    |---|---|---|---|---|
+    | Rudnya (60) | 81 -> 36 m | 49 -> 32 | 35 -> 32 | 28 (same) |
+    | Training Camp (47) | 36 -> 24 | 27 -> 23 | 23 -> 22.5 | 21 (same) |
+    | Vostok (75) | 58 -> 29 | 40 -> 27 | 31.5 -> 29 | 28 (same) |
+    | Experimental Pool (28) | 40 -> 25 | 28 -> 23.5 | 23 -> 22.7 | 15 (same) |
+
+    Divisor 12 (the first try): two players at 23-34 m; 8: 24-39 m, but no change from 8 players
+    on. 10, chosen: two players at 24-36 m (the small dense maps at the 20 m radius's edge), a
+    little closer up to 9, no change from 10 on. The minimum of 3 does not bind on these maps
+    (their pools are larger); it keeps a choice when few points are clear.
+  - Release impact: a simulation change of patch 142, Free for All only (simulation_changes.tsv
+    `next`); no world-format change. Offline only (Rust tests, the Unicorn check); not played. To
+    try in a game: a Free for All of two players, respawns near the other one (just past 20 m).
 - **Never the last two** (the owner, 2026-11-15: "players never repeat their last 2 spawns"): a
   player's respawn point is never one of the two points he last spawned at.
   - When: every spawn of a free-for-all, the first included; the clear pool and the crowded

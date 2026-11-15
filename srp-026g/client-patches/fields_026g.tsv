@@ -1175,6 +1175,7 @@ vostok::file_open_options	assert_on_failure	0x8	u32	4179F passes to path normali
 vostok::replay_path	bytes	0x0	u8	Resolved ANSI replay path, caller-owned 260-byte buffer (1F02C0)
 survarium::player_respawn_rule_base	team_2_points	0x190	ptr<survarium::respawn_point_core>	the team-2 group of respawn points, inline (cook 0x2C6A12: team 0, 1, 2 at +188h, +18Ch, +190h; select 0x317397)
 survarium::player_respawn_rule_base	team_2_count	0x19C	u32	their count (counts at +194h, +198h, +19Ch; 0x317368)
+survarium::player_respawn_rule_base	core	0x134	ptr<survarium::core_world>	its world core: the tick (0x316820) asks it each place's player, core_active_player 0x2D0AB0 at 0x3168A8 with [rule+134h] (0x31689F); spawn_player 0x316DA0 reads its places
 survarium::respawn_point_core	position	0x8	f32	its position, a float3 (is_clear_for_team 0x2F483F)
 survarium::respawn_point_core	enemy_radius	0x34	f32	enemy_check_radius: no player of another team nearer (0x2F48A3)
 survarium::respawn_point_core	size	0x38	size	a point of a group (select's step 0x317270)
