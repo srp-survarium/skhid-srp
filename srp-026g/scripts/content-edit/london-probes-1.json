@@ -1,0 +1,477 @@
+{
+  "_about": "London's lighting (the owner, 2026-11-15: screenshots 20-43-49, 20-43-58, 20-44-40 and 20-45-05). Its ten window reflection probes (reflection_window, reflection_window(1) to (9)) go: they have affect_diffuse false, which no stock 0.26g probe has, and 0.26g's shader for it writes the surface's own colour into the ambient light, so white walls glowed in their slabs, a halo ran round the wall hole and bright strips beside the boarded windows. The corridor probe gerkin(4) takes its neighbour gerkin(3)'s cubemap: its own has the fluorescent lamp's lavender light baked in, which stayed once the lamp was shot out. In all five projects (docs/notes/map-probes.md).",
+  "remove_entry": [
+    {
+      "file": "projects/level_09/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(1)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(2)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(3)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(4)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(5)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(6)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(7)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(8)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(9)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(1)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(2)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(3)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(4)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(5)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(6)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(7)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(8)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(9)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(1)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(2)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(3)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(4)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(5)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(6)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(7)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(8)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(9)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(1)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(2)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(3)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(4)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(5)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(6)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(7)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(8)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(9)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(1)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(2)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(3)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(4)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(5)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(6)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(7)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(8)",
+        "game_object_type": "environment_probe"
+      }
+    },
+    {
+      "file": "projects/level_09/day_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/reflection_window(9)",
+        "game_object_type": "environment_probe"
+      }
+    }
+  ],
+  "set_entry": [
+    {
+      "file": "projects/level_09/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/gerkin(4)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "texture": "environment_probes/level_09/probe_day_default_55484851232033667035"
+      },
+      "to": {
+        "texture": "environment_probes/level_09/probe_day_default_69818708879831187022"
+      }
+    },
+    {
+      "file": "projects/level_09/day_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/gerkin(4)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "texture": "environment_probes/level_09/probe_day_default_55484851232033667035"
+      },
+      "to": {
+        "texture": "environment_probes/level_09/probe_day_default_69818708879831187022"
+      }
+    },
+    {
+      "file": "projects/level_09/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/gerkin(4)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "texture": "environment_probes/level_09/probe_day_default_55484851232033667035"
+      },
+      "to": {
+        "texture": "environment_probes/level_09/probe_day_default_69818708879831187022"
+      }
+    },
+    {
+      "file": "projects/level_09/day_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/gerkin(4)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "texture": "environment_probes/level_09/probe_day_default_55484851232033667035"
+      },
+      "to": {
+        "texture": "environment_probes/level_09/probe_day_default_69818708879831187022"
+      }
+    },
+    {
+      "file": "projects/level_09/day_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/gerkin(4)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "texture": "environment_probes/level_09/probe_day_default_55484851232033667035"
+      },
+      "to": {
+        "texture": "environment_probes/level_09/probe_day_default_69818708879831187022"
+      }
+    }
+  ]
+}
