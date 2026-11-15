@@ -810,17 +810,18 @@ pub struct FallBody {
 }
 
 /// [S6] Whether a walk-off's second hurting landing ([`held_floors::Landings::also`]) adds its pain to the first's, for this
-/// body. The landings are summed only where nothing between them can make the sum overstate (the exe review of #2025): the
-/// gate never closes a drop the body survives.
+/// body (the exe reviews of #2025 and #2029).
+///
+/// Both legs broken at the first landing (a foot's fall hit reaches its leg whole, `hit_by_type` 0x329FF0 again for the
+/// leg, blunt coefficient 1, no armour, and empties it at the pool or more, 0x32A25A..0x32A28B; with both emptied the crouch
+/// is forced, 0x2FBDF0, +388h == 2 at 0x2FBE05 / 0x2FBE0C) stop the body on the ledge: it goes on after the wound's 8 s, or
+/// creeps, and takes the second landing then. The sum is kept there: only the pain regenerated meanwhile comes back (0.1 a
+/// second after the stock 8 s delay), so it over-closes by that at most, while the hardest landing alone would leave open a
+/// drop that kills at the second landing; and the link strands a body with both legs broken for 8 s either way.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SecondLanding {
-    /// No drug course that gives pain back may be running; `stronger_leg` is the higher of its two leg pools now. A foot's
-    /// fall hit reaches its leg whole (`hit_by_type` 0x329FF0 again for the leg, blunt coefficient 1, no armour) and empties
-    /// it at the pool or more (0x32A25A..0x32A28B). With both legs emptied the crouch is forced (0x2FBDF0, +388h == 2 at
-    /// 0x2FBE05 / 0x2FBE0C; one leg takes only the sprint and the jump): the body stops on the ledge, so the hardest landing
-    /// alone is judged. That under-closes: the body goes on after the wound's 8 s (or creeps) and takes the second landing
-    /// with only the pain regenerated since (0.1 a second after the 8 s delay).
-    Adds { stronger_leg: f32 },
+    /// No drug course that gives pain back may be running: the landings' pains add.
+    Adds,
     /// A drug course that gives pain back may be running (`medkit::tick` 0x33D790 restores the pain pool each tick of its
     /// active time; a fall's hit ends no course, patch 84 being ranged only): the pool may hold more at the second landing
     /// than the sum counts, so the hardest landing alone is judged.
@@ -828,10 +829,10 @@ pub enum SecondLanding {
 }
 
 impl SecondLanding {
-    /// The one that sums less: [`Self::HardestOnly`] if either is, else the lower of the two stronger legs.
+    /// The one that sums less: [`Self::HardestOnly`] if either is.
     pub fn and(self, other: Self) -> Self {
         match (self, other) {
-            (Self::Adds { stronger_leg: a }, Self::Adds { stronger_leg: b }) => Self::Adds { stronger_leg: a.min(b) },
+            (Self::Adds, Self::Adds) => Self::Adds,
             _ => Self::HardestOnly,
         }
     }
@@ -935,7 +936,7 @@ impl Reach {
         };
         let hurt = body.pain_of(height, start);
         let judged = match start {
-            FallStart::Landed(landings) => FallStart::Landed(landings.judged(body.fall_scale, body.second)),
+            FallStart::Landed(landings) => FallStart::Landed(landings.judged(body.second)),
             other => other,
         };
         (hurt >= body.pain).then_some((hurt, body.pain, judged))

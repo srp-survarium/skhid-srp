@@ -35,12 +35,12 @@ fn body_reach(bot: &Bot, me: &PlaceView, time: u32) -> mapdata::Reach {
     // [S6] The falls it survives: its pain pool in the latest world, its fall-damage scale, nothing that may lower the hit.
     let fall = match (bot.features.stock.pools, bot.fall_scale) {
         (Some(pools), Some(fall_scale)) => {
-            // [S6] A walk-off's second hurting landing adds its pain unless a drug may give pain back meanwhile; its legs'
-            // pools decide, per drop, whether the first landing leaves it walking on (`mapdata::SecondLanding`).
+            // [S6] A walk-off's second hurting landing adds its pain unless a drug may give pain back meanwhile
+            // (`mapdata::SecondLanding`).
             let second = if super::plays::heal::pain_course_may_run(&bot.features.stock.pantry, time) {
                 mapdata::SecondLanding::HardestOnly
             } else {
-                mapdata::SecondLanding::Adds { stronger_leg: pools.legs[0].max(pools.legs[1]) }
+                mapdata::SecondLanding::Adds
             };
             let body = mapdata::FallBody { pain: pools.pain, fall_scale, jumps: super::jump_arc::jump_ends(), second };
             match bot.fall_save {
