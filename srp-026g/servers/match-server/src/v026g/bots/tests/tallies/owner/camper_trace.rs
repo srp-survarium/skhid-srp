@@ -23,6 +23,7 @@ pub(super) struct CamperTrace {
     kills_seen: usize,
     all_kills_seen: usize,
     shots_seen: usize,
+    parts_seen: usize,
     /// Each team's skill at the last tick (`signals::Skill`).
     team_skill: [f32; 2],
     ticks: u64,
@@ -188,6 +189,16 @@ impl Topic for CamperTrace {
             let skill = game.bodies.get(s).map(|b| self.team_skill[usize::from(b.team).min(1)]);
             let (target, dist) = aimed.map_or((None, None), |(p, d)| (Some(p), Some(r2(d))));
             self.write(serde_json::json!({"t": t, "shot": [s, target, dist, class, skill.map(r3)]}));
+        }
+        // The box shapes' hits he took or made, with whether a bullet landed on the head.
+        let parts: Vec<(u32, Place, Place, bool)> = game.hit_part_log[self.parts_seen.min(game.hit_part_log.len())..]
+            .iter()
+            .copied()
+            .filter(|&(_, s, v, _)| s == camper || v == camper)
+            .collect();
+        self.parts_seen = game.hit_part_log.len();
+        for (t, s, v, head) in parts {
+            self.write(serde_json::json!({"t": t, "hit_part": [s, v, head]}));
         }
         let every: Vec<(u32, Place, Place)> = run.kills[self.all_kills_seen.min(run.kills.len())..].to_vec();
         self.all_kills_seen = run.kills.len();
