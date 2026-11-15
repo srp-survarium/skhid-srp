@@ -1144,7 +1144,7 @@ fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3, armour: Option<&ZoneArmour>, h
         let p = a + (b - a) * ((i as f32 + 0.5) / n as f32);
         match grid.locate(p, 1.5) {
             Some(node) => tactics.hazards.leg_walk_step(&mut walk, grid, node, armour, hurt, ds / CROSS_MPS),
-            None => walk.step(std::iter::empty(), armour, ds / CROSS_MPS, 0.0),
+            None => walk.step(std::iter::empty(), armour, ds / CROSS_MPS, crate::v026g::bots::zone_cost::Cost::ZERO),
         }
     }
     walk.total()

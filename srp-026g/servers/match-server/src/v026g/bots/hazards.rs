@@ -841,7 +841,7 @@ impl Hazards {
             None => Cost::body(self.hurt_per_s(grid, node, rule)),
             Some(armour) => {
                 self.weighted_zones_at(grid, node, rule).map(|(zone, w)| zone.cost_per_s(armour) * w).sum::<Cost>()
-                    + Cost::body(self.live.hit_per_s(node))
+                    + self.live.cost_per_s(node, Some(armour))
             }
         }
     }
@@ -853,21 +853,22 @@ impl Hazards {
         if !rule.by_intensity {
             return self.cost_per_s(node, armour);
         }
-        let live = self.live.hit_per_s(node);
+        let live = self.live.cost_per_s(node, armour);
         match armour {
             None => {
                 let baked: f32 = self.zones_at(node).map(|zone| zone.hit_per_s() * rule.intensity(zone, grid, node)).sum();
-                Cost::body(baked + live)
+                Cost::body(baked) + live
             }
             Some(armour) => {
                 self.zones_at(node).map(|zone| zone.cost_per_s(armour) * rule.intensity(zone, grid, node)).sum::<Cost>()
-                    + Cost::body(live)
+                    + live
             }
         }
     }
 
     /// [Gap 12] `seconds` on `node` into `walk`: each zone that marks it at `weight` of its full hit (1, or the leg's
-    /// intensity, [`Self::leg_walk_step`]), the live fields at their rate (`zone_cost::WalkPrice`).
+    /// intensity, [`Self::leg_walk_step`]), the live fields at their rate in the pools under `armour`
+    /// (`zone_cost::WalkPrice`).
     pub fn walk_step(
         &self,
         walk: &mut super::zone_cost::WalkPrice,
@@ -876,7 +877,7 @@ impl Hazards {
         seconds: f32,
         weight: impl Fn(&Hazard) -> f32,
     ) {
-        walk.step(self.zones_at(node).map(|zone| (zone, weight(zone))), armour, seconds, self.live.hit_per_s(node));
+        walk.step(self.zones_at(node).map(|zone| (zone, weight(zone))), armour, seconds, self.live.cost_per_s(node, armour));
     }
 
     /// [Gap 12] [`Self::leg_cost_per_s`]'s pricing of `seconds` on `node`, into `walk`: each zone that marks it at its
@@ -894,13 +895,13 @@ impl Hazards {
     }
 
     /// [`Self::hit_per_s`] in the pools that kill, under `armour` (`None`: the raw hit in the body
-    /// pool, the number it always was). The live fields count by their raw hit in the body pool.
+    /// pool, the number it always was), the live fields' as the baked zones' ([`FieldBoard::cost_per_s`]).
     pub fn cost_per_s(&self, node: NodeId, armour: Option<&ZoneArmour>) -> Cost {
         match armour {
             None => Cost::body(self.hit_per_s(node)),
             Some(armour) => {
                 self.zones_at(node).map(|zone| zone.cost_per_s(armour)).sum::<Cost>()
-                    + Cost::body(self.live.hit_per_s(node))
+                    + self.live.cost_per_s(node, Some(armour))
             }
         }
     }

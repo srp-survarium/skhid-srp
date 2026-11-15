@@ -308,6 +308,74 @@ impl ZoneArmour {
     }
 }
 
+/// A zone's hit as the client hands it out (`damage_zone_core::hit_objects` 0x319AF0): `per_part_s` a second at full
+/// intensity to each part its `hit_parts_filter` names, of its damage type. That is what the zone hands the parts,
+/// not what the body loses: each part's share goes through the part's armour against the type
+/// (`body_part_parameters::hit_by_type` 0x329FF0) and on to the pools by the body table (0x33FA80,
+/// `human_hit_params`; [`damage::BodyParams::zone_hit`]). A baked zone's is read from its `Hazard`, a live field's
+/// from its damage zone (`live_zones::WorldField::hit`).
+#[derive(Clone, Debug, PartialEq)]
+pub enum ZoneHit {
+    /// The parts named (a map file of format 4 or later): routed by the body table.
+    Parts {
+        /// The zone's `damage_type`.
+        hit_type: String,
+        /// `hit_parts_filter`'s names.
+        parts: Vec<String>,
+        /// What each part is handed a second at full intensity ([`mapdata::Damage::part_rate_per_s`]).
+        per_part_s: f32,
+        /// `max_armor_piercing`.
+        piercing: f32,
+    },
+    /// Only the parts' count known (a file written before format 4, or the bench's made-up fields): `per_s` handed in
+    /// all, priced as the raw hit in the body pool.
+    Raw { per_s: f32 },
+}
+
+impl ZoneHit {
+    /// The hit of a zone of `hit_type` whose file gives `damage`.
+    pub fn of(hit_type: &str, damage: &mapdata::Damage) -> Self {
+        if damage.part_names.is_empty() {
+            return Self::Raw { per_s: damage.rate_per_s() };
+        }
+        Self::Parts {
+            hit_type: hit_type.to_owned(),
+            parts: damage.part_names.clone(),
+            per_part_s: damage.part_rate_per_s(),
+            piercing: damage.armor_piercing,
+        }
+    }
+
+    /// What it hands the parts a second at full intensity, summed ([`mapdata::Damage::rate_per_s`]).
+    pub fn handed_per_s(&self) -> f32 {
+        match self {
+            Self::Parts { parts, per_part_s, .. } => per_part_s * parts.len() as f32,
+            Self::Raw { per_s } => *per_s,
+        }
+    }
+
+    /// What it takes a second at full intensity from the pools that kill, under `armour` (`None`: the raw hit in the
+    /// body pool, the model off, as a baked zone's [`Hazard::cost_per_s`]).
+    pub fn cost_per_s(&self, armour: Option<&ZoneArmour>) -> Cost {
+        match (self, armour) {
+            (Self::Parts { hit_type, parts, per_part_s, piercing }, Some(armour)) => {
+                routed(hit_type, parts, *per_part_s, *piercing, armour)
+            }
+            _ => Cost::body(self.handed_per_s()),
+        }
+    }
+}
+
+/// The pools that kill, under `armour`, for `per_part` a second of `hit_type` to each of `parts`
+/// ([`damage::BodyParams::zone_hit`]), after the kit's modifier of an anomalous hit ([`ZoneArmour::scaled`]).
+fn routed(hit_type: &str, parts: &[String], per_part: f32, piercing: f32, armour: &ZoneArmour) -> Cost {
+    damage::human()
+        .zone_hit(parts, hit_type, armour.scaled(hit_type, per_part), piercing, |part, hit_type| armour.against(part, hit_type))
+        .into_iter()
+        .map(|(pool, amount)| Cost::of_pool(&pool, amount))
+        .sum()
+}
+
 /// How a battery's crossing was weighed with the pools routed (the bench's tally): asked, borne, refused.
 /// Raw asks are not counted.
 #[cfg(test)]
@@ -413,17 +481,17 @@ struct ZoneClock {
 
 impl WalkPrice {
     /// `seconds` on a floor where the zones `zones` hit, each at its weight of its full hit (the intensity there, or
-    /// 1), under `armour` (`None`: the raw hit in the body pool), and live fields `live_per_s` a second (their rate,
-    /// in the body pool). A step in no zone is `zones` empty.
+    /// 1), under `armour` (`None`: the raw hit in the body pool), and live fields that take `live` a second (their
+    /// hit priced under the same armour, [`ZoneHit::cost_per_s`]). A step in no zone is `zones` empty.
     pub fn step<'z>(
         &mut self,
         zones: impl Iterator<Item = (&'z Hazard, f32)>,
         armour: Option<&ZoneArmour>,
         seconds: f32,
-        live_per_s: f32,
+        live: Cost,
     ) {
         let (start, end) = (self.clock, self.clock + seconds);
-        self.loss = self.loss + Cost::body(live_per_s) * seconds;
+        self.loss = self.loss + live * seconds;
         for (zone, weight) in zones {
             let per_s = match armour {
                 None => Cost::body(zone.hit_per_s()),
@@ -491,19 +559,10 @@ impl Hazard {
         self.cost_of(damage, damage.part_rate_at(d), armour)
     }
 
-    /// The pools that kill, under `armour`, for `per_part` a second to each part the zone hits.
+    /// The pools that kill, under `armour`, for `per_part` a second to each part the zone hits ([`routed`], as a live
+    /// field's [`ZoneHit::cost_per_s`]).
     fn cost_of(&self, damage: &mapdata::Damage, per_part: f32, armour: &ZoneArmour) -> Cost {
-        damage::human()
-            .zone_hit(
-                &damage.part_names,
-                &self.damage_type,
-                armour.scaled(&self.damage_type, per_part),
-                damage.armor_piercing,
-                |part, hit_type| armour.against(part, hit_type),
-            )
-            .into_iter()
-            .map(|(pool, amount)| Cost::of_pool(&pool, amount))
-            .sum()
+        routed(&self.damage_type, &damage.part_names, per_part, damage.armor_piercing, armour)
     }
 }
 
@@ -570,7 +629,7 @@ mod tests {
             let mut price = WalkPrice::default();
             for &(inside, seconds) in steps {
                 let zones: Vec<(&Hazard, f32)> = if inside { vec![(&electro, 1.0)] } else { Vec::new() };
-                price.step(zones.into_iter(), None, seconds, 0.0);
+                price.step(zones.into_iter(), None, seconds, Cost::ZERO);
             }
             price.total().body
         };
@@ -582,7 +641,7 @@ mod tests {
         assert!(near(walk(&[(true, 0.2), (false, 1.0), (true, 0.2)]), 2.0 * hit), "back in after it: a hit");
         let fire = zone("fire", &[], 0.1, 0.0);
         let mut price = WalkPrice::default();
-        price.step(std::iter::once((&fire, 1.0)), None, 0.3, 0.0);
+        price.step(std::iter::once((&fire, 1.0)), None, 0.3, Cost::ZERO);
         assert!(near(price.total().body, 0.3 * fire.hit_per_s()), "continuous: its rate");
     }
 
@@ -654,6 +713,37 @@ mod tests {
         // Fire on the torso takes the body pool too.
         let torso = zone("fire", &["front"], 0.1, 0.0);
         assert!(near(torso.cost_per_s(&ZoneArmour::default()).body, 0.1));
+    }
+
+    /// What a zone hands the parts is not what the body loses: the dynamic anomalies' pack (`dynamic_anomalies.md`'s
+    /// table, `build.py` `MAX_HIT`) hands spring's nine parts 0.0625 of shock a second each, 0.5625 in all, and the
+    /// body table takes pain 0.5 (every part feeds pain, 8.0 in all), the body 0.125 (back and front) and the head
+    /// 0.0625 (brain); onyx's radiation on the same nine and lifebone's toxic on the face take infection 0.5. A
+    /// [`ZoneHit`] prices as the baked zone of the same damage, and with no armour model as its raw hit.
+    #[test]
+    fn a_zones_hit_is_what_it_hands_the_parts_and_the_pools_take_it_by_type() {
+        let nine = ["back", "front", "brain", "left_hip", "right_hip", "left_foot", "right_foot", "left_arm", "right_arm"];
+        let bare = ZoneArmour::default();
+        let hit = |hit_type: &str, parts: &[&str], max_hit: f32| {
+            let baked = zone(hit_type, parts, max_hit, 0.0);
+            let hit = ZoneHit::of(hit_type, baked.damage.as_ref().unwrap());
+            assert_eq!(hit.cost_per_s(Some(&bare)), baked.cost_per_s(&bare), "{hit_type}: as the baked zone");
+            assert_eq!(hit.cost_per_s(None), Cost::body(baked.hit_per_s()), "{hit_type}: the model off, its raw hit");
+            assert!(near(hit.handed_per_s(), baked.hit_per_s()), "{hit_type}");
+            hit
+        };
+        let spring = hit("shock", &nine, 0.0625);
+        assert!(near(spring.handed_per_s(), 0.5625), "handed: {}", spring.handed_per_s());
+        let cost = spring.cost_per_s(Some(&bare));
+        assert!(near(cost.pain, 0.5) && near(cost.body, 0.125) && near(cost.head, 0.0625) && cost.infection == 0.0, "{cost:?}");
+        let onyx = hit("radiation", &nine, 0.0556).cost_per_s(Some(&bare));
+        assert!(near(onyx.infection, 9.0 * 0.0556) && onyx.body == 0.0 && onyx.head == 0.0 && onyx.pain == 0.0, "{onyx:?}");
+        let lifebone = hit("toxic", &["face"], 0.5).cost_per_s(Some(&bare));
+        assert!(near(lifebone.infection, 0.5) && lifebone.body == 0.0 && lifebone.pain == 0.0, "{lifebone:?}");
+        // Only the parts' count known: the raw hit in the body pool, armour or not.
+        let raw = ZoneHit::Raw { per_s: 0.5 };
+        assert_eq!(raw.cost_per_s(Some(&bare)), Cost::body(0.5));
+        assert_eq!(raw.cost_per_s(None), Cost::body(0.5));
     }
 
     /// A zone with no hit in the file is lethal.

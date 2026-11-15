@@ -4390,7 +4390,7 @@ pub(super) mod tests {
                 half: Vec3::new(radius, 2.0, radius),
             },
             phase,
-            hit_per_s: super::super::tests::standin_fields::STANDIN_HIT_PER_S,
+            hit: super::super::tests::standin_fields::standin_hit(),
         }
     }
 
