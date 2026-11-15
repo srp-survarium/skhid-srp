@@ -32,7 +32,7 @@ fn body_reach(bot: &Bot, me: &PlaceView) -> mapdata::Reach {
     } else {
         mapdata::SprintReach::Can
     };
-    // [S6] The falls it survives: its pain pool in the latest world, its fall-damage scale, nothing that may stop the hit.
+    // [S6] The falls it survives: its pain pool in the latest world, its fall-damage scale, nothing that may lower the hit.
     let fall = match (bot.features.stock.pools, bot.fall_scale, bot.fall_save) {
         (Some(pools), Some(fall_scale), super::FallSave::Nothing) => mapdata::FallRoom::Survives { pain: pools.pain, fall_scale },
         _ => mapdata::FallRoom::Any,

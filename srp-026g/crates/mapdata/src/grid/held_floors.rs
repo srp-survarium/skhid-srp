@@ -95,12 +95,21 @@ pub fn fall_hit(speed: f32, fall_scale: f32) -> f32 {
     }
 }
 
-/// [S6] The pain a walk-off drop of `height` m takes ([`walk_off_landing_speed`], [`fall_hit`]): two foot hits, each blunt, of
-/// which [`PAIN_PER_FOOT`] goes to pain (`human_hit_params` feet `bdb_coeff`, `docs/notes/hand-kill.md`; no armour stops a
-/// blunt hit, `docs/notes/armour-params.md`: no piece lists `blunt`). A pain pool emptied is death (`on_affect` 0x2DA480).
+/// [S6] The pain a walk-off drop of `height` m takes at the least ([`walk_off_landing_speed`], [`fall_hit`]): two foot hits,
+/// each blunt, of which [`PAIN_PER_FOOT`] goes to pain (`human_hit_params` feet `bdb_coeff`, `docs/notes/hand-kill.md`; the
+/// hits right foot then left foot through the player's hit 0x2D9AE0, type 1 at 0x2D8348, no source; no armour stops a blunt
+/// hit, `docs/notes/armour-params.md`: no piece lists `blunt`). A pain pool emptied is death (`on_affect` 0x2DA480; `hurt >=
+/// pain` the exe's own clamp, 0x32A25A..0x32A28B). The fall is counted from [`RIM_SLIDE_M`] under the ledge: the body slides
+/// that far over the rim on ticks that still find ground before it falls, so a drop just past a tick's boundary lands a
+/// tick's speed slower than the ledge's height alone gives (the exe review of #1969's run); counting from there never
+/// overstates the pain.
 pub fn fall_pain(height: f32, fall_scale: f32) -> f32 {
-    2.0 * PAIN_PER_FOOT * fall_hit(walk_off_landing_speed(height), fall_scale)
+    2.0 * PAIN_PER_FOOT * fall_hit(walk_off_landing_speed((height - RIM_SLIDE_M).max(0.0)), fall_scale)
 }
+
+/// [S6] How far a body walked off a ledge slides down over its rim on ticks that still find ground, before its fall begins,
+/// m (an exe run of a 2 m ledge: 0.05 m on 3 such ticks, no gravity yet; the exe review of #1969).
+const RIM_SLIDE_M: f32 = 0.05;
 
 /// What a drop of `height` m costs a route, m: the pain the fall takes (both feet, [`PAIN_PER_FOOT`] of each foot's hit) at
 /// [`FALL_DAMAGE_M`] a pool's loss; 0 for a harmless one.
@@ -249,8 +258,9 @@ mod tests {
     use super::*;
 
     /// [S6] The walk-off fall by the client's whole ticks lands as the note's tick table has it (`docs/notes/fall_damage.md`
-    /// "Walking or sprinting off": 4 m 8.8 m/s 0; 6 m 10.8, 0.21; 8 m 12.7, 0.69; 10 m 14.2, 1.0), so a full pain pool (1.0)
-    /// is emptied from 8 m (1.6 x 0.69) and not at 7 m (1.6 x 0.45); the fall-damage skill's x0.7 saves the 8 m drop.
+    /// "Walking or sprinting off": 4 m 8.8 m/s 0; 6 m 10.8, 0.21; 8 m 12.7, 0.69; 10 m 14.2, 1.0). Counted from the rim's
+    /// slide ([`RIM_SLIDE_M`]), a full pain pool (1.0) is emptied from 8.05 m (1.6 x 0.69) and not at 8.00 m (1.6 x 0.57), nor
+    /// at 7 m; the fall-damage skill's x0.7 saves the 8.1 m drop.
     #[test]
     fn a_walk_off_fall_hurts_by_the_clients_ticks() {
         let near = |a: f32, b: f32| (a - b).abs() < 0.01;
@@ -258,8 +268,8 @@ mod tests {
         assert!(near(walk_off_landing_speed(6.0), 10.78) && near(fall_hit(walk_off_landing_speed(6.0), 1.0), 0.21));
         assert!(near(walk_off_landing_speed(8.0), 12.74) && near(fall_hit(walk_off_landing_speed(8.0), 1.0), 0.69));
         assert!(near(fall_hit(walk_off_landing_speed(10.0), 1.0), 1.0));
-        assert!(fall_pain(8.0, 1.0) >= 1.0 && fall_pain(7.0, 1.0) < 1.0);
-        assert!(fall_pain(8.0, 0.7) < 1.0, "{}", fall_pain(8.0, 0.7));
+        assert!(fall_pain(8.1, 1.0) >= 1.0 && fall_pain(8.0, 1.0) < 1.0 && fall_pain(7.0, 1.0) < 1.0);
+        assert!(fall_pain(8.1, 0.7) < 1.0, "{}", fall_pain(8.1, 0.7));
     }
 
     /// The fall rule's table (`docs/notes/fall_damage.md`, fatal_damage 1.0): nothing to 5 m, 0.23 at 6 m, 0.44 at 7 m, 1.0 from
