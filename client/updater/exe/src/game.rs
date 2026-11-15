@@ -472,7 +472,7 @@ pub fn ensure(
         if code != 0 {
             return Err(Some(format!(
                 "The game extractor failed (exit {code}). Nothing was installed. What it \
-                 printed is in updater_skhid.log beside the updater."
+                 printed is in updater_skhid.<date>.log beside the updater."
             )));
         }
         for (name, expected) in game::FILES {

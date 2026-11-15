@@ -327,6 +327,13 @@ impl MapMode {
     pub fn is_playable(&self) -> bool {
         self.has_project
     }
+
+    /// One of the STALKER maps (`stalker-maps.md`): its project a `v010b_` port (Clear Sky's
+    /// mp_bath, mp_military_1, mp_training_camp and mp_rembasa, the SoC Station and Depository),
+    /// in every mode.
+    pub fn is_stalker(&self) -> bool {
+        self.project.starts_with("v010b_")
+    }
 }
 
 /// A number of a game mode config; a missing one is 0.
@@ -1340,6 +1347,9 @@ mod tests {
             assert_eq!(map.mode.lobby_number(), 8);
             assert!(map.config.starts_with("ffa/"), "{}", map.config);
             assert!(map.is_playable(), "{}", map.config);
+            // Exe patch 142 chooses among the first 128 (free_for_all.rs
+            // MAX_POINTS): a map past them would leave its last points unused.
+            assert!(map.solo_respawn_points <= 128, "{} {}", map.config, map.solo_respawn_points);
             // The STALKER maps' Team Deathmatch is not offered (no dictionary
             // row: stalker-tdm-hold-1): nothing to compare with.
             let Some(tdm) = table.iter().find(|other| {
@@ -1896,6 +1906,7 @@ mod tests {
                 game_mode: 2,
                 batteries: 0,
                 respawn_points: None,
+                team_2_points: None,
                 profiles: None,
                 artefacts: None,
                 objects: Some(&objects),

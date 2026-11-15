@@ -24,9 +24,10 @@ pub(super) fn from_client(client: raw::NetworkClient) -> Option<Match> {
                 raw::image::TDM_RULE_VTABLE | raw::image::TDM_CLIENT_RULE_VTABLE =>
                     Rule::Mode { game_mode: mode::TEAM_DEATHMATCH, batteries: 0 },
                 raw::image::RESPAWN_RULE_VTABLE | raw::image::RESPAWN_CLIENT_RULE_VTABLE => {
+                    let team_2 = read(rule.respawn2());
                     let points = read(rule.respawn0()).checked_add(read(rule.respawn1()))?
-                        .checked_add(read(rule.respawn2()))? as usize;
-                    Rule::Respawn { points }
+                        .checked_add(team_2)? as usize;
+                    Rule::Respawn { points, team_2: team_2 as usize }
                 }
                 // Research owns native rule type 5. Reading the base type
                 // avoids a fixed address for its relocated arena vtable.

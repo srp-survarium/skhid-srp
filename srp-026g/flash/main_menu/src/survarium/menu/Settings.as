@@ -79,12 +79,12 @@ package survarium.menu
       protected var _language:SrpLanguage;
       
       // The gameplay tab's "HUD:" group: the checkboxes the exe keeps in user.cfg
-      // (patch 83: "Hide hit markers", "Hide player scores", "Names on map"), with the stock
+      // (patch 83: "Hide player scores", "Names on map"), with the stock
       // quest progress and minimap controls under them (layoutGameplay). A
       // toggle is a change of the tab as the Language pick is, saved by Apply.
       protected var _hudGroup:SrpCheckGroup;
       
-      private static const HUD_OPTIONS:Array = ["srp_hide_hit_markers","srp_hide_scores","srp_map_names"];
+      private static const HUD_OPTIONS:Array = ["srp_hide_scores","srp_map_names"];
 
       // The HUD group's option that goes with the map's controls, over Static minimap (layoutGameplay).
       private static const MAP_OPTION:String = "srp_map_names";
@@ -95,6 +95,9 @@ package survarium.menu
       
       // The HUD group's crosshair list (Dynamic, Static: the stock static crosshair; Hidden: patch 83).
       protected var _crosshair:SrpCrosshairChoice;
+      
+      // The HUD group's hit marker list (patch 83: All hit markers, Kill marker only, Hidden hit markers).
+      protected var _hitMarkers:SrpHitMarkerChoice;
       
       // The Graphics tab's Renderer list (patch 83's `srp_dxvk`, which the game reads at its next
       // start: docs/notes/dxvk-option.md) and its Vulkan options' button, under Monitor (SrpVideoTab). A
@@ -282,6 +285,12 @@ package survarium.menu
          {
             this._crosshair.answer(values.slice(1));
             this.crosshairChanged(null);
+            return;
+         }
+         if(values.length > 0 && values[0] == SrpHitMarkerChoice.NAME)
+         {
+            this._hitMarkers.answer(values.slice(1));
+            this.hitMarkersChanged(null);
             return;
          }
          if(values.length > 0 && SrpRendererChoice.named(values[0]))
@@ -554,6 +563,10 @@ package survarium.menu
                {
                   this._crosshair.save();
                }
+               else if(control == this._hitMarkers.menu)
+               {
+                  this._hitMarkers.save();
+               }
                else if(control == this._fov.slider)
                {
                   this._fov.save();
@@ -623,6 +636,7 @@ package survarium.menu
             option.revert();
          }
          this._crosshair.revert();
+         this._hitMarkers.revert();
          this._mouse.revert();
          this._fov.revert();
          this._renderer.revert();
@@ -671,6 +685,9 @@ package survarium.menu
          this._crosshair = new SrpCrosshairChoice(this.settings_content);
          this._changed[this._crosshair.menu] = 0;
          this._crosshair.menu.addEventListener(ListEvent.INDEX_CHANGE,this.onCrosshairPick);
+         this._hitMarkers = new SrpHitMarkerChoice(this.settings_content);
+         this._changed[this._hitMarkers.menu] = 0;
+         this._hitMarkers.menu.addEventListener(ListEvent.INDEX_CHANGE,this.hitMarkersChanged);
          this._mouse = new SrpMouseVertical(this.settings_content);
          this._changed[this._mouse.check.box] = 0;
          this._changed[this._mouse.slider] = 0;
@@ -822,7 +839,9 @@ package survarium.menu
          }
          SrpVideoTab.finish(this,this._renderer);
          SrpDistanceDetail.finish(this);
-         // the HUD group, after the tab's settings are bound (their labels set)
+         // the HUD group, after the tab's settings are bound (their labels set); the crosshair list
+         // over the hit marker list under it, so it opens over it
+         this._hitMarkers.place();
          this._crosshair.place();
          this.applyHudTexts();
          this.layoutGameplay();
@@ -979,8 +998,8 @@ package survarium.menu
       
       // The gameplay tab's groups in its two columns, each group's heading over its controls, at the
       // tab's own spacing (the timeline's, read once): on the left "Friends:" and the Language choice;
-      // on the right srp's "HUD:" group: the crosshair list (Dynamic, Static, Hidden), Hide hit
-      // markers, Hide player scores, then the stock quest progress checkbox (shown as "Hide quests")
+      // on the right srp's "HUD:" group: the crosshair list (Dynamic, Static, Hidden), the hit
+      // marker list (All, Kill marker only, Hidden), Hide player scores, then the stock quest progress checkbox (shown as "Hide quests")
       // and the stock minimap controls ("Static minimap", the minimap position list), moved here with
       // their own bindings. Not shown: the stock "Crosshair:" and "Quest progress:" headings, the
       // static crosshair checkbox (the crosshair list sets it) and the quest progress transparency
@@ -1019,7 +1038,7 @@ package survarium.menu
          // as the minimap's is), a list one further right as the timeline has them; the map's rows
          // (Names on map, Static minimap, the minimap position list) last
          this._hudGroup.layout(c.s_friends,space.rightHeading,space.top);
-         var rows:Array = [this._crosshair.menu];
+         var rows:Array = [this._crosshair.menu,this._hitMarkers.menu];
          for each(var option:SrpCheckOption in this._hudGroup.options)
          {
             if(option.name != MAP_OPTION)
@@ -1035,7 +1054,8 @@ package survarium.menu
             var list:Boolean = rows[i] is DropdownMenu;
             if(i > 0)
             {
-               y += list ? space.dropdown : space.step;
+               // a list under a checkbox as the minimap's is; under a list a step, as a checkbox is
+               y += list && !(rows[i - 1] is DropdownMenu) ? space.dropdown : space.step;
             }
             rows[i].x = space.rightControl + (list ? space.dropdownX : 0);
             rows[i].y = y;
@@ -1059,6 +1079,12 @@ package survarium.menu
       protected function crosshairChanged(event:Event) : void
       {
          this.listChanged(this._crosshair.menu,this._crosshair.pending);
+      }
+      
+      // A pick in the hit marker list: pending while it is not the saved one.
+      protected function hitMarkersChanged(event:Event) : void
+      {
+         this.listChanged(this._hitMarkers.menu,this._hitMarkers.pending);
       }
       
       // A toggle of "Lock vertical sensitivity" or a move of its slider: each pending while it is
@@ -1259,6 +1285,8 @@ package survarium.menu
          }
          this._changed[this._crosshair.menu] = 0;
          this._crosshair.revert();
+         this._changed[this._hitMarkers.menu] = 0;
+         this._hitMarkers.revert();
          this._changed[this._mouse.check.box] = 0;
          this._changed[this._mouse.slider] = 0;
          this._mouse.revert();

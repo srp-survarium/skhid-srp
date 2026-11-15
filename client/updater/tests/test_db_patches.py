@@ -250,7 +250,7 @@ class WineTest(unittest.TestCase):
         return self.log()[mark:]
 
     def log_size(self):
-        return len(self.log()) if self.exists(f"{X86}/updater_skhid.log") else 0
+        return len(self.log())
 
 
 class PatchTest(WineTest):
@@ -1059,7 +1059,7 @@ class PatchTest(WineTest):
         updater = self.start_updater()
         until = time.time() + 120
         while updater.poll() is None and time.time() < until:
-            if self.exists(f"{X86}/updater_skhid.log") and "cannot be renamed now" in self.log():
+            if "cannot be renamed now" in self.log():
                 scanner.release()
             time.sleep(0.01)
         self.assertEqual(updater.wait(120), 0, self.log())

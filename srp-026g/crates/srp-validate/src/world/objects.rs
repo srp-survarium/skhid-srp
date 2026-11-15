@@ -1770,6 +1770,7 @@ mod tests {
             game_mode: crate::mode::BATTERIES,
             batteries: 3,
             respawn_points: None,
+            team_2_points: None,
             profiles: None,
             objects,
             artefacts: None,

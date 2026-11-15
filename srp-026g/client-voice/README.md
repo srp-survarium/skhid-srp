@@ -12,14 +12,14 @@ and tells them (`sv_hear`); the DLL only mixes by them.
 The arena patch loads its optional interface from `crates/voice-abi`; missing or
 incompatible DLLs leave voice disabled.
 
-Build the 32-bit Windows 7 DLL with the same pinned Rust compiler and static
+Build the 32-bit Windows DLL with the same pinned Rust compiler and static
 Microsoft C runtime as BugTrap:
 
 ```sh
 nix develop ./srp-026g -c bash srp-026g/client-voice/build.sh
 ```
 
-The result is `srp-026g/target-voice/i686-win7-windows-msvc/release/skhid_voice.dll`.
+The result is `srp-026g/target-voice/i686-pc-windows-msvc/release/skhid_voice.dll`.
 The build checks its exports against the shared ABI and refuses non-system DLL
 imports. Opus and speexdsp are static; their COFF archives and GCC integer/stack
 helpers are prepared by the pinned Nix `voice-opus` package. No GNU runtime DLL is required.

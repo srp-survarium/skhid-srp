@@ -64,10 +64,9 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the
   menu's sound tab no longer greys it out. The bus gets fade x slider / 100 (the game's thread
   copies the slider to the bus every frame); the engine multiplies every scene by General. A
   slider at 0 is silence, not a stopped track: the track's rules go on.
-- **In-game and Voice chat** (`s_ingame_volume`, `s_chat_volume`) stay dead and greyed out:
-  registering a variable would give each slider a value, but nothing in 0.26g would read it (the
-  game's sounds are one scene's, the voice chat its own), so each needs a consumer as well, not a
-  one-line registration.
+- **Game and Voice chat** have consumers of their own: the Game slider (`s_ingame_volume`, patch
+  144, `game-volume.md`) scales every scene's factor of General but the bus's, so it never moves
+  the music; the voice chat (`s_chat_volume`, patch 66) plays outside the engine.
 - **Its level.** Each track is set to -24 LUFS (integrated) by its `volume_k` (`.raw_options`):
   the level of the lobby's own room tone (-18.3 LUFS at its `volume_k` 0.5). The game's shots,
   footsteps and interface sounds stay above it (the match-start announcement is the hud's text);
