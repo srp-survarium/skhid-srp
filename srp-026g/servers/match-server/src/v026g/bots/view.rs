@@ -997,7 +997,9 @@ impl Tracker {
                     .iter()
                     .filter(|g| near(g.blast_at()))
                     .filter_map(|g| match g.phase {
-                        Phase::Flying { rest, .. } => Some((None::<usize>, rest.distance_xz(at))),
+                        Phase::Flying { rest, .. } | Phase::InDeadHand { at: rest, .. } => {
+                            Some((None::<usize>, rest.distance_xz(at)))
+                        }
                         Phase::Pressed { .. } => None,
                     })
                     .min_by(|a, b| a.1.total_cmp(&b.1));
@@ -1272,9 +1274,13 @@ impl Tracker {
             if !grenade.live_at(clock) {
                 continue;
             }
-            // A thrower dead with the grenade still in his hand threw nothing.
+            // A thrower dead with the grenade still in his hand: it goes off there ([`Phase::InDeadHand`]).
             if matches!(grenade.phase, Phase::Pressed { .. }) && !self.places.get(grenade.by).is_some_and(|s| s.alive) {
                 self.throws.died_throwing += 1;
+                if let Some(at) = self.last_feet(grenade.by) {
+                    grenade.phase = Phase::InDeadHand { died: clock, at };
+                    kept.push(grenade);
+                }
                 continue;
             }
             if let Phase::Pressed { release: Some(release), .. } = grenade.phase
@@ -1285,6 +1291,10 @@ impl Tracker {
                 match self.launch_of(grenade.by, grenade.grenade, launched - grenade.press, world) {
                     Launch::Dead => {
                         self.throws.died_throwing += 1;
+                        if let Some(at) = self.last_feet(grenade.by) {
+                            grenade.phase = Phase::InDeadHand { died: clock, at };
+                            kept.push(grenade);
+                        }
                         continue;
                     }
                     Launch::NoLanding => {
@@ -1348,6 +1358,11 @@ impl Tracker {
 
     /// Where a grenade `grenade` let go by `by` lands, from its thrower's body now: from his release point, with the
     /// fuse left after a launch `launch_ms` after the press.
+    /// Where `by`'s body was last placed: its reckoning while alive, where it fell once dead (the body's `last_alive`).
+    fn last_feet(&self, by: Place) -> Option<Vec3> {
+        self.places.get(by).and_then(|state| state.body.last_alive()).map(|(_, feet)| feet)
+    }
+
     fn launch_of(&self, by: Place, grenade: Grenade, launch_ms: u32, world: &World) -> Launch {
         let Some(state) = self.places.get(by).filter(|state| state.alive) else {
             return Launch::Dead;

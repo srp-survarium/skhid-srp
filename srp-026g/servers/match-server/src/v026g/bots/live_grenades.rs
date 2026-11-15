@@ -15,7 +15,8 @@
 //!   throw going up, seen in the thrower's input: [`Phase::Pressed`]), the grenade leaves the hand along the thrower's
 //!   view from his release point: the arc model of `arc.rs` over the map's bullet mesh gives the first contact and
 //!   where it comes to rest ([`arc::Landing`]), once, from the body's reckoning at that time. A key held to the blast
-//!   keeps it in the hand. A thrower that dies before the launch threw nothing (counted).
+//!   keeps it in the hand (it goes off there, not known to the bots). A thrower that dies before the launch keeps it in
+//!   his hand, where it goes off on time ([`Phase::InDeadHand`], counted).
 //! - **The blast.** The fuse after the press; the entry is kept [`SPENT_MS`] after it.
 //!
 //! The list only records and predicts: nothing reads it unless a bot's tuning asks for it
@@ -103,6 +104,12 @@ pub enum Phase {
         lands: u32,
         rest: Vec3,
     },
+    /// The thrower died with it in his hand, the pin out: it goes off on time there, never thrown nor dropped (PROVEN,
+    /// read 2026-11-15: `on_player_death` 0x2E3390 puts the weapon to idle with no launch and no stop of the fuse, the
+    /// grenade set's 0x309E10 only clears the wanted slot; the fuse's blast is at `hand_transform` 0x309F00, the dead
+    /// owner's right hand, while no launch made it a body, 0x303AEA). `at`: where his body was last placed (`died`); the
+    /// pose of a dead body's hand was not read, so the blast is taken there.
+    InDeadHand { died: u32, at: Vec3 },
 }
 
 impl LiveGrenade {
@@ -603,7 +610,8 @@ pub struct ThrowCounts {
     pub launched: u32,
     /// Let go with no first contact within the flight's time (no ground, or off the map): dropped.
     pub unplaced: u32,
-    /// The thrower was dead by the launch: dropped.
+    /// The thrower was dead by the launch: kept in his hand ([`Phase::InDeadHand`]; dropped only when his body was never
+    /// placed).
     pub died_throwing: u32,
 }
 
@@ -622,6 +630,7 @@ impl super::Bots {
     pub fn grenade_report(&self) -> String {
         let counts = self.tracker.throw_counts();
         let trio = |n: [u32; 3]| format!("{}/{}/{}", n[0], n[1], n[2]);
+        let quad = |n: [u32; 4]| format!("{}/{}/{}/{}", n[0], n[1], n[2], n[3]);
         let by_team = self.grenade_counts();
         let avoidance = by_team
             .iter()
@@ -632,10 +641,10 @@ impl super::Bots {
                     .map(|whose| {
                         let a = &by_whose[whose.index()];
                         format!(
-                            "{whose:?}: noticed {} (a mate's {}; an enemy's known from the press/the release/the landing {}) stepped {} already out {} out when it came to act {} no way out {} escaped {} caught {} refused {}",
+                            "{whose:?}: noticed {} (a mate's {}; an enemy's known from the press and launch/the release/the swing only, by the landing/the landing unseen {}) stepped {} already out {} out when it came to act {} no way out {} escaped {} caught {} refused {}",
                             trio(a.noticed),
                             a.noticed_mate,
-                            trio(a.seen_throw),
+                            quad(a.seen_throw),
                             trio(a.stepped),
                             trio(a.held),
                             trio(a.out_at_act),
@@ -912,7 +921,7 @@ mod tests {
         };
         assert_eq!(launched, 1_900);
         assert!((2_100..2_700).contains(&lands), "{lands}");
-        assert!((0.1..0.35).contains(&rest.x) && (9.0..14.0).contains(&rest.z), "{rest:?}");
+        assert!((0.1..0.35).contains(&rest.x) && (9.0..13.0).contains(&rest.z), "{rest:?}");
         assert_eq!(tracker.throw_counts().launched, 1);
         // The view carries it until a moment past the blast.
         let clock = Clock {
@@ -926,8 +935,10 @@ mod tests {
         assert!(tracker.live_grenades().is_empty());
     }
 
+    /// [read 2026-11-15] A thrower dead with the pin out: his grenade stays listed and goes off on time where his body
+    /// was last placed ([`Phase::InDeadHand`]); with no map a live thrower's stays in the hand.
     #[test]
-    fn a_thrower_dead_by_the_launch_threw_nothing_and_no_map_leaves_it_in_the_hand() {
+    fn a_thrower_dead_with_the_pin_out_keeps_it_in_his_hand_and_no_map_leaves_it_in_the_hand() {
         let world = floor_world();
         let mut tracker = stand(None);
         press(&mut tracker, 0, 1_000, key::GRENADE);
@@ -941,8 +952,15 @@ mod tests {
         };
         tracker.fixed(0, dead, Some(0.0), &Kinematics::default(), None);
         tracker.launch_grenades(2_200, Some(&*world));
-        assert!(tracker.live_grenades().is_empty());
+        let listed = tracker.live_grenades().to_vec();
+        assert_eq!(listed.len(), 1, "kept: it goes off in his hand");
+        let Phase::InDeadHand { died, at } = listed[0].phase else { panic!("{:?}", listed[0].phase) };
+        assert_eq!(died, 2_200);
+        assert!(at.distance_xz(Vec3::ZERO) < 50.0, "{at:?}");
+        assert_eq!(listed[0].blast_at(), 1_000 + listed[0].grenade.fuse_ms());
         assert_eq!(tracker.throw_counts().died_throwing, 1);
+        tracker.launch_grenades(1_000 + listed[0].grenade.fuse_ms() + SPENT_MS + 50, Some(&*world));
+        assert!(tracker.live_grenades().is_empty(), "spent");
     }
 
     #[test]

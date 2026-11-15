@@ -916,7 +916,7 @@ impl GrenadeCounts {
         match found.map(|g| g.phase) {
             None => live.missing += 1,
             Some(Phase::Pressed { .. }) => live.pending += 1,
-            Some(Phase::Flying { rest, .. }) => {
+            Some(Phase::Flying { rest, .. } | Phase::InDeadHand { at: rest, .. }) => {
                 live.matched += 1;
                 let d = rest.distance_xz(blast.at);
                 live.err[usize::from(d > 1.0) + usize::from(d > 2.0) + usize::from(d > 4.0)] += 1;
