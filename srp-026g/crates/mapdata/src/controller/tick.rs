@@ -229,6 +229,9 @@ pub struct StepNotes {
     /// A side slide (on an impassable slope, or under a low ceiling) ended slid on the normal its step down's first sweep
     /// wrote, the slope-acceleration retry having met nothing ([`SideSlide::OnFirstNormal`]).
     pub slid_on_first_normal: bool,
+    /// A down sweep kept a hit whose point is over the floor limit lowered to the hit's fraction, under the start's limit the
+    /// exe tests (`floor` in [`Controller::down_sweep`]): a hit the port dropped before it tested the start's limit.
+    pub kept_over_lowered_floor: bool,
 }
 
 fn dims_of((w, h): (f32, f32)) -> (f32, f32) {
@@ -645,7 +648,7 @@ impl Controller {
     /// `side_slide_on_low_ceiling` 0x7DF20 (PROVEN in the reading): the walk move turned off the ceiling or the ground, the
     /// less vertical of the two, and slid as on an impassable slope. `n` in/out.
     #[allow(clippy::too_many_arguments)]
-    fn low_ceiling_slide(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, cn: Vec3, s: &Settings) -> SideSlide {
+    fn low_ceiling_slide(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, cn: Vec3, s: &Settings, notes: &mut StepNotes) -> SideSlide {
         if !s.low_ceiling_slide || ((w.y * w.y + w.z * w.z) + w.x * w.x).abs() < TINY {
             return SideSlide::Refused;
         }
@@ -659,7 +662,7 @@ impl Controller {
         let bf = s.low_ceiling_slide_bouncing_factor;
         let q = Vec3::new(m.x - (w.x * inv) * bf, m.y - (w.y * inv) * bf, m.z - (w.z * inv) * bf);
         let mut n2 = normalized_safe(q, m);
-        let r = self.side_slide_core(world, w, p1, sb, dist, step, &mut n2, s);
+        let r = self.side_slide_core(world, w, p1, sb, dist, step, &mut n2, s, notes);
         *n = n2;
         r
     }
@@ -925,7 +928,7 @@ impl Controller {
 
     /// The down sweep 0x84FE0 with its callback 0x84420: the cut capsule from `from` along up by `dist` (negative: down).
     /// The fraction, point and normal of the hit the callback keeps.
-    fn down_sweep(&self, world: &Collision, from: Vec3, dist: f32, s: &Settings) -> Option<(f32, Vec3, Vec3)> {
+    fn down_sweep(&self, world: &Collision, from: Vec3, dist: f32, s: &Settings, notes: &mut StepNotes) -> Option<(f32, Vec3, Vec3)> {
         let (r, hh) = self.dims;
         // The cast's way is the end's origin less the start's (0x72EB0), not `up * dist` itself.
         let by = Vec3::new(UP.x * dist + from.x, UP.y * dist + from.y, UP.z * dist + from.z) - from;
@@ -959,6 +962,7 @@ impl Controller {
             }
         }
         if let Some(c) = kept {
+            notes.kept_over_lowered_floor |= (UP.y * c.point.y + UP.z * c.point.z) + UP.x * c.point.x > floor + by.y * c.t;
             let n = match c.on.walker() {
                 WalkerBehaviour::Walk => UP,
                 WalkerBehaviour::DontWalk => {
@@ -1011,9 +1015,10 @@ impl Controller {
 
     /// `step_down_sweep_test_impl` 0x7EA80: moves `pos`; what it reports and what it left in the caller's point and normal
     /// ([`DownTest`]).
-    fn step_down_test(&mut self, world: &Collision, dist: f32, sb: Vec3, w2: f32, p1: Vec3, s: &Settings) -> DownTest {
+    #[allow(clippy::too_many_arguments)]
+    fn step_down_test(&mut self, world: &Collision, dist: f32, sb: Vec3, w2: f32, p1: Vec3, s: &Settings, notes: &mut StepNotes) -> DownTest {
         let from = self.pos;
-        let Some((f, hp, n)) = self.down_sweep(world, from, dist, s) else {
+        let Some((f, hp, n)) = self.down_sweep(world, from, dist, s, notes) else {
             self.pos = Vec3::new(UP.x * dist + from.x, UP.y * dist + from.y, UP.z * dist + from.z);
             return DownTest::Missed;
         };
@@ -1026,7 +1031,7 @@ impl Controller {
         if s.prevent_slope_acceleration && rose {
             let k = (w2 / ((bh.z * bh.z + bh.y * bh.y) + bh.x * bh.x)).sqrt();
             let f2 = Vec3::new(p1.x * (1.0 - k) + from.x * k, p1.y * (1.0 - k) + from.y * k, p1.z * (1.0 - k) + from.z * k);
-            return match self.down_sweep(world, f2, dist, s) {
+            return match self.down_sweep(world, f2, dist, s, notes) {
                 Some((f, hp, n)) => {
                     let g = 1.0 - f;
                     self.pos = Vec3::new(
@@ -1112,16 +1117,16 @@ impl Controller {
 
     /// `slide_in_impassable_case_impl` 0x7D660 (the side slide). `n` in/out.
     #[allow(clippy::too_many_arguments)]
-    fn side_slide(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, s: &Settings) -> SideSlide {
+    fn side_slide(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, s: &Settings, notes: &mut StepNotes) -> SideSlide {
         if !s.impassable_slope_side_slide || ((w.x * w.x + w.y * w.y) + w.z * w.z).abs() < TINY {
             return SideSlide::Refused;
         }
-        self.side_slide_core(world, w, p1, sb, dist, step, n, s)
+        self.side_slide_core(world, w, p1, sb, dist, step, n, s, notes)
     }
 
     /// `slide_in_impassable_case_impl` 0x7D660.
     #[allow(clippy::too_many_arguments)]
-    fn side_slide_core(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, s: &Settings) -> SideSlide {
+    fn side_slide_core(&mut self, world: &Collision, w: Vec3, p1: Vec3, sb: Vec3, dist: f32, step: f32, n: &mut Vec3, s: &Settings, notes: &mut StepNotes) -> SideSlide {
         let c = (n.x * UP.x + n.z * UP.z) + n.y * UP.y;
         let t = Vec3::new(n.x - UP.x * c, n.y - UP.y * c, n.z - UP.z * c);
         let inv = 1.0 / ((t.z * t.z + t.y * t.y) + t.x * t.x).sqrt();
@@ -1143,7 +1148,7 @@ impl Controller {
         }
         // 0x7D96C: the step down writes this slide's own normal (its +20h); with no hit reported (0x7D973) the slide ends
         // there, slid (0x7D9A8), the normal whatever the step down left in it.
-        match self.step_down_test(world, dist, sb, s2, p1, s) {
+        match self.step_down_test(world, dist, sb, s2, p1, s, notes) {
             DownTest::Missed => return SideSlide::Slid,
             DownTest::RetryMissed { normal } => {
                 *n = normal;
@@ -1206,7 +1211,7 @@ impl Controller {
         let dist = d0 - step;
         let w2 = (w.x * w.x + w.y * w.y) + w.z * w.z;
         // 0x7E2BF: its own point and normal are locals the airborne path (0x7E6E6) does not read.
-        match self.step_down_test(world, dist, sb, w2, p1, s).hit() {
+        match self.step_down_test(world, dist, sb, w2, p1, s, notes).hit() {
             None => {
                 notes.airborne = true;
                 let g = self.gravity;
@@ -1217,7 +1222,7 @@ impl Controller {
                 let ceiling = self.straighten(world, sb, step);
                 let slid = match ceiling {
                     Some(cn) => {
-                        let low = self.low_ceiling_slide(world, w, p1, sb, dist, step, &mut n, cn, s);
+                        let low = self.low_ceiling_slide(world, w, p1, sb, dist, step, &mut n, cn, s, notes);
                         notes.slid_on_first_normal |= low == SideSlide::OnFirstNormal;
                         low.slid()
                     }
@@ -1229,7 +1234,7 @@ impl Controller {
                     self.pos = sb + UP * self.d();
                 } else if self.impassable(n, sb, s)
                     && !{
-                        let side = self.side_slide(world, w, p1, sb, dist, step, &mut n, s);
+                        let side = self.side_slide(world, w, p1, sb, dist, step, &mut n, s, notes);
                         notes.side_slide = side.slid();
                         notes.slid_on_first_normal |= side == SideSlide::OnFirstNormal;
                         side.slid()
