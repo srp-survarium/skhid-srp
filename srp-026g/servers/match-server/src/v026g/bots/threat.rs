@@ -3760,6 +3760,7 @@ mod tests {
             sniper_regions: Vec::new(),
             snipers: Vec::new(),
             concede: Default::default(),
+            holders: Vec::new(),
         };
         assert!(matches!(picture.job_of(2), Some((_, Role::Flanker, l)) if l.id == 4));
         assert!(picture.job_of(3).is_none());

@@ -12296,6 +12296,7 @@ mod tests {
                 sniper_regions: Vec::new(),
                 snipers: Vec::new(),
                 concede: Default::default(),
+                holders: Vec::new(),
             });
             team
         };
@@ -12363,6 +12364,7 @@ mod tests {
                 sniper_regions: Vec::new(),
                 snipers: Vec::new(),
                 concede: Default::default(),
+                holders: Vec::new(),
             });
             let aim = AimTuning {
                 combat: CombatTuning {
@@ -12408,6 +12410,7 @@ mod tests {
                 sniper_regions: Vec::new(),
                 snipers: Vec::new(),
                 concede: Default::default(),
+                holders: Vec::new(),
             });
             team
         };
