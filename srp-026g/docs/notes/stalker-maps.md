@@ -303,22 +303,26 @@ and no step names a map. `stalker-maps@7` and `stalker-maps-2@3` are built so
 | film grain | importer, every early map (`transfer_environment`) | 0.02 at update frequency 1, stock day |
 | sun | the same | god rays 0.2 at attenuation 3.0, lens flares x0.7 (0.11e's day weather) |
 | ambient occlusion | the same | `ao_saturation` 1 |
-| gloss | importer, every early ported material (`matte_colour_gloss`) | a material whose gloss map is its colour texture: gloss 0.04 at both ends of the range (stock `flora/grass_l03_alt`'s average) |
+| gloss | importer, every early material (`matte_colour_gloss`) | a material whose colour texture is its gloss map and drives it: gloss 0.04 at both ends of the range (stock `flora/grass_l03_alt`'s average) |
 | grass size | importer, every map it writes (`grass.rs`) | at most 120,000 instances of a map's whole vegetation, thinned evenly through the layers |
 | terrain relief | `build-soc-map` (resource-porter d92d7cc) | the THM detail scale, terrain normal strength, no unrelated template height map |
+| no mirror | `tools/playable-map-pack/gloss_check.py`, every build | stops a build with a ported material over gloss 0.3 but the glass template's |
+| grass check | `release/build-content` | stops a patch where a map players get has more than 120,000 instances |
 | bushes | `tools/stalker-tdm/bushes.py`, every map of a pack | the leaves drawn within 1.2 m above a floor as a foliage_deciduous collision object (cgroup 8, cmask 20h); more than 64,801 triangles split into models |
 
 - Grass: the client cooks a map's whole vegetation on one 2 MiB thread with
   16 bytes of stack an instance (`grass_cook::on_layers_loaded` 0x12A820,
   re-kit #2072): about 130,000 overflow it. Every map over 120,000 is thinned
-  (instance g of n stays when g x 120,000 / n steps). Live counts
-  (`tools/playable-map-pack/grass_counts.py` over the stock db and patches
-  12-59): Experimental Pool 125,844 (thinned now), level_03 90,879, v021d
-  level_03 90,799, Military Warehouses 77,721, level_06 69,626, v021d
-  level_06 62,489, Training Camp 50,283, level_08 32,195, Rudnya 0.69
-  28,548, the rest under 25,100: no other map is over. Dark Valley and Fire
-  Station go back to X-Ray's density (142,346 and 384,112 placed), thinned to
-  120,000.
+  (instance g of n stays when g x 120,000 / n steps). `release/build-content`
+  checks every map players will have, whatever made it (a pack, a base row:
+  the v0.11e, 0.21d and 0.69d ports too), and stops at one over 120,000.
+  With `stalker-maps@7` and `stalker-maps-2@3`
+  (`tools/playable-map-pack/grass_counts.py` over the stock db, patches 12-60
+  and the new patch): Experimental Pool, Dark Valley and Fire Station 120,000
+  (125,844, 142,346 and 384,112 placed), level_03 90,879, v021d level_03
+  90,799, Military Warehouses 77,721, Vehicle Station 71,179, level_06 69,626,
+  v021d level_06 62,489, Training Camp 50,283, level_08 32,195, Rudnya 0.69
+  28,548, the rest under 25,100.
 - Gloss: of the ported materials only those whose gloss map is their colour
   texture, and drives their gloss, come out mirror-like: X-Ray grass
   (Experimental Pool, Military Warehouses, Dark Valley, Vehicle Station, Fire
