@@ -230,14 +230,20 @@ impl Reader {
         self.buffer.extend_from_slice(bytes);
     }
 
-    /// The next whole message, if all of it is here.
+    /// The bytes of the next whole message (its id first), if all of it
+    /// is here.
+    pub fn payload(&mut self) -> Option<Vec<u8>> {
+        let length = u16::from_le_bytes([*self.buffer.first()?, *self.buffer.get(1)?]) as usize;
+        if self.buffer.len() < 2 + length {
+            return None;
+        }
+        Some(self.buffer.drain(..2 + length).skip(2).collect())
+    }
+
+    /// The next whole message of the launcher, if all of it is here.
     pub fn message(&mut self) -> Option<FromLauncher> {
         loop {
-            let length = u16::from_le_bytes([*self.buffer.first()?, *self.buffer.get(1)?]) as usize;
-            if self.buffer.len() < 2 + length {
-                return None;
-            }
-            let payload: Vec<u8> = self.buffer.drain(..2 + length).skip(2).collect();
+            let payload = self.payload()?;
             // A message of no bytes has no id: nothing to tell.
             let Some(&id) = payload.first() else { continue };
             return Some(match id {

@@ -1,4 +1,5 @@
-//! This end of the launcher's named pipe.
+//! This end of the launcher's named pipe (and of the game's, in seed mode:
+//! the same framing, `crate::seed`).
 //!
 //! The launcher makes the pipe and passes its name; the updater opens it
 //! once. Everything here is done by the one thread the program has: it
@@ -64,10 +65,14 @@ impl Pipe {
 
     /// Writes one message. `false` when the launcher is gone.
     pub fn send(&mut self, message: ToLauncher) -> bool {
+        self.send_bytes(&frame(message))
+    }
+
+    /// Writes one framed message. `false` when the other end is gone.
+    pub fn send_bytes(&mut self, bytes: &[u8]) -> bool {
         if !self.open {
             return false;
         }
-        let bytes = frame(message);
         let mut sent = 0;
         while sent < bytes.len() {
             let mut written = 0_u32;
@@ -91,7 +96,23 @@ impl Pipe {
 
     /// The messages the launcher has written since the last look.
     pub fn receive(&mut self) -> Vec<FromLauncher> {
+        self.fill();
         let mut messages = Vec::new();
+        while let Some(message) = self.reader.message() {
+            messages.push(message);
+        }
+        messages
+    }
+
+    /// The bytes of each message written since the last look (the id
+    /// first).
+    pub fn payloads(&mut self) -> Vec<Vec<u8>> {
+        self.fill();
+        core::iter::from_fn(|| self.reader.payload()).collect()
+    }
+
+    /// Takes what the other end wrote, without waiting.
+    fn fill(&mut self) {
         while self.open {
             let mut waiting = 0_u32;
             let ok = unsafe {
@@ -129,10 +150,6 @@ impl Pipe {
             }
             self.reader.push(&buffer[..read as usize]);
         }
-        while let Some(message) = self.reader.message() {
-            messages.push(message);
-        }
-        messages
     }
 
     /// Waits until the launcher has read everything written, then closes.

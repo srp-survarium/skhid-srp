@@ -32,7 +32,7 @@ use crate::http::{self, HttpError};
 use crate::install::Layout;
 use crate::log::log;
 use crate::win::{self, File};
-use crate::{Session, restart_launcher, text, torrent};
+use crate::{Session, restart_launcher, text};
 
 /// The game exe the launcher starts, beside the updater.
 pub const GAME_EXE: &str = "survarium_skhid.exe";
@@ -140,15 +140,15 @@ pub fn watch(session: &mut Session, layout: &Layout, product: &str, seen: &Seen)
     // launcher allows it: at once when it turns it on (and again after
     // each ask, should the engine have stopped).
     let mut turn = session.torrents.turn();
-    torrent::share(session, layout);
+    session.torrents.share(layout);
     let mut each = |session: &mut Session| {
         if session.torrents.turn() != turn {
             turn = session.torrents.turn();
-            torrent::share(session, layout);
+            session.torrents.share(layout);
         }
     };
     while session.pipe.is_some() && session.pause_with(WATCH_MS, &mut each) {
-        torrent::share(session, layout);
+        session.torrents.share(layout);
         let result = http::get(&seen.server, "/api/client-files", 4096, &mut |_, _| {
             session.pump()
         });

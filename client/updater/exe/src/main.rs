@@ -34,6 +34,7 @@ mod pipe;
 mod replay;
 mod replay_association;
 mod resources;
+mod seed;
 mod signed;
 mod text;
 mod torrent;
@@ -1087,6 +1088,11 @@ fn run() -> u32 {
     // "Watch replay": started by the patched game with a replay link
     // (`replay.rs`). Exactly this word, as the game's patch sends it.
     let arguments = arguments();
+    // The game's sharing (`seed.rs`): started by the patched game on its
+    // login screen and in its lobby. No box, no lock, its own log.
+    if let Some(pipe) = updater_logic::seed::command(&arguments) {
+        return seed::run(pipe);
+    }
     if let Some((file_arguments, quiet)) = updater_logic::local_replay::command(&arguments) {
         return replay::run_local(file_arguments, quiet);
     }

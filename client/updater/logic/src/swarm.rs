@@ -17,12 +17,14 @@
 //!   peer may take, the messages that change nothing; past them the
 //!   connection ends. A piece being fetched that no peer can go on with
 //!   goes back to the missing ones;
-//! - uploads within the upload limit, to [`UPLOAD_SLOTS`] peers at a time.
+//! - uploads within the run's one allowance (`crate::upload`, shared by
+//!   every swarm), to [`UPLOAD_SLOTS`] peers at a time.
 
 use alloc::collections::{BTreeMap, VecDeque};
 use alloc::vec::Vec;
 
 use crate::torrent::{BLOCK, Torrent};
+use crate::upload::Allowance;
 use crate::wire::{self, Block, Message, Reader, Shape};
 
 /// A connection's number, given by the program; never used twice in a run.
@@ -228,8 +230,6 @@ pub enum Event<'a> {
     Loaded(u32, Option<Vec<u8>>),
     /// The clock, in milliseconds.
     Tick(u64),
-    /// Bytes a second this end may upload; `None`: no limit.
-    UploadLimit(Option<u64>),
 }
 
 /// What a message of a peer did.
@@ -251,10 +251,6 @@ pub struct Swarm {
     peers: BTreeMap<PeerKey, Peer>,
     banned: Vec<[u8; 4]>,
     now: u64,
-    limit: Option<u64>,
-    /// Upload bytes the limit allows now; below zero: owed (see
-    /// [`Swarm::spend`]).
-    tokens: i64,
     loading: Option<u32>,
     cache: VecDeque<(u32, Vec<u8>)>,
     rotated: u64,
@@ -301,8 +297,6 @@ impl Swarm {
             peers: BTreeMap::new(),
             banned,
             now,
-            limit: None,
-            tokens: 0,
             loading: None,
             cache: VecDeque::new(),
             rotated: now,
@@ -357,22 +351,10 @@ impl Swarm {
             && self.peers.values().filter(|peer| peer.ip == ip).count() < PER_ADDRESS
     }
 
-    /// Whether the upload limit lets this end upload now: none set, or
-    /// nothing owed ([`Swarm::spend`]).
-    pub fn may_upload(&self) -> bool {
-        self.limit.is_none() || self.tokens >= 0
-    }
-
-    /// Bytes this end uploaded outside the swarm (the rendezvous' torrent),
-    /// out of the same upload limit: owed when more than it has, and paid
-    /// back before the swarm uploads again.
-    pub fn spend(&mut self, bytes: u64) {
-        if self.limit.is_some() {
-            self.tokens = self.tokens.saturating_sub(i64::try_from(bytes).unwrap_or(i64::MAX));
-        }
-    }
-
-    pub fn step(&mut self, event: Event) -> Vec<Action> {
+    /// One event, and what it brings. What is uploaded comes out of
+    /// `allowance`, the run's one for every swarm (the program fills it by
+    /// the clock).
+    pub fn step(&mut self, event: Event, allowance: &mut Allowance) -> Vec<Action> {
         let mut out = Vec::new();
         match event {
             Event::Connected { peer, ip } => {
@@ -398,12 +380,8 @@ impl Swarm {
             Event::Closed(peer) => self.forget(peer),
             Event::Loaded(piece, data) => self.loaded(piece, data),
             Event::Tick(now) => self.tick(now, &mut out),
-            Event::UploadLimit(limit) => {
-                self.limit = limit;
-                self.tokens = 0;
-            }
         }
-        self.serve(&mut out);
+        self.serve(allowance, &mut out);
         out
     }
 
@@ -844,14 +822,7 @@ impl Swarm {
     }
 
     fn tick(&mut self, now: u64, out: &mut Vec<Action>) {
-        let elapsed = now.saturating_sub(self.now);
         self.now = now;
-        if let Some(limit) = self.limit {
-            let burst = limit.max(u64::from(BLOCK) * 4);
-            let more = limit.saturating_mul(elapsed) / 1000;
-            let tokens = self.tokens.saturating_add(i64::try_from(more).unwrap_or(i64::MAX));
-            self.tokens = tokens.min(i64::try_from(burst).unwrap_or(i64::MAX));
-        }
         let keys: Vec<PeerKey> = self.peers.keys().copied().collect();
         for key in keys {
             let Some(peer) = self.peers.get(&key) else { continue };
@@ -922,9 +893,9 @@ impl Swarm {
             .count()
     }
 
-    /// Fills the upload slots, then sends what the limit lets of the
+    /// Fills the upload slots, then sends what the allowance lets of the
     /// requests of pieces in the cache, and asks for the next piece to read.
-    fn serve(&mut self, out: &mut Vec<Action>) {
+    fn serve(&mut self, allowance: &mut Allowance, out: &mut Vec<Action>) {
         while self.serving() < UPLOAD_SLOTS {
             let next = self
                 .peers
@@ -950,7 +921,7 @@ impl Swarm {
         let keys: Vec<PeerKey> = self.peers.keys().copied().collect();
         for key in keys {
             loop {
-                if self.limit.is_some() && self.tokens < i64::from(BLOCK) {
+                if !allowance.room(BLOCK) {
                     return;
                 }
                 let queue = match self.peers.get_mut(&key).map(|peer| &mut peer.link) {
@@ -972,9 +943,7 @@ impl Swarm {
                 let at = block.begin as usize;
                 let data = data[at..at + block.length as usize].to_vec();
                 queue.pop_front();
-                if self.limit.is_some() {
-                    self.tokens -= i64::from(block.length);
-                }
+                allowance.spend(u64::from(block.length));
                 self.uploaded += u64::from(block.length);
                 self.send(key, &Message::Piece { block, data }, out);
             }
@@ -1027,6 +996,15 @@ impl Swarm {
 mod tests {
     use super::*;
     use crate::torrent::{make, parse};
+    use crate::upload::CAP;
+
+    impl Swarm {
+        /// A step with an allowance of its own, full: for what is not about
+        /// the cap.
+        fn on(&mut self, event: Event) -> Vec<Action> {
+            self.step(event, &mut Allowance::new(self.now))
+        }
+    }
 
     const PIECE: u32 = 32 * 1024;
 
@@ -1064,7 +1042,12 @@ mod tests {
     }
 
     impl Pair {
-        fn run(&mut self, mut to_a: Vec<Action>, mut to_b: Vec<Action>) {
+        fn run(&mut self, to_a: Vec<Action>, to_b: Vec<Action>) {
+            self.run_within(&mut Allowance::new(0), to_a, to_b);
+        }
+
+        /// [`Pair::run`], a uploading within `up`.
+        fn run_within(&mut self, up: &mut Allowance, mut to_a: Vec<Action>, mut to_b: Vec<Action>) {
             for _ in 0..10_000 {
                 if to_a.is_empty() && to_b.is_empty() {
                     return;
@@ -1074,25 +1057,25 @@ mod tests {
                 // `to_a`: what a did; its sends reach b.
                 for action in core::mem::take(&mut to_a) {
                     match action {
-                        Action::Send(_, bytes) => next_b.extend(self.b.step(Event::Received(1, &bytes))),
+                        Action::Send(_, bytes) => next_b.extend(self.b.on(Event::Received(1, &bytes))),
                         Action::Close(_) => self.closed = true,
                         Action::Load(index) => {
                             let mut bytes = piece(self.a.torrent(), index);
                             if self.junk_a {
                                 bytes.fill(9);
                             }
-                            next_a.extend(self.a.step(Event::Loaded(index, Some(bytes))));
+                            next_a.extend(self.a.step(Event::Loaded(index, Some(bytes)), up));
                         }
                         Action::Write(..) => panic!("the seed writes nothing"),
                     }
                 }
                 for action in core::mem::take(&mut to_b) {
                     match action {
-                        Action::Send(_, bytes) => next_a.extend(self.a.step(Event::Received(1, &bytes))),
+                        Action::Send(_, bytes) => next_a.extend(self.a.step(Event::Received(1, &bytes), up)),
                         Action::Close(_) => self.closed = true,
                         Action::Load(index) => {
                             let bytes = self.disk_b.get(&index).cloned();
-                            next_b.extend(self.b.step(Event::Loaded(index, bytes)));
+                            next_b.extend(self.b.on(Event::Loaded(index, bytes)));
                         }
                         Action::Write(index, bytes) => {
                             self.disk_b.insert(index, bytes);
@@ -1112,8 +1095,8 @@ mod tests {
         let a = Swarm::new(torrent.clone(), [1; 20], &alloc::vec![seed; count], Vec::new(), 0);
         let b = Swarm::new(torrent, [2; 20], leech, Vec::new(), 0);
         let mut pair = Pair { a, b, disk_b: BTreeMap::new(), closed: false, junk_a: false };
-        let to_a = pair.a.step(Event::Connected { peer: 1, ip: [10, 0, 0, 2] });
-        let to_b = pair.b.step(Event::Connected { peer: 1, ip: [10, 0, 0, 1] });
+        let to_a = pair.a.on(Event::Connected { peer: 1, ip: [10, 0, 0, 2] });
+        let to_b = pair.b.on(Event::Connected { peer: 1, ip: [10, 0, 0, 1] });
         (pair, to_a, to_b)
     }
 
@@ -1159,11 +1142,11 @@ mod tests {
         let torrent = torrent();
         let count = torrent.piece_count() as usize;
         let mut leech = Swarm::new(torrent.clone(), [2; 20], &alloc::vec![Start::Missing; count], Vec::new(), 0);
-        leech.step(Event::Connected { peer: 3, ip: [6, 6, 6, 6] });
+        leech.on(Event::Connected { peer: 3, ip: [6, 6, 6, 6] });
         let mut bytes = wire::handshake(&torrent.v1, &[9; 20]).to_vec();
         bytes.extend(wire::frame(&Message::Bitfield(alloc::vec![0xFC])));
         bytes.extend(wire::frame(&Message::Unchoke));
-        let actions = leech.step(Event::Received(3, &bytes));
+        let actions = leech.on(Event::Received(3, &bytes));
         let requests: Vec<Block> = actions
             .iter()
             .filter_map(|action| match action {
@@ -1178,7 +1161,7 @@ mod tests {
         let mut actions = Vec::new();
         for block in requests.iter().filter(|block| block.piece == 0) {
             let message = Message::Piece { block: *block, data: alloc::vec![0xAA; block.length as usize] };
-            actions.extend(leech.step(Event::Received(3, &wire::frame(&message))));
+            actions.extend(leech.on(Event::Received(3, &wire::frame(&message))));
         }
         assert!(actions.contains(&Action::Close(3)));
         assert!(!actions.iter().any(|action| matches!(action, Action::Write(..))));
@@ -1201,49 +1184,61 @@ mod tests {
         huge.extend(&100_000_u32.to_be_bytes());
         for bytes in [other, mine, twice, huge] {
             let mut swarm = Swarm::new(torrent.clone(), [2; 20], &alloc::vec![Start::Missing; count], Vec::new(), 0);
-            swarm.step(Event::Connected { peer: 1, ip: [5, 5, 5, 5] });
-            assert!(swarm.step(Event::Received(1, &bytes)).contains(&Action::Close(1)));
+            swarm.on(Event::Connected { peer: 1, ip: [5, 5, 5, 5] });
+            assert!(swarm.on(Event::Received(1, &bytes)).contains(&Action::Close(1)));
         }
         // Silence, and a handshake that does not come.
         let mut swarm = Swarm::new(torrent.clone(), [2; 20], &alloc::vec![Start::Missing; count], Vec::new(), 0);
-        swarm.step(Event::Connected { peer: 1, ip: [5, 5, 5, 5] });
-        assert!(swarm.step(Event::Tick(HANDSHAKE_MS + 1)).contains(&Action::Close(1)));
+        swarm.on(Event::Connected { peer: 1, ip: [5, 5, 5, 5] });
+        assert!(swarm.on(Event::Tick(HANDSHAKE_MS + 1)).contains(&Action::Close(1)));
         // Room for MAX_PEERS, PER_ADDRESS of each address.
         let mut swarm = Swarm::new(torrent, [2; 20], &alloc::vec![Start::Missing; count], Vec::new(), 0);
         for peer in 0..MAX_PEERS as u32 {
             let ip = [1, 0, 0, (peer / PER_ADDRESS as u32) as u8];
-            assert!(!swarm.step(Event::Connected { peer, ip }).contains(&Action::Close(peer)));
+            assert!(!swarm.on(Event::Connected { peer, ip }).contains(&Action::Close(peer)));
         }
-        assert!(swarm.step(Event::Connected { peer: 99, ip: [2, 0, 0, 1] }).contains(&Action::Close(99)));
-        swarm.step(Event::Closed(5));
-        assert!(swarm.step(Event::Connected { peer: 100, ip: [1, 0, 0, 0] }).contains(&Action::Close(100)));
-        assert!(!swarm.step(Event::Connected { peer: 101, ip: [1, 0, 0, 1] }).contains(&Action::Close(101)));
+        assert!(swarm.on(Event::Connected { peer: 99, ip: [2, 0, 0, 1] }).contains(&Action::Close(99)));
+        swarm.on(Event::Closed(5));
+        assert!(swarm.on(Event::Connected { peer: 100, ip: [1, 0, 0, 0] }).contains(&Action::Close(100)));
+        assert!(!swarm.on(Event::Connected { peer: 101, ip: [1, 0, 0, 1] }).contains(&Action::Close(101)));
     }
 
     #[test]
-    fn uploads_keep_to_the_limit() {
+    fn two_swarms_upload_within_one_allowance() {
         let count = torrent().piece_count() as usize;
-        let (mut pair, to_a, to_b) = pair(Start::Offered, &alloc::vec![Start::Missing; count]);
-        pair.a.step(Event::UploadLimit(Some(u64::from(BLOCK))));
-        pair.run(to_a, to_b);
-        assert_eq!(pair.a.uploaded, 0, "no token before a second passed");
+        let (mut one, to_a1, to_b1) = pair(Start::Offered, &alloc::vec![Start::Missing; count]);
+        let (mut two, to_a2, to_b2) = pair(Start::Offered, &alloc::vec![Start::Missing; count]);
+        // Lowered to a block a second (the launcher's 1E): its burst is four.
+        let mut up = Allowance::new(0);
+        up.lower(Some(u64::from(BLOCK)));
+        one.run_within(&mut up, to_a1, to_b1);
+        two.run_within(&mut up, to_a2, to_b2);
+        let burst = u64::from(BLOCK) * 4;
+        assert!(one.a.uploaded + two.a.uploaded <= burst, "the second swarm has what the first left");
         for second in 1..=3 {
-            let to_a = pair.a.step(Event::Tick(second * 1000));
-            pair.run(to_a, Vec::new());
+            up.tick(second * 1000);
+            let to_a = one.a.step(Event::Tick(second * 1000), &mut up);
+            one.run_within(&mut up, to_a, Vec::new());
+            let to_a = two.a.step(Event::Tick(second * 1000), &mut up);
+            two.run_within(&mut up, to_a, Vec::new());
         }
-        // The burst (4 blocks) and one a second.
-        assert!(pair.a.uploaded <= u64::from(BLOCK) * 4, "{}", pair.a.uploaded);
-        assert!(pair.a.uploaded >= u64::from(BLOCK));
+        let both = one.a.uploaded + two.a.uploaded;
+        assert_eq!(both, up.sent());
+        assert!(both <= burst + 3 * u64::from(BLOCK), "{both}");
+        assert!(both > burst);
+        // The cap itself is the most: a raise is no raise.
+        up.lower(Some(CAP * 4));
+        assert_eq!(up.rate(), CAP);
     }
 
     /// A peer `key` at `ip` past its handshake with `swarm`, saying it has
     /// the pieces of `bits` and unchoking it: what the swarm did.
     fn open_peer(swarm: &mut Swarm, key: PeerKey, ip: [u8; 4], bits: u8) -> Vec<Action> {
-        let mut actions = swarm.step(Event::Connected { peer: key, ip });
+        let mut actions = swarm.on(Event::Connected { peer: key, ip });
         let mut bytes = wire::handshake(&swarm.torrent.v1, &[key as u8; 20]).to_vec();
         bytes.extend(wire::frame(&Message::Bitfield(alloc::vec![bits])));
         bytes.extend(wire::frame(&Message::Unchoke));
-        actions.extend(swarm.step(Event::Received(key, &bytes)));
+        actions.extend(swarm.on(Event::Received(key, &bytes)));
         actions
     }
 
@@ -1267,7 +1262,7 @@ mod tests {
         if !right {
             data.fill(0xAA);
         }
-        swarm.step(Event::Received(key, &wire::frame(&Message::Piece { block, data })))
+        swarm.on(Event::Received(key, &wire::frame(&Message::Piece { block, data })))
     }
 
     #[test]
@@ -1281,7 +1276,7 @@ mod tests {
         let of_liar = asked(&leech, &actions, 3);
         assert_eq!(of_liar.iter().map(|b| b.piece).collect::<Vec<_>>(), [0, 0]);
         sent(&mut leech, 3, of_liar[0], false);
-        leech.step(Event::Closed(3));
+        leech.on(Event::Closed(3));
         // An honest peer sends the second: the piece fails, of two senders.
         let actions = open_peer(&mut leech, 4, [7, 7, 7, 7], 0xFC);
         let of_honest = asked(&leech, &actions, 4);
@@ -1308,7 +1303,7 @@ mod tests {
         // A peer that says it has piece 0 and answers nothing.
         let actions = open_peer(&mut leech, 3, [6, 6, 6, 6], 0x80);
         assert_eq!(asked(&leech, &actions, 3).len(), 2);
-        assert!(leech.step(Event::Tick(REQUEST_MS + 1)).contains(&Action::Close(3)));
+        assert!(leech.on(Event::Tick(REQUEST_MS + 1)).contains(&Action::Close(3)));
         assert!(matches!(leech.pieces[0], Piece::Missing(Sourcing::Any)));
         // The next peer that has it is asked for it.
         let actions = open_peer(&mut leech, 4, [7, 7, 7, 7], 0xFC);
@@ -1321,14 +1316,14 @@ mod tests {
         let count = torrent.piece_count() as usize;
         let mut swarm = Swarm::new(torrent, [2; 20], &alloc::vec![Start::Checked; count], Vec::new(), 0);
         assert!(swarm.complete());
-        swarm.step(Event::Connected { peer: 3, ip: [6, 6, 6, 6] });
+        swarm.on(Event::Connected { peer: 3, ip: [6, 6, 6, 6] });
         let mut bytes = wire::handshake(&swarm.torrent.v1, &[3; 20]).to_vec();
         bytes.extend(wire::frame(&Message::Interested));
-        swarm.step(Event::Received(3, &bytes));
+        swarm.on(Event::Received(3, &bytes));
         let block = Block { piece: 0, begin: 0, length: BLOCK };
-        let actions = swarm.step(Event::Received(3, &wire::frame(&Message::Request(block))));
+        let actions = swarm.on(Event::Received(3, &wire::frame(&Message::Request(block))));
         assert!(actions.contains(&Action::Load(0)));
-        swarm.step(Event::Loaded(0, Some(alloc::vec![9; PIECE as usize])));
+        swarm.on(Event::Loaded(0, Some(alloc::vec![9; PIECE as usize])));
         assert!(!swarm.complete());
         assert_eq!(swarm.progress(), (0, u64::from(PIECE)));
     }
@@ -1338,17 +1333,17 @@ mod tests {
         let torrent = torrent();
         let count = torrent.piece_count() as usize;
         let mut swarm = Swarm::new(torrent, [2; 20], &alloc::vec![Start::Missing; count], Vec::new(), 0);
-        swarm.step(Event::Connected { peer: 3, ip: [6, 6, 6, 6] });
+        swarm.on(Event::Connected { peer: 3, ip: [6, 6, 6, 6] });
         let mut bytes = wire::handshake(&swarm.torrent.v1, &[3; 20]).to_vec();
         for _ in 0..MAX_USELESS {
             bytes.extend(wire::frame(&Message::KeepAlive));
         }
-        assert!(!swarm.step(Event::Received(3, &bytes)).contains(&Action::Close(3)));
+        assert!(!swarm.on(Event::Received(3, &bytes)).contains(&Action::Close(3)));
         // A new window: as many again are fine; one more is not.
-        swarm.step(Event::Tick(ROTATE_MS));
+        swarm.on(Event::Tick(ROTATE_MS));
         let alive = wire::frame(&Message::KeepAlive).repeat(MAX_USELESS as usize);
-        assert!(!swarm.step(Event::Received(3, &alive)).contains(&Action::Close(3)));
-        assert!(swarm.step(Event::Received(3, &wire::frame(&Message::KeepAlive))).contains(&Action::Close(3)));
+        assert!(!swarm.on(Event::Received(3, &alive)).contains(&Action::Close(3)));
+        assert!(swarm.on(Event::Received(3, &wire::frame(&Message::KeepAlive))).contains(&Action::Close(3)));
     }
 
     #[test]
@@ -1356,7 +1351,7 @@ mod tests {
         let torrent = torrent();
         let count = torrent.piece_count() as usize;
         let mut swarm = Swarm::new(torrent, [2; 20], &alloc::vec![Start::Missing; count], alloc::vec![[6, 6, 6, 6]], 0);
-        assert!(swarm.step(Event::Connected { peer: 3, ip: [6, 6, 6, 6] }).contains(&Action::Close(3)));
+        assert!(swarm.on(Event::Connected { peer: 3, ip: [6, 6, 6, 6] }).contains(&Action::Close(3)));
         assert_eq!(swarm.banned(), [[6, 6, 6, 6]]);
     }
 }

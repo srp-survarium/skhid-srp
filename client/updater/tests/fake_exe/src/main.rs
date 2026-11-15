@@ -24,6 +24,13 @@
 //!   updater's (as the launcher's 3rd to 13th: its "Allow torrent" and
 //!   port); `<say>`: whenever that file is there, its bytes are written to
 //!   the pipe (frames of the launcher's) and it is deleted.
+//! - `fake-exe.exe game <updater> <out> <stop> <say>`: the patched game's
+//!   end of its seeding pipe: makes `\\.\pipe\skhid_seed-<its pid>` (byte
+//!   mode, one instance), starts `<updater> seed <pipe>` in the updater's
+//!   folder, writes every byte the updater sends into `<out>`, writes the
+//!   file `<say>`'s bytes to the pipe whenever it is there, and once the
+//!   file `<stop>` is there closes the pipe (as entering a match does) and
+//!   ends with the updater's exit code once it is gone.
 #![windows_subsystem = "windows"]
 
 extern crate alloc;
@@ -46,7 +53,7 @@ use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
 use windows_sys::Win32::System::Pipes::{ConnectNamedPipe, CreateNamedPipeW, PeekNamedPipe};
 use windows_sys::Win32::System::Threading::{
     CreateMutexW, CreateProcessW, ExitProcess, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION,
-    STARTUPINFOW, Sleep, WaitForSingleObject,
+    STARTUPINFOW, GetCurrentProcessId, Sleep, WaitForSingleObject,
 };
 
 /// What `get_local_version` of the launcher looks for in the game exe: the
@@ -271,6 +278,80 @@ fn launcher(
     code
 }
 
+/// The patched game's seeding pipe (see the top).
+fn game(updater: &str, out: &str, stop: &str, say: &str) -> u32 {
+    let pipe_name = alloc::format!("\\\\.\\pipe\\skhid_seed-{}", unsafe { GetCurrentProcessId() });
+    let pipe = unsafe {
+        CreateNamedPipeW(
+            wide(&pipe_name).as_ptr(),
+            PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+            0,
+            1,
+            0x10000,
+            0x10000,
+            0,
+            null(),
+        )
+    };
+    if pipe == INVALID_HANDLE_VALUE {
+        return 5;
+    }
+    let folder = match updater.rfind('\\') {
+        Some(at) => &updater[..at],
+        None => ".",
+    };
+    let mut command = wide(&alloc::format!("\"{updater}\" seed {pipe_name}"));
+    let folder = wide(folder);
+    let mut startup: STARTUPINFOW = unsafe { core::mem::zeroed() };
+    startup.cb = core::mem::size_of::<STARTUPINFOW>() as u32;
+    let mut process: PROCESS_INFORMATION = unsafe { core::mem::zeroed() };
+    let started = unsafe {
+        CreateProcessW(null(), command.as_mut_ptr(), null(), null(), 0, 0x0800_0000, null(), folder.as_ptr(), &startup, &mut process)
+    };
+    if started == 0 {
+        return 6;
+    }
+    if unsafe { ConnectNamedPipe(pipe, null_mut()) } == 0 && unsafe { GetLastError() } != ERROR_PIPE_CONNECTED {
+        return 7;
+    }
+    let output = create(out, FILE_SHARE_READ);
+    let mut buffer = [0_u8; 4096];
+    while !exists(stop) {
+        let mut waiting = 0_u32;
+        if unsafe { PeekNamedPipe(pipe, null_mut(), 0, null_mut(), &mut waiting, null_mut()) } == 0 {
+            break;
+        }
+        if waiting > 0 {
+            let mut read = 0_u32;
+            let want = waiting.min(buffer.len() as u32);
+            if unsafe { ReadFile(pipe, buffer.as_mut_ptr(), want, &mut read, null_mut()) } == 0 {
+                break;
+            }
+            unsafe { write(output, buffer.as_ptr(), read as usize) };
+            continue;
+        }
+        if exists(say) {
+            let bytes = std::fs::read(say).unwrap_or_default();
+            let _ = std::fs::remove_file(say);
+            unsafe { write(pipe, bytes.as_ptr(), bytes.len()) };
+        }
+        unsafe { Sleep(5) };
+    }
+    unsafe {
+        CloseHandle(output);
+        CloseHandle(pipe);
+    }
+    let mut code = 8;
+    unsafe {
+        if WaitForSingleObject(process.hProcess, INFINITE) == WAIT_OBJECT_0 {
+            GetExitCodeProcess(process.hProcess, &mut code);
+        }
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+    }
+    code
+}
+
 fn main() {
     std::panic::set_hook(Box::new(fatal_panic));
     unsafe {
@@ -293,6 +374,7 @@ fn main() {
                 argument(4),
                 FILE_SHARE_READ | FILE_SHARE_WRITE,
             )),
+            "game" => ExitProcess(game(argument(2), argument(3), argument(4), argument(5))),
             "lock" => ExitProcess(hold(argument(2), argument(3), argument(4), 0)),
             "launcher" => ExitProcess(launcher(
                 argument(2),

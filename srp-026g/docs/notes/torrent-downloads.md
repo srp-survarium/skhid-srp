@@ -92,8 +92,8 @@ and `client/updater/logic/src/swarm.rs` are the code.
 
 - It answers the launcher's torrent messages instead of ignoring them: "Allow torrent" (its 4th
   argument, then `1A`), port (its 13th argument, then `21`, answered port ok `15` or busy `14`),
-  upload limit (`1E`; the 0.26g launcher sends none: no limit), and shows the launcher's states
-  (`08` checking the pieces already on disk, `09` downloading;
+  upload limit (`1E`, which may only lower the cap below; the 0.26g launcher sends none), and
+  shows the launcher's states (`08` checking the pieces already on disk, `09` downloading;
   `srp-026g/docs/notes/launcher_updater.md`).
 - `1A` on takes effect at once: while it watches (PLAY shown) it starts sharing; while a
   download by HTTPS runs (the original game's archive, a patch) and the torrent has that file,
@@ -120,7 +120,10 @@ and `client/updater/logic/src/swarm.rs` are the code.
 - Players are the seeders (no host of ours seeds): with torrent on it shares every file of the
   torrent the folder has, however it came (the torrent, HTTPS, the ZIP), so the first players of
   a revision, who get it by HTTPS, seed it. Only checked pieces, only while it runs (while the
-  launcher is open), within the launcher's upload limit, on the launcher's port.
+  launcher is open, or the game shares: below), within the upload cap, on the launcher's port.
+- **The upload cap** (the owner, 2026-11-15): 1 MB/s (1 MiB a second) for all the sharing of an
+  updater's run: every swarm and the rendezvous together take from one allowance. The
+  launcher's `1E` may only lower it; the game's own limit is ignored.
 - If the torrent gives nothing (no peer in 20 s, no piece for 60 s), it downloads by HTTPS as
   now. PLAY never waits on the torrent.
 - Peers from the trackers only: the updater's own list (the release's, "Top level"), for every
@@ -135,6 +138,31 @@ and `client/updater/logic/src/swarm.rs` are the code.
   peers: no one is known to have lied, and the piece is fetched again from one peer alone. A
   piece being fetched that no peer can go on with goes back to the missing ones.
 
+## Sharing from the game
+
+The owner (2026-11-15): with "Allow torrent" on, the game shares too, but never in a match: on the
+login screen and in the lobby, where the original developers had it (the game's own
+`start_seeding`, which never worked: it asked a Windows service).
+
+- "Allow torrent" is the game's own setting `enable_torrent_seeding`, a line of its `user.cfg`
+  as the language is (the launcher's box writes it); off without the line (the game's default
+  was on: exe patch 150 makes it off). The game's menu never shows it, nor its upload rates (the
+  game's limit is ignored, below). The game writes every setting into user.cfg at its end, so
+  every player who played before has `enable_torrent_seeding on` there, from the old default:
+  open (the owner's call), what turns that off for them.
+- Entering the login screen or the lobby with it on (or as it is turned on there), the game makes the pipe
+  `\\.\pipe\skhid_seed-<its process id>` and starts `updater_skhid.exe seed <that pipe>` beside
+  itself, with no window. Entering a match closes the pipe (so do the game's end and the setting
+  turned off); a replay never shares.
+- The updater (`seed`) shares the folder's revision torrent as the launcher's updater does
+  while it watches (the same trust, the bootstrap, the rendezvous; nothing fetched or installed),
+  on the launcher's port, within the cap, until the pipe closes. A port another updater holds
+  is tried for 10 s, then it ends. No box, no lock; its own log (`updater_skhid.seed.log`).
+- On the pipe the game sends its limit (`1E`, ignored) and its stats switch (`22`: the console's
+  `lobby_torrent_stats`); while that is on, the updater sends a tick a second (`18`: `FF`, the
+  bytes a second sent, the cap, the peers connected), and nothing else ever: the game reads
+  every message as that tick.
+
 ## The rendezvous
 
 How an updater finds a newer release without our site (`client/updater/logic/src/rendezvous.rs`):
@@ -146,7 +174,7 @@ How an updater finds a newer release without our site (`client/updater/logic/src
   `m: {skhid_torrent: <id>}` and `skhid_revision: <n>`, the revision of the newest signed torrent
   it has (no `skhid_revision`: none). An end whose revision is higher sends its torrent, whole,
   as one `skhid_torrent` message (at most 4 MiB) to an end with an older one or none (twice a run
-  to an address at most, within the upload limit); an end that said the higher revision is
+  to an address at most, within the upload cap); an end that said the higher revision is
   waited for; then the connection ends. Anything else ends it.
 - A torrent that comes is taken only when its signature is the release's and its revision is
   higher than the one this end has (or, having none, not lower than what the folder has: the

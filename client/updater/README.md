@@ -95,6 +95,7 @@ library's).
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
+| `"<exe>" seed \\.\pipe\skhid_seed-<pid>` | the patched game, started by the launcher with "Allow torrent" on: on its login screen and in its lobby | Shares the folder's revision torrent until the game closes its pipe (a match, the game's end); answers the game's stats switch. No window, no box, no lock, nothing fetched or installed; its own log, `updater_skhid.seed.log` ("BitTorrent" below). Anything after `seed` but the game's pipe: exit code 1 |
 
 Exit codes: 0, 1 (failed), 2 (the launcher's pipe could not be opened), 3
 (an internal error; logged).
@@ -345,7 +346,8 @@ a patch's part, what HTTPS wrote, is the torrent's part, its pieces checked
 first; the archive's bytes stay for HTTPS to go on from. Off stops the
 engine: sharing ends, a download by torrent goes on by HTTPS. `21` sets the port (answered `15`
 listening, `14` busy: the launcher shows "busy" in its settings), `1E` an
-upload limit (the 0.26g launcher sends none: no limit). The port is
+upload limit, which may only lower the cap (below; the 0.26g launcher sends
+none). The port is
 listened on (all addresses) from the start (a port asked while torrent is
 off: once it is on), and let go before another updater runs (the new one
 after a self-update, the launcher started anew); Windows' firewall may ask
@@ -405,7 +407,7 @@ one that several peers sent bans no one and is fetched again from one peer
 alone, which a wrong byte then names. A piece being fetched that nothing is
 asked of for 60 s and that no unchoked peer has goes back to the missing
 ones. Uploads go to 4 peers at a time (one rotated every 30 s), within the
-upload limit. Trackers: the updater's own (the release's list,
+cap. Trackers: the updater's own (the release's list,
 `exe/src/torrent.rs` `TRACKERS`; a test build `SKHID_TEST_TRACKERS`) for
 every swarm and the rendezvous, never a torrent's; HTTP (compact answers, the
 whole answer within 20 s) and UDP (BEP 15), IPv4, 200 peers an answer at
@@ -444,11 +446,38 @@ then holds. No peer gives them: the list built in, as without torrent.
 while it shares, the updater is also a peer of one fixed swarm whose info
 hash is made of the release's public key, and gives its signed torrent (one
 BEP 10 extension message, 4 MiB at most) to a peer there that has an older
-one or none: twice a run to an address at most, out of the upload limit. An
+one or none: twice a run to an address at most, within the cap. An
 updater that cannot reach the update server asks it for 20 s first, and
 keeps the newest torrent it took in that time (signature verified, revision
 higher) beside itself. A connection is routed by the info hash of its
 handshake: the torrent's swarm or the rendezvous; anything else is closed.
+
+**The upload cap** (`logic/src/upload.rs`): all the sharing of a run, every
+swarm of every engine and the rendezvous' torrent together, takes its bytes
+from one allowance of 1 MiB a second (1,048,576 bytes; "1 MB/s"), full at the
+start, a second of it at most; the launcher's `1E` may lower it, never raise
+it (`0` or none: the cap). The same in the launcher's updater and in `seed`.
+
+**Sharing from the game** (`exe/src/seed.rs`, `logic/src/seed.rs`; the spec's
+"Sharing from the game"): the patched game, while its own
+`enable_torrent_seeding` ("Allow torrent", user.cfg's line) is on, makes the pipe
+`\\.\pipe\skhid_seed-<its process id>` on its login screen and in its lobby
+and starts `updater_skhid.exe seed <that pipe>` beside itself, with no
+window. The updater opens the pipe, shares the folder's torrent as the
+launcher's updater does while it watches (`torrent::share_while`, its one
+call into the engine: the trusted torrent's files the folder has, the
+bootstrap's, the rendezvous; nothing fetched), on the launcher's kept port
+(`port_number`), and ends when the pipe closes: the game entering a match,
+or ending. It reads no "Allow torrent" (the game's setting decided), takes
+no lock and shows no box; it logs to `updater_skhid.seed.log`. A port that
+is held (another updater shares on it, or is closing) is tried for 10 s,
+then the run ends, logged. On the pipe (the launcher's framing) the game
+says its upload limit (`1E`: ignored, the cap holds) and its stats switch
+(`22`, `FF` on, `00` off: the console's `lobby_torrent_stats`). The game
+reads every message as its stats' tick whatever its id, so the updater
+sends only ticks, a second apart, and only while the switch is on: `18`,
+`FF`, then three u32: bytes a second sent since the last tick, the cap,
+the peers connected (16 bytes with the length).
 
 ## Original game download and verification
 
@@ -863,6 +892,7 @@ python tests/test_unreadable.py              # Windows or Wine (a Skhid file tha
 SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) \
     SKHID_TEST_TRACKERS="$(python tests/test_torrent.py --trackers)" ./build.sh   # the tests' key and trackers
 python tests/test_torrent.py                 # Windows or Wine; Python with libtorrent and cryptography
+python tests/test_seed.py                    # the same build and Python: the game's sharing (`seed`)
 SKHID_TEST_BUNDLE=<a players' zip> python tests/test_updater.py
 ```
 
@@ -1039,6 +1069,17 @@ names it and PLAY stays off); `test_db_patches.py` (48, one skipped as
 before), `test_play_gate.py` (9) and `test_game_download.py` (16, four
 skipped as before). Not run on Windows: Windows Security's errors 225 and
 226 cannot be made by a test, and the box was not seen.
+
+Run on 2026-11-15 (Linux, Wine, headless), with the game's sharing (`seed`) and the
+upload cap: the 136 unit tests of `logic/` (the cap: two swarms within one
+allowance, the launcher's limit lowering it only; the game's command line,
+messages, tick and stats switch); `test_seed.py` (5: a libtorrent leech gets
+the folder from `seed` alone, 6.3 MB in 6.0 s, within the cap, nothing said to
+the game, the run ends 0 when the game closes its pipe, no `updater_skhid.log`
+written; `1E` ignored and `22` answered with `18` ticks only, none once hidden;
+a held port given up after 10 s; a folder without a torrent; a command line
+not the game's refused) and `test_torrent.py` (13), built with the tests' key
+and trackers. Not run: the patched game starting it, Windows.
 
 ## Not done
 
