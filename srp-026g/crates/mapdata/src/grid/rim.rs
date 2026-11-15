@@ -213,6 +213,10 @@ pub(super) struct Made {
     pub(super) aim: Aim,
 }
 
+/// What the rim pass made of its jumps ([`WalkGrid::fly_rim_jumps`]): its stats, the jumps no press made as (take-off, landing),
+/// and [C2 rows 11/12/14] the plain Jump links no press lands on the top of as (take-off, way, 0), for the caller's cut.
+pub(super) type RimFlown = (RimStats, Vec<(NodeId, NodeId)>, Vec<(u32, usize, f32)>);
+
 impl WalkGrid {
     /// The floor under `feet`: in the feet's own cell (the feet within half a cell of its centre on both axes, the grid's own
     /// test), the one within [`LAND_HEIGHT_M`] of the feet's height, the nearest in height; where that cell has none, the floor
@@ -575,7 +579,7 @@ impl WalkGrid {
         wide: &mut Wide,
         world: &Collision,
         s: &Settings,
-    ) -> (RimStats, Vec<(NodeId, NodeId)>, Vec<(u32, usize, f32)>) {
+    ) -> RimFlown {
         // [S1] From a step up: a sprinting body climbs an edge from 0.80 to 1.15 m with no jump ([`Kind::Climb`]), and an
         // edge there whose side has no link (no Jump link) is the builder's to fly.
         let todo = self.edges_up(wide, self.body.step, RIM_REACH_M);
@@ -591,7 +595,7 @@ impl WalkGrid {
         world: &Collision,
         s: &Settings,
         todo: Vec<(u32, u32, usize)>,
-    ) -> (RimStats, Vec<(NodeId, NodeId)>, Vec<(u32, usize, f32)>) {
+    ) -> RimFlown {
         let body = &self.body;
         let leads = gap_leads();
         let kits = Kits { body: jump::WALK_CAP_MS, fastest: body.fastest_walk_cap };
