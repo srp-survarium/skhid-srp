@@ -1212,7 +1212,8 @@ mod tests {
         });
         assert!(pressed >= 2, "{pressed} presses");
         assert!(unchanged >= 1, "{unchanged} of {pressed} presses left the assignment as it was");
-        assert!(game.drug_log.iter().all(|p| matches!(p.2, Pressed::Used(_))));
+        let refused: Vec<_> = game.drug_log.iter().filter(|p| !matches!(p.2, Pressed::Used(_))).collect();
+        assert!(refused.is_empty(), "presses that used nothing: {refused:?} of {:?}", game.drug_log);
         // The test has teeth: with the play (the habit off) the same run does assign a Heal play.
         let mut off = rework_on();
         off.heal.interrupt = false;
