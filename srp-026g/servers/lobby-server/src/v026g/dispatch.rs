@@ -599,11 +599,17 @@ impl Core<'_> {
     /// own "Watch replay" answer (`replay`), a presets start
     /// (`lobby::presets::PRESETS_FIRST` to `PRESETS_LAST`) with the kit
     /// presets (`presets`), a lobby pick (`lobby::lobby_pick::LOBBY_PICK_BASE`
-    /// and its id: kept, shown back in `0xA1`); any other gets no answer.
+    /// and its id: kept, shown back in `0xA1`), the shop's "Hide owned" box
+    /// (`lobby::shop_filter::SHOP_FILTER_FIRST` and the next two: `shop`);
+    /// any other gets no answer.
     /// Nothing of the ranking is read, sent or kept for them.
     fn reserved_ranking(&mut self, who: &Who, start: u32, count: u8, now: Instant) {
         if let Some(pick) = lobby::lobby_pick::LobbyPick::of_start(start) {
             self.lobby_pick(who, pick);
+            return;
+        }
+        if let Some(request) = lobby::shop_filter::shop_filter_request(start) {
+            self.shop_filter(who, request);
             return;
         }
         if let Some(request) = lobby::presets::preset_request(start) {
