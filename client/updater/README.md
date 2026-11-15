@@ -246,7 +246,7 @@ box to its line. The title begins with fixed words for the problem and goes
 on with what failed: the file, the host, how. Then what happened, one line
 of what to run (a file beside `Skhid.bat`), and the log's path. In the
 game's language (English, Russian, Ukrainian, German, Polish); the box's
-caption is `Skhid updater: <the fixed words>` in English always.
+caption is `Skhid: <the fixed words>` in English always.
 
 | Title begins | When | What to run |
 |---|---|---|

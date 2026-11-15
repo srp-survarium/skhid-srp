@@ -393,7 +393,7 @@ for steps 8 to 10 and ends with its exit code. It does not watch.
 
 ## When something goes wrong
 
-Every failure is said in words, in a box titled "Skhid updater", and written
+Every failure is said in words, in a box titled "Skhid", and written
 to the run's `game\binaries\x86\updater_skhid.<date>.log`. Nothing is half installed: the
 ZIP's files go in all or none, and a patch file is a checked file or none.
 
