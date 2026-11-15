@@ -2364,3 +2364,8 @@ va	status	ref_021d	name
 0x00161e50	reviewed		stlp_std::priv::__linear_insert<vostok::render::grass_patch **>
 0x00162060	reviewed		stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>
 0x0005c060	reviewed		vostok::sound::sound_scene::process_fade
+0x00316bc0	observed		survarium::player_respawn_rule_base::on_player_entered_match
+0x00316c90	observed		survarium::player_respawn_rule_base::serialize
+0x00316d50	observed		survarium::player_respawn_rule_base::deserialize
+0x00316f10	observed		survarium::player_respawn_rule_core::serialize
+0x00316fc0	observed		survarium::player_respawn_rule_core::deserialize

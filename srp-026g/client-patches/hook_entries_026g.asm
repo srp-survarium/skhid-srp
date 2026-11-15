@@ -4210,6 +4210,123 @@ free_for_all_on_select_replay:
     db 0x8b, 0xbc, 0x81, 0x94, 0x01, 0x00, 0x00
     jmp 0x3171e3
 
+; 0x316fb8 player_respawn_rule_core::serialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / pop ecx, then ret 4; reached only by the fall-through at 0x316FB6): EBX the writer (its argument, 0x316F12): lohook -> free_for_all_on_spawns_save
+global free_for_all_on_spawns_save
+extern hook_free_for_all_on_spawns_save
+free_for_all_on_spawns_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_spawns_save
+    mov edx, free_for_all_on_spawns_save_replay
+    cmp eax, 0
+    je free_for_all_on_spawns_save_go
+    mov edx, 0x316fbd
+    cmp eax, 1
+    je free_for_all_on_spawns_save_go
+    ud2
+free_for_all_on_spawns_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_spawns_save_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0x59
+    jmp 0x316fbd
+
+; 0x317038 player_respawn_rule_core::deserialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / ret 8; reached only by the fall-through at 0x317036): ESI the reader (its argument, 0x316FC7): lohook -> free_for_all_on_spawns_load
+global free_for_all_on_spawns_load
+extern hook_free_for_all_on_spawns_load
+free_for_all_on_spawns_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_spawns_load
+    mov edx, free_for_all_on_spawns_load_replay
+    cmp eax, 0
+    je free_for_all_on_spawns_load_go
+    mov edx, 0x31703f
+    cmp eax, 1
+    je free_for_all_on_spawns_load_go
+    ud2
+free_for_all_on_spawns_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_spawns_load_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0xc2, 0x08, 0x00
+    jmp 0x31703f
+
+; 0x316bc0 player_respawn_rule_base::on_player_entered_match's entry (movzx eax,byte [esp+4]; then mov edx,[esp+8] / mov [ecx+eax*4+138h],edx / ret 8; vtable 0xA16084 slot +20h, called by game_world_core::on_player_entered_match 0x2D2021): [esp+4] the place: lohook -> free_for_all_on_entered
+global free_for_all_on_entered
+extern hook_free_for_all_on_entered
+free_for_all_on_entered:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_free_for_all_on_entered
+    mov edx, free_for_all_on_entered_replay
+    cmp eax, 0
+    je free_for_all_on_entered_go
+    mov edx, 0x316bc5
+    cmp eax, 1
+    je free_for_all_on_entered_go
+    ud2
+free_for_all_on_entered_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+free_for_all_on_entered_replay:
+    db 0x0f, 0xb6, 0x44, 0x24, 0x04
+    jmp 0x316bc5
+
 ; 0x234880 game_world_ui::initialize_match's start (sub esp,5D4h), once a match (from 0x1F855D; the late join's rebuild enters at 0x234E71): the site's ESP+4 the hud, whose kits (+2DFh) and cursor (+2DCh) are the last match's: lohook -> hud_cursor_on_match_start
 global hud_cursor_on_match_start
 extern hook_hud_cursor_on_match_start_chain

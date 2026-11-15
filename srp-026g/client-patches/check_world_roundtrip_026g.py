@@ -149,6 +149,11 @@ OWN_CHECKS = {
     (0x334F66, 10): "battery.save: patch 92's life after each battery's record (the statistics, modes 2 and 3; "
                     "none in the recorded match); check_battery_progress_026g.py (a load gives every life back)",
     (0x3350D0, 6): "battery.load: as battery.save",
+    (0x316FB8, 5): "respawn.save: patch 142's spawn history, 40 bytes after the respawn rule's (the rules section, a "
+                   "free-for-all's only: the corpus is Team Deathmatch's, where it writes nothing); "
+                   "check_free_for_all_026g.py (saved after the game's own bytes, loaded by a late joiner and in a "
+                   "rollback, saved the same, the same choices after; another mode's bytes the game's alone)",
+    (0x317038, 7): "respawn.load: as respawn.save",
 }
 CODEC = re.compile(r"::(de)?serialize")
 CODEC_ALSO = {0x32BBC0: "survarium::bullet::bullet (the bullet loader)",

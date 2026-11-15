@@ -6191,3 +6191,15 @@ va	name	location	role	basis
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+8	the camera position by value (3 floats)	observed
 0x0005c060	vostok::sound::sound_scene::process_fade	ESI	the sound scene (sound_scene::tick)	observed
 0x0005c060	vostok::sound::sound_scene::process_fade	ECX	the ms since the world's last tick	observed
+0x00316bc0	survarium::player_respawn_rule_base::on_player_entered_match	ECX	the respawn rule	observed
+0x00316bc0	survarium::player_respawn_rule_base::on_player_entered_match	entry ESP+4	the place (low byte, movzx at 0x316BC0)	observed
+0x00316bc0	survarium::player_respawn_rule_base::on_player_entered_match	entry ESP+8	the enter time, stored as the place's respawn time (+138h + 4 x place): the place spawns at that tick	observed
+0x00316c90	survarium::player_respawn_rule_base::serialize	ECX	the respawn rule: writes a mask of the places whose respawn time (+138h + 4 x place) is not -1, then each such time (asserts 0xA15E30 name it)	observed
+0x00316c90	survarium::player_respawn_rule_base::serialize	entry ESP+4	writer	observed
+0x00316d50	survarium::player_respawn_rule_base::deserialize	ECX	the respawn rule: reads the mask and a u32 for each set bit; the other places -1	observed
+0x00316d50	survarium::player_respawn_rule_base::deserialize	entry ESP+4	reader: its cursor at +4	observed
+0x00316f10	survarium::player_respawn_rule_core::serialize	ECX	the respawn rule: the base's (0x316C90), m_respawn_random's seed (+1A0h), then two bytes for each point of its three groups (+188h pointers, +194h counts; the point's checkers +28h, +2Ch, their +20h); EBX the writer to its end (0x316FB8, exe patch 142's respawn.save)	observed
+0x00316f10	survarium::player_respawn_rule_core::serialize	entry ESP+4	writer	observed
+0x00316fc0	survarium::player_respawn_rule_core::deserialize	ECX	the respawn rule: the base's (0x316D50), the seed, the points' bytes as serialize writes them; ESI the reader to its end (0x317038, exe patch 142's respawn.load)	observed
+0x00316fc0	survarium::player_respawn_rule_core::deserialize	entry ESP+4	reader: its cursor at +4	observed
+0x00316fc0	survarium::player_respawn_rule_core::deserialize	entry ESP+8	a dword of the caller, passed on to the base's deserialize; popped (ret 8)	observed
