@@ -816,6 +816,12 @@ impl BodyTrack {
         self.own.reload(from, until);
     }
 
+    /// [A388 (e) gap 5] A world's word on this body's reload: under way at `at`, its clip ending at `until` (any body, not
+    /// only a bot's own: [`super::sprint_gates::OwnGates::world_reload`]). Returns whether the gates changed.
+    pub fn world_reload(&mut self, at: u32, until: u32) -> bool {
+        self.own.world_reload(at, until)
+    }
+
     /// [2e] The bot's gun in hands' `aim_time`, ms.
     pub fn set_aim_out_ms(&mut self, ms: u32) {
         self.own.set_aim_out_ms(ms);
