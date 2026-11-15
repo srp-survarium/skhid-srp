@@ -211,9 +211,11 @@ appended (the manifest's state before the list).
   settings, hfov 100 (Dark Valley `sw-high` (200, 28, -262) yaw 55.2 pitch
   -15.7; Vehicle Station `e-high` (196, 18, -27) -90 / -20.7; Fire Station
   `nw-high` (-72, 26, 66) 128.9 / -12.8, the hose tower in the middle; all
-  high overviews: the eye-level tries were blocked). Sports Center still has
-  the minimap's preview: its capture waited on the owner's game. The shots,
-  contact sheets and the harness (its 8 Sports Center poses ready) are in
+  high overviews: the eye-level tries were blocked); Sports Center
+  `hall-ne-low` (-37, 1.7, -20) yaw -142.5 pitch 0.5, eye level in the gym
+  hall (the owner, 2026-11-15: "fix the Sports Center loading picture"; it
+  had the minimap's preview). The shots, contact sheets, the before/after
+  sheet (`sheets/sport_center-before-after.jpg`) and the harness are in
   `/mnt/hdd/Projects/stalker-maps-026/previews-maps2/`.
 - A flat surface in Dark Valley's north and north-east yards, knee to eye
   high, is drawn plain white in those frames (`n-yard`, `ne-yard`): not
