@@ -14,8 +14,6 @@ use crate::{exit, log as logging, torrent, win};
 /// Its own: a seed runs at every lobby and would push the launcher's
 /// updater's logs out of the kept 100.
 const LOG_FOLDER: &str = "updater_skhid.seed-logs";
-/// How often "Allow torrent" is read again while it shares.
-const RECHECK_MS: u64 = 10_000;
 
 /// `pipe`: `None` when the command line was not the game's.
 pub fn run(pipe: Option<GamePipe>) -> u32 {
@@ -47,8 +45,6 @@ pub fn run(pipe: Option<GamePipe>) -> u32 {
     }
     let mut stats = Stats::Hidden;
     let mut meter = Meter::new(win::ticks(), 0);
-    let mut looked = win::ticks();
-    let mut allowed = true;
     let shared = torrent::share_while(&layout, None, &mut |sharing| {
         let now = win::ticks();
         let mut events: alloc::vec::Vec<Event> = channel
@@ -73,15 +69,7 @@ pub fn run(pipe: Option<GamePipe>) -> u32 {
                 channel.send_bytes(&frame(tick));
             }
         }
-        // The launcher may untick the box while the game runs.
-        if now.saturating_sub(looked) >= RECHECK_MS {
-            looked = now;
-            allowed = win::launcher_torrent_allowed();
-            if !allowed {
-                log!("seed: \"Allow torrent\" was turned off: stopped");
-            }
-        }
-        allowed && channel.is_open()
+        channel.is_open()
     });
     match shared {
         Ok(()) => log!("seed: the game closed the pipe: done"),

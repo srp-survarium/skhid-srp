@@ -190,9 +190,6 @@ login screen and in the lobby, where the original developers had it (the game's 
   updater does while it watches (the same trust, the bootstrap, the DHT item; nothing fetched or installed),
   on the kept port (a free one, then kept, when none is), within the cap, until the pipe closes. A port another updater holds
   is tried for 10 s, then it ends. No box, no lock; its own run logs (in `updater_skhid.seed-logs\` beside it).
-- It reads "Allow torrent" again every 10 s and stops when it is off. The game writes every
-  setting back at its end, `enable_torrent_seeding` too, as it holds it: an untick in the
-  launcher while the game runs is undone when the game ends (untick with the game closed).
 - On the pipe the game sends its limit (`1E`, ignored) and its stats switch (`22`: the console's
   `lobby_torrent_stats`); while that is on, the updater sends a tick a second (`18`: `FF`, the
   bytes a second sent, the cap, the peers connected), and nothing else ever: the game reads
