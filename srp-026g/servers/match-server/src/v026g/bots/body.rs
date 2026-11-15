@@ -117,6 +117,10 @@ pub struct Estimate {
     /// [A364 P9] The controller kept across the reckoned steps ([`ClientStep::Kept`]); none with the other modes, before the first
     /// ground step and where the feet were placed otherwise since.
     pub kept: Option<KeptBody>,
+    /// [F42] The crouch selector's state after [`Self::keys`]'s input ([`Creep`]), and after the input the next step moves by
+    /// ([`Self::step`]'s; [`Self::creep`] with [`StepInput::Same`]).
+    pub creep: Creep,
+    pub step_creep: Creep,
 }
 
 /// [A364 P9] A body's controller kept across ticks ([`ClientStep::Kept`]) and the feet it last gave the reckoning.
@@ -275,6 +279,100 @@ impl Estimate {
     }
 }
 
+/// [F42] The client's crouch selector state of a body with both legs broken, which decides whether its crouched move keys move it
+/// (the selector's machine, `weapon_user_animations_selector` 0x2FAB70; the world saves it, `SelectorState`).
+///
+/// The client (PROVEN, the exe review and exactness, 2026-11-15): with both legs broken (`damage_model` +388h == 2) the crouch run
+/// state's way out, `crouch_on_site` 0x2FBDF0, is true at once (0x2FBE05), and the crouch on-site state's, `crouch_run` 0x2FBE50, is
+/// true with the crouch key and a move (forward xor back, or left xor right). Both states are ready at once (0x372420) and the
+/// machine 0x38CA20 takes one transition a selector tick, so each selector tick flips run <-> on site. The selector ticks only on a
+/// +33Eh event (`tick_animations` 0x2D8EE0; its own released-crouch test is skipped with +388h == 2, 0x2D8F00): a change of the
+/// input's key word (`apply_new_input` 0x2D8995), the stagger's start or end (0x2DBCD0), and events the reckoning does not see (a
+/// leg's health step 0x32AA85, the weight, the gun's aim and ammo, a one-shot clip's end, an item change); no clock, and the crouch
+/// clips' interval ends are none (the crouch states subscribe no callback, 0x391C40). The run state walks at the crouch walk, the
+/// on-site state stands; the change is the movement's 0.3 s blend, nested ([`super::kin::Mixer::Layers`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Creep {
+    /// Not known (no world said, or the body was not in a crouch state when the legs broke): moved as before, at the crouch walk.
+    #[default]
+    Unknown,
+    /// `player_logic_crouch_on_site_state`: the move keys do not move the body.
+    OnSite,
+    /// `player_logic_crouch_walk_state`: the move keys walk it.
+    Run,
+}
+
+impl Creep {
+    /// The world's selector state.
+    pub fn of_selector(state: srp_validate::world::SelectorState) -> Self {
+        match state {
+            srp_validate::world::SelectorState::CrouchOnSite => Self::OnSite,
+            srp_validate::world::SelectorState::CrouchWalk => Self::Run,
+            _ => Self::Unknown,
+        }
+    }
+
+    /// The state after the input `keys` at a selector `event` (a +33Eh event), for a body whose legs are both broken or not.
+    /// Unbroken legs: the crouch states follow the keys (on site without a move, run with one), a standing body is not in them.
+    fn next(self, keys: u32, event: bool, legs_broken: bool) -> Self {
+        if !legs_broken {
+            return match (keys & key::CROUCH != 0, crouch_moves(keys)) {
+                (false, _) => Self::Unknown,
+                (true, false) => Self::OnSite,
+                (true, true) => Self::Run,
+            };
+        }
+        match (self, event) {
+            (state, false) => state,
+            (Self::Run, true) => Self::OnSite,
+            (Self::OnSite, true) if keys & key::CROUCH != 0 && crouch_moves(keys) => Self::Run,
+            (state, true) => state,
+        }
+    }
+
+    /// The velocity a step under this state takes as its target: none on site, the keys' own otherwise.
+    fn target(self, keys_target: super::kin::Local) -> super::kin::Local {
+        if self == Self::OnSite { [0.0, 0.0] } else { keys_target }
+    }
+}
+
+/// [F42] The client's move test of `crouch_run` 0x2FBE50 (0x2FBE78..0x2FBE89): forward xor back, or left xor right.
+pub(crate) fn crouch_moves(keys: u32) -> bool {
+    let along = (keys & key::FORWARD != 0) != (keys & key::BACK != 0);
+    let side = (keys & key::LEFT != 0) != (keys & key::RIGHT != 0);
+    along || side
+}
+
+/// [F42] The reckoned steps of bodies with both legs broken by their [`Creep`] state, on this server (the match-end line). Decides
+/// nothing.
+pub(crate) mod creep_steps {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static ON_SITE: AtomicU64 = AtomicU64::new(0);
+    static RUN: AtomicU64 = AtomicU64::new(0);
+    static UNKNOWN: AtomicU64 = AtomicU64::new(0);
+    static WORLDS: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn step(state: super::Creep) {
+        match state {
+            super::Creep::OnSite => &ON_SITE,
+            super::Creep::Run => &RUN,
+            super::Creep::Unknown => &UNKNOWN,
+        }
+        .fetch_add(1, Relaxed);
+    }
+
+    /// A world that said the state of a body with both legs broken.
+    pub(crate) fn world() {
+        WORLDS.fetch_add(1, Relaxed);
+    }
+
+    /// (on site, run, unknown, worlds) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64, u64, u64) {
+        (ON_SITE.swap(0, Relaxed), RUN.swap(0, Relaxed), UNKNOWN.swap(0, Relaxed), WORLDS.swap(0, Relaxed))
+    }
+}
+
 /// [A318] Whether the reckoned body is on its floor or coming down onto it ([`DropFall::Gravity`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Fall {
@@ -380,7 +478,7 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
     for k in 0..kin.blend_ticks + hold + 2 {
         // The keys count a tick more than the model's one-tick lag (the game may take them at once).
         let (held, turn) = if k < hold { (keys, if k == 0 { turn } else { 0.0 }) } else { (keys & !MOVE_KEYS, 0.0) };
-        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false }, kin, level, Some(grid), None, Role::Forecast);
+        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false }, kin, level, Some(grid), None, Role::Forecast, false);
         // A fall that lands where the route drops is the route's.
         let falls = |feet: Vec3| top - feet.y >= mapdata::grid::LIP_DROP_M && !planned.iter().any(|landing| landing.distance_xz(feet) <= PLANNED_LANDING_M);
         if falls(at.feet) {
@@ -673,6 +771,8 @@ pub struct BodyTrack {
     own: OwnGates,
     /// [2e] The body's hits as the last world showed them ([`Self::set_hits`]): the stagger's sprint gate and speed term.
     stagger: Stagger,
+    /// [F42] The crouch selector's state a world showed, and that world's time ([`Self::set_creep`]).
+    world_creep: Option<(u32, Creep)>,
     /// [A318] The map's walls a jump in the air is held by ([`Self::set_walls`]; none: the grid's floors alone).
     walls: Option<Walls>,
     /// The lives the worlds showed, the present one counted.
@@ -817,6 +917,16 @@ impl BodyTrack {
         self.stagger.seen(hits);
     }
 
+    /// [F42] The crouch selector's state the world made at `at` shows ([`Creep::of_selector`]), before its [`Self::fixed`].
+    pub fn set_creep(&mut self, at: u32, creep: Creep) {
+        self.world_creep = Some((at, creep));
+    }
+
+    /// [F42] Whether the stagger starts or ends between `from` and `to` (a selector event, `update_stagger` 0x2DBCD0).
+    fn stagger_edge(&self, from: u32, to: u32) -> bool {
+        self.stagger.on(from) != self.stagger.on(to)
+    }
+
     /// [2e] The bot's own reload from `from` until `until`, ms (its reflex's note).
     pub fn note_reload(&mut self, from: u32, until: u32) {
         self.own.reload(from, until);
@@ -939,7 +1049,8 @@ impl BodyTrack {
             jump: JumpGate::Open,
             legs_broken: false,
         };
-        Some(advance(estimate, self.as_taken(tick, kin), kin, self.level_at(tick.time, kin), grid, self.walls.as_ref().map(|w| &*w.0), Role::Reckoning))
+        let edge = self.stagger_edge(estimate.time, tick.time);
+        Some(advance(estimate, self.as_taken(tick, kin), kin, self.level_at(tick.time, kin), grid, self.walls.as_ref().map(|w| &*w.0), Role::Reckoning, edge))
     }
 
     /// Where the body is, or was last reckoned alive, and in which of its
@@ -988,9 +1099,10 @@ impl BodyTrack {
         }
         let level = self.level_at(time, kin);
         let tick = self.as_taken(tick, kin);
+        let edge = self.estimate.is_some_and(|estimate| self.stagger_edge(estimate.time, time));
         if let Some(estimate) = self.estimate.as_mut() {
             let held;
-            (*estimate, held) = advance_held(*estimate, tick, kin, level, grid, self.walls.as_ref().map(|w| &*w.0));
+            (*estimate, held) = advance_held(*estimate, tick, kin, level, grid, self.walls.as_ref().map(|w| &*w.0), edge);
             self.trail.push_back(Reckoned { time, feet: estimate.feet, held, grid_extra: estimate.grid_extra });
             while self
                 .trail
@@ -1184,6 +1296,13 @@ impl BodyTrack {
         let local = blend.now(kin.blend_ticks);
         let (air_until, air_cap) = self.air_at(fix.time, kin);
         let arc = if kin.jump_arc { self.arc_at(fix.time, feet, fix.yaw).map(Jump::Clip) } else { None };
+        let creep_at_fix = match self.world_creep {
+            Some((at, creep)) if at == fix.time => creep,
+            _ => Creep::Unknown,
+        };
+        if creep_at_fix != Creep::Unknown && self.leg_damage.at(fix.time) == LegGate::Stand {
+            creep_steps::world();
+        }
         let mut estimate = Estimate {
             time: fix.time,
             feet,
@@ -1223,7 +1342,22 @@ impl BodyTrack {
                     Some((keys, wrap(fix.yaw - turn)))
                 })
                 .flatten(),
+            // [F42] The world's selector state is after input W's; the step after the world moves by input W-50's, whose state is
+            // the same unless input W's word was an event that flipped it (then its state before: on site before a run; either
+            // before an on-site state, so not known).
+            creep: creep_at_fix,
+            step_creep: creep_at_fix,
         };
+        if kin.step_input == StepInput::Previous
+            && let Some((step_keys, _)) = estimate.step
+            && step_keys != held
+            && self.leg_damage.at(fix.time) == LegGate::Stand
+        {
+            estimate.step_creep = match creep_at_fix {
+                Creep::Run => Creep::OnSite,
+                Creep::OnSite | Creep::Unknown => Creep::Unknown,
+            };
+        }
         // [A318] A world that has the body more than a step over its floor, out of its own jump, has it falling
         // ([`DropFall::Gravity`], [`DropFall::Client`]). A body in the client's jump (`kin.jump_arc`: the arc runs past the old
         // 800 ms air window, a sprint clip 955 ms) is the arc's. [`FixFall::World`]: a body the world has going down (its own
@@ -1246,8 +1380,16 @@ impl BodyTrack {
         // The ticks after the world's, again from where the world has it.
         for tick in self.ticks.iter().filter(|tick| tick.time > fix.time) {
             let held;
-            (estimate, held) =
-                advance_held(estimate, self.as_taken(*tick, kin), kin, self.level_at(tick.time, kin), grid, self.walls.as_ref().map(|w| &*w.0));
+            let edge = self.stagger_edge(estimate.time, tick.time);
+            (estimate, held) = advance_held(
+                estimate,
+                self.as_taken(*tick, kin),
+                kin,
+                self.level_at(tick.time, kin),
+                grid,
+                self.walls.as_ref().map(|w| &*w.0),
+                edge,
+            );
             self.trail.push_back(Reckoned { time: tick.time, feet: estimate.feet, held, grid_extra: estimate.grid_extra });
         }
         // A world newer than every decided tick: the body is as it shows.
@@ -1329,9 +1471,10 @@ fn advance_held(
     level: f32,
     grid: Option<&WalkGrid>,
     walls: Option<&RayTree>,
+    stagger_edge: bool,
 ) -> (Estimate, bool) {
     let meant = kin.target_local(at.step_by(kin).0, level);
-    let next = advance(at, tick, kin, level, grid, walls, Role::Reckoning);
+    let next = advance(at, tick, kin, level, grid, walls, Role::Reckoning, stagger_edge);
     let held = grid.is_some() && meant[0].hypot(meant[1]) > 1e-3 && next.velocity == [0.0, 0.0];
     (next, held)
 }
@@ -1339,7 +1482,9 @@ fn advance_held(
 /// The body at the next decided tick: moved by the keys it held (a tick
 /// missed between two decided ones, a stall, held the same keys), then the
 /// tick's turn and keys taken. In the air ([`Estimate::air_until`]), a step
-/// a ledge stops that walks into a floor its floor jumps to gets up on it.
+/// a ledge stops that walks into a floor its floor jumps to gets up on it. `stagger_edge`: the stagger starts or ends since the
+/// last tick, a selector event ([`Creep`]).
+#[allow(clippy::too_many_arguments)] // the body's step: the track's own inputs, passed apart so the forecasts can leave each out
 fn advance(
     mut at: Estimate,
     tick: Tick,
@@ -1348,6 +1493,7 @@ fn advance(
     grid: Option<&WalkGrid>,
     walls: Option<&RayTree>,
     role: Role,
+    stagger_edge: bool,
 ) -> Estimate {
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
     let falls = role == Role::Reckoning && kin.drop_fall != DropFall::Snap;
@@ -1358,7 +1504,12 @@ fn advance(
         // [A318] [`StepInput::Previous`]: the held-back input moves the first step only; a stall's further steps (no input
         // decided between) move with the newest input, as the client holds it.
         let (step_keys, step_yaw) = if step == 1 { at.step_by(kin) } else { (at.keys, at.yaw) };
-        let target = kin.target_local(step_keys, level);
+        // [F42] Both legs broken: the move keys move the body in the crouch run state only ([`Creep`]).
+        let creep = if step == 1 && kin.step_input == StepInput::Previous { at.step_creep } else { at.creep };
+        if tick.legs_broken {
+            creep_steps::step(creep);
+        }
+        let target = if tick.legs_broken { creep.target(kin.target_local(step_keys, level)) } else { kin.target_local(step_keys, level) };
         // [A318] A falling body moves across from its floor; its height is played after the step.
         let top = at.feet.y;
         if let (Some(grid), Fall::Falling { .. }, Some(node), None) = (grid, at.fall, at.node, at.arc) {
@@ -1617,6 +1768,10 @@ fn advance(
         at.air_until = 0;
     }
     at.step = (kin.step_input == StepInput::Previous).then_some((at.keys, at.yaw));
+    // [F42] The new input's selector tick: a change of the key word or the stagger's edge is an event ([`Creep`]).
+    let creep = at.creep.next(tick.keys, tick.keys != at.keys || stagger_edge, tick.legs_broken);
+    at.step_creep = if kin.step_input == StepInput::Previous { at.creep } else { creep };
+    at.creep = creep;
     at.yaw = wrap(at.yaw + tick.turn.0);
     at.pitch = (at.pitch + tick.turn.1).clamp(-MAX_PITCH, MAX_PITCH);
     at.kick = tick.kick;
@@ -2386,6 +2541,24 @@ pub(super) mod tests {
     use crate::v026g::drive::key;
     use mapdata::{Body, Triangle, WalkerBehaviour};
 
+    /// [F42] Both legs broken: each selector event flips run <-> on site while the crouch key and a move are held; with no move the
+    /// run ends at the next event and on site stays; no event, no change. Unbroken legs: the crouch states follow the keys.
+    #[test]
+    fn a_broken_legs_crouch_flips_at_each_selector_event() {
+        let creep = key::CROUCH | key::FORWARD;
+        assert_eq!(Creep::OnSite.next(creep, true, true), Creep::Run);
+        assert_eq!(Creep::Run.next(creep, true, true), Creep::OnSite);
+        assert_eq!(Creep::Run.next(creep, false, true), Creep::Run, "steady keys: no event");
+        assert_eq!(Creep::OnSite.next(key::FORWARD, true, true), Creep::OnSite, "no crouch key: crouch_run refuses");
+        assert_eq!(Creep::OnSite.next(key::CROUCH | key::FORWARD | key::BACK, true, true), Creep::OnSite, "forward and back: no move");
+        assert_eq!(Creep::Unknown.next(creep, true, true), Creep::Unknown);
+        assert_eq!(Creep::Unknown.next(creep, false, false), Creep::Run);
+        assert_eq!(Creep::Run.next(key::CROUCH, false, false), Creep::OnSite);
+        assert_eq!(Creep::Run.next(key::FORWARD, false, false), Creep::Unknown);
+        assert_eq!(Creep::OnSite.target([2.0, 0.0]), [0.0, 0.0]);
+        assert_eq!(Creep::Run.target([2.0, 0.0]), [2.0, 0.0]);
+    }
+
     /// A flat floor from (x0, z0) to (x1, z1) at height y (as the mapdata
     /// crate's tests make one).
     pub fn floor(x0: f32, z0: f32, x1: f32, z1: f32, y: f32) -> [Triangle; 2] {
@@ -3072,6 +3245,7 @@ pub(super) mod tests {
             Some(&grid),
             None,
             Role::Reckoning,
+            false,
         );
         assert!(pressed.arc.is_none(), "{pressed:?}");
     }

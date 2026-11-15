@@ -894,6 +894,11 @@ impl Game {
                     && matches!(in_hand.state(), srp_validate::world::StateData::ShotgunReload { .. })
             });
             walkers.bots.world_tube_reload(place, snapshot.time, tube);
+            // [F42] The crouch selector's state (the gun in hands' portable object, `SelectorState`): whether a body with both legs
+            // broken is in the crouch run or on site.
+            if let Some(in_hand) = in_hand {
+                walkers.bots.creep(place, snapshot.time, crate::v026g::bots::body::Creep::of_selector(in_hand.portable().selector()));
+            }
             if !tube
                 && in_hand.is_some_and(|in_hand| {
                     crate::v026g::bots::guns::GunAt::of_index(in_hand.state_index()) == crate::v026g::bots::guns::GunAt::Reloading
