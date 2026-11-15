@@ -296,6 +296,8 @@ language_entries:                       ; patch_launcher_026g.py: 8 bytes each, 
         align   8, db 0xCC
         jmp     near torrent_click
         align   8, db 0xCC
+        jmp     near label_made
+        align   8, db 0xCC
 
 ; eax = index -> eax = its label (UTF-16). Called in place of
 ; `mov eax, [eax*8+48280h]`; every other register kept.
@@ -1058,7 +1060,9 @@ pick_language:
 ; panel's picture whenever that picture is made anew (`panel_made`,
 ; `panel_restored`). The box's pictures are made opaque over the panel
 ; (`bake_box`): under Wine a transparent control keeps what its window last
-; showed, so an unticked box would keep the check.
+; showed, so an unticked box would keep the check. The text is clickable too:
+; Twitter's control lies over it, showing the panel's own pixels there
+; (`bake_label`, `label_made`), and its click is the box's.
 ;
 ; The setting is user.cfg's `enable_torrent_seeding on` / `off`, kept as the
 ; language is (`reload_torrent`, `save_torrent`). A click writes the line
@@ -1079,6 +1083,7 @@ DRAW_TEXT               equ 0x137C3     ; into a picture: (text, bitmap, &font, 
 IAT_DeleteObject        equ 0x3B07C
 CALIBRI                 equ 0x3F480     ; L"Calibri", the settings window's font
 BOX_RECT                equ 0x458A4     ; the box's place in the panel: left, top (YouTube's rect)
+LABEL_RECT              equ 0x458C4     ; the text's: Twitter's rect, all four static
 
 FORM_PANEL_PICTURE      equ 0xEC        ; launcher_form: the bottom panel's picture (HBITMAP)
 FORM_UNTICKED           equ 0x140       ; the box's pictures: YouTube's first, second
@@ -1086,8 +1091,10 @@ FORM_UNTICKED_HOVER     equ 0x14C
 FORM_PRESSED            equ 0x158       ; YouTube's third
 FORM_TICKED             equ 0x164       ; Facebook's first
 FORM_BOX                equ 0x648       ; YouTube's control
+FORM_LABEL_PICTURES     equ 0x188       ; Twitter's three pictures, 0Ch apart
 FORM_SETTINGS           equ 0xB40       ; settings_window (form+6E8h) + 458h: the settings
 CONTROL_HOVER           equ 0xC         ; transparent_control: the picture under the pointer
+CONTROL_OPAQUE          equ 0x24        ;   BitBlt, not AlphaBlend
 
 TORRENT_TEXT            equ 0xD3        ; "Allow torrent"
 TEXT_CHARS              equ 64
@@ -1199,13 +1206,38 @@ bake_box:
 
 box_pictures:   dd FORM_UNTICKED, FORM_UNTICKED_HOVER, FORM_PRESSED, FORM_TICKED
 
+; eax = the form, its text painted: each of Twitter's three pictures replaced
+; by the panel's picture where the text is (LABEL_RECT), the PNG's deleted.
+; Every register kept.
+bake_label:
+        pushad
+        mov     esi, eax                ; the form
+        DELTA
+        mov     edi, FORM_LABEL_PICTURES
+        mov     ebp, 3
+.each:  push    dword [esi + FORM_PANEL_PICTURE]
+        lea     eax, [ebx + LABEL_RECT]
+        call    CROP_PICTURE
+        add     esp, 4
+        test    eax, eax
+        jz      .next                   ; none: the PNG's stays
+        xchg    eax, [esi + edi]
+        push    eax
+        call    [ebx + IAT_DeleteObject]
+.next:  add     edi, 0xC
+        dec     ebp
+        jnz     .each
+        popad
+        ret
+
 ; In place of image_window::image_window for the bottom panel (0x1AD78):
-; ebx = the form; edi, esi and the stack are image_window's. The box's
-; pictures are loaded (0x1AAFC..) and not yet given to its control (0x1ADE2).
+; ebx = the form; edi, esi and the stack are image_window's. The pictures
+; are loaded (0x1AAFC..) and not yet given to their controls (0x1ADE2..).
 panel_made:
         mov     eax, ebx
         call    paint_label
         call    bake_box
+        call    bake_label
         jmp     IMAGE_WINDOW
 
 ; In place of transparent_control::transparent_control for YouTube's
@@ -1222,6 +1254,17 @@ box_made:
         mov     [esp + 4 + 16], eax     ; under the pointer
 .made:  jmp     TRANSPARENT_CONTROL
 
+; In place of transparent_control::transparent_control for Twitter's
+; control, over the text (0x1AEA3): made with its eight arguments, then
+; opaque, so that it shows its pictures (the panel there) exactly.
+label_made:
+%rep 8
+        push    dword [esp + 32]
+%endrep
+        call    TRANSPARENT_CONTROL
+        mov     byte [eax + CONTROL_OPAQUE], 1
+        ret     32
+
 ; In place of the copy of the panel's picture from its resource in
 ; set_status_texts (0x1B4D9): the copy (its three arguments copied, eax the
 ; rectangle), then the box's text again. edi = the form.
@@ -1235,7 +1278,7 @@ panel_restored:
         jmp     paint_label
 
 ; The box's click (cdecl, the form): YouTube's click handler (0x1BD03)
-; jumps here.
+; jumps here, and Twitter's (the text's, 0x1BD29) to it.
 torrent_click:
         push    ebx
         push    esi

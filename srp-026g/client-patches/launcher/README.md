@@ -544,11 +544,11 @@ found: `../../docs/notes/launcher.md`.
 
 ### 8. The buttons that are gone
 
-- **Where:** the click handlers of SHOP, CREATE ACCOUNT, Facebook, Twitter
-  and VK return at once (first byte → `C3` at 0x1BBEF, 0x1BC45, 0x1BD16,
-  0x1BD29, 0x1BD3C; YouTube's control is the "Allow torrent" box since
-  patch 15); their rectangles get a left edge of 30000 (0x45844, 0x45854,
-  0x458B4, 0x458C4, 0x458D4), which is outside the window, and so does the
+- **Where:** the click handlers of SHOP, CREATE ACCOUNT, Facebook and VK
+  return at once (first byte → `C3` at 0x1BBEF, 0x1BC45, 0x1BD16, 0x1BD3C;
+  YouTube's control is the "Allow torrent" box and Twitter's lies over its
+  text since patch 15); their rectangles get a left edge of 30000 (0x45844,
+  0x45854, 0x458B4, 0x458D4), which is outside the window, and so does the
   settings gear's (0x45814: its one setting that applies, "Allow torrent",
   is on the main window, patch 15; its port is the updater's); PROJECT
   WEBSITE moves from 478 to 750, SHOP's place (0x45864). Their addresses
@@ -695,15 +695,25 @@ for settings"), and it stays as they left it, kept as the language is.
   (0x1AAFC, 0x1AB0F, 0x1AB22) and Facebook's first (0x1AB35, the ticked
   one; Facebook stays out of sight) are loaded from the settings window's
   PNGs, its rectangle (0x458A4) moves to 28, 32 and its size initialisers
-  (0x3A715, 0x3A722) say 20. Four sites call or jump to new code
-  (`TORRENT_HOOKS`, entries after the language's):
+  (0x3A715, 0x3A722) say 20. Twitter's control (form+0x698) makes the text
+  clickable: its rectangle (0x458C4) is 53, 32 to 187, 52, the text in every
+  language (Russian, the widest, is 134 pixels; its initialiser 0x3A746,
+  which could add at most 127, returns at once and right and bottom are
+  static), with the hand cursor as the box's; its click (0x1BD29) jumps to
+  YouTube's. Five sites call or jump to new code (`TORRENT_HOOKS`, entries
+  after the language's):
   - 0x1AD78, the bottom panel's `image_window` (`panel_made`): the text is
     painted into the panel's picture (form+0xEC, JPG 301) as the status
     texts are, and the box's four pictures are made opaque over the
     panel's picture where the box is (`bake_box`: a transparent control is
     drawn over what its window last showed; only Windows composes the
     launcher's windows, WS_EX_COMPOSITED, so under Wine an unticked box
-    kept the check of a ticked one);
+    kept the check of a ticked one); Twitter's three pictures become the
+    panel's picture where the text is, text included (`bake_label`);
+  - 0x1AEA3, Twitter's `transparent_control` (`label_made`): made as
+    before, then opaque (+24h: BitBlt, not AlphaBlend), so it shows exactly
+    the panel's pixels and no visible change (text drawn by GDI may leave
+    their alpha 0);
   - 0x1AE1F, YouTube's `transparent_control` (`box_made`): ticked
     (settings+0), its picture and the one under the pointer are the ticked
     one;
@@ -715,8 +725,8 @@ for settings"), and it stays as they left it, kept as the language is.
     +1 toggled, the callback settings::save fires for a changed box
     (`function0` at settings+0x28: 1A to the updater while the pipe is
     connected, 0x172FA), the pictures as
-    `settings_window::show_torrent_checkbox` (0x1CE0E) shows them. The text
-    beside the box is not clickable.
+    `settings_window::show_torrent_checkbox` (0x1CE0E) shows them. A click
+    on the text comes here the same way.
 - **The store:** user.cfg (`<Documents>\survarium\user.cfg`, patch 14),
   the game's own saved command `enable_torrent_seeding on` / `off` (exe
   0x1EE580; the game keeps it when it rewrites the file), written as the
@@ -737,20 +747,23 @@ for settings"), and it stays as they left it, kept as the language is.
 - **Why it is the one place:** every reader takes `settings+0`:
   `start_updater`'s 4th argument (0x1580B: `torrent` or `direct`) and
   `send_switch_download_type_message` (1A, 0x17367).
-- Checked: `check_torrent_box_026g.py` runs the four sites, the start
+- Checked: `check_torrent_box_026g.py` runs the five sites, the start
   (0x141D9..0x1420C: settings::reload, then reload_language) and the
-  box's window procedure under Unicorn at two bases: the start reads the
-  line whatever `download_type` says; the text and the opaque pictures; the
-  box ticked or not; three clicks, each writing the line (others kept),
-  firing the callback once, no registry call, and a fresh start reading
-  the box as it was left; a click whose line cannot be written changing
-  nothing (box, callback, file); the reset (`on` becomes `off` once, the file
-  made; a locked user.cfg makes no file; a tick after it stays across
-  restarts). `check_language_026g.py` still passes (the shared user.cfg
-  code). Run in the real launcher under Wine (headless, with a stand-in
-  updater on its pipe, 2026-11-15): the box drawn in all five languages,
-  clicks writing the line and sending `1A 00` / `1A 01`, a restart ticked,
-  the legacy `on` reset once with the file made. Not yet run on Windows.
+  box's and the text's window procedure under Unicorn at two bases: the
+  start reads the line whatever `download_type` says; the text and the
+  opaque pictures; the box ticked or not; the text's control at its rect in
+  the panel, painting the panel's crop with BitBlt; five clicks, on the box
+  and on the text, each writing the line (others kept), firing the callback
+  once, no registry call, and a fresh start reading the box as it was left;
+  a click (box or text) whose line cannot be written changing nothing (box,
+  callback, file); the reset (`on` becomes `off` once, the file made; a
+  locked user.cfg makes no file; a tick after it stays across restarts).
+  `check_language_026g.py` still passes (the shared user.cfg code). Run in
+  the real launcher under Wine (headless, with a stand-in updater on its
+  pipe, 2026-11-15): the box drawn in all five languages, clicks writing
+  the line and sending `1A 00` / `1A 01`, a restart ticked, the legacy `on`
+  reset once with the file made. The clickable text is not yet run in a
+  real launcher. Not yet run on Windows.
 
 ## The pipe, in short
 

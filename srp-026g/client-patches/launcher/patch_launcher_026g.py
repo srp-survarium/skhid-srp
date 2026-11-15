@@ -106,6 +106,7 @@ TORRENT_HOOKS = [
     (0x1AE1F, "e82477ffff", "call", "launcher_form: YouTube's control is the box, ticked as settings+0 says"),
     (0x1B4D9, "e80277ffff", "call", "set_status_texts: the panel's picture made anew, then the box's text"),
     (0x1BD03, "837c240400", "jmp", "YouTube's click is the box's: Allow torrent toggled, saved, told"),
+    (0x1AEA3, "e8a076ffff", "call", "launcher_form: Twitter's control, over the box's text, is opaque"),
 ]
 ENTRY_HOOKS = LANGUAGE_HOOKS + TORRENT_HOOKS
 
@@ -155,7 +156,7 @@ PATCHES = [
     (0x1BBEF, "55", "c3", "SHOP click: ret"),
     (0x1BC45, "55", "c3", "CREATE ACCOUNT click: ret"),
     (0x1BD16, "83", "c3", "Facebook click: ret"),
-    (0x1BD29, "83", "c3", "Twitter click: ret"),
+    (0x1BD29, "837c", "ebd8", "Twitter click (the box's text, 15): jmp 0x1BD03, the box's"),
     (0x1BD3C, "83", "c3", "VK click: ret"),
     # 15. The box is YouTube's control: the settings window's pictures of
     # its box in the place of YouTube's (unticked, under the pointer,
@@ -166,6 +167,10 @@ PATCHES = [
     (0x1AB35, "684b010000", "6858010000", "launcher_form: Facebook's first picture is PNG 344, the box ticked"),
     (0x3A715, "83c01b", "83c014", "YouTube's rect: add eax,20 (the box's width)"),
     (0x3A722, "83c01b", "83c014", "YouTube's rect: add eax,20 (the box's height)"),
+    # Twitter's control lies over the box's text, its rect all static (the
+    # widest text, Russian, is 134 pixels; its initializer adds at most 127).
+    (0x3A746, "a1", "c3", "Twitter's rect: its initializer returns at once"),
+    (0x458CC, "0000000000000000", "bb00000034000000", "Twitter's rect: right 187, bottom 52"),
 ]
 
 # start_updater, when no version could be read (the game exe PLAY starts is
@@ -241,7 +246,7 @@ RECTS = [
     # PLAY; its text (25 pixels right) ends before the status line (x 200).
     (0x458A4, 32, 28, 28, 32, "YouTube's: the Allow torrent box (15)"),
     (0x458B4, 68, 28, GONE, 28, "Facebook"),
-    (0x458C4, 104, 28, GONE, 28, "Twitter"),
+    (0x458C4, 104, 28, 53, 32, "Twitter's: over the Allow torrent text, clickable (15)"),
     (0x458D4, 140, 28, GONE, 28, "VK"),
 ]
 

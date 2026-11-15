@@ -16,15 +16,24 @@ Checks:
   into the panel's picture in Calibri bold 18, white, 25 pixels right of the
   box and 1 below its top, the font deleted; each of the box's four pictures
   replaced by itself over the panel's picture where the box is (28, 32, 20
-  by 20), the PNG's deleted; then image_window made as before;
+  by 20), the PNG's deleted; Twitter's three pictures replaced by the panel's
+  picture (text included) where the text is (53, 32 to 187, 52), the PNGs
+  deleted; then image_window made as before;
 - the box (0x1ADE2..0x1AE24): YouTube's control with the unticked pictures,
   or the ticked one as its picture and the one under the pointer, as
   settings+0 says; its click is 0x1BD03 with the form;
+- the text's control (0x1AE66..0x1AEA8): Twitter's, a visible window in the
+  bottom panel at its static rect (its initializer returns at once), the
+  hand cursor, its three pictures the panel's, opaque: a WM_PAINT copies
+  its picture with BitBlt (SRCCOPY), no AlphaBlend; its click is 0x1BD29
+  with the form;
 - a click (the control's window procedure, WM_LBUTTONDOWN): settings+0 and
   +1 toggled, user.cfg's line written at once (`on`, then `off`; the other
   lines kept), the "download type changed" callback fired once (1A to the
   updater), the pictures changed, no registry call; then a fresh start reads
-  the box as it was left: it stays ticked until it is unticked;
+  the box as it was left: it stays ticked until it is unticked; clicks on
+  the text (its control's window procedure, through 0x1BD29) do the same,
+  alternating with the box's, and leave the text's pictures as they are;
 - set_status_texts (0x1B4D9..0x1B4DE): the panel's picture copied anew as
   before, then the text drawn again;
 - the one-time reset at the start: without `launcher_skhid.torrent_reset`
@@ -48,7 +57,10 @@ PRODUCT_KEY = 'Software\\Vostok Games\\Survarium'
 # Windows functions the box's code reaches that check_language does not stub: (IAT slot, name, stdcall arguments)
 EXTRA_IAT = [(0x3B2EC, 'LoadCursorW', 2), (0x3B07C, 'DeleteObject', 1), (0x3B2F0, 'InvalidateRect', 3),
              (0x3B028, 'RegOpenKeyExW', 5), (0x3B020, 'RegQueryValueExW', 6), (0x3B024, 'RegCloseKey', 1),
-             (0x3B02C, 'RegCreateKeyExW', 9), (0x3B000, 'RegSetValueExW', 6)]
+             (0x3B02C, 'RegCreateKeyExW', 9), (0x3B000, 'RegSetValueExW', 6),
+             (0x3B2F4, 'BeginPaint', 2), (0x3B2F8, 'EndPaint', 2), (0x3B070, 'CreateCompatibleDC', 1),
+             (0x3B06C, 'SelectObject', 2), (0x3B060, 'BitBlt', 9), (0x3B29C, 'AlphaBlend', 11),
+             (0x3B05C, 'DeleteDC', 1)]
 # The launcher's own helpers, stubbed by address: (VA, name, stdcall arguments or None for cdecl)
 HELPERS = {0x12140: ('image_window', 2), 0x13885: ('window', 8), 0x12051: ('crop', None),
            0x12BE0: ('copy', None), 0x137A8: ('load_string', None), 0x11CC7: ('make_font', 3),
@@ -56,6 +68,8 @@ HELPERS = {0x12140: ('image_window', 2), 0x13885: ('window', 8), 0x12051: ('crop
 PANEL, PNGS, FONT, CONTROL_WINDOW = 0xB0, (0xA1, 0xA2, 0xA3, 0xA4), 0x6F0, 0x888
 SLOTS = (0x140, 0x14C, 0x158, 0x164)    # the box's pictures: unticked, under the pointer, pressed, ticked
 BOX = 0x648
+LABEL, LABEL_SLOTS, LABEL_PNGS, LABEL_WINDOW = 0x698, (0x188, 0x194, 0x1A0), (0xB1, 0xB2, 0xB3), 0x889
+LABEL_RECT = (53, 32, 187, 52)          # the text's: x 53..186 in the widest language (Russian)
 BODY = b'account_name x\r\nlocalization polish\r\nr_fullscreen on\r\n'
 
 
@@ -92,7 +106,32 @@ class Box(C.Launcher):
 
     # --- Windows ---
     def LoadCursorW(self, instance, name):
-        return 0x55
+        return 0x55 if (instance, name) == (0, 0x7F89) else 0x56      # IDC_HAND
+
+    def BeginPaint(self, window, paint):
+        self.u.mem_write(paint, struct.pack('<2I4i', 0xDC1, 0, 0, 0, 134, 20) + bytes(48))
+        return 0xDC1
+
+    def EndPaint(self, window, paint):
+        return 1
+
+    def CreateCompatibleDC(self, dc):
+        return 0xDC2
+
+    def SelectObject(self, dc, picture):
+        self.log.append(('select', dc, picture))
+        return 0x77
+
+    def BitBlt(self, dc, x, y, width, height, source, sx, sy, rop):
+        self.log.append(('bitblt', dc, x, y, width, height, source, sx, sy, rop))
+        return 1
+
+    def AlphaBlend(self, *args):
+        self.log.append(('alphablend',))
+        return 1
+
+    def DeleteDC(self, dc):
+        return 1
 
     def DeleteObject(self, handle):
         self.log.append(('delete', handle))
@@ -134,7 +173,9 @@ class Box(C.Launcher):
                          parent, picture))
         return self.reg(UC_X86_REG_EDI)
 
-    def window(self, this, *args):
+    def window(self, this, parent, kind, x, y, width, height, style):
+        rect = struct.unpack('<4i', self.u.mem_read(self.reg(UC_X86_REG_ESI), 16))
+        self.log.append(('window', this, parent, style, rect))
         return this
 
     def crop(self, bitmap, *_):
@@ -209,11 +250,13 @@ def check(data, delta):
         one.u.mem_write(FORM, bytes(0x2000))
         one.word(FORM + 4, 0x444)
         one.word(FORM + 0xEC, PANEL)
-        for slot, png in zip(SLOTS, PNGS):
+        for slot, png in zip(SLOTS + LABEL_SLOTS, PNGS + LABEL_PNGS):
             one.word(FORM + slot, png)
         one.word(FORM + 0x4E0, 0x445)                   # the bottom panel's window
         one.word(FORM + 0xB40, settings)                # settings_window (+6E8h) + 458h
         one.run(0x3A710)                                # YouTube's rect: its right and bottom
+        one.run(0x3A746)                                # Twitter's: returns, the rect is static
+        assert struct.unpack('<4i', one.u.mem_read(0x458C4 + delta, 16)) == LABEL_RECT
 
     # The start: user.cfg's line, never the registry's download_type.
     for cfg, registry, expected in [
@@ -237,11 +280,13 @@ def check(data, delta):
     assert one.go(0x1AD64, 0x1AD7D, ebx=FORM)
     made = [entry for entry in one.log if entry[0] == 'crop']
     assert one.log[:2] == [('font', 18, 700, 'Calibri'), text_at], one.log
-    assert made == [('crop', PANEL, (28, 32, 48, 52), 0x7001 + i) for i in range(4)], made
+    assert made == ([('crop', PANEL, (28, 32, 48, 52), 0x7001 + i) for i in range(4)]
+                    + [('crop', PANEL, LABEL_RECT, 0x7005 + i) for i in range(3)]), made
     copies = [entry for entry in one.log if entry[0] == 'copy']
     assert copies == [('copy', 0x7001 + i, png, (0, 0), (0, 0, 20, 20)) for i, png in enumerate(PNGS)], copies
-    assert [entry for entry in one.log if entry[0] == 'delete'] == [('delete', FONT)] + [('delete', p) for p in PNGS]
-    assert [one.word(FORM + slot) for slot in SLOTS] == [0x7001, 0x7002, 0x7003, 0x7004]
+    assert [entry for entry in one.log if entry[0] == 'delete'] == [('delete', FONT)] + [('delete', p) for p in
+                                                                                          PNGS + LABEL_PNGS]
+    assert [one.word(FORM + slot) for slot in SLOTS + LABEL_SLOTS] == list(range(0x7001, 0x7008))
     assert one.log[-1] == ('image_window', FORM + 0x4DC, 0x45884, 0x444, PANEL), one.log[-1]
     count += 1
 
@@ -259,6 +304,28 @@ def check(data, delta):
         assert one.word(control + 0x18) == 0x1BD03 + delta and one.word(control + 0x1C) == FORM
         count += 1
 
+    # The text's control: Twitter's, over the text, opaque, its click 0x1BD29.
+    one = Box(data, delta)
+    form(one, C.SETTINGS)
+    assert one.go(0x1AD64, 0x1AD7D, ebx=FORM)
+    one.log.clear()
+    assert one.go(0x1AE66, 0x1AEA8, ebx=FORM)
+    label = FORM + LABEL
+    assert one.log == [('window', label, 0x445, 0x50000000, LABEL_RECT)], one.log
+    assert [one.word(label + at) for at in (8, 0xC, 0x10)] == [0x7005, 0x7006, 0x7007]
+    assert one.word(label + 0x18) == 0x1BD29 + delta and one.word(label + 0x1C) == FORM
+    assert one.word(label + 0x20) == 0x55 and one.u.mem_read(label + 0x24, 1)[0] == 1
+    one.word(label + 4, LABEL_WINDOW)
+    for hover, pressed in ((0, 0), (1, 0), (1, 1)):
+        one.log.clear()
+        one.u.mem_write(label + 0x14, bytes([hover, pressed]))
+        one.go(0x126F4, C.STOP, args=(LABEL_WINDOW, 0xF, 0, 0), ecx=label)
+        picture = (0x7007 if pressed else 0x7006 if hover else 0x7005)
+        assert ('select', 0xDC2, picture) in one.log
+        assert [e for e in one.log if e[0] in ('bitblt', 'alphablend')] == [
+            ('bitblt', 0xDC1, 0, 0, 134, 20, 0xDC2, 0, 0, 0xCC0020)], one.log
+    count += 1
+
     one = Box(data, delta, {'download_type': 1})
     one.files[C.CFG] = BODY
     form(one, C.SETTINGS)
@@ -266,13 +333,18 @@ def check(data, delta):
     one.word(C.SETTINGS + 0x28, 1)                      # the "download type changed" callback is set
     one.word(FRAME + 0xC, C.SETTINGS)
     assert one.go(0x1ADE2, 0x1AE24, ebx=FORM, ebp=FRAME)
-    control = FORM + BOX
+    assert one.go(0x1AE66, 0x1AEA8, ebx=FORM)
+    control, label = FORM + BOX, FORM + LABEL
     one.word(control + 4, CONTROL_WINDOW)
-    for state, line in ((1, b'enable_torrent_seeding on\r\n'), (0, b'enable_torrent_seeding off\r\n'),
-                        (1, b'enable_torrent_seeding on\r\n')):
+    one.word(label + 4, LABEL_WINDOW)
+    label_pictures = [one.word(label + at) for at in (8, 0xC, 0x10)]
+    on, off = b'enable_torrent_seeding on\r\n', b'enable_torrent_seeding off\r\n'
+    box, text = (control, CONTROL_WINDOW), (label, LABEL_WINDOW)
+    for state, line, (clicked, window) in ((1, on, box), (0, off, text), (1, on, box), (0, off, text),
+                                           (1, on, text)):
         one.log.clear()
-        one.u.mem_write(control + 0x14, b'\0\0')        # not under the pointer, not pressed
-        one.go(0x126F4, C.STOP, args=(CONTROL_WINDOW, 0x201, 1, 0), ecx=control)  # stdcall: ret 10h
+        one.u.mem_write(clicked + 0x14, b'\0\0')        # not under the pointer, not pressed
+        one.go(0x126F4, C.STOP, args=(window, 0x201, 1, 0), ecx=clicked)  # stdcall: ret 10h
         assert tuple(one.u.mem_read(C.SETTINGS, 2)) == (state, state)
         assert one.files == {C.CFG: BODY + line}, one.files
         assert not one.live and not one.handles
@@ -281,24 +353,26 @@ def check(data, delta):
         expected = [PNGS[3], PNGS[3]] if state else [PNGS[0], PNGS[1]]
         assert [one.word(control + 8), one.word(control + 0xC)] == expected
         assert ('invalidate', CONTROL_WINDOW) in one.log
+        assert [one.word(label + at) for at in (8, 0xC, 0x10)] == label_pictures
         # A fresh start (the launcher started again, the PC restarted, a
         # new launcher): the box as it was left.
         again = Box(data, delta, {'download_type': 1 - state})
         again.files = dict(one.files)
         assert again.start() == (state, state)
         count += 1
-    # A click whose line cannot be written: the box, the updater and the
-    # file stay as they were.
-    one.log.clear()
+    # A click (the box's or the text's) whose line cannot be written: the
+    # box, the updater and the file stay as they were.
     one.locked.add(C.CFG.lower())
-    one.u.mem_write(control + 0x14, b'\0\0')
-    one.go(0x126F4, C.STOP, args=(CONTROL_WINDOW, 0x201, 1, 0), ecx=control)
-    assert tuple(one.u.mem_read(C.SETTINGS, 2)) == (1, 1)
-    assert one.files == {C.CFG: BODY + b'enable_torrent_seeding on\r\n'}, one.files
-    assert not [e for e in one.log if e[0] == 'download type changed']
-    assert [one.word(control + 8), one.word(control + 0xC)] == [PNGS[3], PNGS[3]]
-    assert not one.live and not one.handles
-    count += 1
+    for clicked, window in (box, text):
+        one.log.clear()
+        one.u.mem_write(clicked + 0x14, b'\0\0')
+        one.go(0x126F4, C.STOP, args=(window, 0x201, 1, 0), ecx=clicked)
+        assert tuple(one.u.mem_read(C.SETTINGS, 2)) == (1, 1)
+        assert one.files == {C.CFG: BODY + on}, one.files
+        assert not [e for e in one.log if e[0] == 'download type changed']
+        assert [one.word(control + 8), one.word(control + 0xC)] == [PNGS[3], PNGS[3]]
+        assert not one.live and not one.handles
+        count += 1
 
     # The one-time reset: the original game's `on` becomes `off` once.
     legacy = BODY + b'enable_torrent_seeding on\r\n'

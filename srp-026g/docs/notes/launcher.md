@@ -843,7 +843,11 @@ The bottom panel (`image_window` at form+0x4DC, JPG 301 at form+0xEC) is a stati
 bitmap. `launcher_form::set_status_texts` (0x1B48D) copies the bitmap anew from its resource
 (0x12BE0: AlphaBlend, eax the rect) and draws the status texts into it (0x137C3; Calibri bold 12 at
 0x482A8, in 200..678), then invalidates. The Skhid launcher's "Allow torrent" box is YouTube's control
-in the panel (`client-patches/launcher/README.md`, patch 15).
+in the panel, and Twitter's lies over its text, opaque (`client-patches/launcher/README.md`, patch 15).
+
+A rect's width and height initialisers (`83 C0 imm8`) add at most 127; each rect's pair is its own
+function (0x3A710, 0x3A72B, 0x3A746, 0x3A761 for YouTube .. VK), called only from the CRT initialiser
+table (0x3B59C..0x3B5A8), and the rect's right and bottom are 0 in the file until it runs.
 
 ### 9.2 What the click handlers do (PROVEN)
 
