@@ -842,6 +842,13 @@ impl Tracker {
         }
     }
 
+    /// [F42] A world's crouch selector state for `place`'s body ([`BodyTrack::set_creep`]).
+    pub fn set_creep(&mut self, place: Place, at: u32, creep: super::body::Creep) {
+        if let Some(state) = self.places.get_mut(place) {
+            state.body.set_creep(at, creep);
+        }
+    }
+
     /// [2e] A world's recent hits on `place`'s body ([`BodyTrack::set_hits`]).
     pub fn set_hits(&mut self, place: Place, hits: &[(u32, f32)]) {
         if let Some(state) = self.places.get_mut(place) {

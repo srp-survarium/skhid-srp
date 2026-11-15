@@ -1744,6 +1744,11 @@ impl Bots {
         self.tracker.set_hits(place, hits);
     }
 
+    /// [F42] A world's crouch selector state for `place`'s body, made at `at` ([`body::Creep`]).
+    pub fn creep(&mut self, place: Place, at: u32, creep: body::Creep) {
+        self.tracker.set_creep(place, at, creep);
+    }
+
     /// [A388 (e) gap 5] A world's word on `place`'s reload, any body's: under way at `at`, its reload clip as the world's mixing
     /// tree has it (`None`: its end not read). The body's reckoned sights and sprint are refused until the clip's end.
     pub fn world_reload(&mut self, place: Place, at: u32, clip: Option<guns::ReloadClip>) {
@@ -2406,6 +2411,12 @@ impl Bots {
         let ([busy, melee, aim], changed) = sprint_gates::world_refusals::take();
         lines.push(format!(
             "{}world sprint refusals since the last match end (every match on this server): gun busy {busy}, melee {melee}, aim not down {aim}; {changed} changed a reckoned body's gates",
+            nav_log::PREFIX
+        ));
+        // [F42] The reckoned steps of bodies with both legs broken by their crouch selector state.
+        let (on_site, run, unknown, worlds, stagger) = body::creep_steps::take();
+        lines.push(format!(
+            "{}both-legs-broken steps reckoned since the last match end (every match on this server): {on_site} on site, {run} crouch run, {unknown} state not known; {worlds} worlds said the state; {stagger} stagger events seen (any body)",
             nav_log::PREFIX
         ));
         // [A388 (e) gap 5] Every body's reloads from the worlds: the reckoned sights and sprint refused to the clip's end.
