@@ -31,9 +31,9 @@ pub enum WalkOff {
     Idle,
     /// On the link's leg past its take-off, short of the release: the route's walk, crouched when the press says.
     Approach { link: WalkOffRelease },
-    /// The walk key let go at motor tick `since`, the body's feet `from` then and `along` m past the take-off, until it is
-    /// down and still.
-    LetGo { link: WalkOffRelease, since: u32, from: Vec3, along: f32 },
+    /// The walk key let go at motor tick `since`, the body's feet `from` then, `along` m past the take-off and stepping `step`
+    /// m a tick, until it is down and still.
+    LetGo { link: WalkOffRelease, since: u32, from: Vec3, along: f32, step: f32 },
     /// The let-go of `link` ended (landed, overshot or timed out): the route's walk, and no new release of the same link while
     /// the body is still on its leg (a body down short of the landing's point is still on it).
     Done { link: WalkOffRelease },
@@ -70,6 +70,8 @@ pub struct Ended {
     pub link: WalkOffRelease,
     pub from: Vec3,
     pub along: f32,
+    /// The body's step at the let-go, m (its speed x [`TICK_S`]): its last full step ends about `along + step`.
+    pub step: f32,
     pub after_ms: u32,
     pub end: End,
 }
@@ -94,14 +96,28 @@ impl Effect {
     }
 }
 
+/// [A1b] Whether the input this tick should let go: the client's step ending at the input's own stamp still moves with the
+/// keys held before (a step ending at t answers the input stamped t - 50, `kin.rs` `StepInput::Previous`, PROVEN), and the
+/// body the bot decides on is the one after the step ending a tick before (`PlaceView::known_at`). So a let-go sent with the
+/// body `along` m past the take-off is followed by one more full step, to about `along + step`; the release `at` is the end of
+/// the last held step the flight took (`drop_check::release_point`). Let go at the first tick at which waiting one more would
+/// put that last full step past `at`: `along + 2 step > at` (its last full step then ends in (at - step, at], or at once when
+/// the body is past that already). The exe review of #1959 (0x2DA9A0 / 0x2DAA60 order).
+fn lets_go(along: f32, step: f32, at: f32) -> bool {
+    along + 2.0 * step > at
+}
+
 /// The transition: total over the states and the tick's facts.
 pub fn step(state: WalkOff, input: Input) -> (WalkOff, Effect) {
     let held = |link: WalkOffRelease| Effect { crouch: link.crouched, ..Effect::ROUTE };
     let let_go = |link: WalkOffRelease| Effect { crouch: link.crouched, let_go: true, ended: None };
-    let begin = |link: WalkOffRelease, along: f32| (WalkOff::LetGo { link, since: input.clock, from: input.feet, along }, let_go(link));
+    let step_m = input.speed * TICK_S;
+    let begin = |link: WalkOffRelease, along: f32| {
+        (WalkOff::LetGo { link, since: input.clock, from: input.feet, along, step: step_m }, let_go(link))
+    };
     match state {
         WalkOff::Idle | WalkOff::Approach { .. } => match input.on_leg {
-            Some((link, along)) if along >= link.at => begin(link, along),
+            Some((link, along)) if lets_go(along, step_m, link.at) => begin(link, along),
             Some((link, _)) => (WalkOff::Approach { link }, held(link)),
             None => (WalkOff::Idle, Effect::ROUTE),
         },
@@ -110,7 +126,7 @@ pub fn step(state: WalkOff, input: Input) -> (WalkOff, Effect) {
             // Off its leg: a release ahead (another link's) starts as from Idle.
             _ => step(WalkOff::Idle, input),
         },
-        WalkOff::LetGo { link, since, from, along } => {
+        WalkOff::LetGo { link, since, from, along, step } => {
             let down = input.footing == Footing::Ground && input.speed < STILL_MS && input.feet.y < from.y - ARRIVE_HEIGHT_M;
             let end = if down {
                 let on_landing =
@@ -124,7 +140,7 @@ pub fn step(state: WalkOff, input: Input) -> (WalkOff, Effect) {
             match end {
                 Some(end) => {
                     let after_ms = (input.clock.wrapping_sub(since) as f32 * TICK_S * 1000.0).round() as u32;
-                    (WalkOff::Done { link }, Effect { ended: Some(Ended { link, from, along, after_ms, end }), ..Effect::ROUTE })
+                    (WalkOff::Done { link }, Effect { ended: Some(Ended { link, from, along, step, after_ms, end }), ..Effect::ROUTE })
                 }
                 None => (state, let_go(link)),
             }
@@ -134,9 +150,9 @@ pub fn step(state: WalkOff, input: Input) -> (WalkOff, Effect) {
 
 /// The log line of an ended let-go, its start, its end and its time in one (two lines of a kind within `nav_log::EVERY_MS`
 /// would hold the second back): `nav: release walk-off from (..) to (..) at +X.XX m crouched|standing: let go at +Y.YY m (..),
-/// after N ms landed|overshot|timed out (..)`. A let-go of the same link again shows as another line (or its held count).
+/// step S.SSS m, last full step to +Z.ZZ m (D.DD from the release), after N ms landed|overshot|timed out (..)`. A let-go of the same link again shows as another line (or its held count).
 pub fn line(ended: Ended) -> String {
-    let Ended { link, from, along, after_ms, end } = ended;
+    let Ended { link, from, along, step, after_ms, end } = ended;
     let p = |v: Vec3| format!("({:.2} {:.2} {:.2})", v.x, v.y, v.z);
     let (word, feet) = match end {
         End::Landed(feet) => ("landed", feet),
@@ -144,13 +160,15 @@ pub fn line(ended: Ended) -> String {
         End::TimedOut(feet) => ("timed out", feet),
     };
     format!(
-        "{}release walk-off from {} to {} at +{:.2} m {}: let go at +{along:.2} m {}, after {after_ms} ms {word} {}",
+        "{}release walk-off from {} to {} at +{:.2} m {}: let go at +{along:.2} m {}, step {step:.3} m, last full step to +{:.2} ({:+.2}          from the release), after {after_ms} ms {word} {}",
         super::nav_log::PREFIX,
         p(link.take_off),
         p(link.landing),
         link.at,
         if link.crouched { "crouched" } else { "standing" },
         p(from),
+        along + step,
+        along + step - link.at,
         p(feet)
     )
 }
@@ -171,9 +189,11 @@ mod tests {
     #[test]
     fn a_release_lets_go_at_its_point_and_ends_on_the_landing() {
         let top = Vec3::new(0.1, 2.0, 0.0);
-        let (s, e) = step(WalkOff::Idle, input(Some(0.1), top, Footing::Ground, 2.5, 1));
+        // 2.5 m/s: a 0.125 m step. At +0.0 waiting a tick still ends the last full step at +0.25 <= 0.3: held.
+        let (s, e) = step(WalkOff::Idle, input(Some(0.0), top, Footing::Ground, 2.5, 1));
         assert!(matches!(s, WalkOff::Approach { .. }) && e.crouch && !e.let_go);
-        let (s, e) = step(s, input(Some(0.3), top, Footing::Ground, 2.5, 2));
+        // At +0.125 waiting would end it at +0.375: let go now, its last full step ends at +0.25, within (0.175, 0.3].
+        let (s, e) = step(s, input(Some(0.125), top, Footing::Ground, 2.5, 2));
         assert!(matches!(s, WalkOff::LetGo { .. }) && e.let_go);
         assert_eq!(e.keys(key::FORWARD | key::SPRINT), key::CROUCH);
         let (s, e) = step(s, input(None, Vec3::new(0.5, 1.5, 0.0), Footing::Air, 1.0, 3));
