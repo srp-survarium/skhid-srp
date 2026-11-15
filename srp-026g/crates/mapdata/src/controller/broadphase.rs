@@ -195,3 +195,27 @@ pub fn walk_order_batches(boxes: &[Option<(V3, V3)>], step_after: &dyn Fn(usize)
     }
     tree.offering_order()
 }
+
+/// WIP experiment (not for a PR): [`walk_order_batches`] with one step per object, then the listed objects reinserted once
+/// more, in that order, into the finished tree.
+pub fn walk_order_then_again(boxes: &[Option<(V3, V3)>], again: &[usize]) -> Vec<u32> {
+    let widened = |b: (V3, V3)| {
+        let proxy = Volume::of(b.0.map(|v| v - CONTACT_THRESHOLD), b.1.map(|v| v + CONTACT_THRESHOLD));
+        Volume::of([0, 1, 2].map(|k| proxy.mi[k] - DBVT_MARGIN), [0, 1, 2].map(|k| proxy.mx[k] + DBVT_MARGIN))
+    };
+    let mut tree = Dbvt::default();
+    let mut leaf_of = vec![None; boxes.len()];
+    for (i, b) in boxes.iter().enumerate() {
+        if let Some(b) = *b {
+            let leaf = tree.insert(Volume::of(b.0, b.1), i as u32);
+            tree.update(leaf, widened(b));
+            leaf_of[i] = Some(leaf);
+        }
+    }
+    for &i in again {
+        if let (Some(leaf), Some(b)) = (leaf_of[i], boxes[i]) {
+            tree.update(leaf, widened(b));
+        }
+    }
+    tree.offering_order()
+}
