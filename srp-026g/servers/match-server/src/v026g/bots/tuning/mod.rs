@@ -576,6 +576,7 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/kin/pitch_scale",
     "/kin/speed_cap",
     "/kin/speed_terms",
+    "/kin/aim_gates",
     "/kin/sprint_gates",
     "/kin/step_input",
     "/kin/walk_off_landing",

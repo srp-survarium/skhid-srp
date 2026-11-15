@@ -118,6 +118,8 @@ pub struct Kinematics {
     pub leg_damage: LegDamageGate,
     /// [2e] Whether the reckoned body takes no sprint the client refuses ([`SprintGates`]).
     pub sprint_gates: SprintGates,
+    /// [register #24] Whether the reckoned body's aimed class is the hands' aim state or the AIM key ([`AimGates`]).
+    pub aim_gates: AimGates,
     /// [A304] The flattest ramp face (degrees, the grid's ramp mark) [`SlopeSpeed::RampsGrade`] slows on: a floor whose mark is
     /// flatter counts as unmarked. 35 (the lab, 2026-11-05: Vostok Radar Station's and Chemical Plant's stairs carry 20-39 degree
     /// marks and the client climbs them at full speed; Cologne's slowing stairs are 45; 35 was better than 40 and 44). 20: every
@@ -272,6 +274,28 @@ pub enum SpeedTerms {
     /// were a stagger the model lacked (`drift-walking-rootcause.md` D). ON and KEPT_RIGHT (a correctness fix by the client's
     /// code). The earlier lab's "gave nothing" counted worlds 1 m off; a stagger is 0.2-0.4 m.
     LegsStagger,
+}
+
+/// [register #24] What picks the reckoned body's aimed movement class (`walk_aim` / `crouch_aim`).
+///
+/// The client (PROVEN, 0.26g exe): `base_player::movement_speed` 0x2DBB50 takes its aim flag from byte `+0xC` of the struct the
+/// stand builders read (0x335EA0 / 0x336400, slot `+0x20` of `player_logic_stand_on_site_state` / `_stand_run_state`, dispatch
+/// 0x2FEC10). Its two fillers: `weapon_core` (0x2E10B0, slot `+0xA0` of `weapon_core`'s vtable 0xA11094) puts in the gun's
+/// `m_aimed` (+5E8h, `mov al, [esi+0x5E8]` at 0x2E1110); `victory_item_core` (0x3012A0, slot `+0x34` of 0xA13DBC: the battery)
+/// puts in 0 (0x30130C). `m_aimed` is set at the aim start 0x2E1B5A and cleared at the aim end 0x2E1BFB and the reset 0x2E2A40,
+/// as the aim gate 0x2FB9C1 decides from the AIM key (keys `+0x330` bit 7, 0x2FC2A0), the movement state (not 3 or 4) and
+/// the hands; the world saves it (0x2E364B; srp-validate `InHand::aimed`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AimGates {
+    /// As it was: the AIM key alone picks the aimed class.
+    Keys,
+    /// The client's: a battery carrier is never aimed, and a world that shows AIM held with the gun not aimed (not in a reload,
+    /// which takes the sights down already, nor in the sprint state, which AIM ends) holds the unaimed class from that world
+    /// until a world shows the gun aimed, AIM up or no gun ([`super::sprint_gates::OwnGates::world_aim_refusal`]). The bot's keys do not
+    /// change, only its reckoned place. ON and KEPT_RIGHT.
+    #[default]
+    World,
 }
 
 /// [2e, owner-14 row 15] Whether the reckoned body takes the sprint the client refuses ([`super::sprint_gates`]).
@@ -533,6 +557,7 @@ impl Default for Kinematics {
             carrier_sprint: CarrierSprint::Refused,
             leg_damage: LegDamageGate::Client,
             sprint_gates: SprintGates::Client,
+            aim_gates: AimGates::World,
         }
     }
 }
