@@ -1,17 +1,12 @@
-//! The release's signature on a revision's torrent
+//! The release's signature on a revision's torrent, its top-level `skhid`
 //! (`srp-026g/docs/notes/torrent-downloads.md`, "Signed releases" and "The
-//! signature"): a top-level `skhid` dictionary beside `info` with the
-//! revision (1 to 255) and an Ed25519 signature (RFC 8032, no prehash) of
-//! [`DOMAIN`], the revision's byte and the SHA-256 of the bencoded `info`. A torrent is trusted by this alone: whoever handed it
-//! over, its files are the release's (each piece then by its hash in
-//! `info`, which libtorrent checks). Beside them, `dht`: the signature of
-//! the same facts as a BEP 46 item (`crate::newest`).
+//! signature"). A torrent is trusted by this alone, whoever handed it over:
+//! the signature covers `info`, and `info` every piece's hash.
 
 use crate::bencode::{self, Value};
 use crate::sha256::digest;
 
-/// What the signed message starts with: a signature for anything else
-/// (another program's, another format's) is never one of these.
+/// So that a signature made for anything else is never one of these.
 pub const DOMAIN: &[u8; 26] = b"skhid torrent signature 1\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,13 +61,11 @@ pub(crate) mod tests {
     use alloc::format;
     use alloc::vec::Vec;
 
-    /// A throwaway key, for these tests only.
     fn key() -> ed25519_compact::KeyPair {
         ed25519_compact::KeyPair::from_seed(ed25519_compact::Seed::new([7; 32]))
     }
 
-    /// `torrent` (a dictionary) with an `skhid` signature of `revision`
-    /// added at its end (`skhid` sorts after `info` and `piece layers`).
+    /// Appended at the end: `skhid` sorts after `info` and `piece layers`.
     pub(crate) fn sign(torrent: &[u8], revision: u8, pair: &ed25519_compact::KeyPair) -> Vec<u8> {
         let info = bencode::parse(torrent).unwrap().entry(b"info").unwrap().1;
         let signature = pair.sk.sign(message(revision, &digest(info)), None);
@@ -114,8 +107,7 @@ pub(crate) mod tests {
 mod release {
     use super::*;
 
-    /// A torrent of `release/build_torrent.py` (revision 61, a ZIP of
-    /// README.txt and a 5 MB updater_skhid.exe, a patch), signed with the
+    /// Made by `release/build_torrent.py` (revision 61), signed with the
     /// throwaway key of `tests/test_torrent.py` (seed bytes 0 to 31).
     const RELEASE: &[u8] = include_bytes!("../tests/data/release.torrent");
     const KEY: &str = "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8";

@@ -40,11 +40,9 @@ pub const ORIGINAL_EXE: Pin = Pin {
 };
 
 /// Only the files needed to run the game, relative to `Survarium/game`,
-/// with build 2777's sizes and SHA-256 (the db's: `release/lib.sh`'s
-/// `STOCK_DB_SHA256`; the others: `release/build-torrent`'s). Old vendor
-/// installers, services and updaters are never extracted or run. The
-/// archive's download checks the archive and the exe; one by torrent checks
-/// each file by its pin (`exe/src/game.rs`).
+/// with build 2777's pins (as `release/build-torrent` has them). Old vendor
+/// installers, services and updaters are never extracted or run. Each pin
+/// matters when the file comes by torrent: the archive is checked whole.
 pub const FILES: &[(&str, Pin)] = &[
     ("binaries/x86/survarium.exe", ORIGINAL_EXE),
     (

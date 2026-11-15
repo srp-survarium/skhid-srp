@@ -1,17 +1,8 @@
-//! Sharing from the game (`srp-026g/docs/notes/torrent-downloads.md`,
-//! "Sharing from the game"): the patched game, while its own
-//! `enable_torrent_seeding` ("Allow torrent", a line of user.cfg) is on,
-//! makes the pipe `\\.\pipe\skhid_seed-<its pid>` on the login screen and
-//! in the lobby and starts `updater_skhid.exe seed <pipe>`; the updater
-//! shares while the pipe is open. Entering a match, or the game's end,
-//! closes it.
-//!
-//! On the pipe (the launcher's framing: a 16-bit length, the id, the
-//! fields) the game sends its upload limit (`1E`, ignored: the cap is
-//! fixed, `crate::upload`) and its stats switch (`22`, the console's
-//! `lobby_torrent_stats`). It reads every message it gets as the stats'
-//! tick, whatever its id, so the updater sends ticks (`18`) alone, and only
-//! while the switch is on.
+//! Sharing from the game: `updater_skhid.exe seed <the game's pipe>` shares
+//! while that pipe is open (`srp-026g/docs/notes/torrent-downloads.md`,
+//! "Sharing from the game"). The game reads every message on it as the
+//! stats' tick, whatever its id, so the updater sends ticks alone, and only
+//! while the stats are shown.
 
 use alloc::string::String;
 
@@ -46,10 +37,9 @@ pub fn command<S: AsRef<str>>(line: &[S]) -> Option<Option<GamePipe>> {
     }
 }
 
-/// A message of the game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FromGame {
-    /// `1E`: its upload limit (`change_seeding_upload_rate`): of no use.
+    /// `1E`: ignored, the cap is fixed (`crate::upload`).
     UploadLimit,
     /// `22`: the lobby's torrent stats shown (`FF`) or not (`00`).
     Stats(bool),
@@ -68,8 +58,7 @@ impl FromGame {
     }
 }
 
-/// What the game's stats row shows: this run's upload in bytes a second,
-/// the cap, the peers connected.
+/// The game's stats row; `upload` and `limit` in bytes a second.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Tick {
     pub upload: u32,
@@ -77,8 +66,7 @@ pub struct Tick {
     pub peers: u32,
 }
 
-/// `18`, as the game reads it (`torrent_client`'s pipe handler, 0x373BD0:
-/// the bytes at +3, +4, +8 and +0Ch): seeding (`FF`), then the three.
+/// `18`, laid out as `torrent_client`'s pipe message handler copies it.
 pub fn frame(tick: Tick) -> [u8; 16] {
     let mut out = [0_u8; 16];
     out[..2].copy_from_slice(&14_u16.to_le_bytes());
@@ -90,10 +78,9 @@ pub fn frame(tick: Tick) -> [u8; 16] {
     out
 }
 
-/// A tick a second while the stats are shown.
 pub const TICK_MS: u64 = 1000;
 
-/// Whether the game shows the stats, and when the next tick is due.
+/// Whether the game shows the stats; `due` in milliseconds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stats {
     Hidden,
@@ -103,13 +90,12 @@ pub enum Stats {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
     Game(FromGame),
-    /// The clock, in milliseconds.
     Clock,
 }
 
 impl Stats {
-    /// The one transition: the state after `event` at `now`, and whether a
-    /// tick goes to the game now.
+    /// The state after `event` at `now` (milliseconds), and whether a tick
+    /// goes to the game now.
     pub fn step(self, now: u64, event: Event) -> (Self, bool) {
         match (self, event) {
             (Self::Hidden, Event::Game(FromGame::Stats(true))) => (Self::Shown { due: now + TICK_MS }, true),
@@ -120,8 +106,6 @@ impl Stats {
     }
 }
 
-/// The upload rate from the run's bytes sent, over the time since the last
-/// measure.
 #[derive(Debug, Clone, Copy)]
 pub struct Meter {
     at: u64,

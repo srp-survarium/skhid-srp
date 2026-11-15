@@ -4,10 +4,9 @@ mod windows_build;
 fn main() {
     windows_build::link_msvc_runtime();
     windows_build::resources("res/updater_skhid.rc");
-    // The release's public key (`src/signed.rs`): `SKHID_TEST_PUBLIC_KEY`
-    // when the build is given one (the tests'), else release/signing.pub.
-    // Either must be 64 hex digits: anything else stops the build, so a
-    // stray value is never built in as a key that verifies nothing.
+    // The release's public key (`src/signed.rs`): the tests'
+    // `SKHID_TEST_PUBLIC_KEY`, else release/signing.pub. Anything but 64 hex
+    // digits stops the build, never built in as a key that verifies nothing.
     println!("cargo:rerun-if-env-changed=SKHID_TEST_PUBLIC_KEY");
     let public = "../../../release/signing.pub";
     println!("cargo:rerun-if-changed={public}");

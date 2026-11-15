@@ -21,8 +21,9 @@
 //! written without a leading zero (the game's own rule: `patch_014` is not
 //! a patch), no key twice; every value an object of exactly two members,
 //! `sha256` (64 hex characters) and the file's addresses: `urls`, an array
-//! of 0 to [`MAX_URLS`] of them (none: the torrent's alone), none twice, tried in their order, or (the
-//! form of updaters before 0.3.0, still read) `url`, one; never both. An
+//! of 0 to [`MAX_URLS`] of them (none: the torrent's alone), none twice,
+//! tried in their order, or (the form of updaters before 0.3.0, still read)
+//! `url`, one; never both. An
 //! address is `http://` or `https://`, any host, a bare IP address too, and
 //! a path ([`crate::url::patch`]). Plain HTTP is taken for the files: each
 //! is checked against its `sha256`, which came over HTTPS. Whitespace
@@ -394,9 +395,8 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// `urls`: an array of 0 to [`MAX_URLS`] strings (none: a patch the
-    /// revision's torrent alone gives, `exe/src/torrent.rs`). `BadEntry` for
-    /// another value.
+    /// `urls`: an array of 0 to [`MAX_URLS`] strings. `BadEntry` for another
+    /// value.
     fn strings(&mut self) -> Result<Vec<&'a [u8]>, ListError> {
         let bad = || ListError::BadEntry(String::new());
         if !self.take(b'[') {

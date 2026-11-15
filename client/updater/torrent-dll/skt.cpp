@@ -1,8 +1,5 @@
-// skt.cpp: skhid_torrent.dll, the C API of skt.h over libtorrent-rasterbar 2.0.
-// What a session is, by the updater's rules (client/updater/README.md,
-// "BitTorrent"): TCP on IPv4, the DHT on, no LSD, UPnP, NAT-PMP, uTP or PEX;
-// the extensions smart_ban and ut_metadata alone; one upload limit for every
-// peer, local ones too; a torrent's own trackers and web seeds never used.
+// skt.cpp: skt.h over libtorrent-rasterbar 2.0, a session as the updater's
+// rules have it (client/updater/README.md, "BitTorrent").
 #define SKT_BUILD
 #include "skt.h"
 
@@ -77,7 +74,7 @@ std::string interfaces(bool loopback, int port) {
 lt::settings_pack settings(skt_config const &c) {
     lt::settings_pack p;
     p.set_str(lt::settings_pack::listen_interfaces, interfaces(c.loopback != 0, c.listen_port));
-    // A port that is busy is busy: not another one instead.
+    // A busy port is reported, never swapped for another.
     p.set_bool(lt::settings_pack::listen_system_port_fallback, false);
     p.set_int(lt::settings_pack::max_retry_port_bind, 0);
     p.set_int(lt::settings_pack::upload_rate_limit, c.upload_limit);
@@ -88,8 +85,7 @@ lt::settings_pack settings(skt_config const &c) {
     p.set_bool(lt::settings_pack::enable_natpmp, false);
     p.set_bool(lt::settings_pack::enable_outgoing_utp, false);
     p.set_bool(lt::settings_pack::enable_incoming_utp, false);
-    // Every tracker of the list asked, not the first that answers: the
-    // public ones come and go.
+    // Every tracker asked, not the first that answers: public ones come and go.
     p.set_bool(lt::settings_pack::announce_to_all_tiers, true);
     p.set_bool(lt::settings_pack::announce_to_all_trackers, true);
     p.set_str(lt::settings_pack::user_agent, "Skhid");
@@ -111,8 +107,8 @@ lt::settings_pack settings(skt_config const &c) {
     return p;
 }
 
-// Port 0: the TCP socket's port is the one asked for then, so that the DHT's
-// UDP socket is on it too (each would pick its own).
+// Port 0: the TCP socket's pick is then asked for by number, so that the
+// DHT's UDP socket is on it too (each would pick its own).
 void listen(skt_session *s, int port) {
     lt::settings_pack p;
     p.set_str(lt::settings_pack::listen_interfaces, interfaces(s->loopback, port));
@@ -233,9 +229,8 @@ SKT_API int SKT_CALL skt_add(skt_session *s, const uint8_t *bytes, size_t len, c
         atp.renamed_files[i] = files[k].path;
         atp.file_priorities[std::size_t(static_cast<int>(i))] = files[k].fetch ? lt::default_priority : lt::dont_download;
     }
-    // The pieces of the trusted files are had; libtorrent checks from the
-    // first piece of the first file that is not (to the end: a shorter
-    // have-list says the check stopped there).
+    // Trusted files' pieces are marked had up to the first untrusted file;
+    // libtorrent checks from where the have-list stops to the end.
     int const pieces = atp.ti->num_pieces();
     auto first = [&](lt::file_index_t i) { return static_cast<int>(fs.map_file(i, 0, 0).piece); };
     auto last = [&](lt::file_index_t i) {
@@ -355,8 +350,8 @@ SKT_API int SKT_CALL skt_poll(skt_session *s, skt_event *out, int max, int wait_
             e.type = SKT_EV_HASH_FAILED;
             e.a = static_cast<int>(x->piece_index);
         } else if (auto *x = lt::alert_cast<lt::peer_disconnected_alert>(a)) {
-            // Banned for a piece that failed: of it alone (libtorrent), or
-            // found out by smart_ban (which says nothing else).
+            // Banned for a failed piece, by libtorrent or by smart_ban (which
+            // says nothing else).
             if (x->error != lt::errors::too_many_corrupt_pieces && x->error != lt::errors::peer_banned) continue;
             e.type = SKT_EV_PEER_BANNED;
             put(e.text, sizeof e.text, x->endpoint.address().to_string());
@@ -412,7 +407,7 @@ SKT_API int SKT_CALL skt_dht_put(skt_session *s, const uint8_t key[32], const ui
     lt::entry const v = lt::bdecode(lt::span<char const>(reinterpret_cast<char const *>(value), std::ptrdiff_t(len)));
     s->ses->dht_put_item(k, [v, g, seq](lt::entry &item, std::array<char, 64> &signature,
                                         std::int64_t &sequence, std::string const &) {
-        // A newer item where it is stays (it is put again as it is).
+        // A newer item already there stays.
         if (sequence > seq) return;
         item = v;
         signature = g;

@@ -1,13 +1,11 @@
-//! Bencoding (BEP 3), the format of a `.torrent` and of a tracker's answer.
-//! Read strictly and within fixed limits: they come from strangers (a
-//! tracker) or are pinned by their hash (the `.torrent`), and anything
-//! that is not canonical is refused, not guessed at.
+//! Bencoding (BEP 3), read strictly and within fixed limits: a document
+//! comes from strangers or is pinned by its hash, so anything not
+//! canonical is refused, not guessed at.
 
 use alloc::vec::Vec;
 
-/// The deepest nesting taken (a file tree of a torrent is a few levels).
+/// A torrent's file tree is a few levels deep.
 const MAX_DEPTH: usize = 24;
-/// The most values in one document.
 const MAX_VALUES: usize = 200_000;
 
 /// A dictionary's entries: key, value, the value's bytes in the document.
@@ -18,8 +16,7 @@ pub enum Value<'a> {
     Int(i64),
     Bytes(&'a [u8]),
     List(Vec<Value<'a>>),
-    /// The keys in their (sorted, unique) order, each with its value and
-    /// the value's bytes as they are in the document.
+    /// Sorted unique keys, each with its value and the value's raw bytes.
     Dict(Vec<(&'a [u8], Value<'a>, &'a [u8])>),
 }
 

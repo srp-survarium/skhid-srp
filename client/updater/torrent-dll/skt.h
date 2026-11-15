@@ -1,9 +1,7 @@
-/* skt.h: the C API of skhid_torrent.dll, libtorrent-rasterbar 2.0 behind it
-   (client/updater/README.md, "BitTorrent"). The updater loads the DLL at
-   run time (LoadLibraryW, GetProcAddress): exe/src/libtorrent.rs is its one
-   caller. All text is UTF-8; every call is made from one thread at a time
-   (the updater's: libtorrent's own threads stay inside); no call throws;
-   what comes back is copied into the caller's buffers. */
+/* skt.h: the C API of skhid_torrent.dll over libtorrent-rasterbar 2.0
+   (client/updater/README.md, "BitTorrent"); exe/src/libtorrent.rs is its one
+   caller. Text is UTF-8; calls come from one thread at a time; no call
+   throws; what comes back is copied into the caller's buffers. */
 #ifndef SKT_H
 #define SKT_H
 #include <stddef.h>
@@ -31,12 +29,11 @@ typedef struct {
     int32_t loopback;              /* tests: 127.0.0.1 only, peers of one address, DHT nodes on it */
 } skt_config;
 
-/* One file of a torrent as this run has it: `name` its path in the torrent
-   ('/' between the parts, without the torrent's name), `path` where it is
-   (absolute). fetch 1: fetched into `path`, what is there checked first;
-   0: shared from `path`, never written. trusted 1: its every piece was
-   checked before and it has not changed since (the caller's record): not
-   hashed again. A file of the torrent not listed is neither. */
+/* name: its path in the torrent ('/' between the parts, without the
+   torrent's name); path: where it is, absolute. fetch 1: fetched into path,
+   what is there checked first; 0: shared from path, never written.
+   trusted 1: checked before and unchanged since, so not hashed again.
+   A file of the torrent not listed is neither fetched nor shared. */
 typedef struct {
     const char *name;
     const char *path;
@@ -86,14 +83,14 @@ SKT_API void SKT_CALL skt_set_upload_limit(skt_session *s, int32_t bytes_per_sec
 /* No connection to or from the address for the session. */
 SKT_API int SKT_CALL skt_ban(skt_session *s, const char *ip);
 
-/* A torrent from its bytes; save_path: a folder where nothing of it is.
-   trackers replace the torrent's own (its announce-list, web seeds and DHT
-   nodes are never used). Returns the torrent's id (>= 0) or -1 and err. */
+/* save_path: a folder where nothing of the torrent is. trackers replace the
+   torrent's own; its web seeds and DHT nodes are never used. Returns the
+   torrent's id (>= 0), or -1 and err. */
 SKT_API int SKT_CALL skt_add(skt_session *s, const uint8_t *torrent, size_t len, const char *save_path,
                              const skt_file *files, size_t nfiles, const char *const *trackers,
                              size_t ntrackers, char *err, int errlen);
-/* Only the info of a torrent, from its swarm (ut_metadata): a METADATA
-   follows when it came (libtorrent has checked it is the info hash's). */
+/* Only the info, from the swarm (ut_metadata): a METADATA follows once it
+   came, checked by libtorrent against v2. */
 SKT_API int SKT_CALL skt_add_magnet(skt_session *s, const uint8_t v2[32], const char *save_path,
                                     const char *const *trackers, size_t ntrackers, char *err, int errlen);
 /* The info a METADATA said: its length, or -length when out is too short. */
@@ -106,9 +103,8 @@ SKT_API int SKT_CALL skt_remove(skt_session *s, int t); /* the files stay */
 /* Up to max events, waiting up to wait_ms for the first. */
 SKT_API int SKT_CALL skt_poll(skt_session *s, skt_event *out, int max, int wait_ms);
 
-/* BEP 46: read the item of key and salt (a DHT_ITEM for each answer);
-   put a signed one as it is (no private key here: the signature is the
-   release's). */
+/* BEP 46: get the item of key and salt (a DHT_ITEM for each answer); put
+   one already signed, as it is: no private key here. */
 SKT_API void SKT_CALL skt_dht_get(skt_session *s, const uint8_t key[32], const uint8_t *salt, size_t saltlen);
 SKT_API int SKT_CALL skt_dht_put(skt_session *s, const uint8_t key[32], const uint8_t sig[64], int32_t seq,
                                  const uint8_t *salt, size_t saltlen, const uint8_t *value, size_t len);

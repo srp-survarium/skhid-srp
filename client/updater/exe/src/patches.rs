@@ -376,21 +376,18 @@ enum Fail {
     Offline(String, String),
 }
 
-/// How [`Run::fetch`] ended well.
 enum Got {
-    /// The patch in its place: `true` when the file in place is known by
-    /// its file ID to be the one hashed (else it is hashed there again).
+    /// `true` when the file in place is known by its file ID to be the one
+    /// hashed (else it is hashed there again).
     Placed(bool),
-    /// The launcher turned torrent on, which has the patch: its part (what
-    /// came by HTTPS) is kept for it.
+    /// Torrent was turned on and has the patch; its part is kept for it.
     ToTorrent,
 }
 
 /// Why one address did not give a patch's file.
 enum Miss {
     Stopped,
-    /// The launcher turned torrent on, which has the file
-    /// ([`torrent::takes_over`]).
+    /// [`torrent::takes_over`].
     ToTorrent,
     /// Here: the disk, a file that cannot be written. No other address
     /// would do better: the fetch ends.
@@ -472,8 +469,8 @@ struct Run<'a> {
     record: &'a mut Record,
     /// The folder is about to change, or has: the status says so.
     changing: bool,
-    /// Patches the torrent gave this run, checked in their parts, and what
-    /// Windows said of each when it was hashed.
+    /// Patches the torrent gave, checked in their parts, with their identity
+    /// when hashed.
     torrented: Vec<(u8, Option<Identity>)>,
 }
 
@@ -825,10 +822,8 @@ impl Run<'_> {
         }
     }
 
-    /// A checked part into its place, unless the game runs now: `true` when
-    /// the file in place is known by its file ID to be the one hashed.
-    /// `from`: the address it came from (its number of the list's), or the
-    /// torrent (0).
+    /// A checked part into its place, unless the game runs now; `true` as in
+    /// [`Got::Placed`]. `address`: its number in the list, 0 for the torrent.
     fn put(
         &mut self,
         patch: &Patch,
@@ -873,11 +868,9 @@ impl Run<'_> {
         Ok(kept.is_some())
     }
 
-    /// The patches to fetch, by the revision's torrent first when the
-    /// launcher allows it and the torrent has them: each into its part,
-    /// every piece checked by the torrent's SHA-256, then the whole file by
-    /// the list's ([`Run::fetch`] puts it in place). What the torrent does
-    /// not give comes from its addresses, as without it.
+    /// What the torrent has of `fetch`, into parts checked against the
+    /// list's SHA-256 for [`Run::fetch`] to put in place; the rest comes
+    /// from their addresses.
     fn by_torrent(&mut self, fetch: &[&Patch]) -> Result<(), Fail> {
         let Some(offered) = torrent::offered(self.session, self.layout) else {
             return Ok(());
@@ -1031,8 +1024,7 @@ impl Run<'_> {
                 self.delete(&fetch.patch.file_name())?;
             }
             let known = loop {
-                // The launcher turned torrent on since: this patch and the
-                // rest by it first, as before the first.
+                // Torrent turned on since: the rest by it first.
                 if self.session.torrents.turn() != turn {
                     turn = self.session.torrents.turn();
                     let rest: Vec<&Patch> = wanted[at..]
@@ -1100,8 +1092,8 @@ fn list_error(error: &ListError) -> String {
 enum Source<'a> {
     /// `GET <server>/patches`.
     Server(&'a Url),
-    /// The server could not be asked: the revision's signed torrent's
-    /// patches ([`torrent_list`]), a list as the server's.
+    /// The server could not be asked: the signed torrent's patches
+    /// ([`torrent_list`]).
     Torrent(List),
     /// The server could not be reached: the list built in ([`built_in`]).
     BuiltIn(List),
@@ -1165,8 +1157,7 @@ fn offline(
                 log!("patches: BLOCKED: {fail}. The player is told: {message}");
                 Outcome::Blocked(message.into())
             }
-            // No torrent, or it gave nothing: the list built in, as without
-            // it.
+            // No torrent, or it gave nothing.
             Ok(None) => offline_built_in(session, layout, overlay, record, look, message, &why),
         },
     }
@@ -1205,13 +1196,10 @@ fn offline_built_in(
     }
 }
 
-/// The revision's signed torrent's patches as a list, when the server
-/// could not be asked (`torrent::offered`): each `resources.db.patch_<n>` of
-/// it in place, checked piece by piece against the torrent, fetched by it
-/// when missing or damaged; its SHA-256 taken from the checked file. The
-/// addresses are the kept list's for the same file, else none: the torrent
-/// alone gives it, until the server's list names it again. `Ok(None)`: no
-/// torrent, one that has none, or no peer gave them; `Err(None)`: stopped.
+/// The signed torrent's patches as a list, each checked in place or fetched
+/// by it, its SHA-256 from the checked file. Addresses are the kept list's
+/// for the same file, else none until the server's list names it again.
+/// `Ok(None)`: not by torrent; `Err(None)`: stopped.
 fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, Option<String>> {
     let Some(offered) = torrent::offered(session, layout) else {
         return Ok(None);
@@ -1254,8 +1242,7 @@ fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, 
             }
         }
         for (index, part) in &missing {
-            // Every piece checked: the file at the torrent's size, no more
-            // (what is hashed and recorded below is what is renamed).
+            // Every piece was checked; only extra bytes could be wrong.
             let size = torrent.files[*index].size;
             if win::file_size(part).ok() != Some(size) {
                 let _ = win::delete(part);

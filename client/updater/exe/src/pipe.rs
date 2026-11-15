@@ -1,5 +1,5 @@
-//! This end of the launcher's named pipe (and of the game's, in seed mode:
-//! the same framing, `crate::seed`).
+//! This end of the launcher's named pipe (and of the game's in seed mode,
+//! same framing).
 //!
 //! The launcher makes the pipe and passes its name; the updater opens it
 //! once. Everything here is done by the one thread the program has: it

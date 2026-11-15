@@ -1,17 +1,8 @@
-//! The torrent of the whole game folder of the revision `/download` belongs
-//! to (`docs/notes/torrent-downloads.md`): the ZIP's [`ENTRY`], which the
-//! release puts in it (`release/build-torrent`), signed by the release's
-//! key. The updater takes it from the ZIP it installed (whose SHA-256
-//! `/api/client-files` names) and checks that signature; this site hands
-//! the same file to people's own BitTorrent clients:
-//!
-//! - `GET /torrent` ([`PATH`]) hands it out, as `skhid-rev<n>.torrent`;
-//! - the home page links it and its magnet (`btih`, `btmh`, `dn`, `tr`).
-//!
-//! A ZIP without it (an older one, `release/deploy`'s) has no torrent. The
-//! entry is read whenever it is asked for (it is small) and parsed once into
-//! [`Torrent`]: one that cannot be read whole as a torrent is as if there
-//! were none.
+//! The torrent inside the ZIP at `/download`, handed to people's own
+//! BitTorrent clients as `GET /torrent` and the home page's magnet link
+//! (`docs/notes/torrent-downloads.md`, "The format"). The updater needs
+//! none of this: it takes the torrent from the ZIP it installed. One that
+//! cannot be read whole as a torrent is as if there were none.
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -19,34 +10,30 @@ use std::net::{Shutdown, TcpStream};
 use std::path::Path;
 
 pub(super) const PATH: &str = "/torrent";
-/// Where the bootstrap script is (`docs/notes/torrent-downloads.md`,
-/// "Bootstrap"), and the script itself, when release/build-bootstrap made it.
+/// The bootstrap script ("Bootstrap" in the spec), when
+/// release/build-bootstrap made one.
 pub(super) const BOOTSTRAP_PATH: &str = "/Skhid-get.bat";
 pub(super) const BOOTSTRAP: Option<&[u8]> = include!(concat!(env!("OUT_DIR"), "/bootstrap.rs"));
-/// Its name in the ZIP: beside the updater. Stored, not compressed.
+/// Stored, not compressed.
 const ENTRY: &[u8] = b"game/binaries/x86/skhid.torrent";
-/// The most a torrent file may weigh (the release's are about 200 KB).
+/// The release's are about 200 KB.
 pub(super) const MAX_SIZE: u64 = 4 << 20;
-/// The most a ZIP's central directory may weigh (the players' has some 80
-/// entries).
+/// The players' ZIP has some 80 entries.
 const MAX_DIRECTORY: u64 = 1 << 20;
-/// How deep lists and dictionaries may nest in it.
 const MAX_DEPTH: usize = 32;
 
-/// A torrent file as it was read, and what the site says of it.
 pub(super) struct Torrent {
     pub bytes: Vec<u8>,
-    /// SHA-1 of its `info` (`btih`, the v1 info hash).
+    /// `btih`: the SHA-1 of `info`.
     pub v1: [u8; 20],
-    /// SHA-256 of its `info` (`btmh`, the v2 info hash).
+    /// `btmh`: the SHA-256 of `info`.
     pub v2: [u8; 32],
-    /// Its `info.name`.
+    /// `info.name`.
     pub name: String,
-    /// Its trackers: `announce-list` in order (else `announce`).
+    /// `announce-list` in order, else `announce`.
     pub trackers: Vec<String>,
 }
 
-/// The torrent in the ZIP `download`, when it holds one.
 pub(super) fn in_zip(download: &Path) -> Option<Torrent> {
     let bytes = match entry(download) {
         Entry::Absent => return None,
@@ -66,7 +53,6 @@ pub(super) fn in_zip(download: &Path) -> Option<Torrent> {
     torrent
 }
 
-/// What the ZIP holds as [`ENTRY`].
 enum Entry {
     Absent,
     Unreadable(&'static str),
@@ -92,8 +78,8 @@ fn read_at(file: &mut File, offset: u64, length: u64) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
-/// [`ENTRY`] of the ZIP: its end record (in the last 64 KiB and 22 bytes),
-/// its central directory, the entry's local header, its stored bytes.
+/// The end record is in the last 64 KiB and 22 bytes; it names the central
+/// directory, which names the entry's local header.
 fn entry(download: &Path) -> Entry {
     let unreadable = Entry::Unreadable("cannot be read as a ZIP");
     let Some(directory) = (|| {
@@ -165,7 +151,6 @@ fn entry(download: &Path) -> Entry {
     Entry::Absent
 }
 
-/// A bencoded value; strings as their bytes.
 enum Value<'a> {
     Int,
     Bytes(&'a [u8]),
@@ -237,14 +222,13 @@ fn value(data: &[u8], at: usize, depth: usize) -> Option<(Value<'_>, usize)> {
     }
 }
 
-/// The torrent `bytes` hold: one dictionary, all of the file, with an
-/// `info` dictionary whose `name` is text, and text trackers.
+/// One dictionary, all of the file, with an `info` whose `name` is text,
+/// and text trackers.
 fn parse(bytes: Vec<u8>) -> Option<Torrent> {
     if bytes.first() != Some(&b'd') {
         return None;
     }
-    // The top dictionary's entries, each value's bytes kept: the info hash
-    // is of `info` exactly as the file has it.
+    // Offsets kept: the info hash is of `info` exactly as the file has it.
     let (mut at, mut info, mut trackers) = (1, None, Vec::new());
     let mut announce = None;
     while *bytes.get(at)? != b'e' {
@@ -292,8 +276,7 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-/// A URI component: unreserved characters as they are, every other byte
-/// `%XX`.
+/// Unreserved characters as they are, every other byte `%XX`.
 fn component(text: &str) -> String {
     text.bytes()
         .map(|b| {
@@ -307,8 +290,7 @@ fn component(text: &str) -> String {
 }
 
 impl Torrent {
-    /// Its magnet link: both info hashes (`btmh` is the multihash
-    /// `1220<SHA-256>`), its name and its trackers.
+    /// `btmh` is the multihash `1220<SHA-256>`.
     pub(super) fn magnet(&self) -> String {
         let mut link = format!(
             "magnet:?xt=urn:btih:{}&xt=urn:btmh:1220{}&dn={}",
@@ -324,8 +306,8 @@ impl Torrent {
     }
 }
 
-/// `GET /torrent`: the file, named after the revision the server lets in
-/// (the release's: the torrent is put in place with it).
+/// Named after the revision the server lets in: the torrent is put in place
+/// with it.
 pub(super) fn send(stream: &mut TcpStream, head_only: bool, torrent: &Torrent, revision: u8) {
     attachment(
         stream,
@@ -336,7 +318,6 @@ pub(super) fn send(stream: &mut TcpStream, head_only: bool, torrent: &Torrent, r
     );
 }
 
-/// `GET /Skhid-get.bat`: the bootstrap script, to save.
 pub(super) fn send_bootstrap(stream: &mut TcpStream, head_only: bool, script: &[u8]) {
     attachment(
         stream,
@@ -413,8 +394,8 @@ mod tests {
         assert!(parse(b"d8:announce1:xe".to_vec()).is_none(), "no info");
     }
 
-    /// A ZIP of `entries` (name, bytes, method), as Python's zipfile writes
-    /// one; a method other than 0 only says so (the bytes are as given).
+    /// As Python's zipfile writes one; a method other than 0 only says so
+    /// (the bytes are as given).
     fn zip(entries: &[(&[u8], &[u8], u16)]) -> Vec<u8> {
         let (mut out, mut directory) = (Vec::new(), Vec::new());
         for (name, data, method) in entries {

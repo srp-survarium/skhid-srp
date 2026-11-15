@@ -1,18 +1,8 @@
-//! The newest release on the DHT (`srp-026g/docs/notes/torrent-downloads.md`,
-//! "The newest release"): a BEP 46 mutable item under the release's
-//! Ed25519 key, so that an updater that cannot reach our site still finds
-//! the newest signed torrent.
-//!
-//! The item: salt [`SALT`], sequence number the revision, and the value
-//! [`Newest`] bencoded: `d1:i32:<v2 info hash>1:ri<revision>e1:s64:<the
-//! torrent's signature>e`, the facts of the torrent's `skhid` signature
-//! (`crate::signed`). Its BEP 44 signature, by the same key, is the
-//! torrent's `skhid.dht` (`release/build_torrent.py` makes both), so every
-//! updater that has the torrent can put the item again as it is. An item
-//! read is taken only when its signature verifies; the torrent's `info`
-//! then comes from the swarm (BEP 9), is checked against the item's info
-//! hash, and makes the signed torrent again with [`torrent`] (no piece
-//! layers: libtorrent gets them from peers).
+//! The newest release on the DHT (BEP 46), so that an updater that cannot
+//! reach our site still finds the newest signed torrent
+//! (`srp-026g/docs/notes/torrent-downloads.md`, "The newest release").
+//! The item's BEP 44 signature travels in the torrent (`skhid.dht`), so
+//! every updater that has the torrent can put the item again without a key.
 
 use alloc::format;
 use alloc::vec::Vec;
@@ -47,7 +37,7 @@ fn bytes(out: &mut Vec<u8>, data: &[u8]) {
     out.extend_from_slice(data);
 }
 
-/// The bencoded value of `newest`.
+/// `d1:i32:<v2 info hash>1:ri<revision>e1:s64:<the torrent's signature>e`.
 pub fn value(newest: &Newest) -> Vec<u8> {
     let mut out = b"d1:i".to_vec();
     bytes(&mut out, &newest.v2);
@@ -57,7 +47,7 @@ pub fn value(newest: &Newest) -> Vec<u8> {
     out
 }
 
-/// A value of exactly that form.
+/// Only the exact bytes [`value`] makes.
 pub fn parse_value(data: &[u8]) -> Option<Newest> {
     let document = bencode::parse(data)?;
     let newest = Newest {
@@ -87,9 +77,8 @@ pub fn verify(item: &Item, key: &[u8; 32]) -> Option<Newest> {
     parse_value(&item.value).filter(|newest| i64::from(newest.revision) == item.seq)
 }
 
-/// The item of a signed torrent: what its `skhid` says (with `dht`, the
-/// item's signature) and its info hash. `None` without `skhid.dht` (a
-/// torrent of a release before it). Not verified here.
+/// The item a signed torrent carries; `None` without `skhid.dht`. Not
+/// verified here.
 pub fn of_torrent(torrent: &[u8]) -> Option<Item> {
     let document = bencode::parse(torrent)?;
     let (_, info) = document.entry(b"info")?;
@@ -106,8 +95,8 @@ pub fn of_torrent(torrent: &[u8]) -> Option<Item> {
     })
 }
 
-/// The signed torrent again from its `info` (the swarm's) and the item
-/// that names it: `None` when that info is not the item's.
+/// The signed torrent again from the swarm's `info` (no piece layers:
+/// libtorrent gets them from peers); `None` when that info is not the item's.
 pub fn torrent(info: &[u8], newest: &Newest, item_signature: &[u8; 64]) -> Option<Vec<u8>> {
     if digest(info) != newest.v2 {
         return None;

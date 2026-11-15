@@ -8,9 +8,8 @@
 //! - `/launcher/…` and `/api/client-files` (the 0.26g page only) are for the
 //!   patched game launcher and its updater ([`launcher`]): the page it shows
 //!   in its window, and which archive `/download` hands out now.
-//! - `/torrent` (the 0.26g page only) is the torrent of the whole game
-//!   folder that the download file holds, when it holds one, and
-//!   `/Skhid-get.bat` the bootstrap script, when the build has one ([`torrent`]).
+//! - `/torrent` and `/Skhid-get.bat` (the 0.26g page only): the download
+//!   file's torrent and the bootstrap script, when there are ([`torrent`]).
 //! - `/patches` (the 0.26g page only) is the list of `resources.db`'s patches
 //!   the updater keeps in the game folder: those the server's game data was
 //!   made of ([`patches`]).
@@ -1946,8 +1945,8 @@ fn home(lang: Lang, stats: Stats) -> String {
         ),
         None => String::new(),
     };
-    // 0.26g: the whole game folder by BitTorrent too, when the release made
-    // its torrent ([`torrent`]).
+    // 0.26g: the whole game folder by BitTorrent too, when the ZIP holds a
+    // torrent.
     let torrent = available_download()
         .filter(|_| v026g)
         .and_then(|file| torrent::in_zip(file))

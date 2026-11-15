@@ -160,8 +160,8 @@ pub fn frame(message: ToLauncher) -> Vec<u8> {
         ToLauncher::CannotMoveFile => out.push(0x11),
         ToLauncher::CannotVerifyHash => out.push(0x16),
         ToLauncher::HashMismatch => out.push(0x17),
-        // The original sent its disk-space record after these, unfilled;
-        // the launcher reads nothing of it (`launcher.md` 5.1).
+        // No disk-space record after these: the launcher reads none
+        // (`launcher.md` 5.1).
         ToLauncher::PortBusy => out.push(0x14),
         ToLauncher::PortOk => out.push(0x15),
     }
@@ -173,8 +173,7 @@ pub fn frame(message: ToLauncher) -> Vec<u8> {
 /// A message of the launcher.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FromLauncher {
-    /// `1A`: the launcher's "Allow torrent" switched (its byte: 0 on, 1
-    /// off).
+    /// `1A`: "Allow torrent" switched; its byte 0 is on.
     AllowTorrent(bool),
     /// `1B`: stop.
     Abort,
@@ -183,19 +182,17 @@ pub enum FromLauncher {
     No,
     /// `21`: the torrent port.
     Port(u16),
-    /// `1E`: bytes a second the torrent may upload; `None`: no limit (0).
+    /// `1E`: bytes a second; `None` for 0, no limit.
     UploadLimit(Option<u64>),
     /// Any other id.
     Other(u8),
 }
 
-/// The launcher's torrent settings: its "Allow torrent" switch, given as
-/// the update's 4th argument (`torrent` or `direct`) and then by `1A`, and
-/// its port (the 13th, `""` when it has none, then `21`), kept while it is
-/// off for when the launcher turns it on.
+/// The launcher's "Allow torrent" and port: the update's 4th and 13th
+/// arguments, then `1A` and `21`. The port is kept while off, for when it
+/// is turned on; `None` when the launcher has none.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Torrenting {
-    /// `port`: `None` when the launcher has none (a port the system picks).
     Off { port: Option<u16> },
     On { port: Option<u16> },
 }

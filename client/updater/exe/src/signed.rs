@@ -1,8 +1,6 @@
-//! The release's key, and whether a torrent is the release's: its
-//! signature by that key (`updater_logic::signed`), and a revision not
-//! lower than the highest this updater has taken, nor than the game's, nor
-//! than this updater's own (no rollback: a torrent of an older release,
-//! signed then, is never taken again).
+//! Whether a torrent is the release's: signed by its key, and of a revision
+//! no lower than any taken before, the game's or this updater's own, so an
+//! older release's torrent, validly signed then, is never taken again.
 
 use alloc::format;
 use alloc::string::String;
@@ -14,19 +12,17 @@ use crate::install::Layout;
 use crate::log::log;
 use crate::win;
 
-/// The release's public key, 64 hex digits: `release/signing.pub`, which
-/// `build.rs` reads, or `SKHID_TEST_PUBLIC_KEY` of the build (the tests sign
-/// with a throwaway key). A build without either takes no torrent.
+/// 64 hex digits from `release/signing.pub` or `SKHID_TEST_PUBLIC_KEY`
+/// (`build.rs`); a build without either takes no torrent.
 const KEY: Option<&str> = option_env!("SKHID_BUILT_PUBLIC_KEY");
-/// The highest revision taken, beside the updater.
+/// Beside the updater: the highest revision taken.
 const TAKEN: &str = "updater_skhid.torrent.revision";
 
-/// The release's public key; `None` in a build without one.
 pub fn key() -> Option<[u8; 32]> {
     KEY.and_then(signed::public_key)
 }
 
-/// The revision the installed game exe says (0 when it cannot be told).
+/// 0 when the installed exe's revision cannot be told.
 pub fn game_number(layout: &Layout) -> u64 {
     gate::game_revision(layout)
         .ok()
@@ -34,16 +30,15 @@ pub fn game_number(layout: &Layout) -> u64 {
         .map_or(0, u64::from)
 }
 
-/// This updater's own revision: its build's `SKHID_REVISION`
-/// (`release/build-zip` sets it; 0 for a local build).
+/// `SKHID_REVISION`, set by `release/build-zip`; 0 for a local build.
 fn built() -> u64 {
     option_env!("SKHID_REVISION")
         .and_then(|text| text.parse().ok())
         .unwrap_or(0)
 }
 
-/// The least revision taken: the highest taken before, the game's, this
-/// updater's own.
+/// The least revision taken: the highest of the one taken before, the
+/// game's and this updater's own.
 pub fn installed(layout: &Layout) -> u64 {
     let game = game_number(layout).max(built());
     let taken = win::read_file(&format!("{}\\{TAKEN}", layout.exe_dir), 16)
@@ -54,7 +49,6 @@ pub fn installed(layout: &Layout) -> u64 {
     game.max(taken)
 }
 
-/// Notes that a torrent of `revision` was taken.
 pub fn taken(layout: &Layout, revision: u64) {
     if revision > installed(layout) {
         let path = format!("{}\\{TAKEN}", layout.exe_dir);
@@ -64,8 +58,8 @@ pub fn taken(layout: &Layout, revision: u64) {
     }
 }
 
-/// The revision of `torrent` when it is the release's and not older than
-/// [`installed`].
+/// `torrent`'s revision, when the release signed it and it is not older
+/// than [`installed`].
 pub fn check(torrent: &[u8], layout: &Layout) -> Result<u64, String> {
     let key = key().ok_or("this updater has no key to check a torrent with")?;
     let revision = signed::verify(torrent, &key).map_err(|error| match error {

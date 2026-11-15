@@ -75,7 +75,7 @@ pub fn sweep(layout: &Layout) {
     }
 }
 
-/// What a download by torrent left, once the game is there.
+/// The game files' torrent parts ([`PART`]).
 fn remove_parts(layout: &Layout) {
     for (name, _) in game::FILES {
         let part = format!("{}{PART}", place(layout, name));
@@ -210,17 +210,16 @@ fn check(
     Ok(pin.matches(size, hash).then_some(file))
 }
 
-/// How the archive's download ended.
 enum Archive {
-    /// Here, checked: a read lock on it.
+    /// Checked, and read-locked.
     Got(win::LockedFile),
-    /// The launcher turned torrent on, which has the files: what came is
-    /// kept, for HTTPS to go on from if the torrent gives none.
+    /// Torrent was turned on and has the files; the bytes so far stay for
+    /// HTTPS to resume from.
     ToTorrent,
 }
 
-/// The torrent's path of the original game's exe: whether the torrent has
-/// the original files, for a download of the archive to leave it to it.
+/// Stands for the original files: the archive's download hands over when
+/// the torrent has it.
 const BY_TORRENT: &str = "game/binaries/x86/survarium.exe";
 
 /// Returns a read lock only after hashing the bytes actually on disk. The lock
@@ -347,8 +346,7 @@ fn fetch(
 /// from 0 when it gives the whole file again. What it answered and the
 /// bytes received of it; `Err` for a failure here (the disk), not of the
 /// address, and when told to stop (the bytes stay for the next run). An
-/// answer `Stopped`: the launcher turned torrent on, which takes the rest
-/// ([`torrent::takes_over`]; the bytes stay too).
+/// answer `Stopped`: torrent takes over ([`torrent::takes_over`]).
 fn get(
     session: &mut Session,
     layout: &Layout,
@@ -439,21 +437,17 @@ fn clean_stage(stage: &str) {
     win::remove_dir(stage);
 }
 
-/// A file of the game while the torrent fetches it, beside its place. Kept
-/// when the torrent is left for HTTPS: the next start checks its pieces and
-/// goes on from them; removed once the game is there.
+/// Beside a game file fetched by torrent. Kept when HTTPS takes over, so the
+/// next start resumes from its checked pieces.
 const PART: &str = ".skhid-torrent";
 
 fn place(layout: &Layout, name: &str) -> String {
     format!("{}\\{}", layout.game_dir, name.replace('/', "\\"))
 }
 
-/// The original files that are missing, by the revision's torrent, when the
-/// launcher allows it and the torrent has them as build 2777 has them (its
-/// `bugtrap.dll` and certificate are the Skhid ones: the overlay brings
-/// those). Every piece is checked by the torrent's SHA-256, then each whole
-/// file by its pin, before it is put in place. `Ok(None)`: not by torrent
-/// (none, no peer, it stalled): the archive by HTTPS, as without it.
+/// The missing original files the torrent has as build 2777 has them (its
+/// `bugtrap.dll` and certificate are Skhid's, from the overlay), each
+/// checked by its pin before it is put in place. `Ok(None)`: HTTPS instead.
 fn by_torrent(session: &mut Session, layout: &Layout) -> Result<Option<bool>, Option<String>> {
     let Some(offered) = torrent::offered(session, layout) else {
         return Ok(None);
@@ -563,7 +557,7 @@ pub fn ensure(
     };
     let mut free = free_space()?;
     if free < needed {
-        // The torrent's parts, kept for its next try, are room the archive needs.
+        // Kept torrent parts give way to the archive.
         remove_parts(layout);
         free = free_space()?;
     }
@@ -576,8 +570,7 @@ pub fn ensure(
     let archive = loop {
         match fetch(session, layout, &addresses, &archive_path, game::ARCHIVE)? {
             Archive::Got(file) => break file,
-            // The launcher turned torrent on: the files by it, the bytes
-            // of the archive kept for HTTPS to go on from if it gives none.
+            // If the torrent gives nothing, HTTPS resumes from the kept bytes.
             Archive::ToTorrent => {
                 if let Some(added) = by_torrent(session, layout)? {
                     drop(extractor);

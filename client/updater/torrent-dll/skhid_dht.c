@@ -1,7 +1,6 @@
-/* skhid-dht: the release's BEP 46 item put on the DHT, or read back, with
-   the updater's own libtorrent session (skt.h). Built for the host by
-   client/updater/torrent-dll/default.nix; release/publish-dht runs it. It
-   holds no private key: the item comes signed.
+/* skhid-dht: puts the release's BEP 46 item on the DHT, or reads it back,
+   with the updater's own session (skt.h), for release/publish-dht. It holds
+   no private key: the item comes signed.
 
      skhid-dht put <key hex> <salt> <seq> <value hex> <signature hex> [options]
      skhid-dht get <key hex> <salt> [options]       prints "<seq> <value hex>"

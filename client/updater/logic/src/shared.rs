@@ -1,13 +1,9 @@
-//! What the updater shares without hashing it again
-//! (`srp-026g/docs/notes/torrent-downloads.md`, "What it shares"): each file
-//! of a torrent that libtorrent found whole, every piece checked, with what
-//! Windows said of it then (`crate::checked::Identity`: size, last-write
-//! time, file ID). At a later start a file whose identity is still that is
-//! shared as checked; any other is checked again first (so libtorrent hashes
-//! from the first such file on). A file is still checked against its pin
-//! before it is installed, whatever this says.
+//! The files libtorrent found whole, kept so that 15.5 GB are not hashed
+//! again at every start (`client/updater/README.md`, "BitTorrent"). Only a
+//! file whose identity is still the one checked is trusted; a file is still
+//! checked against its pin before it is installed, whatever this says.
 //!
-//! The record, `updater_skhid.torrent.checked` beside the updater:
+//! `updater_skhid.torrent.checked`, beside the updater:
 //!
 //! ```text
 //! skhid-torrent-checked 1
@@ -15,10 +11,8 @@
 //! end
 //! ```
 //!
-//! The path is where the file is (beside the updater, or in the game
-//! folder), last on its line. A record without its `end`, of another first
-//! line, or with a line that cannot be read is no record: everything is
-//! checked.
+//! The path is last, so it may hold spaces. Anything but a whole record
+//! is none: everything is checked.
 
 use alloc::format;
 use alloc::string::String;
@@ -54,9 +48,9 @@ impl Record {
                 .any(|file| file.torrent == *torrent && file.path.eq_ignore_ascii_case(path) && file.identity == *identity)
     }
 
-    /// The files of `torrent` just checked: each path, with what it is when
-    /// it was found whole. Only those paths change (a check of some files
-    /// keeps what the others were); the records of torrents not in `kept` go.
+    /// The files of `torrent` just checked, each with its identity when it
+    /// was found whole. A check of some files keeps the others; torrents
+    /// not in `kept` go.
     pub fn set(&mut self, torrent: &[u8; 32], checked: Vec<(String, Option<Identity>)>, kept: &[[u8; 32]]) {
         self.files.retain(|file| {
             let again = file.torrent == *torrent && checked.iter().any(|(path, _)| path.eq_ignore_ascii_case(&file.path));
@@ -68,7 +62,6 @@ impl Record {
     }
 }
 
-/// The record's bytes.
 pub fn write_record(record: &Record) -> Vec<u8> {
     let mut out = format!("{HEADER}\r\n");
     for file in &record.files {
@@ -88,7 +81,6 @@ pub fn write_record(record: &Record) -> Vec<u8> {
     out.into_bytes()
 }
 
-/// The record; `None` when it is not one.
 pub fn parse_record(data: &[u8]) -> Option<Record> {
     let text = core::str::from_utf8(data).ok()?;
     let mut lines = text.lines();

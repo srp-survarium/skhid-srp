@@ -137,9 +137,8 @@ pub fn watch(session: &mut Session, layout: &Layout, product: &str, seen: &Seen)
     );
     let mut missed = 0;
     let mut down = false;
-    // Meanwhile the torrent's files this folder has are shared, when the
-    // launcher allows it: at once when it turns it on (and again after
-    // each ask, should the engine have stopped).
+    // Sharing starts at once when torrent is turned on, and again after
+    // each ask should it have stopped.
     let mut turn = session.torrents.turn();
     share(session, layout);
     let mut each = |session: &mut Session| {
@@ -195,7 +194,7 @@ pub fn watch(session: &mut Session, layout: &Layout, product: &str, seen: &Seen)
     session.leave();
 }
 
-/// The torrent's files shared, while the launcher is there.
+/// While the launcher is there.
 fn share(session: &mut Session, layout: &Layout) {
     session.torrents.share(layout, &mut || session.pipe.as_mut().is_some_and(Pipe::alive));
 }

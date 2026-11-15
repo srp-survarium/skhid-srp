@@ -1,14 +1,8 @@
-//! A revision's `.torrent` (`srp-026g/docs/notes/torrent-downloads.md`): a
-//! hybrid v1 + v2 torrent (BEP 52) whose every file starts at a piece
-//! (BEP 47 pad files), read once into [`Torrent`] and refused whole when it
-//! is anything else.
-//!
-//! What is trusted, and how: the torrent is trusted as a whole by the
-//! release's signature (`crate::signed`; the program decides:
-//! `exe/src/torrent.rs`, `trusted`), which covers its `info`. The pieces
-//! are libtorrent's to check (`skhid_torrent.dll`), against the hashes of
-//! that `info`; here is what the updater needs to know of it: its files,
-//! their sizes, its v2 info hash.
+//! A revision's `.torrent` (`srp-026g/docs/notes/torrent-downloads.md`,
+//! "The format"): hybrid v1 + v2 (BEP 52), every file starting at a piece
+//! (BEP 47 pads), or refused whole. Trust is the signature's
+//! (`crate::signed`) and the pieces are libtorrent's to check; this reads
+//! only what the updater needs: the files, their sizes, the v2 info hash.
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -17,7 +11,6 @@ use crate::bencode::{self, Value};
 use crate::sha256::digest;
 use crate::zip::safe_name;
 
-/// The largest `.torrent` taken.
 pub const MAX_TORRENT: usize = 8 << 20;
 const MIN_PIECE: u32 = 16 * 1024;
 const MAX_PIECE: u32 = 16 << 20;
@@ -25,7 +18,7 @@ const MAX_FILES: usize = 10_000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct File {
-    /// Its path in the torrent, `/` between the parts (a `zip::safe_name`).
+    /// `/` between the parts; a `zip::safe_name`.
     pub path: String,
     pub size: u64,
 }
@@ -36,8 +29,8 @@ pub struct Torrent {
     pub v2: [u8; 32],
     pub piece_length: u32,
     pub pieces: u32,
-    /// The files, in the v1 list's order (no pads). (No trackers: the
-    /// torrent's are outside its signature; the updater has its own.)
+    /// In the v1 list's order, no pads. No trackers: a torrent's are
+    /// outside its signature, so the updater has its own.
     pub files: Vec<File>,
 }
 
@@ -53,11 +46,10 @@ fn text(value: Option<&Value>) -> Option<String> {
     String::from_utf8(value?.bytes()?.into()).ok()
 }
 
-/// The v2 file tree's files: path, size.
 fn file_tree(node: &Value, path: &mut Vec<String>, out: &mut Vec<(String, u64)>) -> Option<()> {
     for (name, child, _) in node.dict()? {
         if name.is_empty() {
-            // A file: `"": {length, pieces root}`, and nothing beside it.
+            // A file: `"": {length, pieces root}`, alone in its node.
             if node.dict()?.len() != 1 || path.is_empty() {
                 return None;
             }
@@ -78,14 +70,13 @@ fn file_tree(node: &Value, path: &mut Vec<String>, out: &mut Vec<(String, u64)>)
     Some(())
 }
 
-/// Reads a `.torrent`, or only its `info` (as the swarm gives it: BEP 9).
 pub fn parse(data: &[u8]) -> Result<Torrent, TorrentError> {
     let document = bencode::parse(data).ok_or(TorrentError::Format)?;
     let (_, raw) = document.entry(b"info").ok_or(TorrentError::Format)?;
     parse_info(raw)
 }
 
-/// Reads a torrent's bencoded `info`.
+/// A bencoded `info` alone, as the swarm gives it (BEP 9).
 pub fn parse_info(raw: &[u8]) -> Result<Torrent, TorrentError> {
     use TorrentError::{Format, Layout};
     if raw.len() > MAX_TORRENT {
@@ -103,8 +94,7 @@ pub fn parse_info(raw: &[u8]) -> Result<Torrent, TorrentError> {
         .ok_or(Format)?;
     let mut tree = Vec::new();
     file_tree(info.get(b"file tree").ok_or(Layout)?, &mut Vec::new(), &mut tree).ok_or(Format)?;
-    // The v1 list: each file of it is one of the tree's, of the same size,
-    // starting at a piece; pads (`attr` "p") fill to it.
+    // Each v1 file is the tree's file of that path and size, at a piece.
     let list = info.get(b"files").and_then(Value::list).ok_or(Layout)?;
     let mut files: Vec<File> = Vec::new();
     let mut offset = 0_u64;
@@ -157,15 +147,13 @@ pub fn parse_info(raw: &[u8]) -> Result<Torrent, TorrentError> {
     })
 }
 
-/// The torrent as the updater keeps and passes it on: its `info`, `piece
-/// layers` and `skhid` (the signature) as they are, nothing else. The rest
-/// (trackers, a comment...) is outside the signature: whoever handed the
-/// torrent over could have put anything there. (Its piece layers are
-/// libtorrent's to check against `info`.)
+/// Only `info`, `piece layers` and `skhid`: the rest is outside the
+/// signature, so whoever handed the torrent over could have put anything
+/// there.
 pub fn canonical(data: &[u8]) -> Option<Vec<u8>> {
     let document = bencode::parse(data)?;
     let mut out = alloc::vec![b'd'];
-    // In the order of their keys' bytes, as bencoding has them.
+    // Sorted, as bencoding requires.
     for key in [&b"info"[..], b"piece layers", b"skhid"] {
         if let Some((_, raw)) = document.entry(key) {
             out.extend_from_slice(alloc::format!("{}:", key.len()).as_bytes());
@@ -177,9 +165,8 @@ pub fn canonical(data: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
-/// What tests build torrents with: a hybrid torrent of `files` (path,
-/// bytes) laid out as libtorrent lays one (a pad after each file but the
-/// last); its hashes are not the files' (nothing here checks them).
+/// A hybrid torrent laid out as libtorrent lays one; its hashes are not
+/// the files' (nothing here checks them).
 #[cfg(test)]
 pub(crate) fn make(files: &[(&str, &[u8])], piece_length: u32, trackers: &[&str]) -> Vec<u8> {
     use alloc::format;
@@ -210,8 +197,7 @@ pub(crate) fn make(files: &[(&str, &[u8])], piece_length: u32, trackers: &[&str]
     }
     list.push(b'e');
     info.extend_from_slice(b"d9:file treed");
-    // The file tree: these tests' paths have one level of folders at most,
-    // sorted as given.
+    // These tests' paths have one level of folders at most.
     let mut sorted: Vec<usize> = (0..files.len()).collect();
     sorted.sort_by_key(|&i| files[i].0);
     let mut open: Option<&str> = None;
