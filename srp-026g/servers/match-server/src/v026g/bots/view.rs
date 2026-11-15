@@ -1414,12 +1414,15 @@ impl Tracker {
         let walls = self.arc_walls(kin, world);
         // [A331] A battery carrier does not sprint (the owner; `can_sprint` 0x2DBF40, LIKELY): the believed carrier's world keys
         // move its body at a run, and its level is read against the run.
-        if kin.carrier_sprint == super::kin::CarrierSprint::Refused && self.carries.iter().any(|carry| carry.carrier == Some(place)) {
+        let carrying = self.carries.iter().any(|carry| carry.carrier == Some(place));
+        if kin.carrier_sprint == super::kin::CarrierSprint::Refused && carrying {
             fix.keys &= !key::SPRINT;
         }
         let Some(state) = self.places.get_mut(place) else {
             return false;
         };
+        // [A388 (e) gap 18] A carrier's level is its kit's with empty hands and the battery's term.
+        state.body.set_hands(if carrying { super::body::Hands::Battery } else { super::body::Hands::Kit });
         state.alive = fix.alive;
         if state.spawned != fix.inserted
             && let Some(pockets) = state.throws.pockets_mut()

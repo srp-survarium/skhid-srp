@@ -2304,6 +2304,13 @@ impl Bots {
             nav_log::PREFIX,
             body::kept_clock::take_legs_crouched()
         ));
+        // [A388 (e) gap 18] The worlds a carrier's computed level gave the body's speed level, and the battery's term read.
+        lines.push(format!(
+            "{}carrier levels applied since the last match end (every match on this server): {} worlds; the battery's term {}",
+            nav_log::PREFIX,
+            body::carrier_levels::take(),
+            survarium::v026g::bot_skills::carried_battery_term().map_or_else(|| "not in the data".to_string(), |term| format!("{term:+.3}"))
+        ));
         // [A388] The kept controllers' CPU: their steps on this server since the last match's end (every match on it), and the
         // time a step took.
         let (steps, ns) = body::kept_clock::take(body::kept_clock::Of::Reckoning);

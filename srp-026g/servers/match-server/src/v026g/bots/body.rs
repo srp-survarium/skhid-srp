@@ -192,6 +192,32 @@ pub(crate) fn crouch_input(keys: u32, legs_broken: bool) -> CrouchInput {
     CrouchInput::Tested { key: keys & key::CROUCH != 0, legs_broken }
 }
 
+/// [A388 (e) gap 18] What a body holds in its hands, for its speed level: its kit's own (a gun's term, or none, read from the
+/// worlds against the kit's values), or a battery (the gun's term unlinked: `deactivate` 0x2E2DB0 removes the gun's node, 0x2E2E9F,
+/// when `tick_active_object` 0x2D7650 switches to the carried battery; exactness notes-reckoning-inputs §2, PROVEN).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Hands {
+    #[default]
+    Kit,
+    Battery,
+}
+
+/// [A388 (e) gap 18] The worlds whose speed level a carrier's computed level gave, on this server (the match-end line).
+pub(crate) mod carrier_levels {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+
+    pub(crate) fn count() {
+        COUNT.fetch_add(1, Relaxed);
+    }
+
+    /// The count since the last call, and zero again.
+    pub(crate) fn take() -> u64 {
+        COUNT.swap(0, Relaxed)
+    }
+}
+
 /// [A388 step 2] Where a ground step whose kept controller left the ground ([`KeptStep::airborne`]) goes: the floor it falls onto,
 /// the highest under the controller's feet `to` lower than a step under the top `top` and open above it ([`under_edge`]), and the
 /// feet at `to` on it. None when no such floor is there (the body is held as the grid's edge has it until a world shows it), and
@@ -644,6 +670,8 @@ pub struct BodyTrack {
     /// [A331] The kit in use's computed speed factor for each weapon it could have in hands, the primary's first
     /// ([`Self::set_speed_candidates`], [`LevelSource::Computed`]); empty: not known.
     candidates: Vec<f32>,
+    /// [A388 (e) gap 18] What the body holds in its hands for its speed level ([`Hands`]).
+    hands: Hands,
     /// [A313] The legs' term of the speed factor (`Kinematics::speed_terms`); none is 1. Kept out of the level: a world's level is
     /// read without it and the body moves by both.
     legs: Option<f32>,
@@ -742,9 +770,34 @@ impl BodyTrack {
         }
     }
 
+    /// [A388 (e) gap 18] What the body holds ([`Hands`]), from the bots' word on who carries a battery (the world's
+    /// `m_carried_item`, #1896).
+    pub fn set_hands(&mut self, hands: Hands) {
+        self.hands = hands;
+    }
+
+    /// [A388 (e) gap 18] A carrier's speed factor: the kit's with empty hands (the last of [`Self::set_speed_candidates`]'s, the
+    /// gun's term unlinked while the battery is held) with the battery's term (`bot_skills::carried_battery_term`), never under
+    /// 0. None while the body holds its kit's own, or without the kit's values or the term.
+    fn carrier_level(&self) -> Option<f32> {
+        match self.hands {
+            Hands::Battery => {
+                let none = *self.candidates.last()?;
+                let term = survarium::v026g::bot_skills::carried_battery_term()?;
+                Some((none + term).max(0.0))
+            }
+            Hands::Kit => None,
+        }
+    }
+
     /// [A331] A world's speed level (`raw`, the speed over the keys' desired one, the legs' term out) as the body takes it: by
-    /// [`Kinematics::level_source`] and the kit's computed values.
+    /// [`Kinematics::level_source`] and the kit's computed values. [A388 (e) gap 18] A carrier's is its computed level
+    /// ([`Self::carrier_level`]).
     fn read_level(&self, kin: &Kinematics, keys: u32, speed: f32) -> Option<f32> {
+        if let Some(level) = self.carrier_level() {
+            carrier_levels::count();
+            return Some(level);
+        }
         match (kin.level_source, self.candidates.as_slice()) {
             (LevelSource::Computed, candidates) if !candidates.is_empty() => {
                 let raw = kin.level_raw(keys, speed)?;
@@ -838,7 +891,7 @@ impl BodyTrack {
     /// The speed level the body is moved at: this life's from a world, else
     /// its profile's, else the nominal 1; times the legs' term.
     pub fn level(&self) -> f32 {
-        self.level.or(self.prior_level).unwrap_or(1.0) * self.legs.unwrap_or(1.0)
+        self.carrier_level().or(self.level).or(self.prior_level).unwrap_or(1.0) * self.legs.unwrap_or(1.0)
     }
 
     /// How far the body was reckoned to move between the last two worlds
@@ -2831,6 +2884,20 @@ pub(super) mod tests {
         assert!((track.level() - 0.9).abs() < 1e-5);
         track.set_legs(None);
         assert!((track.level() - 0.9).abs() < 1e-5);
+    }
+
+    /// [A388 (e) gap 18] A body the bots believe carries a battery moves at its kit's empty-hands level (the last computed value) with
+    /// the battery's term from the game data, never under 0; back at the kit's own once it holds none.
+    #[test]
+    fn a_carriers_level_is_its_kits_empty_hands_level_with_the_batterys_term() {
+        let mut track = BodyTrack::default();
+        track.set_speed_candidates(vec![0.83, 0.78]);
+        let kit = track.level();
+        track.set_hands(Hands::Battery);
+        let expected = survarium::v026g::bot_skills::carried_battery_term().map_or(kit, |term| (0.78 + term).max(0.0));
+        assert!((track.level() - expected).abs() < 1e-6, "{} {expected}", track.level());
+        track.set_hands(Hands::Kit);
+        assert!((track.level() - kit).abs() < 1e-6);
     }
 
     /// [A331] [`LevelSource::Computed`]: a settled world's reading takes the nearest of the kit's values when within
