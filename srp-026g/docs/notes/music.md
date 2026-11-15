@@ -93,7 +93,7 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the
 - **The tracks:** `main_theme`, `lobby_theme` and `level_01_loading` .. `level_09_loading`: 11
   tracks, 16.5 MB (16 526 528 bytes with their RMS and options). Retail 0.46c2's battle finale and
   win/lose cues are not used.
-- **Training Camp has no theme** (the owner, 2026-11-15: "also remove music from training camp"):
+- **Training Camp has no theme** (the owner, 2026-11-15: "also remove music from training camp", "remove stalker song we added, doesn't fit the map style sadly"):
   `music-1.json` no longer names one in its mode file, so neither it nor its Free for All copy
   plays a map theme. The track below stays in the pack `music@2`, unused.
 - **Training Camp's theme, until 2026-11-15** (`cs_training_camp_loading`, since `music@2`; the owner, 2026-11-14): a
