@@ -550,6 +550,8 @@ fn read_or_build<T>(
     write: impl FnOnce(&T, &Path) -> Result<(), mapdata::Error>,
 ) -> (T, Source) {
     let Some(built) = built else {
+        // No built folder (`SRP_MAPDATA_BUILT=off`): every load builds the map here.
+        log::warn!("Bot map file {file_name}: no built folder (SRP_MAPDATA_BUILT=off): built here now, at each load (its bots stand until it is ready)");
         stage::detail("building (no built files)");
         return (build(), Source::Built);
     };
