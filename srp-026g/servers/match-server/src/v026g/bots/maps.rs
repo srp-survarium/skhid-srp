@@ -679,11 +679,12 @@ fn build(
                         // build that runs beside another counts its ties too). A log's only.
                         let ties = mapdata::controller::sweep_ties();
                         log::info!(
-                            "Bot map {} sweep ties: {} sweeps tied; one mesh {}, one object's parts {}, across objects {}, faces {}",
+                            "Bot map {} sweep ties: {} sweeps tied; one mesh {}, one object's parts {} (in the port's order {}), across objects {}, faces {}",
                             path.display(),
                             ties.sweeps - ties_before.sweeps,
                             ties.one_mesh - ties_before.one_mesh,
                             ties.same_object_parts - ties_before.same_object_parts,
+                            ties.same_object_unordered - ties_before.same_object_unordered,
                             ties.across_objects - ties_before.across_objects,
                             ties.faces - ties_before.faces
                         );

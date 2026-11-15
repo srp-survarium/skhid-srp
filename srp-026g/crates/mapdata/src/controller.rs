@@ -17,6 +17,7 @@ pub mod exe_ray;
 pub mod gjk;
 pub mod jump;
 mod jump_clips;
+mod compound_dbvt;
 mod mesh_bvh;
 mod solids;
 pub mod speed;
@@ -215,23 +216,35 @@ pub struct Contact {
     /// ([`mesh_bvh`]): at an equal fraction the exe keeps the later one inside one mesh query ([`Contact::replaces`]). None for
     /// anything else (a primitive, a placed face, a mesh the port has no order for).
     pub rank: Option<u32>,
+    /// [L36] A compound's child's place in the order the compound's tree offers its children ([`compound_dbvt`]): at an equal
+    /// fraction the exe keeps the child it offered first ([`Contact::replaces`]). None for an object's whole shape, a placed
+    /// face, or a compound the port has no order for.
+    pub child: Option<u32>,
 }
 
 impl Contact {
-    /// [L36] Whether this contact takes the place of `kept` as a sweep's closest: it is nearer, or at the same fraction it is a
-    /// later triangle of the same mesh query (the same part of the same object, each with its place in the mesh tree's
-    /// order). Inside one mesh the exe keeps the LAST triangle its tree offers at an equal fraction (`processTriangle` 0xB87CA
-    /// strict against the closest when the mesh's query began, `reportHit` 0xA2A6C `<=` against the current one); against
-    /// a hit of another part or object the earlier stays (0xA162D strict; exactness `grid/rig/s7-20261114/L36-tie-order.md`).
+    /// [L36] Whether this contact takes the place of `kept` as a sweep's closest: it is nearer, or at the same fraction the exe
+    /// would have kept it (exactness `grid/rig/s7-20261114/L36-tie-order.md` §1):
+    /// - inside one mesh query (the same part of the same object) the LAST triangle the mesh's tree offers (`processTriangle`
+    ///   0xB87CA strict against the closest when the mesh's query began, `reportHit` 0xA2A6C `<=` against the current one);
+    /// - between two children of one compound the FIRST its child tree offers (0xA162D strict, and a mesh child's query
+    ///   starts from the closest the earlier children left);
+    /// - across objects the earlier stays (their order is the broadphase's, not portable: the port's own).
+    ///
     /// By the places, not by the order the port hands the contacts over in.
     pub fn replaces(&self, kept: &Contact) -> bool {
-        self.t < kept.t || (self.t == kept.t && self.later_in_mesh(kept))
+        self.t < kept.t || (self.t == kept.t && self.wins_tie(kept))
     }
 
-    fn later_in_mesh(&self, kept: &Contact) -> bool {
-        match (self.object, self.part, self.rank, kept.object, kept.part, kept.rank) {
-            (Some(a), Some(p), Some(r), Some(b), Some(q), Some(s)) => a == b && p == q && r > s,
-            _ => false,
+    fn wins_tie(&self, kept: &Contact) -> bool {
+        match (self.object, kept.object) {
+            (Some(a), Some(b)) if a == b => {}
+            _ => return false,
+        }
+        if self.part == kept.part {
+            matches!((self.rank, kept.rank), (Some(r), Some(s)) if r > s)
+        } else {
+            matches!((self.child, kept.child), (Some(r), Some(s)) if r < s)
         }
     }
 }
@@ -239,10 +252,10 @@ impl Contact {
 /// [L36] How many contacts of the sweeps so far ([`Collision::sweep_each`], every sweep of the walk tick and the build's flights)
 /// met something at exactly the sweep's closest fraction besides the first contact there, by what the two are: where the
 /// client's pick among them depends on an order (exactness `grid/rig/s7-20261114/L36-tie-order.md`: inside one mesh the exe
-/// keeps the LAST triangle its BVH offers, across objects and a compound's children the FIRST). Inside one mesh the port now
-/// keeps the exe's pick by the tree's order ([`Contact::replaces`], [`mesh_bvh`]): [`SweepTies::one_mesh`] counts the ties that
-/// order decided. Between a compound's children (the dbvt order: its pre-scaling volumes are not in the game data) and across
-/// objects (not portable) the port keeps its own first. Totals of this process, for the logs: no decision reads them.
+/// keeps the LAST triangle its BVH offers, across objects and a compound's children the FIRST). The port keeps the exe's pick
+/// inside one mesh by the mesh tree's order ([`mesh_bvh`]) and between a compound's children by its child tree's order
+/// ([`compound_dbvt`], from a version 8 map data file): [`Contact::replaces`]. Across objects (not portable) it keeps its own
+/// first. Totals of this process, for the logs: no decision reads them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SweepTies {
     /// Sweeps with at least one tie at the closest fraction.
@@ -252,45 +265,49 @@ pub struct SweepTies {
     /// order where the mesh has one.
     pub one_mesh: u64,
     /// Ties between two parts of one object (a compound's children: two primitives, a primitive and a mesh, or two meshes, each
-    /// its own query; the exe: keep-first in the dbvt's order).
+    /// its own query; the exe: keep-first in the dbvt's order), decided by the ported child order.
     pub same_object_parts: u64,
+    /// [L36] The same with no child order for the compound (a map data file older than version 8, or a child the port has no
+    /// box for): left in the port's own order.
+    pub same_object_unordered: u64,
     /// Ties between two objects (the exe: keep-first in the broadphase's order, not portable).
     pub across_objects: u64,
     /// Ties in a world of placed triangles with no objects ([`Collision::build`]).
     pub faces: u64,
 }
 
-static TIE_COUNTS: [std::sync::atomic::AtomicU64; 5] = [const { std::sync::atomic::AtomicU64::new(0) }; 5];
+static TIE_COUNTS: [std::sync::atomic::AtomicU64; 6] = [const { std::sync::atomic::AtomicU64::new(0) }; 6];
 
 /// The process's [`SweepTies`] so far.
 pub fn sweep_ties() -> SweepTies {
     let n = |i: usize| TIE_COUNTS[i].load(std::sync::atomic::Ordering::Relaxed);
-    SweepTies { sweeps: n(0), one_mesh: n(1), same_object_parts: n(2), across_objects: n(3), faces: n(4) }
+    SweepTies { sweeps: n(0), one_mesh: n(1), same_object_parts: n(2), across_objects: n(3), faces: n(4), same_object_unordered: n(5) }
 }
 
 /// One sweep's ties at its closest fraction so far: the closest, what the first contact there was, and the counts.
 struct Ties {
     closest: f32,
-    first: Option<(Option<SolidId>, Option<u32>, bool)>,
-    counts: [u64; 4],
+    first: Option<(Option<SolidId>, Option<u32>, bool, Option<u32>)>,
+    counts: [u64; 5],
 }
 
 impl Ties {
     fn new() -> Self {
-        Self { closest: f32::INFINITY, first: None, counts: [0; 4] }
+        Self { closest: f32::INFINITY, first: None, counts: [0; 5] }
     }
 
     fn offer(&mut self, c: &Contact) {
         let mesh = matches!(c.on, Surface::Face { .. });
         if c.t < self.closest {
             self.closest = c.t;
-            self.first = Some((c.object, c.part, mesh));
-            self.counts = [0; 4];
+            self.first = Some((c.object, c.part, mesh, c.child));
+            self.counts = [0; 5];
         } else if c.t == self.closest
-            && let Some((object, part, first_mesh)) = self.first
+            && let Some((object, part, first_mesh, child)) = self.first
         {
             let k = match (object, c.object) {
                 (Some(a), Some(b)) if a == b && part == c.part && first_mesh && mesh => 0,
+                (Some(a), Some(b)) if a == b && part != c.part && (child.is_none() || c.child.is_none()) => 4,
                 (Some(a), Some(b)) if a == b => 1,
                 (Some(_), Some(_)) => 2,
                 _ => 3,
@@ -543,7 +560,7 @@ impl Collision {
                 Caster::Exe => advance_exe(shape, by, face),
             };
             if let Some(Touch { t, point, normal }) = touch {
-                each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal }, object: None, part: None, rank: None });
+                each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal }, object: None, part: None, rank: None, child: None });
             }
         });
         ties.flush();
@@ -855,6 +872,7 @@ mod tests {
             object: Some(SolidId(object)),
             part: Some(part),
             rank,
+            child: None,
         };
         let kept = c(0.0, 1, 2, Some(10));
         assert!(c(0.0, 1, 2, Some(11)).replaces(&kept), "later in the same mesh");

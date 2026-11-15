@@ -260,8 +260,9 @@ pub const SIGHT_ALGO: u32 = 3;
 pub const MAP_GRID_KEY_ALGO: u32 = 1;
 /// [L36] The game's shapes' sweeps keep, at an equal fraction inside one mesh, the later triangle of the mesh tree's order
 /// (`controller::Contact::replaces`): in [`MapData::map_grid_key`] for every body whose passes take the shapes
-/// ([`MapData::takes_shapes`]). A value of its own.
-pub const SHAPES_TIE_ORDER_ALGO: u32 = 0x5388_0001;
+/// ([`MapData::takes_shapes`]). A value of its own. 0002: and between a compound's children the first its child tree offers
+/// (from a version 8 map data file).
+pub const SHAPES_TIE_ORDER_ALGO: u32 = 0x5388_0002;
 
 /// One map ready for bots: its data, walk grid and sight tree.
 pub struct World {

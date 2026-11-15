@@ -120,14 +120,12 @@ fn split_index(leaves: &mut [Leaf], axis: usize) -> usize {
     if split <= third || split >= n - 1 - third { n >> 1 } else { split }
 }
 
-/// The place of each triangle of a mesh in the order its tree offers them: `rank[t]` for the triangle `t` of the buffer
-/// (`corners`: each triangle's corners scaled, in the mesh's own frame, in buffer order). None when a corner is not a finite
-/// number (the port does not follow the exe's arithmetic on those).
-pub(super) fn offering_ranks(corners: &[[V3; 3]]) -> Option<Vec<u32>> {
+/// The shape's local box (+10h, +20h): the scaled corners' extremes, the mesh's margin 0 (exactness: equal to the captured bits
+/// on every mesh checked). None with no triangle or a corner that is not a finite number.
+pub(super) fn local_box(corners: &[[V3; 3]]) -> Option<(V3, V3)> {
     if corners.is_empty() || corners.iter().flatten().flatten().any(|c| !c.is_finite()) {
         return None;
     }
-    // The shape's local box (+10h, +20h): the scaled corners' extremes, the mesh's margin 0.
     let mut lo = [f32::INFINITY; 3];
     let mut hi = [f32::NEG_INFINITY; 3];
     for v in corners.iter().flatten() {
@@ -136,6 +134,14 @@ pub(super) fn offering_ranks(corners: &[[V3; 3]]) -> Option<Vec<u32>> {
             hi[k] = hi[k].max(v[k]);
         }
     }
+    Some((lo, hi))
+}
+
+/// The place of each triangle of a mesh in the order its tree offers them: `rank[t]` for the triangle `t` of the buffer
+/// (`corners`: each triangle's corners scaled, in the mesh's own frame, in buffer order). None when a corner is not a finite
+/// number (the port does not follow the exe's arithmetic on those).
+pub(super) fn offering_ranks(corners: &[[V3; 3]]) -> Option<Vec<u32>> {
+    let (lo, hi) = local_box(corners)?;
     let q = Quant::new(lo, hi);
     let mut leaves: Vec<Leaf> = corners
         .iter()

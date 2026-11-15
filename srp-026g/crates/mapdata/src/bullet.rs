@@ -219,6 +219,24 @@ pub enum Part {
 pub struct Child {
     pub transform: Transform,
     pub part: Part,
+    /// [L36] How it came into the compound's child tree ([`Added`]).
+    pub added: Added,
+}
+
+/// [L36] How a compound's child came into its child tree (`btDbvt`): `create_compound_shape` 0x7A460 adds each primitive
+/// (`addChildShape` 0x8A3E0: `btDbvt::insert` 0xAA690 with the child's `getAabb` under its transform), then always calls
+/// `setLocalScaling` 0x8AD90, which scales each child and updates its leaf (`updateChildTransform` 0x8A620 -> `btDbvt::update`
+/// 0xAA710); the library's mesh is added after that (0x83486..0x834B1). The tree, and the order its walk offers the children
+/// in, follows from both volumes (exactness `grid/rig/s7-20261114/L36-tie-order.md` §3).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Added {
+    /// Added before the compound's scaling, at this transform origin and these implicit dimensions (the convex's before
+    /// `set_scaling`, its scaling 1; the basis and the margin are the scaled child's: scaling keeps them).
+    BeforeScaling { origin: [f32; 3], dims: [f32; 3] },
+    /// Added after it (the library's mesh, under the identity): inserted with its volume as it is.
+    AfterScaling,
+    /// Not known: a map data file older than version 8 ([`crate::format`]).
+    Unknown,
 }
 
 /// A library's shape, as the game makes it for every placement of it.
@@ -287,9 +305,12 @@ impl Primitives {
                 let mut children = Vec::with_capacity(rows.len());
                 for row in rows {
                     let transform = from_vostok(&create_rotation(row.rotation), row.position);
+                    let convex = convex(row)?;
+                    let added = Added::BeforeScaling { origin: transform.origin, dims: convex.dims };
                     children.push(Child {
                         transform,
-                        part: Part::Convex(convex(row)?),
+                        part: Part::Convex(convex),
+                        added,
                     });
                 }
                 // btCompoundShape::setLocalScaling (2.78), from a scaling of 1.
@@ -332,6 +353,7 @@ impl Primitives {
                 children.push(Child {
                     transform: from_vostok(&IDENTITY_ROTATION, Vec3::ZERO),
                     part: Part::Mesh(mesh),
+                    added: Added::AfterScaling,
                 });
                 Ok(Shape::Compound { scaling, children })
             }

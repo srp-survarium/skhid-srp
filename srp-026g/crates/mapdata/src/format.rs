@@ -57,7 +57,9 @@
 //!                   list string zones
 //! bullet shape:     u8 kind: 0 none; 1 mesh; 2 convex; 3 compound: vec3
 //!                   scaling, list (transform, u8 part (1 mesh, 2 convex),
-//!                   mesh or convex)
+//!                   mesh or convex, (version 8) u8 added: 0 unknown, 1
+//!                   before the compound's scaling + vec3 origin + vec3 dims,
+//!                   2 after it)
 //! mesh:             vec3 scaling (the mesh interface's), u32 first face,
 //!                   u32 end face (the library's faces it holds, in order)
 //! convex:           u8 Bullet type (0 box, 8 sphere, 10 capsule,
@@ -122,7 +124,7 @@ use crate::resources::Error;
 
 const MAGIC: &[u8; 8] = b"SRPMAPD\0";
 const END: &[u8; 4] = b"END\0";
-pub const VERSION: u32 = 7;
+pub const VERSION: u32 = 8;
 /// The oldest version [`MapData::from_bytes`] still reads.
 pub const OLDEST: u32 = 2;
 /// The first version that carries the bullet armor of the faces: an older file is read with every face of unknown
@@ -136,6 +138,10 @@ const _: () = assert!(FIRST_WITH_BULLET <= VERSION);
 /// whether the Bullet shapes follow.
 pub const FIRST_WITH_PROTECTION: u32 = 7;
 const _: () = assert!(FIRST_WITH_PROTECTION <= VERSION);
+/// [L36] The first version that carries how each compound child came into its child tree ([`bullet::Added`]): a child of an
+/// older file is [`bullet::Added::Unknown`].
+pub const FIRST_WITH_CHILD_ADDED: u32 = 8;
+const _: () = assert!(FIRST_WITH_CHILD_ADDED <= VERSION);
 /// The file name extension.
 pub const EXTENSION: &str = "mapdata";
 
@@ -303,7 +309,7 @@ impl MapData {
         if version >= FIRST_WITH_BULLET
             && let Some(world) = &self.bullet
         {
-            w.list(world.shapes(), Writer::bullet_shape);
+            w.list(world.shapes(), |w, shape| w.bullet_shape(shape, version));
             w.list(world.objects(), Writer::transform);
         } else {
             assert!(!(FIRST_WITH_BULLET..FIRST_WITH_PROTECTION).contains(&version), "a version 6 file needs the shapes");
@@ -532,7 +538,7 @@ impl MapData {
             return Err(Error("a placement names no library".into()));
         }
         if version == FIRST_WITH_BULLET || (version >= FIRST_WITH_PROTECTION && r.bool()?) {
-            let shapes = r.list(1, Reader::bullet_shape)?;
+            let shapes = r.list(1, |r| r.bullet_shape(version))?;
             let objects = r.list(48, Reader::transform)?;
             let face_counts: Vec<u32> = map.libraries.iter().map(|l| l.faces.len() as u32).collect();
             map.bullet = Some(
@@ -638,7 +644,7 @@ impl Writer {
         self.faces(&c.faces);
     }
 
-    fn bullet_shape(&mut self, shape: &bullet::Shape) {
+    fn bullet_shape(&mut self, shape: &bullet::Shape, version: u32) {
         match shape {
             bullet::Shape::Empty => self.0.push(0),
             bullet::Shape::Mesh(mesh) => {
@@ -662,6 +668,17 @@ impl Writer {
                         bullet::Part::Convex(convex) => {
                             w.0.push(2);
                             w.convex(convex);
+                        }
+                    }
+                    if version >= FIRST_WITH_CHILD_ADDED {
+                        match child.added {
+                            bullet::Added::Unknown => w.0.push(0),
+                            bullet::Added::BeforeScaling { origin, dims } => {
+                                w.0.push(1);
+                                w.f32s(&origin);
+                                w.f32s(&dims);
+                            }
+                            bullet::Added::AfterScaling => w.0.push(2),
                         }
                     }
                 });
@@ -794,7 +811,7 @@ impl<'a> Reader<'a> {
         Ok(bullet::Convex { kind, scaling, dims, margin, walker: WalkerBehaviour::from_u8(walker), faces: self.faces()? })
     }
 
-    fn bullet_shape(&mut self) -> Result<bullet::Shape, Error> {
+    fn bullet_shape(&mut self, version: u32) -> Result<bullet::Shape, Error> {
         Ok(match self.u8()? {
             0 => bullet::Shape::Empty,
             1 => bullet::Shape::Mesh(self.mesh()?),
@@ -808,7 +825,17 @@ impl<'a> Reader<'a> {
                         2 => bullet::Part::Convex(r.convex()?),
                         other => return Err(Error(format!("map data compound part {other}"))),
                     };
-                    Ok(bullet::Child { transform, part })
+                    let added = if version >= FIRST_WITH_CHILD_ADDED {
+                        match r.u8()? {
+                            0 => bullet::Added::Unknown,
+                            1 => bullet::Added::BeforeScaling { origin: r.f32s()?, dims: r.f32s()? },
+                            2 => bullet::Added::AfterScaling,
+                            other => return Err(Error(format!("map data compound child added {other}"))),
+                        }
+                    } else {
+                        bullet::Added::Unknown
+                    };
+                    Ok(bullet::Child { transform, part, added })
                 })?;
                 bullet::Shape::Compound { scaling, children }
             }
@@ -996,6 +1023,42 @@ mod tests {
         BulletWorld::new(vec![shape], vec![object], &[1], 1).unwrap()
     }
 
+    /// [L36] `map` as a file older than version 8 gives it back: every compound child [`bullet::Added::Unknown`].
+    fn added_unknown(map: &MapData) -> MapData {
+        let mut out = map.clone();
+        if let Some(world) = &map.bullet {
+            let shapes = world
+                .shapes()
+                .iter()
+                .cloned()
+                .map(|mut shape| {
+                    if let bullet::Shape::Compound { children, .. } = &mut shape {
+                        for child in children {
+                            child.added = bullet::Added::Unknown;
+                        }
+                    }
+                    shape
+                })
+                .collect();
+            let faces: Vec<u32> = map.libraries.iter().map(|l| l.faces.len() as u32).collect();
+            out.bullet = Some(BulletWorld::new(shapes, world.objects().to_vec(), &faces, map.placements.len()).unwrap());
+        }
+        out
+    }
+
+    /// [L36] A version 8 file keeps how each compound child came into its tree; a version 7 file is read with it unknown and
+    /// the rest of the map the same.
+    #[test]
+    fn a_version_8_file_keeps_how_the_children_were_added() {
+        let map = sample();
+        let read = MapData::from_bytes(&map.to_bytes()).unwrap();
+        assert_eq!(read, map);
+        let bullet::Shape::Compound { children, .. } = read.bullet.as_ref().unwrap().shape(0) else { panic!("a compound") };
+        assert!(matches!(children[0].added, bullet::Added::BeforeScaling { .. }));
+        assert_eq!(children[1].added, bullet::Added::AfterScaling);
+        assert_eq!(MapData::from_bytes(&map.to_bytes_of(7)).unwrap(), added_unknown(&map));
+    }
+
     /// The version 6 file keeps the game's shapes, bit for bit; a version 5 file is read without them and the
     /// rest of the map is the same; a shape that names faces its library lacks is an error.
     #[test]
@@ -1005,7 +1068,7 @@ mod tests {
         let old = MapData::from_bytes(&map.to_bytes_of(5)).unwrap();
         assert_eq!(old, MapData { bullet: None, ..map.clone() });
         assert_eq!(MapData::from_bytes(&old.to_bytes()).unwrap(), old, "a map without its shapes, at the current version");
-        assert_eq!(MapData::from_bytes(&map.to_bytes_of(6)).unwrap(), map, "version 6 keeps them too");
+        assert_eq!(MapData::from_bytes(&map.to_bytes_of(6)).unwrap(), added_unknown(&map), "version 6 keeps them too");
         let shapes = map.bullet.as_ref().unwrap().shapes().to_vec();
         let objects = map.bullet.as_ref().unwrap().objects().to_vec();
         assert!(BulletWorld::new(shapes.clone(), objects.clone(), &[0], 1).is_err(), "faces past the library");
@@ -1033,7 +1096,7 @@ mod tests {
         assert_eq!(read, map);
         assert_eq!(read.zones[1].protection, Some(protection));
         let old = MapData::from_bytes(&map.to_bytes_of(6)).unwrap();
-        let mut without = map.clone();
+        let mut without = added_unknown(&map);
         without.zones[1].protection = None;
         assert_eq!(old, without);
         map.zones[0].protection = Some(protection);
