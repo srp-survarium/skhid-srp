@@ -15,7 +15,7 @@ wrong bytes (a few lines of Python).
 Windows, or Linux under Wine (as test_db_patches.py, whose harness this
 uses). The updater must be built to trust the tests' key:
 
-    SKHID_SIGNING_KEY=$(python tests/test_torrent.py --key) ./build.sh
+    SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) ./build.sh
 
 and Python needs libtorrent and cryptography, for example
 `nix build --impure --expr '(import <nixpkgs> {}).python3.withPackages (p: [ p.libtorrent-rasterbar p.cryptography ])'`.

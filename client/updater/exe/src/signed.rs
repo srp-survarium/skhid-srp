@@ -15,9 +15,9 @@ use crate::log::log;
 use crate::win;
 
 /// The release's public key, 64 hex digits: `release/signing.pub`, which
-/// `build.rs` reads, or `SKHID_SIGNING_KEY` of the build (the tests sign
+/// `build.rs` reads, or `SKHID_TEST_PUBLIC_KEY` of the build (the tests sign
 /// with a throwaway key). A build without either takes no torrent.
-const KEY: Option<&str> = option_env!("SKHID_SIGNING_KEY");
+const KEY: Option<&str> = option_env!("SKHID_BUILT_PUBLIC_KEY");
 /// The highest revision taken, beside the updater.
 const TAKEN: &str = "updater_skhid.torrent.revision";
 

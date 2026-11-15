@@ -344,7 +344,7 @@ player once.
 
 **The torrent** is trusted by its Ed25519 signature alone: the release's
 public key (`release/signing.pub`, read by `exe/build.rs`; a test build
-takes `SKHID_SIGNING_KEY`) is built in (`logic/src/signed.rs`,
+takes `SKHID_TEST_PUBLIC_KEY`) is built in (`logic/src/signed.rs`,
 `exe/src/signed.rs`), and a torrent is taken only when its signature
 verifies and its revision is not lower than the highest taken before
 (`updater_skhid.torrent.revision` beside the updater) nor than the installed
@@ -830,7 +830,7 @@ python tests/test_play_gate.py               # Windows or Wine (PLAY and the ser
 python tests/test_replay.py                  # Windows; the replay, in its no-window mode only
 python tests/test_game_download.py           # Windows or Wine
 python tests/test_unreadable.py              # Windows or Wine (a Skhid file that cannot be read)
-SKHID_SIGNING_KEY=$(python tests/test_torrent.py --key) ./build.sh   # the tests' signing key
+SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) ./build.sh   # the tests' signing key
 python tests/test_torrent.py                 # Windows or Wine; Python with libtorrent and cryptography
 SKHID_TEST_BUNDLE=<a players' zip> python tests/test_updater.py
 ```
