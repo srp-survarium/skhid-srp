@@ -1245,9 +1245,6 @@ fn other_spot(tactics: &Tactics, side: i32, options: &CamperOptions, from: Vec3)
     camper_pool(tactics, side, options).pick(options.rule, |c| c.at.distance_xz(from) >= far).map(|(at, _)| at)
 }
 
-/// The stand-in camper of a run (`SRP_BENCH_CAMPER=<place>`, `campers.md` K1 §4): that place's bot goes to a spot and holds it,
-/// whatever its play; the reflex fires on sight.
-#[derive(Clone, Debug)]
 /// [camper trace] What the camper's motion does at a tick: `mode` `S` a stay, `L` a leave, `R` a wait to return after a death; the
 /// spot; whether he holds the stay's cover; the stay's hold, `C` cover, `O` a peek out, `H` a step to another area point (after a
 /// kill or a hit), `-` outside a stay; and the two leave rules' counts so far (the near-enemy rule's and the per-kill draw's
@@ -1262,6 +1259,9 @@ pub(crate) struct TraceNow {
     pub(crate) leaves_by_kill: u32,
 }
 
+/// The stand-in camper of a run (`SRP_BENCH_CAMPER=<place>`, `campers.md` K1 §4): that place's bot goes to a spot and holds it,
+/// whatever its play; the reflex fires on sight.
+#[derive(Clone, Debug)]
 pub(crate) struct BenchCamper {
     place: Place,
     options: CamperOptions,
