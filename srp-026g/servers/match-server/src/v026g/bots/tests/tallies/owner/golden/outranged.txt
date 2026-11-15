@@ -61,7 +61,7 @@ owner-test outranged: a sniper seen beyond the weapon's band 0 ticks in 0 episod
         "ways_weighed": 0
       },
       "1": {
-        "deaths": 17,
+        "deaths": 15,
         "deaths_after_sighting": 0,
         "deaths_by_camper": 0,
         "deaths_by_camper_detoured_10s": 0,
@@ -69,7 +69,7 @@ owner-test outranged: a sniper seen beyond the weapon's band 0 ticks in 0 episod
         "deaths_by_camper_in_covered": 0,
         "deaths_by_camper_on_detour_walk": 0,
         "deaths_by_camper_undetoured_in_kill_lines": 0,
-        "deaths_by_other": 17,
+        "deaths_by_other": 15,
         "deaths_by_other_detoured_10s": 0,
         "deaths_by_other_detoured_in_kill_lines": 0,
         "deaths_by_other_in_covered": 0,

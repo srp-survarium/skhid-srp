@@ -9,6 +9,12 @@ use crate::v026g::bots::tests::settings::bench_settings;
 /// topic only, and a new topic is a new file. A file is the topic's text, then its keys, one a line
 /// and sorted. `SRP_WRITE_GOLDEN=<dir> cargo test ... the_counts_of_a_made_up_match` writes the
 /// files to <dir> (the folder `golden/` of this one, to keep them) and does not compare.
+///
+/// A death holds as in the game: a body the script lays down (`SCRIPT_DEATH`) or a blast kills
+/// (`Game::kill`) stays where it fell, carries nothing, presses nothing and makes no note, hit, kill,
+/// landing or shot, until the script's next spawn wave (`RESPAWN_EVERY` ticks), where `Game::spawn`
+/// refills its health and pools. The script's draws are made all the same, so that a death moves no
+/// other body's numbers.
 fn made_up_match() -> Vec<(&'static str, String)> {
     let teams = [0u8, 0, 0, 1, 1, 1];
     let (mut game, mut tally) = made_up(&teams);
@@ -35,9 +41,24 @@ fn made_up_match() -> Vec<(&'static str, String)> {
     let mut feet: Vec<(f32, f32)> = (0..teams.len())
         .map(|p| (10.0 + 12.0 * p as f32, 8.0 + 4.0 * (p % 3) as f32))
         .collect();
+    // The script's spawn wave, and its own deaths: the even places, the last 19 ticks before a wave.
+    const RESPAWN_EVERY: usize = 500;
+    const SCRIPT_DEATH: std::ops::RangeInclusive<usize> = 481..=499;
     for k in 0..2400usize {
         game.tick = (k as u32 + 1) * TICK_MS;
         let tick = game.tick;
+        for place in 0..teams.len() {
+            let body = &game.bodies[place];
+            if !body.alive && k > 0 && k.is_multiple_of(RESPAWN_EVERY) {
+                game.spawn(place);
+            } else if body.alive && place % 2 == 0 && SCRIPT_DEATH.contains(&(k % RESPAWN_EVERY)) {
+                let body = &mut game.bodies[place];
+                body.alive = false;
+                body.dead_at = tick;
+                body.carrying = None;
+            }
+        }
+        let alive: Vec<bool> = game.bodies.iter().map(|b| b.alive).collect();
         let mut nows = Vec::new();
         for place in 0..teams.len() {
             // A body that mostly walks, stops now and then, jumps, fires.
@@ -86,24 +107,28 @@ fn made_up_match() -> Vec<(&'static str, String)> {
             if [2, 4].contains(&place) && (1270..1300).contains(&k) {
                 (x, z) = (30.0, 20.0);
             }
-            put(&mut game, place, x, z, keys);
-            game.bodies[place].feet.y = y;
-            if place == 2 && (400..800).contains(&k) {
-                game.bodies[place].target = None;
-            }
-            let body = &mut game.bodies[place];
             // Any number will do for the made-up yaw; this one is near pi by chance.
             #[allow(clippy::approx_constant)]
             let turn = 3.14;
-            body.yaw = (next(628) as f32) / 100.0 - turn;
-            body.step_m = (dx * dx + dz * dz).sqrt();
-            body.carrying = (k / 300 % 4 == place % 4).then_some(0);
-            body.alive = !(k % 500 > 480 && place % 2 == 0);
-            body.target = (next(5) != 0 && !(place == 2 && (400..800).contains(&k))).then(|| (place + 3) % teams.len());
-            if (place == 2 && (400..800).contains(&k)) || (place < 2 && (900..1200).contains(&k)) {
-                body.step_m = 0.0;
+            let yaw = (next(628) as f32) / 100.0 - turn;
+            let target = (next(5) != 0 && !(place == 2 && (400..800).contains(&k))).then(|| (place + 3) % teams.len());
+            let air_until = if next(120) < 3 { tick + 3 * TICK_MS } else { 0 };
+            if alive[place] {
+                put(&mut game, place, x, z, keys);
+                let body = &mut game.bodies[place];
+                body.feet.y = y;
+                body.yaw = yaw;
+                body.step_m = (dx * dx + dz * dz).sqrt();
+                body.carrying = (k / 300 % 4 == place % 4).then_some(0);
+                body.target = target;
+                if (place == 2 && (400..800).contains(&k)) || (place < 2 && (900..1200).contains(&k)) {
+                    body.step_m = 0.0;
+                }
+                body.air_until = air_until;
+            } else {
+                let body = &mut game.bodies[place];
+                (body.keys, body.step_m, body.target, body.air_until) = (0, 0.0, None, 0);
             }
-            body.air_until = if next(120) < 3 { tick + 3 * TICK_MS } else { 0 };
             let mut now = BotNow {
                 dry: next(300) < 10,
                 play: plays[(k / 200 + place) % plays.len()].to_owned(),
@@ -126,7 +151,7 @@ fn made_up_match() -> Vec<(&'static str, String)> {
                     (next(2) == 0).then(|| (low, Vec3::new(low.x + 1.0, 0.4 + next(120) as f32 / 100.0, low.z))),
                 ));
             }
-            nows.push(Some(now));
+            nows.push(Some(if alive[place] { now } else { BotNow { play: now.play, ..BotNow::default() } }));
         }
         // The work the bots' polls would have done this tick, by team and shared.
         {
@@ -148,22 +173,29 @@ fn made_up_match() -> Vec<(&'static str, String)> {
         game.hit_log.clear();
         if next(25) == 0 {
             let (shooter, victim) = (next(3) as usize, 3 + next(3) as usize);
-            game.hit_log.push((tick, shooter, victim));
-            game.hit_log.push((tick, victim, shooter));
+            if alive[shooter] && alive[victim] {
+                game.hit_log.push((tick, shooter, victim));
+                game.hit_log.push((tick, victim, shooter));
+            }
         }
         if next(120) == 0 {
             let (shooter, victim) = (next(6) as usize, next(6) as usize);
-            game.kill_log.push((tick, shooter, victim));
+            if alive[shooter] && alive[victim] {
+                game.kill_log.push((tick, shooter, victim));
+            }
         }
         if next(90) == 0 {
             let place = next(6) as usize;
-            game.landings.push(Landing {
+            let landing = Landing {
                 place,
                 at: tick.saturating_sub(300),
                 to: Vec3::new(feet[place].0, next(150) as f32 / 100.0, feet[place].1),
                 sprint: next(2) == 0,
                 fall_v: None,
-            });
+            };
+            if alive[place] {
+                game.landings.push(landing);
+            }
         }
         game.team_kills = (k / 700) as u32;
         game.team_hits = (k / 300) as u32;
@@ -182,9 +214,11 @@ fn made_up_match() -> Vec<(&'static str, String)> {
                 time: tick,
                 text: texts[next(texts.len() as u64) as usize].to_owned(),
             };
-            tally.note(&note, &game);
+            if alive[note.place] {
+                tally.note(&note, &game);
+            }
         }
-        if k == 1200 {
+        if k == 1200 && alive[1] {
             let note = Note {
                 place: 1,
                 time: tick,
@@ -194,7 +228,7 @@ fn made_up_match() -> Vec<(&'static str, String)> {
         }
         // The shots the stand-in would have fired at a target this tick: lines at made-up offsets (from `k` alone,
         // so that no draw above moves), all bands, classes and stances, some hits, some with no line.
-        if k % 7 == 0 {
+        if k % 7 == 0 && alive[k / 7 % 3] && alive[3] {
             use crate::v026g::bots::tests::tallies::fight_tally::{Landed, ShotFact};
             use crate::v026g::bots::tests::tallies::shot_offset::{DistBand, Offset, ShotClass, ShotOffset, Stance};
             let n = (k / 7) as u32;
