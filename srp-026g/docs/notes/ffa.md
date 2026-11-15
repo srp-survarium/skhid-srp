@@ -495,15 +495,16 @@ and spatial review; they still need multiplayer playtesting for balance.
     blackout should be in general pool"; before, each free-for-all was one more entry the three
     cards were drawn from alike, and Blackout had the third card, 2026-11-02): every vote, public
     or private, of a room whose pool has a free-for-all.
-    - Cards 1 and 2: drawn from the rest of the pool, Blackout's maps as any other's (on one of
-      the two at the most, `blackout.md`); never a free-for-all.
+    - Cards 1 and 2: drawn from the rest of the pool, of two modes while it has them (the owner,
+      2026-11-15: "no mode repeats", `rooms.md`, "Each card is drawn from pools"); never a
+      free-for-all.
     - Card 3: one of the pool's free-for-alls at random, on a map cards 1 and 2 are not while
       there is one; won, its match is a free-for-all (as below). Drawn map first, then weather
       (the owner, 2026-11-15: "make 3 new stalker maps 3 times as likely in FFA", "the pick
       should be first map, then weather"; Training Camp had been played twice in about 35
       free-for-alls): every free-for-all map alike, so Experimental Pool, Military Warehouses
       and Training Camp (one weather each) come as often as a levels 1-8 map (three); before,
-      every id alike, a third as often (`rooms.md`, "A card is drawn map first").
+      every id alike, a third as often (`rooms.md`, "Each card is drawn from pools").
     - No switch. A pool without one (a private room's maker unticked the mode, or the server's
       `SRP_MATCH_MODES` leaves 8 out) or of free-for-alls alone: its three cards drawn as before.
       A public room's pool has them (the default pool is every playable map).
