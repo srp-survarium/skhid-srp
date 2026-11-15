@@ -1259,8 +1259,11 @@ mod tests {
         assert!(stats.bursts >= 1 && stats.refused_share == 0, "{stats:?}");
         let last = fired.last().unwrap().0;
         assert!(last <= shut_at + on.combat.fire_through_ms, "fired to {last}: {fired:?}");
-        // Aimed low at the place he went down (his belly standing), not at the chest it last saw over the crate.
-        assert!(fired.iter().all(|(_, at)| (at.y - Part::Belly.height(false)).abs() < 0.01 && at.z > 19.9), "{fired:?}");
+        // Aimed low at the place he went down (his belly standing, turned by his yaw there), not at the chest it last saw
+        // over the crate.
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
+        let belly = Part::Belly.point_at(BodyAt::of(&enemy), body(0, 0, Vec3::ZERO, false).eye());
+        assert!(fired.iter().all(|(_, at)| (*at - belly).length() < 0.01), "{belly:?} {fired:?}");
         // One burst a gap: the bursts begun are no closer than the gap.
         assert!(stats.bursts <= 1 + on.combat.fire_through_ms / on.combat.fire_through_gap_ms, "{stats:?}");
         // Switched off: it does not fire at what it does not see.
@@ -1855,11 +1858,16 @@ mod tests {
     }
 
     /// Where a walker who stops at the tick 4 s rests, with his input on
-    /// time.
+    /// time: the z of his rearmost aim point.
     fn rest_z(stop: u32) -> f32 {
         let world = world_of(&[]);
         let at = walker_through_the_tracker(&world, stop, 0);
-        at(8_000).feet.z
+        let feet = at(8_000).feet;
+        // The parts trail his feet (the idle stance's hit shapes lie behind the feet, the right shin farthest): where
+        // he rests for sight is the rearmost of the points a bot at the origin looks for.
+        let rest = BodyAt::of(&body(1, 1, feet, false));
+        let eye = body(0, 0, Vec3::ZERO, false).eye();
+        Part::AIM_ORDER.iter().map(|p| p.point_at(rest, eye).z).fold(f32::INFINITY, f32::min)
     }
 
     /// A player stops at the edge of cover, his stop input `late` ms late
