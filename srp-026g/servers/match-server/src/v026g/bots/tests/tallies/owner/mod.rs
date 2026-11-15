@@ -47,6 +47,7 @@ use crate::v026g::drive::key;
 
 mod answer;
 mod breach;
+mod camper_trace;
 mod campers;
 mod collect_at;
 mod crouch;
@@ -105,6 +106,7 @@ mod under_fire;
 mod worth;
 mod zone_deaths;
 
+use camper_trace::CamperTrace;
 use campers::*;
 use collect_at::*;
 use crouch::*;

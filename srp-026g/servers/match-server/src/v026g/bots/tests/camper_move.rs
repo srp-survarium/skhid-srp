@@ -1321,6 +1321,20 @@ impl BenchCamper {
         }
     }
 
+    /// [camper trace] What his motion does now: `S` a stay, `L` a leave, `R` a wait to return after a death; its spot; whether he
+    /// holds the stay's cover. None unless he works an area ([`CamperState::Moving`]).
+    pub(crate) fn trace_now(&self) -> Option<(char, Vec3, bool)> {
+        let CamperState::Moving { motion, .. } = &self.state else {
+            return None;
+        };
+        let mode = match &motion.mode {
+            Mode::Stay { .. } => 'S',
+            Mode::Leave { .. } => 'L',
+            Mode::Return { .. } => 'R',
+        };
+        Some((mode, motion.spot(), motion.holds_cover()))
+    }
+
     /// The spot he began at and how many route points it sees, once found.
     pub(crate) fn first_spot(&self) -> Option<(Vec3, u32)> {
         match &self.state {

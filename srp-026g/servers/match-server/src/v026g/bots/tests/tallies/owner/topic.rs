@@ -126,6 +126,7 @@ pub(super) fn topics(n: usize) -> Vec<Box<dyn Topic>> {
         Box::new(UnderFireCounts::new(n)),
         Box::new(StuckWatchCounts::new(n)),
         Box::new(GroupCounts::default()),
+        Box::new(CamperTrace::default()),
     ]
 }
 
