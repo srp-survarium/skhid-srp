@@ -40,6 +40,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use updater_logic::disk;
 use updater_logic::file_error::{self, Exclusion, Kind, Stop};
 use updater_logic::manifest::{
     Found, Installed, InstalledFile, MAX_ARCHIVE_SIZE, Manifest, ManifestError, Reason, Verdict,
@@ -265,10 +266,6 @@ impl Session {
         }
     }
 }
-
-/// Free bytes on the Documents drive under which the player is told to free
-/// some (the game's baked textures take up to 3 GB there).
-const LOW_DISK: u64 = 1 << 30;
 
 /// One of the updater's own boxes, on top: Windows' answer (the button).
 fn show_box(caption: &str, message: &str, style: MESSAGEBOX_STYLE) -> MESSAGEBOX_RESULT {
@@ -1006,7 +1003,8 @@ fn run() -> u32 {
     // Said in a box of the updater's own, in the launcher's language: the
     // launcher is not told it again.
     let mut said = false;
-    let language = win::game_language();
+    let documents = win::documents();
+    let language = documents.as_deref().and_then(win::game_language);
     let log_path = log::path().unwrap_or_else(|| layout.exe_dir.clone());
     let antivirus = |name: &str, removal| {
         let file = name.rsplit(['/', '\\']).next().unwrap_or(name);
@@ -1087,16 +1085,31 @@ fn run() -> u32 {
             warning_box(&problem.caption(), &problem.message(language, &log_path));
         }
     }
-    // The game keeps up to 3 GB of baked textures in Documents: a drive
-    // nearly full is said before PLAY.
-    if !session.quiet && !session.stopped
-        && matches!(done, Done::UpToDate | Done::Installed { restart: false, .. } | Done::Offline(..))
-        && let Some(folder) = win::documents()
-        && let Some(free) = win::free_space(&folder)
-        && free < LOW_DISK
-    {
-        log!("{} MB free in {folder}: the player is told to free some", free >> 20);
-        warning_box(text::TITLE, &text::low_disk(&folder));
+    // The game keeps up to 3 GB of baked textures in Documents: with less
+    // than disk::NEEDED free on its drive PLAY stays off; Retry asks again.
+    if matches!(done, Done::UpToDate | Done::Installed { restart: false, .. } | Done::Offline(..)) {
+        match documents.as_deref().map(|folder| (folder, win::free_space(folder))) {
+            None => log!("the Documents folder is not known: its free space not checked"),
+            Some((folder, None)) => log!("the free space of {folder} is not known: not checked"),
+            Some((folder, Some(free))) if free < disk::NEEDED => {
+                log!("{} MB free in {folder}, {} MB needed: PLAY stays off", free >> 20, disk::NEEDED >> 20);
+                session.state(state::ERROR);
+                let mut free = free;
+                while free < disk::NEEDED && !session.quiet && !session.stopped
+                    && retry_box(text::TITLE, &disk::too_little(language, folder)) && session.pump()
+                {
+                    free = win::free_space(folder).unwrap_or(0);
+                    log!("the player asks to try again: {} MB free", free >> 20);
+                }
+                if free < disk::NEEDED {
+                    said = true;
+                    done = Done::Failed(format!("{} MB free in {folder}, {} MB needed", free >> 20, disk::NEEDED >> 20));
+                } else {
+                    session.state(state::CHECKING);
+                }
+            }
+            Some(_) => {}
+        }
     }
     let (code, watch) = match done {
         Done::UpToDate => {

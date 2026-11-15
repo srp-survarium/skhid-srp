@@ -682,10 +682,10 @@ pub fn documents() -> Option<String> {
 }
 
 /// The game's language, which its Settings and the launcher's menu keep
-/// (`localization` of `<Documents>\survarium\user.cfg`), as a number of
+/// (`localization` of `<documents>\survarium\user.cfg`), as a number of
 /// `replay::LANGUAGES`; read only.
-pub fn game_language() -> Option<u32> {
-    let path = alloc::format!("{}\\survarium\\user.cfg", documents()?);
+pub fn game_language(documents: &str) -> Option<u32> {
+    let path = alloc::format!("{documents}\\survarium\\user.cfg");
     updater_logic::replay::language_of_user_cfg(&read_file(&path, 1 << 16).ok()?)
 }
 
