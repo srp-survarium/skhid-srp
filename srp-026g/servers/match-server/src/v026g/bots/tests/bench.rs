@@ -1339,7 +1339,16 @@ pub(crate) fn real_bot_cost() {
             let camper_options = camper::CamperOptions::from_env();
             let camper_aim = bench_settings().var("SRP_BENCH_CAMPER_AIM").ok();
             let mut camper_tuned = camper_tuning(camper_aim.as_deref()).unwrap_or_else(|e| panic!("{e}"));
-            // [strong camper] `SRP_BENCH_CAMPER_AIM_SCALE`: his aim's angles times the factor.
+            // [strong camper] `SRP_BENCH_CAMPER_TUNING`: a JSON merge patch over his own tuning (as `SRP_BENCH_TUNING` is over the
+            // bots'), then `SRP_BENCH_CAMPER_AIM_SCALE`: his aim's angles times the factor.
+            if let Some(text) = bench_settings().var("SRP_BENCH_CAMPER_TUNING").ok().filter(|text| !text.trim().is_empty()) {
+                let patch: serde_json::Value =
+                    serde_json::from_str(&text).unwrap_or_else(|cause| panic!("SRP_BENCH_CAMPER_TUNING is not JSON: {cause}"));
+                let mut value = serde_json::to_value(&camper_tuned).expect("the tuning is JSON");
+                Tuning::apply_patch(&mut value, patch).unwrap_or_else(|cause| panic!("SRP_BENCH_CAMPER_TUNING: {cause}"));
+                camper_tuned = serde_json::from_value(value).unwrap_or_else(|cause| panic!("SRP_BENCH_CAMPER_TUNING: {cause}"));
+                camper_tuned.validate().unwrap_or_else(|wrong| panic!("SRP_BENCH_CAMPER_TUNING: {wrong}"));
+            }
             if let Some(factor) = camper_options.aim_scale {
                 super::standin_aim::scale_aim_angles(&mut camper_tuned, factor);
             }
