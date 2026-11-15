@@ -93,7 +93,10 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the
 - **The tracks:** `main_theme`, `lobby_theme` and `level_01_loading` .. `level_09_loading`: 11
   tracks, 16.5 MB (16 526 528 bytes with their RMS and options). Retail 0.46c2's battle finale and
   win/lose cues are not used.
-- **Training Camp's theme** (`cs_training_camp_loading`, since `music@2`; the owner, 2026-11-14): a
+- **Training Camp has no theme** (the owner, 2026-11-15: "also remove music from training camp"):
+  `music-1.json` no longer names one in its mode file, so neither it nor its Free for All copy
+  plays a map theme. The track below stays in the pack `music@2`, unused.
+- **Training Camp's theme, until 2026-11-15** (`cs_training_camp_loading`, since `music@2`; the owner, 2026-11-14): a
   song of the owner's STALKER mobile project, its `end-song.wav` (a Letov guitar excerpt, 33 s, a 2 s
   fade-out at its tail; the only copy, pinned by sha256, outside this repository). `make_pack.py`
   encodes it as retail's (44.1 kHz stereo, 112 kb/s nominal) and makes its `.high.rms` as the
@@ -102,8 +105,7 @@ The owner's (2026-10-28; 2026-10-31 the 15 s; 2026-10-31 one song at a time, the
 - **Which map, which theme:** `music-1.json` adds `ui.loading_music` to every mode file, as retail
   has it (`gameplay/game_modes/<mode>.options`, `mode.ui.loading_music = "music/level_0N_loading"`):
   levels 1 to 9 their own, the ported maps their original's (the v0.21d and v0.11e maps their
-  0.26g levels, Research's its level's), Training Camp its own (its Team Deathmatch file; its Free
-  for All copy, made later by `ffa-stalker-1.json`, takes it). A new map adds its files (Rudnya
+  0.26g levels, Research's its level's), Training Camp none (above). A new map adds its files (Rudnya
   0.69's and the other STALKER maps' when they land); a mode without the key has no theme.
 
 ## How it works (patch 88)
