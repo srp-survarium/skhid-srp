@@ -87,11 +87,14 @@ pub const HIT_BOXES: &str = include_str!("hitboxes-026g-idle.tsv");
 const EDGE_M: f32 = 0.18;
 
 /// A body as its parts are placed: its feet, its stance, and the yaw its model is turned by. The game turns a player's
-/// hit body by the world's `rotation_y` (player +490h, saved at 0x2DB021; `base_player` 0x2DAB70 makes the player's
-/// transform +40Ch from it with `create_rotation_y` 0x15AE50, and 0x2D942A..0x2D94A9 hands +40Ch on to the hit body),
-/// the yaw the bots read for every place (`driven.rs`, `PlaceView::yaw`). `create_rotation_y`'s rows are
-/// (cos a, 0, sin a), (0, 1, 0), (-sin a, 0, cos a): the model's +z (its facing) is [`forward`]`(a)` on the ground,
-/// its +x (its right) `forward(a - pi/2)`.
+/// hit body by the world's `rotation_y` (player +490h, saved at 0x2DB021), the yaw the bots read for every place
+/// (`driven.rs`, `PlaceView::yaw`). Each step: an input's turn adds to +490h and sets the mixing tree's object transform
+/// to `create_rotation_y` 0x15AE50 of it (`apply_rotation` 0x2D8AD0..0x2D8B76); `set_physics_controller_walk_vector`
+/// 0x2D9060 sets the controller's transform to that turn at the player's position (0x2D9089..0x2D911A);
+/// `assign_physics_transform` 0x2D93A0 copies the controller's to the player transform +40Ch and hands it to the hit body
+/// (0x2D942A..0x2D94A9). (`set_transform` 0x2DAB70 builds +40Ch the same way at the initialisation.)
+/// `create_rotation_y`'s rows are (cos a, 0, sin a), (0, 1, 0), (-sin a, 0, cos a): the model's +z (its facing) is
+/// [`forward`]`(a)` on the ground, its +x (its right) `forward(a - pi/2)`.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BodyAt {
     pub feet: Vec3,
