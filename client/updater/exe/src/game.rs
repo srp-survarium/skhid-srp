@@ -432,7 +432,15 @@ fn by_torrent(session: &mut Session, layout: &Layout) -> Result<Option<bool>, Op
     if wanted.is_empty() {
         return Ok(None);
     }
-    let needed = wanted.iter().map(|(_, pin, _)| pin.size).sum::<u64>() + (256 << 20);
+    // What the parts of an earlier start hold is on the disk already.
+    let needed = wanted
+        .iter()
+        .map(|(name, pin, _)| {
+            let part = win::file_size(&format!("{}{PART}", place(layout, name))).unwrap_or(0);
+            pin.size.saturating_sub(part)
+        })
+        .sum::<u64>()
+        + (256 << 20);
     if win::free_space(&layout.game_dir).is_none_or(|free| free < needed) {
         log!("game: by torrent: {needed} bytes of free space needed: HTTPS");
         return Ok(None);

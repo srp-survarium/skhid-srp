@@ -1101,10 +1101,16 @@ fn offline(
                 log!("patches: the server could not be asked and {why}: the torrent's patches");
                 step(session, layout, Source::Torrent(list), overlay, look, record)
             }
-            Err(fail) => {
+            Err(None) => {
+                log!("patches: stopped");
+                Outcome::Stopped
+            }
+            Err(Some(fail)) => {
                 log!("patches: BLOCKED: {fail}. The player is told: {message}");
                 Outcome::Blocked(message.into())
             }
+            // No torrent, or it gave nothing: the list built in, as without
+            // it.
             Ok(None) => offline_built_in(session, layout, overlay, record, look, message, &why),
         },
     }
@@ -1149,8 +1155,8 @@ fn offline_built_in(
 /// when missing or damaged; its SHA-256 taken from the checked file. The
 /// addresses are the kept list's for the same file, else none: the torrent
 /// alone gives it, until the server's list names it again. `Ok(None)`: no
-/// torrent, or one that has none.
-fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, String> {
+/// torrent, one that has none, or no peer gave them; `Err(None)`: stopped.
+fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, Option<String>> {
     let Some(offered) = torrent::offered(session, layout) else {
         return Ok(None);
     };
@@ -1175,12 +1181,13 @@ fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, 
         log!("patches: {} of the torrent's to fetch by it", missing.len());
         match torrent::fetch(session, &offered, &missing) {
             torrent::Fetched::Done => {}
-            torrent::Fetched::Stopped => return Err("stopped".into()),
+            torrent::Fetched::Stopped => return Err(None),
             torrent::Fetched::Not(why) => {
                 for (_, part) in &missing {
                     let _ = win::delete(part);
                 }
-                return Err(format!("the torrent did not give its patches: {why}"));
+                log!("patches: the torrent did not give its patches: {why}");
+                return Ok(None);
             }
         }
         for (index, part) in &missing {
@@ -1189,7 +1196,7 @@ fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, 
             let size = torrent.files[*index].size;
             if win::file_size(part).ok() != Some(size) {
                 let _ = win::delete(part);
-                return Err(format!("{part} is not of the torrent's {size} bytes"));
+                return Err(Some(format!("{part} is not of the torrent's {size} bytes")));
             }
             let target = part.strip_suffix(PART).expect("a part");
             if let Err(code) = File::alone(&place(layout, DB_NAME))
@@ -1198,7 +1205,7 @@ fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, 
                 .and_then(|()| win::rename(part, target, true))
             {
                 let _ = win::delete(part);
-                return Err(format!("{target} cannot be put in place: {}", win::error_text(code)));
+                return Err(Some(format!("{target} cannot be put in place: {}", win::error_text(code))));
             }
         }
     }
@@ -1209,7 +1216,7 @@ fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, 
     let mut patches = Vec::new();
     for (number, _) in &ours {
         let path = place(layout, &format!("{FILE_PREFIX}{number}"));
-        let (_, sha256) = win::hash_file(&path).map_err(|code| format!("{path}: {}", win::error_text(code)))?;
+        let (_, sha256) = win::hash_file(&path).map_err(|code| Some(format!("{path}: {}", win::error_text(code))))?;
         let addresses = kept
             .get(*number)
             .filter(|patch| patch.sha256 == sha256)

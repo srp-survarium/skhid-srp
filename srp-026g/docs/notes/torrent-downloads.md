@@ -84,8 +84,8 @@ and `client/updater/logic/src/swarm.rs` are the code.
   `srp-026g/docs/notes/launcher_updater.md`).
 - The torrent is trusted by its signature alone: the release's Ed25519 key is built into the
   updater ("Signed releases"), and a torrent whose signature does not verify, or whose revision
-  is lower than the highest it has taken (`updater_skhid.torrent.revision` beside it) or than the
-  installed game's, is never taken. Where it came from does not matter: today the ZIP's
+  is lower than the highest it has taken (`updater_skhid.torrent.revision` beside it), than the
+  installed game's or than the updater's own, is never taken. Where it came from does not matter: today the ZIP's
   `game/binaries/x86/skhid.torrent` beside the updater, or the newest one the rendezvous gave
   (below). One function decides it (`torrent::trusted`).
 - No torrent (an older ZIP, one released without it), or none it takes: it downloads by HTTPS
@@ -130,11 +130,13 @@ How an updater finds a newer release without our site (`client/updater/logic/src
   to an address at most, within the upload limit); an end that said the higher revision is
   waited for; then the connection ends. Anything else ends it.
 - A torrent that comes is taken only when its signature is the release's and its revision is
-  higher than the one this end has (or, having none, not lower than the installed game's). It is
-  kept beside the updater as `updater_skhid.found.torrent`; the highest revision of it and the
-  ZIP's is the torrent of the run.
+  higher than the one this end has (or, having none, not lower than what the folder has: the
+  installed game's, the highest taken, the updater's own). It is kept beside the updater as
+  `updater_skhid.found.torrent`; the highest revision of it and the ZIP's is the torrent of the
+  run.
 - When: an updater that cannot reach the update server asks the rendezvous for 20 s before it
-  goes on (a blocked network, our servers down); one that shares serves it the whole time.
+  goes on (a blocked network, our servers down), and takes the newest that came in that time;
+  one that shares serves it the whole time.
 - No server of ours needed: when the update server cannot be asked and the run's torrent is
   newer than what is installed (or nothing is: `Skhid-get.bat`'s bare folder, whose
   `updater_skhid.exe check` takes "Allow torrent" as the launcher saved it, on when nothing is),
@@ -162,7 +164,7 @@ How an updater finds a newer release without our site (`client/updater/logic/src
   `release/make-signing-key --test`): `release.sh --test` signs with it and its updater is built
   with it (`SKHID_TEST_PUBLIC_KEY`), so a test torrent is never one a player's updater takes.
 - No rollback: an updater never takes a torrent of a lower revision than the highest it has
-  taken. And a revision's number never names other files: once srp came up on
+  taken, nor than its own. And a revision's number never names other files: once srp came up on
   a release's files (its folder's `served`), a later release of that number must build the same
   ZIP, or it stops after its build (`--revision` the next).
 

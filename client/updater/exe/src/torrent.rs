@@ -205,7 +205,8 @@ pub struct Torrents {
 }
 
 enum Mode {
-    Off,
+    /// `port`: the launcher's, kept for when it allows torrent.
+    Off { port: Option<u16> },
     On {
         port: Option<u16>,
         /// `None`: the port is busy (outgoing connections only).
@@ -237,7 +238,7 @@ fn bound_port(listener: &Option<TcpListener>, port: Option<u16>) -> u16 {
 impl Torrents {
     pub fn new(settings: Torrenting) -> Self {
         let mode = match settings {
-            Torrenting::Off => Mode::Off,
+            Torrenting::Off => Mode::Off { port: None },
             Torrenting::On { port } => {
                 let listener = listen(port);
                 log!(
@@ -271,11 +272,11 @@ impl Torrents {
     pub fn on_message(&mut self, message: FromLauncher) -> Option<ToLauncher<'static>> {
         match message {
             FromLauncher::AllowTorrent(true) => {
-                if let Mode::Off = self.mode {
+                if let Mode::Off { port } = self.mode {
                     log!("torrent: allowed by the launcher");
                     self.mode = Mode::On {
-                        port: None,
-                        listener: listen(None),
+                        port,
+                        listener: listen(port),
                         engine: None,
                     };
                 }
@@ -283,19 +284,26 @@ impl Torrents {
             }
             FromLauncher::AllowTorrent(false) => {
                 log!("torrent: not allowed by the launcher: stopped");
-                self.mode = Mode::Off;
+                let port = match &self.mode {
+                    Mode::Off { port } | Mode::On { port, .. } => *port,
+                };
+                self.mode = Mode::Off { port };
                 None
             }
             FromLauncher::Port(number) => {
                 let wanted = updater_logic::pipe::port_number(&format!("{number}"));
-                let Mode::On {
-                    port,
-                    listener,
-                    engine,
-                } = &mut self.mode
-                else {
-                    // Off: nothing listens, so any port is "ok".
-                    return Some(ToLauncher::PortOk);
+                let (port, listener, engine) = match &mut self.mode {
+                    Mode::On {
+                        port,
+                        listener,
+                        engine,
+                    } => (port, listener, engine),
+                    Mode::Off { port } => {
+                        // Off: nothing listens, so any port is "ok"; it is
+                        // the one listened on once torrent is allowed.
+                        *port = wanted;
+                        return Some(ToLauncher::PortOk);
+                    }
                 };
                 // The old socket goes first: the same port again is free.
                 *listener = None;
@@ -358,7 +366,7 @@ impl Torrents {
     fn engine(&self) -> Option<&Engine> {
         match &self.mode {
             Mode::On { engine, .. } => engine.as_ref(),
-            Mode::Off => None,
+            Mode::Off { .. } => None,
         }
     }
 
@@ -371,6 +379,15 @@ impl Torrents {
 
     pub fn sharing(&self) -> bool {
         self.engine().is_some()
+    }
+
+    /// Stops the engine and closes the listening socket, for good: before
+    /// another updater runs, which listens on the same port.
+    pub fn close(&mut self) {
+        if let Mode::On { engine, listener, .. } = &mut self.mode {
+            *engine = None;
+            *listener = None;
+        }
     }
 }
 
@@ -596,7 +613,9 @@ fn bootstrap(layout: &Layout) -> Option<(Torrent, Vec<Role>)> {
         .map(|file| {
             let file_name = torrent.files[file].path.rsplit('/').next().unwrap_or_default();
             let copy = format!("{kept}\\{file_name}");
-            if win::file_size(&copy).ok() == Some(torrent.files[file].size) {
+            // A copy is shared once every piece of it is checked (a copy of
+            // the right size can be anything); else it is made again.
+            if whole(&torrent, file, &copy) {
                 return Role::Share(copy);
             }
             let live = layout.place(&torrent.files[file].path);
@@ -651,8 +670,9 @@ fn trackers() -> Vec<String> {
 
 /// An engine's job: the torrent's swarm with `roles` (when given), and the
 /// rendezvous when this updater has the release's key. `layout`: the
-/// least revision taken from the rendezvous is the game's (else none is
-/// looked for: only given).
+/// least revision taken from the rendezvous is what this folder has
+/// (`signed::installed`: the game's, the highest taken, this updater's
+/// own; else none is looked for: only given).
 fn job(signed: Option<&Signed>, roles: Option<Vec<Role>>, layout: Option<&Layout>) -> Job {
     let meeting = crate::signed::key().map(|key| Meeting {
         hash: rendezvous::info_hash(&key),
@@ -676,8 +696,9 @@ fn job(signed: Option<&Signed>, roles: Option<Vec<Role>>, layout: Option<&Layout
 
 /// Looks for a newer signed torrent than this updater has, from the
 /// rendezvous, for a while: when the update server cannot be reached (a
-/// blocked network, our servers down, a bare folder). One that comes is
-/// kept beside the updater ([`FOUND`]) and is the run's torrent from then.
+/// blocked network, our servers down, a bare folder). The whole while:
+/// the newest that came is kept beside the updater ([`FOUND`]) and is the
+/// run's torrent from then.
 pub fn discover(session: &mut Session, layout: &Layout) {
     if !session.torrents.allowed() || crate::signed::key().is_none() {
         return;
@@ -691,10 +712,7 @@ pub fn discover(session: &mut Session, layout: &Layout) {
     let until = win::ticks() + DISCOVER_MS;
     let mut found = None;
     while win::ticks() < until && session.pump() {
-        found = session.torrents.engine().and_then(|engine| engine.status().found);
-        if found.is_some() {
-            break;
-        }
+        found = session.torrents.engine().and_then(|engine| engine.status().found).or(found);
         win::sleep(100);
     }
     session.torrents.stop();
@@ -723,6 +741,42 @@ fn keep(layout: &Layout, revision: u64, bytes: &[u8]) {
 /// A file of the torrent by its path.
 pub fn file_index(torrent: &Torrent, path: &str) -> Option<usize> {
     torrent.files.iter().position(|file| file.path == path)
+}
+
+/// The Skhid files of a torrent: every file but the original game's and
+/// the patches.
+pub fn skhid_files(torrent: &Torrent) -> Vec<usize> {
+    (0..torrent.files.len())
+        .filter(|&index| {
+            let file = &torrent.files[index];
+            let in_game = file.path.strip_prefix("game/");
+            let patch = in_game.and_then(updater_logic::patches::file_number).is_some();
+            let original = in_game.is_some_and(|name| {
+                updater_logic::game::FILES
+                    .iter()
+                    .any(|(path, pin)| *path == name && pin.size == file.size)
+            });
+            !patch && !original
+        })
+        .collect()
+}
+
+/// Where a Skhid file is fetched by torrent, beside its place.
+pub fn skhid_part(layout: &Layout, path: &str) -> String {
+    format!("{}.skhid-torrent", layout.place(path))
+}
+
+/// What a download of the Skhid files by torrent left (the server could
+/// not be asked then): removed once the server answers, whose archive is
+/// installed from then on.
+pub fn remove_skhid_parts(layout: &Layout) {
+    let Ok(signed) = trusted(layout) else { return };
+    for index in skhid_files(&signed.torrent) {
+        let part = skhid_part(layout, &signed.torrent.files[index].path);
+        if win::exists(&part) && win::delete(&part).is_ok() {
+            log!("removed the left-over torrent download: {part}");
+        }
+    }
 }
 
 // The engine.
@@ -808,11 +862,14 @@ fn peer_id() -> [u8; 20] {
 }
 
 /// What the parts hold already: each wanted piece checked, kept or not.
+/// The commands that come meanwhile go to `queued`; `None`: the engine is
+/// stopped.
 fn check_parts(
     torrent: &Torrent,
     storage: &mut Storage,
     status: &Mutex<Status>,
     commands: &mpsc::Receiver<Command>,
+    queued: &mut Vec<Command>,
 ) -> Option<Vec<Start>> {
     let mut start = alloc::vec![Start::Absent; torrent.piece_count() as usize];
     let total: u64 = storage
@@ -832,8 +889,10 @@ fn check_parts(
             Role::Fetch(path) => {
                 let size = win::file_size(&path).unwrap_or(0);
                 for piece in pieces {
-                    if let Err(mpsc::TryRecvError::Disconnected) = commands.try_recv() {
-                        return None;
+                    match commands.try_recv() {
+                        Ok(command) => queued.push(command),
+                        Err(mpsc::TryRecvError::Disconnected) => return None,
+                        Err(mpsc::TryRecvError::Empty) => {}
                     }
                     let end = (u64::from(piece) + 1) * u64::from(torrent.piece_length)
                         - torrent.files[file].offset;
@@ -1012,6 +1071,8 @@ fn run(
             }
         }
     };
+    // Commands that came while the parts were checked: done first.
+    let mut queued: Vec<Command> = Vec::new();
     let mut swarms: Vec<Files> = Vec::new();
     for (index, (torrent, roles)) in job.files.into_iter().enumerate() {
         add_trackers(Which::Files(index));
@@ -1020,7 +1081,7 @@ fn run(
             roles,
             files: BTreeMap::new(),
         };
-        let Some(start) = check_parts(&torrent, &mut storage, status, commands) else {
+        let Some(start) = check_parts(&torrent, &mut storage, status, commands, &mut queued) else {
             return Ok(());
         };
         let mut swarm = Swarm::new(torrent, peer_id, &start, banned.clone(), win::ticks());
@@ -1056,23 +1117,29 @@ fn run(
     let mut best: Option<(u64, Arc<Vec<u8>>)> = None;
     let mut buffer = alloc::vec![0_u8; 64 * 1024];
     loop {
+        let mut incoming = core::mem::take(&mut queued);
         loop {
             match commands.try_recv() {
-                Ok(Command::Listen(socket, bound)) => {
+                Ok(command) => incoming.push(command),
+                Err(mpsc::TryRecvError::Empty) => break,
+                Err(mpsc::TryRecvError::Disconnected) => return Ok(()),
+            }
+        }
+        for command in incoming {
+            match command {
+                Command::Listen(socket, bound) => {
                     listener = socket;
                     port = bound;
                     for tracker in &mut trackers {
                         tracker.next = 0;
                     }
                 }
-                Ok(Command::Limit(limit)) => {
+                Command::Limit(limit) => {
                     for files in &mut swarms {
                         let more = files.swarm.step(Event::UploadLimit(limit));
                         files.pending.extend(more);
                     }
                 }
-                Err(mpsc::TryRecvError::Empty) => break,
-                Err(mpsc::TryRecvError::Disconnected) => return Ok(()),
             }
         }
         let now = win::ticks();
@@ -1212,7 +1279,8 @@ fn run(
                 });
         }
         // Peers to connect to: of a torrent while it fetches or shares, of
-        // the rendezvous while a newer torrent is looked for.
+        // the rendezvous while it runs (the newest torrent is looked for
+        // the whole time).
         let candidates: Vec<(Which, Peer)> = known
             .iter()
             .filter(|((which, peer), tried)| {
@@ -1223,7 +1291,7 @@ fn run(
                             let swarm = &swarms[*index].swarm;
                             swarm.may_connect(peer.ip) && (!swarm.complete() || swarm.sharing())
                         }
-                        Which::Rendezvous => best.is_none(),
+                        Which::Rendezvous => true,
                     }
             })
             .map(|(key, _)| *key)

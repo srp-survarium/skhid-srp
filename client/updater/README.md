@@ -339,17 +339,20 @@ port (`""`: none, the system picks one). While the updater runs, the
 launcher's `1A` turns it on or off, `21` sets the port (answered `15`
 listening, `14` busy: the launcher shows "busy" in its settings), `1E` an
 upload limit (the 0.26g launcher sends none: no limit). The port is
-listened on (all addresses) from the start; Windows' firewall may ask the
-player once.
+listened on (all addresses) from the start (a port asked while torrent is
+off: once it is on), and let go before another updater runs (the new one
+after a self-update, the launcher started anew); Windows' firewall may ask
+the player once.
 
 **The torrent** is trusted by its Ed25519 signature alone: the release's
 public key (`release/signing.pub`, read by `exe/build.rs`; a test build
 takes `SKHID_TEST_PUBLIC_KEY`) is built in (`logic/src/signed.rs`,
 `exe/src/signed.rs`), and a torrent is taken only when its signature
 verifies and its revision is not lower than the highest taken before
-(`updater_skhid.torrent.revision` beside the updater) nor than the installed
-game exe's. Today it comes as `skhid.torrent` beside the updater, a file of
-the players' ZIP, or as `updater_skhid.found.torrent`, the newest one the
+(`updater_skhid.torrent.revision` beside the updater), than the installed
+game exe's, nor than this updater's own (`SKHID_REVISION` of its build).
+Today it comes as `skhid.torrent` beside the updater, a file of the players'
+ZIP, or as `updater_skhid.found.torrent`, the newest one the
 rendezvous gave (below); the highest revision of them is the run's. Missing,
 unsigned, another key's, older: no torrent, HTTPS as before. Where it comes
 from and why it is trusted is one function (`torrent::trusted`). Everything in it is
@@ -408,7 +411,9 @@ one version, the spec's "Bootstrap"): `skhid-bootstrap.torrent` beside the
 updater, a file of the ZIP, taken as the ZIP installed it (its SHA-256 in
 `updater_skhid.state`). While the file in its place is the bootstrap's (every
 piece checked), each is copied into `updater_skhid.bootstrap\`, and shared
-from there while the updater shares, after it has replaced itself too.
+from there while the updater shares, after it has replaced itself too; a
+copy is shared only while every piece of it checks (else it is copied
+again).
 
 **Without our site** (a bare bootstrap folder, a blocked network after a
 release): when the update server cannot be asked, the rendezvous is asked
@@ -416,21 +421,25 @@ release): when the update server cannot be asked, the rendezvous is asked
 nothing is, every file of it but the original game's and the patches (the
 Skhid files: the updater and the launcher too) comes from it, each checked
 piece by piece, one already whole kept, installed as an archive's files are
-(all or none); `updater_skhid.state` then names the torrent's v2 info hash as
-the archive, so the server's archive is installed over it once it answers.
+(all or none, Windows Security's refusal or a file gone after it was put in
+place a stop, the files of the archive before that this one has not
+removed); `updater_skhid.state` then names the torrent's v2 info hash as the
+archive, so the server's archive is installed over it once it answers (and
+the parts a cut-short download left go then).
 The original game follows (by torrent, its pins). The patches: the torrent's
 are the list (each in place, checked against the torrent, fetched by it when
 missing or damaged, its SHA-256 from the checked file), kept with the
 addresses the kept list had for the same file, else none (`"urls": []`: the
 torrent alone gives it, until the server's list names it again); `ready`
-then holds.
+then holds. No peer gives them: the list built in, as without torrent.
 
 **The rendezvous** (`logic/src/rendezvous.rs`; the spec's "The rendezvous"):
 while it shares, the updater is also a peer of one fixed swarm whose info
 hash is made of the release's public key, and gives its signed torrent (one
 BEP 10 extension message, 4 MiB at most) to a peer there that has an older
-one or none. An updater that cannot reach the update server asks it for
-20 s first, and keeps a newer torrent it takes (signature verified, revision
+one or none: twice a run to an address at most, out of the upload limit. An
+updater that cannot reach the update server asks it for 20 s first, and
+keeps the newest torrent it took in that time (signature verified, revision
 higher) beside itself. A connection is routed by the info hash of its
 handshake: the torrent's swarm or the rendezvous; anything else is closed.
 

@@ -1,8 +1,8 @@
 //! The release's key, and whether a torrent is the release's: its
 //! signature by that key (`updater_logic::signed`), and a revision not
-//! lower than the highest this updater has taken, nor than the game's (no
-//! rollback: a torrent of an older release, signed then, is never taken
-//! again).
+//! lower than the highest this updater has taken, nor than the game's, nor
+//! than this updater's own (no rollback: a torrent of an older release,
+//! signed then, is never taken again).
 
 use alloc::format;
 use alloc::string::String;
@@ -34,9 +34,18 @@ pub fn game_number(layout: &Layout) -> u64 {
         .map_or(0, u64::from)
 }
 
-/// The least revision taken: the highest taken before, the game's.
+/// This updater's own revision: its build's `SKHID_REVISION`
+/// (`release/build-zip` sets it; 0 for a local build).
+fn built() -> u64 {
+    option_env!("SKHID_REVISION")
+        .and_then(|text| text.parse().ok())
+        .unwrap_or(0)
+}
+
+/// The least revision taken: the highest taken before, the game's, this
+/// updater's own.
 pub fn installed(layout: &Layout) -> u64 {
-    let game = game_number(layout);
+    let game = game_number(layout).max(built());
     let taken = win::read_file(&format!("{}\\{TAKEN}", layout.exe_dir), 16)
         .ok()
         .and_then(|bytes| String::from_utf8(bytes).ok())
