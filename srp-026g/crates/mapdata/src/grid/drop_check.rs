@@ -737,7 +737,7 @@ impl WalkGrid {
     /// Returns how many were re-aimed.
     ///
     /// [A1b] A re-aim with a release press is always an off-mesh GapDrop carrying it and its share (in its landing's cell too);
-    /// an off-mesh link the take-off already has to that landing takes the press.
+    /// an off-mesh link the take-off already has to that landing takes the press (a release one only at a higher share).
     ///
     /// One link a (take-off, landing) pair: the links this pass adds are kept apart from `wide.off` (whose lookup,
     /// [`Wide::out`], is a binary search over it sorted) until the end, and looked up there too. Two re-aims of one take-off
@@ -754,7 +754,10 @@ impl WalkGrid {
                 wide.links[a as usize][d] = NONE;
                 let link = OffLink { from: a, to: b, kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT };
                 if let Some(l) = wide.off.iter_mut().find(|l| l.from == a && l.to == b) {
-                    *l = OffLink { kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, ..*l };
+                    // Of two releases the higher share, as within the pass; anything else takes the release's press.
+                    if !(matches!(l.press, Takeoff::Release { .. }) && l.share.flown() >= share.flown()) {
+                        *l = OffLink { kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, ..*l };
+                    }
                 } else if let Some(&i) = index.get(&(a, b)) {
                     pairs.merged += 1;
                     match added[i].press {
@@ -860,6 +863,22 @@ mod tests {
             let back = WalkGrid::read(&path, 7, super::super::Body::default());
             std::fs::remove_file(&path).ok();
             assert!(back.is_ok(), "{:?}", back.err());
+        }
+        // A release onto a pair whose release link is already in the table (an earlier pass's): the higher share stays.
+        for (there, new, kept) in [(12, 9, 12), (9, 12, 12)] {
+            let mut wide = grid.link(&vec![false; grid.len()]);
+            let d = (0..8).find(|&d| wide.links[a as usize][d] != NONE).unwrap();
+            wide.off = vec![super::super::gap::OffLink {
+                from: a,
+                to: b,
+                kind: LinkKind::GapDrop,
+                press: released,
+                share: Share::landed(there),
+                walk: None,
+                aim: super::super::gap::Aim::STRAIGHT,
+            }];
+            grid.reaim_drops(&mut wide, &vec![(a, d, b, Some((released, Share::landed(new))))]);
+            assert_eq!((wide.off.len(), wide.off[0].share), (1, Share::landed(kept)));
         }
         // Two releases onto one landing: the higher share is the link, whichever came first.
         for (first, second) in [(9, 12), (12, 9)] {
