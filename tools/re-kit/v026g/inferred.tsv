@@ -1759,6 +1759,8 @@ va	status	ref_021d	name
 0x00295300	inferred-medium	0x001aa1af	survarium::object_track::~object_track
 0x00295350	inferred-medium	0x001aa1e8	survarium::object_track::load
 0x00295410	inferred-medium	0x001aa324	survarium::object_track::evaluate
+0x00295800	inferred-high	0x001aa4aa	survarium::portable_interactive_object::subscribe_on_client_animation_events
+0x002959d0	inferred-high	0x001aa6f7	survarium::portable_interactive_object::process_hands_ik
 0x00295d60	inferred-medium	0x001aa957	boost::detail::function::functor_manager<enum vostok::animation::callback_return_type_enum (__cdecl*)(vostok::animation::animation_callback_params &)>::manager
 0x00295db0	inferred-medium	0x001aa90e	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::player_equipment_sound_effect,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::player_equipment_sound_effect *>,boost::arg<1> > > >::manager
 0x00296650	inferred-medium	0x001aaf52	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,survarium::breath_holding_sound_effect,bool>,boost::_bi::list2<boost::_bi::value<survarium::breath_holding_sound_effect *>,boost::arg<1> > > >::manager
@@ -2753,6 +2755,7 @@ va	status	ref_021d	name
 0x0038feb0	inferred-medium	0x00249c2b	vostok::animation::legs_ik_solver::leg_params::deserialize
 0x0038ff20	inferred-medium	0x00249cbd	vostok::animation::legs_ik_solver::serialize
 0x0038ffe0	inferred-medium	0x00249dbd	vostok::animation::legs_ik_solver::deserialize
+0x00390240	inferred-medium	0x0024a0f1	vostok::animation::mix_transformations
 0x00390c30	inferred-medium	0x0024a78a	vostok::animation::fingers_to_weapon_corrector::serialize
 0x00390d20	inferred-medium	0x0024a89e	vostok::animation::fingers_to_weapon_corrector::deserialize
 0x00390d90	inferred-medium	0x0024a94e	vostok::fixed_string<128>::createf
@@ -2761,6 +2764,12 @@ va	status	ref_021d	name
 0x003919a0	inferred-medium		vostok::animation::animation_player::get_object_transform
 0x00392780	inferred-medium	0x002483ae	boost::detail::function::functor_manager<boost::_bi::bind_t<vostok::math::float4x4,boost::_mfi::cmf1<vostok::math::float4x4,transform_getter,void const *>,boost::_bi::list2<boost::_bi::value<transform_getter *>,boost::arg<1> > > >::manager
 0x003927d0	inferred-medium	0x002483f7	boost::detail::function::functor_manager<boost::_bi::bind_t<vostok::math::float4x4,vostok::math::float4x4 (__cdecl*)(vostok::math::float4x4 const &,void const *),boost::_bi::list2<boost::reference_wrapper<vostok::math::float4x4 const >,boost::arg<1> > > >::manager
+0x00392910	inferred-high	0x0024aa80	vostok::animation::hand_to_weapon_ik_solver::activate
+0x00392ae0	inferred-high	0x0024ab3e	vostok::animation::hand_to_weapon_ik_solver::initialize_locators
+0x00392ce0	inferred-high	0x0024ac97	vostok::animation::hand_to_weapon_ik_solver::activate_hand
+0x00392e30	inferred-high	0x0024ad56	vostok::animation::hand_to_weapon_ik_solver::get_hand_target_transform
+0x003930b0	inferred-high	0x0024af3a	vostok::animation::hand_to_weapon_ik_solver::process
+0x003931a0	inferred-high	0x0024afe9	vostok::animation::hand_to_weapon_ik_solver::process_hand
 0x00393af0	inferred-medium	0x0024b8b3	vostok::animation::hand_to_weapon_ik_solver::serialize
 0x00393c20	inferred-medium	0x0024b9c7	vostok::animation::hand_to_weapon_ik_solver::deserialize
 0x00393cb0	inferred-medium	0x0024bad8	vostok::animation::anm_track::anm_track

@@ -2714,6 +2714,9 @@ va	name	location	role	basis
 0x00294870	survarium::object_sound::on_sound_resources_ready	stack+8	completion callback	inferred
 0x00294930	survarium::object_sound::insert	ECX	sound object	inferred
 0x00294a90	survarium::object_sound::remove	ECX	sound object	inferred
+0x002959a0	survarium::portable_interactive_object::on_hand_ik_event	ECX	the object (its hand_to_weapon_ik_solver at +200h)	observed
+0x002959a0	survarium::portable_interactive_object::on_hand_ik_event	entry ESP+4	animation_callback_params: +10h the time (ms), +20h the event channel's value (byte)	observed
+0x002959a0	survarium::portable_interactive_object::on_hand_ik_event	entry ESP+8	the hand (0 left_hand_ik, 1 right_hand_ik; bound at subscription, 0x295800)	observed
 0x002989d0	survarium::damage_zone::damage_zone	ESI	damage-zone receiver	inferred
 0x002989d0	survarium::damage_zone::damage_zone	stack+4	external context stored in presentation object	inferred
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+4	lobby menu	inferred
@@ -3634,6 +3637,10 @@ va	name	location	role	basis
 0x003919a0	vostok::animation::animation_player::get_object_transform	EAX	the animation player	observed
 0x003919a0	vostok::animation::animation_player::get_object_transform	ECX	the animated object	observed
 0x003919a0	vostok::animation::animation_player::get_object_transform	EDI	out matrix	observed
+0x00392d90	vostok::animation::hand_to_weapon_ik_solver::activate_hand	EAX	the *_hand_ik event value 0..11: value/2 the target (0 the hand's own place, 1 the item skeleton's *_hand_cont bone, 2..5 the model's <Hand>_idle/_reload/_reload_pivot/_lobby locator, missing ones the _idle one); odd values the short transition (0xA6FB7C, 100 ms), even the long (0xA6FB78, 300 ms), blended by a fermi curve (0x393A80); 0.69d0 the same (0x200564C50)	observed
+0x00392d90	vostok::animation::hand_to_weapon_ik_solver::activate_hand	entry ESP+0Ch	the time (ms)	observed
+0x00392d90	vostok::animation::hand_to_weapon_ik_solver::activate_hand	entry ESP+4	the solver	observed
+0x00392d90	vostok::animation::hand_to_weapon_ik_solver::activate_hand	entry ESP+8	the hand (0 left, 1 right; a hand's state 33Ch bytes: +320h the transition's end (ms), +330h the target, +334h the one before, +338h the transition's length)	observed
 0x00396120		ECX		auto
 0x00396120		ECX&0xaaaaaaaa		auto
 0x0039f360	vostok::animation::mixing::n_ary_tree::get_object_transform	entry ESP+4	the tree (animation player+E100h)	observed
