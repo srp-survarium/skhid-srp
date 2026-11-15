@@ -511,10 +511,23 @@ impl WalkGrid {
     /// press that lands. After the gap links (`wide.off`, kept sorted). Returns the stats and the jumps no press made, as
     /// (take-off, landing) (none was a link before).
     pub(super) fn fly_rim_jumps(&self, wide: &mut Wide, world: &Collision, s: &Settings) -> (RimStats, Vec<(NodeId, NodeId)>) {
-        let body = &self.body;
         // [S1] From a step up: a sprinting body climbs an edge from 0.80 to 1.15 m with no jump ([`Kind::Climb`]), and an
         // edge there whose side has no link (no Jump link) is the builder's to fly.
-        let todo = self.edges_up(wide, body.step, RIM_REACH_M);
+        let todo = self.edges_up(wide, self.body.step, RIM_REACH_M);
+        self.fly_rim_todo(wide, world, s, todo)
+    }
+
+    /// [`Self::fly_rim_jumps`] over the jumps `todo` (take-off, top, way): each flown over the presses and made a GapJump with
+    /// the press that lands and stays. [S4] Also the Jump links the landing carry rule took away ([`super::Body::landing_carry`]):
+    /// whether a body stays on a short top is the flight's to say, priced by its share, not a width's.
+    pub(super) fn fly_rim_todo(
+        &self,
+        wide: &mut Wide,
+        world: &Collision,
+        s: &Settings,
+        todo: Vec<(u32, u32, usize)>,
+    ) -> (RimStats, Vec<(NodeId, NodeId)>) {
+        let body = &self.body;
         let leads = gap_leads();
         let kits = Kits { body: jump::WALK_CAP_MS, fastest: body.fastest_walk_cap };
         // The floors `a` has a link to already (its sides and its off-mesh links): a landing there makes no link.

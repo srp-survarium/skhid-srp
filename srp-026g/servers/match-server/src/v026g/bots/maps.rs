@@ -689,13 +689,16 @@ fn build(
                         // [R83] The aimed presses' line (debug): made, tried, flights, and the grid's build time.
                         let rim = stats.rim;
                         log::info!(
-                            "Bot map {} grid built in {:.1} s: aimed presses made {} of {} near misses tried, {} aimed flights of {} rim flights",
+                            "Bot map {} grid built in {:.1} s: aimed presses made {} of {} near misses tried, {} aimed flights of {} rim flights; \
+                             jumps the carry rule took away flown: {} made of {}",
                             path.display(),
                             started.elapsed().as_secs_f32(),
                             rim.aimed_made,
                             rim.aimed_tried,
                             rim.aimed_flights,
-                            rim.flights
+                            rim.flights,
+                            stats.carry_flown.walked + stats.carry_flown.sprinted + stats.carry_flown.slowed + stats.carry_flown.climbed,
+                            stats.carry_flown.tried
                         );
                         grid
                     },
