@@ -2396,6 +2396,12 @@ impl Bots {
             body::carrier_levels::take(),
             survarium::v026g::bot_skills::carried_battery_term().map_or_else(|| "not in the data".to_string(), |term| format!("{term:+.3}"))
         ));
+        // [A386] The flown riser presses held back as off their flown window.
+        let [height, side, turn, lead] = drive::riser_window::take();
+        lines.push(format!(
+            "{}flown riser presses held off their window since the last match end (every match on this server): height {height}, line {side}, heading {turn}, lead {lead}",
+            nav_log::PREFIX
+        ));
         // [A388 (e) gap 5] Every body's reloads from the worlds: the reckoned sights and sprint refused to the clip's end.
         let (read, changed, not_read, tube) = sprint_gates::world_reloads::take();
         lines.push(format!(

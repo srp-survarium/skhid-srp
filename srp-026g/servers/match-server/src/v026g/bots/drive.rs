@@ -2520,8 +2520,19 @@ fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tun
             let way = [dx / len, dz / len];
             let before = (riser.take_off.x - me.feet.x) * way[0] + (riser.take_off.z - me.feet.z) * way[1];
             let along = me.velocity[0] * way[0] + me.velocity[1] * way[1];
-            let facing = super::kin::wrap(me.yaw - super::kin::yaw_of(way)).abs() <= motor::JUMP_FACING;
-            facing && motor::press_due(before, lead.metres(), along)
+            // [A386] The press the grid flew is the one on its line, at its height, facing its way and at its lead, within the
+            // neighbourhood it scored the share over ([`motor::cap_press_off`]), as the gap presses are; a press off it is a flight
+            // the grid never tried.
+            let side = ((me.feet.x - riser.take_off.x) * way[1] - (me.feet.z - riser.take_off.z) * way[0]).abs();
+            let turn = super::kin::wrap(me.yaw - super::kin::yaw_of(way)).abs();
+            let due = motor::press_due(before, lead.metres(), along);
+            match (due, motor::cap_press_off(before, side, me.feet.y - riser.take_off.y, along, turn, lead.metres())) {
+                (true, Some(off)) => {
+                    riser_window::off(off);
+                    false
+                }
+                (due, _) => due,
+            }
         }
         path::RiserPress::Flown(_) => {
             riser_counts::note(3);
@@ -2559,6 +2570,23 @@ pub mod riser_counts {
     #[cfg(test)]
     pub fn counts() -> [u64; 5] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
+    }
+}
+
+/// [A386] The flown riser presses due but held back as off the window the grid flew them over ([`motor::cap_press_off`]): off the
+/// height, the line, the heading, the lead; on this server (the match-end line). Decides nothing.
+pub(crate) mod riser_window {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+    pub(super) fn off(why: super::motor::CapPressOff) {
+        COUNTS[why as usize].fetch_add(1, Relaxed);
+    }
+
+    /// (height, side, turn, lead) since the last call, and zero again.
+    pub(crate) fn take() -> [u64; 4] {
+        std::array::from_fn(|k| COUNTS[k].swap(0, Relaxed))
     }
 }
 

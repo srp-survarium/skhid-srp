@@ -1267,6 +1267,37 @@ fn flown_press_off(ahead: &Ahead, pose: &Pose, along: f32) -> Option<FlownOff> {
     }
 }
 
+/// [A386] Why a flown press at the walk cap made now (a route riser's, `drive::riser_gait`) is off the window the grid flew it over
+/// ([`FlownWindow`], as [`flown_press_off`] for a gap's), if it is: `before` the take-off along the way, m; `side` off the line, m;
+/// `above` the take-off's height, m; `along` the speed along the way, m/s; `turn` off the way's heading, rad; `lead` the flown lead,
+/// m. The key acts a step later ([`press_due`]), so the jump's first step starts a step's travel on.
+pub(super) fn cap_press_off(before: f32, side: f32, above: f32, along: f32, turn: f32, lead: f32) -> Option<CapPressOff> {
+    if above.abs() > FLOWN_RUN_UP_HEIGHT_M {
+        Some(CapPressOff::Height)
+    } else if side > FlownWindow::SIDE_M {
+        Some(CapPressOff::Side)
+    } else if turn > FlownWindow::TURN_RAD {
+        Some(CapPressOff::Turn)
+    } else if (before - along.max(0.0) * TICK_S - lead).abs() > FlownWindow::LEAD_M {
+        Some(CapPressOff::Lead)
+    } else {
+        None
+    }
+}
+
+/// [A386] Why a flown press at the walk cap is off its window ([`cap_press_off`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum CapPressOff {
+    /// The feet more than [`FLOWN_RUN_UP_HEIGHT_M`] off the take-off's height.
+    Height,
+    /// The feet farther than [`FlownWindow::SIDE_M`] off the line.
+    Side,
+    /// The heading farther than [`FlownWindow::TURN_RAD`] off the way.
+    Turn,
+    /// The jump's first step farther than [`FlownWindow::LEAD_M`] from the flown lead.
+    Lead,
+}
+
 /// [A386] The gap and rim presses backed off from as not flown ([`flown_press_off`]): off the take-off's height, a slow press too
 /// fast.
 pub mod flown_presses {
