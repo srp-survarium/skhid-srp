@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use mapdata::{NodeId, Shape, WalkGrid};
 
 use super::hazards::{near_floor, standing_heights, Activity, SWITCH_MARGIN_MS};
+use super::zone_cost::{Cost, ZoneArmour, ZoneHit};
 
 /// A field's id, stable for the field's life.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -43,16 +44,17 @@ pub enum FieldPhase {
 }
 
 /// One field of a world: what a source makes of it.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WorldField {
     pub id: FieldId,
     pub kind: FieldKind,
     /// Where it hurts, in the map's frame.
     pub shape: Shape,
     pub phase: FieldPhase,
-    /// What a body takes a second inside at full intensity, before armour, health 1.0: its damage zone's client rate
-    /// ([`mapdata::Damage::rate_per_s`], as the baked zones' `Hazard::hit_per_s`), read from the map by the source.
-    pub hit_per_s: f32,
+    /// What its damage zone hands a body's parts at full intensity, read from the map by the source: its type, its
+    /// parts and each part's rate ([`ZoneHit::of`], as a baked zone's `Hazard`). The body's pools take it by the
+    /// body table ([`ZoneHit::cost_per_s`]).
+    pub hit: ZoneHit,
 }
 
 /// One field the board holds.
@@ -62,8 +64,6 @@ pub struct LiveHazard {
     pub kind: FieldKind,
     /// What the world said of it last (a changed field is the same id with another value).
     field: WorldField,
-    /// Its hit a second while on ([`WorldField::hit_per_s`]).
-    pub hit_per_s: f32,
     /// When it hurts, widened by [`SWITCH_MARGIN_MS`].
     pub activity: Activity,
     /// The floors within the hazard margin of its shape, sorted.
@@ -94,6 +94,11 @@ impl LiveHazard {
     /// What the world said of its phase last.
     pub fn phase(&self) -> FieldPhase {
         self.field.phase
+    }
+
+    /// What it hands a body's parts while on ([`WorldField::hit`]).
+    pub fn hit(&self) -> &ZoneHit {
+        &self.field.hit
     }
 
     /// The soonest match time after `now` at which it switches on or off, if it will.
@@ -177,20 +182,21 @@ impl FieldBoard {
             let hazard = match held {
                 // The same place: its floors stay, its phase is made again.
                 Some(k) if same_place(&self.fields[k].field, field) => LiveHazard {
-                    field: *field,
+                    field: field.clone(),
                     activity: LiveHazard::activity_of(field.phase),
                     ..self.fields[k].clone()
                 },
                 _ => {
+                    let bare = field.hit.cost_per_s(Some(&ZoneArmour::default()));
                     log::info!(
-                        "live field {} ({:?}): {:.4} a second at full intensity, its damage zone's rate",
-                        field.id.0, field.kind, field.hit_per_s
+                        "live field {} ({:?}): hands the parts {:.4} a second at full intensity; unarmoured the pools lose \
+                         body {:.4} head {:.4} infection {:.4} pain {:.4} a second",
+                        field.id.0, field.kind, field.hit.handed_per_s(), bare.body, bare.head, bare.infection, bare.pain
                     );
                     LiveHazard {
                         id: field.id,
                         kind: field.kind,
-                        field: *field,
-                        hit_per_s: field.hit_per_s,
+                        field: field.clone(),
                         activity: LiveHazard::activity_of(field.phase),
                         floors: floors_of(grid, &field.shape, margin),
                     }
@@ -267,9 +273,15 @@ impl FieldBoard {
         self.at(node).any(|f| f.activity.active(time))
     }
 
-    /// The fields' hit a second at `node` while they are on, summed.
+    /// What the fields at `node` hand a body's parts a second while they are on, summed ([`ZoneHit::handed_per_s`]).
     pub fn hit_per_s(&self, node: NodeId) -> f32 {
-        self.at(node).map(|f| f.hit_per_s).sum()
+        self.at(node).map(|f| f.hit().handed_per_s()).sum()
+    }
+
+    /// What the fields at `node` take a second while they are on from the pools that kill, under `armour` (`None`:
+    /// their raw hit in the body pool, the model off), summed ([`ZoneHit::cost_per_s`]).
+    pub fn cost_per_s(&self, node: NodeId, armour: Option<&ZoneArmour>) -> Cost {
+        self.at(node).map(|f| f.hit().cost_per_s(armour)).sum()
     }
 
     /// When the fields at `node` next switch, the soonest (match ms).

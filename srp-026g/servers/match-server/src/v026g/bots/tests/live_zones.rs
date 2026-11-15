@@ -10,6 +10,7 @@ use crate::v026g::bots::anomalies::tests::{core_world, cylinder, electric_map, t
 use crate::v026g::bots::anomalies::Anomalies;
 use crate::v026g::bots::hazards::{Activity, Hazards, ZoneSet, PASS_MS, SWITCH_MARGIN_MS};
 use crate::v026g::bots::stuck::Stuck;
+use crate::v026g::bots::zone_cost::{Cost, ZoneArmour, ZoneHit};
 use crate::v026g::bots::tactics::tests::field_with;
 
 /// A round field on the floor at (x, z).
@@ -24,7 +25,7 @@ fn field(id: u32, x: f32, z: f32, radius: f32, phase: FieldPhase) -> WorldField 
             half: Vec3::new(radius, 2.0, radius),
         },
         phase,
-        hit_per_s: crate::v026g::bots::tests::standin_fields::STANDIN_HIT_PER_S,
+        hit: crate::v026g::bots::tests::standin_fields::standin_hit(),
     }
 }
 
@@ -101,6 +102,42 @@ fn a_charging_field_is_open_to_a_body_that_clears_it_before_the_damage() {
     assert_eq!(hazards.hit_per_s(inside), 0.5);
     // Charging, it switches on at the margin before the damage.
     assert_eq!(hazards.next_switch(inside), Some(20_000 - SWITCH_MARGIN_MS));
+}
+
+/// A live field's hit is routed into the pools as a baked zone's: the pack's spring (shock, 0.0625 a second to each of
+/// nine parts) hands the parts 0.5625 a second, the gate's number, and under armour the floor costs pain 0.5, body 0.125
+/// and head 0.0625 a second (`zone_cost`'s table test); the model off, its raw hit in the body pool.
+#[test]
+fn a_live_fields_hit_is_routed_into_the_pools_as_a_baked_zones() {
+    let world = field_with(|_| {});
+    let mut hazards = Hazards::build(&world, 0.5);
+    let nine = ["back", "front", "brain", "left_hip", "right_hip", "left_foot", "right_foot", "left_arm", "right_arm"];
+    let damage = mapdata::Damage {
+        max_hit: 0.0625,
+        interval_ms: 1000,
+        continuous: true,
+        parts: nine.len() as u8,
+        part_names: nine.iter().map(|p| (*p).to_owned()).collect(),
+        ..mapdata::Damage::default()
+    };
+    let spring = WorldField {
+        kind: FieldKind::Spring,
+        hit: ZoneHit::of("shock", &damage),
+        ..field(3, 20.0, 20.0, 2.0, FieldPhase::Holding)
+    };
+    assert!(hazards.set_fields(&[spring], &world.grid, 1_000));
+    let inside = node_at(&world, 20.0, 20.0);
+    assert!((hazards.hit_per_s(inside) - 0.5625).abs() < 1e-6, "handed: {}", hazards.hit_per_s(inside));
+    let bare = ZoneArmour::default();
+    let cost = hazards.cost_per_s(inside, Some(&bare));
+    let near = |a: f32, b: f32| (a - b).abs() < 1e-6;
+    assert!(near(cost.pain, 0.5) && near(cost.body, 0.125) && near(cost.head, 0.0625) && cost.infection == 0.0, "{cost:?}");
+    assert_eq!(cost, hazards.live.cost_per_s(inside, Some(&bare)), "no baked zone there");
+    assert_eq!(hazards.cost_per_s(inside, None), Cost::body(hazards.hit_per_s(inside)), "the model off: the raw hit");
+    // A walk's price takes the same pools.
+    let mut walk = crate::v026g::bots::zone_cost::WalkPrice::default();
+    hazards.walk_step(&mut walk, inside, Some(&bare), 2.0, |_| 1.0);
+    assert!(near(walk.total().pain, 1.0) && near(walk.total().body, 0.25), "{:?}", walk.total());
 }
 
 /// The phases: damaging with an end is on until then (and the margin), damaging with none and holding stay on;
@@ -315,8 +352,10 @@ fn the_timed_core_of_a_world_is_a_field_that_follows_its_states() {
     assert_eq!(charging[0].id, FieldId(1));
     assert_eq!(charging[0].kind, FieldKind::Spring, "the zone's damage type");
     assert_eq!(charging[0].phase, FieldPhase::Charging { damage_from: 60_000 });
-    let zone_rate = world.map.zones.iter().find(|z| z.name == "damage").and_then(|z| z.damage.as_ref()).unwrap().rate_per_s();
-    assert_eq!(charging[0].hit_per_s, zone_rate, "the damage zone's own rate, read from the map");
+    let zone = world.map.zones.iter().find(|z| z.name == "damage").unwrap();
+    let zone_hit = ZoneHit::of(&zone.damage_type, zone.damage.as_ref().unwrap());
+    assert_eq!(charging[0].hit, zone_hit, "the damage zone's own hit, read from the map");
+    assert_eq!(charging[0].hit.handed_per_s(), zone.damage.as_ref().unwrap().rate_per_s());
     assert!(hazards.set_fields(&charging, &world.grid, 40_000));
     assert!(hazards.allowed(inside, 41_000) && !hazards.allowed(inside, 57_000));
     // Run on to the first tick past 60 s: the simulation follows the state chain to the damage state.
