@@ -640,6 +640,11 @@ pub struct ThreatTuning {
     pub lanes_pierce: bool,
     /// K3: Trade does not go to a partner's death in a held spot's lanes.
     pub trade_out_of_lines: bool,
+    /// [threat.clear_by_look] A held spot (and a held battery's man's spot, `take.clear_first`) is seen empty only by a
+    /// teammate who faces it, within the bots' own sight cone (`sense.view_deg` about his yaw, `sense::in_view`), with a
+    /// clear line (`threat::seen_empty_now`): a player facing away sees nothing there. Off: any teammate within
+    /// `CLEAR_LINE_M` with a clear line sees it, whichever way he faces, as it was.
+    pub clear_by_look: bool,
     /// [A396] A trade is walked to only where the bot can reach the killer: the death within `plays::trade::TRADE_REACH_M`
     /// (25 m, the A396 finding's cut) by the straight ground distance, as the finding measured it; from
     /// farther it goes to a spot that sees his known place (the trade cover's rules: `trade_cover`, else
@@ -1020,6 +1025,7 @@ impl Default for ThreatTuning {
             job_score: 0.7,
             job_kills: 2,
             lanes_pierce: true,
+            clear_by_look: true,
             trade_out_of_lines: true,
             trade_reach: true,
             trade_cover: None,

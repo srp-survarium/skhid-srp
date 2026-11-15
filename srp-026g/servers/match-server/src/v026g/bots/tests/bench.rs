@@ -2559,6 +2559,11 @@ pub(crate) fn real_bot_cost() {
                     us as f64 / 1000.0 / f64::from(limit_s.max(1)),
                 );
             }
+            // [threat.clear_by_look] Teammates within reach of a spot asked whether it is empty who faced away.
+            eprintln!(
+                "{project} {per_team}v{per_team}: spot looks: teammates facing away {}",
+                crate::v026g::bots::threat::look_tally::away()
+            );
             eprintln!(
                 "{project} {per_team}v{per_team}: pull walk ticks a poll: max {}",
                 mapdata::grid::controlled::pull_walk_ticks_max_take()

@@ -1715,8 +1715,8 @@ impl Bots {
     pub fn breach_report(&self) -> String {
         let line = |c: &threat::BreachCounts| {
             format!(
-                "spawn-exit spots due {}, opened {}, went {}, throws asked {}; battery lines due {}, refused {}, took over a Flank {}",
-                c.spawn_exit_due, c.opened, c.went, c.throws_asked, c.battery_due, c.battery_refused, c.battery_takeovers
+                "spawn-exit spots due {}, opened {}, went {}, throws asked {}; battery lines due {}, refused {}, took over a Flank {}, seen empty {}",
+                c.spawn_exit_due, c.opened, c.went, c.throws_asked, c.battery_due, c.battery_refused, c.battery_takeovers, c.battery_cleared
             )
         };
         format!(

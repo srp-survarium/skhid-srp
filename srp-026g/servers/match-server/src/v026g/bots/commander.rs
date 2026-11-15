@@ -236,7 +236,18 @@ fn threat_tick(
         return;
     }
     let eye = Vec3::new(0.0, view::eye_height(false, 0.0, 0.0), 0.0);
-    let watchers: Vec<Vec3> = view.team(team).map(|p| p.feet + eye).collect();
+    // [threat.clear_by_look] Who may see a spot empty: each teammate's eye, and with the switch on his view cone.
+    let watchers: Vec<threat::Watcher> = view
+        .team(team)
+        .map(|p| threat::Watcher {
+            eye: p.feet + eye,
+            view: if tuning.threat.clear_by_look {
+                threat::View::Facing { yaw: p.yaw, view_deg: tuning.sense.view_deg }
+            } else {
+                threat::View::Around
+            },
+        })
+        .collect();
     // [threat.concede.keep_after_death] A shooter sensed back in an area whose tries his death kept takes them up.
     let keep = tuning.threat.concede.map(|c| c.rules()).filter(|r| r.keep_ms.is_some());
     let mut enemies = Vec::new();
@@ -290,11 +301,19 @@ fn threat_tick(
                 .max_by_key(|&(_, time)| time)
         };
         let on_m = rules.on_m();
+        let mut cleared = 0;
         state.knowledge.battery_holds.retain_mut(|h| {
             let alive = view.place(h.who).is_some_and(|p| p.alive && p.present);
             let empty = threat::seen_empty_now(h.at, on_m, &watchers, &enemies, tactics);
-            know::keep_hold(h, alive, newest(h.who), empty, now, tuning.sense.drop_ms, exposed_m)
+            let was = h.look;
+            let keep = know::keep_hold(h, alive, newest(h.who), empty, now, tuning.sense.drop_ms, exposed_m);
+            if h.look == know::HoldLook::Cleared && was != know::HoldLook::Cleared {
+                cleared += 1;
+                log::debug!("team {team} at {now} ms: player {}'s spot {:?} by battery {} seen empty: cleared", h.who, h.at, h.battery);
+            }
+            keep
         });
+        threat.breach_counts.battery_cleared += cleared;
     }
     let battery_lines: Vec<threat::HeldLine> = state
         .knowledge
