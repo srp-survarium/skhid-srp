@@ -1446,13 +1446,17 @@ impl Default for BurstPause {
 }
 
 /// [range-fire] One point of the live humans' bursts: at `at_m` (the median distance of the bursts of the band it stands for),
-/// the held ms of a burst at the deciles 0, 10, ... 100 % (`q`, never falling).
+/// the held ms of a burst at the shares [`HELD_SHARES`] (`q`, never falling): the deciles 0, 10, ... 90 %, then 95 and 99 %
+/// so the top tenth is read through its tail, not as a line to the group's single longest burst, then 100 %.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HeldPoint {
     pub at_m: f32,
-    pub q: [u32; 11],
+    pub q: [u32; 13],
 }
+
+/// [range-fire] The shares of the bursts at or under each of a [`HeldPoint`]'s `q`.
+pub const HELD_SHARES: [f32; 13] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 1.0];
 
 /// [range-fire] The bursts of two groups of live accounts with one weapon class, by distance ([`HumanBursts`]): `typical` is
 /// the median group by hit rate (skill 0), `best` the top tenth (skill 1). Each list is in rising `at_m`.
@@ -1506,30 +1510,30 @@ impl HumanBursts {
         Self {
             rifle: HeldGroups {
                 typical: vec![
-                    p(6.8, [50, 150, 450, 600, 700, 800, 900, 1050, 1250, 1550, 3300]),
-                    p(15.4, [50, 100, 300, 550, 650, 800, 900, 1100, 1350, 1650, 3550]),
-                    p(28.8, [50, 100, 150, 250, 450, 650, 800, 950, 1200, 1600, 3300]),
-                    p(49.7, [50, 50, 100, 150, 200, 450, 650, 850, 1050, 1500, 3450]),
+                    p(6.8, [50, 150, 450, 600, 700, 800, 900, 1050, 1250, 1550, 1850, 2500, 3300]),
+                    p(15.4, [50, 100, 300, 550, 650, 800, 900, 1100, 1350, 1650, 1900, 2550, 3550]),
+                    p(28.8, [50, 100, 150, 250, 450, 650, 800, 950, 1200, 1600, 1950, 2600, 3300]),
+                    p(49.7, [50, 50, 100, 150, 200, 450, 650, 850, 1050, 1500, 1900, 2750, 3450]),
                 ],
                 best: vec![
-                    p(6.8, [50, 100, 150, 300, 500, 650, 800, 900, 1100, 1400, 3250]),
-                    p(15.6, [50, 100, 200, 350, 500, 650, 800, 950, 1150, 1500, 3500]),
-                    p(28.9, [50, 100, 150, 250, 500, 600, 700, 900, 1100, 1550, 3100]),
-                    p(51.5, [50, 100, 100, 150, 200, 250, 450, 700, 900, 1300, 3100]),
+                    p(6.8, [50, 100, 150, 300, 500, 650, 800, 900, 1100, 1400, 1700, 1900, 3250]),
+                    p(15.6, [50, 100, 200, 350, 500, 650, 800, 950, 1150, 1500, 1750, 2800, 3500]),
+                    p(28.9, [50, 100, 150, 250, 500, 600, 700, 900, 1100, 1550, 1800, 2400, 3100]),
+                    p(51.5, [50, 100, 100, 150, 200, 250, 450, 700, 900, 1300, 1700, 2350, 3100]),
                 ],
             },
             smg: HeldGroups {
                 typical: vec![
-                    p(6.9, [50, 250, 500, 600, 700, 800, 900, 1050, 1200, 1500, 2850]),
-                    p(15.2, [50, 200, 350, 500, 600, 750, 850, 1000, 1250, 1600, 3100]),
-                    p(28.4, [50, 150, 300, 500, 600, 750, 850, 1050, 1250, 1600, 2900]),
-                    p(50.8, [50, 100, 200, 350, 550, 700, 800, 950, 1200, 1550, 2850]),
+                    p(6.9, [50, 250, 500, 600, 700, 800, 900, 1050, 1200, 1500, 1800, 2450, 2850]),
+                    p(15.2, [50, 200, 350, 500, 600, 750, 850, 1000, 1250, 1600, 1800, 2200, 3100]),
+                    p(28.4, [50, 150, 300, 500, 600, 750, 850, 1050, 1250, 1600, 1850, 2350, 2900]),
+                    p(50.8, [50, 100, 200, 350, 550, 700, 800, 950, 1200, 1550, 1800, 2250, 2850]),
                 ],
                 best: vec![
-                    p(6.6, [50, 300, 400, 500, 600, 750, 800, 950, 1250, 1550, 2500]),
-                    p(14.8, [50, 250, 400, 500, 650, 750, 900, 1050, 1350, 1700, 2750]),
-                    p(28.3, [50, 150, 350, 500, 600, 700, 850, 1000, 1300, 1600, 2850]),
-                    p(52.4, [50, 100, 150, 450, 600, 700, 800, 950, 1100, 1500, 2550]),
+                    p(6.6, [50, 300, 400, 500, 600, 750, 800, 950, 1250, 1550, 1800, 2200, 2500]),
+                    p(14.8, [50, 250, 400, 500, 650, 750, 900, 1050, 1350, 1700, 2200, 2700, 2750]),
+                    p(28.3, [50, 150, 350, 500, 600, 700, 850, 1000, 1300, 1600, 1900, 2500, 2850]),
+                    p(52.4, [50, 100, 150, 450, 600, 700, 800, 950, 1100, 1500, 2250, 2500, 2550]),
                 ],
             },
         }
@@ -1542,21 +1546,22 @@ impl HumanBursts {
         }
     }
 
-    /// The deciles of a burst's held ms at `distance` metres and `skill` (0 the median group, 1 the top tenth), never
-    /// falling: each group's deciles linear in distance between its points, then mixed by the skill decile by decile.
-    pub fn deciles(&self, class: AutoClass, distance: f32, skill: f32) -> [f32; 11] {
+    /// The quantiles ([`HELD_SHARES`]) of a burst's held ms at `distance` metres and `skill` (0 the median group, 1 the top
+    /// tenth), never falling: each group's linear in distance between its points, then mixed by the skill one by one.
+    pub fn deciles(&self, class: AutoClass, distance: f32, skill: f32) -> [f32; 13] {
         let groups = self.groups(class);
         let (typical, best) = (at_distance(&groups.typical, distance), at_distance(&groups.best, distance));
         std::array::from_fn(|k| mix((typical[k], best[k]), skill))
     }
 
-    /// A burst's held ms at `distance` and `skill` for the uniform draw `u`: the mixed deciles read at `u`, linear between
-    /// two.
+    /// A burst's held ms at `distance` and `skill` for the uniform draw `u`: the mixed quantiles read at `u`, linear between
+    /// the two shares around it.
     pub fn held_ms(&self, class: AutoClass, distance: f32, skill: f32, u: f32) -> f32 {
         let q = self.deciles(class, distance, skill);
-        let x = u.clamp(0.0, 1.0) * 10.0;
-        let k = (x as usize).min(9);
-        q[k] + (q[k + 1] - q[k]) * (x - k as f32)
+        let u = u.clamp(0.0, 1.0);
+        let k = HELD_SHARES[1..].iter().position(|&share| u <= share).unwrap_or(HELD_SHARES.len() - 2);
+        let (s0, s1) = (HELD_SHARES[k], HELD_SHARES[k + 1]);
+        q[k] + (q[k + 1] - q[k]) * (u - s0) / (s1 - s0)
     }
 
     /// Each list has a point, its points in strictly rising `at_m` (finite, not negative), each point's deciles above 0 and
@@ -1578,7 +1583,7 @@ impl Default for HumanBursts {
 }
 
 /// One group's deciles at `distance`: linear between the two points around it, the nearest point's beyond the ends.
-fn at_distance(points: &[HeldPoint], distance: f32) -> [f32; 11] {
+fn at_distance(points: &[HeldPoint], distance: f32) -> [f32; 13] {
     let as_f32 = |p: &HeldPoint| p.q.map(|v| v as f32);
     match points.iter().position(|p| distance <= p.at_m) {
         Some(0) => as_f32(&points[0]),
@@ -1587,7 +1592,7 @@ fn at_distance(points: &[HeldPoint], distance: f32) -> [f32; 11] {
             let t = (distance - a.at_m) / (b.at_m - a.at_m);
             std::array::from_fn(|k| mix((a.q[k] as f32, b.q[k] as f32), t))
         }
-        None => points.last().map_or([0.0; 11], as_f32),
+        None => points.last().map_or([0.0; 13], as_f32),
     }
 }
 
@@ -10911,7 +10916,7 @@ mod tests {
             let slope = [&groups.typical, &groups.best]
                 .iter()
                 .flat_map(|points| points.windows(2))
-                .flat_map(|w| (0..11).map(move |k| (w[1].q[k] as f32 - w[0].q[k] as f32).abs() / (w[1].at_m - w[0].at_m)))
+                .flat_map(|w| (0..13).map(move |k| (w[1].q[k] as f32 - w[0].q[k] as f32).abs() / (w[1].at_m - w[0].at_m)))
                 .fold(0.0f32, f32::max);
             for s in [0.0, 0.3, 0.5, 0.6, 1.0] {
                 for d in 0..=120 {
@@ -10935,8 +10940,9 @@ mod tests {
     #[test]
     fn a_human_burst_reads_routes_table() {
         let human = HumanBursts::humans();
-        assert_eq!(human.held_ms(AutoClass::Rifle, 50.0, 0.0, 0.5), 450.0);
-        assert_eq!(human.held_ms(AutoClass::Rifle, 51.5, 1.0, 0.5), 250.0);
+        let near = |a: f32, b: f32| (a - b).abs() < 0.01;
+        assert!(near(human.held_ms(AutoClass::Rifle, 50.0, 0.0, 0.5), 450.0));
+        assert!(near(human.held_ms(AutoClass::Rifle, 51.5, 1.0, 0.5), 250.0));
         assert!(human.held_ms(AutoClass::Rifle, 50.0, 0.0, 0.5) < human.held_ms(AutoClass::Rifle, 6.7, 0.0, 0.5));
         let mut rng = Rng::new(17);
         let cycle = 60_000.0 / 700.0;
@@ -10945,6 +10951,13 @@ mod tests {
         let share = taps as f32 / n as f32;
         let expected = 0.1 + 0.1 * (cycle - 50.0) / 50.0;
         assert!((share - expected).abs() < 0.01, "{share} against {expected}");
+        // The tail is read through the 95 and 99 % points: over the 99 % point's 2,750 ms (a 30-round magazine at 650 rpm
+        // is 2,770) 1 % of the draws, not the 3.5 % a line from the 90 % point to the longest burst gave.
+        let mut rng = Rng::new(19);
+        let long = (0..n).filter(|_| human.held_ms(AutoClass::Rifle, 50.0, 0.0, rng.unit()) > 2_750.0).count();
+        let share = long as f32 / n as f32;
+        assert!((share - 0.01).abs() < 0.003, "{share}");
+        assert!(near(human.held_ms(AutoClass::Rifle, 50.0, 0.0, 0.95), 1_900.0));
     }
 
     /// [range-fire] An SMG's and a rifle's burst is drawn from the humans' deciles; a machine gun, an automatic pistol or
