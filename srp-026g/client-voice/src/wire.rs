@@ -1,6 +1,9 @@
-//! Bounded version-one UDP protocol. Raw bytes become one typed message here,
-//! or a [`Malformed`] saying why they do not.
+//! Bounded version-two UDP protocol (an utterance has a [`Channel`]). Raw
+//! bytes become one typed message here, or a [`Malformed`] saying why they do
+//! not.
 use crate::SLOTS;
+pub use voice_abi::Channel;
+pub const VERSION: u8 = 2;
 pub const MAX_DATAGRAM: usize = 400;
 /// The most frames an AUDIO carries: [`crate::Sender`] sends two, one at an
 /// utterance's end on an odd frame, and [`crate::Core`] plays two. The
@@ -24,11 +27,13 @@ pub enum Message {
     Start {
         session: u32,
         utt: u16,
+        channel: Channel,
         ms: u32,
     },
     Audio {
         session: u32,
         utt: u16,
+        channel: Channel,
         seq: u16,
         frames: Vec<Vec<u8>>,
     },
@@ -46,11 +51,13 @@ pub enum Message {
     RelayStart {
         slot: u8,
         utt: u16,
+        channel: Channel,
         ms: u32,
     },
     RelayAudio {
         slot: u8,
         utt: u16,
+        channel: Channel,
         seq: u16,
         frames: Vec<Vec<u8>>,
     },
@@ -75,6 +82,8 @@ pub enum Malformed {
     Length,
     /// A slot of no player ([`SLOTS`] or more).
     Slot(u8),
+    /// A channel byte that is neither key's.
+    Channel(u8),
     /// AUDIO not of 1 to [`MAX_FRAMES`] frames that fill it exactly.
     Frames,
     /// A frame [`crate::Encoder`] does not make ([`our_frame`]).
@@ -94,6 +103,7 @@ impl std::fmt::Display for Malformed {
             Self::Kind(kind) => write!(f, "type {kind:#04x}"),
             Self::Length => write!(f, "wrong length"),
             Self::Slot(slot) => write!(f, "slot {slot}"),
+            Self::Channel(channel) => write!(f, "channel {channel}"),
             Self::Frames => write!(f, "malformed frames"),
             Self::NotOpus => write!(f, "a frame our encoder does not make"),
             Self::Roster => write!(f, "a slot twice in the roster"),
@@ -132,6 +142,10 @@ impl Reader<'_> {
             Err(Malformed::Slot(slot))
         }
     }
+    fn channel(&mut self) -> Result<Channel, Malformed> {
+        let byte = self.byte()?;
+        Channel::of_byte(byte).ok_or(Malformed::Channel(byte))
+    }
     fn frames(&mut self) -> Result<Vec<Vec<u8>>, Malformed> {
         let count = usize::from(self.byte()?);
         if !(1..=MAX_FRAMES).contains(&count) {
@@ -164,7 +178,7 @@ pub fn parse(bytes: &[u8]) -> Result<Message, Malformed> {
     if magic != 0x56 {
         return Err(Malformed::NotVoice);
     }
-    if version != 1 {
+    if version != VERSION {
         return Err(Malformed::Version(version));
     }
     let mut r = Reader(body);
@@ -182,11 +196,13 @@ pub fn parse(bytes: &[u8]) -> Result<Message, Malformed> {
         2 => Message::Start {
             session: r.u32()?,
             utt: r.u16()?,
+            channel: r.channel()?,
             ms: r.u32()?,
         },
         3 => Message::Audio {
             session: r.u32()?,
             utt: r.u16()?,
+            channel: r.channel()?,
             seq: r.u16()?,
             frames: r.frames()?,
         },
@@ -199,11 +215,13 @@ pub fn parse(bytes: &[u8]) -> Result<Message, Malformed> {
         0x82 => Message::RelayStart {
             slot: r.slot()?,
             utt: r.u16()?,
+            channel: r.channel()?,
             ms: r.u32()?,
         },
         0x83 => Message::RelayAudio {
             slot: r.slot()?,
             utt: r.u16()?,
+            channel: r.channel()?,
             seq: r.u16()?,
             frames: r.frames()?,
         },
@@ -240,7 +258,7 @@ pub fn parse(bytes: &[u8]) -> Result<Message, Malformed> {
 }
 impl Message {
     pub fn encode(&self) -> Option<Vec<u8>> {
-        let mut b = vec![0x56, 1];
+        let mut b = vec![0x56, VERSION];
         match self {
             Self::Hello {
                 session,
@@ -252,10 +270,16 @@ impl Message {
                 b.push(u8::from(*hears));
                 b.extend(muted.to_le_bytes());
             }
-            Self::Start { session, utt, ms } => {
+            Self::Start {
+                session,
+                utt,
+                channel,
+                ms,
+            } => {
                 b.push(2);
                 b.extend(session.to_le_bytes());
                 b.extend(utt.to_le_bytes());
+                b.push(channel.byte());
                 b.extend(ms.to_le_bytes());
             }
             Self::End {
@@ -287,12 +311,18 @@ impl Message {
                     b.extend(id.to_le_bytes());
                 }
             }
-            Self::RelayStart { slot, utt, ms } => {
+            Self::RelayStart {
+                slot,
+                utt,
+                channel,
+                ms,
+            } => {
                 if usize::from(*slot) >= SLOTS {
                     return None;
                 }
                 b.extend([0x82, *slot]);
                 b.extend(utt.to_le_bytes());
+                b.push(channel.byte());
                 b.extend(ms.to_le_bytes());
             }
             Self::RelayEnd { slot, utt, reason } => {
@@ -306,16 +336,18 @@ impl Message {
             Self::Audio {
                 session,
                 utt,
+                channel,
                 seq,
                 frames,
             } => {
                 b.push(3);
                 b.extend(session.to_le_bytes());
-                audio(&mut b, *utt, *seq, frames)?;
+                audio(&mut b, *utt, *channel, *seq, frames)?;
             }
             Self::RelayAudio {
                 slot,
                 utt,
+                channel,
                 seq,
                 frames,
             } => {
@@ -323,17 +355,18 @@ impl Message {
                     return None;
                 }
                 b.extend([0x83, *slot]);
-                audio(&mut b, *utt, *seq, frames)?;
+                audio(&mut b, *utt, *channel, *seq, frames)?;
             }
         }
         (b.len() <= MAX_DATAGRAM).then_some(b)
     }
 }
-fn audio(b: &mut Vec<u8>, utt: u16, seq: u16, frames: &[Vec<u8>]) -> Option<()> {
+fn audio(b: &mut Vec<u8>, utt: u16, channel: Channel, seq: u16, frames: &[Vec<u8>]) -> Option<()> {
     if frames.is_empty() || frames.len() > MAX_FRAMES {
         return None;
     }
     b.extend(utt.to_le_bytes());
+    b.push(channel.byte());
     b.extend(seq.to_le_bytes());
     b.push(frames.len() as u8);
     for f in frames {
@@ -362,6 +395,7 @@ mod tests {
         let m = Message::RelayAudio {
             slot: 3,
             utt: 65535,
+            channel: Channel::Radio,
             seq: 2,
             frames: vec![vec![0x08, 2, 3], vec![0x48]],
         };
@@ -373,7 +407,10 @@ mod tests {
         let mut extra = b.clone();
         extra.push(0);
         assert_eq!(parse(&extra), Err(Malformed::Frames));
-        assert_eq!(parse(&[0x56, 1, 0x81, 20]), Err(Malformed::Slot(20)));
+        assert_eq!(parse(&[0x56, VERSION, 0x81, 20]), Err(Malformed::Slot(20)));
+        let mut other = b.clone();
+        other[6] = 2;
+        assert_eq!(parse(&other), Err(Malformed::Channel(2)));
     }
     #[test]
     fn oversized_audio_rejected() {
@@ -381,6 +418,7 @@ mod tests {
             Message::Audio {
                 session: 1,
                 utt: 1,
+                channel: Channel::Near,
                 seq: 0,
                 frames: vec![vec![0x48; MAX_FRAME_BYTES + 1]; 2]
             }

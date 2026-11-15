@@ -1777,8 +1777,9 @@ st_profile_selection_warning	Změna profilu prodlouží oživení o 20 sekund
 st_profile_warning_weapon	Profil není aktivní: chybí zbraň
 st_profile_warning_weapon_ammo	Profil není aktivní: v batohu není dost munice
 st_profile_warning_weapon_ammo_in_inv	Profil není aktivní: ve skladu není dost munice
-st_ptt_action	Mluvit (podržet)
+st_ptt_action	Mluvit vysílačkou
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Mluvit nablízko
 st_put_item	Položit ({USE})
 st_quest_change_warning	Pozor! Změna úkolů sníží loajalitu k frakci!
 st_quest_completed	Úkol splněn!

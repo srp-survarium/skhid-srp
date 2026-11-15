@@ -1777,8 +1777,9 @@ st_profile_selection_warning	Profiilin vaihto asettaa 20 sekunnin uudelleensynty
 st_profile_warning_weapon	Et voi mennä taisteluun ilman asetta!
 st_profile_warning_weapon_ammo	Et voi mennä taisteluun, repussa on liian vähän ammuksia!
 st_profile_warning_weapon_ammo_in_inv	Et voi mennä taisteluun, tavaroissasi on liian vähän ammuksia!
-st_ptt_action	Puhu (pidä pohjassa)
+st_ptt_action	Puhu radioon
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Puhu lähelle
 st_put_item	Aseta ({USE})
 st_quest_change_warning	Varoitus! Tehtävien vaihtaminen vähentää ryhmittymäuskollisuuttasi!
 st_quest_completed	Tehtävä suoritettu!

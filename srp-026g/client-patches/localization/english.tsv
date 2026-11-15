@@ -1777,8 +1777,9 @@ st_profile_selection_warning	20 seconds respawn time when changing profile
 st_profile_warning_weapon	Cannot enter the battle without weapons!
 st_profile_warning_weapon_ammo	Unable to enter the battle, insufficient ammo in your backpack!
 st_profile_warning_weapon_ammo_in_inv	Unable to enter the batle, insufficient ammo in your inventory!
-st_ptt_action	Push to talk
+st_ptt_action	Talk on radio
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Talk nearby
 st_put_item	Put ({USE})
 st_quest_change_warning	Warning! Changing tasks will lower your faction loyalty!
 st_quest_completed	Mission accomplished!

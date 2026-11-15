@@ -3609,8 +3609,9 @@ without it, or of another version (unloaded), voice is off.
 - `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
   (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied;
 - `game_world.after_move` (every frame of a match): the options to the DLL on a change, the muted
-  places, how each place is heard (`sv_hear`: a teammate, in a free-for-all any player, from 10 m
-  on or with either of the two dead through the radio; nearer, plain in the world, its gains in the
+  places, how each place is heard on its two channels (`sv_hear`: its radio when it is a teammate,
+  in a free-for-all any player, wherever it is; its 10 m voice, both alive and nearer than 10 m,
+  plain in the world, its gains in the
   two ears the engine's own pan of a sound at its place, `sound_scene::calculate_3d_pan` 0x57D70,
   times a gain by its distance) and the
   hud's `root.srp_voice_talking(name, side, ...)` on a change (side `"mate"` or `"opponent"`); a push-to-talk whose key or button is up
@@ -3618,9 +3619,14 @@ without it, or of another version (unloaded), voice is off.
   their own, a button by its VK_*BUTTON) or with the game out of focus is let go;
 - `tab_cursor.key` (before patch 86's) and `game_world.mouse_key` (0x25CF70, on_mouse_key_action
   past its keyboard ask and patch 31's jump: ESI the handler, ESP+14h the button's key, +18h its
-  kind, 0 press, 1 release, 2 held): the binder's chat key (kind 8) 47h, `ptt`, down and up, on a
-  key or a mouse button, is push-to-talk; its Controls row is the game group's and can be set
-  (patch 62's `controls`);
+  kind, 0 press, 1 release, 2 held): the binder's chat keys (kind 8), down and up, on a
+  key or a mouse button, are the two push-to-talk keys (the owner, 2026-11-16: "two voice buttons
+  one for 10m one for radio"): 47h, `ptt` (P), the radio's (the team's; in a free-for-all
+  everyone's), and 37h, `ptt_nearby` (O), the 10 m voice's (everyone near hears it). 37h is the
+  action table's entry 0xA74E10, `serialize_player_state` (kinds 5, a debug action whose console
+  command does not exist), renamed and made kind 8, its default key kept (`VOICE_ACTION`). Their
+  Controls rows are the game group's and can be set (patch 62's `controls`: `ptt`'s moved, a 43rd
+  for `ptt_nearby`);
 - `hud.callback` (after patch 86's): the Tab list's player menu asks `srp_voice_menu(place)`
   (answered `root.srp_voice_menu(place, offered, muted)`) and sends `srp_voice_mute(place,
   "1"|"0")` (answered `root.srp_voice_mute(place, done)`): "Mute voice" / "Unmute voice" after the
@@ -3670,13 +3676,13 @@ the oldest go first), read once a match: a record that is not 8 hex digits, or a
 out and logged.
 
 **Texts** in `localization/*.tsv`: `st_hide_spam_option` ("Disable voice chat"), `st_ptt_action`
-("Push to talk"), `st_srp_hud_voice_*` (the Tab menu's entries and lines), `st_srp_mic_test*` (the
+("Talk on radio"), `st_ptt_nearby_action` ("Talk nearby"), `st_srp_hud_voice_*` (the Tab menu's entries and lines), `st_srp_mic_test*` (the
 microphone test's button), `st_srp_microphone*` (the Microphone list).
 
 Checked: `selftest_026g.py` check 66 (the sites in the original, the eleven hooks in the build, the
-game's ptt entry unchanged, the main menu's `srp_mic_test`) and check 62 (the Controls rows: push-to-talk's in the game group, its
-key settable), `check_hide_ui_026g.py` (the list sent to the movie), `cargo test` in `rust/` (the
-mutes' text, malformed records, plain under 10 m with the pan it is given and its fall by distance, the radio from 10 m and for the dead, the two distances apart, the keys a held input is polled by,
+game's ptt entry unchanged, the entry 37h the debug action in the original and `ptt_nearby` of kind 8 with its key in the build, the main menu's `srp_mic_test`) and check 62 (the Controls rows: push-to-talk's in the game group, its
+key settable, the 43rd), `check_hide_ui_026g.py` (the list sent to the movie, the keys read from the binder), `cargo test` in `rust/` (the
+mutes' text, malformed records, the 10 m voice under 10 m with the pan it is given and its fall by distance, silent from 10 m and for the dead, a mate's radio anywhere and an opponent's never, the keys a held input is polled by,
 the microphone test's press and texts, the Microphone pick's text and the list's shown pick), `check_voice_pan_026g.py` (Unicorn: the original exe's calculate_3d_pan as the patch calls it: its law, what it reads and writes), `scripts/mic-test/check.sh` (Ruffle: the button and the Microphone list).
 Played locally 2026-11-11 (two games under Wine, one microphone): talking and hearing in a team.
 

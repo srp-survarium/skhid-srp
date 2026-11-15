@@ -527,8 +527,11 @@ Patches:
   user.cfg (configs.start); the DLL started at match_client::connect
   (0x27A1B0) on the match port + 1 and stopped at on_finish_match (0x1F96F0)
   and on_deactivate (0x1F9520); every frame (game_world.after_move) the
-  options, mutes, radio distances and the hud's list of who talks;
-  push-to-talk (ptt, 47h) from the game world's keys (tab_cursor.key);
+  options, mutes, how each player is heard and the hud's list of who talks;
+  two push-to-talk keys from the game world's keys (tab_cursor.key): the
+  radio's (ptt, 47h, P: the team's, in a free-for-all everyone's) and the
+  10 m voice's (ptt_nearby, O: the action table's entry 37h renamed, kind
+  8; everyone near hears it);
   "Mute voice" in the Tab list's player menu (hud.callback, after patch
   86's); the options' "Test microphone" (the DLL records 10 s and plays
   them back, in a match or not): the Settings' srp_mic_test
@@ -2462,7 +2465,8 @@ HIDE_UI_HOOKS = (
 )
 # The options' controls (the same patch): the six functions of game_options
 # that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
-# 2Ah rows, the 29h toggle_replay_ui, the 2Ah patch 78's artefact) instead: (site, its bytes, where in
+# 2Bh rows, the 29h toggle_replay_ui, the 2Ah patch 78's artefact, the 2Bh
+# patch 66's ptt_nearby) instead: (site, its bytes, where in
 # them the address is, the row's field it names) and (site, its bytes, where
 # the count 28h is).
 HIDE_UI_TABLE = 0xA9DB28
@@ -2497,7 +2501,8 @@ def hide_ui_table_writes(linked):
 
 
 # The rows `controls` adds after the game's 28h: (action, label key).
-CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"))
+CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"),
+                  (0x37, "st_ptt_nearby_action"))
 # Patch 78's carry key (../docs/notes/held_artefact_transfer.md): the game's
 # own action `artefact` (23h, kinds 5; action table entry 0xA74D5C), which
 # nothing in the game reads and had no default key, gets H (the binder's
@@ -2513,9 +2518,31 @@ HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # Voice chat (patch 66, README; client_patch.md section 3.71; the rules:
 # ../docs/notes/voice-chat.md): the safe Rust module voice.rs and its named
 # sites in voice.toml, in the shared patches blocks (ARENA below), with
-# skhid_voice.dll beside the exe (srp-026g/client-voice). Its one key is the
-# game's own ptt (47h, kind 8: only the chat handler and this patch ask kind
-# 8, default P); the action table and the Controls rows stay the game's.
+# skhid_voice.dll beside the exe (srp-026g/client-voice). Two push-to-talk
+# keys (the owner, 2026-11-16: "two voice buttons one for 10m one for
+# radio"). The radio's is the game's own ptt (47h, kind 8: only the chat
+# handler and this patch ask kind 8, default P). The 10 m voice's is the
+# action table's entry 0xA74E10, serialize_player_state (37h, kinds 5, kO; a
+# debug action whose console command does not exist), which becomes
+# ptt_nearby, kind 8, its default key O kept (in a match only that debug
+# action had it; the lobby's `options`, kind 2, has it too, as C is both
+# crouch_toggle's and the lobby's `character`'s). Its Controls row is the
+# 43rd of `controls` (CONTROLS_ADDED).
+# The action table's entry {name, id, kinds, toggle, default key}: 37h.
+VOICE_ACTION = 0xA74E10
+VOICE_ACTION_OLD = struct.pack("<5I", 0x9FDDF8, 0x37, 5, 0, 0x9FDDF4)
+VOICE_ACTION_KINDS = 8
+# The entry as an install row (the build's write index names its owner by it).
+VOICE_ACTION_ENTRY = (VOICE_ACTION, VOICE_ACTION_OLD)
+
+
+def voice_action_write(linked):
+    """(VA, its bytes, the new bytes) of the action's entry: the name the
+    link's ptt_nearby_action, kind 8, the default key as it was."""
+    name = linked.symbols["ptt_nearby_action"]
+    return VOICE_ACTION, VOICE_ACTION_OLD, struct.pack("<5I", name, 0x37, VOICE_ACTION_KINDS, 0, 0x9FDDF4)
+
+
 # The kill feed's wall, ricochet and pain icons (patch 67, README; client_patch.md
 # section 3.55; the rules: ../docs/notes/kill-feed-icons.md):
 # kill_feed_026g.asm in the arena's block kill_feed.code (ARENA below), two
@@ -3087,7 +3114,7 @@ ARENA = (
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
-    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
+    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 43 controls
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("audio_device.code", "code", 0x1000, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # patch 100
     ArenaBlock("audio_device.state", "state", 0x10, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # its engine
@@ -4184,6 +4211,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
                 patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
+                patch_section_value(data, *voice_action_write(linked))
                 for change in DETAIL_PATCHES:
                     patch(data, *change)
                 patch(data, *KILL_FEED_ARGUMENT)

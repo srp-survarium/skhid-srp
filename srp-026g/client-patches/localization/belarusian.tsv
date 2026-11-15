@@ -1777,8 +1777,9 @@ st_profile_selection_warning	+20 секунд да часу адраджэння
 st_profile_warning_weapon	Профіль неактыўны: няма зброі
 st_profile_warning_weapon_ammo	Профіль неактыўны: недастаткова патронаў у заплечніку
 st_profile_warning_weapon_ammo_in_inv	Профіль неактыўны: недастаткова патронаў на складзе
-st_ptt_action	Гаварыць (утрымліваць)
+st_ptt_action	Гаварыць па рацыі
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Гаварыць побач
 st_put_item	Пакласці ({USE})
 st_quest_change_warning	Увага! Пры змене задання лаяльнасць групоўкі да вас знізіцца!
 st_quest_completed	Заданне выканана!
