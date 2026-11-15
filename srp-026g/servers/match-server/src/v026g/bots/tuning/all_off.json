@@ -196,6 +196,8 @@
     "pair_up_hidden": false,
     "recast": false,
     "sniper_memory": null,
+    "holder": null,
+    "replan_on_spot": false,
     "trade_out_of_lines": false,
     "whole_route": false,
     "whole_route_booked": false

@@ -1,0 +1,12 @@
+postfix-l1-2f3be440d batt: his kills 29 (from a place that killed within 120 s: 5)
+  fresh place: 24 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 19 (79 %); victim walking in while he was still 13 of 24 (54 %); of those known before 11; he moving 9; line open -> death mean 2.1 s
+  prior place: 5 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 5 (100 %); victim walking in while he was still 3 of 5 (60 %); of those known before 3; he moving 1; line open -> death mean 1.3 s
+postfix-l1-2f3be440d tdm: his kills 48 (from a place that killed within 120 s: 16)
+  fresh place: 32 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 28 (88 %); victim walking in while he was still 22 of 32 (69 %); of those known before 18; he moving 5; line open -> death mean 2.7 s
+  prior place: 16 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 16 (100 %); victim walking in while he was still 12 of 16 (75 %); of those known before 12; he moving 3; line open -> death mean 1.9 s
+postfix-l2-2f3be440d batt: his kills 36 (from a place that killed within 120 s: 7)
+  fresh place: 29 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 22 (76 %); victim walking in while he was still 15 of 29 (52 %); of those known before 11; he moving 13; line open -> death mean 2.3 s
+  prior place: 7 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 7 (100 %); victim walking in while he was still 5 of 7 (71 %); of those known before 5; he moving 2; line open -> death mean 1.0 s
+postfix-l2-2f3be440d tdm: his kills 79 (from a place that killed within 120 s: 42)
+  fresh place: 37 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 34 (92 %); victim walking in while he was still 26 of 37 (70 %); of those known before 23; he moving 11; line open -> death mean 2.8 s
+  prior place: 42 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 36 (86 %); victim walking in while he was still 23 of 42 (55 %); of those known before 19; he moving 13; line open -> death mean 2.1 s

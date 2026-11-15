@@ -802,6 +802,45 @@ pub struct ThreatTuning {
     /// (`replan`, every change of the cover) stays off for its cost; this looks once a cue. A bot holding a post with no route
     /// is not moved. Off: as before.
     pub replan_on_cue: bool,
+    /// `threat.holder` [D1, anti-camper]: an enemy the team's own senses (`Track::own`: its sight, its hearing, a mate's callout;
+    /// never a cheat or the HUD) place within [`Holder::hold_m`] of one place for [`Holder::hold_ms`] or more is a holder: a
+    /// sensed spot with lanes all round him, as a sensed sniper's (`threat::ThreatSpots::holder_sensed`), so the routes go round
+    /// his sight, a walker in it runs, the lane smoke covers it and the objective plays weigh a way through it (a cost, never a
+    /// block: the objective kept). The strong stand-in camper's kills (routes' traces, anti-camper `walk_in_v1.py`, fe8c7a797,
+    /// TDM): the victim's own senses had placed him before it entered his sight in 79-100 % and it walked in on him while he
+    /// stood still in 26-64 % of his kills; the kill spots (K1) give no lane before a kill and the sniper's sensed spot only to a
+    /// sniper. None: as before.
+    pub holder: Option<Holder>,
+    /// `threat.replan_on_spot` [D1, anti-camper]: when a spot of the team has its lanes newly cast (a new spot, a holder, or a
+    /// spot cast again), each of the team's bots looks once at its route ahead (A342c's look, A3's test: more than
+    /// `threat::EXPOSED_M` of it in the lanes) and re-plans it to the same goal. A route already walked is not checked against a
+    /// lane that came after it was drawn (`drive.rs` `threat_ahead`: A3's `replan` off for its cost, A342c's look only at a cue):
+    /// 15 of the strong camper's 42 kills from a remembered place at L2 TDM walked into his lanes within 10 s (cue_kills_v2,
+    /// 2f3be440d). Off: as before.
+    pub replan_on_spot: bool,
+}
+
+/// [D1] [`ThreatTuning::holder`]: when a sensed enemy holds a place. Every value from live data or a client value.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Holder {
+    /// His senses this near the first of his stay count as one place, m. A342's "at the spot" (5 m, the live camper spots of
+    /// 744 human matches) and the live human camper's radius holding 90 % of his time, a median 5.8 m (A199 §3.4, 710 human
+    /// camper episodes).
+    pub hold_m: f32,
+    /// A stay this long or longer is a hold, ms: a walk through crosses a circle of `hold_m` round in 2 x 5 m / 3.5 m/s =
+    /// 2.9 s at the walk cap (3.5 m/s, `plays::crossfire::WALK_M_S`, PROVEN), so a stay of 3 s within it is no walk through.
+    pub hold_ms: u32,
+    /// The spot is held this long after the team last sensed him holding, and a sense this much later than the one before
+    /// starts a new stay, ms. Live (A199 §3.5, 710 human camper episodes): on his spot 5 s after the cue in 80 %, 15 s after
+    /// in 54 %, 30 s after in 36 %: 15 s is the last point where he is more likely there than gone.
+    pub memory_ms: u32,
+}
+
+impl Default for Holder {
+    fn default() -> Self {
+        Self { hold_m: 5.0, hold_ms: 3_000, memory_ms: 15_000 }
+    }
 }
 
 /// A320 [`ThreatTuning::camp_flank`]: the flank routes round the known camp spots, and what the flanker does when the camper
@@ -1054,6 +1093,8 @@ impl Default for ThreatTuning {
             no_lone_m: None,
             cue_merge_m: None,
             replan_on_cue: false,
+            holder: Some(Holder::default()),
+            replan_on_spot: true,
         }
     }
 }

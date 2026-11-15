@@ -138,6 +138,8 @@ pub(super) struct OutrangedCounts {
     last_kill: Option<(u32, Place, Place)>,
     /// By team: what the sensed snipers' spots did (`ThreatSpots::sniper_stats`).
     lanes: [crate::v026g::bots::threat::SniperLaneStats; 2],
+    /// [D1] By team: what the holders' spots did (`ThreatSpots::holder_stats`).
+    holders: [crate::v026g::bots::threat::HolderStats; 2],
     /// The objective ways weighed by them (`threat::sniper_way_tally`): the thread's counts when this match began, and
     /// the match's since, by team [weighed, scored down, metres].
     ways_from: Option<[[u64; 3]; 2]>,
@@ -239,6 +241,11 @@ impl Topic for OutrangedCounts {
         for (team, lanes) in self.lanes.iter_mut().enumerate() {
             if let Some(state) = bots.teams.get(team) {
                 *lanes = state.features.threat.spots.sniper_stats();
+            }
+        }
+        for (team, holders) in self.holders.iter_mut().enumerate() {
+            if let Some(state) = bots.teams.get(team) {
+                *holders = state.features.threat.spots.holder_stats();
             }
         }
         let now = crate::v026g::bots::threat::sniper_way_tally::counted();
@@ -382,7 +389,7 @@ impl OutrangedCounts {
             "outranged": { "by_team": { "0": one(&all[0], &d[0], &self.lanes[0], &self.ways[0], &self.paths[0]), "1": one(&all[1], &d[1], &self.lanes[1], &self.ways[1], &self.paths[1]) } },
         });
         let text = format!(
-            "owner-test outranged: a sniper seen beyond the weapon's band {} ticks in {} episodes (ticks facing it {}, in the open {}), breaks of sight begun {}, a carrier kept its way {} ticks; kills by snipers {} (team 0 {} / team 1 {}), deaths to a sniper {} of which within 10 s of a sighting {}; sniper spots made by [seen, heard, told] {:?}, held ticks [within 15 s of a sense, past it] {:?}, objective ways weighed {} of which scored down {} ({} m in his lanes); deaths to the stand-in camper {} of which within 25 m of an objective {}; FAIR (0) moved by a sense older than 15 s {}",
+            "owner-test outranged: a sniper seen beyond the weapon's band {} ticks in {} episodes (ticks facing it {}, in the open {}), breaks of sight begun {}, a carrier kept its way {} ticks; kills by snipers {} (team 0 {} / team 1 {}), deaths to a sniper {} of which within 10 s of a sighting {}; sniper spots made by [seen, heard, told] {:?}, held ticks [within 15 s of a sense, past it] {:?}, objective ways weighed {} of which scored down {} ({} m in his lanes); deaths to the stand-in camper {} of which within 25 m of an objective {}; FAIR (0) moved by a sense older than 15 s {}; holder spots made by [seen, heard, told] {:?}, let go {}, cast again as he moved {}, casts {} ({} regions), FAIR (0) moved by a sense older than 15 s {}",
             all[0].sightings + all[1].sightings,
             d[0].episodes + d[1].episodes,
             all[0].facing + all[1].facing,
@@ -402,6 +409,12 @@ impl OutrangedCounts {
             d[0].to_camper + d[1].to_camper,
             d[0].to_camper_at_objective + d[1].to_camper_at_objective,
             self.lanes[0].unfair + self.lanes[1].unfair,
+            [0, 1, 2].map(|k| self.holders[0].made_by[k] + self.holders[1].made_by[k]),
+            self.holders[0].let_go + self.holders[1].let_go,
+            self.holders[0].moved + self.holders[1].moved,
+            self.holders[0].casts + self.holders[1].casts,
+            self.holders[0].regions + self.holders[1].regions,
+            self.holders[0].unfair + self.holders[1].unfair,
         );
         Part::new(json, text)
     }

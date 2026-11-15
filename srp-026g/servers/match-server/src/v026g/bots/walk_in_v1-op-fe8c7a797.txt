@@ -1,0 +1,26 @@
+cells 4 tdm seeds 1 2 3 4 5 6 7 8 jobs 2
+extra SRP_BENCH_HIT_MODEL=on SRP_BENCH_CAMPER_SKILL=1.0 SRP_BENCH_CAMPER_AIM_SCALE=0.35 SRP_BENCH_CAMPER_WATCH=known SRP_BENCH_HUMAN=camper SRP_BENCH_HUMAN_SMOKE=off SRP_BENCH_HUMAN_TRAPS=off SRP_BENCH_CAMPER_TRACE=/home/pc/out-routes-20261115/op-l1-m4-fe8c7a797
+camper-trace-m1_4-s1.jsonl
+op-l1-m1-fe8c7a797 tdm: his kills 42 (from a place that killed within 120 s: 22)
+  fresh place: 20 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 17 (85 %); victim walking in while he was still 15 of 20 (75 %); of those known before 12; he moving 5; line open -> death mean 3.5 s
+  prior place: 22 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 22 (100 %); victim walking in while he was still 12 of 22 (55 %); of those known before 12; he moving 9; line open -> death mean 2.2 s
+  MEMORY (any life, his kills within 8 m in the last 120 s before this kill): 0 prior 20 (48 %), 1 prior 12, 2 prior 4, 3+ prior 6
+    with 1+ prior: victim in their lanes (+-20 deg) 13, of them walked in within 10 s 5
+camper-trace-m1_4-s1.jsonl
+op-l2-m1-fe8c7a797 tdm: his kills 28 (from a place that killed within 120 s: 14)
+  fresh place: 14 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 13 (93 %); victim walking in while he was still 9 of 14 (64 %); of those known before 9; he moving 5; line open -> death mean 3.7 s
+  prior place: 14 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 14 (100 %); victim walking in while he was still 9 of 14 (64 %); of those known before 9; he moving 4; line open -> death mean 2.9 s
+  MEMORY (any life, his kills within 8 m in the last 120 s before this kill): 0 prior 14 (50 %), 1 prior 10, 2 prior 4, 3+ prior 0
+    with 1+ prior: victim in their lanes (+-20 deg) 10, of them walked in within 10 s 7
+camper-trace-m4_4-s1.jsonl
+op-l1-m4-fe8c7a797 m4_4: his kills 20 (from a place that killed within 120 s: 7)
+  fresh place: 13 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 12 (92 %); victim walking in while he was still 8 of 13 (62 %); of those known before 7; he moving 2; line open -> death mean 1.2 s
+  prior place: 7 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 6 (86 %); victim walking in while he was still 4 of 7 (57 %); of those known before 3; he moving 3; line open -> death mean 1.3 s
+  MEMORY (any life, his kills within 8 m in the last 120 s before this kill): 0 prior 13 (65 %), 1 prior 4, 2 prior 2, 3+ prior 1
+    with 1+ prior: victim in their lanes (+-20 deg) 5, of them walked in within 10 s 2
+camper-trace-m4_4-s1.jsonl
+op-l2-m4-fe8c7a797 m4_4: his kills 23 (from a place that killed within 120 s: 4)
+  fresh place: 19 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 15 (79 %); victim walking in while he was still 7 of 19 (37 %); of those known before 5; he moving 9; line open -> death mean 1.0 s
+  prior place: 4 kills; no line in the last 10 s 0; victim knew him before the line opened (own senses/callouts within 10 s) 3 (75 %); victim walking in while he was still 1 of 4 (25 %); of those known before 1; he moving 3; line open -> death mean 1.5 s
+  MEMORY (any life, his kills within 8 m in the last 120 s before this kill): 0 prior 19 (83 %), 1 prior 4, 2 prior 0, 3+ prior 0
+    with 1+ prior: victim in their lanes (+-20 deg) 2, of them walked in within 10 s 2

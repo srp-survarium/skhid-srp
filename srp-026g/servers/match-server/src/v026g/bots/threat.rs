@@ -978,6 +978,8 @@ pub struct SpotRules {
     pub sniper: SniperLife,
     /// [A320 F7 `threat.spot_follows_m`] A kill spot whose shooter is sensed afresh farther than this from it moves to him.
     pub follows_m: Option<f32>,
+    /// [D1 `threat.holder`] A holder's spot is held this long after the last sense of his hold, ms (none: no holder spots).
+    pub holder_ms: Option<u32>,
 }
 
 impl SpotRules {
@@ -990,6 +992,17 @@ impl SpotRules {
                 None => SniperLife::WhileSensed,
             },
             follows_m: tuning.spot_follows_m,
+            holder_ms: tuning.holder.map(|h| h.memory_ms),
+        }
+    }
+
+    /// The strength a fresh sense of a `kind` spot fills it to: held that long after it.
+    fn fill(self, kind: SensedKind) -> f32 {
+        match kind {
+            SensedKind::Sniper => self.sniper.fill(),
+            SensedKind::Holder => {
+                SniperLife::Remembered { memory_ms: self.holder_ms.unwrap_or(0) }.fill()
+            }
         }
     }
 
@@ -1085,9 +1098,20 @@ enum SpotSource {
     /// Kills of the team's bots from there ([`ThreatSpots::died`]): those kept, and when the team last sensed the
     /// shooter on it since his last death (none: he died since).
     Kills { kills: Vec<Kill>, seen: Option<u32> },
-    /// A sniper the team sensed ([`ThreatSpots::sniper_sensed`]), no kill behind it: lanes all round him; how and when
-    /// the team last sensed him (his death lets the spot go, so there always is a last time).
-    Sensed { how: Sense, last: u32 },
+    /// A sniper ([`ThreatSpots::sniper_sensed`]) or a holder ([`ThreatSpots::holder_sensed`]) the team sensed, no kill
+    /// behind it: lanes all round him; how and when the team last sensed him (his death lets the spot go, so there always
+    /// is a last time), and which of the two he is.
+    Sensed { how: Sense, last: u32, kind: SensedKind },
+}
+
+/// What made a sensed spot: its life and who reads it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SensedKind {
+    /// A sniper (`threat.sniper_memory`): kept as [`SniperLife`] says; play 28 answers it.
+    Sniper,
+    /// [D1 `threat.holder`] Any weapon, sensed holding one place: held [`SpotRules::holder_ms`] after the last sense of
+    /// his hold, then let go.
+    Holder,
 }
 
 /// One place a shooter killed from, or a sniper was sensed at.
@@ -1117,6 +1141,10 @@ impl Spot {
     /// Whether the spot is held at `now`.
     pub fn held(&self, now: u32) -> bool {
         let strength = self.strength_at(now);
+        // [D1] A holder's spot: its fill's memory only (each sense of his hold fills it to that), not the 15 s of a seen shooter.
+        if self.sensed_kind() == Some(SensedKind::Holder) {
+            return strength >= HELD_STRENGTH;
+        }
         strength >= HELD_STRENGTH
             || (strength >= HELD_SEEN_STRENGTH
                 && self.sensed().is_some_and(|t| now.saturating_sub(t) <= SEEN_MS))
@@ -1130,9 +1158,18 @@ impl Spot {
         }
     }
 
-    /// A sensed sniper's spot ([`SpotSource::Sensed`]): the jobs and the plays that read the held lines do not see it.
+    /// A sensed sniper's or holder's spot ([`SpotSource::Sensed`]): the jobs and the plays that read the held lines do not
+    /// see it.
     fn is_sensed(&self) -> bool {
         matches!(self.source, SpotSource::Sensed { .. })
+    }
+
+    /// Which sensed spot it is (a kill spot: none).
+    pub fn sensed_kind(&self) -> Option<SensedKind> {
+        match self.source {
+            SpotSource::Sensed { kind, .. } => Some(kind),
+            SpotSource::Kills { .. } => None,
+        }
     }
 
     /// [A317] Its latest kept kills, newest first (a sensed sniper's: none): when, and [A308] where the shooter was sensed.
@@ -1289,6 +1326,11 @@ pub enum SpotNote {
     Decayed,
     /// Its shooter died (it keeps [`SHOOTER_DIED_KEEPS`]).
     ShooterDied,
+    /// [D1] A holder's spot made: the team's senses had him holding; its lanes all round him within `reach_m`, how the team
+    /// sensed him last.
+    HolderMade { reach_m: f32, how: Sense },
+    /// [D1] A holder's spot let go: his hold not sensed for the rule's memory.
+    HolderLetGo,
 }
 
 /// A spot's event: when, which spot, its shooter and place then, what.
@@ -1312,6 +1354,15 @@ impl std::fmt::Display for SpotEvent {
             SpotNote::Cleared => "cleared, seen empty".to_string(),
             SpotNote::Decayed => "let go, decayed".to_string(),
             SpotNote::ShooterDied => "its shooter died".to_string(),
+            SpotNote::HolderMade { reach_m, how } => {
+                let how = match how {
+                    Sense::Seen => "seen",
+                    Sense::Heard => "heard",
+                    Sense::Told => "told",
+                };
+                format!("a holder's spot made (sensed holding, last {how}): lanes all round him within {reach_m:.0} m")
+            }
+            SpotNote::HolderLetGo => "a holder's spot let go: his hold not sensed lately".to_string(),
         };
         write!(
             f,
@@ -1339,6 +1390,8 @@ pub struct ThreatSpots {
     /// [`CAMP_KILLS_KEPT_MS`]: kept apart from the spots, which his death clears (`SpotNote::ShooterDied`, then seen empty),
     /// so a camper who comes back to his window after a death is remembered there ([`Self::camp_places`]).
     camp_kills: Vec<(Place, Kill)>,
+    /// [D1, measure] What the holders' spots did.
+    holders: HolderStats,
 }
 
 /// [A308] A team keeps its sensed killers' kills this long, ms: `smoke.threat_lane`'s window (5 min).
@@ -1359,6 +1412,20 @@ pub struct SniperLaneStats {
     pub made_by: [u32; 3],
     pub held_by_age: [u32; 2],
     pub unfair: u32,
+}
+
+/// [D1, measure] What the holders' spots did ([`ThreatSpots::holder_sensed`]): made (by how the team sensed him: seen,
+/// heard, told), let go (his hold not sensed for [`SpotRules::holder_ms`]), cast again when he moved or a longer reach came,
+/// moved on a sense older than [`SEEN_MS`] (none: a holder's sense is fresh), casts and the regions they covered.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HolderStats {
+    pub made: u32,
+    pub made_by: [u32; 3],
+    pub let_go: u32,
+    pub moved: u32,
+    pub unfair: u32,
+    pub casts: u32,
+    pub regions: u32,
 }
 
 /// [measure] The objective plays' ways weighed by the remembered snipers' lanes (`threat.sniper_memory`), by team: the
@@ -1557,11 +1624,33 @@ impl ThreatSpots {
     /// routes like any held spot's ([`Covered`]): he sees the ground before he has killed from it. Held while he is sensed
     /// ([`SEEN_MS`]), or with the area memory ([`SniperLife::Remembered`]) that long after the last sense, its place his
     /// last sensed one ([`area_m`] says how far he may be from it). Its lanes are cast again when he has moved
-    /// [`SNIPER_MOVED_M`].
+    /// [`SNIPER_MOVED_M`]. A holder's spot of his ([`Self::holder_sensed`]) becomes his sniper's.
     #[allow(clippy::too_many_arguments)]
     pub fn sniper_sensed(&mut self, shooter: Place, at: Vec3, time: u32, how: Option<Sense>, reach_m: f32, now: u32, rules: SpotRules) {
-        let fill = rules.sniper.fill();
-        let remembered = matches!(rules.sniper, SniperLife::Remembered { .. });
+        self.sensed_spot(SensedKind::Sniper, shooter, at, time, how, reach_m, now, rules);
+    }
+
+    /// [D1 `threat.holder`] The team's own senses had `shooter` holding one place (`HolderStays`), the last of them at
+    /// `at` at `time`: a spot with lanes all round him within `reach_m`, as a sensed sniper's (the routes go round what he
+    /// sees before he has killed from it), held [`SpotRules::holder_ms`] after this sense, then let go ([`Self::tick`]).
+    /// Nothing when the rule is off, or when a sniper's spot of him (longer kept, play 28's) is there already.
+    #[allow(clippy::too_many_arguments)]
+    pub fn holder_sensed(&mut self, shooter: Place, at: Vec3, time: u32, how: Option<Sense>, reach_m: f32, now: u32, rules: SpotRules) {
+        if rules.holder_ms.is_none() || self.spots.iter().any(|s| s.shooter == shooter && s.sensed_kind() == Some(SensedKind::Sniper)) {
+            return;
+        }
+        self.sensed_spot(SensedKind::Holder, shooter, at, time, how, reach_m, now, rules);
+    }
+
+    /// A sensed spot of `kind`: made, or filled, moved and cast again ([`Self::sniper_sensed`], [`Self::holder_sensed`]).
+    #[allow(clippy::too_many_arguments)]
+    fn sensed_spot(&mut self, kind: SensedKind, shooter: Place, at: Vec3, time: u32, how: Option<Sense>, reach_m: f32, now: u32, rules: SpotRules) {
+        let fill = rules.fill(kind);
+        // A holder's spot is where his hold was last sensed; a sniper's as the memory says.
+        let remembered = match kind {
+            SensedKind::Sniper => matches!(rules.sniper, SniperLife::Remembered { .. }),
+            SensedKind::Holder => true,
+        };
         let Some(s) = self.spots.iter_mut().find(|s| s.is_sensed() && s.shooter == shooter) else {
             let id = self.next_id;
             self.next_id = self.next_id.wrapping_add(1);
@@ -1576,14 +1665,24 @@ impl ThreatSpots {
                 empty_since: None,
                 cast: Cast::Due { kept: None },
                 held_then: false,
-                source: SpotSource::Sensed { how, last: time },
+                source: SpotSource::Sensed { how, last: time, kind },
             });
-            self.sniper_lanes.made += 1;
-            self.sniper_lanes.made_by[how.index()] += 1;
-            self.event(time, id, shooter, at, SpotNote::Made);
+            let note = match kind {
+                SensedKind::Sniper => {
+                    self.sniper_lanes.made += 1;
+                    self.sniper_lanes.made_by[how.index()] += 1;
+                    SpotNote::Made
+                }
+                SensedKind::Holder => {
+                    self.holders.made += 1;
+                    self.holders.made_by[how.index()] += 1;
+                    SpotNote::HolderMade { reach_m, how }
+                }
+            };
+            self.event(time, id, shooter, at, note);
             return;
         };
-        let SpotSource::Sensed { how: was, last } = &mut s.source else {
+        let SpotSource::Sensed { how: was, last, kind: was_kind } = &mut s.source else {
             return;
         };
         // A sense older than the last (another bot's, sensed before) says nothing new: it neither fills nor moves the
@@ -1593,6 +1692,11 @@ impl ThreatSpots {
         }
         *last = time;
         *was = how.unwrap_or(*was);
+        // A holder sensed with a sniper's weapon is the sniper's spot from now (never the other way: `holder_sensed`).
+        if *was_kind == SensedKind::Holder && kind == SensedKind::Sniper {
+            *was_kind = SensedKind::Sniper;
+        }
+        let kind = *was_kind;
         s.strength = fill;
         s.stamp = time;
         s.empty_since = None;
@@ -1604,7 +1708,10 @@ impl ThreatSpots {
             Some(moved) if moved || reach_m > s.reach_m => {
                 s.reach_m = reach_m;
                 s.cast.again(rules.recast);
-                self.sniper_lanes.moved += 1;
+                match kind {
+                    SensedKind::Sniper => self.sniper_lanes.moved += 1,
+                    SensedKind::Holder => self.holders.moved += 1,
+                }
                 true
             }
             Some(_) => remembered,
@@ -1613,9 +1720,17 @@ impl ThreatSpots {
             s.at = at;
             // [fair] Only a fresh sense moves it.
             if now.saturating_sub(time) > SEEN_MS {
-                self.sniper_lanes.unfair += 1;
+                match kind {
+                    SensedKind::Sniper => self.sniper_lanes.unfair += 1,
+                    SensedKind::Holder => self.holders.unfair += 1,
+                }
             }
         }
+    }
+
+    /// [D1] What the holders' spots did, summed.
+    pub fn holder_stats(&self) -> HolderStats {
+        self.holders
     }
 
     /// What the sniper spots did, summed.
@@ -1717,6 +1832,12 @@ impl ThreatSpots {
                 gone.push((s.id, JobEnd::Faded));
                 return false;
             }
+            // [D1] A holder's spot lives while held: his hold not sensed for the rule's memory lets it go.
+            if s.sensed_kind() == Some(SensedKind::Holder) && !s.held(now) {
+                notes.push((s.id, s.shooter, s.at, SpotNote::HolderLetGo));
+                gone.push((s.id, JobEnd::Faded));
+                return false;
+            }
             let empty = seen_empty_now(s.at, on_m, watchers, enemies, eyes);
             if !empty {
                 s.empty_since = None;
@@ -1731,6 +1852,7 @@ impl ThreatSpots {
             keep
         });
         self.gone.extend(gone);
+        self.holders.let_go += notes.iter().filter(|n| matches!(n.3, SpotNote::HolderLetGo)).count() as u32;
         let extra = self.gone.len().saturating_sub(GONE_KEPT);
         self.gone.drain(..extra);
         // Held from now: noted once a change, whatever made it held (its
@@ -1745,8 +1867,10 @@ impl ThreatSpots {
         let mut changed = self.spots.len() != before;
         let mut points = None;
         for s in self.spots.iter_mut().filter(|s| s.held(now)) {
+            // A sensed spot (a sniper's, a holder's) is cast by sight: what he sees.
             let sniper = s.is_sensed();
-            if sniper {
+            let kind = s.sensed_kind();
+            if kind == Some(SensedKind::Sniper) {
                 self.sniper_lanes.held_ticks += 1;
                 let fresh = s.sensed().is_some_and(|t| now.saturating_sub(t) <= SEEN_MS);
                 self.sniper_lanes.held_by_age[usize::from(!fresh)] += 1;
@@ -1787,9 +1911,16 @@ impl ThreatSpots {
             if todo.is_empty() {
                 let (cover, lanes) = (std::mem::take(seen), lanes.clone());
                 notes.push((s.id, s.shooter, s.at, SpotNote::Cast { regions: cover.len() }));
-                if sniper {
-                    self.sniper_lanes.casts += 1;
-                    self.sniper_lanes.regions += cover.len() as u32;
+                match kind {
+                    Some(SensedKind::Sniper) => {
+                        self.sniper_lanes.casts += 1;
+                        self.sniper_lanes.regions += cover.len() as u32;
+                    }
+                    Some(SensedKind::Holder) => {
+                        self.holders.casts += 1;
+                        self.holders.regions += cover.len() as u32;
+                    }
+                    None => {}
                 }
                 s.cast = Cast::Done { cover, lanes };
                 changed = true;
@@ -1863,8 +1994,8 @@ impl ThreatSpots {
             .collect()
     }
 
-    /// [threat.sniper_memory] The regions the held sensed snipers' spots see (their casts, as [`Self::covered_regions`]),
-    /// sorted: the ground an objective's way is weighed by.
+    /// [threat.sniper_memory] The regions the held sensed snipers' and [D1] holders' spots see (their casts, as
+    /// [`Self::covered_regions`]), sorted: the ground an objective's way is weighed by (a cost, never a block).
     pub fn sniper_regions(&self, now: u32) -> Vec<u32> {
         let mut regions: Vec<u32> = self
             .held(now)
@@ -1882,7 +2013,7 @@ impl ThreatSpots {
     /// sniper, when, and how far from there he may be by now. Held as long as `threat.sniper_memory` keeps them.
     pub fn sniper_spots(&self, now: u32) -> Vec<HeldLane> {
         self.held(now)
-            .filter(|s| s.is_sensed())
+            .filter(|s| s.sensed_kind() == Some(SensedKind::Sniper))
             .map(|s| HeldLane {
                 at: s.at,
                 shooter: s.shooter,
@@ -2871,6 +3002,70 @@ pub struct TeamThreat {
     pub kills: Vec<super::breach::Kill>,
     /// [A342c `threat.replan_on_cue`] The cued spots its bots were told to look at their routes for.
     pub cued_seen: Vec<u32>,
+    /// [D1 `threat.holder`] Each enemy's stay as the team's own senses give it.
+    pub stays: HolderStays,
+}
+
+/// [D1 `threat.holder`] How far a holder's spot sees, m: the fight band's far end of the weapon kind the team last saw or heard
+/// him with, and its slack (`CombatTuning::band`, `band_slack_m`: the bots' own reach for that kind); a kind the team does not
+/// know, a rifle's (the commonest live killer's gun: rifles 74 % of the human campers' killers, A342 §1a); never under
+/// [`REACH_FLOOR_M`], a kill spot's least reach (the strong camper's Vityaz hits at 40 m and more, routes' traces).
+pub fn holder_reach_m(kind: Option<super::reflex::WeaponKind>, combat: &super::reflex::CombatTuning) -> f32 {
+    let kind = kind.unwrap_or(super::reflex::WeaponKind::Rifle);
+    (combat.band(kind).1 + combat.band_slack_m).max(REACH_FLOOR_M)
+}
+
+/// [D1 `threat.holder`] Each enemy's stay as the team's own senses (`Track::own`: sight, hearing, callouts) place him: from
+/// his first sense within `hold_m` of one place, to his last. A stay of `hold_ms` or more is a hold. A sense farther than
+/// `hold_m` from its first place, or `memory_ms` after the last one, starts a new stay; his death ends it.
+#[derive(Clone, Debug, Default)]
+pub struct HolderStays {
+    /// By the enemy's place.
+    by_place: Vec<Option<Stay>>,
+}
+
+/// One enemy's stay: where it began (the place every later sense is measured from), when, and its last sense.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Stay {
+    at: Vec3,
+    since: u32,
+    last: u32,
+}
+
+/// [`HolderStays::sensed`]: what one sense of an enemy made of his stay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StayNow {
+    /// No news: a sense no later than the stay's last (another bot's of the same moment, or older).
+    Same,
+    /// His stay, not a hold (yet): held this long, ms.
+    Staying { ms: u32 },
+    /// A hold: he has stayed this long, ms.
+    Holding { ms: u32 },
+}
+
+impl HolderStays {
+    /// The team's own senses placed `who` at `at` at `time`, under `rule`.
+    pub fn sensed(&mut self, who: Place, at: Vec3, time: u32, rule: crate::v026g::bots::tuning::Holder) -> StayNow {
+        if self.by_place.len() <= who {
+            self.by_place.resize(who + 1, None);
+        }
+        let slot = &mut self.by_place[who];
+        let stay = match *slot {
+            Some(stay) if time <= stay.last => return StayNow::Same,
+            Some(stay) if (at - stay.at).length() <= rule.hold_m && time - stay.last <= rule.memory_ms => Stay { last: time, ..stay },
+            _ => Stay { at, since: time, last: time },
+        };
+        *slot = Some(stay);
+        let ms = stay.last - stay.since;
+        if ms >= rule.hold_ms { StayNow::Holding { ms } } else { StayNow::Staying { ms } }
+    }
+
+    /// `who` died: his stay ends.
+    pub fn died(&mut self, who: Place) {
+        if let Some(slot) = self.by_place.get_mut(who) {
+            *slot = None;
+        }
+    }
 }
 
 /// A death of the team: who, by whom if the kill feed told, when.
@@ -2892,8 +3087,11 @@ pub const DEATH_KEPT_MS: u32 = 5_000;
 pub struct BotThreat {
     pub planned_with: Option<std::sync::Arc<Covered>>,
     pub clear_with: Option<std::sync::Arc<Covered>>,
-    /// [A342c `threat.replan_on_cue`] A new cue: its route ahead is looked at once.
+    /// [A342c `threat.replan_on_cue`, D1 `threat.replan_on_spot`] A new cue, or lanes newly cast: its route ahead is looked at
+    /// once.
     pub cue_due: bool,
+    /// [D1] A threat replan asked: the way ahead it replaces (its log line's judgment, `nav_log::Kind::Replan`).
+    pub replanned: Option<Asked>,
     /// The bench's replan waiting for its judgment ([`judged`]).
     #[cfg(test)]
     pub asked: Option<Asked>,
@@ -2907,6 +3105,7 @@ impl super::features::Feature for BotThreat {
         self.planned_with = None;
         self.clear_with = None;
         self.cue_due = false;
+        self.replanned = None;
         #[cfg(test)]
         {
             self.asked = None;
@@ -2934,7 +3133,7 @@ mod tests {
     }
 
     /// The rules as they were before the area and the recast.
-    const OLD: SpotRules = SpotRules { model: SpotModel::Point, recast: false, sniper: SniperLife::WhileSensed, follows_m: None };
+    const OLD: SpotRules = SpotRules { model: SpotModel::Point, recast: false, sniper: SniperLife::WhileSensed, follows_m: None, holder_ms: None };
 
     fn at(x: f32) -> Vec3 {
         Vec3::new(x, 0.0, 0.0)
@@ -3156,7 +3355,7 @@ mod tests {
     }
 
     /// The rules on by default: the area, the recentre, the recast.
-    const NEW: SpotRules = SpotRules { model: SpotModel::Area { m: AREA_M }, recast: true, sniper: SniperLife::WhileSensed, follows_m: None };
+    const NEW: SpotRules = SpotRules { model: SpotModel::Area { m: AREA_M }, recast: true, sniper: SniperLife::WhileSensed, follows_m: None, holder_ms: None };
 
     #[test]
     fn a_spot_is_the_shooters_area_and_its_centre_follows_his_kills() {
@@ -3260,6 +3459,130 @@ mod tests {
         assert_eq!(spots.sniper_stats().unfair, 0);
     }
 
+    /// [D1 `threat.holder`] The twice-sensed rule: a stay is a hold once the team's senses have him within 5 m of its first
+    /// place 3 s or more apart; farther, or after a 15 s gap, a new stay begins; his death ends it.
+    #[test]
+    fn a_holder_is_sensed_twice_within_five_metres_three_seconds_apart() {
+        let rule = crate::v026g::bots::tuning::Holder::default();
+        assert_eq!((rule.hold_m, rule.hold_ms, rule.memory_ms), (5.0, 3_000, 15_000), "the cited values");
+        let mut stays = HolderStays::default();
+        let p = Vec3::new(10.0, 0.0, 10.0);
+        assert_eq!(stays.sensed(4, p, 1_000, rule), StayNow::Staying { ms: 0 });
+        assert_eq!(stays.sensed(4, p, 1_000, rule), StayNow::Same, "another bot's sense of the same moment");
+        assert_eq!(stays.sensed(4, p + Vec3::new(3.0, 0.0, 3.0), 3_900, rule), StayNow::Staying { ms: 2_900 }, "4.2 m off, 2.9 s");
+        assert_eq!(stays.sensed(4, p + Vec3::new(4.0, 0.0, 0.0), 4_000, rule), StayNow::Holding { ms: 3_000 }, "3 s within 5 m: a hold");
+        // A walker through: 3.5 m/s puts him 10.5 m off in 3 s.
+        let mut walk = HolderStays::default();
+        for k in 0..=6 {
+            let t = 1_000 + k * 500;
+            let now = walk.sensed(2, Vec3::new(1.75 * k as f32, 0.0, 0.0), t, rule);
+            assert!(!matches!(now, StayNow::Holding { .. }), "a walk at 3.5 m/s is no hold ({k}: {now:?})");
+        }
+        // 5.1 m from the stay's first place: a new stay.
+        assert_eq!(stays.sensed(4, p + Vec3::new(5.1, 0.0, 0.0), 5_000, rule), StayNow::Staying { ms: 0 });
+        // A sense 15 s after the last goes on; one later starts a new stay.
+        assert_eq!(stays.sensed(4, p + Vec3::new(5.1, 0.0, 0.0), 20_000, rule), StayNow::Holding { ms: 15_000 });
+        assert_eq!(stays.sensed(4, p + Vec3::new(5.1, 0.0, 0.0), 35_001, rule), StayNow::Staying { ms: 0 }, "15.001 s since");
+        stays.died(4);
+        assert_eq!(stays.sensed(4, p + Vec3::new(5.1, 0.0, 0.0), 36_000, rule), StayNow::Staying { ms: 0 }, "his death ends it");
+    }
+
+    /// The eyes of a holder's tests: he sees four regions round him 30 m out.
+    struct Round;
+    impl Eyes for Round {
+        fn sees(&self, _: Vec3, _: Vec3) -> bool {
+            true
+        }
+        fn shot_reaches(&self, _: Vec3, _: Vec3) -> bool {
+            true
+        }
+        fn region_points(&self) -> Vec<(u32, Vec3)> {
+            vec![
+                (0, Vec3::new(30.0, 0.0, 0.0)),
+                (1, Vec3::new(-30.0, 0.0, 0.0)),
+                (2, Vec3::new(0.0, 0.0, 30.0)),
+                (3, Vec3::new(0.0, 0.0, -30.0)),
+            ]
+        }
+    }
+
+    /// [D1] A holder's spot: lanes all round him, held 15 s after the last sense of his hold, then let go (its note); a sense of
+    /// his hold fills it again; the jobs and play 28 do not read it; a sniper's spot of him is not made a holder's.
+    #[test]
+    fn a_holders_spot_is_held_fifteen_seconds_after_his_hold_was_last_sensed() {
+        let rules = SpotRules { holder_ms: Some(15_000), ..NEW };
+        let mut spots = ThreatSpots::default();
+        spots.holder_sensed(6, at(0.0), 4_000, Some(Sense::Seen), 40.0, 4_000, rules);
+        assert_eq!(spots.holder_stats().made_by, [1, 0, 0]);
+        let events: Vec<SpotNote> = spots.take_events().iter().map(|e| e.note).collect();
+        assert_eq!(events, vec![SpotNote::HolderMade { reach_m: 40.0, how: Sense::Seen }]);
+        spots.tick(4_100, &[], &[at(0.0)], &Round, rules);
+        let mut seen = spots.covered_regions(4_100);
+        seen.sort_unstable();
+        assert_eq!(seen, vec![0, 1, 2, 3], "all round him, before any kill");
+        assert!(spots.held_lines(4_100, rules).is_empty(), "no job on a holder");
+        assert!(spots.sniper_spots(4_100).is_empty(), "play 28 answers snipers only");
+        assert!(spots.take_events().iter().any(|e| matches!(e.note, SpotNote::Cast { regions: 4 })), "its cast is noted (replan_on_spot's cue)");
+        // Held 15 s after the last sense, not after.
+        assert_eq!(spots.held(4_000 + 14_999).count(), 1);
+        assert_eq!(spots.held(4_000 + 15_001).count(), 0);
+        // A sense of his hold fills it again.
+        spots.holder_sensed(6, at(1.0), 10_000, Some(Sense::Heard), 40.0, 10_000, rules);
+        assert_eq!(spots.held(10_000 + 14_999).count(), 1);
+        spots.tick(10_000 + 14_999, &[], &[at(0.0)], &Round, rules);
+        assert_eq!(spots.spots.len(), 1);
+        // 15 s with no sense of his hold: let go, noted.
+        spots.take_events();
+        spots.tick(10_000 + 15_001, &[], &[at(0.0)], &Round, rules);
+        assert!(spots.spots.is_empty());
+        assert_eq!(spots.holder_stats().let_go, 1);
+        assert!(spots.take_events().iter().any(|e| e.note == SpotNote::HolderLetGo));
+        // Off: nothing made. A sniper's spot of him stays the sniper's.
+        let mut off = ThreatSpots::default();
+        off.holder_sensed(6, at(0.0), 4_000, Some(Sense::Seen), 40.0, 4_000, NEW);
+        assert!(off.spots.is_empty(), "threat.holder off");
+        let mut sniper = ThreatSpots::default();
+        sniper.sniper_sensed(6, at(0.0), 4_000, Some(Sense::Seen), 95.0, 4_000, rules);
+        sniper.holder_sensed(6, at(0.0), 5_000, Some(Sense::Seen), 40.0, 5_000, rules);
+        assert_eq!(sniper.spots.len(), 1);
+        assert_eq!(sniper.spots[0].sensed_kind(), Some(SensedKind::Sniper));
+        // A holder later known as a sniper: the sniper's spot.
+        spots.holder_sensed(6, at(0.0), 30_000, Some(Sense::Seen), 40.0, 30_000, rules);
+        spots.sniper_sensed(6, at(0.0), 31_000, Some(Sense::Seen), 95.0, 31_000, rules);
+        assert_eq!(spots.spots.len(), 1);
+        assert_eq!(spots.spots[0].sensed_kind(), Some(SensedKind::Sniper));
+    }
+
+    /// [D1] An objective's way through a holder's lanes is weighed, never blocked: his regions are the weighed ground
+    /// (`sniper_regions`), and the weight has a floor above zero however much of the way lies in them.
+    #[test]
+    fn an_objective_way_through_a_holders_lanes_is_only_weighed() {
+        let rules = SpotRules { holder_ms: Some(15_000), ..NEW };
+        let mut spots = ThreatSpots::default();
+        spots.holder_sensed(6, at(0.0), 4_000, Some(Sense::Told), 40.0, 4_000, rules);
+        spots.tick(4_100, &[], &[at(0.0)], &Round, rules);
+        assert_eq!(spots.sniper_regions(4_100), vec![0, 1, 2, 3], "the objective plays weigh a way through his lanes");
+        let memory = crate::v026g::bots::tuning::SniperMemory::default();
+        assert!(memory.way_weight(1_000.0) > 0.0, "never a block");
+        assert_eq!(memory.way_weight(1_000.0), memory.way_floor.get());
+        assert_eq!(memory.way_weight(0.0), 1.0);
+    }
+
+    /// [D1] Only the team's own senses make a hold: the HUD's place is no sense ([`Sense::of`]), and the commander feeds the
+    /// stays from `Track::own` alone (its sight, its hearing, a callout), the reach from the team's own knowledge of his weapon,
+    /// never the exact one of the `cheats.enemy_weapon_exact` cheat.
+    #[test]
+    fn a_hold_is_made_of_the_teams_own_senses_only() {
+        use crate::v026g::bots::know::Source;
+        assert_eq!(Sense::of(Source::Hud), None);
+        assert!(Sense::of(Source::Seen).is_some() && Sense::of(Source::Heard).is_some());
+        let src = include_str!("commander.rs");
+        let feed = src.find("threat.stays.sensed(track.who, at, time, rule)").expect("the stays are fed in the commander");
+        let own = src[..feed].rfind("if let Some((at, time)) = track.own").expect("from the track's own place");
+        assert!(feed - own < 3_000, "the stays' feed is inside the `track.own` block");
+        assert!(src[feed..].contains("holder_reach_m(state.knowledge.weapons.kind(track.who)"), "the team's own knowledge of his weapon");
+    }
+
     /// [A308] A camp place (2 kills from within 3 m) is remembered across his death, which clears the spot; a latest kill from
     /// elsewhere or kills past the window are not one.
     #[test]
@@ -3288,6 +3611,7 @@ mod tests {
             recast: true,
             sniper: SniperLife::Remembered { memory_ms: 120_000 },
             follows_m: None,
+            holder_ms: None,
         };
         let eyes = Line { blind: vec![] };
         let mut spots = ThreatSpots::default();

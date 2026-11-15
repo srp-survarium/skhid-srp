@@ -353,10 +353,13 @@ pub enum Kind {
     WalkOff,
     /// [take.known_threats] A take within reach waiting for a man known by its battery (`plays/collect.rs` `take`).
     Take,
+    /// [D1 `threat.replan_on_spot`] A route searched again because its way ahead lies in the team's held lanes, and the route
+    /// that came of it (`drive.rs` `threat_ahead`).
+    Replan,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 15;
+const KINDS: usize = 16;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused

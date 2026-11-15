@@ -218,7 +218,10 @@ fn threat_tick(
     let threat = &mut state.features.threat;
     // A sensed sniper is a spot (#836's `sniper_lanes`, or #25b's area memory).
     let sniper_spots = tuning.threat.sniper_lanes || tuning.threat.sniper_memory.is_some();
+    // [D1 threat.holder] A sensed enemy holding one place is a spot too.
+    let holder = tuning.threat.holder;
     if !sniper_spots
+        && holder.is_none()
         && threat.spots.is_empty()
         && threat.covered.is_none()
         && threat.jobs.is_empty()
@@ -275,6 +278,17 @@ fn threat_tick(
                     // since, and the spot keeps how it knew him).
                     let how = (track.time == time).then(|| threat::Sense::of(track.source)).flatten();
                     threat.spots.sniper_sensed(track.who, at, time, how, reach, now, rules);
+                }
+                // [D1 threat.holder] His stay as the team's own senses give it (`Track::own`: never the HUD or a cheat); a hold is
+                // a spot with lanes all round him within his weapon's reach, as the team knows his weapon.
+                if let Some(rule) = holder
+                    && !(sniper_spots && kind == Some(reflex::WeaponKind::Sniper))
+                    && let threat::StayNow::Holding { .. } = threat.stays.sensed(track.who, at, time, rule)
+                {
+                    let how = (track.time == time).then(|| threat::Sense::of(track.source)).flatten();
+                    // The kind his team knows by sight or sound, never the cheat's exact one.
+                    let reach = threat::holder_reach_m(state.knowledge.weapons.kind(track.who), &tuning.aim.combat);
+                    threat.spots.holder_sensed(track.who, at, time, how, reach, now, rules);
                 }
             }
         }
@@ -334,7 +348,15 @@ fn threat_tick(
             bot.camp_lanes = camp.clone();
         }
     }
-    for event in threat.spots.take_events() {
+    let events = threat.spots.take_events();
+    // [D1 threat.replan_on_spot] Lanes newly cast (a new spot, a holder, a spot cast again): each of the team's bots looks
+    // once at its route ahead (`drive.rs` `threat_ahead`).
+    if tuning.threat.replan_on_spot && events.iter().any(|e| matches!(e.note, threat::SpotNote::Cast { .. })) {
+        for bot in bots.iter_mut().flatten().filter(|b| b.team == team) {
+            bot.features.threat.cue_due = true;
+        }
+    }
+    for event in events {
         notes.push(Note {
             place: usize::MAX,
             time: event.time,
