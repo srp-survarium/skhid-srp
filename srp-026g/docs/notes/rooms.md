@@ -409,6 +409,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     "…" (the game's bold Calibri has it); the level is never covered. The room view's names
     the same way, its "(owner)" kept whole; the state's rows cut a name past 32 bytes and end
     it with "…". No hover with the full name (the movie's lists have no tooltips).
+  - **"(owner)" only in a private room** (the owner, 2026-11-15: "we should also remove from
+    public lobbies (which can now only be created from PLAY) the (owner) tag", "since there are
+    no room owners right now"): the room view names its creator in a room with a PIN alone.
   - Anyone may ask, of any room, a room with a PIN too: names are no secret (a PIN keeps
     the door, not the names). Asked when a room is chosen, then every 3 s, whatever else the
     window polls (in a room or a queue too). In the room's window the movie asks for its own
