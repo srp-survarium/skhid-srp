@@ -426,14 +426,14 @@ mod tests {
     /// (rounded down to the cm/s).
     #[test]
     fn a_second_hurting_landing_adds_its_pain() {
-        let (soft, hard, harder) = (3.0f32, walk_off_landing_speed(6.0), walk_off_landing_speed(8.0));
+        let (soft, hard, harder) = (3.0f32, walk_off_landing_speed(6.0), walk_off_landing_speed(6.5));
         assert!(!landing_hurts(soft) && landing_hurts(hard) && landing_hurts(harder));
         let one = Landings::NONE.and(soft).and(harder);
         assert_eq!(one, Landings { most: harder, also: None }, "a harmless landing is not kept");
         let two = Landings::NONE.and(hard).and(harder).and(soft);
         assert_eq!(two, Landings { most: harder, also: Some(hard) });
         let whole = super::super::SecondLanding::Adds { weaker_leg: 0.5 };
-        assert!(fall_hit(harder, 1.0) < 0.5, "the 8 m landing breaks no whole leg");
+        assert!(fall_hit(harder, 1.0) < 0.5, "a 6.5 m landing breaks no whole leg");
         assert!((two.pain(1.0, whole) - (landing_pain(harder, 1.0) + landing_pain(hard, 1.0))).abs() < 1e-6);
         assert!(two.pain(1.0, whole) > one.pain(1.0, whole));
         // [the exe review of #2025] A drug course giving pain back, or a leg the hardest landing breaks: the hardest alone.
