@@ -60,3 +60,8 @@ order = 1
 site = "game.tick"
 handler = "on_tick"
 order = 5
+
+# Options, Controls: push-to-talk's key is heard in a match, so a game key's is taken.
+[[hook]]
+site = "options.key_conflict"
+handler = "on_key_conflict"

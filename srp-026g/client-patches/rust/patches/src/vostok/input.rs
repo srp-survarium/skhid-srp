@@ -27,6 +27,43 @@ impl Action {
     pub const PTT: Action = Action(0x47);
 }
 
+/// Where an action's key is heard: its row's kinds in the action table, a set
+/// of bits. The binder answers a key with the binding whose kinds meet the
+/// ones it is asked (get_binded_action 0x207D50, EDI), and the options take a
+/// key as another action's when the two actions' kinds meet
+/// (game_options::process_key_input 0x2011AD).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ActionKinds(u32);
+
+impl ActionKinds {
+    /// The player's keys while not aiming: the player's input kinds (player
+    /// +F544h, which player_input_handler asks the binder with, 0x241140 and
+    /// 0x23FE1D) out of aim (weapon::instant_aim_end, 0x243A17).
+    pub const PLAYER: ActionKinds = ActionKinds(0x1);
+    /// The lobby's keys (its binder call, 0x26CCCD).
+    pub const LOBBY: ActionKinds = ActionKinds(0x2);
+    /// The player's keys while aiming (weapon::instant_aim_start, 0x2439BE;
+    /// delay_breath's only kind).
+    pub const AIMING: ActionKinds = ActionKinds(0x4);
+    /// The chat keys (chat_handler::on_keyboard_action, 0x20888D), and the
+    /// kind patch 66 asks push-to-talk's key with.
+    pub const CHAT: ActionKinds = ActionKinds(0x8);
+
+    /// A row's kinds as the game keeps them.
+    pub(in crate::vostok) fn of_row(raw: u32) -> ActionKinds {
+        ActionKinds(raw)
+    }
+
+    pub fn with(self, other: ActionKinds) -> ActionKinds {
+        ActionKinds(self.0 | other.0)
+    }
+
+    /// The two share a kind: somewhere one key would serve both.
+    pub fn meet(self, other: ActionKinds) -> bool {
+        self.0 & other.0 != 0
+    }
+}
+
 /// What the input handler holds of an action: its last key event, as
 /// on_keyboard_action pushes it (0.10b `player_input_handler::action_state_enum`:
 /// down 0, up 1, hold 2).

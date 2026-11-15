@@ -17913,6 +17913,163 @@ impl InitializeMatchFrame {
     }
 }
 
+/// A survarium::key_binder (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeyBinder(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KeyBinder {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (obj<survarium::key_binding>): its bindings, indexed by the action's id (get_binded_action 0x207D50 walks them from the binder's own address, 0Ch each; game_options::process_key_input reads binding n at binder + n x 0Ch, 0x20119E..0x2011AA)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bindings(self) -> KeyBinding {
+        KeyBinding(unsafe { self.0.byte_add(0x0) })
+    }
+}
+
+/// A survarium::key_binding (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeyBinding(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KeyBinding {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::key_action>): its action's row of the action table (process_key_input 0x2011A1 / 0x2011AA)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn action(self) -> Option<KeyAction> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<KeyAction>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::key_action>): its action's row of the action table (process_key_input 0x2011A1 / 0x2011AA)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_action(self, value: Option<KeyAction>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<KeyAction>>().write_volatile(value) }
+    }
+
+    /// 0xc bytes: a binding: 0Ch bytes (get_binded_action's walk, process_key_input's lea edx,[edi+edi*2] / [eax+edx*4])
+    pub const SIZE: usize = 0xc;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::key_bindings (0xc bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct KeyBindingStorage([u8; 0xc]);
+
+#[allow(dead_code)]
+impl KeyBindingStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0xc])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> KeyBinding {
+        KeyBinding(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<KeyBinding> {
+        (!rooms.is_empty()).then(|| KeyBinding(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::key_action (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeyAction(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl KeyAction {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): a row of the action table {name, id, kinds, toggle, default key}: its kinds, a set of bits (1 the player's keys, 2 the lobby's, 4 the player's while aiming, 8 the chat keys); get_binded_action answers a binding whose kinds meet the asked ones (EDI), the options' key test compares two rows' (process_key_input 0x2011A4 / 0x2011AD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kinds(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::options_key_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OptionsKeyFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl OptionsKeyFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1c (ptr<survarium::key_binder>): game_options::process_key_input's local (by the site's ESP): the game's binder [game+5344h], stored at 0x201104
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn binder(self) -> Option<KeyBinder> {
+        unsafe { self.0.byte_add(0x1c).cast::<Option<KeyBinder>>().read_volatile() }
+    }
+
+    /// +0x1c (ptr<survarium::key_binder>): game_options::process_key_input's local (by the site's ESP): the game's binder [game+5344h], stored at 0x201104
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_binder(self, value: Option<KeyBinder>) {
+        unsafe { self.0.byte_add(0x1c).cast::<Option<KeyBinder>>().write_volatile(value) }
+    }
+}
+
 /// A survarium::match_connect_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -23104,21 +23261,6 @@ impl Backend {
     }
 }
 
-/// A survarium::key_binder (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct KeyBinder(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl KeyBinder {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
 /// A vostok::sound::panning_lut (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -26752,6 +26894,39 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn options(machine: &impl Machine) -> Option<GameOptions> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(GameOptions)
+        }
+    }
+
+    /// options.key_conflict (0x20119a): game_options::process_key_input's test of a controls row that has the key just pressed for another action (mov eax,[esp+1Ch] / lea edx,[edi+edi*2], then the two rows' kinds and test [eax+8],ecx / je 0x2011D4): ESI the action being bound ([ebx+3Ch]), EDI the row's; taken 0x2011B2 puts the row's action in the list the reassign message names (and unbinds on OK), free 0x2011D4 goes on to the next row
+    pub mod options_key_conflict {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn bound(machine: &impl Machine) -> u32 {
+            machine.register(Register::Esi)
+        }
+
+        /// EDI: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn row(machine: &impl Machine) -> u32 {
+            machine.register(Register::Edi)
+        }
+
+        /// the site's ESP: a survarium::options_key_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<OptionsKeyFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(OptionsKeyFrame)
         }
     }
 

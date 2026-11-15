@@ -8408,6 +8408,51 @@ voice_on_mouse_key_replay:
     db 0x8b, 0xf8, 0x8b, 0x07, 0x8b, 0x10
     jmp 0x25cf76
 
+; 0x20119a game_options::process_key_input's test of a controls row that has the key just pressed for another action (mov eax,[esp+1Ch] / lea edx,[edi+edi*2], then the two rows' kinds and test [eax+8],ecx / je 0x2011D4): ESI the action being bound ([ebx+3Ch]), EDI the row's; taken 0x2011B2 puts the row's action in the list the reassign message names (and unbinds on OK), free 0x2011D4 goes on to the next row: lohook -> voice_on_key_conflict
+global voice_on_key_conflict
+extern hook_voice_on_key_conflict
+voice_on_key_conflict:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_key_conflict
+    mov edx, voice_on_key_conflict_replay
+    cmp eax, 0
+    je voice_on_key_conflict_go
+    mov edx, 0x2011a1
+    cmp eax, 1
+    je voice_on_key_conflict_go
+    mov edx, 0x2011b2
+    cmp eax, 2
+    je voice_on_key_conflict_go
+    mov edx, 0x2011d4
+    cmp eax, 3
+    je voice_on_key_conflict_go
+    ud2
+voice_on_key_conflict_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_key_conflict_replay:
+    db 0x8b, 0x44, 0x24, 0x1c, 0x8d, 0x14, 0x7f
+    jmp 0x2011a1
+
 ; 0x12e124 on_base_texture_loaded (0x12DEE0) where the camouflage layer's texture of the bake's type has no name (0x12E11B test ecx,ecx / cmp byte [ecx],0: the je and the fall-through come here), before it names the surface's own instead (mov edx,[ebp+eax*4-4Ch] / mov edi,[ebp+10h]: the suffix _camo, _camo_nmap, _camo_fmap or _camo_smap of 0x9EDD60.., EAX the type, and the surface's diffuse name; 0x328D30 joins them); ESI the bake's parameters; no_layer 0x12E25A, where the fresnel bake (0x12E0EA) and an empty name (0x12E169) go: no camouflage texture and no _aoac asked for (it reads [ebp-8], the count of textures to ask for, and no register before writing it): lohook -> weapon_camo_on_own_camouflage
 global weapon_camo_on_own_camouflage
 extern hook_weapon_camo_on_own_camouflage

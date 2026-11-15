@@ -97,6 +97,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_fov_026g.py` | Runs the original and patch 22's camera projection, the game's matrix builder included, and compares the matrices (needs Unicorn) |
 | `check_grass_sort_026g.py` | Patch 146: runs the grass sort's `__linear_insert` on a near tie in the original (it reads before the array) and the patched exe (it sorts) (needs Unicorn) |
 | `check_empty_shot_026g.py` | Patch 148: runs `on_shot_event` with a spent queue in the original (it reaches the assert's report) and the patched exe (it returns), and with a round queued in both (they fire it) (needs Unicorn) |
+| `check_key_conflict_026g.py` | Patch 66: runs the options' key test (game_options::process_key_input 0x20119A) in the original and the patched exe, with a binder over the game's own action table rows: push-to-talk and a key of the player (spot, accel, hold breath) taken either way in the patched exe, passed in the original; push-to-talk and a chat key taken, and a lobby key passed, in both; two other actions as in the original (`tools/check key-conflict`) |
 | `check_fov_lod_026g.py` | Runs patch 40 (a model's LOD and screen factor at a wider field of view are the original's): the projection's k at several settings and zooms, the game's select_lod and screen factor of the original and the build on made-up models (needs Unicorn) |
 | `check_use_scan_026g.py` | Runs the original's use scan and the build's (patch 23, the Rust `use_scan`) on made-up ray hits; `--against <exe>` requires another build (the asm patch 23's) to answer every case the same (needs Unicorn) |
 | `replay_seek_026g.asm`, `replay_seek_026g.section.bin` | The source of patch 26's code (a replay's seek empties the weapons' sound queues) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -184,7 +185,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `raw_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust (C's types, research_arena's; typed by the kinds' handles, the Rust patches' `raw`), and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first 300 ms), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
-| `rust/patches/src/voice.rs`, `voice.toml` | Patch 66: safe Rust voice hooks (eleven named lohooks) over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, the hud's list of who talks, the Tab menu's voice mute and the options' microphone test (the shared `patches.*` blocks); `cargo test` in `rust/` checks its logic |
+| `rust/patches/src/voice.rs`, `voice.toml` | Patch 66: safe Rust voice hooks (twelve named lohooks) over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, the hud's list of who talks, the Tab menu's voice mute and the options' microphone test (the shared `patches.*` blocks); `cargo test` in `rust/` checks its logic |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
@@ -3595,7 +3596,7 @@ nothing reads it. No capture, no codec: `skhid_voice.dll` (Rust, libopus, waveIn
 UDP) is loaded at the first match with `LoadLibraryA` (the exe's import), its version asked;
 without it, or of another version (unloaded), voice is off.
 
-**The sites** (names-only `voice.toml`, eleven lohooks; safe `voice.rs` over `vostok/voice.rs`):
+**The sites** (names-only `voice.toml`, twelve lohooks; safe `voice.rs` over `vostok/voice.rs`):
 - `configs.start` (before user.cfg): `s_chat_volume` and `s_mic_sens` (`ConsoleFloat`, 0..100, the
   float slider's steps are 1.0), `s_use_microphone` and `g_hide_spam` (the gameplay tab's dead
   option 5, "Hide spam", now "Disable voice chat") (`ConsoleBool`), `srp_voice_mutes` and
@@ -3618,6 +3619,14 @@ without it, or of another version (unloaded), voice is off.
   kind, 0 press, 1 release, 2 held): the binder's chat key (kind 8) 47h, `ptt`, down and up, on a
   key or a mouse button, is push-to-talk; its Controls row is the game group's and can be set
   (patch 62's `controls`);
+- `options.key_conflict` (game_options::process_key_input 0x20119A, its test of a controls row
+  that has the key just pressed for another action): push-to-talk's key is taken from, and by, a
+  game key as two game keys' are (the owner, 2026-11-15: Push to talk set to Q, spot's key, said
+  nothing). The game takes the key when the two actions' kinds meet (the action table's: 1 and 4
+  the player's keys, 2 the lobby's, 8 the chat keys), and `ptt` is 8, every game key 5; the hook
+  counts push-to-talk as 8, 1 and 4, heard in a match as it is. The game's "key in use" message,
+  OK unbinding the other, either way; a lobby key as before; any two other actions as the game
+  decides;
 - `hud.callback` (after patch 86's): the Tab list's player menu asks `srp_voice_menu(place)`
   (answered `root.srp_voice_menu(place, offered, muted)`) and sends `srp_voice_mute(place,
   "1"|"0")` (answered `root.srp_voice_mute(place, done)`): "Mute voice" / "Unmute voice" after the
@@ -3670,11 +3679,11 @@ out and logged.
 ("Push to talk"), `st_srp_hud_voice_*` (the Tab menu's entries and lines), `st_srp_mic_test*` (the
 microphone test's button), `st_srp_microphone*` (the Microphone list).
 
-Checked: `selftest_026g.py` check 66 (the sites in the original, the eleven hooks in the build, the
+Checked: `selftest_026g.py` check 66 (the sites in the original, the twelve hooks in the build, the
 game's ptt entry unchanged, the main menu's `srp_mic_test`) and check 62 (the Controls rows: push-to-talk's in the game group, its
 key settable), `check_hide_ui_026g.py` (the list sent to the movie), `cargo test` in `rust/` (the
 mutes' text, malformed records, plain under 10 m with the pan it is given and its fall by distance, the radio from 10 m and for the dead, the two distances apart, the keys a held input is polled by,
-the microphone test's press and texts, the Microphone pick's text and the list's shown pick), `check_voice_pan_026g.py` (Unicorn: the original exe's calculate_3d_pan as the patch calls it: its law, what it reads and writes), `scripts/mic-test/check.sh` (Ruffle: the button and the Microphone list).
+the microphone test's press and texts, the Microphone pick's text and the list's shown pick, the key test's kinds), `check_key_conflict_026g.py` (Unicorn: the options' key test from 0x20119A in the original and the build, with the game's action table rows: push-to-talk and spot, accel, hold breath taken either way in the build and passed in the original; with send_message taken and with friends and character passed in both; melee and accel, crouch_toggle and character, accel and hold breath as in the original), `check_voice_pan_026g.py` (Unicorn: the original exe's calculate_3d_pan as the patch calls it: its law, what it reads and writes), `scripts/mic-test/check.sh` (Ruffle: the button and the Microphone list).
 Played locally 2026-11-11 (two games under Wine, one microphone): talking and hearing in a team.
 
 ### 67. The kill feed shows a kill through a wall, by a ricochet and by pain (the next release's revision)

@@ -892,6 +892,7 @@ va	status	ref_021d	name
 0x002079d0	reviewed	0x00155919	survarium::key_binder::id_to_action_name
 0x00207ad0	reviewed	0x001559ce	survarium::key_binder::action_name_to_ptr
 0x00207c30	reviewed	0x00155ae0	survarium::key_binder::keyname_to_ptr
+0x00207d50	verified	0x00155bcf	survarium::key_binder::get_binded_action
 0x002093a0	reviewed	0x0016381b	survarium::chat_handler::initialize_tabs
 0x00209430	reviewed	0x00163895	survarium::chat_handler::set_mode
 0x00209710	reviewed	0x00163a97	survarium::chat_handler::add_new_tab
@@ -2265,6 +2266,7 @@ va	status	ref_021d	name
 0x003c5510	reviewed		stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >
 0x00200f50	reviewed	0x0015f1b6	survarium::game_options::activate
 0x002010e0	reviewed	0x0015f2d4	survarium::game_options::process_key_input
+0x002013a0	verified	0x0015f50d	survarium::game_options::assign_binding
 0x002015a0	reviewed	0x0015f5e9	survarium::game_options::finish_binding
 0x002015e0	reviewed	0x0015f619	survarium::game_options::on_keyboard_action
 0x002016d0	reviewed	0x0015f6bb	survarium::game_options::on_mouse_key_action
