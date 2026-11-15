@@ -34,7 +34,8 @@ pub enum Readiness {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ItemClass {
     /// Ready: passive (state 3) with no cooldown left, what artefact_base::action
-    /// (0x313300, patch 54's entry) fires.
+    /// (0x313300, patch 54's entry) fires, and one of the 4 of its kind that
+    /// count for its holder (patch 109: a copy past them never fires).
     Artefact(Readiness),
     /// Ready: not active (+2B0h) and, a stack, not empty: what medkit::action
     /// (0x33D700) uses.
@@ -146,23 +147,24 @@ impl<'t> Inventory<'t> {
     fn quick_place(&self, quick: QuickSlot) -> Option<QuickPlace> {
         // SAFETY: native lookup, verified ABI; it only reads this inventory.
         let slot = unsafe { raw::engine_quick_inventory_slot(Some(self.this), u32::from(quick.get())) };
-        if slot < u32::from(SLOTS) {
-            // SAFETY: one of this live inventory's 23 slots (+10Ch + 4 x slot).
-            return Some(QuickPlace::Slot(unsafe { self.this.slots().at(slot as usize) }));
-        }
         if slot == u32::from(SLOTS) {
             return None;
         }
-        let containers = self.containers()?;
+        // The containers first: their place relative to the fixed slots is
+        // the game's own arithmetic, whatever the allocation's address.
         // SAFETY: the slots' address as a value, never read through here.
         let base = unsafe { self.this.slots().address() };
         let entry = base.wrapping_add(slot.wrapping_mul(4));
-        let offset = entry.checked_sub(containers.first.address())?;
-        if offset % 4 != 0 {
-            return None;
-        }
-        let index = ContainerIndex::parse(u8::try_from(offset / 4).ok()?)?;
-        containers.entry(index).map(|_| QuickPlace::Container(index))
+        let container = self.containers().and_then(|containers| {
+            let offset = entry.checked_sub(containers.first.address())?;
+            if offset % 4 != 0 {
+                return None;
+            }
+            let index = ContainerIndex::parse(u8::try_from(offset / 4).ok()?)?;
+            containers.entry(index).map(|_| QuickPlace::Container(index))
+        });
+        // SAFETY: one of this live inventory's 23 slots (+10Ch + 4 x slot).
+        container.or_else(|| (slot < u32::from(SLOTS)).then(|| QuickPlace::Slot(unsafe { self.this.slots().at(slot as usize) })))
     }
 
     /// The item quick-use ordinal `quick` holds, as the hud shows it
@@ -184,7 +186,8 @@ impl<'t> Inventory<'t> {
             let dictionary = item.entry()?;
             let class = if let QuickPlace::Container(_) = place {
                 let artefact = item.artefact();
-                ItemClass::Artefact(ready(read(artefact.state()) == 3 && read(artefact.cooldown_left()) == 0))
+                ItemClass::Artefact(ready(read(artefact.state()) == 3 && read(artefact.cooldown_left()) == 0
+                    && !super::artefact_skills::uncounted(artefact)))
             } else {
                 match read(item.vtable()) {
                     raw::image::MEDKIT_VTABLE => ItemClass::Medicine(ready(

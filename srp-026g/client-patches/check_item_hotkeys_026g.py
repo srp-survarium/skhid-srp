@@ -39,7 +39,8 @@ harnesses. The game's own code runs:
   pressed when no quick slot of the six does; the group keys (the next
   artefact, the next medkit) on three kits of ready and busy items (a
   medicine active or a used-up stack, the antitoxin and the painkiller no
-  medkit; an artefact active or cooling) are the quick key of the first
+  medkit; an artefact active, cooling, or a fifth copy past the 4 of its
+  kind that count) are the quick key of the first
   quick slot a press would use, nothing when none; two keys at once are both
   quick keys; with H (patch 78's carry key) held the build's masks for the
   key are its masks for that quick key, tick by tick.
@@ -64,7 +65,8 @@ PUSH_BACK, CARRY_KEY = 0x242580, (0x23FE42, 0x23FE48)
 QUICK_USE = 0x39                                    # quick_use_1; _n is 39h + n - 1
 DOWN, UP, HOLD = 0, 1, 2                            # an event's state (player_input_handler::action_state_enum)
 WORLD = 0x26000000                                  # the made-up game world and what it holds
-GW, GAMEOBJ, CLIENT, PLAYER, INVENTORY, CONTAINERS = (WORLD + 0x100 * i for i in range(6))
+GW, GAMEOBJ, CLIENT, PLAYER = (WORLD + 0x100 * i for i in range(4))
+INVENTORY, CONTAINERS = WORLD + 0x400, WORLD + 0x600  # the containers their own allocation, past the inventory's 188h
 ITEMS, VTABLE, RET0 = WORLD + 0x1000, WORLD + 0x800, WORLD + 0x900
 HELD = 0x2A8
 # (name, id, item's dict id) as item_hotkeys.rs has them
@@ -76,6 +78,7 @@ KEYS = (("use_onyx", 0x4A, 76), ("use_spring", 0x4B, 74), ("use_lifebone", 0x4C,
         ("use_trap", 0x56, 68), ("use_oxygen_tank", 0x57, OXYGEN))
 GROUPS = (("use_next_artefact", 0x58), ("use_next_medkit", 0x59))   # a group's first ready item
 MEDKIT_VTABLE = 0xA1C79C                            # every drug's (medkit's ctor 0x33CAE6)
+ONYX_VT, SPRING_VT = WORLD + 0xA00, WORLD + 0xB00    # made-up artefact vtables: +80h their kind's enable_active
 # Group kits: (slot or "c" for the next container, dict id, vtable, {offset: (struct format, value)}), then
 # the quick ordinal (0-based) each group key must press, None for none. A medicine: +2B0h active, its
 # entry's +22Ah stack, +260h count (medkit::action 0x33D700); an artefact: +280h state (3 passive, 4
@@ -90,6 +93,10 @@ GROUP_KITS = (
      [(13, 66, MEDKIT_VTABLE, {STACK: ("B", 1), COUNT: ("H", 0)}), (14, 65, MEDKIT_VTABLE, {}),
       ("c", 54, None, {STATE: ("I", 3)}), ("c", 74, None, {STATE: ("I", 3), COOLDOWN: ("I", 1)})],
      {"use_next_medkit": None, "use_next_artefact": 2}),
+    ("five Onyx, the first four cooling, the fifth ready (past the 4 that count, patch 109); a ready Spring",
+     [("c", 76, ONYX_VT, {STATE: ("I", 3), COOLDOWN: ("I", 9000)})] * 4 + [("c", 76, ONYX_VT, {STATE: ("I", 3)}),
+                                                                       ("c", 74, SPRING_VT, {STATE: ("I", 3)})],
+     {"use_next_medkit": None, "use_next_artefact": 5}),
     ("a Science Medkit (a stack of 2); no artefact",
      [(13, 391, MEDKIT_VTABLE, {STACK: ("B", 1), COUNT: ("H", 2)})], {"use_next_medkit": 0, "use_next_artefact": None}),
 )
@@ -133,6 +140,10 @@ class Game(blackout.Run):
         emu.mem_write(WORLD, bytes(0x10000))
         emu.mem_write(RET0, b"\x31\xc0\xc3")
         self.word(VTABLE + 0x58, RET0)
+        for vtable, enable_active in ((ONYX_VT, 0x3128C0), (SPRING_VT, 0x3118D0)):
+            self.word(vtable + 0x58, RET0)
+            self.word(vtable + 0x80, enable_active)
+        self.word(INVENTORY + 0x174, PLAYER + 0x108)   # its holder (base_player's interface, +108h)
         self.word(GW + 0x9C, GAMEOBJ)
         self.word(GAMEOBJ + 0x53AC, CLIENT)
         self.word(CLIENT + 4, PLAYER)
@@ -151,6 +162,7 @@ class Game(blackout.Run):
             self.word(at, vtable)
             self.word(at + 0x24C, 1)
             self.word(at + 0x25C, entry)
+            self.word(at + 0x250, INVENTORY)
             emu.mem_write(entry, struct.pack("<H", dict_id))
             for offset, (form, value) in fields.items():
                 emu.mem_write(entry - offset if offset < 0 else at + offset, struct.pack("<" + form, value))

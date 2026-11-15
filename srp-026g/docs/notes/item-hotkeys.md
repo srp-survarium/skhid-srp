@@ -41,11 +41,16 @@ the next).
 - **The oxygen tank:** any oxygen pack (its class, whatever the item); a kit has one back.
 - **Next artifact / Next medkit** (the owner's pick, 2026-11-15): the first item of the group, in
   quick-slot order, that a press of its quick key would use now. No cycling, no state.
-  - the artefacts: any artefact in a container, ready: passive (not active) and not cooling. A
-    cooling Onyx is skipped for a ready Spring.
+  - the artefacts: any artefact in a container, ready: passive (not active), not cooling, and one
+    of the 4 of its kind that count (patch 109: a copy past them never fires). A cooling Onyx, or
+    a fifth Onyx, is skipped for a ready Spring.
   - the medkits: the bandages and the four medkits (not the antitoxin, not the painkiller), ready:
     not in use (its activity, the use delay included) and not used up.
   - none ready in the six quick slots: nothing happens.
+- **Next grenade is G:** the game's throw_grenade already throws the first grenade pocket that is
+  no empty stack (first_grenade_set_slot 0x2FE8B0), the same rule; its Controls label is now
+  "Next grenade" in every language (`st_throw_grenade_action`; the action, its key G and what it
+  does unchanged).
 - **Two keys at once:** both quick bits.
 - **A held key follows its type:** it is looked up again each tick, as the bits are made.
 
@@ -74,6 +79,4 @@ the next).
 - Grenade labels say "Throw" ("Throw RGD-5 grenade"), the others "Use".
 - The first quick slot of a type, when two hold it (only artefacts can: one pocket a type).
 - Room for 6 more actions (ids 5Ah..5Fh) before the bindings must grow again.
-- Next artifact: a ready copy past the 4 of its kind that count (patch 109) is ready to the key,
-  though its press adds nothing.
 - Not covered: boosters (carried, not used), items not in the shop or starting kits.
