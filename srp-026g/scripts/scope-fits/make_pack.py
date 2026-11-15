@@ -76,7 +76,10 @@ occlusion = _load('scope_fits_occlusion', HERE / 'occlusion.py')
 sights = rs.sights  # ../rifle-scopes/sights.py
 
 PACK_ID = 'scope-fits'
-VERSION = '11'
+VERSION = '12'
+# Item modifications share one native dictionary, including shop no-ops.
+# 990000 + variant overlapped the existing shops' 991000 + shop dict id.
+VARIANT_MODIFICATION_BASE = 1_000_000
 FIRST_VARIANT = 2901
 LAST_VARIANT = 3299
 CATEGORY = 22
@@ -332,8 +335,8 @@ def variant_config(template, source, name, gun, dict_id, vname, change, fov, ico
     """`template`'s config made the variant's: its ids, models, fit and gun, the weapon model it sets;
     its data numbers and texts `source`'s (the scope's own: its reference's config or shop item)."""
     t = template['leaves']
-    values = {'parameters/modification': (t['/parameters/modification'], 990000 + dict_id),
-              'modifications[0]/id': (t['/modifications[0]/id'], 990000 + dict_id),
+    values = {'parameters/modification': (t['/parameters/modification'], VARIANT_MODIFICATION_BASE + dict_id),
+              'modifications[0]/id': (t['/modifications[0]/id'], VARIANT_MODIFICATION_BASE + dict_id),
               'modifications[0]/modifiers[0]/value[1]': (t['/modifications[0]/modifiers[0]/value[1]'], dict_id),
               'data/fov_factor': (t['/data/fov_factor'], fov),
               'ui_desc/icon[0]': (t['/ui_desc/icon[0]'], icon[0]), 'ui_desc/icon[1]': (t['/ui_desc/icon[1]'], icon[1])}
@@ -736,6 +739,7 @@ def write_pack(args, files, entries, report, icons):
             files[rel] = p.read_bytes()
     # the rails' 0.69d0 textures as 0.26g draws a 0.69d0 weapon's (the rifle scopes' pbr_026.py)
     files.update(pbr_026.convert({k: v for k, v in files.items() if k.startswith('textures/')}))
+    rs.check_textures(files, args.live)
     operations = [{'op': 'add_file', 'path': path} for path in sorted(files)]
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': entries})
     if icons:

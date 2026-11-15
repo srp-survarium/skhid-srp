@@ -20,6 +20,10 @@ import scopes_lib as lib
 def check(pack, live, donor, report):
     files = pack / 'files'
     manifest = json.loads((pack / 'pack.json').read_text())
+    # Geometry alone cannot detect missing native materials. Check every pack,
+    # including scope-fits, against the same dependency closure as its builder.
+    builder.check_textures({str(p.relative_to(files)): p.read_bytes()
+                            for p in files.rglob('*') if p.is_file()}, live)
     if manifest['id'] == 'rifle-scopes':
         modules = {row['name']: row['module'] for row in lib.scopes()}
         aimed_models = {row['name']: 'weapons/modules/' + row['module'] + '/' + row['module_name'] + '_aim'

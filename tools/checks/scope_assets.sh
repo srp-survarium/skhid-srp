@@ -17,6 +17,6 @@ nix shell --impure --expr '
     --pack "$1/private/content-packs/rifle-scopes-18" --live "$2/live" \
     --donor "$2/donor-rifles-2" --report "$CHECK_WORK/rifles.tsv"
   python3 -I srp-026g/scripts/rifle-scopes/check_geometry.py \
-    --pack "$1/private/content-packs/scope-fits-11" --live "$2/live-rifles" \
+    --pack "$1/private/content-packs/scope-fits-12" --live "$2/live-rifles" \
     --donor "$2/donor-fits-2" --report "$CHECK_WORK/fits.tsv"
 ' scopes "$common" "$assets"

@@ -16,7 +16,9 @@ the server's actual parser, independently for both game-data files. It refuses:
 - rejected variants and pairs absent from the lobby compatibility table;
 - any missing released pair or a changed variant ID (saved attachments refer
   to that variant);
-- reusing an existing weapon, scope or variant ID for a different item.
+- reusing an existing weapon, scope or variant ID for a different item;
+- duplicate modification IDs across every item config (the client uses one
+  global item-modification lookup, including shop no-ops).
 
 Its stdout is a TSV of every preserved and added pair. Catalog size alone is
 not proof: a larger catalog can still lose individual combinations.
@@ -45,7 +47,7 @@ retail iron-sight folding from the previous port remain in the builders.
 
 ## Validation and remaining review
 
-Implemented packs are `rifle-scopes@18` and `scope-fits@11`, pinned by hash in
+Implemented packs are `rifle-scopes@18` and `scope-fits@12`, pinned by hash in
 `release/content.tsv`. Eight shop optics and 396 fits are added. The combined
 server parser reports **169 released pairs preserved, 396 added, 20 scope items
 on 87 weapons**. Every old variant ID survives, and every resulting pair is in
@@ -97,7 +99,9 @@ exclude Cargo outputs from Nix source snapshots; the native camera check and
 all 396 generated variants pass with those wrappers. `check-results.tsv` records
 the final result for every selected check. No broad failing rule was loosened.
 
-**Not yet played or released.** The native-game review must still exercise aim-in,
+**Native lobby review started; not released.** The owner tested SVU scopes and
+reported an invisible PSO-1 (see the follow-up below). The native-game review
+must still exercise aim-in,
 reticle shaders, attachment/replacement/removal, re-login, and the Glock's optic
 (the earlier port recorded an unresolved preview crash). Numerical geometry and
 the approximate review sheet cannot certify these behaviors. In particular, the
@@ -121,7 +125,8 @@ Inputs and logs live in `artifacts/scopes-069/` in the main checkout:
   build. The intermediate source snapshot excludes the second pack and its edit
   list/item reservations. It is only input preparation; the final build uses the
   complete branch manifest, never that snapshot.
-- `combined-content/`: full local candidate and its per-file audit. Patch SHA-256
+- `combined-content/`: initial full local candidate, before the native-review
+  corrections below, and its per-file audit. Patch SHA-256
   `0732b747e99170a9663ee18f1bae8e62d28e7132f822cf44a357d0d53035f217`;
   server data SHA-256
   `26ab5cf59b81c9114e65f0c3e0b2627647cf69b0d71c8a09fd9ba28e329a1961`.
@@ -139,8 +144,10 @@ commands; the second pack takes `--guns <live/> --live <live-rifles/>`.
 The isolated native test configuration is
 `private/local-clients-scopes069/config.json`: this branch's client/server,
 full candidate content, account `Scopes069Review`, loopback ports 29690–29693,
-2560×1440 fullscreen. It has been prepared but not launched. The owner chose “Keep it prepared; do not
-open yet” on 2026-11-15. Gameplay review remains pending until requested.
+2560×1440 fullscreen. The owner subsequently authorized launch and operation on 2026-11-15. The
+client was launched, the review inventory provisioned, and the owner tested SVU
+attachments. That client has since exited; another game session is outside this
+review. Keep the corrected build prepared for the next isolated launch.
 
 
 The deferred native review should cover the M4A1 collimators (including XPS2's
@@ -174,5 +181,65 @@ bone-name comparison, as defined by resource-porter's
 The audit script and result are `glock-audit/check.py` and `result.log` beside
 the extracted config. These checks narrow the historical risk but do not
 reproduce or clear the crash. The current client's Attachments-window test
-remains required and is deferred under the owner's instruction to keep the
-game closed.
+remains unverified; the later authorization to launch superseded the earlier
+instruction to keep the game closed.
+
+
+## Native review follow-up: invisible attachments (2026-11-15)
+
+The owner's `~/screenshots/2026-11-15-18-49-12.png` shows PSO-1 selected on the
+SVU but no scope on the weapon. The local account persisted the correct variant
+3111 (`72:3111:0:3`), and the native log recorded a preview rebuild at 18:49:07.
+Extracting the actual mounted archives reproduced the pack's config bytes.
+
+The cause is a global modification-ID collision, not an SVU exception. Pack 11
+used `990000 + variant dict id`; the original shop items use
+`991000 + shop dict id`. All 12 variants 3101–3112 therefore collided with the
+12 original shop no-op modifications 993101–993112. A globally resolved no-op
+leaves both the bare weapon model and its absent scope unchanged. The owner
+observed Leupold working, but that variant also collides: relying on which
+resource registers first is invalid.
+
+Pack 12 uses `1000000 + variant dict id` for all 212 variants. Variant dictionary
+IDs, scope ownership, saved records and compatibility remain unchanged. The
+catalog checker now scans every distinct item config, regardless of category,
+and rejects duplicate item-modification IDs. Its regression checks both
+registration orders. The old composed candidate fails this check; see
+`artifacts/scopes-069/modification-regression.log`.
+
+The native log also reported a missing TA31 `acog_light_pipe_s` material. The
+new native optical geometry included that surface while its older reference
+model did not. Its donor material is now mapped to the existing
+`weapons/loc2/acog_light_pipe`. The scope-fits builder previously omitted the
+shared material/texture closure check; both builders and the registered
+real-asset checker now run it. The old pack fails with the missing material
+(`material-regression.log`); pack 12 passes for all 162 referenced materials.
+The existing Vepr-12 normal-map omission is still reported as baseline data.
+
+Correction validation: all five catalog unit tests, affected `cargo:survarium`
+tests/Clippy, registered scope-geometry and scope-assets pass. The asset check
+covers all 396 generated variants at three animation times and their material
+closure. These checks do not certify a post-fix native screenshot; the owner
+retains the remaining visual/aiming review. No production action was taken.
+
+
+The corrected `release/build-content 60 --full` output is
+`artifacts/scopes-069/content-scope-fix/`. Archive readback, full manifest audit,
+server-data generation and item tables passed. Patch SHA-256:
+`7f1e458f90740d4c3996a8bf86551ba706d23842b5daac9997e35084a4523554`;
+server data SHA-256:
+`8ac7b3c141dc5b170ea42cb418767a3d6efbe0ab95b7533aeec5f37f41648e5a`.
+The registered `tools/check scope-preservation` also passed on its independent
+rebuild (`scope-fix-preservation-check.log`). The corrected composed catalog has
+no duplicate item-modification IDs and keeps
+169 released fits plus 396 additions (20 scopes, 87 weapons). Its pair report is
+`scope-fix-pairs.tsv`. `scope-fix-pack-diff.txt` confirms the same 5,753 file
+paths: exactly 212 configs changed only their two modification-ID fields and
+10 TA31 model settings changed only the light-pipe material. All other bytes
+are identical to pack 11.
+
+The isolated config now points at this corrected patch and server data. Its
+idle server was stopped through its own launcher; its account, inventory and
+SVU PSO-1 record (`72:3111:0:3`) remain intact. No new window was opened over the
+owner's separate game session. The next isolated launch will use pack 12.
+Post-fix native rendering and aiming are still for the owner's visual retest.

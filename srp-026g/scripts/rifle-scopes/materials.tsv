@@ -6,6 +6,7 @@ scopes/scope_lense_3p	loc2:scope_lense_3p
 scopes/scope_aimgrid	loc2:scope_aimgrid
 scopes/scope_reddot	loc2:scope_reddot
 scopes/acog/acog_scope	loc2:acog
+scopes/acog/acog_scope_light_pipe	loc2:acog_light_pipe
 collimators/ncstar_4_collimator	material_instances/weapons/loc2/eotech_552.material
 collimators/eotech_xps2_collimator	material_instances/weapons/loc2/eotech_552.material
 collimators/belomo_pk01_collimator	material_instances/weapons/loc2/aimpoint_comp_m4.material

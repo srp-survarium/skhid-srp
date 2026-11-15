@@ -1,9 +1,51 @@
 //! Compare released and candidate scope catalogs using the server's own parser.
 //! Refuse lost pairs, changed variant identities, and invisible lobby fits.
 
-use std::{error::Error, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    error::Error,
+    path::Path,
+};
 
-use survarium::v026g::{dictionary::Dictionary, game_data::GameData, scopes::ScopeFits};
+use survarium::v026g::{
+    dictionary::Dictionary,
+    game_data::{self, GameData},
+    scopes::ScopeFits,
+};
+
+fn unique_modification<'a>(
+    owners: &mut BTreeMap<i32, &'a str>,
+    id: i32,
+    path: &'a str,
+) -> Result<(), String> {
+    if let Some(previous) = owners.insert(id, path) {
+        return Err(format!(
+            "item modification {id} is defined by both {previous} and {path}; the native global lookup can apply the wrong modifiers"
+        ));
+    }
+    Ok(())
+}
+
+// The client collects modifications from every item, not just category 22.
+// A perfectly valid scope fit can otherwise resolve to a shop item's no-op.
+fn check_modification_ids(data: &GameData, dictionary: &Dictionary) -> Result<(), Box<dyn Error>> {
+    let mut owners = BTreeMap::new();
+    let mut paths = BTreeSet::new();
+    for item in &dictionary.items {
+        let path = item.cfg_name.as_str();
+        if !paths.insert(path) {
+            continue;
+        }
+        let config =
+            game_data::config(data, path)?.ok_or_else(|| format!("missing item config {path}"))?;
+        if let Some(modifications) = config.get("modifications") {
+            for modification in modifications.children() {
+                unique_modification(&mut owners, modification.i32_at("id")?, path)?;
+            }
+        }
+    }
+    Ok(())
+}
 
 fn read(path: &Path) -> Result<(Dictionary, ScopeFits), Box<dyn Error>> {
     let data = GameData::open(path)?;
@@ -11,6 +53,7 @@ fn read(path: &Path) -> Result<(Dictionary, ScopeFits), Box<dyn Error>> {
         .file("gameplay/db_static_dictionaries")
         .ok_or("game data has no dictionary")?;
     let dictionary = Dictionary::parse(bytes)?;
+    check_modification_ids(&data, &dictionary)?;
     let (fits, rejected) = ScopeFits::derive(&data, &dictionary)?;
     if !rejected.is_empty() {
         return Err(format!("{}: rejected scope variants: {rejected:?}", path.display()).into());
@@ -120,6 +163,26 @@ fn main() {
 mod tests {
     use super::*;
     use survarium::v026g::scopes::Fit;
+
+    #[test]
+    fn a_shop_noop_cannot_shadow_a_scope_variant() {
+        for paths in [
+            ["shop_scope_docter", "fitn_pso_1_svu_a"],
+            ["fitn_pso_1_svu_a", "shop_scope_docter"],
+        ] {
+            let mut owners = BTreeMap::new();
+            unique_modification(&mut owners, 993111, paths[0]).unwrap();
+            let error = unique_modification(&mut owners, 993111, paths[1]).unwrap_err();
+            assert!(error.contains(paths[0]) && error.contains(paths[1]));
+        }
+    }
+
+    #[test]
+    fn distinct_item_modifications_are_unambiguous() {
+        let mut owners = BTreeMap::new();
+        unique_modification(&mut owners, 993111, "shop_scope_docter").unwrap();
+        unique_modification(&mut owners, 1003111, "fitn_pso_1_svu_a").unwrap();
+    }
 
     fn catalog(pairs: &[(u16, u16, u16)]) -> ScopeFits {
         let (fits, duplicate) = ScopeFits::new(
