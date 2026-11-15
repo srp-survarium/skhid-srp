@@ -339,7 +339,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
 mod tests {
     use super::super::tests::Scenario;
     use super::*;
-    use crate::v026g::bots::team::{Asking, assign};
+    use crate::v026g::bots::team::{Asking, Commit, assign};
     use crate::v026g::bots::view::{BatteryState, Mode};
 
     const CARRIER: Vec3 = Vec3::new(45.0, 0.0, 33.0);
@@ -399,7 +399,7 @@ mod tests {
                 place,
                 candidates: escorts(&s, place),
                 current: None,
-                committed: false,
+                commit: Commit::Free,
             })
             .collect();
         let out = assign(asking, s.view.clock);

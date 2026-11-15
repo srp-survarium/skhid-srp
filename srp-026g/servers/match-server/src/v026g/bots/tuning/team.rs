@@ -904,6 +904,13 @@ pub struct CommitTuning {
     /// (an objective, an alarm) still takes the bot, and so does the play's
     /// own end.
     pub hold_to_arrival: bool,
+    /// [A394 (b)] A Collect take within reach of its battery (`hold_near_m`, 3 m), in no enemy's sight (`exposed_m`, the
+    /// take's rule for fighting first) and before its first press is kept against every play but a heal or a retreat, of
+    /// any band, and while it is no longer a candidate (`team::Commit::Finish`, `collect::finishing`). Off: kept only by its
+    /// band and the margin while it is a free candidate; the live recordings had 21 plays replaced within 3 m of their
+    /// battery, 20 of those bots killed there, where players finish every take they start (the batteries findings of
+    /// 2026-11-14, C2).
+    pub finish_take: bool,
     /// A running Cut is scored without the crowd at its cut point
     /// (`Input::FriendsNearTarget` taken as 0): the crowd is a reason not to
     /// start a Cut where friends already are, not to leave one the bot is
@@ -964,6 +971,7 @@ impl Default for CommitTuning {
     fn default() -> Self {
         Self {
             hold_to_arrival: true,
+            finish_take: true,
             cut_given_crowd: true,
             crossfire_point: true,
             crossfire_point_s: 30.0,
