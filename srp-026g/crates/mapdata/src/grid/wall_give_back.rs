@@ -12,8 +12,8 @@
 //!   height, so a real wall made the round take it (rising ground, which the old `round_keeps_exact` also gave back, 277k
 //!   floors mostly of Rudnya's hillside, has none);
 //! - the client's own walk tick stands a body there ([`stands`]): set standing on the floor's own point (no push out of the
-//!   walls), with no keys, it comes down and rests within [`STAND_MOVED_M`] of the point across and in height (no slide, no
-//!   fall, not jammed).
+//!   walls; where it jams there, 0.05-0.10 m around it), with no keys, it comes down and rests within [`STAND_MOVED_M`] of where
+//!   it was put across and of the floor in height (no slide, no fall, not jammed).
 //!
 //! It runs after the rounds (and the narrow doors), before their relinking and the exact pass, as the doors' pass does.
 
@@ -28,10 +28,10 @@ use crate::controller::tick::Settings;
 pub const WALL_NEAR_M: f32 = 0.6;
 /// How far the feet may move (or drop) in the stand test, m.
 pub const STAND_MOVED_M: f32 = 0.1;
-/// Whether the client's walk tick stands a body on `feet`: the own-point test ([`super::rest_floors::settle`]: a standing body
-/// put 5 mm over the floor's own point, no push out of the walls, no keys), and it comes down and rests within [`STAND_MOVED_M`]
-/// of the point across and in height (no slide, no fall, not jammed). The body is stepped by the grid's collision and settings
-/// (`world`, `s`: [`Body::controller`]).
+/// Whether the client's walk tick stands a body on `feet`: the own-point test ([`super::rest_floors::settle_near`]: a standing
+/// body put 5 mm over the floor's own point, no push out of the walls, no keys; where it jams there, put again 0.05 then 0.10 m
+/// around it), and it comes down and rests within [`STAND_MOVED_M`] of where it was put across and of the floor in height (no
+/// slide, no fall, not jammed). The body is stepped by the grid's collision and settings (`world`, `s`: [`Body::controller`]).
 ///
 /// [A364 C2 row 45] The body arrives with a speed, so its steps run: a body set standing with no speed and the contact normal up
 /// is exactly the state `can_skip_player_step` 0x7C7E0 skips (the exactness rig: 2,160 of 2,160 steps skipped).
@@ -40,22 +40,23 @@ pub const STAND_MOVED_M: f32 = 0.1;
 /// (before, #1893), the body rested 0.25-0.40 m off the floor's point where the exe's body never goes, and a body jammed in faces,
 /// which never moves, read as a rest: on 53 floors this pass brought back, the exactness rig (the exe's own tick on captures of
 /// the running game) holds 35, jams 14 and drops 4; this test agrees on 52, the pushed one on 18 to 41
-/// (rig/s7-20261114/own-point-all-20261116.tsv; nav-builder phase4/settle-20261116.txt). A floor jammed at its own point and
-/// free 5 cm out is not given back: a neighbour cell's floor names that place.
+/// (rig/s7-20261114/own-point-all-20261116.tsv; nav-builder phase4/settle-20261116.txt). Of the floors the exe's body jams on at
+/// their point, 9 of 10 rest from a put 0.05-0.10 m out (the exactness rig's ring, rig/s7-20261114/ring-give-back-20261116.txt):
+/// the ring's floors stand.
 ///
 /// Known gap: a floor where only a crouched body fits (a standing body jams there, a ledge at head height) is not given back: the
 /// port's crouched body never stands still in the rest test's steps.
 pub(super) fn stands(world: &Collision, s: &Settings, feet: Vec3) -> bool {
-    let settled = super::rest_floors::settle(world, s, feet);
+    let settled = super::rest_floors::settle_near(world, s, feet);
     let ok = match settled {
-        // Down: no more than STAND_MOVED_M (no slide, no fall). Up: a floor names a place within NAME_HEIGHT_M of its height
-        // (`rest_floors`).
-        Settle::Rests(at) => {
-            (at.x - feet.x).hypot(at.z - feet.z) < STAND_MOVED_M && feet.y - at.y < STAND_MOVED_M && at.y - feet.y <= super::rest_floors::NAME_HEIGHT_M
+        // Across: no more than STAND_MOVED_M from the put (no slide). Down: no more than STAND_MOVED_M under the floor (no fall).
+        // Up: a floor names a place within NAME_HEIGHT_M of its height (`rest_floors`).
+        Settle::Rests { put, at } => {
+            (at.x - put.x).hypot(at.z - put.z) < STAND_MOVED_M && feet.y - at.y < STAND_MOVED_M && at.y - feet.y <= super::rest_floors::NAME_HEIGHT_M
         }
         Settle::Jammed | Settle::Moving => false,
     };
-    count_stand(settled, ok);
+    count_stand(feet, settled, ok);
     ok
 }
 
@@ -66,26 +67,36 @@ pub struct GiveBackStands {
     pub tests: u64,
     /// … the body stood …
     pub stood: u64,
-    /// … and of those that did not, jammed at the floor's point (never came down).
+    /// … of them, from a ring put (jammed at the floor's point) …
+    pub stood_on_ring: u64,
+    /// … and of those that did not, jammed at the floor's point and at every ring put.
     pub jammed: u64,
 }
 
-static STAND_COUNTS: [std::sync::atomic::AtomicU64; 3] = [const { std::sync::atomic::AtomicU64::new(0) }; 3];
+static STAND_COUNTS: [std::sync::atomic::AtomicU64; 4] = [const { std::sync::atomic::AtomicU64::new(0) }; 4];
 
-fn count_stand(settled: Settle, stood: bool) {
+fn count_stand(feet: Vec3, settled: Settle, stood: bool) {
     use std::sync::atomic::Ordering::Relaxed;
     STAND_COUNTS[0].fetch_add(1, Relaxed);
-    if stood {
-        STAND_COUNTS[1].fetch_add(1, Relaxed);
-    } else if settled == Settle::Jammed {
-        STAND_COUNTS[2].fetch_add(1, Relaxed);
+    match settled {
+        Settle::Rests { put, .. } if stood => {
+            STAND_COUNTS[1].fetch_add(1, Relaxed);
+            // The own point's put is straight over the floor's point; a ring put is aside.
+            if put.x != feet.x || put.z != feet.z {
+                STAND_COUNTS[2].fetch_add(1, Relaxed);
+            }
+        }
+        Settle::Jammed => {
+            STAND_COUNTS[3].fetch_add(1, Relaxed);
+        }
+        Settle::Rests { .. } | Settle::Moving => {}
     }
 }
 
 /// The process's [`GiveBackStands`] so far.
 pub fn give_back_stands() -> GiveBackStands {
     let n = |i: usize| STAND_COUNTS[i].load(std::sync::atomic::Ordering::Relaxed);
-    GiveBackStands { tests: n(0), stood: n(1), jammed: n(2) }
+    GiveBackStands { tests: n(0), stood: n(1), stood_on_ring: n(2), jammed: n(3) }
 }
 
 /// How [`WalkGrid::give_back_by_walls`] judges a taken floor.
@@ -190,19 +201,24 @@ mod tests {
 
     /// A wall at x = 5.22: the floor centred at x 4.875 is 0.345 m off it, so the rounds take it (the wall is in the cell beside)
     /// and the exact pass (0.3175 m) keeps it: a candidate. A standing body (radius 0.38) set on its point overlaps the wall and
-    /// never comes down (jammed; the exe's own tick jams such floors, rig/s7-20261114/own-point-all-20261116.tsv): it stays taken.
+    /// never comes down (jammed); put 0.10 m away from the wall (the ring) it rests: it comes back. The one at 5.125 (0.095 m
+    /// off) jams on the whole ring: it stays taken.
     #[test]
-    fn a_floor_the_rounds_took_beside_a_wall_the_standing_body_overlaps_stays_taken() {
-        use super::super::rest_floors::{settle, Settle};
+    fn a_floor_the_rounds_took_beside_a_wall_the_body_clears_comes_back() {
+        use super::super::rest_floors::{settle, settle_near, Settle};
         let mut tris = ground();
         tris.extend(wall(5.22));
         let (off, on) = (floors(&tris, false), floors(&tris, true));
         let at = |g: &WalkGrid, x: f32| g.locate(Vec3::new(x, 0.0, 5.125), 0.05).is_some();
         assert!(!at(&off, 4.875), "the rounds take it");
-        let jam = settle(&Collision::build(&tris), &Settings::LIVE, Vec3::new(4.875, 0.0, 5.125));
-        assert_eq!(jam, Settle::Jammed, "0.345 m off the wall the standing body overlaps it");
-        assert!(!at(&on, 4.875), "jammed: stays taken");
+        let (world, s) = (Collision::build(&tris), &Settings::LIVE);
+        let feet = Vec3::new(4.875, 0.0, 5.125);
+        assert_eq!(settle(&world, s, feet), Settle::Jammed, "0.345 m off the wall the standing body overlaps it");
+        assert!(matches!(settle_near(&world, s, feet), Settle::Rests { put, .. } if put.x < feet.x - 0.09), "rests from the ring");
+        assert!(at(&on, 4.875), "comes back");
         assert!(!at(&on, 5.125), "under the clearance stays taken");
+        let far = |g: &WalkGrid| g.floors_in(AREA).map(|n| g.position(n)).filter(|p| (p.x - 5.22).abs() > 1.0).count();
+        assert_eq!(far(&on), far(&off), "no floor comes back away from the wall");
     }
 
     /// [A331] A wall at x = 5.175: the floor centred at x 4.875 is 0.30 m off it, nearer than the exact pass's 0.3175 m, so
@@ -247,7 +263,7 @@ mod tests {
         let world = Collision::build(&tris);
         let s = &Settings::LIVE;
         let under = Vec3::new(5.6, 0.0, 5.0);
-        assert_eq!(settle(&world, s, under), Settle::Rests(under), "the body comes down onto the floor's own point");
+        assert_eq!(settle(&world, s, under), Settle::Rests { put: under + Vec3::new(0.0, 0.005, 0.0), at: under }, "the body comes down onto the floor's own point");
         assert!(stands(&world, s, under), "under the slab");
         let open = Vec3::new(2.0, 0.0, 5.0);
         assert!(stands(&world, s, open), "open ground: {:?}", settle(&world, s, open));
