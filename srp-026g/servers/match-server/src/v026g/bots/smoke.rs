@@ -509,7 +509,8 @@ impl SmokeRule {
 pub enum OwnSpot {
     /// The team's container.
     Container,
-    /// A battery of ours taken from home and lying loose (`TeamKnowledge::thefts`), by number.
+    /// A battery of ours taken from home (`TeamKnowledge::thefts`) and lying loose where the team knows it lies (its HUD
+    /// or a bot's sight, `TeamKnowledge::battery`), by number.
     Battery(usize),
 }
 
@@ -525,8 +526,8 @@ impl std::fmt::Display for OwnSpot {
 /// [own base] A planned cloud that would hold the team's own container, or a battery of ours lying loose, while the
 /// shooter it is thrown against is nearer that than the thrower is, or within the take's own `exposed_m` (Collect's, 25
 /// m) of it: the plan is refused. A cloud takes nothing from a thief (the game reads no cloud: he uses the container and
-/// picks a battery up through it, and the stolen battery stays on the defenders' HUD), and it takes the defenders' sight
-/// of him. On Tarakanovsky Fort a defender smoked his own container (the crossing 0.4 m from it, the cloud at rest 4.1 m
+/// picks a battery up through it; the HUD tells the defenders of the theft, the container's count, though a battery he
+/// drops is on his own team's HUD only), and it takes the defenders' sight of him. On Tarakanovsky Fort a defender smoked his own container (the crossing 0.4 m from it, the cloud at rest 4.1 m
 /// from it) against a player 14 m from it, who took 3 batteries under the cloud and killed 6 defenders there at 0.8-3.8
 /// m; 3 clouds by one team in 5 matches were decided so. Our carrier's smoke ([`SmokeRule::OurCarrier`]) is for his last
 /// metres home: refused only while the shooter is within `exposed_m` of the spot.

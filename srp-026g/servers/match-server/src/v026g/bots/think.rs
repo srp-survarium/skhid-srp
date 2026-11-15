@@ -1111,9 +1111,18 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
         .container_of(bot.team)
         .map(|c| (smoke::OwnSpot::Container, c.at))
         .into_iter()
-        .chain(knowledge.thefts.iter().filter_map(|theft| match view.batteries.get(theft.battery) {
-            Some(BatteryState::Free(at)) => Some((smoke::OwnSpot::Battery(theft.battery), *at)),
-            _ => None,
+        // Where the team knows a stolen battery lies (its HUD or a bot's sight, as Collect's `battery_lying`): a battery the
+        // thief drops is on his team's HUD only, so the world's own state is the batteries cheat's.
+        .chain(knowledge.thefts.iter().filter_map(|theft| {
+            let at = if tuning.cheats.batteries {
+                match view.batteries.get(theft.battery) {
+                    Some(BatteryState::Free(at)) => Some(*at),
+                    _ => None,
+                }
+            } else {
+                knowledge.battery(theft.battery).map(|known| known.at)
+            };
+            at.map(|at| (smoke::OwnSpot::Battery(theft.battery), at))
         }))
         .collect();
     let mut chosen = None;
