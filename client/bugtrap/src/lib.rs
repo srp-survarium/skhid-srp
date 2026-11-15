@@ -2,7 +2,7 @@
 
 #[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 compile_error!(
-    "This DLL implements the native ANSI Win32 BugTrap ABI; build for i686-win7-windows-msvc."
+    "This DLL implements the native ANSI Win32 BugTrap ABI; build for i686-pc-windows-msvc."
 );
 
 mod api;

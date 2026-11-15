@@ -32,7 +32,7 @@ import zipfile
 import run_logs
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RELEASE = os.path.join("target", "i686-win7-windows-msvc", "release")
+RELEASE = os.path.join("target", "i686-pc-windows-msvc", "release")
 UPDATER = os.path.join(HERE, "..", "exe", RELEASE, "updater_skhid.exe")
 FAKE_EXE = os.path.join(HERE, "fake_exe", RELEASE, "fake-exe.exe")
 X86 = os.path.join("game", "binaries", "x86")

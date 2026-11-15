@@ -33,8 +33,8 @@ def main():
     x86 = game / 'binaries' / 'x86'
     x86.mkdir(parents=True)
     updater = x86 / 'updater_skhid.exe'
-    fake = here / 'fake_exe/target/i686-win7-windows-msvc/release/fake-exe.exe'
-    shutil.copy2(here.parent / 'exe/target/i686-win7-windows-msvc/release/updater_skhid.exe', updater)
+    fake = here / 'fake_exe/target/i686-pc-windows-msvc/release/fake-exe.exe'
+    shutil.copy2(here.parent / 'exe/target/i686-pc-windows-msvc/release/updater_skhid.exe', updater)
     shutil.copy2(fake, x86 / 'survarium_skhid.exe')
     (x86 / 'updater_skhid.patches').write_text('{}')
     status = x86 / 'updater_skhid.patches.status'

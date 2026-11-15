@@ -12,9 +12,8 @@ use updater_logic::download::{self, PAGE_HEAD, Speed};
 use updater_logic::problem::{Fault, Miss, Probe, Stage};
 use updater_logic::url::{self, MAX_REDIRECTS, Url};
 use windows_sys::Win32::Networking::WinHttp::{
-    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-    WINHTTP_DISABLE_COOKIES, WINHTTP_FLAG_BYPASS_PROXY_CACHE, WINHTTP_FLAG_SECURE,
-    WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2, WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3,
+    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_DISABLE_COOKIES, WINHTTP_FLAG_BYPASS_PROXY_CACHE,
+    WINHTTP_FLAG_SECURE, WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2, WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3,
     WINHTTP_OPTION_DISABLE_FEATURE, WINHTTP_OPTION_REDIRECT_POLICY,
     WINHTTP_OPTION_REDIRECT_POLICY_NEVER, WINHTTP_OPTION_SECURE_PROTOCOLS,
     WINHTTP_QUERY_CONTENT_LENGTH, WINHTTP_QUERY_CONTENT_RANGE, WINHTTP_QUERY_CONTENT_TYPE,
@@ -332,7 +331,7 @@ pub fn get_file(
 /// timeouts; TLS 1.2 and newer.
 fn open_session() -> Result<Internet, HttpError> {
     let agent = wide("SkhidUpdater/1");
-    let mut session = unsafe {
+    let session = unsafe {
         WinHttpOpen(
             agent.as_ptr(),
             WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
@@ -341,18 +340,6 @@ fn open_session() -> Result<Internet, HttpError> {
             0,
         )
     };
-    if session.is_null() {
-        // Windows before 8.1 does not know the automatic setting.
-        session = unsafe {
-            WinHttpOpen(
-                agent.as_ptr(),
-                WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-                null(),
-                null(),
-                0,
-            )
-        };
-    }
     let session = handle(session, "start")?;
     unsafe {
         // Name lookup, connect, send, receive: no step waits longer.

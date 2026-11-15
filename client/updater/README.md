@@ -12,14 +12,14 @@ itself stays as the game ships it (an earlier updater changed parts of it
 in place: those get their stock bytes back once, "Restoring resources.db"
 below).
 
-An ordinary 32-bit Windows program of about 380 KB, like `../bugtrap`: Rust's
+An ordinary 32-bit Windows program of about 480 KB, like `../bugtrap`: Rust's
 standard library and Microsoft's C runtime, linked in (`+crt-static`, as
 `cl /MT`; no runtime DLL beside it), the game's icon, a version resource
 (Skhid, "Skhid updater", the release revision) and its `asInvoker` manifest.
-Windows 7 and later. It imports `kernel32.dll`, `user32.dll` (its message
+Windows 10 and later. It imports `kernel32.dll`, `user32.dll` (its message
 box), `winhttp.dll`, `advapi32.dll` (per-user replay registration), `shell32.dll` (file associations and the Documents folder, where the game's
-user.cfg says the language its messages are in) and `ntdll.dll` (two
-functions of the standard library's).
+user.cfg says the language its messages are in), and `ntdll.dll` and
+`api-ms-win-core-synch-l1-2-0.dll` (the standard library's).
 
 ## What it does, and does not
 
@@ -124,7 +124,7 @@ says so and does nothing.
 | Folder | What |
 |---|---|
 | `logic/` | Everything that needs no Windows, as a library with no dependencies: SHA-256, DEFLATE and CRC-32, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
-| `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-win7-windows-msvc` with `-Z build-std=std,panic_abort`, `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource |
+| `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-pc-windows-msvc` with `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource |
 | `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
 
 ## PLAY and the server's revision
@@ -739,14 +739,14 @@ after a new overlay until the step has run with the server's list.
 ## Build and test
 
 Use the dev shell of `srp-026g/flake.nix` (`nix develop ./srp-026g`): the
-nightly Rust of the game workspaces with `rust-src`, `llvm-rc` and Microsoft's
+nightly Rust of the game workspaces with `llvm-rc` and Microsoft's
 C runtime and import libraries for 32-bit x86 (`SKHID_MSVC_LIB`, as
 `../bugtrap/README.md` "Build" says). No Windows or Visual Studio installation
 is needed. The two locked dependencies of `exe/` are Microsoft's `windows-sys`
 and `windows-link`.
 
 ```sh
-./build.sh                                   # exe/target/i686-win7-windows-msvc/release/updater_skhid.exe
+./build.sh                                   # exe/target/i686-pc-windows-msvc/release/updater_skhid.exe
 SKHID_UPDATE_URL=https://test.example ./build.sh   # another default server
 SKHID_REVISION=27 ./build.sh                 # as release/build-zip builds revision 27
 (cd logic && cargo test)
