@@ -39,8 +39,17 @@ pub fn run(pipe: Option<GamePipe>) -> u32 {
             return exit::NO_PIPE;
         }
     };
-    // "Allow torrent" was the game's to decide, which started this to
-    // share; the port is the one the updaters keep (`torrent::share_while`).
+    // The launcher's "Allow torrent" too, as the launcher's updater reads it
+    // (`win::launcher_torrent_allowed`): a game started without the launcher,
+    // in a folder the Skhid launcher never reset, has the original game's
+    // default `on` saved, which no player chose. Off: nothing, at once.
+    if !win::launcher_torrent_allowed() {
+        log!("seed: \"Allow torrent\" is not on (user.cfg, after the launcher's reset): nothing shared");
+        channel.close();
+        log!("exit 0");
+        return exit::OK;
+    }
+    // The port is the one the updaters keep (`torrent::share_while`).
     let mut stats = Stats::Hidden;
     let mut meter = Meter::new(win::ticks(), 0);
     let shared = torrent::share_while(&layout, None, &mut |sharing| {

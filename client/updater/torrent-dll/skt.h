@@ -110,7 +110,7 @@ SKT_API int SKT_CALL skt_poll(skt_session *s, skt_event *out, int max, int wait_
    put a signed one as it is (no private key here: the signature is the
    release's). */
 SKT_API void SKT_CALL skt_dht_get(skt_session *s, const uint8_t key[32], const uint8_t *salt, size_t saltlen);
-SKT_API int SKT_CALL skt_dht_put(skt_session *s, const uint8_t key[32], const uint8_t sig[64], int64_t seq,
+SKT_API int SKT_CALL skt_dht_put(skt_session *s, const uint8_t key[32], const uint8_t sig[64], int32_t seq,
                                  const uint8_t *salt, size_t saltlen, const uint8_t *value, size_t len);
 #ifdef __cplusplus
 }

@@ -491,13 +491,16 @@ and in `seed`.
 `enable_torrent_seeding` ("Allow torrent", user.cfg's line) is on, makes the pipe
 `\\.\pipe\skhid_seed-<its process id>` on its login screen and in its lobby
 and starts `updater_skhid.exe seed <that pipe>` beside itself, with no
-window. The updater opens the pipe, shares the folder's torrent as the
-launcher's updater does while it watches (`torrent::share_while`, its one
+window. The updater opens the pipe and reads "Allow torrent" as the
+launcher's updater does (`win::launcher_torrent_allowed`: user.cfg's line
+`on`, after the launcher's reset); not on, it closes the pipe and ends at
+once (a game started without the launcher, in a folder it never reset,
+still has the original game's default `on`). Then it shares the folder's
+torrent as the launcher's updater does while it watches (`torrent::share_while`, its one
 call into the engine: the trusted torrent's files the folder has, the
 bootstrap's, the DHT item; nothing fetched), on the port the updaters keep
 (`updater_skhid.port`; a free one, then kept, when none is), and ends when the pipe closes: the game entering a match,
-or ending. It reads no "Allow torrent" (the game's setting decided), takes
-no lock and shows no box; it logs to `updater_skhid.seed.log`. A port that
+or ending. It takes no lock and shows no box; it logs to `updater_skhid.seed.log`. A port that
 is held (another updater shares on it, or is closing) is tried for 10 s,
 then the run ends, logged. On the pipe (the launcher's framing) the game
 says its upload limit (`1E`: ignored, the cap holds) and its stats switch

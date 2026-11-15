@@ -49,6 +49,7 @@ const HIGHER_MS: u64 = 3_000;
 /// The signed item is put again this often while it shares (DHT nodes
 /// forget an item in about two hours).
 const PUT_AGAIN_MS: u64 = 30 * 60_000;
+const PUT_RETRY_MS: u64 = 30_000;
 /// The DHT's way in.
 const DHT_BOOTSTRAP: &str =
     "dht.libtorrent.org:25401,router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881";
@@ -227,7 +228,18 @@ struct Placed {
 /// The signed item this updater puts on the DHT, and when it last did.
 struct Put {
     item: Item,
-    at: Option<u64>,
+    state: PutState,
+}
+
+/// Where the item's put is.
+enum PutState {
+    /// Not put yet in this sharing.
+    Due,
+    /// Put at this time, stored on no node yet (the DHT may not have been
+    /// found then): put again [`PUT_RETRY_MS`] after.
+    Sent(u64),
+    /// Stored at this time: put again [`PUT_AGAIN_MS`] after.
+    Stored(u64),
 }
 
 enum Discovery {
@@ -504,7 +516,6 @@ impl Torrents {
                     checked(session, added, &dir, &known);
                 }
             }
-            Event::DhtPut { nodes: 0 } => {}
             Event::Metadata(id) => {
                 if let Job::Discovering(Discovery::Fetching { newest, item, id: of }) = &engine.job
                     && *of == id
@@ -545,7 +556,14 @@ impl Torrents {
                     }
                 }
             }
-            Event::DhtPut { nodes } => log!("torrent: the newest release's item stored on {nodes} DHT nodes"),
+            Event::DhtPut { nodes } => {
+                if let Job::Sharing { put: Some(put), .. } = &mut engine.job
+                    && nodes > 0
+                {
+                    put.state = PutState::Stored(win::ticks());
+                }
+                log!("torrent: the newest release's item stored on {nodes} DHT nodes");
+            }
         }
         None
     }
@@ -556,10 +574,15 @@ impl Torrents {
         let Some(engine) = self.engine() else { return };
         let Job::Sharing { put: Some(put), .. } = &mut engine.job else { return };
         let now = win::ticks();
-        if put.at.is_some_and(|at| now.saturating_sub(at) < PUT_AGAIN_MS) {
+        let due = match put.state {
+            PutState::Due => true,
+            PutState::Sent(at) => now.saturating_sub(at) >= PUT_RETRY_MS,
+            PutState::Stored(at) => now.saturating_sub(at) >= PUT_AGAIN_MS,
+        };
+        if !due {
             return;
         }
-        put.at = Some(now);
+        put.state = PutState::Sent(now);
         log!("torrent: the item of revision {} put on the DHT", put.item.seq);
         engine.session.dht_put(&key, newest::SALT, &put.item);
     }
@@ -780,7 +803,7 @@ impl Torrents {
                 .ok();
             put = crate::signed::key()
                 .and_then(|key| newest::of_torrent(&signed.bytes).filter(|item| newest::verify(item, &key).is_some()))
-                .map(|item| Put { item, at: None });
+                .map(|item| Put { item, state: PutState::Due });
         }
         let bootstrap = bootstrap.and_then(|Bootstrap { bytes, torrent, copies: files }| {
             log!("torrent: sharing the bootstrap's {} of {} files", files.len(), torrent.files.len());

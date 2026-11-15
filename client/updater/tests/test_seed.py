@@ -15,6 +15,7 @@ Windows, or Linux under Wine; Python with libtorrent and cryptography (as
 test_torrent.py).
 """
 
+import getpass
 import os
 import random
 import socket
@@ -35,6 +36,20 @@ harness = wine.harness
 CAP = 1 << 20
 
 
+def user_cfg():
+    """The game's user.cfg the updater reads "Allow torrent" from
+    (`<Documents>\\survarium\\user.cfg`). Under Wine, in the tests' prefix:
+    its Documents, which Wine links to this home's, is made a folder of its
+    own first, so that a player's real user.cfg is never written to."""
+    if wine.WINDOWS:
+        raise unittest.SkipTest("Windows: these tests would write the player's own user.cfg")
+    documents = os.path.join(wine.PREFIX, "drive_c", "users", getpass.getuser(), "Documents")
+    if os.path.islink(documents):
+        os.unlink(documents)
+    os.makedirs(os.path.join(documents, "survarium"), exist_ok=True)
+    return os.path.join(documents, "survarium", "user.cfg")
+
+
 class SeedTest(wine.WineTest):
     # test_torrent.py's leech, not its tests.
     leech_from_updater = t.TorrentTest.leech_from_updater
@@ -48,12 +63,24 @@ class SeedTest(wine.WineTest):
         self.game = None
         self.port = t.free_port()
         self.set_port(self.port)
+        self.allow(True)
 
     def tearDown(self):
         if self.game and self.game.poll() is None:
             self.close_pipe()
         self.sessions.clear()
         super().tearDown()
+
+    def allow(self, on, reset=True):
+        """The launcher's "Allow torrent": its line in user.cfg, and its
+        one-time reset done (`launcher_skhid.torrent_reset` beside it)."""
+        with open(user_cfg(), "w", newline="\r\n") as file:
+            file.write(f"localization en\nenable_torrent_seeding {'on' if on else 'off'}\n")
+        marker = self.path(f"{X86}/launcher_skhid.torrent_reset")
+        if reset:
+            self.write(f"{X86}/launcher_skhid.torrent_reset", b"")
+        elif os.path.exists(marker):
+            os.remove(marker)
 
     def set_port(self, port):
         """The port the updaters keep (`updater_skhid.port`), the one it shares on."""
@@ -177,6 +204,21 @@ class SeedTest(wine.WineTest):
         self.assertGreater(time.time() - started, 8, "the port was tried for a while")
         self.assertIn("is held (another updater shares): not shared", self.seed_log())
         self.assertEqual(self.ticks(), [])
+
+    def test_allow_torrent_off_or_not_the_players_shares_nothing_at_once(self):
+        # Off; or on, but the launcher never reset the original game's `on`
+        # (a game started without it): not the player's choice.
+        self.installed()
+        for on, reset in ((False, True), (True, False)):
+            with self.subTest(on=on, reset=reset):
+                self.allow(on, reset)
+                started = time.time()
+                self.start_game()
+                self.assertEqual(self.game.wait(60), 0)
+                self.assertLess(time.time() - started, 30)
+                self.assertIn("seed: \"Allow torrent\" is not on", self.seed_log())
+                self.assertNotIn("torrent: sharing", self.seed_log())
+                self.assertEqual(self.ticks(), [])
 
     def test_a_folder_without_a_torrent_shares_nothing(self):
         self.start_game()

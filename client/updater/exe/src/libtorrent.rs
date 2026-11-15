@@ -103,7 +103,7 @@ library! {
     remove = "skt_remove": fn(S, i32) -> i32;
     poll = "skt_poll": fn(S, *mut RawEvent, i32, i32) -> i32;
     dht_get = "skt_dht_get": fn(S, *const u8, *const u8, usize);
-    dht_put = "skt_dht_put": fn(S, *const u8, *const u8, i64, *const u8, usize, *const u8, usize) -> i32;
+    dht_put = "skt_dht_put": fn(S, *const u8, *const u8, i32, *const u8, usize, *const u8, usize) -> i32;
 }
 
 fn load(dir: &str) -> Result<Library, String> {
@@ -368,14 +368,17 @@ impl Session {
         unsafe { (self.library.dht_get)(self.s(), key.as_ptr(), salt.as_ptr(), salt.len()) }
     }
 
-    /// Puts a signed item, as it is ([`Event::DhtPut`] once stored).
+    /// Puts a signed item, as it is ([`Event::DhtPut`] once stored). Its
+    /// sequence number goes as 32 bits (ours is a revision); one past them
+    /// is not put.
     pub fn dht_put(&mut self, key: &[u8; 32], salt: &[u8], item: &Item) {
+        let Ok(seq) = i32::try_from(item.seq) else { return };
         unsafe {
             (self.library.dht_put)(
                 self.s(),
                 key.as_ptr(),
                 item.signature.as_ptr(),
-                item.seq,
+                seq,
                 salt.as_ptr(),
                 salt.len(),
                 item.value.as_ptr(),

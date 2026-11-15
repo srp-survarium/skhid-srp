@@ -31,6 +31,7 @@ torrent. Nothing leaves this computer: no LSD, UPnP or NAT-PMP, the DHT's
 nodes on 127.0.0.1 alone.
 """
 
+import gc
 import hashlib
 import http.server
 import os
@@ -45,6 +46,7 @@ import threading
 import time
 import unittest
 import urllib.parse
+import warnings
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_db_patches as wine  # noqa: E402
@@ -119,10 +121,7 @@ def setUpModule():
 
 
 def tearDownModule():
-    global NODES
-    if NODES is not None:
-        NODES.close()
-        NODES = None
+    close_nodes()
     wine.tearDownModule()
 
 
@@ -230,7 +229,10 @@ class Nodes:
             for other in self.nodes:
                 if other is not node:
                     node.add_dht_node(("127.0.0.1", other.listen_port()))
-        wait(lambda: all(node.status().dht_nodes >= 3 for node in self.nodes), 60, "a DHT of eight nodes")
+        # (session.status() is deprecated, and the one way to its node count.)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            wait(lambda: all(node.status().dht_nodes >= 3 for node in self.nodes), 60, "a DHT of eight nodes")
 
     @staticmethod
     def node(port, bootstrap):
@@ -239,6 +241,9 @@ class Nodes:
             "enable_lsd": False, "enable_upnp": False, "enable_natpmp": False,
             "dht_restrict_routing_ips": False, "dht_restrict_search_ips": False,
             "dht_prefer_verified_node_ids": False, "dht_ignore_dark_internet": False,
+            # Every node and the updater are 127.0.0.1: no address is blocked for
+            # its rate (5 a second by default).
+            "dht_block_ratelimit": 1000000,
             "alert_mask": lt.alert.category_t.dht_notification,
         })
 
@@ -252,7 +257,7 @@ class Nodes:
             asked = time.time() + 2
             while time.time() < asked:
                 for alert in node.pop_alerts():
-                    if isinstance(alert, lt.dht_mutable_item_alert) and alert.item:
+                    if isinstance(alert, lt.dht_mutable_item_alert) and alert.seq > 0:
                         return alert.seq, lt.bencode(alert.item)
                 time.sleep(0.1)
         return None
@@ -265,11 +270,20 @@ NODES = None
 
 
 def nodes():
-    """The module's DHT, started at its first use."""
+    """The test's DHT, started at its first use (each test its own: an item
+    of one test is never another's)."""
     global NODES
     if NODES is None:
         NODES = Nodes()
     return NODES
+
+
+def close_nodes():
+    global NODES
+    if NODES is not None:
+        NODES.close()
+        NODES = None
+        gc.collect()
 
 
 def put_newest(torrent):
@@ -396,6 +410,7 @@ class TorrentTest(wine.WineTest):
         for lt_session in self.sessions:
             del lt_session
         self.sessions.clear()
+        close_nodes()
         super().tearDown()
 
     def release(self, *numbers, torrent=True, exe=None, size=200_000, **signing):
@@ -495,10 +510,15 @@ class TorrentTest(wine.WineTest):
     # --- the tests -------------------------------------------------------
 
     def bundle(self, **changes):
-        """The players' ZIP has the DLL beside the updater."""
+        """The players' ZIP has the DLL beside the updater (`None` in
+        `changes`: not)."""
+        name = f"{X86}/skhid_torrent.dll"
         with open(harness.TORRENT_DLL, "rb") as file:
-            dll = file.read()
-        return wine.WineTest.bundle(self, **{f"{X86}/skhid_torrent.dll": dll, **changes})
+            dll = changes.pop(name, file.read())
+        files = wine.WineTest.bundle(self, **changes)
+        if dll is not None:
+            files[name] = dll
+        return files
 
     def test_a_missing_patch_comes_by_torrent_and_the_folder_is_then_shared(self):
         patches, torrent, seed_dir, files = self.release(12, 14)
@@ -610,9 +630,9 @@ class TorrentTest(wine.WineTest):
         dht = nodes()
         self.launch()
         self.wait_latest()
-        wait(lambda: "item stored on" in self.log(), 90, "the item put")
+        wait(lambda: "torrent: the item of revision 60 put on the DHT" in self.log(), 60, "the item put")
         seq, value, _ = item_of(torrent)
-        self.assertEqual(dht.get(), (seq, value))
+        self.assertEqual(dht.get(120), (seq, value), self.log()[-3000:])
 
     def test_the_bootstrap_is_shared_from_copies_kept_of_its_files(self):
         # The bootstrap torrent: this updater, its DLL and a 7zr.exe,

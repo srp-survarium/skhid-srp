@@ -170,13 +170,16 @@ login screen and in the lobby, where the original developers had it (the game's 
   game's limit is ignored, below). The game writes every setting into user.cfg at its end, so
   every player who played before has `enable_torrent_seeding on` there, from the old default:
   the launcher's one-time reset (above) writes it `off` at its first start in an install. A
-  game started without the launcher having run once (`play_skhid.bat`) still sees that `on`.
+  game started without the launcher having run once (`play_skhid.bat`) still sees that `on`:
+  so the updater shares only when the launcher's "Allow torrent" says so too (below).
 - Entering the login screen or the lobby with it on (or as it is turned on there), the game makes the pipe
   `\\.\pipe\skhid_seed-<its process id>` and starts `updater_skhid.exe seed <that pipe>` beside
   itself, with no window. Entering a match closes the pipe (so do the game's end and the setting
   turned off); a replay never shares.
-- The updater (`seed`) shares the folder's revision torrent as the launcher's updater does
-  while it watches (the same trust, the bootstrap, the DHT item; nothing fetched or installed),
+- The updater (`seed`) first reads "Allow torrent" as the launcher's updater reads it (the
+  line `on`, and the launcher's reset done: `launcher_skhid.torrent_reset` beside it); else it
+  ends at once, sharing nothing. Then it shares the folder's revision torrent as the launcher's
+  updater does while it watches (the same trust, the bootstrap, the DHT item; nothing fetched or installed),
   on the kept port (a free one, then kept, when none is), within the cap, until the pipe closes. A port another updater holds
   is tried for 10 s, then it ends. No box, no lock; its own log (`updater_skhid.seed.log`).
 - On the pipe the game sends its limit (`1E`, ignored) and its stats switch (`22`: the console's

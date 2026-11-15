@@ -49,6 +49,8 @@ int main(int argc, char **argv) {
         if (strcmp(argv[i], "--bootstrap") == 0 && i + 1 < argc) config.dht_bootstrap = argv[++i];
         else if (strcmp(argv[i], "--loopback") == 0) config.loopback = 1;
         else if (strcmp(argv[i], "--seconds") == 0 && i + 1 < argc) seconds = atol(argv[++i]);
+        else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) config.listen_port = (uint16_t)atoi(argv[++i]);
+        else if (strcmp(argv[i], "--upload-limit") == 0 && i + 1 < argc) config.upload_limit = atoi(argv[++i]);
         else {
             fprintf(stderr, "skhid-dht: %s?\n", argv[i]);
             return 2;
@@ -85,7 +87,7 @@ int main(int argc, char **argv) {
         /* Again every 10 s: the DHT is found meanwhile. */
         if (time(NULL) - asked >= 10) {
             asked = time(NULL);
-            if (put) skt_dht_put(s, key, sig, seq, (const uint8_t *)salt, strlen(salt), value, (size_t)value_len);
+            if (put) skt_dht_put(s, key, sig, (int32_t)seq, (const uint8_t *)salt, strlen(salt), value, (size_t)value_len);
             else skt_dht_get(s, key, (const uint8_t *)salt, strlen(salt));
         }
         int n = skt_poll(s, events, 32, 500);

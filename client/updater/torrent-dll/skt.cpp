@@ -105,6 +105,8 @@ lt::settings_pack settings(skt_config const &c) {
         p.set_bool(lt::settings_pack::dht_restrict_search_ips, false);
         p.set_bool(lt::settings_pack::dht_prefer_verified_node_ids, false);
         p.set_bool(lt::settings_pack::dht_ignore_dark_internet, false);
+        // Every node is 127.0.0.1: no address is blocked for its rate.
+        p.set_int(lt::settings_pack::dht_block_ratelimit, 1000000);
     }
     return p;
 }
@@ -397,7 +399,7 @@ SKT_API void SKT_CALL skt_dht_get(skt_session *s, const uint8_t key[32], const u
     s->ses->dht_get_item(k, std::string(reinterpret_cast<char const *>(salt), saltlen));
 } catch (...) {}
 
-SKT_API int SKT_CALL skt_dht_put(skt_session *s, const uint8_t key[32], const uint8_t sig[64], int64_t seq,
+SKT_API int SKT_CALL skt_dht_put(skt_session *s, const uint8_t key[32], const uint8_t sig[64], int32_t seq,
                                  const uint8_t *salt, size_t saltlen, const uint8_t *value, size_t len) try {
     std::array<char, 32> k;
     std::memcpy(k.data(), key, 32);
