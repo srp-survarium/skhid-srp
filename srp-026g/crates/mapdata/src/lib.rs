@@ -179,7 +179,8 @@ pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c03;
 /// for a body that asks for it. A value of its own.
 /// 0b07: the plain Jump links rising over `MARGINAL_JUMP_M` are flown too, and replaced where a press lands on their top (C2 rows
 /// 11/12, the School crate's +0.99 m).
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b07;
+/// 0b08: a plain Jump link no press lands on the top of is cut, not kept.
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b08;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;

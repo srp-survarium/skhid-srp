@@ -236,9 +236,11 @@ The grid's build marks, from the spawns (`World::build` passes them;
   into one is a pocket's edge.
 
 With no spawn located every floor is reached and returns. The marks cost
-a way nothing (below: the bench). A jump of 0.95-1.05 m costs 4 m more
-(`MARGINAL_JUMP_PENALTY`): the client's jump tops at 0.998 m (PROVEN), and
-the grid links jumps up to 1.05 m.
+a way nothing (below: the bench). A jump up more than 0.95 m (`MARGINAL_JUMP_M`)
+is flown by the rim pass before it is made (`rim_jumps`): made with the press that
+lands and priced by its share, or not made where no press lands. (It was a fixed
+4 m more, `MARGINAL_JUMP_PENALTY`, a GUESS; removed. The client's air branch never
+steps up: a run-up jump gets onto a rim to apex 0.998 + 0.66 m walking.)
 `pocket_exits(floor)` lists a pocket's ways out that are no link: floors
 that return within 1 m across and 0.2-1.35 m up, with headroom over the
 take-off, one per landing (the jump's distance was never measured: the 1 m

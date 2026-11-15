@@ -38,8 +38,10 @@ pub struct RimStats {
     pub tried: usize,
     /// [C2 rows 11/12] … of them plain Jump links rising over [`MARGINAL_JUMP_M`] …
     pub jumps_flown: usize,
-    /// … and of those, replaced by the flown link (a press landed on the Jump link's own top).
+    /// … and of those, replaced by the flown link (a press landed on the Jump link's own top) …
     pub jumps_replaced: usize,
+    /// … or cut: no client press, straight or aimed, lands on its top (as a rim jump no press lands is not made).
+    pub jumps_cut: usize,
     /// … made with a walking press …
     pub walked: usize,
     /// … with a sprint press …
@@ -588,16 +590,24 @@ impl WalkGrid {
         stats.flights += stats.aimed_flights;
         let mut none = Vec::new();
         let mut replaced: Vec<(usize, usize)> = Vec::new();
+        let mut cut = 0;
         for ((&(a, b, d), p), &plain) in todo.iter().zip(&flown).zip(&plain) {
             stats.flights += p.flights;
             let aimed = aimed_of.get(&(a, b)).copied();
-            // [C2 rows 11/12] A plain Jump link a press lands on the top of goes: the flown link (its press and share) is the way
-            // up. One no press lands on stays as it was (taught, not cut).
+            // [C2 rows 11/12/14] A plain Jump link over `MARGINAL_JUMP_M` goes once flown: where a press lands on its top the flown
+            // link (its press and share) is the way up; where none does, straight or aimed, no client press makes it and it is
+            // not made, as a rim jump no press lands is not (the plain link's fixed price was a GUESS). Either way it is reported
+            // with the jumps no press made when no flown link lands on its top.
             if plain {
                 stats.jumps_flown += 1;
-                if p.made.iter().chain(aimed.as_ref()).any(|m| m.to == b) {
-                    replaced.push((a as usize, d));
+                let lands_on_top = p.made.iter().chain(aimed.as_ref()).any(|m| m.to == b);
+                if !lands_on_top {
+                    cut += 1;
+                    if !(p.made.is_empty() && aimed.is_none()) {
+                        none.push((a, b));
+                    }
                 }
+                replaced.push((a as usize, d));
             }
             if p.made.is_empty() && aimed.is_none() {
                 none.push((a, b));
@@ -615,7 +625,8 @@ impl WalkGrid {
                 wide.off.push(OffLink { from: a, to, kind: LinkKind::GapJump, press, share, walk, aim });
             }
         }
-        stats.jumps_replaced = replaced.len();
+        stats.jumps_cut = cut;
+        stats.jumps_replaced = replaced.len() - cut;
         for (a, d) in replaced {
             wide.links[a][d] = NONE;
         }
