@@ -1340,6 +1340,9 @@ mod tests {
             assert_eq!(map.mode.lobby_number(), 8);
             assert!(map.config.starts_with("ffa/"), "{}", map.config);
             assert!(map.is_playable(), "{}", map.config);
+            // Exe patch 142 chooses among the first 128 (free_for_all.rs
+            // MAX_POINTS): a map past them would leave its last points unused.
+            assert!(map.solo_respawn_points <= 128, "{} {}", map.config, map.solo_respawn_points);
             // The STALKER maps' Team Deathmatch is not offered (no dictionary
             // row: stalker-tdm-hold-1): nothing to compare with.
             let Some(tdm) = table.iter().find(|other| {

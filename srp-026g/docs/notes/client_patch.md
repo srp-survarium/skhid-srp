@@ -3070,7 +3070,7 @@ equality.
 - `respawn.select` 0x3171DC (`mov edi,[ecx+eax*4+194h]`, 7 bytes, after the frame and pushes; ECX
   the rule, EBP the frame: +8 team, +0Ch due, +10h living, +18h time, +1Ch chosen): when the first
   due player's team is 2 or more, every due player in order gets a point of the team-2 group
-  (+190h, count +19Ch, 38h each; the first 64):
+  (+190h, count +19Ch, 38h each; the first 128, every Free for All map's whole group: the survarium crate's map test holds them to it; the rule's own arrays have no bound, the cook allocates 1A8h + 38h a point, 0x2C6910):
   - a point's rank is the squared distance from its position (+8h) to the nearest living player
     (his simulated transform's translation, player +43Ch: what 0x2F4800 measures from, through
     the collision object's getter 0x1F17C0) and to the nearest point given before at this tick;
