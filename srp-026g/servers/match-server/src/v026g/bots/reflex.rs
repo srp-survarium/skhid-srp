@@ -365,7 +365,7 @@ pub struct CombatTuning {
     /// is a teammate near the place. The look is held and the legs stand
     /// from the press to the launch either way.
     pub grenade_trace: bool,
-    /// [owner-5 14] A traced throw's rest is where the client's grenade is at the blast: flown through its contacts by the
+    /// [G624] A traced throw's rest is where the client's grenade is at the blast: flown through its contacts by the
     /// physics world's rule, the speed cut to 1.8 m/s at a swept hit, then friction and no bounce ([`arc::Flight::rest_at_blast`],
     /// `thrown_and_placed.md`: a median 0.53 m from the recorded bursts on 911 flights, the old roll's 2.13 m), and the
     /// checks spread the blast by that rule's measured error ([`arc::Spread`]). For the smoke's cloud and the grenades the
@@ -2706,15 +2706,15 @@ pub struct GrenadeStats {
     /// taken back): in the hold, between the let-go and the launch; and what followed one: the arc found again for the
     /// place, an arc away from it ([`away_arc`]), none (the view kept).
     pub committed: [u32; 5],
-    /// [owner-5 14] Throws let go whose landing was traced at the let-go, by how far the client's flown rest lies from the
+    /// [G624] Throws let go whose landing was traced at the let-go, by how far the client's flown rest lies from the
     /// old roll's (`grenade_rest_flown`, [`arc::Landing::rolled`]): under each of [`REST_APART_M`], and farther.
     pub rest_apart: [u32; REST_APART_M.len() + 1],
 }
 
-/// [owner-5 14] The bounds of [`GrenadeStats::rest_apart`], metres.
+/// [G624] The bounds of [`GrenadeStats::rest_apart`], metres.
 pub const REST_APART_M: [f32; 6] = [0.5, 1.0, 2.0, 4.0, 8.0, 16.0];
 
-/// [owner-5 14] The names of the refusal reasons by [`Refuse::index`], for the match-end line.
+/// [G624] The names of the refusal reasons by [`Refuse::index`], for the match-end line.
 const REFUSE_NAMES: [&str; GRENADE_REASONS] = [
     "lands in the thrower's blast",
     "hits a wall near the thrower",
@@ -2809,7 +2809,7 @@ impl GrenadeStats {
         plus(&mut self.rest_apart, &other.rest_apart);
     }
 
-    /// [owner-5 14] The throws, the flown rests against the old roll's and the refusals by reason, as a match-end log
+    /// [G624] The throws, the flown rests against the old roll's and the refusals by reason, as a match-end log
     /// line: `thrown 3; the flown rest from the old roll's, under 0.5/1/2/4/8/16 m and farther: 1/1/0/1/0/0/0; places
     /// held back: lands in the thrower's blast 4, ...; throws given up: ...`.
     pub fn landing_line(&self) -> String {
@@ -7181,7 +7181,7 @@ impl Reflex {
                             _ => String::new(),
                         }
                     ));
-                    // [owner-5 14] Where it is to rest by the rule in use and by the other one: the view of the let-go.
+                    // [G624] Where it is to rest by the rule in use and by the other one: the view of the let-go.
                     let landing = throw_view_of(me, throw.at, c, throw.hold_ms, throw.pick).and_then(|(yaw, pitch)| {
                         over_ground(mesh.as_deref(), throw.at.y, |ground| {
                             arc::Flight::thrown(&planned_thrower(me, throw.hold_ms), yaw + throw.error.0, pitch + throw.error.1)

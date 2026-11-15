@@ -548,7 +548,7 @@ pub struct Bot {
     empty_reloads: reflex::EmptyReloads,
     /// [Gap 3] [measure] What the worlds did to its gun ledger, the lives before this one's ([`Self::gun_reads`]).
     gun_reads: guns::GunReads,
-    /// [owner-5 14] [measure] Its grenade logic's counts, the lives before this one's ([`Self::grenade_stats`]).
+    /// [G624] [measure] Its grenade logic's counts, the lives before this one's ([`Self::grenade_stats`]).
     grenade_stats: reflex::GrenadeStats,
     /// [Gap 15] [measure] Lives put in the world's kit in use, not the one it counted on ([`Self::wear`]).
     worn_kit_moves: u32,
@@ -847,7 +847,7 @@ impl Bot {
         self.worn_kit_moves
     }
 
-    /// [owner-5 14] [measure] Its grenade logic's counts in the match, every life's ([`reflex::GrenadeStats`]).
+    /// [G624] [measure] Its grenade logic's counts in the match, every life's ([`reflex::GrenadeStats`]).
     pub fn grenade_stats(&self) -> reflex::GrenadeStats {
         let mut all = self.grenade_stats;
         all.add(&self.reflex.grenade_stats());
@@ -1351,7 +1351,7 @@ impl Bots {
         format!("team 0: {}; team 1: {}", sums[0].line(), sums[1].line())
     }
 
-    /// [owner-5 14] The bots' grenade throws summed by team, as the match-end log line (`the bots' grenade landings:
+    /// [G624] The bots' grenade throws summed by team, as the match-end log line (`the bots' grenade landings:
     /// ...`, [`reflex::GrenadeStats::landing_line`]): the flown rest against the old roll's, the refusals by reason.
     pub fn landing_report(&self) -> String {
         let mut sums = [reflex::GrenadeStats::default(); 2];

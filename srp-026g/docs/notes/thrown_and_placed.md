@@ -61,7 +61,7 @@ position and velocity while it is in the physics world, its explode time and its
   and no bounce. Counted on 911 flights flown from a seen position and velocity over the map's mesh: the seen burst
   is a median 1.0 m past the first contact (P80 5.3, P90 10.5). A flight with the cap puts the burst a median 0.53 m
   from the seen one (554 within 1 m); without the cap 4.2 m; stopping at the first contact 1.43 m; a fixed 2 m along
-  the heading (the bots' rule) 2.13 m (84 within 1 m). In 142 of the 911 the grenade fell through the floor
+  the heading (the bots' old rule) 2.13 m (84 within 1 m). In 142 of the 911 the grenade fell through the floor
   (`grenade_ccd.md`).
 
 ## The blast (`bullet_manager::explode` 0x339630)
@@ -129,6 +129,9 @@ is swapped by its state alone (0x247EF0), and the modifier `spot_enemy_traps` (i
   from the launch when its throw clip is seen, from the landing when only the swing is (#2040, #2045); the key's hold
   drawn from the humans' and each throw planned with it (#2044); a grenade or a smoke in a dead thrower's hand going
   off there (#2045, #2046). Before: the launch at press + 1,100 ms from 0.3 m under the eye, the hold 500-800 ms.
+- Fixed since: the rest after the first contact is this flight (`arc::Flight::rest_at_blast`: the cap at a swept hit,
+  friction 0.25, no bounce), and the teammates' and the walk-out checks spread the blast over its slide and along the
+  heading by the error counted above (`aim.combat.grenade_rest_flown`). Before: 2 m past the contact (walls 0).
 - The comments say worlds are 5 s apart and carry no grenade; they carry every grenade's body, so a landing can be
   seen instead of predicted.
 - The threat's distance is taken from the chest (`grenade_threat.rs`); the client's is from the feet. The bots' own
