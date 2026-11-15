@@ -17,6 +17,7 @@ pub mod exe_ray;
 pub mod gjk;
 pub mod jump;
 mod jump_clips;
+pub mod broadphase;
 mod compound_dbvt;
 mod mesh_bvh;
 mod solids;

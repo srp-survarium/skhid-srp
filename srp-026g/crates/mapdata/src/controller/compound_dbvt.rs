@@ -16,14 +16,14 @@ type V3 = [f32; 3];
 type V4 = [f32; 4];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct Volume {
-    mi: V4,
-    mx: V4,
+pub(super) struct Volume {
+    pub(super) mi: V4,
+    pub(super) mx: V4,
 }
 
 impl Volume {
     /// `btDbvtVolume::FromMM` of a `getAabb` result (its w lanes 0).
-    fn of(lo: V3, hi: V3) -> Self {
+    pub(super) fn of(lo: V3, hi: V3) -> Self {
         Self { mi: [lo[0], lo[1], lo[2], 0.0], mx: [hi[0], hi[1], hi[2], 0.0] }
     }
 }
@@ -45,7 +45,7 @@ fn merge(a: &Volume, b: &Volume) -> Volume {
     Volume { mi: [0, 1, 2, 3].map(|k| min(a.mi[k], b.mi[k])), mx: [0, 1, 2, 3].map(|k| max(a.mx[k], b.mx[k])) }
 }
 
-fn contains(outer: &Volume, inner: &Volume) -> bool {
+pub(super) fn contains(outer: &Volume, inner: &Volume) -> bool {
     (0..3).all(|k| outer.mi[k] <= inner.mi[k]) && (0..3).all(|k| inner.mx[k] <= outer.mx[k])
 }
 
@@ -60,7 +60,7 @@ struct Node {
 }
 
 #[derive(Debug, Default)]
-struct Dbvt {
+pub(super) struct Dbvt {
     nodes: Vec<Node>,
     root: Option<usize>,
 }
@@ -72,7 +72,7 @@ impl Dbvt {
     }
 
     /// `btDbvt::insert` 0xAA690: a new leaf, inserted from the root.
-    fn insert(&mut self, volume: Volume, data: u32) -> usize {
+    pub(super) fn insert(&mut self, volume: Volume, data: u32) -> usize {
         let leaf = self.new_node(Node { volume, parent: None, childs: None, data });
         self.insert_leaf(leaf);
         leaf
@@ -159,15 +159,20 @@ impl Dbvt {
         self.nodes[leaf].parent = None;
     }
 
+    /// A node's volume.
+    pub(super) fn volume(&self, node: usize) -> Volume {
+        self.nodes[node].volume
+    }
+
     /// `btDbvt::update` 0xAA710: the leaf out, its volume set, in again from the root.
-    fn update(&mut self, leaf: usize, volume: Volume) {
+    pub(super) fn update(&mut self, leaf: usize, volume: Volume) {
         self.remove_leaf(leaf);
         self.nodes[leaf].volume = volume;
         self.insert_leaf(leaf);
     }
 
     /// `collideTV`'s order of the leaves: `childs[1]` before `childs[0]`.
-    fn offering_order(&self) -> Vec<u32> {
+    pub(super) fn offering_order(&self) -> Vec<u32> {
         let mut out = Vec::new();
         let mut stack: Vec<usize> = self.root.into_iter().collect();
         while let Some(n) = stack.pop() {

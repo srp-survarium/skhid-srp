@@ -311,7 +311,7 @@ fn face_of(v: [Vec3; 3], walker: WalkerBehaviour) -> Face {
 
 /// The convex as the exe's virtual calls read it (`localGetSupportingVertex`, `getAabb`: [`ConvexShape`]); none for a
 /// cylinder that is not y-up (the game makes none: `create_bt_primitive` 0x7A1F0).
-fn class_shape(convex: &bullet::Convex) -> Option<ConvexShape> {
+pub(super) fn class_shape(convex: &bullet::Convex) -> Option<ConvexShape> {
     let (dims, m) = (convex.dims, convex.margin);
     match convex.kind {
         ConvexKind::Box => Some(ConvexShape::Box { implicit: dims, margin: m }),
@@ -352,10 +352,10 @@ impl Primitive {
 /// for). None where one is not known: a file older than version 8, a cylinder that is not y-up, a mesh with no local box or
 /// under another transform.
 /// [L36] A compound's children's places in its tree's order, and each child's box in the tree ([`Leaf::tree_box`]).
-type CompoundOrder = (Vec<u32>, Vec<Box3>);
+pub(super) type CompoundOrder = (Vec<u32>, Vec<Box3>);
 
 /// With each child's box in the tree (the leaf's volume after the scaling: [`Leaf::tree_box`]).
-fn compound_ranks(library: &crate::Library, children: &[bullet::Child]) -> Option<CompoundOrder> {
+pub(super) fn compound_ranks(library: &crate::Library, children: &[bullet::Child]) -> Option<CompoundOrder> {
     let boxes = children
         .iter()
         .map(|child| match (&child.part, child.added) {
