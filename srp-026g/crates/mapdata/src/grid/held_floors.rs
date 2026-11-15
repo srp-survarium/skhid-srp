@@ -54,6 +54,54 @@ pub fn fall_damage(height: f32) -> f32 {
     (FATAL_DAMAGE * (v(height) - safe) / (fatal - safe)).clamp(0.0, FATAL_DAMAGE)
 }
 
+/// [S6] The speed a body walked off a ledge lands at after a drop of `height` m, m/s: the client's whole ticks
+/// (`step_down` 0x7E1B0, PROVEN, `docs/notes/fall_damage.md` "One tick is 0.05 s"; the split ticks fixed by patch 72): while
+/// slower than `on_ground_max_vertical_speed` (2.0 m/s, `startup.cfg`) a tick goes down `additional_down_speed` (0.05 m),
+/// else by its speed for the tick; each tick adds `gravity` x 0.05 s; the landing is the tick that reaches the floor, at the
+/// speed it started with. A drop of 8 m lands at 12.74 m/s (the note's table). A jump off a ledge lands faster (its clip's
+/// end speed, the note's "a jump off a ledge"): this is the walk-off's, the least a drop's fall is.
+pub fn walk_off_landing_speed(height: f32) -> f32 {
+    let s = Settings::LIVE;
+    let (mut speed, mut fallen) = (0.0f32, 0.0f32);
+    // At most fatal_height's ticks and some (a drop past it lands over the fatal speed).
+    for _ in 0..200 {
+        let down = if speed < s.on_ground_max_vertical_speed { s.additional_down_speed } else { speed * FALL_TICK_S };
+        if fallen + down >= height {
+            return speed;
+        }
+        fallen += down;
+        speed += GRAVITY * FALL_TICK_S;
+    }
+    speed
+}
+
+/// [S6] The client's tick, s (`docs/notes/fall_damage.md`, PROVEN: the lockstep's 50 ms).
+const FALL_TICK_S: f32 = 0.05;
+
+/// [S6] The hit to each foot of a landing at `speed` m/s (`on_physical_controller_landing` 0x2D8220): over the fatal height's
+/// speed `fatal_damage` x the scale, over the harmless height's linear in the speed up to it, else nothing (the speeds
+/// `sqrt(2 g h)` of `harmless_height` and `fatal_height`, the loader 0x2D6600). `fall_scale`: `max(0, 1 + modifier 30)`
+/// (`apply_modifier` 0x2D5AE0, called at 0x2D82C8 with `fatal_damage` +314h and index 30).
+pub fn fall_hit(speed: f32, fall_scale: f32) -> f32 {
+    let v = |h: f32| (2.0 * GRAVITY * h).sqrt();
+    let (safe, fatal) = (v(HARMLESS_HEIGHT_M), v(FATAL_HEIGHT_M));
+    let whole = FATAL_DAMAGE * fall_scale;
+    if speed > fatal {
+        whole
+    } else if speed > safe {
+        whole * (speed - safe) / (fatal - safe)
+    } else {
+        0.0
+    }
+}
+
+/// [S6] The pain a walk-off drop of `height` m takes ([`walk_off_landing_speed`], [`fall_hit`]): two foot hits, each blunt, of
+/// which [`PAIN_PER_FOOT`] goes to pain (`human_hit_params` feet `bdb_coeff`, `docs/notes/hand-kill.md`; no armour stops a
+/// blunt hit, `docs/notes/armour-params.md`: no piece lists `blunt`). A pain pool emptied is death (`on_affect` 0x2DA480).
+pub fn fall_pain(height: f32, fall_scale: f32) -> f32 {
+    2.0 * PAIN_PER_FOOT * fall_hit(walk_off_landing_speed(height), fall_scale)
+}
+
 /// What a drop of `height` m costs a route, m: the pain the fall takes (both feet, [`PAIN_PER_FOOT`] of each foot's hit) at
 /// [`FALL_DAMAGE_M`] a pool's loss; 0 for a harmless one.
 pub fn fall_cost_m(height: f32) -> f32 {
@@ -199,6 +247,20 @@ impl WalkGrid {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [S6] The walk-off fall by the client's whole ticks lands as the note's tick table has it (`docs/notes/fall_damage.md`
+    /// "Walking or sprinting off": 4 m 8.8 m/s 0; 6 m 10.8, 0.21; 8 m 12.7, 0.69; 10 m 14.2, 1.0), so a full pain pool (1.0)
+    /// is emptied from 8 m (1.6 x 0.69) and not at 7 m (1.6 x 0.45); the fall-damage skill's x0.7 saves the 8 m drop.
+    #[test]
+    fn a_walk_off_fall_hurts_by_the_clients_ticks() {
+        let near = |a: f32, b: f32| (a - b).abs() < 0.01;
+        assert!(near(walk_off_landing_speed(4.0), 8.82) && fall_pain(4.0, 1.0) == 0.0);
+        assert!(near(walk_off_landing_speed(6.0), 10.78) && near(fall_hit(walk_off_landing_speed(6.0), 1.0), 0.21));
+        assert!(near(walk_off_landing_speed(8.0), 12.74) && near(fall_hit(walk_off_landing_speed(8.0), 1.0), 0.69));
+        assert!(near(fall_hit(walk_off_landing_speed(10.0), 1.0), 1.0));
+        assert!(fall_pain(8.0, 1.0) >= 1.0 && fall_pain(7.0, 1.0) < 1.0);
+        assert!(fall_pain(8.0, 0.7) < 1.0, "{}", fall_pain(8.0, 0.7));
+    }
 
     /// The fall rule's table (`docs/notes/fall_damage.md`, fatal_damage 1.0): nothing to 5 m, 0.23 at 6 m, 0.44 at 7 m, 1.0 from
     /// 10 m; bot 12's 6.48 m (v 11.27) 0.334.

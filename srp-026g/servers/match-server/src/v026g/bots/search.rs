@@ -662,6 +662,13 @@ impl Bots {
         // [owner-5] How the last of its searches ended, for the log's line if it found no way.
         let last_end = super::path::last_end();
         if let Some(Some(bot)) = self.bots.get_mut(pending.place) {
+            // [S6] The drops its search closed as lethal.
+            for closed in mapdata::take_falls_closed() {
+                let grid = &tactics.world.grid;
+                let line = super::nav_log::fall_closed_line(grid.position(closed.from), grid.position(closed.to), closed.height, closed.pain, closed.pool);
+                let key = super::nav_log::key(("fall closed", closed.from, closed.to, (closed.pool * 100.0) as i32));
+                bot.nav_log.push_once(super::nav_log::Kind::Route, key, time, line);
+            }
             if route.is_none() {
                 let retried =
                     super::drive::NoWayRetries { stuck_spots: filter.has_soft(), reach: filter.reach(), ..Default::default() };

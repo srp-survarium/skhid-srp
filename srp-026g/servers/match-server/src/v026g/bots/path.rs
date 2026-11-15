@@ -725,7 +725,7 @@ pub fn plan_where(
     to: NodeId,
     allowed: impl Fn(NodeId) -> bool,
 ) -> Option<Route> {
-    plan_where_reaching(grid, from, to, allowed, mapdata::Reach::Full)
+    plan_where_reaching(grid, from, to, allowed, mapdata::Reach::FULL)
 }
 
 /// [S6] [`plan_where`] for a body that may take less than the grid's own links (`reach`, [`mapdata::Reach`]).
@@ -753,7 +753,7 @@ pub fn plan_in(
     region_ok: impl Fn(u32) -> bool,
 ) -> Option<Route> {
     let mut iters = usize::MAX;
-    match plan_start(grid, regions, from, to, allowed, region_ok, mapdata::Reach::Full, None, &mut iters) {
+    match plan_start(grid, regions, from, to, allowed, region_ok, mapdata::Reach::FULL, None, &mut iters) {
         Ok(route) => route,
         Err(_) => unreachable!("an unbounded search ends"),
     }

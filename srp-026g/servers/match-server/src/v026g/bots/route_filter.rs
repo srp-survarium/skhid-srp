@@ -242,10 +242,16 @@ impl RouteFilter {
         self
     }
 
-    /// [S6] For a body the client gives no sprint (hard, [`mapdata::Reach::NoSprint`]): a sprint link only by its walking
+    /// [S6] For a body the client gives no sprint (hard, [`mapdata::SprintReach::Cannot`]): a sprint link only by its walking
     /// press, no jump link above `max_rise` metres (`None`: the grid's own).
     pub fn without_sprint(mut self, max_rise: Option<f32>) -> Self {
-        self.reach = self.reach.and(mapdata::Reach::NoSprint { max_rise });
+        self.reach = self.reach.and(mapdata::Reach::no_sprint(max_rise));
+        self
+    }
+
+    /// [S6] For a body that takes no more of the links than `reach` (hard): its sprint and the falls it survives.
+    pub fn with_reach(mut self, reach: mapdata::Reach) -> Self {
+        self.reach = self.reach.and(reach);
         self
     }
 
@@ -459,15 +465,15 @@ mod tests {
         use mapdata::Reach;
         let high = RouteFilter::open().without_sprint(Some(1.0));
         let low = RouteFilter::open().without_sprint(Some(0.8));
-        assert_eq!(RouteFilter::open().reach(), Reach::Full);
-        assert_eq!(high.clone().and(&RouteFilter::open()).reach(), Reach::NoSprint { max_rise: Some(1.0) });
-        assert_eq!(RouteFilter::open().and(&low).reach(), Reach::NoSprint { max_rise: Some(0.8) });
-        assert_eq!(high.and(&low).reach(), Reach::NoSprint { max_rise: Some(0.8) });
+        assert_eq!(RouteFilter::open().reach(), Reach::FULL);
+        assert_eq!(high.clone().and(&RouteFilter::open()).reach(), Reach::no_sprint(Some(1.0)));
+        assert_eq!(RouteFilter::open().and(&low).reach(), Reach::no_sprint(Some(0.8)));
+        assert_eq!(high.and(&low).reach(), Reach::no_sprint(Some(0.8)));
         // No sprint without a jump limit still keeps the other's limit.
         let no_sprint = RouteFilter::open().without_sprint(None);
-        assert_eq!(no_sprint.and(&low.clone()).reach(), Reach::NoSprint { max_rise: Some(0.8) });
+        assert_eq!(no_sprint.and(&low.clone()).reach(), Reach::no_sprint(Some(0.8)));
         // Not a soft part: the second search without the spots keeps it.
-        assert_eq!(low.without_soft().reach(), Reach::NoSprint { max_rise: Some(0.8) });
+        assert_eq!(low.without_soft().reach(), Reach::no_sprint(Some(0.8)));
     }
 
     #[test]

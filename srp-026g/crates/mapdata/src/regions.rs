@@ -468,7 +468,7 @@ impl Regions {
         region_ok: impl Fn(u32) -> bool,
         budget: usize,
     ) -> Result<RouteSearch, (Search, Stage)> {
-        self.start_route_search_reaching(grid, from, to, allowed, region_ok, budget, crate::grid::Reach::Full)
+        self.start_route_search_reaching(grid, from, to, allowed, region_ok, budget, crate::grid::Reach::FULL)
     }
 
     /// [`Self::start_route_search`] for a body that may take less than the grid's own ([`crate::grid::Reach`],
@@ -671,7 +671,7 @@ mod tests {
             let from = grid.locate(Vec3::new(9.0, 0.0, 1.0), 0.3).unwrap();
             let to = grid.locate(Vec3::new(11.5, rise, 1.0), 0.3).unwrap();
             let mut search = regions
-                .start_route_search_reaching(&grid, from, to, |_| true, |_| true, usize::MAX, crate::grid::Reach::NoSprint { max_rise: Some(STANDING_JUMP_M) })
+                .start_route_search_reaching(&grid, from, to, |_| true, |_| true, usize::MAX, crate::grid::Reach::no_sprint(Some(STANDING_JUMP_M)))
                 .unwrap();
             let mut iters = usize::MAX;
             let (found, _) = search.step(&regions, &grid, |_| true, |_| true, |_| 1.0, &mut iters).unwrap();
