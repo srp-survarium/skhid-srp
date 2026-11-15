@@ -155,7 +155,13 @@ fn by_data() -> bool {
 ///   consecutive snapshots up to the killing shot, by the killer's weapon
 ///   class, give the damage that went to the body, the hands and the legs
 ///   (the head's is mostly lost in the one shot that kills, which no
-///   snapshot sees: PROVEN for the numbers, LIKELY for what they say);
+///   snapshot sees). The numbers are PROVEN counts; what they say is the
+///   client's routing, PROVEN (`damage_model.md`, `hit_by_type` 0x329FF0, the
+///   shares to the pools 0x33FA80): a hit on the back or the front goes to the
+///   body pool, on the brain or the face to the head, on a hip or a foot to its
+///   leg, on an arm or a forearm to the hand, each x 1. The legs' losses also
+///   hold falls (a fall is a blunt hit to each foot, `fall_damage.md`), which
+///   the table does not take apart [G33];
 /// - each pool's damage is turned into hits by the factor the median worn
 ///   armour leaves of a hit of the class's median `bullet_pierce` (torso 0.6,
 ///   upper arm 0.2, forearm 0.5, legs 0.5: `REAL-ARMOUR-CHECK.md`);
