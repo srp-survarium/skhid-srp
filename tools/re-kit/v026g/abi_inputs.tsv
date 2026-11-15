@@ -3397,7 +3397,7 @@ va	name	location	role	basis
 0x003355f0	survarium::intermediate_shared_statistics::deserialize	EAX	reader	inferred
 0x00335750	survarium::player_shared_statistics::serialize	stack+4	player statistics	inferred
 0x00335750	survarium::player_shared_statistics::serialize	stack+8	writer	inferred
-0x00335a50	survarium::player_logic_stand_state::movement_lexemes [descriptive]	entry ESP+10h	the animation request (+0 an argument of the arms' animation_lexeme_init, +4 a kind compared with 5, +8 the bone mask wanted, +0Ch a flag)	observed
+0x00335a50	survarium::player_logic_stand_state::movement_lexemes [descriptive]	entry ESP+10h	the animation request (+0 an optional lexeme handed to the arms' animation_lexeme_init, +4 a kind compared with 5, +8 the bone mask wanted, +0Ch a flag)	observed
 0x003383e0	survarium::player_logic_dead_state::serialize	ECX	dead_state	inferred
 0x003383e0	survarium::player_logic_dead_state::serialize	stack+4	writer	inferred
 0x00338430	survarium::player_logic_dead_state::deserialize	ECX	dead_state	inferred
