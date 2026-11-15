@@ -16,7 +16,7 @@
 //! | `SRP_BENCH_SPREAD` | off: no shot spread |
 //! | `SRP_BENCH_SPRINT_GATE` | off: a shot and the aim-in right after a sprint |
 //! | `SRP_BENCH_JUMP_GATE` | off: a shot and the aim-in in a jump |
-//! | `SRP_BENCH_HIT_MODEL` ([`standin_hitbox`](super::standin_hitbox)) | off: the old 0.45 m disc about the chest, the centre ray, no scatter; `on`: a shot is a ray against the 19 hit shapes, a shotgun's ten pellets rays, and a bot's line is scattered by the live position error (the stand-in human's and the camper's start at their eye) |
+//! | `SRP_BENCH_HIT_MODEL` ([`standin_hitbox`](super::standin_hitbox)) | off: the old 0.45 m disc about the chest, the centre ray, no scatter; `on`: a shot is a ray against the 19 hit shapes, a shotgun's ten pellets rays, and a bot's line starts off its eye by its own-position error at its world's age (the drift lab's rows; the stand-in human's and the camper's start at their eye) |
 //! | `SRP_BENCH_BATTERIES` | one battery at every spawner |
 //! | `SRP_BENCH_START` | 0,0: every battery lying |
 //! | `SRP_BENCH_ZONE_DAMAGE` | off: zones do not hurt the bodies |
@@ -740,6 +740,12 @@ pub(crate) struct Game {
     /// Each place's shot origin ([`standin_hitbox::ShotOrigin`]): a bot's line is moved by the position scatter, a client's
     /// (the stand-in human's, the stand-in camper's: [`Self::set_shot_origin`]) starts at its eye.
     shot_origins: Vec<standin_hitbox::ShotOrigin>,
+    /// When the bots were last handed a world, ms ([`Self::note_world`]): a bot's shot line is scattered by its error at the
+    /// age of that world ([`standin_hitbox::Scatter::OwnPosition`]).
+    last_world_ms: Option<u32>,
+    /// Each bot shot's scatter as drawn: the world's age, ms, and the offset's flat and height parts, metres
+    /// ([`Self::scatter_drawn_line`]).
+    pub(crate) scatter_drawn: Vec<(u32, f32, f32)>,
     /// The bullet flies the client's path (`SRP_BENCH_HIT_FLIGHT`, A182; [`Self::nearest_shape_flown`]): muzzle speed, drag and
     /// gravity, each body found where its last step carries it by the time, not where it stood at the shot.
     pub(crate) flight: standin_hitbox::BulletPath,
@@ -1054,6 +1060,8 @@ impl Game {
             swayed: [(0, 0.0); 2],
             volume: HitVolume::Disc,
             shot_origins: vec![standin_hitbox::ShotOrigin::Reckoned; teams.len()],
+            last_world_ms: None,
+            scatter_drawn: Vec::new(),
             flight: standin_hitbox::BulletPath::Instant,
             honest: honest_stand_in(),
             walls: None,
@@ -1833,38 +1841,93 @@ impl Game {
 
     /// The line of a shot: its origin and direction. **The one place a shot line is scattered.** The view's direction
     /// is turned by the weapon's cone (`SRP_BENCH_SPREAD`), as the game's `get_dispersed_bullet_direction` turns
-    /// it; with the whole hit cut on ([`HitVolume::Boxes`] with a `scatter_m`) the origin is moved by one random
-    /// offset across the line, the live position error the bench's bodies lack (C3, [`standin_hitbox`]:
-    /// GUESS for its size), for a bot's shot only: a client's (`shooter` of [`standin_hitbox::ShotOrigin::Own`]) starts at
-    /// its eye, as the game's bullet does, its offset drawn all the same so that the bots' draws stay as they were. The
-    /// origin is where the hit tests start their rays; the eye stays where the bullet starts for the world's blocking. With
-    /// the old disc, nothing moves and nothing is drawn beyond the cone.
+    /// it; with the whole hit cut on ([`HitVolume::Boxes`] with a [`standin_hitbox::Scatter`]) a bot's origin is moved
+    /// off its eye: by one draw of the bots' own-position error at the age of their last world
+    /// ([`standin_hitbox::own_position_offset`]), or by the Gaussian of the diagnosis. A client's (`shooter` of
+    /// [`standin_hitbox::ShotOrigin::Own`]) starts at its eye, as the game's bullet does, its offset drawn all the same so
+    /// that the bots' draws stay as they were. The origin is where the hit tests start their rays; the eye stays where
+    /// the bullet starts for the world's blocking. With the old disc, nothing moves and nothing is drawn beyond the cone.
     pub(crate) fn shot_line(&mut self, shooter: Place, eye: Vec3, dir: Vec3, cone: f32) -> (Vec3, Vec3) {
         let dir = if self.spread {
             bench_spread::deflect(dir, cone, &mut self.rng)
         } else {
             dir
         };
-        let HitVolume::Boxes { scatter_m: Some(sigma) } = self.volume else {
+        let HitVolume::Boxes { scatter: Some(scatter) } = self.volume else {
             return (eye, dir);
         };
-        // Two Gaussian offsets across the line (Box-Muller from two draws): along the horizontal across it
-        // and along the line's own up.
-        let u1 = self.rng.unit().max(1e-9);
-        let u2 = self.rng.unit();
-        let radius = sigma * (-2.0 * u1.ln()).sqrt();
-        let angle = std::f32::consts::TAU * u2;
-        let side = dir.cross(Vec3::Y);
-        let side = if side.length() < 1e-4 {
-            Vec3::new(1.0, 0.0, 0.0)
-        } else {
-            side * (1.0 / side.length())
+        let age_ms = self.world_age_ms();
+        let offset = match scatter {
+            standin_hitbox::Scatter::OwnPosition => {
+                let rng = &mut self.rng;
+                standin_hitbox::own_position_offset(age_ms, || rng.unit())
+            }
+            standin_hitbox::Scatter::Gaussian { sigma_m } => {
+                // Two Gaussian offsets across the line (Box-Muller from two draws): along the horizontal across it
+                // and along the line's own up.
+                let u1 = self.rng.unit().max(1e-9);
+                let u2 = self.rng.unit();
+                let radius = sigma_m * (-2.0 * u1.ln()).sqrt();
+                let angle = std::f32::consts::TAU * u2;
+                let side = dir.cross(Vec3::Y);
+                let side = if side.length() < 1e-4 {
+                    Vec3::new(1.0, 0.0, 0.0)
+                } else {
+                    side * (1.0 / side.length())
+                };
+                let up = side.cross(dir);
+                side * (radius * angle.cos()) + up * (radius * angle.sin())
+            }
         };
-        let up = side.cross(dir);
         match self.shot_origins.get(shooter).copied().unwrap_or_default() {
-            standin_hitbox::ShotOrigin::Reckoned => (eye + side * (radius * angle.cos()) + up * (radius * angle.sin()), dir),
+            standin_hitbox::ShotOrigin::Reckoned => {
+                self.scatter_drawn.push((age_ms, offset.x.hypot(offset.z), offset.y));
+                (eye + offset, dir)
+            }
             standin_hitbox::ShotOrigin::Own => (eye, dir),
         }
+    }
+
+    /// The bots were handed a world at `at_ms`: their shots' scatter is drawn at its age from then on.
+    pub(crate) fn note_world(&mut self, at_ms: u32) {
+        self.last_world_ms = Some(at_ms);
+    }
+
+    /// The age of the bots' last world now, ms (since the match began before the first).
+    fn world_age_ms(&self) -> u32 {
+        self.tick.saturating_sub(self.last_world_ms.unwrap_or(0))
+    }
+
+    /// The match's line of the bots' scatter as drawn: the shots, the world's age and the offset's flat part by quantile, and
+    /// the share at [`standin_hitbox::TAIL_M`] or more. None with no scattered shot.
+    pub(crate) fn scatter_drawn_line(&self) -> Option<String> {
+        if self.scatter_drawn.is_empty() {
+            return None;
+        }
+        let q = |mut v: Vec<f32>, p: f32| {
+            v.sort_by(f32::total_cmp);
+            v[((v.len() - 1) as f32 * p).round() as usize]
+        };
+        let ages: Vec<f32> = self.scatter_drawn.iter().map(|&(a, _, _)| a as f32).collect();
+        let flats: Vec<f32> = self.scatter_drawn.iter().map(|&(_, f, _)| f).collect();
+        let heights: Vec<f32> = self.scatter_drawn.iter().map(|&(_, _, h)| h.abs()).collect();
+        let tail = flats.iter().filter(|&&f| f >= standin_hitbox::TAIL_M).count();
+        Some(format!(
+            "bench hit scatter drawn: {} bot shots; world age P10/P50/P90 {:.0}/{:.0}/{:.0} ms; flat offset P50/P75/P90/P95 \
+             {:.3}/{:.3}/{:.3}/{:.3} m, {:.1} % at {} m or more; height P50/P90 {:.3}/{:.3} m",
+            flats.len(),
+            q(ages.clone(), 0.1),
+            q(ages.clone(), 0.5),
+            q(ages, 0.9),
+            q(flats.clone(), 0.5),
+            q(flats.clone(), 0.75),
+            q(flats.clone(), 0.9),
+            q(flats.clone(), 0.95),
+            100.0 * tail as f32 / flats.len() as f32,
+            standin_hitbox::TAIL_M,
+            q(heights.clone(), 0.5),
+            q(heights, 0.9),
+        ))
     }
 
     /// `place` stands for a client (the stand-in human, the stand-in camper): its shot lines start at its eye
