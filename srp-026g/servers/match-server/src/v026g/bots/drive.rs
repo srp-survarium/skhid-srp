@@ -3126,7 +3126,7 @@ pub(super) fn no_way_line(
             }
             // [S6] A body with no sprint: its searches took no sprint link without a walking press.
             if let mapdata::Reach::NoSprint { max_rise } = retried.reach {
-                v.push_str("; planned with no sprint (a carrier): sprint jumps by their walking press only, no sprint climb");
+                v.push_str("; planned with no sprint (a carrier): sprint links by their walking press only");
                 if let Some(rise) = max_rise {
                     v.push_str(&format!(", no jump above {rise:.3} m"));
                 }
