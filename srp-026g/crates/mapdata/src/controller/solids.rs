@@ -633,9 +633,10 @@ impl Solids {
     /// to `b` (the map frame; identity bases) against the object's whole shape under its transform, into a fresh
     /// closest-ray callback (0x83FD0, its flags 0). The normal the callback holds after, in the map frame.
     ///
-    /// A compound's children and a mesh's triangles are offered where their boxes meet the ray's box, in this
-    /// world's order (the exe's own trees' walks, 0xA54A0 and 0xC39B0, are not ported): a hit needs the ray through
-    /// the box, so the hits are the exe's; which of two at exactly one fraction comes first can differ.
+    /// A compound's children and a mesh's triangles are offered where their boxes meet the ray's box: a hit needs the ray
+    /// through the box, so the hits are the exe's. [L36] A mesh's triangles in its tree's leaf order (0xC39B0), so of two
+    /// at exactly one distance the exe's first is kept; a compound's children in this world's order (0xA54A0's walk is not
+    /// ported for the ray).
     pub(super) fn look_ray(&self, object: u32, a: Vec3, b: Vec3) -> Option<Vec3> {
         let end = |p: Vec3| Transform { basis: exe_cast::IDENTITY.basis, origin: flip(p.to_array()) };
         let (from, to) = (end(a), end(b));
@@ -666,13 +667,20 @@ impl Solids {
                     );
                     // `rcb.m_hitFraction = resultCallback.m_closestHitFraction` (0xA09A4), then each report's answer.
                     let mut hit_fraction = callback.closest;
-                    mesh.tree.each_in(&local, |k| {
+                    // [L36] In the mesh tree's leaf order (0xC39B0 walks it as the sweep's 0xC2FF0 does): the ray keeps the FIRST
+                    // triangle at an equal distance (0xB81C8 strict), so the order picks among ties (the exe review of #1970).
+                    let mut candidates: Vec<usize> = Vec::new();
+                    mesh.tree.each_in(&local, |k| candidates.push(k));
+                    if let Some(rank) = &mesh.rank {
+                        candidates.sort_unstable_by_key(|&k| rank[k]);
+                    }
+                    for k in candidates {
                         let triangle = &mesh.triangles[k];
                         if let TriangleRay::Hit { normal, distance } = exe_ray::ray_triangle(local_from, local_to, RayFlags(0), hit_fraction, &triangle.v) {
                             let n = exe_ray::bridge_normal(&world.basis, normal);
                             hit_fraction = callback.add_single_result(object, n, distance, NormalSpace::World);
                         }
-                    });
+                    }
                 }
             }
         }
