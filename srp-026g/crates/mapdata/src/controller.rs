@@ -667,8 +667,10 @@ impl Collision {
         }
     }
 
-    /// The nearest face a ray from `a` to `b` crosses: the share of the way and the face's normal turned toward `a` (Bullet's
-    /// triangle ray normal, LIKELY).
+    /// The nearest face a ray from `a` to `b` crosses: the share of the way and the face's normal turned toward `a` (the exe's
+    /// triangle ray's normal, PROVEN: `btTriangleRaycastCallback::processTriangle` 0xB8010 hands `reportHit` the unit normal
+    /// turned over when the start is not in front; the crossing test here is Moller-Trumbore, not the exe's, which
+    /// [`exe_ray`] ports for a world of the game's objects).
     pub fn ray(&self, a: Vec3, b: Vec3) -> Option<(f32, Vec3)> {
         let d = b - a;
         let mut best: Option<(f32, Vec3)> = None;
@@ -769,7 +771,8 @@ fn advance(shape: Shape, by: Vec3, face: &Face) -> Option<Touch> {
 }
 
 /// [`Caster::Bullet`] against one face: `btContinuousConvexCollision::calcTimeOfImpact` as the exe runs it (0xB9320; the
-/// face's margin 0, LIKELY: the map mesh's ctor 0xA7950 sets 0 and no setMargin call was found).
+/// face's margin 0, PROVEN: the map mesh's ctor 0xA7950 sets 0, and every map mesh in two captures of the game's memory has
+/// 0 there: 321 of 321 on Vector Laboratory live1, 168 of 168 on Chemical Plant case15).
 fn advance_bullet(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> Option<Touch> {
     let (mut gap, _, mut f, mut n) = shape.gap(&face.v, face.normal);
     // The move's part toward the face (`relLinVel . normalOnB`: the face is B, the normal points from it to the shape).
