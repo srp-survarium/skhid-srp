@@ -95,12 +95,57 @@ pub fn fall_hit(speed: f32, fall_scale: f32) -> f32 {
     }
 }
 
-/// [S6] The pain a walk-off drop of `height` m takes ([`walk_off_landing_speed`], [`fall_hit`]): two foot hits, each blunt, of
-/// which [`PAIN_PER_FOOT`] goes to pain (`human_hit_params` feet `bdb_coeff`, `docs/notes/hand-kill.md`; no armour stops a
-/// blunt hit, `docs/notes/armour-params.md`: no piece lists `blunt`). A pain pool emptied is death (`on_affect` 0x2DA480).
+/// [S6] The pain a walk-off drop of `height` m takes at the least ([`walk_off_landing_speed`], [`fall_hit`]): two foot hits,
+/// each blunt, of which [`PAIN_PER_FOOT`] goes to pain (`human_hit_params` feet `bdb_coeff`, `docs/notes/hand-kill.md`; the
+/// hits right foot then left foot through the player's hit 0x2D9AE0, type 1 at 0x2D8348, no source; no armour stops a blunt
+/// hit, `docs/notes/armour-params.md`: no piece lists `blunt`). A pain pool emptied is death (`on_affect` 0x2DA480; `hurt >=
+/// pain` the exe's own clamp, 0x32A25A..0x32A28B). The fall is counted from [`RIM_SLIDE_M`] under the ledge: the body slides
+/// that far over the rim on ticks that still find ground before it falls, so a drop just past a tick's boundary lands a
+/// tick's speed slower than the ledge's height alone gives (the exe review of #1969's run); counting from there never
+/// overstates the pain.
 pub fn fall_pain(height: f32, fall_scale: f32) -> f32 {
-    2.0 * PAIN_PER_FOOT * fall_hit(walk_off_landing_speed(height), fall_scale)
+    2.0 * PAIN_PER_FOOT * fall_hit(walk_off_landing_speed((height - RIM_SLIDE_M).max(0.0)), fall_scale)
 }
+
+/// [S6] The pain of a drop `height` m below the take-off taken by a jump whose clip ends at `end` ([`super::JumpEnd`]), at the
+/// least the client takes: the fall starts at the clip's end, `end.rise` over the take-off, at its descent `end.descent`
+/// (`end_jump` 0x7F050 keeps the downward speed; the jump's own landing never hurts, `step_jump_down` 0x7D0F0 has no
+/// callback: a drop the clip's end is not over is no fall). Two readings of the air after a jump's end: the reckoning's
+/// whole ticks (gravity after the move, `step_down` 0x7E1B0) and the note's air step (`(|v| + 0.49) x 0.05` a tick, 91 of 91
+/// traced, `docs/notes/fall_damage.md`), the landing at the tick's starting speed; the lower landing speed of the two is
+/// taken, so the pain is never overstated.
+pub fn jumped_fall_pain(height: f32, end: super::JumpEnd, fall_scale: f32) -> f32 {
+    let fall = height + end.rise;
+    if fall <= 0.0 {
+        return 0.0;
+    }
+    let s = Settings::LIVE;
+    let land = |gravity_first: bool| {
+        let (mut speed, mut fallen) = (end.descent.max(0.0), 0.0f32);
+        for _ in 0..200 {
+            let down = if gravity_first {
+                (speed + GRAVITY * FALL_TICK_S) * FALL_TICK_S
+            } else if speed < s.on_ground_max_vertical_speed {
+                s.additional_down_speed
+            } else {
+                speed * FALL_TICK_S
+            };
+            if fallen + down >= fall {
+                return speed;
+            }
+            fallen += down;
+            speed += GRAVITY * FALL_TICK_S;
+        }
+        speed
+    };
+    2.0 * PAIN_PER_FOOT * fall_hit(land(false).min(land(true)), fall_scale)
+}
+
+/// [S6] How far a body walked off a ledge slides down over its rim on ticks that still find ground, before its fall begins,
+/// m: the most of the exe review of #1969's two runs of a 2 m ledge (0.05 m on 3 ticks walked off at 1.4 m/s; 0.008 m on one
+/// at 3.5 m/s). It depends on the walk-off speed; the larger slide errs open: at the walk cap a drop of 8.01-8.04 m that
+/// kills from a full pool stays open.
+const RIM_SLIDE_M: f32 = 0.05;
 
 /// What a drop of `height` m costs a route, m: the pain the fall takes (both feet, [`PAIN_PER_FOOT`] of each foot's hit) at
 /// [`FALL_DAMAGE_M`] a pool's loss; 0 for a harmless one.
@@ -249,8 +294,9 @@ mod tests {
     use super::*;
 
     /// [S6] The walk-off fall by the client's whole ticks lands as the note's tick table has it (`docs/notes/fall_damage.md`
-    /// "Walking or sprinting off": 4 m 8.8 m/s 0; 6 m 10.8, 0.21; 8 m 12.7, 0.69; 10 m 14.2, 1.0), so a full pain pool (1.0)
-    /// is emptied from 8 m (1.6 x 0.69) and not at 7 m (1.6 x 0.45); the fall-damage skill's x0.7 saves the 8 m drop.
+    /// "Walking or sprinting off": 4 m 8.8 m/s 0; 6 m 10.8, 0.21; 8 m 12.7, 0.69; 10 m 14.2, 1.0). Counted from the rim's
+    /// slide ([`RIM_SLIDE_M`]), a full pain pool (1.0) is emptied from 8.05 m (1.6 x 0.69) and not at 8.00 m (1.6 x 0.57), nor
+    /// at 7 m; the fall-damage skill's x0.7 saves the 8.1 m drop.
     #[test]
     fn a_walk_off_fall_hurts_by_the_clients_ticks() {
         let near = |a: f32, b: f32| (a - b).abs() < 0.01;
@@ -258,8 +304,15 @@ mod tests {
         assert!(near(walk_off_landing_speed(6.0), 10.78) && near(fall_hit(walk_off_landing_speed(6.0), 1.0), 0.21));
         assert!(near(walk_off_landing_speed(8.0), 12.74) && near(fall_hit(walk_off_landing_speed(8.0), 1.0), 0.69));
         assert!(near(fall_hit(walk_off_landing_speed(10.0), 1.0), 1.0));
-        assert!(fall_pain(8.0, 1.0) >= 1.0 && fall_pain(7.0, 1.0) < 1.0);
-        assert!(fall_pain(8.0, 0.7) < 1.0, "{}", fall_pain(8.0, 0.7));
+        assert!(fall_pain(8.1, 1.0) >= 1.0 && fall_pain(8.0, 1.0) < 1.0 && fall_pain(7.0, 1.0) < 1.0);
+        assert!(fall_pain(8.1, 0.7) < 1.0, "{}", fall_pain(8.1, 0.7));
+        // [S6] A jumped drop falls from its clip's end at its descent: the note's "a jump off a ledge" (5.5453 m/s, counted
+        // from where the clip ends) is lethal from a full pool from about 7.1 m, where a walk-off is not.
+        let end = crate::grid::JumpEnd { rise: 0.0, descent: 5.5453 };
+        assert!(jumped_fall_pain(7.3, end, 1.0) >= 1.0 && fall_pain(7.3, 1.0) < 1.0, "{}", jumped_fall_pain(7.3, end, 1.0));
+        assert!(jumped_fall_pain(6.5, end, 1.0) < 1.0);
+        // Over the clip's end the jump lands in its clip: no fall.
+        assert_eq!(jumped_fall_pain(-0.5, crate::grid::JumpEnd { rise: 0.35, descent: 5.5 }, 1.0), 0.0);
     }
 
     /// The fall rule's table (`docs/notes/fall_damage.md`, fatal_damage 1.0): nothing to 5 m, 0.23 at 6 m, 0.44 at 7 m, 1.0 from

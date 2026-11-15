@@ -917,8 +917,8 @@ impl Game {
             log_notes(id, notes);
             // [Gap 8] Its spawn protection (the damage model's invulnerability end and fade).
             walkers.bots.protection(place, world.invulnerability_time_ms, world.invulnerability_fade_ms);
-            // [S6] What may stop a lethal fall's hit: the second chance armed, a drug course on (`medkit::reduce_damage`).
-            walkers.bots.fall_save(place, world.have_second_chance, world.medkits.iter().any(|(_, course)| course.is_some()));
+            // [S6] What may lower a lethal fall's hit: the second chance armed.
+            walkers.bots.fall_save(place, world.have_second_chance);
             // [Gap 7] Its hand wounds (parts 16 and 17's `hand_damage`), held as the client holds them.
             {
                 use srp_validate::world::AffectKind;

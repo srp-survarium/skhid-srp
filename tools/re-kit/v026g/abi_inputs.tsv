@@ -6317,6 +6317,13 @@ va	name	location	role	basis
 0x000a8380	btBvhTriangleMeshShape::performConvexcast	EAX	the cast's end in the mesh's frame (btVector3*)	observed
 0x000a8380	btBvhTriangleMeshShape::performConvexcast	ESI	the cast shape's box min (btVector3*)	observed
 0x000a8380	btBvhTriangleMeshShape::performConvexcast	EDX	the cast shape's box max (btVector3*)	observed
+0x000a8a40	btBvhTriangleMeshShape::buildOptimizedBvh	ESI	the mesh shape (btBvhTriangleMeshShape)	observed
+0x000aa690	btDbvt::insert	EDI	the tree (btDbvt*)	observed
+0x000aa690	btDbvt::insert	entry ESP+4	the leaf's volume (btDbvtVolume*: min[4], max[4])	observed
+0x000aa690	btDbvt::insert	entry ESP+8	the leaf's data (a compound's child index)	observed
+0x000aa710	btDbvt::update	EDI	the leaf (btDbvtNode*)	observed
+0x000aa710	btDbvt::update	entry ESP+4	the tree (btDbvt*)	observed
+0x000aa710	btDbvt::update	entry ESP+8	the new volume (btDbvtVolume*)	observed
 0x00087b60	vostok::physics::character_controller_jump_tester::convex_sweep_test	ESI	the tester (inside the controller): +5058h the cast shape, +5060h the btCollisionWorld it sweeps (0x87C44, 0x87C4F)	observed
 0x00088cb0	vostok::physics::bullet_character_controller::slide_sweep_test	EAX	the sweeper	observed
 0x00088cb0	vostok::physics::bullet_character_controller::slide_sweep_test	EDI	&to	observed

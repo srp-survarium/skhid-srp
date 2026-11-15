@@ -664,10 +664,8 @@ impl Bots {
         if let Some(Some(bot)) = self.bots.get_mut(pending.place) {
             // [S6] The drops its search closed as lethal.
             for closed in mapdata::take_falls_closed() {
-                let grid = &tactics.world.grid;
-                let line = super::nav_log::fall_closed_line(grid.position(closed.from), grid.position(closed.to), closed.height, closed.pain, closed.pool);
-                let key = super::nav_log::key(("fall closed", closed.from, closed.to, (closed.pool * 100.0) as i32));
-                bot.nav_log.push_once(super::nav_log::Kind::Route, key, time, line);
+                let line = super::nav_log::fall_closed_line(&tactics.world.grid, &closed);
+                bot.nav_log.push_once(super::nav_log::Kind::Route, super::nav_log::fall_closed_key(&closed), time, line);
             }
             if route.is_none() {
                 let retried =
