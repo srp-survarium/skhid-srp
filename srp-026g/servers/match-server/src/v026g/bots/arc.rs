@@ -12,14 +12,16 @@
 //!   **along the view** (the head transform's forward row, player+0x44C) at
 //!   `throw_power × max(0, 1 + Σ modifier 27)` = 17 m/s for the bots (the
 //!   grenade's `throw_power`, [`Grenade::speed`]), with no lift angle and none of the thrower's own speed (0x30A2D5..0x30A312).
-//!   PROVEN. It leaves about [`LAUNCH_DELAY_S`] after the key goes down (the
-//!   animation's event, not in the code) and the view that counts is the
-//!   one **at the launch**, not at the press. LIKELY (a fit, ±0.2 s). The
-//!   start is the right hand's bone at that frame, not the eye (0x309F00);
-//!   where it is depends on the animation: [`HAND_DOWN_M`] is a GUESS.
+//!   PROVEN. It leaves at [`launch_at`]: `max(press + 400, release) + 500` ms
+//!   (the pull-pin stage, the idle stage that waits for the release, the
+//!   throw clip's event on the 50 ms grid: [`PULL_PIN_MS`],
+//!   [`RELEASE_TO_LAUNCH_MS`]), and the view that counts is the one **at the
+//!   launch**, not at the press. PROVEN. The start is the right hand's bone
+//!   at that event, not the eye (0x309F00): [`release_point`], measured.
+//!   PROVEN.
 //! - **The fuse runs from the press** (0x30A120 from 0x3103D7, 80 of 82
 //!   recorded blasts at press + 4000 ms): [`Grenade::fuse_s`], so the flight
-//!   has [`Grenade::flight_s`] left. PROVEN.
+//!   has [`Grenade::flight_s`] left after the launch. PROVEN.
 //! - **The body** (`grenade_core::load` 0x303890 → 0x357100): a capsule of
 //!   radius [`RADIUS_M`], 0.3 kg, no damping, restitution 0, friction 0.5,
 //!   never asleep, in Bullet 2.81 with gravity `(0, -10, 0)` (0x74E3D) and
@@ -62,13 +64,26 @@ pub const RADIUS_M: f32 = 0.05;
 /// The two bodies' combined friction on the level, 0.5 × 0.5 (0x8E870;
 /// Bullet multiplies them in `addContactPoint`, 0xAE310). PROVEN.
 pub const FRICTION: f32 = 0.25;
-/// From the key going down to the grenade leaving the hand, seconds (the
-/// throw animation's event). LIKELY, ±0.2 s.
-pub const LAUNCH_DELAY_S: f32 = 1.1;
-/// How far under the eye the grenade starts, metres: the hand at the
-/// launch frame. GUESS (the data cannot tell it from the eye; 0.3 m
-/// shortens a level throw from 9.3 to 8.4 m).
-pub const HAND_DOWN_M: f32 = 0.3;
+/// The throw state's pull-pin stage, ms: `grenade_swing`, 12 frames at rate 1.0, 400 ms by the mixer's clock. Its idle
+/// stage then waits for the key's release: it is ready once the inventory's grenade slot (+17Ch) is no longer this
+/// grenade's (0x310450), which `want_throw` 0x309DC0 sets to the grenade's slot on the press and to 17h (none) on the
+/// release. PROVEN (`docs/notes/thrown_and_placed.md`, 8a64c4e61; 0x310450 and 0x309DC0 re-read 2026-11-15).
+pub const PULL_PIN_MS: u32 = 400;
+/// From the throw stage's start (the release, or the pull-pin's end when the key was let go sooner) to the flight's
+/// start, ms: the throw clip's `shoot` event (frame 16, 533 ms; 0x3104E7 -> 0x310680 -> `launch_grenade` 0x30A250) falls
+/// in the tick that ends at +550, whose physics step then flies the new body that tick's 50 ms, so the flight starts at
+/// +500 on the 50 ms grid. PROVEN: a key held 600 ms or more launches 500 ms after the release (140 throws, the median
+/// 500.00), a tap 900 ms after the press (88 throws, P10 to P90 900 to 950) (`thrown_and_placed.md`).
+pub const RELEASE_TO_LAUNCH_MS: u32 = 500;
+/// The earliest launch after the press, ms (a tap, [`launch_after_ms`] of 0): the most flight a fuse leaves.
+pub const TAP_LAUNCH_MS: u32 = PULL_PIN_MS + RELEASE_TO_LAUNCH_MS;
+/// Where the grenade leaves the hand, metres: over the feet standing and crouched, behind the throw line and to its
+/// right. PROVEN: measured on 147 throwers standing still at the throw's event, the right hand's bone
+/// (`hand_transform` 0x309F00; `thrown_and_placed.md`, 8a64c4e61). The old start, 0.3 m under the eye, was about 0.55 m
+/// too low.
+pub const RELEASE_UP_M: (f32, f32) = (1.73, 1.29);
+pub const RELEASE_BACK_M: f32 = 0.13;
+pub const RELEASE_RIGHT_M: f32 = 0.21;
 /// The lowest elevation the game lets the view have, radians: 67.48 degrees down, the pitch unit's -1 (PROVEN,
 /// `mapdata::stands::VIEW_DOWN_DEG`; it was taken as -1 radian, -57.3 degrees).
 pub const PITCH_LOW: f32 = -mapdata::stands::VIEW_DOWN_RAD;
@@ -184,10 +199,10 @@ impl Grenade {
         (self.fuse_s * 1000.0).round() as u32
     }
 
-    /// What is left of the fuse at the launch: a grenade still in the air at this time goes off
-    /// there. LIKELY (the launch delay).
-    pub fn flight_s(&self) -> f32 {
-        self.fuse_s - LAUNCH_DELAY_S
+    /// What is left of the fuse at a launch `launch_ms` after the press ([`launch_after_ms`]): a grenade still in the air
+    /// at this time goes off there.
+    pub fn flight_s(&self, launch_ms: u32) -> f32 {
+        self.fuse_s - launch_ms as f32 / 1000.0
     }
 
     /// The grenade of the bots' kit (`loadouts::BOT_GRENADE`) in the game data, read once. A game
@@ -240,10 +255,15 @@ impl Grenade {
 
     /// How far from the launch point a throw at `pitch` lands on a level ground `drop_m` under the
     /// launch point (negative: a ledge above it), metres on the ground; none when it never comes
-    /// down to it within [`Self::flight_s`].
+    /// down to it within [`Self::flight_s`] of a tap ([`TAP_LAUNCH_MS`]).
     pub fn level_range(&self, pitch: f32, drop_m: f32) -> Option<f32> {
+        self.level_range_after(pitch, drop_m, TAP_LAUNCH_MS)
+    }
+
+    /// [`Self::level_range`] for a launch `launch_ms` after the press.
+    pub fn level_range_after(&self, pitch: f32, drop_m: f32, launch_ms: u32) -> Option<f32> {
         let flight = Flight::new_by(*self, Vec3::new(0.0, drop_m, 0.0), self.throw_velocity(0.0, pitch));
-        let contact = flight.first_contact(&Floor { y: 0.0 }, self.flight_s())?;
+        let contact = flight.first_contact(&Floor { y: 0.0 }, self.flight_s(launch_ms))?;
         Some(contact.point.z)
     }
 
@@ -257,7 +277,12 @@ impl Grenade {
     /// The farthest a throw lands from `drop_m` over a level ground (about 30 m from an eye 1.6 m
     /// up for the RGD-5), metres.
     pub fn max_range(&self, drop_m: f32) -> Option<f32> {
-        self.level_range(self.max_pitch(drop_m)?, drop_m)
+        self.max_range_after(drop_m, TAP_LAUNCH_MS)
+    }
+
+    /// [`Self::max_range`] for a launch `launch_ms` after the press.
+    pub fn max_range_after(&self, drop_m: f32, launch_ms: u32) -> Option<f32> {
+        self.level_range_after(self.max_pitch(drop_m)?, drop_m, launch_ms)
     }
 
     /// The view pitch whose first contact is `range_m` out on a level ground `drop_m` under the
@@ -266,19 +291,24 @@ impl Grenade {
     /// down lands, and where the longest throw would outlast [`Self::flight_s`]. Solved on the same
     /// steps as [`Flight`], so `level_range(pitch_for(d, h)?, h)` is `d`.
     pub fn pitch_for(&self, range_m: f32, drop_m: f32) -> Option<f32> {
+        self.pitch_for_after(range_m, drop_m, TAP_LAUNCH_MS)
+    }
+
+    /// [`Self::pitch_for`] for a launch `launch_ms` after the press.
+    pub fn pitch_for_after(&self, range_m: f32, drop_m: f32, launch_ms: u32) -> Option<f32> {
         let top = self.max_pitch(drop_m)?;
-        if self.level_range(top, drop_m)? < range_m {
+        if self.level_range_after(top, drop_m, launch_ms)? < range_m {
             return None;
         }
         log_view_limits();
         let mut low = PITCH_LOW;
-        if self.level_range(low, drop_m).is_some_and(|r| r > range_m) {
+        if self.level_range_after(low, drop_m, launch_ms).is_some_and(|r| r > range_m) {
             return None;
         }
         let mut high = top;
         for _ in 0..24 {
             let middle = 0.5 * (low + high);
-            match self.level_range(middle, drop_m) {
+            match self.level_range_after(middle, drop_m, launch_ms) {
                 Some(r) if r >= range_m => high = middle,
                 _ => low = middle,
             }
@@ -307,10 +337,83 @@ pub fn view_forward(yaw: f32, pitch: f32) -> Vec3 {
     Vec3::new(x * cos, sin, z * cos)
 }
 
-/// Where the grenade starts for an eye at `eye`: [`HAND_DOWN_M`] under it.
-/// GUESS.
-pub fn hand_of(eye: Vec3) -> Vec3 {
-    eye - Vec3::Y * HAND_DOWN_M
+/// The match time a grenade pressed at `press` and let go at `release` leaves the hand ([`PULL_PIN_MS`],
+/// [`RELEASE_TO_LAUNCH_MS`]); the times are the match's 50 ms ticks, so the launch is one too.
+pub fn launch_at(press: u32, release: u32) -> u32 {
+    log_throw_model();
+    (press + PULL_PIN_MS).max(release) + RELEASE_TO_LAUNCH_MS
+}
+
+/// Says once, in the server's log, when and where the bots take a grenade to leave the hand (the client's: the
+/// launch's timing and the measured release point).
+fn log_throw_model() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        log::info!(
+            "bots: a grenade leaves the hand at max(press + {PULL_PIN_MS}, release) + {RELEASE_TO_LAUNCH_MS} ms \n             (the pull-pin clip, the idle stage to the release 0x310450, the throw clip's event), \n             from {:.2} m over the feet standing ({:.2} crouched), {RELEASE_BACK_M:.2} m behind the throw line \n             and {RELEASE_RIGHT_M:.2} m to its right (the right hand at the event, 0x309F00, measured)",
+            RELEASE_UP_M.0,
+            RELEASE_UP_M.1
+        );
+    });
+}
+
+/// From the press to the launch, ms, for a key held `hold_ms`.
+pub fn launch_after_ms(hold_ms: u32) -> u32 {
+    launch_at(0, hold_ms)
+}
+
+/// Where a grenade leaves the hand of a thrower at `feet`, standing or `crouched`, throwing along `yaw`
+/// ([`RELEASE_UP_M`], [`RELEASE_BACK_M`], [`RELEASE_RIGHT_M`]).
+pub fn release_point(feet: Vec3, crouched: bool, yaw: f32) -> Vec3 {
+    log_throw_model();
+    let up = if crouched { RELEASE_UP_M.1 } else { RELEASE_UP_M.0 };
+    let [fx, fz] = kin::forward(yaw);
+    // The thrower's right: `forward(yaw - pi/2)` = (cos, sin) = (fz, -fx).
+    feet + Vec3::new(fz * RELEASE_RIGHT_M - fx * RELEASE_BACK_M, up, -fx * RELEASE_RIGHT_M - fz * RELEASE_BACK_M)
+}
+
+/// A thrower as a throw's arc needs him: his feet, his stance, and how long after the press his grenade leaves the
+/// hand ([`launch_after_ms`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Thrower {
+    pub feet: Vec3,
+    pub crouched: bool,
+    pub launch_ms: u32,
+}
+
+impl Thrower {
+    /// The release point of a throw along `yaw` ([`release_point`]).
+    pub fn release(&self, yaw: f32) -> Vec3 {
+        release_point(self.feet, self.crouched, yaw)
+    }
+
+    /// The release point's height (it does not turn with the yaw).
+    pub fn release_y(&self) -> f32 {
+        self.release(0.0).y
+    }
+
+    /// The yaw that throws over `at` and the release point it leaves from: the line from the release point along the
+    /// yaw meets `at` on the ground (the release point turns with the yaw, so two passes from the bearing of the feet).
+    pub fn aim(&self, at: Vec3) -> (f32, Vec3) {
+        let bearing = |from: Vec3| kin::yaw_of([at.x - from.x, at.z - from.z]);
+        let mut yaw = bearing(self.feet);
+        for _ in 0..2 {
+            yaw = bearing(self.release(yaw));
+        }
+        (yaw, self.release(yaw))
+    }
+
+    /// [`Grenade::pitch_for_after`] of `grenade` to `at` from this thrower's release point, with the yaw ([`Self::aim`]).
+    pub fn pitch_for(&self, grenade: &Grenade, at: Vec3) -> Option<(f32, f32)> {
+        let (yaw, release) = self.aim(at);
+        let pitch = grenade.pitch_for_after(release.distance_xz(at), release.y - at.y, self.launch_ms)?;
+        Some((yaw, pitch))
+    }
+
+    /// [`Grenade::max_range_after`] of `grenade` over a ground at `ground_y`.
+    pub fn max_range(&self, grenade: &Grenade, ground_y: f32) -> Option<f32> {
+        grenade.max_range_after(self.release_y() - ground_y, self.launch_ms)
+    }
 }
 
 /// A grenade's flight from its start, before anything is hit: Bullet's
@@ -322,6 +425,8 @@ pub struct Flight {
     pub velocity: Vec3,
     /// The grenade that flies: its fuse bounds the flight, its blast is the landing's.
     pub grenade: Grenade,
+    /// How long it flies before the fuse ends it, seconds ([`Grenade::flight_s`] of its launch).
+    pub max_s: f32,
 }
 
 impl Flight {
@@ -330,24 +435,30 @@ impl Flight {
         Self::new_by(*Grenade::bots(), start, velocity)
     }
 
-    /// A flight of `grenade`.
+    /// A flight of `grenade`, launched by a tap ([`TAP_LAUNCH_MS`]: the most flight its fuse leaves).
     pub fn new_by(grenade: Grenade, start: Vec3, velocity: Vec3) -> Self {
         Self {
             start,
             velocity,
             grenade,
+            max_s: grenade.flight_s(TAP_LAUNCH_MS),
         }
     }
 
-    /// The throw of a view (`yaw`, `pitch` at the launch) from the hand of
-    /// an eye at `eye`, of the bots' grenade ([`Grenade::bots`]).
-    pub fn thrown(eye: Vec3, yaw: f32, pitch: f32) -> Self {
-        Self::thrown_by(*Grenade::bots(), eye, yaw, pitch)
+    /// The throw of a view (`yaw`, `pitch` at the launch) by `thrower`, from his release point, of the bots' grenade
+    /// ([`Grenade::bots`]).
+    pub fn thrown(thrower: &Thrower, yaw: f32, pitch: f32) -> Self {
+        Self::thrown_by(*Grenade::bots(), thrower, yaw, pitch)
     }
 
     /// [`Self::thrown`] of `grenade`.
-    pub fn thrown_by(grenade: Grenade, eye: Vec3, yaw: f32, pitch: f32) -> Self {
-        Self::new_by(grenade, hand_of(eye), grenade.throw_velocity(yaw, pitch))
+    pub fn thrown_by(grenade: Grenade, thrower: &Thrower, yaw: f32, pitch: f32) -> Self {
+        Self {
+            start: thrower.release(yaw),
+            velocity: grenade.throw_velocity(yaw, pitch),
+            grenade,
+            max_s: grenade.flight_s(thrower.launch_ms),
+        }
     }
 
     /// Where the body is after `step` steps.
@@ -385,7 +496,7 @@ impl Flight {
     }
 
     /// The first time the body touches `ground` within `max_s` seconds of
-    /// the launch ([`Grenade::flight_s`] for a throw that must land before
+    /// the launch ([`Self::max_s`] for a throw that must land before
     /// the blast), or none. Each step's line is asked of the ground; the point
     /// is the centre of the body when it is [`RADIUS_M`] from the surface.
     pub fn first_contact(&self, ground: &(impl Ground + ?Sized), max_s: f32) -> Option<Contact> {
@@ -415,9 +526,9 @@ impl Flight {
     }
 
     /// Where it lands and where it rests: [`Self::first_contact`] within
-    /// [`Grenade::flight_s`], with its [`Landing`].
+    /// [`Self::max_s`], with its [`Landing`].
     pub fn landing(&self, ground: &(impl Ground + ?Sized)) -> Option<Landing> {
-        self.first_contact(ground, self.grenade.flight_s())
+        self.first_contact(ground, self.max_s)
             .map(|contact| Landing::of(contact, self.grenade.splash_m))
     }
 }
@@ -578,7 +689,7 @@ mod tests {
         let eye = Vec3::new(0.0, EYE_M, 0.0);
         let grenade = Grenade::bots();
         Flight::new(eye, grenade.throw_velocity(0.0, pitch_deg.to_radians()))
-            .first_contact(&Floor { y: 0.0 }, grenade.flight_s())
+            .first_contact(&Floor { y: 0.0 }, grenade.flight_s(TAP_LAUNCH_MS))
             .unwrap()
     }
 
@@ -615,7 +726,7 @@ mod tests {
             (17.0, 4.0, 10.0)
         );
         assert_eq!(Grenade::bots().fuse_ms(), rgd.ttl_ms);
-        assert!((Grenade::bots().flight_s() - 2.9).abs() < 1e-6);
+        assert!((Grenade::bots().flight_s(TAP_LAUNCH_MS) - 3.1).abs() < 1e-6);
         // The frags the humans' pockets can hold: the RGD-5 is one, the smoke is not.
         assert_eq!(Grenade::named("rgd-5"), Some(Grenade::bots()));
         assert_eq!(Grenade::named("rdg-m"), None);
@@ -667,9 +778,9 @@ mod tests {
             "the 3 s fuse is shorter than the longest throw's flight"
         );
         // A flight carries its grenade into the landing's blast radius.
-        let eye = Vec3::new(0.0, EYE_M, 0.0);
+        let thrower = Thrower { feet: Vec3::ZERO, crouched: false, launch_ms: TAP_LAUNCH_MS };
         let ground = Floor { y: 0.0 };
-        let landing_of = |g: Grenade| Flight::thrown_by(g, eye, 0.0, 0.0).landing(&ground).unwrap();
+        let landing_of = |g: Grenade| Flight::thrown_by(g, &thrower, 0.0, 0.0).landing(&ground).unwrap();
         let (own, fast) = (landing_of(stock), landing_of(patched));
         assert_eq!((own.splash_m, fast.splash_m), (10.0, 8.0));
         // 9 m from the rest point: inside the stock blast, outside the patched one.
@@ -718,7 +829,7 @@ mod tests {
         let range = max_range(EYE_M).unwrap();
         near(range, 30.2, 0.1, "longest");
         let flight = level_landing(pitch.to_degrees()).t;
-        assert!(flight < Grenade::bots().flight_s(), "lands in {flight} s");
+        assert!(flight < Grenade::bots().flight_s(TAP_LAUNCH_MS), "lands in {flight} s");
         // Either side of it lands shorter.
         assert!(level_range(pitch - 0.05, EYE_M).unwrap() < range);
         assert!(level_range(pitch + 0.05, EYE_M).unwrap() < range);
@@ -726,14 +837,42 @@ mod tests {
         assert_eq!(max_pitch(-15.0), None);
     }
 
+    /// The grenade leaves the measured hand: 1.73 m over the feet standing (1.29 crouched), 0.13 m behind the throw line
+    /// and 0.21 m to its right, turned with the yaw; a throw starts there.
     #[test]
-    fn the_hand_below_the_eye_shortens_a_level_throw() {
-        // fact-grenade-arc.md §3: 9.3 m from the eye, 8.4 from 0.3 m below.
-        let eye = Vec3::new(0.0, EYE_M, 0.0);
-        let hand = Flight::thrown(eye, 0.0, 0.0)
-            .first_contact(&Floor { y: 0.0 }, Grenade::bots().flight_s())
-            .unwrap();
-        near(hand.point.z, 8.358, 0.03, "hand 0.3 m below");
+    fn a_throw_starts_at_the_measured_release_point() {
+        let feet = Vec3::new(5.0, 2.0, -3.0);
+        // Facing +z (yaw 0): the right is +x, behind is -z.
+        let r = release_point(feet, false, 0.0);
+        near(r.x, 5.21, 1e-5, "right");
+        near(r.y, 3.73, 1e-5, "up standing");
+        near(r.z, -3.13, 1e-5, "behind");
+        near(release_point(feet, true, 0.0).y, 3.29, 1e-5, "up crouched");
+        // Facing +x (yaw -pi/2): the right is -z, behind is -x.
+        let r = release_point(feet, false, -std::f32::consts::FRAC_PI_2);
+        near(r.x, 4.87, 1e-5, "behind, turned");
+        near(r.z, -3.21, 1e-5, "right, turned");
+        let thrower = Thrower { feet, crouched: false, launch_ms: TAP_LAUNCH_MS };
+        assert_eq!(Flight::thrown(&thrower, 0.3, 0.1).start, thrower.release(0.3));
+        // The aim's line from the release point along its yaw passes over the place.
+        let at = Vec3::new(15.0, 0.0, 9.0);
+        let (yaw, from) = thrower.aim(at);
+        let [x, z] = kin::forward(yaw);
+        let d = from.distance_xz(at);
+        near(from.x + x * d, at.x, 1e-3, "aimed x");
+        near(from.z + z * d, at.z, 1e-3, "aimed z");
+    }
+
+    /// The launch: `max(press + 400, release) + 500` ms; a tap 900 ms after the press, a key held 700 ms 1,200 ms after.
+    #[test]
+    fn the_launch_is_the_release_and_the_throw_clip() {
+        assert_eq!(launch_at(1_000, 1_000), 1_900);
+        assert_eq!(launch_at(1_000, 1_250), 1_900);
+        assert_eq!(launch_at(1_000, 1_700), 2_200);
+        assert_eq!(launch_after_ms(0), TAP_LAUNCH_MS);
+        assert_eq!(launch_after_ms(800), 1_300);
+        // The flight left of the fuse after it.
+        near(Grenade::bots().flight_s(launch_after_ms(700)), 2.8, 1e-5, "4 s fuse, launch at 1.2 s");
     }
 
     #[test]
@@ -780,7 +919,7 @@ mod tests {
 
     #[test]
     fn the_flight_is_bullets_steps() {
-        let flight = Flight::thrown(Vec3::new(3.0, 2.0, -1.0), 0.4, 0.2);
+        let flight = Flight::new(Vec3::new(3.0, 2.0, -1.0), Grenade::bots().throw_velocity(0.4, 0.2));
         let mut at = flight.start;
         let mut v = flight.velocity;
         for step in 1..=150u32 {
@@ -815,7 +954,7 @@ mod tests {
         // Without any ground it never lands.
         let nothing = |_: Vec3, _: Vec3, _: f32| -> Option<Hit> { None };
         assert!(
-            Flight::thrown(Vec3::Y, 0.0, 0.0)
+            Flight::new(Vec3::Y, Grenade::bots().throw_velocity(0.0, 0.0))
                 .landing(&nothing)
                 .is_none()
         );
@@ -992,7 +1131,7 @@ mod tests {
     #[test]
     fn the_same_throw_gives_the_same_landing() {
         let throw = || {
-            Flight::thrown(Vec3::new(12.5, 3.2, -7.7), 1.234, 0.321)
+            Flight::new(Vec3::new(12.5, 3.2, -7.7), Grenade::bots().throw_velocity(1.234, 0.321))
                 .landing(&Floor { y: 0.0 })
                 .unwrap()
         };

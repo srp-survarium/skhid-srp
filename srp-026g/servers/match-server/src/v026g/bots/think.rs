@@ -779,10 +779,16 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     if !(t.cross_lane || t.anti_sniper) || !bot.reflex.can_smoke() || me.carrying.is_some() {
         return;
     }
+    // The smoke's hold is the frag's middle (`Reflex::smoke_throwing`): its launch after the press.
+    let hold = &tuning.aim.combat.grenade_hold_ms;
     let reach = smoke::Reach {
         mesh: &tactics.world.sight,
         grenade,
-        thrower_eye: me.eye(),
+        thrower: super::arc::Thrower {
+            feet: me.feet,
+            crouched: me.crouched(),
+            launch_ms: super::arc::launch_after_ms((hold.0 + hold.1) / 2),
+        },
     };
     let thin = t.thin_m.get();
     // Smoke there already: with `spot_rules` every cloud live or forming and the team's own in the air, at full size.

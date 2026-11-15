@@ -1,4 +1,4 @@
-owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m 6 %; progress +0.000 a second (0 % forward, 0 % back of 0 bot-seconds, mean level 0.00); mates within 30 m 1.78, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 8 crowded 8 (100 %, mean 3.0 enemies near); by life age: 0-10 s 1.62 (0.81 an available mate), 10-20 s 1.81 (0.91 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]; team 1 [nearest mate mean 4.7 m, under 6 m 76 %, beyond 40 m 0 %; progress +0.000 a second (0 % forward, 0 % back of 0 bot-seconds, mean level 0.00); mates within 30 m 2.00, enemies 2.83, 3+ mates 0 % of 360 body-seconds; deaths 4 crowded 4 (100 %, mean 3.0 enemies near); by life age: 0-10 s 2.00 (1.00 an available mate), 10-20 s 2.00 (1.00 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]; hot cells of 5 1 m pair-seconds: (21,9) 5
+owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m 6 %; progress +0.000 a second (0 % forward, 0 % back of 0 bot-seconds, mean level 0.00); mates within 30 m 1.78, enemies 2.82, 3+ mates 0 % of 360 body-seconds; deaths 8 crowded 8 (100 %, mean 3.0 enemies near); by life age: 0-10 s 1.62 (0.81 an available mate), 10-20 s 1.81 (0.91 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 0.00 (0.00 an available mate)]; team 1 [nearest mate mean 4.8 m, under 6 m 76 %, beyond 40 m 0 %; progress +0.000 a second (0 % forward, 0 % back of 0 bot-seconds, mean level 0.00); mates within 30 m 1.99, enemies 2.82, 3+ mates 0 % of 359 body-seconds; deaths 5 crowded 5 (100 %, mean 3.0 enemies near); by life age: 0-10 s 2.00 (1.00 an available mate), 10-20 s 1.98 (1.00 an available mate), 20-30 s 2.00 (1.00 an available mate), 30+ s 2.00 (1.00 an available mate)]; hot cells of 5 1 m pair-seconds: (21,9) 5
 {
   "spacing": {
     "by_play": {
@@ -14,12 +14,12 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
       },
       "Cut": {
         "clumped_samples": 0,
-        "mates_near": 220,
+        "mates_near": 219,
         "samples": 120
       },
       "Heal": {
         "clumped_samples": 0,
-        "mates_near": 210,
+        "mates_near": 209,
         "samples": 120
       },
       "Roam": {
@@ -29,8 +29,8 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
       },
       "Trade": {
         "clumped_samples": 0,
-        "mates_near": 220,
-        "samples": 120
+        "mates_near": 218,
+        "samples": 119
       }
     },
     "by_team": {
@@ -219,7 +219,7 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
         "crowd_enemies": 24,
         "crowded_deaths": 8,
         "deaths": 8,
-        "enemies_near": 1017,
+        "enemies_near": 1014,
         "killed_by_bullet_or_other": [
           [
             0,
@@ -516,58 +516,58 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
         ],
         "by_life": [
           {
-            "mates_alive": 80,
-            "mates_near": 80,
-            "samples": 40
+            "mates_alive": 98,
+            "mates_near": 98,
+            "samples": 49
           },
           {
-            "mates_alive": 80,
-            "mates_near": 80,
-            "samples": 40
+            "mates_alive": 99,
+            "mates_near": 99,
+            "samples": 50
           },
           {
-            "mates_alive": 30,
-            "mates_near": 30,
-            "samples": 15
+            "mates_alive": 50,
+            "mates_near": 50,
+            "samples": 25
           },
           {
-            "mates_alive": 0,
-            "mates_near": 0,
-            "samples": 0
+            "mates_alive": 52,
+            "mates_near": 52,
+            "samples": 26
           }
         ],
         "by_mates": [
           {
             "bodies_within_1m": 0,
-            "mates_near": 0,
+            "mates_near": 2,
             "nearest_bins_lt1_3_6_12_22_40_up": [
               0,
               0,
               0,
               0,
-              0,
+              2,
               0,
               0
             ],
-            "pairs": 0,
+            "pairs": 2,
             "pairs_within_1m": 0,
-            "samples": 0
+            "samples": 2
           },
           {
             "bodies_within_1m": 0,
-            "mates_near": 720,
+            "mates_near": 714,
             "nearest_bins_lt1_3_6_12_22_40_up": [
               0,
               36,
               236,
-              88,
+              85,
               0,
               0,
               0
             ],
-            "pairs": 720,
+            "pairs": 714,
             "pairs_within_1m": 0,
-            "samples": 360
+            "samples": 357
           },
           {
             "bodies_within_1m": 0,
@@ -683,10 +683,10 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           }
         ],
         "clumped_samples": 0,
-        "crowd_enemies": 12,
-        "crowded_deaths": 4,
-        "deaths": 4,
-        "enemies_near": 1017,
+        "crowd_enemies": 15,
+        "crowded_deaths": 5,
+        "deaths": 5,
+        "enemies_near": 1014,
         "killed_by_bullet_or_other": [
           [
             0,
@@ -694,7 +694,7 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           ],
           [
             2,
-            2
+            3
           ]
         ],
         "killed_by_killer_m_10_30_up": [
@@ -746,7 +746,7 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0,
           0
         ],
-        "mates_near": 720,
+        "mates_near": 716,
         "moving_alike_pairs_by_gap_lt1_2_4_8_16_and_lateral_lt05_1_2_up": [
           [
             0,
@@ -783,13 +783,13 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0,
           36,
           236,
-          88,
-          0,
+          85,
+          2,
           0,
           0
         ],
-        "nearest_mate_m_sum": 1703.6586437225342,
-        "nearest_mate_samples": 360,
+        "nearest_mate_m_sum": 1705.3323545455933,
+        "nearest_mate_samples": 359,
         "opening_first_move_spread_s_lt025_075_15_3_up": [
           1,
           0,
@@ -830,32 +830,32 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
         "pack_deaths_window_last_all": [
           0,
           0,
-          4
+          5
         ],
         "pack_samples_all_and_5plus_within_60m": [
-          360,
+          359,
           0
         ],
-        "pairs": 360,
+        "pairs": 358,
         "pairs_and_within_1m_by_younger_age_lt10_20_40_80_up": [
           [
-            110,
+            128,
             0
           ],
           [
-            110,
+            115,
             0
           ],
           [
-            60,
-            0
-          ],
-          [
-            40,
+            75,
             0
           ],
           [
             40,
+            0
+          ],
+          [
+            0,
             0
           ]
         ],
@@ -864,7 +864,7 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0,
           36,
           201,
-          120
+          118
         ],
         "progress_level_sum": 0.0,
         "progress_levels_fifths": [
@@ -884,7 +884,7 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
           0,
           0
         ],
-        "samples": 360,
+        "samples": 359,
         "young_1m_ahead_one_both_neither_nowalk": [
           0,
           0,
@@ -950,14 +950,14 @@ owner-test spacing: team 0 [nearest mate mean 13.1 m, under 6 m 8 %, beyond 40 m
             0
           ],
           [
-            218,
+            240,
             0
           ]
         ],
         "young_pairs_by_kind_opening_mixed_respawn": [
           60,
-          159,
-          0
+          131,
+          50
         ],
         "young_pairs_within_4m_by_width_m_lt15_25_4_75_open_noheading": [
           0,

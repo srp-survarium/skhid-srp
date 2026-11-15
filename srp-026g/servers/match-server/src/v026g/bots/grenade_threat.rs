@@ -12,9 +12,12 @@
 //!   chest is within the blast's radius and a margin, or its walk of the next [`AvoidTuning::ahead_ms`] would put it
 //!   there (the walk-ins). Whether it knows of it: the thrower's team from the launch (**Told**: the owner's rule, a
 //!   justified cheat: a human team can call a landing, few do; in the live matches mates are no quicker to leave
-//!   than enemies); the other team once it lies on the ground and the bot is within [`AvoidTuning::hear_m`] of it
-//!   (**Heard**, the first bounce) or within [`AvoidTuning::see_m`] of it, in its view cone with a line to it
-//!   (**Saw**). The client shows no warning and plays no fuse cue; what a player has is the model and the bounce.
+//!   than enemies); the other team from the launch when the bot had the thrower in sight (within
+//!   [`AvoidTuning::see_m`], in its view cone, a line to his chest) during his pull-pin swing or his throw clip
+//!   ([`ThrowSeen`]: both clips are on his body, as a player who sees him sees them), else once it lies on the ground
+//!   and the bot is within [`AvoidTuning::hear_m`] of it (**Heard**, the first bounce) or within
+//!   [`AvoidTuning::see_m`] of it, in its view cone with a line to it (**Saw**). The client shows no warning and plays
+//!   no fuse cue; what a player has is the thrower's arm, the model and the bounce.
 //! - **Noticed** → it acts after a reaction time drawn from [`AvoidTuning::told_ms`] / [`AvoidTuning::notice_ms`].
 //!   The live matches show no human reaction at all, so these are the published reaction times (Rabin, Game AI Pro 2
 //!   ch. 5), swept, not copied.
@@ -33,6 +36,7 @@
 
 use mapdata::Vec3;
 
+use super::arc;
 use super::hazards::{ARRIVE_MPS, escape_reach_m};
 use super::tactics::StepOutPick;
 use super::kin;
@@ -63,6 +67,48 @@ impl GrenadeId {
     /// The thrower's place and the match ms of the press, for a trace line.
     pub fn trace_key(self) -> (Place, u32) {
         (self.by, self.press)
+    }
+}
+
+/// How a bot saw an enemy's throw, with the thrower in sight: during his pull-pin swing (the throw state's first stage,
+/// `grenade_swing`, from the press for [`arc::PULL_PIN_MS`]) or during his throw clip (from `max(press + 400, release)`
+/// to the launch, [`arc::RELEASE_TO_LAUNCH_MS`]). Both are the weapon's hands lexeme: layer 1, mask -1, every bone of
+/// the body (`get_user_hands_lexeme_impl` 0x31EBD0 from `get_weapon_lexeme` 0x310350), from the `stand/3rd_view` lists
+/// whatever the view (the weapon configs' `throw_grenade` substates), so another player sees them on the thrower's body
+/// (read 2026-11-15).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ThrowSeen {
+    /// In sight during the swing: the press is known, and so the blast (the fuse from the press).
+    Press,
+    /// In sight during the throw clip only, which began at `clip`: the press was at least the swing before it, so the
+    /// blast is at most `clip - PULL_PIN_MS + fuse` (the latest it can be; a key held longer cooked it, and it goes off
+    /// sooner).
+    Release { clip: u32 },
+}
+
+impl ThrowSeen {
+    pub const ALL: usize = 3;
+
+    /// The index of the counts: from the press, from the release, and (`None`) by the landing.
+    pub fn index(seen: Option<Self>) -> usize {
+        match seen {
+            Some(Self::Press) => 0,
+            Some(Self::Release { .. }) => 1,
+            None => 2,
+        }
+    }
+
+    /// Which of the two `g`'s thrower's body shows at `now`, if either.
+    fn showing(g: &LiveGrenade, now: u32) -> Option<Self> {
+        if (g.press..g.press + arc::PULL_PIN_MS).contains(&now) {
+            return Some(Self::Press);
+        }
+        let clip = match g.phase {
+            Phase::Pressed { release: Some(release), .. } => (g.press + arc::PULL_PIN_MS).max(release),
+            Phase::Pressed { release: None, .. } => return None,
+            Phase::Flying { launched, .. } => launched - arc::RELEASE_TO_LAUNCH_MS,
+        };
+        (clip..clip + arc::RELEASE_TO_LAUNCH_MS).contains(&now).then_some(Self::Release { clip })
     }
 }
 
@@ -151,6 +197,8 @@ pub struct Tick<'a> {
     pub now: u32,
     pub me: &'a PlaceView,
     pub grenades: &'a [LiveGrenade],
+    /// The bodies of the match, the throwers among them ([`ThrowSeen`]).
+    pub bodies: &'a [PlaceView],
 }
 
 pub enum Event<'a> {
@@ -204,6 +252,8 @@ pub struct AvoidStats {
     pub refused: u32,
     /// From the first chance to know to the start of the step: up to 0.5, 1, 1.5, 2 s, more.
     pub react: [[u32; 5]; 3],
+    /// Of the enemies' grenades noticed: known from the press, from the release ([`ThrowSeen`]), by the landing.
+    pub seen_throw: [u32; ThrowSeen::ALL],
 }
 
 impl AvoidStats {
@@ -225,6 +275,7 @@ impl AvoidStats {
             noticed_mate: self.noticed_mate - before.noticed_mate,
             refused: self.refused - before.refused,
             react: std::array::from_fn(|k| minus(&self.react[k], &before.react[k])),
+            seen_throw: minus(&self.seen_throw, &before.seen_throw),
         }
     }
 
@@ -248,6 +299,7 @@ impl AvoidStats {
         for (a, b) in self.react.iter_mut().zip(&other.react) {
             plus(a, b);
         }
+        plus(&mut self.seen_throw, &other.seen_throw);
     }
 }
 
@@ -322,6 +374,8 @@ pub struct Avoid {
     /// What the last tick decided, if anything; the drive takes it for the trace.
     pub decided: Option<Decision>,
     pub refusals: Refusals,
+    /// The enemies' throws it saw itself ([`ThrowSeen`]), while they are listed.
+    pub seen: Vec<(GrenadeId, ThrowSeen)>,
 }
 
 impl GrenadeThreat {
@@ -345,6 +399,7 @@ impl Avoid {
     ) -> Action {
         let before = self.stats;
         self.refusals.begin(tick.grenades);
+        self.see_throws(&tick, c, around);
         let (state, action) = step(
             self.state,
             Event::Tick(tick),
@@ -353,6 +408,7 @@ impl Avoid {
             around,
             &mut self.stats,
             &mut self.refusals,
+            &self.seen,
         );
         let mut delta = self.stats.since(&before);
         // A refusal is about a grenade the bot did not take up: it belongs to the bot-key basis whatever it is about now.
@@ -370,6 +426,37 @@ impl Avoid {
     pub fn died(&mut self) {
         self.state = GrenadeThreat::default();
         self.refusals = Refusals::default();
+        self.seen.clear();
+    }
+
+    /// The enemies' throws whose swing or throw clip its eyes are on this tick ([`ThrowSeen`]: the thrower alive,
+    /// within [`AvoidTuning::see_m`], in its view cone, a line to his chest); a swing seen stands for the throw.
+    fn see_throws(&mut self, tick: &Tick, c: &AvoidTuning, around: &dyn Surroundings) {
+        self.seen.retain(|(id, _)| tick.grenades.iter().any(|g| id.is(g)));
+        for g in tick.grenades.iter().filter(|g| g.team != tick.me.team) {
+            let id = GrenadeId::of(g);
+            let had = self.seen.iter().position(|(seen, _)| *seen == id);
+            let Some(showing) = ThrowSeen::showing(g, tick.now) else {
+                continue;
+            };
+            if had.is_some_and(|k| self.seen[k].1 == ThrowSeen::Press || showing != ThrowSeen::Press) {
+                continue;
+            }
+            let Some(him) = tick.bodies.iter().find(|b| b.place == g.by && b.alive) else {
+                continue;
+            };
+            let chest = him.chest();
+            let sees = (tick.me.eye() - chest).length() <= c.see_m
+                && in_cone(tick.me, chest, c.cone_deg)
+                && around.sees(tick.me.eye(), chest);
+            if !sees {
+                continue;
+            }
+            match had {
+                Some(k) => self.seen[k].1 = showing,
+                None => self.seen.push((id, showing)),
+            }
+        }
     }
 }
 
@@ -387,6 +474,7 @@ fn decision(was: GrenadeThreat, now_state: GrenadeThreat, delta: &AvoidStats, re
 }
 
 /// The transition: the state and the event give the new state and what the legs are asked.
+#[allow(clippy::too_many_arguments)]
 pub fn step(
     state: GrenadeThreat,
     event: Event,
@@ -395,8 +483,9 @@ pub fn step(
     around: &dyn Surroundings,
     stats: &mut AvoidStats,
     refusals: &mut Refusals,
+    seen: &[(GrenadeId, ThrowSeen)],
 ) -> (GrenadeThreat, Action) {
-    let Event::Tick(Tick { now, me, grenades }) = event else {
+    let Event::Tick(Tick { now, me, grenades, .. }) = event else {
         return (GrenadeThreat::default(), Action::None);
     };
     let listed = |known: &Known| grenades.iter().any(|g| known.id.is(g));
@@ -422,7 +511,8 @@ pub fn step(
                 {
                     continue;
                 }
-                let Some((how, first)) = knows(me, g, launched, lands, rest, now, c, around) else {
+                let saw = seen.iter().find(|(id, _)| id.is(g)).map(|(_, s)| *s).filter(|_| g.team != me.team);
+                let Some((how, first)) = knows(me, g, saw, launched, lands, rest, now, c, around) else {
                     continue;
                 };
                 // A team that reads the bots' pockets (`bot_pockets`) does not dodge a grenade the list holds from a bot's
@@ -432,11 +522,20 @@ pub fn step(
                     stats.refused += u32::from(refusals.refuse(GrenadeId::of(g)));
                     continue;
                 }
+                // Its blast as the bot knows it: the fuse from the press; from the throw clip's start less the swing
+                // when only the release was seen (the latest it can be).
+                let blast_at = match saw {
+                    Some(ThrowSeen::Release { clip }) => clip - arc::PULL_PIN_MS + g.grenade.fuse_ms(),
+                    _ => g.blast_at(),
+                };
+                if g.team != me.team {
+                    stats.seen_throw[ThrowSeen::index(saw)] += 1;
+                }
                 pick = Some(Known {
                     id: GrenadeId::of(g),
                     rest,
                     radius_m: g.grenade.splash_m,
-                    blast_at: g.blast_at(),
+                    blast_at,
                     how,
                     first,
                     whose: g.whose,
@@ -582,6 +681,7 @@ fn relevant(me: &PlaceView, rest: Vec3, radius_m: f32, c: &AvoidTuning) -> bool 
 fn knows(
     me: &PlaceView,
     g: &LiveGrenade,
+    saw: Option<ThrowSeen>,
     launched: u32,
     lands: u32,
     rest: Vec3,
@@ -591,6 +691,10 @@ fn knows(
 ) -> Option<(Notice, u32)> {
     if g.team == me.team {
         return (now >= launched).then_some((Notice::Told, launched));
+    }
+    // The thrower seen throwing: from the launch, the view he threw with telling where.
+    if saw.is_some() {
+        return (now >= launched).then_some((Notice::Saw, launched));
     }
     if now < lands {
         return None;
@@ -625,7 +729,6 @@ impl super::features::Feature for Avoid {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::v026g::bots::arc;
 
     /// The surroundings of a test: whether a line is clear, and the floor to step to.
     struct Around {
@@ -684,6 +787,39 @@ mod tests {
         }
     }
 
+    /// [rule (a)] An enemy who throws with the bot's eyes on him: known from the launch, not the landing. Seen in his
+    /// swing (from the press, 400 ms) the blast is the fuse from the press; seen only in his throw clip (the 500 ms
+    /// before the launch) it is the latest the swing allows; out of sight at both, not known before the landing.
+    #[test]
+    fn an_enemys_throw_seen_in_his_swing_or_throw_clip_is_known_from_the_launch() {
+        let me = view(1, Vec3::new(0.0, 0.0, 4.0), [0.0, 0.0]);
+        let him = PlaceView { place: 7, ..view(0, Vec3::new(0.0, 0.0, 20.0), [0.0, 0.0]) };
+        let bodies = [me.clone(), him];
+        let grenades = [grenade()];
+        let run = |looks: &[u32], sees: bool| {
+            let mut avoid = Avoid::default();
+            let mut rng = Rng::new(1);
+            let around = Around { sees, out: Some(Vec3::new(0.0, 0.0, -10.0)) };
+            for &now in looks.iter().chain([2_100].iter()) {
+                avoid.tick(Tick { now, me: &me, grenades: &grenades, bodies: &bodies }, &tuning(), &mut rng, &around);
+            }
+            avoid
+        };
+        // In sight in his swing (press 1000): from the launch, the blast at press + 4000.
+        let swing = run(&[1_100], true);
+        let GrenadeThreat::Noticed { known, .. } = swing.state else { panic!("{:?}", swing.state) };
+        assert_eq!((known.how, known.first, known.blast_at), (Notice::Saw, 2_100, 5_000));
+        assert_eq!(swing.stats.seen_throw, [1, 0, 0]);
+        // In sight only in his throw clip (from 1600, the launch at 2100): the press at most 1200, the blast at most 5200.
+        let clip = run(&[1_700], true);
+        let GrenadeThreat::Noticed { known, .. } = clip.state else { panic!("{:?}", clip.state) };
+        assert_eq!((known.how, known.first, known.blast_at), (Notice::Saw, 2_100, 5_200));
+        assert_eq!(clip.stats.seen_throw, [0, 1, 0]);
+        // Between the two (his idle hold) and out of sight at both: not known at the launch.
+        assert!(matches!(run(&[1_500], true).state, GrenadeThreat::Unaware { .. }));
+        assert!(matches!(run(&[1_100, 1_700], false).state, GrenadeThreat::Unaware { .. }));
+    }
+
     fn tuning() -> AvoidTuning {
         AvoidTuning {
             grenade_avoid: true,
@@ -704,12 +840,13 @@ mod tests {
         let mut rng = Rng::new(1);
         step(
             state,
-            Event::Tick(Tick { now, me, grenades }),
+            Event::Tick(Tick { now, me, grenades, bodies: &[] }),
             &tuning(),
             &mut rng,
             around,
             stats,
             &mut Refusals::default(),
+            &[],
         )
     }
 
@@ -731,7 +868,7 @@ mod tests {
         }];
         let tick = |c: &AvoidTuning, avoid: &mut Avoid, now: u32| {
             let mut rng = Rng::new(1);
-            avoid.tick(Tick { now, me: &me, grenades: &assumed }, c, &mut rng, &around)
+            avoid.tick(Tick { now, me: &me, grenades: &assumed, bodies: &[] }, c, &mut rng, &around)
         };
         let on = tuning();
         let off = AvoidTuning { bot_pockets: false, ..tuning() };
@@ -790,8 +927,8 @@ mod tests {
         let assumed = [LiveGrenade { whose: Whose::Assumed, ..grenade() }];
         let mut avoid = Avoid::default();
         let mut rng = Rng::new(1);
-        avoid.tick(Tick { now: 2_200, me: &me, grenades: &assumed }, &off, &mut rng, &around);
-        let acts = avoid.tick(Tick { now: 2_500, me: &me, grenades: &assumed }, &off, &mut rng, &around);
+        avoid.tick(Tick { now: 2_200, me: &me, grenades: &assumed, bodies: &[] }, &off, &mut rng, &around);
+        let acts = avoid.tick(Tick { now: 2_500, me: &me, grenades: &assumed, bodies: &[] }, &off, &mut rng, &around);
         assert_eq!(acts, Action::Go(OUT));
         let Some(Decision::Stepping(known)) = avoid.decided else { panic!("{:?}", avoid.decided) };
         let left = known.blast_at - 2_500;
@@ -802,8 +939,8 @@ mod tests {
         // With the escape off: the sprint's pace over all the time left, by link distance, as it was.
         let old = AvoidTuning { escape: false, ..off };
         let mut avoid = Avoid::default();
-        avoid.tick(Tick { now: 2_200, me: &me, grenades: &assumed }, &old, &mut rng, &around);
-        avoid.tick(Tick { now: 2_500, me: &me, grenades: &assumed }, &old, &mut rng, &around);
+        avoid.tick(Tick { now: 2_200, me: &me, grenades: &assumed, bodies: &[] }, &old, &mut rng, &around);
+        avoid.tick(Tick { now: 2_500, me: &me, grenades: &assumed, bodies: &[] }, &old, &mut rng, &around);
         let Some(Decision::Stepping(known)) = avoid.decided else { panic!("{:?}", avoid.decided) };
         assert_eq!(around.0.get(), ARRIVE_MPS * (known.blast_at - 2_500) as f32 / 1000.0);
         assert!(!around.1.get());
@@ -822,7 +959,7 @@ mod tests {
         let mut avoid = Avoid::default();
         let mut tick = |now: u32, grenades: &[LiveGrenade]| {
             let mut rng = Rng::new(1);
-            avoid.tick(Tick { now, me: &me, grenades }, &on, &mut rng, &around);
+            avoid.tick(Tick { now, me: &me, grenades, bodies: &[] }, &on, &mut rng, &around);
         };
         for now in [2_200, 2_500, 2_800, 3_100] {
             tick(now, &[one, two]);
@@ -831,7 +968,7 @@ mod tests {
         assert_eq!(avoid.by_whose[Whose::Assumed.index()].refused, 2);
         let mut tick = |now: u32, grenades: &[LiveGrenade]| {
             let mut rng = Rng::new(1);
-            avoid.tick(Tick { now, me: &me, grenades }, &on, &mut rng, &around);
+            avoid.tick(Tick { now, me: &me, grenades, bodies: &[] }, &on, &mut rng, &around);
         };
         tick(3_400, &[two]);
         tick(3_700, &[]);
@@ -849,7 +986,7 @@ mod tests {
         assert!(on.bot_pockets);
         let mut avoid = Avoid::default();
         let mut rng = Rng::new(1);
-        avoid.tick(Tick { now: 2_200, me: &me, grenades: &unread }, &on, &mut rng, &around);
+        avoid.tick(Tick { now: 2_200, me: &me, grenades: &unread, bodies: &[] }, &on, &mut rng, &around);
         assert!(matches!(avoid.decided, Some(Decision::Noticed(k)) if k.whose == Whose::Unread));
         assert_eq!(avoid.stats.refused, 0);
         assert_eq!(avoid.by_whose[Whose::Unread.index()].noticed, [1, 0, 0]);
@@ -1014,7 +1151,7 @@ mod tests {
         assert_eq!((s, a), (GrenadeThreat::Unaware { look_at: 3_000 }, Action::None));
         // Dead: a new life knows nothing.
         let mut rng = Rng::new(1);
-        let (s, a) = step(stepping, Event::Died, &tuning(), &mut rng, &around, &mut stats, &mut Refusals::default());
+        let (s, a) = step(stepping, Event::Died, &tuning(), &mut rng, &around, &mut stats, &mut Refusals::default(), &[]);
         assert_eq!((s, a), (GrenadeThreat::default(), Action::None));
     }
 

@@ -431,6 +431,10 @@ pub struct SmokeThrow {
     pub by: Place,
     pub team: u8,
     pub press: MatchMs,
+    /// The throw keys that began it, and when one of them went up, once seen: the launch is `arc::launch_at` of the
+    /// press and it.
+    pub keys: u32,
+    pub release: Option<MatchMs>,
     pub grenade: SmokeGrenade,
 }
 
@@ -844,12 +848,13 @@ pub const PLAN_MARGIN_M: f32 = 1.5;
 /// The points tried along a line, metres apart.
 const PLAN_STEP_M: f32 = 1.0;
 
-/// What a smoke plan reads of the map and the thrower: whether a throw from `thrower_eye` reaches `at` (the arc's
-/// flat throw, `arc::Grenade::pitch_for`, with the smoke's throw power), and the floor under a point.
+/// What a smoke plan reads of the map and the thrower: whether a throw by `thrower` reaches `at` (the arc's flat throw
+/// from his release point, `arc::Thrower::aim` and `arc::Grenade::pitch_for_after`, with the smoke's throw power), and
+/// the floor under a point.
 pub struct Reach<'a> {
     pub mesh: &'a mapdata::RayTree,
     pub grenade: SmokeGrenade,
-    pub thrower_eye: Vec3,
+    pub thrower: super::arc::Thrower,
 }
 
 impl Reach<'_> {
@@ -862,11 +867,10 @@ impl Reach<'_> {
     /// (`arc::Flight::landing`: the first contact and the roll after it); its rest on the floor there. None when no
     /// pitch reaches, the flight meets nothing in its time, or the rest has no floor under it.
     pub fn aim(&self, at: Vec3) -> Option<SmokeAim> {
-        let eye = self.thrower_eye;
-        let hand = super::arc::hand_of(eye);
-        let pitch = self.grenade.flight.pitch_for(hand.distance_xz(at), hand.y - at.y)?;
-        let yaw = super::kin::yaw_of([at.x - eye.x, at.z - eye.z]);
-        let landing = super::arc::Flight::thrown_by(self.grenade.flight, eye, yaw, pitch)
+        let (yaw, release) = self.thrower.aim(at);
+        let pitch =
+            self.grenade.flight.pitch_for_after(release.distance_xz(at), release.y - at.y, self.thrower.launch_ms)?;
+        let landing = super::arc::Flight::thrown_by(self.grenade.flight, &self.thrower, yaw, pitch)
             .landing(&super::arc::Mesh(self.mesh))?;
         let rest = self.floor(landing.rest + Vec3::new(0.0, 0.5, 0.0))?;
         Some(SmokeAim { yaw, pitch, rest })
@@ -1827,6 +1831,8 @@ mod tests {
             by: 0,
             team: 0,
             press: MatchMs(1_000),
+            keys: 0,
+            release: None,
             grenade: SmokeGrenade::RDG_M,
         }
         .cloud_at(at, |_| None)
@@ -2179,6 +2185,8 @@ mod scenarios {
             by: 1,
             team: 1,
             press: MatchMs(0),
+            keys: 0,
+            release: None,
             grenade: SmokeGrenade::RDG_M,
         };
         let floor = |rest: Vec3| {
@@ -2213,14 +2221,18 @@ mod scenarios {
         let reach = Reach {
             mesh: &mesh,
             grenade: SmokeGrenade::RDG_M,
-            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+            thrower: crate::v026g::bots::arc::Thrower {
+                feet: Vec3::ZERO,
+                crouched: false,
+                launch_ms: crate::v026g::bots::arc::TAP_LAUNCH_MS,
+            },
         };
         let tuning = SmokeTuning::default();
         let thin = tuning.thin_m.get();
         // A holder 50 m out, a crossing 15 m to the thrower's side: the line runs from 50 m to 15 m out.
         let (threat, crossing) = (Vec3::new(0.0, 1.6, 50.0), Vec3::new(10.0, 0.0, 15.0));
         let plan = smoke_between(&reach, threat, crossing, thin, SmokeUse::CrossLane).unwrap();
-        let out = plan.at.distance_xz(reach.thrower_eye);
+        let out = plan.at.distance_xz(reach.thrower.feet);
         // The RDG-M's flat throw lands about 30 m out at most: the point is the line's nearest-the-holder reachable one.
         assert!((20.0..32.0).contains(&out), "{plan:?} at {out} m");
         assert!(plan.covers_m > thin + PLAN_MARGIN_M && plan.at.y.abs() < 1e-3, "{plan:?}");
@@ -2250,7 +2262,11 @@ mod scenarios {
         let reach = Reach {
             mesh: &mesh,
             grenade: SmokeGrenade::RDG_M,
-            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+            thrower: crate::v026g::bots::arc::Thrower {
+                feet: Vec3::ZERO,
+                crouched: false,
+                launch_ms: crate::v026g::bots::arc::TAP_LAUNCH_MS,
+            },
         };
         let thin = SmokeTuning::default().thin_m.get();
         let rule = crate::v026g::bots::tuning::MidLine::default();
@@ -2315,7 +2331,11 @@ mod scenarios {
         let reach = Reach {
             mesh: &mesh,
             grenade: SmokeGrenade::RDG_M,
-            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+            thrower: crate::v026g::bots::arc::Thrower {
+                feet: Vec3::ZERO,
+                crouched: false,
+                launch_ms: crate::v026g::bots::arc::TAP_LAUNCH_MS,
+            },
         };
         let thin = SmokeTuning::default().thin_m.get();
         let threat = Vec3::new(0.0, 13.6, 22.0);
@@ -2346,7 +2366,11 @@ mod scenarios {
         let reach = Reach {
             mesh: &mesh,
             grenade: SmokeGrenade::RDG_M,
-            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+            thrower: crate::v026g::bots::arc::Thrower {
+                feet: Vec3::ZERO,
+                crouched: false,
+                launch_ms: crate::v026g::bots::arc::TAP_LAUNCH_MS,
+            },
         };
         let rule = crate::v026g::bots::tuning::ShooterSpot::default();
         let crossing = Vec3::new(0.0, 0.0, 5.0);
@@ -2367,7 +2391,11 @@ mod scenarios {
         let reach = Reach {
             mesh: &mesh,
             grenade: SmokeGrenade::RDG_M,
-            thrower_eye: Vec3::new(0.0, 1.6, 0.0),
+            thrower: crate::v026g::bots::arc::Thrower {
+                feet: Vec3::ZERO,
+                crouched: false,
+                launch_ms: crate::v026g::bots::arc::TAP_LAUNCH_MS,
+            },
         };
         let toward = Vec3::new(0.0, 1.6, 0.0);
         let plan = smoke_on(&reach, Vec3::new(5.0, 1.6, 22.0), toward, SmokeUse::Breach).unwrap();
