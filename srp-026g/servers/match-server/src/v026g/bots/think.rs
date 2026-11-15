@@ -71,6 +71,11 @@ impl Bots {
         sense_batteries(&due, bot, state, rays, notes);
         rays.allow(None);
         remember(&due, bot, &percepts);
+        // [A393] The sights-up window: the memory's track lifetime, the bot's own weapon's shot reach.
+        bot.reflex.set_sights_up(self.tracker.shot_reach_of(bot.place).map(|reach_m| reflex::SightsUp {
+            fresh_ms: tuning.cheats.forget_ms.max(tuning.sense.forget_ms),
+            reach_m,
+        }));
         react(&due, bot, state, &self.features.weapons, notes);
         self_kill(&due, bot, state, notes);
         if now < bot.pause_until {
