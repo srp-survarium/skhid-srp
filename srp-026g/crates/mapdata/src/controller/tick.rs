@@ -714,10 +714,11 @@ impl Controller {
     /// across the axis, as the down sweep's 0x846E0); across (0x87B60, callback 0x87B40) keeps every contact.
     fn air_sweep(&self, world: &Collision, from: Vec3, by: Vec3, axis: bool) -> Option<(f32, Vec3)> {
         // The cast's way is the end's origin less the start's (0x72EB0), not the displacement the end was made with.
-        let by = (from + by) - from;
+        let end = from + by;
+        let by = end - from;
         let r = self.dims.0;
         let mut best: Option<Contact> = None;
-        world.sweep_each(self.capsule_at(from), by, |c| {
+        world.sweep_each_to(self.capsule_at(from), end, |c| {
             if axis {
                 let at = from + by * c.t;
                 let (hx, hz) = (c.point.x - at.x, c.point.z - at.z);
@@ -848,9 +849,10 @@ impl Controller {
         let inv = 1.0 / l2.sqrt();
         let dir = Vec3::new(d.x * inv, inv * d.y, inv * d.z);
         let (r, hh) = self.dims;
-        let callback = |shape: Shape, from: Vec3| -> Option<(f32, Vec3, Vec3)> {
+        // [L36] Each tester's shape to its own end as the exe makes it ([`Collision::sweep_each_to`]).
+        let callback = |shape: Shape, from: Vec3, end: Vec3| -> Option<(f32, Vec3, Vec3)> {
             let mut best: Option<Contact> = None;
-            world.sweep_each(shape, d, |c| {
+            world.sweep_each_to(shape, end, |c| {
                 if c.t == 0.0 {
                     let q = c.point - from;
                     if !((dir.z * q.z + dir.y * q.y) + q.x * dir.x > 0.0) {
@@ -883,16 +885,18 @@ impl Controller {
             Some((c.t, n2, c.point))
         };
         if test == MoveTest::Simple {
-            return callback(self.capsule_at(from), from).map(|(t, n, _)| (t, n));
+            return callback(self.capsule_at(from), from, to).map(|(t, n, _)| (t, n));
         }
         let m = s.move_step_margin;
-        let (fmain, nmain, pmain) = callback(Shape::Cylinder { centre: from, half: r + hh, radius: r, margin: m }, from)?;
+        let (fmain, nmain, pmain) = callback(Shape::Cylinder { centre: from, half: r + hh, radius: r, margin: m }, from, to)?;
         let hgt = (UP.z * (pmain.z - from.z) + UP.y * (pmain.y - from.y)) + UP.x * (pmain.x - from.x);
         if !(hgt > hh) {
             return Some((fmain, nmain));
         }
-        // The top check 0x85F50: the top sphere, then a lower cylinder.
-        let top = callback(Shape::Sphere { centre: from + UP * hh, radius: r }, from + UP * hh);
+        // The top check 0x85F50: the top sphere, then a lower cylinder. Each from the start and to the end moved alike: the
+        // sphere's up by the half height (0x85FF4..0x860B1: `(up * hh) + from`, `to + (up * hh)`), the cylinder's down by half
+        // the radius (0x8627B..0x86316: `from - ((r * up) * 0.5)`, `to - ((r * up) * 0.5)`).
+        let top = callback(Shape::Sphere { centre: from + UP * hh, radius: r }, from + UP * hh, to + UP * hh);
         if let Some((f1, _, _)) = top
             && f1 < 1.0
             && !(f1 > fmain)
@@ -900,7 +904,8 @@ impl Controller {
             return Some((fmain, nmain));
         }
         let lo = from - (UP * r) * 0.5;
-        let low = callback(Shape::Cylinder { centre: lo, half: r * 0.5 + hh, radius: r, margin: m }, lo);
+        let lo_end = to - (UP * r) * 0.5;
+        let low = callback(Shape::Cylinder { centre: lo, half: r * 0.5 + hh, radius: r, margin: m }, lo, lo_end);
         let best = match (top, low) {
             (Some(a), Some(b)) => Some(if b.0 > a.0 { a } else { b }),
             (a, b) => a.or(b),
@@ -955,12 +960,13 @@ impl Controller {
     fn down_sweep(&self, world: &Collision, from: Vec3, dist: f32, s: &Settings, notes: &mut StepNotes) -> Option<(f32, Vec3, Vec3)> {
         let (r, hh) = self.dims;
         // The cast's way is the end's origin less the start's (0x72EB0), not `up * dist` itself.
-        let by = Vec3::new(UP.x * dist + from.x, UP.y * dist + from.y, UP.z * dist + from.z) - from;
+        let end = Vec3::new(UP.x * dist + from.x, UP.y * dist + from.y, UP.z * dist + from.z);
+        let by = end - from;
         // The callback's floor limit (+90h): the start's height along up less the swept capsule's half height along its up
         // axis, made once before the sweep (0x85103..0x85125, the constructor 0x842E0 stores it at 0x843D4).
         let floor = ((UP.y * from.y + UP.z * from.z) + UP.x * from.x) - hh;
         let mut hits: Vec<Contact> = Vec::new();
-        world.sweep_each(self.capsule_at(from), by, |c| hits.push(c));
+        world.sweep_each_to(self.capsule_at(from), end, |c| hits.push(c));
         hits.sort_by(|a, b| a.t.total_cmp(&b.t));
         let taken = |c: &Contact| {
             let at = from + by * c.t;
@@ -1117,12 +1123,12 @@ impl Controller {
     /// with `comiss`). Its normal.
     fn up_sweep(&self, world: &Collision, from: Vec3, rise: f32) -> Option<Vec3> {
         let (r, hh) = self.dims;
-        // The cast's way is the end's origin less the start's (0x72EB0).
-        let by = (from + UP * rise) - from;
+        // The cast's end; its way is the end's origin less the start's (0x72EB0).
+        let end = from + UP * rise;
         // With up = (0, 1, 0) both wrappers' sums give these bits: the other terms are signed zeros.
         let floor = from.y + hh;
         let mut best: Option<Contact> = None;
-        world.sweep_each(self.capsule_at(from), by, |c| {
+        world.sweep_each_to(self.capsule_at(from), end, |c| {
             if floor > c.point.y {
                 return;
             }
@@ -1206,7 +1212,7 @@ impl Controller {
         let e = (n.z * dn.z + n.y * dn.y) + n.x * dn.x;
         let g = normalized_safe(Vec3::new(dn.x - n.x * e, dn.y - n.y * e, dn.z - n.z * e), dn);
         let de = Vec3::new(g.x * l + bs.x, g.y * l + bs.y, g.z * l + bs.z);
-        let Some(c2) = world.sweep_shape(self.capsule_at(bs), de - bs, |_| true) else { return false };
+        let Some(c2) = world.sweep_shape_to(self.capsule_at(bs), de, |_| true) else { return false };
         let n2 = c2.normal;
         if self.impassable(n2, sb, s) {
             return false;

@@ -550,10 +550,31 @@ impl Collision {
         best
     }
 
+    /// [`Self::sweep_shape`] to the end's origin `to` as the exe's caller gives it ([`Way::To`]).
+    pub fn sweep_shape_to(&self, shape: Shape, to: Vec3, keep: impl Fn(&Face) -> bool) -> Option<Contact> {
+        let mut best: Option<Contact> = None;
+        self.sweep_way(shape, Way::To(to), |c| {
+            if keep_surface(&keep, c) && best.is_none_or(|b| c.replaces(&b)) {
+                best = Some(c);
+            }
+        });
+        best
+    }
+
     /// Every face's first contact with `shape` moved by `by` (Bullet's per-triangle convex cast: what the client's sweep
     /// callbacks are handed, in no order). A face the shape already touches at the start is reported at 0 only when the move
     /// goes into it.
-    pub fn sweep_each(&self, shape: Shape, by: Vec3, mut each: impl FnMut(Contact)) {
+    pub fn sweep_each(&self, shape: Shape, by: Vec3, each: impl FnMut(Contact)) {
+        self.sweep_way(shape, Way::By(by), each);
+    }
+
+    /// [`Self::sweep_each`] to the end's origin `to` as the exe's caller gives it ([`Way::To`]).
+    pub fn sweep_each_to(&self, shape: Shape, to: Vec3, each: impl FnMut(Contact)) {
+        self.sweep_way(shape, Way::To(to), each);
+    }
+
+    fn sweep_way(&self, shape: Shape, way: Way, mut each: impl FnMut(Contact)) {
+        let by = way.by(shape);
         // [L36] Ties at the closest fraction, counted for the logs ([`sweep_ties`]); the contacts go on unchanged.
         let mut ties = Ties::new();
         let mut each = |c: Contact| {
@@ -563,7 +584,7 @@ impl Collision {
         let caster = match &self.sweeps {
             Sweeps::Faces(caster) => *caster,
             Sweeps::Solids(solids) => {
-                solids.sweep_each(shape, by, &mut each);
+                solids.sweep_each(shape, way, &mut each);
                 ties.flush();
                 return;
             }
@@ -738,6 +759,42 @@ fn advance_bullet(shape: Shape, by: Vec3, face: &Face, start: StartOverlap) -> O
     Some(Touch { t, point: f, normal: n })
 }
 
+/// How a sweep moves its shape.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Way {
+    /// By this much: the end's origin is the start's plus it.
+    By(Vec3),
+    /// [L36] To this end origin, as the exe's caller gives the cast its end transform: the cast's way is the end less the
+    /// start (0x72EB0), and a compound's query volume reads the end itself (`objectQuerySingle` 0xA2421..0xA2507).
+    To(Vec3),
+}
+
+impl Way {
+    /// The cast's way for `shape`.
+    fn by(self, shape: Shape) -> Vec3 {
+        match self {
+            Way::By(by) => by,
+            Way::To(to) => to - cast_origin(shape),
+        }
+    }
+
+    /// The end's origin for `shape`.
+    fn to(self, shape: Shape) -> Vec3 {
+        match self {
+            Way::By(by) => cast_origin(shape) + by,
+            Way::To(to) => to,
+        }
+    }
+}
+
+/// The origin of `shape`'s cast transform ([`exe_cast_of`]'s start).
+fn cast_origin(shape: Shape) -> Vec3 {
+    match shape {
+        Shape::CapsuleAt { centre, .. } | Shape::Cylinder { centre, .. } | Shape::Sphere { centre, .. } => centre,
+        Shape::Capsule(c) => (c.low + c.high) * 0.5,
+    }
+}
+
 /// `shape` moved by `by` as the exe's sweep hands it to Bullet: `by` is the cast's way as the exe subtracts it (the
 /// end's origin minus the start's).
 fn exe_cast_of(shape: Shape, by: Vec3) -> exe_cast::Cast {
@@ -746,7 +803,7 @@ fn exe_cast_of(shape: Shape, by: Vec3) -> exe_cast::Cast {
     let (cast_shape, margin, from) = match shape {
         Shape::CapsuleAt { centre, radius, half_height } => (capsule(radius, half_height), EXE_CAPSULE_MARGIN_M, centre),
         // A capsule given by its sphere centres: the centre and the half height are worked back (not the exe's bits).
-        Shape::Capsule(c) => (capsule(c.radius, (c.high.y - c.low.y) * 0.5), EXE_CAPSULE_MARGIN_M, (c.low + c.high) * 0.5),
+        Shape::Capsule(c) => (capsule(c.radius, (c.high.y - c.low.y) * 0.5), EXE_CAPSULE_MARGIN_M, cast_origin(shape)),
         Shape::Cylinder { centre, half, radius, margin } => (CastShape::cylinder([radius, half, radius], Axis::Y), margin, centre),
         Shape::Sphere { centre, radius } => (CastShape::Sphere, radius, centre),
     };
