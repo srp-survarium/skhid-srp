@@ -829,6 +829,17 @@ impl Game {
                     sprinting: body.sprinting,
                     hands: crate::v026g::bots::sprint_gates::WorldHands::of(&world.guns),
                 }),
+                // [Gap 10] Its jump: the selector of the object in hands (the one gun with a user, else the carried
+                // battery); not read with more than one gun with a user, or with neither.
+                jump: {
+                    let mut held = world.guns.iter().filter_map(|(_, gun)| gun.in_hand());
+                    let portable = match (held.next(), held.next()) {
+                        (Some(gun), None) => Some(gun.portable()),
+                        (None, _) => world.carried.as_ref().map(|battery| battery.portable()),
+                        (Some(_), Some(_)) => None,
+                    };
+                    portable.map(|portable| crate::v026g::bots::jump_arc::WorldJump::of(portable.selector()))
+                },
             };
             let health = motion
                 .damage
