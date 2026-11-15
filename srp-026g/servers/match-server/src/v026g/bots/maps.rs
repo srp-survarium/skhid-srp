@@ -674,6 +674,7 @@ fn build(
                     || {
                         let started = Instant::now();
                         let ties_before = mapdata::controller::sweep_ties();
+                        let cull_before = mapdata::controller::sweep_cull();
                         let (grid, stats) = World::map_grid_with_stats(&map, &walker, cell, body, links);
                         // [L36] The sweeps' ties at their closest fraction during this build (the process's counters' growth: a
                         // build that runs beside another counts its ties too). A log's only.
@@ -687,6 +688,15 @@ fn build(
                             ties.same_object_unordered - ties_before.same_object_unordered,
                             ties.across_objects - ties_before.across_objects,
                             ties.faces - ties_before.faces
+                        );
+                        // [L36] Where the sweeps' compound-child cull parted from the old world-box test during this build (the
+                        // process's counters' growth, as the ties). A log's only.
+                        let cull = mapdata::controller::sweep_cull();
+                        log::info!(
+                            "Bot map {} sweep child cull: {} children skipped that the world box offered, {} offered that it did not",
+                            path.display(),
+                            cull.skipped - cull_before.skipped,
+                            cull.added - cull_before.added
                         );
                         // A log's only: what each pass of the build did (a grid read from the cache has no such line).
                         log::info!(

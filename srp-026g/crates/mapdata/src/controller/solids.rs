@@ -435,6 +435,54 @@ fn ray_crosses(from: V3, to: V3, b: &Box3) -> bool {
     lambda_max > tmin && tmax > 0.0
 }
 
+/// [L36] The volume `objectQuerySingle` 0xA14E0's compound branch (0xA22EE..0xA29E3) hands the compound's child tree for a
+/// cast, in the compound's frame: the cast's start and end origins taken in by the compound's inverse (0x72D20, then
+/// `((i0*x + i1*y) + i2*z) + o`, 0xA2351..0xA2526), their least and greatest per axis (0xA2858..0xA2915), plus the cast
+/// shape's `getAabb` (vtable +4, 0xA2856) under the compound's inverse rotation with origin 0 (0xA2616..0xA2850: the
+/// product of the inverse basis and the cast's, which is the identity, so the inverse basis itself). The end is
+/// `from + by`, the exe's end exactly where `by` (the end less the start) was exact.
+fn cast_volume(cast: &exe_cast::Cast, object: &Transform) -> Box3 {
+    let inv = exe_ray::inverse(object);
+    let i = &inv.basis;
+    let o = inv.origin;
+    let into = |p: V3| [0, 1, 2].map(|r| ((i[r][0] * p[0] + i[r][1] * p[1]) + i[r][2] * p[2]) + o[r]);
+    let to = [cast.from[0] + cast.by[0], cast.from[1] + cast.by[1], cast.from[2] + cast.by[2]];
+    let (a, b) = (into(cast.from), into(to));
+    // 0xA2858..0xA28C3: the start's, replaced by the end's where the start's is greater (min); 0xA28C9..0xA2902: the end's,
+    // replaced by the start's unless the end's is greater (max).
+    let least = [0, 1, 2].map(|k| if a[k] > b[k] { b[k] } else { a[k] });
+    let most = [0, 1, 2].map(|k| if b[k] > a[k] { b[k] } else { a[k] });
+    let (lo, hi) = cast_shape_box(cast).aabb(&Transform { basis: inv.basis, origin: [0.0; 3] });
+    // 0xA2915..0xA2997: the shape's box plus the ends' (`addss` of the two).
+    ([0, 1, 2].map(|k| lo[k] + least[k]), [0, 1, 2].map(|k| hi[k] + most[k]))
+}
+
+/// The cast's shape as its class's `getAabb` reads it: a sphere (type 8) its radius as margin, a capsule (type 10) and a
+/// cylinder (type 13, `btTransformAabb` of its implicit dimensions plus its margin).
+fn cast_shape_box(cast: &exe_cast::Cast) -> ConvexShape {
+    match cast.shape {
+        exe_gjk::CastShape::Sphere => ConvexShape::Sphere { margin: cast.margin },
+        exe_gjk::CastShape::Capsule { radius, half_height, scaling, margin, up } => {
+            let mut implicit = [radius; 3];
+            implicit[up.index()] = half_height;
+            ConvexShape::Capsule { implicit, scaling, margin, up }
+        }
+        // `btTransformAabb` 0xA97B0 of the half extents on each axis, whatever the up axis.
+        exe_gjk::CastShape::Cylinder { radius, half_height, up } => {
+            let mut implicit = [radius; 3];
+            implicit[up.index()] = half_height;
+            ConvexShape::CylinderY { implicit, margin: cast.margin }
+        }
+    }
+}
+
+/// `collideTV` 0xA58F0's node test (0xA596A..0xA5990, `cmpltps`): a node is passed by when its max is under the volume's
+/// min, or the volume's max under its min, on x, y or z.
+fn tree_meets(node: &Box3, volume: &Box3) -> bool {
+    // The `orps` of the two masks, then none of the three set.
+    (0..3).all(|k| !(node.1[k] < volume.0[k] || volume.1[k] < node.0[k]))
+}
+
 /// [L36] 0xA2D990: the inverse direction's stand-in where a component is 0 (about 1e18).
 const RAY_LARGE: f32 = f32::from_bits(0x5D5E_0B6B);
 
@@ -658,11 +706,34 @@ impl Solids {
         let (lo, hi) = (lo0.min(lo1) - pad, hi0.max(hi1) + pad);
         let swept: Box3 = ([lo.x, lo.y, -hi.z], [hi.x, hi.y, -lo.z]);
         let near = grown(&swept, CLEAR_M);
+        // [L36] Each compound's query volume, made once per sweep ([`cast_volume`]).
+        let mut volumes: Vec<(u32, Box3)> = Vec::new();
         self.tree.each_in(&swept, |i| {
-            if !overlaps(&self.boxes[i], &swept) {
+            let leaf = &self.leaves[i];
+            // [L36] A compound's child tree offers a child only where its box in the tree meets the cast's volume in the
+            // compound's frame (`collideTV` 0xA58F0 from `objectQuerySingle`'s compound branch); a part with no such box, as
+            // before, where its world box meets the swept box.
+            let offered = match leaf.tree_box {
+                Some(tree_box) => {
+                    let volume = match volumes.iter().find(|(o, _)| *o == leaf.object) {
+                        Some((_, v)) => *v,
+                        None => {
+                            let v = cast_volume(&cast, &self.object_transforms[leaf.object as usize]);
+                            volumes.push((leaf.object, v));
+                            v
+                        }
+                    };
+                    let now = tree_meets(&tree_box, &volume);
+                    if now != overlaps(&self.boxes[i], &swept) {
+                        super::count_cull_parting(now);
+                    }
+                    now
+                }
+                None => overlaps(&self.boxes[i], &swept),
+            };
+            if !offered {
                 return;
             }
-            let leaf = &self.leaves[i];
             let object = Some(SolidId(leaf.object));
             let out = |fraction: f32, normal: V3, point: V3, on: Surface, rank: Option<u32>| Contact {
                 t: fraction,
