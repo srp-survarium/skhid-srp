@@ -1768,7 +1768,8 @@ impl Bots {
         let Some(Some(bot)) = self.bots.get_mut(place) else {
             return None;
         };
-        if !self.tunings.of(bot.team).aim.combat.reload_end_from_world {
+        let combat = &self.tunings.of(bot.team).aim.combat;
+        if !combat.reload_end_from_world || (matches!(clip, guns::ReloadClip::Foretold(_)) && !combat.reload_end_from_knot) {
             return None;
         }
         bot.reflex.reload_clip(at, clip)
@@ -1814,7 +1815,7 @@ impl Bots {
     /// tree has it (`None`: its end not read). The body's reckoned sights and sprint are refused until the clip's end.
     pub fn world_reload(&mut self, place: Place, at: u32, clip: Option<guns::ReloadClip>) {
         match clip {
-            Some(guns::ReloadClip::Ends(until)) => sprint_gates::world_reloads::read(self.tracker.world_reload(place, at, until)),
+            Some(guns::ReloadClip::Ends(until) | guns::ReloadClip::Foretold(until)) => sprint_gates::world_reloads::read(self.tracker.world_reload(place, at, until)),
             Some(guns::ReloadClip::Cancelled) | None => sprint_gates::world_reloads::not_read(),
         }
     }

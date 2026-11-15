@@ -1352,8 +1352,10 @@ pub struct GunReads {
     /// A reload the world shows that the ledger had not counted (the client's own, e.g. the trigger on an empty weapon).
     pub reload_found: u32,
     /// [Gap 3] Reload clip ends read from the worlds' mixing trees ([`ReloadClip`]), those that moved the ledger's end and
-    /// by how many ms in all, and reload clips a world showed being cancelled.
+    /// by how many ms in all, and reload clips a world showed being cancelled. [3B (a)] Of those read, the ends foretold
+    /// from a knot ([`ReloadClip::Foretold`]).
     pub clip_read: u32,
+    pub clip_foretold: u32,
     pub clip_moved: u32,
     pub clip_moved_ms: u64,
     pub clip_cancelled: u32,
@@ -1363,7 +1365,7 @@ impl GunReads {
     /// The counts as a log line: `worlds read 120 (unkept 2), rounds off 5 (moved 9), ...`.
     pub fn line(&self) -> String {
         format!(
-            "worlds read {} (unkept {}), rounds off {} (moved {}), ammo off {}, reloads ended {}, lost {}, found {}; reload clips read {}, moved {} ({} ms in all), cancelled {}",
+            "worlds read {} (unkept {}), rounds off {} (moved {}), ammo off {}, reloads ended {}, lost {}, found {}; reload clips read {} (foretold {}), moved {} ({} ms in all), cancelled {}",
             self.read,
             self.unkept,
             self.rounds_off,
@@ -1373,6 +1375,7 @@ impl GunReads {
             self.reload_lost,
             self.reload_found,
             self.clip_read,
+            self.clip_foretold,
             self.clip_moved,
             self.clip_moved_ms,
             self.clip_cancelled
@@ -1391,6 +1394,7 @@ impl std::ops::AddAssign for GunReads {
         self.reload_lost += other.reload_lost;
         self.reload_found += other.reload_found;
         self.clip_read += other.clip_read;
+        self.clip_foretold += other.clip_foretold;
         self.clip_moved += other.clip_moved;
         self.clip_moved_ms += other.clip_moved_ms;
         self.clip_cancelled += other.clip_cancelled;
@@ -1405,35 +1409,99 @@ pub const RELOAD_TIME_GROUP: u8 = 4;
 /// the hands' reload node (time group 4, not its item's own-object twin) holds its next animation event, and a clip's
 /// end (type 4 or 0Ch) is when the magazine fills (`on_animation_end_impl` 0x310E40). Read against the next world:
 /// refilled iff that end is at or before it in 2,352 of 2,384 magazine reloads (`settle-tree` 3.3).
+///
+/// [3B (a)] When the node's next event is a channel knot (20h) inside the clip, the end is the knot's time-scale operand
+/// carried to the clip's length ([`reload_clip_s`], [`super::clip_tree::TimeScale::reaches`]). Counted on the same 60
+/// recordings (magazine and empty-clip reloads, 303 and 314; `settle-tree/an_reload_knot*.py`), by the rule as read here
+/// (the clip by the world's magazine, read only when the knot lies inside it): refilled iff that end is at or before the
+/// next world in 20,805 of 21,098; 102 refilled sooner (the bot waits longer than the client), 191 not refilled though
+/// due (as 3.3's: no rounds left, a cancelled reload); 6,240 knots lie at or past the weapon's clip (another clip in
+/// hand: not read, the ledger stands). With each clip's own length (from its end rows): 15,585 of 15,794, none sooner.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReloadClip {
-    /// The clip ends at this game ms.
+    /// The clip ends at this game ms (its end event).
     Ends(u32),
+    /// The clip ends at this game ms, foretold from a knot before its end.
+    Foretold(u32),
     /// The node's weight event is 102h: the lexeme ends at weight 0, the reload is being cancelled.
     Cancelled,
 }
 
 impl ReloadClip {
-    /// The reload clip of `events`, the tree of a world made at `world_ms`. `None`: no reload node with a clip's end, or
+    /// The reload clip of `events`, the tree of a world made at `world_ms`; `clip_s` the length of the hands clip under
+    /// way ([`reload_clip_s`]), for a knot. `None`: no reload node with a clip's end (or a knot inside a known clip), or
     /// two such nodes that disagree.
-    pub fn of(events: &super::clip_tree::AnimEvents, world_ms: u32) -> Option<Self> {
+    pub fn of(events: &super::clip_tree::AnimEvents, world_ms: u32, clip_s: Option<f32>) -> Option<Self> {
         let mut found = None;
         for node in events.nodes.iter().filter(|node| node.time_group == Some(RELOAD_TIME_GROUP) && !node.own_object) {
             if node.weight.is_some_and(|(flags, _)| flags == 0x102) {
                 return Some(Self::Cancelled);
             }
-            if let Some((kind, at)) = node.event
-                && (kind == 4 || kind == 0x0C)
-            {
-                let end = events.game_ms(at, world_ms);
-                if found.is_some_and(|was| was != end) {
-                    return None;
+            let clip = match node.event {
+                Some(event) if event.kind == 4 || event.kind == 0x0C => Self::Ends(events.game_ms(event.at, world_ms)),
+                Some(event) if event.kind == RELOAD_KNOT => {
+                    let Some(end) = clip_s
+                        .filter(|clip_s| event.clip_s < *clip_s)
+                        .zip(node.time_scale)
+                        .and_then(|(clip_s, scale)| scale.reaches(clip_s))
+                    else {
+                        continue;
+                    };
+                    Self::Foretold(events.game_ms(end, world_ms))
                 }
-                found = Some(end);
+                _ => continue,
+            };
+            if found.is_some_and(|was: Self| was.end() != clip.end()) {
+                return None;
             }
+            found = Some(clip);
         }
-        found.map(Self::Ends)
+        found
     }
+
+    /// The game ms the clip ends at; `None` for a cancelled reload.
+    pub fn end(self) -> Option<u32> {
+        match self {
+            Self::Ends(end) | Self::Foretold(end) => Some(end),
+            Self::Cancelled => None,
+        }
+    }
+}
+
+/// [3B (a)] A reload node's next event of this type is a channel knot (`clip_tree::NextEvent::kind`), not the clip's end.
+pub const RELOAD_KNOT: u8 = 0x20;
+
+/// [3B (a)] A clip's frames as seconds: `(last key - first key) x 0.033333335` in single precision ([0xA2DC64], the clip
+/// length 0x30E5C0; settle-weapon L1).
+pub const CLIP_FRAME_S: f32 = 0.033333335;
+
+/// [3B (a)] The length in seconds of the reload hands clip the weapon `w` plays with `magazine` rounds in its magazine
+/// (the world's, which a reload leaves until the clip's end): a magazine reload's (303) one clip; an empty-clip reload's
+/// (314) clip [1] from empty, else [0] (the lexeme 0x30FE90 picks slot `magazine == 0`, 0x30FEA5..0x30FEC9; settle-weapon
+/// L3). `None` for the others (the double barrel's and the round-by-round group-4 nodes are a sub-clip's, settle-tree
+/// 3.3) and without the clips' lengths.
+pub fn reload_clip_s(w: &survarium::v026g::weapons::WeaponParams, magazine: u32) -> Option<f32> {
+    use survarium::v026g::weapons::{STATE_RELOAD_EMPTY, STATE_RELOAD_MAGAZINE};
+    let [rounds_left, empty] = w.reload_hands_frames?;
+    let frames = match w.reload_state {
+        STATE_RELOAD_MAGAZINE => rounds_left,
+        STATE_RELOAD_EMPTY if magazine == 0 => empty,
+        STATE_RELOAD_EMPTY => rounds_left,
+        _ => return None,
+    };
+    Some(frames * CLIP_FRAME_S)
+}
+
+/// [3B (a)] [`reload_clip_s`] of the weapon in hands of a world: the kit's own one (the item `supplies` found in the hands
+/// slot under this place's header, as [`GunWorld::of`] takes it) with its magazine in `guns` (`PlaceWorld::guns`).
+pub fn world_reload_clip_s(
+    supplies: &survarium::v026g::match_msgs::players::Supplies,
+    guns: &[(u8, srp_validate::world::WeaponState)],
+) -> Option<f32> {
+    let slot = supplies.hands_slot?;
+    let item = supplies.items.iter().find(|item| item.slot == Some(slot) && item.magazine.is_some())?;
+    let (_, gun) = guns.iter().find(|(at, _)| *at == slot)?;
+    reload_clip_s(survarium::v026g::weapons::weapon(item.dict_id)?, u32::from(gun.ammo_in_magazine()))
 }
 
 #[cfg(test)]
@@ -1441,6 +1509,65 @@ mod tests {
     use super::*;
     use survarium::v026g::dictionary::Dictionary;
     use survarium::v026g::item_params::item_params;
+
+    /// [3B (a)] A world of a Vepr-12 empty reload in the sample (made at 48,600 ms): the reload node's next event a knot at
+    /// 6.866667 s of its clip, its operand 1.7857145 clip seconds a second from 4.644644 s 300 ms before the world. The
+    /// clip of 209 frames (6.9666677 s) ends 1,000 ms after the world; the next world (49,650) shows the magazine filled.
+    fn knot_tree(kind: u8, weight: Option<(u16, u32)>) -> super::super::clip_tree::AnimEvents {
+        use super::super::clip_tree::{AnimEvents, AnimNode, NextEvent, TimeScale};
+        let reload = AnimNode {
+            time_group: Some(RELOAD_TIME_GROUP),
+            own_object: false,
+            event: Some(NextEvent { kind, at: 1_000_000_944, clip_s: 6.866667 }),
+            weight,
+            time_scale: Some(TimeScale { scale: 1.7857145, clip_s: 4.644644, start: 999_999_700 }),
+        };
+        // Its item's twin (own object) with a clip's end that says otherwise: not read.
+        let item = AnimNode {
+            own_object: true,
+            event: Some(NextEvent { kind: 0x0C, at: 1_000_000_100, clip_s: 0.0 }),
+            ..reload
+        };
+        AnimEvents { clock: 1_000_000_000, nodes: vec![reload, item] }
+    }
+
+    #[test]
+    fn a_reload_knot_foretells_the_clips_end_from_its_time_scale() {
+        let vepr = 209.0 * CLIP_FRAME_S;
+        assert_eq!(ReloadClip::of(&knot_tree(RELOAD_KNOT, None), 48_600, Some(vepr)), Some(ReloadClip::Foretold(49_600)));
+        // The clip's length unknown, or the knot not inside it (another clip in hand): not read.
+        assert_eq!(ReloadClip::of(&knot_tree(RELOAD_KNOT, None), 48_600, None), None);
+        assert_eq!(ReloadClip::of(&knot_tree(RELOAD_KNOT, None), 48_600, Some(150.0 * CLIP_FRAME_S)), None);
+        // A clip's end is read as it is, the length or not.
+        assert_eq!(ReloadClip::of(&knot_tree(0x0C, None), 48_600, None), Some(ReloadClip::Ends(49_544)));
+        assert_eq!(ReloadClip::of(&knot_tree(0x0C, None), 48_600, Some(vepr)), Some(ReloadClip::Ends(49_544)));
+        // A reload being cancelled.
+        assert_eq!(
+            ReloadClip::of(&knot_tree(RELOAD_KNOT, Some((0x102, 1_000_000_200))), 48_600, Some(vepr)),
+            Some(ReloadClip::Cancelled)
+        );
+        assert_eq!(ReloadClip::Foretold(49_600).end(), Some(49_600));
+        assert_eq!(ReloadClip::Cancelled.end(), None);
+    }
+
+    /// [3B (a)] The hands clip a reload plays: a magazine reload's one, an empty-clip reload's [1] from empty and [0] with
+    /// rounds left, none for the others or without the lengths.
+    #[test]
+    fn the_reload_clip_is_the_one_the_magazine_picks() {
+        use survarium::v026g::weapons::{STATE_RELOAD_BARRELS, STATE_RELOAD_EMPTY, STATE_RELOAD_MAGAZINE};
+        let ak = *survarium::v026g::weapons::weapon_named("ak_74u").unwrap();
+        let with = |state, frames| survarium::v026g::weapons::WeaponParams {
+            reload_state: state,
+            reload_hands_frames: frames,
+            ..ak
+        };
+        let pair = Some([150.0, 209.0]);
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_EMPTY, pair), 0), Some(209.0 * CLIP_FRAME_S));
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_EMPTY, pair), 3), Some(150.0 * CLIP_FRAME_S));
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_MAGAZINE, pair), 0), Some(150.0 * CLIP_FRAME_S));
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_BARRELS, pair), 0), None);
+        assert_eq!(reload_clip_s(&with(STATE_RELOAD_EMPTY, None), 0), None);
+    }
 
     #[test]
     fn the_magazines_are_the_games_and_every_bot_weapon_is_known() {

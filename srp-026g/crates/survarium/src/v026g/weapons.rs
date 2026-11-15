@@ -98,6 +98,12 @@ pub struct WeaponParams {
     /// [A307] For [`STATE_RELOAD_EMPTY`] with `parameters.reload_empty_time` (main's authored pairs, whose clips
     /// are compiled to that ratio): `reload_empty_time / reload_time`, before the clips.
     pub reload_share: Option<f32>,
+    /// The reload state's first two hands clips (`user_animations` [0] and [1]), in frames, by the clip lengths of the
+    /// game data: the clip with rounds left (one shell left) and the one from empty (both shells). The reload states
+    /// take their time scale from [0] over `reload_time` and play [0] or [1] at it (0x30E000, 0x30FC50, 0x30F310: the
+    /// state's array holds the item's two clips, then the eight hands clips; settle-weapon L2, L3). `None` for a reload
+    /// by rounds, or when the data has no length for either clip.
+    pub reload_hands_frames: Option<[f32; 2]>,
     /// It has a [`STATE_CHAMBER`] state.
     pub has_chamber: bool,
     pub show_time: f32,
@@ -362,6 +368,7 @@ impl WeaponParams {
             .ok_or_else(|| ConfigError("no `fire_queue_types`".into()))?;
         let mut reload_state = 0;
         let mut reload_share = None;
+        let mut reload_hands_frames = None;
         let mut has_chamber = false;
         if let Some(states) = config.get("states") {
             for (_, state) in states.entries() {
@@ -376,6 +383,7 @@ impl WeaponParams {
                     | STATE_RELOAD_EMPTY) => {
                         reload_state = k;
                         reload_share = clips.and_then(|clips| two_clip_share(k, state, clips));
+                        reload_hands_frames = clips.and_then(|clips| reload_hands(k, state, clips));
                     }
                     _ => {}
                 }
@@ -409,6 +417,7 @@ impl WeaponParams {
             movement_speed_modifier: number(Some(p), "movement_speed_modifier")?,
             reload_state,
             reload_share,
+            reload_hands_frames,
             has_chamber,
             show_time: number(Some(p), "show_time")?,
             hide_time: number(Some(p), "hide_time")?,
@@ -451,6 +460,17 @@ fn two_clip_share(kind: u16, state: &ConfigValue, clips: &ClipLengths) -> Option
     let length = |i: usize| clips.get(names.get(i)?.as_str()?);
     let (first, second) = (length(0)?, length(1)?);
     (first > 0.0 && second > 0.0).then(|| second / first)
+}
+
+/// The first two hands clips of a reload `state` of kind `kind` (`user_animations`), in frames, by the lengths `clips`
+/// has ([`WeaponParams::reload_hands_frames`]). A magazine reload (303) names four of one length, the others eight.
+fn reload_hands(kind: u16, state: &ConfigValue, clips: &ClipLengths) -> Option<[f32; 2]> {
+    if kind == STATE_RELOAD_ROUNDS {
+        return None;
+    }
+    let names = state.get("user_animations")?.children();
+    let length = |i: usize| clips.get(names.get(i)?.as_str()?).filter(|frames| *frames > 0.0);
+    Some([length(0)?, length(1)?])
 }
 
 /// Every weapon of `dictionary` (an item whose config's `parameters.type`
@@ -1071,5 +1091,51 @@ mod tests {
         );
         let table = derive(&uzi, dictionary).unwrap();
         assert_eq!(table.iter().find(|w| w.name == "uzi").unwrap().reload_share, None);
+    }
+
+    /// The names of the hands clips the reload state of the weapon `name` plays (`user_animations`).
+    fn reload_hands_names(name: &str) -> Vec<String> {
+        let item = Dictionary::shared().item_named(name).unwrap();
+        let config = super::super::game_data::config(super::super::game_data::shared(), item.cfg_name.as_str())
+            .unwrap()
+            .unwrap();
+        config
+            .get("states")
+            .and_then(|states| states.get("reload"))
+            .and_then(|state| state.get("user_animations"))
+            .unwrap()
+            .children()
+            .iter()
+            .map(|clip| clip.as_str().unwrap().to_owned())
+            .collect()
+    }
+
+    /// [3B (a)] The reload's first two hands clips (`user_animations`) by the clip lengths of the game data, apart from
+    /// the item's own (`animations`): none for a reload by rounds, a clip with no length or data without the lengths.
+    #[test]
+    fn the_reloads_hands_clips_are_its_user_animations() {
+        let data = super::super::game_data::shared();
+        let mut clips = ClipLengths::default();
+        for (name, frames) in [("tt_33", [65.0, 125.0]), ("uzi", [78.0, 78.0])] {
+            for (clip, frames) in reload_hands_names(name).iter().zip(frames) {
+                clips.insert(clip.clone(), frames);
+            }
+        }
+        // The item's own clips of another length: not these.
+        for clip in reload_clip_names("tt_33") {
+            clips.insert(clip, 95.0);
+        }
+        let with = data.laid_over("clips", Vec::new()).with_clip_lengths(clips);
+        let table = derive(&with, Dictionary::shared()).unwrap();
+        let hands = |name: &str| table.iter().find(|w| w.name == name).unwrap().reload_hands_frames;
+        assert_eq!(hands("tt_33"), Some([65.0, 125.0]));
+        assert_eq!(hands("uzi"), Some([78.0, 78.0]));
+        // No lengths for its clips: none.
+        assert_eq!(hands("izh_27_lancaster"), None);
+        // A reload by rounds names no hands pair the bots read.
+        let rounds = table.iter().find(|w| w.reload_state == STATE_RELOAD_ROUNDS).unwrap();
+        assert_eq!(rounds.reload_hands_frames, None);
+        // Data made without the lengths: none for any weapon.
+        assert!(derive(data, Dictionary::shared()).unwrap().iter().all(|w| w.reload_hands_frames.is_none()));
     }
 }
