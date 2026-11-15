@@ -849,13 +849,23 @@ impl Controller {
         let inv = 1.0 / l2.sqrt();
         let dir = Vec3::new(d.x * inv, inv * d.y, inv * d.z);
         let (r, hh) = self.dims;
-        // [L36] Each tester's shape to its own end as the exe makes it ([`Collision::sweep_each_to`]).
-        let callback = |shape: Shape, from: Vec3, end: Vec3| -> Option<(f32, Vec3, Vec3)> {
+        // [L36] Each tester's shape to its own end as the exe makes it ([`Collision::sweep_each_to`]). Every callback is made
+        // with the MAIN start (+70h of 0x894D0: `[ebp+8]` at 0x85F78 / 0x860BD and 0x8632F for the top check's two), which
+        // its fraction-0 test (0x896EA..0x8972A) and its wall ray (0x89B80: 0x89C53..0x89CBA) read: `from` below, whatever
+        // the shape's own start (`own`, kept only to count where it would answer otherwise: [`super::count_top_check_parting`]).
+        let ahead = |p: Vec3, start: Vec3| {
+            let q = p - start;
+            (dir.z * q.z + dir.y * q.y) + q.x * dir.x > 0.0
+        };
+        let callback = |shape: Shape, own: Vec3, end: Vec3| -> Option<(f32, Vec3, Vec3)> {
             let mut best: Option<Contact> = None;
             world.sweep_each_to(shape, end, |c| {
                 if c.t == 0.0 {
-                    let q = c.point - from;
-                    if !((dir.z * q.z + dir.y * q.y) + q.x * dir.x > 0.0) {
+                    let kept = ahead(c.point, from);
+                    if own != from && kept != ahead(c.point, own) {
+                        super::count_top_check_parting(super::TopCheckParting::FractionZero);
+                    }
+                    if !kept {
                         return;
                     }
                 }
@@ -879,7 +889,13 @@ impl Controller {
                         // A primitive has no face: the contact's own normal stays.
                         Surface::Primitive { .. } => n2,
                     },
-                    WallNormal::Rays => wall_normal_via_ray(world, c.object, n2, dir, from, c.point),
+                    WallNormal::Rays => {
+                        let n = wall_normal_via_ray(world, c.object, n2, dir, from, c.point);
+                        if own != from && n != wall_normal_via_ray(world, c.object, n2, dir, own, c.point) {
+                            super::count_top_check_parting(super::TopCheckParting::WallRay);
+                        }
+                        n
+                    }
                 };
             }
             Some((c.t, n2, c.point))
