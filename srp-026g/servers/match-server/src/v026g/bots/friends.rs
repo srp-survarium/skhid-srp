@@ -20,8 +20,8 @@
 //! reckoned on from his last input, so his margin is a little wider.
 //!
 //! The body is the upright segment from the shins to the top of the head,
-//! as [`super::aimpoint::Part`]'s heights: the 0.100b model's, a GUESS for
-//! 0.26g's.
+//! as [`super::aimpoint::Part`]'s heights: 0.26g's own hit boxes (PROVEN,
+//! data).
 //!
 //! Near the shooter the margin is at least [`FriendlyFireTuning::near_m`]:
 //! the body and a semi-automatic's or a bolt's thin spread alone gave

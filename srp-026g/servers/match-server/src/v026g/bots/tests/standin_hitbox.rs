@@ -419,7 +419,7 @@ fn ray_capsule(o: Vec3, d: Vec3, radius: f32, half: f32) -> Option<f32> {
 
 /// The shapes of the 0.26g player, standing and crouched, placed by the idle clips: a copy of
 /// `fighting-record/scripts/hitbox/hitboxes-026g-idle.tsv` (tab-separated, a header and comment lines first).
-pub(crate) const TABLE: &str = include_str!("hitboxes-026g-idle.tsv");
+pub(crate) const TABLE: &str = super::super::aimpoint::HIT_BOXES;
 
 /// Whether the forearm and hand shapes are in the pose the shots are tested against (`SRP_BENCH_HIT_ARMS`, a diagnosis of
 /// A182: the bench's hits land on the arms twice as often as the live shares, 52 % against 23 %, because the idle pose
