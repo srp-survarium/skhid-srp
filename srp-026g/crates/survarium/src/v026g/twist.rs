@@ -8,37 +8,42 @@
 use super::cowboy::Variation;
 use super::maps::{GameMode, MapMode, MatchMap};
 use super::match_msgs::static_info::MatchProfile;
+use super::racket::Gun;
 
 /// The shares of a free-for-all card's draw ([`draw`]): the plain mode's and each twist's,
 /// in hundredths, a twist's by what its match arms. Cowboy 20 in all (the owner, 2026-11-15:
 /// "let's make saloon 20% with two variations (no need to name them)"; was 10, "cowboy version
 /// should be rare with only 10% chance", 2026-11-14), its two variations half and half (the
 /// owner, 2026-11-14: "saloon should have two variations with winchesters and colts or just with
-/// colts"; half and half my pick); Racket as often as the plain mode (my pick).
-pub const SHARES: [(Option<Armed>, u32); 4] = [
-    (None, 40),
-    (Some(Armed::Racket), 40),
-    (Some(Armed::Cowboy(Variation::WinchesterAndColt)), 10),
-    (Some(Armed::Cowboy(Variation::Colt)), 10),
-];
+/// colts"; half and half my pick); Racket as often as the plain mode (my pick). Racket's gun is
+/// its room's (`racket`, `Gun::of_room`).
+pub const fn shares(racket: Gun) -> [(Option<Armed>, u32); 4] {
+    [
+        (None, 40),
+        (Some(Armed::Racket(racket)), 40),
+        (Some(Armed::Cowboy(Variation::WinchesterAndColt)), 10),
+        (Some(Armed::Cowboy(Variation::Colt)), 10),
+    ]
+}
 
-/// The sum of [`SHARES`]: what a draw's roll is below.
+/// The sum of the [`shares`], a room's of any gun: what a draw's roll is below.
 pub const SHARE_TOTAL: u32 = {
+    let shares = shares(Gun::Ak12);
     let mut total = 0;
     let mut at = 0;
-    while at < SHARES.len() {
-        total += SHARES[at].1;
+    while at < shares.len() {
+        total += shares[at].1;
         at += 1;
     }
     total
 };
 
 /// What a free-for-all card of a server's room plays, for a roll below [`SHARE_TOTAL`]: the plain
-/// mode and each twist as it arms, for its share. A private room's never draws: its free-for-all
-/// is plain (`session::v026g::rooms`).
-pub fn draw(roll: u32) -> Option<Armed> {
+/// mode and each twist as it arms, for its share, Racket with `racket`. A private room's never
+/// draws: its free-for-all is plain (`session::v026g::rooms`).
+pub fn draw(roll: u32, racket: Gun) -> Option<Armed> {
     let mut roll = roll % SHARE_TOTAL;
-    for (play, share) in SHARES {
+    for (play, share) in shares(racket) {
         if roll < share {
             return play;
         }
@@ -57,7 +62,8 @@ pub const STORE_LIVES: u32 = 1_000;
 /// [`Armed`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Twist {
-    /// Every sniper rifle and silenced gun an AK-12 ([`super::racket`]).
+    /// Every sniper rifle and silenced gun an AK-12, or an AK-74N in a level-10 room
+    /// ([`super::racket`]).
     Racket,
     /// Every kit a Winchester 1894 and a Colt Python, or a Colt Python alone
     /// ([`super::cowboy`]); "Saloon" in the lobby.
@@ -77,16 +83,6 @@ impl Twist {
         }
     }
 
-    /// The ammo a match of the twist may give, which it never charges
-    /// (`session::v026g::autobuy`): nobody's, though an account may own the same kind. Cowboy's
-    /// both guns' in either variation: a match of the Colt alone has no Winchester ammo of anyone's.
-    pub fn gives(self) -> Vec<u16> {
-        match self {
-            Self::Racket => vec![super::racket::Arms::shared().ammo],
-            Self::Cowboy => super::cowboy::Guns::shared().ammo().to_vec(),
-        }
-    }
-
     /// The twist of a lobby number.
     pub fn of_lobby_number(number: u8) -> Option<Self> {
         Self::ALL.into_iter().find(|twist| twist.lobby_number() == number)
@@ -97,8 +93,8 @@ impl Twist {
 /// ([`SHARES`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Armed {
-    /// [`Twist::Racket`].
-    Racket,
+    /// [`Twist::Racket`] with its room's gun.
+    Racket(Gun),
     /// [`Twist::Cowboy`] in one of its variations.
     Cowboy(Variation),
 }
@@ -107,15 +103,24 @@ impl Armed {
     /// The twist it is of.
     pub const fn twist(self) -> Twist {
         match self {
-            Self::Racket => Twist::Racket,
+            Self::Racket(_) => Twist::Racket,
             Self::Cowboy(_) => Twist::Cowboy,
+        }
+    }
+
+    /// The ammo it gives, which its match never charges (`session::v026g::autobuy`): nobody's,
+    /// though an account may own the same kind.
+    pub fn gives(self) -> Vec<u16> {
+        match self {
+            Self::Racket(gun) => vec![super::racket::Arms::shared(gun).ammo],
+            Self::Cowboy(variation) => super::cowboy::Guns::shared().ammo(variation),
         }
     }
 
     /// `profile`'s kits as it arms them.
     pub fn arm(self, profile: &mut MatchProfile) {
         match self {
-            Self::Racket => super::racket::arm(profile, &super::racket::Arms::shared()),
+            Self::Racket(gun) => super::racket::arm(profile, &super::racket::Arms::shared(gun)),
             Self::Cowboy(variation) => {
                 super::cowboy::arm(profile, &super::cowboy::Guns::shared(), variation)
             }
@@ -192,20 +197,27 @@ mod tests {
     fn a_twist_is_a_free_for_alls_alone() {
         for map in maps::playable() {
             let played = MatchMap::of(map.id).unwrap();
-            let twisted = Played::twisted(played, Armed::Racket);
+            let twisted = Played::twisted(played, Armed::Racket(Gun::Ak12));
             assert_eq!(twisted.is_some(), map.mode == GameMode::FreeForAll, "{}", map.id);
             assert_eq!(Played::plain(played).lobby_number(), map.mode.lobby_number());
         }
         let ffa = playable_in(GameMode::FreeForAll).next().unwrap();
-        let racket = Played::twisted(MatchMap::of(ffa.id).unwrap(), Armed::Racket).unwrap();
+        let racket = Armed::Racket(Gun::Ak12);
+        let racket = Played::twisted(MatchMap::of(ffa.id).unwrap(), racket).unwrap();
         assert_eq!((racket.lobby_number(), racket.mode()), (9, GameMode::FreeForAll));
-        // Every roll below the shares' sum: each its share, 40 / 40 / 10 / 10.
-        let drawn = |play| (0..SHARE_TOTAL).filter(|&roll| draw(roll) == play).count();
-        for (play, share) in SHARES {
-            assert_eq!(drawn(play), share as usize);
+        // Every roll below the shares' sum: each its share, 40 / 40 / 10 / 10, Racket with the
+        // room's gun.
+        for gun in Gun::ALL {
+            let drawn = |play| (0..SHARE_TOTAL).filter(|&roll| draw(roll, gun) == play).count();
+            for (play, share) in shares(gun) {
+                assert_eq!(drawn(play), share as usize);
+            }
+            assert_eq!(drawn(Some(Armed::Racket(gun))), 40);
         }
+        let drawn = |play| (0..SHARE_TOTAL).filter(|&roll| draw(roll, Gun::Ak74n) == play).count();
         let saloon = |variation| drawn(Some(Armed::Cowboy(variation)));
-        assert_eq!((SHARE_TOTAL, drawn(None), drawn(Some(Armed::Racket))), (100, 40, 40));
+        let ak_12 = Some(Armed::Racket(Gun::Ak12));
+        assert_eq!((SHARE_TOTAL, drawn(None), drawn(ak_12)), (100, 40, 0));
         let (rifle, colt) = (Variation::WinchesterAndColt, Variation::Colt);
         assert_eq!((saloon(rifle), saloon(colt)), (10, 10));
         // No twist shares a number with a mode (nor with Scarcity's 7, not on main).

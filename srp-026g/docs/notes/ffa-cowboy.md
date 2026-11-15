@@ -8,7 +8,7 @@ a late joiner and a replay see the same kits.
 ## Rules
 
 - **Two variations** (`cowboy::Variation`), drawn with the card, half and half (my pick: 10 % each
-  of the free-for-all cards, `twist::SHARES`); one name ("FFA: Saloon") for both. A match plays
+  of the free-for-all cards, `twist::shares`); one name ("FFA: Saloon") for both. A match plays
   one for every kit:
   - **Winchester and Colt:** the Winchester 1894 in slot 7 and the Colt Python in slot 10;
   - **the Colt alone:** the Colt Python in slot 7, slot 10 emptied (everyone has the same one gun,

@@ -544,7 +544,7 @@ impl Server {
                     match_id,
                     map_id: formed.played.map().id,
                     mode: formed.played.mode(),
-                    twist: formed.played.twist(),
+                    twist: formed.played.armed(),
                     match_level: formed.match_level,
                     // A room's: called off, as one everyone left before its
                     // countdown (`Game::called_off`).

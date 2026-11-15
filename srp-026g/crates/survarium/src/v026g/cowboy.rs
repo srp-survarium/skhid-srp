@@ -26,7 +26,7 @@ const SECOND: (u8, u8) = (10, 11);
 
 /// The guns of a Saloon match (the owner, 2026-11-14: "saloon should have two variations with
 /// winchesters and colts or just with colts"), drawn half and half with its card
-/// (`twist::SHARES`).
+/// (`twist::shares`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Variation {
     /// The Winchester in weapon 1's slot and the Colt in weapon 2's; a kit that carries one weapon
@@ -149,9 +149,12 @@ impl Guns {
         })
     }
 
-    /// The ammunition of the guns: the Winchester's and the Colt's.
-    pub fn ammo(&self) -> [u16; 2] {
-        [self.winchester.ammo, self.colt.ammo]
+    /// The ammunition `variation` gives: the Winchester's and the Colt's, or the Colt's.
+    pub fn ammo(&self, variation: Variation) -> Vec<u16> {
+        match variation {
+            Variation::WinchesterAndColt => vec![self.winchester.ammo, self.colt.ammo],
+            Variation::Colt => vec![self.colt.ammo],
+        }
     }
 }
 

@@ -429,7 +429,8 @@ fn a_racket_match_arms_every_profile_it_gives_late_joiners_too() {
         *player = sniper(player.clone());
     }
     let map = maps::MatchMap::of(map_id()).unwrap();
-    made.played = Played::twisted(map, Armed::Racket).expect("a free-for-all's");
+    let racket = Armed::Racket(survarium::v026g::racket::Gun::Ak12);
+    made.played = Played::twisted(map, racket).expect("a free-for-all's");
     let racket = registry.create_growing(made).unwrap().match_id;
     assert_eq!(registry.formed(racket).unwrap().played.twist(), Some(Twist::Racket));
     assert_eq!(guns(&registry, racket), [gun("ak_12"); 2]);

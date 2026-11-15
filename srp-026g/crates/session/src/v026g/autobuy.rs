@@ -55,7 +55,7 @@ use survarium::v026g::item_params::{item_params, shop_unit};
 use survarium::v026g::lobby::{SpentMoney, limits};
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::prices;
-use survarium::v026g::twist::Twist;
+use survarium::v026g::twist::Armed;
 
 use super::account::Account;
 
@@ -144,7 +144,7 @@ fn used_by_counters(account: &Account, shots: &[u32], buckshot: Option<u16>) -> 
 /// changes before play began, `twist` the twist the match armed its kits
 /// with: then they were not the account's, without a block the counters
 /// prove nothing of its stacks, and the ammo the twist gives
-/// ([`Twist::gives`]) is nobody's, never charged though the account owns
+/// ([`Armed::gives`]) is nobody's, never charged though the account owns
 /// that kind too. Call it before the match's pay or
 /// drop changes a stack. See the module.
 pub fn used(
@@ -152,7 +152,7 @@ pub fn used(
     supplies: Option<&Supplies>,
     shots: &[u32],
     respawns: u32,
-    twist: Option<Twist>,
+    twist: Option<Armed>,
 ) -> Vec<(u16, u32)> {
     let dictionary = Dictionary::shared();
     let buckshot = dictionary.item_named(BUCKSHOT).map(|item| item.dict_id);
@@ -179,7 +179,7 @@ pub fn used(
         None if twist.is_some() => Vec::new(),
         None => used_by_counters(account, shots, buckshot),
     };
-    if let Some(given) = twist.map(Twist::gives) {
+    if let Some(given) = twist.map(Armed::gives) {
         used.retain(|(dict_id, _)| !given.contains(dict_id));
     }
     // Never more than the account owns.
@@ -258,6 +258,8 @@ pub fn settle(account: &mut Account, used: &[(u16, u32)]) -> Settled {
 mod tests {
     use super::*;
     use crate::v026g::account::KitSlot;
+    use survarium::v026g::cowboy::Variation;
+    use survarium::v026g::racket::Gun;
     use survarium::v026g::lobby::FULL_CONDITION;
     use survarium::v026g::lobby::client_model::{Client, Decoded};
     use survarium::v026g::match_msgs::players::ItemLeft;
@@ -430,7 +432,7 @@ mod tests {
         // Without the block the fallback, the kit's counter, charges the 300.
         assert_eq!(used(&account, None, &[300, 0, 0], 0, None), [(rounds, 300)]);
         // Not in a twisted match: its kits were not the account's.
-        assert_eq!(used(&account, None, &[300, 0, 0], 0, Some(Twist::Racket)), []);
+        assert_eq!(used(&account, None, &[300, 0, 0], 0, Some(Armed::Racket(Gun::Ak12))), []);
     }
 
     /// A twisted match never charges the ammo its twist gave, though the
@@ -439,7 +441,8 @@ mod tests {
     #[test]
     fn the_ammo_a_twist_gives_is_never_charged() {
         let (mut account, _, _) = rifleman(300);
-        let given = Twist::Cowboy.gives()[1];
+        let colt = Armed::Cowboy(Variation::Colt);
+        let given = colt.gives()[0];
         let own = account.add_item(given, 200);
         account.kits[1].slots[9] = Some(KitSlot {
             item_id: own,
@@ -452,7 +455,7 @@ mod tests {
             [(rounds, 30), (given, 30)]
         );
         assert_eq!(
-            used(&account, Some(&supplies), &[30, 0, 0], 0, Some(Twist::Cowboy)),
+            used(&account, Some(&supplies), &[30, 0, 0], 0, Some(colt)),
             [(rounds, 30)]
         );
     }
