@@ -1017,7 +1017,7 @@ mod tests {
     }
 
     fn mate(place: Place, x: f32, z: f32, playing: Option<(Role, u32)>) -> Mate {
-        Mate { place, feet: Vec3::new(x, 0.0, z), free: true, playing }
+        Mate { place, feet: Vec3::new(x, 0.0, z), free: true, playing, offer: None }
     }
 
     /// [Breach] A due spot opens with the two nearest free crossers out of his lanes and the next as the pinner; a crosser that

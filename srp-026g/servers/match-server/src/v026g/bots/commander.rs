@@ -300,7 +300,9 @@ fn threat_tick(
                     (plays::PlayKind::Breach, plays::TargetRef::ThreatSpot(id)) => Some((threat::Role::Crosser, id)),
                     _ => None,
                 });
-                Some(threat::Mate { place: b.place, feet: p.feet, free: !objective.is_actor(p) && !b.reflex.dry(), playing })
+                // [A391] The last offer of the role it holds (none held: none).
+                let offer = threat.jobs.iter().find_map(|j| j.role_of(b.place)).and_then(|role| b.offers.last(role).map(|offer| (role, offer)));
+                Some(threat::Mate { place: b.place, feet: p.feet, free: !objective.is_actor(p) && !b.reflex.dry(), playing, offer })
             })
             .collect();
         let mut holds = match tuning.threat.cue_merge_m {
@@ -369,6 +371,8 @@ fn threat_tick(
             objective_areas: &areas,
             breach_roles,
             flank_from: spare.then_some(&starts_at as &dyn Fn(Vec3) -> Vec<Vec3>),
+            role_offer: tuning.threat.job_role_offer,
+            strongest_first: tuning.threat.job_strongest_first,
         };
         let spots = &threat.spots;
         // [threat.concede] A job on an area conceded ends: the fight side's (`Concede::refuse_fights`).

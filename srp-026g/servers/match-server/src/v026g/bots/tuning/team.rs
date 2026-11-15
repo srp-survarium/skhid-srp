@@ -668,6 +668,13 @@ pub struct ThreatTuning {
     /// (off: opened, then dropped at the tick's end, holding the slot that
     /// tick, every tick; verify-703 should-fix 2).
     pub job_open_staffed: bool,
+    /// [A391] A job role whose play its bot was asked for and not offered (no spot, set aside, dry, low health) is let go
+    /// at once, not after `threat::JOB_START_MS`, so it goes to a mate that can take it (`threat::Mate::offer`). Off: the
+    /// window alone.
+    pub job_role_offer: bool,
+    /// [A391] New jobs try the held spots with the most kills first, so a shooter's job opens on his strongest spot and falls
+    /// back to the next when that one rests or cannot be staffed (`threat::opening_order`). Off: in the held spots' order.
+    pub job_strongest_first: bool,
     /// K2: a role goes to a bot out of every held line (off: out of the
     /// holds' only, `job_kills`; verify-703 should-fix 3). OFF by default:
     /// alone against the four follow-ups off (96 pairs by side, 2026-10-29)
@@ -1014,6 +1021,8 @@ impl Default for ThreatTuning {
             crossfire_out_of_lines: true,
             whole_route_booked: true,
             job_open_staffed: true,
+            job_role_offer: true,
+            job_strongest_first: true,
             job_out_of_all_lines: false,
             job_line_by_id: true,
             job_spot_levels: false,
