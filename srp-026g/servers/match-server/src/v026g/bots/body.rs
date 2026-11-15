@@ -1367,6 +1367,8 @@ impl BodyTrack {
             estimate.step_creep = match creep_at_fix {
                 Creep::Run => Creep::OnSite,
                 Creep::OnSite | Creep::Unknown => Creep::Unknown,
+                // Not with both legs broken (the test above): kept as it is.
+                Creep::Free => Creep::Free,
             };
         }
         // [A318] A world that has the body more than a step over its floor, out of its own jump, has it falling
