@@ -303,9 +303,9 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     plane (13.21, the roof is drawn at 13.45) in two strips and nothing between or beyond them, so
     a player stood 0.24 m in the roof and fell through it off a strip. Three boxes cover what
     native Vostok's walker roof covers, but the part broken round the tree; native's is right.
-  - v0.11: the fence behind the checkpoint ends at the roof's height (5.6), where native Vostok
-    and v0.21 have their boundary plane to 13.2: a wall box over it to 13.2, so nobody steps off
-    the roof out of the map.
+  - Only where a roof is drawn (the owner, 2026-11-15: "only collission where there is roof").
+    v0.11's fence behind the checkpoint ends at the roof's height (5.6), where native Vostok and
+    v0.21 have their boundary plane to 13.2; it gets no wall.
 - **Mamayev Kurgan v0.21 at the owner's picks** (2026-11-15: 66 `where` places,
   `private/spawn-examples/mamayev021-2026-11-14.tsv`; "just mine for all maps"). Content edit
   `ffa-mamayev-v021-picks-1`, from `scripts/ffa-mode/mamayev-v021-picks.tsv` (`picks --harmful-ok

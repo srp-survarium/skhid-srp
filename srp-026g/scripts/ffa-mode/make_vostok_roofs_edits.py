@@ -16,12 +16,12 @@ on the roofs as they are drawn (the models' LOD0 meshes):
 - the long building (`hospital`) on the two ports: their walker mesh has the top floor's ceiling plane
   (13.21, 0.24 m under the roof drawn at 13.45) in two strips and nothing between and beyond them, so
   a player walked off a strip through the roof. Three boxes cover the roof as native Vostok's walker
-  mesh does, but the part broken round the tree. Native Vostok's is right already;
-- Vostok v0.11's fence behind the checkpoint ends at the roof's height (5.6): a wall over it to 13.2,
-  where native Vostok and v0.21 have their boundary plane, keeps a player from stepping off the roof
-  out of the map.
+  mesh does, but the part broken round the tree. Native Vostok's is right already.
 
-Free for All's own projects only; before the maps' picks lists, whose roof spawns stand on these.
+Collision only where a roof is drawn (the owner, 2026-11-15: "only collission where there is roof"):
+Vostok v0.11's fence behind the checkpoint ends at the roof's height, where the other two maps have
+their boundary plane to 13.2, and gets no wall. Free for All's own projects only; before the maps'
+picks lists, whose roof spawns stand on these.
 """
 import make_edits as base
 
@@ -48,7 +48,6 @@ LONG_BUILDING = [
     ([-58.8, 13.33, -2.9], [0.0, 0.0, 0.0], [4.75, 0.12, 8.85]),
     ([-51.8, 13.33, 4.3], [0.0, 0.0, 0.0], [2.25, 0.12, 1.65]),
 ]
-V011_FENCE = [([25.0, 9.4, 34.35], [0.0, 0.0, 0.0], [6.5, 3.8, 0.1])]
 
 ABOUT = (
     'Walker collision on two Vostok roofs Free for All spawns players on (the owner, 2026-11-15: "we want the '
@@ -58,9 +57,9 @@ ABOUT = (
     '(cgroup 2, cmask 4), their tops on the roofs as drawn. The checkpoint\'s roof, which stopped bullets only, '
     'on native Vostok (three weathers), v0.21 and v0.11: its slab (5.64), its lower east part (5.0) and its '
     'porch\'s slope; the long building\'s roof (13.45) on v0.21 and v0.11, whose walker mesh was the ceiling '
-    'plane 0.24 m under it in two strips with nothing between (native Vostok\'s is right); on v0.11 a wall over '
-    'the fence behind the checkpoint, to 13.2 as the other two maps\' boundary there. The free for all\'s own '
-    'projects only; before the maps\' picks lists, whose roof spawns stand on these.')
+    'plane 0.24 m under it in two strips with nothing between (native Vostok\'s is right). Only where a roof is '
+    'drawn. The free for all\'s own projects only; before the maps\' picks lists, whose roof spawns stand on '
+    'these.')
 
 
 def rows(path, boxes):
@@ -76,8 +75,8 @@ def edits():
     out = {'_about': ABOUT, 'add_entry': []}
     for path in NATIVE:
         out['add_entry'] += rows(path, CHECKPOINT)
-    out['add_entry'] += rows(V021, CHECKPOINT + LONG_BUILDING)
-    out['add_entry'] += rows(V011, CHECKPOINT + LONG_BUILDING + V011_FENCE)
+    for path in (V021, V011):
+        out['add_entry'] += rows(path, CHECKPOINT + LONG_BUILDING)
     return out
 
 
