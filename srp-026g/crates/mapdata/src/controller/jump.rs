@@ -137,14 +137,13 @@ fn root(clip: &ClipKeys, frame: f64) -> [f64; 3] {
 }
 
 /// The jump's clips and their weights for a press.
+#[derive(Clone, Copy)]
 struct Driver {
     press: Press,
     /// Short: `on_site` at `w`, `on_site_fwd` at 1 - w. Sprint: the leg's clip alone (`w` 0).
     a: &'static ClipKeys,
     b: &'static ClipKeys,
     w: f64,
-    /// The forward key held in the air ([`Keys::air_forward`]).
-    air_forward: bool,
     flight: Flight,
 }
 
@@ -153,14 +152,14 @@ impl Driver {
         match press {
             Press::Walk { speed } => {
                 let w = 1.0 - f64::from((speed.max(1.0) / FORWARD_LANDING_S).min(0.99));
-                Self { press, a: &jump_clips::ON_SITE, b: &jump_clips::ON_SITE_FWD, w, air_forward: true, flight }
+                Self { press, a: &jump_clips::ON_SITE, b: &jump_clips::ON_SITE_FWD, w, flight }
             }
             Press::Sprint { leg, .. } => {
                 let clip = match leg {
                     Leg::Left => &jump_clips::SPRINT_FROM_LEFT_LEG,
                     Leg::Right => &jump_clips::SPRINT_FROM_RIGHT_LEG,
                 };
-                Self { press, a: clip, b: clip, w: 0.0, air_forward: true, flight }
+                Self { press, a: clip, b: clip, w: 0.0, flight }
             }
         }
     }
@@ -208,8 +207,9 @@ impl Driver {
         }
     }
 
-    /// Step n's input, the body heading `(fx, fz)` (unit, flat) with the forward key held.
-    fn input(&self, n: u32, heading: (f32, f32)) -> TickInput {
+    /// Step n's input, the body heading `(fx, fz)` (unit, flat), with the air control `control` in the body's frame (ahead, right),
+    /// m/s, taken only in the air.
+    fn input(&self, n: u32, heading: (f32, f32), control: (f32, f32)) -> TickInput {
         let (ahead, side, mut rise) = self.motion(n);
         if n == self.press.takeoff_n() {
             rise += self.flight.dy;
@@ -227,11 +227,8 @@ impl Driver {
                 wz *= cap / l;
             }
         }
-        // The forward key: the air control ahead at 1 m/s in a short jump, none in a sprint jump.
-        let air_control = match self.press {
-            Press::Walk { .. } if air && self.air_forward => Vec3::new(fx * AIR_CONTROL_MS, 0.0, fz * AIR_CONTROL_MS),
-            _ => Vec3::ZERO,
-        };
+        // The keys' air control in the air, (ahead, right) to the map's frame.
+        let air_control = if air { Vec3::new(fx * control.0 + fz * control.1, 0.0, fz * control.0 - fx * control.1) } else { Vec3::ZERO };
         TickInput { walk: Vec3::new(wx, rise, wz), air_control, crouch: CrouchInput::Held { key: false }, sprinting: false }
     }
 }
@@ -313,22 +310,14 @@ pub fn fly_as(
     flight: Flight,
 ) -> Vec<FlightStep> {
     let cap = flight.cap;
-    let mut driver = Driver::new(press, flight);
-    driver.air_forward = keys.air_forward;
+    let mut flying = Flying::new(press, flight);
     let landing = press.landing_n();
     let mut steps = Vec::with_capacity((landing + ground_steps) as usize + 1);
-    let mut last_travel = 0.0f32;
-    for n in 0..=landing {
-        if n == press.takeoff_n() {
-            c.jump();
-        } else if n == landing {
-            c.end_jump();
-        }
-        let input = driver.input(n, heading);
-        c.tick(world, DT, s, input);
-        last_travel = Vec3::new(input.walk.x, 0.0, input.walk.z).length() / DT;
-        steps.push(FlightStep { n, feet: c.feet(), in_jump: c.jumping, on_ground: c.on_ground(s) });
+    let air = Flying::air_of(press, keys.air_forward);
+    while !flying.landed() {
+        steps.push(flying.step(world, s, c, heading, air));
     }
+    let last_travel = flying.last_travel();
     let way = Vec3::new(heading.0, 0.0, heading.1);
     for m in 1..=ground_steps {
         let ramp = m.min(6) as f32 / 6.0;
@@ -341,6 +330,86 @@ pub fn fly_as(
         steps.push(FlightStep { n: landing + m, feet: c.feet(), in_jump: c.jumping, on_ground: c.on_ground(s) });
     }
     steps
+}
+
+/// [A388 step 3] A jump flown one step at a time ([`fly_as`] is a loop over it): each step's heading and air control are the caller's
+/// for that step, as the client takes each step's input (the heading after the input before it, `apply_rotation` 0x2D8AD0, rig
+/// rule 7; the air control by that step's keys).
+#[derive(Clone, Copy)]
+pub struct Flying {
+    driver: Driver,
+    /// The next step's number (0: the press's).
+    n: u32,
+    /// The last step's horizontal walk, m/s.
+    last_travel: f32,
+}
+
+impl std::fmt::Debug for Flying {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Flying").field("press", &self.driver.press).field("n", &self.n).finish_non_exhaustive()
+    }
+}
+
+/// Two flights are the same when their press, body and world, step and last travel are (the driver follows from the first two).
+impl PartialEq for Flying {
+    fn eq(&self, other: &Self) -> bool {
+        (self.driver.press, self.driver.flight, self.n, self.last_travel.to_bits())
+            == (other.driver.press, other.driver.flight, other.n, other.last_travel.to_bits())
+    }
+}
+
+impl Flying {
+    /// A jump pressed with `press` by the body and world `flight`.
+    pub fn new(press: Press, flight: Flight) -> Self {
+        Self { driver: Driver::new(press, flight), n: 0, last_travel: 0.0 }
+    }
+
+    /// The press flown.
+    pub fn press(&self) -> Press {
+        self.driver.press
+    }
+
+    /// The next step's number.
+    pub fn n(&self) -> u32 {
+        self.n
+    }
+
+    /// Whether the landing step (`Press::landing_n`) is flown.
+    pub fn landed(&self) -> bool {
+        self.n > self.driver.press.landing_n()
+    }
+
+    /// The last step's horizontal walk, m/s (the clip's last travel, which a walk after the landing ramps from).
+    pub fn last_travel(&self) -> f32 {
+        self.last_travel
+    }
+
+    /// The air control of `keys`' direction keys in a jump of `press`, in the body's frame (ahead, right), m/s: the forward key
+    /// 1 m/s ahead in a short jump and none in a sprint jump ([`fly_as`]); the side keys are not flown here (the flyer has the
+    /// forward clips only).
+    pub fn air_of(press: Press, forward: bool) -> (f32, f32) {
+        match press {
+            Press::Walk { .. } if forward => (AIR_CONTROL_MS, 0.0),
+            _ => (0.0, 0.0),
+        }
+    }
+
+    /// One step of body `c` heading `heading` (flat, unit) with the air control `air` (body frame, m/s, taken only in the air):
+    /// `jump` at the take-off step, `end_jump` at the landing step, then the controller's tick.
+    pub fn step(&mut self, world: &Collision, s: &Settings, c: &mut Controller, heading: (f32, f32), air: (f32, f32)) -> FlightStep {
+        let n = self.n;
+        let press = self.driver.press;
+        if n == press.takeoff_n() {
+            c.jump();
+        } else if n == press.landing_n() {
+            c.end_jump();
+        }
+        let input = self.driver.input(n, heading, air);
+        c.tick(world, DT, s, input);
+        self.last_travel = Vec3::new(input.walk.x, 0.0, input.walk.z).length() / DT;
+        self.n += 1;
+        FlightStep { n, feet: c.feet(), in_jump: c.jumping, on_ground: c.on_ground(s) }
+    }
 }
 
 /// [A385] The floor a run-up's walk-up to `speed` takes ([`run_up`]: 6 steps ramping to the speed, k / 6 of it at step k), m.
