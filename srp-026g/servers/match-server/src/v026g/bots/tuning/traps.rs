@@ -38,15 +38,6 @@ pub struct TrapTuning {
     /// habit as it was (the best of the eight yaws round the feet at once). On by default (A169, with
     /// `enemy_near_m` 20): see `enemy_near_m`.
     pub on_the_pass: Option<PassTuning>,
-    /// [A145, A324] A trap for the return of a holder the team killed: the place he held (`know::Defeated`: a held threat spot
-    /// of his with `min_kills` kills, or a place the killer's senses had him staying at) gets a camper job on its way in
-    /// (`camper_job`), wanted the job's `death_keep_s` after his death. Needs `camper_job`. The old rule (a wish on the calm habit,
-    /// placed only where a carrier's own route passed the spot) fired 3-5 times in 56 matches: the calm gate refused first near
-    /// the spot (1,387 of the thinks within 10 m of one: an enemy known within 20 m, his mates and his own track), and no bot
-    /// was sent there (`fx-gear-a324-root-cause.md`). Live: he is back within 10 m of a cleared place in 50 % of cases within
-    /// 120 s (`fx-gear-trap-payoff.md`); of 91 human traps at an enemy's killing hold only those on his way in caught him (3 of
-    /// 8; `docs/notes/bear_traps.md`). On by default.
-    pub at_defeated: Option<DefeatedTuning>,
     /// [keep_off] The team's searches keep every known trap of the team at `hard_m`, hard, instead of `FIELD_M` (0.75 m) and the
     /// soft ring; where that leaves no way (a corridor), the search falls back to `FIELD_M`. At the defaults the habit caught its own
     /// side as often as the enemy (A318 check, every bench's OFF arm: 123 own vs 106 enemy catches): 72 % were mates, most 10 s or
@@ -61,13 +52,6 @@ pub struct TrapTuning {
     /// millisecond 1.50-2.11 m away, which then stood unknown to the team (5 of 23 own-team catches were of traps the victim's
     /// team did not know).
     pub promise_match: PromiseMatch,
-    /// [A145, A324] When the holder of a place a camper job runs on (a K2 job's spot, a battery hold) dies, its way-in point
-    /// stays wanted for his return, the job's `death_keep_s` from his death (else the point goes with the job). Needs
-    /// `camper_job`. Not his death point: live humans almost never trap one (5 of 1,554 traps within 10 m of a killing hold
-    /// after his death, no catch), and a trap there caught the clearing team as often (it crosses the point in 38 % of cases,
-    /// `fx-gear-trap-payoff.md`); the old rule (a wish on the calm habit) never placed: all 1,961 placer thinks stopped at the
-    /// calm gate (`fx-grid-a252-breach-trap.md`). On by default.
-    pub at_cleared: Option<ClearedTuning>,
     /// [A324] Where the habit counts a released trap as lying, and so when it lets the key go. The client places a trap on
     /// the key's release where a ray from the head along the view meets the walk geometry within 2.0 m, on flat ground only
     /// (normal.y at least cos 30 deg), not on another trap's sensor (`try_to_place_trap` 0x305EA0, `docs/notes/bear_traps.md`,
@@ -77,16 +61,26 @@ pub struct TrapTuning {
     /// default and the all-off patch keeps it (`KEPT_RIGHT`).
     pub release: TrapRelease,
     /// [A324] The camper trap job: a place an enemy holds (a held spot the team has a K2 job on, the 2-kill cue; a man it holds
-    /// off from at a loose battery; with `at_cleared` / `at_defeated` such a place after his death) gets a bot with a trap SENT
+    /// off from at a loose battery), while he holds it, gets a bot with a trap SENT
     /// to put one on his way in (the way from his side's spawns, `near_m`..`far_m` before the place, where a crouched placer and
     /// he cannot see each other, `traps::out_of_his_sight`). It walks there in its own play (`TrapSpot`, crouched where that
     /// hides it and at the point) and places with the job's own gate (an enemy seen, not one only known near; no chance roll).
     /// Live (`docs/notes/bear_traps.md`, "Human traps at a holder's place"): of 91 human traps at an enemy's killing hold in the
     /// live traps record, the 8 on his way in caught him 3 times, the 83 others never (small n). The calm habit's no-detour wish,
-    /// which near such a place its enemy gate refuses first, is gone (A324 root cause). On by default; every point, sending,
+    /// which near such a place its enemy gate refuses first, is gone (A324 root cause), and so are the sends after a holder's
+    /// death (the old `at_defeated` and `at_cleared`): they were 68 of the 78 deaths of sent bots on the bench (87 %), sent at
+    /// his death into the area of the kill, and the human holder catches all came from traps laid before his hold. On by default; every point, sending,
     /// letting go and trap is a note, and a let-go or trap note gives the gate's "enemy seen" refusals at the point by whom and
     /// pose.
     pub camper_job: Option<CamperJob>,
+    /// [traps.look_over_heard] The trap look takes the view over a glance, or over the reflex's sights-up aim at an enemy only
+    /// heard or told of (A393), while the gate's own enemy-near check is clear; a seen target, a threat look (a hit, a near
+    /// shot), fire, legs or a use still win at once (`traps::trap_calm`). Root cause: on the plain bench (no stand-in camper,
+    /// 600 s, Rudnya) the habit planned about 56 traps a match and placed under one; of 392 looks called away 294 were that
+    /// sights-up aim and 85 a glance, after the gate had passed: the plan and the reflex disagreed on "an enemy near". A glance
+    /// already gives way to a use, a carry or a run (`drive.rs`). Each look that takes the view over one is a note (range, age).
+    /// On by default; off: every reflex look calls the trap look away, as before.
+    pub look_over_heard: bool,
     /// The ring round a standing own trap the team's searches keep out as a preference (soft: a way round where
     /// that is not much longer, else through), metres from its centre; a route that runs within it is searched
     /// again once for each change of the traps. The hard field (0.75 m) is not enough: of the mates' bodies that
@@ -174,23 +168,6 @@ pub struct TrapTuning {
     /// think (200-400 ms) puts the trap in its field. Without it a walker presses with the landing on its own way and steps on
     /// it 0.1-0.6 s later. **On by default**, kept right (`KEPT_RIGHT`): pressing onto its own path is wrong by the client.
     pub press_clear: Option<PressClear>,
-}
-
-/// [A324] Which killed holders' places get a way-in job (`TrapTuning::at_defeated`).
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct DefeatedTuning {
-    /// A held threat spot is a holder's only when it killed at least this many of the team's bots: the team's K2 cue, a held
-    /// spot of 2 kills (`threat.job_kills`; a holder, as the camper class of `an-anticamper.md` is: one who kills from one place
-    /// again and again). A place the killer's own senses had the enemy staying at for `camp_ms` counts whatever the spot's
-    /// kills.
-    pub min_kills: u8,
-}
-
-impl Default for DefeatedTuning {
-    fn default() -> Self {
-        Self { min_kills: 2 }
-    }
 }
 
 /// [keep_off] How far the team keeps off its own known traps (`TrapTuning::keep_off`).
@@ -375,20 +352,11 @@ impl Default for AfterPress {
     }
 }
 
-/// [A324] A camper job's place kept for its holder's return after his death (`TrapTuning::at_cleared`): no numbers of its own
-/// (the job's `death_keep_s`).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct ClearedTuning {}
-
 /// [A324] The camper trap job's rule (`TrapTuning::camper_job`). The numbers are placement choices (the owner: only where to trap
 /// is tuned on benches); the trap's own values are the client's (`bear_traps.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CamperJob {
-    /// A place's way in is wanted this long after its holder's death (`at_cleared`, `at_defeated`), seconds: live, he is back
-    /// within 10 m a median 31 s after it and within 1 m a median 46 s (P75 77 s, `fx-gear-trap-payoff.md`).
-    pub death_keep_s: f32,
     /// The way in: points every `step_m` from `near_m` to `far_m` before the place along the way from his side's spawns; the
     /// first his eye there does not see (for the placer's crouched eye) is the one trapped. Live, the human traps on a killing
     /// holder's way in lay a median 15.6 m from his place (P25 5.8, P75 22.1, n 83; `docs/notes/bear_traps.md`): the 6-20 m
@@ -409,7 +377,7 @@ pub struct CamperJob {
 
 impl Default for CamperJob {
     fn default() -> Self {
-        Self { death_keep_s: 60.0, near_m: 6.0, far_m: 20.0, step_m: 3.0, max_walk_m: 30.0, give_up_s: 45.0, within_m: 1.5, friend_m: 4.0 }
+        Self { near_m: 6.0, far_m: 20.0, step_m: 3.0, max_walk_m: 30.0, give_up_s: 45.0, within_m: 1.5, friend_m: 4.0 }
     }
 }
 
@@ -572,12 +540,11 @@ impl Default for TrapTuning {
             lateral_m: 0.9,
             route_ahead_m: 12.0,
             on_the_pass: Some(PassTuning::default()),
-            at_defeated: Some(DefeatedTuning::default()),
             keep_off: Some(KeepOff::default()),
             promise_match: PromiseMatch::Reach,
-            at_cleared: Some(ClearedTuning {}),
             release: TrapRelease::Client,
             camper_job: Some(CamperJob::default()),
+            look_over_heard: true,
             ring_m: 1.3,
             friend_m: 2.5,
             near_own_m: 4.0,
@@ -624,11 +591,9 @@ impl Check for TrapTuning {
                 .is_none_or(|p| p.route_ahead_m >= 2.0 && p.route_ahead_m <= self.route_ahead_m && p.gain >= 0.0),
             "traps.on_the_pass",
         )?;
-        check(self.at_defeated.is_none_or(|d| (1..=5).contains(&d.min_kills)), "traps.at_defeated")?;
         check(
             self.camper_job.is_none_or(|j| {
-                j.death_keep_s > 0.0
-                    && j.step_m > 0.0
+                j.step_m > 0.0
                     && j.near_m >= 1.0
                     && j.far_m >= j.near_m
                     && j.max_walk_m > 0.0

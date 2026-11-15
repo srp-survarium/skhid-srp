@@ -2280,6 +2280,21 @@ pub(crate) fn real_bot_cost() {
                     "  traps (stand-in): placed {placed}, caught enemy {enemy} mate {mate} own {own}, shot off {shot}, defused by hand {hand}"
                 );
                 eprintln!("{}", game.traps.catch_summary());
+                // [A324] The placers killed within 5 s after a placement (by the stand-in game's kills, any killer).
+                let placed: Vec<(u32, usize)> = game
+                    .traps
+                    .events
+                    .iter()
+                    .filter_map(|e| match *e {
+                        super::standin_traps::Event::Placed { tick, place, .. } => Some((tick, place)),
+                        _ => None,
+                    })
+                    .collect();
+                let killed = placed
+                    .iter()
+                    .filter(|&&(tick, place)| game.kills_all.iter().any(|&(t, _, victim)| victim == place && (tick..=tick + 5_000).contains(&t)))
+                    .count();
+                eprintln!("  trap placers killed within 5 s after the placement: {killed} of {}", placed.len());
                 for line in game.traps.catch_lines() {
                     eprintln!("{line}");
                 }

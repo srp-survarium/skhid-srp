@@ -717,7 +717,26 @@ fn drive_tick_inner(
         && !using
         && bot.reflex.target().is_none();
     let reacts = bot.control.reacts();
-    let trap = if reacts { traps::drive(bot, me, time, calm, intent.crouch, &tuning.traps, Some(&tactics.world.sight)) } else { None };
+    // [traps.look_over_heard] The trap look's own calm: a glance or a heard-only aim gives way to it (`traps::trap_calm`).
+    let (trap_calm, over_heard) = traps::trap_calm(
+        traps::CalmFacts {
+            over: &over,
+            target: bot.reflex.target().is_some(),
+            threat: bot.reflex.gates().bits & super::reflex::gate::THREAT != 0,
+            using,
+            // Read only while the habit looks or presses: idle, the trap look takes nothing.
+            enemy_near: bot.features.traps.habit.state() != traps::State::Idle
+                && traps::enemy_near_at(bot, me.feet, time, view.clock, &tuning.traps),
+            feet: me.feet,
+            now: time,
+        },
+        &tuning.traps,
+    );
+    let trap = if reacts {
+        traps::drive(bot, me, time, trap_calm, intent.crouch, &tuning.traps, Some(&tactics.world.sight), over_heard)
+    } else {
+        None
+    };
     let aim = match trap.and_then(|trap| trap.look) {
         Some(traps::LookAt::Point(point)) => Some(aim_at(point)),
         Some(traps::LookAt::Angles { yaw, pitch }) => Some((yaw, pitch)),

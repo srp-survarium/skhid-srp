@@ -642,6 +642,8 @@ pub(crate) struct Game {
     /// Every kill: (tick, the shooter, the killed), for the bench's
     /// events (`SRP_BENCH_EVENTS`).
     pub(crate) kill_log: Vec<(u32, Place, Place)>,
+    /// [A324] The same, kept for the whole match (`kill_log` is taken by the trace writer): the trap lines' placer deaths.
+    pub(crate) kills_all: Vec<(u32, Place, Place)>,
     /// Every teammate's death ([`TeamKill`]), for the owner counts.
     pub(crate) team_kill_log: Vec<TeamKill>,
     /// The next [`Self::kill`] is a grenade's blast (set around its call).
@@ -1024,6 +1026,7 @@ impl Game {
             carrier_kills: Vec::new(),
             carry_kill_lines: Vec::new(),
             kill_log: Vec::new(),
+            kills_all: Vec::new(),
             team_kill_log: Vec::new(),
             kill_by_frag: false,
             hit_log: Vec::new(),
@@ -2454,6 +2457,7 @@ impl Game {
         if kind != Kill::Own {
             self.kill_log.push((tick, killer, target));
         }
+        self.kills_all.push((tick, killer, target));
         self.stats[target].1 += 1;
         self.stats[target].2 = 0;
         if let Some(tickets) = self.tickets.as_mut() {

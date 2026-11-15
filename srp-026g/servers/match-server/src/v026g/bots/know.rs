@@ -791,30 +791,13 @@ pub struct Fighting {
     pub since: u32,
 }
 
-/// [A324] The keys of killed holders' way-in jobs ([`TeamKnowledge::camper_key`]): `CAMPER_KEY` and the next `CAMPER_KEYS`.
-pub const CAMPER_KEY: u32 = 0x2000_0000;
-const CAMPER_KEYS: u32 = 0x1000_0000;
-
 /// Losses are kept this long, ms.
 pub const LOSS_KEEP_MS: u32 = 120_000;
-
-/// Where an enemy the team killed had held a place: a held threat spot of his (K1) or a place the killer's own sense had him staying
-/// at (a camp). The next one to hold it is likely to come to the same cover, so a trap there is worth more than the lanes alone say
-/// (`TrapTuning::at_defeated`).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Defeated {
-    pub at: Vec3,
-    pub time: u32,
-    /// The enemy that held it.
-    pub shooter: Place,
-    pub kind: DefeatedKind,
-}
 
 /// [A324, `TrapTuning::camper_job`] A held place's way-in point the team wants a trap on, and how far its job has come.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CamperTrap {
-    /// The job's key: the held line's id (`threat::HeldLine::id`: a held spot's, or a battery hold's), or for a killed
-    /// holder's place one of [`TeamKnowledge::camper_key`]'s.
+    /// The job's key: the held line's id (`threat::HeldLine::id`: a held spot's, or a battery hold's).
     pub spot: u32,
     pub shooter: Place,
     /// The place he holds (held), where his eye is for the "out of his sight" tests.
@@ -834,8 +817,6 @@ pub enum CamperTrapKind {
     Job,
     /// A man the team holds off from at a loose battery (`take.clear_first`): while his hold lives.
     Battery,
-    /// [`TrapTuning::at_cleared`, `at_defeated`] He died holding it: for his return, `death_keep_s` from `died`.
-    Returning { died: u32 },
 }
 
 /// Its job.
@@ -884,15 +865,6 @@ impl SeenRefusals {
             self.nearest_m.map_or(String::new(), |m| format!(", nearest {m:.1} m")),
         )
     }
-}
-
-/// How the killed enemy was known to have held the place.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DefeatedKind {
-    /// A held threat spot of the team's picture ([`super::threat::ThreatSpots::held_of`]).
-    Spot,
-    /// An enemy the killer's own senses had staying at one place.
-    Camp,
 }
 
 /// An enemy a bot of the team saw carrying a battery (a carrier holds it in
@@ -1181,13 +1153,8 @@ pub struct TeamKnowledge {
     pub squad_leaders: Vec<(Place, Place)>,
     /// The team's deaths of the last [`LOSS_KEEP_MS`].
     pub losses: Vec<Loss>,
-    /// The places enemies that held them were killed at ([`Self::defeat`]), each taken by the next commander tick for its
-    /// way-in job (`traps::camper_tick`, `TrapTuning::at_defeated`).
-    pub defeated: Vec<Defeated>,
     /// [A324] The camper trap points the team wants a trap on, and their jobs (`traps::camper_tick`).
     pub camper_traps: Vec<CamperTrap>,
-    /// [A324] The keys handed to killed holders' way-in jobs so far ([`Self::camper_key`]).
-    pub camper_keys: u32,
     /// [A324] Held places (their line's id) on which no way in out of his sight was found (not searched again while held).
     pub camper_no_way: Vec<u32>,
     /// Enemies seen carrying lately.
@@ -1228,24 +1195,6 @@ pub struct TeamKnowledge {
 }
 
 impl TeamKnowledge {
-    /// A holder was killed at `at`: kept for `keep_ms`; one within 4 m of an earlier record renews it (its time, its latest holder).
-    /// Returns whether the record is new.
-    /// [A324] A new key for a killed holder's way-in job: above every held spot's id (`ThreatSpots` counts from 0) and under
-    /// the battery holds' (`threat::BATTERY_LINE_ID`).
-    pub fn camper_key(&mut self) -> u32 {
-        self.camper_keys = (self.camper_keys + 1) % CAMPER_KEYS;
-        CAMPER_KEY + self.camper_keys
-    }
-
-    pub fn defeat(&mut self, defeated: Defeated, keep_ms: u32) -> bool {
-        self.defeated.retain(|d| defeated.time.saturating_sub(d.time) <= keep_ms);
-        if let Some(old) = self.defeated.iter_mut().find(|d| d.at.distance_xz(defeated.at) < 4.0) {
-            *old = defeated;
-            return false;
-        }
-        self.defeated.push(defeated);
-        true
-    }
     /// A bot of the team sensed something: its teammates know it after
     /// `delay_ms`. Only first-hand senses are called out.
     pub fn call_out(&mut self, by: Place, percept: &Percept, delay_ms: u32, callouts: Callouts) {
@@ -1849,29 +1798,6 @@ impl TeamKnowledge {
 
 #[cfg(test)]
 mod tests {
-    /// [A145] A killed holder's spot is kept, one within 4 m renews it, the old ones go.
-    #[test]
-    fn a_killed_holders_spot_is_kept_renewed_and_forgotten() {
-        use super::{Defeated, DefeatedKind, TeamKnowledge};
-        use mapdata::Vec3;
-        let mut team = TeamKnowledge::default();
-        let spot = |x: f32, time: u32| Defeated {
-            at: Vec3::new(x, 0.0, 0.0),
-            time,
-            shooter: 3,
-            kind: DefeatedKind::Spot,
-        };
-        assert!(team.defeat(spot(10.0, 1_000), 60_000));
-        assert!(!team.defeat(spot(12.0, 20_000), 60_000), "within 4 m: the same place");
-        assert_eq!(team.defeated.len(), 1);
-        assert_eq!(team.defeated[0].time, 20_000);
-        assert!(team.defeat(spot(30.0, 30_000), 60_000));
-        assert_eq!(team.defeated.len(), 2);
-        // At 100 s both are over a minute old: gone.
-        assert!(team.defeat(spot(50.0, 100_000), 60_000));
-        assert_eq!(team.defeated.len(), 1);
-    }
-
     use super::*;
 
     /// A throw claim holds against the teammates' rolls, not the thrower's

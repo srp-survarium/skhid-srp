@@ -800,8 +800,6 @@ pub fn hidden_by_crouching(sight: &mapdata::RayTree, held: Vec3, feet: Vec3) -> 
 /// others never (small n; `docs/notes/bear_traps.md`, "Human traps at a holder's place"). The places:
 /// - `sources`: the held spots its K2 jobs run on and the men it holds off from at a loose battery (`take.clear_first`), wanted
 ///   while that lasts;
-/// - with `at_cleared`, such a place's point stays wanted for his return when he dies there (`death_keep_s` from his death);
-/// - with `at_defeated`, the places of the holders the team killed (`know::Defeated`, taken from the list here), for his return.
 ///
 /// The point is the first of his way from his side's nearest spawn, `near_m`..`far_m` before the place, that his eye there does
 /// not see ([`way_in`]); the nearest free bot with a trap within `max_walk_m` is sent (`plays::trap_spot`); a bot not done in
@@ -895,31 +893,11 @@ pub(super) fn camper_tick(
         }
         true
     });
-    // What is over: a place no longer held (or, with `at_cleared`, kept for his return when he died there), a return's time
-    // out. A point with a standing trap of the team on it is trapped (nothing sent, not searched again) while the place lasts;
-    // when that trap is gone it wants another.
+    // What is over: a place no longer held (his death ends it). A point with a standing trap of the team on it is trapped
+    // (nothing sent, not searched again) while the place lasts; when that trap is gone it wants another.
     let standing: Vec<Vec3> = knowledge.traps.standing().map(|k| k.at).collect();
-    let death_ms = (j.death_keep_s * 1000.0) as u32;
     knowledge.camper_traps.retain_mut(|c| {
-        let over = match c.kind {
-            CamperTrapKind::Job | CamperTrapKind::Battery if sources.iter().any(|l| l.id == c.spot) => None,
-            CamperTrapKind::Job | CamperTrapKind::Battery if t.at_cleared.is_some() && !alive(c.shooter) => {
-                c.kind = CamperTrapKind::Returning { died: now };
-                #[cfg(test)]
-                camper::count(team, camper::RETURNING);
-                said.push(format!(
-                    "team {team}: player {} died holding {}: its way in at {} still wants a trap for his return, {:.0} s",
-                    c.shooter,
-                    c.spot,
-                    xyz(c.at),
-                    j.death_keep_s
-                ));
-                None
-            }
-            CamperTrapKind::Job | CamperTrapKind::Battery => Some("the place is no longer held"),
-            CamperTrapKind::Returning { died } if now.saturating_sub(died) > death_ms => Some("his return's time is out"),
-            CamperTrapKind::Returning { .. } => None,
-        };
+        let over = (!sources.iter().any(|l| l.id == c.spot)).then_some("the place is no longer held");
         let trap_on = standing.iter().any(|s| s.distance_xz(c.at) <= j.within_m);
         match c.state {
             CamperTrapState::Open if over.is_none() && trap_on => {
@@ -970,42 +948,6 @@ pub(super) fn camper_tick(
                 #[cfg(test)]
                 camper::count(team, camper::NO_WAY);
                 said.push(format!("team {team}: {:?} {} held by player {} at {}: no way in out of his sight", kind, line.id, line.shooter, xyz(line.at)));
-            }
-        }
-    }
-    // [at_defeated] The holders the team killed: the way in of each one's place, for his return (one point a man).
-    if t.at_defeated.is_some() {
-        for d in std::mem::take(&mut knowledge.defeated) {
-            if now.saturating_sub(d.time) > death_ms || knowledge.camper_traps.iter().any(|c| c.shooter == d.shooter) {
-                continue;
-            }
-            match nearest_home(d.at).and_then(|home| way_in(tactics, home, d.at, &j, now)) {
-                Some(at) => {
-                    let spot = knowledge.camper_key();
-                    knowledge.camper_traps.push(CamperTrap {
-                        spot,
-                        shooter: d.shooter,
-                        held: d.at,
-                        at,
-                        kind: CamperTrapKind::Returning { died: d.time },
-                        state: CamperTrapState::Open,
-                        seen: SeenRefusals::default(),
-                    });
-                    #[cfg(test)]
-                    camper::count(team, camper::NOTED_DEFEATED);
-                    said.push(format!(
-                        "team {team}: player {} killed holding {} ({:?}): his way in at {} wants a trap for his return ({spot})",
-                        d.shooter,
-                        xyz(d.at),
-                        d.kind,
-                        xyz(at)
-                    ));
-                }
-                None => {
-                    #[cfg(test)]
-                    camper::count(team, camper::NO_WAY);
-                    said.push(format!("team {team}: player {} killed holding {}: no way in out of his sight", d.shooter, xyz(d.at)));
-                }
             }
         }
     }
@@ -1066,39 +1008,37 @@ pub mod camper {
 
     pub const NOTED_JOB: usize = 0;
     pub const NOTED_BATTERY: usize = 1;
-    pub const NOTED_DEFEATED: usize = 2;
-    pub const RETURNING: usize = 3;
-    pub const DROPPED: usize = 4;
-    pub const NO_WAY: usize = 5;
-    pub const NO_PLACER: usize = 6;
-    pub const SENT: usize = 7;
-    pub const GAVE_UP: usize = 8;
-    pub const PLACED: usize = 9;
+    pub const DROPPED: usize = 2;
+    pub const NO_WAY: usize = 3;
+    pub const NO_PLACER: usize = 4;
+    pub const SENT: usize = 5;
+    pub const GAVE_UP: usize = 6;
+    pub const PLACED: usize = 7;
     /// Let go: dead; its play was not `TrapSpot` then; it was farther from the point than it places from; it was at the point.
-    pub const GAVE_UP_DEAD: usize = 10;
-    pub const GAVE_UP_NOT_PLAYING: usize = 11;
-    pub const GAVE_UP_FAR: usize = 12;
-    pub const GAVE_UP_AT: usize = 13;
+    pub const GAVE_UP_DEAD: usize = 8;
+    pub const GAVE_UP_NOT_PLAYING: usize = 9;
+    pub const GAVE_UP_FAR: usize = 10;
+    pub const GAVE_UP_AT: usize = 11;
     /// Thinks of a sent bot: on its way; at the point refused by the gate; no look; no spot by the point; waited for it; a trap
     /// planned by the point; one planned elsewhere; a `TrapSpot` play whose job is over (nothing planned).
-    pub const THINK_WALKING: usize = 14;
-    pub const THINK_GATE: usize = 15;
-    pub const THINK_NO_LOOK: usize = 16;
-    pub const THINK_NO_SPOT: usize = 17;
-    pub const THINK_WAITED: usize = 18;
-    pub const THINK_PLANNED: usize = 19;
-    pub const THINK_PLANNED_ELSE: usize = 20;
-    pub const THINK_JOB_OVER: usize = 21;
+    pub const THINK_WALKING: usize = 12;
+    pub const THINK_GATE: usize = 13;
+    pub const THINK_NO_LOOK: usize = 14;
+    pub const THINK_NO_SPOT: usize = 15;
+    pub const THINK_WAITED: usize = 16;
+    pub const THINK_PLANNED: usize = 17;
+    pub const THINK_PLANNED_ELSE: usize = 18;
+    pub const THINK_JOB_OVER: usize = 19;
     /// The gate's "enemy seen" refusals at the point: its camper seen (crouched, standing), only others seen (crouched, standing).
-    pub const SEEN_CAMPER_CROUCHED: usize = 22;
-    pub const SEEN_CAMPER_STANDING: usize = 23;
-    pub const SEEN_OTHER_CROUCHED: usize = 24;
-    pub const SEEN_OTHER_STANDING: usize = 25;
+    pub const SEEN_CAMPER_CROUCHED: usize = 20;
+    pub const SEEN_CAMPER_STANDING: usize = 21;
+    pub const SEEN_OTHER_CROUCHED: usize = 22;
+    pub const SEEN_OTHER_STANDING: usize = 23;
     /// A trapped point whose trap is gone (fired, disarmed, a promise unconfirmed): open again.
-    pub const TRAP_GONE: usize = 26;
-    pub const N: usize = 27;
+    pub const TRAP_GONE: usize = 24;
+    pub const N: usize = 25;
     pub const NAMES: [&str; N] = [
-        "noted_job", "noted_battery", "noted_defeated", "returning", "dropped", "no_way", "no_placer_ticks", "sent", "gave_up", "placed",
+        "noted_job", "noted_battery", "dropped", "no_way", "no_placer_ticks", "sent", "gave_up", "placed",
         "gave_up_dead", "gave_up_not_playing", "gave_up_far", "gave_up_at", "think_walking", "think_gate", "think_no_look",
         "think_no_spot", "think_waited", "think_planned", "think_planned_else", "think_job_over", "seen_camper_crouched",
         "seen_camper_standing", "seen_other_crouched", "seen_other_standing", "trap_gone",
@@ -1152,7 +1092,6 @@ pub mod camper {
         let kind = match kind {
             super::super::know::CamperTrapKind::Job => "job",
             super::super::know::CamperTrapKind::Battery => "battery",
-            super::super::know::CamperTrapKind::Returning { .. } => "returning",
         };
         let at = at.map_or("-".to_string(), |(p, h, seen)| format!("{p:.1}/{h:.1}/{}", if seen { "seen" } else { "hidden" }));
         if let Ok(mut d) = DEATHS.lock() {
@@ -1259,7 +1198,19 @@ pub mod called {
         }
     }
 
+    /// [traps.look_over_heard] Looks that took the view over a reflex look: [a glance, a heard aim].
+    static OVER: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub fn over_heard(aim: bool) {
+        OVER[usize::from(aim)].fetch_add(1, Ordering::Relaxed);
+    }
+
     pub fn line() -> String {
+        let over = format!(
+            "; looks that took the view over a glance {}, over a heard aim {}",
+            OVER[0].load(Ordering::Relaxed),
+            OVER[1].load(Ordering::Relaxed)
+        );
         (0..2)
             .map(|j| {
                 let n = |k: usize| N[j][k].load(Ordering::Relaxed);
@@ -1281,10 +1232,11 @@ pub mod called {
             })
             .collect::<Vec<_>>()
             .join("; ")
+            + &over
     }
 }
 
-/// [A145] The spots of killed holders (`know::Defeated`) a search wants a trap on (`TrapTuning::at_defeated`).
+/// [A145, A324] The bench's counts of the wished spot (a sent bot's camper job point): its thinks, waits and plans, and what refused the candidates by it.
 #[derive(Clone, Copy, Debug)]
 pub struct Wish<'a> {
     pub spots: &'a [Vec3],
@@ -2143,7 +2095,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
             return;
         }
     }
-    let at_defeated = chosen.is_some_and(|c| c.wished);
+    let wished = chosen.is_some_and(|c| c.wished);
     #[cfg(test)]
     if waiting {
         if chosen.is_none() {
@@ -2156,7 +2108,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     let lanes = lanes_of(t, state);
     let here = chosen.map(|c| presence(lanes, c.spot, due.now));
     // Place on the pass: a cell ahead on the route that is richer in enemy lanes than this spot is waited for.
-    if let Some(pass) = t.on_the_pass.filter(|_| !staying && !at_defeated) {
+    if let Some(pass) = t.on_the_pass.filter(|_| !staying && !wished) {
         let last = (pass.route_ahead_m as usize).min(ahead.len().saturating_sub(1));
         let cells: Vec<(usize, f32)> = (PASS_FIRST_M..=last)
             .step_by(PASS_STRIDE_M)
@@ -2378,12 +2330,10 @@ pub mod onpass {
 pub mod defeated {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    pub const NOTED_SPOT: usize = 0;
-    pub const NOTED_CAMP: usize = 1;
-    pub const THINKS: usize = 2;
-    pub const WAITED: usize = 3;
-    pub const PLACED: usize = 4;
-    static TEAM: [[AtomicU64; 5]; 2] = [const { [const { AtomicU64::new(0) }; 5] }; 2];
+    pub const THINKS: usize = 0;
+    pub const WAITED: usize = 1;
+    pub const PLACED: usize = 2;
+    static TEAM: [[AtomicU64; 3]; 2] = [const { [const { AtomicU64::new(0) }; 3] }; 2];
 
     pub const CANDIDATES: usize = 0;
     pub const R_FLOOR: usize = 1;
@@ -2408,9 +2358,7 @@ pub mod defeated {
             .map(|team| {
                 let c = |k: usize| TEAM[team][k].load(Ordering::Relaxed);
                 format!(
-                    "team {team}: holders killed (spot {}, camp {}), thinks with such a spot on the route {}, waited {}, trap placed on one {}",
-                    c(NOTED_SPOT),
-                    c(NOTED_CAMP),
+                    "team {team}: thinks with a wished spot {}, waited {}, trap planned on one {}",
                     c(THINKS),
                     c(WAITED),
                     c(PLACED)
@@ -2631,12 +2579,63 @@ pub mod gates {
 
 /// Whether an enemy is seen now, sensed lately, or known near.
 fn enemy_near(bot: &Bot, due: &Due) -> bool {
-    let t = &due.tuning.traps;
+    enemy_near_at(bot, due.me.feet, due.now, due.view.clock, &due.tuning.traps)
+}
+
+/// [`enemy_near`] for a bot at `feet` at `now` (the view's clock `clock`): the gate's own check, at a think or a tick.
+pub(super) fn enemy_near_at(bot: &Bot, feet: Vec3, now: u32, clock: u32, t: &TrapTuning) -> bool {
     let quiet = (t.enemy_quiet_s * 1000.0) as u32;
-    !bot.memory.all_seen(due.now, due.view.clock).is_empty()
-        || bot.memory.tracks().iter().any(|track| {
-            sensed_lately(t, track, due.me.feet, due.now, quiet) || track.at.distance_xz(due.me.feet) < t.enemy_near_m
-        })
+    !bot.memory.all_seen(now, clock).is_empty()
+        || bot.memory.tracks().iter().any(|track| sensed_lately(t, track, feet, now, quiet) || track.at.distance_xz(feet) < t.enemy_near_m)
+}
+
+/// [`trap_calm`]'s one exception: the reflex's look the trap look took the view over.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum OverHeard {
+    /// A glance (`reflex::Override::glance`), at a place this far off, metres.
+    Glance { m: f32 },
+    /// The sights-up aim at an enemy only heard or told of (`Override::heard_aim`): this far off, sensed this long ago.
+    Aim { m: f32, age_ms: u32 },
+}
+
+/// The facts of a tick the trap look's calm is judged on (`drive.rs`).
+#[derive(Clone, Copy, Debug)]
+pub struct CalmFacts<'a> {
+    pub over: &'a super::reflex::Override,
+    /// The reflex's target (a seen enemy it aims at or keeps).
+    pub target: bool,
+    /// A threat look this tick (`reflex::gate::THREAT`: a hit's shooter, a near shot).
+    pub threat: bool,
+    /// A use within its reach has the view.
+    pub using: bool,
+    /// The trap gate's own enemy-near check ([`enemy_near_at`]).
+    pub enemy_near: bool,
+    pub feet: Vec3,
+    pub now: u32,
+}
+
+/// [traps.look_over_heard] Whether nothing calls the trap look away this tick, and the reflex look it took the view over if
+/// any. Calm: no reflex look, no fire, no legs, no use, no target. With `look_over_heard` (ON) a glance, or the sights-up aim at
+/// an enemy only heard or told of, gives way to the trap look as a glance gives way to a use (`drive.rs`), while the gate's
+/// enemy-near check is clear (nothing seen now, nothing sensed in `enemy_quiet_s` within `sensed_near`, nothing known within
+/// `enemy_near_m`); a seen target, a threat look, fire, legs or a use still win at once. Root cause (the plain bench, 8 matches,
+/// 392 looks called away): the sights-up aim 294 (75 %), a glance 85 (22 %), a seen target 10, a threat look 1; the gate had
+/// passed, so the plan and the reflex disagreed on "an enemy near".
+pub fn trap_calm(f: CalmFacts, t: &TrapTuning) -> (bool, Option<OverHeard>) {
+    let over = f.over;
+    let others = !over.fire && over.legs.is_none() && !f.using && !f.target;
+    let Some(look) = over.look_at else {
+        return (others, None);
+    };
+    if !t.look_over_heard || f.threat || f.enemy_near || !others {
+        return (false, None);
+    }
+    let heard = match over.heard_aim {
+        Some((at, sensed)) => Some(OverHeard::Aim { m: at.distance_xz(f.feet), age_ms: f.now.saturating_sub(sensed) }),
+        None if over.glance => Some(OverHeard::Glance { m: look.distance_xz(f.feet) }),
+        None => None,
+    };
+    (heard.is_some(), heard)
 }
 
 /// The gate's "sensed lately": within `enemy_quiet_s`, and with `sensed_near` (A292 S2) only this near.
@@ -2682,6 +2681,7 @@ fn route_ahead(bot: &Bot, me: &PlaceView, t: &TrapTuning) -> (Vec<Vec3>, bool) {
 /// A tick of the body: what the habit asks of the view and the keys, if it
 /// is doing anything. `calm` is false when an enemy is seen or the reflex
 /// aims at one; `crouch` is the crouch the play asks of this tick's input.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn drive(
     bot: &mut Bot,
     me: &PlaceView,
@@ -2690,6 +2690,7 @@ pub(super) fn drive(
     crouch: bool,
     t: &TrapTuning,
     mesh: Option<&mapdata::RayTree>,
+    over_heard: Option<OverHeard>,
 ) -> Option<TrapDrive> {
     let state = bot.features.traps.habit.state();
     // [A292 S4a] From its press to the think that puts the trap in its field (and re-plans round it), the legs stay.
@@ -2703,6 +2704,19 @@ pub(super) fn drive(
         });
     }
     let kit = bot.features.traps.habit.kit()?;
+    // [traps.look_over_heard] The look took the view over a heard aim or a glance: one note a look.
+    if let (Some(heard), State::Looking { since, .. }) = (over_heard, state)
+        && bot.features.traps.over_heard_noted != Some(since)
+    {
+        bot.features.traps.over_heard_noted = Some(since);
+        #[cfg(test)]
+        called::over_heard(matches!(heard, OverHeard::Aim { .. }));
+        let what = match heard {
+            OverHeard::Aim { m, age_ms } => format!("a sights-up aim at an enemy heard or told of {m:.1} m off, {:.1} s ago", age_ms as f32 / 1000.0),
+            OverHeard::Glance { m } => format!("a glance {m:.1} m off"),
+        };
+        bot.features.traps.notes.push((now, format!("{}trap look took the view over {what}, no enemy near", tally::PREFIX)));
+    }
     // The pose the placing is counted on: held from the press to the release.
     let crouched = match state {
         State::Down { crouched, .. } => crouched,
@@ -3002,6 +3016,8 @@ pub struct BotState {
     pub fresh_shut: std::sync::Arc<Vec<NodeId>>,
     /// [A292] Log notes of the ticks since its last think (a press, a look that ended) with their times: the think writes them.
     pub notes: Vec<(u32, String)>,
+    /// [traps.look_over_heard] The look (its start) whose taking of the view over a heard aim or a glance was noted.
+    pub over_heard_noted: Option<u32>,
     /// The bench's: the standing own trap this body last came within 3 m of, and the class it came with
     /// ([`passes`]).
     #[cfg(test)]
@@ -3953,22 +3969,15 @@ mod tests {
         assert_eq!(far.validate().unwrap_err(), "traps.press_landing_m");
     }
 
-    /// [A324] The camper trap job and its two sources after a death are on by default, off in the all-off arm, validated and
-    /// read from a patch.
+    /// [A324] The camper trap job is on by default and off in the all-off arm; the sends after a holder's death are gone (the
+    /// old keys are no tuning's).
     #[test]
-    fn the_camper_job_and_its_sources_are_on_by_default_validated_and_read_from_a_patch() {
-        use crate::v026g::bots::tuning::{DefeatedTuning, Tuning};
-        let on = Tuning::default();
-        assert!(on.traps.camper_job.is_some() && on.traps.at_defeated.is_some() && on.traps.at_cleared.is_some());
-        let off = Tuning::all_off();
-        assert!(off.traps.camper_job.is_none() && off.traps.at_defeated.is_none() && off.traps.at_cleared.is_none());
-        assert_eq!(DefeatedTuning::default().min_kills, 2);
-        let mut bad = Tuning::default();
-        assert!(bad.validate().is_ok());
-        bad.traps.at_defeated = Some(DefeatedTuning { min_kills: 6 });
-        assert_eq!(bad.validate().unwrap_err(), "traps.at_defeated");
-        let patched = Tuning::patched(serde_json::json!({"traps": {"at_defeated": {"min_kills": 3}}})).unwrap();
-        assert_eq!(patched.traps.at_defeated.map(|d| d.min_kills), Some(3));
+    fn the_camper_job_is_on_by_default_and_the_sends_after_a_death_are_gone() {
+        use crate::v026g::bots::tuning::Tuning;
+        assert!(Tuning::default().traps.camper_job.is_some());
+        assert!(Tuning::all_off().traps.camper_job.is_none());
+        assert!(Tuning::patched(serde_json::json!({"traps": {"at_defeated": {}}})).is_err());
+        assert!(Tuning::patched(serde_json::json!({"traps": {"at_cleared": {}}})).is_err());
     }
 
     /// The eye of a pose at the pitch a look down has (`view::eye_height`, up positive).
@@ -4359,11 +4368,11 @@ mod tests {
 
     /// [A324] The camper job's points: a K2 job's spot and a battery hold each get their way in, out of his sight (here past
     /// the field's wall end, the way from the one spawn kept); when the holder dies the point stays for his return with
-    /// `at_cleared` until `death_keep_s`, and goes with the job without it; a killed holder's place (`at_defeated`) gets one,
+    /// nothing after his death: the point goes with the job;
     /// taken off the list, one point a man. Every step is a note.
     #[test]
     fn the_camper_job_traps_the_way_in_of_held_places_and_keeps_it_for_his_return() {
-        use crate::v026g::bots::know::{CamperTrapKind, CamperTrapState, Defeated, DefeatedKind, TeamKnowledge};
+        use crate::v026g::bots::know::{CamperTrapKind, CamperTrapState, TeamKnowledge};
         use crate::v026g::bots::threat::HeldLine;
         let world = crate::v026g::bots::tactics::tests::field_with(|map| map.spawns.retain(|s| s.team == 0));
         let tactics = crate::v026g::bots::tactics::Tactics::new(world, 1.0);
@@ -4402,34 +4411,51 @@ mod tests {
         assert_eq!(notes.iter().filter(|n| n.text.contains("trapped while it stands")).count(), 1, "{notes:?}");
         // The battery's man stands in the open field's east half, seen from all of his way from the west spawn: no way in.
         assert!(k.camper_no_way.contains(&battery.id) || k.camper_traps.iter().any(|c| c.kind == CamperTrapKind::Battery));
-        // He dies: kept for his return, then its time is out.
+        // He dies: the point goes with the job.
         s.view.places.iter_mut().find(|p| p.place == 11).unwrap().alive = false;
-        tick(&mut k, &t, &s.view, &[], 4_000, &mut notes);
-        assert_eq!(k.camper_traps.iter().find(|c| c.spot == 7).map(|c| c.kind), Some(CamperTrapKind::Returning { died: 4_000 }));
-        let out = 4_000 + (j.death_keep_s * 1000.0) as u32 + 1;
-        tick(&mut k, &t, &s.view, &[], out, &mut notes);
-        assert!(k.camper_traps.is_empty(), "{:?}", k.camper_traps);
-        // Without `at_cleared` it goes with the job (the team's traps forgotten: a new point is open).
-        k.traps = Default::default();
-        let no_return = TrapTuning { at_cleared: None, ..t.clone() };
-        s.view.places.iter_mut().find(|p| p.place == 11).unwrap().alive = true;
-        tick(&mut k, &no_return, &s.view, std::slice::from_ref(&line), out + 1, &mut notes);
-        assert_eq!(k.camper_traps.len(), 1);
-        s.view.places.iter_mut().find(|p| p.place == 11).unwrap().alive = false;
-        tick(&mut k, &no_return, &s.view, &[], out + 2, &mut notes);
-        assert!(k.camper_traps.is_empty(), "{:?}", k.camper_traps);
-        // A killed holder's place: one point a man, the list taken.
-        let at = out + 3;
-        k.defeated.push(Defeated { at: held, time: at, shooter: 11, kind: DefeatedKind::Spot });
-        k.defeated.push(Defeated { at: held + Vec3::new(0.0, 0.0, 2.0), time: at, shooter: 11, kind: DefeatedKind::Camp });
-        tick(&mut k, &t, &s.view, &[], at, &mut notes);
-        assert_eq!(k.camper_traps.len(), 1, "{:?}", k.camper_traps);
-        assert_eq!(k.camper_traps[0].kind, CamperTrapKind::Returning { died: at });
-        assert!(k.camper_traps[0].spot >= crate::v026g::bots::know::CAMPER_KEY);
-        assert!(k.defeated.is_empty());
+        tick(&mut k, &t, &s.view, &[battery.clone()], 4_000, &mut notes);
+        assert!(k.camper_traps.iter().all(|c| c.spot != 7), "{:?}", k.camper_traps);
+        assert!(notes.iter().any(|n| n.text.contains("no longer held")), "{notes:?}");
+        let at = 4_001;
         // Off: nothing.
         tick(&mut k, &TrapTuning { camper_job: None, ..t.clone() }, &s.view, std::slice::from_ref(&line), at + 1, &mut notes);
         assert!(k.camper_traps.is_empty());
+    }
+
+    /// [traps.look_over_heard] The trap look survives a glance and a sights-up aim at an enemy only heard or told of while the
+    /// gate's enemy-near check is clear; a seen target, a hit or near shot (a threat look), fire, legs, a use, an aim that is no
+    /// heard aim (a partner's death spot) or an enemy near take the view back at once; the switch off gives the old calm.
+    #[test]
+    fn the_trap_look_survives_a_heard_aim_and_a_glance_and_a_seen_target_or_a_hit_takes_it_back() {
+        use crate::v026g::bots::reflex::Override;
+        let t = TrapTuning::default();
+        assert!(t.look_over_heard);
+        let feet = Vec3::ZERO;
+        let heard = Override { look_at: Some(Vec3::new(30.0, 1.3, 0.0)), heard_aim: Some((Vec3::new(30.0, 0.0, 0.0), 1_000)), ..Override::default() };
+        let glance = Override { look_at: Some(Vec3::new(0.0, 1.4, 25.0)), glance: true, ..Override::default() };
+        let facts = |over: &Override| CalmFacts { over: Box::leak(Box::new(*over)), target: false, threat: false, using: false, enemy_near: false, feet, now: 4_000 };
+        assert_eq!(trap_calm(facts(&heard), &t), (true, Some(OverHeard::Aim { m: 30.0, age_ms: 3_000 })));
+        assert_eq!(trap_calm(facts(&glance), &t), (true, Some(OverHeard::Glance { m: 25.0 })));
+        assert_eq!(trap_calm(facts(&Override::default()), &t), (true, None), "no look: calm as before");
+        // What still wins at once, mid-look.
+        for (why, f) in [
+            ("a seen target", CalmFacts { target: true, ..facts(&heard) }),
+            ("a threat look", CalmFacts { threat: true, ..facts(&glance) }),
+            ("an enemy near", CalmFacts { enemy_near: true, ..facts(&heard) }),
+            ("a use", CalmFacts { using: true, ..facts(&glance) }),
+            ("fire", facts(&Override { fire: true, ..heard })),
+            ("legs", facts(&Override { legs: Some(crate::v026g::bots::reflex::Legs { at: Vec3::ZERO, within_m: 1.0, run: false, crouch: false, why: crate::v026g::bots::reflex::LegsWhy::BreakSight }), ..glance })),
+            ("a watch, no heard aim", facts(&Override { heard_aim: None, keys: crate::v026g::drive::key::AIM, ..heard })),
+        ] {
+            assert_eq!(trap_calm(f, &t), (false, None), "{why}");
+        }
+        let off = TrapTuning { look_over_heard: false, ..t.clone() };
+        assert_eq!(trap_calm(facts(&heard), &off), (false, None));
+        assert_eq!(trap_calm(facts(&glance), &off), (false, None));
+        // A look not calm is called away at once (the habit's step).
+        let looking = State::Looking { yaw: 0.0, spot: Vec3::ZERO, since: 0, last: None };
+        let (_, out) = step(looking, Tick { now: 100, yaw: 0.0, pitch: 0.0, calm: false, crouched: false, aim: Aim::Steepest }, &t);
+        assert_eq!(out.ended, Some(Ended::CalledAway));
     }
 
     /// A floor with a wall across x = 25 from z = 5 to 15, `high` metres tall, between a man on (30, 0, 10) and a point at

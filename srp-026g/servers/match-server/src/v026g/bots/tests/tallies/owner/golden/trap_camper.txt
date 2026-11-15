@@ -1,4 +1,4 @@
-owner-test camper trap job: team 0: way-in points noted for a K2 spot 0 / a battery hold 0 / a killed holder 0, kept for his return 0, no way in 0; sent 0, let go 0 (dead 0), placed 0; seen at the point: its camper crouched 0 / standing 0, another crouched 0 / standing 0; put down 0, caught the holder 0 / another enemy 0 / mate 0 / own 0; team 1: way-in points noted for a K2 spot 0 / a battery hold 0 / a killed holder 0, kept for his return 0, no way in 0; sent 0, let go 0 (dead 0), placed 0; seen at the point: its camper crouched 0 / standing 0, another crouched 0 / standing 0; put down 0, caught the holder 0 / another enemy 0 / mate 0 / own 0
+owner-test camper trap job: team 0: way-in points noted for a K2 spot 0 / a battery hold 0, no way in 0; sent 0, let go 0 (dead 0), placed 0; seen at the point: its camper crouched 0 / standing 0, another crouched 0 / standing 0; put down 0, caught the holder 0 / another enemy 0 / mate 0 / own 0; team 1: way-in points noted for a K2 spot 0 / a battery hold 0, no way in 0; sent 0, let go 0 (dead 0), placed 0; seen at the point: its camper crouched 0 / standing 0, another crouched 0 / standing 0; put down 0, caught the holder 0 / another enemy 0 / mate 0 / own 0
 {
   "team0": {
     "caught_enemy": 0,
@@ -14,11 +14,9 @@ owner-test camper trap job: team 0: way-in points noted for a K2 spot 0 / a batt
     "no_placer_ticks": 0,
     "no_way": 0,
     "noted_battery": 0,
-    "noted_defeated": 0,
     "noted_job": 0,
     "placed": 0,
     "put_down": 0,
-    "returning": 0,
     "seen_camper_crouched": 0,
     "seen_camper_standing": 0,
     "seen_other_crouched": 0,
@@ -48,11 +46,9 @@ owner-test camper trap job: team 0: way-in points noted for a K2 spot 0 / a batt
     "no_placer_ticks": 0,
     "no_way": 0,
     "noted_battery": 0,
-    "noted_defeated": 0,
     "noted_job": 0,
     "placed": 0,
     "put_down": 0,
-    "returning": 0,
     "seen_camper_crouched": 0,
     "seen_camper_standing": 0,
     "seen_other_crouched": 0,

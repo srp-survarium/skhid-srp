@@ -7,7 +7,7 @@
 //!
 //!
 //! And the camper trap job (`traps.camper_job`, `traps::camper`), by team: way-in points noted (a K2 job's spot, a battery
-//! hold, a killed holder's place), kept for his return, places with no way in out of his sight, bots sent, let go (dead among
+//! hold), places with no way in out of his sight, bots sent, let go (dead among
 //! them), traps put down by a sent bot, the gate's "enemy seen" refusals at the point by whom and pose; of its plans, the traps
 //! put down (the placer's within 5 s of its plan) and their catches: the point's holder, another enemy, mate, own.
 //!
@@ -145,11 +145,9 @@ impl BreachCounts {
             t.insert("caught_mate".into(), caught[team][2].into());
             t.insert("caught_own".into(), caught[team][3].into());
             text.push(format!(
-                "team {team}: way-in points noted for a K2 spot {} / a battery hold {} / a killed holder {}, kept for his return {}, no way in {}; sent {}, let go {} (dead {}), placed {}; seen at the point: its camper crouched {} / standing {}, another crouched {} / standing {}; put down {}, caught the holder {} / another enemy {} / mate {} / own {}",
+                "team {team}: way-in points noted for a K2 spot {} / a battery hold {}, no way in {}; sent {}, let go {} (dead {}), placed {}; seen at the point: its camper crouched {} / standing {}, another crouched {} / standing {}; put down {}, caught the holder {} / another enemy {} / mate {} / own {}",
                 n(camper::NOTED_JOB),
                 n(camper::NOTED_BATTERY),
-                n(camper::NOTED_DEFEATED),
-                n(camper::RETURNING),
                 n(camper::NO_WAY),
                 n(camper::SENT),
                 n(camper::GAVE_UP),
