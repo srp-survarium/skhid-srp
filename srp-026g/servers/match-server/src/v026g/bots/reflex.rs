@@ -336,7 +336,10 @@ pub struct CombatTuning {
     /// [`arc::REST_BEHIND_M`] short of the rest to [`arc::REST_AHEAD_WORST_M`]
     /// past it, widened by [`arc::REST_ACROSS_M`] across it (the flown rest's
     /// measured P10, P95 and across P90). The client's blast measures to a
-    /// body's origin, its feet (0x3396D3..0x33971A). The default is where the
+    /// body's transform origin (0x3396D3..0x33971A), its feet by the note's
+    /// recount (41 of 68 still victims fit from the feet, 29 from the
+    /// capsule's centre). A hurt teammate dies farther out than a whole one
+    /// (one at half health within this distance). The default is where the
     /// bots' grenade's blast falls to half a body's health
     /// ([`arc::Grenade::half_health_m`]: the client's law is linear from the
     /// middle to the edge, 0x339736..0x339750, PROVEN; the RGD-5's
