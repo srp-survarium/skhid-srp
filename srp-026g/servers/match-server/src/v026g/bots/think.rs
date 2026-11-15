@@ -1330,6 +1330,7 @@ pub(super) fn decide(
             set_aside: &bot.features.memory.set_aside,
             failed_stands: &bot.features.memory.failed_stands,
             world_feet: bot.world_feet,
+            use_pressed: bot.use_pressed,
             dry: bot.reflex.dry(),
             hit: bot.reflex.last_hit(),
             ammo: bot.ammo(),
@@ -1396,6 +1397,10 @@ pub(super) fn decide(
         }
         Step::Continue(mut intent) => {
             bot.press |= intent.press;
+            // [take.on_the_move] A press the drive made is the play's to read while it asks for one; then it is gone.
+            if intent.use_on_meet.is_none() {
+                bot.use_pressed = None;
+            }
             if let Some(zone) = intent.resupplied.take() {
                 bot.resupplies += 1;
                 let rounds = bot.top_up();

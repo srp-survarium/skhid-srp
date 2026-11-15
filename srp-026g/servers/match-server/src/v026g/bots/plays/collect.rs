@@ -597,9 +597,13 @@ pub mod take_counts {
         OnTheMoveMissed,
         /// ... and a walk in that made no press (the old take after it).
         OnTheMoveNoPress,
+        /// [phase 2 #11] A tick of a walk in whose eye had the box within the use ray and whose view passed it by.
+        OnTheMoveRayMissed,
+        /// [phase 2 #11] A tick the view ray met the box while the view was held for a throw: no press.
+        OnTheMoveRefused,
     }
 
-    pub const ALL: usize = 20;
+    pub const ALL: usize = 22;
 
     /// The names of the counts, in order, for the bench's line.
     pub const NAMES: [&str; ALL] = [
@@ -623,6 +627,8 @@ pub mod take_counts {
         "press_on_the_move",
         "on_the_move_missed",
         "on_the_move_no_press",
+        "on_the_move_ray_missed",
+        "on_the_move_refused",
     ];
 
     #[cfg(test)]
@@ -2665,20 +2671,23 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
     // [take.on_the_move] The first press on the move ([`FirstPress`]); the stands below only after it.
     match *first {
         FirstPress::OnTheMove => {
-            let walk = approach(cx, at, crossing.is_some());
-            if view_ray_meets(cx, at) {
-                take_counts::count(take_counts::Count::PressOnTheMove);
-                log::debug!(
-                    "take: battery {battery} pressed on the move at {} ms, {:.2} m from the eye",
-                    cx.now,
-                    (at - cx.me.eye()).length()
-                );
-                *first = FirstPress::Pressed(cx.now);
-                *last_use = cx.now;
-                return Step::Continue(walk.unwrap_or_else(|| Intent::stay().looking(Look::Use(at))).pressing(key::USE));
+            // The drive pressed USE on the tick the view ray met the box ([`Intent::use_on_meet`], `drive::press_on_meet`;
+            // counted and logged there): standing, looking at it, until a world judges the press.
+            if let Some((pressed_at, pressed)) = cx.bot.use_pressed
+                && (pressed_at - at).length() < 0.01
+            {
+                log::debug!("take: battery {battery}: the press on the move at {pressed} ms read at {} ms", cx.now);
+                *first = FirstPress::Pressed(pressed);
+                *last_use = pressed;
+                return Step::Continue(Intent::stay().looking(Look::Use(at)));
             }
+            let walk = approach(cx, at, crossing.is_some());
             match walk {
-                Some(intent) if cx.now < *since + walk_ms => return Step::Continue(intent),
+                Some(intent) if cx.now < *since + walk_ms => return Step::Continue(intent.pressing_use_on_meet(at)),
+                // No walk left, the view on the box now: the press on this step's first tick.
+                _ if view_ray_meets(cx, at) => {
+                    return Step::Continue(Intent::stay().looking(Look::Use(at)).pressing_use_on_meet(at));
+                }
                 _ => {
                     take_counts::count(take_counts::Count::OnTheMoveNoPress);
                     log::debug!("take: battery {battery}: no press on the move by {} ms, the stands", cx.now);
@@ -3008,24 +3017,55 @@ fn back_off(cx: &Ctx, at: Vec3, aim: Vec3, from: Option<Vec3>) -> Intent {
 /// way short of it (as [`use_from`]). A battery whose centre is under the feet is the patched client's take through the
 /// floor (patch 23, [`sunk_take`]): not this test.
 fn view_ray_meets(cx: &Ctx, at: Vec3) -> bool {
-    let eye = cx.me.eye();
-    if at.y < cx.me.feet.y {
-        return false;
+    view_ray_meets_at(&cx.tactics.world.sight, cx.me.feet, cx.me.eye(), cx.me.yaw, cx.me.pitch, at) == RayMeets::Meets
+}
+
+/// [take.on_the_move] What a view ray did at a battery's inner ball ([`view_ray_meets_at`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::v026g::bots) enum RayMeets {
+    /// It enters the ball within the use ray, nothing in the way.
+    Meets,
+    /// The ball is within the use ray of the eye, and the view passes it by (a miss while it could have met).
+    Missed,
+    /// Out of the use ray's reach, under the feet, or behind the mesh.
+    Out,
+}
+
+/// [take.on_the_move] [`view_ray_meets`] for a view given as the eye, the yaw and the pitch (an elevation, radians): the
+/// play step's test and the drive's on each tick (`drive::press_on_meet`).
+pub(in crate::v026g::bots) fn view_ray_meets_at(
+    sight: &mapdata::RayTree,
+    feet: Vec3,
+    eye: Vec3,
+    yaw: f32,
+    pitch: f32,
+    at: Vec3,
+) -> RayMeets {
+    if at.y < feet.y {
+        return RayMeets::Out;
     }
-    let [fx, fz] = crate::v026g::bots::kin::forward(cx.me.yaw);
-    let (sin, cos) = cx.me.pitch.sin_cos();
-    let dir = Vec3::new(fx * cos, sin, fz * cos);
     let to = at - eye;
+    let r2 = BATTERY_INNER_M * BATTERY_INNER_M;
+    if to.length() - BATTERY_INNER_M > view::use_ray_m() {
+        return RayMeets::Out;
+    }
+    let [fx, fz] = crate::v026g::bots::kin::forward(yaw);
+    let (sin, cos) = pitch.sin_cos();
+    let dir = Vec3::new(fx * cos, sin, fz * cos);
     let along = to.dot(dir);
     let off2 = (to.dot(to) - along * along).max(0.0);
-    let r2 = BATTERY_INNER_M * BATTERY_INNER_M;
     if along <= 0.0 || off2 > r2 {
-        return false;
+        return RayMeets::Missed;
     }
     let enter = along - (r2 - off2).sqrt();
-    enter <= view::use_ray_m()
+    if enter <= view::use_ray_m()
         && (enter <= USE_LINE_SLACK_M
-            || crate::v026g::bots::rays::ray_cast(&cx.tactics.world.sight, eye, dir, enter - USE_LINE_SLACK_M).is_none())
+            || crate::v026g::bots::rays::ray_cast(sight, eye, dir, enter - USE_LINE_SLACK_M).is_none())
+    {
+        RayMeets::Meets
+    } else {
+        RayMeets::Out
+    }
 }
 
 /// [take.on_the_move] How far across from a battery on the floor whose position is `at` a body standing at `feet` has its
@@ -3035,6 +3075,19 @@ fn upright_reach_m(feet: Vec3, at: Vec3) -> f32 {
     let reach = view::use_ray_m() - BATTERY_INNER_M;
     let dy = view::still_eye(feet, false).y - at.y;
     (reach * reach - dy * dy).max(0.0).sqrt().max(0.25)
+}
+
+/// [take.on_the_move, phase 2 #11] How far the body goes on once its walk keys are let go at its present ground speed: the
+/// client's blend to standing ([`Kinematics::blend_ticks`] ticks of [`kin::TICK_S`], its mixer, [`kin::Blend`]) and the tick
+/// on which the drive finds the stop.
+///
+/// [`Kinematics::blend_ticks`]: crate::v026g::bots::kin::Kinematics::blend_ticks
+fn coast_m(cx: &Ctx) -> f32 {
+    use crate::v026g::bots::kin;
+    let speed = cx.me.velocity[0].hypot(cx.me.velocity[1]);
+    let k = &cx.tuning.kin;
+    let mut blend = kin::Blend::at([speed, 0.0]);
+    (0..=k.blend_ticks).map(|_| blend.tick_mixed([0.0, 0.0], k.blend_ticks, k.mixer)[0] * kin::TICK_S).sum::<f32>() + speed * kin::TICK_S
 }
 
 /// [take.on_the_move] The walk in of a take's first press: to the battery's stand ([`Tactics::stand_to_take`]) upright at
@@ -3051,7 +3104,10 @@ fn approach(cx: &Ctx, at: Vec3, crossing: bool) -> Option<Intent> {
         return None;
     }
     let me = cx.me.feet;
-    let within = if (to - at).length() < 0.01 { upright_reach_m(to, at) } else { 0.25 };
+    // [phase 2 #11] At the battery's own spot the walk lets go of its keys the body's coast short of the reach, so the
+    // body comes to rest within it, its view free to settle on the box (a coast of 0.6 m from 2.9 m/s carried it onto the
+    // battery, under any upright use).
+    let within = if (to - at).length() < 0.01 { upright_reach_m(to, at) + coast_m(cx) } else { 0.25 };
     if me.distance_xz(to) > within {
         let intent = Intent::to(to, cx.pace_toward(to)).within(within);
         return Some(straight_if_clear(cx, intent, to, false).looking(Look::Use(at)));
@@ -4847,19 +4903,27 @@ mod tests {
         let walk = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert!(matches!(state, State::Take { first: FirstPress::OnTheMove, .. }), "{state:?}");
         assert_eq!(walk.press & key::USE, 0, "no press: the view ray misses");
+        assert_eq!(walk.use_on_meet, Some(TAKE_AT), "the drive tests the ray on each tick of the walk in");
         assert!(!walk.crouch, "upright");
         let to = s.cx(0).tactics.stand_to_take(TAKE_AT);
         assert!(matches!(walk.go, Go::To { at, .. } if Some(at) == to), "{walk:?}");
         assert!(matches!(walk.look, Look::Use(at) if at == TAKE_AT), "{walk:?}");
-        // Within reach, standing, the view on the battery: pressed at once.
+        // Within reach, standing, the view on the battery: the press is the next tick's, the drive's (`drive::press_on_meet`).
         let feet = Vec3::new(26.0, 0.0, 12.0);
         stand_at_as(&mut s, feet, TAKE_AT, false);
         assert!(view_ray_meets(&s.cx(0), TAKE_AT));
-        let pressed = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
-        assert_ne!(pressed.press & key::USE, 0, "pressed on the move");
-        assert!(!pressed.crouch, "no crouch");
+        let asked = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_eq!(asked.use_on_meet, Some(TAKE_AT), "the press asked of the tick");
+        assert_eq!(asked.press & key::USE, 0, "pressed by the drive, not the play step");
+        assert!(!asked.crouch, "no crouch");
+        assert!(matches!(state, State::Take { first: FirstPress::OnTheMove, .. }), "{state:?}");
+        // The drive pressed on a tick: the next step reads it.
         let clock = s.view.clock;
-        assert!(matches!(state, State::Take { first: FirstPress::Pressed(at), .. } if at == clock), "{state:?}");
+        s.use_pressed = Some((TAKE_AT, clock - 25));
+        let standing = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_eq!(standing.use_on_meet, None, "read: no press asked again");
+        assert!(matches!(state, State::Take { first: FirstPress::Pressed(at), .. } if at == clock - 25), "{state:?}");
+        s.use_pressed = None;
         assert!(!finishing(&state, target, &s.cx(0)), "a press made: no longer a take to finish first");
         // Not pressed again before a world judged it.
         s.view.clock += 1_200;
@@ -4870,11 +4934,19 @@ mod tests {
         s.view.world_time = s.view.clock;
         step(&mut state, target, &s.cx(0), &mut rng);
         assert!(matches!(state, State::Take { first: FirstPress::Stands { pressed: true }, .. }), "{state:?}");
-        // The view ray: away, or beyond the use ray, meets nothing.
+        // The view ray: away, or beyond the use ray, meets nothing; looking over it within reach is a miss the drive counts.
+        let meets = |s: &Scenario| {
+            let me = s.cx(0).me.clone();
+            view_ray_meets_at(&s.cx(0).tactics.world.sight, me.feet, me.eye(), me.yaw, me.pitch, TAKE_AT)
+        };
         stand_at_as(&mut s, feet, TAKE_AT + Vec3::new(0.0, 1.0, 0.0), false);
         assert!(!view_ray_meets(&s.cx(0), TAKE_AT), "looking over it");
+        assert_eq!(meets(&s), RayMeets::Missed);
         stand_at_as(&mut s, Vec3::new(28.5, 0.0, 12.0), TAKE_AT, false);
         assert!(!view_ray_meets(&s.cx(0), TAKE_AT), "beyond the use ray");
+        assert_eq!(meets(&s), RayMeets::Out);
+        stand_at_as(&mut s, feet, TAKE_AT, false);
+        assert_eq!(meets(&s), RayMeets::Meets);
     }
 
     const TAKE_AT: Vec3 = Vec3::new(25.0, 0.0, 12.0);

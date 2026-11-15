@@ -409,11 +409,12 @@ pub(crate) fn a_covered_bot_takes_a_battery_in_an_enemys_sight() {
     for busy in [Busy::Mate, Busy::Reloading] {
         let (took, fought, shots) = fight_by_a_battery(busy);
         assert!(fought && shots > 0, "no fight: {shots} shots");
-        let took = took.unwrap_or_else(|| panic!("not taken ({shots} shots)"));
+        let case = if busy == Busy::Mate { "a mate covers" } else { "he reloads" };
+        let took = took.unwrap_or_else(|| panic!("{case}: not taken ({shots} shots)"));
         // Its first move is at 2 s; 8 m in, a turn to the battery and a
         // use or two (without the use's look: still not taken at 15 s, 66
         // shots).
-        assert!(took <= 9_000, "taken at {took} ms");
+        assert!(took <= 9_000, "{case}: taken at {took} ms ({shots} shots)");
     }
 }
 
