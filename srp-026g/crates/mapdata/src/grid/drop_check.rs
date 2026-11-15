@@ -789,7 +789,8 @@ mod tests {
         let grid = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, super::super::Body::default());
         let a = grid.locate(Vec3::new(2.0, 0.0, 2.0), 0.3).unwrap();
         let b = grid.locate(Vec3::new(6.0, 0.0, 6.0), 0.3).unwrap();
-        let release = Some((Takeoff::Release { at: PressLead::from_metres(0.0), crouched: false }, Share::landed(9)));
+        let released = Takeoff::Release { at: PressLead::from_metres(0.0), crouched: false };
+        let release = Some((released, Share::landed(9)));
         for (first, second) in [(None, None), (release, None), (None, release)] {
             let mut wide = grid.link(&vec![false; grid.len()]);
             // Off-mesh links already there from later floors: a link this pass adds sits after them, out of a binary search's
@@ -810,11 +811,16 @@ mod tests {
             assert_eq!(grid.reaim_drops(&mut wide, &reaim), 2);
             let pair: Vec<_> = wide.off.iter().filter(|l| (l.from, l.to) == (a, b)).collect();
             assert_eq!(pair.len(), 1, "{first:?} {second:?}: {pair:?}");
-            let press = if first.or(second).is_some() { release.unwrap().0 } else { Takeoff::WalkOff };
+            let press = if first.or(second).is_some() { released } else { Takeoff::WalkOff };
             assert_eq!(pair[0].press, press);
             assert!(wide.off.windows(2).all(|w| (w[0].from, w[0].to) < (w[1].from, w[1].to)));
             let mut built = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, super::super::Body::default());
             built.off = wide.off.clone();
+            // The floors' off-mesh marks, as the build sets them with its links.
+            for l in &built.off {
+                built.flags[l.from as usize] |= super::super::OFF_OUT;
+                built.flags[l.to as usize] |= super::super::OFF_IN;
+            }
             assert_eq!(built.off_links_problem(), None);
             let path = std::env::temp_dir().join(format!("srp-reaim-{}-{}.bin", std::process::id(), first.is_some()));
             built.write(&path, 7).unwrap();
