@@ -1,0 +1,111 @@
+{
+  "source_build": "0.69d",
+  "donor_fingerprint": "f8c729b6e27cdb8a1647ca724ab410481734b164f5c0135bd1987ccd8513e9c4",
+  "target_sha256": "c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c",
+  "map": {
+    "id": 250,
+    "level": "shooting_range",
+    "donor_project": "projects/shooting_range/test/client_project",
+    "template_project": "projects/level_03/day_4/client_project",
+    "template_mode": "gameplay/game_modes/level_03_day_4.options",
+    "output_project": "v069d_shooting_range/day_4",
+    "mode_name": "v069d_shooting_range_day_4.options",
+    "global_probe_position": [
+      -36.809,
+      2.597,
+      3.955
+    ],
+    "global_probe_radius": 300.0,
+    "probes": {
+      "donor": {
+        "global": "enviorment/probes/global",
+        "exposure_bias": 1.0,
+        "sun_saturation": 0.6
+      }
+    },
+    "spawn_folder": "logic/respawn_point/",
+    "donor_mode": "gameplay/game_modes/shooting_range.options",
+    "level_id": 21,
+    "map_name": "st_srp_map_shooting_range",
+    "loading_screen_id": 37
+  },
+  "game_material_names": {
+    "cactus_slime": "mud",
+    "concrete_solid": "concrete",
+    "crystal": "glass",
+    "fog": "default",
+    "grass_walkable_nowalk": "grass_walkable",
+    "ground_not_walkable_new": "ground_not_walkable",
+    "metall_railings_thin": "metall_thin",
+    "metall_tank_solid": "metall_tank",
+    "metall_thick_solid": "metall_thick",
+    "metall_thin_fridge": "metall_thin",
+    "no_collision": "default",
+    "nut": "metall_thin",
+    "paper_thick": "paper",
+    "sand": "ground",
+    "schiefer_solid": "schiefer",
+    "stone_solid": "stone",
+    "stone_walkable": "stone",
+    "transparency1_metall_thick": "metall_thick",
+    "transparency1_metall_thin": "metall_thin",
+    "wood_branch": "wood_thin",
+    "wood_tin": "wood_thin",
+    "slime": "mud",
+    "snow": "ground",
+    "snowball": "ground",
+    "smoke": "default",
+    "marker_ball_blue": "default",
+    "marker_ball_red": "default"
+  },
+  "material_templates": {
+    "opaque": "tiled/concrete/concrete_01",
+    "opaque_two_sided": "tiled/roof/roof_02",
+    "vertex_colour": "tiled/concrete/concrete_crack",
+    "vertex_blend": "tiled/bricks/brick_02_top_burned_vc",
+    "alpha_test": "decals/moss_2",
+    "alpha_test_two_sided": "flora/roots_tile",
+    "foliage": "flora/anomaly_tree_leaves",
+    "grass": "flora/grass_l03",
+    "decal": "decals/decals_multiply_04",
+    "projected_decal": "decals/newspaper_05_corner",
+    "terrain": "terrain_tiled/l_03_alfa_buter/grass_02",
+    "glass_cutout": "flora/roots_tile",
+    "glass": "level/lobby/glass_clone",
+    "water": "water/water",
+    "foliage_vc": "flora/roots_tree_leaves_05_nowind",
+    "alpha_test_vc": "tiled/window/window_brokengl_vc",
+    "alpha_test_two_sided_vc": "tiled/window/window_brokengl_vc",
+    "glass_cutout_vc": "tiled/window/window_brokengl_vc",
+    "opaque_two_sided_vc": "tiled/floor/floor_plate_tile",
+    "vertex_colour_two_sided": "tiled/floor/floor_plate_tile",
+    "vertex_blend_two_sided": "tiled/concrete/concrete_01_floor_burned_vc",
+    "vertex_blend_alpha_test": "tiled/stucco/stucco_wood_stucco_mask_03_vc",
+    "vertex_blend_alpha_test_two_sided": "tiled/stucco/stucco_wood_stucco_04_vc",
+    "opaque_vc": "tiled/concrete/concrete_crack",
+    "terrain_blend": "tiled/bricks/brick_02_burn_vc",
+    "opaque_metal": "props/box/props_boxes_metal"
+  },
+  "roughness_scale": 0.2,
+  "dedup_translated_copies": true,
+  "lod1_shares_lod0": true,
+  "material_clusters": {
+    "cell": 12.0,
+    "max_member_radius": 10.0,
+    "model_cell": 32.0,
+    "max_member_bytes": 65536
+  },
+  "namespace": "v069d_shooting_range",
+  "native_materials": {
+    "generic/underground_black_mat": "tiled/concrete/concrete_black"
+  },
+  "material_constants": [
+    {
+      "prefix": "terrain_tiled/",
+      "g_stage": {
+        "constant_fresnel": 0.0,
+        "constant_fresnel_min": 0.0
+      }
+    }
+  ]
+}
