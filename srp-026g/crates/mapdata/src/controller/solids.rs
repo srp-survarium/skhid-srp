@@ -479,7 +479,8 @@ fn cast_shape_box(cast: &exe_cast::Cast) -> ConvexShape {
 /// `collideTV` 0xA58F0's node test (0xA596A..0xA5990, `cmpltps`): a node is passed by when its max is under the volume's
 /// min, or the volume's max under its min, on x, y or z.
 fn tree_meets(node: &Box3, volume: &Box3) -> bool {
-    (0..3).all(|k| !(node.1[k] < volume.0[k]) && !(volume.1[k] < node.0[k]))
+    // The `orps` of the two masks, then none of the three set.
+    (0..3).all(|k| !(node.1[k] < volume.0[k] || volume.1[k] < node.0[k]))
 }
 
 /// [L36] 0xA2D990: the inverse direction's stand-in where a component is 0 (about 1e18).
