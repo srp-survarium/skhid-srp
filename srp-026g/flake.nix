@@ -21,8 +21,15 @@
 
       # Nightly toolchain — the workspace uses `edition = "2024"` and several
       # nightly `#![feature(...)]` gates (generic_atomic, iter_intersperse,
-      # slice_split_once), so stable will not build it.
-      rust = pkgs.rust-bin.nightly.latest.default.override {
+      # slice_split_once; core_float_math, linkage, compiler_builtins in the
+      # client patches and ragdoll), so stable will not build it.
+      # Pinned by date: nightly-2026-07-12 (rustc 1.99.0-nightly be8e82435) is
+      # the first with the fix of rust-lang/rust#159035, an LLVM load-combining
+      # miscompile of enum tags (out-of-bounds reads; LLVM fix #159106 merged
+      # 489aa105d, the -1 None-tag revert #159047 merged 31e4b8481). The nightly
+      # of 2026-05-29 before it segfaulted a bot test. Move the date on only
+      # with the exactness goldens checked against the old one.
+      rust = pkgs.rust-bin.nightly."2026-07-12".default.override {
         extensions = [ "rust-src" "rustfmt" "clippy" "rust-analyzer" ];
         # The Rust exe patches (client-patches/rust) are tested and linted for
         # the game's i686, never the host's x86_64 (rust_patches.md).
