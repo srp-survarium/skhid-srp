@@ -11,6 +11,7 @@
     },
     "combat": {
       "aim_sway_counter": false,
+      "sights_up": false,
       "fire": {
         "burst_pause": null,
         "weapon_class_by_data": false
@@ -173,6 +174,8 @@
   },
   "threat": {
     "area": false,
+    "job_role_offer": false,
+    "job_strongest_first": false,
     "concede": null,
     "crossfire_out_of_lines": false,
     "gang_up": null,
