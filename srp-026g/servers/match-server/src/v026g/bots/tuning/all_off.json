@@ -12,6 +12,7 @@
     "combat": {
       "aim_sway_counter": false,
       "kit_recoil": false,
+      "recoil_pull_low": 0.5,
       "sights_up": false,
       "fire": {
         "burst_pause": null,
