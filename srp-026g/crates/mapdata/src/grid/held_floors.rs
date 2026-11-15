@@ -104,6 +104,12 @@ impl WalkGrid {
             if holds(world, s, p, room, step) {
                 return (true, false);
             }
+            // A start that stays inside steep faces is kept in its pose by both ticks and reads as a rest; from 0.6 m over the
+            // floor such a rest is refused by the name's height, but under a low roof the start is that close (the exe review of
+            // #1914, Mamayev Kurgan F1/F2: 10 and 15 of 16 ring starts inside the rock). No ring there.
+            if room < NAME_HEIGHT_M {
+                return (false, false);
+            }
             let ring = (0..RING_WAYS).any(|k| {
                 let t = k as f32 * std::f32::consts::TAU / RING_WAYS as f32;
                 let start = p + Vec3::new(RING_M * t.cos(), 0.0, RING_M * t.sin());

@@ -469,7 +469,13 @@ fn ring_stands(cx: &Ctx, at: Vec3, aim: Vec3, crossing: bool) -> Vec<(TakeStand,
                 } else {
                     // [A395a] A stand where the client hurts no body: on the margin's band too, reached by its shortest
                     // walk in (`Tactics::band_way`).
-                    cx.tactics.stand_allowed(node, cx.now, cx.bot.side, false)
+                    let allowed = cx.tactics.stand_allowed(node, cx.now, cx.bot.side, false);
+                    // The log's line where the client's capsule decides a stand the margin alone would refuse.
+                    if cx.tactics.hazards.in_band(node) {
+                        let line = crate::v026g::bots::nav_log::band_stand_line(feet, allowed);
+                        cx.lines.push(crate::v026g::bots::nav_log::Kind::Zone, Some(u64::from(node)), line);
+                    }
+                    allowed
                 }
             {
                 continue;
@@ -577,9 +583,13 @@ pub mod take_counts {
         ZoneLookOffered,
         /// ... and a search step walking to it.
         ZoneLookWalk,
+        /// [commit.finish_take] A commander pass that kept a take within reach, unseen, before its first press ...
+        FinishKept,
+        /// ... and one where a heal or a retreat, the bot's best, took it.
+        FinishLeftToSurvive,
     }
 
-    pub const ALL: usize = 15;
+    pub const ALL: usize = 17;
 
     /// The names of the counts, in order, for the bench's line.
     pub const NAMES: [&str; ALL] = [
@@ -598,6 +608,8 @@ pub mod take_counts {
         "impossible_look",
         "zone_look_offered",
         "zone_look_walk",
+        "finish_kept",
+        "finish_left_to_survive",
     ];
 
     #[cfg(test)]
@@ -613,6 +625,31 @@ pub mod take_counts {
     pub fn counts() -> [u64; ALL] {
         std::array::from_fn(|k| COUNTS[k].load(std::sync::atomic::Ordering::Relaxed))
     }
+}
+
+/// [A394 (b), `commit.finish_take`] Whether a Collect play in `state` on `target` is a take to finish before another play
+/// takes the bot (the commander's `team::Commit::Finish`; the batteries findings of 2026-11-14, C2: 21 plays replaced
+/// within 3 m of their battery, 20 of those bots killed there): it goes for a battery lying within `hold_near_m` across
+/// (Fetch or Take), has pressed no use this play (a press either starts a use, which the client carries on with no key or
+/// look, or fails: the take's own stands and the commander decide again), does not carry, and no enemy within `exposed_m`
+/// sees it ([`Ctx::exposed_to`], the take's own rule for fighting first). What it reads is the bot's own: its play, its
+/// feet, the battery the team knows lying there, the enemies it sees.
+pub fn finishing(state: &State, target: TargetRef, cx: &Ctx) -> bool {
+    let num = |name| cx.num(PlayKind::Collect, name);
+    let unpressed = match state {
+        State::Fetch => true,
+        State::Take { tries, tried, .. } => *tries == 0 && tried.is_empty(),
+        _ => false,
+    };
+    let TargetRef::Battery(battery) = target else {
+        return false;
+    };
+    unpressed
+        && cx.me.carrying.is_none()
+        && cx.battery_lying(battery).is_some_and(|at| cx.me.feet.distance_xz(at) <= num("hold_near_m"))
+        && cx
+            .exposed_to(num("exposed_m"), (num("reload_cover_s") * 1000.0) as u32, num("cover_m"))
+            .is_none()
 }
 
 /// Whether the feet are over the floor a walk to `at` ends on
@@ -5116,7 +5153,7 @@ mod tests {
     #[test]
     fn a_hurt_carrier_among_enemies_keeps_bringing_it_home() {
         use crate::v026g::bots::know::Source;
-        use crate::v026g::bots::team::{Asking, assign};
+        use crate::v026g::bots::team::{Asking, Commit, assign};
         let mut s = Scenario::field(Mode::Batteries);
         s.battery(BatteryState::Carried(Some(0)));
         let me = s.bot(0, 0, Vec3::new(40.0, 0.0, 25.0));
@@ -5145,7 +5182,7 @@ mod tests {
                 place: 0,
                 candidates: found.clone(),
                 current: None,
-                committed: false,
+                commit: Commit::Free,
             }],
             s.view.clock,
         );

@@ -42,9 +42,10 @@ struct Gap {
 /// [S4] The highest thin top a gap over one is searched over, m over the take-off: a sprint jump clears a rail to 1.2 m
 /// (`railings-design.md` §4, 725-805 of 805 presses, every lead 0-1.9 m). Only bounds the search; each link is flown.
 pub const OVER_TOP_M: f32 = 1.2;
-/// [S4] The most cells along the way a thin top spans (0.5 m: the thin tops of the railings census, `railings-design.md` §3);
-/// a longer one is a ledge's top, the rim jumps' and the gap links' onto it.
-pub const THIN_CELLS: i32 = 2;
+/// [S4] The longest a thin top runs along the way, m (the thin tops of the railings census, `railings-design.md` §3): in cells
+/// along the way's stride, rounded (2 straight, 1 on a diagonal); a longer one is a ledge's top, the rim jumps' and the gap
+/// links' onto it.
+pub const THIN_TOP_M: f32 = 0.5;
 
 impl WalkGrid {
     /// The floor across the gap from `a` along `d` (module documentation) and the gap's bottom: the highest floor crossed, and at
@@ -99,7 +100,7 @@ impl WalkGrid {
 
     /// [S4] The floor across a thin top from `a` along `d` (a rail, a railing, a sill at the floor's edge, `railings-design.md`
     /// §4, "over a rail" and "jump off a rail's side": the Chemical Plant train's roof past the railing): across cells with no
-    /// floor within a step of the take-off, a top of at most [`THIN_CELLS`] cells along the way, more than a step and at most
+    /// floor within a step of the take-off, a top of at most [`THIN_TOP_M`] along the way, more than a step and at most
     /// [`OVER_TOP_M`] over the take-off; then the first cell holding a floor at least a step under the top's, in a gap link's
     /// reach (no higher than the reach, no lower than the harmless drop), with standing room, that `a` has no link to. With the
     /// gap's bottom (the highest floor crossed under the take-off, the walk-off's floor at least, as [`Self::gap_across`]) and the
@@ -131,16 +132,17 @@ impl WalkGrid {
             crossed = (self.start[cell]..self.start[cell + 1]).map(|f| self.height[f as usize]).fold(crossed, f32::max);
             g += 1;
         };
-        // The top: at most THIN_CELLS cells holding it.
+        // The top: at most THIN_TOP_M along the way's stride.
+        let thin = ((THIN_TOP_M / stride).round() as i32).max(1);
         let first = g;
-        while g - first < THIN_CELLS {
+        while g - first < thin {
             let cell = self.cell_index(i + (g + 1) * di, k + dk * (g + 1))?;
             if !(self.start[cell]..self.start[cell + 1]).any(|f| (self.height[f as usize] - top).abs() <= body.step) {
                 break;
             }
             g += 1;
         }
-        if g - first >= THIN_CELLS {
+        if g - first >= thin {
             return None;
         }
         // Past it: the first cell with a landing.

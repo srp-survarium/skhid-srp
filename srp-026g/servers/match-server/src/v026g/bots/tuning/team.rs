@@ -640,6 +640,12 @@ pub struct ThreatTuning {
     pub lanes_pierce: bool,
     /// K3: Trade does not go to a partner's death in a held spot's lanes.
     pub trade_out_of_lines: bool,
+    /// [A396] A trade is walked to only where the bot can reach the killer (his known place, else the death): within
+    /// `plays::trade::TRADE_REACH_M` (25 m, the A396 finding's cut) by the path distance; from
+    /// farther it goes to a spot that sees his known place (the trade cover's rules: `trade_cover`, else
+    /// [`GroupUp::default`]; no such spot: it holds where it is, its view on him), and with the killer not known it does
+    /// not trade. 120 of 243 trades started over 25 m away and 2 of them reached the killer (A396). Off: as before.
+    pub trade_reach: bool,
     /// [A302 #1] A trade in any mode goes to a cover spot round the death that sees the killer's known place from a second bearing,
     /// off fresh deaths and their lanes (A297's [`GroupUp`] rules, `plays/trade.rs`), not onto the body; with the killer known and
     /// no such spot, the bot holds where it is, its view on him. In 0x60217a42 the trades walked onto bodies 6-8 m from a camper
@@ -904,6 +910,13 @@ pub struct CommitTuning {
     /// (an objective, an alarm) still takes the bot, and so does the play's
     /// own end.
     pub hold_to_arrival: bool,
+    /// [A394 (b)] A Collect take within reach of its battery (`hold_near_m`, 3 m), in no enemy's sight (`exposed_m`, the
+    /// take's rule for fighting first) and before its first press is kept against every play but a heal or a retreat, of
+    /// any band, and while it is no longer a candidate (`team::Commit::Finish`, `collect::finishing`). Off: kept only by its
+    /// band and the margin while it is a free candidate; the live recordings had 21 plays replaced within 3 m of their
+    /// battery, 20 of those bots killed there, where players finish every take they start (the batteries findings of
+    /// 2026-11-14, C2).
+    pub finish_take: bool,
     /// A running Cut is scored without the crowd at its cut point
     /// (`Input::FriendsNearTarget` taken as 0): the crowd is a reason not to
     /// start a Cut where friends already are, not to leave one the bot is
@@ -964,6 +977,7 @@ impl Default for CommitTuning {
     fn default() -> Self {
         Self {
             hold_to_arrival: true,
+            finish_take: true,
             cut_given_crowd: true,
             crossfire_point: true,
             crossfire_point_s: 30.0,
@@ -994,6 +1008,7 @@ impl Default for ThreatTuning {
             job_kills: 2,
             lanes_pierce: true,
             trade_out_of_lines: true,
+            trade_reach: true,
             trade_cover: None,
             pair_up_hidden: true,
             crossfire_out_of_lines: true,

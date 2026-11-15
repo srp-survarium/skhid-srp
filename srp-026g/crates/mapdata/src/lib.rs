@@ -177,7 +177,10 @@ pub const DROP_CHECK_TICK_ALGO: u32 = 0x5313_0202;
 pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c03;
 /// The same for the rim jumps flown on the exact tick ([`Body::rim_jumps`], A364 C2 rows 11/12), in [`grid_key_with_links`] only
 /// for a body that asks for it. A value of its own.
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b07;
+/// 0b07: the plain Jump links rising over `MARGINAL_JUMP_M` are flown too, and replaced where a press lands on their top (C2 rows
+/// 11/12, the School crate's +0.99 m). 0b08: [S4] the Jump links the landing carry rule takes away are flown too. 0b09: [R83] the
+/// aims (±6, 0) and the gap links' aimed sweep.
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b09;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
@@ -189,14 +192,15 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 pub const DROP_LANDS_ALGO: u32 = 0x5067_0003;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
 /// body that asks for it. A value of its own.
-pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0003;
+pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0005;
 /// The same for the taken floors given back where the client's body rests and no floor names the place ([`Body::rest_floors`],
 /// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const REST_FLOORS_ALGO: u32 = 0x5389_0101;
 /// The same for the floors kept only where the client's capsule is held and the drops from the last held floors
 /// ([`Body::held_floors`], A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0202: a floor a
 /// body come down 0.15 m off its centre rests on is held (the ring, R2 F3).
-pub const HELD_FLOORS_ALGO: u32 = 0x5389_0202;
+/// 0203: the held test's fall is measured from the floor's own height until a step finds ground; no ring under a low roof.
+pub const HELD_FLOORS_ALGO: u32 = 0x5389_0203;
 /// The same for a body named by a `walk` face's floor anywhere down the face in the cell ([`Body::walk_face_stands`], A389), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0301;

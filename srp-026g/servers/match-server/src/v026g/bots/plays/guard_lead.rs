@@ -506,7 +506,7 @@ mod tests {
     use super::super::tests::Scenario;
     use super::*;
     use crate::v026g::bots::know::{Source, Theft};
-    use crate::v026g::bots::team::{Asking, assign};
+    use crate::v026g::bots::team::{Asking, Commit, assign};
     use crate::v026g::bots::view::{BatteryState, Mode, still_eye};
 
     const OURS: Vec3 = Vec3::new(12.0, 0.0, 30.0);
@@ -558,7 +558,7 @@ mod tests {
                 place,
                 candidates: guards(&s, place),
                 current: None,
-                committed: false,
+                commit: Commit::Free,
             })
             .collect();
         assert_eq!(assign(asking, s.view.clock).len(), 2);
@@ -840,7 +840,7 @@ mod tests {
                 place,
                 candidates: guards(&s, place),
                 current: None,
-                committed: false,
+                commit: Commit::Free,
             })
             .collect();
         let given = assign(asking, s.view.clock);

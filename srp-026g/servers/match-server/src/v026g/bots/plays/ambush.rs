@@ -288,7 +288,7 @@ mod tests {
     use super::super::tests::Scenario;
     use super::*;
     use crate::v026g::bots::know::Source;
-    use crate::v026g::bots::team::{Asking, assign};
+    use crate::v026g::bots::team::{Asking, Commit, assign};
     use crate::v026g::bots::view::{Mode, still_eye};
 
     const BATTERY: Vec3 = Vec3::new(30.0, 0.0, 10.0);
@@ -447,13 +447,13 @@ mod tests {
                 place: 0,
                 candidates: ambushes(&s, 0),
                 current: None,
-                committed: false,
+                commit: Commit::Free,
             },
             Asking {
                 place: 2,
                 candidates: ambushes(&s, 2),
                 current: None,
-                committed: false,
+                commit: Commit::Free,
             },
         ];
         assert_eq!(asking[0].candidates.len(), 1);
