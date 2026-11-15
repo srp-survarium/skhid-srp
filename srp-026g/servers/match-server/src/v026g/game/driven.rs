@@ -464,9 +464,14 @@ impl Walkers {
                     );
                     self.absent = true;
                 }
-                // [A197] Its built files not there, and nothing built at load: each match on the map says so.
+                // [A197] Its built files not there, and nothing built at load: each match on the map says so. The lobby offers and
+                // plays a map against bots only with its files there (`lobby_server::v026g::pvb::MapFiles`), so a match that
+                // reaches one without them had its files removed after that check (an operator's error on a running server).
                 MapState::NotPrebuilt(why) => {
-                    log::error!("Match {id:#x}: {}", crate::v026g::bots::maps::not_prebuilt_line(self.project, &why));
+                    log::error!(
+                        "Match {id:#x}: files removed after the lobby check: {}",
+                        crate::v026g::bots::maps::not_prebuilt_line(self.project, &why)
+                    );
                     self.absent = true;
                 }
             }
