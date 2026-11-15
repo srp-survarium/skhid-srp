@@ -1003,12 +1003,13 @@ impl Controller {
         if ry > ny && ry > s.max_slope_cos { limit_walkable(n, s) } else { n }
     }
 
-    /// `step_down_sweep_test_impl` 0x7EA80: moves `pos`; the hit's point and normal.
-    fn step_down_test(&mut self, world: &Collision, dist: f32, sb: Vec3, w2: f32, p1: Vec3, s: &Settings) -> Option<(Vec3, Vec3)> {
+    /// `step_down_sweep_test_impl` 0x7EA80: moves `pos`; what it reports and what it left in the caller's point and normal
+    /// ([`DownTest`]).
+    fn step_down_test(&mut self, world: &Collision, dist: f32, sb: Vec3, w2: f32, p1: Vec3, s: &Settings) -> DownTest {
         let from = self.pos;
         let Some((f, hp, n)) = self.down_sweep(world, from, dist, s) else {
             self.pos = Vec3::new(UP.x * dist + from.x, UP.y * dist + from.y, UP.z * dist + from.z);
-            return None;
+            return DownTest::Missed;
         };
         let to = from + UP * dist;
         let g = 1.0 - f;
@@ -1027,16 +1028,18 @@ impl Controller {
                         f2.y * g + (UP.y * dist + f2.y) * f,
                         f2.z * g + (UP.z * dist + f2.z) * f,
                     );
-                    Some((hp, n))
+                    DownTest::Hit { point: hp, normal: n }
                 }
                 None => {
                     self.pos = Vec3::new(UP.x * dist + f2.x, UP.y * dist + f2.y, UP.z * dist + f2.z);
-                    None
+                    // 0x7ED91: the retry's 0x84FE0 wrote nothing (it writes its outs on a hit only, 0x85207..0x852A5) and
+                    // its AL is the answer; the first sweep's point and normal stay in the caller's.
+                    DownTest::RetryMissed { normal: n }
                 }
             };
         }
         self.pos = Vec3::new(g * from.x + (UP.x * dist + from.x) * f, from.y * g + (UP.y * dist + from.y) * f, from.z * g + (UP.z * dist + from.z) * f);
-        Some((hp, n))
+        DownTest::Hit { point: hp, normal: n }
     }
 
     /// `impassable_slope` 0x7DE10: steeper than the limit and the feet ended higher than at the start.
@@ -1132,8 +1135,16 @@ impl Controller {
             Some((f, _)) => self.pos = Vec3::new(p1.x * (1.0 - f) + q.x * f, p1.y * (1.0 - f) + q.y * f, p1.z * (1.0 - f) + q.z * f),
             None => self.pos = q,
         }
-        let Some((_, n2)) = self.step_down_test(world, dist, sb, s2, p1, s) else { return true };
-        *n = n2;
+        // 0x7D96C: the step down writes this slide's own normal (its +20h); with no hit reported (0x7D973) the slide ends
+        // there, slid (0x7D9A8), the normal whatever the step down left in it.
+        match self.step_down_test(world, dist, sb, s2, p1, s) {
+            DownTest::Missed => return true,
+            DownTest::RetryMissed { normal, .. } => {
+                *n = normal;
+                return true;
+            }
+            DownTest::Hit { normal, .. } => *n = normal,
+        }
         if self.impassable(*n, sb, s) {
             return false;
         }
@@ -1188,7 +1199,8 @@ impl Controller {
         };
         let dist = d0 - step;
         let w2 = (w.x * w.x + w.y * w.y) + w.z * w.z;
-        match self.step_down_test(world, dist, sb, w2, p1, s) {
+        // 0x7E2BF: its own point and normal are locals the airborne path (0x7E6E6) does not read.
+        match self.step_down_test(world, dist, sb, w2, p1, s).hit() {
             None => {
                 notes.airborne = true;
                 let g = self.gravity;
@@ -1294,6 +1306,30 @@ impl Controller {
                 let ah = normalized_safe(a, Vec3::ZERO);
                 self.velocity = Vec3::new(ah.x * sdot + v.x, ah.y * sdot + v.y, ah.z * sdot + v.z);
             }
+        }
+    }
+}
+
+/// What `step_down_sweep_test_impl` 0x7EA80 answers, with what it leaves in its caller's point and normal (its outs, which the
+/// down sweep 0x84FE0 writes on a hit only).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum DownTest {
+    /// No hit: the outs untouched.
+    Missed,
+    /// A hit (AL 1), its point and normal in the outs.
+    Hit { point: Vec3, normal: Vec3 },
+    /// No hit reported (AL 0 from the retry, 0x7ED18 -> 0x7ED91): the first sweep hit and wrote its point and normal, then the
+    /// slope-acceleration retry from nearer the start (0x7ECE8) met nothing. The outs hold the first sweep's; its normal is the
+    /// one a caller reads (the side slide's own, 0x7D96C; the point out is read only after a hit).
+    RetryMissed { normal: Vec3 },
+}
+
+impl DownTest {
+    /// The hit it reports (its AL), with its point and normal.
+    fn hit(self) -> Option<(Vec3, Vec3)> {
+        match self {
+            DownTest::Hit { point, normal } => Some((point, normal)),
+            DownTest::Missed | DownTest::RetryMissed { .. } => None,
         }
     }
 }
