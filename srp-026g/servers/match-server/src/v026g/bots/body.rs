@@ -452,6 +452,9 @@ impl Estimate {
             step: None,
             grid_extra: GridExtra::default(),
             kept: None,
+            // [F42] A forecast from a view does not know the crouch selector's state: moved as before.
+            creep: Creep::Unknown,
+            step_creep: Creep::Unknown,
         }
     }
 }
