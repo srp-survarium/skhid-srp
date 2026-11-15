@@ -224,7 +224,6 @@
     "grenade_close_margin_m": 2.0,
     "grenade_close_fresh_ms": 1500,
     "grenade_close_pace": null,
-    "grenade_lane_m": 2.0,
     "grenade_places": 3,
     "grenade_tracks": true,
     "grenade_track_ms": 4000,

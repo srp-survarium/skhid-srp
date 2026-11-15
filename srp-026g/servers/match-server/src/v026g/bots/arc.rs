@@ -133,6 +133,11 @@ pub const SWEEP_FILTER_M: f32 = 0.04;
 pub const REST_BEHIND_M: f32 = 1.24;
 pub const REST_AHEAD_M: f32 = 3.95;
 pub const REST_AHEAD_WORST_M: f32 = 8.92;
+/// Across the throw's heading, the same flights' error's 90th percentile, metres: the spread's landing zone is widened
+/// by it on either side, across the heading only (`Spread::Usual`, `Spread::Worst`). PROVEN (counted with the rest of
+/// the spread, `thrown_and_placed.md`). Of the 911 flights 223 (24.5 %) fell outside the usual zone in some direction:
+/// 92 short of it, 93 past it, 92 wider.
+pub const REST_ACROSS_M: f32 = 1.82;
 
 thread_local! {
     static REST_FLOWN: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
@@ -823,8 +828,10 @@ impl Landing {
     }
 
     /// How far `at` is from the nearest place the blast may be, metres, by the rule:
-    /// - flown: any point of the slide from the contact to the rest (a straight line), or along the heading from
-    ///   [`REST_BEHIND_M`] short of the rest to [`REST_AHEAD_M`] (`Usual`) or [`REST_AHEAD_WORST_M`] (`Worst`) past it;
+    /// - flown: any point of the slide from the contact to the rest (a straight line), or of the landing zone on the
+    ///   ground: along the heading from [`REST_BEHIND_M`] short of the rest to [`REST_AHEAD_M`] (`Usual`) or
+    ///   [`REST_AHEAD_WORST_M`] (`Worst`) past it, and [`REST_ACROSS_M`] to either side of that line (a rectangle with
+    ///   square ends; its height the rest's);
     /// - rolled: the rest point, or any point from the contact to [`ROLL_P80_M`] (`Usual`) or [`ROLL_WORST_M`]
     ///   (`Worst`) along the heading. For a wall the segment still runs along the incoming heading (through the
     ///   wall: a mate behind it is counted).
@@ -839,9 +846,17 @@ impl Landing {
                     Spread::Usual => (REST_BEHIND_M, REST_AHEAD_M),
                     Spread::Worst => (REST_BEHIND_M, REST_AHEAD_WORST_M),
                 };
+                let across = if spread == Spread::Rest { 0.0 } else { REST_ACROSS_M };
                 let slide = distance_to_segment(at, self.contact.point, self.rest);
-                let spread = distance_to_segment(at, self.rest - self.heading * behind, self.rest + self.heading * ahead);
-                slide.min(spread)
+                // The offset from the rest split along the heading (flat), across it (flat) and up; a heading of none
+                // (a fall straight down) leaves the zone a disc of `across` round the rest.
+                let off = at - self.rest;
+                let along = off.x * self.heading.x + off.z * self.heading.z;
+                let side = (off.x - self.heading.x * along).hypot(off.z - self.heading.z * along);
+                let beyond_along = (along - ahead).max(-behind - along).max(0.0);
+                let beyond_side = (side - across).max(0.0);
+                let zone = (beyond_along * beyond_along + beyond_side * beyond_side + off.y * off.y).sqrt();
+                slide.min(zone)
             }
             RestRule::Rolled => {
                 let reach_m = match spread {
@@ -1458,6 +1473,7 @@ mod tests {
         // Past the rest along the heading: the spread's ends.
         let at = |along: f32| rest + Vec3::new(0.0, 0.0, along);
         near(landing.blast_distance(at(15.0), Spread::Rest), 15.0, 1e-3, "to the rest");
+        // Past the end the zone is square: the across widening does not reach along.
         near(landing.blast_distance(at(15.0), Spread::Usual), 15.0 - REST_AHEAD_M, 1e-3, "usual");
         near(landing.blast_distance(at(15.0), Spread::Worst), 15.0 - REST_AHEAD_WORST_M, 1e-3, "worst");
         // Beside the slide: its distance across.
@@ -1469,10 +1485,16 @@ mod tests {
         assert_eq!((first, at_rest), (contact, rest));
         near(usual.z - rest.z, REST_AHEAD_M, 1e-4, "usual end");
         near(worst.z - rest.z, REST_AHEAD_WORST_M, 1e-4, "worst end");
-        // A rest by the contact: the spread reaches behind it by its P10.
+        // A rest by the contact: the spread reaches behind it by its P10, and across by its P90.
         let short = steep_fall().landing(&Floor { y: 0.0 }).unwrap();
-        let back = short.rest - Vec3::new(0.0, 0.0, REST_BEHIND_M + 1.0);
-        near(short.blast_distance(back, Spread::Usual), 1.0, 0.05, "short of the rest");
+        let back = short.rest - Vec3::new(0.0, 0.0, REST_BEHIND_M + 3.0);
+        near(short.blast_distance(back, Spread::Usual), 3.0, 0.05, "short of the rest");
+        // A corner: 1 m past the end and 1 m wider than the side.
+        let corner = short.rest + Vec3::new(REST_ACROSS_M + 1.0, 0.0, REST_AHEAD_M + 1.0);
+        near(short.blast_distance(corner, Spread::Usual), 2f32.sqrt(), 0.05, "a corner");
+        let aside = short.rest + Vec3::new(REST_ACROSS_M + 1.0, 0.0, 0.0);
+        near(short.blast_distance(aside, Spread::Usual), 1.0, 1e-3, "aside of the rest");
+        near(short.blast_distance(aside, Spread::Rest), REST_ACROSS_M + 1.0, 1e-3, "aside, no spread");
     }
 
     #[test]
