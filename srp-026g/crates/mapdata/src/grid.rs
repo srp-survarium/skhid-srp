@@ -4460,6 +4460,20 @@ impl WalkGrid {
         self.start[cell] + u32::from(way & 0x7FF)
     }
 
+    /// [S6] The kind of the link that `way` ([`Self::links_back`]) leads back along from `node`: an off-mesh link's own, a grid
+    /// link's from its floor's link bits. One pair of floors may have both a grid link and an off-mesh one (a plain Jump and a
+    /// flown GapJump, #1953): this is the one the search took.
+    #[inline]
+    fn back_kind(&self, node: NodeId, way: u16) -> LinkKind {
+        if way & WAY_OFF == WAY_OFF {
+            let j = self.off_into(node)[usize::from(way >> 11)];
+            return self.off[j as usize].kind;
+        }
+        let from = self.back(node, way) as usize;
+        let d = usize::from(way >> 11 & 7);
+        LinkKind::from_bits(self.how[from] >> (4 * d))
+    }
+
     /// The links into a floor.
     pub fn incoming(&self, node: NodeId) -> impl Iterator<Item = (NodeId, LinkKind)> + '_ {
         let cell = self.cell_of[node as usize] as usize;
@@ -5135,8 +5149,10 @@ impl SlicedSearch {
             }
             mark[u as usize] = closed;
             if u == to {
+                let (nodes, kinds) = way(grid, back, from, to);
                 return Some(Search::Found(Path {
-                    nodes: way(grid, back, from, to),
+                    nodes,
+                    kinds,
                     cost: cost[to as usize],
                 }));
             }
@@ -5186,24 +5202,32 @@ impl SlicedSearch {
     /// `grid` is the one searched.
     pub fn partial(&self, grid: &WalkGrid) -> Path {
         let Scratch { cost, back, .. } = &self.scratch;
+        let (nodes, kinds) = way(grid, back, self.from, self.best);
         Path {
-            nodes: way(grid, back, self.from, self.best),
+            nodes,
+            kinds,
             cost: cost[self.best as usize],
         }
     }
 }
 
 /// The floors from `from` to `to` (both included), by the ways back a
-/// search wrote.
-fn way(grid: &WalkGrid, back: &[u16], from: NodeId, to: NodeId) -> Vec<NodeId> {
+/// search wrote, and [S6] the kind of the link the search took into each ([`Path::kinds`]).
+fn way(grid: &WalkGrid, back: &[u16], from: NodeId, to: NodeId) -> (Vec<NodeId>, Vec<LinkKind>) {
     let mut nodes = vec![to];
+    let mut kinds = Vec::new();
     let mut at = to;
     while at != from {
-        at = grid.back(at, back[at as usize]);
+        let code = back[at as usize];
+        kinds.push(grid.back_kind(at, code));
+        at = grid.back(at, code);
         nodes.push(at);
     }
+    // The start has no link into it: a Walk, as a route's first point.
+    kinds.push(LinkKind::Walk);
     nodes.reverse();
-    nodes
+    kinds.reverse();
+    (nodes, kinds)
 }
 
 impl Drop for SlicedSearch {
@@ -5288,6 +5312,9 @@ pub(crate) fn scratch_bytes() -> usize {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Path {
     pub nodes: Vec<NodeId>,
+    /// [S6] The kind of the link the search took into each floor of `nodes` (the start's a Walk): one pair of floors may have
+    /// more than one link (a plain Jump and a flown GapJump, #1953), and the search priced only this one.
+    pub kinds: Vec<LinkKind>,
     pub cost: f32,
 }
 
