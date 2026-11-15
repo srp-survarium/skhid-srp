@@ -732,7 +732,7 @@ pub struct CombatTuning {
     /// [3B (a)] With [`Self::reload_end_from_world`]: when the reload node's next event is a channel knot before the clip's
     /// end (most reload worlds: 71,193 of 91,347 reload-node rows in the 60 recordings), the end is foretold from the
     /// node's time-scale operand and the hands clip's length in the game data ([`super::guns::ReloadClip::Foretold`]),
-    /// as the client reaches it (0x3B6C5F). Off: those worlds leave the ledger's end. That old value is wrong by the
+    /// as the client reaches it (0x3B6C36..0x3B6C58, within a ms: [`super::clip_tree::TimeScale::reaches`]). Off: those worlds leave the ledger's end. That old value is wrong by the
     /// client (the ledger's start is its own key, not the state's), so it is on by default and the all-off patch keeps it
     /// (`KEPT_RIGHT`).
     pub reload_end_from_knot: bool,
