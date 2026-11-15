@@ -142,7 +142,9 @@ pub fn jumped_fall_pain(height: f32, end: super::JumpEnd, fall_scale: f32) -> f3
 }
 
 /// [S6] How far a body walked off a ledge slides down over its rim on ticks that still find ground, before its fall begins,
-/// m (an exe run of a 2 m ledge: 0.05 m on 3 such ticks, no gravity yet; the exe review of #1969).
+/// m: the most of the exe review of #1969's two runs of a 2 m ledge (0.05 m on 3 ticks walked off at 1.4 m/s; 0.008 m on one
+/// at 3.5 m/s). It depends on the walk-off speed; the larger slide errs open: at the walk cap a drop of 8.01-8.04 m that
+/// kills from a full pool stays open.
 const RIM_SLIDE_M: f32 = 0.05;
 
 /// What a drop of `height` m costs a route, m: the pain the fall takes (both feet, [`PAIN_PER_FOOT`] of each foot's hit) at

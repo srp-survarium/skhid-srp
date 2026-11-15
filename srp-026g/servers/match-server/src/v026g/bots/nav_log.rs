@@ -512,12 +512,8 @@ pub fn fall_closed_line(grid: &mapdata::WalkGrid, closed: &mapdata::FallClosed) 
         mapdata::FallStart::Short => "a short jump",
         mapdata::FallStart::Sprint => "a sprint jump",
     };
-    let verdict = match closed.verdict {
-        mapdata::FallVerdict::Closed => "closed",
-        mapdata::FallVerdict::KeptOpen => "kept open (an artefact held)",
-    };
     format!(
-        "{PREFIX}drop from {} to {} ({:.2} m, {start}) {verdict}: its fall takes pain {:.3}, the pool is {:.3}",
+        "{PREFIX}drop from {} to {} ({:.2} m, {start}) closed: its fall takes pain {:.3}, the pool is {:.3}",
         at(grid.position(closed.from)),
         at(grid.position(closed.to)),
         closed.height,
@@ -526,9 +522,9 @@ pub fn fall_closed_line(grid: &mapdata::WalkGrid, closed: &mapdata::FallClosed) 
     )
 }
 
-/// [S6] The key of a closed or kept-open drop's line: once per drop, pool and verdict.
+/// [S6] The key of a closed drop's line: once per drop and pool.
 pub fn fall_closed_key(closed: &mapdata::FallClosed) -> u64 {
-    key(("fall closed", closed.from, closed.to, (closed.pool * 100.0) as i32, closed.verdict == mapdata::FallVerdict::Closed))
+    key(("fall closed", closed.from, closed.to, (closed.pool * 100.0) as i32))
 }
 
 pub fn walk_route_shut_line(from: Vec3, reach: f32) -> String {

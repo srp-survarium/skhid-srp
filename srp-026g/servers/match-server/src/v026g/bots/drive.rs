@@ -38,7 +38,6 @@ fn body_reach(bot: &Bot, me: &PlaceView) -> mapdata::Reach {
             let body = mapdata::FallBody { pain: pools.pain, fall_scale, jumps: super::jump_arc::jump_ends() };
             match bot.fall_save {
                 super::FallSave::Nothing => mapdata::FallRoom::Survives(body),
-                super::FallSave::Artefact => mapdata::FallRoom::KeptOpen(body),
                 super::FallSave::Unread | super::FallSave::SecondChance => mapdata::FallRoom::Any,
             }
         }

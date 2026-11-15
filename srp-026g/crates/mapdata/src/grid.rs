@@ -795,9 +795,6 @@ pub enum FallRoom {
     Any,
     /// The body's falls known ([`FallBody`]): a drop whose fall's pain reaches its pool is no way.
     Survives(FallBody),
-    /// The body's falls known, but something it holds may stop a fall's hit (an artefact: an active Onyx with Onyx II takes
-    /// no fall damage, `docs/notes/artefact-skills.md`): a drop that would kill it otherwise stays open, and is noted.
-    KeptOpen(FallBody),
 }
 
 /// [S6] What a body's fall takes: its pain pool now (the latest world's: lethal at 0, `on_affect` 0x2DA480), its fall-damage
@@ -848,14 +845,6 @@ impl FallBody {
     }
 }
 
-/// [S6] What the search did with a drop that would kill the body.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FallVerdict {
-    /// No way ([`FallRoom::Survives`]).
-    Closed,
-    /// Left open ([`FallRoom::KeptOpen`]).
-    KeptOpen,
-}
 
 impl Reach {
     /// The grid's own body, every fall taken.
@@ -892,35 +881,24 @@ impl Reach {
         };
         let fall = match (self.fall, other.fall) {
             (FallRoom::Any, r) | (r, FallRoom::Any) => r,
-            // The lower pool and the higher scale; kept open where either is.
-            (a, b) => {
-                let (kept, x) = match a {
-                    FallRoom::Survives(x) => (false, x),
-                    FallRoom::KeptOpen(x) => (true, x),
-                    FallRoom::Any => unreachable!("matched above"),
-                };
-                let (kept_b, y) = match b {
-                    FallRoom::Survives(y) => (false, y),
-                    FallRoom::KeptOpen(y) => (true, y),
-                    FallRoom::Any => unreachable!("matched above"),
-                };
-                let body = FallBody { pain: x.pain.min(y.pain), fall_scale: x.fall_scale.max(y.fall_scale), jumps: x.jumps };
-                if kept || kept_b { FallRoom::KeptOpen(body) } else { FallRoom::Survives(body) }
-            }
+            // The lower pool and the higher scale.
+            (FallRoom::Survives(x), FallRoom::Survives(y)) => FallRoom::Survives(FallBody {
+                pain: x.pain.min(y.pain),
+                fall_scale: x.fall_scale.max(y.fall_scale),
+                jumps: x.jumps,
+            }),
         };
         Self { sprint, fall }
     }
 
-    /// [S6] Whether a drop of `height` metres started `start` kills this body ([`FallBody::pain_of`]): what the search does with
-    /// it, its pain and the pool; `None` for one it survives, or a body whose falls are not known.
-    pub fn lethal_fall(self, height: f32, start: FallStart) -> Option<(FallVerdict, f32, f32)> {
-        let (verdict, body) = match self.fall {
-            FallRoom::Any => return None,
-            FallRoom::Survives(body) => (FallVerdict::Closed, body),
-            FallRoom::KeptOpen(body) => (FallVerdict::KeptOpen, body),
+    /// [S6] Whether a drop of `height` metres started `start` kills this body ([`FallBody::pain_of`]): its pain and the pool;
+    /// `None` for one it survives, or a body whose falls are not known.
+    pub fn lethal_fall(self, height: f32, start: FallStart) -> Option<(f32, f32)> {
+        let FallRoom::Survives(body) = self.fall else {
+            return None;
         };
         let hurt = body.pain_of(height, start);
-        (hurt >= body.pain).then_some((verdict, hurt, body.pain))
+        (hurt >= body.pain).then_some((hurt, body.pain))
     }
 }
 
@@ -931,7 +909,6 @@ pub struct FallClosed {
     pub to: NodeId,
     pub height: f32,
     pub start: FallStart,
-    pub verdict: FallVerdict,
     /// The fall's pain, and the body's pain pool it reaches.
     pub pain: f32,
     pub pool: f32,
@@ -4716,7 +4693,7 @@ impl WalkGrid {
         }
         let down = matches!(kind, LinkKind::Drop | LinkKind::GapDrop);
         // [S6] A drop whose fall kills the body ([`Reach::lethal_fall`]) is no way for it; a jumped one counts from the clip's
-        // end. Noted either way, kept open where the body holds what may stop the hit.
+        // end.
         if down && reach.fall != FallRoom::Any {
             let height = self.height[from as usize] - self.height[to as usize];
             let start = match (kind, self.off_link(from, to).map(|l| l.press)) {
@@ -4725,11 +4702,9 @@ impl WalkGrid {
                 (LinkKind::GapDrop, Some(gap::Takeoff::Sprint(_))) => FallStart::Short,
                 _ => FallStart::WalkOff,
             };
-            if let Some((verdict, pain, pool)) = reach.lethal_fall(height, start) {
-                note_fall_closed(FallClosed { from, to, height, start, verdict, pain, pool });
-                if verdict == FallVerdict::Closed {
-                    return f32::INFINITY;
-                }
+            if let Some((pain, pool)) = reach.lethal_fall(height, start) {
+                note_fall_closed(FallClosed { from, to, height, start, pain, pool });
+                return f32::INFINITY;
             }
         }
         let lip = if !down && self.is_lip(to) {
