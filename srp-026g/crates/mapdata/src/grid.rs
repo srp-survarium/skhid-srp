@@ -1536,7 +1536,7 @@ struct Adjacency {
 }
 
 /// Counts of a build, for logs and the docs.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct BuildStats {
     pub triangles_used: usize,
     pub spans: usize,
@@ -1593,6 +1593,9 @@ pub struct BuildStats {
     pub rest_floors: usize,
     /// [A389] The edge floors no body stays on and the drops from the last held floors ([`Body::held_floors`]).
     pub held: held_floors::HeldStats,
+    /// [item 2] Of those drops, the ones a steep landing closes for a full pool, for the build's log
+    /// ([`held_floors::SteepClosed`]).
+    pub steep_closed: Vec<held_floors::SteepClosed>,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
 }
@@ -1869,8 +1872,8 @@ impl WalkGrid {
         // [A389] The edge floors no body stays on go; the ways down from the last held floors are made drops after the gap pass.
         let unheld = match world.filter(|_| body.held_floors) {
             Some(world) => {
-                let (held, drops) = grid.drop_unheld(&mut wide, world, &s);
-                stats.held = held;
+                let (held, drops, steep_closed) = grid.drop_unheld(&mut wide, world, &s);
+                (stats.held, stats.steep_closed) = (held, steep_closed);
                 drops
             }
             None => Vec::new(),

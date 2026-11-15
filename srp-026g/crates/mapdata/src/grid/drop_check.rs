@@ -182,11 +182,11 @@ pub enum DropWalk {
     /// leaving the take-off's level.
     Arrives,
     /// Left the take-off's level and came to stand elsewhere: its feet there (a ledge partway, a floor past the landing), and
-    /// [S6] the speed it landed at, m/s down: the body's downward speed at the start of the tick that landed it on walkable
-    /// ground (the ported `step_down`'s landing, which zeroes the velocity: `on_physical_controller_landing` 0x2D8220 gets that
-    /// tick's starting speed, the exe review of #1969): its landings that count ([`super::held_floors::Landings`], the hardest
-    /// and a second that hurts too).
-    LandsAt(Vec3, super::held_floors::Landings),
+    /// [S6] the speeds it landed at, m/s down: the body's downward speed at the start of each tick that landed it
+    /// (`on_physical_controller_landing` 0x2D8220 gets that tick's starting speed, the exe review of #1969), [item 2] on
+    /// walkable ground and on ground too steep to stand on alike ([`crate::controller::tick::LandingGround`]): its landings that
+    /// count ([`super::held_floors::Landed`]).
+    LandsAt(Vec3, super::held_floors::Landed),
     /// Left the take-off's level and not standing [`LAND_STEPS`] later (falling on, sliding down a steep face).
     Unsettled,
     /// Walked [`MOVED_M`] or more from its start and never left the take-off's level (a rim the erosion took, a deck over the
@@ -221,7 +221,7 @@ pub fn walk_drop_as(world: &Collision, s: &Settings, start: WalkStart, stance: S
     let line = Vec3::new((to.x - from.x) / len, 0.0, (to.z - from.z) / len);
     let mut moved = 0.0f32;
     let mut left: Option<usize> = None;
-    let mut landed = super::held_floors::Landings::NONE;
+    let mut landed = super::held_floors::Landed::NONE;
     for n in 1..=LEAVE_STEPS + LAND_STEPS {
         let feet = c.feet();
         let d = flat(feet, to);
@@ -237,8 +237,8 @@ pub fn walk_drop_as(world: &Collision, s: &Settings, start: WalkStart, stance: S
             crouch: CrouchInput::Tested { key, legs_broken: false },
             sprinting: false,
         });
-        if notes.landed {
-            landed = landed.and(falling);
+        if let Some(ground) = notes.landing {
+            landed = landed.and(ground, falling);
         }
         let feet = c.feet();
         moved = moved.max(flat(feet, first));
@@ -943,9 +943,10 @@ mod tests {
         let mut ledge = tris.clone();
         ledge.extend(quad(0.0, 3.0, -2.0, 2.0, 1.0));
         let world = Collision::build(&ledge);
-        let DropWalk::LandsAt(feet, landings) = walk_drop(&world, &s, start, from, to) else { panic!("lands elsewhere") };
-        assert_eq!(landings.also, None, "a 1 m drop's landing hurts nothing");
-        let speed = landings.most;
+        let DropWalk::LandsAt(feet, landed) = walk_drop(&world, &s, start, from, to) else { panic!("lands elsewhere") };
+        assert_eq!(landed.all, landed.walkable, "no steep ground");
+        assert_eq!(landed.all.also, None, "a 1 m drop's landing hurts nothing");
+        let speed = landed.all.most;
         assert!((feet.y - 1.0).abs() < 0.1, "{feet:?}");
         // [S6] A 1 m drop lands at the speed `step_down` 0x7E1B0 gives a fall from rest: 0.05 m a tick while slower than
         // 2 m/s (five ticks, 0.25 m), then the speed's own step, gaining 0.49 m/s every tick throughout; the tick that
@@ -957,6 +958,43 @@ mod tests {
         let mut deck = tris.clone();
         deck.extend(quad(0.0, 5.0, -2.0, 2.0, 2.0));
         assert_eq!(walk_drop(&Collision::build(&deck), &s, start, from, to), DropWalk::Held);
+    }
+
+    /// [item 2] A walk off a deck 17 m up falls onto a 65 deg face under it (steeper than the 55 deg a body stands on, met
+    /// head-on enough: `-(n . v^) >= already_sliding_on_slope_dp`), slides down it and lands on the ground at its foot. The face
+    /// is a landing the client counts at the tick's starting speed (`docs/notes/fall_damage.md` "steep slopes", PROVEN:
+    /// `step_down` 0x7E527..0x7E6D1, the speed kept at 0x7E660): 12.25 m/s, 25 of gravity's 0.49 m/s ticks, then the ground at
+    /// 11.53 m/s. Both landings' pain (1.55) empties a full pool; the ground's alone (0.64) does not, which is how the build
+    /// judged the drop before (DROP 0x5067_0008).
+    #[test]
+    fn a_steep_face_under_a_walk_off_is_a_landing_that_hurts() {
+        use super::super::held_floors::{Landed, Landings, SteepClosed};
+        let s = Settings::LIVE;
+        let start = WalkStart::Clear;
+        let (deck, x0, top, foot_x) = (17.0f32, -2.0f32, 14.0f32, 1.0f32);
+        let foot = top - (foot_x - x0) * 65f32.to_radians().tan();
+        let mut tris = quad(-5.0, 0.0, -2.0, 2.0, deck).to_vec();
+        let t = |v: [Vec3; 3]| Triangle { v, walker: WalkerBehaviour::BySlope };
+        tris.push(t([Vec3::new(x0, top, -2.0), Vec3::new(x0, top, 2.0), Vec3::new(foot_x, foot, 2.0)]));
+        tris.push(t([Vec3::new(x0, top, -2.0), Vec3::new(foot_x, foot, 2.0), Vec3::new(foot_x, foot, -2.0)]));
+        tris.extend(quad(foot_x, 15.0, -2.0, 2.0, foot));
+        let world = Collision::build(&tris);
+        let (from, aim) = (Vec3::new(-0.25, deck, 0.0), Vec3::new(0.25, deck - 1.0, 0.0));
+        let walk = walk_drop(&world, &s, start, from, aim);
+        let DropWalk::LandsAt(feet, landed) = walk else { panic!("{walk:?}") };
+        assert!((feet.y - foot).abs() < 0.01 && feet.x > foot_x, "on the ground at the face's foot: {feet:?}");
+        let c = body_at(&world, start, Stance::Standing, from);
+        let (gain, face) = (c.gravity * c.tick, landed.all.most);
+        assert!((face / gain - 25.0).abs() < 1e-3, "the face's landing at a tick's starting speed: {landed:?}");
+        let ground = landed.all.also.expect("the ground's landing hurts too");
+        assert!(ground < face && (ground - 11.53).abs() < 0.01, "{landed:?}");
+        assert_eq!(landed.walkable, Landings::one(ground), "on walkable ground, the ground's landing alone");
+        let pain = |l: Landings| l.pain(1.0, super::super::SecondLanding::Adds);
+        assert!((pain(landed.all) - 1.554).abs() < 0.002 && (pain(landed.walkable) - 0.637).abs() < 0.002, "{landed:?}");
+        assert!(SteepClosed::of(from, aim, feet, landed).is_some(), "closed by the face's landing");
+        // A walk whose only landing is on walkable ground is no steep closing, however hard.
+        let flat = Landed::NONE.and(crate::controller::tick::LandingGround::Walkable, 15.0);
+        assert!(SteepClosed::of(from, aim, feet, flat).is_none());
     }
 
     /// [S6] The downward speed at the start of the tick on which a fall from rest reaches `height` m down, by `step_down`

@@ -860,6 +860,25 @@ fn build(
                             stats.drops_reaim_pairs,
                             stats.gaps
                         );
+                        // [item 2] Each held floor's drop a steep landing closes for a full pool: its take-off, the point the
+                        // walk aimed at and its landing (what re-walks it from data), and its landings' speeds, all of them and
+                        // on walkable ground alone. A log's only.
+                        for closed in &stats.steep_closed {
+                            let v = |l: mapdata::grid::held_floors::Landings| match l.also {
+                                Some(also) => format!("{:.3} and {also:.3}", l.most),
+                                None => format!("{:.3}", l.most),
+                            };
+                            let p = |p: mapdata::Vec3| format!("({:.3}, {:.3}, {:.3})", p.x, p.y, p.z);
+                            log::info!(
+                                "Bot map {} drop from {} closed by a steep landing: walked at {}, lands at {}; landings {} m/s, on walkable ground {} m/s",
+                                path.display(),
+                                p(closed.from),
+                                p(closed.aim),
+                                p(closed.to),
+                                v(closed.landed.all),
+                                v(closed.landed.walkable)
+                            );
+                        }
                         // [R83] The aimed presses' line (debug): made, tried, flights, and the grid's build time.
                         let rim = stats.rim;
                         log::info!(
