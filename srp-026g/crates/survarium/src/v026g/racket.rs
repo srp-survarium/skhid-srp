@@ -163,7 +163,8 @@ pub fn replaces(dictionary: &Dictionary, dict_id: u16) -> bool {
 /// - in each kit that held one, the ammo that none of its guns fires now leaves its slots, and
 ///   the kit has a clip of the arms' ammo for every ammo bag the ammo it keeps leaves free
 ///   ([`free_bags`]), in the first slot that ammo left or else its first empty ammo slot (a kit
-///   already holding ammo the gun fires keeps its own; one with no ammo slot or no bag free has
+///   already holding the gun's own ammo keeps it, one holding only other ammo the gun fires still
+///   gets its clips; one with no ammo slot or no bag free has
 ///   the gun's magazine alone);
 /// - that ammo is one new stack every such kit holds, its store the largest kit's amount
 ///   [`STORE_LIVES`] times;
@@ -220,12 +221,15 @@ pub fn arm(profile: &mut MatchProfile, arms: &Arms) {
             first.get_or_insert(slot);
             kit.slots[slot] = None;
         }
-        let fired = |slot: u8| {
+        // A kit already holding the gun's own ammo keeps it; one holding only other ammo the gun
+        // fires (7N6M beside the AK-74N) still gets its clips of the gun's own (the owner,
+        // 2026-11-15, of the review's finding: "let's quickly fix that").
+        let own = |slot: u8| {
             kit.slots[usize::from(slot)]
                 .and_then(|(index, _)| items.get(usize::from(index)))
-                .is_some_and(|item| dictionary.compatible(arms.gun, item.dict_id))
+                .is_some_and(|item| item.dict_id == arms.ammo)
         };
-        if AMMO_SLOTS.into_iter().any(fired) {
+        if AMMO_SLOTS.into_iter().any(own) {
             continue;
         }
         let empty = AMMO_SLOTS
