@@ -2191,7 +2191,11 @@ impl Bots {
             bot.stamina.spawn(time);
             bot.sent_keys = 0;
             bot.end_route(RouteEnd::NewLife, time);
-            bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
+            let skill = self.teams[team].skill.skill;
+            // [camper calibration] The bench's stand-in camper keeps the skill the run pins (`SRP_BENCH_CAMPER_SKILL`).
+            #[cfg(test)]
+            let skill = self.bench_camper.as_ref().filter(|c| c.place() == bot.place).and_then(tests::BenchCamper::skill).unwrap_or(skill);
+            bot.new_life(skill, self.tactics.as_ref(), feet);
             #[cfg(test)]
             {
                 bot.bench_life = Some(life_start::Life::new(time));

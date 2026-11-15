@@ -1308,6 +1308,11 @@ impl BenchCamper {
         self.place
     }
 
+    /// [camper calibration] His skill every life, when the run pins it (`SRP_BENCH_CAMPER_SKILL`).
+    pub(crate) fn skill(&self) -> Option<f32> {
+        self.options.skill
+    }
+
     pub(crate) fn tuning(&self) -> &Arc<Tuning> {
         &self.tuning
     }

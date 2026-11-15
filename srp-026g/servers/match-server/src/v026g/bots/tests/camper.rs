@@ -99,6 +99,9 @@ pub(crate) struct CamperOptions {
     /// [A302 calibration] `SRP_BENCH_CAMPER_HEAD=<share>`: that share of his targets aimed at the head first
     /// (`aimpoint::Sight::head_first`), the owner's 26 % headshots (A287) at most; unset: the bots' order, chest first.
     pub(crate) head_share: Option<f32>,
+    /// [camper calibration] `SRP_BENCH_CAMPER_SKILL`: his skill every life, whatever his team's (unset: his team's, as every bot),
+    /// so that one camper meets two bot tunings whose skill sections differ.
+    pub(crate) skill: Option<f32>,
 }
 
 /// Where the standing camper (no [`MoveOptions`]) goes after a death (`SRP_BENCH_CAMPER_RETURN`).
@@ -137,6 +140,7 @@ impl CamperOptions {
         hold_fire: false,
         scoped: false,
         head_share: None,
+        skill: None,
     };
 
     /// The environment's ([`bench_settings`]); a value it does not know refuses the run.
@@ -183,6 +187,13 @@ impl CamperOptions {
             returns: ReturnRule::parse(get("SRP_BENCH_CAMPER_RETURN").as_deref())?,
             hold_fire: flag("SRP_BENCH_CAMPER_HOLD_FIRE")?,
             scoped: flag("SRP_BENCH_CAMPER_SCOPED")?,
+            skill: match get("SRP_BENCH_CAMPER_SKILL").as_deref() {
+                None => None,
+                Some(v) => match v.parse::<f32>() {
+                    Ok(skill) if (0.0..=1.0).contains(&skill) => Some(skill),
+                    _ => return Err(format!("SRP_BENCH_CAMPER_SKILL={v:?}: a skill from 0 to 1")),
+                },
+            },
             head_share: match get("SRP_BENCH_CAMPER_HEAD").as_deref() {
                 None => None,
                 Some(v) => match v.parse::<f32>() {
@@ -437,7 +448,7 @@ pub(crate) fn the_options_off_are_the_old_spot_and_the_hidden_rule_finds_one() {
     let mut tactics = super::tactics::Tactics::new(super::tactics::tests::field(), 1.0);
     tactics.set_routes(camper_routes());
     assert_eq!(camper_spot_by(&tactics, 0, SpotRule::Most, false), camper_spot(&tactics, 0));
-    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free, watch: Watch::Around, side: CamperSide::Given, start: CamperStart::Spawn, returns: ReturnRule::Always, hold_fire: false, scoped: false, head_share: None });
+    assert_eq!(CamperOptions::OFF, CamperOptions { rule: SpotRule::Most, crouch: false, long_gun: false, moving: None, at: CamperAt::Free, watch: Watch::Around, side: CamperSide::Given, start: CamperStart::Spawn, returns: ReturnRule::Always, hold_fire: false, scoped: false, head_share: None, skill: None });
     for crouched in [false, true] {
         let hidden = camper_spot_by(&tactics, 0, SpotRule::Hidden, crouched).expect("a spot");
         assert!(hidden.1 > 0);
