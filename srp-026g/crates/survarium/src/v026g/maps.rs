@@ -327,6 +327,13 @@ impl MapMode {
     pub fn is_playable(&self) -> bool {
         self.has_project
     }
+
+    /// One of the STALKER maps (`stalker-maps.md`): its project a `v010b_` port (Clear Sky's
+    /// mp_bath, mp_military_1, mp_training_camp and mp_rembasa, the SoC Station and Depository),
+    /// in every mode.
+    pub fn is_stalker(&self) -> bool {
+        self.project.starts_with("v010b_")
+    }
 }
 
 /// A number of a game mode config; a missing one is 0.

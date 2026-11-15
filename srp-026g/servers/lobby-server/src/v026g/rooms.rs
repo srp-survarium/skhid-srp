@@ -243,8 +243,12 @@ struct Ready {
 }
 
 impl Core<'_> {
-    /// The maps a pool may hold, in the order their bits name them: the
-    /// match pool (Blackout's maps too, mode 6), then the experimental maps.
+    /// The maps a pool may hold, in the order their bits name them and the
+    /// create window lists them: the match pool (Blackout's maps too, mode
+    /// 6), then the experimental maps, the STALKER maps of both after every
+    /// other (the owner's of 2026-11-15: "also when creating private rooms,
+    /// stalker maps should be at the bottom of the list"), each part in its
+    /// order.
     pub(super) fn room_entries(&self) -> Vec<PoolEntry> {
         let pool = &self.settings.maps;
         let extra = self
@@ -253,21 +257,28 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        pool
+        let mut entries: Vec<(bool, PoolEntry)> = pool
             .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
             .filter_map(|(id, extra)| {
                 let map = maps::map_mode(id)?;
-                Some(PoolEntry {
+                let entry = PoolEntry {
                     map_id: id,
                     level: map.level,
                     weather: map.weather,
                     mode: map.mode.lobby_number(),
                     extra,
                     bots: self.settings.pvb.bot_maps.contains(&id),
-                })
+                };
+                Some((map.is_stalker(), entry))
             })
+            .collect();
+        // Stable: the others first, the STALKER maps after, each as it came.
+        entries.sort_by_key(|&(stalker, _)| stalker);
+        entries
+            .into_iter()
+            .map(|(_, entry)| entry)
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()

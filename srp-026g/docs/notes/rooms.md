@@ -34,6 +34,12 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   PIN and a chosen map/mode pool. No team-size, minimum, max-level or countdown
   controls. The server refuses a public CREATE request (code 16), including from
   older movies, without changing the player's current room or queue.
+  - **The STALKER maps last** (the owner's of 2026-11-15: "also when creating private
+    rooms, stalker maps should be at the bottom of the list"): the window lists the maps in
+    the order of the server's pool (`Core::room_entries`, the match pool then the
+    experimental maps), the STALKER maps of every mode (projects `v010b_*`,
+    `MapMode::is_stalker`) after every other, each part in its order. A saved window keeps
+    its tiles by map and weather, not by place: the order changes none of them.
   - **Remembered** (the owner's of 2026-10-20: "when you set up your room with the specific
     levels, specific maps and game modes is for it to persist next time"): a room made by
     hand is its maker's next create window, kept with the account in srp.db (restarts,
