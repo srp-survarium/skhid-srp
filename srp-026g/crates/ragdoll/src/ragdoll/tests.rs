@@ -545,6 +545,7 @@ fn the_killing_shot_decides_the_fall() {
     let leg = crate::shot::Hit {
         point: Vec3::new(0.1, 0.3, 0.08),
         impulse: crate::shot::impulse(Vec3::new(0.0, 0.0, -1.0), 0.02, 800.0),
+        blow: None,
     };
     let kicked = fall(&[leg], none, 12);
     assert!(
@@ -635,6 +636,7 @@ fn equipment_and_ammo_change_the_knock() {
     let shot = |mass: f32, speed: f32| crate::shot::Hit {
         point: front.point,
         impulse: crate::shot::impulse(Vec3::new(0.0, 0.0, -1.0), mass, speed),
+        blow: None,
     };
     let sniper = fall(&[shot(0.1, 800.0)], [0.0; PARTS], 12);
     let pistol = fall(&[shot(0.02, 315.0)], [0.0; PARTS], 12);
@@ -921,6 +923,7 @@ pub(crate) fn looks() -> [(&'static str, crate::shot::Hit); 3] {
             crate::shot::Hit {
                 point: Vec3::new(0.0, 1.3, 0.12),
                 impulse: rifle(Vec3::new(0.0, 0.0, -1.0)),
+                blow: None,
             },
         ),
         (
@@ -928,6 +931,7 @@ pub(crate) fn looks() -> [(&'static str, crate::shot::Hit); 3] {
             crate::shot::Hit {
                 point: Vec3::new(-0.15, 1.3, 0.0),
                 impulse: rifle(Vec3::new(1.0, 0.0, 0.0)),
+                blow: None,
             },
         ),
         (
@@ -935,6 +939,7 @@ pub(crate) fn looks() -> [(&'static str, crate::shot::Hit); 3] {
             crate::shot::Hit {
                 point: Vec3::new(0.0, 1.66, 0.09),
                 impulse: rifle(Vec3::new(0.0, 0.0, -1.0)),
+                blow: None,
             },
         ),
     ]
@@ -1022,6 +1027,7 @@ pub(crate) fn looks5() -> [(&'static str, crate::shot::Hit, Vec3); 5] {
             crate::shot::Hit {
                 point: Vec3::new(0.0, 1.3, 0.12),
                 impulse: rifle(back),
+                blow: None,
             },
             Vec3::ZERO,
         ),
@@ -1030,6 +1036,7 @@ pub(crate) fn looks5() -> [(&'static str, crate::shot::Hit, Vec3); 5] {
             crate::shot::Hit {
                 point: Vec3::new(-0.15, 1.3, 0.0),
                 impulse: rifle(Vec3::X),
+                blow: None,
             },
             Vec3::ZERO,
         ),
@@ -1038,6 +1045,7 @@ pub(crate) fn looks5() -> [(&'static str, crate::shot::Hit, Vec3); 5] {
             crate::shot::Hit {
                 point: Vec3::new(0.0, 1.66, 0.09),
                 impulse: rifle(back),
+                blow: None,
             },
             Vec3::ZERO,
         ),
@@ -1046,6 +1054,7 @@ pub(crate) fn looks5() -> [(&'static str, crate::shot::Hit, Vec3); 5] {
             crate::shot::Hit {
                 point: Vec3::new(0.0, 1.3, 0.12),
                 impulse: crate::shot::impulse(back, 0.1, 800.0),
+                blow: None,
             },
             Vec3::ZERO,
         ),
@@ -1054,6 +1063,7 @@ pub(crate) fn looks5() -> [(&'static str, crate::shot::Hit, Vec3); 5] {
             crate::shot::Hit {
                 point: Vec3::new(0.0, 1.3, 0.12),
                 impulse: rifle(back),
+                blow: None,
             },
             Vec3::new(0.0, 0.0, 5.0),
         ),
@@ -1153,6 +1163,7 @@ fn no_single_hit_reaches_a_cap() {
             let hits = [crate::shot::Hit {
                 point,
                 impulse: crate::shot::impulse(back, mass, speed),
+                blow: None,
             }];
             let now = standing(Quat::IDENTITY, Vec3::ZERO);
             let before = driver_bones(&now);
@@ -1315,6 +1326,7 @@ fn gun_stock(direction: Vec3, point: Vec3, blow: Blow, kit: f32) -> crate::shot:
     crate::shot::Hit {
         point,
         impulse: crate::shot::knocked_back(push, blow, kit),
+        blow: Some(blow),
     }
 }
 
@@ -1389,15 +1401,23 @@ fn a_battery_strike_knocks_back_half_the_protein_and_adds_to_it() {
         assert_eq!(crate::shot::knocked_back(push, Blow::BatteryStrike, k), push * 8.5);
     }
     assert_eq!(crate::shot::knocked_back(push, Blow::BatteryStrike, FORCE_PROTEIN_KNOCKBACK), push * 23.5);
-    // a strike alone is no heavy hit (68 N s): the body goes farther than a
-    // plain gun stock's, not lifted, less far than the protein's; with the
-    // protein, farther and higher than the protein alone
+    // every strike is a heavy hit, alone (68 N s) too; a plain gun stock
+    // and the heaviest bullet are not
+    let hit = |blow, kit| gun_stock(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12), blow, kit);
+    assert!(hit(Blow::BatteryStrike, 0.0).heavy() && hit(Blow::BatteryStrike, FORCE_PROTEIN_KNOCKBACK).heavy());
+    assert!(hit(Blow::GunStock, FORCE_PROTEIN_KNOCKBACK).heavy() && !hit(Blow::GunStock, 0.0).heavy());
+    let round = crate::shot::Hit { blow: None, impulse: crate::shot::impulse(Vec3::Z, 0.999, 2999.0), ..hit(Blow::GunStock, 0.0) };
+    assert!(!round.heavy());
+    // thrown about half as far as the protein's and lifted a little, well
+    // past a plain gun stock's; with the protein, farther and higher than
+    // the protein alone
     let rested = |settled: Option<f32>| settled.is_some_and(|t| t < MAX_AGE - 0.5);
     for (scene, direction, point) in KNOCK_SCENES {
         let [stock, protein, strike, both] =
             MELEE.map(|(_, blow, kit)| thrown(gun_stock(direction, point, blow, kit), |_| {}));
         let seen = std::format!("{scene}: {stock:?} {protein:?} {strike:?} {both:?}");
-        assert!(stock.1 + 0.3 < strike.1 && strike.1 + 1.0 < protein.1 && strike.0 < 0.02, "strike: {seen}");
+        let half = strike.1 / protein.1;
+        assert!(stock.1 + 0.5 < strike.1 && (0.4..0.6).contains(&half) && strike.0 > 0.02, "strike: {seen}");
         assert!(protein.1 + 1.0 < both.1 && protein.0 < both.0, "strike with the protein: {seen}");
         assert!(rested(strike.2) && rested(both.2), "{seen}");
     }

@@ -211,11 +211,24 @@ pub fn knocked_back(push: Vec3, blow: Blow, kit: f32) -> Vec3 {
     push * (1.0 + min(kit + blow.knockback(), 99.0))
 }
 
-/// A bullet that hit a living player: where, and its push (N s).
+/// A bullet that hit a living player: where, its push (N s), and what a
+/// melee hit struck with (none for a round).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hit {
     pub point: Vec3,
     pub impulse: Vec3,
+    pub blow: Option<Blow>,
+}
+
+impl Hit {
+    /// A heavy hit throws the whole body (its share not capped, lifted):
+    /// a push of [`tuning::HEAVY_HIT`] or more, which no bullet makes, or a
+    /// battery strike whatever its push (the owner, 2026-11-15: "half as
+    /// strong as anomalous protein": alone its 68 N s would be capped as a
+    /// bullet's).
+    pub fn heavy(&self) -> bool {
+        self.impulse.length() >= tuning::HEAVY_HIT || self.blow == Some(Blow::BatteryStrike)
+    }
 }
 
 /// The hits a place took lately (a ring of [`RECENT`] a place, the time of
@@ -260,6 +273,7 @@ impl Recent {
         let mut out = [Hit {
             point: Vec3::ZERO,
             impulse: Vec3::ZERO,
+            blow: None,
         }; RECENT];
         let latest = self
             .hits
@@ -444,6 +458,7 @@ mod tests {
         let hit = |z: f32| Hit {
             point: Vec3::new(0.0, 1.0, z),
             impulse: Vec3::Z,
+            blow: None,
         };
         let mut recent = Recent::new();
         assert_eq!(recent.of_death(5.0).1, 0, "no hit: no push");

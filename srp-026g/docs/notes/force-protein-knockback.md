@@ -33,8 +33,9 @@
   `FORCE_PROTEIN_KNOCKBACK` / 2 = 7.5, to that sum (`shot::Blow`): 8.5 times (68 N s) alone,
   23.5 (188 N s) with the protein. `FORCE_PROTEIN_KNOCKBACK` is checked against modification
   1330's value in `modifications.tsv` (a retune there fails `cargo test -p ragdoll` until it
-  follows). 68 N s is no heavy hit: the body ends 1.44 / 1.39 m on (front / side), not lifted;
-  with the protein 6.18 m, 0.41 m up. Renders: `private/renders/battery-hit/knockback_*`.
+  follows). A strike is always a heavy hit (`shot::Hit::heavy`), though its 68 N s alone is
+  under `HEAVY_HIT` (capped, it ended 1.44 m on): the body ends 1.95 / 1.82 m on (front / side),
+  0.05 m up, about half the protein's throw; with the protein 6.18 m, 0.41 m up. Renders: `private/renders/battery-hit/knockback_*`.
 - **Every client the same:** each reads the killer's kit, which every game has (the static info);
   the ragdoll is drawn by each game alone, never in the simulation: no `next` row.
 - **Checked:** `cargo test -p ragdoll` (the protein's throw as far as the played build, a plain

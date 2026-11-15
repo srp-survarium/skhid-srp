@@ -37,7 +37,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use ::ragdoll::corpse::{Corpse, CorpseHit, Corpses, Death, DeathKey, Drawn, Frame, MAX_PLACES, Seen, SlotId};
 use ::ragdoll::math::{Pose, Quat, Vec3, abs};
 use ::ragdoll::ragdoll::{Cause, GunShape, HeadwearShape, Knock, Level, Skeleton, StartReport, Sweep};
-use ::ragdoll::shot::{Blow, Hit, Recent, Shot, ShotKey, ShotLog, impulse, knocked_back};
+use ::ragdoll::shot::{Hit, Recent, Shot, ShotKey, ShotLog, impulse, knocked_back};
 use ::ragdoll::skeleton::{BONE_COUNT, BONES, PARTS, Part};
 
 use crate::vostok::bullet::BulletRay;
@@ -209,8 +209,7 @@ enum Clock {
 }
 
 /// A bullet's round as the trace says it: the ammo's mass and muzzle speed
-/// (its identity), its speed at the hit, its segment, its id and shooter,
-/// and what a melee hit struck with (none a round).
+/// (its identity), its speed at the hit, its segment, its id and shooter.
 #[derive(Clone, Copy)]
 struct Round {
     mass: f32,
@@ -219,7 +218,6 @@ struct Round {
     segment: u32,
     bullet: u32,
     shooter: u8,
-    melee: Option<Blow>,
 }
 
 /// A shot's push on a corpse, for the next step.
@@ -446,7 +444,7 @@ fn seen(
 /// knows every kit and every carried battery, so each draws the same.
 fn pushed(living: &Living, client: &NetworkClient<'_>) -> Hit {
     let Living { hit, round, .. } = *living;
-    let Some(blow) = round.melee else { return hit };
+    let Some(blow) = hit.blow else { return hit };
     let shooter = (round.shooter != u8::MAX).then(|| client.player(u32::from(round.shooter))).flatten();
     let kit = shooter.and_then(|p| p.kit_modifier(ModifierIndex::MELEE_KNOCKBACK)).unwrap_or(0.0);
     Hit { impulse: knocked_back(hit.impulse, blow, kit), ..hit }
@@ -603,8 +601,7 @@ fn step(state: &mut State, client: Option<&NetworkClient<'_>>, thread: &Thread) 
 fn spike_of_death(file: &mut TraceState, thread: &Thread, time: f32, place: usize, round: Option<&Round>,
                   r: &StartReport) {
     let body: f32 = Part::ALL.iter().map(|p| p.mass()).sum();
-    let none = Round { mass: f32::NAN, muzzle: f32::NAN, speed: f32::NAN, segment: 0, bullet: 0, shooter: 0,
-                       melee: None };
+    let none = Round { mass: f32::NAN, muzzle: f32::NAN, speed: f32::NAN, segment: 0, bullet: 0, shooter: 0 };
     let round = round.unwrap_or(&none);
     trace_line(file, thread, |w| {
         w.text("spike,");
@@ -779,7 +776,6 @@ fn bullet(ray: &BulletRay<'_>, thread: &Thread) {
         segment: ray.segment(),
         bullet: ray.id(),
         shooter: shooter.unwrap_or(u8::MAX),
-        melee: ray.melee(),
     };
     let push = |direction: Vec3| impulse(direction, round.mass, round.speed);
     // a living player hit: kept for its death's push, once a bullet
@@ -787,7 +783,7 @@ fn bullet(ray: &BulletRay<'_>, thread: &Thread) {
         && let Some(point) = ray.struck()
         && let Some(unit) = direction.direction()
     {
-        let living = Living { body, hit: Hit { point: vec3(point), impulse: push(unit) }, round };
+        let living = Living { body, hit: Hit { point: vec3(point), impulse: push(unit), blow: ray.melee() }, round };
         STATE.with(thread, |state| take_living(&mut state.shots, key(LIVING, body.key()), living));
     }
     if !ANY_BODIES.load(Ordering::Acquire) {
