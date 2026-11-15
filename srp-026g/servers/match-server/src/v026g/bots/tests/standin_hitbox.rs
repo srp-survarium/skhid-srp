@@ -27,20 +27,18 @@
 //! the way it faces, as the map frame is (left-handed, Y up). The idle stance is bladed (a foot forward, the
 //! torso turned), so the body is not centred on the position: the torso lies about 0.23 m behind it.
 //!
-//! **C3, the position scatter** ([`POSITION_SIGMA_M`]): the bots' shot lines are off the bodies they aim at by
-//! more than their aim says, because a bot reckons where the bodies are from worlds up to a second old and
-//! the game's bodies move by the client's own rules (`fact-own-eye.md` 5: the live bullet's origin against the
-//! bots' own replay is off by a median 0.17-0.31 m, at every distance). The stand-in's bodies move by the
-//! bots' own model, so it has none of it; with the boxes it is added to the shot line as one random offset
-//! across the line. GUESS: the size (a median 0.20 m, the short ages of the data) and that it adds in
-//! quadrature to the aim error the bench already has (`fact-hitboxes-026g.md` 5.4); the C0 counts check the
-//! residual (`shot_off_cells`, `hit_cells`).
+//! **C3, the position scatter** ([`Scatter`]): a server-driven bot reckons its own body from worlds, so where it
+//! fires from is off where the client's body is by the error built up since its last world. The stand-in's bodies
+//! move by the bots' own model, so they have none of it; with the boxes a bot's shot line starts off its eye by
+//! one draw of that error ([`Scatter::OwnPosition`]): the drift lab's flat and height error of firing bots by the
+//! world's age ([`OWN_POSITION_ROWS`]), at the age of the bot's last world at the shot. The game's bullet has no
+//! scatter of its own (a plain segment from the eye), so the stand-in human and the stand-in camper, who stand
+//! for clients, fire from their eye ([`ShotOrigin`]).
 //!
 //! One setting, `SRP_BENCH_HIT_MODEL`, turns the whole cut (C1 boxes, C2 pellets, C3 scatter) on together with
 //! `on`. **Unset it is `off`**: the old disc, the centre ray and no scatter, exactly, so every bench and identity
-//! run stays what it was until the setting is set (the phase-end smoke sets it in both arms; the bench becomes
-//! `on` after the release with a new base log set). `boxes` (C1 and C2 alone) and `scatter=<m>` (another sigma)
-//! are for diagnosis ([`HitVolume::bench`]).
+//! run stays what it was until the setting is set. `boxes` (C1 and C2 alone) and `scatter=<m>` (the earlier
+//! isotropic Gaussian of that sigma across the line, [`Scatter::Gaussian`]) are for diagnosis ([`HitVolume::bench`]).
 
 use mapdata::Vec3;
 
@@ -54,16 +52,130 @@ pub(crate) enum HitVolume {
     /// is its centre ray; no scatter.
     Disc,
     /// The body's 19 hit shapes: the nearest on the ray, the part from the shape; a shotgun's shot is its
-    /// pellets, each a ray. `scatter_m`: the sigma, metres, of the position scatter of the shot line (C3), if
-    /// there is one.
-    Boxes { scatter_m: Option<f32> },
+    /// pellets, each a ray. `scatter`: the position scatter of a bot's shot line (C3), if there is one.
+    Boxes { scatter: Option<Scatter> },
 }
 
-/// The sigma, metres per axis across the line, of the position scatter (C3): an isotropic Gaussian of this
-/// sigma has the radial median 0.20 m, the live bullet-origin error against the bots' replay at the short ages
-/// (0.17 m at 0.4-0.8 s, 0.20 m at 0.8-1.2 s, 0.31 m at 1.8-2.5 s; `fact-own-eye.md` 5). GUESS: the age of a
-/// shot's information is not tracked, so it is the one value for all.
-pub(crate) const POSITION_SIGMA_M: f32 = 0.17;
+/// How a bot's shot line is moved off its eye (C3).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Scatter {
+    /// The bots' own-position error by the age of their last world ([`OWN_POSITION_ROWS`], [`own_position_offset`]).
+    OwnPosition,
+    /// Diagnosis (`SRP_BENCH_HIT_MODEL=scatter=<m>`): an isotropic Gaussian of this sigma, metres a side, across the
+    /// line, whatever the world's age (the bench's scatter before the drift lab's rows, at 0.17 m).
+    Gaussian { sigma_m: f32 },
+}
+
+/// One world age's row of the bots' own-position error while firing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct OwnPositionRow {
+    /// The world's age, ms (the world interval the error built up over).
+    pub(crate) age_ms: u32,
+    /// The flat (horizontal) error, metres: P50, P75, P90, P95.
+    pub(crate) flat_m: [f32; 4],
+    /// The share of firing intervals with a flat error of [`TAIL_M`] or more.
+    pub(crate) over_tail: f32,
+    /// The height error, metres: P50, P90.
+    pub(crate) height_m: [f32; 2],
+}
+
+/// The flat error the rows give the share at or over, metres.
+pub(crate) const TAIL_M: f32 = 0.25;
+
+/// A drawn flat error counts as at [`TAIL_M`] or more from this much under it, metres: a draw held at the tail's value
+/// comes back a hair under it once turned to its direction and measured again (f32).
+pub(crate) const TAIL_COUNT_M: f32 = TAIL_M - 1e-4;
+
+/// The bots' own-position error while firing (the drift lab, `bots::tests::drift_replay::drift_on_a_real_match`: the
+/// server's reckoning of each bot's body from each world against the client's feet at the next world, the intervals with
+/// FIRE held), build 8d9d1f606 (2026-11-12) on fourteen local PvB matches: worlds every 250 ms (12,074 intervals), 500 ms
+/// (17,611) and 1,000 ms (16,415). Side-session note `owner-5-own-position-error-20261115.md`, its table's first three rows;
+/// build 934015371 agrees at 1,000 ms (0.061 / 0.125 / 0.238 / 0.349 m, 9.0 %).
+pub(crate) const OWN_POSITION_ROWS: [OwnPositionRow; 3] = [
+    OwnPositionRow { age_ms: 250, flat_m: [0.037, 0.081, 0.128, 0.167], over_tail: 0.015, height_m: [0.013, 0.078] },
+    OwnPositionRow { age_ms: 500, flat_m: [0.045, 0.092, 0.153, 0.199], over_tail: 0.027, height_m: [0.016, 0.088] },
+    OwnPositionRow { age_ms: 1_000, flat_m: [0.060, 0.125, 0.230, 0.355], over_tail: 0.088, height_m: [0.016, 0.098] },
+];
+
+impl OwnPositionRow {
+    /// The flat error at the quantile `u` (0..1): straight between the row's points (0 at 0, P50, P75, P90, P95 and
+    /// [`TAIL_M`] at `1 - over_tail`, in order of the quantile); past the last point it holds that point's value, a
+    /// lower bound for the share the row gives no quantile of (1.5 % at 250 ms, 2.7 % at 500, 5 % at 1,000).
+    pub(crate) fn flat_at(&self, u: f32) -> f32 {
+        let mut points = [
+            (0.0f32, 0.0f32),
+            (0.5, self.flat_m[0]),
+            (0.75, self.flat_m[1]),
+            (0.9, self.flat_m[2]),
+            (0.95, self.flat_m[3]),
+            (1.0 - self.over_tail, TAIL_M),
+        ];
+        points.sort_by(|a, b| a.0.total_cmp(&b.0));
+        quantile_at(&points, u)
+    }
+
+    /// The height error at the quantile `u`: straight between 0 at 0, P50 and P90; past P90 it holds P90 (a lower bound).
+    pub(crate) fn height_at(&self, u: f32) -> f32 {
+        quantile_at(&[(0.0, 0.0), (0.5, self.height_m[0]), (0.9, self.height_m[1])], u)
+    }
+}
+
+/// The value at `u` on points (quantile, value) sorted by quantile: straight between neighbours, the last value past the last.
+fn quantile_at(points: &[(f32, f32)], u: f32) -> f32 {
+    let u = u.clamp(0.0, 1.0);
+    for pair in points.windows(2) {
+        let ((u0, v0), (u1, v1)) = (pair[0], pair[1]);
+        if u <= u1 {
+            return if u1 > u0 { v0 + (v1 - v0) * (u - u0) / (u1 - u0) } else { v1 };
+        }
+    }
+    points.last().map_or(0.0, |&(_, v)| v)
+}
+
+/// The bots' own-position error (flat, height) at a world age: each quantile straight between the two rows about the
+/// age; under the first row's age the first row, over the last row's the last (a lower bound for the older worlds a
+/// bench may give).
+pub(crate) fn own_position_at(age_ms: u32, u_flat: f32, u_height: f32) -> (f32, f32) {
+    let rows = &OWN_POSITION_ROWS;
+    let at = |row: &OwnPositionRow| (row.flat_at(u_flat), row.height_at(u_height));
+    if age_ms <= rows[0].age_ms {
+        return at(&rows[0]);
+    }
+    for pair in rows.windows(2) {
+        let (a, b) = (&pair[0], &pair[1]);
+        if age_ms <= b.age_ms {
+            let w = (age_ms - a.age_ms) as f32 / (b.age_ms - a.age_ms) as f32;
+            let ((fa, ha), (fb, hb)) = (at(a), at(b));
+            return (fa + (fb - fa) * w, ha + (hb - ha) * w);
+        }
+    }
+    at(&rows[rows.len() - 1])
+}
+
+/// One draw of a bot's own-position error at a world age as an offset of its eye: the flat error in a direction drawn
+/// round the vertical, the height error up or down; four draws (`unit` called four times) whatever comes out.
+pub(crate) fn own_position_offset(age_ms: u32, mut unit: impl FnMut() -> f32) -> Vec3 {
+    let (u_flat, angle, u_height, up) = (unit(), unit(), unit(), unit());
+    let (flat, height) = own_position_at(age_ms, u_flat, u_height);
+    let angle = std::f32::consts::TAU * angle;
+    let height = if up < 0.5 { height } else { -height };
+    Vec3::new(flat * angle.cos(), height, flat * angle.sin())
+}
+
+/// Where a shooter's shot line starts in the shape hit model with the position scatter (C3).
+///
+/// The scatter stands for a server-driven bot's error about where the bodies are, its own included: the bot reckons them
+/// from worlds. The game itself has none: a bullet is a plain segment from the shooter's eye (`bullet::check_collision`
+/// 0x32D4E0, `bullet_physics_world::ray_test` 0x75E20: no radius, no draw), and a client fires from its true position. So the
+/// stand-in human and the stand-in camper, who stand for clients, fire from their own eye.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ShotOrigin {
+    /// A server-driven bot: the line is moved by the position scatter.
+    #[default]
+    Reckoned,
+    /// A client (the stand-in human, the stand-in camper): the line starts at the eye.
+    Own,
+}
 
 /// The bullet manager's gravity, m/s^2: `g = (0, -9.81, 0)` (its constructor 0x3219A0: PROVEN, fx-cover's read in
 /// `player_bots_weapons.md`).
@@ -115,11 +227,11 @@ pub(crate) use super::tallies::shot_offset::DISC_M;
 
 impl HitVolume {
     /// The boxes and pellets without the scatter (the tests' volume, and `SRP_BENCH_HIT_MODEL=boxes`).
-    pub(crate) const BOXES: Self = Self::Boxes { scatter_m: None };
+    pub(crate) const BOXES: Self = Self::Boxes { scatter: None };
 
-    /// The whole cut: boxes, pellets and the scatter (`SRP_BENCH_HIT_MODEL=on`).
+    /// The whole cut: boxes, pellets and the bots' own-position scatter (`SRP_BENCH_HIT_MODEL=on`).
     pub(crate) const ON: Self = Self::Boxes {
-        scatter_m: Some(POSITION_SIGMA_M),
+        scatter: Some(Scatter::OwnPosition),
     };
 
     /// The bench's: the old disc unless `SRP_BENCH_HIT_MODEL` says otherwise ([`Self::parse`]).
@@ -127,8 +239,8 @@ impl HitVolume {
         Self::parse(bench_settings().var("SRP_BENCH_HIT_MODEL").ok().as_deref())
     }
 
-    /// `on`: boxes, pellets and the scatter; `None` or `off`: the old disc; `boxes`: no scatter; `scatter=<m>`:
-    /// the scatter's sigma. Anything else refuses the run.
+    /// `on`: boxes, pellets and the bots' own-position scatter; `None` or `off`: the old disc; `boxes`: no scatter;
+    /// `scatter=<m>`: a Gaussian of that sigma instead (diagnosis). Anything else refuses the run.
     pub(crate) fn parse(value: Option<&str>) -> Self {
         match value {
             Some("on") => Self::ON,
@@ -137,10 +249,40 @@ impl HitVolume {
             Some(other) => {
                 let sigma = other.strip_prefix("scatter=").and_then(|m| m.parse::<f32>().ok());
                 match sigma.filter(|m| m.is_finite() && *m >= 0.0) {
-                    Some(m) => Self::Boxes { scatter_m: Some(m) },
+                    Some(m) => Self::Boxes { scatter: Some(Scatter::Gaussian { sigma_m: m }) },
                     None => panic!("SRP_BENCH_HIT_MODEL={other}: on, off, boxes or scatter=<metres>"),
                 }
             }
+        }
+    }
+
+    /// The run's switch line for the scatter: whose shot lines it moves ([`ShotOrigin`]).
+    pub(crate) fn scatter_line(self) -> String {
+        match self {
+            Self::Disc => "bench hit scatter: none (the old disc)".to_owned(),
+            Self::Boxes { scatter: None } => "bench hit scatter: none (the shapes without it)".to_owned(),
+            Self::Boxes { scatter: Some(Scatter::Gaussian { sigma_m }) } => format!(
+                "bench hit scatter: a Gaussian of {sigma_m} m a side (diagnosis) on the bots' shot lines only; the stand-in human and \
+                 the stand-in camper fire from their own eye"
+            ),
+            Self::Boxes { scatter: Some(Scatter::OwnPosition) } => format!(
+                "bench hit scatter: the bots' own-position error by their world's age, on the bots' shot lines only (drift lab \
+                 8d9d1f606, flat P50/P75/P90/P95 m and the share at {TAIL_M} m or more: {}); the stand-in human and the stand-in \
+                 camper fire from their own eye",
+                OWN_POSITION_ROWS
+                    .iter()
+                    .map(|r| format!(
+                        "{} ms {}/{}/{}/{} {:.1} %",
+                        r.age_ms,
+                        r.flat_m[0],
+                        r.flat_m[1],
+                        r.flat_m[2],
+                        r.flat_m[3],
+                        100.0 * r.over_tail
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         }
     }
 }
@@ -1429,26 +1571,26 @@ mod game_tests {
     #[test]
     fn the_setting_names_the_whole_cut_or_the_old_disc() {
         assert_eq!(HitVolume::parse(None), HitVolume::Disc, "unset is the old disc");
-        assert_eq!(HitVolume::parse(Some("on")), HitVolume::Boxes { scatter_m: Some(POSITION_SIGMA_M) });
+        assert_eq!(HitVolume::parse(Some("on")), HitVolume::Boxes { scatter: Some(Scatter::OwnPosition) });
         assert_eq!(HitVolume::parse(Some("off")), HitVolume::Disc);
         assert_eq!(HitVolume::parse(Some("boxes")), HitVolume::BOXES);
-        assert_eq!(HitVolume::parse(Some("scatter=0.3")), HitVolume::Boxes { scatter_m: Some(0.3) });
+        assert_eq!(HitVolume::parse(Some("scatter=0.3")), HitVolume::Boxes { scatter: Some(Scatter::Gaussian { sigma_m: 0.3 }) });
         assert!(std::panic::catch_unwind(|| HitVolume::parse(Some("scatter=-1"))).is_err());
         assert!(std::panic::catch_unwind(|| HitVolume::parse(Some("yes"))).is_err());
     }
 
-    /// The position scatter is one random offset across the shot line, isotropic, of the sigma given: the radial
-    /// median is 1.177 sigma (0.20 m for the default), and the offset is perpendicular to the line. The old
+    /// The diagnosis's scatter (`scatter=<m>`) is one random offset across the shot line, isotropic, of the sigma given:
+    /// the radial median is 1.177 sigma (0.20 m for 0.17), and the offset is perpendicular to the line. The old
     /// disc and the boxes without the scatter leave the line where it is and draw nothing.
     #[test]
     fn the_position_scatter_is_a_gaussian_across_the_line() {
-        let mut game = two_bodies(HitVolume::ON);
+        let mut game = two_bodies(GAUSSIAN_017);
         let eye = Vec3::new(10.0, 1.5, 10.0);
         let dir = Vec3::new(0.0, 0.6, 0.8);
         let mut radii = Vec::new();
         let (mut sum_across, mut sum_along) = (Vec3::ZERO, 0.0f32);
         for _ in 0..4000 {
-            let (origin, d) = game.shot_line(eye, dir, 0.0);
+            let (origin, d) = game.shot_line(0, eye, dir, 0.0);
             assert_eq!(d, dir, "no weapon cone, no spread: the direction stays");
             let off = origin - eye;
             sum_along += off.dot(dir).abs();
@@ -1463,9 +1605,33 @@ mod game_tests {
         for volume in [HitVolume::Disc, HitVolume::BOXES] {
             let mut game = two_bodies(volume);
             let before = format!("{:?}", game.rng);
-            assert_eq!(game.shot_line(eye, dir, 0.0), (eye, dir));
+            assert_eq!(game.shot_line(0, eye, dir, 0.0), (eye, dir));
             assert_eq!(format!("{:?}", game.rng), before, "{volume:?}: nothing drawn");
         }
+    }
+
+    /// The stand-in human and the stand-in camper stand for clients, whose bullets start at their eye: with the whole cut
+    /// on, a place set to [`ShotOrigin::Own`] fires along its line with zero offset, every shot, while a bot's line is still
+    /// scattered; the client's offset is drawn all the same, so the draws after it are the ones a bot's shot would leave.
+    #[test]
+    fn the_stand_ins_line_has_no_offset_and_draws_as_a_bots() {
+        let eye = Vec3::new(10.0, 1.5, 10.0);
+        let dir = Vec3::new(0.0, 0.6, 0.8);
+        let mut game = two_bodies(HitVolume::ON);
+        let mut bots_only = two_bodies(HitVolume::ON);
+        game.set_shot_origin(0, ShotOrigin::Own);
+        let mut moved = 0;
+        for _ in 0..500 {
+            assert_eq!(game.shot_line(0, eye, dir, 0.0), (eye, dir), "the stand-in's line starts at his eye");
+            let _ = bots_only.shot_line(0, eye, dir, 0.0);
+            assert_eq!(format!("{:?}", game.rng), format!("{:?}", bots_only.rng), "the same draws as a bot's shot");
+            let (origin, _) = game.shot_line(1, eye, dir, 0.0);
+            let _ = bots_only.shot_line(1, eye, dir, 0.0);
+            moved += usize::from(origin != eye);
+        }
+        assert_eq!(moved, 500, "a bot's line is still scattered");
+        assert!(HitVolume::ON.scatter_line().contains("bots' shot lines only"), "{}", HitVolume::ON.scatter_line());
+        assert!(HitVolume::Disc.scatter_line().contains("none"));
     }
 
     /// The scatter lowers the rate at which a line aimed at the chest at 10 m hits (the boxes alone hit it
@@ -1484,8 +1650,60 @@ mod game_tests {
             }
             hits as f32 / 600.0
         };
-        let (plain, scattered) = (rate(HitVolume::BOXES), rate(HitVolume::ON));
+        let (plain, gaussian, own) = (rate(HitVolume::BOXES), rate(GAUSSIAN_017), rate(HitVolume::ON));
         assert!(plain > 0.95, "{plain}");
-        assert!(scattered < plain - 0.1 && scattered > 0.4, "{scattered} against {plain}");
+        assert!(gaussian < plain - 0.1 && gaussian > 0.4, "{gaussian} against {plain}");
+        // The bots' own-position error at a fresh world (median 0.037 m) costs few hits, fewer than the old Gaussian.
+        assert!(own <= plain && own > gaussian, "{own} between {gaussian} and {plain}");
+    }
+
+    /// The old scatter's volume, for the diagnosis's tests: a Gaussian of 0.17 m a side.
+    const GAUSSIAN_017: HitVolume = HitVolume::Boxes { scatter: Some(Scatter::Gaussian { sigma_m: 0.17 }) };
+
+    /// A bot's shot line starts off its eye by the drift lab's own-position error at the age of its last world: at each
+    /// row's age, 60,000 drawn offsets have the row's flat P50 / P75 / P90 / P95 within 3 mm, its share at 0.25 m or more
+    /// within half a point (where the row's quantiles reach it), and its height P50 / P90 within 3 mm; between two rows'
+    /// ages each quantile is between theirs. The stand-in's shots (set to his own eye) add nothing to the drawn record.
+    #[test]
+    fn a_bots_scatter_has_the_drift_labs_quantiles_at_its_worlds_age() {
+        let eye = Vec3::new(10.0, 1.5, 10.0);
+        let dir = Vec3::new(0.0, 0.0, 1.0);
+        let draw = |age: u32| {
+            let mut game = two_bodies(HitVolume::ON);
+            game.set_shot_origin(0, ShotOrigin::Own);
+            game.note_world(1_000);
+            game.tick = 1_000 + age;
+            let (mut flat, mut height) = (Vec::new(), Vec::new());
+            for _ in 0..60_000 {
+                let (origin, _) = game.shot_line(1, eye, dir, 0.0);
+                let _ = game.shot_line(0, eye, dir, 0.0);
+                let off = origin - eye;
+                flat.push(off.x.hypot(off.z));
+                height.push(off.y.abs());
+            }
+            assert_eq!(game.scatter_drawn.len(), 60_000, "the stand-in's shots are not the bots' scatter");
+            assert!(game.scatter_drawn.iter().all(|&(a, _, _)| a == age), "drawn at the world's age");
+            flat.sort_by(f32::total_cmp);
+            height.sort_by(f32::total_cmp);
+            let q = |v: &[f32], p: f32| v[((v.len() - 1) as f32 * p).round() as usize];
+            let over = flat.iter().filter(|&&f| f >= TAIL_COUNT_M).count() as f32 / flat.len() as f32;
+            ([q(&flat, 0.5), q(&flat, 0.75), q(&flat, 0.9), q(&flat, 0.95)], over, [q(&height, 0.5), q(&height, 0.9)])
+        };
+        for row in &OWN_POSITION_ROWS {
+            let (flat, over, height) = draw(row.age_ms);
+            for (got, want) in flat.iter().zip(row.flat_m) {
+                assert!((got - want).abs() < 0.003, "{} ms: flat {flat:?} against {:?}", row.age_ms, row.flat_m);
+            }
+            assert!((over - row.over_tail).abs() < 0.005, "{} ms: {over} at {TAIL_M} m or more against {}", row.age_ms, row.over_tail);
+            for (got, want) in height.iter().zip(row.height_m) {
+                assert!((got - want).abs() < 0.003, "{} ms: height {height:?} against {:?}", row.age_ms, row.height_m);
+            }
+        }
+        let (mid, _, _) = draw(750);
+        let (a, b) = (OWN_POSITION_ROWS[1].flat_m, OWN_POSITION_ROWS[2].flat_m);
+        for i in 0..4 {
+            assert!(mid[i] > a[i] - 0.003 && mid[i] < b[i] + 0.003, "750 ms {mid:?} between {a:?} and {b:?}");
+        }
+        assert!(HitVolume::ON.scatter_line().contains("1000 ms 0.06/0.125/0.23/0.355 8.8 %"), "{}", HitVolume::ON.scatter_line());
     }
 }

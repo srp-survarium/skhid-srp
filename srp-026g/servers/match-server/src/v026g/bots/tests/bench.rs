@@ -1355,6 +1355,11 @@ pub(crate) fn real_bot_cost() {
                 assert!(camper_place.is_none(), "SRP_BENCH_HUMAN_PLAY=hunter rides on the camper's hooks: not with SRP_BENCH_CAMPER");
                 bots.bench_camper = Some(BenchCamper::hunter(place, seed, Arc::new(hunter_tuning())));
             }
+            // [shot origin] The stand-in human and the stand-in camper stand for clients: their shot lines start at the eye, with
+            // none of the bots' position scatter (`standin_hitbox::ShotOrigin`).
+            for place in [bots.bench_human, camper_place].into_iter().flatten() {
+                game.set_shot_origin(place, standin_hitbox::ShotOrigin::Own);
+            }
             // [A318] The stand-in camper's body reckoned by his own kin (his pinned tuning), whatever the arm's, on the match's one
             // world: every world-built id (regions, cells, links, sight) comes from that one world. A world of his own was tried
             // and dropped: his drive read team state built on the arm's world (`threat::free_regions` out of bounds).
@@ -1811,6 +1816,8 @@ pub(crate) fn real_bot_cost() {
                     let period_ms = u32::try_from(period.as_millis()).unwrap_or(u32::MAX);
                     worlds_waiting += u32::from(bots.need_world());
                     next_world = clock + period_ms;
+                    // [shot origin] The bots' shots from now on are scattered at this world's age.
+                    game.note_world(clock);
                     events.world(clock, &mut game, &bots);
                     let world_tick = clock / TICK_MS * TICK_MS - 300;
                     let hurts = game.hurts_at(world_tick).unwrap_or_default();
@@ -2473,6 +2480,9 @@ pub(crate) fn real_bot_cost() {
                 "stand_in": if game.honest { "honest" } else { "old" },
                 "owner": owner_sums,
             });
+            if let Some(line) = game.scatter_drawn_line() {
+                eprintln!("  {line}");
+            }
             say_whole(&format!("  sums: {sums}"));
             // The same JSON in a file of its own (logs from before `say_whole` have the line cut by libtest's
             // "has been running for over 60 seconds" when a cell is slow).
@@ -2706,6 +2716,7 @@ fn say_the_switches() {
     );
     eprintln!("{}", crate::v026g::bots::switch_log::env_switches());
     eprintln!("{}", super::settings::models_line(settings));
+    eprintln!("{}", HitVolume::bench().scatter_line());
 }
 
 fn say_the_rusher_kit() {
