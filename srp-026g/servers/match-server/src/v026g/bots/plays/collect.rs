@@ -5128,8 +5128,11 @@ mod tests {
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert_eq!(intent.press & key::USE, 0, "on: a teammate gave the stand up");
         assert!(!s.cx(0).set_aside(PlayKind::Collect, target));
+        // [A394] Two failed plays at one place set the battery aside for the team (`aside_after`), whatever the failures.
         let rule = TeamMemory::default();
-        s.team.takes.play_ended(0, TAKE_AT, TakeEnd::NoWay, s.view.clock, &rule);
+        assert!(!s.team.takes.play_ended(0, TAKE_AT, TakeEnd::NoWay, s.view.clock, &rule));
+        assert!(!s.cx(0).set_aside(PlayKind::Collect, target), "one failed play is not enough");
+        assert!(s.team.takes.play_ended(0, TAKE_AT, TakeEnd::NoWay, s.view.clock, &rule));
         assert!(s.cx(0).set_aside(PlayKind::Collect, target), "set aside for the team");
         s.tuning.take.team_memory = None;
         assert!(!s.cx(0).set_aside(PlayKind::Collect, target), "off: the team's aside is not read");
