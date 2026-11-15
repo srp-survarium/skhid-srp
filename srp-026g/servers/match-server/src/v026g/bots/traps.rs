@@ -1980,14 +1980,31 @@ pub(super) fn own_trap_route(
             .map(|d| (*d, off_route_m(&points, *d)))
             .min_by(|a, b| a.1.total_cmp(&b.1))
             .unwrap_or((feet, f32::MAX));
+        // The waypoint leg nearest the trap: its ends' heights against the trap's, a jump or not, its ends' floors shut or open.
+        let leg = route
+            .points()
+            .windows(2)
+            .min_by(|x, y| off_route_m(&[x[0].at, x[1].at], disc).total_cmp(&off_route_m(&[y[0].at, y[1].at], disc)))
+            .map_or("-".to_string(), |w| {
+                format!(
+                    "leg {:.2} m, ends y {:+.2}/{:+.2} from the trap, {}, floors {}/{}",
+                    off_route_m(&[w[0].at, w[1].at], disc),
+                    w[0].at.y - disc.y,
+                    w[1].at.y - disc.y,
+                    if w[1].jump.is_some() { "a jump" } else { "a walk" },
+                    if field.open(w[0].node) { "open" } else { "shut" },
+                    if field.open(w[1].node) { "open" } else { "shut" }
+                )
+            });
         eprintln!(
-            "  own trap route refused: t {now} place {} play {:?} start {:.2} m end {:.2} m nearest pass {pass:.2} m length {:.1} at ({:.1}, {:.1})",
+            "  own trap route refused: t {now} place {} play {:?} start {:.2} m end {:.2} m nearest pass {pass:.2} m length {:.1} at ({:.1}, {:.1}, {:.1}); {leg}",
             bot.place,
             bot.assignment.as_ref().map(|a| a.kind),
             feet.distance_xz(disc),
             end.distance_xz(disc),
             route.length(),
             disc.x,
+            disc.y,
             disc.z
         );
     }
