@@ -809,6 +809,7 @@ fn build(
                         let ties_before = mapdata::controller::sweep_ties();
                         let cull_before = mapdata::controller::sweep_cull();
                         let top_before = mapdata::controller::top_check_start();
+                        let stands_before = mapdata::grid::give_back_stands();
                         let (grid, stats) = World::map_grid_with_stats(&map, &walker, cell, body, links);
                         // A grid its own file's read would refuse (the off-mesh links' rule): an error, naming the link; written, it
                         // would be built again at every start.
@@ -847,12 +848,18 @@ fn build(
                             top.fraction_zero - top_before.fraction_zero,
                             top.wall_ray - top_before.wall_ray
                         );
-                        // A log's only: what each pass of the build did (a grid read from the cache has no such line).
+                        // A log's only: what each pass of the build did (a grid read from the cache has no such line). The wall
+                        // give-back's stand tests are the process's counters' growth, as the ties.
+                        let stands = mapdata::grid::give_back_stands();
                         log::info!(
-                            "Bot map {} grid built: {} floors; wall give-back {}, rest floors {}, held {:?}, drops walked {:?} re-aimed {} (one link a pair: {:?}), gaps {:?}",
+                            "Bot map {} grid built: {} floors; wall give-back {} (stand tests {}, stood {} of them on the ring {}, jammed {}), rest floors {}, held {:?}, drops walked {:?} re-aimed {} (one link a pair: {:?}), gaps {:?}",
                             path.display(),
                             grid.len(),
                             stats.wall_given_back,
+                            stands.tests - stands_before.tests,
+                            stands.stood - stands_before.stood,
+                            stands.stood_on_ring - stands_before.stood_on_ring,
+                            stands.jammed - stands_before.jammed,
                             stats.rest_floors,
                             stats.held,
                             stats.drops_walked,

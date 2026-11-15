@@ -217,8 +217,10 @@ pub const DROP_LANDS_ALGO: u32 = 0x5067_0009;
 /// body that asks for it. A value of its own.
 pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0006;
 /// The same for the taken floors given back where the client's body rests and no floor names the place ([`Body::rest_floors`],
-/// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own.
-pub const REST_FLOORS_ALGO: u32 = 0x5389_0101;
+/// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0102: the own-point stand test
+/// (`rest_floors::settle_near`: a standing body on the floor's own point, no push out of the walls, and 0.05-0.10 m around it
+/// where it jams there; a body jammed in faces is no rest).
+pub const REST_FLOORS_ALGO: u32 = 0x5389_0102;
 /// The same for the floors kept only where the client's capsule is held and the drops from the last held floors
 /// ([`Body::held_floors`], A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0202: a floor a
 /// body come down 0.15 m off its centre rests on is held (the ring, R2 F3).
@@ -231,8 +233,10 @@ pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0301;
 /// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45). 0104: the
 /// test body comes down onto the floor from up to 0.6 m over it and must rest there (A389 follow-up (a)). 0105: on the game's
 /// shapes where the build has them (the world the rest and held floors use). 0106: a rest up to `NAME_HEIGHT_M` (0.2 m) over the
-/// floor stands (it was 0.1 m both ways).
-pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0106;
+/// floor stands (it was 0.1 m both ways). 0107: used by unmerged pushes of the stand test pushed out of the walls; not this rule.
+/// 0108: the own-point stand test (`rest_floors::settle_near`: a standing body put on the floor's own point, no push out of the
+/// walls, and 0.05-0.10 m around it where it jams there; a body jammed in faces is no rest), the exe's class on 52 of 53 floors.
+pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0108;
 /// The same for the walk-tick passes with the exe's collision rules ([`Body::exe_collision`], A325), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const EXE_COLLISION_ALGO: u32 = 0x5325_0101;
