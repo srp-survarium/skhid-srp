@@ -262,8 +262,12 @@ impl Bots {
             // Nor do the team's callouts of him bring him back (match
             // 0x5402a730: 115 of 125 bot lines 1.5-5 s after a death still
             // knew the dead enemy, told).
-            for state in &mut self.teams {
+            for (team, state) in self.teams.iter_mut().enumerate() {
                 state.knowledge.forget_callouts(a.place);
+                // [#1913] Nor his weapon: his next life may bring another kit.
+                if let Some(kind) = state.knowledge.weapons.forget(a.place) {
+                    log::debug!("team {team}: player {} died at {time} ms: his weapon ({kind:?}) forgotten", a.place);
+                }
             }
         }
         // With the battery cheat off, what each team's HUD shows of the

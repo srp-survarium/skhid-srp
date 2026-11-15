@@ -1033,6 +1033,12 @@ impl KnownWeapons {
         }
     }
 
+    /// `who` died or left: what his hands showed is no longer his (a new life may bring another kit). Returns the kind
+    /// forgotten, for the log.
+    pub fn forget(&mut self, who: Place) -> Option<super::reflex::WeaponKind> {
+        self.by_place.get_mut(who).and_then(Option::take).map(|(kind, _)| kind)
+    }
+
     /// The kind the team last saw or heard `who` with; `None`: never.
     pub fn kind(&self, who: Place) -> Option<super::reflex::WeaponKind> {
         self.by_place.get(who).copied().flatten().map(|(kind, _)| kind)
@@ -1274,6 +1280,7 @@ impl TeamKnowledge {
     /// last known.
     pub fn forget(&mut self, who: Place) {
         self.forget_callouts(who);
+        self.weapons.forget(who);
         self.claims.retain(|c| c.who != who);
         self.release_route(who);
         self.wounds.forget(who);
