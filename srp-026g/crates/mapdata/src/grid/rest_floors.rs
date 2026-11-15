@@ -73,7 +73,7 @@ pub(super) fn rests_at(world: &Collision, s: &Settings, feet: Vec3, room: f32) -
 /// The own-point test's put over the floor, m: the exactness rig's (`held_spot_v2.py`, put 5 mm up).
 const PUT_OWN_M: f32 = 0.005;
 /// How far a body that rests must have come down from its put, m: a supported body settles the put's 5 mm (0 to 42 mm on the
-/// exactness rig's 35 holding floors); a body jammed in faces never moves (the rig's 14 jammed floors stay at +0.005).
+/// exactness rig's 36 holding floors); a body jammed in faces never moves (the rig's 13 jammed floors stay at +0.005).
 const CAME_DOWN_M: f32 = 0.001;
 
 /// How the own-point test ended ([`settle`], [`settle_near`]).
@@ -91,7 +91,7 @@ pub(super) enum Settle {
 /// [the own-point stand test] Where the client's walk tick rests a standing body set on the floor's own point `feet`: put
 /// [`PUT_OWN_M`] over it with no push out of the walls (the client's world sets a body where it is put: the exe never moves it
 /// sideways), no keys, the rest test's steps. The exactness rig ran the exe's own tick so on 53 floors the wall give-back brought
-/// back (rig/s7-20261114/own-point-all-20261116.tsv): it holds 35, jams 14 and drops 4 (on a slab's underside, or down a slope);
+/// back (rig/s7-20261114/own-point-all-20261116.tsv): it holds 36, jams 13 and drops 4 (on a slab's underside, or down a slope);
 /// this test, standing, gives the same class on 52 (nav-builder phase4/settle-20261116.txt; the one other is a box's underside,
 /// which the ground filter takes out). Put over the floor and pushed out of the walls (before), it agreed on 18 to 41 of them: a
 /// pushed body rests 0.25-0.40 m from the floor's point, where the exe's body never goes.

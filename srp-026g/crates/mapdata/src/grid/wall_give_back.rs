@@ -39,7 +39,7 @@ pub const STAND_MOVED_M: f32 = 0.1;
 /// No push out of the walls: the exe sets a body where it is put. Pushed out of them, at the floor's height and again over it
 /// (before, #1893), the body rested 0.25-0.40 m off the floor's point where the exe's body never goes, and a body jammed in faces,
 /// which never moves, read as a rest: on 53 floors this pass brought back, the exactness rig (the exe's own tick on captures of
-/// the running game) holds 35, jams 14 and drops 4; this test agrees on 52, the pushed one on 18 to 41
+/// the running game) holds 36, jams 13 and drops 4; this test agrees on 52, the pushed one on 18 to 41
 /// (rig/s7-20261114/own-point-all-20261116.tsv; nav-builder phase4/settle-20261116.txt). Of the floors the exe's body jams on at
 /// their point, 9 of 10 rest from a put 0.05-0.10 m out (the exactness rig's ring, rig/s7-20261114/ring-give-back-20261116.txt):
 /// the ring's floors stand.
@@ -70,7 +70,8 @@ pub struct GiveBackStands {
     pub stood: u64,
     /// … of them, from a ring put (jammed at the floor's point) …
     pub stood_on_ring: u64,
-    /// … and of those that did not, jammed at the floor's point and at every ring put.
+    /// … and of those that did not, jammed at the floor's point with no ring put taken (each jammed, fell, or rested past the
+    /// bounds).
     pub jammed: u64,
 }
 
@@ -112,7 +113,8 @@ enum Judge {
 
 /// [A331] Whether the client's walk tick stands a body somewhere in the cell of `centre` (half its side `half`): the body set at
 /// the centre and pushed out of the walls as the client's world pushes it ([`out_of_walls`]: the standing cylinder with its
-/// margin), clear of every wall there, inside the cell, and standing there ([`stands`]).
+/// margin), clear of every wall there, inside the cell, and standing there ([`stands`]). This one push is the cell search (where
+/// in the cell to test), not the stand test: [`stands`] then sets the body where the push left it, with no push of its own.
 pub(super) fn stands_in_cell(world: &Collision, s: &Settings, centre: Vec3, half: f32) -> bool {
     let at = out_of_walls(world, centre);
     if (at.x - centre.x).abs() > half || (at.z - centre.z).abs() > half {
