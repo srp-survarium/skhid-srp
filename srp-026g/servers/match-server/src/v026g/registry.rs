@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
 use survarium::v026g::keeper;
-use survarium::v026g::twist::{Played, Twist};
+use survarium::v026g::twist::{Armed, Played};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, GameMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
@@ -1054,7 +1054,7 @@ pub struct MatchResult {
     /// [`Formed::played`]'s: Blackout's scores pay twice.
     pub mode: GameMode,
     /// [`Formed::played`]'s twist: the kits it armed.
-    pub twist: Option<Twist>,
+    pub twist: Option<Armed>,
     pub match_level: u16,
     pub end: MatchEnd,
     /// 0 or 1, [`DRAW`], or `None` when no trusted snapshot gave a

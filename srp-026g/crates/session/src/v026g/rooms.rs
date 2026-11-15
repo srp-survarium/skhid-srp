@@ -65,7 +65,8 @@ use std::time::{Duration, Instant};
 use survarium::v026g::drops::Rng;
 use survarium::v026g::lobby::rooms::rules;
 use survarium::v026g::maps;
-use survarium::v026g::twist::{Played, Plays, Twist};
+use survarium::v026g::racket;
+use survarium::v026g::twist::{self, Played};
 
 use super::level_stats;
 use crate::Strength;
@@ -105,31 +106,6 @@ const KEY_MAX: u32 = 99_999;
 /// The lines a room's chat keeps: what a member's "Room Chat" tab is
 /// given when it comes, and again after its match (`social.md` §9.8).
 pub const CHAT_KEPT: usize = 20;
-
-/// An entry of a room's pool, what a create's bit names: a map (a `maps_dict` id), and on a
-/// free-for-all's the twist its card plays or none (`ffa.md`, "Twists": the create window ticks
-/// each twist as a mode of its own).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Entry {
-    pub map: u8,
-    pub twist: Option<Twist>,
-}
-
-impl Entry {
-    /// `map` as it is.
-    pub const fn plain(map: u8) -> Self {
-        Self { map, twist: None }
-    }
-}
-
-impl From<&survarium::v026g::lobby::rooms::PoolEntry> for Entry {
-    fn from(entry: &survarium::v026g::lobby::rooms::PoolEntry) -> Self {
-        Self {
-            map: entry.map_id,
-            twist: entry.twist,
-        }
-    }
-}
 
 /// What a room is made with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -218,14 +194,14 @@ pub struct Room {
     /// Who made it: the room is named after it, whoever owns it now.
     pub maker: u32,
     pub spec: Spec,
-    /// The entries the vote's cards are drawn from: a card's map from their
-    /// maps, a free-for-all's play from its map's entries ([`Rooms::deal`]).
-    pub pool: Vec<Entry>,
+    /// The `maps_dict` ids the vote's cards are drawn from.
+    pub pool: Vec<u8>,
     /// Its members' accounts, in the order they came.
     pub members: Vec<u32>,
     pub stage: Stage,
-    /// The cards of the vote now; empty while it waits. A free-for-all's
-    /// card plays its twist or none, drawn with the card ([`Rooms::deal`]).
+    /// The cards of the vote now; empty while it waits. An open room's
+    /// free-for-all card plays its twist or none, drawn with the card
+    /// ([`Rooms::deal`]); a private room's is plain.
     pub cards: Vec<Played>,
     /// Each voter's card.
     pub votes: HashMap<u32, u8>,
@@ -611,9 +587,9 @@ impl Rooms {
         draft.chunks.iter().map(|chunk| chunk.count_ones()).sum()
     }
 
-    /// The pool the account's draft names among `entries` (the entries a pool
+    /// The pool the account's draft names among `entries` (the maps a pool
     /// may hold, in their order), taken up; `None` when it sent none lately.
-    fn take_draft(&mut self, account_id: u32, entries: &[Entry], now: Instant) -> Option<Vec<Entry>> {
+    fn take_draft(&mut self, account_id: u32, entries: &[u8], now: Instant) -> Option<Vec<u8>> {
         let draft = self.drafts.remove(&account_id)?;
         if now.saturating_duration_since(draft.at) > DRAFT_LIFE || draft.seen == 0 {
             return None;
@@ -628,7 +604,7 @@ impl Rooms {
                         .get(index / DRAFT_CHUNK)
                         .is_some_and(|chunk| chunk >> (index % DRAFT_CHUNK) & 1 == 1)
                 })
-                .map(|(_, &entry)| entry)
+                .map(|(_, &map_id)| map_id)
                 .collect(),
         )
     }
@@ -657,7 +633,7 @@ impl Rooms {
     }
 
     /// The account makes a room: it leaves the one it is in, and owns the
-    /// new one. `entries` are the entries a pool may hold; the room's pool is
+    /// new one. `entries` are the maps a pool may hold; the room's pool is
     /// the account's draft of them, or the `default` pool with none. The
     /// owner's equipment level `gear` must be within an open room's max
     /// level. A private one (a PIN) is [`PRIVATE_SIZE`] a side, whatever `spec`
@@ -669,8 +645,8 @@ impl Rooms {
         owner: u32,
         gear: u8,
         mut spec: Spec,
-        entries: &[Entry],
-        default: &[Entry],
+        entries: &[u8],
+        default: &[u8],
         bot_maps: &[u8],
         most_rooms: usize,
         now: Instant,
@@ -685,7 +661,7 @@ impl Rooms {
                 // Always 8 v 8 (the owner's of 2026-11-05): bots fill each
                 // team to its size, a team takes no more.
                 spec.size = rules().pvb.default_size;
-                pool.retain(|entry| bot_maps.contains(&entry.map));
+                pool.retain(|id| bot_maps.contains(id));
             }
         }
         if pool.is_empty() || spec.size == 0 {
@@ -705,7 +681,7 @@ impl Rooms {
         let key = self.new_key(below).ok_or(Refused::TooMany)?;
         let serial = self.next_serial();
         // The vote is always there: its cards from the start.
-        let cards = Self::deal(&pool, below);
+        let cards = Self::deal(&pool, spec.door, below);
         let mut room = Room {
             key,
             owner,
@@ -1324,33 +1300,29 @@ impl Rooms {
         })
     }
 
-    /// The vote's cards from the pool's maps ([`Self::draw`]), each a map a
-    /// match can be played on, and then each free-for-all's twist or none,
-    /// drawn among its map's entries by their shares ([`Plays::draw`]; the
-    /// owner, 2026-11-14: "cowboy version should be rare"): a server's room
-    /// holds them all, a private room's maker ticks them. A pool's id no
-    /// match can play is no card.
-    fn deal(pool: &[Entry], below: &mut impl FnMut(usize) -> usize) -> Vec<Played> {
-        let ids: Vec<u8> = pool.iter().map(|entry| entry.map).collect();
-        let maps: Vec<maps::MatchMap> = Self::draw(&ids, below)
+    /// The vote's cards from the pool ([`Self::draw`]), each a map a match
+    /// can be played on, and then, in a room behind `door`, each
+    /// free-for-all's twist or none: an open room's (the server's) drawn by
+    /// its share ([`twist::draw`]; the owner, 2026-11-15: "let's make saloon
+    /// 20%"), Racket with the gun of the room's max level
+    /// ([`racket::Gun::of_room`]: "racket on lvl10 room should not give
+    /// AK-12 and instead AK74N"), a private room's none (the owner,
+    /// 2026-11-15: "we can also remove from private lobbies FFA: Saloon and
+    /// FFA: Racket"). A pool's id no match can play is no card.
+    fn deal(pool: &[u8], door: Door, below: &mut impl FnMut(usize) -> usize) -> Vec<Played> {
+        let maps: Vec<maps::MatchMap> = Self::draw(pool, below)
             .into_iter()
             .filter_map(maps::MatchMap::of)
             .collect();
         maps.into_iter()
-            .map(|map| {
-                let plays = pool
-                    .iter()
-                    .filter(|entry| entry.map == map.map().id)
-                    .map(|entry| entry.twist);
-                let Some(plays) = Plays::of(plays).filter(|_| map.mode() == maps::GameMode::FreeForAll)
-                else {
-                    return Played::plain(map);
-                };
-                let roll = below(plays.total() as usize) as u32;
-                plays
-                    .draw(roll)
-                    .and_then(|twist| Played::twisted(map, twist))
-                    .unwrap_or(Played::plain(map))
+            .map(|map| match door {
+                Door::Open { max_level } if map.mode() == maps::GameMode::FreeForAll => {
+                    let roll = below(twist::SHARE_TOTAL as usize) as u32;
+                    twist::draw(roll, racket::Gun::of_room(max_level))
+                        .and_then(|twist| Played::twisted(map, twist))
+                        .unwrap_or(Played::plain(map))
+                }
+                Door::Open { .. } | Door::Pin { .. } => Played::plain(map),
             })
             .collect()
     }
@@ -1453,7 +1425,7 @@ impl Rooms {
             // The vote is always there: a match that started took its cards,
             // and the next three are drawn at once, for the match after it.
             if room.cards.is_empty() {
-                room.cards = Self::deal(&room.pool, below);
+                room.cards = Self::deal(&room.pool, room.spec.door, below);
                 room.votes.clear();
             }
             let present = room.members.len() >= room.needs();
@@ -1850,19 +1822,14 @@ mod tests {
 
     const POOL: [u8; 5] = [61, 63, 65, 117, 118];
 
-    /// `maps` as a pool's entries, each as it is.
-    fn plain(maps: &[u8]) -> Vec<Entry> {
-        maps.iter().copied().map(Entry::plain).collect()
-    }
-
     fn room_of(rooms: &mut Rooms, owner: u32, size: u8, pin: Option<u16>, now: Instant) -> u32 {
         rooms
             .create(
                 owner,
                 0,
                 spec(size, pin),
-                &plain(&POOL),
-                &plain(&POOL),
+                &POOL,
+                &POOL,
                 &[],
                 50,
                 now,
@@ -2215,8 +2182,8 @@ mod tests {
                     min_players: 4,
                     ..spec(6, None)
                 },
-                &plain(&POOL),
-                &plain(&POOL),
+                &POOL,
+                &POOL,
                 &[],
                 50,
                 now,
@@ -2342,8 +2309,8 @@ mod tests {
                 1,
                 0,
                 spec(8, Some(42)),
-                &plain(&[61]),
-                &plain(&[61]),
+                &[61],
+                &[61],
                 &[],
                 1,
                 now,
@@ -2407,7 +2374,7 @@ mod tests {
     fn a_draft_names_the_pool_and_lasts_a_while() {
         let now = Instant::now();
         let mut rooms = Rooms::default();
-        let entries = plain(&(0..25).collect::<Vec<u8>>());
+        let entries: Vec<u8> = (0..25).collect();
         assert_eq!(rooms.draft(1, 0, 0b101, now), 2);
         assert_eq!(rooms.draft(1, 1, 0b1, now), 3);
         let key = rooms
@@ -2416,14 +2383,14 @@ mod tests {
                 0,
                 spec(8, None),
                 &entries,
-                &plain(&[99]),
+                &[99],
                 &[],
                 50,
                 now,
                 &mut first,
             )
             .unwrap();
-        assert_eq!(rooms.get(key).unwrap().pool, plain(&[0, 2, DRAFT_CHUNK as u8]));
+        assert_eq!(rooms.get(key).unwrap().pool, vec![0, 2, DRAFT_CHUNK as u8]);
         // Too old: the default.
         rooms.draft(2, 0, 0b1, now);
         let key = rooms
@@ -2432,14 +2399,14 @@ mod tests {
                 0,
                 spec(8, None),
                 &entries,
-                &plain(&[99]),
+                &[99],
                 &[],
                 50,
                 now + DRAFT_LIFE + Duration::from_secs(1),
                 &mut first,
             )
             .unwrap();
-        assert_eq!(rooms.get(key).unwrap().pool, plain(&[99]));
+        assert_eq!(rooms.get(key).unwrap().pool, vec![99]);
         // Nothing at all is no room.
         rooms.draft(3, 0, 0, now);
         assert_eq!(
@@ -2448,7 +2415,7 @@ mod tests {
                 0,
                 spec(8, None),
                 &entries,
-                &plain(&[99]),
+                &[99],
                 &[],
                 50,
                 now,
@@ -2464,7 +2431,7 @@ mod tests {
     fn a_draft_of_a_big_pool_names_every_entry() {
         let now = Instant::now();
         let mut rooms = Rooms::default();
-        let entries = plain(&(1..=250).collect::<Vec<u8>>());
+        let entries: Vec<u8> = (1..=250).collect();
         let pieces = entries.len().div_ceil(DRAFT_CHUNK);
         assert_eq!(pieces, DRAFT_CHUNKS);
         for piece in 0..pieces {
@@ -2472,18 +2439,16 @@ mod tests {
             rooms.draft(1, piece as u8, ((1 << DRAFT_CHUNK) - 1) & !1, now);
         }
         let key = rooms
-            .create(1, 0, spec(8, None), &entries, &plain(&[99]), &[], 50, now, &mut first)
+            .create(1, 0, spec(8, None), &entries, &[99], &[], 50, now, &mut first)
             .unwrap();
-        let want: Vec<Entry> = entries
+        let want: Vec<u8> = entries
             .iter()
             .enumerate()
             .filter(|(index, _)| index % DRAFT_CHUNK != 0)
-            .map(|(_, &entry)| entry)
+            .map(|(_, &id)| id)
             .collect();
         assert_eq!(rooms.get(key).unwrap().pool, want);
-        assert!(
-            want.contains(&Entry::plain(250)) && !want.contains(&Entry::plain(1)) && want.len() > 167
-        );
+        assert!(want.contains(&250) && !want.contains(&1) && want.len() > 167);
     }
 
     /// Three battery maps of three different places, by id, their Blackout
@@ -2601,8 +2566,8 @@ mod tests {
     fn the_third_card_won_starts_the_free_for_all_match() {
         let now = Instant::now();
         let mut rooms = Rooms::default();
-        let (others, _, free_for_all) = three_places();
-        let pool = plain(&others.iter().chain(&free_for_all).copied().collect::<Vec<u8>>());
+        let (plain, _, free_for_all) = three_places();
+        let pool: Vec<u8> = plain.iter().chain(&free_for_all).copied().collect();
         let key = rooms
             .create(1, 0, spec(6, None), &pool, &pool, &[], 50, now, &mut first)
             .unwrap();
@@ -2626,14 +2591,14 @@ mod tests {
         let mut keys = 0..;
         let mut next = |_: usize| keys.next().unwrap();
         rooms
-            .create(1, 0, spec(8, None), &plain(&POOL), &plain(&POOL), &[], 1, now, &mut next)
+            .create(1, 0, spec(8, None), &POOL, &POOL, &[], 1, now, &mut next)
             .unwrap();
         assert_eq!(
-            rooms.create(2, 0, spec(8, None), &plain(&POOL), &plain(&POOL), &[], 1, now, &mut next),
+            rooms.create(2, 0, spec(8, None), &POOL, &POOL, &[], 1, now, &mut next),
             Err(Refused::TooMany)
         );
         rooms
-            .create(1, 0, spec(6, None), &plain(&POOL), &plain(&POOL), &[], 1, now, &mut next)
+            .create(1, 0, spec(6, None), &POOL, &POOL, &[], 1, now, &mut next)
             .unwrap();
         assert_eq!(rooms.len(), 1);
     }
@@ -2648,11 +2613,11 @@ mod tests {
         };
         // Not under its maker's own equipment level.
         assert_eq!(
-            rooms.create(1, 6, capped, &plain(&POOL), &plain(&POOL), &[], 50, now, &mut first),
+            rooms.create(1, 6, capped, &POOL, &POOL, &[], 50, now, &mut first),
             Err(Refused::GearTooHigh)
         );
         let key = rooms
-            .create(1, 5, capped, &plain(&POOL), &plain(&POOL), &[], 50, now, &mut first)
+            .create(1, 5, capped, &POOL, &POOL, &[], 50, now, &mut first)
             .unwrap();
         assert_eq!(rooms.join(2, 6, key, now), Err(Refused::GearTooHigh));
         assert!(rooms.open_rooms(2, 6, 1).next().is_none());
@@ -2673,8 +2638,8 @@ mod tests {
                 1,
                 15,
                 spec(8, Some(42)),
-                &plain(&POOL),
-                &plain(&POOL),
+                &POOL,
+                &POOL,
                 &[],
                 50,
                 now,
@@ -3091,8 +3056,8 @@ mod tests {
                     door: Door::Open { max_level: 5 },
                     ..spec(6, None)
                 },
-                &plain(&POOL),
-                &plain(&POOL),
+                &POOL,
+                &POOL,
                 &[],
                 50,
                 now,
@@ -3256,8 +3221,8 @@ mod tests {
                 1,
                 0,
                 with_bots,
-                &plain(&POOL),
-                &plain(&POOL),
+                &POOL,
+                &POOL,
                 &[61, 117],
                 50,
                 now,
@@ -3266,13 +3231,13 @@ mod tests {
             .unwrap();
         let room = rooms.get(key).unwrap();
         assert!(room.with_bots());
-        assert_eq!(room.pool, plain(&[61, 117]));
+        assert_eq!(room.pool, [61, 117]);
         assert_eq!(room.spec.size, rules().pvb.default_size);
         assert_eq!(room.bots_for([1, 0]), [7, 8]);
         assert_eq!(room.bots_for([8, 3]), [0, 5]);
         // None of the bots' maps in its pool: no room.
         assert_eq!(
-            rooms.create(2, 0, with_bots, &plain(&POOL), &plain(&[63]), &[61], 50, now, &mut first),
+            rooms.create(2, 0, with_bots, &POOL, &[63], &[61], 50, now, &mut first),
             Err(Refused::Bad)
         );
         let plain = room_of(&mut rooms, 3, 8, Some(42), now);

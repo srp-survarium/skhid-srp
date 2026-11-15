@@ -1,10 +1,10 @@
 //! Racket (`docs/notes/ffa.md`, "Twists"; the owner, 2026-11-14: "replaces all sniper rifles and
 //! all silent weapons with ak-12"): a free-for-all's twist ([`super::twist::Twist::Racket`]). Every
-//! sniper rifle and every silenced gun of a player's kits is an AK-12 for the match, the EOTech 552
-//! sight on it ([`SIGHT`]), with an AK-12 magazine for every ammo bag such a kit has free. The
-//! server owns what a match spawns (the static info's profiles, which every game cooks each life
-//! from), so the change reaches every game, late joiners and replays; the accounts keep their own
-//! guns.
+//! sniper rifle and every silenced gun of a player's kits is its room's [`Gun`] for the match (a
+//! level-10 room's an AK-74N, a level-15 room's an AK-12), the EOTech 552 sight on it ([`SIGHT`]),
+//! with a magazine of its ammo for every ammo bag such a kit has free. The server owns what a match
+//! spawns (the static info's profiles, which every game cooks each life from), so the change
+//! reaches every game, late joiners and replays; the accounts keep their own guns.
 
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
@@ -16,12 +16,50 @@ use super::match_msgs::static_info::{
 use super::scopes::{SCOPE_SLOT, ScopeFits};
 use super::twist::STORE_LIVES;
 
-/// The gun every replaced one becomes, by its dictionary name.
-pub const GUN: &str = "ak_12";
+/// The gun every replaced one becomes, by its room's level (the owner, 2026-11-15: "also racket on
+/// lvl10 room should not give AK-12 and instead AK74N with 7N10 ammo and eotech collimator").
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Gun {
+    /// A level-10 room's: `ak_74n` with `ammo_5.45x39_7n10`.
+    Ak74n,
+    /// A level-15 room's, and one of any level: `ak_12` with `ammo_6.5x39`.
+    Ak12,
+}
 
-/// The sight every replaced gun's AK-12 wears, by its dictionary name: the shop's EOTech 552 (the
-/// owner, 2026-11-14: "also for ak-12, people should have eotech collimator set on replaced
-/// weapons"), on the AK-12 by the variant the game data makes for it (`fit_ak_12_eotech_552`).
+impl Gun {
+    /// Both guns.
+    pub const ALL: [Self; 2] = [Self::Ak74n, Self::Ak12];
+
+    /// The gun of a room that lets in equipment up to `max_level` (0: any): the AK-74N up to 10,
+    /// else the AK-12.
+    pub const fn of_room(max_level: u8) -> Self {
+        match max_level {
+            1..=10 => Self::Ak74n,
+            _ => Self::Ak12,
+        }
+    }
+
+    /// Its dictionary name.
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Ak74n => "ak_74n",
+            Self::Ak12 => "ak_12",
+        }
+    }
+
+    /// The dictionary name of the ammo Racket gives with it.
+    const fn ammo(self) -> &'static str {
+        match self {
+            Self::Ak74n => "ammo_5.45x39_7n10",
+            Self::Ak12 => "ammo_6.5x39",
+        }
+    }
+}
+
+/// The sight every replaced gun wears, by its dictionary name: the shop's EOTech 552 (the owner,
+/// 2026-11-14: "also for ak-12, people should have eotech collimator set on replaced weapons";
+/// 2026-11-15 of the AK-74N: "and eotech collimator"), on the gun by the variant the game data
+/// makes for it (`fit_ak_12_eotech_552`, `fit_ak_74n_eotech_552`).
 pub const SIGHT: &str = "shop_scope_eotech_552";
 
 /// The shot the other players hear of a silenced gun ([`item_params::ItemParams::shot_heard`]):
@@ -33,47 +71,46 @@ pub const SILENCED_SHOT: &str = "weapons/val_m";
 /// The profile slots of the two weapons (`srp_validate::world::WEAPON_SLOTS`).
 const WEAPON_SLOTS: [usize; 2] = [7, 10];
 
-/// The AK-12 and the one ammo the data pairs with it, read from the game data once
-/// ([`Arms::shared`]): what [`arm`] gives.
+/// A [`Gun`] and its ammo, read from the game data once ([`Arms::shared`]): what [`arm`] gives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Arms {
     gun: u16,
-    /// The ammo Racket gives (`twist::Twist::gives`).
+    /// The ammo Racket gives (`twist::Armed::gives`).
     pub ammo: u16,
     /// A clip of that ammo, a kit's magazine: its rounds (`clip_size`) and the ammo bags it takes
     /// (`required_bags`).
     clip: u16,
     clip_bags: u32,
-    /// The variant that shows [`SIGHT`] on the AK-12 (`ScopeFits::variant`), when the game data
-    /// has one; without it the AK-12 goes bare (the owner, 2026-11-14: the sight is behaviour, not
+    /// The variant that shows [`SIGHT`] on the gun (`ScopeFits::variant`), when the game data has
+    /// one; without it the gun goes bare (the owner, 2026-11-14: the sight is behaviour, not
     /// correctness, so nothing refuses data without it).
     sight: Option<u16>,
 }
 
 impl Arms {
-    /// The data's AK-12 and its ammo: exactly one ammo the dictionary pairs with it, which every
-    /// ammo slot takes, and its clip; and its [`SIGHT`]'s variant, if the data has it.
-    fn of(dictionary: &Dictionary, fits: &ScopeFits) -> Result<Self, String> {
+    /// The data's `gun` and its ammo: an ammunition the dictionary pairs with it, which every ammo
+    /// slot takes, and its clip; and its [`SIGHT`]'s variant, if the data has it.
+    fn of(dictionary: &Dictionary, fits: &ScopeFits, gun: Gun) -> Result<Self, String> {
+        let (name, ammo_name) = (gun.name(), gun.ammo());
         let gun = dictionary
-            .item_named(GUN)
-            .ok_or_else(|| format!("the dictionary has no `{GUN}`"))?
+            .item_named(name)
+            .ok_or_else(|| format!("the dictionary has no `{name}`"))?
             .dict_id;
-        let ammo: Vec<u16> = dictionary
-            .items
-            .iter()
+        let ammo = dictionary
+            .item_named(ammo_name)
             .map(|item| item.dict_id)
-            .filter(|&id| is_ammo(id) && dictionary.compatible(gun, id))
-            .collect();
-        let &[ammo] = ammo.as_slice() else {
-            return Err(format!("`{GUN}` fires {} kinds of ammo, not one: {ammo:?}", ammo.len()));
-        };
+            .filter(|&ammo| is_ammo(ammo))
+            .ok_or_else(|| format!("the dictionary has no ammunition `{ammo_name}`"))?;
+        if !dictionary.compatible(gun, ammo) {
+            return Err(format!("`{name}` does not fire `{ammo_name}`"));
+        }
         if let Some(slot) = AMMO_SLOTS.iter().find(|&&slot| !dictionary.fits(ammo, slot)) {
-            return Err(format!("`{GUN}`'s ammo {ammo} does not fit ammo slot {slot}"));
+            return Err(format!("`{name}`'s ammo `{ammo_name}` does not fit ammo slot {slot}"));
         }
         let (clip, clip_bags) = item_params::item_params(ammo)
             .and_then(|params| Some((u16::try_from(params.clip_size).ok()?, params.required_bags)))
             .filter(|&(clip, bags)| clip > 0 && bags > 0)
-            .ok_or_else(|| format!("`{GUN}`'s ammo {ammo} has no clip size or ammo bags"))?;
+            .ok_or_else(|| format!("`{name}`'s ammo `{ammo_name}` has no clip or ammo bags"))?;
         let sight = dictionary
             .item_named(SIGHT)
             .and_then(|scope| fits.variant(gun, scope.dict_id));
@@ -86,18 +123,19 @@ impl Arms {
         })
     }
 
-    /// The rounds of AK-12 ammo for `bags` free ammo bags: a clip for each clip's bags.
+    /// The rounds of its ammo for `bags` free ammo bags: a clip for each clip's bags.
     fn rounds(&self, bags: u32) -> u16 {
         u16::try_from(bags / self.clip_bags)
             .unwrap_or(u16::MAX)
             .saturating_mul(self.clip)
     }
 
-    /// The arms of the server's game data ([`check`] refused data without them at start).
-    pub fn shared() -> Self {
-        static SHARED: std::sync::OnceLock<Arms> = std::sync::OnceLock::new();
-        *SHARED.get_or_init(|| {
-            Arms::of(Dictionary::shared(), ScopeFits::shared())
+    /// The arms of `gun` in the server's game data ([`check`] refused data without them at start).
+    pub fn shared(gun: Gun) -> Self {
+        static SHARED: [std::sync::OnceLock<Arms>; Gun::ALL.len()] =
+            [const { std::sync::OnceLock::new() }; Gun::ALL.len()];
+        *SHARED[gun as usize].get_or_init(|| {
+            Arms::of(Dictionary::shared(), ScopeFits::shared(), gun)
                 .expect("Racket's arms are in the data (racket::check)")
         })
     }
@@ -119,15 +157,15 @@ pub fn replaces(dictionary: &Dictionary, dict_id: u16) -> bool {
 
 /// `profile` armed for Racket:
 ///
-/// - every gun of its table that Racket [`replaces`] is a whole AK-12 wearing the [`SIGHT`] and no
-///   other modification or upgrade (the gun's own scope, camo and bonuses stay its own), of the
-///   same instance id, in every kit and slot that held it;
+/// - every gun of its table that Racket [`replaces`] is a whole gun of `arms` wearing the
+///   [`SIGHT`] and no other modification or upgrade (the gun's own scope, camo and bonuses stay its
+///   own), of the same instance id, in every kit and slot that held it;
 /// - in each kit that held one, the ammo that none of its guns fires now leaves its slots, and
-///   the kit has a clip of AK-12 ammo for every ammo bag the ammo it keeps leaves free
+///   the kit has a clip of the arms' ammo for every ammo bag the ammo it keeps leaves free
 ///   ([`free_bags`]), in the first slot that ammo left or else its first empty ammo slot (a kit
-///   already holding AK-12 ammo keeps its own; one with no ammo slot or no bag free has its
-///   AK-12's magazine alone);
-/// - that AK-12 ammo is one new stack every such kit holds, its store the largest kit's amount
+///   already holding ammo the gun fires keeps its own; one with no ammo slot or no bag free has
+///   the gun's magazine alone);
+/// - that ammo is one new stack every such kit holds, its store the largest kit's amount
 ///   [`STORE_LIVES`] times;
 /// - an item no kit holds any more (the ammo that left) leaves the table;
 /// - nothing else of the kits changes: armour, pockets, artefacts, skills.
@@ -220,7 +258,7 @@ pub fn arm(profile: &mut MatchProfile, arms: &Arms) {
 /// The ammo bags of `kit` (its items' `items`) that its ammunition leaves free: its bags as the
 /// lobby counts them ([`KitLayout`]: its items' modifications, their defaults and their own, and
 /// its skills'), less a clip's bags for every clip its ammo slots hold, the last one begun.
-fn free_bags(kit: &MatchKit, items: &[MatchItem]) -> u32 {
+pub(super) fn free_bags(kit: &MatchKit, items: &[MatchItem]) -> u32 {
     let held = |slot: usize| {
         let (index, count) = kit.slots[slot]?;
         Some((items.get(usize::from(index))?, count))
@@ -269,11 +307,13 @@ fn sight_records(variant: u16, id: u32) -> Vec<Upgrade> {
         .collect()
 }
 
-/// The game data has Racket's AK-12 and its one ammo, which every ammo slot takes; srp refuses to
-/// start otherwise. (Its sight is not checked: without it the AK-12 goes bare.)
+/// The game data has both of Racket's guns and their ammo, which the gun fires and every ammo slot
+/// takes; srp refuses to start otherwise. (Their sight is not checked: without it a gun goes
+/// bare.)
 pub fn check(data: &GameData) -> Result<(), GameDataError> {
-    Arms::of(Dictionary::shared(), ScopeFits::shared())
-        .map(|_| ())
+    Gun::ALL
+        .into_iter()
+        .try_for_each(|gun| Arms::of(Dictionary::shared(), ScopeFits::shared(), gun).map(drop))
         .map_err(|cause| GameDataError(format!("{}: Racket: {cause}", data.origin)))
 }
 
@@ -339,11 +379,20 @@ mod tests {
         assert_eq!(heard("val"), Some(SILENCED_SHOT));
         assert_eq!(heard("ak_12"), Some("weapons/ak_12_m"));
         assert_eq!(heard("ammo_6.5x39"), None);
-        let arms = Arms::of(dictionary, ScopeFits::shared()).unwrap();
+        check(super::super::game_data::shared()).unwrap();
+        let arms = Arms::of(dictionary, ScopeFits::shared(), Gun::Ak12).unwrap();
         assert_eq!((arms.gun, arms.ammo), (id("ak_12"), id("ammo_6.5x39")));
         // A magazine of 30 rounds, one ammo bag.
         assert_eq!((arms.clip, arms.clip_bags), (30, 1));
         assert_eq!((arms.rounds(0), arms.rounds(4)), (0, 120));
+        // A level-10 room's: the AK-74N with 7N10, a magazine of 30 rounds and one bag too.
+        let arms = Arms::shared(Gun::of_room(10));
+        assert_eq!((arms.gun, arms.ammo), (id("ak_74n"), id("ammo_5.45x39_7n10")));
+        assert_eq!((arms.clip, arms.clip_bags), (30, 1));
+        assert_eq!(
+            (Gun::of_room(10), Gun::of_room(15), Gun::of_room(0)),
+            (Gun::Ak74n, Gun::Ak12, Gun::Ak12)
+        );
     }
 
     #[test]
@@ -357,7 +406,7 @@ mod tests {
             (13, "rgd-5", 2),
         ]]);
         let before = sniper.clone();
-        arm(&mut sniper, &Arms::shared());
+        arm(&mut sniper, &Arms::shared(Gun::Ak12));
         assert_eq!(named(&sniper, 0, 7).map(|(name, _)| name), Some("ak_12"));
         assert_eq!(named(&sniper, 0, 10).map(|(name, _)| name), Some("ak_12"));
         // The guns keep their instance ids, whole and bare.
@@ -369,7 +418,7 @@ mod tests {
             assert!(gun.modifications.is_empty() && gun.upgrades.is_empty());
         }
         // Both guns' ammo leaves; a magazine for every ammo bag is in the first slot it left.
-        let rounds = Arms::shared().rounds(bags(&sniper, 0));
+        let rounds = Arms::shared(Gun::Ak12).rounds(bags(&sniper, 0));
         assert!(rounds >= 3 * 30, "the player's three bags at least: {rounds}");
         assert_eq!(named(&sniper, 0, 8), Some(("ammo_6.5x39", rounds)));
         assert_eq!(named(&sniper, 0, 11), None);
@@ -385,12 +434,25 @@ mod tests {
         assert_eq!(sniper.items.len(), before.items.len() - 1);
     }
 
+    /// A level-10 room's: the sniper rifle an AK-74N (its EOTech when the data has the sight; the
+    /// test data has not), a magazine of 7N10 for every bag.
+    #[test]
+    fn a_level_10_rooms_sniper_kit_gets_an_ak_74n_and_7n10() {
+        let kit = [(7, "svd", 1), (8, "ammo_7.62x54_7n1", 40), (13, "rgd-5", 2)];
+        let mut sniper = profile(&[&kit]);
+        let arms = Arms::shared(Gun::Ak74n);
+        arm(&mut sniper, &arms);
+        assert_eq!(named(&sniper, 0, 7).map(|(name, _)| name), Some("ak_74n"));
+        let rounds = arms.rounds(bags(&sniper, 0));
+        assert_eq!(named(&sniper, 0, 8), Some(("ammo_5.45x39_7n10", rounds)));
+    }
+
     #[test]
     fn a_loud_kit_and_a_loud_guns_ammo_stay() {
         // An AK-74U kit: nothing to do.
         let mut loud = profile(&[&[(7, "ak_74u", 1), (8, "ammo_5.45x39_7n10", 60)]]);
         let before = loud.clone();
-        arm(&mut loud, &Arms::shared());
+        arm(&mut loud, &Arms::shared(Gun::Ak12));
         assert_eq!(loud, before);
         // A shotgun beside a sniper rifle: the shotgun's shells stay, the rifle's rounds go.
         let mut mixed = profile(&[
@@ -403,7 +465,7 @@ mod tests {
             &[(7, "ak_74u", 1), (8, "ammo_5.45x39_7n10", 60)],
         ]);
         let before = mixed.clone();
-        arm(&mut mixed, &Arms::shared());
+        arm(&mut mixed, &Arms::shared(Gun::Ak12));
         assert_eq!(named(&mixed, 0, 10), named(&before, 0, 10));
         assert_eq!(named(&mixed, 0, 11), named(&before, 0, 11));
         assert_eq!(named(&mixed, 0, 8).map(|(name, _)| name), Some("ammo_6.5x39"));
@@ -417,7 +479,7 @@ mod tests {
     /// magazine for every bag the SP-6 leaves free, in the first empty ammo slot.
     #[test]
     fn an_ak_12_whose_ammo_a_loud_gun_keeps_has_its_own() {
-        let arms = Arms::shared();
+        let arms = Arms::shared(Gun::Ak12);
         let armed = |rounds: u32| {
             let mut kit = profile(&[&[(7, "val", 1), (8, "ammo_sp6", rounds), (10, "sr3m", 1)]]);
             let sp6 = kit.kits[0].slots[8];
@@ -448,7 +510,7 @@ mod tests {
     fn kits_of_different_bags_share_the_largest_store() {
         let mut two = profile(&[&[(7, "svd", 1)], &[(7, "vss", 1)]]);
         two.kits[1].modifiers[super::super::skills::slot_modifier::AMMO_BAGS] = 2.0;
-        arm(&mut two, &Arms::shared());
+        arm(&mut two, &Arms::shared(Gun::Ak12));
         let (small, large) = (two.kits[0].slots[8].unwrap(), two.kits[1].slots[8].unwrap());
         assert_eq!(small.0, large.0);
         assert_eq!(large.1, small.1 + 2 * 30);
@@ -462,7 +524,7 @@ mod tests {
         // A second kit holding the same table entries, as an account's body sends one.
         let second = MatchKit::new(2, 2, String::new(), shared.kits[0].slots, [0.0; MODIFIERS]);
         shared.kits.push(second);
-        arm(&mut shared, &Arms::shared());
+        arm(&mut shared, &Arms::shared(Gun::Ak12));
         for kit in 0..2 {
             assert_eq!(named(&shared, kit, 7).map(|(name, _)| name), Some("ak_12"));
             assert_eq!(named(&shared, kit, 8).map(|(name, _)| name), Some("ammo_6.5x39"));

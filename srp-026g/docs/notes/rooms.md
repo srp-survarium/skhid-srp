@@ -127,12 +127,11 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     other's, never a free-for-all), card 3 one of its free-for-alls, on another map than
     theirs while there is one; a pool without a free-for-all or of free-for-alls alone draws
     its three as before (`ffa.md`, "Where it is played"; `rooms::THIRD_CARD` names the mode).
-  - **A free-for-all card's twist** (`ffa.md`, "Twists"): the create window ticks "FFA: Racket"
-    and "FFA: Saloon" as modes beside Free for all (the owner's of 2026-11-14: "they are not
-    present in private room creations"); the pool offered has each free-for-all map once plain and
-    once with each twist, and a room's pool is the entries ticked. A free-for-all card plays one of
-    its map's entries in the pool, each by its share: Free for all alone plain, a twist alone that
-    twist. The server's rooms hold them all: the owner's shares (45 / 45 / 10).
+  - **A free-for-all card's twist** (`ffa.md`, "Twists"): an open room's (the server's) card
+    draws "FFA: Racket" or "FFA: Saloon" or none by the owner's shares (40 / 40 / 20); a private
+    room's is always plain Free for all, and the create window has no twist tick (the owner's of
+    2026-11-15: "we can also remove from private lobbies FFA: Saloon and FFA: Racket"; ticks from
+    2026-11-14 to then). A window saved with them loads, the twists' modes left out.
   - **Blackout is on one card at the most** (the owner's of 2026-11-12: "Make it so blackout
     cannot be on two cards at the same time"): in every vote, one without a free-for-all card
     too. A second Blackout card drawn gives its place to a map of another mode while the pool
