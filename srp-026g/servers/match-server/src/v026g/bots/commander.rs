@@ -1024,8 +1024,8 @@ impl Bots {
         // Bots with no fresh hold on a slot (`team::HOLD_FRESH_MS`): a way
         // to their goal or their play's target failed lately, or a carrier.
         let mut shaky: Vec<Place> = Vec::new();
-        // Bots whose hold walks to its spot (`commit.hold_to_arrival`).
-        let mut committed: Vec<Place> = Vec::new();
+        // How each bot's running play is held (`team::Commit`); a bot not listed: free.
+        let mut commits: Vec<(Place, team::Commit)> = Vec::new();
         for bot in self
             .bots
             .iter()
@@ -1115,6 +1115,12 @@ impl Bots {
                 || goal.into_iter().chain(target).any(|at| cx.no_way_lately(at))
             {
                 shaky.push(bot.place);
+            } else if tuning.commit.finish_take
+                && let Some(a) = bot.assignment.as_ref()
+                && bot.running.as_ref().is_some_and(|r| r.finishing_take(a.target, &cx))
+            {
+                // [A394 (b)] A take within reach, unseen, before its first press: finished first.
+                commits.push((bot.place, team::Commit::Finish));
             } else if tuning.commit.hold_to_arrival
                 && bot.running.as_ref().is_some_and(plays::Running::travelling)
                 // [A320 F1] With `camp_flank.inertia` a flank route's walk keeps its play by its score and bonus instead.
@@ -1122,7 +1128,7 @@ impl Bots {
                     && bot.running.as_ref().is_some_and(plays::Running::camp_flank_walk))
             {
                 // A hold still walking to its spot (no way lately: not).
-                committed.push(bot.place);
+                commits.push((bot.place, team::Commit::Band));
             }
             asked.push((bot.place, candidates, bot.assignment.clone()));
         }
@@ -1142,9 +1148,9 @@ impl Bots {
                 // Collect keeps it against plays of its band until it ends.
                 if matches!(plan, team::TeamPlan::Comeback { .. })
                     && current.as_ref().is_some_and(|a| team::attack(a.kind) || a.kind == plays::PlayKind::Collect)
-                    && !committed.contains(place)
+                    && !commits.iter().any(|(p, _)| p == place)
                 {
-                    committed.push(*place);
+                    commits.push((*place, team::Commit::Band));
                 }
             }
         }
@@ -1154,7 +1160,7 @@ impl Bots {
                 place: *place,
                 candidates: candidates.clone(),
                 current: current.as_ref(),
-                committed: committed.contains(place),
+                commit: commits.iter().find(|(p, _)| p == place).map_or(team::Commit::Free, |&(_, c)| c),
             })
             .collect();
         let gap = state.signals.score_gap;
