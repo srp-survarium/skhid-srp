@@ -1019,11 +1019,13 @@ pub struct CombatTuning {
     pub mirror_gated: bool,
     /// [A307] The mirror of the weapon's kick takes the kit's `recoil_modifier` (the skills' `recoil` and the worn items':
     /// `ren_gloves_1`, worn by our kits, -8 % since revision 38): the client multiplies every shot's kick ranges by
-    /// `max(0, 1 + recoil_modifier)` (0x331C50, PROVEN in `recoil.rs`). Off: 0 assumed for the bots' kits, which the data
-    /// proves wrong since revision 38, so the pull took back up to 8 % more kick than the client gave. **Off by default** (A307,
-    /// coordinator 2026-11-05): on the bench's revision 34 data the gloves give -2 %, a kick gap of 0.001-0.03 degrees the
-    /// bench cannot resolve (two by-side benches, 256 pairs each, disagreed: attack deaths 241/241, then 297/216). Waits for:
-    /// a bench on revision 48 data (gloves -8 %), with `SRP_BENCH_CLIENT_KIT_RECOIL` on; the two flip together.
+    /// `max(0, 1 + recoil_modifier)` (0x331C50, PROVEN in `recoil.rs`; the modifier added at 0x2D5AE0). Off: 0 assumed for the
+    /// bots' kits, which the data proves wrong since revision 38: the mirror believes in up to 8 % more kick than the client
+    /// makes, and as the world carries the look pitch and not the kick the bot holds that believed view on its aim, so the
+    /// client's sinks under it by every round of a burst (the tier 9-10 support's AKM with `ren_gloves_1`: about 0.07 degrees
+    /// a round, at any pull; `kit_recoil_keeps_a_gloved_akm_on_its_aim`). **On by default** (a client-proven correctness
+    /// fix); the bench's stand-in kicks by the same rule (`SRP_BENCH_CLIENT_KIT_RECOIL`, on with it). The all-off tuning keeps
+    /// it off. Before: off (A307, coordinator 2026-11-05) on revision 34 data, where the gloves gave -2 %.
     pub kit_recoil: bool,
     /// [smoke review S1] A target with no part showing and no part seen (a new target held by the sight's grace,
     /// or one lost in smoke before any part was seen) is looked at where the memory has him (`track.at()`), not
@@ -1814,7 +1816,7 @@ impl Default for CombatTuning {
             lead_flight: false,
             lead_drop: false,
             mirror_gated: true,
-            kit_recoil: false,
+            kit_recoil: true,
             aim_last_known: true,
             pre_aim_heard: None,
             sights_up: true,
@@ -10577,6 +10579,20 @@ mod tests {
         ticks: u32,
         skill: f32,
     ) -> (Vec<(u32, f32)>, u32) {
+        let (over, shots, _) = kicked_fight_gaps(arms, distance, aim, ticks, skill);
+        (over, shots)
+    }
+
+    /// [`kicked_fight_with`], and for each tick of fire how far the client's view stood from the one the bot reckoned
+    /// (its base pitch and its mirror's kick), degrees: the client's kick takes the kit's factor (`Gun::recoil_scale`, as the
+    /// exe does, 0x331C50), the mirror's only with `aim.combat.kit_recoil` (A307).
+    fn kicked_fight_gaps(
+        arms: Option<&'static Arms>,
+        distance: f32,
+        aim: &AimTuning,
+        ticks: u32,
+        skill: f32,
+    ) -> (Vec<(u32, f32)>, u32, Vec<f32>) {
         use super::super::motor::{Feel, Motor, Pose};
         let mut rng = Rng::new(11);
         let mut motor = Motor::new(Feel::default(), &mut rng);
@@ -10588,11 +10604,13 @@ mod tests {
         let view = view_of(vec![me.clone(), enemy]);
         let mut memory = Memory::default();
         let mut reflex = Reflex::armed(arms);
-        // The client's side: the base pitch and the weapon's kick.
+        reflex.kit_recoil(aim.combat.kit_recoil);
+        // The client's side: the base pitch and the weapon's kick, with the kit's factor.
         let mut base = me.pitch;
         let mut client = Recoil::in_hand(reflex.hands().held().gun.item);
+        client.scaled(reflex.hands().held().gun.recoil_scale);
         let mut cadence = Cadence::default();
-        let (mut over, mut shots, mut held) = (Vec::new(), 0, 0u32);
+        let (mut over, mut shots, mut held, mut gaps) = (Vec::new(), 0, 0u32, Vec::new());
         for k in 0..ticks {
             let now = 1_000 + k * 50;
             sense(&mut memory, &[percept(1, at, now, Source::Seen)], now);
@@ -10636,13 +10654,18 @@ mod tests {
             let item = reflex.held_gun().item;
             if item != client.held() {
                 client = Recoil::in_hand(item);
+                client.scaled(reflex.held_gun().recoil_scale);
                 cadence = Cadence::default();
             } else if keys & key::RELOAD != 0 {
                 client.reset();
             }
             client.update(now);
             let client_taken = client.turn(turn);
-            assert!((taken - client_taken).abs() < 1e-6);
+            // The bot's books are the client's when both kick at one scale; the all-off mirror of a kit with a recoil factor
+            // (`kit_recoil` off) keeps other books, the fault [`kit_recoil_keeps_a_gloved_akm_on_its_aim`] shows.
+            if aim.combat.kit_recoil || reflex.held_gun().recoil_scale == 1.0 {
+                assert!((taken - client_taken).abs() < 1e-6);
+            }
             base += turn + client_taken;
             let auto = reflex.hands().held().gun.auto;
             let interval_ms = client.kick().interval_s() * 1000.0;
@@ -10652,12 +10675,55 @@ mod tests {
             });
             if o.fire {
                 over.push((held, (client.view(base) - chest).to_degrees()));
+                gaps.push((client.view(base) - (base + reflex.kick())).to_degrees());
                 held += 50;
             } else {
                 held = 0;
             }
         }
-        (over, shots)
+        (over, shots, gaps)
+    }
+
+    /// [A307] The tier 9-10 support's AKM with `ren_gloves_1` (-8 %: the client kicks it 0.92 of the config, 0x331C50 with
+    /// the modifier of 0x2D5AE0), over a held burst of 16 rounds and more at skill 0.5, with the pull at 0.5 and 0.85: with
+    /// `kit_recoil` on the bot's mirror is the client's kick, so the view it holds on its aim is the client's; off, the mirror
+    /// believes in 8 % more kick and the client's view sinks under the bot's by every round (the per-gun table's 0.07
+    /// degrees a round).
+    #[test]
+    fn kit_recoil_keeps_a_gloved_akm_on_its_aim() {
+        let gun = guns::gun_with("akmn", &[], guns::Factors { reload_speed: 0.0, aim_time: 0.0, recoil: -0.08 }).expect("the AKM");
+        assert!((gun.recoil_scale - 0.92).abs() < 1e-6);
+        let arms: &'static Arms = Box::leak(Box::new(Arms { primary: (gun, 300), pistol: None, reserve: 300 }));
+        // One long hold, aimed: 2 s is 20 rounds at 600 a minute.
+        let long = BurstRow { up_to_m: f32::MAX, tap_chance: 0.0, hold_ms: (2_000, 2_000) };
+        let rounds_16_ms = 15 * 60_000 / gun.rpm.max(1);
+        for pull_low in [0.5, 0.85] {
+            let mut last = [0.0f32; 2];
+            for (i, on) in [false, true].into_iter().enumerate() {
+                let mut aim = AimTuning {
+                    fire_within_deg: 180.0,
+                    error_deg: (0.01, 0.01),
+                    wander_deg: (0.0, 0.0),
+                    ..AimTuning::default()
+                };
+                aim.combat.kit_recoil = on;
+                aim.combat.recoil_pull_low = pull_low;
+                aim.combat.fire.smg = vec![long];
+                aim.combat.fire.rifle = vec![long];
+                let (over, shots, gaps) = kicked_fight_gaps(Some(arms), 52.0, &aim, 200, 0.5);
+                assert!(shots >= 16, "{shots} shots");
+                // The first burst, to its 16th round.
+                let first: Vec<f32> =
+                    over.iter().zip(&gaps).take_while(|((h, _), _)| *h <= rounds_16_ms).map(|(_, g)| *g).collect();
+                assert!(first.len() * 50 >= rounds_16_ms as usize, "{first:?}");
+                last[i] = *first.last().unwrap();
+                if on {
+                    let worst = first.iter().fold(0f32, |m, g| m.max(g.abs()));
+                    assert!(worst < 0.01, "pull {pull_low}, on: the view {worst} degrees off the bot's own: {first:?}");
+                }
+            }
+            assert!(last[0] < -0.5, "pull {pull_low}, off: the view sinks under the bot's by the 16th round: {}", last[0]);
+        }
     }
 
     /// Prints how far over the chest the view sits while the trigger is

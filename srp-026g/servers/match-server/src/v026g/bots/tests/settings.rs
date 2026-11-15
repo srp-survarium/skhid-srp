@@ -155,7 +155,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BENCH_UPGRADES_ONLY", "both", "**model** `0` or `1`: only that team keeps the process's `SRP_BOT_UPGRADES` (the armour modifications, and the weapon the client fires with the skills' reload and aim time); the other team is built as if they were off (its profiles, the arms of its kits, the stand-in's stamina rates and ammo); `both` (unset): both teams as the process. With it the `carrier_deaths` key of the sums splits the carriers' deaths by the killer's and the carrier's upgrade state (C14: own side or enemy side)"),
     s("SRP_BENCH_STAND_IN_LEVEL", "on (live)", "**model** `on` (or `1`, the default): every stand-in body moves at the movement level of its kit (`bot_skills::profile_movement_level`, 1 + 0.05 - 0.2 x weight cost: about 1.03-1.04 on average, 0.85-0.92 for the heavy kits), and the bots' tracker starts at the same level, as the live server hands it (`game/driven.rs`); the stand-in human goes at `HUMAN_LEVEL` (1.02, PROVEN: the median of 841 live bodies' sprint speed over the nominal); `off` (or `0`): every body at the nominal speed, as before the default changed (C14)"),
     s("SRP_BENCH_STAND_IN_LEGS", "on", "**model** `off`: a stand-in body with a wounded leg walks at full speed (the benches before A313 #1344's stand-in PR: they overrate hurt bodies); on: it walks at the client's legs term of its speed factor, max(0, 1 + each leg's term), -0.1 a leg under 20 % of its 0.5 pool and -0.2 a leg at 0 (`mapdata::controller::speed`, the leg's speed node 0x32A9C0; `standin.rs` `stand_in_legs_factor`); a trap's catch keeps its own 0.6"),
-    s("SRP_BENCH_CLIENT_KIT_RECOIL", "off", "**model** `on` (or `1`): every stand-in body's weapon kicks as the client's does with the kit's `recoil_modifier` (`Gun::recoil_scale`: our kits' `ren_gloves_1`, A307; PROVEN, 0x331C50); unset (the default for now: it flips with `aim.combat.kit_recoil`, coordinator 2026-11-05), `off` or `0`: the kick of the weapon alone"),
+    s("SRP_BENCH_CLIENT_KIT_RECOIL", "on (live)", "**model** `on` (or `1`, the default): every stand-in body's weapon kicks as the client's does with the kit's `recoil_modifier` (`Gun::recoil_scale`: our kits' `ren_gloves_1`, A307; PROVEN, 0x331C50), as `aim.combat.kit_recoil` (on) has the bots' mirror do; `off` or `0`: the kick of the weapon alone (a run of the all-off tuning's mirror against its own stand-in)"),
     s("SRP_BENCH_STAND_IN_LIFT", "on", "**model** `off`: the stand-in body does not lift (the client's sprint lift, `standin_jump.rs`): a sprint run into the face of a jump link up of 1.11 m or less, a top 0.35 m deep, held 0.3 s at the face, takes the body up with no jump; off, only a jump gets it up, as before the lift"),
     s("SRP_BENCH_SPAWN_POINTS", "free", "**model** `random`: a spawn goes to a random point of the team with replacement and 2 m of jitter (the old stand-in); free: onto a free respawn point of the team, exactly on it, as the game's respawn rule does (`select_respawn_points` 0x3171D0; live 0 of 790 fresh pairs within 1 m)"),
     s("SRP_BENCH_STAND_IN_EDGE", "on", "**model** `off`: the stand-in body falls at a ledge as the lattice has it, at the last floor cell's boundary; on (the client's capsule, `body::SUPPORT_M`): it is held until its feet are 0.435 m past that floor's centre (`bullet_character_controller::step_down` grounds a capsule while its hemisphere reaches the edge)"),
@@ -280,12 +280,15 @@ pub(crate) fn models_line(settings: &BenchSettings) -> String {
 ///   swap, so no team has them alone.
 /// - `SRP_BENCH_STAND_IN_LEVEL`: PROVEN, the server hands every bot its kit's movement level (`game/driven.rs`); the stand-in
 ///   human goes at 1.02, the median of 841 live bodies (`standin_level.rs`).
-const LIVE_DEFAULTS: [(&str, &str); 5] = [
+/// - `SRP_BENCH_CLIENT_KIT_RECOIL`: PROVEN, the client multiplies every shot's kick by `max(0, 1 + recoil_modifier)` of the
+///   kit (0x331C50, 0x2D5AE0; `ren_gloves_1` -8 % since revision 38); on with `aim.combat.kit_recoil`.
+const LIVE_DEFAULTS: [(&str, &str); 6] = [
     ("SRP_BENCH_WEAPONS", "1"),
     ("SRP_BENCH_BODY_BLOCK_M", "0.76"),
     ("SRP_BENCH_DRAW_TIME", "weapon"),
     ("SRP_BENCH_ENEMY_HUMAN_LANES", "on"),
     ("SRP_BENCH_STAND_IN_LEVEL", "on"),
+    ("SRP_BENCH_CLIENT_KIT_RECOIL", "on"),
 ];
 
 /// The read environment: each setting of [`SETTINGS`] (and `SRP_BENCH_<name>` and
@@ -470,7 +473,7 @@ pub(crate) fn bench_settings() -> &'static BenchSettings {
 mod tests {
     use super::*;
 
-    /// A run that says nothing has the live value of each of the five; `off` or `0` turns one off; a value of its own wins.
+    /// A run that says nothing has the live value of each of the six; `off` or `0` turns one off; a value of its own wins.
     #[test]
     fn the_live_defaults_hold_unless_a_run_says_otherwise() {
         let unset = BenchSettings::from_pairs(&[]).with_live_defaults();
@@ -479,8 +482,8 @@ mod tests {
         assert_eq!(unset.var("SRP_BENCH_DRAW_TIME"), Ok("weapon".to_owned()));
         assert_eq!(EnemyLanes::parse(unset.var("SRP_BENCH_ENEMY_HUMAN_LANES").ok().as_deref()), Ok(EnemyLanes::Both));
         assert!(unset.is_on("SRP_BENCH_STAND_IN_LEVEL"));
-        // [A307] Off until `aim.combat.kit_recoil` goes on: the two flip together.
-        assert!(!unset.is_on("SRP_BENCH_CLIENT_KIT_RECOIL"));
+        // [A307] On with `aim.combat.kit_recoil`: the two flip together.
+        assert!(unset.is_on("SRP_BENCH_CLIENT_KIT_RECOIL"));
         // A reading that does not go through `from_env` (the other tests of this file) has none of them.
         assert!(!BenchSettings::from_pairs(&[]).is_on("SRP_BENCH_WEAPONS"));
         let off = BenchSettings::from_pairs(&[
@@ -489,10 +492,12 @@ mod tests {
             ("SRP_BENCH_DRAW_TIME", "off"),
             ("SRP_BENCH_ENEMY_HUMAN_LANES", "off"),
             ("SRP_BENCH_STAND_IN_LEVEL", "off"),
+            ("SRP_BENCH_CLIENT_KIT_RECOIL", "off"),
         ])
         .with_live_defaults();
         assert!(!off.is_on("SRP_BENCH_WEAPONS"));
         assert!(!off.is_on("SRP_BENCH_STAND_IN_LEVEL"));
+        assert!(!off.is_on("SRP_BENCH_CLIENT_KIT_RECOIL"));
         assert_eq!(off.number::<f32>("SRP_BENCH_BODY_BLOCK_M"), None);
         assert_ne!(off.var("SRP_BENCH_DRAW_TIME"), Ok("weapon".to_owned()));
         assert_eq!(EnemyLanes::parse(off.var("SRP_BENCH_ENEMY_HUMAN_LANES").ok().as_deref()), Ok(EnemyLanes::Off));
@@ -511,7 +516,7 @@ mod tests {
             assert!(row.default.starts_with("on") || row.default.contains("live"), "{name}: {}", row.default);
         }
         let line = models_line(&BenchSettings::from_pairs(&[]).with_live_defaults());
-        for part in [" WEAPONS=1", " BODY_BLOCK_M=0.76", " DRAW_TIME=weapon", " ENEMY_HUMAN_LANES=on", " STAND_IN_LEVEL=on"] {
+        for part in [" WEAPONS=1", " BODY_BLOCK_M=0.76", " DRAW_TIME=weapon", " ENEMY_HUMAN_LANES=on", " STAND_IN_LEVEL=on", " CLIENT_KIT_RECOIL=on"] {
             assert!(line.contains(part), "{part} is not in `{line}`");
         }
     }
