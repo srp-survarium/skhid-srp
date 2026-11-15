@@ -434,11 +434,16 @@ const LIVE_LEAVE_KILLS: u32 = 4;
 /// rhythm, not the enemy's coming.
 const LIVE_LEAVE_AFTER_KILL_P: [f32; 6] = [0.38, 0.33, 0.27, 0.23, 0.20, 0.17];
 /// [A239c] From that kill to his leaving 10 m of the spot, s, at the quantiles 0.1, 0.25, 0.5, 0.75 and 0.9 (6,312 runs that left).
-/// The stand-in's leave begins at the draw, and he is 10 m off only after his walk there, so his time from the kill is this
-/// table's plus that walk: the difference against live is not measured yet. [G10] The camper's log line counts it as the table
+/// The draw is the time to 10 m off, so his leave begins that long after the kill less his own walk there
+/// ([`LEAVE_WALK_TO_OFF_MS`]); a draw shorter than the walk begins at once (and arrives that much late). [G10] The camper's log line counts it as the table
 /// does (`CamperMotion::kill_to_off_line`: each leave from a stay with a kill, from that kill to [`LIVE_OFF_M`] off the stay's
 /// spot, at these quantiles, with the cut and the arrived-short leaves), for G10's bench read against this table.
 const LIVE_LEAVE_DELAY_S: [(f32, f32); 5] = [(0.1, 1.3), (0.25, 2.6), (0.5, 3.9), (0.75, 6.3), (0.9, 9.8)];
+/// [camper leave timing] His walk from a leave's start to 10 m off the stay's spot ([`LIVE_OFF_M`]), ms: the median of his 8 timed
+/// leaves in the camper trace (Rudnya TDM, 16 seeds each against the shipped and the all-off bots, 2026-11-15: 2,150-3,950 ms,
+/// `camper_trace_leave_v1.py`). Before it was taken off, his kill to 10 m off ran 3.9-12.8 s (median about 6.2 s) against the
+/// live table's 3.9 s.
+const LEAVE_WALK_TO_OFF_MS: u32 = 3_200;
 /// [A239c] After a death at his spot, a live camper against the old bots started his next run back within 10 m of it in 140 of
 /// 1,030 (`camp_leave.py`); those that did killed 4.69 a run, those elsewhere 2.21.
 const LIVE_BACK_P: f32 = 0.14;
@@ -762,7 +767,8 @@ impl CamperMotion {
                     let p = LIVE_LEAVE_AFTER_KILL_P[(kills as usize).clamp(1, LIVE_LEAVE_AFTER_KILL_P.len()) - 1];
                     if self.rng.range(0.0, 1.0) < p {
                         self.counts.leaves_by_kill += 1;
-                        Some(now + from_quantiles_ms(&LIVE_LEAVE_DELAY_S, self.rng.range(0.0, 1.0)))
+                        // The draw is to 10 m off: the leave begins his walk there earlier.
+                        Some(now + from_quantiles_ms(&LIVE_LEAVE_DELAY_S, self.rng.range(0.0, 1.0)).saturating_sub(LEAVE_WALK_TO_OFF_MS))
                     } else {
                         None
                     }
@@ -1713,8 +1719,8 @@ mod tests {
     }
 
     /// [A239c] The live runs' leave rule: quiet, he holds; after a kill he leaves with the runs' chance for its rank, a live while
-    /// later (about 38 % of first kills, gone within 9.8 s of it, none sent by an enemy 40 m off); after a fourth kill with the
-    /// fourth's chance (23 %), not always as the near-enemy rule; an enemy 10 m off after a kill still sends him.
+    /// later (about 38 % of first kills, gone within 9.8 s of it, none sent by an enemy 40 m off); through four quick kills he
+    /// holds with each rank's chance, not always as the near-enemy rule; an enemy 10 m off after a kill still sends him.
     #[test]
     fn the_live_runs_rule_leaves_after_a_kill_with_the_runs_chance_for_its_rank() {
         let tactics = tactics();
@@ -1731,14 +1737,16 @@ mod tests {
             left += m.counts.leaves;
         }
         assert!((85..=145).contains(&left), "{left} of 300 first kills (live 38 %)");
-        // Four kills a second apart (no decided leave comes before the next kill: the shortest wait is 1.3 s), then quiet.
+        // Four kills a second apart, then quiet. A decided leave begins its draw less his walk to 10 m off
+        // (`LEAVE_WALK_TO_OFF_MS`), so a draw under 4.2 s (u under 0.53) begins before the next kill: he holds through all four
+        // and the fourth's chance with (1 - 0.38 x 0.53)(1 - 0.33 x 0.53)(1 - 0.27 x 0.53)(1 - 0.23) = 43 %.
         let mut stayed = 0;
-        for seed in 0..100 {
+        for seed in 0..300 {
             let mut m = motion_with(per_kill, seed);
             run(&mut m, &tactics, 0, 15_000, far, |now| (now / 1_000).min(4));
             stayed += u32::from(m.counts.leaves == 0);
         }
-        assert!((60..=92).contains(&stayed), "{stayed} of 100 held after a fourth kill (live 77 %)");
+        assert!((100..=160).contains(&stayed), "{stayed} of 300 held through four kills a second apart (43 %)");
         let mut near = motion_with(per_kill, 1);
         run(&mut near, &tactics, 0, 4_200, Some(Vec3::new(10.0, 0.0, 0.0)), |now| u32::from(now >= 1_000));
         assert_eq!(near.counts.leaves, 1, "{:?}", near.counts);
