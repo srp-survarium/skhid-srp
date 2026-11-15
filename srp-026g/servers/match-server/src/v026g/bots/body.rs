@@ -3342,8 +3342,23 @@ pub(super) mod tests {
         let at = *track.estimate().unwrap();
         assert!(at.arc.is_none() && time < 2_000, "landed: {at:?}");
         assert!(top > from.y + 0.2, "up in the air: {top}");
-        assert!(at.feet.x - from.x > 0.5 && at.feet.y.abs() < 0.05 && at.fall == Fall::Ground, "forward, back on the floor: {from:?} {at:?}");
-        assert!(at.kept.is_some(), "the flight's controller kept");
+        // [Phase 2] The landing step is the client's first ground step (`end_jump` 0x7F050 before it), but `end_jump` keeps the
+        // downward speed and the client's `on_ground` (0x7EF90) needs it under `max_vertical_speed_to_can_jump` (4 m/s): the clip
+        // comes down at about 6 m/s there, so on flat ground the step ends a few centimetres up, falling, and the fall lands on
+        // the next step (the flight's falling-on end).
+        assert!(matches!(at.fall, Fall::Falling { speed } if speed > 4.0) && at.feet.y < 0.1, "falling on at the landing step: {at:?}");
+        let mut steps = 0;
+        while track.estimate().unwrap().fall != Fall::Ground && steps < 4 {
+            time += 50;
+            steps += 1;
+            track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        }
+        // A ground step on: the kept controller is the body's again.
+        time += 50;
+        track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        let at = *track.estimate().unwrap();
+        assert!(steps <= 2 && at.feet.x - from.x > 0.5 && at.feet.y.abs() < 0.05 && at.fall == Fall::Ground, "forward, back on the floor: {steps} {from:?} {at:?}");
+        assert!(at.kept.is_some(), "the controller kept on the floor");
         let side = press(key::FORWARD | key::RIGHT);
         assert!(matches!(side.estimate().unwrap().arc, Some(Jump::Clip(_))), "a side press keeps the clip");
     }
