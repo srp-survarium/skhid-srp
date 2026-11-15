@@ -731,8 +731,15 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // within `exposed_m` sees the bot, not reloading (a reload pressed
     // within `reload_cover_s`) and kept busy by no teammate with a clear
     // line to him from within `cover_m` (`Ctx::exposed_to`): it fights
-    // first. GUESSES; measured on the battery soak and the real-map bench
-    // (docs/notes/player_bots_behaviour.md §2.3).
+    // first; within it and unseen, the take is finished before another play
+    // (`commit.finish_take`, [`finishing`]). `hold_near_m` 3 m: the live
+    // recordings had 21 Collect plays replaced within 3 m of their battery,
+    // 20 of those bots killed there (the batteries findings of 2026-11-14,
+    // C2). `exposed_m` 25 m: benched against 0 and 40 m on the battery soak
+    // and the real-map bench (docs/notes/player_bots_behaviour.md §2.3: at
+    // 25 m a third of the flat floor's takers' deaths go and the batteries
+    // brought stay; at 40 m 9 % fewer are brought). `reload_cover_s` and
+    // `cover_m` were not measured (§2.3).
     ("hold_near_m", 3.0),
     ("exposed_m", 25.0),
     ("reload_cover_s", 1.5),
