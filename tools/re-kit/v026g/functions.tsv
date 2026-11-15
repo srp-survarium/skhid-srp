@@ -328,6 +328,7 @@ va	status	ref_021d	name
 0x00126670	reviewed	0x000de127	vostok::render::skeleton_model_instance_cook::on_skeleton_loaded
 0x00126750	reviewed	0x000de1b0	vostok::render::skeleton_model_instance_cook::on_render_model_loaded
 0x00126af0	reviewed	0x000de239	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready
+0x0012a820	reviewed	0x000e04de	vostok::render::grass_cook::on_layers_loaded
 0x00135900	reviewed	0x000e4d3b	vostok::render::material_effects_instance_cook::on_material_ready
 0x00135af0	reviewed	0x000e4e54	vostok::render::material_effects_instance_cook::translate_query
 0x00135c20	reviewed	0x000e4ef6	vostok::render::material_effects_instance_cook::query_effects

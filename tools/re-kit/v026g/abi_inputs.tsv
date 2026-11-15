@@ -1004,6 +1004,11 @@ va	name	location	role	basis
 0x00126af0	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready	entry ESP+4	shared callback state	observed
 0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	entry ESP+4	function buffer {f, a, b}	observed
 0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	entry ESP+8	queries result	observed
+0x0012a820	vostok::render::grass_cook::on_layers_loaded	entry ESP+4	queries_result of the layers and models: +38h the results' count, results at +12Ch, 2E0h each (the layers' first, then the models')	observed
+0x0012a820	vostok::render::grass_cook::on_layers_loaded	entry ESP+8	query_result_for_cook, finished (0xF0D00) with the grass_world or a failure	observed
+0x0012a820	vostok::render::grass_cook::on_layers_loaded	entry ESP+12	grass_layer_desc array, 11A0h each (+14h/+18h the layer's models, 118h each, +110h a model's probability)	observed
+0x0012a820	vostok::render::grass_cook::on_layers_loaded	entry ESP+16	grass_layer_data array, 24h each (+20h the layer's vegetation resource)	observed
+0x0012a820	vostok::render::grass_cook::on_layers_loaded	entry ESP+20	the layers' count	observed
 0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+20	the render_surface_instance: slots +0, +4, +8, +0Ch by type	observed
 0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+36	decal_texture_type: 0 diffuse, 1 normal, 2 fresnel, 3 smoothness	observed
 0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	entry ESP+40	float ms of render_bake (CPU submit, timed in on_textures_loaded 0x12E98D..0x12E9D8), added to the logged bake time	observed
