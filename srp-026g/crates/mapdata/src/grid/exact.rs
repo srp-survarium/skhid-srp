@@ -291,8 +291,9 @@ impl WalkGrid {
     /// How far from its axis the standing capsule is met by a wall at `above` metres over the cylinder's top (the standing height
     /// less the radius): the radius up to there, the round top's reach above (a circle: nothing at the standing height), less the
     /// grid's slack ([`EXACT_SLACK_CELLS`]); 0 or less where the wall is out of reach. The capsule is 0.76 m wide and 1.8 m tall
-    /// with its centre 0.9 m over the feet (PROVEN, `default.player`), a capsule of that total height (LIKELY: the feet are the
-    /// centre less half the height, `client_patch.md`, "A player's transform is his feet").
+    /// with its centre 0.9 m over the feet (PROVEN, `default.player`), a capsule of that total height (PROVEN: `set_transform`
+    /// 0x7F6D0 puts the capsule's centre over the player's feet by the radius plus the half cylinder, which `setup_shape_dim`
+    /// 0x7F100 makes d / 2 and (h - d) / 2: half the height; [`crate::controller::tick::Controller::feet`]).
     pub fn capsule_reach(&self, above: f32) -> f32 {
         let r = self.body.radius;
         (r * r - above.max(0.0).powi(2)).max(0.0).sqrt() - EXACT_SLACK_CELLS * self.cell
