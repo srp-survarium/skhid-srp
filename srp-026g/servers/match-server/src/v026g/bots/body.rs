@@ -944,11 +944,7 @@ impl BodyTrack {
     /// 1 when the new sum is off the last by more than [0x9CBA48] = 1e-5, which its only caller ORs into +33Eh (0x2D8FE5..0x2D8FFF):
     /// a hit, a second hit within 500 ms, and each hit's end, also with another still in.
     fn stagger_edge(&self, from: u32, to: u32) -> bool {
-        let moved = (self.stagger.share(from) - self.stagger.share(to)).abs() > STAGGER_EVENT;
-        if moved {
-            creep_steps::stagger();
-        }
-        moved
+        (self.stagger.share(from) - self.stagger.share(to)).abs() > STAGGER_EVENT
     }
 
     /// [2e] The bot's own reload from `from` until `until`, ms (its reflex's note).
@@ -1126,7 +1122,12 @@ impl BodyTrack {
         }
         let level = self.level_at(time, kin);
         let tick = self.as_taken(tick, kin);
-        let event = word_changed || self.estimate.is_some_and(|estimate| self.stagger_edge(estimate.time, time));
+        let staggered = self.estimate.is_some_and(|estimate| self.stagger_edge(estimate.time, time));
+        // Counted at the decided tick only: a replay goes over the same span again.
+        if staggered {
+            creep_steps::stagger();
+        }
+        let event = word_changed || staggered;
         if let Some(estimate) = self.estimate.as_mut() {
             let held;
             (*estimate, held) = advance_held(*estimate, tick, kin, level, grid, self.walls.as_ref().map(|w| &*w.0), event);
