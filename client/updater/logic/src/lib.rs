@@ -20,6 +20,7 @@ pub mod problem;
 pub mod replay;
 pub mod resources;
 pub mod revision;
+pub mod run_log;
 pub mod sha256;
 pub mod url;
 pub mod zip;

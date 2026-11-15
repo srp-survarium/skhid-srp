@@ -53,6 +53,7 @@ engine_vk_destroy_instance	-	-	void engine_vk_destroy_instance(void *instance, c
 engine_vk_enumerate_physical_devices	-	-	unsigned int engine_vk_enumerate_physical_devices(void *instance, unsigned int *count, void **devices)	dynamic	
 engine_vk_get_physical_device_properties	-	-	void engine_vk_get_physical_device_properties(void *device, void *properties)	dynamic	
 engine_create_toolhelp32_snapshot	-	-	void *engine_create_toolhelp32_snapshot(unsigned int flags, unsigned int process)	dynamic	
+engine_is_dbcs_lead_byte	-	-	unsigned int engine_is_dbcs_lead_byte(unsigned int byte)	dynamic	
 engine_module32_first_w	-	-	unsigned int engine_module32_first_w(void *snapshot, void *entry)	dynamic	
 engine_module32_next_w	-	-	unsigned int engine_module32_next_w(void *snapshot, void *entry)	dynamic	
 engine_get_temp_path_w	-	-	unsigned int engine_get_temp_path_w(unsigned int size, unsigned short *path)	dynamic	

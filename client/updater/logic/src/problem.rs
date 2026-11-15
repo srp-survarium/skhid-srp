@@ -505,7 +505,7 @@ mod tests {
         Fault::Insecure,
         Fault::Other,
     ];
-    const LOG: &str = "E:\\S\\game\\binaries\\x86\\updater_skhid.log";
+    const LOG: &str = "E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log";
     const FOLDER: &str = "E:\\S\\game\\binaries\\x86";
     const GAME: &str = "E:\\S\\game";
 
@@ -694,7 +694,7 @@ mod tests {
              Other sites answer: this network blocks it (the internet provider, or the VPN in use).\n\
              Use a VPN with launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe in its \
              split tunnelling, or turn the VPN off (see VPN.txt). Then try again.\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             Problem::NoConnection {
@@ -705,7 +705,7 @@ mod tests {
             "No connection: no address of resources.db.patch_44 answered (connection refused)\n\
              No other site answered either: a firewall blocks the game, or this PC is offline.\n\
              Run Skhid-network-setup.cmd (beside Skhid.bat) to allow the game in the firewall, then try again.\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             Problem::Download {
@@ -717,7 +717,7 @@ mod tests {
             "Download failed: resources.db.patch_44, damaged at every address\n\
              Start Skhid.bat again: it tries every address again, and the game's download goes on \
              from where it stopped.\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             Problem::Download {
@@ -729,7 +729,7 @@ mod tests {
             "Download failed: skhid.link, no secure connection\n\
              Check this PC's date, time and time zone, and that no program (an antivirus's web \
              shield, a proxy) intercepts HTTPS; then start Skhid.bat again.\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             antivirus("survarium_skhid.exe", Removal::Blocked).message(None, LOG),
@@ -738,7 +738,7 @@ mod tests {
              stays off until it is let through.\n\
              Run Skhid-defender-setup.cmd (beside Skhid.bat); with another antivirus, exclude this \
              folder: E:\\S\\game\\binaries\\x86\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log"
         );
         // A patch is in the game folder, which Skhid-defender-setup.cmd does
         // not exclude: Windows Security's own way, for that folder.
@@ -750,7 +750,7 @@ mod tests {
              Windows Security > Protection history > this item > Allow on device; then add this \
              folder as an exclusion (Virus & threat protection > Manage settings > Exclusions), in \
              any other antivirus too: E:\\S\\game\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             Problem::Download {

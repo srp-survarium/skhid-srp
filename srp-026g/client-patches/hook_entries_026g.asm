@@ -4690,10 +4690,10 @@ hud_cursor_on_menu_close_replay:
     db 0x51, 0x80, 0x7e, 0x44, 0x00
     jmp 0x201045
 
-; 0xe9580 memory::platform::allocate_arenas' start (mov eax,11A8h before its stack probe 0x429F20): once, at the process's start (memory::allocate_region, 0xE11F9), before the VRAM check's get_local_video_memory_size 0x106300 (Direct3DCreate9) at 0xE9C3F and the render device: lohook -> hud_options_on_process_start
-global hud_options_on_process_start
-extern hook_hud_options_on_process_start
-hud_options_on_process_start:
+; 0xe9580 memory::platform::allocate_arenas' start (mov eax,11A8h before its stack probe 0x429F20): once, at the process's start (memory::allocate_region, 0xE11F9), before the VRAM check's get_local_video_memory_size 0x106300 (Direct3DCreate9) at 0xE9C3F and the render device: lohook -> run_logs_on_process_start
+global run_logs_on_process_start
+extern hook_run_logs_on_process_start_chain
+run_logs_on_process_start:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -4710,22 +4710,22 @@ hud_options_on_process_start:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_hud_options_on_process_start
-    mov edx, hud_options_on_process_start_replay
+    call hook_run_logs_on_process_start_chain
+    mov edx, run_logs_on_process_start_replay
     cmp eax, 0
-    je hud_options_on_process_start_go
+    je run_logs_on_process_start_go
     mov edx, 0xe9585
     cmp eax, 1
-    je hud_options_on_process_start_go
+    je run_logs_on_process_start_go
     ud2
-hud_options_on_process_start_go:
+run_logs_on_process_start_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-hud_options_on_process_start_replay:
+run_logs_on_process_start_replay:
     db 0xb8, 0xa8, 0x11, 0x00, 0x00
     jmp 0xe9585
 
@@ -7437,6 +7437,77 @@ replay_map_on_enemy_ids_go:
 replay_map_on_enemy_ids_replay:
     db 0x8b, 0x4e, 0x10, 0x8b, 0x91, 0x08, 0x01, 0x00, 0x00
     jmp 0x235712
+
+; 0xe31f8 logging_initialize (0xE30E0) after generate_log_file_name (0xE29C0, the only call, at 0xE31F3) made the engine log's name in EDI, the frame's buffer_string [esp+0Ch] over its 104h bytes at [esp+18h] (<user data folder><application>_<user>.log), before new_log_file (0x1128D0, the only call, at 0xE31FD) makes the log file of that name anew (create_always: log_file::log_file, as g_log_file_usage 0x1B3A1B8 says); mov eax,[esp+0Ch] / push eax: lohook -> run_logs_on_engine_log
+global run_logs_on_engine_log
+extern hook_run_logs_on_engine_log
+run_logs_on_engine_log:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_run_logs_on_engine_log
+    mov edx, run_logs_on_engine_log_replay
+    cmp eax, 0
+    je run_logs_on_engine_log_go
+    mov edx, 0xe31fd
+    cmp eax, 1
+    je run_logs_on_engine_log_go
+    ud2
+run_logs_on_engine_log_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+run_logs_on_engine_log_replay:
+    db 0x8b, 0x44, 0x24, 0x0c, 0x50
+    jmp 0xe31fd
+
+; log.c_line the arena's C code's line to the patches' log (patch 100's ad_log, audio_device_engine_026g.c): a cdecl call of C (the entry keeps every register), the text and a value; the caller pops the two: entry -> run_logs_on_c_line
+global run_logs_on_c_line
+extern hook_run_logs_on_c_line
+run_logs_on_c_line:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_run_logs_on_c_line
+    cmp eax, 0
+    je run_logs_on_c_line_go
+    ud2
+run_logs_on_c_line_go:
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    lea esp, [esp + 4]
+    ret
 
 ; 0x572675 DrawableImageContext::OnNextCapture (0x572660, the render thread) after its ExecuteNextCapture (vtable+4, call edx at 0x572673), at the walk of its queues (mov ecx,[esi+44h] / lea edi,[esi+40h]): ESI the context's capture notify (context+8), EBX the render notify; done is its epilogue (pop edi / pop esi / pop ebx / ret 4, the registers the entry pushed): lohook -> scaleform_capture_on_next_capture
 global scaleform_capture_on_next_capture

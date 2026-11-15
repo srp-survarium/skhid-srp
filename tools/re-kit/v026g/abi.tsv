@@ -2604,3 +2604,5 @@ va	name	source	ret_cleanup	result
 0x00316d50	survarium::player_respawn_rule_base::deserialize	manual	8	
 0x00316f10	survarium::player_respawn_rule_core::serialize	manual	4	
 0x00316fc0	survarium::player_respawn_rule_core::deserialize	manual	8	
+0x000e29c0	vostok::core::generate_log_file_name	manual	0	the name in EDI's buffer_string: user_data_directory (+ "\\" + the application name, appended as a path) + "_%s" (0x9E6248) of the Windows user name when it has one + ".%s" (0x9E624C) of "log" (0x9E62E4, the extension inlined); its only call 0xE31F3 (logging_initialize)
+0x001128d0	vostok::logging::new_log_file	manual	0	EAX the log_file (0x4460 bytes of the allocator 0x1F1D61C) or 0; log_file::log_file 0x112340 with g_log_file_usage 0x1B3A1B8: usage 1 (create_log) opens the file create_always, any other append_or_create (0x11245F: dec/neg/sbb/and 2); the name copied (0x1123E9); cdecl, its only call 0xE31FD

@@ -456,6 +456,17 @@ pub unsafe fn engine_create_toolhelp32_snapshot(function: NonNull<c_void>, flags
     unsafe { function(flags, process) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_is_dbcs_lead_byte(unsigned int byte)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code)]
+#[inline(always)]
+pub unsafe fn engine_is_dbcs_lead_byte(function: NonNull<c_void>, byte: u32) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(u32) -> u32>(function.as_ptr()) };
+    unsafe { function(byte) }
+}
+
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_module32_first_w(void *snapshot, void *entry)
 ///
 /// # Safety
@@ -4406,6 +4417,24 @@ impl BufferString {
     #[inline(always)]
     pub unsafe fn set_end(self, value: *mut u8) {
         unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<u8>): the end of its room: assign (0x127C0) copies while end < it, then writes the NUL at end; logging_initialize's name points it 104h past begin (0xE31E3), at the native path string's separator byte
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn capacity_end(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<u8>): the end of its room: assign (0x127C0) copies while end < it, then writes the NUL at end; logging_initialize's name points it 104h past begin (0xE31E3), at the native path string's separator byte
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_capacity_end(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().write_volatile(value) }
     }
 }
 
@@ -20640,6 +20669,48 @@ impl ProfileFrame {
     }
 }
 
+/// A vostok::c_line_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CLineFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CLineFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<u8>): log.c_line's first argument (by the site's ESP, the return address at +0): the line's text, a C string of the caller's (ASCII)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn text(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<u8>): log.c_line's first argument (by the site's ESP, the return address at +0): the line's text, a C string of the caller's (ASCII)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_text(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x8 (u32): its second: the value the line ends with (in hex)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn value(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::memory::out_of_memory_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -23822,6 +23893,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn inventory(machine: &impl Machine) -> Option<Inventory> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Inventory)
+        }
+    }
+
+    /// logging.log_named (0xe31f8): logging_initialize (0xE30E0) after generate_log_file_name (0xE29C0, the only call, at 0xE31F3) made the engine log's name in EDI, the frame's buffer_string [esp+0Ch] over its 104h bytes at [esp+18h] (<user data folder><application>_<user>.log), before new_log_file (0x1128D0, the only call, at 0xE31FD) makes the log file of that name anew (create_always: log_file::log_file, as g_log_file_usage 0x1B3A1B8 says); mov eax,[esp+0Ch] / push eax
+    pub mod logging_log_named {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::buffer_string (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn name(machine: &impl Machine) -> Option<BufferString> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BufferString)
+        }
+    }
+
+    /// log.c_line (our entry): the arena's C code's line to the patches' log (patch 100's ad_log, audio_device_engine_026g.c): a cdecl call of C (the entry keeps every register), the text and a value; the caller pops the two
+    pub mod log_c_line {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::c_line_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<CLineFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(CLineFrame)
         }
     }
 

@@ -289,7 +289,7 @@ start_game() {
         && ! "$WINE" updater_skhid.exe ready quiet >>"$log" 2>&1; then
         die "Skhid has not finished updating the game's files (game/resources.db.patch_*), so the game is not started.
 Start the launcher (bash Skhid.sh launcher): it finishes the update.
-Details: game/binaries/x86/updater_skhid.log"
+Details: the newest game/binaries/x86/updater_skhid.<date>.log"
     fi
     check_nx_compat
     echo "Starting Survarium. Log: $log"

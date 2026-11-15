@@ -34,6 +34,8 @@ import tempfile
 import time
 import unittest
 
+import run_logs
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from test_updater import FAKE_EXE, UPDATER, X86, Site  # noqa: E402
@@ -192,9 +194,7 @@ class ReplayTest(unittest.TestCase):
             with open(game, "rb") as file, open(FAKE_EXE, "rb") as fake:
                 if file.read() != fake.read():
                     raise AssertionError("refused: the game exe of the test folder is not the stand-in")
-        log = os.path.join(self.x86, "updater_skhid.log")
-        if os.path.exists(log):
-            os.remove(log)
+        run_logs.remove(self.x86)
         process = subprocess.Popen([os.path.join(self.x86, "updater_skhid.exe"), *arguments], cwd=self.x86)
         try:
             until = time.time() + seconds
@@ -230,8 +230,7 @@ class ReplayTest(unittest.TestCase):
         return sorted(os.listdir(folder)) if os.path.isdir(folder) else []
 
     def log(self):
-        with open(os.path.join(self.x86, "updater_skhid.log"), "rb") as file:
-            return file.read().decode("utf-8", "replace")
+        return run_logs.read(self.x86).decode("utf-8", "replace")
 
     def assertSaid(self, line, problem, *values):
         self.assertIsNotNone(line, f"no problem logged for {problem}")

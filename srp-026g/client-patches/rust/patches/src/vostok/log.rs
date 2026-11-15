@@ -1,5 +1,5 @@
-//! A line to `srp_patches.log` in the game's folder (its working folder):
-//! what a patch wants the owner to see after the fact, and the panic
+//! A line to the client patches' log in the game's folder (its working
+//! folder): what a patch wants the owner to see after the fact, and the panic
 //! handler's last word before the crash. No `core::fmt` (its code would
 //! take kilobytes of the arena): a line is [`Piece`]s.
 //!
@@ -13,29 +13,32 @@
 //! lines never race for the file's end, and everything below changes under
 //! that one writer.
 //!
-//! The file is opened at the game's first line and kept open (appends
-//! only; others may read, write, rename or delete it): a line is one
-//! WriteFile on the calling thread, no longer an open, a write and a close
-//! (under Wine the open and the close are each a server call, the open a
-//! path look-up too, and the game's thread waited for them line by line).
-//! Nothing is held back in memory: a line is in the file (the system's
-//! cache) when `line` returns, so the crash reporter, which reads the
-//! file's tail after a crash, sees every line up to the crash.
+//! Each run writes files of its own (patch 147, [`run_log`]):
+//! `srp_patches.<run's start>.log`, begun at the run's first line, made
+//! anew under a name no file has, and kept open (appends only; others may
+//! read, write, rename or delete it): a line is one WriteFile on the calling
+//! thread (under Wine an open and a close are each a server call, the open
+//! a path look-up too). Nothing is held back in memory: a line is in the
+//! file (the system's cache) when `line` returns, so the crash reporter,
+//! which reads the newest file's tail after a crash, sees every line up to
+//! the crash.
 //! - A line the same as the one before it is counted, not written: the next
 //!   other line, or every [`Repeats::SAY_EVERY`]th repeat, says how many came.
-//! - Every [`LogFile::LOOK_EVERY`] bytes this game writes, the handle is
-//!   closed and the next line opens the file by its name again; past
-//!   [`LogFile::ROTATE_AT`] bytes the file first becomes
-//!   `srp_patches.old.log` (the one before it replaced).
+//! - Past [`LogFile::PART`] bytes the run goes on in a new file, the next
+//!   name of its stamp (`srp_patches.<stamp>_2.log`, ...). Before a file
+//!   begins, the oldest of the kind go past 100 files or 500 MiB
+//!   ([`Kind::prune`]); older files are only ever deleted.
+//! - Lines before the run's start (none in the game: it starts at the
+//!   process's first hook) go to `srp_patches.log`, appended to.
 //!
 //! kernel32 writes it, through the exe's imports (`raw`); a test never
 //! calls it.
 
 use core::ffi::c_void;
-use core::ptr::NonNull;
 use core::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
-use super::files::{Find, FindData, Path};
+use super::run_log::{self, Kind};
+use super::context::Context;
 use super::{Lock, Thread};
 use crate::raw;
 
@@ -103,12 +106,12 @@ fn text_of(parts: &[&[Piece]]) -> Line {
     line
 }
 
-/// Appends a line to `srp_patches.log`.
+/// Appends a line to the patches' log.
 pub fn line(pieces: &[Piece]) {
     parts(&[pieces]);
 }
 
-/// Appends a line of parts (each some pieces) to `srp_patches.log`.
+/// Appends a line of parts (each some pieces) to the patches' log.
 pub fn parts(parts: &[&[Piece]]) {
     let line = text_of(parts);
     write(&line.bytes[..line.len]);
@@ -118,6 +121,22 @@ pub fn parts(parts: &[&[Piece]]) {
 pub fn line_of(parts: &[&[Piece]]) {
     let line = text_of(parts);
     write(&line.bytes[..line.len]);
+}
+
+/// `log.c_line`, the arena's C code's line (patch 100's ad_log): its text
+/// and ` 0x<value>`, a line as any other (a text that is no ASCII C string
+/// of at most [`MAX`] bytes is said as such).
+pub fn c_line(ctx: &Context<'_>) {
+    // SAFETY: the entry's frame by its ESP: the C caller's two cdecl
+    // arguments, its text a C string it keeps until the call returns.
+    let (text, value) = unsafe {
+        match raw::site::log_c_line::frame(ctx) {
+            Some(frame) => (super::ui::c_string(frame.text(), MAX), super::world::read(frame.value())),
+            None => (None, 0),
+        }
+    };
+    let text = text.and_then(|text| text.to_str().ok()).unwrap_or("(a C line that is no text)");
+    line(&[Piece::Text(text), Piece::Text(" "), Piece::Hex(value)]);
 }
 
 /// The refusals' lines: at most one a second, each counting the refusals
@@ -193,7 +212,7 @@ impl Limited {
 /// The patches' refusals (a packet, a world, an effect the game was given).
 static REFUSALS: Limited = Limited::new("refused");
 
-/// A refusal's line to `srp_patches.log`, under [`Refusals`]' limit.
+/// A refusal's line to the patches' log, under [`Refusals`]' limit.
 pub fn refusal(thread: &Thread, pieces: &[Piece]) {
     REFUSALS.line(thread, pieces);
 }
@@ -298,21 +317,17 @@ fn say(line: &[u8]) {
 
 // ---- the file ---------------------------------------------------------------------------------
 
-const NAME: &[u8] = b"srp_patches.log\0";
-const OLD_NAME: &[u8] = b"srp_patches.old.log\0";
-
-/// Whether `n` bytes written after `before` reach the next multiple of
-/// `every` (the byte count wraps at 4 GiB).
-fn crosses(before: u32, n: u32, every: u32) -> bool {
-    before / every != before.wrapping_add(n) / every
-}
+/// The file of the lines logged before the run's start ([`run_log::start`],
+/// the process's first hook): none in the game; the Unicorn checks run hooks
+/// without that start and read their lines here.
+const BEFORE_THE_RUN: &[u8] = b"srp_patches.log";
 
 /// The file this game writes: its handle while open and the bytes this game
-/// wrote. Atomics only to be a static's: both change under [`WRITING`].
+/// wrote to it. Atomics only to be a static's: both change under [`WRITING`].
 struct LogFile {
     /// CreateFileA's handle; 0 before the first line (a file's handle is
-    /// never 0), after a look, and when the open failed: the next line
-    /// opens the file by its name.
+    /// never 0), after a part, after the run's start and when the open
+    /// failed: the next line begins a file.
     handle: AtomicUsize,
     written: AtomicU32,
 }
@@ -320,22 +335,22 @@ struct LogFile {
 static FILE: LogFile = LogFile::new();
 
 impl LogFile {
-    /// The file's size past which it is renamed (the crash reporter takes
-    /// its last 2 MiB).
-    const ROTATE_AT: u32 = 8 << 20;
-    /// The file is looked at each time this game has written this much more.
-    const LOOK_EVERY: u32 = 256 << 10;
+    /// A file's size past which the run goes on in a new one, its next name
+    /// (`srp_patches.<stamp>_2.log`, ...; the crash reporter takes the last
+    /// 2 MiB of the newest).
+    const PART: u32 = 8 << 20;
 
     const fn new() -> LogFile {
         LogFile { handle: AtomicUsize::new(0), written: AtomicU32::new(0) }
     }
 
-    /// The open file: opened by its name when no handle is kept.
+    /// The open file: a file begun when none is.
     fn handle(&self) -> Option<*mut c_void> {
         match self.handle.load(Ordering::Relaxed) {
             0 => {
-                let opened = open()?;
+                let opened = begin()?;
                 self.handle.store(opened as usize, Ordering::Relaxed);
+                self.written.store(0, Ordering::Relaxed);
                 Some(opened)
             }
             kept => Some(kept as *mut c_void),
@@ -345,46 +360,71 @@ impl LogFile {
     fn append(&self, bytes: &[u8]) {
         let Some(file) = self.handle() else { return };
         write_file(file, bytes);
-        let n = bytes.len() as u32;
-        let before = self.written.load(Ordering::Relaxed);
-        self.written.store(before.wrapping_add(n), Ordering::Relaxed);
-        if crosses(before, n, Self::LOOK_EVERY) {
-            self.look();
+        let written = self.written.load(Ordering::Relaxed).saturating_add(bytes.len() as u32);
+        self.written.store(written, Ordering::Relaxed);
+        if written >= Self::PART {
+            self.end();
         }
     }
 
-    /// A look at the file: the kept handle closed (no line is being written
-    /// through it: [`WRITING`]), so the next line opens the file by its
-    /// name again. That is what keeps a second game of the same folder in
-    /// `srp_patches.log` after the first renamed it, and what lets the size
-    /// be read (a directory's record of an open file's size is the one at
-    /// its open). Past ROTATE_AT the file is renamed `srp_patches.old.log`,
-    /// that one replaced, and the next line begins a new one; a rename
-    /// refused (another game or a reader has it open without delete
-    /// sharing) is tried again at the next look.
-    fn look(&self) {
+    /// The file closed (no line is being written through it: [`WRITING`]):
+    /// the next line begins one.
+    fn end(&self) {
         let kept = self.handle.swap(0, Ordering::Relaxed);
         if kept != 0 {
             close(kept as *mut c_void);
         }
-        if size().is_some_and(|size| size >= Self::ROTATE_AT) {
-            rename();
-        }
     }
 }
 
-/// The file opened for appends (made when it is not there); others may
-/// read, write, rename or delete it meanwhile.
-fn open() -> Option<*mut c_void> {
+/// The run has started ([`run_log::start`]): a file of the lines before it
+/// closed, so the next line begins the run's.
+pub(super) fn run_started() {
+    let me = super::sync::thread_id();
+    let mut owner = WRITING.compare_exchange(0, me, Ordering::Acquire, Ordering::Relaxed);
+    while let Err(holder) = owner {
+        if holder == me {
+            return FILE.end();
+        }
+        core::hint::spin_loop();
+        owner = WRITING.compare_exchange(0, me, Ordering::Acquire, Ordering::Relaxed);
+    }
+    FILE.end();
+    WRITING.store(0, Ordering::Release);
+}
+
+/// A new file: the run's next (its kind's oldest deleted past the limits
+/// first, [`Kind::prune`]), made anew under a name no file has; before the
+/// run's start, [`BEFORE_THE_RUN`], appended to.
+fn begin() -> Option<*mut c_void> {
+    const CREATE_NEW: u32 = 1;
+    const OPEN_ALWAYS: u32 = 4;
+    match run_log::started() {
+        Some(stamp) => {
+            let kind = Kind::PATCHES;
+            kind.prune(stamp);
+            let name = kind.next_name(stamp)?;
+            open(name.bytes(), CREATE_NEW)
+        }
+        None => open(BEFORE_THE_RUN, OPEN_ALWAYS),
+    }
+}
+
+/// `name` opened for appends as `disposition` says; others may read, write,
+/// rename or delete it meanwhile.
+fn open(name: &[u8], disposition: u32) -> Option<*mut c_void> {
     const FILE_APPEND_DATA: u32 = 4;
     const SHARE_ALL: u32 = 7;
-    const OPEN_ALWAYS: u32 = 4;
     const NORMAL: u32 = 0x80;
+    let mut path = [0u8; 260];
+    path.get_mut(..name.len())?.copy_from_slice(name);
+    // the NUL after the name, inside the buffer
+    path.get(name.len())?;
     let null = core::ptr::null_mut::<c_void>();
     // SAFETY: kernel32's CreateFileA through the exe's import slot, which the
-    // loader filled before the game ran; a NUL-terminated name.
+    // loader filled before the game ran; a NUL-terminated name (`path`).
     let file = unsafe {
-        (raw::engine_create_file_a)(NAME.as_ptr(), FILE_APPEND_DATA, SHARE_ALL, null, OPEN_ALWAYS, NORMAL, null)
+        (raw::engine_create_file_a)(path.as_ptr(), FILE_APPEND_DATA, SHARE_ALL, null, disposition, NORMAL, null)
     };
     (file as isize != -1 && !file.is_null()).then_some(file)
 }
@@ -403,31 +443,6 @@ fn close(file: *mut c_void) {
     // nothing else holds it.
     unsafe {
         (raw::engine_close_handle)(file);
-    }
-}
-
-/// The file's size on disk (FindFirstFileA's record of it), our handle closed.
-fn size() -> Option<u32> {
-    let mut data = FindData::new();
-    let _found = Find::first(Path::new(NAME)?, &mut data)?;
-    data.size()
-}
-
-/// The file renamed srp_patches.old.log, that one replaced: whether it was.
-fn rename() -> bool {
-    const MOVEFILE_REPLACE_EXISTING: u32 = 1;
-    // SAFETY: kernel32 is loaded in every process; GetModuleHandleA and
-    // GetProcAddress through the exe's import slots, NUL-terminated names;
-    // MoveFileExA is that export (the library's dynamic row).
-    unsafe {
-        let kernel32 = (raw::engine_get_module_handle_a)(c"kernel32.dll".as_ptr().cast());
-        if kernel32.is_null() {
-            return false;
-        }
-        let Some(move_file) = NonNull::new((raw::engine_get_proc_address)(kernel32, c"MoveFileExA".as_ptr().cast())) else {
-            return false;
-        };
-        raw::engine_move_file_ex_a(move_file, NAME.as_ptr(), OLD_NAME.as_ptr(), MOVEFILE_REPLACE_EXISTING) != 0
     }
 }
 
@@ -485,14 +500,5 @@ mod tests {
         assert_eq!(repeats.see(7), Seen::Again { say: Some(Repeats::SAY_EVERY) });
         assert_eq!(repeats.see(7), Seen::Again { say: None });
         assert_eq!(repeats.see(8), Seen::New { repeated: 1 });
-    }
-
-    #[test]
-    fn the_size_is_looked_at_once_a_step() {
-        let every = LogFile::LOOK_EVERY;
-        assert!(!crosses(0, 200, every));
-        assert!(crosses(every - 100, 200, every));
-        assert!(!crosses(every, 200, every));
-        assert!(crosses(u32::MAX - 10, 200, every));
     }
 }
