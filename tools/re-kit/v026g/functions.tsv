@@ -183,6 +183,13 @@ va	status	ref_021d	name
 0x000804e0	reviewed	0x00158d51	vostok::network_core::buffer_writer::w<float>
 0x00080fa0	reviewed	0x00159507	vostok::network_core::buffer_writer::w<bool>
 0x000b9320	verified		btContinuousConvexCollision::calcTimeOfImpact
+0x000c06e0	reviewed		btOptimizedBvh::build
+0x000c1720	reviewed		btQuantizedBvh::btQuantizedBvh
+0x000c1810	reviewed		btQuantizedBvh::setQuantizationValues
+0x000c1a60	reviewed		btQuantizedBvh::buildTree
+0x000c1f60	reviewed		btQuantizedBvh::sortAndCalcSplittingIndex
+0x000c22f0	reviewed		btQuantizedBvh::calcSplittingAxis
+0x000c2ff0	reviewed		btQuantizedBvh::walkStacklessQuantizedTreeAgainstRay
 0x000e0420	reviewed	0x000ae01f	vostok::resources::resource_children::link_parent_resource
 0x000e0500	reviewed	0x000ae0ce	vostok::resources::resource_children::link_child_resource
 0x000e05f0	reviewed	0x000ae195	vostok::resources::resource_children::unlink_parent_resource
@@ -1856,6 +1863,7 @@ va	status	ref_021d	name
 0x00266710	observed		survarium::game_match_rule_base::`scalar deleting destructor'
 0x00316540	observed		survarium::game_match_rule_base::resolve_links
 0x0008fe10	observed		survarium::tdm_rule_core::priority
+0x00094c70	reviewed		btAxisSweep3Internal<unsigned short>::rayTest
 0x002f41e0	observed		survarium::tdm_rule_core_cook::tdm_rule_core_cook
 0x002f41d0	observed		survarium::tdm_rule_core_cook::resource_size
 0x002f4250	observed		survarium::tdm_rule_core_cook::create_resource
@@ -2382,6 +2390,16 @@ va	status	ref_021d	name
 0x000a5e90	reviewed		btCapsuleShape::localGetSupportingVertexWithoutMargin
 0x000a9be0	reviewed		btBoxShape::setLocalScaling
 0x000a9f10	reviewed		CylinderLocalSupportY
+0x000aa180	reviewed		btDbvt insertleaf
+0x000aa330	reviewed		btDbvt removeleaf
+0x000aa540	reviewed		btDbvt::optimizeIncremental
+0x000aa690	reviewed		btDbvt::insert
+0x000aa710	reviewed		btDbvt::update
+0x000b4fe0	reviewed		btDbvtBroadphase::rayTest
+0x000b5370	reviewed		btDbvtBroadphase::calculateOverlappingPairs
+0x000b53a0	reviewed		btDbvtBroadphase::performDeferredRemoval
+0x000b55d0	reviewed		btDbvtBroadphase::collide
+0x000b5ca0	reviewed		btDbvt::rayTestInternal
 0x000a36e0	reviewed		btCollisionWorld::convexSweepTest
 0x000a3420	reviewed		btSingleSweepCallback::btSingleSweepCallback
 0x000a14e0	reviewed		btCollisionWorld::objectQuerySingle
@@ -2399,10 +2417,16 @@ va	status	ref_021d	name
 0x000a58f0	reviewed		btDbvt::collideTV
 0x0008a130	reviewed		btAlignedAllocDefault
 0x0008a170	reviewed		btAlignedFreeDefault
+0x0008a230	reviewed		btCompoundShape::btCompoundShape
+0x0008a3e0	reviewed		btCompoundShape::addChildShape
+0x0008a620	reviewed		btCompoundShape::updateChildTransform
+0x0008ad90	reviewed		btCompoundShape::setLocalScaling
 0x000a8380	reviewed		btBvhTriangleMeshShape::performConvexcast
+0x000a8a40	reviewed		btBvhTriangleMeshShape::buildOptimizedBvh
 0x00087b60	reviewed	0x002232a0	vostok::physics::character_controller_jump_tester::convex_sweep_test
 0x00088c90	reviewed		vostok::physics::character_slide_sweep_test_callback::addSingleResult
 0x00088cb0	reviewed		vostok::physics::bullet_character_controller::slide_sweep_test
+0x000895f0	reviewed		vostok::physics::character_move_sweep_callback::addSingleResult
 0x0007f7b0	reviewed		vostok::physics::bullet_character_controller::can_stand_up
 0x0007bd10	reviewed		vostok::physics::bullet_character_controller::need_push_from_low_ceiling
 0x0007bad0	reviewed		vostok::physics::bullet_character_controller::get_push_from_low_ceiling
