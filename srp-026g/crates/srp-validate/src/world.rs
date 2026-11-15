@@ -205,6 +205,7 @@ pub fn validate_kept<'a>(
     body: &'a [u8],
     context: &Context<'_>,
     keep: &mut dyn for<'k> FnMut(u8, &PlayerState<'a>, Option<&ItemsAndRest<'a, 'k>>),
+    keep_objects: &mut dyn FnMut(&GameObjects<'_>),
 ) -> Result<(), Refusal> {
     let frame = frame(body, context.places)?;
     for block in frame.blocks() {
@@ -215,6 +216,10 @@ pub fn validate_kept<'a>(
     bullets(&frame, context)?;
     statistics(&frame.statistics(), context)?;
     objects(&frame.objects(), context)?;
+    // `keep_objects` is handed the game objects once they are checked (the list known).
+    if let Some(list) = context.objects {
+        keep_objects(&GameObjects::read(&frame.objects(), list)?);
+    }
     rules(&frame.rules(), context)?;
     physics(&frame.physics())?;
     effects(&frame.effects())

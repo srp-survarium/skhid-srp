@@ -245,16 +245,20 @@ fn gates_line(keys: u32, gates: sprint_gates::WorldGates) -> String {
     )
 }
 
+/// [S6] Onyx II's bit in modifier 40, `artefact_power` (`scripts/content-edit/artefact-skills-1.json`: bits 0..2 Resistance,
+/// 3 Keeper of the Artifacts, 4 Resonance, 5 Spring II, 6 Onyx II).
+const ONYX_II_BIT: u32 = 6;
+
 /// [S6] What may lower a lethal fall's hit, as a bot's latest world shows it, so that a fall is closed as lethal
 /// ([`mapdata::FallRoom::Survives`]) only with [`Self::Nothing`]:
 /// - the damage model's second chance armed (`m_have_second_chance`: `damage_model::second_chance` 0x332940 runs in every
 ///   `hit_by_type`, 0x32A121, and zeroes the first part's hit, the right foot's, halving the fall's pain; never armed in 0.26g,
 ///   `docs/notes/hand-kill.md`).
 ///
-/// No artefact lowers a bot's fall: Onyx's own protection acts only on its configured hit type (`artefact_onyx_core` protect
-/// 0x312BF0 compares the hit's +1Ch with +EE8h; ranged in the data), and Onyx II's (exe patch 54, `artefact.landing` at
-/// 0x2D8220) only for a player with skill 532 and his own Onyx active (`docs/notes/artefact-skills.md`): no bot tier has 532
-/// (`bot_skills::BOT_SKILL_TIERS`).
+/// - Onyx II: with skill 532 in its build and its own Onyx active, the landing takes nothing (exe patch 54, `artefact.landing`
+///   at 0x2D8220; `docs/notes/artefact-skills.md`). No bot tier has 532 today (`bot_skills::BOT_SKILL_TIERS`), so it is noted
+///   when it does happen. Onyx's own protection acts only on its configured hit type (`artefact_onyx_core` protect 0x312BF0
+///   compares the hit's +1Ch with +EE8h; ranged in the data): no other artefact lowers a fall.
 ///
 /// A drug course does not: `medkit::reduce_damage` 0x33DB30 lowers a hit only by the drug's protection for that part and
 /// type (0x33DAC0; none, unchanged at 0x33DB4A), and the stock drugs protect pain from ranged hits and infection from toxic
@@ -267,6 +271,9 @@ pub enum FallSave {
     Nothing,
     /// The second chance armed: no fall is closed.
     SecondChance,
+    /// Its own Onyx active and its build with Onyx II (skill 532): the landing takes nothing (exe patch 54), no fall is
+    /// closed.
+    OnyxTwo,
 }
 
 /// [A395a] A bot's walk over a zone's floors (`Bot::zone_walk`): since when (ms) its lines are tested over them,
@@ -525,8 +532,11 @@ pub struct Bot {
     /// `fall_damage` modifier, `apply_modifier` 0x2D5AE0 at 0x2D82C8, PROVEN `docs/notes/fall_damage.md`); `None` for a bot of
     /// no role (its block not known).
     pub(super) fall_scale: Option<f32>,
-    /// [S6] What may stop a lethal fall's hit, as its latest world shows ([`FallSave`]).
+    /// [S6] What may lower a lethal fall's hit, as its latest world shows ([`FallSave`]).
     pub(super) fall_save: FallSave,
+    /// [S6] Whether its build has Onyx II (skill 532): bit 6 of modifier 40, `artefact_power`, the artefact tree's packed
+    /// skills that exe patch 109 decodes (`scripts/content-edit/artefact-skills-1.json`).
+    pub(super) onyx_ii: bool,
     /// The rounds this life started with (what its kit's storage gave).
     life_carried: u32,
     /// Its role, read from its gear (`Bots::new`'s `roles`).
@@ -728,6 +738,7 @@ impl Bot {
             kit_rates: Vec::new(),
             fall_scale: None,
             fall_save: FallSave::Unread,
+            onyx_ii: false,
             life_carried,
             role: role.and_then(|role| BotRole::ALL.into_iter().find(|each| each.name() == role)),
             frag_rolls_refused: 0,
@@ -777,11 +788,17 @@ impl Bot {
                 .map(|k| stamina::Rates::of_kit(loadouts[k], &modifiers))
                 .collect()
         });
-        self.fall_scale = self.role.map(|role| {
+        let modifiers = self.role.map(|role| {
             let loadouts = survarium::v026g::loadouts::bot_kits(equipment, role);
-            let modifiers = survarium::v026g::bot_skills::bot_modifiers(&loadouts);
+            survarium::v026g::bot_skills::bot_modifiers(&loadouts)
+        });
+        self.fall_scale = modifiers.map(|modifiers| {
             let fall = survarium::v026g::skills::modifier_index("fall_damage").expect("a modifier of the 68");
             (1.0 + modifiers[fall]).max(0.0)
+        });
+        self.onyx_ii = modifiers.is_some_and(|modifiers| {
+            let power = survarium::v026g::skills::modifier_index("artefact_power").expect("a modifier of the 68");
+            (modifiers[power] as u32) >> ONYX_II_BIT & 1 == 1
         });
         self.kit = 0;
         self.kit_chosen = 0;
@@ -1608,13 +1625,19 @@ impl Bots {
     }
 
     /// [S6] A trusted world's word on what may stop a lethal fall's hit for one place ([`FallSave`]).
-    pub fn fall_save(&mut self, place: Place, second_chance: Option<bool>) {
+    pub fn fall_save(&mut self, place: Place, second_chance: Option<bool>, own_onyx_active: Option<bool>, time: u32) {
         if let Some(Some(bot)) = self.bots.get_mut(place) {
-            bot.fall_save = match second_chance {
-                None => FallSave::Unread,
-                Some(true) => FallSave::SecondChance,
-                Some(false) => FallSave::Nothing,
+            let save = match (second_chance, bot.onyx_ii && own_onyx_active == Some(true)) {
+                (None, _) => FallSave::Unread,
+                (Some(true), _) => FallSave::SecondChance,
+                (Some(false), true) => FallSave::OnyxTwo,
+                (Some(false), false) => FallSave::Nothing,
             };
+            // [S6] Onyx II taking a bot's falls away: never in the bots' builds today (no tier has skill 532), so noted.
+            if save == FallSave::OnyxTwo && bot.fall_save != FallSave::OnyxTwo {
+                bot.nav_log.push(nav_log::Kind::Route, time, format!("{}its Onyx is active with Onyx II: every fall open", nav_log::PREFIX));
+            }
+            bot.fall_save = save;
         }
     }
 

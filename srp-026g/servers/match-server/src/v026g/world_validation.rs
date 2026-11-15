@@ -165,6 +165,32 @@ pub struct PlaceWorld {
     /// [S6] The damage model's protector `m_have_second_chance` (`damage_model::second_chance` 0x332940 acts only while it is
     /// set, +4 of the protector); `None` when `motion` is.
     pub have_second_chance: Option<bool>,
+    /// [S6] Whether an Onyx the place owns is active (an anomaly's artefact with this owner in state 4, `ActiveCore::Onyx`):
+    /// with Onyx II it takes no fall damage (exe patch 54, `artefact-skills.md`). `None` when the world's objects were not read.
+    pub own_onyx_active: Option<bool>,
+}
+
+/// [S6] The places whose own Onyx is active in a world's objects: an anomaly's artefact owned by the place
+/// (`ArtefactBase::owner`) in state 4 with an Onyx's core (`ActiveCore::Onyx`), as a bit mask by place.
+fn active_onyx_owners(objects: &world::GameObjects<'_>) -> u32 {
+    let mut mask = 0u32;
+    for object in objects.objects() {
+        let world::GameObject::Anomaly(anomaly) = object else {
+            continue;
+        };
+        let Some(artefacts) = anomaly.artefacts() else {
+            continue;
+        };
+        for artefact in artefacts.artefacts() {
+            if let (Some(owner), world::ArtefactState::Active { core: world::ActiveCore::Onyx { .. }, .. }) =
+                (artefact.owner(), artefact.state())
+                && owner.place().index() < 32
+            {
+                mask |= 1 << owner.place().index();
+            }
+        }
+    }
+    mask
 }
 
 impl PlaceWorld {
@@ -220,6 +246,7 @@ impl PlaceWorld {
             invulnerability_time_ms: rest.and_then(|rest| rest.damage_model().invulnerability_time_ms()),
             invulnerability_fade_ms: rest.map_or(0, |rest| rest.damage_model().invulnerability_attenuation()),
             have_second_chance: rest.map(|rest| rest.damage_model().have_second_chance()),
+            own_onyx_active: None,
         }
     }
 }
@@ -309,13 +336,28 @@ fn check_with(body: &[u8], time: u32, places: usize, roster: Roster, keep: Keep)
             Keep::Places => {
                 kept = vec![None; known];
                 let dictionary = Dictionary::shared();
-                world::validate_kept(body, &context, &mut |place, state, items| {
-                    if let (Some(slot), Some(profile)) =
-                        (kept.get_mut(usize::from(place)), roster.profiles.get(usize::from(place)))
-                    {
-                        *slot = Some(PlaceWorld::of(place, state, items, profile, dictionary));
+                let mut onyx: Option<u32> = None;
+                let read = world::validate_kept(
+                    body,
+                    &context,
+                    &mut |place, state, items| {
+                        if let (Some(slot), Some(profile)) =
+                            (kept.get_mut(usize::from(place)), roster.profiles.get(usize::from(place)))
+                        {
+                            *slot = Some(PlaceWorld::of(place, state, items, profile, dictionary));
+                        }
+                    },
+                    &mut |objects| onyx = Some(active_onyx_owners(objects)),
+                );
+                // [S6] Each place's own Onyx active, from the objects.
+                if let Some(mask) = onyx {
+                    for (place, world) in kept.iter_mut().enumerate() {
+                        if let Some(world) = world {
+                            world.own_onyx_active = Some(place < 32 && mask >> place & 1 == 1);
+                        }
                     }
-                })
+                }
+                read
             }
         };
         match read {
