@@ -367,7 +367,7 @@ pub struct CombatTuning {
     pub grenade_trace: bool,
     /// [G624] A traced throw's rest is where the client's grenade is at the blast: flown through its contacts by the
     /// physics world's rule, the speed cut to 1.8 m/s at a swept hit, then friction and no bounce ([`arc::Flight::rest_at_blast`],
-    /// `thrown_and_placed.md`: a median 0.53 m from the recorded bursts on 911 flights, the old roll's 2.13 m), and the
+    /// `thrown_and_placed.md`: a median 0.54 m from the recorded bursts on 911 flights, the old roll's 2.13 m), and the
     /// checks spread the blast by that rule's measured error ([`arc::Spread`]). For the smoke's cloud and the grenades the
     /// bots see thrown too. Off: the old roll, 2 m past the first contact. The old value is wrong by the client, so it is
     /// on by default and the all-off patch keeps it (`KEPT_RIGHT`). It is the thread's rule ([`arc::set_rest_flown`],
@@ -12725,7 +12725,7 @@ mod tests {
 
     /// A mate beyond the place, on the grenade's line, 8 m past a landing 25
     /// m out: more than the old 6 m from the place, but within 6 m of the
-    /// usual spread's end (4.14 m past the flown rest).
+    /// usual spread's end (3.95 m past the flown rest).
     #[test]
     fn a_mate_on_the_blast_segment_refuses_the_throw() {
         let c = earlier_habit();
@@ -12748,14 +12748,14 @@ mod tests {
             let clear = throw_run(25.0, &[mate_at(x, z)], c.clone(), None, 6_000);
             assert!(!clear.thrown.is_empty(), "{x} {z}: {:?}", clear.notes);
         }
-        // With a 3 m round of the usual end (4.14 m past the rest, which lies
-        // 0.3-0.5 m past the place): 10.5 m past the place he is out of it,
-        // but within 2 m of the worst end (9.08 m past the rest): refused;
+        // With a 3 m round of the usual end (3.95 m past the rest, which lies
+        // 0.3-0.5 m past the place): 9.8 m past the place he is out of it,
+        // but within 2 m of the worst end (8.92 m past the rest): refused;
         // 4 m aside he is off it.
         let narrow = CombatTuning { grenade_friend_m: 3.0, ..c.clone() };
-        let lane = throw_run(25.0, &[mate_at(0.0, 35.5)], narrow.clone(), None, 6_000);
+        let lane = throw_run(25.0, &[mate_at(0.0, 34.8)], narrow.clone(), None, 6_000);
         assert!(lane.thrown.is_empty(), "{:?}", lane.notes);
-        let beside = throw_run(25.0, &[mate_at(4.0, 35.5)], narrow, None, 6_000);
+        let beside = throw_run(25.0, &[mate_at(4.0, 34.8)], narrow, None, 6_000);
         assert!(!beside.thrown.is_empty(), "{:?}", beside.notes);
         // A mate walking at the landing from 15 m aside: his four seconds'
         // walk (3 m/s) ends in it.

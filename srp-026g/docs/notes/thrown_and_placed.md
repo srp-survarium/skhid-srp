@@ -63,6 +63,14 @@ position and velocity while it is in the physics world, its explode time and its
   from the seen one (554 within 1 m); without the cap 4.2 m; stopping at the first contact 1.43 m; a fixed 2 m along
   the heading (the bots' old rule) 2.13 m (84 within 1 m). In 142 of the 911 the grenade fell through the floor
   (`grenade_ccd.md`).
+- **Which hits are capped** (read 2026-11-15): the sweep's result filter 0x9C6B0 drops a hit whose step moves 4 cm or
+  less along the hit's normal (`(to - from) . normal >= -0.04`, 0x9C6DD..0x9C72D; 0.04 is the collision world's +38h,
+  set at 0x9FCC5..0x9FCE7). The step is then made whole with no cap, so a touch at 2.4 m/s or less into the surface is
+  not capped, on a floor, a wall or a slope. A capped step ends at the time of impact (the rest of it not moved,
+  0x9CB6D). The 911 flights flown again with both: P50 0.54 m, P80 4.34, P90 8.72 (as before); along the heading P10
+  -1.24, P90 +3.95, P95 +8.92 m. Taking the swept sphere's radius as the hit's reach instead of the capsule's 0.05 is
+  worse (0.01 stock: P50 0.63, 525 within 1 m; 0.04 with patch 105: P50 0.54, P90 8.99), as is flying with no support
+  contact (P90 10.6): the capsule's own contacts stop it.
 
 ## The blast (`bullet_manager::explode` 0x339630)
 
