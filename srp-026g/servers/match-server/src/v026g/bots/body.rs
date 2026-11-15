@@ -339,6 +339,10 @@ impl Creep {
     }
 }
 
+/// [F42] How far the stagger's value moves to be a selector event: `update_stagger`'s threshold [0x9CBA48] (PROVEN, the review of
+/// #1960).
+const STAGGER_EVENT: f32 = 1e-5;
+
 /// [F42] The client's move test of `crouch_run` 0x2FBE50 (0x2FBE78..0x2FBE89): forward xor back, or left xor right.
 pub(crate) fn crouch_moves(keys: u32) -> bool {
     let along = (keys & key::FORWARD != 0) != (keys & key::BACK != 0);
@@ -355,6 +359,12 @@ pub(crate) mod creep_steps {
     static RUN: AtomicU64 = AtomicU64::new(0);
     static UNKNOWN: AtomicU64 = AtomicU64::new(0);
     static WORLDS: AtomicU64 = AtomicU64::new(0);
+    static STAGGER: AtomicU64 = AtomicU64::new(0);
+
+    /// A stagger event the reckoning saw (its value moved, [`super::BodyTrack`]'s `stagger_edge`), any body's.
+    pub(crate) fn stagger() {
+        STAGGER.fetch_add(1, Relaxed);
+    }
 
     pub(crate) fn step(state: super::Creep) {
         match state {
@@ -371,9 +381,9 @@ pub(crate) mod creep_steps {
         WORLDS.fetch_add(1, Relaxed);
     }
 
-    /// (on site, run, unknown, worlds) since the last call, and zero again.
-    pub(crate) fn take() -> (u64, u64, u64, u64) {
-        (ON_SITE.swap(0, Relaxed), RUN.swap(0, Relaxed), UNKNOWN.swap(0, Relaxed), WORLDS.swap(0, Relaxed))
+    /// (on site, run, unknown, worlds, stagger events) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64, u64, u64, u64) {
+        (ON_SITE.swap(0, Relaxed), RUN.swap(0, Relaxed), UNKNOWN.swap(0, Relaxed), WORLDS.swap(0, Relaxed), STAGGER.swap(0, Relaxed))
     }
 }
 
@@ -929,9 +939,16 @@ impl BodyTrack {
         self.world_creep = Some((at, creep));
     }
 
-    /// [F42] Whether the stagger starts or ends between `from` and `to` (a selector event, `update_stagger` 0x2DBCD0).
+    /// [F42] Whether the stagger's value moves between `from` and `to`, a selector event: `update_stagger` 0x2DBCD0 sums the hits
+    /// younger than the duration, clamped at the max ([`super::sprint_gates::Stagger::share`], the same sum and clamp), and returns
+    /// 1 when the new sum is off the last by more than [0x9CBA48] = 1e-5, which its only caller ORs into +33Eh (0x2D8FE5..0x2D8FFF):
+    /// a hit, a second hit within 500 ms, and each hit's end, also with another still in.
     fn stagger_edge(&self, from: u32, to: u32) -> bool {
-        self.stagger.on(from) != self.stagger.on(to)
+        let moved = (self.stagger.share(from) - self.stagger.share(to)).abs() > STAGGER_EVENT;
+        if moved {
+            creep_steps::stagger();
+        }
+        moved
     }
 
     /// [2e] The bot's own reload from `from` until `until`, ms (its reflex's note).
