@@ -862,6 +862,9 @@ impl Kinematics {
         if ahead == 0.0 && left == 0.0 {
             return [0.0, 0.0];
         }
+        // [register #24] The client's aimed class follows the weapon's aim state (`weapon_core::is_aimed`, PROVEN:
+        // `mapdata::controller::speed::Gait::Move`), which the AIM key starts unless the aim gate 0x2FC2A0 refuses it (a sprint
+        // state, the hands); the AIM key stands for it here. An aimed side step moves at `aim[1]` (1.9947 m/s x the body's factor).
         let class = match (keys & key::CROUCH != 0, keys & key::AIM != 0) {
             (false, false) => self.walk,
             (false, true) => self.aim,

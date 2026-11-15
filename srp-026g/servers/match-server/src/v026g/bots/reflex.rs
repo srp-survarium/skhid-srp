@@ -1971,6 +1971,12 @@ impl SightsUp {
 }
 
 /// [`CombatTuning::stand_strafe`]: how long the stand holds after the fight, and when it does not stand at all.
+///
+/// [register #24] The stand's side step is aimed in, so it moves at the client's aimed side speed: 2.0 m/s desired
+/// (`default.player` `movement_speed` `walk_aim_side`), 1.9947 on traced steady steps (`kin::Kinematics::default`, F5), times
+/// the body's factor `F` (`mapdata::controller::speed`), the aim state being the weapon's (`weapon_core::is_aimed`, PROVEN at
+/// 0x2E1110). The live players' 2.7-3.0 m/s with a side key and AIM held (keys, not the aim state) would need `F` 1.35-1.5 as a
+/// pure aimed side step, so it is no target speed for this stand until it is split by the aim state (open: a recordings read).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct StandStrafe {
