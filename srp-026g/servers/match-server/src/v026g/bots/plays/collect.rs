@@ -3317,8 +3317,10 @@ mod tests {
         let intent = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
         assert!(intent.straight && intent.zone_ok, "{intent:?}");
         assert!(matches!(intent.go, Go::To { at: to, .. } if to.distance_xz(at) < 0.01));
-        // Hurt inside: given up, the way back would leave under 0.25.
-        s.bot(0, 0, Vec3::new(26.0, 0.0, 32.0)).health = 0.27;
+        // Hurt inside: given up, the way back would leave under the spend rows' give-up (0.15, the humans' 10th percentile;
+        // the 0.25 of the old `CROSS_ABORT_LEFT` until zone price 4), 0.02 above it as before.
+        let give_up = s.cx(0).zone_give_up_left();
+        s.bot(0, 0, Vec3::new(26.0, 0.0, 32.0)).health = give_up + 0.02;
         assert_eq!(
             step(&mut state, target, &s.cx(0), &mut rng),
             Step::Failed("its zone hurts too much")
