@@ -96,6 +96,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_late_join_026g.py`, `test_late_join_runtime_026g.c` | Checks of the late-join code: the first runs the patched machine code on made-up objects (needs Unicorn 2.1.4), the second the C bookkeeping under the sanitizers |
 | `check_fov_026g.py` | Runs the original and patch 22's camera projection, the game's matrix builder included, and compares the matrices (needs Unicorn) |
 | `check_grass_sort_026g.py` | Patch 146: runs the grass sort's `__linear_insert` on a near tie in the original (it reads before the array) and the patched exe (it sorts) (needs Unicorn) |
+| `check_empty_shot_026g.py` | Patch 148: runs `on_shot_event` with a spent queue in the original (it reaches the assert's report) and the patched exe (it returns), and with a round queued in both (they fire it) (needs Unicorn) |
 | `check_fov_lod_026g.py` | Runs patch 40 (a model's LOD and screen factor at a wider field of view are the original's): the projection's k at several settings and zooms, the game's select_lod and screen factor of the original and the build on made-up models (needs Unicorn) |
 | `check_use_scan_026g.py` | Runs the original's use scan and the build's (patch 23, the Rust `use_scan`) on made-up ray hits; `--against <exe>` requires another build (the asm patch 23's) to answer every case the same (needs Unicorn) |
 | `replay_seek_026g.asm`, `replay_seek_026g.section.bin` | The source of patch 26's code (a replay's seek empties the weapons' sound queues) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -5868,3 +5869,15 @@ first and walked past the array's start. `GRASS_SORT_ORDER` swaps that copy's tw
 0x160430), so every copy computes the same distance. `check_grass_sort_026g.py` runs the game's
 `__linear_insert` on such a pair: the original reads before the array at 0x162085, the patched exe
 sorts it (needs Unicorn). See `docs/notes/client_patch.md`, "The grass sort's distance".
+
+## Empty shots are not logged (patch 148, unreleased)
+
+Match 0x30ffba2c (FFA Saloon, rev59) logged 85 engine asserts `m_bullets_in_queue > 0`, 61 of them
+in 2.4 s, about 25 ms each. `weapon_core_fire_state_base::on_shot_event` (0x30EBF0) fires nothing
+for a `shoot` mark that comes with its fire state's queue spent, and asserts first. A semi-automatic
+fire state a quick second press refilled restarts its clip at each input change, and the Colt
+Python's mark at frame 2 is then crossed again (`docs/notes/fire-queue-assert.md`: replays of the
+match). `EMPTY_SHOT_QUIET` makes the assert's own skip (0x30EC1F, taken when its counter runs out)
+always taken, to the function's return: the original's empty shot, without the report. Shots,
+queues, animations and sounds are unchanged. `check_empty_shot_026g.py` runs the function in both
+exes (needs Unicorn).

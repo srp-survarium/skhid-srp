@@ -2562,6 +2562,18 @@ BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440
 # of the patch. No relocation is under the site; 0x1603B0 has no other caller.
 GRASS_SORT_ORDER = (0x160430, bytes.fromhex("f30f58f2" "f30f58f0"), bytes.fromhex("f30f58f0" "f30f58f2"))
 
+# An empty shot is not logged (patch 148, README; docs/notes/fire-queue-assert.md).
+# weapon_core_fire_state_base::on_shot_event (0x30EBF0) fires nothing for a
+# "shoot" mark that comes with the queue (+13Ch) spent; it asserts
+# m_bullets_in_queue > 0 first (~25 ms of logging each). A semi-automatic fire
+# state refilled by a quick second press restarts its clip at each input change,
+# and the Colt Python's mark at frame 2 is then crossed again: 61 of them in
+# 2.4 s in match 0x30ffba2c. The assert's own skip (taken when its counter
+# 0xAE2DF4 runs out) jumps to the function's return 0x30ECB2: it is always
+# taken. The shot, its queue, the animation and the sounds are the original's.
+# No relocation is under the site.
+EMPTY_SHOT_QUIET = (0x30EC1F, bytes.fromhex("0f848d000000"), bytes.fromhex("90e98d000000"))
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -4177,6 +4189,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
                 patch(data, *GRASS_SORT_ORDER)
+                patch(data, *EMPTY_SHOT_QUIET)
                 patch(data, *EXPAND_TEXT_UNBOUND)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
                     sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
