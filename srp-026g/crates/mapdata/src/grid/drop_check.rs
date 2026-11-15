@@ -724,17 +724,26 @@ impl WalkGrid {
     ///
     /// [A1b] A re-aim with a release press is always an off-mesh GapDrop carrying it and its share (in its landing's cell too);
     /// an off-mesh link the take-off already has to that landing takes the press.
+    ///
+    /// One link a (take-off, landing) pair: the links this pass adds are kept apart from `wide.off` (whose lookup,
+    /// [`Wide::out`], is a binary search over it sorted) until the end, and looked up there too. Two re-aims of one take-off
+    /// onto one landing (two directions, or a walk-off and a release) make one link; a release press wins over a walk-off.
     pub(super) fn reaim_drops(&self, wide: &mut Wide, reaim: &Reaims) -> usize {
-        let mut added = false;
+        use super::gap::{Aim, OffLink, Share, Takeoff};
+        let mut added: Vec<OffLink> = Vec::new();
+        let mut index: std::collections::HashMap<(u32, u32), usize> = std::collections::HashMap::new();
         for &(a, d, b, release) in reaim {
             let old = wide.links[a as usize][d];
             if let Some((press, share)) = release {
                 wide.links[a as usize][d] = NONE;
+                let link = OffLink { from: a, to: b, kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT };
                 if let Some(l) = wide.off.iter_mut().find(|l| l.from == a && l.to == b) {
-                    *l = super::gap::OffLink { kind: LinkKind::GapDrop, press, share, walk: None, aim: super::gap::Aim::STRAIGHT, ..*l };
+                    *l = OffLink { kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, ..*l };
+                } else if let Some(&i) = index.get(&(a, b)) {
+                    added[i] = link;
                 } else if !wide.out(a as usize).any(|x| x == b) {
-                    wide.off.push(super::gap::OffLink { from: a, to: b, kind: LinkKind::GapDrop, press, share, walk: None, aim: super::gap::Aim::STRAIGHT });
-                    added = true;
+                    index.insert((a, b), added.len());
+                    added.push(link);
                 }
                 continue;
             }
@@ -743,12 +752,13 @@ impl WalkGrid {
                 continue;
             }
             wide.links[a as usize][d] = NONE;
-            if !wide.out(a as usize).any(|x| x == b) {
-                wide.off.push(super::gap::OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: super::gap::Takeoff::WalkOff, share: super::gap::Share::UNFLOWN, walk: None, aim: super::gap::Aim::STRAIGHT });
-                added = true;
+            if !index.contains_key(&(a, b)) && !wide.out(a as usize).any(|x| x == b) {
+                index.insert((a, b), added.len());
+                added.push(OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: Aim::STRAIGHT });
             }
         }
-        if added {
+        if !added.is_empty() {
+            wide.off.extend(added);
             wide.off.sort_by_key(|l| (l.from, l.to));
         }
         reaim.len()
@@ -766,6 +776,40 @@ mod tests {
             t([Vec3::new(x0, y, z0), Vec3::new(x0, y, z1), Vec3::new(x1, y, z1)]),
             t([Vec3::new(x0, y, z0), Vec3::new(x1, y, z1), Vec3::new(x1, y, z0)]),
         ]
+    }
+
+    /// Two re-aims of one take-off onto one landing out of its neighbour cells (two directions; a walk-off and a release, in
+    /// either order) make ONE off-mesh link, the release's press winning, and the grid's file reads it back (the off-mesh
+    /// links' rule, [`WalkGrid::off_links_problem`]): Rudnya day 2's bench grid held two GapDrop links of one pair and every
+    /// read refused it.
+    #[test]
+    fn two_reaims_onto_one_landing_make_one_link_and_the_file_reads_back() {
+        let mut tris = Vec::new();
+        tris.extend(quad(0.0, 10.0, 0.0, 10.0, 0.0));
+        let grid = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, super::super::Body::default());
+        let a = grid.locate(Vec3::new(2.0, 0.0, 2.0), 0.3).unwrap();
+        let b = grid.locate(Vec3::new(6.0, 0.0, 6.0), 0.3).unwrap();
+        let release = Some((Takeoff::Release { at: PressLead::from_metres(0.0), crouched: false }, Share::landed(9)));
+        for (first, second) in [(None, None), (release, None), (None, release)] {
+            let mut wide = grid.link(&vec![false; grid.len()]);
+            let ds: Vec<usize> = (0..8).filter(|&d| wide.links[a as usize][d] != NONE).take(2).collect();
+            assert_eq!(ds.len(), 2);
+            let reaim: Reaims = vec![(a, ds[0], b, first), (a, ds[1], b, second)];
+            assert_eq!(grid.reaim_drops(&mut wide, &reaim), 2);
+            let pair: Vec<_> = wide.off.iter().filter(|l| (l.from, l.to) == (a, b)).collect();
+            assert_eq!(pair.len(), 1, "{first:?} {second:?}: {pair:?}");
+            let press = if first.or(second).is_some() { release.unwrap().0 } else { Takeoff::WalkOff };
+            assert_eq!(pair[0].press, press);
+            assert!(wide.off.windows(2).all(|w| (w[0].from, w[0].to) < (w[1].from, w[1].to)));
+            let mut built = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, super::super::Body::default());
+            built.off = wide.off.clone();
+            assert_eq!(built.off_links_problem(), None);
+            let path = std::env::temp_dir().join(format!("srp-reaim-{}-{}.bin", std::process::id(), first.is_some()));
+            built.write(&path, 7).unwrap();
+            let back = WalkGrid::read(&path, 7, super::super::Body::default());
+            std::fs::remove_file(&path).ok();
+            assert!(back.is_ok(), "{:?}", back.err());
+        }
     }
 
     /// A step off a slab onto the ground 2 m below is followed; one whose landing lies under a deck that goes on past it is

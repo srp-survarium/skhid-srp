@@ -810,6 +810,11 @@ fn build(
                         let cull_before = mapdata::controller::sweep_cull();
                         let top_before = mapdata::controller::top_check_start();
                         let (grid, stats) = World::map_grid_with_stats(&map, &walker, cell, body, links);
+                        // A grid its own file's read would refuse (the off-mesh links' rule): an error, naming the link; written, it
+                        // would be built again at every start.
+                        if let Some(problem) = grid.off_links_problem() {
+                            log::error!("Bot map {} grid breaks the off-mesh links' rule: {problem}", path.display());
+                        }
                         // [L36] The sweeps' ties at their closest fraction during this build (the process's counters' growth: a
                         // build that runs beside another counts its ties too). A log's only.
                         let ties = mapdata::controller::sweep_ties();

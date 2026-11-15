@@ -3705,6 +3705,22 @@ impl WalkGrid {
 
     /// Whether every index of a grid read from a file is in range, so no
     /// query can panic on it.
+    /// The first off-mesh link that breaks the file's rule, named with its index and its neighbour: the links strictly ordered
+    /// by (from, to) (so one link a pair), in range, not from a floor to itself, of an off-mesh kind, with a valid press. The
+    /// reader's check ([`Self::read`]) and a build's own (the server's map store logs it as an error) are this one rule.
+    pub fn off_links_problem(&self) -> Option<String> {
+        let n = self.height.len();
+        if let Some(i) = self.off.windows(2).position(|w| (w[0].from, w[0].to) >= (w[1].from, w[1].to)) {
+            let (l, m) = (self.off[i], self.off[i + 1]);
+            let what = if (l.from, l.to) == (m.from, m.to) { "two links of one pair" } else { "out of order" };
+            return Some(format!("{what} at {i} of {}: {l:?} then {m:?}", self.off.len()));
+        }
+        self.off
+            .iter()
+            .position(|l| l.from as usize >= n || l.to as usize >= n || l.from == l.to || !l.kind.is_off_mesh() || !l.press.is_valid())
+            .map(|i| format!("link {i} of {} ({n} floors): {:?}", self.off.len(), self.off[i]))
+    }
+
     fn check(&self) -> Result<(), String> {
         let cells = self
             .nx
@@ -3808,19 +3824,8 @@ impl WalkGrid {
         }
         // The off-mesh links: in order, in range, of an off-mesh kind, the
         // floors' marks theirs, at most [`gap::GAP_LINKS_IN_MAX`] a landing.
-        if self.off.windows(2).any(|w| (w[0].from, w[0].to) >= (w[1].from, w[1].to))
-            || self
-                .off
-                .iter()
-                .any(|l| {
-                    l.from as usize >= n
-                        || l.to as usize >= n
-                        || l.from == l.to
-                        || !l.kind.is_off_mesh()
-                        || !l.press.is_valid()
-                })
-        {
-            return Err("bad off-mesh links".into());
+        if let Some(problem) = self.off_links_problem() {
+            return Err(format!("bad off-mesh links: {problem}"));
         }
         let mut marks = vec![0u8; n];
         let mut onto = vec![0usize; n];
