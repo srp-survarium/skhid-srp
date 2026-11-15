@@ -672,6 +672,7 @@ fn drive_tick_inner(
     // soaks the battery where the teams meet lay there all match in 6 runs
     // of 16 (its takers had a target 91 % of their time by it).
     let using = Gates::using(&intent, eye, bot.reflex.view_held());
+    press_on_meet(bot, aiming_me, eye, &intent, using, tactics, time);
     bot.motor.track = over.track.filter(|_| !glance_yields && !using);
     let aim = over
         .look_at
@@ -2419,6 +2420,52 @@ impl Bot {
                 watch.landed = Some(time);
             }
         }
+    }
+}
+
+/// [take.on_the_move, phase 2 #11] USE pressed on the first tick the view ray meets the box of the battery the play names
+/// ([`Intent::use_on_meet`]): the client starts a use on the key's down edge when its one view ray meets the object
+/// (`apply_new_input` 0x2D86E0, `detect_usable_object` 0x2D84C0, PROVEN), whatever the movement, so a take walked in at the
+/// route's pace presses as it passes through the use's reach, not only at a play step (250-325 ms apart: a body coasting
+/// past its stop crossed the reach between two). The view is this tick's (`me`: the base pitch and the kick, as an
+/// elevation): the client's ray starts at the pose's "Item" bone transform (player+44Ch: the bone times the player's +40Ch,
+/// written only by 0x2DA4B0; +47Ch along +46Ch), which the frame before computed with the look's pitch and the weapon's kick
+/// (`look_pitch` 0x2E0F60), and `apply_new_input` tests the use's down edge (0x2D88B1) having only stored this input's rotation
+/// (+32Ch; 0x2D8BB0 between is `process_quick_slots`; the rotation is applied after, 0x2D8AD0), so this tick's turn is not in
+/// it and the kick is. Only while the play asks; once per
+/// battery until the play reads the press (`Bot::use_pressed`). Each press is logged with its tick and the ray's distance; a
+/// tick whose eye had the box within the use ray and whose view passed it by, and a meeting ray while the view is held for a
+/// throw ([`Gates::using`]: no press), are counted (`take_counts::OnTheMoveRayMissed`, `OnTheMoveRefused`).
+fn press_on_meet(bot: &mut Bot, me: &PlaceView, eye: Vec3, intent: &Intent, using: bool, tactics: &Tactics, time: u32) {
+    use plays::collect::{RayMeets, take_counts};
+    let Some(at) = intent.use_on_meet else {
+        return;
+    };
+    if bot.use_pressed.is_some_and(|(pressed_at, _)| (pressed_at - at).length() < 0.01) {
+        return;
+    }
+    match plays::collect::view_ray_meets_at(&tactics.world.sight, me.feet, eye, me.yaw, me.pitch, at) {
+        // The view held for a grenade between its press and its launch: no use then (`Gates::using`).
+        RayMeets::Meets if !using => {
+            take_counts::count(take_counts::Count::OnTheMoveRefused);
+            log::debug!("player {} (the server's bot) at {} ms: take's press refused: the view is held for a throw", me.place, time);
+        }
+        RayMeets::Meets => {
+            bot.press |= key::USE;
+            bot.use_pressed = Some((at, time));
+            take_counts::count(take_counts::Count::PressOnTheMove);
+            log::debug!(
+                "player {} (the server's bot) at {} ms: take pressed on the tick its view ray met the battery at ({:.1}, {:.1}, {:.1}), {:.2} m from the eye",
+                me.place,
+                time,
+                at.x,
+                at.y,
+                at.z,
+                (at - eye).length()
+            );
+        }
+        RayMeets::Missed => take_counts::count(take_counts::Count::OnTheMoveRayMissed),
+        RayMeets::Out => {}
     }
 }
 

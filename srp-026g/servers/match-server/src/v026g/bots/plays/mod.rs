@@ -362,6 +362,11 @@ pub struct Intent {
     /// How near an exact spot (a goal within 0) the walk goes on to, metres: `None` ends it where every walk ends
     /// ([`Feel::arrive_m`]). The jump test's walk to a start asks for a body within 0.3 m of it.
     pub exact_arrive_m: Option<f32>,
+    /// [take.on_the_move] The position of a lying battery to press USE at on the first tick the view ray meets its box
+    /// (`drive::press_on_meet`, tested each tick only while this is set): the client starts a use on the key's down edge when
+    /// its one view ray meets the object (`apply_new_input` 0x2D86E0, `detect_usable_object` 0x2D84C0, PROVEN), so the press is
+    /// the tick's, not the play step's.
+    pub use_on_meet: Option<Vec3>,
 }
 
 impl Intent {
@@ -381,6 +386,7 @@ impl Intent {
             failed_stand: None,
             resupplied: None,
             exact_arrive_m: None,
+            use_on_meet: None,
         }
     }
 
@@ -416,6 +422,14 @@ impl Intent {
     pub fn pressing(self, keys: u32) -> Self {
         Self {
             press: self.press | keys,
+            ..self
+        }
+    }
+
+    /// [take.on_the_move] USE pressed on the first tick the view ray meets the battery lying at `at` ([`Self::use_on_meet`]).
+    pub fn pressing_use_on_meet(self, at: Vec3) -> Self {
+        Self {
+            use_on_meet: Some(at),
             ..self
         }
     }
@@ -511,6 +525,9 @@ pub struct BotFacts<'a> {
     pub failed_stands: &'a [collect::FailedStand],
     /// [take.world_stand] The feet the latest world put the body at, and its time (`Bot::world_feet`).
     pub world_feet: Option<(Vec3, u32)>,
+    /// [take.on_the_move] The battery position and tick of the USE the drive pressed for [`Intent::use_on_meet`]
+    /// (`Bot::use_pressed`); none once the play asks for no such press.
+    pub use_pressed: Option<(Vec3, u32)>,
     /// Nothing left to fire ([`super::reflex::Reflex::dry`]): it takes no
     /// play that seeks a fight ([`PlayKind::seeks_fight`]).
     pub dry: bool,

@@ -39,6 +39,7 @@ pub mod camp_flank;
 pub mod cheats;
 #[cfg(any(test, feature = "client-test"))]
 pub mod client_tests;
+pub mod clip_tree;
 pub mod concede;
 pub mod contact;
 pub mod control;
@@ -56,7 +57,9 @@ pub mod grass;
 pub mod grenade_threat;
 pub mod group;
 pub mod guns;
+pub mod hands;
 pub mod hazards;
+pub mod hit_kind;
 pub mod jump_arc;
 pub mod jump_carry;
 #[cfg(feature = "jump-test")]
@@ -64,7 +67,6 @@ pub mod jump_test;
 pub mod kin;
 pub mod know;
 pub mod lane_ahead;
-pub mod hands;
 pub mod legs;
 pub mod link_time;
 pub mod live_grenades;
@@ -79,8 +81,6 @@ pub mod path;
 pub mod pitch;
 pub mod plays;
 pub mod pockets;
-pub mod hit_kind;
-pub mod clip_tree;
 pub mod pools;
 pub mod protection;
 pub mod recoil;
@@ -352,6 +352,9 @@ pub struct Bot {
     /// [take.world_stand] The feet the latest world put its body at, and that world's time (alive; `body::Fix`), set before
     /// each think: a take presses at a stand only where the world, not only the reckoning, has the body.
     world_feet: Option<(Vec3, u32)>,
+    /// [take.on_the_move] The USE the drive pressed for the play's [`Intent::use_on_meet`]: the battery's position and the
+    /// tick (`drive::press_on_meet`); cleared once the play's intent asks for no such press (`think`).
+    use_pressed: Option<(Vec3, u32)>,
     /// The enemy and the place its Crossfire began on, and when
     /// (`commit.crossfire_point`): the choke after the memory forgot him.
     held_choke: Option<(Place, Vec3, u32)>,
@@ -636,6 +639,7 @@ impl Bot {
             no_way: None,
             no_way_to: Vec::new(),
             world_feet: None,
+            use_pressed: None,
             held_choke: None,
             lip_watch: drive::LipWatch::default(),
             lip_memo: drive::LipMemo::default(),
@@ -2464,11 +2468,12 @@ impl Bots {
             "{}flown riser presses held off their window since the last match end (every match on this server): height {height}, line {side}, heading {turn}, lead {lead}",
             nav_log::PREFIX
         ));
-        // [A388 step 2b] The lip guard's forecasts the margin point's walker-ground test alone called off.
+        // [A388 step 2b] The lip guard's forecasts the margin point's walker-ground test alone called off, and the margin points it
+        // could not test (no client walker on the grid).
+        let (walk_offs, no_walker) = body::margin_walk_offs::take();
         lines.push(format!(
-            "{}lip guard forecasts called off by the margin point's walker-ground test alone since the last match end (every match on this server): {}",
-            nav_log::PREFIX,
-            body::margin_walk_offs::take()
+            "{}lip guard forecasts called off by the margin point's walker-ground test alone since the last match end (every match on this server): {walk_offs}; margin points not tested for a grid with no client walker: {no_walker}",
+            nav_log::PREFIX
         ));
         // [Gap 10] The reckoned jumps the worlds' selectors refused, and the worlds in a jump the reckoning had none of.
         let (dropped, unseen, started, clips, changed) = jump_arc::world_jumps::take();

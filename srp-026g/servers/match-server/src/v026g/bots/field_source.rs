@@ -25,6 +25,7 @@ use mapdata::{Anomaly, MapData, Shape};
 
 use super::anomalies::Anomalies;
 use super::live_zones::{FieldId, FieldKind, FieldPhase, WorldField};
+use super::zone_cost::ZoneHit;
 
 /// The energy thresholds of a timed core's states, highest first.
 const CHARGING: i32 = 3000;
@@ -51,10 +52,10 @@ pub fn timed(anomaly: &Anomaly) -> bool {
         && state(ARTEFACT).is_some_and(|s| s.active_time_s == 0)
 }
 
-/// The shape, kind and hit a second of a timed core's damage zone: the harmful zone of its damage state (the charge zone
-/// beside it hurts nobody), its rate the client's ([`mapdata::Damage::rate_per_s`]: the pack's `max_hit` a part, its
-/// parts and interval).
-fn damage_zone(anomaly: &Anomaly, map: &MapData) -> Option<(Shape, FieldKind, f32)> {
+/// The shape, kind and hit of a timed core's damage zone: the harmful zone of its damage state (the charge zone beside
+/// it hurts nobody), its hit what it hands each part ([`ZoneHit::of`]: its type, the pack's `max_hit` a part, its parts
+/// and interval).
+fn damage_zone(anomaly: &Anomaly, map: &MapData) -> Option<(Shape, FieldKind, ZoneHit)> {
     let damage = anomaly
         .states
         .iter()
@@ -71,8 +72,8 @@ fn damage_zone(anomaly: &Anomaly, map: &MapData) -> Option<(Shape, FieldKind, f3
         // The lifebone's toxic zone, and any other taken as the strongest of the three kinds' hit.
         _ => FieldKind::Lifebone,
     };
-    let hit_per_s = zone.damage.as_ref()?.rate_per_s();
-    Some((*zone.shapes.first()?, kind, hit_per_s))
+    let hit = ZoneHit::of(&zone.damage_type, zone.damage.as_ref()?);
+    Some((*zone.shapes.first()?, kind, hit))
 }
 
 /// The fields the timed cores of `map` show now: those a world gave in the charging, damage or artefact state (the
@@ -93,10 +94,10 @@ pub fn v1(anomalies: &Anomalies, map: &MapData) -> Vec<WorldField> {
             Some(ARTEFACT) => FieldPhase::Holding,
             _ => continue,
         };
-        let Some((shape, kind, hit_per_s)) = damage_zone(anomaly, map) else {
+        let Some((shape, kind, hit)) = damage_zone(anomaly, map) else {
             continue;
         };
-        fields.push(WorldField { id: FieldId(c as u32), kind, shape, phase, hit_per_s });
+        fields.push(WorldField { id: FieldId(c as u32), kind, shape, phase, hit });
     }
     fields
 }

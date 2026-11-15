@@ -415,10 +415,8 @@ const CARRIER_USE_M: f32 = 4.0;
 const CARRIER_USE_MS: u32 = 6_000;
 /// The uses kept of each place.
 const USES_KEPT: usize = 4;
-/// A lying battery's middle over its place (its box is about a quarter of
-/// a metre high), and a container's use box's over its place
-/// (`plays::Look::use_box`), metres.
-const BATTERY_MIDDLE_M: f32 = 0.12;
+/// A container's use box's middle over its place (`plays::Look::use_box`), metres. A lying battery's place is its box's
+/// centre already (`docs/notes/using_the_world.md`): its use point is the place itself.
 const USE_BOX_UP_M: f32 = 1.0;
 /// A candidate's cost, metres: how far its use's ray passed the battery,
 /// and this share of how far its feet were from it (the ray tells most:
@@ -1686,7 +1684,7 @@ impl Tracker {
                 continue;
             }
             let (point, thieves_of) = match self.batteries.get(battery).copied() {
-                Some(BatteryState::Free(at)) => (at + Vec3::new(0.0, BATTERY_MIDDLE_M, 0.0), None),
+                Some(BatteryState::Free(at)) => (at, None),
                 Some(BatteryState::Home(id)) => match self.containers.get(usize::from(id)) {
                     Some(&(team, at)) => (at + Vec3::new(0.0, USE_BOX_UP_M, 0.0), Some(team)),
                     None => continue,

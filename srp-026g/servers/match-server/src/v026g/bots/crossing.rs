@@ -241,7 +241,7 @@ pub fn hurt(tactics: &Tactics, route: &Route, from_m: f32, to_m: f32, armour: Op
         let point = route.floor_point(from_m + (i as f32 + 0.5) * ds);
         match grid.locate(point, 0.6).filter(|&node| tactics.hazards.only_fixed_at(node)) {
             Some(node) => tactics.hazards.walk_step(&mut walk, node, armour, ds / CROSS_MPS, |_| 1.0),
-            None => walk.step(std::iter::empty(), armour, ds / CROSS_MPS, 0.0),
+            None => walk.step(std::iter::empty(), armour, ds / CROSS_MPS, super::zone_cost::Cost::ZERO),
         }
     }
     walk.total()

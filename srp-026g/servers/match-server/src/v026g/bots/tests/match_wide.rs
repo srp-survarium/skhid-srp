@@ -12,7 +12,8 @@
 //! - `traps.react.on`, `traps.react.hear`, `traps.react.snap_near_m` (the traps the tracker reads);
 //! - `avoid.bot_pockets`, `avoid.kit_in_use` (the live list's notes; the bench's throws);
 //! - `think.rays_per_poll` (a poll's ray budget), `think.search_queue`, `think.search_floors_per_poll` (a poll's route
-//!   searches: A278 found team 0's `first_come` serving team 0 first in every head-to-head that gave it the OFF arm).
+//!   searches: A278 found team 0's `first_come` serving team 0 first in every head-to-head that gave it the OFF arm);
+//! - `think.kill_time` ([Gap 9]: the shared view's deaths dated at their one killer's kill time, `Bots::facts`).
 //!
 //! Read from it by the tests' tallies only, as a measure (not refused): `sense.sight_m`, `sense.view_deg`, `cheats.batteries`.
 //!
@@ -22,7 +23,7 @@
 use super::*;
 
 /// The match-wide keys: a dotted path into the tuning's JSON, a section's name standing for every key under it.
-const MATCH_WIDE: [&str; 21] = [
+const MATCH_WIDE: [&str; 22] = [
     "grid",
     "kin",
     "hazard.margin_m",
@@ -44,6 +45,7 @@ const MATCH_WIDE: [&str; 21] = [
     "think.rays_per_poll",
     "think.search_queue",
     "think.search_floors_per_poll",
+    "think.kill_time",
 ];
 
 /// Keys only the tests' tallies read from the match-wide tuning, as a measure: not refused in a one-sided run.

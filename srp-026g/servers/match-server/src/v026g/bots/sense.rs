@@ -513,12 +513,14 @@ fn seen_percept(enemy: &PlaceView, view: &MatchView) -> Percept {
     }
 }
 
-/// Where a lying battery is looked at, metres over its position: the top
-/// (as before), the middle and near the foot. The client's battery
-/// (`gameplay/victory_items/default.options`, model `item/quest/electrobox`)
-/// collides as a box of half sizes 0.3 x 0.12 x 0.16 m set 0.12 m up
-/// (`!victory_item_collision!`, read from resources.db): 0.24 m high.
-pub const BATTERY_HEIGHTS: [f32; 3] = [0.25, 0.12, 0.04];
+/// Where a lying battery is looked at, metres over its position: just over the top, the middle and near the foot. The
+/// client's battery (`gameplay/victory_items/default.options`, model `item/quest/electrobox`) collides as a box of half
+/// sizes 0.3 x 0.12 x 0.16 m set 0.12 m up from the model (`!victory_item_collision!`, read from resources.db): 0.24 m high.
+/// A world's saved position of a lying battery is that box's CENTRE, 0.12 m over its floor (`docs/notes/using_the_world.md`:
+/// hits from above land a median 0.114 m over it, a standing capsule's centre 0.784 m over it), so the box spans -0.12 to
+/// +0.12 m about the position: the same three points as before (0.01 m over the top, the middle, 0.04 m over the floor),
+/// measured from the centre and not from the foot.
+pub const BATTERY_HEIGHTS: [f32; 3] = [0.13, 0.0, -0.08];
 
 
 /// What a bot may look at for its team's battery knowledge.
@@ -636,7 +638,7 @@ pub fn sense_batteries(
             | BatteryLook::Spawner(_, at) => at,
         };
         // A battery, and a spot believed to hold one, are tried at the
-        // box's top, middle and foot (0.24 m high, `BATTERY_HEIGHTS`): a
+        // box's top, middle and foot (0.24 m high about its position, the box's centre, `BATTERY_HEIGHTS`): a
         // ledge or a nook may hide one and show another, and a take's
         // stand has its line to the middle (a spot on a crate seen empty
         // from below is forgotten, not tried at every stand). A spawner's
@@ -1265,10 +1267,11 @@ mod tests {
         let me = place(0, 0, Vec3::ZERO, 0.0);
         let mut view = view(vec![me.clone()], vec![]);
         view.mode = Mode::Batteries;
-        let at = Vec3::new(0.0, 0.0, 10.0);
+        // On the floor: its position, the box's centre, 0.12 m up.
+        let at = Vec3::new(0.0, 0.12, 10.0);
         view.batteries = vec![BatteryState::Free(at)];
         // A strip 0.2-0.4 m high just short of it: the ray to the top
-        // (0.25 m) meets it, the one to the middle (0.12 m) passes under.
+        // (0.25 m over the floor) meets it, the one to the middle (0.12 m) passes under.
         let (a, b, c, d) = (
             Vec3::new(-1.0, 0.2, 9.9),
             Vec3::new(1.0, 0.2, 9.9),

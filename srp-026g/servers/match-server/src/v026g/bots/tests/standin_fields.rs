@@ -29,8 +29,14 @@ use mapdata::NodeId;
 use crate::v026g::bots::live_zones::{self, FieldBoard, FieldId, FieldKind, FieldPhase, WorldField};
 
 /// The stand-in's own fields' hit a second at full intensity, health 1.0: the bench's made-up anomalies, not a client
-/// value (a world's fields carry their damage zone's rate, `WorldField::hit_per_s`).
+/// value (a world's fields carry their damage zone's hit, `WorldField::hit`).
 pub(crate) const STANDIN_HIT_PER_S: f32 = 0.5;
+
+/// The stand-in's own fields' hit: [`STANDIN_HIT_PER_S`] with no parts named, the raw hit in the body pool (the
+/// made-up fields have no damage zone to route).
+pub(crate) fn standin_hit() -> crate::v026g::bots::zone_cost::ZoneHit {
+    crate::v026g::bots::zone_cost::ZoneHit::Raw { per_s: STANDIN_HIT_PER_S }
+}
 
 /// Charging, then damaging, ms (the release: 20 s, 4 s).
 pub(crate) const CHARGE_MS: u32 = 20_000;
@@ -305,7 +311,7 @@ impl FieldGen {
                     half: Vec3::new(self.radius, 2.0, self.radius),
                 },
                 phase: f.phase(now),
-                hit_per_s: STANDIN_HIT_PER_S,
+                hit: standin_hit(),
             })
             .collect()
     }
@@ -344,7 +350,7 @@ impl FieldGen {
         self.truth
             .at(node)
             .filter(|f| hurts(f.phase()))
-            .map(|f| f.hit_per_s)
+            .map(|f| f.hit().handed_per_s())
             .sum()
     }
 
