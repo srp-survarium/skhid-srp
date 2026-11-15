@@ -849,7 +849,7 @@ fn build(
                         );
                         // A log's only: what each pass of the build did (a grid read from the cache has no such line).
                         log::info!(
-                            "Bot map {} grid built: {} floors; wall give-back {}, rest floors {}, held {:?}, drops walked {:?} re-aimed {}, gaps {:?}",
+                            "Bot map {} grid built: {} floors; wall give-back {}, rest floors {}, held {:?}, drops walked {:?} re-aimed {} (one link a pair: {:?}), gaps {:?}",
                             path.display(),
                             grid.len(),
                             stats.wall_given_back,
@@ -857,6 +857,7 @@ fn build(
                             stats.held,
                             stats.drops_walked,
                             stats.drops_reaimed,
+                            stats.drops_reaim_pairs,
                             stats.gaps
                         );
                         // [R83] The aimed presses' line (debug): made, tried, flights, and the grid's build time.

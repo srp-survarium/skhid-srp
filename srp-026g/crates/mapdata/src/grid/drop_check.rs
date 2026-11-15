@@ -379,6 +379,20 @@ pub fn released_rest(world: &Collision, s: &Settings, start: WalkStart, stance: 
 /// landing) and [A377] lips by where the body stops (take-off, landing).
 type Cuts = Vec<(u32, usize, f32)>;
 /// [A1b] A re-aim carries the release press that takes the body there, with its share; None for a walk-off.
+/// [`WalkGrid::reaim_drops`]: the re-aims onto a (take-off, landing) pair the same pass had already re-aimed (one link kept,
+/// [`Self::merged`]) and, of them, which link was kept.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ReaimPairs {
+    /// Re-aims folded into a link of the same pair this pass added.
+    pub merged: usize,
+    /// … a release and a walk-off: the release kept (a flown landing; the walk-off's share is not flown).
+    pub release_over_walk_off: usize,
+    /// … two releases: the first kept (its share as high or higher) …
+    pub releases_kept_first: usize,
+    /// … or the later one (a higher share).
+    pub releases_kept_later: usize,
+}
+
 type Reaims = Vec<(u32, usize, u32, Option<(Takeoff, Share)>)>;
 type Lips = Vec<(u32, u32)>;
 
@@ -727,11 +741,13 @@ impl WalkGrid {
     ///
     /// One link a (take-off, landing) pair: the links this pass adds are kept apart from `wide.off` (whose lookup,
     /// [`Wide::out`], is a binary search over it sorted) until the end, and looked up there too. Two re-aims of one take-off
-    /// onto one landing (two directions, or a walk-off and a release) make one link; a release press wins over a walk-off.
-    pub(super) fn reaim_drops(&self, wide: &mut Wide, reaim: &Reaims) -> usize {
+    /// onto one landing (two directions, or a walk-off and a release) make one link ([`ReaimPairs`] counts them): a release
+    /// press wins over a walk-off (its landing is flown, the walk-off's share is not), and of two releases the higher share.
+    pub(super) fn reaim_drops(&self, wide: &mut Wide, reaim: &Reaims) -> (usize, ReaimPairs) {
         use super::gap::{Aim, OffLink, Share, Takeoff};
         let mut added: Vec<OffLink> = Vec::new();
         let mut index: std::collections::HashMap<(u32, u32), usize> = std::collections::HashMap::new();
+        let mut pairs = ReaimPairs::default();
         for &(a, d, b, release) in reaim {
             let old = wide.links[a as usize][d];
             if let Some((press, share)) = release {
@@ -740,7 +756,18 @@ impl WalkGrid {
                 if let Some(l) = wide.off.iter_mut().find(|l| l.from == a && l.to == b) {
                     *l = OffLink { kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, ..*l };
                 } else if let Some(&i) = index.get(&(a, b)) {
-                    added[i] = link;
+                    pairs.merged += 1;
+                    match added[i].press {
+                        Takeoff::Release { .. } if added[i].share.flown() >= share.flown() => pairs.releases_kept_first += 1,
+                        Takeoff::Release { .. } => {
+                            pairs.releases_kept_later += 1;
+                            added[i] = link;
+                        }
+                        _ => {
+                            pairs.release_over_walk_off += 1;
+                            added[i] = link;
+                        }
+                    }
                 } else if !wide.out(a as usize).any(|x| x == b) {
                     index.insert((a, b), added.len());
                     added.push(link);
@@ -752,7 +779,12 @@ impl WalkGrid {
                 continue;
             }
             wide.links[a as usize][d] = NONE;
-            if !index.contains_key(&(a, b)) && !wide.out(a as usize).any(|x| x == b) {
+            if let Some(&i) = index.get(&(a, b)) {
+                pairs.merged += 1;
+                if matches!(added[i].press, Takeoff::Release { .. }) {
+                    pairs.release_over_walk_off += 1;
+                }
+            } else if !wide.out(a as usize).any(|x| x == b) {
                 index.insert((a, b), added.len());
                 added.push(OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: Aim::STRAIGHT });
             }
@@ -761,7 +793,7 @@ impl WalkGrid {
             wide.off.extend(added);
             wide.off.sort_by_key(|l| (l.from, l.to));
         }
-        reaim.len()
+        (reaim.len(), pairs)
     }
 }
 
@@ -808,7 +840,8 @@ mod tests {
             let ds: Vec<usize> = (0..8).filter(|&d| wide.links[a as usize][d] != NONE).take(2).collect();
             assert_eq!(ds.len(), 2);
             let reaim: Reaims = vec![(a, ds[0], b, first), (a, ds[1], b, second)];
-            assert_eq!(grid.reaim_drops(&mut wide, &reaim), 2);
+            let (reaimed, pairs) = grid.reaim_drops(&mut wide, &reaim);
+            assert_eq!((reaimed, pairs.merged, pairs.release_over_walk_off), (2, 1, usize::from(first.or(second).is_some())));
             let pair: Vec<_> = wide.off.iter().filter(|l| (l.from, l.to) == (a, b)).collect();
             assert_eq!(pair.len(), 1, "{first:?} {second:?}: {pair:?}");
             let press = if first.or(second).is_some() { released } else { Takeoff::WalkOff };
@@ -827,6 +860,15 @@ mod tests {
             let back = WalkGrid::read(&path, 7, super::super::Body::default());
             std::fs::remove_file(&path).ok();
             assert!(back.is_ok(), "{:?}", back.err());
+        }
+        // Two releases onto one landing: the higher share is the link, whichever came first.
+        for (first, second) in [(9, 12), (12, 9)] {
+            let mut wide = grid.link(&vec![false; grid.len()]);
+            let ds: Vec<usize> = (0..8).filter(|&d| wide.links[a as usize][d] != NONE).take(2).collect();
+            let r = |n| Some((released, Share::landed(n)));
+            let (_, pairs) = grid.reaim_drops(&mut wide, &vec![(a, ds[0], b, r(first)), (a, ds[1], b, r(second))]);
+            let pair: Vec<_> = wide.off.iter().filter(|l| (l.from, l.to) == (a, b)).collect();
+            assert_eq!((pair.len(), pair[0].share, pairs.merged), (1, Share::landed(12), 1));
         }
     }
 

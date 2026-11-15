@@ -1578,6 +1578,8 @@ pub struct BuildStats {
     pub drops_unfollowed_kept: usize,
     /// The Drop links re-aimed at the floor the client's body lands on ([`Body::drop_lands`]).
     pub drops_reaimed: usize,
+    /// Of them, those onto a (take-off, landing) pair already re-aimed in the pass, folded into its one link, and which was kept.
+    pub drops_reaim_pairs: drop_check::ReaimPairs,
     /// [A389] The Drop links walked by the client's body ([`Body::drop_lands`]), re-aimed by a way down other than the walk at
     /// the landing, and cut (no client way tried stands on a floor).
     pub drops_walked: drop_check::DropStats,
@@ -1949,7 +1951,7 @@ impl WalkGrid {
                 let (cut, reaim, lips, mut walked) = grid.landing_drops(&wide, world, seeds, spawns);
                 (walked.walk_offs, walked.walk_offs_reaimed, walked.walk_offs_unlanded, walked.walk_offs_released) = grid.walk_off_links(&mut wide, world, seeds, spawns);
                 stats.drops_walked = walked;
-                stats.drops_reaimed = grid.reaim_drops(&mut wide, &reaim);
+                (stats.drops_reaimed, stats.drops_reaim_pairs) = grid.reaim_drops(&mut wide, &reaim);
                 wide.lips = lips;
                 cut
             } else {
