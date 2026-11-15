@@ -189,7 +189,7 @@ va	status	ref_021d	name
 0x000c1a60	reviewed		btQuantizedBvh::buildTree
 0x000c1f60	reviewed		btQuantizedBvh::sortAndCalcSplittingIndex
 0x000c22f0	reviewed		btQuantizedBvh::calcSplittingAxis
-0x000c2ff0	reviewed		btQuantizedBvh::walkStacklessQuantizedTreeAgainstRay
+0x000c2ff0	reviewed	0x00094d9b	btQuantizedBvh::walkStacklessQuantizedTreeAgainstRay
 0x000e0420	reviewed	0x000ae01f	vostok::resources::resource_children::link_parent_resource
 0x000e0500	reviewed	0x000ae0ce	vostok::resources::resource_children::link_child_resource
 0x000e05f0	reviewed	0x000ae195	vostok::resources::resource_children::unlink_parent_resource
