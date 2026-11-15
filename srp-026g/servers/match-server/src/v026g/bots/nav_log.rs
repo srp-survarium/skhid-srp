@@ -493,6 +493,12 @@ pub fn walkout_line(from: Vec3, hit: Option<bool>, goal: Vec3, next: Option<Vec3
 /// from (..) to (..), next (..), lines tested over the band's floors up to R m`. Its lines cross no floor a zone hurts.
 /// [A395a] The line for a walk out whose held route goes on across the zone past the way out's reach
 /// (`Tactics::route_shut_ahead`): the route is planned again from where the body stands.
+/// [S6] The line for a pocket escape begun by a body with no sprint (a carrier): the exits whose take-offs it walks to by
+/// its own reach (no sprint link without its walking press).
+pub fn carrier_escape_line(feet: Vec3, exits: usize) -> String {
+    format!("{PREFIX}pocket escape with no sprint (a carrier) from {}: {exits} exits whose take-offs it walks to", at(feet))
+}
+
 pub fn walk_route_shut_line(from: Vec3, reach: f32) -> String {
     format!("{PREFIX}zone walk's held route goes on across the zone from {}, past the way out's {reach:.1} m: planned again", at(from))
 }

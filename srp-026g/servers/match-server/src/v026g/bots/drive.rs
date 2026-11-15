@@ -24,6 +24,16 @@ pub(super) const REPLAN_ERROR_M: f32 = 2.0;
 /// side, metres (no step off a ledge or into a wall).
 pub(super) const STRAFE_CLEAR_M: f32 = 1.5;
 
+/// [S6] What the body takes of the grid's links: a carrier's body, which the client gives no sprint (A331), takes a sprint
+/// link only by its walking press and no jump link above its standing jump (`motor.carrier_jump_m`).
+fn body_reach(bot: &Bot, me: &PlaceView) -> mapdata::Reach {
+    if me.carrying.is_some() {
+        mapdata::Reach::NoSprint { max_rise: bot.motor.feel.carrier_jump_m.map(f32::from) }
+    } else {
+        mapdata::Reach::Full
+    }
+}
+
 /// [A331] The keys a bot sends while it carries a battery: no SPRINT (a carrier cannot sprint). Others as they are.
 fn carrier_keys(keys: u32, carrying: bool) -> u32 {
     if carrying { keys & !key::SPRINT } else { keys }
@@ -375,12 +385,14 @@ pub(super) fn drive_tick(
 }
 
 /// [F42] The log lines of a creep ([`super::nav_log::creep_begun_line`], [`super::nav_log::creep_ended_line`]): begun on the
-/// first tick both legs hold (`LegGate::Stand`) with the crouch key and a move key sent, ended on the first tick without.
+/// first tick both legs hold (`LegGate::Stand`) with the crouch key and a move sent (the client's test: forward xor back, or
+/// left xor right), ended on the first tick without.
 /// Decides nothing.
 pub(super) fn creep_watch(bot: &mut Bot, me: &PlaceView, keys: u32, time: u32) {
-    let creeping = bot.hurt.leg_damage.at(time) == super::legs::LegGate::Stand
-        && keys & key::CROUCH != 0
-        && keys & (key::FORWARD | key::BACK | key::LEFT | key::RIGHT) != 0;
+    // The client's move test (0x2FBE50, 0x2FBE78..0x2FBE89): forward xor back, or left xor right.
+    let along = (keys & key::FORWARD != 0) != (keys & key::BACK != 0);
+    let side = (keys & key::LEFT != 0) != (keys & key::RIGHT != 0);
+    let creeping = bot.hurt.leg_damage.at(time) == super::legs::LegGate::Stand && keys & key::CROUCH != 0 && (along || side);
     match (bot.creep, creeping) {
         (None, true) => {
             bot.creep = Some((me.feet, time));
@@ -835,6 +847,8 @@ fn drive_tick_inner(
         let grid = &tactics.world.grid;
         #[cfg(any(test, feature = "jump-test"))]
         let had_route = bot.route.is_some();
+        let escaping_before = bot.stuck.escape.is_some();
+        let reach = body_reach(bot, me);
         let out = escape::tick(
             &mut bot.stuck.escape,
             &mut bot.route,
@@ -846,7 +860,13 @@ fn drive_tick_inner(
             goal.unwrap_or(me.feet),
             time,
             bot.hurt.may_jump(time),
+            reach,
         );
+        // [S6] A carrier's escape begun: the exits its walk reaches, for the log.
+        if let (false, mapdata::Reach::NoSprint { .. }, Some(state)) = (escaping_before, reach, bot.stuck.escape.as_ref()) {
+            let line = super::nav_log::carrier_escape_line(me.feet, state.exits_count());
+            bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+        }
         #[cfg(any(test, feature = "jump-test"))]
         if had_route && bot.route.is_none() {
             bot.route_ended(RouteEnd::EscapeStep, time);
@@ -1184,10 +1204,9 @@ fn drive_tick_inner(
                 let narrow_landings = tuning.traps.keep_off.map(|_| landings.clone());
                 let hard_with = |landings, trap_filter: fn(&Bot, Vec<stuck::Shut>, Option<NodeId>) -> RouteFilter| {
                     let mut hard = trap_filter(bot, landings, grid.locate(me.feet, 1.5));
-                    // [S6] A carrier's body: the client gives it no sprint (A331), so a sprint link only by its walking
-                    // press, and no jump link above its standing jump (`motor.carrier_jump_m`).
-                    if me.carrying.is_some() {
-                        hard = hard.without_sprint(bot.motor.feel.carrier_jump_m.map(f32::from));
+                    // [S6] A carrier's body ([`body_reach`]).
+                    if let mapdata::Reach::NoSprint { max_rise } = body_reach(bot, me) {
+                        hard = hard.without_sprint(max_rise);
                     }
                     // [kin.open_edge_cost] A269c: the way keeps a body's width in from an open side where the floor allows.
                     if tuning.kin.open_edge_cost > 0.0 {

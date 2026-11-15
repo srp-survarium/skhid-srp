@@ -38,8 +38,13 @@ pub struct RimStats {
     pub tried: usize,
     /// [C2 rows 11/12] … of them plain Jump links rising over [`MARGINAL_JUMP_M`] …
     pub jumps_flown: usize,
-    /// … and of those, replaced by the flown link (a press landed on the Jump link's own top).
+    /// … and of those, replaced by the flown link (a press landed on the Jump link's own top) …
     pub jumps_replaced: usize,
+    /// … or cut: no client press, straight or aimed, lands on its top (as a rim jump no press lands is not made) …
+    pub jumps_cut: usize,
+    /// … except those kept as a floor's only way in or back (`cut_keeping_reach`, [`super::Body::keep_last_resorts`]: a pit's
+    /// way out).
+    pub jumps_kept: usize,
     /// … made with a walking press …
     pub walked: usize,
     /// … with a sprint press …
@@ -83,9 +88,11 @@ pub struct RimStats {
 /// (`a385-lost-links-client-truth.md` §1, the exe's tick): R83 (-0.3, 0.2) = (-6, 4), R94 (-0.3, -0.3) = (-6, -6), R95
 /// (0.3, 0.2) = (6, 4), R85 (0.15, -0.3) = (3, -6), R98 (0.15, 0.2) = (3, 4); and the side 0.3 m straight, Mamayev Kurgan
 /// day_2's gap jump from the rock pile onto the 1.80 m box (sprint at lead 0.0, side 0.3 = (6, 0); at lead 0.1, side 0.15 =
-/// (3, 0): 6 of 7 replayed in the exe rest on the top, owner-5 `owner-5-mamayev-box-press-20261115.md`). Flown in this order;
-/// the best share wins, the first on a tie.
-pub const AIMS: [(i8, i8); 22] = [
+/// (3, 0): 6 of 7 replayed in the exe rest on the top, owner-5 `owner-5-mamayev-box-press-20261115.md`); and the heading
+/// turned 0.1 rad, straight or with the side 0.15 m: Mamayev Kurgan day_4's top at (-38.15, 35.88, 84.13) on the grid's
+/// diagonal, a sprint at lead 0.0, side 0.15, turn 0.1 = (3, 2) (all six variants rest on the top: the port on the game's shapes;
+/// the exe on the export in both tie orders seen; owner-5 `owner-5-item10-old-runup-edges-20261115.md`). Flown in this order; the best share wins, the first on a tie.
+pub const AIMS: [(i8, i8); 28] = [
     (-6, 4),
     (-6, -4),
     (6, 4),
@@ -106,13 +113,20 @@ pub const AIMS: [(i8, i8); 22] = [
     (3, 0),
     (-6, 0),
     (6, 0),
+    (-3, 2),
+    (-3, -2),
+    (3, 2),
+    (3, -2),
+    (0, 2),
+    (0, -2),
     (0, 6),
     (0, -6),
 ];
 
 /// [R83] The leads an aimed press is flown at, m, a walk and a sprint at each: every proven row's lead is one (R98's walk at
 /// the take-off's centre, [`gap::PRESS_LEAD_LOWEST_M`]; R94's sprint at 0.1; R94's kit walk and R95 at 0.3; R85 at 0.7; R83
-/// at 1.2), with the gap leads 0.6, 1.0 and 1.4.
+/// at 1.2), with the gap leads 0.6, 1.0 and 1.4. Not 0.2: Mamayev Kurgan day_4's top along (0, -1) at lead 0.2 rests only at
+/// turn 0.2 (0.18 and 0.22 miss: a knife edge), owner-5; the diagonal (3, 2) at the lowest lead carries that top.
 pub const AIMED_LEADS: [f32; 8] = [gap::PRESS_LEAD_LOWEST_M, 0.1, 0.3, 0.6, 0.7, 1.0, 1.2, 1.4];
 
 /// [R83] A flight came near a rim jump's top when one of its steps was within this of the top floor's height, below or above,
@@ -198,6 +212,10 @@ pub(super) struct Made {
     /// [R83] Where its press is aimed ([`Aim::STRAIGHT`]: on the link's line).
     pub(super) aim: Aim,
 }
+
+/// What the rim pass made of its jumps ([`WalkGrid::fly_rim_jumps`]): its stats, the jumps no press made as (take-off, landing),
+/// and [C2 rows 11/12/14] the plain Jump links no press lands on the top of as (take-off, way, 0), for the caller's cut.
+pub(super) type RimFlown = (RimStats, Vec<(NodeId, NodeId)>, Vec<(u32, usize, f32)>);
 
 impl WalkGrid {
     /// The floor under `feet`: in the feet's own cell (the feet within half a cell of its centre on both axes, the grid's own
@@ -554,7 +572,14 @@ impl WalkGrid {
     /// side), flown over the presses ([`Self::best_press`]: the jumps and, [S1], the sprint climb) and made a GapJump with the
     /// press that lands. After the gap links (`wide.off`, kept sorted). Returns the stats and the jumps no press made, as
     /// (take-off, landing) (none was a link before).
-    pub(super) fn fly_rim_jumps(&self, wide: &mut Wide, world: &Collision, s: &Settings) -> (RimStats, Vec<(NodeId, NodeId)>) {
+    /// [C2 rows 11/12/14] Also the plain Jump links no press lands on the top of, as (take-off, way, 0) for the caller's cut, which
+    /// keeps a floor's only way in or back (`cut_keeping_reach`).
+    pub(super) fn fly_rim_jumps(
+        &self,
+        wide: &mut Wide,
+        world: &Collision,
+        s: &Settings,
+    ) -> RimFlown {
         // [S1] From a step up: a sprinting body climbs an edge from 0.80 to 1.15 m with no jump ([`Kind::Climb`]), and an
         // edge there whose side has no link (no Jump link) is the builder's to fly.
         let todo = self.edges_up(wide, self.body.step, RIM_REACH_M);
@@ -570,7 +595,7 @@ impl WalkGrid {
         world: &Collision,
         s: &Settings,
         todo: Vec<(u32, u32, usize)>,
-    ) -> (RimStats, Vec<(NodeId, NodeId)>) {
+    ) -> RimFlown {
         let body = &self.body;
         let leads = gap_leads();
         let kits = Kits { body: jump::WALK_CAP_MS, fastest: body.fastest_walk_cap };
@@ -622,15 +647,24 @@ impl WalkGrid {
         stats.flights += stats.aimed_flights;
         let mut none = Vec::new();
         let mut replaced: Vec<(usize, usize)> = Vec::new();
+        let mut cut: Vec<(u32, usize, f32)> = Vec::new();
         for ((&(a, b, d), p), &plain) in todo.iter().zip(&flown).zip(&plain) {
             stats.flights += p.flights;
             let aimed = aimed_of.get(&(a, b)).copied();
-            // [C2 rows 11/12] A plain Jump link a press lands on the top of goes: the flown link (its press and share) is the way
-            // up. One no press lands on stays as it was (taught, not cut).
+            // [C2 rows 11/12/14] A plain Jump link over `MARGINAL_JUMP_M` goes once flown: where a press lands on its top the flown
+            // link (its press and share) is the way up; where none does, straight or aimed, no client press makes it and it is
+            // not made, as a rim jump no press lands is not (the plain link's fixed price was a GUESS). Either way it is reported
+            // with the jumps no press made when no flown link lands on its top.
             if plain {
                 stats.jumps_flown += 1;
-                if p.made.iter().chain(aimed.as_ref()).any(|m| m.to == b) {
+                let lands_on_top = p.made.iter().chain(aimed.as_ref()).any(|m| m.to == b);
+                if lands_on_top {
                     replaced.push((a as usize, d));
+                } else {
+                    cut.push((a, d, 0.0));
+                    if !(p.made.is_empty() && aimed.is_none()) {
+                        none.push((a, b));
+                    }
                 }
             }
             if p.made.is_empty() && aimed.is_none() {
@@ -656,7 +690,7 @@ impl WalkGrid {
         // Two candidates of one take-off may land on the same floor: one link (the first, by the way's order).
         wide.off.sort_by_key(|l| (l.from, l.to));
         wide.off.dedup_by_key(|l| (l.from, l.to));
-        (stats, none)
+        (stats, none, cut)
     }
 
     /// [S1] Where a flight with no jump (a sprint climb, [`jump::climb_flight`]) ends: its last two steps on the ground

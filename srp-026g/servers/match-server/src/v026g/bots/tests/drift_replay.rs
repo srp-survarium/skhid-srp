@@ -296,6 +296,7 @@ fn drift_on_a_real_match() {
                     speed: num("speed"),
                     // The tables carry no controller block (its crouch flags, normals and slide).
                     controller: None,
+                    gates: None,
                 },
                 supplies: r.get("kit").and_then(|kit| kit.parse::<u8>().ok()).and_then(|kit| {
                     let speeds: Vec<f32> = r.get("speeds")?.split(';').filter_map(|v| v.parse().ok()).collect();

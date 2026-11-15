@@ -738,15 +738,10 @@ pub const FALL_EDGE_PENALTY: f32 = 0.5;
 /// take few of the drops bots take (the fall-spot study, 2026-10-25).
 pub const DROP_DESCENT_PENALTY: f32 = 1.0;
 
-/// Jumps higher than this cost [`MARGINAL_JUMP_PENALTY`] more, metres: the
-/// client's jump tops at 0.998 m (PROVEN, the jump study), so a jump link
-/// of 0.95-1.05 m is made only where the ledge's edge or the floors' heights
-/// are kind (the Cologne match: 7 of 11 at 1.0 m got up, 12 of 18 at 0.9 m).
+/// Jumps higher than this are flown by the rim pass before they are made ([`Body::rim_jumps`], C2 rows 11/12/14: the client's
+/// air branch never steps up, a run-up jump gets onto a rim to apex 0.998 + 0.66 walking / 0.75 sprint), metres; the gap pass
+/// searches no higher. It was the start of a fixed 4 m price on such jumps (a GUESS, removed: a flown jump is priced by its share).
 pub const MARGINAL_JUMP_M: f32 = 0.95;
-/// GUESS, benched: a route takes a walk of up to 4 m more round a marginal
-/// jump, and the jump where there is no way round (an objective only it
-/// reaches stays reachable).
-pub const MARGINAL_JUMP_PENALTY: f32 = 4.0;
 
 /// A spawn's floor is found within this, metres (as the bots' tactics find
 /// it, `walkable_from_spawns`).
@@ -1710,8 +1705,10 @@ impl WalkGrid {
         let mut rim_unmade: Vec<(Vec3, Vec3)> = Vec::new();
         if body.rim_jumps && gaps {
             let world = world.expect("a world");
-            let unmade;
-            (stats.rim, unmade) = grid.fly_rim_jumps(&mut wide, world, &s);
+            let (unmade, cut);
+            (stats.rim, unmade, cut) = grid.fly_rim_jumps(&mut wide, world, &s);
+            // [C2 rows 11/12/14] The plain jumps no press lands on go, but none that is a floor's only way in or back.
+            (stats.rim.jumps_cut, stats.rim.jumps_kept) = grid.cut_keeping_reach(&mut wide, cut, seeds, spawns, body.keep_last_resorts, false);
             grid.fly_risers(&mut wide, world, &s, &mut stats.rim);
             rim_unmade = unmade.into_iter().map(|(a, b)| (grid.position(a), grid.position(b))).collect();
         }
@@ -1761,7 +1758,8 @@ impl WalkGrid {
             // (`railings-design.md` §8: width is not the limit, the flown share is).
             if body.rim_jumps && gaps && !gone.is_empty() {
                 let world = world.expect("a world");
-                (stats.carry_flown, _) = grid.fly_rim_todo(&mut wide, world, &s, gone);
+                // Its links are gone already: no plain Jump link is left to cut there (its cut list is empty).
+                (stats.carry_flown, _, _) = grid.fly_rim_todo(&mut wide, world, &s, gone);
             }
         }
         if body.drop_check {
@@ -4510,9 +4508,7 @@ impl WalkGrid {
 
     /// The cost of a link: its length plus the kind's penalty, plus
     /// [`LIP_PENALTY`] for walking onto a lip ([`Self::is_lip`]), so a
-    /// way keeps a cell back from a ledge where it can, plus
-    /// [`MARGINAL_JUMP_PENALTY`] for a jump higher than
-    /// [`MARGINAL_JUMP_M`], plus [`FALL_EDGE_PENALTY`] for walking onto a
+    /// way keeps a cell back from a ledge where it can, plus [`FALL_EDGE_PENALTY`] for walking onto a
     /// floor near a fall ([`Self::near_fall`]).
     ///
     /// Infinite for a link no way is planned over ([`Self::plans`]).
@@ -4554,13 +4550,6 @@ impl WalkGrid {
         } else {
             0.0
         };
-        let marginal = if matches!(kind, LinkKind::Jump | LinkKind::GapJump)
-            && self.height[to as usize] - self.height[from as usize] > MARGINAL_JUMP_M
-        {
-            MARGINAL_JUMP_PENALTY
-        } else {
-            0.0
-        };
         // [A389] With `held_floors` a drop is priced by what the client's fall takes (nothing to the harmless height).
         let hurt = if down && self.body.held_floors {
             held_floors::fall_cost_m(self.height[from as usize] - self.height[to as usize])
@@ -4595,7 +4584,7 @@ impl WalkGrid {
                 return cost + share.failed_tries() * (cost + press.run_up_m()) + lip + fall;
             }
             let takeoff = press.map_or(0.0, |(press, _)| press.penalty());
-            return cost + takeoff + lip + marginal + fall;
+            return cost + takeoff + lip + fall;
         }
         let descent = if kind == LinkKind::Drop {
             DROP_DESCENT_PENALTY * (self.height[from as usize] - self.height[to as usize]).max(0.0)
@@ -4609,7 +4598,7 @@ impl WalkGrid {
             (LinkKind::Walk, Some(r)) => r.share().failed_tries() * ((q - p).length() + r.run_up_m()),
             _ => 0.0,
         };
-        (q - p).length() + kind.penalty() + lip + marginal + fall + descent + sprint + riser
+        (q - p).length() + kind.penalty() + lip + fall + descent + sprint + riser
     }
 
     /// [A389] How far a body's feet at height `y` are from standing on floor `f` while the grid is built: 0 from its `walk` faces'
@@ -4762,7 +4751,26 @@ impl WalkGrid {
         to: NodeId,
         allowed: impl Fn(NodeId) -> bool,
     ) -> Option<Path> {
-        match self.search(from, to, allowed, usize::MAX) {
+        self.path_where_reaching(from, to, allowed, Reach::Full)
+    }
+
+    /// [S6] [`Self::path_where`] for a body that may take less than the grid's own links ([`Reach`],
+    /// [`Self::start_search_reaching`]).
+    pub fn path_where_reaching(
+        &self,
+        from: NodeId,
+        to: NodeId,
+        allowed: impl Fn(NodeId) -> bool,
+        reach: Reach,
+    ) -> Option<Path> {
+        let found = match self.start_search_reaching(from, to, usize::MAX, reach) {
+            Ok(mut search) => {
+                let mut iters = usize::MAX;
+                search.step(self, allowed, |_| 1.0, &mut iters).expect("an unbounded step ends the search")
+            }
+            Err(done) => done,
+        };
+        match found {
             Search::Found(path) => Some(path),
             Search::NoWay | Search::TooFar => None,
         }
@@ -5838,35 +5846,6 @@ pub(crate) mod tests {
         assert_eq!(erosion_rounds(0.38, 0.2), 2);
         assert_eq!(erosion_rounds(0.38, 0.1), 4);
         assert_eq!(erosion_rounds(0.0, 0.5), 0);
-    }
-
-    /// A way up a 1.0 m ledge (a marginal jump) walks 3 m round by a ramp
-    /// instead; with the ramp 6 m round, it jumps.
-    #[test]
-    fn a_way_walks_round_a_marginal_jump_when_the_way_round_is_short() {
-        let way = |round: f32| {
-            let mut tris: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
-            tris.extend(floor(10.0, 0.0, 20.0, 10.0, 1.0));
-            tris.extend(wall_x(10.0, 0.0, 10.0, 1.0));
-            // Steps up at x 8-10 from z `round` on: 5 steps of 0.2 m.
-            for s in 0..5 {
-                let x0 = 8.0 + 0.4 * s as f32;
-                tris.extend(floor(x0, round, x0 + 0.4, 10.0, 0.2 * (s + 1) as f32));
-            }
-            let grid = WalkGrid::build(&tris, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
-            let from = grid.locate(Vec3::new(9.0, 0.0, 1.0), 0.3).unwrap();
-            let to = grid.locate(Vec3::new(11.5, 1.0, 1.0), 0.3).unwrap();
-            let path = grid.path(from, to).unwrap();
-            path.nodes
-                .windows(2)
-                .filter(|w| {
-                    grid.links(w[0])
-                        .any(|(b, k)| b == w[1] && k == LinkKind::Jump)
-                })
-                .count()
-        };
-        assert_eq!(way(2.0), 0, "a short walk round");
-        assert_eq!(way(7.0), 1, "a long walk round");
     }
 
     /// A body that cannot sprint (a battery carrier) takes no jump link

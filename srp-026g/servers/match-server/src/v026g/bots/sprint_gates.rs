@@ -14,6 +14,135 @@
 
 use crate::v026g::drive::key;
 
+/// [Gap 5] A body's sprint and aim gates as a world saves them, every body's (a human's too): what `base_player::can_sprint`
+/// 0x2DBF40 and the hands' `can_sprint` 0x2E3A10 read at the world. Read once at the world's boundary (`driven.rs`, from
+/// srp-validate's typed views); the reckoning's use is [`super::body`]'s. The stamina's low flag is not here: it comes with the
+/// stamina record (`stamina::Saved`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorldGates {
+    /// The controller's `m_is_sprinting` (+204h, `bullet_character_controller::serialize` 0x7F7F0): the client's sprint state.
+    pub sprinting: bool,
+    pub hands: WorldHands,
+}
+
+/// [Gap 5] What the hands hold, for the sprint gate.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WorldHands {
+    /// No gun has a user (no gun's state machine saved with a user: a battery, a grenade, a swap's gap).
+    NoGun,
+    /// The one gun with a user.
+    Gun(GunGate),
+    /// More than one gun saved with a user, or an aim transition outside the client's values: the gate is not known.
+    Unread,
+}
+
+/// [Gap 5] The gun in hands' gate: its state machine's state, its aim transition, the sprint clip it waits for.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GunGate {
+    pub state: HandsState,
+    pub aim: AimAt,
+    /// `m_sprint_animation_to_wait_for` (+5ECh; srp-validate `InHand::sprint_animation_to_wait_for`, `None` for 6).
+    pub sprint_wait: Option<u8>,
+}
+
+/// [Gap 5] The gun's state machine's state as the sprint gate tells them apart (`can_sprint` 0x2E3A10 takes idle, and melee
+/// while a sprint clip is awaited).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HandsState {
+    Idle,
+    Reloading,
+    /// The melee state (srp-validate `StateData::Melee`: its index moves by gun).
+    Melee,
+    /// Show, hide, fire, chamber, throw.
+    Busy,
+}
+
+impl HandsState {
+    /// From the gun's saved state: its index ([`super::guns::GunAt::of_index`], idle 2 and reload 3 on every gun) and its
+    /// data's class (melee's).
+    pub fn of(in_hand: &srp_validate::world::InHand) -> Self {
+        if matches!(in_hand.state(), srp_validate::world::StateData::Melee { .. }) {
+            return Self::Melee;
+        }
+        match super::guns::GunAt::of_index(in_hand.state_index()) {
+            super::guns::GunAt::Idle => Self::Idle,
+            super::guns::GunAt::Reloading => Self::Reloading,
+            super::guns::GunAt::Busy => Self::Busy,
+        }
+    }
+}
+
+/// [Gap 5] The gun's aim transition (`m_aim_progress`, weapon +5FCh): the hands' `can_sprint` needs its current value at
+/// exactly 0.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AimAt {
+    /// Settled at 0.
+    Down,
+    /// Under way (`m_start_transition_time_in_ms` saved).
+    Moving {
+        /// Its target is 1 (up), else 0.
+        target_up: bool,
+        /// `m_current_value`.
+        current: f32,
+        /// `m_start_transition_time_in_ms` RAW, on the weapon tick's clock (0x2E1C76 stores weapon +5A4h, from
+        /// `weapon_core::tick` 0x2E09E0), not the world's: its link to the world's clock is not traced.
+        start_weapon_ms: u32,
+        /// `m_transition_time`, as saved.
+        transition_time: f32,
+    },
+    /// Settled at 1.
+    Up,
+}
+
+impl AimAt {
+    /// From the saved transition: `None` for values the client does not use (a target other than 0 or 1, a settled value
+    /// other than 0 or 1).
+    pub fn of(aim: &srp_validate::world::Transition) -> Option<Self> {
+        let (current, target) = (aim.current_value().get(), aim.target_value().get());
+        match aim.start_transition_time_ms() {
+            Some(start) => {
+                let target_up = match target {
+                    1.0 => true,
+                    0.0 => false,
+                    _ => return None,
+                };
+                Some(Self::Moving {
+                    target_up,
+                    current,
+                    start_weapon_ms: start,
+                    transition_time: aim.transition_time().get(),
+                })
+            }
+            None => match current {
+                0.0 => Some(Self::Down),
+                1.0 => Some(Self::Up),
+                _ => None,
+            },
+        }
+    }
+}
+
+impl WorldHands {
+    /// From the place's guns by slot (`PlaceWorld::guns`): the one saved with a user ([`Self::Unread`] for more than one).
+    pub fn of(guns: &[(u8, srp_validate::world::WeaponState)]) -> Self {
+        let mut held = guns.iter().filter_map(|(_, gun)| gun.in_hand());
+        let Some(in_hand) = held.next() else {
+            return Self::NoGun;
+        };
+        if held.next().is_some() {
+            return Self::Unread;
+        }
+        match AimAt::of(&in_hand.aim_progress()) {
+            Some(aim) => Self::Gun(GunGate {
+                state: HandsState::of(&in_hand),
+                aim,
+                sprint_wait: in_hand.sprint_animation_to_wait_for().map(|s| s.get()),
+            }),
+            None => Self::Unread,
+        }
+    }
+}
+
 /// `stagger_duration`, ms (`default.player`'s `stagger_params`, PROVEN).
 pub const STAGGER_MS: u32 = 500;
 /// `max_stagger`: the most the hits take off the speed factor (PROVEN).
@@ -33,6 +162,9 @@ pub struct OwnGates {
     /// [A364 P10] The bot's reckoned bar's low flag: `can_sprint` 0x2DBF40 refuses the sprint under it (PROVEN,
     /// `docs/notes/sprint_state.md`).
     low_stamina: bool,
+    /// [A388 (e)] A tube's reload loop the worlds show under way (`StateData::ShotgunReload`, state id 4): since this world's
+    /// time, held until a world shows the gun out of it ([`Self::world_tube_reload`]).
+    tube_since: Option<u32>,
 }
 
 impl OwnGates {
@@ -86,7 +218,20 @@ impl OwnGates {
 
     /// Whether a reload is under way at `time`.
     pub fn reloading(&self, time: u32) -> bool {
-        self.reloads.iter().any(|&(from, until)| from <= time && time < until)
+        self.tube_since.is_some_and(|since| since <= time) || self.reloads.iter().any(|&(from, until)| from <= time && time < until)
+    }
+
+    /// [A388 (e)] A world made at `at` on a tube's reload loop: `true` while the world shows the gun in it. The loop's end is
+    /// not in the world (its round clips are not read), so a loop seen under way is held until a world shows it over: exact
+    /// at each world, at most one world's interval long past the loop's end. Returns whether the gates changed.
+    pub fn world_tube_reload(&mut self, at: u32, under_way: bool) -> bool {
+        let was = self.tube_since;
+        self.tube_since = match (was, under_way) {
+            (Some(since), true) => Some(since),
+            (None, true) => Some(at),
+            (_, false) => None,
+        };
+        self.tube_since != was
     }
 
     /// The keys of a tick at `time` as the client takes them: a reload has the sights down (no AIM) and no sprint; the low
@@ -138,6 +283,7 @@ pub(crate) mod world_reloads {
     static READ: AtomicU64 = AtomicU64::new(0);
     static CHANGED: AtomicU64 = AtomicU64::new(0);
     static NOT_READ: AtomicU64 = AtomicU64::new(0);
+    static TUBE: AtomicU64 = AtomicU64::new(0);
 
     pub(crate) fn read(changed: bool) {
         READ.fetch_add(1, Relaxed);
@@ -146,14 +292,19 @@ pub(crate) mod world_reloads {
         }
     }
 
-    /// A body reloading in a world whose reload's end is not read (a tube's loop, a cancelled clip, no clip in the tree).
+    /// A world showing a body in a tube's reload loop (held to the next world, [`super::OwnGates::world_tube_reload`]).
+    pub(crate) fn tube() {
+        TUBE.fetch_add(1, Relaxed);
+    }
+
+    /// A body reloading in a world whose reload's end is not read (a cancelled clip, no clip in the tree).
     pub(crate) fn not_read() {
         NOT_READ.fetch_add(1, Relaxed);
     }
 
-    /// (read, changed, not read) since the last call, and zero again.
-    pub(crate) fn take() -> (u64, u64, u64) {
-        (READ.swap(0, Relaxed), CHANGED.swap(0, Relaxed), NOT_READ.swap(0, Relaxed))
+    /// (read, changed, not read, tube) since the last call, and zero again.
+    pub(crate) fn take() -> (u64, u64, u64, u64) {
+        (READ.swap(0, Relaxed), CHANGED.swap(0, Relaxed), NOT_READ.swap(0, Relaxed), TUBE.swap(0, Relaxed))
     }
 }
 
@@ -163,6 +314,21 @@ mod tests {
 
     /// [A388 (e) gap 5] A world's reload refuses the sights and the sprint from the world to the clip's end; a kept reload under
     /// way at the world ends at the clip's end; the same word again changes nothing.
+    /// [A388 (e)] A tube's loop seen under way refuses the sights and the sprint from that world until a world shows it over.
+    #[test]
+    fn a_tubes_loop_is_held_until_a_world_shows_it_over() {
+        let mut gates = OwnGates::default();
+        let run = key::FORWARD | key::SPRINT | key::AIM;
+        assert!(!gates.world_tube_reload(500, false));
+        assert!(gates.world_tube_reload(1_000, true));
+        assert_eq!(gates.taken(999, run), run, "before the world that showed it");
+        assert_eq!(gates.taken(1_000, run), key::FORWARD);
+        assert!(!gates.world_tube_reload(1_200, true), "the loop still under way: held from its first world");
+        assert_eq!(gates.taken(5_000, run), key::FORWARD);
+        assert!(gates.world_tube_reload(5_100, false));
+        assert_eq!(gates.taken(5_100, run), run);
+    }
+
     #[test]
     fn a_worlds_reload_gates_to_its_clips_end() {
         let mut gates = OwnGates::default();
