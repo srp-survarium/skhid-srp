@@ -19,12 +19,14 @@ released, a build-content patch):
       --points <school-2026-11-14.tsv> --harmful-ok 7,8,15,45,46,48,49 --as-stood 17 \\
       --project level_02/day_8 --project level_02/evening_8 --project level_02/rain_8 > ../school-picks.tsv
   cd check-points && cargo run --release --bin picks -- --db <resources.db> --patch ... \\
-      --points <vostok-2026-11-14.tsv> --roofs 13 --stranded-ok 13 \\
+      --points <vostok-2026-11-14.tsv> --roofs 13 --stranded-ok 13 --roof-at 24.563,0.912,30.789 \\
       --project level_03/day_8 --project level_03/evening_8 --project level_03/rain_8 > ../vostok-picks.tsv
   cd check-points && cargo run --release --bin picks -- --db <resources.db> --patch ... \\
-      --points <vostok-2026-11-14.tsv> --shift 1.5 --roofs 13 --project v021d_level_03/day_8 > ../vostok-v021-picks.tsv
+      --points <vostok-2026-11-14.tsv> --shift 1.5 --roofs 13 --roof-at 24.563,0.912,30.789 \\
+      --project v021d_level_03/day_8 > ../vostok-v021-picks.tsv
   cd check-points && cargo run --release --bin picks -- --db <resources.db> --patch ... \\
-      --points <vostok-2026-11-14.tsv> --shift 1.5 --project v011e_level_03/day_8 > ../vostok-v011-picks.tsv
+      --points <vostok-2026-11-14.tsv> --shift 1.5 --roofs 13 --stranded-ok 13 --roof-at 24.563,0.912,30.789 \\
+      --project v011e_level_03/day_8 > ../vostok-v011-picks.tsv
   cd check-points && cargo run --release --bin picks -- --db <resources.db> --patch ... \\
       --points <mamayev021-2026-11-14.tsv> --harmful-ok 20,21,57 --project v021d_level_06/day_8 \\
       > ../mamayev-v021-picks.tsv
@@ -35,7 +37,10 @@ released, a build-content patch):
       --points <training-camp-2026-11-15.tsv> --as-stood 13,25,26,27,28,44,45,46,47 \\
       --project v010b_cs_training_camp/day_8 > ../training-camp-picks.tsv
 
-(the owner, 2026-11-14, of the picks the checks dropped: "keep all my positions").
+(the owner, 2026-11-14, of the picks the checks dropped: "keep all my positions"; 2026-11-15, in
+Vostok's checkpoint at `--roof-at`'s place: "we want the spawn on top of the building those coords
+have", "to all vostok maps": the three Vostok tables are of the projects with ffa-vostok-roofs-1's
+roof collision, the row before their lists).
 
 Then
 
@@ -105,9 +110,10 @@ MAPS = {
         'picks): all 73, each on its ground, body clear, 2 m from harmful zones, facing as he faced, however near '
         'another, in a solo spawn\'s place (its id, name, radii and protection kept) or a new one after the last '
         '(a copy of the first solo spawn: 20 m exclusion, 500 ms protection); and a roof spawn on the building at 13 '
-        '("set one spawn on top of the building where 13 is"), without a way down within 5 m drops, as he asked. '
-        'The free for all\'s own projects '
-        'level_03/<weather>_8 only; after ffa-cover-maps-1, whose points it replaces.'),
+        '("set one spawn on top of the building where 13 is"), without a way down within 5 m drops, as he asked; '
+        'and one on the checkpoint\'s roof (2026-11-15, standing in it: "we want the spawn on top of the building '
+        'those coords have"), on the collision ffa-vostok-roofs-1 gives it. The free for all\'s own projects '
+        'level_03/<weather>_8 only; after ffa-cover-maps-1, whose points it replaces, and ffa-vostok-roofs-1.'),
     # Vostok's picks on its ports, which share its world coordinates (the owner, 2026-11-14: "all of my
     # spawns most likely can be reused on 0.11 and 0.21 maps"): a pick the checks drop there moves up to
     # 1.5 m (picks --shift), else stays out.
@@ -120,8 +126,10 @@ MAPS = {
         'its ground, body clear, 2 m from harmful zones, facing as he faced, however near another, in a solo spawn\'s '
         'place (its id, name, radii and protection kept) or a new one after the last (a copy of the first solo '
         'spawn: 20 m exclusion, 500 ms protection); 67 and 68 stay out (inside the rust anomaly\'s gas, none 2 m '
-        'clear within 1.5 m); and the roof spawn on the building at 13, which has stairs down here. The free for '
-        'all\'s own project v021d_level_03/day_8 only; after ffa-cover-maps-1, whose points it replaces.'),
+        'clear within 1.5 m); the roof spawn on the building at 13, which has a way down on foot here, and one on '
+        'the checkpoint\'s roof (2026-11-15: "we want the spawn on top of the building those coords have", "to all '
+        'vostok maps"), both on the roofs as ffa-vostok-roofs-1 makes them walked. The free for all\'s own project '
+        'v021d_level_03/day_8 only; after ffa-cover-maps-1, whose points it replaces, and ffa-vostok-roofs-1.'),
     'vostok-v011': Map(
         base.HERE / 'vostok-v011-picks.tsv', base.HERE.parent / 'content-edit/ffa-vostok-v011-picks-1.json',
         'ffa_vostok_v011_',
@@ -130,9 +138,11 @@ MAPS = {
         'scripts/ffa-mode/make_picks_edits.py from vostok-v011-picks.tsv (check-points picks): 71 of the 73, each on '
         'its ground, body clear, 2 m from harmful zones, facing as he faced, however near another, in a solo spawn\'s '
         'place (its id, name, radii and protection kept) or a new one after the last (a copy of the first solo '
-        'spawn: 20 m exclusion, 500 ms protection); 71 and 72 stay out (no floor players reach within 1.5 m); no '
-        'roof spawn (the check finds no roof over 13 here). The free for all\'s own project v011e_level_03/day_8 '
-        'only; after ffa-cover-maps-1, whose points it replaces.'),
+        'spawn: 20 m exclusion, 500 ms protection); 71 and 72 stay out (no floor players reach within 1.5 m); the '
+        'roof spawn on the building at 13, without a way down within 5 m drops as native Vostok\'s, and one on the '
+        'checkpoint\'s roof (2026-11-15: "we want the spawn on top of the building those coords have", "to all '
+        'vostok maps"), both on the roofs as ffa-vostok-roofs-1 makes them walked. The free for all\'s own project '
+        'v011e_level_03/day_8 only; after ffa-cover-maps-1, whose points it replaces, and ffa-vostok-roofs-1.'),
     'mamayev-v021': Map(
         base.HERE / 'mamayev-v021-picks.tsv', base.HERE.parent / 'content-edit/ffa-mamayev-v021-picks-1.json',
         'ffa_mamayev_v021_',
