@@ -1206,21 +1206,7 @@ pub fn fetch(session: &mut Session, signed: &Signed, files: &[(usize, String)]) 
         win::sleep(100);
     };
     session.torrents.stop();
-    match outcome {
-        Fetched::Done => checked_again(session, signed, files),
-        outcome => outcome,
-    }
-}
-
-/// A finished fetch's parts hashed again against the torrent before anything
-/// installs them: the Skhid files and the list's patches have no other pin.
-fn checked_again(session: &mut Session, signed: &Signed, files: &[(usize, String)]) -> Fetched {
-    match whole(session, signed, files) {
-        Some(whole) if whole.iter().all(|whole| *whole) => Fetched::Done,
-        Some(_) => Fetched::Not("a part is not the torrent's file".into()),
-        None if session.stopped => Fetched::Stopped,
-        None => Fetched::Not("the parts could not be checked again".into()),
-    }
+    outcome
 }
 
 /// Whether each of `files` (index, path) is whole, every piece hashed unless
