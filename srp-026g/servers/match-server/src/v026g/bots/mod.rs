@@ -285,6 +285,9 @@ pub struct Bot {
     team: u8,
     /// The smoke clouds it knows of, and its watches of their edges (`smoke.rs`).
     clouds: smoke::KnownClouds,
+    /// [own base] The smoke plans it refused for holding the team's own container or a battery of ours lying loose (the
+    /// match's, never reset; [`Bots::smoke_report`]).
+    own_base_smokes: smoke::OwnBaseRefusals,
     rng: Rng,
     encoder: Encoder,
     motor: Motor,
@@ -603,6 +606,7 @@ impl Bot {
             place,
             team,
             clouds: smoke::KnownClouds::default(),
+            own_base_smokes: smoke::OwnBaseRefusals::default(),
             rng,
             encoder: Encoder::default(),
             motor,
@@ -1694,6 +1698,31 @@ impl Bots {
             line(&self.teams[0].features.threat.breach_counts),
             line(&self.teams[1].features.threat.breach_counts)
         )
+    }
+
+    /// [own base] The match-end smoke line: by team, the smoke keys seen, the clouds placed and those dropped (the
+    /// tracker's [`smoke::SmokeCounts`]), and the bots' plans refused for holding the team's own container or a battery of
+    /// ours lying loose, by rule ([`smoke::SmokeRule`]).
+    pub fn smoke_report(&self) -> String {
+        let counts = self.tracker.smoke_counts();
+        (0..2u8)
+            .map(|team| {
+                let i = usize::from(team);
+                let refused = smoke::OwnBaseRefusals::sum(
+                    self.bots.iter().flatten().filter(|bot| bot.team.min(1) == team).map(|bot| &bot.own_base_smokes),
+                );
+                let by_rule = smoke::SmokeRule::ALL
+                    .iter()
+                    .map(|rule| format!("{} {}", rule.name(), refused[rule.index()]))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "team {team}: smoke keys {}, clouds {}, dropped {}; plans refused over our own container or batteries [{by_rule}]",
+                    counts.thrown[i], counts.clouds[i], counts.dropped[i]
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
     }
 
     pub fn base_report(&self) -> String {
