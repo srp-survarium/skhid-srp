@@ -1,4 +1,4 @@
-owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 % hit (mean cone 0.00 deg, off the chest 0.00 deg)
+owner-test gun shots: ak_74u/bots: 336 shots at a target, 336 on his line, 75.0 % hit (mean cone 0.00 deg, off the chest 0.00 deg)
 {
   "gun_shots": {
     "ak_74u/bots": {
@@ -79,7 +79,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
         ],
         [
           [
-            17.0,
+            16.0,
             10.0,
             0.0
           ],
@@ -92,8 +92,8 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
       ],
       "by_aim": [
         [
-          343,
-          257
+          336,
+          252
         ],
         [
           0,
@@ -106,23 +106,23 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
       ],
       "by_band": [
         [
-          59,
-          44
+          56,
+          42
         ],
         [
-          71,
-          54
+          70,
+          53
         ],
         [
-          90,
-          67
+          89,
+          66
         ],
         [
-          55,
-          41
+          54,
+          40
         ],
         [
-          68,
+          67,
           51
         ],
         [
@@ -133,23 +133,23 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
       "by_band_team": [
         [
           [
-            59,
-            44
+            56,
+            42
           ],
           [
-            71,
-            54
+            70,
+            53
           ],
           [
-            90,
-            67
+            89,
+            66
           ],
           [
-            55,
-            41
+            54,
+            40
           ],
           [
-            68,
+            67,
             51
           ],
           [
@@ -186,9 +186,9 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
       ],
       "by_burst": [
         [
-          343,
-          343,
-          257
+          336,
+          336,
+          252
         ],
         [
           0,
@@ -213,8 +213,8 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
       ],
       "by_crouch": [
         [
-          343,
-          257
+          336,
+          252
         ],
         [
           0,
@@ -224,8 +224,8 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
       "by_driver": {},
       "by_lateral": [
         [
-          343,
-          257
+          336,
+          252
         ],
         [
           0,
@@ -246,8 +246,8 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
       ],
       "by_shooter_moving": [
         [
-          343,
-          257
+          336,
+          252
         ],
         [
           0,
@@ -260,7 +260,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
           5
         ],
         [
-          19,
+          18,
           11
         ],
         [
@@ -276,18 +276,18 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
           1
         ],
         [
-          317,
-          240
+          311,
+          235
         ]
       ],
       "by_target_moving": [
         [
-          102,
-          79
+          99,
+          77
         ],
         [
-          241,
-          178
+          237,
+          175
         ]
       ],
       "by_target_team": [
@@ -330,7 +330,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
             0.0
           ],
           [
-            19.0,
+            18.0,
             11.0,
             0.0
           ],
@@ -350,8 +350,8 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
             0.0
           ],
           [
-            317.0,
-            240.0,
+            311.0,
+            235.0,
             0.0
           ]
         ]
@@ -359,7 +359,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
       "cone_deg_sum": 0.0,
       "first_aim": [
         [
-          55,
+          52,
           0,
           0,
           0,
@@ -376,7 +376,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
           0
         ],
         [
-          67,
+          66,
           0,
           0,
           0,
@@ -393,7 +393,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
           0
         ],
         [
-          136,
+          134,
           0,
           0,
           0,
@@ -410,7 +410,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
           0
         ],
         [
-          63,
+          62,
           0,
           0,
           0,
@@ -429,7 +429,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
       ],
       "first_dwell": [
         [
-          55,
+          52,
           0,
           0,
           0,
@@ -446,7 +446,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
           0
         ],
         [
-          66,
+          65,
           1,
           0,
           0,
@@ -463,7 +463,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
           0
         ],
         [
-          135,
+          133,
           1,
           0,
           0,
@@ -480,7 +480,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
           0
         ],
         [
-          62,
+          61,
           1,
           0,
           0,
@@ -497,7 +497,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
           0
         ]
       ],
-      "hits": 257,
+      "hits": 252,
       "lateral_sum": [
         0.0,
         0.0,
@@ -524,11 +524,11 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
       "pauses": [
         0,
         0,
-        340,
+        333,
         0
       ],
-      "shots": 343,
-      "shots_all": 343,
+      "shots": 336,
+      "shots_all": 336,
       "speed_sum": [
         0.0,
         0.0,
@@ -569,7 +569,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
             0,
             0,
             0,
-            8
+            6
           ],
           [
             0,
@@ -585,7 +585,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
             0,
             0,
             0,
-            54
+            52
           ],
           [
             0,
@@ -601,7 +601,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
             0,
             0,
             0,
-            72
+            70
           ],
           [
             0,
@@ -617,12 +617,12 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
             0,
             0,
             0,
-            206
+            198
           ]
         ],
         "run": [
           [
-            8,
+            6,
             0,
             0,
             0,
@@ -634,7 +634,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
             0
           ],
           [
-            54,
+            53,
             0,
             0,
             0,
@@ -646,7 +646,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
             0
           ],
           [
-            72,
+            71,
             0,
             0,
             0,
@@ -658,7 +658,7 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
             0
           ],
           [
-            209,
+            206,
             0,
             0,
             0,
@@ -671,16 +671,16 @@ owner-test gun shots: ak_74u/bots: 343 shots at a target, 343 on his line, 74.9 
           ]
         ],
         "runs": [
-          8,
-          54,
-          72,
-          209
+          6,
+          53,
+          71,
+          206
         ],
         "shots": [
-          8,
-          54,
-          72,
-          209
+          6,
+          53,
+          71,
+          206
         ]
       }
     },

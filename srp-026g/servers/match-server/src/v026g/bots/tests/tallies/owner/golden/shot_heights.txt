@@ -32,10 +32,10 @@ shot heights (view over the chest line by burst position and target stance): fir
         "0-20": {
           "high_shots": 0,
           "high_sum": 0.0,
-          "hits": 8,
-          "line_shots": 15,
-          "line_vertical_sum": -6.150000810623169,
-          "shots": 16
+          "hits": 7,
+          "line_shots": 14,
+          "line_vertical_sum": -5.000000715255737,
+          "shots": 15
         },
         "20-40": {
           "high_shots": 0,
@@ -58,26 +58,26 @@ shot heights (view over the chest line by burst position and target stance): fir
         "0-20": {
           "high_shots": 0,
           "high_sum": 0.0,
-          "hits": 12,
-          "line_shots": 40,
-          "line_vertical_sum": -7.200001955032349,
-          "shots": 43
+          "hits": 11,
+          "line_shots": 38,
+          "line_vertical_sum": -7.800001859664917,
+          "shots": 41
         },
         "20-40": {
           "high_shots": 0,
           "high_sum": 0.0,
-          "hits": 19,
-          "line_shots": 54,
-          "line_vertical_sum": -2.5000025033950806,
-          "shots": 57
+          "hits": 18,
+          "line_shots": 53,
+          "line_vertical_sum": -2.450002431869507,
+          "shots": 56
         },
         "40+": {
           "high_shots": 0,
           "high_sum": 0.0,
-          "hits": 60,
-          "line_shots": 163,
-          "line_vertical_sum": -3.2500081062316895,
-          "shots": 169
+          "hits": 59,
+          "line_shots": 161,
+          "line_vertical_sum": -5.150007963180542,
+          "shots": 166
         }
       }
     },

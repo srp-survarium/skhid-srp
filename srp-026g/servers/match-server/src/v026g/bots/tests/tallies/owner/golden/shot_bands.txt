@@ -1,46 +1,46 @@
-shot bands (hits/shots by the shooter's team): team 0: 0-10 8/22 36.4 % [across <=.25/.5/1/>1: 2/3/7/8; high <-.45/<0/<.45/>=.45: 6/6/0/8; on him 1 hit 100.0 %] [line -0.13 m up, 0.81 m across] 10-20 12/37 32.4 % [across <=.25/.5/1/>1: 3/5/19/8; high <-.45/<0/<.45/>=.45: 14/11/0/10; on him 1 hit 0.0 %] [line -0.31 m up, 0.76 m across] 20-40 23/71 32.4 % [across <=.25/.5/1/>1: 13/8/23/24; high <-.45/<0/<.45/>=.45: 21/15/8/24; on him 4 hit 50.0 %] [line -0.00 m up, 0.79 m across] 40-65 30/90 33.3 % [across <=.25/.5/1/>1: 16/12/29/29; high <-.45/<0/<.45/>=.45: 31/2/27/26; on him 6 hit 33.3 %] [line +0.13 m up, 0.77 m across] 65+ 42/123 34.1 % [across <=.25/.5/1/>1: 29/14/28/48; high <-.45/<0/<.45/>=.45: 52/11/22/34; on him 8 hit 25.0 %] [line -0.11 m up, 0.78 m across] | team 1:
+shot bands (hits/shots by the shooter's team): team 0: 0-10 7/20 35.0 % [across <=.25/.5/1/>1: 2/2/7/7; high <-.45/<0/<.45/>=.45: 5/5/0/8; on him 1 hit 100.0 %] [line -0.07 m up, 0.81 m across] 10-20 11/36 30.6 % [across <=.25/.5/1/>1: 3/5/19/7; high <-.45/<0/<.45/>=.45: 14/11/0/9; on him 1 hit 0.0 %] [line -0.34 m up, 0.74 m across] 20-40 22/70 31.4 % [across <=.25/.5/1/>1: 13/8/23/23; high <-.45/<0/<.45/>=.45: 21/14/8/24; on him 4 hit 50.0 %] [line -0.00 m up, 0.79 m across] 40-65 29/89 32.6 % [across <=.25/.5/1/>1: 16/12/29/29; high <-.45/<0/<.45/>=.45: 31/2/27/26; on him 6 hit 33.3 %] [line +0.13 m up, 0.77 m across] 65+ 42/121 34.7 % [across <=.25/.5/1/>1: 29/14/28/46; high <-.45/<0/<.45/>=.45: 52/11/22/32; on him 8 hit 25.0 %] [line -0.13 m up, 0.77 m across] | team 1:
 {
   "shot_bands": {
     "team0": {
       "0-10": {
-        "hits": 8,
+        "hits": 7,
         "lateral_bins": [
           2,
-          3,
+          2,
           7,
-          8
+          7
         ],
-        "line_lateral_abs_sum": 16.200000047683716,
-        "line_shots": 20.0,
-        "line_vertical_sum": -2.600001096725464,
+        "line_lateral_abs_sum": 14.600000023841858,
+        "line_shots": 18.0,
+        "line_vertical_sum": -1.2000010013580322,
         "on_him_hits": 1,
         "on_him_shots": 1,
-        "shots": 22,
+        "shots": 20,
         "strafer_cross_sum": 0.0,
         "strafer_hits": 0.0,
         "strafer_lead_sum": 0.0,
         "strafer_shots": 0.0,
         "vertical_bins": [
-          6,
-          6,
+          5,
+          5,
           0,
           8
         ]
       },
       "10-20": {
-        "hits": 12,
+        "hits": 11,
         "lateral_bins": [
           3,
           5,
           19,
-          8
+          7
         ],
-        "line_lateral_abs_sum": 26.44999998807907,
-        "line_shots": 35.0,
-        "line_vertical_sum": -10.750001668930054,
+        "line_lateral_abs_sum": 25.19999998807907,
+        "line_shots": 34.0,
+        "line_vertical_sum": -11.600001573562622,
         "on_him_hits": 0,
         "on_him_shots": 1,
-        "shots": 37,
+        "shots": 36,
         "strafer_cross_sum": 0.0,
         "strafer_hits": 0.0,
         "strafer_lead_sum": 0.0,
@@ -49,36 +49,36 @@ shot bands (hits/shots by the shooter's team): team 0: 0-10 8/22 36.4 % [across 
           14,
           11,
           0,
-          10
+          9
         ]
       },
       "20-40": {
-        "hits": 23,
+        "hits": 22,
         "lateral_bins": [
           13,
           8,
           23,
-          24
+          23
         ],
-        "line_lateral_abs_sum": 53.999999940395355,
-        "line_shots": 68.0,
-        "line_vertical_sum": -0.10000324249267578,
+        "line_lateral_abs_sum": 52.94999998807907,
+        "line_shots": 67.0,
+        "line_vertical_sum": -0.05000317096710205,
         "on_him_hits": 2,
         "on_him_shots": 4,
-        "shots": 71,
+        "shots": 70,
         "strafer_cross_sum": 0.0,
         "strafer_hits": 0.0,
         "strafer_lead_sum": 0.0,
         "strafer_shots": 0.0,
         "vertical_bins": [
           21,
-          15,
+          14,
           8,
           24
         ]
       },
       "40-65": {
-        "hits": 30,
+        "hits": 29,
         "lateral_bins": [
           16,
           12,
@@ -90,7 +90,7 @@ shot bands (hits/shots by the shooter's team): team 0: 0-10 8/22 36.4 % [across 
         "line_vertical_sum": 10.999996066093445,
         "on_him_hits": 2,
         "on_him_shots": 6,
-        "shots": 90,
+        "shots": 89,
         "strafer_cross_sum": 0.0,
         "strafer_hits": 0.0,
         "strafer_lead_sum": 0.0,
@@ -108,14 +108,14 @@ shot bands (hits/shots by the shooter's team): team 0: 0-10 8/22 36.4 % [across 
           29,
           14,
           28,
-          48
+          46
         ],
-        "line_lateral_abs_sum": 92.24999988079071,
-        "line_shots": 119.0,
-        "line_vertical_sum": -13.05000638961792,
+        "line_lateral_abs_sum": 89.64999997615814,
+        "line_shots": 117.0,
+        "line_vertical_sum": -14.950006246566772,
         "on_him_hits": 2,
         "on_him_shots": 8,
-        "shots": 123,
+        "shots": 121,
         "strafer_cross_sum": 0.0,
         "strafer_hits": 0.0,
         "strafer_lead_sum": 0.0,
@@ -124,7 +124,7 @@ shot bands (hits/shots by the shooter's team): team 0: 0-10 8/22 36.4 % [across 
           52,
           11,
           22,
-          34
+          32
         ]
       }
     },

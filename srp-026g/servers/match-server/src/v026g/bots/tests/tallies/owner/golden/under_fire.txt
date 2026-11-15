@@ -1,14 +1,14 @@
 owner-test under fire (A230: the first enemy hit of a bot's life by the play at the hit, followed to its death or 10000 ms: view bands up to [15.0, 45.0, 90.0] deg; times in 250 ms bins, the last never; each death by its play: fired in the last 5000 ms, its first hit within 1000 ms; the stand-in human's apart)
   by_bot Roam: first hits 3 [0, 0, 2, 1], seen before 0, died within 1 s 0, died 1 (1 in that play), targeted him 0, fired 2, at him 0, switched 2
-  by_bot Collect: first hits 3 [0, 0, 3, 0], seen before 0, died within 1 s 0, died 1 (1 in that play), targeted him 0, fired 3, at him 0, switched 2
+  by_bot Collect: first hits 4 [0, 0, 3, 1], seen before 0, died within 1 s 1, died 2 (2 in that play), targeted him 0, fired 4, at him 0, switched 2
   by_bot Crossfire: first hits 3 [0, 0, 3, 0], seen before 0, died within 1 s 0, died 1 (1 in that play), targeted him 0, fired 2, at him 0, switched 2
   by_bot Cut: first hits 2 [0, 0, 1, 1], seen before 0, died within 1 s 0, died 1 (1 in that play), targeted him 0, fired 2, at him 0, switched 1
   by_bot Heal: first hits 4 [0, 1, 2, 1], seen before 0, died within 1 s 1, died 2 (2 in that play), targeted him 0, fired 2, at him 0, switched 2
   by_bot Trade: first hits 3 [0, 0, 0, 3], seen before 0, died within 1 s 0, died 0 (0 in that play), targeted him 0, fired 2, at him 0, switched 3
-  by_bot deaths by play: Roam 4 (fired 5 s 1, hit 1 s 0), Collect 6 (fired 5 s 3, hit 1 s 0), Crossfire 4 (fired 5 s 1, hit 1 s 0), Cut 2 (fired 5 s 1, hit 1 s 0), Heal 5 (fired 5 s 2, hit 1 s 1), Trade 3 (fired 5 s 0, hit 1 s 0)
+  by_bot deaths by play: Roam 2 (fired 5 s 0, hit 1 s 0), Collect 6 (fired 5 s 3, hit 1 s 1), Crossfire 4 (fired 5 s 1, hit 1 s 0), Cut 2 (fired 5 s 1, hit 1 s 0), Heal 5 (fired 5 s 2, hit 1 s 1), Trade 3 (fired 5 s 0, hit 1 s 0)
   by_bot stages (A274) engaged: episodes 0, seen 0, targeted 0; ticks before the hit: ; after: ; ended in: ; turn 0.0 deg over 0 ticks
   by_bot stages (A274) fired_back: episodes 0, seen 0, targeted 0; ticks before the hit: ; after: ; ended in: ; turn 0.0 deg over 0 ticks
-  by_bot stages (A274) never: episodes 18, seen 0, targeted 0; ticks before the hit: ; after: unseen 2833; ended in: unseen 18; turn 0.0 deg over 0 ticks
+  by_bot stages (A274) never: episodes 19, seen 0, targeted 0; ticks before the hit: ; after: unseen 2852; ended in: unseen 19; turn 0.0 deg over 0 ticks
   by_human deaths by play: 
   by_human stages (A274) engaged: episodes 0, seen 0, targeted 0; ticks before the hit: ; after: ; ended in: ; turn 0.0 deg over 0 ticks
   by_human stages (A274) fired_back: episodes 0, seen 0, targeted 0; ticks before the hit: ; after: ; ended in: ; turn 0.0 deg over 0 ticks
@@ -20,7 +20,7 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
         "Collect": {
           "deaths": 6,
           "fired_5s": 3,
-          "first_hit_1s": 0
+          "first_hit_1s": 1
         },
         "Crossfire": {
           "deaths": 4,
@@ -38,8 +38,8 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
           "first_hit_1s": 1
         },
         "Roam": {
-          "deaths": 4,
-          "fired_5s": 1,
+          "deaths": 2,
+          "fired_5s": 0,
           "first_hit_1s": 0
         },
         "Trade": {
@@ -54,14 +54,14 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
             0,
             0,
             3,
-            0
+            1
           ],
-          "died": 1,
-          "died_1s": 0,
-          "died_same_play": 1,
-          "fired": 3,
+          "died": 2,
+          "died_1s": 1,
+          "died_same_play": 2,
+          "fired": 4,
           "fired_him": 0,
-          "hits": 3,
+          "hits": 4,
           "seen_before": 0,
           "sight_to_fire_him": [
             0,
@@ -104,7 +104,7 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
             0,
             0,
             0,
-            3
+            4
           ],
           "switched": 2,
           "switched_to": {
@@ -113,7 +113,7 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
           "targeted": 0,
           "to_fire": [
             1,
-            0,
+            1,
             0,
             0,
             0,
@@ -195,7 +195,7 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
             0,
             0,
             0,
-            3
+            4
           ],
           "to_switch": [
             0,
@@ -238,7 +238,7 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
             0,
             0,
             0,
-            1
+            2
           ],
           "to_target": [
             0,
@@ -281,7 +281,7 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
             0,
             0,
             0,
-            3
+            4
           ]
         },
         "Crossfire": {
@@ -1735,22 +1735,22 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
           },
           "never": {
             "after": {
-              "unseen": 2833
+              "unseen": 2852
             },
             "band": [
               0,
               1,
               11,
-              6
+              7
             ],
             "before": {},
             "ended_dead": {
-              "unseen": 6
+              "unseen": 7
             },
             "ended_in": {
-              "unseen": 18
+              "unseen": 19
             },
-            "episodes": 18,
+            "episodes": 19,
             "fired_other_ticks": 0,
             "hit_to_shot": [
               0,
@@ -1793,7 +1793,7 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               0,
               0,
               0,
-              18
+              19
             ],
             "seen": 0,
             "sight_to_shot": [
@@ -1837,18 +1837,18 @@ owner-test under fire (A230: the first enemy hit of a bot's life by the play at 
               0,
               0,
               0,
-              18
+              19
             ],
             "targeted": 0,
             "threat_on": {
               "hitter": 0,
-              "none": 18,
+              "none": 19,
               "other": 0
             },
             "turn_deg": 0.0,
             "turn_ticks": 0,
-            "unseen_in_view": 734,
-            "unseen_out_of_view": 2099
+            "unseen_in_view": 744,
+            "unseen_out_of_view": 2108
           }
         }
       }
