@@ -391,6 +391,11 @@ pub struct ReaimPairs {
     pub releases_kept_first: usize,
     /// … or the later one (a higher share).
     pub releases_kept_later: usize,
+    /// Release re-aims onto a pair whose link was there before the pass: that link kept (a release at a share as high or
+    /// higher) …
+    pub earlier_kept: usize,
+    /// … or given the release's press and share.
+    pub earlier_replaced: usize,
 }
 
 type Reaims = Vec<(u32, usize, u32, Option<(Takeoff, Share)>)>;
@@ -755,7 +760,10 @@ impl WalkGrid {
                 let link = OffLink { from: a, to: b, kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT };
                 if let Some(l) = wide.off.iter_mut().find(|l| l.from == a && l.to == b) {
                     // Of two releases the higher share, as within the pass; anything else takes the release's press.
-                    if !(matches!(l.press, Takeoff::Release { .. }) && l.share.flown() >= share.flown()) {
+                    if matches!(l.press, Takeoff::Release { .. }) && l.share.flown() >= share.flown() {
+                        pairs.earlier_kept += 1;
+                    } else {
+                        pairs.earlier_replaced += 1;
                         *l = OffLink { kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, ..*l };
                     }
                 } else if let Some(&i) = index.get(&(a, b)) {
@@ -877,8 +885,9 @@ mod tests {
                 walk: None,
                 aim: super::super::gap::Aim::STRAIGHT,
             }];
-            grid.reaim_drops(&mut wide, &vec![(a, d, b, Some((released, Share::landed(new))))]);
+            let (_, pairs) = grid.reaim_drops(&mut wide, &vec![(a, d, b, Some((released, Share::landed(new))))]);
             assert_eq!((wide.off.len(), wide.off[0].share), (1, Share::landed(kept)));
+            assert_eq!((pairs.earlier_kept, pairs.earlier_replaced), if there >= new { (1, 0) } else { (0, 1) });
         }
         // Two releases onto one landing: the higher share is the link, whichever came first.
         for (first, second) in [(9, 12), (12, 9)] {
