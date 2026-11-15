@@ -17,8 +17,10 @@
 //! tree's leaves that box meets, but for those wholly outside it by [`CLEAR_M`] (their casts are misses). The exe
 //! narrows by Bullet's broadphase and each mesh's tree with the cast shape's box (a capsule's is wider than the
 //! capsule by its margin, 0.04 m); a hit needs the shapes within 0.001 m, so both give the same hits. Their ORDER is
-//! not the exe's (its broadphase's and its quantized tree's order is not ported): hits at equal fractions can be
-//! taken in another order.
+//! not the exe's (its broadphase's order is not portable): hits at equal fractions can be taken in another order. [L36]
+//! Inside one mesh the exe keeps the LAST triangle its quantized tree offers at an equal fraction: each mesh triangle's
+//! contact carries its place in that order ([`Contact::rank`], [`super::mesh_bvh`]), which the sweeps' keep rule reads
+//! ([`Contact::replaces`]).
 use std::collections::HashMap;
 
 use super::exe_cast::{self, CastEnd};
@@ -196,6 +198,9 @@ impl MeshTriangle {
 struct Mesh {
     triangles: Vec<MeshTriangle>,
     tree: Tree,
+    /// [L36] Each triangle's place in the order the game's tree of this mesh offers its triangles ([`super::mesh_bvh`]);
+    /// none for a mesh with a corner that is not a finite number.
+    rank: Option<Vec<u32>>,
 }
 
 /// A library's convex primitive, shared by its placements.
@@ -364,7 +369,7 @@ struct Builder {
 }
 
 impl Builder {
-    fn mesh(&mut self, triangles: Vec<MeshTriangle>) -> u32 {
+    fn mesh(&mut self, triangles: Vec<MeshTriangle>, rank: Option<Vec<u32>>) -> u32 {
         let boxes: Vec<Box3> = triangles
             .iter()
             .map(|t| {
@@ -373,7 +378,7 @@ impl Builder {
                 (lo, hi)
             })
             .collect();
-        self.solids.meshes.push(Mesh { tree: Tree::build(&boxes), triangles });
+        self.solids.meshes.push(Mesh { tree: Tree::build(&boxes), triangles, rank });
         (self.solids.meshes.len() - 1) as u32
     }
 
@@ -437,11 +442,21 @@ impl Solids {
             let corner = |i: u32| library.vertices[i as usize];
             let mut mesh_of = |builder: &mut Builder, part: usize, mesh: &bullet::Mesh| {
                 *meshes.entry((library_index, part)).or_insert_with(|| {
-                    let triangles = library.faces[mesh.faces.start as usize..mesh.faces.end as usize]
+                    let faces = &library.faces[mesh.faces.start as usize..mesh.faces.end as usize];
+                    // The game's buffer: the file's vertices under the mesh's scaling (sx, sy, -sz), which are the library's
+                    // scaled vertices with z negated, exactly ([`bullet::mesh_scaling`]).
+                    let corners: Vec<[V3; 3]> = faces.iter().map(|face| face.corners.map(|i| flip(corner(i).to_array()))).collect();
+                    // [L36] The tree's order over the whole buffer, then kept for the triangles kept.
+                    let order = super::mesh_bvh::offering_ranks(&corners);
+                    let (triangles, kept): (Vec<MeshTriangle>, Vec<u32>) = corners
                         .iter()
-                        .filter_map(|face| MeshTriangle::new(face.corners.map(|i| flip(corner(i).to_array())), face.surface.walker))
-                        .collect();
-                    builder.mesh(triangles)
+                        .zip(faces)
+                        .enumerate()
+                        .filter_map(|(t, (&v, face))| {
+                            MeshTriangle::new(v, face.surface.walker).map(|m| (m, order.as_ref().map_or(0, |r| r[t])))
+                        })
+                        .unzip();
+                    builder.mesh(triangles, order.map(|_| kept))
                 })
             };
             let mut primitive_of = |builder: &mut Builder, part: usize, convex: &bullet::Convex| {
@@ -511,19 +526,20 @@ impl Solids {
             }
             let leaf = &self.leaves[i];
             let object = Some(SolidId(leaf.object));
-            let out = |fraction: f32, normal: V3, point: V3, on: Surface| Contact {
+            let out = |fraction: f32, normal: V3, point: V3, on: Surface, rank: Option<u32>| Contact {
                 t: fraction,
                 point: Vec3::from_array(flip(point)),
                 normal: Vec3::from_array(flip(normal)),
                 on,
                 object,
                 part: Some(i as u32),
+                rank,
             };
             match leaf.part {
                 Part::Primitive { shape: id, on } => {
                     let primitive = &self.primitives[id as usize];
                     match exe_cast::cast_convex(&cast, &primitive.shape, primitive.margin, &leaf.transform, 0.0, 1.0) {
-                        CastEnd::Hit { fraction, normal, point } => each(out(fraction, normal, point, on)),
+                        CastEnd::Hit { fraction, normal, point } => each(out(fraction, normal, point, on, None)),
                         CastEnd::Miss => {}
                     }
                 }
@@ -540,7 +556,8 @@ impl Solids {
                         match exe_cast::cast_triangle(&cast, &exe_gjk::Triangle(triangle.v), 0.0, &leaf.transform, 0.0, 1.0) {
                             CastEnd::Hit { fraction, normal, point } => {
                                 let face = placed(&leaf.transform, triangle);
-                                each(out(fraction, normal, point, Surface::Face { walker: face.walker, normal: face.normal }));
+                                let rank = mesh.rank.as_ref().map(|r| r[k]);
+                                each(out(fraction, normal, point, Surface::Face { walker: face.walker, normal: face.normal }, rank));
                             }
                             CastEnd::Miss => {}
                         }
@@ -645,7 +662,7 @@ mod tests {
     #[test]
     fn a_mesh_under_the_identity_is_met_as_its_placed_triangles_are() {
         let mut builder = Builder::default();
-        let mesh = builder.mesh(mesh_of(&floor()));
+        let mesh = builder.mesh(mesh_of(&floor()), None);
         builder.object();
         builder.place_mesh(IDENTITY, IDENTITY, mesh);
         let shapes = world(builder.finish());
@@ -679,7 +696,7 @@ mod tests {
             .map(|t| MeshTriangle::new(t.v.map(|w| [-(w[2] + 5.0), w[1], w[0] - 1.0]), t.walker).expect("finite corners"))
             .collect();
         let mut builder = Builder::default();
-        let mesh = builder.mesh(local);
+        let mesh = builder.mesh(local, None);
         builder.object();
         builder.place_mesh(quarter, quarter, mesh);
         let shapes = world(builder.finish());
@@ -829,7 +846,7 @@ mod tests {
         let (sin, cos) = 0.6f32.sin_cos();
         let transform = Transform { basis: [[cos, 0.0, sin], [0.0, 1.0, 0.0], [-sin, 0.0, cos]], origin: [1.5, -0.5, 2.0] };
         let mut builder = Builder::default();
-        let mesh = builder.mesh(triangles.clone());
+        let mesh = builder.mesh(triangles.clone(), None);
         builder.object();
         builder.place_mesh(transform, transform, mesh);
         let shapes = world(builder.finish());

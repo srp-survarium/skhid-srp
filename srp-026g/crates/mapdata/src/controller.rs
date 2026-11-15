@@ -17,6 +17,7 @@ pub mod exe_ray;
 pub mod gjk;
 pub mod jump;
 mod jump_clips;
+mod mesh_bvh;
 mod solids;
 pub mod speed;
 pub mod tick;
@@ -210,20 +211,45 @@ pub struct Contact {
     /// [L36] The part of that object met (its one shape, or a compound's child: one query of the exe's each), for the tie
     /// counts ([`sweep_ties`]); `None` where `object` is.
     pub part: Option<u32>,
+    /// [L36] A mesh triangle's place in the order the game's tree of its mesh offers the mesh's triangles
+    /// ([`mesh_bvh`]): at an equal fraction the exe keeps the later one inside one mesh query ([`Contact::replaces`]). None for
+    /// anything else (a primitive, a placed face, a mesh the port has no order for).
+    pub rank: Option<u32>,
+}
+
+impl Contact {
+    /// [L36] Whether this contact takes the place of `kept` as a sweep's closest: it is nearer, or at the same fraction it is a
+    /// later triangle of the same mesh query (the same part of the same object, each with its place in the mesh tree's
+    /// order). Inside one mesh the exe keeps the LAST triangle its tree offers at an equal fraction (`processTriangle` 0xB87CA
+    /// strict against the closest when the mesh's query began, `reportHit` 0xA2A6C `<=` against the current one); against
+    /// a hit of another part or object the earlier stays (0xA162D strict; exactness `grid/rig/s7-20261114/L36-tie-order.md`).
+    /// By the places, not by the order the port hands the contacts over in.
+    pub fn replaces(&self, kept: &Contact) -> bool {
+        self.t < kept.t || (self.t == kept.t && self.later_in_mesh(kept))
+    }
+
+    fn later_in_mesh(&self, kept: &Contact) -> bool {
+        match (self.object, self.part, self.rank, kept.object, kept.part, kept.rank) {
+            (Some(a), Some(p), Some(r), Some(b), Some(q), Some(s)) => a == b && p == q && r > s,
+            _ => false,
+        }
+    }
 }
 
 /// [L36] How many contacts of the sweeps so far ([`Collision::sweep_each`], every sweep of the walk tick and the build's flights)
 /// met something at exactly the sweep's closest fraction besides the first contact there, by what the two are: where the
 /// client's pick among them depends on an order (exactness `grid/rig/s7-20261114/L36-tie-order.md`: inside one mesh the exe
-/// keeps the LAST triangle its BVH offers, across objects and a compound's children the FIRST). The port's own order is not the
-/// exe's for any of these (the BVH and dbvt orders are not ported; the objects' is not portable). Totals of this process, for the
-/// logs: no decision reads them.
+/// keeps the LAST triangle its BVH offers, across objects and a compound's children the FIRST). Inside one mesh the port now
+/// keeps the exe's pick by the tree's order ([`Contact::replaces`], [`mesh_bvh`]): [`SweepTies::one_mesh`] counts the ties that
+/// order decided. Between a compound's children (the dbvt order: its pre-scaling volumes are not in the game data) and across
+/// objects (not portable) the port keeps its own first. Totals of this process, for the logs: no decision reads them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SweepTies {
     /// Sweeps with at least one tie at the closest fraction.
     pub sweeps: u64,
     /// Ties between two triangles of one mesh: one part of one object, one query (the exe: keep-last in its BVH's leaf order,
-    /// 0xB87CA strict against the closest when the mesh's query began, 0xA2A6C `<=` in `reportHit`).
+    /// 0xB87CA strict against the closest when the mesh's query began, 0xA2A6C `<=` in `reportHit`), decided by the ported
+    /// order where the mesh has one.
     pub one_mesh: u64,
     /// Ties between two parts of one object (a compound's children: two primitives, a primitive and a mesh, or two meshes, each
     /// its own query; the exe: keep-first in the dbvt's order).
@@ -474,7 +500,7 @@ impl Collision {
     pub fn sweep_shape(&self, shape: Shape, by: Vec3, keep: impl Fn(&Face) -> bool) -> Option<Contact> {
         let mut best: Option<Contact> = None;
         self.sweep_each(shape, by, |c| {
-            if keep_surface(&keep, c) && best.is_none_or(|b| c.t < b.t) {
+            if keep_surface(&keep, c) && best.is_none_or(|b| c.replaces(&b)) {
                 best = Some(c);
             }
         });
@@ -517,7 +543,7 @@ impl Collision {
                 Caster::Exe => advance_exe(shape, by, face),
             };
             if let Some(Touch { t, point, normal }) = touch {
-                each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal }, object: None, part: None });
+                each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal }, object: None, part: None, rank: None });
             }
         });
         ties.flush();
@@ -816,6 +842,29 @@ pub fn segment_triangle(p: Vec3, q: Vec3, v: &[Vec3; 3]) -> (f32, Vec3, Vec3) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [L36] At an equal fraction a later triangle of the same mesh query takes the place (keep-last); one of another part or
+    /// object, an unranked one, or a farther one does not (keep-first).
+    #[test]
+    fn a_tie_inside_one_mesh_keeps_the_later_triangle() {
+        let c = |t: f32, object: u32, part: u32, rank: Option<u32>| Contact {
+            t,
+            point: Vec3::ZERO,
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            on: Surface::Face { walker: WalkerBehaviour::Walk, normal: Vec3::new(0.0, 1.0, 0.0) },
+            object: Some(SolidId(object)),
+            part: Some(part),
+            rank,
+        };
+        let kept = c(0.0, 1, 2, Some(10));
+        assert!(c(0.0, 1, 2, Some(11)).replaces(&kept), "later in the same mesh");
+        assert!(!c(0.0, 1, 2, Some(9)).replaces(&kept), "earlier in the same mesh");
+        assert!(!c(0.0, 1, 3, Some(11)).replaces(&kept), "another part of the object");
+        assert!(!c(0.0, 4, 2, Some(11)).replaces(&kept), "another object");
+        assert!(!c(0.0, 1, 2, None).replaces(&kept), "no rank");
+        assert!(c(-0.0, 1, 3, None).t == kept.t && !c(-0.0, 1, 3, None).replaces(&kept));
+        assert!(c(0.0, 4, 2, None).replaces(&c(0.5, 1, 2, Some(1))), "nearer");
+    }
 
     fn tri(a: Vec3, b: Vec3, c: Vec3) -> Triangle {
         Triangle { v: [a, b, c], walker: WalkerBehaviour::BySlope }

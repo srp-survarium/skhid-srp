@@ -160,7 +160,7 @@ pub fn line(ended: Ended) -> String {
         End::TimedOut(feet) => ("timed out", feet),
     };
     format!(
-        "{}release walk-off from {} to {} at +{:.2} m {}: let go at +{along:.2} m {}, step {step:.3} m, last full step to +{:.2} ({:+.2}          from the release), after {after_ms} ms {word} {}",
+        "{}release walk-off from {} to {} at +{:.2} m {}: let go at +{along:.2} m {}, step {step:.3} m, last full step to +{:.2} ({:+.2} from the release), after {after_ms} ms {word} {}",
         super::nav_log::PREFIX,
         p(link.take_off),
         p(link.landing),

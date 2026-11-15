@@ -407,7 +407,6 @@ va	status	ref_021d	name
 0x00083e50	inferred-medium	0x0005a77d	vostok::physics::animated_model_instance_cook::delete_resource
 0x00083f30	inferred-medium	0x0005a83d	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::physics::animated_model_instance_cook,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<vostok::physics::animated_model_instance_cook *>,boost::arg<1> > > >::manager
 0x00083f80	inferred-high		btQuaternion::getIdentity
-0x00094c70	inferred-medium		btAxisSweep3Internal<unsigned short>::rayTest
 0x000a14c0	inferred-medium	0x00220975	vostok::physics::closest_ray_result_callback::`scalar deleting destructor'
 0x000a3e50	inferred-medium		vostok::physics::bullet_contact_pair_test
 0x000a6510	inferred-medium		btGhostObject::~btGhostObject
@@ -418,8 +417,6 @@ va	status	ref_021d	name
 0x000a3420	inferred-medium		btSingleSweepCallback::btSingleSweepCallback
 0x000a3660	inferred-medium		btSingleSweepCallback::process
 0x000a36e0	inferred-high		btCollisionWorld::convexSweepTest
-0x000b4fe0	inferred-medium		btDbvtBroadphase::rayTest
-0x000b5ca0	inferred-medium		btDbvt::rayTestInternal
 0x000b8010	inferred-medium		btTriangleRaycastCallback::processTriangle
 0x000de210	inferred-medium	0x000ac9b4	vostok::command_line::check_keys
 0x000de5f0	inferred-medium	0x000acc4a	vostok::command_line::show_help_and_exit
@@ -3213,7 +3210,6 @@ va	status	ref_021d	name
 0x00086e80	inferred-medium		vostok::physics::up_sweep_cache::find
 0x00086ed0	inferred-medium		vostok::physics::up_sweep_cache::insert
 0x00087640	inferred-medium		vostok::physics::stand_up_sweep_cache::find
-0x000895f0	inferred-high		vostok::physics::character_move_sweep_callback::addSingleResult
 0x00084420	inferred-high		vostok::physics::character_step_down_sweep_test_callback::addSingleResult
 0x0084d4a0	inferred-high		`dynamic initializer for 'cc_step_height''
 0x0084d780	inferred-high		`dynamic initializer for 'cc_max_slope_angle_cos value''
@@ -3624,7 +3620,6 @@ va	status	ref_021d	name
 0x000951e0	inferred-medium	0x00063998	btAxisSweep3Internal<unsigned short>::sortMinDown
 0x000952f0	inferred-medium	0x00063a7a	btAxisSweep3Internal<unsigned short>::sortMinUp
 0x000b6710	inferred-high	0x000a0d1f	btSimulationIslandManager::updateActivationState
-0x000c2ff0	inferred-medium	0x00094d9b	btQuantizedBvh::walkStacklessQuantizedTreeAgainstRay
 0x000d1280	inferred-medium	0x000a53bb	btVoronoiSimplexSolver::updateClosestVectorAndPoints
 0x000d1ed0	inferred-high	0x000a5ca5	btVoronoiSimplexSolver::closestPtPointTriangle
 0x000d6cd0	inferred-medium	0x000a689f	btGjkPairDetector::getClosestPointsNonVirtual
