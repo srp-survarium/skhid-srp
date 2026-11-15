@@ -3849,3 +3849,59 @@ Validation: `check_grass_sort_026g.py` (Unicorn) runs the game's `__linear_inser
 exe built by `patch_026g.py`, on a pair (x, y, z) / (y, x, z) whose two orders differ, after a null
 word: the original faults at 0x162085, the patched exe puts the nearer patch first; a pair in order
 stays in both. Not played in a game.
+
+### The game shares in the lobby (2026-11-15, patch 150; unreleased)
+
+The owner (2026-11-15): the game shares by BitTorrent on the login screen and in the lobby, never
+in a match, as its developers designed it; "Allow torrent" is the game's own setting
+`enable_torrent_seeding`, a line of user.cfg as the language is (the launcher's box writes it),
+off without the line; one cap for all sharing. The game's half, read in the 0.26g exe (re-kit
+rows of 882ac2a93 and this patch's):
+
+- **The setting.** `enable_torrent_seeding` is a cc_bool over the byte 0xA712B6 (registered at
+  0x851443), 1 in the original's .data: on until user.cfg says otherwise. Three readers:
+  switch_to_lobby (0x1ED206), switch_to_login (0x1ED296) and the command's callback (0x1EE59B: on
+  starts, off stops the seeding, for a network client). The game writes every setting into
+  user.cfg at its end: the user.cfg of every local-clients prefix that played has
+  `change_seeding_upload_rate 256`, `enable_torrent_seeding on`, `lobby_torrent_stats off`.
+- **The triggers.** `game::switch_to_login` (0x1ED260) and `switch_to_lobby` (0x1ED1E0) clear
+  `torrent_client+1Ch` (in a match) and call `torrent_client::start_seeding` (0x3737F0) while the
+  setting is on; `switch_to_game_world` (0x1ED170) sets +1Ch and calls `stop_seeding` (0x373910).
+  All of them only for a network client whose vtable +20h says 1: the replay client's (0x9FF344)
+  says 0, so a replay never starts or stops it. start_seeding skips while +1Ch is set and posts
+  `start_seeding_impl` (0x373C20) to the network thread; stop_seeding posts `stop_seeding_impl`
+  (0x374020: the pipe's disconnect).
+- **start_seeding_impl** (thiscall, `ret 8`: the debug flag, the upload limit in KiB/s). A pipe in
+  state 1 is deleted; with a pipe left (accepting or connected) it returns at once (0x373C76), so
+  login then lobby keeps one updater. Else a new `win_utils::pipe` (0x373090), its name
+  `L"%s-%s"` of `\\.\pipe\vostok_updater_pipe` and the narrow product name read as wide
+  (0x373CB0..0x373CC6, garbled), `pipe::accept` (0x373230: CreateNamedPipeW, one instance,
+  overlapped, FILE_FLAG_FIRST_PIPE_INSTANCE; the name read there only), the message handler
+  0x373BD0 bound (0x373CE4..0x373D20). Then the service: OpenSCManagerA (0x373D5B), the nine
+  arguments, a registry key under the garbled product name that never opens (0x373EE2: a silent
+  return), StartServiceW (0x373F4A). The epilogue 0x37400E (`lea esp,[ebp-0CE0h]`, three pops,
+  `leave`, `ret 8`) restores what the prologue saved from any point after it.
+- **The patch.** `LOBBY_SEEDING_DEFAULT` (patch_026g.py): the byte 0xA712B6 is 0, so a user.cfg
+  without the line leaves it off; the game's gates and callback are as they were. The Rust patch
+  `lobby_seeding`, two lohooks of sites_026g.tsv: `seeding.accept` (0x373CD9,
+  `lea eax,[ebp-4B8h]`, 6 bytes): EAX our name, `\\.\pipe\skhid_seed-<process id>` (a static of
+  the arena: accept reads it after the hook), and a Skip of the lea. `seeding.updater` (0x373D2D,
+  after the handler's binding, `add esp,4 / mov edi,eax`): `<exe folder>\updater_skhid.exe`
+  started with `"<path>" seed <pipe>`, from that folder, CREATE_NO_WINDOW, both handles closed, a
+  line in srp_patches.log; then the exit to 0x37400E (no service). No relocation is under the
+  spans and nothing jumps into them. `change_seeding_upload_rate` (1Eh to the updater) and
+  `lobby_torrent_stats` (22h) stay; the options screen's selector stays hidden.
+- **The pipe's messages** (the updater's side: `client/updater/README.md`): the game sends 1Eh
+  (u64 bytes/s, at the connection and on the command: ignored, one fixed cap rules) and 22h (u8:
+  FFh show the stats, 0 hide); its handler (0x373BD0) reads every message as a tick without its
+  id: bytes +3 (seeding), +4 (upload B/s), +8 (limit B/s), +0Ch (peers), so the updater sends
+  only 18h ticks, `0E 00 18 FF <u32> <u32> <u32>`, and only while the stats are shown.
+
+Validation: `check_lobby_seeding_026g.py` (Unicorn, both exes, kernel32 stubbed through the
+import table): the original's start_seeding_impl makes its pipe on the garbled name and reaches
+OpenSCManagerA; the built exe makes the pipe on `\\.\pipe\skhid_seed-4321`, binds the handler
+and starts `<folder>\updater_skhid.exe seed \\.\pipe\skhid_seed-4321` (no window, the folder as
+working folder, both handles closed), no service, `ret 8` with the callee-saved registers kept.
+The setting's byte is 1 in the original, 0 in the built exe; switch_to_lobby and switch_to_login
+call start_seeding only while it is on, and the callback starts and stops it, in both. `cargo
+test` (the pipe's name). Not run in a game.

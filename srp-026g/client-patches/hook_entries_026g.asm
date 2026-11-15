@@ -5692,6 +5692,87 @@ music_on_unload_replay:
     db 0x53, 0x56, 0x8b, 0xf1, 0x8b, 0x8e, 0x5c, 0x53, 0x00, 0x00
     jmp 0x1ed03a
 
+; 0x373cd9 start_seeding_impl's lea eax,[ebp-4B8h] (the game's wide pipe name, swprintf'd at 0x373CC6) before its call of win_utils::pipe::accept (0x373230 at 0x373CDF: ECX the pipe, EAX the wide name, [ESP] &error_code); a Skip with EAX set gives accept another name, read only by its CreateNamedPipeW (0x373262) (patch 150): lohook -> lobby_seeding_on_accept
+global lobby_seeding_on_accept
+extern hook_lobby_seeding_on_accept
+lobby_seeding_on_accept:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lobby_seeding_on_accept
+    mov edx, lobby_seeding_on_accept_replay
+    cmp eax, 0
+    je lobby_seeding_on_accept_go
+    mov edx, 0x373cdf
+    cmp eax, 1
+    je lobby_seeding_on_accept_go
+    ud2
+lobby_seeding_on_accept_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lobby_seeding_on_accept_replay:
+    db 0x8d, 0x85, 0x48, 0xfb, 0xff, 0xff
+    jmp 0x373cdf
+
+; 0x373d2d start_seeding_impl after the pipe's accept and its message handler bound (0x373CE4..0x373D20, the temporary function destroyed), before the service's start (OpenSCManagerA 0x373D5B .. StartServiceW 0x373F4A): add esp,4 / mov edi,eax after the product name's call 0x373D28; started is the epilogue 0x37400E (patch 150): lohook -> lobby_seeding_on_updater
+global lobby_seeding_on_updater
+extern hook_lobby_seeding_on_updater
+lobby_seeding_on_updater:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_lobby_seeding_on_updater
+    mov edx, lobby_seeding_on_updater_replay
+    cmp eax, 0
+    je lobby_seeding_on_updater_go
+    mov edx, 0x373d32
+    cmp eax, 1
+    je lobby_seeding_on_updater_go
+    mov edx, 0x37400e
+    cmp eax, 2
+    je lobby_seeding_on_updater_go
+    ud2
+lobby_seeding_on_updater_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+lobby_seeding_on_updater_replay:
+    db 0x83, 0xc4, 0x04, 0x8b, 0xf8
+    jmp 0x373d32
+
 ; 0x25cd1c game_world::on_keyboard_action with the input world's keyboard (its vtable+24h 0x79E40: [input_world+24h]), before it asks the keyboard for Tab (mov edx,[eax] / mov ecx,eax / mov eax,[edx]; push 0Fh at 0x25CD22): EAX the keyboard, EDI the game world's input handler (the hud at +4); every key the game world is given, a held one every tick: lohook -> map_names_on_key
 global map_names_on_key
 extern hook_map_names_on_key

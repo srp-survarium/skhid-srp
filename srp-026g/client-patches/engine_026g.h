@@ -816,4 +816,7 @@ void engine_sound_pan(struct sound_scene *scene, struct panning_lut *table, stru
 /* 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX */
 float *engine_listener_position(struct sound_scene *scene, float *out);
 
+/* the IAT slot 0x87005c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_get_last_error)(void);
+
 #endif

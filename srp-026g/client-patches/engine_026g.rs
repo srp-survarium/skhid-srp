@@ -483,4 +483,6 @@ unsafe extern "C" {
     pub static engine_message_box_a: unsafe extern "stdcall" fn(*mut c_void, *const u8, *const u8, u32) -> u32;
     /// the IAT slot 0x87020c (an import, stdcall): void engine_exit_process(unsigned int code)
     pub static engine_exit_process: unsafe extern "stdcall" fn(u32);
+    /// the IAT slot 0x87005c (an import, stdcall): unsigned int engine_get_last_error(void)
+    pub static engine_get_last_error: unsafe extern "stdcall" fn() -> u32;
 }

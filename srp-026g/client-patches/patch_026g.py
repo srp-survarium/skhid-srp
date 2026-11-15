@@ -2546,6 +2546,16 @@ KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb757
 # game::exit's delete (0x1EC832) nops (BAKE_CACHE_KEEP).
 BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440000"))   # game::exit's delete
 
+# The lobby's sharing (patch 150, README; client_patch.md "The game shares in
+# the lobby"): the game's own enable_torrent_seeding (0xA712B6, a cc_bool of
+# user.cfg, read by game::switch_to_lobby 0x1ED206, switch_to_login 0x1ED296
+# and its callback 0x1EE59B) is "Allow torrent": off until the player turns it
+# on (the launcher's box writes its line). Its initial value, the byte in
+# .data, 1 in the original, is 0: a user.cfg without the line leaves it off.
+# The Rust patch lobby_seeding (sites_026g.tsv seeding.*) names the pipe and
+# starts the updater.
+LOBBY_SEEDING_DEFAULT = (0xA712B6, b"\x01", b"\x00")
+
 # The grass sort's one order of distance (patch 146, README; client_patch.md
 # "The grass sort's distance"). grass_world::process_culling (0x160470) sorts
 # the visible patches (std::sort 0x1610B0) by patch+50h, then by the squared
@@ -4173,6 +4183,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                     patch(data, *change)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
+                patch_section_value(data, *LOBBY_SEEDING_DEFAULT)
                 patch(data, *GRASS_SORT_ORDER)
                 patch(data, *EXPAND_TEXT_UNBOUND)
                 if artefacts_backs(linked) != list(ARTEFACTS_BACKS):

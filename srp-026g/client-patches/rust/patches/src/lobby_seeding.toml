@@ -1,0 +1,17 @@
+# Patch 150: the game shares by BitTorrent on the login screen and in the
+# lobby while its own enable_torrent_seeding (user.cfg's line, "Allow
+# torrent") is on. The sites are sites_026g.tsv's (start_seeding_impl's); the
+# logic is lobby_seeding.rs and vostok/seeding.rs. The setting's default, off,
+# is a byte of patch_026g.py (LOBBY_SEEDING_DEFAULT).
+name = "lobby_seeding"
+patch = 150
+
+# The pipe's accept: \\.\pipe\skhid_seed-<process id>.
+[[hook]]
+site = "seeding.accept"
+handler = "on_accept"
+
+# In the place of the service's start: updater_skhid.exe seed <pipe>.
+[[hook]]
+site = "seeding.updater"
+handler = "on_updater"

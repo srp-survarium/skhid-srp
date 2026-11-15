@@ -762,6 +762,17 @@ pub unsafe fn engine_set_file_pointer(function: NonNull<c_void>, file: *mut c_vo
     unsafe { function(file, distance, high, method) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_create_process_w(const unsigned short *application, unsigned short *command, void *process_security, void *thread_security, unsigned int inherit, unsigned int flags, void *environment, const unsigned short *folder, void *startup, void *information)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_create_process_w(function: NonNull<c_void>, application: *const u16, command: *mut u16, process_security: *mut c_void, thread_security: *mut c_void, inherit: u32, flags: u32, environment: *mut c_void, folder: *const u16, startup: *mut c_void, information: *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*const u16, *mut u16, *mut c_void, *mut c_void, u32, u32, *mut c_void, *const u16, *mut c_void, *mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(application, command, process_security, thread_security, inherit, flags, environment, folder, startup, information) }
+}
+
 #[allow(dead_code, non_upper_case_globals)]
 unsafe extern "C" {
     /// the IAT slot 0x870048 (an import, stdcall): void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)
@@ -852,6 +863,8 @@ unsafe extern "C" {
     pub static engine_message_box_a: unsafe extern "stdcall" fn(*mut c_void, *const u8, *const u8, u32) -> u32;
     /// the IAT slot 0x87020c (an import, stdcall): void engine_exit_process(unsigned int code)
     pub static engine_exit_process: unsafe extern "stdcall" fn(u32);
+    /// the IAT slot 0x87005c (an import, stdcall): unsigned int engine_get_last_error(void)
+    pub static engine_get_last_error: unsafe extern "stdcall" fn() -> u32;
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,

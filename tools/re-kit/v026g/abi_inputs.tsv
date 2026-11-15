@@ -6220,3 +6220,8 @@ va	name	location	role	basis
 0x001f60a0	survarium::network_stats_lobby_torrent's row update (seeding, peers, upload, max upload limit)	entry ESP+4	the 16-byte debug info by value (from network_client::draw_match_stats 0x27FD3B)	observed
 0x00262250	survarium::options_torrent_seeding_selector's read of change_seeding_upload_rate	ECX	the selector (+8 the command, +18h labels, +1Ch count 7, +1Dh selected)	observed
 0x002622a0	survarium::options_torrent_seeding_selector's apply (executes change_seeding_upload_rate <KiB/s>)	ECX	the selector	observed
+0x001ed1e0	survarium::game::switch_to_lobby	EAX	the game (+53ACh the network client, +5390h the lobby menu, +539Ch the active scene)	observed
+0x001ed260	survarium::game::switch_to_login	EAX	the game (+53ACh the network client, +5394h the login menu, +539Ch the active scene)	observed
+0x001ed260	survarium::game::switch_to_login	entry ESP+4	the login menu's status, handed to login_menu::set_status (0x21EEA0)	observed
+0x003745b0	a wide snprintf into EDX's buffer (start_seeding_impl's names)	EDX	the wide buffer	observed
+0x003745b0	a wide snprintf into EDX's buffer (start_seeding_impl's names)	entry ESP+4	the wide format, its arguments after it	observed

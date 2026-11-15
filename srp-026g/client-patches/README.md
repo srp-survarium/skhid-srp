@@ -5784,3 +5784,25 @@ first and walked past the array's start. `GRASS_SORT_ORDER` swaps that copy's tw
 0x160430), so every copy computes the same distance. `check_grass_sort_026g.py` runs the game's
 `__linear_insert` on such a pair: the original reads before the array at 0x162085, the patched exe
 sorts it (needs Unicorn). See `docs/notes/client_patch.md`, "The grass sort's distance".
+
+## The game shares in the lobby (patch 150, unreleased)
+
+The original game was made to share its files by BitTorrent while a player sits on the login
+screen or in the lobby, never in a match: its updater started as Windows' "Survarium Update
+Service" with the word `seed`, talking to the game over a named pipe. It never ran (the game
+looked for a registry key under a garbled name and gave up). Now the game's own setting
+`enable_torrent_seeding` (user.cfg, "Allow torrent": the launcher's box writes it) decides, off by
+default (`LOBBY_SEEDING_DEFAULT`: the original's was on), and the game's own triggers do it:
+`switch_to_login` and `switch_to_lobby` start it while it is on, `switch_to_game_world` stops it
+(the pipe closed: the updater ends), a replay never does either. The Rust patch `lobby_seeding`
+(`rust/patches/src/lobby_seeding.rs`, sites `seeding.*`) names the pipe
+`\\.\pipe\skhid_seed-<process id>` and starts `updater_skhid.exe seed <pipe>` beside the exe
+(CreateProcessW, no window) where the game asked for the service. Its options stay hidden. The
+game writes every setting into user.cfg at its end, so a player who played before this patch has
+`enable_torrent_seeding on` there (the old default): the default alone does not turn it off for
+them. The updater's
+side (the 1 MB/s cap, the stats ticks) is `client/updater/README.md`; the rules
+`docs/notes/torrent-downloads.md`, "Sharing from the game". `check_lobby_seeding_026g.py` runs
+`start_seeding_impl`, `switch_to_lobby`, `switch_to_login` and the command's callback in both
+exes (needs Unicorn). See `docs/notes/client_patch.md`, "The game shares in the lobby". Not run
+in a game.

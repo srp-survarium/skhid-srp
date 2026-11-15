@@ -3542,6 +3542,41 @@ pub extern "C" fn hook_lobby_scene_on_game_closing(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- lobby_seeding (patch 150) ----
+
+/// The entry `lobby_seeding_on_accept` (0x373cd9, start_seeding_impl's lea eax,[ebp-4B8h] (the game's wide pipe name, swprintf'd at 0x373CC6) before its call of win_utils::pipe::accept (0x373230 at 0x373CDF: ECX the pipe, EAX the wide name, [ESP] &error_code); a Skip with EAX set gives accept another name, read only by its CreateNamedPipeW (0x373262) (patch 150)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_seeding_on_accept(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_seeding_on_accept` calls this, from the game's jump at 0x373cd9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_seeding::on_accept(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_seeding (patch 150) ----
+
+/// The named exits of lobby_seeding::on_updater (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LobbySeedingOnUpdaterExit { Started }
+/// The entry `lobby_seeding_on_updater` (0x373d2d, start_seeding_impl after the pipe's accept and its message handler bound (0x373CE4..0x373D20, the temporary function destroyed), before the service's start (OpenSCManagerA 0x373D5B .. StartServiceW 0x373F4A): add esp,4 / mov edi,eax after the product name's call 0x373D28; started is the epilogue 0x37400E (patch 150)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_seeding_on_updater(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_seeding_on_updater` calls this, from the game's jump at 0x373d2d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_seeding::on_updater(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- map_names (patch 82) ----
 
 /// The entry `map_names_on_key` (0x25cd1c, game_world::on_keyboard_action with the input world's keyboard (its vtable+24h 0x79E40: [input_world+24h]), before it asks the keyboard for Tab (mov edx,[eax] / mov ecx,eax / mov eax,[edx]; push 0Fh at 0x25CD22): EAX the keyboard, EDI the game world's input handler (the hud at +4); every key the game world is given, a held one every tick) calls this with the saved machine.

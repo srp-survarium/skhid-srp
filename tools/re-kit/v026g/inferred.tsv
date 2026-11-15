@@ -3485,3 +3485,5 @@ va	status	ref_021d	name
 0x0032a9c0	inferred-high		survarium::body_part::update_threshold_modifier [descriptive]
 0x0032ab90	inferred-high		survarium::body_part::apply_threshold_affects [descriptive]
 0x00312450	inferred-medium		survarium::artefact_lifebone_core::disable_active_effects
+0x000e4390	inferred-medium		the product name (narrow) [descriptive]
+0x003745b0	inferred-medium		a wide snprintf into EDX's buffer (start_seeding_impl's names) [descriptive]
