@@ -278,13 +278,19 @@ pub enum SpeedTerms {
 
 /// [register #24] What picks the reckoned body's aimed movement class (`walk_aim` / `crouch_aim`).
 ///
-/// The client (PROVEN, 0.26g exe): `base_player::movement_speed` 0x2DBB50 takes its aim flag from byte `+0xC` of the struct the
-/// stand builders read (0x335EA0 / 0x336400, slot `+0x20` of `player_logic_stand_on_site_state` / `_stand_run_state`, dispatch
-/// 0x2FEC10). Its two fillers: `weapon_core` (0x2E10B0, slot `+0xA0` of `weapon_core`'s vtable 0xA11094) puts in the gun's
-/// `m_aimed` (+5E8h, `mov al, [esi+0x5E8]` at 0x2E1110); `victory_item_core` (0x3012A0, slot `+0x34` of 0xA13DBC: the battery)
-/// puts in 0 (0x30130C). `m_aimed` is set at the aim start 0x2E1B5A and cleared at the aim end 0x2E1BFB and the reset 0x2E2A40,
-/// as the aim gate 0x2FB9C1 decides from the AIM key (keys `+0x330` bit 7, 0x2FC2A0), the movement state (not 3 or 4) and
-/// the hands; the world saves it (0x2E364B; srp-validate `InHand::aimed`).
+/// The client (PROVEN, 0.26g exe; verified by the exe review of #1988): `base_player::movement_speed` 0x2DBB50 takes its aim flag
+/// as its fourth argument (tested at 0x2DBB96) from byte `+0xC` of the struct the movement builders read: stand on site
+/// (0x335F4B .. 0x335F5E), stand run (0x336445 .. 0x336606) and crouch (0x337D4B .. 0x337D5E), so `walk_aim` and `crouch_aim`
+/// alike (slot `+0x20` of `player_logic_stand_on_site_state` / `_stand_run_state`, dispatch 0x2FEC10; the jump's call at
+/// 0x343CF2 is not read). Its two fillers: `weapon_core` (0x2E10B0, slot `+0xA0` of `weapon_core`'s vtable 0xA11094) puts in
+/// the gun's `m_aimed` (+5E8h, `mov al, [esi+0x5E8]` at 0x2E1110); `victory_item_core` (0x3012A0, slot `+0x34` of 0xA13DBC: the
+/// battery) puts in 0 (0x30130C). `m_aimed`'s writers: zeroed in `weapon_core`'s constructor (0x2DF4AC), set at the aim start
+/// 0x2E1B5A, cleared at the aim end 0x2E1BFB and the reset 0x2E2A40, loaded from the world at 0x2E364B (srp-validate
+/// `InHand::aimed`). The aim gate 0x2FB9C1 starts and stops the aim by 0x2FC2A0: AIM (keys `+0x330` bit 7), the hands' `+0x389`
+/// not 2, and a state test (a field `+0x20` of 1 passes; of 0, the state `+0x24` must not be 3 or 4; any other fails; `+0x20` not
+/// traced), with the hands' vfunc `+0x68`. Saved worlds: no aimed gun with AIM held in the sprint or the jump selector states (0 of
+/// 1,041 in the jump); in the walk state AIM held with the gun not aimed is about 22 % of the worlds (14,671 of 65,630 PvB,
+/// 5,564 of 25,659 PvP).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AimGates {
