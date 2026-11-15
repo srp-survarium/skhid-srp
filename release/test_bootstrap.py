@@ -27,17 +27,25 @@ SCRIPT = HERE / 'build_torrent.py'
 BODY = HERE / 'bootstrap.ps1'
 NETWORK_SETUP = HERE.parent / 'srp-026g/client-patches/Skhid-network-setup.cmd'
 PIECE = 4 << 20
-# SKHID_TEST_UAC=declined: the player says no to the elevation.
+# SKHID_TEST_UAC=declined: the player says no to the elevation; SKHID_TEST_DEFENDER=off:
+# Defender's cmdlets fail. The elevated command runs in a pwsh of its own (it ends with exit).
+ELEVATED = r'''
+function global:netsh { Write-Host ('netsh' + (-join ($args | ForEach-Object { "`t$_" }))); $global:LASTEXITCODE = 0 }
+function global:Get-MpPreference { if ($env:SKHID_TEST_DEFENDER -eq 'off') { throw 'Defender is off' }; [pscustomobject]@{ ExclusionPath = @() } }
+function global:Add-MpPreference($ExclusionPath) { Write-Host "excluded: $ExclusionPath" }
+'''
 STUBS = r'''
+$global:Elevated = @'
+''' + ELEVATED + r'''
+'@
 function global:Start-Process($FilePath, $ArgumentList, $Verb, $WindowStyle, $WorkingDirectory, [switch]$Wait, [switch]$PassThru) {
     if ($Verb -ne 'RunAs') { Write-Host "started: $FilePath $ArgumentList"; return [pscustomobject]@{ ExitCode = 0 } }
     if ($env:SKHID_TEST_UAC -eq 'declined') { throw 'The operation was canceled by the user.' }
+    if ($ArgumentList -notcontains 'Bypass') { throw 'not -ExecutionPolicy Bypass' }
     $command = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($ArgumentList[-1]))
-    try { & ([scriptblock]::Create($command)); [pscustomobject]@{ ExitCode = 0 } } catch { Write-Host "elevated: $_"; [pscustomobject]@{ ExitCode = 1 } }
+    pwsh -NoProfile -NonInteractive -Command ($global:Elevated + "`n" + $command) | Write-Host
+    [pscustomobject]@{ ExitCode = $LASTEXITCODE }
 }
-function global:netsh { Write-Host ('netsh' + (-join ($args | ForEach-Object { "`t$_" }))); $global:LASTEXITCODE = 0 }
-function global:Get-MpPreference { [pscustomobject]@{ ExclusionPath = @() } }
-function global:Add-MpPreference($ExclusionPath) { Write-Host "excluded: $ExclusionPath" }
 '''
 # A file of two pieces (so a padded last piece) first, two small ones after.
 FILES = {
@@ -257,10 +265,22 @@ class Bootstrap(Script):
         root = self.out.parent / 'Survarium'
         netsh = [line.split('\t')[1:] for line in done.stdout.splitlines() if line.startswith('netsh\t')]
         self.assertEqual(netsh, network_setup_commands(str(root / 'game' / 'binaries' / 'x86')))
-        self.assertIn(f'excluded: {root}\n', done.stdout)
-        self.assertIn('Defender exclusion of the Survarium folder: added.', done.stdout)
-        # Skhid-defender-setup.cmd --undo removes the exclusion its marker names.
-        self.assertEqual((root / 'Skhid-network-setup.defender').read_text(encoding='utf-8-sig'), str(root))
+        x86 = root / 'game' / 'binaries' / 'x86'
+        # Skhid-defender-setup.cmd's exclusion, and its marker: its --undo removes it.
+        self.assertIn(f'excluded: {x86}\n', done.stdout)
+        self.assertIn('Firewall rules: added.', done.stdout)
+        self.assertIn('Defender exclusion of game\\binaries\\x86: added.', done.stdout)
+        self.assertEqual((root / 'Skhid-network-setup.defender').read_text(encoding='utf-8-sig'), str(x86))
+
+    def test_defender_off_keeps_the_firewall_rules_and_says_which_failed(self):
+        for path, data in FILES.items():
+            self.mirror.files[f"a/{path.rsplit('/', 1)[1]}"] = data
+        done = self.run_script(SKHID_TEST_DEFENDER='off')
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn('netsh', done.stdout)
+        self.assertIn('Firewall rules: added.', done.stdout)
+        self.assertIn('No Defender exclusion of game\\binaries\\x86', done.stdout)
+        self.assertEqual(self.installed(), FILES)
 
     def test_uac_declined_says_so_and_goes_on(self):
         for path, data in FILES.items():

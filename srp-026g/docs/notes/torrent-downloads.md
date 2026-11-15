@@ -22,9 +22,10 @@ corrections from the owner go here.
   language"), as the game's own saved command `enable_torrent_seeding on` / `off`, written at
   once on a click (launcher patch 15). No line: off. The registry's `download_type` is not used.
 - **The one-time reset**: the original game saved its default, `enable_torrent_seeding on`, in
-  every player's user.cfg. So the launcher, at its first start in an install, writes the line
-  `off` before it shows the box and makes `launcher_skhid.torrent_reset` beside itself; from
-  then on the line is what the player's tick says. The updater takes the line only once that
+  every player's user.cfg. So the launcher, at its first start for a Windows user, makes
+  `launcher_skhid.torrent_reset` beside user.cfg and writes the line `off` before it shows the
+  box (the file goes again when the line cannot be written); from then on the line is what
+  the player's tick says. Without the file the box is off, whatever the line. The updater takes the line only once that
   file is there (`check`); `Skhid-get.bat` says `torrent` (whoever runs it chose BitTorrent).
 - Turned on, it is used at once, without a restart; turned off, it stops at once (below).
 - The port: no setting. The updater picks a free port the first time it listens and keeps it
@@ -65,10 +66,10 @@ corrections from the owner go here.
 - `Skhid-get.bat`: one plain-text script (a `.bat` with PowerShell inside; Windows 10's
   PowerShell 5.1 and later) that anyone can pass around. Put beside an empty place and run, it
   asks once for administrator rights (one UAC prompt, a hidden elevated PowerShell) to add
-  `Skhid-network-setup.cmd`'s firewall rules (the same names: its `--undo` removes them) and a
-  Microsoft Defender exclusion of the `Survarium` folder it makes beside itself, with
-  `Skhid-defender-setup.cmd`'s marker (its `--undo` removes it); Defender and the firewall stay
-  on. Declined: one line says Windows may block the game, and it goes on. Then it gets the Skhid
+  `Skhid-network-setup.cmd`'s firewall rules (the same names: its `--undo` removes them) and
+  `Skhid-defender-setup.cmd`'s Microsoft Defender exclusion of `game\binaries\x86` with its
+  marker (its `--undo` removes it); Defender and the firewall stay on. Each part says whether
+  it was added; declined: one line says Windows may block the game, and it goes on. Then it gets the Skhid
   updater, its `skhid_torrent.dll` and `7zr.exe` into `Survarium/game/binaries/x86/`, runs the
   updater (`updater_skhid.exe check torrent`, "Allow torrent" left as it is), which installs
   the original game and the Skhid files, and starts `Skhid.bat`.
@@ -90,7 +91,10 @@ corrections from the owner go here.
   ZIP installed it (its SHA-256 in `updater_skhid.state`; it is not signed, the script pins it),
   keeps a copy of each of its three files in `updater_skhid.bootstrap\` beside itself while the file
   in its place is the bootstrap's (every piece checked), and shares them from there while it
-  shares, after it has updated itself too.
+  shares, after it has updated itself too. The updater changes at every release, so the release
+  puts the bootstrap's pinned files the ZIP has other bytes of in the ZIP's
+  `game/binaries/x86/updater_skhid.bootstrap/` (checked against the bootstrap torrent; left out
+  of the revision's torrent): every updater has all three to share.
 - `release/build-bootstrap <players' ZIP>` makes it, once for an updater version: the three
   files from the ZIP (7zr.exe the pinned one), each published on the patches server at
   `bootstrap/<sha256>/<name>`, its row in `release/bootstrap.tsv`, the torrent and the script
@@ -181,11 +185,14 @@ login screen and in the lobby, where the original developers had it (the game's 
   itself, with no window. Entering a match closes the pipe (so do the game's end and the setting
   turned off); a replay never shares.
 - The updater (`seed`) first reads "Allow torrent" as the launcher's updater reads it (the
-  line `on`, and the launcher's reset done: `launcher_skhid.torrent_reset` beside it); else it
+  line `on`, and the launcher's reset done: `launcher_skhid.torrent_reset` beside user.cfg); else it
   ends at once, sharing nothing. Then it shares the folder's revision torrent as the launcher's
   updater does while it watches (the same trust, the bootstrap, the DHT item; nothing fetched or installed),
   on the kept port (a free one, then kept, when none is), within the cap, until the pipe closes. A port another updater holds
   is tried for 10 s, then it ends. No box, no lock; its own run logs (in `updater_skhid.seed-logs\` beside it).
+- It reads "Allow torrent" again every 10 s and stops when it is off. The game writes every
+  setting back at its end, `enable_torrent_seeding` too, as it holds it: an untick in the
+  launcher while the game runs is undone when the game ends (untick with the game closed).
 - On the pipe the game sends its limit (`1E`, ignored) and its stats switch (`22`: the console's
   `lobby_torrent_stats`); while that is on, the updater sends a tick a second (`18`: `FF`, the
   bytes a second sent, the cap, the peers connected), and nothing else ever: the game reads
@@ -302,7 +309,7 @@ v2 (`btmh`) its SHA-256 (multihash `1220<64 hex>`).
 **The signature.** The top-level `skhid` is a dictionary of three keys: `dht` (a 64-byte string:
 the BEP 44 signature of the release's DHT item, "The newest release": of
 `4:salt14:skhid-newest 13:seqi<revision>e1:v<the item's value>`), `revision` (an integer,
-1 to 255: the release's) and `signature` (a 64-byte string): the Ed25519 signature (RFC 8032,
+1 to 255, one byte of what is signed: the release's; a revision past 255 needs a new format) and `signature` (a 64-byte string): the Ed25519 signature (RFC 8032,
 pure Ed25519, no prehash; `openssl pkeyutl -sign -rawin`) of these 59 bytes:
 
 ```text

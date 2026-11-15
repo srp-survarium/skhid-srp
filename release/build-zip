@@ -201,7 +201,7 @@ say "the new ZIP against the live one ($live_url):"
 changed=0
 while IFS= read -r path; do
     # The torrents: release/build-torrent adds them after this.
-    case $path in game/binaries/x86/skhid.torrent | game/binaries/x86/skhid-bootstrap.torrent) continue ;; esac
+    case $path in game/binaries/x86/skhid.torrent | game/binaries/x86/skhid-bootstrap.torrent | game/binaries/x86/updater_skhid.bootstrap/*) continue ;; esac
     if [[ -z ${old[$path]:-} ]]; then
         state=ADDED changed=1
     elif [[ -z ${new[$path]:-} ]]; then

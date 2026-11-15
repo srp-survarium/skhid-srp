@@ -11,6 +11,7 @@ export PATH="$(rustc --print sysroot)/lib/rustlib/$rust_host/bin:$PATH"
 (cd exe && cargo build --locked --release "$@")
 (cd tests/fake_exe && cargo build --locked --release "$@")
 out=exe/target/i686-pc-windows-msvc/release
-dll=${SKHID_TORRENT_DLL:-$(nix build --no-link --print-out-paths ../../srp-026g#skhid-torrent-dll)/skhid_torrent.dll}
+# An out-link in target/: the garbage collector keeps it.
+dll=${SKHID_TORRENT_DLL:-$(nix build --out-link "$out/skhid-torrent-dll" --print-out-paths ../../srp-026g#skhid-torrent-dll)/skhid_torrent.dll}
 install -m 644 "$dll" "$out/skhid_torrent.dll"
 ls -l "$out/updater_skhid.exe" "$out/skhid_torrent.dll"

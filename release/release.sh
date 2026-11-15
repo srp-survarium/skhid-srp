@@ -1091,6 +1091,20 @@ if git -C "$REPO" fetch --quiet origin "$ref:refs/remotes/origin/$ref" 2>"$work/
         problem "$signing_pub of the commit to build is not the public key of $signing: the torrent would be refused by the updater built with it"
     fi
     if is_revision "${main_rev:-x}"; then okay "origin/$ref: $(git -C "$REPO" log -1 --format='%h %s' "$main_commit"), REVISION $main_rev (the last release's)"; else problem "no REVISION in patch_026g.py of origin/$ref"; main_rev=''; fi
+    # The site serves the committed Skhid-get.bat: it must be what its pins and body make.
+    if git -C "$REPO" cat-file -e "$main_commit:$BOOTSTRAP_SCRIPT" 2>/dev/null; then
+        mkdir -p "$work/get"
+        for f in "$BOOTSTRAP_TORRENT" "$BOOTSTRAP_LIST" release/bootstrap.ps1 "$BOOTSTRAP_SCRIPT"; do
+            git -C "$REPO" show "$main_commit:$f" >"$work/get/${f##*/}" 2>/dev/null || true
+        done
+        if python -I "$here/build_torrent.py" bootstrap --torrent "$work/get/${BOOTSTRAP_TORRENT##*/}" \
+            --list "$work/get/${BOOTSTRAP_LIST##*/}" --body "$work/get/bootstrap.ps1" --out "$work/get/made.bat" >/dev/null 2>&1 &&
+            cmp -s "$work/get/made.bat" "$work/get/${BOOTSTRAP_SCRIPT##*/}"; then
+            okay "$BOOTSTRAP_SCRIPT: what $BOOTSTRAP_TORRENT, $BOOTSTRAP_LIST and release/bootstrap.ps1 make"
+        else
+            problem "$BOOTSTRAP_SCRIPT of the commit to build is not what its pins and release/bootstrap.ps1 make: release/build-bootstrap (or add-mirror) again, and commit it"
+        fi
+    fi
 else
     problem "git fetch origin $ref failed ($(tr '\n' ' ' <"$work/fetch.log"))"
 fi
@@ -1688,7 +1702,7 @@ if ((DRY_RUN)); then
     say "[dry run] 2. build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
     say "[dry run]    then the world check of $WORLDS_SAID with it: $WORLD_CHECK --data $data $WORLDS (one world refused stops the release)"
     say "[dry run]    and: ${build_zip[*]}"
-    say "[dry run]    and: $BUILD_TORRENT${step_flags[*]:+ ${step_flags[*]}} --patches $PATCH_LIST --zip $zip --out $work/skhid-rev$rev.torrent --zip-out <the ZIP with it> --revision $rev --public-key <the commit's $signing_pub>$(git -C "$REPO" cat-file -e "$main_commit:$BOOTSTRAP_TORRENT" 2>/dev/null && printf ' --bootstrap <the commit'"'"'s %s>' "$BOOTSTRAP_TORRENT"), which replaces the ZIP"
+    say "[dry run]    and: $BUILD_TORRENT${step_flags[*]:+ ${step_flags[*]}} --patches $PATCH_LIST --zip $zip --out $work/skhid-rev$rev.torrent --zip-out <the ZIP with it> --revision $rev --public-key <the commit's $signing_pub>$(git -C "$REPO" cat-file -e "$main_commit:$BOOTSTRAP_TORRENT" 2>/dev/null && printf ' --bootstrap <the commit'"'"'s %s> --bootstrap-list <its %s>' "$BOOTSTRAP_TORRENT" "$BOOTSTRAP_LIST"), which replaces the ZIP"
     if ((build_code)); then say "[dry run]    and the server's image of main's source (podman): $image"; fi
     if ((no_selftest)); then
         say "[dry run]    WARNING no exe patches' self-test (--no-selftest)"
@@ -1724,10 +1738,12 @@ else
     # commit's updater is built with.
     git -C "$REPO" show "$main_commit:$signing_pub" >"$work/signing.pub" ||
         die "$signing_pub is not in the commit built: make the key (release/make-signing-key) and commit it"
-    # The bootstrap torrent the ZIP carries: the commit's, as its key.
+    # The bootstrap torrent the ZIP carries, and its pinned files the ZIP has
+    # no more: the commit's, as its key.
     bootstrap=()
-    if git -C "$REPO" show "$main_commit:$BOOTSTRAP_TORRENT" >"$work/bootstrap.torrent" 2>/dev/null; then
-        bootstrap=(--bootstrap "$work/bootstrap.torrent")
+    if git -C "$REPO" show "$main_commit:$BOOTSTRAP_TORRENT" >"$work/bootstrap.torrent" 2>/dev/null &&
+        git -C "$REPO" show "$main_commit:$BOOTSTRAP_LIST" >"$work/bootstrap.tsv"; then
+        bootstrap=(--bootstrap "$work/bootstrap.torrent" --bootstrap-list "$work/bootstrap.tsv")
     fi
     "$BUILD_TORRENT" "${step_flags[@]}" --patches "$PATCH_LIST" --zip "$zip" --out "$torrent" --zip-out "$zip.torrent" \
         --revision "$rev" --public-key "$work/signing.pub" "${bootstrap[@]}" </dev/null 2>&1 |
@@ -2012,8 +2028,8 @@ else
     RECORDING=0
     # A failure is no stop: every updater that shares puts the item again.
     progress "8. the newest release's item on the public DHT (release/publish-dht)"
-    if ! "$PUBLISH_DHT" "$work/skhid-rev$rev.torrent"; then
-        say "WARNING: the DHT item was not put: release/publish-dht $work/skhid-rev$rev.torrent again by hand (the updaters that share put it too)"
+    if ! "$PUBLISH_DHT" --public-key "$work/signing.pub" "$work/skhid-rev$rev.torrent"; then
+        say "WARNING: the DHT item was not put: release/publish-dht --public-key $work/signing.pub $work/skhid-rev$rev.torrent again by hand (the updaters that share put it too)"
     fi
 fi
 say

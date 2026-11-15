@@ -1431,7 +1431,7 @@ check "release: srp26 started with the new ZIP in place" test "$(tail -n 1 "$T/z
 check "release: waits for no match" has "$out" "5. no match is running"
 check "release: checks /patches and /api/client-files" has "$out" "/api/client-files: the new ZIP"
 check "release: builds the signed torrent of the ZIP and the list" bash -c "tail -n 1 $T/build-torrent.args | grep -q -- '--patches $T/patches.tsv --zip .*/Survarium-0.26g-srp-files.zip --out .*/skhid-rev12.torrent --zip-out .* --revision 12 --public-key .*/signing.pub'"
-check "release: puts the torrent's item on the DHT once it went out" bash -c "tail -n 1 $T/publish-dht.args | grep -q -- '/skhid-rev12.torrent'"
+check "release: puts the torrent's item on the DHT once it went out" bash -c "tail -n 1 $T/publish-dht.args | grep -q -- '--public-key .*/signing.pub .*/skhid-rev12.torrent'"
 check "release: ... after the record" bash -c "r=\$(grep -n '7. the record' <<<\"\$1\" | head -n1 | cut -d: -f1); d=\$(grep -n '8. the newest release' <<<\"\$1\" | head -n1 | cut -d: -f1); test -n \"\$r\" -a -n \"\$d\" && ((r < d))" _ "$out"
 check "release: the preflight sees the signing key" has "$out" "the signing key: there, mode 600"
 check "release: ... and the commit's public key is its own" has "$out" "release/signing.pub: in the commit to build, the signing key's public key"
@@ -1739,6 +1739,30 @@ check "release: ... and published nothing" test ! -e "$T/patches/resources.db.pa
 run quiet --dry-run --minutes 2 || fail "release.sh --dry-run, the pages as offered: $out"
 check "release: the site's pages built from the list: not rebuilt" bash -c \
     "grep -q 'the Maps tab: built from the patches this release offers' <<<\"\$1\" && grep -q 'the calculator: built from the patches this release offers' <<<\"\$1\" && test ! -s $T/build-site.args" _ "$out"
+# Skhid-get.bat committed: the preflight makes it again from the commit's
+# pins and body, and refuses one that is not that.
+G=$T/get-files
+mkdir -p "$G" "$T/repo/release" "$T/repo/srp-026g/servers/web-server/bootstrap"
+: >"$G/rows"
+for name in 7zr.exe skhid_torrent.dll updater_skhid.exe; do
+    printf 'MZ %s' "$name" >"$G/$name"
+    printf '%s\t%s\t%s\thttps://mirror.example/%s\n' "$name" "$(sha256sum <"$G/$name" | cut -c1-64)" "$(stat -c %s "$G/$name")" "$name" >>"$G/rows"
+done
+cp "$G/rows" "$T/repo/release/bootstrap.tsv"
+cp "$here/bootstrap.ps1" "$T/repo/release/bootstrap.ps1"
+python3 -I "$here/build_torrent.py" bootstrap --torrent "$T/repo/release/bootstrap.torrent" \
+    --file game/binaries/x86/7zr.exe "$G/7zr.exe" --file game/binaries/x86/skhid_torrent.dll "$G/skhid_torrent.dll" \
+    --file game/binaries/x86/updater_skhid.exe "$G/updater_skhid.exe" --list "$G/rows" --body "$here/bootstrap.ps1" \
+    --out "$T/repo/srp-026g/servers/web-server/bootstrap/Skhid-get.bat" >/dev/null
+commit "Skhid-get.bat"
+run quiet --dry-run --minutes 2 || true
+check "release: the committed Skhid-get.bat is what its pins and body make" has "$out" "Skhid-get.bat: what release/bootstrap.torrent"
+echo 'rem changed by hand' >>"$T/repo/srp-026g/servers/web-server/bootstrap/Skhid-get.bat"
+commit "Skhid-get.bat by hand"
+run quiet --dry-run --minutes 2 || true
+check "release: ... one that is not stops the preflight" has "$out" "Skhid-get.bat of the commit to build is not what its pins"
+git_t -C "$T/repo" rm -q release/bootstrap.tsv release/bootstrap.ps1 release/bootstrap.torrent srp-026g/servers/web-server/bootstrap/Skhid-get.bat
+commit "no Skhid-get.bat"
 : >"$T/state/admin.log"
 touch "$T/build-site-fails"
 expect_refused "release --resources: a failed rebuild of the site's pages stops the preflight" \
@@ -2152,7 +2176,8 @@ check "release: ... the source back" grep -qx "crates 2" "$T/live/crates/a/src/l
 check "release: ... srp.db as it was (the refused start never opened it)" bash -c "grep -q '^start $((starts + 1)) $running_before' $T/volume/srp.db && test \$(grep -c '^start ' $T/volume/srp.db) -le $((starts + 1))"
 check "release: ... nothing staged" nothing_staged
 check "release: ... the folder says rolled-back" grep -qx rolled-back "$(folder 14 f)/state"
-check "release: ... and not served (srp never came up on it: 14 may be released again)" test ! -e "$(folder 14 f)/served"
+check "release: ... and served (marked before the restart, which might have served it)" test -e "$(folder 14 f)/served"
+rm -f "$T"/live/release-rev14-*/served
 check "release: ... the patch stays published and listed" bash -c "test -f $T/patches/resources.db.patch_14 && grep -q '^resources.db.patch_14' $T/patches.tsv"
 check "release: ... the lock freed" test ! -e "$T/lock"
 check "release: ... and no record (a rolled-back release leaves none)" no_record 14

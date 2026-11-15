@@ -38,9 +38,11 @@ NAME = 'Survarium'
 # What the release's signature is of starts with this (then the revision, then SHA-256 of info).
 DOMAIN = b'skhid torrent signature 1\0'
 ENTRY = 'game/binaries/x86/skhid.torrent'
-# The bootstrap torrent, in the ZIP too (--bootstrap): the updater seeds it (from copies it keeps of
-# its two files) while it shares. Left out of the revision's torrent, as ENTRY.
+# The bootstrap torrent, in the ZIP too (--bootstrap): the updater seeds it while it shares, from
+# the copies in BOOTSTRAP_COPIES. The ZIP brings the pinned files that are no longer the live ones
+# (--bootstrap-copy: the updater changes at every release). Both left out of the revision's torrent.
 BOOTSTRAP_ENTRY = 'game/binaries/x86/skhid-bootstrap.torrent'
+BOOTSTRAP_COPIES = 'game/binaries/x86/updater_skhid.bootstrap/'
 PIECE = 4 << 20
 BLOCK = 16 << 10
 TRACKERS = (
@@ -167,7 +169,7 @@ def info_bytes(data):
 BOOTSTRAP_HEAD = r"""@echo off
 rem Skhid-get.bat: gets Skhid (Survarium 0.26g) into a Survarium folder beside
 rem this file. Plain text: read it. It asks once for administrator rights to let
-rem the game through Windows Firewall and exclude its folder from Microsoft
+rem the game through Windows Firewall and exclude its programs from Microsoft
 rem Defender scans (both stay on), fetches the Skhid updater, its DLL and 7zr.exe
 rem by BitTorrent (the trackers below), else from the addresses below, checks
 rem them against the hashes below, runs the updater, which installs the rest,
@@ -182,6 +184,15 @@ exit /b
 
 def quoted(text):
     return "'" + text.replace("'", "''") + "'"
+
+
+def pinned(torrent, name):
+    """(length, pieces root) of the bootstrap torrent's file `name` (beside the updater)."""
+    node = decode(torrent)[0][b'info'][b'file tree']
+    for part in ('game/binaries/x86/' + name).split('/'):
+        node = node.get(part.encode(), {})
+    leaf = node.get(b'', {})
+    return leaf.get(b'length'), leaf.get(b'pieces root')
 
 
 def bootstrap_script(torrent, rows, body, trackers):
@@ -348,7 +359,21 @@ def main():
     parser.add_argument('--openssl', default='openssl')
     parser.add_argument('--file', nargs=3, action='append', default=[], metavar=('PATH', 'SOURCE', 'SHA256'))
     parser.add_argument('--bootstrap', help='release/bootstrap.torrent, added to the ZIP as BOOTSTRAP_ENTRY')
+    parser.add_argument('--bootstrap-copy', nargs=2, action='append', default=[], metavar=('NAME', 'SOURCE'),
+                        help="a file of the bootstrap torrent, added to the ZIP in BOOTSTRAP_COPIES")
     args = parser.parse_args()
+    copies = {}
+    for name, source in args.bootstrap_copy:
+        if not args.bootstrap or '/' in name or name in copies:
+            sys.exit(f'--bootstrap-copy {name}: needs --bootstrap, a file name, once')
+        with open(args.bootstrap, 'rb') as each:
+            want = pinned(each.read(), name)
+        with open(source, 'rb') as each:
+            size, _, _, root = hash_file(each.read, False)
+        if (size, root) != want:
+            sys.exit(f'--bootstrap-copy {name}: {source} is not the bootstrap torrent\'s file')
+        with open(source, 'rb') as each:
+            copies[BOOTSTRAP_COPIES + name] = each.read()
     if not 1 <= args.revision <= 255:
         sys.exit(f'--revision {args.revision}: a revision is 1 to 255')
     for need in (args.key, args.public_key):
@@ -366,7 +391,8 @@ def main():
         for entry in archive.infolist():
             if entry.is_dir():
                 continue
-            if not safe(entry.filename) or entry.filename in (ENTRY, BOOTSTRAP_ENTRY):
+            if not safe(entry.filename) or entry.filename in (ENTRY, BOOTSTRAP_ENTRY) \
+                    or entry.filename.startswith(BOOTSTRAP_COPIES):
                 sys.exit(f'{args.zip}: {entry.filename} is not a path of the folder, or the torrent')
             if entry.filename in files:
                 print(f"  {entry.filename}: the ZIP's, over the original")
@@ -392,6 +418,12 @@ def main():
             entry.create_system = 3
             entry.external_attr = 0o100644 << 16
             entry.compress_type = zipfile.ZIP_STORED
+            archive.writestr(entry, data)
+        for path, data in copies.items():
+            entry = zipfile.ZipInfo(path)
+            entry.create_system = 3
+            entry.external_attr = 0o100644 << 16
+            entry.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(entry, data)
     os.rename(args.out + '.part', args.out)
     os.rename(args.zip_out + '.part', args.zip_out)

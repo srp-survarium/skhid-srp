@@ -78,7 +78,14 @@ render_bootstrap() {
 # The openssl program: this system's, or nixpkgs'.
 openssl_program() {
     if command -v openssl; then return 0; fi
-    printf '%s/bin/openssl\n' "$(nix build --no-link --print-out-paths nixpkgs#openssl.bin | head -n 1)"
+    printf '%s/bin/openssl\n' "$(nix_build nixpkgs#openssl.bin openssl)"
+}
+# <installable> <name>: its store path, built with an out-link in the scripts'
+# cache, so that the garbage collector keeps it.
+nix_build() {
+    local link=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/gc-roots/$2
+    mkdir -p "${link%/*}"
+    nix build --out-link "$link" --print-out-paths "$1" | head -n 1
 }
 # The original game's archive (build 2777): its row of release/game.tsv
 # (GAME_ROW), offered at /game; client/updater/logic/src/game.rs pins it.
@@ -1378,10 +1385,6 @@ check_server() {
         return 1
     fi
     say "srp26: ${state#ok }"
-    # Up on the new files: from now on its ZIP (and the signed torrent in
-    # it) may be handed out, so this revision's number never names other
-    # files again, rolled back or not (release.sh's preflight reads this).
-    on_target "touch $REL_DIR/served" || say "WARNING $REL_DIR/served could not be written: this revision may have gone out; never release its number again with other files"
     # The whole log of the container just made: a first start can log hundreds of
     # lines after the game data line (rev54: the silver pay-back, a line an account).
     line=$(on_target "cd $D && $TARGET_COMPOSE logs --no-log-prefix srp26 2>&1 | grep 'game data:' | tail -n 1" || true)
@@ -1479,6 +1482,10 @@ swap_server() {
         write_on live "cd $D && tar -xf $REL/src.tar && rm -rf $REL/src"
         SWAP_DONE+=("main's source unpacked into $TARGET_DIR")
     fi
+    # From the restart on, srp may hand out the ZIP and its signed torrent, if
+    # only for a moment: this revision's number never names other files
+    # again, rolled back or not (release.sh's preflight reads this).
+    ((DRY_RUN)) || on_target "touch $REL_DIR/served" || die "$REL_DIR/served (the mark that this revision may go out) could not be written"
     write_on live "$(restart_command)"
     SWAP_DONE+=("srp26 made anew")
     write_on live "cd $D && id=\$($TARGET_COMPOSE ps -aq srp26 | head -n 1) && docker inspect -f '{{.Image}}' \"\$id\" > $REL/image.new"

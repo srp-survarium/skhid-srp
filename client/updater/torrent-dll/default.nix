@@ -1,17 +1,11 @@
-# skhid_torrent.dll: libtorrent-rasterbar 2.0.12 (nixpkgs' source, pinned by
-# srp-026g/flake.lock) for 32-bit Windows 10 and later, built with
-# mingw-w64's GCC, everything linked in (libstdc++, libgcc, mcfgthread),
-# behind the C API of skt.h; and skhid-dht, the same API on the host for
-# the release (release/publish-dht). From srp-026g/flake.nix:
-#   nix build ./srp-026g#skhid-torrent-dll     (result/skhid_torrent.dll)
-#   nix build ./srp-026g#skhid-dht             (result/bin/skhid-dht)
-# Boost is headers only; hashing is Windows' own (CNG): no OpenSSL, so no
-# HTTPS trackers and no encryption. The same sources make the same bytes.
+# skhid_torrent.dll (skt.h over libtorrent, statically linked, 32-bit
+# Windows 10+) and skhid-dht (the same API on the host, for
+# release/publish-dht): `nix build ./srp-026g#skhid-torrent-dll` and
+# `#skhid-dht`. Hashing is Windows' own (CNG): no OpenSSL, so no HTTPS
+# trackers and no encryption. The same sources make the same bytes.
 { pkgs }:
 let
   mingw = pkgs.pkgsCross.mingw32;
-  # The static library: no deprecated functions, no logging, I2P,
-  # encryption, mutable or streaming torrents.
   libtorrent = mingw.stdenv.mkDerivation {
     pname = "libtorrent-win10-static";
     version = "2.0.12";
@@ -50,6 +44,8 @@ in
 {
   dll = mingw.stdenv.mkDerivation {
     pname = "skhid-torrent-dll";
+    # For client/check-reproducible.sh, which builds it again too.
+    passthru = { inherit libtorrent; };
     version = "2.0.12";
     src = sourcesOf [ ./skt.h ./skt.cpp ];
     buildInputs = [ mingw.windows.mcfgthreads ];

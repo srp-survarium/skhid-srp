@@ -22,29 +22,41 @@ function Send($connection) { $message = Bytes @args; $connection.Write($message,
 function Under($base, $relative) { [IO.Path]::Combine([string[]](@($base) + $relative.Split('/'))) }
 function Quoted([string]$text) { "'" + ($text -replace "['‘-‛]", '$0$0') + "'" }
 
-# Run elevated: Skhid-network-setup.cmd's rules and Skhid-defender-setup.cmd's
-# marker, so that their --undo removes what this adds.
+# Run elevated: Skhid-network-setup.cmd's rules, and Skhid-defender-setup.cmd's
+# exclusion of game\binaries\x86 with its marker, so that their --undo removes
+# what this adds. Returns 1 when the rules failed, 2 when the exclusion did
+# (another antivirus, Defender off), 3 both.
 function AllowGame([string]$root, [string]$bin) {
-    foreach ($rule in 'launcher_skhid.exe TCP out', 'launcher_skhid.exe UDP out', 'survarium_skhid.exe TCP out',
-            'survarium_skhid.exe UDP out', 'updater_skhid.exe TCP out', 'updater_skhid.exe UDP out', 'updater_skhid.exe TCP in') {
-        $program, $protocol, $direction = $rule.Split(' ')
-        $null = netsh advfirewall firewall delete rule name="Skhid $rule"
-        $null = netsh advfirewall firewall add rule name="Skhid $rule" dir=$direction action=allow program="$(Join-Path $bin $program)" protocol=$protocol enable=yes profile=any
-        if ($LASTEXITCODE) { throw "the firewall rule Skhid $rule" }
-    }
-    if ((Get-MpPreference).ExclusionPath -notcontains $root) {
-        Add-MpPreference -ExclusionPath $root
-        [IO.File]::WriteAllText((Join-Path $root 'Skhid-network-setup.defender'), $root, [Text.Encoding]::UTF8)
-    }
+    $failed = 0
+    try {
+        foreach ($rule in 'launcher_skhid.exe TCP out', 'launcher_skhid.exe UDP out', 'survarium_skhid.exe TCP out',
+                'survarium_skhid.exe UDP out', 'updater_skhid.exe TCP out', 'updater_skhid.exe UDP out', 'updater_skhid.exe TCP in') {
+            $program, $protocol, $direction = $rule.Split(' ')
+            $null = netsh advfirewall firewall delete rule name="Skhid $rule"
+            $null = netsh advfirewall firewall add rule name="Skhid $rule" dir=$direction action=allow program="$(Join-Path $bin $program)" protocol=$protocol enable=yes profile=any
+            if ($LASTEXITCODE) { throw "the firewall rule Skhid $rule" }
+        }
+    } catch { $failed += 1 }
+    try {
+        if ((Get-MpPreference).ExclusionPath -notcontains $bin) {
+            Add-MpPreference -ExclusionPath $bin
+            [IO.File]::WriteAllText((Join-Path $root 'Skhid-network-setup.defender'), $bin, [Text.Encoding]::UTF8)
+        }
+    } catch { $failed += 2 }
+    $failed
 }
 function AskToAllowGame {
-    $command = "`$ErrorActionPreference = 'Stop'; function AllowGame {${function:AllowGame}}; AllowGame $(Quoted $root) $(Quoted $bin)"
+    $command = "`$ErrorActionPreference = 'Stop'; function AllowGame {${function:AllowGame}}; exit (AllowGame $(Quoted $root) $(Quoted $bin))"
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
     try {
-        $run = Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList '-NoProfile', '-EncodedCommand', $encoded
-        if ($run.ExitCode -eq 0) { Say 'Firewall rules and the Defender exclusion of the Survarium folder: added.'; return }
-    } catch {}
-    Say 'No firewall rules or Defender exclusion: Windows may block the game.'
+        $run = Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -PassThru `
+            -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded
+    } catch {
+        Say 'No firewall rules or Defender exclusion: Windows may block the game.'
+        return
+    }
+    Say $(if ($run.ExitCode -band 1) { 'No firewall rules: Windows may block the game.' } else { 'Firewall rules: added.' })
+    Say $(if ($run.ExitCode -band 2) { 'No Defender exclusion of game\binaries\x86: Defender may take the game for a threat.' } else { 'Defender exclusion of game\binaries\x86: added.' })
 }
 
 # The torrent's v1 bytes: each file from a piece's start, zeros to the next one
@@ -211,5 +223,5 @@ AskToAllowGame
 if ([IO.File]::Exists($updater)) { Say "$updater is there already: the updater brings the rest." } else { Fetch }
 Say 'The updater installs the game now (about 10 GB; it can take a while)...'
 $run = Start-Process -FilePath $updater -ArgumentList 'check', 'torrent' -WorkingDirectory $bin -Wait -PassThru
-if ($run.ExitCode -ne 0) { throw "the updater stopped (exit $($run.ExitCode)): see $(Under $bin 'updater_skhid.log')" }
+if ($run.ExitCode -ne 0) { throw "the updater stopped (exit $($run.ExitCode)): see the newest updater_skhid.*.log in $bin" }
 Start-Process -FilePath (Under $root 'Skhid.bat') -WorkingDirectory $root

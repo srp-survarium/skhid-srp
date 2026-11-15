@@ -4,6 +4,7 @@
 libtorrent importable (python3Packages.libtorrent-rasterbar), it also reads the torrent and checks
 the files."""
 import hashlib
+import io
 import os
 from pathlib import Path
 import shutil
@@ -81,10 +82,10 @@ class Build(unittest.TestCase):
             for path, data in self.zip_bytes.items():
                 out.writestr(path, data)
 
-    def run_build(self, out, sha=None, zip=None, public=None):
+    def run_build(self, out, sha=None, zip=None, public=None, extra=()):
         command = [sys.executable, '-I', str(SCRIPT), '--out', str(out), '--zip', str(zip or self.zip),
                    '--zip-out', str(out) + '.zip', '--revision', '59', '--key', str(self.key),
-                   '--public-key', str(public or self.public)]
+                   '--public-key', str(public or self.public), *extra]
         for path, source in self.sources.items():
             command += ['--file', path, str(source), sha or hashlib.sha256(self.bytes[path]).hexdigest()]
         return subprocess.run(command, capture_output=True, text=True)
@@ -192,6 +193,28 @@ class Build(unittest.TestCase):
         self.assertNotEqual(again.returncode, 0)
         self.assertIn('or the torrent', again.stderr)
 
+    def test_the_bootstraps_pinned_files_the_zip_has_no_more_go_in_it(self):
+        old = b'MZ the pinned updater' * 900
+        pins = {'game/binaries/x86/7zr.exe': b'MZ 7zr', 'game/binaries/x86/updater_skhid.exe': old}
+        bootstrap = self.root / 'b.torrent'
+        bootstrap.write_bytes(T.build({p: (lambda d=d: io.BytesIO(d)) for p, d in pins.items()}, None)[0])
+        (self.root / 'old.exe').write_bytes(old)
+        (self.root / 'other.exe').write_bytes(old + b'!')
+        out = self.root / 'h.torrent'
+        done = self.run_build(out, extra=['--bootstrap', str(bootstrap), '--bootstrap-copy', 'updater_skhid.exe',
+                                          str(self.root / 'old.exe')])
+        self.assertEqual(done.returncode, 0, done.stderr)
+        with zipfile.ZipFile(f'{out}.zip') as archive:
+            self.assertEqual(archive.read(T.BOOTSTRAP_COPIES + 'updater_skhid.exe'), old)
+            self.assertEqual(archive.read(T.BOOTSTRAP_ENTRY), bootstrap.read_bytes())
+        # The revision's torrent leaves them out, as the bootstrap torrent.
+        self.assertNotIn(b'updater_skhid.bootstrap', out.read_bytes())
+        wrong = self.run_build(self.root / 'i.torrent', extra=['--bootstrap', str(bootstrap), '--bootstrap-copy',
+                                                               'updater_skhid.exe', str(self.root / 'other.exe')])
+        self.assertNotEqual(wrong.returncode, 0)
+        self.assertIn("is not the bootstrap torrent's file", wrong.stderr)
+        self.assertFalse((self.root / 'i.torrent').exists())
+
     @unittest.skipUnless(shutil.which('nix'), 'nix is needed (the release machine has nothing else)')
     def test_publish_dht_reads_its_item_with_no_python_or_openssl_on_the_path(self):
         torrent = self.root / 'g.torrent'
@@ -211,6 +234,12 @@ class Build(unittest.TestCase):
         self.assertEqual(dry.returncode, 0, said)
         self.assertIn("signed by release/signing-test.pub's key", said)
         self.assertIn(f"skhid-dht put {self.public.read_text().strip()} 'skhid-newest 1' 59 ", said)
+        # The built commit's key (release.sh's --public-key) alone, not the checkout's.
+        _, other = make_key(self.root, 'other')
+        for key, code in ((self.public, 0), (other, 1)):
+            given = subprocess.run(['bash', str(release / 'publish-dht'), '--dry-run', '--public-key', str(key), str(torrent)],
+                                   capture_output=True, text=True)
+            self.assertEqual(given.returncode, code, given.stdout + given.stderr)
 
 
 def reference_root(content):
