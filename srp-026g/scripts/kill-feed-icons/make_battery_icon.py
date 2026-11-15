@@ -10,7 +10,7 @@ usage: python3 -I make_battery_icon.py --model <converted_model> --out <folder>
 
 CombatLogBatteryIcon.png is drawn as the weapon icons are (frames of the hud's sprite 698): a white
 silhouette, its details cut out of it, a black shadow at 40 % one pixel right and two down. The
-silhouette is the battery's own mesh in three-quarter view (turned 145 degrees, 30 above, 20 px
+silhouette is the battery's own mesh in three-quarter view (turned 135 degrees, 30 above, 22 px
 high): the box, its faces (top, long side, end) parted by cut lines, the handles ringed by one, and
 in its top's rim the openings of the two cell wells either side of the middle block (cut out; the
 hud's battery rows draw it so, a box with two cells). After it, the impact burst of the gun-stock
@@ -34,8 +34,8 @@ MODEL_SHA256 = '5e581cc9a4c589b27fa5f3977b642c4f1630c1f1f424cf38405477d1082d2cab
 STOCK_ICON = HERE.parents[1] / 'flash' / 'lobby_menu' / 'bitmaps' / 'KillFeedWeapon48.png'
 STOCK_ICON_SHA256 = '9017a7b646896927439d620184616b9397d969a7bfc1d7a3bf035f780adb1ac3'
 
-YAW, PITCH = 145, -30            # degrees: a long side and a handle's end, the top seen from above
-HEIGHT = 20                      # the battery's rows
+YAW, PITCH = 135, -30            # degrees: a long side and a handle's end, the top seen from above
+HEIGHT = 22                      # the battery's rows
 SS = 8                           # drawn at 8x, then reduced
 GROW = 9                         # the silhouette thickened 1/2 px a side (the handles' tubes are thin)
 SEAM = 7                         # the cut between two faces: 7/8 px wide

@@ -6,7 +6,7 @@ package
    public dynamic class CombatLogBatteryIcon extends BitmapData
    {
       
-      public function CombatLogBatteryIcon(w:int = 46, h:int = 22)
+      public function CombatLogBatteryIcon(w:int = 47, h:int = 24)
       {
          super(w,h);
       }
