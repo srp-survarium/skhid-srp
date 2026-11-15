@@ -2446,6 +2446,47 @@ pub struct Legs {
     pub why: LegsWhy,
 }
 
+/// [A324 measure] The kind of the reflex's last override on this thread (a bot's reflex tick runs just before its drive's): read by
+/// the trap habit's count of looks called away (`traps::called`). Decisions are not touched.
+#[cfg(test)]
+pub mod last_look {
+    use std::cell::Cell;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Kind {
+        /// No look, no legs, no fire hold.
+        None,
+        /// A glance (`Override::glance`: a heard shot, a callout's place, a heard enemy, a threat not made by a hit).
+        Glance,
+        /// A look with the sights up (`key::AIM`: the partner's death spot, a heard or told enemy in the pre-aim range, the aim
+        /// carried after a lost target).
+        Aimed,
+        /// Another look (where the last target was last seen, a fire through).
+        Look,
+        /// Legs or a fire hold, no look.
+        LegsOrFire,
+    }
+
+    thread_local! {
+        static LAST: Cell<Kind> = const { Cell::new(Kind::None) };
+    }
+
+    pub fn set(over: &super::Override) {
+        let kind = match over.look_at {
+            Some(_) if over.glance => Kind::Glance,
+            Some(_) if over.keys & super::key::AIM != 0 => Kind::Aimed,
+            Some(_) => Kind::Look,
+            None if over.legs.is_some() || over.fire => Kind::LegsOrFire,
+            None => Kind::None,
+        };
+        LAST.with(|c| c.set(kind));
+    }
+
+    pub fn get() -> Kind {
+        LAST.with(|c| c.get())
+    }
+}
+
 /// What the reflex wants of the motor this tick.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Override {
@@ -8119,6 +8160,8 @@ impl Reflex {
         if aim.combat.spawn_protection {
             self.protection_gate(&mut over, now);
         }
+        #[cfg(test)]
+        last_look::set(&over);
         over
     }
 

@@ -1215,7 +1215,7 @@ pub mod called {
     pub enum Why {
         Target(f32),
         Threat,
-        Other,
+        Other(super::super::reflex::last_look::Kind),
     }
 
     impl Why {
@@ -1227,24 +1227,36 @@ pub mod called {
             if bot.reflex.gates().bits & super::super::reflex::gate::THREAT != 0 {
                 Self::Threat
             } else {
-                Self::Other
+                Self::Other(super::super::reflex::last_look::get())
             }
         }
     }
 
-    /// [habit, TrapSpot] x [target <15 m, 15-40, 40+ or unknown, threat, other, not judged]
-    static N: [[AtomicU64; 6]; 2] = [const { [const { AtomicU64::new(0) }; 6] }; 2];
+    /// [habit, TrapSpot] x [target <15 m, 15-40, 40+ or unknown, threat, other, not judged, and of other: glance, aimed, look,
+    /// legs or fire, none (a use)]
+    static N: [[AtomicU64; 11]; 2] = [const { [const { AtomicU64::new(0) }; 11] }; 2];
 
     pub fn count(why: Option<Why>, job: bool) {
+        use super::super::reflex::last_look::Kind;
         let k = match why {
             Some(Why::Target(m)) if m < 15.0 => 0,
             Some(Why::Target(m)) if m < 40.0 => 1,
             Some(Why::Target(_)) => 2,
             Some(Why::Threat) => 3,
-            Some(Why::Other) => 4,
+            Some(Why::Other(_)) => 4,
             None => 5,
         };
         N[usize::from(job)][k].fetch_add(1, Ordering::Relaxed);
+        if let Some(Why::Other(kind)) = why {
+            let k = match kind {
+                Kind::Glance => 6,
+                Kind::Aimed => 7,
+                Kind::Look => 8,
+                Kind::LegsOrFire => 9,
+                Kind::None => 10,
+            };
+            N[usize::from(job)][k].fetch_add(1, Ordering::Relaxed);
+        }
     }
 
     pub fn line() -> String {
@@ -1252,14 +1264,19 @@ pub mod called {
             .map(|j| {
                 let n = |k: usize| N[j][k].load(Ordering::Relaxed);
                 format!(
-                    "{}: target <15 m {}, 15-40 m {}, 40+ m {}, threat look {}, another look/fire/legs/use {}, not judged {}",
+                    "{}: target <15 m {}, 15-40 m {}, 40+ m {}, threat look {}, another look/fire/legs/use {}, not judged {} (other: glance {}, aimed {}, look {}, legs or fire {}, none {})",
                     if j == 0 { "habit" } else { "TrapSpot" },
                     n(0),
                     n(1),
                     n(2),
                     n(3),
                     n(4),
-                    n(5)
+                    n(5),
+                    n(6),
+                    n(7),
+                    n(8),
+                    n(9),
+                    n(10)
                 )
             })
             .collect::<Vec<_>>()
