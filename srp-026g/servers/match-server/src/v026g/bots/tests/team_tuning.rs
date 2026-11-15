@@ -361,6 +361,10 @@ fn collectors_of_a_wide_zone(damage: mapdata::Damage, mut team0: Tuning, mut tea
     team1.cheats.batteries = false;
     team0.hazard.price_way_out = false;
     team1.hazard.price_way_out = false;
+    // [take.known_threats] Each team stands 15-16 m from the battery in the other's sight, which scores it out by the
+    // enemies' distance: this test reads the crossing rule alone.
+    team0.take.known_threats = false;
+    team1.take.known_threats = false;
     let teams = [0u8, 0, 1, 1];
     let mut bots = Bots::new_with(
         0x7EA6,
