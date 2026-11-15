@@ -207,6 +207,9 @@ pub struct Contact {
     pub on: Surface,
     /// The game's object met, in a world that holds the game's objects ([`Collision::build_exe`]).
     pub object: Option<SolidId>,
+    /// [L36] The part of that object met (its one shape, or a compound's child: one query of the exe's each), for the tie
+    /// counts ([`sweep_ties`]); `None` where `object` is.
+    pub part: Option<u32>,
 }
 
 /// [L36] How many contacts of the sweeps so far ([`Collision::sweep_each`], every sweep of the walk tick and the build's flights)
@@ -219,10 +222,12 @@ pub struct Contact {
 pub struct SweepTies {
     /// Sweeps with at least one tie at the closest fraction.
     pub sweeps: u64,
-    /// Ties between two triangles of one object's meshes (the exe: keep-last in its BVH's leaf order).
-    pub same_object_mesh: u64,
-    /// Ties within one object where a primitive (a compound's child) is one of the two (the exe: keep-first in the dbvt's order).
-    pub same_object_other: u64,
+    /// Ties between two triangles of one mesh: one part of one object, one query (the exe: keep-last in its BVH's leaf order,
+    /// 0xB87CA strict against the closest when the mesh's query began, 0xA2A6C `<=` in `reportHit`).
+    pub one_mesh: u64,
+    /// Ties between two parts of one object (a compound's children: two primitives, a primitive and a mesh, or two meshes, each
+    /// its own query; the exe: keep-first in the dbvt's order).
+    pub same_object_parts: u64,
     /// Ties between two objects (the exe: keep-first in the broadphase's order, not portable).
     pub across_objects: u64,
     /// Ties in a world of placed triangles with no objects ([`Collision::build`]).
@@ -234,13 +239,13 @@ static TIE_COUNTS: [std::sync::atomic::AtomicU64; 5] = [const { std::sync::atomi
 /// The process's [`SweepTies`] so far.
 pub fn sweep_ties() -> SweepTies {
     let n = |i: usize| TIE_COUNTS[i].load(std::sync::atomic::Ordering::Relaxed);
-    SweepTies { sweeps: n(0), same_object_mesh: n(1), same_object_other: n(2), across_objects: n(3), faces: n(4) }
+    SweepTies { sweeps: n(0), one_mesh: n(1), same_object_parts: n(2), across_objects: n(3), faces: n(4) }
 }
 
 /// One sweep's ties at its closest fraction so far: the closest, what the first contact there was, and the counts.
 struct Ties {
     closest: f32,
-    first: Option<(Option<SolidId>, bool)>,
+    first: Option<(Option<SolidId>, Option<u32>, bool)>,
     counts: [u64; 4],
 }
 
@@ -253,13 +258,13 @@ impl Ties {
         let mesh = matches!(c.on, Surface::Face { .. });
         if c.t < self.closest {
             self.closest = c.t;
-            self.first = Some((c.object, mesh));
+            self.first = Some((c.object, c.part, mesh));
             self.counts = [0; 4];
         } else if c.t == self.closest
-            && let Some((object, first_mesh)) = self.first
+            && let Some((object, part, first_mesh)) = self.first
         {
             let k = match (object, c.object) {
-                (Some(a), Some(b)) if a == b && first_mesh && mesh => 0,
+                (Some(a), Some(b)) if a == b && part == c.part && first_mesh && mesh => 0,
                 (Some(a), Some(b)) if a == b => 1,
                 (Some(_), Some(_)) => 2,
                 _ => 3,
@@ -512,7 +517,7 @@ impl Collision {
                 Caster::Exe => advance_exe(shape, by, face),
             };
             if let Some(Touch { t, point, normal }) = touch {
-                each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal }, object: None });
+                each(Contact { t, point, normal, on: Surface::Face { walker: face.walker, normal: face.normal }, object: None, part: None });
             }
         });
         ties.flush();

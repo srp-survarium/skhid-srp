@@ -517,6 +517,7 @@ impl Solids {
                 normal: Vec3::from_array(flip(normal)),
                 on,
                 object,
+                part: Some(i as u32),
             };
             match leaf.part {
                 Part::Primitive { shape: id, on } => {
