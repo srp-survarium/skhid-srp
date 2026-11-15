@@ -2130,7 +2130,8 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 if routed {
                     routed_asks::count(routed_asks::Ask::Begun);
                 }
-                let on_the_move = cx.tuning.take.on_the_move;
+                // [take.on_the_move] A crossing's take walks its line in: its stands.
+                let on_the_move = cx.tuning.take.on_the_move && crossing.is_none();
                 *state = State::Take {
                     tries: 0,
                     last_use: 0,
@@ -4805,7 +4806,57 @@ mod tests {
         s.bot(0, 0, feet);
         s.battery(BatteryState::Free(TAKE_AT));
         s.current = Some((PlayKind::Collect, TargetRef::Battery(0), s.view.clock));
+        // The take's stands (crouch, settle, ring) are what these tests read: with `take.on_the_move` they come after a
+        // press on the move, which `a_take_presses_on_the_move_once_its_view_ray_meets_the_box` reads.
+        s.tuning.take.on_the_move = false;
         s
+    }
+
+    /// [take.on_the_move] A take from the walk: upright at the route's pace, looking at the battery, no press while the view
+    /// ray misses the box; standing within reach with the view on it, the first press at once (no settle, no crouch), not
+    /// pressed again before a world judged it; one that started nothing gives way to the take's stands.
+    #[test]
+    fn a_take_presses_on_the_move_once_its_view_ray_meets_the_box() {
+        use crate::v026g::bots::kin::yaw_of;
+        let target = TargetRef::Battery(0);
+        // In from 1.4 m across, the view away from the battery: the walk in, no press.
+        let mut s = take_field(&[], Vec3::new(26.4, 0.0, 12.0));
+        s.tuning.take.on_the_move = true;
+        s.view.places[0].yaw = yaw_of([1.0, 0.0]);
+        s.view.places[0].pitch = 0.0;
+        let mut rng = Rng::new(1);
+        let mut state = start(target, &s.cx(0), &mut rng);
+        let walk = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(matches!(state, State::Take { first: FirstPress::OnTheMove, .. }), "{state:?}");
+        assert_eq!(walk.press & key::USE, 0, "no press: the view ray misses");
+        assert!(!walk.crouch, "upright");
+        let to = s.cx(0).tactics.stand_to_take(TAKE_AT);
+        assert!(matches!(walk.go, Go::To { at, .. } if Some(at) == to), "{walk:?}");
+        assert!(matches!(walk.look, Look::Use(at) if at == TAKE_AT), "{walk:?}");
+        // Within reach, standing, the view on the battery: pressed at once.
+        let feet = Vec3::new(26.0, 0.0, 12.0);
+        stand_at_as(&mut s, feet, TAKE_AT, false);
+        assert!(view_ray_meets(&s.cx(0), TAKE_AT));
+        let pressed = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_ne!(pressed.press & key::USE, 0, "pressed on the move");
+        assert!(!pressed.crouch, "no crouch");
+        let clock = s.view.clock;
+        assert!(matches!(state, State::Take { first: FirstPress::Pressed(at), .. } if at == clock), "{state:?}");
+        assert!(!finishing(&state, target, &s.cx(0)), "a press made: no longer a take to finish first");
+        // Not pressed again before a world judged it.
+        s.view.clock += 1_200;
+        let waiting = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert_eq!(waiting.press & key::USE, 0, "the press not judged yet");
+        assert!(!waiting.fire, "no fire: it may carry");
+        // Judged, no carry: the take's stands.
+        s.view.world_time = s.view.clock;
+        step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(state, State::Take { first: FirstPress::Stands { pressed: true }, .. }), "{state:?}");
+        // The view ray: away, or beyond the use ray, meets nothing.
+        stand_at_as(&mut s, feet, TAKE_AT + Vec3::new(0.0, 1.0, 0.0), false);
+        assert!(!view_ray_meets(&s.cx(0), TAKE_AT), "looking over it");
+        stand_at_as(&mut s, Vec3::new(28.5, 0.0, 12.0), TAKE_AT, false);
+        assert!(!view_ray_meets(&s.cx(0), TAKE_AT), "beyond the use ray");
     }
 
     const TAKE_AT: Vec3 = Vec3::new(25.0, 0.0, 12.0);
