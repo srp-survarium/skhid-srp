@@ -554,11 +554,20 @@ impl WalkGrid {
         });
         // [R83] The aimed presses (`R83-FORMAT.md`, the bounded sweep): at the jumps no press on the line made, one of whose
         // flights came near the top, the walk and the sprint at [`AIMED_LEADS`] at each of [`AIMS`]; the best share wins.
-        let near: Vec<(u32, u32, usize)> =
-            todo.iter().zip(&flown).filter(|(_, p)| p.made.is_empty() && p.near).map(|(&t, _)| t).collect();
+        let near: Vec<((u32, u32, usize), bool)> = todo
+            .iter()
+            .zip(&flown)
+            .zip(&plain)
+            .filter(|((_, p), _)| p.made.is_empty() && p.near)
+            .map(|((&t, _), &plain)| (t, plain))
+            .collect();
         let aimed_presses = [(Kind::Walk, AIMED_LEADS.to_vec()), (Kind::Sprint, AIMED_LEADS.to_vec())];
-        let aimed = super::controlled::parallel(&near, |&(a, b, d)| {
-            let linked = linked(a);
+        let aimed = super::controlled::parallel(&near, |&((a, b, d), plain)| {
+            // [C2 rows 11/12] As in the flights above: a plain Jump link's own top is no link yet.
+            let mut linked = linked(a);
+            if plain {
+                linked.retain(|&n| n != b);
+            }
             let mut flights = 0;
             let mut best: Option<Made> = None;
             for (side, turn) in AIMS {
@@ -573,7 +582,7 @@ impl WalkGrid {
         });
         let mut stats = RimStats { tried: todo.len(), aimed_tried: near.len(), ..RimStats::default() };
         let aimed_of: std::collections::HashMap<(u32, u32), Made> =
-            near.iter().zip(&aimed).filter_map(|(&(a, b, _), &(m, _))| m.map(|m| ((a, b), m))).collect();
+            near.iter().zip(&aimed).filter_map(|(&((a, b, _), _), &(m, _))| m.map(|m| ((a, b), m))).collect();
         stats.aimed_made = aimed_of.len();
         stats.aimed_flights = aimed.iter().map(|&(_, f)| f).sum();
         stats.flights += stats.aimed_flights;
