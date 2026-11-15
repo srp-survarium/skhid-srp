@@ -5221,6 +5221,8 @@ va	name	location	role	basis
 0x00285fe0	survarium::render_visual::remove	entry ESP+4	scene	observed
 0x00290930	survarium::object_ambient_light::insert	ECX	ambient light	observed
 0x00290ae0	survarium::object_ambient_light::remove	ECX	ambient light	observed
+0x00292cc0	survarium::object_particle_visual::insert	ECX	particle object	observed
+0x00292dc0	survarium::object_particle_visual::remove	ECX	particle object	observed
 0x00291720	survarium::object_light::load	ECX	light	observed
 0x00291720	survarium::object_light::load	entry ESP+4	config	observed
 0x00291720	survarium::object_light::load	entry ESP+8	unused path	observed

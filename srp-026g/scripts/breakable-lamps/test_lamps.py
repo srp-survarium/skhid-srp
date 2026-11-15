@@ -132,6 +132,36 @@ class Lamps(unittest.TestCase):
         edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
         self.assertEqual(len(edits.check_built('p', data)), 1)
 
+    def test_a_kerosene_lamp_is_its_lit_glass_and_its_flame(self):
+        # London's lamp (screenshot 2026-11-15-20-44-11): the frame stays,
+        # the glass and the flame in it go. An unlit frame is scenery, and a
+        # flame of no lamp (the Fort has one) is nobody's.
+        frame = dict(visual_name='props/light/stand_group_batlamp', position=[46., 9.562, -18.825],
+                     rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        glass = dict(frame, visual_name='props/light/stand_group_batlamp_glass_emit')
+        unlit = dict(frame, position=[60., 9.562, 0.])
+        def flame(name, position):
+            return dict(game_object_type='particle', lib_name=edits.FLAME, full_name=name, position=position)
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        for v in (frame, glass, unlit):
+            v['lib_name'] = v['visual_name']
+        objects = [flame('lamp/oil_lamp', [46., 9.69, -18.825]), flame('lone/oil_lamp', [50., 9.69, -18.825])]
+        original = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in (frame, glass, unlit)])),
+                                                 ('client_objects', (4, [record(o) for o in objects]))])))
+        bounds = {frame['visual_name']: ([-.12, 0., -.12], [.12, .62, .12]),
+                  glass['visual_name']: ([-.07, .11, -.07], [.07, .39, .07])}
+        _, additions, spec = edits.author('p', original, bounds, 29, 7)
+        lamp, = spec['value']['lamps'].values()
+        self.assertEqual(additions, [])   # nothing replaces the glass
+        self.assertEqual(list(lamp['visuals'].values()), [{'index': 1, 'state': 0}])   # the glass, intact only
+        self.assertEqual([p['name'] for p in lamp['particles'].values()], ['lamp/oil_lamp'])
+        self.assertAlmostEqual(lamp['max_y'], 9.562 + .62, places=5)   # a shot into the frame breaks it
+        self.assertAlmostEqual(lamp['glass_to_y'] - lamp['glass_from_y'], .28, places=5)
+        built = bytearray(original)
+        edits.c.add_value(built, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(edits.check_built('p', built), [])
+
     def assert_glow_alignment(self, fixture, cone, box, expected_tip, moves_expected=1):
         scenery = dict(cone, position=[100., 10., 100.])
         for v in (fixture, cone, scenery):

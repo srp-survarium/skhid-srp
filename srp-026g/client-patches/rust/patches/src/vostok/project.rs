@@ -34,11 +34,13 @@ pub struct MethodTables {
     visual: NativeVtable<raw::RenderVisualMethods>,
     light: NativeVtable<raw::ObjectLightMethods>,
     ambient_light: NativeVtable<raw::ObjectAmbientLightMethods>,
+    particle: NativeVtable<raw::ObjectParticleVisualMethods>,
 }
 impl MethodTables {
     pub fn new(visual: NativeVtable<raw::RenderVisualMethods>, light: NativeVtable<raw::ObjectLightMethods>,
-               ambient_light: NativeVtable<raw::ObjectAmbientLightMethods>) -> Self {
-        Self { visual, light, ambient_light }
+               ambient_light: NativeVtable<raw::ObjectAmbientLightMethods>,
+               particle: NativeVtable<raw::ObjectParticleVisualMethods>) -> Self {
+        Self { visual, light, ambient_light, particle }
     }
 }
 
@@ -59,6 +61,7 @@ macro_rules! native_view {
 native_view!(RenderVisual);
 native_view!(ObjectLight);
 native_view!(ObjectAmbientLight);
+native_view!(ObjectParticleVisual);
 native_view!(GameScene);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -85,7 +88,8 @@ impl ProjectId {
 #[derive(Debug, PartialEq, Eq)]
 pub enum BindingError {
     MissingProject, MissingScene, MissingPhysics, InvalidObjects, InvalidVisual,
-    UnknownVisualType, UnknownLight, AmbiguousLight, UnknownAmbientLight, AmbiguousAmbientLight, DuplicateObject, Capacity,
+    UnknownVisualType, UnknownLight, AmbiguousLight, UnknownAmbientLight, AmbiguousAmbientLight, UnknownParticle, AmbiguousParticle,
+    DuplicateObject, Capacity,
     OtherProjectActive, Config(ConfigError),
 }
 impl From<ConfigError> for BindingError {
@@ -139,7 +143,10 @@ impl<'t> ProjectView<'t> {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum NativeObject { Visual(raw::RenderVisual), Light(raw::ObjectLight), AmbientLight(raw::ObjectAmbientLight) }
+enum NativeObject {
+    Visual(raw::RenderVisual), Light(raw::ObjectLight), AmbientLight(raw::ObjectAmbientLight),
+    Particle(raw::ObjectParticleVisual),
+}
 
 struct Binding<K> { object: NativeObject, key: K, membership: Membership }
 
@@ -205,6 +212,14 @@ impl<'t, D, K> ProjectPlan<'t, D, K> {
         }, BindingError::UnknownAmbientLight, BindingError::AmbiguousAmbientLight)?;
         self.add(NativeObject::AmbientLight(light), key)
     }
+    pub fn particle_at(&mut self, position: WorldPoint, key: K) -> Result<(), BindingError> {
+        // SAFETY: only an object with the particle object's vtable is read as one.
+        let particle = self.object_at(position, |object| unsafe {
+            if object.vtable().read() != raw::image::particle_methods().address() { return None; }
+            Some((object.particle(), super::world::floats(object.particle().position())))
+        }, BindingError::UnknownParticle, BindingError::AmbiguousParticle)?;
+        self.add(NativeObject::Particle(particle), key)
+    }
     pub fn data_mut(&mut self) -> &mut D { &mut self.data }
 }
 
@@ -264,6 +279,8 @@ impl<D: Presentation<K>, K: Copy> BoundProject<D, K> {
                 (NativeObject::Light(light), RendererAction::Remove) => raw::engine_light_remove(Some(light)),
                 (NativeObject::AmbientLight(light), RendererAction::Add) => raw::engine_ambient_light_insert(Some(light)),
                 (NativeObject::AmbientLight(light), RendererAction::Remove) => raw::engine_ambient_light_remove(Some(light)),
+                (NativeObject::Particle(particle), RendererAction::Add) => raw::engine_particle_insert(Some(particle)),
+                (NativeObject::Particle(particle), RendererAction::Remove) => raw::engine_particle_remove(Some(particle)),
                 (_, RendererAction::Keep) => {},
             }
         }
@@ -283,6 +300,7 @@ impl<D: Presentation<K>, K: Copy> BoundProject<D, K> {
                     NativeObject::Visual(v) => v.vtable().write(raw::image::visual_methods().address()),
                     NativeObject::Light(l) => l.vtable().write(raw::image::light_methods().address()),
                     NativeObject::AmbientLight(l) => l.vtable().write(raw::image::ambient_light_methods().address()),
+                    NativeObject::Particle(p) => p.vtable().write(raw::image::particle_methods().address()),
                 }
             }
         }
@@ -308,6 +326,7 @@ impl<D: Presentation<K>, K: Copy> Registration<D, K> {
                             NativeObject::Visual(v) => v.vtable().write(plan.methods.visual.address.get()),
                             NativeObject::Light(l) => l.vtable().write(plan.methods.light.address.get()),
                             NativeObject::AmbientLight(l) => l.vtable().write(plan.methods.ambient_light.address.get()),
+                            NativeObject::Particle(p) => p.vtable().write(plan.methods.particle.address.get()),
                         }
                     }
                 }
@@ -384,6 +403,14 @@ impl<D: Presentation<K>, K: Copy> ProjectRegistry<D, K> {
         self.state.with(light.thread, |s| {
             let Registration::Bound(bound) = s else { panic!("registered ambient light without an owner") };
             bound.callback(NativeObject::AmbientLight(light.native), event);
+        });
+    }
+    pub fn particle_insert(&self, particle: &ObjectParticleVisual<'_>) { self.particle(particle, PresentationEvent::Insert); }
+    pub fn particle_remove(&self, particle: &ObjectParticleVisual<'_>) { self.particle(particle, |_| PresentationEvent::Remove); }
+    fn particle(&self, particle: &ObjectParticleVisual<'_>, event: impl FnOnce(Visibility) -> PresentationEvent) {
+        self.state.with(particle.thread, |s| {
+            let Registration::Bound(bound) = s else { panic!("registered particle without an owner") };
+            bound.callback(NativeObject::Particle(particle.native), event);
         });
     }
 }

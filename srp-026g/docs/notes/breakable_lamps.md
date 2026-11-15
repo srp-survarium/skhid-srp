@@ -10,10 +10,11 @@ not change the bullet's trajectory or the map's collision mesh.
 The content list covers levels 02–08, all their day/evening/rain variants
 and modes 2–5, London (level_09) in modes 2–5, plus the v0.11 Vostok and
 Chemical Plant and v0.21 Vostok and Mamayev Kurgan day variants in modes 2
-and 4: 96 projects, 2,487 fixtures and 857 linked lights. It covers bare
+and 4: 96 projects, 2,649 fixtures and 857 linked lights. It covers bare
 bulbs, ceiling lamps, white wall lamps, red alarm lamps, green lamps
-with/without wires and fluorescent fixtures (tubes, ceiling grids, hanging
-double tubes). Streetlights and other fixture models are not yet configured.
+with/without wires, fluorescent fixtures (tubes, ceiling grids, hanging
+double tubes) and lit kerosene lamps. Streetlights and other fixture models
+are not yet configured.
 Fixtures with no glass to break stay scenery: empty fluorescent fittings
 (`fluor_lamp_base`, `lamp_big_03`, a `lamp_midle_04` without tubes) and
 v0.11's `lamp_midle_0N`, older meshes than the stock broken housings. It
@@ -48,6 +49,18 @@ The list adds the broken visuals and a project-root `srp_lamps` table:
 - Nearby light/cone assignments are explicit in the list, not guessed at
   runtime. Authoring rejects ambiguous assignments. Overlapping bulb and cover
   meshes, such as level_06's ceiling fixture, are one lamp.
+- A lit kerosene lamp (London 11, Tarakanovsky Fort 9, level_04 1; the
+  owner's `2026-11-15-20-44-11.png`) is three things: a frame
+  (`stand_group_batlamp`, standing or on a rope, or `wall_group_nailed_batlamp`),
+  its lit glass, a model of its own (`..._glass_emit`), and its flame, a
+  particle object (`fx/lights/oil_lamp`) inside the glass, which lights the
+  place too: there is no light object. The glass is an intact visual with no
+  broken one and the frame a housing, as the lit tubes above; the flame
+  within 0.4 m of the fixture is listed in a `particles` table, as `lights`
+  (`LANTERN_GLASS`, `FLAME`, `FLAME_REACH`). A break hides the glass, puts the
+  flame out and bursts along the glass (0.27 m: two bursts). A frame without
+  the lit glass is an unlit lamp, scenery; the Fort's one flame of no lamp
+  stays.
 - A lit alarm lamp (`alarm_red_light`) has no light object: it glows through
   a red ambient light beside it. Its row lists it in an `ambient_lights`
   table, as `lights` (exact positions, names for review); the other rows have
@@ -113,15 +126,20 @@ hook. Every visual index, exact light position, native type, unique owner
 and capacity is checked before committing any vtable change. Scenery without
 metadata requires none of the lamp-specific scene or physics inputs.
 
-The registry binds three native kinds, each by its own table: render visuals
-(0xA029B4), `object_light` (0xA0ADEC) and `object_ambient_light` (0xA0AC4C).
+The registry binds four native kinds, each by its own table: render visuals
+(0xA029B4), `object_light` (0xA0ADEC), `object_ambient_light` (0xA0AC4C) and
+`object_particle_visual` (0xA0AFAC, the table of the object at +0).
 The ambient light has `object_light`'s layout where the patch reads it: ten
 methods with insert and remove at slots 8 and 9 (0x290930, 0x290AE0: `this`
 in ECX, nothing on the stack), the translation at +140h. Its insert hands
 its transform, colour, intensity and radius to
 `scene_renderer::update_ambient_light` under its render id (+154h); its
-remove takes that id out. The registry calls those two, as it does a
-light's, and never the renderer directly.
+remove takes that id out. The particle object is the same again (insert
+0x292CC0, remove 0x292DC0): its insert plays its system (+158h) at its
+transform through `scene_renderer::play_particle_system` and, when it has a
+track (+160h), registers its tick with the scene; its remove takes the
+instance out and unregisters the tick. The registry calls each kind's own
+two methods, and never the renderer directly.
 
 The native insertion hook is `simple_game_project::insert` (0x285750): ECX
 is the project, its first stack argument the physics world. Scene +98h is

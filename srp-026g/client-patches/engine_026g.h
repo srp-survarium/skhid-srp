@@ -84,6 +84,7 @@ struct network_client;
 struct new_sound_propagator;
 struct object_ambient_light;
 struct object_light;
+struct object_particle_visual;
 struct panning_lut;
 struct particle_slot;
 struct player;
@@ -394,6 +395,12 @@ void __attribute__((thiscall)) engine_ambient_light_insert(struct object_ambient
 
 /* 0x290ae0 survarium::object_ambient_light::remove: light ECX; pops 0; thiscall, called directly */
 void __attribute__((thiscall)) engine_ambient_light_remove(struct object_ambient_light *light);
+
+/* 0x292cc0 survarium::object_particle_visual::insert: particle ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_particle_insert(struct object_particle_visual *particle);
+
+/* 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_particle_remove(struct object_particle_visual *particle);
 
 /* 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0 */
 void engine_inventory_remove(struct inventory *inventory, unsigned int slot);

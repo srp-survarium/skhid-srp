@@ -367,6 +367,10 @@ unsafe extern "thiscall" {
     pub fn engine_ambient_light_insert(light: *mut c_void);
     /// 0x290ae0 survarium::object_ambient_light::remove: light ECX; pops 0; thiscall, called directly
     pub fn engine_ambient_light_remove(light: *mut c_void);
+    /// 0x292cc0 survarium::object_particle_visual::insert: particle ECX; pops 0; thiscall, called directly
+    pub fn engine_particle_insert(particle: *mut c_void);
+    /// 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly
+    pub fn engine_particle_remove(particle: *mut c_void);
     /// 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
     pub fn engine_play_voice(proxy: *mut c_void, mode: u32, producer: *const c_void, receiver: *const c_void);
     /// 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
