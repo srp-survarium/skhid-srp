@@ -2450,6 +2450,12 @@ impl Bots {
             "{}flown riser presses held off their window since the last match end (every match on this server): height {height}, line {side}, heading {turn}, lead {lead}",
             nav_log::PREFIX
         ));
+        // [Gap 10] The reckoned jumps the worlds' selectors refused, and the worlds in a jump the reckoning had none of.
+        let (dropped, unseen) = jump_arc::world_jumps::take();
+        lines.push(format!(
+            "{}world jumps since the last match end (every match on this server): {dropped} reckoned jumps dropped (the selector out of the jump a tick after the press), {unseen} worlds in a jump with none reckoned",
+            nav_log::PREFIX
+        ));
         // [Gap 5] The hands' sprint refusals the worlds showed, held to the next world.
         let ([busy, melee, aim], changed) = sprint_gates::world_refusals::take();
         lines.push(format!(
