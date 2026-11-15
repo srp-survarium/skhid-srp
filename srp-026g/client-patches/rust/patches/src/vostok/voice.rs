@@ -363,8 +363,10 @@ pub use voice_abi::{Ears, Heard, MicTest};
 pub struct Hearing([Heard; Place::COUNT]);
 
 impl Hearing {
-    /// Every place plain, as decoded in both ears.
-    pub const UNITY: Hearing = Hearing([Heard::Plain(Ears::UNITY); Place::COUNT]);
+    /// Nobody heard: what the DLL is told before the match's places are
+    /// known, and the places that are no one's to hear (the local player's
+    /// own, a place not in the match). The relay sends the whole match.
+    pub const SILENT: Hearing = Hearing([Heard::Plain(Ears::SILENT); Place::COUNT]);
 
     pub fn with(mut self, place: Place, heard: Heard) -> Hearing {
         self.0[place.index()] = heard;
@@ -469,14 +471,23 @@ pub struct Seat {
     pub body: Option<Body>,
 }
 
-/// Whom the local player's voice reaches and who it hears, as srp's relay
-/// routes it (`registry::VoiceChannel`): the places of its team, or in a
-/// free-for-all every place of the match (the owner, 2026-11-13: "in FFA I
-/// would enable voice chat for all").
+/// Who the local player's mates are (heard on the radio too; the others only
+/// near, `voice.rs`): the places of its team, or in a free-for-all every place
+/// of the match (the owner, 2026-11-13: "in FFA I would enable voice chat for
+/// all"). srp's relay sends the whole match whatever the mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Channel {
     Team,
     Match,
+}
+
+/// What another place of the match is to the local player, for voice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Side {
+    /// On its [`Channel`]: a teammate, or in a free-for-all anyone.
+    Mate,
+    /// Of the other team (the owner, 2026-11-14: "only radio is team only").
+    Opponent,
 }
 
 /// The match's places, the local player's among them, and its voice channel.
@@ -514,21 +525,23 @@ impl Roster {
         self.seats[place.index()].as_ref()
     }
 
-    /// Another player on the local player's voice channel: of its team (0
-    /// or 1), or in a free-for-all any other in the match.
-    pub fn mate(&self, place: Place) -> bool {
-        let Some((me, team)) = self.local.and_then(|me| self.seat(me).map(|seat| (me, seat.team))) else {
-            return false;
+    /// Another player of the match, to the local player: a mate (of its
+    /// team, 0 or 1; in a free-for-all anyone), else an opponent. None for
+    /// the local player itself, a place not in the match, and while the local
+    /// player's own place is not known.
+    pub fn side(&self, place: Place) -> Option<Side> {
+        let (me, team) = self.local.and_then(|me| self.seat(me).map(|seat| (me, seat.team)))?;
+        let seat = self.seat(place).filter(|_| me != place)?;
+        let mate = match self.channel {
+            Channel::Team => team < 2 && seat.team == team,
+            Channel::Match => true,
         };
-        me != place
-            && self.seat(place).is_some_and(|seat| match self.channel {
-                Channel::Team => team < 2 && seat.team == team,
-                Channel::Match => true,
-            })
+        Some(if mate { Side::Mate } else { Side::Opponent })
     }
 
-    pub fn mates(&self) -> impl Iterator<Item = (Place, &Seat)> {
-        Place::all().filter(|&p| self.mate(p)).filter_map(|p| self.seat(p).map(|seat| (p, seat)))
+    /// The other players of the match, with their [`Side`].
+    pub fn others(&self) -> impl Iterator<Item = (Place, &Seat, Side)> {
+        Place::all().filter_map(|p| Some((p, self.seat(p)?, self.side(p)?)))
     }
 
     #[cfg(test)]

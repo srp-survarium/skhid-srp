@@ -11,8 +11,9 @@ use crate::v026g::registry::Seat;
 
 const MATCH: u32 = 0x10;
 
-/// Sessions 1..=4 in match 0x10: 1, 2 and 3 on team 0 (places 0, 2, 4), 4
-/// on team 1 (place 1). Session 9 is in another match, on team 0.
+/// Sessions 1..=4 in match 0x10, at places 0, 2, 4 and 1 (in a team mode 1,
+/// 2 and 3 on one team, 4 on the other: the relay never asks). Session 9 is
+/// in another match.
 /// The second field counts the lookups (the registry's lock).
 #[derive(Clone, Default)]
 struct Table(
@@ -23,20 +24,19 @@ struct Table(
 impl Table {
     fn new() -> Self {
         let table = Self::default();
-        for (session, place, team) in [(1, 0, 0), (2, 2, 0), (3, 4, 0), (4, 1, 1)] {
-            table.seat(session, MATCH, place, team);
+        for (session, place) in [(1, 0), (2, 2), (3, 4), (4, 1)] {
+            table.seat(session, MATCH, place);
         }
-        table.seat(9, 0x20, 0, 0);
+        table.seat(9, 0x20, 0);
         table
     }
 
-    fn seat(&self, session: u32, match_id: u32, place: u8, team: u8) {
+    fn seat(&self, session: u32, match_id: u32, place: u8) {
         self.0.borrow_mut().insert(
             session,
             VoiceSeat {
                 match_id,
                 place,
-                channel: VoiceChannel::Team(team),
                 ip: Some(addr(session).ip()),
             },
         );
@@ -61,12 +61,12 @@ impl Seats for Table {
     }
 
     /// Each seat's account is 100 + its session.
-    fn roster(&self, match_id: u32, channel: VoiceChannel) -> Vec<(u8, u32)> {
+    fn roster(&self, match_id: u32) -> Vec<(u8, u32)> {
         let mut places: Vec<(u8, u32)> = self
             .0
             .borrow()
             .iter()
-            .filter(|(_, seat)| seat.match_id == match_id && seat.channel == channel)
+            .filter(|(_, seat)| seat.match_id == match_id)
             .map(|(session, seat)| (seat.place, 100 + session))
             .collect();
         places.sort_unstable();
@@ -206,14 +206,15 @@ fn hello_is_welcomed_with_the_slot() {
 }
 
 #[test]
-fn each_welcome_comes_with_the_teams_voice_ids() {
+fn each_welcome_comes_with_the_matchs_voice_ids() {
     let key = [9; 32];
     let mut relay = Relay::new(Table::new(), Instant::now()).with_id_key(key);
     let out = relay.receive(addr(2), &hello(2, true), Instant::now());
     assert_eq!(out.len(), 2);
-    // Team 0: places 0, 2 and 4 (sessions 1, 2, 3: accounts 101, 102, 103).
-    let mut want = vec![MAGIC, VERSION, kind::ROSTER, 3];
-    for (place, account) in [(0u8, 101u32), (2, 102), (4, 103)] {
+    // Both teams: places 0, 1, 2 and 4 (sessions 1, 4, 2, 3: accounts 101,
+    // 104, 102, 103); none of another match.
+    let mut want = vec![MAGIC, VERSION, kind::ROSTER, 4];
+    for (place, account) in [(0u8, 101u32), (1, 104), (2, 102), (4, 103)] {
         want.push(place);
         want.extend_from_slice(&voice_id(&key, account).to_le_bytes());
     }
@@ -226,22 +227,23 @@ fn each_welcome_comes_with_the_teams_voice_ids() {
 }
 
 #[test]
-fn talk_reaches_the_team_only_and_not_the_speaker() {
+fn talk_reaches_the_whole_match_but_the_speaker() {
     let mut bench = Bench::new();
     bench.all_hello();
+    // Of either team (4 is the other's), never of another match (9).
     let out = bench.send(1, &start(1, 7));
-    assert_eq!(sent_to(&out), vec![(2, 0x82), (3, 0x82)]);
+    assert_eq!(sent_to(&out), vec![(2, 0x82), (3, 0x82), (4, 0x82)]);
     // The relayed START: the slot, the utt, the server's ms.
     assert_eq!(out[0].1[..6], [MAGIC, VERSION, 0x82, 0, 7, 0]);
     let out = bench.send(1, &audio(1, 7, 0));
-    assert_eq!(sent_to(&out), vec![(2, 0x83), (3, 0x83)]);
+    assert_eq!(sent_to(&out), vec![(2, 0x83), (3, 0x83), (4, 0x83)]);
     // The body is the talker's from the utt on, behind the slot.
     let sent = &audio(1, 7, 0);
     let mut relayed = vec![MAGIC, VERSION, 0x83, 0];
     relayed.extend_from_slice(&sent[7..]);
     assert_eq!(out[0].1, relayed);
     let out = bench.send(1, &end(1, 7));
-    assert_eq!(sent_to(&out), vec![(2, 0x84), (3, 0x84)]);
+    assert_eq!(sent_to(&out), vec![(2, 0x84), (3, 0x84), (4, 0x84)]);
     assert_eq!(out[0].1, vec![MAGIC, VERSION, 0x84, 0, 7, 0, 0]);
     // The END's repeats change nothing.
     assert!(bench.send(1, &end(1, 7)).is_empty());
@@ -268,14 +270,23 @@ fn a_muted_speaker_is_not_sent_to_the_listener_that_mutes_it() {
     // Session 2 mutes slot 0 (session 1), session 3 mutes slot 2.
     bench.send(2, &hello_muting(2, true, 1 << 0));
     bench.send(3, &hello_muting(3, true, 1 << 2));
-    assert_eq!(sent_to(&bench.send(1, &start(1, 1))), vec![(3, 0x82)]);
-    assert_eq!(sent_to(&bench.send(1, &audio(1, 1, 0))), vec![(3, 0x83)]);
-    assert_eq!(sent_to(&bench.send(2, &start(2, 1))), vec![(1, 0x82)]);
+    assert_eq!(
+        sent_to(&bench.send(1, &start(1, 1))),
+        vec![(3, 0x82), (4, 0x82)]
+    );
+    assert_eq!(
+        sent_to(&bench.send(1, &audio(1, 1, 0))),
+        vec![(3, 0x83), (4, 0x83)]
+    );
+    assert_eq!(
+        sent_to(&bench.send(2, &start(2, 1))),
+        vec![(1, 0x82), (4, 0x82)]
+    );
     // Unmuted again by the next HELLO.
     bench.send(2, &hello(2, true));
     assert_eq!(
         sent_to(&bench.send(1, &audio(1, 1, 1))),
-        vec![(2, 0x83), (3, 0x83)]
+        vec![(2, 0x83), (3, 0x83), (4, 0x83)]
     );
 }
 
@@ -285,12 +296,12 @@ fn a_datagram_from_another_ip_or_without_a_seat_is_dropped() {
     bench.all_hello();
     // Session 1's own IP on another port (a NAT): fine.
     let other_port = SocketAddr::new(addr(1).ip(), 6000);
-    assert_eq!(sent_to(&bench.send_from(other_port, &start(1, 1))).len(), 2);
+    assert_eq!(sent_to(&bench.send_from(other_port, &start(1, 1))).len(), 3);
     // Another IP of its network (a WARP exit, a carrier NAT pool): fine.
     let other_exit = SocketAddr::new(ip("10.0.77.200"), 7000);
     assert_eq!(
         sent_to(&bench.send_from(other_exit, &audio(1, 1, 0))).len(),
-        2
+        3
     );
     // Another network with session 1's number: dropped.
     let spoofed = SocketAddr::new(ip("10.9.9.9"), 5001);
@@ -364,7 +375,14 @@ fn malformed_and_large_datagrams_are_dropped() {
     let longest = [0x48; MAX_FRAME_BYTES];
     assert_eq!(
         sent_to(&bench.send(1, &audio_of(&[&longest, &longest]))),
-        vec![(2, 0x82), (2, 0x83), (3, 0x82), (3, 0x83)]
+        vec![
+            (2, 0x82),
+            (2, 0x83),
+            (3, 0x82),
+            (3, 0x83),
+            (4, 0x82),
+            (4, 0x83)
+        ]
     );
     assert!(bench.relay.dropped_unknown >= 8);
 }
@@ -378,7 +396,7 @@ fn audio_without_its_start_opens_the_utterance() {
         out.iter()
             .map(|(_, datagram)| datagram[2])
             .collect::<Vec<_>>(),
-        vec![0x82, 0x82, 0x83, 0x83]
+        vec![0x82, 0x82, 0x82, 0x83, 0x83, 0x83]
     );
     // Its START comes late: nothing more.
     assert!(bench.send(1, &start(1, 5)).is_empty());
@@ -395,11 +413,11 @@ fn silence_closes_an_utterance_and_its_late_audio_reopens_nothing() {
     assert!(bench.poll().is_empty());
     bench.at(1_500);
     let out = bench.poll();
-    assert_eq!(sent_to(&out), vec![(2, 0x84), (3, 0x84)]);
+    assert_eq!(sent_to(&out), vec![(2, 0x84), (3, 0x84), (4, 0x84)]);
     assert_eq!(out[0].1[6], EndReason::Timeout as u8);
     assert!(bench.send(1, &audio(1, 1, 1)).is_empty());
     // The next utterance opens.
-    assert_eq!(sent_to(&bench.send(1, &start(1, 2))).len(), 2);
+    assert_eq!(sent_to(&bench.send(1, &start(1, 2))).len(), 3);
 }
 
 #[test]
@@ -467,7 +485,7 @@ fn a_new_start_ends_the_open_utterance() {
         out.iter()
             .map(|(_, datagram)| datagram[2])
             .collect::<Vec<_>>(),
-        vec![0x84, 0x84, 0x82, 0x82]
+        vec![0x84, 0x84, 0x84, 0x82, 0x82, 0x82]
     );
 }
 
@@ -542,13 +560,13 @@ fn a_released_seat_neither_talks_nor_hears() {
     // Housekeeping drops listener 2; talker 1's open utterance is not
     // touched (its seat holds) but times out.
     let out = bench.poll();
-    assert_eq!(sent_to(&out), vec![(3, 0x84)]);
+    assert_eq!(sent_to(&out), vec![(3, 0x84), (4, 0x84)]);
     bench.send(1, &start(1, 2));
     bench.table.unseat(1);
     assert!(bench.send(1, &audio(1, 2, 0)).is_empty());
     bench.at(2_000);
     // The talker without a seat: its utterance ends.
-    assert_eq!(sent_to(&bench.poll()), vec![(3, 0x84)]);
+    assert_eq!(sent_to(&bench.poll()), vec![(3, 0x84), (4, 0x84)]);
 }
 
 #[test]
@@ -597,7 +615,7 @@ impl UtteranceTap for Recorder {
 }
 
 #[test]
-fn the_tap_sees_every_utterance_and_its_text_goes_to_the_team() {
+fn the_tap_sees_every_utterance_and_its_text_goes_to_the_match() {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let mut bench = Bench::with_tap(Box::new(Recorder(seen.clone())));
     bench.all_hello();
@@ -605,7 +623,15 @@ fn the_tap_sees_every_utterance_and_its_text_goes_to_the_team() {
     // START to 2 and 3, the text to 2, 3 and the speaker.
     assert_eq!(
         sent_to(&out),
-        vec![(1, 0x85), (2, 0x82), (2, 0x85), (3, 0x82), (3, 0x85)]
+        vec![
+            (1, 0x85),
+            (2, 0x82),
+            (2, 0x85),
+            (3, 0x82),
+            (3, 0x85),
+            (4, 0x82),
+            (4, 0x85)
+        ]
     );
     let text = &out
         .iter()
@@ -691,13 +717,11 @@ fn the_relay_over_sockets_with_the_registry() {
     games[0]
         .send_to(&audio(session(0), 9, 0), server_addr)
         .unwrap();
-    assert_eq!(receive(&games[2]).map(|datagram| datagram[2]), Some(0x82));
-    assert_eq!(receive(&games[2]).map(|datagram| datagram[2]), Some(0x83));
-    // The other team hears nothing.
-    games[1]
-        .set_read_timeout(Some(Duration::from_millis(100)))
-        .unwrap();
-    assert_eq!(receive(&games[1]), None);
+    // The teammate and the other team alike.
+    for game in [&games[2], &games[1]] {
+        assert_eq!(receive(game).map(|datagram| datagram[2]), Some(0x82));
+        assert_eq!(receive(game).map(|datagram| datagram[2]), Some(0x83));
+    }
     stop.store(true, Ordering::Relaxed);
     thread.join().unwrap().unwrap();
     // The match over: no seat, no voice.
@@ -712,18 +736,17 @@ fn the_voice_port_is_the_next_one() {
 }
 
 #[test]
-fn in_a_free_for_all_everyone_hears_everyone_in_a_team_mode_teammates() {
+fn in_every_mode_everyone_hears_everyone() {
     use super::super::tests::{MAP_TDM, session_of, setup};
     use survarium::v026g::maps::{self, GameMode};
     let free_for_all = maps::find(1, maps::weather::DAY, GameMode::FreeForAll)
         .expect("level_01's free-for-all")
         .id;
     // Three places: in team deathmatch 0 and 2 on team 0, 1 on team 1; in
-    // the free-for-all each a side of its own (4, 5, 6).
-    for (map_id, heard, roster) in [
-        (MAP_TDM, vec![2], vec![0, 2]),
-        (free_for_all, vec![1, 2], vec![0, 1, 2]),
-    ] {
+    // the free-for-all each a side of its own (4, 5, 6). Each game decides
+    // how it hears the others (patch 66): the relay routes alike.
+    for map_id in [MAP_TDM, free_for_all] {
+        let (heard, roster) = (vec![1, 2], vec![0, 1, 2]);
         let registry = Arc::new(MatchRegistry::new("127.0.0.1", 1));
         let ticket = registry.create(setup(3, map_id)).unwrap();
         // Each place's game at 10.0.0.<place + 1>, port 5000 + place + 1.
@@ -766,19 +789,10 @@ fn a_game_connected_to_its_match_is_a_voice_seat_from_its_ip() {
     bench.join(0);
     let seat = bench.registry.voice_seat(session_of(0)).unwrap();
     assert_eq!(
-        (seat.match_id, seat.place, seat.channel, seat.ip),
-        (
-            bench.match_id,
-            0,
-            VoiceChannel::Team(0),
-            Some(ip("127.0.0.1"))
-        )
+        (seat.match_id, seat.place, seat.ip),
+        (bench.match_id, 0, Some(ip("127.0.0.1")))
     );
     assert_eq!(bench.registry.voice_seat(session_of(1)).unwrap().ip, None);
-    assert_eq!(
-        bench.registry.voice_seat(session_of(1)).unwrap().channel,
-        VoiceChannel::Team(1)
-    );
 }
 
 /// A folder of its own under the system's temporary folder.
@@ -831,28 +845,31 @@ fn released_or_reseated_listeners_stop_hearing_before_housekeeping() {
     bench.all_hello();
     bench.send(1, &start(1, 1));
     bench.table.unseat(2);
-    bench.table.seat(3, MATCH, 4, 1);
+    bench.table.seat(3, MATCH, 6);
     bench.at(20);
-    assert!(bench.send(1, &audio(1, 1, 0)).is_empty());
-    // A new HELLO adopts the new team immediately.
+    assert_eq!(sent_to(&bench.send(1, &audio(1, 1, 0))), vec![(4, 0x83)]);
+    // A new HELLO adopts the new place immediately.
     bench.send(3, &hello(3, true));
-    assert_eq!(sent_to(&bench.send(4, &start(4, 1))), vec![(3, 0x82)]);
+    assert_eq!(
+        sent_to(&bench.send(4, &start(4, 1))),
+        vec![(1, 0x82), (3, 0x82)]
+    );
 }
 
 #[test]
-fn a_reseated_talker_cannot_continue_sending_audio_to_its_old_team() {
+fn a_reseated_talker_cannot_continue_sending_audio_from_its_old_place() {
     let mut bench = Bench::new();
     bench.all_hello();
     bench.send(1, &start(1, 1));
-    bench.table.seat(1, MATCH, 0, 1);
+    bench.table.seat(1, MATCH, 6);
     bench.at(20);
-    // The old team's utterance ends; this AUDIO cannot reopen it there.
-    assert_eq!(
-        sent_to(&bench.send(1, &audio(1, 1, 0))),
-        vec![(2, 0x84), (3, 0x84)]
-    );
-    assert_eq!(sent_to(&bench.send(1, &start(1, 2))), vec![(4, 0x82)]);
-    assert_eq!(sent_to(&bench.send(1, &audio(1, 2, 0))), vec![(4, 0x83)]);
+    // The old place's utterance ends; this AUDIO cannot reopen it there.
+    let out = bench.send(1, &audio(1, 1, 0));
+    assert_eq!(sent_to(&out), vec![(2, 0x84), (3, 0x84), (4, 0x84)]);
+    assert_eq!(out[0].1[3], 0);
+    let out = bench.send(1, &start(1, 2));
+    assert_eq!(sent_to(&out), vec![(2, 0x82), (3, 0x82), (4, 0x82)]);
+    assert_eq!(out[0].1[3], 6);
 }
 
 #[test]
@@ -866,7 +883,7 @@ fn delayed_utterances_cannot_replace_a_newer_one() {
     assert!(bench.send(1, &end(1, 10)).is_empty());
     assert_eq!(
         sent_to(&bench.send(1, &audio(1, 11, 0))),
-        vec![(2, 0x83), (3, 0x83)]
+        vec![(2, 0x83), (3, 0x83), (4, 0x83)]
     );
     bench.send(1, &end(1, 11));
     assert!(bench.send(1, &audio(1, 9, 6)).is_empty());
@@ -884,7 +901,7 @@ fn client_utterance_order_wraps_at_u16_max() {
     assert!(bench.send(1, &audio(1, u16::MAX, 0)).is_empty());
     assert_eq!(
         sent_to(&bench.send(1, &audio(1, 0, 0))),
-        vec![(2, 0x83), (3, 0x83)]
+        vec![(2, 0x83), (3, 0x83), (4, 0x83)]
     );
 }
 
@@ -901,9 +918,9 @@ fn restarted_process_keeps_the_same_account_but_gets_a_new_relay_utterance() {
         fn is_open(&self, match_id: u32) -> bool {
             self.0.is_open(match_id)
         }
-        fn roster(&self, match_id: u32, channel: VoiceChannel) -> Vec<(u8, u32)> {
+        fn roster(&self, match_id: u32) -> Vec<(u8, u32)> {
             self.0
-                .roster(match_id, channel)
+                .roster(match_id)
                 .into_iter()
                 .map(|(slot, _)| (slot, u32::from(slot) + 100))
                 .collect()
@@ -920,7 +937,7 @@ fn restarted_process_keeps_the_same_account_but_gets_a_new_relay_utterance() {
         }
     }
     table.unseat(1);
-    table.seat(5, MATCH, 0, 0);
+    table.seat(5, MATCH, 0);
     // Do not run housekeeping between departure and rejoin. The listener
     // never observes a vacant slot or a changed stable account identity.
     assert_eq!(first_roster, relay.receive(addr(2), &hello(2, true), now));
@@ -1064,7 +1081,14 @@ fn audio_frames_must_be_the_games_encoders() {
     assert_eq!(bench.relay.counts(MATCH), None);
     assert_eq!(
         sent_to(&bench.send(1, &audio_of(&[frame, frame]))),
-        vec![(2, 0x82), (2, 0x83), (3, 0x82), (3, 0x83)]
+        vec![
+            (2, 0x82),
+            (2, 0x83),
+            (3, 0x82),
+            (3, 0x83),
+            (4, 0x82),
+            (4, 0x83)
+        ]
     );
 }
 
@@ -1115,7 +1139,7 @@ fn a_slot_past_the_mute_mask_is_never_muted() {
     assert!(!muted(u32::MAX, 32));
     assert!(!muted(u32::MAX, u8::MAX));
     let mut bench = Bench::new();
-    bench.table.seat(5, MATCH, 40, 0);
+    bench.table.seat(5, MATCH, 40);
     bench.send(2, &hello_muting(2, true, u32::MAX));
     assert_eq!(sent_to(&bench.send(5, &start(5, 1))), vec![(2, 0x82)]);
 }
@@ -1152,10 +1176,10 @@ fn a_flood_from_one_source_does_not_delay_a_good_sender() {
     // (its START and a burst of AUDIO).
     assert_eq!(
         sent_to(&bench.send(1, &start(1, 1))),
-        vec![(2, 0x82), (3, 0x82)]
+        vec![(2, 0x82), (3, 0x82), (4, 0x82)]
     );
     for seq in 0..10 {
-        assert_eq!(bench.send(1, &audio(1, 1, seq)).len(), 2);
+        assert_eq!(bench.send(1, &audio(1, 1, seq)).len(), 3);
     }
     // The flood is one line in the log.
     let lines = bench.relay.drop_lines(bench.now);
@@ -1193,7 +1217,7 @@ fn a_source_is_limited_before_its_session_is_looked_up() {
     // The players are not limited by it.
     assert_eq!(
         sent_to(&bench.send(1, &start(1, 1))),
-        vec![(2, 0x82), (3, 0x82)]
+        vec![(2, 0x82), (3, 0x82), (4, 0x82)]
     );
     // A spoofed flood from more addresses than it keeps apart: its memory
     // is bounded, and those past it share one rate.
@@ -1218,7 +1242,7 @@ fn a_refused_game_does_not_stop_the_others_on_its_ip() {
     let mut bench = Bench::new();
     bench.all_hello();
     // Session 5 plays from session 1's IP (a shared exit), not seen yet.
-    bench.table.seat(5, MATCH, 6, 0);
+    bench.table.seat(5, MATCH, 6);
     bench.table.0.borrow_mut().get_mut(&5).unwrap().ip = Some(addr(1).ip());
     let shared = |port: u16| SocketAddr::new(addr(1).ip(), port);
     // Session 4's match connection now from another network.
@@ -1235,6 +1259,7 @@ fn a_refused_game_does_not_stop_the_others_on_its_ip() {
     // Each was looked up once a second.
     assert_eq!(bench.table.1.get() - lookups, 2);
     // The others of that exit go on: session 1, known, and session 5, new.
+    // Session 4, its seat on another network now, hears no more.
     bench.at(1_000);
     assert_eq!(
         sent_to(&bench.send(1, &start(1, 1))),
@@ -1260,9 +1285,7 @@ fn forty_players_behind_one_exit_are_not_limited() {
     let mut bench = Bench::new();
     let exit = ip("10.7.7.7");
     for session in 100..140u32 {
-        bench
-            .table
-            .seat(session, 0x30, (session - 100) as u8, (session % 2) as u8);
+        bench.table.seat(session, 0x30, (session - 100) as u8);
         bench.table.0.borrow_mut().get_mut(&session).unwrap().ip = Some(exit);
     }
     let from = |session: u32| SocketAddr::new(exit, session as u16);

@@ -63,9 +63,10 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
   - **Voice for all** (the owner, 2026-11-13: "in FFA I would enable voice chat for all"; until
     then nobody heard anyone): every player hears every other of the match, by the team modes'
     rule of near and far (plain in the world under 10 m, the radio from it or dead;
-    voice-chat.md). The relay decides it from the match's mode (`registry::VoiceChannel::of`:
-    the match's channel, not a team's), the game from the options' free-for-all entry (patch
-    66's `channel`, by patch 142's `free_for_all::running`). The Tab menu's voice mute and the
+    voice-chat.md). The game decides it from the options' free-for-all entry (patch 66's
+    `channel`, by patch 142's `free_for_all::running`): everyone a mate. The relay sends every
+    match whole since 2026-11-15, when opponents near became heard in the team modes too (it
+    decided by the mode until then, `registry::VoiceChannel::of`). The Tab menu's voice mute and the
     talking list take every player (in Blackout the list still only on Tab).
   - **No team chat** (the owner, 2026-11-12: "i'd rather it didn't have team chat"); the chat
     goes by these sides, never by the seating:

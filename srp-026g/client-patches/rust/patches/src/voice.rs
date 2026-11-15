@@ -9,9 +9,10 @@
 //!   at the match's end and when its scene is left (`game_world.finish`,
 //!   `game_world.deactivate`) stopped, push-to-talk released first;
 //! - every frame of a match (`game_world.after_move`): the options, the
-//!   mutes and how each teammate is heard (the radio, or plain in the
-//!   world: the engine's own pan of a sound at its place, and a gain by
-//!   its distance) told to the DLL when they change, a
+//!   mutes and how each other player is heard (plain in the world near: the
+//!   engine's own pan of a sound at its place, and a gain by its distance;
+//!   a teammate on the radio far or dead, an opponent not at all) told to the
+//!   DLL when they change, a
 //!   held push-to-talk let go when the key is up or the game lost the
 //!   keyboard, and the hud's list of who talks;
 //! - the game world's keys (`tab_cursor.key`) and mouse buttons
@@ -20,7 +21,8 @@
 //!   `controls`; a key or a button);
 //! - the hud's calls (`hud.callback`): the Tab list's player menu (patch 86's)
 //!   asks `srp_voice_menu(place)`, answered `root.srp_voice_menu(place,
-//!   offered, muted)` (a teammate whose voice id is known), and sends
+//!   offered, muted)` (another player of the match, of either team, whose
+//!   voice id is known), and sends
 //!   `srp_voice_mute(place, "1"|"0")`, answered `root.srp_voice_mute(place,
 //!   done)`;
 //! - the options' microphone test (the owner, 2026-11-14; the DLL's, in a
@@ -56,7 +58,7 @@ use crate::vostok::settings::{Menu, OptionsCall};
 use crate::vostok::types::Place;
 use crate::vostok::voice::{
     self as engine, Channel, Connect, Dll, Ears, Heard, Hearing, Listener, MUTES_SIZE, MicTest, Microphone, MicrophoneChoice,
-    MicrophoneId, PAN_CENTRE, Places, Roster, Scene, Settings, TalkInput, TalkKey, TestAsk, VoiceId, name_text,
+    MicrophoneId, PAN_CENTRE, Places, Roster, Scene, Settings, Side, TalkInput, TalkKey, TestAsk, VoiceId, name_text,
 };
 use crate::vostok::{
     Context, Flow, GameCell, GameWorldButton, GameWorldKey, HudCall, NoExit, Thread, VoiceOnHudCallExit,
@@ -303,11 +305,11 @@ pub fn on_connect(ctx: &mut Context<'_>) -> Flow<NoExit> {
         return Flow::Continue;
     };
     let trace = Trace::read(thread);
-    // What the DLL plays and sends by from its start: this game's options, and
-    // no mutes and no radio until the match's first frame knows its places (the
-    // DLL keeps the last match's, by place, or its defaults; the relay forwards
-    // to the seat from its connect, during the loading).
-    let told = Told { settings: engine::settings(thread), muted: Places::NONE, hearing: Hearing::UNITY };
+    // What the DLL plays and sends by from its start: this game's options, no
+    // mutes, and nobody heard until the match's first frame knows its places and
+    // who is near: the relay forwards the whole match to the seat from its
+    // connect, during the loading, opponents too.
+    let told = Told { settings: engine::settings(thread), muted: Places::NONE, hearing: Hearing::SILENT };
     dll.settings(told.settings);
     dll.mute(told.muted);
     dll.hearing(told.hearing, None);
@@ -357,14 +359,18 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// How each mate (a teammate; in a free-for-all, any other player) is
-/// heard: through the radio when either of the two is not alive in the
-/// world (dead, a spectator); else by how far it is ([`in_the_world`]).
-/// `pan` is the engine's, of a sound at an offset from the listener. The
-/// other places are not heard at all: left plain, as decoded.
+/// How each other player of the match is heard: through the radio when
+/// either of the two is not alive in the world (dead, a spectator); else by
+/// how far it is ([`in_the_world`]). The radio is a mate's only (a teammate;
+/// in a free-for-all, any other player): an opponent is heard plain near, as a
+/// mate is, and not at all where a mate would be on the radio ([`side`]; the
+/// owner, 2026-11-14: "in all regimes everyone in 10meters + opponenets
+/// should hear it", "only radio is team only"). `pan` is the engine's, of a
+/// sound at an offset from the listener. The places of nobody in the match,
+/// and the local player's own, are silent.
 fn hearing(roster: &Roster, pan: impl Fn([f32; 3]) -> [f32; 2]) -> Hearing {
     let me = roster.local().and_then(|me| roster.seat(me)).and_then(|seat| seat.body);
-    roster.mates().fold(Hearing::UNITY, |hearing, (place, seat)| {
+    roster.others().fold(Hearing::SILENT, |hearing, (place, seat, side_of)| {
         let heard = match (me, seat.body) {
             (Some(me), Some(them)) => {
                 let offset = [them.feet[0] - me.feet[0], them.feet[1] - me.feet[1], them.feet[2] - me.feet[2]];
@@ -372,8 +378,23 @@ fn hearing(roster: &Roster, pan: impl Fn([f32; 3]) -> [f32; 2]) -> Hearing {
             }
             _ => Heard::Radio,
         };
-        hearing.with(place, heard)
+        hearing.with(place, side(side_of, heard))
     })
+}
+
+/// How a player of `side` is heard where a mate is heard `heard`: a mate
+/// so, an opponent without the radio (plain near; silent far, or dead).
+fn side(side: Side, heard: Heard) -> Heard {
+    match (side, heard) {
+        (Side::Mate, heard) => heard,
+        (Side::Opponent, Heard::Plain(ears) | Heard::Both(ears)) => Heard::Plain(ears),
+        (Side::Opponent, Heard::Radio) => Heard::Plain(Ears::SILENT),
+    }
+}
+
+/// Whether a place heard so is heard at all (plain, the radio or both).
+fn audible(heard: Heard) -> bool {
+    heard != Heard::Plain(Ears::SILENT)
 }
 
 /// How a speaker `offset` from the listener (feet to feet, so one on the
@@ -397,16 +418,16 @@ fn in_the_world(offset: [f32; 3], plain_to: f32, radio_from: f32, pan: &impl Fn(
     if radio { Heard::Both(ears) } else { Heard::Plain(ears) }
 }
 
-/// Whom the local player hears and is heard by, by the match's mode: in a
-/// free-for-all (patch 142's) every player of the match, else its team. The
-/// one place the client decides it; srp's relay routes the same way.
+/// Who the local player's mates are (heard on the radio too), by the match's
+/// mode: in a free-for-all (patch 142's) every player of the match, else its
+/// team. The one place it is decided; srp's relay sends the whole match.
 fn channel(thread: &Thread) -> Channel {
     if crate::free_for_all::running(thread) { Channel::Match } else { Channel::Team }
 }
 
-/// The mates (teammates; in a free-for-all, everyone) whose voice id is muted.
+/// The other players, of either team, whose voice id is muted.
 fn muted(dll: Dll, roster: &Roster, mutes: &Mutes) -> Places {
-    roster.mates().fold(Places::NONE, |muted, (place, _)| {
+    roster.others().fold(Places::NONE, |muted, (place, _, _)| {
         if dll.voice_id(place).is_some_and(|id| mutes.has(id)) { muted.with(place) } else { muted }
     })
 }
@@ -463,13 +484,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Settings::Off => Places::NONE,
         Settings::On { .. } => dll.talking(),
     };
-    // The local player's own place too, while its microphone is sent (the
-    // owner, 2026-11-11: "when I speak I want to see this with an icon").
-    let own = roster.local();
-    let speakers = Place::all()
-        .filter(|&p| talking.has(p) && (roster.mate(p) || own == Some(p)))
-        .fold(Places::NONE, Places::with)
-        .without(told.muted);
+    let speakers = speakers(talking, &told.hearing, roster.local(), told.muted);
     if live.shown != Some(speakers) && show_speakers(&scene, &roster, speakers) {
         live.shown = Some(speakers);
     }
@@ -477,8 +492,19 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// Who the hud's list shows of those `talking`: the players heard (a mate
+/// always, an opponent while it is near: [`hearing`]), and the local player's
+/// own place (`own`) while its microphone is sent (the owner, 2026-11-11:
+/// "when I speak I want to see this with an icon"); none `muted`.
+fn speakers(talking: Places, hearing: &Hearing, own: Option<Place>, muted: Places) -> Places {
+    Place::all()
+        .filter(|&p| talking.has(p) && (audible(hearing.of(p)) || own == Some(p)))
+        .fold(Places::NONE, Places::with)
+        .without(muted)
+}
+
 /// The hud's list (`root.srp_voice_talking`): the speakers' names (as 0.69's
-/// list, the teammates; the local player's own while it is sent).
+/// list; the local player's own while it is sent).
 fn show_speakers(scene: &Scene<'_>, roster: &Roster, speakers: Places) -> bool {
     let Some(movie) = scene.movie() else { return false };
     let mut names: [&CStr; Place::COUNT] = [c""; Place::COUNT];
@@ -540,9 +566,10 @@ fn choice(text: &CStr) -> Option<bool> {
     }
 }
 
-/// The Tab list's player menu's voice calls. `srp_voice_menu(place)`: a
-/// teammate whose voice id is known is offered, with its state;
-/// `srp_voice_mute(place, "1"|"0")`: that teammate muted or not, kept in
+/// The Tab list's player menu's voice calls. `srp_voice_menu(place)`: another
+/// player of the match, of either team (an opponent is heard near), whose
+/// voice id is known is offered, with its state;
+/// `srp_voice_mute(place, "1"|"0")`: that player muted or not, kept in
 /// user.cfg. A malformed argument changes nothing (logged); both are taken
 /// here and always answered, so the menu never waits.
 pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<VoiceOnHudCallExit> {
@@ -563,7 +590,7 @@ pub fn on_hud_call(ctx: &mut Context<'_>) -> Flow<VoiceOnHudCallExit> {
     };
     let id = live.and_then(|(dll, _)| {
         let roster = Scene::at_call(&call).roster(false, channel(thread));
-        dll.voice_id(place).filter(|_| roster.mate(place))
+        dll.voice_id(place).filter(|_| roster.side(place).is_some())
     });
     if menu {
         match (live, id) {
@@ -876,9 +903,10 @@ mod tests {
         assert_eq!(heard.of(p(2)), Heard::Radio);
         assert_eq!(heard.of(p(4)), Heard::Radio);
         assert_eq!(heard.of(p(5)), Heard::Radio);
-        // Not teammates (the other team, the local player): not heard, left plain.
-        assert_eq!(heard.of(p(3)), Heard::Plain(Ears::UNITY));
-        assert_eq!(heard.of(p(0)), Heard::Plain(Ears::UNITY));
+        // A dead opponent, the local player, a place of nobody: silent.
+        assert_eq!(heard.of(p(3)), Heard::Plain(Ears::SILENT));
+        assert_eq!(heard.of(p(0)), Heard::Plain(Ears::SILENT));
+        assert_eq!(heard.of(p(19)), Heard::Plain(Ears::SILENT));
         let dead = roster(&[(0, None), (0, Some([1.0, 0.0, 0.0]))]);
         assert_eq!(hearing(&dead, pan).of(p(1)), Heard::Radio);
         let broken = roster(&[(0, Some([0.0; 3])), (0, Some([f32::NAN, 0.0, 0.0]))]);
@@ -923,21 +951,68 @@ mod tests {
     }
 
     #[test]
-    fn in_a_free_for_all_everyone_is_heard_in_a_team_mode_teammates() {
+    fn in_a_free_for_all_everyone_is_a_mate_in_a_team_mode_teammates() {
         use crate::vostok::voice::Channel;
+        let sides = |r: &Roster| r.others().map(|(place, _, side)| (place, side)).collect::<Vec<_>>();
         // A free-for-all's places, each a side of its own (4 + its place).
         let mut ffa = roster(&[(4, Some([0.0; 3])), (5, Some([3.0, 0.0, 0.0])), (6, Some([0.0, 0.0, 40.0])), (7, None)]);
         // As a team mode reads them: sides past the two, nobody's mate.
-        assert_eq!(ffa.mates().count(), 0);
+        assert_eq!(sides(&ffa), [(p(1), Side::Opponent), (p(2), Side::Opponent), (p(3), Side::Opponent)]);
         ffa.set_channel(Channel::Match);
-        assert_eq!(ffa.mates().map(|(place, _)| place).collect::<Vec<_>>(), [p(1), p(2), p(3)]);
-        // The same near and far rule as teammates'.
+        assert_eq!(sides(&ffa), [(p(1), Side::Mate), (p(2), Side::Mate), (p(3), Side::Mate)]);
+        // The same near and far rule as teammates': the radio far and dead.
         let heard = hearing(&ffa, pan);
         assert!(matches!(heard.of(p(1)), Heard::Plain(ears) if ears.get()[0] > 0.0 && ears.get()[1] == 0.0));
         assert_eq!(heard.of(p(2)), Heard::Radio);
         assert_eq!(heard.of(p(3)), Heard::Radio);
-        // A team mode: the teammates only.
+        // A team mode: the teammates mates, the other team opponents.
         let teams = roster(&[(0, None), (0, None), (1, None)]);
-        assert_eq!(teams.mates().map(|(place, _)| place).collect::<Vec<_>>(), [p(1)]);
+        assert_eq!(sides(&teams), [(p(1), Side::Mate), (p(2), Side::Opponent)]);
+        // Nobody's side while the local player's own place is not known.
+        let mut unknown = teams;
+        unknown.set_local(None);
+        assert_eq!(sides(&unknown), []);
+    }
+
+    #[test]
+    fn an_opponent_is_heard_plain_near_as_a_teammate_and_never_on_the_radio() {
+        // The local player (team 0) at the origin; a teammate and an opponent
+        // side by side at each distance.
+        let at = |metres: f32| Some([metres, 0.0, 0.0]);
+        let r = roster(&[(0, at(0.0)), (0, at(4.0)), (1, at(4.0)), (0, at(12.0)), (1, at(12.0)), (0, None), (1, None)]);
+        let heard = hearing(&r, pan);
+        // Near: the same plain voice, the engine's pan and the fall alike.
+        assert!(matches!(heard.of(p(2)), Heard::Plain(ears) if ears != Ears::SILENT));
+        assert_eq!(heard.of(p(2)), heard.of(p(1)));
+        // Far: the teammate on the radio, the opponent not at all.
+        assert_eq!(heard.of(p(3)), Heard::Radio);
+        assert_eq!(heard.of(p(4)), Heard::Plain(Ears::SILENT));
+        // Dead (or the listener dead): the teammate on the radio, the opponent silent.
+        assert_eq!(heard.of(p(5)), Heard::Radio);
+        assert_eq!(heard.of(p(6)), Heard::Plain(Ears::SILENT));
+        let mut dead = r;
+        dead.set(p(0), Seat { name: [0; 64], team: 0, body: None });
+        let heard = hearing(&dead, pan);
+        assert_eq!(heard.of(p(1)), Heard::Radio);
+        assert_eq!(heard.of(p(2)), Heard::Plain(Ears::SILENT));
+        // Where a mate would hear both (the two distances apart), an
+        // opponent hears the plain voice only.
+        let ears = Ears::new(0.5, 0.25);
+        assert_eq!(side(Side::Opponent, Heard::Both(ears)), Heard::Plain(ears));
+        assert_eq!(side(Side::Mate, Heard::Both(ears)), Heard::Both(ears));
+    }
+
+    #[test]
+    fn the_list_shows_who_is_heard_talking_and_the_own_place() {
+        let at = |metres: f32| Some([metres, 0.0, 0.0]);
+        // 0 the local player; 1 a teammate far (the radio); 2 an opponent near; 3 one far.
+        let r = roster(&[(0, at(0.0)), (0, at(40.0)), (1, at(3.0)), (1, at(40.0))]);
+        let heard = hearing(&r, pan);
+        let all = [p(0), p(1), p(2), p(3)].into_iter().fold(Places::NONE, Places::with);
+        let shown = speakers(all, &heard, Some(p(0)), Places::NONE);
+        assert_eq!(shown, [p(0), p(1), p(2)].into_iter().fold(Places::NONE, Places::with));
+        // Muted ones are not; nor anyone not talking.
+        assert_eq!(speakers(all, &heard, Some(p(0)), Places::NONE.with(p(2))), Places::NONE.with(p(0)).with(p(1)));
+        assert_eq!(speakers(Places::NONE.with(p(3)), &heard, Some(p(0)), Places::NONE), Places::NONE);
     }
 }
