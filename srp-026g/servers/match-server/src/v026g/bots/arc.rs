@@ -65,6 +65,11 @@ pub const STEP_S: f32 = 1.0 / 60.0;
 /// The capsule's radius, metres: the grenade's centre is this far from the
 /// surface it lies on (`create_bt_primitive` type 3, 0x303900). PROVEN.
 pub const RADIUS_M: f32 = 0.05;
+/// A standing body's radius, metres: half the client's `stand_capsule_width` 0.76 (startup.cfg; the controller's
+/// capsule, `mapdata::controller`). PROVEN.
+pub const BODY_RADIUS_M: f32 = 0.38;
+/// A standing body's height, metres: the client's standing capsule, 1.8 m (startup.cfg's stand size 0.76 x 1.8). PROVEN.
+pub const BODY_HEIGHT_M: f32 = 1.8;
 /// The two bodies' combined friction on the level, 0.5 × 0.5 (0x8E870;
 /// Bullet multiplies them in `addContactPoint`, 0xAE310). PROVEN.
 pub const FRICTION: f32 = 0.25;
@@ -217,11 +222,16 @@ impl Ground for Mesh<'_> {
 /// - `fuse_s`: from the press to the blast, seconds (`ttl_ms`, 0x30A120). PROVEN.
 /// - `splash_m`: the blast's reach, metres (`splash_radius`; lethal within about 2.4 m of the
 ///   centre).
+/// - `most`, `least`: the blast's damage at its middle and at its edge, shares of a body's health
+///   (`splash_max_damage`, `splash_min_damage`; the client's amount falls linearly between them,
+///   `bullet_manager::explode` 0x339736..0x339750). PROVEN.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Grenade {
     pub speed: f32,
     pub fuse_s: f32,
     pub splash_m: f32,
+    pub most: f32,
+    pub least: f32,
 }
 
 impl Grenade {
@@ -231,6 +241,21 @@ impl Grenade {
             speed: params.throw_power,
             fuse_s: params.ttl_ms as f32 / 1000.0,
             splash_m: params.splash_radius,
+            most: params.splash_max_damage,
+            least: params.splash_min_damage,
+        }
+    }
+
+    /// How far from the blast's middle its damage falls to half a body's health, metres: the client's
+    /// linear law, `least + (most - least) (R - d) / R` (0x339736..0x339750), solved for 0.5. Zero for a
+    /// blast that never does half (a smoke), the whole reach for one that does it to the edge.
+    pub fn half_health_m(&self) -> f32 {
+        if self.most <= 0.5 {
+            0.0
+        } else if self.least >= 0.5 {
+            self.splash_m
+        } else {
+            self.splash_m * (self.most - 0.5) / (self.most - self.least)
         }
     }
 
@@ -260,6 +285,8 @@ impl Grenade {
                         speed: 17.0,
                         fuse_s: 4.0,
                         splash_m: 10.0,
+                        most: 1.3,
+                        least: 0.05,
                     }
                 }
             }
@@ -973,9 +1000,14 @@ mod tests {
             Grenade {
                 speed: 20.0,
                 fuse_s: 3.0,
-                splash_m: 8.0
+                splash_m: 8.0,
+                most: rgd.splash_max_damage,
+                least: rgd.splash_min_damage,
             }
         );
+        // Half a body's health 6.4 m out of the stock blast (10 m, 1.3 to 0.05); 5.12 m of the patched 8 m.
+        near(Grenade::bots().half_health_m(), 6.4, 1e-4, "stock half health");
+        near(patched.half_health_m(), 5.12, 1e-4, "patched half health");
         assert_eq!(patched.fuse_ms(), 3_000);
         let stock = *Grenade::bots();
         // Faster: a flat throw lands farther.
