@@ -12,7 +12,8 @@
 //!   height, so a real wall made the round take it (rising ground, which the old `round_keeps_exact` also gave back, 277k
 //!   floors mostly of Rudnya's hillside, has none);
 //! - the client's own walk tick stands a body there ([`stands`]): come down onto the floor from up to 0.6 m over it, out of the
-//!   walls, with no keys, it rests within [`STAND_MOVED_M`] of it across and in height (no slide, no fall).
+//!   walls, with no keys, it rests within [`STAND_MOVED_M`] across of where the test set it (pushed out of the walls at the
+//!   floor's height, or put over that) and in height of the floor (no slide, no fall).
 //!
 //! It runs after the rounds (and the narrow doors), before their relinking and the exact pass, as the doors' pass does.
 
@@ -27,9 +28,9 @@ pub const WALL_NEAR_M: f32 = 0.6;
 /// How far the feet may move (or drop) in the stand test, m.
 pub const STAND_MOVED_M: f32 = 0.1;
 /// Whether the client's walk tick stands a body on `feet`: set there out of the walls, the body comes down onto it from up to
-/// 0.6 m over it (`room`: the floor's room over a standing body) with no keys and rests ([`super::rest_floors::rests_at`]: still on
-/// the ground 4 steps in a row within 2 s) within [`STAND_MOVED_M`] of it across and in height. The body is stepped by the grid's
-/// collision and settings (`world`, `s`: [`Body::controller`]).
+/// 0.6 m over it (`room`: the floor's room over a standing body) with no keys and rests ([`super::rest_floors::rest`]: still on
+/// the ground 4 steps in a row within 2 s) within [`STAND_MOVED_M`] across of where the test set it and in height of the floor
+/// (below). The body is stepped by the grid's collision and settings (`world`, `s`: [`Body::controller`]).
 ///
 /// [A364 C2 row 45] The body arrives with a speed, so its steps run: a body set standing with no speed and the contact normal up
 /// is exactly the state `can_skip_player_step` 0x7C7E0 skips (the exactness rig: 2,160 of 2,160 steps skipped). [A389 follow-up]
