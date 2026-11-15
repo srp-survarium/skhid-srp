@@ -4,6 +4,7 @@
 libtorrent importable (python3Packages.libtorrent-rasterbar), it also reads the torrent and checks
 the files."""
 import hashlib
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -190,6 +191,26 @@ class Build(unittest.TestCase):
         again = self.run_build(self.root / 'e.torrent', zip=self.root / 'd.torrent.zip')
         self.assertNotEqual(again.returncode, 0)
         self.assertIn('or the torrent', again.stderr)
+
+    @unittest.skipUnless(shutil.which('nix'), 'nix is needed (the release machine has nothing else)')
+    def test_publish_dht_reads_its_item_with_no_python_or_openssl_on_the_path(self):
+        torrent = self.root / 'g.torrent'
+        done = self.run_build(torrent)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        # The release scripts in a checkout of their own, whose test key is the throwaway one.
+        release = self.root / 'checkout' / 'release'
+        release.mkdir(parents=True)
+        for name in ('publish-dht', 'lib.sh', 'build_torrent.py'):
+            shutil.copy2(SCRIPT.parent / name, release / name)
+        shutil.copy(self.public, release / 'signing-test.pub')
+        bare = [folder for folder in os.environ['PATH'].split(os.pathsep)
+                if not any(os.access(os.path.join(folder, name), os.X_OK) for name in ('python3', 'openssl'))]
+        dry = subprocess.run(['bash', str(release / 'publish-dht'), '--dry-run', str(torrent)], capture_output=True,
+                             text=True, env=dict(os.environ, PATH=os.pathsep.join(bare)))
+        said = dry.stdout + dry.stderr
+        self.assertEqual(dry.returncode, 0, said)
+        self.assertIn("signed by release/signing-test.pub's key", said)
+        self.assertIn(f"skhid-dht put {self.public.read_text().strip()} 'skhid-newest 1' 59 ", said)
 
 
 def reference_root(content):

@@ -1432,6 +1432,7 @@ check "release: waits for no match" has "$out" "5. no match is running"
 check "release: checks /patches and /api/client-files" has "$out" "/api/client-files: the new ZIP"
 check "release: builds the signed torrent of the ZIP and the list" bash -c "tail -n 1 $T/build-torrent.args | grep -q -- '--patches $T/patches.tsv --zip .*/Survarium-0.26g-srp-files.zip --out .*/skhid-rev12.torrent --zip-out .* --revision 12 --public-key .*/signing.pub'"
 check "release: puts the torrent's item on the DHT once it went out" bash -c "tail -n 1 $T/publish-dht.args | grep -q -- '/skhid-rev12.torrent'"
+check "release: ... after the record" bash -c "r=\$(grep -n '7. the record' <<<\"\$1\" | head -n1 | cut -d: -f1); d=\$(grep -n '8. the newest release' <<<\"\$1\" | head -n1 | cut -d: -f1); test -n \"\$r\" -a -n \"\$d\" && ((r < d))" _ "$out"
 check "release: the preflight sees the signing key" has "$out" "the signing key: there, mode 600"
 check "release: ... and the commit's public key is its own" has "$out" "release/signing.pub: in the commit to build, the signing key's public key"
 check "release: srp came up on the new files: the folder says served" test -e "$(folder 12 a)/served"
@@ -2655,6 +2656,7 @@ check "release --now: ... its record: REVISION 18 on main, the tag" bash -c "tes
 # no record (no tag, no branch, no PR, main as it was).
 main_before=$(git -C "$T/origin.git" rev-parse main)
 : >"$T/gh.log"
+: >"$T/publish-dht.args"
 : >"$T/item-tables.args"
 SRP_ITEM_TABLES_BIN=$T/no-such-tool run yes --test --now --label t || fail "release.sh --test: $out"
 check "release --test: the item tables' tool neither needed nor run (no record)" test ! -s "$T/item-tables.args"
@@ -2662,6 +2664,7 @@ check "release --test: released revision 19 (the test exe's + 1)" bash -c "grep 
 check "release --test: no record" has "$out" "No record (--test): no commit, no tag."
 check "release --test: ... no tag, no branch" no_record 19
 check "release --test: ... main as it was, gh never asked" test "$(git -C "$T/origin.git" rev-parse main)|$(cat "$T/gh.log")" = "$main_before|"
+check "release --test: nothing put on the public DHT" test ! -s "$T/publish-dht.args"
 
 # No secret in any output or command line.
 check "release: the admin token is in no output" bash -c "! grep -qF -- '$token' $T/outputs"

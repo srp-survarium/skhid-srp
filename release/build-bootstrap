@@ -1,23 +1,13 @@
 #!/usr/bin/env bash
 # usage: release/build-bootstrap [--dry-run] <players' ZIP>
 #
-# The bootstrap (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap"), once
-# for a version of the updater: Skhid-get.bat, a plain-text script anyone can
-# pass around, gets updater_skhid.exe, its skhid_torrent.dll and 7zr.exe by
-# BitTorrent (or from their URLs), lays them out in a Survarium folder and
-# runs the updater.
-#   1. the three files from the ZIP (a release's, with the updater to pin);
-#      7zr.exe must be the pinned extractor (client/updater/logic/src/game.rs);
-#   2. each published on the patches server ($SKHID_PATCHES_*) at
-#      bootstrap/<sha256>/<name>, never over another file (as
-#      release/upload-patch publishes a patch), and GET back: 200, its sha256;
-#   3. its row in release/bootstrap.tsv: <name> <sha256> <size> <that URL>
-#      (a row of the name with other bytes is replaced);
-#   4. release/bootstrap.torrent (hybrid, as release/build-torrent's, not
-#      signed: the script pins its hashes) and the script,
-#      srp-026g/servers/web-server/bootstrap/Skhid-get.bat (the site serves it).
-# Commit the three. More URLs (Google Drive's: --first): release/add-mirror
-# <name> <url>, which makes the script again. Each write on the patches
+# Skhid-get.bat's files, once for a version of the updater
+# (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap"): updater_skhid.exe,
+# skhid_torrent.dll and 7zr.exe from a release's ZIP, each published on the
+# patches server at bootstrap/<sha256>/<name> (never over another file), its
+# row in release/bootstrap.tsv, then release/bootstrap.torrent and the script
+# (srp-026g/servers/web-server/bootstrap/Skhid-get.bat). Commit the three.
+# More URLs: release/add-mirror <name> <url>. Each write on the patches
 # server asks y/N first; --dry-run prints them.
 . "$(dirname "$0")/lib.sh"
 zip=''
@@ -36,13 +26,24 @@ use_patches live
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 extractor=$(sed -n '/^pub const EXTRACTOR: Pin/,/};/s/.*sha256: "\([0-9a-f]\{64\}\)".*/\1/p' "$ROOT/client/updater/logic/src/game.rs")
-pairs=()
+pub=$ROOT/$(signing_pub live)
+[[ -f $pub ]] || die "no $(signing_pub live): the updater would take no torrent (release/make-signing-key)"
+public_key=$(tr -d '[:space:]' <"$pub")
+
+# Every file checked before anything is published.
 for path in "${BOOTSTRAP_FILES[@]}"; do
     name=${path##*/}
     zip_extract "$zip" "$path" "$work/$name" || die "$zip has no $path"
-    sha=$(sha256_of "$work/$name") size=$(size_of "$work/$name")
-    [[ $name != 7zr.exe || $sha == "$extractor" ]] || die "$zip: its 7zr.exe is not the pinned extractor ($extractor)"
     [[ $(head -c 2 "$work/$name") == MZ ]] || die "$zip: its $name is not a program"
+done
+[[ $(sha256_of "$work/7zr.exe") == "$extractor" ]] || die "$zip: its 7zr.exe is not the pinned extractor ($extractor)"
+LC_ALL=C grep -qF "$public_key" "$work/updater_skhid.exe" ||
+    die "$zip: its updater_skhid.exe does not carry $(signing_pub live)'s key $public_key: it would refuse the release's torrents"
+
+pairs=()
+for path in "${BOOTSTRAP_FILES[@]}"; do
+    name=${path##*/}
+    sha=$(sha256_of "$work/$name") size=$(size_of "$work/$name")
     url=$PATCHES_URL/bootstrap/$sha/$name
     dir=$(q "$PATCHES_DIR/bootstrap/$sha")
     say "$name: $size bytes, sha256 $sha"

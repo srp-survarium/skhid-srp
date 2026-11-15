@@ -1,24 +1,11 @@
 #!/usr/bin/env bash
 # usage: release/publish-dht [--dry-run] [--seconds <n>] <skhid-rev<n>.torrent>
 #
-# The newest release on the DHT (srp-026g/docs/notes/torrent-downloads.md,
-# "The newest release"): puts the release's BEP 46 item of a signed torrent,
-# so that an updater that cannot reach the site finds it. Everything of the
-# item is in the torrent (release/build_torrent.py signed it): the key is the
-# release's (the updater's built-in one), the salt "skhid-newest 1", the
-# sequence number the revision, the value the facts of the torrent's
-# signature (its v2 info hash, the revision, the signature), and the item's
-# signature its `skhid.dht`. No private key is read: the item comes signed.
-#   1. the torrent read (Python's standard library): its `skhid` must have
-#      `dht`; the item's signature checked with openssl against the
-#      revision's public key (release/signing.pub, or signing-test.pub when
-#      that one verifies it);
-#   2. skhid-dht put (srp-026g/flake.nix, client/updater/torrent-dll: the
-#      updater's own libtorrent, on this host), on the public DHT, until some
-#      nodes stored it (at most --seconds, default 120).
-# release.sh runs it once the release went out; every updater that shares
-# puts the same item again. A newer release's item replaces it (a higher
-# sequence number); an older one is refused by the nodes.
+# Puts a signed torrent's BEP 46 item on the public DHT, for updaters that
+# cannot reach the site (srp-026g/docs/notes/torrent-downloads.md, "The
+# newest release"). The item comes signed in the torrent (`skhid.dht`): no
+# private key is read. Stops when some nodes stored it, at most --seconds
+# (default 120).
 . "$(dirname "$0")/lib.sh"
 
 dry=0 seconds=120 torrent=''
@@ -32,13 +19,14 @@ while (($#)); do
     esac
 done
 [[ -n $torrent && -f $torrent ]] || usage 1
-need_cmds python3 openssl nix
+need_cmds nix
+openssl=$(openssl_program)
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-# The item of the torrent: `<seq> <value hex> <signature hex>`, and what it
-# signs (BEP 44) into $work/message, its signature into $work/signature.
-item=$(python3 -I - "$ROOT/release" "$torrent" "$work" <<'PY'
+# Prints `<seq> <value hex> <signature hex>`; what BEP 44 signs goes to
+# $work/message, the signature to $work/signature.
+item=$(python -I - "$ROOT/release" "$torrent" "$work" <<'PY'
 import sys
 sys.path.insert(0, sys.argv[1])
 import build_torrent as T
@@ -56,14 +44,14 @@ PY
 ) || die "cannot read $torrent"
 read -r seq value signature <<<"$item"
 
-# Whose key signed it: the release's, or the test environment's.
+# The release's key, or the test environment's: the one that verifies it.
 key=''
 for which in live test; do
     pub=$ROOT/$(signing_pub "$which")
     [[ -f $pub ]] || continue
     hex=$(tr -d '[:space:]' <"$pub")
-    python3 -I -c 'import sys; open(sys.argv[1], "wb").write(bytes.fromhex(sys.argv[2]))' "$work/public.der" "302a300506032b6570032100$hex"
-    if openssl pkeyutl -verify -rawin -pubin -keyform DER -inkey "$work/public.der" -in "$work/message" \
+    python -I -c 'import sys; open(sys.argv[1], "wb").write(bytes.fromhex(sys.argv[2]))' "$work/public.der" "302a300506032b6570032100$hex"
+    if "$openssl" pkeyutl -verify -rawin -pubin -keyform DER -inkey "$work/public.der" -in "$work/message" \
         -sigfile "$work/signature" >/dev/null 2>&1; then
         key=$hex
         say "the item of revision $seq: signed by $(signing_pub "$which")'s key"

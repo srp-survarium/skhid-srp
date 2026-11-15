@@ -200,7 +200,7 @@ How an updater finds a newer release without our site: the release's signed item
   `skhid-newest 1`, sequence number the revision, value `d1:i32:<v2 info hash>1:ri<revision>e1:s64:<the
   torrent's signature>e`: the facts of the torrent's own signature. The release signs it with
   the torrent (`skhid.dht`, "The signature") and puts it (`release/publish-dht`, from
-  `release.sh` once the release went out; the release's own libtorrent, `skhid-dht`).
+  `release.sh` after a live release's record, never for `--test`; the release's own libtorrent, `skhid-dht`).
 - Every updater that shares puts the same item again (its torrent's `skhid.dht`: no private key
   anywhere but the release's), at once and every 30 minutes: the DHT forgets an item in hours.
   A newer release's item replaces it (a higher sequence number); the nodes refuse an older one.

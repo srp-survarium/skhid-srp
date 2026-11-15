@@ -507,7 +507,8 @@ The order, as it runs:
    folder and, from live, to the jump host (`$SKHID_BACKUP_DIR`, default
    `/srv/skhid-backups/srp-db`: folder 700, files 600, a line in
    `SHA256SUMS` there), its sha256 compared on both ends.
-   Once it went out, `release/publish-dht <the torrent>` puts the
+   Live only, after the record (step 8; never `--test`),
+   `release/publish-dht <the torrent>` puts the
    torrent's signed item on the public DHT (BEP 46: the newest release, for
    updaters that cannot reach the site; `skhid.dht`, signed by
    `build-torrent` with the torrent; the release's own libtorrent,
@@ -724,7 +725,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 | `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
 | `release/build-torrent --zip <zip> --out <file> --zip-out <zip> --revision <n> [--public-key] [--test] [--patches <list>]` | the signed torrent of the whole game folder (`srp-026g/docs/notes/torrent-downloads.md`): the original game's files (`$SKHID_GAME`, `$SKHID_STOCK_DB`, each by its pinned sha256), the ZIP's files over them, the list's patches (the patch cache); and the ZIP with it in; prints its info hashes; the same inputs, the same bytes | local files, the patch cache |
 | `release/build-bootstrap [--dry-run] <players' ZIP>` | once for an updater version: the bootstrap's three files (the updater, its `skhid_torrent.dll`, 7zr.exe) published on the patches server at `bootstrap/<sha256>/<name>`, their rows in `release/bootstrap.tsv`, `release/bootstrap.torrent` and `srp-026g/servers/web-server/bootstrap/Skhid-get.bat` (`srp-026g/docs/notes/torrent-downloads.md`, "Bootstrap"); more URLs: `release/add-mirror <name> <url>`, which makes the script again | the patches server, the checkout |
-| `release/publish-dht [--dry-run] [--seconds <n>] <torrent>` | the release's BEP 46 item of a signed torrent on the DHT (its `skhid.dht`, checked with openssl against `release/signing.pub` or `signing-test.pub`), by `skhid-dht` (`srp-026g#skhid-dht`); release.sh runs it once the release went out | the public DHT |
+| `release/publish-dht [--dry-run] [--seconds <n>] <torrent>` | the release's BEP 46 item of a signed torrent on the DHT (its `skhid.dht`, checked with openssl against `release/signing.pub` or `signing-test.pub`), by `skhid-dht` (`srp-026g#skhid-dht`); release.sh runs it after a live release's record (never for `--test`) | the public DHT |
 | `release/make-signing-key [--test]` | once, by the owner: the torrents' Ed25519 key beside `release.env` (mode 600) and `release/signing.pub` to commit (`--test`: the test environment's, `torrent-signing-test.pem` and `release/signing-test.pub`); never replaces one | private/release/, the checkout |
 | `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own (a ZIP from it has no torrent unless it was release.sh's), in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
 | `release/rollback [--test] [--keep-db] [<folder>]` | a release folder's rollback | the target |
