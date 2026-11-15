@@ -464,6 +464,11 @@ impl Walkers {
                     );
                     self.absent = true;
                 }
+                // [A197] Its built files not there, and nothing built at load: each match on the map says so.
+                MapState::NotPrebuilt(why) => {
+                    log::error!("Match {id:#x}: {}", crate::v026g::bots::maps::not_prebuilt_line(&self.project, &why));
+                    self.absent = true;
+                }
             }
         }
         self.world.clone()

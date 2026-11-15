@@ -338,7 +338,7 @@ fn walking_map() -> std::sync::Arc<crate::v026g::bots::maps::Maps> {
     loop {
         match maps.get(project) {
             MapState::Ready(_) => break,
-            MapState::Absent(reason) => panic!("the walking map was not built: {reason}"),
+            MapState::Absent(reason) | MapState::NotPrebuilt(reason) => panic!("the walking map was not built: {reason}"),
             MapState::Loading | MapState::Waiting(_) => {
                 assert!(started.elapsed().as_secs() < 600, "the walking map's build hangs: {:?}", maps.get(project));
                 std::thread::sleep(std::time::Duration::from_millis(5));

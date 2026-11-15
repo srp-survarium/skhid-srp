@@ -91,9 +91,13 @@
 //!   at most are in memory, and a match on another map waits for room
 //!   with its bots on their script. Without it, or without the map's
 //!   file, bots keep their script. `SRP_MAPDATA_BUILT=<dir>` (default
-//!   `<SRP_MAPDATA_DIR>/built`; `off`: build at each load): where the
+//!   `<SRP_MAPDATA_DIR>/built`; `off`: none): where the
 //!   built grids, sight trees and tactics are kept and read back
-//!   (`mapdata::built`). With `SRP_PVB=on` ("Player vs Bots", the lobby's
+//!   (`mapdata::built`). A map whose built files are not there is not
+//!   built at load: its bots run the stage 0 script, with an ERROR line
+//!   (`release/build-bot-maps` pre-builds them).
+//!   `SRP_BOT_MAPS_BUILD_AT_LOAD=on` (local servers only) builds it at load
+//!   and writes it there. With `SRP_PVB=on` ("Player vs Bots", the lobby's
 //!   `pvb`) at least `SRP_PVB_MAX_MATCHES` (default 5) maps may be in
 //!   memory at once, one for each match against bots that may run;
 //! - `SRP_PVB_STALL_S` (default 60, 10 to 3600): a match against the
@@ -360,6 +364,12 @@ impl Settings {
                 ) as u32,
                 var("SRP_MAPDATA_BUILT").as_deref(),
                 bot_tuning.at_start(),
+                // [A197] A map with no built file is built at load only when asked (a local server); the server's default
+                // builds nothing at load.
+                bots::maps::AtLoad::parse(var(bots::maps::AtLoad::ENV).as_deref()).unwrap_or_else(|why| {
+                    log::error!("{why}; no map is built at load");
+                    bots::maps::AtLoad::Refuse
+                }),
             ),
             bot_tuning,
             timing: {
@@ -471,6 +481,7 @@ pub(crate) fn parse_mapdata_dir(
     at_once: u32,
     built: Option<&str>,
     tuning: &bots::tuning::Tuning,
+    at_load: bots::maps::AtLoad,
 ) -> Option<Arc<bots::maps::Maps>> {
     let dir = value
         .map(str::trim)
@@ -481,19 +492,26 @@ pub(crate) fn parse_mapdata_dir(
         None => Some(std::path::Path::new(dir).join(bots::maps::BUILT_DIR)),
     };
     if std::path::Path::new(dir).is_dir() {
-        let files = match &built {
-            Some(built) => built.display().to_string(),
-            None => "none (built at each load)".into(),
+        let files = match (&built, at_load) {
+            (Some(built), _) => built.display().to_string(),
+            (None, bots::maps::AtLoad::Build) => "none (built at each load)".into(),
+            (None, bots::maps::AtLoad::Refuse) => "none (no map is built at load: every map's bots run the stage 0 script)".into(),
+        };
+        let at_load_word = match at_load {
+            bots::maps::AtLoad::Build => "a map with no built file is built at load",
+            bots::maps::AtLoad::Refuse => "a map with no built file is not built: its bots run the stage 0 script",
         };
         log::info!(
-            "Bot maps from {dir}, {} kept built, {} in memory at most; built files in {files}",
+            "Bot maps from {dir}, {} kept built, {} in memory at most; built files in {files}; {at_load_word} ({}={})",
             keep.max(1),
-            at_once.max(1)
+            at_once.max(1),
+            bots::maps::AtLoad::ENV,
+            if at_load == bots::maps::AtLoad::Build { "on" } else { "off" }
         );
     } else {
         log::warn!("SRP_MAPDATA_DIR is `{dir}`, which is no directory; bots will have no maps");
     }
-    Some(bot_maps(dir.into(), keep as usize, at_once as usize, built, tuning))
+    Some(bot_maps(dir.into(), keep as usize, at_once as usize, built, tuning, at_load))
 }
 
 /// The bots' map store of a server whose tuning is `tuning` (`SRP_BOT_TUNING`, loaded once at its start): its grids'
@@ -506,6 +524,16 @@ pub fn bot_maps(
     at_once: usize,
     built: Option<std::path::PathBuf>,
     tuning: &bots::tuning::Tuning,
+    at_load: bots::maps::AtLoad,
 ) -> Arc<bots::maps::Maps> {
-    bots::maps::Maps::configured_for(Some(dir), keep, at_once, built, tuning.grid.clone(), tuning.needs_wall_clearance(), tuning.needs_open_sides())
+    bots::maps::Maps::configured_for(
+        Some(dir),
+        keep,
+        at_once,
+        built,
+        tuning.grid.clone(),
+        tuning.needs_wall_clearance(),
+        tuning.needs_open_sides(),
+        at_load,
+    )
 }

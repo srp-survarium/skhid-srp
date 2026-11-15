@@ -2379,6 +2379,7 @@ mod tests {
             tuning.grid.clone(),
             tuning.needs_wall_clearance(),
             tuning.needs_open_sides(),
+            crate::v026g::bots::maps::AtLoad::Build,
         );
         let world = loop {
             match maps.get(&project) {

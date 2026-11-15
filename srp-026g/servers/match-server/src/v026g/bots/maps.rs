@@ -77,6 +77,35 @@ pub enum MapState {
     Waiting(String),
     /// Its world and its tactics for the default hazard margin.
     Ready(Arc<TacticsBase>),
+    /// A built file of it is not there (or refused) and the store builds nothing at load ([`AtLoad::Refuse`]): its bots run
+    /// the stage 0 script. The reason names the file and its key, for the log's ERROR line.
+    NotPrebuilt(String),
+}
+
+/// [A197] What a store does when a map's built file is not there, or is refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AtLoad {
+    /// Builds it here and writes it: the pre-build (`srp-build-maps`), tests, and a local server that asks for it
+    /// (`SRP_BOT_MAPS_BUILD_AT_LOAD=on`).
+    Build,
+    /// Builds nothing: the map is [`MapState::NotPrebuilt`]. The server's default: a build on the live host's one core takes
+    /// hours beside the human matches.
+    Refuse,
+}
+
+impl AtLoad {
+    /// The environment setting a server builds at load with.
+    pub const ENV: &str = "SRP_BOT_MAPS_BUILD_AT_LOAD";
+
+    /// From [`Self::ENV`]'s value: `on` builds; unset, empty or `off` refuses; anything else is an error.
+    pub fn parse(value: Option<&str>) -> Result<Self, String> {
+        match value.map(str::trim) {
+            None | Some("") => Ok(Self::Refuse),
+            Some(v) if v.eq_ignore_ascii_case("off") => Ok(Self::Refuse),
+            Some(v) if v.eq_ignore_ascii_case("on") => Ok(Self::Build),
+            Some(v) => Err(format!("{}={v}: on or off", Self::ENV)),
+        }
+    }
 }
 
 impl fmt::Debug for MapState {
@@ -86,6 +115,7 @@ impl fmt::Debug for MapState {
             Self::Loading => f.write_str("Loading"),
             Self::Waiting(reason) => f.debug_tuple("Waiting").field(reason).finish(),
             Self::Ready(base) => write!(f, "Ready({})", base.world.map.project),
+            Self::NotPrebuilt(reason) => f.debug_tuple("NotPrebuilt").field(reason).finish(),
         }
     }
 }
@@ -151,6 +181,8 @@ pub struct Maps {
     open_sides: Option<f32>,
     /// At most this many maps in memory ([`AT_ONCE`]).
     at_once: usize,
+    /// What it does when a built file is not there ([`AtLoad`]).
+    at_load: AtLoad,
     cache: Arc<Mutex<Cache>>,
     /// Held by the build under way: one at a time, for memory and the one
     /// core of the host.
@@ -183,6 +215,8 @@ enum Entry {
     /// only its world when it built tactics of its own).
     Dropped(Weak<TacticsBase>, Weak<World>),
     Failed(String),
+    /// [`MapState::NotPrebuilt`].
+    NotPrebuilt(String),
 }
 
 impl Maps {
@@ -211,11 +245,13 @@ impl Maps {
         built: Option<PathBuf>,
         grid: GridTuning,
     ) -> Arc<Self> {
-        Self::configured_for(dir, keep, at_once, built, grid, false, None)
+        Self::configured_for(dir, keep, at_once, built, grid, false, None, AtLoad::Build)
     }
 
     /// [`Maps::configured`], with the grids' table of wall clearances when `wall_clearance` and their table of open sides for the
-    /// support `open_sides` (the server derives both from its tuning: [`Tuning::needs_wall_clearance`], [`Tuning::needs_open_sides`]).
+    /// support `open_sides` (the server derives both from its tuning: [`Tuning::needs_wall_clearance`], [`Tuning::needs_open_sides`]),
+    /// and doing `at_load` when a built file is not there.
+    #[allow(clippy::too_many_arguments)]
     pub fn configured_for(
         dir: Option<PathBuf>,
         keep: usize,
@@ -224,10 +260,12 @@ impl Maps {
         grid: GridTuning,
         wall_clearance: bool,
         open_sides: Option<f32>,
+        at_load: AtLoad,
     ) -> Arc<Self> {
         Arc::new(Self {
             dir,
             built,
+            at_load,
             grid,
             wall_clearance,
             open_sides,
@@ -289,6 +327,7 @@ impl Maps {
         let revived = match cache.entries.get_mut(project) {
             Some(Entry::Loading) => return MapState::Loading,
             Some(Entry::Failed(reason)) => return MapState::Absent(reason.clone()),
+            Some(Entry::NotPrebuilt(reason)) => return MapState::NotPrebuilt(reason.clone()),
             Some(Entry::Ready { base, used }) => {
                 *used = clock;
                 return MapState::Ready(base.clone());
@@ -333,13 +372,14 @@ impl Maps {
     fn spawn_build(&self, project: &str, path: PathBuf) {
         let (cache, builds) = (self.cache.clone(), self.builds.clone());
         let (keep, name) = (self.keep, project.to_owned());
-        let (built, grid, wall_clearance, open_sides) = (self.built.clone(), self.grid.clone(), self.wall_clearance, self.open_sides);
+        let (built, grid, wall_clearance, open_sides, at_load) =
+            (self.built.clone(), self.grid.clone(), self.wall_clearance, self.open_sides, self.at_load);
         let spawned = std::thread::Builder::new()
             .name(format!("map {project}"))
             .spawn(move || {
                 let result = {
                     let _turn = builds.lock().unwrap_or_else(|p| p.into_inner());
-                    build(&path, built.as_deref(), &cache, &grid, wall_clearance, open_sides)
+                    build(&path, built.as_deref(), at_load, &cache, &grid, wall_clearance, open_sides)
                 };
                 stage::set("putting the map in the store");
                 let mut cache = lock(&cache);
@@ -366,9 +406,13 @@ impl Maps {
                         cache.made.insert(name.clone(), built.made());
                         cache.insert_ready(&name, Arc::new(base), keep);
                     }
-                    Err(reason) => {
+                    Err(BuildFail::Failed(reason)) => {
                         log::warn!("Bot map {name}: {reason}; bots on it keep their script");
                         cache.entries.insert(name, Entry::Failed(reason));
+                    }
+                    Err(BuildFail::NotPrebuilt(reason)) => {
+                        log::error!("{}", not_prebuilt_line(&name, &reason));
+                        cache.entries.insert(name, Entry::NotPrebuilt(reason));
                     }
                 }
             });
@@ -438,7 +482,7 @@ impl Cache {
                     Arc::strong_count(base) > 1 || Arc::strong_count(&base.world) > 1
                 }
                 Entry::Dropped(base, world) => base.strong_count() > 0 || world.strong_count() > 0,
-                Entry::Failed(_) => false,
+                Entry::Failed(_) | Entry::NotPrebuilt(_) => false,
             })
             .map(|(name, _)| name.clone())
             .collect();
@@ -540,33 +584,74 @@ impl Built {
     }
 }
 
-/// The structure of `key` from its file in `built` if that reads back,
-/// else made by `build` and written there for the next time.
+/// Why a map's build gave no map.
+#[derive(Debug)]
+enum BuildFail {
+    /// The map file or the build failed.
+    Failed(String),
+    /// A built file is not there (or refused) and the store builds nothing at load ([`AtLoad::Refuse`]).
+    NotPrebuilt(String),
+}
+
+impl From<String> for BuildFail {
+    fn from(reason: String) -> Self {
+        Self::Failed(reason)
+    }
+}
+
+/// [A197] The ERROR line of a map whose built file is not there on a store that builds nothing at load: once when found,
+/// and once by each match that asks for the map (`game/driven.rs`).
+pub fn not_prebuilt_line(project: &str, reason: &str) -> String {
+    format!(
+        "Bot map {project}: not pre-built: {reason}; nothing is built at load ({} is off): its bots run the stage 0 script",
+        AtLoad::ENV
+    )
+}
+
+/// What `built` holds of the kind of `file_name` (`grid-`, `sight-`, `tactics-` and a key): the names say only the key,
+/// not the map, so the count.
+fn others_of_kind(built: &Path, file_name: &str) -> String {
+    let kind = file_name.split_once('-').map_or(file_name, |(kind, _)| kind);
+    match std::fs::read_dir(built) {
+        Ok(entries) => {
+            let n = entries.filter_map(Result::ok).filter(|e| e.file_name().to_string_lossy().starts_with(&format!("{kind}-"))).count();
+            format!("{} holds {n} {kind} file(s), each of another key (the names carry the key only)", built.display())
+        }
+        Err(e) => format!("{}: {e}", built.display()),
+    }
+}
+
+/// The structure of `key` from its file in `built` if that reads back, else, with `at_load` [`AtLoad::Build`], made by
+/// `build` and written there for the next time; with [`AtLoad::Refuse`], the reason it is not there.
 fn read_or_build<T>(
     built: Option<&Path>,
+    at_load: AtLoad,
     file_name: String,
     read: impl FnOnce(&Path) -> Result<T, mapdata::Error>,
     build: impl FnOnce() -> T,
     write: impl FnOnce(&T, &Path) -> Result<(), mapdata::Error>,
-) -> (T, Source) {
+) -> Result<(T, Source), String> {
     let Some(built) = built else {
-        // No built folder (`SRP_MAPDATA_BUILT=off`): every load builds the map here.
-        log::warn!("Bot map file {file_name}: no built folder (SRP_MAPDATA_BUILT=off): built here now, at each load (its bots stand until it is ready)");
+        if at_load == AtLoad::Refuse {
+            return Err(format!("no built folder (SRP_MAPDATA_BUILT=off) for its {file_name}"));
+        }
+        log::warn!("Bot map file {file_name}: no built folder (SRP_MAPDATA_BUILT=off): built here now ({}=on), and at each load", AtLoad::ENV);
         stage::detail("building (no built files)");
-        return (build(), Source::Built);
+        return Ok((build(), Source::Built));
     };
-    let path = built.join(file_name);
+    let path = built.join(&file_name);
     if path.is_file() {
         stage::detail("reading the built file");
         match read(&path) {
-            Ok(value) => return (value, Source::Read),
+            Ok(value) => return Ok((value, Source::Read)),
+            Err(why) if at_load == AtLoad::Refuse => return Err(format!("its built file {} was refused ({why})", path.display())),
             Err(why) => log::warn!("Bot map file refused ({why}); built again"),
         }
+    } else if at_load == AtLoad::Refuse {
+        // The file's name is its key: a release without the file, or a key that changed since the pre-build.
+        return Err(format!("its built file {} is not there (the key it wants); {}", path.display(), others_of_kind(built, &file_name)));
     } else {
-        // A built file the store looks for and does not find: built here, on this host's cores. A pre-build
-        // (`srp-build-maps`) writes it so; on the live host it is a release without the file, or a key that changed since
-        // (the file's name is its key), and the map's bots stand until it is built.
-        log::warn!("Bot map file {} is not there: built here now (its bots stand until it is ready)", path.display());
+        log::warn!("Bot map file {} is not there: built here now ({}=on)", path.display(), AtLoad::ENV);
     }
     stage::detail("building");
     let value = build();
@@ -577,7 +662,7 @@ fn read_or_build<T>(
     if let Err(why) = written {
         log::warn!("Bot map file not written ({why}); built at each load");
     }
-    (value, Source::Built)
+    Ok((value, Source::Built))
 }
 
 /// A map file read: the map, and the digest of its bytes (the tactics' key has it).
@@ -653,11 +738,12 @@ fn log_removed_floors(name: &str, grid: &mapdata::WalkGrid) {
 fn build(
     path: &Path,
     built: Option<&Path>,
+    at_load: AtLoad,
     cache: &Mutex<Cache>,
     grid_tuning: &GridTuning,
     wall_clearance: bool,
     open_sides: Option<f32>,
-) -> Result<(TacticsBase, Built), String> {
+) -> Result<(TacticsBase, Built), BuildFail> {
     let started = Instant::now();
     let (mut map, map_file) = read_map(path)?;
     let built = catch_unwind(AssertUnwindSafe(|| {
@@ -674,6 +760,7 @@ fn build(
             None => {
                 let (grid, source) = read_or_build(
                     built,
+                    at_load,
                     mapdata::built::grid_file_name(grid_key),
                     |path| WalkGrid::read(path, grid_key, body),
                     // [A364 C2 rows 11/12] The rim jumps fly on the game's shapes (a format 6 map), built for the grid only: by the
@@ -765,7 +852,7 @@ fn build(
                         grid
                     },
                     |grid, path| grid.write(path, grid_key),
-                );
+                )?;
                 // [A346] The tables the tuning in force needs ([`Tuning::needs_wall_clearance`], [`Tuning::needs_open_sides`]) and
                 // the client's walker, in neither the cached file nor the key: by the one step every world uses
                 // ([`mapdata::GridExtras::apply`]; the bench's and the tests' worlds through `World::build_with_extras`).
@@ -789,11 +876,12 @@ fn build(
             None => {
                 let (sight, source) = read_or_build(
                     built,
+                    at_load,
                     mapdata::built::sight_file_name(sight_key),
                     |path| RayTree::read(path, sight_key),
                     || bullet.build_tree(),
                     |sight, path| sight.write(path, sight_key),
-                );
+                )?;
                 let sight = Arc::new(sight);
                 lock(cache).sights.insert(sight_key, Arc::downgrade(&sight));
                 (sight, source)
@@ -811,14 +899,16 @@ fn build(
         let tactics_started = Instant::now();
         let (base, tactics_source) = read_or_build(
             built,
+            at_load,
             mapdata::built::tactics_file_name(key),
             |path| TacticsBase::read(path, key, world.clone(), marking),
             || TacticsBase::build(world.clone(), marking),
             |base, path| base.write(path, key),
-        );
-        (base, grid_source, sight_source, tactics_source, tactics_started.elapsed().as_secs_f32(), grid_key)
+        )?;
+        Ok::<_, String>((base, grid_source, sight_source, tactics_source, tactics_started.elapsed().as_secs_f32(), grid_key))
     }))
-    .map_err(|_| format!("{}: the build panicked", path.display()))?;
+    .map_err(|_| format!("{}: the build panicked", path.display()))?
+    .map_err(BuildFail::NotPrebuilt)?;
     let (base, grid, sight, tactics, tactics_s, grid_key) = built;
     Ok((
         base,
@@ -849,7 +939,7 @@ fn ready(maps: &Maps, project: &str, limit: std::time::Duration) -> Result<Arc<T
     loop {
         match maps.get(project) {
             MapState::Ready(base) => return Ok(base),
-            MapState::Absent(why) => return Err(format!("{project}: {why}")),
+            MapState::Absent(why) | MapState::NotPrebuilt(why) => return Err(format!("{project}: {why}")),
             MapState::Loading | MapState::Waiting(_) if started.elapsed() < limit => {
                 std::thread::sleep(std::time::Duration::from_millis(20));
             }
@@ -1205,7 +1295,7 @@ mod tests {
         let project = "tiny/day_4";
         tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
         let tuning = crate::v026g::bots::tuning::Tuning::default();
-        let store = || crate::v026g::bot_maps(dir.clone(), KEEP, AT_ONCE, Some(built.clone()), &tuning);
+        let store = || crate::v026g::bot_maps(dir.clone(), KEEP, AT_ONCE, Some(built.clone()), &tuning, AtLoad::Build);
         let done = prebuild(store, &[project.to_owned()], Duration::from_secs(10)).unwrap();
         assert_eq!(done.len(), 1);
         assert!(done[0].made.grid == Source::Built && done[0].made.sight == Source::Built && done[0].made.tactics == Source::Built);
@@ -1215,6 +1305,7 @@ mod tests {
             AT_ONCE as u32,
             built.to_str(),
             &tuning,
+            AtLoad::Refuse,
         )
         .unwrap();
         let base = wait_ready(&server, project, Duration::from_secs(10));
@@ -1235,24 +1326,42 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
-    /// The keys carry the tuning's grid: a server tuned otherwise than the pre-build does not find its grid and builds it
-    /// again (what the pre-build's own read-back catches when it runs with the server's tuning).
+    /// [A197] The keys carry the tuning's grid: a server tuned otherwise than the pre-build does not find its grid. It builds
+    /// nothing at load (the server's default): the map is not pre-built, its ERROR line names the file it wanted, and the
+    /// match's bots run the stage 0 script (`game/driven.rs`). Asked to (`SRP_BOT_MAPS_BUILD_AT_LOAD=on`), it builds it.
     #[test]
-    fn a_server_tuned_otherwise_builds_the_prebuilt_grid_again() {
+    fn a_server_tuned_otherwise_builds_nothing_and_its_bots_run_the_script() {
         let dir = temp_dir("prebuilt-other");
         let built = dir.join("built");
         let project = "tiny/day_4";
         tiny_map(project).write(&dir.join(mapdata::format::file_name(project))).unwrap();
         let tuning = crate::v026g::bots::tuning::Tuning::default();
-        let store = || crate::v026g::bot_maps(dir.clone(), KEEP, AT_ONCE, Some(built.clone()), &tuning);
+        let store = || crate::v026g::bot_maps(dir.clone(), KEEP, AT_ONCE, Some(built.clone()), &tuning, AtLoad::Build);
         prebuild(store, &[project.to_owned()], Duration::from_secs(10)).unwrap();
         let other = crate::v026g::bots::tuning::Tuning {
             grid: GridTuning { client_numbers: false, gap_links: false, ..GridTuning::default() },
             ..Default::default()
         };
-        let server = crate::v026g::parse_mapdata_dir(dir.to_str(), KEEP as u32, AT_ONCE as u32, built.to_str(), &other).unwrap();
-        wait_ready(&server, project, Duration::from_secs(10));
-        assert_eq!(server.made(project).map(|made| made.grid), Some(Source::Built));
+        let server =
+            crate::v026g::parse_mapdata_dir(dir.to_str(), KEEP as u32, AT_ONCE as u32, built.to_str(), &other, AtLoad::Refuse).unwrap();
+        let started = Instant::now();
+        let reason = loop {
+            match server.get(project) {
+                MapState::NotPrebuilt(reason) => break reason,
+                MapState::Loading if started.elapsed() < Duration::from_secs(10) => std::thread::sleep(Duration::from_millis(5)),
+                other => panic!("{other:?}"),
+            }
+        };
+        let [wanted, _, _] = server.built_file_names(project).unwrap();
+        assert!(reason.contains(&wanted) && reason.contains("is not there"), "{reason}");
+        let line = not_prebuilt_line(project, &reason);
+        assert!(line.contains("stage 0 script") && line.contains(AtLoad::ENV) && line.contains(&wanted), "{line}");
+        assert_eq!(server.made(project), None, "nothing built");
+        assert!(matches!(server.get(project), MapState::NotPrebuilt(_)), "each ask is told so");
+        let local =
+            crate::v026g::parse_mapdata_dir(dir.to_str(), KEEP as u32, AT_ONCE as u32, built.to_str(), &other, AtLoad::Build).unwrap();
+        wait_ready(&local, project, Duration::from_secs(10));
+        assert_eq!(local.made(project).map(|made| made.grid), Some(Source::Built));
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -1353,6 +1462,7 @@ mod tests {
                     tuning.grid.clone(),
                     wall_clearance,
                     open_sides,
+                    AtLoad::Build,
                 );
                 let served = wait_ready(&store, "tiny/day_4", wait);
                 assert_eq!(served.world.grid.digest(), bench.grid.digest());
@@ -1383,7 +1493,7 @@ mod tests {
             let path = dir.join(mapdata::format::file_name(project));
             let map = MapData::from_bytes(&std::fs::read(&path).expect("map file")).expect("map");
             let bench = World::build_with_extras(map, mapdata::CELL, tuning.grid_body(), tuning.off_mesh_links(), tuning.grid_extras());
-            let store = Maps::configured_for(Some(dir.clone()), KEEP, AT_ONCE, None, tuning.grid.clone(), wall_clearance, open_sides);
+            let store = Maps::configured_for(Some(dir.clone()), KEEP, AT_ONCE, None, tuning.grid.clone(), wall_clearance, open_sides, AtLoad::Build);
             let served = wait_ready(&store, project, Duration::from_secs(1800));
             let (a, b) = (bench.grid.digest(), served.world.grid.digest());
             let (ta, tb) = (mapdata::GridExtras::held_by(&bench.grid), mapdata::GridExtras::held_by(&served.world.grid));
