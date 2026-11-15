@@ -8,8 +8,8 @@ package {
  // The hud's talking list (VoiceSpeakers, docs/notes/voice-chat.md) as exe patch 66 calls it: each
  // speaker's name and side. A teammate's speaker stays 0.69's blue, an opponent's pale red; a
  // speaker whose side changes while it talks is redrawn (a free-for-all: everyone a mate, blue);
- // one no longer sent fades. SHOT: the list with one teammate and one opponent, held for the
- // screenshot.
+ // one no longer sent fades; a name that is a method of Object (hasOwnProperty) as any other.
+ // SHOT: the list with one teammate and one opponent, held for the screenshot.
  public class VoiceSpeakersHarness extends Sprite {
   private static const BLUE:uint = 0x73B9FF;
   private static const RED:uint = 0xFF8080;
@@ -50,6 +50,15 @@ package {
     }
     if(frame == 90 + 120) {
      if(row("Hunter_77") != null) throw new Error("Hunter_77 not gone after its fade");
+     expect("Sokol",BLUE);
+     // Names that are an Object's own methods: shown, coloured and faded as any.
+     list.update(["hasOwnProperty","opponent","constructor","mate","Sokol","mate"]);
+     expect("hasOwnProperty",RED);
+     expect("constructor",BLUE);
+     list.update(["Sokol","mate"]);
+    }
+    if(frame == 90 + 240) {
+     if(row("hasOwnProperty") != null || row("constructor") != null) throw new Error("hasOwnProperty or constructor not gone after its fade");
      expect("Sokol",BLUE);
      finish(null);
     }
