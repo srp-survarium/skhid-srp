@@ -693,10 +693,11 @@ fn build(
                         // process's counters' growth, as the ties). A log's only.
                         let cull = mapdata::controller::sweep_cull();
                         log::info!(
-                            "Bot map {} sweep child cull: {} children skipped that the world box offered, {} offered that it did not",
+                            "Bot map {} sweep child cull: {} children skipped that the world box offered, {} offered that it did not; {} sweeps' ends not rebuilt to their bits",
                             path.display(),
                             cull.skipped - cull_before.skipped,
-                            cull.added - cull_before.added
+                            cull.added - cull_before.added,
+                            cull.end_rebuilt_differs - cull_before.end_rebuilt_differs
                         );
                         // A log's only: what each pass of the build did (a grid read from the cache has no such line).
                         log::info!(

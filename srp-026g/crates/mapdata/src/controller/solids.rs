@@ -26,7 +26,7 @@ use std::collections::HashMap;
 use super::exe_cast::{self, CastEnd};
 use super::exe_gjk::{self, Axis, Transform, WorldShape};
 use super::exe_ray::{self, ClosestRayCallback, ConvexRay, ConvexShape, NormalSpace, RayFlags, TriangleRay};
-use super::{BULLET_TOLERANCE_M, Contact, Face, Shape, SmallRound, SolidId, Surface, exe_cast_of};
+use super::{BULLET_TOLERANCE_M, Contact, Face, Shape, SmallRound, SolidId, Surface, Way, exe_cast_of};
 use crate::bullet::{self, ConvexKind};
 use crate::math::Vec3;
 use crate::{CollisionFilter, MapData, WalkerBehaviour};
@@ -439,14 +439,13 @@ fn ray_crosses(from: V3, to: V3, b: &Box3) -> bool {
 /// cast, in the compound's frame: the cast's start and end origins taken in by the compound's inverse (0x72D20, then
 /// `((i0*x + i1*y) + i2*z) + o`, 0xA2351..0xA2526), their least and greatest per axis (0xA2858..0xA2915), plus the cast
 /// shape's `getAabb` (vtable +4, 0xA2856) under the compound's inverse rotation with origin 0 (0xA2616..0xA2850: the
-/// product of the inverse basis and the cast's, which is the identity, so the inverse basis itself). The end is
-/// `from + by`, the exe's end exactly where `by` (the end less the start) was exact.
-fn cast_volume(cast: &exe_cast::Cast, object: &Transform) -> Box3 {
+/// product of the inverse basis and the cast's, which is the identity, so the inverse basis itself). `to` is the end's
+/// origin as the caller gave it (0xA2421..0xA2507; Bullet's frame).
+fn cast_volume(cast: &exe_cast::Cast, to: V3, object: &Transform) -> Box3 {
     let inv = exe_ray::inverse(object);
     let i = &inv.basis;
     let o = inv.origin;
     let into = |p: V3| [0, 1, 2].map(|r| ((i[r][0] * p[0] + i[r][1] * p[1]) + i[r][2] * p[2]) + o[r]);
-    let to = [cast.from[0] + cast.by[0], cast.from[1] + cast.by[1], cast.from[2] + cast.by[2]];
     let (a, b) = (into(cast.from), into(to));
     // 0xA2858..0xA28C3: the start's, replaced by the end's where the start's is greater (min); 0xA28C9..0xA2902: the end's,
     // replaced by the start's unless the end's is greater (max).
@@ -696,10 +695,13 @@ impl Solids {
 
     /// Every part's first contact with `shape` moved by `by` (both in the map frame), as `objectQuerySingle` 0xA14E0
     /// reports it to a callback that takes every hit (the sweep's allowed penetration 0, `convexSweepTest` 0xA34E8).
-    pub(super) fn sweep_each(&self, shape: Shape, by: Vec3, mut each: impl FnMut(Contact)) {
+    pub(super) fn sweep_each(&self, shape: Shape, way: Way, mut each: impl FnMut(Contact)) {
+        let by = way.by(shape);
         let mut cast = exe_cast_of(shape, by);
         cast.from = flip(cast.from);
         cast.by = flip(cast.by);
+        // [L36] The end's origin as the caller gave it, which a compound's query volume reads ([`cast_volume`]).
+        let to = flip(way.to(shape).to_array());
         let (lo0, hi0) = shape.aabb();
         let (lo1, hi1) = shape.moved(by).aabb();
         let pad = Vec3::new(BULLET_TOLERANCE_M, BULLET_TOLERANCE_M, BULLET_TOLERANCE_M);
@@ -718,7 +720,7 @@ impl Solids {
                     let volume = match volumes.iter().find(|(o, _)| *o == leaf.object) {
                         Some((_, v)) => *v,
                         None => {
-                            let v = cast_volume(&cast, &self.object_transforms[leaf.object as usize]);
+                            let v = cast_volume(&cast, to, &self.object_transforms[leaf.object as usize]);
                             volumes.push((leaf.object, v));
                             v
                         }
