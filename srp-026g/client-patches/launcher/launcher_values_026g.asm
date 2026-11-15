@@ -255,6 +255,8 @@ IAT_DeleteFileA         equ 0x3B110
 IAT_SHGetFolderPathA    equ 0x3B2BC
 IAT_SHCreateDirectoryExA equ 0x3B2C0
 IAT_GetWindowRect       equ 0x3B394
+IAT_GetFileAttributesW  equ 0x3B1BC
+IAT_CreateFileW         equ 0x3B12C
 
 LANGUAGE_GLOBAL         equ 0x4819C     ; the index get_language_code reads
 LANGUAGE_SELECTED       equ 0x19A20     ; language_menu::language_selected({menu, index})
@@ -264,7 +266,6 @@ MENU_SETTINGS           equ 0x154       ; language_menu: the settings
 
 CFG_SIZE                equ 0x10000     ; a user.cfg up to this is read (the game's is ~3 KB)
 PATH_SIZE               equ 320         ; MAX_PATH and the two names after it
-KEY_LENGTH              equ 12          ; "localization"
 CSIDL_PERSONAL          equ 5
 TPM_FLAGS               equ 0x180       ; TPM_RETURNCMD | TPM_NONOTIFY
 MF_CHECKED              equ 8
@@ -288,6 +289,15 @@ language_entries:                       ; patch_launcher_026g.py: 8 bytes each, 
         jmp     near save_language
         align   8, db 0xCC
         jmp     near pick_language
+        align   8, db 0xCC
+                                        ; then TORRENT_HOOKS, in this order ("Allow torrent", at the end)
+        jmp     near panel_made
+        align   8, db 0xCC
+        jmp     near box_made
+        align   8, db 0xCC
+        jmp     near panel_restored
+        align   8, db 0xCC
+        jmp     near torrent_click
         align   8, db 0xCC
 
 ; eax = index -> eax = its label (UTF-16). Called in place of
@@ -436,31 +446,34 @@ load_config:
         inc     edx                     ; there, but not to be read
         ret
 
-; esi = the file, ecx = its length -> eax = the start of its `localization`
-; line or -1; then edx = the value's start, edi = its end, ebp = the line's
-; end (its CR or LF, or the length). Offsets in the file.
+; esi = the file, ecx = its length, [esp+4] = a key (its length in a byte,
+; then its letters: `setting_key`, `torrent_key`); `ret 4` -> eax = the
+; start of the key's line or -1; then edx = the value's start, edi = its
+; end, ebp = the line's end (its CR or LF, or the length). Offsets in the
+; file.
 find_setting:
         xor     eax, eax
 .line:  cmp     eax, ecx
         jae     .none
-        lea     edx, [eax + KEY_LENGTH]
+        mov     edi, [esp + 4]
+        movzx   edx, byte [edi]
+        add     edx, eax                ; past the key
         cmp     edx, ecx
         jae     .next
         push    ecx
         push    esi
         lea     esi, [esi + eax]
-        lea     edi, [ebx + setting_key]
-        mov     ecx, KEY_LENGTH
+        movzx   ecx, byte [edi]
+        inc     edi
         repe    cmpsb
         pop     esi
         pop     ecx
         jne     .next
-        mov     dl, [esi + eax + KEY_LENGTH]
-        cmp     dl, ' '
-        je      .blank
-        cmp     dl, 9
+        movzx   edi, byte [esi + edx]
+        cmp     edi, ' '
+        je      .skip
+        cmp     edi, 9
         jne     .next
-.blank: lea     edx, [eax + KEY_LENGTH]
 .skip:  cmp     edx, ecx                ; the blanks before the value
         jae     .value
         cmp     byte [esi + edx], ' '
@@ -487,7 +500,7 @@ find_setting:
         je      .found
         inc     ebp
         jmp     .rest
-.found: ret
+.found: ret     4
 .next:  cmp     eax, ecx                ; past the next LF
         jae     .none
         cmp     byte [esi + eax], 10
@@ -497,7 +510,7 @@ find_setting:
 .after: inc     eax
         jmp     .line
 .none:  mov     eax, -1
-        ret
+        ret     4
 
 ; edx = a name, ecx = its length -> eax = its index in LANGUAGES, or -1.
 match_name:
@@ -561,6 +574,8 @@ reload_language:
         call    load_config
         test    esi, esi
         jz      .locale
+        lea     eax, [ebx + setting_key]
+        push    eax
         call    find_setting
         cmp     eax, -1
         je      .free
@@ -597,19 +612,134 @@ reload_language:
 .set:   add     esp, PATH_SIZE
         mov     ecx, [esp + 28]         ; pushad's eax: the settings
         mov     [ecx + SETTINGS_LANGUAGE], eax
+        mov     eax, ecx
+        call    reload_torrent          ; and "Allow torrent", from the same file
+        popad
+        ret
+
+; eax = the settings: "Allow torrent" (settings+0 current, +1 last saved:
+; what start_updater's 4th argument and 1A say) is user.cfg's
+; `enable_torrent_seeding on`, the game's own saved command (exe 0x1EE580);
+; off without that line, with any other value, without a user.cfg. Run
+; right after settings::reload (0x14200), whose registry `download_type` it
+; replaces. Nothing written; every register kept.
+reload_torrent:
+        call    torrent_reset
+        pushad
+        DELTA
+        sub     esp, PATH_SIZE
+        push    0                       ; off
+        lea     edi, [esp + 4]
+        xor     edx, edx
+        call    config_path
+        test    eax, eax
+        jz      .set
+        call    load_config
+        test    esi, esi
+        jz      .set
+        lea     eax, [ebx + torrent_key]
+        push    eax
+        call    find_setting
+        cmp     eax, -1
+        je      .free
+        sub     edi, edx                ; the value's length
+        cmp     edi, 2
+        jne     .free
+        cmp     word [esi + edx], 'on'
+        jne     .free
+        mov     dword [esp], 1
+.free:  call    free_buffer
+.set:   pop     eax
+        add     esp, PATH_SIZE
+        mov     ecx, [esp + 28]         ; pushad's eax: the settings
+        mov     [ecx], al
+        mov     [ecx + 1], al
+        popad
+        ret
+
+; The one-time reset: "Allow torrent" is off on every install until the
+; player ticks it, though the original game saved its default,
+; `enable_torrent_seeding on`, in every player's user.cfg. Once an install
+; (no RESET_NAME beside the launcher): the line is written `off`, then that
+; file is made, and from then on the line is the player's alone. A user.cfg
+; that cannot be written makes no file: the next start tries again. Every
+; register kept.
+RESET_CHARS             equ 300         ; the file's path, UTF-16 characters
+
+torrent_reset:
+        pushad
+        DELTA
+        sub     esp, 2*RESET_CHARS
+        mov     edi, esp
+        push    RESET_CHARS
+        push    edi
+        push    0
+        call    [ebx + IAT_GetModuleFileNameW]
+        test    eax, eax
+        jz      .done
+        cmp     eax, RESET_CHARS - RESET_NAME_CHARS - 1
+        jae     .done                   ; no room for the name after the folder
+        lea     ecx, [edi + eax*2]
+.back:  sub     ecx, 2                  ; back to the last backslash
+        cmp     ecx, edi
+        jb      .done
+        cmp     word [ecx], 0x5C
+        jne     .back
+        lea     edx, [ebx + reset_name]
+.copy:  add     ecx, 2                  ; the name after it, its zero included
+        mov     ax, [edx]
+        mov     [ecx], ax
+        add     edx, 2
+        test    ax, ax
+        jnz     .copy
+        push    edi
+        call    [ebx + IAT_GetFileAttributesW]
+        cmp     eax, -1
+        jne     .done                   ; there: done before
+        call    [ebx + IAT_GetLastError]
+        cmp     eax, 2                  ; ERROR_FILE_NOT_FOUND, nothing else
+        jne     .done
+        lea     eax, [ebx + off_text]
+        push    eax
+        lea     eax, [ebx + torrent_key]
+        push    eax
+        call    save_setting
+        test    eax, eax
+        jz      .done
+        push    0
+        push    0x80                    ; FILE_ATTRIBUTE_NORMAL
+        push    1                       ; CREATE_NEW
+        push    0
+        push    0
+        push    0x40000000              ; GENERIC_WRITE
+        push    edi
+        call    [ebx + IAT_CreateFileW]
+        cmp     eax, -1
+        je      .done
+        push    eax
+        call    [ebx + IAT_CloseHandle]
+.done:  add     esp, 2*RESET_CHARS
+        popad
+        ret
+
+; esi = the settings: user.cfg's `enable_torrent_seeding` line becomes
+; settings+0's: `on` or `off`, as the game writes it. Every register kept.
+save_torrent:
+        pushad
+        DELTA
+        lea     eax, [ebx + off_text]
+        cmp     byte [esi], 0
+        je      .save
+        lea     eax, [ebx + on_text]
+.save:  push    eax
+        lea     eax, [ebx + torrent_key]
+        push    eax
+        call    save_setting
         popad
         ret
 
 ; settings::save_language(settings), `ret 4`: user.cfg's `localization` line
-; becomes the settings' language (added when there is none; the file made
-; when there is none). A file that cannot be read whole is left as it is.
-; Written beside it and renamed over it, so it is never left half written.
-SAVE_PATH               equ 0           ; locals, after `sub esp`: the path
-SAVE_NEW                equ PATH_SIZE   ; the path of the new file
-SAVE_NAME               equ 2*PATH_SIZE ; the language's name
-SAVE_OUT                equ 2*PATH_SIZE + 4   ; the new file's buffer
-SAVE_LOCALS             equ 2*PATH_SIZE + 16
-
+; becomes the settings' language.
 save_language:
         pushad
         DELTA
@@ -617,10 +747,39 @@ save_language:
         mov     eax, [eax + SETTINGS_LANGUAGE]
         cmp     eax, LANGUAGE_COUNT
         jae     .out
-        sub     esp, SAVE_LOCALS
         shl     eax, 4
         lea     eax, [ebx + language_names + eax]
-        mov     [esp + SAVE_NAME], eax
+        push    eax
+        lea     eax, [ebx + setting_key]
+        push    eax
+        call    save_setting
+.out:   popad
+        ret     4
+
+; save_setting(key, value), `ret 8` -> eax = 1 when written, else 0:
+; user.cfg's line of the key (as find_setting takes it) becomes
+; `<key> <value>` (value: zero-ended ASCII),
+; replaced where it is, added at the end when there is none, the file (and
+; its folder) made when there is none. A file that cannot be read whole is
+; left as it is. Written beside it and renamed over it, so it is never left
+; half written.
+SAVE_PATH               equ 0           ; locals, after `sub esp`: the path
+SAVE_NEW                equ PATH_SIZE   ; the path of the new file
+SAVE_VALUE              equ 2*PATH_SIZE ; the value
+SAVE_OUT                equ 2*PATH_SIZE + 4   ; the new file's buffer
+SAVE_KEY                equ 2*PATH_SIZE + 8   ; the key
+SAVE_DONE               equ 2*PATH_SIZE + 12  ; 1 once written
+SAVE_LOCALS             equ 2*PATH_SIZE + 16
+
+save_setting:
+        pushad
+        DELTA
+        sub     esp, SAVE_LOCALS
+        mov     eax, [esp + SAVE_LOCALS + 36]
+        mov     [esp + SAVE_KEY], eax
+        mov     eax, [esp + SAVE_LOCALS + 40]
+        mov     [esp + SAVE_VALUE], eax
+        mov     dword [esp + SAVE_DONE], 0
         lea     edi, [esp + SAVE_PATH]
         mov     dl, 1
         call    config_path
@@ -641,6 +800,7 @@ save_language:
         test    eax, eax
         jz      .free_in
         push    ecx
+        push    dword [esp + 4 + SAVE_KEY]
         call    find_setting            ; eax line, edx value, edi value end, ebp line end
         pop     ecx
         push    ecx                     ; [esp] = the length, while the new text is made
@@ -729,7 +889,9 @@ save_language:
         push    ecx
         call    eax                     ; MoveFileExA(new, path)
         test    eax, eax
-        jnz     .free_out
+        jz      .drop
+        mov     dword [esp + SAVE_DONE], 1
+        jmp     .free_out
 .drop:  lea     ecx, [esp + SAVE_NEW]
         push    ecx
         call    [ebx + IAT_DeleteFileA]
@@ -739,19 +901,22 @@ save_language:
         jmp     .done
 .free_in:
         call    free_buffer
-.done:  add     esp, SAVE_LOCALS
-.out:   popad
-        ret     4
+.done:  mov     eax, [esp + SAVE_DONE]
+        add     esp, SAVE_LOCALS
+        mov     [esp + 28], eax         ; popad's eax
+        popad
+        ret     8
 
-; edi = where -> "localization <name>" there, edi after it. The name is at
-; [esp + 4 (this call) + 4 (the length pushed) + SAVE_NAME].
+; edi = where -> "<key> <value>" there, edi after it. The key and the value
+; are at [esp + 4 (this call) + 4 (the length pushed) + SAVE_KEY, SAVE_VALUE].
 .line:  push    esi
-        lea     esi, [ebx + setting_key]
-        mov     ecx, KEY_LENGTH
+        mov     esi, [esp + 12 + SAVE_KEY]
+        movzx   ecx, byte [esi]
+        inc     esi
         rep     movsb
         mov     byte [edi], ' '
         inc     edi
-        mov     esi, [esp + 12 + SAVE_NAME]
+        mov     esi, [esp + 12 + SAVE_VALUE]
 .name:  lodsb
         test    al, al
         jz      .named
@@ -851,7 +1016,245 @@ pick_language:
         popad
         ret
 
-setting_key:    db 'localization'
+; ---------------------------------------------------------------------------
+; "Allow torrent" on the main window (patch 15). The settings window (the
+; gear) stays out of sight (patch 8); its one setting that applies is a box
+; in the bottom panel, left of the status line: YouTube's control (form+648h,
+; out of sight since patch 8, moved there by patch_launcher_026g.py RECTS)
+; with the settings window's own pictures (PNG 347 unticked, 345 under the
+; pointer, 346 pressed, 344 ticked, loaded in the place of YouTube's three
+; and Facebook's first), and its own text (string 0D3h, the launcher's
+; language) in its font and colour (Calibri bold 18, white), where the
+; settings window has it beside its box (0x1D1D4).
+;
+; The text is painted into the panel's picture (form+0ECh, JPG 301), as the
+; status line's texts are: when the picture is made (`panel_made`) and every
+; time launcher_form::set_status_texts (0x1B48D) copies it anew from its
+; resource before it writes the status (`panel_restored`).
+;
+; The box's four pictures are made opaque once, over the panel's picture
+; where the box is (`bake_box`, in `panel_made`): a transparent control is
+; drawn over what its window last showed, and only Windows composes the
+; launcher's windows (WS_EX_COMPOSITED) so that the panel is under it again;
+; under Wine the check of a ticked box would stay when it is unticked.
+;
+; The setting is kept as the language is: in user.cfg, as the game's own
+; saved command `enable_torrent_seeding on` / `off` (`reload_torrent` at the
+; start, `save_torrent`), so it stays as the player left it until they
+; change it. A click (the control calls its callback at the button's press,
+; 0x1275B) toggles settings+0 (and +1), writes the line at once, fires the
+; callback settings::save fires for a changed box (0x1D780: 1A to the
+; updater while the pipe is connected, 0x172FA) and shows the pictures as
+; settings_window::show_torrent_checkbox (0x1CE0E) does. The registry's
+; `download_type` is neither read (`reload_torrent`) nor written.
+
+TRANSPARENT_CONTROL     equ 0x12548     ; transparent_control::transparent_control
+IMAGE_WINDOW            equ 0x12140     ; image_window::image_window
+SET_PICTURE             equ 0x125CE     ; transparent_control: eax = it, ecx = its picture (and repaint)
+COPY_PICTURE            equ 0x12BE0     ; (destination, source, &point), eax = the rectangle; cdecl
+                                        ;   (AlphaBlend: the source's alpha over the destination)
+CROP_PICTURE            equ 0x12051     ; (bitmap), eax = a rectangle of it -> a new bitmap of it; cdecl
+FUNCTION0_CALL          equ 0x17522     ; boost::function0::operator(), eax = the function
+SETTINGS_TORRENT_CHANGED equ 0x28       ; settings: the "download type changed" callback
+LOAD_STRING             equ 0x137A8     ; load_string(id, buffer, size), cdecl
+MAKE_FONT               equ 0x11CC7     ; [esi] = CreateFontW(height, weight, face); ret 0Ch
+DRAW_TEXT               equ 0x137C3     ; into a picture: (text, bitmap, &font, colour, format,
+                                        ;   left, right margin, top); cdecl
+IAT_DeleteObject        equ 0x3B07C
+CALIBRI                 equ 0x3F480     ; L"Calibri", the settings window's font
+BOX_RECT                equ 0x458A4     ; the box's place in the panel: left, top (YouTube's rect)
+
+FORM_PANEL_PICTURE      equ 0xEC        ; launcher_form: the bottom panel's picture (HBITMAP)
+FORM_UNTICKED           equ 0x140       ; the box's pictures: YouTube's first, second
+FORM_UNTICKED_HOVER     equ 0x14C
+FORM_PRESSED            equ 0x158       ; YouTube's third
+FORM_TICKED             equ 0x164       ; Facebook's first
+FORM_BOX                equ 0x648       ; YouTube's control
+FORM_SETTINGS           equ 0xB40       ; settings_window (form+6E8h) + 458h: the settings
+CONTROL_HOVER           equ 0xC         ; transparent_control: the picture under the pointer
+
+TORRENT_TEXT            equ 0xD3        ; "Allow torrent"
+TEXT_CHARS              equ 64
+TEXT_HEIGHT             equ 18          ; the settings window's text, where it is beside its box
+TEXT_RIGHT              equ 25          ;   (0x1C38E, 0x3A96C): 25 pixels right of the box's left,
+TEXT_DOWN               equ 1           ;   1 below its top
+FONT_BOLD               equ 700
+WHITE                   equ 0xFFFFFF
+LABEL_FONT              equ 0           ; paint_label's locals
+LABEL_TEXT              equ 4
+LABEL_LOCALS            equ 4 + 2*TEXT_CHARS
+
+; eax = the form: the box's text painted into the panel's picture. Every
+; register kept.
+paint_label:
+        pushad
+        mov     esi, eax                ; the form
+        DELTA
+        sub     esp, LABEL_LOCALS
+        push    TEXT_CHARS
+        lea     eax, [esp + 4 + LABEL_TEXT]
+        push    eax
+        push    TORRENT_TEXT
+        call    LOAD_STRING
+        add     esp, 12
+        push    esi
+        lea     esi, [esp + 4 + LABEL_FONT]
+        lea     eax, [ebx + CALIBRI]
+        push    eax
+        push    FONT_BOLD
+        push    TEXT_HEIGHT
+        call    MAKE_FONT
+        pop     esi
+        mov     eax, [ebx + BOX_RECT + 4]
+        add     eax, TEXT_DOWN
+        push    eax                     ; top
+        push    0                       ; right margin
+        mov     eax, [ebx + BOX_RECT]
+        add     eax, TEXT_RIGHT
+        push    eax                     ; left
+        push    0                       ; DT_LEFT | DT_TOP, as the settings window's
+        push    WHITE
+        lea     eax, [esp + 20 + LABEL_FONT]
+        push    eax
+        push    dword [esi + FORM_PANEL_PICTURE]
+        lea     eax, [esp + 28 + LABEL_TEXT]
+        push    eax
+        call    DRAW_TEXT
+        add     esp, 32
+        push    dword [esp + LABEL_FONT]
+        call    [ebx + IAT_DeleteObject]
+        add     esp, LABEL_LOCALS
+        popad
+        ret
+
+; eax = the form: each of the box's four pictures replaced by itself over
+; the panel's picture where the box is (BOX_RECT): opaque, of the box's
+; size. The PNG's bitmap is deleted; the form deletes the new one as it did
+; the PNG's (0x1B328). Every register kept.
+BAKE_RECT               equ 0           ; locals: 0, 0, the box's width, height
+BAKE_POINT              equ 16          ; 0, 0
+BAKE_LOCALS             equ 24
+
+bake_box:
+        pushad
+        mov     esi, eax                ; the form
+        DELTA
+        sub     esp, BAKE_LOCALS
+        xor     eax, eax
+        mov     [esp + BAKE_RECT], eax
+        mov     [esp + BAKE_RECT + 4], eax
+        mov     [esp + BAKE_POINT], eax
+        mov     [esp + BAKE_POINT + 4], eax
+        mov     eax, [ebx + BOX_RECT + 8]
+        sub     eax, [ebx + BOX_RECT]
+        mov     [esp + BAKE_RECT + 8], eax
+        mov     eax, [ebx + BOX_RECT + 12]
+        sub     eax, [ebx + BOX_RECT + 4]
+        mov     [esp + BAKE_RECT + 12], eax
+        lea     edi, [ebx + box_pictures]
+        mov     ebp, 4
+.each:  push    dword [esi + FORM_PANEL_PICTURE]
+        lea     eax, [ebx + BOX_RECT]
+        call    CROP_PICTURE            ; the panel where the box is
+        add     esp, 4
+        test    eax, eax
+        jz      .next                   ; none: the PNG's stays
+        mov     edx, [edi]
+        push    eax                     ; the new bitmap, kept
+        lea     ecx, [esp + 4 + BAKE_POINT]
+        push    ecx
+        push    dword [esi + edx]       ; the PNG's
+        push    eax
+        lea     eax, [esp + 16 + BAKE_RECT]
+        call    COPY_PICTURE            ; the PNG over it
+        add     esp, 12
+        mov     edx, [edi]
+        push    dword [esi + edx]
+        call    [ebx + IAT_DeleteObject]
+        pop     eax
+        mov     edx, [edi]
+        mov     [esi + edx], eax
+.next:  add     edi, 4
+        dec     ebp
+        jnz     .each
+        add     esp, BAKE_LOCALS
+        popad
+        ret
+
+box_pictures:   dd FORM_UNTICKED, FORM_UNTICKED_HOVER, FORM_PRESSED, FORM_TICKED
+
+; In place of image_window::image_window for the bottom panel (0x1AD78):
+; ebx = the form; edi, esi and the stack are image_window's. The box's
+; pictures are loaded (0x1AAFC..) and not yet given to its control (0x1ADE2).
+panel_made:
+        mov     eax, ebx
+        call    paint_label
+        call    bake_box
+        jmp     IMAGE_WINDOW
+
+; In place of transparent_control::transparent_control for YouTube's
+; control, the box (0x1AE1F): ebx = the form, ebp its constructor's frame
+; ([ebp+0Ch] = the settings); edi, esi and the eight arguments on the stack
+; are the control's. Ticked, its picture and the one under the pointer are
+; the ticked one.
+box_made:
+        mov     eax, [ebp + 0Ch]
+        cmp     byte [eax], 0
+        je      .made
+        mov     eax, [ebx + FORM_TICKED]
+        mov     [esp + 4 + 12], eax     ; its picture
+        mov     [esp + 4 + 16], eax     ; under the pointer
+.made:  jmp     TRANSPARENT_CONTROL
+
+; In place of the copy of the panel's picture from its resource in
+; set_status_texts (0x1B4D9): the copy (its three arguments copied, eax the
+; rectangle), then the box's text again. edi = the form.
+panel_restored:
+        push    dword [esp + 12]
+        push    dword [esp + 12]
+        push    dword [esp + 12]
+        call    COPY_PICTURE
+        add     esp, 12
+        mov     eax, edi
+        jmp     paint_label
+
+; The box's click (cdecl, the form): YouTube's click handler (0x1BD03)
+; jumps here.
+torrent_click:
+        push    ebx
+        push    esi
+        mov     ebx, [esp + 12]         ; the form
+        mov     esi, [ebx + FORM_SETTINGS]
+        cmp     byte [esi], 0
+        sete    al
+        mov     [esi], al
+        mov     [esi + 1], al           ; saved
+        call    save_torrent
+        cmp     dword [esi + SETTINGS_TORRENT_CHANGED], 0
+        je      .show
+        lea     eax, [esi + SETTINGS_TORRENT_CHANGED]
+        call    FUNCTION0_CALL          ; 1A while the updater is connected
+.show:  mov     ecx, [ebx + FORM_UNTICKED]
+        mov     edx, [ebx + FORM_UNTICKED_HOVER]
+        cmp     byte [esi], 0
+        je      .picture
+        mov     ecx, [ebx + FORM_TICKED]
+        mov     edx, ecx
+.picture:
+        lea     eax, [ebx + FORM_BOX]
+        mov     [eax + CONTROL_HOVER], edx
+        call    SET_PICTURE
+        pop     esi
+        pop     ebx
+        ret
+
+setting_key:    db 12, 'localization'
+torrent_key:    db 22, 'enable_torrent_seeding'
+on_text:        db 'on', 0
+off_text:       db 'off', 0
+        align   2, db 0
+reset_name:     dw __utf16__('launcher_skhid.torrent_reset'), 0
+RESET_NAME_CHARS equ ($ - reset_name) / 2
 folder_name:    db '\survarium', 0
 file_name:      db '\user.cfg', 0
 new_suffix:     db '.new', 0

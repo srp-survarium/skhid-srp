@@ -1,8 +1,8 @@
 @echo off
 rem Skhid-network-setup.cmd: lets the Skhid game's three programs out through
 rem Windows Firewall, and the updater in (TCP: it shares the game by
-rem BitTorrent when the launcher's "Allow torrent" is on, on the launcher's
-rem port). It turns nothing off: the firewall stays on. It belongs
+rem BitTorrent when the launcher's "Allow torrent" is on, on a port it
+rem picks and keeps). It turns nothing off: the firewall stays on. It belongs
 rem beside Skhid.bat, in the folder that holds the folder named game. It
 rem speaks Russian when the Windows display language is Russian, Ukrainian
 rem or Belarusian, English otherwise. The Microsoft Defender exclusion it
@@ -62,7 +62,7 @@ goto args
 
 set "X86=%TOP%\game\binaries\x86"
 set "PROGRAMS=launcher_skhid.exe survarium_skhid.exe updater_skhid.exe"
-rem The one program that is let in: its port is the launcher's setting, so
+rem The one program that is let in: it picks its port (and keeps it), so
 rem the rule is the program's, every port.
 set "SHARER=updater_skhid.exe"
 if not exist "%X86%\survarium_skhid.exe" goto wrong_place

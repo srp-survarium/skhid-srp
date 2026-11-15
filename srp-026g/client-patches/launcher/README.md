@@ -34,6 +34,7 @@ your own copy, and the patched exe is made from it.
 | `patch_launcher_026g.py` | Builds the patched launcher from the original. Python 3, nothing else |
 | `launcher_values_026g.asm`, `.bin` | The new code (304 bytes and three text slots): the values the launcher used to read from the installer's registry key, worked out from where the launcher is; and Enter pressing PLAY. Assembling the source again gives the same bytes |
 | `launcher_pages.py` | The ten small pages the launcher shows from its own folder while the server's page loads and when it cannot be loaded |
+| `check_*_026g.py` | Run the patched code under Unicorn: the registry reads (patch 4), the language (14), the install status (13), the "Allow torrent" box (15) |
 | `selftest_launcher_026g.py` | Builds it in memory and checks it: every changed byte is one named below, the PE is well formed, the hook and its way back, the addresses, the relocations, no old address left, the `.asm` gives the `.bin` |
 | `../make_client_026g.py` | Puts all of it into the players' ZIP (the default; `--no-launcher` leaves it out) |
 | `../../../client/updater/` | The updater: Rust source, its tests |
@@ -45,7 +46,8 @@ your own copy, and the patched exe is made from it.
 python patch_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe <out>/launcher_skhid.exe [--site=https://skhid.link]
 python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe --nasm=<nasm>
 python check_language_026g.py <game>/binaries/x86/survarium_launcher.exe   # the language code, under Unicorn
-python check_registry_026g.py <game>/binaries/x86/survarium_launcher.exe   # no registry call where the key was read, "Allow torrent" off by default, under Unicorn
+python check_registry_026g.py <game>/binaries/x86/survarium_launcher.exe   # no registry call where the key was read, under Unicorn
+python check_torrent_box_026g.py <game>/binaries/x86/survarium_launcher.exe # the "Allow torrent" box (patch 15), under Unicorn
 ```
 
 After a change of the game's languages (`../localization_026g.py --write`
@@ -123,10 +125,11 @@ Gone from the window: the four social buttons, CREATE ACCOUNT (an account is
 made by the first sign-in), SHOP (silver and gold are exchanged in the
 lobby's exchange window since game update 11, and items bought in the
 lobby's shop). PROJECT WEBSITE, in SHOP's old place at the right, opens
-`<site>/?lang=<code>` in the player's browser. The settings gear stays: its
-"Allow torrent" (off until the player ticks it, patch 15) and port are the
-updater's BitTorrent (`../../docs/notes/torrent-downloads.md`); patch 8
-hid it while the updater had none.
+`<site>/?lang=<code>` in the player's browser. The settings gear (its
+"Allow torrent" and port) is gone too: "Allow torrent" is a box at the left
+of the bottom panel, where the social buttons were, kept in user.cfg as the
+language is (patch 15); the port is the updater's own
+(`../../docs/notes/torrent-downloads.md`).
 
 The launchers built before SHOP went open `<site>/exchange?lang=<code>`
 with it. That address stays: a short page there says, in the launcher's
@@ -540,14 +543,15 @@ found: `../../docs/notes/launcher.md`.
 
 ### 8. The buttons that are gone
 
-- **Where:** the click handlers of SHOP, CREATE ACCOUNT, YouTube, Facebook,
-  Twitter and VK return at once (first byte → `C3` at 0x1BBEF, 0x1BC45,
-  0x1BD03, 0x1BD16, 0x1BD29, 0x1BD3C); their rectangles get a left edge of
-  30000 (0x45844, 0x45854, 0x458A4, 0x458B4, 0x458C4, 0x458D4), which is
-  outside the window (the settings gear's too, 0x45814, until the updater
-  had BitTorrent: it is back at 819, 12, the original's); PROJECT WEBSITE
-  moves from 478 to 750, SHOP's place (0x45864). Their addresses are
-  emptied.
+- **Where:** the click handlers of SHOP, CREATE ACCOUNT, Facebook, Twitter
+  and VK return at once (first byte → `C3` at 0x1BBEF, 0x1BC45, 0x1BD16,
+  0x1BD29, 0x1BD3C; YouTube's control is the "Allow torrent" box since
+  patch 15); their rectangles get a left edge of 30000 (0x45844, 0x45854,
+  0x458B4, 0x458C4, 0x458D4), which is outside the window, and so does the
+  settings gear's (0x45814: its one setting that applies, "Allow torrent",
+  is on the main window, patch 15; its port is the updater's); PROJECT
+  WEBSITE moves from 478 to 750, SHOP's place (0x45864). Their addresses
+  are emptied.
 - **Why SHOP:** it opened the site's silver and gold exchange, which is in
   the lobby now (`../README.md`, "Lobby exchange"). Until 2026-10-16 it
   stayed, at `<site>/exchange?lang=`, and PROJECT WEBSITE stood beside it
@@ -590,7 +594,7 @@ found: `../../docs/notes/launcher.md`.
 - The Authenticode signature is taken off: it cannot be right for a changed
   file, and the launcher never reads it (unlike the game exe). The `.skhid`
   section takes its place at the end of the file, the section table gets a
-  sixth entry, `SizeOfImage` grows by a page and the PE checksum is
+  sixth entry, `SizeOfImage` grows by its pages (two at most) and the PE checksum is
   recomputed.
 
 ### 13. Install-status transition crash
@@ -669,36 +673,78 @@ language the game has. `docs/notes/language-option.md` has the rule.
   on), and every language's label, LANGID and page. Not yet run in a real
   launcher window.
 
-### 15. "Allow torrent" is off until the player turns it on
+### 15. "Allow torrent" on the main window, kept in user.cfg
 
 The owner (2026-11-15): BitTorrent is off by default; a player turns it on
-with "Allow torrent" in the settings (the gear, back since this patch).
+with an "Allow torrent" box right on the launcher's main screen ("no need
+for settings"), and it stays as they left it, kept as the language is.
 
-- **Where:** `settings::reload` (0x1D4C4) starts by storing the default of
-  "Allow torrent", current and last saved (`settings+0`, `settings+1`):
-  `mov byte [ebx],1 / mov byte [ebx+1],1` at 0x1D4CE becomes
-  `mov byte [ebx],0 / mov byte [ebx+1],0` (`C6 03 01 C6 43 01 01` →
-  `C6 03 00 C6 43 01 00`). Nothing else changes.
-- **Why it is the one place:** `settings::reload` runs in
-  `launcher::launcher` (0x14200, right after the constructor zeroes the
-  settings at 0x141DF) and when the settings window is closed without SAVE
-  (0x1CBB7). It opens `HKCU\Software\Vostok Games\<product>`
-  (`RegOpenKeyExW` 0x1D4E8) and reads `download_type` by
-  `registry_key::get_dword` (0x127C8: a REG_DWORD); only a value of 1 sets
-  both bytes to 1, any other value to 0 (`cmp [ebp-8],1 / sete`). No key or
-  no value leaves the default. Every reader takes `settings+0` from there:
-  `start_updater`'s 4th argument (0x1580B: `torrent` or `direct`),
-  `send_switch_download_type_message` (`1A`, 0x17367), the box's picture
-  (`settings_window::show_torrent_checkbox` 0x1CE0E) and the port field's
-  state (0x1CF7D). `settings::save` (0x1D71A) writes `download_type` (1 or
-  0) only when the box was changed (`+0` != `+1`), so an untouched box saves
-  nothing and stays off.
-- **The updater** reads it the same way for `check` (`download_type` 1:
-  torrent; nothing: direct), `client/updater/README.md`.
-- Checked: `check_registry_026g.py` runs `settings::reload` of the patched
-  launcher under Unicorn: no product key, the key without `download_type`,
-  `download_type` 0 (all off) and 1 (on, with `port_number` read through
-  patch 4's `get_string`); the original with no key has it on.
+- **What it looks like:** the settings window's own box and text, at the
+  left of the bottom panel where the social buttons were: the box (PNG 347
+  unticked, 345 under the pointer, 346 pressed, 344 ticked, 20 by 20) at 28,
+  32 of the panel, in line with the page's left column and centred on the
+  status line and PLAY; "Allow torrent" (string 0xD3, the launcher's
+  language) 25 pixels right of it and 1 below its top, Calibri bold 18,
+  white, as the settings window has it beside its box (0x1C38E, 0x3A96C).
+  The widest text, Russian, ends at x 186, before the status line (x 200).
+  Previews: `private/renders/launcher-allow-torrent/` (not in git).
+- **Where:** YouTube's control (form+0x648) is the box: its three pictures
+  (0x1AAFC, 0x1AB0F, 0x1AB22) and Facebook's first (0x1AB35, the ticked
+  one; Facebook stays out of sight) are loaded from the settings window's
+  PNGs, its rectangle (0x458A4) moves to 28, 32 and its size initialisers
+  (0x3A715, 0x3A722) say 20. Four sites call or jump to new code
+  (`TORRENT_HOOKS`, entries after the language's):
+  - 0x1AD78, the bottom panel's `image_window` (`panel_made`): the text is
+    painted into the panel's picture (form+0xEC, JPG 301) as the status
+    texts are, and the box's four pictures are made opaque over the
+    panel's picture where the box is (`bake_box`: a transparent control is
+    drawn over what its window last showed; only Windows composes the
+    launcher's windows, WS_EX_COMPOSITED, so under Wine an unticked box
+    kept the check of a ticked one);
+  - 0x1AE1F, YouTube's `transparent_control` (`box_made`): ticked
+    (settings+0), its picture and the one under the pointer are the ticked
+    one;
+  - 0x1B4D9, `set_status_texts`' copy of the panel's picture from its
+    resource (`panel_restored`): the copy, then the text again (each status
+    change copies the picture anew);
+  - 0x1BD03, YouTube's click (`torrent_click`): settings+0 and +1
+    toggled, user.cfg's line written at once, the callback settings::save
+    fires for a changed box (`function0` at settings+0x28: 1A to the updater
+    while the pipe is connected, 0x172FA), the pictures as
+    `settings_window::show_torrent_checkbox` (0x1CE0E) shows them. The text
+    beside the box is not clickable.
+- **The store:** user.cfg (`<Documents>\survarium\user.cfg`, patch 14),
+  the game's own saved command `enable_torrent_seeding on` / `off` (exe
+  0x1EE580; the game keeps it when it rewrites the file), written as the
+  language is (one `save_setting` for both: the line replaced or added,
+  through `user.cfg.new` renamed over). The start (`reload_torrent`, from
+  `settings::reload_language` right after `settings::reload` at 0x14200):
+  ticked for `on`; no line, another value or no user.cfg: off. The
+  registry's `download_type` is neither read nor written any more
+  (settings::reload still reads it; its result is replaced at once).
+- **The one-time reset:** the original game saved its default,
+  `enable_torrent_seeding on`, in every player's user.cfg. Before the line
+  is read, an install without `launcher_skhid.torrent_reset` beside the
+  launcher has the line written `off`, then that empty file made; from then
+  on the line is the player's alone. A user.cfg that cannot be written
+  makes no file: the next start tries again. The updater takes the line
+  only with that file there (`client/updater`, `win::launcher_torrent_allowed`).
+- **Why it is the one place:** every reader takes `settings+0`:
+  `start_updater`'s 4th argument (0x1580B: `torrent` or `direct`) and
+  `send_switch_download_type_message` (1A, 0x17367).
+- Checked: `check_torrent_box_026g.py` runs the four sites, the start
+  (0x141D9..0x1420C: settings::reload, then reload_language) and the
+  box's window procedure under Unicorn at two bases: the start reads the
+  line whatever `download_type` says; the text and the opaque pictures; the
+  box ticked or not; three clicks, each writing the line (others kept),
+  firing the callback once, no registry call, and a fresh start reading
+  the box as it was left; the reset (`on` becomes `off` once, the file
+  made; a locked user.cfg makes no file; a tick after it stays across
+  restarts). `check_language_026g.py` still passes (the shared user.cfg
+  code). Run in the real launcher under Wine (headless, with a stand-in
+  updater on its pipe, 2026-11-15): the box drawn in all five languages,
+  clicks writing the line and sending `1A 00` / `1A 01`, a restart ticked,
+  the legacy `on` reset once with the file made. Not yet run on Windows.
 
 ## The pipe, in short
 

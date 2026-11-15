@@ -1047,16 +1047,16 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
                 patches::Look::Quick
             },
             // `check`: the word given (`torrent`, `direct`), else the
-            // launcher's saved "Allow torrent" (off when nothing is saved);
-            // `ready` reads only.
+            // launcher's "Allow torrent" (user.cfg; off when it has none);
+            // no port: the one kept beside the updater. `ready` reads only.
             torrenting: if action == "check" {
                 let said = rest.iter().find_map(|argument| {
                     ["torrent", "direct"]
                         .into_iter()
                         .find(|word| argument.eq_ignore_ascii_case(word))
                 });
-                let (saved, port) = win::launcher_torrent_setting();
-                Torrenting::of_arguments(said.unwrap_or(saved), &port)
+                let saved = if win::launcher_torrent_allowed() { "torrent" } else { "direct" };
+                Torrenting::of_arguments(said.unwrap_or(saved), "")
             } else {
                 Torrenting::Off { port: None }
             },
@@ -1161,7 +1161,7 @@ fn run() -> u32 {
         named_file: false,
         seen: None,
         trouble: None,
-        torrents: torrent::Torrents::new(options.torrenting),
+        torrents: torrent::Torrents::new(options.torrenting, &layout),
     };
 
     if options.copy {

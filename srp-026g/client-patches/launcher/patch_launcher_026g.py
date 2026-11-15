@@ -53,9 +53,11 @@ SECTION_NAME = b".skhid\0\0"
 SECTION_RVA = 0x48A000
 SECTION_VA = IMAGE_BASE + SECTION_RVA           # 0x49A000, the CAVE of the .bin
 SECTION_CHARACTERISTICS = 0x60000020            # code, execute, read (as .text)
+SECTION_PAGES = 2                               # its pages at most (the code and the site's addresses)
 
 # launcher_values_026g.bin: the code, three zero-filled ASCII slots, then the
-# language code (LANGUAGE_ENTRIES_AT on) with the generated language table.
+# entries (ENTRIES_AT on), the language code with the generated language
+# table and the box's code (patch 15).
 SLOTS = {"exe_name": (304, 32), "arguments": (336, 160), "server": (496, 64)}
 INSTALL_STATUS_AT = 560
 INSTALL_STATUS = 0x16D06
@@ -78,10 +80,10 @@ ENTER_KEY_DONE = 0x14F26
 # The language is the game's own `localization` line of user.cfg, every
 # language of the game in the launcher's menu (launcher_values_026g.asm,
 # "The language"). Each site becomes a call or a jump to its entry of
-# `language_entries`, 8 bytes each from LANGUAGE_ENTRIES_AT, in this order;
+# `language_entries`, 8 bytes each from ENTRIES_AT, in this order;
 # the relocations of the replaced instructions are disabled.
 # (VA, original bytes, "call" or "jmp", what)
-LANGUAGE_ENTRIES_AT = 0x260
+ENTRIES_AT = 0x260
 LANGUAGE_HOOKS = [
     (0x19663, "8b04c580820400", "call", "language_menu: the button's label of every language"),
     (0x150B3, "0fb7344598e00300", "call", "on_language_changed: the LANGID of every language"),
@@ -91,6 +93,21 @@ LANGUAGE_HOOKS = [
     (0x19A08, "568b742408", "jmp", "language_menu: the button opens a menu of every language"),
 ]
 LANGUAGE_RELOCATIONS = [0x19666, 0x150B7, 0x1A84C]
+
+# 15. "Allow torrent" is a box on the main window, in the bottom panel left
+# of the status line: YouTube's control (gone since 8) with the settings
+# window's pictures and text (launcher_values_026g.asm, "Allow torrent"),
+# kept in user.cfg as the language is (`enable_torrent_seeding on`/`off`,
+# read with it at the start: settings::reload_language's hook above). Their
+# entries follow the language's, in this order; no relocation is under any
+# of them.
+TORRENT_HOOKS = [
+    (0x1AD78, "e8c373ffff", "call", "launcher_form: the bottom panel's picture gets the box's text"),
+    (0x1AE1F, "e82477ffff", "call", "launcher_form: YouTube's control is the box, ticked as settings+0 says"),
+    (0x1B4D9, "e80277ffff", "call", "set_status_texts: the panel's picture made anew, then the box's text"),
+    (0x1BD03, "837c240400", "jmp", "YouTube's click is the box's: Allow torrent toggled, saved, told"),
+]
+ENTRY_HOOKS = LANGUAGE_HOOKS + TORRENT_HOOKS
 
 # (VA, original bytes, new bytes, what): code and read-only data, in place.
 PATCHES = [
@@ -137,16 +154,18 @@ PATCHES = [
     # is in the lobby now: they do nothing (and are moved out of sight below).
     (0x1BBEF, "55", "c3", "SHOP click: ret"),
     (0x1BC45, "55", "c3", "CREATE ACCOUNT click: ret"),
-    (0x1BD03, "83", "c3", "YouTube click: ret"),
     (0x1BD16, "83", "c3", "Facebook click: ret"),
     (0x1BD29, "83", "c3", "Twitter click: ret"),
     (0x1BD3C, "83", "c3", "VK click: ret"),
-    # 15. "Allow torrent" is off until the player turns it on: the settings'
-    # default (current and last saved), kept when HKCU's product key or its
-    # download_type is missing, is 0, not 1. What the box shows is what the
-    # updater is told (its 4th argument, then 1A).
-    (0x1D4CE, "c60301c6430101", "c60300c6430100",
-     "settings::reload: mov byte [ebx],0 / mov byte [ebx+1],0: torrent off by default"),
+    # 15. The box is YouTube's control: the settings window's pictures of
+    # its box in the place of YouTube's (unticked, under the pointer,
+    # pressed) and of Facebook's first (ticked), and its 20 by 20 pixels.
+    (0x1AAFC, "6848010000", "685b010000", "launcher_form: YouTube's picture is PNG 347, the box unticked"),
+    (0x1AB0F, "6849010000", "6859010000", "launcher_form: YouTube's under the pointer is PNG 345"),
+    (0x1AB22, "684a010000", "685a010000", "launcher_form: YouTube's pressed is PNG 346"),
+    (0x1AB35, "684b010000", "6858010000", "launcher_form: Facebook's first picture is PNG 344, the box ticked"),
+    (0x3A715, "83c01b", "83c014", "YouTube's rect: add eax,20 (the box's width)"),
+    (0x3A722, "83c01b", "83c014", "YouTube's rect: add eax,20 (the box's height)"),
 ]
 
 # start_updater, when no version could be read (the game exe PLAY starts is
@@ -208,18 +227,22 @@ URLS = [
     (0x1BCBA, 0x3F630, "http://survarium.com/", "/?lang=", "PROJECT WEBSITE"),
 ]
 
-# (rect VA, original left, original top, new left, what): where a button is
-# on its panel. 30000 is far outside the panel: the button is never drawn
-# and never under the mouse.
+# (rect VA, original left, original top, new left, new top, what): where a
+# button is on its panel. 30000 is far outside the panel: the button is
+# never drawn and never under the mouse.
 GONE = 30000
 RECTS = [
-    (0x45844, 750, 47, GONE, "SHOP: silver and gold are exchanged in the lobby"),
-    (0x45854, 614, 47, GONE, "CREATE ACCOUNT: an account is made by the first sign-in"),
-    (0x45864, 478, 47, 750, "PROJECT WEBSITE: moved to SHOP's place, at the right"),
-    (0x458A4, 32, 28, GONE, "YouTube"),
-    (0x458B4, 68, 28, GONE, "Facebook"),
-    (0x458C4, 104, 28, GONE, "Twitter"),
-    (0x458D4, 140, 28, GONE, "VK"),
+    (0x45814, 819, 12, GONE, 12, "settings (the gear): its Allow torrent is on the main window (15)"),
+    (0x45844, 750, 47, GONE, 47, "SHOP: silver and gold are exchanged in the lobby"),
+    (0x45854, 614, 47, GONE, 47, "CREATE ACCOUNT: an account is made by the first sign-in"),
+    (0x45864, 478, 47, 750, 47, "PROJECT WEBSITE: moved to SHOP's place, at the right"),
+    # The bottom panel's left part, where the social buttons were: the box
+    # in line with the page's left column, centred on the status line and
+    # PLAY; its text (25 pixels right) ends before the status line (x 200).
+    (0x458A4, 32, 28, 28, 32, "YouTube's: the Allow torrent box (15)"),
+    (0x458B4, 68, 28, GONE, 28, "Facebook"),
+    (0x458C4, 104, 28, GONE, 28, "Twitter"),
+    (0x458D4, 140, 28, GONE, 28, "VK"),
 ]
 
 
@@ -325,8 +348,8 @@ def add_section(data, content):
     # The certificate table is the only thing after the last section.
     if security_offset != raw or security_offset + security_size != len(data) or raw % headers.file_alignment:
         sys.exit("unexpected layout after the last section")
-    if len(content) > headers.section_alignment:
-        sys.exit(f"the new section is {len(content)} bytes; one page fits")
+    if len(content) > SECTION_PAGES * headers.section_alignment:
+        sys.exit(f"the new section is {len(content)} bytes; {SECTION_PAGES} pages fit")
     raw_size = align(len(content), headers.file_alignment)
     out = bytearray(data[:raw]) + content + b"\0" * (raw_size - len(content))
     out[slot:slot + 40] = SECTION_NAME + struct.pack(
@@ -379,16 +402,19 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
         at = image.expect(va, utf16(old) + b"\0\0", "the address of a removed button")
         image.data[at:at + len(utf16(old))] = b"\0" * len(utf16(old))
 
-    for va, left, top, new_left, what in RECTS:
-        image.patch(va, struct.pack("<ii", left, top), struct.pack("<i", new_left), what)
+    for va, left, top, new_left, new_top, what in RECTS:
+        image.patch(va, struct.pack("<ii", left, top), struct.pack("<ii", new_left, new_top), what)
 
-    # The language's sites call or jump to their entries.
-    if len(code) < LANGUAGE_ENTRIES_AT + 8 * len(LANGUAGE_HOOKS):
-        sys.exit(f"launcher_values_026g.bin is {len(code)} bytes: no language entries")
-    for number, (va, expected, kind, what) in enumerate(LANGUAGE_HOOKS):
-        entry = LANGUAGE_ENTRIES_AT + 8 * number
+    # The language's sites, and the box's, call or jump to their entries.
+    if len(code) < ENTRIES_AT + 8 * len(ENTRY_HOOKS):
+        sys.exit(f"launcher_values_026g.bin is {len(code)} bytes: no entries")
+    for va, expected, _, what in TORRENT_HOOKS:
+        if any(va <= at + 3 and at < va + len(bytes.fromhex(expected)) for at in relocations):
+            sys.exit(f"{va:#x} ({what}): a relocation overlaps the hook")
+    for number, (va, expected, kind, what) in enumerate(ENTRY_HOOKS):
+        entry = ENTRIES_AT + 8 * number
         if code[entry] != 0xE9:
-            sys.exit(f"launcher_values_026g.bin: language entry {number} at {entry:#x} is not a jump")
+            sys.exit(f"launcher_values_026g.bin: entry {number} at {entry:#x} is not a jump")
         expected = bytes.fromhex(expected)
         opcode = b"\xE8" if kind == "call" else b"\xE9"
         new = opcode + struct.pack("<i", SECTION_VA + entry - va - 5) + b"\x90" * (len(expected) - 5)
@@ -452,6 +478,7 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
                   f"the installer's values from {len(code)} bytes of new code in .skhid at {SECTION_VA:#x}, "
                   f"site {site}, PLAY (or Enter) starts {game_exe} {arguments}, updater {UPDATER_NAME}, "
                   f"the language in user.cfg ({len(LANGUAGE_HOOKS)} sites), "
+                  f"Allow torrent on the main window ({len(TORRENT_HOOKS)} sites), "
                   f"local pages in {PAGES_DIR}, {sum(1 for r in RECTS if r[3] == GONE)} buttons removed, "
                   "signature removed")
 

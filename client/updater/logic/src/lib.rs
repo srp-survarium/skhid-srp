@@ -31,5 +31,6 @@ pub mod torrent;
 pub mod tracker;
 pub mod upload;
 pub mod url;
+pub mod user_cfg;
 pub mod wire;
 pub mod zip;

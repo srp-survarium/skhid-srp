@@ -394,8 +394,9 @@ class TorrentTest(wine.WineTest):
         return port, handle
 
     def launch(self, allow="torrent", port=None):
-        """The stand-in launcher with the updater it started, left running."""
-        self.port = port or free_port()
+        """The stand-in launcher with the updater it started, left running.
+        `port`: its 13th argument (a free one when None; "" for none)."""
+        self.port = free_port() if port is None else port
         self.out = os.path.join(self.root, "pipe.bin")
         self.stop_file = os.path.join(self.root, "stop")
         self.say_file = os.path.join(self.root, "say")
@@ -687,6 +688,44 @@ class TorrentTest(wine.WineTest):
                 self.assertIn(why, self.log())
                 self.stop()
                 self.assertEqual(self.tracker.asked, [])
+
+    def test_with_no_port_from_the_launcher_one_is_picked_kept_and_changed_when_busy(self):
+        self.release(12)
+        kept = self.path(f"{X86}/updater_skhid.port")
+
+        def listening_on_the_kept_port():
+            self.wait_latest()
+            wait(lambda: os.path.exists(kept), 30, "the kept port")
+            with open(kept) as file:
+                port = int(file.read())
+            with socket.create_connection(("127.0.0.1", port), timeout=10):
+                pass
+            self.stop()
+            return port
+
+        self.launch(port="")
+        first = listening_on_the_kept_port()
+        self.assertIn(f"torrent: port {first} picked, kept in updater_skhid.port", self.log())
+        # The next start: the same port.
+        self.launch(port="")
+        self.assertEqual(listening_on_the_kept_port(), first)
+        # Another program holds it: another one, kept from then on.
+        busy = socket.socket()
+        busy.bind(("0.0.0.0", first))
+        busy.listen()
+        self.addCleanup(busy.close)
+        self.launch(port="")
+        second = listening_on_the_kept_port()
+        self.assertNotEqual(second, first)
+        # The launcher's port, when it names one, wins and is not kept.
+        named = free_port()
+        self.launch(port=named)
+        self.wait_latest()
+        with socket.create_connection(("127.0.0.1", named), timeout=10):
+            pass
+        self.stop()
+        with open(kept) as file:
+            self.assertEqual(int(file.read()), second)
 
     def test_the_port_the_launcher_asks_for_is_answered(self):
         self.release(12)

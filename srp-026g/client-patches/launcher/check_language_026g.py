@@ -27,16 +27,21 @@ from localization_026g import LANGUAGES, LAUNCHER_UI  # noqa: E402
 STACK, HEAP, STUBS, SETTINGS, MENU, STOP = 0x30008000, 0x40000000, 0x50000000, 0x31000000, 0x31001000, 0x32000000
 DOCUMENTS = 'C:\\Users\\p\\Documents'
 CFG = DOCUMENTS + '\\survarium\\user.cfg'
+SELF = 'C:\\Games\\Survarium\\game\\binaries\\x86\\launcher_skhid.exe'
+# "Allow torrent"'s one-time reset done (check_torrent_box_026g.py runs it).
+MARKER = SELF.rsplit('\\', 1)[0] + '\\launcher_skhid.torrent_reset'
 # (IAT slot, stub name)
 IAT = {0x3B098: 'CloseHandle', 0x3B0EC: 'ReadFile', 0x3B0F8: 'WriteFile', 0x3B118: 'GetProcessHeap',
        0x3B238: 'HeapFree', 0x3B23C: 'HeapAlloc', 0x3B254: 'CreateFileA', 0x3B258: 'GetModuleHandleA',
        0x3B1D8: 'GetProcAddress', 0x3B218: 'GetLastError', 0x3B110: 'DeleteFileA',
-       0x3B2BC: 'SHGetFolderPathA', 0x3B2C0: 'SHCreateDirectoryExA', 0x3B394: 'GetWindowRect'}
+       0x3B2BC: 'SHGetFolderPathA', 0x3B2C0: 'SHCreateDirectoryExA', 0x3B394: 'GetWindowRect',
+       0x3B0BC: 'GetModuleFileNameW', 0x3B1BC: 'GetFileAttributesW', 0x3B12C: 'CreateFileW'}
 # Stubs: name -> number of stdcall arguments.
 ARGS = {'CloseHandle': 1, 'ReadFile': 5, 'WriteFile': 5, 'GetProcessHeap': 0, 'HeapFree': 3, 'HeapAlloc': 3,
         'CreateFileA': 7, 'GetModuleHandleA': 1, 'GetProcAddress': 2, 'GetLastError': 0, 'DeleteFileA': 1,
         'SHGetFolderPathA': 5, 'SHCreateDirectoryExA': 3, 'GetWindowRect': 2, 'GetUserDefaultLCID': 0,
-        'MoveFileExA': 3, 'CreatePopupMenu': 0, 'AppendMenuW': 4, 'TrackPopupMenu': 7, 'DestroyMenu': 1}
+        'MoveFileExA': 3, 'CreatePopupMenu': 0, 'AppendMenuW': 4, 'TrackPopupMenu': 7, 'DestroyMenu': 1,
+        'GetModuleFileNameW': 3, 'GetFileAttributesW': 1, 'CreateFileW': 7}
 NAMES = list(ARGS)
 LANGUAGE_SELECTED = 0x19A20
 L_CFG_SIZE = 0x10000                    # launcher_values_026g.asm CFG_SIZE
@@ -62,6 +67,7 @@ class Launcher:
         self.heap, self.live = HEAP, set()
         self.lcid, self.last_error, self.menu, self.pick, self.selected = 0x0409, 0, [], 0, []
         self.locked = set()
+        self.marker, self.markers_made = True, 0
         u.hook_add(UC_HOOK_CODE, self.hook)
 
     def word(self, address, value=None):
@@ -150,6 +156,26 @@ class Launcher:
     def CloseHandle(self, handle):
         del self.handles[handle]
         return 1
+
+    def GetModuleFileNameW(self, module, buffer, size):
+        assert module == 0 and size > len(SELF)
+        self.u.mem_write(buffer, SELF.encode('utf-16-le') + b'\0\0')
+        return len(SELF)
+
+    def GetFileAttributesW(self, path):
+        assert self.wide(path) == MARKER, self.wide(path)
+        if self.marker:
+            return 0x20
+        self.last_error = 2
+        return 0xFFFFFFFF
+
+    def CreateFileW(self, path, access, share, security, disposition, flags, template):
+        assert self.wide(path) == MARKER and access == 0x40000000 and disposition == 1  # CREATE_NEW
+        self.marker = True
+        self.markers_made += 1
+        handle = 0x100 + len(self.handles) * 4
+        self.handles[handle] = [MARKER, b'', 0]
+        return handle
 
     def GetLastError(self):
         return self.last_error

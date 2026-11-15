@@ -2,12 +2,21 @@
 11000 get_user_data_folder            # Documents\<product> (SHGetFolderPathA CSIDL_PERSONAL)
 11068 application::initialize
 11166 application::execute
+11CC7 make_font                        # [esi] = CreateFontW(height, weight, face), bold 2BCh; ret 0Ch
 11F1D image::image(id,type,kind)
+11F8B image::image(width,height)       # ecx = colour: a w x h 32-bit bitmap of it (CreateBitmap); ret 0Ch
+12051 image::crop                      # (bitmap), eax = a rect of it -> a new bitmap of that part (BitBlt); cdecl
 12140 image_window::image_window
 12548 transparent_control::transparent_control   # image button: rect, parent, cursor, 3 bitmaps, callback, ctx
+125CE transparent_control::set_picture # eax = control, ecx = bitmap: +8, InvalidateRect
+125DF transparent_control::paint       # AlphaBlend of +10h pressed / +0Ch hovered / +8 over what the window showed (+24h: BitBlt)
+126B3 transparent_control::on_mouse_move # +14h hovered, TrackMouseEvent(TME_LEAVE)
+126F4 transparent_control::window_procedure # WM_LBUTTONDOWN: +15h pressed, callback(+18h)(+1Ch) cdecl; up/leave clear
 12785 registry_key::open_or_create(hive,path,sam,create)
 127C8 registry_key::get_dword
+12B1E draw_text_in_bitmap              # (bitmap, text, font, &rect, format, colour) via 0x1295F
 12B88 is_vista_or_greater
+12BE0 copy_picture                     # (dst bitmap, src bitmap, &src point), eax = dst rect: AlphaBlend; cdecl
 12CB7 check_ram
 12D3C check_cpu
 13672 check_vram
@@ -16,6 +25,8 @@
 13730 get_common_desktop_folder
 1376C get_user_documents_folder
 137A8 load_string(id,buf,size)
+137C3 draw_text_into_picture           # (text, bitmap, &font, colour, format, left, right margin, top); cdecl
+1381C draw_text_into_control           # esi = control: 0x137C3 into its three pictures
 13885 window::window
 13940 window::~window
 13A7B packet_reader::read_string8      # u8 length + bytes
@@ -108,6 +119,7 @@
 1BD29 launcher_form::twitter_click
 1BD3C launcher_form::vk_click
 1BF61 status_bar::status_bar
+1C35F settings_window::torrent_checkbox_rect # box centred with string 0D3h beside; label at box+25, +1 (0x482FC)
 1C49E settings_window::settings_window
 1CBB1 settings_window::close_window
 1CC0C settings_window::save_settings
@@ -115,6 +127,7 @@
 1CE0E settings_window::show_torrent_checkbox   # its picture by settings+0 (allow torrent)
 1CF7D settings_window::show_port        # the port field: text and enabled by settings+0
 1CFB5 settings_window::refresh          # checkbox, port field, then 0x1D082
+1D0E7 settings_window::draw_texts      # SAVE, CANCEL, title 0D2h, "Allow torrent" 0D3h into the backgrounds
 1D3EF get_product_name                 # -product_name= or "Survarium"
 1D496 get_settings_registry_path
 1D4C4 settings::reload                 # HKCU product key: port_number, download_type (1: allow torrent); default at 0x1D4CE
@@ -137,3 +150,4 @@
 20F40 debug::on_unhandled_exception_dump
 210A0 unhandled_exception_handler_on_top_of_bugtrap
 210D0 debug::unhandled_exception_filter
+3A710 init: YouTube rect 0x458A4       # right/bottom = left/top + 1Bh (the Skhid launcher: 14h, its box)

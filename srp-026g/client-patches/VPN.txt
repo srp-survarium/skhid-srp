@@ -12,7 +12,7 @@ game\binaries\x86\ of the game:
 If nothing connects (in Russia too), allow the game in your firewall: run
 Skhid-network-setup.cmd (beside Skhid.bat). It adds Windows Firewall rules
 that let these three programs out, and the updater in (TCP), for sharing
-the game when "Allow torrent" (the launcher's settings) is on. It turns
+the game when "Allow torrent" (on the launcher's main screen) is on. It turns
 nothing off. It asks for administrator rights: answer Yes when Windows
 asks. Its messages are in Russian.
 Skhid-network-setup.cmd --undo removes what it added.
@@ -51,7 +51,7 @@ Zapret
   use it).
 
 Hosts and ports (all outgoing; with "Allow torrent" on, the updater also
-takes TCP in on the launcher's port). Rules by program, above, are the
+takes TCP in, on a port it picks and keeps). Rules by program, above, are the
 better way: they need none of this.
   skhid.link        TCP 443 (HTTPS)   launcher and updater: page, files, patch list
   patch server      TCP 8090 (HTTP)   updater: patch downloads (Google Drive,

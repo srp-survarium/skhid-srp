@@ -40,12 +40,7 @@ pub const LANGUAGES: [&str; 5] = ["english", "russian", "ukrainian", "german", "
 /// `localization <name>` line, as the launcher reads it. None without one, or
 /// for a language the messages are not written in (they are then English).
 pub fn language_of_user_cfg(text: &[u8]) -> Option<u32> {
-    let line = text.split(|&byte| byte == b'\n').find_map(|line| {
-        let rest = line.strip_prefix(b"localization")?;
-        rest.first().filter(|&&byte| byte == b' ' || byte == b'\t')?;
-        Some(rest)
-    })?;
-    let name = line.split(|&byte| byte <= b' ').find(|word| !word.is_empty())?;
+    let name = crate::user_cfg::setting(text, b"localization")?;
     LANGUAGES.iter().position(|language| language.as_bytes() == name).map(|at| at as u32)
 }
 

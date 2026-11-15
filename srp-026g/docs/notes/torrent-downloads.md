@@ -12,16 +12,27 @@ corrections from the owner go here.
 - Two ways to use it:
   - their own client (qBittorrent, Transmission...) with the `.torrent` or the magnet of the
     site's download page;
-  - the updater, when the launcher's own "Allow torrent" switch is on (the original launcher's
-    setting, with its port, in its settings: the gear). Off: the updater downloads as now, by
+  - the updater, when "Allow torrent" is ticked: a checkbox right on the launcher's main screen,
+    at the left of its bottom panel (the owner, 2026-11-15: "no need for settings"; the
+    original settings window, the gear, stays hidden). Off: the updater downloads as now, by
     HTTPS.
-- **Off by default** (the owner, 2026-11-15): a player turns it on. With nothing saved
-  (`download_type` in `HKCU\Software\Vostok Games\Survarium`) the launcher's box is unticked
-  (launcher patch 15) and the updater takes it as off, from the launcher and in `check` alike;
-  `Skhid-get.bat` says `torrent` (whoever runs it chose BitTorrent).
+- **Off by default** (the owner, 2026-11-15): a player turns it on. **It stays ticked until they
+  untick it**, across launcher and PC restarts, the updater replacing the launcher and itself,
+  and new releases: it is **stored in user.cfg like the language** (the owner: "just like
+  language"), as the game's own saved command `enable_torrent_seeding on` / `off`, written at
+  once on a click (launcher patch 15). No line: off. The registry's `download_type` is not used.
+- **The one-time reset**: the original game saved its default, `enable_torrent_seeding on`, in
+  every player's user.cfg. So the launcher, at its first start in an install, writes the line
+  `off` before it shows the box and makes `launcher_skhid.torrent_reset` beside itself; from
+  then on the line is what the player's tick says. The updater takes the line only once that
+  file is there (`check`); `Skhid-get.bat` says `torrent` (whoever runs it chose BitTorrent).
 - Turned on, it is used at once, without a restart; turned off, it stops at once (below).
+- The port: no setting. The updater picks a free port the first time it listens and keeps it
+  (`updater_skhid.port` beside it), the same at every start after; if another program holds it,
+  it takes another and keeps that. A port the launcher names (its 13th argument, then `21`)
+  still wins; the Skhid launcher names none.
 - The firewall: `Skhid-network-setup.cmd` lets `updater_skhid.exe` in too (TCP, every port: the
-  port is the launcher's setting), so a player who ran it gets no firewall question when they
+  port is the updater's pick), so a player who ran it gets no firewall question when they
   turn torrent on; `--undo` removes that rule with the others.
 
 ## The torrent
@@ -91,7 +102,8 @@ corrections from the owner go here.
 and `client/updater/logic/src/swarm.rs` are the code.
 
 - It answers the launcher's torrent messages instead of ignoring them: "Allow torrent" (its 4th
-  argument, then `1A`), port (its 13th argument, then `21`, answered port ok `15` or busy `14`),
+  argument, then `1A`), port (its 13th argument, then `21`, answered port ok `15` or busy `14`;
+  none named: the kept one, above),
   upload limit (`1E`, which may only lower the cap below; the 0.26g launcher sends none), and
   shows the launcher's states (`08` checking the pieces already on disk, `09` downloading;
   `srp-026g/docs/notes/launcher_updater.md`).
@@ -120,7 +132,7 @@ and `client/updater/logic/src/swarm.rs` are the code.
 - Players are the seeders (no host of ours seeds): with torrent on it shares every file of the
   torrent the folder has, however it came (the torrent, HTTPS, the ZIP), so the first players of
   a revision, who get it by HTTPS, seed it. Only checked pieces, only while it runs (while the
-  launcher is open, or the game shares: below), within the upload cap, on the launcher's port.
+  launcher is open, or the game shares: below), within the upload cap, on the kept port.
 - **The upload cap** (the owner, 2026-11-15): 1 MB/s (1 MiB a second) for all the sharing of an
   updater's run: every swarm and the rendezvous together take from one allowance. The
   launcher's `1E` may only lower it; the game's own limit is ignored.
@@ -149,14 +161,15 @@ login screen and in the lobby, where the original developers had it (the game's 
   was on: exe patch 150 makes it off). The game's menu never shows it, nor its upload rates (the
   game's limit is ignored, below). The game writes every setting into user.cfg at its end, so
   every player who played before has `enable_torrent_seeding on` there, from the old default:
-  open (the owner's call), what turns that off for them.
+  the launcher's one-time reset (above) writes it `off` at its first start in an install. A
+  game started without the launcher having run once (`play_skhid.bat`) still sees that `on`.
 - Entering the login screen or the lobby with it on (or as it is turned on there), the game makes the pipe
   `\\.\pipe\skhid_seed-<its process id>` and starts `updater_skhid.exe seed <that pipe>` beside
   itself, with no window. Entering a match closes the pipe (so do the game's end and the setting
   turned off); a replay never shares.
 - The updater (`seed`) shares the folder's revision torrent as the launcher's updater does
   while it watches (the same trust, the bootstrap, the rendezvous; nothing fetched or installed),
-  on the launcher's port, within the cap, until the pipe closes. A port another updater holds
+  on the kept port (a free one, then kept, when none is), within the cap, until the pipe closes. A port another updater holds
   is tried for 10 s, then it ends. No box, no lock; its own log (`updater_skhid.seed.log`).
 - On the pipe the game sends its limit (`1E`, ignored) and its stats switch (`22`: the console's
   `lobby_torrent_stats`); while that is on, the updater sends a tick a second (`18`: `FF`, the

@@ -11,7 +11,6 @@
 
 use alloc::format;
 
-use updater_logic::pipe::port_number;
 use updater_logic::seed::{Event, FromGame, GamePipe, Meter, Stats, Tick, frame};
 
 use crate::install::Layout;
@@ -40,13 +39,11 @@ pub fn run(pipe: Option<GamePipe>) -> u32 {
             return exit::NO_PIPE;
         }
     };
-    // The port is the launcher's setting; "Allow torrent" was the game's
-    // to decide, which started this to share.
-    let (_, port) = win::launcher_torrent_setting();
-    let port = port_number(&port);
+    // "Allow torrent" was the game's to decide, which started this to
+    // share; the port is the one the updaters keep (`torrent::share_while`).
     let mut stats = Stats::Hidden;
     let mut meter = Meter::new(win::ticks(), 0);
-    let shared = torrent::share_while(&layout, port, &mut |sharing| {
+    let shared = torrent::share_while(&layout, None, &mut |sharing| {
         let now = win::ticks();
         let mut events: alloc::vec::Vec<Event> = channel
             .payloads()
@@ -75,7 +72,7 @@ pub fn run(pipe: Option<GamePipe>) -> u32 {
     match shared {
         Ok(()) => log!("seed: the game closed the pipe: done"),
         Err(torrent::NotShared::PortBusy) => {
-            log!("seed: port {port:?} is held (another updater shares): not shared");
+            log!("seed: the kept port is held (another updater shares): not shared");
         }
         Err(torrent::NotShared::Nothing) => log!("seed: nothing to share"),
     }

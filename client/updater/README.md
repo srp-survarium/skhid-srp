@@ -77,8 +77,8 @@ library's).
 - With the launcher's "Allow torrent" on (off until the player turns it
   on), also downloads the original game's files and missing patches from
   the revision's signed torrent, and shares
-  every file of it the folder has while the launcher is open, on the
-  launcher's port ("BitTorrent" below); off, none of it. No DHT, PEX, UPnP or
+  every file of it the folder has while the launcher is open, on a port
+  it picks once and keeps ("BitTorrent" below); off, none of it. No DHT, PEX, UPnP or
   uTP, no service, no crash upload, no administrator rights (its manifest says `asInvoker`;
   without one Windows takes a program named "updater" for an installer and
   asks for elevation).
@@ -91,7 +91,7 @@ library's).
 | `"<exe>" "copy" "<pipe>" ...` | the unpatched launcher | Answers "copy done" at once: nothing needs copying |
 | `updater_skhid.exe check` | a person, a script | The update without a launcher, every patch file hashed whole whatever the quick check's record says: the repair, when a patch file may be damaged in a way the quick check does not see (bytes changed in place with the size and the time kept, as no program does by chance). When the ZIP replaces the updater itself, the new one is run at once (`check`, `quiet` as given) to restore resources.db and do the patch step, and its exit code is this one's. An error is a message box |
 | `updater_skhid.exe check quiet` | a script | No box either. Exit code 0: done or nothing to do; 1: failed (the reason is in the log) |
-| `updater_skhid.exe check ... torrent` / `direct` | `Skhid-get.bat` (`check torrent`), the tests (`direct`) | `check` takes torrent as the word says, else as the launcher saved its "Allow torrent" (`HKCU\Software\Vostok Games\Survarium`, `download_type` 1, `port_number`), else off (the launcher's default, its patch 15) |
+| `updater_skhid.exe check ... torrent` / `direct` | `Skhid-get.bat` (`check torrent`), the tests (`direct`) | `check` takes torrent as the word says, else as the launcher keeps its "Allow torrent": user.cfg's `enable_torrent_seeding on` (`<Documents>\survarium\user.cfg`, as the language), taken only once the launcher's one-time reset is done (`launcher_skhid.torrent_reset` beside it, launcher patch 15); else off |
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
@@ -336,16 +336,21 @@ before any of `main.rs`'s own calls of it: with `quiet` no window is made
 and `logic/src/swarm.rs` the code.
 
 **The launcher's settings.** The update's 4th argument is `torrent` when the
-launcher's "Allow torrent" is on, else `direct` (off is the default: nothing
-saved, the box is unticked, launcher patch 15); the 13th its port (`""`:
-none, the system picks one), kept while torrent is off. While the updater
+launcher's "Allow torrent" (the box on its main screen, kept in user.cfg as
+`enable_torrent_seeding`, launcher patch 15) is on, else `direct` (off until
+the player ticks it); the 13th a port (`""`: none, the Skhid launcher has no
+port setting; one an older launcher saved still wins), kept while torrent is
+off. With no port named, the updater listens on the one it keeps in
+`updater_skhid.port` beside it: picked free the first time, the same at
+every start after (peers that knew it find it again), another one, kept
+from then on, when another program holds it. While the updater
 runs, the launcher's `1A` turns it on or off at once: on, the watch starts
 sharing then (not at its next ask), and a download by HTTPS of a file the
 torrent has (the archive, a patch) leaves the rest to it (`torrent::takes_over`):
 a patch's part, what HTTPS wrote, is the torrent's part, its pieces checked
 first; the archive's bytes stay for HTTPS to go on from. Off stops the
 engine: sharing ends, a download by torrent goes on by HTTPS. `21` sets the port (answered `15`
-listening, `14` busy: the launcher shows "busy" in its settings), `1E` an
+listening, `14` busy; not kept; the Skhid launcher sends none), `1E` an
 upload limit, which may only lower the cap (below; the 0.26g launcher sends
 none). The port is
 listened on (all addresses) from the start (a port asked while torrent is
@@ -466,8 +471,8 @@ and starts `updater_skhid.exe seed <that pipe>` beside itself, with no
 window. The updater opens the pipe, shares the folder's torrent as the
 launcher's updater does while it watches (`torrent::share_while`, its one
 call into the engine: the trusted torrent's files the folder has, the
-bootstrap's, the rendezvous; nothing fetched), on the launcher's kept port
-(`port_number`), and ends when the pipe closes: the game entering a match,
+bootstrap's, the rendezvous; nothing fetched), on the port the updaters keep
+(`updater_skhid.port`; a free one, then kept, when none is), and ends when the pipe closes: the game entering a match,
 or ending. It reads no "Allow torrent" (the game's setting decided), takes
 no lock and shows no box; it logs to `updater_skhid.seed.log`. A port that
 is held (another updater shares on it, or is closing) is tried for 10 s,
@@ -1080,6 +1085,14 @@ written; `1E` ignored and `22` answered with `18` ticks only, none once hidden;
 a held port given up after 10 s; a folder without a torrent; a command line
 not the game's refused) and `test_torrent.py` (13), built with the tests' key
 and trackers. Not run: the patched game starting it, Windows.
+
+Run on 2026-11-15 (Linux, Wine, headless), with "Allow torrent" in user.cfg
+and the kept port: the 137 unit tests of `logic/` (the `enable_torrent_seeding`
+line read as the launcher reads it); `test_seed.py` (5, sharing on the kept
+port); four of `test_torrent.py`: no port named, one is picked, kept in
+`updater_skhid.port`, the same at the next start, another when a program
+holds it, and a named port wins without being kept; the port `21` asks for;
+`check` with nothing saved is HTTPS; `1A` on and off at once.
 
 ## Not done
 

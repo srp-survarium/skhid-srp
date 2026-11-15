@@ -207,6 +207,8 @@ enum Offered {
 pub struct Torrents {
     mode: Mode,
     upload: Upload,
+    /// `updater_skhid.port` beside the updater ([`listen`]).
+    kept_port: String,
     offered: Offered,
     banned: Banned,
     turn: Turn,
@@ -218,7 +220,8 @@ pub struct Torrents {
 pub struct Turn(u32);
 
 enum Mode {
-    /// `port`: the launcher's, kept for when it allows torrent.
+    /// `port`: the launcher's (its 13th argument, then `21`), kept for when
+    /// it allows torrent; `None`: it named none ([`listen`]).
     Off { port: Option<u16> },
     On {
         port: Option<u16>,
@@ -228,14 +231,52 @@ enum Mode {
     },
 }
 
-fn listen(port: Option<u16>) -> Option<TcpListener> {
-    match TcpListener::bind(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, port.unwrap_or(0))) {
+/// The port listened on when the launcher names none, beside the updater:
+/// the one picked the first time, so that peers that knew it find it again.
+const PORT_FILE: &str = "updater_skhid.port";
+/// What `bind` takes to have the system pick a free port.
+const ANY_PORT: u16 = 0;
+
+/// Where the torrent listens (all addresses): the launcher's port when it
+/// names one (`None` when that one is busy); else the port kept in
+/// `kept` ([`PORT_FILE`]); else, none kept or that one busy, a free one,
+/// which is then kept.
+fn listen(port: Option<u16>, kept: &str) -> Option<TcpListener> {
+    if let Some(port) = port {
+        return bind(port);
+    }
+    let saved = kept_port_number(kept);
+    if let Some(listener) = saved.and_then(bind) {
+        return Some(listener);
+    }
+    let listener = bind(ANY_PORT)?;
+    let picked = listener.local_addr().ok()?.port();
+    match win::write_file(kept, format!("{picked}\r\n").as_bytes()) {
+        Ok(()) => log!("torrent: port {picked} picked, kept in {PORT_FILE}"),
+        Err(code) => log!("torrent: port {picked} picked; {PORT_FILE}: {}", win::error_text(code)),
+    }
+    Some(listener)
+}
+
+/// The path of [`PORT_FILE`].
+fn kept_port(layout: &Layout) -> String {
+    format!("{}\\{PORT_FILE}", layout.exe_dir)
+}
+
+/// The port kept in `kept`, if it holds one.
+fn kept_port_number(kept: &str) -> Option<u16> {
+    let text = win::read_file(kept, 16).ok()?;
+    updater_logic::pipe::port_number(core::str::from_utf8(&text).ok()?.trim())
+}
+
+fn bind(port: u16) -> Option<TcpListener> {
+    match TcpListener::bind(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, port)) {
         Ok(listener) => {
             let _ = listener.set_nonblocking(true);
             Some(listener)
         }
         Err(error) => {
-            log!("torrent: port {port:?} cannot be listened on: {error}");
+            log!("torrent: port {port} cannot be listened on: {error}");
             None
         }
     }
@@ -249,11 +290,12 @@ fn bound_port(listener: &Option<TcpListener>, port: Option<u16>) -> u16 {
 }
 
 impl Torrents {
-    pub fn new(settings: Torrenting) -> Self {
+    pub fn new(settings: Torrenting, layout: &Layout) -> Self {
+        let kept_port = kept_port(layout);
         let mode = match settings {
             Torrenting::Off { port } => Mode::Off { port },
             Torrenting::On { port } => {
-                let listener = listen(port);
+                let listener = listen(port, &kept_port);
                 log!(
                     "torrent: allowed, port {}",
                     listener.as_ref().map_or("busy".into(), |_| format!(
@@ -268,13 +310,14 @@ impl Torrents {
                 }
             }
         };
-        Self::of(mode)
+        Self::of(mode, kept_port)
     }
 
-    fn of(mode: Mode) -> Self {
+    fn of(mode: Mode, kept_port: String) -> Self {
         Self {
             mode,
             upload: Arc::new(Mutex::new(Allowance::new(win::ticks()))),
+            kept_port,
             offered: Offered::Unread,
             banned: Banned::default(),
             turn: Turn(0),
@@ -298,7 +341,7 @@ impl Torrents {
                     log!("torrent: allowed by the launcher");
                     self.mode = Mode::On {
                         port,
-                        listener: listen(port),
+                        listener: listen(port, &self.kept_port),
                         engine: None,
                     };
                     self.turn = Turn(self.turn.0.wrapping_add(1));
@@ -330,7 +373,7 @@ impl Torrents {
                 };
                 // The old socket goes first: the same port again is free.
                 *listener = None;
-                *listener = listen(wanted);
+                *listener = listen(wanted, &self.kept_port);
                 *port = wanted;
                 let bound = bound_port(listener, wanted);
                 if let Some(engine) = engine {
@@ -528,9 +571,13 @@ const RESHARE_MS: u64 = 10_000;
 /// ten times a second, with what the sharing is). Nothing is fetched or
 /// installed.
 pub fn share_while(layout: &Layout, port: Option<u16>, go_on: &mut dyn FnMut(&Sharing) -> bool) -> Result<(), NotShared> {
+    let kept = kept_port(layout);
+    // The port the launcher's updater shares on too, when one is kept: the
+    // same, waited for, never a second one beside it.
+    let port = port.or_else(|| kept_port_number(&kept));
     let until = win::ticks() + PORT_WAIT_MS;
     let listener = loop {
-        if let Some(listener) = listen(port) {
+        if let Some(listener) = listen(port, &kept) {
             break listener;
         }
         if win::ticks() >= until {
@@ -539,11 +586,14 @@ pub fn share_while(layout: &Layout, port: Option<u16>, go_on: &mut dyn FnMut(&Sh
         win::sleep(1000);
     };
     log!("torrent: sharing on port {}", listener.local_addr().map_or(0, |address| address.port()));
-    let mut torrents = Torrents::of(Mode::On {
-        port,
-        listener: Some(listener),
-        engine: None,
-    });
+    let mut torrents = Torrents::of(
+        Mode::On {
+            port,
+            listener: Some(listener),
+            engine: None,
+        },
+        kept,
+    );
     torrents.share(layout);
     if !torrents.sharing() {
         return Err(NotShared::Nothing);

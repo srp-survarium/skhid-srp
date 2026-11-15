@@ -56,11 +56,8 @@ class SeedTest(wine.WineTest):
         super().tearDown()
 
     def set_port(self, port):
-        """The launcher's kept port (`port_number`), the port it shares on."""
-        command, env = windows(["reg", "add", r"HKCU\Software\Vostok Games\Survarium", "/v", "port_number",
-                                "/t", "REG_SZ", "/d", str(port), "/f"])
-        wine.subprocess.run(command, env=env, check=True, timeout=120,
-                            stdout=wine.subprocess.DEVNULL, stderr=wine.subprocess.DEVNULL)
+        """The port the updaters keep (`updater_skhid.port`), the one it shares on."""
+        self.write(f"{X86}/updater_skhid.port", f"{port}\r\n".encode())
 
     def installed(self, size=200_000):
         """A folder as an update left it: the revision's files in their

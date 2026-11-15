@@ -625,6 +625,12 @@ pub fn list_with_times(folder: &str, pattern: &str) -> Vec<(String, u64)> {
 /// (`localization` of `<Documents>\survarium\user.cfg`, the folder the game
 /// takes: CSIDL_PERSONAL), as a number of `replay::LANGUAGES`; read only.
 pub fn game_language() -> Option<u32> {
+    updater_logic::replay::language_of_user_cfg(&user_cfg()?)
+}
+
+/// The game's `<Documents>\\survarium\\user.cfg` (the folder the game takes:
+/// CSIDL_PERSONAL), as the launcher reads it (64 KiB at most); read only.
+fn user_cfg() -> Option<Vec<u8>> {
     use windows_sys::Win32::UI::Shell::SHGetFolderPathW;
     const CSIDL_PERSONAL: i32 = 5;
     let mut folder = [0_u16; 260];
@@ -634,7 +640,7 @@ pub fn game_language() -> Option<u32> {
     }
     let end = folder.iter().position(|&unit| unit == 0)?;
     let path = alloc::format!("{}\\survarium\\user.cfg", from_wide(&folder[..end]));
-    updater_logic::replay::language_of_user_cfg(&read_file(&path, 1 << 16).ok()?)
+    read_file(&path, 1 << 16).ok()
 }
 
 /// Whether the game, which reads its command line as ANSI text
@@ -871,49 +877,15 @@ pub fn run_wait(
     Ok(code)
 }
 
-/// The launcher's saved torrent settings (`HKCU\Software\Vostok Games\
-/// Survarium`: `download_type`, 1 torrent and 0 direct, and `port_number`),
-/// as the launcher would pass them: (`torrent` or `direct`, the port).
-/// Torrent only for a `download_type` of 1, as the launcher reads it;
-/// nothing saved: direct (the Skhid launcher's default, its patch 15), and
-/// no port.
-pub fn launcher_torrent_setting() -> (&'static str, String) {
-    use windows_sys::Win32::System::Registry::{
-        HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RRF_RT_REG_SZ, RegGetValueW,
-    };
-    let key = wide("Software\\Vostok Games\\Survarium");
-    let mut kind = 0_u32;
-    let mut size = 4_u32;
-    let read = unsafe {
-        RegGetValueW(
-            HKEY_CURRENT_USER,
-            key.as_ptr(),
-            wide("download_type").as_ptr(),
-            RRF_RT_REG_DWORD,
-            null_mut(),
-            (&raw mut kind).cast(),
-            &mut size,
-        )
-    };
-    let allowed = read == 0 && kind == 1;
-    let mut port = [0_u16; 16];
-    let mut size = (port.len() * 2) as u32;
-    let read = unsafe {
-        RegGetValueW(
-            HKEY_CURRENT_USER,
-            key.as_ptr(),
-            wide("port_number").as_ptr(),
-            RRF_RT_REG_SZ,
-            null_mut(),
-            port.as_mut_ptr().cast(),
-            &mut size,
-        )
-    };
-    let port = if read == 0 {
-        let units = &port[..(size as usize / 2).min(port.len())];
-        from_wide(units).trim_end_matches('\0').into()
-    } else {
-        String::new()
-    };
-    (if allowed { "torrent" } else { "direct" }, port)
+/// The launcher's "Allow torrent", which it keeps in user.cfg as it keeps
+/// the language (`enable_torrent_seeding on`, `updater_logic::user_cfg`):
+/// off without a user.cfg or without the line, and before the launcher's
+/// one-time reset of the original game's `on` (`launcher_skhid.torrent_reset`
+/// beside it and this program: launcher patch 15), so that a line the player
+/// never chose is never taken.
+pub fn launcher_torrent_allowed() -> bool {
+    let reset = module_path().is_ok_and(|path| {
+        exists(&alloc::format!("{}\\{}", split_path(&path).0, updater_logic::user_cfg::RESET_FILE))
+    });
+    reset && user_cfg().is_some_and(|text| updater_logic::user_cfg::torrent_allowed(&text))
 }
