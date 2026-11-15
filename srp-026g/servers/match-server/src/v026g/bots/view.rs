@@ -1845,35 +1845,36 @@ impl Tracker {
     }
 
     /// [Gap 2] Each carrier's battery as the world names it: a holder's carried id is the rule's battery number. Checked
-    /// on every world first: every place read, each holder's number under the battery count and that battery carried,
-    /// and as many carried as holders (a battery in a container has no carrier). Where the check holds the world's
-    /// carriers replace the beliefs ([`Self::carriers_seen`]'s); where it fails the beliefs stand, and a note says so.
+    /// on every world first, as a one-to-one match of holders and carried batteries: the holders' numbers distinct, each
+    /// under the battery count and that battery carried, and as many carried as holders (a battery in a container has no
+    /// carrier). A place whose state was not read names nothing; with the match one-to-one no carried battery is left to
+    /// it. Where the check holds the world's carriers replace the beliefs ([`Self::carriers_seen`]'s); where it fails the
+    /// beliefs stand, and, with every place read, a note says so.
     fn carriers_named(&mut self, batteries: &[BatteryState], holding: &[Holding]) {
         if holding.is_empty() || batteries.is_empty() {
             return;
         }
         let carried = batteries.iter().filter(|b| matches!(b, BatteryState::Carried(_))).count();
-        let named: Option<Vec<(usize, Place)>> = holding
+        let named: Vec<(usize, Place)> = holding
             .iter()
             .enumerate()
             .filter_map(|(place, h)| match h {
-                Holding::Unread => Some(None),
-                Holding::Nothing => None,
-                Holding::Battery(id) => Some(Some((usize::from(*id), place))),
+                Holding::Battery(id) => Some((usize::from(*id), place)),
+                Holding::Unread | Holding::Nothing => None,
             })
             .collect();
-        let check = named.filter(|named| {
-            named.len() == carried
-                && named.iter().all(|&(battery, _)| matches!(batteries.get(battery), Some(BatteryState::Carried(_))))
-        });
-        let Some(named) = check else {
+        let distinct = named.iter().enumerate().all(|(i, &(battery, _))| named[..i].iter().all(|&(other, _)| other != battery));
+        let one_to_one = distinct
+            && named.len() == carried
+            && named.iter().all(|&(battery, _)| matches!(batteries.get(battery), Some(BatteryState::Carried(_))));
+        if !one_to_one {
             if holding.iter().all(|h| *h != Holding::Unread) {
                 self.notes.push(format!(
-                    "the world's carried ids do not name its {carried} carried batteries: the carriers stay believed"
+                    "the world's carried ids do not name its {carried} carried batteries one to one: the carriers stay believed"
                 ));
             }
             return;
-        };
+        }
         for (battery, place) in named {
             let carry = &mut self.carries[battery];
             if carry.carrier != Some(place) {
