@@ -262,7 +262,7 @@ pub(crate) fn a_grenade_at_ones_feet_hurts_the_thrower_and_mates_and_one_walked_
         put(game, 2, 30.0, 10.0, 0);
         put(game, 3, 30.0, 14.0, 0);
         // The thrower looks steeply down: the grenade lands a metre or so ahead.
-        game.bodies[0].pitch = -arc::PITCH_LIMIT;
+        game.bodies[0].pitch = -1.0; // the pitch unit's lowest (a world's pitch is the unit)
         vec![bot_now(); 4]
     });
     // Pressed at 0 ms, noted late, gone off at 4000 ms already: once more ticks run.
@@ -302,7 +302,7 @@ pub(crate) fn the_bodies_inside_the_radius_at_the_launch_are_counted_by_group() 
             put(game, 1, 12.0, 10.0, 0);
             put(game, 2, 14.0, 10.0, 0);
             put(game, 3, 30.0, 14.0, 0);
-            game.bodies[0].pitch = -arc::PITCH_LIMIT;
+            game.bodies[0].pitch = -1.0; // the pitch unit's lowest (a world's pitch is the unit)
             vec![bot_now(); 4]
         });
         let note = Note {

@@ -16,8 +16,8 @@
 use serde::{Deserialize, Serialize};
 
 /// Degrees of elevation per unit of pitch above the horizon and below it.
-const UP_DEG_PER_UNIT: f32 = 60.0;
-const DOWN_DEG_PER_UNIT: f32 = 67.48;
+const UP_DEG_PER_UNIT: f32 = mapdata::stands::VIEW_UP_DEG;
+const DOWN_DEG_PER_UNIT: f32 = mapdata::stands::VIEW_DOWN_DEG;
 
 /// How the view's pitch unit is taken to relate to the elevation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
