@@ -660,7 +660,13 @@ fn world_facts(time: u32, decoded: &Decoded, checked: &world_validation::Checked
         holders: checked
             .places
             .iter()
-            .map(|place| place.as_ref().filter(|world| world.motion.is_some()).map(|world| world.carried.is_some()))
+            .map(|place| match place.as_ref().filter(|world| world.motion.is_some()) {
+                None => crate::v026g::bots::view::Holding::Unread,
+                Some(world) => world
+                    .carried
+                    .as_ref()
+                    .map_or(crate::v026g::bots::view::Holding::Nothing, |c| crate::v026g::bots::view::Holding::Battery(c.id())),
+            })
             .collect(),
         // [Gap 9] Each place's last kill's time.
         kill_times: decoded
