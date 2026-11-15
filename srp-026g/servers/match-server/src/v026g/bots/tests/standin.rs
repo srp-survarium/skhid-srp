@@ -67,10 +67,8 @@ const PATCHED_REACH_M: f32 = 4.0;
 const PATCHED_ACROSS_M: f32 = 1.0;
 const PATCHED_BELOW_M: f32 = 0.2;
 
-/// A lying battery's middle over its position, and how near the ray must
-/// pass it (its box is about 0.5 by 0.25 m).
-pub(crate) const BATTERY_MIDDLE: Vec3 = Vec3::new(0.0, 0.12, 0.0);
-
+/// How near the use ray must pass a lying battery's position, the centre of its box (`docs/notes/using_the_world.md`: the
+/// saved position is the box's centre, 0.12 m over its floor; the box's half sizes are 0.30 x 0.12 x 0.16 m).
 pub(crate) const BATTERY_M: f32 = 0.2;
 
 /// A container's use box: its middle over the use point
@@ -328,6 +326,9 @@ pub(crate) struct Body {
     pub(crate) feet: Vec3,
     pub(crate) node: Option<NodeId>,
     pub(crate) yaw: f32,
+    /// The eye and the direction of the use ray this tick ([`Game::use_ray`]), kept at the tick's start; none before
+    /// the first tick.
+    pub(crate) use_ray: Option<(Vec3, Vec3)>,
     /// The base pitch (`m_look_pitch`, as the worlds give it); the view is
     /// it and the kick.
     pub(crate) pitch: f32,
@@ -897,6 +898,7 @@ impl Game {
             feet: Vec3::ZERO,
             node: None,
             yaw: 0.0,
+            use_ray: None,
             pitch: 0.0,
             scale: pitch_scale(),
             blend: Blend::default(),
@@ -1177,6 +1179,10 @@ impl Game {
         let n = self.bodies.len();
         let mut pressed = vec![0u32; n];
         let mut released = vec![0u32; n];
+        // The use ray of this tick: the view and the eye the tick before left, before this tick's kick, turn and keys.
+        for body in &mut self.bodies {
+            body.use_ray = Some((Self::eye(body), Self::use_dir(body)));
+        }
         for body in &mut self.bodies {
             body.recoil.update(tick);
         }
@@ -2745,6 +2751,14 @@ impl Game {
     /// use ray (`detect_usable_object` 0x2D84C0) runs along the pose's "Item" bone transform (player+44Ch, rows +46Ch and
     /// +47Ch, written only by 0x2DA4B0), whose pitch is `look_pitch` 0x2E0F60 = clamp(the look's pitch + the weapon's kick
     /// +478h, -1, 1): the kick is in it (exe review of #2013).
+    /// The eye and the direction `body`'s use ray has this tick: the view the tick before left, kept at the start of the
+    /// tick ([`Body::use_ray`]), as the client's ray runs along the pose the frame before computed and `apply_new_input`
+    /// tests the use's down edge (0x2D88B1 -> 0x2D8900) before it applies the input's rotation (0x2D89D5 -> 0x2D8AD0; the
+    /// exe review of #2013 and #2017). A body no tick has kept one for (a unit test's) uses its view as it is.
+    pub(crate) fn use_ray(body: &Body) -> (Vec3, Vec3) {
+        body.use_ray.unwrap_or_else(|| (Self::eye(body), Self::use_dir(body)))
+    }
+
     pub(crate) fn use_dir(body: &Body) -> Vec3 {
         let [fx, fz] = forward(body.yaw);
         let (c, s) = { let e = body.view_elevation(); (e.cos(), e.sin()) };
@@ -2759,8 +2773,7 @@ impl Game {
 
     /// [`Self::uses`] with a ray of `reach` m.
     fn uses_reach(body: &Body, point: Vec3, radius: f32, reach: f32) -> bool {
-        let eye = Self::eye(body);
-        let dir = Self::use_dir(body);
+        let (eye, dir) = Self::use_ray(body);
         let to = point - eye;
         let along = to.x * dir.x + to.y * dir.y + to.z * dir.z;
         if !(0.0..=reach).contains(&along) {
@@ -2771,15 +2784,14 @@ impl Game {
 
     /// How far along `body`'s view ray from the eye `point` lies (m).
     pub(crate) fn ray_along(body: &Body, point: Vec3) -> f32 {
-        let eye = Self::eye(body);
-        (point - eye).dot(Self::use_dir(body))
+        let (eye, dir) = Self::use_ray(body);
+        (point - eye).dot(dir)
     }
 
     /// How far `body`'s use ray (from the eye, [`super::view::use_ray_m`] long)
     /// passes `point`.
     pub(crate) fn ray_miss(body: &Body, point: Vec3) -> f32 {
-        let eye = Self::eye(body);
-        let dir = Self::use_dir(body);
+        let (eye, dir) = Self::use_ray(body);
         let along = (point - eye).dot(dir).clamp(0.0, super::view::use_ray_m());
         (eye + dir * along - point).length()
     }
@@ -2794,8 +2806,8 @@ impl Game {
             .iter()
             .find(|c| c.id == id as i32)
             .and_then(|c| c.use_shapes.first())?;
-        let eye = Self::eye(body);
-        mapdata::stands::ray_distance(eye, Self::use_dir(body), shape)
+        let (eye, dir) = Self::use_ray(body);
+        mapdata::stands::ray_distance(eye, dir, shape)
     }
 
     /// Whether the view's ray from `body`'s eye meets container `id`'s use
@@ -2819,15 +2831,14 @@ impl Game {
     /// Whether the view's ray from `body`'s eye meets `shape` by the game's
     /// use rule ([`Self::uses_container_box`]).
     pub(crate) fn uses_shape(&self, body: &Body, shape: &mapdata::Shape) -> bool {
-        let eye = Self::eye(body);
-        let dir = Self::use_dir(body);
+        let (eye, dir) = Self::use_ray(body);
         mapdata::stands::ray_meets(&self.world.sight, eye, dir, shape, super::view::use_ray_m())
     }
 
     /// [`Self::uses`] a lying battery, the ray clear of the bullet mesh up
     /// to it when [`Game::use_line`].
     pub(crate) fn uses_battery(&self, body: &Body, at: Vec3) -> bool {
-        let point = at + BATTERY_MIDDLE;
+        let point = at;
         // The patched client's take (patch 11): a battery whose origin is
         // under the feet, within 1 m across, is taken along a 4 m ray that
         // passes floors (`client_patch.md`), so no line of the bullet mesh.
@@ -2846,8 +2857,7 @@ impl Game {
         if !self.use_line {
             return true;
         }
-        let eye = Self::eye(body);
-        let dir = Self::use_dir(body);
+        let (eye, dir) = Self::use_ray(body);
         let to = point - eye;
         let along = to.x * dir.x + to.y * dir.y + to.z * dir.z;
         along <= 0.15 || self.world.sight.ray_cast(eye, dir, along - 0.15).is_none()
@@ -2930,7 +2940,7 @@ impl Game {
                     if let Some(battery) = free {
                         if let Lying::Free(at, _) = self.batteries[battery] {
                             self.took_from.push(at);
-                            self.take_alongs.push(Self::ray_along(&body, at + BATTERY_MIDDLE));
+                            self.take_alongs.push(Self::ray_along(&body, at));
                         }
                         self.batteries[battery] = Lying::Carried(place);
                         self.bodies[place].carrying = Some(battery);

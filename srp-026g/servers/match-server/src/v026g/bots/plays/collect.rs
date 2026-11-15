@@ -74,9 +74,10 @@ const RING_M: [f32; 4] = [0.45, 0.6, 0.9, 1.2];
 const SUNK_MIN_M: f32 = 0.2;
 /// ... from at most this far across (the client's 1 m less 0.1), metres.
 const SUNK_ACROSS_M: f32 = 0.9;
-/// The aim of such a take: the top of the battery's box over its origin
-/// (the box is 0.24 m high), metres...
-const SUNK_AIM_M: f32 = 0.22;
+/// The aim of such a take: just under the top of the battery's box, over its position, metres: the position is the box's
+/// centre and the box is 0.24 m high, 0.12 m each way (`docs/notes/using_the_world.md`; the 0.22 before took the position
+/// for the box's foot, so the ray passed 0.10 m over the box)...
+const SUNK_AIM_M: f32 = 0.10;
 /// ... on its far side from the stand, this far across (the box's
 /// narrowest half, 0.16 m: inside it whatever way the battery lies), where
 /// the look down is the shallowest the box gives.
@@ -6082,8 +6083,9 @@ mod tests {
             crouch: true,
         };
         assert!(sunk_take(stand, at));
+        // The look-down limit the take uses (`take.pitch`, the view's scale by default).
         assert!(matches!(
-            use_from(&cx, stand, at, aim, RING_USE_M, FIRST_PITCH_MAX_RAD),
+            use_from(&cx, stand, at, aim, RING_USE_M, take_pitch_limits(&cx).1),
             UseFrom::Clear(_)
         ));
         // Standing there, or 1.2 m across, it is not the patched take.

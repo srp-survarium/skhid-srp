@@ -54,7 +54,7 @@ pub(crate) fn a_body_right_over_a_battery_cannot_use_it_and_one_a_step_off_can()
             (-100..=100).any(|p| {
                 body.yaw = y as f32 * std::f32::consts::TAU / 64.0;
                 body.pitch = p as f32 / 100.0;
-                Game::uses(body, battery + BATTERY_MIDDLE, BATTERY_M)
+                Game::uses(body, battery, BATTERY_M)
             })
         })
     };
@@ -74,7 +74,7 @@ pub(crate) fn a_body_right_over_a_battery_cannot_use_it_and_one_a_step_off_can()
     body.yaw = kin::yaw_of([aim.x - eye.x, aim.z - eye.z]);
     body.pitch = (aim.y - eye.y).atan2(eye.distance_xz(aim));
     assert!(body.pitch.abs() < 1.0);
-    assert!(Game::uses(&body, battery + BATTERY_MIDDLE, BATTERY_M));
+    assert!(Game::uses(&body, battery, BATTERY_M));
 }
 
 /// A bot standing right on a battery steps off it and takes it (it
