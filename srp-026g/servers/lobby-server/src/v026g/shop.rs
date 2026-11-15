@@ -12,6 +12,7 @@
 //! | `49 03 <name>` | `83 49 03 <name> <ok> [reason]` |
 //! | `49 04 <name> <ignored>` | `83 49 04 0`, the name (`8F`), the inventory, the account, the money (silver; no voucher) |
 //! | `43 00` | `99` |
+//! | `3B` at `SHOP_FILTER_FIRST` (the "Hide owned" box) | `91` `H1;<0 or 1>`; at the next two (a click's) none |
 //!
 //! No tutorial (2026-10-19): a step (`4B`) is not answered. No premium
 //! account (2026-11-09): no premium time is sold, and no premium offer
@@ -22,6 +23,7 @@
 use session::LockExt;
 use session::v026g::{bonus, names, premium, quests};
 use survarium::v026g::lobby::requests::{INVENTORY_SLOT, id};
+use survarium::v026g::lobby::shop_filter::{self, ShopFilterRequest};
 use survarium::v026g::lobby::{self, NameRefusal};
 
 use super::core::{Core, Who};
@@ -69,6 +71,30 @@ impl Core<'_> {
     }
 
     // ----------------------------------------------------------- the shop
+
+    /// The shop's "Hide owned" box (`3B` at `SHOP_FILTER_FIRST`,
+    /// `shop-owned-mark.md`): asked at a sign-in, answered with the
+    /// account's choice (`91`); a click's kept with the account, not
+    /// answered.
+    pub(super) fn shop_filter(&mut self, who: &Who, request: ShopFilterRequest) {
+        match request {
+            ShopFilterRequest::Ask => {
+                let owned = who.account.locked().extras.shop_owned;
+                self.send_made(who.addr, shop_filter::answer(owned));
+            }
+            ShopFilterRequest::Keep(owned) => {
+                let changed = {
+                    let mut account = who.account.locked();
+                    let changed = account.extras.shop_owned != owned;
+                    account.extras.shop_owned = owned;
+                    changed
+                };
+                if changed {
+                    self.accounts.mark_dirty(who.account_id);
+                }
+            }
+        }
+    }
 
     /// `47 00` for a premium item, which the shop sells one by one.
     pub(super) fn buy_premium_item(

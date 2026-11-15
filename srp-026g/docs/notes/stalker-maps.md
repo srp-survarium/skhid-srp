@@ -619,6 +619,35 @@ below): resource-porter `tools/stalker-tdm/bushes.py`, which `build-pack.sh` run
 on every map it imports, is `scripts/stalker-bushes/make_pack.py` (gone) moved
 there, reading the imported map instead of a released pack.
 
+## Training Camp's campfires burn (the owner, 2026-11-15)
+
+"Also fire (there are 2 or 3 on the map) should do damage too". Training Camp
+has four bonfires (`props/light/bonefire_01_on`, each with its `bonfire`
+particle, light and sound): three on the ground floors of its three round
+towers, at (11.23, 24.72), (9.27, -14.32) and (45.93, 2.25), and one on the
+roof of the building at the middle, y 16.7 over (18.5, 6.0). They burnt
+nobody: the port has no damage zone. The picture:
+`private/renders/training-camp-fires/` in the main checkout (offline render).
+
+`training-camp-fires-1.json` (`scripts/stalker-maps/make_training_fires.py`,
+from the stock `projects/level_05/day_4/client_project` and the pack's TDM
+project) appends to both projects, `day_4` and `day_8`, 0.26g's own fire over
+the same bonfire model: level_05's `logic/fire_damage/fire_collision` (a
+`collision_geometry` of spheres, one 0.16 m over each bonfire) and
+`logic/fire_damage/fire_damage_zone` naming it (`damage_type` fire, `max_hit`
+0.1 to both hips and both feet every 500 ms, not continuous, its curves),
+every key and type as the stock's. One change: the sphere is 0.8 m, the
+stock's 0.5 m. The bonfire's walker sphere (0.38 m) holds a body (0.38 m)
+0.76 m from the fire's middle, so the stock sphere is touched only right at
+it; at 0.8 m a body against the logs (0.5 m) or on them burns, and one a step
+(0.6 m) from them, its middle 1.5 m away, does not.
+
+The world saves one damage zone more (`maps.rs` `world_objects` counts it from
+the project: 5 bytes, before the Keeper's anomaly in `day_8`), so it is a
+`next` simulation change. No spawn is near: the nearest Free for All point
+(team 2, id 42) is 3.9 m from a sphere at its feet, chest or head (the spawn
+tools keep 2 m), the nearest Team Deathmatch point 5.2 m.
+
 ## Ladders
 
 0.26g cannot climb. Every ladder stays as the source has it: no ramp, lid or
@@ -706,8 +735,18 @@ The spawns do not come from the level: they are the planner's.
   (resource-porter `fix/training-camp-minimap`). Free for All's wall has since
   moved in to the base's fence (`stalker-ffa.md`); the frame has not: the
   fenced base is 73 x 67 m of the frame's 159 m, its middle 9 m east of the
-  frame's. Repair Depot's south edge has
-  the same 45 m circles; it is not played.
+  frame's. Free for All's three trucks in the fence's gateways are drawn
+  since 2026-11-15 (the owner: "training camp map doesn't show new trucks
+  we added"): the renderer still reads Team Deathmatch's `day_4` (Free for
+  All's `day_8` also has the walker wall, which would cut the meadow off)
+  and adds the trucks, drawn and solid, from `training-trucks.tsv` and the
+  pack `training-camp-truck@1`: `... --place srp/training_camp_truck
+  srp-026g/scripts/stalker-maps/training-trucks.tsv --models
+  <packs>/training-camp-truck-1/files` (resource-porter
+  `fix/training-camp-minimap-trucks`, on the stalker-maps@6 overlay). The
+  level's own photo still sets the exposure, so the bitmap differs from the
+  earlier one only at the three trucks (1,303 pixels); the frame is the same.
+  Repair Depot's south edge has the same 45 m circles; it is not played.
 - `tools/actionscript` adds a bitmap the original movie lacks from the tree's
   `bitmaps/<class>.png` (lossless) or `.jpg`; `srp-026g/scripts/stalker-maps/ui_images.py`
   writes them from the porter's minimap render and a loading picture.

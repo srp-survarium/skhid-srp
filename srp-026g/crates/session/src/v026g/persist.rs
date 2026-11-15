@@ -153,6 +153,8 @@ const MIGRATIONS: &[&str] = &[
     "",
     // 15: player reports and compliments.
     comments::MIGRATION,
+    // 16: the shop's "Hide owned" box (`extras`).
+    extras::SHOP_OWNED_MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.

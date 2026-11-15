@@ -46,6 +46,7 @@ pub mod push;
 pub mod requests;
 pub mod results;
 pub mod rooms;
+pub mod shop_filter;
 pub mod social;
 pub mod tutorial_model;
 
