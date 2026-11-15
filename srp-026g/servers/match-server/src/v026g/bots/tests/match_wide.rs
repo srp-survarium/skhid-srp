@@ -7,6 +7,7 @@
 //! - `hazard.margin_m`, `hazard.escape`, `hazard.leave_islands`, `hazard.artefact_know` (the tactics, `Bots::map_ready` /
 //!   `tactics_ready`), `hazard.live_zones` (the board of live zones), `hazard.zone_pools` (the bench's game);
 //! - `aim.combat.clear_step_sees_lip` (the tactics), `aim.combat.live_eye` and `sense.use_ray_m` (view statics),
+//!   `aim.combat.grenade_rest_flown` (the thread's landing rule, `arc::set_rest_flown`),
 //!   `aim.combat.fire.weapon_class_by_data` (the stand-in camper's gun);
 //! - `sense.sprint_body_mps` (the held sounds);
 //! - `traps.react.on`, `traps.react.hear`, `traps.react.snap_near_m` (the traps the tracker reads);
@@ -23,7 +24,7 @@
 use super::*;
 
 /// The match-wide keys: a dotted path into the tuning's JSON, a section's name standing for every key under it.
-const MATCH_WIDE: [&str; 22] = [
+const MATCH_WIDE: [&str; 23] = [
     "grid",
     "kin",
     "hazard.margin_m",
@@ -34,6 +35,7 @@ const MATCH_WIDE: [&str; 22] = [
     "hazard.zone_pools",
     "aim.combat.clear_step_sees_lip",
     "aim.combat.live_eye",
+    "aim.combat.grenade_rest_flown",
     "aim.combat.fire.weapon_class_by_data",
     "sense.use_ray_m",
     "sense.sprint_body_mps",
