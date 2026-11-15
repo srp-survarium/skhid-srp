@@ -160,6 +160,9 @@
 #      of the release's exe. A failed check prints srp's log and runs the
 #      folder's rollback (srp.db, image, data, ZIP, settings, source: as
 #      before), with --now too. The run's output is the folder's release.log;
+#      then release/publish-dht puts the torrent's signed item on the DHT (the
+#      newest release, for updaters that cannot reach the site; a failure is
+#      a warning: every updater that shares puts it again);
 #   7. live only, once it all went out (never after a stop or a rollback):
 #      the record. An annotated tag 026g-rev<n> on the commit that was built
 #      (the UTC time, the ZIP's and the server data's sha256, the exe's),
@@ -245,6 +248,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 REPO=${SKHID_TEST_REPO:-$ROOT}
 BUILD_ZIP=${SKHID_TEST_BUILD_ZIP:-$here/build-zip}
 BUILD_TORRENT=${SKHID_TEST_BUILD_TORRENT:-$here/build-torrent}
+PUBLISH_DHT=${SKHID_TEST_PUBLISH_DHT:-$here/publish-dht}
 BUILD_SITE=${SKHID_TEST_BUILD_SITE:-$here/build-site}
 MINUTE=${SKHID_TEST_SECONDS_PER_MINUTE:-60}
 STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
@@ -1974,6 +1978,7 @@ swap_finish
 if ((DRY_RUN)); then
     say "[dry run] 6. after the restart: srp26 running, its log's \"game data:\" line, GET $TARGET_SITE/patches is exactly the list's, GET $TARGET_SITE/api/client-files names the ZIP (put in before the restart) and min-revision $rev; srp's new backup of srp.db kept in the folder$( [[ $TARGET == live ]] && printf ' and copied to the jump host')"
     say "[dry run] a failed check: srp's log, then sh $TARGET_DIR/$REL/rollback.sh $TARGET_DIR/$REL on the $TARGET host (srp.db, image, files, setting back)"
+    say "[dry run] then: release/publish-dht <the torrent>: its signed item put on the DHT (the newest release, for updaters without the site)"
     if ((test_server)); then
         say "[dry run] 7. no record (--test: no commit, no tag)"
     else
@@ -1994,6 +1999,13 @@ released_at=$(date -u +%s)
 say
 if ((now)); then say "--now: the stop ended ${ENDED:-an unknown number of} match(es) without results"; fi
 say "released revision $rev to the $TARGET server. Its folder: $TARGET_DIR/$REL (the files before it, srp.db before it, the image IDs, the bots' data files it replaced (old-bot-data), changed.txt, release.log); the old image is $BEFORE_TAG ($RUN_IMAGE)"
+# The newest release on the DHT (release/publish-dht): the torrent's signed
+# item, for the updaters that cannot reach the site. Not a stop when it
+# fails: every updater that shares puts the same item again.
+progress "6. the newest release's item on the DHT (release/publish-dht)"
+if ! "$PUBLISH_DHT" "$work/skhid-rev$rev.torrent"; then
+    say "WARNING: the DHT item was not put: release/publish-dht $work/skhid-rev$rev.torrent again by hand (the updaters that share put it too)"
+fi
 if ((no_selftest)); then say "WARNING: shipped WITHOUT the exe patches' self-test (--no-selftest): the tag and the record say so"; fi
 if [[ -n $built_note ]]; then say "${built_note#WARNING }"; fi
 if ((test_server)); then

@@ -4,27 +4,22 @@
 //! is anything else.
 //!
 //! What is trusted, and how: the torrent is trusted as a whole by the
-//! release's signature (`crate::signed`; the program decides: `exe/src/torrent.rs`, `trusted`).
-//! Its `info` holds each file's v2 "pieces root", a SHA-256 merkle root of
-//! its 16 KiB blocks; the torrent's "piece layers" are checked against those
-//! roots here, so every piece is then checked by SHA-256
-//! ([`Torrent::piece_ok`]). The v1 SHA-1 hashes are not used: the v1 info
-//! hash only names the swarm (the trackers', the peers' handshake), and the
-//! v1 piece space (files and pads in the v1 list's order) is how pieces are
-//! numbered on the wire, as every v1 or hybrid client numbers them.
+//! release's signature (`crate::signed`; the program decides:
+//! `exe/src/torrent.rs`, `trusted`), which covers its `info`. The pieces
+//! are libtorrent's to check (`skhid_torrent.dll`), against the hashes of
+//! that `info`; here is what the updater needs to know of it: its files,
+//! their sizes, its v2 info hash.
 
 use alloc::string::String;
 use alloc::vec::Vec;
 
 use crate::bencode::{self, Value};
-use crate::sha1;
-use crate::sha256::{Sha256, digest};
+use crate::sha256::digest;
 use crate::zip::safe_name;
 
 /// The largest `.torrent` taken.
 pub const MAX_TORRENT: usize = 8 << 20;
-/// A v2 leaf: 16 KiB of a file; also the block a peer is asked for.
-pub const BLOCK: u32 = 16 * 1024;
+const MIN_PIECE: u32 = 16 * 1024;
 const MAX_PIECE: u32 = 16 << 20;
 const MAX_FILES: usize = 10_000;
 
@@ -33,33 +28,17 @@ pub struct File {
     /// Its path in the torrent, `/` between the parts (a `zip::safe_name`).
     pub path: String,
     pub size: u64,
-    /// Where it starts in the v1 piece space: a piece's start.
-    pub offset: u64,
-}
-
-impl File {
-    pub fn first_piece(&self, piece_length: u32) -> u32 {
-        (self.offset / u64::from(piece_length)) as u32
-    }
-
-    pub fn pieces(&self, piece_length: u32) -> u32 {
-        self.size.div_ceil(u64::from(piece_length)) as u32
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Torrent {
-    pub v1: [u8; 20],
+    /// The SHA-256 of its `info`: its v2 info hash.
     pub v2: [u8; 32],
     pub piece_length: u32,
-    /// The v1 piece space's length, the pads in it.
-    pub length: u64,
+    pub pieces: u32,
     /// The files, in the v1 list's order (no pads). (No trackers: the
     /// torrent's are outside its signature; the updater has its own.)
     pub files: Vec<File>,
-    /// For each piece: the file it is of, and the SHA-256 merkle root its
-    /// blocks must make.
-    pieces: Vec<(u32, [u8; 32])>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,52 +47,14 @@ pub enum TorrentError {
     Format,
     /// Not hybrid, or a file that does not start at a piece.
     Layout,
-    /// A piece layer that does not make its file's root.
-    PieceLayer,
-}
-
-fn hash_pair(left: &[u8; 32], right: &[u8; 32]) -> [u8; 32] {
-    let mut hasher = Sha256::default();
-    hasher.update(left);
-    hasher.update(right);
-    hasher.finish()
-}
-
-/// The root over `leaves`, padded with `pad` to `width` (a power of two).
-fn merkle_root(mut layer: Vec<[u8; 32]>, width: usize, pad: [u8; 32]) -> [u8; 32] {
-    layer.resize(width.max(1), pad);
-    while layer.len() > 1 {
-        layer = layer
-            .chunks_exact(2)
-            .map(|pair| hash_pair(&pair[0], &pair[1]))
-            .collect();
-    }
-    layer[0]
-}
-
-/// The root of `leaves` zero leaves (a power of two): what pads a piece
-/// layer.
-fn zero_root(leaves: u32) -> [u8; 32] {
-    let mut hash = [0_u8; 32];
-    let mut width = 1;
-    while width < leaves {
-        hash = hash_pair(&hash, &hash);
-        width *= 2;
-    }
-    hash
 }
 
 fn text(value: Option<&Value>) -> Option<String> {
     String::from_utf8(value?.bytes()?.into()).ok()
 }
 
-/// The v2 file tree's files: path, size, pieces root (none for an empty
-/// file).
-fn file_tree(
-    node: &Value,
-    path: &mut Vec<String>,
-    out: &mut Vec<(String, u64, Option<[u8; 32]>)>,
-) -> Option<()> {
+/// The v2 file tree's files: path, size.
+fn file_tree(node: &Value, path: &mut Vec<String>, out: &mut Vec<(String, u64)>) -> Option<()> {
     for (name, child, _) in node.dict()? {
         if name.is_empty() {
             // A file: `"": {length, pieces root}`, and nothing beside it.
@@ -121,12 +62,10 @@ fn file_tree(
                 return None;
             }
             let size = u64::try_from(child.get(b"length")?.int()?).ok()?;
-            let root = match child.get(b"pieces root") {
-                Some(root) => Some(<[u8; 32]>::try_from(root.bytes()?).ok()?),
-                None if size == 0 => None,
-                None => return None,
-            };
-            out.push((path.join("/"), size, root));
+            if size > 0 && child.get(b"pieces root")?.bytes()?.len() != 32 {
+                return None;
+            }
+            out.push((path.join("/"), size));
             if out.len() > MAX_FILES {
                 return None;
             }
@@ -139,14 +78,20 @@ fn file_tree(
     Some(())
 }
 
-/// Reads a `.torrent`.
+/// Reads a `.torrent`, or only its `info` (as the swarm gives it: BEP 9).
 pub fn parse(data: &[u8]) -> Result<Torrent, TorrentError> {
+    let document = bencode::parse(data).ok_or(TorrentError::Format)?;
+    let (_, raw) = document.entry(b"info").ok_or(TorrentError::Format)?;
+    parse_info(raw)
+}
+
+/// Reads a torrent's bencoded `info`.
+pub fn parse_info(raw: &[u8]) -> Result<Torrent, TorrentError> {
     use TorrentError::{Format, Layout};
-    if data.len() > MAX_TORRENT {
+    if raw.len() > MAX_TORRENT {
         return Err(Format);
     }
-    let document = bencode::parse(data).ok_or(Format)?;
-    let (info, raw) = document.entry(b"info").ok_or(Format)?;
+    let info = bencode::parse(raw).ok_or(Format)?;
     if info.get(b"meta version").and_then(Value::int) != Some(2) {
         return Err(Layout);
     }
@@ -154,20 +99,14 @@ pub fn parse(data: &[u8]) -> Result<Torrent, TorrentError> {
         .get(b"piece length")
         .and_then(Value::int)
         .and_then(|n| u32::try_from(n).ok())
-        .filter(|n| n.is_power_of_two() && (BLOCK..=MAX_PIECE).contains(n))
+        .filter(|n| n.is_power_of_two() && (MIN_PIECE..=MAX_PIECE).contains(n))
         .ok_or(Format)?;
     let mut tree = Vec::new();
-    file_tree(
-        info.get(b"file tree").ok_or(Layout)?,
-        &mut Vec::new(),
-        &mut tree,
-    )
-    .ok_or(Format)?;
-    // The v1 list: the piece space. Each file of it is one of the tree's,
-    // of the same size, starting at a piece; pads (`attr` "p") fill to it.
+    file_tree(info.get(b"file tree").ok_or(Layout)?, &mut Vec::new(), &mut tree).ok_or(Format)?;
+    // The v1 list: each file of it is one of the tree's, of the same size,
+    // starting at a piece; pads (`attr` "p") fill to it.
     let list = info.get(b"files").and_then(Value::list).ok_or(Layout)?;
     let mut files: Vec<File> = Vec::new();
-    let mut roots: Vec<Option<[u8; 32]>> = Vec::new();
     let mut offset = 0_u64;
     for entry in list {
         let size = entry
@@ -193,16 +132,12 @@ pub fn parse(data: &[u8]) -> Result<Torrent, TorrentError> {
             if !safe_name(&path) || files.iter().any(|file| file.path == path) {
                 return Err(Format);
             }
-            let at = tree
-                .iter()
-                .position(|(name, _, _)| *name == path)
-                .ok_or(Layout)?;
-            let (_, tree_size, root) = tree.swap_remove(at);
+            let at = tree.iter().position(|(name, _)| *name == path).ok_or(Layout)?;
+            let (_, tree_size) = tree.swap_remove(at);
             if tree_size != size || (size > 0 && !offset.is_multiple_of(u64::from(piece_length))) {
                 return Err(Layout);
             }
-            files.push(File { path, size, offset });
-            roots.push(root);
+            files.push(File { path, size });
         }
         offset = offset.checked_add(size).ok_or(Format)?;
     }
@@ -211,56 +146,22 @@ pub fn parse(data: &[u8]) -> Result<Torrent, TorrentError> {
     }
     let count = offset.div_ceil(u64::from(piece_length));
     let v1_pieces = info.get(b"pieces").and_then(Value::bytes).ok_or(Layout)?;
-    if v1_pieces.len() as u64 != count * 20 || count > u32::MAX as u64 {
-        return Err(Layout);
-    }
-    // Every piece of each file, by its root and the file's piece layer.
-    let layers = document.get(b"piece layers");
-    let blocks_per_piece = piece_length / BLOCK;
-    let mut pieces: Vec<(u32, [u8; 32])> = Vec::with_capacity(count as usize);
-    for (index, (file, root)) in files.iter().zip(&roots).enumerate() {
-        let Some(root) = root else { continue };
-        if pieces.len() as u32 != file.first_piece(piece_length) {
-            return Err(Layout);
-        }
-        let n = file.pieces(piece_length);
-        if n == 1 {
-            pieces.push((index as u32, *root));
-            continue;
-        }
-        let layer = layers
-            .and_then(|layers| layers.get(root))
-            .and_then(Value::bytes)
-            .filter(|layer| layer.len() as u64 == u64::from(n) * 32)
-            .ok_or(TorrentError::PieceLayer)?;
-        let hashes: Vec<[u8; 32]> = layer
-            .chunks_exact(32)
-            .map(|hash| hash.try_into().expect("32 bytes"))
-            .collect();
-        let width = (n as usize).next_power_of_two();
-        if merkle_root(hashes.clone(), width, zero_root(blocks_per_piece)) != *root {
-            return Err(TorrentError::PieceLayer);
-        }
-        pieces.extend(hashes.into_iter().map(|hash| (index as u32, hash)));
-    }
-    // A piece of pads alone cannot be: each piece is of one file.
-    if pieces.len() as u64 != count {
+    if v1_pieces.len() as u64 != count * 20 || count > u64::from(u32::MAX) {
         return Err(Layout);
     }
     Ok(Torrent {
-        v1: sha1::digest(raw),
         v2: digest(raw),
         piece_length,
-        length: offset,
+        pieces: count as u32,
         files,
-        pieces,
     })
 }
 
 /// The torrent as the updater keeps and passes it on: its `info`, `piece
 /// layers` and `skhid` (the signature) as they are, nothing else. The rest
 /// (trackers, a comment...) is outside the signature: whoever handed the
-/// torrent over could have put anything there.
+/// torrent over could have put anything there. (Its piece layers are
+/// libtorrent's to check against `info`.)
 pub fn canonical(data: &[u8]) -> Option<Vec<u8>> {
     let document = bencode::parse(data)?;
     let mut out = alloc::vec![b'd'];
@@ -276,64 +177,9 @@ pub fn canonical(data: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
-impl Torrent {
-    pub fn piece_count(&self) -> u32 {
-        self.pieces.len() as u32
-    }
-
-    /// The piece's bytes on the wire (its file's, then pad zeros; the last
-    /// piece of the space may be shorter).
-    pub fn piece_size(&self, piece: u32) -> u32 {
-        let start = u64::from(piece) * u64::from(self.piece_length);
-        (self.length - start).min(u64::from(self.piece_length)) as u32
-    }
-
-    /// The file a piece is of, and how many of its bytes are the file's.
-    pub fn piece_file(&self, piece: u32) -> (usize, u32) {
-        let file = self.pieces[piece as usize].0 as usize;
-        let start = u64::from(piece) * u64::from(self.piece_length);
-        let of_file = (self.files[file].offset + self.files[file].size - start)
-            .min(u64::from(self.piece_length)) as u32;
-        (file, of_file)
-    }
-
-    /// The pieces of file `file`.
-    pub fn file_pieces(&self, file: usize) -> core::ops::Range<u32> {
-        let file = &self.files[file];
-        if file.size == 0 {
-            return 0..0;
-        }
-        let first = file.first_piece(self.piece_length);
-        first..first + file.pieces(self.piece_length)
-    }
-
-    /// Whether `data` is piece `piece`: its size, its file's bytes making
-    /// the piece's SHA-256 merkle root, its pad bytes zero.
-    pub fn piece_ok(&self, piece: u32, data: &[u8]) -> bool {
-        let Some(&(file, expected)) = self.pieces.get(piece as usize) else {
-            return false;
-        };
-        if data.len() != self.piece_size(piece) as usize {
-            return false;
-        }
-        let (_, of_file) = self.piece_file(piece);
-        let (bytes, pad) = data.split_at(of_file as usize);
-        if pad.iter().any(|&byte| byte != 0) {
-            return false;
-        }
-        let leaves: Vec<[u8; 32]> = bytes.chunks(BLOCK as usize).map(digest).collect();
-        let size = self.files[file as usize].size;
-        let width = if size > u64::from(self.piece_length) {
-            (self.piece_length / BLOCK) as usize
-        } else {
-            leaves.len().next_power_of_two()
-        };
-        merkle_root(leaves, width, [0; 32]) == expected
-    }
-}
-
 /// What tests build torrents with: a hybrid torrent of `files` (path,
-/// bytes) as libtorrent makes one (a pad after each file but the last).
+/// bytes) laid out as libtorrent lays one (a pad after each file but the
+/// last); its hashes are not the files' (nothing here checks them).
 #[cfg(test)]
 pub(crate) fn make(files: &[(&str, &[u8])], piece_length: u32, trackers: &[&str]) -> Vec<u8> {
     use alloc::format;
@@ -341,32 +187,9 @@ pub(crate) fn make(files: &[(&str, &[u8])], piece_length: u32, trackers: &[&str]
         out.extend_from_slice(format!("{}:", bytes.len()).as_bytes());
         out.extend_from_slice(bytes);
     };
-    let roots_and_layers: Vec<([u8; 32], Vec<[u8; 32]>)> = files
-        .iter()
-        .map(|(_, data)| {
-            let leaves: Vec<[u8; 32]> = data.chunks(BLOCK as usize).map(digest).collect();
-            let per = (piece_length / BLOCK) as usize;
-            let layer: Vec<[u8; 32]> = leaves
-                .chunks(per)
-                .map(|chunk| merkle_root(chunk.to_vec(), per, [0; 32]))
-                .collect();
-            let root = if data.len() as u64 <= u64::from(piece_length) {
-                merkle_root(leaves.clone(), leaves.len().next_power_of_two(), [0; 32])
-            } else {
-                merkle_root(
-                    layer.clone(),
-                    layer.len().next_power_of_two(),
-                    zero_root(per as u32),
-                )
-            };
-            (root, layer)
-        })
-        .collect();
-    // The file tree: these tests' paths have one level of folders at most,
-    // sorted as given.
     let mut info = Vec::new();
     let mut list = b"l".to_vec();
-    let mut v1 = Vec::new();
+    let mut length = 0_u64;
     for (index, (path, data)) in files.iter().enumerate() {
         list.extend_from_slice(b"d6:lengthi");
         list.extend_from_slice(format!("{}", data.len()).as_bytes());
@@ -375,18 +198,20 @@ pub(crate) fn make(files: &[(&str, &[u8])], piece_length: u32, trackers: &[&str]
             bstr(&mut list, part.as_bytes());
         }
         list.extend_from_slice(b"ee");
-        v1.extend_from_slice(data);
+        length += data.len() as u64;
         let rem = data.len() as u64 % u64::from(piece_length);
         if index + 1 < files.len() && rem != 0 {
             let pad = u64::from(piece_length) - rem;
             list.extend_from_slice(format!("d4:attr1:p6:lengthi{pad}e4:pathl4:.pad").as_bytes());
             bstr(&mut list, format!("{pad}").as_bytes());
             list.extend_from_slice(b"ee");
-            v1.resize(v1.len() + pad as usize, 0);
+            length += pad;
         }
     }
     list.push(b'e');
     info.extend_from_slice(b"d9:file treed");
+    // The file tree: these tests' paths have one level of folders at most,
+    // sorted as given.
     let mut sorted: Vec<usize> = (0..files.len()).collect();
     sorted.sort_by_key(|&i| files[i].0);
     let mut open: Option<&str> = None;
@@ -411,7 +236,7 @@ pub(crate) fn make(files: &[(&str, &[u8])], piece_length: u32, trackers: &[&str]
         info.push(b'e');
         if !files[i].1.is_empty() {
             info.extend_from_slice(b"11:pieces root");
-            bstr(&mut info, &roots_and_layers[i].0);
+            bstr(&mut info, &digest(files[i].1));
         }
         info.extend_from_slice(b"ee");
     }
@@ -423,11 +248,8 @@ pub(crate) fn make(files: &[(&str, &[u8])], piece_length: u32, trackers: &[&str]
     info.extend_from_slice(b"12:meta versioni2e4:name4:Test12:piece lengthi");
     info.extend_from_slice(format!("{piece_length}").as_bytes());
     info.extend_from_slice(b"e6:pieces");
-    let v1_hashes: Vec<u8> = v1
-        .chunks(piece_length as usize)
-        .flat_map(sha1::digest)
-        .collect();
-    bstr(&mut info, &v1_hashes);
+    let count = length.div_ceil(u64::from(piece_length)) as usize;
+    bstr(&mut info, &alloc::vec![0_u8; count * 20]);
     info.push(b'e');
     let mut out = Vec::new();
     out.push(b'd');
@@ -437,19 +259,7 @@ pub(crate) fn make(files: &[(&str, &[u8])], piece_length: u32, trackers: &[&str]
     }
     out.extend_from_slice(b"4:info");
     out.extend_from_slice(&info);
-    out.extend_from_slice(b"12:piece layersd");
-    let mut layered: Vec<&([u8; 32], Vec<[u8; 32]>)> = roots_and_layers
-        .iter()
-        .zip(files)
-        .filter(|(_, (_, data))| data.len() as u64 > u64::from(piece_length))
-        .map(|(layer, _)| layer)
-        .collect();
-    layered.sort_by_key(|(root, _)| *root);
-    for (root, layer) in layered {
-        bstr(&mut out, root);
-        bstr(&mut out, &layer.concat());
-    }
-    out.extend_from_slice(b"ee");
+    out.push(b'e');
     out
 }
 
@@ -458,58 +268,26 @@ mod tests {
     use super::*;
     use alloc::vec;
 
-    fn sample() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    #[test]
+    fn a_hybrid_torrent_its_files_and_its_info_hash() {
         let big: Vec<u8> = (0..100_000_u32).map(|i| (i * 7 + i / 300) as u8).collect();
-        let small = b"hello".to_vec();
-        let torrent = make(
-            &[("game/resources.db", &big), ("game/a.txt", &small)],
+        let data = make(
+            &[("game/resources.db", &big), ("game/a.txt", b"hello")],
             32 * 1024,
             &["udp://127.0.0.1:1/announce", "ftp://no"],
         );
-        (torrent, big, small)
-    }
-
-    #[test]
-    fn a_hybrid_torrent_and_its_pieces() {
-        let (data, big, small) = sample();
         let torrent = parse(&data).unwrap();
         // Kept and passed on without what is outside the signature.
         let kept = canonical(&data).unwrap();
         assert!(!kept.windows(8).any(|w| w == b"announce"));
         assert_eq!(parse(&kept).unwrap(), torrent);
-        assert_eq!(torrent.files.len(), 2);
-        assert_eq!(torrent.files[1].offset, 4 * 32 * 1024);
-        assert_eq!(torrent.piece_count(), 5);
-        assert_eq!(torrent.file_pieces(0), 0..4);
-        assert_eq!(torrent.piece_size(4), 5);
-        for piece in 0..4 {
-            let start = piece as usize * 32 * 1024;
-            let mut bytes = big[start..(start + 32 * 1024).min(big.len())].to_vec();
-            bytes.resize(32 * 1024, 0);
-            assert!(torrent.piece_ok(piece, &bytes), "{piece}");
-            bytes[100] ^= 1;
-            assert!(!torrent.piece_ok(piece, &bytes));
-        }
-        // The last piece of the big file: its pad must be zeros.
-        let mut last = big[3 * 32 * 1024..].to_vec();
-        last.resize(32 * 1024, 0);
-        *last.last_mut().unwrap() = 1;
-        assert!(!torrent.piece_ok(3, &last));
-        assert!(torrent.piece_ok(4, &small));
-        assert!(!torrent.piece_ok(4, b"hellO"));
-        assert!(!torrent.piece_ok(4, b"hello!"));
-        assert!(!torrent.piece_ok(5, b"hello"));
-        assert_eq!(torrent.v1, sha1::digest(bencode::parse(&data).unwrap().entry(b"info").unwrap().1));
-    }
-
-    #[test]
-    fn a_bad_layer_or_a_torrent_cut_short_is_refused() {
-        let (data, _, _) = sample();
-        // A layer's hash changed (outside info: the hash still matches).
-        let at = data.len() - 40;
-        let mut bad = data.clone();
-        bad[at] ^= 1;
-        assert_eq!(parse(&bad), Err(TorrentError::PieceLayer));
+        let paths: Vec<(&str, u64)> = torrent.files.iter().map(|f| (f.path.as_str(), f.size)).collect();
+        assert_eq!(paths, [("game/resources.db", 100_000), ("game/a.txt", 5)]);
+        assert_eq!(torrent.pieces, 5);
+        let info = bencode::parse(&data).unwrap().entry(b"info").unwrap().1;
+        assert_eq!(torrent.v2, digest(info));
+        // The info alone, as the swarm gives it, is the same torrent.
+        assert_eq!(parse_info(info).unwrap(), torrent);
         assert_eq!(parse(b"de"), Err(TorrentError::Format));
         assert_eq!(parse(&data[..data.len() - 1]), Err(TorrentError::Format));
     }

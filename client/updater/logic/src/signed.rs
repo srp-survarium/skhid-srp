@@ -3,8 +3,9 @@
 //! signature"): a top-level `skhid` dictionary beside `info` with the
 //! revision (1 to 255) and an Ed25519 signature (RFC 8032, no prehash) of
 //! [`DOMAIN`], the revision's byte and the SHA-256 of the bencoded `info`. A torrent is trusted by this alone: whoever handed it
-//! over, its files are the release's (each piece then by SHA-256,
-//! `crate::torrent`).
+//! over, its files are the release's (each piece then by its hash in
+//! `info`, which libtorrent checks). Beside them, `dht`: the signature of
+//! the same facts as a BEP 46 item (`crate::newest`).
 
 use crate::bencode::{self, Value};
 use crate::sha256::digest;
@@ -60,7 +61,7 @@ pub fn public_key(text: &str) -> Option<[u8; 32]> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use alloc::format;
     use alloc::vec::Vec;
@@ -126,14 +127,9 @@ mod release {
         let paths: alloc::vec::Vec<&str> = torrent.files.iter().map(|file| file.path.as_str()).collect();
         assert_eq!(paths, ["README.txt", "game/binaries/x86/updater_skhid.exe", "game/resources.db.patch_12"]);
         assert_eq!(torrent.piece_length, 4 << 20);
-        let readme = torrent.file_pieces(0);
-        let mut piece = b"read me\r\n".to_vec();
-        piece.resize(torrent.piece_size(readme.start) as usize, 0);
-        assert!(torrent.piece_ok(readme.start, &piece));
-        let exe = torrent.file_pieces(1);
-        assert_eq!(exe.len(), 2);
-        let mut first = alloc::vec![0_u8; 4 << 20];
-        first[..2].copy_from_slice(b"MZ");
-        assert!(torrent.piece_ok(exe.start, &first));
+        let sizes: alloc::vec::Vec<u64> = torrent.files.iter().map(|file| file.size).collect();
+        assert_eq!(sizes[0], 9);
+        // The updater: two pieces, the README one, the patch the rest.
+        assert_eq!(torrent.pieces, 1 + 2 + sizes[2].div_ceil(4 << 20) as u32);
     }
 }

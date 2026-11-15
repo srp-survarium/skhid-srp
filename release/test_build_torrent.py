@@ -127,6 +127,14 @@ class Build(unittest.TestCase):
         verify = subprocess.run(['openssl', 'pkeyutl', '-verify', '-rawin', '-pubin', '-inkey', str(pem),
                                  '-in', str(message), '-sigfile', str(self.root / 'sig')], capture_output=True)
         self.assertEqual(verify.returncode, 0, verify.stdout + verify.stderr)
+        # And its DHT item (client/updater/logic/src/newest.rs): those facts, seq the revision.
+        value = (b'd1:i32:' + hashlib.sha256(raw).digest() + b'1:ri59e1:s64:'
+                 + torrent[b'skhid'][b'signature'] + b'e')
+        message.write_bytes(b'4:salt14:skhid-newest 13:seqi59e1:v' + value)
+        (self.root / 'sig').write_bytes(torrent[b'skhid'][b'dht'])
+        verify = subprocess.run(['openssl', 'pkeyutl', '-verify', '-rawin', '-pubin', '-inkey', str(pem),
+                                 '-in', str(message), '-sigfile', str(self.root / 'sig')], capture_output=True)
+        self.assertEqual(verify.returncode, 0, verify.stdout + verify.stderr)
         expected = self.expected()
         # v1: the files in order of their parts, a pad after each but the last.
         order = sorted(expected, key=lambda p: [x.encode() for x in p.split('/')])

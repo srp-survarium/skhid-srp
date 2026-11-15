@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Skhid-get.bat's PowerShell against a UDP tracker, BitTorrent peers and an HTTP mirror of this
-machine (127.0.0.1 only; nothing leaves it). Needs pwsh (PowerShell 7; Windows PowerShell 2 is
+machine (127.0.0.1 only; nothing leaves it). Needs pwsh (PowerShell 7; Windows 10's PowerShell 5.1 is
 not tested here):
 
     nix shell nixpkgs#python3 nixpkgs#powershell -c python3 -I release/test_bootstrap.py
@@ -24,9 +24,10 @@ HERE = Path(__file__).parent
 SCRIPT = HERE / 'build_torrent.py'
 BODY = HERE / 'bootstrap.ps1'
 PIECE = 4 << 20
-# A file of two pieces (so a padded last piece) first, a small one last.
+# A file of two pieces (so a padded last piece) first, two small ones after.
 FILES = {
     'game/binaries/x86/7zr.exe': bytes(range(256)) * (PIECE // 256) + b'tail of 7zr',
+    'game/binaries/x86/skhid_torrent.dll': b'MZ its libtorrent' * 700,
     'game/binaries/x86/updater_skhid.exe': b'MZ the updater' * 1000,
 }
 

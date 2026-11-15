@@ -38,7 +38,8 @@
 # past it, a "Google Drive - Quota exceeded" page, which the updater logs
 # and moves on from.
 #
-# The bootstrap's files (7zr.exe, updater_skhid.exe: release/bootstrap.tsv)
+# The bootstrap's files (7zr.exe, skhid_torrent.dll, updater_skhid.exe:
+# release/bootstrap.tsv)
 # are not offered by srp: their URLs are in the script itself. For them,
 # step 2 as above (a program: MZ), then the URL goes into the file's row of
 # release/bootstrap.tsv (at its end, --first or --at <n>; --remove takes it

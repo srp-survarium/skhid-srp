@@ -1226,11 +1226,18 @@ fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, 
     if ours.is_empty() {
         return Ok(None);
     }
+    let places: Vec<(usize, String)> = ours
+        .iter()
+        .map(|(number, index)| (*index, place(layout, &format!("{FILE_PREFIX}{number}"))))
+        .collect();
+    let Some(whole) = torrent::whole(session, &offered, &places) else {
+        return if session.stopped { Err(None) } else { Ok(None) };
+    };
     let missing: Vec<(usize, String)> = ours
         .iter()
-        .filter(|(number, index)| {
-            !torrent::whole(torrent, *index, &place(layout, &format!("{FILE_PREFIX}{number}")))
-        })
+        .zip(&whole)
+        .filter(|(_, whole)| !**whole)
+        .map(|(patch, _)| patch)
         .map(|(number, index)| (*index, format!("{}{PART}", place(layout, &format!("{FILE_PREFIX}{number}")))))
         .collect();
     if !missing.is_empty() {

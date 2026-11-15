@@ -3,9 +3,10 @@
 #
 # The bootstrap (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap"), once
 # for a version of the updater: Skhid-get.bat, a plain-text script anyone can
-# pass around, gets updater_skhid.exe and 7zr.exe by BitTorrent (or from
-# their URLs), lays them out in a Survarium folder and runs the updater.
-#   1. the two files from the ZIP (a release's, with the updater to pin);
+# pass around, gets updater_skhid.exe, its skhid_torrent.dll and 7zr.exe by
+# BitTorrent (or from their URLs), lays them out in a Survarium folder and
+# runs the updater.
+#   1. the three files from the ZIP (a release's, with the updater to pin);
 #      7zr.exe must be the pinned extractor (client/updater/logic/src/game.rs);
 #   2. each published on the patches server ($SKHID_PATCHES_*) at
 #      bootstrap/<sha256>/<name>, never over another file (as

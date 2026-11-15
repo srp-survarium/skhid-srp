@@ -12,15 +12,16 @@ itself stays as the game ships it (an earlier updater changed parts of it
 in place: those get their stock bytes back once, "Restoring resources.db"
 below).
 
-An ordinary 32-bit Windows program of about 590 KB, like `../bugtrap`: Rust's
+An ordinary 32-bit Windows program of about 560 KB, like `../bugtrap`: Rust's
 standard library and Microsoft's C runtime, linked in (`+crt-static`, as
 `cl /MT`; no runtime DLL beside it), the game's icon, a version resource
 (Skhid, "Skhid updater", the release revision) and its `asInvoker` manifest.
 Windows 7 and later. It imports `kernel32.dll`, `user32.dll` (its message
 box), `winhttp.dll`, `advapi32.dll` (per-user replay registration), `shell32.dll` (file associations and the Documents folder, where the game's
-user.cfg says the language its messages are in), `ws2_32.dll` (BitTorrent's
-sockets, "BitTorrent" below) and `ntdll.dll` (two functions of the standard
-library's).
+user.cfg says the language its messages are in) and `ntdll.dll` (two
+functions of the standard library's). Its BitTorrent is libtorrent, in
+`skhid_torrent.dll` beside it (Windows 10 and later), loaded only when
+torrent is on ("BitTorrent" below).
 
 ## What it does, and does not
 
@@ -78,8 +79,8 @@ library's).
   on), also downloads the original game's files and missing patches from
   the revision's signed torrent, and shares
   every file of it the folder has while the launcher is open, on a port
-  it picks once and keeps ("BitTorrent" below); off, none of it. No DHT, PEX, UPnP or
-  uTP, no service, no crash upload, no administrator rights (its manifest says `asInvoker`;
+  it picks once and keeps ("BitTorrent" below); off, none of it. The DHT, no
+  PEX, UPnP or uTP, no service, no crash upload, no administrator rights (its manifest says `asInvoker`;
   without one Windows takes a program named "updater" for an installer and
   asks for elevation).
 
@@ -107,9 +108,10 @@ says so and does nothing.
 
 | Folder | What |
 |---|---|
-| `logic/` | Everything that needs no Windows, as a library whose one dependency is Ed25519 (`ed25519-compact`, the torrent's signature): SHA-256, SHA-1 (the v1 info hash only), DEFLATE and CRC-32, bencoding, the torrent, its signature, the peer wire and the trackers' messages, the swarm's rules (`swarm.rs`: one state, one transition), the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
-| `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-win7-windows-msvc` with `-Z build-std=std,panic_abort`, `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource |
-| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `test_torrent.py`: BitTorrent against a local tracker and libtorrent peers, Windows or Wine. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
+| `logic/` | Everything that needs no Windows, as a library whose one dependency is Ed25519 (`ed25519-compact`, the torrent's signature): SHA-256, DEFLATE and CRC-32, bencoding, the torrent (its files), its signature, the release's DHT item (`newest.rs`), the record of what was checked (`shared.rs`), the upload cap, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
+| `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-win7-windows-msvc` with `-Z build-std=std,panic_abort`, `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource; `src/libtorrent.rs` is the one caller of the DLL |
+| `torrent-dll/` | `skhid_torrent.dll`: libtorrent-rasterbar 2.0.12 behind a small C API (`skt.h`, `skt.cpp`), and `skhid-dht`, the same API on Linux for the release (`release/publish-dht`); `default.nix`, built by `srp-026g/flake.nix` (`skhid-torrent-dll`, `skhid-dht`) |
+| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `test_torrent.py`: BitTorrent (the updater with its DLL) against a local tracker, a local DHT and libtorrent peers, Windows or Wine; `test_seed.py`: the game's sharing. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
 
 ## PLAY and the server's revision
 
@@ -333,7 +335,26 @@ before any of `main.rs`'s own calls of it: with `quiet` no window is made
 ## BitTorrent
 
 `srp-026g/docs/notes/torrent-downloads.md` is the spec; `exe/src/torrent.rs`
-and `logic/src/swarm.rs` the code.
+(the session's one owner: the launcher's settings, the port, the cap, what
+the session does, one job at a time, and its events) and
+`exe/src/libtorrent.rs` (the DLL's one owner: every raw call, the events
+parsed once) the code.
+
+**The engine** is libtorrent-rasterbar 2.0.12 in `skhid_torrent.dll` beside
+the updater (`torrent-dll/`: `skt.h`/`skt.cpp`, a C API of some fifteen
+functions, every exception caught, results copied into the caller's
+buffers; `default.nix`, built by `srp-026g/flake.nix` as
+`skhid-torrent-dll`: mingw-w64 for 32-bit Windows 10 and later, static,
+Boost headers only, Windows' own hashing (CNG), no OpenSSL; about 2.4 MB;
+`build.sh` puts it beside the exe, `client/check-reproducible.sh` builds it
+again and compares). The updater loads it at run time from its own folder
+(`LoadLibraryExW`, that folder and the system's only); no DLL, one that does
+not load (Windows 7 and 8: the DLL needs 10) or one without a function the
+updater asks for: torrent stays off, logged, HTTPS as without it. The
+session: TCP on IPv4 (all addresses; a test build 127.0.0.1), the DHT on,
+no LSD, UPnP, NAT-PMP, uTP or PEX, the extensions `smart_ban` and
+`ut_metadata` alone, libtorrent's own connection limits, a busy port busy
+(not another one instead), every tracker of the list asked.
 
 **The launcher's settings.** The update's 4th argument is `torrent` when the
 launcher's "Allow torrent" (the box on its main screen, kept in user.cfg as
@@ -349,8 +370,9 @@ sharing then (not at its next ask), and a download by HTTPS of a file the
 torrent has (the archive, a patch) leaves the rest to it (`torrent::takes_over`):
 a patch's part, what HTTPS wrote, is the torrent's part, its pieces checked
 first; the archive's bytes stay for HTTPS to go on from. Off stops the
-engine: sharing ends, a download by torrent goes on by HTTPS. `21` sets the port (answered `15`
-listening, `14` busy; not kept; the Skhid launcher sends none), `1E` an
+engine (the session freed): sharing ends, a download by torrent goes on by
+HTTPS. `21` sets the port (answered `15` once listened on, `14` busy; not
+kept; the Skhid launcher sends none), `1E` an
 upload limit, which may only lower the cap (below; the 0.26g launcher sends
 none). The port is
 listened on (all addresses) from the start (a port asked while torrent is
@@ -366,14 +388,14 @@ verifies and its revision is not lower than the highest taken before
 (`updater_skhid.torrent.revision` beside the updater), than the installed
 game exe's, nor than this updater's own (`SKHID_REVISION` of its build).
 Today it comes as `skhid.torrent` beside the updater, a file of the players'
-ZIP, or as `updater_skhid.found.torrent`, the newest one the
-rendezvous gave (below); the highest revision of them is the run's. Missing,
-unsigned, another key's, older: no torrent, HTTPS as before. Where it comes
-from and why it is trusted is one function (`torrent::trusted`). Everything in it is
-then checked by SHA-256: its piece layers against each file's v2 root, and
-every piece against its layer before it counts, is written, or is sent. It
-is kept and passed on as its `info`, `piece layers` and `skhid` only
-(`logic/src/torrent.rs` `canonical`): the rest is outside the signature.
+ZIP, or as `updater_skhid.found.torrent`, the newest one the DHT named
+(below); the highest revision of them is the run's. Missing, unsigned,
+another key's, older: no torrent, HTTPS as before. Where it comes from and
+why it is trusted is one function (`torrent::trusted`). It is kept and passed
+on as its `info`, `piece layers` and `skhid` only (`logic/src/torrent.rs`
+`canonical`): the rest is outside the signature; libtorrent is given it so,
+with the updater's trackers in place of the torrent's (its web seeds
+dropped), and checks every piece against its hashes.
 
 **What it fetches**, when the launcher allows it: the original game's files
 that are missing (in the place of the 7z from the mirrors; the Skhid files
@@ -381,8 +403,11 @@ come first then, as they bring the torrent), each finished file also against
 its build-2777 pin (`logic/src/game.rs` `FILES`) before it is put in place;
 and the listed patches that are missing or damaged, each against the list's
 SHA-256 before it is renamed into place. A part (`<file>.skhid-torrent` for
-the game, `.skhid-part` for a patch) is checked piece by piece when a run
-finds it ("checking", state 08), so a game download goes on at the next
+the game, `.skhid-part` for a patch) is libtorrent's file of it (each file of
+the session's torrent has its own path: a part, a place, or for the files it
+neither fetches nor shares a name in `updater_skhid.torrent-none\`, where
+nothing is, so nothing is read of them); it is checked piece by piece when a
+run finds it ("checking", state 08), so a game download goes on at the next
 start; a part longer than its file is cut to its size, and a finished one is
 installed only at the torrent's size. No peer within 20 s, no piece for
 60 s, torrent turned off, the signature or the pin wrong: the HTTPS download
@@ -390,51 +415,43 @@ as without torrent. PLAY never waits on a peer.
 
 **What it shares**: every file of the torrent the folder has at the
 torrent's size, however it came (by torrent, by HTTPS, from the ZIP), from
-the end of the update until the launcher closes (`gate::watch`). A piece is
-read and checked before any byte of it is sent; one that fails is not
-offered again. So the first players of a revision, who get it by HTTPS,
-seed it.
+the end of the update until the launcher closes (`gate::watch`), read only
+(libtorrent never writes a file it shares). Its pieces are checked when it
+is added, not again before each upload. So the first players of a revision,
+who get it by HTTPS, seed it. What was checked is not hashed again
+(`logic/src/shared.rs`): once libtorrent has checked a torrent's files, each
+it found whole is written into `updater_skhid.torrent.checked` beside the
+updater with what Windows says of it (size, last-write time, file ID, as the
+patches' quick check); at the next start a file still so is given to
+libtorrent as had (no read), and libtorrent checks from the first piece of
+the first file that is not (to the end of the torrent: a have-list that
+stops says the check stopped there). The record keeps the torrents of the
+run only.
 
-**Peers are strangers** (`logic/src/wire.rs`, `swarm.rs`, `tracker.rs`): no
-extension is spoken (no reserved bit set, an extension message refused);
-every message is read once against the torrent's numbers (a request within
-its piece, at a 16 KiB block, 16 KiB at most; a bitfield of its size, spare
-bits zero; 16 KiB + 9 bytes the longest) and anything else closes the
-connection (messages are cut at a cursor: many small ones cost each its own
-bytes). At most 40 connections, 4 of one address in all (taken, made, being
-made, routed or not); 16 requests in flight to a peer, 256 queued from one;
-32 MiB of pieces held until checked; a handshake within 15 s, a request
-answered within 60 s, a word every 150 s; 2048 messages that change nothing
-(keep-alives, blocks not asked for, haves said before...) in 30 s. A piece
-that fails its hash, all of it from one peer, closes and bans that peer's
-address for the updater's run (every engine after starts from those bans);
-one that several peers sent bans no one and is fetched again from one peer
-alone, which a wrong byte then names. A piece being fetched that nothing is
-asked of for 60 s and that no unchoked peer has goes back to the missing
-ones. Uploads go to 4 peers at a time (one rotated every 30 s), within the
-cap. Trackers: the updater's own (the release's list,
-`exe/src/torrent.rs` `TRACKERS`; a test build `SKHID_TEST_TRACKERS`) for
-every swarm and the rendezvous, never a torrent's; HTTP (compact answers, the
-whole answer within 20 s) and UDP (BEP 15), IPv4, 200 peers an answer at
-most, asked again after 60 s to an hour as they say; 500 peers kept, 4 of an
-address in a swarm, one that does not connect forgotten. "No peer within
-20 s" counts peers past their handshake that have a piece wanted.
+**Peers** come from the updater's own trackers (the release's list,
+`exe/src/torrent.rs` `TRACKERS`; a test build `SKHID_TEST_TRACKERS`), never a
+torrent's, and from the DHT (`dht.libtorrent.org`, `router.bittorrent.com`,
+`router.utorrent.com`, `dht.transmissionbt.com` its way in; a test build
+`SKHID_TEST_DHT`). A piece that fails its hash: the peer that sent it all,
+or the one `smart_ban` finds lied, is banned for the updater's run (every
+session of it starts from those bans). "No peer within 20 s" counts the
+peers connected.
 
-**The bootstrap** (`Skhid-get.bat`'s torrent of the updater and 7zr.exe at
-one version, the spec's "Bootstrap"): `skhid-bootstrap.torrent` beside the
+**The bootstrap** (`Skhid-get.bat`'s torrent of the updater, its DLL and
+7zr.exe at one version, the spec's "Bootstrap"): `skhid-bootstrap.torrent` beside the
 updater, a file of the ZIP, taken as the ZIP installed it (its SHA-256 in
 `updater_skhid.state`). While the file in its place is the bootstrap's (every
-piece checked), each is copied into `updater_skhid.bootstrap\`, and shared
-from there while the updater shares, after it has replaced itself too; a
-copy is shared only while every piece of it checks (else it is copied
-again).
+piece checked by libtorrent), each is copied into `updater_skhid.bootstrap\`,
+and shared from there while the updater shares, after it has replaced
+itself too; a copy is shared only while every piece of it checks (else it
+is copied again).
 
 **Without our site** (a bare bootstrap folder, a blocked network after a
-release): when the update server cannot be asked, the rendezvous is asked
+release): when the update server cannot be asked, the DHT is asked
 (below), and when the run's torrent is newer than what is installed, or
 nothing is, every file of it but the original game's and the patches (the
-Skhid files: the updater and the launcher too) comes from it, each checked
-piece by piece, one already whole kept, installed as an archive's files are
+Skhid files: the updater, its DLL and the launcher too) comes from it, each
+checked piece by piece, one already whole kept, installed as an archive's files are
 (all or none, Windows Security's refusal or a file gone after it was put in
 place a stop, the files of the archive before that this one has not
 removed); `updater_skhid.state` then names the torrent's v2 info hash as the
@@ -447,21 +464,27 @@ addresses the kept list had for the same file, else none (`"urls": []`: the
 torrent alone gives it, until the server's list names it again); `ready`
 then holds. No peer gives them: the list built in, as without torrent.
 
-**The rendezvous** (`logic/src/rendezvous.rs`; the spec's "The rendezvous"):
-while it shares, the updater is also a peer of one fixed swarm whose info
-hash is made of the release's public key, and gives its signed torrent (one
-BEP 10 extension message, 4 MiB at most) to a peer there that has an older
-one or none: twice a run to an address at most, within the cap. An
-updater that cannot reach the update server asks it for 20 s first, and
-keeps the newest torrent it took in that time (signature verified, revision
-higher) beside itself. A connection is routed by the info hash of its
-handshake: the torrent's swarm or the rendezvous; anything else is closed.
+**The newest release** (`logic/src/newest.rs`; the spec's "The newest
+release"): the release's signed BEP 46 item on the DHT, under the release's
+key, salt `skhid-newest 1`, its sequence number the revision, its value the
+facts of the torrent's signature (v2 info hash, revision, signature); its
+BEP 44 signature is the torrent's `skhid.dht`. While it shares, the updater
+puts it again as it is (at once, then every 30 minutes). An updater that
+cannot reach the update server asks the DHT for it for 20 s (again every
+5 s; a higher one waited for 3 s after one came), takes it only when its
+signature verifies with the built-in key and its revision is higher than
+the run's torrent (none: not lower than the folder's), fetches that
+torrent's `info` from its swarm (a torrent of its v2 info hash alone,
+libtorrent's `ut_metadata`, 60 s at most), checks it is the item's, and
+keeps the signed torrent made of the two (`info` and `skhid`) beside itself
+as `updater_skhid.found.torrent`.
 
 **The upload cap** (`logic/src/upload.rs`): all the sharing of a run, every
-swarm of every engine and the rendezvous' torrent together, takes its bytes
-from one allowance of 1 MiB a second (1,048,576 bytes; "1 MB/s"), full at the
-start, a second of it at most; the launcher's `1E` may lower it, never raise
-it (`0` or none: the cap). The same in the launcher's updater and in `seed`.
+torrent and the DHT, within 1 MiB a second (1,048,576 bytes; "1 MB/s"): the
+session's upload limit, every peer in one class (by default libtorrent
+limits no peer of the local network); the launcher's `1E` may lower it,
+never raise it (`0` or none: the cap). The same in the launcher's updater
+and in `seed`.
 
 **Sharing from the game** (`exe/src/seed.rs`, `logic/src/seed.rs`; the spec's
 "Sharing from the game"): the patched game, while its own
@@ -471,7 +494,7 @@ and starts `updater_skhid.exe seed <that pipe>` beside itself, with no
 window. The updater opens the pipe, shares the folder's torrent as the
 launcher's updater does while it watches (`torrent::share_while`, its one
 call into the engine: the trusted torrent's files the folder has, the
-bootstrap's, the rendezvous; nothing fetched), on the port the updaters keep
+bootstrap's, the DHT item; nothing fetched), on the port the updaters keep
 (`updater_skhid.port`; a free one, then kept, when none is), and ends when the pipe closes: the game entering a match,
 or ending. It reads no "Allow torrent" (the game's setting decided), takes
 no lock and shows no box; it logs to `updater_skhid.seed.log`. A port that
@@ -895,8 +918,10 @@ python tests/test_replay.py                  # Windows; the replay, in its no-wi
 python tests/test_game_download.py           # Windows or Wine
 python tests/test_unreadable.py              # Windows or Wine (a Skhid file that cannot be read)
 SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) \
-    SKHID_TEST_TRACKERS="$(python tests/test_torrent.py --trackers)" ./build.sh   # the tests' key and trackers
-python tests/test_torrent.py                 # Windows or Wine; Python with libtorrent and cryptography
+    SKHID_TEST_TRACKERS="$(python tests/test_torrent.py --trackers)" \
+    SKHID_TEST_DHT=$(python tests/test_torrent.py --dht) ./build.sh   # the tests' key, trackers and DHT
+SKHID_DHT_TOOL=$(nix build --no-link --print-out-paths ../../srp-026g#skhid-dht)/bin/skhid-dht \
+    python tests/test_torrent.py             # Windows or Wine; Python with libtorrent and cryptography
 python tests/test_seed.py                    # the same build and Python: the game's sharing (`seed`)
 SKHID_TEST_BUNDLE=<a players' zip> python tests/test_updater.py
 ```

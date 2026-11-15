@@ -32,6 +32,8 @@ import zipfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 RELEASE = os.path.join("target", "i686-win7-windows-msvc", "release")
 UPDATER = os.path.join(HERE, "..", "exe", RELEASE, "updater_skhid.exe")
+# Its BitTorrent, beside it as in the players' ZIP (build.sh puts it there).
+TORRENT_DLL = os.path.join(os.path.dirname(UPDATER), "skhid_torrent.dll")
 FAKE_EXE = os.path.join(HERE, "fake_exe", RELEASE, "fake-exe.exe")
 X86 = os.path.join("game", "binaries", "x86")
 
@@ -402,6 +404,8 @@ class UpdaterTest(unittest.TestCase):
         self.x86 = os.path.join(self.top, X86)
         os.makedirs(self.x86)
         shutil.copy(UPDATER, os.path.join(self.x86, "updater_skhid.exe"))
+        if os.path.isfile(TORRENT_DLL):
+            shutil.copy(TORRENT_DLL, os.path.join(self.x86, "skhid_torrent.dll"))
         # These scenarios exercise overlay updates over an existing game.
         self.write("game/resources.db", b"existing game resources")
         self.write(f"{X86}/survarium.exe", b"existing original game")

@@ -1,11 +1,11 @@
 # The body of Skhid-get.bat (release/build_bootstrap.py puts the pins before
-# it): gets the updater and 7zr.exe by BitTorrent from anyone who shares the
-# bootstrap torrent (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap"),
+# it): gets the updater, its DLL and 7zr.exe by BitTorrent from anyone who
+# shares the bootstrap torrent (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap"),
 # else from the listed addresses, each piece and each file checked against
 # the pins; lays them out in a Survarium folder beside the script; runs the
-# updater, which installs the rest; starts Skhid.bat. Windows PowerShell 2
-# (Windows 7) and later; no administrator rights. Needs our server at no step
-# before the updater's.
+# updater, which installs the rest; starts Skhid.bat. Windows 10's PowerShell
+# 5.1 and later; no administrator rights. Needs our server at no step before
+# the updater's.
 $ErrorActionPreference = 'Stop'
 trap { Write-Host "Skhid-get: $($_.Exception.Message)"; exit 1 }
 $Block = 16384
@@ -20,18 +20,17 @@ $PieceSeconds = 60
 $PeersSeconds = 180
 
 function Say($text) { Write-Host $text }
-function Hex([byte[]]$bytes) { ($bytes | ForEach-Object { $_.ToString('x2') }) -join '' }
+function Hex([byte[]]$bytes) { [BitConverter]::ToString($bytes).Replace('-', '').ToLowerInvariant() }
 function Unhex([string]$hex) {
     $out = New-Object byte[] ($hex.Length / 2)
     for ($i = 0; $i -lt $out.Length; $i++) { $out[$i] = [Convert]::ToByte($hex.Substring(2 * $i, 2), 16) }
     , $out
 }
-function Sha1([byte[]]$data) { Hex ((New-Object Security.Cryptography.SHA1Managed).ComputeHash($data)) }
-function Sha256([byte[]]$data) { Hex ((New-Object Security.Cryptography.SHA256Managed).ComputeHash($data)) }
-# (No -shl or -shr: PowerShell 2 has neither.)
-function Be32([long]$n) { [byte[]]@(([math]::Floor($n / 16777216) % 256), ([math]::Floor($n / 65536) % 256), ([math]::Floor($n / 256) % 256), ($n % 256)) }
+function Sha1([byte[]]$data) { Hex ([Security.Cryptography.SHA1]::Create().ComputeHash($data)) }
+function Sha256([byte[]]$data) { Hex ([Security.Cryptography.SHA256]::Create().ComputeHash($data)) }
+function Be32([long]$n) { [byte[]]@((($n -shr 24) -band 255), (($n -shr 16) -band 255), (($n -shr 8) -band 255), ($n -band 255)) }
 $Bits = 128, 64, 32, 16, 8, 4, 2, 1
-function U32([byte[]]$b, [int]$at) { ([long]$b[$at] * 16777216) + ([long]$b[$at + 1] * 65536) + ([long]$b[$at + 2] * 256) + [long]$b[$at + 3] }
+function U32([byte[]]$b, [int]$at) { ([long]$b[$at] -shl 24) -bor ([long]$b[$at + 1] -shl 16) -bor ([long]$b[$at + 2] -shl 8) -bor [long]$b[$at + 3] }
 function Bytes() {
     $stream = New-Object IO.MemoryStream
     foreach ($part in $args) { $stream.Write([byte[]]$part, 0, ([byte[]]$part).Length) }
@@ -152,7 +151,7 @@ function FromPeer($address, $peerId) {
                 0 { $choked = $true; $next = 0; $received = 0; $asked = @{} }
                 1 { $choked = $false }
                 4 { if ($null -ne $has -and $length -eq 5) { $i = U32 $message 1; $byte = [math]::Floor($i / 8); if ($byte -lt $has.Length) { $has[$byte] = [int]$has[$byte] -bor $Bits[$i % 8] } } }
-                5 { $has = $message[1..($message.Length - 1)]; if ($has -isnot [array]) { $has = @($has) } }
+                5 { $has = New-Object byte[] ($length - 1); [Array]::Copy($message, 1, $has, 0, $length - 1) }
                 7 {
                     if ($length -lt 9) { throw 'a short piece message' }
                     $index = U32 $message 1; $begin = U32 $message 5; $size = $length - 9
@@ -176,9 +175,8 @@ function FromPeer($address, $peerId) {
     } catch { Say "  peer ${address}: $($_.Exception.Message)" } finally { $tcp.Close() }
 }
 
-# A path under a folder, from its parts with / between, with this system's
-# separator (.NET 2's Combine takes two).
-function Under($base, $relative) { foreach ($part in $relative.Split('/')) { $base = [IO.Path]::Combine($base, $part) }; $base }
+# A path under a folder, from its parts with / between.
+function Under($base, $relative) { [IO.Path]::Combine([string[]](@($base) + $relative.Split('/'))) }
 $root = Under ([IO.Path]::GetDirectoryName($env:SKHID_GET_SCRIPT)) 'Survarium'
 $bin = Under $root 'game/binaries/x86'
 $updater = Under $bin 'updater_skhid.exe'
@@ -187,7 +185,7 @@ $updater = Under $bin 'updater_skhid.exe'
 if ([IO.File]::Exists($updater)) {
     Say "$updater is there already: the updater brings the rest."
 } else {
-    $peerId = Bytes ([Text.Encoding]::ASCII.GetBytes('-SK0001-')) ([byte[]](1..12 | ForEach-Object { Get-Random -Maximum 256 }))
+    $peerId = Bytes ([Text.Encoding]::ASCII.GetBytes('-SK0002-')) ([byte[]](1..12 | ForEach-Object { Get-Random -Maximum 256 }))
     Say 'Looking for people who share the Skhid updater (BitTorrent)...'
     $peers = @()
     foreach ($tracker in $Trackers) { $peers += Announce $tracker $peerId }
@@ -198,7 +196,7 @@ if ([IO.File]::Exists($updater)) {
         if ((Missing) -lt 0 -or [DateTime]::UtcNow -gt $script:peersEnd) { break }
         FromPeer $peer $peerId
     }
-    try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]3072 } catch { }
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
     foreach ($file in $Files) {
         $all = $true; for ($i = 0; $i -lt $pieces.Count; $i++) { if ($Files[$pieces[$i].File].Path -eq $file.Path -and -not $done[$i]) { $all = $false } }
         if ($all -and (Sha256 $data[$file.Path]) -eq $file.Sha256) { continue }
@@ -220,7 +218,7 @@ if ([IO.File]::Exists($updater)) {
         if ([IO.File]::Exists($path)) { [IO.File]::Delete($path) }
         [IO.File]::Move("$path.part", $path)
     }
-    Say "The updater and 7zr.exe: in $bin, each SHA-256 checked."
+    Say "The updater, its DLL and 7zr.exe: in $bin, each SHA-256 checked."
 }
 if ($env:SKHID_GET_NO_START) { exit 0 }
 Say 'The updater installs the game now (about 10 GB; it can take a while)...'

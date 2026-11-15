@@ -137,6 +137,8 @@
       # The portable Rust core has no registry dependencies. This hermetic
       # check runs the same tests as cargo test -p skhid-voice, plus builds
       # the WAV listening tool; the real relay test lives in match-server.
+      skhidTorrent = import ../client/updater/torrent-dll { inherit pkgs; };
+
       voiceLoopback = pkgs.stdenv.mkDerivation {
         name = "skhid-voice-loopback";
         src = ./client-voice;
@@ -160,6 +162,11 @@
       packages.${system} = {
         voice-opus = voiceOpusMsvc;
         skhid-voice-smoke = skhidVoiceSmoke;
+        # skhid_torrent.dll (beside updater_skhid.exe: its BitTorrent) and
+        # skhid-dht (the release puts its DHT item with it):
+        # client/updater/torrent-dll.
+        skhid-torrent-dll = skhidTorrent.dll;
+        skhid-dht = skhidTorrent.dht;
       };
 
       checks.${system}.voice-loopback = voiceLoopback;

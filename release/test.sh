@@ -22,7 +22,7 @@ root=$(dirname "$here")
 command -v python3 >/dev/null || { echo "test.sh: python3 is needed" >&2; exit 1; }
 
 if command -v shellcheck >/dev/null; then
-    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip build-torrent build-bootstrap make-signing-key deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
+    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip build-torrent build-bootstrap publish-dht make-signing-key deploy rollback setup-patches-server release.sh bot-data world-corpus test.sh &&
         shellcheck -s sh host-rollback.sh host-bot-data.sh)
     echo "ok   shellcheck"
 else
@@ -1211,6 +1211,12 @@ cp "$zip" "$zip_out"
 echo "btmh 1220$(sha256sum <"$out" | cut -c1-64)"
 STANDIN
 chmod +x "$T/build-torrent"
+# publish-dht <torrent>: its argument a line of $TEST_DIR/publish-dht.args.
+cat >"$T/publish-dht" <<'STANDIN'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$TEST_DIR/publish-dht.args"
+STANDIN
+chmod +x "$T/publish-dht"
 # build-site --tree <dir> [--with <patch>]: the site's pages in <dir> built
 # from the list (SKHID_PATCH_LIST of the release.env) and --with's patch:
 # each built-from.tsv, and a page.js naming them; its arguments are a line of
@@ -1324,7 +1330,7 @@ echo 'map one' >"$T/bot-data/mapdata/level_t_day_2.mapdata"
 echo '{"routes": 1}' >"$T/bot-data/bot-routes/routes-t.json"
 grep '^#' "$here/bot-data.tsv" >"$T/bot-data.tsv"
 out=$(SKHID_BOT_DATA_LIST=$T/bot-data.tsv "$here/bot-data" add "$T/bot-data" mapdata/level_t_day_2.mapdata mapdata/bot-routes.json=bot-routes/routes-t.json 2>&1) || fail "bot-data add: $out"
-export SKHID_TEST_REPO=$T/repo SKHID_TEST_BUILD_ZIP=$T/build-zip SKHID_TEST_BUILD_TORRENT=$T/build-torrent SKHID_TEST_BUILD_SITE=$T/build-site XDG_CACHE_HOME=$T/cache TMPDIR=$T/tmp
+export SKHID_TEST_REPO=$T/repo SKHID_TEST_BUILD_ZIP=$T/build-zip SKHID_TEST_BUILD_TORRENT=$T/build-torrent SKHID_TEST_PUBLISH_DHT=$T/publish-dht SKHID_TEST_BUILD_SITE=$T/build-site XDG_CACHE_HOME=$T/cache TMPDIR=$T/tmp
 SKHID_TEST_STOCK_SHA256=$(sha256sum <"$T/resources.db" | cut -d' ' -f1)
 export SKHID_TEST_STOCK_SHA256
 token=tok3n-$RANDOM$RANDOM$RANDOM
@@ -1425,6 +1431,7 @@ check "release: srp26 started with the new ZIP in place" test "$(tail -n 1 "$T/z
 check "release: waits for no match" has "$out" "5. no match is running"
 check "release: checks /patches and /api/client-files" has "$out" "/api/client-files: the new ZIP"
 check "release: builds the signed torrent of the ZIP and the list" bash -c "tail -n 1 $T/build-torrent.args | grep -q -- '--patches $T/patches.tsv --zip .*/Survarium-0.26g-srp-files.zip --out .*/skhid-rev12.torrent --zip-out .* --revision 12 --public-key .*/signing.pub'"
+check "release: puts the torrent's item on the DHT once it went out" bash -c "tail -n 1 $T/publish-dht.args | grep -q -- '/skhid-rev12.torrent'"
 check "release: the preflight sees the signing key" has "$out" "the signing key: there, mode 600"
 check "release: ... and the commit's public key is its own" has "$out" "release/signing.pub: in the commit to build, the signing key's public key"
 check "release: srp came up on the new files: the folder says served" test -e "$(folder 12 a)/served"

@@ -28,6 +28,7 @@ mod game;
 mod gate;
 mod http;
 mod install;
+mod libtorrent;
 mod log;
 mod patches;
 mod pipe;
@@ -190,6 +191,12 @@ impl Session {
                 log!("the launcher closed the pipe");
                 self.stopped = true;
             }
+        }
+        // What the torrent session said meanwhile: a port asked for, answered.
+        if let Some(answer) = self.torrents.service()
+            && let Some(pipe) = &mut self.pipe
+        {
+            pipe.send(answer);
         }
         !self.stopped
     }
@@ -903,10 +910,15 @@ fn torrent_overlay(session: &mut Session, layout: &Layout, installed: Option<&In
     }
     let skhid = torrent::skhid_files(torrent);
     let part = |index: usize| torrent::skhid_part(layout, &torrent.files[index].path);
+    let places: Vec<(usize, String)> = skhid.iter().map(|&index| (index, layout.place(&torrent.files[index].path))).collect();
+    let Some(whole) = torrent::whole(session, &signed, &places) else {
+        return if session.stopped { Some(Done::Stopped) } else { None };
+    };
     let missing: Vec<(usize, String)> = skhid
         .iter()
-        .filter(|&&index| !torrent::whole(torrent, index, &layout.place(&torrent.files[index].path)))
-        .map(|&index| (index, part(index)))
+        .zip(&whole)
+        .filter(|(_, whole)| !**whole)
+        .map(|(&index, _)| (index, part(index)))
         .collect();
     log!(
         "the Skhid files of revision {} by torrent: {} of {} to fetch",

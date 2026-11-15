@@ -1,12 +1,13 @@
 """End-to-end tests of BitTorrent in the updater (`exe/src/torrent.rs`,
-`srp-026g/docs/notes/torrent-downloads.md`): the real updater_skhid.exe,
-started by the stand-in launcher with its "Allow torrent" and port (the
-launcher's 4th and 13th arguments), against the web server of the other
-tests, whose ZIP has the revision's torrent beside the updater
-(`skhid.torrent`, signed with a throwaway key), a tracker on 127.0.0.1
-(HTTP and UDP) and libtorrent (2.0, Python bindings) as the other peers: a
-seed, a leech that takes the folder from the updater, and a peer that sends
-wrong bytes (a few lines of Python).
+libtorrent in `skhid_torrent.dll`; `srp-026g/docs/notes/torrent-downloads.md`):
+the real updater_skhid.exe and its DLL, started by the stand-in launcher with
+its "Allow torrent" and port (the launcher's 4th and 13th arguments), against
+the web server of the other tests, whose ZIP has the revision's torrent
+beside the updater (`skhid.torrent`, signed with a throwaway key), a tracker
+on 127.0.0.1 (HTTP and UDP), a DHT of libtorrent nodes on 127.0.0.1 (BEP 46:
+the release's item), and libtorrent (2.0, Python bindings) as the other
+peers: a seed, a leech that takes the folder from the updater, and a peer
+that sends wrong bytes (a few lines of Python).
 
     cd client/updater
     ./build.sh
@@ -14,16 +15,20 @@ wrong bytes (a few lines of Python).
 
 Windows, or Linux under Wine (as test_db_patches.py, whose harness this
 uses). The updater must be built to trust the tests' key and to ask the
-tests' trackers (it asks only its own, never a torrent's):
+tests' trackers and DHT (it asks only its own, never a torrent's):
 
-    SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) \
-        SKHID_TEST_TRACKERS="$(python tests/test_torrent.py --trackers)" ./build.sh
+    SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) \\
+        SKHID_TEST_TRACKERS="$(python tests/test_torrent.py --trackers)" \\
+        SKHID_TEST_DHT=$(python tests/test_torrent.py --dht) ./build.sh
 
-and Python needs libtorrent and cryptography, for example
-`nix build --impure --expr '(import <nixpkgs> {}).python3.withPackages (p: [ p.libtorrent-rasterbar p.cryptography ])'`.
-The torrents are made by libtorrent itself (hybrid v1 + v2, a pad after
-every file), so the updater reads a real client's torrent. Nothing leaves
-this computer: no DHT, LSD, UPnP or NAT-PMP in the libtorrent sessions.
+Python needs libtorrent and cryptography, for example
+`nix build --impure --expr '(import <nixpkgs> {}).python3.withPackages (p: [ p.libtorrent-rasterbar p.cryptography ])'`;
+the release's item is put with the release's own tool, skhid-dht
+(`nix build ./srp-026g#skhid-dht`; SKHID_DHT_TOOL=<its bin/skhid-dht>, else
+those tests are skipped). The torrents are made by libtorrent itself (hybrid
+v1 + v2, a pad after every file), so the updater reads a real client's
+torrent. Nothing leaves this computer: no LSD, UPnP or NAT-PMP, the DHT's
+nodes on 127.0.0.1 alone.
 """
 
 import hashlib
@@ -33,6 +38,7 @@ import random
 import re
 import socket
 import struct
+import subprocess
 import sys
 import tempfile
 import threading
@@ -54,6 +60,8 @@ except ImportError:
 # The tests' throwaway signing key (never a release's).
 SEED = bytes(range(32))
 DOMAIN = b"skhid torrent signature 1\0"
+# The release's DHT item (`logic/src/newest.rs`).
+SALT = b"skhid-newest 1"
 
 
 def public_key_hex():
@@ -62,17 +70,40 @@ def public_key_hex():
     return key.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex()
 
 
+def item_value(info_sha256, revision, signature):
+    """The DHT item's value: the facts of the torrent's signature."""
+    return b"d1:i32:" + info_sha256 + b"1:ri%de1:s64:" % revision + signature + b"e"
+
+
+def item_signed(value, seq):
+    """What BEP 44 signs."""
+    return b"4:salt%d:%s3:seqi%de1:v" % (len(SALT), SALT, seq) + value
+
+
 def sign(entry, revision):
-    """The release's signature (`logic/src/signed.rs`) added to `entry`."""
+    """The release's signatures (`logic/src/signed.rs`, `newest.rs`) added
+    to `entry`: the torrent's, and its DHT item's."""
+    key = Ed25519PrivateKey.from_private_bytes(SEED)
     info = hashlib.sha256(lt.bencode(entry[b"info"])).digest()
-    message = DOMAIN + bytes([revision]) + info
-    entry[b"skhid"] = {b"revision": revision,
-                       b"signature": Ed25519PrivateKey.from_private_bytes(SEED).sign(message)}
+    signature = key.sign(DOMAIN + bytes([revision]) + info)
+    dht = key.sign(item_signed(item_value(info, revision, signature), revision))
+    entry[b"skhid"] = {b"dht": dht, b"revision": revision, b"signature": signature}
+
+
+def item_of(torrent):
+    """The DHT item of a signed torrent: seq, value, signature."""
+    entry = lt.bdecode(torrent)
+    skhid = entry[b"skhid"]
+    info = hashlib.sha256(lt.bencode(entry[b"info"])).digest()
+    revision = skhid[b"revision"]
+    return revision, item_value(info, revision, skhid[b"signature"]), skhid[b"dht"]
+
 
 harness = wine.harness
 LATEST, ERROR = harness.LATEST, harness.ERROR
 TORRENT_CHECKING, DOWNLOADING = 0x08, 0x09
 PIECE = 32 * 1024
+DHT_TOOL = os.environ.get("SKHID_DHT_TOOL")
 
 
 def setUpModule():
@@ -80,12 +111,19 @@ def setUpModule():
         raise unittest.SkipTest("no libtorrent or cryptography in this Python (see the docstring)")
     with open(harness.UPDATER, "rb") as file:
         built = file.read()
-        if public_key_hex().encode() not in built or TRACKERS.encode() not in built:
-            raise unittest.SkipTest("the updater is not built with the tests' key and trackers (see the docstring)")
+        if any(text.encode() not in built for text in (public_key_hex(), TRACKERS, DHT)):
+            raise unittest.SkipTest("the updater is not built with the tests' key, trackers and DHT (see the docstring)")
+    if not os.path.isfile(harness.TORRENT_DLL):
+        raise unittest.SkipTest(f"no {harness.TORRENT_DLL}: run build.sh")
     wine.setUpModule()
 
 
-tearDownModule = wine.tearDownModule
+def tearDownModule():
+    global NODES
+    if NODES is not None:
+        NODES.close()
+        NODES = None
+    wine.tearDownModule()
 
 
 def free_port():
@@ -108,12 +146,11 @@ def compact(peers):
     return b"".join(socket.inet_aton(ip) + struct.pack(">H", port) for ip, port in peers)
 
 
-# The tests' trackers, at fixed ports: the updater is built with them
-# (`SKHID_TEST_TRACKERS`).
-UDP_PORT, HTTP_PORT = 47613, 47614
+# The tests' trackers and the DHT's first node, at fixed ports: the updater
+# is built with them (`SKHID_TEST_TRACKERS`, `SKHID_TEST_DHT`).
+UDP_PORT, HTTP_PORT, DHT_PORT = 47613, 47614, 47615
 TRACKERS = f"udp://127.0.0.1:{UDP_PORT}/announce http://127.0.0.1:{HTTP_PORT}/announce"
-
-
+DHT = f"127.0.0.1:{DHT_PORT}"
 class Tracker:
     """An HTTP tracker and a UDP one (BEP 15) on 127.0.0.1, the updater's
     (`TRACKERS`): both answer `peers`; `asked` says who asked how, with the
@@ -183,6 +220,70 @@ def session(port):
     })
 
 
+class Nodes:
+    """A DHT of libtorrent nodes on 127.0.0.1, the first on DHT_PORT (the
+    updater's way in): `get` reads the release's item from it."""
+
+    def __init__(self):
+        self.nodes = [self.node(DHT_PORT, "")] + [self.node(0, DHT) for _ in range(7)]
+        for node in self.nodes:
+            for other in self.nodes:
+                if other is not node:
+                    node.add_dht_node(("127.0.0.1", other.listen_port()))
+        wait(lambda: all(node.status().dht_nodes >= 3 for node in self.nodes), 60, "a DHT of eight nodes")
+
+    @staticmethod
+    def node(port, bootstrap):
+        return lt.session({
+            "listen_interfaces": f"127.0.0.1:{port}", "enable_dht": True, "dht_bootstrap_nodes": bootstrap,
+            "enable_lsd": False, "enable_upnp": False, "enable_natpmp": False,
+            "dht_restrict_routing_ips": False, "dht_restrict_search_ips": False,
+            "dht_prefer_verified_node_ids": False, "dht_ignore_dark_internet": False,
+            "alert_mask": lt.alert.category_t.dht_notification,
+        })
+
+    def get(self, seconds=30):
+        """The item of the tests' key: (seq, value), else None."""
+        node = self.nodes[-1]
+        key = bytes.fromhex(public_key_hex())
+        until = time.time() + seconds
+        while time.time() < until:
+            node.dht_get_mutable_item(key, SALT)
+            asked = time.time() + 2
+            while time.time() < asked:
+                for alert in node.pop_alerts():
+                    if isinstance(alert, lt.dht_mutable_item_alert) and alert.item:
+                        return alert.seq, lt.bencode(alert.item)
+                time.sleep(0.1)
+        return None
+
+    def close(self):
+        self.nodes.clear()
+
+
+NODES = None
+
+
+def nodes():
+    """The module's DHT, started at its first use."""
+    global NODES
+    if NODES is None:
+        NODES = Nodes()
+    return NODES
+
+
+def put_newest(torrent):
+    """The release's item of `torrent` on the tests' DHT, by its tool
+    (release/publish-dht's)."""
+    seq, value, signature = item_of(torrent)
+    nodes()
+    result = subprocess.run([DHT_TOOL, "put", public_key_hex(), SALT.decode(), str(seq), value.hex(), signature.hex(),
+                             "--bootstrap", DHT, "--loopback", "--seconds", "60"],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout
+    return value
+
+
 def make_torrent(folder, files, trackers, revision=60, signed=True):
     """libtorrent's torrent of `files` (path -> bytes) in `folder`/Survarium,
     signed as the release signs it."""
@@ -220,87 +321,18 @@ def wait(done, seconds, what):
     raise AssertionError(f"no {what} in {seconds} s")
 
 
-def rendezvous_hash():
-    return hashlib.sha1(b"skhid-rendezvous 1\n" + bytes.fromhex(public_key_hex())).digest()
-
-
-def read_frame(peer):
-    head = b""
-    while len(head) < 4:
-        part = peer.recv(4 - len(head))
-        if not part:
-            raise OSError("closed")
-        head += part
-    (length,) = struct.unpack(">I", head)
-    body = b""
-    while len(body) < length:
-        part = peer.recv(length - len(body))
-        if not part:
-            raise OSError("closed")
-        body += part
-    return body
-
-
 def canonical(torrent):
-    """`torrent` as the updater keeps and gives it (`logic/src/torrent.rs`
+    """`torrent` as the updater keeps it (`logic/src/torrent.rs`
     `canonical`): its info, piece layers and signature, nothing else."""
     entry = lt.bdecode(torrent)
     return lt.bencode({key: value for key, value in entry.items() if key in (b"info", b"piece layers", b"skhid")})
 
 
-def meet(peer, revision, torrent=None):
-    """This end of a rendezvous connection (`logic/src/rendezvous.rs`): its
-    handshake and its revision said; `torrent` sent once the other end
-    says an older one. The torrent the other end sent, if any."""
-    reserved = bytearray(8)
-    reserved[5] = 0x10
-    peer.sendall(b"\x13BitTorrent protocol" + bytes(reserved) + rendezvous_hash() + b"-PY0000-rendezvous00")
-    said = bencode({b"m": {b"skhid_torrent": 3}, **({b"skhid_revision": revision} if revision else {})})
-    peer.sendall(struct.pack(">IBB", 2 + len(said), 20, 0) + said)
-    hello = b""
-    while len(hello) < 68:
-        part = peer.recv(68 - len(hello))
-        if not part:
-            raise OSError("closed")
-        hello += part
-    assert hello[28:48] == rendezvous_hash() and hello[25] & 0x10
-    theirs = lt.bdecode(read_frame(peer)[2:])
-    their_id = theirs[b"m"][b"skhid_torrent"]
-    their_revision = theirs.get(b"skhid_revision")
-    if torrent is not None and (their_revision is None or their_revision < revision):
-        peer.sendall(struct.pack(">IBB", 2 + len(torrent), 20, their_id) + torrent)
-    if their_revision is not None and (revision is None or their_revision > revision):
-        body = read_frame(peer)
-        assert body[:2] == bytes([20, 3]), body[:2]
-        return body[2:]
-    return None
-
-
-class Meeter:
-    """A rendezvous peer on 127.0.0.1 that has `torrent` of `revision`:
-    `got`, what each connection sent it."""
-
-    def __init__(self, revision, torrent):
-        self.listener = socket.socket()
-        self.listener.bind(("127.0.0.1", 0))
-        self.listener.listen()
-        self.port = self.listener.getsockname()[1]
-        self.revision, self.torrent, self.met = revision, torrent, 0
-        threading.Thread(target=self.serve, daemon=True).start()
-
-    def serve(self):
-        while True:
-            try:
-                peer, _ = self.listener.accept()
-            except OSError:
-                return
-            with peer:
-                peer.settimeout(30)
-                try:
-                    meet(peer, self.revision, self.torrent)
-                    self.met += 1
-                except (OSError, AssertionError, KeyError):
-                    pass
+def found(torrent):
+    """`torrent` as the updater makes it again from the DHT's item and the
+    swarm's info (`logic/src/newest.rs` `torrent`): no piece layers."""
+    entry = lt.bdecode(torrent)
+    return lt.bencode({b"info": entry[b"info"], b"skhid": entry[b"skhid"]})
 
 
 class WrongPeer:
@@ -462,6 +494,12 @@ class TorrentTest(wine.WineTest):
 
     # --- the tests -------------------------------------------------------
 
+    def bundle(self, **changes):
+        """The players' ZIP has the DLL beside the updater."""
+        with open(harness.TORRENT_DLL, "rb") as file:
+            dll = file.read()
+        return wine.WineTest.bundle(self, **{f"{X86}/skhid_torrent.dll": dll, **changes})
+
     def test_a_missing_patch_comes_by_torrent_and_the_folder_is_then_shared(self):
         patches, torrent, seed_dir, files = self.release(12, 14)
         seed_port, _ = self.seed(torrent, seed_dir)
@@ -476,13 +514,31 @@ class TorrentTest(wine.WineTest):
         self.assertIn("torrent: skhid.torrent: signed by the release, revision 60", log)
         # Both trackers asked, with the port the launcher gave (the seed
         # asks them too).
-        wait(lambda: {("udp", self.port), ("http", self.port)} <= set(self.tracker.asked), 30, "both trackers")
+        wait(lambda: {("udp", self.port), ("http", self.port)} <= set(self.tracker.asked), 30, f"both trackers ({self.tracker.asked})")
         # The seed goes; the updater, its launcher open, shares the folder:
         # the patches it got by torrent and the ZIP's files.
         for lt_session in self.sessions:
             lt_session.pause()
         wait(lambda: "torrent: sharing 4 of its 4 files" in self.log(), 60, "sharing")
         self.leech_from_updater(torrent, files)
+
+    def test_a_second_start_shares_what_was_checked_without_hashing_it_again(self):
+        _, torrent, _, files = self.release(12)
+        self.launch()
+        self.wait_latest()
+        wait(lambda: "torrent: 3 of its 3 files checked whole" in self.log(), 60, "the check")
+        self.stop()
+        self.launch()
+        self.wait_latest()
+        wait(lambda: "torrent: sharing 3 of its 3 files (3 checked before)" in self.log(), 60, "sharing")
+        self.leech_from_updater(torrent, files)
+        # A file changed since: checked again, and not shared as it is.
+        self.stop()
+        self.write("README.txt", b"READ ME\r\n")
+        self.launch()
+        self.wait_latest()
+        wait(lambda: self.log().count("checked whole") >= 3, 60, "the third check")
+        self.assertIn("(2 checked before)", self.log())
 
     def test_no_peer_downloads_by_https_and_what_came_so_is_shared(self):
         # The first players of a revision: no peer yet.
@@ -495,7 +551,7 @@ class TorrentTest(wine.WineTest):
         wait(lambda: "torrent: sharing 3 of its 3 files" in self.log(), 60, "sharing")
         self.leech_from_updater(torrent, files)
 
-    def test_a_peer_that_sends_wrong_bytes_is_dropped(self):
+    def test_a_peer_that_sends_wrong_bytes_is_banned(self):
         patches, torrent, seed_dir, _ = self.release(12)
         info = lt.torrent_info(lt.bdecode(torrent))
         wrong = WrongPeer(bytes.fromhex(str(info.info_hashes().v1)), info.num_pieces())
@@ -504,67 +560,87 @@ class TorrentTest(wine.WineTest):
         self.launch()
         self.wait_latest()
         self.assert_patches(patches)
-        self.assertTrue(wrong.closed, "the wrong peer is still connected")
+        wait(lambda: wrong.closed, 30, "the wrong peer dropped")
         self.assertEqual(self.store_requests(), [])
 
-    def test_a_newer_release_comes_from_the_rendezvous_when_the_site_cannot_be_reached(self):
-        _, torrent, seed_dir, files = self.release(12)
+    @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
+    def test_a_newer_release_comes_from_the_dht_when_the_site_cannot_be_reached(self):
+        _, torrent, _, files = self.release(12)
         self.launch()
         self.wait_latest()
         self.stop()
-        # The release after it, signed, at a peer of the rendezvous.
-        newer = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), {**files, "game/new.txt": b"new"},
-                             self.tracker.urls, revision=61)
-        meeter = Meeter(61, newer)
-        self.tracker.peers = [("127.0.0.1", meeter.port)]
+        # The release after it: its item on the DHT, its files at a seed.
+        newer_dir = tempfile.mkdtemp(dir=self.peers_dir)
+        newer = make_torrent(newer_dir, {**files, "game/new.txt": b"new"}, self.tracker.urls, revision=61)
+        seed_port, _ = self.seed(newer, newer_dir)
+        self.tracker.peers = [("127.0.0.1", seed_port)]
+        put_newest(newer)
         # The update server cannot be asked.
         self.site.manifest_status = 502
         self.site.patch_list_status = 502
         self.launch()
         self.wait_latest()
         log = self.log()
-        self.assertIn("the rendezvous gave a signed torrent of revision 61", log)
-        # Kept without what is outside the signature (its trackers).
-        self.assertEqual(self.read(f"{X86}/updater_skhid.found.torrent"), canonical(newer))
-        self.assertNotIn(b"announce", canonical(newer))
-        self.stop()
+        self.assertIn("torrent: the DHT names revision 61, signed by the release", log)
+        self.assertIn("torrent: revision 61's info came from its swarm", log)
+        # Kept as the release signed it, without what is outside the
+        # signature (its trackers).
+        self.assertEqual(self.read(f"{X86}/updater_skhid.found.torrent"), found(newer))
+        self.assertNotIn(b"announce", found(newer))
 
-    def test_the_updater_gives_its_torrent_at_the_rendezvous(self):
-        _, torrent, _, _ = self.release(12)
+    @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
+    def test_an_item_of_another_key_or_an_older_revision_is_not_taken(self):
+        self.release(12)
         self.launch()
         self.wait_latest()
-        wait(lambda: "torrent: sharing" in self.log(), 60, "sharing")
-        for revision in (None, 59):
-            with socket.create_connection(("127.0.0.1", self.port), timeout=30) as peer:
-                peer.settimeout(30)
-                self.assertEqual(meet(peer, revision), canonical(torrent))
-        # One of the same revision gets nothing, and gives nothing.
-        with socket.create_connection(("127.0.0.1", self.port), timeout=30) as peer:
-            peer.settimeout(30)
-            self.assertIsNone(meet(peer, 60, torrent))
+        self.stop()
+        # Revision 59's item, older than the folder's 60: nothing newer.
+        older = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), {"README.txt": b"old"}, self.tracker.urls,
+                             revision=59)
+        put_newest(older)
+        self.site.manifest_status = 502
+        self.site.patch_list_status = 502
+        self.launch()
+        wait(lambda: "torrent: the DHT named no newer release" in self.log(), 120, "the DHT asked")
+        self.assertIn("torrent: the DHT named no newer release", self.log())
+        self.assertFalse(self.exists(f"{X86}/updater_skhid.found.torrent"))
+
+    def test_the_updater_puts_the_releases_item_on_the_dht(self):
+        _, torrent, _, _ = self.release(12)
+        dht = nodes()
+        self.launch()
+        self.wait_latest()
+        wait(lambda: "item stored on" in self.log(), 90, "the item put")
+        seq, value, _ = item_of(torrent)
+        self.assertEqual(dht.get(), (seq, value))
 
     def test_the_bootstrap_is_shared_from_copies_kept_of_its_files(self):
-        # The bootstrap torrent: this updater and a 7zr.exe, unsigned, in the
-        # ZIP beside the updater (no revision torrent: it is shared alone).
+        # The bootstrap torrent: this updater, its DLL and a 7zr.exe,
+        # unsigned, in the ZIP beside the updater (no revision torrent: it
+        # is shared alone).
         seven = b"7z stand-in " * 5000
-        bootstrap_files = {f"{X86}/7zr.exe": seven, f"{X86}/updater_skhid.exe": self.updater_bytes}
+        with open(harness.TORRENT_DLL, "rb") as file:
+            dll = file.read()
+        bootstrap_files = {f"{X86}/7zr.exe": seven, f"{X86}/skhid_torrent.dll": dll,
+                           f"{X86}/updater_skhid.exe": self.updater_bytes}
         bootstrap = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), bootstrap_files, self.tracker.urls,
                                  signed=False)
         self.offer(self.bundle(**{f"{X86}/7zr.exe": seven, f"{X86}/skhid-bootstrap.torrent": bootstrap}))
         self.launch()
         self.wait_latest()
-        wait(lambda: "torrent: sharing the bootstrap's 2 of 2 files" in self.log(), 60, "sharing the bootstrap")
+        wait(lambda: "torrent: sharing the bootstrap's 3 of 3 files" in self.log(), 60, "sharing the bootstrap")
         kept = os.path.join(self.x86, "updater_skhid.bootstrap")
-        self.assertEqual(sorted(os.listdir(kept)), ["7zr.exe", "updater_skhid.exe"])
+        self.assertEqual(sorted(os.listdir(kept)), ["7zr.exe", "skhid_torrent.dll", "updater_skhid.exe"])
         # The file in its place is another now (an update): the kept copy is
         # what is shared.
         self.write(f"{X86}/7zr.exe", b"another 7zr")
         self.leech_from_updater(bootstrap, bootstrap_files)
 
-    def test_a_bare_folder_installs_everything_from_the_rendezvous_without_the_site(self):
-        # The bootstrap's folder: the updater alone (and the original game,
-        # whose pins are the real files: it is there), the site not
-        # answering. The newest release only at the rendezvous, its files
+    @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
+    def test_a_bare_folder_installs_everything_from_the_dht_without_the_site(self):
+        # The bootstrap's folder: the updater and its DLL alone (and the
+        # original game, whose pins are the real files: it is there), the
+        # site not answering. The newest release only on the DHT, its files
         # at a seed.
         self.site.manifest_status = 502
         self.site.patch_list_status = 502
@@ -574,20 +650,15 @@ class TorrentTest(wine.WineTest):
         seed_dir = tempfile.mkdtemp(dir=self.peers_dir)
         newest = make_torrent(seed_dir, files, self.tracker.urls, revision=61)
         seed_port, _ = self.seed(newest, seed_dir)
-        meeter = Meeter(61, newest)
-        self.tracker.peers = [("127.0.0.1", meeter.port), ("127.0.0.1", seed_port)]
-        # An older signed torrent beside it, of this test's trackers: the
-        # rendezvous is asked on them, not on the public ones.
-        older = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), {"README.txt": b"old"}, self.tracker.urls,
-                             revision=59)
-        self.write(f"{X86}/updater_skhid.found.torrent", older)
+        self.tracker.peers = [("127.0.0.1", seed_port)]
+        put_newest(newest)
         # `check torrent`, as Skhid-get.bat runs it.
         command, env = windows([self.exe(), "check", "torrent", "quiet"])
         code = wine.subprocess.run(command, cwd=self.x86, env=env, timeout=600,
                                    stdout=wine.subprocess.DEVNULL, stderr=wine.subprocess.DEVNULL).returncode
         log = self.log()
         self.assertEqual(code, 0, log[-4000:])
-        self.assertIn("the rendezvous gave a signed torrent of revision 61", log)
+        self.assertIn("torrent: the DHT names revision 61, signed by the release", log)
         for name, data in files.items():
             self.assertEqual(sha256(self.read(name)), sha256(data), name)
         self.assertEqual(self.store_requests(), [])
@@ -647,8 +718,7 @@ class TorrentTest(wine.WineTest):
         self.assertTrue(0 < kept < wanted, found[0])
 
     def test_check_with_nothing_saved_is_https(self):
-        # No "Allow torrent" saved by the launcher (this prefix has no
-        # HKCU\Software\Vostok Games\Survarium): `check` is direct.
+        # No "Allow torrent" saved by the launcher: `check` is direct.
         patches, _, _, _ = self.release(12)
         command, env = windows([self.exe(), "check", "quiet"])
         code = wine.subprocess.run(command, cwd=self.x86, env=env, timeout=600,
@@ -664,6 +734,17 @@ class TorrentTest(wine.WineTest):
         self.launch(allow="direct")
         self.wait_latest()
         self.assert_patches(patches)
+        self.assertEqual(self.tracker.asked, [])
+
+    def test_without_the_dll_torrent_is_https_as_before(self):
+        patches, _, _, _ = self.release(12)
+        self.offer(self.bundle(**{f"{X86}/skhid_torrent.dll": None}))
+        os.remove(os.path.join(self.x86, "skhid_torrent.dll"))
+        self.launch()
+        self.wait_latest()
+        self.assert_patches(patches)
+        self.assertEqual(self.store_requests(), ["/store/patch_12"])
+        self.assertIn("torrent: no skhid_torrent.dll: HTTPS only", self.log())
         self.assertEqual(self.tracker.asked, [])
 
     def test_no_torrent_or_one_not_the_releases_is_https_as_before(self):
@@ -732,7 +813,7 @@ class TorrentTest(wine.WineTest):
         self.launch()
         self.wait_latest()
         busy = socket.socket()
-        busy.bind(("0.0.0.0", 0))
+        busy.bind(("127.0.0.1", 0))
         busy.listen()
         self.addCleanup(busy.close)
         free = free_port()
@@ -757,5 +838,8 @@ if __name__ == "__main__":
         sys.exit(0)
     if sys.argv[1:] == ["--trackers"]:
         print(TRACKERS)
+        sys.exit(0)
+    if sys.argv[1:] == ["--dht"]:
+        print(DHT)
         sys.exit(0)
     unittest.main()

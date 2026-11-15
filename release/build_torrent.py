@@ -20,8 +20,9 @@ deterministic too).
 
 Signed: the top-level `skhid` dictionary (outside info, so the info hashes are not changed by it)
 holds `revision` and `signature`, the Ed25519 signature by --key of signed(): DOMAIN, the revision
-as one byte, the SHA-256 of the bencoded info. It must verify with --public-key (the committed
-release/signing.pub), or nothing is written.
+as one byte, the SHA-256 of the bencoded info; and `dht`, the same key's BEP 44 signature of the
+release's DHT item (item_value(): those facts; seq the revision; release/publish-dht puts it).
+Both must verify with --public-key (the committed release/signing.pub), or nothing is written.
 """
 import argparse
 import base64
@@ -165,8 +166,8 @@ def info_bytes(data):
 # The bootstrap (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap").
 BOOTSTRAP_HEAD = r"""@echo off
 rem Skhid-get.bat: gets Skhid (Survarium 0.26g) into a Survarium folder beside
-rem this file. Plain text: read it. It fetches the Skhid updater and 7zr.exe
-rem by BitTorrent from anyone who shares them (the public trackers below),
+rem this file. Plain text: read it. It fetches the Skhid updater, its DLL and
+rem 7zr.exe by BitTorrent from anyone who shares them (the public trackers below),
 rem else from the addresses below, checks every piece and file against the
 rem hashes below, then runs the updater, which installs the rest, and starts
 rem Skhid.bat. No administrator rights. Made by release/build-bootstrap.
@@ -252,12 +253,28 @@ def signed(revision, info):
     return DOMAIN + bytes([revision]) + hashlib.sha256(info).digest()
 
 
+# The release's BEP 46 item on the DHT (client/updater/logic/src/newest.rs): its salt, and its
+# value, the facts of the torrent's signature. Its sequence number is the revision.
+SALT = b'skhid-newest 1'
+
+
+def item_value(revision, info, signature):
+    """The item's value: d1:i32:<SHA-256 of info>1:ri<revision>e1:s64:<the torrent's signature>e."""
+    return (b'd1:i32:' + hashlib.sha256(info).digest() + b'1:ri%de1:s64:' % revision + signature + b'e')
+
+
+def item_signed(value, seq):
+    """What BEP 44 signs of a mutable item: 4:salt<salt>3:seqi<seq>e1:v<value>."""
+    return b'4:salt%d:%s3:seqi%de1:v' % (len(SALT), SALT, seq) + value
+
+
 # The public key's DER (RFC 8410) before its 32 bytes, for openssl.
 ED25519_PUBLIC = bytes.fromhex('302a300506032b6570032100')
 
 
 def signer(openssl, key, public_hex, revision, scratch):
-    """`sign` of build: the release key's signature, checked against the committed public key."""
+    """`sign` of build: the release key's signatures (the torrent's, then its DHT item's), each
+    checked against the committed public key."""
     public = bytes.fromhex(public_hex.strip())
     if len(public) != 32:
         sys.exit('the public key is not 64 hex digits (32 bytes)')
@@ -266,10 +283,10 @@ def signer(openssl, key, public_hex, revision, scratch):
         out.write('-----BEGIN PUBLIC KEY-----\n' + base64.b64encode(ED25519_PUBLIC + public).decode()
                   + '\n-----END PUBLIC KEY-----\n')
 
-    def sign(info):
+    def ed25519(data):
         message, sig = os.path.join(scratch, 'message'), os.path.join(scratch, 'signature')
         with open(message, 'wb') as out:
-            out.write(signed(revision, info))
+            out.write(data)
         subprocess.run([openssl, 'pkeyutl', '-sign', '-rawin', '-inkey', key, '-in', message, '-out', sig],
                        check=True, stdin=subprocess.DEVNULL)
         if subprocess.run([openssl, 'pkeyutl', '-verify', '-rawin', '-pubin', '-inkey', pem, '-in', message,
@@ -279,7 +296,12 @@ def signer(openssl, key, public_hex, revision, scratch):
             value = signature.read()
         if len(value) != 64:
             sys.exit(f'openssl gave a signature of {len(value)} bytes, not 64')
-        return {'revision': revision, 'signature': value}
+        return value
+
+    def sign(info):
+        signature = ed25519(signed(revision, info))
+        dht = ed25519(item_signed(item_value(revision, info, signature), revision))
+        return {'dht': dht, 'revision': revision, 'signature': signature}
     return sign
 
 

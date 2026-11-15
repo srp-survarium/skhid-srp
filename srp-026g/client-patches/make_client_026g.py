@@ -26,6 +26,8 @@ USAGE
                                      (`nix develop ./srp-026g -c bash
                                      srp-026g/client-voice/build.sh`)
         [--updater=<updater_skhid.exe>]  defaults to the release build in this repo
+        [--torrent-dll=<skhid_torrent.dll>]  defaults to the one client/updater/build.sh
+                                     puts beside the updater
         [--extractor=<7zr.exe>]      defaults to the copy in this repo; it must be
                                      the file the updater is built to run
         [--dxvk=<dxvk-3.1.1.tar.gz>] DXVK's release archive; by default the copy in
@@ -95,6 +97,10 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
     <output>/game/binaries/x86/updater_skhid.exe
         the updater (../../client/updater): asks the server which archive
         it offers and installs it when it is another one than the last.
+    <output>/game/binaries/x86/skhid_torrent.dll
+        the updater's BitTorrent (libtorrent; ../../client/updater/torrent-dll): it
+        loads it at run time when the launcher's "Allow torrent" is on; without
+        it (or on Windows before 10) the updater downloads by HTTPS alone.
     <output>/game/binaries/x86/7zr.exe
         7-Zip's standalone extractor, unchanged (../../client/updater/extractor):
         the updater unpacks the original game with it when that is missing,
@@ -192,6 +198,9 @@ UPDATER_EXE = os.path.abspath(os.path.join(
 # built with (EXTRACTOR in client/updater/logic/src/game.rs; a test here
 # reads them from that file and compares).
 EXTRACTOR_NAME = "7zr.exe"
+TORRENT_DLL = os.path.join(os.path.dirname(UPDATER_EXE), "skhid_torrent.dll")
+# What the updater asks of it by name (client/updater/exe/src/libtorrent.rs).
+TORRENT_EXPORTS = (b"skt_version", b"skt_session_new", b"skt_add", b"skt_add_magnet", b"skt_poll", b"skt_dht_put")
 EXTRACTOR_EXE = os.path.abspath(os.path.join(HERE, "..", "..", "client", "updater", "extractor", EXTRACTOR_NAME))
 EXTRACTOR_SIZE = 602624
 EXTRACTOR_SHA256 = "256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282"
@@ -311,6 +320,25 @@ def read_updater(path):
     # for an installer and asks for administrator rights at every start.
     if not any(b"requestedExecutionLevel level=" + quote + b"asInvoker" + quote in data for quote in (b"'", b'"')):
         sys.exit(f"{path}: the updater has no asInvoker manifest")
+    return data
+
+
+def read_torrent_dll(path):
+    """skhid_torrent.dll: a 32-bit x86 DLL with the functions the updater asks for."""
+    try:
+        with open(path, "rb") as dll:
+            data = dll.read()
+    except OSError as e:
+        sys.exit(f"{path}: cannot read skhid_torrent.dll ({e}). Build client/updater/build.sh first, "
+                 "or pass --torrent-dll=<path>.")
+    pe = int.from_bytes(data[0x3c:0x40], "little")
+    if (len(data) < 64 or data[:2] != b"MZ" or pe + 26 > len(data) or data[pe:pe + 4] != b"PE\0\0"
+            or int.from_bytes(data[pe + 4:pe + 6], "little") != 0x14c
+            or not int.from_bytes(data[pe + 22:pe + 24], "little") & 0x2000):
+        sys.exit(f"{path}: expected a 32-bit x86 Windows DLL")
+    missing = [name.decode() for name in TORRENT_EXPORTS if name + b"\0" not in data]
+    if missing:
+        sys.exit(f"{path}: not skhid_torrent.dll: no {', '.join(missing)}")
     return data
 
 
@@ -663,6 +691,7 @@ def main():
     archive = False
     launcher, updater_path, site = True, UPDATER_EXE, None
     extractor_path = EXTRACTOR_EXE
+    torrent_dll_path = TORRENT_DLL
     dxvk_path = None
     late_join, revision, required = True, None, None
     downloads = []
@@ -691,6 +720,8 @@ def main():
             voice_path = option[len("--voice="):]
         elif option.startswith("--updater="):
             updater_path = option[len("--updater="):]
+        elif option.startswith("--torrent-dll="):
+            torrent_dll_path = option[len("--torrent-dll="):]
         elif option.startswith("--extractor="):
             extractor_path = option[len("--extractor="):]
         elif option.startswith("--dxvk="):
@@ -761,6 +792,7 @@ def main():
         files += [
             (os.path.join("game", EXE_DIR, L.LAUNCHER_NAME), bytes(launcher_exe)),
             (os.path.join("game", EXE_DIR, L.UPDATER_NAME), read_updater(updater_path)),
+            (os.path.join("game", EXE_DIR, "skhid_torrent.dll"), read_torrent_dll(torrent_dll_path)),
             (os.path.join("game", EXE_DIR, EXTRACTOR_NAME), read_extractor(extractor_path)),
             (os.path.join("game", EXE_DIR, "updater_skhid.url"), (site + "\r\n").encode("ascii")),
             *((os.path.join("game", EXE_DIR, "dxvk", name), dll) for name, dll in read_dxvk(dxvk_path).items()),

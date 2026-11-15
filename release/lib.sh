@@ -57,7 +57,7 @@ public_hex() {
     "$1" pkey -in "$2" -pubout -outform DER | tail -c 32 | od -An -v -tx1 | tr -d ' \n'
 }
 # The bootstrap (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap"): the
-# list of its two files in the form of the offered-patch list (their URLs in
+# list of its three files in the form of the offered-patch list (their URLs in
 # the order the script tries them after the peers), its torrent and the
 # script made of them, all three committed (release/build-bootstrap; more
 # URLs: release/add-mirror <name> <url>).
@@ -65,7 +65,7 @@ BOOTSTRAP_LIST=release/bootstrap.tsv
 BOOTSTRAP_TORRENT=release/bootstrap.torrent
 BOOTSTRAP_SCRIPT=srp-026g/servers/web-server/bootstrap/Skhid-get.bat
 # shellcheck disable=SC2034 # used by the scripts that source this
-BOOTSTRAP_FILES=(game/binaries/x86/7zr.exe game/binaries/x86/updater_skhid.exe)
+BOOTSTRAP_FILES=(game/binaries/x86/7zr.exe game/binaries/x86/skhid_torrent.dll game/binaries/x86/updater_skhid.exe)
 # The script again from the torrent and the list (and with <path> <source>
 # pairs, the torrent again from those files first).
 render_bootstrap() {
