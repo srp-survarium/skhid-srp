@@ -270,7 +270,10 @@ Experimental Pool no longer uses the planner's proposal. Its spots in
 
 The roof over the east half of the hatch room has caved in. The geometry is
 listed under `cs-mp_bath` in resource-porter's `ports/stalker-tdm/maps.json`
-(commit 823b2fe), and `make_spec.py` passes it to the importer.
+(commit 823b2fe). **It is in no released pack**: `stalker-maps@6` was built
+without it, and since `stalker-maps@7` it is that map's `held` geometry, which
+`make_spec.py` does not pass to the importer (moving its three lists up a level
+builds it).
 
 - Five cut boxes take the roof slab out (y 13.14-13.62 only, so the walls
   stay). Together they give the hole a ragged edge.
@@ -289,12 +292,62 @@ listed under `cs-mp_bath` in resource-porter's `ports/stalker-tdm/maps.json`
   - no spot in the room or on its roof is a dead end;
   - the room's doors stay clear.
 
+## One pipeline (the owner, 2026-11-15)
+
+"All of that should have the same single default pipeline", "a generic single
+pass for all maps": the look fixes of #1793, the bushes of #1798, the terrain
+relief fix and a grass size rule are what the port gives every map it builds,
+and no step names a map. `stalker-maps@7` and `stalker-maps-2@3` are built so
+(resource-porter `content/stalker-look-defaults`); the edit lists
+`stalker-maps-sun-1`, `stalker-grass-matte-1`, `stalker-maps-ao-1`,
+`stalker-bushes-1`, the pack `stalker-bushes@2` and its script are gone, and
+`ported-maps-grain-1` keeps only the v0.11e maps' projects.
+
+| default | where | what |
+| --- | --- | --- |
+| film grain | importer, every early map (`transfer_environment`) | 0.02 at update frequency 1, stock day |
+| sun | the same | god rays 0.2 at attenuation 3.0, lens flares x0.7 (0.11e's day weather) |
+| ambient occlusion | the same | `ao_saturation` 1 |
+| gloss | importer, every early ported material (`matte_colour_gloss`) | a material whose gloss map is its colour texture: gloss 0.04 at both ends of the range (stock `flora/grass_l03_alt`'s average) |
+| grass size | importer, every map it writes (`grass.rs`) | at most 120,000 instances of a map's whole vegetation, thinned evenly through the layers |
+| terrain relief | `build-soc-map` (resource-porter d92d7cc) | the THM detail scale, terrain normal strength, no unrelated template height map |
+| bushes | `tools/stalker-tdm/bushes.py`, every map of a pack | the leaves drawn within 1.2 m above a floor as a foliage_deciduous collision object (cgroup 8, cmask 20h); more than 64,801 triangles split into models |
+
+- Grass: the client cooks a map's whole vegetation on one 2 MiB thread with
+  16 bytes of stack an instance (`grass_cook::on_layers_loaded` 0x12A820,
+  re-kit #2072): about 130,000 overflow it. Every map over 120,000 is thinned
+  (instance g of n stays when g x 120,000 / n steps). Live counts
+  (`tools/playable-map-pack/grass_counts.py` over the stock db and patches
+  12-59): Experimental Pool 125,844 (thinned now), level_03 90,879, v021d
+  level_03 90,799, Military Warehouses 77,721, level_06 69,626, v021d
+  level_06 62,489, Training Camp 50,283, level_08 32,195, Rudnya 0.69
+  28,548, the rest under 25,100: no other map is over. Dark Valley and Fire
+  Station go back to X-Ray's density (142,346 and 384,112 placed), thinned to
+  120,000.
+- Gloss: of the ported materials only those whose gloss map is their colour
+  texture come out mirror-like: X-Ray grass (Experimental Pool, Military
+  Warehouses, Dark Valley, Vehicle Station, Fire Station), Training Camp's
+  meadow grass and two leaf materials. X-Ray specular maps as gloss maps (the
+  concrete) average about 0.01 (`concrete_01_spec` 0.007): matte. The
+  untextured bark materials use their constant, as stock's do. The 19
+  "complex" materials at gloss 1 (`tiled/window/glass` as gloss map) are glass
+  and metal (fences, barbed wire, wagons, beds, grates): left as they are.
+- Dark Valley's white plane in `n-yard` and `ne-yard` (2026-11-14 captures):
+  those poses stand at y 1.7, under the ground there (10.17 and 4.91 by the
+  collision): the camera was inside the level, not over a glossy floor.
+- Station and Depository keep @4's terrain: `port-map.sh` needs their level
+  folders, which are not on the build machine any more (their sha256 are in
+  resource-porter `ports/stalker-tdm/sources/`).
+
 ## The old builds' post-process (the owner, 2026-11-13/14)
 
 The environments of the maps ported from v0.10b and v0.11e (these six, Vostok
 v0.11, Chemical Plant v0.11) keep their source build's post-process values,
 which 0.26g draws its own way. Three edit lists set seven of them, in every
-mode's copy of the projects they name:
+mode's copy of the projects they name. Since `stalker-maps@7` and
+`stalker-maps-2@3` the port makes these values for every map it builds and the
+lists are gone but for the v0.11e maps' grain ("One pipeline", below); the
+table is what they did:
 
 | value | the ports | stock day maps | now | list |
 | --- | --- | --- | --- | --- |
@@ -341,8 +394,9 @@ mode's copy of the projects they name:
   the owner's to see. Their `ao_radius` 1.5 is a stock value
   (level_02 day; stock maps have 1 to 1.5) and stays. Vostok v0.11 (1.5) and
   Chemical Plant v0.11 (1.3) are above stock too and are not changed.
-- Not changed: Repair Depot, Station and Depository, not played, keep rays 1.0
-  at 1.0 and flares x2. All eight maps keep the old builds' vignette
+- Not changed by the lists: Repair Depot, Station and Depository, not played,
+  kept rays 1.0 at 1.0 and flares x2 (the port gives them Vostok v0.11's since
+  `stalker-maps@7`). All eight maps keep the old builds' vignette
   (`vignette_effect_power` 1, stock 0) and far depth of field
   (`use_bokeh_dof`, focus 100 m, region 50 m; stock day maps do not use it).
 
@@ -372,7 +426,7 @@ Training Camp's meadow.
   has one colour per instance, fixed in the engine); 0.26g's own shadows
   light it.
 - Matte (the owner, 2026-11-14: "grass which is too glossy";
-  `stalker-grass-matte-1.json`): the two maps' grass material
+  `stalker-grass-matte-1.json`, the port's `look` since `stalker-maps@7`): the two maps' grass material
   (`ported/cs/<map>/details`) is stock `flora/grass_l03_alt` with the grass's
   colour texture as its roughness map, `constant_roughness_min` 0.3, max 1.
   A material's "roughness" is its gloss in 0.26g (stock glass 0.7 to 1, cloth
@@ -396,8 +450,10 @@ Training Camp's meadow.
 
 "Bushes should have rustling sound just like on normal survarium maps": walking
 through a bush of a ported map was silent. Pack `stalker-bushes@2` and
-`content-edit/stalker-bushes-1.json` give Experimental Pool, Military Warehouses
-and Training Camp the foliage step of stock's bushes. Built and read back
+`content-edit/stalker-bushes-1.json` gave Experimental Pool, Military Warehouses
+and Training Camp the foliage step of stock's bushes; since `stalker-maps@7` and
+`stalker-maps-2@3` the port gives every map its bushes, the same bytes for
+these three ("One pipeline", below). Built and read back
 (below); **not heard in the game yet**.
 
 ### What rustles in stock 0.26g (the exe and the data, read statically)
@@ -452,7 +508,8 @@ and Training Camp the foliage step of stock's bushes. Built and read back
 
 ### What the pack is
 
-`scripts/stalker-bushes/make_pack.py` (its docstring has the rule) makes, from
+`scripts/stalker-bushes/make_pack.py` (its docstring has the rule; now
+resource-porter's `tools/stalker-tdm/bushes.py`) made, from
 `stalker-maps@6`'s own files (its `pack.json` and each map's inputs pinned by
 sha256), one model a map, `models/srp/<level>_bushes`: `settings` and a
 `collision` mesh alone, every triangle of game material foliage_deciduous (44).
@@ -495,7 +552,7 @@ crowns were kept (9,098, 31,833 and 3,242 triangles).
 
 ### Where it stands in the project, and who meets it
 
-`stalker-bushes-1.json` adds the model as one collision object of each map's
+`stalker-bushes-1.json` added (the port's `bushes.py` adds) the model as one collision object of each map's
 Team Deathmatch project (`day_4`), after the level's own chunks, before
 `ffa-projects-1` in `release/content.tsv`: Free for All's project is a copy
 and has it too. Each entry says one file must take it (`expected_files`, new
@@ -542,21 +599,15 @@ filter from elsewhere would not be in it; none was found.
 
 ### Not done
 
-- Repair Depot, Station and Depository (not played): a row each in the
-  script's `MAPS` once they are.
 - The walker's own sprint and landing on leaves are silent (stock's pair,
   above): a `collision_sound` for pair 56/44 in `material.pairs` would give
   them one, on the Fort's and Vector's bushes too.
 - Bot map data and the site's renders do not read it.
 
-To make it again: `python3 -I srp-026g/scripts/stalker-bushes/make_pack.py
---packs $SKHID_PACKS_DIR --out $SKHID_PACKS_DIR/stalker-bushes-2
---edits srp-026g/scripts/content-edit/stalker-bushes-1.json` (the same bytes
-every run: `pack.json` sha256 `a0b9ea98...d167`, the script's pin and the
-manifest's). `tools/check stalker-bushes` makes it again from the pinned source
-pack and compares the pack and the list; `stalker-bushes-manifest` holds the
-manifest's rows (the `stalker-maps` pack it is made from, this pack, the list
-before `ffa-projects-1`) to the script's pins, without making anything.
+Made by the port since `stalker-maps@7` / `stalker-maps-2@3` ("One pipeline",
+below): resource-porter `tools/stalker-tdm/bushes.py`, which `build-pack.sh` runs
+on every map it imports, is `scripts/stalker-bushes/make_pack.py` (gone) moved
+there, reading the imported map instead of a released pack.
 
 ## Ladders
 
