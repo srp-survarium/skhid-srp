@@ -818,9 +818,10 @@ pub struct CombatTuning {
     /// 0.3, 40-65 m, the stand-in's hit shapes with the bots' measured
     /// scatter): the hit rate of rounds 4-10 over that of rounds 1-3 is 0.34 /
     /// 0.55 / 0.85 / 1.16 (± 0.05-0.09) at 0.5 / 0.7 / 0.85 / 1.0, against the
-    /// humans' SMGs 1.15 ± 0.34 and rifles 0.64 ± 0.13 there (a floor: a human
-    /// lets go when he misses). Not proven for the 600 rpm guns (AKM, UMP45) in
-    /// the replay. `recoil_pull` stays 1.0, over the best tenth's 0.95.
+    /// humans' SMGs 1.15 ± 0.34 and rifles 0.64 ± 0.13 there (a floor: the
+    /// humans' counters hold rounds fired on after the target died). Not proven
+    /// for the 600 rpm guns (AKM, UMP45) in the replay. `recoil_pull` stays
+    /// 1.0, over the best tenth's 0.95.
     pub recoil_pull: f32,
     pub recoil_pull_low: f32,
     /// [A241] Down the sights an automatic's shot leaves right of the view by the client's aim sway
