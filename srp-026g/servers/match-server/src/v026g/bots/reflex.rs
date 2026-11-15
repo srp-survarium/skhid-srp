@@ -1497,7 +1497,8 @@ impl HumanBursts {
     /// 20-40 m, median and top 40+ m) the band is proven to that margin and the cell is the linear one. Where they do not (0-20
     /// m: 40-60 % of those bursts have no linear position, mostly a shooter's last fire before his death; SMG top 40+ m 350
     /// ms at its 0 %, 150 ms within 10-90 %; rifle top 20-40 m 100 ms) the cell is the set nearer today's rows (the mean
-    /// gap of the 10-90 % deciles to `smg` / `rifle`'s draw at the cell's middle), so no change rests on the band rule:
+    /// gap of the 10-90 % deciles to `smg` / `rifle`'s draw at the cell's middle): the linear rule drops those bursts, a
+    /// biased sample, and the current one holds a position, so neither is proven there and the bots change least:
     /// current for the SMG median 0-10 m and the rifle 0-10, 10-20 m and top 20-40 m; linear for the SMG top 0-10, both
     /// 10-20 m and top 40+ m (`pick_cells.py`, the other set beside each in the PR).
     pub fn humans() -> Self {
