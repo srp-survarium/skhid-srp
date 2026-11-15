@@ -75,30 +75,32 @@ package survarium.controls
       // speakers: those talking now, a name and its side ("mate" or OPPONENT) each.
       public function update(speakers:Array) : void
       {
+         // The names and their speakers' colours side by side: a name is the player's own choice,
+         // never a key of an object (one called "hasOwnProperty" is a method of it).
          var talking:Array = [];
-         var now:Object = {};
+         var colours:Array = [];
          var name:String;
          for(var i:int = 0; i + 1 < speakers.length && talking.length < MAX_ROWS; i += 2)
          {
-            name = speakers[i];
-            talking.push(name);
-            now[name] = speakers[i + 1] == OPPONENT ? OPPONENT_SPEAKER : SPEAKER;
+            talking.push(String(speakers[i]));
+            colours.push(speakers[i + 1] == OPPONENT ? OPPONENT_SPEAKER : SPEAKER);
          }
          var row:Object;
          for each(row in this._rows)
          {
-            if(row.talking && !now.hasOwnProperty(row.name))
+            if(row.talking && talking.indexOf(row.name) < 0)
             {
                row.talking = false;
                this.fade(row);
             }
          }
-         for each(name in talking)
+         for(i = 0; i < talking.length; i++)
          {
+            name = talking[i];
             row = this.rowOf(name);
-            if(row != null && row.speaker != now[name])
+            if(row != null && row.speaker != colours[i])
             {
-               row.speaker = now[name];
+               row.speaker = colours[i];
                drawSpeaker(row.mark.graphics,row.speaker);
             }
             if(row != null && row.talking)
@@ -111,7 +113,7 @@ package survarium.controls
             }
             else
             {
-               row = this.makeRow(name,now[name]);
+               row = this.makeRow(name,colours[i]);
             }
             row.talking = true;
             TweenLite.killTweensOf(row.sprite);
