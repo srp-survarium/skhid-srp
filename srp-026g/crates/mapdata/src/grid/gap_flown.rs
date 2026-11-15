@@ -300,7 +300,7 @@ impl WalkGrid {
             };
             stats.aimed_made += usize::from(aimed.is_some());
             stats.over_thin_made += usize::from(g.thin) * made.len();
-            for Made { to, press, share, walk, aim } in made {
+            for Made { to, press, share, walk, aim, .. } in made {
                 let rise = self.height[to as usize] - self.height[g.a as usize];
                 let kind = if rise > -self.body.step { LinkKind::GapJump } else { LinkKind::GapDrop };
                 stats.made += 1;

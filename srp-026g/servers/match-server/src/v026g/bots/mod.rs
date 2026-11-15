@@ -1624,6 +1624,17 @@ impl Bots {
 
     /// [item 4] The base rule's entries over the match as the match-end log line: added, and those that moved the spawn
     /// rule's end later, a world and a bot each.
+    pub fn breach_report(&self) -> String {
+        let line = |c: &threat::BreachCounts| {
+            format!("spawn-exit spots due {}, opened {}, went {}, throws asked {}", c.spawn_exit_due, c.opened, c.went, c.throws_asked)
+        };
+        format!(
+            "team 0: {}; team 1: {}",
+            line(&self.teams[0].features.threat.breach_counts),
+            line(&self.teams[1].features.threat.breach_counts)
+        )
+    }
+
     pub fn base_report(&self) -> String {
         format!("added {}, ends moved later {}", self.base_counts.0, self.base_counts.1)
     }
@@ -1894,7 +1905,7 @@ impl Bots {
         let rows = self.jump_test.as_mut().map(jump_test::JumpTest::take_fresh).unwrap_or_default();
         let mut notes = Vec::new();
         for row in rows {
-            let fix = Fix { fall: None, controller: None, gates: None,
+            let fix = Fix { fall: None, controller: None, gates: None, jump: None,
                 time: row.time,
                 alive: row.alive,
                 inserted: row.inserted,
@@ -1927,6 +1938,13 @@ impl Bots {
             && self.tracker.body(place).and_then(|body| body.fix()).map(|last| last.gates) != Some(Some(gates))
         {
             notes.push(Note { place, time, text: gates_line(keys, gates) });
+        }
+        // [Gap 10] The world's jump, when it changes (decision-neutral): the JUMP key beside it.
+        if let Some(jump) = fix.jump
+            && self.tracker.body(place).and_then(|body| body.fix()).map(|last| last.jump) != Some(Some(jump))
+        {
+            let held = if keys & crate::v026g::drive::key::JUMP != 0 { "held" } else { "up" };
+            notes.push(Note { place, time, text: format!("world jump: keys JUMP {held}, selector {jump:?}") });
         }
         let new_life = self
             .tracker

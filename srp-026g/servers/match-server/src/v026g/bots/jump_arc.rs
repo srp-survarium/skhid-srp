@@ -102,6 +102,62 @@ const PERCH_OVER_M: f32 = 0.1;
 /// or more in a tick), m.
 const PERCH_STEP_M: f32 = 0.1;
 
+/// [Gap 10] A body's jump as a world's animation selector saves it (`player_logic_stand_jump_state` 0x337510, the held
+/// object's portable: srp-validate `SelectorState::StandJump`). Read once at the world's boundary (`driven.rs`); the
+/// reckoning's use is [`super::body`]'s. The controller's own `m_jumping` comes with the controller block (`Fix::controller`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WorldJump {
+    /// The selector in any state but the stand jump.
+    NotJumping,
+    Jumping {
+        /// `m_jump_type` (never `NoJump`: its only writer, initialize 0x337040).
+        kind: srp_validate::world::JumpType,
+        /// `m_from_right_leg`: the leg the jump's clip starts from.
+        leg: Leg,
+        phase: JumpPhase,
+    },
+}
+
+/// [Gap 10] A leg.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Leg {
+    Left,
+    Right,
+}
+
+/// [Gap 10] The stand jump's sub-state (0x336E60; srp-validate `JumpStep` without what each saves): a sprint jump goes prepare,
+/// start, landing; any other a short start and a short landing. No sub-state saves a start time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JumpPhase {
+    Prepare,
+    Start,
+    Landing,
+    ShortStart,
+    ShortLanding,
+}
+
+impl WorldJump {
+    /// From the held object's selector.
+    pub fn of(selector: srp_validate::world::SelectorState) -> Self {
+        use srp_validate::world::{JumpStep, SelectorState};
+        let SelectorState::StandJump(jump) = selector else {
+            return Self::NotJumping;
+        };
+        let phase = match jump.step() {
+            JumpStep::Prepare { .. } => JumpPhase::Prepare,
+            JumpStep::Start { .. } => JumpPhase::Start,
+            JumpStep::Landing { .. } => JumpPhase::Landing,
+            JumpStep::ShortStart { .. } => JumpPhase::ShortStart,
+            JumpStep::ShortLanding { .. } => JumpPhase::ShortLanding,
+        };
+        Self::Jumping {
+            kind: jump.jump_type(),
+            leg: if jump.from_right_leg() { Leg::Right } else { Leg::Left },
+            phase,
+        }
+    }
+}
+
 /// `get_move_direction` 0x2D6510: the keys' direction, forward and back cancelling, left and right cancelling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Direction {

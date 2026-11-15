@@ -15,12 +15,18 @@ pub(super) struct TeamState {
     pub(super) squads: Option<Vec<Vec<Place>>>,
 }
 
+/// A camper a Breach killed after its go: his place, his spot, the job's bots.
+type BreachKill = (Place, Vec3, [Option<Place>; 3]);
+/// [A391] A Breach that went: its spot and its bots.
+type BreachGo = (u32, [Option<Place>; 3]);
+
 /// [threat.breach] The team's Breaches at its commander tick (`breach.rs`): the due spots (its Flanks' failures) tried, the
 /// running ones stepped; a Flank job a Breach takes over ends (`JobEnd::Breached`); with the spot memory on
 /// (`threat.concede`), a spot it concedes or a try like the last is refused, and an end is recorded (his death by anyone opens
 /// the area, a failure counts); a note per event. `lines`: the holds (the spots a job opens on) and every held line; `in_fight`: its
 /// bots in a fight (no crossers). Returns
-/// the campers its jobs killed after their go (his place, his spot, the job's bots), for the trap on his death point.
+/// the campers its jobs killed after their go (his place, his spot, the job's bots), for the trap on his death point, and
+/// [A391] the Breaches that went this tick (their bots), for the throw first.
 #[allow(clippy::too_many_arguments)]
 fn breach_tick(
     tactics: &Tactics,
@@ -37,9 +43,10 @@ fn breach_tick(
     objective: objective::ObjectiveMap,
     side: Option<i32>,
     notes: &mut Vec<Note>,
-) -> Vec<(Place, Vec3, [Option<Place>; 3])> {
+) -> (Vec<BreachKill>, Vec<BreachGo>) {
     use super::concede::{JobKind, Offer, Try, TryKind};
     let mut killed = Vec::new();
+    let mut went = Vec::new();
     let (holds, held) = lines;
     threat.kills.retain(|k| now.saturating_sub(k.time) <= threat::DEATH_KEPT_MS);
     // A Breach is a fight try: the fight side's (`Concede::refuse_fights`).
@@ -72,9 +79,17 @@ fn breach_tick(
     for event in events {
         #[cfg(test)]
         breach::tally::event(team, &event);
+        // [A391] Each Breach's start, gather and go at debug (its note line goes to the log at info as before).
+        log::debug!("team {team} at {now} ms: Breach {}", event.note());
         match event {
+            // [A391] The go: its bots, for the throw first.
+            breach::Event::Stepped { spot, step: breach::Step::Went { .. }, bots, .. } => {
+                threat.breach_counts.went += 1;
+                went.push((spot, bots));
+            }
             // A Flank job on its spot ends: the Breach is the try now.
             breach::Event::Opened { spot, .. } => {
+                threat.breach_counts.opened += 1;
                 if let Some(i) = threat.jobs.iter().position(|j| j.spot == spot) {
                     let job = threat.jobs.remove(i);
                     threat.rested.push((spot, now + threat::JOB_REST_MS));
@@ -105,7 +120,7 @@ fn breach_tick(
         }
         notes.push(Note { place: usize::MAX, time: now, text: format!("team {team}: {}", event.note()) });
     }
-    killed
+    (killed, went)
 }
 
 /// [traps.at_cleared] A camper a team job killed (`by`) after his spot `spot`: his death point (the view's death, else the spot)
@@ -488,7 +503,39 @@ fn threat_tick(
                 .filter(|b| b.reflex.target().is_some() || b.fight_hit_ms.is_some_and(|at| now < at.saturating_add(breach::IN_FIGHT_MS)))
                 .map(|b| b.place)
                 .collect();
-            let killed = breach_tick(tactics, threat, team, view, now, tuning, &rules, (&holds, &held), &mates, &in_fight, &areas, objective, side, notes);
+            // [A391 `threat.spawn_exit_breach`] A held spot of `job_kills` kills or more (a hold, PROVEN: `an-anticamper.md` §8.4)
+            // whose lanes cover one of the team's own spawn points (the way out of its spawn) is due a Breach at once.
+            if tuning.threat.spawn_exit_breach {
+                let own: Vec<Vec3> =
+                    tactics.world.map.spawns.iter().filter(|s| Some(s.team) == side).map(|s| s.position).collect();
+                for line in held.iter().filter(|l| l.kills >= tuning.threat.job_kills as usize) {
+                    let fresh = !threat.breach_due.iter().any(|d| d.spot == line.id)
+                        && !threat.breaches.iter().any(|b| b.spot == line.id)
+                        && !threat.rested.iter().any(|&(id, _)| id == line.id);
+                    if fresh && own.iter().any(|&spawn| line.covers(spawn)) {
+                        threat.breach_due.push(breach::Due { spot: line.id, until: now + breach::DUE_MS });
+                        threat.breach_counts.spawn_exit_due += 1;
+                        log::debug!(
+                            "team {team} at {now} ms: held spot {} ({} kills) covers the team's spawn exit: due a Breach",
+                            line.id,
+                            line.kills
+                        );
+                    }
+                }
+            }
+            let (killed, went) =
+                breach_tick(tactics, threat, team, view, now, tuning, &rules, (&holds, &held), &mates, &in_fight, &areas, objective, side, notes);
+            // [A391] At the go, the first crosser with a frag (or frags not known) throws first at the spot.
+            for (spot, holders) in went {
+                let thrower = bots.iter_mut().flatten().find(|b| {
+                    holders[..breach::CROSSERS].contains(&Some(b.place)) && b.reflex.frags_left().is_none_or(|frags| frags > 0)
+                });
+                if let Some(bot) = thrower {
+                    bot.reflex.throw_first(now + rules.go_ms);
+                    threat.breach_counts.throws_asked += 1;
+                    log::debug!("team {team} at {now} ms: Breach on spot {spot} went: player {} throws first", bot.place);
+                }
+            }
             for (shooter, at, holders) in killed {
                 note_cleared(bots, &mut state.knowledge, view, tuning, team, (shooter, at), &holders, know::ClearedBy::Breach, now, notes);
             }

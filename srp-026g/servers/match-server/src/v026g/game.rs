@@ -5403,6 +5403,11 @@ impl Game {
                 walkers.bots.pocket_report()
             );
             log::info!(
+                "Match {:#x}: the bots' Breaches: {}",
+                self.id,
+                walkers.bots.breach_report()
+            );
+            log::info!(
                 "Match {:#x}: the bots' base protection: {}",
                 self.id,
                 walkers.bots.base_report()

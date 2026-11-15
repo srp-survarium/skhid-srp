@@ -2702,6 +2702,24 @@ impl ThreatSpots {
     }
 }
 
+/// [A391] A team's Breach counts over the match (decision-neutral; the match-end line `the bots' Breaches: ...`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BreachCounts {
+    pub spawn_exit_due: u32,
+    pub opened: u32,
+    pub went: u32,
+    pub throws_asked: u32,
+}
+
+impl BreachCounts {
+    pub fn add(&mut self, other: &Self) {
+        self.spawn_exit_due += other.spawn_exit_due;
+        self.opened += other.opened;
+        self.went += other.went;
+        self.throws_asked += other.throws_asked;
+    }
+}
+
 /// A team's threat state, by feature ([`super::features`]).
 #[derive(Default)]
 pub struct TeamThreat {
@@ -2724,6 +2742,9 @@ pub struct TeamThreat {
     /// [threat.breach] The team's Breaches (`breach.rs`), and the held spots whose Flank failed, due one.
     pub breaches: Vec<super::breach::Breach>,
     pub breach_due: Vec<super::breach::Due>,
+    /// [A391] The team's Breaches over the match: spawn-exit spots made due, Breaches opened, gone, and crossers asked to
+    /// throw first at the go ([`BreachCounts`]).
+    pub breach_counts: BreachCounts,
     /// [threat.breach] The enemies the team killed of the last [`DEATH_KEPT_MS`] and its killers (the kill feed's).
     pub kills: Vec<super::breach::Kill>,
     /// [A342c `threat.replan_on_cue`] The cued spots its bots were told to look at their routes for.

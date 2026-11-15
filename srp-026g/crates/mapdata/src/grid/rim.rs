@@ -21,7 +21,7 @@
 //! the jump's gate 0x2FBDC0 -> 0x2FC230 reads `on_ground` 0x7EF90, false for a crouched capsule, exactness 2026-11-14), and
 //! before the reach, so a top only a rim jump gets to is kept.
 use super::gap::{self, Aim, OffLink, PressLead, Share, Takeoff};
-use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, MARGINAL_JUMP_M, NONE, RIM_REACH_M};
+use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, NONE, RIM_REACH_M};
 use crate::controller::jump::{self, FlightStep, Kind, Kits, Neighbour};
 use crate::controller::tick::Settings;
 use crate::controller::Collision;
@@ -36,10 +36,18 @@ const LAND_HEIGHT_M: f32 = 0.2;
 pub struct RimStats {
     /// Rim jumps flown …
     pub tried: usize,
-    /// [C2 rows 11/12] … of them plain Jump links rising over [`MARGINAL_JUMP_M`] …
+    /// [C2 rows 11/12, S2] … of them plain Jump links ([`WalkGrid::flown_jump`]) …
     pub jumps_flown: usize,
-    /// … and of those, replaced by the flown link (a press landed on the Jump link's own top) …
+    /// … and of those, replaced by the flown link (a press landed on the Jump link's own top that a body with no sprint takes
+    /// too) …
     pub jumps_replaced: usize,
+    /// [S2] … or kept beside it: the best presses that land on its top need the sprint and carry no walking press, but a slow
+    /// press lands there too ([`Made::walker_lands`]), so the Jump link stays the way of a body with no sprint (S6's per-state
+    /// choice prices both) …
+    pub jumps_beside: usize,
+    /// [S2] … and of the replaced, those only sprint presses land on the top of (no walking or slow press does): a body with
+    /// no sprint has no way up there by the flights …
+    pub jumps_sprint_only: usize,
     /// … or cut: no client press, straight or aimed, lands on its top (as a rim jump no press lands is not made) …
     pub jumps_cut: usize,
     /// … except those kept as a floor's only way in or back (`cut_keeping_reach`, [`super::Body::keep_last_resorts`]: a pit's
@@ -211,6 +219,9 @@ pub(super) struct Made {
     pub(super) walk: Option<(PressLead, Share)>,
     /// [R83] Where its press is aimed ([`Aim::STRAIGHT`]: on the link's line).
     pub(super) aim: Aim,
+    /// [S2] Whether a press a body with no sprint plays (a walking or a slow one, [`Kind::Walk`], [`Kind::Slow`]) lands on `to`
+    /// too, whatever press won: [`Self::walk`] carries a walking press only, so a slow one that lands shows here alone.
+    pub(super) walker_lands: bool,
 }
 
 /// What the rim pass made of its jumps ([`WalkGrid::fly_rim_jumps`]): its stats, the jumps no press made as (take-off, landing),
@@ -462,7 +473,8 @@ let reused = |kind: Kind, lead: f32| {
         })
     };
     let (kind, lead, landed) = best_of(None).expect("a scored press");
-    let walk = (kind == Kind::Sprint)
+    // [S2] A sprint climb carries one too: a body with no sprint takes the link by it (S6's reach).
+    let walk = matches!(kind, Kind::Sprint | Kind::Climb)
         .then(|| best_of(Some(Kind::Walk)))
         .flatten()
         .map(|(_, l, n)| (PressLead::from_metres(l), Share::landed(n)));
@@ -472,7 +484,8 @@ let reused = |kind: Kind, lead: f32| {
         Kind::Slow(steps) => Takeoff::Slow { lead: PressLead::from_metres(lead), steps },
         Kind::Climb => Takeoff::Climb,
     };
-    Made { to, press, share: Share::landed(landed), walk, aim: Aim::STRAIGHT }
+    let walker_lands = scored.iter().any(|s| matches!(s.0, Kind::Walk | Kind::Slow(_)));
+    Made { to, press, share: Share::landed(landed), walk, aim: Aim::STRAIGHT, walker_lands }
 }
 
 /// [A385] The presses flown, with their leads: the walk and the sprint at the gap links' `leads`, and the slow presses
@@ -529,7 +542,7 @@ impl WalkGrid {
             let (i, k) = self.cell_xz(self.cell_of[a] as usize);
             for (d, &(di, dk)) in DIRS.iter().enumerate() {
                 let stride = self.cell * ((di * di + dk * dk) as f32).sqrt();
-                if wide.links[a][d] != NONE && wide.kinds[a][d] != LinkKind::Drop && !self.marginal_jump(wide, a, d) {
+                if wide.links[a][d] != NONE && wide.kinds[a][d] != LinkKind::Drop && !self.flown_jump(wide, a, d) {
                     continue;
                 }
                 let mut g = 1;
@@ -559,12 +572,14 @@ impl WalkGrid {
         todo
     }
 
-    /// [C2 rows 11/12] Whether `a`'s side `d` is a plain Jump link rising over [`MARGINAL_JUMP_M`]: flown as a rim jump too (a
-    /// School crate's +0.99 m, below the plain Jump links' cap, was priced by a fixed penalty with no client basis: the client's
-    /// walking jump from a run-up gets onto a rim to apex 0.998 + 0.66 m, exactness `notes-mapflights.md` §2).
-    fn marginal_jump(&self, wide: &Wide, a: usize, d: usize) -> bool {
+    /// [C2 rows 11/12, S2] Whether `a`'s side `d` is a plain Jump link: flown as a rim jump too. Over
+    /// [`MARGINAL_JUMP_M`](super::MARGINAL_JUMP_M) (C2: a School crate's +0.99 m was priced by a fixed penalty with no client
+    /// basis; the client's walking jump from a run-up gets onto a rim to apex 0.998 + 0.66 m, exactness `notes-mapflights.md`
+    /// §2), and [S2] from a step up (0.80-0.95 m: a sprinting body climbs it with no jump, owner-5 `railings-design.md` §2, S2;
+    /// two ways for one pair, chosen per state by S6's reach, `WalkGrid::link_cost_reaching`).
+    fn flown_jump(&self, wide: &Wide, a: usize, d: usize) -> bool {
         let b = wide.links[a][d];
-        b != NONE && wide.kinds[a][d] == LinkKind::Jump && self.height[b as usize] - self.height[a] > MARGINAL_JUMP_M
+        b != NONE && wide.kinds[a][d] == LinkKind::Jump && self.height[b as usize] - self.height[a] > self.body.step
     }
 
     /// [`Body::rim_jumps`]: every edge up from a floor whose side has no link up ([`Self::edges_up`]: across cells with no floor
@@ -613,7 +628,7 @@ impl WalkGrid {
         };
         // [C2 rows 11/12] A plain Jump link's own top is no link yet for its flight: the flown link may replace it.
         let plain: Vec<bool> =
-            todo.iter().map(|&(a, b, d)| self.marginal_jump(wide, a as usize, d) && wide.links[a as usize][d] == b).collect();
+            todo.iter().map(|&(a, b, d)| self.flown_jump(wide, a as usize, d) && wide.links[a as usize][d] == b).collect();
         let jobs: Vec<((u32, u32, usize), bool)> = todo.iter().copied().zip(plain.iter().copied()).collect();
         let flown = super::controlled::parallel(&jobs, |&((a, b, d), plain)| {
             let mut linked = linked(a);
@@ -651,14 +666,24 @@ impl WalkGrid {
         for ((&(a, b, d), p), &plain) in todo.iter().zip(&flown).zip(&plain) {
             stats.flights += p.flights;
             let aimed = aimed_of.get(&(a, b)).copied();
-            // [C2 rows 11/12/14] A plain Jump link over `MARGINAL_JUMP_M` goes once flown: where a press lands on its top the flown
+            // [C2 rows 11/12/14] A plain Jump link ([`Self::flown_jump`]) goes once flown: where a press lands on its top the flown
             // link (its press and share) is the way up; where none does, straight or aimed, no client press makes it and it is
             // not made, as a rim jump no press lands is not (the plain link's fixed price was a GUESS). Either way it is reported
-            // with the jumps no press made when no flown link lands on its top.
+            // with the jumps no press made when no flown link lands on its top. [S2] Where every press that lands on its top needs
+            // the sprint with no walking press beside it ([`Takeoff::sprint_run_m`], [`Made::walk`]), it stays beside the flown
+            // link: a body with no sprint keeps the Jump link, a sprinting one has both (S6's reach chooses). Only where a press
+            // such a body plays lands on that top ([`Made::walker_lands`]: a slow press, which [`Made::walk`] cannot carry);
+            // where none does, it goes and the flown sprint link is the one way up (owner-5's review: the flights show none for
+            // that body, and S6 prices the sprint link at infinity for it).
             if plain {
                 stats.jumps_flown += 1;
-                let lands_on_top = p.made.iter().chain(aimed.as_ref()).any(|m| m.to == b);
-                if lands_on_top {
+                let onto: Vec<&Made> = p.made.iter().chain(aimed.as_ref()).filter(|m| m.to == b).collect();
+                if onto.iter().any(|m| m.press.sprint_run_m().is_none() || m.walk.is_some()) {
+                    replaced.push((a as usize, d));
+                } else if onto.iter().any(|m| m.walker_lands) {
+                    stats.jumps_beside += 1;
+                } else if !onto.is_empty() {
+                    stats.jumps_sprint_only += 1;
                     replaced.push((a as usize, d));
                 } else {
                     cut.push((a, d, 0.0));
@@ -670,7 +695,7 @@ impl WalkGrid {
             if p.made.is_empty() && aimed.is_none() {
                 none.push((a, b));
             }
-            for &Made { to, press, share, walk, aim } in p.made.iter().chain(aimed.as_ref()) {
+            for &Made { to, press, share, walk, aim, .. } in p.made.iter().chain(aimed.as_ref()) {
                 match press {
                     Takeoff::Press(_) => stats.walked += 1,
                     Takeoff::Slow { .. } => stats.slowed += 1,
