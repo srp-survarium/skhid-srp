@@ -128,28 +128,7 @@ pub(crate) fn walk_slide(grid: &mapdata::WalkGrid, node: NodeId, from: Vec3, to:
 
 pub(crate) fn spawn_on_free_points() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    !OLD_DRAW.get() && *ON.get_or_init(|| bench_settings().var("SRP_BENCH_SPAWN_POINTS").map_or(true, |v| v != "random"))
-}
-
-thread_local! {
-    /// A test whose counts were pinned on the old draw of a spawn (a random point with replacement, 2 m of jitter) holds an [`OldSpawnDraw`].
-    static OLD_DRAW: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
-/// The old spawn draw for this thread while it lives (the pinned soaks of `eye.rs`).
-pub(crate) struct OldSpawnDraw(());
-
-impl OldSpawnDraw {
-    pub(crate) fn scope() -> Self {
-        OLD_DRAW.set(true);
-        Self(())
-    }
-}
-
-impl Drop for OldSpawnDraw {
-    fn drop(&mut self) {
-        OLD_DRAW.set(false);
-    }
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_SPAWN_POINTS").map_or(true, |v| v != "random"))
 }
 
 /// The respawn delay of a death, ms, as the game gives it: the mode's
