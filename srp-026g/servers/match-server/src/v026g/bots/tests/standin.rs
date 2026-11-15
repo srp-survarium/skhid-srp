@@ -1570,7 +1570,7 @@ impl Game {
                                     body.kept = None;
                                     (down, at, false)
                                 }
-                                Some(body::KeptOff::WalkerGround | body::KeptOff::NoFloor) | None => {
+                                Some(body::KeptOff::WalkerGround | body::KeptOff::NoFloor | body::KeptOff::NoWalker) | None => {
                                     walk_slide(grid, body.node.unwrap_or(node), body.feet, step.to)
                                 }
                             };
