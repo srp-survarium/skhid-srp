@@ -929,14 +929,17 @@ impl Controller {
         let (r, hh) = self.dims;
         // The cast's way is the end's origin less the start's (0x72EB0), not `up * dist` itself.
         let by = Vec3::new(UP.x * dist + from.x, UP.y * dist + from.y, UP.z * dist + from.z) - from;
+        // The callback's floor limit (+90h): the start's height along up less the swept capsule's half height along its up
+        // axis, made once before the sweep (0x85103..0x85125, the constructor 0x842E0 stores it at 0x843D4).
         let floor = ((UP.y * from.y + UP.z * from.z) + UP.x * from.x) - hh;
         let mut hits: Vec<Contact> = Vec::new();
         world.sweep_each(self.capsule_at(from), by, |c| hits.push(c));
         hits.sort_by(|a, b| a.t.total_cmp(&b.t));
         let taken = |c: &Contact| {
             let at = from + by * c.t;
-            // On the lower hemisphere only.
-            if (UP.y * c.point.y + UP.z * c.point.z) + UP.x * c.point.x > floor + by.y * c.t {
+            // A hit point over the floor limit is dropped (0x84451..0x84484: `up . point > +90h`), the limit as it was at the
+            // start whatever the hit's fraction.
+            if (UP.y * c.point.y + UP.z * c.point.z) + UP.x * c.point.x > floor {
                 return false;
             }
             // A rim or wall hit: not under the capsule and a normal across up.
