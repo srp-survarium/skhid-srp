@@ -15,6 +15,16 @@
 //! marksman rifle hits 28 % against the humans' 19.5 % (a known gap: the far aim is not tuned per class). A change of his play is
 //! a change of this file, measured against the humans' numbers, not a side effect of the bots' defaults.
 //!
+//! [camper aim calibration, 2026-11-15] Re-pinned to the bots' per-class calibration (A243, #1089, 2026-11-02): its four keys,
+//! `class_aim` (each class's factors at skill 0 / 0.5 / 1), `skill_curve` geometric, `combat.zoom_error` all and
+//! `combat.settle_k_low` 2.0, the set the class factors were fitted with (`tuning/aim.rs` `ClassAim`). The calibration puts skill
+//! 0 at each class's live median and skill 1 at its bar (automatics 10.2 -> 18-20 % a shot on the target's line, live-weighted).
+//! Before it, his automatic aim was the straight line with shared factors: at his skill 0.30 an error of 4.47 deg, where the
+//! calibrated skill 0 (the live median) is 6.0 x 0.40 = 2.4 deg; in the camper bench (Rudnya TDM, 16 seeds) his Vityaz hit
+//! 11.5 % a shot against the bots' 25.3 % with the same gun. Every other key is unchanged. His skill is still his team's tier
+//! start (0.30), the bots' value, not a measured human one. His bolt moves off A193's match above (by the calibrated line about
+//! 33-34 % against the humans' 30.8 %). The hunter keeps the four old keys (`standin_hunter::hunter_tuning_with`).
+//!
 //! [A318] His movement model is pinned the same way (`camper_human_kin.json`, a whole `kin` section, with its own key test): his
 //! brain reckons his own body like a bot's, so with the build's `kin` defaults a bot switch put to an A/B moved the human as well
 //! (#1450's default `client_step = client` made him reckon by the client's walk tick, and two harm runs met two different

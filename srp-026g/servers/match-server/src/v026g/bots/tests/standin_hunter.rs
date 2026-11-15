@@ -141,6 +141,13 @@ pub(crate) fn hunter_tuning_with(a: HunterAim) -> Tuning {
     aim.settle_s = (a.settle_s, a.settle_s);
     aim.notice = (a.notice, a.notice);
     aim.reaction_ms = (a.reaction_ms, a.reaction_ms);
+    // [camper aim calibration] He was calibrated (A287) on the camper's file before its re-pin to the bots' per-class
+    // calibration: he keeps the four keys he was calibrated with (shared class factors, the straight line, the scopes' zoom
+    // only, the low settle factor 1), so the re-pin leaves him as he was.
+    aim.class_aim = crate::v026g::bots::tuning::ClassAim::same();
+    aim.skill_curve = crate::v026g::bots::tuning::SkillCurve::Linear;
+    aim.combat.zoom_error = crate::v026g::bots::reflex::ZoomError::Scopes;
+    aim.combat.settle_k_low = 1.0;
     // As the owner: the side steps whatever the crowd (no `StrafeCrowd`), as he was calibrated.
     aim.combat.stand_strafe = Some(StandStrafe { crowd: None, ..StandStrafe::default() });
     tuning
