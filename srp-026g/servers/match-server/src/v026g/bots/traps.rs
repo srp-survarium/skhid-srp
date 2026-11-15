@@ -614,8 +614,10 @@ impl Habit {
 
     /// A new life: the pocket is full again, nothing placed.
     pub fn new_life(&mut self) {
-        // A life that ended in the middle of placing one (looking down, or the key down): the harm count.
-        if !matches!(self.state, State::Idle) {
+        // A life that ended in the middle of placing one (looking down, or the key down): the harm count. Not one that ended in
+        // the cooldown after a look (`cooldown_s`: 20 s after a press, 10 s after a give-up, 5 s after a call-away): the #2081
+        // bench counted those as placing, 10 of 10 in its first match (the looks' own records: no death in a look or a press).
+        if matches!(self.state, State::Looking { .. } | State::Down { .. }) {
             self.died_placing += 1;
         }
         self.left = self.kit.map_or(0, |kit| kit.count);
@@ -866,12 +868,13 @@ pub(super) fn camper_tick(
             #[cfg(test)]
             {
                 eprintln!(
-                    "  camper life: team {team} spot {} {:?} let_go t {now} placer {placer} walked {:.1} why {} left {:.1}",
+                    "  camper life: team {team} spot {} {:?} let_go t {now} placer {placer} walked {:.1} why {} left {:.1} {}",
                     c.spot,
                     c.kind,
                     now.saturating_sub(since) as f32 / 1000.0,
                     why.replace(' ', "_"),
-                    view.place(placer).map_or(-1.0, |b| b.feet.distance_xz(c.at))
+                    view.place(placer).map_or(-1.0, |b| b.feet.distance_xz(c.at)),
+                    camper::walk_state(bot_of(placer), c.at)
                 );
                 camper::count(team, camper::GAVE_UP);
                 let playing = bot_of(placer).and_then(|b| b.assignment.as_ref()).is_some_and(|a| a.kind == PlayKind::TrapSpot);
@@ -933,9 +936,10 @@ pub(super) fn camper_tick(
             {
                 let sent = match c.state {
                     CamperTrapState::Sent { placer, since, .. } => format!(
-                        "sent placer {placer} walked {:.1} left {:.1}",
+                        "sent placer {placer} walked {:.1} left {:.1} {}",
                         now.saturating_sub(since) as f32 / 1000.0,
-                        view.place(placer).map_or(-1.0, |b| b.feet.distance_xz(c.at))
+                        view.place(placer).map_or(-1.0, |b| b.feet.distance_xz(c.at)),
+                        camper::walk_state(bots.iter().flatten().find(|b| b.place == placer), c.at)
                     ),
                     CamperTrapState::Open => "open".to_string(),
                     CamperTrapState::Trapped => "trapped".to_string(),
@@ -1145,6 +1149,20 @@ pub mod camper {
     }
 
     static ARRIVED: Mutex<Vec<(u8, u32, u32)>> = Mutex::new(Vec::new());
+
+    /// [#2081 v6 measure] A sent bot's walk now: its play, its go (metres from the point), its route (its length, its goal's
+    /// metres from the point), its hold and pace.
+    pub fn walk_state(bot: Option<&super::Bot>, point: mapdata::Vec3) -> String {
+        let Some(b) = bot else {
+            return "bot -".to_string();
+        };
+        let go = match b.intent.go {
+            crate::v026g::bots::plays::Go::Stay => "stay".to_string(),
+            crate::v026g::bots::plays::Go::To { at, .. } => format!("to_point {:.1}", at.distance_xz(point)),
+        };
+        let route = b.route.as_ref().map_or("none".to_string(), |(r, goal)| format!("{:.1}m goal_point {:.1}", r.length(), goal.distance_xz(point)));
+        format!("play {:?} go {go} route {route} hold {} pace {:?}", b.assignment.as_ref().map(|a| a.kind), b.intent.hold != 0, b.intent.pace)
+    }
 
     /// [#2081 v6 measure] Whether this is the first tick the bot sent at `since` to `spot` is at its point.
     pub fn arrived(team: u8, spot: u32, since: u32) -> bool {
@@ -2039,9 +2057,11 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     }
     fresh_shut(bot, due, t.ring_m);
     keep_off_open(bot, due, t);
+    #[cfg(test)]
+    let pre = passes::route_near(bot, due, state);
     keep_off(bot, due);
     #[cfg(test)]
-    passes::observe(bot, due, state);
+    passes::observe(bot, due, state, pre);
     #[cfg(test)]
     if !matches!(bot.features.traps.habit.state(), State::Idle)
         && let Some(c) = bot.features.traps.look_ctx.as_mut()
@@ -2576,7 +2596,22 @@ pub mod passes {
         route * 4 + usize::from(field_has) * 2 + usize::from(goal_in)
     }
 
-    pub(in crate::v026g::bots) fn observe(bot: &mut Bot, due: &Due, state: &TeamState) {
+    /// [#2081 v6 measure] Before the keep-off check: whether it has a route, and the route ahead's nearest approach to the nearest
+    /// standing own trap within 2 m of the feet.
+    pub(in crate::v026g::bots) fn route_near(bot: &Bot, due: &Due, state: &TeamState) -> (bool, Option<f32>) {
+        let feet = due.me.feet;
+        let trap = state.knowledge.traps.standing().map(|k| k.at).filter(|at| at.distance_xz(feet) < 2.0).min_by(|a, b| a.distance_xz(feet).total_cmp(&b.distance_xz(feet)));
+        let near = trap.and_then(|at| {
+            let (route, _) = bot.route.as_ref()?;
+            let mut route = route.clone();
+            let (s, _) = route.progress(feet);
+            let points: Vec<Vec3> = (0..=15).map(|k| route.point_at((s + k as f32).min(route.length()))).collect();
+            Some(super::off_route_m(&points, at))
+        });
+        (bot.route.is_some(), near)
+    }
+
+    pub(in crate::v026g::bots) fn observe(bot: &mut Bot, due: &Due, state: &TeamState, pre: (bool, Option<f32>)) {
         let feet = due.me.feet;
         // [#2081 v6 measure] What moved its legs while within 2 m of a standing own trap (the own-catch line's).
         if let Some(d) = state.knowledge.traps.standing().map(|k| k.at.distance_xz(feet)).filter(|&d| d < 2.0).min_by(f32::total_cmp) {
@@ -2590,6 +2625,8 @@ pub mod passes {
                 stay: matches!(bot.intent.go, crate::v026g::bots::plays::Go::Stay),
                 hold: bot.intent.hold != 0,
                 speed: due.me.speed(),
+                route_m: pre.1,
+                ended: pre.0 && bot.route.is_none(),
             };
             let moves = &mut bot.features.traps.near_moves;
             if moves.len() == 6 {
@@ -3247,6 +3284,10 @@ pub struct NearMove {
     pub stay: bool,
     pub hold: bool,
     pub speed: f32,
+    /// The route ahead's nearest approach to the trap (its next 15 m) before this think's keep-off check, and whether that check
+    /// ended the route.
+    pub route_m: Option<f32>,
+    pub ended: bool,
 }
 
 #[cfg(test)]
@@ -3256,7 +3297,7 @@ impl NearMove {
             .iter()
             .map(|m| {
                 format!(
-                    "-{:.1}s {:.2}m from{} ap{} st{} {}{}{} {:.1}",
+                    "-{:.1}s {:.2}m from{} ap{} st{} {}{}{} {:.1} pre {}{}",
                     now.saturating_sub(m.t) as f32 / 1000.0,
                     m.d,
                     m.keys_from,
@@ -3265,7 +3306,9 @@ impl NearMove {
                     if m.route { "R" } else { "r" },
                     if m.stay { "S" } else { "g" },
                     if m.hold { "H" } else { "h" },
-                    m.speed
+                    m.speed,
+                    m.route_m.map_or("-".to_string(), |r| format!("{r:.2}")),
+                    if m.ended { " ENDED" } else { "" }
                 )
             })
             .collect::<Vec<_>>()
@@ -3277,7 +3320,7 @@ impl super::features::Feature for BotState {
     fn new_life(&mut self, _life: &super::features::Life) {
         #[cfg(test)]
         {
-            if !matches!(self.habit.state(), State::Idle)
+            if matches!(self.habit.state(), State::Looking { .. } | State::Down { .. })
                 && let Some(c) = self.look_ctx
             {
                 placing::died(c);
@@ -3751,6 +3794,14 @@ mod tests {
         habit.state = State::Looking { yaw: 0.0, spot: Vec3::ZERO, since: 0, last: None };
         habit.new_life();
         assert_eq!(habit.counts().died_placing, 1);
+        assert_eq!(habit.state(), State::Idle);
+        habit.state = State::Down { yaw: 0.0, spot: Vec3::ZERO, crouched: false };
+        habit.new_life();
+        assert_eq!(habit.counts().died_placing, 2, "the key down");
+        // The cooldown after a look is not placing: a life that ends in it is not counted.
+        habit.state = State::Cooling { until: 30_000 };
+        habit.new_life();
+        assert_eq!(habit.counts().died_placing, 2, "a life that ended in the cooldown");
         assert_eq!(habit.state(), State::Idle);
     }
 
