@@ -207,6 +207,16 @@ enum Job {
     },
 }
 
+impl Job {
+    fn added(&mut self, id: TorrentId) -> Option<&mut Added> {
+        match self {
+            Job::Fetching(added) | Job::Checking(added) => Some(added).filter(|added| added.id == id),
+            Job::Sharing { swarm, bootstrap, .. } => swarm.iter_mut().chain(bootstrap.iter_mut()).find(|added| added.id == id),
+            Job::Idle | Job::Discovering(_) => None,
+        }
+    }
+}
+
 /// A torrent added to the session.
 struct Added {
     id: TorrentId,
@@ -269,11 +279,104 @@ enum Progress {
     Failed(String),
 }
 
+impl Engine {
+    /// The port's answer for the launcher, when it waits for one.
+    fn listening(&mut self, port: u16, kept_port: &str) -> Option<ToLauncher<'static>> {
+        let answer = matches!(self.listen, Listen::Asked { answer: true, .. });
+        if !matches!(self.listen, Listen::Listening(at) if at == port) {
+            log!("torrent: listening on port {port}");
+        }
+        if let Listen::Asked { want: Want::Any, .. } = self.listen {
+            match win::write_file(kept_port, format!("{port}\r\n").as_bytes()) {
+                Ok(()) => log!("torrent: port {port} picked, kept in {PORT_FILE}"),
+                Err(code) => log!("torrent: port {port} picked; {PORT_FILE}: {}", win::error_text(code)),
+            }
+        }
+        self.listen = Listen::Listening(port);
+        answer.then_some(ToLauncher::PortOk)
+    }
+
+    fn listen_failed(&mut self, port: u16, why: &str) -> Option<ToLauncher<'static>> {
+        log!("torrent: port {port} cannot be listened on ({why})");
+        let (asked, answer) = match self.listen {
+            // The kept one is another program's now: any, kept.
+            Listen::Asked { want: Want::Kept(_), answer } => {
+                self.session.listen(None);
+                self.listen = Listen::Asked { want: Want::Any, answer };
+                return None;
+            }
+            Listen::Asked { want, answer } => (want.port(), answer),
+            Listen::Listening(port) => (Some(port), false),
+            Listen::Busy(port) => (port, false),
+        };
+        self.listen = Listen::Busy(asked);
+        answer.then_some(ToLauncher::PortBusy)
+    }
+
+    fn checked(&mut self, id: TorrentId, dir: &str, known: &[[u8; 32]]) {
+        let Some(added) = self.job.added(id) else { return };
+        added.checked = true;
+        if let Some(done) = self.session.file_progress(id, added.files.len()) {
+            record_checked(added, &done, dir, known);
+        }
+    }
+
+    /// The discovered torrent's info from its swarm: the signed torrent
+    /// made again, when it is the item's.
+    fn metadata(&mut self, id: TorrentId) {
+        let Job::Discovering(Discovery::Fetching { newest, item, id: of }) = &self.job else { return };
+        if *of != id {
+            return;
+        }
+        let (newest, signature) = (*newest, item.signature);
+        let made = self
+            .session
+            .info(id)
+            .and_then(|info| newest::torrent(&info, &newest, &signature))
+            .filter(|bytes| torrent::parse(bytes).is_ok());
+        let Some(bytes) = made else {
+            log!("torrent: revision {}'s info from its swarm is not one this updater reads", newest.revision);
+            return;
+        };
+        log!("torrent: revision {}'s info came from its swarm", newest.revision);
+        self.session.remove(id);
+        self.job = Job::Discovering(Discovery::Found { revision: u64::from(newest.revision), bytes });
+    }
+
+    /// An answer of the DHT: kept when the release signed it, of the floor
+    /// or higher, and the highest yet.
+    fn dht_item(&mut self, item: Item) {
+        let Job::Discovering(Discovery::Asking { floor, best, .. }) = &mut self.job else { return };
+        let Some(key) = crate::signed::key() else { return };
+        let Some(newest) = newest::verify(&item, &key) else {
+            log!("torrent: a DHT item not signed by the release: ignored");
+            return;
+        };
+        if u64::from(newest.revision) >= *floor && best.as_ref().is_none_or(|(had, _, _)| had.revision < newest.revision) {
+            log!("torrent: the DHT names revision {}, signed by the release", newest.revision);
+            *best = Some((newest, item, win::ticks()));
+        }
+    }
+
+    fn dht_stored(&mut self, nodes: i64) {
+        if let Job::Sharing { put: Some(put), .. } = &mut self.job
+            && nodes > 0
+        {
+            put.state = PutState::Stored(win::ticks());
+        }
+        log!("torrent: the newest release's item stored on {nodes} DHT nodes");
+    }
+}
+
 impl Torrents {
     /// The launcher's settings, for the updater of `layout`.
     pub fn new(settings: Torrenting, layout: &Layout) -> Self {
+        let (port, on) = match settings {
+            Torrenting::Off { port } => (port, false),
+            Torrenting::On { port } => (port, true),
+        };
         let mut torrents = Self {
-            mode: Mode::Off { port: None },
+            mode: Mode::Off { port },
             dir: layout.exe_dir.clone(),
             kept_port: format!("{}\\{PORT_FILE}", layout.exe_dir),
             rate: upload::CAP,
@@ -283,12 +386,8 @@ impl Torrents {
             sent: 0,
             turn: Turn(0),
         };
-        match settings {
-            Torrenting::Off { port } => torrents.mode = Mode::Off { port },
-            Torrenting::On { port } => {
-                torrents.mode = Mode::Off { port };
-                torrents.turn_on(port);
-            }
+        if on {
+            torrents.turn_on(port);
         }
         torrents
     }
@@ -464,36 +563,8 @@ impl Torrents {
     fn on(&mut self, event: Event) -> Option<ToLauncher<'static>> {
         let Mode::On { engine, .. } = &mut self.mode else { return None };
         match event {
-            Event::Listening(port) => {
-                let answer = matches!(engine.listen, Listen::Asked { answer: true, .. });
-                if !matches!(engine.listen, Listen::Listening(at) if at == port) {
-                    log!("torrent: listening on port {port}");
-                }
-                if let Listen::Asked { want: Want::Any, .. } = engine.listen {
-                    match win::write_file(&self.kept_port, format!("{port}\r\n").as_bytes()) {
-                        Ok(()) => log!("torrent: port {port} picked, kept in {PORT_FILE}"),
-                        Err(code) => log!("torrent: port {port} picked; {PORT_FILE}: {}", win::error_text(code)),
-                    }
-                }
-                engine.listen = Listen::Listening(port);
-                return answer.then_some(ToLauncher::PortOk);
-            }
-            Event::ListenFailed { port, why } => {
-                log!("torrent: port {port} cannot be listened on ({why})");
-                let (asked, answer) = match engine.listen {
-                    // The kept one is another program's now: any, kept.
-                    Listen::Asked { want: Want::Kept(_), answer } => {
-                        engine.session.listen(None);
-                        engine.listen = Listen::Asked { want: Want::Any, answer };
-                        return None;
-                    }
-                    Listen::Asked { want, answer } => (want.port(), answer),
-                    Listen::Listening(port) => (Some(port), false),
-                    Listen::Busy(port) => (port, false),
-                };
-                engine.listen = Listen::Busy(asked);
-                return answer.then_some(ToLauncher::PortBusy);
-            }
+            Event::Listening(port) => return engine.listening(port, &self.kept_port),
+            Event::ListenFailed { port, why } => return engine.listen_failed(port, &why),
             Event::HashFailed { piece } => log!("torrent: piece {piece} failed its hash: fetched again"),
             Event::Banned { ip } => {
                 if !self.banned.contains(&ip) {
@@ -502,68 +573,11 @@ impl Torrents {
                     self.banned.push(ip);
                 }
             }
-            Event::Checked(id) => {
-                let dir = self.dir.clone();
-                let known = self.known.clone();
-                let Engine { session, job, .. } = &mut **engine;
-                let added = match job {
-                    Job::Fetching(added) | Job::Checking(added) => Some(added),
-                    Job::Sharing { swarm, bootstrap, .. } => swarm.iter_mut().chain(bootstrap.iter_mut()).find(|added| added.id == id),
-                    _ => None,
-                };
-                if let Some(added) = added.filter(|added| added.id == id) {
-                    added.checked = true;
-                    checked(session, added, &dir, &known);
-                }
-            }
-            Event::Metadata(id) => {
-                if let Job::Discovering(Discovery::Fetching { newest, item, id: of }) = &engine.job
-                    && *of == id
-                {
-                    let (newest, item) = (*newest, item.clone());
-                    let made = engine
-                        .session
-                        .info(id)
-                        .and_then(|info| newest::torrent(&info, &newest, &item.signature))
-                        .filter(|bytes| torrent::parse(bytes).is_ok());
-                    match made {
-                        Some(bytes) => {
-                            log!("torrent: revision {}'s info came from its swarm", newest.revision);
-                            engine.session.remove(id);
-                            engine.job = Job::Discovering(Discovery::Found {
-                                revision: u64::from(newest.revision),
-                                bytes,
-                            });
-                        }
-                        None => log!("torrent: revision {}'s info from its swarm is not one this updater reads", newest.revision),
-                    }
-                }
-            }
+            Event::Checked(id) => engine.checked(id, &self.dir, &self.known),
+            Event::Metadata(id) => engine.metadata(id),
             Event::Error { text } => log!("torrent: {text}"),
-            Event::DhtItem(item) => {
-                if let Job::Discovering(Discovery::Asking { floor, best, .. }) = &mut engine.job
-                    && let Some(key) = crate::signed::key()
-                {
-                    match newest::verify(&item, &key) {
-                        Some(newest) if u64::from(newest.revision) >= *floor => {
-                            if best.as_ref().is_none_or(|(had, _, _)| had.revision < newest.revision) {
-                                log!("torrent: the DHT names revision {}, signed by the release", newest.revision);
-                                *best = Some((newest, item, win::ticks()));
-                            }
-                        }
-                        Some(_) => {}
-                        None => log!("torrent: a DHT item not signed by the release: ignored"),
-                    }
-                }
-            }
-            Event::DhtPut { nodes } => {
-                if let Job::Sharing { put: Some(put), .. } = &mut engine.job
-                    && nodes > 0
-                {
-                    put.state = PutState::Stored(win::ticks());
-                }
-                log!("torrent: the newest release's item stored on {nodes} DHT nodes");
-            }
+            Event::DhtItem(item) => engine.dht_item(item),
+            Event::DhtPut { nodes } => engine.dht_stored(nodes),
         }
         None
     }
@@ -705,20 +719,24 @@ impl Torrents {
         whole.map(Some).ok_or(())
     }
 
-    /// [`whole`] without the launcher's pipe: the bootstrap's few small
-    /// files.
-    fn whole_now(&mut self, bytes: &[u8], torrent: &Torrent, files: &[(usize, String)]) -> Option<Vec<bool>> {
-        if !self.start_check(bytes, torrent, files) {
+    /// Those of `files` that are whole, as [`whole`] checks them but
+    /// without the launcher's pipe: the bootstrap's few small files.
+    fn whole_now(&mut self, bytes: &[u8], torrent: &Torrent, files: Vec<(usize, String)>) -> Option<Vec<(usize, String)>> {
+        if files.is_empty() {
+            return Some(files);
+        }
+        if !self.start_check(bytes, torrent, &files) {
             return None;
         }
-        loop {
+        let whole = loop {
             self.service();
             match self.checked_files() {
-                Ok(Some(whole)) => return Some(whole),
+                Ok(Some(whole)) => break whole,
                 Ok(None) => win::sleep(50),
                 Err(()) => return None,
             }
-        }
+        };
+        Some(files.into_iter().zip(whole).filter(|(_, whole)| *whole).map(|(file, _)| file).collect())
     }
 
     /// Starts fetching `files` (the torrent's file, its part).
@@ -765,11 +783,10 @@ impl Torrents {
         })
     }
 
-    /// Shares every file of the torrent this folder has with the torrent's
-    /// size, however it came (the torrent, HTTPS, the ZIP), and the
-    /// bootstrap's kept copies, and puts the release's signed item on the
-    /// DHT: while the launcher stays open. Nothing when torrent is not
-    /// allowed, or it shares already.
+    /// Shares every file of the torrent this folder has at its size, however
+    /// it came, and the bootstrap's kept copies, and puts the release's
+    /// signed item on the DHT. Nothing when torrent is not allowed, or it
+    /// shares already.
     pub fn share(&mut self, layout: &Layout) {
         if self.sharing() || !self.allowed() {
             return;
@@ -819,51 +836,33 @@ impl Torrents {
         self.put_due();
     }
 
-    /// The bootstrap torrent (`Skhid-get.bat`'s: the updater and 7zr.exe at
-    /// one version, a file of the ZIP beside the updater) and its files'
-    /// kept copies to share: each made from the file in its place while
-    /// that is the bootstrap's. Taken only as the checked ZIP installed it
-    /// (it is not signed: the script that fetches it pins it).
+    /// The bootstrap torrent (`Skhid-get.bat`'s three files at one
+    /// version) and its files' kept copies to share: each made from the file
+    /// in its place while that is the bootstrap's, since the updater replaces
+    /// itself at every release.
     fn bootstrap(&mut self, layout: &Layout) -> Option<Bootstrap> {
-        let name = format!("game/binaries/x86/{BOOTSTRAP}");
-        let installed = crate::read_installed(layout)?;
-        let entry = installed.files.iter().find(|file| file.name == name)?;
-        let bytes = win::read_file(&layout.place(&name), MAX_TORRENT).ok()?;
-        if updater_logic::sha256::digest(&bytes) != entry.sha256 {
-            return None;
-        }
-        let torrent = torrent::parse(&bytes).ok()?;
+        let (bytes, torrent) = installed_bootstrap(layout)?;
         let kept = format!("{}\\{KEPT}", layout.exe_dir);
         let copy = |file: usize| {
             let name = torrent.files[file].path.rsplit('/').next().unwrap_or_default();
             format!("{kept}\\{name}")
         };
-        let all: Vec<usize> = (0..torrent.files.len()).collect();
-        // A copy is shared once every piece of it is checked (a copy of the
-        // right size can be anything); else it is made again.
-        let copies: Vec<(usize, String)> = all.iter().map(|&file| (file, copy(file))).filter(|(_, path)| win::exists(path)).collect();
-        let whole = if copies.is_empty() { Vec::new() } else { self.whole_now(&bytes, &torrent, &copies)? };
-        let mut ready: Vec<(usize, String)> = copies.into_iter().zip(whole).filter(|(_, whole)| *whole).map(|(copy, _)| copy).collect();
-        let lives: Vec<(usize, String)> = all
-            .iter()
-            .filter(|file| !ready.iter().any(|(ready, _)| ready == *file))
-            .map(|&file| (file, layout.place(&torrent.files[file].path)))
+        // A copy of the right size can be anything: every piece checked.
+        let copies = (0..torrent.files.len()).map(|file| (file, copy(file))).filter(|(_, path)| win::exists(path)).collect();
+        let mut ready = self.whole_now(&bytes, &torrent, copies)?;
+        let lives = (0..torrent.files.len())
+            .filter(|file| !ready.iter().any(|(ready, _)| ready == file))
+            .map(|file| (file, layout.place(&torrent.files[file].path)))
             .filter(|(file, path)| win::file_size(path).ok() == Some(torrent.files[*file].size))
             .collect();
-        let whole = if lives.is_empty() { Vec::new() } else { self.whole_now(&bytes, &torrent, &lives)? };
-        for ((file, live), _) in lives.into_iter().zip(whole).filter(|(_, whole)| *whole) {
-            let copy = copy(file);
-            let staged = format!("{copy}.skhid-new");
-            let copied = win::create_folders(&kept)
-                .map_err(win::error_text)
-                .and_then(|()| std::fs::copy(&live, &staged).map(|_| ()).map_err(|error| format!("{error}")))
-                .and_then(|()| win::rename(&staged, &copy, true).map_err(win::error_text));
-            match copied {
+        for (file, live) in self.whole_now(&bytes, &torrent, lives)? {
+            let name = &torrent.files[file].path;
+            match keep_copy(&live, &copy(file), &kept) {
                 Ok(()) => {
-                    log!("torrent: the bootstrap's {} kept in {KEPT}", torrent.files[file].path);
-                    ready.push((file, copy));
+                    log!("torrent: the bootstrap's {name} kept in {KEPT}");
+                    ready.push((file, copy(file)));
                 }
-                Err(why) => log!("torrent: the bootstrap's {} cannot be kept: {why}", torrent.files[file].path),
+                Err(why) => log!("torrent: the bootstrap's {name} cannot be kept: {why}"),
             }
         }
         ready.sort();
@@ -949,15 +948,14 @@ impl Torrents {
 /// The files of `added` it found whole, every piece, as Windows says they
 /// still are: the record's (shared ones; a fetched part is checked
 /// against its pin, then renamed: it is checked again where it is).
-fn checked(session: &mut libtorrent::Session, added: &Added, dir: &str, known: &[[u8; 32]]) {
-    let Some(done) = session.file_progress(added.id, added.files.len()) else { return };
+fn record_checked(added: &Added, done: &[u64], dir: &str, known: &[[u8; 32]]) {
     if added.files.iter().all(|file| file.role == Role::Fetch) {
         let pieces = |size: u64| size.div_ceil(u64::from(added.piece_length));
         let wanted: u64 = added.files.iter().map(|file| pieces(file.size)).sum();
         let here: u64 = added
             .files
             .iter()
-            .zip(&done)
+            .zip(done)
             .map(|(file, done)| if *done == file.size { pieces(file.size) } else { done / u64::from(added.piece_length) })
             .sum();
         log!("torrent: {here} of the {wanted} pieces to fetch are in the parts already, checked");
@@ -966,7 +964,7 @@ fn checked(session: &mut libtorrent::Session, added: &Added, dir: &str, known: &
     let whole: Vec<(String, Identity)> = added
         .files
         .iter()
-        .zip(&done)
+        .zip(done)
         .filter(|(file, done)| matches!(file.role, Role::Share { .. }) && **done == file.size)
         .filter_map(|(file, _)| {
             let now = win::identity(&file.path).ok()?;
@@ -1018,11 +1016,9 @@ const PORT_WAIT_MS: u64 = 10_000;
 /// again should it have stopped.
 const RESHARE_MS: u64 = 10_000;
 
-/// The game's sharing (`crate::seed`), in one call: every file of the
-/// folder's torrent, as [`Torrents::share`] shares it while the launcher is
-/// open, on `port`, within the run's cap, until `go_on` says stop (asked
-/// ten times a second, with what the sharing is). Nothing is fetched or
-/// installed.
+/// The game's sharing (`crate::seed`) in one call: [`Torrents::share`] on
+/// `port` until `go_on` says stop (asked ten times a second). Nothing is
+/// fetched or installed.
 pub fn share_while(layout: &Layout, port: Option<u16>, go_on: &mut dyn FnMut(&Sharing) -> bool) -> Result<(), NotShared> {
     // The port the launcher's updater shares on too, when one is kept: the
     // same, waited for, never a second one beside it.
@@ -1094,11 +1090,9 @@ fn signed(layout: &Layout, name: &str) -> Result<Signed, String> {
     Ok(Signed { torrent, revision, bytes })
 }
 
-/// Where the revision's torrent comes from, and why it is trusted: the one
-/// place that decides it. Trusted by its signature alone
-/// (`crate::signed`: the release's key, a revision not older than the
-/// game's), whoever handed it over: the ZIP's file beside the updater, or
-/// the newest one the DHT named. The highest revision of them.
+/// The run's torrent, the one place that decides it: the highest revision of
+/// the ZIP's and the one the DHT named, each trusted by its signature alone
+/// (`crate::signed`), whoever handed it over.
 fn trusted(layout: &Layout) -> Result<Signed, String> {
     let zip = signed(layout, FILE);
     let found = signed(layout, FOUND);
@@ -1216,9 +1210,29 @@ pub fn whole(session: &mut Session, signed: &Signed, files: &[(usize, String)]) 
 
 /// The bootstrap torrent, a file of the ZIP beside the updater.
 const BOOTSTRAP: &str = "skhid-bootstrap.torrent";
-/// Where its files are kept, beside the updater: the updater replaces
-/// itself at every release, and the bootstrap's bytes are shared all the
-/// same.
+
+/// The bootstrap torrent as the checked ZIP installed it (it is not signed:
+/// the script that fetches its files pins them).
+fn installed_bootstrap(layout: &Layout) -> Option<(Vec<u8>, Torrent)> {
+    let name = format!("game/binaries/x86/{BOOTSTRAP}");
+    let installed = crate::read_installed(layout)?;
+    let entry = installed.files.iter().find(|file| file.name == name)?;
+    let bytes = win::read_file(&layout.place(&name), MAX_TORRENT).ok()?;
+    if updater_logic::sha256::digest(&bytes) != entry.sha256 {
+        return None;
+    }
+    let torrent = torrent::parse(&bytes).ok()?;
+    Some((bytes, torrent))
+}
+
+fn keep_copy(live: &str, copy: &str, kept: &str) -> Result<(), String> {
+    let staged = format!("{copy}.skhid-new");
+    win::create_folders(kept).map_err(win::error_text)?;
+    std::fs::copy(live, &staged).map_err(|error| format!("{error}"))?;
+    win::rename(&staged, copy, true).map_err(win::error_text)
+}
+
+/// Where the bootstrap's files are kept, beside the updater.
 const KEPT: &str = "updater_skhid.bootstrap";
 
 /// Looks for a newer signed torrent than this updater has, on the DHT (the

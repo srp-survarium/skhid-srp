@@ -26,6 +26,7 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import run_logs  # noqa: E402
 import test_db_patches as wine  # noqa: E402
 import test_torrent as t  # noqa: E402
 from test_db_patches import X86, windows, windows_path  # noqa: E402
@@ -113,8 +114,7 @@ class SeedTest(wine.WineTest):
                                           stdout=wine.subprocess.DEVNULL, stderr=wine.subprocess.DEVNULL)
 
     def seed_log(self):
-        name = f"{X86}/updater_skhid.seed.log"
-        return self.read(name).decode("utf-8", "replace") if self.exists(name) else ""
+        return run_logs.read(self.path(f"{X86}/updater_skhid.seed-logs")).decode("utf-8", "replace")
 
     log = seed_log
 
@@ -161,8 +161,8 @@ class SeedTest(wine.WineTest):
         self.assertEqual(self.close_pipe(), 0, self.seed_log()[-3000:])
         log = self.seed_log()
         self.assertIn("seed: the game closed the pipe: done", log)
-        # Its own log alone: a launcher's updater's is never written to.
-        self.assertFalse(self.exists(f"{X86}/updater_skhid.log"))
+        # Its own logs alone: none beside the launcher's updater's.
+        self.assertEqual(run_logs.paths(self.path(X86)), [])
 
     def test_the_stats_are_ticks_only_and_only_while_shown(self):
         self.installed()

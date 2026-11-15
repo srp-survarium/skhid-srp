@@ -1,6 +1,6 @@
 //! The one upload cap of an updater's run
 //! (`srp-026g/docs/notes/torrent-downloads.md`, "The upload cap"): all the
-//! sharing together (every torrent, the DHT) stays within [`CAP`] bytes a
+//! sharing together (every torrent) stays within [`CAP`] bytes a
 //! second. It is the libtorrent session's upload limit, every peer's (those
 //! of the local network too); the launcher's `1E` may lower it, never raise
 //! it.

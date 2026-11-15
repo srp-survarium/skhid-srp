@@ -371,6 +371,8 @@ SKT_API int SKT_CALL skt_poll(skt_session *s, skt_event *out, int max, int wait_
             e.type = SKT_EV_METADATA;
             e.a = std::int64_t(t->info.size());
         } else if (auto *x = lt::alert_cast<lt::dht_mutable_item_alert>(a)) {
+            // No node had it: libtorrent says so with an empty item.
+            if (x->item.type() == lt::entry::undefined_t) continue;
             e.type = SKT_EV_DHT_ITEM;
             e.a = x->seq;
             std::memcpy(e.sig, x->signature.data(), 64);

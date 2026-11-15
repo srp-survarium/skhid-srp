@@ -41,16 +41,17 @@ let
   defines = "-DBOOST_ASIO_ENABLE_CANCELIO -DBOOST_ASIO_NO_DEPRECATED -DTORRENT_NO_DEPRECATE"
     + " -DTORRENT_DISABLE_ENCRYPTION -DTORRENT_USE_I2P=0 -DTORRENT_DISABLE_LOGGING"
     + " -DTORRENT_DISABLE_MUTABLE_TORRENTS -DTORRENT_DISABLE_STREAMING";
-  sources = pkgs.lib.fileset.toSource {
+  # The DLL's own sources only: a change to the tool does not rebuild it.
+  sourcesOf = files: pkgs.lib.fileset.toSource {
     root = ./.;
-    fileset = pkgs.lib.fileset.unions [ ./skt.h ./skt.cpp ./skhid_dht.c ];
+    fileset = pkgs.lib.fileset.unions files;
   };
 in
 {
   dll = mingw.stdenv.mkDerivation {
     pname = "skhid-torrent-dll";
     version = "2.0.12";
-    src = sources;
+    src = sourcesOf [ ./skt.h ./skt.cpp ];
     buildInputs = [ mingw.windows.mcfgthreads ];
     dontConfigure = true;
     buildPhase = ''
@@ -71,7 +72,7 @@ in
   dht = pkgs.stdenv.mkDerivation {
     pname = "skhid-dht";
     version = "2.0.12";
-    src = sources;
+    src = sourcesOf [ ./skt.h ./skt.cpp ./skhid_dht.c ];
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = [ pkgs.libtorrent-rasterbar-2_0_x pkgs.boost pkgs.openssl ];
     dontConfigure = true;

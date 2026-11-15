@@ -49,8 +49,6 @@ int main(int argc, char **argv) {
         if (strcmp(argv[i], "--bootstrap") == 0 && i + 1 < argc) config.dht_bootstrap = argv[++i];
         else if (strcmp(argv[i], "--loopback") == 0) config.loopback = 1;
         else if (strcmp(argv[i], "--seconds") == 0 && i + 1 < argc) seconds = atol(argv[++i]);
-        else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) config.listen_port = (uint16_t)atoi(argv[++i]);
-        else if (strcmp(argv[i], "--upload-limit") == 0 && i + 1 < argc) config.upload_limit = atoi(argv[++i]);
         else {
             fprintf(stderr, "skhid-dht: %s?\n", argv[i]);
             return 2;

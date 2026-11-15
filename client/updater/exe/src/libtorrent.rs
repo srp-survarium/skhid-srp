@@ -1,9 +1,8 @@
 //! `skhid_torrent.dll` (libtorrent-rasterbar 2.0 behind the C API of
-//! `client/updater/torrent-dll/skt.h`): its one owner. The DLL is loaded
-//! from beside the updater at run time, once; no DLL, or one that does not
-//! load (Windows 7, a file an antivirus took) or lacks a function: no
-//! torrent, HTTPS as without it. Every raw call is here; what comes back is
-//! parsed once into the types below.
+//! `client/updater/torrent-dll/skt.h`): its one owner. Loaded from beside
+//! the updater at run time, once; a DLL that is missing, does not load or
+//! lacks a function means no torrent, HTTPS as without it. Every raw call
+//! is here; what comes back is parsed once into the types below.
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -134,7 +133,7 @@ fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(&bytes[..end]).into_owned()
 }
 
-/// A text for the DLL: without a zero byte inside (none of ours has one).
+/// A text for the DLL (none of ours has a zero byte).
 fn c(text: &str) -> CString {
     CString::new(text.replace('\0', "")).expect("no zero byte")
 }
@@ -368,10 +367,9 @@ impl Session {
         unsafe { (self.library.dht_get)(self.s(), key.as_ptr(), salt.as_ptr(), salt.len()) }
     }
 
-    /// Puts a signed item, as it is ([`Event::DhtPut`] once stored). Its
-    /// sequence number goes as 32 bits (ours is a revision); one past them
-    /// is not put.
+    /// Puts a signed item as it is ([`Event::DhtPut`] once stored).
     pub fn dht_put(&mut self, key: &[u8; 32], salt: &[u8], item: &Item) {
+        // Ours is a revision: skt.h takes 32 bits.
         let Ok(seq) = i32::try_from(item.seq) else { return };
         unsafe {
             (self.library.dht_put)(
@@ -398,22 +396,35 @@ fn torrent_of(id: i32) -> Option<TorrentId> {
     (id >= 0).then_some(TorrentId(id))
 }
 
+/// skt.h's `SKT_EV_*`; FINISHED is not taken (a fetch looks at its status).
+mod kind {
+    pub const LISTEN_OK: i32 = 1;
+    pub const LISTEN_FAILED: i32 = 2;
+    pub const HASH_FAILED: i32 = 3;
+    pub const PEER_BANNED: i32 = 4;
+    pub const CHECKED: i32 = 5;
+    pub const METADATA: i32 = 7;
+    pub const ERROR: i32 = 8;
+    pub const DHT_ITEM: i32 = 9;
+    pub const DHT_PUT: i32 = 10;
+}
+
 fn parse_event(raw: &RawEvent) -> Option<Event> {
     let port = || u16::try_from(raw.a).unwrap_or(0);
     Some(match raw.kind {
-        1 => Event::Listening(port()),
-        2 => Event::ListenFailed { port: port(), why: text(&raw.text) },
-        3 => Event::HashFailed { piece: raw.a },
-        4 => Event::Banned { ip: text(&raw.text) },
-        5 => Event::Checked(torrent_of(raw.torrent)?),
-        7 => Event::Metadata(torrent_of(raw.torrent)?),
-        8 => Event::Error { text: text(&raw.text) },
-        9 => Event::DhtItem(Item {
+        kind::LISTEN_OK => Event::Listening(port()),
+        kind::LISTEN_FAILED => Event::ListenFailed { port: port(), why: text(&raw.text) },
+        kind::HASH_FAILED => Event::HashFailed { piece: raw.a },
+        kind::PEER_BANNED => Event::Banned { ip: text(&raw.text) },
+        kind::CHECKED => Event::Checked(torrent_of(raw.torrent)?),
+        kind::METADATA => Event::Metadata(torrent_of(raw.torrent)?),
+        kind::ERROR => Event::Error { text: text(&raw.text) },
+        kind::DHT_ITEM => Event::DhtItem(Item {
             seq: raw.a,
             signature: raw.sig,
             value: raw.data[..usize::try_from(raw.len).ok().filter(|&n| n <= raw.data.len())?].to_vec(),
         }),
-        10 => Event::DhtPut { nodes: raw.a },
+        kind::DHT_PUT => Event::DhtPut { nodes: raw.a },
         _ => return None,
     })
 }

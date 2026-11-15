@@ -635,9 +635,9 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
                 min_revision: None,
                 online: false,
             });
-            // A newer release than this folder has, from the rendezvous of
-            // the updaters that allow torrent (`torrent::discover`): the
-            // run's torrent from here on.
+            // A newer release than this folder has, named by the release's
+            // item on the DHT (`torrent::discover`): the run's torrent from
+            // here on.
             torrent::discover(session, layout);
             // The Skhid files from it, when this folder has none or an older
             // revision's: no server of ours needed.

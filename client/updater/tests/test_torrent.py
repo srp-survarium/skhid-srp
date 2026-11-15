@@ -248,19 +248,16 @@ class Nodes:
         })
 
     def get(self, seconds=30):
-        """The item of the tests' key: (seq, value), else None."""
-        node = self.nodes[-1]
-        key = bytes.fromhex(public_key_hex())
-        until = time.time() + seconds
-        while time.time() < until:
-            node.dht_get_mutable_item(key, SALT)
-            asked = time.time() + 2
-            while time.time() < asked:
-                for alert in node.pop_alerts():
-                    if isinstance(alert, lt.dht_mutable_item_alert) and alert.seq > 0:
-                        return alert.seq, lt.bencode(alert.item)
-                time.sleep(0.1)
-        return None
+        """The item of the tests' key: (seq, value), else None. Read by the
+        release's tool: libtorrent's Python binding reads only a string
+        value, and ours is a dictionary."""
+        result = subprocess.run([DHT_TOOL, "get", public_key_hex(), SALT.decode(), "--bootstrap", DHT, "--loopback",
+                                 "--seconds", str(seconds)],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=seconds + 60)
+        if result.returncode != 0:
+            return None
+        seq, value = result.stdout.split()
+        return int(seq), bytes.fromhex(value)
 
     def close(self):
         self.nodes.clear()
@@ -625,6 +622,7 @@ class TorrentTest(wine.WineTest):
         self.assertIn("torrent: the DHT named no newer release", self.log())
         self.assertFalse(self.exists(f"{X86}/updater_skhid.found.torrent"))
 
+    @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
     def test_the_updater_puts_the_releases_item_on_the_dht(self):
         _, torrent, _, _ = self.release(12)
         dht = nodes()
@@ -718,9 +716,7 @@ class TorrentTest(wine.WineTest):
         self.tracker.peers = [("127.0.0.1", seed_port)]
         self.site.patch_slow = 0.3
         self.launch(allow="direct")
-        log_file = self.path(f"{X86}/updater_skhid.log")
-        wait(lambda: os.path.exists(log_file) and "resources.db.patch_12: address 1 of 1" in self.log(), 120,
-             "the download by HTTPS")
+        wait(lambda: "resources.db.patch_12: address 1 of 1" in self.log(), 120, "the download by HTTPS")
         time.sleep(3)
         self.say(bytes([0x1A, 0]))
         self.wait_latest()

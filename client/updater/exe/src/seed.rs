@@ -6,8 +6,9 @@
 //! the pipe is open (`torrent::share_while`, the one call into the engine),
 //! and answers the game's stats switch with ticks (`updater_logic::seed`).
 //!
-//! No window, no box, no lock, nothing installed or fetched; its own log,
-//! so that it never mixes with a launcher's updater's.
+//! No window, no box, no lock, nothing installed or fetched. Its run logs
+//! go in a folder of their own: a seed runs at every lobby, and would push
+//! the launcher's updater's logs out of the kept 100.
 
 use alloc::format;
 
@@ -18,7 +19,7 @@ use crate::log::log;
 use crate::pipe::Pipe;
 use crate::{exit, log as logging, torrent, win};
 
-const LOG_FILE: &str = "updater_skhid.seed.log";
+const LOG_FOLDER: &str = "updater_skhid.seed-logs";
 
 /// Shares until the game closes `pipe`. `pipe`: `None` when the command
 /// line was not the game's.
@@ -26,7 +27,9 @@ pub fn run(pipe: Option<GamePipe>) -> u32 {
     let Ok(layout) = Layout::find() else {
         return exit::FAILED;
     };
-    logging::start(format!("{}\\{LOG_FILE}", layout.exe_dir));
+    let logs = format!("{}\\{LOG_FOLDER}", layout.exe_dir);
+    let _ = win::create_folders(&logs);
+    logging::start(&logs);
     log!("---- updater {} seeding for the game, in {}", env!("CARGO_PKG_VERSION"), layout.exe_dir);
     let Some(pipe) = pipe else {
         log!("seed: not the game's command line: nothing done");
