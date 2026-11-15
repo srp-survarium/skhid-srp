@@ -860,7 +860,7 @@ mod tests {
     }
 
     fn fix(time: u32, inserted: u32) -> Fix {
-        Fix { fall: None, controller: None,
+        Fix { fall: None, controller: None, gates: None,
             time,
             alive: true,
             inserted,
@@ -930,7 +930,7 @@ mod tests {
         press(&mut tracker, 0, 1_000, key::GRENADE);
         tracker.launch_grenades(2_200, None);
         assert_eq!(tracker.live_grenades().len(), 1, "no map: not placed, not dropped");
-        let dead = Fix { fall: None, controller: None,
+        let dead = Fix { fall: None, controller: None, gates: None,
             alive: false,
             feet: None,
             speed: None,

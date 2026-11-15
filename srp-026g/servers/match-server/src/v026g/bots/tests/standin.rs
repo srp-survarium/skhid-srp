@@ -3053,7 +3053,7 @@ impl Game {
         let fixes = self
             .bodies
             .iter()
-            .map(|body| Fix { fall: None, controller: None,
+            .map(|body| Fix { fall: None, controller: None, gates: None,
                 time: self.tick,
                 alive: body.alive,
                 inserted: body.spawned,
