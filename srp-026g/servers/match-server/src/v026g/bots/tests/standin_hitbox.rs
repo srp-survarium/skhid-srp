@@ -31,8 +31,9 @@
 //! more than their aim says, because a bot reckons where the bodies are from worlds up to a second old and
 //! the game's bodies move by the client's own rules (`fact-own-eye.md` 5: the live bullet's origin against the
 //! bots' own replay is off by a median 0.17-0.31 m, at every distance). The stand-in's bodies move by the
-//! bots' own model, so it has none of it; with the boxes it is added to the shot line as one random offset
-//! across the line. GUESS: the size (a median 0.20 m, the short ages of the data) and that it adds in
+//! bots' own model, so it has none of it; with the boxes it is added to a bot's shot line as one random offset
+//! across the line. The game's bullet has none (a plain segment from the eye), so the stand-in human and the
+//! stand-in camper, who stand for clients, fire from their eye ([`ShotOrigin`]). GUESS: the size (a median 0.20 m, the short ages of the data) and that it adds in
 //! quadrature to the aim error the bench already has (`fact-hitboxes-026g.md` 5.4); the C0 counts check the
 //! residual (`shot_off_cells`, `hit_cells`).
 //!
@@ -57,6 +58,21 @@ pub(crate) enum HitVolume {
     /// pellets, each a ray. `scatter_m`: the sigma, metres, of the position scatter of the shot line (C3), if
     /// there is one.
     Boxes { scatter_m: Option<f32> },
+}
+
+/// Where a shooter's shot line starts in the shape hit model with the position scatter (C3).
+///
+/// The scatter stands for a server-driven bot's error about where the bodies are, its own included: the bot reckons them
+/// from worlds. The game itself has none: a bullet is a plain segment from the shooter's eye (`bullet::check_collision`
+/// 0x32D4E0, `bullet_physics_world::ray_test` 0x75E20: no radius, no draw), and a client fires from its true position. So the
+/// stand-in human and the stand-in camper, who stand for clients, fire from their own eye.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ShotOrigin {
+    /// A server-driven bot: the line is moved by the position scatter.
+    #[default]
+    Reckoned,
+    /// A client (the stand-in human, the stand-in camper): the line starts at the eye.
+    Own,
 }
 
 /// The sigma, metres per axis across the line, of the position scatter (C3): an isotropic Gaussian of this
@@ -141,6 +157,18 @@ impl HitVolume {
                     None => panic!("SRP_BENCH_HIT_MODEL={other}: on, off, boxes or scatter=<metres>"),
                 }
             }
+        }
+    }
+
+    /// The run's switch line for the scatter: whose shot lines it moves ([`ShotOrigin`]).
+    pub(crate) fn scatter_line(self) -> String {
+        match self {
+            Self::Disc => "bench hit scatter: none (the old disc)".to_owned(),
+            Self::Boxes { scatter_m: None } => "bench hit scatter: none (the shapes without it)".to_owned(),
+            Self::Boxes { scatter_m: Some(sigma) } => format!(
+                "bench hit scatter: {sigma} m a side on the bots' shot lines only; the stand-in human and the stand-in camper fire from \
+                 their own eye"
+            ),
         }
     }
 }
@@ -1448,7 +1476,7 @@ mod game_tests {
         let mut radii = Vec::new();
         let (mut sum_across, mut sum_along) = (Vec3::ZERO, 0.0f32);
         for _ in 0..4000 {
-            let (origin, d) = game.shot_line(eye, dir, 0.0);
+            let (origin, d) = game.shot_line(0, eye, dir, 0.0);
             assert_eq!(d, dir, "no weapon cone, no spread: the direction stays");
             let off = origin - eye;
             sum_along += off.dot(dir).abs();
@@ -1463,9 +1491,33 @@ mod game_tests {
         for volume in [HitVolume::Disc, HitVolume::BOXES] {
             let mut game = two_bodies(volume);
             let before = format!("{:?}", game.rng);
-            assert_eq!(game.shot_line(eye, dir, 0.0), (eye, dir));
+            assert_eq!(game.shot_line(0, eye, dir, 0.0), (eye, dir));
             assert_eq!(format!("{:?}", game.rng), before, "{volume:?}: nothing drawn");
         }
+    }
+
+    /// The stand-in human and the stand-in camper stand for clients, whose bullets start at their eye: with the whole cut
+    /// on, a place set to [`ShotOrigin::Own`] fires along its line with zero offset, every shot, while a bot's line is still
+    /// scattered; the client's offset is drawn all the same, so the draws after it are the ones a bot's shot would leave.
+    #[test]
+    fn the_stand_ins_line_has_no_offset_and_draws_as_a_bots() {
+        let eye = Vec3::new(10.0, 1.5, 10.0);
+        let dir = Vec3::new(0.0, 0.6, 0.8);
+        let mut game = two_bodies(HitVolume::ON);
+        let mut bots_only = two_bodies(HitVolume::ON);
+        game.set_shot_origin(0, ShotOrigin::Own);
+        let mut moved = 0;
+        for _ in 0..500 {
+            assert_eq!(game.shot_line(0, eye, dir, 0.0), (eye, dir), "the stand-in's line starts at his eye");
+            let _ = bots_only.shot_line(0, eye, dir, 0.0);
+            assert_eq!(format!("{:?}", game.rng), format!("{:?}", bots_only.rng), "the same draws as a bot's shot");
+            let (origin, _) = game.shot_line(1, eye, dir, 0.0);
+            let _ = bots_only.shot_line(1, eye, dir, 0.0);
+            moved += usize::from(origin != eye);
+        }
+        assert_eq!(moved, 500, "a bot's line is still scattered");
+        assert!(HitVolume::ON.scatter_line().contains("bots' shot lines only"), "{}", HitVolume::ON.scatter_line());
+        assert!(HitVolume::Disc.scatter_line().contains("none"));
     }
 
     /// The scatter lowers the rate at which a line aimed at the chest at 10 m hits (the boxes alone hit it
