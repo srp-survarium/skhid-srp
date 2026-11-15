@@ -108,7 +108,7 @@ impl WalkGrid {
     }
 
     /// The floors within `r` across of `at` (by their centres), any height.
-    fn floors_near(&self, at: Vec3, r: f32) -> impl Iterator<Item = NodeId> + '_ {
+    pub(super) fn floors_near(&self, at: Vec3, r: f32) -> impl Iterator<Item = NodeId> + '_ {
         let i = ((at.x - self.x0) / self.cell).floor() as i32;
         let k = ((at.z - self.z0) / self.cell).floor() as i32;
         let reach = (r / self.cell).ceil() as i32;

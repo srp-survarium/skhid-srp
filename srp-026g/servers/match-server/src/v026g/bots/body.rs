@@ -35,7 +35,7 @@ use mapdata::{LinkKind, NodeId, RayTree, Vec3, WalkGrid};
 use survarium::v026g::match_msgs::TICK_MS;
 
 use super::jump_arc::{ArcStep, JumpArc};
-use super::kin::{Blend, DropFall, Edge, ForecastStep, StepInput, ClientStep, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
+use super::kin::{Blend, DropFall, Edge, ForecastStep, JumpFlight, StepInput, ClientStep, FIX_ABOVE_M, FixBlend, FixFall, FixFloor, LEVEL_REACH, LEVEL_SNAP, LevelRead, LevelSource, WallSlide, JumpSnap, Kinematics, MarginEdge, TICK_S, WalkOffLanding, to_world, wrap};
 use super::kin::{SpeedTerms, SprintGates};
 use super::legs::LegDamage;
 use super::sprint_gates::{OwnGates, Stagger};
@@ -93,9 +93,9 @@ pub struct Estimate {
     pub air_until: u32,
     /// The highest rise (m) the jump in the air can make ([`Kinematics::jump_snap`]; infinite: any).
     pub air_cap: f32,
-    /// [A318] The client's jump under way ([`Kinematics::jump_arc`]): the clip's arc moves the body until it lands; none on the
-    /// ground and with the switch off.
-    pub arc: Option<JumpArc>,
+    /// [A318] The client's jump under way ([`Kinematics::jump_arc`]): the clip's arc, or [A388 step 3] the client's own flight
+    /// ([`Jump`]), moves the body until it lands; none on the ground and with the switch off.
+    pub arc: Option<Jump>,
     /// How the pitch unit relates to the elevation ([`Kinematics::pitch_scale`]).
     pub scale: PitchScale,
     /// [A318] In the air over its floor after a drop ([`DropFall::Gravity`]): `feet.y` is the falling height, `node` the floor it
@@ -428,6 +428,122 @@ impl JumpGate {
 const KEPT_MS: u32 = 20_000;
 /// A floor this far from the feet is not the body's.
 const LOCATE_M: f32 = 1.5;
+
+/// [A388 step 3] A jump in the reckoning: the clip's arc ([`JumpArc`]) or the client's own flight ([`FlownJump`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Jump {
+    Clip(JumpArc),
+    Flown(FlownJump),
+}
+
+/// [A388 step 3] The most steps of a flight from its press to its landing step (`controller::jump`'s sprint landing step 18).
+const FLOWN_STEPS: usize = 19;
+
+/// [A388 step 3] A forward jump flown at its press by the client's own jump from the reckoning's kept controller
+/// ([`JumpFlight::Controller`], `WalkGrid::kept_fly`): the feet of each of its steps, moved onto the reckoned feet, played one a
+/// tick; at its landing step the controller the flight left is the body's kept one.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FlownJump {
+    feet: [Vec3; FLOWN_STEPS],
+    len: u8,
+    next: u8,
+    /// The flight's last step on the ground (the client's `on_ground`).
+    landed: bool,
+    /// The controller the flight left, at the reckoned feet.
+    after: KeptBody,
+    /// The capsule's vertical speed after the flight (m/s, up positive).
+    vertical: f32,
+}
+
+/// [A388 step 3] A step of a [`FlownJump`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum FlownStep {
+    /// In the air (or before the take-off, on the ground) at these feet.
+    Air(Vec3),
+    /// The landing step: its feet, whether it is on the ground, the controller after it and its vertical speed.
+    Last { feet: Vec3, landed: bool, after: KeptBody, vertical: f32 },
+}
+
+impl FlownJump {
+    /// The jump a reckoned body at `feet` with yaw `yaw`, its kept controller `kept`, presses with `keys`, its last move `moved`
+    /// m/s, at the speed level `level`: flown forward along the yaw. None for a press with a side or back key (the clip's), and
+    /// without the grid's walker.
+    fn pressed(grid: &WalkGrid, kept: Option<KeptBody>, feet: Vec3, yaw: f32, keys: u32, moved: f32, level: f32) -> Option<Self> {
+        use mapdata::controller::jump::{Flight, Keys, Leg, Press, SPRINT_FIRST_AIR_FRAMES, WALK_CAP_MS as CAP};
+        if super::jump_arc::Direction::of(keys) != super::jump_arc::Direction::Forward {
+            flown_jumps::count(flown_jumps::Kind::NotForward);
+            return None;
+        }
+        let started = std::time::Instant::now();
+        let mut body = match kept {
+            Some(body) if body.feet.distance_xz(feet) <= KEPT_SAME_M => body,
+            _ => KeptBody { controller: grid.kept_controller_at(feet)?, feet, airborne: false },
+        };
+        let cap = CAP * level;
+        let sprint = keys & (key::FORWARD | key::SPRINT) == (key::FORWARD | key::SPRINT)
+            && keys & (key::BACK | key::FIRE | key::CROUCH | key::AIM) == 0
+            && moved >= cap;
+        let press = if sprint {
+            Press::Sprint { speed: moved, leg: Leg::Left, first_air_frame: SPRINT_FIRST_AIR_FRAMES[0] }
+        } else {
+            Press::Walk { speed: moved }
+        };
+        let [fx, fz] = super::kin::forward(yaw);
+        let start = body.controller.feet();
+        let flown_keys = Keys { air_forward: keys & key::FORWARD != 0, held_after: true };
+        let steps = grid.kept_fly(&mut body.controller, (fx, fz), press, flown_keys, Flight { cap, dy: 0.0 })?;
+        let len = steps.len().min(FLOWN_STEPS);
+        let last = *steps.get(len.checked_sub(1)?)?;
+        let shift = Vec3::new(feet.x - start.x, feet.y - start.y, feet.z - start.z);
+        let mut out = [feet; FLOWN_STEPS];
+        for (slot, step) in out.iter_mut().zip(&steps) {
+            *slot = step.feet + shift;
+        }
+        body.feet = last.feet + shift;
+        body.airborne = !last.on_ground;
+        flown_jumps::count(if sprint { flown_jumps::Kind::Sprint } else { flown_jumps::Kind::Short });
+        kept_clock::add(kept_clock::Of::Reckoning, started.elapsed().as_nanos() as u64);
+        let vertical = body.controller.velocity.y;
+        Some(Self { feet: out, len: len as u8, next: 0, landed: last.on_ground, after: body, vertical })
+    }
+
+    fn step(&mut self) -> FlownStep {
+        let i = usize::from(self.next.min(self.len - 1));
+        self.next = self.next.saturating_add(1);
+        if self.next >= self.len {
+            FlownStep::Last { feet: self.feet[i], landed: self.landed, after: self.after, vertical: self.vertical }
+        } else {
+            FlownStep::Air(self.feet[i])
+        }
+    }
+}
+
+/// [A388 step 3] The reckoning's jump presses by what flew them ([`JumpFlight::Controller`]) on this server: flown short, flown
+/// sprint, kept on the clip for a side or back key; and how the flights ended: on the ground, or falling on. For the match-end
+/// line; decision-neutral.
+pub(crate) mod flown_jumps {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    #[derive(Clone, Copy)]
+    pub(crate) enum Kind {
+        Short,
+        Sprint,
+        NotForward,
+        Landed,
+        Falling,
+    }
+
+    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
+
+    pub(crate) fn count(kind: Kind) {
+        COUNTS[kind as usize].fetch_add(1, Relaxed);
+    }
+
+    /// (short, sprint, not forward, landed, falling) since the last call, and zero again.
+    pub(crate) fn take() -> [u64; 5] {
+        std::array::from_fn(|i| COUNTS[i].swap(0, Relaxed))
+    }
+}
 /// A body is reckoned on this far past its last known tick at most, ms.
 const PROJECT_MS: u32 = 3_000;
 /// The pitch's limit in the game's own unit: +-1 at the clamp 0x2E1012 (PROVEN, exactness FIXES F27 / F29 amended; the unit is
@@ -987,7 +1103,7 @@ impl BodyTrack {
         };
         let local = blend.now(kin.blend_ticks);
         let (air_until, air_cap) = self.air_at(fix.time, kin);
-        let arc = if kin.jump_arc { self.arc_at(fix.time, feet, fix.yaw) } else { None };
+        let arc = if kin.jump_arc { self.arc_at(fix.time, feet, fix.yaw).map(Jump::Clip) } else { None };
         let mut estimate = Estimate {
             time: fix.time,
             feet,
@@ -1171,9 +1287,41 @@ fn advance(
         let local = at.blend.tick_mixed(target, kin.blend_ticks, kin.mixer);
         // [A318] The client's jump: the clip's arc moves the body, the blend ticks on under it so the landing resumes from the
         // client's mix (fx-zones' `kin.mixer`).
-        if let (Some(mut arc), Some(grid), Some(node)) = (at.arc, grid, at.node) {
+        // [A388 step 3] The client's own flight: its next step's feet; at its landing step the controller it left is the body's kept
+        // one, on the ground or falling on from there (`fall_step`, the client's fall).
+        if let (Some(Jump::Flown(mut flown)), Some(grid), Some(node)) = (at.arc, grid, at.node) {
+            match flown.step() {
+                FlownStep::Air(feet) => {
+                    at.velocity = [(feet.x - at.feet.x) / TICK_S, (feet.z - at.feet.z) / TICK_S];
+                    at.feet = feet;
+                    at.arc = Some(Jump::Flown(flown));
+                }
+                FlownStep::Last { feet, landed, after, vertical } => {
+                    at.velocity = [(feet.x - at.feet.x) / TICK_S, (feet.z - at.feet.z) / TICK_S];
+                    at.arc = None;
+                    at.kept = Some(after);
+                    let under = grid.locate(feet, LOCATE_M).or(Some(node));
+                    if landed {
+                        flown_jumps::count(flown_jumps::Kind::Landed);
+                        at.feet = feet;
+                        at.node = under;
+                        at.fall = Fall::Ground;
+                    } else {
+                        flown_jumps::count(flown_jumps::Kind::Falling);
+                        // Falling on: onto the floor under the feet open above them, from where the flight left it.
+                        let floor = under_edge(grid, feet, feet.y, feet.y).or(under);
+                        at.feet = feet;
+                        at.node = floor;
+                        at.fall = Fall::Falling { speed: (-vertical).max(0.0) };
+                        at.kept = None;
+                    }
+                }
+            }
+            continue;
+        }
+        if let (Some(Jump::Clip(mut arc)), Some(grid), Some(node)) = (at.arc, grid, at.node) {
             let out = arc.step(grid, walls, at.feet, step_yaw, step_keys, at.time + step * TICK_MS);
-            at.arc = Some(arc);
+            at.arc = Some(Jump::Clip(arc));
             match out {
                 ArcStep::Ground(travel) => {
                     let to = Vec3::new(at.feet.x + travel[0], at.feet.y, at.feet.z + travel[1]);
@@ -1364,7 +1512,18 @@ fn advance(
             // it, the short one does not).
             let span = (steps * TICK_MS) as f32 / 1000.0;
             let moved = [(at.feet.x - started.x) / span, (at.feet.z - started.z) / span];
-            at.arc = Some(JumpArc::pressed(tick.time, tick.keys, moved, at.feet, at.yaw));
+            // [A388 step 3] A forward press of the reckoning is flown by the client's own jump ([`JumpFlight::Controller`]); a side
+            // or back one, the stop forecasts' and a grid with no walker keep the clip.
+            let flown = match (kin.jump_flight, role, grid) {
+                (JumpFlight::Controller, Role::Reckoning, Some(grid)) => {
+                    FlownJump::pressed(grid, at.kept, at.feet, at.yaw, tick.keys, moved[0].hypot(moved[1]), level)
+                }
+                _ => None,
+            };
+            at.arc = Some(match flown {
+                Some(flown) => Jump::Flown(flown),
+                None => Jump::Clip(JumpArc::pressed(tick.time, tick.keys, moved, at.feet, at.yaw)),
+            });
         }
     } else if tick.keys & key::JUMP != 0 && at.keys & key::JUMP == 0 {
         at.air_until = tick.time + JUMP_AIR_MS;
@@ -2727,6 +2886,45 @@ pub(super) mod tests {
         }
         let at = track.estimate().unwrap();
         assert!(at.feet.x < 19.8 && at.feet.z > 13.0, "{at:?}");
+    }
+
+    /// [A388 step 3] A forward press with the client's walker is flown by the client's own jump from the kept controller
+    /// ([`JumpFlight::Controller`]): the arc is the flight, its steps carry the body forward and up and down, and at its landing step
+    /// the body is on the floor again with the flight's controller kept. A side press keeps the clip.
+    #[test]
+    fn a_forward_press_is_flown_by_the_clients_own_jump() {
+        let triangles: Vec<Triangle> = floor(0.0, 0.0, 30.0, 10.0, 0.0).to_vec();
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 30.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        let kin = Kinematics { jump_arc: true, ..Kinematics::default() };
+        assert_eq!((kin.jump_flight, kin.client_step), (JumpFlight::Controller, ClientStep::Kept), "the defaults");
+        let press = |keys: u32| {
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(5.0, 0.0, 5.0), yaw), &kin, Some(&grid));
+            for time in (50..=600).step_by(50) {
+                track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            }
+            track.decided(650, keys | key::JUMP, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            track
+        };
+        let mut track = press(key::FORWARD);
+        let at = *track.estimate().unwrap();
+        assert!(matches!(at.arc, Some(Jump::Flown(_))), "flown: {at:?}");
+        let from = at.feet;
+        let mut top = from.y;
+        let mut time = 650;
+        while track.estimate().unwrap().arc.is_some() && time < 2_000 {
+            time += 50;
+            track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+            top = top.max(track.estimate().unwrap().feet.y);
+        }
+        let at = *track.estimate().unwrap();
+        assert!(at.arc.is_none() && time < 2_000, "landed: {at:?}");
+        assert!(top > from.y + 0.2, "up in the air: {top}");
+        assert!(at.feet.x - from.x > 0.5 && at.feet.y.abs() < 0.05 && at.fall == Fall::Ground, "forward, back on the floor: {from:?} {at:?}");
+        assert!(at.kept.is_some(), "the flight's controller kept");
+        let side = press(key::FORWARD | key::RIGHT);
+        assert!(matches!(side.estimate().unwrap().arc, Some(Jump::Clip(_))), "a side press keeps the clip");
     }
 
     /// [A318] The jump arc and drop_fall's fall do not overlap (fx-zones' review): a world 820 ms into a sprint jump (past the old

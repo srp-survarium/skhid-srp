@@ -25,11 +25,14 @@ impl Default for WorldStand {
     }
 }
 
-/// What a team remembers of its failed takes (A281 (b), A282): the stands its bots gave up are the team's, not one bot's, for
-/// `keep_s`; a battery whose takes failed `aside_after` plays in a row with no untried stand left, or a play that ended "no way
-/// to its goal", is set aside for the whole team for `aside_s` (lifted when the battery moves). A teammate who says "can't get
-/// it from there" is told knowledge (SESSION-RULES rule 4). Off: each bot remembers its own stands 90 s and sets the battery
-/// aside alone (20 s after "no way", none after "could not take it" past the first 2 s); its mates take it again at once.
+/// What a team remembers of its failed takes (A281 (b), A282, A394): the stands its bots gave up are the team's, not one bot's,
+/// for `keep_s`; [A394] a battery whose Collect plays failed `aside_after` times at one place, by any of the team's bots, for
+/// any reason and of any length ("could not take it", "no way to its goal", any other failure), is set aside for the whole team
+/// for `aside_s`, re-offered when it moves (another place) or the span ends. A teammate who says "can't get it from there" is
+/// told knowledge (SESSION-RULES rule 4). Off: each bot remembers its own stands 90 s and sets the battery aside alone (20 s
+/// after "no way", none after "could not take it" past the first 2 s); its mates take it again at once. ON by default (A394,
+/// `owner-5/batteries-findings.md` C3: three batteries tried all match by every bot in turn, 2,283 bot-s, 4.3 % of the bots'
+/// alive time; #1162 had merged it OFF on a bench with no such loop).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TeamMemory {
@@ -40,8 +43,9 @@ pub struct TeamMemory {
 
 impl Default for TeamMemory {
     fn default() -> Self {
-        // keep: the bot's own `FAILED_KEEP_MS` 90 s; aside: the commander's team "no way" keep, 60 s (`TEAM_NO_WAY_KEEP_MS`).
-        Self { keep_s: Positive::of(90.0), aside_after: 2, aside_s: Positive::of(60.0) }
+        // keep: the bot's own `FAILED_KEEP_MS` 90 s; [A394] aside after 2 failed plays, for the "no way" span, 20 s (`NO_WAY_KEEP_MS`,
+        // C3's span: a bot's own set-aside after "no way", now the team's).
+        Self { keep_s: Positive::of(90.0), aside_after: 2, aside_s: Positive::of(20.0) }
     }
 }
 
@@ -277,7 +281,7 @@ impl Default for TakeTuning {
     fn default() -> Self {
         Self {
             world_stand: None,
-            team_memory: None,
+            team_memory: Some(TeamMemory::default()),
             far_stands: None,
             pitch: TakePitch::default(),
             cross_from_zone: None,

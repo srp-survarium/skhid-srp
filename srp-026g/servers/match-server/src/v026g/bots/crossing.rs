@@ -224,15 +224,16 @@ pub fn hurt(tactics: &Tactics, route: &Route, from_m: f32, to_m: f32, armour: Op
     let d = (to_m - from_m).max(0.0);
     let n = (d / CROSS_STEP_M).ceil().max(1.0) as usize;
     let ds = d / n as f32;
-    (0..n)
-        .map(|i| {
-            let point = route.floor_point(from_m + (i as f32 + 0.5) * ds);
-            grid.locate(point, 0.6)
-                .filter(|&node| tactics.hazards.only_fixed_at(node))
-                .map_or(Cost::ZERO, |node| tactics.hazards.cost_per_s(node, armour))
-                * (ds / CROSS_MPS)
-        })
-        .sum()
+    // [Gap 12] By the client's rule of when a zone hits (`zone_cost::WalkPrice`): an interval zone's whole hits.
+    let mut walk = super::zone_cost::WalkPrice::default();
+    for i in 0..n {
+        let point = route.floor_point(from_m + (i as f32 + 0.5) * ds);
+        match grid.locate(point, 0.6).filter(|&node| tactics.hazards.only_fixed_at(node)) {
+            Some(node) => tactics.hazards.walk_step(&mut walk, node, armour, ds / CROSS_MPS, |_| 1.0),
+            None => walk.step(std::iter::empty(), armour, ds / CROSS_MPS, 0.0),
+        }
+    }
+    walk.total()
 }
 
 /// A crossing's search from floor `from` to floor `to` for a bot of
@@ -322,7 +323,8 @@ pub fn still_borne(tactics: &Tactics, route: &Route, walked: f32, body: &CrossBo
 /// What the motor takes after a crossing's search from floor `from`: the
 /// route, whether it is a crossing, and whether it is the plain route kept
 /// (a long one: not searched again soon, [`LONG_RETRY_MS`]). `plain` is the
-/// plain search's answer, `crossed` the crossing's.
+/// plain search's answer, `crossed` the crossing's. The fourth: the log's line when a crossing found was not taken for its
+/// price or its length ([`priced_line`]; written, never read back by a decision).
 #[allow(clippy::too_many_arguments)]
 pub fn choose(
     tactics: &Tactics,
@@ -333,34 +335,58 @@ pub fn choose(
     time: u32,
     side: Option<i32>,
     objective: bool,
-) -> (Option<Route>, bool, bool) {
+) -> (Option<Route>, bool, bool, Option<String>) {
     let Some(crossed) = crossed else {
         count(Count::Refused);
         let kept = plain.is_some();
-        return (plain, false, kept);
+        return (plain, false, kept, None);
     };
     let cost = hurt(tactics, &crossed, 0.0, crossed.length(), body.armour());
     let borne = cost.most() <= 0.0 || (body.health() >= START_HEALTH && body.bears(cost));
     match plain {
         Some(plain) if stuck::worth_round(plain.length(), crossed.length()) || !borne => {
             count(Count::Refused);
-            (Some(plain), false, true)
+            let why = if borne { "the way round is short enough" } else { "not borne" };
+            (Some(plain), false, true, Some(priced_line("crossing refused", why, cost, body, crossed.length())))
         }
         _ if borne => {
             count(Count::Taken);
-            (Some(crossed), cost.most() > 0.0, false)
+            (Some(crossed), cost.most() > 0.0, false, None)
         }
         _ => match out_of_ring(tactics, from, &crossed, body, time, side, objective) {
             Some(out) => {
                 count(Count::RingWalk);
-                (Some(out), true, false)
+                (Some(out), true, false, Some(priced_line("crossing refused", "walked out of its ring only", cost, body, crossed.length())))
             }
             None => {
                 count(Count::Refused);
-                (None, false, false)
+                (None, false, false, Some(priced_line("crossing refused", "not borne, no way", cost, body, crossed.length())))
             }
         },
     }
+}
+
+/// The log's line of a crossing not taken or given up (`what`, `why`): its priced cost in the pools that kill, against
+/// the body's reserve and spend ([`CrossBody`]), and its length. Decision-neutral.
+pub fn priced_line(what: &str, why: &str, cost: Cost, body: &CrossBody, metres: f32) -> String {
+    let r = &body.budget.reserve;
+    format!(
+        "{}{what} ({why}): {metres:.1} m, cost body {:.3} head {:.3} infection {:.3} pain {:.3} against reserve body {:.3} \
+         head {:.3} infection {:.3} pain {:.3}, share {:.2} left {:.2} give up {:.2}{}",
+        super::nav_log::PREFIX,
+        cost.body,
+        cost.head,
+        cost.infection,
+        cost.pain,
+        r.body,
+        r.head,
+        r.infection,
+        r.pain,
+        body.share,
+        body.left,
+        body.give_up_left,
+        if body.budget.armour.is_some() { ", armour worn" } else { ", raw hit" }
+    )
 }
 
 /// The walk out of a patch ringed by zones on all match, from floor `from`
@@ -576,7 +602,7 @@ pub(crate) mod tests {
         let Ok(crossed) = start(tactics, a, b, 0, Some(0), false, body, &RouteFilter::open(), &mut iters) else {
             panic!("an unbounded search ends");
         };
-        let (route, crossing, _) = choose(tactics, a, plain, crossed, body, 0, Some(0), false);
+        let (route, crossing, _, _) = choose(tactics, a, plain, crossed, body, 0, Some(0), false);
         (route, crossing)
     }
 

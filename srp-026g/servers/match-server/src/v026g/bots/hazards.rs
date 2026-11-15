@@ -866,6 +866,33 @@ impl Hazards {
         }
     }
 
+    /// [Gap 12] `seconds` on `node` into `walk`: each zone that marks it at `weight` of its full hit (1, or the leg's
+    /// intensity, [`Self::leg_walk_step`]), the live fields at their rate (`zone_cost::WalkPrice`).
+    pub fn walk_step(
+        &self,
+        walk: &mut super::zone_cost::WalkPrice,
+        node: NodeId,
+        armour: Option<&ZoneArmour>,
+        seconds: f32,
+        weight: impl Fn(&Hazard) -> f32,
+    ) {
+        walk.step(self.zones_at(node).map(|zone| (zone, weight(zone))), armour, seconds, self.live.hit_per_s(node));
+    }
+
+    /// [Gap 12] [`Self::leg_cost_per_s`]'s pricing of `seconds` on `node`, into `walk`: each zone that marks it at its
+    /// intensity there where `rule` asks, else at its full hit.
+    pub fn leg_walk_step(
+        &self,
+        walk: &mut super::zone_cost::WalkPrice,
+        grid: &WalkGrid,
+        node: NodeId,
+        armour: Option<&ZoneArmour>,
+        rule: HurtTest,
+        seconds: f32,
+    ) {
+        self.walk_step(walk, node, armour, seconds, |zone| if rule.by_intensity { rule.intensity(zone, grid, node) } else { 1.0 });
+    }
+
     /// [`Self::hit_per_s`] in the pools that kill, under `armour` (`None`: the raw hit in the body
     /// pool, the number it always was). The live fields count by their raw hit in the body pool.
     pub fn cost_per_s(&self, node: NodeId, armour: Option<&ZoneArmour>) -> Cost {

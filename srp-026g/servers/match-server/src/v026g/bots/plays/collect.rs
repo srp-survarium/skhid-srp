@@ -207,7 +207,7 @@ pub enum StandFail {
     WorldOff { across_m: f32, up_m: f32 },
 }
 
-/// How a take of a battery ended, for the team's memory ([`TeamTakes`]).
+/// How a take of a battery failed, for the team's memory ([`TeamTakes`]): each is one failed play (A394).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TakeEnd {
     /// "could not take it" with an untried stand still round the battery (the play's stands were spent).
@@ -216,6 +216,8 @@ pub enum TakeEnd {
     NoStandLeft,
     /// "no way to its goal": the bot's search found no way to the take's goal.
     NoWay,
+    /// [A394] Any other failure of the play (its `Step::Failed` reason).
+    Failed,
 }
 
 /// The failure a take ends with when no stand round the battery is left untried, team memory on ([`TeamTakes`]):
@@ -266,8 +268,10 @@ impl TeamTakes {
         })
     }
 
-    /// A take of `battery` lying at `at` ended `end`: after `rule.aside_after` plays in a row that left no stand, or one that
-    /// found no way, the battery is set aside for the team for `rule.aside_s`. Gives whether it was set aside now.
+    /// A take of `battery` lying at `at` failed (`end`): [A394] after `rule.aside_after` failed plays at that place, by any of the
+    /// team's bots and whatever the failure, the battery is set aside for the team for `rule.aside_s`. Before, only plays that
+    /// left no stand counted (one that found no way set it aside at once, and plays with stands left never did), so a battery
+    /// no bot could reach by its stands was tried all match. Gives whether it was set aside now.
     pub fn play_ended(&mut self, battery: usize, at: Vec3, end: TakeEnd, now: u32, rule: &crate::v026g::bots::tuning::TeamMemory) -> bool {
         let aside_ms = (rule.aside_s.get() * 1000.0) as u32;
         let index = match self.batteries.iter().position(|b| b.battery == battery && (b.at - at).length() < 0.5) {
@@ -284,13 +288,17 @@ impl TeamTakes {
             }
         };
         let fails = &mut self.batteries[index];
-        let aside = match end {
-            TakeEnd::NoWay => true,
-            TakeEnd::StandsLeft | TakeEnd::NoStandLeft => {
-                fails.plays = fails.plays.saturating_add(1);
-                end == TakeEnd::NoStandLeft && fails.plays >= rule.aside_after
-            }
-        };
+        fails.plays = fails.plays.saturating_add(1);
+        let aside = fails.plays >= rule.aside_after;
+        log::debug!(
+            "team takes: battery {battery} at ({:.1}, {:.1}, {:.1}) failed play {} of {} ({end:?}) at {now} ms{}",
+            at.x,
+            at.y,
+            at.z,
+            fails.plays,
+            rule.aside_after,
+            if aside { ": set aside" } else { "" }
+        );
         if aside {
             fails.aside_until = Some(now + aside_ms);
             fails.plays = 0;
@@ -545,7 +553,7 @@ pub mod take_counts {
         WorldNone,
         /// ... a stand given up: the world had the body off it.
         WorldOff,
-        /// [take.team_memory] A battery set aside for the team after its takes found no stand left.
+        /// [take.team_memory] A battery set aside for the team after its failed plays (A394: any but "no way" last).
         TeamAsideNoStand,
         /// ... a battery set aside for the team after "no way to its goal".
         TeamAsideNoWay,
@@ -1069,15 +1077,16 @@ fn line_hurt(tactics: &Tactics, a: Vec3, b: Vec3, armour: Option<&ZoneArmour>, h
     let d = a.distance_xz(b);
     let n = (d / CROSS_STEP_M).ceil().max(1.0) as usize;
     let ds = d / n as f32;
-    (0..n)
-        .map(|i| {
-            let p = a + (b - a) * ((i as f32 + 0.5) / n as f32);
-            grid.locate(p, 1.5)
-                .map_or(Cost::ZERO, |node| tactics.hazards.leg_cost_per_s(grid, node, armour, hurt))
-                * ds
-                / CROSS_MPS
-        })
-        .sum()
+    // [Gap 12] By the client's rule of when a zone hits (`zone_cost::WalkPrice`): an interval zone's whole hits.
+    let mut walk = crate::v026g::bots::zone_cost::WalkPrice::default();
+    for i in 0..n {
+        let p = a + (b - a) * ((i as f32 + 0.5) / n as f32);
+        match grid.locate(p, 1.5) {
+            Some(node) => tactics.hazards.leg_walk_step(&mut walk, grid, node, armour, hurt, ds / CROSS_MPS),
+            None => walk.step(std::iter::empty(), armour, ds / CROSS_MPS, 0.0),
+        }
+    }
+    walk.total()
 }
 
 /// The cheapest crossing to `to` for a body of map side `side`, its walk
@@ -4826,27 +4835,26 @@ mod tests {
         assert!(matches!(state, State::Take { stand: None, ref tried, .. } if tried.len() == 1), "{state:?}");
     }
 
-    /// [take.team_memory] A battery's takes in the team's memory: two plays that left no stand set it aside for the team,
-    /// one that found no way at once, plays with stands left never; a battery found elsewhere is a new take; the aside ends.
+    /// [take.team_memory] [A394] A battery's takes in the team's memory: two failed plays at one place set it aside for the
+    /// team, whatever the failures (no stand left, stands left, no way, another); one is not enough; a battery found elsewhere
+    /// is a new take; the aside ends after `aside_s`.
     #[test]
     fn the_team_sets_a_battery_aside_after_failed_takes() {
         use crate::v026g::bots::tuning::TeamMemory;
         let rule = TeamMemory::default();
+        let span = (rule.aside_s.get() * 1000.0) as u32;
         let at = Vec3::new(5.0, 0.0, 5.0);
-        let mut takes = TeamTakes::default();
-        assert!(!takes.play_ended(0, at, TakeEnd::StandsLeft, 1_000, &rule));
-        let mut takes = TeamTakes::default();
-        assert!(!takes.play_ended(0, at, TakeEnd::NoStandLeft, 1_000, &rule), "one failed play is not enough");
-        assert!(!takes.aside(0, at, 1_500));
-        assert!(takes.play_ended(0, at, TakeEnd::NoStandLeft, 2_000, &rule), "the second sets it aside");
-        assert!(takes.aside(0, at, 2_500));
-        assert!(!takes.aside(0, at + Vec3::new(3.0, 0.0, 0.0), 2_500), "moved: another take");
-        assert!(!takes.aside(0, at, 2_000 + 60_000), "the aside ends");
-        let mut takes = TeamTakes::default();
-        assert!(takes.play_ended(1, at, TakeEnd::NoWay, 1_000, &rule), "no way: at once");
-        let mut takes = TeamTakes::default();
-        for k in 0..5 {
-            assert!(!takes.play_ended(2, at, TakeEnd::StandsLeft, 1_000 + k, &rule), "stands left: never");
+        let ends = [TakeEnd::StandsLeft, TakeEnd::NoStandLeft, TakeEnd::NoWay, TakeEnd::Failed];
+        for first in ends {
+            for second in ends {
+                let mut takes = TeamTakes::default();
+                assert!(!takes.play_ended(0, at, first, 1_000, &rule), "one failed play is not enough: {first:?}");
+                assert!(!takes.aside(0, at, 1_500));
+                assert!(takes.play_ended(0, at, second, 2_000, &rule), "the second sets it aside: {first:?}, {second:?}");
+                assert!(takes.aside(0, at, 2_500));
+                assert!(!takes.aside(0, at + Vec3::new(3.0, 0.0, 0.0), 2_500), "moved: another take");
+                assert!(!takes.aside(0, at, 2_000 + span), "the aside ends");
+            }
         }
     }
 

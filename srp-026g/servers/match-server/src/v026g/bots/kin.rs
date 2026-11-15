@@ -139,6 +139,8 @@ pub struct Kinematics {
     /// clip's frames #1662; the OFF window walks the grid's floors with no height of its own and drops a body off a narrow top to
     /// the floor under it, the drift lab's falls the client did not make, #1676).
     pub jump_arc: bool,
+    /// [A388 step 3] What flies a jump the reckoning presses with [`Self::jump_arc`] ([`JumpFlight`]).
+    pub jump_flight: JumpFlight,
 }
 
 /// [A313] The terms of the client's movement speed factor `F = max(0, 1 + S4)` the reckoned body moves by
@@ -523,6 +525,7 @@ impl Default for Kinematics {
             ramp_min_deg: 35.0,
             walk_bridges: true,
             jump_arc: true,
+            jump_flight: JumpFlight::Controller,
             speed_terms: SpeedTerms::LegsStagger,
             speed_cap: SpeedCap::Client,
             level_read: LevelRead::Settled,
@@ -658,6 +661,24 @@ pub enum ClientStep {
     /// second a match).
     #[default]
     Kept,
+}
+
+/// [A388 step 3] What flies a jump the reckoning presses ([`Kinematics::jump_arc`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JumpFlight {
+    /// The clip's root (`jump_arc::JumpArc`), stopped by the walker's rays every 5 cm with a catch of `jump_arc::CATCH_M` and
+    /// landed on the highest grid floor or walker top.
+    Clip,
+    /// A forward press is flown by the client's own jump (`mapdata::controller::jump::fly_as`, the flyer the grid scores its links
+    /// with) from the reckoning's kept controller: the clip's root fed to the controller tick by tick with `jump` / `end_jump`, the
+    /// air control, the capsule against the game's shapes. The kind is the client's (0x2F1220 with `max_speed` 0x2DC010): a sprint
+    /// jump with forward and sprint held, none of back, fire, crouch or aim, and the body's last move at its walk cap or more;
+    /// else the short jump at that move's speed. A sprint jump flies the left leg's clip at the first air frame 6.57 (13 of the
+    /// 16 traced; the leg is not knowable from the inputs, exactness row 4). A side or back press, and a jump a world shows under
+    /// way, keep the clip ([`Self::Clip`]): the flyer has only the forward jump. The default (correctness, `tuning::KEPT_RIGHT`).
+    #[default]
+    Controller,
 }
 
 /// [A388 step 2b] Whose ground steps the lip guard's stop forecast (`body::stays_up`) plays.

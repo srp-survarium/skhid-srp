@@ -489,6 +489,10 @@ pub struct GapStats {
     pub aimed_made: usize,
     /// … in this many flights (in [`Self::flights`] too).
     pub aimed_flights: usize,
+    /// [S4] Of the gaps flown, those over a thin top (a rail, a railing, a sill: [`WalkGrid::over_thin_top`]) …
+    pub over_thin: usize,
+    /// … and the links made over one.
+    pub over_thin_made: usize,
     pub by_share: [usize; 3],
 }
 

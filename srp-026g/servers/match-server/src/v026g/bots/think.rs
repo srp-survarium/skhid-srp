@@ -1420,13 +1420,14 @@ pub(super) fn decide(
                 };
                 bot.features.memory.set_aside.push((a.kind, a.target, now + keep));
             }
-            if let Some(a) = bot.assignment.as_ref()
-                && why.starts_with("could not take it")
-            {
+            // [A394] Every failed Collect play is one for the team's memory, whatever its reason.
+            if let Some(a) = bot.assignment.as_ref() {
                 let end = if why == plays::collect::NO_STAND_LEFT {
                     plays::collect::TakeEnd::NoStandLeft
-                } else {
+                } else if why.starts_with("could not take it") {
                     plays::collect::TakeEnd::StandsLeft
+                } else {
+                    plays::collect::TakeEnd::Failed
                 };
                 take_ended(tuning, state, bot, a.kind, a.target, end, now, notes);
             }

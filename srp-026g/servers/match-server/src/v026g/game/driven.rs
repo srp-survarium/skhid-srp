@@ -581,8 +581,8 @@ fn log_notes(id: u32, notes: Vec<Note>) {
     }
 }
 
-/// A world's statistics and batteries for the bots.
-fn world_facts(time: u32, decoded: &Decoded) -> WorldFacts {
+/// A world's statistics and batteries for the bots, and by place who carries a battery (`checked`: the world's typed views).
+fn world_facts(time: u32, decoded: &Decoded, checked: &world_validation::Checked) -> WorldFacts {
     use survarium::v026g::match_msgs::snapshot::event;
     let stats = decoded
         .statistics
@@ -656,6 +656,12 @@ fn world_facts(time: u32, decoded: &Decoded) -> WorldFacts {
             .and_then(|gather| gather.timed.as_ref())
             .filter(|timed| timed.started)
             .map(|timed| timed.next_spawn),
+        // [Gap 2] Each place's carried battery (`m_carried_item`), where its state was read.
+        holders: checked
+            .places
+            .iter()
+            .map(|place| place.as_ref().filter(|world| world.motion.is_some()).map(|world| world.carried.is_some()))
+            .collect(),
         // [Gap 9] Each place's last kill's time.
         kill_times: decoded
             .statistics
@@ -940,7 +946,7 @@ impl Game {
                 snapshot.time
             );
         }
-        let notes = walkers.bots.facts(world_facts(snapshot.time, decoded));
+        let notes = walkers.bots.facts(world_facts(snapshot.time, decoded, checked));
         log_notes(id, notes);
         walkers
             .bots
