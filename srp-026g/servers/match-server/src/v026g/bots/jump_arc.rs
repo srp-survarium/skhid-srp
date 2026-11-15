@@ -290,6 +290,16 @@ impl Clip {
     }
 }
 
+/// [A388] The clip's time at the tick ending at `time` for a press decided at `pressed` (ms): one tick behind the press's stamp.
+/// The client's step n ends n x 50 ms after the press's input and the step of a stamp moves by it, so the clip's step 0 shows at
+/// the stamp + 50 ms (the exe review of #1915, on recorded worlds: 5 matches of revision 56, short forward presses on flat ground,
+/// the rise 0.000 at the stamp + 250 ms in 3 of 3, 0.273 at + 300, 0.506 at + 350, 0.691 at + 400 = the clip's frames 6.0, 7.5,
+/// 9.0 and 10.5). Before, the clip ran a tick early: frame 6.0 at the stamp + 200 ms, and a world seen in the rise put the
+/// floor it left 0.2-0.3 m off ([`JumpArc::seen`]).
+fn clip_ms(time: u32, pressed: u32) -> f32 {
+    time.saturating_sub(pressed).saturating_sub((TICK_S * 1000.0).round() as u32) as f32
+}
+
 /// A jump in the reckoning, as the bench's honest stand-in flies one (`tests/standin_jump.rs` `Flight`, `fly`): the clip's root
 /// from the feet at the press, at the press's facing (the keys pick the clip there; after it only the air control steers); on the
 /// floor before the take-off at the walk cap at most, in the air after it, a step a wall holds caught up once clear (the chase
@@ -342,7 +352,7 @@ impl JumpArc {
     /// back from them, the floor it left the rise under them. None once the clip is over (a fall is the world's).
     pub fn seen(pressed: u32, keys: u32, walk: [f32; 2], time: u32, feet: Vec3, yaw: f32) -> Option<Self> {
         let mut arc = Self::pressed(pressed, keys, walk, feet, yaw);
-        let ms = time.saturating_sub(pressed) as f32;
+        let ms = clip_ms(time, pressed);
         let (frame, travel) = arc.root(ms);
         if frame >= arc.clip.air_end_frame() + AIR_END_EPS {
             return None;
@@ -405,7 +415,7 @@ impl JumpArc {
                 None => ArcStep::Landed(feet, None),
             };
         }
-        let ms = t1.saturating_sub(self.pressed) as f32;
+        let ms = clip_ms(t1, self.pressed);
         let (frame, travel) = self.root(ms);
         let air_end = self.clip.air_end_frame();
         let mut target = (self.from.x + travel[0], self.from.z + travel[1]);
