@@ -564,6 +564,41 @@ impl Offer {
     }
 }
 
+/// [A391] A bot's last offer of each job role since the role was given (live; decision-neutral): the class of a role it
+/// lets go, for the team's log line ([`Self::class`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LastOffers([Option<Offer>; 3]);
+
+impl LastOffers {
+    fn at(role: Role) -> usize {
+        match role {
+            Role::Flanker => 0,
+            Role::Pinner => 1,
+            Role::Crosser => 2,
+        }
+    }
+
+    /// A poll offered `role`'s play as `offer`.
+    pub fn note(&mut self, role: Role, offer: Offer) {
+        self.0[Self::at(role)] = Some(offer);
+    }
+
+    /// `role` was given: its offers start again.
+    pub fn reset(&mut self, role: Role) {
+        self.0[Self::at(role)] = None;
+    }
+
+    /// The class of `role` let go unplayed, by its last offer (taken): never polled, offered and outscored by the play the
+    /// bot runs (`running`), or the offer's own class (no spot, set aside, dry, low health), as the bench names it.
+    pub fn class(&mut self, role: Role, running: Option<&str>) -> String {
+        match self.0[Self::at(role)].take() {
+            None => "not_polled".to_string(),
+            Some(Offer::Offered) => format!("outscored_by_{}", running.unwrap_or("none")),
+            Some(offer) => offer.name().to_string(),
+        }
+    }
+}
+
 /// The role's name, for the bench's counts and the log's lines.
 pub fn role_name(role: Role) -> &'static str {
     match role {
