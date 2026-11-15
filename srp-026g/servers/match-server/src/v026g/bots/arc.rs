@@ -577,16 +577,24 @@ impl Flight {
         }
     }
 
-    /// Where the body is when the fuse ends ([`Self::max_s`] after the launch), flown by the client's rule through
-    /// every contact, as the 911 recorded flights were counted (`thrown_and_placed.md`, "After the first contact"):
+    /// Where the body is when the fuse ends ([`Self::max_s`] after the launch), flown through every contact by the rule
+    /// the 911 recorded flights were counted with (`thrown_and_placed.md`, "After the first contact"):
     /// - steps of [`STEP_S`], gravity into the velocity and then the move, no damping; the body a sphere of
     ///   [`RADIUS_M`] (the capsule's radius);
     /// - a step's move that meets the ground stops at the surface; a move longer than [`CCD_MOTION_M`] has its speed
-    ///   cut to [`CCD_SPEED_CAP`] (the swept test, 0x9CA78..0x9CB60); then the contact ([`touch`]): the velocity into
-    ///   the surface is lost (restitution 0) and the tangential speed loses [`FRICTION`] times it; what is left of the
-    ///   step's move is made once more the same way, without the cap;
+    ///   cut to [`CCD_SPEED_CAP`] (the client's swept test, `integrateTransforms` 0x9CA78..0x9CB60); then the contact
+    ///   ([`touch`]): the velocity into the surface is lost (restitution 0 and friction 0.5 a body: the collision
+    ///   object's defaults 0x8E8B1..0x8E8D5 and the grenade's own info 0x303919..0x303944) and the tangential speed
+    ///   loses [`FRICTION`] times it; what is left of the step's move is made once more the same way, without the cap;
     /// - then the support: a body within [`RADIUS_M`] + 2 cm over a surface is set on it and touches it, so it slides
     ///   where the slope's pull beats friction (`tan θ >` [`FRICTION`]) and holds elsewhere.
+    ///
+    /// The cap is the client's; which touches it takes is this rule's stand-in. The client leaves a hit uncapped when
+    /// the step's move along the hit's normal is 4 cm or less (the sweep's result filter 0x9C6B0, the collision world's
+    /// +38h), and its capsule touches without a swept hit within its reach less the swept sphere's radius, at any
+    /// surface; it does not move the rest of a capped step. Here every move hit over the threshold is capped and only a
+    /// floor under the support's reach is touched without it. The error the checks take ([`REST_AHEAD_M`]) was counted
+    /// with this same rule.
     ///
     /// A step that leaves a still body where it was is every later step too: the flight stops there.
     pub fn rest_at_blast(&self, ground: &(impl Ground + ?Sized)) -> Vec3 {
