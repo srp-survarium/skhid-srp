@@ -2585,6 +2585,19 @@ mod tests {
         let grid = world_back(2.0, 0.3, 3.0, -7.0);
         assert!(!walked_past(&grid, 9.0), "no walking way: {:?}", grid.off_links());
         assert!(sprints_across(&grid, 3.0, 2.0, 0.3), "{:?}", grid.off_links());
+        // [S6] A body with no sprint (a carrier) takes a sprint link only by its walking press, priced by that press's share;
+        // with none it has no way over. The grid's own body takes it at its own price.
+        let no_sprint = crate::grid::Reach::NoSprint { max_rise: None };
+        for l in grid.off_links().iter().filter(|l| matches!(l.press, Takeoff::Sprint(_))) {
+            let own = grid.link_cost(l.from, l.to, l.kind);
+            assert!(own.is_finite(), "{l:?}");
+            assert_eq!(grid.link_cost_reaching(l.from, l.to, l.kind, crate::grid::Reach::Full), own);
+            let walked = grid.link_cost_reaching(l.from, l.to, l.kind, no_sprint);
+            match l.walk {
+                None => assert!(walked.is_infinite(), "{l:?}: {walked}"),
+                Some(_) => assert!(walked.is_finite(), "{l:?}: {walked}"),
+            }
+        }
         // Too wide even so.
         let grid = world(2.0, 0.3, 6.0, -7.0, &[]);
         assert!(grid.off_links().iter().all(|l| !matches!(l.press, Takeoff::Sprint(_))));
