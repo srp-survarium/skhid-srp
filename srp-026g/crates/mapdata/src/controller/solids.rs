@@ -240,6 +240,9 @@ struct Leaf {
     /// [L36] A compound's child's place in the order the compound's tree offers its children; none for an object's whole
     /// shape or a compound the port has no order for.
     child: Option<u32>,
+    /// [L36] With a place: the child's box in its compound's tree (the leaf's volume, in the compound's frame: a primitive's
+    /// `getAabb` after the scaling, the mesh's as inserted), which the ray's walk of the tree tests ([`ray_crosses`]).
+    tree_box: Option<Box3>,
 }
 
 /// The game's objects a walking body meets.
@@ -253,6 +256,8 @@ pub(super) struct Solids {
     primitives: Vec<Primitive>,
     /// Each object's leaves (a run of the leaves, a compound's children in the compound's order).
     objects: Vec<std::ops::Range<u32>>,
+    /// [L36] Each object's world transform (Bullet's frame): the ray's ends go into a compound's frame through it.
+    object_transforms: Vec<Transform>,
 }
 
 /// The box of a box of half sides `half` about `centre` (in a part's frame) under `transform`.
@@ -346,7 +351,8 @@ impl Primitive {
 /// and half extents under the transform, here the identity, which every way of ordering that arithmetic gives the same bits
 /// for). None where one is not known: a file older than version 8, a cylinder that is not y-up, a mesh with no local box or
 /// under another transform.
-fn compound_ranks(library: &crate::Library, children: &[bullet::Child]) -> Option<Vec<u32>> {
+/// With each child's box in the tree (the leaf's volume after the scaling: [`Leaf::tree_box`]).
+fn compound_ranks(library: &crate::Library, children: &[bullet::Child]) -> Option<(Vec<u32>, Vec<Box3>)> {
     let boxes = children
         .iter()
         .map(|child| match (&child.part, child.added) {
@@ -384,7 +390,57 @@ fn compound_ranks(library: &crate::Library, children: &[bullet::Child]) -> Optio
             _ => None,
         })
         .collect::<Option<Vec<_>>>()?;
-    Some(super::compound_dbvt::offering_ranks(&boxes))
+    let leaf_boxes = boxes
+        .iter()
+        .map(|b| match *b {
+            super::compound_dbvt::ChildBox::BeforeScaling { scaled, .. } => scaled,
+            super::compound_dbvt::ChildBox::AfterScaling(inserted) => inserted,
+        })
+        .collect();
+    Some((super::compound_dbvt::offering_ranks(&boxes), leaf_boxes))
+}
+
+/// [L36] Whether the ray from `from` to `to` (in a compound's frame) crosses `b`, as `btDbvt::rayTest` 0xA54A0 tests a node
+/// (`btRayAabb2`, 0xA56A0..0xA57C1, with no padding): the direction made unit (`(y*y + z*z) + x*x`, the x87 1/sqrt at
+/// 24-bit precision, 0xA54BD..0xA5544), each inverse component 1/d or 1e18 (0xA2D990) where d is 0 (0xA5570..0xA55B4),
+/// the signs (0xA55B8..0xA55E4), the length along the direction `(y*dy + z*dz) + x*dx` (0xA55E8..0xA5612), then the slab
+/// test against [0, that length), each comparison as the exe's `comiss` branches.
+fn ray_crosses(from: V3, to: V3, b: &Box3) -> bool {
+    let d = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+    let inv_len = 1.0 / ((d[1] * d[1] + d[2] * d[2]) + d[0] * d[0]).sqrt();
+    let dir = [d[0] * inv_len, d[1] * inv_len, d[2] * inv_len];
+    let inv = dir.map(|v| if v == 0.0 { RAY_LARGE } else { 1.0 / v });
+    let neg = inv.map(|v| 0.0 > v);
+    let lambda_max = (d[1] * dir[1] + d[2] * dir[2]) + d[0] * dir[0];
+    let near = |k: usize| if neg[k] { b.1[k] } else { b.0[k] };
+    let far = |k: usize| if neg[k] { b.0[k] } else { b.1[k] };
+    let mut tmin = (near(0) - from[0]) * inv[0];
+    let mut tmax = (far(0) - from[0]) * inv[0];
+    for k in [1, 2] {
+        let lo = (near(k) - from[k]) * inv[k];
+        let hi = (far(k) - from[k]) * inv[k];
+        if tmin > hi || lo > tmax {
+            return false;
+        }
+        if lo > tmin {
+            tmin = lo;
+        }
+        if tmax > hi {
+            tmax = hi;
+        }
+    }
+    lambda_max > tmin && tmax > 0.0
+}
+
+/// [L36] 0xA2D990: the inverse direction's stand-in where a component is 0 (about 1e18).
+const RAY_LARGE: f32 = f32::from_bits(0x5D5E_0B6B);
+
+/// [L36] A point of the world in an object's frame as `rayTestSingle` 0xA02D0 puts the ray's ends for a compound
+/// (`inverseTimes`, 0xA0C65..0xA0D95): `v = p - origin`, each component `(v.z*m[2][c] + v.y*m[1][c]) + v.x*m[0][c]`.
+fn into_object(t: &Transform, p: V3) -> V3 {
+    let v = [p[0] - t.origin[0], p[1] - t.origin[1], p[2] - t.origin[2]];
+    let m = &t.basis;
+    [0, 1, 2].map(|c| (v[2] * m[2][c] + v[1] * m[1][c]) + v[0] * m[0][c])
 }
 
 /// What 0x84810 reads of a round primitive under `rotation`, the matrix 0x84190 and `setRotation` 0x72A50 make of the
@@ -444,8 +500,23 @@ impl Builder {
 
     /// A new object: the parts placed until the next one are its.
     fn object(&mut self) {
+        self.object_at(exe_cast::IDENTITY);
+    }
+
+    /// [`Self::object`] under its world transform.
+    fn object_at(&mut self, transform: Transform) {
         let at = self.solids.leaves.len() as u32;
         self.solids.objects.push(at..at);
+        self.solids.object_transforms.push(transform);
+    }
+
+    /// [L36] The last part placed (when one was) gets its box in its compound's tree.
+    fn tree_box(&mut self, placed_before: usize, tree_box: Option<Box3>) {
+        if self.solids.leaves.len() > placed_before
+            && let Some(leaf) = self.solids.leaves.last_mut()
+        {
+            leaf.tree_box = tree_box;
+        }
     }
 
     fn leaf(&mut self, bounds: Box3, transform: Transform, ray_transform: Transform, part: Part, child: Option<u32>) {
@@ -453,7 +524,7 @@ impl Builder {
         object.end += 1;
         let object = (self.solids.objects.len() - 1) as u32;
         self.solids.boxes.push(bounds);
-        self.solids.leaves.push(Leaf { transform, ray_transform, part, object, child });
+        self.solids.leaves.push(Leaf { transform, ray_transform, part, object, child, tree_box: None });
     }
 
     /// A mesh under `transform` (the sweep's) and `ray_transform` (the ray test's: the same but for a compound's child).
@@ -522,7 +593,7 @@ impl Solids {
                 })
             };
             let object = *world.object(index);
-            builder.object();
+            builder.object_at(object);
             match world.shape(library_index) {
                 bullet::Shape::Empty => {}
                 bullet::Shape::Mesh(mesh) => {
@@ -538,18 +609,22 @@ impl Solids {
                 bullet::Shape::Compound { children, .. } => {
                     let order = compound_orders.entry(library_index).or_insert_with(|| compound_ranks(library, children)).clone();
                     for (part, child) in children.iter().enumerate() {
-                        let place = order.as_ref().map(|o| o[part]);
+                        let place = order.as_ref().map(|(o, _)| o[part]);
+                        let tree_box = order.as_ref().map(|(_, b)| b[part]);
+                        let placed_before = builder.solids.leaves.len();
                         let transform = exe_cast::compose(&object, &child.transform);
                         let ray_transform = exe_ray::compose_child(&object, &child.transform);
                         match &child.part {
                             bullet::Part::Mesh(mesh) => {
                                 let id = mesh_of(&mut builder, part, mesh);
                                 builder.place_mesh(transform, ray_transform, id, place);
+                                builder.tree_box(placed_before, tree_box);
                             }
                             bullet::Part::Convex(convex) => {
                                 let id = primitive_of(&mut builder, part, convex);
                                 let on = Surface::Primitive { walker: convex.walker, round: small_round(convex, &exe_cast::child_hit_rotation(&object.basis, &child.transform.basis)) };
                                 builder.place_primitive(transform, ray_transform, id, on, place);
+                                builder.tree_box(placed_before, tree_box);
                             }
                         }
                     }
@@ -651,8 +726,17 @@ impl Solids {
         if parts.iter().all(|&i| self.leaves[i as usize].child.is_some()) {
             parts.sort_by_key(|&i| self.leaves[i as usize].child);
         }
+        // [L36] The tree's walk offers a child only where the ray crosses its box in the tree ([`ray_crosses`]: the exe's
+        // `btRayAabb2` on the leaf's volume, in the compound's frame); a part with no such box, as before, where the ray's
+        // box meets its world box.
+        let into = &self.object_transforms[object as usize];
+        let local = (into_object(into, from.origin), into_object(into, to.origin));
         for i in parts {
-            if !overlaps(&self.boxes[i as usize], &bounds) {
+            let offered = match self.leaves[i as usize].tree_box {
+                Some(tree_box) => ray_crosses(local.0, local.1, &tree_box),
+                None => overlaps(&self.boxes[i as usize], &bounds),
+            };
+            if !offered {
                 continue;
             }
             let leaf = &self.leaves[i as usize];
