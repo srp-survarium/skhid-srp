@@ -3581,8 +3581,9 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   VK_NUMPADn/VK_DECIMAL a press sets with NumLock on, as the scan code maps to the navigation
   keys; NumLock and Pause, which map swapped, by VK_NUMLOCK and VK_PAUSE; a mouse button by
   VK_LBUTTON..VK_XBUTTON2, those past it by their release only) or the game lost the keyboard; the
-  hud's `root.srp_voice_talking(names...)` on a change (0.69's list: the teammates, newest on top,
-  fading 1 s after 0.5 s; and the player's own while its microphone is sent).
+  hud's `root.srp_voice_talking(name, side, ...)` on a change, each speaker's side `"mate"` or
+  `"opponent"` (0.69's list: those heard, newest on top, fading 1 s after 0.5 s, an opponent's
+  speaker pale red; and the player's own while its microphone is sent).
 - **The key** (`tab_cursor.key`, before patch 86's): the binder's chat key (kind 8, as
   chat_handler::on_keyboard_action asks at 0x208887, the binder [game+5344h]) `ptt` (47h, P) down
   and up. **A mouse button** (`game_world.mouse_key`, 0x25CF70: `mov edi,eax / mov eax,[edi] /
