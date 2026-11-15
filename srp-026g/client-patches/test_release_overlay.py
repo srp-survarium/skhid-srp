@@ -1074,6 +1074,14 @@ class ReleaseTests(unittest.TestCase):
         (x86 / 'updater_skhid.log').write_bytes(b'2026-11-02 10:00:00 patches: GET https://user:pa55@files.example/x\n'
                                                 b'2026-11-02 10:00:01 ok\n')
         (x86 / 'srp_patches.log').write_bytes(b'pid 7 pickup: refused, no drop to take\r\n')
+        # Each run's logs, named by its start (a second part of the patches' log too).
+        runs = {'documents/Survarium.2026-11-15_14-03-07.log': b'core <info>\t[14:03:07.000]\tstarted\r\n',
+                'game-x86/updater_skhid.2026-11-15_14-03-05.log': b'2026-11-15 14:03:05 ok\r\n',
+                'game-x86/srp_patches.2026-11-15_14-03-07.log': b'srp: a run\r\n',
+                'game-x86/srp_patches.2026-11-15_14-03-07_2.log': b'srp: its next part\r\n'}
+        for entry, data in runs.items():
+            ((own if entry.startswith('documents/') else x86) / entry.split('/', 1)[1]).write_bytes(data)
+        (x86 / 'srp_patches.old.log').write_bytes(b'not a run')
         (x86 / 'SRP-crash-20261102-1.txt').write_bytes(b'Exception: 0xC0000005\r\n')
         (x86 / 'SRP-crash-20261102-1.dmp').write_bytes(b'MDMP dump-secret')
         # A crash ZIP as the reporter writes it: its dump stays out, its text is taken.
@@ -1175,7 +1183,10 @@ class ReleaseTests(unittest.TestCase):
                     'logs/game/Survarium_big.log', 'logs/game-folder/skhid-download.log',
                     'crash/game-x86/SRP-crash-20261102-1.txt', 'crash/temp/SRP-crash-20261101-2.txt',
                     'crash/game-x86/SRP-crash-20261102-1/crash.txt', 'crash/game-x86/SRP-crash-20261102-1/breadcrumbs.txt',
-                    'state/game-x86/updater_skhid.url', 'state/game-x86/play_skhid.bat'})
+                    'state/game-x86/updater_skhid.url', 'state/game-x86/play_skhid.bat'}
+                    | {'logs/' + entry for entry in runs})
+                for entry, data in runs.items():
+                    self.assertEqual(entries['logs/' + entry], data, entry)
                 for secret in (b'hunter2', b'hunter3', b'pa55', b'secretdigest', b'engine-secret', b'dump-secret',
                                b'my-taxes', b'match.sur', b'not the game', b'user.cfg'):
                     for name, data in entries.items():

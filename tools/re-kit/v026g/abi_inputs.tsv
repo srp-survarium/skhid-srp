@@ -6203,3 +6203,5 @@ va	name	location	role	basis
 0x00316fc0	survarium::player_respawn_rule_core::deserialize	ECX	the respawn rule: the base's (0x316D50), the seed, the points' bytes as serialize writes them; ESI the reader to its end (0x317038, exe patch 142's respawn.load)	observed
 0x00316fc0	survarium::player_respawn_rule_core::deserialize	entry ESP+4	reader: its cursor at +4	observed
 0x00316fc0	survarium::player_respawn_rule_core::deserialize	entry ESP+8	a dword of the caller, passed on to the base's deserialize; popped (ret 8)	observed
+0x000e29c0	vostok::core::generate_log_file_name	EDI	the buffer_string the name is written to (cleared first, 0xE2A1D)	observed
+0x001128d0	vostok::logging::new_log_file	entry ESP+4	the file name, a C string	observed

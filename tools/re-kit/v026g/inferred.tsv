@@ -3485,3 +3485,6 @@ va	status	ref_021d	name
 0x0032a9c0	inferred-high		survarium::body_part::update_threshold_modifier [descriptive]
 0x0032ab90	inferred-high		survarium::body_part::apply_threshold_affects [descriptive]
 0x00312450	inferred-medium		survarium::artefact_lifebone_core::disable_active_effects
+0x000e29c0	inferred-high	0x000af335	vostok::core::generate_log_file_name
+0x00112340	inferred-high	0x000d15ee	vostok::logging::log_file::log_file
+0x001128d0	inferred-high	0x000d1a6a	vostok::logging::new_log_file

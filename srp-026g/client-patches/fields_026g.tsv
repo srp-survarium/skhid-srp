@@ -734,6 +734,7 @@ survarium::player_input_handler	mode	0x358	u32	its input mode: 0 first person (t
 survarium::player_input_handler	game_world	0x334	ptr<survarium::game_world>	its game world (on_mouse_move 0x2402B2, process_first_person_mode 0x2410F8)
 survarium::player	look_pitch	0x48C	f32	the look pitch, -1 (down) to 1 (up): weapon_core::look_pitch 0x2E0F60 adds the kick and scrubs the look clips at (pitch + 1) / 2 (0x2FBF90); bone Item turns 67.5 deg a unit below 0, 60 above (on_site_camera_look)
 vostok::buffer_string	end	0x4	ptr<u8>	past the text's last byte (its NUL there)
+vostok::buffer_string	capacity_end	0x8	ptr<u8>	the end of its room: assign (0x127C0) copies while end < it, then writes the NUL at end; logging_initialize's name points it 104h past begin (0xE31E3), at the native path string's separator byte
 survarium::game_start_frame	folder	0x470	obj<vostok::buffer_string>	game::game's local at [esp+470h] by its ESP at 0x1E944E: user_data/streamed_textures' physical path (converted by 0x12780 at 0x1E9449), the buffer_string its delete 0x1E8DA0 gets in EAX
 survarium::image	baker	0xA264E80	obj<vostok::render::camouflage_decal_texture_type_baker_cook>	the camouflage/decal baker, camouflage_decal_texture_type_baker_cook, a static (set up by 0x12CCE0; translate_query's ECX, the look-up's EAX at 0x12D4C5)
 vostok::render::camouflage_decal_texture_type_baker_cook	list_begin	0x230	ptr<vostok::render::baked_texture_data>	its list of saved textures, a buffer_vector<baked_texture_data> (0x12CD39..0x12CDA6 set it up; find_baked_texture 0x131ED0 walks it): begin
@@ -1093,6 +1094,8 @@ vostok::memory::game_call	scaleform_alloc_call	0xC	obj<vostok::memory::game_call
 vostok::memory::allocate_region_frame	return_address	0x4	u32	allocate_region's frame by its EBP (push ebp / mov ebp,esp, 0xE1120): its return address, allocate_region_return when engine_world's constructor called it
 vostok::memory::profile_frame	call	0x4	ptr<vostok::memory::game_call>	memory_profile.allocated's and .freeing's first argument (by the site ESP, the return address at +0): the ESP the game's call of mspace_malloc, mspace_realloc or mspace_free left, its return address there
 vostok::memory::profile_frame	memory	0x8	u32	their second: the memory mspace_malloc or mspace_realloc gave (0 for none), or the memory given back to mspace_free or mspace_realloc
+vostok::c_line_frame	text	0x4	ptr<u8>	log.c_line's first argument (by the site's ESP, the return address at +0): the line's text, a C string of the caller's (ASCII)
+vostok::c_line_frame	value	0x8	u32	its second: the value the line ends with (in hex)
 vostok::memory::out_of_memory_frame	return_address	0x0	u32	memory.out_of_memory's ESP: the callback's return (heap_out_of_memory_return from mspace_malloc)
 vostok::memory::out_of_memory_frame	space	0x4	u32	its first argument: the arena's mspace (create_mspace_with_base made it at the arena's start)
 vostok::memory::out_of_memory_frame	allocator	0x8	ptr<vostok::memory::base_allocator>	its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)

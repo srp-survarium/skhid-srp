@@ -2856,6 +2856,21 @@ pub extern "C" fn hook_voice_on_menu_close(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- run_logs (patch 147) ----
+
+/// The entry `run_logs_on_process_start` (0xe9580, memory::platform::allocate_arenas' start (mov eax,11A8h before its stack probe 0x429F20): once, at the process's start (memory::allocate_region, 0xE11F9), before the VRAM check's get_local_video_memory_size 0x106300 (Direct3DCreate9) at 0xE9C3F and the render device) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_run_logs_on_process_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `run_logs_on_process_start` calls this, from the game's jump at 0xe9580,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::run_logs::on_process_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hud_options (patch 83) ----
 
 /// The entry `hud_options_on_process_start` (0xe9580, memory::platform::allocate_arenas' start (mov eax,11A8h before its stack probe 0x429F20): once, at the process's start (memory::allocate_region, 0xE11F9), before the VRAM check's get_local_video_memory_size 0x106300 (Direct3DCreate9) at 0xE9C3F and the render device) calls this with the saved machine.
@@ -4354,6 +4369,36 @@ pub extern "C" fn hook_replay_map_on_enemy_ids(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- run_logs (patch 147) ----
+
+/// The entry `run_logs_on_engine_log` (0xe31f8, logging_initialize (0xE30E0) after generate_log_file_name (0xE29C0, the only call, at 0xE31F3) made the engine log's name in EDI, the frame's buffer_string [esp+0Ch] over its 104h bytes at [esp+18h] (<user data folder><application>_<user>.log), before new_log_file (0x1128D0, the only call, at 0xE31FD) makes the log file of that name anew (create_always: log_file::log_file, as g_log_file_usage 0x1B3A1B8 says); mov eax,[esp+0Ch] / push eax) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_run_logs_on_engine_log(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `run_logs_on_engine_log` calls this, from the game's jump at 0xe31f8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::run_logs::on_engine_log(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- run_logs (patch 147) ----
+
+/// The entry `run_logs_on_c_line` (log.c_line, the arena's C code's line to the patches' log (patch 100's ad_log, audio_device_engine_026g.c): a cdecl call of C (the entry keeps every register), the text and a value; the caller pops the two) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_run_logs_on_c_line(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `run_logs_on_c_line` calls this, from our own code's call (log.c_line),
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::run_logs::on_c_line(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- scaleform_capture (patch 93) ----
 
 /// The named exits of scaleform_capture::on_next_capture (the order the shim's Flow code
@@ -5387,6 +5432,15 @@ pub extern "C" fn hook_hud_cursor_on_menu_close_chain(frame: &mut Frame) -> u32 
     let flow = hook_hud_cursor_on_menu_close(frame);
     if flow != 0 { return flow; }
     let flow = hook_voice_on_menu_close(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_run_logs_on_process_start_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_run_logs_on_process_start(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_hud_options_on_process_start(frame);
     if flow != 0 { return flow; }
     0
 }

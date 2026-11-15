@@ -55,10 +55,10 @@ Option works as Alt in the game.
 
 IF IT FAILS
 
-Report skhid-wine.log and, for update failures, updater_skhid.log from
-game/binaries/x86. After a crash, post the crash ZIP (SRP-crash-*.zip) in
-#bugreports: it is written beside the game in game/binaries/x86, or, when that
-folder is not writable, in game/binaries/x86/wineprefix/drive_c/users/
+Report skhid-wine.log and, for update failures, the newest
+updater_skhid.<date>.log from game/binaries/x86. After a crash, post the
+crash ZIP (SRP-crash-*.zip) in #bugreports: it is written beside the game in
+game/binaries/x86, or, when that folder is not writable, in game/binaries/x86/wineprefix/drive_c/users/
 crossover/AppData/Local/Temp. If the prefix is broken, close the game and launcher and
 rename game/binaries/x86/wineprefix to an unused backup name; the next
 launch makes a new one. Settings stored outside the prefix survive.

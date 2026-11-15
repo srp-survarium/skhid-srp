@@ -16,6 +16,8 @@ import tempfile
 import threading
 import time
 
+import run_logs
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -38,7 +40,8 @@ def main():
     status = x86 / 'updater_skhid.patches.status'
     status.write_text('ready\r\n')
     started = x86 / 'survarium_skhid.exe.started.txt'
-    log = x86 / 'updater_skhid.log'
+    def log():
+        return run_logs.read(x86).decode('utf-8', 'replace')
 
     def win(path):
         return 'Z:' + str(path).replace('/', '\\')
@@ -52,7 +55,7 @@ def main():
             output.seek(0)
             data = output.read()
         assert done.returncode == expected, (argv, done.returncode, data,
-                                            log.read_text() if log.exists() else '')
+                                            log())
         return data.decode('utf-8', errors='replace')
 
     def expect_game(path):
@@ -67,7 +70,7 @@ def main():
                     started.unlink()
                     return
             time.sleep(.05)
-        raise AssertionError('stand-in game did not start: ' + log.read_text())
+        raise AssertionError('stand-in game did not start: ' + log())
 
     run('wineboot', '-u')
     wineserver = str(Path(args.wine).with_name('wineserver'))
@@ -90,11 +93,11 @@ def main():
         (('open-replay', 'quiet'), 'BadFile'),
     ]:
         run(updater, *argv, expected=1)
-        assert f'FAILED ({problem}' in log.read_text()
+        assert f'FAILED ({problem}' in log()
         assert not started.exists()
     status.write_text('blocked unfinished update\r\n')
     run(updater, 'open-replay', win(file), 'quiet', expected=1)
-    assert 'FAILED (NotReady)' in log.read_text()
+    assert 'FAILED (NotReady)' in log()
     assert not started.exists()
     status.write_text('ready\r\n')
 

@@ -60,6 +60,8 @@ pub mod artefact_score;
 pub mod battery_progress;
 
 pub mod hud_options;
+// patch 147: every run's logs in files of their own
+pub mod run_logs;
 pub mod tab_cursor;
 pub mod scaleform_capture;
 pub mod map_names;

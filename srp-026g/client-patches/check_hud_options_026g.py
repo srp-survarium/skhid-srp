@@ -157,7 +157,8 @@ SLOTS = {"CreateFileA": (0x870048, 7), "ReadFile": (0x870064, 5), "WriteFile": (
          "FreeLibrary": (0x870088, 1), "GetModuleFileNameA": (0x87014C, 3), "SHGetFolderPathA": (0xAEFE7C, 5),
          "GetModuleHandleA": (0x87003C, 1), "SetEnvironmentVariableA": (0x87029C, 2),
          "GetEnvironmentVariableA": (0x8701B4, 3), "FindFirstFileA": (0x870238, 2), "FindNextFileA": (0x87023C, 2),
-         "FindClose": (0x870228, 1)}
+         "FindClose": (0x870228, 1), "GetSystemTimeAsFileTime": (0x870244, 1),
+         "FileTimeToLocalFileTime": (0x870230, 2), "FileTimeToSystemTime": (0x87022C, 2)}
 # kernel32's functions patch 83 finds by GetProcAddress
 KERNEL_DYNAMIC = {"K32EnumProcessModules": 4}
 KERNEL32, EXE_MODULE, DRIVER_MODULES, NEGOTIATE = 0x76000000, 0x400000, 0x77000000, 0x77FF0000
@@ -285,9 +286,12 @@ class Run(language.Run):
         result = 1
         if name == "CreateFileA":
             path, disposition = self.text(arg(0)).decode(), arg(4)
-            if path != "srp_patches.log":       # opened once (vostok::log): its lines are its writes
+            # the patches' log (vostok::log; the run's, patch 147, once the process started): opened
+            # once, its lines are its writes
+            log = path.startswith("srp_patches") and path.endswith(".log")
+            if not log:
                 self.calls_made.append((name, path, disposition))
-            if path == "srp_patches.log":
+            if log:
                 result = 0x60
             elif path == USER_CFG:
                 result = 0x50 if self.user_cfg is not None else 0xFFFFFFFF
@@ -350,6 +354,8 @@ class Run(language.Run):
                 self.word(arg(1) + 4 * i, module)
             self.word(arg(3), 4 * len(loaded))
             result = 1
+        elif name == "FindFirstFileA" and self.text(arg(0)).startswith(b"srp_patches"):
+            result = 0xFFFFFFFF                 # patch 147's look for the patches' run logs: none here
         elif name == "FindFirstFileA":
             pattern = self.text(arg(0)).decode()
             self.calls_made.append((name, pattern))
@@ -372,7 +378,15 @@ class Run(language.Run):
             else:
                 result = 0
         elif name == "FindClose":
-            assert arg(0) in self.finds, hex(arg(0))
+            # INVALID_HANDLE_VALUE: files.rs drops the Find it made of a failed FindFirstFileA
+            assert arg(0) in self.finds or arg(0) == 0xFFFFFFFF, hex(arg(0))
+            result = int(arg(0) in self.finds)
+        elif name == "GetSystemTimeAsFileTime":
+            emu.mem_write(arg(0), bytes(8))
+        elif name == "FileTimeToLocalFileTime":
+            emu.mem_write(arg(1), bytes(8))
+        elif name == "FileTimeToSystemTime":    # the run's start (patch 147): 2026-11-15 14:03:07
+            emu.mem_write(arg(1), struct.pack("<8H", 2026, 11, 0, 15, 14, 3, 7, 0))
         elif name == "FreeLibrary":
             self.calls_made.append((name, arg(0)))
         elif name == "SetEnvironmentVariableA":

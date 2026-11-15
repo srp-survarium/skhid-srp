@@ -29,6 +29,8 @@ import time
 import unittest
 import zipfile
 
+import run_logs
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 RELEASE = os.path.join("target", "i686-win7-windows-msvc", "release")
 UPDATER = os.path.join(HERE, "..", "exe", RELEASE, "updater_skhid.exe")
@@ -481,7 +483,7 @@ class UpdaterTest(unittest.TestCase):
         return launcher
 
     def log(self):
-        return self.read(f"{X86}/updater_skhid.log").decode("utf-8", "replace")
+        return run_logs.read(self.path(X86)).decode("utf-8", "replace")
 
     # --- the normal runs -------------------------------------------------
 
@@ -639,7 +641,7 @@ class UpdaterTest(unittest.TestCase):
         for box in launcher.boxes:
             lines = box.splitlines()
             self.assertEqual(len(lines), 4, box)
-            self.assertTrue(lines[-1].endswith("updater_skhid.log"), box)
+            self.assertRegex(lines[-1], r"updater_skhid\.[0-9_-]+\.log$", box)
         if launcher.boxes[0].startswith(("Blocked", "No connection")):
             title = launcher.boxes[0].splitlines()[0]
             self.assertIn(title, ("Blocked on this network: 127.0.0.1 did not answer (connection refused)",
@@ -859,7 +861,7 @@ class UpdaterTest(unittest.TestCase):
         stray = os.path.join(self.root, "updater_skhid.exe")
         shutil.copy(exe, stray)
         self.assertEqual(subprocess.run([stray, "check", "quiet"], timeout=30).returncode, 1)
-        self.assertEqual(os.listdir(self.root).count("updater_skhid.log"), 0)
+        self.assertEqual(run_logs.paths(self.root), [])
 
     def test_a_bad_server_address_is_refused(self):
         self.write(f"{X86}/updater_skhid.url", b"http://example.com")   # plain HTTP to another host
