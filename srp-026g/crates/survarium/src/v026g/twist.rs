@@ -10,15 +10,16 @@ use super::maps::{GameMode, MapMode, MatchMap};
 use super::match_msgs::static_info::MatchProfile;
 
 /// The shares of a free-for-all card's draw ([`Plays::draw`]): the plain mode's and each twist's,
-/// in hundredths, a twist's by what its match arms. Cowboy rare (the owner, 2026-11-14: "cowboy
-/// version should be rare with only 10% chance"), its two variations half and half (the owner,
-/// 2026-11-14: "saloon should have two variations with winchesters and colts or just with colts";
-/// half and half my pick); Racket as often as the plain mode (my pick).
+/// in hundredths, a twist's by what its match arms. Cowboy 20 in all (the owner, 2026-11-15:
+/// "let's make saloon 20% with two variations (no need to name them)"; was 10, "cowboy version
+/// should be rare with only 10% chance", 2026-11-14), its two variations half and half (the
+/// owner, 2026-11-14: "saloon should have two variations with winchesters and colts or just with
+/// colts"; half and half my pick); Racket as often as the plain mode (my pick).
 pub const SHARES: [(Option<Armed>, u32); 4] = [
-    (None, 45),
-    (Some(Armed::Racket), 45),
-    (Some(Armed::Cowboy(Variation::WinchesterAndColt)), 5),
-    (Some(Armed::Cowboy(Variation::Colt)), 5),
+    (None, 40),
+    (Some(Armed::Racket), 40),
+    (Some(Armed::Cowboy(Variation::WinchesterAndColt)), 10),
+    (Some(Armed::Cowboy(Variation::Colt)), 10),
 ];
 
 /// What a free-for-all card of the rooms' vote may play: the plain mode, one twist, or more of
@@ -233,13 +234,13 @@ mod tests {
         }
         let rare = Plays::of([Some(Twist::Racket), Some(Twist::Cowboy)]).unwrap();
         let saloon = |variation| drawn(rare, Some(Armed::Cowboy(variation)));
-        assert_eq!((rare.total(), drawn(rare, None)), (55, 0));
+        assert_eq!((rare.total(), drawn(rare, None)), (60, 0));
         let (rifle, colt) = (Variation::WinchesterAndColt, Variation::Colt);
-        assert_eq!((saloon(rifle), saloon(colt)), (5, 5));
+        assert_eq!((saloon(rifle), saloon(colt)), (10, 10));
         let saloon = Plays::of([Some(Twist::Cowboy)]).unwrap();
-        assert_eq!(saloon.total(), 10);
+        assert_eq!(saloon.total(), 20);
         let plain = Plays::of([None, None]).unwrap();
-        assert_eq!((plain.total(), drawn(plain, None)), (45, 45));
+        assert_eq!((plain.total(), drawn(plain, None)), (40, 40));
         assert_eq!(Plays::of([None, Some(Twist::Racket), Some(Twist::Cowboy)]), Some(Plays::ALL));
         assert_eq!(Plays::of([]), None);
         // No twist shares a number with a mode (nor with Scarcity's 7, not on main).

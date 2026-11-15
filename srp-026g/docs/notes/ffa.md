@@ -442,13 +442,13 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   hold one).
 - **Where:** each free-for-all card of a vote (the third card; all three in a pool of
   free-for-alls alone) draws its twist with the card, by its share (`twist::SHARES`):
-  - plain Free for all 45 %, **Racket** 45 % (my pick);
-  - **Cowboy**, "Saloon" in the lobby, 10 % (the owner, 2026-11-14: "cowboy version should be
+  - plain Free for all 40 %, **Racket** 40 % (my pick: as often as each other);
+  - **Cowboy**, "Saloon" in the lobby, 20 % (the owner, 2026-11-15: "let's make saloon 20% with
+    two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be
     rare with only 10% chance"), in two variations (the owner, 2026-11-14: "saloon should have
-    two variations with winchesters and colts or just with colts"), half and half (my pick: 5 %
+    two variations with winchesters and colts or just with colts"), half and half (my pick: 10 %
     each, `twist::Armed`): every kit a Winchester 1894 and a Colt Python, or a Colt Python alone
-    (`ffa-cowboy.md`). One name and one tick for both: the card draws its variation with its
-    twist.
+    (`ffa-cowboy.md`). One name for both: the card draws its variation with its twist.
 
   Won, the card's match plays its twist.
 - **A mode of its own in the create window** (the owner, 2026-11-14: "they are not present in
@@ -459,7 +459,7 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   twist or none). A free-for-all card draws its map from the pool's maps, then what it plays among
   that map's entries in the pool, each by its share (`twist::Plays`):
   - Free for all alone: plain, always; a twist alone: that twist, always;
-  - Racket and Saloon: 45 to 10; all three: the shares above (my pick: the simplest rule, one
+  - Racket and Saloon: 40 to 20; all three: the shares above (my pick: the simplest rule, one
     draw for every room).
 
   The server's rooms (Play's) hold every entry but the experimental maps, so their cards draw by

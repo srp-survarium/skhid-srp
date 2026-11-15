@@ -132,7 +132,7 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     present in private room creations"); the pool offered has each free-for-all map once plain and
     once with each twist, and a room's pool is the entries ticked. A free-for-all card plays one of
     its map's entries in the pool, each by its share: Free for all alone plain, a twist alone that
-    twist. The server's rooms hold them all: the owner's shares (45 / 45 / 10).
+    twist. The server's rooms hold them all: the owner's shares (40 / 40 / 20).
   - **Blackout is on one card at the most** (the owner's of 2026-11-12: "Make it so blackout
     cannot be on two cards at the same time"): in every vote, one without a free-for-all card
     too. A second Blackout card drawn gives its place to a map of another mode while the pool

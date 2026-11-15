@@ -1,15 +1,15 @@
 # Free for all: Saloon, everyone with a Winchester and a Colt Python, or a Colt Python alone
 
-The owner (2026-11-14): a version of Free for All (`ffa.md`) "where everyone has colt Python", a twist of it (`ffa.md`, "Twists": 10 % of the free-for-all cards, "Saloon" in the lobby), and "saloon should have two variations with winchesters and colts or just with colts".
+The owner (2026-11-14): a version of Free for All (`ffa.md`) "where everyone has colt Python", a twist of it (`ffa.md`, "Twists": 20 % of the free-for-all cards since 2026-11-15, "let's make saloon 20% with two variations (no need to name them)", "Saloon" in the lobby), and "saloon should have two variations with winchesters and colts or just with colts".
 srp rewrites each player's match profile before the static info is sent
 (`survarium::v026g::cowboy::arm`); every game cooks each life from those profiles, so every client,
 a late joiner and a replay see the same kits.
 
 ## Rules
 
-- **Two variations** (`cowboy::Variation`), drawn with the card, half and half (my pick: 5 % each
-  of the free-for-all cards, `twist::SHARES`); one name ("FFA: Saloon") and one tick in the create
-  window for both. A match plays one for every kit:
+- **Two variations** (`cowboy::Variation`), drawn with the card, half and half (my pick: 10 % each
+  of the free-for-all cards, `twist::SHARES`); one name ("FFA: Saloon") for both. A match plays
+  one for every kit:
   - **Winchester and Colt:** the Winchester 1894 in slot 7 and the Colt Python in slot 10;
   - **the Colt alone:** the Colt Python in slot 7, slot 10 emptied (everyone has the same one gun,
     and a second Python would only save a reload).
