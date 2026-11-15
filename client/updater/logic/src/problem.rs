@@ -183,7 +183,7 @@ impl Problem {
 
     /// The box's caption: the title's beginning, in English always.
     pub fn caption(&self) -> String {
-        format!("Skhid updater: {}", self.kind(0))
+        format!("Skhid: {}", self.kind(0))
     }
 
     /// The fixed beginning of the title, in `language`.
@@ -687,7 +687,7 @@ mod tests {
             what: server(),
             failure: Failure::Timeout,
         };
-        assert_eq!(blocked.caption(), "Skhid updater: Blocked on this network");
+        assert_eq!(blocked.caption(), "Skhid: Blocked on this network");
         assert_eq!(
             blocked.message(None, LOG),
             "Blocked on this network: skhid.link did not answer (timed out)\n\
@@ -844,7 +844,7 @@ mod tests {
             // The caption is the English beginning, in every language.
             assert_eq!(
                 problem.caption(),
-                format!("Skhid updater: {}", problem.kind(0))
+                format!("Skhid: {}", problem.kind(0))
             );
         }
         // Each problem, each way it failed, has a title of its own.

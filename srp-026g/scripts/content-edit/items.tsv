@@ -48,7 +48,7 @@ items	name	base_cost	premium	like	start
 53	ammo_9x19p_para	10	false		
 54	artefact_lifebone	0	false		
 55	uzi	3800	false		
-56	magnum	4280	false		
+56	magnum	25000	false		
 58	ren_torso_1	23100	false		
 59	ren_legs_1	11550	false		
 60	ren_helmet_1	11550	false		
@@ -77,7 +77,7 @@ items	name	base_cost	premium	like	start
 87	edge_hunter_back_1	10450	false		
 88	kiparis	4200	false		
 89	pm	2630	false		
-90	winchester_1894	10260	false		
+90	winchester_1894	52500	false		
 91	ammo_.30-30	25	false		
 102	edge_resp_1	5230	false		
 103	ammo_9x18_pbm	25	false		

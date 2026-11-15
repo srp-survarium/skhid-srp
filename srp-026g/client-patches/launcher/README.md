@@ -393,7 +393,7 @@ for steps 8 to 10 and ends with its exit code. It does not watch.
 
 ## When something goes wrong
 
-Every failure is said in words, in a box titled "Skhid updater", and written
+Every failure is said in words, in a box titled "Skhid", and written
 to the run's `game\binaries\x86\updater_skhid.<date>.log`. Nothing is half installed: the
 ZIP's files go in all or none, and a patch file is a checked file or none.
 
@@ -408,6 +408,7 @@ ZIP's files go in all or none, and a patch file is a checked file or none.
 | The download breaks off, or its checksum is wrong | Tried again, four times; then "The files downloaded from <host> are damaged (the checksum is wrong). Nothing was installed." |
 | The ZIP is not usable (not a ZIP, a bad name, a damaged entry) | "The downloaded archive cannot be used (<why>). Nothing was installed. Tell the server's operator." |
 | Not enough disk space | "Not enough free disk space for the update in <folder>: N MB needed, M MB free." |
+| Less than 5 GB free on the Documents drive (at every start, before PLAY) | Status "Error", PLAY stays off, a box in the game's language: "The game requires at least 5 GB of free disk space on drive C: to run smoothly. PLAY stays off until then." Retry asks again |
 | The game folder cannot be written (Program Files, read-only) | "Cannot write <file>: Access is denied (error 5). Move the game out of Program Files or start the launcher as administrator; an antivirus can block it too." |
 | A file is held by another program (the game is running) | "Cannot replace <file>: ... (error 32). Nothing was changed. Another program holds the file: close the game and try again." |
 | Windows Security blocks a Skhid program file (error 225 or 226 at its read, write or rename), or a program holds it from every reader (a start script or text file is left alone) | Status "Error", PLAY stays off, nothing downloaded; the updater's own box, in the launcher's language, with Retry and Cancel: "Game files removed by antivirus: survarium_skhid.exe", then `Skhid-defender-setup.cmd` to run (with another antivirus, `game\binaries\x86` as an exclusion, or the game folder for a patch file), and the log's path (or "... is in use by another program. Close the game, then try again."). A file gone or denied right after the updater wrote it is the same box; a program file gone at the start is put back, then the same box with OK. Retry runs the update again ([updater README](../../../client/updater/README.md#a-file-that-cannot-be-read)) |

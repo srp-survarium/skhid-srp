@@ -5395,7 +5395,7 @@ impl Game {
             match_id: self.id,
             map_id: self.formed.played.map().id,
             mode: self.formed.played.mode(),
-            twist: self.formed.played.twist(),
+            twist: self.formed.played.armed(),
             match_level: self.formed.match_level,
             end,
             winner: standing.map(|standing| standing.winner),

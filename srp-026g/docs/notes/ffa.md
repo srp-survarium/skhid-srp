@@ -552,28 +552,24 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   future"): a twist is no `maps_dict` row, no config, no content. `survarium::v026g::twist::Played`
   is what a match plays: a map, and on a free-for-all's a twist or none (no other mode's map can
   hold one).
-- **Where:** each free-for-all card of a vote (the third card; all three in a pool of
-  free-for-alls alone) draws its twist with the card, by its share (`twist::SHARES`):
-  - plain Free for all 45 %, **Racket** 45 % (my pick);
-  - **Cowboy**, "Saloon" in the lobby, 10 % (the owner, 2026-11-14: "cowboy version should be
-    rare with only 10% chance"): every kit a Colt Python alone (`ffa-cowboy.md`).
+- **Where:** in the server's rooms (Play's, the open ones) alone, each free-for-all card of a
+  vote (the third card; all three in a pool of free-for-alls alone) draws its twist with the card,
+  by its share (`twist::shares`, `twist::draw`):
+  - plain Free for all 40 %, **Racket** 40 % (my pick: as often as each other);
+  - **Cowboy**, "Saloon" in the lobby, 20 % (the owner, 2026-11-15: "let's make saloon 20% with
+    two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be
+    rare with only 10% chance"), in two variations (the owner, 2026-11-14: "saloon should have
+    two variations with winchesters and colts or just with colts"), half and half (my pick: 10 %
+    each, `twist::Armed`): every kit a Winchester 1894 and a Colt Python, or a Colt Python alone
+    (`ffa-cowboy.md`). One name for both: the card draws its variation with its twist.
 
   Won, the card's match plays its twist.
-- **A mode of its own in the create window** (the owner, 2026-11-14: "they are not present in
-  private room creations"): "FFA: Racket" and "FFA: Saloon" are ticks beside Free for all, as the
-  other modes are. The pool offered (`room_pool`) has each free-for-all map once plain (mode 8) and
-  once with each twist (modes 9, 10), after the other entries: a tile (map and weather) takes all
-  three, a mode tick its entries; a room's pool is the entries ticked (`rooms::Entry`: a map and its
-  twist or none). A free-for-all card draws its map from the pool's maps, then what it plays among
-  that map's entries in the pool, each by its share (`twist::Plays`):
-  - Free for all alone: plain, always; a twist alone: that twist, always;
-  - Racket and Saloon: 45 to 10; all three: the shares above (my pick: the simplest rule, one
-    draw for every room).
-
-  The server's rooms (Play's) hold every entry but the experimental maps, so their cards draw by
-  the owner's shares as before. A window with nothing kept ticks every mode, the twists too; a kept
-  window from before them has them ticked (a mode added later is in, `rooms.md`). A room with bots
-  has no free-for-all, so no twist (their ticks greyed).
+- **Not in private rooms** (the owner, 2026-11-15: "we can also remove from private lobbies FFA:
+  Saloon and FFA: Racket"; they were ticks of the create window from 2026-11-14, "they are not
+  present in private room creations"): a private room's free-for-all card is always plain Free for
+  all (`rooms::Rooms::deal` by the room's door), and the create window has no twist tick: the pool
+  offered (`room_pool`) has each free-for-all map once, mode 8. A create window saved with the
+  twist ticks loads as before: modes no longer offered are left out (`room_settings`).
 - **Names** (the owner, 2026-11-14: "they shoud be FFA: Saloon — and FFA: Racket"): "FFA: " and one
   word, in every language (the owner's: Racket, Движ; mine for the others):
   `st_srp_mode_racket` FFA: Racket, Движ, Двіж (uk, be), Raban, Radau, Rambajz, Galama, Zsivaj,
@@ -594,29 +590,34 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     shot the others hear as the AS Val's muffled `weapons/val_m` (`states.fire.sounds.third_view`):
     the Val, the MP7 with its silencer and its Legend, the ported Kriss Vector. Loud: the SR-3M,
     the 9A-91, the MSBS (shots of their own).
-  - The gun: a whole `ak_12`, the replaced gun's instance id, in every kit and slot that held it
-    (the second slot takes it: assault rifles fit slot 10), with the EOTech 552 sight on it and
-    no other modification or upgrade (the owner, 2026-11-14: "also for ak-12, people should have
-    eotech collimator set on replaced weapons"). The sight is the shop's `shop_scope_eotech_552`,
-    on the AK-12 by the variant the game data makes for it (`fit_ak_12_eotech_552`,
-    `ScopeFits::variant`): the gun's one scope record in slot 3, packed as an owned scope's
-    (`weapon_scopes.md`, `weapon-kit.md`), its item id none of the profile's (an owned scope is in
-    no kit either). Nobody needs to own one. Without that variant in the data the AK-12 goes bare;
-    nothing refuses such data (the owner, 2026-11-14: "since it is just enforced the behvaiour",
-    "not correctness").
+  - The gun, by the room's level (`racket::Gun::of_room`, the room's max level when its card is
+    dealt, carried in the match's `twist::Armed::Racket`; the owner, 2026-11-15: "also racket on
+    lvl10 room should not give AK-12 and instead AK74N with 7N10 ammo and eotech collimator"): a
+    level-10 room's `ak_74n` with `ammo_5.45x39_7n10`, a level-15 room's `ak_12` with
+    `ammo_6.5x39` (as a room of any level would). A whole one, the replaced gun's instance id, in
+    every kit and slot that held it (the second slot takes it: assault rifles fit slot 10), with
+    the EOTech 552 sight on it and no other modification or upgrade (the owner, 2026-11-14: "also
+    for ak-12, people should have eotech collimator set on replaced weapons"). The sight is the
+    shop's `shop_scope_eotech_552`, on the gun by the variant the game data makes for it
+    (`fit_ak_12_eotech_552`, `fit_ak_74n_eotech_552`, `ScopeFits::variant`): the gun's one scope
+    record in slot 3, packed as an owned scope's (`weapon_scopes.md`, `weapon-kit.md`), its item
+    id none of the profile's (an owned scope is in no kit either). Nobody needs to own one.
+    Without that variant in the data the gun goes bare; nothing refuses such data (the owner,
+    2026-11-14: "since it is just enforced the behvaiour", "not correctness").
   - Its ammo, the simplest way (the owner, 2026-11-14: "make it the simplest way"): in each kit
     that held a replaced gun, every ammo slot whose ammo none of the kit's guns fires now is
-    emptied, and the kit has a magazine of AK-12 ammo (`ammo_6.5x39`, the one ammo the data pairs
-    with it: a clip of 30, one bag, `item_params`) for every ammo bag the ammo it keeps leaves free
+    emptied, and the kit has a magazine of the gun's ammo (each a clip of 30, one bag,
+    `item_params`) for every ammo bag the ammo it keeps leaves free
     (the owner, 2026-11-14: "everyone gets only one mag in racket? for ak-12?", "it should be
     number of ammo slots in their inventory"; until then every kit had 60). The kit's bags are the
     lobby's (`loadouts::KitLayout`): the player's 3, plus the `ammo_bags_modifier` of its worn
     items' modifications (their defaults and their own) and its skills' (modifier 16); the ammo it
-    keeps takes a clip's `required_bags` for every clip it holds, the last one begun. The AK-12
-    ammo goes in the first slot emptied or else its first empty ammo slot. A kit that holds AK-12
-    ammo already keeps its own; one with no ammo slot or no bag free has its AK-12's magazine
-    alone. (A sniper's kit of three bags: 90 rounds. A Val beside an SR-3M on one SP-6: the SR-3M
-    keeps the SP-6, the AK-12 has the bags it leaves.)
+    keeps takes a clip's `required_bags` for every clip it holds, the last one begun. That ammo
+    goes in the first slot emptied or else its first empty ammo slot. A kit that holds ammo the
+    gun fires already keeps its own (in a level-10 room any 5.45x39 the AK-74N takes); one with no
+    ammo slot or no bag free has the gun's magazine alone. (A sniper's kit of three bags: 90
+    rounds. A Val beside an SR-3M on one SP-6: the SR-3M keeps the SP-6, the AK-12 has the bags it
+    leaves.)
   - That ammo is one new stack every such kit holds. Its store is the largest kit's amount 1000
     times (`twist::STORE_LIVES`; my pick, the simplest: one stack, which lasts every kit's lives
     at least as long): a spawn takes each slot's count out of a stack's store and a dead
@@ -625,10 +626,13 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     table: a profile grows by that one stack at the most, and only where an item two kits shared
     stays for the other.
   - Nothing else changes: armour, pockets, artefacts, skills, a loud gun and its ammo.
-  - srp refuses to start on data without `ak_12` or with other than one ammo for it.
+  - srp refuses to start on data without `ak_12` or `ak_74n`, or without its ammo, one it fires
+    (`compatible`) that every ammo slot takes, with a clip.
 - **Pay:** as any free-for-all. The ammo used is counted from the trusted world's stacks, which are
   the match's; the ammo left out of the match is not in them, so not charged.
-  - The ammo the twist gives (`Twist::gives`: Racket's `ammo_6.5x39`, Cowboy's `ammo_.357m`) is
+  - The ammo the twist gives (`twist::Armed::gives`, of the match's: Racket's `ammo_6.5x39` or,
+    in a level-10 room, `ammo_5.45x39_7n10`; Saloon's `ammo_.30-30` and `ammo_.357m`, the Colt
+    alone's `ammo_.357m`) is
     nobody's and never charged, though an account owns that kind too: its own stack's use in
     that match is not charged either (the world's stacks are counted by kind).
   - Without a trusted block a twisted match charges no ammo (`autobuy::used`): the shot counters

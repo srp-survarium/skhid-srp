@@ -24,7 +24,7 @@ use crate::install::InstallError;
 use crate::win::{self, Code};
 
 /// The title of the updater's own message boxes.
-pub const TITLE: &str = "Skhid updater";
+pub const TITLE: &str = "Skhid";
 
 /// The last two parts of a path: enough to know the file, short enough for
 /// the launcher's line.
