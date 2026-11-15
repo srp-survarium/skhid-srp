@@ -13,11 +13,13 @@
 //!   ([`DEPTH_SHARES`], 159 / 228 / 154 traps). The stand-in's life ends before it reaches the enemy third more often than before the
 //!   middle, so a trap's third is drawn from the live shares over each third's completion ([`COMPLETION_BY_THIRD`]) and the traps put
 //!   down come out in the live shares (a calibration of the stand-in, as the smoke habit's `COMPLETION`).
-//!   The trap lies where the view meets the floor, [`AHEAD_M`] from his feet (the live distances) and to the side of his heading
-//!   ([`TURN_RAD`], a bench choice: live humans lay theirs ahead), cut to what
-//!   the model's 2 m reach from the eye allows (about 1 m for a standing body; the census's distance from the placer is dead-reckoned
-//!   and cannot say). To the side because the stand-in's walk ignores traps, as live passers-by's do, and one laid in front of him
-//!   was caught by its placer at once (105 of 141 in the first batch; live placers are 4 % of the catches).
+//!   The trap lies where the view meets the floor, [`AHEAD_M`] from his feet and [`TURN_RAD`] off his heading (the live distances and
+//!   turns: ahead, a little to one side), cut to what the model's 2 m reach from the eye allows ([`Game::trap_aim_ahead`]: 1.9 m of ray; 1.22 m for a standing body with a
+//!   level view, its eye 1.46 m over the feet (`view::eye_height`, `aim.combat.live_eye` on); 1.59 m crouched and still, 1.04 m). The live table's top quarter
+//!   (P75 1.38 m) is beyond a standing eye's reach: the feet it is measured from are up to 1.5 s older than the press, and a crouched
+//!   placer reaches farther; the counts do not separate the two.
+//!   He knows his own traps, as a live placer does (`Bots::bench_placer_knows_trap`: he keeps off them and takes none for another's),
+//!   while his team learns them as a live team learns a human mate's.
 //! - **the trap** is the model's (`standin_traps.rs`): the sensor, the catch, a shot, a hand defuse; the habit only lays it.
 //!
 //! Each placement is logged with the class drawn and the class scored at the spot, the seconds since spawn, and what became of the
@@ -59,12 +61,24 @@ const NEAR_BAND: f32 = 0.05;
 /// owner by the objects list's order; `measure-20261115/g60_g61_traps.py`): P10 0.84, P25 1.02, median 1.19, P75 1.38, P90 1.55 m.
 /// It was 0.9-1.15 m.
 const AHEAD_M: [(f32, f32); 7] = [(0.0, 0.84), (0.1, 0.84), (0.25, 1.02), (0.5, 1.19), (0.75, 1.38), (0.9, 1.55), (1.0, 1.55)];
-/// ... and how far from his heading, radians, to the left or the right: to the side, 60 to 120 degrees, **a bench choice**, not the
-/// live way. [G61] Counted on the same 247 traps: live humans lay theirs straight ahead (the angle from the heading P10 0.05, median
-/// 0.09, P75 0.31, P90 0.58 rad; 5 of 247 within this range). The stand-in's walk ignores traps, so one laid ahead was caught by
-/// its own placer at once (105 of 141 in the first batch, against the live placers' 4 % of the catches): the side keeps it off
-/// his way until his walk keeps off his own traps.
-const TURN_RAD: (f32, f32) = (1.05, 2.1);
+/// ... and its turn from his heading, radians (the turn of [`Game::trap_aim_ahead`], `forward(yaw + turn)`): (fraction of traps,
+/// value), linear between, held at the ends. [G61] Counted on the same 247 traps, signed the bench's way (the cross product of the
+/// heading `kin::forward(yaw)` and the way to the trap, its sense checked on the same worlds: forward lies along a sprinting
+/// body's way, cosine median 1.00 over 3,600 pairs): P5 -0.67, P10 -0.56, P25 -0.25, median -0.08, P75 -0.06, P90 -0.003,
+/// P95 0.24 rad; 223 of 247 turn negative. Live humans lay theirs ahead, a little to one side. The ends are held at P5 and P95.
+/// It was 60 to 120 degrees to either side, a bench choice: the stand-in walked onto a trap laid ahead (105 of 141 caught by
+/// their placer in the first batch, against the live placers' 4 % of the catches) until he knew his own (`Bots::bench_placer_knows_trap`).
+const TURN_RAD: [(f32, f32); 9] = [
+    (0.0, -0.67),
+    (0.05, -0.67),
+    (0.1, -0.559),
+    (0.25, -0.252),
+    (0.5, -0.081),
+    (0.75, -0.057),
+    (0.9, -0.003),
+    (0.95, 0.244),
+    (1.0, 0.244),
+];
 
 /// A third of the map.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -181,7 +195,7 @@ fn draw_plans(rng: &mut Rng, spawned: u32) -> Vec<Plan> {
             from: spawned + (at_fraction(&SINCE_SPAWN_S, rng.unit()) * 1000.0) as u32,
             want: Third::ALL[pick(&shares, rng.unit())],
             ahead_m: at_fraction(&AHEAD_M, rng.unit()),
-            turn: rng.range(TURN_RAD.0, TURN_RAD.1) * if rng.unit() < 0.5 { 1.0 } else { -1.0 },
+            turn: at_fraction(&TURN_RAD, rng.unit()),
         })
         .collect();
     plans.sort_by_key(|p| p.from);
@@ -570,6 +584,7 @@ mod tests {
         let mut counts = [0u32; 4];
         let mut since = Vec::new();
         let mut thirds = [0u32; 3];
+        let mut turns = Vec::new();
         let lives = 20_000;
         for _ in 0..lives {
             let plans = draw_plans(&mut rng, 0);
@@ -578,6 +593,7 @@ mod tests {
             for p in plans {
                 since.push(p.from as f32 / 1000.0);
                 thirds[p.want.index()] += 1;
+                turns.push(p.turn);
             }
         }
         let share = |n: u32, of: u32| f64::from(n) / f64::from(of);
@@ -599,6 +615,12 @@ mod tests {
         assert!((at(0.1) - 18.2).abs() < 1.5, "P10 {}", at(0.1));
         assert!((at(0.5) - 44.4).abs() < 2.0, "median {}", at(0.5));
         assert!((at(0.9) - 92.0).abs() < 4.0, "P90 {}", at(0.9));
+        // [G61] The turns are the live still placers': 223 of 247 negative, median -0.081 rad.
+        let negative = turns.iter().filter(|t| **t < 0.0).count() as f64 / turns.len() as f64;
+        assert!((negative - 223.0 / 247.0).abs() < 0.01, "negative share {negative}");
+        turns.sort_by(f32::total_cmp);
+        let median = turns[turns.len() / 2];
+        assert!((median + 0.081).abs() < 0.01, "median turn {median}");
     }
 
     /// Lives that carry and plan are the live share: 2.6 % x 20.5 % a life, over the completion share.

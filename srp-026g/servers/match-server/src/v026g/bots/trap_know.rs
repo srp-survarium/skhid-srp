@@ -150,6 +150,17 @@ impl TrapList {
         self.standing().count()
     }
 
+    /// This list with `more`'s traps after its own: a placer's view of its team's traps and the ones only it knows. Its version is
+    /// the sum of the two, so it changes whenever either does.
+    pub fn with(&self, more: &TrapList) -> TrapList {
+        TrapList {
+            traps: self.traps.iter().chain(&more.traps).copied().collect(),
+            version: self.version + more.version,
+            confirmed: 0,
+            missed: 0,
+        }
+    }
+
     /// `by` let go of a trap at `at` at `released`.
     pub fn promise(&mut self, by: Place, at: Vec3, released: u32) {
         self.traps.push(KnownTrap {
@@ -418,6 +429,22 @@ mod tests {
             up: [0.0, 1.0, 0.0],
             placed_ms,
         }
+    }
+
+    /// [G61] A list with another's traps after its own has both, and a version that moves when either list does.
+    #[test]
+    fn a_list_with_another_has_both_and_follows_both_versions() {
+        let (a, b) = (Vec3::new(30.0, 0.0, 10.0), Vec3::new(40.0, 0.0, 10.0));
+        let (mut team, mut mine) = (TrapList::default(), TrapList::default());
+        team.promise(1, a, 1_000);
+        mine.promise(0, b, 2_000);
+        let both = team.with(&mine);
+        assert_eq!(both.standing().map(|t| t.at).collect::<Vec<_>>(), vec![a, b]);
+        let before = both.version();
+        mine.promise(0, a + b, 3_000);
+        assert!(team.with(&mine).version() > before);
+        team.promise(1, b, 4_000);
+        assert!(team.with(&mine).version() > before + 1);
     }
 
     #[test]
