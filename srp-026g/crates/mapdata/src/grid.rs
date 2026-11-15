@@ -3705,8 +3705,6 @@ impl WalkGrid {
         )
     }
 
-    /// Whether every index of a grid read from a file is in range, so no
-    /// query can panic on it.
     /// The first off-mesh link that breaks the file's rule, named with its index and its neighbour: the links strictly ordered
     /// by (from, to) (so one link a pair), in range, not from a floor to itself, of an off-mesh kind, with a valid press. The
     /// reader's check ([`Self::read`]) and a build's own (the server's map store logs it as an error) are this one rule.
@@ -3723,6 +3721,8 @@ impl WalkGrid {
             .map(|i| format!("link {i} of {} ({n} floors): {:?}", self.off.len(), self.off[i]))
     }
 
+    /// Whether every index of a grid read from a file is in range, so no
+    /// query can panic on it.
     fn check(&self) -> Result<(), String> {
         let cells = self
             .nx
