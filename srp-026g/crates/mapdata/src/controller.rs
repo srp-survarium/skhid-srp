@@ -287,7 +287,7 @@ pub fn sweep_ties() -> SweepTies {
 /// One sweep's ties at its closest fraction so far: the closest, what the first contact there was, and the counts.
 struct Ties {
     closest: f32,
-    first: Option<(Option<SolidId>, Option<u32>, bool, Option<u32>)>,
+    first: Option<Contact>,
     counts: [u64; 5],
 }
 
@@ -300,11 +300,13 @@ impl Ties {
         let mesh = matches!(c.on, Surface::Face { .. });
         if c.t < self.closest {
             self.closest = c.t;
-            self.first = Some((c.object, c.part, mesh, c.child));
+            self.first = Some(*c);
             self.counts = [0; 5];
         } else if c.t == self.closest
-            && let Some((object, part, first_mesh, child)) = self.first
+            && let Some(first) = self.first
         {
+            let (object, part, child) = (first.object, first.part, first.child);
+            let first_mesh = matches!(first.on, Surface::Face { .. });
             let k = match (object, c.object) {
                 (Some(a), Some(b)) if a == b && part == c.part && first_mesh && mesh => 0,
                 (Some(a), Some(b)) if a == b && part != c.part && (child.is_none() || c.child.is_none()) => 4,
