@@ -1963,7 +1963,7 @@ impl Motor {
         // [A1b] A drop link walked off at release: crouched on its leg, every move key let go from its point until down and still.
         let (walk_off, effect) = super::walk_off::step(
             self.walk_off,
-            super::walk_off::Input { on_leg: route.walk_off_at(s), feet: pose.feet, footing: pose.footing, speed: pose.speed, clock: self.clock },
+            super::walk_off::Input { on_leg: route.walk_off_at(s, pose.feet), feet: pose.feet, footing: pose.footing, speed: pose.speed, clock: self.clock },
         );
         self.walk_off = walk_off;
         keys = effect.keys(keys);

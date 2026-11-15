@@ -4,6 +4,9 @@
 //! the client's stop blend carries it the rest of the way (exactness `mapflights` §2 A1b: crouched, released on the step before
 //! the body leaves the top, 45 of 45 on the ledge; the grid's release flight, `drop_check::released_rest`).
 //!
+//! A let-go that ended stays [`WalkOff::Done`] while the body is on the same link's leg, so a body down short of the
+//! landing's point is not let go again.
+//!
 //! One state ([`WalkOff`]) and one transition ([`step`]) from (state, the tick's [`Input`]) to the new state and its [`Effect`].
 
 use mapdata::Vec3;
@@ -30,6 +33,9 @@ pub enum WalkOff {
     Approach { link: WalkOffRelease },
     /// The walk key let go at motor tick `since`, the body's feet `from` then, until it is down and still.
     LetGo { link: WalkOffRelease, since: u32, from: Vec3 },
+    /// The let-go of `link` ended (landed, overshot or timed out): the route's walk, and no new release of the same link while
+    /// the body is still on its leg (a body down short of the landing's point is still on it).
+    Done { link: WalkOffRelease },
 }
 
 /// One tick's facts for [`step`].
@@ -87,6 +93,11 @@ pub fn step(state: WalkOff, input: Input) -> (WalkOff, Effect) {
             Some((link, _)) => (WalkOff::Approach { link }, held(link)),
             None => (WalkOff::Idle, Effect::ROUTE),
         },
+        WalkOff::Done { link } => match input.on_leg {
+            Some((on, _)) if on == link => (state, Effect::ROUTE),
+            // Off its leg: a release ahead (another link's) starts as from Idle.
+            _ => step(WalkOff::Idle, input),
+        },
         WalkOff::LetGo { link, since, from } => {
             let down = input.footing == Footing::Ground && input.speed < STILL_MS && input.feet.y < from.y - ARRIVE_HEIGHT_M;
             let end = if down {
@@ -99,7 +110,7 @@ pub fn step(state: WalkOff, input: Input) -> (WalkOff, Effect) {
                 None
             };
             match end {
-                Some(end) => (WalkOff::Idle, Effect { ended: Some((link, end)), ..Effect::ROUTE }),
+                Some(end) => (WalkOff::Done { link }, Effect { ended: Some((link, end)), ..Effect::ROUTE }),
                 None => (state, let_go(link)),
             }
         }
@@ -150,8 +161,21 @@ mod tests {
         let (s, e) = step(s, input(None, Vec3::new(0.5, 1.5, 0.0), Footing::Air, 1.0, 3));
         assert!(matches!(s, WalkOff::LetGo { .. }) && e.let_go);
         let (s, e) = step(s, input(None, Vec3::new(0.5, 1.0, 0.0), Footing::Ground, 0.1, 4));
-        assert_eq!(s, WalkOff::Idle);
+        assert_eq!(s, WalkOff::Done { link: link() });
         assert!(matches!(e.ended, Some((_, End::Landed(_)))));
+    }
+
+    /// Down on the landing with the route's progress still on the link's leg past `at`: no new let-go, the route's keys come
+    /// back; off the leg, the machine is idle again.
+    #[test]
+    fn a_body_down_on_its_leg_is_not_let_go_again() {
+        let down = Vec3::new(0.45, 1.0, 0.0);
+        let (s, e) = step(WalkOff::Done { link: link() }, input(Some(0.45), down, Footing::Ground, 0.0, 10));
+        assert_eq!(s, WalkOff::Done { link: link() });
+        assert_eq!(e, Effect::ROUTE);
+        assert_eq!(e.keys(key::FORWARD), key::FORWARD);
+        let (s, _) = step(s, input(None, down, Footing::Ground, 0.0, 11));
+        assert_eq!(s, WalkOff::Idle);
     }
 
     /// A body still on the top is not down: the let-go ends after the settle time.

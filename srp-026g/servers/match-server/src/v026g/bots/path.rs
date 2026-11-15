@@ -2055,13 +2055,16 @@ impl Route {
         record
     }
 
-    /// [A1b] The drop link walked off at release whose leg the body at `s` metres along the route is on (past its take-off, short
-    /// of its landing), and how far along the leg the body is, m: the link's way is the leg.
-    pub fn walk_off_at(&self, s: f32) -> Option<(WalkOffRelease, f32)> {
+    /// [A1b] The drop link walked off at release whose leg the body at `s` metres along the route is on (the leg into its
+    /// landing), and how far the body's `feet` are along the link's own way past its take-off, m: measured from the link's
+    /// take-off towards its landing, not from the leg's start, which a pulled route may have merged into an earlier corner.
+    pub fn walk_off_at(&self, s: f32, feet: Vec3) -> Option<(WalkOffRelease, f32)> {
         let k = self.along.partition_point(|&a| a <= s).max(1);
         let landing = self.points.get(k)?.at;
         let release = *self.walk_offs.iter().find(|w| w.landing == landing)?;
-        Some((release, s - self.along[k - 1]))
+        let (dx, dz) = (release.landing.x - release.take_off.x, release.landing.z - release.take_off.z);
+        let len = dx.hypot(dz).max(1e-3);
+        Some((release, ((feet.x - release.take_off.x) * dx + (feet.z - release.take_off.z) * dz) / len))
     }
 
     /// How far along the route the take-off of the first drop of a lip's height or more from `s` to `within` metres on is
