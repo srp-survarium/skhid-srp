@@ -99,10 +99,8 @@ fn breach_tick(
             // takes over its shooter's Flank job (one job a shooter: the Breach replaces it, its bots its crossers first).
             breach::Event::Opened { spot, .. } => {
                 threat.breach_counts.opened += 1;
-                let battery_shooter =
-                    (spot >= threat::BATTERY_LINE_ID).then(|| threat.breaches.iter().find(|b| b.spot == spot).map(|b| b.shooter)).flatten();
-                if let Some(i) = threat.jobs.iter().position(|j| j.spot == spot || Some(j.shooter) == battery_shooter) {
-                    if battery_shooter.is_some() {
+                if let Some(i) = breach::taken_over(&threat.jobs, spot, &threat.breaches) {
+                    if threat.jobs[i].spot != spot {
                         threat.breach_counts.battery_takeovers += 1;
                         log::debug!(
                             "team {team} at {now} ms: Breach on battery line {spot} takes over the Flank job on spot {} of player {}",
@@ -437,9 +435,8 @@ fn threat_tick(
         if let Some(pair) = tuning.threat.pair_target {
             holds = threat::one_of_each_pair(holds, &threat.jobs, pair.step_m);
         }
-        // [take.clear_first] One job a shooter: no Flank opens on a man a Breach on his battery's line works (it took his
-        // Flank over; his kill spot's rest is shorter than a Breach may run).
-        holds.retain(|l| !threat.breaches.iter().any(|b| b.spot >= threat::BATTERY_LINE_ID && b.shooter == l.shooter && !b.phase.ended()));
+        // [take.clear_first] One job a shooter: no Flank opens on a man a Breach on his battery's line works.
+        breach::flank_holds(&mut holds, &threat.breaches);
         let areas = objective.home_spots(&tactics.world.map);
         // [threat.breach] The bots in a Breach are not the Flank jobs' to give roles to, and the cap counts them.
         let breach_rules = tuning.threat.breach.map(|b| b.rules());

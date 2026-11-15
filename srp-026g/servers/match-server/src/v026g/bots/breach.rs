@@ -312,6 +312,22 @@ impl Breach {
     }
 }
 
+/// The Flank job a Breach just opened on `spot` takes over, if any: the job on that spot, or, for a battery's held line
+/// ([take.clear_first], `threat::BATTERY_LINE_ID`), its shooter's job wherever it is (one job a shooter).
+pub fn taken_over(jobs: &[super::threat::Job], spot: u32, breaches: &[Breach]) -> Option<usize> {
+    let battery_shooter =
+        (spot >= super::threat::BATTERY_LINE_ID).then(|| breaches.iter().find(|b| b.spot == spot).map(|b| b.shooter)).flatten();
+    jobs.iter().position(|j| j.spot == spot || Some(j.shooter) == battery_shooter)
+}
+
+/// [take.clear_first] The holds a Flank job may open on: none of a shooter a running Breach on a battery's held line works
+/// (it took his Flank over, and his kill spot's rest, `threat::JOB_REST_MS`, is shorter than a Breach may run).
+pub fn flank_holds(holds: &mut Vec<HeldLine>, breaches: &[Breach]) {
+    holds.retain(|l| {
+        !breaches.iter().any(|b| b.spot >= super::threat::BATTERY_LINE_ID && b.shooter == l.shooter && !b.phase.ended())
+    });
+}
+
 /// A role of a Breach.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BreachRole {
@@ -1124,6 +1140,37 @@ mod tests {
         let b = &breaches[0];
         assert!(b.crossers.iter().any(|c| c.holder.place == 1), "the flanker crosses: {b:?}");
         assert_eq!(b.pinner.map(|p| p.place), Some(3), "the pinner keeps the pin");
+        // The commander's takeover (`commander.rs`, Opened): the Flank job on his kill spot 4 is the one taken over; it is
+        // removed and its own spot rests.
+        let mut jobs = flank.to_vec();
+        let i = taken_over(&jobs, line.id, &breaches).expect("his Flank is taken over");
+        let job = jobs.remove(i);
+        assert_eq!((job.spot, job.shooter), (4, 9));
+        let mut rested = vec![(job.spot, 1_000 + crate::v026g::bots::threat::JOB_REST_MS)];
+        // The next ticks: his kill spot 4 (held, no job on it or on him) opens no Flank while the battery's Breach runs, even
+        // once the spot's rest is over; without the hold-off it would.
+        use crate::v026g::bots::threat::{JobEnd, JobTeam, Opening, jobs_tick};
+        let kill = HeldLine::for_test(4, 9, Vec3::new(0.0, 0.0, 30.0), &[Vec3::new(0.0, 0.0, 60.0)], Some(0));
+        let others: Vec<Mate> = (10..14).map(|p| mate(p, -25.0 - p as f32, 10.0, None)).collect();
+        let job_team = JobTeam {
+            mates: &others,
+            size: 12,
+            objective_areas: &[],
+            breach_roles: 3,
+            flank_from: None,
+            role_offer: false,
+            strongest_first: false,
+        };
+        let unheld = |_| JobEnd::Faded;
+        for now in [1_500, 1_000 + crate::v026g::bots::threat::JOB_REST_MS + 500] {
+            let mut holds = vec![kill.clone()];
+            flank_holds(&mut holds, &breaches);
+            jobs_tick(&mut jobs, &mut rested, &holds, &held, Opening::Staffed, &job_team, &unheld, now);
+            assert!(jobs.is_empty(), "no second job on him at {now} ms: {jobs:?}");
+        }
+        let mut without = Vec::new();
+        jobs_tick(&mut without, &mut Vec::new(), std::slice::from_ref(&kill), &held, Opening::Staffed, &job_team, &unheld, 30_000);
+        assert!(without.iter().any(|j| j.shooter == 9), "without the hold-off a Flank opens on him: {without:?}");
     }
 
     /// [Breach] No Breach without two free crossers, over the cap, or where the memory refuses it; the refusals are events.
