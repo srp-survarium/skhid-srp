@@ -468,7 +468,9 @@ impl Heal {
         if slot.hand == 0 {
             return Pressed::Empty;
         }
-        if self.uses.iter().any(|u| u.quick == quick) {
+        // A use over by this tick is off already: its last pass switched it off before this frame's inputs ([`active`]),
+        // so the press of frame `at + delay + active` is taken (`medkit` 0x33D700 refuses only while `m_active`).
+        if self.uses.iter().any(|u| u.quick == quick && !over(u, tick)) {
             return Pressed::Active(slot.drug);
         }
         slot.hand -= 1;
@@ -554,12 +556,16 @@ impl Heal {
     }
 }
 
-/// In its active time at `tick`, the ticks `(at + delay, at + delay +
-/// active]`.
+/// In its active time at `tick`, the ticks `[at + delay, at + delay + active)`: the client's world pass applies a frame's
+/// inputs, then ticks its items with the frame's 50 ms (`0x2D21E0`: inputs 0x2D22BC..0x2D22C5, then the tick lists
+/// 0x2D22D6..0x2D22E2), and `set_active` links the drug's tick in before that pass's tick run (0x33D49D..0x33D4DA). So a
+/// press in frame P spends its delay in the passes P .. P + delay - 50 (a pass that ends the delay with nothing left heals
+/// nothing, 0x33D7FC..0x33D800) and heals in the passes P + delay .. P + delay + active - 50, the last switching it off
+/// (0x33DA2D..0x33DA3E; the exe review of the suite run 2 heal failure). The stand-in's tick T is the pass of frame T.
 fn active(u: &Use, tick: u32) -> bool {
     let model = model_of(u.drug);
     let from = u.at + (model.delay_s * u.f.delay * 1000.0) as u32;
-    tick > from && tick <= from + (model.active_s * 1000.0) as u32
+    tick >= from && tick < from + (model.active_s * 1000.0) as u32
 }
 
 fn over(u: &Use, tick: u32) -> bool {
@@ -784,14 +790,15 @@ mod tests {
         let mut heal = spawned();
         let mut pools = hurt();
         assert_eq!(heal.press(0, 10_000), Pressed::Used(Drug::Medkit));
-        run(&mut heal, &mut pools, 10_000, 2_000);
+        // The delay is the passes of the frames 10 000 .. 11 950 ([`active`]: the press's own pass spends 50 ms of it).
+        run(&mut heal, &mut pools, 10_000, 1_950);
         assert_eq!(pools, hurt(), "the delay");
-        run(&mut heal, &mut pools, 12_000, 500);
+        run(&mut heal, &mut pools, 11_950, 500);
         let third = 0.5 / 3.0;
         assert!((pools.body - (0.4 + third)).abs() < 1e-3, "{}", pools.body);
         assert!((pools.head - (0.1 + third)).abs() < 1e-3, "{}", pools.head);
         assert!((pools.legs[0] - third).abs() < 1e-3 && (pools.hands[0] - (0.2 + third)).abs() < 1e-3);
-        run(&mut heal, &mut pools, 12_500, 3_000);
+        run(&mut heal, &mut pools, 12_450, 3_000);
         assert_eq!(pools.body, 1.0);
         assert!((pools.head - 0.4).abs() < 1e-3, "head clamped at 0.4");
         // 40 % of the pain since revision 40, no infection.
@@ -840,9 +847,10 @@ mod tests {
         });
         let mut pools = hurt();
         assert_eq!(heal.press(1, 0), Pressed::Used(Drug::Bandages));
-        run(&mut heal, &mut pools, 0, 1_000);
+        // The 1 s delay: the passes 0 .. 950; the active second: 1 000 .. 1 950 ([`active`]).
+        run(&mut heal, &mut pools, 0, 950);
         assert_eq!(pools, hurt(), "1 s delay");
-        run(&mut heal, &mut pools, 1_000, 1_000);
+        run(&mut heal, &mut pools, 950, 1_000);
         assert!((pools.body - 0.75).abs() < 1e-3, "{}", pools.body);
         assert!((pools.head - 0.24).abs() < 1e-3, "{}", pools.head);
         assert!((pools.legs[0] - 0.5).abs() < 1e-3);
@@ -861,10 +869,11 @@ mod tests {
         assert_eq!(heal2.toxic_factor(500), 1.0, "not yet");
         assert_eq!(heal2.toxic_factor(5_000), 0.5, "halved while active");
         assert_eq!(heal2.toxic_factor(11_500), 1.0, "over after 11 s");
-        // [A306] Its 0.5 spread over the 10 s: 0.05 a second; 3 s of it after the 1 s delay, then the whole course.
-        run(&mut heal2, &mut pools, 0, 4_000);
+        // [A306] Its 0.5 spread over the 10 s: 0.05 a second; 3 s of it after the 1 s delay (the passes 1 000 .. 3 950,
+        // [`active`]), then the whole course.
+        run(&mut heal2, &mut pools, 0, 3_950);
         assert!((pools.infection - 0.45).abs() < 1e-3, "{}", pools.infection);
-        run(&mut heal2, &mut pools, 4_000, 8_000);
+        run(&mut heal2, &mut pools, 3_950, 8_000);
         assert!((pools.infection - 0.8).abs() < 1e-3, "{}", pools.infection);
         assert_eq!(pools.body, 0.4);
     }
@@ -937,9 +946,11 @@ mod tests {
         let mut hurt_at = 0;
         while game.tick < 20_000 {
             game.step();
-            if game.tick == 3_000 {
-                // 2 s after the first press: nothing yet.
+            if game.tick == 2_950 {
+                // The last pass of the first press's 2 s delay ([`active`]): nothing yet.
                 assert_eq!(game.bodies[0].health, 0.4);
+            }
+            if game.tick == 3_000 {
                 assert_eq!(
                     game.seen_at(3_000).unwrap()[0].readings.drugs[0].in_hand,
                     Some(1)
@@ -1212,7 +1223,8 @@ mod tests {
         });
         assert!(pressed >= 2, "{pressed} presses");
         assert!(unchanged >= 1, "{unchanged} of {pressed} presses left the assignment as it was");
-        assert!(game.drug_log.iter().all(|p| matches!(p.2, Pressed::Used(_))));
+        let refused: Vec<_> = game.drug_log.iter().filter(|p| !matches!(p.2, Pressed::Used(_))).collect();
+        assert!(refused.is_empty(), "presses that used nothing: {refused:?} of {:?}", game.drug_log);
         // The test has teeth: with the play (the habit off) the same run does assign a Heal play.
         let mut off = rework_on();
         off.heal.interrupt = false;
