@@ -96,3 +96,39 @@ When the client calls `end_jump` is not read.
 
 Exactness of the last millimetre needs Bullet's GJK pair detector, simplex solver and the shapes' supports in
 Rust, each checked bit for bit against the exe's own function in Unicorn. Not done.
+
+## 5. The broadphase's order, which decides ties across objects
+
+`btSingleSweepCallback::process` stops at a closest fraction of 0, so of two objects that both touch at the start, the
+first the broadphase offers wins. That order is the walk of the `btDbvtBroadphase`'s dynamic tree (`m_sets[0]`, +04h).
+
+At load (PROVEN, exe-read):
+
+- Each placement becomes one world object, in placement order. `addCollisionObject` 0x9FDD0 inserts its exact `getAabb`
+  box (`createProxy` 0xB4E00).
+- `bullet_physics_world::add` 0x758B0 then calls its own `update_single_aabb` (vtable +20h, 0x75A3B..0x75A4C). That runs
+  `updateSingleAabb` 0x9FF40 (the box ± 0.02) and `setAabb` 0xB50E0, and the leaf is reinserted with the margin 0.05
+  (`btDbvt::update` 0xAA710). Each object is reinserted right after its own add, before the next is added.
+- Measured against a capture of the game's tree (jumps2): the port of this (`controller/broadphase.rs`, not merged) gives
+  every placement's box bit for bit (1,937 of 1,937), and 1,935 of the 1,936 adjacent captured pairs in the game's order.
+
+After load, every step (PROVEN, exe-read):
+
+- `btDbvtBroadphase::collide` 0xB55D0 runs `btDbvt::optimizeIncremental` 0xAA540 on the dynamic set with
+  `1 + leaves x m_dupdates / 100` passes. The constructor 0xB4C80 sets `m_dupdates` (+70h) to 0, so that is one pass a step.
+  It also sets `m_fupdates` (+6Ch) 1, `m_cupdates` (+74h) 10 and `m_prediction` (+64h) 0.
+- A pass walks from the root, taking each node's child by the next bit of `m_opath` (+10h of the tree). At each internal
+  node, `sort` swaps the node with its parent when the parent's ADDRESS is higher (`cmp eax,esi; jna` at 0xAA584). The leaf it
+  reaches is removed (0xAA330) and inserted again from the root (0xAA180), and `m_opath` goes up by one.
+- The world forces every object's box update each step (`m_forceUpdateAllAabbs` +54h is 1 in the game's memory). Each
+  `setAabb` puts the proxy back in the current stage's list, so with two stages (0xB5651: modulo 2) no static is ever moved
+  to the fixed set. The statics stay in the dynamic tree, where the passes reach them.
+
+So the order across objects changes as the game runs. It depends on the steps since load, on the moving bodies' proxies in
+the same tree, and on where the heap put each node (the swap compares addresses). None of that is in the map, so the order
+cannot be ported. The one captured object out of place (416, a lamp's collision) is consistent with this: its leaf is a
+standard reinsert of its own box.
+
+The port keeps the creation order, and counts the ties across objects (`controller::sweep_ties().across_objects`, logged
+with each grid build). Those ties are where the port and the game may part: 6 of the 8 jumps2 steps still off are such ties
+at t = 0.
