@@ -920,6 +920,41 @@ mod tests {
         assert_eq!(sight.looked_ms(1_200), Some(0));
     }
 
+    /// `CombatTuning::live_eye` off: a look stands its whole 100 ms whatever the eye did (the step and the crouch that
+    /// look again with the switch on, `the_parts_are_looked_at_again_when_the_eye_has_moved`); it is looked at
+    /// again at its time.
+    #[test]
+    fn with_the_switch_off_a_moved_eye_does_not_look_again() {
+        use crate::v026g::bots::view::set_live_eye;
+        struct On;
+        impl Drop for On {
+            fn drop(&mut self) {
+                set_live_eye(true);
+            }
+        }
+        set_live_eye(false);
+        let _on = On;
+        let world = world_of(&[]);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
+        let me = body(0, 0, Vec3::ZERO, false);
+        let view = view_of(vec![me.clone(), enemy]);
+        let mut sight = Sight::default();
+        sight.update(&me, Some(1), &view, &world, &SmokeTuning::default(), 1_000);
+        assert_eq!(sight.looked_ms(1_000), Some(0));
+        // 0.3 m along: the look stands.
+        let mut then = me.clone();
+        then.feet = Vec3::new(0.3, 0.0, 0.0);
+        sight.update(&then, Some(1), &view, &world, &SmokeTuning::default(), 1_050);
+        assert_eq!(sight.looked_ms(1_050), Some(50));
+        // A crouch (the old eye 1.6 to 0.95 m): still.
+        then.keys = key::CROUCH;
+        sight.update(&then, Some(1), &view, &world, &SmokeTuning::default(), 1_050);
+        assert_eq!(sight.looked_ms(1_050), Some(50));
+        // 100 ms on: looked at again.
+        sight.update(&then, Some(1), &view, &world, &SmokeTuning::default(), 1_100);
+        assert_eq!(sight.looked_ms(1_100), Some(0));
+    }
+
     #[test]
     fn over_a_high_wall_only_the_head_shows_and_is_aimed_at() {
         let world = world_of(&[wall(19.0, -3.0, 3.0, 0.0, 1.45)]);
