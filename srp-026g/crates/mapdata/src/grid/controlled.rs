@@ -582,6 +582,22 @@ impl WalkGrid {
         Some(body.tick(world, 0.05, &s, input))
     }
 
+    /// [A388 step 3] A pressed jump of a kept body `c` flown on the grid's walker with its body's settings
+    /// ([`crate::controller::jump::fly_as`]): each step from the press to the landing step, the body left where the flight left
+    /// it. None without [`Self::with_client_walker`].
+    pub fn kept_fly(
+        &self,
+        c: &mut Controller,
+        heading: (f32, f32),
+        press: crate::controller::jump::Press,
+        keys: crate::controller::jump::Keys,
+        flight: crate::controller::jump::Flight,
+    ) -> Option<Vec<crate::controller::jump::FlightStep>> {
+        let world = self.walker.as_deref()?;
+        let (_, s) = self.body.controller();
+        Some(crate::controller::jump::fly_as(world, &s, c, heading, press, keys, 0, flight))
+    }
+
     /// [A388] Whether the grid keeps the client's walker ([`Self::with_client_walker`], [`Self::with_client_world`]).
     pub fn has_client_walker(&self) -> bool {
         self.walker.is_some()
