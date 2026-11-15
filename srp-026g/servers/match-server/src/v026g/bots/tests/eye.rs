@@ -327,129 +327,28 @@ pub(crate) fn the_bots_tuning_sets_the_eye_of_its_thread() {
     super::view::set_live_eye(true);
 }
 
-/// The tuning the pin below was taken with: the bench's defaults with every behaviour switch that is newer
-/// than the pin (and ON by default) turned OFF. **The single list: a behaviour PR whose default is ON adds
-/// ONE line here and never touches the test; a switch merged OFF needs none** (the flip PR adds it). Keep it
-/// sorted by the switch's path, each line its own block with the PR named, so two PRs add at different places
-/// and git merges them without a conflict.
+/// With the switch off (`SRP_BENCH_COMBAT=live_eye=false`) the eye is the old one wherever the crate reads it. Every
+/// read goes through [`super::view::live_eye`]: [`super::view::eye_height`] (the one eye of the crate: a body's, a
+/// head in a sight test, a cover spot's), the look's re-look on a moved eye (`aimpoint`, `LOOK_EYE_MOVED_M`), the use
+/// stands (`memo::use_stands`: the guessed heights) and the stand-in's shot order (`standin`). Their off branches are
+/// the old constants ([`with_the_switch_off_the_eye_is_the_old_constants`]). So a soak with the switch off is one
+/// match (the same counts twice), and not the soak with it on (the switch reaches the play).
 ///
-/// To add yours, one block in its sorted place (by `section.field`), the switch at its OFF value:
-///
-/// ```text
-/// // <PR>: <what the pinned counts predate>.
-/// tuning.<section>.<switch> = <the value that is the old behaviour>;
-/// ```
-fn pre_eye_pin_tuning() -> Tuning {
-    // The owner's set of options (the defaults) postdates the pinned counts: it is off.
-    let mut tuning = Tuning::all_off();
-
-    // A223: the switches whose old value is wrong by the game, which `all_off.json` no longer names; the pin has the old values.
-    {
-        use crate::v026g::bots::{friends::SpreadSource, kin, pitch::PitchScale, tuning};
-        let old = &mut tuning;
-        old.aim.combat.grenade_kit_cap = false;
-        old.aim.combat.hit_cover_reach = false;
-        old.aim.combat.mirror_gated = false;
-        old.aim.friends.spread_source = SpreadSource::Constants;
-        old.cover.pierce = None;
-        old.grid.client_numbers = false;
-        old.hazard.zone_intensity = false;
-        old.hazard.zone_pools = tuning::ZonePools::Raw;
-        old.kin.fix_floor = kin::FixFloor::Nearest;
-        old.kin.jump_snap = kin::JumpSnap::Any;
-        old.kin.pitch_scale = PitchScale::Radian;
-        // A318: the client's blend (KEPT_RIGHT, all-off keeps it); the pin has the old one.
-        old.kin.mixer = kin::Mixer::Frozen;
-        old.kin.fix_blend = kin::FixBlend::Measured;
-        // A318: the slide before the round one; the pin has it.
-        old.kin.wall_slide = kin::WallSlide::Diagonal;
-        // A318: the step cap and the settled level read (KEPT_RIGHT / default ON); the pin has neither.
-        old.kin.speed_cap = kin::SpeedCap::Off;
-        old.kin.level_read = kin::LevelRead::Any;
-        // A331: the level computed from the kit (default ON); the pin has the measured one.
-        old.kin.level_source = kin::LevelSource::Measured;
-        old.kin.carrier_sprint = kin::CarrierSprint::Allowed;
-        old.kin.fix_fall = kin::FixFall::Rest;
-        old.kin.step_input = kin::StepInput::Same;
-        old.kin.client_step = kin::ClientStep::Grid;
-        old.kin.leg_damage = kin::LegDamageGate::Ignored;
-        // And the reckoning before 2e: the keys alone sprint, no stagger term.
-        old.kin.speed_terms = kin::SpeedTerms::Legs;
-        old.kin.sprint_gates = kin::SprintGates::Keys;
-        old.sense.ranges = tuning::HearingRanges::Flat;
-        old.sense.shots = tuning::ShotRanges::Flat;
-        old.sense.sprint_body_mps = None;
-        old.sense.use_ray_m = 2.0;
-        old.think.stamina_rates = tuning::StaminaRates::Light;
-    }
-
-    // A234: the cheats `all_off.json` no longer names; the pin has them.
-    tuning.aim.combat.aim_last_known = false;
-    tuning.aim.combat.band_carrier_seen_ms = 0;
-    tuning.aim.combat.worth.hurt_from = crate::v026g::bots::worth::HurtFrom::Body;
-    tuning.sense.bush_notice = 0.0;
-    tuning.sense.grass_notice = 0.0;
-    tuning.smoke.sight = false;
-
-    // A277: the reload key as the client takes it; the pinned counts predate it (all-off keeps it on).
-    tuning.aim.combat.empty_reload = false;
-
-    // #534: the eye is where the game's bullet starts.
-    tuning.aim.combat.live_eye = false;
-
-    // X1 (#552): the trigger's range by weapon class; the pin has the old 80 m.
-    tuning.aim.combat.range_by_weapon = false;
-
-    // K1: the threat spots; the pinned counts predate them.
-    tuning.threat.spots = false;
-
-    // A271: the stuck recovery's floor test; the pinned counts predate it (all-off keeps it on).
-    tuning.unstick.escape_floor = false;
-
-    tuning
-}
-
-/// With the switch off (`SRP_BENCH_COMBAT=live_eye=false`) the soak is the base's to the shot: the
-/// counts of seeds 3, 7 and 12 of the 120 s 4 against 4 soak at 2174f9e6, before the fix (shots, hits,
-/// kills of each team, shots into a wall, at a hidden target, batteries delivered, sight and aim rays
-/// a bot second). The old heights, the old stand ranges, the shots after the move and a look every 100 ms
-/// alone.
+/// Until 2026-11-15 this test pinned the counts of seeds 3, 7 and 12 to those of 2174f9e6 (2026-10-26). Every
+/// behaviour change since moved them whether it touched the eye or not (seed 3: #1981 kept them, #1988 changed them),
+/// and a proven fix that is always on, as the all-off rules have it, could not be listed off. The pin tested the
+/// whole bot, not the switch.
 #[test]
-pub(crate) fn with_the_switch_off_a_soak_is_the_old_one() {
-    // The old kit: these rules are those of the kit before the owner's choices, which are the defaults now.
-    let _kit = survarium::v026g::loadouts::KitSwitches::OFF.scope();
-    let _off = EyeOff::new();
-    // The counts are those of the stand-in's old spawn draw, and of its weapons before the emptying shot's reload (A277).
-    let _spawn = super::standin::OldSpawnDraw::scope();
-    let _reload = super::standin_weapon::OldEmptyReload::scope();
-    // And of the stand-in's blend before A318.
-    let _mixer = super::standin_jump::OldMixer::scope();
-    // And of its slide before the round one (A318).
-    let _walls = super::standin_jump::OldWalls::scope();
-    // And of its step order before A318's (a tick moved with its own input).
-    let _step = super::standin_jump::OldStepInput::scope();
-    // And the speeds before F5.
-    let _speeds = crate::v026g::bots::kin::PreF5Speeds::scope();
-    let base = [
-        (3, (365, 69, [16, 14], 2, 0, [1, 1]), 48.04),
-        (7, (505, 82, [14, 13], 2, 0, [1, 2]), 49.71),
-        (12, (769, 126, [17, 20], 2, 2, [1, 1]), 44.16),
-    ];
-    for (seed, want, rays) in base {
-        let out = soak_tuned(4, 3, 0, None, 120, seed, pre_eye_pin_tuning());
-        let got = (
-            out.shots,
-            out.hits,
-            out.kills,
-            out.walled,
-            out.hidden,
-            out.delivered,
-        );
-        assert_eq!(got, want, "seed {seed}");
-        assert!(
-            (out.rays_per_bot_s - rays).abs() < 0.01,
-            "seed {seed}: {}",
-            out.rays_per_bot_s
-        );
-    }
+pub(crate) fn with_the_switch_off_a_soak_is_one_match_and_not_the_live_eyes() {
+    let counts = |on: bool| {
+        let mut tuning = bench_tuning();
+        tuning.aim.combat.live_eye = on;
+        let out = soak_tuned(4, 3, 0, None, 120, 3, tuning);
+        (out.shots, out.hits, out.kills, out.walled, out.hidden, out.delivered, out.rays_per_bot_s.to_bits())
+    };
+    let off = counts(false);
+    assert!(off.0 > 0, "shots fired: {off:?}");
+    assert_eq!(off, counts(false), "the same match twice");
+    assert_ne!(off, counts(true), "the switch reaches the play");
+    super::view::set_live_eye(true);
 }
