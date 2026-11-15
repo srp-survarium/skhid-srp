@@ -179,6 +179,7 @@
   "threat": {
     "area": false,
     "breach": null,
+    "clear_by_look": false,
     "spawn_exit_breach": false,
     "job_role_offer": false,
     "job_strongest_first": false,

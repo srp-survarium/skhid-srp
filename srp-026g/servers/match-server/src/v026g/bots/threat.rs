@@ -1702,11 +1702,11 @@ impl ThreatSpots {
     }
 
     /// A commander tick at `now`: spots too weak are dropped; a spot a
-    /// teammate (`watchers`, eye points) has a line to within
+    /// teammate facing it (`watchers`, [`seen_empty_now`]) has a line to within
     /// [`CLEAR_LINE_M`] for [`CLEAR_MS`] with no enemy (`enemies`, sensed
     /// points) on it is cleared; a held spot's regions are cast at,
     /// [`RAYS_PER_TICK`] a tick.
-    pub fn tick(&mut self, now: u32, watchers: &[Vec3], enemies: &[Vec3], eyes: &dyn Eyes, rules: SpotRules) {
+    pub fn tick(&mut self, now: u32, watchers: &[Watcher], enemies: &[Vec3], eyes: &dyn Eyes, rules: SpotRules) {
         let before = self.spots.len();
         let on_m = rules.on_m();
         let mut notes = Vec::new();
@@ -1921,17 +1921,69 @@ pub struct HeldLine {
     pub battery: Option<usize>,
 }
 
+/// A teammate who may see a spot empty ([`seen_empty_now`]): his eye and what he sees by.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Watcher {
+    pub eye: Vec3,
+    pub view: View,
+}
+
+/// What a [`Watcher`] sees by.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum View {
+    /// Every way round (`threat.clear_by_look` off: a line to the spot is a look, as it was).
+    Around,
+    /// [threat.clear_by_look] What lies within his view, `view_deg` wide about `yaw` (the bots' own sight cone,
+    /// `sense.view_deg`, `sense::in_view`): a man facing away sees nothing there.
+    Facing { yaw: f32, view_deg: f32 },
+}
+
+impl Watcher {
+    /// A watcher who sees every way (the tests', and the switch off).
+    pub fn around(eye: Vec3) -> Self {
+        Self { eye, view: View::Around }
+    }
+
+    /// Whether `at` lies where he looks.
+    pub fn faces(&self, at: Vec3) -> bool {
+        match self.view {
+            View::Around => true,
+            View::Facing { yaw, view_deg } => super::sense::in_view(self.eye, yaw, at, view_deg),
+        }
+    }
+}
+
 /// Whether a spot at `at` is seen empty now: no enemy sensed (`enemies`, sensed points) within `on_m` of it, and one of the
-/// nearest [`WATCHERS_ASKED`] teammates within [`CLEAR_LINE_M`] (`watchers`, eye points) has a line to a standing eye there.
-/// The held spots' clearing rule ([`ThreatSpots::tick`], seen empty for [`CLEAR_MS`]) and a held battery's
-/// (`know::keep_hold`).
-pub fn seen_empty_now(at: Vec3, on_m: f32, watchers: &[Vec3], enemies: &[Vec3], eyes: &dyn Eyes) -> bool {
+/// nearest [`WATCHERS_ASKED`] teammates within [`CLEAR_LINE_M`] who face it (`watchers`, [`Watcher::faces`]) has a line to a
+/// standing eye there. The held spots' clearing rule ([`ThreatSpots::tick`], seen empty for [`CLEAR_MS`]) and a held
+/// battery's (`know::keep_hold`).
+pub fn seen_empty_now(at: Vec3, on_m: f32, watchers: &[Watcher], enemies: &[Vec3], eyes: &dyn Eyes) -> bool {
     let eye = at + Vec3::new(0.0, eye_height(false, 0.0, 0.0), 0.0);
     !enemies.iter().any(|e| e.distance_xz(at) <= on_m) && {
-        // The nearest few teammates within reach look: a sight ray each.
-        let mut near: Vec<Vec3> = watchers.iter().copied().filter(|w| w.distance_xz(at) <= CLEAR_LINE_M).collect();
-        near.sort_by(|a, b| a.distance_xz(at).total_cmp(&b.distance_xz(at)));
-        near.iter().take(WATCHERS_ASKED).any(|&w| eyes.sees(w, eye))
+        // The nearest few teammates within reach who look that way: a sight ray each.
+        let within: Vec<&Watcher> = watchers.iter().filter(|w| w.eye.distance_xz(at) <= CLEAR_LINE_M).collect();
+        let mut near: Vec<&Watcher> = within.iter().copied().filter(|w| w.faces(at)).collect();
+        #[cfg(test)]
+        look_tally::looked(within.len() - near.len());
+        near.sort_by(|a, b| a.eye.distance_xz(at).total_cmp(&b.eye.distance_xz(at)));
+        near.iter().take(WATCHERS_ASKED).any(|w| eyes.sees(w.eye, eye))
+    }
+}
+
+/// [threat.clear_by_look] The teammates within reach of a spot asked whether it is empty who faced away (test builds count;
+/// the bench's threat line prints it).
+#[cfg(test)]
+pub mod look_tally {
+    thread_local! {
+        static AWAY: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+
+    pub fn looked(away: usize) {
+        AWAY.with(|c| c.set(c.get() + away as u64));
+    }
+
+    pub fn away() -> u64 {
+        AWAY.with(std::cell::Cell::get)
     }
 }
 
@@ -2765,6 +2817,8 @@ pub struct BreachCounts {
     pub battery_takeovers: u32,
     /// Breaches refused on a battery's held line.
     pub battery_refused: u32,
+    /// Battery holds whose man's spot the team saw empty (`know::HoldLook::Cleared`).
+    pub battery_cleared: u32,
     pub opened: u32,
     pub went: u32,
     pub throws_asked: u32,
@@ -2776,6 +2830,7 @@ impl BreachCounts {
         self.battery_due += other.battery_due;
         self.battery_takeovers += other.battery_takeovers;
         self.battery_refused += other.battery_refused;
+        self.battery_cleared += other.battery_cleared;
         self.opened += other.opened;
         self.went += other.went;
         self.throws_asked += other.throws_asked;
@@ -3012,7 +3067,7 @@ mod tests {
         let mut spots = ThreatSpots::default();
         spots.died(at(30.0), 7, at(0.0), 0, 0, OLD);
         let eyes = Line { blind: vec![] };
-        let watcher = [at(20.0)];
+        let watcher = [Watcher::around(at(20.0))];
         spots.tick(1_000, &watcher, &[], &eyes, OLD);
         spots.tick(3_900, &watcher, &[], &eyes, OLD);
         assert!(!spots.is_empty());
@@ -3024,7 +3079,7 @@ mod tests {
         spots.tick(9_500, &watcher, &[at(1.0)], &eyes, OLD);
         assert!(!spots.is_empty());
         // Nobody near enough to look: kept.
-        spots.tick(20_000, &[at(100.0)], &[], &eyes, OLD);
+        spots.tick(20_000, &[Watcher::around(at(100.0))], &[], &eyes, OLD);
         assert!(!spots.is_empty());
     }
 
@@ -3275,6 +3330,26 @@ mod tests {
         assert_eq!(area_m(None), AREA_WIDE_M, "never sensed since: the whole area");
     }
 
+    /// [threat.clear_by_look] A teammate facing away from a spot does not see it empty, however clear his line; facing it
+    /// he does.
+    #[test]
+    fn a_spot_is_seen_empty_only_by_a_teammate_facing_it() {
+        let eyes = Line { blind: vec![] };
+        let spot = at(30.0);
+        let eye = at(20.0) + Vec3::new(0.0, 1.46, 0.0);
+        let toward = kin_yaw(eye, spot);
+        let facing = |yaw| Watcher { eye, view: View::Facing { yaw, view_deg: 90.0 } };
+        assert!(seen_empty_now(spot, 1.0, &[facing(toward)], &[], &eyes), "facing it");
+        assert!(!seen_empty_now(spot, 1.0, &[facing(toward + std::f32::consts::PI)], &[], &eyes), "facing away");
+        assert!(seen_empty_now(spot, 1.0, &[Watcher::around(eye)], &[], &eyes), "the switch off: a line is a look");
+        // Away and toward: the one facing it looks.
+        assert!(seen_empty_now(spot, 1.0, &[facing(toward + std::f32::consts::PI), facing(toward)], &[], &eyes));
+    }
+
+    fn kin_yaw(from: Vec3, to: Vec3) -> f32 {
+        crate::v026g::bots::kin::yaw_of([to.x - from.x, to.z - from.z])
+    }
+
     #[test]
     fn each_spot_event_is_noted_once() {
         let mut spots = ThreatSpots::default();
@@ -3287,8 +3362,8 @@ mod tests {
         assert_eq!(notes.iter().filter(|n| **n == SpotNote::Held).count(), 1, "{notes:?}");
         assert!(matches!(notes.last(), Some(SpotNote::Cast { .. })), "{notes:?}");
         spots.shooter_died(7, 700);
-        spots.tick(800, &[at(20.0)], &[], &eyes, NEW);
-        spots.tick(4_000, &[at(20.0)], &[], &eyes, NEW);
+        spots.tick(800, &[Watcher::around(at(20.0))], &[], &eyes, NEW);
+        spots.tick(4_000, &[Watcher::around(at(20.0))], &[], &eyes, NEW);
         let notes: Vec<SpotNote> = spots.take_events().into_iter().map(|e| e.note).collect();
         assert_eq!(notes, vec![SpotNote::ShooterDied, SpotNote::Cleared]);
         let text = SpotEvent { time: 0, id: 3, shooter: 7, at: at(1.0), note: SpotNote::Cleared }.to_string();
