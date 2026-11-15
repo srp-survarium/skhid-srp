@@ -1665,8 +1665,10 @@ impl WalkGrid {
         let mut rim_unmade: Vec<(Vec3, Vec3)> = Vec::new();
         if body.rim_jumps && gaps {
             let world = world.expect("a world");
-            let unmade;
-            (stats.rim, unmade) = grid.fly_rim_jumps(&mut wide, world, &s);
+            let (unmade, cut);
+            (stats.rim, unmade, cut) = grid.fly_rim_jumps(&mut wide, world, &s);
+            // [C2 rows 11/12/14] The plain jumps no press lands on go, but none that is a floor's only way in or back.
+            (stats.rim.jumps_cut, stats.rim.jumps_kept) = grid.cut_keeping_reach(&mut wide, cut, seeds, spawns, body.keep_last_resorts, false);
             grid.fly_risers(&mut wide, world, &s, &mut stats.rim);
             rim_unmade = unmade.into_iter().map(|(a, b)| (grid.position(a), grid.position(b))).collect();
         }

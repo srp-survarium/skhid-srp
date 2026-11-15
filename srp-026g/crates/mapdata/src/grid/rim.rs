@@ -40,8 +40,11 @@ pub struct RimStats {
     pub jumps_flown: usize,
     /// … and of those, replaced by the flown link (a press landed on the Jump link's own top) …
     pub jumps_replaced: usize,
-    /// … or cut: no client press, straight or aimed, lands on its top (as a rim jump no press lands is not made).
+    /// … or cut: no client press, straight or aimed, lands on its top (as a rim jump no press lands is not made) …
     pub jumps_cut: usize,
+    /// … except those kept as a floor's only way in or back (`cut_keeping_reach`, [`super::Body::keep_last_resorts`]: a pit's
+    /// way out).
+    pub jumps_kept: usize,
     /// … made with a walking press …
     pub walked: usize,
     /// … with a sprint press …
@@ -524,7 +527,14 @@ impl WalkGrid {
     /// side), flown over the presses ([`Self::best_press`]: the jumps and, [S1], the sprint climb) and made a GapJump with the
     /// press that lands. After the gap links (`wide.off`, kept sorted). Returns the stats and the jumps no press made, as
     /// (take-off, landing) (none was a link before).
-    pub(super) fn fly_rim_jumps(&self, wide: &mut Wide, world: &Collision, s: &Settings) -> (RimStats, Vec<(NodeId, NodeId)>) {
+    /// [C2 rows 11/12/14] Also the plain Jump links no press lands on the top of, as (take-off, way, 0) for the caller's cut, which
+    /// keeps a floor's only way in or back (`cut_keeping_reach`).
+    pub(super) fn fly_rim_jumps(
+        &self,
+        wide: &mut Wide,
+        world: &Collision,
+        s: &Settings,
+    ) -> (RimStats, Vec<(NodeId, NodeId)>, Vec<(u32, usize, f32)>) {
         let body = &self.body;
         // [S1] From a step up: a sprinting body climbs an edge from 0.80 to 1.15 m with no jump ([`Kind::Climb`]), and an
         // edge there whose side has no link (no Jump link) is the builder's to fly.
@@ -590,7 +600,7 @@ impl WalkGrid {
         stats.flights += stats.aimed_flights;
         let mut none = Vec::new();
         let mut replaced: Vec<(usize, usize)> = Vec::new();
-        let mut cut = 0;
+        let mut cut: Vec<(u32, usize, f32)> = Vec::new();
         for ((&(a, b, d), p), &plain) in todo.iter().zip(&flown).zip(&plain) {
             stats.flights += p.flights;
             let aimed = aimed_of.get(&(a, b)).copied();
@@ -601,13 +611,14 @@ impl WalkGrid {
             if plain {
                 stats.jumps_flown += 1;
                 let lands_on_top = p.made.iter().chain(aimed.as_ref()).any(|m| m.to == b);
-                if !lands_on_top {
-                    cut += 1;
+                if lands_on_top {
+                    replaced.push((a as usize, d));
+                } else {
+                    cut.push((a, d, 0.0));
                     if !(p.made.is_empty() && aimed.is_none()) {
                         none.push((a, b));
                     }
                 }
-                replaced.push((a as usize, d));
             }
             if p.made.is_empty() && aimed.is_none() {
                 none.push((a, b));
@@ -625,15 +636,14 @@ impl WalkGrid {
                 wide.off.push(OffLink { from: a, to, kind: LinkKind::GapJump, press, share, walk, aim });
             }
         }
-        stats.jumps_cut = cut;
-        stats.jumps_replaced = replaced.len() - cut;
+        stats.jumps_replaced = replaced.len();
         for (a, d) in replaced {
             wide.links[a][d] = NONE;
         }
         // Two candidates of one take-off may land on the same floor: one link (the first, by the way's order).
         wide.off.sort_by_key(|l| (l.from, l.to));
         wide.off.dedup_by_key(|l| (l.from, l.to));
-        (stats, none)
+        (stats, none, cut)
     }
 
     /// [S1] Where a flight with no jump (a sprint climb, [`jump::climb_flight`]) ends: its last two steps on the ground
