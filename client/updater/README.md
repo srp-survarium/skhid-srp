@@ -437,8 +437,7 @@ installed only at the torrent's size. No peer within 20 s, no piece for
 60 s, torrent turned off, the signature or the pin wrong: the HTTPS download
 as without torrent. PLAY never waits on a peer. Progress, the stall rule and
 the end count only pieces that passed their hash (a peer can send blocks
-that fail it), and a finished fetch is hashed again against the torrent
-before anything installs it.
+that fail it).
 
 **What it shares**: every file of the torrent the folder has at the
 torrent's size, however it came (by torrent, by HTTPS, from the ZIP), from
