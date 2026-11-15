@@ -3610,7 +3610,7 @@ without it, or of another version (unloaded), voice is off.
   on or with either of the two dead through the radio; nearer, plain in the world, its gains in the
   two ears the engine's own pan of a sound at its place, `sound_scene::calculate_3d_pan` 0x57D70,
   times a gain by its distance) and the
-  hud's `root.srp_voice_talking(name, ...)` on a change; a push-to-talk whose key or button is up
+  hud's `root.srp_voice_talking(name, side, ...)` on a change (side `"mate"` or `"opponent"`); a push-to-talk whose key or button is up
   (user32's GetAsyncKeyState: the numpad's keys by either key NumLock gives, NumLock and Pause by
   their own, a button by its VK_*BUTTON) or with the game out of focus is let go;
 - `tab_cursor.key` (before patch 86's) and `game_world.mouse_key` (0x25CF70, on_mouse_key_action
@@ -3653,9 +3653,9 @@ apply it? — it should"): `srp_microphone_use(id)` tells the DLL a pick, not sa
 `srp_microphone_use` with nothing (Cancel, leaving without Apply) the saved one again. A saved
 device not there is shown as Default and stays saved.
 
-**Who is talking**, as 0.69's hud (`VoiceChatTalkingPanel`): a row per teammate talking, and the
-player's own while its microphone is sent, at the right edge under mid-height, a light-blue speaker
-and the name, the newest on top; a name fades over 1 s, 0.5 s after its player stops (`flash/hud`
+**Who is talking**, as 0.69's hud (`VoiceChatTalkingPanel`): a row per player heard talking (a
+teammate, an opponent near), and the player's own while its microphone is sent, at the right edge
+under mid-height, a light-blue speaker (an opponent's pale red) and the name, the newest on top; a name fades over 1 s, 0.5 s after its player stops (`flash/hud`
 `VoiceSpeakers`). The muted are not shown.
 
 **Muting** is the Tab list's player menu only (the owner, 2026-11-09: a "mute the last speaker"

@@ -1668,11 +1668,11 @@ package
          }
       }
       
-      // Voice chat (exe patch 66, docs/notes/voice-chat.md): the names of the teammates talking now
-      // (none: nobody). Called on a change only.
-      public function srp_voice_talking(... names) : void
+      // Voice chat (exe patch 66, docs/notes/voice-chat.md): those talking now, each its name and
+      // side, "mate" or "opponent" (none: nobody). Called on a change only.
+      public function srp_voice_talking(... speakers) : void
       {
-         this.voiceSpeakers.update(names);
+         this.voiceSpeakers.update(speakers);
       }
 
       // The exe's answers to the Tab list's player menu's voice entries (exe patch 66): whether a

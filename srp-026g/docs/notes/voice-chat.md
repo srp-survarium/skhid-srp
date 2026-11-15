@@ -559,6 +559,14 @@ Where the build differs from or adds to the design above:
     mutes, and the Tab menu's voice entry, take every other player of either team; the talking
     list shows a speaker while it is heard (a mate always, an opponent while near), and the
     local player's own place while its microphone is sent.
+  - **An opponent's speaker is pale red** (the owner, 2026-11-15: "the voice icon of an opponent
+    should be pale red"): the patch calls `root.srp_voice_talking(name, side, ...)`, each speaker
+    its name and `"mate"` or `"opponent"` (the local player's own: `"mate"`; in a free-for-all
+    everyone is a mate); `VoiceSpeakers` draws a mate's speaker 0.69's blue 0x73B9FF and an
+    opponent's 0xFF8080, the game's enemy red (0xFF0000, a name over an enemy's head) half way to
+    white, about as light as the blue (L* 68 against 73); the names stay white. A speaker whose
+    side changes while it is listed is redrawn. `scripts/voice-speakers/check.sh` (Ruffle) checks
+    it; `docs/images/voice-opponent-icon.png` the before and after.
   - No change to the DLL, the voice ABI (still 5) or the wire: the DLL plays any slot by what
     `sv_hear` tells it, and the patch tells all 20 before `sv_start`.
 - **Automatic gain** (the owner, 2026-11-07: as 0.69): before Opus, the microphone goes through
