@@ -231,7 +231,20 @@ impl Riser {
         let share = Share::from_byte(share).filter(|s| s.flown().is_some())?;
         match Takeoff::from_centimetres(cm) {
             Takeoff::WalkOff => (share == Share::landed(0)).then_some(Riser::NoPress),
-            press => press.is_valid().then_some(Riser::Pressed { press, share }),
+            press => Self::flies(press).then_some(Riser::Pressed { press, share }),
+        }
+    }
+
+    /// Whether `press` is one [`WalkGrid::fly_risers`] flies: a walking or a sprint press at a lead of [`gap_leads`]
+    /// ([`gap::GAP_PRESS_MIN_M`] to [`gap::GAP_PRESS_MAX_M`], straight: a riser has no aimed sweep, so not
+    /// [`PressLead::is_valid`]'s floor, which is an aimed rim press's), a slow press, or a sprint climb ([`presses`]). Never a
+    /// walk-off, a held sprint or a release: no riser press flies them.
+    fn flies(press: Takeoff) -> bool {
+        let in_leads = |lead: PressLead| (gap::GAP_PRESS_MIN_M - 1e-3..=gap::GAP_PRESS_MAX_M + 1e-3).contains(&lead.metres());
+        match press {
+            Takeoff::Press(lead) | Takeoff::Sprint(lead) => in_leads(lead),
+            Takeoff::Slow { .. } | Takeoff::Climb => press.is_valid(),
+            Takeoff::WalkOff | Takeoff::SprintHeld(_) | Takeoff::Release { .. } => false,
         }
     }
 }
@@ -943,7 +956,8 @@ mod tests {
         assert_eq!(Share::from_byte(15), None);
     }
 
-    /// [A385 rule (d)] A riser's record parses only as a riser's: a press (walking in range, or sprint) with a flown share, or
+    /// [A385 rule (d)] A riser's record parses only as a riser's: a press a riser flies (walking or sprint at a lead of
+    /// `gap_leads`, slow, a climb: [`Riser::flies`]) with a flown share, or
     /// no press with a share of 0.
     #[test]
     fn a_riser_record_parses_only_as_a_riser() {
@@ -965,6 +979,10 @@ mod tests {
         assert_eq!(Riser::from_bytes(walk.centimetres(), u8::MAX), None, "not flown");
         assert_eq!(Riser::from_bytes(walk.centimetres(), 15), None, "over the neighbourhood");
         assert_eq!(Riser::from_bytes(30, 5), None, "a walking press under the built range");
+        // [phase 2] A rim link's aimed lead (0.3, `AIMED_LEADS`) is valid on a rim link, never on a riser (flown straight).
+        assert!(Takeoff::from_centimetres(30).is_valid());
+        assert_eq!(Riser::from_bytes(Takeoff::Sprint(PressLead::from_metres(0.3)).centimetres(), 5), None, "a sprint under the built range");
+        assert_eq!(Riser::from_bytes(Takeoff::SprintHeld(PressLead::from_metres(1.0)).centimetres(), 5), None, "a held sprint");
         assert_eq!(Riser::from_bytes(0x4000 | (6 << 10), 5), None, "a slow press of more walk-up steps than a slow press has");
     }
 
