@@ -335,13 +335,16 @@ pub struct CombatTuning {
     /// from the first contact to the flown rest, and along the heading from
     /// [`arc::REST_BEHIND_M`] short of the rest to [`arc::REST_AHEAD_M`]
     /// past it, widened by [`arc::REST_ACROSS_M`] across it (the flown rest's
-    /// measured P10, P90 and across P90: one landing in ten falls farther
-    /// along, an accepted risk, as P95's 8.92 m would hold back throws at
-    /// held spots, where a teammate is often near). The client's blast measures to a
-    /// body's transform origin (0x3396D3..0x33971A), its feet by the note's
-    /// recount (41 of 68 still victims fit from the feet, 29 from the
-    /// capsule's centre). A hurt teammate dies farther out than a whole one
-    /// (one at half health within this distance). The default is where the
+    /// measured P10, P90 and across P90; a rectangle on the ground with
+    /// square ends. One landing in four falls outside it in some direction,
+    /// one in ten past its far end: an accepted risk, as P95's 8.92 m would
+    /// hold back throws at held spots, where a teammate is often near). The
+    /// client's blast measures to a body's transform origin
+    /// (0x3396D3..0x33971A), the player's `m_transform` (+40Ch, given to the
+    /// hit body at 0x2D948A..0x2D94A9), whose translation is his feet
+    /// (`client_patch.md`, "A player's transform is his feet"). A hurt
+    /// teammate dies farther out than a whole one (one at half health
+    /// within this distance). The default is where the
     /// bots' grenade's blast falls to half a body's health
     /// ([`arc::Grenade::half_health_m`]: the client's law is linear from the
     /// middle to the edge, 0x339736..0x339750, PROVEN; the RGD-5's
@@ -12785,16 +12788,16 @@ mod tests {
             mate_in_blast(&me, &view, &landing, &c)
         };
         let place = |r: Option<(Place, f32)>| r.map(|(p, _)| p);
-        // On the line 8 m past the rest (4.05 m past the usual end, 29.45 m: 2.23 m from the zone); 8 m aside of it
-        // (6.4 + 1.82 = 8.22 m reach); 7.9 m past the usual end.
+        // On the line 8 m past the rest (4.05 m past the usual end, 29.45 m); 8 m aside of it (6.4 + 1.82 = 8.22 m
+        // reach); 6.35 m past the usual end.
         let (on, zone_m) = with(0.0, 33.5).unwrap();
         assert_eq!(on, 3);
-        assert!((zone_m - (33.5 - 29.45 - arc::REST_ACROSS_M)).abs() < 0.01, "{zone_m}");
+        assert!((zone_m - (33.5 - 29.45)).abs() < 0.01, "{zone_m}");
         assert_eq!(place(with(8.0, 28.0)), Some(3));
-        assert_eq!(place(with(0.0, 37.35)), Some(3));
-        // 8.5 m aside, or 8.3 m past the usual end: clear.
+        assert_eq!(place(with(0.0, 35.8)), Some(3));
+        // 8.5 m aside (6.68 m from the zone's side), or 6.45 m past its square end: clear.
         assert_eq!(place(with(8.5, 28.0)), None);
-        assert_eq!(place(with(0.0, 37.75)), None);
+        assert_eq!(place(with(0.0, 35.9)), None);
     }
 
     #[test]

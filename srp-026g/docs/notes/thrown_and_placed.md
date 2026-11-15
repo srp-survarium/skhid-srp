@@ -68,7 +68,9 @@ position and velocity while it is in the physics world, its explode time and its
   set at 0x9FCC5..0x9FCE7). The step is then made whole with no cap, so a touch at 2.4 m/s or less into the surface is
   not capped, on a floor, a wall or a slope. A capped step ends at the time of impact (the rest of it not moved,
   0x9CB6D). The 911 flights flown again with both: P50 0.54 m, P80 4.34, P90 8.72 (as before); along the heading P10
-  -1.24, P90 +3.95, P95 +8.92 m. Taking the swept sphere's radius as the hit's reach instead of the capsule's 0.05 is
+  -1.24, P90 +3.95, P95 +8.92 m; across it P50 0.18, P90 1.82 m (the seen burst less the flown one, split along and
+  across the incoming heading's flat direction). 223 of the 911 (24.5 %) fell outside the zone of P10 to P90 along and
+  P90 across in some direction: 92 short, 93 past, 92 wider. Taking the swept sphere's radius as the hit's reach instead of the capsule's 0.05 is
   worse (0.01 stock: P50 0.63, 525 within 1 m; 0.04 with patch 105: P50 0.54, P90 8.99), as is flying with no support
   contact (P90 10.6): by the recount, the capsule's own contacts stop it (the narrowphase and the solver are not read).
 
