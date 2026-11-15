@@ -2,11 +2,13 @@
 """make_battery_icon.py: the hud movie's kill feed icon of a battery strike (exe patch 143,
 ../../docs/notes/battery-hit.md "Kill feed").
 
-usage: python3 -I make_battery_icon.py --model <converted_model> --out <folder>
+usage: python3 -I make_battery_icon.py --model <converted_model> [--out <folder>] [--svg <file>]
 
 --model  0.26g's battery mesh, models/weapons/electrobox.skinned_model/render/electrobox_s/converted_model
          (`vostok-port extract`, or scripts/battery-hit/extract.sh's folder; sha256 checked)
 --out    srp-026g/flash/hud/bitmaps (flash_tree.py adds each <class>.png to the movie)
+--svg    the same battery without the burst as an SVG, the website map's battery marker (the Maps
+         tab's build, scripts/maps-tab/build.py, calls `marker` itself)
 
 CombatLogBatteryIcon.png is drawn as the weapon icons are (frames of the hud's sprite 698): a white
 silhouette, its details cut out of it, a black shadow at 40 % one pixel right and two down. The
@@ -36,9 +38,11 @@ STOCK_ICON_SHA256 = '9017a7b646896927439d620184616b9397d969a7bfc1d7a3bf035f780ad
 
 YAW, PITCH = 135, -30            # degrees: a long side and a handle's end, the top seen from above
 HEIGHT = 22                      # the battery's rows
-SS = 8                           # drawn at 8x, then reduced
-GROW = 9                         # the silhouette thickened 1/2 px a side (the handles' tubes are thin)
-SEAM = 7                         # the cut between two faces: 7/8 px wide
+SS = 8                           # the bitmap drawn at 8x, then reduced
+SVG_SS = 16                      # the marker traced at 16x
+SVG_TOLERANCE = 1.0              # its outlines kept within 1/16 px
+# At `ss` times the size: the silhouette thickened (ss + 1) / 2ss px a side (the handles' tubes are
+# thin), the cut between two faces (ss - 1) / ss px wide.
 # The mesh's box (metres): its rim's top 0.235 high, open in x -0.226 to 0.228, z -0.115 to 0.122,
 # the middle block in x -0.046 to 0.085 between the two cell wells; its long sides past z -0.137
 # and 0.145; the handles past |x| 0.27.
@@ -94,10 +98,12 @@ def dilated(mask, size):
     return np.asarray(Image.fromarray(mask.astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(size))) > 0
 
 
-def battery(vertices, triangles):
-    """The battery's coverage, HEIGHT rows: the silhouette, each face of the box (top, long side,
-    end) parted from the next by a cut, the cell wells' openings cut out, the handles ringed by a cut."""
-    nearest, at, look = raster(vertices, triangles, HEIGHT * SS)
+def drawing(vertices, triangles, ss):
+    """The battery at `ss` times HEIGHT rows: its silhouette and its white (the silhouette, each face
+    of the box (top, long side, end) parted from the next by a cut, the cell wells' openings cut out,
+    the handles ringed by a cut)."""
+    grow, seam = ss + 1, ss - 1
+    nearest, at, look = raster(vertices, triangles, HEIGHT * ss)
     covered = nearest >= 0
     handle = covered & (np.abs(at[..., 0]) > HANDLE_X)
     # the wells: where the line of sight crosses the rim's plane inside an opening
@@ -112,9 +118,10 @@ def battery(vertices, triangles):
     for axis in (0, 1):
         other = np.roll(face, -1, axis)
         edge |= (face != other) & (face > 0) & (other > 0)
-    handle = dilated(handle, GROW)
-    ring = dilated(handle, 2 * SEAM - 1) & ~handle
-    return reduce((dilated(covered, GROW) & ~wells & ~dilated(edge, SEAM) & ~ring) | handle)
+    handle = dilated(handle, grow)
+    ring = dilated(handle, 2 * seam - 1) & ~handle
+    shape = dilated(covered, grow)
+    return shape | handle, (shape & ~wells & ~dilated(edge, seam) & ~ring) | handle
 
 
 def reduce(white):
@@ -132,6 +139,92 @@ def reduce(white):
     cover = np.clip((best[1] - 0.5) * 1.5 + 0.5, 0, 1)
     rows, cols = np.nonzero(cover)
     return cover[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
+
+
+def loops(mask):
+    """The mask's outlines: closed loops of pixel corners (x, y), each a run of the pixels' edges
+    with the mask on one side; where two regions touch at a corner, they stay apart."""
+    m = np.pad(mask, 1)
+    ys, xs = np.nonzero(mask)
+    out = {}
+    # clockwise round each pixel inside (y down), an edge where its neighbour is out
+    for (dy, dx), (a, b) in (((-1, 0), ((0, 0), (1, 0))), ((0, 1), ((1, 0), (1, 1))),
+                             ((1, 0), ((1, 1), (0, 1))), ((0, -1), ((0, 1), (0, 0)))):
+        open_ = ~m[ys + 1 + dy, xs + 1 + dx]
+        for x, y in zip(xs[open_], ys[open_]):
+            out.setdefault((x + a[0], y + a[1]), []).append((x + b[0], y + b[1]))
+    result = []
+    while out:
+        start = at = next(iter(out))
+        loop, heading = [], None
+        while True:
+            ends = out[at]
+            if heading is not None and len(ends) > 1:
+                # turn right first: regions meeting at a corner stay apart
+                right = (-heading[1], heading[0])
+                ends.sort(key=lambda e: (e[0] - at[0], e[1] - at[1]) != right)
+            end = ends.pop(0)
+            if not ends:
+                del out[at]
+            loop.append(at)
+            heading, at = (end[0] - at[0], end[1] - at[1]), end
+            if at == start:
+                break
+        result.append(loop)
+    return result
+
+
+def simplified(points, tolerance):
+    """A closed loop with its points within `tolerance` of the loop kept (Douglas-Peucker)."""
+    pts = np.array(points, float)
+    far = int(np.argmax(((pts - pts[0]) ** 2).sum(1)))
+    keep = {0, far}
+    stack = [(0, far), (far, len(pts))]
+    while stack:
+        i, j = stack.pop()
+        a, b = pts[i], pts[j % len(pts)]
+        if j - i < 2:
+            continue
+        seg = pts[i + 1:j]
+        d = b - a
+        length = math.hypot(*d)
+        dist = (np.abs(d[0] * (seg[:, 1] - a[1]) - d[1] * (seg[:, 0] - a[0])) / length if length
+                else np.hypot(*(seg - a).T))
+        k = int(np.argmax(dist))
+        if dist[k] > tolerance:
+            keep.add(i + 1 + k)
+            stack += [(i, i + 1 + k), (i + 1 + k, j)]
+    return pts[sorted(keep)]
+
+
+def path(mask, ss):
+    """The mask as SVG path data, in pixels of HEIGHT rows."""
+    d = []
+    for loop in loops(mask):
+        pts = simplified(loop, SVG_TOLERANCE) / ss
+        d.append('M' + ' '.join(f'{x:.2f} {y:.2f}'.replace('.00', '') for x, y in pts) + 'Z')
+    return ''.join(d)
+
+
+def battery(vertices, triangles):
+    """The bitmap's battery: its white, HEIGHT rows."""
+    return reduce(drawing(vertices, triangles, SS)[1])
+
+
+def marker(model):
+    """The battery as an SVG (the website's map marker): the bitmap's drawing, no burst, as vector
+    outlines traced at SVG_SS times: the white over its silhouette in the black of the page's
+    outlines, so the cuts read dark as the feed's do."""
+    silhouette, white = drawing(*mesh(model), SVG_SS)
+    rows, cols = np.nonzero(silhouette)
+    silhouette = silhouette[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
+    white = white[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
+    height, width = (n / SVG_SS for n in silhouette.shape)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:g}" height="{height:g}" '
+            f'viewBox="0 0 {width:g} {height:g}">\n'
+            '<!-- Built by srp-026g/scripts/kill-feed-icons/make_battery_icon.py from the game\'s battery mesh. -->\n'
+            f'<path fill="#000" fill-opacity="0.85" fill-rule="evenodd" d="{path(silhouette, SVG_SS)}"/>\n'
+            f'<path fill="#fff" fill-rule="evenodd" d="{path(white, SVG_SS)}"/>\n</svg>\n')
 
 
 def burst(stock):
@@ -181,15 +274,25 @@ def battery_icon(model, stock):
     return styled(beside(battery(*mesh(model)), burst(stock)))
 
 
+def battery_model(path):
+    return checked(path, MODEL_SHA256, "0.26g's battery mesh (electrobox_s converted_model)")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--model', type=Path, required=True)
-    parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--out', type=Path)
+    parser.add_argument('--svg', type=Path)
     args = parser.parse_args()
-    model = checked(args.model, MODEL_SHA256, "0.26g's battery mesh (electrobox_s converted_model)")
-    checked(STOCK_ICON, STOCK_ICON_SHA256, "the hud's gun-stock icon")
-    args.out.mkdir(parents=True, exist_ok=True)
-    battery_icon(model, Image.open(STOCK_ICON)).save(args.out / 'CombatLogBatteryIcon.png', optimize=True)
+    if not (args.out or args.svg):
+        parser.error('--out, --svg or both')
+    model = battery_model(args.model)
+    if args.out:
+        checked(STOCK_ICON, STOCK_ICON_SHA256, "the hud's gun-stock icon")
+        args.out.mkdir(parents=True, exist_ok=True)
+        battery_icon(model, Image.open(STOCK_ICON)).save(args.out / 'CombatLogBatteryIcon.png', optimize=True)
+    if args.svg:
+        args.svg.write_text(marker(model))
 
 
 if __name__ == '__main__':

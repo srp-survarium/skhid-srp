@@ -144,3 +144,7 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
   melee hit. 47 x 24. The owner: on the glyph doubled, "not in the style"; of the second round's
   candidates, "three-quoter is good, we can add strike too"; of the third's, "I like yaw 135, 30
   down, 22px the most".
+- **The website's maps** (the owner: "we can use the same icon on website (without strike)", "for
+  showing battery locations"): the same battery, no burst, as a vector SVG (`marker`, traced at
+  16x: a dark silhouette, the white faces over it), the Maps tab's battery spawn marker; its build
+  (`scripts/maps-tab/build.py`) draws it from the released game's mesh.
