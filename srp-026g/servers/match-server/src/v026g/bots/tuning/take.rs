@@ -285,7 +285,8 @@ pub struct TakeTuning {
     pub on_the_move: bool,
     /// [take.known_threats] A take reads the enemies it knows of by the battery, not only the ones it sees now. On: an enemy
     /// whose last spot the bot's or its team's own senses gave (seen, heard, told: `Track::own`, never a cheat's) within
-    /// `sense.forget_ms` (the memory's own lifetime of a sensed spot, before it fades) and within the take's `exposed_m` of
+    /// his track's life (`sense.drop_ms`: a player remembers where a man was until he sees otherwise), unless the team saw
+    /// that spot empty (`Ctx::spot_lives`), and within the take's `exposed_m` of
     /// the battery is a threat of the take as one seen now is (`Ctx::take_threat`): within `hold_near_m` the take waits,
     /// looking at his spot, until he is dead (the kill feed), reloading (heard), seen and kept busy by a mate whose line
     /// to him no cloud hides, or his spot fades (a man known only by his spot is kept busy by nobody); `commit.finish_take` does not hold such a take; and the battery's score reads each
@@ -294,6 +295,15 @@ pub struct TakeTuning {
     /// (`owner-5/own-base-smoke-and-bait-findings.md`, part 2): 13 bots killed walking to a battery a player stood by, all
     /// 13 knowing of him (heard 8, told 3, seen 2), none aiming at him, 7 never firing, at a median 3.4 m.
     pub known_threats: bool,
+    /// [take.clear_first] Every play's walk at a loose battery a man holds whom the bot knows by his spot alone
+    /// (`Ctx::held_battery`, the take's own threat by it; needs `known_threats`, and `threat.breach` for the Breach): a walk
+    /// that would bring the bot nearer him does not walk in. The team makes his spot a held line of no lanes due a Breach at
+    /// once (two crossers out of his sight, one throws first, go together); the bot waits out of his sight, sights up on
+    /// him, while the Breach runs, else at most `breach::DUE_MS`, then its play walks on (`plays::clear_first`). It ends
+    /// when he is dead, reloading, seen or faded. A carrier, a heal, a retreat and a Breach's bots are left alone. Off: each
+    /// play walks in as before (only Collect's take waits, `known_threats`). The live recordings of 2026-11-13: of the 13
+    /// bots killed by a man standing by a loose battery, 7 were walking there on plays other than Collect.
+    pub clear_first: bool,
 }
 
 impl Default for TakeTuning {
@@ -309,6 +319,7 @@ impl Default for TakeTuning {
             zone_take: Some(ZoneTake::default()),
             on_the_move: true,
             known_threats: true,
+            clear_first: true,
         }
     }
 }

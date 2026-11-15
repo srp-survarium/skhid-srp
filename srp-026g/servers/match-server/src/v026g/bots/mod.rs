@@ -1714,7 +1714,10 @@ impl Bots {
     /// rule's end later, a world and a bot each.
     pub fn breach_report(&self) -> String {
         let line = |c: &threat::BreachCounts| {
-            format!("spawn-exit spots due {}, opened {}, went {}, throws asked {}", c.spawn_exit_due, c.opened, c.went, c.throws_asked)
+            format!(
+                "spawn-exit spots due {}, opened {}, went {}, throws asked {}; battery lines due {}, refused {}, took over a Flank {}",
+                c.spawn_exit_due, c.opened, c.went, c.throws_asked, c.battery_due, c.battery_refused, c.battery_takeovers
+            )
         };
         format!(
             "team 0: {}; team 1: {}",

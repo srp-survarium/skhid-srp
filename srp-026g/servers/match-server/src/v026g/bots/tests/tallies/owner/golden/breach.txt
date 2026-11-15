@@ -1,4 +1,4 @@
-owner-test breach: team 0: due 0, opened 0 (pinner 0, objective 0), refused no cover 0 / no pair 0 / no gather 0 / too far 0 / no crossers 0 / cap 0 / conceded 0 / like the last 0; went 0 (gather wait mean 0.0 s), held 0, first deaths 0 traded 0 (mean 0.0 s); ended his death by the job 0 / by another 0 / unheld 0; failed holder down 0 / untraded 0 / gather timeout 0 / objective worse 0 / no crossers 0 / time 0; pinners lost 0, crossers down 0; objective player waits (thinks) 0; frags at the spot by its bots 0; team 1: due 0, opened 0 (pinner 0, objective 0), refused no cover 0 / no pair 0 / no gather 0 / too far 0 / no crossers 0 / cap 0 / conceded 0 / like the last 0; went 0 (gather wait mean 0.0 s), held 0, first deaths 0 traded 0 (mean 0.0 s); ended his death by the job 0 / by another 0 / unheld 0; failed holder down 0 / untraded 0 / gather timeout 0 / objective worse 0 / no crossers 0 / time 0; pinners lost 0, crossers down 0; objective player waits (thinks) 0; frags at the spot by its bots 0
+owner-test breach: team 0: due 0, opened 0 (pinner 0, objective 0), refused no cover 0 / no pair 0 / no gather 0 / too far 0 / no crossers 0 / cap 0 / conceded 0 / like the last 0; went 0 (gather wait mean 0.0 s), held 0, first deaths 0 traded 0 (mean 0.0 s); ended his death by the job 0 / by another 0 / unheld 0; failed holder down 0 / untraded 0 / gather timeout 0 / objective worse 0 / no crossers 0 / time 0; pinners lost 0, crossers down 0; objective player waits (thinks) 0; frags at the spot by its bots 0; planner runs 0; team 1: due 0, opened 0 (pinner 0, objective 0), refused no cover 0 / no pair 0 / no gather 0 / too far 0 / no crossers 0 / cap 0 / conceded 0 / like the last 0; went 0 (gather wait mean 0.0 s), held 0, first deaths 0 traded 0 (mean 0.0 s); ended his death by the job 0 / by another 0 / unheld 0; failed holder down 0 / untraded 0 / gather timeout 0 / objective worse 0 / no crossers 0 / time 0; pinners lost 0, crossers down 0; objective player waits (thinks) 0; frags at the spot by its bots 0; planner runs 0
 {
   "team0": {
     "cap": 0,
@@ -26,6 +26,7 @@ owner-test breach: team 0: due 0, opened 0 (pinner 0, objective 0), refused no c
     "opened_objective": 0,
     "opened_with_pinner": 0,
     "pinner_lost": 0,
+    "plan_runs": 0,
     "shooter_died_other": 0,
     "shooter_killed_by_job": 0,
     "too_far": 0,
@@ -60,6 +61,7 @@ owner-test breach: team 0: due 0, opened 0 (pinner 0, objective 0), refused no c
     "opened_objective": 0,
     "opened_with_pinner": 0,
     "pinner_lost": 0,
+    "plan_runs": 0,
     "shooter_died_other": 0,
     "shooter_killed_by_job": 0,
     "too_far": 0,

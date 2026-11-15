@@ -166,6 +166,7 @@
     "wait_for_cloud": null
   },
   "take": {
+    "clear_first": false,
     "known_threats": false,
     "on_the_move": false,
     "team_memory": null,

@@ -1434,11 +1434,16 @@ pub(super) fn decide(
     let step = plays::step(&mut running, target, &cx, &mut rng);
     // A hold on a spot a teammate of a lower place has claimed gives way
     // (S1); the point it means to be at is its claim.
+    let mut battery_hold = None;
     let (step, claim) = match step {
         Step::Continue(intent) => {
             let (intent, claim) = plays::goals::keep_apart(&cx, &mut bot.features.memory.apart, running.kind(), intent);
             // [threat.walk_watch] A229: a walk with a known threat ahead looks at it.
             let intent = plays::watch::walk_watch(&cx, intent);
+            // [take.clear_first] A walk at a loose battery a man holds waits out of his sight for a Breach on him.
+            let (intent, hold) =
+                plays::clear_first::clear_first(&cx, running.kind(), &mut bot.features.memory.clearing, &mut rng, intent);
+            battery_hold = hold;
             (Step::Continue(intent), Some(claim))
         }
         other => {
@@ -1457,6 +1462,10 @@ pub(super) fn decide(
     bot.running = Some(running);
     if let Some(at) = claim {
         state.knowledge.claim(me.place, at, now);
+    }
+    // [take.clear_first] The man it knows by his spot at a loose battery: the team's, for a Breach on him.
+    if let Some(hold) = battery_hold {
+        state.knowledge.hold_battery(hold);
     }
     match step {
         // Its goal one its own search proved no way to lately: the play

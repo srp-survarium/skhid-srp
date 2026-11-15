@@ -16,6 +16,8 @@ pub struct BotState {
     pub apart: Apart,
     /// Stands its takes of batteries gave up at lately: its next take stands elsewhere.
     pub failed_stands: Vec<FailedStand>,
+    /// [take.clear_first] Its state at a held battery, if any (`clear_first::clear_first`).
+    pub clearing: Option<super::clear_first::Clearing>,
 }
 
 impl Feature for BotState {}
