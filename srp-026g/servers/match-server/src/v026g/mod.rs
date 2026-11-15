@@ -521,11 +521,14 @@ fn mapdata_folders<'a>(value: Option<&'a str>, built: Option<&str>) -> Option<(&
     Some((dir, built))
 }
 
+/// [A197] Each map's project and the names of its grid, sight tree and tactics files, or why they could not be named.
+pub type MapFileNames = Vec<(String, Result<[String; 3], String>)>;
+
 /// [A197] The built folder and, for each of `projects`, the names of its grid, sight tree and tactics files at the keys
 /// this server's store computes (its tuning at the start, `tuning`; the folders of `SRP_MAPDATA_DIR`, `SRP_MAPDATA_BUILT`),
 /// or why they could not be named (no map file). Reads each map file once and builds nothing: what the lobby offers
 /// against bots by (`lobby_server::v026g::pvb::BuiltMaps`), as `srp-build-maps --files` names them for a release.
-pub fn bot_map_files(projects: &[&str], tuning: &bots::tuning::Tuning) -> (Option<std::path::PathBuf>, Vec<(String, Result<[String; 3], String>)>) {
+pub fn bot_map_files(projects: &[&str], tuning: &bots::tuning::Tuning) -> (Option<std::path::PathBuf>, MapFileNames) {
     let var = |name: &str| std::env::var(name).ok();
     let (dir_var, built_var) = (var("SRP_MAPDATA_DIR"), var("SRP_MAPDATA_BUILT"));
     let Some((dir, built)) = mapdata_folders(dir_var.as_deref(), built_var.as_deref()) else {
@@ -540,7 +543,7 @@ pub fn bot_map_files_in(
     built: Option<std::path::PathBuf>,
     projects: &[&str],
     tuning: &bots::tuning::Tuning,
-) -> (Option<std::path::PathBuf>, Vec<(String, Result<[String; 3], String>)>) {
+) -> (Option<std::path::PathBuf>, MapFileNames) {
     let store = bot_maps(dir, bots::maps::KEEP, bots::maps::AT_ONCE, built.clone(), tuning, bots::maps::AtLoad::Refuse);
     let files = projects.iter().map(|&p| (p.to_owned(), store.built_file_names(p))).collect();
     (built, files)
