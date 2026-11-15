@@ -1603,6 +1603,21 @@ pub struct BurstStats {
     pub rows: [[u32; 4]; 2],
     pub pull_milli: u64,
     pub bursts: u32,
+    /// The bursts that fired, by class and band, and their realised length summed, ms: from the first tick to the last tick
+    /// the trigger was pressed, one tick (50 ms) more. The bot also stops on its own reasons (the target dead or hidden, the
+    /// magazine out), which the humans' held time already holds: the planned ms against these shows the gap.
+    pub realised: [[u32; 4]; 2],
+    pub realised_ms: [[u64; 4]; 2],
+}
+
+/// [measure] [range-fire] A burst begun and not yet ended ([`BurstStats::realise`]): its class (0 SMG, 1 rifle), band, first
+/// tick, and the last tick the trigger was pressed in it (none yet).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OpenBurst {
+    pub class: usize,
+    pub band: usize,
+    pub first: u32,
+    pub last: Option<u32>,
 }
 
 impl BurstStats {
@@ -1611,12 +1626,22 @@ impl BurstStats {
         [10.0, 20.0, 40.0].iter().filter(|&&edge| distance >= edge).count()
     }
 
+    /// A burst ended: when it fired, its realised length.
+    pub fn realise(&mut self, open: OpenBurst) {
+        if let Some(last) = open.last {
+            self.realised[open.class][open.band] += 1;
+            self.realised_ms[open.class][open.band] += u64::from(last.saturating_sub(open.first) + 50);
+        }
+    }
+
     pub fn add(&mut self, other: &Self) {
         let add = |a: &mut [[u32; 4]; 2], b: &[[u32; 4]; 2]| a.iter_mut().flatten().zip(b.iter().flatten()).for_each(|(a, b)| *a += b);
         add(&mut self.human, &other.human);
         add(&mut self.taps, &other.taps);
         add(&mut self.rows, &other.rows);
+        add(&mut self.realised, &other.realised);
         self.planned_ms.iter_mut().flatten().zip(other.planned_ms.iter().flatten()).for_each(|(a, b)| *a += b);
+        self.realised_ms.iter_mut().flatten().zip(other.realised_ms.iter().flatten()).for_each(|(a, b)| *a += b);
         self.pull_milli += other.pull_milli;
         self.bursts += other.bursts;
     }
@@ -1633,13 +1658,24 @@ impl BurstStats {
                 .collect::<Vec<_>>()
                 .join(" ")
         };
+        let realised = |c: usize| {
+            (0..4)
+                .map(|b| {
+                    let n = self.realised[c][b];
+                    format!("{n}/{}", if n == 0 { 0 } else { self.realised_ms[c][b] / u64::from(n) })
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
         let pull = if self.bursts == 0 { 0.0 } else { self.pull_milli as f64 / 1000.0 / f64::from(self.bursts) };
         format!(
-            "human bursts/taps/mean ms by band 0-10 10-20 20-40 40+: smg [{}] rifle [{}]; from the rows (switch off, or a class with no human data: machine gun, automatic pistol or shotgun): smg {:?} rifle {:?}; pull in effect mean {pull:.3} over {} bursts",
+            "human bursts/taps/mean ms by band 0-10 10-20 20-40 40+: smg [{}] rifle [{}]; from the rows (switch off, or a class with no human data: machine gun, automatic pistol or shotgun): smg {:?} rifle {:?}; realised bursts/mean ms (first to last press): smg [{}] rifle [{}]; pull in effect mean {pull:.3} over {} bursts",
             class(0),
             class(1),
             self.rows[0],
             self.rows[1],
+            realised(0),
+            realised(1),
             self.bursts
         )
     }
@@ -4013,6 +4049,9 @@ pub struct Reflex {
     /// [measure] [range-fire] Its bursts begun this life ([`BurstStats`]), and the last one's note for the trace.
     burst_stats: BurstStats,
     burst_note: Option<serde_json::Value>,
+    /// [measure] [range-fire] The burst begun last, until the next begins: its class and band, its first tick and the tick it
+    /// last pressed the trigger (`BurstStats::realised_ms`).
+    burst_open: Option<OpenBurst>,
     /// [A241] Whether the client sways its aimed automatic shots, as its host says ([`Self::set_client_sway`]).
     client_sway: super::recoil::ClientSway,
     /// [A263] The error its view was last turned to, and at whom: what the view carries at the next tick (`fire_body_share`'s gate).
@@ -4664,7 +4703,25 @@ impl Reflex {
 
     /// [measure] [range-fire] Its bursts begun this life.
     pub fn burst_stats(&self) -> BurstStats {
-        self.burst_stats
+        let mut stats = self.burst_stats;
+        if let Some(open) = self.burst_open {
+            stats.realise(open);
+        }
+        stats
+    }
+
+    /// [measure] [range-fire] The trigger was pressed at `now`: the open burst's last fire tick.
+    fn burst_fired(&mut self, now: u32) {
+        if let Some(open) = &mut self.burst_open {
+            open.last = Some(now);
+        }
+    }
+
+    /// [measure] [range-fire] The open burst ends: its realised length into the stats.
+    fn close_burst(&mut self) {
+        if let Some(open) = self.burst_open.take() {
+            self.burst_stats.realise(open);
+        }
     }
 
     /// [range-fire] The note of the burst begun last, once: planned length, band, the draw and the pull in effect.
@@ -8740,6 +8797,7 @@ impl Reflex {
         }
         if fire {
             self.last_fire = Some((track.who(), now));
+            self.burst_fired(now);
             self.fire_aim = Some(FireAim {
                 at: now,
                 distance,
@@ -8872,11 +8930,9 @@ impl Reflex {
                         let drawn = human.held_ms(class, distance, skill, u);
                         let cycle_ms = 60_000.0 / gun.rpm.max(1) as f32;
                         let tap = drawn <= cycle_ms;
-                        let hold = if tap {
-                            rng.range(c.fire.tap_ms.0 as f32, c.fire.tap_ms.1 as f32) as u32
-                        } else {
-                            drawn as u32
-                        };
+                        // A tap holds its drawn length too (one cycle or less: one round, the humans' 50 ms tick), not the rows'
+                        // `tap_ms`, which at 650 rpm is up to two.
+                        let hold = drawn.round().max(1.0) as u32;
                         self.burst_stats.human[c_i][band] += 1;
                         self.burst_stats.taps[c_i][band] += u32::from(tap);
                         self.burst_stats.planned_ms[c_i][band] += u64::from(hold);
@@ -8902,6 +8958,8 @@ impl Reflex {
                 };
                 self.burst_stats.pull_milli += (pull * 1000.0).round() as u64;
                 self.burst_stats.bursts += 1;
+                self.close_burst();
+                self.burst_open = Some(OpenBurst { class: c_i, band, first: now, last: None });
                 self.burst_until = now + hold;
                 let pause = c
                     .fire
@@ -8998,6 +9056,7 @@ impl Reflex {
         }
         self.through_stats.ticks += 1;
         self.last_fire = Some((who, now));
+        self.burst_fired(now);
         Some(Override {
             look_at: Some(at),
             fire,
@@ -10914,6 +10973,29 @@ mod tests {
             assert_eq!(note["pull"], serde_json::json!((pull * 1000.0).round() / 1000.0), "{note}");
             assert_eq!(note["burst"], if human { "human" } else { "rows" }, "{note}");
         }
+    }
+
+    /// [range-fire] A burst's realised length runs from its first tick to its last press, one tick more; a burst that never
+    /// fired counts nothing; the burst still open is in the stats read now.
+    #[test]
+    fn a_burst_realised_length_is_first_to_last_press() {
+        let known = Arms::of_test_role("support").expect("a support kit").primary.0;
+        let gun = Gun { class: WeaponClass::Rifle, ..*known };
+        let aim = AimTuning::default();
+        let mut rng = Rng::new(5);
+        let mut reflex = Reflex::default();
+        assert!(reflex.shot_wanted(&gun, 1_000, 50.0, (&aim, 0.3), &mut rng));
+        for now in [1_000, 1_050, 1_100, 1_200] {
+            reflex.burst_fired(now);
+        }
+        let open = reflex.burst_stats();
+        assert_eq!((open.realised[1][3], open.realised_ms[1][3]), (1, 250), "the open burst: {open:?}");
+        // The next burst closes it; one that never fires counts nothing.
+        reflex.burst_until = 0;
+        reflex.pause_until = 0;
+        assert!(reflex.shot_wanted(&gun, 5_000, 50.0, (&aim, 0.3), &mut rng));
+        let stats = reflex.burst_stats();
+        assert_eq!((stats.realised[1][3], stats.realised_ms[1][3], stats.bursts), (1, 250, 2), "{stats:?}");
     }
 
     /// [range-fire] The check refuses points out of order, a falling decile, a zero decile and an empty list; the all-off
