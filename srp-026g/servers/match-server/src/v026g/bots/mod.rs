@@ -482,6 +482,9 @@ pub struct Bot {
     /// [F42] A creep under way (both legs broken, the crouch key with move keys): where and when it began
     /// ([`drive::creep_watch`]).
     creep: Option<(Vec3, u32)>,
+    /// [A388 step 2b] Its own reckoned body's kept controller at its last decided tick ([`body::Estimate::kept`]), which the lip
+    /// guard's forecast starts from; set before each drive.
+    reckoned_kept: Option<body::KeptBody>,
     /// [F42] Its own reckoned body's crouch selector state at its last decided tick ([`body::Creep`]), for the steady creep
     /// ([`drive::steady_creep`]); set before each drive.
     reckoned_creep: body::Creep,
@@ -708,6 +711,7 @@ impl Bot {
             jump_watch: None,
             crouch_climb: None,
             creep: None,
+            reckoned_kept: None,
             reckoned_creep: body::Creep::Unknown,
             nav_log: nav_log::NavLog::default(),
             offers: threat::LastOffers::default(),
@@ -2459,6 +2463,12 @@ impl Bots {
         lines.push(format!(
             "{}flown riser presses held off their window since the last match end (every match on this server): height {height}, line {side}, heading {turn}, lead {lead}",
             nav_log::PREFIX
+        ));
+        // [A388 step 2b] The lip guard's forecasts the margin point's walker-ground test alone called off.
+        lines.push(format!(
+            "{}lip guard forecasts called off by the margin point's walker-ground test alone since the last match end (every match on this server): {}",
+            nav_log::PREFIX,
+            body::margin_walk_offs::take()
         ));
         // [Gap 10] The reckoned jumps the worlds' selectors refused, and the worlds in a jump the reckoning had none of.
         let (dropped, unseen, started, clips, changed) = jump_arc::world_jumps::take();

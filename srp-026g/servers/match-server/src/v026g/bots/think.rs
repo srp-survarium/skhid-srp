@@ -194,6 +194,7 @@ impl Bots {
                         #[cfg(test)]
                         path::take_last_no_route();
                         bot.reckoned_creep = at.creep;
+                        bot.reckoned_kept = at.kept;
                         let decision = drive_tick(bot, &me, view, tactics, &tuning, time, searching);
                         #[cfg(test)]
                         if let Some(life) = bot.bench_life.as_mut() {
