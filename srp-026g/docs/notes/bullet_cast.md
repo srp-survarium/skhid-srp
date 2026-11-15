@@ -112,7 +112,7 @@ At load (PROVEN, exe-read):
 - Measured against a capture of the game's tree (jumps2): the port of this (`controller/broadphase.rs`, not merged) gives
   every placement's box bit for bit (1,937 of 1,937), and 1,935 of the 1,936 adjacent captured pairs in the game's order.
 
-After load, every simulation sub-step (PROVEN, exe-read; a game tick may run several sub-steps):
+After load, at every `collide` call (PROVEN, exe-read; the pair search of a simulation sub-step, of which a game tick may run several):
 
 - `btDbvtBroadphase::collide` 0xB55D0 runs `btDbvt::optimizeIncremental` 0xAA540 on the dynamic set with
   `1 + leaves x m_dupdates / 100` passes. The constructor 0xB4C80 sets `m_dupdates` (+70h) to 0, so that is one pass a `collide` call (from
@@ -121,12 +121,12 @@ After load, every simulation sub-step (PROVEN, exe-read; a game tick may run sev
 - A pass walks from the root, taking each node's child by the next bit of `m_opath` (+10h of the tree). At each internal
   node, `sort` swaps the node with its parent when the parent's ADDRESS is higher (`cmp eax,esi; jna` at 0xAA584). The leaf it
   reaches is removed (0xAA330) and inserted again from the root (0xAA180), and `m_opath` goes up by one.
-- The world updates every object's box each sub-step: `updateAabbs` 0xA01E0 takes them all when `m_forceUpdateAllAabbs`
+- The world updates every object's box with each pair search: `updateAabbs` 0xA01E0 takes them all when `m_forceUpdateAllAabbs`
   (+54h) is set (0xA01F3..0xA020F), and it is 1 in the game's memory. Each
   `setAabb` puts the proxy back in the current stage's list on every path, a box unchanged included (0xB52AD..0xB5325), so with two stages (0xB5651: modulo 2) no static is ever moved
   to the fixed set. The statics stay in the dynamic tree, where the passes reach them.
 
-So the order across objects changes as the game runs. It depends on the sub-steps since load, on the moving bodies' proxies in
+So the order across objects changes as the game runs. It depends on the `collide` calls since load, on the moving bodies' proxies in
 the same tree, and on where the heap put each node (the swap compares addresses). None of that is in the map, so the order
 cannot be ported. The one captured object out of place (416, a lamp's collision) is consistent with this: its leaf is a
 standard reinsert of its own box.
