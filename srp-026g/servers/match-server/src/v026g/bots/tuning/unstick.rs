@@ -107,6 +107,13 @@ pub struct UnstickTuning {
     /// [`Self::drop_shut_last_resort`]: a search with no way while dead links are shut searches again without them. None:
     /// each bot remembers only its own failures, for their own time (as before).
     pub dead_links: Option<DeadLinksTuning>,
+    /// [A351 change] No link is failed or dead on the model's word when a world shows the body up it: a route jump the motor
+    /// gave up (`stuck::Stuck::failed_jump`) whose watched world then shows the body on the top's floors (`motor::on_top`,
+    /// A387's judge, which already starts the motor's tries again) is taken back: its shut to the body's searches lifted,
+    /// its failure not told to the match; and a link the match knew failed is made for the rest of it ([`Self::dead_links`]:
+    /// a shut one opened, none shut by later failures). The owner-14 review's 12 dead links held 2 the client makes (the
+    /// model's wrong "short"). Off: a failure stands whatever the next world shows.
+    pub link_made: bool,
     /// What the reckoned stuck watch (`stuck::Stuck::walking_in`: two worlds 1.5 s+ apart, the body moved under 0.4 m while the keys
     /// meant 1.2 m) judges a window by (A240b).
     pub window: StuckWindow,
@@ -208,6 +215,7 @@ impl Default for UnstickTuning {
             drop_shut_from_top: true,
             drop_shut_last_resort: true,
             dead_links: Some(DeadLinksTuning::default()),
+            link_made: true,
             window: StuckWindow::SinceAsked,
             escape_floor: true,
         }

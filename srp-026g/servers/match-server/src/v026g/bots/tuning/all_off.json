@@ -222,6 +222,7 @@
     "drop_shut": null,
     "home_gate_max_ms": null,
     "home_no_way_ms": null,
+    "link_made": false,
     "progress_ms": null,
     "suicide_after_ms": null,
     "suicide_loud": null,

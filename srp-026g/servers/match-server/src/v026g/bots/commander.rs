@@ -707,6 +707,36 @@ impl Bots {
         let dead_tuning = tuning.unstick.dead_links.unwrap_or_default();
         let dead = &mut self.features.dead_links;
         for bot in self.bots.iter_mut().flatten().filter(|b| b.team == team) {
+            // [unstick.link_made] The links a world showed its bots up: a link known failed is made for the match (a shut
+            // one opened), before the failures of this tick are heard.
+            for made in bot.stuck.tell_made_links() {
+                if !tuning.unstick.link_made {
+                    continue;
+                }
+                let Some(newly) = dead.made(now, bot.place, &made) else {
+                    continue;
+                };
+                let (from, to) = (newly.link.take_off, newly.link.landing);
+                let text = format!(
+                    "link made on map {} ({:?}): {:?} ({:.1}, {:.1}, {:.1}) -> ({:.1}, {:.1}, {:.1}): a world showed player {} up it after {} failures by players {:?}{}; the map's dead links: {}",
+                    self.level,
+                    self.mode,
+                    newly.link.kind,
+                    from.x,
+                    from.y,
+                    from.z,
+                    to.x,
+                    to.y,
+                    to.z,
+                    bot.place,
+                    newly.failed_by.len(),
+                    newly.failed_by,
+                    newly.was_shut.map_or(String::new(), |at| format!(", shut at {at} ms: opened")),
+                    dead.list()
+                );
+                log::debug!("{text}");
+                notes.push(Note { place: usize::MAX, time: now, text });
+            }
             for newly in dead.learn(now, bot.place, &bot.stuck.tell_failed_links(), &dead_tuning) {
                 let (from, to) = (newly.link.take_off, newly.link.landing);
                 notes.push(Note {
