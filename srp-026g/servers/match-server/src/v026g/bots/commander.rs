@@ -300,7 +300,9 @@ fn threat_tick(
                     (plays::PlayKind::Breach, plays::TargetRef::ThreatSpot(id)) => Some((threat::Role::Crosser, id)),
                     _ => None,
                 });
-                Some(threat::Mate { place: b.place, feet: p.feet, free: !objective.is_actor(p) && !b.reflex.dry(), playing })
+                // [A391] The last offer of the role it holds (none held: none).
+                let offer = threat.job_of(b.place).and_then(|(_, role, _)| b.offers.last(role).map(|offer| (role, offer)));
+                Some(threat::Mate { place: b.place, feet: p.feet, free: !objective.is_actor(p) && !b.reflex.dry(), playing, offer })
             })
             .collect();
         let mut holds = match tuning.threat.cue_merge_m {

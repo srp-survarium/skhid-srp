@@ -578,6 +578,11 @@ impl LastOffers {
         }
     }
 
+    /// The last offer of `role` since it was given; `None`: not asked yet.
+    pub fn last(&self, role: Role) -> Option<Offer> {
+        self.0[Self::at(role)]
+    }
+
     /// A poll offered `role`'s play as `offer`.
     pub fn note(&mut self, role: Role, offer: Offer) {
         self.0[Self::at(role)] = Some(offer);
@@ -2069,6 +2074,9 @@ pub struct Mate {
     pub feet: Vec3,
     pub free: bool,
     pub playing: Option<(Role, u32)>,
+    /// [A391] The last offer of the role it holds, since it was given (`LastOffers`): a role whose play its bot was asked
+    /// for and not offered (no spot, set aside, dry, low health) is let go at once ([`jobs_tick`]). `None`: not asked yet.
+    pub offer: Option<(Role, Offer)>,
 }
 
 /// The team as the jobs read it: its living bots that may take a role, its
@@ -2334,7 +2342,11 @@ pub fn jobs_tick(
             };
             let why = if !m.free {
                 Some(PassedWhy::NotFree)
-            } else if m.playing != Some((role, spot)) && now >= h.since + JOB_START_MS {
+            } else if m.playing != Some((role, spot))
+                && (now >= h.since + JOB_START_MS || m.offer.is_some_and(|(r, offer)| r == role && offer != Offer::Offered))
+            {
+                // [A391] Not taken within the start window, or asked and not offered (no candidate now): let go, so the
+                // role goes to a bot that has one.
                 Some(PassedWhy::NoPlay)
             } else {
                 None
@@ -2375,7 +2387,8 @@ pub fn jobs_tick(
             break;
         }
         let free = !jobs.iter().any(|j| j.spot == line.id || j.shooter == line.shooter)
-            && !rested.iter().any(|&(id, _)| id == line.id);
+            && !rested.iter().any(|&(id, _)| id == line.id)
+            && strongest_of_shooter(held, line);
         if !free {
             continue;
         }
@@ -2397,6 +2410,12 @@ pub fn jobs_tick(
         }
     }
     events
+}
+
+/// [A391] Whether `line` is its shooter's strongest held spot (no other of his has more kills): a job opens only there, so
+/// it follows the spot his kills prove most.
+fn strongest_of_shooter(held: &[HeldLine], line: &HeldLine) -> bool {
+    !held.iter().any(|other| other.shooter == line.shooter && other.id != line.id && other.kills > line.kills)
 }
 
 /// How [`jobs_tick`] opens a job on a held spot ([`ThreatTuning::job_open_staffed`]).
@@ -2421,7 +2440,8 @@ fn open_then_drop(jobs: &mut Vec<Job>, rested: &mut Vec<(u32, u32)>, held: &[Hel
             break;
         }
         let free = !jobs.iter().any(|j| j.spot == line.id || j.shooter == line.shooter)
-            && !rested.iter().any(|&(id, _)| id == line.id);
+            && !rested.iter().any(|&(id, _)| id == line.id)
+            && strongest_of_shooter(held, line);
         if free {
             let objective = team.objective_areas.iter().any(|&a| line.covers(a));
             jobs.push(Job {
@@ -3218,7 +3238,7 @@ mod tests {
         let mut c = line(3, Vec3::new(0.0, 0.0, -40.0), &[bearing(Vec3::new(0.0, 0.0, -40.0), Vec3::new(30.0, 0.0, -40.0))]);
         (a.shooter, b.shooter, c.shooter) = (7, 7, 9);
         let held = [a, b, c];
-        let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None }).collect();
+        let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None, offer: None }).collect();
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
         let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas, breach_roles: 0, flank_from: None };
         // A 12-player team: 4 bots in jobs; shooter 7 has one job, shooter 9 the other.
@@ -3297,9 +3317,9 @@ mod tests {
         let held = [HeldLine { shooter: 9, ..line(3, at(0.0), &lane(at(0.0))) }];
         // Out of his lanes (along +x): 10 nearest him, 11 by the route start, 12 farther still.
         let mates = [
-            Mate { place: 10, feet: Vec3::new(-15.0, 0.0, 0.0), free: true, playing: None },
-            Mate { place: 11, feet: Vec3::new(-30.0, 0.0, 30.0), free: true, playing: None },
-            Mate { place: 12, feet: Vec3::new(-40.0, 0.0, -30.0), free: true, playing: None },
+            Mate { place: 10, feet: Vec3::new(-15.0, 0.0, 0.0), free: true, playing: None, offer: None },
+            Mate { place: 11, feet: Vec3::new(-30.0, 0.0, 30.0), free: true, playing: None, offer: None },
+            Mate { place: 12, feet: Vec3::new(-40.0, 0.0, -30.0), free: true, playing: None, offer: None },
         ];
         let start = Vec3::new(-32.0, 0.0, 32.0);
         let starts = |_: Vec3| vec![start];
@@ -3319,7 +3339,7 @@ mod tests {
         let lane = |at: Vec3| [bearing(at, at + Vec3::new(30.0, 0.0, 0.0)), bearing(at, at + Vec3::new(30.0, 0.0, 1.0))];
         let spot = |id, at: Vec3, shooter| HeldLine { shooter, ..line(id, at, &lane(at)) };
         let far = Vec3::new(0.0, 0.0, 500.0);
-        let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None }).collect();
+        let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None, offer: None }).collect();
         let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0, flank_from: None };
         let ids = |jobs: &[Job]| jobs.iter().map(|j| j.spot).collect::<Vec<_>>();
         // A far spot first in the list: both slots still go to the spots the bots can reach.
@@ -3348,7 +3368,7 @@ mod tests {
         let hold = line(4, at(0.0), &[bearing(at(0.0), at(30.0)), bearing(at(0.0), Vec3::new(30.0, 0.0, 1.0))]);
         let from = Vec3::new(-40.0, 0.0, 0.0);
         let one = line(9, from, &[bearing(from, Vec3::new(-10.0, 0.0, 0.0))]);
-        let mate = |place, x: f32, z: f32| Mate { place, feet: Vec3::new(x, 0.0, z), free: true, playing: None };
+        let mate = |place, x: f32, z: f32| Mate { place, feet: Vec3::new(x, 0.0, z), free: true, playing: None, offer: None };
         let mates = [mate(1, -12.0, 0.0), mate(2, -10.0, 30.0), mate(3, -10.0, -30.0)];
         let team = JobTeam { mates: &mates, size: 10, objective_areas: &[], breach_roles: 0, flank_from: None };
         let (holds, lanes) = ([hold.clone()], [hold, one]);
@@ -3364,7 +3384,7 @@ mod tests {
     #[test]
     fn a_held_spot_gets_a_flanker_and_a_pinner_out_of_its_lanes() {
         let held = vec![line(4, at(0.0), &[bearing(at(0.0), at(30.0))])];
-        let mate = |place, x: f32, z: f32, free| Mate { place, feet: Vec3::new(x, 0.0, z), free, playing: None };
+        let mate = |place, x: f32, z: f32, free| Mate { place, feet: Vec3::new(x, 0.0, z), free, playing: None, offer: None };
         let mates = [
             // In his lane: not chosen.
             mate(1, 20.0, 0.0, true),
