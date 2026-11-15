@@ -396,6 +396,35 @@ pack and compares the pack and the list; `stalker-bushes-manifest` holds the
 manifest's rows (the `stalker-maps` pack it is made from, this pack, the list
 before `ffa-projects-1`) to the script's pins, without making anything.
 
+## Training Camp's campfires burn (the owner, 2026-11-15)
+
+"Also fire (there are 2 or 3 on the map) should do damage too". Training Camp
+has four bonfires (`props/light/bonefire_01_on`, each with its `bonfire`
+particle, light and sound): three on the ground floors of its three round
+towers, at (11.23, 24.72), (9.27, -14.32) and (45.93, 2.25), and one on the
+roof of the building at the middle, y 16.7 over (18.5, 6.0). They burnt
+nobody: the port has no damage zone. The picture:
+`private/renders/training-camp-fires/` in the main checkout (offline render).
+
+`training-camp-fires-1.json` (`scripts/stalker-maps/make_training_fires.py`,
+from the stock `projects/level_05/day_4/client_project` and the pack's TDM
+project) appends to both projects, `day_4` and `day_8`, 0.26g's own fire over
+the same bonfire model: level_05's `logic/fire_damage/fire_collision` (a
+`collision_geometry` of spheres, one 0.16 m over each bonfire) and
+`logic/fire_damage/fire_damage_zone` naming it (`damage_type` fire, `max_hit`
+0.1 to both hips and both feet every 500 ms, not continuous, its curves),
+every key and type as the stock's. One change: the sphere is 0.8 m, the
+stock's 0.5 m. The bonfire's walker sphere (0.38 m) holds a body (0.38 m)
+0.76 m from the fire's middle, so the stock sphere is touched only right at
+it; at 0.8 m a body against the logs (0.5 m) or on them burns, and one a step
+(0.6 m) from them, its middle 1.5 m away, does not.
+
+The world saves one damage zone more (`maps.rs` `world_objects` counts it from
+the project: 5 bytes, before the Keeper's anomaly in `day_8`), so it is a
+`next` simulation change. No spawn is near: the nearest Free for All point
+(team 2, id 42) is 3.9 m from a sphere at its feet, chest or head (the spawn
+tools keep 2 m), the nearest Team Deathmatch point 5.2 m.
+
 ## Ladders
 
 0.26g cannot climb. Every ladder stays as the source has it: no ramp, lid or
