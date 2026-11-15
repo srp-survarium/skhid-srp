@@ -1915,13 +1915,19 @@ const CLEAR_SLACK_M: f32 = 0.05;
 /// A trap this far above or below a leg's ends is on another floor (the field's own rule for its shut floors).
 const OTHER_FLOOR_M: f32 = 1.0;
 
+/// [#2081] The nearest a way from inside a disc ever comes to the trap, metres: the contact 0.67 m and the median drift off a route
+/// 0.25 m ([`OWN_TRAP_CLEAR_M`]'s sources).
+const INSIDE_FLOOR_M: f32 = 0.67 + 0.25;
+
 /// [#2081] Whether the polyline `points`, walked from `from`, keeps `reach` from every disc of `discs` on its floor: never nearer
-/// than `reach`, nor, when `from` is already nearer, than `from` is (a body inside a disc walks out, never in, as the searches'
-/// floors inside a disc are opened only farther than the feet, [`keep_off_open`]). The one rule of the search's check, keep_off
-/// and the side step.
+/// than `reach`; when `from` is already nearer (a body inside a disc, as a placer by its fresh trap), never more than a floor of
+/// the walk grid (`mapdata::CELL` 0.25 m: the feet's own floor may lie that much nearer) nearer than `from`, and never under
+/// [`INSIDE_FLOOR_M`]: it walks out or round, never in (the searches' floors inside a disc are opened only farther than the feet,
+/// [`keep_off_open`]). The one rule of the search's check, keep_off and the side step.
 pub fn keeps_clear(points: &[Vec3], discs: &[Vec3], from: Vec3, reach: f32) -> bool {
     discs.iter().all(|disc| {
-        let need = reach.min(from.distance_xz(*disc)) - CLEAR_SLACK_M;
+        let at = from.distance_xz(*disc);
+        let need = if at >= reach { reach - CLEAR_SLACK_M } else { (at - mapdata::CELL).max(INSIDE_FLOOR_M).min(reach) };
         let near = |p: Vec3| (p.y - disc.y).abs() < OTHER_FLOOR_M;
         match points {
             [] => true,
@@ -1993,9 +1999,13 @@ pub(super) fn own_trap_route(
     out
 }
 
-/// [#2081] From inside the disc of the own trap of `field` nearest `feet`, the straight step away from it to `OWN_TRAP_CLEAR_M` +
-/// [`STEP_OUT_PAST_M`]: a two-point route, if its end is a floor of the feet's level, the ground there is clear for a step (`clear`),
-/// and it keeps the clearance from every other disc. None outside every disc.
+/// The ways a step out of a disc tries, degrees off straight away from the trap, in order.
+const STEP_OUT_TURNS_DEG: [f32; 5] = [0.0, 30.0, -30.0, 60.0, -60.0];
+
+/// [#2081] From inside the disc of the own trap of `field` nearest `feet`, a straight step out to `OWN_TRAP_CLEAR_M` +
+/// [`STEP_OUT_PAST_M`] from it: straight away, else 30 or 60 degrees off that ([`STEP_OUT_TURNS_DEG`]), the first whose end is a
+/// floor of the feet's level, whose ground is clear for a step (`clear`) and which keeps the clearance from every disc. A two-point
+/// route; none outside every disc or with no way out.
 fn step_out(field: &TrapField, feet: Vec3, clear: impl Fn(Vec3) -> bool, grid: &WalkGrid) -> Option<super::path::Route> {
     use super::path::{Route, Waypoint};
     let reach = field.reach().max(FIELD_M);
@@ -2004,16 +2014,17 @@ fn step_out(field: &TrapField, feet: Vec3, clear: impl Fn(Vec3) -> bool, grid: &
         .iter()
         .filter(|d| d.distance_xz(feet) < reach && (d.y - feet.y).abs() < OTHER_FLOOR_M)
         .min_by(|a, b| a.distance_xz(feet).total_cmp(&b.distance_xz(feet)))?;
-    let (dx, dz) = (feet.x - disc.x, feet.z - disc.z);
-    let d = dx.hypot(dz).max(1e-3);
-    let want = Vec3::new(disc.x + dx / d * (reach + STEP_OUT_PAST_M), feet.y, disc.z + dz / d * (reach + STEP_OUT_PAST_M));
-    let (from, to) = (grid.locate(feet, 1.5)?, grid.locate(want, 0.6)?);
-    let end = grid.position(to);
-    if (end.y - feet.y).abs() >= 1.0 || !clear(end) || !keeps_clear(&[feet, end], field.discs(), feet, reach) {
-        return None;
-    }
+    let away = (feet.z - disc.z).atan2(feet.x - disc.x);
+    let from = grid.locate(feet, 1.5)?;
     let point = |at: Vec3, node| Waypoint { at, node, jump: None, low: false };
-    Some(Route::new(vec![point(feet, from), point(end, to)]))
+    STEP_OUT_TURNS_DEG.iter().find_map(|turn| {
+        let a = away + turn.to_radians();
+        let want = Vec3::new(disc.x + a.cos() * (reach + STEP_OUT_PAST_M), feet.y, disc.z + a.sin() * (reach + STEP_OUT_PAST_M));
+        let to = grid.locate(want, 0.6)?;
+        let end = grid.position(to);
+        ((end.y - feet.y).abs() < 1.0 && clear(end) && keeps_clear(&[feet, end], field.discs(), feet, reach))
+            .then(|| Route::new(vec![point(feet, from), point(end, to)]))
+    })
 }
 
 /// [#2081] Whether the step from `from` to `to` keeps the clearance from the team's own traps of `field` ([`keeps_clear`]): the
@@ -4450,6 +4461,19 @@ mod tests {
         let inside = trap + Vec3::new(-1.1, 0.0, 0.0);
         assert!(keeps_clear(&[inside, trap + Vec3::new(-2.5, 0.0, 0.0)], field.discs(), inside, OWN_TRAP_CLEAR_M));
         assert!(!keeps_clear(&[inside, trap + Vec3::new(-0.5, 0.0, 0.3)], field.discs(), inside, OWN_TRAP_CLEAR_M));
+        // From 1.36 m (the bench's stuck guard), round it at 1.26 m: a floor of the grid nearer, clear; at 0.85 m (under the contact
+        // and drift floor, 0.92 m): not.
+        let at136 = trap + Vec3::new(-1.36, 0.0, 0.0);
+        let arc = |r: f32| -> Vec<Vec3> {
+            std::iter::once(at136)
+                .chain((0..=12).map(|k| {
+                    let a = std::f32::consts::PI * (1.0 - k as f32 / 12.0);
+                    trap + Vec3::new(r * a.cos(), 0.0, r * a.sin())
+                }))
+                .collect()
+        };
+        assert!(keeps_clear(&arc(1.26), field.discs(), at136, OWN_TRAP_CLEAR_M));
+        assert!(!keeps_clear(&arc(0.85), field.discs(), at136, OWN_TRAP_CLEAR_M));
         // A trap on another floor (2 m above) is no matter.
         assert!(keeps_clear(&[Vec3::new(15.0, 2.0, 10.0), Vec3::new(35.0, 2.0, 10.0)], field.discs(), Vec3::new(15.0, 2.0, 10.0), OWN_TRAP_CLEAR_M));
         // The side step (`STRAFE_CLEAR_M` long): onto the trap refused, away from it taken; with no trap, any.
