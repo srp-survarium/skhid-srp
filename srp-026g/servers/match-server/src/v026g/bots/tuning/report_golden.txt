@@ -13,6 +13,7 @@ switches ON mods: aggression_gap.invert aggression_time.invert urgency_time.inve
 switches ON pace: calm_sprint goal_clause
 switches ON perch: on
 switches ON sense: sight_refresh ranges={"game":{"crouch_step_m":4.5}} shots={"by_weapon":{"unknown_m":150.0}} sprint_body_mps=4.6 use_ray_m=1.8 bush_notice=0.5 grass_notice=0.1
+switches ON skill: duel_by_killer step_reset
 switches ON smoke: anti_sniper cross_lane forming_client react_watch sight spot_rules throw_keeps_route aim_point={"best_cover":{"avoid_m":3.0,"step_m":1.0,"stretch_m":12.0}}
 switches ON spacing: apart apart_follow buddy
 switches ON take: on_the_move drop_impossible={"below_m":5.0,"box_m":4.0}

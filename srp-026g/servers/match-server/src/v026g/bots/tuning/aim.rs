@@ -612,6 +612,13 @@ pub struct SkillTuning {
     pub window_s: u32,
     /// Fewer kills and deaths than this in the window say nothing.
     pub min_events: u32,
+    /// [A392] A duel is booked only when its killer is known to be the other side: a bot's death when every enemy whose
+    /// kills rose since the last world is a human, a human's death when every one is a bot (the kill feed's one interval;
+    /// mixed or no killers: none). Off: any death in a world where any human's (any bot's) kills rose, of either team.
+    pub duel_by_killer: bool,
+    /// [A392] A step one way sets the other way's step count back to 0, so the first step back is a full `step`. Off: the
+    /// counts never reset, each further step the same way smaller over the match.
+    pub step_reset: bool,
 }
 
 impl Default for SkillTuning {
@@ -633,6 +640,8 @@ impl Default for SkillTuning {
             every_s: 30,
             window_s: 300,
             min_events: 4,
+            duel_by_killer: true,
+            step_reset: true,
         }
     }
 }
