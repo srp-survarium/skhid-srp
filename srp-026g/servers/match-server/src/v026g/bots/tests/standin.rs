@@ -16,7 +16,7 @@
 //! | `SRP_BENCH_SPREAD` | off: no shot spread |
 //! | `SRP_BENCH_SPRINT_GATE` | off: a shot and the aim-in right after a sprint |
 //! | `SRP_BENCH_JUMP_GATE` | off: a shot and the aim-in in a jump |
-//! | `SRP_BENCH_HIT_MODEL` ([`standin_hitbox`](super::standin_hitbox)) | off: the old 0.45 m disc about the chest, the centre ray, no scatter; `on`: a shot is a ray against the 19 hit shapes, a shotgun's ten pellets rays, and the line is scattered by the live position error |
+//! | `SRP_BENCH_HIT_MODEL` ([`standin_hitbox`](super::standin_hitbox)) | off: the old 0.45 m disc about the chest, the centre ray, no scatter; `on`: a shot is a ray against the 19 hit shapes, a shotgun's ten pellets rays, and a bot's line is scattered by the live position error (the stand-in human's and the camper's start at their eye) |
 //! | `SRP_BENCH_BATTERIES` | one battery at every spawner |
 //! | `SRP_BENCH_START` | 0,0: every battery lying |
 //! | `SRP_BENCH_ZONE_DAMAGE` | off: zones do not hurt the bodies |
@@ -752,6 +752,9 @@ pub(crate) struct Game {
     /// What a shot is tested against ([`HitVolume`]): the old disc here; the bench sets its own
     /// ([`HitVolume::bench`], the old disc unless `SRP_BENCH_HIT_MODEL=on`).
     pub(crate) volume: HitVolume,
+    /// Each place's shot origin ([`standin_hitbox::ShotOrigin`]): a bot's line is moved by the position scatter, a client's
+    /// (the stand-in human's, the stand-in camper's: [`Self::set_shot_origin`]) starts at its eye.
+    shot_origins: Vec<standin_hitbox::ShotOrigin>,
     /// The bullet flies the client's path (`SRP_BENCH_HIT_FLIGHT`, A182; [`Self::nearest_shape_flown`]): muzzle speed, drag and
     /// gravity, each body found where its last step carries it by the time, not where it stood at the shot.
     pub(crate) flight: standin_hitbox::BulletPath,
@@ -1069,6 +1072,7 @@ impl Game {
             aim_sway: crate::v026g::bots::recoil::ClientSway::Absent,
             swayed: [(0, 0.0); 2],
             volume: HitVolume::Disc,
+            shot_origins: vec![standin_hitbox::ShotOrigin::Reckoned; teams.len()],
             flight: standin_hitbox::BulletPath::Instant,
             honest: honest_stand_in(),
             walls: None,
@@ -1850,9 +1854,11 @@ impl Game {
     /// is turned by the weapon's cone (`SRP_BENCH_SPREAD`), as the game's `get_dispersed_bullet_direction` turns
     /// it; with the whole hit cut on ([`HitVolume::Boxes`] with a `scatter_m`) the origin is moved by one random
     /// offset across the line, the live position error the bench's bodies lack (C3, [`standin_hitbox`]:
-    /// GUESS for its size). The origin is where the hit tests start their rays; the eye stays where the bullet
-    /// starts for the world's blocking. With the old disc, nothing moves and nothing is drawn beyond the cone.
-    pub(crate) fn shot_line(&mut self, eye: Vec3, dir: Vec3, cone: f32) -> (Vec3, Vec3) {
+    /// GUESS for its size), for a bot's shot only: a client's (`shooter` of [`standin_hitbox::ShotOrigin::Own`]) starts at
+    /// its eye, as the game's bullet does, its offset drawn all the same so that the bots' draws stay as they were. The
+    /// origin is where the hit tests start their rays; the eye stays where the bullet starts for the world's blocking. With
+    /// the old disc, nothing moves and nothing is drawn beyond the cone.
+    pub(crate) fn shot_line(&mut self, shooter: Place, eye: Vec3, dir: Vec3, cone: f32) -> (Vec3, Vec3) {
         let dir = if self.spread {
             bench_spread::deflect(dir, cone, &mut self.rng)
         } else {
@@ -1874,7 +1880,18 @@ impl Game {
             side * (1.0 / side.length())
         };
         let up = side.cross(dir);
-        (eye + side * (radius * angle.cos()) + up * (radius * angle.sin()), dir)
+        match self.shot_origins.get(shooter).copied().unwrap_or_default() {
+            standin_hitbox::ShotOrigin::Reckoned => (eye + side * (radius * angle.cos()) + up * (radius * angle.sin()), dir),
+            standin_hitbox::ShotOrigin::Own => (eye, dir),
+        }
+    }
+
+    /// `place` stands for a client (the stand-in human, the stand-in camper): its shot lines start at its eye
+    /// ([`standin_hitbox::ShotOrigin::Own`]).
+    pub(crate) fn set_shot_origin(&mut self, place: Place, origin: standin_hitbox::ShotOrigin) {
+        if let Some(slot) = self.shot_origins.get_mut(place) {
+            *slot = origin;
+        }
     }
 
     /// One shot of `shooter` at `at` ms (within the tick).
@@ -1914,7 +1931,7 @@ impl Game {
         self.bodies[shooter].recoil.shot(at, top, 0.0);
         let (aim_state, cone) = self.bodies[shooter].spread.shot(gun, keys, at, self.gates);
         let view_dir = dir;
-        let (origin, dir) = self.shot_line(eye, dir, cone);
+        let (origin, dir) = self.shot_line(shooter, eye, dir, cone);
         let tick = self.tick;
         let body = &self.bodies[shooter];
         // A shot at the bot's target with nothing of him showing

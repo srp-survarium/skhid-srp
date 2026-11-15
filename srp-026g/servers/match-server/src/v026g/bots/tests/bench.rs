@@ -1369,6 +1369,11 @@ pub(crate) fn real_bot_cost() {
                 assert!(camper_place.is_none(), "SRP_BENCH_HUMAN_PLAY=hunter rides on the camper's hooks: not with SRP_BENCH_CAMPER");
                 bots.bench_camper = Some(BenchCamper::hunter(place, seed, Arc::new(hunter_tuning())));
             }
+            // [shot origin] The stand-in human and the stand-in camper stand for clients: their shot lines start at the eye, with
+            // none of the bots' position scatter (`standin_hitbox::ShotOrigin`).
+            for place in [bots.bench_human, camper_place].into_iter().flatten() {
+                game.set_shot_origin(place, standin_hitbox::ShotOrigin::Own);
+            }
             // [A318] The stand-in camper's body reckoned by his own kin (his pinned tuning), whatever the arm's, on the match's one
             // world: every world-built id (regions, cells, links, sight) comes from that one world. A world of his own was tried
             // and dropped: his drive read team state built on the arm's world (`threat::free_regions` out of bounds).
@@ -2720,6 +2725,7 @@ fn say_the_switches() {
     );
     eprintln!("{}", crate::v026g::bots::switch_log::env_switches());
     eprintln!("{}", super::settings::models_line(settings));
+    eprintln!("{}", HitVolume::bench().scatter_line());
 }
 
 fn say_the_rusher_kit() {
