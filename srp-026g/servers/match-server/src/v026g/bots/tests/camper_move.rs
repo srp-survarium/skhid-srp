@@ -434,9 +434,10 @@ const LIVE_LEAVE_KILLS: u32 = 4;
 /// rhythm, not the enemy's coming.
 const LIVE_LEAVE_AFTER_KILL_P: [f32; 6] = [0.38, 0.33, 0.27, 0.23, 0.20, 0.17];
 /// [A239c] From that kill to his leaving 10 m of the spot, s, at the quantiles 0.1, 0.25, 0.5, 0.75 and 0.9 (6,312 runs that left).
-/// The stand-in's leave begins at the draw and takes a second or two to be 10 m off: LIKELY up to 2 s later than live. [G10] The
-/// camper's log line counts it as the table does (`CamperMotion::kill_to_off_line`: each leave from a stay with a kill, from that
-/// kill to [`LIVE_OFF_M`] off the stay's spot, at these quantiles), for a bench to read against this table.
+/// The stand-in's leave begins at the draw, and he is 10 m off only after his walk there, so his time from the kill is this
+/// table's plus that walk: the difference against live is not measured yet. [G10] The camper's log line counts it as the table
+/// does (`CamperMotion::kill_to_off_line`: each leave from a stay with a kill, from that kill to [`LIVE_OFF_M`] off the stay's
+/// spot, at these quantiles, with the cut and the arrived-short leaves), for G10's bench read against this table.
 const LIVE_LEAVE_DELAY_S: [(f32, f32); 5] = [(0.1, 1.3), (0.25, 2.6), (0.5, 3.9), (0.75, 6.3), (0.9, 9.8)];
 /// [A239c] After a death at his spot, a live camper against the old bots started his next run back within 10 m of it in 140 of
 /// 1,030 (`camp_leave.py`); those that did killed 4.69 a run, those elsewhere 2.21.
