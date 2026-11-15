@@ -1623,6 +1623,17 @@ impl Bots {
 
     /// [item 4] The base rule's entries over the match as the match-end log line: added, and those that moved the spawn
     /// rule's end later, a world and a bot each.
+    pub fn breach_report(&self) -> String {
+        let line = |c: &threat::BreachCounts| {
+            format!("spawn-exit spots due {}, opened {}, went {}, throws asked {}", c.spawn_exit_due, c.opened, c.went, c.throws_asked)
+        };
+        format!(
+            "team 0: {}; team 1: {}",
+            line(&self.teams[0].features.threat.breach_counts),
+            line(&self.teams[1].features.threat.breach_counts)
+        )
+    }
+
     pub fn base_report(&self) -> String {
         format!("added {}, ends moved later {}", self.base_counts.0, self.base_counts.1)
     }
