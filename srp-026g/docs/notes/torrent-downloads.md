@@ -52,10 +52,14 @@ corrections from the owner go here.
   announces the torrent's v1 info hash to the public UDP trackers (BEP 15) and fetches from the
   peers with the plain BEP 3 wire: no metadata exchange, the script pins every piece's SHA-1 and
   each file's SHA-256 and size. A piece that is not its pin drops that peer; a message over a block
-  and its header drops it too; 40 peers at most.
+  and its header drops it too; so does a handshake not in 10 s or no new checked piece in 60 s
+  (keep-alives, chokes, trickled bytes count for nothing); 40 peers at most, 3 minutes for them
+  all.
 - No peer gives them: the files' URLs in their order (`release/bootstrap.tsv`, the form of
   `release/patches.tsv`: Google Drive's first, the patches server's among them, 8 at most), each
-  answer checked by its size and SHA-256. Our server is never needed; peers come first.
+  answer checked by its size and SHA-256. Our server is never needed; peers come first. HTTPS
+  needs TLS 1.2: on Windows 7, PowerShell 2's .NET has it with Microsoft's update KB3154518
+  (Windows Update has it; without it only the peers and plain-HTTP addresses work).
 - Who seeds it: updaters with "Allow torrent" on, and anyone with the torrent. The release puts
   `release/bootstrap.torrent` in the players' ZIP too, as `game/binaries/x86/skhid-bootstrap.torrent`
   (left out of the revision's torrent, as `skhid.torrent`); the updater takes it as the checked

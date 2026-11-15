@@ -13,6 +13,11 @@ $Block = 16384
 # its header, or a bitfield); a peer that sends more is dropped.
 $MaxMessage = $Block + 13
 $PeersAtMost = 40
+# Time limits, in seconds: a peer's handshake; a new checked piece from a
+# peer (else the next one); all the peers together (then the addresses).
+$HandshakeSeconds = 10
+$PieceSeconds = 60
+$PeersSeconds = 180
 
 function Say($text) { Write-Host $text }
 function Hex([byte[]]$bytes) { ($bytes | ForEach-Object { $_.ToString('x2') }) -join '' }
@@ -78,6 +83,8 @@ function Announce($tracker, $peerId) {
     } catch { @() } finally { $udp.Close() }
 }
 
+# Until when the peer may take ($script:until): checked after every read,
+# so one that trickles bytes, or sends what is no piece, is left in time.
 function ReadExactly($stream, [int]$count) {
     $buffer = New-Object byte[] $count
     $got = 0
@@ -85,12 +92,20 @@ function ReadExactly($stream, [int]$count) {
         $n = $stream.Read($buffer, $got, $count - $got)
         if ($n -le 0) { throw 'the peer closed the connection' }
         $got += $n
+        if ([DateTime]::UtcNow -gt $script:until) { throw 'no piece in time' }
     }
     , $buffer
 }
+# The time a peer has: for its next piece, within the peers' time.
+function Until([int]$seconds) {
+    $at = [DateTime]::UtcNow.AddSeconds($seconds)
+    if ($at -gt $script:peersEnd) { $at = $script:peersEnd }
+    $at
+}
 
 # One peer (BEP 3): the handshake, then the missing pieces it has, a block
-# at a time in a queue of 8; a piece that is not its pin drops the peer.
+# at a time in a queue of 8; a piece that is not its pin drops the peer, and
+# so does no new piece in $PieceSeconds.
 function FromPeer($address, $peerId) {
     $host_, $port = $address.Split(':')
     $tcp = New-Object Net.Sockets.TcpClient
@@ -99,11 +114,14 @@ function FromPeer($address, $peerId) {
         if (-not $wait.AsyncWaitHandle.WaitOne(5000, $false)) { throw 'no answer' }
         $tcp.EndConnect($wait)
         $stream = $tcp.GetStream()
-        $stream.ReadTimeout = 20000
+        $stream.ReadTimeout = $HandshakeSeconds * 1000
+        $script:until = Until $HandshakeSeconds
         $hello = Bytes ([byte[]]@(19)) ([Text.Encoding]::ASCII.GetBytes('BitTorrent protocol')) (New-Object byte[] 8) (Unhex $InfoHash) $peerId
         $stream.Write($hello, 0, $hello.Length)
         $answer = ReadExactly $stream 68
         if ((Hex $answer[0..19]) -ne (Hex $hello[0..19]) -or (Hex $answer[28..47]) -ne $InfoHash) { throw 'not a peer of this torrent' }
+        $stream.ReadTimeout = 20000
+        $script:until = Until $PieceSeconds
         $interested = Bytes (Be32 1) ([byte[]]@(2))
         $stream.Write($interested, 0, 5)
         $choked = $true; $has = $null
@@ -113,7 +131,7 @@ function FromPeer($address, $peerId) {
                 $piece = -1
                 for ($i = 0; $i -lt $pieces.Count; $i++) {
                     $byte = [math]::Floor($i / 8)
-                    $hasIt = ($has -eq $null) -or (($has.Length -gt $byte) -and ([int]$has[$byte] -band $Bits[$i % 8]))
+                    $hasIt = ($null -eq $has) -or (($has.Length -gt $byte) -and ([int]$has[$byte] -band $Bits[$i % 8]))
                     if (-not $done[$i] -and $hasIt) { $piece = $i; break }
                 }
                 if ($piece -lt 0) { return }
@@ -133,7 +151,7 @@ function FromPeer($address, $peerId) {
             switch ($message[0]) {
                 0 { $choked = $true; $next = 0; $received = 0; $asked = @{} }
                 1 { $choked = $false }
-                4 { if ($has -ne $null -and $length -eq 5) { $i = U32 $message 1; $byte = [math]::Floor($i / 8); if ($byte -lt $has.Length) { $has[$byte] = [int]$has[$byte] -bor $Bits[$i % 8] } } }
+                4 { if ($null -ne $has -and $length -eq 5) { $i = U32 $message 1; $byte = [math]::Floor($i / 8); if ($byte -lt $has.Length) { $has[$byte] = [int]$has[$byte] -bor $Bits[$i % 8] } } }
                 5 { $has = $message[1..($message.Length - 1)]; if ($has -isnot [array]) { $has = @($has) } }
                 7 {
                     if ($length -lt 9) { throw 'a short piece message' }
@@ -150,6 +168,7 @@ function FromPeer($address, $peerId) {
                         $done[$piece] = $true
                         $piece = -1
                         if ((Missing) -lt 0) { return }
+                        $script:until = Until $PieceSeconds
                     }
                 }
             }
@@ -163,7 +182,9 @@ function Under($base, $relative) { foreach ($part in $relative.Split('/')) { $ba
 $root = Under ([IO.Path]::GetDirectoryName($env:SKHID_GET_SCRIPT)) 'Survarium'
 $bin = Under $root 'game/binaries/x86'
 $updater = Under $bin 'updater_skhid.exe'
-if (Test-Path $updater) {
+# [IO.File]'s methods, not Test-Path, Remove-Item, Move-Item: those read
+# [ and ] in a path as wildcards.
+if ([IO.File]::Exists($updater)) {
     Say "$updater is there already: the updater brings the rest."
 } else {
     $peerId = Bytes ([Text.Encoding]::ASCII.GetBytes('-SK0001-')) ([byte[]](1..12 | ForEach-Object { Get-Random -Maximum 256 }))
@@ -172,8 +193,9 @@ if (Test-Path $updater) {
     foreach ($tracker in $Trackers) { $peers += Announce $tracker $peerId }
     $peers = @($peers | Select-Object -Unique | Select-Object -First $PeersAtMost)
     Say "  $($peers.Count) peer(s)"
+    $script:peersEnd = [DateTime]::UtcNow.AddSeconds($PeersSeconds)
     foreach ($peer in $peers) {
-        if ((Missing) -lt 0) { break }
+        if ((Missing) -lt 0 -or [DateTime]::UtcNow -gt $script:peersEnd) { break }
         FromPeer $peer $peerId
     }
     try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]3072 } catch { }
@@ -189,14 +211,14 @@ if (Test-Path $updater) {
                 Say '    not the pinned file'
             } catch { Say "    $($_.Exception.Message)" }
         }
-        if ($data[$file.Path] -eq $null) { throw "$($file.Path): no peer and no address gave it. Try again later, or ask in Discord: discord.gg/QUmJg3gBhg" }
+        if ($null -eq $data[$file.Path]) { throw "$($file.Path): no peer and no address gave it. Try again later, or ask in Discord: discord.gg/QUmJg3gBhg" }
     }
     $null = [IO.Directory]::CreateDirectory($bin)
     foreach ($file in $Files) {
         $path = Under $root $file.Path
         [IO.File]::WriteAllBytes("$path.part", $data[$file.Path])
-        if (Test-Path $path) { Remove-Item $path }
-        Move-Item "$path.part" $path
+        if ([IO.File]::Exists($path)) { [IO.File]::Delete($path) }
+        [IO.File]::Move("$path.part", $path)
     }
     Say "The updater and 7zr.exe: in $bin, each SHA-256 checked."
 }

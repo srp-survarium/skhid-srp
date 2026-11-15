@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 
 HERE = Path(__file__).parent
@@ -62,12 +63,14 @@ class Tracker(threading.Thread):
 
 
 class Peer(socketserver.ThreadingTCPServer):
-    """BEP 3: the handshake, a bitfield of every piece, unchoke, then blocks of `data`."""
+    """BEP 3: the handshake, a bitfield of every piece, unchoke, then blocks of `data`. `haves`: a
+    bitfield of none, then a have of each piece. `stall`: never unchokes, a keep-alive a second."""
     allow_reuse_address = True
     daemon_threads = True
 
-    def __init__(self, info_hash, data, pieces):
+    def __init__(self, info_hash, data, pieces, haves=False, stall=False):
         self.info_hash, self.data, self.pieces, self.served = info_hash, data, pieces, 0
+        self.haves, self.stall = haves, stall
         super().__init__(('127.0.0.1', 0), PeerHandler)
         threading.Thread(target=self.serve_forever, daemon=True).start()
 
@@ -88,8 +91,22 @@ class PeerHandler(socketserver.BaseRequestHandler):
         if hello[28:48] != server.info_hash:
             return
         self.request.sendall(hello[:20] + bytes(8) + server.info_hash + b'-PY0001-' + bytes(12))
-        bits = bytes([255]) * (-(-server.pieces // 8))
-        self.request.sendall(struct.pack('>IB', 1 + len(bits), 5) + bits + struct.pack('>IB', 1, 1))
+        if server.stall:
+            bits = bytes([255]) * (-(-server.pieces // 8))
+            self.request.sendall(struct.pack('>IB', 1 + len(bits), 5) + bits)
+            try:
+                while True:
+                    self.request.sendall(bytes(4))
+                    time.sleep(1)
+            except OSError:
+                return
+        if server.haves:
+            bits = bytes(-(-server.pieces // 8))
+            haves = b''.join(struct.pack('>IBI', 5, 4, i) for i in range(server.pieces))
+            self.request.sendall(struct.pack('>IB', 1 + len(bits), 5) + bits + haves + struct.pack('>IB', 1, 1))
+        else:
+            bits = bytes([255]) * (-(-server.pieces // 8))
+            self.request.sendall(struct.pack('>IB', 1 + len(bits), 5) + bits + struct.pack('>IB', 1, 1))
         try:
             while True:
                 length, = struct.unpack('>I', self.read(4))
@@ -206,6 +223,38 @@ class Bootstrap(Script):
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertIn('not the pinned one', done.stdout)
         self.assertEqual(self.installed(), FILES)
+
+    def test_a_bitfield_of_none_then_haves(self):
+        peer = Peer(self.info_hash, stream(), self.pieces, haves=True)
+        self.tracker.peers = [peer.server_address]
+        done = self.run_script()
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(self.installed(), FILES)
+        self.assertGreater(peer.served, 0)
+
+    def test_a_peer_that_never_gives_a_piece_is_left_for_the_addresses(self):
+        staller = Peer(self.info_hash, stream(), self.pieces, stall=True)
+        self.tracker.peers = [staller.server_address]
+        for path, data in FILES.items():
+            self.mirror.files[f"a/{path.rsplit('/', 1)[1]}"] = data
+        started = time.monotonic()
+        done = self.run_script()
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn('no piece in time', done.stdout)
+        self.assertEqual(self.installed(), FILES)
+        self.assertLess(time.monotonic() - started, 120)
+
+    def test_a_folder_with_brackets(self):
+        folder = self.root / 'get [1]'
+        folder.mkdir()
+        shutil.copy(self.out, folder / 'Skhid-get.bat')
+        self.out = folder / 'Skhid-get.bat'
+        peer = Peer(self.info_hash, stream(), self.pieces)
+        self.tracker.peers = [peer.server_address]
+        done = self.run_script()
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(self.installed(), FILES)
+        self.assertIn('is there already', self.run_script().stdout)
 
     def test_no_peer_then_the_addresses_in_their_order(self):
         # The first address of each file gives another file, the second the right one.
