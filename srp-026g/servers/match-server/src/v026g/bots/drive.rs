@@ -26,7 +26,7 @@ pub(super) const STRAFE_CLEAR_M: f32 = 1.5;
 
 /// [S6] What the body takes of the grid's links: a carrier's body, which the client gives no sprint (A331), takes a sprint
 /// link only by its walking press and no jump link above its standing jump (`motor.carrier_jump_m`).
-fn body_reach(bot: &Bot, me: &PlaceView) -> mapdata::Reach {
+fn body_reach(bot: &Bot, me: &PlaceView, time: u32) -> mapdata::Reach {
     let sprint = if me.carrying.is_some() {
         mapdata::SprintReach::Cannot { max_rise: bot.motor.feel.carrier_jump_m.map(f32::from) }
     } else {
@@ -35,7 +35,14 @@ fn body_reach(bot: &Bot, me: &PlaceView) -> mapdata::Reach {
     // [S6] The falls it survives: its pain pool in the latest world, its fall-damage scale, nothing that may lower the hit.
     let fall = match (bot.features.stock.pools, bot.fall_scale) {
         (Some(pools), Some(fall_scale)) => {
-            let body = mapdata::FallBody { pain: pools.pain, fall_scale, jumps: super::jump_arc::jump_ends() };
+            // [S6] A walk-off's second hurting landing adds its pain unless a drug may give pain back meanwhile; its legs'
+            // pools decide, per drop, whether the first landing leaves it walking on (`mapdata::SecondLanding`).
+            let second = if super::plays::heal::pain_course_may_run(&bot.features.stock.pantry, time) {
+                mapdata::SecondLanding::HardestOnly
+            } else {
+                mapdata::SecondLanding::Adds { weaker_leg: pools.legs[0].min(pools.legs[1]) }
+            };
+            let body = mapdata::FallBody { pain: pools.pain, fall_scale, jumps: super::jump_arc::jump_ends(), second };
             match bot.fall_save {
                 super::FallSave::Nothing => mapdata::FallRoom::Survives(body),
                 super::FallSave::Unread | super::FallSave::SecondChance => mapdata::FallRoom::Any,
@@ -927,7 +934,7 @@ fn drive_tick_inner(
         #[cfg(any(test, feature = "jump-test"))]
         let had_route = bot.route.is_some();
         let escaping_before = bot.stuck.escape.is_some();
-        let reach = body_reach(bot, me);
+        let reach = body_reach(bot, me, time);
         let out = escape::tick(
             &mut bot.stuck.escape,
             &mut bot.route,
@@ -1284,7 +1291,7 @@ fn drive_tick_inner(
                 let hard_with = |landings, trap_filter: fn(&Bot, Vec<stuck::Shut>, Option<NodeId>) -> RouteFilter| {
                     let mut hard = trap_filter(bot, landings, grid.locate(me.feet, 1.5));
                     // [S6] A carrier's body ([`body_reach`]).
-                    hard = hard.with_reach(body_reach(bot, me));
+                    hard = hard.with_reach(body_reach(bot, me, time));
                     // [kin.open_edge_cost] A269c: the way keeps a body's width in from an open side where the floor allows.
                     if tuning.kin.open_edge_cost > 0.0 {
                         hard = hard.weighing_open_sides(1.0 + tuning.kin.open_edge_cost);

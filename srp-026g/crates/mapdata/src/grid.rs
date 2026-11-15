@@ -799,12 +799,39 @@ pub enum FallRoom {
 
 /// [S6] What a body's fall takes: its pain pool now (the latest world's: lethal at 0, `on_affect` 0x2DA480), its fall-damage
 /// scale (`max(0, 1 + modifier 30)`: the `fall_damage` modifier through `apply_modifier` 0x2D5AE0 at 0x2D82C8), and where its
-/// jumps' clips leave it falling ([`JumpEnds`]).
+/// jumps' clips leave it falling ([`JumpEnds`]), and whether a walk-off's second hurting landing adds its pain
+/// ([`SecondLanding`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FallBody {
     pub pain: f32,
     pub fall_scale: f32,
     pub jumps: JumpEnds,
+    pub second: SecondLanding,
+}
+
+/// [S6] Whether a walk-off's second hurting landing ([`held_floors::Landings::also`]) adds its pain to the first's, for this
+/// body. The landings are summed only where nothing between them can make the sum overstate (the exe review of #2025): the
+/// gate never closes a drop the body survives.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SecondLanding {
+    /// No drug course that gives pain back may be running; `weaker_leg` is the lower of its two leg pools now. A landing
+    /// whose foot hit empties a leg breaks it (the crouch forced, `0x2FBDF0`): the body no longer walks on to the second
+    /// landing as the build walked it, so then the hardest landing alone is judged.
+    Adds { weaker_leg: f32 },
+    /// A drug course that gives pain back may be running (`medkit::tick` 0x33D790 restores the pain pool each tick of its
+    /// active time; a fall's hit ends no course, patch 84 being ranged only): the pool may hold more at the second landing
+    /// than the sum counts, so the hardest landing alone is judged.
+    HardestOnly,
+}
+
+impl SecondLanding {
+    /// The one that sums less: [`Self::HardestOnly`] if either is, else the weaker leg of the two.
+    pub fn and(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Adds { weaker_leg: a }, Self::Adds { weaker_leg: b }) => Self::Adds { weaker_leg: a.min(b) },
+            _ => Self::HardestOnly,
+        }
+    }
 }
 
 /// [S6] Where a jump's clip leaves the body falling: the root over the take-off at the air phase's end (m) and its descent
@@ -842,7 +869,7 @@ impl FallBody {
     pub fn pain_of(&self, height: f32, start: FallStart) -> f32 {
         match start {
             FallStart::WalkOff => held_floors::fall_pain(height, self.fall_scale),
-            FallStart::Landed(landings) => landings.pain(self.fall_scale),
+            FallStart::Landed(landings) => landings.pain(self.fall_scale, self.second),
             FallStart::Short => held_floors::jumped_fall_pain(height, self.jumps.short, self.fall_scale),
             FallStart::Sprint => held_floors::jumped_fall_pain(height, self.jumps.sprint, self.fall_scale),
         }
@@ -890,19 +917,25 @@ impl Reach {
                 pain: x.pain.min(y.pain),
                 fall_scale: x.fall_scale.max(y.fall_scale),
                 jumps: x.jumps,
+                second: x.second.and(y.second),
             }),
         };
         Self { sprint, fall }
     }
 
-    /// [S6] Whether a drop of `height` metres started `start` kills this body ([`FallBody::pain_of`]): its pain and the pool;
-    /// `None` for one it survives, or a body whose falls are not known.
-    pub fn lethal_fall(self, height: f32, start: FallStart) -> Option<(f32, f32)> {
+    /// [S6] Whether a drop of `height` metres started `start` kills this body ([`FallBody::pain_of`]): its pain, the pool and
+    /// the start as judged (a walk-off's landings as [`held_floors::Landings::judged`] counts them); `None` for one it
+    /// survives, or a body whose falls are not known.
+    pub fn lethal_fall(self, height: f32, start: FallStart) -> Option<(f32, f32, FallStart)> {
         let FallRoom::Survives(body) = self.fall else {
             return None;
         };
         let hurt = body.pain_of(height, start);
-        (hurt >= body.pain).then_some((hurt, body.pain))
+        let judged = match start {
+            FallStart::Landed(landings) => FallStart::Landed(landings.judged(body.fall_scale, body.second)),
+            other => other,
+        };
+        (hurt >= body.pain).then_some((hurt, body.pain, judged))
     }
 }
 
@@ -4772,7 +4805,7 @@ impl WalkGrid {
                 (LinkKind::GapDrop, Some(gap::Takeoff::Sprint(_))) => FallStart::Short,
                 _ => self.drop_landings(from, to).map_or(FallStart::WalkOff, FallStart::Landed),
             };
-            if let Some((pain, pool)) = reach.lethal_fall(height, start) {
+            if let Some((pain, pool, start)) = reach.lethal_fall(height, start) {
                 note_fall_closed(FallClosed { from, to, height, start, pain, pool });
                 return f32::INFINITY;
             }

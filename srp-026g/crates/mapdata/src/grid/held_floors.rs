@@ -145,9 +145,20 @@ impl Landings {
         Self { most, also }
     }
 
-    /// The landings' pain, summed ([`landing_pain`] of each).
-    pub fn pain(self, fall_scale: f32) -> f32 {
-        landing_pain(self.most, fall_scale) + self.also.map_or(0.0, |v| landing_pain(v, fall_scale))
+    /// The landings a body's fall is judged by: both when `second` lets the second add ([`super::SecondLanding`]), else the
+    /// hardest alone. With a weaker leg's pool at or under the hardest landing's foot hit ([`fall_hit`], the largest of the
+    /// walk's) a landing may break it, and the walk the build flew need not go on: the hardest alone.
+    pub fn judged(self, fall_scale: f32, second: super::SecondLanding) -> Self {
+        match second {
+            super::SecondLanding::Adds { weaker_leg } if fall_hit(self.most, fall_scale) < weaker_leg => self,
+            _ => Self { also: None, ..self },
+        }
+    }
+
+    /// The landings' pain for a body: [`landing_pain`] of each of the [`Self::judged`] ones, summed.
+    pub fn pain(self, fall_scale: f32, second: super::SecondLanding) -> f32 {
+        let judged = self.judged(fall_scale, second);
+        landing_pain(judged.most, fall_scale) + judged.also.map_or(0.0, |v| landing_pain(v, fall_scale))
     }
 
     /// The lesser of two walks' landings: by the summed hit (scale-free, [`fall_hit`] at scale 1), then by the hardest
@@ -421,8 +432,14 @@ mod tests {
         assert_eq!(one, Landings { most: harder, also: None }, "a harmless landing is not kept");
         let two = Landings::NONE.and(hard).and(harder).and(soft);
         assert_eq!(two, Landings { most: harder, also: Some(hard) });
-        assert!((two.pain(1.0) - (landing_pain(harder, 1.0) + landing_pain(hard, 1.0))).abs() < 1e-6);
-        assert!(two.pain(1.0) > one.pain(1.0));
+        let whole = super::super::SecondLanding::Adds { weaker_leg: 0.5 };
+        assert!(fall_hit(harder, 1.0) < 0.5, "the 8 m landing breaks no whole leg");
+        assert!((two.pain(1.0, whole) - (landing_pain(harder, 1.0) + landing_pain(hard, 1.0))).abs() < 1e-6);
+        assert!(two.pain(1.0, whole) > one.pain(1.0, whole));
+        // [the exe review of #2025] A drug course giving pain back, or a leg the hardest landing breaks: the hardest alone.
+        assert_eq!(two.pain(1.0, super::super::SecondLanding::HardestOnly), landing_pain(harder, 1.0));
+        let weak = super::super::SecondLanding::Adds { weaker_leg: fall_hit(harder, 1.0) };
+        assert_eq!(two.pain(1.0, weak), landing_pain(harder, 1.0));
         assert_eq!(one.least(two), one);
         assert_eq!(two.least(one), one);
         let back = Landings::of_rows(two.rows()).expect("rows");
