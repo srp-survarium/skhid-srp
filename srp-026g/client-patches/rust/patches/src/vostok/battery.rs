@@ -1,18 +1,20 @@
 //! A carried battery's swing (patch 143, docs/notes/battery-hit.md): the
-//! fourth state of the battery's state machine, and the gun-stock bullet it
-//! strikes with.
+//! fourth and fifth states of the battery's state machine, and the gun-stock
+//! bullet it strikes with.
 //!
 //! The cook's callback (victory_item_core_cook::on_animations_loaded
 //! 0x2FA400, the client's batteries and the core's alike) makes a battery's
 //! states with initialize_logic (0x301920): take, carry and put, in that
-//! order in the machine's list (item +168h). At `battery.logic` the swing is
-//! appended to them: a take state (0x338940) over the put's six clips, its
-//! kind the carry's (every native "is carrying" test holds through it), its
-//! vtable the patch's copy of the take's (its finalize the patch's), and three
-//! transitions: carry -> swing (the patch's predicate, after carry -> put),
-//! swing -> put (a copy of carry -> put's) and swing -> carry (a copy of
-//! take -> carry's), tried once its clip ended. The game's own fsm then
-//! runs, saves (its index, 3) and loads it, in every game alike.
+//! order in the machine's list (item +168h); it has loaded every `states[i]`
+//! of the config, the content's swing (3) and recovery (4) too. At
+//! `battery.logic` both are appended: take states (0x338940) over their
+//! authored clips, of the carry's kind (every native "is carrying" test holds
+//! through them), their vtable the patch's copy of the take's (finalize and
+//! may-be-put-away the patch's); transitions carry -> swing (the patch's
+//! predicate, after carry -> put), swing -> put and swing -> recovery, then
+//! recovery -> put and recovery -> carry (copies of carry -> put's and
+//! take -> carry's), each tried once the state's clip ended. The game's own
+//! fsm runs, saves (indices 3, 4) and loads them, in every game alike.
 
 use core::ffi::c_void;
 
@@ -60,15 +62,29 @@ pub enum NoSwing {
     /// Its machine is not the three states initialize_logic makes (one
     /// added already, or another layout): left as it is.
     NotAsMade,
+    /// The cook loaded no states 3 and 4 (the content's battery-hit-1:
+    /// a game without it would play otherwise than the others).
+    NoSwingClips,
     /// The game's allocator gave nothing.
     OutOfMemory,
 }
 
-/// A battery at `battery.logic`: its three states made, the put's clips in
-/// the callback's frame.
+/// The first clip of a state `i`'s six among the cook's results: the
+/// config first, then 2 + 6i (on_animations_loaded reads the take's from
+/// result 2, 0x2FA52D, the carry's from 8, the put's from 14).
+const fn first_result(state: usize) -> usize {
+    2 + 6 * state
+}
+
+/// The swing's and the recovery's states in the config (battery-hit-1).
+const SWING: usize = 3;
+const RECOVER: usize = 4;
+
+/// A battery at `battery.logic`: its three states made, the cook's results
+/// in hand.
 pub struct MadeBattery<'t> {
     battery: raw::VictoryItemCore,
-    put_clips: raw::BatteryClips,
+    queries: raw::QueriesResult,
     _thread: &'t Thread,
 }
 
@@ -76,50 +92,63 @@ impl<'t> MadeBattery<'t> {
     pub fn at(ctx: &'t Context<'_>) -> Option<MadeBattery<'t>> {
         use raw::site::battery_logic as site;
         // SAFETY: the site's ESI, the battery initialize_logic (0x2FA7E4)
-        // has just made the states of, and its ESP, the callback's frame
-        // whose +28h is the put's six clips (released after the site).
+        // has just made the states of, and its EBP frame, whose +8 is the
+        // queries_result the callback was handed (alive through it).
         unsafe {
             let battery = site::battery(ctx)?;
-            let frame = site::frame(ctx)?;
-            Some(MadeBattery { battery, put_clips: frame.put_clips(), _thread: ctx.thread() })
+            let queries = site::args(ctx)?.queries()?;
+            Some(MadeBattery { battery, queries, _thread: ctx.thread() })
         }
     }
 
-    /// Appends the swing: the put's clips played as a take's in `time` s,
-    /// `methods` its vtable, `wants` carry -> swing's predicate.
-    pub fn add_swing(&self, time: f32, methods: NativeVtable<raw::TakeStateMethods>,
+    /// The six clips of config state `state`, as the cook loaded them.
+    ///
+    /// # Safety
+    /// The results are alive (the callback's).
+    unsafe fn clips(&self, state: usize, room: &mut raw::BatteryClipsStorage) -> Result<raw::BatteryClips, NoSwing> {
+        unsafe {
+            if (read(self.queries.count()) as usize) < first_result(state) + 6 {
+                return Err(NoSwing::NoSwingClips);
+            }
+            let clips = room.handle();
+            for i in 0..6 {
+                let clip = read(self.queries.loaded().at(first_result(state) + i).resource());
+                if clip == 0 {
+                    return Err(NoSwing::NoSwingClips);
+                }
+                *clips.clips().at(i).resource() = clip;
+            }
+            Ok(clips)
+        }
+    }
+
+    /// Appends the swing (config state 3: wind-up and strike, `swing_s`
+    /// long, its end the impact) and the recovery (state 4: follow-through
+    /// back to the carry, `recover_s`), each a take state of the carry's kind
+    /// with `methods` its vtable; `wants` carry -> swing's predicate.
+    pub fn add_swing(&self, swing_s: f32, recover_s: f32, methods: NativeVtable<raw::TakeStateMethods>,
                      wants: CallbackEntry<super::OrigFsmAlways>) -> Result<(), NoSwing> {
         let battery = self.battery;
         // SAFETY: the battery and its states, alive (its cook's callback, on
         // the thread that loads it); each read as initialize_logic wrote it
-        // and checked before anything is written.
+        // and checked before anything is written; the clips the cook's.
         unsafe {
             let (take, carry, put) = made_states(battery).ok_or(NoSwing::NotAsMade)?;
             let take_carry = take.transitions_head().filter(|t| t.destination() == Some(carry))
                 .ok_or(NoSwing::NotAsMade)?;
             let carry_put = carry.transitions_head().filter(|t| t.destination() == Some(put))
                 .ok_or(NoSwing::NotAsMade)?;
-            // initialize_logic's allocation of a take state: the game's
-            // allocator, the take's type descriptor its name (0x30192D).
-            let allocator = raw::image::game_allocator().allocator()
-                .map_or(core::ptr::null_mut(), |a| a.address() as usize as *mut c_void);
-            if allocator.is_null() {
-                return Err(NoSwing::OutOfMemory);
-            }
-            let name = raw::engine_allocation_name(raw::image::TAKE_STATE_NAME as usize as *const c_void);
-            let room = raw::engine_malloc(allocator, raw::BatteryState::SIZE as u32, name);
-            if room.is_null() {
-                return Err(NoSwing::OutOfMemory);
-            }
-            let swing = raw::engine_battery_take_state(room, Some(battery), Some(self.put_clips), time)
-                .ok_or(NoSwing::OutOfMemory)?;
-            *swing.kind() = Kind::Carry as u32;
-            *swing.vtable() = methods.address();
+            let (mut swing_room, mut recover_room) = (raw::BatteryClipsStorage::zeroed(), raw::BatteryClipsStorage::zeroed());
+            let swing_clips = self.clips(SWING, &mut swing_room)?;
+            let recover_clips = self.clips(RECOVER, &mut recover_room)?;
+            let swing = carry_like(battery, swing_clips, swing_s, methods)?;
+            let recover = carry_like(battery, recover_clips, recover_s, methods)?;
             // Appended as initialize_logic appends (0x301A28..0x301A4A).
-            swing.set_next(None);
             put.set_next(Some(swing));
-            battery.set_machine_tail(Some(swing));
-            *battery.machine_states() += 1;
+            swing.set_next(Some(recover));
+            recover.set_next(None);
+            battery.set_machine_tail(Some(recover));
+            *battery.machine_states() += 2;
             let mut predicate = raw::FsmPredicateStorage::zeroed();
             let wanted = predicate.handle();
             // A function-pointer functor (initialize_logic 0x301A7A: its
@@ -130,9 +159,36 @@ impl<'t> MadeBattery<'t> {
             wanted.buffer().set_battery(Some(battery));
             raw::engine_fsm_append_transition(Some(carry), Some(swing), Some(wanted));
             raw::engine_fsm_append_transition(Some(swing), Some(put), Some(carry_put.predicate()));
-            raw::engine_fsm_append_transition(Some(swing), Some(carry), Some(take_carry.predicate()));
+            raw::engine_fsm_append_transition(Some(swing), Some(recover), Some(take_carry.predicate()));
+            raw::engine_fsm_append_transition(Some(recover), Some(put), Some(carry_put.predicate()));
+            raw::engine_fsm_append_transition(Some(recover), Some(carry), Some(take_carry.predicate()));
         }
         Ok(())
+    }
+}
+
+/// A take state (initialize_logic's allocation and constructor, 0x30192D)
+/// over `clips` played in `time` s, of the carry's kind, `methods` its vtable.
+///
+/// # Safety
+/// `battery` and `clips` are alive, on the loading thread.
+unsafe fn carry_like(battery: raw::VictoryItemCore, clips: raw::BatteryClips, time: f32,
+                     methods: NativeVtable<raw::TakeStateMethods>) -> Result<raw::BatteryState, NoSwing> {
+    unsafe {
+        let allocator = raw::image::game_allocator().allocator()
+            .map_or(core::ptr::null_mut(), |a| a.address() as usize as *mut c_void);
+        if allocator.is_null() {
+            return Err(NoSwing::OutOfMemory);
+        }
+        let name = raw::engine_allocation_name(raw::image::TAKE_STATE_NAME as usize as *const c_void);
+        let room = raw::engine_malloc(allocator, raw::BatteryState::SIZE as u32, name);
+        if room.is_null() {
+            return Err(NoSwing::OutOfMemory);
+        }
+        let state = raw::engine_battery_take_state(room, Some(battery), Some(clips), time).ok_or(NoSwing::OutOfMemory)?;
+        *state.kind() = Kind::Carry as u32;
+        *state.vtable() = methods.address();
+        Ok(state)
     }
 }
 
@@ -188,6 +244,17 @@ impl<'t> BatteryState<'t> {
     pub fn carrier(&self) -> Option<Carrier<'t>> {
         // SAFETY: as above; its battery the constructor's (+1Ch).
         unsafe { Carrier::of(self.thread, self.native.battery()?) }
+    }
+
+    /// The swing (its machine's fourth state), not the recovery (the fifth),
+    /// which shares its vtable.
+    pub fn is_swing(&self) -> bool {
+        // SAFETY: as above; the machine's list as add_swing linked it.
+        unsafe {
+            let fourth = self.native.battery().and_then(|b| b.machine_head())
+                .and_then(|s| s.next()).and_then(|s| s.next()).and_then(|s| s.next());
+            fourth == Some(self.native)
+        }
     }
 }
 

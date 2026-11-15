@@ -61,7 +61,7 @@ import struct
 import sys
 
 from unicorn import UC_HOOK_CODE, UC_PROT_ALL, UcError
-from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EIP, UC_X86_REG_ESI,
+from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EIP, UC_X86_REG_ESI,
                                UC_X86_REG_ESP, UC_X86_REG_XMM0)
 
 import patch_026g as base
@@ -84,6 +84,8 @@ PLAYER, INVENTORY = DATA + 0x10000, DATA + 0x20000
 GUN7, GUN10, MANAGER = DATA + 0x30000, DATA + 0x34000, DATA + 0x38000
 CLIPS = DATA + 0x40000           # the three states' six clips each, then the clips
 HEAP = DATA + 0x50000
+QUERIES = DATA + 0xC0000         # the cook's queries_result: count +38h, results' managed resources +128h, 2E0h apart
+SWING_S, RECOVER_S = 6.0 / 30.0, 11.0 / 30.0
 OWNER_WORLD, PROFILE, BULLET = DATA + 0x60000, DATA + 0x80000, DATA + 0x90000
 GUN_ANIMS, BATTERY_ANIMS, POSTURE = DATA + 0x92000, DATA + 0x93000, DATA + 0x94000
 # the bullet manager's physics world (+98h: ray test +48h, the level's bounds +64h), a body the ray
@@ -263,11 +265,13 @@ class Run(hide.Run):
         self.word(BATTERY_VTABLE + 0x24, STUBS)
         self.word(BATTERY_VTABLE + 0xA4, STUBS)
         self.floats(IDENTITY, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
-        for state in range(3):
+        for state in range(5):
             for i in range(6):
                 clip = CLIPS + 0x1000 + 0x100 * (6 * state + i)
                 self.word(clip + 0xDC, 100)
                 self.word(CLIPS + 0x18 * state + 4 * i, clip)
+                self.word(QUERIES + 0x128 + 0x2E0 * (2 + 6 * state + i), clip)
+        self.word(QUERIES + 0x38, 2 + 6 * 5)            # the config, the skeleton, five states' clips
         # the carrier: alive, holding the battery, at 1000 ms; its eye at
         # (1, 2, 3) looking along (0, 0, 1); its guns in slots 7 and 10
         self.emu.mem_write(PLAYER + 0x33C, b"\x01")
@@ -328,15 +332,18 @@ class Run(hide.Run):
             at = self.read(at + 0x24)
         return out
 
-    def site(self):
-        """The cook callback's site: ESI the battery, ESP+28h the put's clips."""
+    def site(self, clips=True):
+        """The cook callback's site: ESI the battery, ESP+28h the put's clips,
+        [EBP+8] the queries_result (with the content's states 3 and 4, or not)."""
         sp = hide.STACK + 0x9000
+        self.word(sp + 0x108, QUERIES)
+        self.word(QUERIES + 0x38, 32 if clips else 20)
         dummy = DATA + 0xE0000
         self.word(dummy, 0x7E57)
         self.word(sp + 0x20, dummy)
         self.emu.mem_write(sp + 0x28, self.read(CLIPS + 0x30, 0x18))
         self.times, self.allocated = [], []
-        regs, after = self.run(SITE, (SITE_AFTER,), sp, {**hide.GAME, UC_X86_REG_ESI: BATTERY})
+        regs, after = self.run(SITE, (SITE_AFTER,), sp, {**hide.GAME, UC_X86_REG_ESI: BATTERY, UC_X86_REG_EBP: sp + 0x100})
         assert self.stopped == SITE_AFTER and after == sp, hex(self.stopped or 0)
         assert regs[UC_X86_REG_ECX] == dummy and regs[UC_X86_REG_EAX] == 0x7E57, "the replayed moves"
         assert regs[UC_X86_REG_ESI] == BATTERY
@@ -383,19 +390,25 @@ def main():
         r.site()
     check(len(old.states()) == 3 and old.read(FSM) == 3, "the original: take, carry, put")
     states = new.states()
-    check(len(states) == 4 and new.read(FSM) == 4 and states[:3] == [new.take, new.carry, new.put]
-          and new.read(BATTERY + 0x174) == states[3], "the patched: take, carry, put, then the swing, the tail")
-    swing = states[3]
+    check(len(states) == 5 and new.read(FSM) == 5 and states[:3] == [new.take, new.carry, new.put]
+          and new.read(BATTERY + 0x174) == states[4], "the patched: take, carry, put, then the swing and the recovery")
+    swing, recover = states[3], states[4]
     new.swing = swing
-    check(new.allocated[0] == (0xEC, TAKE_NAME, ALLOCATOR, swing) and len(new.allocated) == 4
-          and all(size == 0x28 and allocator == AI_ALLOCATOR for size, _, allocator, _ in new.allocated[1:]),
-          "0ECh bytes of the game's allocator, the take's allocation name; three transitions of the ai arena's")
-    clips = [new.read(CLIPS + 0x30 + 4 * i) for i in range(6)]
-    stored = [new.read(swing + o) for o in (0xE0, 0xE4, 0xD0, 0xD8, 0xD4, 0xDC)]
-    check(stored == clips and new.times == [f32(0.3)] and new.read(swing + 0xE8) == 0x40200000,
-          "a take state over the put's six clips, scaled to 0.3 s")
-    check(new.read(swing + 0x20) == 3 and new.read(swing + 0x1C) == BATTERY and new.read(swing + 0x28, 1) == b"\0"
-          and new.read(swing + 4) == 0, "its kind the carry's (3), its battery, not ended, the list's last")
+    check([a[:2] for a in new.allocated[:1]] == [(0xEC, TAKE_NAME)] and new.allocated[0][2:] == (ALLOCATOR, swing)
+          and new.allocated[1] == (0xEC, TAKE_NAME, ALLOCATOR, recover) and len(new.allocated) == 7
+          and all(size == 0x28 and allocator == AI_ALLOCATOR for size, _, allocator, _ in new.allocated[2:]),
+          "two states of 0ECh bytes of the game's allocator, the take's allocation name; five transitions of the ai "
+          "arena's")
+    for state, index, length in ((swing, 3, SWING_S), (recover, 4, RECOVER_S)):
+        clips = [new.read(CLIPS + 0x18 * index + 4 * i) for i in range(6)]
+        stored = [new.read(state + o) for o in (0xE0, 0xE4, 0xD0, 0xD8, 0xD4, 0xDC)]
+        check(stored == clips and new.read(state + 0x20) == 3 and new.read(state + 0x1C) == BATTERY
+              and new.read(state + 0x28, 1) == b"\0",
+              f"config state {index}: a take state over the cook's six clips of it (results {2 + 6 * index}.."
+              f"{7 + 6 * index}), of the carry's kind (3), its battery, not ended")
+    check(new.times == [f32(SWING_S), f32(RECOVER_S)] and new.read(swing + 0xE8) == 0x40200000
+          and new.read(recover + 4) == 0, "scaled to 0.2 s and 0.367 s (the authored clips' own lengths), the recovery last")
+    check(new.read(recover) == new.read(swing), "both with the patch's vtable copy")
     vtable = new.read(swing)
     ours = [new.read(vtable - 4 + 4 * i) for i in range(13)]
     stock = [new.read(TAKE_VTABLE - 4 + 4 * i) for i in range(13)]
@@ -411,8 +424,21 @@ def main():
     check(manager == FUNCTION_PREDICATE | 1 and function >= 0xA42D000 and battery == BATTERY,
           "carry -> swing: a function-pointer functor (0xA13CAC | 1), its function ours, the battery its buffer's")
     out = new.transitions(swing)
+    check([d for d, _, _ in out] == [new.put, recover] and out[0][1] == carry[0][1] and out[1][1] == take[0][1],
+          "the swing's: put (carry -> put's functor), then the recovery (take -> carry's)")
+    out = new.transitions(recover)
     check([d for d, _, _ in out] == [new.put, new.carry] and out[0][1] == carry[0][1] and out[1][1] == take[0][1],
-          "the swing's: put (carry -> put's functor), then carry (take -> carry's)")
+          "the recovery's: put, then the carry")
+    probe = Run(bytes(built))
+    probe.made()
+    try:
+        probe.site(clips=False)
+        crashed = None
+    except UcError:
+        crashed = probe.emu.reg_read(UC_X86_REG_EIP)
+    check(crashed is not None and crashed >= 0xA42D000,
+          "results without the content's states 3 and 4: the patch's own crash (a game without them would play "
+          "otherwise)")
 
     print("fsm::tick from the carry (0x38CA20)")
     for r in (old, new):
@@ -482,7 +508,8 @@ def main():
           "another clip's end (the event 0x344830): still the swing")
     new.clip_end(swing, clip)
     check(new.read(swing + 0x28, 1) == b"\x01", "its own clip's end (the event 0x344830): ended")
-    check(new.tick() == new.carry, "then fsm::tick: back to the carry, the strike through fsm::tick")
+    recover = new.states()[4]
+    check(new.tick() == recover, "then fsm::tick: the recovery, the strike through fsm::tick")
     gun = (GUN7, MANAGER, PLAYER + 0x47C, eye, (0.0, f32(f32(0.6) * f32(1.7)), f32(f32(0.8) * f32(1.7))), GUN7 + 0x53C, 1000,
            PLAYER + 0x110, PLAYER + 0x118, 0)
     check(new.emitted == [gun], "one strike: the slot-7 gun's melee bullet from the eye along its forward, now")
@@ -496,6 +523,9 @@ def main():
     check(new.bullets[0][0x58] == stance,
           "its stance (bullet +58h) the one the game gives a held gun in the carrier's posture")
     check(("unsubscribe", swing) in new.channels, "the swing's own finalize ran (its channel left)")
+    new.emu.mem_write(recover + 0xCC, b"\x00")
+    new.clip_end(recover, new.read(new.read(recover + 0xC8)))
+    check(new.tick() == new.carry and new.emitted == [], "the recovery's clip ended: the carry, no second strike")
 
     print("the bullet's flight and hit (bullet::tick 0x32C180, the game's own)")
     struck = new.read(BULLET, 0x100)
@@ -526,7 +556,7 @@ def main():
     swing = swinging()
     new.word(INVENTORY + 0x10C + 4 * 7, 0)
     new.emu.mem_write(swing + 0x28, b"\x01")
-    check(new.tick() == new.carry and len(new.emitted) == 1 and new.emitted[0][0] == GUN10
+    check(new.tick() == new.states()[4] and len(new.emitted) == 1 and new.emitted[0][0] == GUN10
           and new.emitted[0][5] == GUN10 + 0x53C and new.emitted[0][4][2] == f32(f32(0.8) * f32(1.5)),
           "slot 7 empty: slot 10's gun")
     swing = swinging()

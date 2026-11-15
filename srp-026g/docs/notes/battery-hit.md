@@ -48,30 +48,50 @@
 
 ## The animation
 
-- **Chosen:** the battery's own put clip (`hands_only/hidetest`, both hands push the battery
-  forward into a slot, with the battery's grip) played as a thrust in 0.3 s (the put plays it
-  in 0.6 s), then the game's own blend back to the carry idle. Why: it holds the battery as
-  the battery is held (a rifle clip would put the hands in a rifle's grip), it is a forward
-  thrust, it is loaded and registered wherever batteries are (the put's), and it needs no
-  content.
-- **Seen by all:** the swing is a state of the battery's machine; the player's animation tree
-  is simulation state, drawn for every view; first person draws the same body. The battery
-  follows the hands' `Weapon` bone each tick (0x344E40) as in the carry.
-- **Other routes, if it does not look good:** the rifles' `kick` (a fast gun-stock strike; the
-  battery would follow the rifle's path, hands in a rifle's grip; needs `states[3]` in the
-  battery's config and its clips registered); a procedural arm layer on the carry pose
-  (patch 78's `artefact_carry::pose` way: an overhead swing of our own, deterministic from game
-  time), the "cool" one, more work.
-- **Not seen yet:** the clip has never been played this fast or as a hit. The look needs the
-  owner in game.
+- **The owner (2026-11-15, after playing 8dd7a44df):** the put clip as a thrust "is very bad",
+  "it clips", "it doesn't have a force"; a cool animation "similar to Dirty Bomb" (a quick melee
+  with weight: a clear wind-up, a snappy strike, follow-through, a camera punch); "it should
+  properly do that, we don't even need a game for animating": authored offline on the real
+  assets, previewed before any in-game test.
+- **Authored** (`scripts/battery-hit`): keys over the stock carry idle on the stock rig, both
+  hands solved onto the battery's handles every frame (two-bone IK, the elbow in its idle
+  plane), the battery attached as the game attaches it (Ry(pi) x the Weapon bone, which on the
+  carry idle puts both handle bones exactly on the hands):
+  - lift (0.07 s), wind-up over the right shoulder (0.13 s), the upper body turned away 35 deg;
+  - the strike across and down, the impact at 0.2 s in front of the chest, the body turned into it;
+  - follow-through to the lower left (0.3 s), a camera punch (the Item bone, the first-person
+    camera: 5 deg down, 2.5 deg aside, after the impact so the strike's aim is the clip's own);
+  - recovery to the carry idle by 0.57 s.
+- **Two clips** at 30 fps, written in the engine's format with its own spline basis
+  (`clips.py`, resource-porter's `skeleton_animation.rs` transcribed): `battery_hit` (6 frames,
+  the wind-up and strike, its last frame the impact) and `battery_hit_recover` (11 frames), with
+  the carry idle's bone names; shipped by the edit list `battery-hit-1.json` (op
+  `files_from_repo`, the files pinned by sha256, `make_clips.py --check` keeps them equal to
+  the keys) as the battery config's `states[3]` and `states[4]`, which the cook loads as it
+  loads states 0-2.
+- **Checked offline** (`preview.py`, the renders in `private/renders/battery-hit/`): in first
+  person (the Item bone's camera, 65 deg, near plane 0.05 m) nothing crosses the near plane in
+  view on any frame; in third person no torso, neck, head or helmet vertex is inside the
+  battery's box on any frame; the before (the put clip) beside it.
+- **Seen by all:** the swing and the recovery are states of the battery's machine; the
+  player's animation tree is simulation state, drawn for every view; first person draws the
+  same body. The battery follows the Weapon bone each tick (0x344E40).
+- **Sound:** the strike is the gun-stock bullet (melee data, material 74 `melee_blunt`), so a
+  body hit plays stock `material/body/melee/melee_body_hits` (a 0.2 s thud), metal and wood
+  their melee pairs; concrete, ground, stone and glass are silent, as for the gun-stock hit.
+  Heavier candidates (STALKER SoC thuds, a port) are in `private/renders/battery-hit/sounds/`
+  for the owner to pick; none wired.
+- **Not seen in game yet:** the engine's blending between clips, locomotion, the look pitch.
 
 ## Timing
 
-- Press to strike 0.3 s (the thrust's length, `battery_hit::SWING_S`), then straight to the carry
-  (its idle clip; GUESS: the game blends the two, not traced). Held, the next swing starts at
-  once: one strike every 0.3 s at most. The gun-stock strike lasts the `kick` clip's length.
-- The strike is when the clip ends (the state's readiness, set by the animation player's end
-  event, as the take's), on the same tick in every game.
+- Press to impact 0.2 s (`battery_hit::SWING_S`, the clip's 6 frames; the take state scales
+  its clip to it), the strike on the swing's end; the recovery 0.37 s (`RECOVER_S`), then the
+  carry. Held, the next swing starts from the carry: one strike every 0.57 s at most. The
+  gun-stock strike's clip (`ak/.../kick`) is 6 frames too.
+
+- The strike is when the swing's clip ends (the state's readiness, set by the animation
+  player's end event, as the take's), on the same tick in every game.
 
 ## Edge cases
 
@@ -85,27 +105,35 @@
   yes once the carrier is dead, 0x338E90's rule; the take's own answers never, 0x397C20), so a
   dead carrier's battery is let go as from the carry (PROVEN in the check through
   is_ready_to_be_deactivated 0x301270). A new pickup starts at the take (initialize 0x300BF6).
-- **Crouch, prone, sprint:** the put's clips as they are (its 4 player clips are one).
-- **Late join, resync, replays:** the swing is the machine's fourth state (index 3), saved and
+- **Crouch, prone, sprint:** one clip for all (the config's 4 player clips are one), as the
+  stock battery states.
+- **Late join, resync, replays:** the swing and the recovery are the machine's fourth and fifth
+  states (indices 3, 4), saved and
   loaded by the game's own fsm serialize (0x38CC90: the index, then the state's fields, a
   take's layout; PROVEN in the check: saved mid-swing, loaded by another game into its own
-  swing, every field the same); `srp-validate` reads index 3 as `BatteryState::Swing`. A bullet
+  swing, every field the same); `srp-validate` reads 3 as `BatteryState::Swing`, 4 as
+  `BatteryState::Recover`. A bullet
   in flight is loaded with its gun from the shooter's slot (0x32BDA1..0x32BDAE), deactivated
   there too: the substitutions below need nothing the loading game lacks. Replays recorded
   before the release are refused (`simulation_changes.tsv` `next`).
 
 ## The change (exe patch 143, Rust `battery_hit`)
 
-- `battery.logic` (0x2FA7E9, the cook callback after `initialize_logic`): a fourth state, a
-  take state (0x338940) on the put's six clips with `SWING_S`; appended to the machine's list;
-  transitions carry -> swing (a function-pointer functor, our function: the carrier alive, melee
-  down; after carry -> put), swing -> put and swing -> carry (byte copies of carry -> put's and
-  take -> carry's functors), tried once its clip ended.
-- Its identity, slot by slot: kind 3, the carry's (read by is_carrying 0x3018C8 and the clip
+- `battery.logic` (0x2FA7E9, the cook callback after `initialize_logic`): two states, take
+  states (0x338940) over the config's `states[3]` and `states[4]` clips, which the cook loaded
+  (its queries_result, the callback's argument: state i's six clips at results 2 + 6i, the
+  managed resources at +128h, 2E0h apart, as 0x2FA52D reads the take's), with `SWING_S` and
+  `RECOVER_S`; appended to the machine's list; transitions carry -> swing (a function-pointer
+  functor, our function: the carrier alive, melee down, not in the air; after carry -> put),
+  swing -> put and swing -> recovery, recovery -> put and recovery -> carry (byte copies of
+  carry -> put's and take -> carry's functors), each tried once its clip ended. Results without
+  states 3 and 4 (a game without the content) are the patch's crash.
+- Their identity, slot by slot (both): kind 3, the carry's (read by is_carrying 0x3018C8 and the clip
   set's key 0x3012EA: the carrier's body animates and counts as carrying through it); its
   vtable a copy of the take's (readiness +18h: its clip ended; expression +24h: the take's, the
   thrust starts at once, the put's blends in over 0.3 s, 0x339107; is_user_dead +28h shared by
-  all three), with finalize (+0Ch: the strike) and may-be-put-away (+20h: the carry's rule) ours.
+  all three), with finalize (+0Ch: the strike, the swing's only) and may-be-put-away (+20h: the
+  carry's rule) ours.
 - A battery whose machine is not the three states, or no memory, or a carrier who cannot
   strike: a crash (`expect`), not a skip.
 - The strike: `emit_bullet` with the arguments the gun-stock hit gives it (0x33AB50), EDI the
@@ -152,15 +180,17 @@
 ## Checked
 
 - `check_battery_hit_026g.py` (Unicorn, the patched exe beside the original):
-  - initialize_logic and the site make the four states and five transitions; the vtable copy
-    has exactly slots +0Ch and +20h ours;
+  - initialize_logic and the site make the five states (the swing and the recovery over the
+    cook's clips of states 3 and 4, scaled to 0.2 s and 0.367 s) and their transitions; the
+    vtable copy has exactly slots +0Ch and +20h ours; results without states 3 and 4: the
+    patch's crash;
   - fsm::tick from the carry takes the swing only for the melee key and a living carrier, the
     put first on a switch;
   - in the swing nothing until the animation player's end event (0x344830) of its own clip,
-    another clip's end changes nothing; then the carry (or the put) and one strike, made by the
+    another clip's end changes nothing; then the recovery (or the put) and one strike, made by the
     game's own emit_bullet and bullet constructor: the gun's item its source, the melee data,
     damage 1.5, its stance the one the original gives a held gun in that posture; the gun's
-    bytes unchanged;
+    bytes unchanged; the recovery's clip end: the carry, no second strike;
   - the bullet's flight with the game's own bullet::tick 0x32C180: a tick meeting nothing (every
     step reading the gun's melee damage), and one meeting a body (check_collision, the step to
     the point, try_pierce hitting the target once with the carrier as shooter and the gun's item
@@ -175,25 +205,29 @@
   Stubbed: the allocator, a clip's time scale, the animation event channels, the battery's
   transform calls, the bullet pool's room and live-list add, the physics world's ray test and
   bounds, the struck target.
-- `cargo test` and Clippy of the patches crate and srp-validate (state 3 read, 4 refused).
+- `cargo test` and Clippy of the patches crate and srp-validate (states 3 and 4 read, 5 refused).
+- The clips: `make_clips.py --check` (the committed files are the keys'); the offline previews
+  (no near-plane crossing, no body inside the battery, every frame).
 - `check_world_roundtrip_026g.py`: its three worlds pass; its three coverage failures (0x252B48,
   0x310224, 0x33A51B, other patches' sites) fail the same on origin/main.
 - Not proven: the pierce or ricochet at 0x32E35C (the same 0x2E1C80, its lohook, not run);
   other hittables' hit (+24h) with a strike's source item (lamps, a battery's body): not
   traced; the victim's hit_impl and the kill and hit events read the source item's slot and
   dictionary entry, never its gun's user (static, 0x2D9F97, 0x2DA1EA, 0x2DA3F7).
-- Not played: the clip at this speed, the bullet's hit in a match.
+- Not played: the authored swing, the bullet's hit in a match.
 
 ## Release
 
 - Exe: the patch; `simulation_changes.tsv` `next`.
-- World format: battery state 3 (srp-validate, and so patch 87's check in every game).
-- No content.
+- World format: battery states 3 and 4 (srp-validate, and so patch 87's check in every game).
+- Content: `battery-hit-1.json` (the two clips, the config's states 3 and 4). The exe needs it:
+  without it every battery crashes the game at its cook (by design: it would play otherwise).
 
 ## Open questions for the owner
 
-- The look: the put clip as a thrust, or the rifles' `kick`, or a procedural overhead swing?
+- The look: the authored swing (the previews); faster, bigger, overhead?
 - Kill at once (patch 108) or a battery's own damage?
-- Speed: 0.3 s a swing; a cooldown?
-- A sound (the rifles' `weapons/melee/melee_rifle`)?
+- Speed: impact at 0.2 s, 0.57 s a swing; a cooldown?
+- A sound: the stock body thud plays already; a heavier one (the SoC candidates) or a swing
+  whoosh (the rifles' `melee_rifle`)?
 - A battery icon in the kill feed instead of the melee one?

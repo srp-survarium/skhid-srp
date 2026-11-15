@@ -1265,3 +1265,10 @@ survarium::weapon	item	0x10	obj<survarium::item>	its inventory item (the one its
 survarium::item	battery	0	obj<survarium::victory_item_core>	itself as a battery: only after checking its vtable is victory_item's (0xA042AC) or victory_item_core's (0xA13DBC)
 survarium::image	victory_item_core_vtable	0xA13DBC	u32	victory_item_core's vtable (its main one: set_user +10h 0x300B00, register_animations +20h 0x3018E0, tick +2Ch 0x301240, is_carrying +64h 0x3018C0)
 survarium::posture_state	motion	0x24	u32	its motion: 0 on site (0x2FABBF), 2 run (0x2FAC16), 3 sprint (0x2FAC71), 4 a jump (player_logic_stand_jump_state 0x336B87); weapon_core::melee_pred 0x2E4100 refuses 4
+survarium::battery_logic_args	queries	0x8	ptr<vostok::resources::queries_result>	on_animations_loaded's queries_result (its argument, mov esi,[ebp+8] at 0x2FA40B): the battery config's first, then each `states[i]` clip in the config's order, the cook's loop 0x2FA1A0 (4 player clips, 2 battery clips a state)
+vostok::resources::queries_result	loaded	0x128	obj<vostok::resources::loaded_resource>	its results' managed resources, 2E0h apart (on_animations_loaded reads the take's first clip at +6E8h, result 2: 0x2FA52D, 0x2FA55A)
+vostok::resources::loaded_resource	resource	0x0	u32	a result's managed resource (a clip of a battery's state; taken by its address, a clip the take constructor references itself)
+vostok::resources::loaded_resource	size	0x2E0	size	a result's bytes
+survarium::battery_clips	clips	0x0	obj<survarium::clip_slot>	its six clips (a take's constructor references each, 0x3389FE, 0x338A6A)
+survarium::clip_slot	resource	0x0	u32	a clip resource (its reference count at +0DCh), 0 none
+survarium::clip_slot	size	0x4	size	a clip pointer

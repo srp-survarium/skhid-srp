@@ -11266,6 +11266,15 @@ impl QueriesResult {
     pub unsafe fn set_effect(self, value: Option<MedicalEffectResource>) {
         unsafe { self.0.byte_add(0x12c).cast::<Option<MedicalEffectResource>>().write_volatile(value) }
     }
+
+    /// +0x128 (obj<vostok::resources::loaded_resource>): its results' managed resources, 2E0h apart (on_animations_loaded reads the take's first clip at +6E8h, result 2: 0x2FA52D, 0x2FA55A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn loaded(self) -> LoadedResource {
+        LoadedResource(unsafe { self.0.byte_add(0x128) })
+    }
 }
 
 /// A survarium::allocator_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -23185,6 +23194,15 @@ impl BatteryClips {
         self.0.as_ptr() as usize as u32
     }
 
+    /// +0x0 (obj<survarium::clip_slot>): its six clips (a take's constructor references each, 0x3389FE, 0x338A6A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn clips(self) -> ClipSlot {
+        ClipSlot(unsafe { self.0.byte_add(0x0) })
+    }
+
     /// 0x18 bytes: a battery state's six clips (4 player, 2 battery: on_animations_loaded 0x2FA5C3; the take constructor's 0x3389DA, 0x338A4A)
     pub const SIZE: usize = 0x18;
 
@@ -23350,6 +23368,173 @@ impl PostureState {
     #[inline(always)]
     pub unsafe fn motion(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x24).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::battery_logic_args (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BatteryLogicArgs(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BatteryLogicArgs {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<vostok::resources::queries_result>): on_animations_loaded's queries_result (its argument, mov esi,[ebp+8] at 0x2FA40B): the battery config's first, then each `states[i]` clip in the config's order, the cook's loop 0x2FA1A0 (4 player clips, 2 battery clips a state)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn queries(self) -> Option<QueriesResult> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<QueriesResult>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::resources::queries_result>): on_animations_loaded's queries_result (its argument, mov esi,[ebp+8] at 0x2FA40B): the battery config's first, then each `states[i]` clip in the config's order, the cook's loop 0x2FA1A0 (4 player clips, 2 battery clips a state)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_queries(self, value: Option<QueriesResult>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<QueriesResult>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::resources::loaded_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LoadedResource(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LoadedResource {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): a result's managed resource (a clip of a battery's state; taken by its address, a clip the take constructor references itself)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resource(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x2e0 bytes: a result's bytes
+    pub const SIZE: usize = 0x2e0;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::resources::loaded_resources (0x2e0 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct LoadedResourceStorage([u8; 0x2e0]);
+
+#[allow(dead_code)]
+impl LoadedResourceStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x2e0])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> LoadedResource {
+        LoadedResource(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<LoadedResource> {
+        (!rooms.is_empty()).then(|| LoadedResource(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::clip_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ClipSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ClipSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): a clip resource (its reference count at +0DCh), 0 none
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resource(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x4 bytes: a clip pointer
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::clip_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ClipSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl ClipSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ClipSlot {
+        ClipSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ClipSlot> {
+        (!rooms.is_empty()).then(|| ClipSlot(NonNull::from(rooms).cast()))
     }
 }
 
@@ -28127,6 +28312,15 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<BatteryLogicFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(BatteryLogicFrame)
+        }
+
+        /// EBP: a survarium::battery_logic_args (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn args(machine: &impl Machine) -> Option<BatteryLogicArgs> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(BatteryLogicArgs)
         }
     }
 

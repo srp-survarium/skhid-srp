@@ -1,0 +1,31 @@
+{
+  "_comment": "The battery swing (exe patch 143, docs/notes/battery-hit.md): its two player clips, authored on the stock rig (scripts/battery-hit: swing.py's keys, make_clips.py writes them), and the battery's states 3 (the swing: wind-up and strike, ending on the impact) and 4 (the recovery: follow-through back to the carry idle), which the cook loads as it loads states 0 to 2.",
+  "files_from_repo": [
+    {"source": "../battery-hit/clips/battery_hit.b-spline", "sha256": "48157b2a1636928a4102d82c3e2297a701695441fa34870af199594883cdb085",
+     "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit.b-spline"},
+    {"source": "../battery-hit/clips/battery_hit.bones_names", "sha256": "6206285a608a1a99a96418adc1eea023035cf7eec011f14bb5db1d116aa55af8",
+     "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit.bones_names"},
+    {"source": "../battery-hit/clips/battery_hit_recover.b-spline", "sha256": "1bb46aa1d63e1882b2f734f69bb5e8ca29be845bb1bd0682e8fd670f1caf87e5",
+     "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_recover.b-spline"},
+    {"source": "../battery-hit/clips/battery_hit_recover.bones_names", "sha256": "6206285a608a1a99a96418adc1eea023035cf7eec011f14bb5db1d116aa55af8",
+     "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_recover.bones_names"}
+  ],
+  "append_entry": [
+    {"file": "gameplay/victory_items/default.options", "list": "states", "expected_count": 3, "unique_key": "state",
+     "value": {"state": "swing",
+               "user_animations": ["resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit",
+                                   "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit",
+                                   "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit",
+                                   "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit"],
+               "animations": ["resources/animations/single/weapons/key_objects/item/stand/3rd_view/idle_electrobox",
+                              "resources/animations/single/weapons/key_objects/item/stand/3rd_view/idle_electrobox"]}},
+    {"file": "gameplay/victory_items/default.options", "list": "states", "expected_count": 4, "unique_key": "state",
+     "value": {"state": "recover",
+               "user_animations": ["resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_recover",
+                                   "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_recover",
+                                   "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_recover",
+                                   "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_recover"],
+               "animations": ["resources/animations/single/weapons/key_objects/item/stand/3rd_view/idle_electrobox",
+                              "resources/animations/single/weapons/key_objects/item/stand/3rd_view/idle_electrobox"]}}
+  ]
+}
