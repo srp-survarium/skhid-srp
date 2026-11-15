@@ -532,9 +532,11 @@ impl Gun {
 
 impl Gun {
     /// Its numbers are not its weapon's base config's: a mod or a factor of
-    /// the character ([`gun_with`]) made them.
+    /// the character ([`gun_with`]) made them. The kick's factor alone
+    /// (`recoil_scale`, A307: the worn gloves) is not counted: it changes no
+    /// reload, which is what [`ModCounts`] tells apart.
     pub fn is_modded(&self) -> bool {
-        gun(self.item).is_some_and(|base| base != self)
+        gun(self.item).is_some_and(|base| *base != Gun { recoil_scale: base.recoil_scale, ..*self })
     }
 }
 
@@ -680,7 +682,7 @@ pub struct HeldMods {
 impl HeldMods {
     /// A bot holding `held`.
     pub fn add(&mut self, held: &Gun) {
-        let Some(base) = gun(held.item).filter(|base| *base != held) else {
+        let Some(base) = gun(held.item).filter(|_| held.is_modded()) else {
             return;
         };
         let ratio = |now: u32, then: u32| if then == 0 { 1.0 } else { now as f32 / then as f32 };
@@ -1824,6 +1826,7 @@ mod tests {
         let kicked = gun_with("ak_74u", &[], Factors { reload_speed: 0.0, aim_time: 0.0, recoil: -0.08 }).unwrap();
         assert!((kicked.recoil_scale - 0.92).abs() < 1e-6 && ak.recoil_scale == 1.0);
         assert_eq!(Gun { recoil_scale: 1.0, ..*kicked }, *ak);
+        assert!(!kicked.is_modded(), "the kick's factor alone is no reload mod");
         // Inert types leave every field.
         for inert in [2074, 2084] {
             assert_eq!(*gun_with("ak_74u", &[inert], none).unwrap(), *ak, "{inert}");
@@ -1975,7 +1978,12 @@ mod tests {
         let none = Factors::default();
         let mut held = HeldMods::default();
         held.add(gun("ak_74u").unwrap());
+        // [A307] The kick's factor of worn gloves alone is no mod (`Gun::is_modded`).
+        held.add(gun_with("ak_74u", &[], Factors { recoil: -0.08, ..none }).unwrap());
         assert_eq!(held, HeldMods::default());
+        let mut counts = ModCounts::default();
+        counts.reload(gun_with("ak_74u", &[], Factors { recoil: -0.08, ..none }).unwrap());
+        assert_eq!((counts.reloads, counts.reloads_modded), (1, 0));
         // The owner's 13-15 rusher: weapon -12 %, gloves +10 %, skill 101 -10 %.
         let owners = Factors { reload_speed: 0.10, aim_time: -0.10, recoil: 0.0 };
         let mut held = HeldMods::default();
