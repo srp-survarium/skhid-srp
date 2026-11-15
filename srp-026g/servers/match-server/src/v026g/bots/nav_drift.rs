@@ -194,6 +194,8 @@ pub struct Tally {
     pub began: HashMap<(i32, i32), u32>,
     /// Whether its last world drifted.
     drifting: bool,
+    /// [S5] Its last world of this life, for the error's split by move (log only).
+    pub prior: Option<cross_track::Prior>,
 }
 
 impl Tally {
@@ -218,6 +220,7 @@ impl Tally {
     /// A new life: the last world's drift does not run on.
     pub fn new_life(&mut self) {
         self.drifting = false;
+        self.prior = None;
     }
 
     fn worlds(&self) -> u32 {
@@ -350,6 +353,185 @@ pub(crate) mod cross_track {
         )
     }
 
+    /// [S5] What the body did over a world's interval, for the split of its error (log only): the first that holds, in this order.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Move {
+        /// A jump the bot pressed is still watched.
+        Jump,
+        /// The feet dropped [`super::super::nav_log::FALL_M`] or more.
+        Fall,
+        /// The crouch key at this world is not the one at the world before (this life).
+        Stance,
+        /// The world moved the body under [`MOVED_M`]: no direction.
+        Still,
+        /// The world's move turned [`TURN_DEG`] or more from the one before it (both [`MOVED_M`] or more).
+        Turn,
+        /// Crouch held at the world.
+        Crouch,
+        /// Sprint held at the world.
+        Sprint,
+        /// Neither: walking, straight.
+        Walk,
+    }
+
+    impl Move {
+        pub const ALL: [Move; 8] =
+            [Move::Jump, Move::Fall, Move::Stance, Move::Still, Move::Turn, Move::Crouch, Move::Sprint, Move::Walk];
+
+        fn name(self) -> &'static str {
+            match self {
+                Move::Jump => "jump",
+                Move::Fall => "fall",
+                Move::Stance => "stance change",
+                Move::Still => "still",
+                Move::Turn => "turning",
+                Move::Crouch => "crouched straight",
+                Move::Sprint => "sprinting straight",
+                Move::Walk => "walking straight",
+            }
+        }
+    }
+
+    /// A turn: the world's move this far or more off the one before it, degrees.
+    pub const TURN_DEG: f32 = 30.0;
+
+    /// A bot's last world of this life, for [`Move::Stance`] and [`Move::Turn`].
+    #[derive(Clone, Copy, Debug, Default, PartialEq)]
+    pub struct Prior {
+        crouch: bool,
+        /// The unit direction of its move, flat (x, z), when it moved [`MOVED_M`] or more.
+        heading: Option<(f32, f32)>,
+    }
+
+    /// One world's facts for the split: the feet at the world before and now, the crouch key, the jump watch, the drop.
+    pub struct Step {
+        pub from: Vec3,
+        pub world: Vec3,
+        pub crouch: bool,
+        pub sprint: bool,
+        pub in_jump: bool,
+        pub dropped_m: f32,
+    }
+
+    /// The move of `step` after the world before (`prior`, none at a life's first), and the prior the next world reads.
+    pub fn classify(prior: Option<Prior>, step: &Step) -> (Move, Prior) {
+        let (dx, dz) = (step.world.x - step.from.x, step.world.z - step.from.z);
+        let len = dx.hypot(dz);
+        let heading = (len >= MOVED_M).then(|| (dx / len, dz / len));
+        let turned = match (prior.and_then(|p| p.heading), heading) {
+            (Some((px, pz)), Some((x, z))) => (px * x + pz * z).clamp(-1.0, 1.0) <= TURN_DEG.to_radians().cos(),
+            _ => false,
+        };
+        let kind = if step.in_jump {
+            Move::Jump
+        } else if step.dropped_m >= super::super::nav_log::FALL_M {
+            Move::Fall
+        } else if prior.is_some_and(|p| p.crouch != step.crouch) {
+            Move::Stance
+        } else if heading.is_none() {
+            Move::Still
+        } else if turned {
+            Move::Turn
+        } else if step.crouch {
+            Move::Crouch
+        } else if step.sprint {
+            Move::Sprint
+        } else {
+            Move::Walk
+        };
+        (kind, Prior { crouch: step.crouch, heading })
+    }
+
+    /// The world ages the flat error is split by, ms: up to each (the last: anything older).
+    pub const AGES_MS: [u32; 5] = [300, 600, 1_100, 2_100, u32::MAX];
+    const KINDS: usize = Move::ALL.len();
+
+    /// By move: the flat error at every world, and along / across at those with a direction.
+    static FLAT_BY: [[AtomicU64; BINS]; KINDS] = [const { [const { AtomicU64::new(0) }; BINS] }; KINDS];
+    static ALONG_BY: [[AtomicU64; BINS]; KINDS] = [const { [const { AtomicU64::new(0) }; BINS] }; KINDS];
+    static ACROSS_BY: [[AtomicU64; BINS]; KINDS] = [const { [const { AtomicU64::new(0) }; BINS] }; KINDS];
+    /// By world age: the flat error at every world, and at those with FIRE held at the world.
+    static AGE_ALL: [[AtomicU64; BINS]; AGES_MS.len()] = [const { [const { AtomicU64::new(0) }; BINS] }; AGES_MS.len()];
+    static AGE_FIRE: [[AtomicU64; BINS]; AGES_MS.len()] = [const { [const { AtomicU64::new(0) }; BINS] }; AGES_MS.len()];
+
+    fn age_index(gap_ms: u32) -> usize {
+        AGES_MS.iter().position(|&up| gap_ms <= up).unwrap_or(AGES_MS.len() - 1)
+    }
+
+    /// One world's error for the split: its move, the reckoning's error `reckoned - world` (flat), the world's age and the FIRE key.
+    pub fn count_by(kind: Move, step: &Step, reckoned: Vec3, gap_ms: u32, fire: bool) {
+        let k = kind as usize;
+        let flat = bin(reckoned.distance_xz(step.world));
+        FLAT_BY[k][flat].fetch_add(1, Relaxed);
+        if let Some((along, across)) = split(step.from, step.world, reckoned) {
+            ALONG_BY[k][bin(along)].fetch_add(1, Relaxed);
+            ACROSS_BY[k][bin(across)].fetch_add(1, Relaxed);
+        }
+        let a = age_index(gap_ms);
+        AGE_ALL[a][flat].fetch_add(1, Relaxed);
+        if fire {
+            AGE_FIRE[a][flat].fetch_add(1, Relaxed);
+        }
+    }
+
+    fn take_bins(bins: &[AtomicU64; BINS]) -> [u64; BINS] {
+        std::array::from_fn(|i| bins[i].swap(0, Relaxed))
+    }
+
+    /// The split since the last call, and zero again.
+    pub struct Split {
+        /// By [`Move::ALL`]: flat, along, across.
+        pub by_move: [[[u64; BINS]; 3]; KINDS],
+        /// By [`AGES_MS`]: every world, FIRE held.
+        pub by_age: [[[u64; BINS]; 2]; AGES_MS.len()],
+    }
+
+    pub fn take_split() -> Box<Split> {
+        Box::new(Split {
+            by_move: std::array::from_fn(|k| [take_bins(&FLAT_BY[k]), take_bins(&ALONG_BY[k]), take_bins(&ACROSS_BY[k])]),
+            by_age: std::array::from_fn(|a| [take_bins(&AGE_ALL[a]), take_bins(&AGE_FIRE[a])]),
+        })
+    }
+
+    /// `n`, p50 and p90, and the share at `bar` cm or more.
+    fn short(bins: &[u64; BINS], bar: usize) -> String {
+        let n: u64 = bins.iter().sum();
+        let k: u64 = bins[bar..].iter().sum();
+        format!(
+            "{n}, p50 {} cm, p90 {} cm, {bar} cm+ {k} ({:.1} %)",
+            quantile(bins, n, 0.5),
+            quantile(bins, n, 0.9),
+            if n == 0 { 0.0 } else { 100.0 * k as f64 / n as f64 }
+        )
+    }
+
+    /// The split's match-end lines' text after their prefix: one a move, then one of the world ages.
+    pub fn split_lines(split: &Split) -> Vec<String> {
+        let mut lines: Vec<String> = Move::ALL
+            .iter()
+            .zip(&split.by_move)
+            .map(|(kind, [flat, along, across])| {
+                format!(
+                    "reckoning error by move ({}), since the last match end: flat {}; across the move {}; along it {}",
+                    kind.name(),
+                    short(flat, 25),
+                    short(across, 38),
+                    short(along, 38)
+                )
+            })
+            .collect();
+        let ages: Vec<String> = AGES_MS
+            .iter()
+            .zip(&split.by_age)
+            .map(|(&up, [all, fire])| {
+                let age = if up == u32::MAX { "older".to_string() } else { format!("<={up} ms") };
+                format!("{age}: all {}; FIRE held at the world {}", short(all, 25), short(fire, 25))
+            })
+            .collect();
+        lines.push(format!("reckoning flat error by world age, since the last match end: {}", ages.join(" | ")));
+        lines
+    }
+
     /// The match-end line's text after its prefix.
     pub fn line(along: &[u64; BINS], across: &[u64; BINS]) -> String {
         let n: u64 = across.iter().sum();
@@ -394,6 +576,60 @@ mod tests {
             ),
             "{line}"
         );
+    }
+
+    #[test]
+    fn a_worlds_move_is_the_first_kind_that_holds() {
+        use cross_track::{Move, Step, classify};
+        let step = |to: (f32, f32), crouch: bool, sprint: bool| Step {
+            from: Vec3::new(0.0, 5.0, 0.0),
+            world: Vec3::new(to.0, 5.0, to.1),
+            crouch,
+            sprint,
+            in_jump: false,
+            dropped_m: 0.0,
+        };
+        // A life's first world: no stance change or turn to tell; a walk along +x.
+        let (kind, prior) = classify(None, &step((2.0, 0.0), false, false));
+        assert_eq!(kind, Move::Walk);
+        // On along +x, sprinting: straight. 20 degrees off: still straight; 45 degrees off: a turn.
+        assert_eq!(classify(Some(prior), &step((2.0, 0.0), false, true)).0, Move::Sprint);
+        let a = 20f32.to_radians();
+        assert_eq!(classify(Some(prior), &step((2.0 * a.cos(), 2.0 * a.sin()), false, false)).0, Move::Walk);
+        let (kind, turned) = classify(Some(prior), &step((1.5, 1.5), true, false));
+        // The crouch key changed too: the stance change comes first.
+        assert_eq!(kind, Move::Stance);
+        // Crouched on: a turn back to +x from the 45 degrees.
+        assert_eq!(classify(Some(turned), &step((2.0, 0.0), true, false)).0, Move::Turn);
+        assert_eq!(classify(Some(turned), &step((1.5, 1.5), true, false)).0, Move::Crouch);
+        // Under 0.5 m: still, and the next world has no heading to turn from.
+        let (kind, still) = classify(Some(prior), &step((0.3, 0.0), false, false));
+        assert_eq!(kind, Move::Still);
+        assert_eq!(classify(Some(still), &step((0.0, 2.0), false, false)).0, Move::Walk);
+        // A jump and a fall come before everything.
+        assert_eq!(classify(Some(prior), &Step { in_jump: true, ..step((0.0, 2.0), true, false) }).0, Move::Jump);
+        assert_eq!(classify(Some(prior), &Step { dropped_m: 1.5, ..step((0.0, 2.0), true, false) }).0, Move::Fall);
+    }
+
+    #[test]
+    fn the_split_lines_give_each_move_and_each_world_age() {
+        use cross_track::{AGES_MS, BINS, Move, Split, split_lines};
+        let mut split = Split { by_move: [[[0; BINS]; 3]; Move::ALL.len()], by_age: [[[0; BINS]; 2]; AGES_MS.len()] };
+        let walk = Move::Walk as usize;
+        split.by_move[walk][0][10] = 3;
+        split.by_move[walk][0][30] = 1;
+        split.by_move[walk][2][40] = 2;
+        split.by_age[3][0][30] = 4;
+        split.by_age[3][1][30] = 1;
+        let lines = split_lines(&split);
+        assert_eq!(lines.len(), Move::ALL.len() + 1);
+        assert_eq!(
+            lines[walk],
+            "reckoning error by move (walking straight), since the last match end: flat 4, p50 10 cm, p90 30 cm, 25 cm+ 1 (25.0 %); across the move 2, p50 40 cm, p90 40 cm, 38 cm+ 2 (100.0 %); along it 0, p50 - cm, p90 - cm, 38 cm+ 0 (0.0 %)"
+        );
+        let ages = &lines[Move::ALL.len()];
+        assert!(ages.contains("<=2100 ms: all 4, p50 30 cm, p90 30 cm, 25 cm+ 4 (100.0 %); FIRE held at the world 1,"), "{ages}");
+        assert!(ages.contains("| older: all 0,"), "{ages}");
     }
 
     fn facts() -> Facts {

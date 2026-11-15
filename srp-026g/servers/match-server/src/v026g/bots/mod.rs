@@ -2187,6 +2187,20 @@ impl Bots {
                 {
                     nav_drift::cross_track::count(along, across);
                 }
+                // [S5] The same error split by what the body did (its move) and by the world's age (log only).
+                if let (Some((_, from)), Some(gap_ms)) = (before, facts.gap_ms) {
+                    let step = nav_drift::cross_track::Step {
+                        from,
+                        world: feet,
+                        crouch: facts.crouch,
+                        sprint: facts.sprint,
+                        in_jump: facts.in_jump,
+                        dropped_m: facts.dropped_m,
+                    };
+                    let (kind, prior) = nav_drift::cross_track::classify(bot.drift.prior, &step);
+                    bot.drift.prior = Some(prior);
+                    nav_drift::cross_track::count_by(kind, &step, reckoned, gap_ms, keys & key::FIRE != 0);
+                }
                 if facts.drifts() {
                     let cause = nav_drift::Cause::of(&facts);
                     bot.drift.world(Some((&facts, cause)));
@@ -2535,6 +2549,8 @@ impl Bots {
         // [S5] The reckoning's error at ground worlds, along and across the world's own move.
         let (along, across) = nav_drift::cross_track::take();
         lines.push(format!("{}{}", nav_log::PREFIX, nav_drift::cross_track::line(&along, &across)));
+        let split = nav_drift::cross_track::take_split();
+        lines.extend(nav_drift::cross_track::split_lines(&split).into_iter().map(|line| format!("{}{line}", nav_log::PREFIX)));
         // [A388 step 2b] The lip guard's forecasts this match: asked anew, and the same ask's answer used again.
         let (asked, reused) = self.bots.iter().flatten().fold((0u64, 0u64), |(a, r), bot| (a + u64::from(bot.lip_memo.asked), r + u64::from(bot.lip_memo.reused)));
         lines.push(format!("{}lip guard forecasts this match: asked {asked}, the same ask's answer used again {reused}", nav_log::PREFIX));
