@@ -1163,7 +1163,10 @@ mod tests {
             shape,
         }]);
         let tuning = Tuning::default();
-        let (aim, sense) = (tuning.aim.clone(), tuning.sense.clone());
+        let (mut aim, sense) = (tuning.aim.clone(), tuning.sense.clone());
+        // The best players' rows: the duel needs fire going when the cloud comes, which the humans' draw (with its pauses)
+        // does not time; the burst draw is tested in `reflex.rs`.
+        aim.combat.fire.burst_human = None;
         let mut memory = Memory::default();
         memory.set_sight_window(SightWindow::of(&sense, &tuning.cheats));
         let mut reflex = Reflex::default();

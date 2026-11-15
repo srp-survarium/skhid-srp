@@ -14280,10 +14280,13 @@ mod tests {
         let enemy_at = Vec3::new(55.0, 0.0, 30.0);
         let mut me = body(0, 0, Vec3::new(32.0, 0.0, 28.0), 0.0);
         let view = view_of(vec![me.clone(), body(1, 1, enemy_at, 0.0)]);
-        let aim = AimTuning {
+        let mut aim = AimTuning {
             fire_within_deg: 180.0,
             ..AimTuning::default()
         };
+        // The best players' rows: "a little fire" is less than a magazine, which the humans' longer holds near can empty;
+        // the burst draw is tested apart.
+        aim.combat.fire.burst_human = None;
         let sit = Situation {
             tactics: Some(&tactics),
             side: Some(0),
