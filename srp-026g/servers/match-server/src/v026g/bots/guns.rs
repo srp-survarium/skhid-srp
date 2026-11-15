@@ -532,9 +532,11 @@ impl Gun {
 
 impl Gun {
     /// Its numbers are not its weapon's base config's: a mod or a factor of
-    /// the character ([`gun_with`]) made them.
+    /// the character ([`gun_with`]) made them. The kick's factor alone
+    /// (`recoil_scale`, A307: the worn gloves) is not counted: it changes no
+    /// reload, which is what [`ModCounts`] tells apart.
     pub fn is_modded(&self) -> bool {
-        gun(self.item).is_some_and(|base| base != self)
+        gun(self.item).is_some_and(|base| *base != Gun { recoil_scale: base.recoil_scale, ..*self })
     }
 }
 
@@ -1824,6 +1826,7 @@ mod tests {
         let kicked = gun_with("ak_74u", &[], Factors { reload_speed: 0.0, aim_time: 0.0, recoil: -0.08 }).unwrap();
         assert!((kicked.recoil_scale - 0.92).abs() < 1e-6 && ak.recoil_scale == 1.0);
         assert_eq!(Gun { recoil_scale: 1.0, ..*kicked }, *ak);
+        assert!(!kicked.is_modded(), "the kick's factor alone is no reload mod");
         // Inert types leave every field.
         for inert in [2074, 2084] {
             assert_eq!(*gun_with("ak_74u", &[inert], none).unwrap(), *ak, "{inert}");
