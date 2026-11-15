@@ -124,9 +124,11 @@ const RING_M: [f32; 2] = [0.05, 0.10];
 const RING_WAYS: usize = 16;
 
 /// [`settle`] at the floor's own point `feet`, and where the body jams there, at the ring's puts around it ([`RING_M`],
-/// [`RING_WAYS`]) until one rests: a floor whose own point is closer to a face than a standing body fits stands where the body
-/// fits a few cm out, as the exe's ring finds. A body that falls or slides on from the point is not put again.
-pub(super) fn settle_near(world: &Collision, s: &Settings, feet: Vec3) -> Settle {
+/// [`RING_WAYS`], nearest first) until it rests where the caller takes a rest (`takes(put, at)`): a floor whose own point is
+/// closer to a face than a standing body fits stands where the body fits a few cm out, as the exe's ring finds. A ring put whose
+/// body slides or drops past the caller's bounds is not the floor's place; the next is tried. A body that falls or slides on
+/// from the floor's own point is not put again.
+pub(super) fn settle_near(world: &Collision, s: &Settings, feet: Vec3, takes: impl Fn(Vec3, Vec3) -> bool) -> Settle {
     match settle(world, s, feet) {
         Settle::Jammed => RING_M
             .iter()
@@ -137,7 +139,7 @@ pub(super) fn settle_near(world: &Collision, s: &Settings, feet: Vec3) -> Settle
                 })
             })
             .map(|put| settle(world, s, put))
-            .find(|rest| matches!(rest, Settle::Rests { .. }))
+            .find(|rest| matches!(*rest, Settle::Rests { put, at } if takes(put, at)))
             .unwrap_or(Settle::Jammed),
         other => other,
     }
@@ -207,10 +209,11 @@ impl WalkGrid {
         // The own-point test with its ring ([`settle_near`]): every candidate has a standing body's room.
         let back = parallel(&candidates, |&a| {
             let centre = self.position(a as NodeId);
-            match settle_near(world, s, centre) {
-                Settle::Rests { at: rest, .. } => {
-                    rest.distance_xz(centre) <= r && (rest.y - centre.y).abs() <= NAME_HEIGHT_M && !self.named(alive, rest)
-                }
+            let takes = |_put: Vec3, rest: Vec3| {
+                rest.distance_xz(centre) <= r && (rest.y - centre.y).abs() <= NAME_HEIGHT_M && !self.named(alive, rest)
+            };
+            match settle_near(world, s, centre, takes) {
+                Settle::Rests { put, at } => takes(put, at),
                 Settle::Jammed | Settle::Moving => false,
             }
         });

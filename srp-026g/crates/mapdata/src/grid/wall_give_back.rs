@@ -47,13 +47,14 @@ pub const STAND_MOVED_M: f32 = 0.1;
 /// Known gap: a floor where only a crouched body fits (a standing body jams there, a ledge at head height) is not given back: the
 /// port's crouched body never stands still in the rest test's steps.
 pub(super) fn stands(world: &Collision, s: &Settings, feet: Vec3) -> bool {
-    let settled = super::rest_floors::settle_near(world, s, feet);
+    // Across: no more than STAND_MOVED_M from the put (no slide). Down: no more than STAND_MOVED_M under the floor (no fall). Up:
+    // a floor names a place within NAME_HEIGHT_M of its height (`rest_floors`).
+    let takes = |put: Vec3, at: Vec3| {
+        (at.x - put.x).hypot(at.z - put.z) < STAND_MOVED_M && feet.y - at.y < STAND_MOVED_M && at.y - feet.y <= super::rest_floors::NAME_HEIGHT_M
+    };
+    let settled = super::rest_floors::settle_near(world, s, feet, takes);
     let ok = match settled {
-        // Across: no more than STAND_MOVED_M from the put (no slide). Down: no more than STAND_MOVED_M under the floor (no fall).
-        // Up: a floor names a place within NAME_HEIGHT_M of its height (`rest_floors`).
-        Settle::Rests { put, at } => {
-            (at.x - put.x).hypot(at.z - put.z) < STAND_MOVED_M && feet.y - at.y < STAND_MOVED_M && at.y - feet.y <= super::rest_floors::NAME_HEIGHT_M
-        }
+        Settle::Rests { put, at } => takes(put, at),
         Settle::Jammed | Settle::Moving => false,
     };
     count_stand(feet, settled, ok);
@@ -214,7 +215,8 @@ mod tests {
         let (world, s) = (Collision::build(&tris), &Settings::LIVE);
         let feet = Vec3::new(4.875, 0.0, 5.125);
         assert_eq!(settle(&world, s, feet), Settle::Jammed, "0.345 m off the wall the standing body overlaps it");
-        assert!(matches!(settle_near(&world, s, feet), Settle::Rests { put, .. } if put.x < feet.x - 0.04), "rests from the ring, put away from the wall");
+        let any = |_: Vec3, _: Vec3| true;
+        assert!(matches!(settle_near(&world, s, feet, any), Settle::Rests { put, .. } if put.x < feet.x - 0.04), "rests from the ring, put away from the wall");
         assert!(at(&on, 4.875), "comes back");
         assert!(!at(&on, 5.125), "under the clearance stays taken");
         let far = |g: &WalkGrid| g.floors_in(AREA).map(|n| g.position(n)).filter(|p| (p.x - 5.22).abs() > 1.0).count();
