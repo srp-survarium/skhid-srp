@@ -1331,10 +1331,16 @@ impl BodyTrack {
         };
         let local = blend.now(kin.blend_ticks);
         let (air_until, air_cap) = self.air_at(fix.time, kin);
-        let arc = if kin.jump_arc { self.arc_at(fix.time, feet, fix.yaw).map(Jump::Clip) } else { None };
+        // [Gap 10] The jump the world's selector is in picks the clip ([`super::jump_arc::Clip::of_world`]).
+        let world_clip = match fix.jump {
+            Some(super::jump_arc::WorldJump::Jumping { kind, .. }) => super::jump_arc::Clip::of_world(kind),
+            _ => None,
+        };
+        let arc = if kin.jump_arc { self.arc_at(fix.time, feet, fix.yaw, world_clip).map(Jump::Clip) } else { None };
         // [Gap 10] The world's selector (PROVEN, the exe review of gap 10): the stand jump is entered only by the jump transition,
-        // whose test is the client's gate (0x2FBDC0 -> 0x2FC230), in the tick of the input after the press (the key change sets
-        // +33Eh at 0x2D8995, the selection runs in the next input's tick); in the normal case it is left only after the landing's
+        // whose test is the client's gate (0x2FBDC0 -> 0x2FC230), by the tick of the input after the press (the key change sets
+        // +33Eh at 0x2D8995; saved worlds show it at the press's own tick too, so a tick later is safe); in the normal case it is
+        // left only after the landing's
         // substate is finished (0x337330), after the reckoned flight is over. So a world a tick or more after the press that shows
         // the selector out of the jump means the client refused the press, or left the jump early (both legs broken, death): the
         // reckoned jump is dropped. A world before that tick says nothing of it.
@@ -1501,7 +1507,7 @@ impl BodyTrack {
     /// [A318] The client's jump a world at `time` with its feet at `feet` and its yaw `yaw` is in ([`Kinematics::jump_arc`]): the last press at
     /// or before it, uncrouched, whose clip has not ended; the press's speed as the ticks show it (forward held long enough for
     /// the walk cap).
-    fn arc_at(&self, time: u32, feet: Vec3, yaw: f32) -> Option<JumpArc> {
+    fn arc_at(&self, time: u32, feet: Vec3, yaw: f32, world: Option<super::jump_arc::Clip>) -> Option<JumpArc> {
         let mut held = false;
         let mut pressed = None;
         let mut forward = 0u32;
@@ -1516,7 +1522,7 @@ impl BodyTrack {
             held = jump;
             forward = if tick.keys & key::FORWARD != 0 { forward + 1 } else { 0 };
         }
-        pressed.and_then(|(at, keys, walk)| JumpArc::seen(at, keys, walk, time, feet, wrap(yaw)))
+        pressed.and_then(|(at, keys, walk)| JumpArc::seen(at, keys, walk, time, feet, wrap(yaw), world))
     }
 }
 
