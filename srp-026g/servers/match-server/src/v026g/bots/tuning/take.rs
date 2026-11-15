@@ -283,6 +283,17 @@ pub struct TakeTuning {
     /// or 1.5 s); the live recordings had 2.66 s median from 3 m to the press against a player's 0.45 s, 73 % of the bots'
     /// presses crouched against none of the player's (the batteries findings of 2026-11-14, C1).
     pub on_the_move: bool,
+    /// [take.known_threats] A take reads the enemies it knows of by the battery, not only the ones it sees now. On: an enemy
+    /// whose last spot the bot's or its team's own senses gave (seen, heard, told: `Track::own`, never a cheat's) within
+    /// `sense.forget_ms` (the memory's own lifetime of a sensed spot, before it fades) and within the take's `exposed_m` of
+    /// the battery is a threat of the take as one seen now is (`Ctx::take_threat`): within `hold_near_m` the take waits,
+    /// looking at his spot, until he is dead (the kill feed), reloading (heard), kept busy by a mate whose line to his spot
+    /// no cloud hides, or his spot fades; `commit.finish_take` does not hold such a take; and the battery's score reads each
+    /// such enemy by his distance from it (`collect::held_weight`). Off: only an enemy seen within 700 ms with a line eye to
+    /// eye is a threat, and every remembered enemy within 25 m weighs one on the score. The live recordings of 2026-11-13
+    /// (`owner-5/own-base-smoke-and-bait-findings.md`, part 2): 13 bots killed walking to a battery a player stood by, all
+    /// 13 knowing of him (heard 8, told 3, seen 2), none aiming at him, 7 never firing, at a median 3.4 m.
+    pub known_threats: bool,
 }
 
 impl Default for TakeTuning {
@@ -297,6 +308,7 @@ impl Default for TakeTuning {
             zone_look: Some(ZoneLook::default()),
             zone_take: Some(ZoneTake::default()),
             on_the_move: true,
+            known_threats: true,
         }
     }
 }

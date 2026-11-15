@@ -351,10 +351,12 @@ pub enum Kind {
     Creep,
     /// [A1b] A drop link walked off at release, let go at its point: where the body came to rest (`walk_off.rs`).
     WalkOff,
+    /// [take.known_threats] A take within reach waiting for a man known by its battery (`plays/collect.rs` `take`).
+    Take,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 14;
+const KINDS: usize = 15;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -466,6 +468,17 @@ pub fn zone_line(battery: Vec3, term: &str) -> String {
 /// [owner-5] A zone spawner the battery search skipped: `nav: zone spawner <i> at (..) not searched: <filter>`.
 pub fn spawner_line(index: usize, item: Vec3, filter: &str) -> String {
     format!("{PREFIX}zone spawner {index} at {} not searched: {filter}", at(item))
+}
+
+/// [take.known_threats] A take within reach waiting: `nav: take of battery <b> at (..) waits for player <p> known at (..)
+/// (<d> m from it), out of sight`.
+pub fn take_wait_line(battery: usize, item: Vec3, who: usize, spot: Vec3) -> String {
+    format!(
+        "{PREFIX}take of battery {battery} at {} waits for player {who} known at {} ({:.1} m from it), out of sight",
+        at(item),
+        at(spot),
+        spot.distance_xz(item)
+    )
 }
 
 /// [owner-5] A route search that found no way: `nav: no way from (..) to (..): <verdict>`.

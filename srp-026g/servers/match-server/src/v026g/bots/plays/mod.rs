@@ -581,6 +581,32 @@ pub fn cover_each(sees: &[Vec<bool>]) -> Option<usize> {
 /// a few of the bot's senses (each think).
 pub const SEEN_NOW_MS: u32 = 700;
 
+/// The known enemies a target's [`Input::EnemiesNearTarget`] counts are within this of it, metres.
+pub const ENEMIES_NEAR_M: f32 = 25.0;
+
+/// [take.known_threats] An enemy a take waits for ([`Ctx::take_threat`]): who, and how the bot has him.
+///
+/// A struct with `who` outside the enum, not an enum whose two variants each carry him: the project's nightly (rustc
+/// 1.98.0-nightly 2026-05-29, LLVM 22.1.6) has rust-lang/rust#159035 (LLVM #208611), where `None` of an `Option` of such
+/// an enum is tagged -1 and a pass turns the read of the variant's field into a load at the tag times the field's stride:
+/// `Option<TakeThreat>::map` read 2^32-1 strides past the stack and the wooden-crate test died (SIGSEGV, the load at
+/// `rsp+0xc0+rax*8` with `rax` 0xffffffff, before the `None` test).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TakeThreat {
+    pub who: Place,
+    pub by: ThreatBy,
+}
+
+/// How a take's threat is had ([`TakeThreat`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ThreatBy {
+    /// Seen now ([`SEEN_NOW_MS`]) within `exposed_m` of the bot with his shot reaching it: the fight first (the reflex aims).
+    Sight,
+    /// Known by the battery: his last spot from the team's own senses, lately (`sense.forget_ms`), within `exposed_m` of
+    /// the battery.
+    Spot(Vec3),
+}
+
 /// What a play sees: the match, the bot, its knowledge, the team's, the
 /// signals and modifiers, the map's tactics and the tuning.
 pub struct Ctx<'a> {
@@ -937,47 +963,88 @@ impl Ctx<'_> {
     /// surroundings first, or grab it while the enemy reloads or a teammate
     /// keeps him busy (the owner, 2026-10-23).
     pub fn exposed_to(&self, exposed_m: f32, reload_ms: u32, cover_m: f32) -> Option<Place> {
+        self.take_threat(None, exposed_m, reload_ms, cover_m).map(|threat| threat.who)
+    }
+
+    /// [take.known_threats] The enemy a take of the battery lying at `battery` waits for, if any: [`Self::exposed_to`]'s
+    /// threats, and with `battery` (the switch on) also each enemy whose last spot the bot's or its team's own senses gave
+    /// (`Track::own`: seen, heard or told, never a cheat's) within `sense.forget_ms` and within `exposed_m` of the battery
+    /// ([`ThreatBy::Spot`]): a man heard or told of by the battery, or one lost from sight a moment ago (in a cloud, round
+    /// a corner), is no less there than one in sight. A player hears steps and shots and gets his team's calls, and does
+    /// not walk to a battery a man he knows of stands by. Each needs a teammate of his own to cover him, as in
+    /// [`Self::exposed_to`]; with `battery`, a teammate's line to him that a cloud hides (`Clouds::veil`) covers nothing.
+    /// Without `battery`, [`Self::exposed_to`] as it was.
+    pub fn take_threat(&self, battery: Option<Vec3>, exposed_m: f32, reload_ms: u32, cover_m: f32) -> Option<TakeThreat> {
         let eye = self.me.eye();
-        let threats: Vec<&PlaceView> = self
+        let enemy_of = |who: Place| {
+            self.view.place(who).filter(|enemy| {
+                enemy.alive
+                    && enemy.present
+                    && enemy.team != self.me.team
+                    && !self.reloading(who, reload_ms)
+            })
+        };
+        let seen = self
             .memory
             .tracks()
             .iter()
             .filter(|t| t.source == Source::Seen && self.now <= t.time + SEEN_NOW_MS)
-            .filter_map(|t| self.view.place(t.who))
-            .filter(|enemy| enemy.alive && enemy.present && enemy.team != self.me.team)
+            .filter_map(|t| enemy_of(t.who))
             .filter(|enemy| {
                 let at = enemy.eye();
-                let reloading = self.view.sounds.iter().any(|s| {
-                    s.from == enemy.place
-                        && s.kind == SoundKind::Reload
-                        && self.now <= s.time + reload_ms
-                });
-                (at - eye).length() <= exposed_m
-                    && !reloading
-                    && self.tactics.shot_reaches(self.tuning.cover.rule(), at, eye)
+                (at - eye).length() <= exposed_m && self.tactics.shot_reaches(self.tuning.cover.rule(), at, eye)
             })
-            .collect();
+            .map(|enemy| (TakeThreat { who: enemy.place, by: ThreatBy::Sight }, enemy.eye()));
+        let mut threats: Vec<(TakeThreat, Vec3)> = seen.collect();
+        if let Some(battery) = battery {
+            for track in self.memory.tracks() {
+                let Some((at, time)) = track.own else { continue };
+                if threats.iter().any(|(threat, _)| threat.who == track.who)
+                    || self.now > time + self.tuning.sense.forget_ms
+                    || at.distance_xz(battery) > exposed_m
+                    || enemy_of(track.who).is_none()
+                {
+                    continue;
+                }
+                fairness::read(self.me.team, fairness::Site::Near, track, self.now);
+                threats.push((TakeThreat { who: track.who, by: ThreatBy::Spot(at) }, Self::standing_eye(at)));
+            }
+        }
         if threats.is_empty() {
             return None;
         }
-        let mates: Vec<&PlaceView> = self
-            .view
-            .team(self.me.team)
-            .filter(|mate| mate.place != self.me.place && !self.view.objective().is_actor(mate))
-            .collect();
+        let veil = battery.map(|_| self.view.smoke.veil(self.view.clock, &self.tuning.smoke));
+        let mates = self.coverers();
         let sees: Vec<Vec<bool>> = threats
             .iter()
-            .map(|enemy| {
-                let at = enemy.eye();
-                mates
-                    .iter()
-                    .map(|mate| {
-                        (mate.eye() - at).length() <= cover_m && self.tactics.sees(mate.eye(), at)
-                    })
-                    .collect()
-            })
+            .map(|&(_, at)| mates.iter().map(|mate| self.covers(mate, at, cover_m, veil)).collect())
             .collect();
-        cover_each(&sees).map(|free| threats[free].place)
+        cover_each(&sees).map(|free| threats[free].0)
+    }
+
+    /// Whether the enemy at `who` was heard reloading within `reload_ms` (a take goes while he does: [`Self::take_threat`]).
+    pub fn reloading(&self, who: Place, reload_ms: u32) -> bool {
+        self.view.sounds.iter().any(|s| s.from == who && s.kind == SoundKind::Reload && self.now <= s.time + reload_ms)
+    }
+
+    /// The teammates who may keep an enemy busy for a take ([`Self::take_threat`]): all but the bot and a carrier.
+    pub fn coverers(&self) -> Vec<&PlaceView> {
+        self.view
+            .team(self.me.team)
+            .filter(|mate| mate.place != self.me.place && !self.view.objective().is_actor(mate))
+            .collect()
+    }
+
+    /// Whether `mate` keeps an enemy whose eye is at `at` busy: within `cover_m` of him with a clear line, and with `veil`
+    /// (`take.known_threats`) no cloud hiding the line.
+    pub fn covers(&self, mate: &PlaceView, at: Vec3, cover_m: f32, veil: Option<super::smoke::Veil<'_>>) -> bool {
+        let from = mate.eye();
+        (from - at).length() <= cover_m && self.tactics.sees(from, at) && !veil.is_some_and(|veil| veil.hides(from, at))
+    }
+
+    /// [take.known_threats] A standing body's eye over the feet `at`: where a man last placed there is looked for.
+    pub fn standing_eye(at: Vec3) -> Vec3 {
+        at + Vec3::new(0.0, super::view::eye_height(false, 0.0, 0.0), 0.0)
     }
 
     /// Known enemies within `m` of `at` (by the memory, whatever the
@@ -1044,7 +1111,7 @@ impl Ctx<'_> {
             Input::PathDist => point.map_or(0.0, |at| self.path_dist(at)),
             Input::Health => self.health(),
             Input::Ammo => self.bot.ammo.share(),
-            Input::EnemiesNearTarget => point.map_or(0.0, |at| self.enemies_near(at, 25.0) as f32),
+            Input::EnemiesNearTarget => point.map_or(0.0, |at| self.enemies_near(at, ENEMIES_NEAR_M) as f32),
             Input::FriendsNearTarget => point.map_or(0.0, |at| self.friends_near(at, 25.0) as f32),
             Input::Personality => {
                 let p = self.bot.personality;
