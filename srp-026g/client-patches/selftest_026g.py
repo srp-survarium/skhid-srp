@@ -1782,7 +1782,8 @@ def test_voice(original, image, before):
           in here("flash", "main_menu", "src", "survarium", "menu", "Settings.as")
           and "this._hide_spam.enabled = true;" in timeline and "this._use_mik.enabled = true;" in timeline
           and "this._sound_сhat.slider.enabled = false;" not in timeline
-          and 'var sensitivity:DisplayObject = this.settings_content["_mic_sens"] as DisplayObject;'
+          and ('var sensitivity:DisplayObject = this.settings_content["_mic_sens"] as DisplayObject;\n'
+               '         if(sensitivity)\n         {\n            sensitivity.visible = false;\n         }')
           in here("flash", "main_menu", "src", "survarium", "menu", "Settings.as"),
           "the hud has root.srp_voice_talking and the Tab menu's root.srp_voice_menu and "
           "root.srp_voice_mute, its row menu asks srp_voice_menu and sends srp_voice_mute; the options enable "

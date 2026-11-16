@@ -3643,8 +3643,8 @@ plays it back"; `voice-chat.md`, "Microphone test"). The sound tab's "Test micro
 through a transmission's path, plays it back as a teammate beside the player would hear it, and
 is idle again; nothing of it is sent or kept. The DLL owns the test (ABI 3: `sv_test_press`,
 `sv_test_stop`, `sv_test_state`; with no match a worker of its own). The exe passes it on: the
-tab's ask `srp_mic_test` is answered `root.srp_mic_test(text)`, the button's text; with the two
-voice sliders' steps it is a press; every frame the button is told its text again when the DLL's
+tab's ask `srp_mic_test` is answered `root.srp_mic_test(text)`, the button's text; with the
+"Voice chat" slider's steps it is a press; every frame the button is told its text again when the DLL's
 state or its second changed; the test is stopped when the Settings window closes (the movie says
 `stop`) or changes tab, when the main menu closes (a match's loading and its end too) and at a
 match's connect. The DLL is loaded when the

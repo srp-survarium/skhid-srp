@@ -3556,7 +3556,9 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
 
 - **The variables** (`configs.start`, before user.cfg): the sound tab's stock controls are bound by
   name to `s_chat_volume`, `s_use_microphone`, `s_mic_sens` (0x262DE8..0x262EC9) and nothing
-  registers them; `ConsoleFloat` (0..100, the float slider's steps of 1) and `ConsoleBool` do, with
+  registers them; `ConsoleFloat` (0..100, the float slider's steps of 1) and `ConsoleBool` do the
+  first two (`s_mic_sens` too until 2026-11-16: its slider is hidden since, and it names no
+  variable again, as the stock game's `s_ptt_button`), with
   `g_hide_spam` (the gameplay tab's dead option 5, "Disable voice chat") and the `ConsoleString`
   `srp_voice_mutes` (each muted voice id, 8 hex digits and `|`: parsed once a match, a malformed
   record left out and logged).

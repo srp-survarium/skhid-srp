@@ -20,7 +20,7 @@ package
     // says stop; the button shows the exe's text, every dictionary's on one line with the font's glyphs;
     // hidden on the other tabs and asked again on the way back. And its "Microphone" list (voice-chat.md,
     // "Microphone"): none until the exe answers; Default first, then the devices by name; its place between
-    // the slider and the button; a pick pending for Apply, Cancel putting the saved one back, Apply
+    // "Use microphone" and the button; a pick pending for Apply, Cancel putting the saved one back, Apply
     // sending its id ("" the default); an unplugged device shown as Default; the list asked again as it
     // is pressed open (a pick not applied kept); every dictionary's two texts fitting. Prints "MICTEST ..." lines and "MICTEST RESULT pass" or "MICTEST RESULT
     // fail: ...", then shows each state of the button for check.sh's screenshots ("MICTEST SHOT
@@ -253,6 +253,7 @@ package
             settings.selectIndex(3);
             require(b.visible && calls.length == 1 && calls[0] == null && b.label == word, "back on the sound tab it asks: " + calls + ", " + b.label);
             require(!content._ptt.visible, "back on the sound tab the PTT checkbox is still hidden");
+            require(!content._mic_sens.visible, "back on the sound tab the sensitivity slider is still hidden");
             word = texts[0][IDLE];
             menu.srp_mic_test(word);
         }

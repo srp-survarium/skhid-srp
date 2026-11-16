@@ -116,12 +116,12 @@ package survarium.menu
       // of the right column under the HUD group (layoutGameplay). A move is a change of the tab, saved by Apply.
       protected var _fov:SrpFieldOfView;
       
-      // The sound tab's "Test microphone" button (exe patch 66), under the Microphone sensitivity
-      // slider. Not a setting: a press is no change of the tab.
+      // The sound tab's "Test microphone" button (exe patch 66), under the Microphone list. Not a
+      // setting: a press is no change of the tab.
       protected var _micTest:SrpMicTest;
       
-      // The sound tab's "Microphone" list (exe patch 66), between the sensitivity slider and the test
-      // button: a pick is used at once (the test and push-to-talk) and is a change of the tab as the
+      // The sound tab's "Microphone" list (exe patch 66), between "Use microphone" and the test
+      // button, in the hidden sensitivity slider's place: a pick is used at once (the test and push-to-talk) and is a change of the tab as the
       // Language pick is, saved by Apply; its revert (Cancel, leaving without Apply) uses the saved one.
       protected var _microphone:SrpMicrophone;
       
