@@ -883,9 +883,13 @@ st_crosshair_static_option	Statični nišan
 st_crosshair_type_option	Izbor nišana
 st_crouch_action	Čučni (drži)
 st_crouch_toggle_action	Čučni
+st_cs_mp_atp_name	Vehicle Station
 st_cs_mp_bath_name	Experimental Pool
+st_cs_mp_darkvalley_name	Dark Valley
+st_cs_mp_firestation_name	Fire Station
 st_cs_mp_military_1_name	Military Warehouses
 st_cs_mp_rembasa_name	Repair Depot
+st_cs_mp_sport_center_name	Sports Center
 st_cs_training_camp_name	Training Camp
 st_ct_max_members_count_error	Tim klana već ima najveći broj igrača.
 st_current_value	\nTrenutna vrednost:
@@ -2511,9 +2515,11 @@ st_srp_equipment069_snow_20_legs_7_desc	Opis još nije dostupan.
 st_srp_equipment069_snow_20_legs_7_name	Pantalone Sneg-20
 st_srp_equipment069_snow_20_torso_7_desc	Opis još nije dostupan.
 st_srp_equipment069_snow_20_torso_7_name	Pancir Sneg-20
-st_srp_hide_hit_markers_option	Sakrij oznake pogodaka
 st_srp_hide_quests_option	Sakrij zadatke
 st_srp_hide_scores_option	Sakrij poene igrača
+st_srp_hit_markers_all	Sve oznake pogodaka
+st_srp_hit_markers_hidden	Bez oznaka pogodaka
+st_srp_hit_markers_kill	Samo oznaka ubistva
 st_srp_hud_add_friend	Dodaj u prijatelje
 st_srp_hud_blackout_intro	Zamračenje: donesi baterije do uređaja svog tima. Interfejs i oznake pogodaka su skriveni radi uživljavanja. Drži Tab: municija, zdravlje, čet; posle smrti — izbor opreme.
 st_srp_hud_blackout_start	Zamračenje\nDonesi baterije do uređaja svog tima.\nInterfejs i oznake pogodaka su skriveni. Drži Tab da vidiš municiju i zdravlje.
@@ -2580,9 +2586,13 @@ st_srp_login_ban_forever	Zabrana je trajna.
 st_srp_map_chemical_plant	Hemijska fabrika
 st_srp_map_chemical_plant_v011	Hemijska fabrika (v0.11)
 st_srp_map_cologne	Keln
+st_srp_map_cs_mp_atp	Vehicle Station
 st_srp_map_cs_mp_bath	Experimental Pool
+st_srp_map_cs_mp_darkvalley	Dark Valley
+st_srp_map_cs_mp_firestation	Fire Station
 st_srp_map_cs_mp_military_1	Military Warehouses
 st_srp_map_cs_mp_rembasa	Repair Depot
+st_srp_map_cs_mp_sport_center	Sports Center
 st_srp_map_cs_training_camp	Training Camp
 st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamajev kurgan
@@ -2662,6 +2672,7 @@ st_srp_microphone_default	Podrazumevani
 st_srp_mode_blackout	Zaštitni uređaj: zamračenje
 st_srp_mode_chargers	Zaštitni uređaj: punjači
 st_srp_mode_cowboy	FFA: Salun
+st_srp_mode_cowboy_winchester	FFA: Salun (Winchester)
 st_srp_mode_free_for_all	Svako protiv svakoga
 st_srp_mode_protective_device	Zaštitni uređaj
 st_srp_mode_racket	FFA: Galama

@@ -40,6 +40,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use updater_logic::disk;
 use updater_logic::file_error::{self, Exclusion, Kind, Stop};
 use updater_logic::manifest::{
     Found, Installed, InstalledFile, MAX_ARCHIVE_SIZE, Manifest, ManifestError, Reason, Verdict,
@@ -70,7 +71,6 @@ const DEFAULT_URL: &str = match option_env!("SKHID_UPDATE_URL") {
 };
 const URL_FILE: &str = "updater_skhid.url";
 const STATE_FILE: &str = "updater_skhid.state";
-const LOG_FILE: &str = "updater_skhid.log";
 /// What the launcher's pipe is named before the product's name
 /// (`\\.\pipe\vostok_updater_pipe-Survarium`).
 const PIPE_PREFIX: &str = "\\\\.\\pipe\\vostok_updater_pipe-";
@@ -933,7 +933,7 @@ fn run() -> u32 {
             return exit::FAILED;
         }
     };
-    log::start(format!("{}\\{LOG_FILE}", layout.exe_dir));
+    log::start(&layout.exe_dir);
     log!(
         "---- updater {} started in {}",
         env!("CARGO_PKG_VERSION"),
@@ -1003,8 +1003,9 @@ fn run() -> u32 {
     // Said in a box of the updater's own, in the launcher's language: the
     // launcher is not told it again.
     let mut said = false;
-    let language = win::game_language();
-    let log_path = format!("{}\\{LOG_FILE}", layout.exe_dir);
+    let documents = win::documents();
+    let language = documents.as_deref().and_then(win::game_language);
+    let log_path = log::path().unwrap_or_else(|| layout.exe_dir.clone());
     let antivirus = |name: &str, removal| {
         let file = name.rsplit(['/', '\\']).next().unwrap_or(name);
         let folder = file_error::exclusion_folder(name, &layout.exe_dir, &layout.game_dir);
@@ -1082,6 +1083,32 @@ fn run() -> u32 {
         if !session.quiet && !session.stopped {
             let problem = antivirus(name, Removal::PutBack);
             warning_box(&problem.caption(), &problem.message(language, &log_path));
+        }
+    }
+    // The game keeps up to 3 GB of baked textures in Documents: with less
+    // than disk::NEEDED free on its drive PLAY stays off; Retry asks again.
+    if matches!(done, Done::UpToDate | Done::Installed { restart: false, .. } | Done::Offline(..)) {
+        match documents.as_deref().map(|folder| (folder, win::free_space(folder))) {
+            None => log!("the Documents folder is not known: its free space not checked"),
+            Some((folder, None)) => log!("the free space of {folder} is not known: not checked"),
+            Some((folder, Some(free))) if free < disk::NEEDED => {
+                log!("{} MB free in {folder}, {} MB needed: PLAY stays off", free >> 20, disk::NEEDED >> 20);
+                session.state(state::ERROR);
+                let mut free = free;
+                while free < disk::NEEDED && !session.quiet && !session.stopped
+                    && retry_box(text::TITLE, &disk::too_little(language, folder)) && session.pump()
+                {
+                    free = win::free_space(folder).unwrap_or(0);
+                    log!("the player asks to try again: {} MB free", free >> 20);
+                }
+                if free < disk::NEEDED {
+                    said = true;
+                    done = Done::Failed(format!("{} MB free in {folder}, {} MB needed", free >> 20, disk::NEEDED >> 20));
+                } else {
+                    session.state(state::CHECKING);
+                }
+            }
+            Some(_) => {}
         }
     }
     let (code, watch) = match done {
@@ -1173,7 +1200,7 @@ fn register_replays(arguments: &[String]) -> u32 {
     let result = (|| {
         if !arguments.is_empty() && !quiet { return Err(text::usage()); }
         let layout = Layout::find().map_err(|path| text::wrong_folder(&path))?;
-        log::start(format!("{}\\{LOG_FILE}", layout.exe_dir));
+        log::start(&layout.exe_dir);
         replay_association::register(&layout).map_err(win::error_text)
     })();
     match result {

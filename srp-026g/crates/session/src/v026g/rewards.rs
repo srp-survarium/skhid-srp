@@ -145,7 +145,7 @@ use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 
 use survarium::v021d;
-use survarium::v026g::twist::Twist;
+use survarium::v026g::twist::Armed;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::drops::{self, DropTable, Drops, Rng};
 use survarium::v026g::lobby::{
@@ -337,7 +337,7 @@ pub struct MatchResult {
     /// A free-for-all's twist: its kits were not the accounts' own
     /// (`survarium::v026g::twist`), so the counters alone prove no use of
     /// an account's stacks (`autobuy::used`).
-    pub twist: Option<Twist>,
+    pub twist: Option<Armed>,
     pub match_level: u16,
     pub end: MatchEnd,
     /// 0 or 1, [`DRAW`], or `None` when no trusted snapshot gave a standing.

@@ -79,6 +79,7 @@ u8  team_2_respawn
 | level_07 | 31 (16/15) | 31 |
 | level_08 | 26 (13/13) | 26 |
 - The deserializer of the base reads the mask, then one u32 per set bit, and sets the others to 0xFFFFFFFF (0x316D50). PROVEN.
+- **A free-for-all's (mode 8, srp's exe patch 142, since 2026-11-15) has 40 bytes more after its points:** the spawn history, for each of the 20 places its latest team-2 point index and the one before (0xFF none; never a second without a first), written at the end of 0x316F10 and read at the end of its deserialize 0x316FC0 (ffa.md "Never the last two"). Mode 8 has no mode rule, so in its section the respawn rule's points end 40 bytes before the kd stats (srp-validate `ModeRule::FreeForAll`, `snapshot::Rules::free_for_all`). Other modes: as above.
 - 0.21d: `snapshot.rs` never decoded the respawn rule (it sat between the gather head and the timelimit).
 
 ### 2.4 gather_victory_items_rule_core (class 0x58, mode 2) — variable, PROVEN (0x313CA0)

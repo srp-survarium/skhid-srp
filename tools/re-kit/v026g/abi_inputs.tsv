@@ -6189,3 +6189,22 @@ va	name	location	role	basis
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	EDI	the value (patch pointer)	observed
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+4	last (the value's slot)	observed
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+8	the camera position by value (3 floats)	observed
+0x0005c060	vostok::sound::sound_scene::process_fade	ESI	the sound scene (sound_scene::tick)	observed
+0x0005c060	vostok::sound::sound_scene::process_fade	ECX	the ms since the world's last tick	observed
+0x00316bc0	survarium::player_respawn_rule_base::on_player_entered_match	ECX	the respawn rule	observed
+0x00316bc0	survarium::player_respawn_rule_base::on_player_entered_match	entry ESP+4	the place (low byte, movzx at 0x316BC0)	observed
+0x00316bc0	survarium::player_respawn_rule_base::on_player_entered_match	entry ESP+8	the enter time, stored as the place's respawn time (+138h + 4 x place): the place spawns at that tick	observed
+0x00316c90	survarium::player_respawn_rule_base::serialize	ECX	the respawn rule: writes a mask of the places whose respawn time (+138h + 4 x place) is not -1, then each such time (asserts 0xA15E30 name it)	observed
+0x00316c90	survarium::player_respawn_rule_base::serialize	entry ESP+4	writer	observed
+0x00316d50	survarium::player_respawn_rule_base::deserialize	ECX	the respawn rule: reads the mask and a u32 for each set bit; the other places -1	observed
+0x00316d50	survarium::player_respawn_rule_base::deserialize	entry ESP+4	reader: its cursor at +4	observed
+0x00316f10	survarium::player_respawn_rule_core::serialize	ECX	the respawn rule: the base's (0x316C90), m_respawn_random's seed (+1A0h), then two bytes for each point of its three groups (+188h pointers, +194h counts; the point's checkers +28h, +2Ch, their +20h); EBX the writer to its end (0x316FB8, exe patch 142's respawn.save)	observed
+0x00316f10	survarium::player_respawn_rule_core::serialize	entry ESP+4	writer	observed
+0x00316fc0	survarium::player_respawn_rule_core::deserialize	ECX	the respawn rule: the base's (0x316D50), the seed, the points' bytes as serialize writes them; ESI the reader to its end (0x317038, exe patch 142's respawn.load)	observed
+0x00316fc0	survarium::player_respawn_rule_core::deserialize	entry ESP+4	reader: its cursor at +4	observed
+0x00316fc0	survarium::player_respawn_rule_core::deserialize	entry ESP+8	a dword of the caller, passed on to the base's deserialize; popped (ret 8)	observed
+0x000e29c0	vostok::core::generate_log_file_name	EDI	the buffer_string the name is written to (cleared first, 0xE2A1D)	observed
+0x001128d0	vostok::logging::new_log_file	entry ESP+4	the file name, a C string	observed
+0x0030ebf0	survarium::weapon_core_fire_state_base::on_shot_event	entry ESP+4	the animation_callback_params: +10h the event's time in ms (the shot's; replays of 0x30ffba2c, fire-queue-assert.md); with +13Ch (the queue) 0 it asserts m_bullets_in_queue > 0 and fires nothing	observed
+0x0030ecc0	survarium::weapon_core_fire_state_base::reset_fire_queue [descriptive]	ESI	the fire state: +13Ch the queue = min(fire_queue_types[weapon core +5E6h] (+5E0h the table), magazine +5E5h + (chambered +5F1h != 0)), +13Dh (may refill) 0; called by execute 0x30EA00 on a press (weapon object +330h bit 5) while +13Dh is set	observed
+0x0030ea50	survarium::weapon_core_fire_state_base::on_animation_end_impl	ECX	the fire state: over (+12Dh and both flags) when its queue +13Ch is spent, or for fire_queue_types 0FFh with the trigger up; a semi-automatic state a press refilled is not over at its clip's end, and each later input change starts its clip again (fire-queue-assert.md)	observed

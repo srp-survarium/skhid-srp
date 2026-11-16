@@ -435,6 +435,11 @@ vostok::sound::sound_scene	volume	0x2E4	f32	its fade volume: the submix gets vol
 vostok::sound::sound_scene	fade_in_time	0x2EC	u32	the fade-in's ms (10, the constructor 0x57935): process_fade adds elapsed / it to the volume (unsigned, 0x5C080)
 vostok::sound::sound_scene	active	0x2F9	u8	in the world's active scenes (set_active_sound_scene_impl 0x5A067; cleared by a finished fade-out 0x5C18C)
 vostok::sound::sound_scene	fade_state	0x2FC	u32	0 none, 1 fading in, 2 fading out (process_fade 0x5C061, set_active_sound_scene_impl 0x5A043 and 0x5A06E)
+vostok::sound::sound_world	first_active	0x48E4	ptr<vostok::sound::sound_scene>	the first of its active scenes (each scene's next +108h; add_scene_to_active 0x59FC9, the tick's walks 0x59AB1 and 0x59AE7)
+vostok::sound::sound_world	general	0x48F0	u8	General as the tick last applied it, 0 to 100 (100 at the constructor 0x58DD3): the tick's general pass 0x59ADF compares s_general_volume's value (0xA7AF90, cvttss2si) with it and on a change gives every active scene its factor; add_scene_to_active 0x59FE3 reads it
+vostok::sound::sound_scene	next_active	0x108	ptr<vostok::sound::sound_scene>	the next active scene of its world (add_scene_to_active 0x59FB0, the tick 0x59AC7)
+vostok::sound::sound_scene	submix	0x2E0	ptr<xaudio2::submix_voice>	its XAudio2 submix voice, every voice of its sounds sent to it (0x631E5); its volume (SetVolume, vtable +30h) = volume (+2E4h) x general (+2E8h), set by process_fade 0x5C0D8, add_scene_to_active 0x59FEE and the tick's general pass 0x59B3F
+vostok::sound::sound_scene	general	0x2E8	f32	its factor of General: General x 0.01 (0xA2D774) from add_scene_to_active 0x59FFC and the tick's general pass 0x59B19 (1 at the constructor 0x57955); process_fade 0x5C0D8 multiplies the volume by it
 vostok::sound::sound_emitter	references	0xD0	u32	its resource count, atomic (emit_hud_sound 0x65654)
 vostok::sound::sound_instance_proxy	mode	0x2C	u32	its playback mode: 0 once, 1 looped (play 0x5ABA8), 2 stopped (stop 0x5B021)
 vostok::sound::scene_params_variant	helper	0x0	u32	a variant's type helper (concrete_type_helper<sound_scene_creation_params>, survarium::image scene_params_helper), the lobby's at 0x21E559
@@ -729,6 +734,7 @@ survarium::player_input_handler	mode	0x358	u32	its input mode: 0 first person (t
 survarium::player_input_handler	game_world	0x334	ptr<survarium::game_world>	its game world (on_mouse_move 0x2402B2, process_first_person_mode 0x2410F8)
 survarium::player	look_pitch	0x48C	f32	the look pitch, -1 (down) to 1 (up): weapon_core::look_pitch 0x2E0F60 adds the kick and scrubs the look clips at (pitch + 1) / 2 (0x2FBF90); bone Item turns 67.5 deg a unit below 0, 60 above (on_site_camera_look)
 vostok::buffer_string	end	0x4	ptr<u8>	past the text's last byte (its NUL there)
+vostok::buffer_string	capacity_end	0x8	ptr<u8>	the end of its room: assign (0x127C0) copies while end < it, then writes the NUL at end; logging_initialize's name points it 104h past begin (0xE31E3), at the native path string's separator byte
 survarium::game_start_frame	folder	0x470	obj<vostok::buffer_string>	game::game's local at [esp+470h] by its ESP at 0x1E944E: user_data/streamed_textures' physical path (converted by 0x12780 at 0x1E9449), the buffer_string its delete 0x1E8DA0 gets in EAX
 survarium::image	baker	0xA264E80	obj<vostok::render::camouflage_decal_texture_type_baker_cook>	the camouflage/decal baker, camouflage_decal_texture_type_baker_cook, a static (set up by 0x12CCE0; translate_query's ECX, the look-up's EAX at 0x12D4C5)
 vostok::render::camouflage_decal_texture_type_baker_cook	list_begin	0x230	ptr<vostok::render::baked_texture_data>	its list of saved textures, a buffer_vector<baked_texture_data> (0x12CD39..0x12CDA6 set it up; find_baked_texture 0x131ED0 walks it): begin
@@ -1088,6 +1094,8 @@ vostok::memory::game_call	scaleform_alloc_call	0xC	obj<vostok::memory::game_call
 vostok::memory::allocate_region_frame	return_address	0x4	u32	allocate_region's frame by its EBP (push ebp / mov ebp,esp, 0xE1120): its return address, allocate_region_return when engine_world's constructor called it
 vostok::memory::profile_frame	call	0x4	ptr<vostok::memory::game_call>	memory_profile.allocated's and .freeing's first argument (by the site ESP, the return address at +0): the ESP the game's call of mspace_malloc, mspace_realloc or mspace_free left, its return address there
 vostok::memory::profile_frame	memory	0x8	u32	their second: the memory mspace_malloc or mspace_realloc gave (0 for none), or the memory given back to mspace_free or mspace_realloc
+vostok::c_line_frame	text	0x4	ptr<u8>	log.c_line's first argument (by the site's ESP, the return address at +0): the line's text, a C string of the caller's (ASCII)
+vostok::c_line_frame	value	0x8	u32	its second: the value the line ends with (in hex)
 vostok::memory::out_of_memory_frame	return_address	0x0	u32	memory.out_of_memory's ESP: the callback's return (heap_out_of_memory_return from mspace_malloc)
 vostok::memory::out_of_memory_frame	space	0x4	u32	its first argument: the arena's mspace (create_mspace_with_base made it at the arena's start)
 vostok::memory::out_of_memory_frame	allocator	0x8	ptr<vostok::memory::base_allocator>	its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)
@@ -1197,6 +1205,7 @@ survarium::kd_event_frame	event	0x4	u32	on_event first argument: event 1 is a de
 survarium::kd_event_frame	time	0xC	u32	on_event third argument: completed world time, dispatched by 0x2D1EC0
 survarium::pvp_match	options	0x124	ptr<survarium::match_options>	borrowed match options (constructor 0x2D55B0 argument +10h); lj_native_install updates this roster, UI 0x23B42C..0x23B435 reads it
 survarium::respawn_point_core	protection_ms	0x20	u32	invulnerability duration in milliseconds, load 0x2F4628..0x2F4630 multiplies legacy seconds by 1000
+survarium::respawn_entered_frame	place	0x4	u8	player_respawn_rule_base::on_player_entered_match 0x316BC0's place (entry ESP+4, its low byte: movzx eax,byte [esp+4]); entry ESP+8 the enter time, which becomes the place's respawn time (+138h + 4 x place)
 survarium::throw_grenade_state	grenade_set	0x17C	ptr<survarium::grenade_set_core>	the grenade set being thrown: its deserialize 0x33A5AB..0x33A5F7 takes it from the profile slot the world names; is_ready_for_transition 0x33A677 and the throw 0x33A7BB read it
 survarium::throw_grenade_state	grenade_index	0x180	u8	m_grenade_index: the set's grenade being thrown, 0FFh none (initialize 0x33A45C); the world's byte as read (deserialize 0x33A640); grenade_set_core::pull_pin 0x30A120 gives the game's own (0x3103DD)
 survarium::grenade_set_core	grenades_begin	0x268	u32	its grenades' vector begin (the constructor 0x309AFF; each entry a grenade object, walked to the end by 0x309E70): (end - begin) / 4 grenades

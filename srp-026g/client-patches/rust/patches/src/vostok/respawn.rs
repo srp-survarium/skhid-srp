@@ -216,6 +216,30 @@ impl<'t> RespawnSelect<'t> {
     }
 }
 
+/// At `respawn.save` (player_respawn_rule_core::serialize's end, after the
+/// rule's own bytes): `bytes` after them, with the game's byte writer.
+pub fn save(ctx: &Context<'_>, bytes: &[u8]) {
+    // SAFETY: the serialize's live writer (its argument, EBX).
+    if let Some(writer) = unsafe { raw::site::respawn_save::writer(ctx) } {
+        super::carry_runtime::write_bytes(writer, bytes);
+    }
+}
+
+/// At `respawn.load` (player_respawn_rule_core::deserialize's end, after
+/// the rule's own bytes): the next `N` bytes, the reader past them; None
+/// (the reader as it was) when its stream has fewer.
+pub fn load<const N: usize>(ctx: &Context<'_>) -> Option<[u8; N]> {
+    // SAFETY: the deserialize's live reader (its argument, ESI).
+    super::carry_runtime::read_bytes(unsafe { raw::site::respawn_load::reader(ctx) }?)
+}
+
+/// At `respawn.entered` (the rule's on_player_entered_match, a tick's
+/// entry of the place, every game at the same tick): the place.
+pub fn entered(ctx: &Context<'_>) -> Option<srp_validate::Place> {
+    // SAFETY: the entry's stack, its first argument the place.
+    srp_validate::Place::new(unsafe { read(raw::site::respawn_entered::frame(ctx)?.place()) })
+}
+
 /// A non-negative, finite duration from the signed integer config format.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct ProtectionMillis(u32);

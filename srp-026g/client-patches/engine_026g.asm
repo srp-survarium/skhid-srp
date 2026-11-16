@@ -187,6 +187,7 @@ global engine_mt_free_memory
 global engine_allocate_save_descriptor
 global engine_context_unmap
 global engine_context_flush
+global engine_voice_set_volume
 global engine_ray_callback
 global engine_ray_needs_collision
 global engine_ray_test_single
@@ -2319,6 +2320,25 @@ engine_context_flush:
     mov eax, [esp]                   ; this
     mov eax, [eax]                   ; its vtable
     call [eax + 0x1bc]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_voice_set_volume:
+    ; COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; operation_set -> 12
+    push dword [esp + 28]   ; volume -> 8
+    push dword [esp + 28]   ; voice -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x30]
     pop edi
     pop esi
     pop ebx

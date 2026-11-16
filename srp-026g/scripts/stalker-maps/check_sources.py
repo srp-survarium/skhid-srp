@@ -11,6 +11,7 @@ import tempfile
 
 import make_ffa_edits as m
 import make_truck_pack as truck
+import make_training_fires as fires
 import check_ffa_edits
 import check_training_arena
 import make_rembasa_arena as rembasa
@@ -33,6 +34,8 @@ def main():
         dictionary.write_bytes(data)
         check_ffa_edits.check(a.pack, dictionary)
         check_training_arena.check(a.pack, dictionary, a.native, m.EDIT)
+    fires_edit = fires.HERE.parent / 'content-edit/training-camp-fires-1.json'
+    assert json.loads(fires_edit.read_text()) == fires.build(a.native, a.pack), 'stale fires edit'
     # Repair Depot: its arena's wall is its outline's (the list made again), and every point stands
     # inside the outline.
     arena_list = m.HERE.parent / 'content-edit/rembasa-arena-1.json'

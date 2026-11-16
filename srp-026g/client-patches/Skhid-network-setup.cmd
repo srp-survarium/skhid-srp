@@ -20,9 +20,8 @@ rem The code page: this file is kept in UTF-8, and make_client_026g.py ships
 rem it in code page 866 (DOS Cyrillic). cmd reads each line of a script in the
 rem console's code page at the time, so it switches the console to 866 here,
 rem before the first line with a Russian letter, and back at the end: the
-rem text is right on a Russian Windows (866 already) and on any other. (Not
-rem 65001: Windows 7's cmd stops reading a script in it.) Every line above
-rem the chcp is ASCII.
+rem text is right on a Russian Windows (866 already) and on any other.
+rem Every line above the chcp is ASCII.
 setlocal EnableExtensions DisableDelayedExpansion
 set "SKHID_CP="
 for /f "tokens=2 delims=:" %%C in ('chcp') do set "SKHID_CP=%%C"

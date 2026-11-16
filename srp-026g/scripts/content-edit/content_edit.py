@@ -1043,7 +1043,34 @@ def default_modification(decade):
         new = REC.pack(int(cell) & 0xffffffff, ii, icrc, T_INT, icnt)
         REC.pack_into(buf, items, append_array(buf, [bytes(buf[c:c + 24]) for c in kids] + [new]), i, crc, t, cnt + 1)
         return ['[%d]' % cnt], []
-    return Derived('default_modifications', read, write)
+    out = Derived('default_modifications', read, write)
+    out.decade = decade
+    return out
+
+
+def built_in_order(columns):
+    """The kinds (id decades) of a table's built-in bonus columns, in the columns' order."""
+    return [key.decade for key in columns.values() if hasattr(key, 'decade')]
+
+
+def built_in_kinds(buf, items):
+    """The kind of each item of a default list."""
+    return [as_number(T_INT, rec(buf, c)[0] & 0xffffffff) // 10 for c in children(buf, items)]
+
+
+def sorted_built_ins(kinds, order):
+    """The indexes of a default list's items by kind in `order`; kinds it lacks after them, as they were."""
+    return sorted(range(len(kinds)), key=lambda k: order.index(kinds[k]) if kinds[k] in order else len(order))
+
+
+def sort_built_ins(buf, items, order):
+    """A default list's items put in `order` (sorted_built_ins), in place: the indexes that changed."""
+    kids = children(buf, items)
+    was = [bytes(buf[c:c + 24]) for c in kids]
+    now = [was[k] for k in sorted_built_ins(built_in_kinds(buf, items), order)]
+    for c, r in zip(kids, now):
+        buf[c:c + 24] = r
+    return [k for k in range(len(was)) if was[k] != now[k]]
 
 
 def shown_value():
@@ -1309,21 +1336,23 @@ STATS = {
             'back': armour_values('back'), 'weight': 'parameters/weight', 'oxygen_s': 'data/amount_time_sec',
             'level': 'parameters/item_level', 'mm_level': 'parameters/match_making_level',
             'rarity': 'parameters/base_rarity_level', 'mods': 'parameters/available_modifications_mask',
-            # built-in bonuses, a column a kind: the modification's id
-            'pockets': default_modification(103),
-            'artefact_slots': default_modification(104),
+            # built-in bonuses, a column a kind: the modification's id; an item's default list is kept
+            # in this order (sort_built_ins), the card's lines too: what it carries (ammo bags first),
+            # then the body, the gun, the rest
             'ammo_bags': default_modification(105),
+            'pockets': default_modification(103),
+            'slot_size': default_modification(117),
+            'artefact_slots': default_modification(104),
+            'max_weight': default_modification(112),
+            'movement': default_modification(111),
+            'stamina_spend': default_modification(116),
+            'stamina_regen': default_modification(110),
+            'health_regen': default_modification(109),
             'accuracy': default_modification(107),
             'aim': default_modification(108),
-            'max_weight': default_modification(112),
-            'health_regen': default_modification(109),
-            'stamina_regen': default_modification(110),
-            'movement': default_modification(111),
-            'artefact_search': default_modification(113),
             'reload_speed': default_modification(114),
             'recoil': default_modification(115),
-            'stamina_spend': default_modification(116),
-            'slot_size': default_modification(117),
+            'artefact_search': default_modification(113),
             'experience': default_modification(124),
             'rep_scav': default_modification(125),
             'rep_bm': default_modification(126),
@@ -1354,11 +1383,11 @@ STATS = {
         'configs': 'gameplay/items/boosters/*.options',
         'columns': {
             'weight': 'parameters/weight',
-            # built-in bonuses, a column a kind: the modification's id
-            'health_regen': default_modification(109),
-            'stamina_regen': default_modification(110),
-            'movement': default_modification(111),
+            # built-in bonuses, a column a kind: the modification's id; kept in this order, the armour's
             'max_weight': default_modification(112),
+            'movement': default_modification(111),
+            'stamina_regen': default_modification(110),
+            'health_regen': default_modification(109),
             'artefact_search': default_modification(113),
             'sway': default_modification(121),
             'respawn': default_modification(122),
@@ -1602,8 +1631,21 @@ def stats_problems(category, columns, rows, targets, files, table):
                                                                 have or 'absent', cell or 'nothing')
                         for column, key, cell, have in stats_differences(files[p], off, columns, rows[row], row,
                                                                          present)]
+                out += ['%s: built-in bonuses %s, not in the order of the columns' % (stats_label(category, row, p), at)
+                        for at, kinds in built_ins_unsorted(files[p], off, columns)]
             except ValueError as why:
                 out.append('%s: %s' % (stats_label(category, row, p), why))
+    return out
+
+
+def built_ins_unsorted(buf, off, columns):
+    """[(walk path, kinds)] of each default list under `off` not in the columns' order (built_in_order)."""
+    order = built_in_order(columns)
+    out = []
+    for at, o in resolve(buf, 'default_modifications', off) if order else ():
+        kinds = built_in_kinds(buf, o)
+        if sorted_built_ins(kinds, order) != list(range(len(kinds))):
+            out.append((at, kinds))
     return out
 
 
@@ -1656,6 +1698,13 @@ def stats_write(category, columns, rows, data, table):
                         write_cell(b, o, cell)
                         written.setdefault(p, []).append(root + at)
                 print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
+            for at, o in resolve(b, 'default_modifications', off) if built_in_order(columns) else ():
+                was = built_in_kinds(b, o)
+                moved = sort_built_ins(b, o, built_in_order(columns))
+                if moved:
+                    written.setdefault(p, []).extend(root + at + '[%d]' % k for k in moved)
+                    lists.setdefault(p, set()).add(root + at)
+                    print('%s built-in order: %s -> %s' % (stats_label(category, row, p), was, built_in_kinds(b, o)))
             if stats_differences(b, off, columns, rows[row], row, present):
                 raise ValueError('%s: does not read back as its row' % stats_label(category, row, p))
             for prop_id, text, want in card_differences(b, category['cards']) if category.get('cards') else ():

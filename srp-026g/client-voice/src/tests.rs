@@ -154,9 +154,11 @@ fn far_squelch_delays_words_near_has_none() {
         for tick in 0..delay {
             let pcm = mix(&mut core, far, tick * 20);
             assert_eq!(core.stats().decoded, 0);
-            let expected = &sounds::SQUELCH_IN[tick as usize * FRAME..(tick as usize + 1) * FRAME];
-            for (got, want) in pcm.iter().zip(expected) {
-                assert!((i32::from(*got) - i32::from(*want)).abs() <= 1);
+            let squelch = &sounds::SQUELCH_IN[tick as usize * FRAME..(tick as usize + 1) * FRAME];
+            // The squelch alone, as the mix finishes any sound: centred.
+            let expected = receiver::centred(&std::array::from_fn(|i| f32::from(squelch[i]) / 32768.));
+            for (got, [want, _]) in pcm.iter().zip(expected) {
+                assert!((i32::from(*got) - i32::from(want)).abs() <= 1);
             }
         }
         mix(&mut core, far, delay * 20);
@@ -182,8 +184,9 @@ fn mid_utterance_radio_switch_does_not_add_opening_effect() {
 /// each frame's left and right.
 fn heard_tone(ticks: u32, heard: impl Fn(u32) -> Heard) -> Vec<Stereo> {
     let mut encoder = Encoder::new().unwrap();
+    // Quiet enough that, mixed at unity, it stays under the limiter's knee.
     let frames: Vec<Vec<u8>> = (0..ticks as usize + 4)
-        .map(|i| encoder.encode(&tone(i, 500., 8000.)).unwrap())
+        .map(|i| encoder.encode(&tone(i, 500., 4000.)).unwrap())
         .collect();
     let mut core = Core::new().unwrap();
     feed(&mut core, &frames);
