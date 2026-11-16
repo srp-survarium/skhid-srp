@@ -4771,12 +4771,19 @@ surface. 0.69d steps on the material its character controller stands on when the
 ray): a hit goes on as the game's. A miss looks again with the same `ray_test`: the walker
 collision too (group 34h, mask 0Ah, the same reach): its face's material; a face without one,
 the hittable surface under it to 4 m under the foot; else the face's own, stepped as `default`;
-nothing: silent as before. A found ground goes on at 0x248B77 (EAX the material), the sound at the
-foot. `vostok::step::play` plays a step of a ground at a point for a player through `on_step` (for
+no named ground under the foot: what the capsule rests on, asked around the body's root (rays from
+1 m above the player's simulated feet, 2 m down, at the root and on rings of 0.15, 0.3 and 0.45 m,
+the walker filter and the game's: the highest surface met, the highest named one within 0.35 m
+under it; a thin walkway beside the foot, the loading station's 32 cm walker strip over its 8 cm
+metal beam: footsteps.md, "The contact"); nothing: silent as before. A found ground goes on at
+0x248B77 (EAX the material), the sound at the foot. `vostok::step::play` plays a step of a ground at a point for a player through `on_step` (for
 the ladders), and `footsteps::decide` is patch 101's rule for such steps. `SKHID_STEP_LOG=on`
-writes a line a step to the patch log (off: one cell read). Presentation only, nothing a match
-computes. The empty foot pairs are data: the edit list `step-sounds-1.json`.
-Checked with `check_step_ground_026g.py`; not run in a game.
+writes a line a step to the patch log (its body: the root, the foot's offset, the controller's
+support normal, velocity and on_ground) and one a step event at patch 101's guard (off: one cell
+read). Presentation only, nothing a match computes. The empty foot pairs are data: the edit list
+`step-sounds-1.json`. Checked with `check_step_ground_026g.py` and `check_footsteps_026g.py`;
+played by the owner on 2026-11-16 (a diagnostic build: the Chemical Plant, 53 of 153 steps silent
+before the contact, 5 of 127 after, all in the air).
 
 **Wading** (the owner, 2026-11-16, of Rudnya's pond: "I want them there";
 `../docs/notes/footsteps.md`, "Wading"). Every step first looks at the map's drawn water (the

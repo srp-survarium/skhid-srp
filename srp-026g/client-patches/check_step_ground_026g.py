@@ -353,7 +353,7 @@ def main():
 
     print("the patched exe, SKHID_STEP_LOG=on")
     logged = Step(bytes(built), log=b"on")
-    head = "srp: step: own foot, movement 2, first person, foot 42 at 1000 550 -300 cm; "
+    head = "srp: step: own foot, movement 2, first person, foot 42 at 1000 550 -300 cm; no body; "
     for surfaces, foot, view, want in [
             (concrete, ACTOR_LOCAL, 0, "game met 19 at 25 cm; water missed; ground 19 (game): plays"),
             (dry, ACTOR_LOCAL, 0, "game met 49 at 25 cm; water missed; ground 49 (game): silent, the pair has no sound"),
@@ -363,7 +363,7 @@ def main():
              "150 cm; ground 18 (below): plays"),
             (walker_alone, ACTOR_LOCAL, 0, "game missed; water missed; walker met 16383 at 25 cm; below missed; "
              "ground 16383 (walker, no material): plays"),
-            (air, ACTOR_LOCAL, 0, "game missed; water missed; walker missed; nothing under the foot: silent"),
+            (air, ACTOR_LOCAL, 0, "game missed; water missed; walker missed; contact missed; nothing under the foot: silent"),
             (walker_metal, ACTOR, 1, "game missed; water missed; walker met 18 at 25 cm; ground 18 (walker): plays"),
             (pond, ACTOR_LOCAL, 0, "game met 9 at 25 cm; water met 32 at -50 cm; ground 32 (wading): plays"),
             (film, ACTOR_LOCAL, 0, "game met 9 at 0 cm; water met 32 at -12 cm; ground 9 (game): plays")]:

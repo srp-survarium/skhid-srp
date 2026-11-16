@@ -19,7 +19,8 @@
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::footstep::{Pass, SimTime, Step, StepSource};
+use crate::vostok::footstep::{EventLine, Pass, SimTime, Step, StepSource};
+use crate::vostok::log::{parts, Piece::*};
 use crate::vostok::{Context, Flow, FootstepsOnStepGuardExit, GameCell, Thread};
 
 /// Two steps of one foot closer than this are one step played twice: a foot
@@ -102,13 +103,60 @@ pub fn decide(thread: &Thread, step: Step) -> Decision {
 
 /// on_player_sound_event's time test (`player_sound.step_guard`).
 pub fn on_step_guard(ctx: &mut Context<'_>) -> Flow<FootstepsOnStepGuardExit> {
+    let event = if crate::step_ground::log_on(ctx.thread()) { EventLine::at_guard(ctx) } else { None };
     let Some(step) = Step::at_guard(ctx) else {
+        if let Some(event) = event {
+            log_event(event, "the game's test");
+        }
         return Flow::Continue;
     };
-    match decide(ctx.thread(), step) {
+    let decision = decide(ctx.thread(), step);
+    if let Some(event) = event {
+        log_event(event, match decision {
+            Decision::Play => "plays",
+            Decision::Skip => "skipped (a re-simulated copy)",
+        });
+    }
+    match decision {
         Decision::Play => Flow::Exit(FootstepsOnStepGuardExit::Play),
         Decision::Skip => Flow::Exit(FootstepsOnStepGuardExit::Skip),
     }
+}
+
+/// The step log's event line (SKHID_STEP_LOG): `step event: <whose>, domain <n> (<foot or rustle>), time <t>
+/// (max <m>), movement <id>, feet <read|not read>[, not its player's]: <what>`.
+fn log_event(event: EventLine, what: &'static str) {
+    let movement = match event.movement {
+        Some(id) => [Text(", movement "), Dec(id)],
+        None => [Text(", no logic state"), Text("")],
+    };
+    parts(&[
+        &[
+            Text("step event: "),
+            Text(if event.own { "own" } else { "other's" }),
+            Text(", effect "),
+            Hex(event.effect),
+            Text(", domain "),
+            Dec(u32::from(event.domain)),
+            Text(match event.domain {
+                0 => " (left foot)",
+                1 => " (right foot)",
+                _ => " (rustle)",
+            }),
+            Text(", time "),
+            Dec(event.time),
+            Text(" (max "),
+            Dec(event.newest),
+            Text(")"),
+        ],
+        &movement,
+        &[
+            Text(if event.feet { ", feet read" } else { ", feet not read" }),
+            Text(if event.ours { "" } else { ", not its player's" }),
+            Text(": "),
+            Text(what),
+        ],
+    ]);
 }
 
 #[cfg(test)]

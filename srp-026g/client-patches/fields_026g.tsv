@@ -724,6 +724,9 @@ survarium::player	controller	0x494	ptr<survarium::player_controller>	its charact
 survarium::player_controller	controller	0x0	ptr<vostok::physics::bullet_character_controller>	the controller (get_transform 0x7F5C0's ESI)
 vostok::physics::bullet_character_controller	last_position	0x50	f32	m_last_pos, a float3, Bullet frame (z the game's -z; the capsule's offset above the feet, along y, as +0B0h): the position its last step started from (player_step 0x7BE84; serialized 0x7F7F0)
 vostok::physics::bullet_character_controller	position	0xB0	f32	its position, a float3, Bullet frame (the translation of its matrix +80h: z the game's -z, set_transform 0x7F6D0 adds the capsule's offset along y (0xA7DC00), get_transform 0x7F5C0 takes it off for from_bullet 0x74620; player_step copies it to m_last_pos)
+vostok::physics::bullet_character_controller	jump_flag	0x203	u8	set: on_ground 0x7EF91 answers false at once (LIKELY a jump in progress; written 0x7F1AD, 0x7F333)
+vostok::physics::bullet_character_controller	support_normal	0x2C710	f32	the supporting surface normal, a float3 (on_ground 0x7EF90: its y at least cos 50 deg [0x21E51D8]; need_slide_on_supporting_surface 0x7BC20)
+vostok::physics::bullet_character_controller	velocity	0x2C770	f32	its velocity, a float3 (on_ground 0x7EF90: |y| under 4.0 [0xA7AB10])
 vostok::physics::bt_broadphase_proxy	group	0x4	u16	m_collisionFilterGroup (needsCollision 0x75BD8; 40h a hit model)
 vostok::physics::bt_collision_shape	shape_type	0x4	u32	m_shapeType (8 a sphere, 31 a compound; rayTestSingle 0xA02EB)
 vostok::engine::message_frame	lparam	0x1C	u32	message_processor's lParam (0x181E0; by the site's ESP inside it, EBX ESI EDI pushed: mov ecx,[esp+1Ch] 0x183AC, mov esi,[esp+1Ch] 0x183F0); an HKL for WM_INPUTLANGCHANGEREQUEST and WM_INPUTLANGCHANGE

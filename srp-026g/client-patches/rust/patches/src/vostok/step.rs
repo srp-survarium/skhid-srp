@@ -113,6 +113,31 @@ pub enum Look {
     Walker,
     /// on_step's filter again, `reach` metres under the foot.
     Below { reach: f32 },
+    /// What the capsule rests on ([`crate::step_ground`]'s contact): from 1 m above the body's root (the
+    /// player's simulated feet, +43Ch) moved by (`dx`, `dz`) metres, 2 m down;
+    /// `walker` the walker filter (what the capsule can stand on), else on_step's.
+    Around { dx: f32, dz: f32, walker: bool },
+}
+
+/// The stepping body as the step finds it (the contact looks' origin, the step log).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Body {
+    /// The player's simulated feet (player +43Ch), the game's frame.
+    pub root: [f32; 3],
+    /// The character controller's support normal (+2C710h).
+    pub support: [f32; 3],
+    /// Its velocity's y (+2C774h).
+    pub rising: f32,
+    /// Its +203h (on_ground answers false while set).
+    pub jump_flag: bool,
+}
+
+impl Body {
+    /// on_ground (0x7EF90): no jump flag, |velocity y| < 4, support y at
+    /// least cos 50 deg.
+    pub fn on_ground(&self) -> bool {
+        !self.jump_flag && self.rising.abs() < 4.0 && self.support[1] >= 0.642_787_6
+    }
 }
 
 /// The ground on_step goes on with, its sound at `at`.
@@ -218,9 +243,22 @@ impl OnStep {
     pub fn look(&self, thread: &Thread, look: Look) -> Option<Hit> {
         let (group, mask, length) = match look {
             Look::Water => (WATER_BIT, WATER_BIT, GAME_LENGTH),
-            Look::Walker => (WALKER_GROUP, WALKER_MASK, GAME_LENGTH),
+            Look::Walker | Look::Around { walker: true, .. } => (WALKER_GROUP, WALKER_MASK, GAME_LENGTH),
+            Look::Around { walker: false, .. } => (GAME_GROUP, GAME_MASK, GAME_LENGTH),
             Look::Below { reach } => (GAME_GROUP, GAME_MASK, ABOVE + reach),
         };
+        if let Look::Around { dx, dz, .. } = look {
+            let [x, y, z] = self.body(thread)?.root;
+            let origin = [x + dx, y + ABOVE, z + dz];
+            // depth below the root, as every hit's is below the foot
+            return self.ray(thread, origin.as_ptr(), group, mask, length);
+        }
+        // SAFETY: on_step's frame: its ray's origin.
+        let origin = unsafe { self.frame.origin() };
+        self.ray(thread, origin, group, mask, length)
+    }
+
+    fn ray(&self, thread: &Thread, origin: *const f32, group: u32, mask: u32, length: f32) -> Option<Hit> {
         let physics = self.world(thread)?.pvp_match_physics()?;
         let mut room = raw::RayResultStorage::zeroed();
         let result = room.handle();
@@ -228,7 +266,7 @@ impl OnStep {
         // the result is ours; the origin and direction are on_step's (its
         // frame's float3s), as it calls ray_test.
         unsafe {
-            raw::engine_ray_test(Some(physics), Some(result), self.frame.origin(), self.frame.direction(), length, group,
+            raw::engine_ray_test(Some(physics), Some(result), origin, self.frame.direction(), length, group,
                                  mask, core::ptr::null(), UNFLIPPED);
             hit(result, length)
         }
@@ -254,6 +292,35 @@ impl OnStep {
                 Some(pair) if read(pair.step_sound()) == 0 => PairSound::Silent,
                 Some(_) => PairSound::Sound,
             }
+        }
+    }
+
+    /// The stepping player (a foot's or a landing's).
+    fn stepper(&self) -> Option<raw::Player> {
+        // SAFETY: as `caller`: the pushed registers read once the return
+        // address says which caller pushed them.
+        unsafe {
+            match read(self.arguments.return_address()) {
+                raw::image::FOOT_STEP_RETURN => self.frame.caller_effect().and_then(|effect| effect.player()),
+                raw::image::LANDING_STEP_RETURN => self.frame.caller_player(),
+                _ => None,
+            }
+        }
+    }
+
+    /// The stepping body: its root and its controller.
+    pub fn body(&self, _: &Thread) -> Option<Body> {
+        let player = self.stepper()?;
+        // SAFETY: the live stepping player and its character controller.
+        unsafe {
+            let controller = player.controller()?.controller()?;
+            let velocity: [f32; 3] = floats(controller.velocity());
+            Some(Body {
+                root: floats(player.feet()),
+                support: floats(controller.support_normal()),
+                rising: velocity[1],
+                jump_flag: read(controller.jump_flag()) != 0,
+            })
         }
     }
 

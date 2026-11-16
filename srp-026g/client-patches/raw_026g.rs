@@ -14237,6 +14237,33 @@ impl BulletCharacterController {
     pub unsafe fn position(self) -> *mut f32 {
         unsafe { self.0.byte_add(0xb0).cast::<f32>().as_ptr() }
     }
+
+    /// +0x203 (u8): set: on_ground 0x7EF91 answers false at once (LIKELY a jump in progress; written 0x7F1AD, 0x7F333)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn jump_flag(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x203).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x2c710 (f32): the supporting surface normal, a float3 (on_ground 0x7EF90: its y at least cos 50 deg [0x21E51D8]; need_slide_on_supporting_surface 0x7BC20)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn support_normal(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x2c710).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x2c770 (f32): its velocity, a float3 (on_ground 0x7EF90: |y| under 4.0 [0xA7AB10])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn velocity(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x2c770).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A survarium::medical_stopping_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
