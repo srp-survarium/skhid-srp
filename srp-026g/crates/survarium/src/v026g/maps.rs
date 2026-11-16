@@ -1388,18 +1388,21 @@ mod tests {
     /// Built data with both FFA edit lists, including London and all five ports.
     /// Rudnya: all 56 of the owner's picks and 4 roof spawns (ffa-rudnya-picks-1);
     /// every other map twice the spawns it had (ffa-cover-maps-1: London 32,
-    /// its 22 kept, 6 central and 4 in the underpass, and 32 new; docs/notes/ffa.md).
+    /// its 22 kept, 6 central and 4 in the underpass, and 32 new; docs/notes/ffa.md);
+    /// Fire Station of stalker-maps-2 (ffa-stalker-2: 48, level 23; Dark Valley,
+    /// Vehicle Station and Sports Center held; docs/notes/stalker-maps.md).
     #[test]
     #[ignore = "needs SRP_TEST_GAME_DATA from build-content with both FFA edit lists"]
     fn the_released_free_for_alls_play_on_their_own_projects() {
         let data = GameData::open(&env_path("SRP_TEST_GAME_DATA")).unwrap();
         let maps = fixtures::table_of(&data).unwrap();
-        free_for_alls_play_on_their_own_projects(&maps, 33);
+        free_for_alls_play_on_their_own_projects(&maps, 34);
         let ports: Vec<_> = maps.iter()
             .filter(|m| m.mode == GameMode::FreeForAll && m.level >= 9)
             .map(|m| (m.id, m.level, m.solo_respawn_points))
             .collect();
         assert_eq!(ports, [
+            (39, 23, 48),
             (42, 15, 28), (43, 16, 48), (44, 17, 47), (163, 9, 64),
             (164, 10, 73), (165, 11, 66), (167, 12, 44), (168, 13, 73), (169, 14, 44)
         ]);
