@@ -140,24 +140,35 @@ walker collision.
 - **Dark Valley:** ladders clmbl#0 and #1 (9.1 → 13.0) were the only ways
   onto the main block's roof (11.93, 688 m²). Now from each wing's roof
   (9.05): planks from a slab of the roof edge fallen onto the wing (0.53 m
-  up) to the top of the main block's parapet (12.91; 31.5°), a plank deck on
-  it, and planks down onto the roof (28.2°), with rubble and broken slabs
-  round them in Experimental Pool's cave-in style. They are 3.5 m north of
-  the ladders, which stay: over the parapet south of z −220 a pipe runs
-  1.1 m up. Both ladder tops are walked; the roof has no dead end.
+  up) to the top of the main block's parapet (12.91; 31.5°), a step of 1 m
+  down onto the roof and up again (since `stalker-maps-2@4`; the owner,
+  2026-11-16: "there is no need for horizontal and roof planks", "only the
+  outside one is important": the plank deck on the parapet and the planks
+  down onto the roof are gone), with rubble and broken slabs round them in
+  Experimental Pool's cave-in style. They are 3.5 m north of the ladders,
+  which stay: over the parapet south of z −220 a pipe runs 1.1 m up. Both
+  ladder tops are walked; the roof has no dead end (`check_reach.py`: the
+  same walked floors, spawns and dead ends with and without the deck).
 - **Sports Center:** the earlier package's routes (`soc-cs-dm-to-026g.json`,
   map 200) as they were: plank ramps out of the basin, up to the galleries
   (`stand_ramp`, 39.4°) and over the steep steel stairs, crates and planks up
   through the widened third-floor hatches (the ladders there cut away). All
   eight ladder tops are walked: the upper level (2,824 m² on the source) is
-  played.
+  played. Since `stalker-maps-2@4` the hatches' sides are closed: a cut
+  through something solid gets caps on the box's faces (the porter's
+  `cuts.rs`, every cut of every map; drawn and in the collision). Before,
+  the 0.7 m slab was open at its cut sides and the rooms beside the shafts
+  showed through them (the owner, 2026-11-16, "holes in textures").
 - **Fire Station:** the earlier package's west roof ramp (34°) and the planks
   over clmbl#0 reach the main building's roof (743 m²); clmbl#3's top is
   walked too. The slabs over the rungs of clmbl#2, #7 and #9 stay; the
   tower, the 97 m² roof and the two ~100 m² roofs stay out of reach.
 - **Vehicle Station:** its four ladder areas (79-333 m²) stay out of reach;
   no spawn stands on them (one the spawn rule kept on clmbl#4's roof is left
-  out, below).
+  out, below). Its puddles (Clear Sky `effects\wallmarkmult`, 6 patches)
+  are decals since `stalker-maps-2@4`, lifted 3 cm like every decal: as an
+  additive effect on the ground they flickered in stripes (the owner,
+  2026-11-16).
 
 Dead ends left (`check_reach.py`, none made by the added ways up unless
 said): Dark Valley's south hall under the main block (188 m² at y 1.05),
