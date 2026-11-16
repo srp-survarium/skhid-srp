@@ -816,6 +816,10 @@ fn build(
                         if let Some(problem) = grid.off_links_problem() {
                             log::error!("Bot map {} grid breaks the off-mesh links' rule: {problem}", path.display());
                         }
+                        // [S3] The same for the line tops' rule.
+                        if let Some(problem) = grid.line_tops_problem() {
+                            log::error!("Bot map {} grid breaks the line tops' rule: {problem}", path.display());
+                        }
                         // [L36] The sweeps' ties at their closest fraction during this build (the process's counters' growth: a
                         // build that runs beside another counts its ties too). A log's only.
                         let ties = mapdata::controller::sweep_ties();
