@@ -218,15 +218,16 @@ first step) writes a line a step to the run's patch log. Off, the hook reads one
 Two lines as the check writes them:
 
 ```
-srp: step: own foot, movement 2, first person, foot 42 at 1000 550 -300 cm; game missed; walker met 16383 at 25 cm; below met 18 at 150 cm; ground 18 (below): plays
-srp: step: own foot, movement 2, first person, foot 42 at 1000 550 -300 cm; game missed; walker missed; nothing under the foot: silent
+srp: step: own foot, movement 2, first person, foot 42 at 1000 550 -300 cm; game missed; water missed; walker met 16383 at 25 cm; below met 18 at 150 cm; ground 18 (below): plays
+srp: step: own foot, movement 2, first person, foot 42 at 1000 550 -300 cm; game met 9 at 25 cm; water met 32 at -50 cm; ground 32 (wading): plays
 ```
 
 Whose (own: the local player's), the caller (`foot, movement <id>` from `on_foot_step`'s logic
 state, `landing, movement 2|4`, `a patch's step`), the view, the foot material (an odd value with
-movement 0 is path 6), the foot in centimetres (the game's frame), each ray (`game`, `walker`,
-`below`: the triangle's material id and how far under the foot, or `missed`), the ground and how
-it was found (`game`, `walker`, `below`, `walker, no material`, `armed`), and what its pair plays
+movement 0 is path 6), the foot in centimetres (the game's frame), each ray (`game`, `water`,
+`walker`, `below`: the triangle's material id and how far under the foot, negative over it, or
+`missed`), the ground and how it was found (`game`, `wading`, `walker`, `below`, `walker, no
+material`, `armed`), and what its pair plays
 (`plays`, `silent, the pair has no sound`, `silent, no pair`), or `nothing under the foot:
 silent`. Material ids are game.materials' (`step-sounds-research.md` 2.1; 16383 is a face without
 a material). A played step can still be culled (path 7): the log says what `on_step` asks for.
@@ -237,3 +238,91 @@ Nothing of patch 153 or step-sounds-1 has been heard. With the log on: the Chemi
 hopper wagons and loading stations, the Fort's wall tops, Cologne's ICE cars (their foliage step),
 sprinting on mud, others walking on stumps: each step heard and its line `plays`. And the rails
 of the owner's report, to name what was silent there.
+
+## Wading (patch 153 and the pack water-steps)
+
+The owner, 2026-11-16: walking in the water in the middle of Rudnya plays no wading sound in
+0.26g; in 0.69d it does. "I want them there."
+
+### Why 0.69d wades there (PROVEN on the data)
+
+- 0.69d decides a step's ground as described above (`on_step` 0x2001FAC50): the controller's
+  ground material (+612Eh) first, replaced by what the ray (group 30h, mask 8) meets
+  (0x2001FAD70, the triangle's material). The pond's water itself has no collision in 0.69d:
+  `level/01/terrain/terrain_water_01..04` are `collision_enabled false` (only `_02` has a mesh,
+  deep_water, and nothing places it: the day_tdm project has no collision object of them).
+- The ray meets the pond's **bed**: the `collision` of `terrain_game_center_1..4`, whose shading
+  group `dirt_01_s` is game material `deep_water` (32). On a 0.5 m grid over the pond, where the
+  water is 0.3 m deep or more the ray's first hit is deep_water at nearly every point; in the band
+  less than 0.2 m deep it is the bank's ground (9). So 0.69d wades by the bed's material, not by
+  the water.
+- Our port (`v069d_level_01`, maps 204, 216-218) has those meshes byte for byte (collision
+  vertices, indices, face_data and the settings' deep_water), placed 8/16: **by the data it wades
+  already** (5,681 of 7,042 wet grid points meet deep_water, 1,174 the bank's ground). Not heard in a
+  game.
+- 0.26g's own Rudnya (`level_01`, its Team Deathmatch, the other modes and Free for All in every
+  weather) draws the same pond (`level/01/terrain_water_01`, no collision, its settings' material
+  "not assigned"); its bed is **mud** (23): the step is mud's. That is the Rudnya without wading.
+
+### The rule
+
+A step whose foot is under drawn water wades, on every map, from the map's own data:
+
+- **The water** (`scripts/water-steps/make_pack.py`, the pack `water-steps@1`, the edit list
+  `water-steps-1.json`): every project that draws a surface of a water material
+  (`material_instances/water/*`, `ported/<build>/water/*`, its model's LOD0 surfaces) gets one
+  model, `models/srp/water/<level>.model`: the triangles that water draws, placed as the project
+  draws them (scale, then position), those within 60 degrees of level, each once; a `collision`
+  mesh alone of game material deep_water, placed at the origin as a collision object of **cgroup
+  and cmask 1000h**. 123 projects of 12 levels; a level's projects share one model.
+- **Nothing else meets it.** No object of the live data or the code has bit 1000h in its group or
+  mask (ragdoll.md section 19's table, stalker-maps.md's list of every ray): bullets, blasts,
+  cameras, grenades, batteries, walkers and their foot placing, the use ray, traps, dead bodies
+  and a spot's ray (cgroup & 80Ah) pass as before, and the physics world's box (groups & 0Ah,
+  `bullet_physics_world::add` 0x758B0, `bullet_bounds.md`) is the same. The water does not stop a
+  shot at legs under the surface. vostok::step's test lists the filters.
+- **The look** (`Look::Water`, `vostok/step.rs`): every step's first, after the game's ray, with
+  the same `ray_test`, origin and reach (1 m over the foot to 1 m under it), group and mask 1000h.
+- **The decision** (`step_ground.rs`): water at least 0.2 m (`WADE`) over what `on_step`'s ray met
+  (over the foot, when it met nothing) is the step's ground: deep_water, its pair's sound and
+  particles at the water's surface over the foot. Less (a film over the ground, a pond's edge,
+  where 0.69d's own bed is ground too), water under a plank, and a stock water plane `on_step`
+  meets itself (Chemical Plant, Fort: its own `water` splash) are the game's step, as before.
+  Water deeper than 1 m over the foot is not met (the ray starts under it): the bed's step.
+- The crouch clips of 0.69d (`deep_water_crouch*`) are not ported: patch 27's crouch pairs for
+  deep_water play its walk clips.
+
+What it changes, on a 0.5 m grid over each map's water (its day_4 project; a standing place is the
+highest walker floor from 1 m under the water to its surface, the foot 0.1 m over it; the m² that
+wade and what the game's step played there):
+
+| map | water drawn | wades | was |
+|---|---:|---:|---|
+| Rudnya (`level_01`) | 2,293 | 1,573 | mud 1,390, ground 171, metal and other props 11 |
+| Rudnya v0.69 (`v069d_level_01`) | 2,293 | 1,570 | deep_water 1,387 (already wading), ground 171, metal and other props 11 |
+| Chemical Plant (`level_04`) | 1,264 | 329 | gravel 309, concrete 12, metal 8 |
+| Mamayev Kurgan v0.21 (`v021d_level_06`) | 648 | 12 | gravel 11 |
+| Radar (`level_03`, v0.11, v0.21), Fort (`level_05`), Mamayev Kurgan (`level_06`), Vector (`level_07`), Cologne (`level_08`), Chemical Plant v0.11 | 330, 330, 330, 588, 560, 80, 116,671, 2,042 | 0 | |
+
+Where nothing changes the drawn water is the game's ground already (the Fort's and Chemical
+Plant's stock planes, `water`), less than 0.2 m over it, or under it (Cologne's swamp plane,
+116,671 m² at y 14.74, lies under the ground but where it shows); the "water drawn" not counted
+in either has no floor within 1 m under it (deep or out of reach). Vector's cellar water
+(`base_v_cellar_perehod`, 79 m²) is within 0.2 m of its floor or under it.
+
+**Not simulation (PROVEN in the code and the data).** The models are collision only the step's
+water look meets (above); the look is a query of the physics world, its result ours. The step's
+ground is presentation (the section on patch 153 above). No `simulation_changes.tsv` row.
+
+`check_step_ground_026g.py` runs `on_step` whole in both exes: the original's ray passes through
+the water (1000h); the patched exe's water look comes after the game's ray on every step, and 0.75
+m of water over the bed wades (deep_water at the surface, first and third person), 0.125 m over
+the ground or water under a plank is the game's step, no water is the game's step after one more
+ray.
+
+### In-game check (not done)
+
+Not heard. With `SKHID_STEP_LOG=on`: walking, sprinting and crouching through native Rudnya's pond
+(lines `ground 32 (wading): plays`), its edge (`ground 23 (game)`), the port's pond (`game` or
+`wading`, deep_water both), the Chemical Plant's shallow pools. And whether the wading sound is
+what the owner heard in 0.69d.

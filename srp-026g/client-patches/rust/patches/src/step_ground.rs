@@ -17,6 +17,14 @@
 //! foot at all: the body is in the air, silent as before. A step the game's
 //! ray found is the game's, byte for byte.
 //!
+//! A step in water wades (the owner, 2026-11-16, of the pond in the middle of
+//! Rudnya: "I want them there"): the map's drawn water surfaces are collision
+//! of their own (content pack water-steps, a bit no other filter of the game
+//! has), and a look at them comes first. Water at least WADE deep over the
+//! ground under the foot is the step's ground: its faces' deep_water, at the
+//! surface over the foot. 0.69d's Rudnya wades because its pond's bed is
+//! deep_water; 0.26g's own Rudnya has mud there.
+//!
 //! With SKHID_STEP_LOG=on (read once, at the first step) each step writes a
 //! line to the run's log: whose, its caller's movement id, the foot, what
 //! each ray met, the ground and what its pair plays.
@@ -35,11 +43,19 @@ use crate::vostok::{Context, Flow, GameCell, StepGroundOnGroundExit, Thread};
 /// material, or the ground's).
 const BELOW: f32 = 4.0;
 
+/// How deep water over the ground under the foot makes a step wade, metres:
+/// a film over the ground (a puddle's, the shallow edge of a pond) is the
+/// ground's step. The pond of 0.69d's Rudnya is deep_water at its bed where it
+/// is 0.3 m deep or more, its ground in the band less deep than 0.2 m.
+const WADE: f32 = 0.2;
+
 /// The ground a step goes on with, and how it was found.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Ground {
     /// A patch's own step ([`crate::vostok::step::play`]): its ground.
     Armed(Placed),
+    /// Water at least [`WADE`] deep over the ground under the foot: its face.
+    Wading(Hit),
     /// on_step's own ray met it: the game's path.
     Game,
     /// on_step's ray met nothing; the walker collision under the foot, its
@@ -54,13 +70,20 @@ enum Ground {
     Air,
 }
 
-/// The ground of a step: `armed` a patch's own, `met` whether on_step's ray
-/// met anything, `look` our looks after a miss (each taken only when needed).
-fn ground(armed: Option<Placed>, met: bool, mut look: impl FnMut(Look) -> Option<Hit>) -> Ground {
+/// The ground of a step: `armed` a patch's own, `game` how far under the
+/// foot on_step's ray met something (None: nothing), `look` our looks (each
+/// taken only when needed).
+fn ground(armed: Option<Placed>, game: Option<f32>, mut look: impl FnMut(Look) -> Option<Hit>) -> Ground {
     if let Some(placed) = armed {
         return Ground::Armed(placed);
     }
-    if met {
+    if let Some(water) = look(Look::Water) {
+        // what the foot stands on: what on_step's ray met, else the foot's own height
+        if game.unwrap_or(0.0) - water.depth >= WADE {
+            return Ground::Wading(water);
+        }
+    }
+    if game.is_some() {
         return Ground::Game;
     }
     let Some(walker) = look(Look::Walker) else {
@@ -80,6 +103,10 @@ fn next(ground: Ground, foot: [f32; 3]) -> Next {
     match ground {
         Ground::Game | Ground::Air => Next::Game,
         Ground::Armed(placed) => Next::Ground(placed),
+        Ground::Wading(water) => {
+            let [x, y, z] = foot;
+            Next::Ground(Placed { material: water.material, at: [x, y - water.depth, z], normal: water.normal })
+        }
         Ground::Walker(hit) | Ground::Unnamed(hit) | Ground::Below { below: hit, .. } => {
             Next::Ground(Placed { material: hit.material, at: foot, normal: hit.normal })
         }
@@ -127,9 +154,16 @@ pub fn on_ground(ctx: &mut Context<'_>) -> Flow<StepGroundOnGroundExit> {
         return Flow::Continue;
     };
     let thread = ctx.thread();
-    let ground = ground(step.armed(thread), step.met(), |look| step.look(thread, look));
+    let mut water = None;
+    let ground = ground(step.armed(thread), step.game_depth(), |look| {
+        let hit = step.look(thread, look);
+        if look == Look::Water {
+            water = Some(hit);
+        }
+        hit
+    });
     if log_on(thread) {
-        log(thread, &step, ground);
+        log(thread, &step, ground, water);
     }
     let next = next(ground, step.foot());
     step.go_on(ctx, next)
@@ -159,8 +193,9 @@ fn ray<'a, 'o>(name: &'a str, hit: Option<Hit>, out: &'o mut [Piece<'a>; 8]) -> 
 }
 
 /// One line: `step: <whose> <caller> <view>, foot <material> at x y z cm;
-/// game ...; walker ...; below ...; ground <material> (<how>): <pair>`.
-fn log(thread: &Thread, step: &OnStep, ground: Ground) {
+/// game ...; water ...; walker ...; below ...; ground <material> (<how>):
+/// <pair>`. `water` the water look's (None: not taken).
+fn log(thread: &Thread, step: &OnStep, ground: Ground, water: Option<Option<Hit>>) {
     let (whose, caller, movement) = match step.caller(thread) {
         Caller::Foot { own, movement: Some(id) } => (Some(own), "foot, movement ", Some(id)),
         Caller::Foot { own, movement: None } => (Some(own), "foot, no logic state", None),
@@ -187,19 +222,24 @@ fn log(thread: &Thread, step: &OnStep, ground: Ground) {
         Dec(u32::from(step.foot_material().id())),
         Text(" at "), xs, xv, Text(" "), ys, yv, Text(" "), zs, zv, Text(" cm"),
     ];
-    // each ray: on_step's, then the looks the ground needed (none for a hit or an armed one)
+    // each ray: on_step's, then the looks the ground needed after the water's (none for a hit or an armed one)
     let (game_ray, walker_ray, below_ray) = match ground {
         Ground::Armed(_) => (None, None, None),
+        Ground::Wading(_) => (Some(step.game_hit(thread)), None, None),
         Ground::Game => (Some(step.game_hit(thread)), None, None),
         Ground::Air => (Some(None), Some(None), None),
         Ground::Walker(walker) => (Some(None), Some(Some(walker)), None),
         Ground::Below { walker, below } => (Some(None), Some(Some(walker)), Some(Some(below))),
         Ground::Unnamed(walker) => (Some(None), Some(Some(walker)), Some(None)),
     };
-    let (mut game, mut walker, mut below) = ([Text(""); 8], [Text(""); 8], [Text(""); 8]);
+    let (mut game, mut walker, mut below, mut wet) = ([Text(""); 8], [Text(""); 8], [Text(""); 8], [Text(""); 8]);
     let game: &[Piece] = match game_ray {
         Some(hit) => ray("game", hit, &mut game),
         None => &[Text("; armed")],
+    };
+    let water: &[Piece] = match water {
+        Some(hit) => ray("water", hit, &mut wet),
+        None => &[],
     };
     let walker: &[Piece] = match walker_ray {
         Some(hit) => ray("walker", hit, &mut walker),
@@ -211,6 +251,7 @@ fn log(thread: &Thread, step: &OnStep, ground: Ground) {
     };
     let (material, how) = match ground {
         Ground::Armed(placed) => (Some(placed.material), "armed"),
+        Ground::Wading(hit) => (Some(hit.material), "wading"),
         Ground::Game => (step.game_hit(thread).map(|hit| hit.material), "game"),
         Ground::Walker(hit) => (Some(hit.material), "walker"),
         Ground::Below { below, .. } => (Some(below.material), "below"),
@@ -232,7 +273,7 @@ fn log(thread: &Thread, step: &OnStep, ground: Ground) {
         ],
         None => [Text("; nothing under the foot: silent"), Text(""), Text(""), Text(""), Text(""), Text("")],
     };
-    parts(&[&head, movement.as_slice(), &foot, game, walker, below, &tail]);
+    parts(&[&head, movement.as_slice(), &foot, game, water, walker, below, &tail]);
 }
 
 #[cfg(test)]
@@ -246,10 +287,13 @@ mod tests {
         Hit { material: GroundMaterial::of(material), depth, normal: [0.0, 1.0, 0.0] }
     }
 
-    /// The looks a step takes, in order, each answered from `answers`.
+    /// The looks a step takes, in order, each answered from `answers`; no
+    /// water.
     fn decide(armed: Option<Placed>, met: bool, walker: Option<Hit>, below: Option<Hit>) -> (Ground, [bool; 2]) {
         let mut asked = [false; 2];
-        let ground = ground(armed, met, |look| match look {
+        let game = met.then_some(0.1);
+        let ground = ground(armed, game, |look| match look {
+            Look::Water => None,
             Look::Walker => {
                 asked[0] = true;
                 walker
@@ -315,6 +359,50 @@ mod tests {
             assert_eq!(asked, [false, false]);
             assert_eq!(next(ground, FOOT), Next::Ground(placed));
         }
+    }
+
+    /// A step whose water look meets `water`, on_step's ray `game` metres
+    /// under the foot (None: nothing); the walker look meets a metal floor.
+    fn wade(water: Option<Hit>, game: Option<f32>) -> Ground {
+        ground(None, game, |look| match look {
+            Look::Water => water,
+            Look::Walker => Some(hit(18, 0.1)),
+            Look::Below { .. } => None,
+        })
+    }
+
+    #[test]
+    fn water_over_the_ground_wades_at_its_surface() {
+        // the pond's bed 0.1 m under the foot, the water 0.4 m over it
+        let water = hit(32, -0.4);
+        let ground = wade(Some(water), Some(0.1));
+        assert_eq!(ground, Ground::Wading(water));
+        assert_eq!(next(ground, FOOT), Next::Ground(Placed { material: GroundMaterial::of(32), at: [1.0, 2.4, 3.0],
+                                                            normal: [0.0, 1.0, 0.0] }),
+                   "the surface over the foot");
+        // over a walker-only bed the ray missed: the foot's height is the ground
+        assert_eq!(wade(Some(water), None), Ground::Wading(water));
+    }
+
+    #[test]
+    fn a_film_of_water_or_water_under_the_ground_is_the_grounds() {
+        // 0.15 m of water over the ground: its step
+        assert_eq!(wade(Some(hit(32, -0.05)), Some(0.1)), Ground::Game);
+        // a plank over the pond: the water 0.5 m under the foot
+        assert_eq!(wade(Some(hit(32, 0.5)), Some(0.0)), Ground::Game);
+        // a stock water plane the game's ray meets itself
+        assert_eq!(wade(Some(hit(32, 0.0)), Some(0.0)), Ground::Game);
+        // no water: as without it, the walker look after a miss
+        assert_eq!(wade(None, Some(0.1)), Ground::Game);
+        assert_eq!(wade(None, None), Ground::Walker(hit(18, 0.1)));
+        assert_eq!(wade(Some(hit(32, 0.3)), None), Ground::Walker(hit(18, 0.1)));
+    }
+
+    #[test]
+    fn an_armed_ground_takes_no_water_look() {
+        let placed = Placed { material: GroundMaterial::of(17), at: [5.0, 6.0, 7.0], normal: [0.0, 0.0, 1.0] };
+        let ground = ground(Some(placed), Some(0.1), |look| panic!("{look:?} taken"));
+        assert_eq!(ground, Ground::Armed(placed));
     }
 
     #[test]

@@ -32,6 +32,11 @@ const GAME_MASK: u32 = 0x08;
 /// objects'): the batteries (A18h/418h) on_step's own filter meets already.
 const WALKER_GROUP: u32 = GAME_GROUP | 0x04;
 const WALKER_MASK: u32 = GAME_MASK | 0x02;
+/// The drawn water surfaces (content pack water-steps, cgroup and cmask
+/// 1000h): no other object, body or ray of the game has the bit either way
+/// (the game's filters, ragdoll.md section 19's table), so this look alone
+/// meets them.
+const WATER_BIT: u32 = 0x1000;
 /// ray_test's last argument as on_step passes it (0x248AED).
 const UNFLIPPED: u32 = 1;
 /// The ray's origin above the foot (0xA70884) and its length (0x9CC87C).
@@ -96,10 +101,13 @@ pub struct Hit {
     pub normal: [f32; 3],
 }
 
-/// A look of our own after on_step's ray met nothing, from its origin (1 m
-/// above the foot) straight down.
+/// A look of our own, from on_step's ray's origin (1 m above the foot)
+/// straight down.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Look {
+    /// The drawn water surfaces alone ([`WATER_BIT`]), as far as on_step's
+    /// ray reaches: water over the foot within 1 m.
+    Water,
     /// The walker collision too, as far as on_step's ray reaches (1 m under
     /// the foot): what the body stands on, the controller's ground.
     Walker,
@@ -188,10 +196,15 @@ impl OnStep {
         }
     }
 
-    /// on_step's own ray met something.
-    pub fn met(&self) -> bool {
+    /// How far under the foot on_step's own ray met something (negative:
+    /// above it); None when it met nothing. Its material is not read.
+    pub fn game_depth(&self) -> Option<f32> {
         // SAFETY: on_step's result, ray_test wrote it.
-        unsafe { self.frame.result().object().is_some() }
+        unsafe {
+            let result = self.frame.result();
+            result.object()?;
+            Some(read(result.fraction()) * GAME_LENGTH - ABOVE)
+        }
     }
 
     /// What on_step's own ray met (the material as on_step reads it next).
@@ -204,6 +217,7 @@ impl OnStep {
     /// stays as the game's ray left it.
     pub fn look(&self, thread: &Thread, look: Look) -> Option<Hit> {
         let (group, mask, length) = match look {
+            Look::Water => (WATER_BIT, WATER_BIT, GAME_LENGTH),
             Look::Walker => (WALKER_GROUP, WALKER_MASK, GAME_LENGTH),
             Look::Below { reach } => (GAME_GROUP, GAME_MASK, ABOVE + reach),
         };
@@ -388,6 +402,30 @@ mod tests {
         // players' controllers, hit models, grenades, the lobby's, the client objects'
         for object in [(0x824, 3), (0x40, 0x11), (0x818, 8), (0x800, 0x800), (0x20, 0x20), (0x80, 0x100), (1, 0x20)] {
             assert!(!meets(walker, object), "{object:x?}");
+        }
+    }
+
+    #[test]
+    fn the_water_look_meets_the_water_alone_and_nothing_else_meets_it() {
+        let meets = |(group, mask): (u32, u32), (cgroup, cmask): (u32, u32)| cgroup & mask != 0 && cmask & group != 0;
+        let water = (WATER_BIT, WATER_BIT);
+        assert!(meets(water, water));
+        // every object of the live data and of the code: project objects,
+        // bushes, traps, client objects, players, hit models, grenades,
+        // batteries, the lobby's
+        let objects = [(2, 4), (8, 16), (10, 20), (8, 0x20), (0x808, 0x10), (0x201, 0x420), (1, 0x20), (0x80, 0x100),
+                       (0x880, 0x100), (0x824, 3), (0x40, 0x11), (0x818, 8), (0xA18, 0x418), (0x800, 0x800), (0x20, 0x20)];
+        for object in objects {
+            assert!(!meets(water, object), "{object:x?}");
+        }
+        // every ray and body filter: on_step's, ours, bullets, blasts and
+        // cameras, grenades, batteries, walkers, the use ray, traps, a spot,
+        // the ragdoll level ray, and the bodies above
+        let filters = [(GAME_GROUP, GAME_MASK), (WALKER_GROUP, WALKER_MASK), (0x10, 0x48), (0x10, 8), (0x818, 8),
+                       (0xA18, 0x418), (0x824, 3), (0x24, 2), (0x114, 0x8A), (0x404, 0x202), (0x414, 0x20A),
+                       (0xFFFF, 0x80A), (0x40, 0x11), (0x800, 0x800), (0x20, 0x20)];
+        for filter in filters {
+            assert!(!meets(filter, water), "{filter:x?}");
         }
     }
 }

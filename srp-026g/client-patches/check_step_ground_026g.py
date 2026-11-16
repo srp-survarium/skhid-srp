@@ -25,7 +25,13 @@ surfaces each with its height, collision group and mask, and material:
    own (which material_pair steps as default); third person: no hud flag;
 3. nothing under the foot: silent in both, the patched exe's one look the
    walker one;
-4. SKHID_STEP_LOG unset: GetEnvironmentVariableA once, at the first step,
+4. water over the ground (the water-steps pack's surfaces, cgroup and
+   cmask 1000h): every step's first look (group and mask 1000h, 2 m); 0.75 m
+   of water over the bed wades, the pair of the foot and deep_water at the
+   surface over the foot; 0.125 m over the ground, or water 0.5 m under a
+   plank, is the game's step; no water: the look misses and the step goes
+   on as before;
+5. SKHID_STEP_LOG unset: GetEnvironmentVariableA once, at the first step,
    and no file is opened or written; set to `on`, each step writes its line
    (whose, movement id, view, foot material and place, each ray, the
    ground, what its pair plays).
@@ -55,8 +61,8 @@ STACK = 0x21000000
 KEPT = {UC_X86_REG_EBX: 0x0B0B0B0B, UC_X86_REG_EDI: 0x0E0E0E0E, UC_X86_REG_EBP: 0x0019FF00}
 
 ACTOR, ACTOR_LOCAL = 10, 42
-DEFAULT, GROUND, METALL_THICK, CONCRETE, FOLIAGE_DRY, UNNAMED = 11, 9, 18, 19, 49, 0x3FFF
-HITTABLE, WALKER = (8, 16), (2, 4)
+DEFAULT, GROUND, METALL_THICK, CONCRETE, FOLIAGE_DRY, DEEP_WATER, UNNAMED = 11, 9, 18, 19, 49, 32, 0x3FFF
+HITTABLE, WALKER, WATER = (8, 16), (2, 4), (0x1000, 0x1000)
 FOOT = (10.0, 5.5, -3.0)
 
 
@@ -123,7 +129,8 @@ class Step:
         for i, (foot, ground, sound) in enumerate([(ACTOR_LOCAL, GROUND, 1), (ACTOR_LOCAL, DEFAULT, 2),
                                                    (ACTOR_LOCAL, METALL_THICK, 3), (ACTOR_LOCAL, CONCRETE, 4),
                                                    (ACTOR_LOCAL, FOLIAGE_DRY, 0), (ACTOR, METALL_THICK, 5),
-                                                   (ACTOR, DEFAULT, 6)]):
+                                                   (ACTOR, DEFAULT, 6), (ACTOR_LOCAL, DEEP_WATER, 7),
+                                                   (ACTOR, DEEP_WATER, 8)]):
             pair = PAIRS + 0x100 * i
             self.pairs[(foot, ground)] = pair
             if sound:
@@ -149,7 +156,7 @@ class Step:
             assert emu.reg_read(UC_X86_REG_ECX) == MATERIALS, "material_pair's manager"
             self.calls.append(("pair", foot, ground))
             # an id of no material steps as default; a foot of no pair, none
-            known = ground in (GROUND, DEFAULT, METALL_THICK, CONCRETE, FOLIAGE_DRY)
+            known = ground in (GROUND, DEFAULT, METALL_THICK, CONCRETE, FOLIAGE_DRY, DEEP_WATER)
             self.ret(0, self.pairs.get((foot, ground if known else DEFAULT), 0))
         elif address == EMITTER:
             self.ret(0, 0x7777)
@@ -254,6 +261,7 @@ def game_ray(length=2.0, group=0x30, mask=8):
 
 
 WALKER_RAY = game_ray(2.0, 0x34, 0x0A)
+WATER_RAY = game_ray(2.0, 0x1000, 0x1000)
 BELOW_RAY = game_ray(5.0)
 AT_FOOT = FOOT
 
@@ -274,6 +282,9 @@ def main():
     walker_alone = [(5.25, WALKER, UNNAMED), (-1.0, HITTABLE, GROUND)]
     air = [(3.0, HITTABLE, GROUND), (2.0, WALKER, METALL_THICK)]
     dry = [(5.25, HITTABLE, FOLIAGE_DRY)]
+    pond = [(6.0, WATER, DEEP_WATER), (5.25, HITTABLE, GROUND)]
+    film = [(5.625, WATER, DEEP_WATER), (5.5, HITTABLE, GROUND)]
+    plank = [(4.75, WATER, DEEP_WATER), (5.25, HITTABLE, CONCRETE)]
 
     print("the original exe (step_manager::on_step 0x248AD0)")
     game = Step(original)
@@ -286,33 +297,57 @@ def main():
     third_calls = game.run(concrete, foot=ACTOR, view=1)
     for surfaces in (walker_metal, walker_bare, walker_alone, air):
         assert game.run(surfaces) == [game_ray()], surfaces
+    pond_calls = game.run(pond)
+    assert pond_calls == [game_ray(), material(1), ("materials", WORLD), ("pair", ACTOR_LOCAL, GROUND)] + \
+        sound(1, (FOOT[0], 5.25, FOOT[2])), pond_calls
     print("  ok its ray meets the ground: the pair's sound at the hit; a pair without a sound: silent;")
-    print("     a walker-only floor, an unnamed one, nothing under the foot: one ray, silent")
+    print("     a walker-only floor, an unnamed one, nothing under the foot: one ray, silent;")
+    print("     in the pond its ray meets the bed (the water's collision is for the water look alone)")
 
     print("the patched exe, SKHID_STEP_LOG unset")
     ours = Step(bytes(built))
-    assert ours.run(concrete) == hit_calls, "a ray that met the ground: the game's own calls"
+    def looked(calls):
+        """The original's calls with the water look, which met nothing, after its ray."""
+        return calls[:1] + [WATER_RAY] + calls[1:]
+
+    assert ours.run(concrete) == looked(hit_calls), "a ray that met the ground: the game's own calls"
     assert ours.environment == 1, "the switch read at the first step"
-    assert ours.run(dry) == dry_calls and ours.run(concrete, foot=ACTOR, view=1) == third_calls
-    print("  ok its ray meets the ground: every call the original's, the hud flag by the view; a silent pair silent")
+    assert ours.run(dry) == looked(dry_calls) and ours.run(concrete, foot=ACTOR, view=1) == looked(third_calls)
+    print("  ok its ray meets the ground: the water look (1000h/1000h, 2 m) meets nothing, then every call the")
+    print("     original's, the hud flag by the view; a silent pair silent")
+    calls = ours.run(pond)
+    assert calls == [game_ray(), WATER_RAY, material(0), ("materials", WORLD), ("pair", ACTOR_LOCAL, DEEP_WATER)] + \
+        sound(7, (FOOT[0], 6.0, FOOT[2])), calls
+    calls = ours.run(pond, foot=ACTOR, view=1)
+    assert calls == [game_ray(), WATER_RAY, material(0), ("materials", WORLD), ("pair", ACTOR, DEEP_WATER)] + \
+        sound(8, (FOOT[0], 6.0, FOOT[2]), view=1), calls
+    print("  ok 0.75 m of water over the bed: deep_water at the surface over the foot, first and third person")
+    calls = ours.run(film)
+    assert calls == [game_ray(), WATER_RAY, material(0), material(1), ("materials", WORLD),
+                     ("pair", ACTOR_LOCAL, GROUND)] + sound(1, (FOOT[0], 5.5, FOOT[2])), calls
+    calls = ours.run(plank)
+    assert calls == [game_ray(), WATER_RAY, material(0), material(1), ("materials", WORLD),
+                     ("pair", ACTOR_LOCAL, CONCRETE)] + sound(4, (FOOT[0], 5.25, FOOT[2])), calls
+    print("  ok 0.125 m of water over the ground, water 0.5 m under a plank: the game's step")
     calls = ours.run(walker_metal)
-    assert calls == [game_ray(), WALKER_RAY, material(0), ("materials", WORLD), ("pair", ACTOR_LOCAL, METALL_THICK)] + \
+    assert calls == [game_ray(), WATER_RAY, WALKER_RAY, material(0), ("materials", WORLD),
+                     ("pair", ACTOR_LOCAL, METALL_THICK)] + \
         sound(3, AT_FOOT), calls
     print("  ok a walker-only floor of metall_thick: the walker look (34h/0Ah, 2 m), its face's metal at the foot")
     calls = ours.run(walker_metal, foot=ACTOR, view=1)
-    assert calls == [game_ray(), WALKER_RAY, material(0), ("materials", WORLD), ("pair", ACTOR, METALL_THICK)] + \
+    assert calls == [game_ray(), WATER_RAY, WALKER_RAY, material(0), ("materials", WORLD), ("pair", ACTOR, METALL_THICK)] + \
         sound(5, AT_FOOT, view=1), calls
     print("  ok the same in third person: a point sound at the foot")
     calls = ours.run(walker_bare)
-    assert calls == [game_ray(), WALKER_RAY, material(0), BELOW_RAY, material(1), ("materials", WORLD),
+    assert calls == [game_ray(), WATER_RAY, WALKER_RAY, material(0), BELOW_RAY, material(1), ("materials", WORLD),
                      ("pair", ACTOR_LOCAL, METALL_THICK)] + sound(3, AT_FOOT), calls
     print("  ok a walker face without a material: the hittable floor 1.25 m under it (30h/8, 5 m), at the foot")
     calls = ours.run(walker_alone)
-    assert calls == [game_ray(), WALKER_RAY, material(0), BELOW_RAY, ("materials", WORLD),
+    assert calls == [game_ray(), WATER_RAY, WALKER_RAY, material(0), BELOW_RAY, ("materials", WORLD),
                      ("pair", ACTOR_LOCAL, UNNAMED)] + sound(2, AT_FOOT), calls
     print("  ok nothing under it in 4 m: its own (3FFFh), which material_pair steps as default")
-    assert ours.run(air) == [game_ray(), WALKER_RAY], "nothing under the foot: one look, silent"
-    print("  ok nothing under the foot within 1 m: the walker look alone, silent")
+    assert ours.run(air) == [game_ray(), WATER_RAY, WALKER_RAY], "nothing under the foot: the looks, silent"
+    print("  ok nothing under the foot within 1 m: the water and walker looks, silent")
     assert ours.environment == 1 and not ours.lines, "the log: off, nothing written"
     print("  ok the switch read once; no file opened or written")
 
@@ -320,15 +355,18 @@ def main():
     logged = Step(bytes(built), log=b"on")
     head = "srp: step: own foot, movement 2, first person, foot 42 at 1000 550 -300 cm; "
     for surfaces, foot, view, want in [
-            (concrete, ACTOR_LOCAL, 0, "game met 19 at 25 cm; ground 19 (game): plays"),
-            (dry, ACTOR_LOCAL, 0, "game met 49 at 25 cm; ground 49 (game): silent, the pair has no sound"),
-            (walker_metal, ACTOR_LOCAL, 0, "game missed; walker met 18 at 25 cm; ground 18 (walker): plays"),
-            (walker_bare, ACTOR_LOCAL, 0,
-             "game missed; walker met 16383 at 25 cm; below met 18 at 150 cm; ground 18 (below): plays"),
-            (walker_alone, ACTOR_LOCAL, 0,
-             "game missed; walker met 16383 at 25 cm; below missed; ground 16383 (walker, no material): plays"),
-            (air, ACTOR_LOCAL, 0, "game missed; walker missed; nothing under the foot: silent"),
-            (walker_metal, ACTOR, 1, "game missed; walker met 18 at 25 cm; ground 18 (walker): plays")]:
+            (concrete, ACTOR_LOCAL, 0, "game met 19 at 25 cm; water missed; ground 19 (game): plays"),
+            (dry, ACTOR_LOCAL, 0, "game met 49 at 25 cm; water missed; ground 49 (game): silent, the pair has no sound"),
+            (walker_metal, ACTOR_LOCAL, 0,
+             "game missed; water missed; walker met 18 at 25 cm; ground 18 (walker): plays"),
+            (walker_bare, ACTOR_LOCAL, 0, "game missed; water missed; walker met 16383 at 25 cm; below met 18 at "
+             "150 cm; ground 18 (below): plays"),
+            (walker_alone, ACTOR_LOCAL, 0, "game missed; water missed; walker met 16383 at 25 cm; below missed; "
+             "ground 16383 (walker, no material): plays"),
+            (air, ACTOR_LOCAL, 0, "game missed; water missed; walker missed; nothing under the foot: silent"),
+            (walker_metal, ACTOR, 1, "game missed; water missed; walker met 18 at 25 cm; ground 18 (walker): plays"),
+            (pond, ACTOR_LOCAL, 0, "game met 9 at 25 cm; water met 32 at -50 cm; ground 32 (wading): plays"),
+            (film, ACTOR_LOCAL, 0, "game met 9 at 0 cm; water met 32 at -12 cm; ground 9 (game): plays")]:
         logged.lines = []
         logged.run(surfaces, foot=foot, view=view)
         line = head.replace("first person, foot 42", "third person, foot 10") if view else head
