@@ -136,6 +136,11 @@ Edits (edits.json):
                     the source's zero-time pose. The clamped cubic eases in/out with zero endpoint
                     velocity; no events, no edits to stock clips. Not shipped: the carry's pose
                     source (scripts/artefact-carry/pose.json) runs it to compile its curves.
+  "remove_faces":   [{"files": ["<mesh>/vertices", "<mesh>/indices", "<mesh>/face_data"], "faces"}]
+                    a collision mesh (a model's collision or walker_collision) without the triangles
+                    whose corners are `faces` (each three points of the vertices file, in model space,
+                    within 0.0005 and in the file's order): indices and face_data lose them, the
+                    vertices stay; a face not exactly one triangle is refused
   "files_from_repo": [{"source", "output", "sha256"}]
                     a new animations/ resource from a file of this repo (`source`, relative to
                     the edit list), its bytes pinned by `sha256`; a `.b-spline` must parse as a
@@ -2293,6 +2298,44 @@ def vegetation_chunks(data):
     return chunks
 
 
+def mesh_chunks(data):
+    """{id: body} of a collision mesh file's sequential chunks (u32 id, u32 size)."""
+    chunks, at = {}, 0
+    while at < len(data):
+        if at + 8 > len(data):
+            raise ValueError('mesh: truncated chunk header')
+        kind, size = struct.unpack_from('<II', data, at)
+        if kind in chunks or at + 8 + size > len(data):
+            raise ValueError('mesh: duplicate or truncated chunk %#x' % kind)
+        chunks[kind] = data[at + 8:at + 8 + size]
+        at += 8 + size
+    return chunks
+
+
+def remove_faces(vertices, indices, face_data, faces):
+    """(indices, face_data) of a collision mesh (chunks 0x19 vertices, 0x1a indices, 0x1b face names,
+    0x1c a u16 per triangle) without the triangles whose corners are `faces`."""
+    v, i, f = mesh_chunks(vertices), mesh_chunks(indices), mesh_chunks(face_data)
+    if set(v) != {0x19} or set(i) != {0x1a} or set(f) != {0x1b, 0x1c}:
+        raise ValueError('mesh: unexpected chunks')
+    points = [p for p in struct.iter_unpack('<3f', v[0x19])]
+    tris = [t for t in struct.iter_unpack('<3I', i[0x1a])]
+    if len(f[0x1c]) != 2 * len(tris) or any(k >= len(points) for t in tris for k in t):
+        raise ValueError('mesh: %d triangles, %d face entries' % (len(tris), len(f[0x1c]) // 2))
+    near = lambda a, b: all(abs(x - y) <= 5e-4 for x, y in zip(a, b))
+    drop = set()
+    for face in faces:
+        hit = [n for n, t in enumerate(tris) if all(near(points[k], c) for k, c in zip(t, face))]
+        if len(hit) != 1:
+            raise ValueError('remove_faces: %d triangles at %r, not 1: the base is not the live data' % (len(hit), face))
+        drop |= set(hit)
+    keep = [n for n in range(len(tris)) if n not in drop]
+    body = b''.join(struct.pack('<3I', *tris[n]) for n in keep)
+    faces_body = b''.join(f[0x1c][2 * n:2 * n + 2] for n in keep)
+    return (struct.pack('<II', 0x1a, len(body)) + body,
+            struct.pack('<II', 0x1b, len(f[0x1b])) + f[0x1b] + struct.pack('<II', 0x1c, len(faces_body)) + faces_body)
+
+
 def runtime_vegetation(data):
     """Keep complete runtime chunks in original order, including their headers."""
     original = vegetation_chunks(data)
@@ -2699,6 +2742,15 @@ def main():
         source = open(files[e['file']], 'rb').read()
         require_headwear_bind(source, {b['file'] for b in edits.get('append_headwear_bind', [])})
         print('character bind reference verified: ' + e['file'])
+
+    for e in edits.get('remove_faces', []):
+        vertices, indices, face_data = e['files']
+        for p in (indices, face_data):
+            if p in bufs or p in clips:
+                sys.exit('remove_faces: %s already edited' % p)
+        read = lambda p: open(files[p], 'rb').read()
+        clips[indices], clips[face_data] = remove_faces(read(vertices), read(indices), read(face_data), e['faces'])
+        print('remove_faces %s: %d triangles out' % (indices.rpartition('/')[0], len(e['faces'])))
 
     # Binary render assets: each operation checks its format and unchanged bytes.
     if edits.get('append_headwear_bind') or edits.get('rigid_headwear'):
