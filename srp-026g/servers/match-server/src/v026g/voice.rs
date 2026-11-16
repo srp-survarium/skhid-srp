@@ -102,7 +102,7 @@ pub mod kind {
     pub const ROSTER: u8 = 0x90;
 }
 
-/// A datagram larger than this is dropped (16 kbit/s Opus: about 90 bytes).
+/// A datagram larger than this is dropped (24 kbit/s Opus: about 130 bytes).
 pub const MAX_DATAGRAM: usize = 400;
 /// A talker's datagrams in a second past this are dropped.
 pub const MAX_PER_SECOND: u32 = 60;
@@ -381,14 +381,14 @@ enum Datagram<'a> {
 /// (`client-voice/src/wire.rs` drops a datagram with more).
 pub const MAX_FRAMES: usize = 2;
 /// The longest frame: the games' encoder (`client-voice/src/codec.rs`) runs
-/// at 16 kbit/s, 40 bytes a 20 ms frame on average and 93 at most measured
+/// at 24 kbit/s, 60 bytes a 20 ms frame on average and 114 at most measured
 /// (full-scale square waves and noise, no automatic gain), and is given no
-/// more room than this (3 times its rate).
+/// more room than this (twice its rate).
 pub const MAX_FRAME_BYTES: usize = 120;
 /// The TOC bytes (RFC 6716 3.1) of the frames the games' encoder makes:
 /// SILK, 20 ms, mono, one frame (code 0), of narrow, medium or wide band
 /// (configurations 1, 5 and 9). It encodes 16 kHz (no wider band) speech
-/// (`OPUS_SIGNAL_VOICE`) at 16 kbit/s, where Opus stays in SILK; its own
+/// (`OPUS_SIGNAL_VOICE`) at 24 kbit/s, where Opus stays in SILK; its own
 /// frames are all 0x48, the others are margin.
 pub const FRAME_TOCS: [u8; 3] = [0x08, 0x28, 0x48];
 

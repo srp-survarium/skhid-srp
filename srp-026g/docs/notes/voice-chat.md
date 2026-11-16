@@ -670,10 +670,90 @@ and the listener's distance chose: plain under 10 m, the radio from it.
   The Controls list shows "Talk nearby" at its end, after "Hold artifact", not under "Talk on
   radio" (the rows the patches add come after the game's 40).
 
+## Steadier sound (the owner, 2026-11-16; built, not heard in a game)
+
+The owner, of the live game: "we need a way to stabilize the sound, some people sound good, some
+are barely recognizable". Nothing in the logs says which talker sounded how, so the DLL's chain was
+measured offline with a recorded voice (`private/local-clients-voice-test/talker.wav`) and what
+makes one talker worse than another was looked for. Four things were found and changed; the
+before and after of each can be heard in `private/renders/voice-steady/`.
+
+- **A quiet microphone stayed quiet** (what the owner had heard: of one player against another,
+  "it was fine close by", "at a distance with radio it was worse", "it wasn't as loud as when I
+  heard" the other). The automatic gain raised a microphone 30 dB at most (speexdsp's own
+  limit), so it held a voice at the common level only so far:
+
+  | the microphone, against a loud one | its voice after the gain, until now | now |
+  |---|---|---|
+  | the same to 30 dB quieter | the level (-24 dB of full scale) | the level |
+  | 40 dB quieter | 9 dB under it | 2 dB under |
+  | 50 dB quieter | 24 dB under | 12 dB under |
+
+  Such a talker is quieter than everyone beside the listener and poor through the radio, whose
+  static stays where it is (the words 23 dB over it at the level, 14 when 9 dB under). The gain
+  now goes to 45 dB (`AGC_MAX_GAIN`; past it speexdsp's own floor holds) and rises twice as
+  fast (`AGC_INCREMENT` 24 dB a second: a quiet microphone's first words of a match were 5 dB
+  under its level for seconds, now 2). "Microphone sensitivity" still moves a talker 6 dB
+  either way: two players at its ends are 12 dB apart by their own choice.
+- **The mix bent loud talkers.** A plain voice is played 3 times as decoded (`LOUDER` 1.5, `MIX`
+  2.0) and the sum went through a curve that bent every sample over half scale (tanh). The
+  automatic gain brings every microphone to one level at a given "Microphone sensitivity", but the
+  sensitivity moves that level 6 dB either way, so:
+
+  | the talker's sensitivity | samples bent | what the curve added, under the voice |
+  |---|---|---|
+  | default | 1.4 % | 30 dB |
+  | highest | 5.3 % | 18 dB |
+  | three talkers at once, highest | 15 % | 17 dB |
+
+  Whoever raised the sensitivity was crushed for everyone who heard them, and any two voices at
+  once more than one. Now there is a limiter that turns down (`receiver::Rider`): where a sample
+  would pass 0.9 of full scale the gain comes down at once, is held 20 ms and let back at 0.6
+  dB a frame. Each speaker's own part of the mix (its voice, its radio's static and squelch) has
+  one, and the whole mix one more (`receiver::Master`), which has work only when several talk at
+  once. So a loud speaker turns itself down and not the others (the review of 2026-11-16: with
+  the mix's one gain alone, a talker at the highest sensitivity took everyone else 3 dB down with
+  it on average, and a changed game's stream of clicks, under the ceiling a speaker's level is
+  held to, 10 dB). The same cases come out 38, 29 and 29 dB clean; the loudest talkers play 3 to 5 dB
+  quieter than the curve made them (turned down, not flattened), the default one 0.6 dB.
+- **The capture queue was 80 ms.** WinMM is given buffers of 20 ms to fill; with four of them a
+  microphone that hands its sound over in longer bursts (some Bluetooth and USB devices), or a
+  worker held up by a busy game, lost the rest of each burst: measured 2026-11-14 on such a source,
+  8.1 s of 10 came through ("Validation"). That talker reaches the others in pieces. The queue is
+  320 ms now (`CAPTURE_BUFFERS` 16), and the DLL's worker runs above the game's threads
+  (`THREAD_PRIORITY_HIGHEST`: a few ms of work each pass). A burst is then sent as it comes: up
+  to 8 AUDIO at once, within the relay's burst of 20 and the listeners' ring of 32 frames. What
+  it costs: sound that was lost is now late. The listeners' buffer never skips ahead, so after a
+  stall of the talker's worker the rest of that utterance is heard that much later (320 ms at
+  most; the next utterance starts afresh).
+- **A lost datagram was 40 ms of concealment.** The encoder now tells Opus to expect loss
+  (`EXPECTED_LOSS` 10 %), so a frame with a voice in it carries a coarser copy of the frame
+  before it (in-band FEC), and the rate went from 16 to 24 kbit/s to pay for it (measured on speech: 12.3 to 18.3
+  kbit/s). A frame that did not come is played from the next frame's copy when that came
+  (`Decoder::recover`). With two frames a datagram a lone lost datagram costs
+  one concealed frame instead of two; of the frames lost at random, 5 to 20 % of datagrams, about
+  four in ten are recovered. The copy in a datagram's second frame is of its own first and never
+  of use: half of what the copies cost (about 3 of the 6 kbit/s) buys nothing while two frames go
+  in a datagram. Frames stay SILK wide band (TOC 0x48) and within the 120 bytes the
+  relay takes (114 at most on full-scale noise): no change to the wire, the relay or the ABI, and a
+  game of before plays these frames as any other.
+- **Looked at and left.** Steady jitter up to 100 ms costs nothing (the buffer grows by the
+  underrun it takes); a 150 ms spike costs the two frames of its datagram. The playback queue
+  stays 80 ms (more is more delay for everyone). The radio does not crush a voice: at the
+  default sensitivity none of its samples reach the radio's clipper's bend, at the highest 2 %.
+- **Not known.** How a noisy or a narrow-band microphone (a Bluetooth headset in its call mode
+  gives 8 kHz) sounds through the noise suppression and the radio: that is the talker's device,
+  and nothing here measures it; a quiet microphone in a noisy room is raised with its room. And
+  whether the quiet player's microphone was quiet or its sensitivity low: the relay
+  could say per talker how much of an utterance came and how evenly (it sees every AUDIO's
+  number and each END's frame count); not built.
+
 ## Bandwidth
 
 - Talking: Opus 16 kbps, 2 frames of 20 ms per datagram (about 80 bytes of audio + 10 header +
-  28 IP/UDP), 25 datagrams/s, about **24 kbit/s up** for the talker.
+  28 IP/UDP), 25 datagrams/s, about **24 kbit/s up** for the talker. Since 2026-11-16 the encoder
+  runs at 24 kbps with each frame's copy of the frame before ("Steadier sound"): about 120 bytes
+  of audio a datagram, **32 kbit/s** up, and a third more of every figure below.
 - Each teammate gets **24 kbit/s per teammate talking**. srp sends the speaker's stream to each
   of up to 9 teammates (10v10): about 216 kbit/s per talker. Two talking at once in each team:
   under 1 Mbit/s for a match. Since 2026-11-15 (the whole match sent) each game gets every
@@ -905,7 +985,12 @@ As built:
   keys (2026-11-16) in place of the switch and of both heard: an utterance played by its own
   channel alone (the 10 m voice from its side, the radio centred; an opponent's radio and a far
   mate's 10 m voice silent, without static or squelch, and not in the talking word), an utterance
-  ended when the other key is held in its place.
+  ended when the other key is held in its place. Since "Steadier sound": a loud speaker turning
+  itself down and not another (sharp pulses beside a quiet tone), a mix past its ceiling
+  turned down and not bent (over any 2 ms the sum times one gain, to 30 dB), the gain back
+  within a second, a mix under the ceiling played as summed; a frame that did not come played
+  from the next one's copy (a voice's first frame after silence, which concealment cannot make),
+  and only concealed without the copy.
 - The match server's headless loopback test runs its actual UDP relay with two Rust client cores.
   Each sends a different synthetic tone through Opus, the wire, routing and jitter playback.
   The received audio's energy and frequency must match the other client. No microphone or fake
