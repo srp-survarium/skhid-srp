@@ -2890,7 +2890,7 @@ impl Bots {
     }
 
     /// A team's trap went off: counted, and whether the body it caught is of the team: the alive body nearest it within the
-    /// sensor's reach ([`traps::TRIGGER_M`], 0.6 m from a foot point, 565 of 566 live samples; `booby_trap_core::on_enter`
+    /// sensor's reach ([`traps::OWN_TRAP_CONTACT_M`], 0.67 m: the sensor's radius, the capsule's and the move margin; `booby_trap_core::on_enter`
     /// 0x304BD0 sets it off on the nearest body in the sensor, any team) as the world shows it. [#2081] Was any broken-legged body
     /// of the team within 8 m, which counted a mate hit in the legs near an enemy's catch.
     fn count_own_traps(&mut self, time: u32, went_off: &[(u8, Vec3)]) {
@@ -2908,7 +2908,7 @@ impl Bots {
             self.features.own_traps.fired += 1;
             let caught = self
                 .tracker
-                .nearest_body(at, traps::TRIGGER_M)
+                .nearest_body(at, traps::OWN_TRAP_CONTACT_M)
                 .and_then(|p| view.place(p))
                 .is_some_and(|p| p.team == team);
             self.features.own_traps.own_team_caught += u32::from(caught);
@@ -2922,7 +2922,7 @@ impl Bots {
                     .and_then(|b| b.features.traps.pressed)
                     .filter(|(landed, _, _)| landed.distance_xz(at) < 1.0)
                     .map(|(_, _, when)| time.saturating_sub(when) as f32 / 1000.0);
-                let under = self.tracker.nearest_body(at, traps::TRIGGER_M);
+                let under = self.tracker.nearest_body(at, traps::OWN_TRAP_CONTACT_M);
                 let who = match (under, by) {
                     (None, _) => "nobody".to_string(),
                     (Some(p), Some(b)) if p == b => "placer".to_string(),

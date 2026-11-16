@@ -308,10 +308,10 @@ fn a_trap_only_its_placer_knows_is_in_his_field_alone() {
     assert!(bots.bots[0].as_ref().expect("a bot at 0").features.traps.mine.all().is_empty(), "gone from the worlds, gone");
 }
 
-/// [#2081] A mate keeps off a trap its placer promised from its own next think on, not from the next commander tick: the
-/// placer's think puts the promise in the team's field, and every think takes the team's field.
+/// [#2081] A mate who sees the placer keeps off the trap it promised from its own next think on, not from the next commander tick:
+/// the placer's think puts the promise in the team's field, and a mate that sees the placer takes it at its next think.
 #[test]
-fn a_mate_keeps_off_a_trap_its_placer_promised_at_its_own_next_think() {
+fn a_mate_who_sees_the_placer_keeps_off_its_trap_at_its_own_next_think() {
     let world = soak_world();
     let teams = [0u8, 0, 1];
     let tuning = Tuning::default();

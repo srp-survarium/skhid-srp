@@ -1901,23 +1901,32 @@ const KEEP_OFF_M: f32 = 15.0;
 /// [#2081] The one clearance from the team's own known traps, metres: the searches' shut discs (`TrapTuning::keep_off`'s
 /// `hard_m` default), their check of the route they return ([`own_trap_route`]), [`keep_off`]'s check of the route ahead and the
 /// fight's side step ([`step_keeps_clear`]) all read it, through the field's own reach ([`TrapField::reach`]), so a route the search
-/// gives is never one `keep_off` drops. Contact 0.67 m = the sensor cylinder's radius 0.25 m (`booby_trap_core::on_enter` 0x304BD0,
-/// `docs/notes/thrown_and_placed.md`) + the body capsule's radius 0.38 m (`mapdata` `grid/controlled.rs`: startup.cfg's stand size
-/// 0.76 x 1.8) + the controller's 0.04 m move margin (`mapdata` `controller/tick.rs`); the live trigger, 0.6 m from a foot point
-/// (565 of 566 samples, `bear_traps.md`), agrees. Walk 0.80 m = the 90th percentile of the feet off the route of the bots walking
-/// one (261,076 samples, farming-camper cell seed 5, tip dab73194; median 0.25, p95 1.25).
-pub const OWN_TRAP_CLEAR_M: f32 = 1.47;
+/// gives is never one `keep_off` drops. The contact [`OWN_TRAP_CONTACT_M`] + the tight walk's tolerance [`TIGHT_WALK_P90_M`]: by an
+/// own trap the body walks its route tight ([`walks_tight`]), and the motor's guard ([`own_trap_guard`]) holds the rest. Was 1.47
+/// (the contact + the P90 of every walk, 0.80), which shut every way under about 3 m.
+pub const OWN_TRAP_CLEAR_M: f32 = OWN_TRAP_CONTACT_M + TIGHT_WALK_P90_M;
+
+/// [#2081] The feet off the route of a body walking it within [`TIGHT_ZONE_M`] of a standing own trap, P90 and P50, metres: the
+/// bench's 1,735 thinks of the walk mover (no weave, side step, step apart or sprint) in 16 plain matches (m8, Rudnya TDM and
+/// Batteries, 600 s; the matches' quantiles weighted by their samples; P95 0.58, P99 0.83, max 1.32).
+pub const TIGHT_WALK_P90_M: f32 = 0.47;
+const TIGHT_WALK_P50_M: f32 = 0.18;
 
 /// The slack of the clearance test, metres: a leg between two open floors of the walk grid (`mapdata::CELL` 0.25 m apart, a
-/// diagonal 0.354 m) passes at most 0.011 m nearer a disc of 1.47 m than its two ends.
+/// diagonal 0.354 m) passes at most 0.014 m nearer a disc of 1.14 m than its two ends.
 const CLEAR_SLACK_M: f32 = 0.05;
 
 /// A trap this far above or below a leg's ends is on another floor (the field's own rule for its shut floors).
 const OTHER_FLOOR_M: f32 = 1.0;
 
-/// [#2081] The nearest a way from inside a disc ever comes to the trap, metres: the contact 0.67 m and the median drift off a route
-/// 0.25 m ([`OWN_TRAP_CLEAR_M`]'s sources).
-const INSIDE_FLOOR_M: f32 = 0.67 + 0.25;
+/// [#2081] Where a body touches a trap's sensor, metres between the trap's point and the body's centre: the sensor cylinder's radius
+/// 0.25 m (`booby_trap_core::on_enter` 0x304BD0, `docs/notes/thrown_and_placed.md`) + the body capsule's radius 0.38 m (`mapdata`
+/// `grid/controlled.rs`: startup.cfg's stand size 0.76 x 1.8) + the controller's 0.04 m move margin (`mapdata` `controller/tick.rs`).
+/// Which shape the sensor tests is not proven; the 0.6 m of a foot point seen live (565 of 566 samples) lies inside it.
+pub const OWN_TRAP_CONTACT_M: f32 = 0.67;
+
+/// [#2081] The nearest a way from inside a disc ever comes to the trap, metres: the contact and the tight walk's median drift.
+const INSIDE_FLOOR_M: f32 = OWN_TRAP_CONTACT_M + TIGHT_WALK_P50_M;
 
 /// [#2081] Whether the polyline `points`, walked from `from`, keeps `reach` from every disc of `discs` on its floor: never nearer
 /// than `reach`; when `from` is already nearer (a body inside a disc, as a placer by its fresh trap), never more than a floor of
@@ -2072,6 +2081,119 @@ pub(super) fn step_keeps_clear(field: &TrapField, from: Vec3, to: Vec3) -> bool 
     field.is_empty() || keeps_clear(&[from, to], field.discs(), from, field.reach().max(FIELD_M))
 }
 
+/// [#2081] Within this of a known own trap (or one noticed) a body walks its route tight: no sprint, no side step or weave, no step
+/// apart (`drive.rs`), metres: the zone the tight walk's tolerance ([`TIGHT_WALK_P90_M`]) was measured in.
+pub const TIGHT_ZONE_M: f32 = 3.0;
+
+/// [#2081] Whether `feet` lie within [`TIGHT_ZONE_M`] of a trap `bot` keeps off (its field, the traps it noticed), on its floor.
+pub(super) fn walks_tight(bot: &Bot, feet: Vec3) -> bool {
+    bot.features
+        .traps
+        .field
+        .discs()
+        .iter()
+        .chain(bot.features.traps.react.field().discs())
+        .any(|d| d.distance_xz(feet) < TIGHT_ZONE_M && (d.y - feet.y).abs() < OTHER_FLOOR_M)
+}
+
+/// [#2081] What the own-trap guard made of a tick's keys ([`own_trap_guard`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OwnTrapGuard {
+    /// No known trap within contact of the keys' path, or the path leaves it: the keys as they are.
+    Clear,
+    /// These keys instead keep out of contact.
+    Swapped(u32),
+    /// None does: the brake against the velocity (or no move key at rest).
+    Braked(u32),
+}
+
+/// [#2081] The ticks the guard holds the keys before their stop: the lip guard's (`Feel::lip_guard_ticks`, 2).
+pub const GUARD_HOLD_TICKS: u32 = 2;
+
+/// [#2081] The feet over the next ticks with `keys` held for `hold` ticks, then let go: the body's velocity blends linearly from
+/// `velocity` to the keys' target (`Kinematics::target_velocity` at speed level 1, the fastest a kit moves) over
+/// `Kinematics::blend_ticks`, a new target starting a new blend from the velocity then, as the frozen blend does; `turn` once.
+/// The ground plane only: no walls, no falls (the lip guard's), so a path may run through a wall: the safe side.
+pub fn forecast(kin: &super::kin::Kinematics, feet: Vec3, velocity: [f32; 2], yaw: f32, turn: f32, keys: u32, hold: u32) -> Vec<Vec3> {
+    const MOVE: u32 = super::key::FORWARD | super::key::BACK | super::key::LEFT | super::key::RIGHT | super::key::SPRINT;
+    let blend = kin.blend_ticks.max(1);
+    let mut at = feet;
+    let mut points = vec![at];
+    let (mut from, mut to, mut step) = (velocity, kin.target_velocity(keys, yaw + turn, 1.0), 0u32);
+    for k in 0..blend + hold + 2 {
+        if k == hold {
+            let now = [from[0] + (to[0] - from[0]) * (step as f32 / blend as f32).min(1.0), from[1] + (to[1] - from[1]) * (step as f32 / blend as f32).min(1.0)];
+            (from, to, step) = (now, kin.target_velocity(keys & !MOVE, yaw + turn, 1.0), 0);
+        }
+        step += 1;
+        let t = (step as f32 / blend as f32).min(1.0);
+        let v = [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t];
+        at = Vec3::new(at.x + v[0] * super::kin::TICK_S, at.y, at.z + v[1] * super::kin::TICK_S);
+        points.push(at);
+    }
+    points
+}
+
+/// [#2081] Whether the path `points` from `feet` comes within [`OWN_TRAP_CONTACT_M`] of a trap of `discs` on its floor while nearer
+/// it than `feet` are (a body inside contact may leave).
+pub fn path_touches(points: &[Vec3], discs: &[Vec3], feet: Vec3) -> bool {
+    discs.iter().filter(|d| (d.y - feet.y).abs() < OTHER_FLOOR_M).any(|disc| {
+        let now = feet.distance_xz(*disc);
+        let nearest = off_route_m(points, *disc);
+        nearest < OWN_TRAP_CONTACT_M && nearest < now - 0.01
+    })
+}
+
+/// [#2081] The own-trap guard at the motor's last stage (after the lip guard, `drive.rs`): the tick's keys `keys` (the view turns
+/// `turn`) played forward ([`forecast`]); keys whose path touches a trap of `discs` ([`path_touches`]) give way to the same without
+/// sprint, without the side keys, without either, to no move key, or to the brake against the velocity, the first that does not.
+/// Every mover's keys pass it: the route walk, the fight's side step and weave, the step apart, unstick, a retreat's or a dodge's
+/// steps, a sprint's carry past a route's end, a goal or hold point inside a disc. A jump (`jumping`: its press, its lining up) is
+/// left alone: in the air over a trap is legal (the sensor is 0.2 m high), and its landing is a waypoint of the route, held to the
+/// clearance by the route's check ([`own_trap_route`]). A push by a mate's body is not keys: not guarded.
+#[allow(clippy::too_many_arguments)]
+pub fn own_trap_guard(kin: &super::kin::Kinematics, feet: Vec3, velocity: [f32; 2], yaw: f32, turn: f32, keys: u32, discs: &[Vec3], jumping: bool) -> OwnTrapGuard {
+    use super::key;
+    const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
+    if jumping || discs.iter().all(|d| d.distance_xz(feet) > 8.0) {
+        return OwnTrapGuard::Clear;
+    }
+    let touches = |k: u32| path_touches(&forecast(kin, feet, velocity, yaw, turn, k, GUARD_HOLD_TICKS), discs, feet);
+    if !touches(keys) {
+        return OwnTrapGuard::Clear;
+    }
+    let walk = keys & !key::SPRINT;
+    let straight = keys & !(key::LEFT | key::RIGHT);
+    if let Some(k) = [walk, straight, straight & !key::SPRINT, keys & !MOVE].into_iter().filter(|&k| k != keys).find(|&k| !touches(k)) {
+        return OwnTrapGuard::Swapped(k);
+    }
+    let speed = velocity[0].hypot(velocity[1]);
+    let brake = if speed > 0.5 {
+        let relative = super::kin::wrap(super::kin::yaw_of([-velocity[0], -velocity[1]]) - (yaw + turn));
+        (keys & !MOVE) | super::motor::keys_toward(relative)
+    } else {
+        keys & !MOVE
+    };
+    OwnTrapGuard::Braked(brake)
+}
+
+/// [#2081] [`own_trap_guard`] on the tick's decision: the team's known traps (its field, with those only it knows) and the traps of
+/// others it noticed (`trap_react`, a human mate's among them); a note and a count when it changes the keys.
+pub(super) fn guard_own_traps(bot: &mut Bot, keys: u32, turn: f32, me: &PlaceView, kin: &super::kin::Kinematics, now: u32) -> Option<u32> {
+    let discs: Vec<Vec3> = bot.features.traps.field.discs().iter().chain(bot.features.traps.react.field().discs()).copied().collect();
+    if discs.is_empty() {
+        return None;
+    }
+    let jumping = keys & super::key::JUMP != 0 || bot.motor.lining_up();
+    match own_trap_guard(kin, me.feet, me.velocity, me.yaw, turn, keys, &discs, jumping) {
+        OwnTrapGuard::Clear => None,
+        OwnTrapGuard::Swapped(k) | OwnTrapGuard::Braked(k) => {
+            own_trap_note(bot, now, format!("the guard changed keys {keys:#x} to {k:#x}: they ran within contact of an own trap"));
+            Some(k)
+        }
+    }
+}
+
 /// [#2081] A note of a refusal or a re-route for an own trap, at most one a second a bot (a side step is asked every tick); the
 /// bench counts every one.
 pub(super) fn own_trap_note(bot: &mut Bot, now: u32, what: String) {
@@ -2126,8 +2248,8 @@ pub mod tight {
 pub mod own_trap_counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    pub const NAMES: [&str; 4] = ["route refused", "route dropped", "side step refused", "step apart refused"];
-    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    pub const NAMES: [&str; 5] = ["route refused", "route dropped", "side step refused", "step apart refused", "keys guarded"];
+    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
 
     pub fn count(what: &str) {
         let k = if what.starts_with("a route of") {
@@ -2136,6 +2258,8 @@ pub mod own_trap_counts {
             1
         } else if what.starts_with("a side step") {
             2
+        } else if what.starts_with("the guard") {
+            4
         } else {
             3
         };
@@ -2294,6 +2418,19 @@ fn fresh_shut(bot: &mut Bot, due: &Due, ring_m: f32) {
     bot.features.traps.fresh_shut = std::sync::Arc::new(shut);
 }
 
+/// [#2081] Whether a standing trap of the team is missing from `bot`'s field and the bot is its placer or sees its placer's body now
+/// (`aimpoint::body_shows`, the sense's body parts from its eye).
+fn knows_a_new_trap(bot: &Bot, due: &Due, state: &TeamState) -> bool {
+    let mine = bot.features.traps.field.discs();
+    state.knowledge.traps.standing().filter(|k| !mine.iter().any(|d| d.distance_xz(k.at) < 0.05)).any(|k| {
+        k.by == bot.place
+            || due
+                .view
+                .place(k.by)
+                .is_some_and(|p| p.alive && super::aimpoint::body_shows(&due.tactics.world.sight, due.me.eye(), p.feet, p.crouched()))
+    })
+}
+
 /// A think: whether this bot starts to put a trap down.
 pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut Vec<super::Note>) {
     let t = &due.tuning.traps;
@@ -2308,9 +2445,12 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         state.knowledge.traps.promise(bot.place, at, released);
         state.refresh_traps(&due.tactics.world.grid, t.ring_m, t.keep_off);
     }
-    // [#2081] Every bot takes its team's field at each think: a mate knows a trap the placer promised at its own next think (the
-    // game draws an armed trap for every team, 0x247EF0), not at the next commander tick.
-    take_fields(bot, state, &due.tactics.world.grid, t.ring_m, t.keep_off);
+    // [#2081] A trap the team's field has and this bot's does not: taken at this think when the bot is its placer or sees its
+    // placer now (the game draws an armed trap for every team, 0x247EF0; a mate who watches the placer sees it put down); every
+    // other bot takes the team's field at the commander tick.
+    if knows_a_new_trap(bot, due, state) {
+        take_fields(bot, state, &due.tactics.world.grid, t.ring_m, t.keep_off);
+    }
     fresh_shut(bot, due, t.ring_m);
     keep_off_open(bot, due, t);
     #[cfg(test)]
@@ -3074,11 +3214,6 @@ pub(super) fn enemy_near_at(bot: &Bot, feet: Vec3, now: u32, clock: u32, t: &Tra
         || bot.memory.tracks().iter().any(|track| sensed_lately(t, track, feet, now, quiet) || track.at.distance_xz(feet) < t.enemy_near_m)
 }
 
-/// [#2081] The nearest alive enemy when live humans placed a trap, P10, metres (P25 14.7, P50 26.0; 534 placings of the traps
-/// record, 402 matches of 12+ humans, the world nearest the placing within 2.5 s; fight-world `record_place_context.py`). Live human
-/// placers were killed within 5 s after placing 23.6 % of the time with an enemy nearer than it, 10.4 % in all.
-pub const HUMAN_PLACING_ENEMY_P10_M: f32 = 7.7;
-
 /// [`trap_calm`]'s one exception: the reflex's look the trap look took the view over.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OverHeard {
@@ -3125,10 +3260,6 @@ pub fn trap_calm(f: CalmFacts, t: &TrapTuning) -> (bool, Option<OverHeard>) {
         None if over.glance => Some(OverHeard::Glance { m: look.distance_xz(f.feet) }),
         None => None,
     };
-    // [#2081] Only over an enemy as far as the live humans' nearest one at a placing, P10, or farther.
-    let heard = heard.filter(|h| match *h {
-        OverHeard::Aim { m, .. } | OverHeard::Glance { m } => m >= HUMAN_PLACING_ENEMY_P10_M,
-    });
     (heard.is_some(), heard)
 }
 
@@ -4558,8 +4689,8 @@ mod tests {
         let inside = trap + Vec3::new(-1.1, 0.0, 0.0);
         assert!(keeps_clear(&[inside, trap + Vec3::new(-2.5, 0.0, 0.0)], field.discs(), inside, OWN_TRAP_CLEAR_M));
         assert!(!keeps_clear(&[inside, trap + Vec3::new(-0.5, 0.0, 0.3)], field.discs(), inside, OWN_TRAP_CLEAR_M));
-        // From 1.36 m (the bench's stuck guard), round it at 1.26 m: a floor of the grid nearer, clear; at 0.85 m (under the contact
-        // and drift floor, 0.92 m): not.
+        // From 1.36 m (the bench's stuck guard), round it at 1.26 m: clear; at 0.85 m (inside the clearance, under the contact and
+        // drift floor): not.
         let at136 = trap + Vec3::new(-1.36, 0.0, 0.0);
         let arc = |r: f32| -> Vec<Vec3> {
             std::iter::once(at136)
@@ -4584,14 +4715,58 @@ mod tests {
         assert!(own_trap_route(&mut bot, start, Some(to_guard.clone()), 4_000, &s.tactics, false).is_some());
         let on_it = Route::new(vec![w3(20.0, 0.0, 10.0), w3(24.5, 0.0, 10.0)]);
         assert!(!route_keeps_clear(&route_points(&on_it, start, f32::MAX), field.discs(), start, Some(on_it.end()), OWN_TRAP_CLEAR_M));
-        assert!(!step_keeps_clear(&field, trap + Vec3::new(-1.9, 0.0, 0.0), trap + Vec3::new(-1.3, 0.0, 0.0)));
+        assert!(!step_keeps_clear(&field, trap + Vec3::new(-1.5, 0.0, 0.0), trap + Vec3::new(-0.9, 0.0, 0.0)));
         // A trap on another floor (2 m above) is no matter.
         assert!(keeps_clear(&[Vec3::new(15.0, 2.0, 10.0), Vec3::new(35.0, 2.0, 10.0)], field.discs(), Vec3::new(15.0, 2.0, 10.0), OWN_TRAP_CLEAR_M));
         // The side step (`STRAFE_CLEAR_M` long): onto the trap refused, away from it taken; with no trap, any.
-        let by = trap + Vec3::new(-1.8, 0.0, 0.0);
+        let by = trap + Vec3::new(-1.6, 0.0, 0.0);
         assert!(!step_keeps_clear(&field, by, by + Vec3::new(0.7, 0.0, 0.0)));
         assert!(step_keeps_clear(&field, by, by + Vec3::new(-0.7, 0.0, 0.0)));
         assert!(step_keeps_clear(&TrapField::default(), by, by + Vec3::new(0.7, 0.0, 0.0)));
+    }
+
+    /// [#2081] The own-trap guard, by mover: keys whose forecast path (the body's blend and a stop) comes within contact of a known
+    /// own trap while nearing it give way, whatever moved them (the walk, the side step, a sprint, a step back, a glide with no key);
+    /// a jump over it is legal, a landing on it is not; a body inside contact may leave; a trap on another floor is no matter.
+    #[test]
+    fn the_own_trap_guard_keeps_every_mover_out_of_contact() {
+        use crate::v026g::drive::key;
+        let kin = crate::v026g::bots::kin::Kinematics::default();
+        // Facing +x (yaw 0 faces `kin::forward(0)`): the trap 1.2 m ahead along the facing.
+        let yaw = 0.0;
+        let [fx, fz] = crate::v026g::bots::kin::forward(yaw);
+        let [lx, lz] = crate::v026g::bots::kin::forward(yaw + std::f32::consts::FRAC_PI_2);
+        let feet = Vec3::ZERO;
+        let ahead = |m: f32| Vec3::new(fx * m, 0.0, fz * m);
+        let left = |m: f32| Vec3::new(lx * m, 0.0, lz * m);
+        let still = [0.0, 0.0];
+        let walking = [fx * 3.5, fz * 3.5];
+        let guard = |velocity: [f32; 2], keys: u32, discs: &[Vec3], jumping: bool| own_trap_guard(&kin, feet, velocity, yaw, 0.0, keys, discs, jumping);
+        // The walk on toward a trap ahead: refused (no move key from rest, the brake at a walk). From rest two ticks of a key and a
+        // stop carry the body about 0.3 m, at a walk about 0.9 m: the guard stops it short.
+        assert_eq!(guard(still, key::FORWARD, &[ahead(0.8)], false), OwnTrapGuard::Swapped(0));
+        assert_eq!(guard(walking, key::FORWARD, &[ahead(1.4)], false), OwnTrapGuard::Swapped(0), "let go: the glide stops short");
+        assert!(matches!(guard(walking, key::FORWARD, &[ahead(1.1)], false), OwnTrapGuard::Braked(k) if k & key::BACK != 0), "the glide too: the brake");
+        // Walking with the trap well ahead: clear (it stops short this tick).
+        assert_eq!(guard(still, key::FORWARD, &[ahead(4.0)], false), OwnTrapGuard::Clear);
+        // The fight's side step onto it: the walk without the side key.
+        assert_eq!(guard(still, key::LEFT, &[left(0.8)], false), OwnTrapGuard::Swapped(0));
+        assert_eq!(guard(still, key::FORWARD | key::LEFT, &[left(0.8)], false), OwnTrapGuard::Swapped(key::FORWARD));
+        // A sprint toward it: refused; the step back (a retreat or a dodge) onto one behind: refused.
+        assert_ne!(guard([fx * 4.96, fz * 4.96], key::FORWARD | key::SPRINT, &[ahead(1.7)], false), OwnTrapGuard::Clear);
+        assert_eq!(guard(still, key::BACK, &[ahead(-0.8)], false), OwnTrapGuard::Swapped(0));
+        // A glide with no move key (a sprint's carry past a route's end) into it: the brake.
+        assert!(matches!(guard([fx * 4.96, fz * 4.96], 0, &[ahead(0.9)], false), OwnTrapGuard::Braked(k) if k & key::BACK != 0));
+        // A jump over it is legal (the guard leaves the press alone); a landing within contact is not: the route's jump leg that
+        // ends there breaks the clearance.
+        assert_eq!(guard(walking, key::FORWARD | key::JUMP, &[ahead(0.5)], true), OwnTrapGuard::Clear);
+        let trap = ahead(2.0);
+        assert!(keeps_clear(&[feet, ahead(4.0)], &[Vec3::new(trap.x, 2.0, trap.z)], feet, OWN_TRAP_CLEAR_M), "over it, above");
+        assert!(!keeps_clear(&[feet, ahead(2.2)], &[trap], feet, OWN_TRAP_CLEAR_M), "a landing 0.2 m from it");
+        // Inside contact, leaving it: clear; on another floor: clear; none near: clear.
+        assert_eq!(guard(still, key::BACK, &[ahead(0.4)], false), OwnTrapGuard::Clear);
+        assert_eq!(guard(still, key::FORWARD, &[Vec3::new(fx, 2.0, fz)], false), OwnTrapGuard::Clear);
+        assert_eq!(guard(still, key::FORWARD, &[], false), OwnTrapGuard::Clear);
     }
 
     #[test]
@@ -5160,13 +5335,6 @@ mod tests {
         assert_eq!(trap_calm(facts(&heard), &t), (true, Some(OverHeard::Aim { m: 30.0, age_ms: 3_000 })));
         assert_eq!(trap_calm(facts(&glance), &t), (true, Some(OverHeard::Glance { m: 25.0 })));
         assert_eq!(trap_calm(facts(&Override::default()), &t), (true, None), "no look: calm as before");
-        // [#2081] Not over an enemy nearer than the live humans' nearest one at a placing, P10 (7.7 m).
-        let near_aim = Override { look_at: Some(Vec3::new(6.0, 1.3, 0.0)), heard_aim: Some((Vec3::new(6.0, 0.0, 0.0), 1_000)), ..Override::default() };
-        let near_glance = Override { look_at: Some(Vec3::new(0.0, 1.4, 7.0)), glance: true, ..Override::default() };
-        assert_eq!(trap_calm(facts(&near_aim), &t), (false, None));
-        assert_eq!(trap_calm(facts(&near_glance), &t), (false, None));
-        let at_p10 = Override { look_at: Some(Vec3::new(HUMAN_PLACING_ENEMY_P10_M, 1.3, 0.0)), heard_aim: Some((Vec3::new(HUMAN_PLACING_ENEMY_P10_M, 0.0, 0.0), 1_000)), ..Override::default() };
-        assert!(trap_calm(facts(&at_p10), &t).0);
         // What still wins at once, mid-look.
         for (why, f) in [
             ("a seen target", CalmFacts { target: true, ..facts(&heard) }),

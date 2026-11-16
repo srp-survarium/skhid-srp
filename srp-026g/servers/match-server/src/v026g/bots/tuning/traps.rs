@@ -155,7 +155,12 @@ pub struct TrapTuning {
     pub forward: Option<Forward>,
     /// [A309] For `for_ms` after its press the placer's routes come no nearer its fresh trap than its feet are (within `ring_m`
     /// of it): it walks away from it, never back over it. In the A309 bench the placer caught itself 14 times, median 2.5 s
-    /// after the press (the after-press stand ends at 1.5 s), more often than its traps caught an enemy. Off by default.
+    /// after the press (the after-press stand ends at 1.5 s), more often than its traps caught an enemy. [#2081] **On by default**,
+    /// kept right (`KEPT_RIGHT`): walking back over one's own fresh trap is wrong by the client (`booby_trap_core::on_enter`
+    /// 0x304BD0 takes its placer too); it was off (A309) because it shuts floors only, and the straight leg between two open floors
+    /// and the body's drift still took the placer over its trap about 2 s after the press: the one clearance (`traps::keeps_clear`,
+    /// the route's own legs) and the motor's own-trap guard close those. In the #2081 plain bench 6 of 11 own catches were the
+    /// placer within 7 s of its press.
     pub fresh_ring: Option<FreshRing>,
     /// [A309] The press waits until the body moves at `min_speed_ms` or more: a slow placer (one holding a spot in a fight play)
     /// stays by its trap and steps onto it. Over three A309 benches (835 presses) the presses under 2 m/s caught 8 enemies,
@@ -179,8 +184,8 @@ pub struct KeepOff {
     /// radius 0.38 m (`mapdata` `grid/controlled.rs`: startup.cfg's stand size 0.76 x 1.8) + the controller's 0.04 m move margin
     /// (`mapdata` `controller/tick.rs`, the exe's under Unicorn); the live trigger, 0.6 m from a foot point, agrees. Walk 0.80 m =
     /// the 90th percentile of the feet off the route of the bots walking one (261,076 samples, farming-camper cell seed 5, tip
-    /// dab73194; median 0.25, p95 1.25). [#2081] The default is `traps::OWN_TRAP_CLEAR_M`, the one clearance the searches, their
-    /// route check, keep_off and the side step read (through the field's reach).
+    /// dab73194; median 0.25, p95 1.25). [#2081] The default is `traps::OWN_TRAP_CLEAR_M` (1.14 m: the contact + the tight walk's
+    /// P90 by an own trap), the one clearance the searches, their route check, keep_off and the side step read (the field's reach).
     pub hard_m: f32,
 }
 
@@ -572,7 +577,7 @@ impl Default for TrapTuning {
             after_press: None,
             stayer: Stayer::Place,
             forward: None,
-            fresh_ring: None,
+            fresh_ring: Some(FreshRing::default()),
             press_moving: None,
             press_clear: Some(PressClear::default()),
         }
