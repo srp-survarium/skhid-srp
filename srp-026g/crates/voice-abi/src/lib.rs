@@ -2,25 +2,27 @@
 //! version before constructing `Api`; a missing or incompatible DLL disables voice.
 #![no_std]
 use core::ffi::{CStr, c_char};
-pub const ABI_VERSION: u8 = 5;
+pub const ABI_VERSION: u8 = 7;
 pub type Version = unsafe extern "C" fn() -> i32;
 pub type Start = unsafe extern "C" fn(*const c_char, u32, u32) -> i32;
 pub type Stop = unsafe extern "C" fn();
+/// Push-to-talk as the game holds it now: a [`Channel::ptt`] word (0: let go).
 pub type Ptt = unsafe extern "C" fn(i32);
-pub type Settings = unsafe extern "C" fn(f32, i32, f32);
+/// The options: the "Voice chat" volume (0..1) and whether the microphone
+/// is used.
+pub type Settings = unsafe extern "C" fn(f32, i32);
 /// How a place is heard, all of it in one call ([`Heard::call`]): the place,
-/// its plain voice's gain in the left and in the right ear, and whether its
-/// radio is on (not 0).
+/// its 10 m voice's gain in the left and in the right ear, and whether its
+/// radio is heard (not 0).
 pub type Hear = unsafe extern "C" fn(i32, f32, f32, i32);
 pub type Mute = unsafe extern "C" fn(u32);
 pub type Talking = unsafe extern "C" fn() -> u32;
 pub type Slot = unsafe extern "C" fn() -> i32;
 pub type VoiceId = unsafe extern "C" fn(i32) -> u32;
 /// The options' "Test microphone" button pressed, with the "Voice chat"
-/// volume and the "Microphone sensitivity" as their sliders stand (each
-/// 0..1): starts the test, or stops the one that runs. With or without a
-/// match's session.
-pub type TestPress = unsafe extern "C" fn(f32, f32);
+/// volume as its slider stands (0..1): starts the test, or stops the one
+/// that runs. With or without a match's session.
+pub type TestPress = unsafe extern "C" fn(f32);
 /// The test stopped, if one runs (the options closed, a match loads or ends).
 pub type TestStop = unsafe extern "C" fn();
 /// What the test does now: a [`MicTest`]'s word.
@@ -149,7 +151,7 @@ impl MicTest {
         if test.word() == word { Some(test) } else { None }
     }
 }
-/// A plain voice's gain in the left and in the right ear: what the game's
+/// The 10 m voice's gain in the left and in the right ear: what the game's
 /// sound engine gives a sound at the speaker's place (its pan, its gain by
 /// distance). 1 in both is the voice as decoded.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -168,35 +170,72 @@ impl Ears {
         self.0
     }
 }
-/// How a place is heard.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Heard {
-    /// Its voice plain, in the world: from its side and by its distance.
-    Plain(Ears),
-    /// Through the radio only, centred.
+/// Which of the two push-to-talk keys an utterance is spoken with (the owner,
+/// 2026-11-16: "two voice buttons one for 10m one for radio").
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Channel {
+    /// The 10 m voice: everyone near the speaker hears it, opponents too.
+    Near,
+    /// The radio: the speaker's team at any distance (in a free-for-all,
+    /// everyone).
     Radio,
-    /// Both: where the plain voice still reaches and the radio is already on
-    /// (only when the two distances differ).
-    Both(Ears),
+}
+impl Channel {
+    /// The channel's byte on the voice wire.
+    pub const fn byte(self) -> u8 {
+        match self {
+            Channel::Near => 0,
+            Channel::Radio => 1,
+        }
+    }
+    pub const fn of_byte(byte: u8) -> Option<Channel> {
+        match byte {
+            0 => Some(Channel::Near),
+            1 => Some(Channel::Radio),
+            _ => None,
+        }
+    }
+    /// [`Ptt`]'s word for the key held: 0 none, else the channel's byte and 1.
+    pub const fn ptt(held: Option<Channel>) -> i32 {
+        match held {
+            None => 0,
+            Some(channel) => channel.byte() as i32 + 1,
+        }
+    }
+    /// The key a [`Ptt`] word says is held; a word `ptt` does not make: none.
+    pub const fn of_ptt(word: i32) -> Option<Channel> {
+        match word {
+            1 => Some(Channel::Near),
+            2 => Some(Channel::Radio),
+            _ => None,
+        }
+    }
+}
+/// How a place is heard, on each of its two channels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Heard {
+    /// Its 10 m voice, in the world: from its side and by its distance;
+    /// silent from 10 m, or when either player is not alive.
+    pub near: Ears,
+    /// Whether its radio is heard: a mate's is, an opponent's never.
+    pub radio: bool,
 }
 impl Heard {
+    /// Not heard on either channel.
+    pub const SILENT: Heard = Heard { near: Ears::SILENT, radio: false };
     /// [`Hear`]'s arguments after the place.
     pub fn call(self) -> (f32, f32, i32) {
-        let (ears, radio) = match self {
-            Heard::Plain(ears) => (ears, 0),
-            Heard::Radio => (Ears::SILENT, 1),
-            Heard::Both(ears) => (ears, 1),
-        };
-        (ears.0[0], ears.0[1], radio)
+        (self.near.0[0], self.near.0[1], i32::from(self.radio))
     }
-    /// What [`Hear`]'s arguments say. A radio with a silent plain voice is
-    /// the radio alone.
+    /// What [`Hear`]'s arguments say.
     pub fn of_call(left: f32, right: f32, radio: i32) -> Heard {
-        let ears = Ears::new(left, right);
-        match (radio != 0, ears == Ears::SILENT) {
-            (false, _) => Heard::Plain(ears),
-            (true, true) => Heard::Radio,
-            (true, false) => Heard::Both(ears),
+        Heard { near: Ears::new(left, right), radio: radio != 0 }
+    }
+    /// Whether an utterance on `channel` is heard at all.
+    pub fn hears(self, channel: Channel) -> bool {
+        match channel {
+            Channel::Near => self.near != Ears::SILENT,
+            Channel::Radio => self.radio,
         }
     }
 }
@@ -309,13 +348,30 @@ mod tests {
     #[test]
     fn a_place_is_heard_as_its_one_call_says() {
         let ears = Ears::new(0.25, 1.5);
-        for heard in [Heard::Plain(ears), Heard::Plain(Ears::SILENT), Heard::Radio, Heard::Both(ears)] {
-            let (left, right, radio) = heard.call();
-            assert_eq!(Heard::of_call(left, right, radio), heard);
+        for near in [ears, Ears::SILENT] {
+            for radio in [false, true] {
+                let heard = Heard { near, radio };
+                let (left, right, word) = heard.call();
+                assert_eq!(Heard::of_call(left, right, word), heard);
+                assert_eq!(heard.hears(Channel::Near), near != Ears::SILENT);
+                assert_eq!(heard.hears(Channel::Radio), radio);
+            }
         }
-        assert_eq!(Heard::of_call(0.0, 0.0, 7), Heard::Radio);
+        assert_eq!(Heard::of_call(0.0, 0.0, 7), Heard { near: Ears::SILENT, radio: true });
         assert_eq!(Ears::new(f32::NAN, 9.0).get(), [0.0, Ears::MOST]);
         assert_eq!(Ears::new(-1.0, f32::INFINITY).get(), [0.0, Ears::MOST]);
-        assert_eq!(Heard::of_call(f32::NAN, f32::NAN, 1), Heard::Radio);
+        assert_eq!(Heard::of_call(f32::NAN, f32::NAN, 0), Heard::SILENT);
+    }
+    #[test]
+    fn a_channel_reads_back_from_its_byte_and_its_ptt_word() {
+        for channel in [Channel::Near, Channel::Radio] {
+            assert_eq!(Channel::of_byte(channel.byte()), Some(channel));
+            assert_eq!(Channel::of_ptt(Channel::ptt(Some(channel))), Some(channel));
+        }
+        assert_eq!(Channel::ptt(None), 0);
+        for word in [0, 3, -1] {
+            assert_eq!(Channel::of_ptt(word), None);
+        }
+        assert_eq!(Channel::of_byte(2), None);
     }
 }

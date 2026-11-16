@@ -148,3 +148,7 @@ vtable	slot	va	class	base	basis
 0x009ffb14	0x20	0x00372420	survarium::network_client	survarium::base_network_client	observed: returns 1; gates the lobby seeding (game::switch_to_lobby 0x1ED1EF, switch_to_login, switch_to_game_world, the seeding commands' callbacks 0x1EE550..0x1EE5D0)
 0x009ffb14	0x48	0x00219980	survarium::network_client	survarium::base_network_client	observed: returns this+1EE8B8h, the torrent_client the seeding calls take (game::switch_to_lobby 0x1ED200, start_seeding 0x1ED21D)
 0x009ff344	0x20	0x00397c20	survarium::replay_network_client	survarium::base_network_client	observed: returns 0, so a replay never starts or stops seeding
+0x00a141a4	0x20	0x00305580	survarium::booby_trap_core	survarium::hit_receiver	observed: hit without a hit type (ret 20h), in the primary vtable
+0x00a141a4	0x24	0x00305540	survarium::booby_trap_core	survarium::hit_receiver	observed: hit with a hit type (ret 28h), the slot bullet::try_pierce calls on what its ray met (0x32DA0D mov edx,[edx+24h], 0x32DA3A)
+0x00a0455c	0x20	0x00305580	survarium::booby_trap	survarium::hit_receiver	observed: booby_trap_core::hit without a hit type, not overridden
+0x00a0455c	0x24	0x00305540	survarium::booby_trap	survarium::hit_receiver	observed: booby_trap_core::hit with a hit type, not overridden (the client trap takes a bullet here)

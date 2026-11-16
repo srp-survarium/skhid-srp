@@ -28,7 +28,14 @@ use windows_sys::{
     core::{GUID, HRESULT},
 };
 
+/// The playback's queue: 80 ms, what the mix is played behind.
 const BUFFERS: usize = 4;
+/// The capture's queue: 320 ms. A microphone whose driver hands its sound
+/// over in bursts (a Bluetooth headset, a busy USB hub), or a worker held up
+/// by a busy game, fills more than a few frames at once: with the 80 ms
+/// there was until 2026-11-16 the rest of a burst was lost (19 % of a
+/// source measured so), and the talker reached the others in pieces.
+const CAPTURE_BUFFERS: usize = 16;
 const HEADER_BYTES: u32 = size_of::<WAVEHDR>() as u32;
 
 // windows-sys models WAVEHDR as packed. Put it first at an explicitly
@@ -171,7 +178,7 @@ impl Drop for Output {
 
 pub struct Input {
     handle: HWAVEIN,
-    buffers: [Option<Box<Buffer<[i16; FRAME]>>>; BUFFERS],
+    buffers: [Option<Box<Buffer<[i16; FRAME]>>>; CAPTURE_BUFFERS],
     order: BufferOrder,
 }
 impl Input {
@@ -192,7 +199,7 @@ impl Input {
             buffers: std::array::from_fn(|_| None),
             order: BufferOrder::new(0),
         };
-        for index in 0..BUFFERS {
+        for index in 0..CAPTURE_BUFFERS {
             let mut buffer = Buffer::new([0; FRAME]);
             // SAFETY: headers and PCM are at stable addresses until Drop.
             let error = unsafe { waveInPrepareHeader(handle, buffer.header.get(), HEADER_BYTES) };
@@ -218,8 +225,8 @@ impl Input {
         Ok(device)
     }
     pub fn pump(&mut self, mut capture: impl FnMut([i16; FRAME])) -> Result<(), u32> {
-        for _ in 0..BUFFERS {
-            let Some(index) = self.order.next_ready(BUFFERS, |index| {
+        for _ in 0..CAPTURE_BUFFERS {
+            let Some(index) = self.order.next_ready(CAPTURE_BUFFERS, |index| {
                 self.buffers[index]
                     .as_ref()
                     .is_some_and(|buffer| buffer.done())

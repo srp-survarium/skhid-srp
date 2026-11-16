@@ -1,5 +1,5 @@
 //! Patch 66's boundaries (voice chat, docs/notes/voice-chat.md): the voice's
-//! console variables, the match a connect starts, the push-to-talk key, the match's
+//! console variables, the match a connect starts, the two push-to-talk keys, the match's
 //! places as a frame or a menu sees them, the game's sound listener and its
 //! engine's pan of a sound, the movies, and the optional
 //! versioned DLL (`skhid_voice.dll`, `voice_abi`). Every game and DLL value
@@ -82,43 +82,31 @@ impl Fraction {
     }
 }
 
-/// The sound tab's "Voice chat" volume and "Microphone sensitivity" as their
-/// sliders stand on the screen, accepted or not: what the Settings send with
-/// a press of "Test microphone", `<volume> <sensitivity>`, each the slider's
-/// whole steps (0..100).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Sliders {
-    volume: Fraction,
-    sensitivity: Fraction,
-}
-
-impl Sliders {
-    /// Two numbers of one to three decimal digits, 100 at most, one space
-    /// between them; nothing else.
-    pub fn parse(text: &CStr) -> Option<Sliders> {
-        let mut steps = text.to_bytes().split(|&byte| byte == b' ').map(|digits| {
-            if digits.is_empty() || digits.len() > 3 || !digits.iter().all(u8::is_ascii_digit) {
-                return None;
-            }
-            let steps = digits.iter().fold(0u16, |steps, digit| steps * 10 + u16::from(digit - b'0'));
-            (steps <= 100).then(|| Fraction::of_percent(f32::from(steps)))
-        });
-        let (volume, sensitivity) = (steps.next()??, steps.next()??);
-        steps.next().is_none().then_some(Sliders { volume, sensitivity })
+/// The sound tab's "Voice chat" volume as its slider stands on the screen,
+/// accepted or not: what the Settings send with a press of "Test
+/// microphone", the slider's whole steps (0..100). One number of one to
+/// three decimal digits, 100 at most; nothing else.
+fn slider(text: &CStr) -> Option<Fraction> {
+    let digits = text.to_bytes();
+    if digits.is_empty() || digits.len() > 3 || !digits.iter().all(u8::is_ascii_digit) {
+        return None;
     }
+    let steps = digits.iter().fold(0u16, |steps, digit| steps * 10 + u16::from(digit - b'0'));
+    (steps <= 100).then(|| Fraction::of_percent(f32::from(steps)))
 }
 
 /// What the Settings say with a call of the microphone test: a press of its
 /// button, or `stop` (the Settings window closed).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TestAsk {
-    Press(Sliders),
+    /// With the "Voice chat" volume.
+    Press(Fraction),
     Stop,
 }
 
 impl TestAsk {
     pub fn parse(text: &CStr) -> Option<TestAsk> {
-        if text == c"stop" { Some(TestAsk::Stop) } else { Sliders::parse(text).map(TestAsk::Press) }
+        if text == c"stop" { Some(TestAsk::Stop) } else { slider(text).map(TestAsk::Press) }
     }
 }
 
@@ -149,15 +137,16 @@ impl MicrophoneChoice {
 
 /// The voice options: off ("Disable voice chat", the gameplay tab's dead
 /// "Hide spam", `g_hide_spam`: nothing played, no microphone, the relay sends
-/// nothing) or on, with the sound tab's three stock voice controls.
+/// nothing) or on, with the sound tab's two stock voice controls (its
+/// third, "Microphone sensitivity", is gone: every listener's game levels
+/// each speaker itself, voice-chat.md, "Steadier sound").
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Settings {
     Off,
-    On { volume: Fraction, sensitivity: Fraction, microphone: bool },
+    On { volume: Fraction, microphone: bool },
 }
 
 static VOLUME: ConsoleFloat = ConsoleFloat::new(100.0, 0.0, 100.0);
-static SENSITIVITY: ConsoleFloat = ConsoleFloat::new(50.0, 0.0, 100.0);
 static MICROPHONE: ConsoleBool = ConsoleBool::with(true);
 static OFF: ConsoleBool = ConsoleBool::new();
 /// `srp_voice_mutes`' room: the patch's `Mutes` text.
@@ -167,10 +156,11 @@ static MUTES: ConsoleString<MUTES_SIZE> = ConsoleString::new();
 static CAPTURE_DEVICE: ConsoleString<{ voice_abi::MICROPHONE_ID }> = ConsoleString::new();
 
 /// The variables in the engine's list before user.cfg (`configs.start`):
-/// the stock sound tab's controls name three of them, user.cfg keeps all.
+/// the stock sound tab's controls name two of them, user.cfg keeps all.
+/// (`s_mic_sens`, the stock "Microphone sensitivity", is registered no more:
+/// its control finds no variable, as in the stock game, and is hidden.)
 pub fn register(thread: &Thread) {
     VOLUME.register(thread, c"s_chat_volume");
-    SENSITIVITY.register(thread, c"s_mic_sens");
     MICROPHONE.register(thread, c"s_use_microphone");
     OFF.register(thread, c"g_hide_spam");
     MUTES.register(thread, c"srp_voice_mutes");
@@ -195,7 +185,6 @@ pub fn settings(thread: &Thread) -> Settings {
     }
     Settings::On {
         volume: Fraction::of_percent(VOLUME.get(thread)),
-        sensitivity: Fraction::of_percent(SENSITIVITY.get(thread)),
         microphone: MICROPHONE.get(thread),
     }
 }
@@ -253,38 +242,46 @@ pub enum TalkInput {
     Button(MouseButton),
 }
 
-/// A press or a release of push-to-talk (`ptt`, 47h; the binder's kind 8, the
+/// The channel a chat-kind action talks on: `ptt` (47h, P) the radio,
+/// `ptt_nearby` (37h, O) the 10 m voice (the owner, 2026-11-16: "two voice
+/// buttons one for 10m one for radio").
+fn channel_of(action: Action) -> Option<Channel> {
+    match action {
+        Action::PTT => Some(Channel::Radio),
+        Action::PTT_NEARBY => Some(Channel::Near),
+        _ => None,
+    }
+}
+
+/// A press or a release of a push-to-talk key (the binder's kind 8, the
 /// chat's, whatever group the options list it in), at the game world's keys'
 /// start (`tab_cursor.key`) or its mouse buttons' (`game_world.mouse_key`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TalkKey {
-    Down(TalkInput),
+    /// Pressed: the input, and the channel of the action it is bound to.
+    Down(TalkInput, Channel),
     Up(TalkInput),
 }
 
 impl TalkKey {
-    /// The event when the key is bound to `ptt` (a held key's repeats are
-    /// none).
+    /// The event when the key is bound to one of the two (a held key's
+    /// repeats are none).
     pub fn of(key: &GameWorldKey<'_, '_>) -> Option<TalkKey> {
-        if key.chat_action()? != Action::PTT {
-            return None;
-        }
+        let channel = channel_of(key.chat_action()?)?;
         let input = TalkInput::Key(key.key());
         match key.kind() {
-            KeyKind::Down => Some(TalkKey::Down(input)),
+            KeyKind::Down => Some(TalkKey::Down(input, channel)),
             KeyKind::Up => Some(TalkKey::Up(input)),
             KeyKind::Held => None,
         }
     }
 
-    /// The event when the button is bound to `ptt`.
+    /// The event when the button is bound to one of the two.
     pub fn of_button(button: &GameWorldButton<'_>) -> Option<TalkKey> {
-        if button.chat_action()? != Action::PTT {
-            return None;
-        }
+        let channel = channel_of(button.chat_action()?)?;
         let input = TalkInput::Button(button.button());
         match button.kind() {
-            ButtonKind::Press => Some(TalkKey::Down(input)),
+            ButtonKind::Press => Some(TalkKey::Down(input, channel)),
             ButtonKind::Release => Some(TalkKey::Up(input)),
             ButtonKind::Held => None,
         }
@@ -356,7 +353,7 @@ impl Polled {
     }
 }
 
-pub use voice_abi::{Ears, Heard, MicTest};
+pub use voice_abi::{Channel, Ears, Heard, MicTest};
 
 /// How every place is heard (what the DLL is told: one `sv_hear` a place).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -366,7 +363,7 @@ impl Hearing {
     /// Nobody heard: what the DLL is told before the match's places are
     /// known, and the places that are no one's to hear (the local player's
     /// own, a place not in the match). The relay sends the whole match.
-    pub const SILENT: Hearing = Hearing([Heard::Plain(Ears::SILENT); Place::COUNT]);
+    pub const SILENT: Hearing = Hearing([Heard::SILENT; Place::COUNT]);
 
     pub fn with(mut self, place: Place, heard: Heard) -> Hearing {
         self.0[place.index()] = heard;
@@ -471,12 +468,12 @@ pub struct Seat {
     pub body: Option<Body>,
 }
 
-/// Who the local player's mates are (heard on the radio too; the others only
+/// Who the local player's mates are (on its radio; the others are heard only
 /// near, `voice.rs`): the places of its team, or in a free-for-all every place
 /// of the match (the owner, 2026-11-13: "in FFA I would enable voice chat for
-/// all"). srp's relay sends the whole match whatever the mode.
+/// all"). As srp's relay routes the radio (`registry::RadioChannel`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Channel {
+pub enum Mates {
     Team,
     Match,
 }
@@ -484,25 +481,25 @@ pub enum Channel {
 /// What another place of the match is to the local player, for voice.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Side {
-    /// On its [`Channel`]: a teammate, or in a free-for-all anyone.
+    /// Of its [`Mates`]: a teammate, or in a free-for-all anyone.
     Mate,
     /// Of the other team (the owner, 2026-11-14: "only radio is team only").
     Opponent,
 }
 
-/// The match's places, the local player's among them, and its voice channel.
+/// The match's places, the local player's among them, and who its mates are.
 #[derive(Clone, Copy)]
 pub struct Roster {
     seats: [Option<Seat>; Place::COUNT],
     local: Option<Place>,
-    channel: Channel,
+    mates: Mates,
 }
 
 impl Roster {
-    pub const EMPTY: Roster = Roster { seats: [None; Place::COUNT], local: None, channel: Channel::Team };
+    pub const EMPTY: Roster = Roster { seats: [None; Place::COUNT], local: None, mates: Mates::Team };
 
-    fn of(client: &NetworkClient<'_>, bodies: bool, channel: Channel) -> Roster {
-        let mut roster = Roster { channel, ..Roster::EMPTY };
+    fn of(client: &NetworkClient<'_>, bodies: bool, mates: Mates) -> Roster {
+        let mut roster = Roster { mates, ..Roster::EMPTY };
         let teams = client.place_teams();
         for place in Place::all() {
             let Some(team) = teams[place.index()] else { continue };
@@ -532,9 +529,9 @@ impl Roster {
     pub fn side(&self, place: Place) -> Option<Side> {
         let (me, team) = self.local.and_then(|me| self.seat(me).map(|seat| (me, seat.team)))?;
         let seat = self.seat(place).filter(|_| me != place)?;
-        let mate = match self.channel {
-            Channel::Team => team < 2 && seat.team == team,
-            Channel::Match => true,
+        let mate = match self.mates {
+            Mates::Team => team < 2 && seat.team == team,
+            Mates::Match => true,
         };
         Some(if mate { Side::Mate } else { Side::Opponent })
     }
@@ -545,8 +542,8 @@ impl Roster {
     }
 
     #[cfg(test)]
-    pub fn set_channel(&mut self, channel: Channel) {
-        self.channel = channel;
+    pub fn set_mates(&mut self, mates: Mates) {
+        self.mates = mates;
     }
 
     #[cfg(test)]
@@ -580,12 +577,12 @@ impl<'t> Scene<'t> {
         self.thread
     }
 
-    /// The match's places on `channel`; with `bodies`, the alive players'
-    /// bodies.
-    pub fn roster(&self, bodies: bool, channel: Channel) -> Roster {
+    /// The match's places, the local player's `mates` among them; with
+    /// `bodies`, the alive players' bodies.
+    pub fn roster(&self, bodies: bool, mates: Mates) -> Roster {
         self.game
             .and_then(|game| NetworkClient::of_game(game, self.thread))
-            .map_or(Roster::EMPTY, |client| Roster::of(&client, bodies, channel))
+            .map_or(Roster::EMPTY, |client| Roster::of(&client, bodies, mates))
     }
 
     pub fn movie(&self) -> Option<&Movie<'t>> {
@@ -712,18 +709,20 @@ impl Dll {
         unsafe { (self.api.stop)() }
     }
 
-    pub fn talk(self, on: bool) {
+    /// The push-to-talk key held now: the channel its utterance is on, or
+    /// none (let go).
+    pub fn talk(self, held: Option<Channel>) {
         // SAFETY: the checked API, a scalar.
-        unsafe { (self.api.ptt)(i32::from(on)) }
+        unsafe { (self.api.ptt)(Channel::ptt(held)) }
     }
 
     pub fn settings(self, settings: Settings) {
-        let (volume, microphone, sensitivity) = match settings {
-            Settings::Off => (0.0, false, 0.0),
-            Settings::On { volume, sensitivity, microphone } => (volume.get(), microphone, sensitivity.get()),
+        let (volume, microphone) = match settings {
+            Settings::Off => (0.0, false),
+            Settings::On { volume, microphone } => (volume.get(), microphone),
         };
-        // SAFETY: the checked API, scalars (each 0..1).
-        unsafe { (self.api.settings)(volume, i32::from(microphone), sensitivity) }
+        // SAFETY: the checked API, scalars (the volume 0..1).
+        unsafe { (self.api.settings)(volume, i32::from(microphone)) }
     }
 
     pub fn mute(self, places: Places) {
@@ -744,7 +743,9 @@ impl Dll {
         }
     }
 
-    /// The places talking now (the DLL's word): the teammates it plays, and
+    /// The places talking now (the DLL's word): the players heard, each on
+    /// the channel of its utterance as [`Dll::hearing`] last said its place is
+    /// heard, and
     /// the local player's own place while its microphone is sent (the relay
     /// has answered and the capture runs). Bit 31, the microphone sent before
     /// the relay gave a place, is not one of them.
@@ -767,11 +768,11 @@ impl Dll {
     }
 
     /// The Settings' "Test microphone" button pressed: the DLL starts its
-    /// test with these sliders, or stops the one that runs. In a match or
-    /// not.
-    pub fn test_press(self, sliders: Sliders) {
-        // SAFETY: the checked API, scalars (each 0..1).
-        unsafe { (self.api.test_press)(sliders.volume.get(), sliders.sensitivity.get()) }
+    /// test at this "Voice chat" volume, or stops the one that runs. In a
+    /// match or not.
+    pub fn test_press(self, volume: Fraction) {
+        // SAFETY: the checked API, a scalar (0..1).
+        unsafe { (self.api.test_press)(volume.get()) }
     }
 
     /// The microphone test stopped, if one runs.
@@ -853,22 +854,15 @@ mod tests {
     }
 
     #[test]
-    fn the_test_buttons_press_carries_the_two_sliders() {
-        let sliders = |volume, sensitivity| {
-            Some(Sliders { volume: Fraction::of_percent(volume), sensitivity: Fraction::of_percent(sensitivity) })
-        };
-        assert_eq!(Sliders::parse(c"100 50"), sliders(100.0, 50.0));
-        assert_eq!(Sliders::parse(c"0 0"), sliders(0.0, 0.0));
-        assert_eq!(Sliders::parse(c"7 100"), sliders(7.0, 100.0));
-        assert_eq!(Sliders::parse(c"7 100").map(|s| (s.volume.get(), s.sensitivity.get())), Some((0.07, 1.0)));
-        for bad in [c"", c"50", c"50 ", c" 50", c"50  50", c"50 50 50", c"101 50", c"50 101", c"1000 5", c"5.5 5", c"-1 5",
-                    c"a b", c"50,50", c"stop"] {
-            assert_eq!(Sliders::parse(bad), None, "{bad:?}");
+    fn the_test_buttons_press_carries_the_volume() {
+        let press = |volume| Some(TestAsk::Press(Fraction::of_percent(volume)));
+        assert_eq!(TestAsk::parse(c"100"), press(100.0));
+        assert_eq!(TestAsk::parse(c"0"), press(0.0));
+        assert_eq!(TestAsk::parse(c"7").map(|ask| matches!(ask, TestAsk::Press(volume) if volume.get() == 0.07)), Some(true));
+        for bad in [c"", c"50 ", c" 50", c"50 50", c"101", c"1000", c"5.5", c"-1", c"a", c"50,50", c"Stop"] {
+            assert_eq!(TestAsk::parse(bad), None, "{bad:?}");
         }
-        assert_eq!(TestAsk::parse(c"35 80"), Sliders::parse(c"35 80").map(TestAsk::Press));
         assert_eq!(TestAsk::parse(c"stop"), Some(TestAsk::Stop));
-        assert_eq!(TestAsk::parse(c"Stop"), None);
-        assert_eq!(TestAsk::parse(c""), None);
     }
 
     #[test]

@@ -23,6 +23,7 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod back_buffer;
 pub mod baker;
 pub mod breadcrumbs;
 pub mod bullet;
@@ -79,6 +80,7 @@ pub mod voice;
 pub mod settings;
 mod sync;
 pub mod trace;
+pub mod trap;
 pub mod trig;
 pub mod types;
 mod upgrades;

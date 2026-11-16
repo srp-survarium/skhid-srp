@@ -299,6 +299,22 @@ unsafe extern "C" {
     pub fn engine_sound_pan(scene: Option<SoundScene>, table: Option<PanningLut>, proxy: Option<SoundInstanceProxy>, position: *const f32, distance: f32, matrix: *mut f32, coefficient: *mut f32);
     /// 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
     pub fn engine_listener_position(scene: Option<SoundScene>, out: *mut f32) -> *mut f32;
+    /// COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+    pub fn engine_swap_chain_get_buffer(chain: Option<SwapChain>, buffer: u32, iid: *const c_void, surface: *mut Option<HwResource>) -> u32;
+    /// COM ID3D11Texture2D+0x28 (stdcall through the interface's vtable): texture ESP+4, desc ESP+8; pops 8
+    pub fn engine_texture2d_get_desc(texture: Option<HwResource>, desc: *mut c_void);
+    /// COM ID3D11DeviceChild+0xc (stdcall through the interface's vtable): child ESP+4, device ESP+8; pops 8
+    pub fn engine_device_child_get_device(child: Option<HwResource>, device: *mut *mut c_void);
+    /// COM ID3D11Device+0x14 (stdcall through the interface's vtable): device ESP+4, desc ESP+8, initial ESP+12, texture ESP+16; pops 16; EAX
+    pub fn engine_device_create_texture2d(device: *mut c_void, desc: *const c_void, initial: *const c_void, texture: *mut Option<HwResource>) -> u32;
+    /// COM ID3D11DeviceContext+0xbc (stdcall through the interface's vtable): context ESP+4, destination ESP+8, source ESP+12; pops 12
+    pub fn engine_context_copy_resource(context: Option<ImmediateContext>, destination: Option<HwResource>, source: Option<HwResource>);
+    /// COM ID3D11DeviceContext+0x38 (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12, map_type ESP+16, flags ESP+20, mapped ESP+24; pops 24; EAX
+    pub fn engine_context_map(context: Option<ImmediateContext>, resource: Option<HwResource>, subresource: u32, map_type: u32, flags: u32, mapped: *mut c_void) -> u32;
+    /// COM IUnknown+0x8 (stdcall through the interface's vtable): resource ESP+4; pops 4; EAX
+    pub fn engine_d3d_resource_release(resource: Option<HwResource>) -> u32;
+    /// COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
+    pub fn engine_d3d_device_release(device: *mut c_void) -> u32;
 }
 
 #[allow(dead_code)]
@@ -17347,6 +17363,15 @@ impl KeyEvent {
         unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
     }
 
+    /// +0x4 (u32): DIDEVICEOBJECTDATA.dwData: bit 80h set, the key went down (execute's loop 0x3B9167: test byte [ecx],80h, ECX the event's +4; process 0x3B9B23 the same)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn data(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
     /// 0x14 bytes: a DIDEVICEOBJECTDATA (GetDeviceData's push 14h 0x3B9081; execute's add ecx,14h 0x3B91F2)
     pub const SIZE: usize = 0x14;
 
@@ -19839,6 +19864,24 @@ impl ResRenderOutput {
     #[inline(always)]
     pub unsafe fn window(self) -> *mut u32 {
         unsafe { self.0.byte_add(0xe4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xcc (ptr<dxgi::swap_chain>): its IDXGISwapChain (present 0x3CF8FF: mov esi,[esi+0CCh], Present through its vtable +20h; GetFullscreenState +2Ch at 0x3CF81C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn swap_chain(self) -> Option<SwapChain> {
+        unsafe { self.0.byte_add(0xcc).cast::<Option<SwapChain>>().read_volatile() }
+    }
+
+    /// +0xcc (ptr<dxgi::swap_chain>): its IDXGISwapChain (present 0x3CF8FF: mov esi,[esi+0CCh], Present through its vtable +20h; GetFullscreenState +2Ch at 0x3CF81C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_swap_chain(self, value: Option<SwapChain>) {
+        unsafe { self.0.byte_add(0xcc).cast::<Option<SwapChain>>().write_volatile(value) }
     }
 }
 
@@ -22802,6 +22845,96 @@ impl GrenadeChoiceFrame {
     }
 }
 
+/// A survarium::trap_hit_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TrapHitFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TrapHitFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (u32): booby_trap_core::hit fourth argument by its entry ESP: the hit type (hit_type_enum; a bullet ammo damage_type, pushed by bullet::try_pierce 0x32DA2E), which 0x30554C compares with the trap set defuse_by_hit
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn kind(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::flash_ui_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FlashUiFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FlashUiFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<vostok::render::render_output_window>): render_flash_ui's second argument at its start (0x13CED0, by the site's ESP): the output window (mov eax,[ebp+0Ch] 0x13CEE6, its flash renderer +30B0h tested at 0x13CEE9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn window(self) -> Option<RenderOutputWindow> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<RenderOutputWindow>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::render::render_output_window>): render_flash_ui's second argument at its start (0x13CED0, by the site's ESP): the output window (mov eax,[ebp+0Ch] 0x13CEE6, its flash renderer +30B0h tested at 0x13CEE9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_window(self, value: Option<RenderOutputWindow>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<RenderOutputWindow>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::render_output_window (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderOutputWindow(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderOutputWindow {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x30ac (ptr<vostok::render::res_render_output>): its render output: the frame's draw presents with it (0x13DD3F: mov eax,[edx+30ACh] / call res_render_output::present 0x3CF7F0, EAX its receiver)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn output(self) -> Option<ResRenderOutput> {
+        unsafe { self.0.byte_add(0x30ac).cast::<Option<ResRenderOutput>>().read_volatile() }
+    }
+
+    /// +0x30ac (ptr<vostok::render::res_render_output>): its render output: the frame's draw presents with it (0x13DD3F: mov eax,[edx+30ACh] / call res_render_output::present 0x3CF7F0, EAX its receiver)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_output(self, value: Option<ResRenderOutput>) {
+        unsafe { self.0.byte_add(0x30ac).cast::<Option<ResRenderOutput>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -23140,6 +23273,21 @@ pub struct PanningLut(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl PanningLut {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A dxgi::swap_chain (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SwapChain(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SwapChain {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -27650,6 +27798,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<RespawnEnteredFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(RespawnEnteredFrame)
+        }
+    }
+
+    /// trap.hit (0x305540): booby_trap_core::hit with a hit type, its entry (mov eax,[ecx+194h]; then the set defuse_by_hit against the hit type, 0x30554C): ECX the trap, ESP the return address and the ten arguments; defuse is where a hit of the trap own type goes on (cmp byte [ecx+220h],0: ECX alone is read)
+    pub mod trap_hit {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::trap_hit_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<TrapHitFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(TrapHitFrame)
+        }
+    }
+
+    /// render.flash_ui (0x13ced0): renderer::render_flash_ui's start (push ebp / mov ebp,esp / sub esp,0Ch), once a frame from the frame's draw (0x13DB3D), after the present stage wrote the scene to the back buffer (0x13DB36) and before the interface's movies are drawn over it (flash_renderer::present 0x2AF0F0 at 0x13CFF3) and the swap chain's Present (0x13DD46): ESP the return address, the renderer and the output window
+    pub mod render_flash_ui {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::flash_ui_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<FlashUiFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(FlashUiFrame)
         }
     }
 }

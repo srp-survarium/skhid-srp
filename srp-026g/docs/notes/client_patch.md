@@ -3556,7 +3556,9 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
 
 - **The variables** (`configs.start`, before user.cfg): the sound tab's stock controls are bound by
   name to `s_chat_volume`, `s_use_microphone`, `s_mic_sens` (0x262DE8..0x262EC9) and nothing
-  registers them; `ConsoleFloat` (0..100, the float slider's steps of 1) and `ConsoleBool` do, with
+  registers them; `ConsoleFloat` (0..100, the float slider's steps of 1) and `ConsoleBool` do the
+  first two (`s_mic_sens` too until 2026-11-16: its slider is hidden since, and it names no
+  variable again, as the stock game's `s_ptt_button`), with
   `g_hide_spam` (the gameplay tab's dead option 5, "Disable voice chat") and the `ConsoleString`
   `srp_voice_mutes` (each muted voice id, 8 hex digits and `|`: parsed once a match, a malformed
   record left out and logged).
@@ -3567,8 +3569,10 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
   (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied.
 - **Every frame** (`game_world.after_move`): the options, the muted teammates and how each
-  teammate is heard, a place's whole state in one `sv_hear(place, left, right, radio)`, to the DLL on
-  a change. From 10 m (`RADIO_FROM_M`), or with either of the two not alive: the radio. Nearer than
+  other player is heard on its two channels (voice-chat.md, "Two keys"), a place's whole state in
+  one `sv_hear(place, left, right, radio)`, to the DLL on
+  a change. Its radio: heard when it is a mate (its team; in a free-for-all anyone), at any
+  distance, alive or dead. Its 10 m voice, both alive and nearer than
   10 m (`PLAIN_TO_M`): plain, in the world: the engine's own pan of a point sound at the speaker's
   place (`sound_scene::calculate_3d_pan` 0x57D70 through `engine_sound_pan`, with the game world's
   sound scene (+94h: its listener), the sound world's panning table (+0CCh) and a zeroed proxy of
@@ -3584,16 +3588,20 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   hud's `root.srp_voice_talking(name, side, ...)` on a change, each speaker's side `"mate"` or
   `"opponent"` (0.69's list: those heard, newest on top, fading 1 s after 0.5 s, an opponent's
   speaker pale red; and the player's own while its microphone is sent).
-- **The key** (`tab_cursor.key`, before patch 86's): the binder's chat key (kind 8, as
-  chat_handler::on_keyboard_action asks at 0x208887, the binder [game+5344h]) `ptt` (47h, P) down
-  and up. **A mouse button** (`game_world.mouse_key`, 0x25CF70: `mov edi,eax / mov eax,[edi] /
+- **The keys** (`tab_cursor.key`, before patch 86's): the binder's chat keys (kind 8, as
+  chat_handler::on_keyboard_action asks at 0x208887, the binder [game+5344h]) `ptt` (47h, P), the
+  radio's push-to-talk, and `ptt_nearby` (37h, O: the action table's entry 0xA74E10,
+  `serialize_player_state`, a debug action of kinds 5 with no console command, renamed and made
+  kind 8 by patch_026g.py's `VOICE_ACTION`, its default key kept), the 10 m voice's, down
+  and up; the one held first talks, and the 10 m voice's is let go while the player is not alive. **A mouse button** (`game_world.mouse_key`, 0x25CF70: `mov edi,eax / mov eax,[edi] /
   mov edx,[eax]` after on_mouse_key_action's ask of the keyboard, ESI the game world's input
   handler, the keyboard's: its cursor flag +2E0h is the hud's +2DCh; ESP+14h the key, 151h + the
   button, +18h the kind, 0 press, 1 release, 2 held): the same ask of the binder with the button's
   key. The function's first ten bytes are patch 31's jump (WARMUP_KEYS_HOOK), which takes a button
   held from a shown cursor (its held states and release) and comes back at 0x25CF6A otherwise; such
   a release is seen by the poll above. Patch 62's controls have `ptt` in the game group with a key
-  that can be set (the game's row: the chat group, type 0, its key button disabled); muting is the
+  that can be set (the game's row: the chat group, type 0, its key button disabled) and a 43rd
+  row for `ptt_nearby`; muting is the
   Tab menu's.
 - **The Tab list's player menu** (`hud.callback`, after patch 86's): `srp_voice_menu(place)` is
   answered `root.srp_voice_menu(place, offered, muted)` (another player of either team whose voice
@@ -3604,8 +3612,9 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   the DLL records 10 s and plays them back, in a match or not). `options.callback`
   (game_options::scaleform_callback 0x1FF5D0, after patches 79, 83 and 112): the Settings' sound
   tab asks `srp_mic_test`, answered `root.srp_mic_test(text)` (the button's text of the DLL's
-  state, the dictionary's `st_srp_mic_test*` with the seconds left); with `<volume> <sensitivity>`
-  (the two voice sliders' steps as they stand) it is a press, `sv_test_press`, with `stop` (the
+  state, the dictionary's `st_srp_mic_test*` with the seconds left); with `<volume>`
+  (the "Voice chat" slider's steps as it stands; the sensitivity went with its slider, 2026-11-16)
+  it is a press, `sv_test_press`, with `stop` (the
   Settings window closed) `sv_test_stop`; the DLL is loaded here when no match loaded it; at the
   game's own `options_tab_changed` (left to it) `sv_test_stop`. `game.tick` (0x1EC8EC, EBX the game; after the music, the packets and the two
   reports): while the main menu is shown (game_options, game+57F4h: +44h shown, +0Ch its movie's

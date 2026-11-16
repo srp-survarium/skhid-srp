@@ -293,6 +293,22 @@ unsafe extern "C" {
     pub fn engine_sound_pan(scene: *mut c_void, table: *mut c_void, proxy: *mut c_void, position: *const f32, distance: f32, matrix: *mut f32, coefficient: *mut f32);
     /// 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
     pub fn engine_listener_position(scene: *mut c_void, out: *mut f32) -> *mut f32;
+    /// COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+    pub fn engine_swap_chain_get_buffer(chain: *mut c_void, buffer: u32, iid: *const c_void, surface: *mut *mut c_void) -> u32;
+    /// COM ID3D11Texture2D+0x28 (stdcall through the interface's vtable): texture ESP+4, desc ESP+8; pops 8
+    pub fn engine_texture2d_get_desc(texture: *mut c_void, desc: *mut c_void);
+    /// COM ID3D11DeviceChild+0xc (stdcall through the interface's vtable): child ESP+4, device ESP+8; pops 8
+    pub fn engine_device_child_get_device(child: *mut c_void, device: *mut *mut c_void);
+    /// COM ID3D11Device+0x14 (stdcall through the interface's vtable): device ESP+4, desc ESP+8, initial ESP+12, texture ESP+16; pops 16; EAX
+    pub fn engine_device_create_texture2d(device: *mut c_void, desc: *const c_void, initial: *const c_void, texture: *mut *mut c_void) -> u32;
+    /// COM ID3D11DeviceContext+0xbc (stdcall through the interface's vtable): context ESP+4, destination ESP+8, source ESP+12; pops 12
+    pub fn engine_context_copy_resource(context: *mut c_void, destination: *mut c_void, source: *mut c_void);
+    /// COM ID3D11DeviceContext+0x38 (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12, map_type ESP+16, flags ESP+20, mapped ESP+24; pops 24; EAX
+    pub fn engine_context_map(context: *mut c_void, resource: *mut c_void, subresource: u32, map_type: u32, flags: u32, mapped: *mut c_void) -> u32;
+    /// COM IUnknown+0x8 (stdcall through the interface's vtable): resource ESP+4; pops 4; EAX
+    pub fn engine_d3d_resource_release(resource: *mut c_void) -> u32;
+    /// COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
+    pub fn engine_d3d_device_release(device: *mut c_void) -> u32;
 }
 
 #[allow(dead_code)]

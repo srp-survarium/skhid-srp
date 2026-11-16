@@ -301,14 +301,40 @@ struct Inner {
     connections: HashMap<(u32, u8), IpAddr>,
 }
 
+/// Whose radio a seat talks and listens on: two seats of a match hear each
+/// other's radio when theirs is the same.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RadioChannel {
+    /// Its team's (every mode with teams; the owner, 2026-11-16: "radio is
+    /// team only").
+    Team(u8),
+    /// The whole match's: a free-for-all, whose places are each a side of
+    /// their own ("or in ffa for everyone").
+    Match,
+}
+
+impl RadioChannel {
+    /// The radio of a place of `team` in a match of `mode`: the one place
+    /// the relay's radio routing is decided.
+    pub fn of(mode: GameMode, team: u8) -> RadioChannel {
+        if mode == GameMode::FreeForAll {
+            RadioChannel::Match
+        } else {
+            RadioChannel::Team(team)
+        }
+    }
+}
+
 /// A session's place as the voice relay needs it (`super::voice`). Its
-/// voice reaches the whole match, whatever its team: each game decides how
-/// it hears a speaker (the owner, 2026-11-14).
+/// 10 m voice reaches the whole match, whatever its team (each game plays
+/// it only near the speaker); its radio only the seats of its
+/// [`RadioChannel`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VoiceSeat {
     pub match_id: u32,
     /// The roster place: the speaker's slot on the voice wire.
     pub place: u8,
+    pub radio: RadioChannel,
     /// The IP of the place's match connection; `None` before its 0xD8.
     pub ip: Option<IpAddr>,
 }
@@ -769,8 +795,8 @@ impl MatchRegistry {
             .collect()
     }
 
-    /// The seat of a session with its match connection's IP, for the
-    /// voice relay. `None` for a
+    /// The seat of a session with its radio (by the match's mode) and its
+    /// match connection's IP, for the voice relay. `None` for a
     /// session with no place, and for a bot's place (no game talks for it).
     pub fn voice_seat(&self, session_id: u32) -> Option<VoiceSeat> {
         let inner = self.inner();
@@ -783,6 +809,7 @@ impl MatchRegistry {
         Some(VoiceSeat {
             match_id: seat.match_id,
             place: seat.place,
+            radio: RadioChannel::of(formed.played.mode(), place.team),
             ip: inner.connections.get(&(seat.match_id, seat.place)).copied(),
         })
     }

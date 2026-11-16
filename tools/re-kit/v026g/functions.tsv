@@ -2393,3 +2393,6 @@ va	status	ref_021d	name
 0x00316d50	observed		survarium::player_respawn_rule_base::deserialize
 0x00316f10	observed		survarium::player_respawn_rule_core::serialize
 0x00316fc0	observed		survarium::player_respawn_rule_core::deserialize
+0x00305540	observed		survarium::booby_trap_core::hit
+0x00305580	observed		survarium::booby_trap_core::hit
+0x003050c0	observed		survarium::booby_trap_core::defuse_completed

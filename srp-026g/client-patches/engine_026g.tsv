@@ -265,3 +265,11 @@ engine_sound_pan	0x057d70	ESP+4:scene ESP+8:panning ESP+12:sound_type ESP+16:pos
 engine_listener_position	0x057560	EAX:scene ESI:out	float *engine_listener_position(struct sound_scene *scene, float *out)	thunk	
 engine_get_last_error	0x87005c	-	unsigned int engine_get_last_error(void)	import	
 engine_create_process_w	-	-	unsigned int engine_create_process_w(const unsigned short *application, unsigned short *command, void *process_security, void *thread_security, unsigned int inherit, unsigned int flags, void *environment, const unsigned short *folder, void *startup, void *information)	dynamic	
+engine_swap_chain_get_buffer	IDXGISwapChain+0x24	-	unsigned int engine_swap_chain_get_buffer(struct swap_chain *chain, unsigned int buffer, const void *iid, struct hw_resource **surface)	com	
+engine_texture2d_get_desc	ID3D11Texture2D+0x28	-	void engine_texture2d_get_desc(struct hw_resource *texture, void *desc)	com	
+engine_device_child_get_device	ID3D11DeviceChild+0xc	-	void engine_device_child_get_device(struct hw_resource *child, struct d3d_device **device)	com	
+engine_device_create_texture2d	ID3D11Device+0x14	-	unsigned int engine_device_create_texture2d(struct d3d_device *device, const void *desc, const void *initial, struct hw_resource **texture)	com	
+engine_context_copy_resource	ID3D11DeviceContext+0xbc	-	void engine_context_copy_resource(struct immediate_context *context, struct hw_resource *destination, struct hw_resource *source)	com	
+engine_context_map	ID3D11DeviceContext+0x38	-	unsigned int engine_context_map(struct immediate_context *context, struct hw_resource *resource, unsigned int subresource, unsigned int map_type, unsigned int flags, void *mapped)	com	
+engine_d3d_resource_release	IUnknown+0x8	-	unsigned int engine_d3d_resource_release(struct hw_resource *resource)	com	
+engine_d3d_device_release	IUnknown+0x8	-	unsigned int engine_d3d_device_release(struct d3d_device *device)	com	

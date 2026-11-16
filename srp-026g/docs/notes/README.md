@@ -18,6 +18,7 @@ given), LIKELY or GUESS.
 
 | Note | Covers |
 |---|---|
+| [0.69 scope completion](scopes-069-completion.md) | Current port, preserved released fits, native optical eyes and validation evidence |
 | [login_chat.md](login_chat.md) | Command line, login over TLS, the browser server (removed), presence, chat transport and layouts |
 | [player-to-player.md](player-to-player.md) | **Everything players' games send each other** (inputs, pickups, kit choices, worlds, lobby text), with examples, and how the server and each game check it |
 | [lobby.md](lobby.md) | Lobby transport, every server→client message, **crash hazards and the safe push order** (§3) |
@@ -30,7 +31,7 @@ given), LIKELY or GUESS.
 | [drop_cards.md](drop_cards.md) | Drop cards: one per player of a match, own matches only, finished (the owner, 2026-10-20; the server refusal ships, the greyed button does not), the original screen's rule, what `allow_drop_card` is, the logging of sales and exchanges |
 | [progression_pace.md](progression_pace.md) | How long levels, faction ranks and gear tiers take, measured on the players' server, and the pay rates chosen from it |
 | [items.md](items.md) | Modifications, defects, cosmetics, reroll, craft, repair: the data, the wire, the rules |
-| [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs |
+| [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs; the rifle scopes from 0.69d0 (section 6); every scope on the release-41 guns and the Walther Competition II (section 7) |
 | [sight-alignment.md](sight-alignment.md) | The 9A-91's Cobra dot at the screen's centre: the aimed view as the exe builds it, retail 0.29a3's misplaced eye (14.5 px high), the eye moved onto the optic's axis; the other collimators measured off, left alone |
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
 | [imported_weapon_balance.md](imported_weapon_balance.md) | Imported guns against Zubr +8: stock weapons, best ammo, TTK across distance, kills per magazine, recoil and kick, 0.69 evidence and level-10 placement |
@@ -98,6 +99,7 @@ given), LIKELY or GUESS.
 | [force-protein-knockback.md](force-protein-knockback.md) | The Anomalous Force Protein in a pocket makes its carrier's gun-stock kills' ragdolls fly (the owner, 2026-11-05; visual only): modification 1330 (modifier 29 +15), its gun-stock push 16 times (a heavy hit, the body thrown), card "Melee knockback: +1500%" |
 | [renderer-026g.md](renderer-026g.md) | The renderer: the frame's 27 stages, lights and shadows (shaders, D16 maps, filter), probes and ambient lights (blend, order), SSAO/SSDO, composition and emission, post-process, the shader toolchain and PCSS soft shadows; stage order and targets, the scene's models and lights, vertex layouts (static, four-bone, terrain), G-buffer material parameters (Fresnel and roughness, the specular scale, wetness), emission and its flicker, sun, point and spot lights, water, the sky dome and scattering tables |
 | [hand-kill.md](hand-kill.md) | Gun-stock hits kill, for everyone, wherever they land (the owner, 2026-11-05): how a blunt hit goes on to pain by zone (arms and hips 5 %, feet 80 %, torso and head all), the zones of the body, the hit marker, exe patch 108 deals 1000 at hit_body_part so pain empties (the kill feed's pain mark) |
+| [trap-stock-hit.md](trap-stock-hit.md) | A gun-stock hit disarms a trap (the owner, 2026-11-15): a trap defuses on a hit of its `defuse_by_hit` type alone (ranged), the melee bullet is blunt and was dropped at that test; exe patch 151 sends a blunt hit on to the game's own defuse |
 | [fov_lod.md](fov_lod.md) | Models at a high field of view: why they went out sooner (LOD and screen factor by size on the screen), the scale table, the fix (exe patch 40) |
 | [death-camera.md](death-camera.md) | The camera on the death screen: a held mouse button turns the view from the corpse's eyes, the wheel does nothing (the owner, 2026-10-21; exe patch 46) |
 | [mouse-pitch.md](mouse-pitch.md) | The mouse look's pitch (players' report, 2026-11-03): the stock pitch step is h/w of the yaw's (0.75 at 4:3, 0.56 at 16:9), and 0.69 is the same; the look clip decoded (67.5° a unit down, 60° up); "Lock vertical sensitivity" (Controls, ticked by default) keeps 16:9's look at every window, and unticked the vertical slider turns 1:1; the death camera too (exe patch 112) |
@@ -137,6 +139,7 @@ given), LIKELY or GUESS.
 | [exchange.md](exchange.md) | The exchange window: removed (no gold) |
 | [held_artefact_transfer.md](held_artefact_transfer.md) | Held artefact transfer (patch 78) |
 | [hide-ui-key.md](hide-ui-key.md) | A key that hides the interface |
+| [screenshots.md](screenshots.md) | The screenshot keys: F11 the screen, F12 the frame without the interface, PNG files in the game's `screenshots` folder; Hide interface moved to F9 |
 | [kill_cap.md](kill_cap.md) | Repeated-kill payment limit |
 | [kit-change-before-start.md](kit-change-before-start.md) | A kit chosen before the match starts (patch 31) |
 | [language-option.md](language-option.md) | Language in Settings |

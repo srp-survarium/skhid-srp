@@ -235,6 +235,14 @@ global engine_respawn_points_push
 global engine_sound_pan
 global engine_listener_position
 global engine_get_last_error
+global engine_swap_chain_get_buffer
+global engine_texture2d_get_desc
+global engine_device_child_get_device
+global engine_device_create_texture2d
+global engine_context_copy_resource
+global engine_context_map
+global engine_d3d_resource_release
+global engine_d3d_device_release
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -2766,6 +2774,157 @@ engine_listener_position:
     mov eax, [esp + 20]   ; scene
     mov esi, [esp + 24]   ; out
     call 0x57560
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_swap_chain_get_buffer:
+    ; COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; surface -> 16
+    push dword [esp + 32]   ; iid -> 12
+    push dword [esp + 32]   ; buffer -> 8
+    push dword [esp + 32]   ; chain -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x24]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_texture2d_get_desc:
+    ; COM ID3D11Texture2D+0x28 (stdcall through the interface's vtable): texture ESP+4, desc ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; desc -> 8
+    push dword [esp + 24]   ; texture -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x28]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_device_child_get_device:
+    ; COM ID3D11DeviceChild+0xc (stdcall through the interface's vtable): child ESP+4, device ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; device -> 8
+    push dword [esp + 24]   ; child -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0xc]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_device_create_texture2d:
+    ; COM ID3D11Device+0x14 (stdcall through the interface's vtable): device ESP+4, desc ESP+8, initial ESP+12, texture ESP+16; pops 16; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; texture -> 16
+    push dword [esp + 32]   ; initial -> 12
+    push dword [esp + 32]   ; desc -> 8
+    push dword [esp + 32]   ; device -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x14]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_context_copy_resource:
+    ; COM ID3D11DeviceContext+0xbc (stdcall through the interface's vtable): context ESP+4, destination ESP+8, source ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; source -> 12
+    push dword [esp + 28]   ; destination -> 8
+    push dword [esp + 28]   ; context -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0xbc]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_context_map:
+    ; COM ID3D11DeviceContext+0x38 (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12, map_type ESP+16, flags ESP+20, mapped ESP+24; pops 24; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; mapped -> 24
+    push dword [esp + 40]   ; flags -> 20
+    push dword [esp + 40]   ; map_type -> 16
+    push dword [esp + 40]   ; subresource -> 12
+    push dword [esp + 40]   ; resource -> 8
+    push dword [esp + 40]   ; context -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x38]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_d3d_resource_release:
+    ; COM IUnknown+0x8 (stdcall through the interface's vtable): resource ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; resource -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x8]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_d3d_device_release:
+    ; COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; device -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x8]
     pop edi
     pop esi
     pop ebx

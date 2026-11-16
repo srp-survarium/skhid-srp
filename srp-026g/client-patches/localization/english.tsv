@@ -1777,8 +1777,9 @@ st_profile_selection_warning	20 seconds respawn time when changing profile
 st_profile_warning_weapon	Cannot enter the battle without weapons!
 st_profile_warning_weapon_ammo	Unable to enter the battle, insufficient ammo in your backpack!
 st_profile_warning_weapon_ammo_in_inv	Unable to enter the batle, insufficient ammo in your inventory!
-st_ptt_action	Push to talk
+st_ptt_action	Talk on radio
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Talk nearby
 st_put_item	Put ({USE})
 st_quest_change_warning	Warning! Changing tasks will lower your faction loyalty!
 st_quest_completed	Mission accomplished!
@@ -2088,6 +2089,8 @@ st_scavengers_win_x_games_obj	Win matches:
 st_science_medkit_description	Fully heals arms, legs, body and head. Restores 50% of pain. Cures intoxication and radiation sickness.
 st_science_medkit_name	Science Medkit
 st_scientists_faction	Institute
+st_screenshot_action	Screenshot
+st_screenshot_no_ui_action	Screenshot without UI
 st_search_label	Search
 st_search_range	Match level
 st_second_weapon_action	Weapon 2
@@ -2109,10 +2112,16 @@ st_shop	Shop
 st_shop_label	Shop
 st_shop_scope_1p69_hyperon_description	Scope with x4 magnification
 st_shop_scope_1p69_hyperon_name	Zenit "Hyperion" optical sight, x4
+st_shop_scope_acog_ta01_description	Scope with x4 magnification
+st_shop_scope_acog_ta01_name	TA01 optical sight, x4
 st_shop_scope_acog_ta31_description	Scope with x4 magnification
 st_shop_scope_acog_ta31_name	TA31 optical sight, x4
 st_shop_scope_aimpoint_compm4_description	Swedish red dot sight with a 2 MOA dot and a battery that lasts up to eight years of constant use. Adopted by the US Army as the M68 CCO; mounts on a Picatinny rail.
-st_shop_scope_aimpoint_compm4_name	CompM4 collimator
+st_shop_scope_aimpoint_compm4_name	CompM4 collimator, x2
+st_shop_scope_aperture_description	Scope with x3 magnification
+st_shop_scope_aperture_name	Aperture optical sight, x3
+st_shop_scope_belomo_pk01_description	Red dot sight with x2 magnification.
+st_shop_scope_belomo_pk01_name	PK-01VI collimator, x2
 st_shop_scope_cobra_ekp_8_description	Russian collimator sight with four selectable red reticles. Lets the shooter aim fast with both eyes open; mounts on the side rail of Kalashnikov-type weapons.
 st_shop_scope_cobra_ekp_8_name	Cobra EKP-8 collimator
 st_shop_scope_docter_description	Compact German open reflex sight with a red dot. Light and quick to aim with; made for shotguns, handguns and short weapons.
@@ -2121,10 +2130,18 @@ st_shop_scope_elcan_specterdr_description	Scope with x4 magnification
 st_shop_scope_elcan_specterdr_name	SpecterDR optical sight, x4
 st_shop_scope_eotech_552_description	American holographic sight: a 65 MOA ring with a 1 MOA dot in the centre, powered by AA batteries. Fast on close and medium ranges; mounts on a Picatinny rail.
 st_shop_scope_eotech_552_name	EOTech 552 collimator
+st_shop_scope_eotech_xps2_description	Red dot sight for fast aiming.
+st_shop_scope_eotech_xps2_name	EOTech XPS2 collimator
+st_shop_scope_hensoldt_rsas_description	Red dot sight with x2 magnification.
+st_shop_scope_hensoldt_rsas_name	RSA-S collimator, x2
+st_shop_scope_leupold_3_7_description	Scope with x6 magnification
+st_shop_scope_leupold_3_7_name	Leupold 3-7 optical sight, x6
 st_shop_scope_leupold_deltapoint_description	Compact American reflex sight with a red triangle aiming mark. Made for handguns and light weapons; small enough to stay out of the way.
 st_shop_scope_leupold_deltapoint_name	Leupold DeltaPoint collimator
 st_shop_scope_leupold_mk4_description	Scope with x4 magnification
 st_shop_scope_leupold_mk4_name	Leupold MK4 optical sight, x4
+st_shop_scope_ncstar_4_description	Red dot sight for fast aiming.
+st_shop_scope_ncstar_4_name	NcSTAR 4 collimator
 st_shop_scope_pso_1_description	Scope with x4 magnification
 st_shop_scope_pso_1_name	PSO-1 optical sight, x4
 st_shop_scope_pso_1_old_description	Scope with x4 magnification
@@ -2728,10 +2745,10 @@ st_srp_replay_not_yours	You can watch replays only of matches you played in.
 st_srp_replay_off	Replays are switched off on this server.
 st_srp_replay_old_game	Your game version cannot play replays. Update the game: start it again through the launcher.
 st_srp_replay_place_in_line	Place in line: %1$s. Waiting: %2$s s.
-st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
-st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F9 for the controls: players, camera, seek, speed.
+st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F9 for the controls: players, camera, seek, speed.
 st_srp_replay_size	%1$s.%2$s MB
-st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.
+st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F9 for the controls.
 st_srp_replay_still_preparing	Still being prepared. It keeps being made on the server; open Watch replay again in a minute.
 st_srp_replay_title	Watch replay
 st_srp_replay_waiting	Waiting: %1$s s.

@@ -507,7 +507,8 @@ Patches:
   player's line in a match while it is on (channels 3 and 5 to 9);
 - one key hides the whole interface and shows it again, in a match and in
   the lobby (patch 62, with the late join; docs/notes/hide-ui-key.md): the
-  game's action toggle_replay_ui (19h, F11), which only worked in a replay.
+  game's action toggle_replay_ui (19h), which only worked in a replay; F11
+  until patch 152, which names it hide_interface and gives it F9.
   hide_ui_026g.asm (the arena's blocks hide_ui.code and .data): the game
   world's on_keyboard_action case 19h (0x25CED1) without the replay's movie
   asks the hud movie root.interface_hidden and gives it and the player icons'
@@ -527,8 +528,11 @@ Patches:
   user.cfg (configs.start); the DLL started at match_client::connect
   (0x27A1B0) on the match port + 1 and stopped at on_finish_match (0x1F96F0)
   and on_deactivate (0x1F9520); every frame (game_world.after_move) the
-  options, mutes, radio distances and the hud's list of who talks;
-  push-to-talk (ptt, 47h) from the game world's keys (tab_cursor.key);
+  options, mutes, how each player is heard and the hud's list of who talks;
+  two push-to-talk keys from the game world's keys (tab_cursor.key): the
+  radio's (ptt, 47h, P: the team's, in a free-for-all everyone's) and the
+  10 m voice's (ptt_nearby, O: the action table's entry 37h renamed, kind
+  8; everyone near hears it);
   "Mute voice" in the Tab list's player menu (hud.callback, after patch
   86's); the options' "Test microphone" (the DLL records 10 s and plays
   them back, in a match or not): the Settings' srp_mic_test
@@ -856,7 +860,7 @@ WORLD_UNPACK = (
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 60
+REVISION = 61
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -2462,7 +2466,9 @@ HIDE_UI_HOOKS = (
 )
 # The options' controls (the same patch): the six functions of game_options
 # that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
-# 2Ah rows, the 29h toggle_replay_ui, the 2Ah patch 78's artefact) instead: (site, its bytes, where in
+# 2Dh rows, the 29h hide_interface, the 2Ah patch 78's artefact, the 2Bh
+# patch 66's ptt_nearby, the 2Ch and 2Dh patch 152's two screenshot keys)
+# instead: (site, its bytes, where in
 # them the address is, the row's field it names) and (site, its bytes, where
 # the count 28h is).
 HIDE_UI_TABLE = 0xA9DB28
@@ -2497,7 +2503,9 @@ def hide_ui_table_writes(linked):
 
 
 # The rows `controls` adds after the game's 28h: (action, label key).
-CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"))
+CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"),
+                  (0x37, "st_ptt_nearby_action"), (0x1A, "st_screenshot_action"),
+                  (0x1B, "st_screenshot_no_ui_action"))
 # Patch 78's carry key (../docs/notes/held_artefact_transfer.md): the game's
 # own action `artefact` (23h, kinds 5; action table entry 0xA74D5C), which
 # nothing in the game reads and had no default key, gets H (the binder's
@@ -2507,15 +2515,65 @@ CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_a
 ARTEFACT_KEY_DEFAULT = (0xA74D6C, bytes(4), struct.pack("<I", 0x9FDCA8))
 
 
+# The screenshot keys (patch 152, README "Two keys save a screenshot"; the
+# rules: ../docs/notes/screenshots.md): the safe Rust module screenshot.rs
+# and its named sites in screenshot.toml. Its two keys are the action
+# table's entries of 1Ah and 1Bh, the game's `torch` and `night_vision`
+# (kinds 5, no default key; nothing in the game reads either: the game
+# world's switch is 11h..19h, the player's input table 0xA746E0 has neither),
+# named `screenshot` and `screenshot_no_ui` with the default keys F11 and
+# F12. F11 was patch 62's: its action, the entry of 19h, is named
+# `hide_interface` with the default key F9. The new name is what moves that
+# key for every player: a saved user.cfg's `bind toggle_replay_ui kF11` names
+# no action now, so bind_key (0x207DC0) binds nothing and the three defaults
+# stand; with the old name it would take F11 back from `screenshot` (a key
+# has one action of a kind). Each: (the entry, its bytes {name, id, kinds,
+# toggle, default key}, the arena's name, the default key's name in the exe).
+SCREENSHOT_ACTIONS = (
+    (0xA74CA8, struct.pack("<5I", 0x9FDF24, 0x19, 5, 0, 0x9FDF1C), "hide_interface_action", 0x9FDC1C),    # kF9
+    (0xA74CBC, struct.pack("<5I", 0x9FDF14, 0x1A, 5, 0, 0), "screenshot_action", 0x9FDF1C),               # kF11
+    (0xA74CD0, struct.pack("<5I", 0x9FDF04, 0x1B, 5, 0, 0), "screenshot_no_ui_action", 0x9FDB60),         # kF12
+)
+
+
+def screenshot_action_writes(linked):
+    """[(VA, its bytes, the new bytes)] of the three entries: the name the
+    link's, the id, the kinds and the toggle as they were, the default key."""
+    return [(va, old, struct.pack("<I", linked.symbols[name]) + old[4:16] + struct.pack("<I", key))
+            for va, old, name, key in SCREENSHOT_ACTIONS]
+
+
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
 # the replay's toggle, the key not taken; the lobby's key taken, and the key to the movie
 
 # Voice chat (patch 66, README; client_patch.md section 3.71; the rules:
 # ../docs/notes/voice-chat.md): the safe Rust module voice.rs and its named
 # sites in voice.toml, in the shared patches blocks (ARENA below), with
-# skhid_voice.dll beside the exe (srp-026g/client-voice). Its one key is the
-# game's own ptt (47h, kind 8: only the chat handler and this patch ask kind
-# 8, default P); the action table and the Controls rows stay the game's.
+# skhid_voice.dll beside the exe (srp-026g/client-voice). Two push-to-talk
+# keys (the owner, 2026-11-16: "two voice buttons one for 10m one for
+# radio"). The radio's is the game's own ptt (47h, kind 8: only the chat
+# handler and this patch ask kind 8, default P). The 10 m voice's is the
+# action table's entry 0xA74E10, serialize_player_state (37h, kinds 5, kO; a
+# debug action whose console command does not exist), which becomes
+# ptt_nearby, kind 8, its default key O kept (in a match only that debug
+# action had it; the lobby's `options`, kind 2, has it too, as C is both
+# crouch_toggle's and the lobby's `character`'s). Its Controls row is the
+# 43rd of `controls` (CONTROLS_ADDED).
+# The action table's entry {name, id, kinds, toggle, default key}: 37h.
+VOICE_ACTION = 0xA74E10
+VOICE_ACTION_OLD = struct.pack("<5I", 0x9FDDF8, 0x37, 5, 0, 0x9FDDF4)
+VOICE_ACTION_KINDS = 8
+# The entry as an install row (the build's write index names its owner by it).
+VOICE_ACTION_ENTRY = (VOICE_ACTION, VOICE_ACTION_OLD)
+
+
+def voice_action_write(linked):
+    """(VA, its bytes, the new bytes) of the action's entry: the name the
+    link's ptt_nearby_action, kind 8, the default key as it was."""
+    name = linked.symbols["ptt_nearby_action"]
+    return VOICE_ACTION, VOICE_ACTION_OLD, struct.pack("<5I", name, 0x37, VOICE_ACTION_KINDS, 0, 0x9FDDF4)
+
+
 # The kill feed's wall, ricochet and pain icons (patch 67, README; client_patch.md
 # section 3.55; the rules: ../docs/notes/kill-feed-icons.md):
 # kill_feed_026g.asm in the arena's block kill_feed.code (ARENA below), two
@@ -3097,7 +3155,7 @@ ARENA = (
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
-    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 41 controls
+    ArenaBlock("hide_ui.data", "data", 0x1000, ("hide_ui_026g.asm",)),           # the options' 43 controls
     ArenaBlock("kill_feed.code", "code", 0x1000, ("kill_feed_026g.asm",)),       # patch 67
     ArenaBlock("audio_device.code", "code", 0x1000, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # patch 100
     ArenaBlock("audio_device.state", "state", 0x10, ("audio_device_026g.c", "audio_device_engine_026g.c")),  # its engine
@@ -4194,6 +4252,9 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 for va, old, new in hide_ui_table_writes(linked):
                     patch(data, va, old, new)
                 patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
+                patch_section_value(data, *voice_action_write(linked))
+                for write in screenshot_action_writes(linked):
+                    patch_section_value(data, *write)
                 for change in DETAIL_PATCHES:
                     patch(data, *change)
                 patch(data, *KILL_FEED_ARGUMENT)
@@ -4275,7 +4336,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before "
                      "they came or in their first 300 ms), "
                      "an option hides the other players' chat lines in a match, "
-                     "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
+                     "F9 (hide_interface) hides the interface in a match and in the lobby, "
+                     "F11 and F12 save a screenshot, with the interface and without it, "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
                      "a Blackout match has no interface but its Tab view and the players' markers on Tab, "
