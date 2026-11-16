@@ -29,6 +29,8 @@ and the log's kernel32. Checked:
   local player; entering the classroom asks its bed (a class 256 query of its
   path) after the beds' four scenes (class 38), the hall asks the hall's, back
   outdoors asks nothing;
+- SKHID_ROOM_LOG: off, no room lines; on (read as a map with zones loads), each room the
+  listener enters and a room's first item played, once;
 - the project's removal: no zones again (a placed sound in the box plays as
   outdoors), the map's data with a wrong version refused and logged.
 """
@@ -50,6 +52,7 @@ REMOVED = 0x285614
 QUERY, LISTENER_POSITION, PROXY_POSITION = 0xE5B60, 0x57560, 0x5C1F0
 THREAD_SLOT = 0x870118
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, CLOSE_SLOT = 0x870048, 0x870108, 0x870040
+ENVIRONMENT_SLOT = 0x8701B4             # GetEnvironmentVariableA (stdcall 3)
 HEAP, STUBS, STACK = 0x30000000, 0x31000000, 0x32000000
 CONFIGS, TEXTS = HEAP + 0x40000, HEAP + 0x80000
 GAME, WORLD, USER, GAME_WORLD, PROJECT, BINARY, PHYSICS, PROXY = (HEAP + 0x10000 + 0x2000 * i for i in range(8))
@@ -86,6 +89,10 @@ class Game:
             self.word(slot, stub)
             emu.mem_write(stub, code)
         emu.hook_add(UC_HOOK_CODE, self.write_file, begin=STUBS + 0xA0, end=STUBS + 0xA0)
+        self.environment = {}
+        self.word(ENVIRONMENT_SLOT, STUBS + 0xC0)
+        emu.mem_write(STUBS + 0xC0, b"\xC2\x0C\x00")
+        emu.hook_add(UC_HOOK_CODE, self.getenv, begin=STUBS + 0xC0, end=STUBS + 0xC0)
         emu.mem_write(GET_EMITTER, b"\x8B\xC1\xC3")              # mov eax,ecx / ret: the sound is its emitter
         emu.mem_write(PLAY, b"\xC2\x10\x00")                     # ret 10h
         emu.hook_add(UC_HOOK_CODE, self.played, begin=PLAY, end=PLAY)
@@ -146,6 +153,13 @@ class Game:
     def write_file(self, emu, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
         self.logged += self.read(self.read(sp + 8), self.read(sp + 12))
+
+    def getenv(self, emu, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        value = self.environment.get(self.text(self.read(sp + 4)), "")
+        if value and len(value) < self.read(sp + 12):
+            emu.mem_write(self.read(sp + 8), value.encode() + b"\0")
+        emu.reg_write(UC_X86_REG_EAX, len(value))
 
     def played(self, emu, *_):
         self.plays.append(SOUNDS_OF.index(emu.reg_read(UC_X86_REG_ECX)))
@@ -275,6 +289,7 @@ def main():
     check(new.insert({"name": "x"}), "a project without zones inserted")
     check(new.emit(rooms, inside) == [0, 2], "still none")
     check(new.insert(zones()), "the map's project inserted, its registers kept")
+    check(b"sound environments: 2, their meshes: 2" in new.logged, "the map's counts logged")
     check(new.emit(rooms, inside) == [0, 1], "a placed sound in the classroom: untagged and school_class")
     check(new.emit(rooms, outside) == [0, 2], "one outside every zone: untagged and default")
     check(new.emit(rooms, below) == [0, 1], "one under the box: the ray meets its floor, the classroom")
@@ -290,6 +305,19 @@ def main():
     check(new.frame((1.0, 4.0, 2.0))[1] == [], "within the room: nothing asked")
     check(new.frame((20.0, 4.0, 0.0))[1] == [("scapes/rooms_069d/test_hall", 256, 1)], "the hall: its bed asked")
     check(new.frame((30.0, 1.7, 30.0))[1] == [], "outdoors: nothing asked")
+
+    print("the diagnostic (SKHID_ROOM_LOG):")
+    check(b"room acoustics: the listener" not in new.logged, "off: no room lines")
+    new.environment["SKHID_ROOM_LOG"] = "on"
+    new.logged = b""
+    new.insert(zones())
+    new.frame((1.0, 4.0, 1.0))
+    new.emit(rooms, inside)
+    new.emit(rooms, inside)
+    check(b"the listener in room school_class, its bed asked" in new.logged, "on: the listener's room logged")
+    check(new.logged.count(b"item of room school_class played (a placed sound)") == 1,
+          "on: a room's first item played logged once")
+    new.environment.clear()
 
     print("the project's removal:")
     # the span: pop edi / pop ebx / ret (remove_static's epilogue)

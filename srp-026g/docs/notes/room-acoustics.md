@@ -96,6 +96,13 @@ Built, checked offline (Unicorn, crate tests, build-content); not played, not re
 - **Follow-up, no zones yet:** the STALKER and Dirty Bomb ports, the 0.21d and 0.11e maps; a zone
   editor could come later.
 
+## Diagnostics
+
+- `srp_patches.log` says each zoned map's counts (environments, meshes) as it loads, and a map's
+  data it refuses and why.
+- `SKHID_ROOM_LOG=on` (read as a zoned map loads; off by default): each room the listener enters
+  (and whether its bed is asked), and once a room a map, its first composite item played.
+
 ## Replays, spectating, the death camera
 
 - Presentation only: no simulation change, no lockstep state, no `simulation_changes.tsv` row.

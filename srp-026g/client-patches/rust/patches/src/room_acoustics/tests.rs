@@ -16,6 +16,8 @@ fn names_are_numbered_once_and_cut_as_0_69d_keeps_them() {
     let class = names.room(b"school_class").expect("a number");
     assert_ne!(class, outdoors);
     assert_eq!(names.room(b"school_class"), Some(class));
+    assert_eq!(names.name(class), "school_class");
+    assert_eq!(names.name(outdoors), "default");
     assert_eq!(names.room(b""), None);
     let long = [b'a'; 40];
     assert_eq!(names.room(&long), names.room(&long[..NAME_MOST]));

@@ -44,9 +44,45 @@ struct Rooms {
     map: Map,
     /// A tag the names had no number for was logged.
     full_logged: bool,
+    trace: Trace,
 }
 
-static ROOMS: Lock<Rooms> = Lock::new(Rooms { names: RoomNames::new(), map: Map::Unzoned, full_logged: false });
+static ROOMS: Lock<Rooms> =
+    Lock::new(Rooms { names: RoomNames::new(), map: Map::Unzoned, full_logged: false, trace: Trace::Off });
+
+/// `SKHID_ROOM_LOG` as the game was started with it (`on` or `1`), read as
+/// a map with zones loads: on, srp_patches.log gets each room the listener
+/// enters and, once a room a map, its first item played. Off, nothing: a
+/// local diagnostic, never a player's.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Trace {
+    Off,
+    /// The rooms whose first item was logged (a bit a room number).
+    On { played: [u32; 8] },
+}
+
+const TRACE_VARIABLE: &[u8] = b"SKHID_ROOM_LOG\0";
+
+impl Trace {
+    fn read(thread: &Thread) -> Trace {
+        let mut value = [0_u8; 8];
+        match crate::vostok::memory_profile::environment(thread, TRACE_VARIABLE, &mut value) {
+            Some(value) if value.eq_ignore_ascii_case(b"on") || value == b"1" => Trace::On { played: [0; 8] },
+            _ => Trace::Off,
+        }
+    }
+
+    fn played(&mut self, room: model::RoomTag, name: &str, heard: Heard) {
+        if let Trace::On { played } = self {
+            let (word, bit) = (usize::from(room.number() / 32), 1 << (room.number() % 32));
+            if played[word] & bit == 0 {
+                played[word] |= bit;
+                log::line(&[Text("room acoustics: a composite's item of room "), Text(name),
+                            Text(match heard { Heard::AtListener => " played (a hud sound)", Heard::AtSource(_) => " played (a placed sound)" })]);
+            }
+        }
+    }
+}
 
 /// Why a map's data was refused.
 #[derive(Debug)]
@@ -137,7 +173,11 @@ pub fn on_project_insert(ctx: &mut Context<'_>) -> Flow<NoExit> {
         let parsed = root.map_err(|_| DataError::Config(ConfigError::Missing)).and_then(|root| parse(root, &mut rooms.names));
         match parsed {
             Ok(Some(zones)) => {
+                let (environments, meshes) = zones.counts();
+                log::line(&[Text("room acoustics: the map's sound environments: "), Dec(environments as u32),
+                            Text(", their meshes: "), Dec(meshes as u32)]);
                 rooms.map = Map::Zoned { project: key, zones, listener: Place::Outdoors };
+                rooms.trace = Trace::read(thread);
                 true
             }
             Ok(None) => false,
@@ -213,7 +253,11 @@ pub fn on_item_play(ctx: &mut Context<'_>) -> Flow<RoomAcousticsOnItemPlayExit> 
                 Heard::AtSource(point) => zones.room(zones.place(point), outdoors),
             },
         };
-        room.plays_in(here)
+        let plays = room.plays_in(here);
+        if plays {
+            rooms.trace.played(here, rooms.names.name(here), item.heard());
+        }
+        plays
     });
     if plays { Flow::Continue } else { Flow::Exit(RoomAcousticsOnItemPlayExit::Skip) }
 }
@@ -233,7 +277,13 @@ pub fn on_listener(ctx: &mut Context<'_>) -> Flow<NoExit> {
             (place != *listener).then(|| {
                 let left = zones.environment(*listener).and_then(|e| e.bed);
                 *listener = place;
-                (left, zones.environment(place).and_then(|e| e.bed))
+                let entered = zones.environment(place);
+                if rooms.trace != Trace::Off {
+                    let room = entered.map_or(rooms.names.outdoors(), |e| e.room);
+                    log::line(&[Text("room acoustics: the listener in room "), Text(rooms.names.name(room)),
+                                Text(if entered.and_then(|e| e.bed).is_some() { ", its bed asked" } else { ", no bed" })]);
+                }
+                (left, entered.and_then(|e| e.bed))
             })
         }
     });

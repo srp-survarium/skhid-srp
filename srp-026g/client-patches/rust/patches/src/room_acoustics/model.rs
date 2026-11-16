@@ -31,6 +31,13 @@ pub const SLOTS: usize = 4;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RoomTag(NonZeroU8);
 
+impl RoomTag {
+    /// Its number, 1 the outdoors'.
+    pub fn number(self) -> u8 {
+        self.0.get()
+    }
+}
+
 /// The room an item of a composite plays in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ItemRoom {
@@ -119,6 +126,15 @@ impl RoomNames {
         };
         // 1 is the outdoors', so the table's numbers start at 2
         NonZeroU8::new(index as u8 + 2).map(RoomTag)
+    }
+
+    /// A room's name (a valid UTF-8 one; else "?").
+    pub fn name(&self, room: RoomTag) -> &str {
+        let bytes = match usize::from(room.0.get()) {
+            1 => OUTDOORS,
+            n => self.names.get(n - 2).map_or(&b"?"[..], |name| &name[..usize::from(self.lengths[n - 2])]),
+        };
+        core::str::from_utf8(bytes).unwrap_or("?")
     }
 
     /// An item's room from its tag (None: no `sound_environment`).
@@ -301,8 +317,9 @@ impl Zones {
         self.boxes.push((environment, shape)).map(|_| ()).map_err(|_| TooMany)
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.boxes.is_empty()
+    /// How many environments and meshes.
+    pub fn counts(&self) -> (usize, usize) {
+        (self.environments.len(), self.boxes.len())
     }
 
     /// 0.69d's lookup (0x20023AF50): a ray straight up from the point, the
