@@ -2,6 +2,7 @@
 files! {
     "maps.js" => "text/javascript; charset=utf-8",
     "minimap/cs_mp_bath.webp" => "image/webp",
+    "minimap/cs_mp_firestation.webp" => "image/webp",
     "minimap/cs_mp_military_1.webp" => "image/webp",
     "minimap/cs_training_camp.webp" => "image/webp",
     "minimap/level_01.webp" => "image/webp",

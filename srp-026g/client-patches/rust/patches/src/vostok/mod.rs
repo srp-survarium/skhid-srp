@@ -39,6 +39,7 @@ pub mod clock;
 pub mod console;
 pub mod debug_lines;
 pub mod shape;
+pub mod contact;
 pub mod controller;
 pub mod crc32;
 mod context;

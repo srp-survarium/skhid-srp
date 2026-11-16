@@ -4926,6 +4926,66 @@ pub extern "C" fn hook_step_ground_on_ground(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- step_ground (patch 153) ----
+
+/// The entry `step_ground_on_sweep_first` (0x846a1, character_step_down_sweep_test_callback::addSingleResult (0x84420) taking a hit as its first (fld dword [ebx+30h] / mov eax,[esp+0Ch]; both of its ways in, 0x845ED and 0x84695, reach here; the stores of the fraction, normal, object and point follow): EBX the hit, ESI the callback) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_sweep_first(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_sweep_first` calls this, from the game's jump at 0x846a1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_sweep_first(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- step_ground (patch 153) ----
+
+/// The entry `step_ground_on_sweep_second` (0x845a8, the same taking a hit as its second (mov byte [esi+0C4h],1; its fraction and point stored after): EBX the hit, ESI the callback) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_sweep_second(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_sweep_second` calls this, from the game's jump at 0x845a8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_sweep_second(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- step_ground (patch 153) ----
+
+/// The entry `step_ground_on_sweep_result` (0x852ef, the step-down sweep 0x84FE0 after its sweep, before it caches the result (lea eax,[esp+40h] / lea ecx,[esp+20h]; both ways, a hit 0x852AD and none 0x852E2, join here): ESI the controller's sweep helper (+210h), ESP+80h the callback; BL the hit) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_sweep_result(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_sweep_result` calls this, from the game's jump at 0x852ef,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_sweep_result(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- step_ground (patch 153) ----
+
+/// The entry `step_ground_on_sweep_cached` (0x85083, the same answered from its cache (mov al,[eax+24h] / pop edi / pop esi): ESI the helper, EAX the cached entry (+24h its hit)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_sweep_cached(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_sweep_cached` calls this, from the game's jump at 0x85083,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_sweep_cached(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.
