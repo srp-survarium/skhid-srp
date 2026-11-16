@@ -574,6 +574,13 @@ fn drive_tick_inner(
     // jump on the first.
     if let Some((keys, ticks)) = bot.unstick {
         bot.unstick = (ticks > 1).then_some((keys & !key::JUMP, ticks - 1));
+        // [S5] On or onto a thin top (last tick's mode) no sideways escape key: a step sideways is off it.
+        let keys = if bot.motor.precise.holds_line() && keys & (key::LEFT | key::RIGHT) != 0 {
+            super::precise::counts::add(super::precise::counts::Slot::Escape);
+            keys & !(key::LEFT | key::RIGHT)
+        } else {
+            keys
+        };
         bot.motor.turn_time = None;
         bot.motor.track = None;
         let decision = bot.motor.rest();
@@ -582,6 +589,8 @@ fn drive_tick_inner(
         let keys = jumping(bot, keys, by, me.feet, time);
         return Decision { keys, ..decision };
     }
+    // [S5] The mode is this tick's walk's: none until the walk sets it.
+    bot.motor.precise = super::precise::Precise::Off;
     // The reflex sees and aims from the eye where this tick's move puts it
     // (`CombatTuning::lead_own`): the shot leaves from there.
     let led_me;
@@ -1935,6 +1944,21 @@ fn drive_tick_inner(
                     let turns = bot.motor.feel.sprint_turns.is_some();
                     let floor = (cap > 0.0 || turns).then(|| grid.locate(me.feet, 1.5)).flatten();
                     bot.motor.ahead_cap = (cap > 0.0 && floor.is_some_and(|node| grid.near_lip(node) || grid.is_lip(node))).then_some(cap);
+                    // [S5, feel.precise_tops] On or onto a held thin top (the grid's line tops): the walk steers on its line and
+                    // nothing steps sideways (`precise.rs`).
+                    bot.motor.precise = match route.points().get(route.segment() + 1) {
+                        Some(next) if bot.motor.feel.precise_tops => {
+                            let line_of = |node: NodeId| grid.line_top(node).and_then(super::precise::Line::of);
+                            let here = grid.locate(me.feet, 1.5).and_then(line_of);
+                            super::precise::Precise::of(here, me.feet, line_of(next.node), next.at)
+                        }
+                        _ => super::precise::Precise::Off,
+                    };
+                    match bot.motor.precise {
+                        super::precise::Precise::Steer { .. } => super::precise::counts::add(super::precise::counts::Slot::Steer),
+                        super::precise::Precise::Guard => super::precise::counts::add(super::precise::counts::Slot::Guard),
+                        super::precise::Precise::Off => {}
+                    }
                     if turns {
                         pose.floor = match floor {
                             Some(node) if grid.is_lip(node) || grid.near_lip(node) || grid.near_fall(node) => motor::Floor::Edge,
@@ -2108,7 +2132,11 @@ fn drive_tick_inner(
     if jump_line && over.strafe != 0 && stepped.is_some() {
         motor::straight_jumps::add(if straight { motor::straight_jumps::Slot::WeaveHeld } else { motor::straight_jumps::Slot::WeaveAdded });
     }
-    let stepped = stepped.filter(|_| !straight);
+    // [S5] On or onto a thin top no side key either: a step sideways is off it.
+    if stepped.is_some() && !straight && bot.motor.precise.holds_line() {
+        super::precise::counts::add(super::precise::counts::Slot::SideStep);
+    }
+    let stepped = stepped.filter(|_| !straight && !bot.motor.precise.holds_line());
     if let Some(keys) = stepped.filter(|_| over.strafe != 0 && !using) {
         let (side, objective) = (bot.side, intent.objective);
         let sees_open = tuning.aim.combat.clear_step_sees_open;
@@ -2174,7 +2202,10 @@ fn drive_tick_inner(
             if jump_line && !held_off {
                 motor::straight_jumps::add(if straight { motor::straight_jumps::Slot::ApartHeld } else { motor::straight_jumps::Slot::ApartAdded });
             }
-            let held_off = held_off || straight;
+            if !held_off && !straight && bot.motor.precise.holds_line() {
+                super::precise::counts::add(super::precise::counts::Slot::Apart);
+            }
+            let held_off = held_off || straight || bot.motor.precise.holds_line();
             let keys = decision.keys | away.key;
             let to = me.feet + side_step(keys, away.key, me.yaw, tactics.clear_step_sees_lip);
             let sees_open = tuning.aim.combat.clear_step_sees_open;
@@ -3125,6 +3156,19 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         let (watch, may) = bot.lip_watch.after(guard, time);
         bot.lip_watch = watch;
         if may { guard } else { LipGuard::Clear }
+    };
+    // [S5] Along a thin top the walk is on its line: no keys swapped sideways, and no brake off the rest bar (a stop there slides
+    // the body off, F2).
+    let guard = match (bot.motor.precise.line(), guard) {
+        (Some(_), LipGuard::Swapped(_)) => {
+            super::precise::counts::add(super::precise::counts::Slot::LipSwap);
+            LipGuard::Clear
+        }
+        (Some((line, _)), LipGuard::Braked(_)) if !line.may_stop(me.feet) => {
+            super::precise::counts::add(super::precise::counts::Slot::LipBrake);
+            LipGuard::Clear
+        }
+        (_, guard) => guard,
     };
     // [A388] A change of the keys at an edge, with both bodies' word on it, for the log (decision-neutral; a line a kind per bot per
     // `nav_log::EVERY_MS`, `nav_log::MAX_PER_KIND` a match).

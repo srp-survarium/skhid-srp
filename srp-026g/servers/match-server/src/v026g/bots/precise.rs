@@ -20,13 +20,7 @@
 //! the grid's `line_top` gives them, and gates the sideways behaviours on [`Precise`].
 
 use mapdata::Vec3;
-
-/// How a top's faces hold a body at rest (S3's `TopFace`): by their slope, or as walk faces. Dont-walk tops are no floors.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Face {
-    BySlope,
-    Walk,
-}
+use mapdata::grid::{LineTop, TopFace as Face};
 
 /// F2: past half the width + this, a body at rest on a top whose faces hold by slope slides off, m.
 pub const REST_BY_SLOPE_M: f32 = 0.27;
@@ -56,6 +50,11 @@ pub struct Place {
 }
 
 impl Line {
+    /// The grid's line top (S3, `WalkGrid::line_top`) as a line, or none when it is not one ([`Self::new`]).
+    pub fn of(top: &LineTop) -> Option<Self> {
+        Self::new(top.segment, top.from, top.to, top.width, top.face)
+    }
+
     /// The line, or none when it is not one (a zero or non-finite width, ends under 1 cm apart flat).
     pub fn new(segment: u32, from: Vec3, to: Vec3, width: f32, face: Face) -> Option<Self> {
         let (dx, dz) = (to.x - from.x, to.z - from.z);
@@ -124,9 +123,10 @@ impl Line {
 }
 
 /// The motor's mode by the lines at the feet and at the route's next floor.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Precise {
     /// Neither is on a thin top.
+    #[default]
     Off,
     /// On or onto a thin top, but the route leaves it (a drop, a jump or a climb off it, or onto another top): no sideways
     /// behaviour, the route's own steering.
@@ -136,20 +136,70 @@ pub enum Precise {
 }
 
 impl Precise {
-    /// `at_feet`: the line of the floor at the feet; `next`: of the route's next floor; `travel`: the route's way (flat).
-    pub fn of(at_feet: Option<Line>, next: Option<Line>, travel: (f32, f32)) -> Self {
+    /// `at_feet`: the line of the floor at the feet, `feet` the feet; `next`: the line of the route's next floor, `next_at` that
+    /// waypoint. Along one top when both lines are of one segment, or when one floor has none (S3 gives a line only to the floor
+    /// whose cell holds the line's point: a neighbour on the same top may have none) and both the feet and the waypoint are
+    /// within the moving bar of the other's line.
+    pub fn of(at_feet: Option<Line>, feet: Vec3, next: Option<Line>, next_at: Vec3) -> Self {
+        let travel = (next_at.x - feet.x, next_at.z - feet.z);
+        let steer = |line: Line| Precise::Steer { line, forward: line.forward(travel) };
+        let on = |line: &Line, p: Vec3| line.place(p).across.abs() <= line.moving_bar();
         match (at_feet, next) {
-            (Some(here), Some(there)) if here.segment == there.segment => {
-                Precise::Steer { line: there, forward: there.forward(travel) }
-            }
+            (Some(here), Some(there)) if here.segment == there.segment => steer(there),
+            (Some(line), None) | (None, Some(line)) if on(&line, feet) && on(&line, next_at) => steer(line),
             (None, None) => Precise::Off,
             _ => Precise::Guard,
+        }
+    }
+
+    /// The line steered on, if any.
+    pub fn line(&self) -> Option<(Line, bool)> {
+        match *self {
+            Precise::Steer { line, forward } => Some((line, forward)),
+            _ => None,
         }
     }
 
     /// No side step, strafe, sway, lane offset, apart step or sideways escape.
     pub fn holds_line(&self) -> bool {
         !matches!(self, Precise::Off)
+    }
+}
+
+/// [S5] What the precise mode did since the last match end (decide nothing): one count a slot.
+pub mod counts {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    #[derive(Clone, Copy, Debug)]
+    pub enum Slot {
+        /// A bot's walk tick steered on a top's line.
+        Steer,
+        /// A bot's walk tick on or onto a top, the route leaving it: guarded only.
+        Guard,
+        /// A side step or strafe held off.
+        SideStep,
+        /// A teammate's apart step held off.
+        Apart,
+        /// Sideways escape keys taken off.
+        Escape,
+        /// The lip guard's sideways swap dropped.
+        LipSwap,
+        /// The lip guard's brake dropped off the rest bar.
+        LipBrake,
+        /// A stop off the rest bar walked on instead.
+        WalkedOn,
+    }
+    const NAMES: [&str; 8] = ["steer", "guard", "side_step_held", "apart_held", "escape_sideways_cut", "lip_swap_dropped", "lip_brake_dropped", "walked_on_past_rest"];
+    static COUNTS: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
+
+    pub fn add(slot: Slot) {
+        COUNTS[slot as usize].fetch_add(1, Relaxed);
+    }
+
+    /// The match-end line's text after its prefix, and the counts zero again.
+    pub fn line() -> String {
+        let parts: Vec<String> = NAMES.iter().zip(&COUNTS).map(|(name, c)| format!("{name} {}", c.swap(0, Relaxed))).collect();
+        format!("precise tops (S5) since the last match end: {}", parts.join(" "))
     }
 }
 
@@ -217,13 +267,29 @@ mod tests {
         let here = rail(7, Face::BySlope);
         let along = rail(7, Face::BySlope);
         let other = rail(8, Face::BySlope);
-        assert_eq!(Precise::of(Some(here), Some(along), (1.0, 0.0)), Precise::Steer { line: along, forward: true });
-        assert_eq!(Precise::of(Some(here), Some(along), (-1.0, 0.1)), Precise::Steer { line: along, forward: false });
-        // Onto a top, off one, or from one onto another: guarded, not steered.
-        assert_eq!(Precise::of(None, Some(along), (1.0, 0.0)), Precise::Guard);
-        assert_eq!(Precise::of(Some(here), None, (1.0, 0.0)), Precise::Guard);
-        assert_eq!(Precise::of(Some(here), Some(other), (1.0, 0.0)), Precise::Guard);
-        assert_eq!(Precise::of(None, None, (1.0, 0.0)), Precise::Off);
+        let (feet, ahead, behind) = (Vec3::new(1.0, 1.3, 0.05), Vec3::new(2.0, 1.4, 0.0), Vec3::new(0.0, 1.2, 0.0));
+        assert_eq!(Precise::of(Some(here), feet, Some(along), ahead), Precise::Steer { line: along, forward: true });
+        assert_eq!(Precise::of(Some(here), feet, Some(along), behind), Precise::Steer { line: along, forward: false });
+        // One floor of the top with no line (S3 marks only the floor whose cell holds the line's point): still along it while the
+        // feet and the waypoint are within the moving bar (0.43 m here).
+        assert_eq!(Precise::of(None, feet, Some(along), ahead), Precise::Steer { line: along, forward: true });
+        assert_eq!(Precise::of(Some(here), feet, None, ahead), Precise::Steer { line: here, forward: true });
+        // Onto a top from beside it, off one (the waypoint is off the line: a drop, a jump), or onto another: guarded.
+        let beside = Vec3::new(1.0, 0.2, 1.5);
+        assert_eq!(Precise::of(None, beside, Some(along), ahead), Precise::Guard);
+        assert_eq!(Precise::of(Some(here), feet, None, beside), Precise::Guard);
+        assert_eq!(Precise::of(Some(here), feet, Some(other), ahead), Precise::Guard);
+        assert_eq!(Precise::of(None, feet, None, ahead), Precise::Off);
         assert!(Precise::Guard.holds_line() && !Precise::Off.holds_line());
+        assert_eq!(Precise::Guard.line(), None);
+    }
+
+    #[test]
+    fn a_grid_line_top_is_read_as_its_line() {
+        let top = LineTop { segment: 3, from: Vec3::new(0.0, 1.0, 0.0), to: Vec3::new(0.25, 1.0, 0.0), width: 0.08, face: Face::Walk };
+        let line = Line::of(&top).unwrap();
+        assert_eq!(line.segment, 3);
+        assert!((line.rest_bar() - (0.04 + MOVING_M)).abs() < 1e-6);
+        assert_eq!(Line::of(&LineTop { width: f32::NAN, ..top }), None);
     }
 }
