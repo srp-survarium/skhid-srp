@@ -56,7 +56,7 @@ pub const AGC_LEVEL: f32 = 12_000.;
 /// under is within 2 dB (50 under: 12 dB quieter, speexdsp's own floor).
 pub const AGC_MAX_GAIN: i32 = 45;
 /// How fast the gain rises, dB a second (speexdsp's own: 12): a quiet
-/// microphone's first words of a match were 6 dB under its level for
+/// microphone's first words of a match were 5 dB under its level for
 /// seconds; twice as fast they are 2.
 pub const AGC_INCREMENT: i32 = 24;
 /// The game's "Microphone sensitivity" (0..1) moves the aim by up to 6 dB

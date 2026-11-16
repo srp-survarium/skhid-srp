@@ -692,7 +692,7 @@ before and after of each can be heard in `private/renders/voice-steady/`.
   Such a talker is quieter than everyone beside the listener and poor through the radio, whose
   static stays where it is (the words 23 dB over it at the level, 14 when 9 dB under). The gain
   now goes to 45 dB (`AGC_MAX_GAIN`; past it speexdsp's own floor holds) and rises twice as
-  fast (`AGC_INCREMENT` 24 dB a second: a quiet microphone's first words of a match were 6 dB
+  fast (`AGC_INCREMENT` 24 dB a second: a quiet microphone's first words of a match were 5 dB
   under its level for seconds, now 2). "Microphone sensitivity" still moves a talker 6 dB
   either way: two players at its ends are 12 dB apart by their own choice.
 - **The mix bent loud talkers.** A plain voice is played 3 times as decoded (`LOUDER` 1.5, `MIX`
