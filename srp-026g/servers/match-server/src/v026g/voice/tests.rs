@@ -7,13 +7,13 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use super::*;
-use crate::v026g::registry::Seat;
+use crate::v026g::registry::{RadioChannel, Seat};
 
 const MATCH: u32 = 0x10;
 
-/// Sessions 1..=4 in match 0x10, at places 0, 2, 4 and 1 (in a team mode 1,
-/// 2 and 3 on one team, 4 on the other: the relay never asks). Session 9 is
-/// in another match.
+/// Sessions 1..=4 in match 0x10, at places 0, 2, 4 and 1: 1, 2 and 3 on one
+/// team's radio, 4 on the other's (as every other session). Session 9 is in
+/// another match.
 /// The second field counts the lookups (the registry's lock).
 #[derive(Clone, Default)]
 struct Table(
@@ -37,6 +37,7 @@ impl Table {
             VoiceSeat {
                 match_id,
                 place,
+                radio: RadioChannel::Team(u8::from(session >= 4)),
                 ip: Some(addr(session).ip()),
             },
         );
@@ -91,18 +92,30 @@ fn hello_muting(session: u32, hears: bool, muted: u32) -> Vec<u8> {
     datagram
 }
 
+/// A START of the 10 m voice (the whole match's).
 fn start(session: u32, utt: u16) -> Vec<u8> {
+    start_on(session, utt, Channel::Near)
+}
+
+fn start_on(session: u32, utt: u16, channel: Channel) -> Vec<u8> {
     let mut datagram = vec![MAGIC, VERSION, kind::START];
     datagram.extend_from_slice(&session.to_le_bytes());
     datagram.extend_from_slice(&utt.to_le_bytes());
+    datagram.push(channel.byte());
     datagram.extend_from_slice(&1234u32.to_le_bytes());
     datagram
 }
 
+/// An AUDIO of the 10 m voice.
 fn audio(session: u32, utt: u16, seq: u16) -> Vec<u8> {
+    audio_on(session, utt, seq, Channel::Near)
+}
+
+fn audio_on(session: u32, utt: u16, seq: u16, channel: Channel) -> Vec<u8> {
     let mut datagram = vec![MAGIC, VERSION, kind::AUDIO];
     datagram.extend_from_slice(&session.to_le_bytes());
     datagram.extend_from_slice(&utt.to_le_bytes());
+    datagram.push(channel.byte());
     datagram.extend_from_slice(&seq.to_le_bytes());
     datagram.push(2);
     // 0x48: the TOC of one 20 ms SILK frame (wide band).
@@ -227,14 +240,14 @@ fn each_welcome_comes_with_the_matchs_voice_ids() {
 }
 
 #[test]
-fn talk_reaches_the_whole_match_but_the_speaker() {
+fn the_10_m_voice_reaches_the_whole_match_but_the_speaker() {
     let mut bench = Bench::new();
     bench.all_hello();
     // Of either team (4 is the other's), never of another match (9).
     let out = bench.send(1, &start(1, 7));
     assert_eq!(sent_to(&out), vec![(2, 0x82), (3, 0x82), (4, 0x82)]);
-    // The relayed START: the slot, the utt, the server's ms.
-    assert_eq!(out[0].1[..6], [MAGIC, VERSION, 0x82, 0, 7, 0]);
+    // The relayed START: the slot, the utt, the channel, the server's ms.
+    assert_eq!(out[0].1[..7], [MAGIC, VERSION, 0x82, 0, 7, 0, 0]);
     let out = bench.send(1, &audio(1, 7, 0));
     assert_eq!(sent_to(&out), vec![(2, 0x83), (3, 0x83), (4, 0x83)]);
     // The body is the talker's from the utt on, behind the slot.
@@ -248,6 +261,39 @@ fn talk_reaches_the_whole_match_but_the_speaker() {
     // The END's repeats change nothing.
     assert!(bench.send(1, &end(1, 7)).is_empty());
     assert!(bench.send(1, &end(1, 7)).is_empty());
+}
+
+#[test]
+fn the_radio_reaches_the_speakers_team_only() {
+    let mut bench = Bench::new();
+    bench.all_hello();
+    // 1, 2 and 3 are a team, 4 the other's: nothing of 1's radio is sent to 4.
+    let out = bench.send(1, &start_on(1, 7, Channel::Radio));
+    assert_eq!(sent_to(&out), vec![(2, 0x82), (3, 0x82)]);
+    assert_eq!(out[0].1[..7], [MAGIC, VERSION, 0x82, 0, 7, 0, 1]);
+    let out = bench.send(1, &audio_on(1, 7, 0, Channel::Radio));
+    assert_eq!(sent_to(&out), vec![(2, 0x83), (3, 0x83)]);
+    // An utterance keeps the channel it began on: an AUDIO of it that says
+    // the 10 m voice still goes to the team alone, as the radio's.
+    let out = bench.send(1, &audio_on(1, 7, 1, Channel::Near));
+    assert_eq!(sent_to(&out), vec![(2, 0x83), (3, 0x83)]);
+    assert_eq!(out[0].1[6], 1);
+    assert_eq!(
+        sent_to(&bench.send(1, &end(1, 7))),
+        vec![(2, 0x84), (3, 0x84)]
+    );
+    // The other team's radio is its own (4 is alone on it), and a lost START
+    // does not change whose: the AUDIO opens the utterance on its channel.
+    assert!(bench.send(4, &audio_on(4, 1, 0, Channel::Radio)).is_empty());
+    assert_eq!(
+        sent_to(&bench.send(2, &audio_on(2, 1, 0, Channel::Radio))),
+        vec![(1, 0x82), (1, 0x83), (3, 0x82), (3, 0x83)]
+    );
+    // A channel that is neither key's is dropped.
+    let mut bad = start(3, 1);
+    bad[9] = 2;
+    assert_eq!(parse(&bad), Err(Dropped::Channel(2)));
+    assert!(bench.send(3, &bad).is_empty());
 }
 
 #[test]
@@ -351,7 +397,7 @@ fn malformed_and_large_datagrams_are_dropped() {
     bad.truncate(bad.len() - 1); // a frame cut short
     assert!(bench.send(1, &bad).is_empty());
     let mut bad = audio(1, 1, 0);
-    bad[1] = 2; // another version
+    bad[1] = 1; // another version
     assert!(bench.send(1, &bad).is_empty());
     let mut bad = audio(1, 1, 0);
     bad[0] = 0; // not the magic
@@ -365,7 +411,7 @@ fn malformed_and_large_datagrams_are_dropped() {
     // No frames.
     let mut none = vec![MAGIC, VERSION, kind::AUDIO];
     none.extend_from_slice(&1u32.to_le_bytes());
-    none.extend_from_slice(&[1, 0, 0, 0, 0]);
+    none.extend_from_slice(&[1, 0, 0, 0, 0, 0]);
     assert!(bench.send(1, &none).is_empty());
     // Too large: 401 bytes.
     let mut large = audio(1, 1, 0);
@@ -736,17 +782,15 @@ fn the_voice_port_is_the_next_one() {
 }
 
 #[test]
-fn in_every_mode_everyone_hears_everyone() {
+fn the_10_m_voice_is_the_matchs_the_radio_the_teams_or_a_free_for_alls() {
     use super::super::tests::{MAP_TDM, session_of, setup};
     use survarium::v026g::maps::{self, GameMode};
     let free_for_all = maps::find(1, maps::weather::DAY, GameMode::FreeForAll)
         .expect("level_01's free-for-all")
         .id;
     // Three places: in team deathmatch 0 and 2 on team 0, 1 on team 1; in
-    // the free-for-all each a side of its own (4, 5, 6). Each game decides
-    // how it hears the others (patch 66): the relay routes alike.
-    for map_id in [MAP_TDM, free_for_all] {
-        let (heard, roster) = (vec![1, 2], vec![0, 1, 2]);
+    // the free-for-all each a side of its own (4, 5, 6), all on one radio.
+    for (map_id, on_the_radio) in [(MAP_TDM, vec![2]), (free_for_all, vec![1, 2])] {
         let registry = Arc::new(MatchRegistry::new("127.0.0.1", 1));
         let ticket = registry.create(setup(3, map_id)).unwrap();
         // Each place's game at 10.0.0.<place + 1>, port 5000 + place + 1.
@@ -771,13 +815,22 @@ fn in_every_mode_everyone_hears_everyone() {
                 }
             }
         }
-        // Place 0's ROSTER: the places it hears and is heard by.
+        // Place 0's ROSTER: every place of the match (whom it may hear near).
         let listed: Vec<u8> = rosters[0][4..].chunks(5).map(|entry| entry[0]).collect();
-        assert_eq!(listed, roster, "map {map_id}");
-        let out = relay.receive(game(0), &start(session_of(0), 1), now);
-        let mut to: Vec<u8> = out.iter().map(|(to, _)| (to.port() - 5001) as u8).collect();
-        to.sort_unstable();
-        assert_eq!(to, heard, "map {map_id}");
+        assert_eq!(listed, vec![0, 1, 2], "map {map_id}");
+        let mut sent_to = |datagram: Vec<u8>| {
+            let out = relay.receive(game(0), &datagram, now);
+            let mut to: Vec<u8> = out.iter().map(|(to, _)| (to.port() - 5001) as u8).collect();
+            to.sort_unstable();
+            to
+        };
+        assert_eq!(sent_to(start(session_of(0), 1)), vec![1, 2], "map {map_id}");
+        let radio = start_on(session_of(0), 2, Channel::Radio);
+        // The 10 m utterance ends for its listeners (1, 2), the radio's starts.
+        let mut expected = vec![1, 2];
+        expected.extend(&on_the_radio);
+        expected.sort_unstable();
+        assert_eq!(sent_to(radio), expected, "map {map_id}");
     }
 }
 
@@ -952,6 +1005,7 @@ fn restarted_process_keeps_the_same_account_but_gets_a_new_relay_utterance() {
         let bytes = wire::Message::Audio {
             session: 5,
             utt: 1,
+            channel: Channel::Near,
             seq,
             frames: vec![frame.clone(), frame],
         }
@@ -966,7 +1020,7 @@ fn restarted_process_keeps_the_same_account_but_gets_a_new_relay_utterance() {
     assert_eq!(ended[0].1[4..6], 11u16.to_le_bytes());
     core.receive(&wire::parse(&ended[0].1).unwrap(), 20);
     for tick in 0..4 {
-        core.mix(1., &Hearing::radio(0), 40 + tick * 20);
+        core.mix(1., &Hearing::UNITY, 40 + tick * 20);
     }
     assert_eq!(core.stats().decoded, 4);
     assert_eq!(core.stats().late, 0);
@@ -976,7 +1030,7 @@ fn restarted_process_keeps_the_same_account_but_gets_a_new_relay_utterance() {
 fn audio_of(frames: &[&[u8]]) -> Vec<u8> {
     let mut datagram = vec![MAGIC, VERSION, kind::AUDIO];
     datagram.extend_from_slice(&1u32.to_le_bytes());
-    datagram.extend_from_slice(&[1, 0, 0, 0, frames.len() as u8]);
+    datagram.extend_from_slice(&[1, 0, 0, 0, 0, frames.len() as u8]);
     for frame in frames {
         datagram.push(frame.len() as u8);
         datagram.extend_from_slice(frame);
@@ -1010,7 +1064,7 @@ fn every_truncation_and_extension_is_dropped_with_its_reason() {
         Err(Dropped::Length)
     );
     assert_eq!(parse(&start(1, 1)[..12]), Err(Dropped::Length));
-    assert_eq!(parse(&audio(1, 1, 0)[..12]), Err(Dropped::Frames));
+    assert_eq!(parse(&audio(1, 1, 0)[..13]), Err(Dropped::Frames));
 }
 
 #[test]
@@ -1023,8 +1077,8 @@ fn oversize_wrong_version_and_types_are_dropped_with_their_reason() {
     bad[0] = 0x57;
     assert_eq!(parse(&bad), Err(Dropped::NotVoice));
     bad[0] = MAGIC;
-    bad[1] = 2;
-    assert_eq!(parse(&bad), Err(Dropped::Version(2)));
+    bad[1] = 1;
+    assert_eq!(parse(&bad), Err(Dropped::Version(1)));
     bad[1] = VERSION;
     for kind in [
         0x00,
@@ -1115,7 +1169,7 @@ fn the_frame_check_is_the_games_and_takes_their_encoders_frames() {
     // The games' encoder, loud: what it makes is taken, as the sender sends it.
     let mut encoder = Encoder::new().unwrap();
     let mut sender = skhid_voice::Sender::new(1, 1);
-    sender.start(0);
+    sender.start(0, Channel::Near);
     for n in 0..51 {
         let pcm: [i16; FRAME] = std::array::from_fn(|i| {
             if ((n * FRAME + i) / 8).is_multiple_of(2) {

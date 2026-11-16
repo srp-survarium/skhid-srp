@@ -5,14 +5,21 @@
 //! their talk here as utterances (START, AUDIO, END) and get the match's.
 //! The relay knows a talker by the session of its match connection (the
 //! 0xD8), and takes its datagrams only from the network that connection came
-//! from ([`VoiceSeat::ip`], [`same_network`]). It forwards each AUDIO to
-//! everyone else in the speaker's match, of either team (the owner,
-//! 2026-11-14: "in all regimes everyone in 10meters + opponenets should hear
-//! it", "only radio is team only"): each game decides how it hears a speaker
-//! (a teammate plain near and on the radio far, an opponent plain near and
-//! not at all far: patch 66, `client-patches/rust/patches/src/voice.rs`). So
-//! a modified game can hear the other team's talk across the map (the owner,
-//! 2026-11-15: "I am fine with that risk"). It forwards to those who
+//! from ([`VoiceSeat::ip`], [`same_network`]). An utterance is on one of two
+//! channels, by the key its talker holds (the owner, 2026-11-16: "two voice
+//! buttons one for 10m one for radio", "radio is team only", "or in ffa for
+//! everyone", "10m is the one everyone can hear"; [`Audience`]):
+//!
+//! - the 10 m voice goes to everyone else in the speaker's match, of either
+//!   team: each game plays it only while the speaker is near (patch 66,
+//!   `client-patches/rust/patches/src/voice.rs`). So a modified game can hear
+//!   the other team's 10 m talk across the map (the owner, 2026-11-15: "I am
+//!   fine with that risk");
+//! - the radio goes only to the seats of the speaker's radio
+//!   ([`RadioChannel`]: its team; in a free-for-all the match). No game of
+//!   the other team is ever sent it.
+//!
+//! It forwards to those who
 //! said HELLO lately and hear (their volume is above 0), and keeps nothing:
 //! no audio past the forward, no file, no audio, text or speaker list in the
 //! logs (counts only, per match). The simulation never sees any of it, so no
@@ -48,17 +55,17 @@
 //! nothing of them either. A game with voice turned off says it does not
 //! hear, and gets nothing.
 //!
-//! The wire (little-endian; every datagram `56 01 <type>`, a type not known
-//! ignored):
+//! The wire (little-endian; every datagram `56 02 <type>`, a type not known
+//! ignored; `ch` is the utterance's channel, 0 the 10 m voice, 1 the radio):
 //!
 //! ```text
 //! C->S 01 HELLO  u32 session, u8 flags (bit 0: hears), u32 muted (bit n: slot n)
-//! C->S 02 START  u32 session, u16 utt, u32 client_ms
-//! C->S 03 AUDIO  u32 session, u16 utt, u16 seq, u8 n, n x (u8 len, Opus frame)
+//! C->S 02 START  u32 session, u16 utt, u8 ch, u32 client_ms
+//! C->S 03 AUDIO  u32 session, u16 utt, u8 ch, u16 seq, u8 n, n x (u8 len, Opus frame)
 //! C->S 04 END    u32 session, u16 utt, u16 frames
 //! S->C 81 WELCOME u8 slot
-//! S->C 82 START  u8 slot, u16 utt, u32 server_ms
-//! S->C 83 AUDIO  u8 slot, u16 utt, u16 seq, u8 n, frames
+//! S->C 82 START  u8 slot, u16 utt, u8 ch, u32 server_ms
+//! S->C 83 AUDIO  u8 slot, u16 utt, u8 ch, u16 seq, u8 n, frames
 //! S->C 84 END    u8 slot, u16 utt, u8 reason (0 released, 1 timeout, 2 too long)
 //! S->C 85 TEXT   u8 slot, u16 utt, u8 final, u8 lang[2], u8 len, utf8
 //! S->C 90 ROSTER u8 count, count x (u8 slot, u32 voice id)   (with each WELCOME)
@@ -73,10 +80,13 @@ use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use super::registry::{MatchRegistry, VoiceSeat};
+use voice_abi::Channel;
+
+use super::registry::{MatchRegistry, RadioChannel, VoiceSeat};
 
 pub const MAGIC: u8 = 0x56;
-pub const VERSION: u8 = 1;
+/// 2: an utterance has a channel (1 had none).
+pub const VERSION: u8 = 2;
 
 /// The datagram types.
 pub mod kind {
@@ -92,7 +102,7 @@ pub mod kind {
     pub const ROSTER: u8 = 0x90;
 }
 
-/// A datagram larger than this is dropped (16 kbit/s Opus: about 90 bytes).
+/// A datagram larger than this is dropped (24 kbit/s Opus: about 130 bytes).
 pub const MAX_DATAGRAM: usize = 400;
 /// A talker's datagrams in a second past this are dropped.
 pub const MAX_PER_SECOND: u32 = 60;
@@ -151,12 +161,49 @@ pub enum EndReason {
     TooLong = 2,
 }
 
+/// Who an utterance is for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Audience {
+    /// The 10 m voice: the whole match (each game plays it only near the
+    /// speaker).
+    Match,
+    /// The radio: the seats of the speaker's radio.
+    Radio(RadioChannel),
+}
+
+impl Audience {
+    fn of(channel: Channel, speaker: &VoiceSeat) -> Audience {
+        match channel {
+            Channel::Near => Audience::Match,
+            Channel::Radio => Audience::Radio(speaker.radio),
+        }
+    }
+
+    /// The utterance's channel on the wire.
+    fn channel(self) -> Channel {
+        match self {
+            Audience::Match => Channel::Near,
+            Audience::Radio(_) => Channel::Radio,
+        }
+    }
+
+    /// Whether a seat of the speaker's match is sent it.
+    fn has(self, listener: &VoiceSeat) -> bool {
+        match self {
+            Audience::Match => true,
+            Audience::Radio(radio) => listener.radio == radio,
+        }
+    }
+}
+
 /// One utterance as the tap sees it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Utterance {
     pub match_id: u32,
     /// The speaker's roster place: its slot on the wire.
     pub speaker: u8,
+    /// Who it is for, by the key it began with.
+    pub audience: Audience,
     pub utt: u16,
     /// The server's clock at its start.
     pub started_at: Instant,
@@ -310,12 +357,16 @@ enum Datagram<'a> {
     Start {
         session: u32,
         utt: u16,
+        channel: Channel,
     },
     Audio {
         session: u32,
         utt: u16,
+        /// The channel it says: an utterance keeps the one it began with.
+        channel: Channel,
         seq: u16,
-        /// From `seq` to the end: the relayed AUDIO's body behind its utt.
+        /// From `seq` to the end: the relayed AUDIO's body behind its utt
+        /// and channel.
         relayed: &'a [u8],
         frames: Vec<&'a [u8]>,
     },
@@ -330,14 +381,14 @@ enum Datagram<'a> {
 /// (`client-voice/src/wire.rs` drops a datagram with more).
 pub const MAX_FRAMES: usize = 2;
 /// The longest frame: the games' encoder (`client-voice/src/codec.rs`) runs
-/// at 16 kbit/s, 40 bytes a 20 ms frame on average and 93 at most measured
+/// at 24 kbit/s, 60 bytes a 20 ms frame on average and 114 at most measured
 /// (full-scale square waves and noise, no automatic gain), and is given no
-/// more room than this (3 times its rate).
+/// more room than this (twice its rate).
 pub const MAX_FRAME_BYTES: usize = 120;
 /// The TOC bytes (RFC 6716 3.1) of the frames the games' encoder makes:
 /// SILK, 20 ms, mono, one frame (code 0), of narrow, medium or wide band
 /// (configurations 1, 5 and 9). It encodes 16 kHz (no wider band) speech
-/// (`OPUS_SIGNAL_VOICE`) at 16 kbit/s, where Opus stays in SILK; its own
+/// (`OPUS_SIGNAL_VOICE`) at 24 kbit/s, where Opus stays in SILK; its own
 /// frames are all 0x48, the others are margin.
 pub const FRAME_TOCS: [u8; 3] = [0x08, 0x28, 0x48];
 
@@ -356,6 +407,8 @@ pub enum Dropped {
     Kind(u8),
     /// A body not of its type's length.
     Length,
+    /// A channel byte that is neither key's.
+    Channel(u8),
     /// AUDIO not of 1 to [`MAX_FRAMES`] frames that fill it exactly.
     Frames,
     /// A frame the games' encoder does not make ([`our_frame`]).
@@ -385,6 +438,7 @@ impl std::fmt::Display for Dropped {
             Self::Version(version) => write!(f, "version {version}"),
             Self::Kind(kind) => write!(f, "type {kind:#04x}"),
             Self::Length => write!(f, "wrong length"),
+            Self::Channel(channel) => write!(f, "channel {channel}"),
             Self::Frames => write!(f, "malformed frames"),
             Self::NotOpus => write!(f, "a frame the games' encoder does not make"),
             Self::SourceRate => write!(f, "its IP over {} a second", SOURCE_RATE.per_second),
@@ -532,16 +586,20 @@ fn parse(datagram: &[u8]) -> Result<Datagram<'_>, Dropped> {
             muted,
         }),
         kind::START => match *body {
-            [a, b, _, _, _, _] => Ok(Datagram::Start {
+            [a, b, channel, _, _, _, _] => Ok(Datagram::Start {
                 session,
                 utt: u16::from_le_bytes([a, b]),
+                channel: Channel::of_byte(channel).ok_or(Dropped::Channel(channel))?,
             }),
             _ => Err(Dropped::Length),
         },
         kind::AUDIO => {
-            let Some((&utt, relayed)) = body.split_first_chunk::<2>() else {
+            let Some((&[utt_low, utt_high, channel], relayed)) = body.split_first_chunk::<3>()
+            else {
                 return Err(Dropped::Length);
             };
+            let utt = [utt_low, utt_high];
+            let channel = Channel::of_byte(channel).ok_or(Dropped::Channel(channel))?;
             let Some((&[seq_low, seq_high, count], mut rest)) = relayed.split_first_chunk::<3>()
             else {
                 return Err(Dropped::Length);
@@ -570,6 +628,7 @@ fn parse(datagram: &[u8]) -> Result<Datagram<'_>, Dropped> {
             Ok(Datagram::Audio {
                 session,
                 utt: u16::from_le_bytes(utt),
+                channel,
                 seq: u16::from_le_bytes([seq_low, seq_high]),
                 relayed,
                 frames,
@@ -952,9 +1011,12 @@ impl<S: Seats> Relay<S> {
                 }
                 out.push((addr, roster));
             }
-            Datagram::Start { utt, .. } => self.start(session, seat, utt, now, &mut out),
+            Datagram::Start { utt, channel, .. } => {
+                self.start(session, seat, utt, channel, now, &mut out)
+            }
             Datagram::Audio {
                 utt,
+                channel,
                 seq,
                 relayed: body,
                 frames,
@@ -982,7 +1044,7 @@ impl<S: Seats> Relay<S> {
                         return out;
                     }
                     // Its START was lost.
-                    self.start(session, seat, utt, now, &mut out);
+                    self.start(session, seat, utt, channel, now, &mut out);
                 }
                 let Some(open) = self
                     .talkers
@@ -997,8 +1059,10 @@ impl<S: Seats> Relay<S> {
                 let mut relayed = header(kind::RELAYED_AUDIO);
                 relayed.push(seat.place);
                 relayed.extend_from_slice(&utterance.utt.to_le_bytes());
+                // The channel the utterance began on, whatever this AUDIO says.
+                relayed.push(utterance.audience.channel().byte());
                 relayed.extend_from_slice(body);
-                self.to_match(&utterance, session, &relayed, now, &mut out);
+                self.to_audience(&utterance, session, &relayed, now, &mut out);
                 let mut tap_out = RelayOut::default();
                 self.tap.audio(&utterance, seq, &frames, &mut tap_out);
                 self.send_texts(tap_out, now, &mut out);
@@ -1022,6 +1086,7 @@ impl<S: Seats> Relay<S> {
         session: u32,
         seat: VoiceSeat,
         utt: u16,
+        channel: Channel,
         now: Instant,
         out: &mut Vec<(SocketAddr, Vec<u8>)>,
     ) {
@@ -1063,14 +1128,16 @@ impl<S: Seats> Relay<S> {
         let utterance = Utterance {
             match_id: seat.match_id,
             speaker: seat.place,
+            audience: Audience::of(channel, &seat),
             utt: output_utt,
             started_at: now,
         };
         let mut relayed = header(kind::RELAYED_START);
         relayed.push(seat.place);
         relayed.extend_from_slice(&output_utt.to_le_bytes());
+        relayed.push(channel.byte());
         relayed.extend_from_slice(&self.server_ms(now).to_le_bytes());
-        self.to_match(&utterance, session, &relayed, now, out);
+        self.to_audience(&utterance, session, &relayed, now, out);
         self.counts.entry(seat.match_id).or_default().utterances += 1;
         let mut tap_out = RelayOut::default();
         self.tap.started(&utterance, &mut tap_out);
@@ -1107,15 +1174,16 @@ impl<S: Seats> Relay<S> {
         relayed.push(utterance.speaker);
         relayed.extend_from_slice(&utterance.utt.to_le_bytes());
         relayed.push(reason as u8);
-        self.to_match(&utterance, session, &relayed, now, out);
+        self.to_audience(&utterance, session, &relayed, now, out);
         let mut tap_out = RelayOut::default();
         self.tap.ended(&utterance, reason, &mut tap_out);
         self.send_texts(tap_out, now, out);
     }
 
-    /// `datagram` to every listener of the utterance's match, of either team,
-    /// that said HELLO lately and hears, but the speaker.
-    fn to_match(
+    /// `datagram` to every listener of the utterance's [`Audience`] (the
+    /// match, or on the radio the speaker's team) that said HELLO lately and
+    /// hears, but the speaker.
+    fn to_audience(
         &self,
         utterance: &Utterance,
         speaker: u32,
@@ -1130,6 +1198,7 @@ impl<S: Seats> Relay<S> {
                 && listener.hears
                 && listener.seat.match_id == utterance.match_id
                 && listener.seat.place != utterance.speaker
+                && utterance.audience.has(&listener.seat)
                 && !muted(listener.muted, utterance.speaker)
                 && now.saturating_duration_since(listener.last_hello) <= HELLO_FRESH
                 && self.seats.voice_seat(*session) == Some(listener.seat)
@@ -1148,8 +1217,8 @@ impl<S: Seats> Relay<S> {
             datagram.extend_from_slice(&lang);
             datagram.push(text.len() as u8);
             datagram.extend_from_slice(text.as_bytes());
-            // Subtitles are for everyone of the match, the speaker too.
-            self.to_match(&utterance, u32::MAX, &datagram, now, out);
+            // Subtitles are for everyone the utterance is for, the speaker too.
+            self.to_audience(&utterance, u32::MAX, &datagram, now, out);
             if let Some((_, listener)) = self.listeners.iter().find(|(_, listener)| {
                 listener.seat.match_id == utterance.match_id
                     && listener.seat.place == utterance.speaker

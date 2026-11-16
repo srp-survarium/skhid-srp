@@ -171,7 +171,7 @@ class WineTest(unittest.TestCase):
             self.offer(files)
         elif not self.site.archive:
             self.offer(self.bundle())
-        command, env = windows([self.exe(), "check", "quiet"])
+        command, env = windows([self.exe(), "check", "quiet", "direct"])
         return subprocess.run(command, cwd=self.x86, env=env, timeout=300,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
 
@@ -179,7 +179,7 @@ class WineTest(unittest.TestCase):
         """`check quiet`, not waited for."""
         if not self.site.archive:
             self.offer(self.bundle())
-        command, env = windows([self.exe(), "check", "quiet"])
+        command, env = windows([self.exe(), "check", "quiet", "direct"])
         return subprocess.Popen(command, cwd=self.x86, env=env,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 

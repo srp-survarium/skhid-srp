@@ -105,6 +105,7 @@ impl Death {
             hits: [Hit {
                 point: Vec3::ZERO,
                 impulse: Vec3::ZERO,
+                blow: None,
             }; RECENT],
             hit_count: 0,
             load: [0.0; PARTS],

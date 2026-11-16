@@ -1781,8 +1781,9 @@ st_profile_selection_warning	+20 секунд да часу адраджэння
 st_profile_warning_weapon	Профіль неактыўны: няма зброі
 st_profile_warning_weapon_ammo	Профіль неактыўны: недастаткова патронаў у заплечніку
 st_profile_warning_weapon_ammo_in_inv	Профіль неактыўны: недастаткова патронаў на складзе
-st_ptt_action	Гаварыць (утрымліваць)
+st_ptt_action	Гаварыць па рацыі
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Гаварыць побач
 st_put_item	Пакласці ({USE})
 st_quest_change_warning	Увага! Пры змене задання лаяльнасць групоўкі да вас знізіцца!
 st_quest_completed	Заданне выканана!
@@ -2092,6 +2093,8 @@ st_scavengers_win_x_games_obj	Выйграць баёў:
 st_science_medkit_description	Цалкам лечыць рукі, ногі, цела і галаву. Аднаўляе 50% болю. Вылечвае атручванне і прамянёвую хваробу.
 st_science_medkit_name	Навуковая аптэчка
 st_scientists_faction	Інстытут
+st_screenshot_action	Здымак экрана
+st_screenshot_no_ui_action	Здымак без інтэрфейсу
 st_search_label	Пошук
 st_search_range	Узровень матча
 st_second_weapon_action	Зброя 2
@@ -2113,10 +2116,16 @@ st_shop	Крама
 st_shop_label	Крама
 st_shop_scope_1p69_hyperon_description	Чатырохкратны аптычны прыцэл
 st_shop_scope_1p69_hyperon_name	Аптычны прыцэл Зеніт "Гіперон", x4
+st_shop_scope_acog_ta01_description	Чатырохкратны аптычны прыцэл
+st_shop_scope_acog_ta01_name	Аптычны прыцэл TA01, x4
 st_shop_scope_acog_ta31_description	Чатырохкратны аптычны прыцэл
 st_shop_scope_acog_ta31_name	Аптычны прыцэл TA31, x4
 st_shop_scope_aimpoint_compm4_description	Шведскі каліматарны прыцэл з кропкай 2 MOA і батарэяй, якой хапае да васьмі гадоў бесперапыннай працы. Прыняты на ўзбраенне арміі ЗША як M68 CCO; мацуецца на планку Пікаціні.
-st_shop_scope_aimpoint_compm4_name	Каліматар CompM4
+st_shop_scope_aimpoint_compm4_name	Каліматар CompM4, x2
+st_shop_scope_aperture_description	Трохкратны аптычны прыцэл
+st_shop_scope_aperture_name	Аптычны прыцэл Aperture, x3
+st_shop_scope_belomo_pk01_description	Каліматарны прыцэл з двухкратным павелічэннем.
+st_shop_scope_belomo_pk01_name	Каліматар ПК-01ВІ, x2
 st_shop_scope_cobra_ekp_8_description	Расійскі каліматарны прыцэл з чатырма зменнымі чырвонымі прыцэльнымі маркамі. Дазваляе хутка цэліцца з абодвума расплюшчанымі вачыма; мацуецца на бакавую планку зброі сямейства Калашнікава.
 st_shop_scope_cobra_ekp_8_name	Каліматар Кобра ЭКП-8
 st_shop_scope_docter_description	Кампактны нямецкі адкрыты каліматарны прыцэл з чырвонай кропкай. Лёгкі і хуткі ў прыцэльванні; створаны для гладкаствольнай зброі, пісталетаў і кампактнай зброі.
@@ -2125,10 +2134,18 @@ st_shop_scope_elcan_specterdr_description	Чатырохкратны аптыч�
 st_shop_scope_elcan_specterdr_name	Аптычны прыцэл SpecterDR, x4
 st_shop_scope_eotech_552_description	Амерыканскі галаграфічны прыцэл: кальцо 65 MOA з кропкай 1 MOA пасярэдзіне, сілкаванне ад батарэй AA. Хуткі на блізкай і сярэдняй дыстанцыі; мацуецца на планку Пікаціні.
 st_shop_scope_eotech_552_name	Каліматар EOTech 552
+st_shop_scope_eotech_xps2_description	Каліматарны прыцэл для хуткага прыцэльвання.
+st_shop_scope_eotech_xps2_name	Каліматар EOTech XPS2
+st_shop_scope_hensoldt_rsas_description	Каліматарны прыцэл з двухкратным павелічэннем.
+st_shop_scope_hensoldt_rsas_name	Каліматар RSA-S, x2
+st_shop_scope_leupold_3_7_description	Шасцікратны аптычны прыцэл
+st_shop_scope_leupold_3_7_name	Аптычны прыцэл Leupold 3-7, x6
 st_shop_scope_leupold_deltapoint_description	Кампактны амерыканскі каліматарны прыцэл з чырвонай трохвугольнай прыцэльнай маркай. Створаны для пісталетаў і лёгкай зброі; такі малы, што не замінае.
 st_shop_scope_leupold_deltapoint_name	Каліматар Leupold DeltaPoint
 st_shop_scope_leupold_mk4_description	Чатырохкратны аптычны прыцэл
 st_shop_scope_leupold_mk4_name	Аптычны прыцэл Leupold MK4, x4
+st_shop_scope_ncstar_4_description	Каліматарны прыцэл для хуткага прыцэльвання.
+st_shop_scope_ncstar_4_name	Каліматар NcSTAR 4
 st_shop_scope_pso_1_description	Чатырохкратны аптычны прыцэл
 st_shop_scope_pso_1_name	Аптычны прыцэл ПСО-1, x4
 st_shop_scope_pso_1_old_description	Чатырохкратны аптычны прыцэл
@@ -2736,10 +2753,10 @@ st_srp_replay_not_yours	Глядзець можна толькі паўторы 
 st_srp_replay_off	Паўторы на гэтым серверы адключаныя.
 st_srp_replay_old_game	Ваша версія гульні не прайграе паўторы. Абнавіце гульню: запусціце яе зноў праз лаўнчар.
 st_srp_replay_place_in_line	Месца ў чарзе: %1$s. Чаканне: %2$s с.
-st_srp_replay_ready	Паўтор гэтага матча гатовы.\n\nЁн загружаецца з сервера матча, які захоўвае дакладны запіс матча. Адкрыецца другое акно гульні і прайграе яго; лобі застанецца адкрытым.\n\nУ паўторы націсніце F11 для кіравання: гульцы, камера, перамотка, хуткасць.
-st_srp_replay_ready_size	Паўтор гэтага матча: %1$s.\n\nЁн загружаецца з сервера матча, які захоўвае дакладны запіс матча. Адкрыецца другое акно гульні і прайграе яго; лобі застанецца адкрытым.\n\nУ паўторы націсніце F11 для кіравання: гульцы, камера, перамотка, хуткасць.
+st_srp_replay_ready	Паўтор гэтага матча гатовы.\n\nЁн загружаецца з сервера матча, які захоўвае дакладны запіс матча. Адкрыецца другое акно гульні і прайграе яго; лобі застанецца адкрытым.\n\nУ паўторы націсніце F9 для кіравання: гульцы, камера, перамотка, хуткасць.
+st_srp_replay_ready_size	Паўтор гэтага матча: %1$s.\n\nЁн загружаецца з сервера матча, які захоўвае дакладны запіс матча. Адкрыецца другое акно гульні і прайграе яго; лобі застанецца адкрытым.\n\nУ паўторы націсніце F9 для кіравання: гульцы, камера, перамотка, хуткасць.
 st_srp_replay_size	%1$s,%2$s МБ
-st_srp_replay_starting	Запускаем паўтор: адкрыецца другое акно гульні, лобі застанецца адкрытым. Калі нешта пойдзе не так, праграма абнаўлення пакажа, што здарылася.\n\nУ паўторы націсніце F11 для кіравання.
+st_srp_replay_starting	Запускаем паўтор: адкрыецца другое акно гульні, лобі застанецца адкрытым. Калі нешта пойдзе не так, праграма абнаўлення пакажа, што здарылася.\n\nУ паўторы націсніце F9 для кіравання.
 st_srp_replay_still_preparing	Паўтор яшчэ рыхтуецца. Сервер працягвае яго ствараць; адкрыйце «Глядзець паўтор» яшчэ раз праз хвіліну.
 st_srp_replay_title	Глядзець паўтор
 st_srp_replay_waiting	Чаканне: %1$s с.

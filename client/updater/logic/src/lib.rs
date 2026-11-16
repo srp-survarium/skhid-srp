@@ -6,6 +6,7 @@
 extern crate alloc;
 
 pub mod args;
+pub mod bencode;
 pub mod checked;
 pub mod disk;
 pub mod download;
@@ -14,6 +15,7 @@ pub mod game;
 pub mod inflate;
 pub mod local_replay;
 pub mod manifest;
+pub mod newest;
 pub mod network;
 pub mod patches;
 pub mod pipe;
@@ -22,6 +24,12 @@ pub mod replay;
 pub mod resources;
 pub mod revision;
 pub mod run_log;
+pub mod seed;
+pub mod shared;
 pub mod sha256;
+pub mod signed;
+pub mod torrent;
+pub mod upload;
 pub mod url;
+pub mod user_cfg;
 pub mod zip;

@@ -1781,8 +1781,9 @@ st_profile_selection_warning	Nach dem Profil wechseln,  dauert die Wiedergeburt 
 st_profile_warning_weapon	Unaktive Profil: Keine Waffen
 st_profile_warning_weapon_ammo	Unaktive Profil: ungenügend Patronen im Rucksack
 st_profile_warning_weapon_ammo_in_inv	Unaktive Profil: ungenügend Patronen im Lager
-st_ptt_action	Sprechen (gedrückt halten)
+st_ptt_action	Sprechen (Funk)
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Sprechen (Nähe)
 st_put_item	Setzen ({USE})
 st_quest_change_warning	Vorsicht! Bei Aufgabe wechseln die Loyalität der Gruppierung wird zu Ihnen herabgesetzt!
 st_quest_completed	Mission erfüllt!
@@ -2092,6 +2093,8 @@ st_scavengers_win_x_games_obj	Kämpfe zu gewinnen:
 st_science_medkit_description	Heilt Arme, Beine, Körper und Kopf vollständig. Stellt 50% von Schmerz wieder her. Heilt Vergiftungen und Strahlenkrankheit.
 st_science_medkit_name	Wissenschafts-Kit
 st_scientists_faction	Institut
+st_screenshot_action	Screenshot
+st_screenshot_no_ui_action	Screenshot ohne UI
 st_search_label	Such
 st_search_range	Match Level
 st_second_weapon_action	Waffe 2
@@ -2113,10 +2116,16 @@ st_shop	Laden
 st_shop_label	Laden
 st_shop_scope_1p69_hyperon_description	Zielfernrohr mit Vergrößerung x4
 st_shop_scope_1p69_hyperon_name	Zenit "Hyperion" Optisches Visier, x4
+st_shop_scope_acog_ta01_description	Zielfernrohr mit Vergrößerung x4
+st_shop_scope_acog_ta01_name	TA01 optisches Visier, x4
 st_shop_scope_acog_ta31_description	Zielfernrohr mit Vergrößerung x4
 st_shop_scope_acog_ta31_name	TA31 optisches Visier, x4
 st_shop_scope_aimpoint_compm4_description	Schwedisches Rotpunktvisier mit einem 2-MOA-Punkt und einer Batterie, die bis zu acht Jahre Dauerbetrieb hält. Von der US-Armee als M68 CCO eingeführt; wird auf einer Picatinny-Schiene montiert.
-st_shop_scope_aimpoint_compm4_name	CompM4 Kollimator
+st_shop_scope_aimpoint_compm4_name	CompM4 Kollimator, x2
+st_shop_scope_aperture_description	Zielfernrohr mit Vergrößerung x3
+st_shop_scope_aperture_name	Aperture optisches Visier, x3
+st_shop_scope_belomo_pk01_description	Rotpunktvisier mit Vergrößerung x2.
+st_shop_scope_belomo_pk01_name	PK-01VI Kollimator, x2
 st_shop_scope_cobra_ekp_8_description	Russisches Kollimatorvisier mit vier wählbaren roten Absehen. Ermöglicht schnelles Zielen mit beiden Augen offen; wird an der Seitenschiene von Waffen der Kalaschnikow-Familie montiert.
 st_shop_scope_cobra_ekp_8_name	Cobra EKP-8 Kollimator
 st_shop_scope_docter_description	Kompaktes deutsches offenes Reflexvisier mit Leuchtpunkt. Leicht und schnell im Anschlag; für Flinten, Pistolen und kurze Waffen gebaut.
@@ -2125,10 +2134,18 @@ st_shop_scope_elcan_specterdr_description	Zielfernrohr mit Vergrößerung x4
 st_shop_scope_elcan_specterdr_name	SpecterDR optisches Visier, x4
 st_shop_scope_eotech_552_description	Amerikanisches holografisches Visier: ein 65-MOA-Ring mit einem 1-MOA-Punkt in der Mitte, betrieben mit AA-Batterien. Schnell auf kurze und mittlere Entfernung; wird auf einer Picatinny-Schiene montiert.
 st_shop_scope_eotech_552_name	EOTech 552 Kollimator
+st_shop_scope_eotech_xps2_description	Rotpunktvisier für schnelles Zielen.
+st_shop_scope_eotech_xps2_name	EOTech XPS2 Kollimator
+st_shop_scope_hensoldt_rsas_description	Rotpunktvisier mit Vergrößerung x2.
+st_shop_scope_hensoldt_rsas_name	RSA-S Kollimator, x2
+st_shop_scope_leupold_3_7_description	Zielfernrohr mit Vergrößerung x6
+st_shop_scope_leupold_3_7_name	Leupold 3-7 optisches Visier, x6
 st_shop_scope_leupold_deltapoint_description	Kompaktes amerikanisches Reflexvisier mit einem roten dreieckigen Zielpunkt. Für Pistolen und leichte Waffen gebaut; so klein, dass es nicht stört.
 st_shop_scope_leupold_deltapoint_name	Leupold DeltaPoint-Kollimator
 st_shop_scope_leupold_mk4_description	Zielfernrohr mit Vergrößerung x4
 st_shop_scope_leupold_mk4_name	Leupold MK4 optisches Visier, x4
+st_shop_scope_ncstar_4_description	Rotpunktvisier für schnelles Zielen.
+st_shop_scope_ncstar_4_name	NcSTAR 4 Kollimator
 st_shop_scope_pso_1_description	Zielfernrohr mit Vergrößerung x4
 st_shop_scope_pso_1_name	PSO-1 optisches Visier, x4
 st_shop_scope_pso_1_old_description	Zielfernrohr mit Vergrößerung x4
@@ -2736,10 +2753,10 @@ st_srp_replay_not_yours	You can watch replays only of matches you played in.
 st_srp_replay_off	Replays are switched off on this server.
 st_srp_replay_old_game	Your game version cannot play replays. Update the game: start it again through the launcher.
 st_srp_replay_place_in_line	Place in line: %1$s. Waiting: %2$s s.
-st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
-st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F11 for the controls: players, camera, seek, speed.
+st_srp_replay_ready	The replay of this match is ready.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F9 for the controls: players, camera, seek, speed.
+st_srp_replay_ready_size	Replay of this match: %1$s.\n\nIt is downloaded from the match server, which keeps the authoritative record of the match. A second game window opens and plays it; the lobby stays open.\n\nIn the replay press F9 for the controls: players, camera, seek, speed.
 st_srp_replay_size	%1$s.%2$s MB
-st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F11 for the controls.
+st_srp_replay_starting	Starting the replay: a second game window will open; this lobby stays open. If something goes wrong, the updater shows what happened.\n\nIn the replay press F9 for the controls.
 st_srp_replay_still_preparing	Still being prepared. It keeps being made on the server; open Watch replay again in a minute.
 st_srp_replay_title	Watch replay
 st_srp_replay_waiting	Waiting: %1$s s.

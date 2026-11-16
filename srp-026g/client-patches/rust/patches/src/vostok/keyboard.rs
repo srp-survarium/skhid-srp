@@ -453,6 +453,37 @@ impl<'t> KeyEvents<'t> {
         KeyName::of(buffer)
     }
 
+    /// The keys that went down in this poll, in the order they did (an
+    /// event's dwData bit 80h: execute's own test, 0x3B9167).
+    pub fn pressed(&self) -> impl Iterator<Item = Dik> + '_ {
+        // SAFETY: the keyboard's buffer, `count` events of it filled by this
+        // poll's GetDeviceData (at most its 40h), on its thread.
+        let events = unsafe { self.keyboard.events() };
+        (0..self.count).filter_map(move |i| {
+            // SAFETY: as above, the event `i` < count, each field read once.
+            let (key, data) = unsafe {
+                let event = events.at(i);
+                (*event.key(), *event.data())
+            };
+            Dik::of(key).filter(|_| data & 0x80 != 0)
+        })
+    }
+
+    /// The game keys' action `key` is bound to (the binder's kind 1, as
+    /// game_world::on_keyboard_action asks it, 0x25CD5F), in a match or
+    /// out of one; none before the game is made or for a key without one.
+    pub fn game_action(&self, key: Dik) -> Option<super::input::Action> {
+        // SAFETY: the engine world's global and its game, alive while the
+        // engine runs (this poll is its tick's), and the game's binder, on
+        // the game's thread.
+        let binder = unsafe { raw::image::engine_world().world()?.game()?.binder() }?;
+        let mut toggle = 0;
+        // SAFETY: the game's live binder, on its thread; the code one the
+        // keyboard gives (get_binded_action compares it, 0x207D50).
+        let action = unsafe { raw::engine_binded_action(Some(binder), 1, u32::from(key.0), &mut toggle) };
+        (action != super::input::Action::NONE.0).then_some(super::input::Action(action))
+    }
+
     /// Every event's key becomes the one `moves` says it acts as.
     pub fn apply(&mut self, moves: &KeyMoves) {
         // SAFETY: the keyboard's buffer, `count` events of it filled by this

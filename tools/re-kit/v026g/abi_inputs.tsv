@@ -3521,7 +3521,7 @@ va	name	location	role	basis
 0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+4	the state (+1Ch the battery, its +8 the user)	observed
 0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+8	out matrix (world)	observed
 0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+0Ch	out matrix (before the user's transform)	observed
-0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	XMM0 low32	float, 0.0 from the take and put expressions	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	XMM0 low32	the hands' weight interpolator's time, s: 0.0 from the take (0x338B32: at once, the instant interpolator 0xA17130 at 0x344F92), 0.3 from the carry (0x338DF7) and the put (0x339107)	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+20	float time scale of the hands' animation ([state+0E8h] at the take and put)	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+4	the victory item state; its item [+1Ch], whose user [+8] is animated	observed
 0x0034be30	vostok::render::culling::portal_sector_structure::portal_sector_structure	EAX	owner storage copied ESI	observed
@@ -6189,6 +6189,64 @@ va	name	location	role	basis
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	EDI	the value (patch pointer)	observed
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+4	last (the value's slot)	observed
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+8	the camera position by value (3 floats)	observed
+0x00301920	survarium::victory_item_core::initialize_logic	EAX	the battery	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+4	the take state's 6 clips	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+8	take_time (f32)	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+12	the carry state's 6 clips	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+16	the put state's 6 clips	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+20	put_time (f32)	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	ESI	the state's room (0ECh bytes)	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	entry ESP+4	the battery	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	entry ESP+8	its 6 clips	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	entry ESP+12	the time its first player clip is scaled to (f32)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+4	the bullet manager (a gun's +5A0h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+8	the start point (3 f32: the eye's position row, matrix +30h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+12	the velocity (3 f32: the eye's forward row +20h times the speed; melee: the distance)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+16	the bullet data (a gun's +268h of its ammo, or +53Ch its melee)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+20	the time (ms)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+24	the owner (the player's +110h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+28	the second owner (the player's +118h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+32	unused: 0 (both callers)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	EDI	the gun (the bullet's constructor 0x32BA60 calls its vtable +7Ch)	observed
+0x00372420	survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition	entry ESP+4	the predicate buffer, as a function-pointer functor's invoker 0x303450 leaves it (unread)	observed
+0x00397c20	survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]	ECX	the state (unread)	observed
+0x003737f0	vostok::network::torrent_client::start_seeding	entry ESP+4	the torrent_client (network client vtable +48h: network_client+1EE8B8h); +0 the network world (+94h task queue, +11Ch allocator), +4 the pipe, +8 the debug flag sent, +0Ch debug info (u8 seeding, u32 upload rate, u32 limit, u32 peers), +1Ch in a match	observed
+0x00373910	vostok::network::torrent_client::stop_seeding	entry ESP+4	the torrent_client	observed
+0x003739e0	vostok::network::torrent_client::change_upload_speed_limit	entry ESP+4	the torrent_client	observed
+0x00373ad0	vostok::network::torrent_client::set_debug_info_state	entry ESP+4	the torrent_client	observed
+0x00373c20	vostok::network::torrent_client::start_seeding_impl	ECX	the torrent_client	observed
+0x00373c20	vostok::network::torrent_client::start_seeding_impl	entry ESP+4	bool debug (lobby_torrent_stats): argv 7 "true"/"false"	observed
+0x00373c20	vostok::network::torrent_client::start_seeding_impl	entry ESP+8	u32 upload limit in KiB/s (change_seeding_upload_rate); argv 8 is it x 1024	observed
+0x00374020	vostok::network::torrent_client::stop_seeding_impl	ECX	the torrent_client	observed
+0x00374050	vostok::network::torrent_client::change_upload_speed_limit_impl	ECX	the torrent_client	observed
+0x00374050	vostok::network::torrent_client::change_upload_speed_limit_impl	entry ESP+4	u32 limit in KiB/s	observed
+0x00374260	vostok::network::torrent_client::set_debug_info_state_impl	ECX	the torrent_client	observed
+0x00374260	vostok::network::torrent_client::set_debug_info_state_impl	entry ESP+4	bool flag	observed
+0x00373bd0	vostok::network::torrent_client::start_seeding_impl's pipe message handler (seeding debug info)	entry ESP+4	the debug info (torrent_client+0Ch)	observed
+0x00373bd0	vostok::network::torrent_client::start_seeding_impl's pipe message handler (seeding debug info)	entry ESP+8	the received packet (+4 its bytes: u16 length, u8 id, fields)	observed
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	ESI	wide buffer	observed
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	EDI	buffer capacity in characters	observed
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	entry ESP+4	pointer to the open HKEY	observed
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	entry ESP+8	wide value name	observed
+0x003e36a1	get_install_location (InstallLocation of an uninstall key, HKCU then HKLM)	entry ESP+4	wide uninstall key path	observed
+0x003e36a1	get_install_location (InstallLocation of an uninstall key, HKCU then HKLM)	entry ESP+8	wide out buffer, 104h characters	observed
+0x00373090	vostok::win_utils::pipe::pipe	ESI	the pipe (10D0h bytes, allocated with pipe's RTTI 0xAE7728 as tag)	observed
+0x00373090	vostok::win_utils::pipe::pipe	EDI	the io_service (stored at +94h)	observed
+0x00373140	vostok::win_utils::pipe::~pipe	entry ESP+4	the pipe (~network_client 0x219F98 and start_seeding_impl, then freed)	observed
+0x00373230	vostok::win_utils::pipe::accept (CreateNamedPipeW server, overlapped ConnectNamedPipe)	ECX	the pipe	observed
+0x00373230	vostok::win_utils::pipe::accept (CreateNamedPipeW server, overlapped ConnectNamedPipe)	EAX	wide pipe name	observed
+0x003733c0	vostok::win_utils::pipe::disconnect	EDI	the pipe	observed
+0x00373400	vostok::win_utils::pipe::send	EAX	the pipe	observed
+0x00373400	vostok::win_utils::pipe::send	ECX	the packet (mutable_buffer: +4 bytes, +0Ch size)	observed
+0x001f60a0	survarium::network_stats_lobby_torrent's row update (seeding, peers, upload, max upload limit)	EAX	the stats screen (+2CCh its movie)	observed
+0x001f60a0	survarium::network_stats_lobby_torrent's row update (seeding, peers, upload, max upload limit)	entry ESP+4	the 16-byte debug info by value (from network_client::draw_match_stats 0x27FD3B)	observed
+0x00262250	survarium::options_torrent_seeding_selector's read of change_seeding_upload_rate	ECX	the selector (+8 the command, +18h labels, +1Ch count 7, +1Dh selected)	observed
+0x002622a0	survarium::options_torrent_seeding_selector's apply (executes change_seeding_upload_rate <KiB/s>)	ECX	the selector	observed
+0x001ed1e0	survarium::game::switch_to_lobby	EAX	the game (+53ACh the network client, +5390h the lobby menu, +539Ch the active scene)	observed
+0x001ed260	survarium::game::switch_to_login	EAX	the game (+53ACh the network client, +5394h the login menu, +539Ch the active scene)	observed
+0x001ed260	survarium::game::switch_to_login	entry ESP+4	the login menu's status, handed to login_menu::set_status (0x21EEA0)	observed
+0x003745b0	a wide snprintf into EDX's buffer (start_seeding_impl's names)	EDX	the wide buffer	observed
+0x003745b0	a wide snprintf into EDX's buffer (start_seeding_impl's names)	entry ESP+4	the wide format, its arguments after it	observed
 0x0005c060	vostok::sound::sound_scene::process_fade	ESI	the sound scene (sound_scene::tick)	observed
 0x0005c060	vostok::sound::sound_scene::process_fade	ECX	the ms since the world's last tick	observed
 0x00316bc0	survarium::player_respawn_rule_base::on_player_entered_match	ECX	the respawn rule	observed
@@ -6208,3 +6266,20 @@ va	name	location	role	basis
 0x0030ebf0	survarium::weapon_core_fire_state_base::on_shot_event	entry ESP+4	the animation_callback_params: +10h the event's time in ms (the shot's; replays of 0x30ffba2c, fire-queue-assert.md); with +13Ch (the queue) 0 it asserts m_bullets_in_queue > 0 and fires nothing	observed
 0x0030ecc0	survarium::weapon_core_fire_state_base::reset_fire_queue [descriptive]	ESI	the fire state: +13Ch the queue = min(fire_queue_types[weapon core +5E6h] (+5E0h the table), magazine +5E5h + (chambered +5F1h != 0)), +13Dh (may refill) 0; called by execute 0x30EA00 on a press (weapon object +330h bit 5) while +13Dh is set	observed
 0x0030ea50	survarium::weapon_core_fire_state_base::on_animation_end_impl	ECX	the fire state: over (+12Dh and both flags) when its queue +13Ch is spent, or for fire_queue_types 0FFh with the trigger up; a semi-automatic state a press refilled is not over at its clip's end, and each later input change starts its clip again (fire-queue-assert.md)	observed
+0x00305540	survarium::booby_trap_core::hit	ECX	the booby trap (hit_receiver slot +24h of its first vtable, 0xA141A4 and 0xA0455C): +194h its set, +220h a byte that sends a defusing hit to slot +40h (0x3056D0: the trap removed and bullet_manager::explode) instead of defuse_completed	observed
+0x00305540	survarium::booby_trap_core::hit	entry ESP+4	the initiator (bullet::try_pierce 0x32DA33: the bullet +60h), all slot +40h is given	observed
+0x00305540	survarium::booby_trap_core::hit	entry ESP+10h	the hit type (hit_type_enum; try_pierce 0x32DA00 pushes the bullet ammo damage_type, ammo_data +4Ch): the hit defuses only when it is the set defuse_by_hit (+298h, 8 none; data/defuse_by_hit, ranged in blackmarket_trap), 0x30554C	observed
+0x00305580	survarium::booby_trap_core::hit	ECX	the booby trap (hit_receiver slot +20h): defuses whatever the hit type, by the byte +220h as 0x305540	observed
+0x003050c0	survarium::booby_trap_core::defuse_completed	EAX	the booby trap: an armed one (+198h 1) leaves the physics world (its users ended, usable_object::remove, collision_sensor::remove, the hittable body unless defuse_by_hit is 8), then state 3 disarmed with the set disarmed_life_time (+290h) as its timer (+268h), or removed at once (0x304F00) when that is 0	observed
+0x0032c520	survarium::bullet::compute_damage_speed	ESI	the bullet	observed
+0x002da5b0	survarium::base_player::recompute_damage_collision_bones	entry ESP+4 (reads)	only [arg+8]+4 is read (0x2DA5E3; +8 of its frame is a local after 0x2DA5FF): the ray requester needsCollision 0x75BD0 hands it (0x75BFB), a bullet or any object whose +8 is a bullet_owner	observed
+0x0032d4e0	survarium::bullet::check_collision	the ray result's object at 0x32D705	its +0Ch (the game object) cast by its vtable +0 to the hit target (0x32D70D); none: the level (a back-face hit then goes on through 0x32E740); its vtable +10h the material (0x32D839: a hit model's body, bt_animated_rigid_body 0x9E2AF4, gives +38h, 10 actor, 0x70C00)	observed
+0x002da170	survarium::base_player::generate_killed_event	EDX at 0x2DA3CB	the kill event's weapon icon about to be written to its node's +2 (EAX the node): the bullet's data +50h, else the damage source's +224h (0x2DA35A..0x2DA382); read by the hud's event handler 0x23B5F0 as on_player_killed's object_icon	observed
+0x003917d0	vostok::animation::animation_player::tick	ESI	the animation player (its mixing tree at +0E100h)	observed
+0x003917d0	vostok::animation::animation_player::tick	stack+4	u32 time, ms	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+12	the time synchronization group (parameters +4Ch): 2 from the take and the put, 3 from the carry; a new clip starts where another of its group stands only if that one is not frozen at its end	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+16	the playback type (parameters +48h): 1 once and frozen at the end (the take, the put), 0 cyclic (the carry)	observed
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	EAX	the battery	observed
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	entry ESP+4	the state's room (0E0h bytes, initialize_logic 0x301974)	observed
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	entry ESP+8	its 6 clips	observed
+0x0013ced0	vostok::render::renderer::render_flash_ui	stack+8	the output window: its +30ACh the render output the frame presents with (0x13DD3F, res_render_output::present 0x3CF7F0), its +30B0h the flash renderer (0x13CEE9); called once a frame at 0x13DB3D, the scene already on the back buffer (a read-back there in a game: the world, no interface)	observed

@@ -8,6 +8,8 @@ workspace = true
 
 [dependencies]
 crc32fast = { workspace = true }
+# The voice wire's channel byte, as the games' DLL has it (`v026g::voice`).
+voice-abi = { path = "../../crates/voice-abi" }
 log = { workspace = true }
 serde = { workspace = true }
 # The maps the server's bots path on (`v026g::bots::maps`).
