@@ -3796,8 +3796,8 @@ impl WalkGrid {
         {
             return Err("bad drop landing speeds".into());
         }
-        if !self.line_tops_ok() {
-            return Err("bad line tops".into());
+        if let Some(problem) = self.line_tops_problem() {
+            return Err(format!("bad line tops: {problem}"));
         }
         if self.start.len() != cells + 1
             || self.start[0] != 0

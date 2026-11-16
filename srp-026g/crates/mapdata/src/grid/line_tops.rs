@@ -113,26 +113,38 @@ impl WalkGrid {
         self.line_tops.binary_search_by_key(&floor, |&(f, _)| f).ok().map(|i| &self.line_tops[i].1)
     }
 
-    /// Whether the line tops are as [`Self::line_tops_of`] makes them: sorted by floor, one a floor, each with a positive finite
-    /// width, distinct ends, its piece's middle in the floor's cell; a segment's floors consecutive by segment number from 0.
-    pub(super) fn line_tops_ok(&self) -> bool {
+    /// Whether a line piece `from`..`to` is one the floor `f` carries: both ends finite, its middle in the floor's cell. The build
+    /// ([`Self::measure_line_tops`], on the finished piece) and the reader ([`Self::line_tops_problem`]) ask this one rule, in
+    /// the same arithmetic: a piece the build keeps is never one the read refuses.
+    fn line_piece_in_cell(&self, f: NodeId, from: Vec3, to: Vec3) -> bool {
+        let mid = (from + to) * 0.5;
+        let (i, k) = self.cell_xz(self.cell_of[f as usize] as usize);
+        let (cx, cz) = (self.x0 + i as f32 * self.cell, self.z0 + k as f32 * self.cell);
+        from.is_finite() && to.is_finite() && mid.x >= cx && mid.x <= cx + self.cell && mid.z >= cz && mid.z <= cz + self.cell
+    }
+
+    /// The first line top that breaks the file's rule, named with its index: sorted by floor, one a floor, each with a positive
+    /// finite width, distinct ends, its piece in the floor's cell ([`Self::line_piece_in_cell`]); a segment's number new only as
+    /// the next one, in floor order, from 0. The reader's check and a build's own (the server's map store logs it as an error)
+    /// are this one rule.
+    pub fn line_tops_problem(&self) -> Option<String> {
         let n = self.len();
+        if let Some(i) = self.line_tops.windows(2).position(|w| w[0].0 >= w[1].0) {
+            return Some(format!("out of order at {i} of {}", self.line_tops.len()));
+        }
         let mut segments = 0u32;
-        self.line_tops.windows(2).all(|w| w[0].0 < w[1].0)
-            && self.line_tops.iter().all(|(f, t)| {
-                if *f as usize >= n || !(t.width.is_finite() && t.width > 0.0) || t.from == t.to || t.segment > segments {
-                    return false;
-                }
+        self.line_tops
+            .iter()
+            .position(|(f, t)| {
+                let bad = *f as usize >= n
+                    || !(t.width.is_finite() && t.width > 0.0)
+                    || t.from == t.to
+                    || t.segment > segments
+                    || !self.line_piece_in_cell(*f, t.from, t.to);
                 segments = segments.max(t.segment + 1);
-                let mid = (t.from + t.to) * 0.5;
-                let (i, k) = self.cell_xz(self.cell_of[*f as usize] as usize);
-                let (cx, cz) = (self.x0 + i as f32 * self.cell, self.z0 + k as f32 * self.cell);
-                [mid.x, mid.y, mid.z, t.from.y, t.to.y].iter().all(|v| v.is_finite())
-                    && mid.x >= cx
-                    && mid.x <= cx + self.cell
-                    && mid.z >= cz
-                    && mid.z <= cz + self.cell
+                bad
             })
+            .map(|i| format!("line top {i} of {} ({n} floors): {:?}", self.line_tops.len(), self.line_tops[i]))
     }
 
     /// [S3] The line tops of the final grid's floors on the thin tops `cells` (module documentation), sorted by floor.
@@ -190,10 +202,13 @@ impl WalkGrid {
             // rise over the half diagonal under the floor's height (the floor is its faces' highest point in the cell).
             let slack = rise / MEASURE_STEP_M * half * std::f32::consts::SQRT_2;
             let steps = (half / MEASURE_STEP_M).round() as i32;
-            let (start, start_y, face) = (-steps..=steps).find_map(|j| {
-                let p = centre + along * (j as f32 * MEASURE_STEP_M);
-                under(p, centre.y + MEASURE_STEP_M, centre.y - slack).map(|(y, face)| (j, y, face))
-            })?;
+            // The highest such ground on the way (nearest the centre on a tie): a lower ground in the window is not the floor's.
+            let (start, start_y, face) = (-steps..=steps)
+                .filter_map(|j| {
+                    let p = centre + along * (j as f32 * MEASURE_STEP_M);
+                    under(p, centre.y + MEASURE_STEP_M, centre.y - slack).map(|(y, face)| (j, y, face))
+                })
+                .max_by(|a, b| a.1.total_cmp(&b.1).then(b.0.abs().cmp(&a.0.abs())))?;
             let start = centre + along * (start as f32 * MEASURE_STEP_M);
             // From `from` (at height `y`) along `dir` while on the top: the steps taken (at most `limit`) and the last one's
             // height.
@@ -237,9 +252,10 @@ impl WalkGrid {
             if line.x < 0.0 || (line.x == 0.0 && line.z < 0.0) {
                 line = line * -1.0;
             }
-            // The line's point is in this floor's cell (else it is the neighbour cell's floor's line).
-            let (cx, cz) = (centre.x - half, centre.z - half);
-            if !(middle.x >= cx && middle.x <= cx + self.cell && middle.z >= cz && middle.z <= cz + self.cell) {
+            // The piece of the line through the cell, the floor's own (else it is the neighbour cell's floor's line): the reader's
+            // rule on the very piece stored.
+            let (from, to) = (middle - line * half, middle + line * half);
+            if !self.line_piece_in_cell(f, from, to) {
                 return None;
             }
             // A line, not a post: the top runs on along its line, both ways from its point, further than it is wide.
@@ -260,8 +276,7 @@ impl WalkGrid {
             if !(stands(middle) && stands(edge(-lo, lo_y)) && stands(edge(hi, hi_y))) {
                 return None;
             }
-            // The piece of the line through the cell.
-            Some((middle - line * half, middle + line * half, width, face))
+            Some((from, to, width, face))
         });
         floors
             .iter()
@@ -436,6 +451,29 @@ mod tests {
         }
         assert_eq!(read.line_top(0), g.line_top(0));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The cell rule is one for the build and the read: a piece whose middle is on the cell's edge is the floor's, one an ulp
+    /// outside is not, and the build's rows pass the reader's rule.
+    #[test]
+    fn a_line_piece_one_ulp_off_its_cell_is_refused_by_build_and_read_alike() {
+        let tris = ground_and_top(4.95, 5.05);
+        let mut g = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+        let cells = top_cells(&g, 4.975);
+        g.line_tops = g.line_tops_of(&cells, &tris, &Collision::build(&tris), &Settings::LIVE);
+        assert!(!g.line_tops.is_empty());
+        assert_eq!(g.line_tops_problem(), None);
+        let (f, t) = g.line_tops[0];
+        let (i, _) = g.cell_xz(g.cell_of[f as usize] as usize);
+        let edge = g.x0 + i as f32 * g.cell;
+        let at = |x: f32| (Vec3::new(x, t.from.y, t.from.z), Vec3::new(x, t.to.y, t.to.z));
+        let (from, to) = at(edge);
+        assert!(g.line_piece_in_cell(f, from, to), "on the edge: the floor's");
+        let (from, to) = at(f32::from_bits(edge.to_bits() - 1));
+        assert!(!g.line_piece_in_cell(f, from, to), "an ulp outside: not");
+        g.line_tops[0].1.from = from;
+        g.line_tops[0].1.to = to;
+        assert!(g.line_tops_problem().is_some(), "and the reader refuses it");
     }
 
     /// A post 0.10 m by 0.10 m (x 4.95..5.05, z 5.05..5.15): as long as it is wide, no line.
