@@ -31,7 +31,7 @@ ways a step goes silent) is in `footsteps.md` ("Silent ground") and is not repea
 
 | # | What a player hears | Where | Cause | Fix, size | In flight |
 |---|---|---|---|---|---|
-| R | Steps on rails are not heard at all (the owner, from play) | the rails of the Chemical Plant, Cologne, Repair Depot | not found in the code: every condition of the step path passes on a rail; left are the foot point (the last draw's bone) and whether the clip's events arrive (1.2, 1.3). 0.69d differs by falling back to what the controller stands on and by this frame's feet (1.4) | exe: patch 153 (a miss) plus one look from the body's root (a foot point off the body); the log of 1.6 decides in one walk | **fix/silent-steps** covers a miss; the root look and the log lines are not in it |
+| R | Steps on rails and walkways are not heard (the owner, from play) | the Chemical Plant's loading station walkway (50 of 53 silent steps), thin floors anywhere | PROVEN by the walk: the foot's vertical ray passes beside a 32 cm walker strip and its 8 cm beam the capsule stands on (1.2) | exe: patch 153's contact, looks around the body's root (walk 2: 5 of 127 silent, all in the air) | **fix/step-contact** (PR) |
 | 1 | Other players' steps die out within a few metres: at 5 m a step is a quarter of its 1 m loudness, at 8 m a tenth, gone at 17 m. 0.69d: three quarters at 5 m, heard to 30 m | everywhere | the `steps` distance preset (`sounds/spl/steps.spl`) and, on top, the third-person samples 5 to 10 dB quieter than 0.69d's (4.1, 4.2) | **data**: 0.69d's `steps` curve, as `steps.spl` (also breathing and bones) or a new preset named by the 618 step samples (an edit list); optionally their `volume_k`. The owner decides: it changes how far enemies are heard | no |
 | 2 | A walker-only floor steps silently: hopper-wagon tops, loading stations, wall tops, School's first part | Chemical Plant, Fort, School, Radar, Cologne, both v0.11e/0.21d ports | on_step's ray sees only bullet collision (`footsteps.md`, path 4) | exe, patch 153 | **fix/silent-steps** |
 | 3 | No step at all on dry leaves, gratings, car glass; own sprint/landing silent on mud and bushes; others' walking silent on trunks | Mamayev (its ground), Vector's lab, Cologne's ICE cars, gratings everywhere, mud everywhere | 45 empty foot pairs (`footsteps.md`, path 5) | data, `step-sounds-1` | **fix/silent-steps**, but see #4 |
@@ -78,7 +78,20 @@ changed algo at the very least in 0.69". Taken as fact. The data reading (1.1, t
 bullet collision with a stepping material under every foot on a rail, so the silence is on a path
 the data reading does not model. 1.3 reads every condition of that path; 1.4 is 0.69d's.
 
-**Result: no condition of 0.26g's step code fails specifically on a rail (NOT FOUND in the code).**
+**Found by the owner's walk (PROVEN, 2026-11-16, the step log): the foot's ray misses a thin floor
+the capsule stands on.** On the Chemical Plant (FFA `level_04/evening_8`) 53 of 153 steps were
+silent, every one "game missed; walker missed", the body on the ground and its foot 10 to 25 cm from
+the root; 50 of them on the loading station's top walkway (`loading_station_01`), whose walker
+collision is a strip 32 cm wide (no material) over an 8 cm metal beam, nothing else within 9 m
+below. The capsule rests on the strip; a foot beside it casts its vertical ray past both. The
+fix: when the foot finds no named ground, the looks go around the body's root, where the capsule
+rests, and take the highest named surface (patch 153's contact, branch fix/step-contact,
+footsteps.md "The contact"). Walk 2 with it: 5 of 127 silent (all in the air), 62 grounds found by
+the contact (metal 60). Also found: each step event reaches the handler twice (the same effect,
+the same time), so stock plays every step twice. The static reading below stands; what it could
+not see was where the foot point is against so thin a floor.
+
+The static reading's result: no condition of 0.26g's step code fails specifically on a rail.
 Ruled out with the code below: the controller's state (it gates no step event), the ray's start
 and length, back faces, slope or normal limits, material flags, the body's own hit model, the
 compound and primitive paths, the pair. What the code takes from run time and the data reading
