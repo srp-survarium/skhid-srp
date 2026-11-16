@@ -102,7 +102,7 @@ one `replace_string`).
   wood_bridge; `weapons/f1_metal_hit` (15 close to 15 m, 10 distant to 25 m) for metall_thin,
   metall_thick, rabitz, metal_car, metal_gas_tank and metall_tank. Five of those had no bounce
   sound in 0.26g: glass_hard, metal_car, metal_gas_tank, wood_bridge, metall_tank. The samples:
-  `volume_k` 0.5 close, 1 distant, 0.8 metal; `spl_value` 60; preset 0.69d's `vss_main`; HDR and
+  `volume_k` 0.5 close, 1 distant, 0.8 metal (here x 0.8, below); `spl_value` 60; preset 0.69d's `vss_main`; HDR and
   displaceable. Peak x `volume_k` against 0.26g's: 2.3 to 2.8 dB louder on ground and wood, 8 dB on
   metal (`sound-gaps.md` 3.4). 0.69d also empties these pairs' `reflection_sound` and
   `piercing_sound`, which the bounce does not play (it reads `collision_sound`, +20h): not taken.
@@ -116,6 +116,26 @@ one `replace_string`).
   `.high.rms` are 0.69d's, byte for byte (`donor.sha256`). 0.69d's `vss_main` falls off nearer than
   0.26g's (0.38 at 3 m against 6 m, silent at 25 m), so it is added as `sounds/spl/grenade_hit_069d.spl`
   and 0.26g's VSS shots keep their own. The composites' distances are metres, as 0.26g's weapons'.
+- **Its place in the mix (the owner on #2134: "check volume relative to other sounds 0.26 has", "and
+  then to 0.69", "do it proportionally"):** each sound's level as the game mixes it (its samples'
+  loudest 100 ms, x `volume_k`, x its preset's volume curve; room layers of 0.69d's Chemical Plant
+  outdoors), dB against the AK-74U's third-person shot of the same build:
+
+  | distance | 2 m | 5 m | 10 m | 20 m |
+  |---|---:|---:|---:|---:|
+  | 0.26g's stock bounce, ground / metal | -25.5 / -17.2 | -31.5 / -23.2 | -40.1 / -31.8 | silent |
+  | 0.26g with 0.69d's bounce as 0.69d has it, ground / metal | -28.0 / -19.7 | -27.9 / -24.8 | -34.7 / -30.0 | -46.5 / -44.0 |
+  | 0.26g with this pack (x 0.8), ground / metal | -29.9 / -21.6 | -29.8 / -26.7 | -36.6 / -31.9 | -48.4 / -45.9 |
+  | 0.69d, ground / metal | -26.4 / -18.1 | -26.2 / -23.1 | -32.9 / -28.2 | -45.4 / -42.9 |
+
+  0.69d's shots are 1.6 to 1.8 dB quieter than 0.26g's, its explosion and bullet impacts the same,
+  its others' steps, body hits and reloads 7 to 10 dB louder: over eight references (the AK-74U and
+  SVD shots, the explosion, a bullet on concrete, metal and a body, others' steps on concrete, a
+  magazine in) 0.69d's mix is 1.9 dB louder on average (3.1, 3.3, 1.0, 0.2 dB at 2, 5, 10, 20 m).
+  So the pack plays the bounce at `volume_k` x 0.8 (-1.9 dB) of 0.69d's: its place against the
+  whole mix is 0.69d's. Against the shot alone it is 3.5 to 3.7 dB under 0.69d's place; against the steps
+  about 7 dB over. Listen files at 10 m (an AK burst, a ground and a metal bounce, the explosion,
+  others' steps): the private renders' `sound-gaps/impacts/listen-10m-*.wav`.
 - **Who computes it:** nothing of a match (sound only); no `simulation_changes.tsv` row. The edit list
   sets `collision_sound` and `collision_sound_type` alone.
 - **grenade-bounce-1** retuned the stock samples' preset; with this change no pair plays them.

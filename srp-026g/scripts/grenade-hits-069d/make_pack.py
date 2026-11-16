@@ -19,7 +19,7 @@ grenade-hits-069d-1 points the pairs at them, the pairs 0.69d points.
 
 0.69d's sound configs are of a later binary format than 0.26g reads, so each is made here in 0.26g's
 from a stock config of its kind, with 0.69d's values (as `vostok-port dump-db-config` reads them,
-vectors to three decimals): the samples' .raw_options (volume_k, spl_value, spl_preset, use_hdr,
+vectors to three decimals): the samples' .raw_options (volume_k at MIX of 0.69d's, spl_value, spl_preset, use_hdr,
 can_be_displaced, lp_filter_k; pan_3d, which 0.26g does not read, too), the four collections (random,
 the samples in 0.69d's order) and the two composites. The samples' distance preset is 0.69d's
 vss_main, which differs from 0.26g's (a nearer fall-off: 0.38 at 3 m, 0.17 at 7 m, silent at 25 m;
@@ -56,7 +56,15 @@ STOCK = {
     "sounds/spl/vss_main.spl":
         "c05b647e1deb4675e9b82a758ce96aa4c8ffc5c4cdab0d9180abcf100195e46e",
 }
-# collection: (its samples in 0.69d's order, the samples' volume_k)
+# 0.69d's bounce sits in 0.69d's mix; 0.26g's mix around it is quieter (the owner, 2026-11-16, on #2134:
+# "check volume relative to other sounds 0.26 has", "and then to 0.69", "do it proportionally"). Each
+# sound's level as the game mixes it (its samples' loudest 100 ms, x volume_k, x its preset's volume
+# curve) at 2, 5, 10 and 20 m, against eight references of both builds (the AK-74U and SVD shots,
+# the grenade's explosion, a bullet on concrete, metal and a body, others' steps on concrete, a
+# magazine going in): 0.69d's references are on average 1.9 dB louder than 0.26g's (mean of 3.1,
+# 3.3, 1.0 and 0.2 dB), so the bounce is 1.9 dB under 0.69d's own to keep its place: volume_k x 0.8.
+MIX = 0.8
+# collection: (its samples in 0.69d's order, the samples' volume_k in 0.69d)
 COLLECTIONS = {
     "greande_hit_close": (["grenade_hit_close_%02d" % n for n in [1] + list(range(33, 1, -1))], 0.5),
     "grenade_hit_distant": (["grenade_hit_distant_%02d" % n for n in [1] + list(range(10, 1, -1))], 1.0),
@@ -179,7 +187,7 @@ def main():
                 path = SINGLE + sample + ext
                 files[path] = read(a.donor, path, pins.pop(path))
             files[SINGLE + sample + ".raw_options"] = options(stock[next(p for p in STOCK if p.endswith(".raw_options"))],
-                                                              volume_k)
+                                                              volume_k * MIX)
         files[f"sounds/collections/weapons/f1/{name}.sound_collection"] = collection(
             stock["sounds/collections/weapons/f1/f1_hit_ground.sound_collection"], samples)
     if pins:
