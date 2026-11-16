@@ -2089,6 +2089,8 @@ st_scavengers_win_x_games_obj	Nyerj meccseket:
 st_science_medkit_description	Teljesen meggyógyítja a karokat, a lábakat, a törzset és a fejet. 50%-kal csökkenti a fájdalmat. Meggyógyítja a mérgezést és a sugárbetegséget.
 st_science_medkit_name	Tudományos elsősegélycsomag
 st_scientists_faction	Intézet
+st_screenshot_action	Képernyőkép
+st_screenshot_no_ui_action	Képernyőkép UI nélkül
 st_search_label	Keresés
 st_search_range	Meccsszint
 st_second_weapon_action	2. fegyver
@@ -2743,10 +2745,10 @@ st_srp_replay_not_yours	Csak olyan meccset nézhetsz vissza, amelyen részt vett
 st_srp_replay_off	A visszajátszás ki van kapcsolva ezen a szerveren.
 st_srp_replay_old_game	Ez a játékverzió nem támogatja a visszajátszást. Frissítsd a játékot: indítsd újra az indítóprogramból.
 st_srp_replay_place_in_line	Helyed a sorban: %1$s. Várakozás: %2$s mp.
-st_srp_replay_ready	A meccs visszajátszása elkészült.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
-st_srp_replay_ready_size	A meccs felvétele: %1$s.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
+st_srp_replay_ready	A meccs visszajátszása elkészült.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F9 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
+st_srp_replay_ready_size	A meccs felvétele: %1$s.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F9 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
 st_srp_replay_size	%1$s,%2$s MB
-st_srp_replay_starting	A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben az F11 nyitja meg a vezérlőket.
+st_srp_replay_starting	A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben az F9 nyitja meg a vezérlőket.
 st_srp_replay_still_preparing	A szerver még készíti a felvételt. Egy perc múlva nyisd meg újra a Visszajátszás ablakot.
 st_srp_replay_title	Visszajátszás
 st_srp_replay_waiting	Várakozás: %1$s mp.
