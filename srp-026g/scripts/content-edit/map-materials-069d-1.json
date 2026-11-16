@@ -1,24 +1,6 @@
 {
- "_about": "The map surfaces as 0.69d has them (the owner, 2026-11-16: \"let's not change things unless 0.69 does so\"; docs/notes/sound-gaps.md 1.8 and 2). A triangle's material is its face name's game_material_settings/<name>/game_material_id in its model's settings, read when the collision is cooked (collision_shape_cook 0x82590); the material is the step's and the bullet's (its armor, ricochet, pierce), so this changes what a match computes (simulation_changes.tsv). The Chemical Plant's tracks: 0.69d has no props/railroad/railroad.model, a second mesh of the whole track bed (cgroup 10, cmask 20h, every face metall_tank) over railroad_01..03, which cover the same bed; its collision object goes from the 15 level_04 projects (the drawn model stays), and railroad_01..03's rails (coll_metal_thick_s) are metall_tank (55) as 0.69d's settings have them (0.26g: metall_thick_walkable 71). Faces with no material that 0.69d's settings name: Radar's garage_inside (metall_thick, concrete, gravel, metall_thin, wood_silent) and the Fort's center_part_01_floor (gravel, ground; its walker face ground). The names stay as they are (\"not assigned or deleted\", \"metall_thick_walkable\"): the cook reads the id. Mamayev's monument and statue_ground, the Fort's out_wall_base_a_2, London's building_07_3 and building_06_1_indoor_01's stucco have no material in 0.69d either and stay as they are. Vector's centre_lab_dome (its one face name, 'default', has no entry in 0.26g's settings: 3FFFh) gets 0.69d's entry, the material default (11).",
+ "_about": "The rooms' surfaces as 0.69d names them (the owner, 2026-11-16: \"let's not change things unless 0.69 does so\"; of the Chemical Plant's tracks: \"I don't like this, original is fine\", so they stay). A triangle's material is its face name's game_material_settings/<name>/game_material_id in its model's settings, read when the collision is cooked (collision_shape_cook 0x82590); the material is the step's and the bullet's (its armor, ricochet, pierce), so this changes what a match computes (simulation_changes.tsv). Faces with no material that 0.69d's settings name: Radar's garage_inside (metall_thick, concrete, gravel, metall_thin, wood_silent) and the Fort's center_part_01_floor (gravel, ground; its walker face ground); Vector's centre_lab_dome (its one face name, 'default', has no entry in 0.26g's settings: 3FFFh) gets 0.69d's entry, the material default (11). The names stay as they are (\"not assigned or deleted\"): the cook reads the id. Mamayev's monument and statue_ground, the Fort's out_wall_base_a_2, London's building_07_3 and building_06_1_indoor_01's stucco have no material in 0.69d either and stay as they are.",
  "set": [
-  {
-   "file": "models/props/railroad/railroad_01.model/settings",
-   "path": "game_material_settings/coll_metal_thick_s/game_material_id",
-   "from": 71,
-   "to": 55
-  },
-  {
-   "file": "models/props/railroad/railroad_02.model/settings",
-   "path": "game_material_settings/coll_metal_thick_s/game_material_id",
-   "from": 71,
-   "to": 55
-  },
-  {
-   "file": "models/props/railroad/railroad_03.model/settings",
-   "path": "game_material_settings/coll_metal_thick_s/game_material_id",
-   "from": 71,
-   "to": 55
-  },
   {
    "file": "models/level/03/garage_inside.model/settings",
    "path": "game_material_settings/coll_metall_thick_s/game_material_id",
@@ -78,113 +60,6 @@
    "value": {
     "game_material_id": 11,
     "game_material_name": "default"
-   }
-  }
- ],
- "remove_entry": [
-  {
-   "file": "projects/level_04/day_2/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/day_3/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/day_4/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/day_5/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/day_8/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/evening_2/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/evening_3/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/evening_4/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/evening_5/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/evening_8/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/rain_2/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/rain_3/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/rain_4/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/rain_5/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
-   }
-  },
-  {
-   "file": "projects/level_04/rain_8/client_project",
-   "list": "collision_objects",
-   "where": {
-    "lib_name": "resources/models/props/railroad/railroad.model/collision"
    }
   }
  ]
