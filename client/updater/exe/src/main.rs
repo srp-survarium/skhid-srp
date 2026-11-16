@@ -16,8 +16,10 @@
 //! it always did.
 //!
 //! It asks its configured server for Skhid updates. Missing original game
-//! files come from a separate HTTPS mirror with compiled-in SHA-256 pins. No torrent, no listening
-//! port, no crash upload, no administrator rights. Successful launcher updates
+//! files come from a separate HTTPS mirror with compiled-in SHA-256 pins, and,
+//! when the launcher allows torrent, from the release's torrent, shared while
+//! the launcher is open (`torrent.rs`). No crash upload, no administrator
+//! rights. Successful launcher updates
 //! register Skhid Replay for .sur files in this user's Open With choices.
 #![windows_subsystem = "windows"]
 
@@ -27,13 +29,17 @@ mod game;
 mod gate;
 mod http;
 mod install;
+mod libtorrent;
 mod log;
 mod patches;
 mod pipe;
 mod replay;
 mod replay_association;
 mod resources;
+mod seed;
+mod signed;
 mod text;
+mod torrent;
 mod win;
 
 use alloc::format;
@@ -46,7 +52,7 @@ use updater_logic::manifest::{
     Found, Installed, InstalledFile, MAX_ARCHIVE_SIZE, Manifest, ManifestError, Reason, Verdict,
     damage, parse_installed, parse_manifest, verdict, write_installed,
 };
-use updater_logic::pipe::{FromLauncher, ToLauncher, state, step};
+use updater_logic::pipe::{FromLauncher, ToLauncher, Torrenting, state, step};
 use updater_logic::problem::{Failed, Fault, Miss, Problem, Removal, Where};
 use updater_logic::sha256::{digest, to_hex};
 use updater_logic::url::{self, Url};
@@ -113,8 +119,7 @@ struct Session {
     /// `check quiet`: no message box either; the log and the exit code say
     /// it all.
     quiet: bool,
-    /// The launcher asked to stop, or is gone.
-    stopped: bool,
+    run: Run,
     last_progress: u64,
     started: u64,
     /// The launcher's line names a file ("Extracting file <name>") that the
@@ -127,9 +132,36 @@ struct Session {
     /// addresses gave it. The run's failure, if it ends in one, is said in
     /// its box (`updater_logic::problem`), in the launcher's language.
     trouble: Option<Failed>,
+    /// The launcher's torrent settings, and the torrent engine (`torrent.rs`).
+    torrents: torrent::Torrents,
+}
+
+/// Whether the update pass goes on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Run {
+    Going,
+    /// "Allow torrent" changed: the pass stops and runs again from the
+    /// start, as the original updater's `restart_downloading` did.
+    Again,
+    /// The launcher asked to stop, or is gone, or this updater left it.
+    Stopped,
 }
 
 impl Session {
+    /// The pass is to stop: told to, or to run again.
+    fn stopped(&self) -> bool {
+        self.run != Run::Going
+    }
+
+    /// Whether the pass is to run again; it goes on from here.
+    fn again(&mut self) -> bool {
+        let again = self.run == Run::Again;
+        if again {
+            self.run = Run::Going;
+        }
+        again
+    }
+
     /// Notes how the update server answered a request: not reached
     /// (`updater_logic::network`), no secure connection (a wrong clock), or
     /// otherwise.
@@ -168,17 +200,35 @@ impl Session {
                 match message {
                     FromLauncher::Abort => {
                         log!("the launcher asks to stop");
-                        self.stopped = true;
+                        self.run = Run::Stopped;
+                    }
+                    message @ (FromLauncher::AllowTorrent(_)
+                    | FromLauncher::Port(_)
+                    | FromLauncher::UploadLimit(_)) => {
+                        let allowed = self.torrents.allowed();
+                        if let Some(answer) = self.torrents.on_message(message) {
+                            pipe.send(answer);
+                        }
+                        if self.torrents.allowed() != allowed && self.run == Run::Going {
+                            log!("\"Allow torrent\" changed: the update runs again");
+                            self.run = Run::Again;
+                        }
                     }
                     other => log!("launcher message ignored: {other:?}"),
                 }
             }
-            if !pipe.is_open() && !self.stopped {
+            if !pipe.is_open() && self.run != Run::Stopped {
                 log!("the launcher closed the pipe");
-                self.stopped = true;
+                self.run = Run::Stopped;
             }
         }
-        !self.stopped
+        // A port asked for is answered once the session listens on it.
+        if let Some(answer) = self.torrents.service()
+            && let Some(pipe) = &mut self.pipe
+        {
+            pipe.send(answer);
+        }
+        !self.stopped()
     }
 
     /// Sleeps, looking at the pipe meanwhile. `false` when told to stop.
@@ -209,7 +259,7 @@ impl Session {
     fn progress(&mut self, done: u64, total: u64) -> bool {
         let now = win::ticks();
         if done < total && now < self.last_progress + 250 {
-            return !self.stopped;
+            return !self.stopped();
         }
         self.last_progress = now;
         let elapsed = now.saturating_sub(self.started).max(1);
@@ -249,17 +299,19 @@ impl Session {
 
     /// After the last message: stays until the launcher says stop or goes
     /// (as the original updater does; the launcher takes a closed pipe for
-    /// a failure), then closes the pipe.
+    /// a failure), or the pass is to run again.
     fn linger(&mut self) {
         while self.pipe.is_some() && self.pump() {
             win::sleep(100);
         }
-        self.leave();
     }
 
     /// Tells the launcher this updater is done for good, and closes the
     /// pipe. A launcher that did not ask for it closes itself on that.
     fn leave(&mut self) {
+        self.run = Run::Stopped;
+        // Sharing ends with the launcher, before the next updater takes the port.
+        self.torrents.close();
         if let Some(mut pipe) = self.pipe.take() {
             pipe.send(ToLauncher::State(state::ABORTED));
             pipe.close();
@@ -520,6 +572,8 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
         Err(message) => return Done::Failed(message),
     };
     let done = overlay(session, layout, &server);
+    // The overlay may have brought another torrent.
+    session.torrents.forget();
     // New Skhid files may need other patches than those checked so far: until
     // a patch step with the server's list has checked the folder again,
     // `ready` and a start without the server refuse.
@@ -585,6 +639,7 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     );
     let mut manifest = match ask(session, server) {
         Ok(manifest) => {
+            torrent::remove_skhid_parts(layout);
             session.seen = Some(gate::Seen {
                 server: server.clone(),
                 archive: Some(manifest.sha256),
@@ -601,6 +656,24 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
                 min_revision: None,
                 online: false,
             });
+            torrent::discover(session, layout);
+            if let Some(done) = torrent_overlay(session, layout, installed.as_ref()) {
+                // Nothing installed (stopped, failed): no game download either.
+                let Done::Installed { restart, .. } = done else { return done };
+                if !game::present(layout) {
+                    match game::ensure(session, layout, None) {
+                        Ok(_) => {}
+                        Err(None) => return Done::Stopped,
+                        Err(Some(why)) => return Done::Failed(why),
+                    }
+                }
+                if restart {
+                    return done;
+                }
+                // Still without the server: the rest of the run is offline.
+                patches::overlay_changed(layout);
+                return Done::Offline(text::offline(&message), message);
+            }
             // The original game from the addresses built into this updater
             // (a provider that blocks the server need not block them).
             if !game::present(layout) {
@@ -642,10 +715,12 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     // archive. With that file in place the game comes first, as a player's
     // own copy of it would be there first. Without it (deleted, damaged, the
     // archive only half unpacked) the Skhid files come first, which brings
-    // it, and the game after them.
-    let game_after = !game::present(layout) && !game::extractor_ready(layout);
+    // it, and the game after them. So do they when torrent is allowed: the
+    // torrent is a file of the archive.
+    let game_after = !game::present(layout)
+        && (!game::extractor_ready(layout) || session.torrents.allowed());
     let game_added = if game_after {
-        log!("the original game is missing and so is its extractor: the Skhid files first");
+        log!("the original game is missing: the Skhid files first (its extractor, its torrent)");
         false
     } else {
         match game::ensure(session, layout, Some(server)) {
@@ -709,17 +784,46 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     };
     drop(archive);
 
+    // The archive that is installed already: a repair.
+    let repair = installed
+        .as_ref()
+        .is_some_and(|installed| installed.archive == manifest.sha256);
+    let outcome = match put_in_place(session, layout, installed.as_ref(), &files, manifest.sha256, repair) {
+        Ok(outcome) => outcome,
+        Err(done) => return done,
+    };
+    // The game that waited for its extractor. When the launcher or this
+    // program was replaced, the start that follows goes on with it.
+    if game_after && !outcome.restart {
+        match game::ensure(session, layout, Some(server)) {
+            Ok(_) => {}
+            Err(None) => return Done::Stopped,
+            Err(Some(message)) => return Done::Failed(message),
+        }
+    }
+    Done::Installed {
+        restart: outcome.restart,
+        put_back,
+    }
+}
+
+/// Installs an archive's files, whatever brought them. `archive`: its
+/// SHA-256 or a torrent's v2 info hash; `repair`: it is installed already.
+fn put_in_place(
+    session: &mut Session,
+    layout: &Layout,
+    installed: Option<&Installed>,
+    files: &[NewFile],
+    archive: [u8; 32],
+    repair: bool,
+) -> Result<install::Outcome, Done> {
     // The launcher's "installing" line: "Updating", then "Extracting file
     // <name>" for each file. It is entered with no file name set (this
     // updater sent none so far) and left by the next state message.
     session.begin_progress();
     session.state(state::INSTALLING);
     install::clean_up(layout, files.iter().map(|file| file.name.as_str()));
-    // The archive that is installed already: a repair.
-    let repair = installed
-        .as_ref()
-        .is_some_and(|installed| installed.archive == manifest.sha256);
-    let outcome = match install::install(layout, &files, repair, &mut |step| match step {
+    let outcome = match install::install(layout, files, repair, &mut |step| match step {
         Step::File(name) => {
             let file_name = name.rsplit('/').next().unwrap_or(name);
             session.send(ToLauncher::InstallInfo {
@@ -731,11 +835,11 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
         Step::Bytes(done, total) => session.progress(done, total),
     }) {
         Ok(outcome) => outcome,
-        Err(InstallError::Stopped) => return Done::Stopped,
+        Err(InstallError::Stopped) => return Err(Done::Stopped),
         // Windows Security does not let the file be written: the same stop
         // as when it cannot be read.
         Err(error) => {
-            return match error.virus() {
+            return Err(match error.virus() {
                 Some((path, code)) => {
                     log!(
                         "{path} cannot be written: {} (error {code})",
@@ -744,7 +848,7 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
                     Done::Stop(Stop::Virus, path.into())
                 }
                 None => Done::Failed(text::install(&error)),
-            };
+            });
         }
     };
     for name in &outcome.written {
@@ -757,16 +861,13 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
         .find(|name| !win::exists(&layout.place(name)))
     {
         log!("{name} is gone right after it was installed");
-        return Done::Stop(Stop::Virus, name.clone());
+        return Err(Done::Stop(Stop::Virus, name.clone()));
     }
 
     // What the archive before had and this one has not goes, if it is still
     // the file that was installed (a file the player changed is the
     // player's).
-    for old in installed
-        .iter()
-        .flat_map(|installed| installed.files.iter())
-    {
+    for old in installed.iter().flat_map(|installed| installed.files.iter()) {
         if !files
             .iter()
             .any(|file| file.name.eq_ignore_ascii_case(&old.name))
@@ -784,47 +885,124 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     }
 
     // What is installed now, for the next start.
-    let installed = Installed {
-        archive: manifest.sha256,
-        files: files
-            .iter()
-            .map(|file| InstalledFile {
-                name: file.name.clone(),
-                sha256: file.sha256,
-                size: file.data.len() as u64,
-            })
-            .collect(),
-    };
-    let state_path = format!("{}\\{STATE_FILE}", layout.exe_dir);
-    let staged = format!("{state_path}.skhid-new");
-    let saved = win::write_file(&staged, &write_installed(&installed))
-        .and_then(|()| win::rename(&staged, &state_path, true));
-    if let Err(code) = saved {
-        // The files are in place; only the note of it is not. The next
-        // start compares the files and writes it again.
-        log!(
-            "{STATE_FILE} could not be written ({})",
-            win::error_text(code)
-        );
-        let _ = win::delete(&staged);
-    }
+    save_installed(
+        layout,
+        &Installed {
+            archive,
+            files: files
+                .iter()
+                .map(|file| InstalledFile {
+                    name: file.name.clone(),
+                    sha256: file.sha256,
+                    size: file.data.len() as u64,
+                })
+                .collect(),
+        },
+    );
     log!(
         "installed {} file(s) of {}",
         outcome.written.len(),
         files.len()
     );
-    // The game that waited for its extractor. When the launcher or this
-    // program was replaced, the start that follows goes on with it.
-    if game_after && !outcome.restart {
-        match game::ensure(session, layout, Some(server)) {
-            Ok(_) => {}
-            Err(None) => return Done::Stopped,
-            Err(Some(message)) => return Done::Failed(message),
+    Ok(outcome)
+}
+
+/// When the server cannot be asked: the Skhid files from the signed
+/// torrent, if this folder has none or an older revision's. Installed as an
+/// archive whose id is the torrent's info hash, so the server's archive goes
+/// over them once it answers. `None`: not by torrent.
+fn torrent_overlay(session: &mut Session, layout: &Layout, installed: Option<&Installed>) -> Option<Done> {
+    let signed = torrent::offered(session, layout)?;
+    let torrent = &signed.torrent;
+    let game = crate::signed::game_number(layout);
+    let newer = match installed {
+        None => true,
+        Some(installed) => installed.archive != torrent.v2 && signed.revision > game,
+    };
+    if !newer {
+        return None;
+    }
+    let skhid = torrent::skhid_files(torrent);
+    let part = |index: usize| torrent::skhid_part(layout, &torrent.files[index].path);
+    let places: Vec<(usize, String)> = skhid.iter().map(|&index| (index, layout.place(&torrent.files[index].path))).collect();
+    let Some(whole) = torrent::whole(session, &signed, &places) else {
+        return if session.stopped() { Some(Done::Stopped) } else { None };
+    };
+    let missing: Vec<(usize, String)> = skhid
+        .iter()
+        .zip(&whole)
+        .filter(|(_, whole)| !**whole)
+        .map(|(&index, _)| (index, part(index)))
+        .collect();
+    log!(
+        "the Skhid files of revision {} by torrent: {} of {} to fetch",
+        signed.revision,
+        missing.len(),
+        skhid.len()
+    );
+    for (_, path) in &missing {
+        let _ = win::create_folders(win::split_path(path).0);
+    }
+    if !missing.is_empty() {
+        match torrent::fetch(session, &signed, &missing) {
+            torrent::Fetched::Done => {}
+            torrent::Fetched::Stopped => return Some(Done::Stopped),
+            torrent::Fetched::Not(why) => {
+                log!("the Skhid files by torrent: {why}");
+                return None;
+            }
         }
     }
-    Done::Installed {
-        restart: outcome.restart,
-        put_back,
+    let mut files = Vec::new();
+    for &index in &skhid {
+        let file = &torrent.files[index];
+        let from = missing
+            .iter()
+            .find(|(fetched, _)| *fetched == index)
+            .map_or_else(|| layout.place(&file.path), |(_, part)| part.clone());
+        let data = match win::read_file(&from, MAX_ARCHIVE_SIZE as usize) {
+            Ok(data) => data,
+            Err(code) => return Some(Done::Failed(format!("Cannot read {from}: {}.", win::error_text(code)))),
+        };
+        // Every piece was checked; only extra bytes could be wrong.
+        if data.len() as u64 != file.size {
+            return Some(Done::Failed(format!(
+                "{from} has {} bytes, not the {} of the torrent's {}.",
+                data.len(),
+                file.size,
+                file.path
+            )));
+        }
+        files.push(NewFile {
+            sha256: digest(&data),
+            name: file.path.clone(),
+            data,
+        });
+    }
+    log!("the Skhid files of revision {} from the torrent: installing", signed.revision);
+    let outcome = put_in_place(session, layout, installed, &files, torrent.v2, false);
+    for (_, part) in &missing {
+        let _ = win::delete(part);
+    }
+    Some(match outcome {
+        Ok(outcome) => Done::Installed {
+            restart: outcome.restart,
+            put_back: None,
+        },
+        Err(done) => done,
+    })
+}
+
+/// Writes `updater_skhid.state`. A failure is logged: the next start
+/// compares the files and writes it again.
+fn save_installed(layout: &Layout, installed: &Installed) {
+    let state_path = format!("{}\\{STATE_FILE}", layout.exe_dir);
+    let staged = format!("{state_path}.skhid-new");
+    let saved = win::write_file(&staged, &write_installed(installed))
+        .and_then(|()| win::rename(&staged, &state_path, true));
+    if let Err(code) = saved {
+        log!("{STATE_FILE} could not be written ({})", win::error_text(code));
+        let _ = win::delete(&staged);
     }
 }
 
@@ -845,6 +1023,8 @@ struct Options {
     /// `check`: every patch file is hashed, whatever was hashed before (the
     /// repair); the launcher's update takes the quick check.
     look: patches::Look,
+    /// The launcher's "Allow torrent" and port (its 4th and 13th arguments).
+    torrenting: Torrenting,
 }
 
 /// The command line: the launcher's (`"<exe>" "update" "<pipe>" ...`, the
@@ -891,6 +1071,19 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
             } else {
                 patches::Look::Quick
             },
+            // `torrent`/`direct` as `finish_by_new` passes it, else the
+            // launcher's setting; the kept port. `ready` only reads.
+            torrenting: if action == "check" {
+                let said = rest.iter().find_map(|argument| {
+                    ["torrent", "direct"]
+                        .into_iter()
+                        .find(|word| argument.eq_ignore_ascii_case(word))
+                });
+                let saved = if win::launcher_torrent_allowed() { "torrent" } else { "direct" };
+                Torrenting::of_arguments(said.unwrap_or(saved), "")
+            } else {
+                Torrenting::Off { port: None }
+            },
         }),
         "update" | "full_update" => Ok(Options {
             pipe_name: pipe_name(),
@@ -898,6 +1091,10 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
             ready: false,
             quiet: false,
             look: patches::Look::Quick,
+            torrenting: Torrenting::of_arguments(
+                rest.get(2).map_or("", String::as_str),
+                rest.get(11).map_or("", String::as_str),
+            ),
         }),
         "copy" => Ok(Options {
             pipe_name: pipe_name(),
@@ -905,6 +1102,7 @@ fn options_of(arguments: &[String]) -> Result<Options, String> {
             ready: false,
             quiet: false,
             look: patches::Look::Quick,
+            torrenting: Torrenting::Off { port: None },
         }),
         _ => Err(text::usage()),
     }
@@ -914,6 +1112,10 @@ fn run() -> u32 {
     // "Watch replay": started by the patched game with a replay link
     // (`replay.rs`). Exactly this word, as the game's patch sends it.
     let arguments = arguments();
+    // Started by the patched game on its login screen and in its lobby.
+    if let Some(pipe) = updater_logic::seed::command(&arguments) {
+        return seed::run(pipe);
+    }
     if let Some((file_arguments, quiet)) = updater_logic::local_replay::command(&arguments) {
         return replay::run_local(file_arguments, quiet);
     }
@@ -976,12 +1178,13 @@ fn run() -> u32 {
     let mut session = Session {
         pipe,
         quiet: options.quiet,
-        stopped: false,
+        run: Run::Going,
         last_progress: 0,
         started: 0,
         named_file: false,
         seen: None,
         trouble: None,
+        torrents: torrent::Torrents::new(options.torrenting, &layout),
     };
 
     if options.copy {
@@ -990,6 +1193,7 @@ fn run() -> u32 {
         // they are, so the copy is "done" at once.
         session.state(state::COPIED);
         session.linger();
+        session.leave();
         return exit::OK;
     }
 
@@ -997,9 +1201,24 @@ fn run() -> u32 {
         .pipe_name
         .as_deref()
         .and_then(|name| name.strip_prefix(PIPE_PREFIX));
+    let code = loop {
+        let code = pass(&mut session, &layout, options.look, product);
+        if !session.again() {
+            break code;
+        }
+    };
+    session.leave();
+    log!("exit {code}");
+    code
+}
+
+/// The update, what the player is told of it and its last message, then
+/// the watch, until the launcher goes or the pass is to run again. The exit
+/// code.
+fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Option<&str>) -> u32 {
     // `watch`: PLAY's state stands on what the server said; while the
     // launcher stays open the server is watched (`gate::watch`).
-    let mut done = update(&mut session, &layout, options.look);
+    let mut done = update(session, layout, look);
     // Said in a box of the updater's own, in the launcher's language: the
     // launcher is not told it again.
     let mut said = false;
@@ -1008,7 +1227,7 @@ fn run() -> u32 {
     let log_path = log::path().unwrap_or_else(|| layout.exe_dir.clone());
     let antivirus = |name: &str, removal| {
         let file = name.rsplit(['/', '\\']).next().unwrap_or(name);
-        let folder = file_error::exclusion_folder(name, &layout.exe_dir, &layout.game_dir);
+        let folder = file_error::exclusion_folder(name, &layout.exe_dir, &layout.torrent_dir, &layout.game_dir);
         Problem::Antivirus {
             file: file.into(),
             folder: folder.into(),
@@ -1049,7 +1268,7 @@ fn run() -> u32 {
                 if let Done::Failed(_) = done {
                     session.state(state::ERROR);
                 }
-                if session.quiet || session.stopped {
+                if session.quiet || session.stopped() {
                     break;
                 }
                 let problem = Problem::of(failed, || {
@@ -1062,7 +1281,7 @@ fn run() -> u32 {
             }
             _ => break,
         };
-        if session.quiet || session.stopped {
+        if session.quiet || session.stopped() {
             break;
         }
         if !retry_box(&caption, &message) || !session.pump() {
@@ -1070,7 +1289,7 @@ fn run() -> u32 {
             break;
         }
         log!("the player asks to try again");
-        done = update(&mut session, &layout, options.look);
+        done = update(session, layout, look);
     }
     // A program file was gone at the start and is back: the player is told
     // what removes it, before PLAY.
@@ -1080,7 +1299,7 @@ fn run() -> u32 {
     } = &done
     {
         log!("{name} was gone at the start and is put back: an antivirus may remove it again");
-        if !session.quiet && !session.stopped {
+        if !session.quiet && !session.stopped() {
             let problem = antivirus(name, Removal::PutBack);
             warning_box(&problem.caption(), &problem.message(language, &log_path));
         }
@@ -1095,7 +1314,7 @@ fn run() -> u32 {
                 log!("{} MB free in {folder}, {} MB needed: PLAY stays off", free >> 20, disk::NEEDED >> 20);
                 session.state(state::ERROR);
                 let mut free = free;
-                while free < disk::NEEDED && !session.quiet && !session.stopped
+                while free < disk::NEEDED && !session.quiet && !session.stopped()
                     && retry_box(text::TITLE, &disk::too_little(language, folder)) && session.pump()
                 {
                     free = win::free_space(folder).unwrap_or(0);
@@ -1127,14 +1346,13 @@ fn run() -> u32 {
             // updater: that one restores resources.db and does the patch
             // step.
             Some(product) if session.pipe.is_some() => {
-                restart_launcher(&mut session, &layout, product);
-                log!("exit 0");
+                restart_launcher(session, layout, product);
                 return exit::OK;
             }
             // No launcher to start again: the new updater is run here, and
             // its outcome is this one's. PLAY is never said before the
             // patch step ran.
-            _ => (finish_by_new(&mut session, &layout, options.quiet), false),
+            _ => (finish_by_new(session, layout), false),
         },
         Done::Installed { restart: false, .. } => {
             // "Checking" clears the launcher's file name line.
@@ -1181,16 +1399,15 @@ fn run() -> u32 {
         }
     };
     if code == exit::OK && watch && session.pipe.is_some()
-        && let Err(code) = replay_association::register(&layout) {
+        && let Err(code) = replay_association::register(layout) {
         log!("replay: file registration failed: {} (error {code})", win::error_text(code));
     }
     match (product, session.seen.take()) {
         (Some(product), Some(seen)) if watch && session.pipe.is_some() => {
-            gate::watch(&mut session, &layout, product, &seen);
+            gate::watch(session, layout, product, &seen);
         }
         _ => session.linger(),
     }
-    log!("exit {code}");
     code
 }
 
@@ -1216,10 +1433,16 @@ fn register_replays(arguments: &[String]) -> u32 {
 /// `check` by hand (no launcher) replaced this updater: the new one is run,
 /// as it was started, to finish the update (the restore and the patch step,
 /// which this one leaves to it); its exit code is this one's.
-fn finish_by_new(session: &mut Session, layout: &Layout, quiet: bool) -> u32 {
+fn finish_by_new(session: &mut Session, layout: &Layout) -> u32 {
     let exe = format!("{}\\{}", layout.exe_dir, layout.exe_name);
-    let command = format!("\"{exe}\" check{}", if quiet { " quiet" } else { "" });
+    let command = format!(
+        "\"{exe}\" check{}{}",
+        if session.quiet { " quiet" } else { "" },
+        if session.torrents.allowed() { " torrent" } else { " direct" }
+    );
     log!("this updater was replaced: the new one finishes the update ({command})");
+    // Its port and files are the new one's.
+    session.torrents.close();
     match win::run_wait(&exe, &command, &layout.exe_dir, "NUL", &mut || true) {
         Ok(code) => {
             log!("the new updater ended with {code}");

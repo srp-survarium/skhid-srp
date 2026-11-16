@@ -1,7 +1,8 @@
 @echo off
-rem Skhid-defender-setup.cmd: excludes the game's program folder
-rem (game\binaries\x86) from Microsoft Defender's scans, so that it stops
-rem taking the patched files for a threat, then puts back the Skhid files
+rem Skhid-defender-setup.cmd: excludes the game's program folders
+rem (game\binaries\x86, and game\torrent with the updater's kept copies)
+rem from Microsoft Defender's scans, so that it stops taking the patched
+rem files for a threat, then puts back the Skhid files
 rem Defender already deleted (updater_skhid.exe too, which nothing else
 rem restores). It turns nothing off: Defender stays on. It belongs beside
 rem Skhid.bat, in the folder that holds the folder named game. It speaks
@@ -15,9 +16,10 @@ rem
 rem Started without administrator rights, it asks Windows for them (the User
 rem Account Control prompt) and runs again in a new window, elevated.
 rem
-rem The marker of the exclusion is Skhid-network-setup.defender, the name of
+rem The marker of the exclusions is Skhid-network-setup.defender, the name of
 rem the earlier Skhid-network-setup.cmd, which asked for it: one it made is
-rem undone here too.
+rem undone here too. It holds the folders excluded, one a line; Skhid-get.bat
+rem writes it the same way.
 rem
 rem The code page: this file is kept in UTF-8, and make_client_026g.py ships
 rem it in code page 866 (DOS Cyrillic). cmd reads each line of a script in
@@ -64,6 +66,7 @@ set "X86=%TOP%\game\binaries\x86"
 set "MARKER=%TOP%\Skhid-network-setup.defender"
 set "SKHID_MARKER=%MARKER%"
 set "SKHID_EXCLUDED=%X86%"
+set "SKHID_TORRENT=%TOP%\game\torrent"
 rem Beside the game: its exe there, or (Defender deleted it) the updater's address.
 if not exist "%X86%\survarium_skhid.exe" if not exist "%X86%\updater_skhid.url" goto wrong_place
 
@@ -75,23 +78,24 @@ echo =====================================
 if "%MODE%"=="undo" goto intro_undo
 %RU% Microsoft Defender может по ошибке принять изменённые файлы игры
 %RU% (survarium_skhid.exe, bugtrap.dll, программу обновления) за угрозу и
-%RU% заблокировать или удалить их. Этот файл добавляет папку с программами
+%RU% заблокировать или удалить их. Этот файл добавляет папки с программами
 %RU% игры в исключения Defender:
 %EN% Microsoft Defender may mistake the game's changed files
 %EN% (survarium_skhid.exe, bugtrap.dll, the updater) for a threat and
-%EN% block or delete them. This file adds the folder with the game's
+%EN% block or delete them. This file adds the folders with the game's
 %EN% programs to Defender's exclusions:
 echo   "%X86%"
+echo   "%SKHID_TORRENT%"
 %RU% и скачивает заново файлы Skhid, которые Defender уже удалил.
 %EN% and downloads again the Skhid files Defender already deleted.
 %RU% Defender остаётся включённым.
 %EN% Defender stays on.
 goto intro_done
 :intro_undo
-%RU% Удаляет исключение папки игры из проверки Microsoft Defender, если его
+%RU% Удаляет исключения папок игры из проверки Microsoft Defender, если их
 %RU% добавил этот файл.
-%EN% Removes the game folder's exclusion from Microsoft Defender's scans, if
-%EN% this file added it.
+%EN% Removes the game folders' exclusions from Microsoft Defender's scans, if
+%EN% this file added them.
 :intro_done
 %RU% Папка игры: "%TOP%"
 %EN% Game folder: "%TOP%"
@@ -140,8 +144,9 @@ exit /b 0
 if "%MODE%"=="undo" goto undo
 
 rem --- add -------------------------------------------------------------
-rem The exclusion is of game\binaries\x86 alone, where the programs that get
-rem flagged are (never the folder the archive was unpacked into: Downloads).
+rem The exclusions are of game\binaries\x86 and game\torrent alone, where the
+rem programs that get flagged are (never the folder the archive was unpacked
+rem into: Downloads).
 if not "%TOP:~2%"=="" goto add
 %RU% Defender: исключение не добавлено, игра лежит в корне диска. Сначала
 %RU% перенесите её в папку.
@@ -151,31 +156,33 @@ goto end
 :add
 if not defined DRY goto exclude
 echo [dry-run] powershell Add-MpPreference -ExclusionPath "%X86%"
+echo [dry-run] powershell Add-MpPreference -ExclusionPath "%SKHID_TORRENT%"
 echo [dry-run] write "%MARKER%":
 call :marker_line
 call :restore
 goto done
-rem PowerShell writes the marker (the path excluded, UTF-8 with a byte order
-rem mark): every letter of the path is kept, Ukrainian or Polish too, which
-rem code page 866 has not.
+rem PowerShell excludes the folders not excluded yet and adds them to the
+rem marker (UTF-8 with a byte order mark): every letter of a path is kept,
+rem Ukrainian or Polish too, which code page 866 has not. A marker of an
+rem earlier run keeps its folders.
 :exclude
-powershell -NoProfile -ExecutionPolicy Bypass -Command "try { if ((Get-MpPreference -ErrorAction Stop).ExclusionPath -contains $env:SKHID_EXCLUDED) { exit 3 }; Add-MpPreference -ExclusionPath $env:SKHID_EXCLUDED -ErrorAction Stop; [IO.File]::WriteAllText($env:SKHID_MARKER, $env:SKHID_EXCLUDED, [Text.Encoding]::UTF8) } catch { exit 1 }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $had = (Get-MpPreference -ErrorAction Stop).ExclusionPath; $new = @($env:SKHID_EXCLUDED, $env:SKHID_TORRENT | Where-Object { $had -notcontains $_ }); if (-not $new) { exit 3 }; foreach ($p in $new) { Add-MpPreference -ExclusionPath $p -ErrorAction Stop }; $mine = @(); if ([IO.File]::Exists($env:SKHID_MARKER)) { $mine = [IO.File]::ReadAllLines($env:SKHID_MARKER, [Text.Encoding]::GetEncoding(866)) }; [IO.File]::WriteAllLines($env:SKHID_MARKER, [string[]]@($mine + $new | Where-Object { $_.Trim() } | Select-Object -Unique), [Text.Encoding]::UTF8) } catch { exit 1 }"
 if errorlevel 3 goto had
 if errorlevel 1 goto failed
-%RU% Defender: папка game\binaries\x86 исключена из проверки.
-%EN% Defender: the folder game\binaries\x86 is excluded from scans.
+%RU% Defender: папки game\binaries\x86 и game\torrent исключены из проверки.
+%EN% Defender: the folders game\binaries\x86 and game\torrent are excluded from scans.
 call :restore
 goto done
 :had
-%RU% Defender: эта папка уже была в исключениях, ничего не изменено.
-%EN% Defender: this folder was already excluded, nothing changed.
+%RU% Defender: эти папки уже были в исключениях, ничего не изменено.
+%EN% Defender: these folders were already excluded, nothing changed.
 call :restore
 goto end
 :failed
 %RU% Defender: исключение добавить не удалось. Возможно, защитой управляет
-%RU% другой антивирус: добавьте папку в его исключения сами.
+%RU% другой антивирус: добавьте папки в его исключения сами.
 %EN% Defender: the exclusion could not be added. Perhaps another antivirus
-%EN% manages protection: add the folder to its exclusions yourself.
+%EN% manages protection: add the folders to its exclusions yourself.
 goto end
 :done
 echo.
@@ -183,12 +190,12 @@ echo.
 %EN% Done. To remove the exclusion: Skhid-defender-setup.cmd --undo
 goto end
 
-rem A dry run's picture of the marker's line: the path, as it is. A FOR
+rem A dry run's picture of the marker's lines: the paths, as they are. A FOR
 rem variable is not parsed again (an & in it is no command) and, without
 rem delayed expansion, a ! stays a !. (A Windows path has no * or ?, which
 rem FOR would match.)
 :marker_line
-for %%A in ("%SKHID_EXCLUDED%") do echo(%%~A
+for %%A in ("%SKHID_EXCLUDED%" "%SKHID_TORRENT%") do echo(%%~A
 exit /b 0
 
 rem --- the files Defender deleted --------------------------------------
@@ -241,9 +248,10 @@ endlocal
 exit /b 0
 
 rem --- undo ------------------------------------------------------------
-rem PowerShell reads the marker and says what it removed. ReadAllText takes
-rem the byte order mark's UTF-8; a marker without one is of the earlier
-rem script (#453), written by cmd in the console's code page: 866 here.
+rem PowerShell reads the marker and says what it removed, a folder a line.
+rem ReadAllLines takes the byte order mark's UTF-8; a marker without one is of
+rem the earlier script (#453), written by cmd in the console's code page: 866
+rem here.
 :undo
 if exist "%MARKER%" goto unexclude
 %RU% Defender: этот файл не добавлял здесь исключений, удалять нечего.
@@ -251,11 +259,11 @@ if exist "%MARKER%" goto unexclude
 goto end
 :unexclude
 if not defined DRY goto unexclude_run
-echo [dry-run] powershell Remove-MpPreference -ExclusionPath (the path in "%MARKER%")
+echo [dry-run] powershell Remove-MpPreference -ExclusionPath (each path in "%MARKER%")
 echo [dry-run] delete "%MARKER%"
 goto end
 :unexclude_run
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = ''; try { $p = [IO.File]::ReadAllText($env:SKHID_MARKER, [Text.Encoding]::GetEncoding(866)).Trim(); Remove-MpPreference -ExclusionPath $p -ErrorAction Stop; if ($env:SKHID_RU) { Write-Output ('Defender: исключение ' + [char]34 + $p + [char]34 + ' удалено.') } else { Write-Output ('Defender: the exclusion ' + [char]34 + $p + [char]34 + ' is removed.') } } catch { if ($env:SKHID_RU) { Write-Output ('Defender: исключение ' + [char]34 + $p + [char]34 + ' удалить не удалось.') } else { Write-Output ('Defender: the exclusion ' + [char]34 + $p + [char]34 + ' could not be removed.') }; exit 1 }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$code = 0; foreach ($p in @([IO.File]::ReadAllLines($env:SKHID_MARKER, [Text.Encoding]::GetEncoding(866)) | ForEach-Object { $_.Trim() } | Where-Object { $_ })) { try { Remove-MpPreference -ExclusionPath $p -ErrorAction Stop; if ($env:SKHID_RU) { Write-Output ('Defender: исключение ' + [char]34 + $p + [char]34 + ' удалено.') } else { Write-Output ('Defender: the exclusion ' + [char]34 + $p + [char]34 + ' is removed.') } } catch { if ($env:SKHID_RU) { Write-Output ('Defender: исключение ' + [char]34 + $p + [char]34 + ' удалить не удалось.') } else { Write-Output ('Defender: the exclusion ' + [char]34 + $p + [char]34 + ' could not be removed.') }; $code = 1 } }; exit $code"
 if errorlevel 1 goto end
 del "%MARKER%"
 goto end

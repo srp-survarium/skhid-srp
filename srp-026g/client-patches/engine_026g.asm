@@ -234,6 +234,7 @@ global engine_respawn_point_clear
 global engine_respawn_points_push
 global engine_sound_pan
 global engine_listener_position
+global engine_get_last_error
 global engine_swap_chain_get_buffer
 global engine_texture2d_get_desc
 global engine_device_child_get_device
@@ -331,6 +332,7 @@ engine_rand_bytes equ 0x46b6e0   ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, lengt
 engine_cc_delegate_execute equ 0xec830   ; 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
 engine_message_box_a equ 0xaeff30   ; the IAT slot 0xaeff30 (an import, stdcall)
 engine_exit_process equ 0x87020c   ; the IAT slot 0x87020c (an import, stdcall)
+engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (an import, stdcall)
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX

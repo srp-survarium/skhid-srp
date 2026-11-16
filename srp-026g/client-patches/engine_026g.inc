@@ -781,6 +781,10 @@ extern engine_sound_pan
 ; float *engine_listener_position(struct sound_scene *scene, float *out)
 ; 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
 extern engine_listener_position
+; unsigned int engine_get_last_error(void)
+; the IAT slot 0x87005c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_last_error
 ; unsigned int engine_swap_chain_get_buffer(struct swap_chain *chain, unsigned int buffer, const void *iid, struct hw_resource **surface)
 ; COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
 extern engine_swap_chain_get_buffer
