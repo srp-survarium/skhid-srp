@@ -323,6 +323,8 @@ unsafe extern "C" {
     pub fn engine_triangle_material(object: *mut c_void, triangle: u32, compound: u32) -> u16;
     /// 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL
     pub fn engine_is_first_view(player: *mut c_void) -> u32;
+    /// 0x11dd60 vostok::render::system_renderer::draw_aabb: renderer EAX, aabb EDI, color ESP+4; pops 4
+    pub fn engine_draw_aabb(renderer: *mut c_void, aabb: *const f32, color: *const u32);
 }
 
 #[allow(dead_code)]

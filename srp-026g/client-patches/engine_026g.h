@@ -893,4 +893,7 @@ unsigned short engine_triangle_material(struct hit_object *object, unsigned int 
 /* 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL */
 unsigned int engine_is_first_view(struct player *player);
 
+/* 0x11dd60 vostok::render::system_renderer::draw_aabb: renderer EAX, aabb EDI, color ESP+4; pops 4 */
+void engine_draw_aabb(struct system_renderer *renderer, const float *aabb, const unsigned int *color);
+
 #endif

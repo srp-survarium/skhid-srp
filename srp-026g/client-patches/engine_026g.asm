@@ -254,6 +254,7 @@ global engine_on_step
 global engine_step_manager
 global engine_triangle_material
 global engine_is_first_view
+global engine_draw_aabb
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -3068,6 +3069,23 @@ engine_is_first_view:
     mov ecx, [esp + 20]   ; player
     call 0x1f3bd0
     movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_draw_aabb:
+    ; 0x11dd60 vostok::render::system_renderer::draw_aabb: renderer EAX, aabb EDI, color ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; color -> 4
+    mov eax, [esp + 24]   ; renderer
+    mov edi, [esp + 28]   ; aabb
+    call 0x11dd60
     pop edi
     pop esi
     pop ebx

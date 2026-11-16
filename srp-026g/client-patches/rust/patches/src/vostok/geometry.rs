@@ -111,6 +111,38 @@ impl GlassLine {
     }
 }
 
+/// An axis-aligned box of the world, its low corner at most its high on
+/// every axis: it may be flat.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Aabb { low: WorldPoint, high: WorldPoint }
+
+impl Aabb {
+    pub fn parse(low: WorldPoint, high: WorldPoint) -> Option<Self> {
+        (0..3).all(|k| low.0[k] <= high.0[k]).then_some(Self { low, high })
+    }
+    /// Its six floats: the low corner, then the high.
+    pub fn corners(self) -> [f32; 6] {
+        let ([a, b, c], [d, e, f]) = (self.low.0, self.high.0);
+        [a, b, c, d, e, f]
+    }
+    /// The box moved in by `by` on every side; an axis thinner than twice
+    /// that becomes its middle.
+    pub fn inset(self, by: Distance) -> Self {
+        let (mut low, mut high) = (self.low.0, self.high.0);
+        for k in 0..3 {
+            let middle = low[k] * 0.5 + high[k] * 0.5;
+            low[k] = (low[k] + by.0).min(middle);
+            high[k] = (high[k] - by.0).max(middle);
+        }
+        Self { low: WorldPoint(low), high: WorldPoint(high) }
+    }
+    /// Whether `point` is at most `distance` from the box (inside it: 0).
+    pub fn within(self, point: WorldPoint, distance: Distance) -> bool {
+        let nearest = WorldPoint(core::array::from_fn(|k| point.0[k].max(self.low.0[k]).min(self.high.0[k])));
+        nearest.within(point, distance)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Bounds { low: WorldPoint, high: WorldPoint, centre: WorldPoint }
 

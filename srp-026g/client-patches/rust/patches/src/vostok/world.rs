@@ -13,6 +13,7 @@ use core::marker::PhantomData;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::Context;
+use super::geometry::{Aabb, WorldPoint};
 use super::hook::Thread;
 use super::ui::{Movie, movie_of};
 use crate::raw;
@@ -679,6 +680,53 @@ impl PhysicsWorld<'_> {
             Some(RayHit { point: floats(result.point()), normal: floats(result.normal()) })
         }
     }
+
+    /// Each object of the world (m_collisionObjects, in its order) that is
+    /// in its broadphase: its filter group, whether it is static, and the box
+    /// the broadphase holds for it, in the game's frame. Read only, on the
+    /// thread that steps the world, outside its step (camera.viewed is in
+    /// mt_draw, after the simulation's move): nothing adds or removes an
+    /// object meanwhile.
+    pub fn for_each_object(&self, mut visit: impl FnMut(CollisionObject)) {
+        // SAFETY: the physics world and its Bullet world are alive for the
+        // hook; m_collisionObjects holds object_count live objects, each
+        // proxy (when not 0) theirs, its two float4s written by setAabb.
+        unsafe {
+            let Some(world) = self.this.collision_world() else { return };
+            let Some(first) = world.objects() else { return };
+            for i in 0..read(world.object_count()) as usize {
+                let Some(object) = first.at(i).object() else { continue };
+                let Some(proxy) = object.broadphase() else { continue };
+                let ([x0, y0, z0], [x1, y1, z1]): ([f32; 3], [f32; 3]) =
+                    (floats(proxy.aabb_min()), floats(proxy.aabb_max()));
+                let low = WorldPoint::parse([x0, y0, -z1]);
+                let high = WorldPoint::parse([x1, y1, -z0]);
+                let Some(aabb) = low.zip(high).and_then(|(low, high)| Aabb::parse(low, high)) else { continue };
+                let motion = if read(object.flags()) & STATIC_OBJECT != 0 { Motion::Static } else { Motion::Moving };
+                visit(CollisionObject { group: read(proxy.group()), motion, aabb });
+            }
+        }
+    }
+}
+
+/// m_collisionFlags' CF_STATIC_OBJECT.
+const STATIC_OBJECT: u32 = 1;
+
+/// Whether a collision object can move: Bullet's static flag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Motion {
+    Static,
+    Moving,
+}
+
+/// An object of the physics world as its broadphase holds it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CollisionObject {
+    /// Its filter group (the bits a filter's mask meets).
+    pub group: u16,
+    pub motion: Motion,
+    /// Its box in the game's frame (Bullet's with z negated).
+    pub aabb: Aabb,
 }
 
 impl BodyId {

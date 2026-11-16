@@ -1983,6 +1983,21 @@ pub extern "C" fn hook_game_volume_on_configs(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- collision_view (patch 156) ----
+
+/// The entry `collision_view_on_configs` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_collision_view_on_configs(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `collision_view_on_configs` calls this, from the game's jump at 0x1ea210,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::collision_view::on_configs(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- console_where (patch 133) ----
 
 /// The entry `console_where_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player)) calls this with the saved machine.
@@ -1998,7 +2013,37 @@ pub extern "C" fn hook_console_where_on_viewed(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- console_where (patch 133) ----
+// ---- collision_view (patch 156) ----
+
+/// The entry `collision_view_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_collision_view_on_viewed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `collision_view_on_viewed` calls this, from the game's jump at 0x1f3650,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::collision_view::on_viewed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- collision_view (patch 156) ----
+
+/// The entry `collision_view_on_debug_lines` (0x13d9c1, renderer::render 0x13D010 at its depth-tested debug lines (taken while the cc_bool 0xA71DB7, on by default, is set; 0x13D97E), right after the scene's on_draw_scene(true) (boost function 0x205E0 at 0x13D9BC) and before the scene's own queued lines go to system_renderer::draw_lines with technique 0 (0x13DA08): mov edi,[esp+1Ch] / mov edx,[edi+6334C4h]; the render thread, the depth target and the view the scene's, so a draw_aabb there is drawn as the game's own debug lines) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_collision_view_on_debug_lines(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `collision_view_on_debug_lines` calls this, from the game's jump at 0x13d9c1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::collision_view::on_debug_lines(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- collision_view (patch 156) ----
 
 /// engine_cc_delegate_execute (0xec830), as the vtable hook at 0x9e7c10 wraps it.
 pub struct OrigCcDelegateExecute;
@@ -2011,6 +2056,27 @@ impl OrigCcDelegateExecute {
         unsafe { raw::engine_cc_delegate_execute(Some(command.raw()), arguments.raw()) }
     }
 }
+
+/// The entry `collision_view_on_execute` (0x9e7c10, cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found) calls this with
+/// engine_cc_delegate_execute's 2 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `collision_view_on_execute`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_collision_view_on_execute(a0: Option<raw::CcDelegate>, a1: *const u8) -> u32 {
+    // SAFETY: only the entry `collision_view_on_execute` calls this, from the game's call at
+    // 0x9e7c10, on the game's thread; a0.. are engine_cc_delegate_execute's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut command) = (unsafe { ConsoleCommand::from_raw(&thread, a0) }) else {
+        // a null ConsoleCommand never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_cc_delegate_execute(a0, a1) }; 0 };
+    };
+    let arguments = unsafe { ConsoleArguments::from_raw(&thread, a1) };
+    let orig = OrigCcDelegateExecute;
+    { crate::collision_view::on_execute(&orig, &mut command, &arguments); 0 }
+}
+
+// ---- console_where (patch 133) ----
 
 /// The entry `console_where_on_execute` (0x9e7c10, cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found) calls this with
 /// engine_cc_delegate_execute's 2 arguments, typed by its row (the `raw` layer's).
@@ -5648,6 +5714,17 @@ pub extern "C" fn hook_language_on_configs_start_chain(frame: &mut Frame) -> u32
     if flow != 0 { return flow; }
     let flow = hook_game_volume_on_configs(frame);
     if flow != 0 { return flow; }
+    let flow = hook_collision_view_on_configs(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_where_on_viewed_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_console_where_on_viewed(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_collision_view_on_viewed(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5912,6 +5989,12 @@ unsafe extern "C" { static battery_hit_swing_vtable: [u32; 13]; }
 pub fn battery_hit_swing_vtable_handle() -> super::project::NativeVtable<raw::TakeStateMethods> {
     // SAFETY: the generated immutable table lives for the executable's lifetime.
     unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(battery_hit_swing_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static collision_view_methods_vtable: [u32; 8]; }
+pub fn collision_view_methods_vtable_handle() -> super::project::NativeVtable<raw::CcDelegateMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(collision_view_methods_vtable).cast::<u32>().add(1) as usize as u32) }
 }
 
 unsafe extern "C" { static console_where_methods_vtable: [u32; 8]; }

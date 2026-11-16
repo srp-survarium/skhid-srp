@@ -591,11 +591,12 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # Sharing an exact lohook site is explicit and ordered. Partial overlaps,
     # mixed kinds and implicit order remain errors. One machine save/replay
     # wraps the chain; the first non-Continue result ends it.
-    # A callback rewrites nothing (the patch hands its own entry to the
-    # game), so the handlers of one callback site are never a chain.
+    # A callback or a vtable slot rewrites nothing (the patch hands its own
+    # entry to the game, or puts it in its own copy of the vtable), so the
+    # handlers of one such site are never a chain.
     grouped = {}
     for h in out:
-        key = (h["entry"] if h["kind"] == "callback"
+        key = (h["entry"] if h["kind"] in ("callback", "vtable")
                else h["site_name"] if h["site"] is None else h["site"])
         grouped.setdefault(key, []).append(h)
     out = []
@@ -622,7 +623,7 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # and C installs too, is selftest_026g.py's span check): no two sites'
     # replaced spans overlap. Each hook names its owning patch.
     spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out
-                   if h["site"] is not None and h["kind"] != "callback")
+                   if h["site"] is not None and h["kind"] not in ("callback", "vtable"))
     for (lo, hi, a), (lo2, _, b) in zip(spans, spans[1:]):
         if lo2 < hi:
             raise Bad(f"the hooks of {a} and {b} overlap at {lo2:#x} (the bytes {lo:#x}..{hi:#x})")

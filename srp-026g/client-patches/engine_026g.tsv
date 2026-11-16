@@ -284,3 +284,4 @@ engine_on_step	0x248ad0	ECX:step_manager EAX:position ESP+4:direction ESP+8:mate
 engine_step_manager	survarium::game_world+0x34	ECX:world	struct step_manager *engine_step_manager(struct game_world *world)	virtual	
 engine_triangle_material	vostok::physics::base_physics_object+0x10	ECX:body ESP+4:triangle ESP+8:compound	unsigned short engine_triangle_material(struct hit_object *object, unsigned int triangle, unsigned int compound)	virtual	
 engine_is_first_view	0x1f3bd0	ECX:player	unsigned int engine_is_first_view(struct player *player)	thunk	
+engine_draw_aabb	0x11dd60	EAX:renderer EDI:aabb ESP+4:color	void engine_draw_aabb(struct system_renderer *renderer, const float *aabb, const unsigned int *color)	thunk	

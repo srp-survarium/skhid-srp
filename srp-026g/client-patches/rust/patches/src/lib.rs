@@ -118,6 +118,8 @@ pub mod screenshot;
 pub mod replay_map;
 // patch 133: the console command `where`
 pub mod console_where;
+// patch 156: the console command `collision`
+pub mod collision_view;
 
 pub mod replay_file;
 pub mod free_for_all;

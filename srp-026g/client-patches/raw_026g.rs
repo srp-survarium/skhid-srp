@@ -329,6 +329,8 @@ unsafe extern "C" {
     pub fn engine_triangle_material(object: Option<HitObject>, triangle: u32, compound: u32) -> u16;
     /// 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL
     pub fn engine_is_first_view(player: Option<Player>) -> u32;
+    /// 0x11dd60 vostok::render::system_renderer::draw_aabb: renderer EAX, aabb EDI, color ESP+4; pops 4
+    pub fn engine_draw_aabb(renderer: Option<SystemRenderer>, aabb: *const f32, color: *const u32);
 }
 
 #[allow(dead_code)]
@@ -15219,6 +15221,15 @@ impl BtCollisionObject {
     pub unsafe fn set_user(self, value: Option<HitObject>) {
         unsafe { self.0.byte_add(0xf8).cast::<Option<HitObject>>().write_volatile(value) }
     }
+
+    /// +0xd8 (u32): m_collisionFlags: 1 static (updateSingleAabb 0xA0109 sets a static object's box at once), 2 kinematic, 10h a character controller's ghost
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn flags(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xd8).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::physics::bt_transform (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -15490,6 +15501,175 @@ impl BtBroadphaseProxy {
     #[inline(always)]
     pub unsafe fn group(self) -> *mut u16 {
         unsafe { self.0.byte_add(0x4).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x10 (f32): m_aabbMin, a float4 (Bullet frame: z the game's -z), as btAxisSweep3::setAabb 0x94C18 writes it (updateSingleAabb 0x9FF40 gives it the shape's box and the contact threshold)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn aabb_min(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x10).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x20 (f32): m_aabbMax, a float4 (Bullet frame), btAxisSweep3::setAabb 0x94C33
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn aabb_max(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x20).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BulletPhysicsWorld(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BulletPhysicsWorld {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x3c (ptr<vostok::physics::bt_collision_world>): its Bullet world (btDiscreteDynamicsWorld, 0.10b's m_dynamicsWorld at +34h there): set_renderer 0x750C0, add 0x758B0 and update_single_aabb 0x750F0 call through it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn collision_world(self) -> Option<BtCollisionWorld> {
+        unsafe { self.0.byte_add(0x3c).cast::<Option<BtCollisionWorld>>().read_volatile() }
+    }
+
+    /// +0x3c (ptr<vostok::physics::bt_collision_world>): its Bullet world (btDiscreteDynamicsWorld, 0.10b's m_dynamicsWorld at +34h there): set_renderer 0x750C0, add 0x758B0 and update_single_aabb 0x750F0 call through it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_collision_world(self, value: Option<BtCollisionWorld>) {
+        unsafe { self.0.byte_add(0x3c).cast::<Option<BtCollisionWorld>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::physics::bt_collision_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtCollisionWorld(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtCollisionWorld {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): m_collisionObjects' size (its btAlignedObjectArray at +4: size +8, capacity +0Ch, data +10h; updateAabbs 0xA01ED)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object_count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x10 (ptr<vostok::physics::bt_collision_object_slot>): m_collisionObjects' data, object_count pointers (updateAabbs 0xA01F7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn objects(self) -> Option<BtCollisionObjectSlot> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<BtCollisionObjectSlot>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<vostok::physics::bt_collision_object_slot>): m_collisionObjects' data, object_count pointers (updateAabbs 0xA01F7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_objects(self, value: Option<BtCollisionObjectSlot>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<BtCollisionObjectSlot>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::physics::bt_collision_object_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BtCollisionObjectSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BtCollisionObjectSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::physics::bt_collision_object>): one of the world's m_collisionObjects
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object(self) -> Option<BtCollisionObject> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BtCollisionObject>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::physics::bt_collision_object>): one of the world's m_collisionObjects
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_object(self, value: Option<BtCollisionObject>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BtCollisionObject>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: a pointer
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::physics::bt_collision_object_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct BtCollisionObjectSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl BtCollisionObjectSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> BtCollisionObjectSlot {
+        BtCollisionObjectSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<BtCollisionObjectSlot> {
+        (!rooms.is_empty()).then(|| BtCollisionObjectSlot(NonNull::from(rooms).cast()))
     }
 }
 
@@ -24272,21 +24452,6 @@ impl PlayerLogicState {
     #[inline(always)]
     pub unsafe fn movement(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x24).cast::<u32>().as_ptr() }
-    }
-}
-
-/// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BulletPhysicsWorld(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl BulletPhysicsWorld {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
     }
 }
 
