@@ -214,8 +214,9 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// PROVEN: `step_down` 0x7E527..0x7E6D1 and 0x7E408..0x7E4F2 keep the tick's starting speed for the landing's callback).
 pub const DROP_LANDS_ALGO: u32 = 0x5067_0009;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
-/// body that asks for it. A value of its own.
-pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0006;
+/// body that asks for it. A value of its own. 0007: [S3] the floors on the thin tops the gaps over one cross carry their top's
+/// centre line where a body is held on it (`grid::line_tops`), in the grid file.
+pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0007;
 /// The same for the taken floors given back where the client's body rests and no floor names the place ([`Body::rest_floors`],
 /// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0102: the own-point stand test
 /// (`rest_floors::settle_near`: a standing body on the floor's own point, no push out of the walls, and 0.05-0.10 m around it

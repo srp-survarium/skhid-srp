@@ -96,9 +96,11 @@ pub mod controlled;
 pub mod gap;
 mod gap_flown;
 pub mod held_floors;
+mod line_tops;
 mod rest_floors;
 pub use gap::{Aim, GapStats, OffLink, OffMeshLinks, PressLead, Share};
 pub use rim::{Riser, LAND_HEIGHT_M};
+pub use line_tops::{LineTop, TopFace, ACROSS_WAYS, MEASURE_STEP_M};
 pub use wall_give_back::{give_back_stands, GiveBackStands, STAND_MOVED_M};
 use gap::gap_cost;
 
@@ -1402,6 +1404,9 @@ pub struct WalkGrid {
     /// landing, speed), sorted: each the least of its walk-offs ([`held_floors::LANDING_WALKS_MPS`]). In the file (after the
     /// taken floors) and the digest. Empty without the switch.
     drop_speed: Vec<(NodeId, NodeId, held_floors::LandingSpeed)>,
+    /// [S3] The line floors on held thin tops ([`Self::line_top`], `line_tops`), sorted by floor. In the file (after the drop
+    /// landing speeds) and the digest. Empty without the gap flights.
+    line_tops: Vec<(NodeId, line_tops::LineTop)>,
     /// Per node, its distance to the nearest wall the capsule meets, in [`clearance::CLEARANCE_STEP_M`] steps ([`Self::wall_clearance`]):
     /// made by [`Self::with_wall_clearance`] after the grid is built or read, from the map's triangles. In neither the file nor the
     /// digest. Empty without it.
@@ -1832,6 +1837,7 @@ impl WalkGrid {
             drop_lips: Vec::new(),
             held_taken: Vec::new(),
             drop_speed: Vec::new(),
+            line_tops: Vec::new(),
             clearance: Vec::new(),
             open: Vec::new(),
             walker: None,
@@ -1882,9 +1888,15 @@ impl WalkGrid {
         if body.run_ups_after_erosion {
             (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, RunUp::Metres(SPRINT_RUN_UP_M));
         }
+        // [S3] The thin tops the gaps over one cross: their floors get a line ([`Self::line_tops_of`]) once the grid is final.
+        let mut thin_tops = Vec::new();
         wide.off = match (links, world) {
             (OffMeshLinks::None, _) => Vec::new(),
-            (OffMeshLinks::Gaps, Some(world)) if body.gap_flights => grid.gap_links_flown(&wide, &solids, world, &s, &mut stats.gaps),
+            (OffMeshLinks::Gaps, Some(world)) if body.gap_flights => {
+                let off;
+                (off, thin_tops) = grid.gap_links_flown(&wide, &solids, world, &s, &mut stats.gaps);
+                off
+            }
             (OffMeshLinks::Gaps, _) => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
         // [A364 C2 rows 11/12] The rim jumps, made as gap links where a client press lands (on the game's shapes, else the walker
@@ -1973,6 +1985,9 @@ impl WalkGrid {
         let fall = std::mem::take(&mut wide.fall);
         grid.pack(wide);
         grid.rim_unmade = rim_unmade;
+        if let Some(world) = world.filter(|_| !thin_tops.is_empty()) {
+            grid.line_tops = grid.line_tops_of(&thin_tops, triangles, world, &s);
+        }
         grid.mark_no_exit(walls.as_ref().filter(|_| body.pocket_exits_walled));
         // [A347] The exits a body cannot take, left out of the escape's tries.
         if body.exits_in_reach
@@ -3400,6 +3415,15 @@ impl WalkGrid {
                 digest.u32(u32::from(v.centimetres()));
             }
         }
+        // [S3] A grid with no line tops digests as before there were any.
+        if !self.line_tops.is_empty() {
+            digest.len(self.line_tops.len());
+            for (f, t) in &self.line_tops {
+                for byte in line_tops::LineTop::bytes(*f, t) {
+                    digest.u32(u32::from(byte));
+                }
+            }
+        }
         // [A385 rule (d)] A grid with no riser presses digests as before there were any.
         if !self.riser.is_empty() {
             digest.len(self.riser.len());
@@ -3456,7 +3480,7 @@ impl WalkGrid {
                 && self.walk_marked.is_empty()
                 && self.walk_crouched.is_empty()
                 && self.riser.is_empty()
-                && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty()
+                && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty()
             {
                 return Ok(());
             }
@@ -3476,12 +3500,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
             // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
-            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() {
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
                 return Ok(());
             }
             let pair = |&(a, b): &(NodeId, NodeId)| {
@@ -3492,17 +3516,17 @@ impl WalkGrid {
             };
             out.plain(&self.walled_exits, pair)?;
             // [2c] The marked walks, when the grid has them (an empty table before the crouched walks).
-            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() {
+            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_marked, pair)?;
             // [`Body::walk_ceiling_stalls`] The crouched walks, when the grid has them.
-            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() {
+            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_crouched, pair)?;
             // [A385 rule (d)] The risers' presses, when the grid has them: from, to, press (as an off-mesh link's), share, a zero.
-            if self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() {
+            if self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
                 return Ok(());
             }
             out.plain(&self.riser, |&(a, b, r)| {
@@ -3515,12 +3539,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A377] The lips by where the body stops, when the grid has them.
-            if self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() {
+            if self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
                 return Ok(());
             }
             out.plain(&self.drop_lips, pair)?;
             // [A389] The floors `held_floors` took, as feet, when the grid has them (a log's only: not in the digest).
-            if self.held_taken.is_empty() && self.drop_speed.is_empty() {
+            if self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
                 return Ok(());
             }
             out.plain(&self.held_taken, |p| {
@@ -3531,7 +3555,7 @@ impl WalkGrid {
                 bytes
             })?;
             // [S6] The held floors' drops' landing speeds, when the grid has them: from, to, cm/s.
-            if self.drop_speed.is_empty() {
+            if self.drop_speed.is_empty() && self.line_tops.is_empty() {
                 return Ok(());
             }
             out.plain(&self.drop_speed, |&(a, b, v)| {
@@ -3540,7 +3564,12 @@ impl WalkGrid {
                 bytes[4..8].copy_from_slice(&b.to_le_bytes());
                 bytes[8..].copy_from_slice(&v.centimetres().to_le_bytes());
                 bytes
-            })
+            })?;
+            // [S3] The line tops, when the grid has them.
+            if self.line_tops.is_empty() {
+                return Ok(());
+            }
+            out.plain(&self.line_tops, |(f, t)| line_tops::LineTop::bytes(*f, t))
         })
     }
 
@@ -3693,6 +3722,7 @@ impl WalkGrid {
                             (word(0), word(4), held_floors::LandingSpeed::from_centimetres(u16::from_le_bytes([bytes[8], bytes[9]])))
                         })?
                     },
+                    line_tops: if input.ends() { Vec::new() } else { input.plain(line_tops::LineTop::from_bytes)? },
                     clearance: Vec::new(),
                     open: Vec::new(),
                     walker: None,
@@ -3765,6 +3795,9 @@ impl WalkGrid {
             || self.drop_speed.windows(3).any(|w| (w[0].0, w[0].1) == (w[2].0, w[2].1))
         {
             return Err("bad drop landing speeds".into());
+        }
+        if !self.line_tops_ok() {
+            return Err("bad line tops".into());
         }
         if self.start.len() != cells + 1
             || self.start[0] != 0

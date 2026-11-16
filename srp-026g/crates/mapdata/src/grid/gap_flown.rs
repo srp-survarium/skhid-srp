@@ -104,8 +104,9 @@ impl WalkGrid {
     /// [`OVER_TOP_M`] over the take-off; then the first cell holding a floor at least a step under the top's, in a gap link's
     /// reach (no higher than the reach, no lower than the harmless drop), with standing room, that `a` has no link to. With the
     /// gap's bottom (the highest floor crossed under the take-off, the walk-off's floor at least, as [`Self::gap_across`]) and the
-    /// first cell a landing may be in (past the top). None when the way meets no such top.
-    fn over_thin_top(&self, wide: &Wide, solids: &Solids, a: usize, d: usize) -> Option<(u32, f32, i32)> {
+    /// first cell a landing may be in (past the top), and [S3] the top's cells with the height of the floor each holds on it
+    /// ([`super::line_tops::ThinTopCell`]). None when the way meets no such top.
+    fn over_thin_top(&self, wide: &Wide, solids: &Solids, a: usize, d: usize) -> Option<(u32, f32, i32, Vec<super::line_tops::ThinTopCell>)> {
         let h = self.height[a];
         let body = &self.body;
         let reach = body.max_jump.min(MARGINAL_JUMP_M);
@@ -135,11 +136,15 @@ impl WalkGrid {
         // The top: at most THIN_TOP_M along the way's stride.
         let thin = ((THIN_TOP_M / stride).round() as i32).max(1);
         let first = g;
+        // [S3] Its cells, each with the floor on the top there: the first cell's highest (`top`), then each further cell's within
+        // a step of it.
+        let mut on_top = vec![super::line_tops::ThinTopCell { cell: self.cell_index(i + g * di, k + dk * g)?, height: top, way: d }];
         while g - first < thin {
             let cell = self.cell_index(i + (g + 1) * di, k + dk * (g + 1))?;
-            if !(self.start[cell]..self.start[cell + 1]).any(|f| (self.height[f as usize] - top).abs() <= body.step) {
+            let Some(f) = (self.start[cell]..self.start[cell + 1]).find(|&f| (self.height[f as usize] - top).abs() <= body.step) else {
                 break;
-            }
+            };
+            on_top.push(super::line_tops::ThinTopCell { cell, height: self.height[f as usize], way: d });
             g += 1;
         }
         if g - first >= thin {
@@ -161,7 +166,7 @@ impl WalkGrid {
                     && !linked(f)
             });
             if let Some(f) = target.max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize])) {
-                return Some((f, crossed, past));
+                return Some((f, crossed, past, on_top));
             }
             // A floor higher than a step under the top past it: a wider top or a wall, the rim jumps' and the gap links'.
             if floors.clone().any(|f| self.height[f as usize] > top - body.step) {
@@ -198,10 +203,18 @@ impl WalkGrid {
     }
 
     /// [`super::Body::gap_flights`]: the gap links of the eroded grid flown by the client's jump on `world` (module
-    /// documentation), with the walk-offs, kept and thinned as [`Self::gap_links`]'s, sorted by take-off then landing.
-    pub(super) fn gap_links_flown(&self, wide: &Wide, solids: &Solids, world: &Collision, s: &Settings, stats: &mut GapStats) -> Vec<OffLink> {
+    /// documentation), with the walk-offs, kept and thinned as [`Self::gap_links`]'s, sorted by take-off then landing; and [S3]
+    /// the cells of the thin tops the gaps over one cross ([`Self::over_thin_top`]), for [`Self::line_tops_of`].
+    pub(super) fn gap_links_flown(
+        &self,
+        wide: &Wide,
+        solids: &Solids,
+        world: &Collision,
+        s: &Settings,
+        stats: &mut GapStats,
+    ) -> (Vec<OffLink>, Vec<super::line_tops::ThinTopCell>) {
         if self.body.max_jump <= 0.0 {
-            return Vec::new();
+            return (Vec::new(), Vec::new());
         }
         let n = self.len();
         // The clip pass's links (its walk-offs and presses) as well: a link goes only where no client action makes it
@@ -210,6 +223,7 @@ impl WalkGrid {
         let clip = self.gap_found(wide, solids, stats);
         let mut found: Vec<(OffLink, usize)> = Vec::new();
         let mut gaps: Vec<Gap> = Vec::new();
+        let mut thin_tops: Vec<super::line_tops::ThinTopCell> = Vec::new();
         for a in 0..n {
             if self.ceiling[a] - self.height[a] < self.body.stand_height {
                 continue;
@@ -218,9 +232,10 @@ impl WalkGrid {
                 let b = wide.links[a][d];
                 // [S4] Over a thin top: along a way no Walk link takes (a Jump link onto the top, a Drop, or none).
                 if (b == NONE || wide.kinds[a][d] != LinkKind::Walk)
-                    && let Some((b, crossed, past)) = self.over_thin_top(wide, solids, a, d)
+                    && let Some((b, crossed, past, on_top)) = self.over_thin_top(wide, solids, a, d)
                 {
                     gaps.push(Gap { a: a as u32, b, d, over: crossed, past, thin: true });
+                    thin_tops.extend(on_top);
                 }
                 if b != NONE && wide.kinds[a][d] != LinkKind::Drop {
                     continue;
@@ -314,7 +329,7 @@ impl WalkGrid {
         found.sort_by_key(|&(l, d)| (l.from, d, l.to));
         let out = self.thin_gap_links(wide, found, stats);
         stats.clip_kept = out.iter().filter(|l| l.press != super::gap::Takeoff::WalkOff && l.share.flown().is_none()).count();
-        out
+        (out, thin_tops)
     }
 }
 
