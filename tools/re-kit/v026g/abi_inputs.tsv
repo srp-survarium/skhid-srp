@@ -6309,3 +6309,11 @@ va	name	location	role	basis
 0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	entry ESP+8	aabbMin	observed
 0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	entry ESP+12	aabbMax	observed
 0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	entry ESP+16	the dispatcher	observed
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	ECX	the shape (+30h its mesh interface, +40h its BVH)	observed
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	entry ESP+4	the triangle callback (its vtable +4 processTriangle, called for each triangle found)	observed
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	entry ESP+8	aabbMin, the shape's local space (the mesh's scaled vertices')	observed
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	entry ESP+12	aabbMax	observed
+0x000c5600	btConvexTriangleCallback::processTriangle	ECX	the callback	observed
+0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+4	the triangle: three btVector3 of 10h bytes, the shape's local space (processNode passes its +10h)	observed
+0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+8	the part (the mesh's subpart)	observed
+0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+12	the triangle's index in its part	observed

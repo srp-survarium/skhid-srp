@@ -135,6 +135,7 @@ struct submix_voice;
 struct swap_chain;
 struct system_renderer;
 struct text_translator;
+struct triangle_callback;
 struct usable_list;
 struct usable_object;
 struct usable_user;
@@ -893,7 +894,13 @@ unsigned short engine_triangle_material(struct hit_object *object, unsigned int 
 /* 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL */
 unsigned int engine_is_first_view(struct player *player);
 
-/* 0x11dd60 vostok::render::system_renderer::draw_aabb: renderer EAX, aabb EDI, color ESP+4; pops 4 */
-void engine_draw_aabb(struct system_renderer *renderer, const float *aabb, const unsigned int *color);
+/* 0x11cd10 vostok::render::system_renderer::draw_lines: vertex_end EAX, renderer ESP+4, vertex_begin ESP+8, index_begin ESP+12, index_end ESP+16, technique ESP+20; pops 20 */
+void engine_draw_lines(const void *vertex_end, struct system_renderer *renderer, const void *vertex_begin, const unsigned short *index_begin, const unsigned short *index_end, unsigned int technique);
+
+/* 0xa8660 btBvhTriangleMeshShape::processAllTriangles: shape ECX, callback ESP+4, aabb_min ESP+8, aabb_max ESP+12; pops 12 */
+void engine_process_all_triangles(struct bt_collision_shape *shape, struct triangle_callback *callback, const float *aabb_min, const float *aabb_max);
+
+/* 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly */
+void __attribute__((thiscall)) engine_triangle_process(struct triangle_callback *callback, const float *triangle, unsigned int part, unsigned int index);
 
 #endif

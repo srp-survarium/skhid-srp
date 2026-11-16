@@ -147,6 +147,24 @@ TYPES["ConsoleArguments"] = {
     "orig_type": "&ConsoleArguments", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
 }
 
+# Patch 156's triangle callback (vostok::shape): our copy of a
+# btTriangleCallback's vtable, the triangle the BVH found (three btVector3)
+# and its part and index.
+TYPES["TriangleSink"] = {
+    "raw": "Option<TriangleCallback>", "fallible": True,
+    "build": "TriangleSink::from_raw(&thread, {a})",
+    "orig_type": "&mut TriangleSink", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
+TYPES["Triangle"] = {
+    "raw": "*const f32",
+    "binding": "let {n} = unsafe {{ Triangle::from_raw(&thread, {a}) }};",
+    "orig_type": "&Triangle", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
+}
+TYPES["u32"] = {
+    "raw": "u32", "binding": "let {n} = {a};", "orig_type": "u32", "orig_raw": "{n}", "pass": "{n}", "null": "{a}",
+}
+
 # Patch 143's battery swing (vostok::battery): the state its finalize gets,
 # and the buffer its carry -> swing predicate is entered with.
 TYPES["BatteryState"] = {

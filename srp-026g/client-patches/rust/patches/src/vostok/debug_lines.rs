@@ -1,14 +1,12 @@
 //! renderer::render 0x13D010 at `render.debug_lines` (sites_026g.tsv): the
 //! frame's depth-tested debug lines, on the render thread, right after the
-//! scene's on_draw_scene(true) and before the scene's own queued lines. A
-//! box drawn here goes through system_renderer::draw_aabb 0x11DD60, as the
-//! render stages' own debug boxes do (0x14C209, 0x195ADA): its twelve edges
-//! with draw_lines' technique 0, against the scene's depth. draw_aabb draws
+//! scene's on_draw_scene(true) and before the scene's own queued lines,
+//! which the game draws next with system_renderer::draw_lines 0x11CD10,
+//! technique 0: lines of ours go through it the same way. draw_lines draws
 //! nothing while the system renderer's effects are not made
 //! (is_effects_ready 0x11C900).
 
 use super::context::Context;
-use super::geometry::Aabb;
 use super::hook::Thread;
 use crate::raw;
 
@@ -28,6 +26,36 @@ impl LineColor {
     }
 }
 
+/// One end of a line, as draw_lines takes them (10h bytes: the point in the
+/// game's frame, its colour).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LineVertex {
+    pub at: [f32; 3],
+    pub color: LineColor,
+}
+
+impl LineVertex {
+    pub const NONE: LineVertex = LineVertex { at: [0.0; 3], color: LineColor(0) };
+}
+
+/// The most vertices a draw_lines of ours takes: a line list's indices
+/// 0..CHUNK, the same for every chunk.
+const CHUNK: usize = 1024;
+
+static INDICES: [u16; CHUNK] = {
+    let mut out = [0u16; CHUNK];
+    let mut i = 0;
+    while i < CHUNK {
+        out[i] = i as u16;
+        i += 1;
+    }
+    out
+};
+
+/// draw_lines' technique: 0, as the depth-tested pass's own lines (0x13DA08).
+const DEPTH_TESTED: u32 = 0;
+
 /// The frame's depth-tested debug lines, while the site's code runs.
 pub struct DebugLines<'t> {
     renderer: raw::SystemRenderer,
@@ -42,12 +70,19 @@ impl<'t> DebugLines<'t> {
         Some(DebugLines { renderer, _thread: ctx.thread() })
     }
 
-    pub fn draw_box(&self, aabb: Aabb, color: LineColor) {
-        let corners = aabb.corners();
-        let packed = color.packed();
-        // SAFETY: the render thread, inside renderer::render where the game
-        // draws its own debug lines; draw_aabb reads our six floats and the
-        // colour before it returns.
-        unsafe { raw::engine_draw_aabb(Some(self.renderer), corners.as_ptr(), &packed) };
+    /// `vertices` as a line list, each pair a line, CHUNK vertices a call.
+    pub fn draw(&self, vertices: &[LineVertex]) {
+        for chunk in vertices.chunks(CHUNK) {
+            let count = chunk.len() & !1;
+            let range = chunk[..count].as_ptr_range();
+            let indices = INDICES[..count].as_ptr_range();
+            // SAFETY: the render thread, inside renderer::render where the
+            // game draws its own debug lines; draw_lines copies our vertices
+            // and indices into its streams before it returns.
+            unsafe {
+                raw::engine_draw_lines(range.end.cast(), Some(self.renderer), range.start.cast(), indices.start,
+                                       indices.end, DEPTH_TESTED)
+            };
+        }
     }
 }

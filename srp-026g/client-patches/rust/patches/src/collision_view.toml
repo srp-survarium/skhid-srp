@@ -1,5 +1,5 @@
-# Patch 156: the console command `collision` draws the boxes of the level's
-# collision near the camera, a colour a group (collision_view.rs;
+# Patch 156: the console command `collision` draws the level's collision
+# geometry near the camera as lines, a colour a group (collision_view.rs;
 # client_patch.md section 3.82). configs.start after patches 79, 83, 81, 88,
 # 112, 133, 66 and 144 (orders 1 to 8); camera.viewed after patch 133.
 name = "collision_view"
@@ -11,13 +11,13 @@ site = "configs.start"
 handler = "on_configs"
 order = 9
 
-# update_camera after the view's update: the boxes near the eye read
+# update_camera after the view's update: the lines near the eye made
 [[hook]]
 site = "camera.viewed"
 handler = "on_viewed"
 order = 2
 
-# renderer::render's depth-tested debug lines: the boxes drawn
+# renderer::render's depth-tested debug lines: the lines drawn
 [[hook]]
 site = "render.debug_lines"
 handler = "on_debug_lines"
@@ -32,3 +32,15 @@ check = "check_collision_view_026g.py"
 site = "cc_delegate.execute"
 handler = "on_execute"
 proof = "collision through console_commands::execute"
+
+# the mesh query's callback: a copy of btConvexTriangleCallback's vtable,
+# processTriangle ours
+[[vtable]]
+name = "triangles"
+source = "convex_triangle_callback_methods"
+check = "check_collision_view_026g.py"
+
+[[hook]]
+site = "triangle_callback.process"
+handler = "on_triangle"
+proof = "a mesh's triangles through processAllTriangles' callback"

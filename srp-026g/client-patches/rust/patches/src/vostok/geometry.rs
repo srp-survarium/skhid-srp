@@ -120,27 +120,41 @@ impl Aabb {
     pub fn parse(low: WorldPoint, high: WorldPoint) -> Option<Self> {
         (0..3).all(|k| low.0[k] <= high.0[k]).then_some(Self { low, high })
     }
-    /// Its six floats: the low corner, then the high.
-    pub fn corners(self) -> [f32; 6] {
-        let ([a, b, c], [d, e, f]) = (self.low.0, self.high.0);
-        [a, b, c, d, e, f]
-    }
-    /// The box moved in by `by` on every side; an axis thinner than twice
-    /// that becomes its middle.
-    pub fn inset(self, by: Distance) -> Self {
-        let (mut low, mut high) = (self.low.0, self.high.0);
-        for k in 0..3 {
-            let middle = low[k] * 0.5 + high[k] * 0.5;
-            low[k] = (low[k] + by.0).min(middle);
-            high[k] = (high[k] - by.0).max(middle);
-        }
-        Self { low: WorldPoint(low), high: WorldPoint(high) }
-    }
     /// Whether `point` is at most `distance` from the box (inside it: 0).
     pub fn within(self, point: WorldPoint, distance: Distance) -> bool {
         let nearest = WorldPoint(core::array::from_fn(|k| point.0[k].max(self.low.0[k]).min(self.high.0[k])));
         nearest.within(point, distance)
     }
+}
+
+/// A rigid transform: a point's place is `rows` times it plus `origin`
+/// (Bullet's btTransform: its basis' rows, then its origin).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Pose {
+    pub rows: [[f32; 3]; 3],
+    pub origin: [f32; 3],
+}
+
+impl Pose {
+    pub const IDENTITY: Pose = Pose { rows: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], origin: [0.0; 3] };
+
+    pub fn apply(&self, p: [f32; 3]) -> [f32; 3] {
+        core::array::from_fn(|k| dot(self.rows[k], p) + self.origin[k])
+    }
+    /// The point whose place is `p` (the inverse: the basis is a rotation).
+    pub fn local(&self, p: [f32; 3]) -> [f32; 3] {
+        let d: [f32; 3] = core::array::from_fn(|k| p[k] - self.origin[k]);
+        core::array::from_fn(|k| (0..3).map(|j| self.rows[j][k] * d[j]).sum())
+    }
+    /// `inner` placed by this one (a compound's child in its world).
+    pub fn then(&self, inner: &Pose) -> Pose {
+        let rows = core::array::from_fn(|i| core::array::from_fn(|k| (0..3).map(|j| self.rows[i][j] * inner.rows[j][k]).sum()));
+        Pose { rows, origin: self.apply(inner.origin) }
+    }
+}
+
+fn dot(a: [f32; 3], b: [f32; 3]) -> f32 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
 #[derive(Clone, Copy, Debug)]

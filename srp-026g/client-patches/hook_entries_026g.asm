@@ -3303,6 +3303,9 @@ collision_view_on_debug_lines_replay:
 ; 0x9e7c10 cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found: vtable -> collision_view_on_execute (wraps engine_cc_delegate_execute 0xec830)
     RUST_THISCALL collision_view_on_execute, hook_collision_view_on_execute, 1
 
+; 0x9e4f94 btConvexTriangleCallback's vtable slot 1 (+4): processTriangle(triangle, part, index), thiscall, ret 0Ch; btBvhTriangleMeshShape::processAllTriangles 0xA8660's node callback (processNode 0xA86A0, at 0xA8969) calls it for each triangle the BVH finds in the box: vtable -> collision_view_on_triangle (wraps engine_triangle_process 0xc5600)
+    RUST_THISCALL collision_view_on_triangle, hook_collision_view_on_triangle, 3
+
 ; 0x9e7c10 cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found: vtable -> console_where_on_execute (wraps engine_cc_delegate_execute 0xec830)
     RUST_THISCALL console_where_on_execute, hook_console_where_on_execute, 1
 
@@ -9875,6 +9878,14 @@ collision_view_methods_vtable:
     dd 0xec500
     dd 0x75af0
     dd 0x15a4b0
+
+section .rodata
+align 4
+global collision_view_triangles_vtable
+collision_view_triangles_vtable:
+    dd 0xa3d4dc
+    dd 0xc55b0
+    dd collision_view_on_triangle
 
 section .rodata
 align 4

@@ -254,7 +254,9 @@ global engine_on_step
 global engine_step_manager
 global engine_triangle_material
 global engine_is_first_view
-global engine_draw_aabb
+global engine_draw_lines
+global engine_process_all_triangles
+global engine_triangle_process
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -349,6 +351,7 @@ engine_battery_state_finalize equ 0x3447f0   ; 0x3447f0 survarium::victory_item_
 engine_fsm_always equ 0x372420   ; 0x372420 survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition: buffer ESP+4; pops 0; AL; cdecl, called directly
 engine_take_deactivatable equ 0x397c20   ; 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
 engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (an import, stdcall)
+engine_triangle_process equ 0xc5600   ; 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
@@ -3076,16 +3079,37 @@ engine_is_first_view:
     ret
 
     align 16, db 0xCC
-engine_draw_aabb:
-    ; 0x11dd60 vostok::render::system_renderer::draw_aabb: renderer EAX, aabb EDI, color ESP+4; pops 4
+engine_draw_lines:
+    ; 0x11cd10 vostok::render::system_renderer::draw_lines: vertex_end EAX, renderer ESP+4, vertex_begin ESP+8, index_begin ESP+12, index_end ESP+16, technique ESP+20; pops 20
     push ebp
     push ebx
     push esi
     push edi
-    push dword [esp + 28]   ; color -> 4
-    mov eax, [esp + 24]   ; renderer
-    mov edi, [esp + 28]   ; aabb
-    call 0x11dd60
+    push dword [esp + 40]   ; technique -> 20
+    push dword [esp + 40]   ; index_end -> 16
+    push dword [esp + 40]   ; index_begin -> 12
+    push dword [esp + 40]   ; vertex_begin -> 8
+    push dword [esp + 40]   ; renderer -> 4
+    mov eax, [esp + 40]   ; vertex_end
+    call 0x11cd10
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_process_all_triangles:
+    ; 0xa8660 btBvhTriangleMeshShape::processAllTriangles: shape ECX, callback ESP+4, aabb_min ESP+8, aabb_max ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; aabb_max -> 12
+    push dword [esp + 32]   ; aabb_min -> 8
+    push dword [esp + 32]   ; callback -> 4
+    mov ecx, [esp + 32]   ; shape
+    call 0xa8660
     pop edi
     pop esi
     pop ebx

@@ -6,74 +6,145 @@ the console command `collision` (client_patch.md section 3.82).
 
 Requires Python `unicorn`. check_console_where_026g.py's harness (the exe's
 sections and the arena loaded as they are, the log's helper write stubbed),
-the original beside the build; system_renderer::draw_aabb (0x11DD60) is
-stubbed: its EAX, the six floats at EDI and the colour its stack argument
-points to are kept, `ret 4`. The game's own code runs the rest:
-on_configs_loaded's start, the console's execute (0xEB980), update_camera
-(0x1F3480 to its call of 0x243440) over a made-up physics world laid out as
-the game's (bullet_physics_world +3Ch its Bullet world: m_collisionObjects'
-size +8, data +10h; an object's proxy +0C8h, flags +0D8h; a proxy's group
-+4, aabbMin +10h, aabbMax +20h), and renderer::render's span at
-`render.debug_lines` (0x13D9C1 to 0x13D9CB). Checked:
+the original beside the build. Stubbed: system_renderer::draw_lines
+(0x11CD10: its arguments and the vertices kept, `ret 14h`) and
+btBvhTriangleMeshShape::processAllTriangles (0xA8660: its shape, callback
+and box kept, then x86 of ours that does what its node callback does with
+each triangle of a made-up mesh, `call [vtable+4]` thiscall (triangle,
+part, index) with the triangle's three btVector3, `ret 0Ch`). The game's
+own code runs the rest: on_configs_loaded's start, the console's execute
+(0xEB980), update_camera (0x1F3480 to its call of 0x243440) over a made-up
+physics world laid out as the game's (bullet_physics_world +3Ch its Bullet
+world; an object's m_worldTransform +10h, proxy +0C8h, shape +0CCh, flags
++0D8h; a proxy's group +4 and box; a convex shape's type +4, scaling +10h,
+dimensions +20h, margin +30h, up axis +40h; a compound's children +10h/+18h,
+50h each), and renderer::render's span at `render.debug_lines` (0x13D9C1 to
+0x13D9CB). Checked:
 
 - `collision` registered at configs.start, its vtable cc_delegate's but
   execute; the original says "unknown command";
 - `collision`: "collision: on"; the next update_camera prints the census, a
-  line a group (static objects of groups 2, 8 and 0Ah in the whole world);
-  the render site then draws, through draw_aabb with the system renderer
-  ([2260480h]) in EAX, each static object of those groups within 50 m of
-  the eye, in the game's frame (Bullet's z negated), moved in by 1 cm times
-  the group's place, green, magenta or white; never a hit model (40h, even
-  static), a controller (824h), a battery (0A18h), anything moving, an
-  object outside the broadphase, or anything beyond 50 m; once a frame read;
-  the span's registers as the original leaves them;
+  line a group; the render site then draws, through draw_lines (technique
+  0, the system renderer, 1024 vertices a call at most, indices 0..n), the
+  level's static objects within 10 m of the eye in the game's frame (z
+  negated), a colour a group: a turned box's twelve edges, a compound's
+  sphere, cylinder and capsule where its pose and theirs put them, and the
+  edges of a mesh's triangles near the eye (asked of processAllTriangles
+  with the eye's box in the mesh's space, through a copy of
+  btConvexTriangleCallback's vtable, processTriangle ours); never a hit
+  model (40h, even static), a controller, a battery, anything moving, far
+  or of another shape type; drawn once a frame read; the span's registers
+  as the original's;
+- a mesh with more lines than the cap: asked again at 5 m and 2.5 m, then
+  6144 lines, twelve draws;
 - `collision 8`: that group alone, the census again; `collision x`: the
-  usage, nothing changed; `collision` again: off, nothing drawn; the
-  original never draws.
+  usage; `collision` again: off, nothing drawn; the original never draws.
 """
+import math
 import struct
 import sys
+from collections import Counter
 
 from unicorn import UC_HOOK_CODE, UC_PROT_ALL
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_EDI, UC_X86_REG_EDX, UC_X86_REG_ESP
+from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_EDX,
+                               UC_X86_REG_EIP, UC_X86_REG_ESP)
 
 import patch_026g as base
 import check_console_where_026g as where
 import check_hide_ui_026g as hide
 import check_language_026g as language
 
-DRAW_AABB = 0x11DD60
+DRAW_LINES, PROCESS_ALL_TRIANGLES = 0x11CD10, 0xA8660
+TRIANGLE_METHODS, TRIANGLE_DTOR, TRIANGLE_PROCESS, TRIANGLE_RTTI = 0x9E4F90, 0xC55B0, 0xC5600, 0xA3D4DC
+CYLINDER_VTABLE = 0x9E4B9C
 SITE, SITE_END = 0x13D9C1, 0x13D9CB          # render.debug_lines: mov edi,[esp+1Ch] / mov edx,[edi+6334C4h]
 SYSTEM_RENDERER_SLOT = 0x2260480
-PHYSICS = 0x60000000                         # the physics world, its Bullet world, objects and proxies
-WORLD, ARRAY, OBJECTS = PHYSICS + 0x100, PHYSICS + 0x1000, PHYSICS + 0x10000
+PHYSICS = 0x60000000                         # the physics world, its Bullet world, objects, shapes
+WORLD, ARRAY, OBJECTS, SHAPES = PHYSICS + 0x100, PHYSICS + 0x1000, PHYSICS + 0x10000, PHYSICS + 0x80000
 SYSTEM_RENDERER = 0x61000000
 LINES = 0x62000000                           # where the renderer's +6334C4h is read
 RENDERER = LINES - 0x6334C4
-EYE = (10.0, 1.7, 20.0)
+STUB, TRIANGLES = 0x63000000, 0x63001000     # processAllTriangles' stand-in and its mesh
+STUB_CODE = bytes.fromhex("5356578b742410bb0010006331ff3b3b731a89f8c1e0048d04408d440310576a005089f18b16ff520447"
+                          "ebe25f5e5bc20c00")
+EYE = (10.0, 1.7, 20.0)                      # the game's frame; Bullet's (10, 1.7, -20)
 GREEN, MAGENTA, WHITE = 0xFF00FF00, 0xFFFF00FF, 0xFFFFFFFF
+TURNED = ((0.0, 0.0, 1.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0))     # a quarter turn about y
+IDENTITY = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+MOST = 6144
 
 
 class Run(where.Run):
     def __init__(self, data):
         super().__init__(data)
-        self.emu.mem_map(PHYSICS, 0x100000, UC_PROT_ALL)
-        self.emu.mem_map(SYSTEM_RENDERER, 0x1000, UC_PROT_ALL)
-        self.emu.mem_map(LINES, 0x1000, UC_PROT_ALL)
-        self.emu.mem_map(hide.STACK - 0x100000, 0x100000, UC_PROT_ALL)   # the render handler copies 29 KiB of boxes
+        emu = self.emu
+        emu.mem_map(PHYSICS, 0x100000, UC_PROT_ALL)
+        emu.mem_map(SYSTEM_RENDERER, 0x1000, UC_PROT_ALL)
+        emu.mem_map(LINES, 0x1000, UC_PROT_ALL)
+        emu.mem_map(STUB, 0x200000, UC_PROT_ALL)
+        emu.mem_map(hide.STACK - 0x100000, 0x100000, UC_PROT_ALL)
+        emu.mem_write(STUB, STUB_CODE)
         self.word(SYSTEM_RENDERER_SLOT, SYSTEM_RENDERER)
-        self.drawn = []
-        self.emu.hook_add(UC_HOOK_CODE, self.draw_aabb, begin=DRAW_AABB, end=DRAW_AABB)
+        self.draws, self.queries, self.shapes = [], [], 0
+        emu.hook_add(UC_HOOK_CODE, self.draw_lines, begin=DRAW_LINES, end=DRAW_LINES)
+        emu.hook_add(UC_HOOK_CODE, self.process_all_triangles, begin=PROCESS_ALL_TRIANGLES, end=PROCESS_ALL_TRIANGLES)
 
-    def draw_aabb(self, emu, *_):
+    def run(self, start, stops, sp, regs):
+        """check_hide_ui_026g's run, with room for a frame of thousands of triangles."""
+        for reg, value in regs.items():
+            self.emu.reg_write(reg, value)
+        self.emu.reg_write(UC_X86_REG_ESP, sp)
+        self.stops, self.stopped, self.started, self.calls, self.invoked = stops, None, False, [], []
+        self.emu.emu_start(start, 0, count=20_000_000)
+        return {reg: self.emu.reg_read(reg) for reg in hide.REGS}, self.emu.reg_read(UC_X86_REG_ESP)
+
+    def draw_lines(self, emu, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
-        floats = struct.unpack("<6f", emu.mem_read(emu.reg_read(UC_X86_REG_EDI), 24))
-        self.drawn.append((emu.reg_read(UC_X86_REG_EAX), floats, self.read(self.read(sp + 4))))
-        self.ret(4)
+        end = emu.reg_read(UC_X86_REG_EAX)
+        renderer, begin, first, last, technique = (self.read(sp + 4 * i) for i in range(1, 6))
+        vertices = [struct.unpack("<3fI", emu.mem_read(at, 16)) for at in range(begin, end, 16)]
+        indices = list(struct.unpack(f"<{(last - first) // 2}H", emu.mem_read(first, last - first)))
+        self.draws.append(dict(renderer=renderer, technique=technique, vertices=vertices, indices=indices, first=first))
+        self.ret(0x14)
+
+    def process_all_triangles(self, emu, *_):
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        callback = self.read(sp + 4)
+        vtable = self.read(callback)
+        self.queries.append(dict(
+            shape=emu.reg_read(UC_X86_REG_ECX), low=struct.unpack("<3f", emu.mem_read(self.read(sp + 8), 12)),
+            high=struct.unpack("<3f", emu.mem_read(self.read(sp + 12), 12)),
+            slots=(self.read(vtable - 4), self.read(vtable), self.read(vtable + 4)), vtable=vtable))
+        emu.reg_write(UC_X86_REG_EIP, STUB)
+
+    def mesh(self, triangles):
+        """The made-up mesh every processAllTriangles reports: `triangles`, three points each."""
+        self.word(TRIANGLES, len(triangles))
+        blob = b"".join(struct.pack("<4f", *p, 0.0) for t in triangles for p in t)
+        self.emu.mem_write(TRIANGLES + 16, blob)
+
+    def shape(self, kind, dims=(0.0, 0.0, 0.0), margin=0.0, scaling=(1.0, 1.0, 1.0), up=1, vtable=0x9E4AFC,
+              children=()):
+        at = SHAPES + 0x400 * self.shapes
+        self.shapes += 1
+        self.word(at, vtable)
+        self.word(at + 4, kind)
+        self.emu.mem_write(at + 0x10, struct.pack("<4f", *scaling, 0.0))
+        self.emu.mem_write(at + 0x20, struct.pack("<4f", *dims, 0.0))
+        self.emu.mem_write(at + 0x30, struct.pack("<f", margin))
+        self.word(at + 0x40, up)
+        if children:
+            table = at + 0x100
+            self.word(at + 0x10, len(children))
+            self.word(at + 0x18, table)
+            for i, (rows, origin, child) in enumerate(children):
+                self.emu.mem_write(table + 0x50 * i, transform(rows, origin))
+                self.word(table + 0x50 * i + 0x40, child)
+        return at
 
     def world(self, objects):
-        """The physics world: `objects` (group, flags, Bullet min, Bullet max; None a proxy of 0)."""
-        self.emu.mem_write(PHYSICS, bytes(0x100000))
+        """The physics world: `objects` (group, flags, rows, origin, shape; None: no proxy)."""
+        self.emu.mem_write(PHYSICS, bytes(0x80000))
         self.word(PHYSICS + 0x3C, WORLD)
         self.word(WORLD + 0x8, len(objects))
         self.word(WORLD + 0x10, ARRAY)
@@ -82,17 +153,18 @@ class Run(where.Run):
             self.word(ARRAY + 4 * i, obj)
             if item is None:
                 continue
-            group, flags, low, high = item
+            group, flags, rows, origin, shape = item
             proxy = obj + 0x100
+            self.emu.mem_write(obj + 0x10, transform(rows, origin))
             self.word(obj + 0xC8, proxy)
+            self.word(obj + 0xCC, shape)
             self.word(obj + 0xD8, flags)
             self.emu.mem_write(proxy + 4, struct.pack("<HH", group, 0xFFFF))
-            self.emu.mem_write(proxy + 0x10, struct.pack("<4f", *low, 0.0))
-            self.emu.mem_write(proxy + 0x20, struct.pack("<4f", *high, 0.0))
+            self.emu.mem_write(proxy + 0x10, struct.pack("<4f", *(c - 40.0 for c in origin), 0.0))
+            self.emu.mem_write(proxy + 0x20, struct.pack("<4f", *(c + 40.0 for c in origin), 0.0))
 
     def frame(self):
-        """update_camera(player) in a spectator's first person at EYE, the player's physics world ours: the
-        lines it wrote."""
+        """update_camera(player) in a spectator's first person at EYE: the lines it wrote to the log."""
         self.emu.mem_write(where.OBJECTS, bytes(0x40000))
         self.word(where.PLAYER + 0xF470, where.HANDLER)
         self.word(where.PLAYER + 0xF478, where.PRESENTERS)
@@ -102,7 +174,7 @@ class Run(where.Run):
         self.emu.mem_write(where.PLAYER + 0x44C, where.transform(0.5, -0.1, EYE))
         self.word(where.HANDLER + 0x358, 4)
         self.word(where.HANDLER + 0x334, where.WORLD)
-        self.writes = []
+        self.writes, self.queries = [], []
         sp = hide.STACK + 0x8000
         self.word(sp, hide.SENTINEL)
         self.word(sp + 4, where.PLAYER)
@@ -111,28 +183,43 @@ class Run(where.Run):
         return [w["argument"].decode() for w in self.writes]
 
     def debug_lines(self):
-        """renderer::render's span at the site: the boxes drawn, and EDI and EDX after it."""
-        self.drawn = []
+        """renderer::render's span at the site: the draws, and EDI and EDX after it."""
+        self.draws = []
         sp = hide.STACK + 0x8000
         self.word(sp + 0x1C, RENDERER)
         self.word(LINES, 0x51525354)
         after, end = self.run(SITE, (SITE_END,), sp, hide.GAME)
         assert self.stopped == SITE_END and end == sp, (self.stopped, end - sp)
-        return list(self.drawn), (after[UC_X86_REG_EDI], after[UC_X86_REG_EDX])
+        return list(self.draws), (after[UC_X86_REG_EDI], after[UC_X86_REG_EDX])
 
     def said(self, line):
         return [w["argument"].decode() for w in self.execute(line)[0]]
 
 
-def game_box(low, high, inset):
-    """A Bullet box in the game's frame (z negated), moved in by `inset`."""
-    return (low[0] + inset, low[1] + inset, -high[2] + inset, high[0] - inset, high[1] - inset, -low[2] - inset)
+def transform(rows, origin):
+    return b"".join(struct.pack("<4f", *r, 0.0) for r in rows) + struct.pack("<4f", *origin, 0.0)
 
 
-def same(drawn, wanted):
-    return len(drawn) == len(wanted) and all(
-        renderer == SYSTEM_RENDERER and color == want_color and all(abs(a - b) < 1e-4 for a, b in zip(box, want_box))
-        for (renderer, box, color), (want_box, want_color) in zip(drawn, wanted))
+def apply(rows, origin, p):
+    return tuple(sum(rows[k][j] * p[j] for j in range(3)) + origin[k] for k in range(3))
+
+
+def game(p):
+    return (p[0], p[1], -p[2])
+
+
+def rounded(p):
+    return tuple(round(c, 4) for c in p)
+
+
+def segments(draws):
+    """Every line drawn: (colour, end, end) in the game's frame, rounded."""
+    out = []
+    for d in draws:
+        v = d["vertices"]
+        for i in range(0, len(v), 2):
+            out.append((v[i][3], rounded(v[i][:3]), rounded(v[i + 1][:3])))
+    return out
 
 
 check = where.check
@@ -161,19 +248,34 @@ def main():
     check(new.read(language.LIST_HEAD) == head, "configs.start again: registered once")
     check(old.execute("collision")[0][0]["format"] == b"unknown command [%s]", "the original: unknown command")
 
-    # in Bullet's frame (z the game's -z); the eye at game (10, 1.7, 20) is Bullet (10, 1.7, -20)
-    walker = (0x2, 1, (9.0, 0.0, -22.0), (11.0, 3.0, -21.0))
-    bullet = (0x8, 1, (9.0, 0.0, -22.0), (11.0, 3.0, -21.0))
-    both = (0xA, 3, (-40.0, -5.0, -60.0), (60.0, 40.0, 30.0))       # static and kinematic: the eye inside
-    objects = [walker, bullet, both,
-               (0x40, 1, (9.0, 0.0, -21.0), (10.0, 2.0, -20.0)),     # a hit model, static
-               (0x824, 0x10, (9.0, 0.0, -21.0), (10.0, 2.0, -20.0)),  # a character controller
-               (0xA18, 0, (9.0, 0.0, -21.0), (10.0, 2.0, -20.0)),    # a battery
-               (0x2, 0, (9.0, 0.0, -21.0), (10.0, 2.0, -20.0)),      # a walker group's, moving
-               (0x2, 1, (70.0, 0.0, -21.0), (80.0, 2.0, -20.0)),     # 60 m away
-               None]                                                # outside the broadphase
+    # Bullet's frame (z the game's -z); the eye at Bullet (10, 1.7, -20)
+    near = [((9.0, 0.0, -21.0), (11.0, 0.0, -21.0), (10.0, 0.0, -19.0)),
+            ((10.0, 3.0, -20.0), (12.0, 3.0, -20.0), (10.0, 4.0, -18.0))]
+    far = ((100.0, 0.0, 100.0), (101.0, 0.0, 100.0), (100.0, 0.0, 101.0))
+    box_origin = (12.0, 1.0, -22.0)
+    compound_origin = (8.0, 0.0, -18.0)
+    sphere_at, cylinder_at, capsule_at = (0.0, 1.0, 0.0), (2.0, 0.0, 0.0), (0.0, 0.0, 2.0)
     for r in (old, new):
-        r.world(objects)
+        r.shapes = 0
+        r.mesh(near + [far])
+        box = r.shape(0, dims=(0.96, 1.96, 2.96), margin=0.04)
+        sphere = r.shape(8, dims=(0.5, 0.0, 0.0), scaling=(2.0, 2.0, 2.0))
+        cylinder = r.shape(13, dims=(0.46, 0.96, 0.46), margin=0.04, vtable=CYLINDER_VTABLE)
+        capsule = r.shape(10, dims=(0.3, 0.6, 0.3), up=1)
+        mesh = r.shape(21)
+        compound = r.shape(31, children=((IDENTITY, sphere_at, sphere), (IDENTITY, cylinder_at, cylinder),
+                                         (IDENTITY, capsule_at, capsule), (IDENTITY, (-8.0, 0.0, 18.0), mesh)))
+        other = r.shape(24)
+        r.world([(0x2, 1, TURNED, box_origin, box),
+                 (0x8, 1, IDENTITY, compound_origin, compound),
+                 (0xA, 1, IDENTITY, (0.0, 0.0, 0.0), mesh),
+                 (0x40, 1, IDENTITY, (10.0, 1.0, -20.0), box),       # a hit model, static
+                 (0x824, 0x10, IDENTITY, (10.0, 1.0, -20.0), box),   # a character controller
+                 (0xA18, 0, IDENTITY, (10.0, 1.0, -20.0), box),      # a battery
+                 (0x2, 0, IDENTITY, (10.0, 1.0, -20.0), box),        # a walker group's, moving
+                 (0x2, 1, IDENTITY, (80.0, 1.0, -20.0), box),        # its box 30 m away
+                 (0x2, 1, IDENTITY, (10.0, 1.0, -20.0), other),      # another shape type
+                 None])
     drawn_old, regs_old = old.debug_lines()
     drawn_new, regs_new = new.debug_lines()
     check(drawn_old == [] and drawn_new == [] and regs_old == regs_new == (RENDERER, 0x51525354),
@@ -182,26 +284,80 @@ def main():
     check(new.said("collision") == ["collision: on"], "collision through console_commands::execute: \"collision: on\"")
     lines = new.frame()
     old.frame()
-    check(lines == ["collision: the level's static collision within 50 m, a colour a group:",
-                    "collision: 0x2 green, 2 in the world (walkers only)",
+    check(lines == ["collision: the level's static collision within 10 m (less where that is over 6144 lines), a "
+                    "colour a group:",
+                    "collision: 0x2 green, 3 in the world (walkers only)",
                     "collision: 0x8 magenta, 1 in the world (bullets and the camera only)",
                     "collision: 0xa white, 1 in the world (walkers, bullets and the camera)"],
           "the first frame: the census, a line a group: " + " | ".join(lines))
-    wanted = [(game_box(walker[2], walker[3], 0.0), GREEN), (game_box(bullet[2], bullet[3], 0.01), MAGENTA),
-              (game_box(both[2], both[3], 0.02), WHITE)]
-    drawn, regs = new.debug_lines()
-    check(same(drawn, wanted) and regs == regs_old,
-          "the render site: the three level boxes near the eye in the game's frame, each group moved in by 1 cm a "
-          "place, green, magenta, white, the system renderer in EAX; no player, controller, battery, moving or far "
-          "object; the span's registers the original's")
+    queries = new.queries
+    eye = (10.0, 1.7, -20.0)
+    want_box = tuple(e - 10.0 for e in eye) + tuple(e + 10.0 for e in eye)
+    check(len(queries) == 2 and {q["shape"] for q in queries} == {mesh}
+          and all(all(abs(a - b) < 1e-4 for a, b in zip(q["low"] + q["high"], want_box)) for q in queries)
+          and all(q["slots"][0] == TRIANGLE_RTTI and q["slots"][1] == TRIANGLE_DTOR and q["slots"][2] != TRIANGLE_PROCESS
+                  and q["vtable"] != TRIANGLE_METHODS for q in queries),
+          "a mesh's triangles through processAllTriangles' callback: asked with the eye's box +-10 m in the mesh's "
+          "space (the compound's mesh child and the 0xa mesh), the callback's vtable a copy of "
+          "btConvexTriangleCallback's (its RTTI and destructor, processTriangle ours)")
+
+    draws, regs = new.debug_lines()
+    got = segments(draws)
+    by_colour = Counter(c for c, _, _ in got)
+    check(len(draws) == 1 and regs == regs_old and all(
+              d["renderer"] == SYSTEM_RENDERER and d["technique"] == 0 and d["indices"] == list(range(len(d["vertices"])))
+              for d in draws)
+          and by_colour == {GREEN: 12, MAGENTA: 36 + 28 + 52 + 6, WHITE: 6},
+          f"the render site: one draw_lines (technique 0, the system renderer, indices 0..n) of {len(got)} lines: "
+          f"12 green, 122 magenta, 6 white ({dict(by_colour)}); the span's registers the original's")
+    corners = [(x * 1.0, y * 2.0, z * 3.0) for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)]
+    box_points = {rounded(game(apply(TURNED, box_origin, p))) for p in corners}
+    green = [s for s in got if s[0] == GREEN]
+    check(len({(a, b) for _, a, b in green}) == 12 and all(a in box_points and b in box_points for _, a, b in green),
+          "the walkers' box: its twelve edges, turned a quarter about y where it stands, in the game's frame")
+    tri_edges = Counter((colour, rounded(game(a)), rounded(game(b))) for colour in (MAGENTA, WHITE) for t in near
+                        for a, b in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])))
+    check(Counter(s for s in got if s in tri_edges) == tri_edges,
+          "the two meshes' near triangles, each edge once a mesh, magenta and white; the far triangle not")
+
+    def around(centre, test):
+        c = game(apply(IDENTITY, compound_origin, centre))
+        return lambda p: test(tuple(p[k] - c[k] for k in range(3)))
+
+    sphere_ok = around(sphere_at, lambda d: abs(math.dist(d, (0, 0, 0)) - 1.0) < 1e-3)
+    cylinder_ok = around(cylinder_at, lambda d: abs(math.hypot(d[0], d[2]) - 0.5) < 1e-3 and abs(d[1]) <= 1.0 + 1e-4)
+    capsule_ok = around(capsule_at, lambda d: abs(math.dist(d, (0, max(-0.6, min(0.6, d[1])), 0)) - 0.3) < 1e-3)
+    ends = [p for c, a, b in got if c == MAGENTA and (c, a, b) not in tri_edges for p in (a, b)]
+    kinds = Counter("sphere" if sphere_ok(p) else "cylinder" if cylinder_ok(p) else "capsule" if capsule_ok(p)
+                    else "none" for p in ends)
+    check(kinds == {"sphere": 72, "cylinder": 56, "capsule": 104},
+          f"the compound's children where their poses put them: the sphere (36 lines on its radius 1), the cylinder "
+          f"(28 on radius 0.5 within its half height 1), the capsule (52 at 0.3 from its segment): {dict(kinds)}")
     check(new.debug_lines()[0] == [] and old.debug_lines()[0] == [], "drawn once a frame read; the original never")
-    check(new.frame() == [] and same(new.debug_lines()[0], wanted), "the next frame: no census, the boxes again")
+    check(new.frame() == [] and segments(new.debug_lines()[0]) == got, "the next frame: no census, the same lines")
+
+    # a mesh near the eye with more lines than the cap
+    many = [((10.0 + i * 1e-3, 1.0, -20.0), (10.0 + i * 1e-3, 1.5, -20.0), (10.2 + i * 1e-3, 1.0, -20.0))
+            for i in range(MOST // 3 + 10)]   # 6174 lines
+    new.mesh(many)
+    new.world([(0x2, 1, IDENTITY, (0.0, 0.0, 0.0), mesh)])
+    new.frame()
+    halves = [round(q["high"][0] - eye[0], 3) for q in new.queries]
+    draws, _ = new.debug_lines()
+    check(halves == [10.0, 5.0, 2.5] and [len(d["vertices"]) for d in draws] == [1024] * 12
+          and len({d["first"] for d in draws}) == 1,
+          f"over the cap: asked again at 5 m and 2.5 m ({halves}), then {MOST} lines in twelve draws of 1024 vertices, "
+          "the same indices")
+    new.mesh(near + [far])
+    new.world([(0x2, 1, TURNED, box_origin, box), (0x8, 1, IDENTITY, compound_origin, compound),
+               (0xA, 1, IDENTITY, (0.0, 0.0, 0.0), mesh)])
 
     check(new.said("collision 8") == ["collision: on, 0x8 only"], "collision 8: \"collision: on, 0x8 only\"")
-    check(len(new.frame()) == 4 and same(new.debug_lines()[0], wanted[1:2]), "collision 8: the census, the 0x8 box "
-          "alone")
+    check(len(new.frame()) == 4 and Counter(c for c, _, _ in segments(new.debug_lines()[0])) == {MAGENTA: 122},
+          "collision 8: the census, the 0x8 compound's lines alone")
     check(new.said("collision x") == ["collision: collision [2 | 8 | a] (walkers, bullets, both)"]
-          and new.frame() == [] and same(new.debug_lines()[0], wanted[1:2]), "collision x: the usage, nothing changed")
+          and new.frame() == [] and Counter(c for c, _, _ in segments(new.debug_lines()[0])) == {MAGENTA: 122},
+          "collision x: the usage, nothing changed")
     check(new.said("collision") == ["collision: off"] and new.frame() == [] and new.debug_lines()[0] == [],
           "collision again: off, nothing drawn")
 

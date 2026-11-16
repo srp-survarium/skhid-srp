@@ -323,8 +323,10 @@ unsafe extern "C" {
     pub fn engine_triangle_material(object: *mut c_void, triangle: u32, compound: u32) -> u16;
     /// 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL
     pub fn engine_is_first_view(player: *mut c_void) -> u32;
-    /// 0x11dd60 vostok::render::system_renderer::draw_aabb: renderer EAX, aabb EDI, color ESP+4; pops 4
-    pub fn engine_draw_aabb(renderer: *mut c_void, aabb: *const f32, color: *const u32);
+    /// 0x11cd10 vostok::render::system_renderer::draw_lines: vertex_end EAX, renderer ESP+4, vertex_begin ESP+8, index_begin ESP+12, index_end ESP+16, technique ESP+20; pops 20
+    pub fn engine_draw_lines(vertex_end: *const c_void, renderer: *mut c_void, vertex_begin: *const c_void, index_begin: *const u16, index_end: *const u16, technique: u32);
+    /// 0xa8660 btBvhTriangleMeshShape::processAllTriangles: shape ECX, callback ESP+4, aabb_min ESP+8, aabb_max ESP+12; pops 12
+    pub fn engine_process_all_triangles(shape: *mut c_void, callback: *mut c_void, aabb_min: *const f32, aabb_max: *const f32);
 }
 
 #[allow(dead_code)]
@@ -433,6 +435,8 @@ unsafe extern "thiscall" {
     pub fn engine_battery_state_finalize(state: *mut c_void);
     /// 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
     pub fn engine_take_deactivatable(state: *mut c_void) -> u8;
+    /// 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
+    pub fn engine_triangle_process(callback: *mut c_void, triangle: *const f32, part: u32, index: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

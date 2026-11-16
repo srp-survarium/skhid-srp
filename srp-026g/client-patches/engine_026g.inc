@@ -846,6 +846,13 @@ extern engine_triangle_material
 ; unsigned int engine_is_first_view(struct player *player)
 ; 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL
 extern engine_is_first_view
-; void engine_draw_aabb(struct system_renderer *renderer, const float *aabb, const unsigned int *color)
-; 0x11dd60 vostok::render::system_renderer::draw_aabb: renderer EAX, aabb EDI, color ESP+4; pops 4
-extern engine_draw_aabb
+; void engine_draw_lines(const void *vertex_end, struct system_renderer *renderer, const void *vertex_begin, const unsigned short *index_begin, const unsigned short *index_end, unsigned int technique)
+; 0x11cd10 vostok::render::system_renderer::draw_lines: vertex_end EAX, renderer ESP+4, vertex_begin ESP+8, index_begin ESP+12, index_end ESP+16, technique ESP+20; pops 20
+extern engine_draw_lines
+; void engine_process_all_triangles(struct bt_collision_shape *shape, struct triangle_callback *callback, const float *aabb_min, const float *aabb_max)
+; 0xa8660 btBvhTriangleMeshShape::processAllTriangles: shape ECX, callback ESP+4, aabb_min ESP+8, aabb_max ESP+12; pops 12
+extern engine_process_all_triangles
+; void engine_triangle_process(struct triangle_callback *callback, const float *triangle, unsigned int part, unsigned int index)
+; 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_triangle_process

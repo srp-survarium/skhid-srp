@@ -2674,3 +2674,5 @@ va	name	source	ret_cleanup	result
 0x0009ff40	btCollisionWorld::updateSingleAabb	manual	0	void
 0x000205e0	boost::function1<void,bool>::operator()	manual	4	void
 0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	manual	16	void
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	manual	12	void
+0x000c5600	btConvexTriangleCallback::processTriangle	manual	12	void

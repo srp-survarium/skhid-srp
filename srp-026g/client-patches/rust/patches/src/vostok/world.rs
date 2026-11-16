@@ -13,7 +13,8 @@ use core::marker::PhantomData;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::Context;
-use super::geometry::{Aabb, WorldPoint};
+use super::geometry::{Aabb, Pose, WorldPoint};
+use super::shape::Shape;
 use super::hook::Thread;
 use super::ui::{Movie, movie_of};
 use crate::raw;
@@ -662,7 +663,7 @@ pub struct RayHit {
     pub normal: [f32; 3],
 }
 
-impl PhysicsWorld<'_> {
+impl<'t> PhysicsWorld<'t> {
     /// bullet_physics_world::ray_test from `origin` along the unit
     /// `direction`, `length` long, with the filter `group`/`mask` (an object
     /// is tried when its mask has a bit of the group and its group a bit of
@@ -682,12 +683,13 @@ impl PhysicsWorld<'_> {
     }
 
     /// Each object of the world (m_collisionObjects, in its order) that is
-    /// in its broadphase: its filter group, whether it is static, and the box
-    /// the broadphase holds for it, in the game's frame. Read only, on the
+    /// in its broadphase: its filter group, whether it is static, the box
+    /// the broadphase holds for it (the game's frame), its pose and shape
+    /// (Bullet's frame). Read only, on the
     /// thread that steps the world, outside its step (camera.viewed is in
     /// mt_draw, after the simulation's move): nothing adds or removes an
     /// object meanwhile.
-    pub fn for_each_object(&self, mut visit: impl FnMut(CollisionObject)) {
+    pub fn for_each_object(&self, mut visit: impl FnMut(CollisionObject<'t>)) {
         // SAFETY: the physics world and its Bullet world are alive for the
         // hook; m_collisionObjects holds object_count live objects, each
         // proxy (when not 0) theirs, its two float4s written by setAabb.
@@ -703,7 +705,7 @@ impl PhysicsWorld<'_> {
                 let high = WorldPoint::parse([x1, y1, -z0]);
                 let Some(aabb) = low.zip(high).and_then(|(low, high)| Aabb::parse(low, high)) else { continue };
                 let motion = if read(object.flags()) & STATIC_OBJECT != 0 { Motion::Static } else { Motion::Moving };
-                visit(CollisionObject { group: read(proxy.group()), motion, aabb });
+                visit(CollisionObject { group: read(proxy.group()), motion, aabb, object, thread: self.thread });
             }
         }
     }
@@ -720,13 +722,28 @@ pub enum Motion {
 }
 
 /// An object of the physics world as its broadphase holds it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CollisionObject {
+#[derive(Clone, Copy)]
+pub struct CollisionObject<'t> {
     /// Its filter group (the bits a filter's mask meets).
     pub group: u16,
     pub motion: Motion,
     /// Its box in the game's frame (Bullet's with z negated).
     pub aabb: Aabb,
+    object: raw::BtCollisionObject,
+    thread: &'t Thread,
+}
+
+impl<'t> CollisionObject<'t> {
+    /// Where its shape is: m_worldTransform, Bullet's frame.
+    pub fn pose(&self) -> Pose {
+        // SAFETY: the object, alive for the hook (for_each_object's).
+        unsafe { super::shape::pose(self.object.transform()) }
+    }
+
+    pub fn shape(&self) -> Option<Shape<'t>> {
+        // SAFETY: as pose; its shape lives as long.
+        unsafe { Some(Shape::of(self.object.shape()?, self.thread)) }
+    }
 }
 
 impl BodyId {

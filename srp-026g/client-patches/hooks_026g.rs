@@ -2076,6 +2076,41 @@ pub unsafe extern "C" fn hook_collision_view_on_execute(a0: Option<raw::CcDelega
     { crate::collision_view::on_execute(&orig, &mut command, &arguments); 0 }
 }
 
+// ---- collision_view (patch 156) ----
+
+/// engine_triangle_process (0xc5600), as the vtable hook at 0x9e4f94 wraps it.
+pub struct OrigTriangleProcess;
+
+impl OrigTriangleProcess {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, callback: &mut TriangleSink, triangle: &Triangle, part: u32, index: u32) {
+        // SAFETY: engine_triangle_process at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_triangle_process(Some(callback.raw()), triangle.raw(), part, index) }
+    }
+}
+
+/// The entry `collision_view_on_triangle` (0x9e4f94, btConvexTriangleCallback's vtable slot 1 (+4): processTriangle(triangle, part, index), thiscall, ret 0Ch; btBvhTriangleMeshShape::processAllTriangles 0xA8660's node callback (processNode 0xA86A0, at 0xA8969) calls it for each triangle the BVH finds in the box) calls this with
+/// engine_triangle_process's 4 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `collision_view_on_triangle`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_collision_view_on_triangle(a0: Option<raw::TriangleCallback>, a1: *const f32, a2: u32, a3: u32) -> u32 {
+    // SAFETY: only the entry `collision_view_on_triangle` calls this, from the game's call at
+    // 0x9e4f94, on the game's thread; a0.. are engine_triangle_process's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut callback) = (unsafe { TriangleSink::from_raw(&thread, a0) }) else {
+        // a null TriangleSink never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_triangle_process(a0, a1, a2, a3) }; 0 };
+    };
+    let triangle = unsafe { Triangle::from_raw(&thread, a1) };
+    let part = a2;
+    let index = a3;
+    let orig = OrigTriangleProcess;
+    { crate::collision_view::on_triangle(&orig, &mut callback, &triangle, part, index); 0 }
+}
+
 // ---- console_where (patch 133) ----
 
 /// The entry `console_where_on_execute` (0x9e7c10, cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found) calls this with
@@ -5995,6 +6030,12 @@ unsafe extern "C" { static collision_view_methods_vtable: [u32; 8]; }
 pub fn collision_view_methods_vtable_handle() -> super::project::NativeVtable<raw::CcDelegateMethods> {
     // SAFETY: the generated immutable table lives for the executable's lifetime.
     unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(collision_view_methods_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static collision_view_triangles_vtable: [u32; 3]; }
+pub fn collision_view_triangles_vtable_handle() -> super::project::NativeVtable<raw::TriangleCallbackMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(collision_view_triangles_vtable).cast::<u32>().add(1) as usize as u32) }
 }
 
 unsafe extern "C" { static console_where_methods_vtable: [u32; 8]; }
