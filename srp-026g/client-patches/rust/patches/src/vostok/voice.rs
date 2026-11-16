@@ -243,7 +243,7 @@ pub enum TalkInput {
 }
 
 /// The channel a chat-kind action talks on: `ptt` (47h, P) the radio,
-/// `ptt_nearby` (37h, O) the 10 m voice (the owner, 2026-11-16: "two voice
+/// `ptt_nearby` (37h, O) the nearby voice (the owner, 2026-11-16: "two voice
 /// buttons one for 10m one for radio").
 fn channel_of(action: Action) -> Option<Channel> {
     match action {

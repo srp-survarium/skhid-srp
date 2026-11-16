@@ -12,7 +12,7 @@ pub type Ptt = unsafe extern "C" fn(i32);
 /// is used.
 pub type Settings = unsafe extern "C" fn(f32, i32);
 /// How a place is heard, all of it in one call ([`Heard::call`]): the place,
-/// its 10 m voice's gain in the left and in the right ear, how muffled that
+/// its nearby voice's gain in the left and in the right ear, how muffled that
 /// voice is (0..1), and whether its radio is heard (not 0).
 pub type Hear = unsafe extern "C" fn(i32, f32, f32, f32, i32);
 pub type Mute = unsafe extern "C" fn(u32);
@@ -151,7 +151,7 @@ impl MicTest {
         if test.word() == word { Some(test) } else { None }
     }
 }
-/// The 10 m voice's gain in the left and in the right ear: what the game's
+/// The nearby voice's gain in the left and in the right ear: what the game's
 /// sound engine gives a sound at the speaker's place (its pan, its gain by
 /// distance). 1 in both is the voice as decoded.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -174,7 +174,7 @@ impl Ears {
 /// 2026-11-16: "two voice buttons one for 10m one for radio").
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Channel {
-    /// The 10 m voice: everyone near the speaker hears it, opponents too.
+    /// The nearby voice: everyone near the speaker hears it, opponents too.
     Near,
     /// The radio: the speaker's team at any distance (in a free-for-all,
     /// everyone).
@@ -211,7 +211,7 @@ impl Channel {
         }
     }
 }
-/// How much of the 10 m voice comes through something solid between the
+/// How much of the nearby voice comes through something solid between the
 /// speaker and the listener (the owner, 2026-11-16, of the voice heard the
 /// same through a wall: "it doesn't follow geometry at all right now"): 0
 /// in the open, 1 with all of it behind a wall. The DLL plays it quieter and
@@ -232,8 +232,8 @@ impl Muffle {
 /// How a place is heard, on each of its two channels.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Heard {
-    /// Its 10 m voice, in the world: from its side and by its distance;
-    /// silent from 10 m, or when either player is not alive.
+    /// Its nearby voice, in the world: from its side and by its distance;
+    /// silent from 12 m, or when either player is not alive.
     pub near: Ears,
     /// How muffled that voice is.
     pub muffle: Muffle,

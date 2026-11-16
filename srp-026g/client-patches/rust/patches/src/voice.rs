@@ -10,15 +10,15 @@
 //!   `game_world.deactivate`) stopped, push-to-talk released first;
 //! - every frame of a match (`game_world.after_move`): the options, the
 //!   mutes and how each other player is heard on each of its two channels
-//!   (its 10 m voice in the world: the engine's own pan of a sound at its
-//!   place, and a gain by its distance, nothing from 10 m or with either
+//!   (its nearby voice in the world: the engine's own pan of a sound at its
+//!   place, and a gain by its distance, nothing from 12 m or with either
 //!   player dead; its radio when it is a mate) told to the DLL when they
 //!   change, a
 //!   held push-to-talk let go when the key is up or the game lost the
 //!   keyboard, and the hud's list of who talks;
 //! - the game world's keys (`tab_cursor.key`) and mouse buttons
 //!   (`game_world.mouse_key`): the two push-to-talk keys, `ptt` (P) the
-//!   radio and `ptt_nearby` (O) the 10 m voice (the binder's chat kind,
+//!   radio and `ptt_nearby` (O) the nearby voice (the binder's chat kind,
 //!   listed with the game's keys in the options: patch 62's `controls`; a
 //!   key or a button);
 //! - the hud's calls (`hud.callback`): the Tab list's player menu (patch 86's)
@@ -68,17 +68,13 @@ use crate::vostok::{
     VoiceOnOptionsCallExit,
 };
 
-/// Where the 10 m voice ends (the owner, 2026-11-14: "the voice fall of
-/// start immediately and drops completely at 10 meters"): from this
-/// distance a speaker's 10 m voice is not heard. The radio has no distance:
-/// it is the other key's (the owner, 2026-11-16).
-pub const PLAIN_TO_M: f32 = 10.0;
-
-/// How much of the plain voice is left at 9 m of what it is beside the
-/// listener: 0.7, 3 dB down (the owner: "should be still fine at 9m",
-/// "fall off should not be big", "so you always hear normally"). The one
-/// number of the fall: 0.5 is 6 dB, 0.35 9 dB, 1 none.
-pub const AT_9_M: f32 = 0.7;
+/// Where the nearby voice ends: from this distance a speaker's nearby voice
+/// is not heard, and it falls to nothing on the way here (the owner,
+/// 2026-11-16, of a voice 3 dB down at 9 m and cut at 10: "voice should go
+/// from high to zero depending on distance", "so falloff should be bigger
+/// and maybe the total distance should be a bit bigger", "15 might be a bit
+/// too much, you decide"). The radio has no distance: it is the other key's.
+pub const PLAIN_TO_M: f32 = 12.0;
 
 /// The plain voice beside the listener and straight ahead plays as decoded
 /// in both ears, as the radio does and as revision 58's near voice did: the
@@ -89,25 +85,25 @@ const LEVEL: f32 = core::f32::consts::SQRT_2;
 /// The plain voice's gain by its distance: a volume curve as the engine's
 /// distance presets have them (`sounds/spl/*.spl`: the gain by metres, read
 /// with the distance not under 1 m and held to 0..1, calculate_hdr_audio_frame
-/// 0x5C9B5), of two linear keys: 1 to 1 m, [`AT_9_M`] at 9 m, on to
-/// [`PLAIN_TO_M`]. With 0.7 it is the stock `weapon_shot_40` and
-/// `weapon_echo_close_mid` within 0.4 dB (docs/notes/voice-chat.md).
+/// 0x5C9B5), of two linear keys: 1 to 1 m, 0 at [`PLAIN_TO_M`]. Two thirds
+/// (4 dB down) at 5 m, half (6 dB) at 6.5 m, a third (9 dB) at 8 m, a sixth
+/// (15 dB) at 10 m.
 fn gain(metres: f32) -> f32 {
     let past = if metres > 1.0 { metres - 1.0 } else { 0.0 };
-    (1.0 - (1.0 - AT_9_M) * past / (9.0 - 1.0)).clamp(0.0, 1.0)
+    (1.0 - past / (PLAIN_TO_M - 1.0)).clamp(0.0, 1.0)
 }
 
 /// The lines tried from the listener's head: to the speaker's head and this
 /// far to either side of it, so that a post or a door's edge takes a part of
-/// the voice and not all of it (the owner, 2026-11-16, of the 10 m voice:
+/// the voice and not all of it (the owner, 2026-11-16, of the nearby voice:
 /// "it doesn't follow geometry at all right now"). Well inside a player's
 /// own width (its capsule's radius is 0.38 m), so a speaker who stands
 /// against a wall has no line's end in it.
 const WALL_SIDE_M: f32 = 0.15;
 
-/// How much of each player's 10 m voice is behind a wall now (0 none, 1 all
-/// of it); None for a place that is not asked (it is out of the 10 m, or one
-/// of the two is not in the world). Asked of everyone in the 10 m, talking
+/// How much of each player's nearby voice is behind a wall now (0 none, 1 all
+/// of it); None for a place that is not asked (it is out of reach, or one
+/// of the two is not in the world). Asked of everyone in reach, talking
 /// or not, so a voice is behind its wall from its first sound. The DLL plays
 /// that part quieter and dull, and goes from one frame's answer to the
 /// next's in its own time.
@@ -117,7 +113,7 @@ struct Walled([Option<f32>; Place::COUNT]);
 impl Walled {
     const NONE: Walled = Walled([None; Place::COUNT]);
 
-    /// As the level is now, of the places in the 10 m both of whose players
+    /// As the level is now, of the places in reach both of whose players
     /// are in the world: the part of the three lines, from the listener's
     /// head to the speaker's and to either side of it, that `blocked` says
     /// has something solid on it.
@@ -126,7 +122,7 @@ impl Walled {
         let Some(me) = roster.local().and_then(|me| roster.seat(me)).and_then(|seat| seat.body) else { return walled };
         for (place, seat, _) in roster.others() {
             let Some(them) = seat.body else { continue };
-            // The 10 m as the voice's own (`in_the_world`: between the feet).
+            // The reach as the voice's own (`in_the_world`: between the feet).
             let apart = [them.feet[0] - me.feet[0], them.feet[1] - me.feet[1], them.feet[2] - me.feet[2]];
             if sqrt(apart[0] * apart[0] + apart[1] * apart[1] + apart[2] * apart[2]) >= PLAIN_TO_M {
                 continue;
@@ -192,7 +188,7 @@ struct Live {
     /// The key or button push-to-talk is held by, and its channel.
     talk: Option<(TalkInput, Channel)>,
     /// Whether the local player was alive in the world at the last frame:
-    /// only then has it a 10 m voice.
+    /// only then has it a nearby voice.
     alive: bool,
     /// The speakers the hud's list was told.
     shown: Option<Speakers>,
@@ -411,7 +407,7 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
 }
 
 /// How each other player of the match is heard on its two channels. Its
-/// 10 m voice (the owner, 2026-11-16: "10m is the one everyone can hear"):
+/// nearby voice (the owner, 2026-11-16: "10m is the one everyone can hear"):
 /// by how far it is ([`in_the_world`]) while both players are alive in the
 /// world, a mate's and an opponent's alike; not at all when either is dead or
 /// a spectator. Its radio ("radio is team only", "or in ffa for everyone"):
@@ -419,7 +415,7 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// distance, alive or dead; an opponent's never. `pan` is the engine's, of a
 /// sound at an offset from the listener. With a wall between the two
 /// (`walled`: how much of the speaker is behind one) the DLL is told so, and
-/// plays the 10 m voice quieter and dull; the radio is not touched. The places
+/// plays the nearby voice quieter and dull; the radio is not touched. The places
 /// of nobody in the match, and the local player's own, are silent.
 fn hearing(roster: &Roster, pan: impl Fn([f32; 3]) -> [f32; 2], walled: &Walled) -> Hearing {
     let me = roster.local().and_then(|me| roster.seat(me)).and_then(|seat| seat.body);
@@ -435,7 +431,7 @@ fn hearing(roster: &Roster, pan: impl Fn([f32; 3]) -> [f32; 2], walled: &Walled)
     })
 }
 
-/// The 10 m voice of a speaker `offset` from the listener (feet to feet, so
+/// The nearby voice of a speaker `offset` from the listener (feet to feet, so
 /// one on the same floor is at the ears' height), both alive: nearer than
 /// [`PLAIN_TO_M`], by the engine's pan of a sound there and [`gain`]; from
 /// it on, and at a distance that is not a number (a broken place), silent.
@@ -484,8 +480,8 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
         } else if !dll.key_down(key) {
             Some("its key is up (GetAsyncKeyState)")
         } else if channel == Channel::Near && !live.alive {
-            // Nobody hears the 10 m voice of a player not in the world.
-            Some("the 10 m voice needs the player alive")
+            // Nobody hears the nearby voice of a player not in the world.
+            Some("the nearby voice needs the player alive")
         } else {
             None
         };
@@ -507,7 +503,7 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
             live.trace = Trace::On(Some(state));
         }
     }
-    // The level between the listener and everyone in the 10 m (three lines each).
+    // The level between the listener and everyone in reach (three lines each).
     let walls = scene.walls();
     let walled = Walled::now(&roster, |from, to| walls.as_ref().is_some_and(|walls| walls.between(from, to)));
     // No listener yet (the world's first tick): the engine's centre.
@@ -606,12 +602,12 @@ fn talk_key(thread: &Thread, event: TalkKey) {
         TalkKey::Down(code, channel) => {
             if live.talk.is_none() {
                 if channel == Channel::Near && !live.alive {
-                    live.trace.line(&[Text("push-to-talk down, not taken: the 10 m voice needs the player alive")]);
+                    live.trace.line(&[Text("push-to-talk down, not taken: the nearby voice needs the player alive")]);
                 } else if matches!(engine::settings(thread), Settings::On { microphone: true, .. }) {
                     dll.talk(Some(channel));
                     live.talk = Some((code, channel));
                     live.trace.line(&[Text(match channel {
-                        Channel::Near => "push-to-talk down: the 10 m voice",
+                        Channel::Near => "push-to-talk down: the nearby voice",
                         Channel::Radio => "push-to-talk down: the radio",
                     })]);
                 } else {
@@ -962,11 +958,11 @@ mod tests {
     }
 
     #[test]
-    fn the_10_m_voice_under_10_m_alive_the_radio_a_mates_anywhere() {
+    fn the_nearby_voice_in_reach_alive_the_radio_a_mates_anywhere() {
         let r = roster(&[
             (0, Some([5.0, 1.0, 5.0])),
-            (0, Some([5.0, 1.0, 14.9])),
-            (0, Some([5.0, 1.0, 15.0])),
+            (0, Some([5.0, 1.0, 16.9])),
+            (0, Some([5.0, 1.0, 17.0])),
             (1, None),
             (0, None),
             (0, Some([5.0, 1.0, 55.0])),
@@ -981,7 +977,7 @@ mod tests {
         for nobody in [p(3), p(0), p(19)] {
             assert_eq!(heard.of(nobody), Heard::SILENT);
         }
-        // The listener dead: no 10 m voice of anyone beside its body's place.
+        // The listener dead: no nearby voice of anyone beside its body's place.
         let dead = roster(&[(0, None), (0, Some([1.0, 0.0, 0.0]))]);
         assert_eq!(hearing(&dead, pan, &Walled::NONE).of(p(1)), Heard { near: Ears::SILENT, muffle: Muffle::NONE, radio: true });
         let broken = roster(&[(0, Some([0.0; 3])), (0, Some([f32::NAN, 0.0, 0.0]))]);
@@ -989,7 +985,7 @@ mod tests {
     }
 
     #[test]
-    fn the_10_m_voice_has_the_engines_pan_of_its_offset_and_falls_gently() {
+    fn the_nearby_voice_has_the_engines_pan_of_its_offset_and_falls_to_nothing() {
         // The pan is asked of the speaker's offset from the listener, feet to feet.
         let r = roster(&[(0, Some([10.0, 2.0, 10.0])), (0, Some([10.5, 2.0, 10.25]))]);
         let ears = hearing(&r, pan, &Walled::NONE).of(p(1)).near;
@@ -999,12 +995,11 @@ mod tests {
         // Ahead beside the listener, as decoded in both ears.
         let ahead = |metres: f32| in_the_world([0.0, 0.0, metres], &|_| PAN_CENTRE).get();
         assert!(close(ahead(0.0)[0], 1.0) && close(ahead(1.0)[1], 1.0));
-        // The fall: none to 1 m, AT_9_M at 9 m, linear between, on to the end.
-        assert!(close(gain(0.3), 1.0) && close(gain(1.0), 1.0) && close(gain(9.0), AT_9_M));
-        assert!(close(gain(5.0), (1.0 + AT_9_M) / 2.0) && gain(9.99) < AT_9_M && gain(9.99) > AT_9_M - 0.1);
-        assert!(close(ahead(9.0)[0], AT_9_M) && close(ahead(9.0)[1], AT_9_M));
-        // Heard to the end, then cut.
-        assert!(ahead(9.99)[0] > 0.5 && ahead(10.0) == [0.0; 2]);
+        // The fall: none to 1 m, then linear to nothing at the end.
+        assert!(close(gain(0.3), 1.0) && close(gain(1.0), 1.0) && close(gain(6.5), 0.5));
+        assert!(close(gain(10.0), 2.0 / 11.0) && close(ahead(6.5)[0], 0.5) && close(ahead(6.5)[1], 0.5));
+        // No step at the end: next to nothing just before it, nothing from it.
+        assert!(ahead(11.99)[0] < 0.002 && ahead(11.99)[0] > 0.0 && ahead(PLAIN_TO_M) == [0.0; 2] && ahead(40.0) == [0.0; 2]);
         // A pan that is not a number is silent, never noise.
         assert_eq!(in_the_world([1.0, 0.0, 0.0], &|_| [f32::NAN; 2]), Ears::SILENT);
     }
@@ -1012,8 +1007,8 @@ mod tests {
     #[test]
     fn a_wall_between_two_heads_takes_the_part_of_the_voice_behind_it() {
         // The local player at the origin; 1 a teammate 4 m ahead, 2 an
-        // opponent 4 m to the side, 3 a teammate 12 m behind: out of the 10 m.
-        let r = roster(&[(0, Some([0.0; 3])), (0, Some([0.0, 0.0, 4.0])), (1, Some([4.0, 0.0, 0.0])), (0, Some([0.0, 0.0, -12.0]))]);
+        // opponent 4 m to the side, 3 a teammate 16 m behind: out of reach.
+        let r = roster(&[(0, Some([0.0; 3])), (0, Some([0.0, 0.0, 4.0])), (1, Some([4.0, 0.0, 0.0])), (0, Some([0.0, 0.0, -16.0]))]);
         // The lines go from the listener's head to the speaker's and 0.15 m
         // to either side of it, level with the ground.
         let lines = core::cell::RefCell::new(Vec::new());
@@ -1053,7 +1048,7 @@ mod tests {
         assert_eq!(sides(&ffa), [(p(1), Side::Opponent), (p(2), Side::Opponent), (p(3), Side::Opponent)]);
         ffa.set_mates(Mates::Match);
         assert_eq!(sides(&ffa), [(p(1), Side::Mate), (p(2), Side::Mate), (p(3), Side::Mate)]);
-        // Everyone's radio is heard, near, far and dead; the 10 m voice near.
+        // Everyone's radio is heard, near, far and dead; the nearby voice near.
         let heard = hearing(&ffa, pan, &Walled::NONE);
         assert!(heard.of(p(1)).near.get()[0] > 0.0 && heard.of(p(1)).near.get()[1] == 0.0);
         assert!([p(1), p(2), p(3)].iter().all(|&place| heard.of(place).radio));
@@ -1068,13 +1063,13 @@ mod tests {
     }
 
     #[test]
-    fn an_opponents_10_m_voice_is_heard_as_a_teammates_its_radio_never() {
+    fn an_opponents_nearby_voice_is_heard_as_a_teammates_its_radio_never() {
         // The local player (team 0) at the origin; a teammate and an opponent
         // side by side at each distance.
         let at = |metres: f32| Some([metres, 0.0, 0.0]);
-        let r = roster(&[(0, at(0.0)), (0, at(4.0)), (1, at(4.0)), (0, at(12.0)), (1, at(12.0)), (0, None), (1, None)]);
+        let r = roster(&[(0, at(0.0)), (0, at(4.0)), (1, at(4.0)), (0, at(16.0)), (1, at(16.0)), (0, None), (1, None)]);
         let heard = hearing(&r, pan, &Walled::NONE);
-        // Near: the same 10 m voice, the engine's pan and the fall alike.
+        // Near: the same nearby voice, the engine's pan and the fall alike.
         assert!(heard.of(p(2)).near != Ears::SILENT);
         assert_eq!(heard.of(p(2)).near, heard.of(p(1)).near);
         // The radio: the teammates', wherever they are; no opponent's.
