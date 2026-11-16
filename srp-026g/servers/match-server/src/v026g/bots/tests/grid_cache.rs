@@ -149,6 +149,9 @@ pub(super) fn world(
             if let Some(problem) = grid.off_links_problem() {
                 eprintln!("  grid cache: ERROR: the grid breaks the off-mesh links' rule: {problem}");
             }
+            if let Some(problem) = grid.line_tops_problem() {
+                eprintln!("  grid cache: ERROR: the grid breaks the line tops' rule: {problem}");
+            }
             grid
         },
         |grid, path| grid.write(path, grid_key),
