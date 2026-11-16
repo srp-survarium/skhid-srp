@@ -28,6 +28,11 @@ Runs the game's own code in the original exe and in the patched one (Unicorn):
   -- with the 0.21d exe given, bit for bit what 0.21d's stage_rain::execute
   stores (0x123382..0x12343E run in it) for the same scales; otherwise the
   original's, bit for bit;
+- the god-rays pass's entry (0x1A5520) for each atmosphere stage (+ACh 0 the
+  sky's, 1 the geometry's): only for the sky's stage while the context draws
+  the marked project's scene does the patched exe return at once (its ret 4,
+  the argument popped, the registers kept); otherwise it runs the pass as the
+  original does;
 - effect_material_base::compile_begin (0x1CD0B0) to its begin_pass, for each
   grass vertex shader family and others, grassmesh input and not, with the
   material key srp_grass_v021d and without: the patched VS is the family's
@@ -61,7 +66,7 @@ CFG = HEAP + 0x100000                     # a config tree, relocated there
 PROJECT_CFG, PROJECT_ROOT = HEAP + 0x200000, HEAP + 0x200200
 PROJECT, GAME_SCENE = HEAP + 0x300000, HEAP + 0x301000
 RENDER_SCENE, LOBBY_SCENE = HEAP + 0x302000, HEAP + 0x303000
-PRE_RAIN, RAIN, CONTEXT, VIEW, OPTIONS = (HEAP + 0x310000 + i * 0x1000 for i in range(5))
+PRE_RAIN, RAIN, CONTEXT, VIEW, OPTIONS, ATMOSPHERE = (HEAP + 0x310000 + i * 0x1000 for i in range(6))
 WET_EFFECT, DROPS_EFFECT = 0x5E7E0000, 0x0D2E0000   # stage effect addresses, passed through in EAX
 SHADER_CONFIG, MATERIAL_OPTIONS, NAMES = HEAP + 0x320000, HEAP + 0x321000, HEAP + 0x330000
 OPTIONS_SLOT = 0x2260498                  # the render options' pointer
@@ -404,6 +409,40 @@ def check_map(stock, patched, v021d):
     print("  ok another project's removal keeps the map; its own removal, or its destruction, ends it")
 
 
+def god_rays(m, drawn, mode):
+    """Where the god-rays pass goes from its entry: its body (the entry's span run) or its caller."""
+    m.w(ATMOSPHERE + 4, CONTEXT)
+    m.w(ATMOSPHERE + 0xAC, mode)
+    m.w(CONTEXT + 0x416C, drawn)
+    at, sp = m.run(0x1A5520, {0x1A5528, RET}, stack=(RET, ATMOSPHERE))
+    esp = m.emu.reg_read(UC_X86_REG_ESP)
+    if at == RET:
+        assert esp == sp + 8, "ret 4: the return address and the stage popped"
+        assert all(m.emu.reg_read(reg) == value for reg, value in SAVED.items()), "the registers kept"
+        return "returned"
+    assert esp == sp - 0x18 and m.emu.reg_read(UC_X86_REG_EBX) == ATMOSPHERE, "the entry's span run"
+    return "drawn"
+
+
+def check_god_rays(stock, patched):
+    def expect_drawn(m, label):
+        for drawn in (RENDER_SCENE, LOBBY_SCENE):
+            for mode in (0, 1):
+                assert god_rays(m, drawn, mode) == "drawn", (label, hex(drawn), mode)
+
+    expect_drawn(stock, "the original")
+    expect_drawn(patched, "nothing marked")
+    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v021d": True})
+    insert(patched, PROJECT)
+    assert god_rays(patched, RENDER_SCENE, 0) == "returned", "the sky's stage on the marked scene"
+    assert god_rays(patched, RENDER_SCENE, 1) == "drawn", "the geometry's stage"
+    assert god_rays(patched, LOBBY_SCENE, 0) == "drawn", "the lobby's scene"
+    remove(patched, PROJECT)
+    expect_drawn(patched, "removed")
+    print("  ok the god rays: on the marked project's scene the sky stage's pass returns at once (ret 4), the"
+          " geometry's runs; the lobby's scene, unmarked or removed, both run, as the original")
+
+
 def check_v021d_factors(v021d):
     assert struct.pack("<2f", *v021d.factors) == struct.pack("<2f", 0.05, 0.4), v021d.factors
     print("  ok 0.21d's factors are the float32 0.05 and 0.4 (0x7DD148, 0x836EDC)")
@@ -480,6 +519,7 @@ def main():
         check_v021d_factors(v021d)
     check_compiles(stock, patched)
     check_map(stock, patched, v021d)
+    check_god_rays(stock, patched)
     check_grass(stock, patched)
     check_water(stock, patched)
 

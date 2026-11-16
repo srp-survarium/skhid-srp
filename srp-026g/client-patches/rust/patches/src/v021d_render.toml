@@ -54,3 +54,8 @@ handler = "on_material_pass"
 [[hook]]
 site = "water.normal_texture"
 handler = "on_water_texture"
+
+# The god rays: once a frame, as 0.21 draws them (0.26 draws them for the sky stage too).
+[[hook]]
+site = "atmosphere.god_rays"
+handler = "on_god_rays"

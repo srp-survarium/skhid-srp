@@ -8828,6 +8828,48 @@ v021d_render_on_water_texture_replay:
     db 0xd9, 0xe8, 0x6a, 0x01, 0x51
     jmp 0x1e6041
 
+; 0x1a5520 stage_atmosphere's god-rays pass (0x1A5520, stdcall, ESP+4 the stage, ret 4), its entry (sub esp,14h / push ebx / mov ebx,[esp+1Ch]); its one caller is stage_atmosphere::execute's end (push ebp / call at 0x1A5133), for both the sky stage (stage+ACh 0) and the geometry stage (1), so 0.26 draws the rays twice a frame where 0.21 draws them once; skipped is its ret 4 (0x1A575C), the stack as at the entry: lohook -> v021d_render_on_god_rays
+global v021d_render_on_god_rays
+extern hook_v021d_render_on_god_rays
+v021d_render_on_god_rays:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_god_rays
+    mov edx, v021d_render_on_god_rays_replay
+    cmp eax, 0
+    je v021d_render_on_god_rays_go
+    mov edx, 0x1a5528
+    cmp eax, 1
+    je v021d_render_on_god_rays_go
+    mov edx, 0x1a575c
+    cmp eax, 2
+    je v021d_render_on_god_rays_go
+    ud2
+v021d_render_on_god_rays_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_god_rays_replay:
+    db 0x83, 0xec, 0x14, 0x53, 0x8b, 0x5c, 0x24, 0x1c
+    jmp 0x1a5528
+
 ; 0x27a1b0 match_client::connect's start (push ebx / push ebp / push esi / mov esi,ecx): ECX the match client, the site's ESP+4 the host, +8 the port, +0Ch the session (a replay's connect is another function, 0x122350): lohook -> voice_on_connect
 global voice_on_connect
 extern hook_voice_on_connect

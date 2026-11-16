@@ -6,7 +6,9 @@
 //! - `pre_rain.wet_gate`, `pre_rain.wet_apply`: stage_pre_rain::execute
 //!   (0x17CA20), ESI the stage;
 //! - `rain.drop_scales`, `rain.drops_apply`: stage_rain::execute (0x1ADB00),
-//!   EBP the stage.
+//!   EBP the stage;
+//! - `atmosphere.god_rays`: the god-rays pass's entry (0x1A5520), its stack
+//!   argument the stage_atmosphere.
 //!
 //! A stage's renderer context (+4) names the frame's scene (+416Ch, which
 //! renderer::render 0x13D010 stores each frame before the stages run) and its
@@ -50,6 +52,8 @@ pub enum StageSite {
     DropScales,
     /// `rain.drops_apply`.
     DropsApply,
+    /// `atmosphere.god_rays`.
+    GodRays,
 }
 
 /// The renderer context of the stage at `site`.
@@ -63,6 +67,7 @@ fn context(ctx: &Context<'_>, site: StageSite) -> Option<raw::RendererContext> {
             StageSite::WetApply => raw::site::pre_rain_wet_apply::stage(ctx)?.context(),
             StageSite::DropScales => raw::site::rain_drop_scales::stage(ctx)?.context(),
             StageSite::DropsApply => raw::site::rain_drops_apply::stage(ctx)?.context(),
+            StageSite::GodRays => raw::site::atmosphere_god_rays::frame(ctx)?.stage()?.context(),
         }
     }
 }
@@ -72,6 +77,30 @@ pub fn drawn_scene(ctx: &Context<'_>, site: StageSite) -> Option<RenderSceneId> 
     // SAFETY: the renderer context's scene field, written by renderer::render
     // on this thread before it ran the stages; only its address is kept.
     unsafe { context(ctx, site)?.scene() }.map(RenderSceneId::of)
+}
+
+/// Which of the renderer's two atmosphere stages a god-rays pass is for
+/// (stage_atmosphere +ACh, its constructor's argument).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AtmosphereStage {
+    /// 0: the sky's (the scattering lookup's update, the dome).
+    Sky,
+    /// 1: the geometry's.
+    Geometry,
+}
+
+/// The stage the god-rays pass at `atmosphere.god_rays` draws for (None for
+/// a mode neither stage has).
+pub fn god_rays_stage(ctx: &Context<'_>) -> Option<AtmosphereStage> {
+    // SAFETY: the site's ESP is the pass's entry, its argument the stage
+    // executing (stage_atmosphere::execute pushes it, alive for its call);
+    // +ACh a field its constructor wrote.
+    let mode = unsafe { raw::site::atmosphere_god_rays::frame(ctx)?.stage()?.mode().read() };
+    match mode {
+        0 => Some(AtmosphereStage::Sky),
+        1 => Some(AtmosphereStage::Geometry),
+        _ => None,
+    }
 }
 
 /// The apply sites: `pre_rain.wet_apply` (the wet pass, technique 0) and

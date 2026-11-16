@@ -5113,6 +5113,26 @@ pub extern "C" fn hook_v021d_render_on_water_texture(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- v021d_render (patch 130) ----
+
+/// The named exits of v021d_render::on_god_rays (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V021DRenderOnGodRaysExit { Skipped }
+/// The entry `v021d_render_on_god_rays` (0x1a5520, stage_atmosphere's god-rays pass (0x1A5520, stdcall, ESP+4 the stage, ret 4), its entry (sub esp,14h / push ebx / mov ebx,[esp+1Ch]); its one caller is stage_atmosphere::execute's end (push ebp / call at 0x1A5133), for both the sky stage (stage+ACh 0) and the geometry stage (1), so 0.26 draws the rays twice a frame where 0.21 draws them once; skipped is its ret 4 (0x1A575C), the stack as at the entry) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_god_rays(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_god_rays` calls this, from the game's jump at 0x1a5520,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_god_rays(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- voice (patch 66) ----
 
 /// The entry `voice_on_connect` (0x27a1b0, match_client::connect's start (push ebx / push ebp / push esi / mov esi,ecx): ECX the match client, the site's ESP+4 the host, +8 the port, +0Ch the session (a replay's connect is another function, 0x122350)) calls this with the saved machine.

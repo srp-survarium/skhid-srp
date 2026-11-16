@@ -1754,6 +1754,7 @@ va	name	location	role	basis
 0x001a39d0	vostok::render::stage_atmosphere::stage_atmosphere	EAX	renderer context	inferred
 0x001a39d0	vostok::render::stage_atmosphere::stage_atmosphere	stack+8	stage type	inferred
 0x001a4200	vostok::render::stage_atmosphere::execute	ECX	atmosphere stage receiver	inferred
+0x001a5520	vostok::render::stage_atmosphere::god_rays_pass	ESP+4	the stage_atmosphere (+ACh 0 the sky's, 1 the geometry's); its one call is stage_atmosphere::execute's end (push ebp / call at 0x1A5133); ret 4 at 0x1A575C, the only exit	observed
 0x001a6ee0	vostok::render::effect_debug_modify_gbuffer::compile	entry ESP+4	effect compiler object	observed
 0x001a7280	vostok::render::stage_composition::stage_composition	ESI	composition stage receiver	inferred
 0x001a7280	vostok::render::stage_composition::stage_composition	ECX	renderer	inferred

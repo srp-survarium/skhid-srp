@@ -644,6 +644,7 @@ va	status	ref_021d	name
 0x001a3690	reviewed	0x00120122	vostok::render::stage_atmosphere::fill_surfaces
 0x001a39d0	reviewed	0x00120336	vostok::render::stage_atmosphere::stage_atmosphere
 0x001a4200	reviewed	0x00120709	vostok::render::stage_atmosphere::execute
+0x001a5520	observed		vostok::render::stage_atmosphere::god_rays_pass
 0x001a6ee0	reviewed	0x0011ec51	vostok::render::effect_debug_modify_gbuffer::compile
 0x001a7280	reviewed	0x0011ee27	vostok::render::stage_composition::stage_composition
 0x001a78d0	reviewed	0x0011f135	vostok::render::stage_composition::gather_subsurface_scattering_models

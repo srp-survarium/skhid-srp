@@ -693,6 +693,7 @@ va	name	source	ret_cleanup	result
 0x001a3690	vostok::render::stage_atmosphere::fill_surfaces	manual	16	
 0x001a39d0	vostok::render::stage_atmosphere::stage_atmosphere	manual	8	
 0x001a4200	vostok::render::stage_atmosphere::execute	manual	0	
+0x001a5520	vostok::render::stage_atmosphere::god_rays_pass	manual	4	
 0x001a6ee0	vostok::render::effect_debug_modify_gbuffer::compile	manual	12	
 0x001a7280	vostok::render::stage_composition::stage_composition	manual	0	
 0x001a78d0	vostok::render::stage_composition::gather_subsurface_scattering_models	manual	4	

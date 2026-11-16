@@ -10,7 +10,11 @@
 //!   `wet_sufrace.ps`), and at any shading quality (0.26g also wants it not
 //!   0; 0.21d does not);
 //! - the drops: rain_drops_parameters1.zw are 0.21d's half floats, and the
-//!   drop texture is 0.21's (`textures/ported/v021d/engine/rain_drop`).
+//!   drop texture is 0.21's (`textures/ported/v021d/engine/rain_drop`);
+//! - the god rays: drawn once a frame, by the geometry's atmosphere stage.
+//!   0.26g draws the whole pass for the sky's stage as well, adding the rays
+//!   to the sky twice (a pale glow over the sun-facing half of an evening);
+//!   0.21d draws them once.
 //!
 //! Each of the two effects compiles the twins of its techniques after its
 //! own, the same code run again with the one name changed: effect_wet_surface
@@ -38,7 +42,7 @@ use crate::vostok::config::{ConfigTable, ConfigValue};
 use crate::vostok::effect_compile::{self, CompileSite, CompilerId, MaterialPass, Pass, TextureSite, VertexInput};
 use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::project::{ProjectId, ProjectView};
-use crate::vostok::render_stage::{self, ApplySite, RenderSceneId, StageSite, Technique};
+use crate::vostok::render_stage::{self, ApplySite, AtmosphereStage, RenderSceneId, StageSite, Technique};
 use crate::vostok::{self, Context, Flow, Lock, NoExit};
 
 /// The key of a project config's root that makes its map a 0.21 one: a
@@ -392,6 +396,14 @@ pub fn on_drops_apply(ctx: &mut Context<'_>) -> Flow<vostok::V021DRenderOnDropsA
         }
         Look::Native => Flow::Continue,
     }
+}
+
+/// The god-rays pass: on the 0.21 map's scene, not for the sky's stage.
+pub fn on_god_rays(ctx: &mut Context<'_>) -> Flow<vostok::V021DRenderOnGodRaysExit> {
+    if render_stage::god_rays_stage(ctx) == Some(AtmosphereStage::Sky) && look(ctx, StageSite::GodRays) == Look::V021d {
+        return Flow::Exit(vostok::V021DRenderOnGodRaysExit::Skipped);
+    }
+    Flow::Continue
 }
 
 /// A material effect's pass: a marked material's grass takes 0.21's
