@@ -43,6 +43,10 @@ const WALL_FRAMES: f32 = 15.;
 fn through_a_wall(walled: f32) -> f32 {
     BEHIND_A_WALL.powf(walled)
 }
+/// The filter a voice behind a wall is heard through, at rest.
+fn wall() -> Biquad {
+    Biquad::new(Kind::Low, MUFFLE_HZ, std::f32::consts::FRAC_1_SQRT_2, 0.)
+}
 /// How every slot is heard.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hearing([Heard; SLOTS]);
@@ -442,7 +446,7 @@ impl Speaker {
             channel: Channel::Near,
             gains: Gains::SILENT,
             rider: Rider::REST,
-            wall: Biquad::new(Kind::Low, MUFFLE_HZ, std::f32::consts::FRAC_1_SQRT_2, 0.),
+            wall: wall(),
             walled: None,
         })
     }
@@ -462,6 +466,9 @@ impl Speaker {
         // from silence.
         self.channel = channel;
         self.gains = Gains::SILENT;
+        // (at rest: it is run only behind a wall, and would begin an
+        // utterance there with what the last one left in it)
+        self.wall = wall();
         self.walled = None;
         self.radio = Radio::new(
             0x9e3779b9u32

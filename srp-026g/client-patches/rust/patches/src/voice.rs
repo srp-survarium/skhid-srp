@@ -100,28 +100,37 @@ fn gain(metres: f32) -> f32 {
 /// The lines tried from the listener's head: to the speaker's head and this
 /// far to either side of it, so that a post or a door's edge takes a part of
 /// the voice and not all of it (the owner, 2026-11-16, of the 10 m voice:
-/// "it doesn't follow geometry at all right now").
-const WALL_SIDE_M: f32 = 0.3;
+/// "it doesn't follow geometry at all right now"). Well inside a player's
+/// own width (its capsule's radius is 0.38 m), so a speaker who stands
+/// against a wall has no line's end in it.
+const WALL_SIDE_M: f32 = 0.15;
 
-/// How much of each talking speaker's 10 m voice is behind a wall now (0
-/// none, 1 all of it); None for a place that is not asked (it does not talk,
-/// or one of the two is not in the world). The DLL plays that part quieter
-/// and dull, and goes from one frame's answer to the next's in its own time.
+/// How much of each player's 10 m voice is behind a wall now (0 none, 1 all
+/// of it); None for a place that is not asked (it is out of the 10 m, or one
+/// of the two is not in the world). Asked of everyone in the 10 m, talking
+/// or not, so a voice is behind its wall from its first sound. The DLL plays
+/// that part quieter and dull, and goes from one frame's answer to the
+/// next's in its own time.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Walled([Option<f32>; Place::COUNT]);
 
 impl Walled {
     const NONE: Walled = Walled([None; Place::COUNT]);
 
-    /// As the level is now, of the `talking` places both of whose players
+    /// As the level is now, of the places in the 10 m both of whose players
     /// are in the world: the part of the three lines, from the listener's
     /// head to the speaker's and to either side of it, that `blocked` says
     /// has something solid on it.
-    fn now(roster: &Roster, talking: Places, blocked: impl Fn([f32; 3], [f32; 3]) -> bool) -> Walled {
+    fn now(roster: &Roster, blocked: impl Fn([f32; 3], [f32; 3]) -> bool) -> Walled {
         let mut walled = Walled::NONE;
         let Some(me) = roster.local().and_then(|me| roster.seat(me)).and_then(|seat| seat.body) else { return walled };
-        for (place, seat, _) in roster.others().filter(|(place, _, _)| talking.has(*place)) {
+        for (place, seat, _) in roster.others() {
             let Some(them) = seat.body else { continue };
+            // The 10 m as the voice's own (`in_the_world`: between the feet).
+            let apart = [them.feet[0] - me.feet[0], them.feet[1] - me.feet[1], them.feet[2] - me.feet[2]];
+            if sqrt(apart[0] * apart[0] + apart[1] * apart[1] + apart[2] * apart[2]) >= PLAIN_TO_M {
+                continue;
+            }
             // Level with the ground, across the line between the two heads.
             let (dx, dz) = (them.eye[0] - me.eye[0], them.eye[2] - me.eye[2]);
             let across = sqrt(dx * dx + dz * dz);
@@ -498,14 +507,9 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
             live.trace = Trace::On(Some(state));
         }
     }
-    let talking = match settings {
-        Settings::Off => Places::NONE,
-        Settings::On { .. } => dll.talking(),
-    };
-    // The level between the listener and those it hears talking (three lines
-    // a speaker, only while it talks).
+    // The level between the listener and everyone in the 10 m (three lines each).
     let walls = scene.walls();
-    let walled = Walled::now(&roster, talking, |from, to| walls.as_ref().is_some_and(|walls| walls.between(from, to)));
+    let walled = Walled::now(&roster, |from, to| walls.as_ref().is_some_and(|walls| walls.between(from, to)));
     // No listener yet (the world's first tick): the engine's centre.
     let listener = Listener::at_frame(ctx);
     let pan = |offset| listener.as_ref().map_or(PAN_CENTRE, |listener| listener.pan(offset));
@@ -519,6 +523,10 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     }
     dll.hearing(told.hearing, before.map(|t| t.hearing));
     live.told = Some(told);
+    let talking = match settings {
+        Settings::Off => Places::NONE,
+        Settings::On { .. } => dll.talking(),
+    };
     let speakers = speakers(talking, &roster, told.muted);
     if live.shown != Some(speakers) && show_speakers(&scene, &roster, speakers) {
         live.shown = Some(speakers);
@@ -1003,24 +1011,24 @@ mod tests {
 
     #[test]
     fn a_wall_between_two_heads_takes_the_part_of_the_voice_behind_it() {
-        // The local player at the origin; 1 a teammate 4 m ahead (talking), 2
-        // an opponent 4 m to the side (talking), 3 a teammate who is silent.
-        let r = roster(&[(0, Some([0.0; 3])), (0, Some([0.0, 0.0, 4.0])), (1, Some([4.0, 0.0, 0.0])), (0, Some([0.0, 0.0, -4.0]))]);
-        let talking = Places::NONE.with(p(1)).with(p(2));
-        // The lines go from the listener's head to the speaker's and 0.3 m to
-        // either side of it, level with the ground.
+        // The local player at the origin; 1 a teammate 4 m ahead, 2 an
+        // opponent 4 m to the side, 3 a teammate 12 m behind: out of the 10 m.
+        let r = roster(&[(0, Some([0.0; 3])), (0, Some([0.0, 0.0, 4.0])), (1, Some([4.0, 0.0, 0.0])), (0, Some([0.0, 0.0, -12.0]))]);
+        // The lines go from the listener's head to the speaker's and 0.15 m
+        // to either side of it, level with the ground.
         let lines = core::cell::RefCell::new(Vec::new());
-        let open = Walled::now(&r, talking, |from, to| {
+        let open = Walled::now(&r, |from, to| {
             lines.borrow_mut().push((from, to));
             false
         });
         assert_eq!(open.0[1], Some(0.0));
         assert_eq!((open.0[2], open.0[3], open.0[0]), (Some(0.0), None, None));
+        assert_eq!(lines.borrow().len(), 6);
         let ahead: Vec<[f32; 3]> = lines.borrow()[..3].iter().map(|&(from, to)| { assert_eq!(from, [0.0, 1.6, 0.0]); to }).collect();
         assert_eq!(ahead[0], [0.0, 1.6, 4.0]);
-        assert!(close(ahead[1][0], -0.3) && close(ahead[2][0], 0.3) && ahead[1][2] == 4.0 && ahead[1][1] == 1.6, "{ahead:?}");
+        assert!(close(ahead[1][0], -WALL_SIDE_M) && close(ahead[2][0], WALL_SIDE_M) && ahead[1][2] == 4.0 && ahead[1][1] == 1.6, "{ahead:?}");
         // A wall across the way ahead: all of 1; a post beside 2's head: a third of it.
-        let wall = Walled::now(&r, talking, |_, to| to[2] > 3.0 || (to[0] > 3.0 && to[2] > 0.1));
+        let wall = Walled::now(&r, |_, to| to[2] > 3.0 || (to[0] > 3.0 && to[2] > 0.1));
         assert_eq!(wall.0[1], Some(1.0));
         assert!(close(wall.0[2].unwrap(), 1.0 / 3.0), "{wall:?}");
         // Heard: the DLL is told how much (it makes the voice quieter and
@@ -1033,7 +1041,7 @@ mod tests {
         assert_eq!(heard.of(p(3)), clear.of(p(3)));
         // The listener out of the world: nobody is followed.
         let dead = roster(&[(0, None), (0, Some([0.0, 0.0, 4.0]))]);
-        assert_eq!(Walled::now(&dead, talking, |_, _| true), Walled::NONE);
+        assert_eq!(Walled::now(&dead, |_, _| true), Walled::NONE);
     }
 
     #[test]
