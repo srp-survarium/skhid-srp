@@ -856,7 +856,7 @@ fn build(
                         // give-back's stand tests are the process's counters' growth, as the ties.
                         let stands = mapdata::grid::give_back_stands();
                         log::info!(
-                            "Bot map {} grid built: {} floors; wall give-back {} (stand tests {}, stood {} of them on the ring {}, jammed {}), rest floors {}, held {:?}, drops walked {:?} re-aimed {} (one link a pair: {:?}), gaps {:?}",
+                            "Bot map {} grid built: {} floors; wall give-back {} (stand tests {}, stood {} of them on the ring {}, jammed {}), rest floors {}, held floors (a jam at the centre is held) {:?}, drops walked {:?} re-aimed {} (one link a pair: {:?}), gaps {:?}",
                             path.display(),
                             grid.len(),
                             stats.wall_given_back,
