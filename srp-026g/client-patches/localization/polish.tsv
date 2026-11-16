@@ -1777,8 +1777,9 @@ st_profile_selection_warning	+20 sekund do czasu odrodzenia przy zmianie profilu
 st_profile_warning_weapon	Profil nieaktywny: brak broni
 st_profile_warning_weapon_ammo	Profil nieaktywny: za mało naboi w plecaku
 st_profile_warning_weapon_ammo_in_inv	Profil nieaktywny: za mało naboi w magazynie
-st_ptt_action	Mów (przytrzymaj)
+st_ptt_action	Mów przez radio
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Mów w pobliżu
 st_put_item	Umieść ({USE})
 st_quest_change_warning	Uwaga! Przy zmianie zadań spadnie lojalność frakcji wobec ciebie!
 st_quest_completed	Zadanie wykonane!

@@ -1777,8 +1777,9 @@ st_profile_selection_warning	Nach dem Profil wechseln,  dauert die Wiedergeburt 
 st_profile_warning_weapon	Unaktive Profil: Keine Waffen
 st_profile_warning_weapon_ammo	Unaktive Profil: ungenügend Patronen im Rucksack
 st_profile_warning_weapon_ammo_in_inv	Unaktive Profil: ungenügend Patronen im Lager
-st_ptt_action	Sprechen (gedrückt halten)
+st_ptt_action	Sprechen (Funk)
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Sprechen (Nähe)
 st_put_item	Setzen ({USE})
 st_quest_change_warning	Vorsicht! Bei Aufgabe wechseln die Loyalität der Gruppierung wird zu Ihnen herabgesetzt!
 st_quest_completed	Mission erfüllt!

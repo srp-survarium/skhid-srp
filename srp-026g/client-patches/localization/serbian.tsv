@@ -1777,8 +1777,9 @@ st_profile_selection_warning	Promena profila produžava ponovno pojavljivanje na
 st_profile_warning_weapon	Ne možete ući u boj bez oružja!
 st_profile_warning_weapon_ammo	Nedovoljno municije u rancu za ulazak u boj!
 st_profile_warning_weapon_ammo_in_inv	Nedovoljno municije u inventaru za ulazak u boj!
-st_ptt_action	Govori (drži)
+st_ptt_action	Govori preko radija
 st_ptt_button_option	Pritisni za govor
+st_ptt_nearby_action	Govori u blizini
 st_put_item	Postavi ({USE})
 st_quest_change_warning	Pažnja! Promena zadataka smanjuje odanost frakciji!
 st_quest_completed	Zadatak je izvršen!

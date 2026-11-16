@@ -452,7 +452,7 @@ mod tests {
         let mut encoder = Encoder::new().unwrap();
         let mut core = Core::new().unwrap();
         let mut out = Vec::new();
-        let hearing = Hearing::radio(0);
+        let hearing = Hearing::UNITY;
         for pair in 0..RECORD_FRAMES / 2 {
             let frames = [2 * pair, 2 * pair + 1]
                 .map(|frame| {
@@ -465,6 +465,7 @@ mod tests {
                 &Message::RelayAudio {
                     slot: 3,
                     utt: 1,
+                    channel: crate::wire::Channel::Near,
                     seq: pair as u16,
                     frames,
                 },
@@ -480,7 +481,7 @@ mod tests {
             },
             0,
         );
-        while core.talking(1_000) != 0 {
+        while core.talking(&hearing, 1_000) != 0 {
             out.push(core.mix(volume, &hearing, 1_000));
         }
         assert_eq!(core.stats().decoded as usize, RECORD_FRAMES);

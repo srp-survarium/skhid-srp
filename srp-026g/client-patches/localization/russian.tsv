@@ -1777,8 +1777,9 @@ st_profile_selection_warning	+20 секунд времени возрожден�
 st_profile_warning_weapon	Профиль не активен: нет оружия
 st_profile_warning_weapon_ammo	Профиль не активен: недостаточно патронов в рюкзаке
 st_profile_warning_weapon_ammo_in_inv	Профиль не активен: недостаточно патронов на складе
-st_ptt_action	Говорить (удерживать)
+st_ptt_action	Говорить по рации
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Говорить рядом
 st_put_item	Положить ({USE})
 st_quest_change_warning	Внимание! При смене задания лояльность группировки к вам понизится!
 st_quest_completed	Задание выполнено!

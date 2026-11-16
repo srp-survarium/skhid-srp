@@ -4,26 +4,26 @@ use crate::{
     sounds::{SQUELCH_IN, SQUELCH_OUT},
     wire::Message,
 };
-pub use voice_abi::{Ears, Heard};
+pub use voice_abi::{Channel, Ears, Heard};
 const RING: usize = 32;
 /// A frame of the mix: each sample's left and right, as WinMM's 16-bit
 /// stereo takes them.
 pub type Stereo = [[i16; 2]; FRAME];
-/// What a speaker's frame is mixed by: its plain voice in each ear (the
-/// game's sound engine's gains for a sound at its place) and its radio, in
-/// both ears alike.
+/// What a speaker's frame is mixed by: its 10 m voice in each ear (the
+/// game's sound engine's gains for a sound at its place) or its radio, in
+/// both ears alike, by the channel of its utterance.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Gains {
     plain: [f32; 2],
     radio: f32,
 }
 impl Gains {
-    const UNITY: Self = Self { plain: [1., 1.], radio: 0. };
-    fn of(heard: Heard) -> Self {
-        match heard {
-            Heard::Plain(ears) => Self { plain: ears.get(), radio: 0. },
-            Heard::Radio => Self { plain: [0., 0.], radio: 1. },
-            Heard::Both(ears) => Self { plain: ears.get(), radio: 1. },
+    const SILENT: Self = Self { plain: [0., 0.], radio: 0. };
+    /// An utterance on `channel` of a slot heard so.
+    fn of(heard: Heard, channel: Channel) -> Self {
+        match channel {
+            Channel::Near => Self { plain: heard.near.get(), radio: 0. },
+            Channel::Radio => Self { plain: [0., 0.], radio: f32::from(u8::from(heard.radio)) },
         }
     }
 }
@@ -31,18 +31,9 @@ impl Gains {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hearing([Heard; SLOTS]);
 impl Hearing {
-    /// Every slot plain, as decoded in both ears.
-    pub const UNITY: Self = Self([Heard::Plain(Ears::UNITY); SLOTS]);
-    /// The slots of `radio` through the radio; the rest plain, as decoded.
-    pub fn radio(radio: u32) -> Self {
-        Self(std::array::from_fn(|slot| {
-            if radio & (1 << slot) != 0 {
-                Heard::Radio
-            } else {
-                Heard::Plain(Ears::UNITY)
-            }
-        }))
-    }
+    /// Every slot heard on both channels: its 10 m voice as decoded in both
+    /// ears, its radio on.
+    pub const UNITY: Self = Self([Heard { near: Ears::UNITY, radio: true }; SLOTS]);
     /// A slot past the 20 changes nothing.
     pub fn set(&mut self, slot: usize, heard: Heard) {
         if let Some(place) = self.0.get_mut(slot) {
@@ -209,10 +200,13 @@ struct Speaker {
     radio: Radio,
     heard: Option<u32>,
     effect: Option<Effect>,
+    /// A radio utterance that played has closed, its squelch not yet begun.
     closing_effect: bool,
     limiter: Limiter,
+    /// The channel of its utterance (of its last one, when none is open).
+    channel: Channel,
     /// The gains of the last frame mixed: a frame ramps from them to its
-    /// own, so a turn, a step, or the switch to the radio never clicks.
+    /// own, so a turn or a step never clicks.
     gains: Gains,
 }
 impl Speaker {
@@ -225,10 +219,13 @@ impl Speaker {
             effect: None,
             closing_effect: false,
             limiter: Limiter::UNITY,
-            gains: Gains::UNITY,
+            channel: Channel::Near,
+            gains: Gains::SILENT,
         })
     }
-    fn take(&mut self, id: u16, slot: u8, stats: &mut Stats) -> bool {
+    /// The utterance `id` on `channel` is this speaker's open one (now, or
+    /// already: then on the channel it began on).
+    fn take(&mut self, id: u16, slot: u8, channel: Channel, stats: &mut Stats) -> bool {
         match &self.state {
             State::Open(u) if u.id == id => return true,
             State::Open(u) if !newer(id, u.id) => return false,
@@ -238,6 +235,10 @@ impl Speaker {
         self.close(stats);
         self.decoder.reset();
         self.limiter = Limiter::UNITY;
+        // Nothing of it plays by the last utterance's channel: it comes in
+        // from silence.
+        self.channel = channel;
+        self.gains = Gains::SILENT;
         self.radio = Radio::new(
             0x9e3779b9u32
                 .wrapping_mul(u32::from(slot) + 1)
@@ -255,7 +256,9 @@ impl Speaker {
     }
     fn close(&mut self, stats: &mut Stats) {
         if let State::Open(u) = &self.state {
-            self.closing_effect = !matches!(u.phase, Phase::Buffering);
+            // By the channel of the utterance that closes: a new one's takes
+            // its place only after (`take`).
+            self.closing_effect = self.channel == Channel::Radio && !matches!(u.phase, Phase::Buffering);
             let last = u.id;
             self.state = State::Closed(Some(last));
             stats.closed += 1;
@@ -284,10 +287,12 @@ impl Speaker {
         u.ring[index as usize % RING] = Some((index, bytes.to_vec()));
         u.top = u.top.max(index + 1);
     }
-    fn finish_effect(&mut self, far: bool, stats: &mut Stats) {
+    /// The squelch at the end of a radio utterance that closed, when the
+    /// slot's radio is heard.
+    fn finish_effect(&mut self, radio_heard: bool, stats: &mut Stats) {
         if self.closing_effect {
             self.closing_effect = false;
-            if far {
+            if radio_heard {
                 self.effect = Some(Effect {
                     samples: SQUELCH_OUT,
                     at: 0,
@@ -453,13 +458,13 @@ impl Core {
         }
         let s = &mut self.speakers[usize::from(slot)];
         match message {
-            Message::RelayStart { .. } => {
-                if s.take(id, slot, &mut self.stats) {
+            Message::RelayStart { channel, .. } => {
+                if s.take(id, slot, *channel, &mut self.stats) {
                     s.heard = Some(now);
                 }
             }
-            Message::RelayAudio { seq, frames, .. } => {
-                if !s.take(id, slot, &mut self.stats) {
+            Message::RelayAudio { channel, seq, frames, .. } => {
+                if !s.take(id, slot, *channel, &mut self.stats) {
                     self.stats.late = self.stats.late.saturating_add(frames.len() as u32);
                     return;
                 }
@@ -497,10 +502,10 @@ impl Core {
         let volume = unit(volume);
         let plain = volume * LOUDER;
         for (s, heard) in self.speakers.iter_mut().zip(hearing.0) {
-            let to = Gains::of(heard);
+            let to = Gains::of(heard, s.channel);
             let from = std::mem::replace(&mut s.gains, to);
             let far = to.radio > 0.;
-            s.finish_effect(far, &mut self.stats);
+            s.finish_effect(heard.radio, &mut self.stats);
             if let Some(pcm) = s.play(now, far, &mut self.stats) {
                 let ramp = |from: f32, to: f32, i: usize| from + (to - from) * (i + 1) as f32 / FRAME as f32;
                 if from.plain != [0., 0.] || to.plain != [0., 0.] {
@@ -522,7 +527,7 @@ impl Core {
                     }
                 }
             }
-            s.finish_effect(far, &mut self.stats);
+            s.finish_effect(heard.radio, &mut self.stats);
             // The squelch is the radio's: centred.
             if let Some(fx) = &mut s.effect {
                 for sample in &mut acc {
@@ -541,10 +546,13 @@ impl Core {
         }
         finish(acc)
     }
-    pub fn talking(&self, now: u32) -> u32 {
-        self.speakers.iter().enumerate().fold(0, |mask, (slot, s)| {
-            if matches!(s.state, State::Open(_))
-                || s.heard.is_some_and(|last| !elapsed(now, last, 250))
+    /// The slots heard talking now: each with an utterance (or one just
+    /// over) on a channel `hearing` hears of it.
+    pub fn talking(&self, hearing: &Hearing, now: u32) -> u32 {
+        self.speakers.iter().zip(hearing.0).enumerate().fold(0, |mask, (slot, (s, heard))| {
+            if heard.hears(s.channel)
+                && (matches!(s.state, State::Open(_))
+                    || s.heard.is_some_and(|last| !elapsed(now, last, 250)))
             {
                 mask | 1 << slot
             } else {
