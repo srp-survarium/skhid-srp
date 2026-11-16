@@ -173,7 +173,7 @@ survarium::game_effect_slot	effect	0x0	ptr<survarium::game_effect>	an intrusive_
 survarium::game_effect_slot	size	0x4	size	one pointer (on_render_scenes_ready's [esp+28h])
 vostok::engine_cfg	data	0x0	u32	value bits of a binary config node
 vostok::engine_cfg	children	0x0	ptr<vostok::engine_cfg>	child array when node_type is table or array
-vostok::engine_cfg	node_type	0x14	u16	binary config type: integer 1, float 2, table 3, array 4
+vostok::engine_cfg	node_type	0x14	u16	binary config type: boolean 0, integer 1, float 2, table 3, array 4, text 5
 vostok::engine_cfg	count	0x16	u16	child count for tables and arrays
 vostok::engine_cfg	size	0x18	size	binary config record stride, cfg_child 0xF6B10
 vostok::binary_config	root	0x108	ptr<vostok::engine_cfg>	root record of the loaded binary config
@@ -1239,3 +1239,20 @@ vostok::render::flash_ui_frame	window	0x8	ptr<vostok::render::render_output_wind
 vostok::render::render_output_window	output	0x30AC	ptr<vostok::render::res_render_output>	its render output: the frame's draw presents with it (0x13DD3F: mov eax,[edx+30ACh] / call res_render_output::present 0x3CF7F0, EAX its receiver)
 vostok::render::res_render_output	swap_chain	0xCC	ptr<dxgi::swap_chain>	its IDXGISwapChain (present 0x3CF8FF: mov esi,[esi+0CCh], Present through its vtable +20h; GetFullscreenState +2Ch at 0x3CF81C)
 vostok::input::key_event	data	0x4	u32	DIDEVICEOBJECTDATA.dwData: bit 80h set, the key went down (execute's loop 0x3B9167: test byte [ecx],80h, ECX the event's +4; process 0x3B9B23 the same)
+survarium::game_scene	render_scene	0x4	ptr<vostok::render::scene>	the render scene it holds (a scene_ptr): a visual's insert passes &+4 to scene_renderer::add_model (0x285FB6), game::tick draws the current scene's (draw_scene 0x1F7F0, its EAX = [game+539Ch]+4, 0x1ECD2D)
+vostok::render::renderer_context	scene	0x416C	ptr<vostok::render::scene>	the scene a frame draws: renderer::render (0x13D010) stores *scene_ptr, its first argument's, at 0x13D210 before it runs the stages
+vostok::render::renderer_context	scene_view	0x4170	ptr<vostok::render::scene_view>	that frame's scene view, its environment at +118h (stage_rain::execute 0x1ADB55, stage_pre_rain::execute 0x17CA64)
+vostok::render::scene_view	rain_u_scale	0x2E8	f32	the environment's rain_u_scale (environment +1D0h; stage_rain::execute 0x1ADD90 multiplies it by 0.05 into rain_drops_parameters1.z)
+vostok::render::scene_view	rain_v_scale	0x2EC	f32	the environment's rain_v_scale (environment +1D4h; 0x1ADDB1, times 0.4 into rain_drops_parameters1.w)
+vostok::render::stage_pre_rain	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (stage_pre_rain::execute 0x17CA61)
+vostok::render::stage_pre_rain	wet_effect	0x18	u32	its effect_wet_surface (a res_effect, kept as the address res_effect::apply takes in EAX): create_effect<effect_wet_surface> (0x17CC90) from the ctor (0x17BC2F); execute applies technique 2 (copy, 0x17CB35) and 0 (wet, 0x17CB90)
+vostok::render::stage_rain	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (stage_rain::execute 0x1ADB52)
+vostok::render::stage_rain	drops_effect	0x34	u32	its effect_rain (a res_effect, as res_effect::apply takes it in EAX): create_effect<effect_rain> (0x1AE110) from the ctor (0x1ADA18); execute applies technique 1, the sprite drops (0x1ADFA4)
+vostok::render::rain_execute_frame	parameters1_z	0x40	f32	stage_rain::execute's local at 0x1ADF7D: rain_u_scale * 0.05 (0x1ADDA0, one push deeper), copied to rain_drops_parameters1.z (0x1ADF83) before the layers' loop
+vostok::render::rain_execute_frame	parameters1_w	0x44	f32	rain_v_scale * 0.4 (0x1ADDEF, one push deeper), copied to rain_drops_parameters1.w (0x1ADF8F)
+vostok::render::effect_compiler	caching	0x61F4C	u8	not 0: the shader-cache pass of an effect's compile (begin_pass only records its shaders 0x3D9FED, end_technique keeps nothing; 0.10b m_shaders_cache_mode): each compile's technique blocks skip begin_technique and the states then (effect_wet_surface::compile 0x1CE10D..0x1CE116)
+vostok::render::begin_pass_frame	pixel_shader	0x0	ptr<u8>	begin_pass's (0x3D9F60) arguments as its caller pushes them, at effect_wet_surface::compile's 0x1CE16C (technique 0): +0 the ps family name (pushed at 0x1CE142), +4 the 16-byte shader configuration being written; the gs name and the compiler pushed after
+vostok::render::compile_begin_frame	vertex_shader	0x2C	ptr<u8>	effect_material_base::compile_begin's (0x1CD0B0) first argument, the VS family name, at 0x1CD1B6 (the entry's ESP less 28h): the mov there reads it for begin_pass, nothing after
+vostok::render::compile_begin_frame	config	0x3C	ptr<vostok::engine_cfg>	its fifth argument, the effect's merged config tree (the material's <stage>.effect table with the cook's options; cull_mode and blend_mode are read from it, 0x1CD0DC, 0x1CD148)
+vostok::render::shader_configuration	vertex_input	0x6	u8	the 16-byte shader_configuration's byte 6: bits 0..5 the vertex input type, which compile_begin writes from its options (0x1CD0C1..0x1CD0CD); 0Bh grassmesh_vertex_input
+vostok::render::water_compile_frame	config	0xC	ptr<vostok::engine_cfg>	effect_fstage_simpe_water_materials::compile's (0x1E5FE0) EBP frame: +0Ch its config tree, the material's (compile_begin's fifth argument, 0x1E6026)

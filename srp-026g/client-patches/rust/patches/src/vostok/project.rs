@@ -71,11 +71,22 @@ impl PhysicsId {
 pub struct VisualIndex(u32);
 impl From<u32> for VisualIndex { fn from(value: u32) -> Self { Self(value) } }
 
+/// A project (simple_game_project) as an id: compared, never read through.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct ProjectId(NonZeroU32);
+pub struct ProjectId(NonZeroU32);
 impl ProjectId {
     fn of(project: raw::SimpleGameProject) -> Self {
         Self(NonZeroU32::new(project.address()).expect("non-null native handle"))
+    }
+    /// The project project.removed is at (remove_static's epilogue, after the native removals).
+    pub fn removed(ctx: &Context<'_>) -> Option<Self> {
+        // SAFETY: the site's ESI is the project being removed; only its address is kept.
+        unsafe { raw::site::project_removed::project(ctx) }.map(Self::of)
+    }
+    /// The project project.destroy is at (its destructor's entry).
+    pub fn destroyed(ctx: &Context<'_>) -> Option<Self> {
+        // SAFETY: the site's ECX is the project being destroyed; only its address is kept.
+        unsafe { raw::site::project_destroy::project(ctx) }.map(Self::of)
     }
 }
 
@@ -116,6 +127,17 @@ impl<'t> ProjectView<'t> {
             let frame = site::frame(ctx).ok_or(BindingError::MissingPhysics)?;
             Ok(Self { native, frame, thread: ctx.thread() })
         }
+    }
+    /// The project at project.insert, for a patch that reads only its
+    /// config and its scene (patch 130); the lamps' registry makes its own.
+    pub fn at_insert(ctx: &'t Context<'_>) -> Result<Self, BindingError> { Self::inserting(ctx) }
+    pub fn id(&self) -> ProjectId { ProjectId::of(self.native) }
+    /// The render scene its game scene holds (game_scene+4), the one the
+    /// renderer's context names while that scene is drawn; None without one.
+    pub fn render_scene(&self) -> Option<super::render_stage::RenderSceneId> {
+        // SAFETY: the inserted project's game scene is alive for the hook;
+        // only the render scene's address is kept, as an id.
+        unsafe { self.native.scene().and_then(|scene| scene.render_scene()).map(super::render_stage::RenderSceneId::of) }
     }
     pub fn root(&self) -> Result<ConfigValue<'t>, BindingError> {
         // SAFETY: the inserted project owns the config resource for the hook.
@@ -356,4 +378,9 @@ impl<D: Presentation<K>, K: Copy> ProjectRegistry<D, K> {
             bound.callback(NativeObject::Light(light.native), event);
         });
     }
+}
+
+#[cfg(test)]
+impl ProjectId {
+    pub fn for_test(address: u32) -> Self { Self(NonZeroU32::new(address).expect("a test id is not 0")) }
 }

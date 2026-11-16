@@ -6251,3 +6251,15 @@ va	name	location	role	basis
 0x00305580	survarium::booby_trap_core::hit	ECX	the booby trap (hit_receiver slot +20h): defuses whatever the hit type, by the byte +220h as 0x305540	observed
 0x003050c0	survarium::booby_trap_core::defuse_completed	EAX	the booby trap: an armed one (+198h 1) leaves the physics world (its users ended, usable_object::remove, collision_sensor::remove, the hittable body unless defuse_by_hit is 8), then state 3 disarmed with the set disarmed_life_time (+290h) as its timer (+268h), or removed at once (0x304F00) when that is 0	observed
 0x0013ced0	vostok::render::renderer::render_flash_ui	stack+8	the output window: its +30ACh the render output the frame presents with (0x13DD3F, res_render_output::present 0x3CF7F0), its +30B0h the flash renderer (0x13CEE9); called once a frame at 0x13DB3D, the scene already on the back buffer (a read-back there in a game: the world, no interface)	observed
+0x0017cc90	vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>	EAX	the effect manager ([2260494h]); its byte +0 force_sync picks create_new_effect 0x3CB510 (waits) over 0x3CB3C0 (async)	observed
+0x0017cc90	vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>	EDI	the res_effect_ptr written (stage_pre_rain +18h from the ctor 0x17BC2C); descriptor static 0x2261118, vtable 0x9F3440 (slot 2 compile 0x1CE100, slot 1 should_recompile 0x54E10 false)	observed
+0x001ae110	vostok::render::effect_manager::create_effect<vostok::render::effect_rain>	EAX	the effect manager ([2260494h]), as create_effect<effect_wet_surface>	observed
+0x001ae110	vostok::render::effect_manager::create_effect<vostok::render::effect_rain>	EDI	the res_effect_ptr written (stage_rain +34h, EDI set at the ctor's 0x1AD856); descriptor static 0x2260F8C, vtable 0x9F5108 (slot 2 compile 0x1D3B90, slot 1 should_recompile 0x54E10 false)	observed
+0x0015fe20	vostok::render::grass_world::set_wind_parameters	EDX	the grass world (its VS host wind_info_parameters at +1C8h)	observed
+0x0015fe20	vostok::render::grass_world::set_wind_parameters	EAX	float2: the wind direction's x and z	observed
+0x0015fe20	vostok::render::grass_world::set_wind_parameters	entry ESP+4	float: the wind strength	observed
+0x001cbb70	vostok::render::pack_direction	EAX	float3 to pack ((v+1)/2*255 a byte); the packed u32 back in EAX	observed
+0x00070e30	vostok::math::random32::random_f	ECX	the random32 state (x = x*8088405h+1)	observed
+0x00070e30	vostok::math::random32::random_f	entry ESP+4	float: min	observed
+0x00070e30	vostok::math::random32::random_f	entry ESP+8	float: max	observed
+0x001cd0b0	vostok::render::effect_material_base::compile_begin	entry ESP+16	byte +6 bits 0..5: the vertex input type, written from the options record's byte 0 (0x1CD0C1..0x1CD0CD) before begin_pass; 0Bh grassmesh_vertex_input	observed

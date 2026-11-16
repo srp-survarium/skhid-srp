@@ -152,3 +152,7 @@ vtable	slot	va	class	base	basis
 0x00a141a4	0x24	0x00305540	survarium::booby_trap_core	survarium::hit_receiver	observed: hit with a hit type (ret 28h), the slot bullet::try_pierce calls on what its ray met (0x32DA0D mov edx,[edx+24h], 0x32DA3A)
 0x00a0455c	0x20	0x00305580	survarium::booby_trap	survarium::hit_receiver	observed: booby_trap_core::hit without a hit type, not overridden
 0x00a0455c	0x24	0x00305540	survarium::booby_trap	survarium::hit_receiver	observed: booby_trap_core::hit with a hit type, not overridden (the client trap takes a bullet here)
+0x009f3440	0x4	0x00054e10	vostok::render::effect_wet_surface	vostok::render::effect_descriptor	observed: should_recompile_when_global_changes, the base's (returns false): never recompiled on an options change
+0x009f3440	0x8	0x001ce100	vostok::render::effect_wet_surface	vostok::render::effect_descriptor	observed: compile; written into the static descriptor 0x2261118 at 0x17CCAC
+0x009f5108	0x4	0x00054e10	vostok::render::effect_rain	vostok::render::effect_descriptor	observed: should_recompile_when_global_changes, the base's (returns false)
+0x009f5108	0x8	0x001d3b90	vostok::render::effect_rain	vostok::render::effect_descriptor	observed: compile; written into the static descriptor 0x2260F8C at 0x1AE12C

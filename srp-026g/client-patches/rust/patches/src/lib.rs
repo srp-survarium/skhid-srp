@@ -121,3 +121,4 @@ pub mod replay_file;
 pub mod free_for_all;
 // patch 150: the game shares by BitTorrent in the login screen and the lobby
 pub mod lobby_seeding;
+pub mod v021d_render;

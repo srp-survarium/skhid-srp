@@ -243,6 +243,7 @@ global engine_context_copy_resource
 global engine_context_map
 global engine_d3d_resource_release
 global engine_d3d_device_release
+global engine_set_texture
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -333,6 +334,7 @@ engine_cc_delegate_execute equ 0xec830   ; 0xec830 vostok::console_commands::cc_
 engine_message_box_a equ 0xaeff30   ; the IAT slot 0xaeff30 (an import, stdcall)
 engine_exit_process equ 0x87020c   ; the IAT slot 0x87020c (an import, stdcall)
 engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (an import, stdcall)
+engine_set_texture equ 0x3d98b0   ; 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX

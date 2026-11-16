@@ -327,6 +327,8 @@ unsafe extern "stdcall" {
     pub fn engine_compress_mip(renderer: *mut c_void, levels: *mut *mut c_void, cursor: *mut c_void, wide: u32, high: u32, level: u32, format: u32, normal: u32);
     /// 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
     pub fn engine_discard_playing_order(client: *mut c_void, left: u32);
+    /// 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
+    pub fn engine_set_texture(compiler: *mut c_void, slot: *const u8, texture: *const u8, option: u32, request: u32, lower: u32, lower_float: f32, flag: u32);
 }
 
 #[allow(dead_code)]

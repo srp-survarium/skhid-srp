@@ -8,6 +8,8 @@ use super::Thread;
 pub enum ConfigError { Missing, WrongType, MissingChildren }
 
 pub enum ConfigValue<'t> {
+    /// A boolean (type 0): its u32 not 0 (0.10b binary_config_value::operator bool).
+    Boolean(bool),
     Integer(u32),
     Number(f32),
     Table(ConfigTable<'t>),
@@ -24,6 +26,7 @@ impl<'t> ConfigValue<'t> {
         // SAFETY: the caller owns the resource for this view's lifetime.
         unsafe {
             Ok(match node.node_type().read() {
+                0 => Self::Boolean(node.data().read() != 0),
                 1 => Self::Integer(node.data().read()),
                 2 => Self::Number(f32::from_bits(node.data().read())),
                 kind @ (3 | 4) => {
@@ -44,6 +47,9 @@ impl<'t> ConfigValue<'t> {
                 _ => Self::Unsupported,
             })
         }
+    }
+    pub fn boolean(self) -> Result<bool, ConfigError> {
+        match self { Self::Boolean(b) => Ok(b), _ => Err(ConfigError::WrongType) }
     }
     pub fn integer(self) -> Result<u32, ConfigError> {
         match self { Self::Integer(n) => Ok(n), _ => Err(ConfigError::WrongType) }

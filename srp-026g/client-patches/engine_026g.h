@@ -36,6 +36,7 @@ struct d3d_device;
 struct dds_cursor;
 struct di_command_queue;
 struct drawable_image_context;
+struct effect_compiler;
 struct effect_presenter_holder;
 struct engine_cfg;
 struct game_allocator;
@@ -851,5 +852,8 @@ unsigned int engine_d3d_resource_release(struct hw_resource *resource);
 
 /* COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX */
 unsigned int engine_d3d_device_release(struct d3d_device *device);
+
+/* 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly */
+void __attribute__((stdcall)) engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag);
 
 #endif

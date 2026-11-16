@@ -1,0 +1,56 @@
+# Patch 130: the ported 0.21 maps render the 0.21 way (docs/notes/client_patch.md
+# section 3.82, README "The ported 0.21 maps render the 0.21 way"). Only the
+# decisions: which sites, and the handlers. The sites are sites_026g.tsv's; the
+# logic is v021d_render.rs.
+name = "v021d_render"
+patch = 130
+
+# The map: a project whose config says srp_renderer_v021d (after the lamps').
+[[hook]]
+site = "project.insert"
+handler = "on_project_insert"
+order = 2
+[[hook]]
+site = "project.removed"
+handler = "on_project_removed"
+order = 2
+[[hook]]
+site = "project.destroy"
+handler = "on_project_destroy"
+order = 2
+
+# The compiles: each effect compiles the 0.21 twins of its techniques after its own.
+[[hook]]
+site = "wet_surface.compiled"
+handler = "on_wet_surface_compiled"
+[[hook]]
+site = "wet_surface.begin_pass"
+handler = "on_wet_surface_pass"
+[[hook]]
+site = "rain.compiled"
+handler = "on_rain_compiled"
+[[hook]]
+site = "rain.drop_texture"
+handler = "on_rain_drop_texture"
+
+# The draws: on a 0.21 map's scene, the twins and 0.21's numbers.
+[[hook]]
+site = "pre_rain.wet_gate"
+handler = "on_wet_gate"
+[[hook]]
+site = "pre_rain.wet_apply"
+handler = "on_wet_apply"
+[[hook]]
+site = "rain.drop_scales"
+handler = "on_drop_scales"
+[[hook]]
+site = "rain.drops_apply"
+handler = "on_drops_apply"
+
+# The ported materials: grass's vertex shaders and water's wave texture, by their own key.
+[[hook]]
+site = "material.begin_pass"
+handler = "on_material_pass"
+[[hook]]
+site = "water.normal_texture"
+handler = "on_water_texture"

@@ -643,6 +643,18 @@ Patches:
   walk (no engine call), to srp_patches.log and in 0xE0 carriers
   (srp_validate::report); the server only logs them. Nothing a match
   computes;
+- the ported 0.21 maps render the 0.21 way (patch 130, the Rust patch
+  v021d_render; docs/notes/client_patch.md section 3.82): effect_wet_surface
+  and effect_rain compile 0.21 twins of their techniques after their own
+  (0x1CE5BE, 0x1D3E30: the wet pass with wet_surface_v021d.ps, the drops
+  with ported/v021d/engine/rain_drop); on the scene of a project whose
+  config says srp_renderer_v021d, stage_pre_rain's wet pass runs at any
+  shading quality (0x17CB1B) with technique 3 (0x17CB90), stage_rain's drops
+  with technique 2 (0x1ADFA4) and 0.21d's half-float
+  rain_drops_parameters1.zw (0x1ADF7D); compile_begin gives a grassmesh pass
+  of a material with srp_grass_v021d its 0.21 vertex shader family
+  (0x1CD1B6), the forward water of one with srp_water_v021d 0.21's wave
+  normals (0x1E603C). Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The

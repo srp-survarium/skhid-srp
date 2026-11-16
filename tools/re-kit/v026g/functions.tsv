@@ -2396,3 +2396,9 @@ va	status	ref_021d	name
 0x00305540	observed		survarium::booby_trap_core::hit
 0x00305580	observed		survarium::booby_trap_core::hit
 0x003050c0	observed		survarium::booby_trap_core::defuse_completed
+0x0017cc90	verified		vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>
+0x001ae110	verified		vostok::render::effect_manager::create_effect<vostok::render::effect_rain>
+0x001d3730	verified	0x0013fc08	vostok::render::particle_rain_drops_geometry::particle_rain_drops_geometry
+0x0015fe20	verified		vostok::render::grass_world::set_wind_parameters
+0x001cbb70	verified	0x0013afad	vostok::render::pack_direction
+0x00070e30	verified		vostok::math::random32::random_f

@@ -273,3 +273,4 @@ engine_context_copy_resource	ID3D11DeviceContext+0xbc	-	void engine_context_copy
 engine_context_map	ID3D11DeviceContext+0x38	-	unsigned int engine_context_map(struct immediate_context *context, struct hw_resource *resource, unsigned int subresource, unsigned int map_type, unsigned int flags, void *mapped)	com	
 engine_d3d_resource_release	IUnknown+0x8	-	unsigned int engine_d3d_resource_release(struct hw_resource *resource)	com	
 engine_d3d_device_release	IUnknown+0x8	-	unsigned int engine_d3d_device_release(struct d3d_device *device)	com	
+engine_set_texture	0x3d98b0	ESP+4:receiver ESP+8:binding ESP+12:path ESP+16:option ESP+20:selector ESP+24:unsigned ESP+28:float ESP+32:flag	void engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag)	stdcall	
