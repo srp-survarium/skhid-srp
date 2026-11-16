@@ -129,11 +129,19 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     `<rig>/../report-<name>/index.html`, worst first, with black / dark /
     hole / cast / gap flags on an 8 x 6 tile grid. `sweep.py compare --build <name>` redoes
     the report from the shots taken.
-  - **0.69d reference shots are taken once and kept.** Each lands in
-    `ref-sweep/ref-<project>/` and is filed in `sweep-ref/<project>/<pose key>.png` as it
-    is shot; a later run only shoots poses it has no shot for. Only the port is re-shot
-    each iteration: `--fresh` drops the port's shots alone. Never delete or re-take the
-    reference shots.
+  - **A donor map is shot once** (owner, 2026-11-16), whatever the build (0.11, 0.21d,
+    0.31a2, 0.46c2, 0.69d): its reference shots are kept for good and every later sweep,
+    by any worker, reuses them. Only the port is re-shot each iteration.
+    - One shared store on the root disk:
+      `~/Projects/survarium/donor-refs/<build>/<project>/<pose key>.png`, plus the pose
+      file they were shot from. A rig reads it before it starts the donor and shoots only
+      poses with no shot there; it never keeps a private copy.
+    - A pose is the same pose when its position, direction and field of view are; keep
+      a map's pose keys stable across builds of the port, so the store keeps matching.
+    - `--fresh` drops the port's shots alone. Never delete or re-take reference shots;
+      a wrong one is replaced only on the owner's word.
+    - Rudnya's 0.69d shots (`ref-sweep/ref-<project>/`, `sweep-ref/<project>/`) predate
+      the store and stay where they are.
   - **Rudnya's reference is closed** (owner, 2026-10-31): 0.69d never starts again for
     it. The check is `<rig>/../poses-kept.json`, 112 poses: the 47 of
     `poses-rudnya.json` (`shots/`), the 37 fix poses (`shots-fixes/`), the 24 battery-mode
