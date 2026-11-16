@@ -939,6 +939,18 @@ survarium::detect_frame	point	0x8	ptr<f32>	its point: a float3 written with the 
 vostok::physics::hit_object	user	0xC	ptr<vostok::collision::game_object>	base_physics_object's user data, the game's object (0.10b +8; detect_usable_object reads +0Ch at 0x2D8587)
 vostok::collision::game_object	vtable	0x0	u32	its vtable (0.10b: cast_to_hit_receiver +0, cast_to_collision_geometry +4, cast_to_base_player +8)
 survarium::collision_geometry	subscribers	0xC	u32	its subscribers' begin (+10h the end): collision_geometry_subscriber pointers (damage and effect zones, sensors, players_checker, usable objects), not all usable; query_objects_by_type 0x2DC39A walks them through the cast it is given
+survarium::collision_geometry	ghost	0x18	ptr<vostok::physics::bt_ghost_object>	its ghost (collision_sensor::insert 0x3080F9 adds the ghost's object to the world with the geometry's group +20h and mask +22h while a subscriber senses)
+vostok::physics::bt_ghost_object	object	0x18	ptr<vostok::physics::bt_collision_object>	its Bullet object (collision_sensor::insert 0x308100: the world's addCollisionObject, vtable +1Ch); its transform and its compound shape (0.10b collision_geometry::load) kept while out of the world
+survarium::collision_geometry_slot	geometry	0x0	ptr<survarium::collision_geometry>	one of a collision sensor's geometries
+survarium::collision_geometry_slot	size	0x4	size	a pointer
+survarium::damage_zone	geometries	0x11C	ptr<survarium::collision_geometry_slot>	its collision sensor's (+108h, as generic_anomaly_core::activate_damage_zone 0x31B9B2 passes it) geometries (collision_sensor +14h: insert 0x3080D0)
+survarium::damage_zone	geometry_count	0x120	u32	how many (collision_sensor +18h, 0x3080C1)
+survarium::damage_zone	active	0x124	u8	1 while its anomaly has it on (collision_sensor +1Ch m_is_active: insert 0x3080B9 sets it, activate_damage_zone 0x31B9B9 inserts it, deactivate_damage_zone 0x31B9F0 removes it)
+survarium::damage_zone_slot	zone	0x0	ptr<survarium::damage_zone>	one of a project's damage zones (a damage_zone, damage_zone_core at +0: its vtables 0x2989F8)
+survarium::damage_zone_slot	size	0x4	size	a pointer
+survarium::simple_game_project	damage_zones	0x19C	ptr<survarium::damage_zone_slot>	its damage zones' vector (project_cooker_simple::on_damage_zones_loaded 0x22E55F pushes each, a reference held: +0D0h)
+survarium::simple_game_project	damage_zones_end	0x1A0	ptr<survarium::damage_zone_slot>	the vector's end
+survarium::game_world	project	0x1D88	ptr<survarium::simple_game_project>	the loaded project (set_game_project 0x1F83FE, a reference held: its +108h)
 vostok::physics::ray_hits	begin	0x0	ptr<vostok::physics::ray_result>	a buffer_vector<closest_ray_result> {begin, end, allocator, capacity end} (detect_usable_object's at 0x2D850F..0x2D851F, ray_query appends 0x777DE): the first hit
 vostok::physics::ray_hits	end	0x4	ptr<vostok::physics::ray_result>	past the last hit (the count is (end - begin) / 28h, 0x2D852C)
 vostok::physics::ray_hits	allocator	0x8	ptr<vostok::memory::pthreads3_allocator>	what grows it (0x788C0) and frees it: detect_usable_object gives the multithreaded one (0xA8001C)

@@ -813,3 +813,67 @@ pub fn loaded_map(_: &Thread) -> Option<LoadedMap> {
         Some(LoadedMap::new(name, id))
     }
 }
+
+/// Whether an anomaly's damage zone is on: its collision sensor in the
+/// physics world (generic_anomaly_core::activate_damage_zone 0x31B9A0 puts
+/// it in, deactivate_damage_zone 0x31B9F0 takes it out).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ZoneState {
+    Active,
+    Off,
+}
+
+/// One of the loaded project's damage zones.
+#[derive(Clone, Copy)]
+pub struct DamageZone<'t> {
+    this: raw::DamageZone,
+    thread: &'t Thread,
+}
+
+impl<'t> DamageZone<'t> {
+    pub fn state(&self) -> ZoneState {
+        // SAFETY: the zone, alive with its project (the hook's).
+        if unsafe { read(self.this.active()) } != 0 { ZoneState::Active } else { ZoneState::Off }
+    }
+
+    /// Each of its geometries' shapes where its ghost stands (in the world or
+    /// not), Bullet's frame.
+    pub fn for_each_shape(&self, mut visit: impl FnMut(Pose, Shape<'t>)) {
+        // SAFETY: the zone's geometries, their ghosts and Bullet objects,
+        // made with the project and kept until it is let go.
+        unsafe {
+            let Some(first) = self.this.geometries() else { return };
+            for i in 0..read(self.this.geometry_count()) as usize {
+                let Some(object) = first.at(i).geometry().and_then(|g| g.ghost()).and_then(|g| g.object()) else {
+                    continue;
+                };
+                if let Some(shape) = object.shape() {
+                    visit(super::shape::pose(object.transform()), Shape::of(shape, self.thread));
+                }
+            }
+        }
+    }
+}
+
+/// Each damage zone of the project the engine world's game has loaded, none
+/// in the lobby (no match in its world). Read on the thread that steps the
+/// world, outside its step (as for_each_object).
+pub fn for_each_damage_zone<'t>(thread: &'t Thread, mut visit: impl FnMut(DamageZone<'t>)) {
+    // SAFETY: as loaded_map: the engine world's game and its world; the
+    // project it holds a reference to and its zones' vector, each zone held.
+    unsafe {
+        let Some(game) = raw::image::engine_world().world().and_then(|w| w.game()) else { return };
+        let world = game.world();
+        if world.pvp_match().is_none() {
+            return;
+        }
+        let Some(project) = world.project() else { return };
+        let (Some(first), Some(end)) = (project.damage_zones(), project.damage_zones_end()) else { return };
+        let Some(count) = end.index_from(first) else { return };
+        for i in 0..count {
+            if let Some(this) = first.at(i).zone() {
+                visit(DamageZone { this, thread });
+            }
+        }
+    }
+}

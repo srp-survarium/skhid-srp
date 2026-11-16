@@ -81,11 +81,14 @@ GREEN, MAGENTA, WHITE = 0xFF00FF00, 0xFFFF00FF, 0xFFFFFFFF
 TURNED = ((0.0, 0.0, 1.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0))     # a quarter turn about y
 IDENTITY = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 MOST = 65536
-HELP = ["  collision walk  - what stops walking (green + white)",
-        "  collision shot  - what stops bullets and the camera (magenta + white)",
-        "  collision solid - what stops both (white)",
-        "  collision       - again to turn off"]
-ON = ["collision: on, all (walk green, shot magenta, solid white)"] + HELP
+HELP = ["  collision walk    - what stops walking (green + white)",
+        "  collision shot    - what stops bullets and the camera (magenta + white)",
+        "  collision solid   - what stops both (white)",
+        "  collision anomaly - anomaly damage zones (red, dim when off)",
+        "  collision         - again to turn off"]
+ON = ["collision: on, all (walk green, shot magenta, solid white, anomaly red)"] + HELP
+RED, DIM_RED = 0xFF0000FF, 0xFF000060
+ZONES = PHYSICS + 0xC0000                    # the project, its damage zones, their geometries and ghosts
 VIRTUAL_ALLOC_SLOT, ROOM = 0x87015C, 0x70000000
 
 
@@ -188,6 +191,27 @@ class Run(where.Run):
             self.emu.mem_write(proxy + 4, struct.pack("<HH", group, 0xFFFF))
             self.emu.mem_write(proxy + 0x10, struct.pack("<4f", *(c - 40.0 for c in origin), 0.0))
             self.emu.mem_write(proxy + 0x20, struct.pack("<4f", *(c + 40.0 for c in origin), 0.0))
+
+    def zones(self, zones):
+        """The loaded project's damage zones: (active, Bullet origin, shape) each, one geometry a zone (its
+        sensor +108h: geometries +14h, count +18h, active +1Ch; a geometry's ghost +18h, the ghost's object +18h)."""
+        self.emu.mem_write(ZONES, bytes(0x20000))
+        project, table = ZONES, ZONES + 0x400
+        self.word(where.GAME + 0x18 + 0x1D88, project)
+        self.word(project + 0x19C, table)
+        self.word(project + 0x1A0, table + 4 * len(zones))
+        for i, (active, origin, shape) in enumerate(zones):
+            zone = ZONES + 0x1000 + 0x1000 * i
+            geometries, geometry, ghost, obj = zone + 0x200, zone + 0x300, zone + 0x400, zone + 0x500
+            self.word(table + 4 * i, zone)
+            self.word(zone + 0x11C, geometries)
+            self.word(zone + 0x120, 1)
+            self.emu.mem_write(zone + 0x124, bytes([int(active)]))
+            self.word(geometries, geometry)
+            self.word(geometry + 0x18, ghost)
+            self.word(ghost + 0x18, obj)
+            self.emu.mem_write(obj + 0x10, transform(IDENTITY, origin))
+            self.word(obj + 0xCC, shape)
 
     def frame(self, eye=EYE):
         """update_camera(player) in a spectator's first person at `eye`: the lines it wrote to the log."""
@@ -303,6 +327,9 @@ def main():
                                          (IDENTITY, capsule_at, capsule), (IDENTITY, (-8.0, 0.0, 18.0), mesh)))
         other = r.shape(24)
         r.map("level_01/day_2", map_id=1)       # a match's world loaded: the render site draws
+        zone_ball = r.shape(8, dims=(1.5, 0.0, 0.0), scaling=(2.0, 2.0, 2.0))   # radius 3
+        zone_box = r.shape(0, dims=(1.0, 1.0, 1.0))
+        r.zones([(True, (14.0, 0.0, -20.0), zone_ball), (False, (6.0, 0.0, -20.0), zone_box)])
         r.world([(0x2, 1, TURNED, box_origin, box),
                  (0x8, 1, IDENTITY, compound_origin, compound),
                  (0xA, 1, IDENTITY, (0.0, 0.0, 0.0), mesh),
@@ -327,7 +354,8 @@ def main():
     check(lines == ["collision: the level's static collision within 20 m (less where that is over 65536 lines):",
                     "collision: walk (green) 3 in the world: stops walkers only",
                     "collision: shot (magenta) 1 in the world: stops bullets and the camera only",
-                    "collision: solid (white) 1 in the world: stops walkers, bullets and the camera"],
+                    "collision: solid (white) 1 in the world: stops walkers, bullets and the camera",
+                    "collision: anomaly (red) 2 in the world: damage zones, dim red while off"],
           "the first frame: the census, a line a group: " + " | ".join(lines))
     queries = new.queries
     eye = (10.0, 1.7, -20.0)
@@ -346,9 +374,16 @@ def main():
     check(len(draws) == 1 and regs == regs_old and all(
               d["renderer"] == SYSTEM_RENDERER and d["technique"] == 0 and d["indices"] == list(range(len(d["vertices"])))
               for d in draws)
-          and by_colour == {GREEN: 12, MAGENTA: 36 + 28 + 52 + 6, WHITE: 6},
+          and by_colour == {GREEN: 12, MAGENTA: 36 + 28 + 52 + 6, WHITE: 6, RED: 36, DIM_RED: 12},
           f"the render site: one draw_lines (technique 0, the system renderer, indices 0..n) of {len(got)} lines: "
-          f"12 green, 122 magenta, 6 white ({dict(by_colour)}); the span's registers the original's")
+          f"12 green, 122 magenta, 6 white, the active zone's 36 red, the zone off's 12 dim red ({dict(by_colour)}); "
+          "the span's registers the original's")
+    ball = [p for c, a, b in got if c == RED for p in (a, b)]
+    zone_box_points = {rounded(game((6.0 + x, y, -20.0 + z))) for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)}
+    check(all(abs(math.dist(p, game((14.0, 0.0, -20.0))) - 3.0) < 1e-3 for p in ball)
+          and all(p in zone_box_points for c, a, b in got if c == DIM_RED for p in (a, b)),
+          "the anomalies' damage zones where their ghosts stand: the active one's sphere (radius 3) red, the box of the "
+          "one off dim red")
     corners = [(x * 1.0, y * 2.0, z * 3.0) for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)]
     box_points = {rounded(game(apply(TURNED, box_origin, p))) for p in corners}
     green = [s for s in got if s[0] == GREEN]
@@ -404,6 +439,7 @@ def main():
     new.mesh(near + [far])
     new.world([(0x2, 1, TURNED, box_origin, box), (0x8, 1, IDENTITY, compound_origin, compound),
                (0xA, 1, IDENTITY, (0.0, 0.0, 0.0), mesh)])
+    new.zones([(True, (14.0, 0.0, -20.0), zone_ball), (False, (6.0, 0.0, -20.0), zone_box)])
 
     def colours():
         return Counter(c for c, _, _ in segments(new.debug_lines()[0]))
@@ -415,7 +451,7 @@ def main():
                          "collision: solid (white) 1 in the world: stops walkers, bullets and the camera"]
           and colours() == {MAGENTA: 122, WHITE: 6},
           "collision shot: what stops bullets and the camera, the shot compound and the solid mesh; the census of those")
-    check(new.said("collision 8") == ["collision: collision [walk | shot | solid]"] + HELP
+    check(new.said("collision 8") == ["collision: collision [walk | shot | solid | anomaly]"] + HELP
           and new.frame() == [] and colours() == {MAGENTA: 122, WHITE: 6},
           "collision 8: the usage with the options, nothing changed")
     check(new.said("collision walk") == ["collision: on, walk (green + white)"] and len(new.frame()) == 3
@@ -425,9 +461,17 @@ def main():
           "collision walk again: off, nothing drawn")
     check(new.said("collision solid") == ["collision: on, solid (white)"] and len(new.frame()) == 2
           and colours() == {WHITE: 6}, "collision solid: the solid mesh alone")
-    check(new.said("collision") == ["collision: off"] and new.said("collision") == ON and len(new.frame()) == 4
+    check(new.said("collision anomaly") == ["collision: on, anomaly (red, dim when off)"]
+          and new.frame()[1:] == ["collision: anomaly (red) 2 in the world: damage zones, dim red while off"]
+          and colours() == {RED: 36, DIM_RED: 12}, "collision anomaly: the damage zones alone")
+    new.emu.mem_write(ZONES + 0x1000 + 0x124, b"\x00")    # the active zone goes off
+    new.emu.mem_write(ZONES + 0x2000 + 0x124, b"\x01")    # the other comes on
+    check(new.frame() == [] and colours() == {DIM_RED: 36, RED: 12},
+          "a zone going on and another off: read again at the same eye, their colours swapped")
+    check(new.said("collision") == ["collision: off"] and new.frame() == [] and new.debug_lines()[0] == []
+          and new.said("collision") == ON and len(new.frame()) == 5
           and new.said("collision") == ["collision: off"] and new.frame() == [] and new.debug_lines()[0] == [],
-          "collision: off from solid; again on (all), then off")
+          "collision from anomaly: off; again: on (all, its census five lines); again: off")
 
 
 if __name__ == "__main__":

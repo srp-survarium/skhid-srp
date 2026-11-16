@@ -10,18 +10,20 @@ since this doesn't give people idea on what is collision and where": draw the co
 - **`collision`** in the console (`~`) turns the view on, every group, and prints the options:
 
   ```text
-  collision: on, all (walk green, shot magenta, solid white)
-    collision walk  - what stops walking (green + white)
-    collision shot  - what stops bullets and the camera (magenta + white)
-    collision solid - what stops both (white)
-    collision       - again to turn off
+  collision: on, all (walk green, shot magenta, solid white, anomaly red)
+    collision walk    - what stops walking (green + white)
+    collision shot    - what stops bullets and the camera (magenta + white)
+    collision solid   - what stops both (white)
+    collision anomaly - anomaly damage zones (red, dim when off)
+    collision         - again to turn off
   ```
 
   `collision` again turns it off (`collision: off`).
 - **`collision walk`** shows what stops walking: the walk and solid groups. **`collision shot`**
   what stops bullets and the camera: shot and solid. **`collision solid`** the solid group alone.
+  **`collision anomaly`** the anomalies' damage zones alone.
   Typing the name that is shown turns the view off; another name switches to it. Anything else
-  prints `collision: collision [walk | shot | solid]` and the options, and changes nothing.
+  prints `collision: collision [walk | shot | solid | anomaly]` and the options, and changes nothing.
 - It works in a match, a replay and while spectating: the lines are those of the camera's player's
   physics world, around the camera. In the lobby it draws nothing.
 - Never saved: a new game starts with it off.
@@ -45,6 +47,10 @@ since this doesn't give people idea on what is collision and where": draw the co
   | shot (8) | magenta | bullets and the camera only (walkers pass) | the hittable meshes, camera walls, foliage |
   | solid (0Ah) | white | walkers, bullets and the camera | solid props |
 
+- **Anomaly damage zones** (the owner: "can we draw anomaly damage zones too?"): every damage zone
+  of the map, whatever the distance, its real shapes (spheres, boxes, cylinders, capsules) where
+  they stand: **red while it damages** (its anomaly has it on), **dim red while it is off**. A zone
+  going on or off is read again at once.
 - **Near the camera**: within 20 m of where the eye was when the lines were read. Where that
   would be more than **65536 lines** (the cap), the read takes 10 m, then 5 m; where even 5 m is
   over the cap, the first 65536 lines found are kept and the rest are not (which part is missing is

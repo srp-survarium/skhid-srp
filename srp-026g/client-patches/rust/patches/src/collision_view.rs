@@ -36,7 +36,7 @@ use crate::vostok::geometry::{Distance, Pose, WorldPoint};
 use crate::vostok::log::{self, Piece};
 use crate::vostok::shape::{Shape, Triangle, TriangleMethods, TriangleSink};
 use crate::vostok::project::PhysicsId;
-use crate::vostok::world::{Motion, PhysicsWorld, loaded_map};
+use crate::vostok::world::{Motion, PhysicsWorld, ZoneState, for_each_damage_zone, loaded_map};
 use crate::vostok::{Context, Flow, Lock, NoExit, OrigCcDelegateExecute, OrigTriangleProcess, Thread,
                     collision_view_methods_vtable_handle, collision_view_triangles_vtable_handle};
 
@@ -67,9 +67,12 @@ enum LevelGroup {
     Shot,
     /// `solid`, group 0Ah: both.
     Solid,
+    /// `anomaly`: the anomalies' damage zones (not a filter group: their
+    /// sensors' shapes).
+    Anomaly,
 }
 
-const GROUPS: [LevelGroup; 3] = [LevelGroup::Walk, LevelGroup::Shot, LevelGroup::Solid];
+const GROUPS: [LevelGroup; 4] = [LevelGroup::Walk, LevelGroup::Shot, LevelGroup::Solid, LevelGroup::Anomaly];
 
 impl LevelGroup {
     fn of(group: u16) -> Option<LevelGroup> {
@@ -86,25 +89,29 @@ impl LevelGroup {
             LevelGroup::Walk => 0,
             LevelGroup::Shot => 1,
             LevelGroup::Solid => 2,
+            LevelGroup::Anomaly => 3,
         }
     }
 
     fn name(self) -> &'static str {
-        ["walk", "shot", "solid"][self.index()]
+        ["walk", "shot", "solid", "anomaly"][self.index()]
     }
 
     /// Green, magenta and white: the same whichever of red and blue the
-    /// vertex format puts first.
+    /// vertex format puts first; red for an anomaly (LIKELY red: the
+    /// format's red is the low byte).
     fn color(self) -> LineColor {
-        [LineColor::opaque(0, 255, 0), LineColor::opaque(255, 0, 255), LineColor::opaque(255, 255, 255)][self.index()]
+        [LineColor::opaque(0, 255, 0), LineColor::opaque(255, 0, 255), LineColor::opaque(255, 255, 255), ACTIVE_ZONE]
+            [self.index()]
     }
 
     fn color_name(self) -> &'static str {
-        ["green", "magenta", "white"][self.index()]
+        ["green", "magenta", "white", "red"][self.index()]
     }
 
     fn meets(self) -> &'static str {
-        ["stops walkers only", "stops bullets and the camera only", "stops walkers, bullets and the camera"][self.index()]
+        ["stops walkers only", "stops bullets and the camera only", "stops walkers, bullets and the camera",
+         "damage zones, dim red while off"][self.index()]
     }
 }
 
@@ -114,9 +121,14 @@ impl LevelGroup {
 fn shows(only: Option<LevelGroup>, group: LevelGroup) -> bool {
     match only {
         None => true,
+        Some(LevelGroup::Anomaly) => group == LevelGroup::Anomaly,
         Some(only) => only == group || group == LevelGroup::Solid,
     }
 }
+
+/// An anomaly's damage zone while it damages, and while it is off.
+const ACTIVE_ZONE: LineColor = LineColor::opaque(255, 0, 0);
+const OFF_ZONE: LineColor = LineColor::opaque(96, 0, 0);
 
 /// The level group of a static object of one; none for anything else.
 fn level_group(group: u16, motion: Motion) -> Option<LevelGroup> {
@@ -153,13 +165,15 @@ fn push(lines: &mut LineBuffer, [ax, ay, az]: [f32; 3], [bx, by, bz]: [f32; 3], 
 
 /// How many objects of each level group the world holds.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct Census([u32; 3]);
+struct Census([u32; 4]);
 
 /// Where a read was made: the eye (the game's frame) and the world.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct ReadAt {
     eye: WorldPoint,
     world: PhysicsId,
+    /// Which damage zones were on (zone_signature).
+    zones: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -247,7 +261,8 @@ impl Collision {
     }
 
     /// The read a frame's camera at `at` makes: after a start or a filter's
-    /// change, when the eye moved more than MOVE or the world is another;
+    /// change, when the eye moved more than MOVE, a damage zone went on or
+    /// off, or the world is another;
     /// none while one is out.
     fn next_read(&mut self, at: ReadAt) -> Option<Read> {
         let (only, census) = match self.view {
@@ -255,7 +270,7 @@ impl Collision {
             View::Starting { only } => (only, true),
             View::On { only, at: last } => {
                 let moved = Distance::parse(MOVE).is_some_and(|step| !last.eye.within(at.eye, step));
-                if !moved && last.world == at.world {
+                if !moved && last.world == at.world && last.zones == at.zones {
                     return None;
                 }
                 (only, false)
@@ -315,6 +330,7 @@ fn toward(p: [f32; 3], eye: [f32; 3]) -> [f32; 3] {
 
 /// The camera's player's physics world around the eye (Bullet's frame).
 struct LiveLevel<'w, 't> {
+    thread: &'t Thread,
     world: &'w PhysicsWorld<'t>,
     eye: [f32; 3],
     triangles: TriangleMethods,
@@ -328,6 +344,7 @@ impl Level for LiveLevel<'_, '_> {
                 census.0[group.index()] += 1;
             }
         });
+        for_each_damage_zone(self.thread, |_| census.0[LevelGroup::Anomaly.index()] += 1);
         census
     }
 
@@ -344,6 +361,15 @@ impl Level for LiveLevel<'_, '_> {
                 outline(shape, &object.pose(), group.color(), &near, lines);
             }
         });
+        if shows(only, LevelGroup::Anomaly) {
+            for_each_damage_zone(self.thread, |zone| {
+                let color = match zone.state() {
+                    ZoneState::Active => ACTIVE_ZONE,
+                    ZoneState::Off => OFF_ZONE,
+                };
+                zone.for_each_shape(|pose, shape| outline(shape, &pose, color, &near, lines));
+            });
+        }
     }
 }
 
@@ -511,10 +537,11 @@ pub fn on_viewed(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let (Some(world), Some(eye)) = (player.physics_world(), WorldPoint::parse(view.eye)) else {
         return Flow::Continue;
     };
-    let at = ReadAt { eye, world: world.id() };
+    let at = ReadAt { eye, world: world.id(), zones: zone_signature(thread) };
     let Some(mut read) = STATE.with(thread, |state| state.next_read(at)) else { return Flow::Continue };
     let [x, y, z] = view.eye;
-    let level = LiveLevel { world: &world, eye: [x, y, -z], triangles: collision_view_triangles_vtable_handle() };
+    let level =
+        LiveLevel { thread, world: &world, eye: [x, y, -z], triangles: collision_view_triangles_vtable_handle() };
     let census = fill(&level, &mut read);
     let only = read.only;
     if let Some(census) = STATE.with(thread, |state| state.finish(read, census)) {
@@ -526,6 +553,15 @@ pub fn on_viewed(ctx: &mut Context<'_>) -> Flow<NoExit> {
         }
     }
     Flow::Continue
+}
+
+/// Which damage zones are on, as a number that changes when one goes on or off.
+fn zone_signature(thread: &Thread) -> u32 {
+    let mut signature = 1u32;
+    for_each_damage_zone(thread, |zone| {
+        signature = signature.wrapping_mul(31).wrapping_add(u32::from(zone.state() == ZoneState::Active));
+    });
+    signature
 }
 
 /// processAllTriangles' callback of ours: the triangle to its query.
@@ -554,22 +590,24 @@ fn tell(thread: &Thread, line: &Line) {
 }
 
 /// The options, after `collision` turns the view on and after a wrong argument.
-const HELP: [&str; 4] = [
-    "  collision walk  - what stops walking (green + white)",
-    "  collision shot  - what stops bullets and the camera (magenta + white)",
-    "  collision solid - what stops both (white)",
-    "  collision       - again to turn off",
+const HELP: [&str; 5] = [
+    "  collision walk    - what stops walking (green + white)",
+    "  collision shot    - what stops bullets and the camera (magenta + white)",
+    "  collision solid   - what stops both (white)",
+    "  collision anomaly - anomaly damage zones (red, dim when off)",
+    "  collision         - again to turn off",
 ];
 
 /// What the console is told of a command, a line each.
 fn reply_lines(reply: Reply) -> impl Iterator<Item = &'static str> {
     let (first, help): (&str, &[&str]) = match reply {
-        Reply::On(None) => ("collision: on, all (walk green, shot magenta, solid white)", &HELP),
+        Reply::On(None) => ("collision: on, all (walk green, shot magenta, solid white, anomaly red)", &HELP),
         Reply::On(Some(LevelGroup::Walk)) => ("collision: on, walk (green + white)", &[]),
         Reply::On(Some(LevelGroup::Shot)) => ("collision: on, shot (magenta + white)", &[]),
         Reply::On(Some(LevelGroup::Solid)) => ("collision: on, solid (white)", &[]),
+        Reply::On(Some(LevelGroup::Anomaly)) => ("collision: on, anomaly (red, dim when off)", &[]),
         Reply::Off => ("collision: off", &[]),
-        Reply::Usage => ("collision: collision [walk | shot | solid]", &HELP),
+        Reply::Usage => ("collision: collision [walk | shot | solid | anomaly]", &HELP),
         Reply::NoRoom => ("collision: no room for its lines, still off", &[]),
     };
     core::iter::once(first).chain(help.iter().copied())
@@ -635,7 +673,7 @@ mod tests {
     }
 
     fn at(x: f32, world: u32) -> ReadAt {
-        ReadAt { eye: WorldPoint::parse([x, 1.0, 0.0]).unwrap(), world: PhysicsId::made_up(world) }
+        ReadAt { eye: WorldPoint::parse([x, 1.0, 0.0]).unwrap(), world: PhysicsId::made_up(world), zones: 1 }
     }
 
     /// A frame's camera at `at` over `level`: the census when it read a start's.
@@ -650,7 +688,7 @@ mod tests {
     }
 
     fn fake(lines: fn(f32) -> usize) -> Fake {
-        Fake { census: Census([541, 511, 105]), lines }
+        Fake { census: Census([541, 511, 105, 12]), lines }
     }
 
     #[test]
@@ -660,6 +698,7 @@ mod tests {
         assert_eq!(Request::parse(b"walk"), Request::Only(LevelGroup::Walk));
         assert_eq!(Request::parse(b" shot "), Request::Only(LevelGroup::Shot));
         assert_eq!(Request::parse(b"SOLID"), Request::Only(LevelGroup::Solid));
+        assert_eq!(Request::parse(b"anomaly"), Request::Only(LevelGroup::Anomaly));
         for other in [&b"2"[..], b"0x8", b"a", b"walker", b"walk shot", b"all"] {
             assert_eq!(Request::parse(other), Request::Unknown, "{other:?}");
         }
@@ -703,12 +742,15 @@ mod tests {
         assert_eq!(frame(&mut s, at(0.0, 1), &level), (false, None), "off: no read");
         s.command(Request::Toggle, room);
         assert_eq!(shown(&s), 0);
-        assert_eq!(frame(&mut s, at(0.0, 1), &level), (true, Some(Census([541, 511, 105]))), "a start: its census");
+        assert_eq!(frame(&mut s, at(0.0, 1), &level), (true, Some(Census([541, 511, 105, 12]))), "a start: its census");
         assert_eq!(shown(&s), 3);
         assert_eq!(frame(&mut s, at(0.4, 1), &level), (false, None), "0.4 m on: the same lines");
         assert_eq!(frame(&mut s, at(0.6, 1), &level), (true, None), "0.6 m on: read again, no census");
         assert_eq!(frame(&mut s, at(0.6, 1), &level), (false, None));
         assert_eq!(frame(&mut s, at(0.6, 2), &level), (true, None), "another match's world");
+        let zone_off = ReadAt { zones: 2, ..at(0.6, 2) };
+        assert_eq!(frame(&mut s, zone_off, &level), (true, None), "a damage zone went on or off");
+        assert_eq!(frame(&mut s, zone_off, &level), (false, None));
         s.command(Request::Only(LevelGroup::Walk), room);
         assert_eq!(shown(&s), 0, "a filter's change: nothing until its read");
         assert!(frame(&mut s, at(0.6, 2), &level).0);
@@ -776,7 +818,9 @@ mod tests {
         assert_eq!(shown(None), GROUPS);
         assert_eq!(shown(Some(LevelGroup::Walk)), [LevelGroup::Walk, LevelGroup::Solid]);
         assert_eq!(shown(Some(LevelGroup::Shot)), [LevelGroup::Shot, LevelGroup::Solid]);
+        assert_eq!(LevelGroup::of(0x81), None, "no filter group is an anomaly's");
         assert_eq!(shown(Some(LevelGroup::Solid)), [LevelGroup::Solid]);
+        assert_eq!(shown(Some(LevelGroup::Anomaly)), [LevelGroup::Anomaly]);
     }
 
     #[test]
@@ -862,24 +906,26 @@ mod tests {
     fn what_the_console_is_told() {
         let said = |reply| reply_lines(reply).collect::<Vec<_>>();
         assert_eq!(said(Reply::On(None)), [
-            "collision: on, all (walk green, shot magenta, solid white)",
-            "  collision walk  - what stops walking (green + white)",
-            "  collision shot  - what stops bullets and the camera (magenta + white)",
-            "  collision solid - what stops both (white)",
-            "  collision       - again to turn off",
+            "collision: on, all (walk green, shot magenta, solid white, anomaly red)",
+            "  collision walk    - what stops walking (green + white)",
+            "  collision shot    - what stops bullets and the camera (magenta + white)",
+            "  collision solid   - what stops both (white)",
+            "  collision anomaly - anomaly damage zones (red, dim when off)",
+            "  collision         - again to turn off",
         ]);
+        assert_eq!(said(Reply::On(Some(LevelGroup::Anomaly))), ["collision: on, anomaly (red, dim when off)"]);
         assert_eq!(said(Reply::On(Some(LevelGroup::Walk))), ["collision: on, walk (green + white)"]);
         assert_eq!(said(Reply::On(Some(LevelGroup::Shot))), ["collision: on, shot (magenta + white)"]);
         assert_eq!(said(Reply::On(Some(LevelGroup::Solid))), ["collision: on, solid (white)"]);
         assert_eq!(said(Reply::Off), ["collision: off"]);
-        assert_eq!(said(Reply::Usage)[0], "collision: collision [walk | shot | solid]");
+        assert_eq!(said(Reply::Usage)[0], "collision: collision [walk | shot | solid | anomaly]");
         assert_eq!(said(Reply::Usage)[1..], HELP);
         assert_eq!(said(Reply::NoRoom), ["collision: no room for its lines, still off"]);
-        let census: Vec<_> = [None, Some(LevelGroup::Walk), Some(LevelGroup::Shot), Some(LevelGroup::Solid)]
-            .into_iter()
+        let census: Vec<_> = core::iter::once(None)
+            .chain(GROUPS.map(Some))
             .map(|group| {
                 let mut line = Line::new();
-                describe_census(Census([541, 511, 105]), group, &mut line);
+                describe_census(Census([541, 511, 105, 12]), group, &mut line);
                 line.text().to_string()
             })
             .collect();
@@ -888,6 +934,7 @@ mod tests {
             "collision: walk (green) 541 in the world: stops walkers only",
             "collision: shot (magenta) 511 in the world: stops bullets and the camera only",
             "collision: solid (white) 105 in the world: stops walkers, bullets and the camera",
+            "collision: anomaly (red) 12 in the world: damage zones, dim red while off",
         ]);
     }
 
