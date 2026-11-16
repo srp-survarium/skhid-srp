@@ -1,5 +1,5 @@
 {
-  "_about": "Two level-15 backpacks' new bonuses (the owner, 2026-11-16). Modification 1052: three ammo bags (parameters/ammo_bags_modifier +3), made like 1051 (type 17, never rolled: drop weight 0, card property 20), for the Backpack for ammo (eq046_bm_back_10). Modification 1320: artefact actives last 15 % longer (parameters/artefact_duration_modifier +0.15, player modifier 39, the Knowledge of Artifacts skill's), type 42, a type of its own (never rolled), card property 176 \"Artifact active time\" (a percentage, higher is better, made like 103), for the Pilgrim container (edge_back_6). An armour item makes a player modifier of each of its 68 parameters that is not 0, as a booster does (the armour's constructor 0x33EAA0, its 0x44 loop over item+0x108), and the item cook skips a modifier whose key the config lacks, so the Pilgrim's config gets the key at 0. armor.tsv says who has them, modifications.tsv holds their values.",
+  "_about": "Two level-15 backpacks' new bonuses (the owner, 2026-11-16). Modification 1052: three ammo bags (parameters/ammo_bags_modifier +3), made like 1051 (type 17, never rolled: drop weight 0, card property 20), for the Backpack for ammo (eq046_bm_back_10). Modification 1320: artefact actives last 15 % longer (parameters/artefact_duration_modifier +0.15, player modifier 39, the Knowledge of Artifacts skill's), type 42, a type of its own (never rolled), card property 176 \"Artifact active time\" (a percentage, higher is better, made like 103), for the Pilgrim container (edge_back_6). An armour item makes a player modifier of each of its 68 parameters that is not 0, as a booster does (the armour's constructor 0x33EAA0, its 0x44 loop over item+0x108), and the item cook skips a modifier whose key the config lacks, so the Pilgrim's config gets the key at 0. Modification 1340: the Pilgrim gives its wearer the artefact skill Resonance (541; the owner, 2026-11-16: with Cascade too, the tree's either/or left as it is): parameters/artefact_power_modifier +16, the skill's own bit of modifier 40, type 43, a type of its own (never rolled), card property 177 (the skill's name, +1, made like 20). No config has that key, so the item cook skips it and the exe adds nothing; srp sets the bit into the wearer's kit modifier 40 (loadouts::give_worn_skills), so one who has the skill gets nothing more. armor.tsv says who has them, modifications.tsv holds their values.",
   "add_entry": [
     {
       "files": "gameplay/static_game_parameters.options",
@@ -7,6 +7,13 @@
       "after": {"prop_id": 173},
       "like": {"prop_id": 103},
       "values": {"prop_id": 176, "prop_name": "st_srp_inv_artefact_duration"}
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {"prop_id": 176},
+      "like": {"prop_id": 20},
+      "values": {"prop_id": 177, "prop_name": "st_srp_artefact_541_name"}
     }
   ],
   "append_entry": [
@@ -49,6 +56,27 @@
         "id": 1320,
         "modifiers": [
           {"path": ["parameters", "artefact_duration_modifier"], "value": 0.15, "type": 1}
+        ]
+      }
+    },
+    {
+      "file": "gameplay/items/modifications/modifications.options",
+      "list": "modifications",
+      "expected_count": 164,
+      "unique_key": "id",
+      "value": {
+        "drop_weight": 0,
+        "lobby_info": {"artefact_power_modifier": 16},
+        "ui_desc": {
+          "name": "st_srp_artefact_541_name",
+          "icon": 13,
+          "props_list": [{"prop_value": "1", "prop_id": 177}]
+        },
+        "type_mask": "00000000000000000000000000000000000000000001",
+        "type_requirements_mask": "00000000000000000000000000000000000000000001",
+        "id": 1340,
+        "modifiers": [
+          {"path": ["parameters", "artefact_power_modifier"], "value": 16, "type": 1}
         ]
       }
     }

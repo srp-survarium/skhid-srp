@@ -1366,6 +1366,8 @@ STATS = {
             'artefact_search': default_modification(113),
             # player modifier 39, as the Knowledge of Artifacts skill's: an active's duration
             'artefact_duration': default_modification(132),
+            # the artefact skill Resonance: srp sets its bit into the wearer's modifier 40 (no config has the key)
+            'resonance': default_modification(134),
             'experience': default_modification(124),
             'rep_scav': default_modification(125),
             'rep_bm': default_modification(126),
@@ -1374,7 +1376,8 @@ STATS = {
         },
         'match': {'armor', 'ano', 'arms', 'back', 'weight', 'oxygen_s', 'pockets', 'artefact_slots', 'ammo_bags',
                   'accuracy', 'aim', 'max_weight', 'health_regen', 'stamina_regen', 'movement', 'artefact_search',
-                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size', 'sway', 'artefact_duration'},
+                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size', 'sway', 'artefact_duration',
+                  'resonance'},
         'cards': armour_card,
     },
     'medicines': {

@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
 use survarium::v026g::keeper;
+use survarium::v026g::loadouts::give_worn_skills;
 use survarium::v026g::twist::{Armed, Played};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, GameMode};
@@ -518,6 +519,7 @@ impl MatchRegistry {
                 .map(|player| {
                     let mut profile = player.profile;
                     played.arm(&mut profile);
+                    give_worn_skills(&mut profile);
                     keeper::give(&mut profile, keeper);
                     profile
                 })
@@ -678,6 +680,7 @@ impl MatchRegistry {
         next.profiles.extend(players.iter().map(|player| {
             let mut profile = player.profile.clone();
             next.played.arm(&mut profile);
+            give_worn_skills(&mut profile);
             gift(&mut profile, next.keeper);
             profile
         }));

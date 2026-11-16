@@ -694,6 +694,32 @@ fn added_by(modifications: &[(u32, bool)], parameter: &str) -> f32 {
         .sum()
 }
 
+/// Every kit of `profile` given the artefact tree's exe skills its items'
+/// modifications give (their defaults and their own: the Pilgrim container's
+/// Resonance), set into its modifier 40 beside its own skills: one it has
+/// already gives nothing more, and it stacks with the others, Cascade too (the
+/// owner, 2026-11-16).
+pub fn give_worn_skills(profile: &mut MatchProfile) {
+    let table = super::modifications::Modifications::shared();
+    let at = skills::modifier_index("artefact_power").expect("artefact_power is a modifier");
+    for kit in &mut profile.kits {
+        let given = kit
+            .slots
+            .iter()
+            .flatten()
+            .filter_map(|&(index, _)| profile.items.get(usize::from(index)))
+            .flat_map(|item| {
+                let own = item.modifications.iter().copied();
+                default_modifications(item.dict_id).into_iter().chain(own)
+            })
+            .filter_map(|(id, defect)| table.modification(id).filter(|_| !defect))
+            .fold(skills::ArtefactSkills::default(), |given, row| {
+                given.with(row.artefact_skills)
+            });
+        kit.modifiers[at] = given.set_into(kit.modifiers[at]);
+    }
+}
+
 /// The dictionary category of medicine: Additional Medicine's pockets.
 const MEDICINE_CATEGORY: u8 = 10;
 

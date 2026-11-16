@@ -80,6 +80,7 @@ use super::game_data::{GameData, GameDataError};
 use super::item_params::item_params;
 use super::prices::GOLD_IN_SILVER;
 use super::scopes::{SCOPE_SLOT, ScopeFits};
+use super::skills::ArtefactSkills;
 
 /// The paths of the three files in the archive.
 pub const MODIFICATIONS_PATH: &str = "gameplay/items/modifications/modifications.options";
@@ -162,11 +163,20 @@ pub struct Modification {
     /// The localization key of its name (`ui_desc.name`).
     pub name: String,
     pub modifiers: Vec<Modifier>,
+    /// The artefact tree's exe skills it gives its wearer: its added (type 1)
+    /// [`ARTEFACT_SKILLS_PATH`] modifier, which no item config has, so the
+    /// client's item cook skips it and srp sets it into the kit's modifier 40
+    /// ([`super::loadouts::give_worn_skills`]).
+    pub artefact_skills: ArtefactSkills,
     /// `lobby_info`: what the lobby shows it changes, by its own names.
     pub lobby_info: Vec<(String, f32)>,
     /// What the lobby prints for it.
     pub shown: Shown,
 }
+
+/// The modifier path of the exe skills a modification gives
+/// ([`Modification::artefact_skills`]), the skills tree's key of modifier 40.
+pub const ARTEFACT_SKILLS_PATH: &str = "parameters/artefact_power_modifier";
 
 /// A modification's line in the lobby: `ui_desc.props_list`'s one row, a
 /// property of [`super::ui_properties`] and the value printed beside it,
@@ -335,6 +345,25 @@ fn modifiers(row: &ConfigValue) -> Result<Vec<Modifier>, ConfigError> {
             })
         })
         .collect()
+}
+
+/// [`Modification::artefact_skills`] of its `modifiers`: each
+/// [`ARTEFACT_SKILLS_PATH`] one added (type 1) and naming only such skills.
+fn artefact_skills_of(modifiers: &[Modifier]) -> Result<ArtefactSkills, ConfigError> {
+    modifiers
+        .iter()
+        .filter(|modifier| modifier.path == ARTEFACT_SKILLS_PATH)
+        .try_fold(ArtefactSkills::default(), |skills, modifier| {
+            ArtefactSkills::parse(modifier.value)
+                .filter(|_| modifier.kind == 1)
+                .map(|given| skills.with(given))
+                .ok_or_else(|| {
+                    ConfigError(format!(
+                        "`{ARTEFACT_SKILLS_PATH}` {} of type {} gives no artefact skill",
+                        modifier.value, modifier.kind
+                    ))
+                })
+        })
 }
 
 fn name_of(row: &ConfigValue) -> Result<String, ConfigError> {
@@ -597,12 +626,14 @@ impl Modifications {
             .children()
             .into_iter()
             .map(|row| {
+                let modifiers = modifiers(row)?;
                 Ok(Modification {
                     id: number(row.req("id")?)?,
                     kind: kind_of(row)?,
                     drop_weight: row.f32_at("drop_weight")?,
                     name: name_of(row)?,
-                    modifiers: modifiers(row)?,
+                    artefact_skills: artefact_skills_of(&modifiers)?,
+                    modifiers,
                     lobby_info: row
                         .req("lobby_info")?
                         .entries()

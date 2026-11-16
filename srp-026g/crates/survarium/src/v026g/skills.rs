@@ -44,7 +44,9 @@
 //! itself are item effects only (weapon, battery, medkit). So srp sums the
 //! skills into the block and nothing of the items: an item's modifications
 //! the client applies from its own tables (`static_info.md` section 10,
-//! PROVEN in the exe; not tried live).
+//! PROVEN in the exe; not tried live). One exception: the artefact tree's exe
+//! skills an item gives ([`ArtefactSkills`]), which only modifier 40 of the
+//! block carries.
 
 use binary_config_parser::tree::{ConfigError, ConfigValue};
 
@@ -93,6 +95,36 @@ pub mod slot_modifier {
     /// The bit of [`MEDICAL_RANKS`] that is Additional Medicine (322).
     pub const ADDITIONAL_MEDICINE_BIT: u32 = 15;
     pub const DISABLE_SECOND_WEAPON: usize = 64;
+}
+
+/// The artefact tree's on/off exe skills in modifier 40 (`artefact_power`, packed bits, exe patch
+/// 109; artefact-skills.md "Transport"): Keeper (bit 3), Resonance (4), Spring II (5), Onyx II
+/// (6), Larkspur II (7), Cascade (8), Artifact Sight (12). What a worn item gives its wearer
+/// ([`super::modifications::Modification::artefact_skills`]: the Pilgrim container's Resonance),
+/// set into the kit's modifier 40 as bits, never added: a kit with the skill gets nothing more.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ArtefactSkills(u32);
+
+impl ArtefactSkills {
+    /// Modifier 40's bits that are such a skill: not Resistance's rank (0..2), the match's
+    /// Keeper draw (9..11) nor the late joiner's mark (13), which srp writes.
+    const BITS: u32 = 0x1F8 | 1 << 12;
+
+    /// A config value naming only such skills, as the skills tree's own (Resonance's 16).
+    pub fn parse(value: f32) -> Option<Self> {
+        let bits = value as u32;
+        (bits as f32 == value && bits & !Self::BITS == 0).then_some(Self(bits))
+    }
+
+    pub fn with(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    /// Modifier 40 (`artefact_power`, the skills tree's sum: an exact integer) with these skills
+    /// set.
+    pub fn set_into(self, artefact_power: f32) -> f32 {
+        (artefact_power as u32 | self.0) as f32
+    }
 }
 
 /// The suffix every modifier's key has in the configs.
@@ -566,6 +598,21 @@ mod tests {
         assert!((both[4] - 0.05).abs() < 1e-6);
         assert_eq!(modifier_mask(&both).count_ones(), 2);
         assert_eq!(tree.modifiers(&[]), [0.0; MODIFIERS]);
+    }
+
+    #[test]
+    fn an_items_artefact_skills_are_bits_set_once() {
+        let resonance = ArtefactSkills::parse(16.0).unwrap();
+        assert_eq!(resonance.set_into(0.0), 16.0);
+        assert_eq!(resonance.set_into(16.0), 16.0);
+        // Cascade 256, Resistance 5 and the Keeper draw 3: kept beside it.
+        assert_eq!(resonance.set_into(256.0 + 5.0 + 1536.0), 1813.0);
+        let more = resonance.with(ArtefactSkills::parse(4096.0 + 8.0).unwrap());
+        assert_eq!(more.set_into(0.0), 4120.0);
+        // A rank, a draw, the late mark, a fraction, a negative: no skill an item gives.
+        for bad in [1.0, 512.0, 8192.0, 16.5, -16.0, f32::NAN, 1e10] {
+            assert_eq!(ArtefactSkills::parse(bad), None, "{bad}");
+        }
     }
 
     #[test]

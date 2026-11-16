@@ -67,7 +67,10 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   in the patch); invalid (fractional, negative, too large, a rank past its levels) is no
   artefact skill at all. Bits: 0..2 Resistance (0..5), 3 Keeper, 4 Resonance, 5 Spring II,
   6 Onyx II, 7 Larkspur II, 8 Cascade, 9..11 Keeper's draw, 12 Artifact Sight, 13 a late
-  joiner's kit (srp's mark, not a skill: Keeper below).
+  joiner's kit (srp's mark, not a skill: Keeper below). The patch reads the current kit's own
+  float (the profile's kit modifiers +A0h, as the static info gives it), not the getter's sum
+  with the item modifiers the exe adds; srp also sets the skills a worn item gives (the Pilgrim's
+  Resonance, below).
 - Modifier 40 evidence (the exact 0.26g exe, 2026-11-05): all 94 calls of `apply_modifier` and
   its wrapper 0x2D5B80 resolve to an index, none 40; `artefact_power_modifier` is referenced
   only by the two name tables (0x9284E8, 0x9C9C88); no other config, edit list or code
@@ -394,6 +397,15 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   `antiskills`, as the other trees' last rows). A carrier shares by its own skill only; a
   recipient can still take passives from one teammate's Resonance and actives from another's
   Cascade.
+- The Pilgrim container (`back/edge_back_6`) gives its wearer Resonance (the owner, 2026-11-16):
+  with Cascade the wearer has both, on purpose; the tree and its either/or stay as they are.
+  Its built-in 1340 (`backpack-bonuses-1.json`, card line property 177: "Resonance: +1") is
+  `parameters/artefact_power_modifier` +16, the skill's own key and bit. No item config has the
+  key, so the item cook skips it and the exe adds nothing (an added modifier would sum 16 + 16
+  into Spring II's 32). srp reads it from the game data (`Modification::artefact_skills`, refused
+  at load unless type 1 and only on/off skill bits) and sets it into modifier 40 of every kit
+  wearing it, as bits (`loadouts::give_worn_skills`, at the match's making and each join, bots
+  too): one with Resonance already gets nothing more. Patch 109 reads the kit's value as before.
 - The II skills go with the copy, by its holder's skill (the owner, 2026-11-12): Spring II's
   reload nodes are the Spring's own, shared as its others (Resonance the passive's, Cascade the
   active's); Onyx II and Larkspur II act at the active, so Cascade shares them (their sections
