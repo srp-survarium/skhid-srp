@@ -147,13 +147,15 @@ pub struct Stats {
     /// Frames over [`CEILING`], held to it.
     pub limited: u32,
 }
-/// The loudest a speaker is played, as the RMS of a 20 ms frame (-12 dBFS).
-/// A game's microphone goes through automatic gain (`codec::Preprocessor`)
-/// and never reaches it held: decoded, its frames measured -13.6 dBFS at
-/// most at the highest sensitivity and a full-scale voice, -19 dBFS at the
-/// default. Only a stream that skipped the gain is held to it (a full-scale
-/// square wave decodes at -0.3 dBFS), and the gain's first fifth of a
-/// second after a sudden shout at the highest sensitivity (up to -8 dBFS).
+/// The loudest a speaker is played, as the RMS of a 20 ms frame (-12 dBFS),
+/// whatever its leveller made of it. A game's microphone goes through
+/// automatic gain (`codec::Preprocessor`): decoded, its frames measured
+/// -13.6 dBFS at most at the highest sensitivity and a full-scale voice,
+/// -19 dBFS at the default. Held to it are a stream that skipped the gain
+/// (a full-scale square wave decodes at -0.3 dBFS), the gain's first fifth
+/// of a second after a sudden shout (up to -8 dBFS), and a frame or two of
+/// a speaker the leveller had raised when it got louder at once. So a held
+/// frame ([`Stats::limited`]) is no sign of a changed game.
 const CEILING: f32 = 0.25;
 /// After a frame over [`CEILING`], the gain comes back 0.5 dB a frame.
 const RELEASE: f32 = 1.059_3;
@@ -184,70 +186,126 @@ impl Limiter {
         over
     }
 }
-/// The frames of a speaker's voice the leveller goes by: its last 3 s of them.
+/// The frames of a speaker's voice the leveller keeps: its last 3 s of them.
 const LEVEL_FRAMES: usize = 150;
 /// A frame quieter than this (dB of full scale, its RMS) is no voice: it
-/// is not counted.
+/// is never counted.
 const LEVEL_GATE_DB: f32 = -55.;
-/// The frames counted before a speaker is levelled at all (100 ms): its
-/// first frames are a word's onset, quieter than the word.
+/// The frames counted before a speaker is levelled at all (100 ms).
 const LEVEL_LEARNT: usize = 5;
-/// The level every speaker is brought to (dB of full scale: the mean level
-/// of the loudest third of its frames): where the automatic gain puts a
-/// microphone at the default "Microphone sensitivity", so such a talker
-/// plays as decoded.
+/// The frames counted from which a speaker's voice is known (half a second
+/// of it): from then on a frame [`LEVEL_SPAN_DB`] under its level is its
+/// pause or its room, and is not counted.
+const LEVEL_KNOWN: usize = 25;
+const LEVEL_SPAN_DB: f32 = 12.;
+/// Each frame not counted so lets the next be this much quieter and still
+/// count (1 dB a second), until one is counted: a speaker who really has
+/// become that much quieter is learnt again, a key held without a word for
+/// a few seconds changes nothing.
+const LEVEL_LEAK_DB: f32 = 0.02;
+/// The newest counted frames the level also goes by, so that a voice that
+/// gets louder (the talker's own gain coming up, a first word after its
+/// room) is followed within a few frames.
+const LEVEL_RECENT: usize = 10;
+/// The level every speaker is brought to, dB of full scale (of the
+/// leveller's measure, [`Leveller::level`]): about a dB over where the
+/// automatic gain puts a usual microphone.
 pub(crate) const LEVEL_TARGET_DB: f32 = -20.;
 /// The most a speaker is raised and lowered to reach it, dB.
-const LEVEL_MOST_DB: f32 = 20.;
+const LEVEL_MOST_DB: f32 = 12.;
 const LEVEL_LEAST_DB: f32 = -12.;
+/// How fast a speaker is raised over its decoded level, dB a frame (6 dB a
+/// second): slower than the talker's own gain comes up (24), so the two do
+/// not overshoot together, and slow enough that what is not yet known to be
+/// a voice (a room before the first word) is hardly raised. Lowered, and
+/// brought back up to its decoded level, it is at once.
+const LEVEL_RISE_DB: f32 = 0.12;
 /// Every speaker at one loudness for the listener (the owner, 2026-11-16:
 /// "we should either way have a way to bring people with lower sensitivity
 /// to sound the same for receivers", "equalize everyone essentially"). The
-/// talker's own automatic gain does it only as far as its microphone and its
-/// "Microphone sensitivity" let it; here the listener's game measures each
-/// speaker's voice, the loudest third of its last [`LEVEL_FRAMES`] frames
-/// above [`LEVEL_GATE_DB`] (its pauses and its room are the quiet ones), and
-/// plays it [`LEVEL_TARGET_DB`] loud, before the 10 m voice's gains and the
-/// radio alike. What it has learnt of a speaker stays from one utterance to
-/// the next.
+/// talker's own automatic gain does it only as far as its microphone lets
+/// it; here the listener's game measures each speaker's voice and plays it
+/// [`LEVEL_TARGET_DB`] loud, before the 10 m voice's gains and the radio
+/// alike. What it has learnt of a speaker stays from one utterance to the
+/// next.
+///
+/// It goes by frames that are the speaker's voice, as far as levels can
+/// tell: louder than [`LEVEL_GATE_DB`] and, once the voice is known, not
+/// [`LEVEL_SPAN_DB`] under it. A room louder than that under a voice is
+/// counted with it (a microphone with less than 12 dB between them), and a
+/// key held without a word then raises it, [`LEVEL_MOST_DB`] at most.
 #[derive(Clone, Copy)]
-struct Leveller {
+pub(crate) struct Leveller {
     /// The counted frames' levels, dB: a ring of the last ones.
     frames: [f32; LEVEL_FRAMES],
     count: usize,
     next: usize,
-    /// The gain the last frame ended at: the next ramps from it.
+    /// How much quieter than [`LEVEL_SPAN_DB`] under the level a frame may
+    /// be and count ([`LEVEL_LEAK_DB`]).
+    leak: f32,
+    /// The gain the last frame ended at, dB: the next ramps from it.
     gain: f32,
 }
 impl Leveller {
-    const NEW: Self = Self { frames: [0.; LEVEL_FRAMES], count: 0, next: 0, gain: 1. };
-    /// The speaker's level, once enough of its voice was heard.
+    pub(crate) const NEW: Self = Self { frames: [0.; LEVEL_FRAMES], count: 0, next: 0, leak: 0., gain: 0. };
+    /// The level a quarter of `frames` are at or over.
+    fn quarter(frames: &mut [f32]) -> f32 {
+        frames.sort_unstable_by(|a, b| b.total_cmp(a));
+        frames[(frames.len() - 1) / 4]
+    }
+    /// The level a quarter of the speaker's counted frames are at or over:
+    /// its voice's, which a few loud frames (a thump) do not make.
+    fn voice(&self) -> f32 {
+        let mut all = self.frames;
+        Self::quarter(&mut all[..self.count])
+    }
+    /// The speaker's level, once enough of its voice was heard: its
+    /// [`Leveller::voice`], or that of its newest frames when they are
+    /// louder.
     fn level(&self) -> Option<f32> {
         if self.count < LEVEL_LEARNT {
             return None;
         }
-        let mut heard = self.frames;
-        let heard = &mut heard[..self.count];
-        heard.sort_unstable_by(|a, b| b.total_cmp(a));
-        let loudest = &heard[..self.count.div_ceil(3)];
-        Some(loudest.iter().sum::<f32>() / loudest.len() as f32)
+        let mut recent = [0.; LEVEL_RECENT];
+        let recent = &mut recent[..self.count.min(LEVEL_RECENT)];
+        for (back, level) in recent.iter_mut().enumerate() {
+            *level = self.frames[(self.next + LEVEL_FRAMES - 1 - back) % LEVEL_FRAMES];
+        }
+        Some(self.voice().max(Self::quarter(recent)))
     }
-    fn apply(&mut self, pcm: &mut [f32; FRAME]) {
+    /// The gain the last frame ended at, dB.
+    #[cfg(test)]
+    pub(crate) fn gain_db(&self) -> f32 {
+        self.gain
+    }
+    pub(crate) fn apply(&mut self, pcm: &mut [f32; FRAME]) {
         let power = pcm.iter().map(|x| x * x).sum::<f32>() / FRAME as f32;
         let db = 10. * power.log10();
         // (A frame of no number, or of silence, is no voice either.)
         if db > LEVEL_GATE_DB {
-            self.frames[self.next] = db;
-            self.next = (self.next + 1) % LEVEL_FRAMES;
-            self.count = (self.count + 1).min(LEVEL_FRAMES);
+            // How far under the known voice it is; before the voice is
+            // known every frame over the gate is taken for it.
+            let under = if self.count >= LEVEL_KNOWN { self.voice() - LEVEL_SPAN_DB - db } else { 0. };
+            if under > self.leak {
+                self.leak += LEVEL_LEAK_DB;
+            } else {
+                self.frames[self.next] = db;
+                self.next = (self.next + 1) % LEVEL_FRAMES;
+                self.count = (self.count + 1).min(LEVEL_FRAMES);
+                // (Counted only by the leak: the leak stays, so that the
+                // frames after it count too.)
+                if under <= 0. {
+                    self.leak = 0.;
+                }
+            }
         }
-        let to = self.level().map_or(1., |level| {
-            10f32.powf((LEVEL_TARGET_DB - level).clamp(LEVEL_LEAST_DB, LEVEL_MOST_DB) / 20.)
-        });
+        let want = self.level().map_or(0., |level| (LEVEL_TARGET_DB - level).clamp(LEVEL_LEAST_DB, LEVEL_MOST_DB));
+        let to = if want > self.gain { want.min(self.gain.max(0.) + LEVEL_RISE_DB) } else { want };
         let from = std::mem::replace(&mut self.gain, to);
-        if from == 1. && to == 1. {
+        if from == 0. && to == 0. {
             return;
         }
+        let (from, to) = (10f32.powf(from / 20.), 10f32.powf(to / 20.));
         let step = (to - from) / FRAME as f32;
         for (i, sample) in pcm.iter_mut().enumerate() {
             *sample *= from + step * (i + 1) as f32;

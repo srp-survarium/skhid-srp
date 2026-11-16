@@ -939,7 +939,7 @@ fn speech_through_the_automatic_gain_is_never_held() {
         let (levels, core) = played(&frames);
         // (The sudden shout: its first frames, raised as the quiet voice
         // before it was, are held until the levels catch up.)
-        let most = if after > before { 10 } else { 0 };
+        let most = if after > before { 4 } else { 0 };
         assert!(core.stats().limited <= most, "{sensitivity} {before} {after}: {}", core.stats().limited);
         assert!(levels.iter().any(|&db| db > -30.));
     }
@@ -989,15 +989,15 @@ fn a_stream_that_skipped_the_automatic_gain_is_held_at_the_ceiling() {
     // Its first frames are held there; then the leveller, which has learnt
     // how loud it is, turns it down as far as it turns anyone (12 dB), and
     // the ceiling has nothing left to hold.
-    assert!(core.stats().limited >= 3, "{:?}", core.stats().limited);
+    assert!((3..=10).contains(&core.stats().limited), "{:?}", core.stats().limited);
     assert!(levels[20..].iter().all(|&db| db - mix_gain < -12.), "{levels:?}");
 }
 #[test]
-fn a_new_utterance_starts_at_unity() {
+fn a_new_utterance_is_not_held_by_the_last_ones_ceiling() {
     // A loud utterance held at the ceiling, then a quiet one: the quiet one
     // is not played at the gain the ceiling left the loud one at (it would
-    // come back 0.5 dB a frame): it is steady from its first frame, at what
-    // the leveller has learnt of the speaker.
+    // come back 0.5 dB a frame, 5 dB over these ten frames): the ceiling
+    // holds none of it, and it does not swell.
     let mut encoder = Encoder::new().unwrap();
     let loud: Vec<Vec<u8>> = (0..4)
         .map(|f| {
@@ -1123,8 +1123,9 @@ fn what_is_learnt_of_a_speaker_stays_and_goes_with_its_slot() {
     let mut now = 0;
     let first = utterance(&mut core, 1, &mut now);
     let second = utterance(&mut core, 2, &mut now);
-    // The first begins as decoded and ends raised; the second begins raised.
-    assert!(first[first.len() - 1] - first[1] > 10., "{first:?}");
+    // The first begins as decoded and is raised as it goes (6 dB a second);
+    // the second begins where the first ended.
+    assert!(first[first.len() - 1] - first[1] > 1.5, "{first:?}");
     assert!((second[1] - first[first.len() - 1]).abs() < 1., "{first:?} {second:?}");
     core.reset_slot(3);
     let other = utterance(&mut core, 1, &mut now);
@@ -1253,4 +1254,90 @@ fn a_frame_that_did_not_come_is_played_from_the_next_ones_copy() {
     let mut plain = Encoder::with(BITRATE, 0).unwrap();
     let next = (0..=lost + 1).map(|f| plain.encode(&sound(f)).unwrap()).last().unwrap();
     assert!(energy(decoded_to(lost).recover(&next).unwrap()) < whole / 4.);
+}
+/// A speaker's leveller given frames of these levels (dB of full scale,
+/// white noise of that RMS): the gain each frame ended at, dB.
+fn levelled(leveller: &mut receiver::Leveller, levels: impl IntoIterator<Item = f32>) -> Vec<f32> {
+    let mut random = 0x1357_9bdfu32;
+    levels
+        .into_iter()
+        .map(|db| {
+            // Uniform noise of amplitude a has an RMS of a / sqrt(3).
+            let amplitude = 10f32.powf(db / 20.) * 3f32.sqrt();
+            let mut pcm: [f32; FRAME] = std::array::from_fn(|_| {
+                random = random.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                ((random >> 8) as f32 / 8_388_608. - 1.) * amplitude
+            });
+            leveller.apply(&mut pcm);
+            leveller.gain_db()
+        })
+        .collect()
+}
+/// The gain that brings a voice of this level to the leveller's.
+fn level_gain(db: f32) -> f32 {
+    receiver::LEVEL_TARGET_DB - db
+}
+#[test]
+fn a_room_before_the_first_word_is_hardly_raised_and_the_word_is_not_too_loud() {
+    // The key down half a second before the word, the room over the gate
+    // (the review of #2111: it was raised 20 dB at once, and the word after
+    // it came 14 dB over its level until the ceiling ducked it).
+    let mut leveller = receiver::Leveller::NEW;
+    let room = levelled(&mut leveller, [-54.; 25]);
+    assert!(room.iter().all(|&gain| (0.0..=3.1).contains(&gain)), "{room:?}");
+    let word = levelled(&mut leveller, [-26.; 50]);
+    // Never over what the word needs but for its first frames, and those by 3 dB.
+    assert!(word[..3].iter().all(|&gain| gain <= level_gain(-26.) + 0.1 && gain <= 3.4), "{word:?}");
+    assert!(word[3..].iter().all(|&gain| gain <= level_gain(-26.) + 0.1), "{word:?}");
+    // And it gets there: 6 dB up within a second.
+    assert!((word[49] - level_gain(-26.)).abs() < 0.5, "{word:?}");
+}
+#[test]
+fn a_key_held_without_a_word_does_not_make_the_room_the_voice() {
+    // Three seconds of a voice, five of its room 20 dB under it, the voice
+    // again: the gain stays the voice's (it went to the room's, 16 dB up).
+    let mut leveller = receiver::Leveller::NEW;
+    let voice = levelled(&mut leveller, [-24.; 150]);
+    let settled = voice[149];
+    assert!((settled - level_gain(-24.)).abs() < 0.5, "{settled}");
+    let room = levelled(&mut leveller, [-44.; 250]);
+    assert!(room.iter().all(|&gain| (gain - settled).abs() < 0.1), "{room:?}");
+    let again = levelled(&mut leveller, [-24.; 25]);
+    assert!(again.iter().all(|&gain| (gain - settled).abs() < 0.3), "{again:?}");
+    // A speaker who has really become that much quieter is learnt again,
+    // in its time: raised as far as anyone is after half a minute of
+    // nothing louder.
+    let quieter = levelled(&mut leveller, [-44.; 1500]);
+    assert!(quieter[1499] > 11.9, "{}", quieter[1499]);
+}
+#[test]
+fn a_voice_whose_own_gain_is_still_coming_up_is_not_raised_past_its_level() {
+    // A quiet microphone's first utterance of a match: the talker's gain
+    // brings it from -52 to -26 dB at 24 dB a second, then it is steady.
+    // The leveller, which heard it quiet, must not still be raising it when
+    // it arrives (it was 8 dB too loud for half a second).
+    let mut leveller = receiver::Leveller::NEW;
+    let levels: Vec<f32> = (0..150).map(|frame| (-52. + 0.48 * frame as f32).min(-26.)).collect();
+    let gains = levelled(&mut leveller, levels.iter().copied());
+    for (frame, (&gain, &db)) in gains.iter().zip(&levels).enumerate() {
+        // (Its level is that of a quarter of its newest frames: 3 behind a rise.)
+        assert!(gain <= level_gain(db).max(0.) + 2., "frame {frame}: {gain} at {db}");
+    }
+    assert!((gains[149] - level_gain(-26.)).abs() < 0.5, "{}", gains[149]);
+}
+#[test]
+fn a_thump_does_not_keep_a_speaker_quiet() {
+    // 80 ms at full scale as a speaker's first frames, then its voice: at
+    // its own gain within half a second (it took 3 s and more).
+    let mut leveller = receiver::Leveller::NEW;
+    levelled(&mut leveller, [-1.; 4]);
+    let voice = levelled(&mut leveller, [-18.; 50]);
+    assert!(voice[..12].iter().all(|&gain| gain <= level_gain(-18.) + 0.1), "{voice:?}");
+    assert!(voice[25..].iter().all(|&gain| (gain - level_gain(-18.)).abs() < 0.5), "{voice:?}");
+    // And one in the middle of a known voice: down for its moment only.
+    let mut leveller = receiver::Leveller::NEW;
+    let settled = levelled(&mut leveller, [-18.; 100])[99];
+    levelled(&mut leveller, [-1.; 4]);
+    let after = levelled(&mut leveller, [-18.; 25]);
+    assert!(after[12..].iter().all(|&gain| (gain - settled).abs() < 0.5), "{after:?}");
 }
