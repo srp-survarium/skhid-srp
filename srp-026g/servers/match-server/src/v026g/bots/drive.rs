@@ -2159,7 +2159,15 @@ fn drive_tick_inner(
         bot.bench_stepped = 0;
         bot.bench_keys_from = 0;
     }
-    let stepped = if aiming_still {
+    // [#2081] On a fallback route by a team trap the body walks tight: no side step, no weave (`traps::walks_tight`).
+    let tight = traps::walks_tight(bot, me.feet);
+    #[cfg(test)]
+    if tight {
+        traps::own_trap_counts::bump(traps::own_trap_counts::TIGHT_TICKS);
+    }
+    let stepped = if tight {
+        None
+    } else if aiming_still {
         Some(decision.keys | over.strafe)
     } else if walking_aimed && tuning.aim.combat.strafe_walking {
         weave(decision.keys, over.strafe)
@@ -2248,7 +2256,7 @@ fn drive_tick_inner(
         if away.key != 0 {
             let follows = !tuning.spacing.apart_follow
                 && bot.assignment.as_ref().is_some_and(|a| matches!(a.kind, PlayKind::Escort | PlayKind::Buddy | PlayKind::PairUp | PlayKind::CoverHuman));
-            let held_off = follows || intent.hold != 0 || over.strafe != 0 || over.fire || using || decision.keys & (key::LEFT | key::RIGHT) != 0;
+            let held_off = follows || tight || intent.hold != 0 || over.strafe != 0 || over.fire || using || decision.keys & (key::LEFT | key::RIGHT) != 0;
             // [feel.straight_jumps] Not on a route jump's line.
             if jump_line && !held_off {
                 motor::straight_jumps::add(if straight { motor::straight_jumps::Slot::ApartHeld } else { motor::straight_jumps::Slot::ApartAdded });
@@ -2378,6 +2386,10 @@ fn drive_tick_inner(
     // and carrying rows sprinting 0 of 56,753 and 0 of 44,093, grid/aim-gates/FINDINGS.md, exactness 2026-11-12T16:20Z): the
     // bot does not ask for it while it carries.
     decision.keys = carrier_keys(decision.keys, me.carrying.is_some() && tuning.kin.carrier_sprint == kin::CarrierSprint::Refused);
+    // [#2081] On a fallback route by a team trap, no sprint: the tight walk (`traps::walks_tight`).
+    if tight {
+        decision.keys &= !key::SPRINT;
+    }
     let lift_paced = decision.keys & lift_wants == lift_wants;
     // The pull is the kick's part taken back, in the game's pitch unit: as a rise of the elevation at this pitch (`pitch.rs`).
     decision.turn.1 += Pitch::of_elevation(me.pitch, tuning.kin.pitch_scale).rise(over.pull, tuning.kin.pitch_scale);

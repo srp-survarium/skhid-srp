@@ -1433,7 +1433,8 @@ pub(crate) fn real_bot_cost() {
                             let truth = game.bodies[victim].feet.distance_xz(trap.at);
                             let believed = bots.bots.get(victim).and_then(|b| b.as_ref()).and_then(|b| b.features.traps.guard_seen);
                             let believed = believed.map_or("unknown".to_string(), |(when, feet)| format!("{:.2} m ({} ms before)", feet.distance_xz(trap.at), tick.saturating_sub(when)));
-                            eprintln!("  trap catch feet: {kind:?} t {tick} victim {victim} believed {believed}, true {truth:.2} m");
+                            let fallback = bots.bots.get(victim).and_then(|b| b.as_ref()).is_some_and(crate::v026g::bots::traps::on_fallback);
+                            eprintln!("  trap catch feet: {kind:?} t {tick} victim {victim} believed {believed}, true {truth:.2} m, on a fallback route {fallback}");
                         }
                     }
                     catches_read = game.traps.events.len();
