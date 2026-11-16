@@ -1,34 +1,37 @@
 //! Patch 143: a battery's carrier hits with it (docs/notes/battery-hit.md).
 //!
-//! The melee key while carrying swings the battery: an authored wind-up and
-//! strike (the content's battery_hit clip), the gun-stock hit's bullet of
-//! the carrier's gun on the impact (that clip's end), then the follow-through
-//! back to the carry (battery_hit_recover). Two states of the battery's own
-//! state machine (`vostok::battery`), so every game runs, saves and loads
-//! them as the game's own three; every game deals the hit.
+//! The melee key while carrying strikes with the battery: an authored gather
+//! and drive (the content's clip), the gun-stock hit's bullet of the
+//! carrier's gun on the strike (that clip's end), then the follow-through
+//! back to the carry. Three kinds in turn, the ram, the shove and the slam
+//! (`Strike`), each a swing and a recovery state of the battery's own state
+//! machine (`vostok::battery`), so every game runs, saves and loads them as
+//! the game's own three; every game deals the hit.
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::battery::{self, BatteryState, MadeBattery, PredicateBuffer, UserSite};
+use crate::vostok::battery::{self, BatteryState, MadeBattery, PredicateBuffer, Strike, Times, UserSite};
 use crate::vostok::{Context, Flow, NoExit, OrigBatteryStateFinalize, OrigTakeDeactivatable, battery_hit_on_wants_swing_entry,
                     battery_hit_swing_vtable_handle};
 
-/// The swing's length, s: wind-up and strike, its end the impact (the
-/// authored clip's 6 frames at 30 fps, scripts/battery-hit/swing.py IMPACT).
-pub const SWING_S: f32 = 6.0 / 30.0;
-
-/// The recovery's length, s: held out, then back to the carry idle (its
-/// 10.5 frames, swing.py END - IMPACT): 7 ticks of 50 ms, so it ends on a
-/// tick as the swing does.
-pub const RECOVER_S: f32 = 10.5 / 30.0;
+/// A strike's states' lengths, the authored clips' (scripts/battery-hit/swing.py,
+/// 30 frames a second). The ram and the shove: 6 frames to the strike, 10.5
+/// back to the carry. The slam lifts the battery first: 12 frames to the
+/// strike, 9 back.
+pub const fn times(strike: Strike) -> Times {
+    match strike {
+        Strike::Ram | Strike::Shove => Times { swing: 6.0 / 30.0, recover: 10.5 / 30.0 },
+        Strike::Slam => Times { swing: 12.0 / 30.0, recover: 9.0 / 30.0 },
+    }
+}
 
 /// The cook's callback once initialize_logic made the take, carry and put:
-/// the swing and the recovery appended. A battery without them would play
+/// the strikes' states appended. A battery without them would play
 /// otherwise than every other game's: a crash, not a skip.
 pub fn on_logic(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let battery = MadeBattery::at(ctx).expect("the cook's battery and its results (patch 143)");
-    battery.add_swing(SWING_S, RECOVER_S, battery_hit_swing_vtable_handle(), battery_hit_on_wants_swing_entry())
-        .expect("a battery's swing (patch 143)");
+    battery.add_strikes(times, battery_hit_swing_vtable_handle(), battery_hit_on_wants_swing_entry())
+        .expect("a battery's strikes (patch 143)");
     Flow::Continue
 }
 
@@ -39,15 +42,15 @@ pub fn on_wants_swing(buffer: PredicateBuffer<'_>) -> bool {
     buffer.carrier().is_some_and(|carrier| carrier.melee_down() && !carrier.airborne())
 }
 
-/// The swing or the recovery left (by its machine, or the battery put
-/// away): the native finalize, then, for the swing whose clip ended (the
-/// impact) and whose carrier lives, the strike. A carrier who cannot strike
-/// (no gun, never in a match) is a crash, not a skip.
+/// A swing or a recovery left (by its machine, or the battery put away):
+/// the native finalize, then, for a swing whose clip ended (the strike) and
+/// whose carrier lives, its kind's strike. A carrier who cannot strike (no
+/// gun, never in a match) is a crash, not a skip.
 pub fn on_finalize(orig: &OrigBatteryStateFinalize, state: &mut BatteryState<'_>) {
-    let ended = state.ended() && state.is_swing();
+    let struck = state.swing().filter(|_| state.ended());
     orig.call(state);
-    if ended && let Some(carrier) = state.carrier() {
-        carrier.strike().expect("a carrier's strike (patch 143)");
+    if let (Some(strike), Some(carrier)) = (struck, state.carrier()) {
+        carrier.strike(strike).expect("a carrier's strike (patch 143)");
     }
 }
 

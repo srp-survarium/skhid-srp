@@ -6237,3 +6237,6 @@ va	name	location	role	basis
 0x003917d0	vostok::animation::animation_player::tick	stack+4	u32 time, ms	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+12	the time synchronization group (parameters +4Ch): 2 from the take and the put, 3 from the carry; a new clip starts where another of its group stands only if that one is not frozen at its end	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+16	the playback type (parameters +48h): 1 once and frozen at the end (the take, the put), 0 cyclic (the carry)	observed
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	EAX	the battery	observed
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	entry ESP+4	the state's room (0E0h bytes, initialize_logic 0x301974)	observed
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	entry ESP+8	its 6 clips	observed

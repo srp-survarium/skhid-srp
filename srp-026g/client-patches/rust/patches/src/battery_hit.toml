@@ -3,7 +3,7 @@
 name = "battery_hit"
 patch = 143
 
-# the cook's callback once initialize_logic made the three states: the swing
+# the cook's callback once initialize_logic made the three states: the strikes'
 [[hook]]
 site = "battery.logic"
 handler = "on_logic"

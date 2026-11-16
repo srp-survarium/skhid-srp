@@ -301,6 +301,8 @@ unsafe extern "C" {
     pub fn engine_listener_position(scene: Option<SoundScene>, out: *mut f32) -> *mut f32;
     /// 0x338940 survarium::victory_item_core_take_state::victory_item_core_take_state: room ESI, battery ESP+4, clips ESP+8, time ESP+12; pops 12; EAX
     pub fn engine_battery_take_state(room: *mut c_void, battery: Option<VictoryItemCore>, clips: Option<BatteryClips>, time: f32) -> Option<BatteryState>;
+    /// 0x338be0 survarium::victory_item_core_carry_state::victory_item_core_carry_state: battery EAX, room ESP+4, clips ESP+8; pops 8; EAX
+    pub fn engine_battery_carry_state(battery: Option<VictoryItemCore>, room: *mut c_void, clips: Option<BatteryClips>) -> Option<BatteryState>;
     /// 0x322830 survarium::bullet_manager::emit_bullet: gun EDI, manager ESP+4, point ESP+8, velocity ESP+12, data ESP+16, time ESP+20, owner ESP+24, second ESP+28, unused ESP+32; pops 32; EAX
     pub fn engine_emit_bullet(gun: Option<Weapon>, manager: Option<BulletManager>, point: *const f32, velocity: *const f32, data: *const c_void, time: u32, owner: Option<BulletOwner>, second: *mut c_void, unused: u32) -> Option<Bullet>;
 }
@@ -23171,6 +23173,64 @@ impl BatteryStateStorage {
     }
 }
 
+/// A survarium::battery_carry_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BatteryCarryState(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BatteryCarryState {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// 0xe0 bytes: the carry state's bytes (initialize_logic 0x301974); a battery_state in its machine's list
+    pub const SIZE: usize = 0xe0;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::battery_carry_states (0xe0 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct BatteryCarryStateStorage([u8; 0xe0]);
+
+#[allow(dead_code)]
+impl BatteryCarryStateStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0xe0])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> BatteryCarryState {
+        BatteryCarryState(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<BatteryCarryState> {
+        (!rooms.is_empty()).then(|| BatteryCarryState(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A survarium::fsm_transition (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -24468,6 +24528,9 @@ pub mod image {
 
     /// 0xae1e18 (u32, survarium::image): the take state's type descriptor: initialize_logic's allocation name for a take state (0x30192D, engine_allocation_name)
     pub const TAKE_STATE_NAME: u32 = 0xae1e18;
+
+    /// 0xae1e50 (u32, survarium::image): the carry state's type descriptor: initialize_logic's allocation name for the carry state (0x301969, engine_allocation_name)
+    pub const CARRY_STATE_NAME: u32 = 0xae1e50;
 
     /// 0xa13cac (u32, survarium::image): the functor vtable of a plain bool(*)() predicate: manager 0x303420, invoker 0x303450 (initialize_logic 0x301A7A, tagged | 1)
     pub const FSM_FUNCTION_PREDICATE: u32 = 0xa13cac;

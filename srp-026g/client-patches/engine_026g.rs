@@ -295,6 +295,8 @@ unsafe extern "C" {
     pub fn engine_listener_position(scene: *mut c_void, out: *mut f32) -> *mut f32;
     /// 0x338940 survarium::victory_item_core_take_state::victory_item_core_take_state: room ESI, battery ESP+4, clips ESP+8, time ESP+12; pops 12; EAX
     pub fn engine_battery_take_state(room: *mut c_void, battery: *mut c_void, clips: *const c_void, time: f32) -> *mut c_void;
+    /// 0x338be0 survarium::victory_item_core_carry_state::victory_item_core_carry_state: battery EAX, room ESP+4, clips ESP+8; pops 8; EAX
+    pub fn engine_battery_carry_state(battery: *mut c_void, room: *mut c_void, clips: *const c_void) -> *mut c_void;
     /// 0x322830 survarium::bullet_manager::emit_bullet: gun EDI, manager ESP+4, point ESP+8, velocity ESP+12, data ESP+16, time ESP+20, owner ESP+24, second ESP+28, unused ESP+32; pops 32; EAX
     pub fn engine_emit_bullet(gun: *mut c_void, manager: *mut c_void, point: *const f32, velocity: *const f32, data: *const c_void, time: u32, owner: *mut c_void, second: *mut c_void, unused: u32) -> *mut c_void;
 }

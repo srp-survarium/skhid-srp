@@ -1,20 +1,27 @@
-//! A carried battery's swing (patch 143, docs/notes/battery-hit.md): the
-//! fourth and fifth states of the battery's state machine, and the gun-stock
-//! bullet it strikes with.
+//! A carried battery's strikes (patch 143, docs/notes/battery-hit.md): the
+//! states of the battery's state machine past its own three, and the
+//! gun-stock bullet a strike hits with.
 //!
 //! The cook's callback (victory_item_core_cook::on_animations_loaded
 //! 0x2FA400, the client's batteries and the core's alike) makes a battery's
 //! states with initialize_logic (0x301920): take, carry and put, in that
 //! order in the machine's list (item +168h); it has loaded every `states[i]`
-//! of the config, the content's swing (3) and recovery (4) too. At
-//! `battery.logic` both are appended: take states (0x338940) over their
-//! authored clips, of the carry's kind (every native "is carrying" test holds
-//! through them), their vtable the patch's copy of the take's (finalize and
-//! may-be-put-away the patch's); transitions carry -> swing (the patch's
-//! predicate, after carry -> put), swing -> put and swing -> recovery, then
-//! recovery -> put and recovery -> carry (copies of carry -> put's and
-//! take -> carry's), each tried once the state's clip ended. The game's own
-//! fsm runs, saves (indices 3, 4) and loads them, in every game alike.
+//! of the config, the content's strikes' clips (3 to 8) too. At
+//! `battery.logic` each [`Strike`]'s swing and recovery are appended: take
+//! states (0x338940) over their authored clips, of the carry's kind (every
+//! native "is carrying" test holds through them), their vtable the patch's
+//! copy of the take's (finalize and may-be-put-away the patch's); and, for
+//! each strike but the first, a carry state of its own (0x338BE0, the
+//! carry's clips) before them: the carry a carrier stands in says which
+//! strike the melee key starts. The list: take, carry, put; the ram's swing
+//! and recovery; the shove's carry, swing and recovery; the slam's. The
+//! transitions: a carry -> its swing (the patch's predicate, after carry ->
+//! put), a swing -> put and its recovery, a recovery -> put and the next
+//! strike's carry, the last's the first carry again (copies of carry ->
+//! put's and take -> carry's), each tried once the state's clip ended. So a
+//! carrier's strikes go round, and which comes next is the machine's current
+//! state, which the game's own fsm runs, saves (its index) and loads, in
+//! every game alike: no field of the patch's.
 
 use core::ffi::c_void;
 
@@ -53,17 +60,130 @@ const JUMP: u32 = 4;
 /// The machine's states as initialize_logic leaves them.
 const MADE_STATES: u32 = 3;
 
+/// A kind of strike, in the order a carrier's strikes take them: the ram
+/// first, after the slam the ram again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Strike {
+    /// Both arms push the battery out.
+    Ram,
+    /// The right arm shoves its right end forward about the left hand.
+    Shove,
+    /// Both arms lift it and throw it down.
+    Slam,
+}
+
+impl Strike {
+    pub const ALL: [Strike; 3] = [Strike::Ram, Strike::Shove, Strike::Slam];
+
+    /// The config's state of its swing's clips; its recovery's is the next
+    /// (battery-hit-1: 3 and 4 the ram's, 5 and 6 the shove's, 7 and 8 the
+    /// slam's).
+    const fn swing_clips(self) -> usize {
+        3 + 2 * self as usize
+    }
+
+    /// Where its swing stands in the machine's list (the saved state's
+    /// index): 3 the ram's, after take, carry and put; then each strike's
+    /// carry, swing and recovery (5, 6, 7 the shove's; 8, 9, 10 the slam's).
+    const fn swing_index(self) -> usize {
+        match self {
+            Strike::Ram => 3,
+            Strike::Shove => 6,
+            Strike::Slam => 9,
+        }
+    }
+
+    /// The strike's grid on the plane square to the look [`STRIKE_FACE`]
+    /// ahead, (right, up) m: 5 x 3 points over where its battery lands,
+    /// nearest the look first, left before right: a fixed order, so every
+    /// game picks the same ray. Where the battery is on that plane, posed as
+    /// the game mixes it (scripts/battery-hit/preview.py):
+    /// - the ram's, at the end of its push: 0.38 m left to 0.27 m right,
+    ///   0.06 to 0.35 m below the look: 0.6 m wide around the look, from it
+    ///   down to the battery's lower edge;
+    /// - the shove's right end, which lands: 0.39 to 0.49 m right of the
+    ///   look, its left end the pivot at the carrier's hip: the ram's grid
+    ///   one column to the right;
+    /// - the slam's: 0.20 to 0.50 m below the look at its strike, to 0.60 m
+    ///   after: the ram's columns, the rows from the look down to 0.5 m.
+    const fn grid(self) -> [(f32, f32); 15] {
+        match self {
+            Strike::Ram => [
+                (0.0, 0.0),
+                (-0.15, 0.0), (0.15, 0.0),
+                (0.0, -0.175),
+                (-0.15, -0.175), (0.15, -0.175),
+                (-0.3, 0.0), (0.3, 0.0),
+                (-0.3, -0.175), (0.3, -0.175),
+                (0.0, -0.35),
+                (-0.15, -0.35), (0.15, -0.35),
+                (-0.3, -0.35), (0.3, -0.35),
+            ],
+            Strike::Shove => [
+                (0.0, 0.0),
+                (-0.15, 0.0), (0.15, 0.0),
+                (0.0, -0.175),
+                (-0.15, -0.175), (0.15, -0.175),
+                (0.3, 0.0),
+                (0.3, -0.175),
+                (0.0, -0.35),
+                (-0.15, -0.35), (0.15, -0.35),
+                (0.45, 0.0),
+                (0.3, -0.35),
+                (0.45, -0.175),
+                (0.45, -0.35),
+            ],
+            Strike::Slam => [
+                (0.0, 0.0),
+                (-0.15, 0.0), (0.15, 0.0),
+                (0.0, -0.25),
+                (-0.15, -0.25), (0.15, -0.25),
+                (-0.3, 0.0), (0.3, 0.0),
+                (-0.3, -0.25), (0.3, -0.25),
+                (0.0, -0.5),
+                (-0.15, -0.5), (0.15, -0.5),
+                (-0.3, -0.5), (0.3, -0.5),
+            ],
+        }
+    }
+
+    /// Its rays from the eye whose rows are `right`, `up` and `forward`
+    /// (unit): through each point of its grid, in its order, the first the
+    /// look itself. Each is cast the bullet's own length (the gun's melee
+    /// distance, 1.7 m: 1.0 m past the plane on the look), so the bullet
+    /// reaches what its ray found.
+    pub fn rays(self, right: [f32; 3], up: [f32; 3], forward: [f32; 3]) -> impl Iterator<Item = [f32; 3]> {
+        self.grid().into_iter().map(move |(x, y)| {
+            if (x, y) == (0.0, 0.0) {
+                return forward;
+            }
+            let ray = [0, 1, 2].map(|i| forward[i] * STRIKE_FACE + right[i] * x + up[i] * y);
+            let length = core::f32::math::sqrt(ray[0] * ray[0] + ray[1] * ray[1] + ray[2] * ray[2]);
+            ray.map(|v| v / length)
+        })
+    }
+}
+
+/// How long a strike's two states last, s: each plays its clip in that time.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Times {
+    /// The swing: the gather and the drive, its end the strike.
+    pub swing: f32,
+    /// The recovery: the follow-through and the way back to the carry.
+    pub recover: f32,
+}
+
 /// The inventory slots of the kit's guns, the first first (7 and 10).
 const GUN_SLOTS: [usize; 2] = [7, 10];
 
-/// Why a battery has no swing.
+/// Why a battery has no strikes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NoSwing {
     /// Its machine is not the three states initialize_logic makes (one
     /// added already, or another layout): left as it is.
     NotAsMade,
-    /// The cook loaded no states 3 and 4 (the content's battery-hit-1:
-    /// a game without it would play otherwise than the others).
+    /// The cook loaded no states 3 to 8 (the content's battery-hit-1: a
+    /// game without it would play otherwise than the others).
     NoSwingClips,
     /// The game's allocator gave nothing.
     OutOfMemory,
@@ -76,9 +196,8 @@ const fn first_result(state: usize) -> usize {
     2 + 6 * state
 }
 
-/// The swing's and the recovery's states in the config (battery-hit-1).
-const SWING: usize = 3;
-const RECOVER: usize = 4;
+/// The carry's state in the config: its clips are every strike's carry's.
+const CARRY: usize = 1;
 
 /// A battery at `battery.logic`: its three states made, the cook's results
 /// in hand.
@@ -122,33 +241,50 @@ impl<'t> MadeBattery<'t> {
         }
     }
 
-    /// Appends the swing (config state 3: wind-up and strike, `swing_s`
-    /// long, its end the impact) and the recovery (state 4: follow-through
-    /// back to the carry, `recover_s`), each a take state of the carry's kind
-    /// with `methods` its vtable; `wants` carry -> swing's predicate.
-    pub fn add_swing(&self, swing_s: f32, recover_s: f32, methods: NativeVtable<raw::TakeStateMethods>,
-                     wants: CallbackEntry<super::OrigFsmAlways>) -> Result<(), NoSwing> {
+    /// Appends every [`Strike`]'s states (the module's account): its swing
+    /// and its recovery, take states of the carry's kind over its clips,
+    /// lasting `times` of it, `methods` their vtable; a carry of its own
+    /// for each strike but the first, whose carry is the machine's; `wants`
+    /// a carry -> its swing's predicate.
+    pub fn add_strikes(&self, times: impl Fn(Strike) -> Times, methods: NativeVtable<raw::TakeStateMethods>,
+                       wants: CallbackEntry<super::OrigFsmAlways>) -> Result<(), NoSwing> {
         let battery = self.battery;
         // SAFETY: the battery and its states, alive (its cook's callback, on
         // the thread that loads it); each read as initialize_logic wrote it
-        // and checked before anything is written; the clips the cook's.
+        // and checked, every clip found and every state made, before
+        // anything of the machine is written; the clips the cook's.
         unsafe {
             let (take, carry, put) = made_states(battery).ok_or(NoSwing::NotAsMade)?;
             let take_carry = take.transitions_head().filter(|t| t.destination() == Some(carry))
                 .ok_or(NoSwing::NotAsMade)?;
             let carry_put = carry.transitions_head().filter(|t| t.destination() == Some(put))
                 .ok_or(NoSwing::NotAsMade)?;
-            let (mut swing_room, mut recover_room) = (raw::BatteryClipsStorage::zeroed(), raw::BatteryClipsStorage::zeroed());
-            let swing_clips = self.clips(SWING, &mut swing_room)?;
-            let recover_clips = self.clips(RECOVER, &mut recover_room)?;
-            let swing = carry_like(battery, swing_clips, swing_s, methods)?;
-            let recover = carry_like(battery, recover_clips, recover_s, methods)?;
+            let mut room = raw::BatteryClipsStorage::zeroed();
+            for strike in Strike::ALL {
+                self.clips(strike.swing_clips(), &mut room)?;
+                self.clips(strike.swing_clips() + 1, &mut room)?;
+            }
+            // A strike's carry, swing and recovery.
+            let mut made = |strike: Strike| -> Result<[raw::BatteryState; 3], NoSwing> {
+                let from = match strike {
+                    Strike::Ram => carry,
+                    Strike::Shove | Strike::Slam => carry_again(battery, self.clips(CARRY, &mut room)?)?,
+                };
+                let swing = carry_like(battery, self.clips(strike.swing_clips(), &mut room)?, times(strike).swing, methods)?;
+                let recover = carry_like(battery, self.clips(strike.swing_clips() + 1, &mut room)?, times(strike).recover,
+                                         methods)?;
+                Ok([from, swing, recover])
+            };
+            let states = [made(Strike::Ram)?, made(Strike::Shove)?, made(Strike::Slam)?];
             // Appended as initialize_logic appends (0x301A28..0x301A4A).
-            put.set_next(Some(swing));
-            swing.set_next(Some(recover));
-            recover.set_next(None);
-            battery.set_machine_tail(Some(recover));
-            *battery.machine_states() += 2;
+            let mut tail = put;
+            for state in states.into_iter().flatten().filter(|state| *state != carry) {
+                tail.set_next(Some(state));
+                tail = state;
+                *battery.machine_states() += 1;
+            }
+            tail.set_next(None);
+            battery.set_machine_tail(Some(tail));
             let mut predicate = raw::FsmPredicateStorage::zeroed();
             let wanted = predicate.handle();
             // A function-pointer functor (initialize_logic 0x301A7A: its
@@ -157,13 +293,40 @@ impl<'t> MadeBattery<'t> {
             *wanted.manager() = raw::image::FSM_FUNCTION_PREDICATE | 1;
             *wanted.buffer().function() = wants.entry() as usize as u32;
             wanted.buffer().set_battery(Some(battery));
-            raw::engine_fsm_append_transition(Some(carry), Some(swing), Some(wanted));
-            raw::engine_fsm_append_transition(Some(swing), Some(put), Some(carry_put.predicate()));
-            raw::engine_fsm_append_transition(Some(swing), Some(recover), Some(take_carry.predicate()));
-            raw::engine_fsm_append_transition(Some(recover), Some(put), Some(carry_put.predicate()));
-            raw::engine_fsm_append_transition(Some(recover), Some(carry), Some(take_carry.predicate()));
+            for (i, [from, swing, recover]) in states.into_iter().enumerate() {
+                if from != carry {
+                    raw::engine_fsm_append_transition(Some(from), Some(put), Some(carry_put.predicate()));
+                }
+                raw::engine_fsm_append_transition(Some(from), Some(swing), Some(wanted));
+                raw::engine_fsm_append_transition(Some(swing), Some(put), Some(carry_put.predicate()));
+                raw::engine_fsm_append_transition(Some(swing), Some(recover), Some(take_carry.predicate()));
+                raw::engine_fsm_append_transition(Some(recover), Some(put), Some(carry_put.predicate()));
+                let [next, ..] = states[(i + 1) % states.len()];
+                raw::engine_fsm_append_transition(Some(recover), Some(next), Some(take_carry.predicate()));
+            }
         }
         Ok(())
+    }
+}
+
+/// A carry state (initialize_logic's allocation and constructor, 0x301969)
+/// over the carry's `clips`: a strike's own carry.
+///
+/// # Safety
+/// `battery` and `clips` are alive, on the loading thread.
+unsafe fn carry_again(battery: raw::VictoryItemCore, clips: raw::BatteryClips) -> Result<raw::BatteryState, NoSwing> {
+    unsafe {
+        let allocator = raw::image::game_allocator().allocator()
+            .map_or(core::ptr::null_mut(), |a| a.address() as usize as *mut c_void);
+        if allocator.is_null() {
+            return Err(NoSwing::OutOfMemory);
+        }
+        let name = raw::engine_allocation_name(raw::image::CARRY_STATE_NAME as usize as *const c_void);
+        let room = raw::engine_malloc(allocator, raw::BatteryCarryState::SIZE as u32, name);
+        if room.is_null() {
+            return Err(NoSwing::OutOfMemory);
+        }
+        raw::engine_battery_carry_state(Some(battery), room, Some(clips)).ok_or(NoSwing::OutOfMemory)
     }
 }
 
@@ -246,14 +409,21 @@ impl<'t> BatteryState<'t> {
         unsafe { Carrier::of(self.thread, self.native.battery()?) }
     }
 
-    /// The swing (its machine's fourth state), not the recovery (the fifth),
-    /// which shares its vtable.
-    pub fn is_swing(&self) -> bool {
-        // SAFETY: as above; the machine's list as add_swing linked it.
+    /// The strike it is the swing of, by its place in its machine's list;
+    /// none for a recovery, which shares the swings' vtable.
+    pub fn swing(&self) -> Option<Strike> {
+        // SAFETY: as above; the machine's list as add_strikes linked it.
         unsafe {
-            let fourth = self.native.battery().and_then(|b| b.machine_head())
-                .and_then(|s| s.next()).and_then(|s| s.next()).and_then(|s| s.next());
-            fourth == Some(self.native)
+            let mut state = self.native.battery()?.machine_head();
+            let mut index = 0;
+            while let Some(at) = state {
+                if at == self.native {
+                    return Strike::ALL.into_iter().find(|strike| strike.swing_index() == index);
+                }
+                state = at.next();
+                index += 1;
+            }
+            None
         }
     }
 }
@@ -267,7 +437,7 @@ pub struct PredicateBuffer<'t> {
 
 impl<'t> PredicateBuffer<'t> {
     /// # Safety
-    /// `native` is the buffer of a functor [`MadeBattery::add_swing`] made
+    /// `native` is the buffer of a functor [`MadeBattery::add_strikes`] made
     /// (the fsm's copy), alive while the predicate runs, on `thread`.
     pub(in crate::vostok) unsafe fn from_raw(thread: &'t Thread, native: Option<raw::PredicateBuffer>) -> PredicateBuffer<'t> {
         PredicateBuffer { native, thread }
@@ -275,7 +445,7 @@ impl<'t> PredicateBuffer<'t> {
 
     /// The carrier of the predicate's battery, alive.
     pub fn carrier(&self) -> Option<Carrier<'t>> {
-        // SAFETY: the buffer of the functor add_swing made, copied into the
+        // SAFETY: the buffer of the functor add_strikes made, copied into the
         // carry's transition; its battery alive while its machine ticks.
         unsafe { Carrier::of(self.thread, self.native?.battery()?) }
     }
@@ -319,9 +489,10 @@ impl<'t> Carrier<'t> {
 
     /// The gun-stock hit's bullet (0x33AB50's emit_bullet) of its first gun
     /// (slot 7, else 10): from the eye's place, the gun's melee data and
-    /// distance, now; along the first of the [`strike_rays`] over the
-    /// battery's face whose first hit is a living player's body, else along
-    /// the look as the gun-stock hit. One bullet, so one victim a strike.
+    /// distance, now; along the first of `strike`'s rays ([`Strike::rays`],
+    /// over where its battery lands) whose first hit is a living player's
+    /// body, else along the look as the gun-stock hit. One bullet, so one
+    /// victim a strike.
     ///
     /// The gun is deactivated while the battery is held (weapon_core's
     /// deactivate 0x2E2EE0: no user, its clip set no posture). Where the
@@ -329,7 +500,7 @@ impl<'t> Carrier<'t> {
     /// constructor, its melee damage each step), [`substitute_player`] and
     /// [`substitute_posture`] give it the gun's player and that player's
     /// posture instead; nothing of the gun is written.
-    pub fn strike(&self) -> Result<(), NoStrike> {
+    pub fn strike(&self, strike: Strike) -> Result<(), NoStrike> {
         // SAFETY: the live carrier's inventory and eye; a slot's item read
         // as a gun only after its active object's vtable says it is one; the
         // arguments as 0x33AB50 gives them, EDI the gun.
@@ -347,7 +518,7 @@ impl<'t> Carrier<'t> {
             let (right, up, forward, place) = (row(0), row(1), row(2), row(3));
             let distance = read(gun.melee_distance());
             let requester = RayRequester { _unread: [0; 2], shooter: self.player.bullet_owner() };
-            let direction = strike_rays(right, up, forward)
+            let direction = strike.rays(right, up, forward)
                 .find(|direction| first_hits_body(physics, &requester, place, *direction, distance))
                 .unwrap_or(forward);
             let velocity = direction.map(|v| v * distance);
@@ -359,42 +530,11 @@ impl<'t> Carrier<'t> {
     }
 }
 
-/// The battery's front at the impact, m ahead of the eye (the swing's last
-/// frame posed as the game mixes it, scripts/battery-hit/preview.py: the
-/// battery spans 0.28..0.71 m ahead, 0.38 m left to 0.27 m right, 0.06 to
-/// 0.35 m below the look).
+/// How far ahead of the eye the strikes' grids lie, m: the ram's battery's
+/// front at the end of its push, 0.045 s after its strike (at the strike
+/// itself, the push's fastest moment, it is 5 cm short of that and 7 cm
+/// lower); the other strikes' batteries reach 0.6 m ahead.
 const STRIKE_FACE: f32 = 0.7;
-/// The strike's grid on the plane square to the look [`STRIKE_FACE`] ahead,
-/// (right, up) m: 5 x 3 points 0.6 m wide around the look and 0.35 m from
-/// the look down to the battery's lower edge, nearest the look first, left
-/// before right: a fixed order, so every game picks the same ray.
-const STRIKE_GRID: [(f32, f32); 15] = [
-    (0.0, 0.0),
-    (-0.15, 0.0), (0.15, 0.0),
-    (0.0, -0.175),
-    (-0.15, -0.175), (0.15, -0.175),
-    (-0.3, 0.0), (0.3, 0.0),
-    (-0.3, -0.175), (0.3, -0.175),
-    (0.0, -0.35),
-    (-0.15, -0.35), (0.15, -0.35),
-    (-0.3, -0.35), (0.3, -0.35),
-];
-
-/// The strike's rays from the eye whose rows are `right`, `up` and
-/// `forward` (unit): through each point of [`STRIKE_GRID`], in its order,
-/// the first the look itself. Each is cast the bullet's own length (the
-/// gun's melee distance, 1.7 m: 1.0 m past the battery's front on the look,
-/// 0.72 m at the grid's corners), so the bullet reaches what its ray found.
-pub fn strike_rays(right: [f32; 3], up: [f32; 3], forward: [f32; 3]) -> impl Iterator<Item = [f32; 3]> {
-    STRIKE_GRID.into_iter().map(move |(x, y)| {
-        if (x, y) == (0.0, 0.0) {
-            return forward;
-        }
-        let ray = [0, 1, 2].map(|i| forward[i] * STRIKE_FACE + right[i] * x + up[i] * y);
-        let length = core::f32::math::sqrt(ray[0] * ray[0] + ray[1] * ray[1] + ray[2] * ray[2]);
-        ray.map(|v| v / length)
-    })
-}
 
 /// check_collision's ray (0x32D5EE..0x32D5F5): group 10h, mask 48h (the
 /// hittable level and the hit models), the unflipped normal.
@@ -559,18 +699,54 @@ mod tests {
     use super::*;
 
     #[test]
-    fn strike_rays_start_on_the_look_and_cover_the_face() {
+    fn a_strikes_rays_start_on_the_look_and_cover_its_grid() {
         let (right, up, forward) = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
-        let rays: Vec<[f32; 3]> = strike_rays(right, up, forward).collect();
-        assert_eq!(rays.len(), 15);
-        assert_eq!(rays[0], forward, "the look first, as the gun-stock hit");
-        for ray in &rays {
-            assert!((ray[0] * ray[0] + ray[1] * ray[1] + ray[2] * ray[2] - 1.0).abs() < 1e-6);
+        for strike in Strike::ALL {
+            let rays: Vec<[f32; 3]> = strike.rays(right, up, forward).collect();
+            assert_eq!(rays.len(), 15);
+            assert_eq!(rays[0], forward, "the look first, as the gun-stock hit");
+            for ray in &rays {
+                assert!((ray[0] * ray[0] + ray[1] * ray[1] + ray[2] * ray[2] - 1.0).abs() < 1e-6);
+            }
+            // each crosses the plane at its grid point
+            for (ray, (x, y)) in rays.iter().zip(strike.grid()) {
+                assert!((ray[0] / ray[2] * STRIKE_FACE - x).abs() < 1e-6 && (ray[1] / ray[2] * STRIKE_FACE - y).abs() < 1e-6);
+            }
+            assert!(rays.iter().all(|ray| ray[1] <= 0.0), "from the look down");
         }
-        // each crosses the battery's front at its grid point
-        for (ray, (x, y)) in rays.iter().zip(STRIKE_GRID) {
-            assert!((ray[0] / ray[2] * STRIKE_FACE - x).abs() < 1e-6 && (ray[1] / ray[2] * STRIKE_FACE - y).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_strikes_grid_is_five_by_three_nearest_the_look_first() {
+        let columns = |strike| match strike {
+            Strike::Ram | Strike::Slam => [-0.3, -0.15, 0.0, 0.15, 0.3],
+            Strike::Shove => [-0.15, 0.0, 0.15, 0.3, 0.45],
+        };
+        let rows = |strike| match strike {
+            Strike::Ram | Strike::Shove => [0.0, -0.175, -0.35],
+            Strike::Slam => [0.0, -0.25, -0.5],
+        };
+        for strike in Strike::ALL {
+            let grid = strike.grid();
+            for x in columns(strike) {
+                for y in rows(strike) {
+                    assert_eq!(grid.iter().filter(|point| **point == (x, y)).count(), 1, "{strike:?} ({x}, {y})");
+                }
+            }
+            let far = |(x, y): (f32, f32)| x * x + y * y;
+            for pair in grid.windows(2) {
+                // nearer first; as near, left before right (f32: a hair of tolerance)
+                assert!(far(pair[0]) < far(pair[1]) + 1e-6, "{strike:?} {pair:?}");
+                if (far(pair[0]) - far(pair[1])).abs() < 1e-6 {
+                    assert!(pair[0].0 < pair[1].0, "{strike:?} {pair:?}");
+                }
+            }
         }
-        assert!(rays.iter().all(|ray| ray[1] <= 0.0), "from the look down to the battery's lower edge");
+    }
+
+    #[test]
+    fn the_strikes_take_the_configs_states_and_the_machines_places_in_turn() {
+        assert_eq!(Strike::ALL.map(Strike::swing_clips), [3, 5, 7]);
+        assert_eq!(Strike::ALL.map(Strike::swing_index), [3, 6, 9]);
     }
 }

@@ -235,6 +235,7 @@ global engine_respawn_points_push
 global engine_sound_pan
 global engine_listener_position
 global engine_battery_take_state
+global engine_battery_carry_state
 global engine_fsm_append_transition
 global engine_emit_bullet
 global engine_battery_state_finalize
@@ -2792,6 +2793,23 @@ engine_battery_take_state:
     push dword [esp + 32]   ; battery -> 4
     mov esi, [esp + 32]   ; room
     call 0x338940
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_battery_carry_state:
+    ; 0x338be0 survarium::victory_item_core_carry_state::victory_item_core_carry_state: battery EAX, room ESP+4, clips ESP+8; pops 8; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; clips -> 8
+    push dword [esp + 28]   ; room -> 4
+    mov eax, [esp + 28]   ; battery
+    call 0x338be0
     pop edi
     pop esi
     pop ebx

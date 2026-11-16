@@ -1246,6 +1246,7 @@ survarium::battery_state	battery	0x1C	ptr<survarium::victory_item_core>	its batt
 survarium::battery_state	kind	0x20	u32	what it is: 1 take, 3 carry, 2 put (0x338968, 0x338C09, 0x338F28); victory_item_core::is_carrying 0x3018C8 tests 3
 survarium::battery_state	ready	0x28	u8	m_animation_has_been_ended: its clip ended (0x344859), so its transitions are tried (0x338930); 0 at initialize (0x3447D7)
 survarium::battery_state	size	0xEC	size	a take or put state's bytes (initialize_logic 0x30193A, 0x3019A6)
+survarium::battery_carry_state	size	0xE0	size	the carry state's bytes (initialize_logic 0x301974); a battery_state in its machine's list
 survarium::fsm_transition	predicate	0x0	obj<survarium::fsm_predicate>	its predicate, a boost::function0<bool> (fsm::append_transition copies it, 0x38C9AD)
 survarium::fsm_transition	destination	0x20	ptr<survarium::battery_state>	the state it goes to (0x38C9E4)
 survarium::fsm_transition	next	0x24	ptr<survarium::fsm_transition>	the next transition of its state (0x38CA0C)
@@ -1260,6 +1261,7 @@ survarium::take_state_methods	rtti	-4	u32	native complete object locator
 survarium::take_state_methods	size	0x30	size	twelve methods: destructor, initialize 0x344730, execute 0x344B30, finalize 0x3447F0 (+0Ch), serialize, deserialize, is_ready 0x338930, register_animations 0x339150, +20h 0x397C20, item_and_hands_expression 0x338B20, is_user_dead 0x344C90, +2Ch 0x338EF0
 survarium::image	take_state_methods	0xA1BF84	obj<survarium::take_state_methods>	victory_item_core_take_state's vtable including RTTI at -4 (its constructor 0x338987)
 survarium::image	take_state_name	0xAE1E18	u32	the take state's type descriptor: initialize_logic's allocation name for a take state (0x30192D, engine_allocation_name)
+survarium::image	carry_state_name	0xAE1E50	u32	the carry state's type descriptor: initialize_logic's allocation name for the carry state (0x301969, engine_allocation_name)
 survarium::image	fsm_function_predicate	0xA13CAC	u32	the functor vtable of a plain bool(*)() predicate: manager 0x303420, invoker 0x303450 (initialize_logic 0x301A7A, tagged | 1)
 survarium::player	bullet_owner	0x110	obj<survarium::bullet_owner>	its bullets' owner interface: emit_bullet's sixth argument (the gun-stock hit 0x33AB8C, weapon_core::set_user 0x2E299D)
 survarium::player	bullet_subject	0x118	u32	its second interface a bullet keeps: emit_bullet's seventh argument (0x33AB7E, weapon_core::set_user 0x2E29B1); taken by its address
