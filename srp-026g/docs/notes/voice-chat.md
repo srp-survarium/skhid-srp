@@ -693,8 +693,46 @@ before and after of each can be heard in `private/renders/voice-steady/`.
   static stays where it is (the words 23 dB over it at the level, 14 when 9 dB under). The gain
   now goes to 45 dB (`AGC_MAX_GAIN`; past it speexdsp's own floor holds) and rises twice as
   fast (`AGC_INCREMENT` 24 dB a second: a quiet microphone's first words of a match were 5 dB
-  under its level for seconds, now 2). "Microphone sensitivity" still moves a talker 6 dB
-  either way: two players at its ends are 12 dB apart by their own choice.
+  under its level for seconds, now 2).
+- **Every speaker at one loudness, for the listener** (the owner, the same day: "we should
+  either way have a way to bring people with lower sensitivity to sound the same for receivers",
+  "equalize everyone essentially"). The talker's own gain does it only as far as its microphone
+  and its "Microphone sensitivity" let it. So the listener's game levels each speaker itself
+  (`receiver::Leveller`, one a speaker, before the 10 m voice's gains and the radio alike):
+  - **What it goes by.** The levels (a frame's RMS, dB) of the speaker's last 150 frames (3 s)
+    that are its voice, as far as levels tell: louder than -55 dB of full scale and, once half a
+    second of the voice is known, not 12 dB under it (its pauses and its room; each frame left
+    out so lets the next be 0.02 dB quieter and count, 1 dB a second, so a speaker who really
+    became quieter is learnt again in its time). The speaker's level is the level a quarter of
+    those frames are at or over (a thump of a few frames does not make it), or that of its
+    newest 10 when they are louder (a voice getting louder is followed in 3 frames).
+  - **What it does.** The speaker is played so that this level is -20 dB (`LEVEL_TARGET_DB`: 1
+    dB over where the talker's own gain puts a usual microphone), raised 12 dB at most and
+    lowered 12. Lowered at once; raised over its decoded level 6 dB a second, slower than the
+    talker's own gain comes up (24). Nothing before 5 frames (100 ms) were heard. What was
+    learnt stays from one utterance to the next and goes when another player takes the slot.
+  - **Why so careful** (the review of #2111, whose first leveller took every frame over -55 dB
+    for the voice, trusted five of them and raised 20 dB at once): a room before the first word
+    was raised 20 dB and the word came 14 dB over its level until the ceiling ducked it; a key
+    held without a word made the room the voice; a quiet microphone's first utterance, its own
+    gain still coming up, was 8 dB too loud for half a second; 80 ms of a thump kept a speaker
+    12 dB down for seconds. Each has its test now.
+  - **What is left.** A microphone with less than 12 dB between its voice and its room: the room
+    counts as voice, and a key held without a word raises it, 12 dB at most, 6 dB a second.
+  - Measured, three talkers in turn (a microphone 40 dB quieter at the lowest sensitivity, a
+    usual one at the default, a usual one at the highest):
+
+    | | talker 1 | talker 2 | talker 3 |
+    |---|---|---|---|
+    | until now, on the radio | -24.3 dB | -18.1 | -15.1 |
+    | now | -18.8 (its first 2 s -20.7) | -17.3 | -16.9 |
+
+  So "Microphone sensitivity" no longer moves how loud the others hear a player (the microphone
+  test's playback, which is what a teammate hears, says so: its ends were 12 dB apart, now within
+  1). A speaker who suddenly shouts is louder for a few frames, then levelled. The ceiling a
+  speaker's frame is held to (-12 dB) comes after it, as before: whatever the leveller does, a
+  changed game is no louder than that; a held frame is no longer a sign of one, though (a
+  speaker raised and then louder at once has a frame or two held).
 - **The mix bent loud talkers.** A plain voice is played 3 times as decoded (`LOUDER` 1.5, `MIX`
   2.0) and the sum went through a curve that bent every sample over half scale (tanh). The
   automatic gain brings every microphone to one level at a given "Microphone sensitivity", but the
@@ -990,7 +1028,10 @@ As built:
   turned down and not bent (over any 2 ms the sum times one gain, to 30 dB), the gain back
   within a second, a mix under the ceiling played as summed; a frame that did not come played
   from the next one's copy (a voice's first frame after silence, which concealment cannot make),
-  and only concealed without the copy.
+  and only concealed without the copy. The leveller: microphones 12 dB apart played within 1 dB,
+  a hiss in the pauses not moving it; a room before the first word, a key held without a word, a
+  voice whose own gain is still coming up, a thump first and in the middle of a voice; what is
+  learnt staying between utterances and going with the slot.
 - The match server's headless loopback test runs its actual UDP relay with two Rust client cores.
   Each sends a different synthetic tone through Opus, the wire, routing and jitter playback.
   The received audio's energy and frequency must match the other client. No microphone or fake
