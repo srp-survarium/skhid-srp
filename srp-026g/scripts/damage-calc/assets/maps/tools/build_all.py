@@ -82,6 +82,12 @@ PATCHED = {
                                    origin='Clear Sky port, pack stalker-maps@6 (patch 57)', name='Training Camp',
                                    name_key='st_cs_training_camp_name', project_name='cs_training_camp', project='day_8',
                                    modes=(8,), map_ids={44: 8}),
+    # Fire Station of pack stalker-maps-2 (Free for All only; docs/notes/stalker-maps.md). Its bitmap
+    # is named as FFDec exports the hud.swf that has it (the classes after it took new ids).
+    'v010b_cs_mp_firestation': dict(size=73.143, posX=-8.48, posY=14.84, bitmap='1033_minimap_cs_mp_firestation.png',
+                      origin='Clear Sky port, pack stalker-maps-2@2', name='Fire Station',
+                      name_key='st_cs_mp_firestation_name', project_name='cs_mp_firestation', project='day_8', modes=(8,),
+                      map_ids={39: 8}),
 }
 
 

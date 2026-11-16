@@ -287,10 +287,28 @@ impl<'t> NetworkClient<'t> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Held {
     Nothing,
-    /// A battery (a victory_item): no gun drops from a carrier's hands.
+    /// A battery ([`held_battery`]): no gun drops from a carrier's hands.
     Battery,
     /// A weapon or another item.
     Item,
+}
+
+/// The vtables of a battery: the client cook's victory_item
+/// (victory_item_cook::create_resource 0x231B50 constructs it, 0x2463E0) and
+/// the core cook's victory_item_core (its create 0x2F9FA0 -> 0x2F9F40, the
+/// core's constructor 0x3000A0).
+const BATTERIES: [u32; 2] = [raw::image::VICTORY_ITEM_VTABLE, raw::image::VICTORY_ITEM_CORE_VTABLE];
+
+/// The battery `player` holds (+128h), none when it holds anything else or
+/// nothing: the one test of "holds a battery".
+///
+/// # Safety
+/// `player` is alive, on this thread.
+pub(in crate::vostok) unsafe fn held_battery(player: raw::Player) -> Option<raw::VictoryItemCore> {
+    unsafe {
+        let item = player.held_item()?;
+        BATTERIES.contains(&read(item.vtable())).then(|| item.battery())
+    }
 }
 
 /// A player as a value kept between hooks: its address, compared, never
@@ -372,7 +390,8 @@ impl ModifierIndex {
     /// apply_modifier or apply_modifiers call names it) and nothing sets it
     /// but skill 205's 0; additive (0x927E08's list). srp's: the Force
     /// Protein's built-in modification 1330 gives 15: its carrier's
-    /// gun-stock kills push the ragdoll 1 + 15 times (shot::knocked_back).
+    /// gun-stock kills push the ragdoll 1 + 15 times, its battery strikes
+    /// 1 + 15 + 7.5 (shot::knocked_back).
     pub const MELEE_KNOCKBACK: ModifierIndex = ModifierIndex(29);
 }
 
@@ -474,10 +493,12 @@ impl<'t> Player<'t> {
     pub fn held(&self) -> Held {
         // SAFETY: as inserted; the held item is alive as long.
         unsafe {
-            match self.this.held_item() {
-                None => Held::Nothing,
-                Some(item) if read(item.vtable()) == raw::image::VICTORY_ITEM_VTABLE => Held::Battery,
-                Some(_) => Held::Item,
+            if held_battery(self.this).is_some() {
+                Held::Battery
+            } else if self.this.held_item().is_some() {
+                Held::Item
+            } else {
+                Held::Nothing
             }
         }
     }

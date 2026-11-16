@@ -2401,3 +2401,4 @@ va	status	ref_021d	name
 0x0023fbe0	observed		survarium::player's landing step (on_step at the root, from player::on_landing)
 0x002a63c0	observed		survarium::player_equipment_sound_effect::update_feet
 0x002a6410	observed		survarium::player_equipment_sound_effect::set_feet
+0x003917d0	reviewed		vostok::animation::animation_player::tick

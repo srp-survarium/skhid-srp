@@ -58,6 +58,7 @@ pub mod mouse;
 pub mod log;
 pub mod run_log;
 pub mod melee;
+pub mod battery;
 pub mod memory;
 pub mod memory_profile;
 mod options;
@@ -110,6 +111,8 @@ mod generated {
     use super::resources::{QueryResults, QueryTag};
     #[allow(unused_imports)]
     use super::console::{ConsoleArguments, ConsoleCommand};
+    #[allow(unused_imports)]
+    use super::battery::{BatteryState, PredicateBuffer};
     #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");

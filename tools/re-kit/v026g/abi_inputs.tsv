@@ -3521,7 +3521,7 @@ va	name	location	role	basis
 0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+4	the state (+1Ch the battery, its +8 the user)	observed
 0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+8	out matrix (world)	observed
 0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+0Ch	out matrix (before the user's transform)	observed
-0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	XMM0 low32	float, 0.0 from the take and put expressions	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	XMM0 low32	the hands' weight interpolator's time, s: 0.0 from the take (0x338B32: at once, the instant interpolator 0xA17130 at 0x344F92), 0.3 from the carry (0x338DF7) and the put (0x339107)	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+20	float time scale of the hands' animation ([state+0E8h] at the take and put)	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+4	the victory item state; its item [+1Ch], whose user [+8] is animated	observed
 0x0034be30	vostok::render::culling::portal_sector_structure::portal_sector_structure	EAX	owner storage copied ESI	observed
@@ -6189,6 +6189,27 @@ va	name	location	role	basis
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	EDI	the value (patch pointer)	observed
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+4	last (the value's slot)	observed
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+8	the camera position by value (3 floats)	observed
+0x00301920	survarium::victory_item_core::initialize_logic	EAX	the battery	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+4	the take state's 6 clips	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+8	take_time (f32)	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+12	the carry state's 6 clips	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+16	the put state's 6 clips	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+20	put_time (f32)	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	ESI	the state's room (0ECh bytes)	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	entry ESP+4	the battery	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	entry ESP+8	its 6 clips	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	entry ESP+12	the time its first player clip is scaled to (f32)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+4	the bullet manager (a gun's +5A0h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+8	the start point (3 f32: the eye's position row, matrix +30h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+12	the velocity (3 f32: the eye's forward row +20h times the speed; melee: the distance)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+16	the bullet data (a gun's +268h of its ammo, or +53Ch its melee)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+20	the time (ms)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+24	the owner (the player's +110h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+28	the second owner (the player's +118h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+32	unused: 0 (both callers)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	EDI	the gun (the bullet's constructor 0x32BA60 calls its vtable +7Ch)	observed
+0x00372420	survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition	entry ESP+4	the predicate buffer, as a function-pointer functor's invoker 0x303450 leaves it (unread)	observed
+0x00397c20	survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]	ECX	the state (unread)	observed
 0x003737f0	vostok::network::torrent_client::start_seeding	entry ESP+4	the torrent_client (network client vtable +48h: network_client+1EE8B8h); +0 the network world (+94h task queue, +11Ch allocator), +4 the pipe, +8 the debug flag sent, +0Ch debug info (u8 seeding, u32 upload rate, u32 limit, u32 peers), +1Ch in a match	observed
 0x00373910	vostok::network::torrent_client::stop_seeding	entry ESP+4	the torrent_client	observed
 0x003739e0	vostok::network::torrent_client::change_upload_speed_limit	entry ESP+4	the torrent_client	observed
@@ -6250,6 +6271,17 @@ va	name	location	role	basis
 0x00305540	survarium::booby_trap_core::hit	entry ESP+10h	the hit type (hit_type_enum; try_pierce 0x32DA00 pushes the bullet ammo damage_type, ammo_data +4Ch): the hit defuses only when it is the set defuse_by_hit (+298h, 8 none; data/defuse_by_hit, ranged in blackmarket_trap), 0x30554C	observed
 0x00305580	survarium::booby_trap_core::hit	ECX	the booby trap (hit_receiver slot +20h): defuses whatever the hit type, by the byte +220h as 0x305540	observed
 0x003050c0	survarium::booby_trap_core::defuse_completed	EAX	the booby trap: an armed one (+198h 1) leaves the physics world (its users ended, usable_object::remove, collision_sensor::remove, the hittable body unless defuse_by_hit is 8), then state 3 disarmed with the set disarmed_life_time (+290h) as its timer (+268h), or removed at once (0x304F00) when that is 0	observed
+0x0032c520	survarium::bullet::compute_damage_speed	ESI	the bullet	observed
+0x002da5b0	survarium::base_player::recompute_damage_collision_bones	entry ESP+4 (reads)	only [arg+8]+4 is read (0x2DA5E3; +8 of its frame is a local after 0x2DA5FF): the ray requester needsCollision 0x75BD0 hands it (0x75BFB), a bullet or any object whose +8 is a bullet_owner	observed
+0x0032d4e0	survarium::bullet::check_collision	the ray result's object at 0x32D705	its +0Ch (the game object) cast by its vtable +0 to the hit target (0x32D70D); none: the level (a back-face hit then goes on through 0x32E740); its vtable +10h the material (0x32D839: a hit model's body, bt_animated_rigid_body 0x9E2AF4, gives +38h, 10 actor, 0x70C00)	observed
+0x002da170	survarium::base_player::generate_killed_event	EDX at 0x2DA3CB	the kill event's weapon icon about to be written to its node's +2 (EAX the node): the bullet's data +50h, else the damage source's +224h (0x2DA35A..0x2DA382); read by the hud's event handler 0x23B5F0 as on_player_killed's object_icon	observed
+0x003917d0	vostok::animation::animation_player::tick	ESI	the animation player (its mixing tree at +0E100h)	observed
+0x003917d0	vostok::animation::animation_player::tick	stack+4	u32 time, ms	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+12	the time synchronization group (parameters +4Ch): 2 from the take and the put, 3 from the carry; a new clip starts where another of its group stands only if that one is not frozen at its end	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+16	the playback type (parameters +48h): 1 once and frozen at the end (the take, the put), 0 cyclic (the carry)	observed
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	EAX	the battery	observed
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	entry ESP+4	the state's room (0E0h bytes, initialize_logic 0x301974)	observed
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	entry ESP+8	its 6 clips	observed
 0x0013ced0	vostok::render::renderer::render_flash_ui	stack+8	the output window: its +30ACh the render output the frame presents with (0x13DD3F, res_render_output::present 0x3CF7F0), its +30B0h the flash renderer (0x13CEE9); called once a frame at 0x13DB3D, the scene already on the back buffer (a read-back there in a game: the world, no interface)	observed
 0x001f63e0	survarium::game_world::get_step_manager	ECX	the game world (this)	observed
 0x001f3bd0	survarium::player::is_first_view	ECX	the player (+0F474h its game world, +9Ch the game, +53ACh the network client, +4 its local player)	observed

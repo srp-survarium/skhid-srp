@@ -148,6 +148,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`), `../crates/ban-reason` | Patch 116: a banned account's sign-in shows srp's reason, when the ban ends and how long it has left, from what srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
 | `rust/patches/src/sign_in_cipher.rs`, `src/sign_in_cipher.toml`, `src/vostok/openssl.rs`, `../crates/sign-in-cipher`, `check_sign_in_cipher_026g.py` | Patch 139: the sign-in's password goes through srp's own cipher where the game's protocol had TLS; five lohooks, the user name's answer and OpenSSL's SSL_connect, SSL_read, SSL_write and SSL_get_error after their prologue; its check runs a sign-in through the patched exe against Python's `cryptography` (needs it and Unicorn) |
 | `rust/patches/src/free_for_all.rs`, `src/free_for_all.toml`, `src/vostok/respawn.rs`, `src/vostok/ui.rs` (`MatchClock`, the hud state), `check_free_for_all_026g.py` | Patch 142: a free-for-all (mode 8), each player his own side: he respawns alone at one of all clear points of the map's team-2 group, the hud movie gets his kills, the most kills and the kill target (`root.set_ffa_progress`), and the match's start and end their messages; twelve lohooks (the KD death event, the respawn tick's batching and selection, the respawn rule's save, load and a place's entry (each place's last two spawn points), a point's protection read, the options' two reads, update_player_icons' start, initialize_match's start, the welcome's mark); its check runs them in the patched exe with the game's own code around, the original beside (needs Unicorn) |
+| `rust/patches/src/battery_hit.rs`, `src/battery_hit.toml`, `src/vostok/battery.rs`, `check_battery_hit_026g.py` | Patch 143: a battery's carrier hits with it, two strikes in turn (the ram, the shove): five states appended to the battery's machine (each strike's swing and recovery: take states over the content's authored clips, 0.2 s and 0.35 s; the shove's own carry before them, so the carry the machine stands in is the strike that comes next) entered from a carry by the melee key, fsm::tick leaving a swing striking with the gun-stock hit's bullet (the impact; a battery put away never strikes); two lohooks (the cook's callback after initialize_logic, fsm::tick's taken transition), a runtime callback (carry -> swing's predicate), a runtime vtable copy (the swing's may-be-put-away) and four filtered lohooks where a bullet reads its deactivated gun's user or posture (the gun's player and its battery's posture instead); a lohook giving a strike's kill the kill feed's battery icon (200); and the battery cook's request buffer given room for 64 (three displacements of process_loading_victory_item_core 0x2FA050, BATTERY_COOK_REQUESTS in patch_026g.py: the stock room of 20 takes three states); its check runs them inside initialize_logic, fsm::tick, emit_bullet, bullet::tick, deactivate and a save and load (needs Unicorn) |
 | `rust/patches/src/artefact_skills.rs`, `src/artefact_skills.toml`, `src/vostok/artefact_skills.rs`, `check_artefact_skills_026g.py`, `src/artefact_keeper.rs`, `src/artefact_keeper.toml`, `src/vostok/keeper.rs`, `check_artefact_keeper_026g.py` | Patch 109: the artefact tree's skills the exe computes (`../docs/notes/artefact-skills.md`), their ranks packed in kit modifier 40; Resistance (+0.05 armour a rank against the anomalous hit types, 0x32A083), Onyx II (the landing 0x2D8220), Larkspur II (the activation 0x313333), Spring II (patch 54's reload nodes, its entry), Resonance and Cascade (the aura at the getters 0x2D5AE6 / 0x2D5C18, the protectors 0x32A020, the regeneration 0x32A53F), Keeper of the Artifacts (a Keeper gets a dormant artefact of the match's kind from the map's hidden pool at the match's start, into its first empty container, once a match: register_artefacts 0x31B8E0, the player's tick 0x2DAAD3); their checks run the game's code for each (needs Unicorn) |
 | `rust/patches/src/forest_glow.rs`, `src/forest_glow.toml`, `src/vostok/effect.rs`, `check_forest_glow_026g.py` | Patch 111: Forest Protection's grey glow on the arms while it protects a player (inside a damage zone, a rank of modifier 41 in its kit), seen by everyone; and the leg quarters, each passive artefact copy counting for a player (own and Resonance's shared, at most 4 a kind) lighting a quarter of its legs in its kind's colour, shown only by a game whose local player's current kit has Artifact Sight (513, modifier 40 bit 12) or that has no local player (pack artefact-glow@13); a place's third-person presenter given back to its current kit's object (the stock game left it on another kit's after a respawn, so other games showed none of that player's effects); played from the player's simulation tick with its own calculator, which ends each when the game no longer shows it; its check runs the tick, the effects' query and callback, the clock and the cook in the built exe (needs Unicorn) |
 | `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
@@ -4186,6 +4187,49 @@ needs it. `check_free_for_all_026g.py` runs the hooks inside the game's own tick
 select_respawn_points (300 random matches against its own model of the rule, 300 ticks of one
 match with each place's last two), the respawn rule's serialize, deserialize and entry, the zone
 functions' bytes (the original's), the options' reads, update_ui's welcome and update_player_icons' start.
+
+## Hitting with the battery (patch 143, unreleased)
+
+The melee key while carrying a battery strikes with it, two strikes in turn: the ram and the
+shove (`docs/notes/battery-hit.md`). The Rust `battery_hit` (`vostok::battery`):
+
+- **A swing and a recovery a strike**, states of the battery's own state machine. At
+  `battery.logic` (0x2FA7E9, the cook's callback once initialize_logic made the take, carry and
+  put) for each strike two take states (0x338940) of the game's allocator over the authored clips
+  the cook loaded as the config's `states[3]` to `states[6]` (content `battery-hit-1.json`;
+  scripts/battery-hit), 0.2 s (the gather and the drive) and 0.35 s (the follow-through and the
+  way back), their kind the
+  carry's (3), their vtable a copy of the take's with finalize and may-be-put-away ours; and for
+  the shove a carry state of its own (the game's constructor 0x338BE0 over the
+  carry's clips). Appended to the machine's list (3, 4 the ram's swing and recovery; 5, 6, 7 the
+  shove's carry, swing and recovery); transitions: a carry -> its swing (a
+  function-pointer functor whose function is ours: the carrier alive, the melee key down, not in
+  the air; after carry -> put), a swing -> put and its recovery, a recovery -> put and the next
+  strike's carry, the shove's the first carry (copies of carry -> put's and take -> carry's
+  functors), each tried once its clip ended. So the strike that comes next is the machine's
+  current state: no field of the patch's.
+- **The strike**, a swing's finalize once its clip ended (the impact): the gun-stock hit's bullet
+  (`emit_bullet` as 0x33AB50 gives it) of the carrier's slot-7 gun, else slot 10's, from the eye
+  along the first of 15 rays over where the strike's battery lands (a fixed 5 x 3 grid 0.7 m
+  ahead, the look first: the ram's around the look, the shove's a column to the right;
+  each the game's ray test 0x75E20 as check_collision's, its requester a stand-in of
+  the carrier's bullet owner) whose first hit is a living player's body, else along the look. Patch 108
+  makes it kill. The gun is deactivated (no user, no posture)
+  and the bullet reads both through it all its life (player_stance 0x2E43A0 at the constructor,
+  the melee damage 0x2E1CF0 / 0x2E1C80 at every step and hit): four filtered lohooks at those
+  reads (0x2E43A3, 0x2E43B9, 0x2E1D00, 0x2E1C99, called only for a null read) give the gun's
+  player (its inventory's holder) and that player's battery's posture. Nothing is written.
+- **The kill feed**: a lohook at `kill_feed.weapon_icon` (0x2DA3CB, generate_killed_event before
+  it writes the event's weapon icon) sends icon 200 for a kill by a melee bullet whose gun's player
+  holds a battery; the hud movie shows it as `CombatLogBatteryIcon`.
+- **Put away**: the swing's +20h answers as the carry's (a dead carrier's battery may go).
+
+The game's fsm runs, saves (the state's index, 3 to 7, then a take's fields or a carry's) and
+loads them; srp-validate reads each. A match's computation changes. `check_battery_hit_026g.py`
+runs initialize_logic, the site, the take's and the carry's constructors, fsm::tick (the two
+strikes in turn), emit_bullet with the bullet's constructor, bullet::tick (its flight and a hit),
+deactivate and a save and load mid-strike with the game's own code, and both in-game crashes as
+controls in the original exe (needs Unicorn). The shove as it is now (raised into the view) is not played.
 
 ## Names on the Tab map (patch 82, unreleased)
 
