@@ -46,7 +46,7 @@
         SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
         outputHashMode = "recursive";
         outputHashAlgo = "sha256";
-        outputHash = "sha256-F4ErAyoePkNwxGseI36VfaoPnFfvfje0Ldnekrzlg/8=";
+        outputHash = "sha256-6zcZRikmlQJDIIfxHqC4jgBkvJcPxvr089AfDjoEElQ=";
         # (This file has CRLF line ends; bash takes none.)
         buildCommand = builtins.replaceStrings [ "\r" ] [ "" ] (''
           xwin --accept-license --log-level warn --http-retry 3 --timeout 600s \
