@@ -346,6 +346,18 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     spawns, so no way down is checked there. Every one body clear, 2 m from the bonfires' fire
     zones and inside the fence (the nearest 4.1 m from it); 37 hold the rule, 10 have no cover,
     kept as his.
+- **London at the owner's picks** (2026-11-16: 50 `where` places on day_8,
+  `private/spawn-examples/london-2026-11-16.tsv`). Content edit `ffa-london-picks-1`, from
+  `scripts/ffa-mode/london-picks.tsv` (`picks --project level_09/day_8`) and `make_picks_edits.py
+  london`, in its own project only, after `ffa-center-1`, `ffa-london-underpass-1` and
+  `ffa-cover-maps-1`:
+  - All 50 facing as he faced, in point_ids 20-69 (position and rotation only); 70-83 go. 64 -> 50
+    points: only his, none of the centre move's, the underpass list's or the cover rule's left.
+  - 19 on the rotunda's second storey (14.06; 1-14, 43-47), 20 on the street and mounds (5.7 to
+    11.0; 15-28, 40-42, 48-50) and 11 in the underpass (0.58 to 1.27; 29-39); none on the third
+    storey.
+  - Every one on its ground (0 to 9 cm: 15, 21, 31, 40 and 48 lowered), body clear, 2 m from
+    harmful zones, and every one holds the spawn rule: no override needed.
 - A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
