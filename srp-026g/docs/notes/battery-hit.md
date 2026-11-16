@@ -37,14 +37,13 @@
   so sprinting may swing as the gun may; read from the battery's clip set). The gun's other
   rule, not aimed (+5E8h), has no carrier's counterpart. melee_pred has no +5ECh test.
 - **Who:** every carrier, bots too (their `attack_melee` presses the key in melee range).
-- **Three strikes in turn** (the owner, 2026-11-15: "can we get the second animation where left
+- **Two strikes in turn** (the owner, 2026-11-15: "can we get the second animation where left
   hand doesn't move far but right one does, this is a different type of hit", "it is like pushing
-  the right side of the battery and hitting with that"; "maybe the third one when both hands are
-  raised up and then shown down (we can at least try)"): the ram (both arms push the battery
+  the right side of the battery and hitting with that"): the ram (both arms push the battery
   out), the shove (the left hand the pivot, the right arm drives the battery's right end
-  forward), the slam (both arms lift it and throw it down), then the ram again. A battery just
-  picked up starts with the ram. Which comes next is the state its machine is in (The change):
-  simulation state every game has, nothing new in the world's format.
+  forward), then the ram again. A battery just picked up starts with the ram. Which comes next
+  is the state its machine is in (The change): simulation state every game has, nothing new in
+  the world's format. A third, the slam, was tried and is parked (The animation).
 - **Effect:** at the swing's end, one melee bullet as the gun-stock hit's: from the eye, the
   carrier's primary gun's (slot 7) melee data and distance, aimed over where the strike's battery
   lands (below). The same hit for every strike. The carrier keeps the battery.
@@ -61,14 +60,11 @@
   first hit is a living player's body (a wall, a lamp or anything else first blocks that ray) is
   the bullet's direction; none: the look, as the gun-stock hit. One bullet: one victim a strike,
   its walls, teams and damage the native bullet's. Every game computes the same: the eye, the look
-  and the physics world of the same tick. That grid is the ram's. The other strikes' batteries
-  land elsewhere on that plane (`battery_hit_strikes_metrics.txt`), so each has its own
-  (`Strike::grid`), built and ordered alike:
-  - the shove: its right end is 0.39..0.49 m right of the look, past the ram's 0.3 m; its left
-    end is the pivot at the hip. The ram's grid one column to the right: -0.15, 0, 0.15, 0.3,
-    0.45 m;
-  - the slam: 0.20..0.50 m below the look at the strike, 0.26..0.60 m 0.045 s on, under the ram's
-    0.35 m. The ram's columns, rows at the look, 0.25 and 0.5 m down.
+  and the physics world of the same tick. That grid is the ram's. The shove's battery lands
+  elsewhere on that plane (`battery_hit_strikes_metrics.txt`), so it has its own
+  (`Strike::grid`), built and ordered alike: its right end is 0.39..0.49 m right of the look,
+  past the ram's 0.3 m; its left end is the pivot at the hip. The ram's grid one column to the
+  right: -0.15, 0, 0.15, 0.3, 0.45 m.
 - **Damage (assumed):** the gun's melee data is blunt with an attacker, so patch 108 kills at
   once wherever it lands. A battery's own damage would need its own bullet data: the owner's
   call.
@@ -216,23 +212,35 @@
   reach, the right elbow lifting; each hand turns on its handle as its forearm comes round
   (`Strike.turning`), so no wrist bends past what a wrist does. The ram's times: the strike at
   0.2 s, the carry again at 0.55 s.
-- **The slam** (`swing.SLAM`; "we can at least try"): a lift of 28 cm, 18 cm forward, to before
-  the face by 0.29 s, a short hang, the throw down from 0.33 s, the strike at 0.40 s (4.0 m/s, the
-  fastest, 14 cm down), landing 23 cm under the top with the battery tipped 22 degrees forward,
-  the carry again at 0.70 s. It is not over the head, and the arms alone cannot make it so: the
-  chest and the head stay (mask 1), so any higher the right arm runs out of reach (the carry
-  stance holds the right shoulder 20 cm behind the left), the battery goes into the helmet and
-  through the first-person near plane, and it fills the view (at the top 55 % of it is in view,
-  the lower half of the screen). A blow from over the head needs the spine and the camera: exe
-  code, and the eye the strike is aimed from would move. Its own times, because the lift needs
-  them: the hit 0.4 s after the press and 0.7 s a strike.
-- **Twelve clips**, four a strike, written in the engine's format with its own spline basis
-  (`clips.py`): the carrier's `<name>` (its last frame the strike: 6 frames, the slam's 12) and
-  `<name>_recover` (10.5 frames, the slam's 9) with the carry idle's bone names, the battery's
+- **The slam, tried and parked** (the owner, 2026-11-15: "maybe the third one when both hands
+  are raised up and then shown down (we can at least try)"; 2026-11-16, of the previews: "let's
+  go w/o slam for now, since it is slower, otherwise it is good"). Its keys stay (`swing.SLAM`,
+  not one of `swing.STRIKES`): a lift of 28 cm, 18 cm forward, to before the face by 0.29 s, a
+  short hang, the throw down from 0.33 s, the strike at 0.40 s (4.0 m/s, the fastest, 14 cm
+  down), landing 23 cm under the top with the battery tipped 22 degrees forward, the carry again
+  at 0.70 s. What was found:
+  - slower: the lift needs its own times, the hit 0.4 s after the press and 0.7 s a strike (the
+    others' 0.2 s and 0.55 s);
+  - the arms alone cannot take it over the head: the chest and the head stay (mask 1), so any
+    higher the right arm runs out of reach (the carry stance holds the right shoulder 20 cm
+    behind the left), the battery goes into the helmet and through the first-person near plane,
+    and it fills the view (at the top 55 % of it is in view, the lower half of the screen). A
+    blow from over the head needs the spine and the camera: exe code, and the eye the strike is
+    aimed from would move;
+  - its battery lands 0.20..0.50 m below the look at the strike, 0.26..0.60 m 0.045 s on, under
+    the ram's 0.35 m: its grid was the ram's columns with rows at the look, 0.25 and 0.5 m down.
+
+  To bring it back: `SLAM` into `swing.STRIKES` (its clips, `battery_hit_slam*`, and the edit
+  list's states 7 and 8), `Strike::Slam` with its times, grid and states 8 to 10 (its carry,
+  swing and recovery) in `vostok::battery`, `battery_hit` and srp-validate. The branch had it
+  whole at 5f706d8c0.
+- **Eight clips**, four a strike, written in the engine's format with its own spline basis
+  (`clips.py`): the carrier's `<name>` (its last frame the strike: 6 frames) and
+  `<name>_recover` (10.5 frames) with the carry idle's bone names, the battery's
   `<name>_electrobox` and `<name>_recover_electrobox` with its own, `<name>` being `battery_hit`
-  (the ram), `battery_hit_shove`, `battery_hit_slam` (`swing.STRIKES`); shipped by the edit list
+  (the ram) and `battery_hit_shove` (`swing.STRIKES`); shipped by the edit list
   `battery-hit-1.json` (op `files_from_repo`, pinned by sha256, `make_clips.py --check`) as
-  `states[3]` to `states[8]`, a swing and a recovery a strike (user_animations and animations),
+  `states[3]` to `states[6]`, a swing and a recovery a strike (user_animations and animations),
   which the cook loads.
 - **Checked offline** (`preview.py`, the renders in `private/renders/battery-hit/`: the films
   before beside after in first and third person, `battery_hit_velocity.png`,
@@ -243,12 +251,11 @@
   on screen from 0.17 to 0.43 s (29 % at the strike, 72 % at full reach, both hands); nothing
   crosses the near plane in view and no torso, neck, head or helmet vertex is inside the
   battery. `engine_bake.py` runs the game's baker (0x3B3250) and evaluate_frame (0x3B3180)
-  under Unicorn on the clips: within 1e-6 of `clips.py` on every track. The shove and the slam
-  the same way (`preview.py <assets> <out> strikes`: `battery_hit_strikes*`, `battery_hit_shove*`,
-  `battery_hit_slam*`, the three side by side): the largest change of speed in one millisecond
-  0.17 and 0.13 m/s, the hands within 0.2 mm, nothing through the near plane (every 1/240 s) or
-  the body; in first person the shove shows from the strike (13 %, then 41 % with the right
-  hand), the slam through its lift (55 % at the top).
+  under Unicorn on the clips: within 1e-6 of `clips.py` on every track. The shove the same way
+  (`preview.py <assets> <out> strikes`: `battery_hit_strikes*`, the ram beside it, and
+  `battery_hit_shove_*.png`): the largest change of speed in one millisecond 0.17 m/s, the
+  hands within 0.2 mm, nothing through the near plane (every 1/240 s) or the body; in first
+  person it shows from the strike (13 %, then 41 % with the right hand).
 - **Seen by all:** the swing and the recovery are states of the battery's machine; the
   player's animation tree is simulation state, drawn for every view; first person draws the
   same body. The battery follows the Weapon bone each tick (0x344E40).
@@ -257,19 +264,16 @@
   their melee pairs; concrete, ground, stone and glass are silent, as for the gun-stock hit.
   Heavier candidates (STALKER SoC thuds, a port) are in `private/renders/battery-hit/sounds/`
   for the owner to pick; none wired.
-- **Not seen in game yet:** the shove and the slam, and the strikes' turn; the states' timing
+- **Not seen in game yet:** the shove and the strikes' turn; the states' timing
   above is read from the exe, not watched; locomotion under the swing, the look pitch.
 
 ## Timing
 
-- The ram and the shove: press to impact 0.2 s (`battery_hit::times`, the clip's 6 frames; the
+- Either strike: press to impact 0.2 s (`battery_hit::TIMES`, the clip's 6 frames; the
   take state scales its clip to it), the strike on the swing's end, the battery at its fastest
   and three quarters of the way out (it is at full reach 0.045 s later); the recovery 0.35 s,
   then the next strike's carry: 0.55 s a strike. The gun-stock strike's clip (`ak/.../kick`) is
   6 frames too.
-- The slam: press to impact 0.4 s (12 frames), the recovery 0.3 s (9): 0.7 s a strike. Its hit
-  lands twice as long after the press, and a round of the three takes 1.8 s where three rams
-  took 1.65 s.
 
 - The strike is when the swing's clip ends (the state's readiness, set by the animation
   player's end event, as the take's): 199 ms after the swing's start, in the same step of the
@@ -292,14 +296,14 @@
   stock battery states.
 - **A trap on the look:** a strike is the gun-stock bullet, blunt, so it disarms a trap as a
   gun-stock hit does (patch 151, trap-stock-hit.md). Not played.
-- **Late join, resync, replays:** the strikes' states are the machine's fourth to eleventh
-  (indices 3 to 10), saved and
+- **Late join, resync, replays:** the strikes' states are the machine's fourth to eighth
+  (indices 3 to 7), saved and
   loaded by the game's own fsm serialize (0x38CC90: the index, then the state's fields, a
-  take's layout, a carry's for the two carries; PROVEN in the check: saved in the ram's swing,
-  the slam's swing and the shove's carry, loaded by another game into its own state of that
+  take's layout, a carry's for the shove's carry; PROVEN in the check: saved in the ram's swing,
+  the shove's swing and the shove's carry, loaded by another game into its own state of that
   index, every field the same). The strike that comes next is that index and nothing else, so
-  a loaded game goes on in the saver's turn. `srp-validate` reads 1, 5, 8 as
-  `BatteryState::Carry { next }`, 3, 6, 9 as `Swing { strike }`, 4, 7, 10 as
+  a loaded game goes on in the saver's turn. `srp-validate` reads 1 and 5 as
+  `BatteryState::Carry { next }`, 3 and 6 as `Swing { strike }`, 4 and 7 as
   `Recover { strike }` (`BatteryStrike`). A bullet
   in flight is loaded with its gun from the shooter's slot (0x32BDA1..0x32BDAE), deactivated
   there too: the substitutions below need nothing the loading game lacks. Replays recorded
@@ -308,25 +312,25 @@
 ## The change (exe patch 143, Rust `battery_hit`)
 
 - `battery.logic` (0x2FA7E9, the cook callback after `initialize_logic`): for each strike
-  (`vostok::battery::Strike`: Ram, Shove, Slam) a swing and a recovery, take states (0x338940)
+  (`vostok::battery::Strike`: Ram, Shove) a swing and a recovery, take states (0x338940)
   over the config's clips of `states[3 + 2i]` and the next, which the cook loaded (its
   queries_result, the callback's argument: state i's six clips at results 2 + 6i, the managed
-  resources at +128h, 2E0h apart, as 0x2FA52D reads the take's), with the strike's times
-  (`battery_hit::times`); and, for the shove and the slam, a carry state of its own before them
+  resources at +128h, 2E0h apart, as 0x2FA52D reads the take's), with the strikes' times
+  (`battery_hit::TIMES`); and, for the shove, a carry state of its own before them
   (the game's constructor 0x338BE0 over the carry's clips, `states[1]`: EAX the battery, the
   room of 0E0h bytes and the clips on the stack, as initialize_logic 0x301969 makes the
   machine's). All appended to the machine's list: take, carry, put; the ram's swing and
-  recovery (3, 4); the shove's carry, swing and recovery (5, 6, 7); the slam's (8, 9, 10).
+  recovery (3, 4); the shove's carry, swing and recovery (5, 6, 7).
   Transitions: a carry -> its swing (a function-pointer functor, our function: the carrier
   alive, melee down, not in the air; after carry -> put), a swing -> put and its recovery, a
-  recovery -> put and the next strike's carry, the slam's the machine's own carry again (byte
+  recovery -> put and the next strike's carry, the shove's the machine's own carry again (byte
   copies of carry -> put's and take -> carry's functors), each tried once its clip ended. Every
-  state is made before the machine is written. Results without states 3 to 8 (a game without
+  state is made before the machine is written. Results without states 3 to 6 (a game without
   the content, or with the ram's alone) are the patch's crash.
 - **Which strike plays** is the carry the machine stands in: the carry after a take is the
   game's own, the ram's; each recovery ends in the next strike's carry. No counter, no field of
   the patch's: the alternation is the machine's current state, which the game's own fsm runs in
-  every game, saves as its index and loads. Three carries that play the same clips are what it
+  every game, saves as its index and loads. Two carries that play the same clips are what it
   costs (a state a strike could not tell the next one from the carry alone). A strike's kind is
   told where it lands by its swing's place in the list (`BatteryState::swing`).
 - A swing's and a recovery's identity, slot by slot: kind 3, the carry's (read by is_carrying 0x3018C8 and the clip
@@ -445,13 +449,13 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
 ## Checked
 
 - `check_battery_hit_026g.py` (Unicorn, the patched exe beside the original):
-  - initialize_logic and the site make the eleven states (each strike's swing and recovery over
-    the cook's clips of its two states, scaled to its times; the shove's and the slam's carries,
-    carry states of the game's over the carry's clips) and their transitions, the slam's
-    recovery back to the first carry; the vtable copy has exactly slots +0Ch and +20h ours;
+  - initialize_logic and the site make the eight states (each strike's swing and recovery over
+    the cook's clips of its two states, scaled to their times; the shove's carry, a carry state
+    of the game's over the carry's clips) and their transitions, the shove's recovery back to
+    the first carry; the vtable copy has exactly slots +0Ch and +20h ours;
     results without the content's states, or with the ram's alone: the patch's crash, the
     machine untouched;
-  - the key held: the ram, the shove, the slam and the ram again, each from its own carry, one
+  - the key held: the ram, the shove and the ram again, each from its own carry, one
     strike at its swing's end;
   - fsm::tick from the carry takes the swing only for the melee key and a living carrier, the
     put first on a switch;
@@ -466,7 +470,7 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
     as source, reading the damage again at 0x32DA5A); the gun never written;
   - put away mid-swing through the game's deactivate: the strike only with the clip ended and
     the carrier alive; a dead carrier's swing may be put away, a living one's not;
-  - saved in the ram's swing, the slam's swing and the shove's carry and loaded by another
+  - saved in the ram's swing, the shove's swing and the shove's carry and loaded by another
     game: its state of that index current, every field the same;
   - no gun in either slot (never in a match): the patch's own crash;
   - the melee key while the carrier's posture is a jump: the carry stays (sprint, run: the
@@ -478,8 +482,7 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
     first ray to it, one hit (the game's bullet::tick); a body just past its width (0.36 m) or
     under its lower edge (0.4 m down): along the look, no hit; a wall in front of the body: no
     hit; a body 9 rays meet: one bullet, one hit; the shove hits that body past the ram's width
-    (its column 0.45 m right) and not one 0.2..0.4 m left; the slam that body under the ram's
-    edge (its row 0.5 m down) and not one between its rows.
+    (its column 0.45 m right) and not one 0.2..0.4 m left.
   Stubbed: the allocator, a clip's time scale, the animation event channels, the battery's
   transform calls, the bullet pool's room and live-list add, the physics world's ray test (a scene
   of boxes on the battery's front) and bounds, the struck target.
@@ -489,17 +492,17 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
   (`scripts/kill-feed-icons/check-combat-log/check.sh`, Ruffle): icon 200 shows
   `CombatLogBatteryIcon` 25 x 19 in the weapon's place, the clip hidden; every other icon as before.
 - `cargo test` and Clippy of the patches crate (each strike's grid: 5 x 3, the look first, by
-  distance, left before right) and srp-validate (states 0 to 10 read as each strike's carry,
-  swing and recovery, 11 refused).
+  distance, left before right) and srp-validate (states 0 to 7 read as each strike's carry,
+  swing and recovery, 8 refused).
 - The knockback: `cargo test -p ragdoll` (a strike 8.5 times, with the protein 23.5, a NaN or
   negative kit counting nothing; every strike a heavy hit, a plain gun stock and the heaviest
   bullet not; thrown 0.4 to 0.6 of the protein's distance and lifted, with the protein farther
   and higher than the protein alone; the protein's +15 is modifications.tsv's), Clippy, `check_ragdoll_026g.py` and `check_battery_hit_026g.py` with
   the relinked arena. Not played.
 - The clips: `make_clips.py --check` (the committed files are the keys'); the offline previews
-  (no near-plane crossing, no body inside the battery, every frame); the edit list's 24 pins
-  and that each of its six states names clips it adds. `release/build-content` not run for the
-  shove and the slam (the owner was playing the content then).
+  (no near-plane crossing, no body inside the battery, every frame); the edit list's 16 pins
+  and that each of its four states names clips it adds. `release/build-content` not run for the
+  shove (the owner was playing the content then).
 - `check_world_roundtrip_026g.py`: its three worlds pass; its three coverage failures (0x252B48,
   0x310224, 0x33A51B, other patches' sites) fail the same on origin/main.
 - Not proven: the pierce or ricochet at 0x32E35C (the same 0x2E1C80, its lohook, not run);
@@ -520,14 +523,14 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
   - the authored clips through the game's own baker (bake_time_channel 0x3B3250, the buffer
     sized by baked_animation_size 0x3B50D0) and evaluate_frame (0x3B3180) under Unicorn: all
     1260 tracks, 41 times each, within 1e-6 of `clips.py`'s evaluation (the previews').
-- Not played: the shove, the slam and their turn; the bullet's hit in a match.
+- Not played: the shove and the strikes' turn; the bullet's hit in a match.
 
 ## Release
 
 - Exe: the patch; `simulation_changes.tsv` `next`.
-- World format: battery states 3 to 10 (srp-validate, and so patch 87's check in every game
+- World format: battery states 3 to 7 (srp-validate, and so patch 87's check in every game
   and the server's).
-- Content: `battery-hit-1.json` (the twelve clips, the config's states 3 to 8). The exe needs
+- Content: `battery-hit-1.json` (the eight clips, the config's states 3 to 6). The exe needs
   it: without it every battery crashes the game at its cook (by design: it would play
   otherwise).
 - Content: the hud movie (`CombatLogBatteryIcon`); without it a strike's kill shows the weapon
@@ -535,11 +538,10 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
 
 ## Open questions for the owner
 
-- The look: the three strikes (the previews). The slam is a lift to the face and a throw down,
-  not over the head (The animation): keep it, drop it, or have the body and the camera move
-  (exe code)?
+- The look: the two strikes (the previews; the owner, 2026-11-16: "otherwise it is good"). The
+  slam is parked (The animation): back later with the body and the camera moving (exe code)?
 - Kill at once (patch 108) or a battery's own damage?
-- Speed: impact at 0.2 s, 0.55 s a strike (the slam 0.4 s and 0.7 s); a cooldown?
+- Speed: impact at 0.2 s, 0.55 s a strike; a cooldown?
 - A sound: the stock body thud plays already; a heavier one (the SoC candidates) or a swing
   whoosh (the rifles' `melee_rifle`)?
 - The kill feed's battery icon: the hud's own small battery glyph doubled

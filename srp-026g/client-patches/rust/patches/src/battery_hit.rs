@@ -3,34 +3,28 @@
 //! The melee key while carrying strikes with the battery: an authored gather
 //! and drive (the content's clip), the gun-stock hit's bullet of the
 //! carrier's gun on the strike (that clip's end), then the follow-through
-//! back to the carry. Three kinds in turn, the ram, the shove and the slam
-//! (`Strike`), each a swing and a recovery state of the battery's own state
-//! machine (`vostok::battery`), so every game runs, saves and loads them as
-//! the game's own three; every game deals the hit.
+//! back to the carry. Two kinds in turn, the ram and the shove (`Strike`),
+//! each a swing and a recovery state of the battery's own state machine
+//! (`vostok::battery`), so every game runs, saves and loads them as the
+//! game's own three; every game deals the hit.
 
 #![forbid(unsafe_code)]
 
-use crate::vostok::battery::{self, BatteryState, MadeBattery, PredicateBuffer, Strike, Times, UserSite};
+use crate::vostok::battery::{self, BatteryState, MadeBattery, PredicateBuffer, Times, UserSite};
 use crate::vostok::{Context, Flow, NoExit, OrigBatteryStateFinalize, OrigTakeDeactivatable, battery_hit_on_wants_swing_entry,
                     battery_hit_swing_vtable_handle};
 
 /// A strike's states' lengths, the authored clips' (scripts/battery-hit/swing.py,
-/// 30 frames a second). The ram and the shove: 6 frames to the strike, 10.5
-/// back to the carry. The slam lifts the battery first: 12 frames to the
-/// strike, 9 back.
-pub const fn times(strike: Strike) -> Times {
-    match strike {
-        Strike::Ram | Strike::Shove => Times { swing: 6.0 / 30.0, recover: 10.5 / 30.0 },
-        Strike::Slam => Times { swing: 12.0 / 30.0, recover: 9.0 / 30.0 },
-    }
-}
+/// 30 frames a second): 6 frames to the strike, 10.5 back to the carry (7
+/// ticks of 50 ms, so the recovery ends on a tick as the swing does).
+pub const TIMES: Times = Times { swing: 6.0 / 30.0, recover: 10.5 / 30.0 };
 
 /// The cook's callback once initialize_logic made the take, carry and put:
 /// the strikes' states appended. A battery without them would play
 /// otherwise than every other game's: a crash, not a skip.
 pub fn on_logic(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let battery = MadeBattery::at(ctx).expect("the cook's battery and its results (patch 143)");
-    battery.add_strikes(times, battery_hit_swing_vtable_handle(), battery_hit_on_wants_swing_entry())
+    battery.add_strikes(TIMES, battery_hit_swing_vtable_handle(), battery_hit_on_wants_swing_entry())
         .expect("a battery's strikes (patch 143)");
     Flow::Continue
 }

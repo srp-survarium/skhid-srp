@@ -29,16 +29,15 @@ the game's vtable, material actor; its cast, its hit +24h kept), the world
 writers (their bytes kept). Checked:
 
 - the cook's site: the original leaves the three states; the patched exe
-  appends eight: each strike's swing and recovery (the ram's, the shove's,
-  the slam's: 0ECh bytes of the game's allocator, the take's allocation
-  name; over the cook's clips of config states 3 to 8; the strike's times;
-  kind 3; their vtable the take's with exactly finalize +0Ch and
-  may-be-put-away +20h ours) and, before the shove's and the slam's, a
-  carry of its own (0E0h bytes, the carry's name, constructor and vtable,
-  over the carry's clips); a carry's transitions put then its swing (a
+  appends five: each strike's swing and recovery (the ram's, the shove's:
+  0ECh bytes of the game's allocator, the take's allocation name; over
+  the cook's clips of config states 3 to 6; the strikes' times; kind 3;
+  their vtable the take's with exactly finalize +0Ch and may-be-put-away
+  +20h ours) and, before the shove's, a carry of its own (0E0h bytes, the
+  carry's name, constructor and vtable, over the carry's clips); a carry's transitions put then its swing (a
   function-pointer functor whose function is ours, the battery its
   buffer's second word), a swing's put then its recovery, a recovery's put
-  then the next strike's carry, the slam's the first carry (byte copies of
+  then the next strike's carry, the shove's the first carry (byte copies of
   the native functors);
 - fsm::tick from the carry: the swing only for the melee key (bit 27) and
   a living carrier; a switch away: the put first; the original stays;
@@ -53,21 +52,21 @@ writers (their bytes kept). Checked:
   once, the carrier the shooter, the gun's item the source, the damage read
   again at 0x32DA5A); the gun never written;
 - the strikes in turn: the ram, then from its own carry the shove, then
-  the slam, then the ram again, each one strike at its swing's end;
+  the ram again, each one strike at its swing's end;
 - the strike's aim: 15 ray tests from the eye as check_collision's (the
   melee distance, group 10h, mask 48h, the carrier's own body skipped);
   a body off the look within the battery's width, or below the look at
   its height: the bullet along the first ray to it, one hit; a body just
   past its width or under its lower edge: along the look, no hit; a wall
   in front of the body: no hit; a body several rays meet: one bullet, one
-  hit; the shove's grid a column further right, the slam's rows lower;
+  hit; the shove's grid a column further right;
 - the kill feed: a strike's kill event (its gun's melee data, its gun's
   player holding the battery) gets the battery's icon 200; a gun-stock
   hit's, a round's and a bulletless one keep theirs;
 - put away mid-swing (deactivate): the strike only with its clip ended and
   its carrier alive; a dead carrier's swing may be put away, a living
   one's not; left before its clip ended: no strike;
-- a world saved mid-swing (the ram's, the slam's) or in the shove's carry
+- a world saved mid-swing (the ram's, the shove's) or in the shove's carry
   and loaded by another game: its own state of that index current, every
   field the saver's;
 - no gun in slot 7 or 10 (never in a match): the patch's own crash;
@@ -106,11 +105,11 @@ GUN7, GUN10, MANAGER = DATA + 0x30000, DATA + 0x34000, DATA + 0x38000
 CLIPS = DATA + 0x40000           # the three states' six clips each, then the clips
 HEAP = DATA + 0x50000
 QUERIES = DATA + 0xC0000         # the cook's queries_result: count +38h, results' managed resources +128h, 2E0h apart
-# the strikes in their turn (battery_hit.rs times, vostok/battery.rs Strike): its name, its swing's and its
+# the strikes in their turn (battery_hit.rs TIMES, vostok/battery.rs Strike): its name, its swing's and its
 # recovery's time; its config states are 3 + 2i and the next, its carry, swing and recovery the machine's
-# states 1, 3, 4 (the ram, its carry the game's), then 5, 6, 7 and 8, 9, 10
-STRIKES = (("ram", 6.0 / 30.0, 10.5 / 30.0), ("shove", 6.0 / 30.0, 10.5 / 30.0), ("slam", 12.0 / 30.0, 9.0 / 30.0))
-PLACES = ((1, 3, 4), (5, 6, 7), (8, 9, 10))
+# states 1, 3, 4 (the ram, its carry the game's), then 5, 6, 7
+STRIKES = (("ram", 6.0 / 30.0, 10.5 / 30.0), ("shove", 6.0 / 30.0, 10.5 / 30.0))
+PLACES = ((1, 3, 4), (5, 6, 7))
 CONFIG_STATES = 3 + 2 * len(STRIKES)
 OWNER_WORLD, PROFILE, BULLET = DATA + 0x60000, DATA + 0x80000, DATA + 0x90000
 GUN_ANIMS, BATTERY_ANIMS, POSTURE = DATA + 0x92000, DATA + 0x93000, DATA + 0x94000
@@ -397,7 +396,7 @@ class Run(hide.Run):
     def site(self, states=CONFIG_STATES):
         """The cook callback's site: ESI the battery, ESP+28h the put's clips,
         [EBP+8] the queries_result (with the config's first `states` states: the
-        content's 3 to 8 too, or not)."""
+        content's 3 to 6 too, or not)."""
         sp = hide.STACK + 0x9000
         self.word(sp + 0x108, QUERIES)
         self.word(QUERIES + 0x38, 2 + 6 * states)
@@ -453,21 +452,21 @@ def main():
         r.site()
     check(len(old.states()) == 3 and old.read(FSM) == 3, "the original: take, carry, put")
     states = new.states()
-    check(len(states) == 11 and new.read(FSM) == 11 and states[:3] == [new.take, new.carry, new.put]
-          and new.read(BATTERY + 0x174) == states[10] and new.read(states[10] + 4) == 0,
-          "the patched: take, carry, put, then eight more, the last the list's tail")
+    check(len(states) == 8 and new.read(FSM) == 8 and states[:3] == [new.take, new.carry, new.put]
+          and new.read(BATTERY + 0x174) == states[7] and new.read(states[7] + 4) == 0,
+          "the patched: take, carry, put, then five more, the last the list's tail")
     swing, recover = states[3], states[4]
     new.swing = swing
     made = [(size, name, allocator) for size, name, allocator, _ in new.allocated]
-    at = [state for _, _, _, state in new.allocated[:8]]
+    at = [state for _, _, _, state in new.allocated[:5]]
     take_state, carry_state = (0xEC, TAKE_NAME, ALLOCATOR), (0xE0, CARRY_NAME, ALLOCATOR)
-    check(made[:8] == [take_state, take_state, carry_state, take_state, take_state, carry_state, take_state, take_state]
-          and at == [states[i] for i in (3, 4, 5, 6, 7, 8, 9, 10)] and len(made) == 8 + 17
-          and all(size == 0x28 and allocator == AI_ALLOCATOR for size, _, allocator in made[8:]),
+    check(made[:5] == [take_state, take_state, carry_state, take_state, take_state]
+          and at == [states[i] for i in (3, 4, 5, 6, 7)] and len(made) == 5 + 11
+          and all(size == 0x28 and allocator == AI_ALLOCATOR for size, _, allocator in made[5:]),
           "of the game's allocator: each strike's swing and recovery (0ECh bytes, the take's allocation name) and, "
-          "before the shove's and the slam's, a carry (0E0h, the carry's name); 17 transitions of the ai arena's")
+          "before the shove's, a carry (0E0h, the carry's name); 11 transitions of the ai arena's")
     times = []
-    for (name, swing_s, recover_s), (carry_at, swing_at, recover_at), first in zip(STRIKES, PLACES, (3, 5, 7)):
+    for (name, swing_s, recover_s), (carry_at, swing_at, recover_at), first in zip(STRIKES, PLACES, (3, 5)):
         for state, index in ((states[swing_at], first), (states[recover_at], first + 1)):
             clips = [new.read(CLIPS + 0x18 * index + 4 * i) for i in range(6)]
             stored = [new.read(state + o) for o in (0xE0, 0xE4, 0xD0, 0xD8, 0xD4, 0xDC)]
@@ -485,7 +484,7 @@ def main():
                   f"the {name}'s carry: a carry state of the game's (its constructor's vtable 0xA1BFB8, kind 3) over the "
                   "carry's six clips, as the machine's own")
     check(new.times == times and new.read(swing + 0xE8) == 0x40200000,
-          "scaled to their times: the ram's and the shove's 0.2 s and 0.35 s, the slam's 0.4 s and 0.3 s")
+          "scaled to their times: 0.2 s to the strike and 0.35 s back, the ram's and the shove's")
     vtable = new.read(swing)
     ours = [new.read(vtable - 4 + 4 * i) for i in range(13)]
     stock = [new.read(TAKE_VTABLE - 4 + 4 * i) for i in range(13)]
@@ -619,8 +618,7 @@ def main():
     new.site()
     states = new.states()
     new.actions(MELEE)
-    for name, (carry_at, swing_at, recover_at), following in (("ram", PLACES[0], 5), ("shove", PLACES[1], 8), ("slam", PLACES[2], 1),
-                                                              ("ram again", PLACES[0], 5)):
+    for name, (carry_at, swing_at, recover_at), following in (("ram", PLACES[0], 5), ("shove", PLACES[1], 1), ("ram again", PLACES[0], 5)):
         went = [new.read(BATTERY + 0x178) == states[carry_at], new.tick() == states[swing_at], new.emitted == []]
         went.append(new.tick() == states[swing_at] and new.emitted == [])
         new.emu.mem_write(states[swing_at] + 0xCC, b"\x00")
@@ -723,13 +721,6 @@ def main():
     made, velocity, start, hits = aimed([(COLLISION, (-0.4, -0.2), TALL, 0.9)], strike=1)
     check(made == 1 and near(velocity, centre) and hits == 0,
           "the shove, a body 0.2..0.4 m left (which the ram's column 0.3 m left meets): along the look, no hit")
-    made, velocity, start, hits = aimed([(COLLISION, (-0.1, 0.1), (-0.6, -0.4), 0.9)], strike=2)
-    check(made == 1 and near(velocity, toward(0.0, -0.5)) and hits == 1,
-          "the slam, the body just under the ram's lower edge (0.4..0.6 m down): along its grid's own row 0.5 m down, "
-          "one hit")
-    made, velocity, start, hits = aimed([(COLLISION, (-0.1, 0.1), (-0.2, -0.1), 0.9)], strike=2)
-    check(made == 1 and near(velocity, centre) and hits == 0,
-          "the slam, a body 0.1..0.2 m down (between its rows; the ram's row 0.175 m down meets it): along the look, no hit")
     swing = swinging()
     new.word(INVENTORY + 0x10C + 4 * 7, 0)
     new.emu.mem_write(swing + 0x28, b"\x01")
@@ -788,7 +779,7 @@ def main():
           "yes for a dead one, as from the carry: a dead carrier's swing put away through victory_item_core::deactivate")
 
     print("a world saved and loaded mid-strike (fsm::serialize 0x38CC90 / deserialize 0x38CCF0, the states' own)")
-    for what, index, strike in (("the ram's swing", 3, 0), ("the slam's swing", 9, 2), ("the carry before the shove", 5, None)):
+    for what, index, strike in (("the ram's swing", 3, 0), ("the shove's swing", 6, 1), ("the carry before the shove", 5, None)):
         if strike is None:
             new.made()
             new.site()

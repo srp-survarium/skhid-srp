@@ -1,10 +1,10 @@
 """The battery's strikes, authored on the stock rig like an animator would:
 a keyed curve for each thing that moves (the battery's place and turn, each
 shoulder, each elbow), each with its own timing, the arms solved onto the
-battery's handles every sample. Three kinds (STRIKES), which a carrier's
-strikes take in turn: the ram (both arms push the battery out), the shove
-(the right arm shoves its right end forward about the left hand) and the
-slam (both arms lift it and throw it down). Each is written as two clips:
+battery's handles every sample. Two kinds (STRIKES), which a carrier's
+strikes take in turn: the ram (both arms push the battery out) and the
+shove (the right arm shoves its right end forward about the left hand).
+Each is written as two clips:
 the swing (the gather and the drive, its last frame the strike) and the
 recovery (the follow-through, the settle and the way back to the carry
 idle).
@@ -21,7 +21,7 @@ from rig import matrix
 
 FPS = 30.0
 STEP = 0.5          # frames between a clip's samples at most: 60 a second (swing.track adds where needed)
-# The ram's and the shove's times (s): the strike, the swing clip's end (battery_hit.rs `times`:
+# The ram's and the shove's times (s): the strike, the swing clip's end (battery_hit.rs `TIMES`:
 # the swing 0.2 s), and the rest, the recovery's end, back on the carry idle (its recovery 0.35 s).
 STRIKE = 0.2
 REST = 0.55
@@ -175,8 +175,10 @@ SHOVE = Strike('left hand', {
 # top is at the eyes, the elbows out and up, then throw it down and forward, its front edge
 # first. As high as the arms alone take it: the spine and the head do not move (mask 1), so it
 # cannot go over the head, and any higher it fills the first-person view. The lift takes longer
-# than the other strikes' gather, so the slam has its own times (battery_hit.rs `times`): the
-# strike 0.4 s in (on the way down, at its fastest), the rest at 0.7 s.
+# than the other strikes' gather, so the slam has its own times: the strike 0.4 s in (on the
+# way down, at its fastest), the rest at 0.7 s.
+# Parked (the owner, 2026-11-16: "let's go w/o slam for now, since it is slower"): not one of
+# STRIKES, so no clips, states or grid of its own; docs/notes/battery-hit.md says what it needs back.
 SLAM_STRIKE = 0.4
 SLAM_REST = 0.7
 SLAM = Strike('centre', {
@@ -202,7 +204,7 @@ SLAM = Strike('centre', {
 
 # The strikes and their clips' names. A carrier's strikes take them in this order, the ram
 # first, and round again (the battery's states, docs/notes/battery-hit.md).
-STRIKES = {'battery_hit': RAM, 'battery_hit_shove': SHOVE, 'battery_hit_slam': SLAM}
+STRIKES = {'battery_hit': RAM, 'battery_hit_shove': SHOVE}
 
 
 def rot_axis(axis, angle):

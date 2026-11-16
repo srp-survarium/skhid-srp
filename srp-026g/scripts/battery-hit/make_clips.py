@@ -1,7 +1,6 @@
 """Write the battery strikes' clips (swing.py's keys) where the edit list
 battery-hit-1.json takes them from: for each kind of strike (swing.STRIKES:
-battery_hit the ram, battery_hit_shove the shove, battery_hit_slam the slam)
-the carrier's (his shoulders and arms) <name> and <name>_recover and the
+battery_hit the ram, battery_hit_shove the shove) the carrier's (his shoulders and arms) <name> and <name>_recover and the
 battery's own <name>_electrobox and <name>_recover_electrobox (.b-spline and
 .bones_names each). `--check` instead compares the committed files with what
 the keys make.

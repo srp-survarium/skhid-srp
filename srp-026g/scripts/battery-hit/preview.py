@@ -24,9 +24,9 @@ the ram before (a folder of the clips of the build last played) beside after
 
     python preview.py <assets folder> <out folder> strikes [jobs [plots]]
 
-the strikes (swing.STRIKES: the ram, the shove, the slam) beside one another,
-as battery_hit_strikes*, with the ram beside each other strike alone as
-battery_hit_<strike>.* and each other strike's beats large as
+the strikes (swing.STRIKES: the ram, the shove) beside one another, as
+battery_hit_strikes* (of three or more, the ram beside each other strike
+alone too, as battery_hit_<strike>.*), and each other strike's beats large as
 battery_hit_<strike>_fp.png and battery_hit_<strike>_tp_<view>.png. (`plots`
 after the jobs: the plots and the cycle's numbers alone.)
 
@@ -460,7 +460,7 @@ def main():
 
     # the films: all the columns and, of the strikes, the ram beside each other strike too
     films = [(NAME if STRIKES else NAME + '_before_after', COLUMNS)]
-    if STRIKES:
+    if STRIKES and len(COLUMNS) > 2:
         films += [('battery_hit_' + name, [COLUMNS[0], name]) for name in COLUMNS[1:]]
     fifty = [CYCLE[0] + k / 50 for k in range(int(round((CYCLE[1] - CYCLE[0]) * 50)) + 1)]
     tiles = render_tiles(pool, fifty)

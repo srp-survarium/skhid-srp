@@ -1,5 +1,5 @@
 {
-  "_comment": "The battery strikes (exe patch 143, docs/notes/battery-hit.md): the ram (both arms push the battery out), the shove (the right arm drives its right end forward about the left hand) and the slam (both arms lift it and throw it down), authored on the stock rig (scripts/battery-hit: swing.py's keys, make_clips.py writes them) as the game plays a battery state: its player clips move the carrier's shoulders and arms alone (bone mask 2), its battery clips the battery by its own offset bone. The battery's states 3 to 8, a swing (the gather and the drive, ending on the strike, the battery at its fastest) and a recovery (the follow-through, the settle and the way back to the carry idle) for each: 3 and 4 the ram's, 5 and 6 the shove's, 7 and 8 the slam's, which the cook loads as it loads states 0 to 2. The states are known by their index, as the game reads them (the cook's states[0] take_time, states[2] put_time; the machine's order).",
+  "_comment": "The battery strikes (exe patch 143, docs/notes/battery-hit.md): the ram (both arms push the battery out) and the shove (the right arm drives its right end forward about the left hand), authored on the stock rig (scripts/battery-hit: swing.py's keys, make_clips.py writes them) as the game plays a battery state: its player clips move the carrier's shoulders and arms alone (bone mask 2), its battery clips the battery by its own offset bone. The battery's states 3 to 6, a swing (the gather and the drive, ending on the strike, the battery at its fastest) and a recovery (the follow-through, the settle and the way back to the carry idle) for each: 3 and 4 the ram's, 5 and 6 the shove's, which the cook loads as it loads states 0 to 2. The states are known by their index, as the game reads them (the cook's states[0] take_time, states[2] put_time; the machine's order).",
   "files_from_repo": [
     {
       "source": "../battery-hit/clips/battery_hit.b-spline",
@@ -80,46 +80,6 @@
       "source": "../battery-hit/clips/battery_hit_shove_recover_electrobox.bones_names",
       "sha256": "0574545815d70cbd92b94dfb9c24db1bf6e8694d0da846b36b9aebe899e12b26",
       "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_shove_recover_electrobox.bones_names"
-    },
-    {
-      "source": "../battery-hit/clips/battery_hit_slam.b-spline",
-      "sha256": "12d1ee49e3a73967c4b6bbfd1b02304d1f414c28cf338543e6b58e2a14927d5f",
-      "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_slam.b-spline"
-    },
-    {
-      "source": "../battery-hit/clips/battery_hit_slam.bones_names",
-      "sha256": "6206285a608a1a99a96418adc1eea023035cf7eec011f14bb5db1d116aa55af8",
-      "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_slam.bones_names"
-    },
-    {
-      "source": "../battery-hit/clips/battery_hit_slam_electrobox.b-spline",
-      "sha256": "0f75ec85266bb1bcb41c68bdc093d85f0e91d1f72b3fb5292d690d611144bffd",
-      "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_slam_electrobox.b-spline"
-    },
-    {
-      "source": "../battery-hit/clips/battery_hit_slam_electrobox.bones_names",
-      "sha256": "0574545815d70cbd92b94dfb9c24db1bf6e8694d0da846b36b9aebe899e12b26",
-      "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_slam_electrobox.bones_names"
-    },
-    {
-      "source": "../battery-hit/clips/battery_hit_slam_recover.b-spline",
-      "sha256": "fd72745073c1df48b4d230c2e4316df4a9056f531661e0156ad78f34d07445b6",
-      "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_slam_recover.b-spline"
-    },
-    {
-      "source": "../battery-hit/clips/battery_hit_slam_recover.bones_names",
-      "sha256": "6206285a608a1a99a96418adc1eea023035cf7eec011f14bb5db1d116aa55af8",
-      "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_slam_recover.bones_names"
-    },
-    {
-      "source": "../battery-hit/clips/battery_hit_slam_recover_electrobox.b-spline",
-      "sha256": "3637c43edfcb7839be0d157d9942ff58626bffb3ab8e4b68ee263deec86ea87d",
-      "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_slam_recover_electrobox.b-spline"
-    },
-    {
-      "source": "../battery-hit/clips/battery_hit_slam_recover_electrobox.bones_names",
-      "sha256": "0574545815d70cbd92b94dfb9c24db1bf6e8694d0da846b36b9aebe899e12b26",
-      "output": "animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_slam_recover_electrobox.bones_names"
     }
   ],
   "append_entry": [
@@ -192,42 +152,6 @@
         "animations": [
           "resources/animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_shove_recover_electrobox",
           "resources/animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_shove_recover_electrobox"
-        ]
-      }
-    },
-    {
-      "file": "gameplay/victory_items/default.options",
-      "list": "states",
-      "expected_count": 7,
-      "unique_key": null,
-      "value": {
-        "user_animations": [
-          "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_slam",
-          "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_slam",
-          "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_slam",
-          "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_slam"
-        ],
-        "animations": [
-          "resources/animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_slam_electrobox",
-          "resources/animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_slam_electrobox"
-        ]
-      }
-    },
-    {
-      "file": "gameplay/victory_items/default.options",
-      "list": "states",
-      "expected_count": 8,
-      "unique_key": null,
-      "value": {
-        "user_animations": [
-          "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_slam_recover",
-          "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_slam_recover",
-          "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_slam_recover",
-          "resources/animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_slam_recover"
-        ],
-        "animations": [
-          "resources/animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_slam_recover_electrobox",
-          "resources/animations/single/weapons/key_objects/item/stand/3rd_view/battery_hit_slam_recover_electrobox"
         ]
       }
     }

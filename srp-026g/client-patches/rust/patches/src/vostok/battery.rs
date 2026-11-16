@@ -6,7 +6,7 @@
 //! 0x2FA400, the client's batteries and the core's alike) makes a battery's
 //! states with initialize_logic (0x301920): take, carry and put, in that
 //! order in the machine's list (item +168h); it has loaded every `states[i]`
-//! of the config, the content's strikes' clips (3 to 8) too. At
+//! of the config, the content's strikes' clips (3 to 6) too. At
 //! `battery.logic` each [`Strike`]'s swing and recovery are appended: take
 //! states (0x338940) over their authored clips, of the carry's kind (every
 //! native "is carrying" test holds through them), their vtable the patch's
@@ -14,8 +14,8 @@
 //! each strike but the first, a carry state of its own (0x338BE0, the
 //! carry's clips) before them: the carry a carrier stands in says which
 //! strike the melee key starts. The list: take, carry, put; the ram's swing
-//! and recovery; the shove's carry, swing and recovery; the slam's. The
-//! transitions: a carry -> its swing (the patch's predicate, after carry ->
+//! and recovery; the shove's carry, swing and recovery. The transitions: a
+//! carry -> its swing (the patch's predicate, after carry ->
 //! put), a swing -> put and its recovery, a recovery -> put and the next
 //! strike's carry, the last's the first carry again (copies of carry ->
 //! put's and take -> carry's), each tried once the state's clip ended. So a
@@ -61,35 +61,31 @@ const JUMP: u32 = 4;
 const MADE_STATES: u32 = 3;
 
 /// A kind of strike, in the order a carrier's strikes take them: the ram
-/// first, after the slam the ram again.
+/// first, after the shove the ram again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Strike {
     /// Both arms push the battery out.
     Ram,
     /// The right arm shoves its right end forward about the left hand.
     Shove,
-    /// Both arms lift it and throw it down.
-    Slam,
 }
 
 impl Strike {
-    pub const ALL: [Strike; 3] = [Strike::Ram, Strike::Shove, Strike::Slam];
+    pub const ALL: [Strike; 2] = [Strike::Ram, Strike::Shove];
 
     /// The config's state of its swing's clips; its recovery's is the next
-    /// (battery-hit-1: 3 and 4 the ram's, 5 and 6 the shove's, 7 and 8 the
-    /// slam's).
+    /// (battery-hit-1: 3 and 4 the ram's, 5 and 6 the shove's).
     const fn swing_clips(self) -> usize {
         3 + 2 * self as usize
     }
 
     /// Where its swing stands in the machine's list (the saved state's
-    /// index): 3 the ram's, after take, carry and put; then each strike's
-    /// carry, swing and recovery (5, 6, 7 the shove's; 8, 9, 10 the slam's).
+    /// index): 3 the ram's, after take, carry and put; then the shove's
+    /// carry, swing and recovery (5, 6, 7).
     const fn swing_index(self) -> usize {
         match self {
             Strike::Ram => 3,
             Strike::Shove => 6,
-            Strike::Slam => 9,
         }
     }
 
@@ -103,9 +99,7 @@ impl Strike {
     ///   down to the battery's lower edge;
     /// - the shove's right end, which lands: 0.39 to 0.49 m right of the
     ///   look, its left end the pivot at the carrier's hip: the ram's grid
-    ///   one column to the right;
-    /// - the slam's: 0.20 to 0.50 m below the look at its strike, to 0.60 m
-    ///   after: the ram's columns, the rows from the look down to 0.5 m.
+    ///   one column to the right.
     const fn grid(self) -> [(f32, f32); 15] {
         match self {
             Strike::Ram => [
@@ -132,17 +126,6 @@ impl Strike {
                 (0.3, -0.35),
                 (0.45, -0.175),
                 (0.45, -0.35),
-            ],
-            Strike::Slam => [
-                (0.0, 0.0),
-                (-0.15, 0.0), (0.15, 0.0),
-                (0.0, -0.25),
-                (-0.15, -0.25), (0.15, -0.25),
-                (-0.3, 0.0), (0.3, 0.0),
-                (-0.3, -0.25), (0.3, -0.25),
-                (0.0, -0.5),
-                (-0.15, -0.5), (0.15, -0.5),
-                (-0.3, -0.5), (0.3, -0.5),
             ],
         }
     }
@@ -182,7 +165,7 @@ pub enum NoSwing {
     /// Its machine is not the three states initialize_logic makes (one
     /// added already, or another layout): left as it is.
     NotAsMade,
-    /// The cook loaded no states 3 to 8 (the content's battery-hit-1: a
+    /// The cook loaded no states 3 to 6 (the content's battery-hit-1: a
     /// game without it would play otherwise than the others).
     NoSwingClips,
     /// The game's allocator gave nothing.
@@ -243,10 +226,10 @@ impl<'t> MadeBattery<'t> {
 
     /// Appends every [`Strike`]'s states (the module's account): its swing
     /// and its recovery, take states of the carry's kind over its clips,
-    /// lasting `times` of it, `methods` their vtable; a carry of its own
+    /// lasting `times`, `methods` their vtable; a carry of its own
     /// for each strike but the first, whose carry is the machine's; `wants`
     /// a carry -> its swing's predicate.
-    pub fn add_strikes(&self, times: impl Fn(Strike) -> Times, methods: NativeVtable<raw::TakeStateMethods>,
+    pub fn add_strikes(&self, times: Times, methods: NativeVtable<raw::TakeStateMethods>,
                        wants: CallbackEntry<super::OrigFsmAlways>) -> Result<(), NoSwing> {
         let battery = self.battery;
         // SAFETY: the battery and its states, alive (its cook's callback, on
@@ -268,14 +251,13 @@ impl<'t> MadeBattery<'t> {
             let mut made = |strike: Strike| -> Result<[raw::BatteryState; 3], NoSwing> {
                 let from = match strike {
                     Strike::Ram => carry,
-                    Strike::Shove | Strike::Slam => carry_again(battery, self.clips(CARRY, &mut room)?)?,
+                    Strike::Shove => carry_again(battery, self.clips(CARRY, &mut room)?)?,
                 };
-                let swing = carry_like(battery, self.clips(strike.swing_clips(), &mut room)?, times(strike).swing, methods)?;
-                let recover = carry_like(battery, self.clips(strike.swing_clips() + 1, &mut room)?, times(strike).recover,
-                                         methods)?;
+                let swing = carry_like(battery, self.clips(strike.swing_clips(), &mut room)?, times.swing, methods)?;
+                let recover = carry_like(battery, self.clips(strike.swing_clips() + 1, &mut room)?, times.recover, methods)?;
                 Ok([from, swing, recover])
             };
-            let states = [made(Strike::Ram)?, made(Strike::Shove)?, made(Strike::Slam)?];
+            let states = [made(Strike::Ram)?, made(Strike::Shove)?];
             // Appended as initialize_logic appends (0x301A28..0x301A4A).
             let mut tail = put;
             for state in states.into_iter().flatten().filter(|state| *state != carry) {
@@ -719,17 +701,13 @@ mod tests {
     #[test]
     fn a_strikes_grid_is_five_by_three_nearest_the_look_first() {
         let columns = |strike| match strike {
-            Strike::Ram | Strike::Slam => [-0.3, -0.15, 0.0, 0.15, 0.3],
+            Strike::Ram => [-0.3, -0.15, 0.0, 0.15, 0.3],
             Strike::Shove => [-0.15, 0.0, 0.15, 0.3, 0.45],
-        };
-        let rows = |strike| match strike {
-            Strike::Ram | Strike::Shove => [0.0, -0.175, -0.35],
-            Strike::Slam => [0.0, -0.25, -0.5],
         };
         for strike in Strike::ALL {
             let grid = strike.grid();
             for x in columns(strike) {
-                for y in rows(strike) {
+                for y in [0.0, -0.175, -0.35] {
                     assert_eq!(grid.iter().filter(|point| **point == (x, y)).count(), 1, "{strike:?} ({x}, {y})");
                 }
             }
@@ -746,7 +724,7 @@ mod tests {
 
     #[test]
     fn the_strikes_take_the_configs_states_and_the_machines_places_in_turn() {
-        assert_eq!(Strike::ALL.map(Strike::swing_clips), [3, 5, 7]);
-        assert_eq!(Strike::ALL.map(Strike::swing_index), [3, 6, 9]);
+        assert_eq!(Strike::ALL.map(Strike::swing_clips), [3, 5]);
+        assert_eq!(Strike::ALL.map(Strike::swing_index), [3, 6]);
     }
 }

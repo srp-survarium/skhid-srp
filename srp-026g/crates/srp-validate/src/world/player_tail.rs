@@ -468,19 +468,18 @@ pub enum BatteryAnimation {
 }
 
 /// A kind of battery strike (exe patch 143, docs/notes/battery-hit.md), in
-/// the order a carrier's strikes take them: after the slam the ram again.
+/// the order a carrier's strikes take them: after the shove the ram again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BatteryStrike {
     Ram,
     Shove,
-    Slam,
 }
 
 /// A battery's state machine's state (`victory_item_core`'s three:
 /// `victory_item_core_take_state`, `_carry_state`, `_drop_state`, then the
-/// eight exe patch 143's cook callback appends: the ram's swing and
-/// recovery, then the shove's and the slam's carry, swing and recovery; an
-/// id past them crashes the reader), with its base state's fields and, for
+/// five exe patch 143's cook callback appends: the ram's swing and
+/// recovery, then the shove's carry, swing and recovery; an id past them
+/// crashes the reader), with its base state's fields and, for
 /// all but a carry, the animation it waits for
 /// (`victory_item_core_animation_end_aware_state` 0x344870).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -490,8 +489,7 @@ pub enum BatteryState {
         animation: Option<BatteryAnimation>,
     },
     /// A carry: the game's own (index 1), from which the melee key starts
-    /// the ram, or patch 143's before the shove (5) or the slam (8), carry
-    /// states as it.
+    /// the ram, or patch 143's before the shove (5), a carry state as it.
     Carry {
         motion: BatteryMotion,
         next: BatteryStrike,
@@ -500,14 +498,13 @@ pub enum BatteryState {
         motion: BatteryMotion,
         animation: Option<BatteryAnimation>,
     },
-    /// A strike's swing (patch 143): a take state's layout, index 3, 6 or 9.
+    /// A strike's swing (patch 143): a take state's layout, index 3 or 6.
     Swing {
         strike: BatteryStrike,
         motion: BatteryMotion,
         animation: Option<BatteryAnimation>,
     },
-    /// A swing's recovery (patch 143): a take state's layout, index 4, 7 or
-    /// 10.
+    /// A swing's recovery (patch 143): a take state's layout, index 4 or 7.
     Recover {
         strike: BatteryStrike,
         motion: BatteryMotion,
@@ -669,12 +666,11 @@ impl CarriedBattery {
         };
         // The machine's list (patch 143, vostok/battery.rs): take, carry,
         // put; the ram's swing and recovery; the shove's carry, swing and
-        // recovery; the slam's.
-        let index = state_id(reader, 11)?;
+        // recovery.
+        let index = state_id(reader, 8)?;
         let strike = match index {
             0..=4 => BatteryStrike::Ram,
-            5..=7 => BatteryStrike::Shove,
-            _ => BatteryStrike::Slam,
+            _ => BatteryStrike::Shove,
         };
         let state = match index {
             0 => BatteryState::Take {
@@ -685,11 +681,11 @@ impl CarriedBattery {
                 motion: BatteryMotion::read(reader)?,
                 animation: BatteryMotion::animation(reader)?,
             },
-            1 | 5 | 8 => BatteryState::Carry {
+            1 | 5 => BatteryState::Carry {
                 motion: BatteryMotion::read(reader)?,
                 next: strike,
             },
-            3 | 6 | 9 => BatteryState::Swing {
+            3 | 6 => BatteryState::Swing {
                 strike,
                 motion: BatteryMotion::read(reader)?,
                 animation: BatteryMotion::animation(reader)?,
@@ -1467,7 +1463,6 @@ mod tests {
         for (strike, carry, swing, recover) in [
             (BatteryStrike::Ram, 1, 3, 4),
             (BatteryStrike::Shove, 5, 6, 7),
-            (BatteryStrike::Slam, 8, 9, 10),
         ] {
             assert!(
                 matches!(read(carry), BatteryState::Carry { next, .. } if next == strike),
@@ -1490,7 +1485,7 @@ mod tests {
                 "{strike:?}"
             );
         }
-        // Another user, a container past the two, a state past the eleven.
+        // Another user, a container past the two, a state past the eight.
         assert!(matches!(
             reason(&battery(1, 0xFF, 1)),
             Reason::TailBattery { .. }
@@ -1500,8 +1495,8 @@ mod tests {
             Reason::TailBattery { .. }
         ));
         assert!(matches!(
-            reason(&battery(0, 0xFF, 11)),
-            Reason::TailGunState { state: 11, .. }
+            reason(&battery(0, 0xFF, 8)),
+            Reason::TailGunState { state: 8, .. }
         ));
     }
 
