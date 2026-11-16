@@ -17,6 +17,7 @@
 //! particles (the note's section on it).
 
 use super::context::{Context, Flow, Reg};
+use super::contact::{self, Touch};
 use super::hook::Thread;
 use super::world::{floats, read, write_floats, Player};
 use super::{GameCell, StepGroundOnGroundExit};
@@ -26,12 +27,9 @@ use crate::raw;
 /// (cgroup 8, cmask 10h or 20h).
 const GAME_GROUP: u32 = 0x30;
 const GAME_MASK: u32 = 0x08;
-/// The same and the walker collision (cgroup 2, cmask 4). Nothing else of
-/// the game has those bits both ways (ragdoll.md section 17: players
-/// 824h/3, hit models 40h/11h, grenades 818h/8, the lobby's, the client
-/// objects'): the batteries (A18h/418h) on_step's own filter meets already.
-const WALKER_GROUP: u32 = GAME_GROUP | 0x04;
-const WALKER_MASK: u32 = GAME_MASK | 0x02;
+/// How far over a touch the look under it starts (it meets the touched face
+/// itself, or what is under it).
+const LIFT: f32 = 0.05;
 /// The drawn water surfaces (content pack water-steps, cgroup and cmask
 /// 1000h): no other object, body or ray of the game has the bit either way
 /// (the game's filters, ragdoll.md section 19's table), so this look alone
@@ -108,18 +106,14 @@ pub enum Look {
     /// The drawn water surfaces alone ([`WATER_BIT`]), as far as on_step's
     /// ray reaches: water over the foot within 1 m.
     Water,
-    /// The walker collision too, as far as on_step's ray reaches (1 m under
-    /// the foot): what the body stands on, the controller's ground.
-    Walker,
-    /// on_step's filter again, `reach` metres under the foot.
-    Below { reach: f32 },
-    /// What the capsule rests on ([`crate::step_ground`]'s contact): from 1 m above the body's root (the
-    /// player's simulated feet, +43Ch) moved by (`dx`, `dz`) metres, 2 m down;
-    /// `walker` the walker filter (what the capsule can stand on), else on_step's.
-    Around { dx: f32, dz: f32, walker: bool },
+    /// on_step's filter from just over `at` (a touch of the controller's, the
+    /// game's frame) to `reach` metres under it: the hittable surface under a
+    /// touched face without a material. A hit's depth is under `at`.
+    Under { at: [f32; 3], reach: f32 },
 }
 
-/// The stepping body as the step finds it (the contact looks' origin, the step log).
+/// The stepping body as the step finds it: what its controller touched (the
+/// step's ground after a miss) and its state for the step log.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Body {
     /// The player's simulated feet (player +43Ch), the game's frame.
@@ -130,6 +124,8 @@ pub struct Body {
     pub rising: f32,
     /// Its +203h (on_ground answers false while set).
     pub jump_flag: bool,
+    /// What its step-down sweep last touched ([`super::contact`]).
+    pub touch: Option<Touch>,
 }
 
 impl Body {
@@ -235,30 +231,28 @@ impl OnStep {
     /// What on_step's own ray met (the material as on_step reads it next).
     pub fn game_hit(&self, _: &Thread) -> Option<Hit> {
         // SAFETY: on_step's result; its object alive in the physics world.
-        unsafe { hit(self.frame.result(), GAME_LENGTH) }
+        unsafe { hit(self.frame.result(), GAME_LENGTH, ABOVE) }
     }
 
     /// A look of our own (`look`), into a result of ours: on_step's own
     /// stays as the game's ray left it.
     pub fn look(&self, thread: &Thread, look: Look) -> Option<Hit> {
-        let (group, mask, length) = match look {
-            Look::Water => (WATER_BIT, WATER_BIT, GAME_LENGTH),
-            Look::Walker | Look::Around { walker: true, .. } => (WALKER_GROUP, WALKER_MASK, GAME_LENGTH),
-            Look::Around { walker: false, .. } => (GAME_GROUP, GAME_MASK, GAME_LENGTH),
-            Look::Below { reach } => (GAME_GROUP, GAME_MASK, ABOVE + reach),
-        };
-        if let Look::Around { dx, dz, .. } = look {
-            let [x, y, z] = self.body(thread)?.root;
-            let origin = [x + dx, y + ABOVE, z + dz];
-            // depth below the root, as every hit's is below the foot
-            return self.ray(thread, origin.as_ptr(), group, mask, length);
+        match look {
+            Look::Water => {
+                // SAFETY: on_step's frame: its ray's origin.
+                let origin = unsafe { self.frame.origin() };
+                self.ray(thread, origin, WATER_BIT, WATER_BIT, GAME_LENGTH, ABOVE)
+            }
+            Look::Under { at: [x, y, z], reach } => {
+                let origin = [x, y + LIFT, z];
+                self.ray(thread, origin.as_ptr(), GAME_GROUP, GAME_MASK, LIFT + reach, LIFT)
+            }
         }
-        // SAFETY: on_step's frame: its ray's origin.
-        let origin = unsafe { self.frame.origin() };
-        self.ray(thread, origin, group, mask, length)
     }
 
-    fn ray(&self, thread: &Thread, origin: *const f32, group: u32, mask: u32, length: f32) -> Option<Hit> {
+    /// A ray from `origin` (`above` metres over the point its depths are
+    /// under) straight down, `length` long.
+    fn ray(&self, thread: &Thread, origin: *const f32, group: u32, mask: u32, length: f32, above: f32) -> Option<Hit> {
         let physics = self.world(thread)?.pvp_match_physics()?;
         let mut room = raw::RayResultStorage::zeroed();
         let result = room.handle();
@@ -268,7 +262,7 @@ impl OnStep {
         unsafe {
             raw::engine_ray_test(Some(physics), Some(result), origin, self.frame.direction(), length, group,
                                  mask, core::ptr::null(), UNFLIPPED);
-            hit(result, length)
+            hit(result, length, above)
         }
     }
 
@@ -309,7 +303,7 @@ impl OnStep {
     }
 
     /// The stepping body: its root and its controller.
-    pub fn body(&self, _: &Thread) -> Option<Body> {
+    pub fn body(&self, thread: &Thread) -> Option<Body> {
         let player = self.stepper()?;
         // SAFETY: the live stepping player and its character controller.
         unsafe {
@@ -320,6 +314,7 @@ impl OnStep {
                 support: floats(controller.support_normal()),
                 rising: velocity[1],
                 jump_flag: read(controller.jump_flag()) != 0,
+                touch: contact::of(thread, controller),
             })
         }
     }
@@ -397,13 +392,13 @@ impl StepWorld {
 ///
 /// # Safety
 /// `result` is ray_test's, its object (if any) alive in the physics world.
-unsafe fn hit(result: raw::RayResult, length: f32) -> Option<Hit> {
+unsafe fn hit(result: raw::RayResult, length: f32, above: f32) -> Option<Hit> {
     unsafe {
         let object = result.object()?;
         let material = raw::engine_triangle_material(Some(object), read(result.part()), u32::from(read(result.part_kind())));
         Some(Hit {
             material: GroundMaterial(material),
-            depth: read(result.fraction()) * length - ABOVE,
+            depth: read(result.fraction()) * length - above,
             normal: floats(result.normal()),
         })
     }
@@ -457,22 +452,6 @@ mod tests {
     }
 
     #[test]
-    fn the_walker_filter_meets_what_the_game_meets_and_the_walker_collision() {
-        let meets = |(group, mask): (u32, u32), (cgroup, cmask): (u32, u32)| cgroup & mask != 0 && cmask & group != 0;
-        let (game, walker) = ((GAME_GROUP, GAME_MASK), (WALKER_GROUP, WALKER_MASK));
-        // a project's collision_objects: walker-only, hittable, both; the
-        // STALKER maps' bushes (8/20h); the batteries
-        for object in [(8, 16), (10, 20), (8, 0x20), (0xA18, 0x418)] {
-            assert!(meets(game, object) && meets(walker, object), "{object:x?}");
-        }
-        assert!(!meets(game, (2, 4)) && meets(walker, (2, 4)));
-        // players' controllers, hit models, grenades, the lobby's, the client objects'
-        for object in [(0x824, 3), (0x40, 0x11), (0x818, 8), (0x800, 0x800), (0x20, 0x20), (0x80, 0x100), (1, 0x20)] {
-            assert!(!meets(walker, object), "{object:x?}");
-        }
-    }
-
-    #[test]
     fn the_water_look_meets_the_water_alone_and_nothing_else_meets_it() {
         let meets = |(group, mask): (u32, u32), (cgroup, cmask): (u32, u32)| cgroup & mask != 0 && cmask & group != 0;
         let water = (WATER_BIT, WATER_BIT);
@@ -488,7 +467,7 @@ mod tests {
         // every ray and body filter: on_step's, ours, bullets, blasts and
         // cameras, grenades, batteries, walkers, the use ray, traps, a spot,
         // the ragdoll level ray, and the bodies above
-        let filters = [(GAME_GROUP, GAME_MASK), (WALKER_GROUP, WALKER_MASK), (0x10, 0x48), (0x10, 8), (0x818, 8),
+        let filters = [(GAME_GROUP, GAME_MASK), (0x34, 0x0A), (0x10, 0x48), (0x10, 8), (0x818, 8),
                        (0xA18, 0x418), (0x824, 3), (0x24, 2), (0x114, 0x8A), (0x404, 0x202), (0x414, 0x20A),
                        (0xFFFF, 0x80A), (0x40, 0x11), (0x800, 0x800), (0x20, 0x20)];
         for filter in filters {

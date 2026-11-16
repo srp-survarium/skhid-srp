@@ -8321,6 +8321,162 @@ step_ground_on_ground_replay:
     db 0x8b, 0x4c, 0x24, 0x4c, 0x85, 0xc9
     jmp 0x248b60
 
+; 0x846a1 character_step_down_sweep_test_callback::addSingleResult (0x84420) taking a hit as its first (fld dword [ebx+30h] / mov eax,[esp+0Ch]; both of its ways in, 0x845ED and 0x84695, reach here; the stores of the fraction, normal, object and point follow): EBX the hit, ESI the callback: lohook -> step_ground_on_sweep_first
+global step_ground_on_sweep_first
+extern hook_step_ground_on_sweep_first
+step_ground_on_sweep_first:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_step_ground_on_sweep_first
+    mov edx, step_ground_on_sweep_first_replay
+    cmp eax, 0
+    je step_ground_on_sweep_first_go
+    mov edx, 0x846a8
+    cmp eax, 1
+    je step_ground_on_sweep_first_go
+    ud2
+step_ground_on_sweep_first_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+step_ground_on_sweep_first_replay:
+    db 0xd9, 0x43, 0x30, 0x8b, 0x44, 0x24, 0x0c
+    jmp 0x846a8
+
+; 0x845a8 the same taking a hit as its second (mov byte [esi+0C4h],1; its fraction and point stored after): EBX the hit, ESI the callback: lohook -> step_ground_on_sweep_second
+global step_ground_on_sweep_second
+extern hook_step_ground_on_sweep_second
+step_ground_on_sweep_second:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_step_ground_on_sweep_second
+    mov edx, step_ground_on_sweep_second_replay
+    cmp eax, 0
+    je step_ground_on_sweep_second_go
+    mov edx, 0x845af
+    cmp eax, 1
+    je step_ground_on_sweep_second_go
+    ud2
+step_ground_on_sweep_second_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+step_ground_on_sweep_second_replay:
+    db 0xc6, 0x86, 0xc4, 0x00, 0x00, 0x00, 0x01
+    jmp 0x845af
+
+; 0x852ef the step-down sweep 0x84FE0 after its sweep, before it caches the result (lea eax,[esp+40h] / lea ecx,[esp+20h]; both ways, a hit 0x852AD and none 0x852E2, join here): ESI the controller's sweep helper (+210h), ESP+80h the callback; BL the hit: lohook -> step_ground_on_sweep_result
+global step_ground_on_sweep_result
+extern hook_step_ground_on_sweep_result
+step_ground_on_sweep_result:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_step_ground_on_sweep_result
+    mov edx, step_ground_on_sweep_result_replay
+    cmp eax, 0
+    je step_ground_on_sweep_result_go
+    mov edx, 0x852f7
+    cmp eax, 1
+    je step_ground_on_sweep_result_go
+    ud2
+step_ground_on_sweep_result_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+step_ground_on_sweep_result_replay:
+    db 0x8d, 0x44, 0x24, 0x40, 0x8d, 0x4c, 0x24, 0x20
+    jmp 0x852f7
+
+; 0x85083 the same answered from its cache (mov al,[eax+24h] / pop edi / pop esi): ESI the helper, EAX the cached entry (+24h its hit): lohook -> step_ground_on_sweep_cached
+global step_ground_on_sweep_cached
+extern hook_step_ground_on_sweep_cached
+step_ground_on_sweep_cached:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_step_ground_on_sweep_cached
+    mov edx, step_ground_on_sweep_cached_replay
+    cmp eax, 0
+    je step_ground_on_sweep_cached_go
+    mov edx, 0x85088
+    cmp eax, 1
+    je step_ground_on_sweep_cached_go
+    ud2
+step_ground_on_sweep_cached_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+step_ground_on_sweep_cached_replay:
+    db 0x8a, 0x40, 0x24, 0x5f, 0x5e
+    jmp 0x85088
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:

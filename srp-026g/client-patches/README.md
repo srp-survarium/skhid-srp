@@ -4771,11 +4771,10 @@ surface. 0.69d steps on the material its character controller stands on when the
 ray): a hit goes on as the game's. A miss looks again with the same `ray_test`: the walker
 collision too (group 34h, mask 0Ah, the same reach): its face's material; a face without one,
 the hittable surface under it to 4 m under the foot; else the face's own, stepped as `default`;
-no named ground under the foot: what the capsule rests on, asked around the body's root (rays from
-1 m above the player's simulated feet, 2 m down, at the root and on rings of 0.15, 0.3 and 0.45 m,
-the walker filter and the game's: the highest surface met, the highest named one within 0.35 m
-under it; a thin walkway beside the foot, the loading station's 32 cm walker strip over its 8 cm
-metal beam: footsteps.md, "The contact"); nothing: silent as before. A found ground goes on at
+as 0.69d: what the player's character controller touched at its last step-down sweep (four
+read-only hooks in its callback 0x84420 and the sweep 0x84FE0: `step_down.first`, `.second`,
+`.result`, `.cached`; footsteps.md, "The contact"), a face without a material taking the hittable
+surface under the touch to 4 m, else `default`; nothing touched (in the air): silent as before. A found ground goes on at
 0x248B77 (EAX the material), the sound at the foot. `vostok::step::play` plays a step of a ground at a point for a player through `on_step` (for
 the ladders), and `footsteps::decide` is patch 101's rule for such steps. `SKHID_STEP_LOG=on`
 writes a line a step to the patch log (its body: the root, the foot's offset, the controller's

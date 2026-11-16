@@ -14264,6 +14264,15 @@ impl BulletCharacterController {
     pub unsafe fn velocity(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x2c770).cast::<f32>().as_ptr() }
     }
+
+    /// +0x210 (obj<vostok::physics::step_down_sweeper>): its step-down sweep helper (step_down_sweep_test_impl 0x7EAC1: lea edi,[esi+210h], the sweep 0x84FE0's ESI)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn sweeper(self) -> StepDownSweeper {
+        StepDownSweeper(unsafe { self.0.byte_add(0x210) })
+    }
 }
 
 /// A survarium::medical_stopping_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -15466,6 +15475,198 @@ impl PlayerController {
     #[inline(always)]
     pub unsafe fn set_controller(self, value: Option<BulletCharacterController>) {
         unsafe { self.0.byte_add(0x0).cast::<Option<BulletCharacterController>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::physics::step_down_sweeper (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StepDownSweeper(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StepDownSweeper {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): the step-down sweep helper, the controller's +210h (its first dword; the step contact keys a controller by the helper's address)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn controller_offset(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::physics::step_down_sweep_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StepDownSweepFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StepDownSweepFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x80 (obj<vostok::physics::step_down_sweep_callback>): the sweep 0x84FE0's callback, a local (lea ecx,[esp+90h] before its two pushes at 0x85141; at step_down.result ESP+80h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn callback(self) -> StepDownSweepCallback {
+        StepDownSweepCallback(unsafe { self.0.byte_add(0x80) })
+    }
+}
+
+/// A vostok::physics::step_down_sweep_callback (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StepDownSweepCallback(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StepDownSweepCallback {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (f32): character_step_down_sweep_test_callback (vtable 0x9E3F34, ctor 0x842E0): m_closestHitFraction, 1.0 until a hit is taken (0x846A8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn fraction(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xc0 (f32): the second hit's fraction (0x845BA), the sweep takes it over the first when its flag is set and it is not further (0x8525D..0x85269)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn second_fraction(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xc0).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xc4 (u8): the second hit is taken (1 at 0x845A8; 0 by the ctor 0x84403)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn second(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xc4).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::physics::local_convex_result (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LocalConvexResult(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LocalConvexResult {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::physics::bt_collision_object>): Bullet's LocalConvexResult: m_hitCollisionObject (the callback 0x84420 reads [ebx])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn object(self) -> Option<BtCollisionObject> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BtCollisionObject>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::physics::bt_collision_object>): Bullet's LocalConvexResult: m_hitCollisionObject (the callback 0x84420 reads [ebx])
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_object(self, value: Option<BtCollisionObject>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<BtCollisionObject>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<vostok::physics::local_shape_info>): m_localShapeInfo: 0 for a shape without one (0x84561)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn shape_info(self) -> Option<LocalShapeInfo> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<LocalShapeInfo>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::physics::local_shape_info>): m_localShapeInfo: 0 for a shape without one (0x84561)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_shape_info(self, value: Option<LocalShapeInfo>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<LocalShapeInfo>>().write_volatile(value) }
+    }
+
+    /// +0x20 (f32): m_hitPointLocal, the hit point, a float3, Bullet frame (z the game's -z; the callback stores it as the hit's point, 0x846BD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn point(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x20).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x30 (f32): m_hitFraction
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn fraction(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x30).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::physics::local_shape_info (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LocalShapeInfo(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LocalShapeInfo {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): the hit triangle's or a compound child's index (the callback hands it to get_walker_behaviour at 0x84576, as ray_result part)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn triangle(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (u8): 1 for a primitive part (0x84570; as ray_result part_kind)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn primitive(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<u8>().as_ptr() }
     }
 }
 
@@ -24275,6 +24476,30 @@ impl PlayerLogicState {
     }
 }
 
+/// A vostok::physics::step_down_cache_entry (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StepDownCacheEntry(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StepDownCacheEntry {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x24 (u8): the step-down sweep's cached answer met something (0x8504A); a cached miss is a sweep that touched nothing
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn hit(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x24).cast::<u8>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -29394,6 +29619,102 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn arguments(machine: &impl Machine) -> Option<OnStepArguments> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(OnStepArguments)
+        }
+    }
+
+    /// step_down.first (0x846a1): character_step_down_sweep_test_callback::addSingleResult (0x84420) taking a hit as its first (fld dword [ebx+30h] / mov eax,[esp+0Ch]; both of its ways in, 0x845ED and 0x84695, reach here; the stores of the fraction, normal, object and point follow): EBX the hit, ESI the callback
+    pub mod step_down_first {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::physics::local_convex_result (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<LocalConvexResult> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(LocalConvexResult)
+        }
+
+        /// ESI: a vostok::physics::step_down_sweep_callback (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn callback(machine: &impl Machine) -> Option<StepDownSweepCallback> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StepDownSweepCallback)
+        }
+    }
+
+    /// step_down.second (0x845a8): the same taking a hit as its second (mov byte [esi+0C4h],1; its fraction and point stored after): EBX the hit, ESI the callback
+    pub mod step_down_second {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::physics::local_convex_result (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn hit(machine: &impl Machine) -> Option<LocalConvexResult> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(LocalConvexResult)
+        }
+
+        /// ESI: a vostok::physics::step_down_sweep_callback (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn callback(machine: &impl Machine) -> Option<StepDownSweepCallback> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StepDownSweepCallback)
+        }
+    }
+
+    /// step_down.result (0x852ef): the step-down sweep 0x84FE0 after its sweep, before it caches the result (lea eax,[esp+40h] / lea ecx,[esp+20h]; both ways, a hit 0x852AD and none 0x852E2, join here): ESI the controller's sweep helper (+210h), ESP+80h the callback; BL the hit
+    pub mod step_down_result {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::physics::step_down_sweeper (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn sweeper(machine: &impl Machine) -> Option<StepDownSweeper> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StepDownSweeper)
+        }
+
+        /// the site's ESP: a vostok::physics::step_down_sweep_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<StepDownSweepFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(StepDownSweepFrame)
+        }
+    }
+
+    /// step_down.cached (0x85083): the same answered from its cache (mov al,[eax+24h] / pop edi / pop esi): ESI the helper, EAX the cached entry (+24h its hit)
+    pub mod step_down_cached {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::physics::step_down_sweeper (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn sweeper(machine: &impl Machine) -> Option<StepDownSweeper> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StepDownSweeper)
+        }
+
+        /// EAX: a vostok::physics::step_down_cache_entry (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn entry(machine: &impl Machine) -> Option<StepDownCacheEntry> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(StepDownCacheEntry)
         }
     }
 }
