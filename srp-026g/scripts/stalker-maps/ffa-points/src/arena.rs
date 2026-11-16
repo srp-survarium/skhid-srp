@@ -1,5 +1,7 @@
 //! Training Camp's Free for All ground: inside its base's fence, with its
 //! raised islands. The meadow and the crater round the base are scenery.
+//! Repair Depot's: the depot and the field south of it, inside its arena's
+//! outline; the far field is scenery.
 
 /// The fence round the base: its posts in order, read off the level's
 /// collision, gateways post to post. At the south gateway the line runs
@@ -8,23 +10,49 @@
 /// the line (`make_training_arena.py`, which shares the file).
 pub const FENCE: &str = include_str!("../../training-fence.tsv");
 
+/// Repair Depot's Free for All arena: the depot's own walls on three sides
+/// and a line across the field south of it, its vertices in order. The
+/// walker wall stands on its outside (`make_rembasa_arena.py`, which shares
+/// the file).
+pub const REMBASA: &str = include_str!("../../rembasa-arena.tsv");
+
+/// An `x`, `z` table's vertices.
+fn outline(table: &'static str) -> Vec<[f32; 2]> {
+    table
+        .lines()
+        .skip(1)
+        .map(|line| {
+            let (x, z) = line.split_once('\t').expect("outline vertex");
+            [x.parse().expect("vertex x"), z.parse().expect("vertex z")]
+        })
+        .collect()
+}
+
 fn fence() -> &'static [[f32; 2]] {
     static POSTS: std::sync::OnceLock<Vec<[f32; 2]>> = std::sync::OnceLock::new();
-    POSTS.get_or_init(|| {
-        FENCE
-            .lines()
-            .skip(1)
-            .map(|line| {
-                let (x, z) = line.split_once('\t').expect("fence post");
-                [x.parse().expect("post x"), z.parse().expect("post z")]
-            })
-            .collect()
-    })
+    POSTS.get_or_init(|| outline(FENCE))
+}
+
+fn rembasa() -> &'static [[f32; 2]] {
+    static VERTICES: std::sync::OnceLock<Vec<[f32; 2]>> = std::sync::OnceLock::new();
+    VERTICES.get_or_init(|| outline(REMBASA))
 }
 
 /// Inside the fence and at least `margin` from it.
 pub fn fenced(x: f32, z: f32, margin: f32) -> bool {
     within(fence(), x, z, margin)
+}
+
+/// Inside Repair Depot's arena and at least `margin` from its outline.
+pub fn in_rembasa(x: f32, z: f32, margin: f32) -> bool {
+    within(rembasa(), x, z, margin)
+}
+
+/// The box round Repair Depot's arena: `[x0, z0, x1, z1]`.
+pub fn rembasa_bounds() -> [f32; 4] {
+    rembasa().iter().fold([f32::INFINITY, f32::INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY], |b, v| {
+        [b[0].min(v[0]), b[1].min(v[1]), b[2].max(v[0]), b[3].max(v[1])]
+    })
 }
 
 /// The reviewed raised islands inside the fence: a box around each floating
@@ -168,6 +196,20 @@ mod tests {
             assert!(!fenced(x, z, 0.0));
         }
         assert!(fenced(-8.0, 0.0, 0.0) && !fenced(-8.0, 0.0, 2.0));
+    }
+
+    #[test]
+    fn repair_depot_plays_the_depot_and_its_near_field() {
+        assert_eq!(rembasa_bounds(), [-76.0, -50.0, 59.5, 52.5]);
+        // The depot's yard, its west wing and the field just south of it.
+        for p in [[0.0, 0.0], [-72.0, 20.0], [-16.0, 48.0], [40.0, -45.0]] {
+            assert!(in_rembasa(p[0], p[1], 2.0), "{p:?}");
+        }
+        // The far field south, the east field past the depot's wall, and
+        // west of the west wing's narrower south part.
+        for p in [[0.0, -60.0], [70.0, -45.0], [-72.0, -20.0], [0.0, 45.0]] {
+            assert!(!in_rembasa(p[0], p[1], 0.0), "{p:?}");
+        }
     }
 
     #[test]

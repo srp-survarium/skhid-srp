@@ -1390,20 +1390,21 @@ mod tests {
     /// every other map twice the spawns it had (ffa-cover-maps-1: London 32,
     /// its 22 kept, 6 central and 4 in the underpass, and 32 new; docs/notes/ffa.md);
     /// the four STALKER maps of stalker-maps-2 (ffa-stalker-2: 48 each, Vehicle
-    /// Station 47, levels 21-24; docs/notes/stalker-maps.md).
+    /// Station 47, levels 21-24; docs/notes/stalker-maps.md);
+    /// Repair Depot (41, level 18), inside its arena.
     #[test]
     #[ignore = "needs SRP_TEST_GAME_DATA from build-content with both FFA edit lists"]
     fn the_released_free_for_alls_play_on_their_own_projects() {
         let data = GameData::open(&env_path("SRP_TEST_GAME_DATA")).unwrap();
         let maps = fixtures::table_of(&data).unwrap();
-        free_for_alls_play_on_their_own_projects(&maps, 37);
+        free_for_alls_play_on_their_own_projects(&maps, 38);
         let ports: Vec<_> = maps.iter()
             .filter(|m| m.mode == GameMode::FreeForAll && m.level >= 9)
             .map(|m| (m.id, m.level, m.solo_respawn_points))
             .collect();
         assert_eq!(ports, [
             (37, 21, 48), (38, 22, 47), (39, 23, 48), (40, 24, 48),
-            (42, 15, 28), (43, 16, 48), (44, 17, 47), (163, 9, 64),
+            (41, 18, 48), (42, 15, 28), (43, 16, 48), (44, 17, 47), (163, 9, 64),
             (164, 10, 73), (165, 11, 66), (167, 12, 44), (168, 13, 73), (169, 14, 44)
         ]);
         // Levels 2 to 8, the same in each weather.
