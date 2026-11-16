@@ -138,6 +138,7 @@ given), LIKELY or GUESS.
 | [exchange.md](exchange.md) | The exchange window: removed (no gold) |
 | [held_artefact_transfer.md](held_artefact_transfer.md) | Held artefact transfer (patch 78) |
 | [hide-ui-key.md](hide-ui-key.md) | A key that hides the interface |
+| [screenshots.md](screenshots.md) | The screenshot keys: F11 the screen, F12 the frame without the interface, PNG files in the game's `screenshots` folder; Hide interface moved to F9 |
 | [kill_cap.md](kill_cap.md) | Repeated-kill payment limit |
 | [kit-change-before-start.md](kit-change-before-start.md) | A kit chosen before the match starts (patch 31) |
 | [language-option.md](language-option.md) | Language in Settings |
