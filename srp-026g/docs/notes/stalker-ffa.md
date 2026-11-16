@@ -11,7 +11,7 @@ Military Warehouses' perimeter FFA spawns (7 each) are moved to their centre
 afterwards, ids kept, by `ffa-center-1` with the other maps (`ffa.md`), so
 their day_8 positions are not all ffa-spawns.tsv's.
 
-Fire Station (pack `stalker-maps-2`, maps_dict 39, `ffa-stalker-2.json`, 48 points by the spawn rule) is in `stalker-maps.md`, "Four more maps"; Dark Valley, Vehicle Station (47 points) and Sports Center are held there.
+Fire Station (pack `stalker-maps-2`, maps_dict 39, `ffa-stalker-2.json`; its 48 points by the spawn rule are the owner's 42 picks since `ffa-fire-station-picks-1`, `ffa.md`) is in `stalker-maps.md`, "Four more maps"; Dark Valley, Vehicle Station (47 points) and Sports Center are held there.
 
 This integrates the previously unmerged `stalker-maps@6` pack, which supplies
 six TDM ports. The other three are Repair Depot, Station and Depository. Only
