@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# usage: release/build-bot-maps [<bot-data folder>]
+# usage: release/build-bot-maps [--test] [<bot-data folder>]
 #
 # Builds the bots' maps of a release ahead of the swap (A197): the walk grids,
 # sight trees and tactics srp would otherwise build in the first match on each
@@ -9,14 +9,23 @@
 #
 #   1. builds srp-build-maps from this checkout (the commit the release ships,
 #      nix develop, nice 10; $SRP_BUILD_MAPS_BIN names one built already);
-#   2. runs it on the .mapdata files release/bot-data.tsv lists (the offered
+#   2. the server data the release ships, which srp-build-maps reads as srp
+#      does at start (a grid's key holds the fastest bot's walk cap, which
+#      its bot profiles set): $SRP_GAME_DATA when set, else built here into a
+#      temporary folder by release/build-server-db (--test with --test), the
+#      script and offered-patch list release.sh's step 2 builds it with. A
+#      content release's new patch is not in the list yet: build the data
+#      with it and pass it as SRP_GAME_DATA. release.sh checks the keys
+#      again with the data it builds (step 2), before the go;
+#   3. runs it on the .mapdata files release/bot-data.tsv lists (the offered
 #      maps), into a new folder: it builds each map through the server's own
 #      store with the server's tuning (SRP_BOT_TUNING as srp reads it; the
-#      compose file sets none: the defaults), then a second store (a restart)
-#      must read every part back with the same digests, or it fails;
-#   3. puts that folder at <folder>/mapdata/built (one already there is moved
+#      compose file sets none: the defaults) and that data, then a second
+#      store (a restart) must read every part back with the same digests, or
+#      it fails;
+#   4. puts that folder at <folder>/mapdata/built (one already there is moved
 #      to mapdata/built.<UTC stamp>, never deleted);
-#   4. lists the files in release/bot-data.tsv as mapdata/built/<name> (the
+#   5. lists the files in release/bot-data.tsv as mapdata/built/<name> (the
 #      rows of an earlier build dropped first), so the release stages them and
 #      puts them in the data volume at the swap like the maps (host-bot-data.sh).
 #
@@ -27,8 +36,10 @@
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 
+which=()
 case ${1:-} in
 -h | --help) usage 0 ;;
+--test) which=(--test); shift ;;
 -*) die "unknown option $1 (--help)" ;;
 esac
 
@@ -64,10 +75,24 @@ else
     bin=$ROOT/srp-026g/target/release/srp-build-maps
 fi
 
+# The server data (step 2).
+if [[ -n ${SRP_GAME_DATA:-} ]]; then
+    [[ -f $SRP_GAME_DATA ]] || die "SRP_GAME_DATA: $SRP_GAME_DATA: no such file"
+    data=$SRP_GAME_DATA
+    say "the server data: $data (SRP_GAME_DATA; it must be the one the release ships, or release.sh refuses the maps in its step 2)"
+else
+    data_dir=$(mktemp -d)
+    trap 'rm -rf "$data_dir"' EXIT
+    data=$data_dir/server-game-data.db
+    say "building the server data the release ships (release/build-server-db${which[*]:+ ${which[*]}}) ..."
+    "$(dirname "$0")/build-server-db" "${which[@]}" --out "$data" </dev/null || die "build-server-db failed"
+fi
+say "the server data: sha256 $(sha256sum <"$data" | cut -d' ' -f1)"
+
 new=$(mktemp -d "$maps/built.new.XXXXXX")
 chmod 755 "$new"
 say "building ${#projects[@]} maps into $new (hours: each map up to SRP_BUILD_MAPS_LIMIT_S, default 3 h) ..."
-"$bin" "$maps" "$new" "${projects[@]}" || die "srp-build-maps failed: nothing changed ($new is left for a look)"
+SRP_GAME_DATA=$data "$bin" "$maps" "$new" "${projects[@]}" || die "srp-build-maps failed: nothing changed ($new is left for a look)"
 
 if [[ -e $maps/built ]]; then
     aside=$maps/built.$(date -u +%Y%m%dT%H%M%SZ)

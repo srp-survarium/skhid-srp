@@ -304,18 +304,23 @@ build_maps_bin() {
 # The built files (mapdata/built/<name>) the server reads each offered map
 # of the bots' data list from (its mapdata/<level>_<weather>.mapdata rows),
 # by the keys this checkout's srp-build-maps computes (--files: nothing is
-# built), checked against the list: one line a file the list lacks; fails
-# when there is one. <bin> <mapdata folder>.
+# built) with the server data the release ships (SRP_GAME_DATA=<data>: a
+# grid's key holds the fastest bot's walk cap, which that data's bot
+# profiles set; srp reads it at start), checked against the list: one line a
+# file the list lacks; fails when there is one. Its log (stderr: the game
+# data, the walk cap) goes to <log>, stdout is the names alone.
+# <bin> <mapdata folder> <server data> <log>.
 bot_maps_built_check() {
-    local bin=$1 maps=$2 path project rest names name i listed bad=0
+    local bin=$1 maps=$2 data=$3 log=$4 path project rest names name i listed bad=0
     local projects=()
+    [[ -f $data ]] || { say "the server data $data: no such file"; return 1; }
     for path in "${BD_PATH[@]}"; do
         [[ $path =~ ^mapdata/(level_[0-9a-z]+)_([a-z]+_[0-9]+)\.mapdata$ ]] || continue
         projects+=("${BASH_REMATCH[1]}/${BASH_REMATCH[2]}")
     done
     ((${#projects[@]})) || return 0
-    names=$("$bin" --files "$maps" "${projects[@]}" 2>&1) || {
-        say "srp-build-maps --files failed: $(tail -n 2 <<<"$names" | tr '\n' ' ')"
+    names=$(SRP_GAME_DATA=$data "$bin" --files "$maps" "${projects[@]}" 2>"$log") || {
+        say "srp-build-maps --files failed: $(tail -n 2 "$log" | tr '\n' ' ')"
         return 1
     }
     while IFS=$'\t' read -r project rest; do
