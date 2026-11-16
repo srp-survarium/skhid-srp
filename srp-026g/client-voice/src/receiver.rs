@@ -165,17 +165,89 @@ impl Limiter {
         over
     }
 }
+/// The frames of a speaker's voice the leveller goes by: its last 3 s of them.
+const LEVEL_FRAMES: usize = 150;
+/// A frame quieter than this (dB of full scale, its RMS) is no voice: it
+/// is not counted.
+const LEVEL_GATE_DB: f32 = -55.;
+/// The frames counted before a speaker is levelled at all (100 ms): its
+/// first frames are a word's onset, quieter than the word.
+const LEVEL_LEARNT: usize = 5;
+/// The level every speaker is brought to (dB of full scale: the mean level
+/// of the loudest third of its frames): where the automatic gain puts a
+/// microphone at the default "Microphone sensitivity", so such a talker
+/// plays as decoded.
+pub(crate) const LEVEL_TARGET_DB: f32 = -20.;
+/// The most a speaker is raised and lowered to reach it, dB.
+const LEVEL_MOST_DB: f32 = 20.;
+const LEVEL_LEAST_DB: f32 = -12.;
+/// Every speaker at one loudness for the listener (the owner, 2026-11-16:
+/// "we should either way have a way to bring people with lower sensitivity
+/// to sound the same for receivers", "equalize everyone essentially"). The
+/// talker's own automatic gain does it only as far as its microphone and its
+/// "Microphone sensitivity" let it; here the listener's game measures each
+/// speaker's voice, the loudest third of its last [`LEVEL_FRAMES`] frames
+/// above [`LEVEL_GATE_DB`] (its pauses and its room are the quiet ones), and
+/// plays it [`LEVEL_TARGET_DB`] loud, before the 10 m voice's gains and the
+/// radio alike. What it has learnt of a speaker stays from one utterance to
+/// the next.
+#[derive(Clone, Copy)]
+struct Leveller {
+    /// The counted frames' levels, dB: a ring of the last ones.
+    frames: [f32; LEVEL_FRAMES],
+    count: usize,
+    next: usize,
+    /// The gain the last frame ended at: the next ramps from it.
+    gain: f32,
+}
+impl Leveller {
+    const NEW: Self = Self { frames: [0.; LEVEL_FRAMES], count: 0, next: 0, gain: 1. };
+    /// The speaker's level, once enough of its voice was heard.
+    fn level(&self) -> Option<f32> {
+        if self.count < LEVEL_LEARNT {
+            return None;
+        }
+        let mut heard = self.frames;
+        let heard = &mut heard[..self.count];
+        heard.sort_unstable_by(|a, b| b.total_cmp(a));
+        let loudest = &heard[..self.count.div_ceil(3)];
+        Some(loudest.iter().sum::<f32>() / loudest.len() as f32)
+    }
+    fn apply(&mut self, pcm: &mut [f32; FRAME]) {
+        let power = pcm.iter().map(|x| x * x).sum::<f32>() / FRAME as f32;
+        let db = 10. * power.log10();
+        // (A frame of no number, or of silence, is no voice either.)
+        if db > LEVEL_GATE_DB {
+            self.frames[self.next] = db;
+            self.next = (self.next + 1) % LEVEL_FRAMES;
+            self.count = (self.count + 1).min(LEVEL_FRAMES);
+        }
+        let to = self.level().map_or(1., |level| {
+            10f32.powf((LEVEL_TARGET_DB - level).clamp(LEVEL_LEAST_DB, LEVEL_MOST_DB) / 20.)
+        });
+        let from = std::mem::replace(&mut self.gain, to);
+        if from == 1. && to == 1. {
+            return;
+        }
+        let step = (to - from) / FRAME as f32;
+        for (i, sample) in pcm.iter_mut().enumerate() {
+            *sample *= from + step * (i + 1) as f32;
+        }
+    }
+}
 /// A voice heard directly, as [`Speaker::play`] decodes and holds one. The
 /// microphone test plays its recording through it (`mic_test`), so that what
 /// the player hears of itself is what a teammate beside it would.
 pub struct Direct {
     decoder: Decoder,
+    leveller: Leveller,
     limiter: Limiter,
 }
 impl Direct {
     pub fn new() -> Result<Self, String> {
         Ok(Self {
             decoder: Decoder::new()?,
+            leveller: Leveller::NEW,
             limiter: Limiter::UNITY,
         })
     }
@@ -186,6 +258,7 @@ impl Direct {
             .decode(Some(frame))
             .or_else(|_| self.decoder.decode(None))
             .ok()?;
+        self.leveller.apply(&mut pcm);
         self.limiter.apply(&mut pcm);
         Some(pcm)
     }
@@ -245,6 +318,8 @@ struct Speaker {
     effect: Option<Effect>,
     /// A radio utterance that played has closed, its squelch not yet begun.
     closing_effect: bool,
+    /// What its voice's level is, learnt over its utterances.
+    leveller: Leveller,
     limiter: Limiter,
     /// The channel of its utterance (of its last one, when none is open).
     channel: Channel,
@@ -261,6 +336,7 @@ impl Speaker {
             heard: None,
             effect: None,
             closing_effect: false,
+            leveller: Leveller::NEW,
             limiter: Limiter::UNITY,
             channel: Channel::Near,
             gains: Gains::SILENT,
@@ -438,6 +514,7 @@ impl Speaker {
             self.close(stats);
         }
         pcm.map(|mut pcm| {
+            self.leveller.apply(&mut pcm);
             if self.limiter.apply(&mut pcm) {
                 stats.limited = stats.limited.saturating_add(1);
             }
@@ -475,6 +552,7 @@ impl Core {
         for s in &mut self.speakers {
             s.state = State::Closed(None);
             s.decoder.reset();
+            s.leveller = Leveller::NEW;
             s.limiter = Limiter::UNITY;
             s.heard = None;
             s.effect = None;
@@ -490,6 +568,7 @@ impl Core {
         s.close(&mut self.stats);
         s.state = State::Closed(None);
         s.decoder.reset();
+        s.leveller = Leveller::NEW;
         s.limiter = Limiter::UNITY;
         s.heard = None;
         s.effect = None;

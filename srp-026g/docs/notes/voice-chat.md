@@ -693,8 +693,30 @@ before and after of each can be heard in `private/renders/voice-steady/`.
   static stays where it is (the words 23 dB over it at the level, 14 when 9 dB under). The gain
   now goes to 45 dB (`AGC_MAX_GAIN`; past it speexdsp's own floor holds) and rises twice as
   fast (`AGC_INCREMENT` 24 dB a second: a quiet microphone's first words of a match were 5 dB
-  under its level for seconds, now 2). "Microphone sensitivity" still moves a talker 6 dB
-  either way: two players at its ends are 12 dB apart by their own choice.
+  under its level for seconds, now 2).
+- **Every speaker at one loudness, for the listener** (the owner, the same day: "we should
+  either way have a way to bring people with lower sensitivity to sound the same for receivers",
+  "equalize everyone essentially"). The talker's own gain does it only as far as its microphone
+  and its "Microphone sensitivity" let it. So the listener's game levels each speaker itself
+  (`receiver::Leveller`, one a speaker, before the 10 m voice's gains and the radio alike): it
+  keeps the levels of the speaker's last 150 frames (3 s) louder than -55 dB of full scale,
+  takes the mean of the loudest third (its pauses and its room are the quiet ones) and plays the
+  speaker so that this is -20 dB (`LEVEL_TARGET_DB`: 1.3 dB over where the default sensitivity
+  put a voice), raising it 20 dB at most and lowering it 12. Nothing before 5 frames (100 ms) of a
+  speaker were heard; what was learnt stays from one utterance to the next, and goes when
+  another player takes the slot. Measured, three talkers in turn (a microphone 40 dB quieter at
+  the lowest sensitivity, a usual one at the default, a usual one at the highest):
+
+  | | talker 1 | talker 2 | talker 3 |
+  |---|---|---|---|
+  | until now, on the radio | -24.3 dB | -18.1 | -15.1 |
+  | now | -18.7 | -17.4 | -17.3 |
+
+  So "Microphone sensitivity" no longer moves how loud the others hear a player (the microphone
+  test's playback, which is what a teammate hears, says so: its ends were 12 dB apart, now within
+  1). A speaker who suddenly shouts is louder for about a second, then levelled. The ceiling a
+  speaker's frame is held to (-12 dB, against a game that skipped its gain) comes after it, as
+  before.
 - **The mix bent loud talkers.** A plain voice is played 3 times as decoded (`LOUDER` 1.5, `MIX`
   2.0) and the sum went through a curve that bent every sample over half scale (tanh). The
   automatic gain brings every microphone to one level at a given "Microphone sensitivity", but the

@@ -321,7 +321,7 @@ mod tests {
     use super::*;
     use crate::{
         Core, Hearing, Stereo,
-        receiver::centred,
+        receiver::Master,
         tests::voiced,
         wire::Message,
     };
@@ -436,11 +436,12 @@ mod tests {
         (test, fake)
     }
     /// The playback device's pulls until the test gives nothing more, as the
-    /// worker ends each frame ([`centred`]).
+    /// worker ends each frame ([`Master::centred`]).
     fn played(test: &mut Test<FakeMic>, fake: &mut Fake) -> Vec<Stereo> {
         let mut out = Vec::new();
+        let mut master = Master::new();
         while let Some(pcm) = test.apply(Event::Play, fake.clock.get(), fake) {
-            out.push(centred(&pcm));
+            out.push(master.centred(&pcm));
         }
         out
     }
@@ -556,11 +557,13 @@ mod tests {
             20. * rms(&played(&mut test, &mut fake)[250..]).log10()
         };
         let (quiet, default, loud) = (level(1., 0.), level(1., 0.5), level(1., 1.));
-        // The sensitivity's ends are 12 dB apart, the default between them.
-        assert!((10.0..14.0).contains(&(loud - quiet)), "{quiet} {default} {loud}");
-        assert!((5.0..7.0).contains(&(default - quiet)), "{quiet} {default} {loud}");
-        // Half the volume is 6 dB less; none is silence.
-        assert!((5.9..6.1).contains(&(default - level(0.5, 0.5))));
+        // The sensitivity does not move how loud the others hear the player:
+        // their games bring every speaker to one level (it was 12 dB from
+        // one end to the other).
+        assert!((loud - quiet).abs() < 1. && (default - quiet).abs() < 1., "{quiet} {default} {loud}");
+        // Half the volume is 6 dB less (under the mix's ceiling, where its
+        // limiter is at rest); none is silence.
+        assert!((5.9..6.1).contains(&(level(0.5, 0.5) - level(0.25, 0.5))));
         assert_eq!(level(0., 0.5), f32::NEG_INFINITY);
     }
 

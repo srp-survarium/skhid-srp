@@ -10,7 +10,8 @@ whole through MMDevice; "Microphone" in the same note). An utterance is on one o
 by the push-to-talk key held (`sv_ptt`; "Two keys" in the same note): the 10 m voice or the
 radio. The 10 m voice's gains in the two ears are the game's: patch 66 asks its sound engine for
 each speaker's and tells them, with whether the speaker's radio is heard (`sv_hear`); the DLL
-only plays each utterance by its channel. The mix is held under full scale by a limiter that
+only plays each utterance by its channel. Every speaker is brought to one loudness
+(`receiver::Leveller`), and the mix is held under full scale by a limiter that
 turns it down (`receiver::Master`), and a frame that did not come is played from the next
 frame's copy of it (Opus' in-band FEC; "Steadier sound" in the same note).
 The arena patch loads its optional interface from `crates/voice-abi`; missing or
