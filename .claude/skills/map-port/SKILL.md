@@ -155,9 +155,13 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
 
 ## The machine
 
-- No capture while the owner's game runs: wait for
-  `! pgrep -f '[s]urvarium_skhid.*\.exe'` (the bracket keeps the loop from matching
-  itself; a plain `pgrep -f survarium_skhid` never ends). The rig waits by itself and stops
+- No capture while the owner's game runs: wait until `~/.cache/skhid-owner-game.sh`
+  prints nothing. It matches a game exe's argv[0] only. Never match whole command lines
+  (`pgrep -f '...survarium_skhid.*\.exe'`): other sweeps' `flock` and `--exe` arguments
+  and local srp servers match too, and the queue waits forever (2026-11-16: a sweep held
+  the GPU lock six hours on its own and its neighbours' command lines).
+- One capture at a time on the machine: every capture session holds
+  `flock ~/.cache/skhid-gpu.lock`. The rig waits by itself and stops
   a session the moment the owner starts a game; after such a stop it starts again only
   after 10 minutes with no game ("waiting for 10 quiet minutes": test games come in
   bursts, and each one killed a session that takes minutes to load). When the coordinator says no captures,
