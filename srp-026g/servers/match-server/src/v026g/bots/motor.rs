@@ -943,6 +943,9 @@ pub struct Motor {
     pub ahead_cap: Option<f32>,
     /// [S5] This tick's mode on a thin top ([`super::precise::Precise`], set by the caller each tick).
     pub precise: super::precise::Precise,
+    /// [S5] The thin top's line the walk last steered on, kept while the feet stay within its moving bar (set by the caller with
+    /// [`Self::precise`], [`super::precise::Precise::kept`]).
+    pub precise_kept: Option<super::precise::Line>,
     /// The bar as the bot reckons it ([`stamina`]), when `think.stamina` is on: the sprint is let go of at an empty
     /// bar and for a jump the bar could not pay.
     pub gauge: Option<super::stamina::Gauge>,
@@ -1435,6 +1438,7 @@ impl Motor {
             drop_aim_run: 0,
             ahead_cap: None,
             precise: super::precise::Precise::Off,
+            precise_kept: None,
             gauge: None,
             carrying: false,
             tired: false,

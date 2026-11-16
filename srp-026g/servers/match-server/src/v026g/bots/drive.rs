@@ -574,13 +574,18 @@ fn drive_tick_inner(
     // jump on the first.
     if let Some((keys, ticks)) = bot.unstick {
         bot.unstick = (ticks > 1).then_some((keys & !key::JUMP, ticks - 1));
-        // [S5] On or onto a thin top (last tick's mode) no sideways escape key: a step sideways is off it.
-        let keys = if bot.motor.precise.holds_line() && keys & (key::LEFT | key::RIGHT) != 0 {
-            super::precise::counts::add(super::precise::counts::Slot::Escape);
-            keys & !(key::LEFT | key::RIGHT)
-        } else {
-            keys
+        // [S5] Along a thin top (last tick's mode) only the escape keys that step along its line, by their way in the world (the
+        // keys are the view's); on or onto one with no line to judge by, no move key at all: a step off the line is off the top.
+        const MOVES: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
+        let kept = match bot.motor.precise {
+            super::precise::Precise::Steer { line, .. } => line.keys_along(keys, me.yaw),
+            super::precise::Precise::Guard => keys & !MOVES,
+            super::precise::Precise::Off => keys,
         };
+        if kept != keys {
+            super::precise::counts::add(super::precise::counts::Slot::Escape);
+        }
+        let keys = kept;
         bot.motor.turn_time = None;
         bot.motor.track = None;
         let decision = bot.motor.rest();
@@ -1950,12 +1955,18 @@ fn drive_tick_inner(
                         Some(next) if bot.motor.feel.precise_tops => {
                             let line_of = |node: NodeId| grid.line_top(node).and_then(super::precise::Line::of);
                             let here = grid.locate(me.feet, 1.5).and_then(line_of);
-                            super::precise::Precise::of(here, me.feet, line_of(next.node), next.at)
+                            super::precise::Precise::of(here, me.feet, line_of(next.node), next.at, bot.motor.precise_kept)
                         }
                         _ => super::precise::Precise::Off,
                     };
+                    bot.motor.precise_kept = bot.motor.precise.kept(bot.motor.precise_kept);
                     match bot.motor.precise {
-                        super::precise::Precise::Steer { .. } => super::precise::counts::add(super::precise::counts::Slot::Steer),
+                        super::precise::Precise::Steer { line, .. } => {
+                            super::precise::counts::add(super::precise::counts::Slot::Steer);
+                            if line.height_at(me.feet) - me.feet.y >= super::precise::BELOW_TOP_M {
+                                super::precise::counts::add(super::precise::counts::Slot::BelowTop);
+                            }
+                        }
                         super::precise::Precise::Guard => super::precise::counts::add(super::precise::counts::Slot::Guard),
                         super::precise::Precise::Off => {}
                     }
