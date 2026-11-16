@@ -62,9 +62,10 @@
   its walls, teams and damage the native bullet's. Every game computes the same: the eye, the look
   and the physics world of the same tick. That grid is the ram's. The shove's battery lands
   elsewhere on that plane (`battery_hit_strikes_metrics.txt`), so it has its own
-  (`Strike::grid`), built and ordered alike: its right end is 0.39..0.49 m right of the look,
-  past the ram's 0.3 m; its left end is the pivot at the hip. The ram's grid one column to the
-  right: -0.15, 0, 0.15, 0.3, 0.45 m.
+  (`Strike::grid`), built and ordered alike: its right end is 0.46..0.52 m right of the look,
+  past the ram's 0.3 m; its left end is the pivot at the hip; and it stays near the height it is
+  carried at, 0.25..0.75 m below the look, where the ram's is 0.06..0.46. The ram's grid one
+  column to the right (-0.15, 0, 0.15, 0.3, 0.45 m), its rows the look, 0.25 and 0.5 m down.
 - **Damage (assumed):** the gun's melee data is blunt with an attacker, so patch 108 kills at
   once wherever it lands. A battery's own damage would need its own bullet data: the owner's
   call.
@@ -205,13 +206,21 @@
   1/480 s for the right upper arm at the end of the push). The clips keep the motion within
   0.3 mm at every millisecond.
 - **The shove** (`swing.SHOVE`; asked for as a hook, then "pushing the right side of the battery
-  and hitting with that"): keyed about the left hand's hold, which stays (it moves 9 cm at most,
-  the right hand 52 cm). The gather draws the right end 6 degrees back; the drive turns the
-  battery about the left hand, its right end forward and up (617 deg/s and the right hand 8.0 m/s
-  at the strike, the battery's centre 4.5 m/s), to 32 degrees of turn and 24 of roll at full
-  reach, the right elbow lifting; each hand turns on its handle as its forearm comes round
+  and hitting with that"): keyed about the left hand's hold, which stays (it moves 10 cm at most,
+  the right hand 38 cm). The gather draws the right end 6 degrees back; the drive turns the
+  battery about the left hand, its right end forward (450 deg/s and the right hand 5.9 m/s at the
+  strike, the battery's centre 3.3 m/s), to 30 degrees of turn and 8 of roll at full reach: the
+  right handle 36 cm forward and 11 up; each hand turns on its handle as its forearm comes round
   (`Strike.turning`), so no wrist bends past what a wrist does. The ram's times: the strike at
   0.2 s, the carry again at 0.55 s.
+  The first take (played 2026-11-16) rolled the battery 24 degrees, which lifted the right end
+  32 cm on its 39 forward, into the first-person view: the owner, "the battery goes up, not
+  forward (its right side which is being shoved)", then "it can go a bit upwards, but it should
+  move forward". The same turn about a left hand that stays in place takes the right arm to 0.99 of
+  its length (its shoulder stands 20 cm behind the left), so the pivot gives way 9 cm to the
+  left (0.96, the ram's 0.97). What it costs: looking level, the shove stays under the first-person view, as the
+  carry does (a corner of the battery at the lower edge at full reach, 2 % of it; the first take
+  showed 42 %); looking 15 degrees down, 24 % at the strike and 42 % at full reach.
 - **The slam, tried and parked** (the owner, 2026-11-15: "maybe the third one when both hands
   are raised up and then shown down (we can at least try)"; 2026-11-16, of the previews: "let's
   go w/o slam for now, since it is slower, otherwise it is good"). Its keys stay (`swing.SLAM`,
@@ -253,9 +262,9 @@
   battery. `engine_bake.py` runs the game's baker (0x3B3250) and evaluate_frame (0x3B3180)
   under Unicorn on the clips: within 1e-6 of `clips.py` on every track. The shove the same way
   (`preview.py <assets> <out> strikes`: `battery_hit_strikes*`, the ram beside it, and
-  `battery_hit_shove_*.png`): the largest change of speed in one millisecond 0.17 m/s, the
-  hands within 0.2 mm, nothing through the near plane (every 1/240 s) or the body; in first
-  person it shows from the strike (13 %, then 41 % with the right hand).
+  `battery_hit_shove_*.png`; the first take beside it, `battery_hit_shove_before_after*`): the
+  largest change of speed in one millisecond 0.12 m/s, the hands within 0.2 mm, nothing through
+  the near plane (every 1/240 s) or the body.
 - **Seen by all:** the swing and the recovery are states of the battery's machine; the
   player's animation tree is simulation state, drawn for every view; first person draws the
   same body. The battery follows the Weapon bone each tick (0x344E40).
@@ -264,7 +273,7 @@
   their melee pairs; concrete, ground, stone and glass are silent, as for the gun-stock hit.
   Heavier candidates (STALKER SoC thuds, a port) are in `private/renders/battery-hit/sounds/`
   for the owner to pick; none wired.
-- **Not seen in game yet:** the shove and the strikes' turn; the states' timing
+- **Not seen in game yet:** the forward shove (its first take was played); the states' timing
   above is read from the exe, not watched; locomotion under the swing, the look pitch.
 
 ## Timing
@@ -482,7 +491,8 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
     first ray to it, one hit (the game's bullet::tick); a body just past its width (0.36 m) or
     under its lower edge (0.4 m down): along the look, no hit; a wall in front of the body: no
     hit; a body 9 rays meet: one bullet, one hit; the shove hits that body past the ram's width
-    (its column 0.45 m right) and not one 0.2..0.4 m left.
+    (its column 0.45 m right) and one under the ram's edge (its row 0.5 m down), and not one
+    0.2..0.4 m left.
   Stubbed: the allocator, a clip's time scale, the animation event channels, the battery's
   transform calls, the bullet pool's room and live-list add, the physics world's ray test (a scene
   of boxes on the battery's front) and bounds, the struck target.
@@ -523,7 +533,8 @@ address (no relocation), and the query (query_resources 0xE5B60) and its result 
   - the authored clips through the game's own baker (bake_time_channel 0x3B3250, the buffer
     sized by baked_animation_size 0x3B50D0) and evaluate_frame (0x3B3180) under Unicorn: all
     1260 tracks, 41 times each, within 1e-6 of `clips.py`'s evaluation (the previews').
-- Not played: the shove and the strikes' turn; the bullet's hit in a match.
+- Played by the owner 2026-11-16 (70d28a2e6): both strikes in turn, the shove's first take. Not
+  played: the forward shove and its lower grid.
 
 ## Release
 

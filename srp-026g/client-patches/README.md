@@ -4205,8 +4205,8 @@ shove (`docs/notes/battery-hit.md`). The Rust `battery_hit` (`vostok::battery`):
 - **The strike**, a swing's finalize once its clip ended (the impact): the gun-stock hit's bullet
   (`emit_bullet` as 0x33AB50 gives it) of the carrier's slot-7 gun, else slot 10's, from the eye
   along the first of 15 rays over where the strike's battery lands (a fixed 5 x 3 grid 0.7 m
-  ahead, the look first: the ram's around the look, the shove's a column to the right;
-  each the game's ray test 0x75E20 as check_collision's, its requester a stand-in of
+  ahead, the look first: the ram's around the look, the shove's a column to the right and
+  lower; each the game's ray test 0x75E20 as check_collision's, its requester a stand-in of
   the carrier's bullet owner) whose first hit is a living player's body, else along the look. Patch 108
   makes it kill. The gun is deactivated (no user, no posture)
   and the bullet reads both through it all its life (player_stance 0x2E43A0 at the constructor,
@@ -4223,7 +4223,7 @@ loads them; srp-validate reads each. A match's computation changes. `check_batte
 runs initialize_logic, the site, the take's and the carry's constructors, fsm::tick (the two
 strikes in turn), emit_bullet with the bullet's constructor, bullet::tick (its flight and a hit),
 deactivate and a save and load mid-strike with the game's own code, and both in-game crashes as
-controls in the original exe (needs Unicorn). The shove is not played.
+controls in the original exe (needs Unicorn). The shove as it is now (forward, its grid lower) is not played.
 
 ## Names on the Tab map (patch 82, unreleased)
 

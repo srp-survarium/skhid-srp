@@ -97,9 +97,11 @@ impl Strike {
     /// - the ram's, at the end of its push: 0.38 m left to 0.27 m right,
     ///   0.06 to 0.35 m below the look: 0.6 m wide around the look, from it
     ///   down to the battery's lower edge;
-    /// - the shove's right end, which lands: 0.39 to 0.49 m right of the
-    ///   look, its left end the pivot at the carrier's hip: the ram's grid
-    ///   one column to the right.
+    /// - the shove's right end, which lands: 0.46 to 0.52 m right of the
+    ///   look, its left end the pivot at the carrier's hip, and it stays
+    ///   near the height it is carried at, 0.25 to 0.75 m below the look:
+    ///   the ram's grid one column to the right, its rows the look, 0.25
+    ///   and 0.5 m down.
     const fn grid(self) -> [(f32, f32); 15] {
         match self {
             Strike::Ram => [
@@ -116,16 +118,16 @@ impl Strike {
             Strike::Shove => [
                 (0.0, 0.0),
                 (-0.15, 0.0), (0.15, 0.0),
-                (0.0, -0.175),
-                (-0.15, -0.175), (0.15, -0.175),
+                (0.0, -0.25),
+                (-0.15, -0.25), (0.15, -0.25),
                 (0.3, 0.0),
-                (0.3, -0.175),
-                (0.0, -0.35),
-                (-0.15, -0.35), (0.15, -0.35),
+                (0.3, -0.25),
                 (0.45, 0.0),
-                (0.3, -0.35),
-                (0.45, -0.175),
-                (0.45, -0.35),
+                (0.0, -0.5),
+                (0.45, -0.25),
+                (-0.15, -0.5), (0.15, -0.5),
+                (0.3, -0.5),
+                (0.45, -0.5),
             ],
         }
     }
@@ -704,10 +706,14 @@ mod tests {
             Strike::Ram => [-0.3, -0.15, 0.0, 0.15, 0.3],
             Strike::Shove => [-0.15, 0.0, 0.15, 0.3, 0.45],
         };
+        let rows = |strike| match strike {
+            Strike::Ram => [0.0, -0.175, -0.35],
+            Strike::Shove => [0.0, -0.25, -0.5],
+        };
         for strike in Strike::ALL {
             let grid = strike.grid();
             for x in columns(strike) {
-                for y in [0.0, -0.175, -0.35] {
+                for y in rows(strike) {
                     assert_eq!(grid.iter().filter(|point| **point == (x, y)).count(), 1, "{strike:?} ({x}, {y})");
                 }
             }

@@ -143,31 +143,33 @@ class Strike:
 RAM = Strike('centre', RAM_BATTERY, RAM_SHOULDER, RAM_ELBOW)
 
 # The shove (the owner, 2026-11-15: "the second animation where left hand doesn't move far but
-# right one does", "it is like pushing the right side of the battery and hitting with that"): the
-# left hand stays the pivot, the right arm shoves the battery's right end forward and up about it,
-# and that end lands. The ram's beats and times. The values are the left hand's hold's move from
-# its carry place (cm) and the battery's turn about it (degrees: yaw swings the right end forward,
-# roll lifts it, pitch tips the top back). The lift is what brings the right end and the right
-# hand into the first-person view (a level turn stays under it, as the carry does) and within the
-# right arm's reach (its shoulder stands back in the carry).
+# right one does", "it is like pushing the right side of the battery and hitting with that";
+# played 2026-11-16: "the battery goes up, not forward (its right side which is being shoved)",
+# "it can go a bit upwards, but it should move forward"): the left hand stays the pivot, the right
+# arm shoves the battery's right end forward about it, and that end lands. The ram's beats and
+# times. The values are the left hand's hold's move from its carry place (cm) and the battery's
+# turn about it (degrees: yaw swings the right end forward, roll lifts it, pitch tips the top
+# back). Nearly all yaw: the right end goes 36 cm forward and 11 up (the first take's roll of 24
+# degrees lifted it 32, into the view: a lift). The pivot gives way to the left, which keeps the
+# right arm short of straight (0.96 of its length; 0.99 about a pivot that stays).
 SHOVE = Strike('left hand', {
-    'x': Curve((0, 0), (0.100, 1.5, 0), (STRIKE, -5.2, -120), (0.250, -8.0, 0), (0.310, -7.5, 6), (REST, 0)),
-    'y': Curve((0, 0), (0.100, -0.5, 0), (STRIKE, 2.0, 45), (0.250, 3.0, 0), (0.310, 2.7, -4), (REST, 0)),
-    'z': Curve((0, 0), (0.100, 1.0, 0), (STRIKE, 3.0, 10), (0.250, 2.0, 0), (REST, 0)),
-    'pitch': Curve((0, 0), (0.108, 1.5, 0), (STRIKE, -1.5, -60), (0.258, -5.0, 0), (0.318, -4.6, 5), (REST, 0)),
-    'yaw': Curve((0, 0), (0.104, -6.0, 0), (STRIKE, 23.0, 480, 0), (0.242, 32.0, 0, -1100), (0.296, 30.6, -34), (REST, 0)),
-    'roll': Curve((0, 0), (0.104, -3.0, 0), (STRIKE, 17.5, 360, 0), (0.250, 24.0, 0, -800), (0.305, 22.8, -26), (0.400, 9.0, -150), (REST, 0)),
+    'x': Curve((0, 0), (0.100, 1.0, 0), (STRIKE, -6.1, -130), (0.250, -9.0, 0), (0.310, -8.4, 7), (REST, 0)),
+    'y': Curve((0, 0), (0.100, -0.5, 0), (STRIKE, 0.6, 15), (0.250, 1.0, 0), (0.310, 0.9, -1), (REST, 0)),
+    'z': Curve((0, 0), (0.100, 0.5, 0), (STRIKE, 1.4, 18), (0.250, 2.0, 0), (REST, 0)),
+    'pitch': Curve((0, 0), (0.108, 0.5, 0), (STRIKE, -0.6, -18), (0.258, -1.5, 0), (REST, 0)),
+    'yaw': Curve((0, 0), (0.104, -6.0, 0), (STRIKE, 21.6, 450, 0), (0.242, 30.0, 0, -1030), (0.296, 28.7, -32), (REST, 0)),
+    'roll': Curve((0, 0), (0.104, -1.0, 0), (STRIKE, 5.6, 120, 0), (0.250, 8.0, 0, -270), (0.305, 7.6, -9), (0.400, 3.0, -50), (REST, 0)),
 }, {
     'Left': {'z': Curve((0, 0), (0.090, 1.0, 0), (0.250, -1.2, 0), (REST, 0)),
              'y': Curve((0, 0), (0.250, 0.6, 0), (REST, 0))},
-    'Right': {'z': Curve((0, 0), (0.085, -2.0, 0), (0.245, 2.2, 0), (0.40, 1.3), (REST, 0)),
-              'y': Curve((0, 0), (0.090, -1.2, 0), (0.255, 2.5, 0), (REST, 0))},
+    'Right': {'z': Curve((0, 0), (0.085, -2.0, 0), (0.245, 5.0, 0), (0.40, 3.0), (REST, 0)),
+              'y': Curve((0, 0), (0.090, -1.2, 0), (0.255, 1.0, 0), (REST, 0))},
 }, {
     'Left': {'out': Curve((0, 0), (0.240, 3.0, 0), (REST, 0)),
              'back': Curve((0, 0), (0.240, 2.0, 0), (REST, 0))},
-    'Right': {'out': Curve((0, 0), (0.092, 6.0, 0), (0.245, 8.0, 0), (REST, 0)),
+    'Right': {'out': Curve((0, 0), (0.092, 6.0, 0), (0.245, 3.0, 0), (REST, 0)),
               'back': Curve((0, 0), (0.094, 4.0, 0), (0.210, 0.0), (REST, 0)),
-              'up': Curve((0, 0), (0.245, 12.0, 0), (REST, 0))},
+              'up': Curve((0, 0), (0.245, 2.0, 0), (REST, 0))},
 }, turning=True)
 
 # The slam (the owner, 2026-11-15: "maybe the third one when both hands are raised up and then
