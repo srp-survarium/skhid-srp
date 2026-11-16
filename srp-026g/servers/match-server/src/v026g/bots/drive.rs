@@ -1955,7 +1955,8 @@ fn drive_tick_inner(
                         Some(next) if bot.motor.feel.precise_tops => {
                             let line_of = |node: NodeId| grid.line_top(node).and_then(super::precise::Line::of);
                             let here = grid.locate(me.feet, 1.5).and_then(line_of);
-                            super::precise::Precise::of(here, me.feet, line_of(next.node), next.at, bot.motor.precise_kept)
+                            let bounds = super::precise::Bounds { step: grid.body().step, run: bot.motor.feel.look_ahead_m };
+                            super::precise::Precise::of(here, me.feet, line_of(next.node), next.at, bot.motor.precise_kept, bounds)
                         }
                         _ => super::precise::Precise::Off,
                     };

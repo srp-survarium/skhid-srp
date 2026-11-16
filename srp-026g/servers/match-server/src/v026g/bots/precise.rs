@@ -135,6 +135,20 @@ impl Line {
         self.at(self.place(p).along).y
     }
 
+    /// Whether `p` can be a body on this top (`Precise::of`): within the moving bar across, no more than [`MOVING_M`] under the
+    /// top (F2: a held body's feet sink no further than the capsule's radius, 0.38 m, at the leaving edge) nor more than
+    /// `bounds.step` over it, and no further past the piece's ends than `bounds.run` (S3 guarantees only that a top runs on
+    /// further than it is wide past a measured piece).
+    pub fn holds(&self, p: Vec3, bounds: Bounds) -> bool {
+        let place = self.place(p);
+        let rise = p.y - self.at(place.along).y;
+        place.across.abs() <= self.moving_bar()
+            && place.along >= -bounds.run
+            && place.along <= self.len + bounds.run
+            && rise >= -MOVING_M
+            && rise <= bounds.step
+    }
+
     /// Whether going along `travel` (flat x, z) is going toward `to`.
     pub fn forward(&self, travel: (f32, f32)) -> bool {
         travel.0 * self.dir.0 + travel.1 * self.dir.1 >= 0.0
@@ -144,6 +158,14 @@ impl Line {
 /// Feet this far under the line's top have left it, m: the census's thin top has a drop of over 0.30 m beside it
 /// (`railings-design.md` §3), so a body this far down is beside the top, not on it. A count's threshold only (decides nothing).
 pub const BELOW_TOP_M: f32 = 0.30;
+
+/// How far a line is taken past what S3 measured ([`Line::holds`]): over the top, a step (the grid body's); along it, a run
+/// (the walk's own look-ahead).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Bounds {
+    pub step: f32,
+    pub run: f32,
+}
 
 /// The motor's mode by the lines at the feet and at the route's next floor.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -162,12 +184,12 @@ impl Precise {
     /// `at_feet`: the line of the floor at the feet, `feet` the feet; `next`: the line of the route's next floor, `next_at` that
     /// waypoint; `kept`: the line steered on last ([`Self::kept`]). Along one top when both lines are of one segment, or when a
     /// floor has none (S3 gives a line only to the floor whose cell holds the line's point: a neighbour on the same top may have
-    /// none) and both the feet and the waypoint are within the moving bar of the other's line, or of the kept one when neither
-    /// floor has a line. Guarded while the feet are within the moving bar of the kept line.
-    pub fn of(at_feet: Option<Line>, feet: Vec3, next: Option<Line>, next_at: Vec3, kept: Option<Line>) -> Self {
+    /// none) and both the feet and the waypoint are on the other's line ([`Line::holds`]: across, in height and along), or on
+    /// the kept one when neither floor has a line. Guarded while the feet are on the kept line.
+    pub fn of(at_feet: Option<Line>, feet: Vec3, next: Option<Line>, next_at: Vec3, kept: Option<Line>, bounds: Bounds) -> Self {
         let travel = (next_at.x - feet.x, next_at.z - feet.z);
         let steer = |line: Line| Precise::Steer { line, forward: line.forward(travel) };
-        let on = |line: &Line, p: Vec3| line.place(p).across.abs() <= line.moving_bar();
+        let on = |line: &Line, p: Vec3| line.holds(p, bounds);
         match (at_feet, next) {
             (Some(here), Some(there)) if here.segment == there.segment => steer(there),
             (Some(line), None) | (None, Some(line)) if on(&line, feet) && on(&line, next_at) => steer(line),
@@ -336,25 +358,34 @@ mod tests {
         let here = rail(7, Face::BySlope);
         let along = rail(7, Face::BySlope);
         let other = rail(8, Face::BySlope);
+        let b = Bounds { step: 0.8, run: 1.6 };
         let (feet, ahead, behind) = (Vec3::new(1.0, 1.3, 0.05), Vec3::new(2.0, 1.4, 0.0), Vec3::new(0.0, 1.2, 0.0));
-        assert_eq!(Precise::of(Some(here), feet, Some(along), ahead, None), Precise::Steer { line: along, forward: true });
-        assert_eq!(Precise::of(Some(here), feet, Some(along), behind, None), Precise::Steer { line: along, forward: false });
+        assert_eq!(Precise::of(Some(here), feet, Some(along), ahead, None, b), Precise::Steer { line: along, forward: true });
+        assert_eq!(Precise::of(Some(here), feet, Some(along), behind, None, b), Precise::Steer { line: along, forward: false });
         // One floor of the top with no line (S3 marks only the floor whose cell holds the line's point): still along it while the
-        // feet and the waypoint are within the moving bar (0.43 m here).
-        assert_eq!(Precise::of(None, feet, Some(along), ahead, None), Precise::Steer { line: along, forward: true });
-        assert_eq!(Precise::of(Some(here), feet, None, ahead, None), Precise::Steer { line: here, forward: true });
+        // feet and the waypoint are on the line (within the moving bar, 0.43 m here, in height and along).
+        assert_eq!(Precise::of(None, feet, Some(along), ahead, None, b), Precise::Steer { line: along, forward: true });
+        assert_eq!(Precise::of(Some(here), feet, None, ahead, None, b), Precise::Steer { line: here, forward: true });
         // Onto a top from beside it, off one (the waypoint is off the line: a drop, a jump), or onto another: guarded.
         let beside = Vec3::new(1.0, 0.2, 1.5);
-        assert_eq!(Precise::of(None, beside, Some(along), ahead, None), Precise::Guard);
-        assert_eq!(Precise::of(Some(here), feet, None, beside, None), Precise::Guard);
-        assert_eq!(Precise::of(Some(here), feet, Some(other), ahead, None), Precise::Guard);
-        assert_eq!(Precise::of(None, feet, None, ahead, None), Precise::Off);
-        // Two floors with no line in a row: the kept line steers on while both are within its moving bar, guards while the feet
-        // are, and lets go past it.
-        let (far_feet, far_ahead) = (Vec3::new(5.0, 1.7, 0.1), Vec3::new(6.0, 1.8, 0.0));
-        assert_eq!(Precise::of(None, far_feet, None, far_ahead, Some(here)), Precise::Steer { line: here, forward: true });
-        assert_eq!(Precise::of(None, far_feet, None, beside, Some(here)), Precise::Guard);
-        assert_eq!(Precise::of(None, beside, None, far_ahead, Some(here)), Precise::Off);
+        assert_eq!(Precise::of(None, beside, Some(along), ahead, None, b), Precise::Guard);
+        assert_eq!(Precise::of(Some(here), feet, None, beside, None, b), Precise::Guard);
+        assert_eq!(Precise::of(Some(here), feet, Some(other), ahead, None, b), Precise::Guard);
+        assert_eq!(Precise::of(None, feet, None, ahead, None, b), Precise::Off);
+        // Under the top, on its line flat (under a bar, at the foot of a panel): not on it, so onto it is guarded, not steered.
+        let under = Vec3::new(1.0, 0.2, 0.0);
+        assert_eq!(Precise::of(None, under, Some(along), ahead, None, b), Precise::Guard);
+        // Two floors with no line in a row: the kept line steers on while both are on it, guards while the feet are, and lets go
+        // past it: off its end by more than the run, or down off the top (walked off its end onto the ground in line with it).
+        let (on_feet, on_ahead) = (Vec3::new(4.5, 1.65, 0.1), Vec3::new(4.75, 1.67, 0.0));
+        assert_eq!(Precise::of(None, on_feet, None, on_ahead, Some(here), b), Precise::Steer { line: here, forward: true });
+        assert_eq!(Precise::of(None, on_feet, None, beside, Some(here), b), Precise::Guard);
+        assert_eq!(Precise::of(None, beside, None, on_ahead, Some(here), b), Precise::Off);
+        assert_eq!(Precise::of(None, Vec3::new(5.7, 1.77, 0.0), None, on_ahead, Some(here), b), Precise::Off);
+        let ground_in_line = Vec3::new(4.5, 0.2, 0.0);
+        assert_eq!(Precise::of(None, ground_in_line, None, Vec3::new(5.0, 0.2, 0.0), Some(here), b), Precise::Off);
+        // Over the top by more than a step: another floor above it.
+        assert_eq!(Precise::of(None, Vec3::new(2.0, 2.5, 0.0), None, ahead, Some(here), b), Precise::Off);
         // What the next tick keeps.
         assert_eq!(Precise::Steer { line: along, forward: true }.kept(None), Some(along));
         assert_eq!(Precise::Guard.kept(Some(here)), Some(here));
