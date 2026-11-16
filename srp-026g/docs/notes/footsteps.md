@@ -182,7 +182,7 @@ pair's `to`):
 
 | ground | foot | sound (type: 258 a collection, 257 a composite) |
 |---|---|---|
-| foliage_dry 49 | 10 / 42 / 53 / 54 / 56 / 57 | `material/foliage/step/foliage_step_m` / `foliage_step` / `foliage_step_sprint_m` / `crouch/material/foliage/step/foliage_step_m` / `material/foliage/step/foliage_step` / `crouch/material/foliage/step/foliage_step` (258) |
+| foliage_dry 49 | 10 / 42 / 53 / 54 / 56 / 57 | `material/default/step/default_steps_m` (258) / `step/default` (257) / `material/default/step/default_steps_sprint_m` (258) / `crouch/material/default/step/default_steps_m` (258) / `step/default_sprint` (257) / `crouch/step/default` (257): the default pairs' own |
 | mud 23 | 56 | `material/mud/step/mud_steps` (258, its own walking) |
 | foliage_coniferous 24 | 56 | `material/foliage/step/foliage_step` (258) |
 | foliage_deciduous 44 | 56 | `material/foliage_2/step/foliage_2_step` (258) |
@@ -194,8 +194,9 @@ pair's `to`):
 | body 15 | 53 | `material/default/step/default_steps_sprint_m` (258) |
 
 `foliage_dry`'s faces are leaves (`coll_leaves_shurshur_1` of the ICE cars, `coll_foliage` of
-Mamayev's ground, `foliage` of Vector's lab): the foliage set; `foliage_2` (the bushes') is the
-other choice. No own sprint sample exists for mud and foliage: their own walking sound. Every sound
+Mamayev's ground, `foliage` of Vector's lab), but it steps as `default`, the plain dirt step, as
+0.69d plays it: the bush rustle was 9 to 13 dB louder than 0.69d's step on Mamayev Kurgan's
+ground. No own sprint sample exists for mud and foliage: their own walking sound. Every sound
 named is in the stock db or crouch-steps-1's copies. A content change only: srp reads none of it.
 
 ### A step another patch plays (for the ladders)
