@@ -200,6 +200,7 @@ struct Speaker {
     radio: Radio,
     heard: Option<u32>,
     effect: Option<Effect>,
+    /// A radio utterance that played has closed, its squelch not yet begun.
     closing_effect: bool,
     limiter: Limiter,
     /// The channel of its utterance (of its last one, when none is open).
@@ -255,7 +256,9 @@ impl Speaker {
     }
     fn close(&mut self, stats: &mut Stats) {
         if let State::Open(u) = &self.state {
-            self.closing_effect = !matches!(u.phase, Phase::Buffering);
+            // By the channel of the utterance that closes: a new one's takes
+            // its place only after (`take`).
+            self.closing_effect = self.channel == Channel::Radio && !matches!(u.phase, Phase::Buffering);
             let last = u.id;
             self.state = State::Closed(Some(last));
             stats.closed += 1;
@@ -284,10 +287,12 @@ impl Speaker {
         u.ring[index as usize % RING] = Some((index, bytes.to_vec()));
         u.top = u.top.max(index + 1);
     }
-    fn finish_effect(&mut self, far: bool, stats: &mut Stats) {
+    /// The squelch at the end of a radio utterance that closed, when the
+    /// slot's radio is heard.
+    fn finish_effect(&mut self, radio_heard: bool, stats: &mut Stats) {
         if self.closing_effect {
             self.closing_effect = false;
-            if far {
+            if radio_heard {
                 self.effect = Some(Effect {
                     samples: SQUELCH_OUT,
                     at: 0,
@@ -500,7 +505,7 @@ impl Core {
             let to = Gains::of(heard, s.channel);
             let from = std::mem::replace(&mut s.gains, to);
             let far = to.radio > 0.;
-            s.finish_effect(far, &mut self.stats);
+            s.finish_effect(heard.radio, &mut self.stats);
             if let Some(pcm) = s.play(now, far, &mut self.stats) {
                 let ramp = |from: f32, to: f32, i: usize| from + (to - from) * (i + 1) as f32 / FRAME as f32;
                 if from.plain != [0., 0.] || to.plain != [0., 0.] {
@@ -522,7 +527,7 @@ impl Core {
                     }
                 }
             }
-            s.finish_effect(far, &mut self.stats);
+            s.finish_effect(heard.radio, &mut self.stats);
             // The squelch is the radio's: centred.
             if let Some(fx) = &mut s.effect {
                 for sample in &mut acc {

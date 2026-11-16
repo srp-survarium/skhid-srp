@@ -178,6 +178,26 @@ fn the_radios_squelch_delays_its_words_the_10_m_voice_has_none() {
         assert_eq!(core.stats().squelch_out, u32::from(far));
     }
 }
+#[test]
+fn a_key_let_go_for_the_other_has_the_squelch_of_the_radio_alone() {
+    // Slot 3 talks on one key and at once on the other, the first utterance
+    // still playing: the squelch that ends an utterance is the radio's, never
+    // the 10 m voice's, whatever the next one is.
+    let frames = encoded(8);
+    for (first, then, squelch_out) in [(Channel::Near, Channel::Radio, 0), (Channel::Radio, Channel::Near, 1)] {
+        let mut core = Core::new().unwrap();
+        feed_on(&mut core, first, &frames);
+        // Past the radio's lead-in, into its words.
+        for tick in 0..12 {
+            mix(&mut core, tick * 20);
+        }
+        core.receive(&Message::RelayStart { slot: 3, utt: 2, channel: then, ms: 0 }, 240);
+        for tick in 12..16 {
+            mix(&mut core, tick * 20);
+        }
+        assert_eq!(core.stats().squelch_out, squelch_out, "{first:?} then {then:?}");
+    }
+}
 /// A steady tone from slot 3 on `channel`, mixed frame by frame as
 /// `heard(tick)` says: each frame's left and right.
 fn heard_tone(ticks: u32, channel: Channel, heard: impl Fn(u32) -> Heard) -> Vec<Stereo> {
