@@ -2110,9 +2110,24 @@ pub(super) fn step_keeps_clear(field: &TrapField, from: Vec3, to: Vec3) -> bool 
     field.is_empty() || keeps_clear(&[from, to], field.discs(), from, field.reach().max(FIELD_M))
 }
 
-/// [#2081] The zone round a known own trap the bench measures the feet off route in, metres ([`TIGHT_WALK_P90_M`] was measured in
-/// it; the tight walk that used it is dropped: 1.47 m rests on the P90 of every walk).
+/// [#2081] Within this of a team trap a body on a fallback route walks tight ([`walks_tight`]), metres: the zone the tight walk's
+/// tolerance ([`TIGHT_WALK_P90_M`]) was measured in (the bench's feet off route by an own trap).
 pub const TIGHT_ZONE_M: f32 = 3.0;
+
+/// [#2081] Whether `bot` walks tight at `feet`: on a fallback route ([`on_fallback`]: a way that passes a team trap nearer than the
+/// clearance, held only to the guard's contact) within [`TIGHT_ZONE_M`] of a team trap on its floor. Then no sprint, side step,
+/// weave or step apart (`drive.rs`): the walk's tolerance there is the tight walk's ([`TIGHT_WALK_P90_M`] 0.47 m), not every
+/// walk's 0.80 m the clearance is made of.
+pub(super) fn walks_tight(bot: &Bot, feet: Vec3) -> bool {
+    on_fallback(bot)
+        && bot
+            .features
+            .traps
+            .field
+            .discs()
+            .iter()
+            .any(|d| d.distance_xz(feet) < TIGHT_ZONE_M && (d.y - feet.y).abs() < OTHER_FLOOR_M)
+}
 
 
 /// [#2081] What the own-trap guard made of a tick's keys ([`own_trap_guard`]).
@@ -2310,15 +2325,36 @@ pub(super) fn guard_own_traps(
     // the body cannot walk: it ends, and the noticed traps it ran into are shut for the bot's searches (the team's are already).
     const MOVE: u32 = super::key::FORWARD | super::key::BACK | super::key::LEFT | super::key::RIGHT | super::key::SPRINT;
     let at_rest = matches!(guard, OwnTrapGuard::Swapped(k) | OwnTrapGuard::Braked(k) if k & MOVE == 0) && me.speed() < super::drive::LIP_GLIDE_MPS;
+    let fallback = on_fallback(bot);
     #[cfg(test)]
-    if at_rest && bot.route.is_none() {
-        own_trap_counts::bump(own_trap_counts::HELD_WITHOUT_ROUTE);
+    {
+        if at_rest && bot.route.is_none() {
+            own_trap_counts::bump(own_trap_counts::HELD_WITHOUT_ROUTE);
+        }
+        if fallback && !matches!(guard, OwnTrapGuard::Clear) {
+            own_trap_counts::bump(own_trap_counts::GUARDED_ON_FALLBACK);
+        }
+        if fallback && at_rest {
+            own_trap_counts::bump(own_trap_counts::HELD_ON_FALLBACK);
+        }
     }
     let held = at_rest && bot.route.is_some();
     bot.features.traps.guard_stall = if held { Some(bot.features.traps.guard_stall.unwrap_or(now)) } else { None };
     if let Some(since) = bot.features.traps.guard_stall.filter(|&since| now.saturating_sub(since) >= tuning.think.think_ms.1) {
         let path = path_of(keys);
         let touched: Vec<Vec3> = discs.iter().filter(|d| path_touches(&path, &[**d], me.feet)).map(|d| d.at).collect();
+        // A fallback route held by a team trap waits and goes on: the wide search would find no way again (a new loop), and the
+        // guard lets the walk on once the body is clear of contact. A noticed trap still ends it (it is shut for the next search).
+        let team = bot.features.traps.field.clone();
+        if fallback && touched.iter().all(|t| team.discs().contains(t)) {
+            bot.features.traps.guard_stall = Some(now);
+            #[cfg(test)]
+            own_trap_counts::bump(own_trap_counts::FALLBACK_WAITED);
+            return match guard {
+                OwnTrapGuard::Clear => None,
+                OwnTrapGuard::Swapped(k) | OwnTrapGuard::Braked(k) => Some(k),
+            };
+        }
         let shut = bot.features.traps.react.block(&touched, grid);
         bot.features.traps.guard_stall = None;
         bot.end_route(super::route_end::RouteEnd::TrapAhead, now);
@@ -2387,7 +2423,7 @@ pub mod tight {
 pub mod own_trap_counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    pub const NAMES: [&str; 9] = [
+    pub const NAMES: [&str; 13] = [
         "route refused",
         "route dropped",
         "side step refused",
@@ -2397,11 +2433,19 @@ pub mod own_trap_counts {
         "noticed route dropped",
         "held ticks without a route",
         "fallback routes",
+        "keys guarded on a fallback",
+        "held ticks on a fallback",
+        "fallback holds waited",
+        "tight ticks",
     ];
+    pub const GUARDED_ON_FALLBACK: usize = 9;
+    pub const HELD_ON_FALLBACK: usize = 10;
+    pub const FALLBACK_WAITED: usize = 11;
+    pub const TIGHT_TICKS: usize = 12;
     /// [`NAMES`]' indices counted by [`bump`] rather than by a note.
     pub const NOTICED_ROUTE_DROPPED: usize = 6;
     pub const HELD_WITHOUT_ROUTE: usize = 7;
-    static COUNTS: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
+    static COUNTS: [AtomicU64; 13] = [const { AtomicU64::new(0) }; 13];
 
     pub fn bump(k: usize) {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
@@ -4891,6 +4935,19 @@ mod tests {
         let at = PlaceView { feet: trap + Vec3::new(0.9, 0.0, 0.0), yaw, velocity: [0.0, 0.0], keys: 0, seen_at: 0, known_at: 0, ..me.clone() };
         let keys = guard_own_traps(&mut bot, super::super::key::FORWARD, 0.0, &at, &tuning, grid, |_| true, 1_000);
         assert_eq!(keys.map(|k| k & super::super::key::FORWARD), Some(0), "the guard holds contact on the fallback's way");
+        // On the fallback's route by the trap the body walks tight; off it, or far from the trap, it does not.
+        bot.route = Some((kept.clone(), goal));
+        mark_fallback(&mut bot, 1_000);
+        assert!(walks_tight(&bot, trap + Vec3::new(1.5, 0.0, 0.0)), "tight within 3 m on the fallback's route");
+        assert!(!walks_tight(&bot, trap + Vec3::new(5.0, 0.0, 0.0)), "not beyond 3 m");
+        bot.features.traps.fallback = None;
+        assert!(!walks_tight(&bot, trap + Vec3::new(1.5, 0.0, 0.0)), "not on a route at the clearance");
+        // A guard hold at rest on the fallback's route by the team trap waits past the longest think gap: the route stands.
+        mark_fallback(&mut bot, 1_000);
+        for k in 0..20 {
+            guard_own_traps(&mut bot, super::super::key::FORWARD, 0.0, &at, &tuning, grid, |_| true, 2_000 + 50 * k);
+        }
+        assert!(bot.route.is_some() && on_fallback(&bot), "held 1 s at rest, the fallback's route is not ended");
     }
 
     /// [#2081] A body standing 0.70 m from its own trap (nearer than the inside floor, 0.85 m) always finds a way out: the search
