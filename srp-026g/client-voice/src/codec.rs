@@ -120,10 +120,11 @@ impl Drop for Preprocessor {
 /// voice alone had until 2026-11-16.
 pub const BITRATE: i32 = 24_000;
 /// The loss the encoder is told to expect, per cent: with it (and the rate
-/// above SILK's threshold for it, 18.4 kbit/s wide band) every frame carries
-/// a coarser copy of the frame before it (Opus' in-band forward error
-/// correction), which [`Decoder::recover`] plays when that frame did not
-/// come.
+/// for it) a frame with a voice in it carries a coarser copy of the frame
+/// before it (Opus' in-band forward error correction), which
+/// [`Decoder::recover`] plays when that frame did not come. Two frames go
+/// in a datagram, so only the copy in a datagram's first frame, of the one
+/// before's second, is ever of use.
 pub const EXPECTED_LOSS: i32 = 10;
 pub struct Encoder(NonNull<c_void>);
 impl Encoder {

@@ -729,9 +729,14 @@ before and after of each can be heard in `private/renders/voice-steady/`.
   | three talkers at once, highest | 15 % | 17 dB |
 
   Whoever raised the sensitivity was crushed for everyone who heard them, and any two voices at
-  once more than one. Now the mix has a limiter (`receiver::Master`): where a sample would pass
-  0.9 of full scale the whole mix is turned down at once, held 20 ms and let back at 0.6 dB a
-  frame. The same cases come out 38, 29 and 29 dB clean; the loudest talkers play 3 to 5 dB
+  once more than one. Now there is a limiter that turns down (`receiver::Rider`): where a sample
+  would pass 0.9 of full scale the gain comes down at once, is held 20 ms and let back at 0.6
+  dB a frame. Each speaker's own part of the mix (its voice, its radio's static and squelch) has
+  one, and the whole mix one more (`receiver::Master`), which has work only when several talk at
+  once. So a loud speaker turns itself down and not the others (the review of 2026-11-16: with
+  the mix's one gain alone, a talker at the highest sensitivity took everyone else 3 dB down with
+  it on average, and a changed game's stream of clicks, under the ceiling a speaker's level is
+  held to, 10 dB). The same cases come out 38, 29 and 29 dB clean; the loudest talkers play 3 to 5 dB
   quieter than the curve made them (turned down, not flattened), the default one 0.6 dB.
 - **The capture queue was 80 ms.** WinMM is given buffers of 20 ms to fill; with four of them a
   microphone that hands its sound over in longer bursts (some Bluetooth and USB devices), or a
@@ -739,14 +744,19 @@ before and after of each can be heard in `private/renders/voice-steady/`.
   8.1 s of 10 came through ("Validation"). That talker reaches the others in pieces. The queue is
   320 ms now (`CAPTURE_BUFFERS` 16), and the DLL's worker runs above the game's threads
   (`THREAD_PRIORITY_HIGHEST`: a few ms of work each pass). A burst is then sent as it comes: up
-  to 8 AUDIO at once, within the relay's burst of 20 and the listeners' ring of 32 frames.
+  to 8 AUDIO at once, within the relay's burst of 20 and the listeners' ring of 32 frames. What
+  it costs: sound that was lost is now late. The listeners' buffer never skips ahead, so after a
+  stall of the talker's worker the rest of that utterance is heard that much later (320 ms at
+  most; the next utterance starts afresh).
 - **A lost datagram was 40 ms of concealment.** The encoder now tells Opus to expect loss
-  (`EXPECTED_LOSS` 10 %), so every frame carries a coarser copy of the frame before it (in-band
-  FEC), and the rate went from 16 to 24 kbit/s to pay for it (measured on speech: 12.3 to 18.3
+  (`EXPECTED_LOSS` 10 %), so a frame with a voice in it carries a coarser copy of the frame
+  before it (in-band FEC), and the rate went from 16 to 24 kbit/s to pay for it (measured on speech: 12.3 to 18.3
   kbit/s). A frame that did not come is played from the next frame's copy when that came
-  (`Decoder::recover`, `Stats::recovered`). With two frames a datagram a lone lost datagram costs
+  (`Decoder::recover`). With two frames a datagram a lone lost datagram costs
   one concealed frame instead of two; of the frames lost at random, 5 to 20 % of datagrams, about
-  four in ten are recovered. Frames stay SILK wide band (TOC 0x48) and within the 120 bytes the
+  four in ten are recovered. The copy in a datagram's second frame is of its own first and never
+  of use: half of what the copies cost (about 3 of the 6 kbit/s) buys nothing while two frames go
+  in a datagram. Frames stay SILK wide band (TOC 0x48) and within the 120 bytes the
   relay takes (114 at most on full-scale noise): no change to the wire, the relay or the ABI, and a
   game of before plays these frames as any other.
 - **Looked at and left.** Steady jitter up to 100 ms costs nothing (the buffer grows by the
@@ -997,7 +1007,8 @@ As built:
   keys (2026-11-16) in place of the switch and of both heard: an utterance played by its own
   channel alone (the 10 m voice from its side, the radio centred; an opponent's radio and a far
   mate's 10 m voice silent, without static or squelch, and not in the talking word), an utterance
-  ended when the other key is held in its place. Since "Steadier sound": a mix past its ceiling
+  ended when the other key is held in its place. Since "Steadier sound": a loud speaker turning
+  itself down and not another (sharp pulses beside a quiet tone), a mix past its ceiling
   turned down and not bent (over any 2 ms the sum times one gain, to 30 dB), the gain back
   within a second, a mix under the ceiling played as summed; a frame that did not come played
   from the next one's copy (a voice's first frame after silence, which concealment cannot make),
