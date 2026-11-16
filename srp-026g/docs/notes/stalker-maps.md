@@ -220,7 +220,7 @@ appended (the manifest's state before the list).
 
 - What the six maps' later lists gave the played three (stock day grain, the
   0.11e sun, `ao_saturation` 1, matte grass, the bushes' rustle) the four
-  have from the port since `stalker-maps-2@3` ("One pipeline", below).
+  have from the port since `stalker-maps-2@4` ("One pipeline", below).
 - Loading pictures: frames of the game, headless at 2560 x 1440, highest
   settings, hfov 100 (Dark Valley `sw-high` (200, 28, -262) yaw 55.2 pitch
   -15.7; Vehicle Station `e-high` (196, 18, -27) -90 / -20.7; Fire Station
@@ -311,7 +311,7 @@ builds it).
 "All of that should have the same single default pipeline", "a generic single
 pass for all maps": the look fixes of #1793, the bushes of #1798, the terrain
 relief fix and a grass size rule are what the port gives every map it builds,
-and no step names a map. `stalker-maps@7` and `stalker-maps-2@3` are built so
+and no step names a map. `stalker-maps@7` and `stalker-maps-2@4` are built so
 (resource-porter `content/stalker-look-defaults`); the edit lists
 `stalker-maps-sun-1`, `stalker-grass-matte-1`, `stalker-maps-ao-1`,
 `stalker-bushes-1`, the pack `stalker-bushes@2` and its script are gone, and
@@ -335,7 +335,7 @@ and no step names a map. `stalker-maps@7` and `stalker-maps-2@3` are built so
   (instance g of n stays when g x 120,000 / n steps). `release/build-content`
   checks every map players will have, whatever made it (a pack, a base row:
   the v0.11e, 0.21d and 0.69d ports too), and stops at one over 120,000.
-  With `stalker-maps@7` and `stalker-maps-2@3`
+  With `stalker-maps@7` and `stalker-maps-2@4`
   (`tools/playable-map-pack/grass_counts.py` over the stock db, patches 12-60
   and the new patch): Experimental Pool, Dark Valley and Fire Station 120,000
   (125,844, 142,346 and 384,112 placed), level_03 90,879, v021d level_03
@@ -378,7 +378,7 @@ The environments of the maps ported from v0.10b and v0.11e (these six, Vostok
 v0.11, Chemical Plant v0.11) keep their source build's post-process values,
 which 0.26g draws its own way. Three edit lists set seven of them, in every
 mode's copy of the projects they name. Since `stalker-maps@7` and
-`stalker-maps-2@3` the port makes these values for every map it builds and the
+`stalker-maps-2@4` the port makes these values for every map it builds and the
 lists are gone but for the v0.11e maps' grain ("One pipeline", below); the
 table is what they did:
 
@@ -485,7 +485,7 @@ Training Camp's meadow.
 through a bush of a ported map was silent. Pack `stalker-bushes@2` and
 `content-edit/stalker-bushes-1.json` gave Experimental Pool, Military Warehouses
 and Training Camp the foliage step of stock's bushes; since `stalker-maps@7` and
-`stalker-maps-2@3` the port gives every map its bushes, the same bytes for
+`stalker-maps-2@4` the port gives every map its bushes, the same bytes for
 these three ("One pipeline", below). Built and read back
 (below); **not heard in the game yet**.
 
@@ -637,7 +637,7 @@ filter from elsewhere would not be in it; none was found.
   them one, on the Fort's and Vector's bushes too.
 - Bot map data and the site's renders do not read it.
 
-Made by the port since `stalker-maps@7` / `stalker-maps-2@3` ("One pipeline",
+Made by the port since `stalker-maps@7` / `stalker-maps-2@4` ("One pipeline",
 below): resource-porter `tools/stalker-tdm/bushes.py`, which `build-pack.sh` runs
 on every map it imports, is `scripts/stalker-bushes/make_pack.py` (gone) moved
 there, reading the imported map instead of a released pack.
