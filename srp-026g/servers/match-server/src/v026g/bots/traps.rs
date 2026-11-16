@@ -2009,9 +2009,22 @@ pub(super) fn own_trap_route(
     tactics: &super::tactics::Tactics,
     objective: bool,
 ) -> Option<super::path::Route> {
+    own_trap_route_within(bot, feet, route, now, tactics, objective, None)
+}
+
+/// [#2081] [`own_trap_route`] for a route the contact-only fallback search gave (`within` [`FALLBACK_REACH_M`]): held to that reach.
+pub(super) fn own_trap_route_within(
+    bot: &mut Bot,
+    feet: Vec3,
+    route: Option<super::path::Route>,
+    now: u32,
+    tactics: &super::tactics::Tactics,
+    objective: bool,
+    within: Option<f32>,
+) -> Option<super::path::Route> {
     let route = route?;
     let field = bot.features.traps.field.clone();
-    let reach = field.reach().max(FIELD_M);
+    let reach = within.unwrap_or(field.reach().max(FIELD_M));
     if field.is_empty() || route_keeps_clear(&route_points(&route, feet, f32::MAX), field.discs(), feet, Some(route.end()), reach) {
         return Some(route);
     }
@@ -2374,7 +2387,7 @@ pub mod tight {
 pub mod own_trap_counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    pub const NAMES: [&str; 8] = [
+    pub const NAMES: [&str; 9] = [
         "route refused",
         "route dropped",
         "side step refused",
@@ -2383,11 +2396,12 @@ pub mod own_trap_counts {
         "held route ended",
         "noticed route dropped",
         "held ticks without a route",
+        "fallback routes",
     ];
     /// [`NAMES`]' indices counted by [`bump`] rather than by a note.
     pub const NOTICED_ROUTE_DROPPED: usize = 6;
     pub const HELD_WITHOUT_ROUTE: usize = 7;
-    static COUNTS: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
+    static COUNTS: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
 
     pub fn bump(k: usize) {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
@@ -2402,6 +2416,8 @@ pub mod own_trap_counts {
             2
         } else if what.starts_with("the guard held") {
             5
+        } else if what.starts_with("a fallback route") {
+            8
         } else if what.starts_with("the guard") {
             4
         } else {
@@ -2423,9 +2439,16 @@ pub(super) fn keep_off(bot: &mut Bot, due: &Due) {
         return;
     }
     let field = bot.features.traps.field.clone();
-    if route_hits(bot, &field, due.me.feet) {
+    // [#2081] A fallback route is held to the reach it was searched with ([`FALLBACK_REACH_M`]): keep_off never drops the way
+    // the fallback found (the search / keep_off loop of the original catches).
+    let fallback = on_fallback(bot);
+    let reach = if fallback { FALLBACK_REACH_M } else { field.reach().max(FIELD_M) };
+    if route_hits_within(bot, &field, due.me.feet, reach) {
         bot.end_route(RouteEnd::TrapAhead, due.now);
-        own_trap_note(bot, due.now, format!("the route ahead dropped: it passes an own trap nearer than {:.2} m", field.reach().max(FIELD_M)));
+        own_trap_note(bot, due.now, format!("the route ahead dropped: it passes an own trap nearer than {reach:.2} m"));
+        return;
+    }
+    if fallback {
         return;
     }
     // The ring: a route planned before the trap, or before this change of the traps, that runs within it is
@@ -2447,13 +2470,76 @@ fn near_a_disc(field: &TrapField, feet: Vec3) -> bool {
 /// Whether the route of the bot, within [`KEEP_OFF_M`] ahead of `feet`, breaks the clearance from a disc of `field`
 /// ([`keeps_clear`], the rule its search's route was checked by).
 pub(super) fn route_hits(bot: &Bot, field: &TrapField, feet: Vec3) -> bool {
+    route_hits_within(bot, field, feet, field.reach().max(FIELD_M))
+}
+
+/// [`route_hits`] at `reach`.
+fn route_hits_within(bot: &Bot, field: &TrapField, feet: Vec3, reach: f32) -> bool {
     if !near_a_disc(field, feet) {
         return false;
     }
     let Some((route, _)) = bot.route.as_ref() else {
         return false;
     };
-    !route_keeps_clear(&route_points(route, feet, KEEP_OFF_M), field.discs(), feet, Some(route.end()), field.reach().max(FIELD_M))
+    !route_keeps_clear(&route_points(route, feet, KEEP_OFF_M), field.discs(), feet, Some(route.end()), reach)
+}
+
+/// [#2081] The reach of the fallback search's own-trap discs, metres: the guard's contact with its largest reckoning margin,
+/// [`OWN_TRAP_CONTACT_M`] + the drift lab's 1,000 ms P90 0.230 m ([`reckon_margin_m`]). A search with no way at the clearance
+/// searches once more with the team's own traps shut only this far (the bench's batt s4: a battery carrier 2.24 m from its own
+/// trap, the only way out of where it stood within 1.47 m of it, stood 140 s); the motor's guard keeps the body off the trap.
+pub const FALLBACK_REACH_M: f32 = OWN_TRAP_CONTACT_M + 0.230;
+
+/// [#2081] The route the fallback search gave, marked by its end and length: the route check and keep_off hold it to
+/// [`FALLBACK_REACH_M`]; any other route the bot takes is judged at the clearance.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FallbackRoute {
+    pub end: Vec3,
+    pub length: f32,
+}
+
+/// [#2081] Whether the bot walks the route the fallback search gave.
+pub(super) fn on_fallback(bot: &Bot) -> bool {
+    match (bot.features.traps.fallback, bot.route.as_ref()) {
+        (Some(m), Some((route, _))) => route.end().distance_xz(m.end) < 0.01 && (route.end().y - m.end.y).abs() < 0.01 && (route.length() - m.length).abs() < 0.01,
+        _ => false,
+    }
+}
+
+/// [#2081] The team's own traps' field at [`FALLBACK_REACH_M`] for the fallback search, built again only when the field changes.
+pub(super) fn fallback_field(bot: &mut Bot, grid: &WalkGrid) -> Arc<TrapField> {
+    let field = bot.features.traps.field.clone();
+    if let Some((of, narrow)) = &bot.features.traps.fallback_field
+        && Arc::ptr_eq(of, &field)
+    {
+        return narrow.clone();
+    }
+    let narrow = Arc::new(TrapField::round_within(field.discs().to_vec(), grid, FALLBACK_REACH_M));
+    bot.features.traps.fallback_field = Some((field, narrow.clone()));
+    narrow
+}
+
+/// [#2081] [`filter`] with `field`'s floors as the team's (the fallback search's narrow field).
+pub(super) fn filter_within(bot: &Bot, field: &Arc<TrapField>, landings: Vec<super::stuck::Shut>, start: Option<NodeId>) -> RouteFilter {
+    filter_of(bot, field, landings, start)
+}
+
+/// [#2081] Marks the route the bot just took as the fallback search's, with a note: its length, the nearest own trap from its start
+/// and its goal.
+pub(super) fn mark_fallback(bot: &mut Bot, now: u32) {
+    let Some((route, goal)) = bot.route.as_ref() else {
+        bot.features.traps.fallback = None;
+        return;
+    };
+    let (end, length, start, goal) = (route.end(), route.length(), route.point_at(0.0), *goal);
+    bot.features.traps.fallback = Some(FallbackRoute { end, length });
+    let nearest = |p: Vec3| bot.features.traps.field.discs().iter().map(|d| d.distance_xz(p)).fold(f32::INFINITY, f32::min);
+    let (from_start, from_goal) = (nearest(start), nearest(goal));
+    own_trap_note(
+        bot,
+        now,
+        format!("a fallback route of {length:.1} m: no way at the clearance; the nearest own trap {from_start:.2} m from its start, {from_goal:.2} m from its goal"),
+    );
 }
 
 /// Whether the route of the bot runs within `reach` metres of a disc of `field` within [`KEEP_OFF_M`] ahead of
@@ -3837,6 +3923,11 @@ pub struct BotState {
     /// [#2081] The armed traps the last world showed (`Bots::traps_from_world`): the guard takes a promised trap's real place from
     /// them at once, not at the next think ([`guard_discs`]).
     pub world_armed: std::sync::Arc<Vec<Vec3>>,
+    /// [#2081] The route the contact-only fallback search gave ([`on_fallback`]), its goal while its search goes on, and the field
+    /// at [`FALLBACK_REACH_M`] with the field it was built from.
+    pub fallback: Option<FallbackRoute>,
+    pub fallback_pending: Option<Vec3>,
+    pub fallback_field: Option<(Arc<TrapField>, Arc<TrapField>)>,
     /// [#2081 v6 measure] The bench's: the look in hand ([`placing`]).
     #[cfg(test)]
     pub look_ctx: Option<placing::Ctx>,
@@ -4748,6 +4839,58 @@ mod tests {
         bot.features.traps.field = field;
         keep_off_open(&mut bot, &due, &tuning.traps);
         assert!(bot.features.traps.keep_off_open.binary_search(&at(1.8)).is_ok(), "the placer is never shut in");
+    }
+
+    /// [#2081] The fallback search: the field's wall at x = 40 with one gap 2.5 m wide (z 25-27.5) and an own trap 1.0 m before its
+    /// middle: every way through crosses the wall's line within 1.33 m of the trap and beyond 0.90 m, none at the clearance. The fallback (the trap shut only to the
+    /// guard's contact) finds one; the route check takes it at the fallback's reach, not the clearance; keep_off keeps the marked
+    /// route as the bot walks it (unmarked, the clearance drops it); and the guard still refuses a step into contact.
+    #[test]
+    fn a_way_past_an_own_trap_nearer_than_the_clearance_is_the_fallbacks_and_is_kept() {
+        use crate::v026g::bots::think::Due;
+        use crate::v026g::bots::trap_know::TrapList;
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let walls = crate::v026g::bots::body::tests::wall_x(40.0, 27.5, 40.0);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(crate::v026g::bots::tactics::tests::field_with_solids(&walls, |_| {}), 1.0);
+        let trap = Vec3::new(39.0, 0.0, 26.25);
+        let feet = Vec3::new(30.0, 0.0, 30.0);
+        let goal = Vec3::new(50.0, 0.0, 30.0);
+        s.bot(0, 0, feet);
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let keep = tuning.traps.keep_off.expect("keep_off is on by default");
+        let mut list = TrapList::default();
+        list.promise(0, trap, 500);
+        let grid = &s.tactics.world.grid;
+        let (from, to) = (grid.locate(feet, 1.5).unwrap(), grid.locate(goal, 1.5).unwrap());
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.features.traps.field = Arc::new(TrapField::of_ringed_within(&list, grid, 0.0, keep.hard_m));
+        // At the clearance: no way.
+        assert!(s.tactics.route_nodes(from, to, 0, Some(0), false, &filter(&bot, Vec::new(), Some(from))).is_none(), "no way at 1.47 m");
+        // The fallback: a way, refused at the clearance and kept at the fallback's reach.
+        let narrow = fallback_field(&mut bot, grid);
+        let way = s
+            .tactics
+            .route_nodes(from, to, 0, Some(0), false, &filter_within(&bot, &narrow, Vec::new(), Some(from)))
+            .expect("a way past the trap at the guard's contact");
+        assert!(own_trap_route(&mut bot, feet, Some(way.clone()), 1_000, &s.tactics, false).is_none(), "the clearance refuses it");
+        let kept = own_trap_route_within(&mut bot, feet, Some(way), 1_000, &s.tactics, false, Some(FALLBACK_REACH_M)).expect("kept at the fallback's reach");
+        assert!(off_route_m(&route_points(&kept, feet, f32::MAX), trap) >= FALLBACK_REACH_M - CLEAR_SLACK_M);
+        // keep_off: the marked route stands; the same route unmarked is dropped.
+        let me = s.view.places[0].clone();
+        let due = Due { now: 1_000, view: &s.view, me: &me, tactics: &s.tactics, tuning: &tuning };
+        bot.route = Some((kept.clone(), goal));
+        mark_fallback(&mut bot, 1_000);
+        assert!(on_fallback(&bot));
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_some(), "keep_off keeps the fallback's route");
+        bot.features.traps.fallback = None;
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_none(), "unmarked, the clearance drops it");
+        // The guard: a body 0.9 m from the trap walking at it is still let go.
+        let yaw = std::f32::consts::FRAC_PI_2; // facing -x
+        let at = PlaceView { feet: trap + Vec3::new(0.9, 0.0, 0.0), yaw, velocity: [0.0, 0.0], keys: 0, seen_at: 0, known_at: 0, ..me.clone() };
+        let keys = guard_own_traps(&mut bot, super::super::key::FORWARD, 0.0, &at, &tuning, grid, |_| true, 1_000);
+        assert_eq!(keys.map(|k| k & super::super::key::FORWARD), Some(0), "the guard holds contact on the fallback's way");
     }
 
     /// [#2081] A body standing 0.70 m from its own trap (nearer than the inside floor, 0.85 m) always finds a way out: the search

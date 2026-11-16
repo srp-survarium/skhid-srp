@@ -1196,8 +1196,11 @@ fn drive_tick_inner(
             // Why it has no route, if it has none after this.
             let mut no_route = path::NoRoute::Searched;
             if let Some((goal, route, crossed)) = found {
-                // [#2081] The way keeps the clearance from the team's own traps, or there is none.
-                let route = traps::own_trap_route(bot, me.feet, route, time, tactics, intent.objective);
+                // [#2081] The way keeps the clearance from the team's own traps, or there is none; a fallback search's way is held
+                // to its own reach (`traps::FALLBACK_REACH_M`).
+                let fallback = bot.features.traps.fallback_pending.take().is_some_and(|g| g.distance_xz(goal) <= REPLAN_MOVED_M);
+                let within = fallback.then_some(traps::FALLBACK_REACH_M);
+                let route = traps::own_trap_route_within(bot, me.feet, route, time, tactics, intent.objective, within);
                 bot.no_way = route.is_none().then_some((goal, time + NO_WAY_RETRY_MS));
                 bot.features.crossing.goal = crossed.then_some(goal);
                 // Both ends were on floors, from one it may walk on: proven, unless the body's own shut drops are what
@@ -1219,6 +1222,9 @@ fn drive_tick_inner(
                 let stranded = tuning.think.stranded_start && tactics.world.grid.locate(me.feet, 1.5).is_none();
                 let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
                 bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid), goal)), time);
+                if fallback {
+                    traps::mark_fallback(bot, time);
+                }
             } else if replan && (no_way || shut_in) {
                 #[cfg(test)]
                 if shut_in {
@@ -1471,6 +1477,40 @@ fn drive_tick_inner(
                         }
                     }
                 }
+                // [#2081] No way with the team's own traps' floors shut to the clearance: once more with them shut only to the
+                // guard's contact (`traps::FALLBACK_REACH_M`); its route is marked so the route check and keep_off hold it there, and
+                // a search left under way carries the mark to its answer (the bench's batt s4: a carrier 2.24 m from its own trap, the
+                // only way out of where it stood within 1.47 m of it, stood 140 s). The motor's guard keeps the body off the trap.
+                let mut fallback = false;
+                if route.is_none()
+                    && left.is_none()
+                    && !escaping
+                    && !there
+                    && !bot.features.traps.field.is_empty()
+                    && let Some((from, to)) = ends
+                {
+                    let narrow = traps::fallback_field(bot, grid);
+                    let landings: Vec<stuck::Shut> = bot.stuck.shut_landings_from(time, me.feet, tuning.unstick.drop_shut_from_top).collect();
+                    let mut fb = traps::filter_within(bot, &narrow, landings, grid.locate(me.feet, 1.5)).with_reach(body_reach(bot, me, time));
+                    if tuning.kin.open_edge_cost > 0.0 {
+                        fb = fb.weighing_open_sides(1.0 + tuning.kin.open_edge_cost);
+                    }
+                    match tactics.start_route(from, to, time, side, objective, &fb, floors) {
+                        Ok(Some(way)) => {
+                            route = Some(way);
+                            fallback = true;
+                        }
+                        Ok(None) => {}
+                        Err(planning) => {
+                            hard = fb;
+                            left = Some((false, planning));
+                            bot.features.traps.fallback_pending = Some(at);
+                        }
+                    }
+                }
+                let fallback_within = |bot: &Bot| {
+                    (fallback || bot.features.traps.fallback_pending.is_some_and(|g| g.distance_xz(at) <= REPLAN_MOVED_M)).then_some(traps::FALLBACK_REACH_M)
+                };
                 // A held shooter's lane (K1, `threat.rs`): a route that runs
                 // through it for long gets a local detour round the lane
                 // (searched from 13 m before it to 13 m after it, spliced in)
@@ -1733,14 +1773,18 @@ fn drive_tick_inner(
                     // Meanwhile the way so far, as Detour's partial paths:
                     // toward the goal, not standing (else the old route).
                     let filter = if round { filter } else { hard };
+                    let within = fallback_within(bot);
                     if let Some(partial) =
-                        traps::own_trap_route(bot, me.feet, tactics.partial_route(&planning, ends, time, side, objective, &filter), time, tactics, objective)
+                        traps::own_trap_route_within(bot, me.feet, tactics.partial_route(&planning, ends, time, side, objective, &filter), time, tactics, objective, within)
                     {
                         #[cfg(test)]
                         {
                             bot.bench_route = why::PLAIN;
                         }
                         bot.set_route(Some((door_route(partial, tuning, &tactics.world.grid), at)), time);
+                        if within.is_some() {
+                            traps::mark_fallback(bot, time);
+                        }
                         #[cfg(test)]
                         {
                             bot.bench_on_partial = true;
@@ -1761,8 +1805,10 @@ fn drive_tick_inner(
                         second: None,
                     });
                 } else {
-                    // [#2081] The way keeps the clearance from the team's own traps, or there is none (not a way out of a zone).
-                    let route = if escaping { route } else { traps::own_trap_route(bot, me.feet, route, time, tactics, objective) };
+                    // [#2081] The way keeps the clearance from the team's own traps, or there is none (not a way out of a zone); the
+                    // fallback's way its own reach.
+                    let within = fallback_within(bot);
+                    let route = if escaping { route } else { traps::own_trap_route_within(bot, me.feet, route, time, tactics, objective, within) };
                     #[cfg(test)]
                     if let Some((from, to)) = ends
                         && !escaping
@@ -1818,6 +1864,9 @@ fn drive_tick_inner(
                     }
                     let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
                     bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid), at)), time);
+                    if fallback && bot.route.is_some() {
+                        traps::mark_fallback(bot, time);
+                    }
                     bot.features.crossing.goal = crossed.then_some(at);
                 }
             }
