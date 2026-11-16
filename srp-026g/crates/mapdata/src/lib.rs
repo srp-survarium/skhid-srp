@@ -220,8 +220,9 @@ pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0007;
 /// The same for the taken floors given back where the client's body rests and no floor names the place ([`Body::rest_floors`],
 /// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0102: the own-point stand test
 /// (`rest_floors::settle_near`: a standing body on the floor's own point, no push out of the walls, and 0.05-0.10 m around it
-/// where it jams there; a body jammed in faces is no rest).
-pub const REST_FLOORS_ALGO: u32 = 0x5389_0102;
+/// where it jams there; a body jammed in faces is no rest). 0103: the test body's downward speed given once, at the put (as the
+/// game's, `can_skip_player_step` 0x7C7E0), not before every tick.
+pub const REST_FLOORS_ALGO: u32 = 0x5389_0103;
 /// The same for the floors kept only where the client's capsule is held and the drops from the last held floors
 /// ([`Body::held_floors`], A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0202: a floor a
 /// body come down 0.15 m off its centre rests on is held (the ring, R2 F3).
@@ -237,7 +238,8 @@ pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0301;
 /// floor stands (it was 0.1 m both ways). 0107: used by unmerged pushes of the stand test pushed out of the walls; not this rule.
 /// 0108: the own-point stand test (`rest_floors::settle_near`: a standing body put on the floor's own point, no push out of the
 /// walls, and 0.05-0.10 m around it where it jams there; a body jammed in faces is no rest), the exe's class on 52 of 53 floors.
-pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0108;
+/// 0109: the test body's downward speed given once, at the put (as the game's, `can_skip_player_step` 0x7C7E0).
+pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0109;
 /// The same for the walk-tick passes with the exe's collision rules ([`Body::exe_collision`], A325), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const EXE_COLLISION_ALGO: u32 = 0x5325_0101;

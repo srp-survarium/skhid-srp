@@ -98,14 +98,20 @@ pub(super) enum Settle {
 ///
 /// Standing only: the port's crouched body never stands still in the rest test's steps (`Moving` on all 53), where the exe's
 /// holds on most of them, so a crouched test would refuse every floor it ran on.
+///
+/// The put's downward speed ([`FALL_MPS`]) is given once, before the first tick, and the controller's own speed is left alone
+/// after: a body at rest in the game has speed 0 and skips its steps (`can_skip_player_step` 0x7C7E0), so a speed forced before
+/// every tick runs steps the game never runs. Forced so, the exactness rig's ring11 (own point) is lifted 0.8 m onto a ledge
+/// under a ceiling on tick 2, in the exe as in the port, where the game's body lands on tick 1 on a rim 6.7 cm up and stays
+/// (exactness, wsl-out/bench/exactness-20261115/put-trace/ROOT-CAUSE.md).
 pub(super) fn settle(world: &Collision, s: &Settings, feet: Vec3) -> Settle {
     let put = feet + Vec3::new(0.0, PUT_OWN_M, 0.0);
     let mut body = Controller::standing_at(put);
     let input = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key: false, legs_broken: false }, sprinting: false };
     let mut run = 0;
+    body.velocity.y = -FALL_MPS;
     for _ in 0..REST_STEPS_MAX {
         let before = body.feet();
-        body.velocity.y = body.velocity.y.min(-FALL_MPS);
         body.tick(world, DT, s, input);
         run = if !body.jumping && body.on_ground(s) && (body.feet() - before).length() < 1e-3 { run + 1 } else { 0 };
         if run >= STILL_STEPS {
