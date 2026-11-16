@@ -9,8 +9,13 @@
 //! The projects are every `<dir>/*.mapdata` when none is named (`level_01/day_4` names `level_01_day_4.mapdata`). The
 //! tuning is the server's: `SRP_BOT_TUNING` as the server reads it (unset: the code's defaults, as the compose file
 //! ships). The store is the server's own (`match_server::v026g::bot_maps`): the files get the keys the server looks
-//! for. Each map is built and written, then a second store (a restart) must read every part back with the same
-//! digests; anything a restart would build again fails the run (exit 1), as does a map whose build takes longer than
+//! for. The game data is the server's too: `SRP_GAME_DATA`, read first as `srp` reads it at start
+//! (`survarium::v026g::game_data::init`), since a grid's key holds the fastest bot's walk cap, which the game data's bot
+//! profiles set. Unset, the tables are the test archive's and the run says so in a WARNING: those keys are ones no live
+//! server computes, so a release always passes the data it ships (`release/build-bot-maps`, `release/lib.sh`).
+//! Both forms log to stderr at start the game data, the fastest bot's movement level and the walk cap the grids fly.
+//! Each map is built and written, then a second store (a restart) must read every part back with the same digests;
+//! anything a restart would build again fails the run (exit 1), as does a map whose build takes longer than
 //! `SRP_BUILD_MAPS_LIMIT_S` (default 3 h). The built dir must be empty or absent, so every file in it is this build's.
 //!
 //! `--files` builds nothing: for each project it prints `<project> TAB <grid file> TAB <sight file> TAB <tactics file>`,
@@ -24,7 +29,8 @@ use std::time::Duration;
 
 use match_server::v026g::bot_maps;
 use match_server::v026g::bots::maps::{self, Made, Source};
-use match_server::v026g::bots::tuning::LoadedTuning;
+use match_server::v026g::bots::tuning::{LoadedTuning, Tuning};
+use survarium::v026g::game_data::{self, GAME_DATA_ENV};
 
 /// A map's build may take this long before the run fails, s: `SRP_BUILD_MAPS_LIMIT_S`, else [`LIMIT_S`].
 const LIMIT_ENV: &str = "SRP_BUILD_MAPS_LIMIT_S";
@@ -44,6 +50,32 @@ fn limit() -> Result<Duration, String> {
         },
         Err(e) => Err(format!("{LIMIT_ENV}: {e}")),
     }
+}
+
+/// Reads the server's game data as `srp` does at start, before anything reads a table (a table read first makes the
+/// test archive the process's for good): with [`GAME_DATA_ENV`] unset, says in a WARNING that the keys will be the test
+/// archive's. Returns the line the start log names it by.
+fn read_game_data() -> Result<String, String> {
+    if std::env::var_os(GAME_DATA_ENV).is_none_or(|value| value.is_empty()) {
+        eprintln!(
+            "srp-build-maps: WARNING: {GAME_DATA_ENV} is unset: the bots' tables are the test archive's, so the grid and \
+             tactics keys are ones no live server computes (its walk cap is the game data's fastest bot's); a release \
+             passes the server-game-data.db it ships"
+        );
+        return Ok(format!("game data: the test archive ({GAME_DATA_ENV} unset)"));
+    }
+    let data = game_data::init().map_err(|why| why.to_string())?;
+    Ok(format!("game data: {} (made of {})", data.origin, data.made_of()))
+}
+
+/// The start log's second line: what in the game data the grid keys hold.
+fn walk_cap_line(tuning: &Tuning) -> String {
+    let level = survarium::v026g::bot_skills::fastest_bot_movement_level();
+    format!(
+        "fastest bot movement level {level:.4}; walk cap the grids fly {:.4} m/s (rim jumps {})",
+        tuning.grid.body().fastest_walk_cap,
+        if tuning.grid.rim_jumps { "on" } else { "off: the body's cap" }
+    )
 }
 
 fn main() -> ExitCode {
@@ -83,8 +115,11 @@ fn projects_in(dir: &Path) -> Result<Vec<String>, String> {
 
 /// `--files`: the built files' names of each project, nothing built.
 fn files(dir: &Path, named: &[String]) -> Result<(), String> {
+    // stdout is the names alone (scripts read it); the log goes to stderr.
+    let data = read_game_data()?;
     let loaded = LoadedTuning::from_env()?;
     let tuning = loaded.tuning().clone();
+    eprintln!("srp-build-maps --files: {data}; {}; {}", loaded.data_line(), walk_cap_line(&tuning));
     let projects = if named.is_empty() { projects_in(dir)? } else { named.to_vec() };
     if projects.is_empty() {
         return Err(format!("no .mapdata in {}", dir.display()));
@@ -109,8 +144,10 @@ fn run(dir: &Path, built: &Path, named: &[String]) -> Result<(), String> {
     if std::fs::read_dir(built).is_ok_and(|mut entries| entries.next().is_some()) {
         return Err(format!("{} is not empty: every file there must be this build's", built.display()));
     }
+    let data = read_game_data()?;
     let loaded = LoadedTuning::from_env()?;
     let tuning = loaded.tuning().clone();
+    eprintln!("srp-build-maps: {data}; {}", walk_cap_line(&tuning));
     let projects = if named.is_empty() { projects_in(dir)? } else { named.to_vec() };
     if projects.is_empty() {
         return Err(format!("no .mapdata in {}", dir.display()));
@@ -128,6 +165,13 @@ fn run(dir: &Path, built: &Path, named: &[String]) -> Result<(), String> {
     let (dir, built_dir): (PathBuf, PathBuf) = (dir.into(), built.into());
     // The pre-build builds what is not there; the restart's read-back (`prebuild`) then finds every file.
     let store = || bot_maps(dir.clone(), maps::KEEP, maps::AT_ONCE, Some(built_dir.clone()), &tuning, maps::AtLoad::Build);
+    // Each map's keys before its build, as the files will be named: what a server with this game data reads.
+    let names = store();
+    for project in &projects {
+        let [grid, sight, tactics] = names.built_file_names(project).map_err(|why| format!("{project}: {why}"))?;
+        eprintln!("srp-build-maps: {project}: keys {grid} {sight} {tactics}");
+    }
+    drop(names);
     let done = maps::prebuild(store, &projects, limit)?;
     for map in &done {
         let Made { grid, sight, tactics } = map.made;

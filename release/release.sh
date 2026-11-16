@@ -62,13 +62,8 @@
 #      each compared with the data volume's own (a read): those it lacks or
 #      has otherwise are put in at the swap (step 2 stages them, step 5
 #      puts them in place with srp26 stopped, the old ones kept in the
-#      folder for the rollback); and the maps' built grids, sight trees and
-#      tactics (mapdata/built, keyed by this checkout's rules and the map
-#      file): each offered map's three files, as srp-build-maps --files names
-#      them, must be in the list (release/build-bot-maps builds and lists
-#      them), or the release stops, as a map without them is built by the
-#      first match on it, on the host's one core, while its bots stand
-#      (--no-bot-data leaves all of it out, said loudly);
+#      folder for the rollback); srp-build-maps built, for the built maps'
+#      check of step 2 (--no-bot-data leaves all of it out, said loudly);
 #      which server code differs between main and the target's tree;
 #      whether main changes what a match computes: a `next` row of
 #      srp-026g/crates/session/src/v026g/simulation_changes.tsv, which a PR
@@ -85,7 +80,14 @@
 #   2. takes the release lock, then, nothing players see:
 #      release/upload-patch (with --resources: publishes it and adds its row
 #      to the list; no server offers it before the swap),
-#      release/build-server-db (of the list), release/build-zip (--ref: the
+#      release/build-server-db (of the list); the maps' built grids, sight
+#      trees and tactics (mapdata/built, keyed by this checkout's rules, the
+#      map file and that server data's fastest bot): each offered map's three
+#      files, as srp-build-maps --files names them with that data
+#      (SRP_GAME_DATA), must be in the list (release/build-bot-maps builds
+#      and lists them), or the release stops here, before the go, as a map
+#      without them is built by the first match on it, on the host's one
+#      core, while its bots stand; release/build-zip (--ref: the
 #      commit checked in step 1; --revision: the release's; --patches: the
 #      list, with the new patch, whose every patch the exe requires at its
 #      start: patch 49); the world check: every upload of those recordings
@@ -1356,19 +1358,21 @@ fi
 # (the owner's 14 matches, 2026-11-08: 9 built in the match, 18-47 s on a
 # PC against the 20 s countdown; the server now holds the countdown up to
 # a minute for them, game/driven.rs MAP_HOLD_CAP).
-built_note=''
+# The keys hold the server data's fastest bot (its walk cap), so they are
+# checked in step 2, with the server data the release ships ($data, from
+# release/build-server-db), before anything players feel: here srp-build-maps
+# is built.
+built_note='' BUILD_MAPS=''
 if ((no_bot_data)); then
     built_note="the built maps: not checked (--no-bot-data): a map whose files the volume lacks is built by the first match on it"
     say "  WARNING  $built_note"
 elif ((bd_ok)); then
     if ! BUILD_MAPS=$(build_maps_bin 2>"$work/build-maps-build.log"); then
+        BUILD_MAPS=''
         problem "the built maps: srp-build-maps did not build: $(tail -n 3 "$work/build-maps-build.log" | tr '\n' ' ')"
-    elif built_out=$(bot_maps_built_check "$BUILD_MAPS" "$bd_dir/mapdata"); then
-        built_note="the built maps: every offered map's grid, sight tree and tactics are listed (mapdata/built), by this checkout's keys"
-        okay "$built_note"
     else
-        while IFS= read -r line; do problem "the built maps: $line"; done <<<"$built_out"
-        problem "the built maps: run release/build-bot-maps (it builds the offered maps and lists their files), commit release/bot-data.tsv, release again"
+        built_note="the built maps: checked in step 2 against the server data it builds (every offered map's grid, sight tree and tactics in the list, by this checkout's keys)"
+        okay "srp-build-maps built; $built_note"
     fi
 fi
 
@@ -1641,6 +1645,7 @@ build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --patches "$PATCH
 if ((DRY_RUN)); then
     say "[dry run] 2. build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
     say "[dry run]    then the world check of $WORLDS_SAID with it: $WORLD_CHECK --data $data $WORLDS (one world refused stops the release)"
+    if [[ -n $BUILD_MAPS ]]; then say "[dry run]    then the built maps with it: SRP_GAME_DATA=$data srp-build-maps --files $bd_dir/mapdata <the offered maps> (a file the list lacks stops the release)"; fi
     say "[dry run]    and: ${build_zip[*]}"
     if ((build_code)); then say "[dry run]    and the server's image of main's source (podman): $image"; fi
     if ((no_selftest)); then
@@ -1657,6 +1662,19 @@ if ((DRY_RUN)); then
 else
     progress "2. building the server data (release/build-server-db)"
     "$here/build-server-db" "${step_flags[@]}" --out "$data" </dev/null || die "build-server-db failed"
+    # The built maps by the keys a server with this data computes (lib.sh
+    # bot_maps_built_check): a map without its files would be built in the
+    # first match on it, on the host's one core, while its bots stand.
+    if [[ -n $BUILD_MAPS ]]; then
+        progress "2. the built maps, by this data's keys (srp-build-maps --files)"
+        if built_out=$(bot_maps_built_check "$BUILD_MAPS" "$bd_dir/mapdata" "$data" "$work/build-maps-files.log"); then
+            built_note="the built maps: every offered map's grid, sight tree and tactics are listed (mapdata/built), by this checkout's keys and this server data"
+            say "$built_note; $(grep -m1 'walk cap' "$work/build-maps-files.log" || true)"
+        else
+            while IFS= read -r line; do say "  the built maps: $line"; done <<<"$built_out"
+            die "the built maps: a file is not in the list (above; log $work/build-maps-files.log): run release/build-bot-maps (it builds the offered maps with the server data the release ships and lists their files), commit release/bot-data.tsv, release again"
+        fi
+    fi
     # Every recorded upload checked as the new server will check an upload
     # before it relays it, with the new data: a release that would refuse
     # the worlds games write stops here, before players feel it.

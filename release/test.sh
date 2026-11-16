@@ -117,14 +117,16 @@ echo "ok: the match server takes every world"
 EOF
 chmod +x "$T/bin/srp-world-check"
 export SRP_WORLD_CHECK_BIN=$T/bin/srp-world-check
-# srp-build-maps --files <mapdata> <project>...: its arguments a line of
-# $TEST_DIR/build-maps.args; each project's line names no built file (the
-# list has none to find), unless $TEST_DIR/built-missing is there: then
-# three names the list lacks.
+# srp-build-maps --files <mapdata> <project>...: its arguments and its
+# SRP_GAME_DATA a line of $TEST_DIR/build-maps.args, its start log on stderr
+# (which must not be read as names); each project's line names no built
+# file (the list has none to find), unless $TEST_DIR/built-missing is there:
+# then three names the list lacks.
 cat >"$T/bin/srp-build-maps" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' "$*" >>"$TEST_DIR/build-maps.args"
+printf '%s SRP_GAME_DATA=%s\n' "$*" "${SRP_GAME_DATA:-}" >>"$TEST_DIR/build-maps.args"
 [[ $1 == --files ]] || exit 2
+echo "srp-build-maps --files: game data: ${SRP_GAME_DATA:-unset}; walk cap the grids fly 4.0810 m/s (rim jumps on)" >&2
 shift 2
 for project in "$@"; do
     if [[ -e $TEST_DIR/built-missing ]]; then
@@ -1389,6 +1391,9 @@ expect_refused "release: bot-data.sh run again on a folder with its log refuses,
 check "release: ... the log still says what the first run did" test "$(wc -l <"$(folder 12 a)/bot-data.log")" = 2
 check "release: checks the offered maps' built files (srp-build-maps --files)" has "$out" "the built maps: every offered map's grid, sight tree and tactics are listed"
 check "release: ... for the list's map" grep -q -- "--files $T/bot-data/mapdata level_t/day_2" "$T/build-maps.args"
+check "release: ... with the server data step 2 built (SRP_GAME_DATA: the keys hold its fastest bot)" \
+    grep -q -- "--files $T/bot-data/mapdata level_t/day_2 SRP_GAME_DATA=.*/server-game-data.db\$" "$T/build-maps.args"
+check "release: ... its walk cap in the log" has "$out" "the built maps: every offered map's .*; srp-build-maps --files: game data: .*server-game-data.db; walk cap the grids fly"
 check "release: the maintenance ended with the restart" test ! -e "$T/state/maint"
 check "release: took the lock on the jump host" grep -q "^ssh jump mkdir $T/lock" "$T/args"
 check "release: ... and freed it" test ! -e "$T/lock"
@@ -1552,10 +1557,6 @@ expect_refused "release: the bots' data folder not set" "SKHID_BOT_DATA is not s
     env SKHID_RELEASE_ENV="$(changed_env "/^SKHID_BOT_DATA=/d")" "$here/release.sh"
 expect_refused "release: the bots' data folder is not a folder" "SKHID_BOT_DATA: $T/nowhere is not a folder" \
     env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_BOT_DATA=.*|SKHID_BOT_DATA=$T/nowhere|")" "$here/release.sh"
-touch "$T/built-missing"
-expect_refused "release: an offered map's built files not in the list (owner-14 row 1)" \
-    "the built maps: level_t/day_2: mapdata/built/grid-00000000000000aa.bin is not in the list" "$here/release.sh"
-rm "$T/built-missing"
 mv "$T/bot-data/bot-routes/routes-t.json" "$T/routes-t.json.away"
 expect_refused "release: a bots' data file missing" "the bots' data: bot-routes/routes-t.json: not in $T/bot-data" "$here/release.sh"
 mv "$T/routes-t.json.away" "$T/bot-data/bot-routes/routes-t.json"
@@ -1578,6 +1579,15 @@ git -C "$T/repo" config --unset user.useConfigOnly
 git -C "$T/repo" tag -a 026g-rev14 -m "left by a run" HEAD
 expect_refused "release: a tag of its revision left here" "a tag 026g-rev14 is in $T/repo, not on origin" "$here/release.sh"
 git -C "$T/repo" tag -d 026g-rev14 >/dev/null
+# The built maps: refused in step 2 (the keys need the server data it
+# builds), before the go: here, where the preflight passes (the git user
+# is back).
+touch "$T/built-missing"
+: >"$T/state/admin.log"
+expect_refused "release: an offered map's built files not in the list (owner-14 row 1)" \
+    "the built maps: level_t/day_2: mapdata/built/grid-00000000000000aa.bin is not in the list" "$here/release.sh"
+check "release: ... in step 2, nothing planned, the lock freed" bash -c "test ! -s $T/state/admin.log && test ! -e $T/lock"
+rm "$T/built-missing"
 echo "crates 3" >"$src/crates/a/src/lib.rs"
 commit "server code again"
 mkdir -p "$T/p14/gameplay/items" "$T/r14"
@@ -1723,8 +1733,10 @@ check "release --dry-run: ... and step 4 makes the item tables, before staging" 
     '^\[dry run\]    then the checks of release/deploy on both, the item tables of the server data (srp-item-tables: a failure stops here), and the release folder:'
 check "release --dry-run: ... its server-code report has them changed, as the real run's" bash -c \
     "grep -q '^             CHANGED   servers/web-server/maps/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^             CHANGED   servers/web-server/damage/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^  server code: its image built here and loaded on the host before the swap' <<<\"\$1\"" _ "$out"
-check "release --dry-run: checks the offered maps' built files too (no warning about GRID_ALGO: the keys are checked)" has "$out" \
-    "^  ok       the built maps: every offered map's grid, sight tree and tactics are listed"
+check "release --dry-run: builds srp-build-maps for the built maps' check (no warning about GRID_ALGO: the keys are checked)" has "$out" \
+    "^  ok       srp-build-maps built; the built maps: checked in step 2 against the server data it builds"
+check "release --dry-run: ... and shows step 2 checking them with the new data" has "$out" \
+    "^\[dry run\]    then the built maps with it: SRP_GAME_DATA=.*server-game-data.db srp-build-maps --files $T/bot-data/mapdata <the offered maps>"
 sed -i 's/^pub const GRID_ALGO: u32 = 2;$/pub const GRID_ALGO: u32 = 3;/' "$T/live/crates/mapdata/src/lib.rs"
 mkdir -p "$T/worlds-given"
 run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --minutes 2 --worlds "$T/worlds-given" &&
