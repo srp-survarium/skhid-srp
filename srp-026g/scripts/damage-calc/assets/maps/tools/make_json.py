@@ -78,8 +78,8 @@ def main():
         maps[key] = {
             'name': m['name'],
             'name_key': m.get('name_key') or f'st_level_{key[-2:]}_name',
-            'origin': ('ported: Skhid content pack maps-021d-7 (released in revision 20), geometry from the '
-                       'pack overlay + the 0.26g db' if key in PORTED else
+            'origin': (f"ported: Skhid content pack {m.get('pack_name', 'maps-021d-7 (released in revision 20)')}, "
+                       'geometry from the pack overlay + the 0.26g db' if key in PORTED else
                        f"skhid patch: {m['origin']}, geometry from the 0.26g db with the released patches over it"
                        if key in PATCHED else 'native 0.26g'),
             'image': f'{key}.webp',

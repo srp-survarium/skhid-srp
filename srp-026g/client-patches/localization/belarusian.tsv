@@ -1425,6 +1425,7 @@ st_level_11_name	Мамаеў курган (v0.21)
 st_level_12_name	Хімзавод (v0.11)
 st_level_13_name	РЛС "Восток" (v0.11)
 st_level_14_name	Рудня (v0.69)
+st_level_29_name	Рудня (v0.21)
 st_lifebone_activation_hint	Жывакост актываваны! Усе крытычныя пашкоджанні вылечаны! Здароўе адноўлена!
 st_lifebone_pickup_hint	Артэфакт Жывакост. Паскарае рэгенерацыю здароўя.
 st_lightning_quality_option	Якасць асвятлення
@@ -2616,6 +2617,7 @@ st_srp_map_mamayev_kurgan	Мамаеў курган
 st_srp_map_mamayev_kurgan_v021	Мамаеў курган (v0.21)
 st_srp_map_names_option	Імёны на карце
 st_srp_map_rudnya	Рудня
+st_srp_map_rudnya_v021	Рудня (v0.21)
 st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
 st_srp_map_soc_ug_depository	Depository
