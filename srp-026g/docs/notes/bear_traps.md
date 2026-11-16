@@ -35,3 +35,27 @@ traps of 402 live matches of 12+ humans. The full record with scripts is outside
 `booby_trap_core::serialize` 0x3052E0 in the world's game-objects section: a placed trap is 77 bytes (state 1/2/3, a u32, the
 64-byte transform, a u32, the placing time in ms); `survarium::v026g::match_msgs::traps::find` reads them. The server simulates none
 of this; the clients do.
+
+## Human traps at a holder's place
+**Catches** (the traps record of the counts above: 402 live matches of 12+ humans, every trap followed through the worlds' objects to
+its fate; a fired trap's victim the body whose legs went to 0 beside it; kills by killer). A HOLD: one life's feet within 5 m for
+30 s or more; KILLING: its holder killed 2 or more enemies during it (the bots' 2-kill cue); his WAY IN: his feet over the 30 s
+before it. A trap of a known placer (541 of 987) is at a hold when the nearest killing hold of the placer's enemy within 40 m spans
+to within 120 s of the placing; on his way in within 2 m of it.
+
+| Traps at an enemy killing hold, 91 | n | caught the holder | another enemy | an ally | fired, victim not named |
+|---|---|---|---|---|---|
+| on his way in | 8 | 3 | 1 | 0 | 3 |
+| within 10 m, not on his way in | 13 | 0 | 1 | 0 | 5 |
+| elsewhere within 40 m | 70 | 0 | 25 | 6 | 14 |
+
+- All 3 holder catches were of traps laid before his hold (on a way he then came in by); of the 3 laid on his way in after his
+  hold had begun, 2 fired with the victim not named. Small n: with 3 kills a hold, 3 traps on his way in and no holder caught.
+- The placers' own catches (11) were all away from killing holds.
+- Script `private/pvb-343-check/fight-world/traps/record_holds_catches.py` (`record-holds-catches.txt`, `-k3.txt`).
+
+**Where** (2026-11-08..12: 329 recorded human matches of 6+, 1,554 placed traps against every body's feet in the 5 s worlds; there
+each trap is read once, when laid, so its fate is not known). With the same hold, 2+ deaths of the other team within 60 m for
+killing (the worlds carry deaths, not killers): 633 traps lay within 40 m of an enemy killing hold, 83 of them on his way in, a
+median 15.6 m from his place (P25 5.8, P75 22.1, P90 26.9); 49 of the 83 were down before his hold. Script
+`private/pvb-343-check/fight-world/traps/human_traps_killing_holds.py` (`human-traps-killing-holds-k2-r60.txt`).

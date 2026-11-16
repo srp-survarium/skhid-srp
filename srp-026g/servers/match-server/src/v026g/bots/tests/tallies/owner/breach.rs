@@ -6,29 +6,30 @@
 //! failed shows the job never ran.
 //!
 //!
-//! And the trap at a cleared camper's point (`traps.at_cleared`, `traps::cleared`), by team: points noted after a Breach's or a
-//! flanker's kill, kills with no job bot that had a trap, thinks with the point wished, waits for it on the route, plans placed
-//! on it; of those plans, the traps put down (the placer's within 5 s of its plan) and their catches: enemy, mate, own.
+//! And the camper trap job (`traps.camper_job`, `traps::camper`), by team: way-in points noted (a K2 job's spot, a battery
+//! hold), places with no way in out of his sight, bots sent, let go (dead among
+//! them), traps put down by a sent bot, the gate's "enemy seen" refusals at the point by whom and pose; of its plans, the traps
+//! put down (the placer's within 5 s of its plan) and their catches: the point's holder, another enemy, mate, own.
 //!
-//! The counts are the thread's (`breach::tally::counted`, `traps::cleared`), read as the difference from the topic's start: a
+//! The counts are the thread's (`breach::tally::counted`, `traps::camper`), read as the difference from the topic's start: a
 //! match runs on one thread.
 
 use super::*;
 use crate::v026g::bots::breach::tally;
 use crate::v026g::bots::tests::Kill as KillKind;
 use crate::v026g::bots::tests::standin_traps::Event as TrapEvent;
-use crate::v026g::bots::traps::cleared;
+use crate::v026g::bots::traps::camper;
 
 /// The Breach's counts at the start of the match, for the difference at its end.
 pub(super) struct BreachCounts {
     start: [[u64; tally::ALL]; 2],
-    cleared: [[u64; 6]; 2],
+    camper: [[u64; camper::N]; 2],
     plans_from: usize,
 }
 
 impl Default for BreachCounts {
     fn default() -> Self {
-        Self { start: tally::counted(), cleared: cleared::counted(), plans_from: cleared::plans(0).len() }
+        Self { start: tally::counted(), camper: camper::counted(), plans_from: camper::plans(0).len() }
     }
 }
 
@@ -38,7 +39,7 @@ impl Topic for BreachCounts {
     }
 
     fn parts(&mut self, _run: &Run, game: &Game, _scale: &Scale, _shared: &Shared) -> Vec<(&'static str, Part)> {
-        vec![("breach", self.part()), ("trap_cleared", self.traps(game))]
+        vec![("breach", self.part()), ("trap_camper", self.traps(game))]
     }
 }
 
@@ -101,15 +102,15 @@ impl BreachCounts {
         Part::new(serde_json::Value::Object(json), format!("owner-test breach: {}", text.join("; ")))
     }
 
-    /// The trap at a cleared point: its counts by team, and the catches of the traps put down on its plans.
+    /// The camper trap job: its counts by team, and the catches of the traps put down on its plans.
     fn traps(&self, game: &Game) -> Part {
-        let now = cleared::counted();
+        let now = camper::counted();
         let mut json = serde_json::Map::new();
         let mut text = Vec::new();
-        // By the placer's team: put down, and caught [enemy, mate, own].
+        // By the placer's team: put down, and caught [the point's holder, another enemy, mate, own].
         let mut down = [0u64; 2];
-        let mut caught = [[0u64; 3]; 2];
-        for (placer, at) in cleared::plans(self.plans_from) {
+        let mut caught = [[0u64; 4]; 2];
+        for (placer, at, holder) in camper::plans(self.plans_from) {
             let Some(tick) = game.traps.events.iter().find_map(|e| match *e {
                 TrapEvent::Placed { tick, place, .. } if place == placer && (at..=at + 5_000).contains(&tick) => Some(tick),
                 _ => None,
@@ -119,43 +120,51 @@ impl BreachCounts {
             let team = usize::from(game.bodies.get(placer).map_or(0, |b| b.team) & 1);
             down[team] += 1;
             for e in &game.traps.events {
-                if let TrapEvent::Caught { placer: p, placed, kind, .. } = *e
+                if let TrapEvent::Caught { placer: p, placed, kind, victim, .. } = *e
                     && p == placer
                     && placed == tick
                 {
                     caught[team][match kind {
-                        KillKind::Enemy => 0,
-                        KillKind::Mate => 1,
-                        KillKind::Own => 2,
+                        KillKind::Enemy if victim == holder => 0,
+                        KillKind::Enemy => 1,
+                        KillKind::Mate => 2,
+                        KillKind::Own => 3,
                     }] += 1;
                 }
             }
         }
         for team in 0..2usize {
-            let n = |i: usize| now[team][i] - self.cleared[team][i];
+            let n = |i: usize| now[team][i] - self.camper[team][i];
             let mut t = serde_json::Map::new();
-            for (i, name) in cleared::NAMES.iter().enumerate() {
+            for (i, name) in camper::NAMES.iter().enumerate() {
                 t.insert((*name).into(), n(i).into());
             }
             t.insert("put_down".into(), down[team].into());
-            t.insert("caught_enemy".into(), caught[team][0].into());
-            t.insert("caught_mate".into(), caught[team][1].into());
-            t.insert("caught_own".into(), caught[team][2].into());
+            t.insert("caught_holder".into(), caught[team][0].into());
+            t.insert("caught_enemy".into(), caught[team][1].into());
+            t.insert("caught_mate".into(), caught[team][2].into());
+            t.insert("caught_own".into(), caught[team][3].into());
             text.push(format!(
-                "team {team}: cleared points noted after a Breach {} / a flanker {} (no job bot with a trap {}), thinks wished {}, waited {}, planned {}, put down {}, caught enemy {} / mate {} / own {}",
-                n(cleared::NOTED_BREACH),
-                n(cleared::NOTED_FLANK),
-                n(cleared::NO_PLACER),
-                n(cleared::THINKS),
-                n(cleared::WAITED),
-                n(cleared::PLACED),
+                "team {team}: way-in points noted for a K2 spot {} / a battery hold {}, no way in {}; sent {}, let go {} (dead {}), placed {}; seen at the point: its camper crouched {} / standing {}, another crouched {} / standing {}; put down {}, caught the holder {} / another enemy {} / mate {} / own {}",
+                n(camper::NOTED_JOB),
+                n(camper::NOTED_BATTERY),
+                n(camper::NO_WAY),
+                n(camper::SENT),
+                n(camper::GAVE_UP),
+                n(camper::GAVE_UP_DEAD),
+                n(camper::PLACED),
+                n(camper::SEEN_CAMPER_CROUCHED),
+                n(camper::SEEN_CAMPER_STANDING),
+                n(camper::SEEN_OTHER_CROUCHED),
+                n(camper::SEEN_OTHER_STANDING),
                 down[team],
                 caught[team][0],
                 caught[team][1],
                 caught[team][2],
+                caught[team][3],
             ));
             json.insert(format!("team{team}"), serde_json::Value::Object(t));
         }
-        Part::new(serde_json::Value::Object(json), format!("owner-test trap at a cleared point: {}", text.join("; ")))
+        Part::new(serde_json::Value::Object(json), format!("owner-test camper trap job: {}", text.join("; ")))
     }
 }

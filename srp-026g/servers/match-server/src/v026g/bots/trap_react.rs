@@ -1,19 +1,19 @@
 //! A bot and a trap that is not its team's: the chance to notice it, and what
 //! the bots' passes by one come to (`docs/notes/bear_traps.md`, C18).
 //!
-//! **A noticed trap is shot** (`traps.react.shot`, off): the bot stops, looks
+//! **A noticed trap is shot** (`traps.react.shot`, on by default): the bot stops, looks
 //! at the trap's centre and takes single, aimed shots at it with its own
 //! aim model (no aim boost: the cone, the kick and the hit chance are the
 //! reflex's and the client's).
 //!
-//! **A noticed trap is defused by hand** (`traps.react.defuse`, off) by a bot
+//! **A noticed trap is defused by hand** (`traps.react.defuse`, on by default) by a bot
 //! that does not shoot it: it walks to a spot `defuse_stand_m` from the trap
 //! on its own side, crouches, looks at the trap's centre and holds USE for the
 //! trap's defuse time (5 s), unless something calls it away or a mate is
 //! already beside the trap. The same one-at-a-time rule as the shot.
 //!
 //! **A noticed trap is kept off, or jumped** (`traps.react.pass`, `.jump`,
-//! off): the traps the bot noticed and does not shoot make the floors round
+//! on by default): the traps the bot noticed and does not shoot make the floors round
 //! them a *soft* part of its route filter (a way round them where that is not
 //! much longer, else over them), and a route that still runs over one is
 //! jumped with the motor's own jump a little before it. Private: nothing is
@@ -295,6 +295,10 @@ pub struct React {
     field: Arc<TrapField>,
     /// Traps the bot has jumped.
     jumped: Vec<TrapKey>,
+    /// [#2081] Noticed traps whose way over the motor's own-trap guard held at rest (`traps::guard_own_traps`): shut for its
+    /// searches (`traps::filter`) while it notices them, and their floors.
+    blocked: Vec<TrapKey>,
+    blocked_field: Arc<TrapField>,
     /// Traps the bot has rolled for a defuse (taken or declined): once each.
     tried_defuse: Vec<TrapKey>,
 }
@@ -436,12 +440,46 @@ impl React {
         &self.field
     }
 
+    /// [#2081] Tests: the bot has noticed standing traps at `at` and keeps off them (as `refresh_private` sets them).
+    #[cfg(test)]
+    pub fn notice_standing(&mut self, at: &[Vec3], grid: &mapdata::WalkGrid) {
+        self.private = at.iter().map(|a| (TrapKey { placed_ms: 0, x: (a.x * 10.0).round() as i32, z: (a.z * 10.0).round() as i32 }, *a)).collect();
+        self.field = Arc::new(TrapField::round_within(at.to_vec(), grid, super::traps::OWN_TRAP_CLEAR_M));
+    }
+
+    /// [#2081] The floors of the noticed traps shut for the bot's searches ([`Self::block`]).
+    pub fn blocked_field(&self) -> &Arc<TrapField> {
+        &self.blocked_field
+    }
+
+    /// [#2081] Shuts the noticed traps at `discs` for the bot's searches, at the one clearance; how many were new.
+    pub fn block(&mut self, discs: &[Vec3], grid: &mapdata::WalkGrid) -> usize {
+        let new: Vec<TrapKey> = self
+            .private
+            .iter()
+            .filter(|(key, at)| discs.contains(at) && !self.blocked.contains(key))
+            .map(|&(key, _)| key)
+            .collect();
+        if !new.is_empty() {
+            self.blocked.extend(&new);
+            self.rebuild_blocked(grid);
+        }
+        new.len()
+    }
+
+    fn rebuild_blocked(&mut self, grid: &mapdata::WalkGrid) {
+        let discs = self.private.iter().filter(|(key, _)| self.blocked.contains(key)).map(|&(_, at)| at).collect();
+        self.blocked_field = Arc::new(TrapField::round_within(discs, grid, super::traps::OWN_TRAP_CLEAR_M));
+    }
+
     /// A new life: a pass in the making ends with it, the rolls are forgotten.
     pub fn new_life(&mut self) {
         self.reaction = Reaction::Idle;
         self.private.clear();
         self.field = Arc::default();
         self.jumped.clear();
+        self.blocked.clear();
+        self.blocked_field = Arc::default();
         self.tried.clear();
         self.tried_defuse.clear();
         self.seen.clear();
@@ -1003,10 +1041,17 @@ fn refresh_private(bot: &mut Bot, due: &Due, others: &[(PlacedTrap, TrapKey, Vec
         .retain(|key| want.iter().any(|(k, _)| k == key));
     let discs = want.iter().map(|&(_, at)| at).collect();
     bot.features.traps.react.private = want;
-    bot.features.traps.react.field = Arc::new(TrapField::round(discs, &due.tactics.world.grid));
+    // [#2081] The one clearance of every trap the bot keeps off (`traps::OWN_TRAP_CLEAR_M`, as the team's field): the motor's guard
+    // holds contact of these too, so a way round them that kept only the trigger's field (0.75 m) ran into the guard and stood there.
+    bot.features.traps.react.field = Arc::new(TrapField::round_within(discs, &due.tactics.world.grid, super::traps::OWN_TRAP_CLEAR_M));
+    let react = &mut bot.features.traps.react;
+    react.blocked.retain(|key| react.private.iter().any(|(k, _)| k == key));
+    react.rebuild_blocked(&due.tactics.world.grid);
     if t.pass && !bot.features.traps.react.field.is_empty() {
         let field = bot.features.traps.react.field.clone();
         if super::traps::route_hits(bot, &field, due.me.feet) {
+            #[cfg(test)]
+            super::traps::own_trap_counts::bump(super::traps::own_trap_counts::NOTICED_ROUTE_DROPPED);
             bot.end_route(RouteEnd::TrapAhead, due.now);
         }
     }
@@ -1023,6 +1068,23 @@ const JUMP_LATEST_M: f32 = 0.3;
 /// trap's closest point on the route lies `jump_before_m` to
 /// [`JUMP_LATEST_M`] ahead and within [`FIELD_M`] of it. Once a trap.
 pub(super) fn jump_due(bot: &mut Bot, me: &PlaceView, now: u32, t: &ReactTuning) -> bool {
+    let Some((key, _)) = jumps_ahead(bot, me, now, t).into_iter().find(|&(_, (_, ahead))| ahead <= t.jump_before_m) else {
+        return false;
+    };
+    bot.features.traps.react.jumped.push(key);
+    bot.features.traps.react.counts.trap_jumped += 1;
+    true
+}
+
+/// [#2081] The noticed traps the route jumps on its run-up: those [`jump_due`] would press for, the press window's near end
+/// ([`JUMP_LATEST_M`]) to its reach (`jump_before_m` + 1 m) ahead. The motor's own-trap guard leaves them to the jump.
+pub(super) fn run_up(bot: &Bot, me: &PlaceView, now: u32, t: &ReactTuning) -> Vec<Vec3> {
+    jumps_ahead(bot, me, now, t).into_iter().map(|(_, (at, _))| at).collect()
+}
+
+/// The noticed traps the route passes over (within [`FIELD_M`]) the press window's near end to `jump_before_m` + 1 m ahead, with
+/// the trap and how far ahead along the route, for a bot that may jump.
+fn jumps_ahead(bot: &Bot, me: &PlaceView, now: u32, t: &ReactTuning) -> Vec<(TrapKey, (Vec3, f32))> {
     if !t.on
         || !t.jump
         || bot.features.traps.react.private.is_empty()
@@ -1030,7 +1092,7 @@ pub(super) fn jump_due(bot: &mut Bot, me: &PlaceView, now: u32, t: &ReactTuning)
         || me.speed() < JUMP_MIN_SPEED
         || !bot.hurt.may_jump(now)
     {
-        return false;
+        return Vec::new();
     }
     let reach = t.jump_before_m + 1.0;
     let near: Vec<(TrapKey, Vec3)> = bot
@@ -1047,14 +1109,15 @@ pub(super) fn jump_due(bot: &mut Bot, me: &PlaceView, now: u32, t: &ReactTuning)
         .copied()
         .collect();
     if near.is_empty() {
-        return false;
+        return Vec::new();
     }
     let Some((route, _)) = bot.route.as_ref() else {
-        return false;
+        return Vec::new();
     };
     // A copy: the motor's own progress along the route is not touched.
     let mut route = route.clone();
     let (s, _) = route.progress(me.feet);
+    let mut ahead_of = Vec::new();
     for (key, at) in near {
         let mut best = (f32::INFINITY, s);
         let mut along = s;
@@ -1066,13 +1129,11 @@ pub(super) fn jump_due(bot: &mut Bot, me: &PlaceView, now: u32, t: &ReactTuning)
             along += 0.1;
         }
         let ahead = best.1 - s;
-        if best.0 < FIELD_M && (JUMP_LATEST_M..=t.jump_before_m).contains(&ahead) {
-            bot.features.traps.react.jumped.push(key);
-            bot.features.traps.react.counts.trap_jumped += 1;
-            return true;
+        if best.0 < FIELD_M && ahead >= JUMP_LATEST_M {
+            ahead_of.push((key, (at, ahead)));
         }
     }
-    false
+    ahead_of
 }
 
 impl React {

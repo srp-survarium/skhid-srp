@@ -342,6 +342,14 @@ pub fn any_part_visible(
     shows(eye, BodyAt::of(body), sight, budget)
 }
 
+/// [A324] Whether some part of a body at `feet` (crouched or standing, facing `eye`) shows from `eye` on the bullet mesh, the
+/// parts a bot's sight looks at ([`Part::SIGHT_ORDER`], `sense.rs`), stopping at the first that does. No budget and no smoke: a
+/// plan's test of a place, not a look.
+pub fn body_shows(sight: &RayTree, eye: Vec3, feet: Vec3, crouched: bool) -> bool {
+    let body = BodyAt { feet, crouched, yaw: super::kin::yaw_of([eye.x - feet.x, eye.z - feet.z]) };
+    Part::SIGHT_ORDER.iter().any(|part| visible(sight, eye, part.point_at(body, eye)))
+}
+
 /// What a look at a body's parts came to, smoke read ([`look_parts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PartsLook {

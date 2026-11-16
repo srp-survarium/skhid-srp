@@ -308,11 +308,62 @@ fn a_trap_only_its_placer_knows_is_in_his_field_alone() {
     assert!(bots.bots[0].as_ref().expect("a bot at 0").features.traps.mine.all().is_empty(), "gone from the worlds, gone");
 }
 
-/// A trap of the team that goes off with a broken-legged body of the same
-/// team near it is an own-team catch; with the legs whole, or the body far,
-/// it is not.
+/// [#2081] A mate who sees the placer keeps off the trap it promised from its own next think on, not from the next commander tick:
+/// the placer's think puts the promise in the team's field, and a mate that sees the placer takes it at its next think.
 #[test]
-pub(crate) fn an_own_trap_that_goes_off_beside_a_broken_legged_mate_is_an_own_team_catch() {
+fn a_mate_who_sees_the_placer_keeps_off_its_trap_at_its_own_next_think() {
+    let world = soak_world();
+    let teams = [0u8, 0, 1];
+    let tuning = Tuning::default();
+    let mut bots = Bots::new(0x7A96, survarium::v026g::maps::RuleMode::TeamDeathmatch, 0, &teams, &[true, true, false], &[None, None, None], Arc::new(tuning.clone()), Trace::none(0));
+    bots.map_ready(world.clone());
+    let mut game = Game::new(world.clone(), &teams, 5, Some(30), None);
+    for (place, at) in [(0, Vec3::new(14.0, 0.0, 12.0)), (1, Vec3::new(16.0, 0.0, 14.0)), (2, Vec3::new(70.0, 0.0, 12.0))] {
+        game.bodies[place].node = world.grid.locate(at, 1.0);
+        game.bodies[place].feet = at;
+    }
+    bots.entered(0, true, 0);
+    bots.entered(1, true, 0);
+    let mut clock = 0;
+    while clock < 2_000 {
+        clock += 500;
+        while game.tick + TICK_MS <= clock {
+            game.step();
+        }
+        if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300) {
+            for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                bots.fixed(place, fix, Some(health));
+            }
+            bots.facts(facts);
+        }
+    }
+    let clock = Clock { clock: 5_000, time_left_s: 0.0, total_s: 0.0, playing: true };
+    let world = bots.tactics.as_ref().map(|t| t.world.clone());
+    let view = bots.tracker.view(&clock, &bots.match_wide_tuning().kin, world.as_deref());
+    let team = 0u8;
+    let mate = 1;
+    let at = view.place(0).unwrap().feet + Vec3::new(3.0, 0.0, 0.0);
+    let tactics = bots.tactics.take().expect("tactics");
+    let mut notes = Vec::new();
+    let think = |bots: &mut Bots, place: usize, notes: &mut Vec<_>| {
+        let me = view.place(place).unwrap().clone();
+        let due = crate::v026g::bots::think::Due { now: 5_000, view: &view, me: &me, tactics: &tactics, tuning: &tuning };
+        let state = &mut bots.teams[usize::from(team)];
+        crate::v026g::bots::traps::think(bots.bots[place].as_mut().unwrap(), &due, state, notes);
+    };
+    assert!(!bots.bots[mate].as_ref().unwrap().features.traps.field.discs().contains(&at));
+    bots.bots[0].as_mut().unwrap().features.traps.placed = Some((at, 4_900));
+    think(&mut bots, 0, &mut notes);
+    assert!(bots.teams[usize::from(team)].features.traps.field.discs().contains(&at), "the team's field has it");
+    assert!(!bots.bots[mate].as_ref().unwrap().features.traps.field.discs().contains(&at), "the mate has not thought yet");
+    think(&mut bots, mate, &mut notes);
+    assert!(bots.bots[mate].as_ref().unwrap().features.traps.field.discs().contains(&at), "the mate keeps off it at its next think");
+}
+
+/// [#2081] A trap of the team that goes off with a body of the same team on its sensor (the nearest within 0.6 m of a foot point,
+/// `traps::TRIGGER_M`) is an own-team catch; a body 1 m off, or far, is not, whatever its legs; the other team's trap is not ours.
+#[test]
+pub(crate) fn an_own_trap_that_goes_off_under_a_mate_is_an_own_team_catch() {
     let (_, mut bots) = run(None, Tuning::all_off(), 4);
     let clock = Clock {
         clock: 5_000,
@@ -322,18 +373,20 @@ pub(crate) fn an_own_trap_that_goes_off_beside_a_broken_legged_mate_is_an_own_te
     };
     let world = bots.tactics.as_ref().map(|t| t.world.clone());
     let view = bots.tracker.view(&clock, &bots.match_wide_tuning().kin, world.as_deref());
-    let at = view.place(0).unwrap().feet + Vec3::new(1.0, 0.0, 0.0);
-    // Legs whole: a trap went off, nobody caught.
-    bots.count_own_traps(5_000, &[(0, at)]);
-    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (1, 0));
-    // A broken leg beside it: caught. The other team's trap is not ours.
+    let feet = view.place(0).unwrap().feet;
+    let team = view.place(0).unwrap().team;
+    // A metre off its feet, a broken leg or not: not on the sensor, not caught (the old 8 m proxy counted it).
     bots.bots[0].as_mut().unwrap().hurt.leg_broken = true;
-    bots.count_own_traps(5_000, &[(0, at)]);
+    bots.count_own_traps(5_000, &[(team, feet + Vec3::new(1.0, 0.0, 0.0))]);
+    assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (1, 0));
+    // On its sensor: caught. The other team's trap there is not ours.
+    let at = feet + Vec3::new(0.3, 0.0, 0.0);
+    bots.count_own_traps(5_000, &[(team, at)]);
     assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (2, 1));
-    bots.count_own_traps(5_000, &[(1, at)]);
+    bots.count_own_traps(5_000, &[(1 - team, at)]);
     assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (3, 1));
     // Far from it: not caught.
-    bots.count_own_traps(5_000, &[(0, at + Vec3::new(30.0, 0.0, 0.0))]);
+    bots.count_own_traps(5_000, &[(team, at + Vec3::new(30.0, 0.0, 0.0))]);
     assert_eq!((bots.own_trap_counts().fired, bots.own_trap_counts().own_team_caught), (4, 1));
 }
 

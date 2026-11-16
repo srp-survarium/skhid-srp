@@ -225,6 +225,8 @@ impl TrapList {
                 });
             if let Some((i, f)) = best {
                 used[i] = true;
+                #[cfg(test)]
+                landing_offsets::add(trap.at.distance_xz(Vec3::from_array(f.position)), world_ms.saturating_sub(released));
                 trap.at = Vec3::from_array(f.position);
                 trap.placed_ms = f.placed_ms;
                 trap.phase = phase_of(f.state);
@@ -329,6 +331,7 @@ impl TrapField {
     pub fn of_ringed_within(list: &TrapList, grid: &WalkGrid, ring_m: f32, reach: f32) -> Self {
         let mut field = Self::round_within(list.standing().map(|trap| trap.at).collect(), grid, reach);
         field.stamp = list.version();
+
         if ring_m > reach {
             let mut ring: Vec<NodeId> = field
                 .discs
@@ -350,6 +353,31 @@ impl TrapField {
             field.ring_m = ring_m;
         }
         field
+    }
+
+    /// [#2081] Shuts the floors within `wide` of each trap of `list` that is only promised, beyond what the field shut: a promised
+    /// trap lies off the promise by up to `traps::PROMISE_MARGIN_M` (the press's landing against the world's trap), so its floors are
+    /// shut that much farther until a world confirms it (the route check keeps the field's `reach`).
+    pub fn shut_promised_within(&mut self, list: &TrapList, grid: &WalkGrid, wide: f32) {
+        let mut more: Vec<NodeId> = list
+            .standing()
+            .filter(|trap| matches!(trap.phase, Phase::Promised { .. }))
+            .flat_map(|trap| {
+                let at = trap.at;
+                grid.floors_in([at.x - wide, at.z - wide, at.x + wide, at.z + wide])
+                    .filter(move |&node| {
+                        let p = grid.position(node);
+                        p.distance_xz(at) <= wide && (p.y - at.y).abs() < 1.0
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        if !more.is_empty() {
+            self.shut.append(&mut more);
+            self.shut.sort_unstable();
+            self.shut.dedup();
+            self.ring.retain(|n| self.shut.binary_search(n).is_err());
+        }
     }
 
     /// Whether a search may use `node` without a preference against it: false on the ring.
@@ -396,15 +424,48 @@ impl TrapField {
     }
 }
 
+/// [#2081] The bench's promise -> world offsets: how far the trap a world confirms lies from the team's promise (the press's own
+/// landing), metres, and how long after the release the world showed it, ms.
+#[cfg(test)]
+pub mod landing_offsets {
+    use std::sync::Mutex;
+
+    static SAMPLES: Mutex<Vec<(f32, u32)>> = Mutex::new(Vec::new());
+
+    pub fn add(off_m: f32, after_ms: u32) {
+        SAMPLES.lock().unwrap().push((off_m, after_ms));
+    }
+
+    /// The bench's line: n, the offsets' P50/P90/P95/P99/max, and the delay's P50/P90/max.
+    pub fn line() -> String {
+        let s = SAMPLES.lock().unwrap();
+        let mut off: Vec<f32> = s.iter().map(|x| x.0).collect();
+        let mut ms: Vec<u32> = s.iter().map(|x| x.1).collect();
+        off.sort_by(f32::total_cmp);
+        ms.sort_unstable();
+        let q = |p: f32| off.get(((off.len() as f32 - 1.0) * p).round() as usize).copied().unwrap_or(f32::NAN);
+        let m = |p: f32| ms.get(((ms.len() as f32 - 1.0) * p).round() as usize).copied().unwrap_or(0);
+        format!(
+            "n {} off m P50 {:.3} P90 {:.3} P95 {:.3} P99 {:.3} max {:.3}; after ms P50 {} P90 {} max {}",
+            off.len(),
+            q(0.5),
+            q(0.9),
+            q(0.95),
+            q(0.99),
+            q(1.0),
+            m(0.5),
+            m(0.9),
+            m(1.0)
+        )
+    }
+}
+
 /// A team's trap state, by feature ([`super::features`]).
 #[derive(Default)]
 pub struct TeamTraps {
     /// The floors of the traps its bots put down, and the list's version it was built for.
     pub field: std::sync::Arc<TrapField>,
     pub field_version: u64,
-    /// [keep_off] The same traps shut only within [`FIELD_M`]: the searches' fallback when the wider field leaves no way; the
-    /// same field as `field` without `TrapTuning::keep_off`.
-    pub narrow: std::sync::Arc<TrapField>,
     /// The armed traps the last world showed, for the bots' notice (`trap_react.rs`); empty while the switch is off.
     pub world_traps: std::sync::Arc<Vec<survarium::v026g::match_msgs::traps::PlacedTrap>>,
     /// Bots that began shooting a trap lately: which, who, when (`trap_react.rs`, the count of double shooters).

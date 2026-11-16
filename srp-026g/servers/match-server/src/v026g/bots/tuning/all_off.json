@@ -214,6 +214,8 @@
     "wall_clear_corners": false
   },
   "traps": {
+    "camper_job": null,
+    "look_over_heard": false,
     "chance": 0.35,
     "enemy_near_m": 50.0,
     "enemy_quiet_s": 4.0,

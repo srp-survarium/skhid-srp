@@ -614,8 +614,10 @@ impl Habit {
 
     /// A new life: the pocket is full again, nothing placed.
     pub fn new_life(&mut self) {
-        // A life that ended in the middle of placing one (looking down, or the key down): the harm count.
-        if !matches!(self.state, State::Idle) {
+        // A life that ended in the middle of placing one (looking down, or the key down): the harm count. Not one that ended in
+        // the cooldown after a look (`cooldown_s`: 20 s after a press, 10 s after a give-up, 5 s after a call-away): the #2081
+        // bench counted those as placing, 10 of 10 in its first match (the looks' own records: no death in a look or a press).
+        if matches!(self.state, State::Looking { .. } | State::Down { .. }) {
             self.died_placing += 1;
         }
         self.left = self.kit.map_or(0, |kit| kit.count);
@@ -766,15 +768,48 @@ pub fn approach_points(tactics: &super::tactics::Tactics, home: Vec3, spot: Vec3
     points
 }
 
-/// [A324] The part of a placer a camper on his spot would see: a crouched body's chest.
-const PLACER_CHEST_M: f32 = 0.9;
+/// [A324] The way-in point of a place `held`: the first point of his way there from `home`, `near_m`..`far_m` before it, out of
+/// his sight both ways for a placer crouched there ([`out_of_his_sight`]: the `TrapSpot` play stays on it crouched), and in no
+/// side's spawn area (his side's has no way for the walk, the team's own is no place for a trap).
+fn way_in(tactics: &super::tactics::Tactics, home: Vec3, held: Vec3, j: &super::tuning::CamperJob, now: u32) -> Option<Vec3> {
+    approach_points(tactics, home, held, j, now)
+        .into_iter()
+        .find(|p| !tactics.in_spawn_area(*p, None) && out_of_his_sight(&tactics.world.sight, held, *p))
+}
 
-/// [A324] The team's camper trap jobs at a commander tick (`TrapTuning::camper_job`): `held` the team's held spots, `job_spots`
-/// the spots its K2 jobs run on, `died` the jobs its shooter's death ended this tick (spot, shooter). A point is added for his way
-/// back on each job's spot (the first point of the way from his side's nearest spawn, `near_m`..`far_m` before the spot, that the
-/// spot's eye does not see), and for his death point when he dies there; the nearest free bot with a trap within `max_walk_m` is
-/// sent to each (`plays::trap_spot`); a point is dropped when its bot put a trap down, when the job is over (his way back) or its
-/// time is (his death point). A bot not done in `give_up_s` is let go.
+/// The eye over the feet of a body moving crouched (`view::eye_height`: any speed over the still class's).
+fn crouched_moving_eye(feet: Vec3) -> Vec3 {
+    feet + Vec3::new(0.0, super::view::eye_height(true, f32::MAX, 0.0), 0.0)
+}
+
+/// [A324] Whether a bot crouched at `feet` and a man standing on `held` cannot see each other, as a bot's sight looks (any of
+/// the parts of `aimpoint::Part::SIGHT_ORDER`, `sense.rs`), both ways: no part of the crouched bot shows from his eye
+/// (`lane_ahead::camper_eye`, a held spot's), and no part of him shows from the bot's crouched moving eye (`view::eye_height`:
+/// 1.14 m, the higher of the crouched eyes; the still one 1.04 m). On the bullet mesh, without smoke.
+pub fn out_of_his_sight(sight: &mapdata::RayTree, held: Vec3, feet: Vec3) -> bool {
+    let his_eye = super::lane_ahead::camper_eye(held);
+    !super::aimpoint::body_shows(sight, his_eye, feet, true) && !super::aimpoint::body_shows(sight, crouched_moving_eye(feet), held, false)
+}
+
+/// [A324] Whether crouching hides a bot at `feet` from a man on `held`: standing, some part of it shows from his eye; crouched,
+/// they cannot see each other ([`out_of_his_sight`]).
+pub fn hidden_by_crouching(sight: &mapdata::RayTree, held: Vec3, feet: Vec3) -> bool {
+    super::aimpoint::body_shows(sight, super::lane_ahead::camper_eye(held), feet, false) && out_of_his_sight(sight, held, feet)
+}
+
+/// [#2081] A sent bot runs the job's play from its first thinks: two at `ThinkTuning::think_ms`'s upper 400 ms and one commander
+/// tick (`ThinkTuning::commander_ms`, 500 ms), ms.
+const LEFT_PLAY_GRACE_MS: u32 = 1_300;
+
+/// [A324] The team's camper trap jobs at a commander tick (`TrapTuning::camper_job`): a trap on the way in of a place an enemy
+/// holds: of 91 human traps at an enemy's killing hold in the live traps record, the 8 on his way in caught him 3 times, the 83
+/// others never (small n; `docs/notes/bear_traps.md`, "Human traps at a holder's place"). The places:
+/// - `sources`: the held spots its K2 jobs run on and the men it holds off from at a loose battery (`take.clear_first`), wanted
+///   while that lasts;
+///
+/// The point is the first of his way from his side's nearest spawn, `near_m`..`far_m` before the place, that his eye there does
+/// not see ([`way_in`]); the nearest free bot with a trap within `max_walk_m` is sent (`plays::trap_spot`); a bot not done in
+/// `give_up_s` is let go. Every decision is a note.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn camper_tick(
     bots: &[Option<Bot>],
@@ -783,13 +818,11 @@ pub(super) fn camper_tick(
     tactics: &super::tactics::Tactics,
     t: &TrapTuning,
     team: u8,
-    held: &[super::threat::HeldLine],
-    job_spots: &[u32],
-    died: &[(u32, super::view::Place)],
+    sources: &[super::threat::HeldLine],
     now: u32,
     notes: &mut Vec<super::Note>,
 ) {
-    use super::know::{CamperTrap, CamperTrapKind, CamperTrapState};
+    use super::know::{CamperTrap, CamperTrapKind, CamperTrapState, SeenRefusals};
     let Some(j) = t.camper_job else {
         knowledge.camper_traps.clear();
         knowledge.camper_no_way.clear();
@@ -797,86 +830,182 @@ pub(super) fn camper_tick(
     };
     let side = bots.iter().flatten().find(|b| b.team == team).and_then(|b| b.side);
     let mut said = Vec::new();
-    // His death on a spot: its point.
-    for &(spot, shooter) in died {
-        let Some(at) = view.deaths.iter().rev().find(|d| d.place == shooter).map(|d| d.at) else {
-            continue;
+    let bot_of = |p: super::view::Place| bots.iter().flatten().find(|b| b.place == p);
+    let alive = |p: super::view::Place| view.place(p).is_some_and(|b| b.alive);
+    let xyz = |v: Vec3| format!("({:.1}, {:.1}, {:.1})", v.x, v.y, v.z);
+    // The sent bots: who is done, who is let go.
+    let give_up_ms = (j.give_up_s * 1000.0) as u32;
+    knowledge.camper_traps.retain_mut(|c| {
+        let CamperTrapState::Sent { placer, since, placed_before } = c.state else {
+            return true;
         };
-        knowledge.camper_traps.retain(|c| c.spot != spot);
-        knowledge.camper_traps.push(CamperTrap { spot, shooter, at, kind: CamperTrapKind::Death { died: now }, state: CamperTrapState::Open });
+        if bot_of(placer).is_some_and(|b| b.features.traps.habit.placed_this_life() > placed_before) {
+            #[cfg(test)]
+            camper::count(team, camper::PLACED);
+            #[cfg(test)]
+            eprintln!("  camper life: team {team} spot {} {:?} placed t {now} placer {placer} walked {:.1}", c.spot, c.kind, now.saturating_sub(since) as f32 / 1000.0);
+            said.push(format!(
+                "team {team}: bot {placer} put its trap on {}'s way in at {} ({:?} of player {}); at the point its gate refused {} thinks for an enemy seen ({}); the place is trapped while its trap stands",
+                c.spot,
+                xyz(c.at),
+                c.kind,
+                c.shooter,
+                c.seen.total(),
+                c.seen.said()
+            ));
+            c.state = CamperTrapState::Trapped;
+            return true;
+        }
+        let body = view.place(placer).filter(|b| b.alive && b.carrying.is_none());
         #[cfg(test)]
-        camper::count(team, camper::NOTED_DEATH);
-        said.push(format!("team {team}: camper {shooter} died on spot {spot}: his death point ({:.1}, {:.1}, {:.1}) wants a trap", at.x, at.y, at.z));
-    }
-    // What is over: his way back with no job on the spot, his death point after its time, a point a standing trap of the team is on.
-    let standing: Vec<Vec3> = knowledge.traps.standing().map(|k| k.at).collect();
-    let death_ms = (j.death_keep_s * 1000.0) as u32;
-    knowledge.camper_traps.retain(|c| {
-        let live = match c.kind {
-            CamperTrapKind::Approach => job_spots.contains(&c.spot),
-            CamperTrapKind::Death { died } => now.saturating_sub(died) <= death_ms,
+        if body.is_some_and(|b| b.feet.distance_xz(c.at) <= j.within_m + t.reach_m + 1.0) && camper::arrived(team, c.spot, since) {
+            eprintln!("  camper life: team {team} spot {} {:?} arrived t {now} placer {placer} walked {:.1}", c.spot, c.kind, now.saturating_sub(since) as f32 / 1000.0);
+        }
+        // [#2081] A bot that left the job's play is let go: the job stayed sent to it while it ran another (12 of 26 sends of the
+        // bench's m7: Retreat, Flank, Ambush, Trade, PairUp, none). Past its first thinks ([`LEFT_PLAY_GRACE_MS`]).
+        let left_play = now.saturating_sub(since) > LEFT_PLAY_GRACE_MS
+            && bot_of(placer).is_some_and(|b| b.assignment.as_ref().is_none_or(|a| a.kind != PlayKind::TrapSpot));
+        let why = if body.is_none() {
+            Some(if alive(placer) { "carrying" } else { "dead" })
+        } else if now.saturating_sub(since) > give_up_ms {
+            Some("its time is out")
+        } else if left_play {
+            Some("it left the job's play")
+        } else {
+            None
         };
-        live && !standing.iter().any(|s| s.distance_xz(c.at) <= j.within_m)
+        if let Some(why) = why {
+            #[cfg(test)]
+            {
+                eprintln!(
+                    "  camper life: team {team} spot {} {:?} let_go t {now} placer {placer} walked {:.1} why {} left {:.1} {}",
+                    c.spot,
+                    c.kind,
+                    now.saturating_sub(since) as f32 / 1000.0,
+                    why.replace(' ', "_"),
+                    view.place(placer).map_or(-1.0, |b| b.feet.distance_xz(c.at)),
+                    camper::walk_state(bot_of(placer), c.at)
+                );
+                camper::count(team, camper::GAVE_UP);
+                let playing = bot_of(placer).and_then(|b| b.assignment.as_ref()).is_some_and(|a| a.kind == PlayKind::TrapSpot);
+                let near = view.place(placer).is_some_and(|b| b.feet.distance_xz(c.at) <= j.within_m + t.reach_m + 1.0);
+                if why == "dead" {
+                    let at = view.deaths.iter().rev().find(|d| d.place == placer).map(|d| d.at);
+                    camper::died(team, placer, now, c.kind, at.map(|at| {
+                        let seen = super::aimpoint::body_shows(&tactics.world.sight, super::lane_ahead::camper_eye(c.held), at, false);
+                        (at.distance_xz(c.at), at.distance_xz(c.held), seen)
+                    }), c.shooter);
+                }
+                camper::count(
+                    team,
+                    if why == "dead" {
+                        camper::GAVE_UP_DEAD
+                    } else if !playing {
+                        camper::GAVE_UP_NOT_PLAYING
+                    } else if near {
+                        camper::GAVE_UP_AT
+                    } else {
+                        camper::GAVE_UP_FAR
+                    },
+                );
+            }
+            said.push(format!(
+                "team {team}: bot {placer} let go of {}'s way in at {}: {why}; at the point its gate refused {} thinks for an enemy seen ({})",
+                c.spot,
+                xyz(c.at),
+                c.seen.total(),
+                c.seen.said()
+            ));
+            c.state = CamperTrapState::Open;
+        }
+        true
     });
-    knowledge.camper_no_way.retain(|spot| job_spots.contains(spot));
-    // His way back on each job's spot, found once a job.
+    // What is over: a place no longer held (his death ends it). A point with a standing trap of the team on it is trapped
+    // (nothing sent, not searched again) while the place lasts; when that trap is gone it wants another.
+    let standing: Vec<Vec3> = knowledge.traps.standing().map(|k| k.at).collect();
+    knowledge.camper_traps.retain_mut(|c| {
+        let over = (!sources.iter().any(|l| l.id == c.spot)).then_some("the place is no longer held");
+        let trap_on = standing.iter().any(|s| s.distance_xz(c.at) <= j.within_m);
+        match c.state {
+            CamperTrapState::Open if over.is_none() && trap_on => {
+                c.state = CamperTrapState::Trapped;
+                said.push(format!("team {team}: {}'s way in at {}: a trap of the team stands on it; trapped while it stands", c.spot, xyz(c.at)));
+            }
+            CamperTrapState::Trapped if over.is_none() && !trap_on => {
+                c.state = CamperTrapState::Open;
+                #[cfg(test)]
+                camper::count(team, camper::TRAP_GONE);
+                said.push(format!("team {team}: {}'s way in at {}: its trap is gone; it wants another", c.spot, xyz(c.at)));
+            }
+            _ => {}
+        }
+        if let Some(why) = over {
+            #[cfg(test)]
+            camper::count(team, camper::DROPPED);
+            #[cfg(test)]
+            {
+                let sent = match c.state {
+                    CamperTrapState::Sent { placer, since, .. } => format!(
+                        "sent placer {placer} walked {:.1} left {:.1} {}",
+                        now.saturating_sub(since) as f32 / 1000.0,
+                        view.place(placer).map_or(-1.0, |b| b.feet.distance_xz(c.at)),
+                        camper::walk_state(bots.iter().flatten().find(|b| b.place == placer), c.at)
+                    ),
+                    CamperTrapState::Open => "open".to_string(),
+                    CamperTrapState::Trapped => "trapped".to_string(),
+                };
+                eprintln!("  camper life: team {team} spot {} {:?} dropped t {now} {sent}", c.spot, c.kind);
+            }
+            said.push(format!("team {team}: {}'s way in at {} dropped: {why}", c.spot, xyz(c.at)));
+        }
+        over.is_none()
+    });
+    knowledge.camper_no_way.retain(|spot| sources.iter().any(|l| l.id == *spot));
+    // The way in of each held place without a point, searched once while it is held.
     let homes: Vec<Vec3> = tactics.world.map.spawns.iter().filter(|s| Some(s.team) != side).map(|s| s.position).collect();
-    for line in held.iter().filter(|l| job_spots.contains(&l.id)) {
+    let nearest_home = |at: Vec3| homes.iter().copied().min_by(|a, b| a.distance_xz(at).total_cmp(&b.distance_xz(at)));
+    for line in sources {
         if knowledge.camper_traps.iter().any(|c| c.spot == line.id) || knowledge.camper_no_way.contains(&line.id) {
             continue;
         }
-        let home = homes.iter().copied().min_by(|a, b| a.distance_xz(line.at).total_cmp(&b.distance_xz(line.at)));
-        // [A324] The camper's eye on his spot, for the "out of his sight" test: a lane's camper's (`lane_ahead::camper_eye`).
-        let eye = super::lane_ahead::camper_eye(line.at);
-        let point = home.map(|home| approach_points(tactics, home, line.at, &j, now)).unwrap_or_default().into_iter().find(|p| {
-            !tactics.in_spawn_area(*p, side) && !super::rays::visible(&tactics.world.sight, eye, *p + Vec3::new(0.0, PLACER_CHEST_M, 0.0))
-        });
-        match point {
+        let kind = if line.battery.is_some() { CamperTrapKind::Battery } else { CamperTrapKind::Job };
+        match nearest_home(line.at).and_then(|home| way_in(tactics, home, line.at, &j, now)) {
             Some(at) => {
-                knowledge.camper_traps.push(CamperTrap { spot: line.id, shooter: line.shooter, at, kind: CamperTrapKind::Approach, state: CamperTrapState::Open });
+                knowledge.camper_traps.push(CamperTrap {
+                    spot: line.id,
+                    shooter: line.shooter,
+                    held: line.at,
+                    at,
+                    kind,
+                    state: CamperTrapState::Open,
+                    seen: SeenRefusals::default(),
+                });
                 #[cfg(test)]
-                camper::count(team, camper::NOTED_APPROACH);
-                said.push(format!("team {team}: spot {} held by {}: his way back at ({:.1}, {:.1}, {:.1}) wants a trap", line.id, line.shooter, at.x, at.y, at.z));
+                camper::count(team, if kind == CamperTrapKind::Battery { camper::NOTED_BATTERY } else { camper::NOTED_JOB });
+                #[cfg(test)]
+                eprintln!(
+                    "  camper life: team {team} spot {} {:?} noted t {now} seen_age {}",
+                    line.id,
+                    kind,
+                    line.seen.map_or("-".to_string(), |s| format!("{:.1}", now.saturating_sub(s) as f32 / 1000.0))
+                );
+                said.push(format!("team {team}: {:?} {} held by player {} at {}: his way in at {} wants a trap", kind, line.id, line.shooter, xyz(line.at), xyz(at)));
             }
             None => {
                 knowledge.camper_no_way.push(line.id);
                 #[cfg(test)]
                 camper::count(team, camper::NO_WAY);
+                said.push(format!("team {team}: {:?} {} held by player {} at {}: no way in out of his sight", kind, line.id, line.shooter, xyz(line.at)));
             }
         }
     }
-    // The bots: who is done, who gave up, who goes.
-    let give_up_ms = (j.give_up_s * 1000.0) as u32;
-    let bot_of = |p: super::view::Place| bots.iter().flatten().find(|b| b.place == p);
-    let mut done = Vec::new();
-    for (i, c) in knowledge.camper_traps.iter_mut().enumerate() {
-        if let CamperTrapState::Sent { placer, since, placed_before } = c.state {
-            let alive = view.place(placer).is_some_and(|b| b.alive && b.carrying.is_none());
-            if bot_of(placer).is_some_and(|b| b.features.traps.habit.placed_this_life() > placed_before) {
-                #[cfg(test)]
-                camper::count(team, camper::PLACED);
-                done.push(i);
-            } else if !alive || now.saturating_sub(since) > give_up_ms {
-                #[cfg(test)]
-                {
-                    camper::count(team, camper::GAVE_UP);
-                    let playing = bot_of(placer).and_then(|b| b.assignment.as_ref()).is_some_and(|a| a.kind == PlayKind::TrapSpot);
-                    let near = view.place(placer).is_some_and(|b| b.feet.distance_xz(c.at) <= j.within_m + t.reach_m + 1.0);
-                    camper::count(team, if !playing { camper::GAVE_UP_NOT_PLAYING } else if near { camper::GAVE_UP_AT } else { camper::GAVE_UP_FAR });
-                }
-                c.state = CamperTrapState::Open;
-            }
-        }
-    }
-    for i in done.into_iter().rev() {
-        knowledge.camper_traps.remove(i);
-    }
+    // Who goes.
     let mut taken: Vec<super::view::Place> = knowledge
         .camper_traps
         .iter()
         .filter_map(|c| match c.state {
             CamperTrapState::Sent { placer, .. } => Some(placer),
-            CamperTrapState::Open => None,
+            CamperTrapState::Open | CamperTrapState::Trapped => None,
         })
         .collect();
     for c in knowledge.camper_traps.iter_mut().filter(|c| c.state == CamperTrapState::Open) {
@@ -898,10 +1027,22 @@ pub(super) fn camper_tick(
             continue;
         };
         c.state = CamperTrapState::Sent { placer: b.place, since: now, placed_before: b.features.traps.habit.placed_this_life() };
+        c.seen = SeenRefusals::default();
         taken.push(b.place);
         #[cfg(test)]
         camper::count(team, camper::SENT);
-        said.push(format!("team {team}: bot {} sent to trap spot {}'s {:?} point, {d:.1} m off", b.place, c.spot, c.kind));
+        #[cfg(test)]
+        {
+            let seen = sources.iter().find(|l| l.id == c.spot).and_then(|l| l.seen);
+            eprintln!(
+                "  camper life: team {team} spot {} {:?} sent t {now} placer {} d {d:.1} seen_age {}",
+                c.spot,
+                c.kind,
+                b.place,
+                seen.map_or("-".to_string(), |s| format!("{:.1}", now.saturating_sub(s) as f32 / 1000.0))
+            );
+        }
+        said.push(format!("team {team}: bot {} sent to trap {}'s way in at {} ({:?} of player {}), {d:.1} m off", b.place, c.spot, xyz(c.at), c.kind, c.shooter));
     }
     for text in said {
         notes.push(super::Note { place: usize::MAX, time: now, text });
@@ -913,61 +1054,237 @@ pub fn camper_point(knowledge: &super::know::TeamKnowledge, place: super::view::
     knowledge.camper_traps.iter().find(|c| matches!(c.state, super::know::CamperTrapState::Sent { placer, .. } if placer == place))
 }
 
-/// [A324] The bench's counts of the camper trap jobs, by team: points noted (his way back, his death point), spots with no way
-/// back out of his sight, ticks with an open point and no free bot, bots sent, let go, and traps put down by a sent bot.
+/// [A324] The bench's counts of the camper trap jobs, by team: points noted (a K2 job's spot, a battery hold, a killed holder's
+/// place), points kept for his return, dropped, places with no way in out of his sight, ticks with an open point and no free bot,
+/// bots sent, let go (by why) and traps put down by a sent bot; the sent bots' thinks by outcome and the job gate's refusals by
+/// reason, the "enemy seen" ones split by whom (its camper, another) and the bot's pose, with the nearest enemy's distances; and
+/// the plans (placer, time, the point's holder) to match the catches by. Kept per thread (a match runs on one) for the tallies,
+/// and summed over threads for the bench's line.
 #[cfg(test)]
 pub mod camper {
+    use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    pub const NOTED_APPROACH: usize = 0;
-    pub const NOTED_DEATH: usize = 1;
-    pub const NO_WAY: usize = 2;
-    pub const NO_PLACER: usize = 3;
-    pub const SENT: usize = 4;
-    pub const GAVE_UP: usize = 5;
-    pub const PLACED: usize = 6;
-    /// Let go: its play was not `TrapSpot` then; it was farther from the point than it places from; it was at the point.
-    pub const GAVE_UP_NOT_PLAYING: usize = 7;
-    pub const GAVE_UP_FAR: usize = 8;
-    pub const GAVE_UP_AT: usize = 9;
+    pub const NOTED_JOB: usize = 0;
+    pub const NOTED_BATTERY: usize = 1;
+    pub const DROPPED: usize = 2;
+    pub const NO_WAY: usize = 3;
+    pub const NO_PLACER: usize = 4;
+    pub const SENT: usize = 5;
+    pub const GAVE_UP: usize = 6;
+    pub const PLACED: usize = 7;
+    /// Let go: dead; its play was not `TrapSpot` then; it was farther from the point than it places from; it was at the point.
+    pub const GAVE_UP_DEAD: usize = 8;
+    pub const GAVE_UP_NOT_PLAYING: usize = 9;
+    pub const GAVE_UP_FAR: usize = 10;
+    pub const GAVE_UP_AT: usize = 11;
     /// Thinks of a sent bot: on its way; at the point refused by the gate; no look; no spot by the point; waited for it; a trap
     /// planned by the point; one planned elsewhere; a `TrapSpot` play whose job is over (nothing planned).
-    pub const THINK_WALKING: usize = 10;
-    pub const THINK_GATE: usize = 11;
-    pub const THINK_NO_LOOK: usize = 12;
-    pub const THINK_NO_SPOT: usize = 13;
-    pub const THINK_WAITED: usize = 14;
-    pub const THINK_PLANNED: usize = 15;
-    pub const THINK_PLANNED_ELSE: usize = 16;
-    pub const THINK_JOB_OVER: usize = 17;
-    pub const NAMES: [&str; 18] = [
-        "noted_approach", "noted_death", "no_way", "no_placer_ticks", "sent", "gave_up", "placed", "gave_up_not_playing", "gave_up_far",
-        "gave_up_at", "think_walking", "think_gate", "think_no_look", "think_no_spot", "think_waited", "think_planned",
-        "think_planned_else", "think_job_over",
+    pub const THINK_WALKING: usize = 12;
+    pub const THINK_GATE: usize = 13;
+    pub const THINK_NO_LOOK: usize = 14;
+    pub const THINK_NO_SPOT: usize = 15;
+    pub const THINK_WAITED: usize = 16;
+    pub const THINK_PLANNED: usize = 17;
+    pub const THINK_PLANNED_ELSE: usize = 18;
+    pub const THINK_JOB_OVER: usize = 19;
+    /// The gate's "enemy seen" refusals at the point: its camper seen (crouched, standing), only others seen (crouched, standing).
+    pub const SEEN_CAMPER_CROUCHED: usize = 20;
+    pub const SEEN_CAMPER_STANDING: usize = 21;
+    pub const SEEN_OTHER_CROUCHED: usize = 22;
+    pub const SEEN_OTHER_STANDING: usize = 23;
+    /// A trapped point whose trap is gone (fired, disarmed, a promise unconfirmed): open again.
+    pub const TRAP_GONE: usize = 24;
+    pub const N: usize = 25;
+    pub const NAMES: [&str; N] = [
+        "noted_job", "noted_battery", "dropped", "no_way", "no_placer_ticks", "sent", "gave_up", "placed",
+        "gave_up_dead", "gave_up_not_playing", "gave_up_far", "gave_up_at", "think_walking", "think_gate", "think_no_look",
+        "think_no_spot", "think_waited", "think_planned", "think_planned_else", "think_job_over", "seen_camper_crouched",
+        "seen_camper_standing", "seen_other_crouched", "seen_other_standing", "trap_gone",
     ];
-    static TEAM: [[AtomicU64; 18]; 2] = [const { [const { AtomicU64::new(0) }; 18] }; 2];
-
-    pub fn count(team: u8, kind: usize) {
-        TEAM[usize::from(team & 1)][kind].fetch_add(1, Ordering::Relaxed);
-    }
-
+    static TEAM: [[AtomicU64; N]; 2] = [const { [const { AtomicU64::new(0) }; N] }; 2];
     /// The gate's refusals of a sent bot at its point, in `gates::of` order from Play on.
     pub const GATE_NAMES: [&str; 8] = ["play", "carrying", "health", "enemy", "hit", "reloading", "team_cap", "other"];
     static GATE: [[AtomicU64; 8]; 2] = [const { [const { AtomicU64::new(0) }; 8] }; 2];
+    /// The nearest enemy seen at an "enemy seen" refusal, metres: [its camper seen, only others].
+    static SEEN_M: Mutex<[Vec<f32>; 2]> = Mutex::new([Vec::new(), Vec::new()]);
+    /// The sent bots' deaths, `time:place:team:kind:to point/to his place/seen from him:holder`.
+    static DEATHS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    thread_local! {
+        static MINE: std::cell::Cell<[[u64; N]; 2]> = const { std::cell::Cell::new([[0; N]; 2]) };
+        static PLANS: std::cell::RefCell<Vec<(usize, u32, usize)>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    pub fn count(team: u8, kind: usize) {
+        TEAM[usize::from(team & 1)][kind].fetch_add(1, Ordering::Relaxed);
+        MINE.with(|cell| {
+            let mut all = cell.get();
+            all[usize::from(team & 1)][kind] += 1;
+            cell.set(all);
+        });
+    }
 
     pub fn gate(team: u8, k: usize) {
         GATE[usize::from(team & 1)][k.min(7)].fetch_add(1, Ordering::Relaxed);
     }
 
+    /// An "enemy seen" refusal at the point: its camper among those seen or not, the bot's pose, the nearest seen (metres).
+    pub fn seen(team: u8, camper: bool, crouched: bool, nearest_m: f32) {
+        count(
+            team,
+            match (camper, crouched) {
+                (true, true) => SEEN_CAMPER_CROUCHED,
+                (true, false) => SEEN_CAMPER_STANDING,
+                (false, true) => SEEN_OTHER_CROUCHED,
+                (false, false) => SEEN_OTHER_STANDING,
+            },
+        );
+        if let Ok(mut m) = SEEN_M.lock() {
+            m[usize::from(!camper)].push(nearest_m);
+        }
+    }
+
+    /// A sent bot died: its team, place, the time, its point's kind, where it died (metres to its point, to his place, and whether
+    /// a body standing there shows from his eye), and the point's holder.
+    pub fn died(team: u8, placer: usize, now: u32, kind: super::super::know::CamperTrapKind, at: Option<(f32, f32, bool)>, holder: usize) {
+        let kind = match kind {
+            super::super::know::CamperTrapKind::Job => "job",
+            super::super::know::CamperTrapKind::Battery => "battery",
+        };
+        let at = at.map_or("-".to_string(), |(p, h, seen)| format!("{p:.1}/{h:.1}/{}", if seen { "seen" } else { "hidden" }));
+        if let Ok(mut d) = DEATHS.lock() {
+            d.push(format!("{now}:{placer}:{team}:{kind}:{at}:{holder}"));
+        }
+    }
+
+    static ARRIVED: Mutex<Vec<(u8, u32, u32)>> = Mutex::new(Vec::new());
+
+    /// [#2081 v6 measure] A sent bot's walk now: its play, its go (metres from the point), its route (its length, its goal's
+    /// metres from the point), its hold and pace.
+    pub fn walk_state(bot: Option<&super::Bot>, point: mapdata::Vec3) -> String {
+        let Some(b) = bot else {
+            return "bot -".to_string();
+        };
+        let go = match b.intent.go {
+            crate::v026g::bots::plays::Go::Stay => "stay".to_string(),
+            crate::v026g::bots::plays::Go::To { at, .. } => format!("to_point {:.1}", at.distance_xz(point)),
+        };
+        let route = b.route.as_ref().map_or("none".to_string(), |(r, goal)| format!("{:.1}m goal_point {:.1}", r.length(), goal.distance_xz(point)));
+        format!("play {:?} go {go} route {route} hold {} pace {:?}", b.assignment.as_ref().map(|a| a.kind), b.intent.hold != 0, b.intent.pace)
+    }
+
+    /// [#2081 v6 measure] Whether this is the first tick the bot sent at `since` to `spot` is at its point.
+    pub fn arrived(team: u8, spot: u32, since: u32) -> bool {
+        ARRIVED.lock().is_ok_and(|mut a| {
+            let new = !a.contains(&(team, spot, since));
+            if new {
+                a.push((team, spot, since));
+            }
+            new
+        })
+    }
+
+    /// A trap planned by a sent bot `placer` at `now` on the way in of `holder`'s place.
+    pub fn planned(placer: usize, now: u32, holder: usize) {
+        PLANS.with(|p| p.borrow_mut().push((placer, now, holder)));
+    }
+
+    /// This thread's counts.
+    pub fn counted() -> [[u64; N]; 2] {
+        MINE.with(|cell| cell.get())
+    }
+
+    /// This thread's plans so far, from the `from`th on.
+    pub fn plans(from: usize) -> Vec<(usize, u32, usize)> {
+        PLANS.with(|p| p.borrow().get(from..).map(<[_]>::to_vec).unwrap_or_default())
+    }
+
     pub fn line() -> String {
-        (0..2)
+        let p50 = |v: &[f32]| {
+            let mut v = v.to_vec();
+            v.sort_by(f32::total_cmp);
+            v.get(v.len() / 2).map_or("-".to_string(), |m| format!("{m:.1} m"))
+        };
+        let seen = SEEN_M.lock().map(|m| format!("; nearest enemy seen P50: with its camper {}, others only {}", p50(&m[0]), p50(&m[1]))).unwrap_or_default();
+        let teams = (0..2)
             .map(|team| {
                 let mut parts: Vec<String> = NAMES.iter().enumerate().map(|(k, n)| format!("{n} {}", TEAM[team][k].load(Ordering::Relaxed))).collect();
                 parts.extend(GATE_NAMES.iter().enumerate().map(|(k, n)| format!("gate_{n} {}", GATE[team][k].load(Ordering::Relaxed))));
                 format!("team {team}: {}", parts.join(", "))
             })
             .collect::<Vec<_>>()
-            .join("; ")
+            .join("; ");
+        let deaths = DEATHS.lock().map(|d| format!("; sent bots' deaths [{}]", d.join(" "))).unwrap_or_default();
+        format!("{teams}{seen}{deaths}")
+    }
+}
+
+/// [#2081 v6 measure] The bench's record of each trap look (plan to its end, or to the placer's death): the nearest alive enemy
+/// body at the plan and at the last think (the truth, any enemy, seen or not, as the live record measures humans), the bot's own
+/// nearest track at the plan (metres, age, who), and the reflex look the trap look took the view over first (`look_over_heard`).
+/// The deaths are joined with the stand-in game's kills by the bench (the killer).
+#[cfg(test)]
+pub mod placing {
+    use std::sync::Mutex;
+
+    use super::OverHeard;
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq)]
+    pub struct Ctx {
+        pub place: usize,
+        pub team: u8,
+        pub planned: u32,
+        pub last: u32,
+        pub truth_plan_m: Option<f32>,
+        pub truth_last_m: Option<f32>,
+        pub track: Option<(f32, u32, usize)>,
+        pub heard: Option<OverHeard>,
+    }
+
+    impl Ctx {
+        pub fn line(&self) -> String {
+            let m = |v: Option<f32>| v.map_or("-".to_string(), |m| format!("{m:.1}"));
+            let track = self.track.map_or("-".to_string(), |(m, age, who)| format!("{m:.1}/{:.1}/{who}", age as f32 / 1000.0));
+            let heard = match self.heard {
+                Some(OverHeard::Aim { m, age_ms }) => format!("aim {m:.1}/{:.1}", age_ms as f32 / 1000.0),
+                Some(OverHeard::Glance { m }) => format!("glance {m:.1}"),
+                None => "none".to_string(),
+            };
+            format!(
+                "place {} team {} planned {} last {} look {:.1} s truth_plan {} truth_last {} track {track} over {heard}",
+                self.place,
+                self.team,
+                self.planned,
+                self.last,
+                self.last.saturating_sub(self.planned) as f32 / 1000.0,
+                m(self.truth_plan_m),
+                m(self.truth_last_m)
+            )
+        }
+    }
+
+    static DEATHS: Mutex<Vec<Ctx>> = Mutex::new(Vec::new());
+
+    /// A look ended (`placed`, `called away`, `gave up`): its line at once.
+    pub fn ended(c: &Ctx, how: &str) {
+        eprintln!("  trap look end: {how} {}", c.line());
+    }
+
+    /// A life ended in the middle of a look or a press.
+    pub fn died(c: Ctx) {
+        if let Ok(mut d) = DEATHS.lock() {
+            d.push(c);
+        }
+    }
+
+    pub fn deaths() -> Vec<Ctx> {
+        DEATHS.lock().map(|d| d.clone()).unwrap_or_default()
+    }
+
+    /// The nearest alive enemy body to `feet` in `view`, metres.
+    pub fn truth(view: &super::super::view::MatchView, team: u8, feet: mapdata::Vec3) -> Option<f32> {
+        view.places.iter().filter(|p| p.alive && p.team != team).map(|p| p.feet.distance_xz(feet)).min_by(f32::total_cmp)
     }
 }
 
@@ -978,7 +1295,102 @@ pub fn forward_share(own: Vec3, enemy: Vec3, at: Vec3) -> f32 {
     if a + b <= 1e-3 { 0.5 } else { a / (a + b) }
 }
 
-/// [A145] The spots of killed holders (`know::Defeated`) a search wants a trap on (`TrapTuning::at_defeated`).
+/// [A324 measure] Why trap looks are called away (`drive`'s calm false: a reflex look, fire, legs, a use or a target): the reflex's
+/// seen target (by its distance), a threat look (`reflex::gate::THREAT`: a hit's shooter, a near shot), or another of its looks,
+/// fire, legs or a use (a watch, a sound, a glance, a pre-aim); a `TrapSpot` bot's looks apart. Decisions are not touched.
+#[cfg(test)]
+pub mod called {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use super::{Bot, PlaceView};
+
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub enum Why {
+        Target(f32),
+        Threat,
+        Other(super::super::reflex::last_look::Kind),
+    }
+
+    impl Why {
+        pub fn of(bot: &Bot, me: &PlaceView) -> Self {
+            if let Some(who) = bot.reflex.target() {
+                let at = bot.memory.tracks().iter().find(|t| t.who == who).map(|t| t.at);
+                return Self::Target(at.map_or(f32::INFINITY, |at| at.distance_xz(me.feet)));
+            }
+            if bot.reflex.gates().bits & super::super::reflex::gate::THREAT != 0 {
+                Self::Threat
+            } else {
+                Self::Other(super::super::reflex::last_look::get())
+            }
+        }
+    }
+
+    /// [habit, TrapSpot] x [target <15 m, 15-40, 40+ or unknown, threat, other, not judged, and of other: glance, aimed, look,
+    /// legs or fire, none (a use)]
+    static N: [[AtomicU64; 11]; 2] = [const { [const { AtomicU64::new(0) }; 11] }; 2];
+
+    pub fn count(why: Option<Why>, job: bool) {
+        use super::super::reflex::last_look::Kind;
+        let k = match why {
+            Some(Why::Target(m)) if m < 15.0 => 0,
+            Some(Why::Target(m)) if m < 40.0 => 1,
+            Some(Why::Target(_)) => 2,
+            Some(Why::Threat) => 3,
+            Some(Why::Other(_)) => 4,
+            None => 5,
+        };
+        N[usize::from(job)][k].fetch_add(1, Ordering::Relaxed);
+        if let Some(Why::Other(kind)) = why {
+            let k = match kind {
+                Kind::Glance => 6,
+                Kind::Aimed => 7,
+                Kind::Look => 8,
+                Kind::LegsOrFire => 9,
+                Kind::None => 10,
+            };
+            N[usize::from(job)][k].fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// [traps.look_over_heard] Looks that took the view over a reflex look: [a glance, a heard aim].
+    static OVER: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub fn over_heard(aim: bool) {
+        OVER[usize::from(aim)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn line() -> String {
+        let over = format!(
+            "; looks that took the view over a glance {}, over a heard aim {}",
+            OVER[0].load(Ordering::Relaxed),
+            OVER[1].load(Ordering::Relaxed)
+        );
+        (0..2)
+            .map(|j| {
+                let n = |k: usize| N[j][k].load(Ordering::Relaxed);
+                format!(
+                    "{}: target <15 m {}, 15-40 m {}, 40+ m {}, threat look {}, another look/fire/legs/use {}, not judged {} (other: glance {}, aimed {}, look {}, legs or fire {}, none {})",
+                    if j == 0 { "habit" } else { "TrapSpot" },
+                    n(0),
+                    n(1),
+                    n(2),
+                    n(3),
+                    n(4),
+                    n(5),
+                    n(6),
+                    n(7),
+                    n(8),
+                    n(9),
+                    n(10)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
+            + &over
+    }
+}
+
+/// [A145, A324] The bench's counts of the wished spot (a sent bot's camper job point): its thinks, waits and plans, and what refused the candidates by it.
 #[derive(Clone, Copy, Debug)]
 pub struct Wish<'a> {
     pub spots: &'a [Vec3],
@@ -1436,29 +1848,29 @@ pub fn press_of(
 
 impl TeamState {
     /// The team's field again if its list changed; whether it did.
-    /// [keep_off] With `keep_off` the field shuts its floors within `hard_m` and a narrow one within [`FIELD_M`] is kept for the
-    /// searches' fallback; without it the two are the same field.
+    /// [keep_off] With `keep_off` the field shuts its floors within `hard_m` ([`OWN_TRAP_CLEAR_M`]), else within [`FIELD_M`].
+    /// [#2081] No narrower fallback field: a search's route is checked by the same clearance ([`own_trap_route`]).
     pub(super) fn refresh_traps(&mut self, grid: &WalkGrid, ring_m: f32, keep_off: Option<super::tuning::KeepOff>) -> bool {
         let version = self.knowledge.traps.version();
         if version == self.features.traps.field_version {
             return false;
         }
-        let (field, narrow) = fields_of(&self.knowledge.traps, grid, ring_m, keep_off);
-        self.features.traps.field = field;
-        self.features.traps.narrow = narrow;
+        self.features.traps.field = field_of(&self.knowledge.traps, grid, ring_m, keep_off);
         self.features.traps.field_version = version;
         true
     }
 }
 
-/// The field of the standing traps of `list` and the narrow one ([`TeamState::refresh_traps`]).
-fn fields_of(list: &super::trap_know::TrapList, grid: &WalkGrid, ring_m: f32, keep_off: Option<super::tuning::KeepOff>) -> (Arc<TrapField>, Arc<TrapField>) {
-    let narrow = Arc::new(TrapField::of_ringed(list, grid, ring_m));
-    let field = match keep_off {
-        Some(k) => Arc::new(TrapField::of_ringed_within(list, grid, ring_m, k.hard_m)),
-        None => narrow.clone(),
-    };
-    (field, narrow)
+/// The field of the standing traps of `list` ([`TeamState::refresh_traps`]).
+fn field_of(list: &super::trap_know::TrapList, grid: &WalkGrid, ring_m: f32, keep_off: Option<super::tuning::KeepOff>) -> Arc<TrapField> {
+    match keep_off {
+        Some(k) => {
+            let mut field = TrapField::of_ringed_within(list, grid, ring_m, k.hard_m);
+            field.shut_promised_within(list, grid, k.hard_m + PROMISE_MARGIN_M);
+            Arc::new(field)
+        }
+        None => Arc::new(TrapField::of_ringed(list, grid, ring_m)),
+    }
 }
 
 /// [G61] The fields of a bot's team's traps with the ones only it knows ([`BotState::mine`]), and the versions of the two lists
@@ -1466,7 +1878,6 @@ fn fields_of(list: &super::trap_know::TrapList, grid: &WalkGrid, ring_m: f32, ke
 pub struct MineFields {
     versions: (u64, u64),
     field: Arc<TrapField>,
-    narrow: Arc<TrapField>,
 }
 
 /// [G61] The trap fields `bot` keeps off: its team's ([`TeamState::refresh_traps`]), and with them the traps only it knows
@@ -1476,22 +1887,549 @@ pub(super) fn take_fields(bot: &mut Bot, state: &TeamState, grid: &WalkGrid, rin
     if traps.mine.standing_count() == 0 {
         traps.mine_fields = None;
         traps.field = state.features.traps.field.clone();
-        traps.narrow = state.features.traps.narrow.clone();
         return;
     }
     let versions = (state.knowledge.traps.version(), traps.mine.version());
     if traps.mine_fields.as_ref().is_none_or(|built| built.versions != versions) {
-        let (field, narrow) = fields_of(&state.knowledge.traps.with(&traps.mine), grid, ring_m, keep_off);
-        traps.mine_fields = Some(MineFields { versions, field, narrow });
+        let field = field_of(&state.knowledge.traps.with(&traps.mine), grid, ring_m, keep_off);
+        traps.mine_fields = Some(MineFields { versions, field });
     }
     if let Some(built) = &traps.mine_fields {
         traps.field = built.field.clone();
-        traps.narrow = built.narrow.clone();
     }
 }
 
 /// How far ahead a route is kept off the traps' discs, metres.
 const KEEP_OFF_M: f32 = 15.0;
+
+/// [#2081] The one clearance from the team's own known traps, metres: the searches' shut discs (`TrapTuning::keep_off`'s
+/// `hard_m` default), their check of the route they return ([`own_trap_route`]), [`keep_off`]'s check of the route ahead and the
+/// fight's side step ([`step_keeps_clear`]) all read it, through the field's own reach ([`TrapField::reach`]), so a route the search
+/// gives is never one `keep_off` drops. The contact [`OWN_TRAP_CONTACT_M`] + the walk's tolerance [`WALK_P90_M`]; the motor's
+/// guard ([`own_trap_guard`]) holds the rest. (1.14 m, the contact + the tight walk's P90, was tried and dropped: the bench's
+/// refusals at 1.47 m, 16 plain matches, showed 2 ways of 18 cases that 1.14 m would have let through, while 1.14 m left the guard
+/// less room than the bodies' own errors, 4 placer catches in 16 matches.)
+pub const OWN_TRAP_CLEAR_M: f32 = OWN_TRAP_CONTACT_M + WALK_P90_M;
+
+/// [#2081] The feet off the route of the bots walking one, P90, metres: 261,076 samples (farming-camper cell seed 5, tip dab73194;
+/// median 0.25, p95 1.25).
+pub const WALK_P90_M: f32 = 0.80;
+
+/// [#2081] The feet off the route of a body walking it within [`TIGHT_ZONE_M`] of a standing own trap, P90 and P50, metres: the
+/// bench's 1,735 thinks of the walk mover (no weave, side step, step apart or sprint) in 16 plain matches (m8, Rudnya TDM and
+/// Batteries, 600 s; the matches' quantiles weighted by their samples; P95 0.58, P99 0.83, max 1.32).
+pub const TIGHT_WALK_P90_M: f32 = 0.47;
+const TIGHT_WALK_P50_M: f32 = 0.18;
+
+/// The slack of the clearance test, metres: a leg between two open floors of the walk grid (`mapdata::CELL` 0.25 m apart, a
+/// diagonal 0.354 m) passes at most 0.011 m nearer a disc of 1.47 m than its two ends.
+const CLEAR_SLACK_M: f32 = 0.05;
+
+/// A trap this far above or below a leg's ends is on another floor (the field's own rule for its shut floors).
+const OTHER_FLOOR_M: f32 = 1.0;
+
+/// [#2081] Where a body touches a trap's sensor, metres between the trap's point and the body's centre: the sensor cylinder's radius
+/// 0.25 m (`booby_trap_core::on_enter` 0x304BD0, `docs/notes/thrown_and_placed.md`) + the body capsule's radius 0.38 m (`mapdata`
+/// `grid/controlled.rs`: startup.cfg's stand size 0.76 x 1.8) + the controller's 0.04 m move margin (`mapdata` `controller/tick.rs`).
+/// Which shape the sensor tests is not proven; the 0.6 m of a foot point seen live (565 of 566 samples) lies inside it.
+pub const OWN_TRAP_CONTACT_M: f32 = 0.67;
+
+/// [#2081] The nearest a way from inside a disc ever comes to the trap, metres: the contact and the tight walk's median drift.
+const INSIDE_FLOOR_M: f32 = OWN_TRAP_CONTACT_M + TIGHT_WALK_P50_M;
+
+/// [#2081] Whether the polyline `points`, walked from `from`, keeps `reach` from every disc of `discs` on its floor: never nearer
+/// than `reach`; when `from` is already nearer (a body inside a disc, as a placer by its fresh trap), never more than a floor of
+/// the walk grid (`mapdata::CELL` 0.25 m: the feet's own floor may lie that much nearer) nearer than `from`, and never under
+/// [`INSIDE_FLOOR_M`]: it walks out or round, never in (the searches' floors inside a disc are opened only farther than the feet,
+/// [`keep_off_open`]). The one rule of the search's check, keep_off and the side step.
+pub fn keeps_clear(points: &[Vec3], discs: &[Vec3], from: Vec3, reach: f32) -> bool {
+    route_keeps_clear(points, discs, from, None, reach)
+}
+
+/// [#2081] The nearest `points` may come to a disc, for an end `at` metres from it ([`keeps_clear`]'s rule).
+fn clearance_for(at: f32, reach: f32) -> f32 {
+    if at >= reach { reach - CLEAR_SLACK_M } else { (at - mapdata::CELL).max(INSIDE_FLOOR_M).min(reach) }
+}
+
+/// [#2081] [`clearance_for`] for the start of a way: never above the feet's own distance (less the slack), so a body nearer than the
+/// inside floor already walks out (the bench's tdm s7: a bot 0.71 m from its trap refused every way out 464 times). A goal keeps
+/// [`clearance_for`]: a way never ends nearer than the inside floor.
+fn clearance_leaving(at: f32, reach: f32) -> f32 {
+    clearance_for(at, reach).min(at - CLEAR_SLACK_M)
+}
+
+/// [#2081] [`keeps_clear`] for a route to `goal`: its end is held to the same rule as its start, so a goal inside a disc (a guard's
+/// spot by the trap it put down there, 1.2-1.4 m off on the bench) is reached, never nearer than a floor short of it nor under
+/// [`INSIDE_FLOOR_M`]. A step (no goal) keeps the start's rule alone: it never steps in.
+pub fn route_keeps_clear(points: &[Vec3], discs: &[Vec3], from: Vec3, goal: Option<Vec3>, reach: f32) -> bool {
+    discs.iter().all(|disc| {
+        let need = clearance_leaving(from.distance_xz(*disc), reach);
+        let need = goal.map_or(need, |g| need.min(clearance_for(g.distance_xz(*disc), reach)));
+        let near = |p: Vec3| (p.y - disc.y).abs() < OTHER_FLOOR_M;
+        match points {
+            [] => true,
+            [one] => !near(*one) || one.distance_xz(*disc) >= need,
+            _ => points.windows(2).all(|leg| (!near(leg[0]) && !near(leg[1])) || off_route_m(leg, *disc) >= need),
+        }
+    })
+}
+
+/// The polyline of `route` from its progress at `feet`, `ahead` metres of it (all of it with `f32::MAX`): the point there, the
+/// route's own waypoints after it, and the point `ahead` on. Its legs are the route's legs, each at its own floor's height (points
+/// sampled along it would join two legs of different floors: a jump above a trap read as a pass on its floor).
+fn route_points(route: &super::path::Route, feet: Vec3, ahead: f32) -> Vec<Vec3> {
+    // A copy: the motor's own progress along the route is not touched.
+    let mut copy = route.clone();
+    let (s, _) = copy.progress(feet);
+    let end = (s + ahead).min(route.length());
+    let mut points = vec![route.point_at(s)];
+    let mut along = 0.0;
+    for pair in route.points().windows(2) {
+        along += pair[0].at.distance_xz(pair[1].at);
+        if along > s && along < end {
+            points.push(pair[1].at);
+        }
+    }
+    points.push(route.point_at(end));
+    points
+}
+
+/// [#2081] How far past the clearance a step out of an own trap's disc goes, metres: a body's drift off its route, median 0.25 m
+/// ([`OWN_TRAP_CLEAR_M`]'s walk sample), rounded up to the grid's floors (`mapdata::CELL` 0.25 m) and their slack.
+const STEP_OUT_PAST_M: f32 = 0.3;
+
+/// [#2081] The route a search gave `bot`, if it keeps the clearance from its team's own traps ([`keeps_clear`] over all of it);
+/// else none, with a note: the search's way is never one [`keep_off`] would drop at the next think. A body inside a disc whose
+/// way is refused steps straight out of it first ([`step_out`]), as a player steps off his own trap, and searches from there.
+pub(super) fn own_trap_route(
+    bot: &mut Bot,
+    feet: Vec3,
+    route: Option<super::path::Route>,
+    now: u32,
+    tactics: &super::tactics::Tactics,
+    objective: bool,
+) -> Option<super::path::Route> {
+    own_trap_route_within(bot, feet, route, now, tactics, objective, None)
+}
+
+/// [#2081] [`own_trap_route`] for a route the contact-only fallback search gave (`within` [`FALLBACK_REACH_M`]): held to that reach.
+pub(super) fn own_trap_route_within(
+    bot: &mut Bot,
+    feet: Vec3,
+    route: Option<super::path::Route>,
+    now: u32,
+    tactics: &super::tactics::Tactics,
+    objective: bool,
+    within: Option<f32>,
+) -> Option<super::path::Route> {
+    let route = route?;
+    let field = bot.features.traps.field.clone();
+    let reach = within.unwrap_or(field.reach().max(FIELD_M));
+    if field.is_empty() || route_keeps_clear(&route_points(&route, feet, f32::MAX), field.discs(), feet, Some(route.end()), reach) {
+        return Some(route);
+    }
+    #[cfg(test)]
+    keep_off_counts::count(keep_off_counts::REFUSED);
+    #[cfg(test)]
+    {
+        let points = route_points(&route, feet, f32::MAX);
+        let end = route.point_at(route.length());
+        let (disc, pass) = field
+            .discs()
+            .iter()
+            .map(|d| (*d, off_route_m(&points, *d)))
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .unwrap_or((feet, f32::MAX));
+        // The waypoint leg nearest the trap: its ends' heights against the trap's, a jump or not, its ends' floors shut or open.
+        let leg = route
+            .points()
+            .windows(2)
+            .min_by(|x, y| off_route_m(&[x[0].at, x[1].at], disc).total_cmp(&off_route_m(&[y[0].at, y[1].at], disc)))
+            .map_or("-".to_string(), |w| {
+                format!(
+                    "leg {:.2} m, ends y {:+.2}/{:+.2} from the trap, {}, floors {}/{}",
+                    off_route_m(&[w[0].at, w[1].at], disc),
+                    w[0].at.y - disc.y,
+                    w[1].at.y - disc.y,
+                    if w[1].jump.is_some() { "a jump" } else { "a walk" },
+                    if field.open(w[0].node) { "open" } else { "shut" },
+                    if field.open(w[1].node) { "open" } else { "shut" }
+                )
+            });
+        eprintln!(
+            "  own trap route refused: t {now} place {} play {:?} start {:.2} m end {:.2} m nearest pass {pass:.2} m length {:.1} at ({:.1}, {:.1}, {:.1}); {leg}",
+            bot.place,
+            bot.assignment.as_ref().map(|a| a.kind),
+            feet.distance_xz(disc),
+            end.distance_xz(disc),
+            route.length(),
+            disc.x,
+            disc.y,
+            disc.z
+        );
+    }
+    own_trap_note(bot, now, format!("a route of {:.1} m refused: it passes an own trap nearer than {reach:.2} m", route.length()));
+    let out = step_out(&field, feet, |to| tactics.clear_step_for(feet, to, now, bot.side, objective), &tactics.world.grid);
+    if out.is_some() {
+        own_trap_note(bot, now, "a step out of an own trap's disc instead".to_string());
+    }
+    out
+}
+
+/// The ways a step out of a disc tries, degrees off straight away from the trap, in order.
+const STEP_OUT_TURNS_DEG: [f32; 5] = [0.0, 30.0, -30.0, 60.0, -60.0];
+
+/// [#2081] From inside the disc of the own trap of `field` nearest `feet`, a straight step out to `OWN_TRAP_CLEAR_M` +
+/// [`STEP_OUT_PAST_M`] from it: straight away, else 30 or 60 degrees off that ([`STEP_OUT_TURNS_DEG`]), the first whose end is a
+/// floor of the feet's level, whose ground is clear for a step (`clear`) and which keeps the clearance from every disc. A two-point
+/// route; none outside every disc or with no way out.
+fn step_out(field: &TrapField, feet: Vec3, clear: impl Fn(Vec3) -> bool, grid: &WalkGrid) -> Option<super::path::Route> {
+    use super::path::{Route, Waypoint};
+    let reach = field.reach().max(FIELD_M);
+    let disc = field
+        .discs()
+        .iter()
+        .filter(|d| d.distance_xz(feet) < reach && (d.y - feet.y).abs() < OTHER_FLOOR_M)
+        .min_by(|a, b| a.distance_xz(feet).total_cmp(&b.distance_xz(feet)))?;
+    let away = (feet.z - disc.z).atan2(feet.x - disc.x);
+    let from = grid.locate(feet, 1.5)?;
+    let point = |at: Vec3, node| Waypoint { at, node, jump: None, low: false };
+    STEP_OUT_TURNS_DEG.iter().find_map(|turn| {
+        let a = away + turn.to_radians();
+        let want = Vec3::new(disc.x + a.cos() * (reach + STEP_OUT_PAST_M), feet.y, disc.z + a.sin() * (reach + STEP_OUT_PAST_M));
+        let to = grid.locate(want, 0.6)?;
+        let end = grid.position(to);
+        ((end.y - feet.y).abs() < 1.0 && clear(end) && keeps_clear(&[feet, end], field.discs(), feet, reach))
+            .then(|| Route::new(vec![point(feet, from), point(end, to)]))
+    })
+}
+
+/// [#2081] Whether the step from `from` to `to` keeps the clearance from the team's own traps of `field` ([`keeps_clear`]): the
+/// fight's side step and the step apart from a mate take no step onto one.
+pub(super) fn step_keeps_clear(field: &TrapField, from: Vec3, to: Vec3) -> bool {
+    field.is_empty() || keeps_clear(&[from, to], field.discs(), from, field.reach().max(FIELD_M))
+}
+
+/// [#2081] The zone round a known own trap the bench measures the feet off route in, metres ([`TIGHT_WALK_P90_M`] was measured in
+/// it; the tight walk that used it is dropped: 1.47 m rests on the P90 of every walk).
+pub const TIGHT_ZONE_M: f32 = 3.0;
+
+
+/// [#2081] What the own-trap guard made of a tick's keys ([`own_trap_guard`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OwnTrapGuard {
+    /// No known trap within contact of the keys' path, or the path leaves it: the keys as they are.
+    Clear,
+    /// These keys instead keep out of contact.
+    Swapped(u32),
+    /// None does: the brake against the velocity (or no move key at rest).
+    Braked(u32),
+}
+
+/// [#2081] The ticks the guard holds the keys before their stop: the lip guard's (`Feel::lip_guard_ticks`, 2).
+pub const GUARD_HOLD_TICKS: u32 = 2;
+
+/// [#2081] The feet over the next ticks with `keys` held for `hold` ticks, then let go: the body's velocity blends linearly from
+/// `velocity` to the keys' target (`Kinematics::target_velocity` at speed level 1, the fastest a kit moves) over
+/// `Kinematics::blend_ticks`, a new target starting a new blend from the velocity then, as the frozen blend does; `turn` once.
+/// The ground plane only: no walls, no falls (the lip guard's), so a path may run through a wall: the safe side.
+pub fn forecast(kin: &super::kin::Kinematics, feet: Vec3, velocity: [f32; 2], yaw: f32, turn: f32, keys: u32, hold: u32) -> Vec<Vec3> {
+    const MOVE: u32 = super::key::FORWARD | super::key::BACK | super::key::LEFT | super::key::RIGHT | super::key::SPRINT;
+    let blend = kin.blend_ticks.max(1);
+    let mut at = feet;
+    let mut points = vec![at];
+    let (mut from, mut to, mut step) = (velocity, kin.target_velocity(keys, yaw + turn, 1.0), 0u32);
+    for k in 0..blend + hold + 2 {
+        if k == hold {
+            let now = [from[0] + (to[0] - from[0]) * (step as f32 / blend as f32).min(1.0), from[1] + (to[1] - from[1]) * (step as f32 / blend as f32).min(1.0)];
+            (from, to, step) = (now, kin.target_velocity(keys & !MOVE, yaw + turn, 1.0), 0);
+        }
+        step += 1;
+        let t = (step as f32 / blend as f32).min(1.0);
+        let v = [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t];
+        at = Vec3::new(at.x + v[0] * super::kin::TICK_S, at.y, at.z + v[1] * super::kin::TICK_S);
+        points.push(at);
+    }
+    points
+}
+
+/// [#2081] A trap the own-trap guard keeps out of: where, and the nearest the body's forecast may come ([`OWN_TRAP_CONTACT_M`] and
+/// the margins of [`guard_discs`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GuardDisc {
+    pub at: Vec3,
+    pub contact: f32,
+}
+
+impl From<Vec3> for GuardDisc {
+    /// The bare contact.
+    fn from(at: Vec3) -> Self {
+        Self { at, contact: OWN_TRAP_CONTACT_M }
+    }
+}
+
+/// [#2081] Whether the path `points` from `feet` comes within its contact of a trap of `discs` while nearer it than `feet` are (a
+/// body inside contact may leave). Each leg is tested against the traps on its own floor: a fall's landing on a trap below counts
+/// (the bench's tdm s3: a placer walked off a 1.5 m ledge onto its trap), as the route's check reads its legs.
+pub fn path_touches(points: &[Vec3], discs: &[GuardDisc], feet: Vec3) -> bool {
+    discs.iter().any(|disc| {
+        let on = |p: Vec3| (p.y - disc.at.y).abs() < OTHER_FLOOR_M;
+        let now = if on(feet) { feet.distance_xz(disc.at) } else { f32::INFINITY };
+        let nearest = match points {
+            [one] => if on(*one) { one.distance_xz(disc.at) } else { f32::INFINITY },
+            _ => points.windows(2).filter(|leg| on(leg[0]) || on(leg[1])).map(|leg| off_route_m(leg, disc.at)).fold(f32::INFINITY, f32::min),
+        };
+        nearest < disc.contact && nearest < now - 0.01
+    })
+}
+
+/// [#2081] The margin for the reckoning's own error on a bot's feet by the age of its last world, metres: the drift lab's
+/// (`bots::tests::drift_replay::drift_on_a_real_match`, build 8d9d1f606: the server's reckoning of each bot's body from each world
+/// against the client's feet at the next) flat error P90, 0.128 m at 250 ms, 0.153 m at 500 ms, 0.230 m at 1,000 ms (12,074 /
+/// 17,611 / 16,415 intervals of firing bots), between the rows on a line, held past the ends.
+pub fn reckon_margin_m(age_ms: u32) -> f32 {
+    const ROWS: [(f32, f32); 3] = [(250.0, 0.128), (500.0, 0.153), (1_000.0, 0.230)];
+    let age = age_ms as f32;
+    if age <= ROWS[0].0 {
+        return ROWS[0].1;
+    }
+    for w in ROWS.windows(2) {
+        let ((a0, m0), (a1, m1)) = (w[0], w[1]);
+        if age <= a1 {
+            return m0 + (m1 - m0) * (age - a0) / (a1 - a0);
+        }
+    }
+    ROWS[2].1
+}
+
+/// [#2081] The margin for a trap no world shows yet, metres: the team's promise is the press's own landing, and the trap lies off it
+/// by the bench's promise -> world offsets ([`super::trap_know::landing_offsets`]): their P99, 51 offsets of 8 plain matches
+/// (Rudnya TDM and Batteries, 600 s; P90 0.30-0.34 m, P95 0.37-0.42 m, and the P99 of 51 their largest, 0.71 m). The world showed
+/// the trap 250-2,000 ms after the release (P90 about 1 s), the window this margin stands for. The team's field shuts its floors
+/// that much farther round a promised trap too (`TrapField::shut_promised_within`).
+pub const PROMISE_MARGIN_M: f32 = 0.71;
+
+/// [#2081] The traps the guard keeps `bot` out of, with their contact: its team's field (each at the world's armed trap within the
+/// promise match `match_m` as soon as a world shows it, [`BotState::world_armed`]; until then at the promise, with
+/// [`PROMISE_MARGIN_M`]) and the traps it noticed (at the world's place), all with the reckoning's margin for the age of the bot's
+/// last world `age_ms` ([`reckon_margin_m`]); not those in `skip`.
+fn guard_discs(bot: &Bot, match_m: f32, age_ms: u32, skip: &[Vec3]) -> Vec<GuardDisc> {
+    let reckon = reckon_margin_m(age_ms);
+    let world = &bot.features.traps.world_armed;
+    let team = bot.features.traps.field.discs().iter().map(|&d| {
+        match world.iter().filter(|w| w.distance_xz(d) <= match_m && (w.y - d.y).abs() < OTHER_FLOOR_M).min_by(|a, b| a.distance_xz(d).total_cmp(&b.distance_xz(d))) {
+            Some(&w) => GuardDisc { at: w, contact: OWN_TRAP_CONTACT_M + reckon },
+            None => GuardDisc { at: d, contact: OWN_TRAP_CONTACT_M + reckon + PROMISE_MARGIN_M },
+        }
+    });
+    let noticed = bot.features.traps.react.field().discs().iter().map(|&d| GuardDisc { at: d, contact: OWN_TRAP_CONTACT_M + reckon });
+    team.chain(noticed).filter(|d| !skip.contains(&d.at)).collect()
+}
+
+/// [#2081] The own-trap guard at the motor's last stage (after the lip guard, `drive.rs`): the tick's keys `keys` (the view turns
+/// `turn`) played forward by `path_of` (the body's stop forecast, `body::stop_path`; [`forecast`] on the ground plane in tests); keys whose path touches a trap of `discs` ([`path_touches`]) give way to the same without
+/// sprint, without the side keys, without either, to no move key, or to the brake against the velocity, the first that does not
+/// and that `allowed` lets stand (the lip guard's test: dodging a trap never steps a body off a ledge; the brake is that guard's own
+/// last resort).
+/// Every mover's keys pass it: the route walk, the fight's side step and weave, the step apart, unstick, a retreat's or a dodge's
+/// steps, a sprint's carry past a route's end, a goal or hold point inside a disc. A jump (`jumping`: its press tick, its air time) is
+/// left alone, its line-up is not: in the air over a trap is legal (the sensor is 0.2 m high), and its landing is a waypoint of the route, held to the
+/// clearance by the route's check ([`own_trap_route`]). A push by a mate's body is not keys: not guarded.
+#[allow(clippy::too_many_arguments)]
+pub fn own_trap_guard(
+    path_of: impl Fn(u32) -> Vec<Vec3>,
+    allowed: impl Fn(u32) -> bool,
+    feet: Vec3,
+    velocity: [f32; 2],
+    yaw: f32,
+    turn: f32,
+    keys: u32,
+    discs: &[GuardDisc],
+    jumping: bool,
+) -> OwnTrapGuard {
+    use super::key;
+    const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
+    if jumping || discs.iter().all(|d| d.at.distance_xz(feet) > 8.0) {
+        return OwnTrapGuard::Clear;
+    }
+    let touches = |k: u32| path_touches(&path_of(k), discs, feet);
+    if !touches(keys) {
+        return OwnTrapGuard::Clear;
+    }
+    let walk = keys & !key::SPRINT;
+    let straight = keys & !(key::LEFT | key::RIGHT);
+    if let Some(k) = [walk, straight, straight & !key::SPRINT, keys & !MOVE].into_iter().filter(|&k| k != keys).find(|&k| !touches(k) && allowed(k)) {
+        return OwnTrapGuard::Swapped(k);
+    }
+    let speed = velocity[0].hypot(velocity[1]);
+    let brake = if speed > super::drive::LIP_GLIDE_MPS {
+        let relative = super::kin::wrap(super::kin::yaw_of([-velocity[0], -velocity[1]]) - (yaw + turn));
+        (keys & !MOVE) | super::motor::keys_toward(relative)
+    } else {
+        keys & !MOVE
+    };
+    OwnTrapGuard::Braked(brake)
+}
+
+/// [#2081] [`own_trap_guard`] on the tick's decision: the team's known traps (its field, with those only it knows) and the traps of
+/// others it noticed (`trap_react`, a human mate's among them); a note and a count when it changes the keys.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn guard_own_traps(
+    bot: &mut Bot,
+    keys: u32,
+    turn: f32,
+    me: &PlaceView,
+    tuning: &super::tuning::Tuning,
+    grid: &WalkGrid,
+    allowed: impl Fn(u32) -> bool,
+    now: u32,
+) -> Option<u32> {
+    #[cfg(test)]
+    {
+        bot.features.traps.guard_seen = Some((now, me.feet));
+    }
+    let kin = &tuning.kin;
+    // A noticed trap its route jumps is left to the jump's run-up (`trap_react::jump_due` presses it 0.3-1.1 m before the trap,
+    // where a run's stop forecast already touches it).
+    let run_up = super::trap_react::run_up(bot, me, now, &tuning.traps.react);
+    let discs = guard_discs(bot, tuning.traps.promise_match.metres(), me.known_at.saturating_sub(me.seen_at), &run_up);
+    if discs.is_empty() {
+        bot.features.traps.guard_stall = None;
+        return None;
+    }
+    // The press's own tick, or a body in the jump's air time (`body::JUMP_AIR_MS`, the press gate's); a line-up and a press held
+    // for its gate walk on the ground and are guarded (the bench's batt s2: a line-up walked a placer onto its trap).
+    let airborne = bot.jump_watch.as_ref().is_some_and(|watch| now < watch.at + super::body::JUMP_AIR_MS);
+    let jumping = keys & super::key::JUMP != 0 || airborne;
+    // The body's own stop forecast, as the lip guard's (its kept controller, at speed level 1: the fastest a kit moves).
+    let at = super::body::Estimate { kept: bot.reckoned_kept, ..super::body::Estimate::of_view(me, grid.locate(me.feet, 1.5)) };
+    let stop = super::body::Stop { kin, level: 1.0, grid, planned: &[], hold: GUARD_HOLD_TICKS };
+    let path_of = |k: u32| super::body::stop_path(&at, k, turn, &stop);
+    let guard = own_trap_guard(path_of, allowed, me.feet, me.velocity, me.yaw, turn, keys, &discs, jumping);
+    // A route the guard holds at rest (no move key, the body slower than the lip guard's glide) past the longest think gap is one
+    // the body cannot walk: it ends, and the noticed traps it ran into are shut for the bot's searches (the team's are already).
+    const MOVE: u32 = super::key::FORWARD | super::key::BACK | super::key::LEFT | super::key::RIGHT | super::key::SPRINT;
+    let at_rest = matches!(guard, OwnTrapGuard::Swapped(k) | OwnTrapGuard::Braked(k) if k & MOVE == 0) && me.speed() < super::drive::LIP_GLIDE_MPS;
+    #[cfg(test)]
+    if at_rest && bot.route.is_none() {
+        own_trap_counts::bump(own_trap_counts::HELD_WITHOUT_ROUTE);
+    }
+    let held = at_rest && bot.route.is_some();
+    bot.features.traps.guard_stall = if held { Some(bot.features.traps.guard_stall.unwrap_or(now)) } else { None };
+    if let Some(since) = bot.features.traps.guard_stall.filter(|&since| now.saturating_sub(since) >= tuning.think.think_ms.1) {
+        let path = path_of(keys);
+        let touched: Vec<Vec3> = discs.iter().filter(|d| path_touches(&path, &[**d], me.feet)).map(|d| d.at).collect();
+        let shut = bot.features.traps.react.block(&touched, grid);
+        bot.features.traps.guard_stall = None;
+        bot.end_route(super::route_end::RouteEnd::TrapAhead, now);
+        own_trap_note(bot, now, format!("the guard held the route at rest {} ms: ended, {shut} noticed trap(s) shut", now - since));
+    }
+    match guard {
+        OwnTrapGuard::Clear => None,
+        OwnTrapGuard::Swapped(k) | OwnTrapGuard::Braked(k) => {
+            own_trap_note(bot, now, format!("the guard changed keys {keys:#x} to {k:#x}: they ran within contact of an own trap"));
+            Some(k)
+        }
+    }
+}
+
+/// [#2081] A note of a refusal or a re-route for an own trap, at most one a second a bot (a side step is asked every tick); the
+/// bench counts every one.
+pub(super) fn own_trap_note(bot: &mut Bot, now: u32, what: String) {
+    #[cfg(test)]
+    own_trap_counts::count(&what);
+    if bot.features.traps.own_trap_noted.is_some_and(|t| now < t.saturating_add(1_000)) {
+        return;
+    }
+    bot.features.traps.own_trap_noted = Some(now);
+    bot.features.traps.notes.push((now, format!("{}own trap: {what}", tally::PREFIX)));
+}
+
+/// [#2081 FIX 2] The bench's feet off the route within 3 m of a standing own trap, by mover, at the thinks.
+#[cfg(test)]
+pub mod tight {
+    use std::sync::Mutex;
+
+    pub const WALK: usize = 0;
+    pub const SPRINT: usize = 1;
+    pub const WEAVE: usize = 2;
+    pub const SIDE: usize = 3;
+    pub const APART: usize = 4;
+    pub const NAMES: [&str; 5] = ["walk", "sprint", "weave", "side step", "step apart"];
+    /// Faster than the forward walk's 3.5 m/s (`kin.rs`) and short of the sprint's 4.9587: a sprint.
+    pub const SPRINT_MPS: f32 = 4.2;
+    static OFF: Mutex<[Vec<f32>; 5]> = Mutex::new([const { Vec::new() }; 5]);
+
+    pub fn add(mover: usize, off: f32) {
+        if let Ok(mut o) = OFF.lock() {
+            o[mover].push(off);
+        }
+    }
+
+    pub fn line() -> String {
+        let Ok(o) = OFF.lock() else { return String::new() };
+        NAMES
+            .iter()
+            .zip(o.iter())
+            .map(|(n, v)| {
+                let mut v = v.clone();
+                v.sort_by(f32::total_cmp);
+                let q = |p: f32| v.get(((v.len() as f32 * p) as usize).min(v.len().saturating_sub(1))).copied().unwrap_or(f32::NAN);
+                format!("{n} n {} P50 {:.2} P90 {:.2} P95 {:.2} P99 {:.2} max {:.2}", v.len(), q(0.5), q(0.9), q(0.95), q(0.99), v.last().copied().unwrap_or(f32::NAN))
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
+}
+
+/// [#2081] The bench's counts of the refusals and re-routes for own traps, by kind.
+#[cfg(test)]
+pub mod own_trap_counts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub const NAMES: [&str; 9] = [
+        "route refused",
+        "route dropped",
+        "side step refused",
+        "step apart refused",
+        "keys guarded",
+        "held route ended",
+        "noticed route dropped",
+        "held ticks without a route",
+        "fallback routes",
+    ];
+    /// [`NAMES`]' indices counted by [`bump`] rather than by a note.
+    pub const NOTICED_ROUTE_DROPPED: usize = 6;
+    pub const HELD_WITHOUT_ROUTE: usize = 7;
+    static COUNTS: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
+
+    pub fn bump(k: usize) {
+        COUNTS[k].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn count(what: &str) {
+        let k = if what.starts_with("a route of") {
+            0
+        } else if what.starts_with("the route ahead") {
+            1
+        } else if what.starts_with("a side step") {
+            2
+        } else if what.starts_with("the guard held") {
+            5
+        } else if what.starts_with("a fallback route") {
+            8
+        } else if what.starts_with("the guard") {
+            4
+        } else {
+            3
+        };
+        COUNTS[k].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn line() -> String {
+        NAMES.iter().zip(&COUNTS).map(|(n, c)| format!("{n} {}", c.load(Ordering::Relaxed))).collect::<Vec<_>>().join(", ")
+    }
+}
 
 /// A route that runs over a trap's disc within [`KEEP_OFF_M`] is dropped, to
 /// be searched again round it (the searches shut the floors of the discs,
@@ -1501,8 +2439,16 @@ pub(super) fn keep_off(bot: &mut Bot, due: &Due) {
         return;
     }
     let field = bot.features.traps.field.clone();
-    if route_hits(bot, &field, due.me.feet) {
+    // [#2081] A fallback route is held to the reach it was searched with ([`FALLBACK_REACH_M`]): keep_off never drops the way
+    // the fallback found (the search / keep_off loop of the original catches).
+    let fallback = on_fallback(bot);
+    let reach = if fallback { FALLBACK_REACH_M } else { field.reach().max(FIELD_M) };
+    if route_hits_within(bot, &field, due.me.feet, reach) {
         bot.end_route(RouteEnd::TrapAhead, due.now);
+        own_trap_note(bot, due.now, format!("the route ahead dropped: it passes an own trap nearer than {reach:.2} m"));
+        return;
+    }
+    if fallback {
         return;
     }
     // The ring: a route planned before the trap, or before this change of the traps, that runs within it is
@@ -1521,10 +2467,79 @@ fn near_a_disc(field: &TrapField, feet: Vec3) -> bool {
     field.discs().iter().any(|disc| disc.distance_xz(feet) < KEEP_OFF_M)
 }
 
-/// Whether the route of the bot runs over a disc of `field` within
-/// [`KEEP_OFF_M`] ahead of `feet`.
+/// Whether the route of the bot, within [`KEEP_OFF_M`] ahead of `feet`, breaks the clearance from a disc of `field`
+/// ([`keeps_clear`], the rule its search's route was checked by).
 pub(super) fn route_hits(bot: &Bot, field: &TrapField, feet: Vec3) -> bool {
-    route_within(bot, field, feet, field.reach().max(FIELD_M) - 0.05)
+    route_hits_within(bot, field, feet, field.reach().max(FIELD_M))
+}
+
+/// [`route_hits`] at `reach`.
+fn route_hits_within(bot: &Bot, field: &TrapField, feet: Vec3, reach: f32) -> bool {
+    if !near_a_disc(field, feet) {
+        return false;
+    }
+    let Some((route, _)) = bot.route.as_ref() else {
+        return false;
+    };
+    !route_keeps_clear(&route_points(route, feet, KEEP_OFF_M), field.discs(), feet, Some(route.end()), reach)
+}
+
+/// [#2081] The reach of the fallback search's own-trap discs, metres: the guard's contact with its largest reckoning margin,
+/// [`OWN_TRAP_CONTACT_M`] + the drift lab's 1,000 ms P90 0.230 m ([`reckon_margin_m`]). A search with no way at the clearance
+/// searches once more with the team's own traps shut only this far (the bench's batt s4: a battery carrier 2.24 m from its own
+/// trap, the only way out of where it stood within 1.47 m of it, stood 140 s); the motor's guard keeps the body off the trap.
+pub const FALLBACK_REACH_M: f32 = OWN_TRAP_CONTACT_M + 0.230;
+
+/// [#2081] The route the fallback search gave, marked by its end and length: the route check and keep_off hold it to
+/// [`FALLBACK_REACH_M`]; any other route the bot takes is judged at the clearance.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FallbackRoute {
+    pub end: Vec3,
+    pub length: f32,
+}
+
+/// [#2081] Whether the bot walks the route the fallback search gave.
+pub(super) fn on_fallback(bot: &Bot) -> bool {
+    match (bot.features.traps.fallback, bot.route.as_ref()) {
+        (Some(m), Some((route, _))) => route.end().distance_xz(m.end) < 0.01 && (route.end().y - m.end.y).abs() < 0.01 && (route.length() - m.length).abs() < 0.01,
+        _ => false,
+    }
+}
+
+/// [#2081] The team's own traps' field at [`FALLBACK_REACH_M`] for the fallback search, built again only when the field changes.
+pub(super) fn fallback_field(bot: &mut Bot, grid: &WalkGrid) -> Arc<TrapField> {
+    let field = bot.features.traps.field.clone();
+    if let Some((of, narrow)) = &bot.features.traps.fallback_field
+        && Arc::ptr_eq(of, &field)
+    {
+        return narrow.clone();
+    }
+    let narrow = Arc::new(TrapField::round_within(field.discs().to_vec(), grid, FALLBACK_REACH_M));
+    bot.features.traps.fallback_field = Some((field, narrow.clone()));
+    narrow
+}
+
+/// [#2081] [`filter`] with `field`'s floors as the team's (the fallback search's narrow field).
+pub(super) fn filter_within(bot: &Bot, field: &Arc<TrapField>, landings: Vec<super::stuck::Shut>, start: Option<NodeId>) -> RouteFilter {
+    filter_of(bot, field, landings, start)
+}
+
+/// [#2081] Marks the route the bot just took as the fallback search's, with a note: its length, the nearest own trap from its start
+/// and its goal.
+pub(super) fn mark_fallback(bot: &mut Bot, now: u32) {
+    let Some((route, goal)) = bot.route.as_ref() else {
+        bot.features.traps.fallback = None;
+        return;
+    };
+    let (end, length, start, goal) = (route.end(), route.length(), route.point_at(0.0), *goal);
+    bot.features.traps.fallback = Some(FallbackRoute { end, length });
+    let nearest = |p: Vec3| bot.features.traps.field.discs().iter().map(|d| d.distance_xz(p)).fold(f32::INFINITY, f32::min);
+    let (from_start, from_goal) = (nearest(start), nearest(goal));
+    own_trap_note(
+        bot,
+        now,
+        format!("a fallback route of {length:.1} m: no way at the clearance; the nearest own trap {from_start:.2} m from its start, {from_goal:.2} m from its goal"),
+    );
 }
 
 /// Whether the route of the bot runs within `reach` metres of a disc of `field` within [`KEEP_OFF_M`] ahead of
@@ -1564,23 +2579,20 @@ pub(super) fn filter(bot: &Bot, landings: Vec<super::stuck::Shut>, start: Option
     filter_of(bot, &bot.features.traps.field, landings, start)
 }
 
-/// [keep_off] [`filter`] with the team's traps shut only within `FIELD_M`: a search's fallback when the wider field leaves it no way.
-pub(super) fn filter_narrow(bot: &Bot, landings: Vec<super::stuck::Shut>, start: Option<NodeId>) -> RouteFilter {
-    filter_of(bot, &bot.features.traps.narrow, landings, start)
-}
-
 /// [`filter`] with the team's traps of `field`.
 fn filter_of(bot: &Bot, field: &Arc<TrapField>, landings: Vec<super::stuck::Shut>, start: Option<NodeId>) -> RouteFilter {
     let filter = RouteFilter::shutting_landings(landings);
     let fresh = bot.features.traps.fresh_shut.clone();
-    if field.is_empty() && fresh.is_empty() {
+    // [#2081] The noticed traps whose way over the guard held at rest (`React::block`).
+    let blocked = bot.features.traps.react.blocked_field().clone();
+    if field.is_empty() && fresh.is_empty() && blocked.is_empty() {
         return filter;
     }
     let field = field.clone();
     let inside = bot.features.traps.keep_off_open.clone();
     filter.with_floors(move |node| {
         Some(node) == start
-            || ((field.open(node) || inside.binary_search(&node).is_ok()) && fresh.binary_search(&node).is_err())
+            || ((field.open(node) || inside.binary_search(&node).is_ok()) && fresh.binary_search(&node).is_err() && blocked.open(node))
     })
 }
 
@@ -1597,13 +2609,15 @@ fn keep_off_open(bot: &mut Bot, due: &Due, t: &TrapTuning) {
     let feet = due.me.feet;
     let grid = &due.tactics.world.grid;
     let mut open: Vec<NodeId> = Vec::new();
-    for at in bot.features.traps.field.discs().iter().filter(|d| d.distance_xz(feet) < k.hard_m) {
+    // [#2081] As far as a promised trap's wider shut floors (`PROMISE_MARGIN_M`): a placer by its fresh trap is never shut in.
+    let reach = k.hard_m + PROMISE_MARGIN_M;
+    for at in bot.features.traps.field.discs().iter().filter(|d| d.distance_xz(feet) < reach) {
         let mine = feet.distance_xz(*at);
-        let area = [at.x - k.hard_m, at.z - k.hard_m, at.x + k.hard_m, at.z + k.hard_m];
+        let area = [at.x - reach, at.z - reach, at.x + reach, at.z + reach];
         open.extend(grid.floors_in(area).filter(|&node| {
             let p = grid.position(node);
             let d = p.distance_xz(*at);
-            d <= k.hard_m && d >= FIELD_M && d > mine + 0.1 && (p.y - at.y).abs() < 1.0
+            d <= reach && d >= FIELD_M && d > mine + 0.1 && (p.y - at.y).abs() < 1.0
         }));
     }
     open.sort_unstable();
@@ -1638,6 +2652,19 @@ fn fresh_shut(bot: &mut Bot, due: &Due, ring_m: f32) {
     bot.features.traps.fresh_shut = std::sync::Arc::new(shut);
 }
 
+/// [#2081] Whether a standing trap of the team is missing from `bot`'s field and the bot is its placer or sees its placer's body now
+/// (`aimpoint::body_shows`, the sense's body parts from its eye).
+fn knows_a_new_trap(bot: &Bot, due: &Due, state: &TeamState) -> bool {
+    let mine = bot.features.traps.field.discs();
+    state.knowledge.traps.standing().filter(|k| !mine.iter().any(|d| d.distance_xz(k.at) < 0.05)).any(|k| {
+        k.by == bot.place
+            || due
+                .view
+                .place(k.by)
+                .is_some_and(|p| p.alive && super::aimpoint::body_shows(&due.tactics.world.sight, due.me.eye(), p.feet, p.crouched()))
+    })
+}
+
 /// A think: whether this bot starts to put a trap down.
 pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut Vec<super::Note>) {
     let t = &due.tuning.traps;
@@ -1651,13 +2678,26 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     if let Some((at, released)) = bot.features.traps.placed.take() {
         state.knowledge.traps.promise(bot.place, at, released);
         state.refresh_traps(&due.tactics.world.grid, t.ring_m, t.keep_off);
+    }
+    // [#2081] A trap the team's field has and this bot's does not: taken at this think when the bot is its placer or sees its
+    // placer now (the game draws an armed trap for every team, 0x247EF0; a mate who watches the placer sees it put down); every
+    // other bot takes the team's field at the commander tick.
+    if knows_a_new_trap(bot, due, state) {
         take_fields(bot, state, &due.tactics.world.grid, t.ring_m, t.keep_off);
     }
     fresh_shut(bot, due, t.ring_m);
     keep_off_open(bot, due, t);
+    #[cfg(test)]
+    let pre = passes::route_near(bot, due, state);
     keep_off(bot, due);
     #[cfg(test)]
-    passes::observe(bot, due, state);
+    passes::observe(bot, due, state, pre);
+    #[cfg(test)]
+    if !matches!(bot.features.traps.habit.state(), State::Idle)
+        && let Some(c) = bot.features.traps.look_ctx.as_mut()
+    {
+        c.truth_last_m = placing::truth(due.view, me.team, me.feet);
+    }
     if let Err(refusal) = bot.features.traps.habit.may_plan(t) {
         bot.features.traps.tally.may_not(refusal);
         return;
@@ -1701,6 +2741,21 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     if let Err(refusal) = gate(&facts, t) {
         let near = (refusal == Refusal::Enemy).then(|| enemy_near_kind(bot, due)).flatten();
         bot.features.traps.tally.refused(refusal, near);
+        // [A324] A sent bot's "enemy seen" at its point: whom it saw (its camper among them, or only others), from what pose,
+        // the nearest how far; summed on its job for the job's note, and counted.
+        if refusal == Refusal::Enemy
+            && job.is_some()
+            && let Some(point) = state.knowledge.camper_traps.iter_mut().find(
+                |c| matches!(c.state, super::know::CamperTrapState::Sent { placer, .. } if placer == bot.place),
+            )
+        {
+            let seen = bot.memory.all_seen(due.now, due.view.clock);
+            let camper = seen.iter().any(|s| s.track().who == point.shooter);
+            let nearest = seen.iter().map(|s| s.track().at.distance_xz(me.feet)).fold(f32::INFINITY, f32::min);
+            point.seen.add(camper, me.crouched(), nearest);
+            #[cfg(test)]
+            camper::seen(me.team, camper, me.crouched(), nearest);
+        }
         #[cfg(test)]
         {
             gates::count(gates::of(refusal));
@@ -1777,72 +2832,9 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         .standing()
         .map(|trap| trap.at)
         .collect();
-    // [A145] The spots of killed holders this route passes, that no trap of the team stands on.
-    let wished_spots: Vec<Vec3> = match t.at_defeated {
-        Some(d) => {
-            let keep_ms = (d.keep_s * 1000.0) as u32;
-            let route = &ahead[..(d.ahead_m as usize).min(ahead.len())];
-            state
-                .knowledge
-                .defeated
-                .iter()
-                .filter(|w| due.now.saturating_sub(w.time) <= keep_ms)
-                .map(|w| w.at)
-                .filter(|at| !own.iter().any(|own| own.distance_xz(*at) <= d.within_m))
-                .filter(|at| {
-                    if staying {
-                        me.feet.distance_xz(*at) <= d.within_m + reach_m
-                    } else {
-                        off_route_m(route, *at) <= d.within_m
-                    }
-                })
-                .collect()
-        }
-        None => Vec::new(),
-    };
-    // [A145, at_cleared] The death point of a camper a team job just killed, wished of this bot (the job's placer), when its route
-    // passes it or it stands by it: it goes before the defeated holders' spots.
-    let cleared_spots: Vec<Vec3> = match t.at_cleared {
-        Some(c) => {
-            let keep_ms = (c.keep_s * 1000.0) as u32;
-            let route = &ahead[..(c.ahead_m as usize).min(ahead.len())];
-            state
-                .knowledge
-                .cleared
-                .iter()
-                .filter(|w| w.placer == bot.place && due.now.saturating_sub(w.time) <= keep_ms)
-                .map(|w| w.at)
-                .filter(|at| !own.iter().any(|own| own.distance_xz(*at) <= c.within_m))
-                .filter(|at| {
-                    if staying {
-                        me.feet.distance_xz(*at) <= c.within_m + reach_m
-                    } else {
-                        off_route_m(route, *at) <= c.within_m
-                    }
-                })
-                .collect()
-        }
-        None => Vec::new(),
-    };
+    // [A324] A sent bot's point is the one wished spot (the calm habit wishes none: a camper's place is the job's).
     let job_spots: Vec<Vec3> = job.map(|(at, _)| at).into_iter().collect();
-    let wish = match t.at_cleared.filter(|_| !cleared_spots.is_empty()) {
-        Some(c) => Some(Wish {
-            spots: &cleared_spots,
-            within_m: c.within_m,
-            friend_m: c.friend_m,
-        }),
-        None => t.at_defeated.filter(|_| !wished_spots.is_empty()).map(|d| Wish {
-            spots: &wished_spots,
-            within_m: d.within_m,
-            friend_m: d.friend_m,
-        }),
-    };
-    // [A324] The job's point goes before every other.
-    let wish = match job {
-        Some((_, j)) => Some(Wish { spots: &job_spots, within_m: j.within_m, friend_m: j.friend_m }),
-        None => wish,
-    };
-    let on_cleared = !cleared_spots.is_empty() && job.is_none();
+    let wish = job.map(|(_, j)| Wish { spots: &job_spots, within_m: j.within_m, friend_m: j.friend_m });
     let search = Search {
         t,
         reach_m,
@@ -1873,18 +2865,10 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     // [A145] A spot of a killed holder ahead on the route that no candidate here is on yet: wait for the body to reach it.
     if let Some(wish) = wish {
         #[cfg(test)]
-        if on_cleared {
-            cleared::count(me.team, cleared::THINKS);
-        } else {
-            defeated::count_team(me.team, defeated::THINKS);
-        }
+        defeated::count_team(me.team, defeated::THINKS);
         if !chosen.is_some_and(|c| c.wished) && wish.spots.iter().any(|at| me.feet.distance_xz(*at) > wish.within_m + reach_m + 1.0) {
             #[cfg(test)]
-            if on_cleared {
-                cleared::count(me.team, cleared::WAITED);
-            } else {
-                defeated::count_team(me.team, defeated::WAITED);
-            }
+            defeated::count_team(me.team, defeated::WAITED);
             bot.features.traps.tally.waited_wish();
             #[cfg(test)]
             if job.is_some() {
@@ -1893,7 +2877,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
             return;
         }
     }
-    let at_defeated = chosen.is_some_and(|c| c.wished);
+    let wished = chosen.is_some_and(|c| c.wished);
     #[cfg(test)]
     if waiting {
         if chosen.is_none() {
@@ -1906,7 +2890,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     let lanes = lanes_of(t, state);
     let here = chosen.map(|c| presence(lanes, c.spot, due.now));
     // Place on the pass: a cell ahead on the route that is richer in enemy lanes than this spot is waited for.
-    if let Some(pass) = t.on_the_pass.filter(|_| !staying && !at_defeated) {
+    if let Some(pass) = t.on_the_pass.filter(|_| !staying && !wished) {
         let last = (pass.route_ahead_m as usize).min(ahead.len().saturating_sub(1));
         let cells: Vec<(usize, f32)> = (PASS_FIRST_M..=last)
             .step_by(PASS_STRIDE_M)
@@ -1943,14 +2927,11 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     // [A324] A sent bot puts its trap only by its point.
     if let Some(chosen) = chosen.filter(|c| job.is_none() || c.wished) {
         #[cfg(test)]
-        if chosen.wished && on_cleared {
-            cleared::placed(me.team, bot.place, due.now);
-        } else if chosen.wished {
+        if chosen.wished {
             defeated::count_team(me.team, defeated::PLACED);
-        }
-        // [A145] A death point wished of this bot is spent once it plans its trap there.
-        if chosen.wished && on_cleared {
-            state.knowledge.cleared.retain(|w| !(w.placer == bot.place && w.at.distance_xz(chosen.spot) <= t.at_cleared.map_or(0.0, |c| c.within_m) + 0.5));
+            if let Some(point) = camper_point(&state.knowledge, bot.place) {
+                camper::planned(bot.place, due.now, point.shooter);
+            }
         }
         #[cfg(test)]
         {
@@ -1965,13 +2946,31 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
         bot.features.traps.pass_wait = None;
         bot.features.traps.habit.plan(chosen.yaw, chosen.spot, due.now);
         bot.features.traps.tally.planned();
+        #[cfg(test)]
+        {
+            let truth = placing::truth(due.view, me.team, me.feet);
+            let track = bot
+                .memory
+                .tracks()
+                .iter()
+                .map(|k| (k.at.distance_xz(me.feet), due.now.saturating_sub(k.time), k.who))
+                .min_by(|a, b| a.0.total_cmp(&b.0));
+            bot.features.traps.look_ctx = Some(placing::Ctx {
+                place: bot.place,
+                team: me.team,
+                planned: due.now,
+                last: due.now,
+                truth_plan_m: truth,
+                truth_last_m: truth,
+                track,
+                heard: None,
+            });
+        }
         // [A309] The bench's record of the plan for its press line.
         #[cfg(test)]
         {
-            let source = if chosen.wished && on_cleared {
-                "cleared"
-            } else if chosen.wished {
-                "defeated"
+            let source = if chosen.wished {
+                "camper"
             } else if on_pass {
                 "pass"
             } else {
@@ -2018,7 +3017,7 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
                     Some((who, m)) => format!(" (nearest lane cell of player {who}, {m:.1} m)"),
                     None => String::new(),
                 },
-                if chosen.wished { ", on a wished spot" } else { "" },
+                if chosen.wished { ", on its camper job's point" } else { "" },
                 if on_pass { ", after a wait on its route" } else if staying { ", standing" } else { ", walking" },
             ),
         );
@@ -2133,12 +3132,10 @@ pub mod onpass {
 pub mod defeated {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    pub const NOTED_SPOT: usize = 0;
-    pub const NOTED_CAMP: usize = 1;
-    pub const THINKS: usize = 2;
-    pub const WAITED: usize = 3;
-    pub const PLACED: usize = 4;
-    static TEAM: [[AtomicU64; 5]; 2] = [const { [const { AtomicU64::new(0) }; 5] }; 2];
+    pub const THINKS: usize = 0;
+    pub const WAITED: usize = 1;
+    pub const PLACED: usize = 2;
+    static TEAM: [[AtomicU64; 3]; 2] = [const { [const { AtomicU64::new(0) }; 3] }; 2];
 
     pub const CANDIDATES: usize = 0;
     pub const R_FLOOR: usize = 1;
@@ -2163,9 +3160,7 @@ pub mod defeated {
             .map(|team| {
                 let c = |k: usize| TEAM[team][k].load(Ordering::Relaxed);
                 format!(
-                    "team {team}: holders killed (spot {}, camp {}), thinks with such a spot on the route {}, waited {}, trap placed on one {}",
-                    c(NOTED_SPOT),
-                    c(NOTED_CAMP),
+                    "team {team}: thinks with a wished spot {}, waited {}, trap planned on one {}",
                     c(THINKS),
                     c(WAITED),
                     c(PLACED)
@@ -2185,48 +3180,6 @@ pub mod defeated {
             n(R_BODY),
             n(R_FRIEND)
         )
-    }
-}
-
-/// [A145, at_cleared] The bench's counts of the traps at cleared campers' death points, by team: points noted after a
-/// Breach's or a flanker's kill, kills with no job bot that had a trap, thinks with such a point wished (past the gate),
-/// waits for it along the route, plans placed on it; and the plans (placer, time) to match the catches by.
-#[cfg(test)]
-pub mod cleared {
-    pub const NOTED_BREACH: usize = 0;
-    pub const NOTED_FLANK: usize = 1;
-    pub const NO_PLACER: usize = 2;
-    pub const THINKS: usize = 3;
-    pub const WAITED: usize = 4;
-    pub const PLACED: usize = 5;
-    pub const NAMES: [&str; 6] = ["noted_breach", "noted_flank", "no_placer", "thinks", "waited", "placed"];
-
-    thread_local! {
-        static TEAM: std::cell::Cell<[[u64; 6]; 2]> = const { std::cell::Cell::new([[0; 6]; 2]) };
-        static PLANS: std::cell::RefCell<Vec<(usize, u32)>> = const { std::cell::RefCell::new(Vec::new()) };
-    }
-
-    pub fn count(team: u8, kind: usize) {
-        TEAM.with(|cell| {
-            let mut all = cell.get();
-            all[usize::from(team & 1)][kind] += 1;
-            cell.set(all);
-        });
-    }
-
-    /// A trap planned on a cleared point by `placer` at `now`.
-    pub fn placed(team: u8, placer: usize, now: u32) {
-        count(team, PLACED);
-        PLANS.with(|p| p.borrow_mut().push((placer, now)));
-    }
-
-    pub fn counted() -> [[u64; 6]; 2] {
-        TEAM.with(|cell| cell.get())
-    }
-
-    /// The plans so far, from the `from`th on.
-    pub fn plans(from: usize) -> Vec<(usize, u32)> {
-        PLANS.with(|p| p.borrow().get(from..).map(<[_]>::to_vec).unwrap_or_default())
     }
 }
 
@@ -2273,8 +3226,65 @@ pub mod passes {
         route * 4 + usize::from(field_has) * 2 + usize::from(goal_in)
     }
 
-    pub(in crate::v026g::bots) fn observe(bot: &mut Bot, due: &Due, state: &TeamState) {
+    /// [#2081 v6 measure] Before the keep-off check: whether it has a route, and the route ahead's nearest approach to the nearest
+    /// standing own trap within 2 m of the feet.
+    pub(in crate::v026g::bots) fn route_near(bot: &Bot, due: &Due, state: &TeamState) -> (bool, Option<f32>) {
         let feet = due.me.feet;
+        let trap = state.knowledge.traps.standing().map(|k| k.at).filter(|at| at.distance_xz(feet) < 2.0).min_by(|a, b| a.distance_xz(feet).total_cmp(&b.distance_xz(feet)));
+        let near = trap.and_then(|at| {
+            let (route, _) = bot.route.as_ref()?;
+            let mut route = route.clone();
+            let (s, _) = route.progress(feet);
+            let points: Vec<Vec3> = (0..=15).map(|k| route.point_at((s + k as f32).min(route.length()))).collect();
+            Some(super::off_route_m(&points, at))
+        });
+        (bot.route.is_some(), near)
+    }
+
+    pub(in crate::v026g::bots) fn observe(bot: &mut Bot, due: &Due, state: &TeamState, pre: (bool, Option<f32>)) {
+        let feet = due.me.feet;
+        // [#2081 FIX 2] Within 3 m of a standing own trap, with a route: the feet off it, by mover.
+        if let Some((route, _)) = bot.route.as_ref()
+            && state.knowledge.traps.standing().any(|k| k.at.distance_xz(feet) < 3.0)
+        {
+            let mut route = route.clone();
+            let off = route.progress(feet).1;
+            if off.is_finite() {
+                let mover = if bot.bench_keys_from == 2 {
+                    super::tight::APART
+                } else if bot.bench_stepped == 2 {
+                    super::tight::WEAVE
+                } else if bot.bench_stepped == 1 {
+                    super::tight::SIDE
+                } else if due.me.speed() > super::tight::SPRINT_MPS {
+                    super::tight::SPRINT
+                } else {
+                    super::tight::WALK
+                };
+                super::tight::add(mover, off);
+            }
+        }
+        // [#2081 v6 measure] What moved its legs while within 2 m of a standing own trap (the own-catch line's).
+        if let Some(d) = state.knowledge.traps.standing().map(|k| k.at.distance_xz(feet)).filter(|&d| d < 2.0).min_by(f32::total_cmp) {
+            let m = super::NearMove {
+                t: due.now,
+                d,
+                keys_from: bot.bench_keys_from,
+                apart: bot.bench_apart,
+                stepped: bot.bench_stepped,
+                route: bot.route.is_some(),
+                stay: matches!(bot.intent.go, crate::v026g::bots::plays::Go::Stay),
+                hold: bot.intent.hold != 0,
+                speed: due.me.speed(),
+                route_m: pre.1,
+                ended: pre.0 && bot.route.is_none(),
+            };
+            let moves = &mut bot.features.traps.near_moves;
+            if moves.len() == 6 {
+                moves.remove(0);
+            }
+            moves.push(m);
+        }
         let nearest = state
             .knowledge
             .traps
@@ -2428,12 +3438,63 @@ pub mod gates {
 
 /// Whether an enemy is seen now, sensed lately, or known near.
 fn enemy_near(bot: &Bot, due: &Due) -> bool {
-    let t = &due.tuning.traps;
+    enemy_near_at(bot, due.me.feet, due.now, due.view.clock, &due.tuning.traps)
+}
+
+/// [`enemy_near`] for a bot at `feet` at `now` (the view's clock `clock`): the gate's own check, at a think or a tick.
+pub(super) fn enemy_near_at(bot: &Bot, feet: Vec3, now: u32, clock: u32, t: &TrapTuning) -> bool {
     let quiet = (t.enemy_quiet_s * 1000.0) as u32;
-    !bot.memory.all_seen(due.now, due.view.clock).is_empty()
-        || bot.memory.tracks().iter().any(|track| {
-            sensed_lately(t, track, due.me.feet, due.now, quiet) || track.at.distance_xz(due.me.feet) < t.enemy_near_m
-        })
+    !bot.memory.all_seen(now, clock).is_empty()
+        || bot.memory.tracks().iter().any(|track| sensed_lately(t, track, feet, now, quiet) || track.at.distance_xz(feet) < t.enemy_near_m)
+}
+
+/// [`trap_calm`]'s one exception: the reflex's look the trap look took the view over.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum OverHeard {
+    /// A glance (`reflex::Override::glance`), at a place this far off, metres.
+    Glance { m: f32 },
+    /// The sights-up aim at an enemy only heard or told of (`Override::heard_aim`): this far off, sensed this long ago.
+    Aim { m: f32, age_ms: u32 },
+}
+
+/// The facts of a tick the trap look's calm is judged on (`drive.rs`).
+#[derive(Clone, Copy, Debug)]
+pub struct CalmFacts<'a> {
+    pub over: &'a super::reflex::Override,
+    /// The reflex's target (a seen enemy it aims at or keeps).
+    pub target: bool,
+    /// A threat look this tick (`reflex::gate::THREAT`: a hit's shooter, a near shot).
+    pub threat: bool,
+    /// A use within its reach has the view.
+    pub using: bool,
+    /// The trap gate's own enemy-near check ([`enemy_near_at`]).
+    pub enemy_near: bool,
+    pub feet: Vec3,
+    pub now: u32,
+}
+
+/// [traps.look_over_heard] Whether nothing calls the trap look away this tick, and the reflex look it took the view over if
+/// any. Calm: no reflex look, no fire, no legs, no use, no target. With `look_over_heard` (ON) a glance, or the sights-up aim at
+/// an enemy only heard or told of, gives way to the trap look as a glance gives way to a use (`drive.rs`), while the gate's
+/// enemy-near check is clear (nothing seen now, nothing sensed in `enemy_quiet_s` within `sensed_near`, nothing known within
+/// `enemy_near_m`); a seen target, a threat look, fire, legs or a use still win at once. Root cause (the plain bench, 8 matches,
+/// 392 looks called away): the sights-up aim 294 (75 %), a glance 85 (22 %), a seen target 10, a threat look 1; the gate had
+/// passed, so the plan and the reflex disagreed on "an enemy near".
+pub fn trap_calm(f: CalmFacts, t: &TrapTuning) -> (bool, Option<OverHeard>) {
+    let over = f.over;
+    let others = !over.fire && over.legs.is_none() && !f.using && !f.target;
+    let Some(look) = over.look_at else {
+        return (others, None);
+    };
+    if !t.look_over_heard || f.threat || f.enemy_near || !others {
+        return (false, None);
+    }
+    let heard = match over.heard_aim {
+        Some((at, sensed)) => Some(OverHeard::Aim { m: at.distance_xz(f.feet), age_ms: f.now.saturating_sub(sensed) }),
+        None if over.glance => Some(OverHeard::Glance { m: look.distance_xz(f.feet) }),
+        None => None,
+    };
+    (heard.is_some(), heard)
 }
 
 /// The gate's "sensed lately": within `enemy_quiet_s`, and with `sensed_near` (A292 S2) only this near.
@@ -2479,6 +3540,7 @@ fn route_ahead(bot: &Bot, me: &PlaceView, t: &TrapTuning) -> (Vec<Vec3>, bool) {
 /// A tick of the body: what the habit asks of the view and the keys, if it
 /// is doing anything. `calm` is false when an enemy is seen or the reflex
 /// aims at one; `crouch` is the crouch the play asks of this tick's input.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn drive(
     bot: &mut Bot,
     me: &PlaceView,
@@ -2487,6 +3549,7 @@ pub(super) fn drive(
     crouch: bool,
     t: &TrapTuning,
     mesh: Option<&mapdata::RayTree>,
+    over_heard: Option<OverHeard>,
 ) -> Option<TrapDrive> {
     let state = bot.features.traps.habit.state();
     // [A292 S4a] From its press to the think that puts the trap in its field (and re-plans round it), the legs stay.
@@ -2500,12 +3563,34 @@ pub(super) fn drive(
         });
     }
     let kit = bot.features.traps.habit.kit()?;
+    // [traps.look_over_heard] The look took the view over a heard aim or a glance: one note a look.
+    if let (Some(heard), State::Looking { since, .. }) = (over_heard, state)
+        && bot.features.traps.over_heard_noted != Some(since)
+    {
+        bot.features.traps.over_heard_noted = Some(since);
+        #[cfg(test)]
+        called::over_heard(matches!(heard, OverHeard::Aim { .. }));
+        #[cfg(test)]
+        if let Some(c) = bot.features.traps.look_ctx.as_mut()
+            && c.heard.is_none()
+        {
+            c.heard = Some(heard);
+        }
+        let what = match heard {
+            OverHeard::Aim { m, age_ms } => format!("a sights-up aim at an enemy heard or told of {m:.1} m off, {:.1} s ago", age_ms as f32 / 1000.0),
+            OverHeard::Glance { m } => format!("a glance {m:.1} m off"),
+        };
+        bot.features.traps.notes.push((now, format!("{}trap look took the view over {what}, no enemy near", tally::PREFIX)));
+    }
     // The pose the placing is counted on: held from the press to the release.
     let crouched = match state {
         State::Down { crouched, .. } => crouched,
         _ => crouch,
     };
     let aim = aim_of(bot, me, crouched, t, mesh);
+    // [A324 measure] What keeps this tick from calm, for the count of a look called away.
+    #[cfg(test)]
+    let why_not_calm = (!calm).then(|| called::Why::of(bot, me));
     let out = bot.features.traps.habit.tick(
         Tick {
             now,
@@ -2517,8 +3602,27 @@ pub(super) fn drive(
         },
         t,
     );
+    #[cfg(test)]
+    if let Some(c) = bot.features.traps.look_ctx.as_mut() {
+        c.last = now;
+    }
     if let Some(ended) = out.ended {
         bot.features.traps.habit.record(ended);
+        #[cfg(test)]
+        if let Some(c) = bot.features.traps.look_ctx.take() {
+            placing::ended(
+                &c,
+                match ended {
+                    Ended::Placed => "placed",
+                    Ended::CalledAway => "called_away",
+                    Ended::GaveUp(_) => "gave_up",
+                },
+            );
+        }
+        #[cfg(test)]
+        if matches!(ended, Ended::CalledAway) {
+            called::count(why_not_calm, bot.assignment.as_ref().is_some_and(|a| a.kind == PlayKind::TrapSpot));
+        }
         if bot.tracing && !matches!(ended, Ended::Placed) {
             bot.traced.push(serde_json::json!({
                 "t": now, "bot": bot.place, "trap_look_ended": format!("{ended:?}"),
@@ -2567,7 +3671,7 @@ pub(super) fn drive(
             // [A309] The bench's press line: where, what chose it, which way the placer walked.
             let (source, way, to_home, share) = bot.features.traps.planned_by.unwrap_or(("unknown", "unknown", 0.0, -1.0));
             eprintln!(
-                "  trap press: place {} team {} at ({:.1}, {:.1}) t {} source {source} way {way} home {to_home:.0} m forward {share:.2} play {:?} speed {:.1} path1s {:.2}",
+                "  trap press: place {} team {} at ({:.1}, {:.1}) t {} source {source} way {way} home {to_home:.0} m forward {share:.2} play {:?} speed {:.1} path1s {:.2} from_feet {:.2} route {}",
                 bot.place,
                 bot.team,
                 at.x,
@@ -2576,7 +3680,9 @@ pub(super) fn drive(
                 bot.assignment.as_ref().map(|a| a.kind),
                 me.speed(),
                 // [A324] How near the landing lies to the body's own path over the next second (`traps.press_clear`).
-                swept_m(me.feet, me.velocity, 1.0, at)
+                swept_m(me.feet, me.velocity, 1.0, at),
+                at.distance_xz(me.feet),
+                bot.route.is_some()
             );
         }
         // [A292] The press: its note and count.
@@ -2766,9 +3872,6 @@ pub struct BotState {
     pub placed: Option<(mapdata::Vec3, u32)>,
     pub react: super::trap_react::React,
     pub field: std::sync::Arc<super::trap_know::TrapField>,
-    /// [keep_off] The team's traps shut only within `FIELD_M`: the searches' fallback ([`filter_narrow`]); the same as `field`
-    /// without `TrapTuning::keep_off`.
-    pub narrow: std::sync::Arc<super::trap_know::TrapField>,
     /// [G61] The traps it put down that only it knows, its team not told: the bench's stand-in human's
     /// (`Bots::bench_placer_knows_trap`), whose team learns them as a live team learns a human mate's. A bot's own release goes to
     /// its team's list instead, so a bot's is empty. Followed by the worlds as the team's list is; kept across its lives.
@@ -2792,6 +3895,10 @@ pub struct BotState {
     pub fresh_shut: std::sync::Arc<Vec<NodeId>>,
     /// [A292] Log notes of the ticks since its last think (a press, a look that ended) with their times: the think writes them.
     pub notes: Vec<(u32, String)>,
+    /// [traps.look_over_heard] The look (its start) whose taking of the view over a heard aim or a glance was noted.
+    pub over_heard_noted: Option<u32>,
+    /// [#2081] When it last noted a refusal or a re-route for an own trap ([`own_trap_note`]).
+    pub own_trap_noted: Option<u32>,
     /// The bench's: the standing own trap this body last came within 3 m of, and the class it came with
     /// ([`passes`]).
     #[cfg(test)]
@@ -2803,10 +3910,88 @@ pub struct BotState {
     /// far home was, for the press line.
     #[cfg(test)]
     pub planned_by: Option<(&'static str, &'static str, f32, f32)>,
+    /// [#2081 v6 measure] The bench's: its thinks within 2 m of a standing own trap (newest last, at most 6) and what moved its
+    /// legs then, for the own-catch line.
+    #[cfg(test)]
+    pub near_moves: Vec<NearMove>,
+    /// [#2081 v6 measure] The bench's: the feet the motor's own-trap guard last saw of itself (the bot's believed feet) and when,
+    /// for the own-catch line's believed against true distance.
+    #[cfg(test)]
+    pub guard_seen: Option<(u32, Vec3)>,
+    /// [#2081] Since when the motor's own-trap guard has held its route's keys with the body at rest ([`guard_own_traps`]).
+    pub guard_stall: Option<u32>,
+    /// [#2081] The armed traps the last world showed (`Bots::traps_from_world`): the guard takes a promised trap's real place from
+    /// them at once, not at the next think ([`guard_discs`]).
+    pub world_armed: std::sync::Arc<Vec<Vec3>>,
+    /// [#2081] The route the contact-only fallback search gave ([`on_fallback`]), its goal while its search goes on, and the field
+    /// at [`FALLBACK_REACH_M`] with the field it was built from.
+    pub fallback: Option<FallbackRoute>,
+    pub fallback_pending: Option<Vec3>,
+    pub fallback_field: Option<(Arc<TrapField>, Arc<TrapField>)>,
+    /// [#2081 v6 measure] The bench's: the look in hand ([`placing`]).
+    #[cfg(test)]
+    pub look_ctx: Option<placing::Ctx>,
+}
+
+/// [#2081 v6 measure] One think of a bot within 2 m of a standing own trap: when, how near, and what moved its legs at its last
+/// tick (`Bot::bench_keys_from`: 0 the walk or stand, 1 the fight's side step, 2 the step apart from a mate; `bench_apart`,
+/// `bench_stepped` as the drive set them), whether it had a route, an order to stay, a hold, and its speed.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug)]
+pub struct NearMove {
+    pub t: u32,
+    pub d: f32,
+    pub keys_from: u8,
+    pub apart: u8,
+    pub stepped: u8,
+    pub route: bool,
+    pub stay: bool,
+    pub hold: bool,
+    pub speed: f32,
+    /// The route ahead's nearest approach to the trap (its next 15 m) before this think's keep-off check, and whether that check
+    /// ended the route.
+    pub route_m: Option<f32>,
+    pub ended: bool,
+}
+
+#[cfg(test)]
+impl NearMove {
+    pub fn line(moves: &[NearMove], now: u32) -> String {
+        moves
+            .iter()
+            .map(|m| {
+                format!(
+                    "-{:.1}s {:.2}m from{} ap{} st{} {}{}{} {:.1} pre {}{}",
+                    now.saturating_sub(m.t) as f32 / 1000.0,
+                    m.d,
+                    m.keys_from,
+                    m.apart,
+                    m.stepped,
+                    if m.route { "R" } else { "r" },
+                    if m.stay { "S" } else { "g" },
+                    if m.hold { "H" } else { "h" },
+                    m.speed,
+                    m.route_m.map_or("-".to_string(), |r| format!("{r:.2}")),
+                    if m.ended { " ENDED" } else { "" }
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" | ")
+    }
 }
 
 impl super::features::Feature for BotState {
     fn new_life(&mut self, _life: &super::features::Life) {
+        #[cfg(test)]
+        {
+            if matches!(self.habit.state(), State::Looking { .. } | State::Down { .. })
+                && let Some(c) = self.look_ctx
+            {
+                placing::died(c);
+            }
+            self.look_ctx = None;
+            self.near_moves.clear();
+        }
         self.habit.new_life();
         self.react.new_life();
         self.pass_wait = None;
@@ -3274,6 +4459,14 @@ mod tests {
         habit.new_life();
         assert_eq!(habit.counts().died_placing, 1);
         assert_eq!(habit.state(), State::Idle);
+        habit.state = State::Down { yaw: 0.0, spot: Vec3::ZERO, crouched: false };
+        habit.new_life();
+        assert_eq!(habit.counts().died_placing, 2, "the key down");
+        // The cooldown after a look is not placing: a life that ends in it is not counted.
+        habit.state = State::Cooling { until: 30_000 };
+        habit.new_life();
+        assert_eq!(habit.counts().died_placing, 2, "a life that ended in the cooldown");
+        assert_eq!(habit.state(), State::Idle);
     }
 
     /// [Gap 11] The pocket holds what each world shows, unless the bot let go of a trap too recently for the world to
@@ -3623,6 +4816,114 @@ mod tests {
     }
 
     #[test]
+    fn a_promised_trap_shuts_its_floors_wider_and_never_shuts_its_placer_in() {
+        use crate::v026g::bots::think::Due;
+        use crate::v026g::bots::trap_know::TrapList;
+        let trap = Vec3::new(25.0, 0.0, 10.0);
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, trap + Vec3::new(1.2, 0.0, 0.0));
+        let grid = &s.tactics.world.grid;
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let keep = tuning.traps.keep_off.expect("keep_off is on by default");
+        let mut list = TrapList::default();
+        list.promise(0, trap, 500);
+        let field = field_of(&list, grid, 0.0, Some(keep));
+        let at = |d: f32| grid.locate(trap + Vec3::new(d, 0.0, 0.0), 1.5).unwrap();
+        // Promised: shut out to the clearance + the promise's margin (2.18 m), open past it.
+        assert!(!field.open(at(1.8)), "within the promise's wider disc");
+        assert!(field.open(at(2.5)));
+        // The placer 1.2 m off its fresh trap: the floors farther than its feet are opened out to that reach.
+        let me = s.view.places[0].clone();
+        let due = Due { now: 1_000, view: &s.view, me: &me, tactics: &s.tactics, tuning: &tuning };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.features.traps.field = field;
+        keep_off_open(&mut bot, &due, &tuning.traps);
+        assert!(bot.features.traps.keep_off_open.binary_search(&at(1.8)).is_ok(), "the placer is never shut in");
+    }
+
+    /// [#2081] The fallback search: the field's wall at x = 40 with one gap 2.5 m wide (z 25-27.5) and an own trap 1.0 m before its
+    /// middle: every way through crosses the wall's line within 1.33 m of the trap and beyond 0.90 m, none at the clearance. The fallback (the trap shut only to the
+    /// guard's contact) finds one; the route check takes it at the fallback's reach, not the clearance; keep_off keeps the marked
+    /// route as the bot walks it (unmarked, the clearance drops it); and the guard still refuses a step into contact.
+    #[test]
+    fn a_way_past_an_own_trap_nearer_than_the_clearance_is_the_fallbacks_and_is_kept() {
+        use crate::v026g::bots::think::Due;
+        use crate::v026g::bots::trap_know::TrapList;
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let walls = crate::v026g::bots::body::tests::wall_x(40.0, 27.5, 40.0);
+        s.tactics = crate::v026g::bots::tactics::Tactics::new(crate::v026g::bots::tactics::tests::field_with_solids(&walls, |_| {}), 1.0);
+        let trap = Vec3::new(39.0, 0.0, 26.25);
+        let feet = Vec3::new(30.0, 0.0, 30.0);
+        let goal = Vec3::new(50.0, 0.0, 30.0);
+        s.bot(0, 0, feet);
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let keep = tuning.traps.keep_off.expect("keep_off is on by default");
+        let mut list = TrapList::default();
+        list.promise(0, trap, 500);
+        let grid = &s.tactics.world.grid;
+        let (from, to) = (grid.locate(feet, 1.5).unwrap(), grid.locate(goal, 1.5).unwrap());
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.features.traps.field = Arc::new(TrapField::of_ringed_within(&list, grid, 0.0, keep.hard_m));
+        // At the clearance: no way.
+        assert!(s.tactics.route_nodes(from, to, 0, Some(0), false, &filter(&bot, Vec::new(), Some(from))).is_none(), "no way at 1.47 m");
+        // The fallback: a way, refused at the clearance and kept at the fallback's reach.
+        let narrow = fallback_field(&mut bot, grid);
+        let way = s
+            .tactics
+            .route_nodes(from, to, 0, Some(0), false, &filter_within(&bot, &narrow, Vec::new(), Some(from)))
+            .expect("a way past the trap at the guard's contact");
+        assert!(own_trap_route(&mut bot, feet, Some(way.clone()), 1_000, &s.tactics, false).is_none(), "the clearance refuses it");
+        let kept = own_trap_route_within(&mut bot, feet, Some(way), 1_000, &s.tactics, false, Some(FALLBACK_REACH_M)).expect("kept at the fallback's reach");
+        assert!(off_route_m(&route_points(&kept, feet, f32::MAX), trap) >= FALLBACK_REACH_M - CLEAR_SLACK_M);
+        // keep_off: the marked route stands; the same route unmarked is dropped.
+        let me = s.view.places[0].clone();
+        let due = Due { now: 1_000, view: &s.view, me: &me, tactics: &s.tactics, tuning: &tuning };
+        bot.route = Some((kept.clone(), goal));
+        mark_fallback(&mut bot, 1_000);
+        assert!(on_fallback(&bot));
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_some(), "keep_off keeps the fallback's route");
+        bot.features.traps.fallback = None;
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_none(), "unmarked, the clearance drops it");
+        // The guard: a body 0.9 m from the trap walking at it is still let go.
+        let yaw = std::f32::consts::FRAC_PI_2; // facing -x
+        let at = PlaceView { feet: trap + Vec3::new(0.9, 0.0, 0.0), yaw, velocity: [0.0, 0.0], keys: 0, seen_at: 0, known_at: 0, ..me.clone() };
+        let keys = guard_own_traps(&mut bot, super::super::key::FORWARD, 0.0, &at, &tuning, grid, |_| true, 1_000);
+        assert_eq!(keys.map(|k| k & super::super::key::FORWARD), Some(0), "the guard holds contact on the fallback's way");
+    }
+
+    /// [#2081] A body standing 0.70 m from its own trap (nearer than the inside floor, 0.85 m) always finds a way out: the search
+    /// from its floor to goals on four sides gives a way, and the own-trap check keeps it (the bench's tdm s7: every way out refused
+    /// 464 times).
+    #[test]
+    fn a_body_by_its_own_trap_always_finds_a_way_out() {
+        use crate::v026g::bots::think::Due;
+        use crate::v026g::bots::trap_know::TrapList;
+        let trap = Vec3::new(25.0, 0.0, 10.0);
+        let feet = trap + Vec3::new(0.70, 0.0, 0.0);
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, feet);
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let keep = tuning.traps.keep_off.expect("keep_off is on by default");
+        let mut list = TrapList::default();
+        list.promise(0, trap, 500);
+        let me = s.view.places[0].clone();
+        let due = Due { now: 1_000, view: &s.view, me: &me, tactics: &s.tactics, tuning: &tuning };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.features.traps.field = field_of(&list, &s.tactics.world.grid, 0.0, Some(keep));
+        keep_off_open(&mut bot, &due, &tuning.traps);
+        let grid = &s.tactics.world.grid;
+        let start = grid.locate(feet, 1.5).unwrap();
+        let filter = super::filter(&bot, Vec::new(), Some(start));
+        for goal in [Vec3::new(35.0, 0.0, 10.0), Vec3::new(15.0, 0.0, 10.0), Vec3::new(25.0, 0.0, 16.0), Vec3::new(25.0, 0.0, 4.0)] {
+            let to = grid.locate(goal, 1.5).unwrap();
+            let way = s.tactics.route_nodes(start, to, 0, Some(0), false, &filter).unwrap_or_else(|| panic!("a way out to {goal:?}"));
+            assert!(own_trap_route(&mut bot, feet, Some(way), 1_000, &s.tactics, false).is_some(), "kept to {goal:?}");
+        }
+    }
+
+    #[test]
     fn a_route_within_the_ring_is_searched_again_once_for_each_change_of_the_traps() {
         use crate::v026g::bots::path::{Route, Waypoint};
         use crate::v026g::bots::think::Due;
@@ -3677,6 +4978,159 @@ mod tests {
         bot.features.traps.field = Arc::new(TrapField::of_ringed(&list, &s.tactics.world.grid, 1.3));
         keep_off(&mut bot, &due);
         assert!(bot.route.is_some());
+    }
+
+    /// [#2081] One clearance: a route the search gives past an own trap keeps `OWN_TRAP_CLEAR_M` from it, and keep_off keeps that
+    /// route at every think along it; a route nearer is refused by the search's check and dropped by keep_off alike; a body inside
+    /// the disc may walk out (never nearer than its feet) and not in; the side step and the step apart take no step onto it.
+    #[test]
+    fn one_clearance_from_own_traps_holds_for_the_search_keep_off_and_the_side_step() {
+        use crate::v026g::bots::path::{Route, Waypoint};
+        use crate::v026g::bots::route_filter::RouteFilter;
+        use crate::v026g::bots::think::Due;
+        use crate::v026g::bots::trap_know::TrapList;
+        let s = Scenario::field(Mode::TeamDeathmatch);
+        let grid = &s.tactics.world.grid;
+        let trap = Vec3::new(25.0, 0.0, 10.0);
+        let mut list = TrapList::default();
+        list.promise(0, trap, 500);
+        let keep = crate::v026g::bots::tuning::KeepOff::default();
+        assert_eq!(keep.hard_m, OWN_TRAP_CLEAR_M, "the tuning's default is the one constant");
+        let field = Arc::new(TrapField::of_ringed_within(&list, grid, 0.0, keep.hard_m));
+        assert_eq!(field.reach(), OWN_TRAP_CLEAR_M);
+        // The search with the field's floors shut, from one side of the trap to the other: its way keeps the clearance.
+        let shut = field.clone();
+        let filter = RouteFilter::open().with_floors(move |n| shut.open(n));
+        let (from, to) = (grid.locate(Vec3::new(15.0, 0.0, 10.0), 1.5).unwrap(), grid.locate(Vec3::new(35.0, 0.0, 10.0), 1.5).unwrap());
+        let way = s.tactics.route_nodes(from, to, 0, Some(0), false, &filter).expect("a way round the trap");
+        let feet = grid.position(from);
+        let tuning = crate::v026g::bots::tuning::Tuning::all_off();
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.features.traps.field = field.clone();
+        let kept = own_trap_route(&mut bot, feet, Some(way.clone()), 1_000, &s.tactics, false).expect("the search's way is kept by its check");
+        let points = route_points(&kept, feet, f32::MAX);
+        assert!(off_route_m(&points, trap) >= OWN_TRAP_CLEAR_M - CLEAR_SLACK_M, "{}", off_route_m(&points, trap));
+        // keep_off keeps it, from its start and from each point along it.
+        let goal = grid.position(to);
+        for k in 0..points.len() {
+            let mut s2 = Scenario::field(Mode::TeamDeathmatch);
+            s2.bot(0, 0, points[k]);
+            let me = s2.view.places[0].clone();
+            let due = Due { now: 1_000, view: &s2.view, me: &me, tactics: &s2.tactics, tuning: &tuning };
+            bot.route = Some((kept.clone(), goal));
+            keep_off(&mut bot, &due);
+            assert!(bot.route.is_some(), "keep_off dropped the search's way at {:?}", points[k]);
+        }
+        // A way 1.0 m off the trap: refused by the search's check and dropped by keep_off.
+        let waypoint = |x: f32, z: f32| Waypoint { at: Vec3::new(x, 0.0, z), node: 0, jump: None, low: false };
+        let near = Route::new(vec![waypoint(15.0, 11.0), waypoint(35.0, 11.0)]);
+        assert!(own_trap_route(&mut bot, Vec3::new(15.0, 0.0, 11.0), Some(near.clone()), 2_000, &s.tactics, false).is_none());
+        // From inside the disc (1.04 m off, a guard by its own trap) a way over the trap is refused for a step straight out of the
+        // disc, which keep_off keeps.
+        let guard = trap + Vec3::new(-1.04, 0.0, 0.0);
+        let over = Route::new(vec![waypoint(guard.x, guard.z), waypoint(35.0, 10.0)]);
+        let out = own_trap_route(&mut bot, guard, Some(over), 3_000, &s.tactics, false).expect("a step out");
+        let end = out.point_at(out.length());
+        assert!(end.distance_xz(trap) >= OWN_TRAP_CLEAR_M, "{end:?}");
+        assert!(end.x < guard.x, "away from the trap: {end:?}");
+        assert!(keeps_clear(&route_points(&out, guard, f32::MAX), field.discs(), guard, OWN_TRAP_CLEAR_M));
+        let mut s3 = Scenario::field(Mode::TeamDeathmatch);
+        s3.bot(0, 0, Vec3::new(15.0, 0.0, 11.0));
+        let me = s3.view.places[0].clone();
+        let due = Due { now: 2_000, view: &s3.view, me: &me, tactics: &s3.tactics, tuning: &tuning };
+        bot.route = Some((near, goal));
+        keep_off(&mut bot, &due);
+        assert!(bot.route.is_none(), "keep_off drops what the check refuses");
+        // From inside the disc (1.1 m off, a placer by its own trap): out is clear, in is not.
+        let inside = trap + Vec3::new(-1.1, 0.0, 0.0);
+        assert!(keeps_clear(&[inside, trap + Vec3::new(-2.5, 0.0, 0.0)], field.discs(), inside, OWN_TRAP_CLEAR_M));
+        assert!(!keeps_clear(&[inside, trap + Vec3::new(-0.5, 0.0, 0.3)], field.discs(), inside, OWN_TRAP_CLEAR_M));
+        // From 1.36 m (the bench's stuck guard), round it at 1.26 m: clear; at 0.85 m (inside the clearance, under the contact and
+        // drift floor): not.
+        let at136 = trap + Vec3::new(-1.36, 0.0, 0.0);
+        let arc = |r: f32| -> Vec<Vec3> {
+            std::iter::once(at136)
+                .chain((0..=12).map(|k| {
+                    let a = std::f32::consts::PI * (1.0 - k as f32 / 12.0);
+                    trap + Vec3::new(r * a.cos(), 0.0, r * a.sin())
+                }))
+                .collect()
+        };
+        assert!(keeps_clear(&arc(1.26), field.discs(), at136, OWN_TRAP_CLEAR_M));
+        // [#2081] A body nearer than the inside floor (0.85 m) walks out never nearer than it stands (the bench's tdm s7: 0.71 m from
+        // its trap, every way out refused 464 times); in, it never does.
+        let at071 = trap + Vec3::new(0.71, 0.0, 0.0);
+        assert!(keeps_clear(&[at071, trap + Vec3::new(0.69, 0.0, 0.3), trap + Vec3::new(0.2, 0.0, 3.0)], field.discs(), at071, OWN_TRAP_CLEAR_M));
+        assert!(!keeps_clear(&[at071, trap + Vec3::new(0.5, 0.0, 0.0)], field.discs(), at071, OWN_TRAP_CLEAR_M));
+        assert!(!keeps_clear(&arc(0.85), field.discs(), at136, OWN_TRAP_CLEAR_M));
+        // A route whose leg over the trap's spot runs on the floor above (1.2 to 2.0 m up), its legs walked one by one: clear, though
+        // its points a metre apart would join the floors.
+        let w3 = |x: f32, y: f32, z: f32| Waypoint { at: Vec3::new(x, y, z), node: 0, jump: None, low: false };
+        let above = Route::new(vec![w3(20.0, 0.0, 12.5), w3(21.0, 1.2, 12.0), w3(25.0, 2.0, 10.0), w3(30.0, 2.0, 10.0)]);
+        let feet3 = Vec3::new(20.0, 0.0, 12.5);
+        assert!(keeps_clear(&route_points(&above, feet3, f32::MAX), field.discs(), feet3, OWN_TRAP_CLEAR_M));
+        // A route to a goal 1.3 m from the trap (a guard's spot by its own trap) is kept, and keep_off keeps it; a goal on the trap
+        // (0.5 m) is not; a step toward that goal is still refused (it would step in).
+        let start = Vec3::new(20.0, 0.0, 10.0);
+        let to_guard = Route::new(vec![w3(20.0, 0.0, 10.0), w3(23.7, 0.0, 10.0)]);
+        assert!(own_trap_route(&mut bot, start, Some(to_guard.clone()), 4_000, &s.tactics, false).is_some());
+        let on_it = Route::new(vec![w3(20.0, 0.0, 10.0), w3(24.5, 0.0, 10.0)]);
+        assert!(!route_keeps_clear(&route_points(&on_it, start, f32::MAX), field.discs(), start, Some(on_it.end()), OWN_TRAP_CLEAR_M));
+        assert!(!step_keeps_clear(&field, trap + Vec3::new(-1.5, 0.0, 0.0), trap + Vec3::new(-0.9, 0.0, 0.0)));
+        // A trap on another floor (2 m above) is no matter.
+        assert!(keeps_clear(&[Vec3::new(15.0, 2.0, 10.0), Vec3::new(35.0, 2.0, 10.0)], field.discs(), Vec3::new(15.0, 2.0, 10.0), OWN_TRAP_CLEAR_M));
+        // The side step (`STRAFE_CLEAR_M` long): onto the trap refused, away from it taken; with no trap, any.
+        let by = trap + Vec3::new(-1.6, 0.0, 0.0);
+        assert!(!step_keeps_clear(&field, by, by + Vec3::new(0.7, 0.0, 0.0)));
+        assert!(step_keeps_clear(&field, by, by + Vec3::new(-0.7, 0.0, 0.0)));
+        assert!(step_keeps_clear(&TrapField::default(), by, by + Vec3::new(0.7, 0.0, 0.0)));
+    }
+
+    /// [#2081] The own-trap guard, by mover: keys whose forecast path (the body's blend and a stop) comes within contact of a known
+    /// own trap while nearing it give way, whatever moved them (the walk, the side step, a sprint, a step back, a glide with no key);
+    /// a jump over it is legal, a landing on it is not; a body inside contact may leave; a trap on another floor is no matter.
+    #[test]
+    fn the_own_trap_guard_keeps_every_mover_out_of_contact() {
+        use crate::v026g::drive::key;
+        let kin = crate::v026g::bots::kin::Kinematics::default();
+        // Facing +x (yaw 0 faces `kin::forward(0)`): the trap 1.2 m ahead along the facing.
+        let yaw = 0.0;
+        let [fx, fz] = crate::v026g::bots::kin::forward(yaw);
+        let [lx, lz] = crate::v026g::bots::kin::forward(yaw + std::f32::consts::FRAC_PI_2);
+        let feet = Vec3::ZERO;
+        let ahead = |m: f32| Vec3::new(fx * m, 0.0, fz * m);
+        let left = |m: f32| Vec3::new(lx * m, 0.0, lz * m);
+        let still = [0.0, 0.0];
+        let walking = [fx * 3.5, fz * 3.5];
+        let guard = |velocity: [f32; 2], keys: u32, discs: &[Vec3], jumping: bool| {
+            let discs: Vec<GuardDisc> = discs.iter().map(|&d| d.into()).collect();
+            own_trap_guard(|k| forecast(&kin, feet, velocity, yaw, 0.0, k, GUARD_HOLD_TICKS), |_| true, feet, velocity, yaw, 0.0, keys, &discs, jumping)
+        };
+        // The walk on toward a trap ahead: refused (no move key from rest, the brake at a walk). From rest two ticks of a key and a
+        // stop carry the body about 0.3 m, at a walk about 0.9 m: the guard stops it short.
+        assert_eq!(guard(still, key::FORWARD, &[ahead(0.8)], false), OwnTrapGuard::Swapped(0));
+        assert_eq!(guard(walking, key::FORWARD, &[ahead(1.4)], false), OwnTrapGuard::Swapped(0), "let go: the glide stops short");
+        assert!(matches!(guard(walking, key::FORWARD, &[ahead(1.1)], false), OwnTrapGuard::Braked(k) if k & key::BACK != 0), "the glide too: the brake");
+        // Walking with the trap well ahead: clear (it stops short this tick).
+        assert_eq!(guard(still, key::FORWARD, &[ahead(4.0)], false), OwnTrapGuard::Clear);
+        // The fight's side step onto it: the walk without the side key.
+        assert_eq!(guard(still, key::LEFT, &[left(0.8)], false), OwnTrapGuard::Swapped(0));
+        assert_eq!(guard(still, key::FORWARD | key::LEFT, &[left(0.8)], false), OwnTrapGuard::Swapped(key::FORWARD));
+        // A sprint toward it: refused; the step back (a retreat or a dodge) onto one behind: refused.
+        assert_ne!(guard([fx * 4.96, fz * 4.96], key::FORWARD | key::SPRINT, &[ahead(1.7)], false), OwnTrapGuard::Clear);
+        assert_eq!(guard(still, key::BACK, &[ahead(-0.8)], false), OwnTrapGuard::Swapped(0));
+        // A glide with no move key (a sprint's carry past a route's end) into it: the brake.
+        assert!(matches!(guard([fx * 4.96, fz * 4.96], 0, &[ahead(0.9)], false), OwnTrapGuard::Braked(k) if k & key::BACK != 0));
+        // A jump over it is legal (the guard leaves the press alone); a landing within contact is not: the route's jump leg that
+        // ends there breaks the clearance.
+        assert_eq!(guard(walking, key::FORWARD | key::JUMP, &[ahead(0.5)], true), OwnTrapGuard::Clear);
+        let trap = ahead(2.0);
+        assert!(keeps_clear(&[feet, ahead(4.0)], &[Vec3::new(trap.x, 2.0, trap.z)], feet, OWN_TRAP_CLEAR_M), "over it, above");
+        assert!(!keeps_clear(&[feet, ahead(2.2)], &[trap], feet, OWN_TRAP_CLEAR_M), "a landing 0.2 m from it");
+        // Inside contact, leaving it: clear; on another floor: clear; none near: clear.
+        assert_eq!(guard(still, key::BACK, &[ahead(0.4)], false), OwnTrapGuard::Clear);
+        assert_eq!(guard(still, key::FORWARD, &[Vec3::new(fx, 2.0, fz)], false), OwnTrapGuard::Clear);
+        assert_eq!(guard(still, key::FORWARD, &[], false), OwnTrapGuard::Clear);
     }
 
     #[test]
@@ -3743,23 +5197,15 @@ mod tests {
         assert_eq!(far.validate().unwrap_err(), "traps.press_landing_m");
     }
 
-    /// [A145] The rule for killed holders' spots is off by default (benched inert), validated and read from a patch.
+    /// [A324] The camper trap job is on by default and off in the all-off arm; the sends after a holder's death are gone (the
+    /// old keys are no tuning's).
     #[test]
-    fn the_defeated_rule_is_off_by_default_validated_and_read_from_a_patch() {
-        use crate::v026g::bots::tuning::{DefeatedTuning, Tuning};
-        assert_eq!(Tuning::default().traps.at_defeated, None);
-        assert_eq!(Tuning::all_off().traps.at_defeated, None);
-        assert_eq!(DefeatedTuning::default().min_kills, 2);
-        let mut bad = Tuning::default();
-        assert!(bad.validate().is_ok());
-        bad.traps.at_defeated = Some(DefeatedTuning { within_m: 0.5, ..DefeatedTuning::default() });
-        assert_eq!(bad.validate().unwrap_err(), "traps.at_defeated");
-        bad.traps.at_defeated = Some(DefeatedTuning { friend_m: 1.0, ..DefeatedTuning::default() });
-        assert_eq!(bad.validate().unwrap_err(), "traps.at_defeated", "a guard under the ordinary one");
-        bad.traps.at_defeated = Some(DefeatedTuning { ahead_m: 40.0, ..DefeatedTuning::default() });
-        assert_eq!(bad.validate().unwrap_err(), "traps.at_defeated", "farther than the route is read");
-        let patched = Tuning::patched(serde_json::json!({"traps": {"at_defeated": {"keep_s": 60.0}}})).unwrap();
-        assert_eq!(patched.traps.at_defeated.map(|d| (d.keep_s, d.within_m)), Some((60.0, 3.0)));
+    fn the_camper_job_is_on_by_default_and_the_sends_after_a_death_are_gone() {
+        use crate::v026g::bots::tuning::Tuning;
+        assert!(Tuning::default().traps.camper_job.is_some());
+        assert!(Tuning::all_off().traps.camper_job.is_none());
+        assert!(Tuning::patched(serde_json::json!({"traps": {"at_defeated": {}}})).is_err());
+        assert!(Tuning::patched(serde_json::json!({"traps": {"at_cleared": {}}})).is_err());
     }
 
     /// The eye of a pose at the pitch a look down has (`view::eye_height`, up positive).
@@ -4147,27 +5593,195 @@ mod tests {
         }
         assert!(approach_points(&s.tactics, Vec3::new(46.0, 0.0, 10.0), spot, &j, 1_000).is_empty());
     }
+
+    /// [A324] The camper job's points: a K2 job's spot and a battery hold each get their way in, out of his sight (here past
+    /// the field's wall end, the way from the one spawn kept); when the holder dies the point stays for his return with
+    /// nothing after his death: the point goes with the job;
+    /// taken off the list, one point a man. Every step is a note.
+    #[test]
+    fn the_camper_job_traps_the_way_in_of_held_places_while_they_are_held() {
+        use crate::v026g::bots::know::{CamperTrapKind, CamperTrapState, TeamKnowledge};
+        use crate::v026g::bots::threat::HeldLine;
+        let world = crate::v026g::bots::tactics::tests::field_with(|map| map.spawns.retain(|s| s.team == 0));
+        let tactics = crate::v026g::bots::tactics::Tactics::new(world, 1.0);
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        let held = Vec3::new(42.0, 0.0, 10.0);
+        s.human(11, 1, held);
+        s.human(12, 1, Vec3::new(60.0, 0.0, 30.0));
+        let t = TrapTuning::default();
+        let j = t.camper_job.unwrap();
+        let line = HeldLine::for_test(7, 11, held, &[], Some(1_000));
+        let mut battery = HeldLine::for_test(crate::v026g::bots::threat::BATTERY_LINE_ID + 12, 12, Vec3::new(60.0, 0.0, 30.0), &[], Some(1_000));
+        battery.battery = Some(2);
+        let mut k = TeamKnowledge::default();
+        let mut notes = Vec::new();
+        let tick = |k: &mut TeamKnowledge, t: &TrapTuning, view: &crate::v026g::bots::view::MatchView, sources: &[HeldLine], now: u32, notes: &mut Vec<super::super::Note>| {
+            camper_tick(&[], k, view, &tactics, t, 0, sources, now, notes)
+        };
+        tick(&mut k, &t, &s.view, &[line.clone(), battery.clone()], 1_000, &mut notes);
+        let point = *k.camper_traps.iter().find(|c| c.spot == 7).expect("the job's way in");
+        assert_eq!(point.kind, CamperTrapKind::Job);
+        assert!(out_of_his_sight(&tactics.world.sight, held, point.at), "{point:?}");
+        let d = point.at.distance_xz(held);
+        assert!(d >= j.near_m - 1.0, "{d} m from his place");
+        assert!(notes.iter().any(|n| n.text.contains("his way in at")), "{notes:?}");
+        // A trap of the team on the point: trapped, and tick after tick not searched again, nor sent, nor dropped.
+        let before = camper::counted();
+        k.traps.promise(3, point.at, 1_000);
+        for now in [1_500, 2_000, 2_500, 3_000] {
+            tick(&mut k, &t, &s.view, &[line.clone(), battery.clone()], now, &mut notes);
+            assert_eq!(k.camper_traps.iter().find(|c| c.spot == 7).map(|c| c.state), Some(CamperTrapState::Trapped), "at {now}");
+        }
+        let after = camper::counted();
+        for kind in [camper::NOTED_JOB, camper::NO_WAY, camper::SENT, camper::DROPPED] {
+            assert_eq!(after[0][kind], before[0][kind], "{}", camper::NAMES[kind]);
+        }
+        assert_eq!(notes.iter().filter(|n| n.text.contains("trapped while it stands")).count(), 1, "{notes:?}");
+        // The battery's man stands in the open field's east half, seen from all of his way from the west spawn: no way in.
+        assert!(k.camper_no_way.contains(&battery.id) || k.camper_traps.iter().any(|c| c.kind == CamperTrapKind::Battery));
+        // He dies: the point goes with the job.
+        s.view.places.iter_mut().find(|p| p.place == 11).unwrap().alive = false;
+        tick(&mut k, &t, &s.view, &[battery.clone()], 4_000, &mut notes);
+        assert!(k.camper_traps.iter().all(|c| c.spot != 7), "{:?}", k.camper_traps);
+        assert!(notes.iter().any(|n| n.text.contains("no longer held")), "{notes:?}");
+        let at = 4_001;
+        // Off: nothing.
+        tick(&mut k, &TrapTuning { camper_job: None, ..t.clone() }, &s.view, std::slice::from_ref(&line), at + 1, &mut notes);
+        assert!(k.camper_traps.is_empty());
+    }
+
+    /// [#2081] A sent bot that runs another play than the job's past its first thinks is let go (the point is open again); within
+    /// them it stays sent. A walk longer than the hold's typical remaining time is never sent (`max_walk_m` 22.75 m).
+    #[test]
+    fn the_camper_job_lets_go_a_bot_that_left_its_play() {
+        use crate::v026g::bots::know::{CamperTrap, CamperTrapKind, CamperTrapState, SeenRefusals, TeamKnowledge};
+        use crate::v026g::bots::threat::HeldLine;
+        let t = TrapTuning::default();
+        assert_eq!(t.camper_job.unwrap().max_walk_m, 22.75);
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(15.0, 0.0, 10.0));
+        let held = Vec3::new(42.0, 0.0, 10.0);
+        s.human(11, 1, held);
+        let line = HeldLine::for_test(7, 11, held, &[], Some(1_000));
+        let tuning = crate::v026g::bots::tuning::Tuning::all_off();
+        let bots = vec![Some(Bot::new(1, 0, 0, None, &tuning))];
+        assert!(bots[0].as_ref().unwrap().assignment.is_none(), "on no play");
+        let mut k = TeamKnowledge::default();
+        k.camper_traps.push(CamperTrap {
+            spot: 7,
+            shooter: 11,
+            held,
+            at: Vec3::new(30.0, 0.0, 10.0),
+            kind: CamperTrapKind::Job,
+            state: CamperTrapState::Sent { placer: 0, since: 1_000, placed_before: 0 },
+            seen: SeenRefusals::default(),
+        });
+        let mut notes = Vec::new();
+        camper_tick(&bots, &mut k, &s.view, &s.tactics, &t, 0, std::slice::from_ref(&line), 1_000 + LEFT_PLAY_GRACE_MS, &mut notes);
+        assert!(matches!(k.camper_traps[0].state, CamperTrapState::Sent { .. }), "within its first thinks");
+        camper_tick(&bots, &mut k, &s.view, &s.tactics, &t, 0, std::slice::from_ref(&line), 1_001 + LEFT_PLAY_GRACE_MS, &mut notes);
+        assert_eq!(k.camper_traps[0].state, CamperTrapState::Open);
+        assert!(notes.iter().any(|n| n.text.contains("it left the job's play")), "{notes:?}");
+    }
+
+    /// [traps.look_over_heard] The trap look survives a glance and a sights-up aim at an enemy only heard or told of while the
+    /// gate's enemy-near check is clear; a seen target, a hit or near shot (a threat look), fire, legs, a use, an aim that is no
+    /// heard aim (a partner's death spot) or an enemy near take the view back at once; the switch off gives the old calm.
+    #[test]
+    fn the_trap_look_survives_a_heard_aim_and_a_glance_and_a_seen_target_or_a_hit_takes_it_back() {
+        use crate::v026g::bots::reflex::Override;
+        let t = TrapTuning::default();
+        assert!(t.look_over_heard);
+        let feet = Vec3::ZERO;
+        let heard = Override { look_at: Some(Vec3::new(30.0, 1.3, 0.0)), heard_aim: Some((Vec3::new(30.0, 0.0, 0.0), 1_000)), ..Override::default() };
+        let glance = Override { look_at: Some(Vec3::new(0.0, 1.4, 25.0)), glance: true, ..Override::default() };
+        let facts = |over: &Override| CalmFacts { over: Box::leak(Box::new(*over)), target: false, threat: false, using: false, enemy_near: false, feet, now: 4_000 };
+        assert_eq!(trap_calm(facts(&heard), &t), (true, Some(OverHeard::Aim { m: 30.0, age_ms: 3_000 })));
+        assert_eq!(trap_calm(facts(&glance), &t), (true, Some(OverHeard::Glance { m: 25.0 })));
+        assert_eq!(trap_calm(facts(&Override::default()), &t), (true, None), "no look: calm as before");
+        // What still wins at once, mid-look.
+        for (why, f) in [
+            ("a seen target", CalmFacts { target: true, ..facts(&heard) }),
+            ("a threat look", CalmFacts { threat: true, ..facts(&glance) }),
+            ("an enemy near", CalmFacts { enemy_near: true, ..facts(&heard) }),
+            ("a use", CalmFacts { using: true, ..facts(&glance) }),
+            ("fire", facts(&Override { fire: true, ..heard })),
+            ("legs", facts(&Override { legs: Some(crate::v026g::bots::reflex::Legs { at: Vec3::ZERO, within_m: 1.0, run: false, crouch: false, why: crate::v026g::bots::reflex::LegsWhy::BreakSight }), ..glance })),
+            ("a watch, no heard aim", facts(&Override { heard_aim: None, keys: crate::v026g::drive::key::AIM, ..heard })),
+        ] {
+            assert_eq!(trap_calm(f, &t), (false, None), "{why}");
+        }
+        let off = TrapTuning { look_over_heard: false, ..t.clone() };
+        assert_eq!(trap_calm(facts(&heard), &off), (false, None));
+        assert_eq!(trap_calm(facts(&glance), &off), (false, None));
+        // A look not calm is called away at once (the habit's step).
+        let looking = State::Looking { yaw: 0.0, spot: Vec3::ZERO, since: 0, last: None };
+        let (_, out) = step(looking, Tick { now: 100, yaw: 0.0, pitch: 0.0, calm: false, crouched: false, aim: Aim::Steepest }, &t);
+        assert_eq!(out.ended, Some(Ended::CalledAway));
+    }
+
+    /// A floor with a wall across x = 25 from z = 5 to 15, `high` metres tall, between a man on (30, 0, 10) and a point at
+    /// (24, 0, 10).
+    fn low_wall(high: f32) -> mapdata::RayTree {
+        low_wall_to(high, 15.0)
+    }
+
+    /// [`low_wall`] ending at `z1` (from z = 5).
+    fn low_wall_to(high: f32, z1: f32) -> mapdata::RayTree {
+        use crate::v026g::bots::body::tests::floor;
+        let walker = mapdata::WalkerBehaviour::BySlope;
+        let (a, b, c, d) = (Vec3::new(25.0, 0.0, 5.0), Vec3::new(25.0, 0.0, z1), Vec3::new(25.0, high, z1), Vec3::new(25.0, high, 5.0));
+        let mut triangles = floor(0.0, 0.0, 40.0, 20.0, 0.0).to_vec();
+        triangles.push(mapdata::Triangle { v: [a, b, c], walker });
+        triangles.push(mapdata::Triangle { v: [a, c, d], walker });
+        mapdata::RayTree::build(&triangles)
+    }
+
+    /// [A324] The way-in point is out of his sight both ways, by the parts a bot's sight looks at: a 1.0 m wall 1 m in front
+    /// of the point hides a 0.9 m chest from a held spot's eye 6 m off (the old test took the point) but not the crouched
+    /// placer's upper body, nor him from its eye; a 1.3 m wall hides them from each other; a 5 cm kerb hides nothing. One
+    /// part showing is enough: a 1.3 m wall that ends beside the line (here 0.1 m off his chest's line) does not hide him.
+    #[test]
+    fn a_way_in_point_is_out_of_his_sight_both_ways_by_the_sense_s_body_parts() {
+        use crate::v026g::bots::aimpoint::body_shows;
+        let (held, point) = (Vec3::new(30.0, 0.0, 10.0), Vec3::new(24.0, 0.0, 10.0));
+        let eye = crate::v026g::bots::lane_ahead::camper_eye(held);
+        let one = low_wall(1.0);
+        assert!(!crate::v026g::bots::rays::visible(&one, eye, point + Vec3::new(0.0, 0.9, 0.0)), "the chest is hidden");
+        assert!(body_shows(&one, eye, point, true), "the crouched body is not");
+        assert!(!out_of_his_sight(&one, held, point));
+        assert!(out_of_his_sight(&low_wall(1.3), held, point));
+        assert!(!out_of_his_sight(&low_wall(0.05), held, point), "a 5 cm kerb hides nothing");
+        assert!(!out_of_his_sight(&low_wall_to(1.3, 10.1), held, point), "an edge beside the line hides one part, not all");
+    }
+
+    /// [A324] The `TrapSpot` play crouches where that hides it: behind a 1.3 m wall (standing, its upper body shows over it;
+    /// crouched, neither sees the other); not behind a 1.0 m one (crouched it is still seen), nor a 3 m one (hidden standing too).
+    #[test]
+    fn crouching_hides_the_placer_only_where_its_standing_eye_shows_and_its_crouched_one_not() {
+        let (held, point) = (Vec3::new(30.0, 0.0, 10.0), Vec3::new(24.0, 0.0, 10.0));
+        assert!(hidden_by_crouching(&low_wall(1.3), held, point));
+        assert!(!hidden_by_crouching(&low_wall(1.0), held, point));
+        assert!(!hidden_by_crouching(&low_wall(3.0), held, point));
+    }
 }
 
-/// [keep_off] Bench counts (`tests::tallies::route`): the route searches made with `traps.keep_off` on, and the ones with no way
-/// at `hard_m` searched again with only the narrow discs: a way found, none, past the poll's floors. The fallback rate is
-/// (found + none + left) / searches.
+/// [keep_off] Bench counts (`tests::tallies::route`): the route searches made with `traps.keep_off` on, and the routes refused for
+/// an own trap ([`own_trap_route`], #2081: the narrow fallback search is gone).
 #[cfg(test)]
 pub mod keep_off_counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     pub const SEARCHES: usize = 0;
-    pub const NARROW_FOUND: usize = 1;
-    pub const NARROW_NONE: usize = 2;
-    pub const NARROW_LEFT: usize = 3;
+    pub const REFUSED: usize = 1;
 
-    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
 
     pub fn count(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 4] {
+    pub fn counts() -> [u64; 2] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }

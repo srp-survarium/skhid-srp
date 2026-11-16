@@ -1402,6 +1402,8 @@ pub(crate) fn real_bot_cost() {
             game.zone_intensity = bench_settings().var("SRP_BENCH_ZONE_INTENSITY").is_ok_and(|v| v != "0");
             let inside = Hazards::build(&world, 0.0);
             let (mut zone_takes, mut zone_spots) = (0u32, Vec::<Vec3>::new());
+            // [#2081 v6] The stand-in's catches already read for the believed-against-true line.
+            let mut catches_read = 0usize;
             while clock < limit_ms {
                 clock += 5;
                 if late_map.as_ref().is_some_and(|(late_ms, _)| clock >= *late_ms)
@@ -1421,6 +1423,20 @@ pub(crate) fn real_bot_cost() {
                         game.bodies[bot.place].mirror = bot.bench_mirror.iter().find(|m| m.0 == next).map(|m| m.1);
                     }
                     game.step();
+                    // [#2081 v6] At the stand-in's catch itself: the victim bot's believed feet (the own-trap guard's last look) against
+                    // its true feet, from the trap, for an own-team catch.
+                    for event in &game.traps.events[catches_read.min(game.traps.events.len())..] {
+                        if let standin_traps::Event::Caught { tick, placer, victim, kind, placed, .. } = *event
+                            && kind != Kill::Enemy
+                            && let Some(trap) = game.traps.list.iter().find(|t| t.placer == placer && t.placed == placed)
+                        {
+                            let truth = game.bodies[victim].feet.distance_xz(trap.at);
+                            let believed = bots.bots.get(victim).and_then(|b| b.as_ref()).and_then(|b| b.features.traps.guard_seen);
+                            let believed = believed.map_or("unknown".to_string(), |(when, feet)| format!("{:.2} m ({} ms before)", feet.distance_xz(trap.at), tick.saturating_sub(when)));
+                            eprintln!("  trap catch feet: {kind:?} t {tick} victim {victim} believed {believed}, true {truth:.2} m");
+                        }
+                    }
+                    catches_read = game.traps.events.len();
                     // [A239] A live stand-in camper (`SRP_BENCH_CAMPER_MOVE=live` with `SRP_BENCH_CAMPER_START=spot`) starts his next life
                     // on the spot he chose while dead (`BenchCamper::start_after_death`), not always his first; [A239b] with
                     // `SRP_BENCH_CAMPER_ARRIVE=live`, after the respawn and a live camper's walk (`BenchCamper::walk_after_death`).
@@ -1764,8 +1780,18 @@ pub(crate) fn real_bot_cost() {
                             // The first three failed searches of each bot: who, doing what, to where (the give-up of a goal with no way).
                             if no_way_lines[bot.place] < 3 {
                                 no_way_lines[bot.place] += 1;
+                                // [#2081] The team's own known trap nearest the feet: how far from the feet and from the goal, and its phase.
+                                let own_trap = bots.teams[usize::from(body.team)]
+                                    .knowledge
+                                    .traps
+                                    .all()
+                                    .iter()
+                                    .min_by(|a, b| a.at.distance_xz(body.feet).total_cmp(&b.at.distance_xz(body.feet)))
+                                    .map_or("none".to_string(), |k| {
+                                        format!("{:.2} m from the feet, {:.2} m from the goal, {:?}", k.at.distance_xz(body.feet), k.at.distance_xz(goal), k.phase)
+                                    });
                                 eprintln!(
-                                    "  NOWAYGOAL t={} place={} team={} play={} target={:?} carrying={} feet=({:.1},{:.1},{:.1}) goal=({:.1},{:.1},{:.1})",
+                                    "  NOWAYGOAL t={} place={} team={} play={} target={:?} carrying={} feet=({:.1},{:.1},{:.1}) goal=({:.1},{:.1},{:.1}) own trap {own_trap}",
                                     game.tick,
                                     bot.place,
                                     body.team,
@@ -2266,11 +2292,34 @@ pub(crate) fn real_bot_cost() {
                 eprintln!("  trap pass: {}", crate::v026g::bots::traps::onpass::line());
                 eprintln!("  trap defeated: {}", crate::v026g::bots::traps::defeated::line());
                 eprintln!("  trap camper job: {}", crate::v026g::bots::traps::camper::line());
+                eprintln!("  trap looks called away: {}", crate::v026g::bots::traps::called::line());
                 eprintln!("  trap passes: {}", crate::v026g::bots::traps::passes::line());
+                eprintln!("  own trap refusals: {}", crate::v026g::bots::traps::own_trap_counts::line());
+                eprintln!("  own trap feet off route within 3 m: {}", crate::v026g::bots::traps::tight::line());
+                eprintln!("  own trap promise to world: {}", crate::v026g::bots::trap_know::landing_offsets::line());
                 let looks = bots.trap_look_outcomes();
                 eprintln!("  trap looks, team 0: {}", looks[0].line());
                 eprintln!("  trap looks, team 1: {}", looks[1].line());
                 eprintln!("  {}", bots.react_counts().line());
+            }
+            // [#2081 v6 measure] Each life that ended while placing: the look's record and its killer (the stand-in game's
+            // last kill of it up to 6 s after the look's last tick).
+            for c in crate::v026g::bots::traps::placing::deaths() {
+                let killer = game
+                    .kills_all
+                    .iter()
+                    .rev()
+                    .find(|&&(t, _, victim)| victim == c.place && t + 1_000 >= c.last && t <= c.last + 6_000)
+                    .map(|&(t, killer, _)| (t, killer));
+                let killer = killer.map_or("none".to_string(), |(t, k)| {
+                    format!(
+                        "{k} {} at +{:.1} s{}",
+                        if bots.is_bot(k) { "bot" } else { "human" },
+                        t.saturating_sub(c.last) as f32 / 1000.0,
+                        if c.track.is_some_and(|(_, _, who)| who == k) { " (its nearest track)" } else { "" }
+                    )
+                });
+                eprintln!("  trap placing death: {} killer {killer}", c.line());
             }
             // The stand-in's bear traps (none carried: no line, the log as it was).
             if !game.traps.events.is_empty() {
@@ -2279,6 +2328,21 @@ pub(crate) fn real_bot_cost() {
                     "  traps (stand-in): placed {placed}, caught enemy {enemy} mate {mate} own {own}, shot off {shot}, defused by hand {hand}"
                 );
                 eprintln!("{}", game.traps.catch_summary());
+                // [A324] The placers killed within 5 s after a placement (by the stand-in game's kills, any killer).
+                let placed: Vec<(u32, usize)> = game
+                    .traps
+                    .events
+                    .iter()
+                    .filter_map(|e| match *e {
+                        super::standin_traps::Event::Placed { tick, place, .. } => Some((tick, place)),
+                        _ => None,
+                    })
+                    .collect();
+                let killed = placed
+                    .iter()
+                    .filter(|&&(tick, place)| game.kills_all.iter().any(|&(t, _, victim)| victim == place && (tick..=tick + 5_000).contains(&t)))
+                    .count();
+                eprintln!("  trap placers killed within 5 s after the placement: {killed} of {}", placed.len());
                 for line in game.traps.catch_lines() {
                     eprintln!("{line}");
                 }

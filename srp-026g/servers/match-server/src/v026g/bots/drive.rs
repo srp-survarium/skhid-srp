@@ -572,27 +572,8 @@ fn drive_tick_inner(
     }
     // Getting unstuck overrides the rest: the keys for a few ticks, the
     // jump on the first.
-    if let Some((keys, ticks)) = bot.unstick {
-        bot.unstick = (ticks > 1).then_some((keys & !key::JUMP, ticks - 1));
-        // [S5] Along a thin top (last tick's mode) only the escape keys that step along its line, by their way in the world (the
-        // keys are the view's); on or onto one with no line to judge by, no move key at all: a step off the line is off the top.
-        const MOVES: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
-        let kept = match bot.motor.precise {
-            super::precise::Precise::Steer { line, .. } => line.keys_along(keys, me.yaw),
-            super::precise::Precise::Guard => keys & !MOVES,
-            super::precise::Precise::Off => keys,
-        };
-        if kept != keys {
-            super::precise::counts::add(super::precise::counts::Slot::Escape);
-        }
-        let keys = kept;
-        bot.motor.turn_time = None;
-        bot.motor.track = None;
-        let decision = bot.motor.rest();
-        let by = (keys & key::JUMP != 0 && !bot.motor.carrying).then_some("unstick");
-        bot.reflex.skipped_tick(time);
-        let keys = jumping(bot, keys, by, me.feet, time);
-        return Decision { keys, ..decision };
+    if let Some(decision) = unstick_replay(bot, me, tactics, tuning, time) {
+        return decision;
     }
     // [S5] The mode is this tick's walk's: none until the walk sets it.
     bot.motor.precise = super::precise::Precise::Off;
@@ -717,7 +698,26 @@ fn drive_tick_inner(
         && !using
         && bot.reflex.target().is_none();
     let reacts = bot.control.reacts();
-    let trap = if reacts { traps::drive(bot, me, time, calm, intent.crouch, &tuning.traps, Some(&tactics.world.sight)) } else { None };
+    // [traps.look_over_heard] The trap look's own calm: a glance or a heard-only aim gives way to it (`traps::trap_calm`).
+    let (trap_calm, over_heard) = traps::trap_calm(
+        traps::CalmFacts {
+            over: &over,
+            target: bot.reflex.target().is_some(),
+            threat: bot.reflex.gates().bits & super::reflex::gate::THREAT != 0,
+            using,
+            // Read only while the habit looks or presses: idle, the trap look takes nothing.
+            enemy_near: bot.features.traps.habit.state() != traps::State::Idle
+                && traps::enemy_near_at(bot, me.feet, time, view.clock, &tuning.traps),
+            feet: me.feet,
+            now: time,
+        },
+        &tuning.traps,
+    );
+    let trap = if reacts {
+        traps::drive(bot, me, time, trap_calm, intent.crouch, &tuning.traps, Some(&tactics.world.sight), over_heard)
+    } else {
+        None
+    };
     let aim = match trap.and_then(|trap| trap.look) {
         Some(traps::LookAt::Point(point)) => Some(aim_at(point)),
         Some(traps::LookAt::Angles { yaw, pitch }) => Some((yaw, pitch)),
@@ -1196,6 +1196,11 @@ fn drive_tick_inner(
             // Why it has no route, if it has none after this.
             let mut no_route = path::NoRoute::Searched;
             if let Some((goal, route, crossed)) = found {
+                // [#2081] The way keeps the clearance from the team's own traps, or there is none; a fallback search's way is held
+                // to its own reach (`traps::FALLBACK_REACH_M`).
+                let fallback = bot.features.traps.fallback_pending.take().is_some_and(|g| g.distance_xz(goal) <= REPLAN_MOVED_M);
+                let within = fallback.then_some(traps::FALLBACK_REACH_M);
+                let route = traps::own_trap_route_within(bot, me.feet, route, time, tactics, intent.objective, within);
                 bot.no_way = route.is_none().then_some((goal, time + NO_WAY_RETRY_MS));
                 bot.features.crossing.goal = crossed.then_some(goal);
                 // Both ends were on floors, from one it may walk on: proven, unless the body's own shut drops are what
@@ -1217,6 +1222,9 @@ fn drive_tick_inner(
                 let stranded = tuning.think.stranded_start && tactics.world.grid.locate(me.feet, 1.5).is_none();
                 let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
                 bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid), goal)), time);
+                if fallback {
+                    traps::mark_fallback(bot, time);
+                }
             } else if replan && (no_way || shut_in) {
                 #[cfg(test)]
                 if shut_in {
@@ -1301,8 +1309,6 @@ fn drive_tick_inner(
                     .drop_shut_last_resort
                     .then(|| stuck::without_drops(&landings))
                     .flatten();
-                // [traps.keep_off] The landings again for the search with only the narrow trap discs (below).
-                let narrow_landings = tuning.traps.keep_off.map(|_| landings.clone());
                 let hard_with = |landings, trap_filter: fn(&Bot, Vec<stuck::Shut>, Option<NodeId>) -> RouteFilter| {
                     let mut hard = trap_filter(bot, landings, grid.locate(me.feet, 1.5));
                     // [S6] A carrier's body ([`body_reach`]).
@@ -1315,7 +1321,6 @@ fn drive_tick_inner(
                 };
                 let hard_of = |landings| hard_with(landings, traps::filter);
                 let mut hard = hard_of(landings);
-                let narrow = narrow_landings.map(|landings| hard_with(landings, traps::filter_narrow));
                 let unshut = unshut_landings.map(hard_of);
                 let filter = traps::soften(
                     bot,
@@ -1441,33 +1446,12 @@ fn drive_tick_inner(
                 // again (a shut is a preference, as the stuck spots are), and no way without them either is proof for the
                 // plays. Off: it stands until the shut ends, the search no proof (Chemical Plant's walkway beams, 45 s).
                 let mut unshut_proof = false;
-                // [traps.keep_off] No way with the team's traps shut to `hard_m`: the way through their wider ring is the only
-                // one, so it is searched again with only the narrow discs (FIELD_M) shut, as the default does.
+                // [traps.keep_off] #2081: no second search with narrower trap discs: its way passed an own trap nearer than the
+                // clearance keep_off holds the route to, which dropped it at the next think while the body walked it, onto the
+                // trap (the bench's own catches). A way is kept only at the one clearance (`traps::own_trap_route`).
                 #[cfg(test)]
-                if narrow.is_some() && ends.is_some() && !escaping && !there {
+                if tuning.traps.keep_off.is_some() && ends.is_some() && !escaping && !there {
                     traps::keep_off_counts::count(traps::keep_off_counts::SEARCHES);
-                }
-                if route.is_none()
-                    && left.is_none()
-                    && !escaping
-                    && !there
-                    && let (Some(narrow), Some((from, to))) = (narrow.as_ref(), ends)
-                {
-                    let found = tactics.start_route(from, to, time, side, objective, narrow, floors);
-                    #[cfg(test)]
-                    traps::keep_off_counts::count(match found {
-                        Ok(Some(_)) => traps::keep_off_counts::NARROW_FOUND,
-                        Ok(None) => traps::keep_off_counts::NARROW_NONE,
-                        Err(_) => traps::keep_off_counts::NARROW_LEFT,
-                    });
-                    match found {
-                        Ok(Some(way)) => route = Some(way),
-                        Ok(None) => {}
-                        Err(planning) => {
-                            hard = narrow.clone();
-                            left = Some((false, planning));
-                        }
-                    }
                 }
                 if route.is_none()
                     && left.is_none()
@@ -1493,6 +1477,40 @@ fn drive_tick_inner(
                         }
                     }
                 }
+                // [#2081] No way with the team's own traps' floors shut to the clearance: once more with them shut only to the
+                // guard's contact (`traps::FALLBACK_REACH_M`); its route is marked so the route check and keep_off hold it there, and
+                // a search left under way carries the mark to its answer (the bench's batt s4: a carrier 2.24 m from its own trap, the
+                // only way out of where it stood within 1.47 m of it, stood 140 s). The motor's guard keeps the body off the trap.
+                let mut fallback = false;
+                if route.is_none()
+                    && left.is_none()
+                    && !escaping
+                    && !there
+                    && !bot.features.traps.field.is_empty()
+                    && let Some((from, to)) = ends
+                {
+                    let narrow = traps::fallback_field(bot, grid);
+                    let landings: Vec<stuck::Shut> = bot.stuck.shut_landings_from(time, me.feet, tuning.unstick.drop_shut_from_top).collect();
+                    let mut fb = traps::filter_within(bot, &narrow, landings, grid.locate(me.feet, 1.5)).with_reach(body_reach(bot, me, time));
+                    if tuning.kin.open_edge_cost > 0.0 {
+                        fb = fb.weighing_open_sides(1.0 + tuning.kin.open_edge_cost);
+                    }
+                    match tactics.start_route(from, to, time, side, objective, &fb, floors) {
+                        Ok(Some(way)) => {
+                            route = Some(way);
+                            fallback = true;
+                        }
+                        Ok(None) => {}
+                        Err(planning) => {
+                            hard = fb;
+                            left = Some((false, planning));
+                            bot.features.traps.fallback_pending = Some(at);
+                        }
+                    }
+                }
+                let fallback_within = |bot: &Bot| {
+                    (fallback || bot.features.traps.fallback_pending.is_some_and(|g| g.distance_xz(at) <= REPLAN_MOVED_M)).then_some(traps::FALLBACK_REACH_M)
+                };
                 // A held shooter's lane (K1, `threat.rs`): a route that runs
                 // through it for long gets a local detour round the lane
                 // (searched from 13 m before it to 13 m after it, spliced in)
@@ -1728,7 +1746,7 @@ fn drive_tick_inner(
                 if let (Some((planning, second)), Some(ends)) = (second, ends) {
                     // It goes on at the next polls; the plain route (a long
                     // one) meanwhile, else the old one.
-                    if let Some(plain) = second.plain.clone() {
+                    if let Some(plain) = traps::own_trap_route(bot, me.feet, second.plain.clone(), time, tactics, objective) {
                         #[cfg(test)]
                         {
                             bot.bench_route = why::PLAIN;
@@ -1755,14 +1773,18 @@ fn drive_tick_inner(
                     // Meanwhile the way so far, as Detour's partial paths:
                     // toward the goal, not standing (else the old route).
                     let filter = if round { filter } else { hard };
+                    let within = fallback_within(bot);
                     if let Some(partial) =
-                        tactics.partial_route(&planning, ends, time, side, objective, &filter)
+                        traps::own_trap_route_within(bot, me.feet, tactics.partial_route(&planning, ends, time, side, objective, &filter), time, tactics, objective, within)
                     {
                         #[cfg(test)]
                         {
                             bot.bench_route = why::PLAIN;
                         }
                         bot.set_route(Some((door_route(partial, tuning, &tactics.world.grid), at)), time);
+                        if within.is_some() {
+                            traps::mark_fallback(bot, time);
+                        }
                         #[cfg(test)]
                         {
                             bot.bench_on_partial = true;
@@ -1783,6 +1805,10 @@ fn drive_tick_inner(
                         second: None,
                     });
                 } else {
+                    // [#2081] The way keeps the clearance from the team's own traps, or there is none (not a way out of a zone); the
+                    // fallback's way its own reach.
+                    let within = fallback_within(bot);
+                    let route = if escaping { route } else { traps::own_trap_route_within(bot, me.feet, route, time, tactics, objective, within) };
                     #[cfg(test)]
                     if let Some((from, to)) = ends
                         && !escaping
@@ -1798,7 +1824,6 @@ fn drive_tick_inner(
                     if route.is_none() && !escaping && !there {
                         let retried = NoWayRetries {
                             stuck_spots: avoiding,
-                            trap_discs: narrow.is_some(),
                             drop_shuts: unshut.is_some(),
                             unshut_proof,
                             reach: hard.reach(),
@@ -1839,6 +1864,9 @@ fn drive_tick_inner(
                     }
                     let route = route.map(|route| if stranded { stranded_leg(route, me.feet) } else { route });
                     bot.set_route(route.map(|route| (door_route(route, tuning, &tactics.world.grid), at)), time);
+                    if fallback && bot.route.is_some() {
+                        traps::mark_fallback(bot, time);
+                    }
                     bot.features.crossing.goal = crossed.then_some(at);
                 }
             }
@@ -2152,9 +2180,17 @@ fn drive_tick_inner(
     if let Some(keys) = stepped.filter(|_| over.strafe != 0 && !using) {
         let (side, objective) = (bot.side, intent.objective);
         let sees_open = tuning.aim.combat.clear_step_sees_open;
+        // [#2081] No side step onto an own trap: the one clearance (`traps::step_keeps_clear`).
+        let own = bot.features.traps.field.clone();
+        let refused_own = std::cell::Cell::new(false);
         let ask = |keys: u32, strafe: u32| {
             let to = me.feet + side_step(keys, strafe, me.yaw, tactics.clear_step_sees_lip);
-            tactics.clear_step_seeing(me.feet, to, time, side, objective, sees_open)
+            let ground = tactics.clear_step_seeing(me.feet, to, time, side, objective, sees_open);
+            let trap_clear = traps::step_keeps_clear(&own, me.feet, to);
+            if ground && !trap_clear {
+                refused_own.set(true);
+            }
+            ground && trap_clear
         };
         let slides = tuning.aim.combat.clear_step_slides_along;
         let (step, other_clear) = choose_step(
@@ -2188,6 +2224,9 @@ fn drive_tick_inner(
         }
         #[cfg(not(test))]
         let _ = other_clear;
+        if refused_own.get() {
+            traps::own_trap_note(bot, time, format!("a side step refused: it ends nearer an own trap than {:.2} m", own.reach().max(traps::FIELD_M)));
+        }
         if let Step::Own(keys) | Step::Slid(keys) = step {
             decision.keys = keys;
             #[cfg(test)]
@@ -2221,7 +2260,14 @@ fn drive_tick_inner(
             let keys = decision.keys | away.key;
             let to = me.feet + side_step(keys, away.key, me.yaw, tactics.clear_step_sees_lip);
             let sees_open = tuning.aim.combat.clear_step_sees_open;
-            let clear = !held_off && tactics.clear_step_seeing(me.feet, to, time, bot.side, intent.objective, sees_open);
+            // [#2081] No step apart onto an own trap: the one clearance (`traps::step_keeps_clear`).
+            let own = bot.features.traps.field.clone();
+            let ground = !held_off && tactics.clear_step_seeing(me.feet, to, time, bot.side, intent.objective, sees_open);
+            let trap_clear = traps::step_keeps_clear(&own, me.feet, to);
+            if ground && !trap_clear {
+                traps::own_trap_note(bot, time, format!("a step apart refused: it ends nearer an own trap than {:.2} m", own.reach().max(traps::FIELD_M)));
+            }
+            let clear = ground && trap_clear;
             if clear {
                 decision.keys = keys;
             }
@@ -2231,6 +2277,7 @@ fn drive_tick_inner(
                 let other = away.other_key();
                 let other_to = me.feet + side_step(decision.keys | other, other, me.yaw, tactics.clear_step_sees_lip);
                 tactics.clear_step_seeing(me.feet, other_to, time, bot.side, intent.objective, sees_open)
+                    && traps::step_keeps_clear(&own, me.feet, other_to)
             };
             let tied = tie && other_clear;
             if tied {
@@ -2296,6 +2343,12 @@ fn drive_tick_inner(
     // off a lip (`WalkGrid::near_lip`), with the body's keys pushing it over or its glide carrying it.
     let lift_stepped = decision.keys & lift_wants == lift_wants;
     guard_keys(bot, &mut decision, me, tactics, tuning, time);
+    // [#2081] The own-trap guard, the last say on the move keys: no step ends within contact of a known own trap (or one it noticed)
+    // unless it moves away from it (`traps::own_trap_guard`); its replacement keys pass the lip guard's test too.
+    let lip_ok = lip_ok_of(bot, me, tactics, tuning, decision.turn.0);
+    if let Some(keys) = traps::guard_own_traps(bot, decision.keys, decision.turn.0, me, tuning, &tactics.world.grid, lip_ok, time) {
+        decision.keys = keys;
+    }
     let lift_guarded = decision.keys & lift_wants == lift_wants;
     // The stance and pace.
     if intent.crouch || intent.pace == Pace::Sneak {
@@ -2794,7 +2847,7 @@ const LIP_HELD_SCORE: u8 = 3;
 const LIP_GIVE_UP: u8 = 30;
 const LIP_OFF_MS: u32 = 3_000;
 /// [`Feel::lip_guard_full`]: a body with no move key held is still a glide to stop when it is faster than this (m/s).
-const LIP_GLIDE_MPS: f32 = 0.5;
+pub(super) const LIP_GLIDE_MPS: f32 = 0.5;
 /// [`Feel::lip_guard_full`]: a bot the guard gave up is watched again when it has moved this far from where it was given up (m).
 const LIP_RESUME_M: f32 = 0.5;
 
@@ -3118,6 +3171,62 @@ pub(super) fn lip_guard_with(
     guard
 }
 
+/// The unstick replay's tick, if one is under way: its keys for a few ticks, the jump on the first. [#2081] Its move keys pass the
+/// own-trap guard (a jump press left to the route, as everywhere): a replay holds them 0.5-1.3 s.
+fn unstick_replay(bot: &mut Bot, me: &PlaceView, tactics: &Tactics, tuning: &Tuning, time: u32) -> Option<Decision> {
+    let (keys, ticks) = bot.unstick?;
+    bot.unstick = (ticks > 1).then_some((keys & !key::JUMP, ticks - 1));
+    // [S5] Along a thin top (last tick's mode) only the escape keys that step along its line, by their way in the world (the
+    // keys are the view's); on or onto one with no line to judge by, no move key at all: a step off the line is off the top.
+    const MOVES: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
+    let kept = match bot.motor.precise {
+        super::precise::Precise::Steer { line, .. } => line.keys_along(keys, me.yaw),
+        super::precise::Precise::Guard => keys & !MOVES,
+        super::precise::Precise::Off => keys,
+    };
+    if kept != keys {
+        super::precise::counts::add(super::precise::counts::Slot::Escape);
+    }
+    let keys = kept;
+    bot.motor.turn_time = None;
+    bot.motor.track = None;
+    let decision = bot.motor.rest();
+    let by = (keys & key::JUMP != 0 && !bot.motor.carrying).then_some("unstick");
+    bot.reflex.skipped_tick(time);
+    let keys = if keys & key::JUMP != 0 {
+        keys
+    } else {
+        let lip_ok = lip_ok_of(bot, me, tactics, tuning, 0.0);
+        traps::guard_own_traps(bot, keys, 0.0, me, tuning, &tactics.world.grid, lip_ok, time).unwrap_or(keys)
+    };
+    let keys = jumping(bot, keys, by, me.feet, time);
+    Some(Decision { keys, ..decision })
+}
+
+/// [#2081] Whether keys stay up by the lip guard's own test ([`lip_guard_with`], with the inputs [`guard_keys`] gives it): for the
+/// own-trap guard's replacement keys. Always with the lip guard off (`Feel::lip_guard_ticks` 0).
+fn lip_ok_of<'a>(bot: &mut Bot, me: &'a PlaceView, tactics: &'a Tactics, tuning: &'a Tuning, turn: f32) -> impl Fn(u32) -> bool + use<'a> {
+    let hold = bot.motor.feel.lip_guard_ticks;
+    let full = bot.motor.feel.lip_guard_full;
+    let kept = bot.reckoned_kept;
+    let truth = bot.motor.feel.drop_truth;
+    let planned = if hold == 0 {
+        Vec::new()
+    } else {
+        bot.route.as_mut().map_or_else(Vec::new, |(route, _)| {
+            let (walked, _) = route.progress(me.feet);
+            route.drop_landings(walked, PLANNED_DROP_M, truth)
+        })
+    };
+    move |keys: u32| {
+        hold == 0
+            || matches!(
+                lip_guard_with(&tactics.world.grid, &tuning.kin, me, turn, keys, &planned, hold, full, kept),
+                LipGuard::Clear | LipGuard::Safe
+            )
+    }
+}
+
 /// [`lip_guard_with`] on the tick's decision.
 fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &Tactics, tuning: &Tuning, time: u32) {
     #[cfg(test)]
@@ -3323,8 +3432,6 @@ impl Gates {
 pub(super) struct NoWayRetries {
     /// Searched again through its stuck spots (the filter's soft part).
     pub(super) stuck_spots: bool,
-    /// Searched again with only the traps' narrow discs shut (`traps.keep_off`).
-    pub(super) trap_discs: bool,
     /// Searched again with the drops it shut opened (`unstick.drop_shut_last_resort`).
     pub(super) drop_shuts: bool,
     /// That last search found no way either.
@@ -3359,9 +3466,6 @@ pub(super) fn no_way_line(
             }
             if retried.stuck_spots {
                 v.push_str("; searched again through its stuck spots");
-            }
-            if retried.trap_discs {
-                v.push_str("; searched again past the traps' wide rings");
             }
             // [S6] A body with no sprint: its searches took no sprint link without a walking press.
             if let mapdata::SprintReach::Cannot { max_rise } = retried.reach.sprint {
@@ -3638,6 +3742,175 @@ mod tests {
         assert_eq!(swapped(guard(&at_rim, &[Vec3::new(40.0, 0.0, 10.0)])), Some(key::BACK));
         // With no keys held there is nothing to let go of.
         assert_eq!(lip_guard(grid, &kin, &at_rim, 0.0, 0, &[], HOLD), LipGuard::Clear);
+    }
+
+    /// [#2081] A trap on one side, a drop on the other: a body at rest by a 2 m rim, facing it, walks the diagonal toward a known own
+    /// trap at its side. Straight on misses the trap but its stop goes over the rim; the own-trap guard takes no replacement the lip
+    /// guard's test refuses, so it stops instead.
+    #[test]
+    fn dodging_an_own_trap_never_steps_off_a_ledge() {
+        let world = slab();
+        let grid = &world.grid;
+        let kin = kin::Kinematics::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x, the rim at x = 56
+        let at_rest = |x: f32| PlaceView { velocity: [0.0, 0.0], keys: 0, ..on_the_slab(x, toward, 0.0) };
+        let lip_ok = |me: &PlaceView, k: u32| matches!(lip_guard_with(grid, &kin, me, 0.0, k, &[], HOLD, true, None), LipGuard::Clear | LipGuard::Safe);
+        // Where the walk straight on goes over and a stop stays up.
+        let me = (0..20)
+            .map(|k| at_rest(55.0 + 0.05 * k as f32))
+            .find(|me| !lip_ok(me, key::FORWARD) && lip_ok(me, 0))
+            .expect("a place by the rim where straight on falls");
+        let at = body::Estimate::of_view(&me, grid.locate(me.feet, 1.5));
+        let stop = body::Stop { kin: &kin, level: 1.0, grid, planned: &[], hold: traps::GUARD_HOLD_TICKS };
+        let path_of = |k: u32| body::stop_path(&at, k, 0.0, &stop);
+        let diagonal = key::FORWARD | key::LEFT;
+        let touches = |k: u32, t: Vec3| traps::path_touches(&path_of(k), &[t.into()], me.feet);
+        // A trap at its side the diagonal runs into, and neither straight on nor a stop does.
+        let trap = (-12..=12)
+            .flat_map(|dz| (-6..=6).map(move |dx| Vec3::new(me.feet.x + 0.1 * dx as f32, 2.0, me.feet.z + 0.1 * dz as f32)))
+            .find(|&t| touches(diagonal, t) && !touches(key::FORWARD, t) && !touches(0, t))
+            .expect("a trap the diagonal touches");
+        let blind = traps::own_trap_guard(path_of, |_| true, me.feet, me.velocity, me.yaw, 0.0, diagonal, &[trap.into()], false);
+        assert_eq!(blind, traps::OwnTrapGuard::Swapped(key::FORWARD), "without the lip test it walks straight on, over the rim");
+        let guarded = traps::own_trap_guard(path_of, |k| lip_ok(&me, k), me.feet, me.velocity, me.yaw, 0.0, diagonal, &[trap.into()], false);
+        assert_eq!(guarded, traps::OwnTrapGuard::Swapped(0), "with it the body stops, on the slab and off the trap");
+    }
+
+    /// [#2081] A route over a noticed trap that the own-trap guard holds at rest (the walk on it refused, no other key) past the
+    /// longest think gap ends, and the trap is shut for the bot's searches; a route the guard lets walk is kept.
+    #[test]
+    fn a_route_the_own_trap_guard_holds_at_rest_ends_and_shuts_the_trap() {
+        let world = slab();
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x
+        let me = PlaceView { velocity: [0.0, 0.0], keys: 0, ..on_the_slab(52.0, toward, 0.0) };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        let trap = Vec3::new(52.7, 2.0, 33.0);
+        bot.features.traps.react.notice_standing(&[trap], &world.grid);
+        let way = |x: f32| path::Waypoint { at: Vec3::new(x, 2.0, 33.0), node: 0, jump: None, low: false };
+        let route = path::Route::new(vec![way(52.0), way(55.5)]);
+        let goal = route.end();
+        bot.route = Some((route, goal));
+        let start = 1_000;
+        let mut now = start;
+        while bot.route.is_some() && now < start + 3_000 {
+            let keys = traps::guard_own_traps(&mut bot, key::FORWARD, 0.0, &me, &tuning, &world.grid, |_| true, now);
+            assert_eq!(keys.map(|k| k & key::FORWARD), Some(0), "the walk onto it is held at {now}");
+            now += 50;
+        }
+        assert!(bot.route.is_none(), "the route ended");
+        assert!(now - start > tuning.think.think_ms.1, "only past the longest think gap: {} ms", now - start);
+        let shut = bot.features.traps.react.blocked_field();
+        assert!(!shut.is_empty() && !shut.open(world.grid.locate(trap, 1.5).unwrap()), "the trap is shut for its searches");
+        // Walking away the guard says nothing and the route stands.
+        bot.route = Some((path::Route::new(vec![way(52.0), way(50.5)]), Vec3::new(50.5, 2.0, 33.0)));
+        for k in 0..20 {
+            assert_eq!(traps::guard_own_traps(&mut bot, key::BACK, 0.0, &me, &tuning, &world.grid, |_| true, now + 50 * k), None);
+        }
+        assert!(bot.route.is_some());
+    }
+
+    /// [#2081 a-c] The guard's own-trap discs: a jump's line-up and a press held for its gate walk on the ground and are guarded,
+    /// the jump's air is not; a promised trap takes the world's armed trap's place as soon as a world shows it (the bench's batt s2:
+    /// the promise lay 0.26 m off the trap); every disc's contact carries the reckoning's margin.
+    #[test]
+    fn the_own_trap_guard_keeps_line_ups_off_and_reads_the_worlds_trap() {
+        let world = slab();
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x
+        let me = PlaceView { velocity: [0.0, 0.0], keys: 0, ..on_the_slab(52.0, toward, 0.0) };
+        let fresh = || {
+            let mut bot = Bot::new(1, 0, 0, None, &tuning);
+            bot.features.traps.field = Arc::new(crate::v026g::bots::trap_know::TrapField::round(vec![Vec3::new(53.0, 2.0, 33.0)], &world.grid));
+            bot
+        };
+        let guard = |bot: &mut Bot, keys: u32| traps::guard_own_traps(bot, keys, 0.0, &me, &tuning, &world.grid, |_| true, 1_000);
+        // The walk on toward a trap 1.0 m ahead: within contact + the reckoning's margin (0.80 m at a fresh world), refused.
+        assert_eq!(guard(&mut fresh(), key::FORWARD).map(|k| k & key::FORWARD), Some(0));
+        // A line-up and a held press are guarded as the walk.
+        let mut bot = fresh();
+        bot.motor.test_line_up();
+        assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0), "a line-up walks on the ground");
+        let mut bot = fresh();
+        bot.jump_hold = 2;
+        assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0), "a held press too");
+        // The press's own tick is left to the route.
+        assert_eq!(guard(&mut fresh(), key::FORWARD | key::JUMP), None);
+        // A promise 1.6 m ahead that no world shows yet: within contact + both margins (1.51 m) of the stop, refused.
+        let mut bot = fresh();
+        bot.features.traps.field = Arc::new(crate::v026g::bots::trap_know::TrapField::round(vec![Vec3::new(53.6, 2.0, 33.0)], &world.grid));
+        assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0), "the promise's margin");
+        // The world shows it 0.1 m past the promise: its place, without the promise's margin (0.80 m), and the walk stands.
+        bot.features.traps.world_armed = Arc::new(vec![Vec3::new(53.7, 2.0, 33.0)]);
+        assert_eq!(guard(&mut bot, key::FORWARD), None, "the world's trap 1.7 m ahead");
+        // The world shows it 0.6 m nearer: its place is read at once.
+        bot.features.traps.world_armed = Arc::new(vec![Vec3::new(53.0, 2.0, 33.0)]);
+        assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0), "the world's trap 1.0 m ahead");
+        // The reckoning's margin grows with the world's age: a trap 0.85 m past the stop's reach is clear of a fresh world's
+        // (0.80 m) and not of a second-old one's (0.90 m).
+        let at = body::Estimate::of_view(&me, world.grid.locate(me.feet, 1.5));
+        let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid: &world.grid, planned: &[], hold: traps::GUARD_HOLD_TICKS };
+        let reach = body::stop_path(&at, key::FORWARD, 0.0, &stop).iter().map(|p| p.x).fold(f32::MIN, f32::max);
+        bot.features.traps.world_armed = Arc::new(vec![Vec3::new(reach + 0.85, 2.0, 33.0)]);
+        bot.features.traps.field = Arc::new(crate::v026g::bots::trap_know::TrapField::round(vec![Vec3::new(reach + 0.85, 2.0, 33.0)], &world.grid));
+        assert_eq!(guard(&mut bot, key::FORWARD), None, "a fresh world");
+        let old = PlaceView { seen_at: 0, known_at: 1_000, ..me.clone() };
+        assert_eq!(
+            traps::guard_own_traps(&mut bot, key::FORWARD, 0.0, &old, &tuning, &world.grid, |_| true, 1_000).map(|k| k & key::FORWARD),
+            Some(0),
+            "a second-old world"
+        );
+        // A world trap past the promise match is another trap: the promise stands, with its margin.
+        bot.features.traps.world_armed = Arc::new(vec![Vec3::new(60.0, 2.0, 33.0)]);
+        assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0));
+    }
+
+    /// [#2081 d] A fall onto an own trap below: a body walking off a 2 m rim, the trap on the field under its landing. The guard tests
+    /// each forecast leg against the traps of its own floor (the bench's tdm s3: a placer fell onto its own trap 1.5 m down).
+    #[test]
+    fn the_own_trap_guard_refuses_a_fall_onto_an_own_trap_below() {
+        let world = slab();
+        let grid = &world.grid;
+        let kin = kin::Kinematics::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x, the rim at x = 56
+        let me = on_the_slab(55.6, toward, 3.5);
+        let at = body::Estimate::of_view(&me, grid.locate(me.feet, 1.5));
+        let stop = body::Stop { kin: &kin, level: 1.0, grid, planned: &[], hold: traps::GUARD_HOLD_TICKS };
+        let path = body::stop_path(&at, key::FORWARD, 0.0, &stop);
+        let landing = *path.last().unwrap();
+        assert!(landing.y < 1.0, "the walk on falls off the rim: {landing:?}");
+        let below = Vec3::new(landing.x, 0.0, landing.z);
+        assert!(traps::path_touches(&path, &[below.into()], me.feet), "the landing on the trap below");
+        let guard = traps::own_trap_guard(|k| body::stop_path(&at, k, 0.0, &stop), |_| true, me.feet, me.velocity, me.yaw, 0.0, key::FORWARD, &[below.into()], false);
+        assert_ne!(guard, traps::OwnTrapGuard::Clear);
+        // A trap on the field far from the landing is no matter; one under the walk on the slab's own floor is (the start's floor).
+        assert!(!traps::path_touches(&path, &[Vec3::new(landing.x, 0.0, landing.z + 3.0).into()], me.feet));
+    }
+
+    /// [#2081] The unstick replay's keys pass the own-trap guard: a replay walking a bot onto its own trap is let go, its jump press
+    /// left alone.
+    #[test]
+    fn the_unstick_replay_passes_the_own_trap_guard() {
+        let world = slab();
+        let tactics = crate::v026g::bots::tactics::Tactics::new(world.clone(), 1.0);
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x
+        let me = PlaceView { velocity: [0.0, 0.0], keys: 0, ..on_the_slab(52.0, toward, 0.0) };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        let trap = Vec3::new(52.8, 2.0, 33.0);
+        bot.features.traps.field = Arc::new(crate::v026g::bots::trap_know::TrapField::round(vec![trap], &world.grid));
+        bot.unstick = Some((key::FORWARD, 10));
+        let d = unstick_replay(&mut bot, &me, &tactics, &tuning, 1_000).expect("a replay tick");
+        assert_eq!(d.keys & key::FORWARD, 0, "the walk onto the trap is let go: {:#x}", d.keys);
+        // Away from the trap the replay's keys stand.
+        bot.unstick = Some((key::BACK, 10));
+        let d = unstick_replay(&mut bot, &me, &tactics, &tuning, 1_050).expect("a replay tick");
+        assert_ne!(d.keys & key::BACK, 0, "{:#x}", d.keys);
+        // No trap: the replay as it was.
+        bot.features.traps.field = Arc::default();
+        bot.unstick = Some((key::FORWARD, 10));
+        let d = unstick_replay(&mut bot, &me, &tactics, &tuning, 1_100).expect("a replay tick");
+        assert_ne!(d.keys & key::FORWARD, 0, "{:#x}", d.keys);
     }
 
     /// [`kin::Edge::ClientWalksOff`] (A269): a slab 6 m over the field, deeper than the harmless drop, so no link leaves its rim and

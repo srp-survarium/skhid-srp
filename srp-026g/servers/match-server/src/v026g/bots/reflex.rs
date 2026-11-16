@@ -2333,13 +2333,18 @@ impl Default for PreAimHeard {
 impl PreAimHeard {
     /// The place to look at: the nearest Heard or Told track sensed within `fresh_ms` and within `max_m` of `feet`.
     pub fn place(&self, memory: &Memory, feet: Vec3, now: u32) -> Option<Vec3> {
+        self.nearest(memory, feet, now).map(|(at, _)| at)
+    }
+
+    /// [`Self::place`] with the time the track was sensed.
+    pub fn nearest(&self, memory: &Memory, feet: Vec3, now: u32) -> Option<(Vec3, u32)> {
         memory
             .tracks()
             .iter()
             .filter(|t| matches!(t.source, Source::Heard | Source::Told { .. }))
             .filter(|t| now.saturating_sub(t.time) <= self.fresh_ms && t.at.distance_xz(feet) <= self.max_m)
             .min_by(|a, b| a.at.distance_xz(feet).total_cmp(&b.at.distance_xz(feet)))
-            .map(|t| t.at)
+            .map(|t| (t.at, t.time))
     }
 }
 
@@ -2352,9 +2357,9 @@ pub struct SightsUp {
 }
 
 impl SightsUp {
-    /// The nearest such track's place.
-    pub fn place(&self, memory: &Memory, feet: Vec3, now: u32) -> Option<Vec3> {
-        PreAimHeard { fresh_ms: self.fresh_ms, max_m: self.reach_m }.place(memory, feet, now)
+    /// The nearest such track's place, and when it was sensed.
+    pub fn nearest(&self, memory: &Memory, feet: Vec3, now: u32) -> Option<(Vec3, u32)> {
+        PreAimHeard { fresh_ms: self.fresh_ms, max_m: self.reach_m }.nearest(memory, feet, now)
     }
 }
 
@@ -2446,6 +2451,47 @@ pub struct Legs {
     pub why: LegsWhy,
 }
 
+/// [A324 measure] The kind of the reflex's last override on this thread (a bot's reflex tick runs just before its drive's): read by
+/// the trap habit's count of looks called away (`traps::called`). Decisions are not touched.
+#[cfg(test)]
+pub mod last_look {
+    use std::cell::Cell;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Kind {
+        /// No look, no legs, no fire hold.
+        None,
+        /// A glance (`Override::glance`: a heard shot, a callout's place, a heard enemy, a threat not made by a hit).
+        Glance,
+        /// A look with the sights up (`key::AIM`: the partner's death spot, a heard or told enemy in the pre-aim range, the aim
+        /// carried after a lost target).
+        Aimed,
+        /// Another look (where the last target was last seen, a fire through).
+        Look,
+        /// Legs or a fire hold, no look.
+        LegsOrFire,
+    }
+
+    thread_local! {
+        static LAST: Cell<Kind> = const { Cell::new(Kind::None) };
+    }
+
+    pub fn set(over: &super::Override) {
+        let kind = match over.look_at {
+            Some(_) if over.glance => Kind::Glance,
+            Some(_) if over.keys & super::key::AIM != 0 => Kind::Aimed,
+            Some(_) => Kind::Look,
+            None if over.legs.is_some() || over.fire => Kind::LegsOrFire,
+            None => Kind::None,
+        };
+        LAST.with(|c| c.set(kind));
+    }
+
+    pub fn get() -> Kind {
+        LAST.with(|c| c.get())
+    }
+}
+
 /// What the reflex wants of the motor this tick.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Override {
@@ -2487,6 +2533,9 @@ pub struct Override {
     /// The look's turn rate, yaw and pitch, radians a second, while it aims
     /// at a seen target (`turn_feed`): the motor's turn follows it.
     pub track: Option<(f32, f32)>,
+    /// [A393, `traps.look_over_heard`] `look_at` is the sights-up aim at an enemy only heard or told of: his track's place and
+    /// when it was sensed.
+    pub heard_aim: Option<(Vec3, u32)>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -8119,6 +8168,8 @@ impl Reflex {
         if aim.combat.spawn_protection {
             self.protection_gate(&mut over, now);
         }
+        #[cfg(test)]
+        last_look::set(&over);
         over
     }
 
@@ -8516,10 +8567,10 @@ impl Reflex {
                     None => match self
                         .sights_up_window
                         .filter(|_| c.sights_up && me.carrying.is_none())
-                        .and_then(|window| window.place(memory, me.feet, now))
+                        .and_then(|window| window.nearest(memory, me.feet, now))
                     {
                         // [A393] The nearest enemy heard or told of within the pre-aim range: walked aimed at his bearing.
-                        Some(at) => {
+                        Some((at, sensed)) => {
                             if self.sights_up_last.is_none_or(|last| now > last.saturating_add(1_000)) {
                                 self.debug_notes.push(format!(
                                     "sights up at a heard or told enemy {:.1} m off at ({:.1}, {:.1})",
@@ -8534,6 +8585,7 @@ impl Reflex {
                                 look_at: Some(at + Vec3::new(0.0, 1.3, 0.0)),
                                 keys: key::AIM | reload,
                                 legs,
+                                heard_aim: Some((at, sensed)),
                                 ..Override::default()
                             }
                         }
@@ -8912,6 +8964,7 @@ impl Reflex {
             track: body
                 .filter(|_| aimed.sees_body() && c.turn_feed)
                 .map(|body| bearing_rate(me, point, body.velocity)),
+            heard_aim: None,
         }
     }
 

@@ -1,7 +1,7 @@
-//! [A324] The camper trap job's play (`traps.camper_job`): the team sent this bot to put a trap on a held spot's point (his way
-//! back to the spot, or his death point there, `traps::camper_tick`); it walks there and stays on it while the trap habit looks
-//! down and presses (`traps::think`, with the job's own gate). It never aims or shoots: the reflex fires on sight. The team ends
-//! it (the trap down, the point's time over, the bot let go), not the play.
+//! [A324] The camper trap job's play (`traps.camper_job`): the team sent this bot to put a trap on the way in of a place an
+//! enemy holds (`traps::camper_tick`); it walks there and stays on it, crouched, while the trap habit looks down and presses
+//! (`traps::think`, with the job's own gate). It never aims or shoots: the reflex fires on sight. The team ends it (the trap
+//! down, the point's time over, the bot let go), not the play.
 
 use super::*;
 
@@ -57,8 +57,16 @@ pub fn step(_state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> 
     };
     let reach = num("reach_m");
     if cx.me.feet.distance_xz(point.at) <= reach {
-        // On the point: the habit looks down and presses; the body stays.
-        return Step::Continue(Intent::stay());
+        // On the point: the habit looks down and presses; the body stays, crouched, the pose the point was found out of his
+        // sight for (`traps::way_in`).
+        return Step::Continue(Intent::stay().crouched());
     }
-    Step::Continue(Intent::to(point.at, Pace::Run).within(reach))
+    // On the way: crouched (`Pace::Sneak`, the CROUCH key) where that hides it from him (`traps::hidden_by_crouching`), here or
+    // where its walk takes it by its next think at the latest (`ThinkTuning::think_ms`, the longer gap): the crouch is down
+    // before it comes into his sight standing.
+    let sight = &cx.tactics.world.sight;
+    let ahead_s = cx.tuning.think.think_ms.1 as f32 / 1000.0;
+    let ahead = cx.me.feet + Vec3::new(cx.me.velocity[0] * ahead_s, 0.0, cx.me.velocity[1] * ahead_s);
+    let crouch = [cx.me.feet, ahead].iter().any(|&at| crate::v026g::bots::traps::hidden_by_crouching(sight, point.held, at));
+    Step::Continue(Intent::to(point.at, if crouch { Pace::Sneak } else { Pace::Run }).within(reach))
 }

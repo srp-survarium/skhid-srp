@@ -38,16 +38,6 @@ pub struct TrapTuning {
     /// habit as it was (the best of the eight yaws round the feet at once). On by default (A169, with
     /// `enemy_near_m` 20): see `enemy_near_m`.
     pub on_the_pass: Option<PassTuning>,
-    /// A trap on the spot of a holder the team killed (A145): the place a killed enemy held (`know::Defeated`: a held threat spot
-    /// of his, or a place the killer's senses had him staying at) is a spot the next one comes to; a carrier whose route passes it
-    /// waits and puts the trap there, with the same gates as any trap (the enemy near, the friends, the team's own traps and the
-    /// spawn area) and a wider guard for mates. **Off by default** (`None`: the habit as it was): the owner's idea, built and benched
-    /// on v5 map data and found inert. The narrowed rule (holders only) put 15 traps on such spots in 112 team-matches of the traps
-    /// preset and 13 in 112 of the camper configs (stand-in camper at place 10 / 0), caught no more than the lane rule's pick, and
-    /// changed nothing in the match (wins 89 = 89, score -0.1 %); the rule over any killer's spot caught less (0.10 a trap). A holder
-    /// is back within 3 m of his death place in 120 s in 27-40 % of cases (his team's other bots 21-22 %), but the carriers seldom
-    /// pass it: of the candidates at a wished spot the floor, their own route and a mate near refuse most.
-    pub at_defeated: Option<DefeatedTuning>,
     /// [keep_off] The team's searches keep every known trap of the team at `hard_m`, hard, instead of `FIELD_M` (0.75 m) and the
     /// soft ring; where that leaves no way (a corridor), the search falls back to `FIELD_M`. At the defaults the habit caught its own
     /// side as often as the enemy (A318 check, every bench's OFF arm: 123 own vs 106 enemy catches): 72 % were mates, most 10 s or
@@ -62,13 +52,6 @@ pub struct TrapTuning {
     /// millisecond 1.50-2.11 m away, which then stood unknown to the team (5 of 23 own-team catches were of traps the victim's
     /// team did not know).
     pub promise_match: PromiseMatch,
-    /// [A145, design-p1c §9] A trap on the floor a camper stood on when the team's Breach (in its hold) or its K2 flanker
-    /// killed him: the job's bot with a trap nearest his death point is wished to put it there when its route passes the
-    /// point or it stands by it (no detour, no new goal), with the gates of any trap and a wider guard for mates. Live 6+
-    /// player matches (`fx-gear-trap-payoff.md`, 1,070 cleared campers): he or a mate steps within 1 m of that point in
-    /// 41 % of cases within 120 s (he himself 21.5 %, a median 46 s after his death), and the clearing team as often (38 %):
-    /// hence the guard. `at_defeated` stays the fallback for the spots this does not cover. Off by default.
-    pub at_cleared: Option<ClearedTuning>,
     /// [A324] Where the habit counts a released trap as lying, and so when it lets the key go. The client places a trap on
     /// the key's release where a ray from the head along the view meets the walk geometry within 2.0 m, on flat ground only
     /// (normal.y at least cos 30 deg), not on another trap's sensor (`try_to_place_trap` 0x305EA0, `docs/notes/bear_traps.md`,
@@ -77,14 +60,27 @@ pub struct TrapTuning {
     /// life's trap spent and the team kept a promise of it for 20 s (A324). That is wrong by the client, so `client` is the
     /// default and the all-off patch keeps it (`KEPT_RIGHT`).
     pub release: TrapRelease,
-    /// [A324] The camper trap job: on a held spot the team has a K2 job on (the 2-kill cue), a bot with a trap is SENT to put
-    /// one on his way back to the spot (the way from his side's spawns, the stretch just before it, out of the spot's sight) and,
-    /// when he dies there, on his death point; it walks there in its own play (`TrapSpot`) and places with the job's own gate (an
-    /// enemy seen, not one only known near; no chance roll), instead of the calm habit's no-detour wish (`at_defeated`,
-    /// `at_cleared`), which near such a spot the enemy gate refuses first (A324 root cause). Live 6+ matches: a cleared camper or
-    /// a mate steps within 1 m of his death point in 41 % of cases within 120 s (`fx-gear-trap-payoff.md`). Off by default until
-    /// its by-side bench.
+    /// [A324] The camper trap job: a place an enemy holds (a held spot the team has a K2 job on, the 2-kill cue; a man it holds
+    /// off from at a loose battery), while he holds it, gets a bot with a trap SENT
+    /// to put one on his way in (the way from his side's spawns, `near_m`..`far_m` before the place, where a crouched placer and
+    /// he cannot see each other, `traps::out_of_his_sight`). It walks there in its own play (`TrapSpot`, crouched where that
+    /// hides it and at the point) and places with the job's own gate (an enemy seen, not one only known near; no chance roll).
+    /// Live (`docs/notes/bear_traps.md`, "Human traps at a holder's place"): of 91 human traps at an enemy's killing hold in the
+    /// live traps record, the 8 on his way in caught him 3 times, the 83 others never (small n). The calm habit's no-detour wish,
+    /// which near such a place its enemy gate refuses first, is gone (A324 root cause), and so are the sends after a holder's
+    /// death (the old `at_defeated` and `at_cleared`): they were 68 of the 78 deaths of sent bots on the bench (87 %), sent at
+    /// his death into the area of the kill, and the human holder catches all came from traps laid before his hold. On by default; every point, sending,
+    /// letting go and trap is a note, and a let-go or trap note gives the gate's "enemy seen" refusals at the point by whom and
+    /// pose.
     pub camper_job: Option<CamperJob>,
+    /// [traps.look_over_heard] The trap look takes the view over a glance, or over the reflex's sights-up aim at an enemy only
+    /// heard or told of (A393), while the gate's own enemy-near check is clear; a seen target, a threat look (a hit, a near
+    /// shot), fire, legs or a use still win at once (`traps::trap_calm`). Root cause: on the plain bench (no stand-in camper,
+    /// 600 s, Rudnya) the habit planned about 56 traps a match and placed under one; of 392 looks called away 294 were that
+    /// sights-up aim and 85 a glance, after the gate had passed: the plan and the reflex disagreed on "an enemy near". A glance
+    /// already gives way to a use, a carry or a run (`drive.rs`). Each look that takes the view over one is a note (range, age).
+    /// On by default; off: every reflex look calls the trap look away, as before.
+    pub look_over_heard: bool,
     /// The ring round a standing own trap the team's searches keep out as a preference (soft: a way round where
     /// that is not much longer, else through), metres from its centre; a route that runs within it is searched
     /// again once for each change of the traps. The hard field (0.75 m) is not enough: of the mates' bodies that
@@ -159,7 +155,12 @@ pub struct TrapTuning {
     pub forward: Option<Forward>,
     /// [A309] For `for_ms` after its press the placer's routes come no nearer its fresh trap than its feet are (within `ring_m`
     /// of it): it walks away from it, never back over it. In the A309 bench the placer caught itself 14 times, median 2.5 s
-    /// after the press (the after-press stand ends at 1.5 s), more often than its traps caught an enemy. Off by default.
+    /// after the press (the after-press stand ends at 1.5 s), more often than its traps caught an enemy. [#2081] **On by default**,
+    /// kept right (`KEPT_RIGHT`): walking back over one's own fresh trap is wrong by the client (`booby_trap_core::on_enter`
+    /// 0x304BD0 takes its placer too); it was off (A309) because it shuts floors only, and the straight leg between two open floors
+    /// and the body's drift still took the placer over its trap about 2 s after the press: the one clearance (`traps::keeps_clear`,
+    /// the route's own legs) and the motor's own-trap guard close those. In the #2081 plain bench 6 of 11 own catches were the
+    /// placer within 7 s of its press.
     pub fresh_ring: Option<FreshRing>,
     /// [A309] The press waits until the body moves at `min_speed_ms` or more: a slow placer (one holding a spot in a fight play)
     /// stays by its trap and steps onto it. Over three A309 benches (835 presses) the presses under 2 m/s caught 8 enemies,
@@ -174,40 +175,6 @@ pub struct TrapTuning {
     pub press_clear: Option<PressClear>,
 }
 
-/// The habit's rule for the spots of killed holders (`TrapTuning::at_defeated`). The numbers are GUESSES chosen from the K1 spots'
-/// own scale (a death is forgotten in two minutes, `threat::DECAY_PER_S`; a spot merges kills within 8 m) and the habit's:
-/// the bench decides.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct DefeatedTuning {
-    /// A killed holder's spot is wanted for this long, seconds.
-    pub keep_s: f32,
-    /// The trap lies within this of the spot, metres.
-    pub within_m: f32,
-    /// No mate within this of the trap's cell now, in 2 s or in 4 s (the guard's `friend_m` is 2.5 m): the mates are the ones who
-    /// walk onto the spot next.
-    pub friend_m: f32,
-    /// How far ahead along the route the spot is looked for, metres (at most `route_ahead_m`): a route that passes it within
-    /// `within_m` waits for it.
-    pub ahead_m: f32,
-    /// A held threat spot is a holder's only when it killed at least this many of the team's bots (a holder, as the camper class of
-    /// `an-anticamper.md` is: one who kills from one place again and again; one kill in passing is no holder). A place the killer's
-    /// own senses had the enemy staying at for `camp_ms` (8 s) counts whatever the spot's kills.
-    pub min_kills: u8,
-}
-
-impl Default for DefeatedTuning {
-    fn default() -> Self {
-        Self {
-            keep_s: 120.0,
-            within_m: 3.0,
-            friend_m: 6.0,
-            ahead_m: 12.0,
-            min_kills: 2,
-        }
-    }
-}
-
 /// [keep_off] How far the team keeps off its own known traps (`TrapTuning::keep_off`).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -217,13 +184,14 @@ pub struct KeepOff {
     /// radius 0.38 m (`mapdata` `grid/controlled.rs`: startup.cfg's stand size 0.76 x 1.8) + the controller's 0.04 m move margin
     /// (`mapdata` `controller/tick.rs`, the exe's under Unicorn); the live trigger, 0.6 m from a foot point, agrees. Walk 0.80 m =
     /// the 90th percentile of the feet off the route of the bots walking one (261,076 samples, farming-camper cell seed 5, tip
-    /// dab73194; median 0.25, p95 1.25).
+    /// dab73194; median 0.25, p95 1.25). [#2081] The default is `traps::OWN_TRAP_CLEAR_M` (1.47 m: the contact + that P90), the one
+    /// clearance the searches, their route check, keep_off and the side step read (the field's reach).
     pub hard_m: f32,
 }
 
 impl Default for KeepOff {
     fn default() -> Self {
-        Self { hard_m: 1.47 }
+        Self { hard_m: crate::v026g::bots::traps::OWN_TRAP_CLEAR_M }
     }
 }
 
@@ -390,43 +358,23 @@ impl Default for AfterPress {
     }
 }
 
-/// The rule for the death point of a camper a team job just killed (`TrapTuning::at_cleared`).
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct ClearedTuning {
-    /// His death point is wished this long, seconds: design-p1c §9 places within 20 s; his own return comes P25 33 s after
-    /// his death.
-    pub keep_s: f32,
-    /// The trap lies within this of the point, metres (a foot point 0.6 m from a trap's centre sets it off).
-    pub within_m: f32,
-    /// No mate within this of the trap's cell now, in 2 s or in 4 s, metres (the guard's `friend_m` is 2.5 m): the
-    /// clearing team crosses the point in 38 % of the live cases.
-    pub friend_m: f32,
-    /// How far ahead along the route the point is looked for, metres (at most `route_ahead_m`): a route that passes it
-    /// within `within_m` waits for it.
-    pub ahead_m: f32,
-}
-
-impl Default for ClearedTuning {
-    fn default() -> Self {
-        Self { keep_s: 20.0, within_m: 1.5, friend_m: 4.0, ahead_m: 12.0 }
-    }
-}
-
 /// [A324] The camper trap job's rule (`TrapTuning::camper_job`). The numbers are placement choices (the owner: only where to trap
 /// is tuned on benches); the trap's own values are the client's (`bear_traps.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CamperJob {
-    /// His death point is wanted this long after his death, seconds: live, he is back within 10 m a median 31 s after it and
-    /// within 1 m a median 46 s (P75 77 s).
-    pub death_keep_s: f32,
-    /// The way back: points every `step_m` from `near_m` to `far_m` before the spot along the way from his side's spawns; the
-    /// first the spot's eye does not see is the one trapped.
+    /// The way in: points every `step_m` from `near_m` to `far_m` before the place along the way from his side's spawns; the
+    /// first his eye there does not see (for the placer's crouched eye) is the one trapped. Live, the human traps on a killing
+    /// holder's way in lay a median 15.6 m from his place (P25 5.8, P75 22.1, n 83; `docs/notes/bear_traps.md`): the 6-20 m
+    /// range holds that median and the middle half's near end.
     pub near_m: f32,
     pub far_m: f32,
     pub step_m: f32,
-    /// The job's bot is the nearest with a trap within this of the point, metres on the ground.
+    /// The job's bot is the nearest with a trap within this of the point, metres on the ground. [#2081] The walk must fit the
+    /// hold's typical remaining time: 6.5 s (the bench's held places, 16 plain matches m6: of 139 battery holds noted, half of those
+    /// still held at 2 s / 4 s lasted 6.7 s / 6.5 s more; of 115 job holds, 6.3 s / 7.2 s) at the body's forward walk, 3.5 m/s
+    /// (`kin.rs`, PROVEN): 22.75 m on the ground at most (a route is longer). Was 30 m: of 27 sends 3 arrived, 17 ended with
+    /// the hold first.
     pub max_walk_m: f32,
     /// A bot sent and not done in this long is let go (another may be sent), seconds.
     pub give_up_s: f32,
@@ -439,7 +387,7 @@ pub struct CamperJob {
 
 impl Default for CamperJob {
     fn default() -> Self {
-        Self { death_keep_s: 60.0, near_m: 6.0, far_m: 20.0, step_m: 3.0, max_walk_m: 30.0, give_up_s: 45.0, within_m: 1.5, friend_m: 4.0 }
+        Self { near_m: 6.0, far_m: 20.0, step_m: 3.0, max_walk_m: 22.75, give_up_s: 45.0, within_m: 1.5, friend_m: 4.0 }
     }
 }
 
@@ -602,12 +550,11 @@ impl Default for TrapTuning {
             lateral_m: 0.9,
             route_ahead_m: 12.0,
             on_the_pass: Some(PassTuning::default()),
-            at_defeated: None,
             keep_off: Some(KeepOff::default()),
             promise_match: PromiseMatch::Reach,
-            at_cleared: None,
             release: TrapRelease::Client,
-            camper_job: None,
+            camper_job: Some(CamperJob::default()),
+            look_over_heard: true,
             ring_m: 1.3,
             friend_m: 2.5,
             near_own_m: 4.0,
@@ -630,7 +577,7 @@ impl Default for TrapTuning {
             after_press: None,
             stayer: Stayer::Place,
             forward: None,
-            fresh_ring: None,
+            fresh_ring: Some(FreshRing::default()),
             press_moving: None,
             press_clear: Some(PressClear::default()),
         }
@@ -655,27 +602,8 @@ impl Check for TrapTuning {
             "traps.on_the_pass",
         )?;
         check(
-            self.at_defeated.is_none_or(|d| {
-                d.keep_s > 0.0
-                    && d.within_m >= 1.0
-                    && d.within_m <= 6.0
-                    && d.friend_m >= self.friend_m
-                    && d.ahead_m >= 2.0
-                    && d.ahead_m <= self.route_ahead_m
-                    && d.min_kills <= 5
-            }),
-            "traps.at_defeated",
-        )?;
-        check(
-            self.at_cleared.is_none_or(|c| {
-                c.keep_s > 0.0 && c.within_m >= 1.0 && c.within_m <= 6.0 && c.friend_m >= self.friend_m && c.ahead_m >= 2.0 && c.ahead_m <= self.route_ahead_m
-            }),
-            "traps.at_cleared",
-        )?;
-        check(
             self.camper_job.is_none_or(|j| {
-                j.death_keep_s > 0.0
-                    && j.step_m > 0.0
+                j.step_m > 0.0
                     && j.near_m >= 1.0
                     && j.far_m >= j.near_m
                     && j.max_walk_m > 0.0

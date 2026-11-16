@@ -2810,6 +2810,13 @@ impl Bots {
             }
             state.features.traps.world_traps = armed.clone();
         }
+        // [#2081] Every bot's guard takes a promised trap's real place from the world at once (`traps::guard_discs`).
+        let standing: Arc<Vec<Vec3>> = Arc::new(
+            found.iter().filter(|t| t.state == TrapState::Armed).map(|t| Vec3::from_array(t.position)).collect(),
+        );
+        for bot in self.bots.iter_mut().flatten() {
+            bot.features.traps.world_armed = standing.clone();
+        }
         // [G61] The traps only their placer knows, followed as the team's are; what became of them is the bench's to count (no own-trap
         // count: they are not the bots').
         if mine {
@@ -2889,10 +2896,10 @@ impl Bots {
         self.features.snaps.heard
     }
 
-    /// A team's trap went off: counted, and whether a body of the team with
-    /// a broken leg (a catch's mark, PROVEN) stands within
-    /// [`trap_know::CAUGHT_NEAR_M`] of it as the world shows (a proxy: the
-    /// worlds are seconds apart, and a human ally's legs are not known).
+    /// A team's trap went off: counted, and whether the body it caught is of the team: the alive body nearest it within the
+    /// sensor's reach ([`traps::OWN_TRAP_CONTACT_M`], 0.67 m: the sensor's radius, the capsule's and the move margin; `booby_trap_core::on_enter`
+    /// 0x304BD0 sets it off on the nearest body in the sensor, any team) as the world shows it. [#2081] Was any broken-legged body
+    /// of the team within 8 m, which counted a mate hit in the legs near an enemy's catch.
     fn count_own_traps(&mut self, time: u32, went_off: &[(u8, Vec3)]) {
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         let clock = Clock {
@@ -2906,13 +2913,11 @@ impl Bots {
             .view(&clock, &self.tunings.match_wide().kin, world.as_deref());
         for &(team, at) in went_off {
             self.features.own_traps.fired += 1;
-            let caught = self.bots.iter().flatten().any(|bot| {
-                bot.team == team
-                    && bot.hurt.leg_broken
-                    && view
-                        .place(bot.place)
-                        .is_some_and(|p| p.feet.distance_xz(at) <= trap_know::CAUGHT_NEAR_M)
-            });
+            let caught = self
+                .tracker
+                .nearest_body(at, traps::OWN_TRAP_CONTACT_M)
+                .and_then(|p| view.place(p))
+                .is_some_and(|p| p.team == team);
             self.features.own_traps.own_team_caught += u32::from(caught);
             // [A309] The bench's line per trap of the bots that went off: whose, who stood nearest it (the catch), how long after
             // its press.
@@ -2924,7 +2929,7 @@ impl Bots {
                     .and_then(|b| b.features.traps.pressed)
                     .filter(|(landed, _, _)| landed.distance_xz(at) < 1.0)
                     .map(|(_, _, when)| time.saturating_sub(when) as f32 / 1000.0);
-                let under = self.tracker.nearest_body(at, trap_know::CAUGHT_NEAR_M);
+                let under = self.tracker.nearest_body(at, traps::OWN_TRAP_CONTACT_M);
                 let who = match (under, by) {
                     (None, _) => "nobody".to_string(),
                     (Some(p), Some(b)) if p == b => "placer".to_string(),
@@ -2967,13 +2972,24 @@ impl Bots {
                     plays::Go::Stay => "stay".to_string(),
                     plays::Go::To { at: to, .. } => format!("to {:.1} m off (target {:.1} m from the trap)", to.distance_xz(me.feet), to.distance_xz(at)),
                 };
+                // [#2081 FIX 1] The team's known traps within 3 m of the one that fired: promised or confirmed, and how far off.
+                let known_near: Vec<String> = self.teams[usize::from(team)]
+                    .knowledge
+                    .traps
+                    .all()
+                    .iter()
+                    .filter(|k| k.at.distance_xz(at) < 3.0)
+                    .map(|k| format!("{:?} {:.2} m", k.phase, k.at.distance_xz(at)))
+                    .collect();
+                eprintln!("  trap own catch known: [{}]", known_near.join("; "));
                 eprintln!(
-                    "  trap own catch: {who}, {after} after the press, heading {heading} off the placer's at the press, speed {:.1}, play {:?}, go {go}, route {}, fresh guard {} ({} floors shut)",
+                    "  trap own catch: {who}, {after} after the press, heading {heading} off the placer's at the press, speed {:.1}, play {:?}, go {go}, route {}, fresh guard {} ({} floors shut); thinks near it [{}]",
                     me.speed(),
                     bot.assignment.as_ref().map(|a| a.kind),
                     bot.route.is_some(),
                     bot.features.traps.fresh.is_some(),
-                    bot.features.traps.fresh_shut.len()
+                    bot.features.traps.fresh_shut.len(),
+                    traps::NearMove::line(&bot.features.traps.near_moves, time)
                 );
             }
             #[cfg(test)]

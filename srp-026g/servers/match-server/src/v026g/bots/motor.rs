@@ -1537,6 +1537,12 @@ impl Motor {
         self.lining != Lining::No
     }
 
+    /// [#2081] Tests: a walking jump's line-up under way.
+    #[cfg(test)]
+    pub(crate) fn test_line_up(&mut self) {
+        self.lining = Lining::Walk;
+    }
+
     /// Whether a sprint-labelled link of `rise` is in the sprint band: over the walk jump's top, or ([`Feel::band_from_grid`])
     /// whatever the rise, the grid's label having said it is over the jump cap.
     fn over_walk_top(&self, rise: f32) -> bool {
