@@ -633,6 +633,21 @@ pub fn stays_up(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> bool {
     true
 }
 
+/// [#2081] The feet of [`stays_up`]'s stop forecast, tick by tick from the body `at` (landed on its floor): `keys` held for
+/// `stop.hold` ticks (turning `turn` radians the first), then let go, over the blend to a stop. The same steps as `stays_up` takes
+/// (its fall and margin tests aside): the own-trap guard (`traps::own_trap_guard`) reads where they lead.
+pub fn stop_path(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> Vec<Vec3> {
+    let Stop { kin, level, grid, hold, .. } = *stop;
+    let mut at = at.landed(grid);
+    let mut path = vec![at.feet];
+    for k in 0..kin.blend_ticks + hold + 2 {
+        let (held, turn) = if k < hold { (keys, if k == 0 { turn } else { 0.0 }) } else { (keys & !MOVE_KEYS, 0.0) };
+        at = advance(at, Tick { time: at.time + TICK_MS, keys: held, turn: (turn, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false }, kin, level, Some(grid), None, Role::Forecast, false);
+        path.push(at.feet);
+    }
+    path
+}
+
 /// A decided tick: the keys held, the turn made to the base pitch, and the
 /// kick after it.
 #[derive(Clone, Copy, Debug)]
@@ -4033,6 +4048,19 @@ pub(super) mod tests {
             "the forecast plays it from its floor"
         );
         assert_eq!(Kinematics::default().drop_fall, DropFall::Client, "the client fall start is the default");
+        // [#2081] `stop_path` walks the same forecast: with the key held 8 ticks from 0.6 m short of the rim its last point is down
+        // the ledge, where `stays_up` says the stop falls; from 5 m short it is on the top, where `stays_up` says it keeps up.
+        let held = Stop { hold: 8, ..stop };
+        for (x, up) in [(5.0, true), (9.5, false)] {
+            let mut track = BodyTrack::default();
+            track.fixed(fix(0, Vec3::new(x, 2.0, 5.0), yaw), &kin, Some(&grid));
+            let at = *track.estimate().unwrap();
+            let path = stop_path(&at, key::FORWARD, 0.0, &held);
+            let last = *path.last().unwrap();
+            assert_eq!(path.len() as u32, kin.blend_ticks + held.hold + 3);
+            assert_eq!(stays_up(&at, key::FORWARD, 0.0, &held), up, "at x {x}");
+            assert_eq!(last.y > 2.0 - mapdata::grid::LIP_DROP_M, up, "at x {x}: {last:?}");
+        }
     }
 
     /// [`Edge::ClientWalksOff`] (A269): a ledge 6 m high, deeper than the harmless drop, has no link off it. The reckoned body walking

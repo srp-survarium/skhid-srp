@@ -2145,20 +2145,20 @@ pub fn path_touches(points: &[Vec3], discs: &[Vec3], feet: Vec3) -> bool {
 }
 
 /// [#2081] The own-trap guard at the motor's last stage (after the lip guard, `drive.rs`): the tick's keys `keys` (the view turns
-/// `turn`) played forward ([`forecast`]); keys whose path touches a trap of `discs` ([`path_touches`]) give way to the same without
+/// `turn`) played forward by `path_of` (the body's stop forecast, `body::stop_path`; [`forecast`] on the ground plane in tests); keys whose path touches a trap of `discs` ([`path_touches`]) give way to the same without
 /// sprint, without the side keys, without either, to no move key, or to the brake against the velocity, the first that does not.
 /// Every mover's keys pass it: the route walk, the fight's side step and weave, the step apart, unstick, a retreat's or a dodge's
 /// steps, a sprint's carry past a route's end, a goal or hold point inside a disc. A jump (`jumping`: its press, its lining up) is
 /// left alone: in the air over a trap is legal (the sensor is 0.2 m high), and its landing is a waypoint of the route, held to the
 /// clearance by the route's check ([`own_trap_route`]). A push by a mate's body is not keys: not guarded.
 #[allow(clippy::too_many_arguments)]
-pub fn own_trap_guard(kin: &super::kin::Kinematics, feet: Vec3, velocity: [f32; 2], yaw: f32, turn: f32, keys: u32, discs: &[Vec3], jumping: bool) -> OwnTrapGuard {
+pub fn own_trap_guard(path_of: impl Fn(u32) -> Vec<Vec3>, feet: Vec3, velocity: [f32; 2], yaw: f32, turn: f32, keys: u32, discs: &[Vec3], jumping: bool) -> OwnTrapGuard {
     use super::key;
     const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
     if jumping || discs.iter().all(|d| d.distance_xz(feet) > 8.0) {
         return OwnTrapGuard::Clear;
     }
-    let touches = |k: u32| path_touches(&forecast(kin, feet, velocity, yaw, turn, k, GUARD_HOLD_TICKS), discs, feet);
+    let touches = |k: u32| path_touches(&path_of(k), discs, feet);
     if !touches(keys) {
         return OwnTrapGuard::Clear;
     }
@@ -2179,13 +2179,17 @@ pub fn own_trap_guard(kin: &super::kin::Kinematics, feet: Vec3, velocity: [f32; 
 
 /// [#2081] [`own_trap_guard`] on the tick's decision: the team's known traps (its field, with those only it knows) and the traps of
 /// others it noticed (`trap_react`, a human mate's among them); a note and a count when it changes the keys.
-pub(super) fn guard_own_traps(bot: &mut Bot, keys: u32, turn: f32, me: &PlaceView, kin: &super::kin::Kinematics, now: u32) -> Option<u32> {
+pub(super) fn guard_own_traps(bot: &mut Bot, keys: u32, turn: f32, me: &PlaceView, kin: &super::kin::Kinematics, grid: &WalkGrid, now: u32) -> Option<u32> {
     let discs: Vec<Vec3> = bot.features.traps.field.discs().iter().chain(bot.features.traps.react.field().discs()).copied().collect();
     if discs.is_empty() {
         return None;
     }
     let jumping = keys & super::key::JUMP != 0 || bot.motor.lining_up();
-    match own_trap_guard(kin, me.feet, me.velocity, me.yaw, turn, keys, &discs, jumping) {
+    // The body's own stop forecast, as the lip guard's (its kept controller, at speed level 1: the fastest a kit moves).
+    let at = super::body::Estimate { kept: bot.reckoned_kept, ..super::body::Estimate::of_view(me, grid.locate(me.feet, 1.5)) };
+    let stop = super::body::Stop { kin, level: 1.0, grid, planned: &[], hold: GUARD_HOLD_TICKS };
+    let path_of = |k: u32| super::body::stop_path(&at, k, turn, &stop);
+    match own_trap_guard(path_of, me.feet, me.velocity, me.yaw, turn, keys, &discs, jumping) {
         OwnTrapGuard::Clear => None,
         OwnTrapGuard::Swapped(k) | OwnTrapGuard::Braked(k) => {
             own_trap_note(bot, now, format!("the guard changed keys {keys:#x} to {k:#x}: they ran within contact of an own trap"));
@@ -4741,7 +4745,9 @@ mod tests {
         let left = |m: f32| Vec3::new(lx * m, 0.0, lz * m);
         let still = [0.0, 0.0];
         let walking = [fx * 3.5, fz * 3.5];
-        let guard = |velocity: [f32; 2], keys: u32, discs: &[Vec3], jumping: bool| own_trap_guard(&kin, feet, velocity, yaw, 0.0, keys, discs, jumping);
+        let guard = |velocity: [f32; 2], keys: u32, discs: &[Vec3], jumping: bool| {
+            own_trap_guard(|k| forecast(&kin, feet, velocity, yaw, 0.0, k, GUARD_HOLD_TICKS), feet, velocity, yaw, 0.0, keys, discs, jumping)
+        };
         // The walk on toward a trap ahead: refused (no move key from rest, the brake at a walk). From rest two ticks of a key and a
         // stop carry the body about 0.3 m, at a walk about 0.9 m: the guard stops it short.
         assert_eq!(guard(still, key::FORWARD, &[ahead(0.8)], false), OwnTrapGuard::Swapped(0));

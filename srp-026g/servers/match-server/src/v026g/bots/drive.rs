@@ -2319,7 +2319,7 @@ fn drive_tick_inner(
     guard_keys(bot, &mut decision, me, tactics, tuning, time);
     // [#2081] The own-trap guard, the last say on the move keys: no step ends within contact of a known own trap (or one it noticed)
     // unless it moves away from it (`traps::own_trap_guard`).
-    if let Some(keys) = traps::guard_own_traps(bot, decision.keys, decision.turn.0, me, &tuning.kin, time) {
+    if let Some(keys) = traps::guard_own_traps(bot, decision.keys, decision.turn.0, me, &tuning.kin, &tactics.world.grid, time) {
         decision.keys = keys;
     }
     let lift_guarded = decision.keys & lift_wants == lift_wants;
