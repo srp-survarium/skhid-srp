@@ -72,6 +72,7 @@ pub mod streaming;
 pub mod ray_test;
 mod rt;
 pub mod sound;
+pub mod step;
 pub mod system;
 pub mod modules;
 pub mod executable;

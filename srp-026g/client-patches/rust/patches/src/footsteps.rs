@@ -20,7 +20,7 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::footstep::{Pass, SimTime, Step, StepSource};
-use crate::vostok::{Context, Flow, FootstepsOnStepGuardExit, GameCell};
+use crate::vostok::{Context, Flow, FootstepsOnStepGuardExit, GameCell, Thread};
 
 /// Two steps of one foot closer than this are one step played twice: a foot
 /// steps once a cycle, 600 ms at the quickest (the sprint clips, 18 frames),
@@ -44,8 +44,9 @@ struct Steps {
     next: usize,
 }
 
+/// Whether a step plays.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Decision {
+pub enum Decision {
     Play,
     Skip,
 }
@@ -87,15 +88,24 @@ impl Steps {
 
 static STEPS: GameCell<Steps> = GameCell::new(Steps::EMPTY);
 
+/// Whether `step` plays, by the rule above, and the step kept when it does:
+/// the feet's steps here, and a patch's own steps of a player (a ladder's,
+/// `Step::new` with `StepSource::player`; its two `Foot`s two limbs), which a
+/// re-simulated tick makes again as it makes the feet's. Its own steps'
+/// source is the player, so they never meet the feet's (the effects').
+pub fn decide(thread: &Thread, step: Step) -> Decision {
+    let mut steps = STEPS.get(thread);
+    let decision = steps.decide(step);
+    STEPS.set(thread, steps);
+    decision
+}
+
 /// on_player_sound_event's time test (`player_sound.step_guard`).
 pub fn on_step_guard(ctx: &mut Context<'_>) -> Flow<FootstepsOnStepGuardExit> {
     let Some(step) = Step::at_guard(ctx) else {
         return Flow::Continue;
     };
-    let mut steps = STEPS.get(ctx.thread());
-    let decision = steps.decide(step);
-    STEPS.set(ctx.thread(), steps);
-    match decision {
+    match decide(ctx.thread(), step) {
         Decision::Play => Flow::Exit(FootstepsOnStepGuardExit::Play),
         Decision::Skip => Flow::Exit(FootstepsOnStepGuardExit::Skip),
     }

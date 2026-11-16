@@ -1408,8 +1408,9 @@ mod tests {
     /// Rudnya: all 56 of the owner's picks and 4 roof spawns (ffa-rudnya-picks-1);
     /// London: his 50 picks (ffa-london-picks-1); the other maps the owner's
     /// picks or the spawn rule's (ffa-cover-maps-1; docs/notes/ffa.md);
-    /// Fire Station of stalker-maps-2 (ffa-stalker-2: 48, level 23; Dark Valley,
-    /// Vehicle Station and Sports Center held; docs/notes/stalker-maps.md).
+    /// Fire Station of stalker-maps-2, level 23: his 42 picks
+    /// (ffa-fire-station-picks-1; Dark Valley, Vehicle Station and Sports
+    /// Center held; docs/notes/stalker-maps.md).
     #[test]
     #[ignore = "needs SRP_TEST_GAME_DATA from build-content with both FFA edit lists"]
     fn the_released_free_for_alls_play_on_their_own_projects() {
@@ -1421,7 +1422,7 @@ mod tests {
             .map(|m| (m.id.get(), m.level, m.solo_respawn_points))
             .collect();
         assert_eq!(ports, [
-            (39, 23, 48),
+            (39, 23, 42),
             (42, 15, 28), (43, 16, 48), (44, 17, 47), (163, 9, 50),
             (164, 10, 73), (165, 11, 66), (167, 12, 44), (168, 13, 73), (169, 14, 44)
         ]);

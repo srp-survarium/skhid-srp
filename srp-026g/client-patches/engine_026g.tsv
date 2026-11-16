@@ -280,3 +280,7 @@ engine_context_copy_resource	ID3D11DeviceContext+0xbc	-	void engine_context_copy
 engine_context_map	ID3D11DeviceContext+0x38	-	unsigned int engine_context_map(struct immediate_context *context, struct hw_resource *resource, unsigned int subresource, unsigned int map_type, unsigned int flags, void *mapped)	com	
 engine_d3d_resource_release	IUnknown+0x8	-	unsigned int engine_d3d_resource_release(struct hw_resource *resource)	com	
 engine_d3d_device_release	IUnknown+0x8	-	unsigned int engine_d3d_device_release(struct d3d_device *device)	com	
+engine_on_step	0x248ad0	ECX:step_manager EAX:position ESP+4:direction ESP+8:material ESP+12:view	void engine_on_step(struct step_manager *manager, const float *position, const float *direction, unsigned int foot_material, unsigned int view)	thunk	
+engine_step_manager	survarium::game_world+0x34	ECX:world	struct step_manager *engine_step_manager(struct game_world *world)	virtual	
+engine_triangle_material	vostok::physics::base_physics_object+0x10	ECX:body ESP+4:triangle ESP+8:compound	unsigned short engine_triangle_material(struct hit_object *object, unsigned int triangle, unsigned int compound)	virtual	
+engine_is_first_view	0x1f3bd0	ECX:player	unsigned int engine_is_first_view(struct player *player)	thunk	

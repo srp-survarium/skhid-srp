@@ -1,0 +1,13 @@
+# Patch 153: a step whose body stands on something sounds, when on_step's
+# ground ray meets nothing (docs/notes/footsteps.md, "Silent ground"), and a
+# step in water wades ("Wading"). The site is sites_026g.tsv's; the logic is
+# step_ground.rs and vostok/step.rs.
+name = "step_ground"
+patch = 153
+
+# step_manager::on_step after its ground ray (0x248B5A): water over the
+# ground wades; else the game's hit goes on as it is; a miss looks again, or
+# takes a patch's armed ground (vostok::step::play).
+[[hook]]
+site = "step.ground"
+handler = "on_ground"
