@@ -324,7 +324,8 @@ const RING_WAYS: usize = 8;
 /// What [`WalkGrid::drop_unheld`] did ([`super::BuildStats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct HeldStats {
-    /// Edge floors tested …
+    /// Edge floors tested (the rest are held at the centre: by a rest there, or by a jam, the body held still where it was put:
+    /// [`WalkGrid::drop_unheld`]) …
     pub tested: usize,
     /// … and taken: no body stays on them.
     pub taken: usize,
@@ -356,6 +357,14 @@ impl WalkGrid {
         // exe check's: [`RING_M`] out, 8 ways; a rest counts for the floor when the floor names it (within the capsule's radius
         // across and [`NAME_HEIGHT_M`] in height) before any other floor does (a start toward a held neighbour lands on that
         // neighbour, which keeps nothing here).
+        //
+        // Held at the centre includes held by a jam: a body that never comes under its start stays where it was put, and
+        // `holds` counts it held (it never falls). That is the exe's: on 20 such floors sampled from the 65,051 the 16 bench maps
+        // hold only so, the exe's tick (the exactness rig, its ray on the one object hit) drops a standing body more than a step
+        // on none; where this pass's ring fails (14 of them) the exe's body holds on 6, is held still on 6 (a blocked steep-slope
+        // or low-ceiling slide) and is lifted onto the surface 0.6 m over on 2 (rig/s7-20261114/heldjam-20261116.tsv; #2102's
+        // own-point test on the exe stands 11 of the 14, heldjam-stands-20261116.tsv). So a jam is no fall: it does not go on to
+        // the ring, which would take floors the exe's body stays on.
         let held: Vec<(bool, bool)> = parallel(&edge, |&a| {
             let p = self.position(a as NodeId);
             let room = self.ceiling[a] - self.height[a] - self.body.stand_height;
