@@ -2219,8 +2219,8 @@ fn guard_discs(bot: &Bot, match_m: f32, age_ms: u32, skip: &[Vec3]) -> Vec<Guard
 /// and that `allowed` lets stand (the lip guard's test: dodging a trap never steps a body off a ledge; the brake is that guard's own
 /// last resort).
 /// Every mover's keys pass it: the route walk, the fight's side step and weave, the step apart, unstick, a retreat's or a dodge's
-/// steps, a sprint's carry past a route's end, a goal or hold point inside a disc. A jump (`jumping`: its press, its lining up) is
-/// left alone: in the air over a trap is legal (the sensor is 0.2 m high), and its landing is a waypoint of the route, held to the
+/// steps, a sprint's carry past a route's end, a goal or hold point inside a disc. A jump (`jumping`: its press tick, its air time) is
+/// left alone, its line-up is not: in the air over a trap is legal (the sensor is 0.2 m high), and its landing is a waypoint of the route, held to the
 /// clearance by the route's check ([`own_trap_route`]). A push by a mate's body is not keys: not guarded.
 #[allow(clippy::too_many_arguments)]
 pub fn own_trap_guard(

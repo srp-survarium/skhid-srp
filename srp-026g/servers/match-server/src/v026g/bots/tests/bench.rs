@@ -1780,8 +1780,18 @@ pub(crate) fn real_bot_cost() {
                             // The first three failed searches of each bot: who, doing what, to where (the give-up of a goal with no way).
                             if no_way_lines[bot.place] < 3 {
                                 no_way_lines[bot.place] += 1;
+                                // [#2081] The team's own known trap nearest the feet: how far from the feet and from the goal, and its phase.
+                                let own_trap = bots.teams[usize::from(body.team)]
+                                    .knowledge
+                                    .traps
+                                    .all()
+                                    .iter()
+                                    .min_by(|a, b| a.at.distance_xz(body.feet).total_cmp(&b.at.distance_xz(body.feet)))
+                                    .map_or("none".to_string(), |k| {
+                                        format!("{:.2} m from the feet, {:.2} m from the goal, {:?}", k.at.distance_xz(body.feet), k.at.distance_xz(goal), k.phase)
+                                    });
                                 eprintln!(
-                                    "  NOWAYGOAL t={} place={} team={} play={} target={:?} carrying={} feet=({:.1},{:.1},{:.1}) goal=({:.1},{:.1},{:.1})",
+                                    "  NOWAYGOAL t={} place={} team={} play={} target={:?} carrying={} feet=({:.1},{:.1},{:.1}) goal=({:.1},{:.1},{:.1}) own trap {own_trap}",
                                     game.tick,
                                     bot.place,
                                     body.team,
