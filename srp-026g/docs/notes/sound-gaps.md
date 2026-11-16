@@ -31,6 +31,7 @@ ways a step goes silent) is in `footsteps.md` ("Silent ground") and is not repea
 
 | # | What a player hears | Where | Cause | Fix, size | In flight |
 |---|---|---|---|---|---|
+| R | Steps on rails are not heard at all (the owner, from play) | the rails of the Chemical Plant, Cologne, Repair Depot | not found in the code: every condition of the step path passes on a rail; left are the foot point (the last draw's bone) and whether the clip's events arrive (1.2, 1.3). 0.69d differs by falling back to what the controller stands on and by this frame's feet (1.4) | exe: patch 153 (a miss) plus one look from the body's root (a foot point off the body); the log of 1.6 decides in one walk | **fix/silent-steps** covers a miss; the root look and the log lines are not in it |
 | 1 | Other players' steps die out within a few metres: at 5 m a step is a quarter of its 1 m loudness, at 8 m a tenth, gone at 17 m. 0.69d: three quarters at 5 m, heard to 30 m | everywhere | the `steps` distance preset (`sounds/spl/steps.spl`) and, on top, the third-person samples 5 to 10 dB quieter than 0.69d's (4.1, 4.2) | **data**: 0.69d's `steps` curve, as `steps.spl` (also breathing and bones) or a new preset named by the 618 step samples (an edit list); optionally their `volume_k`. The owner decides: it changes how far enemies are heard | no |
 | 2 | A walker-only floor steps silently: hopper-wagon tops, loading stations, wall tops, School's first part | Chemical Plant, Fort, School, Radar, Cologne, both v0.11e/0.21d ports | on_step's ray sees only bullet collision (`footsteps.md`, path 4) | exe, patch 153 | **fix/silent-steps** |
 | 3 | No step at all on dry leaves, gratings, car glass; own sprint/landing silent on mud and bushes; others' walking silent on trunks | Mamayev (its ground), Vector's lab, Cologne's ICE cars, gratings everywhere, mud everywhere | 45 empty foot pairs (`footsteps.md`, path 5) | data, `step-sounds-1` | **fix/silent-steps**, but see #4 |
@@ -40,7 +41,7 @@ ways a step goes silent) is in `footsteps.md` ("Silent ground") and is not repea
 | 7 | Bullets passing by make no crack or whizz | everywhere | 0.69d has `bullet_flyby_sound_effect` and 16 directional pass-by collections; 0.26g has neither (5.2) | exe + content: medium | no |
 | 8 | A grenade or smoke grenade bouncing off a car, a tank, glass, a wooden bridge, mud, water or a tree is silent; metal bounces are quiet | everywhere | 23 empty grenade pairs; 0.69d fills five of them and plays its bounces 2 to 8 dB louder (3.4) | data: grenade pairs (+ 0.69d's two bounce composites as a pack, or stock samples) | no |
 | 9 | A rifle-butt or knife hit on concrete, brick, ground, stone, glass, asphalt makes no hit sound | everywhere | 26 empty `melee_blunt` pairs; no recording exists in either build (3.5) | data: pairs to existing samples, the owner's ears | no |
-| 10 | Chemical Plant tracks: steps flip between a hollow tank, rail steel, concrete and dirt from one step to the next; a bullet into the track bed hits a tank | Chemical Plant (stock) | two overlapping collision meshes on the same tracks, `railroad.model` (every face `metall_tank`) over `railroad_01..03` (sleepers concrete, rails thick metal) (1.2) | collision material: changes bullets' piercing, so a simulation change (a `simulation_changes.tsv` row); a step-only fix is exe | no |
+| 10 | Chemical Plant tracks: steps flip between a hollow tank, rail steel, concrete and dirt from one step to the next; a bullet into the track bed hits a tank | Chemical Plant (stock) | two overlapping collision meshes on the same tracks, `railroad.model` (every face `metall_tank`) over `railroad_01..03` (sleepers concrete, rails thick metal) (1.8) | collision material: changes bullets' piercing, so a simulation change (a `simulation_changes.tsv` row); a step-only fix is exe | no |
 | 10b | Concrete rooms and monuments step and are hit as dirt | Radar's garage and arsenal (6,878 m²), Mamayev's monument, Vector's dome, London's buildings | faces with no material resolve to `default` (2) | content (models' settings), a simulation change for bullets | no |
 | 11 | Others' steps on stone are 11 dB louder than on concrete or asphalt | the STALKER maps' tiled floors and roofs (1,445 to 3,677 m² walkable a map), stock stone (44 to 465 m² a map) | the stone pair plays `concrete_steps_m` at `volume_k` 0.7, asphalt's at 0.2 (4.3) | data: one pair row (or the 7 samples' `volume_k`) | no |
 | 12 | Hits on bodies, others' reloads, shots and handling fade out early | everywhere | 0.69d lengthened `weapons_reloading`, `main_3rd_view`, `mid_range`, `close_range`, `weapon_shutter_close` (4.1) | data: `.spl` files, one each | no |
@@ -70,7 +71,154 @@ No model named for rails, trains or wagons is placed on Rudnya (stock and 0.69),
 Mamayev, Vector or London: Rudnya's are `trailer_2pts` trailers (8/16 + 2/4). Rails modelled
 inside a larger model would not show by name.
 
-### 1.2 Is a step on a rail silent? No, not from the data (PROVEN)
+### 1.2 The owner's report, from play: steps on rails are silent
+
+The owner, 2026-11-16, after the first version of this note: "rails are not heard at all, they
+changed algo at the very least in 0.69". Taken as fact. The data reading (1.1, the census) puts
+bullet collision with a stepping material under every foot on a rail, so the silence is on a path
+the data reading does not model. 1.3 reads every condition of that path; 1.4 is 0.69d's.
+
+**Result: no condition of 0.26g's step code fails specifically on a rail (NOT FOUND in the code).**
+Ruled out with the code below: the controller's state (it gates no step event), the ray's start
+and length, back faces, slope or normal limits, material flags, the body's own hit model, the
+compound and primitive paths, the pair. What the code takes from run time and the data reading
+cannot see is **where the foot point is** (1.3 step 4) and **whether the walk clip's events reach
+the handler** (step 1). 0.69d differs exactly there and in the miss (1.4). One walk with the log of
+1.6 names which; the fix for each case is in 1.5.
+
+### 1.3 0.26g: a step from its source to the sound (PROVEN, the original exe)
+
+1. **The event.** An animation event of the body's `player_sound_events` channel
+   (`crouch_steps.md`): the run, sprint and (since crouch-steps-2) crouch clips have it, two steps a
+   cycle. The handler is `player_equipment_sound_effect::on_player_sound_event` 0x2A6470 (the held
+   item's effect, item +884h). **The character controller decides nothing here.** The game reads the
+   controller in two places only: `on_ground` (0x7EF90), whose one caller is the jump gate 0x2FC230
+   (jump input, then on_ground, 0x2FC285), and the landing callback (`call_landing_callback` 0x803D0
+   from `step_down` 0x7EA67 -> `player::on_landing` 0x1F3B30: fall damage 0x2D8220 and the landing
+   step 0x23FBE0, no state change). `need_slide_on_supporting_surface` 0x7BC20 and the slide
+   acceleration 0x7BA30 feed only `player_step` 0x7BDA0 inside the controller. So a body standing
+   on the ridge does not count as "not grounded, so no step event": no step event depends on the
+   controller. (The ridge does make it slide: the support normal more than 50 deg from up
+   (cos 50 deg `[0x21E51D8]`), or 40 to 50 deg (cos 40 deg `[0x21E51DC]`, from 0.6981 rad at
+   0xA2DCD8, initialiser 0x84D800) at low speed, slides; a 45-degree diamond face of Cologne's rails
+   is in that band, so a body that stops on the ridge slides off it. Walking on, it does not.)
+2. **The time guard** 0x2A6485: an event at or before the core's `maximum_time` is dropped
+   (re-simulation; patch 101 relaxes it).
+3. **Whose** 0x2A6495: the event's object must be the effect's user.
+4. **The feet** 0x2A64A9 / 0x2A64C2: the effect's +44h, set by `set_feet` 0x2A6410 when
+   `update_feet` 0x2A63C0 runs. That runs from the held item's `update_bones_matrices` 0x2956E0
+   (vtable slot, call at 0x29573A, skipped while user +0F4E3h is set) or, for a culled player, the
+   root transform (0x295750). **A foot point is the LeftFoot / RightFoot bone (indices found by name
+   by `set_user` 0x2A62D0 in the user's skeleton, user +408h) of the pose the held item is drawn with,
+   times the transform the draw passes (0x2A63D3, 0x2A63E5), kept until the next draw.** For oneself
+   in first view that is the first-person draw's pose and transform; that it puts the foot where the
+   body's foot is was never checked (step-sounds-research section 9).
+5. **The foot material** 0x2A6545: player + 0F2C4h + 4 x movement id + 2 x third view (an on-site
+   state, id 0, reads the word before the table: `footsteps.md` path 6).
+6. **The step manager** 0x2A6558 (world vtable +34h); none: return.
+7. **The ray**, `step_manager::on_step` 0x248AED..0x248B58 -> `ray_test` 0x75E20: origin foot +
+   (0, 1.0 `[0xA70884]`, 0), direction (0, -1.0 `[0xA2D778]`, 0), length 2.0 `[0x9CC87C]`, group 30h,
+   mask 8, no delegate, the last argument 1 which sets the callback's flag 2 (0x75F2E: Bullet's
+   `kF_KeepUnflippedNormal`; `kF_FilterBackfaces`, 1, is never set, so back faces are hit).
+   - `needsCollision` 0x75BD0: an object is tried when its group has bit 8 and its mask 10h or 20h.
+     Hit models are group 40h, mask 11h (the values patch 103's check uses): 40h & 8 = 0, so **a
+     body's hit model never meets the step ray** and cannot hide the ground from its own foot.
+   - `addSingleResult` 0x75C40 keeps the closest hit. No slope, normal or material-flag test exists
+     on the way. A triangle mesh reports through `BridgeTriangleRaycastCallback::reportHit` 0xA0F60
+     (local info: part, triangle, flag 0); a compound's child through `LocalInfoAdder2` 0xA1060
+     (part -1, child index, flag 1, only when the child gave none); a convex primitive through the
+     GJK cast, which reports nothing for a ray that starts inside it. The rails and their beds are
+     triangle meshes (1.1); Cologne's two primitive boxes per deck are the panels' end beams.
+   - A second pass (0x75F4C) happens only when a group-40h delegate asked to be posed first: never
+     for this ray.
+8. **The material** 0x248B75, `get_triangle_material` 0x3570A0: a mesh hit reads the triangle
+   table (+10Ch), a primitive hit the primitive table (+110h), & 3FFFh; no table: 0FFFFh.
+9. **The pair** 0x248B89 (`material_pair` 0x306D50, one base level), none: return (0x248B92); its
+   step sound +20h, none: no sound (0x248BA5); `emit_and_play_once` 0x248BF7, a hud sound for one's
+   own first view, else a point sound at the hit.
+10. After it: the voice limit (patch 96).
+
+On every rail of 1.1, 3 and 5 to 9 pass by the data and the code (a rail and its bed are bullet
+meshes with materials whose pairs have sounds; the census found the ray meets them under the body).
+2 is not rail-specific. Left: 1 (do the events reach the handler) and 4 (where the foot point is).
+A foot point that is right cannot miss on a rail: under a rail head 4.5 cm wide there is the rail's
+web and foot (Chemical Plant, y 2.32 against a head at 2.48), the sleeper or the bed 0.1 to 0.3 m
+down. Only a foot point far off the body (more than about 1 m above what is under it, or over
+something else) misses there. Not run: Bullet's mesh raycast under Unicorn on the real rail
+triangles (patch 103's check runs the game's ray test end to end, on spheres; a mesh needs its
+BVH built by the game's cook). It would only confirm 7 and 8, which the code already shows.
+
+### 1.4 0.69d's step (PROVEN, the retail x64 exe)
+
+- **Event** `on_player_sound_event` 0x2002A2AA0: stores, per foot, the event's time and the logic
+  state's movement id (+7B8h..+7D0h). No time guard and no play here.
+- **Feet** every frame 0x2002A3050: this frame's foot matrices x the user's transform (culled:
+  0x2002A3030), then the effect's update 0x2002B5E40 plays a foot whose stored time is newer than
+  the one it last played (+58h / +74h, +5Ch / +78h), through `on_foot_step` 0x2002B51C0: both foot
+  materials (first and third view) of the stored state, and the player's id.
+- **Ground** `step_manager::on_step` 0x2001FAC50:
+  1. the player by id (0x2001FAC8E); `g` = the character controller's ground material (+612Eh,
+     0x2001FACAA), 0FFFFh without a player. `step_down` writes it with the support normal (+6130h)
+     from its own sweep (0x2005FBC60; written at 0x2005F408C and 0x2005F623B; serialized,
+     0x2005F7C57);
+  2. the same ray as 0.26g: origin +1.0 (0x2009E5D88), direction -1.0 (0x2009E61C8), length 2.0
+     (0x2009E5EBC), group 30h, mask 8, no delegate, flag 1 (0x2001FACE5..0x2001FAD56);
+  3. a hit replaces `g` with the hit triangle's material (0x2001FAD70); a miss keeps `g`;
+  4. `g` 0FFFFh: silent (0x2001FAD7D);
+  5. an AI noise event (0x2001FADC6), the pairs of both foot materials (0x2001FADDE, 0x2001FAE0D),
+     their sounds given to the world with the player's id **at the foot**, the decal and particles
+     at the foot (0x2001FAEA5).
+- **Exactly what differs from 0.26g:** (a) a ray that meets nothing falls back to what the body
+  stands on, walker collision included (the controller's sweep meets walker faces; an unnamed face
+  is 3FFFh after the mask, so it steps as `default`: LIKELY, the sweep's material read not traced);
+  (b) the feet are this frame's and the step plays in the frame, not the feet of the last draw at
+  the event; (c) the sound is at the foot; (d) no `maximum_time` guard (times compared instead).
+  The ray, its filter, the material read and the pairs are the same. So a step 0.69d hears and
+  0.26g does not is one whose ray meets nothing (a), or whose foot point 0.26g has wrong and 0.69d
+  right (b); with (a), 0.69d is heard even when the foot point is off, as long as the body stands
+  on something.
+
+### 1.5 The fix
+
+- **0.69d's (a): patch 153** (fix/silent-steps, `step.ground` 0x248B5A, not merged, another
+  session's). On a miss it looks again with the walker collision (34h / 0Ah) to 1 m under the foot,
+  takes a walker face's material or the hittable surface to 4 m under it or `default`, and plays at
+  the foot. That is 0.69d's rule computed when asked; it makes any rail step whose ray missed heard.
+- **What 153 does not cover: a foot point off the body** (0.69d's (b)). 153's looks start from the
+  same foot point, so they miss with it. The smallest addition, in the same hook: when every look
+  from the foot misses, one more look from the body's root (the player's transform position,
+  which the controller keeps on its support) straight down 1 m, the walker filter: what the body
+  stands on, as 0.69d's controller material is. One ray more on a miss, nothing on a hit; it
+  composes with 153's `Ground` enum as one more variant before `Air`.
+- **If the events never reach the handler** (the log shows no event lines while walking the rail),
+  neither on_step change helps: the cause is in the clip or the logic state, and the fix is 0.69d's
+  per-frame playback (b) or the clip's channel, decided by what the log shows.
+
+### 1.6 One walk settles it: the log
+
+`SKHID_STEP_LOG=on` exists in patch 153 (one line at `step.ground`). Two additions:
+
+- a line at `on_player_sound_event`'s entry (0x2A6470, before the time guard), so a step that never
+  reaches on_step is visible: the event's time, `maximum_time`, the domain, the feet flag, and what
+  the handler did with it;
+- on the step line: the body's root (the player's transform) and the foot's offset from it, and
+  the controller's support normal (+2C710h) and `on_ground`.
+
+```
+srp: step event: own, foot 0, time 123456 (max 123400), feet read: on_foot_step
+srp: step: own foot, movement 2, first person, foot 42 at 1190 248 5000 cm (root 1180 250 5005, foot-root 10 -2 -5 cm); support y 0.71, on_ground; game met 18 at 2 cm; ground 18 (game): plays
+srp: step: own foot, movement 2, first person, foot 42 at 1190 395 5000 cm (root 1180 250 5005, foot-root 10 145 -5 cm); support y 0.71, on_ground; game missed; walker missed; root met 16383 at 0 cm: plays
+```
+
+The owner walks a rail of the Chemical Plant, of Cologne and of Repair Depot, both on the rail and
+beside it. Reading it: no `step event` lines while walking: the event path (1.3 step 1); `game
+missed` with a large foot-root offset: the foot point (153 plus the root look); `game missed` with
+a small offset: a collision gap (153 alone); `plays` on every step and still nothing heard: lost
+after on_step (the voices, the volume).
+
+### 1.7 What the data reading found near rails (first version of this note)
+
+These stand as data and code; they do not explain the owner's silence (1.2).
 
 - Everywhere above, the rail and what is under it are bullet collision with a material that has
   every step pair: the step's ray (1 m above the foot to 1 m below, group 30h / mask 8) meets the
@@ -81,32 +229,29 @@ inside a larger model would not show by name.
   213 m², 0.8 m² misses; the ported maps cannot miss (every triangle is also walker collision).
 - The rail steps are not quiet either: own walking on metall_thick is -24.0 dBFS peak x vk, louder
   than on concrete (-28.6) or ground (-31.8); others' -12.2, against -14.7 on concrete and -22.2 on ground (4.2).
-- The controller does stand on a rail ridge: `bullet_character_controller::on_ground` (0x7EF90)
-  wants the supporting normal within 50 degrees of up (cos 50 deg = `[0x21E51D8]`, set by the
-  static initialiser at 0x84D780 from 0.8727 rad at 0xA2DCD4) and |vertical speed| < 4 m/s
-  (0xA7AB10); a 45-degree ridge face passes. PROVEN (the code); that the step events keep coming
-  on the ridge is LIKELY, not traced.
-- **What is silent "on rails" is what stands on and beside them** (step-sounds-research section 5):
+- The controller's ground and slide tests and why they gate no step event: 1.3 step 1.
+- **Silent places near rails the data does show** (step-sounds-research section 5):
   Cologne's ICE cars (their collision is `foliage_dry`, no step sound: fixed by step-sounds-1, see
   #4), the Chemical Plant's hopper wagons (12.6 % of their tops) and loading stations (walker-only
   tops: fixed by patch 153's walker look), own sprint and landing on the mud beside the tracks
-  (fixed by step-sounds-1). Patch 153 covers every walker-only case the census found; nothing on
-  the rails themselves needs it.
-- **What is wrong on the Chemical Plant's rails is the material, not silence.** `railroad.model`
-  (10/20, 28,177 triangles, 682 m²: the whole track bed, rails and sleepers, x 10.4..21.0,
-  z -15.9..126.1) and `railroad_01..03` (the same tracks, z 17.8..82.8) are both placed and both
-  met by the ray; the higher face wins, so the ground under a walker is `metall_tank` 37 %,
-  ground 23 %, metall_thick 21 %, concrete 16 % (census: of 213 m², 78 / 49 / 44 / 35). A
-  walk along the track plays a hollow tank, rail steel, concrete and dirt in turn. A bullet into
-  the bed hits `metall_tank` (its pierce and ricochet values too). Fixing it in the collision
-  changes what bullets do (a simulation change, `simulation_changes.tsv`); a step-only fix would
-  be patch 153's site choosing another face (exe).
-- **What settles the owner's report:** patch 153's step log (`SKHID_STEP_LOG=on`, footsteps.md):
-  one walk along the rails of Cologne, the Chemical Plant and Repair Depot with it on names the
-  ground and the path of every step. Until then the remaining unproven paths are the on-site
-  state's foot material (`footsteps.md` path 6: a step event while the logic state is
-  `stand_on_site`, how one creeps along a rail, reads a word before the foot table and plays
-  nothing) and the voice cull under fire (path 7).
+  (fixed by step-sounds-1). These are not the owner's rails.
+
+### 1.8 What else is wrong on the rails: the Chemical Plant's material
+
+Besides the silence, the Chemical Plant's tracks have the wrong material. `railroad.model`
+(10/20, 28,177 triangles, 682 m²: the whole track bed, rails and sleepers, x 10.4..21.0,
+z -15.9..126.1) and `railroad_01..03` (the same tracks, z 17.8..82.8) are both placed and both
+met by the ray; the higher face wins, so the ground under a walker is `metall_tank` 37 %,
+ground 23 %, metall_thick 21 %, concrete 16 % (census: of 213 m², 78 / 49 / 44 / 35). A
+walk along the track plays a hollow tank, rail steel, concrete and dirt in turn. A bullet into
+the bed hits `metall_tank` (its pierce and ricochet values too). Fixing it in the collision
+changes what bullets do (a simulation change, `simulation_changes.tsv`); a step-only fix would
+be patch 153's site choosing another face (exe).
+
+0.69d has no `props/railroad/railroad.model` at all (not in its file list): its tracks are
+`railroad_01..03` alone, and their rail faces (`coll_metal_thick_s`) are `metall_tank` there
+(0.26g: `metall_thick_walkable`). So 0.69d's tracks step as one material, and the duplicate bed is
+0.26g's alone.
 
 ## 2. Surfaces: geometry with no pair or no material
 
@@ -384,7 +529,7 @@ listener, the side and direction picked) + content. Medium.
 - Others' footsteps carry a third of 0.69d's distance (4.1): the largest single difference a
   player notices in a fight ("I could hear him coming in 0.69").
 - Hits on bodies fade by 9 m (4.1).
-- Chemical Plant tracks' material flip (1.2) and stone's loud steps (4.3).
+- Chemical Plant tracks' material flip (1.8) and stone's loud steps (4.3).
 - `foliage_dry` in step-sounds-1 (3.2).
 - The step-sounds-1 rows for car glass give others' sprint `default_steps_sprint_m` and own walk
   `step/default`, which 0.69d leaves silent: harmless, a choice.
@@ -416,7 +561,8 @@ loudest part peaks at -1 dBFS, relative levels kept; six steps 0.55 s apart unle
 3. The distance curves (#1, #12): 0.69d's `steps` (and `weapons_reloading`, `main_3rd_view`) as a
    1-to-3-file content change, after the owner hears render 05: it changes how far players hear
    each other.
-4. The step log walk along the rails once patch 153 is in a test build (1.2), to close the
-   owner's rail report.
+4. The rails (1.2 to 1.6): add the event line and the root offset to patch 153's step log, and
+   the root look to its hook, in fix/silent-steps (that session's call); then one walk along the
+   rails with the log on names the cause.
 5. Larger, exe: indoor/outdoor tails for shots and steps (5.1, first step), then bullet flyby
    (5.2), then the full room set with beds.
