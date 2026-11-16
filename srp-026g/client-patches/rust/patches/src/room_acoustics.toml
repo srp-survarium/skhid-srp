@@ -1,0 +1,46 @@
+# Patch 155: room acoustics, as 0.69d has them (docs/notes/room-acoustics.md).
+# Only the decisions: which sites, and the handlers. The sites are
+# sites_026g.tsv's; the logic is room_acoustics.rs.
+name = "room_acoustics"
+patch = 155
+
+# a composite's item as its cook reads it: its sound_environment kept with it
+[[hook]]
+site = "composite_sound.item_read"
+handler = "on_item_read"
+
+# a composite's item about to play: on only in its room
+[[hook]]
+site = "composite_sound.item_play"
+handler = "on_item_play"
+
+# a map's client project: its zones (after patch 81's lamps, order 1)
+[[hook]]
+site = "project.insert"
+handler = "on_project_insert"
+order = 2
+[[hook]]
+site = "project.removed"
+handler = "on_project_removed"
+order = 2
+[[hook]]
+site = "project.destroy"
+handler = "on_project_destroy"
+order = 2
+
+# every frame of a game world: the listener's room and its bed
+[[hook]]
+site = "game_world.listener"
+handler = "on_listener"
+
+# the sound thread's tick: the beds' scenes kept active at their volumes
+# (after patch 88's music bus, order 1)
+[[hook]]
+site = "sound_world.tick"
+handler = "on_sound_tick"
+order = 2
+
+# a query's callback: a bed's scene or its sound
+[[hook]]
+site = "resources.query_done"
+handler = "on_query_done"

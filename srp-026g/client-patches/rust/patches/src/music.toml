@@ -57,6 +57,7 @@ order = 1
 [[hook]]
 site = "sound_world.tick"
 handler = "on_sound_tick"
+order = 1
 
 # a query's callback: the bus's scene or a track's sound
 [[hook]]

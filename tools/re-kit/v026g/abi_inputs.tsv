@@ -6283,3 +6283,5 @@ va	name	location	role	basis
 0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	entry ESP+4	the state's room (0E0h bytes, initialize_logic 0x301974)	observed
 0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	entry ESP+8	its 6 clips	observed
 0x0013ced0	vostok::render::renderer::render_flash_ui	stack+8	the output window: its +30ACh the render output the frame presents with (0x13DD3F, res_render_output::present 0x3CF7F0), its +30B0h the flash renderer (0x13CEE9); called once a frame at 0x13DB3D, the scene already on the back buffer (a read-back there in a game: the world, no interface)	observed
+0x00063d60	vostok::sound::composite_sound::emit_sound_propagators	ECX	the composite's emitter interface (composite +108h): +4h master layer index (word, FFFFh none), +8h/+0Ch the 18h-byte items, +14h the random seed	observed
+0x00063d60	vostok::sound::composite_sound::emit_sound_propagators	entry ESP+4	the emitting sound_instance_proxy (+58h/+5Ch its propagators, +68h its scene, +80h its sound_type; get_position 0x5C1F0)	observed

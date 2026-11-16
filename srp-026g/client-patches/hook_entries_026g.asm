@@ -5411,7 +5411,7 @@ keyboard_layout_on_text_replay:
 
 ; 0x285750 before insert_static, ECX project and ESP+4 physics: lohook -> lamps_on_bind
 global lamps_on_bind
-extern hook_lamps_on_bind
+extern hook_lamps_on_bind_chain
 lamps_on_bind:
     lea esp, [esp - 4]
     pushfd
@@ -5429,7 +5429,7 @@ lamps_on_bind:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_lamps_on_bind
+    call hook_lamps_on_bind_chain
     mov edx, lamps_on_bind_replay
     cmp eax, 0
     je lamps_on_bind_go
@@ -5450,7 +5450,7 @@ lamps_on_bind_replay:
 
 ; 0x285614 remove_static epilogue, after native object removals: lohook -> lamps_on_remove
 global lamps_on_remove
-extern hook_lamps_on_remove
+extern hook_lamps_on_remove_chain
 lamps_on_remove:
     lea esp, [esp - 4]
     pushfd
@@ -5468,7 +5468,7 @@ lamps_on_remove:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_lamps_on_remove
+    call hook_lamps_on_remove_chain
     mov edx, lamps_on_remove_replay
     cmp eax, 0
     je lamps_on_remove_go
@@ -5489,7 +5489,7 @@ lamps_on_remove_replay:
 
 ; 0x285330 destructor before any member is released: lohook -> lamps_on_destroy
 global lamps_on_destroy
-extern hook_lamps_on_destroy
+extern hook_lamps_on_destroy_chain
 lamps_on_destroy:
     lea esp, [esp - 4]
     pushfd
@@ -5507,7 +5507,7 @@ lamps_on_destroy:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_lamps_on_destroy
+    call hook_lamps_on_destroy_chain
     mov edx, lamps_on_destroy_replay
     cmp eax, 0
     je lamps_on_destroy_go
@@ -7277,7 +7277,7 @@ music_on_loading_replay:
 
 ; 0x59ab1 sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick: lohook -> music_on_sound_tick
 global music_on_sound_tick
-extern hook_music_on_sound_tick
+extern hook_music_on_sound_tick_chain
 music_on_sound_tick:
     lea esp, [esp - 4]
     pushfd
@@ -7295,7 +7295,7 @@ music_on_sound_tick:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_music_on_sound_tick
+    call hook_music_on_sound_tick_chain
     mov edx, music_on_sound_tick_replay
     cmp eax, 0
     je music_on_sound_tick_go
@@ -7841,6 +7841,129 @@ replay_map_on_enemy_ids_go:
 replay_map_on_enemy_ids_replay:
     db 0x8b, 0x4e, 0x10, 0x8b, 0x91, 0x08, 0x01, 0x00, 0x00
     jmp 0x235712
+
+; 0x60b14 composite_sound_cook's item loop (0x60860) after an item's `enabled` (mov esi,[esp+24h] / lea ecx,[esp+44h], then the item {start_offset, start_offset_max, min_distance, max_distance, enabled} at esp+44h is copied whole into the composite by 0x63F30): EBX the item's config table, the struct's byte +11h (padding the game never writes) the item's room tag (patch 155): lohook -> room_acoustics_on_item_read
+global room_acoustics_on_item_read
+extern hook_room_acoustics_on_item_read
+room_acoustics_on_item_read:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_room_acoustics_on_item_read
+    mov edx, room_acoustics_on_item_read_replay
+    cmp eax, 0
+    je room_acoustics_on_item_read_go
+    mov edx, 0x60b1c
+    cmp eax, 1
+    je room_acoustics_on_item_read_go
+    ud2
+room_acoustics_on_item_read_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+room_acoustics_on_item_read_replay:
+    db 0x8b, 0x74, 0x24, 0x24, 0x8d, 0x4c, 0x24, 0x44
+    jmp 0x60b1c
+
+; 0x63e26 composite_sound::emit_sound_propagators' item loop (0x63D60) at an item whose sound is there (cmp byte [edx+ebp+14h],0 / lea esi,[edx+ebp+4]; the je after skips a disabled item): EDX the items, EBP the item's byte offset; skip is the next item (0x63E94), as a disabled one: lohook -> room_acoustics_on_item_play
+global room_acoustics_on_item_play
+extern hook_room_acoustics_on_item_play
+room_acoustics_on_item_play:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_room_acoustics_on_item_play
+    mov edx, room_acoustics_on_item_play_replay
+    cmp eax, 0
+    je room_acoustics_on_item_play_go
+    mov edx, 0x63e2f
+    cmp eax, 1
+    je room_acoustics_on_item_play_go
+    mov edx, 0x63e94
+    cmp eax, 2
+    je room_acoustics_on_item_play_go
+    ud2
+room_acoustics_on_item_play_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+room_acoustics_on_item_play_replay:
+    db 0x80, 0x7c, 0x2a, 0x14, 0x00, 0x8d, 0x74, 0x2a, 0x04
+    jmp 0x63e2f
+
+; 0x1f7642 game_world::on_after_tick before it gives its scene the listener (lea ecx,[esi+1Ch] / lea edx,[esi+2Ch], then set_listener_properties 0x587D0 with +3Ch the position): every frame of a game world, on the game's thread, ESI the world: lohook -> room_acoustics_on_listener
+global room_acoustics_on_listener
+extern hook_room_acoustics_on_listener
+room_acoustics_on_listener:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_room_acoustics_on_listener
+    mov edx, room_acoustics_on_listener_replay
+    cmp eax, 0
+    je room_acoustics_on_listener_go
+    mov edx, 0x1f7648
+    cmp eax, 1
+    je room_acoustics_on_listener_go
+    ud2
+room_acoustics_on_listener_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+room_acoustics_on_listener_replay:
+    db 0x8d, 0x4e, 0x1c, 0x8d, 0x56, 0x2c
+    jmp 0x1f7648
+
+; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> room_acoustics_on_query_done (wraps engine_store_first_resource 0x14730)
+    RUST_CDECL room_acoustics_on_query_done, hook_room_acoustics_on_query_done, 2
 
 ; 0xe31f8 logging_initialize (0xE30E0) after generate_log_file_name (0xE29C0, the only call, at 0xE31F3) made the engine log's name in EDI, the frame's buffer_string [esp+0Ch] over its 104h bytes at [esp+18h] (<user data folder><application>_<user>.log), before new_log_file (0x1128D0, the only call, at 0xE31FD) makes the log file of that name anew (create_always: log_file::log_file, as g_log_file_usage 0x1B3A1B8 says); mov eax,[esp+0Ch] / push eax: lohook -> run_logs_on_engine_log
 global run_logs_on_engine_log

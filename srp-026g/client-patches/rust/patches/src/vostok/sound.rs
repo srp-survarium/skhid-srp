@@ -57,6 +57,17 @@ impl SoundUser {
         }
     }
 
+    /// The game's, at `game_world.listener` (ESI the game world).
+    pub fn at_game_world_listener(ctx: &Context<'_>) -> Option<SoundUser> {
+        // SAFETY: the site's ESI is the game world, ticking on this thread;
+        // its game (+9Ch), the game's sound world and its logic user are the
+        // engine's, as at game.tick.
+        unsafe {
+            let world = raw::site::game_world_listener::world(ctx)?.game()?.sound_world()?;
+            Some(SoundUser { world, user: world.logic_user()? })
+        }
+    }
+
     /// `emitter` as a looping hud sound in `bus`: its voice, None when the
     /// scene's proxies are all taken. The voice starts at the bus's volume.
     pub fn play_looped(&self, _: &Thread, bus: BusScene, emitter: &Emitter) -> Option<Voice> {

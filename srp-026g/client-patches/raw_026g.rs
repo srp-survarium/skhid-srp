@@ -1084,6 +1084,15 @@ impl GameWorld {
     pub unsafe fn set_sound_scene(self, value: Option<SoundScene>) {
         unsafe { self.0.byte_add(0x94).cast::<Option<SoundScene>>().write_volatile(value) }
     }
+
+    /// +0x3c (f32): the sound listener's position, a float3 (on_after_tick 0x1F7649 gives it to set_listener_properties; +2Ch the front, +1Ch the top)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn listener(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x3c).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A survarium::game (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -23913,6 +23922,157 @@ impl RenderOutputWindow {
     }
 }
 
+/// A vostok::sound::composite_item (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CompositeItem(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CompositeItem {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x14 (u8): the item plays (its `enabled`, default 1: composite_sound_cook 0x60B09; emit 0x63E26 skips it at 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn enabled(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x14).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x15 (u8): patch 155's room tag of the item (its `sound_environment`): 0 none, else a room's number; the byte after `enabled`, padding the game copies with it (0x640AD, 0x64118) and never reads
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn room(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x15).cast::<u8>().as_ptr() }
+    }
+
+    /// 0x18 bytes: an item is 18h bytes: {sound, start_offset, start_offset_max, min_distance, max_distance, enabled} (emit 0x63EAC steps 18h; constructor 0x63CCC)
+    pub const SIZE: usize = 0x18;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::sound::composite_items (0x18 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct CompositeItemStorage([u8; 0x18]);
+
+#[allow(dead_code)]
+impl CompositeItemStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x18])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> CompositeItem {
+        CompositeItem(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<CompositeItem> {
+        (!rooms.is_empty()).then(|| CompositeItem(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::sound::composite_item_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CompositeItemFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CompositeItemFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x55 (u8): composite_sound_cook's item being read, the byte after its `enabled` (esp+54h): copied with it into the item's +15h (0x63F30's dword at +10h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn room(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x55).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::sound::composite_emit_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CompositeEmitFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CompositeEmitFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x1c (f32): emit_sound_propagators' listener position, a float3 (listener_position 0x57560 into esp+1Ch, after its push ebx: the loop's frame)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn listener(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x1c).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x28 (f32): the emitting proxy's position, a float3 (get_position 0x5C1F0 into esp+28h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn emitter(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x28).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x38 (ptr<vostok::sound::sound_instance_proxy>): the emitting proxy, its argument (0x63D64; [esp+38h] in the loop, 0x63E89)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn proxy(self) -> Option<SoundInstanceProxy> {
+        unsafe { self.0.byte_add(0x38).cast::<Option<SoundInstanceProxy>>().read_volatile() }
+    }
+
+    /// +0x38 (ptr<vostok::sound::sound_instance_proxy>): the emitting proxy, its argument (0x63D64; [esp+38h] in the loop, 0x63E89)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_proxy(self, value: Option<SoundInstanceProxy>) {
+        unsafe { self.0.byte_add(0x38).cast::<Option<SoundInstanceProxy>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -28993,6 +29153,78 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<FlashUiFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(FlashUiFrame)
+        }
+    }
+
+    /// composite_sound.item_read (0x60b14): composite_sound_cook's item loop (0x60860) after an item's `enabled` (mov esi,[esp+24h] / lea ecx,[esp+44h], then the item {start_offset, start_offset_max, min_distance, max_distance, enabled} at esp+44h is copied whole into the composite by 0x63F30): EBX the item's config table, the struct's byte +11h (padding the game never writes) the item's room tag (patch 155)
+    pub mod composite_sound_item_read {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::engine_cfg (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<EngineCfg> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EngineCfg)
+        }
+
+        /// the site's ESP: a vostok::sound::composite_item_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<CompositeItemFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(CompositeItemFrame)
+        }
+    }
+
+    /// composite_sound.item_play (0x63e26): composite_sound::emit_sound_propagators' item loop (0x63D60) at an item whose sound is there (cmp byte [edx+ebp+14h],0 / lea esi,[edx+ebp+4]; the je after skips a disabled item): EDX the items, EBP the item's byte offset; skip is the next item (0x63E94), as a disabled one
+    pub mod composite_sound_item_play {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDX: a vostok::sound::composite_item (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn items(machine: &impl Machine) -> Option<CompositeItem> {
+            NonNull::new(machine.register(Register::Edx) as usize as *mut c_void).map(CompositeItem)
+        }
+
+        /// EBP: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn offset(machine: &impl Machine) -> u32 {
+            machine.register(Register::Ebp)
+        }
+
+        /// the site's ESP: a vostok::sound::composite_emit_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<CompositeEmitFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(CompositeEmitFrame)
+        }
+    }
+
+    /// game_world.listener (0x1f7642): game_world::on_after_tick before it gives its scene the listener (lea ecx,[esi+1Ch] / lea edx,[esi+2Ch], then set_listener_properties 0x587D0 with +3Ch the position): every frame of a game world, on the game's thread, ESI the world
+    pub mod game_world_listener {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::game_world (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn world(machine: &impl Machine) -> Option<GameWorld> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(GameWorld)
         }
     }
 }

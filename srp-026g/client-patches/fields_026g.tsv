@@ -1288,3 +1288,11 @@ vostok::render::flash_ui_frame	window	0x8	ptr<vostok::render::render_output_wind
 vostok::render::render_output_window	output	0x30AC	ptr<vostok::render::res_render_output>	its render output: the frame's draw presents with it (0x13DD3F: mov eax,[edx+30ACh] / call res_render_output::present 0x3CF7F0, EAX its receiver)
 vostok::render::res_render_output	swap_chain	0xCC	ptr<dxgi::swap_chain>	its IDXGISwapChain (present 0x3CF8FF: mov esi,[esi+0CCh], Present through its vtable +20h; GetFullscreenState +2Ch at 0x3CF81C)
 vostok::input::key_event	data	0x4	u32	DIDEVICEOBJECTDATA.dwData: bit 80h set, the key went down (execute's loop 0x3B9167: test byte [ecx],80h, ECX the event's +4; process 0x3B9B23 the same)
+survarium::game_world	listener	0x3C	f32	the sound listener's position, a float3 (on_after_tick 0x1F7649 gives it to set_listener_properties; +2Ch the front, +1Ch the top)
+vostok::sound::composite_item	enabled	0x14	u8	the item plays (its `enabled`, default 1: composite_sound_cook 0x60B09; emit 0x63E26 skips it at 0)
+vostok::sound::composite_item	room	0x15	u8	patch 155's room tag of the item (its `sound_environment`): 0 none, else a room's number; the byte after `enabled`, padding the game copies with it (0x640AD, 0x64118) and never reads
+vostok::sound::composite_item	size	0x18	size	an item is 18h bytes: {sound, start_offset, start_offset_max, min_distance, max_distance, enabled} (emit 0x63EAC steps 18h; constructor 0x63CCC)
+vostok::sound::composite_item_frame	room	0x55	u8	composite_sound_cook's item being read, the byte after its `enabled` (esp+54h): copied with it into the item's +15h (0x63F30's dword at +10h)
+vostok::sound::composite_emit_frame	listener	0x1C	f32	emit_sound_propagators' listener position, a float3 (listener_position 0x57560 into esp+1Ch, after its push ebx: the loop's frame)
+vostok::sound::composite_emit_frame	emitter	0x28	f32	the emitting proxy's position, a float3 (get_position 0x5C1F0 into esp+28h)
+vostok::sound::composite_emit_frame	proxy	0x38	ptr<vostok::sound::sound_instance_proxy>	the emitting proxy, its argument (0x63D64; [esp+38h] in the loop, 0x63E89)

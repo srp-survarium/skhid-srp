@@ -179,6 +179,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
 | `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit kills, wherever it lands (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
 | `rust/patches/src/trap_stock_hit.rs`, `src/trap_stock_hit.toml`, `src/vostok/trap.rs`, `check_trap_stock_hit_026g.py` | Patch 151: a gun-stock hit disarms a trap (`../docs/notes/trap-stock-hit.md`): one lohook at `booby_trap_core::hit`'s entry (`trap.hit`); its check runs the hit in the original and the patched exe (needs Unicorn) |
+| `rust/patches/src/room_acoustics.rs`, `src/room_acoustics/model.rs`, `src/room_acoustics.toml`, `src/vostok/room_sound.rs`, `check_room_acoustics_026g.py` | Patch 155: room acoustics (`../docs/notes/room-acoustics.md`): a composite item's `sound_environment` kept at its cook (`composite_sound.item_read`) and honoured at emit (`composite_sound.item_play`), a map's zones from its client project (`project.insert`), the listener's room and its bed every frame (`game_world.listener`), the beds' scenes stepped on the sound thread; its check runs the emit in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `rust/patches/src/weapon_camo.rs`, `weapon_camo.toml` | Patch 44's part in the baker (Rust, one lohook at `bake.own_camouflage`, 0x12E124): a weapon's bake takes only the camouflage textures its patch names (the colours and the `_smap`, not the `_nmap`, a cloth's weave), never the surface's own `<diffuse>_camo...`; `check_weapon_camo_026g.py` runs the site |
@@ -4461,6 +4462,21 @@ of a byte or of a pixel as its only matches, IDAT chunks of 32 KiB. Written on t
 draws: the frame waits for the file. Each picture is a line of the patches' log (its name, size
 and time, or why none was taken). Presentation only: no simulation change.
 
+## Room acoustics (patch 155, unreleased)
+
+A shot or a step in a room sounds like that room, and each room plays its bed, as 0.69d does it (the
+owner, 2026-11-16; `../docs/notes/room-acoustics.md`). The composite cook (0x60860) keeps an item's
+`sound_environment` as a room number in the item's padding byte (+15h); emit_sound_propagators
+(0x63D60) skips an item of another room as a disabled one (`composite_sound.item_play`, exit to
+0x63E94). A placed sound's room is the zone at its source, a hud sound's the listener's; a zone is
+found by a ray straight up (the nearest two-sided mesh surface within 100 m), none is `default`. A
+map's zones are its client project's `srp_sound_environments` (edit list `room-acoustics-1`), read
+at `project.insert`; the listener's room (the living local player's feet, else the camera) is
+taken at `game_world.listener` (on_after_tick 0x1F7642) every frame, and its bed loops in one of
+four sound scenes of the patch's, crossfaded on the sound thread (`sound_world.tick`, after patch
+88's bus). A map without zones is all `default`: today's sound. Nothing a match computes.
+`check_room_acoustics_026g.py` runs the item site, the emit (both exes), the project insert and
+removal and the listener frames.
 ## A gun-stock hit disarms a trap (patch 151, unreleased)
 
 A melee hit on an armed trap defuses it as a bullet does (the owner, 2026-11-15;

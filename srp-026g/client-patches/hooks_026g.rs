@@ -3347,6 +3347,21 @@ pub extern "C" fn hook_lamps_on_bind(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- room_acoustics (patch 155) ----
+
+/// The entry `room_acoustics_on_project_insert` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_room_acoustics_on_project_insert(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `room_acoustics_on_project_insert` calls this, from the game's jump at 0x285750,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::room_acoustics::on_project_insert(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- lamps (patch 81) ----
 
 /// The entry `lamps_on_remove` (0x285614, remove_static epilogue, after native object removals) calls this with the saved machine.
@@ -3362,6 +3377,21 @@ pub extern "C" fn hook_lamps_on_remove(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- room_acoustics (patch 155) ----
+
+/// The entry `room_acoustics_on_project_removed` (0x285614, remove_static epilogue, after native object removals) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_room_acoustics_on_project_removed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `room_acoustics_on_project_removed` calls this, from the game's jump at 0x285614,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::room_acoustics::on_project_removed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- lamps (patch 81) ----
 
 /// The entry `lamps_on_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
@@ -3371,6 +3401,21 @@ pub extern "C" fn hook_lamps_on_destroy(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::lamps::on_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- room_acoustics (patch 155) ----
+
+/// The entry `room_acoustics_on_project_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_room_acoustics_on_project_destroy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `room_acoustics_on_project_destroy` calls this, from the game's jump at 0x285330,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::room_acoustics::on_project_destroy(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -4333,6 +4378,21 @@ pub extern "C" fn hook_music_on_sound_tick(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- room_acoustics (patch 155) ----
+
+/// The entry `room_acoustics_on_sound_tick` (0x59ab1, sound_world::tick after process_orders, before the active scenes tick (mov esi,[edi+48E4h]): the sound thread, EDI the world, EBX the ms since its last tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_room_acoustics_on_sound_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `room_acoustics_on_sound_tick` calls this, from the game's jump at 0x59ab1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::room_acoustics::on_sound_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- music (patch 88) ----
 
 /// The entry `music_on_query_done` (a callback in engine_store_first_resource's convention, the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query)
@@ -4613,6 +4673,73 @@ pub extern "C" fn hook_replay_map_on_enemy_ids(frame: &mut Frame) -> u32 {
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
     }
+}
+
+// ---- room_acoustics (patch 155) ----
+
+/// The entry `room_acoustics_on_item_read` (0x60b14, composite_sound_cook's item loop (0x60860) after an item's `enabled` (mov esi,[esp+24h] / lea ecx,[esp+44h], then the item {start_offset, start_offset_max, min_distance, max_distance, enabled} at esp+44h is copied whole into the composite by 0x63F30): EBX the item's config table, the struct's byte +11h (padding the game never writes) the item's room tag (patch 155)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_room_acoustics_on_item_read(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `room_acoustics_on_item_read` calls this, from the game's jump at 0x60b14,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::room_acoustics::on_item_read(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- room_acoustics (patch 155) ----
+
+/// The named exits of room_acoustics::on_item_play (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum RoomAcousticsOnItemPlayExit { Skip }
+/// The entry `room_acoustics_on_item_play` (0x63e26, composite_sound::emit_sound_propagators' item loop (0x63D60) at an item whose sound is there (cmp byte [edx+ebp+14h],0 / lea esi,[edx+ebp+4]; the je after skips a disabled item): EDX the items, EBP the item's byte offset; skip is the next item (0x63E94), as a disabled one) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_room_acoustics_on_item_play(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `room_acoustics_on_item_play` calls this, from the game's jump at 0x63e26,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::room_acoustics::on_item_play(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- room_acoustics (patch 155) ----
+
+/// The entry `room_acoustics_on_listener` (0x1f7642, game_world::on_after_tick before it gives its scene the listener (lea ecx,[esi+1Ch] / lea edx,[esi+2Ch], then set_listener_properties 0x587D0 with +3Ch the position): every frame of a game world, on the game's thread, ESI the world) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_room_acoustics_on_listener(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `room_acoustics_on_listener` calls this, from the game's jump at 0x1f7642,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::room_acoustics::on_listener(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- room_acoustics (patch 155) ----
+
+/// The entry `room_acoustics_on_query_done` (a callback in engine_store_first_resource's convention, the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query)
+/// calls this with its 2 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `room_acoustics_on_query_done`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_room_acoustics_on_query_done(a0: Option<raw::QueriesResult>, a1: *mut c_void) -> u32 {
+    // SAFETY: only the entry `room_acoustics_on_query_done` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let result = unsafe { QueryResults::from_raw(&thread, a0) };
+    let tag = QueryTag::from_raw(a1 as usize as u32);
+    { crate::room_acoustics::on_query_done(result, tag); 0 }
 }
 
 // ---- run_logs (patch 147) ----
@@ -5769,6 +5896,33 @@ pub extern "C" fn hook_key_remap_on_events_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_bind_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_lamps_on_bind(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_room_acoustics_on_project_insert(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_remove_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_lamps_on_remove(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_room_acoustics_on_project_removed(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_destroy_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_lamps_on_destroy(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_room_acoustics_on_project_destroy(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
     let flow = hook_ragdoll_on_step(frame);
     if flow != 0 { return flow; }
@@ -5797,6 +5951,15 @@ pub extern "C" fn hook_music_on_unload_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_unload(frame);
     if flow != 0 { return flow; }
     let flow = hook_lobby_scene_on_game_closing(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_music_on_sound_tick_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_music_on_sound_tick(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_room_acoustics_on_sound_tick(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -5846,6 +6009,15 @@ pub fn music_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstR
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(music_on_query_done as *const () as *const c_void) }
+}
+
+unsafe extern "C" { fn room_acoustics_on_query_done(); }
+/// The entry `room_acoustics_on_query_done`, in engine_store_first_resource's convention (the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn room_acoustics_on_query_done_entry() -> super::hook::CallbackEntry<OrigStoreFirstResource> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_store_first_resource, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(room_acoustics_on_query_done as *const () as *const c_void) }
 }
 
 // ---- memory_profile: its hooks installed on demand ----

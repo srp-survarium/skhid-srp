@@ -357,3 +357,27 @@ impl<D: Presentation<K>, K: Copy> ProjectRegistry<D, K> {
         });
     }
 }
+
+/// A project's identity, compared only: the one inserted, later removed or
+/// destroyed (a map's client project, a lobby scene's).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProjectKey(ProjectId);
+
+/// The project at `project.insert`: its identity and its config's root,
+/// alive for the hook.
+pub fn inserted<'t>(ctx: &'t Context<'_>) -> Option<(ProjectKey, Result<ConfigValue<'t>, BindingError>)> {
+    let project = ProjectView::inserting(ctx).ok()?;
+    Some((ProjectKey(ProjectId::of(project.native)), project.root()))
+}
+
+/// The project at `project.removed` (its objects out of the scene).
+pub fn removed(ctx: &Context<'_>) -> Option<ProjectKey> {
+    // SAFETY: project.removed, the project alive until it returns.
+    unsafe { raw::site::project_removed::project(ctx) }.map(|p| ProjectKey(ProjectId::of(p)))
+}
+
+/// The project at `project.destroy` (its destructor's start).
+pub fn destroying(ctx: &Context<'_>) -> Option<ProjectKey> {
+    // SAFETY: project.destroy at entry, before any member is released.
+    unsafe { raw::site::project_destroy::project(ctx) }.map(|p| ProjectKey(ProjectId::of(p)))
+}

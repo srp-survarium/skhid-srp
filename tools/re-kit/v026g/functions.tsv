@@ -2397,3 +2397,7 @@ va	status	ref_021d	name
 0x00305580	observed		survarium::booby_trap_core::hit
 0x003050c0	observed		survarium::booby_trap_core::defuse_completed
 0x003917d0	reviewed		vostok::animation::animation_player::tick
+0x00060860	observed		vostok::sound::composite_sound_cook::create_resource (reads composite_sound.sound_items: filename, resource_type, start_offset, start_offset_max, min_distance, max_distance, enabled; use_master_layer_index, master_layer_index)
+0x00063f30	observed		vostok::sound::composite_sound::add_item (the item struct copied whole, 14h bytes, after its sound)
+0x00064070	observed		vostok::sound::composite_sound::item::item
+0x00063ff0	observed		vostok::sound::composite_sound::items::push_back (18h-byte items)
