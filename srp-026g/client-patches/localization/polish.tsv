@@ -1425,6 +1425,8 @@ st_level_11_name	Kurhan Mamaja (v0.21)
 st_level_12_name	Zakłady chemiczne (v0.11)
 st_level_13_name	Stacja Radarowa "Vostok" (v0.11)
 st_level_14_name	Rudnia (v0.69)
+st_level_25_name	Szkoła (v0.21)
+st_level_26_name	Fort Tarakanów (v0.21)
 st_lifebone_activation_hint	Żywokost aktywowany! Wszystkie rany krytyczne zostały wyleczone! Zdrowie przywrócone!
 st_lifebone_pickup_hint	Artefakt Żywokost. Przyspiesza regenerację zdrowia.
 st_lightning_quality_option	Jakość oświetlenia
@@ -2618,9 +2620,11 @@ st_srp_map_names_option	Nicki na mapie
 st_srp_map_rudnya	Rudnia
 st_srp_map_rudnya_v069	Rudnia (v0.69)
 st_srp_map_school	Szkoła
+st_srp_map_school_v021	Szkoła (v0.21)
 st_srp_map_soc_ug_depository	Magazyn
 st_srp_map_soc_ug_station	Stacja
 st_srp_map_tarakanovsky_fort	Fort Tarakanów
+st_srp_map_tarakanovsky_fort_v021	Fort Tarakanów (v0.21)
 st_srp_map_vector	Laboratorium "Wektor"
 st_srp_map_vostok	Stacja Radarowa "Vostok"
 st_srp_map_vostok_v011	Stacja Radarowa "Vostok" (v0.11)

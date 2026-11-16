@@ -1425,6 +1425,8 @@ st_level_11_name	Mamajova mohyla (v0.21)
 st_level_12_name	Chemička (v0.11)
 st_level_13_name	Radarová stanice Vostok (v0.11)
 st_level_14_name	Rudňa (v0.69)
+st_level_25_name	Škola (v0.21)
+st_level_26_name	Tarakanovská pevnost (v0.21)
 st_lifebone_activation_hint	Ostrožka aktivována! Všechna těžká zranění vyléčena! Zdraví obnoveno!
 st_lifebone_pickup_hint	Artefakt Ostrožka. Zrychluje obnovu zdraví. 
 st_lightning_quality_option	Kvalita osvětlení
@@ -2618,9 +2620,11 @@ st_srp_map_names_option	Jména na mapě
 st_srp_map_rudnya	Rudňa
 st_srp_map_rudnya_v069	Rudňa (v0.69)
 st_srp_map_school	Škola
+st_srp_map_school_v021	Škola (v0.21)
 st_srp_map_soc_ug_depository	Depository
 st_srp_map_soc_ug_station	Station
 st_srp_map_tarakanovsky_fort	Tarakanovská pevnost
+st_srp_map_tarakanovsky_fort_v021	Tarakanovská pevnost (v0.21)
 st_srp_map_vector	Laboratoř Vektor
 st_srp_map_vostok	Radarová stanice Vostok
 st_srp_map_vostok_v011	Radarová stanice Vostok (v0.11)

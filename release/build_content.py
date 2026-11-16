@@ -278,9 +278,12 @@ class Game:
         """{path: (status, archive or '')}: same, differs, new."""
         text = run([self.binary, 'compare'] + self.layers(archives) + ['--dir', folder], 'srp-game-data compare')
         out = {}
+        # `new <path>` or `<same|differs> <path> <archive>`: a path may hold spaces (0.21d's
+        # `render/material #825364/` folders), an archive name none.
         for line in text.splitlines():
-            status, path, *name = line.split(' ')
-            out[path] = (status, name[0] if name else '')
+            status, rest = line.split(' ', 1)
+            path, name = (rest, '') if status == 'new' else rest.rsplit(' ', 1)
+            out[path] = (status, name)
         return out
 
 

@@ -1425,6 +1425,8 @@ st_level_11_name	Mamajevin kurgaani (v0.21)
 st_level_12_name	Kemiantehdas (v0.11)
 st_level_13_name	Vostokin tutka-asema (v0.11)
 st_level_14_name	Rudnja (v0.69)
+st_level_25_name	Koulu (v0.21)
+st_level_26_name	Tarakanovin linnoitus (v0.21)
 st_lifebone_activation_hint	Ritarinkannus aktivoitu! Kaikki vakavat vammat parannettu! Terveys palautettu!
 st_lifebone_pickup_hint	Ritarinkannus-artefakti. Nopeuttaa terveyden palautumista. 
 st_lightning_quality_option	Valaistuksen laatu
@@ -2618,9 +2620,11 @@ st_srp_map_names_option	Nimet kartalla
 st_srp_map_rudnya	Rudnja
 st_srp_map_rudnya_v069	Rudnja (v0.69)
 st_srp_map_school	Koulu
+st_srp_map_school_v021	Koulu (v0.21)
 st_srp_map_soc_ug_depository	Depository
 st_srp_map_soc_ug_station	Station
 st_srp_map_tarakanovsky_fort	Tarakanovin linnoitus
+st_srp_map_tarakanovsky_fort_v021	Tarakanovin linnoitus (v0.21)
 st_srp_map_vector	Vektor-laboratorio
 st_srp_map_vostok	Vostokin tutka-asema
 st_srp_map_vostok_v011	Vostokin tutka-asema (v0.11)

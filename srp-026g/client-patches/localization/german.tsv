@@ -1425,6 +1425,8 @@ st_level_11_name	Mamaew kurgan (v0.21)
 st_level_12_name	Chemiebetrieb (v0.11)
 st_level_13_name	RS Vostok (v0.11)
 st_level_14_name	Rudnya (v0.69)
+st_level_25_name	Schule (v0.21)
+st_level_26_name	Tarakanowski Fort (v0.21)
 st_lifebone_activation_hint	Lebensknochen ist aktiviert! Alle kritische Verlätzungen sind geheilt! Gesundheit wiederhergestellt!
 st_lifebone_pickup_hint	Artefakt Lebknochen. Erhöht die Regeneration.
 st_lightning_quality_option	Beleuchtung Qualität
@@ -2618,9 +2620,11 @@ st_srp_map_names_option	Namen auf Karte
 st_srp_map_rudnya	Rudnya
 st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	Schule
+st_srp_map_school_v021	Schule (v0.21)
 st_srp_map_soc_ug_depository	Depot
 st_srp_map_soc_ug_station	Station
 st_srp_map_tarakanovsky_fort	Tarakanowski Fort
+st_srp_map_tarakanovsky_fort_v021	Tarakanowski Fort (v0.21)
 st_srp_map_vector	Labor Vektor
 st_srp_map_vostok	RS Vostok
 st_srp_map_vostok_v011	RS Vostok (v0.11)
