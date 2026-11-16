@@ -2110,11 +2110,7 @@ fn drive_tick_inner(
         bot.bench_stepped = 0;
         bot.bench_keys_from = 0;
     }
-    // [#2081] By a known own trap the body walks tight: no side step, no weave (`traps::walks_tight`).
-    let tight = traps::walks_tight(bot, me.feet);
-    let stepped = if tight {
-        None
-    } else if aiming_still {
+    let stepped = if aiming_still {
         Some(decision.keys | over.strafe)
     } else if walking_aimed && tuning.aim.combat.strafe_walking {
         weave(decision.keys, over.strafe)
@@ -2203,7 +2199,7 @@ fn drive_tick_inner(
         if away.key != 0 {
             let follows = !tuning.spacing.apart_follow
                 && bot.assignment.as_ref().is_some_and(|a| matches!(a.kind, PlayKind::Escort | PlayKind::Buddy | PlayKind::PairUp | PlayKind::CoverHuman));
-            let held_off = follows || tight || intent.hold != 0 || over.strafe != 0 || over.fire || using || decision.keys & (key::LEFT | key::RIGHT) != 0;
+            let held_off = follows || intent.hold != 0 || over.strafe != 0 || over.fire || using || decision.keys & (key::LEFT | key::RIGHT) != 0;
             // [feel.straight_jumps] Not on a route jump's line.
             if jump_line && !held_off {
                 motor::straight_jumps::add(if straight { motor::straight_jumps::Slot::ApartHeld } else { motor::straight_jumps::Slot::ApartAdded });
@@ -2333,10 +2329,6 @@ fn drive_tick_inner(
     // and carrying rows sprinting 0 of 56,753 and 0 of 44,093, grid/aim-gates/FINDINGS.md, exactness 2026-11-12T16:20Z): the
     // bot does not ask for it while it carries.
     decision.keys = carrier_keys(decision.keys, me.carrying.is_some() && tuning.kin.carrier_sprint == kin::CarrierSprint::Refused);
-    // [#2081] By a known own trap no sprint: the tight walk (`traps::walks_tight`).
-    if tight {
-        decision.keys &= !key::SPRINT;
-    }
     let lift_paced = decision.keys & lift_wants == lift_wants;
     // The pull is the kick's part taken back, in the game's pitch unit: as a rise of the elevation at this pitch (`pitch.rs`).
     decision.turn.1 += Pitch::of_elevation(me.pitch, tuning.kin.pitch_scale).rise(over.pull, tuning.kin.pitch_scale);
@@ -3784,7 +3776,7 @@ mod tests {
             bot
         };
         let guard = |bot: &mut Bot, keys: u32| traps::guard_own_traps(bot, keys, 0.0, &me, &tuning, &world.grid, |_| true, 1_000);
-        // The walk on toward a trap 1.0 m ahead: within contact + the reckoning's margin, refused.
+        // The walk on toward a trap 1.0 m ahead: within contact + the reckoning's margin (0.80 m at a fresh world), refused.
         assert_eq!(guard(&mut fresh(), key::FORWARD).map(|k| k & key::FORWARD), Some(0));
         // A line-up and a held press are guarded as the walk.
         let mut bot = fresh();
@@ -3795,16 +3787,30 @@ mod tests {
         assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0), "a held press too");
         // The press's own tick is left to the route.
         assert_eq!(guard(&mut fresh(), key::FORWARD | key::JUMP), None);
-        // A promise 1.6 m ahead that no world shows yet: within contact + both margins (1.39 m) of the stop, refused.
+        // A promise 1.6 m ahead that no world shows yet: within contact + both margins (1.51 m) of the stop, refused.
         let mut bot = fresh();
         bot.features.traps.field = Arc::new(crate::v026g::bots::trap_know::TrapField::round(vec![Vec3::new(53.6, 2.0, 33.0)], &world.grid));
         assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0), "the promise's margin");
-        // The world shows it 0.1 m past the promise: its place, without the promise's margin (1.05 m), and the walk stands.
+        // The world shows it 0.1 m past the promise: its place, without the promise's margin (0.80 m), and the walk stands.
         bot.features.traps.world_armed = Arc::new(vec![Vec3::new(53.7, 2.0, 33.0)]);
         assert_eq!(guard(&mut bot, key::FORWARD), None, "the world's trap 1.7 m ahead");
-        // The world shows it 0.4 m nearer: its place is read at once.
-        bot.features.traps.world_armed = Arc::new(vec![Vec3::new(53.2, 2.0, 33.0)]);
-        assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0), "the world's trap 1.2 m ahead");
+        // The world shows it 0.6 m nearer: its place is read at once.
+        bot.features.traps.world_armed = Arc::new(vec![Vec3::new(53.0, 2.0, 33.0)]);
+        assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0), "the world's trap 1.0 m ahead");
+        // The reckoning's margin grows with the world's age: a trap 0.85 m past the stop's reach is clear of a fresh world's
+        // (0.80 m) and not of a second-old one's (0.90 m).
+        let at = body::Estimate::of_view(&me, world.grid.locate(me.feet, 1.5));
+        let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid: &world.grid, planned: &[], hold: traps::GUARD_HOLD_TICKS };
+        let reach = body::stop_path(&at, key::FORWARD, 0.0, &stop).iter().map(|p| p.x).fold(f32::MIN, f32::max);
+        bot.features.traps.world_armed = Arc::new(vec![Vec3::new(reach + 0.85, 2.0, 33.0)]);
+        bot.features.traps.field = Arc::new(crate::v026g::bots::trap_know::TrapField::round(vec![Vec3::new(reach + 0.85, 2.0, 33.0)], &world.grid));
+        assert_eq!(guard(&mut bot, key::FORWARD), None, "a fresh world");
+        let old = PlaceView { seen_at: 0, known_at: 1_000, ..me.clone() };
+        assert_eq!(
+            traps::guard_own_traps(&mut bot, key::FORWARD, 0.0, &old, &tuning, &world.grid, |_| true, 1_000).map(|k| k & key::FORWARD),
+            Some(0),
+            "a second-old world"
+        );
         // A world trap past the promise match is another trap: the promise stands, with its margin.
         bot.features.traps.world_armed = Arc::new(vec![Vec3::new(60.0, 2.0, 33.0)]);
         assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0));

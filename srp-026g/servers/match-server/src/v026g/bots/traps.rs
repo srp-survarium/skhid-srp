@@ -1864,7 +1864,11 @@ impl TeamState {
 /// The field of the standing traps of `list` ([`TeamState::refresh_traps`]).
 fn field_of(list: &super::trap_know::TrapList, grid: &WalkGrid, ring_m: f32, keep_off: Option<super::tuning::KeepOff>) -> Arc<TrapField> {
     match keep_off {
-        Some(k) => Arc::new(TrapField::of_ringed_within(list, grid, ring_m, k.hard_m)),
+        Some(k) => {
+            let mut field = TrapField::of_ringed_within(list, grid, ring_m, k.hard_m);
+            field.shut_promised_within(list, grid, k.hard_m + PROMISE_MARGIN_M);
+            Arc::new(field)
+        }
         None => Arc::new(TrapField::of_ringed(list, grid, ring_m)),
     }
 }
@@ -2093,20 +2097,10 @@ pub(super) fn step_keeps_clear(field: &TrapField, from: Vec3, to: Vec3) -> bool 
     field.is_empty() || keeps_clear(&[from, to], field.discs(), from, field.reach().max(FIELD_M))
 }
 
-/// [#2081] Within this of a known own trap (or one noticed) a body walks its route tight: no sprint, no side step or weave, no step
-/// apart (`drive.rs`), metres: the zone the tight walk's tolerance ([`TIGHT_WALK_P90_M`]) was measured in.
+/// [#2081] The zone round a known own trap the bench measures the feet off route in, metres ([`TIGHT_WALK_P90_M`] was measured in
+/// it; the tight walk that used it is dropped: 1.47 m rests on the P90 of every walk).
 pub const TIGHT_ZONE_M: f32 = 3.0;
 
-/// [#2081] Whether `feet` lie within [`TIGHT_ZONE_M`] of a trap `bot` keeps off (its field, the traps it noticed), on its floor.
-pub(super) fn walks_tight(bot: &Bot, feet: Vec3) -> bool {
-    bot.features
-        .traps
-        .field
-        .discs()
-        .iter()
-        .chain(bot.features.traps.react.field().discs())
-        .any(|d| d.distance_xz(feet) < TIGHT_ZONE_M && (d.y - feet.y).abs() < OTHER_FLOOR_M)
-}
 
 /// [#2081] What the own-trap guard made of a tick's keys ([`own_trap_guard`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2176,30 +2170,46 @@ pub fn path_touches(points: &[Vec3], discs: &[GuardDisc], feet: Vec3) -> bool {
     })
 }
 
-/// [#2081] The margin for the reckoning's own error on a body's feet, metres: the bench's reckoning error at ground worlds the body
-/// moved 0.5 m or more since the last (the bots' believed feet against the world's), along the move: 3.7 % at 38 cm or more, 5.9 %
-/// at 27 cm (200,960 worlds of 32 plain matches, v6h; across the move 0.5 % at 38 cm; each match's P90 along 16 cm). One bench
-/// catch was believed 0.99 m off and truly 0.59 m: the reckoning stood still 500 ms while the body walked.
-pub const RECKON_MARGIN_M: f32 = 0.38;
+/// [#2081] The margin for the reckoning's own error on a bot's feet by the age of its last world, metres: the drift lab's
+/// (`bots::tests::drift_replay::drift_on_a_real_match`, build 8d9d1f606: the server's reckoning of each bot's body from each world
+/// against the client's feet at the next) flat error P90, 0.128 m at 250 ms, 0.153 m at 500 ms, 0.230 m at 1,000 ms (12,074 /
+/// 17,611 / 16,415 intervals of firing bots), between the rows on a line, held past the ends.
+pub fn reckon_margin_m(age_ms: u32) -> f32 {
+    const ROWS: [(f32, f32); 3] = [(250.0, 0.128), (500.0, 0.153), (1_000.0, 0.230)];
+    let age = age_ms as f32;
+    if age <= ROWS[0].0 {
+        return ROWS[0].1;
+    }
+    for w in ROWS.windows(2) {
+        let ((a0, m0), (a1, m1)) = (w[0], w[1]);
+        if age <= a1 {
+            return m0 + (m1 - m0) * (age - a0) / (a1 - a0);
+        }
+    }
+    ROWS[2].1
+}
 
 /// [#2081] The margin for a trap no world shows yet, metres: the team's promise is the press's own landing, and the trap lies off it
-/// by the bench's promise -> world offsets ([`super::trap_know::landing_offsets`]): 51 offsets of 8 plain matches (Rudnya TDM and
-/// Batteries, 600 s), P90 0.30-0.34 m (the matches' own quantiles pooled: 4 to 6 above 0.30 m), P95 0.37-0.42 m, max 0.71 m; the
-/// upper P90. The world showed the trap 250-2,000 ms after the release (P90 about 1 s), the window this margin stands for.
-pub const PROMISE_MARGIN_M: f32 = 0.34;
+/// by the bench's promise -> world offsets ([`super::trap_know::landing_offsets`]): their P99, 51 offsets of 8 plain matches
+/// (Rudnya TDM and Batteries, 600 s; P90 0.30-0.34 m, P95 0.37-0.42 m, and the P99 of 51 their largest, 0.71 m). The world showed
+/// the trap 250-2,000 ms after the release (P90 about 1 s), the window this margin stands for. The team's field shuts its floors
+/// that much farther round a promised trap too (`TrapField::shut_promised_within`).
+pub const PROMISE_MARGIN_M: f32 = 0.71;
 
 /// [#2081] The traps the guard keeps `bot` out of, with their contact: its team's field (each at the world's armed trap within the
 /// promise match `match_m` as soon as a world shows it, [`BotState::world_armed`]; until then at the promise, with
-/// [`PROMISE_MARGIN_M`]) and the traps it noticed (at the world's place), all with [`RECKON_MARGIN_M`]; not those in `skip`.
-fn guard_discs(bot: &Bot, match_m: f32, skip: &[Vec3]) -> Vec<GuardDisc> {
+/// [`PROMISE_MARGIN_M`]) and the traps it noticed (at the world's place), all with the reckoning's margin for the age of the bot's
+/// last world `age_ms` ([`reckon_margin_m`]); not those in `skip`.
+fn guard_discs(bot: &Bot, match_m: f32, age_ms: u32, skip: &[Vec3]) -> Vec<GuardDisc> {
+    let reckon = reckon_margin_m(age_ms);
     let world = &bot.features.traps.world_armed;
     let team = bot.features.traps.field.discs().iter().map(|&d| {
         match world.iter().filter(|w| w.distance_xz(d) <= match_m && (w.y - d.y).abs() < OTHER_FLOOR_M).min_by(|a, b| a.distance_xz(d).total_cmp(&b.distance_xz(d))) {
-            Some(&w) => GuardDisc { at: w, contact: OWN_TRAP_CONTACT_M + RECKON_MARGIN_M },
-            None => GuardDisc { at: d, contact: OWN_TRAP_CONTACT_M + RECKON_MARGIN_M + PROMISE_MARGIN_M },
+            Some(&w) => GuardDisc { at: w, contact: OWN_TRAP_CONTACT_M + reckon },
+            None => GuardDisc { at: d, contact: OWN_TRAP_CONTACT_M + reckon + PROMISE_MARGIN_M },
         }
     });
-    let noticed = bot.features.traps.react.field().discs().iter().map(|&d| GuardDisc { at: d, contact: OWN_TRAP_CONTACT_M + RECKON_MARGIN_M });
+    let noticed = bot.features.traps.react.field().discs().iter().map(|&d| GuardDisc { at: d, contact: OWN_TRAP_CONTACT_M + reckon });
     team.chain(noticed).filter(|d| !skip.contains(&d.at)).collect()
 }
 
@@ -2269,7 +2279,7 @@ pub(super) fn guard_own_traps(
     // A noticed trap its route jumps is left to the jump's run-up (`trap_react::jump_due` presses it 0.3-1.1 m before the trap,
     // where a run's stop forecast already touches it).
     let run_up = super::trap_react::run_up(bot, me, now, &tuning.traps.react);
-    let discs = guard_discs(bot, tuning.traps.promise_match.metres(), &run_up);
+    let discs = guard_discs(bot, tuning.traps.promise_match.metres(), me.known_at.saturating_sub(me.seen_at), &run_up);
     if discs.is_empty() {
         bot.features.traps.guard_stall = None;
         return None;
@@ -2513,13 +2523,15 @@ fn keep_off_open(bot: &mut Bot, due: &Due, t: &TrapTuning) {
     let feet = due.me.feet;
     let grid = &due.tactics.world.grid;
     let mut open: Vec<NodeId> = Vec::new();
-    for at in bot.features.traps.field.discs().iter().filter(|d| d.distance_xz(feet) < k.hard_m) {
+    // [#2081] As far as a promised trap's wider shut floors (`PROMISE_MARGIN_M`): a placer by its fresh trap is never shut in.
+    let reach = k.hard_m + PROMISE_MARGIN_M;
+    for at in bot.features.traps.field.discs().iter().filter(|d| d.distance_xz(feet) < reach) {
         let mine = feet.distance_xz(*at);
-        let area = [at.x - k.hard_m, at.z - k.hard_m, at.x + k.hard_m, at.z + k.hard_m];
+        let area = [at.x - reach, at.z - reach, at.x + reach, at.z + reach];
         open.extend(grid.floors_in(area).filter(|&node| {
             let p = grid.position(node);
             let d = p.distance_xz(*at);
-            d <= k.hard_m && d >= FIELD_M && d > mine + 0.1 && (p.y - at.y).abs() < 1.0
+            d <= reach && d >= FIELD_M && d > mine + 0.1 && (p.y - at.y).abs() < 1.0
         }));
     }
     open.sort_unstable();
@@ -4710,6 +4722,62 @@ mod tests {
         ));
         keep_off(&mut bot, &due);
         assert!(bot.route.is_some());
+    }
+
+    #[test]
+    fn a_promised_trap_shuts_its_floors_wider_and_never_shuts_its_placer_in() {
+        use crate::v026g::bots::think::Due;
+        use crate::v026g::bots::trap_know::TrapList;
+        let trap = Vec3::new(25.0, 0.0, 10.0);
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, trap + Vec3::new(1.2, 0.0, 0.0));
+        let grid = &s.tactics.world.grid;
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let keep = tuning.traps.keep_off.expect("keep_off is on by default");
+        let mut list = TrapList::default();
+        list.promise(0, trap, 500);
+        let field = field_of(&list, grid, 0.0, Some(keep));
+        let at = |d: f32| grid.locate(trap + Vec3::new(d, 0.0, 0.0), 1.5).unwrap();
+        // Promised: shut out to the clearance + the promise's margin (2.18 m), open past it.
+        assert!(!field.open(at(1.8)), "within the promise's wider disc");
+        assert!(field.open(at(2.5)));
+        // The placer 1.2 m off its fresh trap: the floors farther than its feet are opened out to that reach.
+        let me = s.view.places[0].clone();
+        let due = Due { now: 1_000, view: &s.view, me: &me, tactics: &s.tactics, tuning: &tuning };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.features.traps.field = field;
+        keep_off_open(&mut bot, &due, &tuning.traps);
+        assert!(bot.features.traps.keep_off_open.binary_search(&at(1.8)).is_ok(), "the placer is never shut in");
+    }
+
+    /// [#2081] A body standing 0.70 m from its own trap (nearer than the inside floor, 0.85 m) always finds a way out: the search
+    /// from its floor to goals on four sides gives a way, and the own-trap check keeps it (the bench's tdm s7: every way out refused
+    /// 464 times).
+    #[test]
+    fn a_body_by_its_own_trap_always_finds_a_way_out() {
+        use crate::v026g::bots::think::Due;
+        use crate::v026g::bots::trap_know::TrapList;
+        let trap = Vec3::new(25.0, 0.0, 10.0);
+        let feet = trap + Vec3::new(0.70, 0.0, 0.0);
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, feet);
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let keep = tuning.traps.keep_off.expect("keep_off is on by default");
+        let mut list = TrapList::default();
+        list.promise(0, trap, 500);
+        let me = s.view.places[0].clone();
+        let due = Due { now: 1_000, view: &s.view, me: &me, tactics: &s.tactics, tuning: &tuning };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.features.traps.field = field_of(&list, &s.tactics.world.grid, 0.0, Some(keep));
+        keep_off_open(&mut bot, &due, &tuning.traps);
+        let grid = &s.tactics.world.grid;
+        let start = grid.locate(feet, 1.5).unwrap();
+        let filter = super::filter(&bot, Vec::new(), Some(start));
+        for goal in [Vec3::new(35.0, 0.0, 10.0), Vec3::new(15.0, 0.0, 10.0), Vec3::new(25.0, 0.0, 16.0), Vec3::new(25.0, 0.0, 4.0)] {
+            let to = grid.locate(goal, 1.5).unwrap();
+            let way = s.tactics.route_nodes(start, to, 0, Some(0), false, &filter).unwrap_or_else(|| panic!("a way out to {goal:?}"));
+            assert!(own_trap_route(&mut bot, feet, Some(way), 1_000, &s.tactics, false).is_some(), "kept to {goal:?}");
+        }
     }
 
     #[test]

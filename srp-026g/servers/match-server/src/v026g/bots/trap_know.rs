@@ -331,6 +331,7 @@ impl TrapField {
     pub fn of_ringed_within(list: &TrapList, grid: &WalkGrid, ring_m: f32, reach: f32) -> Self {
         let mut field = Self::round_within(list.standing().map(|trap| trap.at).collect(), grid, reach);
         field.stamp = list.version();
+
         if ring_m > reach {
             let mut ring: Vec<NodeId> = field
                 .discs
@@ -352,6 +353,31 @@ impl TrapField {
             field.ring_m = ring_m;
         }
         field
+    }
+
+    /// [#2081] Shuts the floors within `wide` of each trap of `list` that is only promised, beyond what the field shut: a promised
+    /// trap lies off the promise by up to `traps::PROMISE_MARGIN_M` (the press's landing against the world's trap), so its floors are
+    /// shut that much farther until a world confirms it (the route check keeps the field's `reach`).
+    pub fn shut_promised_within(&mut self, list: &TrapList, grid: &WalkGrid, wide: f32) {
+        let mut more: Vec<NodeId> = list
+            .standing()
+            .filter(|trap| matches!(trap.phase, Phase::Promised { .. }))
+            .flat_map(|trap| {
+                let at = trap.at;
+                grid.floors_in([at.x - wide, at.z - wide, at.x + wide, at.z + wide])
+                    .filter(move |&node| {
+                        let p = grid.position(node);
+                        p.distance_xz(at) <= wide && (p.y - at.y).abs() < 1.0
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        if !more.is_empty() {
+            self.shut.append(&mut more);
+            self.shut.sort_unstable();
+            self.shut.dedup();
+            self.ring.retain(|n| self.shut.binary_search(n).is_err());
+        }
     }
 
     /// Whether a search may use `node` without a preference against it: false on the ring.

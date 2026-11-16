@@ -1402,6 +1402,8 @@ pub(crate) fn real_bot_cost() {
             game.zone_intensity = bench_settings().var("SRP_BENCH_ZONE_INTENSITY").is_ok_and(|v| v != "0");
             let inside = Hazards::build(&world, 0.0);
             let (mut zone_takes, mut zone_spots) = (0u32, Vec::<Vec3>::new());
+            // [#2081 v6] The stand-in's catches already read for the believed-against-true line.
+            let mut catches_read = 0usize;
             while clock < limit_ms {
                 clock += 5;
                 if late_map.as_ref().is_some_and(|(late_ms, _)| clock >= *late_ms)
@@ -1421,6 +1423,20 @@ pub(crate) fn real_bot_cost() {
                         game.bodies[bot.place].mirror = bot.bench_mirror.iter().find(|m| m.0 == next).map(|m| m.1);
                     }
                     game.step();
+                    // [#2081 v6] At the stand-in's catch itself: the victim bot's believed feet (the own-trap guard's last look) against
+                    // its true feet, from the trap, for an own-team catch.
+                    for event in &game.traps.events[catches_read.min(game.traps.events.len())..] {
+                        if let standin_traps::Event::Caught { tick, placer, victim, kind, placed, .. } = *event
+                            && kind != Kill::Enemy
+                            && let Some(trap) = game.traps.list.iter().find(|t| t.placer == placer && t.placed == placed)
+                        {
+                            let truth = game.bodies[victim].feet.distance_xz(trap.at);
+                            let believed = bots.bots.get(victim).and_then(|b| b.as_ref()).and_then(|b| b.features.traps.guard_seen);
+                            let believed = believed.map_or("unknown".to_string(), |(when, feet)| format!("{:.2} m ({} ms before)", feet.distance_xz(trap.at), tick.saturating_sub(when)));
+                            eprintln!("  trap catch feet: {kind:?} t {tick} victim {victim} believed {believed}, true {truth:.2} m");
+                        }
+                    }
+                    catches_read = game.traps.events.len();
                     // [A239] A live stand-in camper (`SRP_BENCH_CAMPER_MOVE=live` with `SRP_BENCH_CAMPER_START=spot`) starts his next life
                     // on the spot he chose while dead (`BenchCamper::start_after_death`), not always his first; [A239b] with
                     // `SRP_BENCH_CAMPER_ARRIVE=live`, after the respawn and a live camper's walk (`BenchCamper::walk_after_death`).
