@@ -13,8 +13,9 @@
 //! (`survarium::v026g::game_data::init`), since a grid's key holds the fastest bot's walk cap, which the game data's bot
 //! profiles set. Unset, the tables are the test archive's and the run says so in a WARNING: those keys are ones no live
 //! server computes, so a release always passes the data it ships (`release/build-bot-maps`, `release/lib.sh`).
-//! Both forms log to stderr at start the game data, the fastest bot's movement level and the walk cap the grids fly. Each map is built and written, then a second store (a restart) must read every part back with the same
-//! digests; anything a restart would build again fails the run (exit 1), as does a map whose build takes longer than
+//! Both forms log to stderr at start the game data, the fastest bot's movement level and the walk cap the grids fly.
+//! Each map is built and written, then a second store (a restart) must read every part back with the same digests;
+//! anything a restart would build again fails the run (exit 1), as does a map whose build takes longer than
 //! `SRP_BUILD_MAPS_LIMIT_S` (default 3 h). The built dir must be empty or absent, so every file in it is this build's.
 //!
 //! `--files` builds nothing: for each project it prints `<project> TAB <grid file> TAB <sight file> TAB <tactics file>`,
@@ -57,7 +58,9 @@ fn limit() -> Result<Duration, String> {
 fn read_game_data() -> Result<String, String> {
     if std::env::var_os(GAME_DATA_ENV).is_none_or(|value| value.is_empty()) {
         eprintln!(
-            "srp-build-maps: WARNING: {GAME_DATA_ENV} is unset: the bots' tables are the test archive's, so the grid and              tactics keys are ones no live server computes (its walk cap is the game data's fastest bot's); a release              passes the server-game-data.db it ships"
+            "srp-build-maps: WARNING: {GAME_DATA_ENV} is unset: the bots' tables are the test archive's, so the grid and \
+             tactics keys are ones no live server computes (its walk cap is the game data's fastest bot's); a release \
+             passes the server-game-data.db it ships"
         );
         return Ok(format!("game data: the test archive ({GAME_DATA_ENV} unset)"));
     }
