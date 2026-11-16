@@ -2554,6 +2554,7 @@ st_srp_hud_voice_not_muted	Hlasový chat není dostupný
 st_srp_hud_voice_unmute	Zapnout hlas
 st_srp_hud_voice_unmuted	Hlas zapnut
 st_srp_inv_ammo_range	Dostřel
+st_srp_inv_artefact_duration	Doba aktivního účinku artefaktů
 st_srp_inv_bullet_speed	Rychlost střely
 st_srp_inv_defuse_time	Doba zneškodnění
 st_srp_inv_fuse_time	Doba zápalníku

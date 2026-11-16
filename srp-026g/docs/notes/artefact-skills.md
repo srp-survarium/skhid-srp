@@ -203,6 +203,9 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
   0x31192B (+394h), Lifebone 0x312300, Onyx 0x31291B (+F14h). Rank 5: Spring 10 -> 12.5 s,
   Onyx and Lifebone 3 -> 3.75 s. Patch 54's +1 s for each extra Onyx fired together is added
   after it, unscaled.
+- The Pilgrim container (edge_back_6) adds +0.15 to the same sum (built-in 1320, 2026-11-16,
+  `backpack-bonuses-1.json`): an armour item makes a player modifier of each of the 68 parameters
+  that is not 0 (its constructor 0x33EAA0). With rank 5: Spring 14 s, Onyx and Lifebone 4.2 s.
 - The Sponge (#1280, not on main): its active time is checked when it lands.
 - The active duration alone (the owner, 2026-11-07): the leg quarters it showed from 2026-11-06
   are Artifact Sight's now.

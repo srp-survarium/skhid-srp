@@ -21,7 +21,7 @@ roll. The same day: the items it left with two types to roll get a third. Code:
     only its face values exist, as on a helmet only its head's);
   - the 4 oxygen packs (`scavenger_oxygen_1`, `edge_back_3`, `ren_back_3`, `ren_back_5`): type 24
     Weight limit (1120-1124: +1..+5 kg) and type 28 Energy costs (1160-1164: −2..−10 %);
-  - the "Pilgrim" container (`edge_back_6`, whose default Regeneration takes type 21): type 28
+  - the "Pilgrim" container (`edge_back_6`; its built-in Regeneration, type 21, was taken out 2026-11-16): type 28
     Energy costs.
   - Each is a character of the item config's `parameters/available_modifications_mask`, which
     only the server reads. The client shows any modification the server sends, from its own
