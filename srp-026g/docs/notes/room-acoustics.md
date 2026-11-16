@@ -63,6 +63,15 @@ Built, checked offline (Unicorn, crate tests, build-content); not played, not re
     `_sprint_3rd`, 14 to 15 rooms each) added to the step sounds of running and sprinting, own and
     others'. A third-person step was a collection in `material.pairs`; it becomes a composite of
     that collection and the room layers (the edit list). Crouching has none (0.69d neither).
+  - the numbers: 120 gun composites (first view +13 to +15 items, third view +47), 33 own run and
+    sprint step composites (+14, +15), 75 step pairs onto 49 new composites; 1368 samples, 142
+    collections, 11 distance presets, all at `rooms_069d` paths (nothing live replaced);
+  - 0.69d's `pitch` of a room sample (0.26g reads none) is baked into its audio;
+  - a gun with no 0.69d donor of its name takes its kind's root (`mp_153_m`: the shotguns'
+    `weapons_3rd_view_one_shot`); a third view whose donor names the first-view root keeps it
+    (`l85a2_m`, `val_m`, `vss_m`, `vssk_m`), as 0.69d does.
+- **Beds:** 0.69d's, per environment; a collection bed (Rudnya's houses and outdoors) plays its
+  first sample looped; Cologne's `rudnya_outdoor` bed (random bird calls, a composite) is left out.
 
 ## The bed
 
@@ -111,9 +120,22 @@ Built, checked offline (Unicorn, crate tests, build-content); not played, not re
 
 ## Release impact
 
-- The exe (patch 155) and the content (pack `room-acoustics@1`, about 63 MB of 0.69d audio, and the
+- The exe (patch 155) and the content (pack `room-acoustics@1`, 42 MB of 0.69d audio, and the
   edit list) ship together; an old exe with the new content would play every room layer of a
   composite at once.
+
+## For the owner to decide
+
+- **Steps indoors are loud:** 0.69d's step room layer is about 10 dB above today's 0.26g step in a
+  classroom or a house (0.26g's steps are 16 dB under 0.69d's own: `sound-gaps.md` 4.2), so the room
+  dominates a step indoors (render 03, 04). Options: lower the room layers' `volume_k`, or raise
+  the steps (`sound-gaps.md` #1, #13).
+- **Outdoor tails indoors:** today's tails are baked into the 0.26g guns' samples, so a shot in a
+  room is today's outdoor sound plus the room's tail (0.69d replaces it). Cutting it would need the
+  guns' dry recordings.
+- **Seams:** 0.69d's meshes leave gaps of centimetres (Vector's `cp_manufactory`: one frame
+  outdoors at a seam, the bed dips and comes back); London's dome counts as `cp_admin_buildings`
+  above 5 m (its sphere over the low box). As 0.69d plays them.
 
 ## 0.69d addresses (retail x64, base 0x200000000)
 
