@@ -97,6 +97,11 @@ impl LineBuffer {
         &self.vertices[..self.len]
     }
 
+    /// Each line's ends moved by `f`.
+    pub fn move_points(&mut self, f: impl Fn([f32; 3]) -> [f32; 3]) {
+        self.vertices[..self.len].iter_mut().for_each(|v| v.at = f(v.at));
+    }
+
     /// The lines a draw at a time: at most CHUNK vertices and as many indices.
     fn chunks(&self) -> impl Iterator<Item = (&[LineVertex], &[u16])> {
         self.vertices().chunks(CHUNK).map(|chunk| (chunk, &self.indices[..chunk.len()]))

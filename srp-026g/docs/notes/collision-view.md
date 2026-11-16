@@ -45,10 +45,15 @@ since this doesn't give people idea on what is collision and where": draw the co
   | shot (8) | magenta | bullets and the camera only (walkers pass) | the hittable meshes, camera walls, foliage |
   | solid (0Ah) | white | walkers, bullets and the camera | solid props |
 
-- **Near the camera**: within 20 m of the eye. Where that would be more than **65536 lines** (the
-  cap), the frame takes 10 m, then 5 m; where even 5 m is over the cap, the first 65536 lines found
-  are drawn and the rest of that frame is not (which part is missing is the world's order, not the
-  distance). Each frame chooses again, so the radius follows the camera.
+- **Near the camera**: within 20 m of where the eye was when the lines were read. Where that
+  would be more than **65536 lines** (the cap), the read takes 10 m, then 5 m; where even 5 m is
+  over the cap, the first 65536 lines found are kept and the rest are not (which part is missing is
+  the world's order, not the distance).
+- **Read when needed, drawn every frame**: the lines are read again when the view is turned on or
+  its filter changes, when the eye has moved more than 0.5 m since the last read, and in another
+  match's world; between reads every frame draws the same lines (a read is finished before it is
+  shown, so a frame never shows half of one). Nothing is drawn while no match's world is loaded
+  (the lobby, loading).
 - **What to expect** (the edges of the maps' collision triangles around every spawn, three a
   triangle, counted on the local map data of level_01, 07 and 09, 2026-11-16; medians, so a little
   less with the strips' shared edges):
@@ -60,9 +65,10 @@ since this doesn't give people idea on what is collision and where": draw the co
   | shot (shot + solid) | 97 000 to 206 000 | 35 000 to 56 000 | 10 m |
   | solid | 3 900 to 29 000 | 1 300 to 7 500 | 20 m |
 
-- **Behind walls hidden**: the lines are depth-tested, drawn with the game's own debug lines, so
-  what stands in front of a surface hides its lines. Lines lying on a visible surface may flicker
-  with it.
+- **Behind walls hidden, on walls shown**: the lines are depth-tested, drawn with the game's own
+  debug lines, so what stands in front of a surface hides its lines; each end is drawn 1 cm or 0.5 %
+  of its distance nearer the eye where it was read, the more, so a line lying on a visible surface
+  is drawn over it, not half into it.
 - **Never drawn**: a player's bodies (the hit model, group 40h, and the character controller, 824h),
   and anything that moves (a battery 0A18h, a grenade 818h). The view shows nothing the map does
   not, so it is no help through walls.
@@ -77,11 +83,12 @@ since this doesn't give people idea on what is collision and where": draw the co
 ## Cost
 
 - Off: one lock and one compare a frame on the game's thread and on the render thread.
-- The lines' room, 2 MiB (and 64 KiB of indices), is taken from Windows the first time the view is
-  turned on (pages of its own, not an engine arena) and kept until the game closes. If Windows has
+- The lines' two rooms (the lines shown and the next read's), 2 MiB each (and 64 KiB of indices),
+  are taken from Windows the first time the view is turned on (pages of its own, not an engine arena) and kept until the game closes. If Windows has
   no room, the console says `collision: no room for its lines, still off`.
-- On: a walk of the world's objects (750 to 2500) and, for each mesh near the camera, one query of
-  its BVH a radius tried (at most three); at most four draw calls (32768 vertices each).
+- A read (on a start, a filter's change, 0.5 m of movement): a walk of the world's objects (750 to
+  2500) and, for each mesh near the camera, one query of its BVH a radius tried (at most three).
+- Every frame while on: at most four draw calls (32768 vertices each).
 
 ## Not done
 

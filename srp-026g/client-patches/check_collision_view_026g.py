@@ -35,12 +35,15 @@ dimensions +20h, margin +30h, up axis +40h; a compound's children +10h/+18h,
   with the eye's box in the mesh's space, through a copy of
   btConvexTriangleCallback's vtable, processTriangle ours); never a hit
   model (40h, even static), a controller, a battery, anything moving, far
-  or of another shape type; drawn once a frame read; the span's registers
+  or of another shape type; the span's registers
   as the original's;
 - within 20 m: a strip's two triangles 15 m away, their shared edge once,
   one 26 m away not (the cap's step-down and the 32768-vertex draws are the
   crate's tests: in Unicorn a frame of more than about 7 000 lines loses a
   carry flag when it re-executes a store, a false bounds panic);
+- the lines drawn every render frame until the next read, none while no
+  match's world is loaded; no read while the eye stays put;
+- each end moved toward the eye (undone by the check before it compares);
 - `collision shot`: what stops bullets and the camera (shot and solid), the
   census of those; `collision 8`: the usage and the options; `collision
   walk`: switched (walk and solid); again: off; `collision solid`: solid
@@ -96,7 +99,7 @@ class Run(where.Run):
         emu.mem_map(STUB, 0x200000, UC_PROT_ALL)
         emu.mem_map(hide.STACK - 0x100000, 0x100000, UC_PROT_ALL)
         emu.mem_write(STUB, STUB_CODE)
-        emu.mem_map(ROOM, 0x400000, UC_PROT_ALL)
+        emu.mem_map(ROOM, 0x800000, UC_PROT_ALL)
         self.room, self.allocations = ROOM, []
         self.word(VIRTUAL_ALLOC_SLOT, STUB + 0x100)
         emu.mem_write(STUB + 0x100, b"\xC2\x10\x00")
@@ -186,15 +189,15 @@ class Run(where.Run):
             self.emu.mem_write(proxy + 0x10, struct.pack("<4f", *(c - 40.0 for c in origin), 0.0))
             self.emu.mem_write(proxy + 0x20, struct.pack("<4f", *(c + 40.0 for c in origin), 0.0))
 
-    def frame(self):
-        """update_camera(player) in a spectator's first person at EYE: the lines it wrote to the log."""
+    def frame(self, eye=EYE):
+        """update_camera(player) in a spectator's first person at `eye`: the lines it wrote to the log."""
         self.emu.mem_write(where.OBJECTS, bytes(0x40000))
         self.word(where.PLAYER + 0xF470, where.HANDLER)
         self.word(where.PLAYER + 0xF478, where.PRESENTERS)
         self.word(where.PLAYER + 0x350, PHYSICS)
         self.emu.mem_write(where.PLAYER + 0x33C, b"\x01")
-        self.emu.mem_write(where.PLAYER + 0x40C, where.transform(0.0, 0.0, EYE))
-        self.emu.mem_write(where.PLAYER + 0x44C, where.transform(0.5, -0.1, EYE))
+        self.emu.mem_write(where.PLAYER + 0x40C, where.transform(0.0, 0.0, eye))
+        self.emu.mem_write(where.PLAYER + 0x44C, where.transform(0.5, -0.1, eye))
         self.word(where.HANDLER + 0x358, 4)
         self.word(where.HANDLER + 0x334, where.WORLD)
         self.writes, self.queries = [], []
@@ -235,13 +238,23 @@ def rounded(p):
     return tuple(round(c, 4) for c in p)
 
 
+def unbias(p):
+    """A drawn end where its line is: the patch moves each end toward the eye by 1 cm or 0.5 % of its
+    distance, the more (so a line on a surface is drawn over it); this undoes it."""
+    d = math.dist(p, EYE)
+    if d == 0:
+        return p
+    was = d + 0.01 if d <= 1.99 else d / 0.995
+    return tuple(EYE[k] + (p[k] - EYE[k]) * was / d for k in range(3))
+
+
 def segments(draws):
-    """Every line drawn: (colour, end, end) in the game's frame, rounded."""
+    """Every line drawn: (colour, end, end) in the game's frame, unbiased, rounded."""
     out = []
     for d in draws:
         v = d["vertices"]
         for i in range(0, len(v), 2):
-            out.append((v[i][3], rounded(v[i][:3]), rounded(v[i + 1][:3])))
+            out.append((v[i][3], rounded(unbias(v[i][:3])), rounded(unbias(v[i + 1][:3]))))
     return out
 
 
@@ -289,6 +302,7 @@ def main():
         compound = r.shape(31, children=((IDENTITY, sphere_at, sphere), (IDENTITY, cylinder_at, cylinder),
                                          (IDENTITY, capsule_at, capsule), (IDENTITY, (-8.0, 0.0, 18.0), mesh)))
         other = r.shape(24)
+        r.map("level_01/day_2", map_id=1)       # a match's world loaded: the render site draws
         r.world([(0x2, 1, TURNED, box_origin, box),
                  (0x8, 1, IDENTITY, compound_origin, compound),
                  (0xA, 1, IDENTITY, (0.0, 0.0, 0.0), mesh),
@@ -308,8 +322,8 @@ def main():
           "four options' lines")
     lines = new.frame()
     old.frame()
-    check(new.allocations == [2 * MOST * 16, 32768 * 2] and old.allocations == [],
-          "turned on: the lines' room once, VirtualAlloc'd (2 MiB of vertices, 64 KiB of indices)")
+    check(new.allocations == [2 * MOST * 16, 32768 * 2] * 2 and old.allocations == [],
+          "turned on: the lines' two rooms (shown and spare) once, VirtualAlloc'd (2 MiB of vertices, 64 KiB of indices each)")
     check(lines == ["collision: the level's static collision within 20 m (less where that is over 65536 lines):",
                     "collision: walk (green) 3 in the world: stops walkers only",
                     "collision: shot (magenta) 1 in the world: stops bullets and the camera only",
@@ -358,14 +372,28 @@ def main():
     check(kinds == {"sphere": 72, "cylinder": 56, "capsule": 104},
           f"the compound's children where their poses put them: the sphere (36 lines on its radius 1), the cylinder "
           f"(28 on radius 0.5 within its half height 1), the capsule (52 at 0.3 from its segment): {dict(kinds)}")
-    check(new.debug_lines()[0] == [] and old.debug_lines()[0] == [], "drawn once a frame read; the original never")
-    check(new.frame() == [] and segments(new.debug_lines()[0]) == got, "the next frame: no census, the same lines")
+    check(segments(new.debug_lines()[0]) == got and old.debug_lines()[0] == [],
+          "drawn again the next render frame, the same lines; the original never")
+    check(new.frame() == [] and new.queries == [] and segments(new.debug_lines()[0]) == got,
+          "the next camera at the same eye: no read, no census, the same lines")
+    raw = draws[0]["vertices"][0][:3]
+    put = unbias(raw)
+    check(abs(math.dist(put, EYE) - math.dist(raw, EYE) - max(0.01, 0.005 * math.dist(put, EYE))) < 1e-4,
+          "each end drawn nearer the eye by 1 cm or 0.5 % of its distance, the more")
+    moved = [(dx, bool(new.frame((EYE[0] + dx, EYE[1], EYE[2])) or True) and len(new.queries)) for dx in (0.4, 0.6)]
+    check(moved == [(0.4, 0), (0.6, 2)], f"the eye 0.4 m on: no read; 0.6 m on: read again (both meshes) {moved}")
+    new.frame()                             # back at EYE: 0.6 m from that read, read again
+    new.map(None)
+    check(new.debug_lines()[0] == [], "no match's world loaded (the lobby): nothing drawn")
+    new.map("level_01/day_2", map_id=1)
 
     # 20 m: a triangle 15 m away drawn, one 25 m away not; a strip's shared edge drawn once
     a, b, c, d = (25.0, 1.0, -20.0), (25.0, 2.0, -20.0), (25.5, 1.0, -20.0), (25.5, 2.0, -20.0)
     beyond = ((36.0, 1.0, -20.0), (36.0, 2.0, -20.0), (36.5, 1.0, -20.0))
     new.mesh([(a, b, c), (b, c, d), beyond])
     new.world([(0x2, 1, IDENTITY, (0.0, 0.0, 0.0), mesh)])
+    new.said("collision")
+    new.said("collision")                   # off and on: read again
     new.frame()
     draws, _ = new.debug_lines()
     edges = {frozenset((p, q)) for _, p, q in segments(draws)}

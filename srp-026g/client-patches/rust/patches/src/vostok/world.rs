@@ -664,6 +664,11 @@ pub struct RayHit {
 }
 
 impl<'t> PhysicsWorld<'t> {
+    /// The world as a value (another match's world is another).
+    pub fn id(&self) -> super::project::PhysicsId {
+        super::project::PhysicsId::of(self.this)
+    }
+
     /// bullet_physics_world::ray_test from `origin` along the unit
     /// `direction`, `length` long, with the filter `group`/`mask` (an object
     /// is tried when its mask has a bit of the group and its group a bit of
