@@ -25,15 +25,28 @@
 //! surface over the foot. 0.69d's Rudnya wades because its pond's bed is
 //! deep_water; 0.26g's own Rudnya has mud there.
 //!
+//! A foot beside a thin walkway (the owner's walk of the Chemical Plant,
+//! 2026-11-16: the loading station's 32 cm walker strip over its 8 cm metal
+//! beam) meets nothing within 1 m though the body stands on it. When the foot
+//! finds no named ground, the looks go around the body's root, where the
+//! capsule rests (0.69d's controller ground, asked here): rings of 0.15, 0.3
+//! and 0.45 m, each point with the walker filter and on_step's. The highest
+//! surface met is the support; the highest named one within BAND under it
+//! (the beam beside the strip) is the ground; with none, and nothing under the
+//! foot, the support's own (`default`); a walker face under the foot with
+//! nothing named near keeps the look under it (a wagon's top over its metal).
+//!
 //! With SKHID_STEP_LOG=on (read once, at the first step) each step writes a
-//! line to the run's log: whose, its caller's movement id, the foot, what
-//! each ray met, the ground and what its pair plays.
+//! line to the run's log: whose, its caller's movement id, the foot, the body
+//! (its root, the foot's offset from it, the controller's support normal,
+//! velocity and on_ground), what each ray met, the ground and what its pair
+//! plays; `footsteps` writes a line for each step event at its guard.
 
 #![forbid(unsafe_code)]
 
 use crate::vostok::log::{parts, Piece, Piece::*};
 use crate::vostok::memory_profile::environment;
-use crate::vostok::step::{Caller, Hit, Look, Next, OnStep, PairSound, Placed, View};
+use crate::vostok::step::{Body, Caller, Hit, Look, Next, OnStep, PairSound, Placed, View};
 use crate::vostok::{Context, Flow, GameCell, StepGroundOnGroundExit, Thread};
 
 /// How far under the foot the look under a walker-only floor reaches: a
@@ -66,6 +79,9 @@ enum Ground {
     /// Neither: the walker face's (none), which material_pair steps as
     /// `default`.
     Unnamed(Hit),
+    /// No named ground under the foot: what the capsule rests on around the
+    /// body's root (0.69d's controller ground, [`contact`]).
+    Contact(Contact),
     /// Nothing under the foot: the game's silent return.
     Air,
 }
@@ -86,16 +102,80 @@ fn ground(armed: Option<Placed>, game: Option<f32>, mut look: impl FnMut(Look) -
     if game.is_some() {
         return Ground::Game;
     }
-    let Some(walker) = look(Look::Walker) else {
-        return Ground::Air;
-    };
-    if walker.material.named() {
+    let walker = look(Look::Walker);
+    if let Some(walker) = walker
+        && walker.material.named()
+    {
         return Ground::Walker(walker);
     }
+    // what the capsule rests on: taken when it is named (a walkway's metal
+    // beam beside the foot), or when nothing is under the foot at all
+    if let Some(found) = contact(&mut look)
+        && (found.named.is_some() || walker.is_none())
+    {
+        return Ground::Contact(found);
+    }
+    let Some(walker) = walker else {
+        return Ground::Air;
+    };
     match look(Look::Below { reach: BELOW }) {
         Some(below) => Ground::Below { walker, below },
         None => Ground::Unnamed(walker),
     }
+}
+
+/// The radii (metres) of the rings around the body's root the capsule
+/// rests within, eight points each, and its centre.
+const RINGS: [f32; 3] = [0.15, 0.3, 0.45];
+/// Every look of the ring: the centre and eight points a ring, each with both filters.
+const LOOKS: usize = 2 * (1 + 8 * RINGS.len());
+/// A named surface counts when it is at most this far under the highest
+/// support (a walkway's walker strip over its metal beam: the same height).
+const BAND: f32 = 0.35;
+
+/// What the capsule rests on: the highest surface the walker filter meets
+/// around the root, and the highest named one in [`BAND`] under it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Contact {
+    support: Hit,
+    named: Option<Hit>,
+    /// How many of the looks met something.
+    hits: u32,
+}
+
+impl Contact {
+    fn ground(self) -> Hit {
+        self.named.unwrap_or(self.support)
+    }
+}
+
+fn contact(look: &mut impl FnMut(Look) -> Option<Hit>) -> Option<Contact> {
+    const DIAGONAL: f32 = core::f32::consts::FRAC_1_SQRT_2;
+    const DIRECTIONS: [(f32, f32); 8] =
+        [(1.0, 0.0), (DIAGONAL, DIAGONAL), (0.0, 1.0), (-DIAGONAL, DIAGONAL), (-1.0, 0.0), (-DIAGONAL, -DIAGONAL),
+         (0.0, -1.0), (DIAGONAL, -DIAGONAL)];
+    let mut found: [Option<Hit>; LOOKS] = [None; LOOKS];
+    let mut at = 0;
+    let mut ask = |dx: f32, dz: f32, found: &mut [Option<Hit>; LOOKS], at: &mut usize| {
+        for walker in [true, false] {
+            found[*at] = look(Look::Around { dx, dz, walker });
+            *at += 1;
+        }
+    };
+    ask(0.0, 0.0, &mut found, &mut at);
+    for radius in RINGS {
+        for (x, z) in DIRECTIONS {
+            ask(x * radius, z * radius, &mut found, &mut at);
+        }
+    }
+    let hits = found.iter().flatten();
+    let support = hits.clone().copied().min_by(|a, b| a.depth.total_cmp(&b.depth))?;
+    let named = hits
+        .clone()
+        .copied()
+        .filter(|hit| hit.material.named() && hit.depth <= support.depth + BAND)
+        .min_by(|a, b| a.depth.total_cmp(&b.depth));
+    Some(Contact { support, named, hits: hits.count() as u32 })
 }
 
 /// How on_step goes on with `ground`, a found one's sound at `foot`.
@@ -108,6 +188,10 @@ fn next(ground: Ground, foot: [f32; 3]) -> Next {
             Next::Ground(Placed { material: water.material, at: [x, y - water.depth, z], normal: water.normal })
         }
         Ground::Walker(hit) | Ground::Unnamed(hit) | Ground::Below { below: hit, .. } => {
+            Next::Ground(Placed { material: hit.material, at: foot, normal: hit.normal })
+        }
+        Ground::Contact(found) => {
+            let hit = found.ground();
             Next::Ground(Placed { material: hit.material, at: foot, normal: hit.normal })
         }
     }
@@ -135,7 +219,8 @@ impl Switch {
 
 static LOG: GameCell<Switch> = GameCell::new(Switch::Unread);
 
-fn log_on(thread: &Thread) -> bool {
+/// SKHID_STEP_LOG: the steps' lines here and the step events' (`footsteps`).
+pub(crate) fn log_on(thread: &Thread) -> bool {
     let switch = match LOG.get(thread) {
         Switch::Unread => {
             let mut value = [0u8; 8];
@@ -228,6 +313,7 @@ fn log(thread: &Thread, step: &OnStep, ground: Ground, water: Option<Option<Hit>
         Ground::Wading(_) => (Some(step.game_hit(thread)), None, None),
         Ground::Game => (Some(step.game_hit(thread)), None, None),
         Ground::Air => (Some(None), Some(None), None),
+        Ground::Contact(_) => (Some(None), None, None),
         Ground::Walker(walker) => (Some(None), Some(Some(walker)), None),
         Ground::Below { walker, below } => (Some(None), Some(Some(walker)), Some(Some(below))),
         Ground::Unnamed(walker) => (Some(None), Some(Some(walker)), Some(None)),
@@ -249,6 +335,25 @@ fn log(thread: &Thread, step: &OnStep, ground: Ground, water: Option<Option<Hit>
         Some(hit) => ray("below", hit, &mut below),
         None => &[],
     };
+    let (mut top, mut named) = ([Text(""); 8], [Text(""); 8]);
+    let contact_line: [&[Piece]; 3] = match ground {
+        Ground::Contact(found) => [
+            ray("contact top", Some(found.support), &mut top),
+            ray("named", found.named, &mut named),
+            &[],
+        ],
+        Ground::Air => [&[Text("; contact missed")], &[], &[]],
+        _ => [&[], &[], &[]],
+    };
+    let contact_count = match ground {
+        Ground::Contact(found) => [Text(" ("), Dec(found.hits), Text(" of 50 looks)")],
+        _ => [Text(""), Text(""), Text("")],
+    };
+    let mut body = [Text(""); 27];
+    let body: &[Piece] = match step.body(thread) {
+        Some(found) => body_pieces(found, step.foot(), &mut body),
+        None => &[Text("; no body")],
+    };
     let (material, how) = match ground {
         Ground::Armed(placed) => (Some(placed.material), "armed"),
         Ground::Wading(hit) => (Some(hit.material), "wading"),
@@ -256,6 +361,7 @@ fn log(thread: &Thread, step: &OnStep, ground: Ground, water: Option<Option<Hit>
         Ground::Walker(hit) => (Some(hit.material), "walker"),
         Ground::Below { below, .. } => (Some(below.material), "below"),
         Ground::Unnamed(hit) => (Some(hit.material), "walker, no material"),
+        Ground::Contact(found) => (Some(found.ground().material), "contact"),
         Ground::Air => (None, "air"),
     };
     let tail = match material {
@@ -273,7 +379,28 @@ fn log(thread: &Thread, step: &OnStep, ground: Ground, water: Option<Option<Hit>
         ],
         None => [Text("; nothing under the foot: silent"), Text(""), Text(""), Text(""), Text(""), Text("")],
     };
-    parts(&[&head, movement.as_slice(), &foot, game, water, walker, below, &tail]);
+    parts(&[&head, movement.as_slice(), &foot, body, game, water, walker, below, contact_line[0], contact_line[1],
+            &contact_count, &tail]);
+}
+
+/// The step log's body: `; root x y z cm, foot-root dx dy dz cm; support y <x100>,
+/// velocity y <cm/s>, jump flag <0|1>, on_ground|off the ground`.
+fn body_pieces<'o>(body: Body, foot: [f32; 3], out: &'o mut [Piece<'static>; 27]) -> &'o [Piece<'static>] {
+    let [rx, ry, rz] = body.root;
+    let ([a, b], [c, d], [e, f]) = (centimetres(rx), centimetres(ry), centimetres(rz));
+    let ([g, h], [i, j], [k, l]) = (centimetres(foot[0] - rx), centimetres(foot[1] - ry), centimetres(foot[2] - rz));
+    let [m, n] = centimetres(body.support[1]);
+    let [o, p] = centimetres(body.rising);
+    *out = [
+        Text("; root "), a, b, Text(" "), c, d, Text(" "), e, f,
+        Text(" cm, foot-root "), g, h, Text(" "), i, j, Text(" "), k, l,
+        Text(" cm; support y x100 "), m, n,
+        Text(", velocity y "), o, p,
+        Text(" cm/s, "),
+        Text(if body.jump_flag { "jump flag, " } else { "" }),
+        Text(if body.on_ground() { "on_ground" } else { "off the ground" }),
+    ];
+    &out[..]
 }
 
 #[cfg(test)]
@@ -304,6 +431,8 @@ mod tests {
                 asked[1] = true;
                 below
             }
+            // no surface around the root: the looks under the foot decide
+            Look::Around { .. } => None,
         });
         (ground, asked)
     }
@@ -367,7 +496,7 @@ mod tests {
         ground(None, game, |look| match look {
             Look::Water => water,
             Look::Walker => Some(hit(18, 0.1)),
-            Look::Below { .. } => None,
+            Look::Below { .. } | Look::Around { .. } => None,
         })
     }
 
@@ -403,6 +532,71 @@ mod tests {
         let placed = Placed { material: GroundMaterial::of(17), at: [5.0, 6.0, 7.0], normal: [0.0, 0.0, 1.0] };
         let ground = ground(Some(placed), Some(0.1), |look| panic!("{look:?} taken"));
         assert_eq!(ground, Ground::Armed(placed));
+    }
+
+    #[test]
+    fn a_walkway_strip_off_the_foot_steps_on_its_metal_beam() {
+        // the loading station's 32 cm walker strip (no material) over its 8 cm
+        // metal beam: the foot's rays miss both, the ring meets them
+        let mut asked = 0;
+        let found = ground(None, None, |look| match look {
+            Look::Water => None,
+            Look::Walker => None,
+            Look::Around { dx, walker, .. } => {
+                asked += 1;
+                match (dx.abs() < 0.2, walker) {
+                    (true, true) => Some(hit(0x3FFF, 0.0)),
+                    (true, false) if dx.abs() < 0.05 => Some(hit(18, 0.007)),
+                    _ => None,
+                }
+            }
+            Look::Below { .. } => panic!("the ring found the support"),
+        });
+        assert_eq!(asked, LOOKS);
+        let Ground::Contact(contact) = found else { panic!("{found:?}") };
+        assert_eq!(contact.ground(), hit(18, 0.007), "the named beam, not the strip");
+        assert_eq!(next(found, FOOT), Next::Ground(Placed { material: GroundMaterial::of(18), at: FOOT, normal: [0.0, 1.0, 0.0] }));
+    }
+
+    #[test]
+    fn an_unnamed_support_alone_steps_as_default_and_a_far_named_one_is_ignored() {
+        let found = ground(None, None, |look| match look {
+            Look::Water => None,
+            Look::Around { walker: true, .. } => Some(hit(0x3FFF, 0.0)),
+            Look::Around { walker: false, .. } => Some(hit(9, 2.6)),
+            Look::Walker => None,
+            Look::Below { .. } => panic!("no walker face under the foot"),
+        });
+        let Ground::Contact(contact) = found else { panic!("{found:?}") };
+        assert_eq!(contact.ground().material, GroundMaterial::of(0x3FFF), "ground 2.6 m down is not what it stands on");
+    }
+
+    #[test]
+    fn an_unnamed_walker_top_with_nothing_named_near_keeps_the_look_under_it() {
+        // a hopper wagon's walker top over its metal body 1.25 m down
+        let found = ground(None, None, |look| match look {
+            Look::Water => None,
+            Look::Walker => Some(hit(0x3FFF, 0.1)),
+            Look::Around { walker: true, .. } => Some(hit(0x3FFF, 0.0)),
+            Look::Around { walker: false, .. } => Some(hit(18, 1.25)),
+            Look::Below { .. } => Some(hit(18, 1.35)),
+        });
+        assert_eq!(found, Ground::Below { walker: hit(0x3FFF, 0.1), below: hit(18, 1.35) });
+    }
+
+    #[test]
+    fn a_named_walker_face_under_the_foot_needs_no_ring() {
+        let found = ground(None, None, |look| match look {
+            Look::Water => None,
+            Look::Walker => Some(hit(18, 0.1)),
+            _ => panic!("no more looks"),
+        });
+        assert_eq!(found, Ground::Walker(hit(18, 0.1)));
+    }
+
+    #[test]
+    fn nothing_around_the_root_is_the_air() {
+        assert_eq!(ground(None, None, |_| None), Ground::Air);
     }
 
     #[test]
