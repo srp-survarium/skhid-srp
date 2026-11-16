@@ -4805,6 +4805,26 @@ pub extern "C" fn hook_sound_voices_on_voice_made(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- step_ground (patch 153) ----
+
+/// The named exits of step_ground::on_ground (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum StepGroundOnGroundExit { Material }
+/// The entry `step_ground_on_ground` (0x248b5a, step_manager::on_step after its ground ray (mov ecx,[esp+4Ch] / test ecx,ecx: the ray result's object; the je at 0x248B60 is a miss's silent return): ESI the manager, ESP its frame (the ray's direction, origin and result), EBP its arguments (the foot material, the view flag); material is past the hit object's get_triangle_material (0x248B77: mov ecx,[esi+4] / movzx edi,ax), EAX the ground material, the stack as at the site) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_ground(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_ground` calls this, from the game's jump at 0x248b5a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_ground(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- suicide_key (patch 34) ----
 
 /// engine_action_present (0x242460), as the call hook at 0x242196 wraps it.

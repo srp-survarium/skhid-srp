@@ -8279,6 +8279,48 @@ sound_voices_on_voice_made_replay:
     db 0x89, 0x46, 0x04, 0x85, 0xc0
     jmp 0x5cab5
 
+; 0x248b5a step_manager::on_step after its ground ray (mov ecx,[esp+4Ch] / test ecx,ecx: the ray result's object; the je at 0x248B60 is a miss's silent return): ESI the manager, ESP its frame (the ray's direction, origin and result), EBP its arguments (the foot material, the view flag); material is past the hit object's get_triangle_material (0x248B77: mov ecx,[esi+4] / movzx edi,ax), EAX the ground material, the stack as at the site: lohook -> step_ground_on_ground
+global step_ground_on_ground
+extern hook_step_ground_on_ground
+step_ground_on_ground:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_step_ground_on_ground
+    mov edx, step_ground_on_ground_replay
+    cmp eax, 0
+    je step_ground_on_ground_go
+    mov edx, 0x248b60
+    cmp eax, 1
+    je step_ground_on_ground_go
+    mov edx, 0x248b77
+    cmp eax, 2
+    je step_ground_on_ground_go
+    ud2
+step_ground_on_ground_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+step_ground_on_ground_replay:
+    db 0x8b, 0x4c, 0x24, 0x4c, 0x85, 0xc9
+    jmp 0x248b60
+
 ; 0x242196 the input builder's last action query (spot): call -> suicide_key_on_spot (wraps engine_action_present 0x242460)
 global suicide_key_on_spot
 suicide_key_on_spot:

@@ -321,6 +321,14 @@ unsafe extern "C" {
     pub fn engine_d3d_resource_release(resource: Option<HwResource>) -> u32;
     /// COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
     pub fn engine_d3d_device_release(device: *mut c_void) -> u32;
+    /// 0x248ad0 survarium::step_manager::on_step: manager ECX, position EAX, direction ESP+4, foot_material ESP+8, view ESP+12; pops 12
+    pub fn engine_on_step(manager: Option<StepManager>, position: *const f32, direction: *const f32, foot_material: u32, view: u32);
+    /// virtual survarium::game_world+0x34 (1 vtables of vtables.tsv: 0x1f63e0): world ECX; pops 0; EAX
+    pub fn engine_step_manager(world: Option<GameWorld>) -> Option<StepManager>;
+    /// virtual vostok::physics::base_physics_object+0x10 (2 vtables of vtables.tsv: 0x3570a0): object ECX, triangle ESP+4, compound ESP+8; pops 8; AX
+    pub fn engine_triangle_material(object: Option<HitObject>, triangle: u32, compound: u32) -> u16;
+    /// 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL
+    pub fn engine_is_first_view(player: Option<Player>) -> u32;
 }
 
 #[allow(dead_code)]
@@ -1918,6 +1926,24 @@ impl Player {
     pub unsafe fn bullet_subject(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x118).cast::<u32>().as_ptr() }
     }
+
+    /// +0xf2cc (u16): the boots' run_1st_view_material_id (movement 2, first person: actor_local 42), the foot material of the player's own walking step
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn run_material_first(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0xf2cc).cast::<u16>().as_ptr() }
+    }
+
+    /// +0xf2ce (u16): the boots' run_3rd_view_material_id (movement 2, third person: actor 10)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn run_material_third(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0xf2ce).cast::<u16>().as_ptr() }
+    }
 }
 
 /// A survarium::player_profile (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -3138,6 +3164,15 @@ impl MaterialPair {
     #[inline(always)]
     pub unsafe fn parameter(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x74).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x20 (u32): its collision sound's resource, a step's (on_step 0x248B98: 0 none, the step silent)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn step_sound(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x20).cast::<u32>().as_ptr() }
     }
 }
 
@@ -12220,6 +12255,42 @@ impl PvpMatch {
     pub unsafe fn set_options(self, value: Option<MatchOptions>) {
         unsafe { self.0.byte_add(0x124).cast::<Option<MatchOptions>>().write_volatile(value) }
     }
+
+    /// +0x130 (ptr<vostok::physics::bullet_physics_world>): spatial_tree as the physics world on_step ray-tests (0x248AFC: its vtable +48h ray_test 0x75E20)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn physics(self) -> Option<BulletPhysicsWorld> {
+        unsafe { self.0.byte_add(0x130).cast::<Option<BulletPhysicsWorld>>().read_volatile() }
+    }
+
+    /// +0x130 (ptr<vostok::physics::bullet_physics_world>): spatial_tree as the physics world on_step ray-tests (0x248AFC: its vtable +48h ray_test 0x75E20)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_physics(self, value: Option<BulletPhysicsWorld>) {
+        unsafe { self.0.byte_add(0x130).cast::<Option<BulletPhysicsWorld>>().write_volatile(value) }
+    }
+
+    /// +0x12c (ptr<survarium::game_material_manager>): the game material manager (game_world vtable +1Ch, 0x1F6D10, returns it, the reference it adds given back)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn materials(self) -> Option<GameMaterialManager> {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<GameMaterialManager>>().read_volatile() }
+    }
+
+    /// +0x12c (ptr<survarium::game_material_manager>): the game material manager (game_world vtable +1Ch, 0x1F6D10, returns it, the reference it adds given back)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_materials(self, value: Option<GameMaterialManager>) {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<GameMaterialManager>>().write_volatile(value) }
+    }
 }
 
 /// A vostok::query_callback (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -14593,7 +14664,7 @@ impl PlayerEquipmentSoundEffect {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x3c (ptr<survarium::player>): its player (on_player_sound_event 0x2A6472; the player's +884h)
+    /// +0x3c (ptr<survarium::player>): its player (on_player_sound_event 0x2A6472); the effect is the held item's +884h, not the player's: weapon_controller_client::set_user 0x2985D0 hands it the item's user (+1F8h) at 0x2985FC (lea esi,[ebx+884h] / call 0x2A62D0)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -14602,7 +14673,7 @@ impl PlayerEquipmentSoundEffect {
         unsafe { self.0.byte_add(0x3c).cast::<Option<Player>>().read_volatile() }
     }
 
-    /// +0x3c (ptr<survarium::player>): its player (on_player_sound_event 0x2A6472; the player's +884h)
+    /// +0x3c (ptr<survarium::player>): its player (on_player_sound_event 0x2A6472); the effect is the held item's +884h, not the player's: weapon_controller_client::set_user 0x2985D0 hands it the item's user (+1F8h) at 0x2985FC (lea esi,[ebx+884h] / call 0x2A62D0)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -14618,6 +14689,24 @@ impl PlayerEquipmentSoundEffect {
     #[inline(always)]
     pub unsafe fn feet(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x44).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x38 (ptr<survarium::player_logic>): the player's logic selector (on_foot_step 0x2A652C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn logic(self) -> Option<PlayerLogic> {
+        unsafe { self.0.byte_add(0x38).cast::<Option<PlayerLogic>>().read_volatile() }
+    }
+
+    /// +0x38 (ptr<survarium::player_logic>): the player's logic selector (on_foot_step 0x2A652C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_logic(self, value: Option<PlayerLogic>) {
+        unsafe { self.0.byte_add(0x38).cast::<Option<PlayerLogic>>().write_volatile(value) }
     }
 }
 
@@ -23913,6 +24002,252 @@ impl RenderOutputWindow {
     }
 }
 
+/// A survarium::step_manager (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StepManager(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StepManager {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::game_world>): its game world (on_step 0x248AF3: +4D4Ch the match, +94h the sound scene, vtable +1Ch the materials); the manager is the world's +4D5Ch (get_step_manager 0x1F63E0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn world(self) -> Option<GameWorld> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GameWorld>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::game_world>): its game world (on_step 0x248AF3: +4D4Ch the match, +94h the sound scene, vtable +1Ch the materials); the manager is the world's +4D5Ch (get_step_manager 0x1F63E0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_world(self, value: Option<GameWorld>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<GameWorld>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::on_step_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OnStepFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl OnStepFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): on_step's pushed EDI (0x248AEC; ESP at step.ground): on_landing's player (0x1F3BB6) when the landing step called it (0x23FC2C keeps EDI)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn caller_edi(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4 (u32): on_step's pushed ESI (0x248AEB): on_foot_step's effect (ESI throughout 0x2A6520), or the landing step's movement id (2 soft, 4 hard: 0x23FC00, 0x23FC07)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn caller_esi(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4 (ptr<survarium::player_equipment_sound_effect>): caller_esi as on_foot_step's effect: only when the return address is foot_step_return
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn caller_effect(self) -> Option<PlayerEquipmentSoundEffect> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<PlayerEquipmentSoundEffect>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::player_equipment_sound_effect>): caller_esi as on_foot_step's effect: only when the return address is foot_step_return
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_caller_effect(self, value: Option<PlayerEquipmentSoundEffect>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<PlayerEquipmentSoundEffect>>().write_volatile(value) }
+    }
+
+    /// +0x18 (f32): the ground ray's direction, a float3 (0, -1, 0; 0x248B04, 0x248B0A, 0x248B42)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn direction(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x18).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x24 (f32): the ground ray's origin, a float3: the foot, y + 1.0 (0x248B17, 0x248B32, 0x248B48)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn origin(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x24).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x30 (obj<vostok::physics::ray_result>): the ground ray's result (0x248B53): its point is where the sound, decal and particles go (0x248BE8, 0x248C2C, 0x248C9E), its normal the decal's (0x248C23)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn result(self) -> RayResult {
+        RayResult(unsafe { self.0.byte_add(0x30) })
+    }
+
+    /// +0x0 (ptr<survarium::player>): caller_edi as on_landing's player: only when the return address is landing_step_return
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn caller_player(self) -> Option<Player> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Player>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::player>): caller_edi as on_landing's player: only when the return address is landing_step_return
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_caller_player(self, value: Option<Player>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<Player>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::on_step_arguments (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OnStepArguments(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl OnStepArguments {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): on_step's frame by EBP (push ebp / mov ebp,esp, 0x248AD0): its return address (foot_step_return, landing_step_return)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn return_address(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (ptr<f32>): the step's direction (float3*; the decal's, 0x248C28)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn direction(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x8).cast::<*mut f32>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<f32>): the step's direction (float3*; the decal's, 0x248C28)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_direction(self, value: *mut f32) {
+        unsafe { self.0.byte_add(0x8).cast::<*mut f32>().write_volatile(value) }
+    }
+
+    /// +0xc (u16): the foot's game material (0x248B84: material_pair's EDX)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn foot_material(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0xc).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x10 (u8): 1 unless the step is the player's own in first person (0x248BD7: 0 plays the sound on the hud)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x10).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A survarium::player_logic (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerLogic(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerLogic {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x20 (ptr<survarium::player_logic_state>): its current logic state (on_foot_step 0x2A652F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn state(self) -> Option<PlayerLogicState> {
+        unsafe { self.0.byte_add(0x20).cast::<Option<PlayerLogicState>>().read_volatile() }
+    }
+
+    /// +0x20 (ptr<survarium::player_logic_state>): its current logic state (on_foot_step 0x2A652F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_state(self, value: Option<PlayerLogicState>) {
+        unsafe { self.0.byte_add(0x20).cast::<Option<PlayerLogicState>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::player_logic_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerLogicState(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PlayerLogicState {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x24 (u32): the state's movement id (on_foot_step 0x2A6532): 0 stand_on_site, crouch_on_site and dead, 1 crouch_walk, 2 stand_run, 3 stand_sprint, 4 stand_jump (the constructors 0x2FABB0..0x2FADCC); the foot material is the player's u16 at +0F2C4h + 4 x id + 2 x third view, so 0 reads before the table
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn movement(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x24).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -24698,6 +25033,12 @@ pub mod image {
 
     /// 0xa13dbc (u32, survarium::image): victory_item_core's vtable (its main one: set_user +10h 0x300B00, register_animations +20h 0x3018E0, tick +2Ch 0x301240, is_carrying +64h 0x3018C0)
     pub const VICTORY_ITEM_CORE_VTABLE: u32 = 0xa13dbc;
+
+    /// 0x2a6577 (u8, survarium::image): on_foot_step's return from on_step (call 0x2A6572)
+    pub const FOOT_STEP_RETURN: u32 = 0x2a6577;
+
+    /// 0x23fc31 (u8, survarium::image): the landing step's (0x23FBE0) return from on_step (call 0x23FC2C)
+    pub const LANDING_STEP_RETURN: u32 = 0x23fc31;
 }
 
 /// A general-purpose register at a hook's site.
@@ -28993,6 +29334,39 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<FlashUiFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(FlashUiFrame)
+        }
+    }
+
+    /// step.ground (0x248b5a): step_manager::on_step after its ground ray (mov ecx,[esp+4Ch] / test ecx,ecx: the ray result's object; the je at 0x248B60 is a miss's silent return): ESI the manager, ESP its frame (the ray's direction, origin and result), EBP its arguments (the foot material, the view flag); material is past the hit object's get_triangle_material (0x248B77: mov ecx,[esi+4] / movzx edi,ax), EAX the ground material, the stack as at the site
+    pub mod step_ground {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::step_manager (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn manager(machine: &impl Machine) -> Option<StepManager> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StepManager)
+        }
+
+        /// the site's ESP: a survarium::on_step_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<OnStepFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(OnStepFrame)
+        }
+
+        /// EBP: a survarium::on_step_arguments (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn arguments(machine: &impl Machine) -> Option<OnStepArguments> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(OnStepArguments)
         }
     }
 }

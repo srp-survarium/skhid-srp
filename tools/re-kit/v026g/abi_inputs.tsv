@@ -6283,3 +6283,20 @@ va	name	location	role	basis
 0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	entry ESP+4	the state's room (0E0h bytes, initialize_logic 0x301974)	observed
 0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	entry ESP+8	its 6 clips	observed
 0x0013ced0	vostok::render::renderer::render_flash_ui	stack+8	the output window: its +30ACh the render output the frame presents with (0x13DD3F, res_render_output::present 0x3CF7F0), its +30B0h the flash renderer (0x13CEE9); called once a frame at 0x13DB3D, the scene already on the back buffer (a read-back there in a game: the world, no interface)	observed
+0x001f63e0	survarium::game_world::get_step_manager	ECX	the game world (this)	observed
+0x001f3bd0	survarium::player::is_first_view	ECX	the player (+0F474h its game world, +9Ch the game, +53ACh the network client, +4 its local player)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	entry ESP+4	the player's landing parameters (player+0F460h, 0x1F3BAC): +0 the foot materials (player+0F2C8h), +4 the fall threshold, +8 the hard one, +0Ch the last landing's time (50 ms apart, 0x23FBF0)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	entry ESP+8	the step manager (game_world::get_step_manager, 0x1F3B60)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	entry ESP+0Ch	the position (float3*: the player's root, +30h of the transform 0x1F3BA4)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	entry ESP+10h	the direction (float3*, +20h of the transform)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	XMM0	the fall value compared with the thresholds	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	EDX	the time (kept at params+0Ch)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	CL	the view flag on_step gets (1: not is_first_view)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	ESI at 0x23FC2C	the movement id whose foot material is played, 2 (run) up to the hard threshold, 4 (jump) over it; on_step pushes it (its frame +4 at 0x248B5A)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	EDI at 0x23FC2C	on_landing's player (kept from 0x1F3B6A); on_step pushes it (its frame +0)	observed
+0x002a63c0	survarium::player_equipment_sound_effect::update_feet	ESI	the effect (+30h, +34h its toe bones' indices; handed to set_feet)	observed
+0x002a63c0	survarium::player_equipment_sound_effect::update_feet	EDI	the user's bone matrices (64 bytes each, by the toe bones' indices)	observed
+0x002a6410	survarium::player_equipment_sound_effect::set_feet	ECX	the left foot's matrix: its +30h the effect's +0 (the foot's position), its +20h the effect's +0Ch (its direction)	observed
+0x002a6410	survarium::player_equipment_sound_effect::set_feet	EDX	the right foot's matrix: +30h to the effect's +18h, +20h to its +24h	observed
+0x002a6410	survarium::player_equipment_sound_effect::set_feet	entry ESP+4	the effect: its +44h (the feet read) set to 1	observed
+0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	ESI at 0x2A6572	the effect, unchanged: on_step pushes it (its frame +4 at 0x248B5A); the return address is 0x2A6577	observed

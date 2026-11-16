@@ -358,6 +358,15 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     storey.
   - Every one on its ground (0 to 9 cm: 15, 21, 31, 40 and 48 lowered), body clear, 2 m from
     harmful zones, and every one holds the spawn rule: no override needed.
+- **Fire Station at the owner's picks** (2026-11-16: 42 `where` places on day_8,
+  `private/spawn-examples/fire-station-2026-11-16.tsv`). Content edit `ffa-fire-station-picks-1`,
+  from `scripts/ffa-mode/fire-station-picks.tsv` (`picks --project v010b_cs_mp_firestation/day_8`)
+  and `make_picks_edits.py fire-station`, in its own project only, after `ffa-stalker-2`:
+  - All 42 facing as he faced, in point_ids 0-41 (position and rotation only); 42-47 go. 48 -> 42
+    points: only his, none of the spawn rule's left.
+  - Every one on its ground (0 to 22 cm: 6, 9 and 24 lowered), body clear and 2 m from harmful
+    zones; 39 hold the spawn rule, 18, 31 and 34 have no cover, kept as his. 16 and 28 stand
+    0.35 m apart, both kept.
 - A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed

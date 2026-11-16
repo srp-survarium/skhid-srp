@@ -315,6 +315,14 @@ unsafe extern "C" {
     pub fn engine_d3d_resource_release(resource: *mut c_void) -> u32;
     /// COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
     pub fn engine_d3d_device_release(device: *mut c_void) -> u32;
+    /// 0x248ad0 survarium::step_manager::on_step: manager ECX, position EAX, direction ESP+4, foot_material ESP+8, view ESP+12; pops 12
+    pub fn engine_on_step(manager: *mut c_void, position: *const f32, direction: *const f32, foot_material: u32, view: u32);
+    /// virtual survarium::game_world+0x34 (1 vtables of vtables.tsv: 0x1f63e0): world ECX; pops 0; EAX
+    pub fn engine_step_manager(world: *mut c_void) -> *mut c_void;
+    /// virtual vostok::physics::base_physics_object+0x10 (2 vtables of vtables.tsv: 0x3570a0): object ECX, triangle ESP+4, compound ESP+8; pops 8; AX
+    pub fn engine_triangle_material(object: *mut c_void, triangle: u32, compound: u32) -> u16;
+    /// 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL
+    pub fn engine_is_first_view(player: *mut c_void) -> u32;
 }
 
 #[allow(dead_code)]
