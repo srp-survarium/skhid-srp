@@ -740,6 +740,33 @@ vostok::physics::local_convex_result	fraction	0x30	f32	m_hitFraction
 vostok::physics::local_shape_info	triangle	0x4	u32	the hit triangle's or a compound child's index (the callback hands it to get_walker_behaviour at 0x84576, as ray_result part)
 vostok::physics::local_shape_info	primitive	0x8	u8	1 for a primitive part (0x84570; as ray_result part_kind)
 vostok::physics::bt_broadphase_proxy	group	0x4	u16	m_collisionFilterGroup (needsCollision 0x75BD8; 40h a hit model)
+vostok::physics::bt_broadphase_proxy	aabb_min	0x10	f32	m_aabbMin, a float4 (Bullet frame: z the game's -z), as btAxisSweep3::setAabb 0x94C18 writes it (updateSingleAabb 0x9FF40 gives it the shape's box and the contact threshold)
+vostok::physics::bt_broadphase_proxy	aabb_max	0x20	f32	m_aabbMax, a float4 (Bullet frame), btAxisSweep3::setAabb 0x94C33
+vostok::physics::bullet_physics_world	collision_world	0x3C	ptr<vostok::physics::bt_collision_world>	its Bullet world (btDiscreteDynamicsWorld, 0.10b's m_dynamicsWorld at +34h there): set_renderer 0x750C0, add 0x758B0 and update_single_aabb 0x750F0 call through it
+vostok::physics::bt_collision_world	object_count	0x8	u32	m_collisionObjects' size (its btAlignedObjectArray at +4: size +8, capacity +0Ch, data +10h; updateAabbs 0xA01ED)
+vostok::physics::bt_collision_world	objects	0x10	ptr<vostok::physics::bt_collision_object_slot>	m_collisionObjects' data, object_count pointers (updateAabbs 0xA01F7)
+vostok::physics::bt_collision_object_slot	object	0x0	ptr<vostok::physics::bt_collision_object>	one of the world's m_collisionObjects
+vostok::physics::bt_collision_object_slot	size	0x4	size	a pointer
+vostok::physics::bt_collision_object	flags	0xD8	u32	m_collisionFlags: 1 static (updateSingleAabb 0xA0109 sets a static object's box at once), 2 kinematic, 10h a character controller's ghost
+vostok::physics::bt_collision_shape	vtable	0x0	u32	its vtable (btCylinderShape's CYLINDER_VTABLE for the game's cylinders, the Y axis's)
+vostok::physics::bt_collision_shape	convex	0x0	obj<vostok::physics::bt_convex_shape>	itself as a btConvexInternalShape: only for the convex types the game makes (box 0, sphere 8, capsule 10, cylinder 13; create_bt_primitive)
+vostok::physics::bt_collision_shape	compound	0x0	obj<vostok::physics::bt_compound_shape>	itself as a btCompoundShape: only for type 31
+vostok::physics::bt_convex_shape	scaling	0x10	f32	m_localScaling, a float4 (btSphereShape's radius is dimensions.x times its x: getMargin 0x74280)
+vostok::physics::bt_convex_shape	dimensions	0x20	f32	m_implicitShapeDimensions, a float4 (scaled): a box's and a cylinder's half extents less the margin (btBoxShape::getAabb 0xA97C3), a sphere's radius before its scaling, a capsule's radius and half height (getAabb 0xA5B2B)
+vostok::physics::bt_convex_shape	margin	0x30	f32	m_collisionMargin (btConvexInternalShape::getMargin 0x74190)
+vostok::physics::bt_convex_shape	up_axis	0x40	u32	a capsule's m_upAxis, 0 to 2 (btCapsuleShape::getAabb 0xA5B1C: its radius dimensions[(up + 2) % 3], its half height dimensions[up])
+vostok::physics::bt_compound_shape	child_count	0x10	u32	m_children's size (btCompoundShape::setLocalScaling 0x8AD9F)
+vostok::physics::bt_compound_shape	children	0x18	ptr<vostok::physics::bt_compound_child>	m_children's data (0x8ADBF)
+vostok::physics::bt_compound_child	transform	0x0	obj<vostok::physics::bt_transform>	the child's transform in the compound, its origin already scaled with it (setLocalScaling 0x8AD90 scales each child's shape and origin)
+vostok::physics::bt_compound_child	shape	0x40	ptr<vostok::physics::bt_collision_shape>	m_childShape (0x8AE20)
+vostok::physics::bt_compound_child	size	0x50	size	btCompoundShapeChild (0x8AEFD)
+vostok::physics::triangle_callback	vtable	0x0	u32	its vtable: a btTriangleCallback's (processTriangle at +4, which processNode 0xA8969 calls)
+vostok::physics::triangle_callback	visitor	0x4	u32	ours alone (a callback of the collision view's, vostok::shape): the address of the walk's visitor; the game reads nothing past the vtable
+vostok::physics::triangle_callback	size	0x8	size	ours: the vtable and the visitor
+vostok::physics::triangle_callback_methods	rtti	-4	u32	native complete object locator (0xA3D4DC)
+vostok::physics::triangle_callback_methods	size	0x8	size	two methods: the destructor 0xC55B0, processTriangle 0xC5600 (+4; thiscall, ret 0Ch)
+vostok::physics::image	convex_triangle_callback_methods	0x9E4F90	obj<vostok::physics::triangle_callback_methods>	btConvexTriangleCallback's vtable including RTTI at -4 (RTTI .?AVbtConvexTriangleCallback@@)
+vostok::physics::image	cylinder_vtable	0x9E4B9C	u32	btCylinderShape's vtable (RTTI; the exe has no btCylinderShapeX or Z)
 vostok::physics::bt_collision_shape	shape_type	0x4	u32	m_shapeType (8 a sphere, 31 a compound; rayTestSingle 0xA02EB)
 vostok::engine::message_frame	lparam	0x1C	u32	message_processor's lParam (0x181E0; by the site's ESP inside it, EBX ESI EDI pushed: mov ecx,[esp+1Ch] 0x183AC, mov esi,[esp+1Ch] 0x183F0); an HKL for WM_INPUTLANGCHANGEREQUEST and WM_INPUTLANGCHANGE
 survarium::player_input_handler	fov_factor	0x94	f32	the look's factor of the aimed weapon's zoom, on both axes (on_mouse_move 0x24025A, 0x24026C: x the option sensitivity x 0.1 is the yaw's step s)
@@ -924,6 +951,18 @@ survarium::detect_frame	point	0x8	ptr<f32>	its point: a float3 written with the 
 vostok::physics::hit_object	user	0xC	ptr<vostok::collision::game_object>	base_physics_object's user data, the game's object (0.10b +8; detect_usable_object reads +0Ch at 0x2D8587)
 vostok::collision::game_object	vtable	0x0	u32	its vtable (0.10b: cast_to_hit_receiver +0, cast_to_collision_geometry +4, cast_to_base_player +8)
 survarium::collision_geometry	subscribers	0xC	u32	its subscribers' begin (+10h the end): collision_geometry_subscriber pointers (damage and effect zones, sensors, players_checker, usable objects), not all usable; query_objects_by_type 0x2DC39A walks them through the cast it is given
+survarium::collision_geometry	ghost	0x18	ptr<vostok::physics::bt_ghost_object>	its ghost (collision_sensor::insert 0x3080F9 adds the ghost's object to the world with the geometry's group +20h and mask +22h while a subscriber senses)
+vostok::physics::bt_ghost_object	object	0x18	ptr<vostok::physics::bt_collision_object>	its Bullet object (collision_sensor::insert 0x308100: the world's addCollisionObject, vtable +1Ch); its transform and its compound shape (0.10b collision_geometry::load) kept while out of the world
+survarium::collision_geometry_slot	geometry	0x0	ptr<survarium::collision_geometry>	one of a collision sensor's geometries
+survarium::collision_geometry_slot	size	0x4	size	a pointer
+survarium::damage_zone	geometries	0x11C	ptr<survarium::collision_geometry_slot>	its collision sensor's (+108h, as generic_anomaly_core::activate_damage_zone 0x31B9B2 passes it) geometries (collision_sensor +14h: insert 0x3080D0)
+survarium::damage_zone	geometry_count	0x120	u32	how many (collision_sensor +18h, 0x3080C1)
+survarium::damage_zone	active	0x124	u8	1 while its anomaly has it on (collision_sensor +1Ch m_is_active: insert 0x3080B9 sets it, activate_damage_zone 0x31B9B9 inserts it, deactivate_damage_zone 0x31B9F0 removes it)
+survarium::damage_zone_slot	zone	0x0	ptr<survarium::damage_zone>	one of a project's damage zones (a damage_zone, damage_zone_core at +0: its vtables 0x2989F8)
+survarium::damage_zone_slot	size	0x4	size	a pointer
+survarium::simple_game_project	damage_zones	0x19C	ptr<survarium::damage_zone_slot>	its damage zones' vector (project_cooker_simple::on_damage_zones_loaded 0x22E55F pushes each, a reference held: +0D0h)
+survarium::simple_game_project	damage_zones_end	0x1A0	ptr<survarium::damage_zone_slot>	the vector's end
+survarium::game_world	project	0x1D88	ptr<survarium::simple_game_project>	the loaded project (set_game_project 0x1F83FE, a reference held: its +108h)
 vostok::physics::ray_hits	begin	0x0	ptr<vostok::physics::ray_result>	a buffer_vector<closest_ray_result> {begin, end, allocator, capacity end} (detect_usable_object's at 0x2D850F..0x2D851F, ray_query appends 0x777DE): the first hit
 vostok::physics::ray_hits	end	0x4	ptr<vostok::physics::ray_result>	past the last hit (the count is (end - begin) / 28h, 0x2D852C)
 vostok::physics::ray_hits	allocator	0x8	ptr<vostok::memory::pthreads3_allocator>	what grows it (0x788C0) and frees it: detect_usable_object gives the multithreaded one (0xA8001C)

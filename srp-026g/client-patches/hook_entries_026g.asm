@@ -3224,7 +3224,7 @@ language_on_configs_start_replay:
 
 ; 0x1f3650 update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player): lohook -> console_where_on_viewed
 global console_where_on_viewed
-extern hook_console_where_on_viewed
+extern hook_console_where_on_viewed_chain
 console_where_on_viewed:
     lea esp, [esp - 4]
     pushfd
@@ -3242,7 +3242,7 @@ console_where_on_viewed:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_console_where_on_viewed
+    call hook_console_where_on_viewed_chain
     mov edx, console_where_on_viewed_replay
     cmp eax, 0
     je console_where_on_viewed_go
@@ -3260,6 +3260,51 @@ console_where_on_viewed_go:
 console_where_on_viewed_replay:
     db 0x8b, 0x93, 0x78, 0xf4, 0x00, 0x00
     jmp 0x1f3656
+
+; 0x13d9c1 renderer::render 0x13D010 at its depth-tested debug lines (taken while the cc_bool 0xA71DB7, on by default, is set; 0x13D97E), right after the scene's on_draw_scene(true) (boost function 0x205E0 at 0x13D9BC) and before the scene's own queued lines go to system_renderer::draw_lines with technique 0 (0x13DA08): mov edi,[esp+1Ch] / mov edx,[edi+6334C4h]; the render thread, the depth target and the view the scene's, so a draw_aabb there is drawn as the game's own debug lines: lohook -> collision_view_on_debug_lines
+global collision_view_on_debug_lines
+extern hook_collision_view_on_debug_lines
+collision_view_on_debug_lines:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_collision_view_on_debug_lines
+    mov edx, collision_view_on_debug_lines_replay
+    cmp eax, 0
+    je collision_view_on_debug_lines_go
+    mov edx, 0x13d9cb
+    cmp eax, 1
+    je collision_view_on_debug_lines_go
+    ud2
+collision_view_on_debug_lines_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+collision_view_on_debug_lines_replay:
+    db 0x8b, 0x7c, 0x24, 0x1c, 0x8b, 0x97, 0xc4, 0x34, 0x63, 0x00
+    jmp 0x13d9cb
+
+; 0x9e7c10 cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found: vtable -> collision_view_on_execute (wraps engine_cc_delegate_execute 0xec830)
+    RUST_THISCALL collision_view_on_execute, hook_collision_view_on_execute, 1
+
+; 0x9e4f94 btConvexTriangleCallback's vtable slot 1 (+4): processTriangle(triangle, part, index), thiscall, ret 0Ch; btBvhTriangleMeshShape::processAllTriangles 0xA8660's node callback (processNode 0xA86A0, at 0xA8969) calls it for each triangle the BVH finds in the box: vtable -> collision_view_on_triangle (wraps engine_triangle_process 0xc5600)
+    RUST_THISCALL collision_view_on_triangle, hook_collision_view_on_triangle, 3
 
 ; 0x9e7c10 cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found: vtable -> console_where_on_execute (wraps engine_cc_delegate_execute 0xec830)
     RUST_THISCALL console_where_on_execute, hook_console_where_on_execute, 1
@@ -9976,6 +10021,27 @@ battery_hit_swing_vtable:
     dd 0x338b20
     dd 0x344c90
     dd 0x338ef0
+
+section .rodata
+align 4
+global collision_view_methods_vtable
+collision_view_methods_vtable:
+    dd 0xa3e110
+    dd 0xec7e0
+    dd collision_view_on_execute
+    dd 0xec4b0
+    dd 0xec800
+    dd 0xec500
+    dd 0x75af0
+    dd 0x15a4b0
+
+section .rodata
+align 4
+global collision_view_triangles_vtable
+collision_view_triangles_vtable:
+    dd 0xa3d4dc
+    dd 0xc55b0
+    dd collision_view_on_triangle
 
 section .rodata
 align 4

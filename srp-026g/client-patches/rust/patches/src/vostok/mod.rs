@@ -37,6 +37,8 @@ pub mod carry_flower;
 mod cell;
 pub mod clock;
 pub mod console;
+pub mod debug_lines;
+pub mod shape;
 pub mod contact;
 pub mod controller;
 pub mod crc32;
@@ -114,6 +116,8 @@ mod generated {
     use super::console::{ConsoleArguments, ConsoleCommand};
     #[allow(unused_imports)]
     use super::battery::{BatteryState, PredicateBuffer};
+    #[allow(unused_imports)]
+    use super::shape::{Triangle, TriangleSink};
     #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");

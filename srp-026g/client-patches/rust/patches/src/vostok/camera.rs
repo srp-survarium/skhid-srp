@@ -48,6 +48,13 @@ pub struct CameraView {
     pub forward: [f32; 3],
 }
 
+/// The camera's player at `camera.viewed`.
+pub fn viewer<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
+    // SAFETY: as viewed: EBX the camera's player, alive while update_camera
+    // runs on its thread.
+    Player::of(ctx, unsafe { raw::site::camera_viewed::player(ctx) })
+}
+
 /// update_camera after the view's update (`camera.viewed`): the view just
 /// written for the camera's player.
 pub fn viewed(ctx: &Context<'_>) -> Option<CameraView> {

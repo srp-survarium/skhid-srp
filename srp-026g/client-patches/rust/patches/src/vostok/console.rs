@@ -166,3 +166,126 @@ pub fn game_line(_: &Thread, text: &CStr) {
         raw::engine_log_write(line, c"%s".as_ptr().cast(), arguments.as_ptr().cast());
     }
 }
+
+/// The longest line (a longer one is cut), its zero after it.
+const MOST: usize = 240;
+
+/// A line of a console command's text, ASCII, with room for its zero.
+pub struct Line {
+    bytes: [u8; MOST + 1],
+    len: usize,
+}
+
+impl Line {
+    pub fn new() -> Line {
+        Line { bytes: [0; MOST + 1], len: 0 }
+    }
+
+    fn byte(&mut self, byte: u8) {
+        if self.len < MOST {
+            self.bytes[self.len] = byte;
+            self.len += 1;
+        }
+    }
+
+    pub fn push(&mut self, text: &str) {
+        text.bytes().for_each(|b| self.byte(b));
+    }
+
+    /// ` x y z`, each to `decimals`.
+    pub fn point(&mut self, point: [f32; 3], decimals: u32) {
+        for value in point {
+            self.byte(b' ');
+            self.fixed(value, decimals);
+        }
+    }
+
+    /// `value` rounded to `decimals` (at most 3): `-51.899`; `nan`, `inf`,
+    /// or `big` past a million.
+    pub fn fixed(&mut self, value: f32, decimals: u32) {
+        if value.is_nan() {
+            return self.push("nan");
+        }
+        if value.is_infinite() {
+            return self.push(if value > 0.0 { "inf" } else { "-inf" });
+        }
+        if value.abs() >= 1_000_000.0 {
+            return self.push("big");
+        }
+        let scale = 10u32.pow(decimals.min(3));
+        let scaled = f64::from(value.abs()) * f64::from(scale) + 0.5;
+        let units = scaled as u32; // below 1e9: 1e6 x 1000
+        if value < 0.0 && units != 0 {
+            self.byte(b'-');
+        }
+        self.number(units / scale);
+        if decimals > 0 {
+            self.byte(b'.');
+            let fraction = units % scale;
+            let mut digit = scale / 10;
+            while digit > 0 {
+                self.byte(b'0' + (fraction / digit % 10) as u8);
+                digit /= 10;
+            }
+        }
+    }
+
+    pub fn number(&mut self, value: u32) {
+        let mut digits = [0u8; 10];
+        let mut n = 0;
+        let mut v = value;
+        loop {
+            digits[n] = b'0' + (v % 10) as u8;
+            n += 1;
+            v /= 10;
+            if v == 0 {
+                break;
+            }
+        }
+        digits[..n].iter().rev().for_each(|&d| self.byte(d));
+    }
+
+    pub fn text(&self) -> &str {
+        core::str::from_utf8(&self.bytes[..self.len]).unwrap_or("?")
+    }
+
+    pub fn c_str(&self) -> &core::ffi::CStr {
+        core::ffi::CStr::from_bytes_until_nul(&self.bytes[..=self.len]).unwrap_or(c"?")
+    }
+}
+
+impl Default for Line {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn numbers_as_written() {
+        let fixed = |value: f32, decimals| {
+            let mut line = Line::new();
+            line.fixed(value, decimals);
+            line.text().to_string()
+        };
+        assert_eq!(fixed(-0.0004, 3), "0.000");
+        assert_eq!(fixed(-0.0006, 3), "-0.001");
+        assert_eq!(fixed(1234.5678, 3), "1234.568");
+        assert_eq!(fixed(359.96, 1), "360.0");
+        assert_eq!(fixed(f32::NAN, 3), "nan");
+        assert_eq!(fixed(f32::NEG_INFINITY, 3), "-inf");
+        assert_eq!(fixed(2e6, 3), "big");
+        assert_eq!(fixed(7.0, 0), "7");
+    }
+
+    #[test]
+    fn a_long_line_is_cut_with_its_zero() {
+        let mut line = Line::new();
+        line.push(&"x".repeat(500));
+        assert_eq!(line.text().len(), MOST);
+        assert_eq!(line.c_str().to_bytes().len(), MOST);
+    }
+}

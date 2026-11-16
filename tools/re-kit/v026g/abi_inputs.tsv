@@ -879,7 +879,7 @@ va	name	location	role	basis
 0x0011d950	vostok::render::system_renderer::fill_surface	entry ESP+20	color target3 by-value intrusive resource	observed
 0x0011d950	vostok::render::system_renderer::fill_surface	entry ESP+24	depth target by-value intrusive resource	observed
 0x0011d950	vostok::render::system_renderer::fill_surface	entry ESP+28	byte flag: use default depth when nonzero	observed
-0x0011dd60	vostok::render::system_renderer::draw_aabb	EAX	owner	observed
+0x0011dd60	vostok::render::system_renderer::draw_aabb	EAX	owner: the system renderer ([2260480h], as its callers load it at 0x14C1FE and 0x195ACC); is_effects_ready 0x11C900 asks it first, nothing drawn until its effects are made	observed
 0x0011dd60	vostok::render::system_renderer::draw_aabb	EDI	AABB min/max floats	observed
 0x0011dd60	vostok::render::system_renderer::draw_aabb	entry ESP+4	packed color pointer	observed
 0x0011df10	vostok::render::system_renderer::draw_obb	EAX	owner	observed
@@ -6300,3 +6300,20 @@ va	name	location	role	basis
 0x002a6410	survarium::player_equipment_sound_effect::set_feet	EDX	the right foot's matrix: +30h to the effect's +18h, +20h to its +24h	observed
 0x002a6410	survarium::player_equipment_sound_effect::set_feet	entry ESP+4	the effect: its +44h (the feet read) set to 1	observed
 0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	ESI at 0x2A6572	the effect, unchanged: on_step pushes it (its frame +4 at 0x248B5A); the return address is 0x2A6577	observed
+0x0009ff40	btCollisionWorld::updateSingleAabb	ESI	the collision world (its +2Ch m_forceUpdateAllAabbs, +4Ch the broadphase, +18h the dispatcher)	observed
+0x0009ff40	btCollisionWorld::updateSingleAabb	EDI	the collision object (+0CCh its shape, +0C8h its broadphase proxy)	observed
+0x000205e0	boost::function1<void,bool>::operator()	EAX	the boost function (its word 0 the manager, empty: bad_function_call)	observed
+0x000205e0	boost::function1<void,bool>::operator()	entry ESP+4	the bool	observed
+0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	ECX	the broadphase	observed
+0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	entry ESP+4	the proxy (its +10h and +20h take aabbMin and aabbMax)	observed
+0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	entry ESP+8	aabbMin	observed
+0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	entry ESP+12	aabbMax	observed
+0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	entry ESP+16	the dispatcher	observed
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	ECX	the shape (+30h its mesh interface, +40h its BVH)	observed
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	entry ESP+4	the triangle callback (its vtable +4 processTriangle, called for each triangle found)	observed
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	entry ESP+8	aabbMin, the shape's local space (the mesh's scaled vertices')	observed
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	entry ESP+12	aabbMax	observed
+0x000c5600	btConvexTriangleCallback::processTriangle	ECX	the callback	observed
+0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+4	the triangle: three btVector3 of 10h bytes, the shape's local space (processNode passes its +10h)	observed
+0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+8	the part (the mesh's subpart)	observed
+0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+12	the triangle's index in its part	observed

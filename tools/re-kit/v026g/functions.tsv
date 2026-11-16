@@ -2402,3 +2402,12 @@ va	status	ref_021d	name
 0x002a63c0	observed		survarium::player_equipment_sound_effect::update_feet
 0x002a6410	observed		survarium::player_equipment_sound_effect::set_feet
 0x003917d0	reviewed		vostok::animation::animation_player::tick
+0x0009ff40	reviewed		btCollisionWorld::updateSingleAabb
+0x000a01e0	reviewed		btCollisionWorld::updateAabbs
+0x00094c00	reviewed		btAxisSweep3Internal<unsigned short>::setAabb
+0x000205e0	reviewed		boost::function1<void,bool>::operator() (the renderer's on_draw_scene, 0x13D9BC and 0x13DC78)
+0x000a8660	reviewed		btBvhTriangleMeshShape::processAllTriangles
+0x000c5600	reviewed		btConvexTriangleCallback::processTriangle
+0x000a86a0	reviewed		btBvhTriangleMeshShape::processAllTriangles::MyNodeOverlapCallback::processNode
+0x000c26c0	reviewed		btQuantizedBvh::reportAabbOverlappingNodex
+0x00298ab0	reviewed		survarium::damage_zone::~damage_zone
