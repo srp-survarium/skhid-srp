@@ -67,7 +67,9 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
     `channel`, by patch 142's `free_for_all::running`): everyone a mate. The relay sends every
     match whole since 2026-11-15, when opponents near became heard in the team modes too (it
     decided by the mode until then, `registry::VoiceChannel::of`). The Tab menu's voice mute and the
-    talking list take every player (in Blackout the list still only on Tab).
+    talking list take every player (in Blackout the list still only on Tab). Since 2026-11-16
+    there are two keys (voice-chat.md, "Two keys"): the radio's reaches every player of a
+    free-for-all at any distance (`registry::RadioChannel::Match`), the 10 m voice's those near.
   - **No team chat** (the owner, 2026-11-12: "i'd rather it didn't have team chat"); the chat
     goes by these sides, never by the seating:
     - The HUD offers no team tab ("The player's screens", below).
@@ -265,7 +267,11 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     floor 3.5 m over 13's, 10.9 m from it in plan, flat (1°), facing the longest view. The roof
     has no way down within the walk model's 5 m drops and is not reached on foot: placed anyway,
     as he asked (`--stranded-ok` takes the nearest roof with a flat, clear floor without one).
-    48 -> 74 points.
+  - A roof spawn, 96, on the checkpoint (the owner, 2026-11-15, standing in it on v0.21 at
+    24.563 0.912 30.789: "we want the spawn on top of the building those coords have", "to all
+    vostok maps"; `picks --roof-at`, a roof spawn at a place that is no pick): on its slab at
+    21.938 5.64 28.664, facing the longest view, down by the porch or a 4.9 m drop. It stands on
+    the collision of "Vostok's roofs" below. 48 -> 75 points.
   - 58 hold the rule; 2, 3, 23 and 38 have no cover, 21, 22, 58-63 and 68-70 are in the perimeter
     band (5.7 m): kept as his.
 - **Vostok's picks on its ports** (the owner, 2026-11-14: "all of my spawns most likely can be
@@ -277,11 +283,31 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   else it stays out (none found one). Each in its port's own `day_8` project:
   - v0.21 (`ffa-vostok-v021-picks-1`, `v021d_level_03/day_8`): 71 of 73, the first 44 in point_ids
     22-65, 27 new 66-92; 67 and 68 out (inside the rust anomaly's `gas_damage_zone` there). The
-    roof spawn at 13, 93, lands on the same roof (3.2 m over 13's floor), here with a way down on
-    foot. 44 -> 72 points.
+    roof spawn at 13, 93, lands on the same roof, on it as drawn (13.45; before the roofs' list on
+    the ceiling plane at 13.2), here with a way down on foot; the checkpoint's roof spawn, 94,
+    where native Vostok's is. 44 -> 73 points.
   - v0.11 (`ffa-vostok-v011-picks-1`, `v011e_level_03/day_8`): 71 of 73, the first 44 in point_ids
-    28-71, 27 new 72-98; 71 and 72 out (no floor players reach within 1.5 m). No roof spawn: the
-    roof check finds only a surface 144 m up over 13 here. 44 -> 71 points.
+    28-71, 27 new 72-98; 71 and 72 out (no floor players reach within 1.5 m). The roof spawn at
+    13, 99, with no way down within 5 m drops as native Vostok's (`--stranded-ok 13`; before the
+    roofs' list the check found only the border box's top, 140 m up: of roofs as near, the lower
+    is taken first); the checkpoint's roof spawn, 100, where native Vostok's is. 44 -> 73 points.
+- **Vostok's roofs** (the owner, 2026-11-15: "note that roof doesn't have collision so we want to
+  add it", "we also added one spawn on top of another roof which doesn't have good collision too",
+  "to all vostok maps"). Content edit `ffa-vostok-roofs-1` (`scripts/ffa-mode/
+  make_vostok_roofs_edits.py`), before the three Vostok picks lists, in Free for All's own
+  projects only: boxes of 0.26g's unit walker primitive (`editor/walker_collision`, scaled by its
+  half extents; cgroup 2, cmask 4), their tops on the roofs as the models' LOD0 meshes draw them.
+  - The checkpoint (`kpp`, one model at one place on the three maps): its walker mesh had no roof,
+    its bullet mesh has one, so a player spawned there fell to its floor. Three boxes: the slab
+    (5.64), the lower east part (5.0) and the porch's slope west of the slab (4.27 to 4.75). The
+    east part's rafters (0.3 m wide, 0.56 m high) stay walked through.
+  - The long building (`hospital`), v0.21 and v0.11: their walker mesh has the top floor's ceiling
+    plane (13.21, the roof is drawn at 13.45) in two strips and nothing between or beyond them, so
+    a player stood 0.24 m in the roof and fell through it off a strip. Three boxes cover what
+    native Vostok's walker roof covers, but the part broken round the tree; native's is right.
+  - Only where a roof is drawn (the owner, 2026-11-15: "only collission where there is roof").
+    v0.11's fence behind the checkpoint ends at the roof's height (5.6), where native Vostok and
+    v0.21 have their boundary plane to 13.2; it gets no wall.
 - **Mamayev Kurgan v0.21 at the owner's picks** (2026-11-15: 66 `where` places,
   `private/spawn-examples/mamayev021-2026-11-14.tsv`; "just mine for all maps"). Content edit
   `ffa-mamayev-v021-picks-1`, from `scripts/ffa-mode/mamayev-v021-picks.tsv` (`picks --harmful-ok
@@ -305,6 +331,21 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - The owner's against the checks: 17, 30 and 31, 1.01, 1.77 and 0.17 m from `fire_soft_damage`,
     and 55 and 57, inside and 1.44 m from `frogs_damage_zone`. 35 hold the rule; 33 have no cover
     or stand in the perimeter band, kept as his.
+- **Training Camp at the owner's picks** (2026-11-15: 47 `where` places on day_8, "i also set
+  spawns", `private/spawn-examples/training-camp-2026-11-15.tsv`). Content edit
+  `ffa-training-camp-picks-1`, from `scripts/ffa-mode/training-camp-picks.tsv` (`picks --as-stood
+  13,25,26,27,28,44,45,46,47 --project v010b_cs_training_camp/day_8`) and `make_picks_edits.py
+  training-camp`, in its own project only, after `training-camp-arena-1`, `ffa-cover-maps-1` and
+  `training-camp-fires-1`:
+  - All 47 facing as he faced, in point_ids 0-46 (position and rotation only); 47-51 go. 52 -> 47
+    points: only his, none of the planner's raised places or the cover rule's (`stalker-ffa.md`).
+  - All on raised floors, 4.8 to 28.5 m up (the base's ground is at about -1 m): none on the
+    ground. 38 on their floor (0 to 20 cm). The owner's against the checks: 13, 25-28 and 44-47
+    where he stood, on the middle island under the hub (25, 26, 27, 44, 45, 46) and three small islands
+    (13, 28, 47), floors the walk model (1.3 m jumps, 5 m drops) does not reach from the other
+    spawns, so no way down is checked there. Every one body clear, 2 m from the bonfires' fire
+    zones and inside the fence (the nearest 4.1 m from it); 37 hold the rule, 10 have no cover,
+    kept as his.
 - A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed

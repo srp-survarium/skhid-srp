@@ -80,6 +80,7 @@ pub mod voice;
 pub mod settings;
 mod sync;
 pub mod trace;
+pub mod trap;
 pub mod trig;
 pub mod types;
 mod upgrades;

@@ -1,5 +1,5 @@
 //! Patch 66's boundaries (voice chat, docs/notes/voice-chat.md): the voice's
-//! console variables, the match a connect starts, the push-to-talk key, the match's
+//! console variables, the match a connect starts, the two push-to-talk keys, the match's
 //! places as a frame or a menu sees them, the game's sound listener and its
 //! engine's pan of a sound, the movies, and the optional
 //! versioned DLL (`skhid_voice.dll`, `voice_abi`). Every game and DLL value
@@ -253,38 +253,46 @@ pub enum TalkInput {
     Button(MouseButton),
 }
 
-/// A press or a release of push-to-talk (`ptt`, 47h; the binder's kind 8, the
+/// The channel a chat-kind action talks on: `ptt` (47h, P) the radio,
+/// `ptt_nearby` (37h, O) the 10 m voice (the owner, 2026-11-16: "two voice
+/// buttons one for 10m one for radio").
+fn channel_of(action: Action) -> Option<Channel> {
+    match action {
+        Action::PTT => Some(Channel::Radio),
+        Action::PTT_NEARBY => Some(Channel::Near),
+        _ => None,
+    }
+}
+
+/// A press or a release of a push-to-talk key (the binder's kind 8, the
 /// chat's, whatever group the options list it in), at the game world's keys'
 /// start (`tab_cursor.key`) or its mouse buttons' (`game_world.mouse_key`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TalkKey {
-    Down(TalkInput),
+    /// Pressed: the input, and the channel of the action it is bound to.
+    Down(TalkInput, Channel),
     Up(TalkInput),
 }
 
 impl TalkKey {
-    /// The event when the key is bound to `ptt` (a held key's repeats are
-    /// none).
+    /// The event when the key is bound to one of the two (a held key's
+    /// repeats are none).
     pub fn of(key: &GameWorldKey<'_, '_>) -> Option<TalkKey> {
-        if key.chat_action()? != Action::PTT {
-            return None;
-        }
+        let channel = channel_of(key.chat_action()?)?;
         let input = TalkInput::Key(key.key());
         match key.kind() {
-            KeyKind::Down => Some(TalkKey::Down(input)),
+            KeyKind::Down => Some(TalkKey::Down(input, channel)),
             KeyKind::Up => Some(TalkKey::Up(input)),
             KeyKind::Held => None,
         }
     }
 
-    /// The event when the button is bound to `ptt`.
+    /// The event when the button is bound to one of the two.
     pub fn of_button(button: &GameWorldButton<'_>) -> Option<TalkKey> {
-        if button.chat_action()? != Action::PTT {
-            return None;
-        }
+        let channel = channel_of(button.chat_action()?)?;
         let input = TalkInput::Button(button.button());
         match button.kind() {
-            ButtonKind::Press => Some(TalkKey::Down(input)),
+            ButtonKind::Press => Some(TalkKey::Down(input, channel)),
             ButtonKind::Release => Some(TalkKey::Up(input)),
             ButtonKind::Held => None,
         }
@@ -356,7 +364,7 @@ impl Polled {
     }
 }
 
-pub use voice_abi::{Ears, Heard, MicTest};
+pub use voice_abi::{Channel, Ears, Heard, MicTest};
 
 /// How every place is heard (what the DLL is told: one `sv_hear` a place).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -366,7 +374,7 @@ impl Hearing {
     /// Nobody heard: what the DLL is told before the match's places are
     /// known, and the places that are no one's to hear (the local player's
     /// own, a place not in the match). The relay sends the whole match.
-    pub const SILENT: Hearing = Hearing([Heard::Plain(Ears::SILENT); Place::COUNT]);
+    pub const SILENT: Hearing = Hearing([Heard::SILENT; Place::COUNT]);
 
     pub fn with(mut self, place: Place, heard: Heard) -> Hearing {
         self.0[place.index()] = heard;
@@ -471,12 +479,12 @@ pub struct Seat {
     pub body: Option<Body>,
 }
 
-/// Who the local player's mates are (heard on the radio too; the others only
+/// Who the local player's mates are (on its radio; the others are heard only
 /// near, `voice.rs`): the places of its team, or in a free-for-all every place
 /// of the match (the owner, 2026-11-13: "in FFA I would enable voice chat for
-/// all"). srp's relay sends the whole match whatever the mode.
+/// all"). As srp's relay routes the radio (`registry::RadioChannel`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Channel {
+pub enum Mates {
     Team,
     Match,
 }
@@ -484,25 +492,25 @@ pub enum Channel {
 /// What another place of the match is to the local player, for voice.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Side {
-    /// On its [`Channel`]: a teammate, or in a free-for-all anyone.
+    /// Of its [`Mates`]: a teammate, or in a free-for-all anyone.
     Mate,
     /// Of the other team (the owner, 2026-11-14: "only radio is team only").
     Opponent,
 }
 
-/// The match's places, the local player's among them, and its voice channel.
+/// The match's places, the local player's among them, and who its mates are.
 #[derive(Clone, Copy)]
 pub struct Roster {
     seats: [Option<Seat>; Place::COUNT],
     local: Option<Place>,
-    channel: Channel,
+    mates: Mates,
 }
 
 impl Roster {
-    pub const EMPTY: Roster = Roster { seats: [None; Place::COUNT], local: None, channel: Channel::Team };
+    pub const EMPTY: Roster = Roster { seats: [None; Place::COUNT], local: None, mates: Mates::Team };
 
-    fn of(client: &NetworkClient<'_>, bodies: bool, channel: Channel) -> Roster {
-        let mut roster = Roster { channel, ..Roster::EMPTY };
+    fn of(client: &NetworkClient<'_>, bodies: bool, mates: Mates) -> Roster {
+        let mut roster = Roster { mates, ..Roster::EMPTY };
         let teams = client.place_teams();
         for place in Place::all() {
             let Some(team) = teams[place.index()] else { continue };
@@ -532,9 +540,9 @@ impl Roster {
     pub fn side(&self, place: Place) -> Option<Side> {
         let (me, team) = self.local.and_then(|me| self.seat(me).map(|seat| (me, seat.team)))?;
         let seat = self.seat(place).filter(|_| me != place)?;
-        let mate = match self.channel {
-            Channel::Team => team < 2 && seat.team == team,
-            Channel::Match => true,
+        let mate = match self.mates {
+            Mates::Team => team < 2 && seat.team == team,
+            Mates::Match => true,
         };
         Some(if mate { Side::Mate } else { Side::Opponent })
     }
@@ -545,8 +553,8 @@ impl Roster {
     }
 
     #[cfg(test)]
-    pub fn set_channel(&mut self, channel: Channel) {
-        self.channel = channel;
+    pub fn set_mates(&mut self, mates: Mates) {
+        self.mates = mates;
     }
 
     #[cfg(test)]
@@ -580,12 +588,12 @@ impl<'t> Scene<'t> {
         self.thread
     }
 
-    /// The match's places on `channel`; with `bodies`, the alive players'
-    /// bodies.
-    pub fn roster(&self, bodies: bool, channel: Channel) -> Roster {
+    /// The match's places, the local player's `mates` among them; with
+    /// `bodies`, the alive players' bodies.
+    pub fn roster(&self, bodies: bool, mates: Mates) -> Roster {
         self.game
             .and_then(|game| NetworkClient::of_game(game, self.thread))
-            .map_or(Roster::EMPTY, |client| Roster::of(&client, bodies, channel))
+            .map_or(Roster::EMPTY, |client| Roster::of(&client, bodies, mates))
     }
 
     pub fn movie(&self) -> Option<&Movie<'t>> {
@@ -712,9 +720,11 @@ impl Dll {
         unsafe { (self.api.stop)() }
     }
 
-    pub fn talk(self, on: bool) {
+    /// The push-to-talk key held now: the channel its utterance is on, or
+    /// none (let go).
+    pub fn talk(self, held: Option<Channel>) {
         // SAFETY: the checked API, a scalar.
-        unsafe { (self.api.ptt)(i32::from(on)) }
+        unsafe { (self.api.ptt)(Channel::ptt(held)) }
     }
 
     pub fn settings(self, settings: Settings) {
@@ -744,7 +754,9 @@ impl Dll {
         }
     }
 
-    /// The places talking now (the DLL's word): the teammates it plays, and
+    /// The places talking now (the DLL's word): the players heard, each on
+    /// the channel of its utterance as [`Dll::hearing`] last said its place is
+    /// heard, and
     /// the local player's own place while its microphone is sent (the relay
     /// has answered and the capture runs). Bit 31, the microphone sent before
     /// the relay gave a place, is not one of them.

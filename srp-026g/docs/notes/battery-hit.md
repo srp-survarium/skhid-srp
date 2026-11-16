@@ -290,6 +290,8 @@
   is_ready_to_be_deactivated 0x301270). A new pickup starts at the take (initialize 0x300BF6).
 - **Crouch, prone, sprint:** one clip for all (the config's 4 player clips are one), as the
   stock battery states.
+- **A trap on the look:** a strike is the gun-stock bullet, blunt, so it disarms a trap as a
+  gun-stock hit does (patch 151, trap-stock-hit.md). Not played.
 - **Late join, resync, replays:** the strikes' states are the machine's fourth to eleventh
   (indices 3 to 10), saved and
   loaded by the game's own fsm serialize (0x38CC90: the index, then the state's fields, a

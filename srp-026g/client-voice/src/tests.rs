@@ -1,6 +1,5 @@
 use super::*;
-use receiver::LOUDER;
-use wire::Message;
+use wire::{Channel, Message};
 fn tone(frame: usize, freq: f32, amplitude: f32) -> [i16; FRAME] {
     std::array::from_fn(|i| {
         ((2. * std::f32::consts::PI * freq * (frame * FRAME + i) as f32 / RATE as f32).sin()
@@ -13,25 +12,33 @@ fn encoded(n: usize) -> Vec<Vec<u8>> {
         .map(|i| encoder.encode(&tone(i, 500., 8000.)).unwrap())
         .collect()
 }
-fn packet(seq: u16, frames: &[Vec<u8>]) -> Message {
+fn packet_on(channel: Channel, seq: u16, frames: &[Vec<u8>]) -> Message {
     Message::RelayAudio {
         slot: 3,
         utt: 1,
+        channel,
         seq,
         frames: frames.to_vec(),
     }
 }
-/// A frame mixed with the slots of `far` through the radio and the rest
-/// plain as decoded: both ears alike, the mono mix of before.
-fn mix(core: &mut Core, far: u32, now: u32) -> [i16; FRAME] {
-    let stereo = core.mix(1., &Hearing::radio(far), now);
+/// Slot 3's 10 m voice.
+fn packet(seq: u16, frames: &[Vec<u8>]) -> Message {
+    packet_on(Channel::Near, seq, frames)
+}
+/// A frame mixed with every slot heard on both channels, its 10 m voice as
+/// decoded: both ears alike, the mono mix of before.
+fn mix(core: &mut Core, now: u32) -> [i16; FRAME] {
+    let stereo = core.mix(1., &Hearing::UNITY, now);
     assert!(stereo.iter().all(|[left, right]| left == right));
     stereo.map(|[left, _]| left)
 }
-fn feed(core: &mut Core, frames: &[Vec<u8>]) {
+fn feed_on(core: &mut Core, channel: Channel, frames: &[Vec<u8>]) {
     for (seq, pair) in frames.chunks(2).enumerate() {
-        core.receive(&packet(seq as u16, pair), 0);
+        core.receive(&packet_on(channel, seq as u16, pair), 0);
     }
+}
+fn feed(core: &mut Core, frames: &[Vec<u8>]) {
+    feed_on(core, Channel::Near, frames);
 }
 #[test]
 fn opus_round_trip_preserves_tone() {
@@ -58,12 +65,12 @@ fn opus_round_trip_preserves_tone() {
 fn sender_flushes_odd_frame_and_wraps_utterance() {
     let mut sender = Sender::new(123, u16::MAX);
     assert!(matches!(
-        wire::parse(&sender.start(9)),
-        Ok(Message::Start { utt: u16::MAX, .. })
+        wire::parse(&sender.start(9, Channel::Radio)),
+        Ok(Message::Start { utt: u16::MAX, channel: Channel::Radio, .. })
     ));
     assert!(sender.frame(&[0x48, 2]).is_none());
     assert!(
-        matches!(wire::parse(&sender.flush().unwrap()),Ok(Message::Audio{seq:0,frames,..})if frames==vec![vec![0x48,2]])
+        matches!(wire::parse(&sender.flush().unwrap()),Ok(Message::Audio{seq:0,channel:Channel::Radio,frames,..})if frames==vec![vec![0x48,2]])
     );
     assert!(matches!(
         wire::parse(&sender.end().unwrap()),
@@ -72,8 +79,8 @@ fn sender_flushes_odd_frame_and_wraps_utterance() {
     assert!(sender.end().is_none());
     assert!(sender.frame(&[0x48]).is_none());
     assert!(matches!(
-        wire::parse(&sender.start(10)),
-        Ok(Message::Start { utt: 0, .. })
+        wire::parse(&sender.start(10, Channel::Near)),
+        Ok(Message::Start { utt: 0, channel: Channel::Near, .. })
     ));
 }
 #[test]
@@ -93,14 +100,17 @@ fn reorder_before_playout_and_packet_loss() {
         0,
     );
     for t in 0..10 {
-        mix(&mut core, 0, t * 20);
+        mix(&mut core, t * 20);
     }
+    // Of the datagram that did not come, the second frame is played from
+    // the next frame's copy of it; the first has none to come from.
     assert_eq!(core.stats().decoded, 8);
-    assert_eq!(core.stats().concealed, 2);
+    assert_eq!(core.stats().recovered, 1);
+    assert_eq!(core.stats().concealed, 1);
     assert_eq!(core.stats().closed, 1);
     core.receive(&packet(1, &frames[2..4]), 300);
     assert_eq!(core.stats().late, 2);
-    assert_eq!(core.talking(300), 0);
+    assert_eq!(core.talking(&Hearing::UNITY, 300), 0);
 }
 #[test]
 fn late_frame_does_not_overwrite_unplayed_ring_cell() {
@@ -108,11 +118,11 @@ fn late_frame_does_not_overwrite_unplayed_ring_cell() {
     let mut core = Core::new().unwrap();
     feed(&mut core, &frames);
     for t in 0..4 {
-        mix(&mut core, 0, t * 20);
+        mix(&mut core, t * 20);
     }
     core.receive(&packet(0, &frames[..2]), 80);
     for t in 4..8 {
-        mix(&mut core, 0, t * 20);
+        mix(&mut core, t * 20);
     }
     assert_eq!(core.stats().decoded, 8);
     assert_eq!(core.stats().late, 2);
@@ -121,28 +131,29 @@ fn late_frame_does_not_overwrite_unplayed_ring_cell() {
 fn silence_closes_and_muting_cuts_audio_and_effects() {
     let frames = encoded(12);
     let mut core = Core::new().unwrap();
-    feed(&mut core, &frames);
+    feed_on(&mut core, Channel::Radio, &frames);
     for t in 0..55 {
-        mix(&mut core, 1 << 3, t * 20);
+        mix(&mut core, t * 20);
     }
     assert_eq!(core.stats().timeouts, 1);
     assert_eq!(core.stats().squelch_in, 1);
     assert_eq!(core.stats().squelch_out, 1);
     core.reset();
-    feed(&mut core, &frames);
-    mix(&mut core, 1 << 3, 0);
+    feed_on(&mut core, Channel::Radio, &frames);
+    mix(&mut core, 0);
     core.mute(1 << 3);
-    assert_eq!(mix(&mut core, 1 << 3, 20), [0; FRAME]);
-    assert_eq!(core.talking(20), 0);
-    core.receive(&packet(5, &frames[10..]), 40);
-    assert_eq!(core.talking(40), 0);
+    assert_eq!(mix(&mut core, 20), [0; FRAME]);
+    assert_eq!(core.talking(&Hearing::UNITY, 20), 0);
+    core.receive(&packet_on(Channel::Radio, 5, &frames[10..]), 40);
+    assert_eq!(core.talking(&Hearing::UNITY, 40), 0);
 }
 #[test]
-fn far_squelch_delays_words_near_has_none() {
+fn the_radios_squelch_delays_its_words_the_10_m_voice_has_none() {
     let frames = encoded(12);
-    for (far, delay) in [(0, 0), (1 << 3, 8)] {
+    for (channel, delay) in [(Channel::Near, 0), (Channel::Radio, 8)] {
+        let far = channel == Channel::Radio;
         let mut core = Core::new().unwrap();
-        feed(&mut core, &frames);
+        feed_on(&mut core, channel, &frames);
         core.receive(
             &Message::RelayEnd {
                 slot: 3,
@@ -152,7 +163,7 @@ fn far_squelch_delays_words_near_has_none() {
             0,
         );
         for tick in 0..delay {
-            let pcm = mix(&mut core, far, tick * 20);
+            let pcm = mix(&mut core, tick * 20);
             assert_eq!(core.stats().decoded, 0);
             let squelch = &sounds::SQUELCH_IN[tick as usize * FRAME..(tick as usize + 1) * FRAME];
             // The squelch alone, as the mix finishes any sound: centred.
@@ -161,35 +172,45 @@ fn far_squelch_delays_words_near_has_none() {
                 assert!((i32::from(*got) - i32::from(want)).abs() <= 1);
             }
         }
-        mix(&mut core, far, delay * 20);
+        mix(&mut core, delay * 20);
         assert_eq!(core.stats().decoded, 1);
         for tick in 1..13 {
-            mix(&mut core, far, (delay + tick) * 20);
+            mix(&mut core, (delay + tick) * 20);
         }
-        assert_eq!(core.stats().squelch_in, u32::from(far != 0));
-        assert_eq!(core.stats().squelch_out, u32::from(far != 0));
+        assert_eq!(core.stats().squelch_in, u32::from(far));
+        assert_eq!(core.stats().squelch_out, u32::from(far));
     }
 }
 #[test]
-fn mid_utterance_radio_switch_does_not_add_opening_effect() {
-    let frames = encoded(12);
-    let mut core = Core::new().unwrap();
-    feed(&mut core, &frames);
-    mix(&mut core, 0, 0);
-    mix(&mut core, 1 << 3, 20);
-    assert_eq!(core.stats().squelch_in, 0);
-    assert_eq!(core.stats().decoded, 2);
+fn a_key_let_go_for_the_other_has_the_squelch_of_the_radio_alone() {
+    // Slot 3 talks on one key and at once on the other, the first utterance
+    // still playing: the squelch that ends an utterance is the radio's, never
+    // the 10 m voice's, whatever the next one is.
+    let frames = encoded(8);
+    for (first, then, squelch_out) in [(Channel::Near, Channel::Radio, 0), (Channel::Radio, Channel::Near, 1)] {
+        let mut core = Core::new().unwrap();
+        feed_on(&mut core, first, &frames);
+        // Past the radio's lead-in, into its words.
+        for tick in 0..12 {
+            mix(&mut core, tick * 20);
+        }
+        core.receive(&Message::RelayStart { slot: 3, utt: 2, channel: then, ms: 0 }, 240);
+        for tick in 12..16 {
+            mix(&mut core, tick * 20);
+        }
+        assert_eq!(core.stats().squelch_out, squelch_out, "{first:?} then {then:?}");
+    }
 }
-/// A steady tone from slot 3, mixed frame by frame as `heard(tick)` says:
-/// each frame's left and right.
-fn heard_tone(ticks: u32, heard: impl Fn(u32) -> Heard) -> Vec<Stereo> {
+/// A steady tone from slot 3 on `channel`, mixed frame by frame as
+/// `heard(tick)` says: each frame's left and right.
+fn heard_tone(ticks: u32, channel: Channel, heard: impl Fn(u32) -> Heard) -> Vec<Stereo> {
     let mut encoder = Encoder::new().unwrap();
     // Quiet enough that, mixed at unity, it stays under the limiter's knee.
     let frames: Vec<Vec<u8>> = (0..ticks as usize + 4)
         .map(|i| encoder.encode(&tone(i, 500., 4000.)).unwrap())
         .collect();
     let mut core = Core::new().unwrap();
-    feed(&mut core, &frames);
+    feed_on(&mut core, channel, &frames);
     (0..ticks)
         .map(|tick| {
             let mut hearing = Hearing::UNITY;
@@ -206,82 +227,74 @@ fn ear_sums(frames: &[Stereo]) -> [f64; 2] {
     }
     ears
 }
+/// Heard near only, by these ears (an opponent's place).
+fn near(ears: Ears) -> Heard {
+    Heard { near: ears, radio: false }
+}
 #[test]
-fn a_plain_voice_is_mixed_by_the_gains_it_is_given() {
+fn the_10_m_voice_is_mixed_by_the_gains_it_is_given() {
     // To the right (the engine's pan of a sound at the side: nothing in the
-    // far ear): after the first frame's ramp from unity the left is silent.
-    let right = heard_tone(8, |_| Heard::Plain(Ears::new(0., 1.)));
+    // far ear): the left is silent.
+    let right = heard_tone(8, Channel::Near, |_| near(Ears::new(0., 1.)));
     let ears = ear_sums(&right);
-    assert!(ears[1] > 0. && ears[0] < ears[1] / 20., "{ears:?}");
-    assert!(right[1..].iter().flatten().all(|[left, _]| *left == 0));
+    assert!(ears[1] > 0. && ears[0] == 0., "{ears:?}");
     // Half as loud in both ears: half the samples of unity.
-    let unity = heard_tone(8, |_| Heard::Plain(Ears::UNITY));
-    let half = heard_tone(8, |_| Heard::Plain(Ears::new(0.5, 0.5)));
+    let unity = heard_tone(8, Channel::Near, |_| near(Ears::UNITY));
+    let half = heard_tone(8, Channel::Near, |_| near(Ears::new(0.5, 0.5)));
     for ([whole, _], [halved, _]) in unity[2..].iter().flatten().zip(half[2..].iter().flatten()) {
         assert!((i32::from(*whole) - 2 * i32::from(*halved)).abs() <= 2);
     }
     // Silent in both: nothing, and the utterance still plays out.
-    let silent = heard_tone(8, |_| Heard::Plain(Ears::SILENT));
-    assert!(silent[1..].iter().flatten().all(|ears| *ears == [0, 0]));
+    let silent = heard_tone(8, Channel::Near, |_| Heard::SILENT);
+    assert!(silent.iter().flatten().all(|ears| *ears == [0, 0]));
 }
 #[test]
-fn the_switch_to_the_radio_ramps_over_a_frame() {
-    // Plain for four frames, then the radio (the speaker walked past its
-    // distance): the frame of the switch starts as the plain voice went on
-    // and ends as the radio goes on, no step between two samples.
-    let plain = heard_tone(8, |_| Heard::Plain(Ears::UNITY));
-    let switched = heard_tone(8, |tick| {
-        if tick < 4 {
-            Heard::Plain(Ears::UNITY)
-        } else {
-            Heard::Radio
-        }
-    });
-    assert_eq!(plain[..4], switched[..4]);
-    let near = |a: i16, b: i16, most: i32| (i32::from(a) - i32::from(b)).abs() <= most;
-    // The tone's own largest step between two samples (500 Hz at 8000).
-    let step = 8000. * LOUDER * 2. * std::f32::consts::PI * 500. / RATE as f32;
-    assert!(near(switched[4][0][0], plain[4][0][0], 120), "{:?} {:?}", switched[4][0], plain[4][0]);
-    let all: Vec<i16> = switched.iter().flatten().map(|[left, _]| *left).collect();
-    let largest = all.windows(2).map(|pair| (i32::from(pair[1]) - i32::from(pair[0])).abs()).max().unwrap();
-    assert!((largest as f32) < 2.5 * step, "{largest} {step}");
-    // From the next frame on the radio alone: both ears alike, not the tone.
-    assert!(switched[5..].iter().flatten().all(|[left, right]| left == right));
-    assert_ne!(switched[6], plain[6]);
-}
-#[test]
-fn between_the_two_distances_the_plain_voice_and_the_radio_are_both_heard() {
+fn an_utterance_is_heard_by_its_own_channel_alone() {
     let right = Ears::new(0., 1.);
-    let plain = ear_sums(&heard_tone(12, |_| Heard::Plain(right))[9..]);
-    let radio = ear_sums(&heard_tone(12, |_| Heard::Radio)[9..]);
-    let both = ear_sums(&heard_tone(12, |_| Heard::Both(right))[9..]);
-    // The radio is centred: alone in the left ear; the right has the voice too.
-    assert!(plain[0] == 0. && radio[0] > 0. && (both[0] - radio[0]).abs() < radio[0] / 100., "{plain:?} {radio:?} {both:?}");
-    assert!(both[1] > radio[1] * 1.2 && both[1] > plain[1] * 1.2, "{plain:?} {radio:?} {both:?}");
+    let mate = Heard { near: right, radio: true };
+    let voice = ear_sums(&heard_tone(12, Channel::Near, |_| mate)[9..]);
+    let radio = ear_sums(&heard_tone(12, Channel::Radio, |_| mate)[9..]);
+    // The 10 m voice from its side; the radio centred.
+    assert!(voice[0] == 0. && voice[1] > 0. && radio[0] > 0. && radio[0] == radio[1], "{voice:?} {radio:?}");
+    // An opponent's radio is never heard, nor the 10 m voice of a mate far
+    // away or dead: no words, no static, no squelch.
+    let far = Heard { near: Ears::SILENT, radio: true };
+    assert_eq!(ear_sums(&heard_tone(12, Channel::Radio, |_| near(right))), [0., 0.]);
+    assert_eq!(ear_sums(&heard_tone(12, Channel::Near, |_| far)), [0., 0.]);
+    // And the talking list has a slot only while it is heard.
+    let mut core = Core::new().unwrap();
+    core.receive(&packet_on(Channel::Radio, 0, &encoded(2)), 0);
+    let mut hearing = Hearing::UNITY;
+    hearing.set(3, near(right));
+    assert_eq!(core.talking(&hearing, 0), 0);
+    hearing.set(3, far);
+    assert_eq!(core.talking(&hearing, 0), 1 << 3);
 }
 #[test]
 fn the_microphone_tests_playback_plays_under_a_voice_heard_in_the_world() {
     // The test's playback (a steady level) while slot 3 talks from the right:
     // the left ear has the playback alone, as it plays with no voice
     // (`centred`); the right has the voice over it.
+    // (The voice quiet enough that the mix's limiter, which turns both ears
+    // down alike, stays at rest.)
     let mut encoder = Encoder::new().unwrap();
-    let frames: Vec<Vec<u8>> = (0..12).map(|i| encoder.encode(&tone(i, 500., 8000.)).unwrap()).collect();
+    let frames: Vec<Vec<u8>> = (0..12).map(|i| encoder.encode(&tone(i, 500., 4000.)).unwrap()).collect();
     let mut core = Core::new().unwrap();
     feed(&mut core, &frames);
     let under = [0.1_f32; FRAME];
     let alone = receiver::centred(&under);
     let mut hearing = Hearing::UNITY;
-    hearing.set(3, Heard::Plain(Ears::new(0., 1.)));
+    hearing.set(3, near(Ears::new(0., 1.)));
     let mixed: Vec<Stereo> = (0..8).map(|tick| core.mix_over(Some(&under), 1., &hearing, tick * 20)).collect();
-    assert!(mixed[1..].iter().flatten().all(|[left, _]| *left == alone[0][0]));
+    assert!(mixed.iter().flatten().all(|[left, _]| *left == alone[0][0]));
     let over = mixed[2..].iter().flatten().filter(|[_, right]| *right != alone[0][1]).count();
     assert!(over > 4 * FRAME, "{over}");
     // On the radio instead: both ears alike, over the playback.
     let mut core = Core::new().unwrap();
-    feed(&mut core, &frames);
-    hearing.set(3, Heard::Radio);
+    feed_on(&mut core, Channel::Radio, &frames);
+    let hearing = Hearing::UNITY;
     let radio: Vec<Stereo> = (0..8).map(|tick| core.mix_over(Some(&under), 1., &hearing, tick * 20)).collect();
-    assert!(radio[1..].iter().flatten().all(|[left, right]| left == right));
+    assert!(radio.iter().flatten().all(|[left, right]| left == right));
     assert!(radio[6..].iter().flatten().any(|[left, _]| *left != alone[0][0]));
 }
 #[test]
@@ -297,6 +310,7 @@ fn utterance_order_wrap_and_reset() {
         &Message::RelayStart {
             slot: 3,
             utt: 0,
+            channel: Channel::Near,
             ms: 10,
         },
         10,
@@ -306,7 +320,7 @@ fn utterance_order_wrap_and_reset() {
     assert_eq!(core.stats().late, 2);
     core.reset();
     core.receive(&message, 30);
-    assert_eq!(core.talking(30), 1 << 3);
+    assert_eq!(core.talking(&Hearing::UNITY, 30), 1 << 3);
 }
 fn sine_gain(freq: f32) -> f32 {
     let mut radio = Radio::new(0);
@@ -452,13 +466,14 @@ fn processed_db(amplitude: f32, sensitivity: f32) -> f32 {
 }
 #[test]
 fn automatic_gain_levels_quiet_and_loud_microphones() {
-    // Speakers from -50 to -13 dB of full scale (amplitudes 150..10000) all
-    // come out at one level (-29 dB measured), within 2 dB.
-    let levels = [150., 600., 2500., 10000.].map(|amplitude| processed_db(amplitude, 0.5));
+    // Speakers from -60 to -13 dB of full scale (amplitudes 50..10000) all
+    // come out at one level (-29 dB measured), within 3 dB (the quietest was
+    // 8 dB under the others while the gain stopped at 30 dB).
+    let levels = [50., 150., 600., 2500., 10000.].map(|amplitude| processed_db(amplitude, 0.5));
     let (low, high) = levels
         .iter()
         .fold((f32::MAX, f32::MIN), |(l, h), &x| (l.min(x), h.max(x)));
-    assert!(high - low < 2., "{levels:?}");
+    assert!(high - low < 3., "{levels:?}");
     assert!((-32.0..-26.0).contains(&low), "{levels:?}");
     // The sensitivity slider moves it 6 dB either way.
     let quiet = processed_db(2500., 0.);
@@ -476,6 +491,7 @@ fn roster_replacement_resets_only_departed_speaker() {
         &Message::RelayAudio {
             slot: 3,
             utt: 100,
+            channel: Channel::Near,
             seq: 0,
             frames: frames.clone(),
         },
@@ -485,18 +501,19 @@ fn roster_replacement_resets_only_departed_speaker() {
         &Message::RelayStart {
             slot: 4,
             utt: 80,
+            channel: Channel::Near,
             ms: 0,
         },
         0,
     );
     core.reset_slot(3);
-    assert_eq!(core.talking(20), 1 << 4);
+    assert_eq!(core.talking(&Hearing::UNITY, 20), 1 << 4);
     core.receive(&packet(0, &frames[..2]), 20);
-    assert_eq!(core.talking(20), (1 << 3) | (1 << 4));
+    assert_eq!(core.talking(&Hearing::UNITY, 20), (1 << 3) | (1 << 4));
     core.mute(1 << 3);
     core.reset_slot(3);
     core.receive(&packet(1, &frames[2..]), 40);
-    assert_eq!(core.talking(40), 1 << 4);
+    assert_eq!(core.talking(&Hearing::UNITY, 40), 1 << 4);
 }
 /// One well-formed datagram of each type the relay sends.
 fn relayed() -> Vec<Vec<u8>> {
@@ -508,6 +525,7 @@ fn relayed() -> Vec<Vec<u8>> {
         Message::RelayStart {
             slot: 4,
             utt: 2,
+            channel: Channel::Near,
             ms: 9,
         },
         packet(0, &encoded(2)),
@@ -534,9 +552,9 @@ fn truncated_or_extended_datagrams_are_malformed() {
         assert!(wire::parse(&longer).is_err(), "{longer:?}");
     }
     assert_eq!(wire::parse(&[]), Err(Malformed::Short));
-    assert_eq!(wire::parse(&[0x56, 1]), Err(Malformed::Short));
-    assert_eq!(wire::parse(&[0x56, 1, 0x81]), Err(Malformed::Length));
-    assert_eq!(wire::parse(&[0x56, 1, 0x81, 3, 0]), Err(Malformed::Length));
+    assert_eq!(wire::parse(&[0x56, 2]), Err(Malformed::Short));
+    assert_eq!(wire::parse(&[0x56, 2, 0x81]), Err(Malformed::Length));
+    assert_eq!(wire::parse(&[0x56, 2, 0x81, 3, 0]), Err(Malformed::Length));
 }
 #[test]
 fn oversize_bad_version_type_and_slot_are_malformed() {
@@ -545,9 +563,9 @@ fn oversize_bad_version_type_and_slot_are_malformed() {
     large.resize(wire::MAX_DATAGRAM + 1, 0);
     assert_eq!(wire::parse(&large), Err(Malformed::TooLarge));
     assert_eq!(wire::parse(&[0x57, 1, 0x81, 0]), Err(Malformed::NotVoice));
-    assert_eq!(wire::parse(&[0x56, 2, 0x81, 0]), Err(Malformed::Version(2)));
+    assert_eq!(wire::parse(&[0x56, 1, 0x81, 0]), Err(Malformed::Version(1)));
     for kind in [0x00, 0x05, 0x85, 0x8F, 0xFF] {
-        assert_eq!(wire::parse(&[0x56, 1, kind, 0]), Err(Malformed::Kind(kind)));
+        assert_eq!(wire::parse(&[0x56, 2, kind, 0]), Err(Malformed::Kind(kind)));
     }
     // Every relayed type's slot, out of range.
     for mut bytes in relayed() {
@@ -558,7 +576,7 @@ fn oversize_bad_version_type_and_slot_are_malformed() {
         }
     }
     let roster = |entries: &[u8]| {
-        let mut bytes = vec![0x56, 1, 0x90, (entries.len() / 5) as u8];
+        let mut bytes = vec![0x56, 2, 0x90, (entries.len() / 5) as u8];
         bytes.extend_from_slice(entries);
         bytes
     };
@@ -576,6 +594,7 @@ fn oversize_bad_version_type_and_slot_are_malformed() {
             &Message::RelayStart {
                 slot,
                 utt: 1,
+                channel: Channel::Near,
                 ms: 0,
             },
             0,
@@ -584,19 +603,20 @@ fn oversize_bad_version_type_and_slot_are_malformed() {
             &Message::RelayAudio {
                 slot,
                 utt: 1,
+                channel: Channel::Near,
                 seq: 0,
                 frames: encoded(2),
             },
             0,
         );
     }
-    assert_eq!(core.talking(0), 0);
+    assert_eq!(core.talking(&Hearing::UNITY, 0), 0);
 }
 #[test]
 fn audio_frames_must_be_our_encoders() {
     use wire::Malformed;
     let audio = |frames: &[&[u8]]| {
-        let mut bytes = vec![0x56, 1, 0x83, 3, 1, 0, 0, 0, frames.len() as u8];
+        let mut bytes = vec![0x56, 2, 0x83, 3, 1, 0, 0, 0, 0, frames.len() as u8];
         for frame in frames {
             bytes.push(frame.len() as u8);
             bytes.extend_from_slice(frame);
@@ -633,7 +653,7 @@ fn audio_frames_must_be_our_encoders() {
     // The encoder's frames are its own, and the sender refuses others.
     assert!(encoded(4).iter().all(|frame| wire::our_frame(frame)));
     let mut sender = Sender::new(1, 1);
-    sender.start(0);
+    sender.start(0, Channel::Radio);
     assert!(sender.frame(&[0x00, 1]).is_none());
     assert!(sender.frame(&longer).is_none());
     assert_eq!(sender.end().map(|bytes| bytes[9]), Some(0));
@@ -679,13 +699,17 @@ fn the_encoder_makes_only_what_the_relay_takes() {
                 }
                 let frame = encoder.encode(&pcm).unwrap();
                 assert!(wire::our_frame(&frame), "{frame:x?}");
+                // (An encoder out of room gives a frame of two bytes, which
+                // plays as a lost one.)
+                assert!(frame.len() > 2, "{frame:x?}");
                 largest = largest.max(frame.len());
             }
         }
     }
-    // Its frames are well within the cap (93 bytes measured at most): the
+    // Its frames are under the cap, the room it is given (114 bytes
+    // measured at most, on full-scale noise), so it never ran out of it: the
     // cap never takes a frame of a game that has not changed its encoder.
-    assert!(largest <= 100, "{largest}");
+    assert!(largest < wire::MAX_FRAME_BYTES, "{largest}");
 }
 #[test]
 fn opus_check_agrees_with_the_decoder() {
@@ -728,6 +752,7 @@ fn undecodable_opus_is_concealed_and_does_not_stop_another_speaker() {
             &Message::RelayAudio {
                 slot: 5,
                 utt: 1,
+                channel: Channel::Near,
                 seq,
                 frames: vec![garbage.clone(); 2],
             },
@@ -746,13 +771,13 @@ fn undecodable_opus_is_concealed_and_does_not_stop_another_speaker() {
     }
     let mut energy = 0.;
     for tick in 0..24 {
-        let pcm = mix(&mut core, 0, tick * 20);
+        let pcm = mix(&mut core, tick * 20);
         energy += pcm.iter().map(|&x| f32::from(x).powi(2)).sum::<f32>();
     }
     assert_eq!(core.stats().decoded, 20);
     assert_eq!(core.stats().undecodable, 20);
     assert!(energy > 0.);
-    assert_eq!(core.talking(1000), 0);
+    assert_eq!(core.talking(&Hearing::UNITY, 1000), 0);
 }
 #[test]
 fn a_flood_of_random_datagrams_does_not_delay_a_good_speaker() {
@@ -800,7 +825,7 @@ fn a_flood_of_random_datagrams_does_not_delay_a_good_speaker() {
     );
     let before = core.stats().decoded;
     for tick in 0..24 {
-        mix(&mut core, 0, tick * 20);
+        mix(&mut core, tick * 20);
     }
     // All twenty of the good speaker's frames played (others' may add).
     assert!(core.stats().decoded - before >= 20, "{:?}", core.stats());
@@ -859,8 +884,9 @@ fn the_host_argument_is_read_no_further_than_its_bound() {
     assert_eq!(radio::unit(f32::NEG_INFINITY), 0.);
     assert!(agc_level(f32::INFINITY).is_finite());
 }
-/// Plays `frames` (20 ms each) through a core as the relay sends them, near:
-/// each mixed frame's RMS in dB of full scale, and the core.
+/// Each frame's level as slot 3's 10 m voice plays `frames`, at a "Voice
+/// chat" volume low enough that the mix's own limiter stays at rest: the
+/// speaker's level alone.
 fn played(frames: &[Vec<u8>]) -> (Vec<f32>, Core) {
     let mut core = Core::new().unwrap();
     let mut levels = Vec::new();
@@ -868,7 +894,7 @@ fn played(frames: &[Vec<u8>]) -> (Vec<f32>, Core) {
     for (seq, pair) in frames.chunks(2).enumerate() {
         core.receive(&packet(seq as u16, pair), now);
         for _ in 0..2 {
-            let pcm = mix(&mut core, 0, now);
+            let pcm = core.mix(0.25, &Hearing::UNITY, now).map(|[left, _]| left);
             let power = pcm
                 .iter()
                 .map(|&x| (f32::from(x) / 32768.).powi(2))
@@ -957,7 +983,7 @@ fn a_stream_that_skipped_the_automatic_gain_is_held_at_the_ceiling() {
     let loudest = levels.iter().copied().fold(f32::MIN, f32::max) - mix_gain;
     assert!((-12.6..=-11.9).contains(&loudest), "{mix_gain} {levels:?}");
     assert!(
-        levels[4..].iter().all(|&db| db - mix_gain > -14.),
+        levels[4..].iter().all(|&db| db - mix_gain > -15.),
         "{levels:?}"
     );
     assert!(core.stats().limited >= 95, "{:?}", core.stats().limited);
@@ -1002,13 +1028,14 @@ fn a_new_utterance_starts_at_unity() {
                 &Message::RelayAudio {
                     slot: 3,
                     utt,
+                    channel: Channel::Near,
                     seq: seq as u16,
                     frames: pair.to_vec(),
                 },
                 now,
             );
             for _ in 0..2 {
-                let pcm = mix(&mut core, 0, now);
+                let pcm = core.mix(0.25, &Hearing::UNITY, now).map(|[left, _]| left);
                 let power = pcm
                     .iter()
                     .map(|&x| (f32::from(x) / 32768.).powi(2))
@@ -1026,7 +1053,7 @@ fn a_new_utterance_starts_at_unity() {
             now,
         );
         for _ in 0..10 {
-            mix(&mut core, 0, now);
+            mix(&mut core, now);
             now += 20;
         }
         if utt == 1 {
@@ -1040,4 +1067,128 @@ fn a_new_utterance_starts_at_unity() {
             }
         }
     }
+}
+#[test]
+fn a_mix_past_its_ceiling_is_turned_down_and_not_bent() {
+    // Three speakers with the same steady tone, each under its own ceiling:
+    // together the mix would play them at more than twice full scale.
+    let mut encoder = Encoder::new().unwrap();
+    let frames: Vec<Vec<u8>> = (0..30).map(|i| encoder.encode(&tone(i, 500., 10000.)).unwrap()).collect();
+    let play = |volume: f32| {
+        let mut core = Core::new().unwrap();
+        for (seq, pair) in frames.chunks(2).enumerate() {
+            for slot in 3..6 {
+                core.receive(&Message::RelayAudio { slot, utt: 1, channel: Channel::Near, seq: seq as u16, frames: pair.to_vec() }, 0);
+            }
+        }
+        (0..30).flat_map(|tick| core.mix(volume, &Hearing::UNITY, tick * 20)).map(|[left, _]| f32::from(left)).collect::<Vec<_>>()
+    };
+    // At an eighth of the volume the limiter is at rest: the sum itself.
+    let sum: Vec<f32> = play(0.125).iter().map(|s| s * 8.).collect();
+    let played = play(1.);
+    let peak = |s: &[f32]| s.iter().fold(0f32, |m, x| m.max(x.abs()));
+    assert!(peak(&sum) > 1.5 * 32767., "{}", peak(&sum));
+    // Never past the ceiling.
+    assert!(peak(&played) <= 0.9 * 32767. + 1., "{}", peak(&played));
+    // Turned down, not bent: over any 2 ms the tone played is the sum times
+    // one gain, to 30 dB under it (the curve there was before bent a tone
+    // this loud to 15 dB under it).
+    let (mut bent, mut all) = (0f32, 0f32);
+    for (sum, played) in sum[10 * FRAME..25 * FRAME].chunks(32).zip(played[10 * FRAME..25 * FRAME].chunks(32)) {
+        let (sp, ss) = sum.iter().zip(played).fold((0f32, 0f32), |(sp, ss), (s, p)| (sp + s * p, ss + s * s));
+        let gain = sp / ss;
+        assert!(gain < 0.6, "{gain}");
+        bent += sum.iter().zip(played).map(|(s, p)| (p - gain * s).powi(2)).sum::<f32>();
+        all += played.iter().map(|p| p * p).sum::<f32>();
+    }
+    assert!(bent < all / 1000., "{} dB", 10. * (bent / all).log10());
+    // A mix under the ceiling is played as it is summed.
+    let quiet: Vec<Vec<u8>> = (0..20).map(|i| encoder.encode(&tone(i, 500., 2000.)).unwrap()).collect();
+    let mut core = Core::new().unwrap();
+    feed(&mut core, &quiet);
+    let (mut whole, mut eighth) = (Vec::new(), Vec::new());
+    for tick in 0..20 {
+        whole.extend(core.mix(1., &Hearing::UNITY, tick * 20));
+    }
+    let mut core = Core::new().unwrap();
+    feed(&mut core, &quiet);
+    for tick in 0..20 {
+        eighth.extend(core.mix(0.125, &Hearing::UNITY, tick * 20));
+    }
+    assert!(whole.iter().zip(&eighth).all(|(w, e)| (i32::from(w[0]) - 8 * i32::from(e[0])).abs() <= 8));
+}
+#[test]
+fn a_loud_speaker_turns_itself_down_and_not_the_others() {
+    // Slot 4: sharp pulses, a millisecond of full scale every frame, which
+    // pass the ceiling a speaker's level is held to (their energy is small)
+    // and would play at three times full scale. Slot 3: a quiet tone.
+    let mut encoder = Encoder::new().unwrap();
+    let pulses: Vec<Vec<u8>> = (0..30)
+        .map(|_| encoder.encode(&std::array::from_fn(|i| if i < 16 { i16::MAX } else { 0 })).unwrap())
+        .collect();
+    let mut encoder = Encoder::new().unwrap();
+    let quiet: Vec<Vec<u8>> = (0..30).map(|i| encoder.encode(&tone(i, 525., 1500.)).unwrap()).collect();
+    // How much of the tone is in the mix (its frequency lies between the pulses' harmonics).
+    let tone_in = |with_pulses: bool| {
+        let mut core = Core::new().unwrap();
+        for (seq, (tone, pulse)) in quiet.chunks(2).zip(pulses.chunks(2)).enumerate() {
+            core.receive(&packet(seq as u16, tone), 0);
+            if with_pulses {
+                core.receive(&Message::RelayAudio { slot: 4, utt: 1, channel: Channel::Near, seq: seq as u16, frames: pulse.to_vec() }, 0);
+            }
+        }
+        let played: Vec<f32> = (0..30).flat_map(|tick| core.mix(1., &Hearing::UNITY, tick * 20)).map(|[left, _]| f32::from(left)).collect();
+        let (mut re, mut im) = (0f32, 0f32);
+        for (n, s) in played[10 * FRAME..25 * FRAME].iter().enumerate() {
+            let phase = 2. * std::f32::consts::PI * 525. * n as f32 / RATE as f32;
+            re += s * phase.cos();
+            im += s * phase.sin();
+        }
+        (re * re + im * im).sqrt()
+    };
+    let (alone, beside) = (tone_in(false), tone_in(true));
+    // Within 2 dB of itself alone (one gain for the whole mix had it 10 dB down).
+    assert!(beside > alone * 0.8 && beside < alone * 1.1, "{alone} {beside}");
+}
+#[test]
+fn the_mix_comes_back_after_a_loud_moment() {
+    // A loud second, then a quiet voice: within a second it plays as alone.
+    let mut master = receiver::Master::new();
+    let loud = [0.9_f32; FRAME];
+    let quiet = [0.1_f32; FRAME];
+    for _ in 0..50 {
+        master.centred(&loud);
+    }
+    let alone = receiver::centred(&quiet);
+    let mut last = master.centred(&quiet);
+    assert!(i32::from(last[FRAME - 1][0]) < i32::from(alone[0][0]) * 6 / 10, "{:?}", last[FRAME - 1]);
+    for _ in 0..50 {
+        last = master.centred(&quiet);
+    }
+    assert_eq!(last, alone);
+}
+#[test]
+fn a_frame_that_did_not_come_is_played_from_the_next_ones_copy() {
+    // Silence, then a voice: the voice's first frame is lost. Concealment has
+    // only the silence before it to go on; the next frame's copy has the voice.
+    let mut encoder = Encoder::new().unwrap();
+    let sound = |f: usize| if f < 20 { [0; FRAME] } else { voiced(f + 10, 8000., 8) };
+    let frames: Vec<Vec<u8>> = (0..30).map(|f| encoder.encode(&sound(f)).unwrap()).collect();
+    let energy = |pcm: [f32; FRAME]| pcm.iter().map(|x| x * x).sum::<f32>();
+    let decoded_to = |lost: usize| {
+        let mut decoder = Decoder::new().unwrap();
+        for frame in &frames[..lost] {
+            decoder.decode(Some(frame)).unwrap();
+        }
+        decoder
+    };
+    let lost = 20;
+    let whole = energy(decoded_to(lost).decode(Some(&frames[lost])).unwrap());
+    let concealed = energy(decoded_to(lost).decode(None).unwrap());
+    let recovered = energy(decoded_to(lost).recover(&frames[lost + 1]).unwrap());
+    assert!(recovered > whole / 4. && concealed < whole / 4., "{whole} {recovered} {concealed}");
+    // Without the copy (an encoder told to expect no loss) there is only concealment.
+    let mut plain = Encoder::with(BITRATE, 0).unwrap();
+    let next = (0..=lost + 1).map(|f| plain.encode(&sound(f)).unwrap()).last().unwrap();
+    assert!(energy(decoded_to(lost).recover(&next).unwrap()) < whole / 4.);
 }

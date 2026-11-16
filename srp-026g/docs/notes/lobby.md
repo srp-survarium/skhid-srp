@@ -469,6 +469,17 @@ The list: `P2;L;<done>;<preset>;<active>;<blocks>;<minutes>` (`done` 0 the list,
 
 The lobby window's pick (`lobby-scenes.md`, exe patch 81): start **2 095 000 000 + id**, the lobby's id 1 to 4 (1 the Room, 2 the Basement, 3 the Bunker, 4 the Hangar; `lobby_pick.rs`, `LOBBY_PICK_BASE`): above the presets, inside an `int`. The movie sends it at a card's click, the exe the saved pick when srp has none (the sign-in: `0xA1`'s own byte 0). No `91` answers it: srp keeps the pick for the session (`Player::lobby_pick`, in memory) and sends it back in `0xA1`'s two srp bytes (2.x `0xA1`: after the squad, after the id alone for none: the receiver's own pick, its commander's, 0 none), every client whose `0xA1` changed again. A start past the four is no pick (not answered).
 
+#### 2.16.6 The shop's "Hide owned" box, on `3B` / 0x91: srp's own (contract H1, 2026-11-15)
+
+The box kept with the account (`shop-owned-mark.md`; `shop_filter.rs`, `SHOP_FILTER_FIRST`): above the lobby pick, inside an `int`.
+
+| start | request |
+|---|---|
+| 2 096 000 000 | the account's choice: one `91` at 2 096 000 000, its name `H1;<0 or 1>` (1 ticked; the movie takes anything but `H1;1` as unticked) |
+| 2 096 000 001 + choice | a click's choice (0 unticked, 1 ticked), kept with the account (`g26_extras.shop_owned`, schema 16); no answer |
+
+The movie asks at each lobby sign-in of another account (`set_account_name`), again every 2 s until answered, five times at most; a click before the answer wins (the answer is then ignored). No exe change.
+
 ### 2.17 0x94 account services (old 0x36 0F) — PROVEN 0x2714D0 (0.21d 0x19E358)
 `u8 n`, n × 10 bytes {`u8 type`, `u8 skipped`, `u32 a`, `u32 b` (skipped)}. Only type 0 is used: premium = true, hours = a → `root.set_premium_state` 0x227D80 (`st_less_then_hour`, `%d %s` hours/days). **Types 1..4 (faction loyalty bonuses → `set_faction_bonus`) are no longer read: the loyalty display is gone.** The 0.21d 8-entry stack overflow hazard is gone with it.
 

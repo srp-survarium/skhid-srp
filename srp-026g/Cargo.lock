@@ -525,6 +525,7 @@ dependencies = [
  "srp-validate",
  "survarium",
  "udp-transport",
+ "voice-abi",
  "vostok",
  "weapon-pickup",
  "world-frame",

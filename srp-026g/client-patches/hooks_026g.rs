@@ -4876,6 +4876,26 @@ pub extern "C" fn hook_texture_streaming_on_texture_memory(frame: &mut Frame) ->
     }
 }
 
+// ---- trap_stock_hit (patch 151) ----
+
+/// The named exits of trap_stock_hit::on_hit (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TrapStockHitOnHitExit { Defuse }
+/// The entry `trap_stock_hit_on_hit` (0x305540, booby_trap_core::hit with a hit type, its entry (mov eax,[ecx+194h]; then the set defuse_by_hit against the hit type, 0x30554C): ECX the trap, ESP the return address and the ten arguments; defuse is where a hit of the trap own type goes on (cmp byte [ecx+220h],0: ECX alone is read)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_trap_stock_hit_on_hit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `trap_stock_hit_on_hit` calls this, from the game's jump at 0x305540,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::trap_stock_hit::on_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- unplayed_match (patch 120) ----
 
 /// The entry `unplayed_match_on_connect` (0x21c07c, network_client::connect_to_match (0x21BEB0) once it connects (past its return for the link's own session, 0x21BED5; the disconnect and connected callbacks given): mov dword [ebx+1F1C64h],0, the handshake's phase back to 0; EBX the network client (patch 120)) calls this with the saved machine.

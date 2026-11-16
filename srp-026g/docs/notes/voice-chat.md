@@ -175,6 +175,9 @@ run on its bytes in Unicorn) unless marked.
 
 ## The rules (v1)
 
+Since 2026-11-16 there are two push-to-talk keys, and near or far is the talker's choice, not the
+distance's: "Two keys", below. The rest of this section is as it was designed and built before.
+
 - **Who hears whom.** Team-only, in a match, as in 0.69. Enemies never hear, near or far (until
   2026-11-15: since, anyone within 10 m hears the plain voice, opponents too; the radio stays the
   team's: "Opponents near, in every mode", below). No
@@ -241,19 +244,21 @@ run on its bytes in Unicorn) unless marked.
 
 ## The wire (voice port)
 
-Little-endian. Every datagram starts with `56 01 <type>`: the magic, the version, then the type.
+Little-endian. Every datagram starts with `56 02 <type>`: the magic, the version (2 since
+2026-11-16: an utterance has a channel; 1 had none), then the type. `ch` is the utterance's
+channel: 0 the 10 m voice, 1 the radio; another byte is malformed.
 **A receiver ignores a type it does not know.** That is the rule that lets later types
 (subtitles, translated audio) come without breaking older games.
 
 | type | dir | body | when |
 |---|---|---|---|
 | 01 HELLO | C->S | `u32 session, u8 flags, u32 muted` (bit 0: hears, i.e. volume > 0 and voice not disabled; bit n of muted: slot n muted; the mask may be left out) | on match connect, every 2 s (keeps NAT open, tells srp where to send), and at once on a change |
-| 02 START | C->S | `u32 session, u16 utt, u32 client_ms` | P down |
-| 03 AUDIO | C->S | `u32 session, u16 utt, u16 seq, u8 n, n x (u8 len, Opus frame)` | every 40 ms while held (n = 2) |
+| 02 START | C->S | `u32 session, u16 utt, u8 ch, u32 client_ms` | a key down |
+| 03 AUDIO | C->S | `u32 session, u16 utt, u8 ch, u16 seq, u8 n, n x (u8 len, Opus frame)` | every 40 ms while held (n = 2) |
 | 04 END | C->S | `u32 session, u16 utt, u16 frames` | P up; sent 3 times, 30 ms apart |
 | 81 WELCOME | S->C | `u8 slot` | answer to HELLO |
-| 82 START | S->C | `u8 speaker_slot, u16 utt, u32 server_ms` | relayed |
-| 83 AUDIO | S->C | `u8 speaker_slot, u16 utt, u16 seq, u8 n, frames` | relayed |
+| 82 START | S->C | `u8 speaker_slot, u16 utt, u8 ch, u32 server_ms` | relayed |
+| 83 AUDIO | S->C | `u8 speaker_slot, u16 utt, u8 ch, u16 seq, u8 n, frames` | relayed |
 | 84 END | S->C | `u8 speaker_slot, u16 utt, u8 reason` (0 released, 1 timeout, 2 too long) | relayed |
 | 85 TEXT | S->C | reserved: `u8 speaker_slot, u16 utt, u8 final, u8 lang[2], u8 len, utf8` | later: subtitles |
 | 86-8F | S->C | reserved: an AUDIO-like stream with a language | later: translated audio |
@@ -610,10 +615,145 @@ Where the build differs from or adds to the design above:
   voice as it connects, before its 0xD8) is too early, not malformed: ignored, neither counted
   nor logged; the DLL says HELLO every 250 ms until WELCOME (then every 2 s).
 
+## Two keys (the owner, 2026-11-16; built, not played)
+
+The owner: "make it so there are two voice buttons one for 10m one for radio", "radio is team
+only", "or in ffa for everyone", "10m is the one everyone can hear". Until then one key did both
+and the listener's distance chose: plain under 10 m, the radio from it.
+
+- **The keys.** Both are push-to-talk, hold to talk, a key or a mouse button, set in Controls:
+  - **Talk on radio** (`ptt`, P, the key there was): the speaker's team hears it through the
+    radio at any distance, a teammate beside the speaker too, alive or dead; in a free-for-all
+    everyone does. An opponent never hears it, however near.
+  - **Talk nearby** (`ptt_nearby`, O): the 10 m voice. Every living player within 10 m of a living
+    speaker hears it plain, in the world (the engine's pan, the gentle fall, cut at 10 m: "Plain in
+    the world", above), teammates and opponents alike. Nobody farther hears it, a teammate
+    neither. A dead player or a spectator has no 10 m voice: the key is let go at once, and it
+    hears nobody's.
+  - The key held first talks; the other pressed over it does nothing until the first is let go.
+- **What changed for a player.** P is as it was for the team beyond 10 m. Within 10 m P is now
+  the radio too (it was the plain voice, which opponents near heard as well): what the team is told
+  on P no opponent hears. To be heard by an opponent, or to talk without the radio's sound to
+  someone beside you, there is O.
+- **The second key** is the action table's entry 0xA74E10, `serialize_player_state` (37h, kinds
+  5, default O): a debug action whose console command does not exist. It becomes `ptt_nearby`,
+  kind 8 (the chat keys', as `ptt`: only the chat handler and patch 66 ask kind 8), its default
+  key kept. O is also the lobby's `options` (kind 2), as C is both `crouch_toggle`'s and the
+  lobby's `character`'s: no key of a match had it but the debug action. Its Controls row is the
+  43rd of patch 62's `controls`, in the game group (`st_ptt_nearby_action`, "Talk nearby");
+  `st_ptt_action` reads "Talk on radio". A `user.cfg` that binds `serialize_player_state` names
+  an action that is gone: the line is ignored, the default stays.
+- **The channel is the utterance's** (`voice_abi::Channel`, `Near` or `Radio`): the game tells
+  the DLL the key held (`sv_ptt`: 0 none, 1 the 10 m voice, 2 the radio), the DLL's START and
+  every AUDIO say it (so a lost START loses nothing), and an utterance keeps the channel it began
+  on: the DLL ends it when another key is held in its place, the relay sends its AUDIO by the
+  channel of its START whatever they say.
+- **The relay** sends a 10 m utterance to the whole match, as every utterance was sent since
+  2026-11-15, and a radio utterance only to the seats of the speaker's radio
+  (`registry::RadioChannel`: its team; in a free-for-all the match; `voice::Audience`). So the
+  radio is the team's on the server: no game of the other team is ever sent it, and the risk
+  accepted on 2026-11-15 (a modified game hearing the other team across the map) is now the 10 m
+  voice's only. The ROSTER is still the whole match (an opponent heard near can be muted).
+- **The game** tells the DLL how each place is heard on both channels in the one `sv_hear(place,
+  left, right, radio)` (`voice_abi::Heard`): its 10 m voice's gain in each ear (silent from 10 m,
+  or with either player not alive) and whether its radio is heard (a mate's). The DLL plays an
+  utterance by its own channel alone: the 10 m voice by the two gains, the radio at unity through
+  the filter, with its static and its squelch at both ends. `PLAIN_TO_M` is the one distance left;
+  `RADIO_FROM_M` and the state "both" are gone, and no utterance changes from plain to the radio
+  under way. `sv_talking` is the places heard talking (a place whose utterance is on a channel
+  not heard of it is not one), so the hud's list shows a mate on either key, an opponent on its
+  10 m voice while near, and the player's own name on either.
+- **Versions.** Voice ABI 6 (`sv_ptt`'s word, `sv_hear`'s meaning, `sv_talking`'s), wire version
+  2. The exe, the DLL and the server ship together; a game of the wire before is dropped by the
+  relay as another version and has no voice.
+- **Not done.** The hud's list does not say which key a speaker holds (the radio's sound does).
+  The Controls list shows "Talk nearby" at its end, after "Hold artifact", not under "Talk on
+  radio" (the rows the patches add come after the game's 40).
+
+## Steadier sound (the owner, 2026-11-16; built, not heard in a game)
+
+The owner, of the live game: "we need a way to stabilize the sound, some people sound good, some
+are barely recognizable". Nothing in the logs says which talker sounded how, so the DLL's chain was
+measured offline with a recorded voice (`private/local-clients-voice-test/talker.wav`) and what
+makes one talker worse than another was looked for. Four things were found and changed; the
+before and after of each can be heard in `private/renders/voice-steady/`.
+
+- **A quiet microphone stayed quiet** (what the owner had heard: of one player against another,
+  "it was fine close by", "at a distance with radio it was worse", "it wasn't as loud as when I
+  heard" the other). The automatic gain raised a microphone 30 dB at most (speexdsp's own
+  limit), so it held a voice at the common level only so far:
+
+  | the microphone, against a loud one | its voice after the gain, until now | now |
+  |---|---|---|
+  | the same to 30 dB quieter | the level (-24 dB of full scale) | the level |
+  | 40 dB quieter | 9 dB under it | 2 dB under |
+  | 50 dB quieter | 24 dB under | 12 dB under |
+
+  Such a talker is quieter than everyone beside the listener and poor through the radio, whose
+  static stays where it is (the words 23 dB over it at the level, 14 when 9 dB under). The gain
+  now goes to 45 dB (`AGC_MAX_GAIN`; past it speexdsp's own floor holds) and rises twice as
+  fast (`AGC_INCREMENT` 24 dB a second: a quiet microphone's first words of a match were 5 dB
+  under its level for seconds, now 2). "Microphone sensitivity" still moves a talker 6 dB
+  either way: two players at its ends are 12 dB apart by their own choice.
+- **The mix bent loud talkers.** A plain voice is played 3 times as decoded (`LOUDER` 1.5, `MIX`
+  2.0) and the sum went through a curve that bent every sample over half scale (tanh). The
+  automatic gain brings every microphone to one level at a given "Microphone sensitivity", but the
+  sensitivity moves that level 6 dB either way, so:
+
+  | the talker's sensitivity | samples bent | what the curve added, under the voice |
+  |---|---|---|
+  | default | 1.4 % | 30 dB |
+  | highest | 5.3 % | 18 dB |
+  | three talkers at once, highest | 15 % | 17 dB |
+
+  Whoever raised the sensitivity was crushed for everyone who heard them, and any two voices at
+  once more than one. Now there is a limiter that turns down (`receiver::Rider`): where a sample
+  would pass 0.9 of full scale the gain comes down at once, is held 20 ms and let back at 0.6
+  dB a frame. Each speaker's own part of the mix (its voice, its radio's static and squelch) has
+  one, and the whole mix one more (`receiver::Master`), which has work only when several talk at
+  once. So a loud speaker turns itself down and not the others (the review of 2026-11-16: with
+  the mix's one gain alone, a talker at the highest sensitivity took everyone else 3 dB down with
+  it on average, and a changed game's stream of clicks, under the ceiling a speaker's level is
+  held to, 10 dB). The same cases come out 38, 29 and 29 dB clean; the loudest talkers play 3 to 5 dB
+  quieter than the curve made them (turned down, not flattened), the default one 0.6 dB.
+- **The capture queue was 80 ms.** WinMM is given buffers of 20 ms to fill; with four of them a
+  microphone that hands its sound over in longer bursts (some Bluetooth and USB devices), or a
+  worker held up by a busy game, lost the rest of each burst: measured 2026-11-14 on such a source,
+  8.1 s of 10 came through ("Validation"). That talker reaches the others in pieces. The queue is
+  320 ms now (`CAPTURE_BUFFERS` 16), and the DLL's worker runs above the game's threads
+  (`THREAD_PRIORITY_HIGHEST`: a few ms of work each pass). A burst is then sent as it comes: up
+  to 8 AUDIO at once, within the relay's burst of 20 and the listeners' ring of 32 frames. What
+  it costs: sound that was lost is now late. The listeners' buffer never skips ahead, so after a
+  stall of the talker's worker the rest of that utterance is heard that much later (320 ms at
+  most; the next utterance starts afresh).
+- **A lost datagram was 40 ms of concealment.** The encoder now tells Opus to expect loss
+  (`EXPECTED_LOSS` 10 %), so a frame with a voice in it carries a coarser copy of the frame
+  before it (in-band FEC), and the rate went from 16 to 24 kbit/s to pay for it (measured on speech: 12.3 to 18.3
+  kbit/s). A frame that did not come is played from the next frame's copy when that came
+  (`Decoder::recover`). With two frames a datagram a lone lost datagram costs
+  one concealed frame instead of two; of the frames lost at random, 5 to 20 % of datagrams, about
+  four in ten are recovered. The copy in a datagram's second frame is of its own first and never
+  of use: half of what the copies cost (about 3 of the 6 kbit/s) buys nothing while two frames go
+  in a datagram. Frames stay SILK wide band (TOC 0x48) and within the 120 bytes the
+  relay takes (114 at most on full-scale noise): no change to the wire, the relay or the ABI, and a
+  game of before plays these frames as any other.
+- **Looked at and left.** Steady jitter up to 100 ms costs nothing (the buffer grows by the
+  underrun it takes); a 150 ms spike costs the two frames of its datagram. The playback queue
+  stays 80 ms (more is more delay for everyone). The radio does not crush a voice: at the
+  default sensitivity none of its samples reach the radio's clipper's bend, at the highest 2 %.
+- **Not known.** How a noisy or a narrow-band microphone (a Bluetooth headset in its call mode
+  gives 8 kHz) sounds through the noise suppression and the radio: that is the talker's device,
+  and nothing here measures it; a quiet microphone in a noisy room is raised with its room. And
+  whether the quiet player's microphone was quiet or its sensitivity low: the relay
+  could say per talker how much of an utterance came and how evenly (it sees every AUDIO's
+  number and each END's frame count); not built.
+
 ## Bandwidth
 
 - Talking: Opus 16 kbps, 2 frames of 20 ms per datagram (about 80 bytes of audio + 10 header +
-  28 IP/UDP), 25 datagrams/s, about **24 kbit/s up** for the talker.
+  28 IP/UDP), 25 datagrams/s, about **24 kbit/s up** for the talker. Since 2026-11-16 the encoder
+  runs at 24 kbps with each frame's copy of the frame before ("Steadier sound"): about 120 bytes
+  of audio a datagram, **32 kbit/s** up, and a third more of every figure below.
 - Each teammate gets **24 kbit/s per teammate talking**. srp sends the speaker's stream to each
   of up to 9 teammates (10v10): about 216 kbit/s per talker. Two talking at once in each team:
   under 1 Mbit/s for a match. Since 2026-11-15 (the whole match sent) each game gets every
@@ -841,19 +981,31 @@ As built:
   gains it is given (to the right: nothing in the left ear; half: half), the switch to the radio
   ramped over a frame with no step between two samples, the plain voice and the radio both heard
   when told so, and a radio voice's words within 2 dB of a plain one's (loudness summed over
-  critical bands). `voice-abi`'s own test: a place's state through its one call.
+  critical bands). `voice-abi`'s own test: a place's state through its one call. Since the two
+  keys (2026-11-16) in place of the switch and of both heard: an utterance played by its own
+  channel alone (the 10 m voice from its side, the radio centred; an opponent's radio and a far
+  mate's 10 m voice silent, without static or squelch, and not in the talking word), an utterance
+  ended when the other key is held in its place. Since "Steadier sound": a loud speaker turning
+  itself down and not another (sharp pulses beside a quiet tone), a mix past its ceiling
+  turned down and not bent (over any 2 ms the sum times one gain, to 30 dB), the gain back
+  within a second, a mix under the ceiling played as summed; a frame that did not come played
+  from the next one's copy (a voice's first frame after silence, which concealment cannot make),
+  and only concealed without the copy.
 - The match server's headless loopback test runs its actual UDP relay with two Rust client cores.
   Each sends a different synthetic tone through Opus, the wire, routing and jitter playback.
   The received audio's energy and frequency must match the other client. No microphone or fake
-  codec participates. Relay tests also cover the routing (the whole match since 2026-11-15; another match never), mutes, authentication, rate limits,
+  codec participates. Relay tests also cover the routing (the 10 m voice to the whole match, the
+  radio to the speaker's team and in a free-for-all to the match, an utterance kept on the channel
+  it began on, a lost START; another match never), mutes, authentication, rate limits,
   released seats, immediate reseats, stale utterances and process restarts in the same slot
   while the listener misses the new START packet.
 - `scripts/tab-row-menu/check.sh` (Ruffle) runs the Tab menu with the voice entries: offered,
   muted, unmuted, not done, none without the exe's answer.
-- `cargo test` in `client-patches/rust/`: the saved mutes' text (malformed records), plain under
-  10 m (9.9 m plain, 10 m and 50 m the radio), the radio for the dead and for a broken place, the
+- `cargo test` in `client-patches/rust/`: the saved mutes' text (malformed records), the 10 m
+  voice under 10 m and alive (silent at 10 m, for the dead and for a broken place), a mate's
+  radio anywhere and an opponent's never, the
   pan asked of the speaker's offset and its gains raised and lowered by the distance (1 to 1 m,
-  `AT_9_M` at 9 m), the two distances apart (both between them, or neither).
+  `AT_9_M` at 9 m).
 - `check_voice_pan_026g.py` (Unicorn, `tools/check voice-pan`): the original exe's
   `calculate_3d_pan` called as the patch calls it, on a scene whose listener the engine's own
   `set_listener_properties` set and with the table its own constructor filled: the law (above),
@@ -864,7 +1016,8 @@ As built:
   engine functions' thunks to the re-kit's rows. The old `check_voice_026g.py` (Unicorn over the 2026-10-25 hooks) went with
   those hooks; the lohooks' handlers are not run in Unicorn.
 - The Windows/Wine DLL smoke test covers loading, the ABI, relay handshake, mute/volume updates,
-  and stopping/restarting with PTT held. It uses a fake relay; the Rust integration above uses
+  a radio utterance listed only while its slot's radio is heard, each key's START saying its
+  channel, and stopping/restarting with PTT held. It uses a fake relay; the Rust integration above uses
   the real relay.
 - The microphone test: the DLL's `mic_test` tests run the machine with a made-up microphone and
   clock, no device (10 s recorded through the clock's wrap and played back once, the seconds

@@ -2817,6 +2817,11 @@ package
          {
             RoomsWindow.me.signedIn(value);
          }
+         // The shop's "Hide owned" box: the account's own, asked for.
+         if(this.inventory_list != null)
+         {
+            this.inventory_list.signedIn(value);
+         }
       }
       
       public function set_account_money(value:Object) : void

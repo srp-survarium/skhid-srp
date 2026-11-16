@@ -6,9 +6,13 @@ preprocessor, as 0.69), per-speaker jitter buffers, mutes and the retail radio e
 the options' microphone test (`src/mic_test.rs`: 10 s recorded through a transmission's path
 and played back, in a match or with none; `docs/notes/voice-chat.md`, "Microphone test"), and the
 options' Microphone list (`src/microphone.rs`: WinMM's capture devices by their endpoint IDs, named
-whole through MMDevice; "Microphone" in the same note). A plain
-voice's gains in the two ears are the game's: patch 66 asks its sound engine for each speaker's
-and tells them (`sv_hear`); the DLL only mixes by them.
+whole through MMDevice; "Microphone" in the same note). An utterance is on one of two channels,
+by the push-to-talk key held (`sv_ptt`; "Two keys" in the same note): the 10 m voice or the
+radio. The 10 m voice's gains in the two ears are the game's: patch 66 asks its sound engine for
+each speaker's and tells them, with whether the speaker's radio is heard (`sv_hear`); the DLL
+only plays each utterance by its channel. The mix is held under full scale by a limiter that
+turns it down (`receiver::Master`), and a frame that did not come is played from the next
+frame's copy of it (Opus' in-band FEC; "Steadier sound" in the same note).
 The arena patch loads its optional interface from `crates/voice-abi`; missing or
 incompatible DLLs leave voice disabled.
 

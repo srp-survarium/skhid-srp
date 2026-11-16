@@ -3567,8 +3567,10 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
   (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied.
 - **Every frame** (`game_world.after_move`): the options, the muted teammates and how each
-  teammate is heard, a place's whole state in one `sv_hear(place, left, right, radio)`, to the DLL on
-  a change. From 10 m (`RADIO_FROM_M`), or with either of the two not alive: the radio. Nearer than
+  other player is heard on its two channels (voice-chat.md, "Two keys"), a place's whole state in
+  one `sv_hear(place, left, right, radio)`, to the DLL on
+  a change. Its radio: heard when it is a mate (its team; in a free-for-all anyone), at any
+  distance, alive or dead. Its 10 m voice, both alive and nearer than
   10 m (`PLAIN_TO_M`): plain, in the world: the engine's own pan of a point sound at the speaker's
   place (`sound_scene::calculate_3d_pan` 0x57D70 through `engine_sound_pan`, with the game world's
   sound scene (+94h: its listener), the sound world's panning table (+0CCh) and a zeroed proxy of
@@ -3584,16 +3586,20 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   hud's `root.srp_voice_talking(name, side, ...)` on a change, each speaker's side `"mate"` or
   `"opponent"` (0.69's list: those heard, newest on top, fading 1 s after 0.5 s, an opponent's
   speaker pale red; and the player's own while its microphone is sent).
-- **The key** (`tab_cursor.key`, before patch 86's): the binder's chat key (kind 8, as
-  chat_handler::on_keyboard_action asks at 0x208887, the binder [game+5344h]) `ptt` (47h, P) down
-  and up. **A mouse button** (`game_world.mouse_key`, 0x25CF70: `mov edi,eax / mov eax,[edi] /
+- **The keys** (`tab_cursor.key`, before patch 86's): the binder's chat keys (kind 8, as
+  chat_handler::on_keyboard_action asks at 0x208887, the binder [game+5344h]) `ptt` (47h, P), the
+  radio's push-to-talk, and `ptt_nearby` (37h, O: the action table's entry 0xA74E10,
+  `serialize_player_state`, a debug action of kinds 5 with no console command, renamed and made
+  kind 8 by patch_026g.py's `VOICE_ACTION`, its default key kept), the 10 m voice's, down
+  and up; the one held first talks, and the 10 m voice's is let go while the player is not alive. **A mouse button** (`game_world.mouse_key`, 0x25CF70: `mov edi,eax / mov eax,[edi] /
   mov edx,[eax]` after on_mouse_key_action's ask of the keyboard, ESI the game world's input
   handler, the keyboard's: its cursor flag +2E0h is the hud's +2DCh; ESP+14h the key, 151h + the
   button, +18h the kind, 0 press, 1 release, 2 held): the same ask of the binder with the button's
   key. The function's first ten bytes are patch 31's jump (WARMUP_KEYS_HOOK), which takes a button
   held from a shown cursor (its held states and release) and comes back at 0x25CF6A otherwise; such
   a release is seen by the poll above. Patch 62's controls have `ptt` in the game group with a key
-  that can be set (the game's row: the chat group, type 0, its key button disabled); muting is the
+  that can be set (the game's row: the chat group, type 0, its key button disabled) and a 43rd
+  row for `ptt_nearby`; muting is the
   Tab menu's.
 - **The Tab list's player menu** (`hud.callback`, after patch 86's): `srp_voice_menu(place)` is
   answered `root.srp_voice_menu(place, offered, muted)` (another player of either team whose voice

@@ -8296,6 +8296,48 @@ texture_streaming_on_texture_memory_replay:
     db 0x53, 0x56, 0x8b, 0xb0, 0xa4, 0x80, 0x08, 0x00
     jmp 0x3be288
 
+; 0x305540 booby_trap_core::hit with a hit type, its entry (mov eax,[ecx+194h]; then the set defuse_by_hit against the hit type, 0x30554C): ECX the trap, ESP the return address and the ten arguments; defuse is where a hit of the trap own type goes on (cmp byte [ecx+220h],0: ECX alone is read): lohook -> trap_stock_hit_on_hit
+global trap_stock_hit_on_hit
+extern hook_trap_stock_hit_on_hit
+trap_stock_hit_on_hit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_trap_stock_hit_on_hit
+    mov edx, trap_stock_hit_on_hit_replay
+    cmp eax, 0
+    je trap_stock_hit_on_hit_go
+    mov edx, 0x305546
+    cmp eax, 1
+    je trap_stock_hit_on_hit_go
+    mov edx, 0x305552
+    cmp eax, 2
+    je trap_stock_hit_on_hit_go
+    ud2
+trap_stock_hit_on_hit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+trap_stock_hit_on_hit_replay:
+    db 0x8b, 0x81, 0x94, 0x01, 0x00, 0x00
+    jmp 0x305546
+
 ; 0x21c07c network_client::connect_to_match (0x21BEB0) once it connects (past its return for the link's own session, 0x21BED5; the disconnect and connected callbacks given): mov dword [ebx+1F1C64h],0, the handshake's phase back to 0; EBX the network client (patch 120): lohook -> unplayed_match_on_connect
 global unplayed_match_on_connect
 extern hook_unplayed_match_on_connect

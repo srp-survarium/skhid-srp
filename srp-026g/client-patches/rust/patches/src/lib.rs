@@ -81,6 +81,7 @@ pub mod artefact_skills;
 pub mod artefact_keeper;
 
 pub mod hand_kill;
+pub mod trap_stock_hit;
 pub mod forest_glow;
 
 pub mod animation_id_log;

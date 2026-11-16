@@ -62,7 +62,7 @@ static int expect(unsigned char type, unsigned char *buf, int cap, DWORD ms)
     while ((int)(until - GetTickCount()) > 0) {
         int len = sizeof client;
         int got = recvfrom(server, (char *)buf, cap, 0, (struct sockaddr *)&client, &len);
-        if (got >= 3 && buf[0] == 0x56 && buf[1] == 1 && buf[2] == type)
+        if (got >= 3 && buf[0] == 0x56 && buf[1] == 2 && buf[2] == type)
             return got;
     }
     return -1;
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
           "every export resolves");
     if (failures)
         return 1;
-    CHECK(sv_version() == 5, "sv_version is 5");
+    CHECK(sv_version() == 6, "sv_version is 6");
     sv_stop(); /* not started: nothing */
     CHECK(sv_talking() == 0 && sv_slot() == -1, "idle state");
 
@@ -224,7 +224,7 @@ int main(int argc, char **argv)
           "HELLO: session, hears, no mutes");
 
     {
-        unsigned char welcome[] = {0x56, 1, 0x81, 5};
+        unsigned char welcome[] = {0x56, 2, 0x81, 5};
         int i;
         reply(welcome, sizeof welcome);
         for (i = 0; i < 50 && sv_slot() != 5; i++)
@@ -233,7 +233,7 @@ int main(int argc, char **argv)
     }
 
     {
-        unsigned char roster[] = {0x56, 1, 0x90, 2, 2, 0x11, 0, 0, 0, 5, 0x22, 0, 0, 0};
+        unsigned char roster[] = {0x56, 2, 0x90, 2, 2, 0x11, 0, 0, 0, 5, 0x22, 0, 0, 0};
         reply(roster, sizeof roster);
         for (int i = 0; i < 50 && sv_voice_id(2) != 0x11; i++) Sleep(10);
         CHECK(sv_voice_id(2) == 0x11 && sv_voice_id(5) == 0x22, "ROSTER: stable account ids");
@@ -243,11 +243,12 @@ int main(int argc, char **argv)
     got = expect(0x01, buf, sizeof buf, 300);
     CHECK(got == 12 && buf[8] == 0x08, "a mute sends a HELLO at once, the mask in it");
 
-    /* A teammate (slot 2) talks: START and an AUDIO of two (garbage) frames. */
+    /* A teammate (slot 2) talks on its 10 m voice (the channel byte after the
+     * utt: 0): START and an AUDIO of two (garbage) frames. */
     {
-        unsigned char start[] = {0x56, 1, 0x82, 2, 7, 0, 0, 0, 0, 0};
-        unsigned char audio[] = {0x56, 1, 0x83, 2, 7, 0, 0, 0, 2, 3, 0x08, 1, 2, 3, 0x08, 1, 2};
-        unsigned char muted[] = {0x56, 1, 0x82, 3, 9, 0, 0, 0, 0, 0};
+        unsigned char start[] = {0x56, 2, 0x82, 2, 7, 0, 0, 0, 0, 0, 0};
+        unsigned char audio[] = {0x56, 2, 0x83, 2, 7, 0, 0, 0, 0, 2, 3, 0x08, 1, 2, 3, 0x08, 1, 2};
+        unsigned char muted[] = {0x56, 2, 0x82, 3, 9, 0, 0, 0, 0, 0, 0};
         int i;
         reply(muted, sizeof muted);
         reply(start, sizeof start);
@@ -261,8 +262,8 @@ int main(int argc, char **argv)
     /* A new account reuses slot 2: its low first utterance id must not be
      * rejected by the old account's closed/open utterance history. */
     {
-        unsigned char roster[] = {0x56, 1, 0x90, 2, 2, 0x12, 0, 0, 0, 5, 0x22, 0, 0, 0};
-        unsigned char start[] = {0x56, 1, 0x82, 2, 1, 0, 0, 0, 0, 0};
+        unsigned char roster[] = {0x56, 2, 0x90, 2, 2, 0x12, 0, 0, 0, 5, 0x22, 0, 0, 0};
+        unsigned char start[] = {0x56, 2, 0x82, 2, 1, 0, 1, 0, 0, 0, 0};   /* on the radio */
         reply(roster, sizeof roster);
         for (int i = 0; i < 50 && (sv_voice_id(2) != 0x12 || (sv_talking() & (1u << 2))); i++) Sleep(10);
         CHECK(sv_voice_id(2) == 0x12 && !(sv_talking() & (1u << 2)), "changed roster clears old speaker");
@@ -271,27 +272,37 @@ int main(int argc, char **argv)
         CHECK(sv_talking() & (1u << 2), "late joiner can start with a lower utterance id");
     }
 
-    sv_hear(2, 0.0f, 0.0f, 1);   /* the radio */
-    sv_hear(3, 0.9f, 0.2f, 0);   /* plain, to the left */
-    sv_hear(4, 0.3f, 0.3f, 1);   /* both */
+    /* Slot 2 talks on the radio: heard while its radio is, not by its 10 m voice. */
+    sv_hear(2, 0.9f, 0.2f, 0);   /* its 10 m voice only, to the left (an opponent near) */
+    for (int i = 0; i < 50 && (sv_talking() & (1u << 2)); i++) Sleep(10);
+    CHECK(!(sv_talking() & (1u << 2)), "a radio utterance of a slot whose radio is not heard is not listed");
+    sv_hear(2, 0.0f, 0.0f, 1);   /* its radio only (a mate far away) */
+    for (int i = 0; i < 50 && !(sv_talking() & (1u << 2)); i++) Sleep(10);
+    CHECK(sv_talking() & (1u << 2), "and is while its radio is heard");
+    sv_hear(4, 0.3f, 0.3f, 1);   /* both channels (a mate near) */
     sv_hear(99, 1.0f, 1.0f, 0);  /* past the 20: nothing */
-    sv_ptt(1);
-    Sleep(100);
-    got = expect(0x02, buf, sizeof buf, 300);
-    CHECK(((sv_talking() & (1u << 5)) != 0) == (got > 0),
-          "own talking bit means capture actually started");
-    printf("note: START %s (it needs a microphone)\n", got > 0 ? "sent" : "not sent");
-    sv_ptt(0);
-    if (got > 0) {
-        got = expect(0x04, buf, sizeof buf, 300);
-        CHECK(got == 11, "END after the release");
+    /* The two keys: 2 the radio's, 1 the 10 m voice's; the START says which. */
+    for (int key = 2; key >= 1; key--) {
+        sv_ptt(key);
+        Sleep(100);
+        got = expect(0x02, buf, sizeof buf, 300);
+        CHECK(((sv_talking() & (1u << 5)) != 0) == (got > 0),
+              "own talking bit means capture actually started");
+        printf("note: START %s (it needs a microphone)\n", got > 0 ? "sent" : "not sent");
+        if (got > 0)
+            CHECK(got == 14 && buf[9] == key - 1, "START on the held key's channel");
+        sv_ptt(0);
+        if (got > 0) {
+            got = expect(0x04, buf, sizeof buf, 300);
+            CHECK(got == 11, "END after the release");
+        }
     }
 
     /* "Disable voice chat": hears 0 at once, nothing talking, PTT silent. */
     sv_settings(0.0f, 0, 0.5f);
     got = expect(0x01, buf, sizeof buf, 300);
     CHECK(got == 12 && buf[7] == 0, "disabled: a HELLO at once, hears 0");
-    sv_ptt(1);
+    sv_ptt(2);
     Sleep(100);
     CHECK(sv_talking() == 0, "disabled: nothing talking, not even oneself");
     CHECK(expect(0x02, buf, sizeof buf, 200) < 0, "disabled: push-to-talk sends no START");
@@ -302,7 +313,7 @@ int main(int argc, char **argv)
 
     /* Push-to-talk held when the match ends, its release never given: the
      * next session starts released (no microphone, no START). */
-    sv_ptt(1);
+    sv_ptt(2);
     Sleep(50);
     sv_stop();
     CHECK(sv_slot() == -1 && sv_talking() == 0, "stopped");
@@ -311,7 +322,7 @@ int main(int argc, char **argv)
     got = expect(0x01, buf, sizeof buf, 1000);
     CHECK(got == 12 && buf[3] == 0x02, "HELLO of the new session");
     {
-        unsigned char welcome[] = {0x56, 1, 0x81, 5};
+        unsigned char welcome[] = {0x56, 2, 0x81, 5};
         reply(welcome, sizeof welcome);
     }
     Sleep(200);
@@ -330,7 +341,7 @@ int main(int argc, char **argv)
             ;
         CHECK(expect(0x02, buf, sizeof buf, 100) < 0 && expect(0x03, buf, sizeof buf, 100) < 0,
               "in a match the test sends no START and no AUDIO");
-        sv_ptt(1);
+        sv_ptt(2);
         CHECK(test_within(sv_test_state, 1, 1000) == TEST_IDLE, "push-to-talk stops the test");
         CHECK(expect(0x02, buf, sizeof buf, 500) > 0, "and transmits as usual: START");
         sv_test_press(1.0f, 0.5f);
