@@ -3556,7 +3556,9 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
 
 - **The variables** (`configs.start`, before user.cfg): the sound tab's stock controls are bound by
   name to `s_chat_volume`, `s_use_microphone`, `s_mic_sens` (0x262DE8..0x262EC9) and nothing
-  registers them; `ConsoleFloat` (0..100, the float slider's steps of 1) and `ConsoleBool` do, with
+  registers them; `ConsoleFloat` (0..100, the float slider's steps of 1) and `ConsoleBool` do the
+  first two (`s_mic_sens` too until 2026-11-16: its slider is hidden since, and it names no
+  variable again, as the stock game's `s_ptt_button`), with
   `g_hide_spam` (the gameplay tab's dead option 5, "Disable voice chat") and the `ConsoleString`
   `srp_voice_mutes` (each muted voice id, 8 hex digits and `|`: parsed once a match, a malformed
   record left out and logged).
@@ -3610,8 +3612,9 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   the DLL records 10 s and plays them back, in a match or not). `options.callback`
   (game_options::scaleform_callback 0x1FF5D0, after patches 79, 83 and 112): the Settings' sound
   tab asks `srp_mic_test`, answered `root.srp_mic_test(text)` (the button's text of the DLL's
-  state, the dictionary's `st_srp_mic_test*` with the seconds left); with `<volume> <sensitivity>`
-  (the two voice sliders' steps as they stand) it is a press, `sv_test_press`, with `stop` (the
+  state, the dictionary's `st_srp_mic_test*` with the seconds left); with `<volume>`
+  (the "Voice chat" slider's steps as it stands; the sensitivity went with its slider, 2026-11-16)
+  it is a press, `sv_test_press`, with `stop` (the
   Settings window closed) `sv_test_stop`; the DLL is loaded here when no match loaded it; at the
   game's own `options_tab_changed` (left to it) `sv_test_stop`. `game.tick` (0x1EC8EC, EBX the game; after the music, the packets and the two
   reports): while the main menu is shown (game_options, game+57F4h: +44h shown, +0Ch its movie's

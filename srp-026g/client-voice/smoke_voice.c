@@ -26,13 +26,13 @@ typedef int(__cdecl *version_fn)(void);
 typedef int(__cdecl *start_fn)(const char *, unsigned, unsigned);
 typedef void(__cdecl *void_fn)(void);
 typedef void(__cdecl *int_fn)(int);
-typedef void(__cdecl *settings_fn)(float, int, float);
+typedef void(__cdecl *settings_fn)(float, int);
 typedef void(__cdecl *mask_fn)(unsigned);
 typedef void(__cdecl *hear_fn)(int, float, float, int);
 typedef unsigned(__cdecl *talking_fn)(void);
 typedef int(__cdecl *slot_fn)(void);
 typedef unsigned(__cdecl *voice_id_fn)(int);
-typedef void(__cdecl *press_fn)(float, float);
+typedef void(__cdecl *press_fn)(float);
 /* voice-abi's Microphone: an endpoint ID and a name (UTF-8), each NUL-terminated in its room. */
 struct microphone {
     char id[128];
@@ -95,7 +95,7 @@ static void whole_test(press_fn sv_test_press, talking_fn sv_test_state)
 {
     DWORD from = GetTickCount();
     unsigned last = TEST_IDLE, recorded = 0, played = 0, changes = 0;
-    sv_test_press(1.0f, 0.5f);
+    sv_test_press(1.0f);
     while (GetTickCount() - from < 25000) {
         unsigned state = sv_test_state();
         if (state != last) {
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
           "every export resolves");
     if (failures)
         return 1;
-    CHECK(sv_version() == 6, "sv_version is 6");
+    CHECK(sv_version() == 7, "sv_version is 7");
     sv_stop(); /* not started: nothing */
     CHECK(sv_talking() == 0 && sv_slot() == -1, "idle state");
 
@@ -177,24 +177,24 @@ int main(int argc, char **argv)
      * which leaves when the test is over. */
     CHECK(sv_test_state() == TEST_IDLE, "the microphone test is idle");
     sv_test_stop(); /* none runs: nothing */
-    sv_test_press(1.0f, 0.5f);
+    sv_test_press(1.0f);
     test = test_within(sv_test_state, 0, 3000);
     printf("note: the microphone test %s\n",
            (test & 0xFF) == TEST_RECORDING ? "records" : (test & 0xFF) == TEST_NO_MICROPHONE ? "finds no microphone"
            : (test & 0xFF) == TEST_NO_PLAYBACK ? "finds no playback device" : "does not start");
     if ((test & 0xFF) == TEST_RECORDING) {
         CHECK(test == (TEST_RECORDING | 10u << 8), "a press with no match records: 10 s left");
-        sv_test_press(1.0f, 0.5f);
+        sv_test_press(1.0f);
         CHECK(test_within(sv_test_state, 1, 1000) == TEST_IDLE, "a second press stops it");
         Sleep(300); /* its worker has left */
-        sv_test_press(0.5f, 1.0f);
+        sv_test_press(0.5f);
         CHECK((test_within(sv_test_state, 0, 3000) & 0xFF) == TEST_RECORDING, "the next press is a new test");
         sv_test_stop();
         CHECK(test_within(sv_test_state, 1, 1000) == TEST_IDLE, "sv_test_stop stops it");
     } else {
         CHECK(test == TEST_NO_MICROPHONE || test == TEST_NO_PLAYBACK, "without a device the test says which is missing");
         CHECK(test_within(sv_test_state, 1, 4000) == TEST_IDLE, "and is idle again after a moment");
-        sv_test_press(1.0f, 0.5f); /* the worker of the first has left: another */
+        sv_test_press(1.0f); /* the worker of the first has left: another */
         CHECK(test_within(sv_test_state, 0, 3000) == test, "the next press says so again");
         sv_test_stop();
         CHECK(test_within(sv_test_state, 1, 1000) == TEST_IDLE, "sv_test_stop takes the notice away");
@@ -202,7 +202,7 @@ int main(int argc, char **argv)
     if (argc > 2 && !strcmp(argv[2], "full"))
         whole_test(sv_test_press, sv_test_state);
     /* A test with no match, running as a match starts: ended by the start. */
-    sv_test_press(1.0f, 0.5f);
+    sv_test_press(1.0f);
     test_within(sv_test_state, 0, 3000);
 
     WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -299,7 +299,7 @@ int main(int argc, char **argv)
     }
 
     /* "Disable voice chat": hears 0 at once, nothing talking, PTT silent. */
-    sv_settings(0.0f, 0, 0.5f);
+    sv_settings(0.0f, 0);
     got = expect(0x01, buf, sizeof buf, 300);
     CHECK(got == 12 && buf[7] == 0, "disabled: a HELLO at once, hears 0");
     sv_ptt(2);
@@ -307,7 +307,7 @@ int main(int argc, char **argv)
     CHECK(sv_talking() == 0, "disabled: nothing talking, not even oneself");
     CHECK(expect(0x02, buf, sizeof buf, 200) < 0, "disabled: push-to-talk sends no START");
     sv_ptt(0);
-    sv_settings(1.0f, 1, 0.5f);
+    sv_settings(1.0f, 1);
     got = expect(0x01, buf, sizeof buf, 300);
     CHECK(got == 12 && buf[7] == 1, "enabled again: a HELLO at once, hears 1");
 
@@ -333,7 +333,7 @@ int main(int argc, char **argv)
     sv_choose_microphone(listed ? microphones[0].id : NULL);
     /* The microphone test in a match, by the match's worker: talking wins,
      * and the match's end stops it. Nothing of it goes to the relay. */
-    sv_test_press(1.0f, 0.5f);
+    sv_test_press(1.0f);
     test = test_within(sv_test_state, 0, 3000);
     if ((test & 0xFF) == TEST_RECORDING) {
         Sleep(300);
@@ -344,12 +344,12 @@ int main(int argc, char **argv)
         sv_ptt(2);
         CHECK(test_within(sv_test_state, 1, 1000) == TEST_IDLE, "push-to-talk stops the test");
         CHECK(expect(0x02, buf, sizeof buf, 500) > 0, "and transmits as usual: START");
-        sv_test_press(1.0f, 0.5f);
+        sv_test_press(1.0f);
         Sleep(200);
         CHECK(sv_test_state() == TEST_IDLE, "held, push-to-talk keeps the test from starting");
         sv_ptt(0);
         Sleep(100);
-        sv_test_press(1.0f, 0.5f);
+        sv_test_press(1.0f);
         CHECK((test_within(sv_test_state, 0, 3000) & 0xFF) == TEST_RECORDING, "released, the test starts again");
     } else {
         CHECK(test == TEST_NO_MICROPHONE || test == TEST_NO_PLAYBACK, "in a match too the test says which device is missing");

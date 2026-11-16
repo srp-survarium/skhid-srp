@@ -1,6 +1,6 @@
 //! The only unsafe portable boundary: owned Opus and speexdsp objects,
 //! fixed-size PCM frames.
-use crate::{FRAME, RATE, radio::unit};
+use crate::{FRAME, RATE};
 use std::{
     ffi::{c_int, c_void},
     ptr::NonNull,
@@ -44,7 +44,12 @@ const SET_AGC_LEVEL: c_int = 6;
 const SET_AGC_INCREMENT: c_int = 26;
 const SET_AGC_MAX_GAIN: c_int = 30;
 /// The loudness automatic gain aims at, of speexdsp's 1..32768: 0.69's
-/// `voice_chat_preprocess_gain` default (speexdsp's own is 8000).
+/// `voice_chat_preprocess_gain` default (speexdsp's own is 8000). The
+/// options' "Microphone sensitivity" moved it 6 dB either way until
+/// 2026-11-16; since every listener's game levels each speaker itself
+/// (`receiver::Leveller`) that moved nothing anyone heard, and the option
+/// went (the owner: "if you are sure sensitivity option now doesn't matter,
+/// remove it").
 pub const AGC_LEVEL: f32 = 12_000.;
 /// The most the automatic gain raises a microphone, dB (speexdsp's own: 30).
 /// With 30 a voice was held at its level only down to 30 dB under a loud
@@ -59,18 +64,12 @@ pub const AGC_MAX_GAIN: i32 = 45;
 /// microphone's first words of a match were 5 dB under its level for
 /// seconds; twice as fast they are 2.
 pub const AGC_INCREMENT: i32 = 24;
-/// The game's "Microphone sensitivity" (0..1) moves the aim by up to 6 dB
-/// either way: 0.5 is 0.69's level.
-pub fn agc_level(sensitivity: f32) -> f32 {
-    AGC_LEVEL * 2f32.powf((unit(sensitivity) - 0.5) * 2.)
-}
 /// The microphone's processing before Opus, as 0.69's voice_recorder:
 /// speexdsp's noise suppression and automatic gain, which brings a quiet
 /// microphone up and a loud one down to the same loudness. One per session,
 /// so the gain it has learnt carries from one push-to-talk to the next.
 pub struct Preprocessor {
     state: NonNull<c_void>,
-    level: f32,
 }
 impl Preprocessor {
     pub fn new() -> Result<Self, String> {
@@ -78,7 +77,6 @@ impl Preprocessor {
         let ptr = unsafe { speex_preprocess_state_init(FRAME as c_int, RATE as c_int) };
         let mut pre = Self {
             state: NonNull::new(ptr).ok_or_else(|| "speexdsp preprocessor".to_owned())?,
-            level: AGC_LEVEL,
         };
         for request in [SET_DENOISE, SET_AGC] {
             let mut on: i32 = 1;
@@ -99,13 +97,8 @@ impl Preprocessor {
         }
         Ok(())
     }
-    /// Process one captured frame in place, aiming at the level of the
-    /// game's sensitivity.
-    pub fn run(&mut self, pcm: &mut [i16; FRAME], sensitivity: f32) {
-        let mut level = agc_level(sensitivity);
-        if level != self.level && self.ctl(SET_AGC_LEVEL, (&raw mut level).cast()).is_ok() {
-            self.level = level;
-        }
+    /// Process one captured frame in place.
+    pub fn run(&mut self, pcm: &mut [i16; FRAME]) {
         // The state was made for FRAME samples; the frame is exactly that.
         unsafe { speex_preprocess_run(self.state.as_ptr(), pcm.as_mut_ptr()) };
     }

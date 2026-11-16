@@ -30,8 +30,8 @@
 //! - the options' microphone test (the owner, 2026-11-14; the DLL's, in a
 //!   match or not: voice-chat.md, "Microphone test"): the Settings' sound tab
 //!   asks `srp_mic_test` (`options.callback`), answered `root.srp_mic_test(
-//!   text)`, its button's text now, and sends `srp_mic_test("<volume>
-//!   <sensitivity>")`, a press with the two sliders as they stand, or
+//!   text)`, its button's text now, and sends `srp_mic_test("<volume>")`,
+//!   a press with the "Voice chat" slider as it stands, or
 //!   `srp_mic_test("stop")` as the Settings window closes; every frame of the
 //!   game (`game.tick`) the button is told its text again when the DLL's
 //!   state of the test, or its second, is no longer the one shown; the test
@@ -745,7 +745,7 @@ fn microphone_use_call(call: &OptionsCall<'_>, thread: &Thread, dll: Dll) {
 /// ([`microphone_use_call`]; with no DLL loaded nothing to tell, the list
 /// was never shown). `srp_mic_test`: the sound tab
 /// shown asks the button's text (answered at once; with no DLL not at all,
-/// and the button stays away); with `<volume> <sensitivity>` it is a press,
+/// and the button stays away); with `<volume>` it is a press,
 /// which the DLL takes (it starts or stops its test: `on_tick` tells the
 /// button); with `stop` the Settings window closed. `options_tab_changed`
 /// (the game's own, left to it): the button is not seen on another tab, so a
@@ -776,9 +776,9 @@ pub fn on_options_call(ctx: &mut Context<'_>) -> Flow<VoiceOnOptionsCallExit> {
     }
     let Some(dll) = dll(thread) else { return Flow::Exit(VoiceOnOptionsCallExit::Done) };
     match call.string_argument(0).map(TestAsk::parse) {
-        Some(Some(TestAsk::Press(sliders))) => dll.test_press(sliders),
+        Some(Some(TestAsk::Press(volume))) => dll.test_press(volume),
         Some(Some(TestAsk::Stop)) => dll.test_stop(),
-        Some(None) => log::line(&[Text("voice: srp_mic_test with neither the two sliders' steps nor stop")]),
+        Some(None) => log::line(&[Text("voice: srp_mic_test with neither the volume slider's steps nor stop")]),
         None => {
             let test = dll.test();
             if call.menu().is_some_and(|menu| show_test(&menu, test)) {

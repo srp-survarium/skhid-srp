@@ -733,6 +733,19 @@ before and after of each can be heard in `private/renders/voice-steady/`.
   speaker's frame is held to (-12 dB) comes after it, as before: whatever the leveller does, a
   changed game is no louder than that; a held frame is no longer a sign of one, though (a
   speaker raised and then louder at once has a frame or two held).
+- **"Microphone sensitivity" is gone** (the owner, the same day, told the above: "if you are sure
+  sensitivity option now doesn't matter, remove it"). The slider moved the level the talker's own
+  gain aims at 6 dB either way, which every listener's leveller now undoes; all it could still do
+  was drive the talker's own gain nearer to clipping. So:
+  - the gain aims at 0.69's level always (`AGC_LEVEL`); `sv_settings(volume, mic_on)` and
+    `sv_test_press(volume)` lose the sensitivity (voice ABI 7);
+  - patch 66 registers no `s_mic_sens` (a `user.cfg` that has the line names a variable that is
+    gone: ignored); the stock control then finds no variable, as in the stock game;
+  - the Settings hide the slider after each bind, as the PTT checkbox (it stays in the timeline:
+    the exe's options still bind option 5 by name), and the Microphone list takes its place
+    under "Use microphone", its label where the slider's was, the "Test microphone" button under
+    it; a press sends `srp_mic_test("<volume>")`.
+  Sections above and below that speak of the sensitivity are as things were until then.
 - **The mix bent loud talkers.** A plain voice is played 3 times as decoded (`LOUDER` 1.5, `MIX`
   2.0) and the sum went through a curve that bent every sample over half scale (tanh). The
   automatic gain brings every microphone to one level at a given "Microphone sensitivity", but the
