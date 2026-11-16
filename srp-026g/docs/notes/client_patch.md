@@ -3610,8 +3610,9 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   the DLL records 10 s and plays them back, in a match or not). `options.callback`
   (game_options::scaleform_callback 0x1FF5D0, after patches 79, 83 and 112): the Settings' sound
   tab asks `srp_mic_test`, answered `root.srp_mic_test(text)` (the button's text of the DLL's
-  state, the dictionary's `st_srp_mic_test*` with the seconds left); with `<volume> <sensitivity>`
-  (the two voice sliders' steps as they stand) it is a press, `sv_test_press`, with `stop` (the
+  state, the dictionary's `st_srp_mic_test*` with the seconds left); with `<volume>`
+  (the "Voice chat" slider's steps as it stands; the sensitivity went with its slider, 2026-11-16)
+  it is a press, `sv_test_press`, with `stop` (the
   Settings window closed) `sv_test_stop`; the DLL is loaded here when no match loaded it; at the
   game's own `options_tab_changed` (left to it) `sv_test_stop`. `game.tick` (0x1EC8EC, EBX the game; after the music, the packets and the two
   reports): while the main menu is shown (game_options, game+57F4h: +44h shown, +0Ch its movie's

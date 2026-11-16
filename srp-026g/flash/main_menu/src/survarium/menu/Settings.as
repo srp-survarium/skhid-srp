@@ -837,6 +837,16 @@ package survarium.menu
          {
             ptt.visible = false;
          }
+         // Nor is the sound tab's stock "Microphone sensitivity" slider (its option 5, s_mic_sens):
+         // every listener's game brings each speaker to one loudness itself, so the slider moved
+         // nothing anyone heard (the owner, 2026-11-16: "if you are sure sensitivity option now
+         // doesn't matter, remove it"). The exe registers no variable of its name any more; it
+         // stays in the timeline, hidden after each bind, and marks the voice column's place.
+         var sensitivity:DisplayObject = this.settings_content["_mic_sens"] as DisplayObject;
+         if(sensitivity)
+         {
+            sensitivity.visible = false;
+         }
          SrpVideoTab.finish(this,this._renderer);
          SrpDistanceDetail.finish(this);
          // the HUD group, after the tab's settings are bound (their labels set); the crosshair list
@@ -853,23 +863,22 @@ package survarium.menu
       // Between the Microphone list and the "Test microphone" button under it.
       private static const VOICE_GAP:Number = 12;
       
-      // The sound tab's voice column under its sensitivity slider, the stock PTT checkbox hidden: in the
-      // checkbox's row (the timeline's, the first under the slider) the Microphone list's label, in the
-      // slider's label's look, the list under it as the slider is under its label, then the "Test
-      // microphone" button (in the row itself while the list is not shown: no voice DLL).
+      // The sound tab's voice column under "Use microphone", the stock sensitivity slider and PTT
+      // checkbox hidden: in the slider's place the Microphone list, its label where the slider's was
+      // and in its look, the list where the slider's bar was, then the "Test microphone" button (in
+      // the label's place while the list is not shown: no voice DLL).
       protected function layoutVoice() : void
       {
          var c:MovieClip = this.settings_content;
-         var row:DisplayObject = c.currentFrame == 4 ? c["_ptt"] as DisplayObject : null;
          var sensitivity:OptionSlider = c.currentFrame == 4 ? c["_mic_sens"] as OptionSlider : null;
-         if(!row || !sensitivity)
+         if(!sensitivity)
          {
             return;
          }
-         var top:Number = row.y;
+         var top:Number = sensitivity.y + sensitivity.textField.y;
          if(this._microphone.menu.visible)
          {
-            top = VOICE_GAP + this._microphone.layout(sensitivity.textField,sensitivity.x,row.y,sensitivity.slider.y - sensitivity.textField.y,sensitivity.getBounds(c).right - sensitivity.x);
+            top = VOICE_GAP + this._microphone.layout(sensitivity.textField,sensitivity.x,top,sensitivity.slider.y - sensitivity.textField.y,sensitivity.getBounds(c).right - sensitivity.x);
          }
          this._micTest.layout(top);
       }

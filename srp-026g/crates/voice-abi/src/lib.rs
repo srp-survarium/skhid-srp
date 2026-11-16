@@ -2,13 +2,15 @@
 //! version before constructing `Api`; a missing or incompatible DLL disables voice.
 #![no_std]
 use core::ffi::{CStr, c_char};
-pub const ABI_VERSION: u8 = 6;
+pub const ABI_VERSION: u8 = 7;
 pub type Version = unsafe extern "C" fn() -> i32;
 pub type Start = unsafe extern "C" fn(*const c_char, u32, u32) -> i32;
 pub type Stop = unsafe extern "C" fn();
 /// Push-to-talk as the game holds it now: a [`Channel::ptt`] word (0: let go).
 pub type Ptt = unsafe extern "C" fn(i32);
-pub type Settings = unsafe extern "C" fn(f32, i32, f32);
+/// The options: the "Voice chat" volume (0..1) and whether the microphone
+/// is used.
+pub type Settings = unsafe extern "C" fn(f32, i32);
 /// How a place is heard, all of it in one call ([`Heard::call`]): the place,
 /// its 10 m voice's gain in the left and in the right ear, and whether its
 /// radio is heard (not 0).
@@ -18,10 +20,9 @@ pub type Talking = unsafe extern "C" fn() -> u32;
 pub type Slot = unsafe extern "C" fn() -> i32;
 pub type VoiceId = unsafe extern "C" fn(i32) -> u32;
 /// The options' "Test microphone" button pressed, with the "Voice chat"
-/// volume and the "Microphone sensitivity" as their sliders stand (each
-/// 0..1): starts the test, or stops the one that runs. With or without a
-/// match's session.
-pub type TestPress = unsafe extern "C" fn(f32, f32);
+/// volume as its slider stands (0..1): starts the test, or stops the one
+/// that runs. With or without a match's session.
+pub type TestPress = unsafe extern "C" fn(f32);
 /// The test stopped, if one runs (the options closed, a match loads or ends).
 pub type TestStop = unsafe extern "C" fn();
 /// What the test does now: a [`MicTest`]'s word.

@@ -434,7 +434,7 @@ fn a_radio_voice_is_as_loud_as_a_direct_one() {
         let mut direct = Vec::new();
         for f in 0..500 {
             let mut pcm = voiced(f, 8000., harmonics);
-            pre.run(&mut pcm, 0.5);
+            pre.run(&mut pcm);
             let frame = encoder.encode(&pcm).unwrap();
             direct.extend(decoder.decode(Some(&frame)).unwrap());
         }
@@ -447,14 +447,14 @@ fn a_radio_voice_is_as_loud_as_a_direct_one() {
 }
 /// The level (dB of full scale) the preprocessor gives a speaker of this
 /// amplitude, over the last of 4 s.
-fn processed_db(amplitude: f32, sensitivity: f32) -> f32 {
+fn processed_db(amplitude: f32) -> f32 {
     let mut pre = Preprocessor::new().unwrap();
     let seconds = 4 * RATE / FRAME;
     let last = RATE / FRAME;
     let mut sum = 0.;
     for frame in 0..seconds {
         let mut pcm = syllables(frame, amplitude);
-        pre.run(&mut pcm, sensitivity);
+        pre.run(&mut pcm);
         if frame >= seconds - last {
             sum += pcm
                 .iter()
@@ -469,19 +469,12 @@ fn automatic_gain_levels_quiet_and_loud_microphones() {
     // Speakers from -60 to -13 dB of full scale (amplitudes 50..10000) all
     // come out at one level (-29 dB measured), within 3 dB (the quietest was
     // 8 dB under the others while the gain stopped at 30 dB).
-    let levels = [50., 150., 600., 2500., 10000.].map(|amplitude| processed_db(amplitude, 0.5));
+    let levels = [50., 150., 600., 2500., 10000.].map(processed_db);
     let (low, high) = levels
         .iter()
         .fold((f32::MAX, f32::MIN), |(l, h), &x| (l.min(x), h.max(x)));
     assert!(high - low < 3., "{levels:?}");
     assert!((-32.0..-26.0).contains(&low), "{levels:?}");
-    // The sensitivity slider moves it 6 dB either way.
-    let quiet = processed_db(2500., 0.);
-    let loud = processed_db(2500., 1.);
-    assert!((10.0..14.0).contains(&(loud - quiet)), "{quiet} {loud}");
-    assert_eq!(agc_level(0.5), AGC_LEVEL);
-    assert_eq!(agc_level(f32::NAN), AGC_LEVEL / 2.);
-    assert_eq!(agc_level(1.), AGC_LEVEL * 2.);
 }
 #[test]
 fn roster_replacement_resets_only_departed_speaker() {
@@ -695,7 +688,7 @@ fn the_encoder_makes_only_what_the_relay_takes() {
             for f in 0..250 {
                 let mut pcm: [i16; FRAME] = std::array::from_fn(|i| signal(f * FRAME + i));
                 if preprocessed {
-                    pre.run(&mut pcm, 1.);
+                    pre.run(&mut pcm);
                 }
                 let frame = encoder.encode(&pcm).unwrap();
                 assert!(wire::our_frame(&frame), "{frame:x?}");
@@ -882,7 +875,6 @@ fn the_host_argument_is_read_no_further_than_its_bound() {
     assert_eq!(radio::unit(f32::NAN), 0.);
     assert_eq!(radio::unit(f32::INFINITY), 1.);
     assert_eq!(radio::unit(f32::NEG_INFINITY), 0.);
-    assert!(agc_level(f32::INFINITY).is_finite());
 }
 /// Each frame's level as slot 3's 10 m voice plays `frames`, at a "Voice
 /// chat" volume low enough that the mix's own limiter stays at rest: the
@@ -907,23 +899,15 @@ fn played(frames: &[Vec<u8>]) -> (Vec<f32>, Core) {
 }
 #[test]
 fn speech_through_the_automatic_gain_is_never_held() {
-    // Voices from -50 to 0 dB of full scale, at the lowest, the default and
-    // the highest sensitivity, and at the default a quiet voice that
+    // Voices from -50 to 0 dB of full scale, and a quiet voice that
     // suddenly shouts: the automatic gain keeps all of them under the
-    // ceiling, so the listener plays them as decoded.
+    // ceiling.
     let mut random = 0x2468_ace1u32;
     let mut hiss = move || {
         random = random.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
         (random >> 16) as i16 / 512
     };
-    for (sensitivity, before, after) in [
-        (0., 32000., 32000.),
-        (0.5, 150., 150.),
-        (0.5, 32000., 32000.),
-        (0.5, 600., 20000.),
-        (1., 2500., 2500.),
-        (1., 32000., 32000.),
-    ] {
+    for (before, after) in [(150., 150.), (2500., 2500.), (32000., 32000.), (600., 20000.)] {
         let mut pre = Preprocessor::new().unwrap();
         let mut encoder = Encoder::new().unwrap();
         let frames: Vec<Vec<u8>> = (0..500)
@@ -932,7 +916,7 @@ fn speech_through_the_automatic_gain_is_never_held() {
                 for sample in &mut pcm {
                     *sample = sample.saturating_add(hiss());
                 }
-                pre.run(&mut pcm, sensitivity);
+                pre.run(&mut pcm);
                 encoder.encode(&pcm).unwrap()
             })
             .collect();
@@ -940,7 +924,7 @@ fn speech_through_the_automatic_gain_is_never_held() {
         // (The sudden shout: its first frames, raised as the quiet voice
         // before it was, are held until the levels catch up.)
         let most = if after > before { 10 } else { 0 };
-        assert!(core.stats().limited <= most, "{sensitivity} {before} {after}: {}", core.stats().limited);
+        assert!(core.stats().limited <= most, "{before} {after}: {}", core.stats().limited);
         assert!(levels.iter().any(|&db| db > -30.));
     }
 }

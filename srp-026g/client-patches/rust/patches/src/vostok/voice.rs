@@ -82,43 +82,31 @@ impl Fraction {
     }
 }
 
-/// The sound tab's "Voice chat" volume and "Microphone sensitivity" as their
-/// sliders stand on the screen, accepted or not: what the Settings send with
-/// a press of "Test microphone", `<volume> <sensitivity>`, each the slider's
-/// whole steps (0..100).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Sliders {
-    volume: Fraction,
-    sensitivity: Fraction,
-}
-
-impl Sliders {
-    /// Two numbers of one to three decimal digits, 100 at most, one space
-    /// between them; nothing else.
-    pub fn parse(text: &CStr) -> Option<Sliders> {
-        let mut steps = text.to_bytes().split(|&byte| byte == b' ').map(|digits| {
-            if digits.is_empty() || digits.len() > 3 || !digits.iter().all(u8::is_ascii_digit) {
-                return None;
-            }
-            let steps = digits.iter().fold(0u16, |steps, digit| steps * 10 + u16::from(digit - b'0'));
-            (steps <= 100).then(|| Fraction::of_percent(f32::from(steps)))
-        });
-        let (volume, sensitivity) = (steps.next()??, steps.next()??);
-        steps.next().is_none().then_some(Sliders { volume, sensitivity })
+/// The sound tab's "Voice chat" volume as its slider stands on the screen,
+/// accepted or not: what the Settings send with a press of "Test
+/// microphone", the slider's whole steps (0..100). One number of one to
+/// three decimal digits, 100 at most; nothing else.
+fn slider(text: &CStr) -> Option<Fraction> {
+    let digits = text.to_bytes();
+    if digits.is_empty() || digits.len() > 3 || !digits.iter().all(u8::is_ascii_digit) {
+        return None;
     }
+    let steps = digits.iter().fold(0u16, |steps, digit| steps * 10 + u16::from(digit - b'0'));
+    (steps <= 100).then(|| Fraction::of_percent(f32::from(steps)))
 }
 
 /// What the Settings say with a call of the microphone test: a press of its
 /// button, or `stop` (the Settings window closed).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TestAsk {
-    Press(Sliders),
+    /// With the "Voice chat" volume.
+    Press(Fraction),
     Stop,
 }
 
 impl TestAsk {
     pub fn parse(text: &CStr) -> Option<TestAsk> {
-        if text == c"stop" { Some(TestAsk::Stop) } else { Sliders::parse(text).map(TestAsk::Press) }
+        if text == c"stop" { Some(TestAsk::Stop) } else { slider(text).map(TestAsk::Press) }
     }
 }
 
@@ -149,15 +137,16 @@ impl MicrophoneChoice {
 
 /// The voice options: off ("Disable voice chat", the gameplay tab's dead
 /// "Hide spam", `g_hide_spam`: nothing played, no microphone, the relay sends
-/// nothing) or on, with the sound tab's three stock voice controls.
+/// nothing) or on, with the sound tab's two stock voice controls (its
+/// third, "Microphone sensitivity", is gone: every listener's game levels
+/// each speaker itself, voice-chat.md, "Steadier sound").
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Settings {
     Off,
-    On { volume: Fraction, sensitivity: Fraction, microphone: bool },
+    On { volume: Fraction, microphone: bool },
 }
 
 static VOLUME: ConsoleFloat = ConsoleFloat::new(100.0, 0.0, 100.0);
-static SENSITIVITY: ConsoleFloat = ConsoleFloat::new(50.0, 0.0, 100.0);
 static MICROPHONE: ConsoleBool = ConsoleBool::with(true);
 static OFF: ConsoleBool = ConsoleBool::new();
 /// `srp_voice_mutes`' room: the patch's `Mutes` text.
@@ -167,10 +156,11 @@ static MUTES: ConsoleString<MUTES_SIZE> = ConsoleString::new();
 static CAPTURE_DEVICE: ConsoleString<{ voice_abi::MICROPHONE_ID }> = ConsoleString::new();
 
 /// The variables in the engine's list before user.cfg (`configs.start`):
-/// the stock sound tab's controls name three of them, user.cfg keeps all.
+/// the stock sound tab's controls name two of them, user.cfg keeps all.
+/// (`s_mic_sens`, the stock "Microphone sensitivity", is registered no more:
+/// its control finds no variable, as in the stock game, and is hidden.)
 pub fn register(thread: &Thread) {
     VOLUME.register(thread, c"s_chat_volume");
-    SENSITIVITY.register(thread, c"s_mic_sens");
     MICROPHONE.register(thread, c"s_use_microphone");
     OFF.register(thread, c"g_hide_spam");
     MUTES.register(thread, c"srp_voice_mutes");
@@ -195,7 +185,6 @@ pub fn settings(thread: &Thread) -> Settings {
     }
     Settings::On {
         volume: Fraction::of_percent(VOLUME.get(thread)),
-        sensitivity: Fraction::of_percent(SENSITIVITY.get(thread)),
         microphone: MICROPHONE.get(thread),
     }
 }
@@ -728,12 +717,12 @@ impl Dll {
     }
 
     pub fn settings(self, settings: Settings) {
-        let (volume, microphone, sensitivity) = match settings {
-            Settings::Off => (0.0, false, 0.0),
-            Settings::On { volume, sensitivity, microphone } => (volume.get(), microphone, sensitivity.get()),
+        let (volume, microphone) = match settings {
+            Settings::Off => (0.0, false),
+            Settings::On { volume, microphone } => (volume.get(), microphone),
         };
-        // SAFETY: the checked API, scalars (each 0..1).
-        unsafe { (self.api.settings)(volume, i32::from(microphone), sensitivity) }
+        // SAFETY: the checked API, scalars (the volume 0..1).
+        unsafe { (self.api.settings)(volume, i32::from(microphone)) }
     }
 
     pub fn mute(self, places: Places) {
@@ -779,11 +768,11 @@ impl Dll {
     }
 
     /// The Settings' "Test microphone" button pressed: the DLL starts its
-    /// test with these sliders, or stops the one that runs. In a match or
-    /// not.
-    pub fn test_press(self, sliders: Sliders) {
-        // SAFETY: the checked API, scalars (each 0..1).
-        unsafe { (self.api.test_press)(sliders.volume.get(), sliders.sensitivity.get()) }
+    /// test at this "Voice chat" volume, or stops the one that runs. In a
+    /// match or not.
+    pub fn test_press(self, volume: Fraction) {
+        // SAFETY: the checked API, a scalar (0..1).
+        unsafe { (self.api.test_press)(volume.get()) }
     }
 
     /// The microphone test stopped, if one runs.
@@ -865,22 +854,15 @@ mod tests {
     }
 
     #[test]
-    fn the_test_buttons_press_carries_the_two_sliders() {
-        let sliders = |volume, sensitivity| {
-            Some(Sliders { volume: Fraction::of_percent(volume), sensitivity: Fraction::of_percent(sensitivity) })
-        };
-        assert_eq!(Sliders::parse(c"100 50"), sliders(100.0, 50.0));
-        assert_eq!(Sliders::parse(c"0 0"), sliders(0.0, 0.0));
-        assert_eq!(Sliders::parse(c"7 100"), sliders(7.0, 100.0));
-        assert_eq!(Sliders::parse(c"7 100").map(|s| (s.volume.get(), s.sensitivity.get())), Some((0.07, 1.0)));
-        for bad in [c"", c"50", c"50 ", c" 50", c"50  50", c"50 50 50", c"101 50", c"50 101", c"1000 5", c"5.5 5", c"-1 5",
-                    c"a b", c"50,50", c"stop"] {
-            assert_eq!(Sliders::parse(bad), None, "{bad:?}");
+    fn the_test_buttons_press_carries_the_volume() {
+        let press = |volume| Some(TestAsk::Press(Fraction::of_percent(volume)));
+        assert_eq!(TestAsk::parse(c"100"), press(100.0));
+        assert_eq!(TestAsk::parse(c"0"), press(0.0));
+        assert_eq!(TestAsk::parse(c"7").map(|ask| matches!(ask, TestAsk::Press(volume) if volume.get() == 0.07)), Some(true));
+        for bad in [c"", c"50 ", c" 50", c"50 50", c"101", c"1000", c"5.5", c"-1", c"a", c"50,50", c"Stop"] {
+            assert_eq!(TestAsk::parse(bad), None, "{bad:?}");
         }
-        assert_eq!(TestAsk::parse(c"35 80"), Sliders::parse(c"35 80").map(TestAsk::Press));
         assert_eq!(TestAsk::parse(c"stop"), Some(TestAsk::Stop));
-        assert_eq!(TestAsk::parse(c"Stop"), None);
-        assert_eq!(TestAsk::parse(c""), None);
     }
 
     #[test]
