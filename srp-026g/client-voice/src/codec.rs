@@ -97,9 +97,24 @@ impl Drop for Preprocessor {
         unsafe { speex_preprocess_state_destroy(self.state.as_ptr()) }
     }
 }
+/// The encoder's rate, bits a second: a third of it is each frame's copy of
+/// the frame before ([`EXPECTED_LOSS`]), the rest about the 16 kbit/s the
+/// voice alone had until 2026-11-16.
+pub const BITRATE: i32 = 24_000;
+/// The loss the encoder is told to expect, per cent: with it (and the rate
+/// above SILK's threshold for it, 18.4 kbit/s wide band) every frame carries
+/// a coarser copy of the frame before it (Opus' in-band forward error
+/// correction), which [`Decoder::recover`] plays when that frame did not
+/// come.
+pub const EXPECTED_LOSS: i32 = 10;
 pub struct Encoder(NonNull<c_void>);
 impl Encoder {
     pub fn new() -> Result<Self, String> {
+        Self::with(BITRATE, EXPECTED_LOSS)
+    }
+    /// At `bitrate`, with each frame's copy of the frame before when
+    /// `expected_loss` (per cent) is not 0.
+    pub fn with(bitrate: i32, expected_loss: i32) -> Result<Self, String> {
         let mut error = 0;
         // Opus owns the returned object; Drop frees it, and all accesses are exclusive.
         let ptr = unsafe { opus_encoder_create(RATE as c_int, 1, 2048, &mut error) };
@@ -107,10 +122,13 @@ impl Encoder {
         if error != 0 {
             return Err(format!("Opus encoder: {error}"));
         }
+        // The bit rate, variable, in-band FEC, the loss expected, no DTX,
+        // a voice, complexity 5.
         for (request, value) in [
-            (4002, 16000),
+            (4002, bitrate),
             (4006, 1),
-            (4012, 0),
+            (4012, i32::from(expected_loss != 0)),
+            (4014, expected_loss),
             (4016, 0),
             (4024, 3001),
             (4010, 5),
@@ -124,7 +142,7 @@ impl Encoder {
     }
     pub fn encode(&mut self, pcm: &[i16; FRAME]) -> Result<Vec<u8>, String> {
         // No more room than the relay and the games take: the encoder keeps
-        // a frame within it (its own measured at most 93 bytes).
+        // a frame within it (its own measured at most 114 bytes).
         let mut out = vec![0; crate::wire::MAX_FRAME_BYTES];
         let n = unsafe {
             opus_encode(
@@ -163,7 +181,17 @@ impl Decoder {
             opus_decoder_ctl(self.0.as_ptr(), 4028);
         }
     }
+    /// The frame's 20 ms; with none, the decoder's concealment of them.
     pub fn decode(&mut self, frame: Option<&[u8]>) -> Result<[f32; FRAME], String> {
+        self.run(frame, false)
+    }
+    /// The 20 ms of a frame that did not come, from the copy of it in the
+    /// frame after it, `next` (the decoder conceals them when `next` has no
+    /// copy). `next` itself is decoded after, as usual.
+    pub fn recover(&mut self, next: &[u8]) -> Result<[f32; FRAME], String> {
+        self.run(Some(next), true)
+    }
+    fn run(&mut self, frame: Option<&[u8]>, fec: bool) -> Result<[f32; FRAME], String> {
         let mut out = [0.; FRAME];
         let (ptr, len) = frame.map_or((std::ptr::null(), 0), |f| (f.as_ptr(), f.len()));
         let len = c_int::try_from(len).map_err(|_| "Opus frame too long".to_owned())?;
@@ -174,7 +202,7 @@ impl Decoder {
                 len,
                 out.as_mut_ptr(),
                 FRAME as c_int,
-                0,
+                c_int::from(fec),
             )
         };
         if n != FRAME as c_int {

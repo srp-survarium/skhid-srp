@@ -9,13 +9,13 @@ pub const MAX_DATAGRAM: usize = 400;
 /// utterance's end on an odd frame, and [`crate::Core`] plays two. The
 /// relay forwards no more.
 pub const MAX_FRAMES: usize = 2;
-/// The longest frame: [`crate::Encoder`] (16 kbit/s, 40 bytes a 20 ms frame
-/// on average, 93 at most measured on full-scale square waves and noise) is
-/// given no more room than this, 3 times its rate.
+/// The longest frame: [`crate::Encoder`] (24 kbit/s, 60 bytes a 20 ms frame
+/// on average, 114 at most measured on full-scale square waves and noise) is
+/// given no more room than this, twice its rate.
 pub const MAX_FRAME_BYTES: usize = 120;
 /// The TOC bytes (RFC 6716 3.1) of [`crate::Encoder`]'s frames: SILK, 20 ms,
 /// mono, code 0, of narrow, medium or wide band. It encodes 16 kHz speech at
-/// 16 kbit/s, where Opus stays in SILK; its own are all 0x48.
+/// 24 kbit/s, where Opus stays in SILK; its own are all 0x48.
 pub const FRAME_TOCS: [u8; 3] = [0x08, 0x28, 0x48];
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Message {

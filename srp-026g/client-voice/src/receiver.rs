@@ -57,25 +57,66 @@ pub(crate) const LOUDER: f32 = 1.5;
 /// plain and through the radio, with the radio's static and squelch and the
 /// microphone test's playback, so their balance stays as it is (the owner,
 /// 2026-11-14, of revision 59 with "Voice chat" at 100: "it is quiet",
-/// "especially compared to gunshots"). The limiter holds what goes past
-/// its knee.
+/// "especially compared to gunshots"). The mix's limiter ([`Master`]) holds
+/// what would pass its ceiling.
 const MIX: f32 = 2.0;
-/// The mix's knee: below it a sample is as summed; above it the rest of the
-/// way to full scale is approached smoothly, so loud or several talkers
-/// never clip hard.
-const KNEE: f32 = 0.5;
-fn soft_limit(x: f32) -> f32 {
-    let over = x.abs() - KNEE;
-    if over <= 0. {
-        x
-    } else {
-        x.signum() * (KNEE + (1. - KNEE) * (over / (1. - KNEE)).tanh())
+/// The mix's ceiling: no sample of it is played past this (-0.9 dB of full
+/// scale).
+const MIX_CEILING: f32 = 0.9;
+/// How long the mix's gain stays where a peak brought it before it starts
+/// back: a frame, 20 ms, longer than a voice's pitch period (12 ms at 80
+/// Hz), so the next pulse of the same voice finds it down and is not cut.
+const MIX_HOLD: usize = FRAME;
+/// How fast the gain then comes back: 0.6 dB a frame, 6 dB in 200 ms.
+const MIX_RELEASE: f32 = 1.071_5;
+/// The mix's limiter: where a sample would pass [`MIX_CEILING`] the whole
+/// mix, both ears alike, is turned down at once so that it does not; the
+/// gain stays for [`MIX_HOLD`] and comes back at [`MIX_RELEASE`]. A loud
+/// voice, or several at once, plays quieter for a moment and stays itself.
+///
+/// Until 2026-11-16 a curve bent every sample over half scale (tanh). Speech
+/// through the automatic gain played 3 times as decoded (a plain voice:
+/// [`LOUDER`] and [`MIX`]) was bent on 2 % of its samples at the default
+/// "Microphone sensitivity" and on 8 % at the highest, where what the curve
+/// added was 13 dB under the voice: such a talker was crushed for everyone
+/// (the owner: "some people sound good, some are barely recognizable").
+#[derive(Clone, Copy, Debug)]
+pub struct Master {
+    gain: f32,
+    /// The samples left of [`MIX_HOLD`].
+    hold: usize,
+}
+impl Master {
+    pub const fn new() -> Self {
+        Self { gain: 1., hold: 0 }
+    }
+    /// A frame of the mix from its sum: [`MIX`] louder, held under the
+    /// ceiling, as 16-bit samples.
+    pub fn finish(&mut self, acc: [[f32; 2]; FRAME]) -> Stereo {
+        let release = MIX_RELEASE.powf(1. / FRAME as f32);
+        acc.map(|ears| {
+            let ears = ears.map(|x| x * MIX);
+            let peak = ears[0].abs().max(ears[1].abs());
+            if peak * self.gain * release > MIX_CEILING {
+                // It would pass the ceiling were the gain let back: down to
+                // it (or kept there), and held from here.
+                self.gain = self.gain.min(MIX_CEILING / peak);
+                self.hold = MIX_HOLD;
+            } else if self.hold > 0 {
+                self.hold -= 1;
+            } else {
+                self.gain = (self.gain * release).min(1.);
+            }
+            ears.map(|x| (x * self.gain * 32767.).round().clamp(-32768., 32767.) as i16)
+        })
     }
 }
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Stats {
     pub decoded: u32,
     pub concealed: u32,
+    /// Frames that did not come, played from the next frame's copy of them.
+    pub recovered: u32,
     /// Frames the decoder refused (concealed in their place).
     pub undecodable: u32,
     pub late: u32,
@@ -155,16 +196,18 @@ fn ahead(mono: &[f32; FRAME]) -> [[f32; 2]; FRAME] {
     let [left, right] = Ears::UNITY.get();
     mono.map(|sample| [sample * left, sample * right])
 }
-/// A frame of the mix from its sum: [`MIX`] louder, limited softly, as
-/// 16-bit samples.
-fn finish(acc: [[f32; 2]; FRAME]) -> Stereo {
-    acc.map(|ears| ears.map(|x| (soft_limit(x * MIX) * 32767.).round().clamp(-32768., 32767.) as i16))
+impl Master {
+    /// `mono` alone as a frame of the mix, centred (the microphone test's
+    /// playback when no match's voices play: [`Core::mix_over`] without them).
+    #[cfg(any(windows, test))]
+    pub fn centred(&mut self, mono: &[f32; FRAME]) -> Stereo {
+        self.finish(ahead(mono))
+    }
 }
-/// `mono` alone as a frame of the mix, centred (the microphone test's
-/// playback when no match's voices play: [`Core::mix_over`] without them).
-#[cfg(any(windows, test))]
+/// [`Master::centred`] of a frame alone, the limiter at rest.
+#[cfg(test)]
 pub fn centred(mono: &[f32; FRAME]) -> Stereo {
-    finish(ahead(mono))
+    Master::new().centred(mono)
 }
 #[derive(Clone, Copy)]
 enum Phase {
@@ -356,18 +399,33 @@ impl Speaker {
             .as_ref()
             .filter(|(index, _)| *index == u.next)
             .map(|(_, bytes)| bytes.as_slice());
-        let pcm = match (packet, self.decoder.decode(packet)) {
-            (Some(_), Ok(pcm)) => {
-                stats.decoded = stats.decoded.saturating_add(1);
-                Some(pcm)
+        // The frame after it, when it has come: it carries a copy of this one.
+        let after = u.ring[(u.next as usize + 1) % RING]
+            .as_ref()
+            .filter(|(index, _)| *index == u.next + 1)
+            .map(|(_, bytes)| bytes.as_slice());
+        let pcm = match (packet, after) {
+            (Some(packet), _) => match self.decoder.decode(Some(packet)) {
+                Ok(pcm) => {
+                    stats.decoded = stats.decoded.saturating_add(1);
+                    Some(pcm)
+                }
+                // A frame the decoder refuses is lost: concealed like one.
+                Err(_) => {
+                    stats.undecodable = stats.undecodable.saturating_add(1);
+                    self.decoder.decode(None).ok()
+                }
+            },
+            // A frame that did not come: from the next one's copy of it.
+            (None, Some(after)) => {
+                let pcm = self.decoder.recover(after).or_else(|_| self.decoder.decode(None)).ok();
+                if pcm.is_some() {
+                    stats.recovered = stats.recovered.saturating_add(1);
+                }
+                pcm
             }
-            // A frame the decoder refuses is lost: concealed like one.
-            (Some(_), Err(_)) => {
-                stats.undecodable = stats.undecodable.saturating_add(1);
-                self.decoder.decode(None).ok()
-            }
-            (None, pcm) => {
-                let pcm = pcm.ok();
+            (None, None) => {
+                let pcm = self.decoder.decode(None).ok();
                 if pcm.is_some() {
                     stats.concealed = stats.concealed.saturating_add(1);
                 }
@@ -397,6 +455,7 @@ pub struct Core {
     speakers: Vec<Speaker>,
     stats: Stats,
     muted: u32,
+    master: Master,
 }
 impl Core {
     pub fn new() -> Result<Self, String> {
@@ -406,6 +465,7 @@ impl Core {
                 .collect::<Result<_, _>>()?,
             stats: Stats::default(),
             muted: 0,
+            master: Master::new(),
         })
     }
     pub fn stats(&self) -> Stats {
@@ -544,7 +604,7 @@ impl Core {
                 }
             }
         }
-        finish(acc)
+        self.master.finish(acc)
     }
     /// The slots heard talking now: each with an utterance (or one just
     /// over) on a channel `hearing` hears of it.

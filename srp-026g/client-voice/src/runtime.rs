@@ -172,7 +172,7 @@ mod platform {
         mic_test::{Ask, Devices, Door, Event, Shown, Sliders, Test},
         microphone::{self, Device},
         radio::unit,
-        receiver::centred,
+        receiver::Master,
         windows::{self, Input, Output},
         wire::{self, Message},
     };
@@ -190,6 +190,7 @@ mod platform {
     };
     use windows_sys::Win32::System::{
         Diagnostics::Debug::OutputDebugStringA,
+        Threading::{GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_HIGHEST},
         LibraryLoader::{
             GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_PIN,
             GetModuleHandleExA,
@@ -285,6 +286,15 @@ mod platform {
     // listeners already closed. Only the one active worker increments this.
     static NEXT_UTTERANCE: AtomicU32 = AtomicU32::new(1);
 
+    /// The calling worker above the game's own threads: it captures and
+    /// plays 20 ms at a time, and a game that takes every core must not hold
+    /// it up past its devices' queues (a few ms of work each pass).
+    fn raise_priority() {
+        // SAFETY: the calling thread's own pseudo-handle.
+        unsafe {
+            SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+        }
+    }
     fn say(message: &str) {
         let text = format!("skhid_voice: {message}\n\0");
         // SAFETY: text is NUL-terminated and lives for the synchronous call.
@@ -358,8 +368,10 @@ mod platform {
     /// devices and the test, no socket and nothing of the relay. It leaves
     /// when the test is over, closing its devices on its own thread.
     fn run_test(status: Arc<Status>) {
+        raise_priority();
         let clock = Instant::now();
         let mut test = Test::Idle;
+        let mut master = Master::new();
         // None: the press finds no playback device, and the button says so.
         let mut output = Output::open().ok();
         while !status.stop.load(SeqCst) {
@@ -369,7 +381,7 @@ mod platform {
                 let mut devices = Winmm { playback: true };
                 let play = || {
                     let own = test.apply(Event::Play, now, &mut devices);
-                    centred(&own.unwrap_or([0.; FRAME]))
+                    master.centred(&own.unwrap_or([0.; FRAME]))
                 };
                 if device.pump(play).is_err() {
                     output = None;
@@ -394,6 +406,7 @@ mod platform {
         mut encoder: Encoder,
         mut preprocessor: Preprocessor,
     ) {
+        raise_priority();
         let clock = Instant::now();
         let mut sender = Sender::new(session, NEXT_UTTERANCE.load(SeqCst) as u16);
         let mut talk = TalkState::Idle;
