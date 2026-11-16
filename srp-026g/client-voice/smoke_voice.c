@@ -28,7 +28,7 @@ typedef void(__cdecl *void_fn)(void);
 typedef void(__cdecl *int_fn)(int);
 typedef void(__cdecl *settings_fn)(float, int);
 typedef void(__cdecl *mask_fn)(unsigned);
-typedef void(__cdecl *hear_fn)(int, float, float, int);
+typedef void(__cdecl *hear_fn)(int, float, float, float, int);
 typedef unsigned(__cdecl *talking_fn)(void);
 typedef int(__cdecl *slot_fn)(void);
 typedef unsigned(__cdecl *voice_id_fn)(int);
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
           "every export resolves");
     if (failures)
         return 1;
-    CHECK(sv_version() == 7, "sv_version is 7");
+    CHECK(sv_version() == 8, "sv_version is 8");
     sv_stop(); /* not started: nothing */
     CHECK(sv_talking() == 0 && sv_slot() == -1, "idle state");
 
@@ -273,14 +273,14 @@ int main(int argc, char **argv)
     }
 
     /* Slot 2 talks on the radio: heard while its radio is, not by its 10 m voice. */
-    sv_hear(2, 0.9f, 0.2f, 0);   /* its 10 m voice only, to the left (an opponent near) */
+    sv_hear(2, 0.9f, 0.2f, 0.0f, 0);   /* its 10 m voice only, to the left (an opponent near) */
     for (int i = 0; i < 50 && (sv_talking() & (1u << 2)); i++) Sleep(10);
     CHECK(!(sv_talking() & (1u << 2)), "a radio utterance of a slot whose radio is not heard is not listed");
-    sv_hear(2, 0.0f, 0.0f, 1);   /* its radio only (a mate far away) */
+    sv_hear(2, 0.0f, 0.0f, 0.0f, 1);   /* its radio only (a mate far away) */
     for (int i = 0; i < 50 && !(sv_talking() & (1u << 2)); i++) Sleep(10);
     CHECK(sv_talking() & (1u << 2), "and is while its radio is heard");
-    sv_hear(4, 0.3f, 0.3f, 1);   /* both channels (a mate near) */
-    sv_hear(99, 1.0f, 1.0f, 0);  /* past the 20: nothing */
+    sv_hear(4, 0.1f, 0.1f, 1.0f, 1);   /* both channels (a mate near, behind a wall: muffled) */
+    sv_hear(99, 1.0f, 1.0f, 0.0f, 0);  /* past the 20: nothing */
     /* The two keys: 2 the radio's, 1 the 10 m voice's; the START says which. */
     for (int key = 2; key >= 1; key--) {
         sv_ptt(key);

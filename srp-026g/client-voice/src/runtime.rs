@@ -732,16 +732,16 @@ mod platform {
         }
     }
     /// How the slot is heard from now on (`voice_abi::Hear`): its 10 m
-    /// voice's gain in each ear and whether its radio is heard. A slot past
-    /// the 20 changes nothing.
+    /// voice's gain in each ear, how muffled it is, and whether its radio
+    /// is heard. A slot past the 20 changes nothing.
     #[unsafe(no_mangle)]
-    pub extern "C" fn sv_hear(slot: i32, left: f32, right: f32, radio: i32) {
+    pub extern "C" fn sv_hear(slot: i32, left: f32, right: f32, muffle: f32, radio: i32) {
         if let Ok(slot) = usize::try_from(slot) {
             CONTROL
                 .hearing
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
-                .set(slot, Heard::of_call(left, right, radio));
+                .set(slot, Heard::of_call(left, right, muffle, radio));
         }
     }
     #[unsafe(no_mangle)]

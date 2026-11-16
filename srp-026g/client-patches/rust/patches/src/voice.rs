@@ -59,7 +59,7 @@ use crate::vostok::log::{self, Piece::*};
 use crate::vostok::settings::{Menu, OptionsCall};
 use crate::vostok::types::Place;
 use crate::vostok::voice::{
-    self as engine, Channel, Connect, Dll, Ears, Heard, Hearing, Listener, MUTES_SIZE, Mates, MicTest, Microphone,
+    self as engine, Channel, Connect, Dll, Ears, Heard, Hearing, Listener, MUTES_SIZE, Mates, MicTest, Microphone, Muffle,
     MicrophoneChoice, MicrophoneId, PAN_CENTRE, Places, Roster, Scene, Settings, Side, TalkInput, TalkKey, TestAsk, VoiceId,
     name_text,
 };
@@ -95,6 +95,56 @@ const LEVEL: f32 = core::f32::consts::SQRT_2;
 fn gain(metres: f32) -> f32 {
     let past = if metres > 1.0 { metres - 1.0 } else { 0.0 };
     (1.0 - (1.0 - AT_9_M) * past / (9.0 - 1.0)).clamp(0.0, 1.0)
+}
+
+/// The lines tried from the listener's head: to the speaker's head and this
+/// far to either side of it, so that a post or a door's edge takes a part of
+/// the voice and not all of it (the owner, 2026-11-16, of the 10 m voice:
+/// "it doesn't follow geometry at all right now"). Well inside a player's
+/// own width (its capsule's radius is 0.38 m), so a speaker who stands
+/// against a wall has no line's end in it.
+const WALL_SIDE_M: f32 = 0.15;
+
+/// How much of each player's 10 m voice is behind a wall now (0 none, 1 all
+/// of it); None for a place that is not asked (it is out of the 10 m, or one
+/// of the two is not in the world). Asked of everyone in the 10 m, talking
+/// or not, so a voice is behind its wall from its first sound. The DLL plays
+/// that part quieter and dull, and goes from one frame's answer to the
+/// next's in its own time.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Walled([Option<f32>; Place::COUNT]);
+
+impl Walled {
+    const NONE: Walled = Walled([None; Place::COUNT]);
+
+    /// As the level is now, of the places in the 10 m both of whose players
+    /// are in the world: the part of the three lines, from the listener's
+    /// head to the speaker's and to either side of it, that `blocked` says
+    /// has something solid on it.
+    fn now(roster: &Roster, blocked: impl Fn([f32; 3], [f32; 3]) -> bool) -> Walled {
+        let mut walled = Walled::NONE;
+        let Some(me) = roster.local().and_then(|me| roster.seat(me)).and_then(|seat| seat.body) else { return walled };
+        for (place, seat, _) in roster.others() {
+            let Some(them) = seat.body else { continue };
+            // The 10 m as the voice's own (`in_the_world`: between the feet).
+            let apart = [them.feet[0] - me.feet[0], them.feet[1] - me.feet[1], them.feet[2] - me.feet[2]];
+            if sqrt(apart[0] * apart[0] + apart[1] * apart[1] + apart[2] * apart[2]) >= PLAIN_TO_M {
+                continue;
+            }
+            // Level with the ground, across the line between the two heads.
+            let (dx, dz) = (them.eye[0] - me.eye[0], them.eye[2] - me.eye[2]);
+            let across = sqrt(dx * dx + dz * dz);
+            let side = if across > 0.01 { [-dz / across * WALL_SIDE_M, 0.0, dx / across * WALL_SIDE_M] } else { [0.0; 3] };
+            let lines = [0.0, 1.0, -1.0].map(|k| [them.eye[0] + k * side[0], them.eye[1], them.eye[2] + k * side[2]]);
+            let behind = lines.iter().filter(|&&to| blocked(me.eye, to)).count();
+            walled.0[place.index()] = Some(behind as f32 / lines.len() as f32);
+        }
+        walled
+    }
+
+    fn of(&self, place: Place) -> f32 {
+        self.0[place.index()].unwrap_or(0.0)
+    }
 }
 
 /// What the DLL was last told, so it is told again only on a change.
@@ -367,9 +417,11 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// a spectator. Its radio ("radio is team only", "or in ffa for everyone"):
 /// a mate's (a teammate; in a free-for-all, any other player) at any
 /// distance, alive or dead; an opponent's never. `pan` is the engine's, of a
-/// sound at an offset from the listener. The places of nobody in the match,
-/// and the local player's own, are silent.
-fn hearing(roster: &Roster, pan: impl Fn([f32; 3]) -> [f32; 2]) -> Hearing {
+/// sound at an offset from the listener. With a wall between the two
+/// (`walled`: how much of the speaker is behind one) the DLL is told so, and
+/// plays the 10 m voice quieter and dull; the radio is not touched. The places
+/// of nobody in the match, and the local player's own, are silent.
+fn hearing(roster: &Roster, pan: impl Fn([f32; 3]) -> [f32; 2], walled: &Walled) -> Hearing {
     let me = roster.local().and_then(|me| roster.seat(me)).and_then(|seat| seat.body);
     roster.others().fold(Hearing::SILENT, |hearing, (place, seat, side)| {
         let near = match (me, seat.body) {
@@ -379,7 +431,7 @@ fn hearing(roster: &Roster, pan: impl Fn([f32; 3]) -> [f32; 2]) -> Hearing {
             }
             _ => Ears::SILENT,
         };
-        hearing.with(place, Heard { near, radio: side == Side::Mate })
+        hearing.with(place, Heard { near, muffle: Muffle::new(walled.of(place)), radio: side == Side::Mate })
     })
 }
 
@@ -455,10 +507,13 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
             live.trace = Trace::On(Some(state));
         }
     }
+    // The level between the listener and everyone in the 10 m (three lines each).
+    let walls = scene.walls();
+    let walled = Walled::now(&roster, |from, to| walls.as_ref().is_some_and(|walls| walls.between(from, to)));
     // No listener yet (the world's first tick): the engine's centre.
     let listener = Listener::at_frame(ctx);
     let pan = |offset| listener.as_ref().map_or(PAN_CENTRE, |listener| listener.pan(offset));
-    let told = Told { settings, muted: muted(dll, &roster, &live.mutes), hearing: hearing(&roster, pan) };
+    let told = Told { settings, muted: muted(dll, &roster, &live.mutes), hearing: hearing(&roster, pan, &walled) };
     let before = live.told;
     if before.map(|t| t.settings) != Some(told.settings) {
         dll.settings(told.settings);
@@ -885,7 +940,7 @@ mod tests {
     fn roster(seats: &[(u32, Option<[f32; 3]>)]) -> Roster {
         let mut r = Roster::EMPTY;
         for (n, &(team, feet)) in seats.iter().enumerate() {
-            let body = feet.map(|feet| Body { feet });
+            let body = feet.map(|feet| Body { feet, eye: [feet[0], feet[1] + 1.6, feet[2]] });
             r.set(Place::new(n as u32).unwrap(), Seat { name: [0; 64], team, body });
         }
         r.set_local(Place::new(0));
@@ -916,11 +971,11 @@ mod tests {
             (0, None),
             (0, Some([5.0, 1.0, 55.0])),
         ]);
-        let heard = hearing(&r, pan);
+        let heard = hearing(&r, pan, &Walled::NONE);
         // A mate near: both channels; far or dead: its radio alone.
         assert!(heard.of(p(1)).near != Ears::SILENT && heard.of(p(1)).radio);
         for far in [p(2), p(4), p(5)] {
-            assert_eq!(heard.of(far), Heard { near: Ears::SILENT, radio: true });
+            assert_eq!(heard.of(far), Heard { near: Ears::SILENT, muffle: Muffle::NONE, radio: true });
         }
         // A dead opponent, the local player, a place of nobody: silent.
         for nobody in [p(3), p(0), p(19)] {
@@ -928,16 +983,16 @@ mod tests {
         }
         // The listener dead: no 10 m voice of anyone beside its body's place.
         let dead = roster(&[(0, None), (0, Some([1.0, 0.0, 0.0]))]);
-        assert_eq!(hearing(&dead, pan).of(p(1)), Heard { near: Ears::SILENT, radio: true });
+        assert_eq!(hearing(&dead, pan, &Walled::NONE).of(p(1)), Heard { near: Ears::SILENT, muffle: Muffle::NONE, radio: true });
         let broken = roster(&[(0, Some([0.0; 3])), (0, Some([f32::NAN, 0.0, 0.0]))]);
-        assert_eq!(hearing(&broken, pan).of(p(1)).near, Ears::SILENT);
+        assert_eq!(hearing(&broken, pan, &Walled::NONE).of(p(1)).near, Ears::SILENT);
     }
 
     #[test]
     fn the_10_m_voice_has_the_engines_pan_of_its_offset_and_falls_gently() {
         // The pan is asked of the speaker's offset from the listener, feet to feet.
         let r = roster(&[(0, Some([10.0, 2.0, 10.0])), (0, Some([10.5, 2.0, 10.25]))]);
-        let ears = hearing(&r, pan).of(p(1)).near;
+        let ears = hearing(&r, pan, &Walled::NONE).of(p(1)).near;
         // Under 1 m the gain is whole: the pan times the level.
         let level = gain(1.0) * LEVEL;
         assert!(close(ears.get()[0], 0.5 * level) && close(ears.get()[1], 0.25 * level), "{ears:?}");
@@ -955,6 +1010,41 @@ mod tests {
     }
 
     #[test]
+    fn a_wall_between_two_heads_takes_the_part_of_the_voice_behind_it() {
+        // The local player at the origin; 1 a teammate 4 m ahead, 2 an
+        // opponent 4 m to the side, 3 a teammate 12 m behind: out of the 10 m.
+        let r = roster(&[(0, Some([0.0; 3])), (0, Some([0.0, 0.0, 4.0])), (1, Some([4.0, 0.0, 0.0])), (0, Some([0.0, 0.0, -12.0]))]);
+        // The lines go from the listener's head to the speaker's and 0.15 m
+        // to either side of it, level with the ground.
+        let lines = core::cell::RefCell::new(Vec::new());
+        let open = Walled::now(&r, |from, to| {
+            lines.borrow_mut().push((from, to));
+            false
+        });
+        assert_eq!(open.0[1], Some(0.0));
+        assert_eq!((open.0[2], open.0[3], open.0[0]), (Some(0.0), None, None));
+        assert_eq!(lines.borrow().len(), 6);
+        let ahead: Vec<[f32; 3]> = lines.borrow()[..3].iter().map(|&(from, to)| { assert_eq!(from, [0.0, 1.6, 0.0]); to }).collect();
+        assert_eq!(ahead[0], [0.0, 1.6, 4.0]);
+        assert!(close(ahead[1][0], -WALL_SIDE_M) && close(ahead[2][0], WALL_SIDE_M) && ahead[1][2] == 4.0 && ahead[1][1] == 1.6, "{ahead:?}");
+        // A wall across the way ahead: all of 1; a post beside 2's head: a third of it.
+        let wall = Walled::now(&r, |_, to| to[2] > 3.0 || (to[0] > 3.0 && to[2] > 0.1));
+        assert_eq!(wall.0[1], Some(1.0));
+        assert!(close(wall.0[2].unwrap(), 1.0 / 3.0), "{wall:?}");
+        // Heard: the DLL is told how much (it makes the voice quieter and
+        // dull); the ears are the voice's in the open, the radio is not touched.
+        let heard = hearing(&r, pan, &wall);
+        let clear = hearing(&r, pan, &Walled::NONE);
+        assert_eq!(heard.of(p(1)).near, clear.of(p(1)).near);
+        assert_eq!((heard.of(p(1)).muffle, heard.of(p(1)).radio), (Muffle::WHOLE, true));
+        assert!(close(heard.of(p(2)).muffle.get(), 1.0 / 3.0));
+        assert_eq!(heard.of(p(3)), clear.of(p(3)));
+        // The listener out of the world: nobody is followed.
+        let dead = roster(&[(0, None), (0, Some([0.0, 0.0, 4.0]))]);
+        assert_eq!(Walled::now(&dead, |_, _| true), Walled::NONE);
+    }
+
+    #[test]
     fn in_a_free_for_all_everyone_is_a_mate_in_a_team_mode_teammates() {
         let sides = |r: &Roster| r.others().map(|(place, _, side)| (place, side)).collect::<Vec<_>>();
         // A free-for-all's places, each a side of its own (4 + its place).
@@ -964,7 +1054,7 @@ mod tests {
         ffa.set_mates(Mates::Match);
         assert_eq!(sides(&ffa), [(p(1), Side::Mate), (p(2), Side::Mate), (p(3), Side::Mate)]);
         // Everyone's radio is heard, near, far and dead; the 10 m voice near.
-        let heard = hearing(&ffa, pan);
+        let heard = hearing(&ffa, pan, &Walled::NONE);
         assert!(heard.of(p(1)).near.get()[0] > 0.0 && heard.of(p(1)).near.get()[1] == 0.0);
         assert!([p(1), p(2), p(3)].iter().all(|&place| heard.of(place).radio));
         assert_eq!(heard.of(p(2)).near, Ears::SILENT);
@@ -983,7 +1073,7 @@ mod tests {
         // side by side at each distance.
         let at = |metres: f32| Some([metres, 0.0, 0.0]);
         let r = roster(&[(0, at(0.0)), (0, at(4.0)), (1, at(4.0)), (0, at(12.0)), (1, at(12.0)), (0, None), (1, None)]);
-        let heard = hearing(&r, pan);
+        let heard = hearing(&r, pan, &Walled::NONE);
         // Near: the same 10 m voice, the engine's pan and the fall alike.
         assert!(heard.of(p(2)).near != Ears::SILENT);
         assert_eq!(heard.of(p(2)).near, heard.of(p(1)).near);

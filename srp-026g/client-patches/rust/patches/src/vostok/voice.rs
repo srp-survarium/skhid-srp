@@ -353,7 +353,7 @@ impl Polled {
     }
 }
 
-pub use voice_abi::{Channel, Ears, Heard, MicTest};
+pub use voice_abi::{Channel, Ears, Heard, MicTest, Muffle};
 
 /// How every place is heard (what the DLL is told: one `sv_hear` a place).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -375,10 +375,32 @@ impl Hearing {
     }
 }
 
-/// A player alive in the world, as voice needs it: where its feet are.
+/// A player alive in the world, as voice needs it: where its feet and its
+/// eyes are (its computed eye matrix's place: its head, where it talks and
+/// hears).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Body {
     pub feet: [f32; 3],
+    pub eye: [f32; 3],
+}
+
+/// The level's solid geometry, for a line between two players' heads: the
+/// simulation's physics world, asked with the level's own filter (the one
+/// the foot IK and the carry's reach use: the players' bodies are not of it).
+pub struct Walls<'t>(super::world::PhysicsWorld<'t>);
+
+impl Walls<'_> {
+    /// Whether something solid of the level lies on the line from `from` to
+    /// `to`. Points as good as one: nothing.
+    pub fn between(&self, from: [f32; 3], to: [f32; 3]) -> bool {
+        let delta = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+        let distance = ::ragdoll::math::sqrt(delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2]);
+        if distance.is_nan() || distance < 0.1 {
+            return false;
+        }
+        let direction = delta.map(|d| d / distance);
+        self.0.ray_test(from, direction, distance, 0x24, 2).is_some()
+    }
 }
 
 /// The engine's pan of a sound straight ahead, behind, above, or at the
@@ -504,7 +526,10 @@ impl Roster {
         for place in Place::all() {
             let Some(team) = teams[place.index()] else { continue };
             let body = if bodies {
-                client.player(u32::from(place.get())).filter(|p| p.alive() && p.inserted()).map(|p| Body { feet: p.feet() })
+                client.player(u32::from(place.get())).filter(|p| p.alive() && p.inserted()).map(|p| {
+                    let eye = p.eye_transform();
+                    Body { feet: p.feet(), eye: [eye[12], eye[13], eye[14]] }
+                })
             } else {
                 None
             };
@@ -587,6 +612,14 @@ impl<'t> Scene<'t> {
 
     pub fn movie(&self) -> Option<&Movie<'t>> {
         self.movie.as_ref()
+    }
+
+    /// The level's geometry (the local player's physics world); none while
+    /// it is not in a world.
+    pub fn walls(&self) -> Option<Walls<'t>> {
+        let client = NetworkClient::of_game(self.game?, self.thread)?;
+        let local = client.local_profile()?;
+        client.player(u32::from(local))?.physics_world().map(Walls)
     }
 
     /// Each frame of a match (`game_world.after_move`): the world's game and its hud.
@@ -736,9 +769,9 @@ impl Dll {
         for place in Place::all() {
             let heard = hearing.of(place);
             if before.map(|b| b.of(place)) != Some(heard) {
-                let (left, right, radio) = heard.call();
+                let (left, right, muffle, radio) = heard.call();
                 // SAFETY: the checked API, a place below 20 and scalars.
-                unsafe { (self.api.hear)(i32::from(place.get()), left, right, radio) }
+                unsafe { (self.api.hear)(i32::from(place.get()), left, right, muffle, radio) }
             }
         }
     }
