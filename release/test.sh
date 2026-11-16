@@ -1557,14 +1557,6 @@ expect_refused "release: the bots' data folder not set" "SKHID_BOT_DATA is not s
     env SKHID_RELEASE_ENV="$(changed_env "/^SKHID_BOT_DATA=/d")" "$here/release.sh"
 expect_refused "release: the bots' data folder is not a folder" "SKHID_BOT_DATA: $T/nowhere is not a folder" \
     env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_BOT_DATA=.*|SKHID_BOT_DATA=$T/nowhere|")" "$here/release.sh"
-# The built maps: refused in step 2 (the keys need the server data it
-# builds), before the go.
-touch "$T/built-missing"
-: >"$T/state/admin.log"
-expect_refused "release: an offered map's built files not in the list (owner-14 row 1)" \
-    "the built maps: level_t/day_2: mapdata/built/grid-00000000000000aa.bin is not in the list" "$here/release.sh"
-check "release: ... in step 2, nothing planned, the lock freed" bash -c "test ! -s $T/state/admin.log && test ! -e $T/lock"
-rm "$T/built-missing"
 mv "$T/bot-data/bot-routes/routes-t.json" "$T/routes-t.json.away"
 expect_refused "release: a bots' data file missing" "the bots' data: bot-routes/routes-t.json: not in $T/bot-data" "$here/release.sh"
 mv "$T/routes-t.json.away" "$T/bot-data/bot-routes/routes-t.json"
@@ -1587,6 +1579,15 @@ git -C "$T/repo" config --unset user.useConfigOnly
 git -C "$T/repo" tag -a 026g-rev14 -m "left by a run" HEAD
 expect_refused "release: a tag of its revision left here" "a tag 026g-rev14 is in $T/repo, not on origin" "$here/release.sh"
 git -C "$T/repo" tag -d 026g-rev14 >/dev/null
+# The built maps: refused in step 2 (the keys need the server data it
+# builds), before the go: here, where the preflight passes (the git user
+# is back).
+touch "$T/built-missing"
+: >"$T/state/admin.log"
+expect_refused "release: an offered map's built files not in the list (owner-14 row 1)" \
+    "the built maps: level_t/day_2: mapdata/built/grid-00000000000000aa.bin is not in the list" "$here/release.sh"
+check "release: ... in step 2, nothing planned, the lock freed" bash -c "test ! -s $T/state/admin.log && test ! -e $T/lock"
+rm "$T/built-missing"
 echo "crates 3" >"$src/crates/a/src/lib.rs"
 commit "server code again"
 mkdir -p "$T/p14/gameplay/items" "$T/r14"
