@@ -2470,6 +2470,329 @@ ban_time_on_status_replay:
     db 0x8a, 0x44, 0x24, 0x13, 0x8b, 0xd3
     jmp 0x21f21d
 
+; 0x2fa7e9 victory_item_core_cook::on_animations_loaded (0x2FA400, the client's and the core's batteries alike) once initialize_logic (0x2FA7E4) made the take, carry and put states: ESI the battery, ESP+28h the put state's six clips (the callback's own array, released after); replayed: mov ecx,[esp+20h] / mov eax,[ecx]: lohook -> battery_hit_on_logic
+global battery_hit_on_logic
+extern hook_battery_hit_on_logic
+battery_hit_on_logic:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_logic
+    mov edx, battery_hit_on_logic_replay
+    cmp eax, 0
+    je battery_hit_on_logic_go
+    mov edx, 0x2fa7ef
+    cmp eax, 1
+    je battery_hit_on_logic_go
+    ud2
+battery_hit_on_logic_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_logic_replay:
+    db 0x8b, 0x4c, 0x24, 0x20, 0x8b, 0x01
+    jmp 0x2fa7ef
+
+; 0x372420 the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> swing's predicate: callback -> battery_hit_on_wants_swing (wraps engine_fsm_always 0x372420)
+    RUST_CDECL battery_hit_on_wants_swing, hook_battery_hit_on_wants_swing, 1
+
+; 0x38caa0 fsm::tick 0x38CA20 leaving its current state through a transition it took (a predicate true, 0x38CA81; tried only once the state is ready, its vtable +18h), before that state's finalize (call [vtbl+0Ch] at 0x38CAA5): ECX the state left, of any machine (a battery's when its vtable is a battery state's); the only way a battery's machine leaves a state in the simulation (victory_item_core::deactivate 0x300F40 finalizes without a transition, game_world_core::deserialize 0x2D2770 reaches it through base_player::remove 0x2DA790); replayed: mov eax,[ecx] / mov edx,[eax+0Ch]: lohook -> battery_hit_on_state_left
+global battery_hit_on_state_left
+extern hook_battery_hit_on_state_left
+battery_hit_on_state_left:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_state_left
+    mov edx, battery_hit_on_state_left_replay
+    cmp eax, 0
+    je battery_hit_on_state_left_go
+    mov edx, 0x38caa5
+    cmp eax, 1
+    je battery_hit_on_state_left_go
+    ud2
+battery_hit_on_state_left_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_state_left_replay:
+    db 0x8b, 0x01, 0x8b, 0x50, 0x0c
+    jmp 0x38caa5
+
+; 0x2e43a3 weapon_core::player_stance 0x2E43A0 (the gun's vtable +7Ch; the bullet's constructor 0x32BADE, base_player hit events for no bullet 0x2D9FB2) once it read its user (mov eax,[ecx+8]), before that user's alive byte: ECX the gun, EAX the user (0 for a deactivated gun, which natively never shoots); replayed: mov al,[eax+33Ch]: lohook -> battery_hit_on_stance_user
+global battery_hit_on_stance_user
+extern hook_battery_hit_on_stance_user
+battery_hit_on_stance_user:
+extern battery_hit_on_stance_user_only
+    pushfd
+    cmp eax, 256
+    jae battery_hit_on_stance_user_pass
+    bt dword [battery_hit_on_stance_user_only], eax
+    jc battery_hit_on_stance_user_save
+battery_hit_on_stance_user_pass:
+    popfd
+    jmp battery_hit_on_stance_user_replay
+battery_hit_on_stance_user_save:
+    popfd
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_stance_user
+    mov edx, battery_hit_on_stance_user_replay
+    cmp eax, 0
+    je battery_hit_on_stance_user_go
+    mov edx, 0x2e43a9
+    cmp eax, 1
+    je battery_hit_on_stance_user_go
+    ud2
+battery_hit_on_stance_user_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_stance_user_replay:
+    db 0x8a, 0x80, 0x3c, 0x03, 0x00, 0x00
+    jmp 0x2e43a9
+
+; 0x2e43b9 weapon_core::player_stance once it read its clip set's posture (mov eax,[ecx+278h] / mov eax,[eax+20h]), before the posture's kind: ECX the gun, EAX the posture (0 for a deactivated gun's); replayed: cmp dword [eax+20h],1 / sete dl: lohook -> battery_hit_on_stance_posture
+global battery_hit_on_stance_posture
+extern hook_battery_hit_on_stance_posture
+battery_hit_on_stance_posture:
+extern battery_hit_on_stance_posture_only
+    pushfd
+    cmp eax, 256
+    jae battery_hit_on_stance_posture_pass
+    bt dword [battery_hit_on_stance_posture_only], eax
+    jc battery_hit_on_stance_posture_save
+battery_hit_on_stance_posture_pass:
+    popfd
+    jmp battery_hit_on_stance_posture_replay
+battery_hit_on_stance_posture_save:
+    popfd
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_stance_posture
+    mov edx, battery_hit_on_stance_posture_replay
+    cmp eax, 0
+    je battery_hit_on_stance_posture_go
+    mov edx, 0x2e43c0
+    cmp eax, 1
+    je battery_hit_on_stance_posture_go
+    ud2
+battery_hit_on_stance_posture_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_stance_posture_replay:
+    db 0x83, 0x78, 0x20, 0x01, 0x0f, 0x94, 0xc2
+    jmp 0x2e43c0
+
+; 0x2e1d00 the melee data's damage 0x2E1CF0 (the bullet's constructor 0x32BB38, update_bullet_position 0x32F09A each step), melee branch, once it read the gun's user (mov eax,[ecx+8]), before the user's kit: ECX the gun, EAX the user (0 for a deactivated gun); replayed: movzx ecx,byte [eax+115h]: lohook -> battery_hit_on_melee_damage_user
+global battery_hit_on_melee_damage_user
+extern hook_battery_hit_on_melee_damage_user
+battery_hit_on_melee_damage_user:
+extern battery_hit_on_melee_damage_user_only
+    pushfd
+    cmp eax, 256
+    jae battery_hit_on_melee_damage_user_pass
+    bt dword [battery_hit_on_melee_damage_user_only], eax
+    jc battery_hit_on_melee_damage_user_save
+battery_hit_on_melee_damage_user_pass:
+    popfd
+    jmp battery_hit_on_melee_damage_user_replay
+battery_hit_on_melee_damage_user_save:
+    popfd
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_melee_damage_user
+    mov edx, battery_hit_on_melee_damage_user_replay
+    cmp eax, 0
+    je battery_hit_on_melee_damage_user_go
+    mov edx, 0x2e1d07
+    cmp eax, 1
+    je battery_hit_on_melee_damage_user_go
+    ud2
+battery_hit_on_melee_damage_user_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_melee_damage_user_replay:
+    db 0x0f, 0xb6, 0x88, 0x15, 0x01, 0x00, 0x00
+    jmp 0x2e1d07
+
+; 0x2e1c99 the melee data's minimum damage 0x2E1C80 (update_bullet_position 0x32F0B6 each step, the pierce 0x32DA5A, the ricochet 0x32E35C), melee branch, once it read the gun's user (mov eax,[ecx+8]), before the user's kit: ECX the gun, EAX the user (0 for a deactivated gun); replayed: movzx ecx,byte [eax+115h]: lohook -> battery_hit_on_melee_falloff_user
+global battery_hit_on_melee_falloff_user
+extern hook_battery_hit_on_melee_falloff_user
+battery_hit_on_melee_falloff_user:
+extern battery_hit_on_melee_falloff_user_only
+    pushfd
+    cmp eax, 256
+    jae battery_hit_on_melee_falloff_user_pass
+    bt dword [battery_hit_on_melee_falloff_user_only], eax
+    jc battery_hit_on_melee_falloff_user_save
+battery_hit_on_melee_falloff_user_pass:
+    popfd
+    jmp battery_hit_on_melee_falloff_user_replay
+battery_hit_on_melee_falloff_user_save:
+    popfd
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_melee_falloff_user
+    mov edx, battery_hit_on_melee_falloff_user_replay
+    cmp eax, 0
+    je battery_hit_on_melee_falloff_user_go
+    mov edx, 0x2e1ca0
+    cmp eax, 1
+    je battery_hit_on_melee_falloff_user_go
+    ud2
+battery_hit_on_melee_falloff_user_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_melee_falloff_user_replay:
+    db 0x0f, 0xb6, 0x88, 0x15, 0x01, 0x00, 0x00
+    jmp 0x2e1ca0
+
+; 0xa1bfa4 the take state's vtable slot 8 (+20h, 0xA1BF84): may the battery be put away now (victory_item_core::is_ready_to_be_deactivated 0x301270 asks the current state; the item switch 0x2D76A0 calls that), thiscall; the take's answers no (0x397C20), the carry's whether its user is dead (0x338E90): vtable -> battery_hit_on_deactivatable (wraps engine_take_deactivatable 0x397c20)
+    RUST_THISCALL battery_hit_on_deactivatable, hook_battery_hit_on_deactivatable, 0
+
+; 0x2da3cb generate_killed_event 0x2DA170 about to write the kill event's killer and weapon icon (mov [eax+1],cl / mov [eax+2],dl; EAX the event node, EDX the icon: the bullet's data +50h, else the damage source's +224h, 0x2DA35A..0x2DA382; EBP the bullet or 0); the hud's handler 0x23B5F0 reads +2 for on_player_killed's object_icon; replayed: mov [eax+1],cl / mov [eax+2],dl: lohook -> battery_hit_on_kill_feed_icon
+global battery_hit_on_kill_feed_icon
+extern hook_battery_hit_on_kill_feed_icon
+battery_hit_on_kill_feed_icon:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_kill_feed_icon
+    mov edx, battery_hit_on_kill_feed_icon_replay
+    cmp eax, 0
+    je battery_hit_on_kill_feed_icon_go
+    mov edx, 0x2da3d1
+    cmp eax, 1
+    je battery_hit_on_kill_feed_icon_go
+    ud2
+battery_hit_on_kill_feed_icon_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_kill_feed_icon_replay:
+    db 0x88, 0x48, 0x01, 0x88, 0x50, 0x02
+    jmp 0x2da3d1
+
 ; 0x334999 victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set: lohook -> battery_progress_on_match_start
 global battery_progress_on_match_start
 extern hook_battery_progress_on_match_start
@@ -9437,6 +9760,24 @@ world_check_on_raw_go:
 world_check_on_raw_replay:
     db 0x8b, 0x8f, 0x40, 0x1c, 0x1f, 0x00
     jmp 0x27c105
+
+section .rodata
+align 4
+global battery_hit_swing_vtable
+battery_hit_swing_vtable:
+    dd 0xa53fc0
+    dd 0x338ab0
+    dd 0x344730
+    dd 0x344b30
+    dd 0x3447f0
+    dd 0x344950
+    dd 0x344870
+    dd 0x338930
+    dd 0x339150
+    dd battery_hit_on_deactivatable
+    dd 0x338b20
+    dd 0x344c90
+    dd 0x338ef0
 
 section .rodata
 align 4

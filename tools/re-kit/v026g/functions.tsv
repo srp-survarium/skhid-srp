@@ -2396,3 +2396,4 @@ va	status	ref_021d	name
 0x00305540	observed		survarium::booby_trap_core::hit
 0x00305580	observed		survarium::booby_trap_core::hit
 0x003050c0	observed		survarium::booby_trap_core::defuse_completed
+0x003917d0	reviewed		vostok::animation::animation_player::tick
