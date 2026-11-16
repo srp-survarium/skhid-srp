@@ -331,6 +331,15 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - The owner's against the checks: 17, 30 and 31, 1.01, 1.77 and 0.17 m from `fire_soft_damage`,
     and 55 and 57, inside and 1.44 m from `frogs_damage_zone`. 35 hold the rule; 33 have no cover
     or stand in the perimeter band, kept as his.
+  - Six more (2026-11-16, on evening_8 once the tunnel roof opened, `level06-tunnel-top.md`:
+    `private/spawn-examples/mamayev026-tunnel-2026-11-16.tsv`): content edit
+    `ffa-mamayev-tunnel-picks-1`, after `level06-tunnel-top-1`, from
+    `scripts/ffa-mode/mamayev-tunnel-picks.tsv` (`picks --as-stood 3 --project
+    level_06/<weather>_8`, its moved rows: the places, not their point ids), new points 98-103
+    after 97, copies of point 30. One on the west hill, three on the roof, two at the west edge;
+    all on their ground and 2 m from harmful zones but 3, kept as he stood over a seam of the roof
+    (the floor the check finds is 2.93 m below); all fail the cover rule, kept as his. 68 -> 74
+    points.
 - **Training Camp at the owner's picks** (2026-11-15: 47 `where` places on day_8, "i also set
   spawns", `private/spawn-examples/training-camp-2026-11-15.tsv`). Content edit
   `ffa-training-camp-picks-1`, from `scripts/ffa-mode/training-camp-picks.tsv` (`picks --as-stood

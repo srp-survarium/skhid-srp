@@ -1,5 +1,305 @@
 {
- "_about": "Mamayev Kurgan's tunnel top open to players, as in 0.69d (the owner, 2026-11-16, in level_06/evening_8 with the collision view: \"this collision stops players from getting on top of that tunnel\", \"let's remove it\", \"in 0.69 I think they did\", \"so this whole block should be removed of collision\"): the ring of 15 invisible walker-only boxes (editor/walker_collision, cgroup 2, cmask 4; bullets and the camera never met them) round the roof of the tunnel level/06/object_4 (x 56-87, z 127-145, its top at y 34-38) taken out of every level_06 project (day, evening, rain; modes 2, 3, 4, 5, 8): its east side over the tunnel's mouth (878, 905, 1047, 1092 of evening_8's collision_objects), its south side to the hill (846, 868, 910, 861, 869, 935, 1023, 1073, 1044) and its west side (1031, 941). The map's outer boundary north of the roof stays (1060, 1052, 946, 1004, 914). 0.69d's level_06 (default, day_tdm) has none of the 15 and keeps the same boundary. Bot walk grid: the floors newly reached are the roof alone. Changes the simulation (simulation_changes.tsv). docs/notes/level06-tunnel-top.md",
+ "_about": "Mamayev Kurgan's tunnel top open to players, as in 0.69d (the owner, 2026-11-16, in level_06/evening_8 with the collision view: \"this collision stops players from getting on top of that tunnel\", \"let's remove it\", \"in 0.69 I think they did\", \"so this whole block should be removed of collision\"; then, having played it, two more: the green over the rock ledge by the hollow, and the walker collision by the tree on the slope east that keeps players from getting onto the roof from there). Invisible walker-only collision (bullets and the camera never met it) taken out of every level_06 project (day, evening, rain; modes 2, 3, 4, 5, 8): the ring of 15 boxes (editor/walker_collision, cgroup 2, cmask 4) round the roof of the tunnel level/06/object_4 (x 56-87, z 127-145, its top at y 34-38): east over the tunnel's mouth (878, 905, 1047, 1092 of evening_8's collision_objects), south to the hill (846, 868, 910, 861, 869, 935, 1023, 1073, 1044), west (1031, 941); the three boxes by the tree on the slope north-east of the mouth (994, 1004, 1078: x 85.6-93.8, z 141.5-146.5); and from the tunnel's own walker mesh (models/level/06/object_4.model/walker_collision, which every level_06 project places) the 17 triangles of a wall over the rock ledge south of the hollow (x 85.8-88.6, z 134.5-135.2, y 33.4-37 in the map) that neither its drawn model nor its bullet mesh has. The map's outer boundary north of the roof stays (1060, 1052, 946 and the rest). Bot walk grid: the floors newly reached are the roof and the slope's way onto it. Changes the simulation (simulation_changes.tsv). docs/notes/level06-tunnel-top.md",
+ "remove_faces": [
+  {
+   "files": [
+    "models/level/06/object_4.model/walker_collision/vertices",
+    "models/level/06/object_4.model/walker_collision/indices",
+    "models/level/06/object_4.model/walker_collision/face_data"
+   ],
+   "faces": [
+    [
+     [
+      88.319,
+      13.012,
+      134.823
+     ],
+     [
+      88.317,
+      11.051,
+      134.447
+     ],
+     [
+      88.302,
+      13.06,
+      134.638
+     ]
+    ],
+    [
+     [
+      88.566,
+      16.076,
+      134.999
+     ],
+     [
+      86.784,
+      16.541,
+      135.033
+     ],
+     [
+      88.583,
+      16.029,
+      135.184
+     ]
+    ],
+    [
+     [
+      86.784,
+      16.541,
+      135.033
+     ],
+     [
+      88.566,
+      16.076,
+      134.999
+     ],
+     [
+      86.759,
+      16.622,
+      134.836
+     ]
+    ],
+    [
+     [
+      86.034,
+      16.611,
+      134.823
+     ],
+     [
+      86.784,
+      16.541,
+      135.033
+     ],
+     [
+      86.759,
+      16.622,
+      134.836
+     ]
+    ],
+    [
+     [
+      86.784,
+      16.541,
+      135.033
+     ],
+     [
+      86.034,
+      16.611,
+      134.823
+     ],
+     [
+      86.139,
+      16.512,
+      135.008
+     ]
+    ],
+    [
+     [
+      88.319,
+      13.012,
+      134.823
+     ],
+     [
+      86.784,
+      16.541,
+      135.033
+     ],
+     [
+      86.524,
+      13.521,
+      134.678
+     ]
+    ],
+    [
+     [
+      86.784,
+      16.541,
+      135.033
+     ],
+     [
+      88.319,
+      13.012,
+      134.823
+     ],
+     [
+      88.583,
+      16.029,
+      135.184
+     ]
+    ],
+    [
+     [
+      86.498,
+      13.602,
+      134.48
+     ],
+     [
+      88.566,
+      16.076,
+      134.999
+     ],
+     [
+      88.302,
+      13.06,
+      134.638
+     ]
+    ],
+    [
+     [
+      88.566,
+      16.076,
+      134.999
+     ],
+     [
+      86.498,
+      13.602,
+      134.48
+     ],
+     [
+      86.759,
+      16.622,
+      134.836
+     ]
+    ],
+    [
+     [
+      88.302,
+      13.06,
+      134.638
+     ],
+     [
+      88.583,
+      16.029,
+      135.184
+     ],
+     [
+      88.319,
+      13.012,
+      134.823
+     ]
+    ],
+    [
+     [
+      88.583,
+      16.029,
+      135.184
+     ],
+     [
+      88.302,
+      13.06,
+      134.638
+     ],
+     [
+      88.566,
+      16.076,
+      134.999
+     ]
+    ],
+    [
+     [
+      85.777,
+      13.587,
+      134.472
+     ],
+     [
+      86.759,
+      16.622,
+      134.836
+     ],
+     [
+      86.498,
+      13.602,
+      134.48
+     ]
+    ],
+    [
+     [
+      86.759,
+      16.622,
+      134.836
+     ],
+     [
+      85.777,
+      13.587,
+      134.472
+     ],
+     [
+      86.034,
+      16.611,
+      134.823
+     ]
+    ],
+    [
+     [
+      86.524,
+      13.521,
+      134.678
+     ],
+     [
+      86.139,
+      16.512,
+      135.008
+     ],
+     [
+      85.882,
+      13.488,
+      134.657
+     ]
+    ],
+    [
+     [
+      86.139,
+      16.512,
+      135.008
+     ],
+     [
+      86.524,
+      13.521,
+      134.678
+     ],
+     [
+      86.784,
+      16.541,
+      135.033
+     ]
+    ],
+    [
+     [
+      85.882,
+      13.488,
+      134.657
+     ],
+     [
+      86.034,
+      16.611,
+      134.823
+     ],
+     [
+      85.777,
+      13.587,
+      134.472
+     ]
+    ],
+    [
+     [
+      86.034,
+      16.611,
+      134.823
+     ],
+     [
+      85.882,
+      13.488,
+      134.657
+     ],
+     [
+      86.139,
+      16.512,
+      135.008
+     ]
+    ]
+   ]
+  }
+ ],
  "remove_entry": [
   {
    "file": "projects/level_06/day_2/client_project",
@@ -287,6 +587,63 @@
    }
   },
   {
+   "file": "projects/level_06/day_2/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/day_2/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/day_2/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/day_3/client_project",
    "list": "collision_objects",
    "where": {
@@ -572,6 +929,63 @@
    }
   },
   {
+   "file": "projects/level_06/day_3/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/day_3/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/day_3/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/day_4/client_project",
    "list": "collision_objects",
    "where": {
@@ -857,6 +1271,63 @@
    }
   },
   {
+   "file": "projects/level_06/day_4/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/day_4/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/day_4/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/day_5/client_project",
    "list": "collision_objects",
    "where": {
@@ -1142,6 +1613,63 @@
    }
   },
   {
+   "file": "projects/level_06/day_5/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/day_5/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/day_5/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/day_8/client_project",
    "list": "collision_objects",
    "where": {
@@ -1427,6 +1955,63 @@
    }
   },
   {
+   "file": "projects/level_06/day_8/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/day_8/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/day_8/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/evening_2/client_project",
    "list": "collision_objects",
    "where": {
@@ -1712,6 +2297,63 @@
    }
   },
   {
+   "file": "projects/level_06/evening_2/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/evening_2/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/evening_2/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/evening_3/client_project",
    "list": "collision_objects",
    "where": {
@@ -1997,6 +2639,63 @@
    }
   },
   {
+   "file": "projects/level_06/evening_3/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/evening_3/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/evening_3/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/evening_4/client_project",
    "list": "collision_objects",
    "where": {
@@ -2282,6 +2981,63 @@
    }
   },
   {
+   "file": "projects/level_06/evening_4/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/evening_4/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/evening_4/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/evening_5/client_project",
    "list": "collision_objects",
    "where": {
@@ -2567,6 +3323,63 @@
    }
   },
   {
+   "file": "projects/level_06/evening_5/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/evening_5/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/evening_5/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/evening_8/client_project",
    "list": "collision_objects",
    "where": {
@@ -2852,6 +3665,63 @@
    }
   },
   {
+   "file": "projects/level_06/evening_8/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/evening_8/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/evening_8/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/rain_2/client_project",
    "list": "collision_objects",
    "where": {
@@ -3137,6 +4007,63 @@
    }
   },
   {
+   "file": "projects/level_06/rain_2/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/rain_2/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/rain_2/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/rain_3/client_project",
    "list": "collision_objects",
    "where": {
@@ -3422,6 +4349,63 @@
    }
   },
   {
+   "file": "projects/level_06/rain_3/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/rain_3/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/rain_3/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/rain_4/client_project",
    "list": "collision_objects",
    "where": {
@@ -3707,6 +4691,63 @@
    }
   },
   {
+   "file": "projects/level_06/rain_4/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/rain_4/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/rain_4/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/rain_5/client_project",
    "list": "collision_objects",
    "where": {
@@ -3992,6 +5033,63 @@
    }
   },
   {
+   "file": "projects/level_06/rain_5/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/rain_5/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/rain_5/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
    "file": "projects/level_06/rain_8/client_project",
    "list": "collision_objects",
    "where": {
@@ -4271,6 +5369,63 @@
      -3.135,
      -1.499,
      3.069
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/rain_8/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.65][5.61][1.09]",
+    "position": [
+     90.708,
+     36.71,
+     142.975
+    ],
+    "rotation": [
+     0.044,
+     -1.027,
+     -0.002
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/rain_8/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[2.22][6.19][0.46]",
+    "position": [
+     87.889,
+     36.669,
+     142.382
+    ],
+    "rotation": [
+     0.0,
+     -0.178,
+     0.0
+    ],
+    "cgroup": 2,
+    "cmask": 4
+   }
+  },
+  {
+   "file": "projects/level_06/rain_8/client_project",
+   "list": "collision_objects",
+   "where": {
+    "lib_name": "resources/models/editor/walker_collision.model/collision#[0.50][4.17][1.71]",
+    "position": [
+     92.296,
+     37.582,
+     144.694
+    ],
+    "rotation": [
+     0.027,
+     -0.583,
+     -0.025
     ],
     "cgroup": 2,
     "cmask": 4
