@@ -69,45 +69,63 @@ const MIX_CEILING: f32 = 0.9;
 const MIX_HOLD: usize = FRAME;
 /// How fast the gain then comes back: 0.6 dB a frame, 6 dB in 200 ms.
 const MIX_RELEASE: f32 = 1.071_5;
-/// The mix's limiter: where a sample would pass [`MIX_CEILING`] the whole
-/// mix, both ears alike, is turned down at once so that it does not; the
-/// gain stays for [`MIX_HOLD`] and comes back at [`MIX_RELEASE`]. A loud
-/// voice, or several at once, plays quieter for a moment and stays itself.
+/// A limiter that turns down: where a sample would pass its ceiling the
+/// gain comes down at once so that it does not, stays for [`MIX_HOLD`] and
+/// comes back at [`MIX_RELEASE`]. What it holds plays quieter for a moment
+/// and stays itself.
 ///
-/// Until 2026-11-16 a curve bent every sample over half scale (tanh). Speech
-/// through the automatic gain played 3 times as decoded (a plain voice:
-/// [`LOUDER`] and [`MIX`]) was bent on 2 % of its samples at the default
-/// "Microphone sensitivity" and on 8 % at the highest, where what the curve
-/// added was 13 dB under the voice: such a talker was crushed for everyone
-/// (the owner: "some people sound good, some are barely recognizable").
+/// Until 2026-11-16 a curve bent every sample of the mix over half scale
+/// (tanh). Speech through the automatic gain played 3 times as decoded (a
+/// plain voice: [`LOUDER`] and [`MIX`]) was bent on 1.4 % of its samples at
+/// the default "Microphone sensitivity" and on 5.3 % at the highest, where
+/// what the curve added was 18 dB under the voice: such a talker was crushed
+/// for everyone (the owner: "some people sound good, some are barely
+/// recognizable").
 #[derive(Clone, Copy, Debug)]
-pub struct Master {
+struct Rider {
     gain: f32,
     /// The samples left of [`MIX_HOLD`].
     hold: usize,
 }
+impl Rider {
+    const REST: Self = Self { gain: 1., hold: 0 };
+    /// [`MIX_RELEASE`] a sample.
+    fn release() -> f32 {
+        MIX_RELEASE.powf(1. / FRAME as f32)
+    }
+    /// The gain for a sample whose louder ear is `peak`, under `ceiling`.
+    fn ride(&mut self, peak: f32, ceiling: f32, release: f32) -> f32 {
+        if peak * self.gain * release > ceiling {
+            // It would pass the ceiling were the gain let back: down to
+            // it (or kept there), and held from here.
+            self.gain = self.gain.min(ceiling / peak);
+            self.hold = MIX_HOLD;
+        } else if self.hold > 0 {
+            self.hold -= 1;
+        } else {
+            self.gain = (self.gain * release).min(1.);
+        }
+        self.gain
+    }
+}
+/// The mix's last stage: [`MIX`] louder, and the whole of it, both ears
+/// alike, held under [`MIX_CEILING`] by a [`Rider`]. Each speaker's own
+/// part of the mix is held under the same ceiling before it is summed
+/// ([`Core::mix_over`]), so this one has work only when several talk at
+/// once: one loud voice turns itself down, not the others.
+#[derive(Clone, Copy, Debug)]
+pub struct Master(Rider);
 impl Master {
     pub const fn new() -> Self {
-        Self { gain: 1., hold: 0 }
+        Self(Rider::REST)
     }
-    /// A frame of the mix from its sum: [`MIX`] louder, held under the
-    /// ceiling, as 16-bit samples.
+    /// A frame of the mix from its sum, as 16-bit samples.
     pub fn finish(&mut self, acc: [[f32; 2]; FRAME]) -> Stereo {
-        let release = MIX_RELEASE.powf(1. / FRAME as f32);
+        let release = Rider::release();
         acc.map(|ears| {
             let ears = ears.map(|x| x * MIX);
-            let peak = ears[0].abs().max(ears[1].abs());
-            if peak * self.gain * release > MIX_CEILING {
-                // It would pass the ceiling were the gain let back: down to
-                // it (or kept there), and held from here.
-                self.gain = self.gain.min(MIX_CEILING / peak);
-                self.hold = MIX_HOLD;
-            } else if self.hold > 0 {
-                self.hold -= 1;
-            } else {
-                self.gain = (self.gain * release).min(1.);
-            }
-            ears.map(|x| (x * self.gain * 32767.).round().clamp(-32768., 32767.) as i16)
+            let gain = self.0.ride(ears[0].abs().max(ears[1].abs()), MIX_CEILING, release);
+            ears.map(|x| (x * gain * 32767.).round().clamp(-32768., 32767.) as i16)
         })
     }
 }
@@ -115,7 +133,8 @@ impl Master {
 pub struct Stats {
     pub decoded: u32,
     pub concealed: u32,
-    /// Frames that did not come, played from the next frame's copy of them.
+    /// Frames that did not come while the next one had: decoded from that
+    /// one (its copy of them when it carries one, else concealed).
     pub recovered: u32,
     /// Frames the decoder refused (concealed in their place).
     pub undecodable: u32,
@@ -251,6 +270,8 @@ struct Speaker {
     /// The gains of the last frame mixed: a frame ramps from them to its
     /// own, so a turn or a step never clicks.
     gains: Gains,
+    /// Holds its own part of the mix under the mix's ceiling.
+    rider: Rider,
 }
 impl Speaker {
     fn new() -> Result<Self, String> {
@@ -264,6 +285,7 @@ impl Speaker {
             limiter: Limiter::UNITY,
             channel: Channel::Near,
             gains: Gains::SILENT,
+            rider: Rider::REST,
         })
     }
     /// The utterance `id` on `channel` is this speaker's open one (now, or
@@ -561,15 +583,21 @@ impl Core {
         let mut acc = under.map_or([[0f32; 2]; FRAME], ahead);
         let volume = unit(volume);
         let plain = volume * LOUDER;
+        let release = Rider::release();
         for (s, heard) in self.speakers.iter_mut().zip(hearing.0) {
             let to = Gains::of(heard, s.channel);
             let from = std::mem::replace(&mut s.gains, to);
             let far = to.radio > 0.;
+            // The speaker's own part of the mix: its voice, its radio's
+            // static and squelch.
+            let mut own = [[0f32; 2]; FRAME];
+            let mut sounds = false;
             s.finish_effect(heard.radio, &mut self.stats);
             if let Some(pcm) = s.play(now, far, &mut self.stats) {
+                sounds = true;
                 let ramp = |from: f32, to: f32, i: usize| from + (to - from) * (i + 1) as f32 / FRAME as f32;
                 if from.plain != [0., 0.] || to.plain != [0., 0.] {
-                    for (i, (a, p)) in acc.iter_mut().zip(pcm).enumerate() {
+                    for (i, (a, p)) in own.iter_mut().zip(pcm).enumerate() {
                         for ((ear, from), to) in a.iter_mut().zip(from.plain).zip(to.plain) {
                             *ear += p * plain * ramp(from, to, i);
                         }
@@ -580,7 +608,7 @@ impl Core {
                 if from.radio > 0. || to.radio > 0. {
                     let mut radio = pcm;
                     s.radio.process(&mut radio, RADIO_BED);
-                    for (i, (a, p)) in acc.iter_mut().zip(radio).enumerate() {
+                    for (i, (a, p)) in own.iter_mut().zip(radio).enumerate() {
                         let p = p * volume * ramp(from.radio, to.radio, i);
                         a[0] += p;
                         a[1] += p;
@@ -590,7 +618,8 @@ impl Core {
             s.finish_effect(heard.radio, &mut self.stats);
             // The squelch is the radio's: centred.
             if let Some(fx) = &mut s.effect {
-                for sample in &mut acc {
+                sounds = true;
+                for sample in &mut own {
                     if fx.at >= fx.samples.len() {
                         break;
                     }
@@ -602,6 +631,17 @@ impl Core {
                 if fx.at >= fx.samples.len() {
                     s.effect = None;
                 }
+            }
+            if !sounds {
+                continue;
+            }
+            // Under the mix's ceiling by itself, so that a loud speaker (or
+            // a stream of clicks from a changed game) turns itself down and
+            // not everyone the listener hears.
+            for (a, ears) in acc.iter_mut().zip(own) {
+                let gain = s.rider.ride(ears[0].abs().max(ears[1].abs()), MIX_CEILING / MIX, release);
+                a[0] += ears[0] * gain;
+                a[1] += ears[1] * gain;
             }
         }
         self.master.finish(acc)

@@ -699,14 +699,17 @@ fn the_encoder_makes_only_what_the_relay_takes() {
                 }
                 let frame = encoder.encode(&pcm).unwrap();
                 assert!(wire::our_frame(&frame), "{frame:x?}");
+                // (An encoder out of room gives a frame of two bytes, which
+                // plays as a lost one.)
+                assert!(frame.len() > 2, "{frame:x?}");
                 largest = largest.max(frame.len());
             }
         }
     }
-    // Its frames are within the cap, the room it is given (114 bytes
-    // measured at most, on full-scale noise): the cap never takes a frame of
-    // a game that has not changed its encoder.
-    assert!(largest <= wire::MAX_FRAME_BYTES, "{largest}");
+    // Its frames are under the cap, the room it is given (114 bytes
+    // measured at most, on full-scale noise), so it never ran out of it: the
+    // cap never takes a frame of a game that has not changed its encoder.
+    assert!(largest < wire::MAX_FRAME_BYTES, "{largest}");
 }
 #[test]
 fn opus_check_agrees_with_the_decoder() {
@@ -881,8 +884,6 @@ fn the_host_argument_is_read_no_further_than_its_bound() {
     assert_eq!(radio::unit(f32::NEG_INFINITY), 0.);
     assert!(agc_level(f32::INFINITY).is_finite());
 }
-/// Plays `frames` (20 ms each) through a core as the relay sends them, near:
-/// each mixed frame's RMS in dB of full scale, and the core.
 /// Each frame's level as slot 3's 10 m voice plays `frames`, at a "Voice
 /// chat" volume low enough that the mix's own limiter stays at rest: the
 /// speaker's level alone.
@@ -1115,6 +1116,39 @@ fn a_mix_past_its_ceiling_is_turned_down_and_not_bent() {
         eighth.extend(core.mix(0.125, &Hearing::UNITY, tick * 20));
     }
     assert!(whole.iter().zip(&eighth).all(|(w, e)| (i32::from(w[0]) - 8 * i32::from(e[0])).abs() <= 8));
+}
+#[test]
+fn a_loud_speaker_turns_itself_down_and_not_the_others() {
+    // Slot 4: sharp pulses, a millisecond of full scale every frame, which
+    // pass the ceiling a speaker's level is held to (their energy is small)
+    // and would play at three times full scale. Slot 3: a quiet tone.
+    let mut encoder = Encoder::new().unwrap();
+    let pulses: Vec<Vec<u8>> = (0..30)
+        .map(|_| encoder.encode(&std::array::from_fn(|i| if i < 16 { i16::MAX } else { 0 })).unwrap())
+        .collect();
+    let mut encoder = Encoder::new().unwrap();
+    let quiet: Vec<Vec<u8>> = (0..30).map(|i| encoder.encode(&tone(i, 525., 1500.)).unwrap()).collect();
+    // How much of the tone is in the mix (its frequency lies between the pulses' harmonics).
+    let tone_in = |with_pulses: bool| {
+        let mut core = Core::new().unwrap();
+        for (seq, (tone, pulse)) in quiet.chunks(2).zip(pulses.chunks(2)).enumerate() {
+            core.receive(&packet(seq as u16, tone), 0);
+            if with_pulses {
+                core.receive(&Message::RelayAudio { slot: 4, utt: 1, channel: Channel::Near, seq: seq as u16, frames: pulse.to_vec() }, 0);
+            }
+        }
+        let played: Vec<f32> = (0..30).flat_map(|tick| core.mix(1., &Hearing::UNITY, tick * 20)).map(|[left, _]| f32::from(left)).collect();
+        let (mut re, mut im) = (0f32, 0f32);
+        for (n, s) in played[10 * FRAME..25 * FRAME].iter().enumerate() {
+            let phase = 2. * std::f32::consts::PI * 525. * n as f32 / RATE as f32;
+            re += s * phase.cos();
+            im += s * phase.sin();
+        }
+        (re * re + im * im).sqrt()
+    };
+    let (alone, beside) = (tone_in(false), tone_in(true));
+    // Within 2 dB of itself alone (one gain for the whole mix had it 10 dB down).
+    assert!(beside > alone * 0.8 && beside < alone * 1.1, "{alone} {beside}");
 }
 #[test]
 fn the_mix_comes_back_after_a_loud_moment() {
