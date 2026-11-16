@@ -799,6 +799,26 @@ before and after of each can be heard in `private/renders/voice-steady/`.
   could say per talker how much of an utterance came and how evenly (it sees every AUDIO's
   number and each END's frame count); not built.
 
+## To nothing at 12 m (the owner, 2026-11-16; built, not played)
+
+After walking the wall's test (a talker in the game, map 42), of a nearby voice 3 dB down at 9 m
+and cut at 10 m: "voice should go from high to zero depending on distance", "so falloff should
+be bigger and maybe the total distance should be a bit bigger", "15 might be a bit too much, you
+decide". The cut was a step: from 0.66 of the voice at 9.99 m to nothing.
+
+- **The fall** (patch 66, `gain`): two linear keys, as the engine's distance presets are: the
+  whole voice to 1 m, nothing at 12 m (`PLAIN_TO_M`, my pick of the owner's "a bit bigger" under
+  15), a straight line between. `AT_9_M` is gone.
+
+  | the speaker at | 1 m | 3 m | 5 m | 6.5 m | 8 m | 10 m | 11 m | 12 m |
+  |---|---|---|---|---|---|---|---|---|
+  | of the voice | 1 | 0.82 (-1.7 dB) | 0.64 (-4 dB) | 0.5 (-6 dB) | 0.36 (-9 dB) | 0.18 (-15 dB) | 0.09 (-21 dB) | 0 |
+
+- The walls are asked of everyone in the 12 m (`Walled::now` reads the same constant). Nothing
+  else has a distance: the relay sends a nearby utterance to the whole match, the DLL plays what
+  the ears' gains say. "The 10 m voice" is "the nearby voice" in the code's words from here on;
+  the sections above keep the 10 m they were written with.
+
 ## Behind a wall (the owner, 2026-11-16; built, not played)
 
 The owner, of the 10 m voice: "one thing I wonder with directional voice, it doesn't follow

@@ -9,7 +9,7 @@ const RING: usize = 32;
 /// A frame of the mix: each sample's left and right, as WinMM's 16-bit
 /// stereo takes them.
 pub type Stereo = [[i16; 2]; FRAME];
-/// What a speaker's frame is mixed by: its 10 m voice in each ear (the
+/// What a speaker's frame is mixed by: its nearby voice in each ear (the
 /// game's sound engine's gains for a sound at its place) or its radio, in
 /// both ears alike, by the channel of its utterance.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -51,7 +51,7 @@ fn wall() -> Biquad {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hearing([Heard; SLOTS]);
 impl Hearing {
-    /// Every slot heard on both channels: its 10 m voice as decoded in both
+    /// Every slot heard on both channels: its nearby voice as decoded in both
     /// ears, its radio on.
     pub const UNITY: Self = Self([Heard { near: Ears::UNITY, muffle: Muffle::NONE, radio: true }; SLOTS]);
     /// A slot past the 20 changes nothing.
@@ -245,7 +245,7 @@ const LEVEL_RISE_DB: f32 = 0.12;
 /// to sound the same for receivers", "equalize everyone essentially"). The
 /// talker's own automatic gain does it only as far as its microphone lets
 /// it; here the listener's game measures each speaker's voice and plays it
-/// [`LEVEL_TARGET_DB`] loud, before the 10 m voice's gains and the radio
+/// [`LEVEL_TARGET_DB`] loud, before the nearby voice's gains and the radio
 /// alike. What it has learnt of a speaker stays from one utterance to the
 /// next.
 ///
@@ -425,7 +425,7 @@ struct Speaker {
     gains: Gains,
     /// Holds its own part of the mix under the mix's ceiling.
     rider: Rider,
-    /// Its 10 m voice as heard through a wall ([`MUFFLE_HZ`]).
+    /// Its nearby voice as heard through a wall ([`MUFFLE_HZ`]).
     wall: Biquad,
     /// How much of its utterance is behind a wall as it plays (0..1), which
     /// follows what the game says over [`WALL_FRAMES`]; none before an

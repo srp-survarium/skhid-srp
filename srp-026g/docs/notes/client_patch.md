@@ -3572,13 +3572,14 @@ port + 1. The Rust patch `voice.rs` (`voice.toml`, eleven lohooks; its boundary 
   other player is heard on its two channels (voice-chat.md, "Two keys"), a place's whole state in
   one `sv_hear(place, left, right, radio)`, to the DLL on
   a change. Its radio: heard when it is a mate (its team; in a free-for-all anyone), at any
-  distance, alive or dead. Its 10 m voice, both alive and nearer than
-  10 m (`PLAIN_TO_M`): plain, in the world: the engine's own pan of a point sound at the speaker's
+  distance, alive or dead. Its nearby voice, both alive and nearer than
+  12 m (`PLAIN_TO_M`): plain, in the world: the engine's own pan of a point sound at the speaker's
   place (`sound_scene::calculate_3d_pan` 0x57D70 through `engine_sound_pan`, with the game world's
   sound scene (+94h: its listener), the sound world's panning table (+0CCh) and a zeroed proxy of
   ours, a point sound; the position is the speaker's offset, feet to feet, added to the listener's
   place as the engine keeps it, `engine_listener_position` 0x57560), times a gain by distance
-  (two linear keys, 1 to 1 m and `AT_9_M` 0.7 at 9 m) and `LEVEL` (voice-chat.md, "Plain in the
+  (two linear keys, 1 to 1 m and 0 at `PLAIN_TO_M`; until 2026-11-16 `AT_9_M` 0.7 at 9 m and cut
+  at 10 m) and `LEVEL` (voice-chat.md, "Plain in the
   world"; `check_voice_pan_026g.py` runs the engine's function as the patch calls it);
   a held push-to-talk let go when its key is up (user32's GetAsyncKeyState, so a release the chat
   box took is seen: MapVirtualKeyA's VK of the scan code, and for the numpad's digits and point the

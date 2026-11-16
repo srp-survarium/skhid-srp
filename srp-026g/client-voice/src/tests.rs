@@ -21,11 +21,11 @@ fn packet_on(channel: Channel, seq: u16, frames: &[Vec<u8>]) -> Message {
         frames: frames.to_vec(),
     }
 }
-/// Slot 3's 10 m voice.
+/// Slot 3's nearby voice.
 fn packet(seq: u16, frames: &[Vec<u8>]) -> Message {
     packet_on(Channel::Near, seq, frames)
 }
-/// A frame mixed with every slot heard on both channels, its 10 m voice as
+/// A frame mixed with every slot heard on both channels, its nearby voice as
 /// decoded: both ears alike, the mono mix of before.
 fn mix(core: &mut Core, now: u32) -> [i16; FRAME] {
     let stereo = core.mix(1., &Hearing::UNITY, now);
@@ -185,7 +185,7 @@ fn the_radios_squelch_delays_its_words_the_10_m_voice_has_none() {
 fn a_key_let_go_for_the_other_has_the_squelch_of_the_radio_alone() {
     // Slot 3 talks on one key and at once on the other, the first utterance
     // still playing: the squelch that ends an utterance is the radio's, never
-    // the 10 m voice's, whatever the next one is.
+    // the nearby voice's, whatever the next one is.
     let frames = encoded(8);
     for (first, then, squelch_out) in [(Channel::Near, Channel::Radio, 0), (Channel::Radio, Channel::Near, 1)] {
         let mut core = Core::new().unwrap();
@@ -317,9 +317,9 @@ fn an_utterance_is_heard_by_its_own_channel_alone() {
     let mate = Heard { near: right, muffle: Muffle::NONE, radio: true };
     let voice = ear_sums(&heard_tone(12, Channel::Near, |_| mate)[9..]);
     let radio = ear_sums(&heard_tone(12, Channel::Radio, |_| mate)[9..]);
-    // The 10 m voice from its side; the radio centred.
+    // The nearby voice from its side; the radio centred.
     assert!(voice[0] == 0. && voice[1] > 0. && radio[0] > 0. && radio[0] == radio[1], "{voice:?} {radio:?}");
-    // An opponent's radio is never heard, nor the 10 m voice of a mate far
+    // An opponent's radio is never heard, nor the nearby voice of a mate far
     // away or dead: no words, no static, no squelch.
     let far = Heard { near: Ears::SILENT, muffle: Muffle::NONE, radio: true };
     assert_eq!(ear_sums(&heard_tone(12, Channel::Radio, |_| near(right))), [0., 0.]);
@@ -939,7 +939,7 @@ fn the_host_argument_is_read_no_further_than_its_bound() {
     assert_eq!(radio::unit(f32::INFINITY), 1.);
     assert_eq!(radio::unit(f32::NEG_INFINITY), 0.);
 }
-/// Each frame's level as slot 3's 10 m voice plays `frames`, at a "Voice
+/// Each frame's level as slot 3's nearby voice plays `frames`, at a "Voice
 /// chat" volume low enough that the mix's own limiter stays at rest: the
 /// speaker's level alone.
 fn played(frames: &[Vec<u8>]) -> (Vec<f32>, Core) {

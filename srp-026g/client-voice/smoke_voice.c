@@ -243,7 +243,7 @@ int main(int argc, char **argv)
     got = expect(0x01, buf, sizeof buf, 300);
     CHECK(got == 12 && buf[8] == 0x08, "a mute sends a HELLO at once, the mask in it");
 
-    /* A teammate (slot 2) talks on its 10 m voice (the channel byte after the
+    /* A teammate (slot 2) talks on its nearby voice (the channel byte after the
      * utt: 0): START and an AUDIO of two (garbage) frames. */
     {
         unsigned char start[] = {0x56, 2, 0x82, 2, 7, 0, 0, 0, 0, 0, 0};
@@ -272,8 +272,8 @@ int main(int argc, char **argv)
         CHECK(sv_talking() & (1u << 2), "late joiner can start with a lower utterance id");
     }
 
-    /* Slot 2 talks on the radio: heard while its radio is, not by its 10 m voice. */
-    sv_hear(2, 0.9f, 0.2f, 0.0f, 0);   /* its 10 m voice only, to the left (an opponent near) */
+    /* Slot 2 talks on the radio: heard while its radio is, not by its nearby voice. */
+    sv_hear(2, 0.9f, 0.2f, 0.0f, 0);   /* its nearby voice only, to the left (an opponent near) */
     for (int i = 0; i < 50 && (sv_talking() & (1u << 2)); i++) Sleep(10);
     CHECK(!(sv_talking() & (1u << 2)), "a radio utterance of a slot whose radio is not heard is not listed");
     sv_hear(2, 0.0f, 0.0f, 0.0f, 1);   /* its radio only (a mate far away) */
@@ -281,7 +281,7 @@ int main(int argc, char **argv)
     CHECK(sv_talking() & (1u << 2), "and is while its radio is heard");
     sv_hear(4, 0.1f, 0.1f, 1.0f, 1);   /* both channels (a mate near, behind a wall: muffled) */
     sv_hear(99, 1.0f, 1.0f, 0.0f, 0);  /* past the 20: nothing */
-    /* The two keys: 2 the radio's, 1 the 10 m voice's; the START says which. */
+    /* The two keys: 2 the radio's, 1 the nearby voice's; the START says which. */
     for (int key = 2; key >= 1; key--) {
         sv_ptt(key);
         Sleep(100);

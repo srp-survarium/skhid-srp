@@ -7,8 +7,8 @@ the options' microphone test (`src/mic_test.rs`: 10 s recorded through a transmi
 and played back, in a match or with none; `docs/notes/voice-chat.md`, "Microphone test"), and the
 options' Microphone list (`src/microphone.rs`: WinMM's capture devices by their endpoint IDs, named
 whole through MMDevice; "Microphone" in the same note). An utterance is on one of two channels,
-by the push-to-talk key held (`sv_ptt`; "Two keys" in the same note): the 10 m voice or the
-radio. The 10 m voice's gains in the two ears are the game's: patch 66 asks its sound engine for
+by the push-to-talk key held (`sv_ptt`; "Two keys" in the same note): the nearby voice or the
+radio. The nearby voice's gains in the two ears are the game's: patch 66 asks its sound engine for
 each speaker's and tells them, with whether the speaker's radio is heard (`sv_hear`); the DLL
 only plays each utterance by its channel. Every speaker is brought to one loudness
 (`receiver::Leveller`), and the mix is held under full scale by a limiter that
