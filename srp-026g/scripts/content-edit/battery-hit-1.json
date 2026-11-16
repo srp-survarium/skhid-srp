@@ -43,7 +43,7 @@
     },
     {
       "source": "../battery-hit/clips/battery_hit_shove.b-spline",
-      "sha256": "57a60ddb8d614dff472c9e3a57556df3acff86956f1b95e02a821a4969844acf",
+      "sha256": "d247baf016c386356ca4161eb33378ebb2ff29ad95f8edb19403d5f3335fba5e",
       "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_shove.b-spline"
     },
     {
@@ -63,7 +63,7 @@
     },
     {
       "source": "../battery-hit/clips/battery_hit_shove_recover.b-spline",
-      "sha256": "3e8da18435ba942807f70f7357098c73f9145f32e9d137b7e029336256e47579",
+      "sha256": "02f1582a62cafa1982d3996da607ae9d55f31192ba570a845bf24f518ed36ac9",
       "output": "animations/single/weapons/key_objects/player/nonadditive/stand/3rd_view/on_site/hands_only/battery_hit_shove_recover.b-spline"
     },
     {

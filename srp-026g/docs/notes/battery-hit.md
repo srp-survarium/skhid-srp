@@ -213,6 +213,15 @@
   right handle 36 cm forward and 11 up; each hand turns on its handle as its forearm comes round
   (`Strike.turning`), so no wrist bends past what a wrist does. The ram's times: the strike at
   0.2 s, the carry again at 0.55 s.
+  The right hand lies along the battery's right end wall through the hit (the owner, 2026-11-16,
+  of the shove played: "can wrist move a bit to be parallel to right wall? this is how hits would
+  natually happen"). In the carry's grip the palm already faces that wall, the fist round the
+  handle that stands off it; turning on the handle with the forearm, the hand had come 19
+  degrees off the wall at full reach, in line with the forearm. `Strike.flat` takes that turn
+  back for the right hand (eased in over the gather and the drive, whole from 0.185 s to 0.31 s,
+  eased out on the way back): the hand stays as it lies in the carry and the wrist bends back
+  instead, 9 degrees at the strike and 20 at full reach. The grip itself never changes: the hand
+  does not leave the handle (0.1 mm).
   The first take (played 2026-11-16) rolled the battery 24 degrees, which lifted the right end
   32 cm on its 39 forward, into the first-person view: the owner, "the battery goes up, not
   forward (its right side which is being shoved)", then "it can go a bit upwards, but it should

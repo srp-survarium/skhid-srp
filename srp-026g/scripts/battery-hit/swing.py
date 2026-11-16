@@ -123,13 +123,16 @@ RAM_ELBOW = {
 class Strike:
     """One kind of strike: its keyed curves. `about` names the point the
     battery's turn is keyed about, which its place keys move (Swing.pivots).
-    With `turning`, each hand turns on its handle (an upright bar) as its
-    forearm comes round it, so a wide turn of the battery does not break the
-    wrists; without, the hands are fixed on the handles. `strike` and `rest`
-    are its two clips' ends (s): the swing's, where it strikes, and the
-    recovery's, back on the carry idle."""
-    def __init__(self, about, battery, shoulder, elbow, turning=False, strike=STRIKE, rest=REST):
+    A hand of `turning` turns on its handle (an upright bar) as its forearm
+    comes round it, so a wide turn of the battery does not break the wrists;
+    the others are fixed on the handles. `flat` takes that turn back for a
+    hand, by its curve's share (0 to 1): at 1 the hand lies as in the carry,
+    its palm along the battery's end wall, and the wrist bends instead.
+    `strike` and `rest` are its two clips' ends (s): the swing's, where it
+    strikes, and the recovery's, back on the carry idle."""
+    def __init__(self, about, battery, shoulder, elbow, turning=(), flat=None, strike=STRIKE, rest=REST):
         self.about, self.battery, self.shoulder, self.elbow, self.turning = about, battery, shoulder, elbow, turning
+        self.flat = flat or {}
         self.impact, self.end = strike * FPS, rest * FPS      # frames
 
     def at(self, t):
@@ -137,7 +140,8 @@ class Strike:
         return {'battery': tuple(self.battery[k](t) for k in ('x', 'y', 'z', 'pitch', 'yaw', 'roll')),
                 'shoulder': {s: (self.shoulder[s]['z'](t), self.shoulder[s]['y'](t)) for s in self.shoulder},
                 'elbow': {s: (self.elbow[s]['out'](t), self.elbow[s]['back'](t), self.elbow[s]['up'](t) if 'up' in self.elbow[s] else 0.0)
-                          for s in self.elbow}}
+                          for s in self.elbow},
+                'flat': {s: self.flat[s](t) for s in self.flat}}
 
 
 RAM = Strike('centre', RAM_BATTERY, RAM_SHOULDER, RAM_ELBOW)
@@ -152,6 +156,10 @@ RAM = Strike('centre', RAM_BATTERY, RAM_SHOULDER, RAM_ELBOW)
 # back). Nearly all yaw: the right end goes 36 cm forward and 11 up (the first take's roll of 24
 # degrees lifted it 32, into the view: a lift). The pivot gives way to the left, which keeps the
 # right arm short of straight (0.96 of its length; 0.99 about a pivot that stays).
+# The right hand (the owner, 2026-11-16: "can wrist move a bit to be parallel to right wall? this
+# is how hits would natually happen"): from the drive to the settle it lies as in the carry, its
+# palm along the battery's right end wall, the wrist bent back as the forearm comes round (`flat`);
+# turning with the forearm instead, it stood 19 degrees off the wall at full reach.
 SHOVE = Strike('left hand', {
     'x': Curve((0, 0), (0.100, 1.0, 0), (STRIKE, -6.1, -130), (0.250, -9.0, 0), (0.310, -8.4, 7), (REST, 0)),
     'y': Curve((0, 0), (0.100, -0.5, 0), (STRIKE, 0.6, 15), (0.250, 1.0, 0), (0.310, 0.9, -1), (REST, 0)),
@@ -170,7 +178,7 @@ SHOVE = Strike('left hand', {
     'Right': {'out': Curve((0, 0), (0.092, 6.0, 0), (0.245, 3.0, 0), (REST, 0)),
               'back': Curve((0, 0), (0.094, 4.0, 0), (0.210, 0.0), (REST, 0)),
               'up': Curve((0, 0), (0.245, 2.0, 0), (REST, 0))},
-}, turning=True)
+}, turning=('Left', 'Right'), flat={'Right': Curve((0, 0), (0.185, 1.0, 0), (0.310, 1.0, 0), (REST, 0))})
 
 # The slam (the owner, 2026-11-15: "maybe the third one when both hands are raised up and then
 # shown down (we can at least try)"): both arms lift the battery in front of the chest until its
@@ -202,7 +210,7 @@ SLAM = Strike('centre', {
     'Right': {'out': Curve((0, 0), (0.260, 9.0, 0), (0.445, -1.2, 0), (SLAM_REST, 0)),
               'back': Curve((0, 0), (0.260, 2.0, 0), (0.445, -1.0, 0), (SLAM_REST, 0)),
               'up': Curve((0, 0), (0.265, 16.0, 0), (0.445, 0.0, 0), (SLAM_REST, 0))},
-}, turning=True, strike=SLAM_STRIKE, rest=SLAM_REST)
+}, turning=('Left', 'Right'), strike=SLAM_STRIKE, rest=SLAM_REST)
 
 # The strikes and their clips' names. A carrier's strikes take them in this order, the ram
 # first, and round again (the battery's states, docs/notes/battery-hit.md).
@@ -371,7 +379,7 @@ class Swing:
         for side in ('Left', 'Right'):
             # the hand keeps its hold on the battery: its idle frame moved with it
             target = matrix(*self.world0[side + 'Hand']) @ d
-            if strike.turning:
+            if side in strike.turning:
                 # ... and turned about its handle until its wrist is as straight about the bar
                 # as in the carry: by the angle its forearm has come round the bar since
                 bar = self.bar @ d[:3, :3]
@@ -385,7 +393,8 @@ class Swing:
                     trial = Pose(rig, self.base_local)
                     self.arm_to(trial, side, m, target)
                     now = across(handle - trial.world()[side + 'ForeArm'][1])
-                    turn[:3, :3] = rot_axis(bar, math.atan2(float(np.dot(np.cross(carried, now), bar)), float(np.dot(carried, now))))
+                    round_bar = math.atan2(float(np.dot(np.cross(carried, now), bar)), float(np.dot(carried, now)))
+                    turn[:3, :3] = rot_axis(bar, round_bar * (1.0 - m['flat'].get(side, 0.0)))
                     target = rigid @ to @ turn @ back
             reach[side] = self.arm_to(pose, side, m, target)
         return pose, item_local, reach
