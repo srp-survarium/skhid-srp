@@ -675,9 +675,26 @@ and the listener's distance chose: plain under 10 m, the radio from it.
 The owner, of the live game: "we need a way to stabilize the sound, some people sound good, some
 are barely recognizable". Nothing in the logs says which talker sounded how, so the DLL's chain was
 measured offline with a recorded voice (`private/local-clients-voice-test/talker.wav`) and what
-makes one talker worse than another was looked for. Three things were found and changed; the
+makes one talker worse than another was looked for. Four things were found and changed; the
 before and after of each can be heard in `private/renders/voice-steady/`.
 
+- **A quiet microphone stayed quiet** (what the owner had heard: of one player against another,
+  "it was fine close by", "at a distance with radio it was worse", "it wasn't as loud as when I
+  heard" the other). The automatic gain raised a microphone 30 dB at most (speexdsp's own
+  limit), so it held a voice at the common level only so far:
+
+  | the microphone, against a loud one | its voice after the gain, until now | now |
+  |---|---|---|
+  | the same to 30 dB quieter | the level (-24 dB of full scale) | the level |
+  | 40 dB quieter | 9 dB under it | 2 dB under |
+  | 50 dB quieter | 24 dB under | 12 dB under |
+
+  Such a talker is quieter than everyone beside the listener and poor through the radio, whose
+  static stays where it is (the words 23 dB over it at the level, 14 when 9 dB under). The gain
+  now goes to 45 dB (`AGC_MAX_GAIN`; past it speexdsp's own floor holds) and rises twice as
+  fast (`AGC_INCREMENT` 24 dB a second: a quiet microphone's first words of a match were 6 dB
+  under its level for seconds, now 2). "Microphone sensitivity" still moves a talker 6 dB
+  either way: two players at its ends are 12 dB apart by their own choice.
 - **The mix bent loud talkers.** A plain voice is played 3 times as decoded (`LOUDER` 1.5, `MIX`
   2.0) and the sum went through a curve that bent every sample over half scale (tanh). The
   automatic gain brings every microphone to one level at a given "Microphone sensitivity", but the
@@ -712,11 +729,12 @@ before and after of each can be heard in `private/renders/voice-steady/`.
   game of before plays these frames as any other.
 - **Looked at and left.** Steady jitter up to 100 ms costs nothing (the buffer grows by the
   underrun it takes); a 150 ms spike costs the two frames of its datagram. The playback queue
-  stays 80 ms (more is more delay for everyone). The automatic gain holds a microphone 20 dB
-  quieter or 12 dB hotter at the same level (within 0.1 dB); 35 dB quieter comes out 3 dB down.
+  stays 80 ms (more is more delay for everyone). The radio does not crush a voice: at the
+  default sensitivity none of its samples reach the radio's clipper's bend, at the highest 2 %.
 - **Not known.** How a noisy or a narrow-band microphone (a Bluetooth headset in its call mode
   gives 8 kHz) sounds through the noise suppression and the radio: that is the talker's device,
-  and nothing here measures it. And which of these the players the owner heard had: the relay
+  and nothing here measures it; a quiet microphone in a noisy room is raised with its room. And
+  whether the quiet player's microphone was quiet or its sensitivity low: the relay
   could say per talker how much of an utterance came and how evenly (it sees every AUDIO's
   number and each END's frame count); not built.
 

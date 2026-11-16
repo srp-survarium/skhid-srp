@@ -41,9 +41,24 @@ unsafe extern "C" {
 const SET_DENOISE: c_int = 0;
 const SET_AGC: c_int = 2;
 const SET_AGC_LEVEL: c_int = 6;
+const SET_AGC_INCREMENT: c_int = 26;
+const SET_AGC_MAX_GAIN: c_int = 30;
 /// The loudness automatic gain aims at, of speexdsp's 1..32768: 0.69's
 /// `voice_chat_preprocess_gain` default (speexdsp's own is 8000).
 pub const AGC_LEVEL: f32 = 12_000.;
+/// The most the automatic gain raises a microphone, dB (speexdsp's own: 30).
+/// With 30 a voice was held at its level only down to 30 dB under a loud
+/// microphone's; one 40 dB under came out 9 dB quieter than everyone else,
+/// one 50 dB under 24 dB quieter: fine beside the listener and poor through
+/// the radio, whose static stays where it is (the owner, 2026-11-16, of two
+/// players: "it was fine close by", "at a distance with radio it was worse",
+/// "it wasn't as loud as when I heard" the other). With 45 the one 40 dB
+/// under is within 2 dB (50 under: 12 dB quieter, speexdsp's own floor).
+pub const AGC_MAX_GAIN: i32 = 45;
+/// How fast the gain rises, dB a second (speexdsp's own: 12): a quiet
+/// microphone's first words of a match were 6 dB under its level for
+/// seconds; twice as fast they are 2.
+pub const AGC_INCREMENT: i32 = 24;
 /// The game's "Microphone sensitivity" (0..1) moves the aim by up to 6 dB
 /// either way: 0.5 is 0.69's level.
 pub fn agc_level(sensitivity: f32) -> f32 {
@@ -71,6 +86,9 @@ impl Preprocessor {
         }
         let mut level = AGC_LEVEL;
         pre.ctl(SET_AGC_LEVEL, (&raw mut level).cast())?;
+        for (request, mut value) in [(SET_AGC_MAX_GAIN, AGC_MAX_GAIN), (SET_AGC_INCREMENT, AGC_INCREMENT)] {
+            pre.ctl(request, (&raw mut value).cast())?;
+        }
         Ok(pre)
     }
     fn ctl(&mut self, request: c_int, value: *mut c_void) -> Result<(), String> {

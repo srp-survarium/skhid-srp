@@ -466,13 +466,14 @@ fn processed_db(amplitude: f32, sensitivity: f32) -> f32 {
 }
 #[test]
 fn automatic_gain_levels_quiet_and_loud_microphones() {
-    // Speakers from -50 to -13 dB of full scale (amplitudes 150..10000) all
-    // come out at one level (-29 dB measured), within 2 dB.
-    let levels = [150., 600., 2500., 10000.].map(|amplitude| processed_db(amplitude, 0.5));
+    // Speakers from -60 to -13 dB of full scale (amplitudes 50..10000) all
+    // come out at one level (-29 dB measured), within 3 dB (the quietest was
+    // 8 dB under the others while the gain stopped at 30 dB).
+    let levels = [50., 150., 600., 2500., 10000.].map(|amplitude| processed_db(amplitude, 0.5));
     let (low, high) = levels
         .iter()
         .fold((f32::MAX, f32::MIN), |(l, h), &x| (l.min(x), h.max(x)));
-    assert!(high - low < 2., "{levels:?}");
+    assert!(high - low < 3., "{levels:?}");
     assert!((-32.0..-26.0).contains(&low), "{levels:?}");
     // The sensitivity slider moves it 6 dB either way.
     let quiet = processed_db(2500., 0.);
