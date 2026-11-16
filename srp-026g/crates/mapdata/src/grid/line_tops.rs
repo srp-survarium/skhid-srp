@@ -15,6 +15,8 @@
 //! - its centre line: through the middle of the steps on it, square to the way across, at the top's height there, a piece of a cell's
 //!   length; only the floor whose cell holds the line's point carries it;
 //! - a line, not a post: the top runs on along its line (measured the same way) further than it is wide;
+//! - standing room over the floor (the grid's ceiling at least a standing body over it), and two measuring steps wide at
+//!   least;
 //! - held: the client's walk tick stands a body set on the centre line and on each edge of the top
 //!   ([`super::rest_floors::settle`]: standing, 5 mm over the point, no push; it comes down and rests within
 //!   [`super::wall_give_back::STAND_MOVED_M`] of the put across and of the top in height). A top held only at its centre (a
@@ -175,6 +177,10 @@ impl WalkGrid {
         floors.dedup_by_key(|&mut (f, _)| f);
         let half = self.cell / 2.0;
         let measured = super::controlled::parallel(&floors, |&(f, way)| {
+            // Standing room over the floor (the grid's ceiling): a top only a crouched body fits is no line to walk.
+            if self.ceiling[f as usize] - self.height[f as usize] < self.body.stand_height {
+                return None;
+            }
             let (di, dk) = DIRS[way];
             let l = ((di * di + dk * dk) as f32).sqrt();
             let along = Vec3::new(di as f32 / l, 0.0, dk as f32 / l);
@@ -215,7 +221,8 @@ impl WalkGrid {
                 })
                 .min_by_key(|&(_, (lo, _), (hi, _))| lo + hi)?;
             let count = lo + hi + 1;
-            if count > max {
+            // At most a thin top, and two steps at least (one step is under the measurement's resolution).
+            if count > max || count < 2 {
                 return None;
             }
             let width = count as f32 * MEASURE_STEP_M;
@@ -381,6 +388,22 @@ mod tests {
         assert!((d.x - d.z).abs() < 0.02 && d.x > 0.0, "along the rail: {t:?}");
         let mid = (t.from + t.to) * 0.5;
         assert!((mid.x - mid.z).abs() < 2.0 * MEASURE_STEP_M, "on the centre line: {mid:?}");
+    }
+
+    /// The rail of the first test under a slab 1.4 m over its top (less than a standing body's room): no line.
+    #[test]
+    fn a_rail_with_no_standing_room_over_it_gets_no_line() {
+        let mut tris = ground_and_top(4.95, 5.05);
+        let p = Vec3::new;
+        tris.extend(quad(p(4.0, 2.4, 0.0), p(4.0, 2.4, 10.0), p(6.0, 2.4, 10.0), p(6.0, 2.4, 0.0)));
+        let g = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+        let cells = top_cells(&g, 4.975);
+        assert!(!cells.is_empty(), "the rail's floors");
+        assert!(cells.iter().all(|c| {
+            let f = (g.start[c.cell]..g.start[c.cell + 1]).find(|&f| g.height[f as usize] == c.height).unwrap() as usize;
+            g.ceiling[f] - g.height[f] < g.body.stand_height
+        }));
+        assert!(g.line_tops_of(&cells, &tris, &Collision::build(&tris), &Settings::LIVE).is_empty());
     }
 
     /// A top 0.60 m wide (x 4.7..5.3) is wider than a thin top: no line.
