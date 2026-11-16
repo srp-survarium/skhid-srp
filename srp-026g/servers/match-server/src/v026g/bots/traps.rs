@@ -2084,6 +2084,43 @@ pub(super) fn own_trap_note(bot: &mut Bot, now: u32, what: String) {
     bot.features.traps.notes.push((now, format!("{}own trap: {what}", tally::PREFIX)));
 }
 
+/// [#2081 FIX 2] The bench's feet off the route within 3 m of a standing own trap, by mover, at the thinks.
+#[cfg(test)]
+pub mod tight {
+    use std::sync::Mutex;
+
+    pub const WALK: usize = 0;
+    pub const SPRINT: usize = 1;
+    pub const WEAVE: usize = 2;
+    pub const SIDE: usize = 3;
+    pub const APART: usize = 4;
+    pub const NAMES: [&str; 5] = ["walk", "sprint", "weave", "side step", "step apart"];
+    /// Faster than the forward walk's 3.5 m/s (`kin.rs`) and short of the sprint's 4.9587: a sprint.
+    pub const SPRINT_MPS: f32 = 4.2;
+    static OFF: Mutex<[Vec<f32>; 5]> = Mutex::new([const { Vec::new() }; 5]);
+
+    pub fn add(mover: usize, off: f32) {
+        if let Ok(mut o) = OFF.lock() {
+            o[mover].push(off);
+        }
+    }
+
+    pub fn line() -> String {
+        let Ok(o) = OFF.lock() else { return String::new() };
+        NAMES
+            .iter()
+            .zip(o.iter())
+            .map(|(n, v)| {
+                let mut v = v.clone();
+                v.sort_by(f32::total_cmp);
+                let q = |p: f32| v.get(((v.len() as f32 * p) as usize).min(v.len().saturating_sub(1))).copied().unwrap_or(f32::NAN);
+                format!("{n} n {} P50 {:.2} P90 {:.2} P95 {:.2} P99 {:.2} max {:.2}", v.len(), q(0.5), q(0.9), q(0.95), q(0.99), v.last().copied().unwrap_or(f32::NAN))
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
+}
+
 /// [#2081] The bench's counts of the refusals and re-routes for own traps, by kind.
 #[cfg(test)]
 pub mod own_trap_counts {
@@ -2832,6 +2869,27 @@ pub mod passes {
 
     pub(in crate::v026g::bots) fn observe(bot: &mut Bot, due: &Due, state: &TeamState, pre: (bool, Option<f32>)) {
         let feet = due.me.feet;
+        // [#2081 FIX 2] Within 3 m of a standing own trap, with a route: the feet off it, by mover.
+        if let Some((route, _)) = bot.route.as_ref()
+            && state.knowledge.traps.standing().any(|k| k.at.distance_xz(feet) < 3.0)
+        {
+            let mut route = route.clone();
+            let off = route.progress(feet).1;
+            if off.is_finite() {
+                let mover = if bot.bench_keys_from == 2 {
+                    super::tight::APART
+                } else if bot.bench_stepped == 2 {
+                    super::tight::WEAVE
+                } else if bot.bench_stepped == 1 {
+                    super::tight::SIDE
+                } else if due.me.speed() > super::tight::SPRINT_MPS {
+                    super::tight::SPRINT
+                } else {
+                    super::tight::WALK
+                };
+                super::tight::add(mover, off);
+            }
+        }
         // [#2081 v6 measure] What moved its legs while within 2 m of a standing own trap (the own-catch line's).
         if let Some(d) = state.knowledge.traps.standing().map(|k| k.at.distance_xz(feet)).filter(|&d| d < 2.0).min_by(f32::total_cmp) {
             let m = super::NearMove {

@@ -2965,6 +2965,16 @@ impl Bots {
                     plays::Go::Stay => "stay".to_string(),
                     plays::Go::To { at: to, .. } => format!("to {:.1} m off (target {:.1} m from the trap)", to.distance_xz(me.feet), to.distance_xz(at)),
                 };
+                // [#2081 FIX 1] The team's known traps within 3 m of the one that fired: promised or confirmed, and how far off.
+                let known_near: Vec<String> = self.teams[usize::from(team)]
+                    .knowledge
+                    .traps
+                    .all()
+                    .iter()
+                    .filter(|k| k.at.distance_xz(at) < 3.0)
+                    .map(|k| format!("{:?} {:.2} m", k.phase, k.at.distance_xz(at)))
+                    .collect();
+                eprintln!("  trap own catch known: [{}]", known_near.join("; "));
                 eprintln!(
                     "  trap own catch: {who}, {after} after the press, heading {heading} off the placer's at the press, speed {:.1}, play {:?}, go {go}, route {}, fresh guard {} ({} floors shut); thinks near it [{}]",
                     me.speed(),
