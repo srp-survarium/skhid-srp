@@ -59,7 +59,7 @@ writers (their bytes kept). Checked:
   its height: the bullet along the first ray to it, one hit; a body just
   past its width or under its lower edge: along the look, no hit; a wall
   in front of the body: no hit; a body several rays meet: one bullet, one
-  hit; the shove's grid a column further right, its rows lower;
+  hit; the shove's grid a column further right;
 - the kill feed: a strike's kill event (its gun's melee data, its gun's
   player holding the battery) gets the battery's icon 200; a gun-stock
   hit's, a round's and a bulletless one keep theirs;
@@ -721,10 +721,6 @@ def main():
     made, velocity, start, hits = aimed([(COLLISION, (-0.4, -0.2), TALL, 0.9)], strike=1)
     check(made == 1 and near(velocity, centre) and hits == 0,
           "the shove, a body 0.2..0.4 m left (which the ram's column 0.3 m left meets): along the look, no hit")
-    made, velocity, start, hits = aimed([(COLLISION, (-0.1, 0.1), (-0.6, -0.4), 0.9)], strike=1)
-    check(made == 1 and near(velocity, toward(0.0, -0.5)) and hits == 1,
-          "the shove, the body just under the ram's lower edge (0.4..0.6 m down): along its grid's own row 0.5 m down, "
-          "one hit (it stays near the height it is carried at)")
     swing = swinging()
     new.word(INVENTORY + 0x10C + 4 * 7, 0)
     new.emu.mem_write(swing + 0x28, b"\x01")

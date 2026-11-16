@@ -153,16 +153,21 @@ RAM = Strike('centre', RAM_BATTERY, RAM_SHOULDER, RAM_ELBOW)
 # arm shoves the battery's right end forward about it, and that end lands. The ram's beats and
 # times. The values are the left hand's hold's move from its carry place (cm) and the battery's
 # turn about it (degrees: yaw swings the right end forward, roll lifts it, pitch tips the top
-# back). Nearly all yaw: the right end goes 36 cm forward and 11 up (the first take's roll of 24
-# degrees lifted it 32, into the view: a lift). The pivot gives way to the left, which keeps the
-# right arm short of straight (0.96 of its length; 0.99 about a pivot that stays).
+# back). The turn is nearly all yaw (the first take's roll of 24 degrees lifted the right end
+# alone, 32 cm: a lift, not a shove), and the pivot gives way to the left, which keeps the right
+# arm short of straight (0.95 of its length; 0.99 about a pivot that stays).
+# The whole battery rises with it (the owner, of the level shove played: "the battery should be
+# higher with shove, since now in first person you don't see force or battery much"): at carry
+# height it stays under the first-person view. Both arms raise it through the gather and the
+# drive, 22 cm by the strike, and it goes on forward from there, 2 cm down to full reach: 37 % of
+# it is in view at the strike and 61 % at full reach, looking level.
 # The right hand (the owner, 2026-11-16: "can wrist move a bit to be parallel to right wall? this
 # is how hits would natually happen"): from the drive to the settle it lies as in the carry, its
 # palm along the battery's right end wall, the wrist bent back as the forearm comes round (`flat`);
 # turning with the forearm instead, it stood 19 degrees off the wall at full reach.
 SHOVE = Strike('left hand', {
     'x': Curve((0, 0), (0.100, 1.0, 0), (STRIKE, -6.1, -130), (0.250, -9.0, 0), (0.310, -8.4, 7), (REST, 0)),
-    'y': Curve((0, 0), (0.100, -0.5, 0), (STRIKE, 0.6, 15), (0.250, 1.0, 0), (0.310, 0.9, -1), (REST, 0)),
+    'y': Curve((0, 0), (0.100, 10.0, 150), (STRIKE, 22.0, 0, 0), (0.250, 20.0, 0), (0.305, 19.5, -12), (REST, 0)),
     'z': Curve((0, 0), (0.100, 0.5, 0), (STRIKE, 1.4, 18), (0.250, 2.0, 0), (REST, 0)),
     'pitch': Curve((0, 0), (0.108, 0.5, 0), (STRIKE, -0.6, -18), (0.258, -1.5, 0), (REST, 0)),
     'yaw': Curve((0, 0), (0.104, -6.0, 0), (STRIKE, 21.6, 450, 0), (0.242, 30.0, 0, -1030), (0.296, 28.7, -32), (REST, 0)),
@@ -171,7 +176,7 @@ SHOVE = Strike('left hand', {
     'Left': {'z': Curve((0, 0), (0.090, 1.0, 0), (0.250, -1.2, 0), (REST, 0)),
              'y': Curve((0, 0), (0.250, 0.6, 0), (REST, 0))},
     'Right': {'z': Curve((0, 0), (0.085, -2.0, 0), (0.245, 5.0, 0), (0.40, 3.0), (REST, 0)),
-              'y': Curve((0, 0), (0.090, -1.2, 0), (0.255, 1.0, 0), (REST, 0))},
+              'y': Curve((0, 0), (0.090, -1.2, 0), (0.255, 3.0, 0), (REST, 0))},
 }, {
     'Left': {'out': Curve((0, 0), (0.240, 3.0, 0), (REST, 0)),
              'back': Curve((0, 0), (0.240, 2.0, 0), (REST, 0))},

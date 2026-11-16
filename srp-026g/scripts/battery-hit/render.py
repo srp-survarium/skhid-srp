@@ -1,8 +1,9 @@
 """A small software renderer for the offline previews (the artefact carry's
 render_mesh.py way): flat-shaded, depth-tested triangles, a pinhole camera
 with the game's vertical FOV (65 degrees, the stock projection 0x242900) and
-near plane (0.05 m, update_camera 0x1F355E). Geometry that crosses the near
-plane while in view is drawn red and counted: it would clip in the game."""
+near plane (0.05 m, update_camera 0x1F355E). Geometry whose cut by the near
+plane is on screen is drawn red and counted: the game would show it cut open
+(a triangle that passes the plane off screen is clipped unseen)."""
 import math
 
 import numpy as np
@@ -25,6 +26,26 @@ def look_at(eye, target, up=(0, 1, 0)):
     return np.array([r, u, f])
 
 
+def cut_on_screen(v, near, focal, half):
+    """Does the near plane's cut of the triangle v (eye space) touch the
+    screen (`half`: its half width and height at `focal`)?"""
+    ends = [v[a] + (v[b] - v[a]) * (near - v[a, 2]) / (v[b, 2] - v[a, 2])
+            for a, b in ((0, 1), (1, 2), (2, 0)) if (v[a, 2] < near) != (v[b, 2] < near)]
+    p, q = (end[:2] / near * focal for end in ends)
+    lo, hi = 0.0, 1.0            # the part of p -> q inside the screen (Liang-Barsky)
+    for at, step, limit in ((p[0], q[0] - p[0], half[0]), (p[1], q[1] - p[1], half[1])):
+        for side in (1.0, -1.0):
+            room, speed = limit - side * at, side * step
+            if abs(speed) < 1e-12:
+                if room < 0:
+                    return False
+            elif speed > 0:
+                hi = min(hi, room / speed)
+            else:
+                lo = max(lo, room / speed)
+    return lo <= hi
+
+
 def draw(meshes, eye, axes, label='', fov=FOV, near=NEAR, size=(W, H)):
     width, height = size
     pixels = np.full((height, width, 3), [28, 34, 42], dtype=np.uint8)
@@ -43,11 +64,13 @@ def draw(meshes, eye, axes, label='', fov=FOV, near=NEAR, size=(W, H)):
                 # in view at all? (a vertex in front inside the frustum's sides)
                 front = v[z > 1e-3]
                 s = front[:, :2] / front[:, 2:3] * focal
-                if len(front) and np.any((np.abs(s[:, 0]) < width / 2) & (np.abs(s[:, 1]) < height / 2)):
+                if not (len(front) and np.any((np.abs(s[:, 0]) < width / 2) & (np.abs(s[:, 1]) < height / 2))):
+                    continue
+                if cut_on_screen(v, near, focal, (width / 2, height / 2)):
                     clipped += 1
                     col = np.array([255, 30, 30])
                 else:
-                    continue
+                    col = np.array(color)
                 v = v.copy()
                 v[:, 2] = np.maximum(v[:, 2], near)
                 z = v[:, 2]
