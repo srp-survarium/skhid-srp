@@ -56,7 +56,7 @@ use survarium::v026g::match_msgs::{ServerMessage, TICK_MS};
 use survarium::v026g::prices;
 
 /// Team Deathmatch on level_01 (`maps_dict` id 117).
-const MAP: u8 = 117;
+const MAP: survarium::v026g::maps::MapId = survarium::v026g::maps::MapId::new(117);
 /// The longest any one step may take.
 const SOON: Duration = Duration::from_secs(10);
 /// From Play by two players to their room's match: its vote (15 s), the
@@ -1750,7 +1750,7 @@ fn a_player_against_the_servers_bots_plays_a_match_to_the_results() {
     assert!(rows.iter().any(|row| row.0 == "117;1;4;5"), "{rows:?}");
     assert_eq!(rows.iter().filter(|row| row.0.ends_with(";8;5")).count(), 8, "{rows:?}");
 
-    let start = pvb_choice_start(6, MAP);
+    let start = pvb_choice_start(6, MAP).expect("a bot map");
     solo.ask(request::ranking(start, 1));
     until(&mut [&mut solo], SOON, "the choice", |games| {
         reserved_rows(games[0], start).is_some()

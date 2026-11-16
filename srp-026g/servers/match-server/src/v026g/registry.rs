@@ -132,7 +132,7 @@ pub enum CreateError {
     Roster(usize),
     /// Not a map and mode the client can play; with the server's bots in
     /// the match, not one they play (modes 2 to 4).
-    Map(u8),
+    Map(maps::MapId),
     /// Two places have the same session.
     DuplicateSession(u32),
     /// A session still has a place in a match that is not over.
@@ -269,7 +269,7 @@ pub struct LiveMatch {
     /// for the players' eyes.
     pub match_id: u32,
     /// The `maps_dict` id: the map and the mode.
-    pub map_id: u8,
+    pub map_id: maps::MapId,
     pub phase: LivePhase,
     /// Each team's players who have not left: before the countdown the
     /// ones still to come count too.
@@ -1077,7 +1077,7 @@ pub struct PlayerResult {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchResult {
     pub match_id: u32,
-    pub map_id: u8,
+    pub map_id: maps::MapId,
     /// [`Formed::played`]'s: Blackout's scores pay twice.
     pub mode: GameMode,
     /// [`Formed::played`]'s twist: the kits it armed.

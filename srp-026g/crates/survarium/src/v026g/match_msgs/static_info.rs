@@ -6,7 +6,7 @@
 //!
 //! ```text
 //! 20 × player_profile     always 20; the places past N are empty
-//! u8  map_id              a maps_dict id: the map, the mode and its timings
+//! u8  map_id              a maps_dict id (its low byte when over a byte)
 //! u8  N                   the roster size
 //! u32 match id            the match's seed; not the lobby's match id
 //! u16 match level         logged only
@@ -18,7 +18,8 @@
 //! after them ("SRPX", then tagged entries) is read by exe patches only:
 //! tag 2 is the Blackout flag (patch 65, `docs/notes/blackout.md`; its
 //! reader is at the two calls of `match_options::deserialize`, 0x27B928 and
-//! 0x1F096C); tag 1 is kept for team damage (#370).
+//! 0x1F096C), tag 3 a free-for-all's kill target, tag 4 a map id over a
+//! byte (patch 154); tag 1 is kept for team damage (#370).
 //!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
@@ -29,7 +30,7 @@
 //! The profile body (team … items) is the lobby's account body too
 //! (`lobby.md` §2.5; the same client function 0x1F1070).
 
-use super::super::dictionary::{Dictionary, PROFILE_SLOTS};
+use super::super::dictionary::{Dictionary, MapId, PROFILE_SLOTS};
 use super::super::loadouts::{Loadout, POCKET_SLOTS};
 use super::super::skills::{MODIFIERS, write_modifier_block};
 use super::super::item_params::{self, ItemClass};
@@ -582,6 +583,10 @@ pub const SRPX_BLACKOUT: u8 = 2;
 /// the kills that win (`kills_to_win`), a u16, never 0. The client's
 /// free-for-all patch shows it on the hud.
 pub const SRPX_FREE_FOR_ALL: u8 = 3;
+/// The entry of a map id over a byte ([`MapId::over_a_byte`]): the whole
+/// id, a u16; the options' `map_id` is its low byte. Exe patch 154 makes the
+/// client load the whole id.
+pub const SRPX_MAP_ID: u8 = 4;
 
 /// Why options cannot go to a client, or why bytes are no options.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -589,7 +594,7 @@ pub enum StaticInfoError {
     /// No players, or more than 20.
     Roster(usize),
     /// Not a map and mode the client can load.
-    Map(u8),
+    Map(MapId),
     /// A player's team is not its mode's: not 0 or 1, or in a free-for-all
     /// not the place's own side.
     Team { player: usize, team: u8 },
@@ -885,7 +890,8 @@ pub fn options_bytes(
     for _ in roster..MAX_PLAYERS {
         out.extend(EMPTY_PROFILE);
     }
-    out.push(options.map.map().id);
+    let map_id = options.map.map().id;
+    out.push(map_id.low_byte());
     out.push(roster as u8);
     out.extend(options.match_id.to_le_bytes());
     out.extend(options.match_level.to_le_bytes());
@@ -897,18 +903,7 @@ pub fn options_bytes(
         *squad = profile.squad;
     }
     out.extend(squads);
-    match SrpBlock::of(options.map) {
-        SrpBlock::Plain => {}
-        SrpBlock::Blackout => {
-            out.extend(SRPX_MAGIC);
-            out.extend([SRPX_BLACKOUT, 1, 1]);
-        }
-        SrpBlock::FreeForAll { kills_to_win } => {
-            out.extend(SRPX_MAGIC);
-            out.extend([SRPX_FREE_FOR_ALL, 2]);
-            out.extend(kills_to_win.to_le_bytes());
-        }
-    }
+    write_srp_block(map_id, SrpBlock::of(options.map), &mut out);
     if out.len() > OPTIONS_BUFFER {
         return Err(StaticInfoError::TooLarge(out.len()));
     }
@@ -1132,7 +1127,7 @@ pub fn parse_options(
     let mut players = (0..MAX_PLAYERS)
         .map(|player| read_profile(&mut reader, player, dictionary))
         .collect::<Result<Vec<_>, _>>()?;
-    let map_id = reader.u8()?;
+    let map_byte = reader.u8()?;
     let roster = usize::from(reader.u8()?);
     let match_id = reader.u32()?;
     let match_level = reader.u16()?;
@@ -1141,13 +1136,19 @@ pub fn parse_options(
         *weight = reader.f32()?;
     }
     let squads = reader.take(MAX_PLAYERS)?;
-    let block = read_srp_block(&mut reader)?;
+    let (wide, block) = read_srp_block(&mut reader)?;
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
     if roster == 0 || roster > MAX_PLAYERS {
         return Err(StaticInfoError::Roster(roster));
     }
+    // A whole id the byte is not the low byte of: no map the client loads.
+    let map_id = match wide {
+        Some(id) if id.low_byte() != map_byte => return Err(StaticInfoError::SrpBlock),
+        Some(id) => id,
+        None => MapId::from(map_byte),
+    };
     // A block that is not the map's mode's (the Blackout entry on a map of
     // another mode, none on a Blackout map, another kill target than a
     // free-for-all's): no map and mode the client plays.
@@ -1169,32 +1170,68 @@ pub fn parse_options(
     })
 }
 
-/// srp's block after the options, if any: as patch 65's reader reads it, but
-/// strict (an unknown tag or a short entry is refused, so a test sees it).
-fn read_srp_block(reader: &mut Reader) -> Result<SrpBlock, StaticInfoError> {
+/// srp's block after the options, if any: as patches 65, 142 and 154 read
+/// it, but strict (an unknown tag, a tag twice or a short entry is refused,
+/// so a test sees it): the whole map id when it is over a byte, and the
+/// mode's entry.
+fn read_srp_block(reader: &mut Reader) -> Result<(Option<MapId>, SrpBlock), StaticInfoError> {
     if reader.bytes.is_empty() {
-        return Ok(SrpBlock::Plain);
+        return Ok((None, SrpBlock::Plain));
     }
     if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
         return Err(StaticInfoError::SrpBlock);
     }
-    // One entry: a match is of one mode.
-    let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
-    let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
-    let entry = reader
-        .take(usize::from(len))
-        .map_err(|_| StaticInfoError::SrpBlock)?;
-    let block = match (tag, entry) {
-        (SRPX_BLACKOUT, [1]) => SrpBlock::Blackout,
-        (SRPX_FREE_FOR_ALL, &[low, high]) if (low, high) != (0, 0) => SrpBlock::FreeForAll {
-            kills_to_win: u16::from_le_bytes([low, high]),
-        },
-        _ => return Err(StaticInfoError::SrpBlock),
-    };
-    if !reader.bytes.is_empty() {
+    let (mut wide, mut block) = (None, None);
+    while !reader.bytes.is_empty() {
+        let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
+        let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
+        let entry = reader
+            .take(usize::from(len))
+            .map_err(|_| StaticInfoError::SrpBlock)?;
+        let fresh = match (tag, entry) {
+            (SRPX_MAP_ID, &[low, high]) => {
+                let id = MapId::new(u16::from_le_bytes([low, high]));
+                id.over_a_byte() && wide.replace(id).is_none()
+            }
+            (SRPX_BLACKOUT, [1]) => block.replace(SrpBlock::Blackout).is_none(),
+            (SRPX_FREE_FOR_ALL, &[low, high]) if (low, high) != (0, 0) => block
+                .replace(SrpBlock::FreeForAll {
+                    kills_to_win: u16::from_le_bytes([low, high]),
+                })
+                .is_none(),
+            _ => false,
+        };
+        if !fresh {
+            return Err(StaticInfoError::SrpBlock);
+        }
+    }
+    // A block of no entries: never sent.
+    if (wide, block) == (None, None) {
         return Err(StaticInfoError::SrpBlock);
     }
-    Ok(block)
+    Ok((wide, block.unwrap_or(SrpBlock::Plain)))
+}
+
+/// srp's block after the options: the whole map id when it is over a
+/// byte, then the mode's entry; nothing when it has neither.
+fn write_srp_block(map_id: MapId, block: SrpBlock, out: &mut Vec<u8>) {
+    let mut entries = Vec::new();
+    if map_id.over_a_byte() {
+        entries.extend([SRPX_MAP_ID, 2]);
+        entries.extend(map_id.get().to_le_bytes());
+    }
+    match block {
+        SrpBlock::Plain => {}
+        SrpBlock::Blackout => entries.extend([SRPX_BLACKOUT, 1, 1]),
+        SrpBlock::FreeForAll { kills_to_win } => {
+            entries.extend([SRPX_FREE_FOR_ALL, 2]);
+            entries.extend(kills_to_win.to_le_bytes());
+        }
+    }
+    if !entries.is_empty() {
+        out.extend(SRPX_MAGIC);
+        out.extend(entries);
+    }
 }
 
 /// What srp's block after the options says of the match: nothing, or the
@@ -1321,7 +1358,7 @@ mod tests {
     fn options(players: Vec<MatchProfile>) -> MatchOptions {
         MatchOptions {
             players,
-            map: maps::MatchMap::of(61).unwrap(),
+            map: maps::MatchMap::of(crate::v026g::maps::MapId::new(61)).unwrap(),
             match_id: 0x1234_5678,
             match_level: 3,
             score_weights: SCORE_WEIGHTS,
@@ -1353,7 +1390,7 @@ mod tests {
         let entry_on_plain = [&without[..], b"SRPX\x02\x01\x01"].concat();
         assert_eq!(
             parse_options(&entry_on_plain, dictionary()),
-            Err(StaticInfoError::Map(61))
+            Err(StaticInfoError::Map(MapId::new(61)))
         );
         assert_eq!(
             parse_options(&bytes[..without.len()], dictionary()),
@@ -1371,6 +1408,47 @@ mod tests {
                 Err(StaticInfoError::SrpBlock)
             );
         }
+    }
+
+    /// A map id over a byte: its low byte in the options, the whole id in
+    /// srp's block (tag 4, exe patch 154), before the mode's entry; an id
+    /// of a byte has none.
+    #[test]
+    fn a_map_id_over_a_byte_goes_whole_in_srps_block() {
+        let wide = MapId::new(300);
+        let read = |bytes: &[u8]| read_srp_block(&mut Reader { bytes });
+        let mut block = Vec::new();
+        write_srp_block(wide, SrpBlock::Plain, &mut block);
+        assert_eq!(block, b"SRPX\x04\x02\x2c\x01");
+        assert_eq!(read(&block), Ok((Some(wide), SrpBlock::Plain)));
+        let mut block = Vec::new();
+        write_srp_block(wide, SrpBlock::FreeForAll { kills_to_win: 30 }, &mut block);
+        assert_eq!(block, b"SRPX\x04\x02\x2c\x01\x03\x02\x1e\x00");
+        assert_eq!(read(&block), Ok((Some(wide), SrpBlock::FreeForAll { kills_to_win: 30 })));
+        let mut block = Vec::new();
+        write_srp_block(MapId::new(255), SrpBlock::Plain, &mut block);
+        assert!(block.is_empty());
+        // The entry of an id of a byte, twice, short, or a block of none:
+        // refused.
+        for bad in [
+            &b"SRPX\x04\x02\xff\x00"[..],
+            b"SRPX\x04\x02\x2c\x01\x04\x02\x2c\x01",
+            b"SRPX\x04\x01\x2c",
+            b"SRPX",
+        ] {
+            assert_eq!(read(bad), Err(StaticInfoError::SrpBlock), "{bad:?}");
+        }
+        // The client loads the whole id: a map the test data lacks is no
+        // map, named whole; a byte that is not its low byte is no block.
+        let plain = options_bytes(&options(vec![alice()]), dictionary()).unwrap();
+        // The map's byte: the first of the 140 after the profiles.
+        let at = plain.len() - 140;
+        let mut bytes = plain.clone();
+        bytes[at] = wide.low_byte();
+        bytes.extend(b"SRPX\x04\x02\x2c\x01");
+        assert_eq!(parse_options(&bytes, dictionary()), Err(StaticInfoError::Map(wide)));
+        let bytes = [&plain[..], b"SRPX\x04\x02\x2c\x01"].concat();
+        assert_eq!(parse_options(&bytes, dictionary()), Err(StaticInfoError::SrpBlock));
     }
 
     /// The options' end for map 61 and N players: 140 bytes.
@@ -1668,8 +1746,8 @@ mod tests {
         assert_eq!(refused(&|o| o.players = vec![alice(); 21]), E::Roster(21));
         // 107 is level_08 at night, which has no project; 0 is no map: no
         // options can name them.
-        assert_eq!(maps::MatchMap::of(107), None);
-        assert_eq!(maps::MatchMap::of(0), None);
+        assert_eq!(maps::MatchMap::of(crate::v026g::maps::MapId::new(107)), None);
+        assert_eq!(maps::MatchMap::of(crate::v026g::maps::MapId::new(0)), None);
         assert_eq!(
             refused(&|o| o.players[0].team = 2),
             E::Team { player: 0, team: 2 }

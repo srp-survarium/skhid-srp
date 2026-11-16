@@ -1146,7 +1146,7 @@ impl Core<'_> {
             );
             players
         });
-        let plain = |map_id: u8| (map_id, maps::MatchMap::of(map_id).map(Played::plain));
+        let plain = |map_id: maps::MapId| (map_id, maps::MatchMap::of(map_id).map(Played::plain));
         let (chosen, played) = match (pvb, room_played) {
             (Some(choice), _) => plain(choice.map_id),
             (None, Some(played)) => (played.map().id, Some(played)),
@@ -1160,7 +1160,7 @@ impl Core<'_> {
                         maps::GameMode::Blackout | maps::GameMode::FreeForAll
                     )
                 };
-                let pool: Vec<u8> = self
+                let pool: Vec<maps::MapId> = self
                     .settings
                     .maps
                     .iter()
@@ -1169,7 +1169,7 @@ impl Core<'_> {
                     .map(|map| map.id)
                     .collect();
                 plain(match pool.len() {
-                    0 => maps::playable().find(drawn).map_or(0, |map| map.id),
+                    0 => maps::playable().find(drawn).map_or(maps::MapId::new(0), |map| map.id),
                     count => pool[self.rng.below(count as u32) as usize],
                 })
             }

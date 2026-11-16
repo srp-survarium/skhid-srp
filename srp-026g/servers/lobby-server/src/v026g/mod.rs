@@ -185,7 +185,7 @@ pub struct Settings {
     pub tick: Duration,
     /// The `maps_dict` ids played: playable ones only (a room's default
     /// pool, what a clan match is drawn from).
-    pub maps: Vec<u8>,
+    pub maps: Vec<maps::MapId>,
     /// The least patch revision of a game let in, 0 for any: an older one
     /// is refused at its sign-in, and its sessions from before in the lobby
     /// (`SRP_MIN_PATCH_REVISION`; `patch_check`).
@@ -357,17 +357,17 @@ fn parse_modes(value: &str) -> Option<Vec<maps::GameMode>> {
 }
 
 /// `SRP_MATCH_MAPS`: `maps_dict` ids, at least one.
-fn parse_maps(value: &str) -> Option<Vec<u8>> {
-    let ids: Option<Vec<u8>> = value
+fn parse_maps(value: &str) -> Option<Vec<maps::MapId>> {
+    let ids: Option<Vec<maps::MapId>> = value
         .split(',')
-        .map(|id| id.trim().parse::<u8>().ok())
+        .map(|id| id.trim().parse::<maps::MapId>().ok())
         .collect();
     ids.filter(|ids| !ids.is_empty())
 }
 
 /// The playable ids of `modes`; with `only` not empty, those of them it
 /// names.
-fn map_pool(modes: &[maps::GameMode], only: &[u8]) -> Vec<u8> {
+fn map_pool(modes: &[maps::GameMode], only: &[maps::MapId]) -> Vec<maps::MapId> {
     maps::playable()
         .filter(|map| modes.contains(&map.mode))
         .filter(|map| only.is_empty() || only.contains(&map.id))

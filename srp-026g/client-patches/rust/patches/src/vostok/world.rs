@@ -14,6 +14,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::Context;
 use super::hook::Thread;
+use super::options::MapId;
 use super::ui::{Movie, movie_of};
 use crate::raw;
 
@@ -695,8 +696,9 @@ impl BodyId {
 pub struct LoadedMap {
     name: [u8; LoadedMap::MOST],
     len: u8,
-    /// The maps_dict id (match_options +577B4h), when the client has options.
-    pub id: Option<u8>,
+    /// The maps_dict id (match_options +577B8h, patch 154's), when the
+    /// client has options.
+    pub id: Option<MapId>,
 }
 
 impl LoadedMap {
@@ -709,7 +711,7 @@ impl LoadedMap {
     }
 
     /// A map of this name and id (tests, and what `loaded_map` builds).
-    pub fn new(name: &[u8], id: Option<u8>) -> LoadedMap {
+    pub fn new(name: &[u8], id: Option<MapId>) -> LoadedMap {
         let mut out = LoadedMap { name: [0; LoadedMap::MOST], len: 0, id };
         for (slot, &byte) in out.name.iter_mut().zip(name) {
             *slot = if byte.is_ascii_graphic() { byte } else { b'?' };
@@ -739,7 +741,7 @@ pub fn loaded_map(_: &Thread) -> Option<LoadedMap> {
         let id = game
             .network_client()
             .and_then(|client| raw::engine_match_options(Some(client)))
-            .map(|options| read(options.map()));
+            .map(|options| super::options::map_id_of(options));
         Some(LoadedMap::new(name, id))
     }
 }

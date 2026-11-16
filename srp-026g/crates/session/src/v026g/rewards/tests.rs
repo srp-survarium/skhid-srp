@@ -68,7 +68,7 @@ fn player(place: u8, team: u8, name: &str, statistics: PlayerStatistics) -> Play
 fn result(players: Vec<PlayerResult>) -> MatchResult {
     MatchResult {
         match_id: MATCH,
-        map_id: 1,
+        map_id: survarium::v026g::maps::MapId::new(1),
         mode: GameMode::Batteries,
         twist: None,
         match_level: 0,

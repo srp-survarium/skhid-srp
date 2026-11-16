@@ -1409,13 +1409,22 @@ impl MatchOptions {
         unsafe { self.0.byte_add(0x577b0).cast::<u32>().as_ptr() }
     }
 
-    /// +0x577b4 (u8): the match's maps_dict id (its map and mode): match_options::deserialize 0x1F0EAD, the byte after the 20 profiles
+    /// +0x577b4 (u8): the match's maps_dict id (its map and mode): match_options::deserialize 0x1F0EAD, the byte after the 20 profiles (an id over a byte: its low byte, patch 154)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
     pub unsafe fn map(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x577b4).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x577b8 (u32): the whole maps_dict id every reader of the map takes (patch 154): written at the options' read from srp's block's tag 4 or the byte at +577B4h; the game's own "match maker id", logged only (0x27BB57) and written by nothing else
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn map_id(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x577b8).cast::<u32>().as_ptr() }
     }
 
     /// +0x577b6 (u16): the match's level: match_options::deserialize 0x1F0EDC, after the seed

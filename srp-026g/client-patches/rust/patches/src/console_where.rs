@@ -81,7 +81,7 @@ fn describe(map: Option<LoadedMap>, seen: Seen, now: u32, line: &mut Line) {
             line.push(map.name());
             if let Some(id) = map.id {
                 line.push(" (id ");
-                line.number(u32::from(id));
+                line.number(u32::from(id.get()));
                 line.push(")");
             }
         }
@@ -229,6 +229,7 @@ impl Line {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::vostok::MapId;
 
     fn line(seen: Seen, now: u32) -> String {
         line_at(None, seen, now)
@@ -324,13 +325,13 @@ mod tests {
     fn the_map_first() {
         let seen = view([1.0, 2.0, 3.0], [1.0, 2.0, 3.0], [0.0, 0.0, 1.0]);
         let tail = "pos 1.000 2.000 3.000 dir 0.000 0.000 1.000 yaw 0.0 pitch 0.0";
-        let map = LoadedMap::new(b"v021d_level_03/day_2", Some(61));
+        let map = LoadedMap::new(b"v021d_level_03/day_2", Some(MapId::new(61)));
         assert_eq!(line_at(Some(map), seen, 5000), format!("where: map v021d_level_03/day_2 (id 61) {tail}"));
         let replayed = LoadedMap::new(b"level_01/day 2\x01", None);
         assert_eq!(line_at(Some(replayed), seen, 5000), format!("where: map level_01/day?2? {tail}"));
         assert_eq!(line_at(Some(map), Seen::Nothing, 0), "where: map v021d_level_03/day_2 (id 61) no camera yet");
-        let long = LoadedMap::new(&[b'x'; 300], Some(255));
-        assert_eq!(line_at(Some(long), seen, 5000), format!("where: map {} (id 255) {tail}", "x".repeat(64)));
+        let long = LoadedMap::new(&[b'x'; 300], Some(MapId::new(300)));
+        assert_eq!(line_at(Some(long), seen, 5000), format!("where: map {} (id 300) {tail}", "x".repeat(64)));
     }
 
     #[test]

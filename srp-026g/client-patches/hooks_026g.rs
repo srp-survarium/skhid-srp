@@ -1608,6 +1608,21 @@ pub extern "C" fn hook_battery_progress_on_load(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- map_id (patch 154) ----
+
+/// The entry `map_id_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_map_id_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `map_id_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::map_id::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
@@ -1662,6 +1677,21 @@ pub extern "C" fn hook_free_for_all_on_static_info(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::free_for_all::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- map_id (patch 154) ----
+
+/// The entry `map_id_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_map_id_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `map_id_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::map_id::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -5561,7 +5591,9 @@ pub extern "C" fn hook_packet_recovery_on_loaded_chain(frame: &mut Frame) -> u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
+pub extern "C" fn hook_map_id_on_static_info_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_map_id_on_static_info(frame);
+    if flow != 0 { return flow; }
     let flow = hook_blackout_on_static_info(frame);
     if flow != 0 { return flow; }
     let flow = hook_tab_cursor_on_static_info(frame);
@@ -5574,7 +5606,9 @@ pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u32 {
+pub extern "C" fn hook_map_id_on_replay_options_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_map_id_on_replay_options(frame);
+    if flow != 0 { return flow; }
     let flow = hook_blackout_on_replay_options(frame);
     if flow != 0 { return flow; }
     let flow = hook_tab_cursor_on_replay_options(frame);

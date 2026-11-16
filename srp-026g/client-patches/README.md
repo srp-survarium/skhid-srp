@@ -4413,6 +4413,17 @@ fall's attacker is the victim) deals 1000 from there, so its share of pain (5 % 
 least, an arm's or a hip's) empties it, the game's own pain death (the kill feed's pain
 mark). A match's computation changes: every client of a match needs it.
 `check_hand_kill_026g.py` runs the chain from the game's site in the patched exe.
+## Map ids over a byte (patch 154, unreleased)
+
+A maps_dict id over 255 loads that map (the owner, 2026-11-16; client_patch.md §3.82). The match
+options carry the map as one byte (+577B4h, match_options::deserialize 0x1F0EAD); its six readers
+(0x234CFD, 0x27AFA7, 0x27BC26, 0x27BE8B, 0x2A3603, 0x2D01F3, each `movzx r32, byte [r+577B4h]`)
+read the dword +577B8h instead (`mov r32, [r+577B8h]` and a nop; `MAP_ID_READERS`), the game's
+"match maker id", only logged. `map_id.rs` fills it at both options reads (static info and a
+replay's chunk 1, first in their chains): srp's block's tag 4 (a u16 over 255, its low byte the
+options' byte), else the byte. Without the tag every reader gets the byte as before. Nothing a
+match computes.
+
 ## Two keys save a screenshot (patch 152, unreleased)
 
 F11 saves the picture on the screen and F12 the same frame without the interface, as PNG files

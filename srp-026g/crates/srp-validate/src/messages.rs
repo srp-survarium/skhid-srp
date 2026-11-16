@@ -22,8 +22,8 @@ pub trait Dictionary {
     /// it does not have (`items_dictionary::item_by_id` 0x1F0090 finds
     /// nothing, and the client crashes later).
     fn item(&self, dict_id: u16) -> Option<bool>;
-    /// Whether the client has the map (a maps_dict id).
-    fn map(&self, map_id: u8) -> bool;
+    /// Whether the client has the map (a maps_dict id, up to `u16::MAX`).
+    fn map(&self, map_id: u16) -> bool;
 }
 
 /// The ids srp sends and a client takes. 0xE2 and every id outside
@@ -384,16 +384,13 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         }
     }
     let at = reader.at();
-    let map = reader.u8().map_err(short)?;
+    let map_byte = reader.u8().map_err(short)?;
     let roster = reader.u8().map_err(short)?;
     if !(1..=MAX_PLAYERS).contains(&usize::from(roster)) {
         return Err(refuse(
             at.saturating_add(1),
             Reason::OptionsRoster { roster },
         ));
-    }
-    if !dictionary.map(map) {
-        return Err(refuse(at, Reason::OptionsMap { map }));
     }
     // The roster's teams: the match's two (0 and 1), or in a free-for-all
     // each place a side of its own ([`crate::own_side`]); never a mix of
@@ -427,43 +424,51 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     }
     // The squad bytes.
     reader.skip(MAX_PLAYERS).map_err(short)?;
-    // srp appends an SRPX block for a Blackout match (shipped patch 65) and
-    // for a free-for-all (its kill target).
+    // srp appends an SRPX block for a Blackout match (shipped patch 65), for
+    // a free-for-all (its kill target) and for a map id over a byte (patch
+    // 154: the whole id, the options' byte its low byte).
     // Keep this in sync with static_info::read_srp_block on the server.
+    let mut wide = None;
     if !reader.is_done() {
         let at = reader.at();
-        let invalid = || {
-            refuse(
-                at,
-                Reason::OptionsTrailing {
-                    len: reader.rest().len(),
-                },
-            )
-        };
+        let trailing = |reader: &Reader| refuse(at, Reason::OptionsTrailing { len: reader.rest().len() });
         if !reader.rest().starts_with(b"SRPX") {
-            return Err(invalid());
+            return Err(trailing(&reader));
         }
         reader.skip(4).map_err(short)?;
-        // One entry, `{tag, len, bytes}`: Blackout's `{2, 1, 1}`, or a
-        // free-for-all's `{3, 2, kills to win}` (a u16, never 0), which only
-        // a roster of own sides has.
-        let at = reader.at();
-        let fits = match reader.rest() {
-            [2, 1, 1] => !own_sides,
-            [3, 2, low, high] => own_sides && (*low, *high) != (0, 0),
-            _ => false,
-        };
-        if !fits {
-            return Err(refuse(
-                at,
-                Reason::OptionsTrailing {
-                    len: reader.rest().len(),
-                },
-            ));
+        // Entries `{tag, len, bytes}`, each tag once: the whole map id's
+        // `{4, 2, id}` (over a byte, its low byte the options' byte), and
+        // Blackout's `{2, 1, 1}` or a free-for-all's `{3, 2, kills to win}`
+        // (a u16, never 0), which only a roster of own sides has.
+        let mut mode = false;
+        while !reader.is_done() {
+            let fits = match reader.rest() {
+                [4, 2, low, high, ..] => {
+                    let id = u16::from_le_bytes([*low, *high]);
+                    id > u16::from(u8::MAX) && *low == map_byte && wide.replace(id).is_none()
+                }
+                [2, 1, 1, ..] => !own_sides && !core::mem::replace(&mut mode, true),
+                [3, 2, low, high, ..] => {
+                    own_sides && (*low, *high) != (0, 0) && !core::mem::replace(&mut mode, true)
+                }
+                _ => false,
+            };
+            if !fits {
+                return Err(trailing(&reader));
+            }
+            let [_tag, len] = reader.array().map_err(short)?;
+            reader.skip(usize::from(len)).map_err(short)?;
+        }
+        if !mode && (own_sides || wide.is_none()) {
+            return Err(trailing(&reader));
         }
     } else if own_sides {
         // A free-for-all's options always carry its entry.
         return Err(refuse(reader.at(), Reason::OptionsTrailing { len: 0 }));
+    }
+    let map = wide.unwrap_or(u16::from(map_byte));
+    if !dictionary.map(map) {
+        return Err(refuse(at, Reason::OptionsMap { map }));
     }
     Ok(roster)
 }

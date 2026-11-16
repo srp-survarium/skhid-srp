@@ -2949,10 +2949,10 @@ battery_progress_on_load_replay:
     db 0x8b, 0x85, 0x38, 0x0a, 0x00, 0x00
     jmp 0x3350d6
 
-; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> blackout_on_static_info
-global blackout_on_static_info
-extern hook_blackout_on_static_info_chain
-blackout_on_static_info:
+; 0x27b92d process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]: lohook -> map_id_on_static_info
+global map_id_on_static_info
+extern hook_map_id_on_static_info_chain
+map_id_on_static_info:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -2969,29 +2969,29 @@ blackout_on_static_info:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_blackout_on_static_info_chain
-    mov edx, blackout_on_static_info_replay
+    call hook_map_id_on_static_info_chain
+    mov edx, map_id_on_static_info_replay
     cmp eax, 0
-    je blackout_on_static_info_go
+    je map_id_on_static_info_go
     mov edx, 0x27b932
     cmp eax, 1
-    je blackout_on_static_info_go
+    je map_id_on_static_info_go
     ud2
-blackout_on_static_info_go:
+map_id_on_static_info_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-blackout_on_static_info_replay:
+map_id_on_static_info_replay:
     db 0x8b, 0x17, 0x8b, 0x42, 0x40
     jmp 0x27b932
 
-; 0x1f0971 a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h: lohook -> blackout_on_replay_options
-global blackout_on_replay_options
-extern hook_blackout_on_replay_options_chain
-blackout_on_replay_options:
+; 0x1f0971 a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h: lohook -> map_id_on_replay_options
+global map_id_on_replay_options
+extern hook_map_id_on_replay_options_chain
+map_id_on_replay_options:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -3008,22 +3008,22 @@ blackout_on_replay_options:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_blackout_on_replay_options_chain
-    mov edx, blackout_on_replay_options_replay
+    call hook_map_id_on_replay_options_chain
+    mov edx, map_id_on_replay_options_replay
     cmp eax, 0
-    je blackout_on_replay_options_go
+    je map_id_on_replay_options_go
     mov edx, 0x1f0976
     cmp eax, 1
-    je blackout_on_replay_options_go
+    je map_id_on_replay_options_go
     ud2
-blackout_on_replay_options_go:
+map_id_on_replay_options_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-blackout_on_replay_options_replay:
+map_id_on_replay_options_replay:
     db 0x5e, 0x5b, 0x83, 0xc4, 0x34
     jmp 0x1f0976
 

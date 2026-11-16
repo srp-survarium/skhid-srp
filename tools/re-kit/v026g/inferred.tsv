@@ -3517,3 +3517,4 @@ va	status	ref_021d	name
 0x002f9f40	inferred-medium		survarium::victory_item_core_cook::new_victory_item_core [descriptive]
 0x002f9fa0	inferred-medium		survarium::victory_item_core_cook::create_resource [descriptive]
 0x003fe260	inferred-medium		boost::function2::operator() [descriptive]
+0x001f0e70	inferred-high		survarium::match_options::deserialize
