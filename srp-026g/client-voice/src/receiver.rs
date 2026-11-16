@@ -15,17 +15,15 @@ pub type Stereo = [[i16; 2]; FRAME];
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Gains {
     plain: [f32; 2],
-    /// How much of the 10 m voice is its muffled self (0..1).
-    muffle: f32,
     radio: f32,
 }
 impl Gains {
-    const SILENT: Self = Self { plain: [0., 0.], muffle: 0., radio: 0. };
+    const SILENT: Self = Self { plain: [0., 0.], radio: 0. };
     /// An utterance on `channel` of a slot heard so.
     fn of(heard: Heard, channel: Channel) -> Self {
         match channel {
-            Channel::Near => Self { plain: heard.near.get(), muffle: heard.muffle.get(), radio: 0. },
-            Channel::Radio => Self { plain: [0., 0.], muffle: 0., radio: f32::from(u8::from(heard.radio)) },
+            Channel::Near => Self { plain: heard.near.get(), radio: 0. },
+            Channel::Radio => Self { plain: [0., 0.], radio: f32::from(u8::from(heard.radio)) },
         }
     }
 }
@@ -33,6 +31,18 @@ impl Gains {
 /// down from it) is gone. A wall lets a voice's body through and takes its
 /// consonants.
 const MUFFLE_HZ: f32 = 700.;
+/// And how loud it is there of what it is in the open: 0.32, 10 dB down.
+const BEHIND_A_WALL: f32 = 0.316;
+/// How long a wall takes to come between a speaker and the listener, and to
+/// go, in frames of 20 ms: 0.3 s (the owner, 2026-11-16, of a first build
+/// that took 60 ms: "the transition ... sounds not smooth"). By the sound's
+/// own clock, so the game's frames a second do not change it.
+const WALL_FRAMES: f32 = 15.;
+/// How loud a voice is with `walled` of it (0..1) behind a wall: the same
+/// number of dB for each part of it, so a wall comes and goes evenly.
+fn through_a_wall(walled: f32) -> f32 {
+    BEHIND_A_WALL.powf(walled)
+}
 /// How every slot is heard.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hearing([Heard; SLOTS]);
@@ -413,6 +423,10 @@ struct Speaker {
     rider: Rider,
     /// Its 10 m voice as heard through a wall ([`MUFFLE_HZ`]).
     wall: Biquad,
+    /// How much of its utterance is behind a wall as it plays (0..1), which
+    /// follows what the game says over [`WALL_FRAMES`]; none before an
+    /// utterance's first frame, which is as the game says at once.
+    walled: Option<f32>,
 }
 impl Speaker {
     fn new() -> Result<Self, String> {
@@ -429,6 +443,7 @@ impl Speaker {
             gains: Gains::SILENT,
             rider: Rider::REST,
             wall: Biquad::new(Kind::Low, MUFFLE_HZ, std::f32::consts::FRAC_1_SQRT_2, 0.),
+            walled: None,
         })
     }
     /// The utterance `id` on `channel` is this speaker's open one (now, or
@@ -447,6 +462,7 @@ impl Speaker {
         // from silence.
         self.channel = channel;
         self.gains = Gains::SILENT;
+        self.walled = None;
         self.radio = Radio::new(
             0x9e3779b9u32
                 .wrapping_mul(u32::from(slot) + 1)
@@ -743,11 +759,22 @@ impl Core {
                 sounds = true;
                 let ramp = |from: f32, to: f32, i: usize| from + (to - from) * (i + 1) as f32 / FRAME as f32;
                 if from.plain != [0., 0.] || to.plain != [0., 0.] {
-                    let muffled = from.muffle > 0. || to.muffle > 0.;
+                    // How much of it is behind a wall, this frame's part of
+                    // the way to what the game says.
+                    let wall = heard.muffle.get();
+                    let was = s.walled.unwrap_or(wall);
+                    let now = was + (wall - was).clamp(-1. / WALL_FRAMES, 1. / WALL_FRAMES);
+                    s.walled = Some(now);
+                    let behind = was > 0. || now > 0.;
+                    let (loud_was, loud_now) = (through_a_wall(was), through_a_wall(now));
                     for (i, (a, p)) in own.iter_mut().zip(pcm).enumerate() {
-                        // Behind a wall: so much of it its dull self (the
-                        // filter runs only while it is: it comes in ramped).
-                        let p = if muffled { p + (s.wall.run(p) - p) * ramp(from.muffle, to.muffle, i) } else { p };
+                        // So much of it its dull self, and quieter (the
+                        // filter runs only while any of it is).
+                        let p = if behind {
+                            (p + (s.wall.run(p) - p) * ramp(was, now, i)) * ramp(loud_was, loud_now, i)
+                        } else {
+                            p
+                        };
                         for ((ear, from), to) in a.iter_mut().zip(from.plain).zip(to.plain) {
                             *ear += p * plain * ramp(from, to, i);
                         }

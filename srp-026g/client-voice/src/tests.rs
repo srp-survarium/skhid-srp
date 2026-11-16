@@ -249,10 +249,10 @@ fn the_10_m_voice_is_mixed_by_the_gains_it_is_given() {
     assert!(silent.iter().flatten().all(|ears| *ears == [0, 0]));
 }
 #[test]
-fn a_voice_behind_a_wall_is_dull() {
+fn a_voice_behind_a_wall_is_quieter_and_dull() {
     // A low tone and a high one from slot 3, heard in the open, half behind
-    // a wall and wholly: the wall takes the high one (700 Hz and up, 12 dB an
-    // octave) and leaves the low one; its loudness is the ears', not this.
+    // a wall and wholly: the wall takes 10 dB of both and the high one's
+    // rest (700 Hz and up, 12 dB an octave).
     let level = |hz: f32, muffle: Muffle| {
         let mut encoder = Encoder::new().unwrap();
         let frames: Vec<Vec<u8>> = (0..24).map(|i| encoder.encode(&tone(i, hz, 2000.)).unwrap()).collect();
@@ -267,9 +267,49 @@ fn a_voice_behind_a_wall_is_dull() {
     };
     let half = Muffle::new(0.5);
     let (low, high) = (level(200., Muffle::NONE), level(2800., Muffle::NONE));
-    assert!(level(200., Muffle::WHOLE) > low * 0.9, "{} {low}", level(200., Muffle::WHOLE));
-    assert!(level(2800., Muffle::WHOLE) < high * 0.1, "{} {high}", level(2800., Muffle::WHOLE));
-    assert!(level(2800., half) < high * 0.7 && level(2800., half) > high * 0.3, "{} {high}", level(2800., half));
+    let behind = level(200., Muffle::WHOLE);
+    assert!((0.28..0.34).contains(&(behind / low)), "{behind} {low}");
+    assert!(level(2800., Muffle::WHOLE) < high * 0.03, "{} {high}", level(2800., Muffle::WHOLE));
+    // Half a wall: half of the 10 dB.
+    assert!((0.5..0.62).contains(&(level(200., half) / low)), "{} {low}", level(200., half));
+}
+#[test]
+fn a_wall_comes_and_goes_over_a_third_of_a_second() {
+    // A steady low tone; the game says "behind a wall" from the tenth frame
+    // and "in the open" from the fortieth. The level falls and comes back
+    // evenly over fifteen frames each, no frame more than a dB from the
+    // last; an utterance that begins behind a wall is there at once.
+    let mut encoder = Encoder::new().unwrap();
+    let frames: Vec<Vec<u8>> = (0..70).map(|i| encoder.encode(&tone(i, 200., 2000.)).unwrap()).collect();
+    let play = |walls: &dyn Fn(u32) -> Muffle| {
+        let mut core = Core::new().unwrap();
+        (0..66u32)
+            .map(|tick| {
+                // (fed as they come: a ring holds 32 frames)
+                if tick % 2 == 0 {
+                    let at = tick as usize;
+                    core.receive(&packet((tick / 2) as u16, &frames[at..at + 2]), tick * 20);
+                }
+                let mut hearing = Hearing::UNITY;
+                hearing.set(3, Heard { near: Ears::UNITY, muffle: walls(tick), radio: false });
+                let frame = core.mix(0.25, &hearing, tick * 20);
+                20. * (frame.iter().map(|ears| f64::from(ears[0]).powi(2)).sum::<f64>() / FRAME as f64).sqrt().max(1e-9).log10()
+            })
+            .collect::<Vec<f64>>()
+    };
+    let open = play(&|_| Muffle::NONE);
+    let walled = play(&|tick| if (10..40).contains(&tick) { Muffle::WHOLE } else { Muffle::NONE });
+    let down: Vec<f64> = walled.iter().zip(&open).map(|(w, o)| w - o).collect();
+    assert!(down[4..10].iter().all(|d| d.abs() < 0.1), "{down:?}");
+    assert!(down[26..40].iter().all(|d| (-10.6..-9.4).contains(d)), "{down:?}");
+    assert!(down[56..].iter().all(|d| d.abs() < 0.1), "{down:?}");
+    for pair in down[4..].windows(2) {
+        assert!((pair[1] - pair[0]).abs() < 1.0, "{down:?}");
+    }
+    // Half way after half the time, in dB.
+    assert!((-6.2..-3.8).contains(&down[17]) && (-6.2..-3.8).contains(&down[47]), "{} {}", down[17], down[47]);
+    let from_the_start = play(&|_| Muffle::WHOLE);
+    assert!(from_the_start[4..].iter().zip(&open[4..]).all(|(w, o)| (-10.6..-9.4).contains(&(w - o))), "{from_the_start:?}");
 }
 #[test]
 fn an_utterance_is_heard_by_its_own_channel_alone() {

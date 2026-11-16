@@ -97,23 +97,16 @@ fn gain(metres: f32) -> f32 {
     (1.0 - (1.0 - AT_9_M) * past / (9.0 - 1.0)).clamp(0.0, 1.0)
 }
 
-/// How much of a 10 m voice's loudness is left with a wall between the two
-/// players: 0.32, 10 dB down (the owner, 2026-11-16: "it doesn't follow
-/// geometry at all right now"). With it the voice is dull (`Muffle`).
-const BEHIND_A_WALL: f32 = 0.316;
-
 /// The lines tried from the listener's head: to the speaker's head and this
 /// far to either side of it, so that a post or a door's edge takes a part of
-/// the voice and not all of it at once.
+/// the voice and not all of it (the owner, 2026-11-16, of the 10 m voice:
+/// "it doesn't follow geometry at all right now").
 const WALL_SIDE_M: f32 = 0.3;
 
-/// The most a speaker's wall changes in a frame: all of it in seven frames,
-/// a tenth of a second and a little, so a step round a corner is no switch.
-const WALL_STEP: f32 = 0.15;
-
-/// How much of each talking speaker's 10 m voice is behind a wall (0 none,
-/// 1 all of it); None for a place that is not followed (it does not talk,
-/// or one of the two is not in the world).
+/// How much of each talking speaker's 10 m voice is behind a wall now (0
+/// none, 1 all of it); None for a place that is not asked (it does not talk,
+/// or one of the two is not in the world). The DLL plays that part quieter
+/// and dull, and goes from one frame's answer to the next's in its own time.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Walled([Option<f32>; Place::COUNT]);
 
@@ -138,19 +131,6 @@ impl Walled {
             walled.0[place.index()] = Some(behind as f32 / lines.len() as f32);
         }
         walled
-    }
-
-    /// From what it was a frame ago towards `now`: a place newly followed
-    /// is as it is now, one followed before moves [`WALL_STEP`] at most.
-    fn follow(self, now: Walled) -> Walled {
-        let mut next = Walled::NONE;
-        for ((next, was), now) in next.0.iter_mut().zip(self.0).zip(now.0) {
-            *next = match (was, now) {
-                (Some(was), Some(now)) => Some(was + (now - was).clamp(-WALL_STEP, WALL_STEP)),
-                (_, now) => now,
-            };
-        }
-        next
     }
 
     fn of(&self, place: Place) -> f32 {
@@ -207,8 +187,6 @@ struct Live {
     alive: bool,
     /// The speakers the hud's list was told.
     shown: Option<Speakers>,
-    /// How much of each talking speaker is behind a wall, as of the last frame.
-    walled: Walled,
     trace: Trace,
 }
 
@@ -386,7 +364,7 @@ pub fn on_connect(ctx: &mut Context<'_>) -> Flow<NoExit> {
         Text(if started { ": started" } else { ": the DLL refused the start" }),
     ]);
     let next = if started {
-        Voice::Live(dll, Live { mutes: load_mutes(thread), told: Some(told), talk: None, alive: false, shown: None, walled: Walled::NONE, trace })
+        Voice::Live(dll, Live { mutes: load_mutes(thread), told: Some(told), talk: None, alive: false, shown: None, trace })
     } else {
         Voice::Idle(dll)
     };
@@ -431,23 +409,20 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// a mate's (a teammate; in a free-for-all, any other player) at any
 /// distance, alive or dead; an opponent's never. `pan` is the engine's, of a
 /// sound at an offset from the listener. With a wall between the two
-/// (`walled`: how much of the speaker is behind one) the 10 m voice is
-/// quieter, down to [`BEHIND_A_WALL`], and dull; the radio is not. The places
+/// (`walled`: how much of the speaker is behind one) the DLL is told so, and
+/// plays the 10 m voice quieter and dull; the radio is not touched. The places
 /// of nobody in the match, and the local player's own, are silent.
 fn hearing(roster: &Roster, pan: impl Fn([f32; 3]) -> [f32; 2], walled: &Walled) -> Hearing {
     let me = roster.local().and_then(|me| roster.seat(me)).and_then(|seat| seat.body);
     roster.others().fold(Hearing::SILENT, |hearing, (place, seat, side)| {
-        let behind = walled.of(place);
         let near = match (me, seat.body) {
             (Some(me), Some(them)) => {
                 let offset = [them.feet[0] - me.feet[0], them.feet[1] - me.feet[1], them.feet[2] - me.feet[2]];
-                let [left, right] = in_the_world(offset, &pan).get();
-                let left_through = 1.0 - behind * (1.0 - BEHIND_A_WALL);
-                Ears::new(left * left_through, right * left_through)
+                in_the_world(offset, &pan)
             }
             _ => Ears::SILENT,
         };
-        hearing.with(place, Heard { near, muffle: Muffle::new(behind), radio: side == Side::Mate })
+        hearing.with(place, Heard { near, muffle: Muffle::new(walled.of(place)), radio: side == Side::Mate })
     })
 }
 
@@ -530,12 +505,11 @@ pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
     // The level between the listener and those it hears talking (three lines
     // a speaker, only while it talks).
     let walls = scene.walls();
-    let walled_now = Walled::now(&roster, talking, |from, to| walls.as_ref().is_some_and(|walls| walls.between(from, to)));
-    live.walled = live.walled.follow(walled_now);
+    let walled = Walled::now(&roster, talking, |from, to| walls.as_ref().is_some_and(|walls| walls.between(from, to)));
     // No listener yet (the world's first tick): the engine's centre.
     let listener = Listener::at_frame(ctx);
     let pan = |offset| listener.as_ref().map_or(PAN_CENTRE, |listener| listener.pan(offset));
-    let told = Told { settings, muted: muted(dll, &roster, &live.mutes), hearing: hearing(&roster, pan, &live.walled) };
+    let told = Told { settings, muted: muted(dll, &roster, &live.mutes), hearing: hearing(&roster, pan, &walled) };
     let before = live.told;
     if before.map(|t| t.settings) != Some(told.settings) {
         dll.settings(told.settings);
@@ -1049,43 +1023,17 @@ mod tests {
         let wall = Walled::now(&r, talking, |_, to| to[2] > 3.0 || (to[0] > 3.0 && to[2] > 0.1));
         assert_eq!(wall.0[1], Some(1.0));
         assert!(close(wall.0[2].unwrap(), 1.0 / 3.0), "{wall:?}");
-        // Heard: behind the wall 10 dB down and dull; the radio is not touched.
+        // Heard: the DLL is told how much (it makes the voice quieter and
+        // dull); the ears are the voice's in the open, the radio is not touched.
         let heard = hearing(&r, pan, &wall);
         let clear = hearing(&r, pan, &Walled::NONE);
-        let (through, plain) = (heard.of(p(1)).near.get(), clear.of(p(1)).near.get());
-        assert!(close(through[1], plain[1] * BEHIND_A_WALL) && plain[1] > 0.0, "{through:?} {plain:?}");
+        assert_eq!(heard.of(p(1)).near, clear.of(p(1)).near);
         assert_eq!((heard.of(p(1)).muffle, heard.of(p(1)).radio), (Muffle::WHOLE, true));
         assert!(close(heard.of(p(2)).muffle.get(), 1.0 / 3.0));
         assert_eq!(heard.of(p(3)), clear.of(p(3)));
         // The listener out of the world: nobody is followed.
         let dead = roster(&[(0, None), (0, Some([0.0, 0.0, 4.0]))]);
         assert_eq!(Walled::now(&dead, talking, |_, _| true), Walled::NONE);
-    }
-
-    #[test]
-    fn a_wall_comes_and_goes_over_a_few_frames_and_is_there_at_once_for_a_new_speaker() {
-        let at = |place: usize, behind: Option<f32>| {
-            let mut walled = Walled::NONE;
-            walled.0[place] = behind;
-            walled
-        };
-        // A speaker who begins to talk behind a wall is behind it from its first frame.
-        assert_eq!(Walled::NONE.follow(at(1, Some(1.0))), at(1, Some(1.0)));
-        // One who steps behind it while talking: over seven frames.
-        let mut walled = at(1, Some(0.0));
-        let mut frames = 0;
-        while walled.0[1] != Some(1.0) {
-            let next = walled.follow(at(1, Some(1.0)));
-            assert!(next.0[1].unwrap() - walled.0[1].unwrap() <= WALL_STEP + 1e-6);
-            walled = next;
-            frames += 1;
-        }
-        assert_eq!(frames, 7);
-        // And out again; one who stops talking is no longer followed.
-        assert!(close(walled.follow(at(1, Some(0.0))).0[1].unwrap(), 1.0 - WALL_STEP));
-        assert_eq!(walled.follow(Walled::NONE), Walled::NONE);
-        assert_eq!(walled.of(p(1)), 1.0);
-        assert_eq!(Walled::NONE.of(p(1)), 0.0);
     }
 
     #[test]

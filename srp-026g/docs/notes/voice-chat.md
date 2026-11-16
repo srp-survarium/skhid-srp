@@ -807,7 +807,7 @@ Until then the voice had its side and its distance and nothing else: 5 m away be
 sounded as 5 m away in the open.
 
 - **What a listener hears.** With something solid of the level between the two heads the
-  speaker's 10 m voice is 10 dB down (`BEHIND_A_WALL` 0.316) and dull: over 700 Hz it falls 12 dB
+  speaker's 10 m voice is 10 dB down (`BEHIND_A_WALL` 0.316, the DLL's) and dull: over 700 Hz it falls 12 dB
   an octave (`MUFFLE_HZ`), a wall letting a voice's body through and taking its consonants.
   Never silent. The radio is not touched (it is not sound in the air).
 - **The test** (patch 66, each frame, for each player heard talking and in the world, as the
@@ -817,14 +817,18 @@ sounded as 5 m away in the open.
   and the carry's reach use; the players' own bodies are not of it). How many of the three are
   blocked is how much of the voice is behind the wall: a post or a door's edge takes a third or
   two, not all at once.
-- **No switch.** That part changes 0.15 a frame at most (`WALL_STEP`: all of it in seven frames,
-  a tenth of a second and a little); a speaker who begins to talk behind a wall is behind it from
-  its first frame. The DLL ramps what it is told over its own 20 ms.
+- **No switch.** The patch says each frame how much is behind a wall, as it is. The DLL goes
+  there in its own time: 0.3 s for all of it (`WALL_FRAMES` 15 of 20 ms), by the sound's clock,
+  so the game's frames a second do not change it; the loudness the same number of dB for each
+  part of the way (`through_a_wall`: 0.316 to the power of the part). An utterance that begins
+  behind a wall is there from its first frame. (The first build stepped in the patch, 0.15 a
+  frame of the game, about a tenth of a second at 60 frames; the owner, of its sample: "the
+  transition from 4s to 5s sounds not smooth".)
 - **The interface** (voice ABI 8): `sv_hear(place, left, right, muffle, radio)`; `voice_abi::Heard`
-  has `muffle` (`Muffle`, 0..1). The loudness is in the two ears' gains, which the patch scales; the
-  DLL only dulls: the voice crossed with itself through a low-pass (`Speaker::wall`), run only
-  while it is muffled at all. It comes after the leveller, so a speaker behind a wall is not
-  raised back.
+  has `muffle` (`Muffle`, 0..1). The two ears' gains are the voice's in the open; the DLL makes
+  it quieter and dull by the muffle: the voice crossed with itself through a low-pass
+  (`Speaker::wall`), run only while any of it is behind a wall. It comes after the leveller, so a
+  speaker behind a wall is not raised back.
 - **Not known** (nothing was heard or walked in a game): what of a map the level's filter takes
   for solid (a fence that a bullet passes, a window's glass, a bush: whatever has collision
   blocks, however thin), whether a remote player's eye matrix is always its head's place, and
