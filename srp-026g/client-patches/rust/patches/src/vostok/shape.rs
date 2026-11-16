@@ -11,7 +11,8 @@
 //! (`triangle_callback.process`), which hands each triangle to
 //! [`TriangleSink::deliver`].
 
-use super::geometry::Pose;
+use ::ragdoll::math::{Pose, Quat, Vec3};
+
 use super::hook::{Handle, Thread};
 use super::project::NativeVtable;
 use super::world::{floats, read};
@@ -82,7 +83,8 @@ pub(in crate::vostok) unsafe fn pose(transform: raw::BtTransform) -> Pose {
     // SAFETY: the caller's: its 16 floats, three basis rows of four and the
     // origin.
     let f: [f32; 16] = unsafe { floats(transform.basis()) };
-    Pose { rows: [[f[0], f[1], f[2]], [f[4], f[5], f[6]], [f[8], f[9], f[10]]], origin: [f[12], f[13], f[14]] }
+    let column = |k: usize| Vec3::new(f[k], f[4 + k], f[8 + k]);
+    Pose::new(Quat::from_basis(column(0), column(1), column(2)), Vec3::new(f[12], f[13], f[14]))
 }
 
 /// A btBvhTriangleMeshShape.

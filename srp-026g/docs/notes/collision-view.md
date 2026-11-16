@@ -47,19 +47,22 @@ since this doesn't give people idea on what is collision and where": draw the co
   | shot (8) | magenta | bullets and the camera only (walkers pass) | the hittable meshes, camera walls, foliage |
   | solid (0Ah) | white | walkers, bullets and the camera | solid props |
 
-- **Anomaly damage zones** (the owner: "can we draw anomaly damage zones too?"): every damage zone
-  of the map, whatever the distance, its real shapes (spheres, boxes, cylinders, capsules) where
+- **Anomaly damage zones** (the owner: "can we draw anomaly damage zones too?"): each damage zone
+  near the camera (as below), its real shapes (spheres, boxes, cylinders, capsules) where
   they stand: **red while it damages** (its anomaly has it on), **dim red while it is off**. A zone
   going on or off is read again at once.
-- **Near the camera**: within 20 m of where the eye was when the lines were read. Where that
+- **Near the camera**: within 20 m of where the eye was when the lines were read (a mesh's
+  triangles, and each box, sphere, capsule or cylinder whose bounds come that near). Where that
   would be more than **65536 lines** (the cap), the read takes 10 m, then 5 m; where even 5 m is
-  over the cap, the first 65536 lines found are kept and the rest are not (which part is missing is
-  the world's order, not the distance).
+  over the cap, the first 65536 lines found are kept and the rest are not (the damage zones are
+  read first, so they are always kept; which part of the rest is missing is the world's order, not
+  the distance). The next read starts at the radius that fitted, one larger when it used under a
+  quarter of the room.
 - **Read when needed, drawn every frame**: the lines are read again when the view is turned on or
   its filter changes, when the eye has moved more than 0.5 m since the last read, and in another
   match's world; between reads every frame draws the same lines (a read is finished before it is
-  shown, so a frame never shows half of one). Nothing is drawn while no match's world is loaded
-  (the lobby, loading).
+  shown, so a frame never shows half of one). Nothing is read or drawn while no match's world is
+  shown (the lobby, loading); a view turned on there starts, with its legend, in the next match.
 - **What to expect** (the edges of the maps' collision triangles around every spawn, three a
   triangle, counted on the local map data of level_01, 07 and 09, 2026-11-16; medians, so a little
   less with the strips' shared edges):

@@ -54,38 +54,52 @@ pub struct LineBuffer {
     vertices: &'static mut [LineVertex],
     indices: &'static [u16],
     len: usize,
+    /// Lines refused since the last clear: the buffer was full.
+    refused: usize,
 }
 
 impl LineBuffer {
-    /// Room for `lines` lines; none when the address space has no hole for it.
-    pub fn make(thread: &Thread, lines: usize) -> Option<LineBuffer> {
-        let vertices = super::memory_profile::reserve::<LineVertex>(thread, 2 * lines)?.keep();
+    /// Two buffers of room for `lines` lines each, sharing their indices;
+    /// none (nothing kept) when the address space has no hole for all of it.
+    pub fn make_pair(thread: &Thread, lines: usize) -> Option<(LineBuffer, LineBuffer)> {
+        let reserve = || super::memory_profile::reserve::<LineVertex>(thread, 2 * lines);
+        let (first, second) = (reserve()?, reserve()?);
         let indices = super::memory_profile::reserve::<u16>(thread, CHUNK)?.keep();
         indices.iter_mut().enumerate().for_each(|(i, index)| *index = i as u16);
-        Some(LineBuffer { vertices, indices, len: 0 })
+        let indices: &'static [u16] = indices;
+        let buffer = |vertices| LineBuffer { vertices, indices, len: 0, refused: 0 };
+        Some((buffer(first.keep()), buffer(second.keep())))
     }
 
     /// Over buffers of the caller's (the tests').
     #[cfg(test)]
     pub fn over(vertices: &'static mut [LineVertex], indices: &'static [u16]) -> LineBuffer {
-        LineBuffer { vertices, indices, len: 0 }
+        LineBuffer { vertices, indices, len: 0, refused: 0 }
     }
 
     pub fn clear(&mut self) {
         self.len = 0;
+        self.refused = 0;
     }
 
     pub fn count(&self) -> usize {
         self.len / 2
     }
 
+    /// No room for another line.
     pub fn is_full(&self) -> bool {
         self.len + 2 > self.vertices.len()
     }
 
-    /// A line from `a` to `b` (the game's frame); none once it is full.
+    /// A line was refused since the last clear (not merely full).
+    pub fn is_cut(&self) -> bool {
+        self.refused > 0
+    }
+
+    /// A line from `a` to `b` (the game's frame); refused once it is full.
     pub fn push(&mut self, a: [f32; 3], b: [f32; 3], color: LineColor) {
         if self.is_full() {
+            self.refused += 1;
             return;
         }
         self.vertices[self.len] = LineVertex { at: a, color };
@@ -153,9 +167,10 @@ mod tests {
         for i in 0..40_000 {
             lines.push([i as f32; 3], [0.0; 3], LineColor::opaque(0, 255, 0));
         }
-        assert!(lines.is_full());
+        assert!(lines.is_full() && !lines.is_cut(), "full, nothing refused: it fits exactly");
         lines.push([1.0; 3], [2.0; 3], LineColor::opaque(0, 255, 0));
         assert_eq!(lines.count(), 40_000, "full: no more");
+        assert!(lines.is_cut(), "a line refused: cut");
         let sizes: Vec<_> = lines.chunks().map(|(v, i)| (v.len(), i.len(), i.last().copied())).collect();
         assert_eq!(sizes, [(CHUNK, CHUNK, Some(CHUNK as u16 - 1)), (CHUNK, CHUNK, Some(CHUNK as u16 - 1)),
                            (80_000 - 2 * CHUNK, 80_000 - 2 * CHUNK, Some((80_000 - 2 * CHUNK) as u16 - 1))]);

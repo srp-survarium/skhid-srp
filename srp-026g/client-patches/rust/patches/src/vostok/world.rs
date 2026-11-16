@@ -13,7 +13,9 @@ use core::marker::PhantomData;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::Context;
-use super::geometry::{Aabb, Pose, WorldPoint};
+use ::ragdoll::math::Pose;
+
+use super::geometry::{Aabb, WorldPoint};
 use super::shape::Shape;
 use super::hook::Thread;
 use super::ui::{Movie, movie_of};
@@ -875,5 +877,17 @@ pub fn for_each_damage_zone<'t>(thread: &'t Thread, mut visit: impl FnMut(Damage
                 visit(DamageZone { this, thread });
             }
         }
+    }
+}
+
+/// Whether the engine world's game shows a match's world: game_world's
+/// active byte, which the game's thread writes (base_game_scene::on_activate
+/// sets it, game_world::on_deactivate clears it at a match's end). One byte
+/// of objects the process keeps for its whole run, so any thread may ask.
+pub fn match_shown(_: &Thread) -> bool {
+    // SAFETY: the image's engine world slot, the engine world and its game,
+    // made once and kept while the game runs; the game world inside it.
+    unsafe {
+        raw::image::engine_world().world().and_then(|w| w.game()).is_some_and(|game| read(game.world().active()) != 0)
     }
 }

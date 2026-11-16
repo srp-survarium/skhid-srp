@@ -192,6 +192,11 @@ class Run(where.Run):
             self.emu.mem_write(proxy + 0x10, struct.pack("<4f", *(c - 40.0 for c in origin), 0.0))
             self.emu.mem_write(proxy + 0x20, struct.pack("<4f", *(c + 40.0 for c in origin), 0.0))
 
+    def in_match(self):
+        """A match's world shown: the engine world's game in a match, its game world active (+0D4h)."""
+        self.map("level_01/day_2", map_id=1)
+        self.emu.mem_write(where.GAME + 0x18 + 0xD4, b"\x01")
+
     def zones(self, zones):
         """The loaded project's damage zones: (active, Bullet origin, shape) each, one geometry a zone (its
         sensor +108h: geometries +14h, count +18h, active +1Ch; a geometry's ghost +18h, the ghost's object +18h)."""
@@ -326,7 +331,7 @@ def main():
         compound = r.shape(31, children=((IDENTITY, sphere_at, sphere), (IDENTITY, cylinder_at, cylinder),
                                          (IDENTITY, capsule_at, capsule), (IDENTITY, (-8.0, 0.0, 18.0), mesh)))
         other = r.shape(24)
-        r.map("level_01/day_2", map_id=1)       # a match's world loaded: the render site draws
+        r.in_match()
         zone_ball = r.shape(8, dims=(1.5, 0.0, 0.0), scaling=(2.0, 2.0, 2.0))   # radius 3
         zone_box = r.shape(0, dims=(1.0, 1.0, 1.0))
         r.zones([(True, (14.0, 0.0, -20.0), zone_ball), (False, (6.0, 0.0, -20.0), zone_box)])
@@ -349,8 +354,9 @@ def main():
           "four options' lines")
     lines = new.frame()
     old.frame()
-    check(new.allocations == [2 * MOST * 16, 32768 * 2] * 2 and old.allocations == [],
-          "turned on: the lines' two rooms (shown and spare) once, VirtualAlloc'd (2 MiB of vertices, 64 KiB of indices each)")
+    check(new.allocations == [2 * MOST * 16, 2 * MOST * 16, 32768 * 2] and old.allocations == [],
+          "turned on: the lines' two rooms (shown and spare, 2 MiB of vertices each) and their shared indices (64 KiB), "
+          "VirtualAlloc'd once, outside the lock")
     check(lines == ["collision: the level's static collision within 20 m (less where that is over 65536 lines):",
                     "collision: walk (green) 3 in the world: stops walkers only",
                     "collision: shot (magenta) 1 in the world: stops bullets and the camera only",
@@ -419,8 +425,10 @@ def main():
     check(moved == [(0.4, 0), (0.6, 2)], f"the eye 0.4 m on: no read; 0.6 m on: read again (both meshes) {moved}")
     new.frame()                             # back at EYE: 0.6 m from that read, read again
     new.map(None)
-    check(new.debug_lines()[0] == [], "no match's world loaded (the lobby): nothing drawn")
-    new.map("level_01/day_2", map_id=1)
+    lobby = new.frame((EYE[0] + 3.0, EYE[1], EYE[2]))
+    check(new.debug_lines()[0] == [] and lobby == [] and new.queries == [],
+          "no match's world shown (the lobby): nothing drawn, no read even 3 m on")
+    new.in_match()
 
     # 20 m: a triangle 15 m away drawn, one 25 m away not; a strip's shared edge drawn once
     a, b, c, d = (25.0, 1.0, -20.0), (25.0, 2.0, -20.0), (25.5, 1.0, -20.0), (25.5, 2.0, -20.0)
