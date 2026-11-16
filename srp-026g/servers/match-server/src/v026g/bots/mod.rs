@@ -2974,7 +2974,12 @@ impl Bots {
                     .filter(|k| k.at.distance_xz(at) < 3.0)
                     .map(|k| format!("{:?} {:.2} m", k.phase, k.at.distance_xz(at)))
                     .collect();
-                eprintln!("  trap own catch known: [{}]", known_near.join("; "));
+                // [#2081 v6 measure] The feet it believed (the motor guard's last look) against the true feet, from the trap: a catch
+                // believed outside contact and truly inside sizes an own-position margin for the guard.
+                let believed = bot.features.traps.guard_seen.map_or("unknown".to_string(), |(when, feet)| {
+                    format!("{:.2} m ({} ms before)", feet.distance_xz(at), time.saturating_sub(when))
+                });
+                eprintln!("  trap own catch known: [{}]; feet believed {believed}, true {:.2} m", known_near.join("; "), me.feet.distance_xz(at));
                 eprintln!(
                     "  trap own catch: {who}, {after} after the press, heading {heading} off the placer's at the press, speed {:.1}, play {:?}, go {go}, route {}, fresh guard {} ({} floors shut); thinks near it [{}]",
                     me.speed(),

@@ -572,27 +572,8 @@ fn drive_tick_inner(
     }
     // Getting unstuck overrides the rest: the keys for a few ticks, the
     // jump on the first.
-    if let Some((keys, ticks)) = bot.unstick {
-        bot.unstick = (ticks > 1).then_some((keys & !key::JUMP, ticks - 1));
-        // [S5] Along a thin top (last tick's mode) only the escape keys that step along its line, by their way in the world (the
-        // keys are the view's); on or onto one with no line to judge by, no move key at all: a step off the line is off the top.
-        const MOVES: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
-        let kept = match bot.motor.precise {
-            super::precise::Precise::Steer { line, .. } => line.keys_along(keys, me.yaw),
-            super::precise::Precise::Guard => keys & !MOVES,
-            super::precise::Precise::Off => keys,
-        };
-        if kept != keys {
-            super::precise::counts::add(super::precise::counts::Slot::Escape);
-        }
-        let keys = kept;
-        bot.motor.turn_time = None;
-        bot.motor.track = None;
-        let decision = bot.motor.rest();
-        let by = (keys & key::JUMP != 0 && !bot.motor.carrying).then_some("unstick");
-        bot.reflex.skipped_tick(time);
-        let keys = jumping(bot, keys, by, me.feet, time);
-        return Decision { keys, ..decision };
+    if let Some(decision) = unstick_replay(bot, me, tactics, tuning, time) {
+        return decision;
     }
     // [S5] The mode is this tick's walk's: none until the walk sets it.
     bot.motor.precise = super::precise::Precise::Off;
@@ -2318,8 +2299,9 @@ fn drive_tick_inner(
     let lift_stepped = decision.keys & lift_wants == lift_wants;
     guard_keys(bot, &mut decision, me, tactics, tuning, time);
     // [#2081] The own-trap guard, the last say on the move keys: no step ends within contact of a known own trap (or one it noticed)
-    // unless it moves away from it (`traps::own_trap_guard`).
-    if let Some(keys) = traps::guard_own_traps(bot, decision.keys, decision.turn.0, me, &tuning.kin, &tactics.world.grid, time) {
+    // unless it moves away from it (`traps::own_trap_guard`); its replacement keys pass the lip guard's test too.
+    let lip_ok = lip_ok_of(bot, me, tactics, tuning, decision.turn.0);
+    if let Some(keys) = traps::guard_own_traps(bot, decision.keys, decision.turn.0, me, tuning, &tactics.world.grid, lip_ok, time) {
         decision.keys = keys;
     }
     let lift_guarded = decision.keys & lift_wants == lift_wants;
@@ -2824,7 +2806,7 @@ const LIP_HELD_SCORE: u8 = 3;
 const LIP_GIVE_UP: u8 = 30;
 const LIP_OFF_MS: u32 = 3_000;
 /// [`Feel::lip_guard_full`]: a body with no move key held is still a glide to stop when it is faster than this (m/s).
-const LIP_GLIDE_MPS: f32 = 0.5;
+pub(super) const LIP_GLIDE_MPS: f32 = 0.5;
 /// [`Feel::lip_guard_full`]: a bot the guard gave up is watched again when it has moved this far from where it was given up (m).
 const LIP_RESUME_M: f32 = 0.5;
 
@@ -3146,6 +3128,62 @@ pub(super) fn lip_guard_with(
         }
     }
     guard
+}
+
+/// The unstick replay's tick, if one is under way: its keys for a few ticks, the jump on the first. [#2081] Its move keys pass the
+/// own-trap guard (a jump press left to the route, as everywhere): a replay holds them 0.5-1.3 s.
+fn unstick_replay(bot: &mut Bot, me: &PlaceView, tactics: &Tactics, tuning: &Tuning, time: u32) -> Option<Decision> {
+    let (keys, ticks) = bot.unstick?;
+    bot.unstick = (ticks > 1).then_some((keys & !key::JUMP, ticks - 1));
+    // [S5] Along a thin top (last tick's mode) only the escape keys that step along its line, by their way in the world (the
+    // keys are the view's); on or onto one with no line to judge by, no move key at all: a step off the line is off the top.
+    const MOVES: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
+    let kept = match bot.motor.precise {
+        super::precise::Precise::Steer { line, .. } => line.keys_along(keys, me.yaw),
+        super::precise::Precise::Guard => keys & !MOVES,
+        super::precise::Precise::Off => keys,
+    };
+    if kept != keys {
+        super::precise::counts::add(super::precise::counts::Slot::Escape);
+    }
+    let keys = kept;
+    bot.motor.turn_time = None;
+    bot.motor.track = None;
+    let decision = bot.motor.rest();
+    let by = (keys & key::JUMP != 0 && !bot.motor.carrying).then_some("unstick");
+    bot.reflex.skipped_tick(time);
+    let keys = if keys & key::JUMP != 0 {
+        keys
+    } else {
+        let lip_ok = lip_ok_of(bot, me, tactics, tuning, 0.0);
+        traps::guard_own_traps(bot, keys, 0.0, me, tuning, &tactics.world.grid, lip_ok, time).unwrap_or(keys)
+    };
+    let keys = jumping(bot, keys, by, me.feet, time);
+    Some(Decision { keys, ..decision })
+}
+
+/// [#2081] Whether keys stay up by the lip guard's own test ([`lip_guard_with`], with the inputs [`guard_keys`] gives it): for the
+/// own-trap guard's replacement keys. Always with the lip guard off (`Feel::lip_guard_ticks` 0).
+fn lip_ok_of<'a>(bot: &mut Bot, me: &'a PlaceView, tactics: &'a Tactics, tuning: &'a Tuning, turn: f32) -> impl Fn(u32) -> bool + use<'a> {
+    let hold = bot.motor.feel.lip_guard_ticks;
+    let full = bot.motor.feel.lip_guard_full;
+    let kept = bot.reckoned_kept;
+    let truth = bot.motor.feel.drop_truth;
+    let planned = if hold == 0 {
+        Vec::new()
+    } else {
+        bot.route.as_mut().map_or_else(Vec::new, |(route, _)| {
+            let (walked, _) = route.progress(me.feet);
+            route.drop_landings(walked, PLANNED_DROP_M, truth)
+        })
+    };
+    move |keys: u32| {
+        hold == 0
+            || matches!(
+                lip_guard_with(&tactics.world.grid, &tuning.kin, me, turn, keys, &planned, hold, full, kept),
+                LipGuard::Clear | LipGuard::Safe
+            )
+    }
 }
 
 /// [`lip_guard_with`] on the tick's decision.
@@ -3663,6 +3701,98 @@ mod tests {
         assert_eq!(swapped(guard(&at_rim, &[Vec3::new(40.0, 0.0, 10.0)])), Some(key::BACK));
         // With no keys held there is nothing to let go of.
         assert_eq!(lip_guard(grid, &kin, &at_rim, 0.0, 0, &[], HOLD), LipGuard::Clear);
+    }
+
+    /// [#2081] A trap on one side, a drop on the other: a body at rest by a 2 m rim, facing it, walks the diagonal toward a known own
+    /// trap at its side. Straight on misses the trap but its stop goes over the rim; the own-trap guard takes no replacement the lip
+    /// guard's test refuses, so it stops instead.
+    #[test]
+    fn dodging_an_own_trap_never_steps_off_a_ledge() {
+        let world = slab();
+        let grid = &world.grid;
+        let kin = kin::Kinematics::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x, the rim at x = 56
+        let at_rest = |x: f32| PlaceView { velocity: [0.0, 0.0], keys: 0, ..on_the_slab(x, toward, 0.0) };
+        let lip_ok = |me: &PlaceView, k: u32| matches!(lip_guard_with(grid, &kin, me, 0.0, k, &[], HOLD, true, None), LipGuard::Clear | LipGuard::Safe);
+        // Where the walk straight on goes over and a stop stays up.
+        let me = (0..20)
+            .map(|k| at_rest(55.0 + 0.05 * k as f32))
+            .find(|me| !lip_ok(me, key::FORWARD) && lip_ok(me, 0))
+            .expect("a place by the rim where straight on falls");
+        let at = body::Estimate::of_view(&me, grid.locate(me.feet, 1.5));
+        let stop = body::Stop { kin: &kin, level: 1.0, grid, planned: &[], hold: traps::GUARD_HOLD_TICKS };
+        let path_of = |k: u32| body::stop_path(&at, k, 0.0, &stop);
+        let diagonal = key::FORWARD | key::LEFT;
+        let touches = |k: u32, t: Vec3| traps::path_touches(&path_of(k), &[t], me.feet);
+        // A trap at its side the diagonal runs into, and neither straight on nor a stop does.
+        let trap = (-12..=12)
+            .flat_map(|dz| (-6..=6).map(move |dx| Vec3::new(me.feet.x + 0.1 * dx as f32, 2.0, me.feet.z + 0.1 * dz as f32)))
+            .find(|&t| touches(diagonal, t) && !touches(key::FORWARD, t) && !touches(0, t))
+            .expect("a trap the diagonal touches");
+        let blind = traps::own_trap_guard(path_of, |_| true, me.feet, me.velocity, me.yaw, 0.0, diagonal, &[trap], false);
+        assert_eq!(blind, traps::OwnTrapGuard::Swapped(key::FORWARD), "without the lip test it walks straight on, over the rim");
+        let guarded = traps::own_trap_guard(path_of, |k| lip_ok(&me, k), me.feet, me.velocity, me.yaw, 0.0, diagonal, &[trap], false);
+        assert_eq!(guarded, traps::OwnTrapGuard::Swapped(0), "with it the body stops, on the slab and off the trap");
+    }
+
+    /// [#2081] A route over a noticed trap that the own-trap guard holds at rest (the walk on it refused, no other key) past the
+    /// longest think gap ends, and the trap is shut for the bot's searches; a route the guard lets walk is kept.
+    #[test]
+    fn a_route_the_own_trap_guard_holds_at_rest_ends_and_shuts_the_trap() {
+        let world = slab();
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x
+        let me = PlaceView { velocity: [0.0, 0.0], keys: 0, ..on_the_slab(52.0, toward, 0.0) };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        let trap = Vec3::new(52.7, 2.0, 33.0);
+        bot.features.traps.react.notice_standing(&[trap], &world.grid);
+        let way = |x: f32| path::Waypoint { at: Vec3::new(x, 2.0, 33.0), node: 0, jump: None, low: false };
+        let route = path::Route::new(vec![way(52.0), way(55.5)]);
+        let goal = route.end();
+        bot.route = Some((route, goal));
+        let start = 1_000;
+        let mut now = start;
+        while bot.route.is_some() && now < start + 3_000 {
+            let keys = traps::guard_own_traps(&mut bot, key::FORWARD, 0.0, &me, &tuning, &world.grid, |_| true, now);
+            assert_eq!(keys.map(|k| k & key::FORWARD), Some(0), "the walk onto it is held at {now}");
+            now += 50;
+        }
+        assert!(bot.route.is_none(), "the route ended");
+        assert!(now - start > tuning.think.think_ms.1, "only past the longest think gap: {} ms", now - start);
+        let shut = bot.features.traps.react.blocked_field();
+        assert!(!shut.is_empty() && !shut.open(world.grid.locate(trap, 1.5).unwrap()), "the trap is shut for its searches");
+        // Walking away the guard says nothing and the route stands.
+        bot.route = Some((path::Route::new(vec![way(52.0), way(50.5)]), Vec3::new(50.5, 2.0, 33.0)));
+        for k in 0..20 {
+            assert_eq!(traps::guard_own_traps(&mut bot, key::BACK, 0.0, &me, &tuning, &world.grid, |_| true, now + 50 * k), None);
+        }
+        assert!(bot.route.is_some());
+    }
+
+    /// [#2081] The unstick replay's keys pass the own-trap guard: a replay walking a bot onto its own trap is let go, its jump press
+    /// left alone.
+    #[test]
+    fn the_unstick_replay_passes_the_own_trap_guard() {
+        let world = slab();
+        let tactics = crate::v026g::bots::tactics::Tactics::new(world.clone(), 1.0);
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x
+        let me = PlaceView { velocity: [0.0, 0.0], keys: 0, ..on_the_slab(52.0, toward, 0.0) };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        let trap = Vec3::new(52.8, 2.0, 33.0);
+        bot.features.traps.field = Arc::new(crate::v026g::bots::trap_know::TrapField::round(vec![trap], &world.grid));
+        bot.unstick = Some((key::FORWARD, 10));
+        let d = unstick_replay(&mut bot, &me, &tactics, &tuning, 1_000).expect("a replay tick");
+        assert_eq!(d.keys & key::FORWARD, 0, "the walk onto the trap is let go: {:#x}", d.keys);
+        // Away from the trap the replay's keys stand.
+        bot.unstick = Some((key::BACK, 10));
+        let d = unstick_replay(&mut bot, &me, &tactics, &tuning, 1_050).expect("a replay tick");
+        assert_ne!(d.keys & key::BACK, 0, "{:#x}", d.keys);
+        // No trap: the replay as it was.
+        bot.features.traps.field = Arc::default();
+        bot.unstick = Some((key::FORWARD, 10));
+        let d = unstick_replay(&mut bot, &me, &tactics, &tuning, 1_100).expect("a replay tick");
+        assert_ne!(d.keys & key::FORWARD, 0, "{:#x}", d.keys);
     }
 
     /// [`kin::Edge::ClientWalksOff`] (A269): a slab 6 m over the field, deeper than the harmless drop, so no link leaves its rim and
