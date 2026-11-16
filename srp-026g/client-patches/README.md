@@ -72,6 +72,7 @@ release's. The "Result" row is the build of the revision named in it.
 | Revision 58 | Released 2026-11-13 12:31 UTC (tag `026g-rev58`, `main` 8a0df40). Shipped: #1764 World check: a held artefact's slot is an artefact slot, its amount at most its item's uses; #1765 Patch 115: weapon animation indices stay in their tables; #1763 Chats: a player's name, tag or line never read as markup; #1773 Silver: 30,000 for finishing a match, and kills pay twice; #1774 Free for All: no player limit of its own, the room's (20 at the most); #1772 Training Camp: half the perimeter spawns to the centre, more on the islands; #1775 Training Camp minimap: the whole ground framed on the crater, fading out; #1776 Free for All: half the perimeter spawns of 16 maps to their centre. Without a server sha256 `fb6e631bc76fc8caf076856e0e88116cc6430a9cc007becaa419c33d0b7ba0ec`, with `--server=skhid.link:1234` `3b2e5c2ef492dd88824bdde9fa3126ff7b2c47c3f55d3326f5d1acb4d9ff8799`. The ZIP: 17306391 bytes, sha256 `8eecd102747b8e1705313f255fd910f59ff7ac1d9a7dc998d7b6135633384bbe`; the server data: sha256 `4dde6a7576c0519e99a6141c1801f2cea5ee10b4732a6c4c2b198f99f1d41efc`. Its content: `resources.db.patch_58` (109327361 bytes, sha256 `3267a026714ac3b8bc3e174bfb51d16a2d3bdb35fb393abbea8cd2207da0c8a1`) |
 | Revision 59 | Released 2026-11-14 15:39 UTC (tag `026g-rev59`, `main` 605d2fb). Shipped: #1635 Voice: speech 6 dB louder with a soft limiter, the radio's static a quarter; #1780 Rooms list: the member panel never shows who is on which side; #1781 Weapon pickup: a late joiner cooks a departed donor's gun before the load; #1782 Voice: directional within 15 m, radio past it, near level as revision 58; #1783 Voice: in a free-for-all everyone hears everyone (stacked on #1782); #1785 One-off release script: 1000 rounds of every ammo type for every account; #1787 Military Warehouses: not played, its Free for All row out of the dictionary; #1788 Wiki maps: Free for All with its spawns, and the maps played in it alone; #1795 Freedom exoskeleton: lighter, two ammo bags, top mobility rows; #1794 Colt Python: a level-14 pistol, one hit to the head and two to the body; #1799 Colt Python: damage falls to 70 % at the most; #1804 12.7x54 PT: the bullet 50 m/s faster (370); #1796 Freedom exoskeleton: armour 88, 17 kg, more slots, and built-in bonuses for the rolls it lacks; #1806 Duty exoskeleton: 22 kg, two item slots and ammo bags, three gun rows built in; #1793 Ported maps: stock film grain; the STALKER maps' sun, matte grass and stock ambient occlusion strength; #1802 STALKER maps: loading pictures captured again, with grass; #1811 Larkspur's activation heals every body part; #1809 Military Warehouses: played again in Free for All (revert of #1787); #1812 Skills: Brothers in Arms a tier-1 single point of -50%; Battle stance +4% a rank; #1798 STALKER maps: bushes rustle under a walker's feet; #1790 Training Camp: Free for All inside the base's fence, a truck in each gateway, spawns on the raised floors; #1801 Voice: plain and from its side under 10 m with a gentle fall, the radio from 10 m; #1815 Voice: the plain voice 1.5 times louder, the radio's static at the live level; #1803 Options: test the microphone (10 s recorded, then played back); #1792 London Free for All: no spawn on the rotunda's third storey; #1817 docs: document GE-Proton11-7 WoW64 startup setting; #1818 Sniper pants: their pocket size +1 back; #1819 Free for All: half a second of spawn protection on every map; #1820 Training Camp: its own map theme (music@2); #1821 Exoskeletons: eight built-ins, the client's most; refuse more; #1823 Lobby: the stock Fix button is not in the movie at all; #1816 Inventory: Sell duplicates in the Fix button's place; #1824 Free for All: the cover rule, no spacing between spawns; Rudnya at the owner's 56 picks and 4 roofs; #1827 Free for all twists: Racket (sniper rifles and silenced guns become an AK-12); #1828 Free for all twists: Cowboy ("Showdown"), everyone a Colt Python, 10 %; #1829 Free for all twists: Cowboy is "Saloon" (Салун), not a duel; #1822 Options: choose the microphone; the greyed PTT checkbox gone; #1826 Free for All: every other map's spawns by the cover rule (stacked on #1824); #1830 Free for all twists: every life has its ammo, the twist's ammo never charged; #1834 Patch 146: the grass sort's comparator sums the distance in one order; #1836 Free for all twists: Racket's ammo the simplest way, its arms read once; #1837 FFA twists: named "FFA: Racket" and "FFA: Saloon", tickable in private rooms; #1839 Microphone list: a pick takes effect at once, Apply saves it; #1840 Racket: one AK-12 magazine per free ammo bag. Without a server sha256 `88b25e145bce5def6d0ca49f7edb0e3b7866f61eaef8d3bf0dd588eabd6b7c30`, with `--server=skhid.link:1234` `9c0eec7f872ebb137f9999ed1fdf6c8d6609338823100669de661b82c6ec7988`. The ZIP: 17320529 bytes, sha256 `612760c799c0028b7cc9e94105159924f73c9988d97f231459db0e3af479d758`; the server data: sha256 `25f78601aaa20f178bee0700f0e06ee77b75e35a9f2df7c4bc3182a650de11c5`. Its content: `resources.db.patch_59` (133868506 bytes, sha256 `c330b3e3a41b61d562b31faa51046232ac97f1761b178feccb30078bbc184283`) |
 | Revision 60 | Released 2026-11-15 16:26 UTC (tag `026g-rev60`, `main` 4fd451b). Shipped: #1714 Patch 70: the baked textures' folder holds 3 GiB, the list grows, the oldest let go first; #1849 Artefact tree: row V at 17 points; #1865 Read a target shown with its clan tag as the player; #1848 Rooms: any public queue of three opens another room; #1876 Voice: take a seat's datagrams from its network, not only its exact IP; #1844 Keep every item's built-in bonuses in one order, ammo bags first; #1871 Free for All: Experimental Pool, School and Vostok (with its ports) spawns at the owner's picks; #1877 Freedom suit: hip-fire accuracy in place of stamina regeneration; #1908 Free for All: Mamayev Kurgan (native and v0.21) spawns at the owner's picks; #1851 Voice: the whole mix 6 dB louder before its limiter; #1887 Patch 144: the Settings' Game slider lowers the game's sounds, not the music or the voice chat; #1924 Free for all: choose from a map's whole team-2 group, up to 128 points; #1920 Free for all: never respawn at one of the last two points; #1967 Settings: hit marker list (All, Kill marker only, Hidden); #1964 Every run's logs in files of their own (patch 147, updater, crash reporter); #2021 Voice: opponents within 10 m hear the plain voice in every mode; #2022 Hit marker list: Kill marker only shows the whole kill marker; #1999 Patch 148: an empty shot is not logged; #2056 Voice: an opponent's speaker in the talking list is pale red; #2060 Voice list: a name never a key of an object; #2061 Rooms: "(owner)" only in a private room; #2055 Updater: PLAY stays off under 5 GB free on the Documents drive; #1854 Winchester and Colt level 10 and pricier; Saloon 20 % in two variations; Racket's AK-74N in level-10 rooms; no twists in private rooms; #2063 Rooms: each card picks a map, then its weather (every map alike); #2067 Drop Windows 7: client programs on i686-pc-windows-msvc; #2066 FFA: Saloon (Winchester) by name, Saloon 5 / Winchester 15; STALKER maps last in the create window; #2071 Rooms: each card draws its mode, map and weather from pools (no mode or map twice); #2075 Racket: clips of the gun's own ammo unless the kit already holds that ammo. Without a server sha256 `6d802a597f357ebcd85507502db7c984080d64134db5c75fca8a7d5fb3ccf1e6`, with `--server=skhid.link:1234` `c60b0e6db8bf8fd7497c759de656d74b65eadcef1e01ad6bdb758a2f44764a36`. The ZIP: 17370244 bytes, sha256 `580590d0d7438f7f128a36fb4e974da992a0330f6eb97d5e70dc13b49655b9e2`; the server data: sha256 `ea91f7ba4dffd1e7f504cbe8a13ba10c3cf8e835acb8a3d97ed6f157d8b963e8`. Its content: `resources.db.patch_60` (85997820 bytes, sha256 `dab6e8239f64c43e6d5296ab8198e607bdb65cc1de644a1ea610add53bd80142`) |
+| Revision 61 | Released 2026-11-15 21:20 UTC (tag `026g-rev61`, `main` 71c95d6). Shipped: #2078 Winchester 1894: damage 0.94, two body hits through every armour; #2079 Training Camp: no map theme; #2083 Training Camp: its bonfires burn (the game's own fire zone); #2080 Shop: "Hide owned" remembered with the account; #2084 Training Camp minimap: the three trucks in their gateways; #2085 Training Camp Free for All at the owner's 47 picks; the map test's counts brought to the data; #2086 Vostok Free for All: a spawn on the checkpoint's roof, and roofs walkers stand on; #2095 Complete 0.69 scope coverage and fix attachment alignment. Without a server sha256 `522239d586204a20cf95b9a1824d550e7549b6c57ec7ad21f2e9583cf5be8259`, with `--server=skhid.link:1234` `bd412d1654ecaf0279ad54e58bf330684a61c1da62d9eaa035271ea56e1506cf`. The ZIP: 17370386 bytes, sha256 `4db254d1eff6fe6b43c928a12dc6595af7029ee947883ba72b9526f42d08a0b4`; the server data: sha256 `59099291738aa268d4974c78a4f9f7778a60cd4ca16a272909aa1544d0c5f77e`. Its content: `resources.db.patch_61` (829758135 bytes, sha256 `3c3131781ecefa8074c85eb56164e52d2ffeccd414b5fba30178e754431e1856`) |
 | Revision 4 | Revision 3 with patch 10 (a start with a Documents folder the game may not write to). **In the players' download since 2026-10-13 15:36 UTC.** Made as the download is, it differs from the revision 3 exe (`ac947abd…6d7b`; without a server `eedc5b5c…cf0d`) in the four bytes at file 0x35F0B, two bytes of an address at file 0x8410C8, the revision byte and the PE checksum, and in nothing else (compared byte by byte). The built exe was started in both situations of patch 10, not past the sign-in screen, before the release; the first sign-in with revision 4 on the players' server was logged three minutes after it. It plays together with revision 3 |
 | Revision 3 | Revision 3 is revision 2 with patch 9 (the battery rule). **It was the players' download from 2026-10-13 12:22 to 15:36 UTC** (the rows below are the downloads so far): it and the revision 2 exe differ in the 13 bytes of patch 9, the revision byte and the PE checksum, and in nothing else (compared byte by byte). Its rule was run outside the game (`run_battery_rule.ps1`). Eight sign-ins with revision 3 were logged in those hours; whether one of them played a match to a team's last battery was not looked at. A game of revision 3 or later and an older one part at a team's last battery (patch 9) |
 | The players' download | `Survarium-0.26g-srp-files.zip` of skhid.link (and 026g.skhid.link), since 2026-10-13 15:36 UTC: 6 793 103 bytes, sha256 `29b2ac002a1787c1352d021065f18a87ea5caa66fb16298c8e603a5347416bb4`, 23 files, made by `make_client_026g.py --pack-zip --server=skhid.link:1234 --localization=english` of `main` dbd70f0 with `--bugtrap=` naming the build of `client/bugtrap` that had been run in the game (that DLL does not build to the same bytes twice). It differs from the download before in two files: the game exe (sha256 `ae3ddf43f38eecb9e5080b10aa6b8397ce5dbed0f133b381461c82cb17329f25`, patch revision 4: patch 10) and `bugtrap.dll` (39 936 bytes, sha256 `9e3295c1312854c455c474e1dbd457b0a792b5ae406ff0b55d3b19b4f2fc4353`: the start-up notice of `client/bugtrap/README.md`); the other 21 files are byte for byte the same. Built twice: the same ZIP. Checked after the replacement: `/api/client-files` and `/download` of both names give this sha256. No restart: nothing on the server changed |
@@ -146,6 +147,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/ban_time.rs`, `src/ban_time.toml`, `src/vostok/login.rs` (`BanStatusText`), `src/vostok/clock.rs` (`FileTime`), `../crates/ban-reason` | Patch 116: a banned account's sign-in shows srp's reason, when the ban ends and how long it has left, from what srp's login server sends after a ban's code; two lohooks, at the sign-in answer and at set_status's built text |
 | `rust/patches/src/sign_in_cipher.rs`, `src/sign_in_cipher.toml`, `src/vostok/openssl.rs`, `../crates/sign-in-cipher`, `check_sign_in_cipher_026g.py` | Patch 139: the sign-in's password goes through srp's own cipher where the game's protocol had TLS; five lohooks, the user name's answer and OpenSSL's SSL_connect, SSL_read, SSL_write and SSL_get_error after their prologue; its check runs a sign-in through the patched exe against Python's `cryptography` (needs it and Unicorn) |
 | `rust/patches/src/free_for_all.rs`, `src/free_for_all.toml`, `src/vostok/respawn.rs`, `src/vostok/ui.rs` (`MatchClock`, the hud state), `check_free_for_all_026g.py` | Patch 142: a free-for-all (mode 8), each player his own side: he respawns alone at one of all clear points of the map's team-2 group, the hud movie gets his kills, the most kills and the kill target (`root.set_ffa_progress`), and the match's start and end their messages; twelve lohooks (the KD death event, the respawn tick's batching and selection, the respawn rule's save, load and a place's entry (each place's last two spawn points), a point's protection read, the options' two reads, update_player_icons' start, initialize_match's start, the welcome's mark); its check runs them in the patched exe with the game's own code around, the original beside (needs Unicorn) |
+| `rust/patches/src/battery_hit.rs`, `src/battery_hit.toml`, `src/vostok/battery.rs`, `check_battery_hit_026g.py` | Patch 143: a battery's carrier hits with it, two strikes in turn (the ram, the shove): five states appended to the battery's machine (each strike's swing and recovery: take states over the content's authored clips, 0.2 s and 0.35 s; the shove's own carry before them, so the carry the machine stands in is the strike that comes next) entered from a carry by the melee key, fsm::tick leaving a swing striking with the gun-stock hit's bullet (the impact; a battery put away never strikes); two lohooks (the cook's callback after initialize_logic, fsm::tick's taken transition), a runtime callback (carry -> swing's predicate), a runtime vtable copy (the swing's may-be-put-away) and four filtered lohooks where a bullet reads its deactivated gun's user or posture (the gun's player and its battery's posture instead); a lohook giving a strike's kill the kill feed's battery icon (200); and the battery cook's request buffer given room for 64 (three displacements of process_loading_victory_item_core 0x2FA050, BATTERY_COOK_REQUESTS in patch_026g.py: the stock room of 20 takes three states); its check runs them inside initialize_logic, fsm::tick, emit_bullet, bullet::tick, deactivate and a save and load (needs Unicorn) |
 | `rust/patches/src/artefact_skills.rs`, `src/artefact_skills.toml`, `src/vostok/artefact_skills.rs`, `check_artefact_skills_026g.py`, `src/artefact_keeper.rs`, `src/artefact_keeper.toml`, `src/vostok/keeper.rs`, `check_artefact_keeper_026g.py` | Patch 109: the artefact tree's skills the exe computes (`../docs/notes/artefact-skills.md`), their ranks packed in kit modifier 40; Resistance (+0.05 armour a rank against the anomalous hit types, 0x32A083), Onyx II (the landing 0x2D8220), Larkspur II (the activation 0x313333), Spring II (patch 54's reload nodes, its entry), Resonance and Cascade (the aura at the getters 0x2D5AE6 / 0x2D5C18, the protectors 0x32A020, the regeneration 0x32A53F), Keeper of the Artifacts (a Keeper gets a dormant artefact of the match's kind from the map's hidden pool at the match's start, into its first empty container, once a match: register_artefacts 0x31B8E0, the player's tick 0x2DAAD3); their checks run the game's code for each (needs Unicorn) |
 | `rust/patches/src/forest_glow.rs`, `src/forest_glow.toml`, `src/vostok/effect.rs`, `check_forest_glow_026g.py` | Patch 111: Forest Protection's grey glow on the arms while it protects a player (inside a damage zone, a rank of modifier 41 in its kit), seen by everyone; and the leg quarters, each passive artefact copy counting for a player (own and Resonance's shared, at most 4 a kind) lighting a quarter of its legs in its kind's colour, shown only by a game whose local player's current kit has Artifact Sight (513, modifier 40 bit 12) or that has no local player (pack artefact-glow@13); a place's third-person presenter given back to its current kit's object (the stock game left it on another kit's after a respawn, so other games showed none of that player's effects); played from the player's simulation tick with its own calculator, which ends each when the game no longer shows it; its check runs the tick, the effects' query and callback, the clock and the cook in the built exe (needs Unicorn) |
 | `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
@@ -176,6 +178,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/animation_id_log.rs`, `src/animation_id_log.toml`, `src/vostok/animation_id.rs`, `check_animation_id_log_026g.py` | Patch 95: a diagnostic (`../docs/notes/animation-ids.md`): an animation pair the registry has no id for (the lookup 0x2D6590 returns 0FFFFh, the rev47 crashes at 0x1F18C8) is logged to srp_patches.log once, with the clips' names, the registry's size and who asked; one lohook (`sites_026g.tsv` `animations.id_missing`); its check runs the lookup in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
 | `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit kills, wherever it lands (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
+| `rust/patches/src/trap_stock_hit.rs`, `src/trap_stock_hit.toml`, `src/vostok/trap.rs`, `check_trap_stock_hit_026g.py` | Patch 151: a gun-stock hit disarms a trap (`../docs/notes/trap-stock-hit.md`): one lohook at `booby_trap_core::hit`'s entry (`trap.hit`); its check runs the hit in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `rust/patches/src/weapon_camo.rs`, `weapon_camo.toml` | Patch 44's part in the baker (Rust, one lohook at `bake.own_camouflage`, 0x12E124): a weapon's bake takes only the camouflage textures its patch names (the colours and the `_smap`, not the `_nmap`, a cloth's weave), never the surface's own `<diffuse>_camo...`; `check_weapon_camo_026g.py` runs the site |
@@ -186,7 +189,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first 300 ms), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `rust/patches/src/voice.rs`, `voice.toml` | Patch 66: safe Rust voice hooks (eleven named lohooks) over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, the hud's list of who talks, the Tab menu's voice mute and the options' microphone test (the shared `patches.*` blocks); `cargo test` in `rust/` checks its logic |
-| `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
+| `rust/patches/src/screenshot.rs`, `src/screenshot.toml`, `src/screenshot/png.rs`, `src/vostok/back_buffer.rs` | Patch 152: two keys save a screenshot as a PNG, F11 the screen and F12 the frame without the interface (`../docs/notes/screenshots.md`): three named lohooks (the keyboard's poll, `render.flash_ui`, the Present), the back buffer read back through Direct3D, the patch's own PNG encoder; `cargo test` in `rust/` checks the encoder (a decoder of its own in the tests) and the request's steps; the two actions' names, keys and Controls rows are patch 62's table (`hide_ui_026g.asm`, `check_hide_ui_026g.py`) |
+| `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F9 since patch 152, F11 before; the game's `toggle_replay_ui`, named `hide_interface`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `rust/patches/src/artefact_carry.rs`, `check_artefact_carry_026g.py` | Patch 78: H (the game's unused action `artefact`, default H, a controls row) + an artefact quick key lowers the weapon and raises the artefact above the right palm in both views; switching lowers the old item before raising the new one. Use takes an offered or death-dropped artefact into a free container, with the existing collection UI. Deterministic input/snapshots, native inventory ownership, model callbacks and matching damage poses. See [controls, architecture and validation](../docs/notes/held_artefact_transfer.md). |
@@ -3463,8 +3467,9 @@ and a 41st (19h, `st_hide_interface_action`, group 2, type 1), as `controls` in 
 needs nothing more: the binder's own `bind` command saves every bound action of its 48h bindings
 by name (0x207450) and reads them back (`bind_key` 0x207DC0). The label is content edit
 `localization/*.tsv` ("Hide interface", Скрыть интерфейс, Сховати інтерфейс, Oberfläche
-ausblenden, Ukryj interfejs). The default stays the action table's F11 (the options' reset sets
-the binder's defaults).
+ausblenden, Ukryj interfejs). The default was the action table's F11 (the options' reset sets
+the binder's defaults); since patch 152, whose screenshot key F11 is, the entry is named
+`hide_interface` and its default is F9 ("Two keys save a screenshot" below).
 
 **The match.** `on_keyboard_action` (0x25CD00) asks the binder for kind 1 (0x25CD5F) and switches
 on actions 11h..19h (0x25CE1C, the table 0x25CF30); case 19h at 0x25CED1 (`mov esi,[esp+10h] /
@@ -3597,8 +3602,10 @@ UDP) is loaded at the first match with `LoadLibraryA` (the exe's import), its ve
 without it, or of another version (unloaded), voice is off.
 
 **The sites** (names-only `voice.toml`, eleven lohooks; safe `voice.rs` over `vostok/voice.rs`):
-- `configs.start` (before user.cfg): `s_chat_volume` and `s_mic_sens` (`ConsoleFloat`, 0..100, the
-  float slider's steps are 1.0), `s_use_microphone` and `g_hide_spam` (the gameplay tab's dead
+- `configs.start` (before user.cfg): `s_chat_volume` (`ConsoleFloat`, 0..100, the
+  float slider's steps are 1.0; `s_mic_sens`, the stock "Microphone sensitivity", was registered
+  too until 2026-11-16: the listeners' games level every speaker now, the slider is hidden and
+  names no variable again), `s_use_microphone` and `g_hide_spam` (the gameplay tab's dead
   option 5, "Hide spam", now "Disable voice chat") (`ConsoleBool`), `srp_voice_mutes` and
   `srp_microphone` (`ConsoleString`); saved in user.cfg;
 - `match_client.connect` (0x27A1B0 at its start: the host, the port, the session; a replay's match
@@ -3607,8 +3614,10 @@ without it, or of another version (unloaded), voice is off.
 - `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
   (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied;
 - `game_world.after_move` (every frame of a match): the options to the DLL on a change, the muted
-  places, how each place is heard (`sv_hear`: a teammate, in a free-for-all any player, from 10 m
-  on or with either of the two dead through the radio; nearer, plain in the world, its gains in the
+  places, how much of each talking speaker is behind a wall (three lines of the level's ray between
+  the two heads: voice-chat.md, "Behind a wall"), how each place is heard on its two channels (`sv_hear`: its radio when it is a teammate,
+  in a free-for-all any player, wherever it is; its 10 m voice, both alive and nearer than 10 m,
+  plain in the world, its gains in the
   two ears the engine's own pan of a sound at its place, `sound_scene::calculate_3d_pan` 0x57D70,
   times a gain by its distance) and the
   hud's `root.srp_voice_talking(name, side, ...)` on a change (side `"mate"` or `"opponent"`); a push-to-talk whose key or button is up
@@ -3616,9 +3625,14 @@ without it, or of another version (unloaded), voice is off.
   their own, a button by its VK_*BUTTON) or with the game out of focus is let go;
 - `tab_cursor.key` (before patch 86's) and `game_world.mouse_key` (0x25CF70, on_mouse_key_action
   past its keyboard ask and patch 31's jump: ESI the handler, ESP+14h the button's key, +18h its
-  kind, 0 press, 1 release, 2 held): the binder's chat key (kind 8) 47h, `ptt`, down and up, on a
-  key or a mouse button, is push-to-talk; its Controls row is the game group's and can be set
-  (patch 62's `controls`);
+  kind, 0 press, 1 release, 2 held): the binder's chat keys (kind 8), down and up, on a
+  key or a mouse button, are the two push-to-talk keys (the owner, 2026-11-16: "two voice buttons
+  one for 10m one for radio"): 47h, `ptt` (P), the radio's (the team's; in a free-for-all
+  everyone's), and 37h, `ptt_nearby` (O), the 10 m voice's (everyone near hears it). 37h is the
+  action table's entry 0xA74E10, `serialize_player_state` (kinds 5, a debug action whose console
+  command does not exist), renamed and made kind 8, its default key kept (`VOICE_ACTION`). Their
+  Controls rows are the game group's and can be set (patch 62's `controls`: `ptt`'s moved, a 43rd
+  for `ptt_nearby`);
 - `hud.callback` (after patch 86's): the Tab list's player menu asks `srp_voice_menu(place)`
   (answered `root.srp_voice_menu(place, offered, muted)`) and sends `srp_voice_mute(place,
   "1"|"0")` (answered `root.srp_voice_mute(place, done)`): "Mute voice" / "Unmute voice" after the
@@ -3633,8 +3647,8 @@ plays it back"; `voice-chat.md`, "Microphone test"). The sound tab's "Test micro
 through a transmission's path, plays it back as a teammate beside the player would hear it, and
 is idle again; nothing of it is sent or kept. The DLL owns the test (ABI 3: `sv_test_press`,
 `sv_test_stop`, `sv_test_state`; with no match a worker of its own). The exe passes it on: the
-tab's ask `srp_mic_test` is answered `root.srp_mic_test(text)`, the button's text; with the two
-voice sliders' steps it is a press; every frame the button is told its text again when the DLL's
+tab's ask `srp_mic_test` is answered `root.srp_mic_test(text)`, the button's text; with the
+"Voice chat" slider's steps it is a press; every frame the button is told its text again when the DLL's
 state or its second changed; the test is stopped when the Settings window closes (the movie says
 `stop`) or changes tab, when the main menu closes (a match's loading and its end too) and at a
 match's connect. The DLL is loaded when the
@@ -3668,13 +3682,13 @@ the oldest go first), read once a match: a record that is not 8 hex digits, or a
 out and logged.
 
 **Texts** in `localization/*.tsv`: `st_hide_spam_option` ("Disable voice chat"), `st_ptt_action`
-("Push to talk"), `st_srp_hud_voice_*` (the Tab menu's entries and lines), `st_srp_mic_test*` (the
+("Talk on radio"), `st_ptt_nearby_action` ("Talk nearby"), `st_srp_hud_voice_*` (the Tab menu's entries and lines), `st_srp_mic_test*` (the
 microphone test's button), `st_srp_microphone*` (the Microphone list).
 
 Checked: `selftest_026g.py` check 66 (the sites in the original, the eleven hooks in the build, the
-game's ptt entry unchanged, the main menu's `srp_mic_test`) and check 62 (the Controls rows: push-to-talk's in the game group, its
-key settable), `check_hide_ui_026g.py` (the list sent to the movie), `cargo test` in `rust/` (the
-mutes' text, malformed records, plain under 10 m with the pan it is given and its fall by distance, the radio from 10 m and for the dead, the two distances apart, the keys a held input is polled by,
+game's ptt entry unchanged, the entry 37h the debug action in the original and `ptt_nearby` of kind 8 with its key in the build, the main menu's `srp_mic_test`) and check 62 (the Controls rows: push-to-talk's in the game group, its
+key settable, the 43rd), `check_hide_ui_026g.py` (the list sent to the movie, the keys read from the binder), `cargo test` in `rust/` (the
+mutes' text, malformed records, the 10 m voice under 10 m with the pan it is given and its fall by distance, silent from 10 m and for the dead, a mate's radio anywhere and an opponent's never, the keys a held input is polled by,
 the microphone test's press and texts, the Microphone pick's text and the list's shown pick), `check_voice_pan_026g.py` (Unicorn: the original exe's calculate_3d_pan as the patch calls it: its law, what it reads and writes), `scripts/mic-test/check.sh` (Ruffle: the button and the Microphone list).
 Played locally 2026-11-11 (two games under Wine, one microphone): talking and hearing in a team.
 
@@ -4173,6 +4187,49 @@ select_respawn_points (300 random matches against its own model of the rule, 300
 match with each place's last two), the respawn rule's serialize, deserialize and entry, the zone
 functions' bytes (the original's), the options' reads, update_ui's welcome and update_player_icons' start.
 
+## Hitting with the battery (patch 143, unreleased)
+
+The melee key while carrying a battery strikes with it, two strikes in turn: the ram and the
+shove (`docs/notes/battery-hit.md`). The Rust `battery_hit` (`vostok::battery`):
+
+- **A swing and a recovery a strike**, states of the battery's own state machine. At
+  `battery.logic` (0x2FA7E9, the cook's callback once initialize_logic made the take, carry and
+  put) for each strike two take states (0x338940) of the game's allocator over the authored clips
+  the cook loaded as the config's `states[3]` to `states[6]` (content `battery-hit-1.json`;
+  scripts/battery-hit), 0.2 s (the gather and the drive) and 0.35 s (the follow-through and the
+  way back), their kind the
+  carry's (3), their vtable a copy of the take's with finalize and may-be-put-away ours; and for
+  the shove a carry state of its own (the game's constructor 0x338BE0 over the
+  carry's clips). Appended to the machine's list (3, 4 the ram's swing and recovery; 5, 6, 7 the
+  shove's carry, swing and recovery); transitions: a carry -> its swing (a
+  function-pointer functor whose function is ours: the carrier alive, the melee key down, not in
+  the air; after carry -> put), a swing -> put and its recovery, a recovery -> put and the next
+  strike's carry, the shove's the first carry (copies of carry -> put's and take -> carry's
+  functors), each tried once its clip ended. So the strike that comes next is the machine's
+  current state: no field of the patch's.
+- **The strike**, a swing's finalize once its clip ended (the impact): the gun-stock hit's bullet
+  (`emit_bullet` as 0x33AB50 gives it) of the carrier's slot-7 gun, else slot 10's, from the eye
+  along the first of 15 rays over where the strike's battery lands (a fixed 5 x 3 grid 0.7 m
+  ahead, the look first: the ram's around the look, the shove's a column to the right;
+  each the game's ray test 0x75E20 as check_collision's, its requester a stand-in of
+  the carrier's bullet owner) whose first hit is a living player's body, else along the look. Patch 108
+  makes it kill. The gun is deactivated (no user, no posture)
+  and the bullet reads both through it all its life (player_stance 0x2E43A0 at the constructor,
+  the melee damage 0x2E1CF0 / 0x2E1C80 at every step and hit): four filtered lohooks at those
+  reads (0x2E43A3, 0x2E43B9, 0x2E1D00, 0x2E1C99, called only for a null read) give the gun's
+  player (its inventory's holder) and that player's battery's posture. Nothing is written.
+- **The kill feed**: a lohook at `kill_feed.weapon_icon` (0x2DA3CB, generate_killed_event before
+  it writes the event's weapon icon) sends icon 200 for a kill by a melee bullet whose gun's player
+  holds a battery; the hud movie shows it as `CombatLogBatteryIcon`.
+- **Put away**: the swing's +20h answers as the carry's (a dead carrier's battery may go).
+
+The game's fsm runs, saves (the state's index, 3 to 7, then a take's fields or a carry's) and
+loads them; srp-validate reads each. A match's computation changes. `check_battery_hit_026g.py`
+runs initialize_logic, the site, the take's and the carry's constructors, fsm::tick (the two
+strikes in turn), emit_bullet with the bullet's constructor, bullet::tick (its flight and a hit),
+deactivate and a save and load mid-strike with the game's own code, and both in-game crashes as
+controls in the original exe (needs Unicorn). The shove as it is now (raised into the view) is not played.
+
 ## Names on the Tab map (patch 82, unreleased)
 
 While the Tab map is open and an Alt key is held, each player icon on it shows the player's name
@@ -4356,6 +4413,64 @@ fall's attacker is the victim) deals 1000 from there, so its share of pain (5 % 
 least, an arm's or a hip's) empties it, the game's own pain death (the kill feed's pain
 mark). A match's computation changes: every client of a match needs it.
 `check_hand_kill_026g.py` runs the chain from the game's site in the patched exe.
+## Two keys save a screenshot (patch 152, unreleased)
+
+F11 saves the picture on the screen and F12 the same frame without the interface, as PNG files
+in the game's folder `screenshots` (the owner, 2026-11-16; `../docs/notes/screenshots.md`). The
+game has no screenshot key of its own.
+
+**The keys.** The action table's two spare entries: `torch` (1Ah, 0xA74CBC) and `night_vision`
+(1Bh, 0xA74CD0), kinds 5 and no default key, which nothing reads (the game world's switch is
+11h..19h, 0x25CE1C; the player's input table 0xA746E0 has neither; 0.10b's source names them only
+in the table). `patch_026g.py`'s `SCREENSHOT_ACTIONS` names them `screenshot` and
+`screenshot_no_ui` with the default keys F11 and F12, and patch 62's `controls` gets their rows,
+the 44th and 45th (`st_screenshot_action`, `st_screenshot_no_ui_action`). F11 was patch 62's:
+its entry (19h, 0xA74CA8) is named `hide_interface` with the default key F9. The new name is what
+moves the key for a player who has a saved `user.cfg`: the binder binds each entry's default at
+its construction (set_default_controls 0x2078A0), then `user.cfg`'s lines run, and a bind takes
+its key from every other action of its kinds (bind_key 0x207DC0); the old line
+`bind toggle_replay_ui kF11` would take F11 back from `screenshot`. Under the new name that line
+names no action: action_name_to_ptr (0x207AD0) logs it and gives 0, bind_key returns, and the
+three defaults stand (`check_hide_ui_026g.py` runs that line through the game's bind_key). The
+lobby's replay texts, which named F11 for the replay's controls, say F9.
+
+**The press.** `keyboard.events` (keyboard::execute after GetDeviceData, 0x3B914B; after patch
+110's moved keys): each event that went down (its dwData bit 80h) is asked of the game's binder
+for kind 1 (the engine world's game, its binder +5344h), whatever screen is up; `screenshot` or
+`screenshot_no_ui` asks for a picture. The key is not taken.
+
+**The picture.** The frame's draw (0x13D010) writes the scene to the swap chain's back buffer,
+calls renderer::render_flash_ui (0x13CED0, at 0x13DB3D), which draws the interface's movies over
+it (flash_renderer::present 0x2AF0F0), draws the engine's own lines and presents
+(res_render_output::present 0x3CF7F0 at 0x13DD46). A picture without the interface is taken at
+render_flash_ui's start (`render.flash_ui`; the output window its second argument, the render
+output its +30ACh), one with it right before the swap chain's Present (`render_output.present`,
+after patches 83's and 125's handlers). There (`vostok/back_buffer.rs`) the swap chain's buffer 0
+(IDXGISwapChain::GetBuffer; the swap chain the render output's +0CCh) is copied to a staging
+texture of its size (its device's CreateTexture2D, the immediate context's CopyResource) and
+mapped for reading, which waits for the GPU; formats of four bytes a pixel and one sample are
+read (R8G8B8A8, the game's, and B8G8R8A8), any other is refused with a log line.
+`engine_026g.py` takes a COM row for IUnknown::Release (slot 8) for the two references.
+
+**The file.** `..\..\..\screenshots\<date>_<time>.png` from the working folder
+(`game\binaries\x86`), the folder made at each picture; a second's further pictures `_2` to `_9`;
+a name is taken only when no file has it. The PNG is the patch's own (`screenshot/png.rs`, safe
+Rust, no allocation: 57 KiB of the arena's state for one filtered row and one chunk): 24-bit, each
+row Paeth-filtered, one zlib stream with one dynamic Huffman code made from every 16th row, runs
+of a byte or of a pixel as its only matches, IDAT chunks of 32 KiB. Written on the thread that
+draws: the frame waits for the file. Each picture is a line of the patches' log (its name, size
+and time, or why none was taken). Presentation only: no simulation change.
+
+## A gun-stock hit disarms a trap (patch 151, unreleased)
+
+A melee hit on an armed trap defuses it as a bullet does (the owner, 2026-11-15;
+`../docs/notes/trap-stock-hit.md`). `booby_trap_core::hit` (0x305540, the slot
+`bullet::try_pierce` calls on what its ray met) goes on only for a hit of the trap set's
+`defuse_by_hit` type, ranged; the melee bullet is blunt. The Rust `trap_stock_hit` hook at the
+hit's entry (`trap.hit`) sends a blunt hit to where the trap's own type goes on (0x305552: the
+game's defuse); every other hit runs the game's test. A match's computation changes: every
+client of a match needs it. `check_trap_stock_hit_026g.py` runs the hit from its entry in the
+original and the patched exe.
 ## Dropped-weapon pickup (patch 85)
 
 A player takes the gun a dead player dropped: Use on the gun lying on the
@@ -5870,6 +5985,28 @@ first and walked past the array's start. `GRASS_SORT_ORDER` swaps that copy's tw
 0x160430), so every copy computes the same distance. `check_grass_sort_026g.py` runs the game's
 `__linear_insert` on such a pair: the original reads before the array at 0x162085, the patched exe
 sorts it (needs Unicorn). See `docs/notes/client_patch.md`, "The grass sort's distance".
+
+## The game shares in the lobby (patch 150, unreleased)
+
+The original game was made to share its files by BitTorrent while a player sits on the login
+screen or in the lobby, never in a match: its updater started as Windows' "Survarium Update
+Service" with the word `seed`, talking to the game over a named pipe. It never ran (the game
+looked for a registry key under a garbled name and gave up). Now the game's own setting
+`enable_torrent_seeding` (user.cfg, "Allow torrent": the launcher's box writes it) decides, off by
+default (`LOBBY_SEEDING_DEFAULT`: the original's was on), and the game's own triggers do it:
+`switch_to_login` and `switch_to_lobby` start it while it is on, `switch_to_game_world` stops it
+(the pipe closed: the updater ends), a replay never does either. The Rust patch `lobby_seeding`
+(`rust/patches/src/lobby_seeding.rs`, sites `seeding.*`) names the pipe
+`\\.\pipe\skhid_seed-<process id>` and starts `updater_skhid.exe seed <pipe>` beside the exe
+(CreateProcessW, no window) where the game asked for the service. Its options stay hidden. The
+game writes every setting into user.cfg at its end, so a player who played before this patch has
+`enable_torrent_seeding on` there (the old default): the default alone does not turn it off for
+them. The updater's
+side (the 1 MB/s cap, the stats ticks) is `client/updater/README.md`; the rules
+`docs/notes/torrent-downloads.md`, "Sharing from the game". `check_lobby_seeding_026g.py` runs
+`start_seeding_impl`, `switch_to_lobby`, `switch_to_login` and the command's callback in both
+exes (needs Unicorn). See `docs/notes/client_patch.md`, "The game shares in the lobby". Not run
+in a game.
 
 ## Empty shots are not logged (patch 148, unreleased)
 

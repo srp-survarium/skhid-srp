@@ -34,6 +34,8 @@ import run_logs
 HERE = os.path.dirname(os.path.abspath(__file__))
 RELEASE = os.path.join("target", "i686-pc-windows-msvc", "release")
 UPDATER = os.path.join(HERE, "..", "exe", RELEASE, "updater_skhid.exe")
+# Its BitTorrent, beside it as in the players' ZIP (build.sh puts it there).
+TORRENT_DLL = os.path.join(os.path.dirname(UPDATER), "skhid_torrent.dll")
 FAKE_EXE = os.path.join(HERE, "fake_exe", RELEASE, "fake-exe.exe")
 X86 = os.path.join("game", "binaries", "x86")
 
@@ -404,6 +406,8 @@ class UpdaterTest(unittest.TestCase):
         self.x86 = os.path.join(self.top, X86)
         os.makedirs(self.x86)
         shutil.copy(UPDATER, os.path.join(self.x86, "updater_skhid.exe"))
+        if os.path.isfile(TORRENT_DLL):
+            shutil.copy(TORRENT_DLL, os.path.join(self.x86, "skhid_torrent.dll"))
         # These scenarios exercise overlay updates over an existing game.
         self.write("game/resources.db", b"existing game resources")
         self.write(f"{X86}/survarium.exe", b"existing original game")
@@ -611,7 +615,7 @@ class UpdaterTest(unittest.TestCase):
         # By hand: with a launcher's pipe it would start the archive's real
         # launcher once that is installed.
         exe = os.path.join(self.x86, "updater_skhid.exe")
-        self.assertEqual(subprocess.run([exe, "check", "quiet"], timeout=120).returncode, 0, self.log())
+        self.assertEqual(subprocess.run([exe, "check", "quiet", "direct"], timeout=120).returncode, 0, self.log())
         with zipfile.ZipFile(bundle) as archive:
             for info in archive.infolist():
                 # (The archive's own .url would send the next test run elsewhere.)
@@ -850,17 +854,17 @@ class UpdaterTest(unittest.TestCase):
     def test_by_hand_it_updates_without_a_launcher(self):
         files = self.offer(self.bundle())
         exe = os.path.join(self.x86, "updater_skhid.exe")
-        self.assertEqual(subprocess.run([exe, "check", "quiet"], cwd=self.root, timeout=120).returncode, 0)
+        self.assertEqual(subprocess.run([exe, "check", "quiet", "direct"], cwd=self.root, timeout=120).returncode, 0)
         self.assertEqual(self.read("README.txt"), files["README.txt"])
         self.site.manifest_status = 500
         os.remove(self.path(f"{X86}/survarium_skhid.exe"))
-        self.assertEqual(subprocess.run([exe, "check", "quiet"], timeout=120).returncode, 1)
+        self.assertEqual(subprocess.run([exe, "check", "quiet", "direct"], timeout=120).returncode, 1)
         self.assertIn("FAILED: x86/survarium_skhid.exe is missing or damaged and cannot be repaired now: "
                       "127.0.0.1 answered /api/client-files with error 500", self.log())
         # Outside game\binaries\x86 it does nothing.
         stray = os.path.join(self.root, "updater_skhid.exe")
         shutil.copy(exe, stray)
-        self.assertEqual(subprocess.run([stray, "check", "quiet"], timeout=30).returncode, 1)
+        self.assertEqual(subprocess.run([stray, "check", "quiet", "direct"], timeout=30).returncode, 1)
         self.assertEqual(run_logs.paths(self.root), [])
 
     def test_a_bad_server_address_is_refused(self):

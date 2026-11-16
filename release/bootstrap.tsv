@@ -1,0 +1,6 @@
+# Skhid-get.bat's three files (srp-026g/docs/notes/torrent-downloads.md,
+# "Bootstrap"): the URLs tried, in order, when no peer gives a file (8 at
+# most; Google Drive's first, the owner's rule). release/build-bootstrap
+# writes a file's row, release/add-mirror adds a URL; both make the script
+# again: commit the three together.
+# name	sha256	size	urls

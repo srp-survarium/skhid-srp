@@ -66,7 +66,15 @@ its row of `release/content.tsv`. The list must stay the last that edits
 ## Four more maps: stalker-maps-2 (the owner, 2026-11-14)
 
 "Port four STALKER multiplayer maps", Free for All only, Clear Sky's versions:
-pack `stalker-maps-2@2` and content edit `ffa-stalker-2.json`. Built after the
+pack `stalker-maps-2@2` and content edit `ffa-stalker-2.json`. **Fire Station
+alone ships** (the owner, 2026-11-16: "let's merge only single map for now
+which is fire station"): Dark Valley, Vehicle Station and Sports Center are
+held, in the porter (`maps.json` `hold`: not built into the pack) and here
+(no dictionary rows, project copies, Keeper pools, loading pictures, HUD
+minimaps or site maps; their FFA points stay in `ffa-spawns-2.tsv`, held by
+`make_ffa_edits.py`'s `HELD_2`, their names in the localization and their
+ids theirs). To offer one: its rows back as Fire Station has them. The
+numbers below are the four maps' build. Built after the
 released `stalker-maps@6`, which they do not change: `release/build-content 60`
 (a quick build, `/mnt/hdd/Projects/stalker-maps-026/content-maps2-d`) makes
 4,855 new files, the four maps' (their namespaces `ported/cs/<map>`,
@@ -105,10 +113,10 @@ that would differ stops the build), so it needs that pack beside it.
   to without a ladder: 15+15, 14+14, 32+32, 10+10) and `modes.tsv` /
   `maps.tsv` rows stay. They have no ammo stashes: Team Deathmatch on them
   needs them first.
-- The pack's four dictionary rows come before `blackout-mode-1`,
+- Fire Station's dictionary row comes before `blackout-mode-1`,
   `v011e-vostok-modes-1`, `ffa-1` and `ffa-ported-1`, whose append counts
-  shift by 4 (as `stalker-maps@6`'s six did); `artefact-keeper-1` gives the
-  four TDM projects their Keeper pool (Free for All's copies take it);
+  shift by 1 (as `stalker-maps@6`'s six did by 6); `artefact-keeper-1` gives
+  its TDM project its Keeper pool (Free for All's copy takes it);
   `simulation_changes.tsv` has the `next` row.
 - Grass: X-Ray's detail objects at the level's density (0.3 m) on Dark
   Valley (142,346 placed), Vehicle Station (71,179) and Fire Station

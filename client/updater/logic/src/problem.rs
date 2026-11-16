@@ -259,7 +259,7 @@ impl Problem {
                 "{title}\n{}\n{}\n{log}",
                 removal_words(language, *removal),
                 match exclusion {
-                    Exclusion::Programs => defender(language, folder),
+                    Exclusion::Programs | Exclusion::Torrent => defender(language, folder),
                     Exclusion::Game => allow(language, folder),
                 }
             ),
@@ -507,6 +507,7 @@ mod tests {
     ];
     const LOG: &str = "E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log";
     const FOLDER: &str = "E:\\S\\game\\binaries\\x86";
+    const TORRENT: &str = "E:\\S\\game\\torrent";
     const GAME: &str = "E:\\S\\game";
 
     fn server() -> Where {
@@ -519,6 +520,7 @@ mod tests {
             file: file.into(),
             folder: match exclusion {
                 Exclusion::Programs => FOLDER,
+                Exclusion::Torrent => TORRENT,
                 Exclusion::Game => GAME,
             }
             .into(),
@@ -533,6 +535,7 @@ mod tests {
         for removal in [Removal::Blocked, Removal::PutBack] {
             all.push(antivirus("survarium_skhid.exe", removal));
         }
+        all.push(antivirus("game/torrent/bootstrap/updater_skhid.exe", Removal::Blocked));
         all.push(antivirus("resources.db.patch_44", Removal::Blocked));
         for fault in FAULTS {
             for addresses in [1, 3] {
@@ -777,6 +780,10 @@ mod tests {
                     exclusion: Exclusion::Programs,
                     ..
                 } => &["Skhid-defender-setup.cmd", FOLDER],
+                Problem::Antivirus {
+                    exclusion: Exclusion::Torrent,
+                    ..
+                } => &["Skhid-defender-setup.cmd", TORRENT],
                 Problem::Antivirus {
                     exclusion: Exclusion::Game,
                     ..

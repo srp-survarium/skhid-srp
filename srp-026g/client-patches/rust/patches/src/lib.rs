@@ -81,6 +81,7 @@ pub mod artefact_skills;
 pub mod artefact_keeper;
 
 pub mod hand_kill;
+pub mod trap_stock_hit;
 pub mod forest_glow;
 
 pub mod animation_id_log;
@@ -110,9 +111,15 @@ pub mod unplayed_match;
 pub mod texture_streaming;
 pub mod animation_math;
 pub mod replay_keys;
+// patch 152: two keys save the game's picture as a PNG
+pub mod screenshot;
 pub mod replay_map;
 // patch 133: the console command `where`
 pub mod console_where;
 
 pub mod replay_file;
 pub mod free_for_all;
+// patch 143: the battery carrier's hit
+pub mod battery_hit;
+// patch 150: the game shares by BitTorrent in the login screen and the lobby
+pub mod lobby_seeding;

@@ -23,6 +23,7 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod back_buffer;
 pub mod baker;
 pub mod breadcrumbs;
 pub mod bullet;
@@ -57,6 +58,7 @@ pub mod mouse;
 pub mod log;
 pub mod run_log;
 pub mod melee;
+pub mod battery;
 pub mod memory;
 pub mod memory_profile;
 mod options;
@@ -79,6 +81,7 @@ pub mod voice;
 pub mod settings;
 mod sync;
 pub mod trace;
+pub mod trap;
 pub mod trig;
 pub mod types;
 mod upgrades;
@@ -107,6 +110,8 @@ mod generated {
     use super::resources::{QueryResults, QueryTag};
     #[allow(unused_imports)]
     use super::console::{ConsoleArguments, ConsoleCommand};
+    #[allow(unused_imports)]
+    use super::battery::{BatteryState, PredicateBuffer};
     #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");
@@ -160,6 +165,7 @@ pub mod effect_presenter;
 pub mod match_message;
 pub mod packet_recovery;
 pub mod match_close;
+pub mod seeding;
 
 mod world_context;
 

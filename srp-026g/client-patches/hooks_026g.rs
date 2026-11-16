@@ -1367,6 +1367,187 @@ pub extern "C" fn hook_ban_time_on_status(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- battery_hit (patch 143) ----
+
+/// The entry `battery_hit_on_logic` (0x2fa7e9, victory_item_core_cook::on_animations_loaded (0x2FA400, the client's and the core's batteries alike) once initialize_logic (0x2FA7E4) made the take, carry and put states: ESI the battery, ESP+28h the put state's six clips (the callback's own array, released after); replayed: mov ecx,[esp+20h] / mov eax,[ecx]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_logic(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_logic` calls this, from the game's jump at 0x2fa7e9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_logic(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The convention of engine_fsm_always (0x372420), a callback's: a marker for
+/// the callback entries made in it (no function of the game is called through it).
+pub struct OrigFsmAlways;
+
+/// The entry `battery_hit_on_wants_swing` (a callback in engine_fsm_always's convention, the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> swing's predicate)
+/// calls this with its 1 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `battery_hit_on_wants_swing`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_battery_hit_on_wants_swing(a0: Option<raw::PredicateBuffer>) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_wants_swing` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let buffer = unsafe { PredicateBuffer::from_raw(&thread, a0) };
+    u32::from(crate::battery_hit::on_wants_swing(buffer))
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The entry `battery_hit_on_state_left` (0x38caa0, fsm::tick 0x38CA20 leaving its current state through a transition it took (a predicate true, 0x38CA81; tried only once the state is ready, its vtable +18h), before that state's finalize (call [vtbl+0Ch] at 0x38CAA5): ECX the state left, of any machine (a battery's when its vtable is a battery state's); the only way a battery's machine leaves a state in the simulation (victory_item_core::deactivate 0x300F40 finalizes without a transition, game_world_core::deserialize 0x2D2770 reaches it through base_player::remove 0x2DA790); replayed: mov eax,[ecx] / mov edx,[eax+0Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_state_left(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_state_left` calls this, from the game's jump at 0x38caa0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_state_left(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The values of `user` (EAX) the entry `battery_hit_on_stance_user` calls its handler for
+/// (`only`): crate::battery_hit::NONE; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static battery_hit_on_stance_user_only: Only = Only::of(&crate::battery_hit::NONE);
+
+/// The entry `battery_hit_on_stance_user` (0x2e43a3, weapon_core::player_stance 0x2E43A0 (the gun's vtable +7Ch; the bullet's constructor 0x32BADE, base_player hit events for no bullet 0x2D9FB2) once it read its user (mov eax,[ecx+8]), before that user's alive byte: ECX the gun, EAX the user (0 for a deactivated gun, which natively never shoots); replayed: mov al,[eax+33Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_stance_user(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_stance_user` calls this, from the game's jump at 0x2e43a3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_stance_user(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The values of `posture` (EAX) the entry `battery_hit_on_stance_posture` calls its handler for
+/// (`only`): crate::battery_hit::NONE; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static battery_hit_on_stance_posture_only: Only = Only::of(&crate::battery_hit::NONE);
+
+/// The entry `battery_hit_on_stance_posture` (0x2e43b9, weapon_core::player_stance once it read its clip set's posture (mov eax,[ecx+278h] / mov eax,[eax+20h]), before the posture's kind: ECX the gun, EAX the posture (0 for a deactivated gun's); replayed: cmp dword [eax+20h],1 / sete dl) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_stance_posture(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_stance_posture` calls this, from the game's jump at 0x2e43b9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_stance_posture(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The values of `user` (EAX) the entry `battery_hit_on_melee_damage_user` calls its handler for
+/// (`only`): crate::battery_hit::NONE; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static battery_hit_on_melee_damage_user_only: Only = Only::of(&crate::battery_hit::NONE);
+
+/// The entry `battery_hit_on_melee_damage_user` (0x2e1d00, the melee data's damage 0x2E1CF0 (the bullet's constructor 0x32BB38, update_bullet_position 0x32F09A each step), melee branch, once it read the gun's user (mov eax,[ecx+8]), before the user's kit: ECX the gun, EAX the user (0 for a deactivated gun); replayed: movzx ecx,byte [eax+115h]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_melee_damage_user(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_melee_damage_user` calls this, from the game's jump at 0x2e1d00,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_melee_damage_user(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The values of `user` (EAX) the entry `battery_hit_on_melee_falloff_user` calls its handler for
+/// (`only`): crate::battery_hit::NONE; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static battery_hit_on_melee_falloff_user_only: Only = Only::of(&crate::battery_hit::NONE);
+
+/// The entry `battery_hit_on_melee_falloff_user` (0x2e1c99, the melee data's minimum damage 0x2E1C80 (update_bullet_position 0x32F0B6 each step, the pierce 0x32DA5A, the ricochet 0x32E35C), melee branch, once it read the gun's user (mov eax,[ecx+8]), before the user's kit: ECX the gun, EAX the user (0 for a deactivated gun); replayed: movzx ecx,byte [eax+115h]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_melee_falloff_user(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_melee_falloff_user` calls this, from the game's jump at 0x2e1c99,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_melee_falloff_user(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// engine_take_deactivatable (0x397c20), as the vtable hook at 0xa1bfa4 wraps it.
+pub struct OrigTakeDeactivatable;
+
+impl OrigTakeDeactivatable {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, state: &mut BatteryState) -> bool {
+        // SAFETY: engine_take_deactivatable at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_take_deactivatable(Some(state.raw())) != 0 }
+    }
+}
+
+/// The entry `battery_hit_on_deactivatable` (0xa1bfa4, the take state's vtable slot 8 (+20h, 0xA1BF84): may the battery be put away now (victory_item_core::is_ready_to_be_deactivated 0x301270 asks the current state; the item switch 0x2D76A0 calls that), thiscall; the take's answers no (0x397C20), the carry's whether its user is dead (0x338E90)) calls this with
+/// engine_take_deactivatable's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `battery_hit_on_deactivatable`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_battery_hit_on_deactivatable(a0: Option<raw::BatteryState>) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_deactivatable` calls this, from the game's call at
+    // 0xa1bfa4, on the game's thread; a0.. are engine_take_deactivatable's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut state) = (unsafe { BatteryState::from_raw(&thread, a0) }) else {
+        // a null BatteryState never happens at this site; take the unpatched path.
+        return u32::from(unsafe { raw::engine_take_deactivatable(a0) } != 0);
+    };
+    let orig = OrigTakeDeactivatable;
+    u32::from(crate::battery_hit::on_deactivatable(&orig, &mut state))
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The entry `battery_hit_on_kill_feed_icon` (0x2da3cb, generate_killed_event 0x2DA170 about to write the kill event's killer and weapon icon (mov [eax+1],cl / mov [eax+2],dl; EAX the event node, EDX the icon: the bullet's data +50h, else the damage source's +224h, 0x2DA35A..0x2DA382; EBP the bullet or 0); the hud's handler 0x23B5F0 reads +2 for on_player_killed's object_icon; replayed: mov [eax+1],cl / mov [eax+2],dl) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_kill_feed_icon(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_kill_feed_icon` calls this, from the game's jump at 0x2da3cb,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_kill_feed_icon(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- battery_progress (patch 92) ----
 
 /// The entry `battery_progress_on_match_start` (0x334999, victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set) calls this with the saved machine.
@@ -2916,6 +3097,21 @@ pub extern "C" fn hook_module_report_on_present(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- screenshot (patch 152) ----
+
+/// The entry `screenshot_on_present` (0x3cf8ff, res_render_output::present right before the game's IDXGISwapChain::Present (mov esi,[esi+0CCh], the swap chain; then its vtable +20h, the sync interval in EAX, flags 0): ESI the render output. Every Present of the game's swap chain is here (present 0x3CF7F0, called from 0x117EDF, 0x13CA02, 0x13CB73, 0x13DD46), after its GetFullscreenState and ShowWindow) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_screenshot_on_present(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `screenshot_on_present` calls this, from the game's jump at 0x3cf8ff,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::screenshot::on_present(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hud_options (patch 83) ----
 
 /// The entry `hud_options_on_ddraw_probed` (0x105e8e, the engine's DirectDraw probe of the video memory (0x105DB0, the DirectX SDK's GetVideoMemoryViaDirectDraw, called by get_local_video_memory_size's 0x1060F0) after GetAvailableVidMem, before it releases the IDirectDraw7 (mov eax,[esp+14h] / mov edx,[eax]; then Release 0x105E98 and FreeLibrary(ddraw) 0x105E9A, which unloads the DirectDraw object's code): the DirectDraw object at [esp+18h], which the probe never releases) calls this with the saved machine.
@@ -3070,6 +3266,21 @@ pub extern "C" fn hook_key_remap_on_events(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::key_remap::on_events(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- screenshot (patch 152) ----
+
+/// The entry `screenshot_on_keys` (0x3b914b, keyboard::execute (0x3B8D20) after GetDeviceData filled the event buffer (every successful read joins at 0x3B9147: mov eax,[esp+14h] the count; here mov [edi+404h],eax): EDI the platform keyboard, its events at +408h, EAX their count (at most 40h); before the loop that sets each key's state and the Shift/Ctrl/Alt flags from them (0x3B9159) and process (0x3B9AF0), which hands them to the handlers) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_screenshot_on_keys(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `screenshot_on_keys` calls this, from the game's jump at 0x3b914b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::screenshot::on_keys(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3669,6 +3880,41 @@ pub extern "C" fn hook_lobby_scene_on_game_closing(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_seeding (patch 150) ----
+
+/// The entry `lobby_seeding_on_accept` (0x373cd9, start_seeding_impl's lea eax,[ebp-4B8h] (the game's wide pipe name, swprintf'd at 0x373CC6) before its call of win_utils::pipe::accept (0x373230 at 0x373CDF: ECX the pipe, EAX the wide name, [ESP] &error_code); a Skip with EAX set gives accept another name, read only by its CreateNamedPipeW (0x373262) (patch 150)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_seeding_on_accept(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_seeding_on_accept` calls this, from the game's jump at 0x373cd9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_seeding::on_accept(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_seeding (patch 150) ----
+
+/// The named exits of lobby_seeding::on_updater (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LobbySeedingOnUpdaterExit { Started }
+/// The entry `lobby_seeding_on_updater` (0x373d2d, start_seeding_impl after the pipe's accept and its message handler bound (0x373CE4..0x373D20, the temporary function destroyed), before the service's start (OpenSCManagerA 0x373D5B .. StartServiceW 0x373F4A): add esp,4 / mov edi,eax after the product name's call 0x373D28; started is the epilogue 0x37400E (patch 150)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_seeding_on_updater(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_seeding_on_updater` calls this, from the game's jump at 0x373d2d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_seeding::on_updater(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -4434,6 +4680,21 @@ pub extern "C" fn hook_scaleform_capture_on_queue_destroy(frame: &mut Frame) -> 
     }
 }
 
+// ---- screenshot (patch 152) ----
+
+/// The entry `screenshot_on_interface` (0x13ced0, renderer::render_flash_ui's start (push ebp / mov ebp,esp / sub esp,0Ch), once a frame from the frame's draw (0x13DB3D), after the present stage wrote the scene to the back buffer (0x13DB36) and before the interface's movies are drawn over it (flash_renderer::present 0x2AF0F0 at 0x13CFF3) and the swap chain's Present (0x13DD46): ESP the return address, the renderer and the output window) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_screenshot_on_interface(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `screenshot_on_interface` calls this, from the game's jump at 0x13ced0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::screenshot::on_interface(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- sign_in_cipher (patch 139) ----
 
 /// The entry `sign_in_cipher_on_begin` (0x380504, on_user_name_answer_received (0x380340) for the answer 0Bh, the user name taken (mov ecx,[ebp+8] / sub esp,30h, past the jne at 0x380502): before it starts the stream's handshake (0x38B840), once a sign-in) calls this with the saved machine.
@@ -4672,6 +4933,26 @@ pub extern "C" fn hook_texture_streaming_on_texture_memory(frame: &mut Frame) ->
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::texture_streaming::on_texture_memory(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- trap_stock_hit (patch 151) ----
+
+/// The named exits of trap_stock_hit::on_hit (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TrapStockHitOnHitExit { Defuse }
+/// The entry `trap_stock_hit_on_hit` (0x305540, booby_trap_core::hit with a hit type, its entry (mov eax,[ecx+194h]; then the set defuse_by_hit against the hit type, 0x30554C): ECX the trap, ESP the return address and the ten arguments; defuse is where a hit of the trap own type goes on (cmp byte [ecx+220h],0: ECX alone is read)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_trap_stock_hit_on_hit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `trap_stock_hit_on_hit` calls this, from the game's jump at 0x305540,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::trap_stock_hit::on_hit(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -5451,6 +5732,8 @@ pub extern "C" fn hook_hud_options_on_present_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_module_report_on_present(frame);
     if flow != 0 { return flow; }
+    let flow = hook_screenshot_on_present(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5472,6 +5755,15 @@ pub extern "C" fn hook_music_on_login_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_login(frame);
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_login(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_key_remap_on_events_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_key_remap_on_events(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_screenshot_on_keys(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -5527,6 +5819,15 @@ pub extern "C" fn hook_tab_cursor_on_hud_call_chain(frame: &mut Frame) -> u32 {
     let flow = hook_voice_on_hud_call(frame);
     if flow != 0 { return flow; }
     0
+}
+
+unsafe extern "C" { fn battery_hit_on_wants_swing(); }
+/// The entry `battery_hit_on_wants_swing`, in engine_fsm_always's convention (the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> swing's predicate): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn battery_hit_on_wants_swing_entry() -> super::hook::CallbackEntry<OrigFsmAlways> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_fsm_always, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(battery_hit_on_wants_swing as *const () as *const c_void) }
 }
 
 unsafe extern "C" { fn forest_glow_on_loaded(); }
@@ -5585,6 +5886,12 @@ pub fn memory_profile_on_demand() -> [super::hook::OnDemand; 6] {
         // generated or linked entry for it, alive as long as the executable.
         unsafe { super::hook::OnDemand::new(0xe4d70, &[0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8], memory_profile_on_out_of_memory as *const () as usize as u32) },
     ]
+}
+
+unsafe extern "C" { static battery_hit_swing_vtable: [u32; 13]; }
+pub fn battery_hit_swing_vtable_handle() -> super::project::NativeVtable<raw::TakeStateMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(battery_hit_swing_vtable).cast::<u32>().add(1) as usize as u32) }
 }
 
 unsafe extern "C" { static console_where_methods_vtable: [u32; 8]; }

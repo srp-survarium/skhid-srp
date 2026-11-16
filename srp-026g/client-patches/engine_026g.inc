@@ -781,3 +781,56 @@ extern engine_sound_pan
 ; float *engine_listener_position(struct sound_scene *scene, float *out)
 ; 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
 extern engine_listener_position
+; struct battery_state *engine_battery_take_state(void *room, struct victory_item_core *battery, const struct battery_clips *clips, float time)
+; 0x338940 survarium::victory_item_core_take_state::victory_item_core_take_state: room ESI, battery ESP+4, clips ESP+8, time ESP+12; pops 12; EAX
+extern engine_battery_take_state
+; struct battery_state *engine_battery_carry_state(struct victory_item_core *battery, void *room, const struct battery_clips *clips)
+; 0x338be0 survarium::victory_item_core_carry_state::victory_item_core_carry_state: battery EAX, room ESP+4, clips ESP+8; pops 8; EAX
+extern engine_battery_carry_state
+; void engine_fsm_append_transition(struct battery_state *source, struct battery_state *destination, const struct fsm_predicate *predicate)
+; 0x38c970 vostok::ai::fsm::append_transition: source ESP+4, destination ESP+8, predicate ESP+12; pops 12; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_fsm_append_transition
+; struct bullet *engine_emit_bullet(struct weapon *gun, struct bullet_manager *manager, const float *point, const float *velocity, const void *data, unsigned int time, struct bullet_owner *owner, void *second, unsigned int unused)
+; 0x322830 survarium::bullet_manager::emit_bullet: gun EDI, manager ESP+4, point ESP+8, velocity ESP+12, data ESP+16, time ESP+20, owner ESP+24, second ESP+28, unused ESP+32; pops 32; EAX
+extern engine_emit_bullet
+; void engine_battery_state_finalize(struct battery_state *state)
+; 0x3447f0 survarium::victory_item_core_animation_end_aware_state::finalize: state ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_battery_state_finalize
+; unsigned char engine_fsm_always(const struct predicate_buffer *buffer)
+; 0x372420 survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition: buffer ESP+4; pops 0; AL; cdecl, called directly
+; cdecl: push (and ECX for thiscall) as that convention says
+extern engine_fsm_always
+; unsigned char engine_take_deactivatable(struct battery_state *state)
+; 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_take_deactivatable
+; unsigned int engine_get_last_error(void)
+; the IAT slot 0x87005c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_last_error
+; unsigned int engine_swap_chain_get_buffer(struct swap_chain *chain, unsigned int buffer, const void *iid, struct hw_resource **surface)
+; COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+extern engine_swap_chain_get_buffer
+; void engine_texture2d_get_desc(struct hw_resource *texture, void *desc)
+; COM ID3D11Texture2D+0x28 (stdcall through the interface's vtable): texture ESP+4, desc ESP+8; pops 8
+extern engine_texture2d_get_desc
+; void engine_device_child_get_device(struct hw_resource *child, struct d3d_device **device)
+; COM ID3D11DeviceChild+0xc (stdcall through the interface's vtable): child ESP+4, device ESP+8; pops 8
+extern engine_device_child_get_device
+; unsigned int engine_device_create_texture2d(struct d3d_device *device, const void *desc, const void *initial, struct hw_resource **texture)
+; COM ID3D11Device+0x14 (stdcall through the interface's vtable): device ESP+4, desc ESP+8, initial ESP+12, texture ESP+16; pops 16; EAX
+extern engine_device_create_texture2d
+; void engine_context_copy_resource(struct immediate_context *context, struct hw_resource *destination, struct hw_resource *source)
+; COM ID3D11DeviceContext+0xbc (stdcall through the interface's vtable): context ESP+4, destination ESP+8, source ESP+12; pops 12
+extern engine_context_copy_resource
+; unsigned int engine_context_map(struct immediate_context *context, struct hw_resource *resource, unsigned int subresource, unsigned int map_type, unsigned int flags, void *mapped)
+; COM ID3D11DeviceContext+0x38 (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12, map_type ESP+16, flags ESP+20, mapped ESP+24; pops 24; EAX
+extern engine_context_map
+; unsigned int engine_d3d_resource_release(struct hw_resource *resource)
+; COM IUnknown+0x8 (stdcall through the interface's vtable): resource ESP+4; pops 4; EAX
+extern engine_d3d_resource_release
+; unsigned int engine_d3d_device_release(struct d3d_device *device)
+; COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
+extern engine_d3d_device_release

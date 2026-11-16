@@ -24,6 +24,69 @@ QUICK_MARK=QUICK-BUILD
 STOCK_DB_SHA256=c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c
 # The players' exe in the ZIP.
 ZIP_EXE=game/binaries/x86/survarium_skhid.exe
+# The release's Ed25519 key, which signs every revision's torrent
+# (release/make-signing-key, srp-026g/docs/notes/torrent-downloads.md): its
+# file beside release.env (private/release/, mode 600, never committed, never
+# printed), its public key committed as SIGNING_PUB (64 hex digits), which the
+# updater is built with. The test environment has its own pair
+# (torrent-signing-test.pem, release/signing-test.pub; make-signing-key
+# --test): its updater is built with that public key (SKHID_TEST_PUBLIC_KEY),
+# so a test torrent is never trusted by a player's updater.
+# signing_pub [live|test]: the committed public key's path in a checkout.
+signing_pub() {
+    case ${1:-live} in
+    live) printf '%s\n' release/signing.pub ;;
+    test) printf '%s\n' release/signing-test.pub ;;
+    *) die "signing_pub: $1" ;;
+    esac
+}
+# shellcheck disable=SC2034 # used by the scripts that source this
+SIGNING_PUB=release/signing.pub
+# signing_key [live|test]: the private key's file.
+signing_key() {
+    load_env
+    case ${1:-live} in
+    live) printf '%s\n' "$(dirname "$RELEASE_ENV")/torrent-signing.pem" ;;
+    test) printf '%s\n' "$(dirname "$RELEASE_ENV")/torrent-signing-test.pem" ;;
+    *) die "signing_key: $1" ;;
+    esac
+}
+# public_hex <openssl> <private key file>: its public key, 64 hex digits
+# (the DER of an Ed25519 public key ends with its 32 bytes, RFC 8410).
+public_hex() {
+    "$1" pkey -in "$2" -pubout -outform DER | tail -c 32 | od -An -v -tx1 | tr -d ' \n'
+}
+# The bootstrap (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap"): the
+# list of its three files in the form of the offered-patch list (their URLs in
+# the order the script tries them after the peers), its torrent and the
+# script made of them, all three committed (release/build-bootstrap; more
+# URLs: release/add-mirror <name> <url>).
+BOOTSTRAP_LIST=release/bootstrap.tsv
+BOOTSTRAP_TORRENT=release/bootstrap.torrent
+BOOTSTRAP_SCRIPT=srp-026g/servers/web-server/bootstrap/Skhid-get.bat
+# shellcheck disable=SC2034 # used by the scripts that source this
+BOOTSTRAP_FILES=(game/binaries/x86/7zr.exe game/binaries/x86/skhid_torrent.dll game/binaries/x86/updater_skhid.exe)
+# The script again from the torrent and the list (and with <path> <source>
+# pairs, the torrent again from those files first).
+render_bootstrap() {
+    local files=()
+    while (($#)); do files+=(--file "$1" "$2"); shift 2; done
+    mkdir -p "$ROOT/${BOOTSTRAP_SCRIPT%/*}"
+    python -I "$ROOT/release/build_torrent.py" bootstrap --torrent "$ROOT/$BOOTSTRAP_TORRENT" "${files[@]}" \
+        --list "$ROOT/$BOOTSTRAP_LIST" --body "$ROOT/release/bootstrap.ps1" --out "$ROOT/$BOOTSTRAP_SCRIPT"
+}
+# The openssl program: this system's, or nixpkgs'.
+openssl_program() {
+    if command -v openssl; then return 0; fi
+    printf '%s/bin/openssl\n' "$(nix_build nixpkgs#openssl.bin openssl)"
+}
+# <installable> <name>: its store path, built with an out-link in the scripts'
+# cache, so that the garbage collector keeps it.
+nix_build() {
+    local link=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/gc-roots/$2
+    mkdir -p "${link%/*}"
+    nix build --out-link "$link" --print-out-paths "$1" | head -n 1
+}
 # The original game's archive (build 2777): its row of release/game.tsv
 # (GAME_ROW), offered at /game; client/updater/logic/src/game.rs pins it.
 GAME_NAME=survarium-026g.7z
@@ -161,11 +224,14 @@ URL_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/patch-urls.checked
 # how it was checked (`downloaded`, `as checked before`, `by its first
 # bytes`).
 URL_PROBLEM='' CHECKED=''
-# The start of a patch and of a 7z archive, as od -tx1 writes it.
-PATCH_START=6c6974746c652d656e6469616e SEVENZIP_START=377abcaf271c
+# The start of a patch and of a 7z archive, as od -tx1 writes it; URL_START:
+# another (a program's, MZ: the bootstrap's files).
+PATCH_START=6c6974746c652d656e6469616e SEVENZIP_START=377abcaf271c URL_START=''
+# shellcheck disable=SC2034 # used by the scripts that source this
+PROGRAM_START=4d5a
 # shellcheck disable=SC2034 # CHECKED: the callers read it
 check_patch_url() {
-    local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got start=$PATCH_START
+    local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got start=${URL_START:-$PATCH_START}
     out=$dir/url-check.$$ head=$dir/url-check.$$.head
     URL_PROBLEM='' CHECKED=''
     if [[ -n $GAME_ROW && $sha == "$(cut -d' ' -f2 <<<"$GAME_ROW")" ]]; then start=$SEVENZIP_START; fi
@@ -1416,6 +1482,10 @@ swap_server() {
         write_on live "cd $D && tar -xf $REL/src.tar && rm -rf $REL/src"
         SWAP_DONE+=("main's source unpacked into $TARGET_DIR")
     fi
+    # From the restart on, srp may hand out the ZIP and its signed torrent, if
+    # only for a moment: this revision's number never names other files
+    # again, rolled back or not (release.sh's preflight reads this).
+    ((DRY_RUN)) || on_target "touch $REL_DIR/served" || die "$REL_DIR/served (the mark that this revision may go out) could not be written"
     write_on live "$(restart_command)"
     SWAP_DONE+=("srp26 made anew")
     write_on live "cd $D && id=\$($TARGET_COMPOSE ps -aq srp26 | head -n 1) && docker inspect -f '{{.Image}}' \"\$id\" > $REL/image.new"
