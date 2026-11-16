@@ -184,8 +184,8 @@ pub struct KeepOff {
     /// radius 0.38 m (`mapdata` `grid/controlled.rs`: startup.cfg's stand size 0.76 x 1.8) + the controller's 0.04 m move margin
     /// (`mapdata` `controller/tick.rs`, the exe's under Unicorn); the live trigger, 0.6 m from a foot point, agrees. Walk 0.80 m =
     /// the 90th percentile of the feet off the route of the bots walking one (261,076 samples, farming-camper cell seed 5, tip
-    /// dab73194; median 0.25, p95 1.25). [#2081] The default is `traps::OWN_TRAP_CLEAR_M` (1.14 m: the contact + the tight walk's
-    /// P90 by an own trap), the one clearance the searches, their route check, keep_off and the side step read (the field's reach).
+    /// dab73194; median 0.25, p95 1.25). [#2081] The default is `traps::OWN_TRAP_CLEAR_M` (1.47 m: the contact + that P90), the one
+    /// clearance the searches, their route check, keep_off and the side step read (the field's reach).
     pub hard_m: f32,
 }
 

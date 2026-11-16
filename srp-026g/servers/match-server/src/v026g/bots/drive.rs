@@ -3723,15 +3723,15 @@ mod tests {
         let stop = body::Stop { kin: &kin, level: 1.0, grid, planned: &[], hold: traps::GUARD_HOLD_TICKS };
         let path_of = |k: u32| body::stop_path(&at, k, 0.0, &stop);
         let diagonal = key::FORWARD | key::LEFT;
-        let touches = |k: u32, t: Vec3| traps::path_touches(&path_of(k), &[t], me.feet);
+        let touches = |k: u32, t: Vec3| traps::path_touches(&path_of(k), &[t.into()], me.feet);
         // A trap at its side the diagonal runs into, and neither straight on nor a stop does.
         let trap = (-12..=12)
             .flat_map(|dz| (-6..=6).map(move |dx| Vec3::new(me.feet.x + 0.1 * dx as f32, 2.0, me.feet.z + 0.1 * dz as f32)))
             .find(|&t| touches(diagonal, t) && !touches(key::FORWARD, t) && !touches(0, t))
             .expect("a trap the diagonal touches");
-        let blind = traps::own_trap_guard(path_of, |_| true, me.feet, me.velocity, me.yaw, 0.0, diagonal, &[trap], false);
+        let blind = traps::own_trap_guard(path_of, |_| true, me.feet, me.velocity, me.yaw, 0.0, diagonal, &[trap.into()], false);
         assert_eq!(blind, traps::OwnTrapGuard::Swapped(key::FORWARD), "without the lip test it walks straight on, over the rim");
-        let guarded = traps::own_trap_guard(path_of, |k| lip_ok(&me, k), me.feet, me.velocity, me.yaw, 0.0, diagonal, &[trap], false);
+        let guarded = traps::own_trap_guard(path_of, |k| lip_ok(&me, k), me.feet, me.velocity, me.yaw, 0.0, diagonal, &[trap.into()], false);
         assert_eq!(guarded, traps::OwnTrapGuard::Swapped(0), "with it the body stops, on the slab and off the trap");
     }
 
@@ -3767,6 +3767,69 @@ mod tests {
             assert_eq!(traps::guard_own_traps(&mut bot, key::BACK, 0.0, &me, &tuning, &world.grid, |_| true, now + 50 * k), None);
         }
         assert!(bot.route.is_some());
+    }
+
+    /// [#2081 a-c] The guard's own-trap discs: a jump's line-up and a press held for its gate walk on the ground and are guarded,
+    /// the jump's air is not; a promised trap takes the world's armed trap's place as soon as a world shows it (the bench's batt s2:
+    /// the promise lay 0.26 m off the trap); every disc's contact carries the reckoning's margin.
+    #[test]
+    fn the_own_trap_guard_keeps_line_ups_off_and_reads_the_worlds_trap() {
+        let world = slab();
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x
+        let me = PlaceView { velocity: [0.0, 0.0], keys: 0, ..on_the_slab(52.0, toward, 0.0) };
+        let fresh = || {
+            let mut bot = Bot::new(1, 0, 0, None, &tuning);
+            bot.features.traps.field = Arc::new(crate::v026g::bots::trap_know::TrapField::round(vec![Vec3::new(53.0, 2.0, 33.0)], &world.grid));
+            bot
+        };
+        let guard = |bot: &mut Bot, keys: u32| traps::guard_own_traps(bot, keys, 0.0, &me, &tuning, &world.grid, |_| true, 1_000);
+        // The walk on toward a trap 1.0 m ahead: within contact + the reckoning's margin, refused.
+        assert_eq!(guard(&mut fresh(), key::FORWARD).map(|k| k & key::FORWARD), Some(0));
+        // A line-up and a held press are guarded as the walk.
+        let mut bot = fresh();
+        bot.motor.test_line_up();
+        assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0), "a line-up walks on the ground");
+        let mut bot = fresh();
+        bot.jump_hold = 2;
+        assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0), "a held press too");
+        // The press's own tick is left to the route.
+        assert_eq!(guard(&mut fresh(), key::FORWARD | key::JUMP), None);
+        // A promise 1.6 m ahead that no world shows yet: within contact + both margins (1.39 m) of the stop, refused.
+        let mut bot = fresh();
+        bot.features.traps.field = Arc::new(crate::v026g::bots::trap_know::TrapField::round(vec![Vec3::new(53.6, 2.0, 33.0)], &world.grid));
+        assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0), "the promise's margin");
+        // The world shows it 0.1 m past the promise: its place, without the promise's margin (1.05 m), and the walk stands.
+        bot.features.traps.world_armed = Arc::new(vec![Vec3::new(53.7, 2.0, 33.0)]);
+        assert_eq!(guard(&mut bot, key::FORWARD), None, "the world's trap 1.7 m ahead");
+        // The world shows it 0.4 m nearer: its place is read at once.
+        bot.features.traps.world_armed = Arc::new(vec![Vec3::new(53.2, 2.0, 33.0)]);
+        assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0), "the world's trap 1.2 m ahead");
+        // A world trap past the promise match is another trap: the promise stands, with its margin.
+        bot.features.traps.world_armed = Arc::new(vec![Vec3::new(60.0, 2.0, 33.0)]);
+        assert_eq!(guard(&mut bot, key::FORWARD).map(|k| k & key::FORWARD), Some(0));
+    }
+
+    /// [#2081 d] A fall onto an own trap below: a body walking off a 2 m rim, the trap on the field under its landing. The guard tests
+    /// each forecast leg against the traps of its own floor (the bench's tdm s3: a placer fell onto its own trap 1.5 m down).
+    #[test]
+    fn the_own_trap_guard_refuses_a_fall_onto_an_own_trap_below() {
+        let world = slab();
+        let grid = &world.grid;
+        let kin = kin::Kinematics::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x, the rim at x = 56
+        let me = on_the_slab(55.6, toward, 3.5);
+        let at = body::Estimate::of_view(&me, grid.locate(me.feet, 1.5));
+        let stop = body::Stop { kin: &kin, level: 1.0, grid, planned: &[], hold: traps::GUARD_HOLD_TICKS };
+        let path = body::stop_path(&at, key::FORWARD, 0.0, &stop);
+        let landing = *path.last().unwrap();
+        assert!(landing.y < 1.0, "the walk on falls off the rim: {landing:?}");
+        let below = Vec3::new(landing.x, 0.0, landing.z);
+        assert!(traps::path_touches(&path, &[below.into()], me.feet), "the landing on the trap below");
+        let guard = traps::own_trap_guard(|k| body::stop_path(&at, k, 0.0, &stop), |_| true, me.feet, me.velocity, me.yaw, 0.0, key::FORWARD, &[below.into()], false);
+        assert_ne!(guard, traps::OwnTrapGuard::Clear);
+        // A trap on the field far from the landing is no matter; one under the walk on the slab's own floor is (the start's floor).
+        assert!(!traps::path_touches(&path, &[Vec3::new(landing.x, 0.0, landing.z + 3.0).into()], me.feet));
     }
 
     /// [#2081] The unstick replay's keys pass the own-trap guard: a replay walking a bot onto its own trap is let go, its jump press

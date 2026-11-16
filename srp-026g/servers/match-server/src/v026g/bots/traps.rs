@@ -1901,10 +1901,15 @@ const KEEP_OFF_M: f32 = 15.0;
 /// [#2081] The one clearance from the team's own known traps, metres: the searches' shut discs (`TrapTuning::keep_off`'s
 /// `hard_m` default), their check of the route they return ([`own_trap_route`]), [`keep_off`]'s check of the route ahead and the
 /// fight's side step ([`step_keeps_clear`]) all read it, through the field's own reach ([`TrapField::reach`]), so a route the search
-/// gives is never one `keep_off` drops. The contact [`OWN_TRAP_CONTACT_M`] + the tight walk's tolerance [`TIGHT_WALK_P90_M`]: by an
-/// own trap the body walks its route tight ([`walks_tight`]), and the motor's guard ([`own_trap_guard`]) holds the rest. Was 1.47
-/// (the contact + the P90 of every walk, 0.80), which shut every way under about 3 m.
-pub const OWN_TRAP_CLEAR_M: f32 = OWN_TRAP_CONTACT_M + TIGHT_WALK_P90_M;
+/// gives is never one `keep_off` drops. The contact [`OWN_TRAP_CONTACT_M`] + the walk's tolerance [`WALK_P90_M`]; the motor's
+/// guard ([`own_trap_guard`]) holds the rest. (1.14 m, the contact + the tight walk's P90, was tried and dropped: the bench's
+/// refusals at 1.47 m, 16 plain matches, showed 2 ways of 18 cases that 1.14 m would have let through, while 1.14 m left the guard
+/// less room than the bodies' own errors, 4 placer catches in 16 matches.)
+pub const OWN_TRAP_CLEAR_M: f32 = OWN_TRAP_CONTACT_M + WALK_P90_M;
+
+/// [#2081] The feet off the route of the bots walking one, P90, metres: 261,076 samples (farming-camper cell seed 5, tip dab73194;
+/// median 0.25, p95 1.25).
+pub const WALK_P90_M: f32 = 0.80;
 
 /// [#2081] The feet off the route of a body walking it within [`TIGHT_ZONE_M`] of a standing own trap, P90 and P50, metres: the
 /// bench's 1,735 thinks of the walk mover (no weave, side step, step apart or sprint) in 16 plain matches (m8, Rudnya TDM and
@@ -1913,7 +1918,7 @@ pub const TIGHT_WALK_P90_M: f32 = 0.47;
 const TIGHT_WALK_P50_M: f32 = 0.18;
 
 /// The slack of the clearance test, metres: a leg between two open floors of the walk grid (`mapdata::CELL` 0.25 m apart, a
-/// diagonal 0.354 m) passes at most 0.014 m nearer a disc of 1.14 m than its two ends.
+/// diagonal 0.354 m) passes at most 0.011 m nearer a disc of 1.47 m than its two ends.
 const CLEAR_SLACK_M: f32 = 0.05;
 
 /// A trap this far above or below a leg's ends is on another floor (the field's own rule for its shut floors).
@@ -1942,12 +1947,19 @@ fn clearance_for(at: f32, reach: f32) -> f32 {
     if at >= reach { reach - CLEAR_SLACK_M } else { (at - mapdata::CELL).max(INSIDE_FLOOR_M).min(reach) }
 }
 
+/// [#2081] [`clearance_for`] for the start of a way: never above the feet's own distance (less the slack), so a body nearer than the
+/// inside floor already walks out (the bench's tdm s7: a bot 0.71 m from its trap refused every way out 464 times). A goal keeps
+/// [`clearance_for`]: a way never ends nearer than the inside floor.
+fn clearance_leaving(at: f32, reach: f32) -> f32 {
+    clearance_for(at, reach).min(at - CLEAR_SLACK_M)
+}
+
 /// [#2081] [`keeps_clear`] for a route to `goal`: its end is held to the same rule as its start, so a goal inside a disc (a guard's
 /// spot by the trap it put down there, 1.2-1.4 m off on the bench) is reached, never nearer than a floor short of it nor under
 /// [`INSIDE_FLOOR_M`]. A step (no goal) keeps the start's rule alone: it never steps in.
 pub fn route_keeps_clear(points: &[Vec3], discs: &[Vec3], from: Vec3, goal: Option<Vec3>, reach: f32) -> bool {
     discs.iter().all(|disc| {
-        let need = clearance_for(from.distance_xz(*disc), reach);
+        let need = clearance_leaving(from.distance_xz(*disc), reach);
         let need = goal.map_or(need, |g| need.min(clearance_for(g.distance_xz(*disc), reach)));
         let near = |p: Vec3| (p.y - disc.y).abs() < OTHER_FLOOR_M;
         match points {
@@ -2134,14 +2146,61 @@ pub fn forecast(kin: &super::kin::Kinematics, feet: Vec3, velocity: [f32; 2], ya
     points
 }
 
-/// [#2081] Whether the path `points` from `feet` comes within [`OWN_TRAP_CONTACT_M`] of a trap of `discs` on its floor while nearer
-/// it than `feet` are (a body inside contact may leave).
-pub fn path_touches(points: &[Vec3], discs: &[Vec3], feet: Vec3) -> bool {
-    discs.iter().filter(|d| (d.y - feet.y).abs() < OTHER_FLOOR_M).any(|disc| {
-        let now = feet.distance_xz(*disc);
-        let nearest = off_route_m(points, *disc);
-        nearest < OWN_TRAP_CONTACT_M && nearest < now - 0.01
+/// [#2081] A trap the own-trap guard keeps out of: where, and the nearest the body's forecast may come ([`OWN_TRAP_CONTACT_M`] and
+/// the margins of [`guard_discs`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GuardDisc {
+    pub at: Vec3,
+    pub contact: f32,
+}
+
+impl From<Vec3> for GuardDisc {
+    /// The bare contact.
+    fn from(at: Vec3) -> Self {
+        Self { at, contact: OWN_TRAP_CONTACT_M }
+    }
+}
+
+/// [#2081] Whether the path `points` from `feet` comes within its contact of a trap of `discs` while nearer it than `feet` are (a
+/// body inside contact may leave). Each leg is tested against the traps on its own floor: a fall's landing on a trap below counts
+/// (the bench's tdm s3: a placer walked off a 1.5 m ledge onto its trap), as the route's check reads its legs.
+pub fn path_touches(points: &[Vec3], discs: &[GuardDisc], feet: Vec3) -> bool {
+    discs.iter().any(|disc| {
+        let on = |p: Vec3| (p.y - disc.at.y).abs() < OTHER_FLOOR_M;
+        let now = if on(feet) { feet.distance_xz(disc.at) } else { f32::INFINITY };
+        let nearest = match points {
+            [one] => if on(*one) { one.distance_xz(disc.at) } else { f32::INFINITY },
+            _ => points.windows(2).filter(|leg| on(leg[0]) || on(leg[1])).map(|leg| off_route_m(leg, disc.at)).fold(f32::INFINITY, f32::min),
+        };
+        nearest < disc.contact && nearest < now - 0.01
     })
+}
+
+/// [#2081] The margin for the reckoning's own error on a body's feet, metres: the bench's reckoning error at ground worlds the body
+/// moved 0.5 m or more since the last (the bots' believed feet against the world's), along the move: 3.7 % at 38 cm or more, 5.9 %
+/// at 27 cm (200,960 worlds of 32 plain matches, v6h; across the move 0.5 % at 38 cm; each match's P90 along 16 cm). One bench
+/// catch was believed 0.99 m off and truly 0.59 m: the reckoning stood still 500 ms while the body walked.
+pub const RECKON_MARGIN_M: f32 = 0.38;
+
+/// [#2081] The margin for a trap no world shows yet, metres: the team's promise is the press's own landing, and the trap lies off it
+/// by the bench's promise -> world offsets ([`super::trap_know::landing_offsets`]): 51 offsets of 8 plain matches (Rudnya TDM and
+/// Batteries, 600 s), P90 0.30-0.34 m (the matches' own quantiles pooled: 4 to 6 above 0.30 m), P95 0.37-0.42 m, max 0.71 m; the
+/// upper P90. The world showed the trap 250-2,000 ms after the release (P90 about 1 s), the window this margin stands for.
+pub const PROMISE_MARGIN_M: f32 = 0.34;
+
+/// [#2081] The traps the guard keeps `bot` out of, with their contact: its team's field (each at the world's armed trap within the
+/// promise match `match_m` as soon as a world shows it, [`BotState::world_armed`]; until then at the promise, with
+/// [`PROMISE_MARGIN_M`]) and the traps it noticed (at the world's place), all with [`RECKON_MARGIN_M`]; not those in `skip`.
+fn guard_discs(bot: &Bot, match_m: f32, skip: &[Vec3]) -> Vec<GuardDisc> {
+    let world = &bot.features.traps.world_armed;
+    let team = bot.features.traps.field.discs().iter().map(|&d| {
+        match world.iter().filter(|w| w.distance_xz(d) <= match_m && (w.y - d.y).abs() < OTHER_FLOOR_M).min_by(|a, b| a.distance_xz(d).total_cmp(&b.distance_xz(d))) {
+            Some(&w) => GuardDisc { at: w, contact: OWN_TRAP_CONTACT_M + RECKON_MARGIN_M },
+            None => GuardDisc { at: d, contact: OWN_TRAP_CONTACT_M + RECKON_MARGIN_M + PROMISE_MARGIN_M },
+        }
+    });
+    let noticed = bot.features.traps.react.field().discs().iter().map(|&d| GuardDisc { at: d, contact: OWN_TRAP_CONTACT_M + RECKON_MARGIN_M });
+    team.chain(noticed).filter(|d| !skip.contains(&d.at)).collect()
 }
 
 /// [#2081] The own-trap guard at the motor's last stage (after the lip guard, `drive.rs`): the tick's keys `keys` (the view turns
@@ -2162,12 +2221,12 @@ pub fn own_trap_guard(
     yaw: f32,
     turn: f32,
     keys: u32,
-    discs: &[Vec3],
+    discs: &[GuardDisc],
     jumping: bool,
 ) -> OwnTrapGuard {
     use super::key;
     const MOVE: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT;
-    if jumping || discs.iter().all(|d| d.distance_xz(feet) > 8.0) {
+    if jumping || discs.iter().all(|d| d.at.distance_xz(feet) > 8.0) {
         return OwnTrapGuard::Clear;
     }
     let touches = |k: u32| path_touches(&path_of(k), discs, feet);
@@ -2210,23 +2269,15 @@ pub(super) fn guard_own_traps(
     // A noticed trap its route jumps is left to the jump's run-up (`trap_react::jump_due` presses it 0.3-1.1 m before the trap,
     // where a run's stop forecast already touches it).
     let run_up = super::trap_react::run_up(bot, me, now, &tuning.traps.react);
-    let discs: Vec<Vec3> = bot
-        .features
-        .traps
-        .field
-        .discs()
-        .iter()
-        .chain(bot.features.traps.react.field().discs())
-        .filter(|d| !run_up.contains(d))
-        .copied()
-        .collect();
+    let discs = guard_discs(bot, tuning.traps.promise_match.metres(), &run_up);
     if discs.is_empty() {
         bot.features.traps.guard_stall = None;
         return None;
     }
-    // A press, a press held for its gate, a jump line-up, or a body in the jump's air time (`body::JUMP_AIR_MS`, the press gate's).
+    // The press's own tick, or a body in the jump's air time (`body::JUMP_AIR_MS`, the press gate's); a line-up and a press held
+    // for its gate walk on the ground and are guarded (the bench's batt s2: a line-up walked a placer onto its trap).
     let airborne = bot.jump_watch.as_ref().is_some_and(|watch| now < watch.at + super::body::JUMP_AIR_MS);
-    let jumping = keys & super::key::JUMP != 0 || bot.jump_hold > 0 || bot.motor.lining_up() || airborne;
+    let jumping = keys & super::key::JUMP != 0 || airborne;
     // The body's own stop forecast, as the lip guard's (its kept controller, at speed level 1: the fastest a kit moves).
     let at = super::body::Estimate { kept: bot.reckoned_kept, ..super::body::Estimate::of_view(me, grid.locate(me.feet, 1.5)) };
     let stop = super::body::Stop { kin, level: 1.0, grid, planned: &[], hold: GUARD_HOLD_TICKS };
@@ -2244,7 +2295,7 @@ pub(super) fn guard_own_traps(
     bot.features.traps.guard_stall = if held { Some(bot.features.traps.guard_stall.unwrap_or(now)) } else { None };
     if let Some(since) = bot.features.traps.guard_stall.filter(|&since| now.saturating_sub(since) >= tuning.think.think_ms.1) {
         let path = path_of(keys);
-        let touched: Vec<Vec3> = discs.iter().filter(|d| path_touches(&path, &[**d], me.feet)).copied().collect();
+        let touched: Vec<Vec3> = discs.iter().filter(|d| path_touches(&path, &[**d], me.feet)).map(|d| d.at).collect();
         let shut = bot.features.traps.react.block(&touched, grid);
         bot.features.traps.guard_stall = None;
         bot.end_route(super::route_end::RouteEnd::TrapAhead, now);
@@ -3771,6 +3822,9 @@ pub struct BotState {
     pub guard_seen: Option<(u32, Vec3)>,
     /// [#2081] Since when the motor's own-trap guard has held its route's keys with the body at rest ([`guard_own_traps`]).
     pub guard_stall: Option<u32>,
+    /// [#2081] The armed traps the last world showed (`Bots::traps_from_world`): the guard takes a promised trap's real place from
+    /// them at once, not at the next think ([`guard_discs`]).
+    pub world_armed: std::sync::Arc<Vec<Vec3>>,
     /// [#2081 v6 measure] The bench's: the look in hand ([`placing`]).
     #[cfg(test)]
     pub look_ctx: Option<placing::Ctx>,
@@ -4792,6 +4846,11 @@ mod tests {
                 .collect()
         };
         assert!(keeps_clear(&arc(1.26), field.discs(), at136, OWN_TRAP_CLEAR_M));
+        // [#2081] A body nearer than the inside floor (0.85 m) walks out never nearer than it stands (the bench's tdm s7: 0.71 m from
+        // its trap, every way out refused 464 times); in, it never does.
+        let at071 = trap + Vec3::new(0.71, 0.0, 0.0);
+        assert!(keeps_clear(&[at071, trap + Vec3::new(0.69, 0.0, 0.3), trap + Vec3::new(0.2, 0.0, 3.0)], field.discs(), at071, OWN_TRAP_CLEAR_M));
+        assert!(!keeps_clear(&[at071, trap + Vec3::new(0.5, 0.0, 0.0)], field.discs(), at071, OWN_TRAP_CLEAR_M));
         assert!(!keeps_clear(&arc(0.85), field.discs(), at136, OWN_TRAP_CLEAR_M));
         // A route whose leg over the trap's spot runs on the floor above (1.2 to 2.0 m up), its legs walked one by one: clear, though
         // its points a metre apart would join the floors.
@@ -4833,7 +4892,8 @@ mod tests {
         let still = [0.0, 0.0];
         let walking = [fx * 3.5, fz * 3.5];
         let guard = |velocity: [f32; 2], keys: u32, discs: &[Vec3], jumping: bool| {
-            own_trap_guard(|k| forecast(&kin, feet, velocity, yaw, 0.0, k, GUARD_HOLD_TICKS), |_| true, feet, velocity, yaw, 0.0, keys, discs, jumping)
+            let discs: Vec<GuardDisc> = discs.iter().map(|&d| d.into()).collect();
+            own_trap_guard(|k| forecast(&kin, feet, velocity, yaw, 0.0, k, GUARD_HOLD_TICKS), |_| true, feet, velocity, yaw, 0.0, keys, &discs, jumping)
         };
         // The walk on toward a trap ahead: refused (no move key from rest, the brake at a walk). From rest two ticks of a key and a
         // stop carry the body about 0.3 m, at a walk about 0.9 m: the guard stops it short.

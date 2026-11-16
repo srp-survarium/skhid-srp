@@ -225,6 +225,8 @@ impl TrapList {
                 });
             if let Some((i, f)) = best {
                 used[i] = true;
+                #[cfg(test)]
+                landing_offsets::add(trap.at.distance_xz(Vec3::from_array(f.position)), world_ms.saturating_sub(released));
                 trap.at = Vec3::from_array(f.position);
                 trap.placed_ms = f.placed_ms;
                 trap.phase = phase_of(f.state);
@@ -393,6 +395,42 @@ impl TrapField {
     /// [keep_off] How far round a disc its floors are shut, metres.
     pub fn reach(&self) -> f32 {
         self.reach
+    }
+}
+
+/// [#2081] The bench's promise -> world offsets: how far the trap a world confirms lies from the team's promise (the press's own
+/// landing), metres, and how long after the release the world showed it, ms.
+#[cfg(test)]
+pub mod landing_offsets {
+    use std::sync::Mutex;
+
+    static SAMPLES: Mutex<Vec<(f32, u32)>> = Mutex::new(Vec::new());
+
+    pub fn add(off_m: f32, after_ms: u32) {
+        SAMPLES.lock().unwrap().push((off_m, after_ms));
+    }
+
+    /// The bench's line: n, the offsets' P50/P90/P95/P99/max, and the delay's P50/P90/max.
+    pub fn line() -> String {
+        let s = SAMPLES.lock().unwrap();
+        let mut off: Vec<f32> = s.iter().map(|x| x.0).collect();
+        let mut ms: Vec<u32> = s.iter().map(|x| x.1).collect();
+        off.sort_by(f32::total_cmp);
+        ms.sort_unstable();
+        let q = |p: f32| off.get(((off.len() as f32 - 1.0) * p).round() as usize).copied().unwrap_or(f32::NAN);
+        let m = |p: f32| ms.get(((ms.len() as f32 - 1.0) * p).round() as usize).copied().unwrap_or(0);
+        format!(
+            "n {} off m P50 {:.3} P90 {:.3} P95 {:.3} P99 {:.3} max {:.3}; after ms P50 {} P90 {} max {}",
+            off.len(),
+            q(0.5),
+            q(0.9),
+            q(0.95),
+            q(0.99),
+            q(1.0),
+            m(0.5),
+            m(0.9),
+            m(1.0)
+        )
     }
 }
 

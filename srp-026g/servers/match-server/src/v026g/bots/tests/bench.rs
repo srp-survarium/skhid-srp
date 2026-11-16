@@ -2270,6 +2270,7 @@ pub(crate) fn real_bot_cost() {
                 eprintln!("  trap passes: {}", crate::v026g::bots::traps::passes::line());
                 eprintln!("  own trap refusals: {}", crate::v026g::bots::traps::own_trap_counts::line());
                 eprintln!("  own trap feet off route within 3 m: {}", crate::v026g::bots::traps::tight::line());
+                eprintln!("  own trap promise to world: {}", crate::v026g::bots::trap_know::landing_offsets::line());
                 let looks = bots.trap_look_outcomes();
                 eprintln!("  trap looks, team 0: {}", looks[0].line());
                 eprintln!("  trap looks, team 1: {}", looks[1].line());

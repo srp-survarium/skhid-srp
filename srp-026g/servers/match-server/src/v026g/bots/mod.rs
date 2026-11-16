@@ -2810,6 +2810,13 @@ impl Bots {
             }
             state.features.traps.world_traps = armed.clone();
         }
+        // [#2081] Every bot's guard takes a promised trap's real place from the world at once (`traps::guard_discs`).
+        let standing: Arc<Vec<Vec3>> = Arc::new(
+            found.iter().filter(|t| t.state == TrapState::Armed).map(|t| Vec3::from_array(t.position)).collect(),
+        );
+        for bot in self.bots.iter_mut().flatten() {
+            bot.features.traps.world_armed = standing.clone();
+        }
         // [G61] The traps only their placer knows, followed as the team's are; what became of them is the bench's to count (no own-trap
         // count: they are not the bots').
         if mine {
