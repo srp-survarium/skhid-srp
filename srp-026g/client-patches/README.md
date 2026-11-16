@@ -141,6 +141,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_mouse_buttons_026g.py` | Patch 102 (`MOUSE_BUTTONS` in `patch_026g.py`): a side mouse button (mouse4..mouse8) is no left click in the lobby, login, options and match menus; its check runs the five handlers in both exes (needs Unicorn) |
 | `rust/patches/src/mouse_pitch.rs`, `src/mouse_pitch.toml`, `src/vostok/mouse.rs`, `check_mouse_pitch_026g.py` | Patch 112: the mouse look's pitch with 16:9's h/w at every window while "Lock vertical sensitivity" is ticked, 1:1 at the vertical slider's value when unticked (user.cfg's `srp_mouse_vertical_locked`, `srp_mouse_vertical`); a lohook at on_mouse_move's pitch step, the two variables, the Settings' calls and the death camera's entry; its check runs on_mouse_move in both exes at 4:3 to 32:9, off and on, and the Settings' calls (needs Unicorn) |
 | `rust/patches/src/footsteps.rs`, `src/footsteps.toml`, `src/vostok/footstep.rs`, `check_footsteps_026g.py` | Patch 101: a footstep that only a re-simulation makes (another player's late input) is heard instead of dropped; one lohook in on_player_sound_event's time test; its check runs the handler in both exes (needs Unicorn) |
+| `rust/patches/src/step_ground.rs`, `src/step_ground.toml`, `src/vostok/step.rs`, `check_step_ground_026g.py` | Patch 153: a step whose ground ray meets nothing (a walker-only floor: a wagon's top, a loading station, a wall top) finds what the body stands on, as 0.69d does (`../docs/notes/footsteps.md`, "Silent ground"); one lohook after `on_step`'s ray (`step.ground`); `vostok::step::play` plays a step of a material at a point through `on_step` for another patch; `SKHID_STEP_LOG=on` logs every step; its check runs `on_step` in both exes (needs Unicorn) |
 | `rust/patches/src/keyboard_layout.rs`, `src/keyboard_layout.toml`, `src/vostok/keyboard_layout.rs`, `check_keyboard_layout_026g.py` | Patch 107: chat text follows the keyboard layout the window was last told of (under Wine the engine's logic thread never got it); three lohooks, in message_processor's two layout messages and after translate_text's GetKeyboardLayout(0); its check runs both functions in both exes (needs Unicorn) |
 | `rust/patches/src/key_remap.rs`, `src/key_remap.toml`, `src/vostok/keyboard.rs` (`KeyEvents`, `KeyMoves`), `src/vostok/system.rs`, `check_key_remap_026g.py` | Patch 110: the keys a desktop moves (xkb `caps:swapescape`, `ctrl:nocaps`) are moved in the game under Wine's Wayland driver, whose DirectInput codes are the physical keys'; one lohook in keyboard::execute after GetDeviceData moves each event's function key to the one the told layout names it; its check runs execute whole in both exes (needs Unicorn) |
 | `rust/patches/src/hud_cursor.rs`, `src/hud_cursor.toml`, `src/vostok/hud_input.rs` (`MenuChange`, `CursorMovie`), `check_hud_cursor_026g.py` | Patch 113: the hud's kits and cursor start over at each match (the last match's pick stayed on the kits' tab), and the main menu covers the hud's cursor (Esc over the kits left it drawn under the menu's); five lohooks, at initialize_match's start, show_cursor's show and hide and game_options' activate and deactivate; its check runs each from the game's code on a made-up game, the original beside (needs Unicorn) |
@@ -4713,6 +4714,25 @@ before it (a copy of a played step, moved by the correction, stays single; a lon
 window plays each foot's newest step at most). Rustles and the other tests are the game's. Nothing a match computes.
 The rules and the 0.27d0 code: `../docs/notes/footsteps.md`; the addresses: `client_patch.md` 3.64.
 Checked with `check_footsteps_026g.py`; not run in a game.
+
+## A step on a walker-only floor sounds (patch 153, unreleased)
+
+The owner: "even right now when walking on rails, sometimes no sound is heard at all"
+(`../docs/notes/footsteps.md`, "Silent ground"). `step_manager::on_step` (0x248AD0) casts one ray
+from 1 m above the foot, 2 m down, that meets only the collision bullets hit, and a step whose ray
+meets nothing is silent: on a walker-only floor (cgroup 2) more than 1 m over its hittable
+surface. 0.69d steps on the material its character controller stands on when the ray misses.
+
+**The patch** (the Rust patch `step_ground`, one lohook, `step.ground` at 0x248B5A, after the
+ray): a hit goes on as the game's. A miss looks again with the same `ray_test`: the walker
+collision too (group 34h, mask 0Ah, the same reach): its face's material; a face without one,
+the hittable surface under it to 4 m under the foot; else the face's own, stepped as `default`;
+nothing: silent as before. A found ground goes on at 0x248B77 (EAX the material), the sound at the
+foot. `vostok::step::play` plays a step of a ground at a point for a player through `on_step` (for
+the ladders), and `footsteps::decide` is patch 101's rule for such steps. `SKHID_STEP_LOG=on`
+writes a line a step to the patch log (off: one cell read). Presentation only, nothing a match
+computes. The empty foot pairs are data: the edit list `step-sounds-1.json`.
+Checked with `check_step_ground_026g.py`; not run in a game.
 
 ## The sound follows the audio output device (patch 100, unreleased)
 

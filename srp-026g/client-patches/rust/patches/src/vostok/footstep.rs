@@ -13,7 +13,8 @@
 //! its time is played for the first time.
 
 use super::context::Context;
-use super::world::read;
+use super::types::GameTime;
+use super::world::{read, Player};
 use crate::raw;
 
 /// A step's foot: the event's domain value 0 or 1.
@@ -58,8 +59,9 @@ impl SimTime {
     }
 }
 
-/// Whose steps: the sound effect (one a player object, its +884h), as an
-/// identity only.
+/// Whose steps: the sound effect (the held item's +884h, one an item), or a
+/// player for a patch's own steps ([`StepSource::player`]), as an identity
+/// only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StepSource(u32);
 
@@ -67,6 +69,12 @@ impl StepSource {
     #[cfg(test)]
     pub const fn at(address: u32) -> StepSource {
         StepSource(address)
+    }
+
+    /// A player's steps that a patch plays itself (a ladder's rungs): the
+    /// player's address, no effect's.
+    pub fn player(player: &Player<'_>) -> StepSource {
+        StepSource(player.this.address())
     }
 }
 
@@ -91,6 +99,16 @@ pub struct Step {
 }
 
 impl Step {
+    /// A step a patch plays itself (a ladder's rung: `source` the player's,
+    /// `foot` a limb), made in the simulation's tick at `time`, the world
+    /// core's newest played time `newest` (its `maximum_time`): played for
+    /// the first time past it, by the game's rule (on_player_sound_event's
+    /// unsigned compare, 0x2A6488).
+    pub fn new(source: StepSource, foot: Foot, time: GameTime, newest: GameTime) -> Step {
+        let pass = if time.0 > newest.0 { Pass::First } else { Pass::Again { newest: SimTime(newest.0) } };
+        Step { source, foot, time: SimTime(time.0), pass }
+    }
+
     /// The event at `player_sound.step_guard`; None for a rustle, another
     /// object's event or feet not read (the game's own rule decides those).
     pub fn at_guard(ctx: &Context<'_>) -> Option<Step> {

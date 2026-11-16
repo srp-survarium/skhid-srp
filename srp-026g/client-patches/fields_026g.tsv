@@ -671,7 +671,7 @@ survarium::change_input_frame	rotation	0x8	u32	game_world_core::change_input<pla
 survarium::change_input_frame	time	0x10	u32	the input's time (ms)
 survarium::change_input_frame	player	0x14	u8	the place whose input it is (0..19)
 survarium::core_world	maximum_time	0x18FC4	u32	the newest simulation time played once (prediction core; set to an item's time after its move 0x2D0FCB, 50 by clear 0x2D0776): a tick at or before it is a re-simulation (the time rule's 0x267AD2, the step guard 0x2A6488)
-survarium::player_equipment_sound_effect	player	0x3C	ptr<survarium::player>	its player (on_player_sound_event 0x2A6472; the player's +884h)
+survarium::player_equipment_sound_effect	player	0x3C	ptr<survarium::player>	its player (on_player_sound_event 0x2A6472); the effect is the held item's +884h, not the player's: weapon_controller_client::set_user 0x2985D0 hands it the item's user (+1F8h) at 0x2985FC (lea esi,[ebx+884h] / call 0x2A62D0)
 survarium::player_equipment_sound_effect	feet	0x44	u8	the feet's positions are read (1 by 0x2A645A from the toe bones, 0 when the bone indices are taken again 0x2A63B3); on_player_sound_event plays no step without it
 vostok::animation::animation_callback_params	object	0x0	u32	the animated object (on_player_sound_event plays only for its own player, 0x2A6495): an address, compared only
 vostok::animation::animation_callback_params	time	0x10	u32	the event's simulation milliseconds (compared with core_world maximum_time at 0x2A6488)
@@ -1239,3 +1239,25 @@ vostok::render::flash_ui_frame	window	0x8	ptr<vostok::render::render_output_wind
 vostok::render::render_output_window	output	0x30AC	ptr<vostok::render::res_render_output>	its render output: the frame's draw presents with it (0x13DD3F: mov eax,[edx+30ACh] / call res_render_output::present 0x3CF7F0, EAX its receiver)
 vostok::render::res_render_output	swap_chain	0xCC	ptr<dxgi::swap_chain>	its IDXGISwapChain (present 0x3CF8FF: mov esi,[esi+0CCh], Present through its vtable +20h; GetFullscreenState +2Ch at 0x3CF81C)
 vostok::input::key_event	data	0x4	u32	DIDEVICEOBJECTDATA.dwData: bit 80h set, the key went down (execute's loop 0x3B9167: test byte [ecx],80h, ECX the event's +4; process 0x3B9B23 the same)
+survarium::step_manager	world	0x4	ptr<survarium::game_world>	its game world (on_step 0x248AF3: +4D4Ch the match, +94h the sound scene, vtable +1Ch the materials); the manager is the world's +4D5Ch (get_step_manager 0x1F63E0)
+survarium::on_step_frame	caller_edi	0x0	u32	on_step's pushed EDI (0x248AEC; ESP at step.ground): on_landing's player (0x1F3BB6) when the landing step called it (0x23FC2C keeps EDI)
+survarium::on_step_frame	caller_esi	0x4	u32	on_step's pushed ESI (0x248AEB): on_foot_step's effect (ESI throughout 0x2A6520), or the landing step's movement id (2 soft, 4 hard: 0x23FC00, 0x23FC07)
+survarium::on_step_frame	caller_effect	0x4	ptr<survarium::player_equipment_sound_effect>	caller_esi as on_foot_step's effect: only when the return address is foot_step_return
+survarium::on_step_frame	direction	0x18	f32	the ground ray's direction, a float3 (0, -1, 0; 0x248B04, 0x248B0A, 0x248B42)
+survarium::on_step_frame	origin	0x24	f32	the ground ray's origin, a float3: the foot, y + 1.0 (0x248B17, 0x248B32, 0x248B48)
+survarium::on_step_frame	result	0x30	obj<vostok::physics::ray_result>	the ground ray's result (0x248B53): its point is where the sound, decal and particles go (0x248BE8, 0x248C2C, 0x248C9E), its normal the decal's (0x248C23)
+survarium::on_step_arguments	return_address	0x4	u32	on_step's frame by EBP (push ebp / mov ebp,esp, 0x248AD0): its return address (foot_step_return, landing_step_return)
+survarium::on_step_arguments	direction	0x8	ptr<f32>	the step's direction (float3*; the decal's, 0x248C28)
+survarium::on_step_arguments	foot_material	0xC	u16	the foot's game material (0x248B84: material_pair's EDX)
+survarium::on_step_arguments	view	0x10	u8	1 unless the step is the player's own in first person (0x248BD7: 0 plays the sound on the hud)
+survarium::pvp_match	physics	0x130	ptr<vostok::physics::bullet_physics_world>	spatial_tree as the physics world on_step ray-tests (0x248AFC: its vtable +48h ray_test 0x75E20)
+survarium::pvp_match	materials	0x12C	ptr<survarium::game_material_manager>	the game material manager (game_world vtable +1Ch, 0x1F6D10, returns it, the reference it adds given back)
+survarium::material_pair	step_sound	0x20	u32	its collision sound's resource, a step's (on_step 0x248B98: 0 none, the step silent)
+survarium::player_equipment_sound_effect	logic	0x38	ptr<survarium::player_logic>	the player's logic selector (on_foot_step 0x2A652C)
+survarium::player_logic	state	0x20	ptr<survarium::player_logic_state>	its current logic state (on_foot_step 0x2A652F)
+survarium::player_logic_state	movement	0x24	u32	the state's movement id (on_foot_step 0x2A6532): 0 stand_on_site, crouch_on_site and dead, 1 crouch_walk, 2 stand_run, 3 stand_sprint, 4 stand_jump (the constructors 0x2FABB0..0x2FADCC); the foot material is the player's u16 at +0F2C4h + 4 x id + 2 x third view, so 0 reads before the table
+survarium::player	run_material_first	0xF2CC	u16	the boots' run_1st_view_material_id (movement 2, first person: actor_local 42), the foot material of the player's own walking step
+survarium::player	run_material_third	0xF2CE	u16	the boots' run_3rd_view_material_id (movement 2, third person: actor 10)
+survarium::image	foot_step_return	0x2A6577	u8	on_foot_step's return from on_step (call 0x2A6572)
+survarium::image	landing_step_return	0x23FC31	u8	the landing step's (0x23FBE0) return from on_step (call 0x23FC2C)
+survarium::on_step_frame	caller_player	0x0	ptr<survarium::player>	caller_edi as on_landing's player: only when the return address is landing_step_return

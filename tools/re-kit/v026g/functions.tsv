@@ -2396,3 +2396,8 @@ va	status	ref_021d	name
 0x00305540	observed		survarium::booby_trap_core::hit
 0x00305580	observed		survarium::booby_trap_core::hit
 0x003050c0	observed		survarium::booby_trap_core::defuse_completed
+0x001f63e0	observed		survarium::game_world::get_step_manager
+0x001f3bd0	observed	0x00157a52	survarium::player::is_first_view
+0x0023fbe0	observed		survarium::player's landing step (on_step at the root, from player::on_landing)
+0x002a63c0	observed		survarium::player_equipment_sound_effect::update_feet
+0x002a6410	observed		survarium::player_equipment_sound_effect::set_feet

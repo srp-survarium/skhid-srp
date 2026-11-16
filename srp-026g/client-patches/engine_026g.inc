@@ -809,3 +809,15 @@ extern engine_d3d_resource_release
 ; unsigned int engine_d3d_device_release(struct d3d_device *device)
 ; COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
 extern engine_d3d_device_release
+; void engine_on_step(struct step_manager *manager, const float *position, const float *direction, unsigned int foot_material, unsigned int view)
+; 0x248ad0 survarium::step_manager::on_step: manager ECX, position EAX, direction ESP+4, foot_material ESP+8, view ESP+12; pops 12
+extern engine_on_step
+; struct step_manager *engine_step_manager(struct game_world *world)
+; virtual survarium::game_world+0x34 (1 vtables of vtables.tsv: 0x1f63e0): world ECX; pops 0; EAX
+extern engine_step_manager
+; unsigned short engine_triangle_material(struct hit_object *object, unsigned int triangle, unsigned int compound)
+; virtual vostok::physics::base_physics_object+0x10 (2 vtables of vtables.tsv: 0x3570a0): object ECX, triangle ESP+4, compound ESP+8; pops 8; AX
+extern engine_triangle_material
+; unsigned int engine_is_first_view(struct player *player)
+; 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL
+extern engine_is_first_view

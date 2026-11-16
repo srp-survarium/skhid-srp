@@ -73,6 +73,8 @@ pub mod game_volume;
 pub mod sound_voices;
 pub mod drug_interrupt;
 pub mod footsteps;
+// patch 153: a step on a walker-only floor finds its ground
+pub mod step_ground;
 
 pub mod weapon_pickup;
 

@@ -152,3 +152,5 @@ vtable	slot	va	class	base	basis
 0x00a141a4	0x24	0x00305540	survarium::booby_trap_core	survarium::hit_receiver	observed: hit with a hit type (ret 28h), the slot bullet::try_pierce calls on what its ray met (0x32DA0D mov edx,[edx+24h], 0x32DA3A)
 0x00a0455c	0x20	0x00305580	survarium::booby_trap	survarium::hit_receiver	observed: booby_trap_core::hit without a hit type, not overridden
 0x00a0455c	0x24	0x00305540	survarium::booby_trap	survarium::hit_receiver	observed: booby_trap_core::hit with a hit type, not overridden (the client trap takes a bullet here)
+0x009fc4f4	0x34	0x001f63e0	survarium::game_world	survarium::game_world	observed: get_step_manager (lea eax,[ecx+4D5Ch]), called through the player's game world (+0F474h) by player::on_landing 0x1F3B5D and through the sound effect's world (+40h) by on_foot_step 0x2A6558
+0x00a1f2f0	0x10	0x003570a0	vostok::physics::bt_dynamic_rigid_body	vostok::physics::base_physics_object	observed: RTTI as slot 0; get_triangle_material, bt_static_rigid_body's (the batteries' bodies, which a step's ray meets: cgroup A18h, cmask 418h)

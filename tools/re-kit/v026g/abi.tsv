@@ -2636,3 +2636,8 @@ va	name	source	ret_cleanup	result
 0x00305540	survarium::booby_trap_core::hit	manual	40	no result used
 0x00305580	survarium::booby_trap_core::hit	manual	32	no result used
 0x003050c0	survarium::booby_trap_core::defuse_completed	manual	0	no result used
+0x001f63e0	survarium::game_world::get_step_manager	manual	0	EAX: the world's step manager, its +4D5Ch (lea eax,[ecx+4D5Ch]); game_world vtable 0x9FC4F4 slot +34h, which on_foot_step (0x2A6558) and player::on_landing (0x1F3B5D) call
+0x001f3bd0	survarium::player::is_first_view	manual	0	AL: 1 when the player is the network client's local player by place (+114h against the local player's) and that player's camera (+0F470h, +358h) is in mode 0 or 4, else 0
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	manual	16	no result used
+0x002a63c0	survarium::player_equipment_sound_effect::update_feet	manual	0	no result used
+0x002a6410	survarium::player_equipment_sound_effect::set_feet	manual	4	no result used
