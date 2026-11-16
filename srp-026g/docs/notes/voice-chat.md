@@ -821,7 +821,9 @@ sounded as 5 m away in the open.
   there in its own time: 0.3 s for all of it (`WALL_FRAMES` 15 of 20 ms), by the sound's clock,
   so the game's frames a second do not change it; the loudness the same number of dB for each
   part of the way (`through_a_wall`: 0.316 to the power of the part). An utterance that begins
-  behind a wall is there from its first frame. (The first build stepped in the patch, 0.15 a
+  behind a wall is there from its first frame: the patch asks the level for a place from the
+  moment the DLL has its utterance open, and the DLL plays it only with three frames in hand
+  (some 80 ms later); a game too slow for that hears the wall come in over the 0.3 s. (The first build stepped in the patch, 0.15 a
   frame of the game, about a tenth of a second at 60 frames; the owner, of its sample: "the
   transition from 4s to 5s sounds not smooth".)
 - **The interface** (voice ABI 8): `sv_hear(place, left, right, muffle, radio)`; `voice_abi::Heard`

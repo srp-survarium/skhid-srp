@@ -215,8 +215,7 @@ impl Channel {
 /// speaker and the listener (the owner, 2026-11-16, of the voice heard the
 /// same through a wall: "it doesn't follow geometry at all right now"): 0
 /// in the open, 1 with all of it behind a wall. The DLL plays it quieter and
-/// dull by it (its highs gone), going from one to the other over a third of
-/// a second; the [`Ears`] are the voice's in the open.
+/// dull by it (its highs gone), going from one to the other over 0.3 s; the [`Ears`] are the voice's in the open.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Muffle(f32);
 impl Muffle {
