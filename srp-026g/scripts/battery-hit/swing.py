@@ -154,28 +154,34 @@ RAM = Strike('centre', RAM_BATTERY, RAM_SHOULDER, RAM_ELBOW)
 # times. The values are the left hand's hold's move from its carry place (cm) and the battery's
 # turn about it (degrees: yaw swings the right end forward, roll lifts it, pitch tips the top
 # back). The turn is nearly all yaw (the first take's roll of 24 degrees lifted the right end
-# alone, 32 cm: a lift, not a shove), and the pivot gives way to the left, which keeps the right
-# arm short of straight (0.95 of its length; 0.99 about a pivot that stays).
+# alone, 32 cm: a lift, not a shove).
+# The right arm is thrown out nearly straight (the owner, of the raised shove played: "still the
+# right hand doesn't go far enough"). Its shoulder stands 20 cm behind the left in the carry stance
+# and the chest is not the clips' to turn (mask 1), so the reach comes from the arms' own bones:
+# the right clavicle drives the shoulder 11 cm forward, and the pivot gives way to the left and
+# forward, so the right hand comes in before its shoulder instead of out to its side. The right
+# hand goes 47 cm forward (was 36), its arm to 0.99 of its length (elbow 162 degrees; was 0.95,
+# 144); the hands move 58 and 28 cm (was 49 and 24).
 # The whole battery rises with it (the owner, of the level shove played: "the battery should be
 # higher with shove, since now in first person you don't see force or battery much"): at carry
 # height it stays under the first-person view. Both arms raise it through the gather and the
-# drive, 22 cm by the strike, and it goes on forward from there, 2 cm down to full reach: 37 % of
-# it is in view at the strike and 61 % at full reach, looking level.
+# drive, 22 cm by the strike, and it goes on forward from there, 2 cm down to full reach: 55 % of
+# it is in view at the strike and 72 % at full reach, looking level, the right fist and sleeve too.
 # The right hand (the owner, 2026-11-16: "can wrist move a bit to be parallel to right wall? this
 # is how hits would natually happen"): from the drive to the settle it lies as in the carry, its
 # palm along the battery's right end wall, the wrist bent back as the forearm comes round (`flat`);
 # turning with the forearm instead, it stood 19 degrees off the wall at full reach.
 SHOVE = Strike('left hand', {
-    'x': Curve((0, 0), (0.100, 1.0, 0), (STRIKE, -6.1, -130), (0.250, -9.0, 0), (0.310, -8.4, 7), (REST, 0)),
+    'x': Curve((0, 0), (0.100, 1.0, 0), (STRIKE, -11.5, -245), (0.250, -17.0, 0), (0.310, -15.9, 13), (REST, 0)),
     'y': Curve((0, 0), (0.100, 10.0, 150), (STRIKE, 22.0, 0, 0), (0.250, 20.0, 0), (0.305, 19.5, -12), (REST, 0)),
-    'z': Curve((0, 0), (0.100, 0.5, 0), (STRIKE, 1.4, 18), (0.250, 2.0, 0), (REST, 0)),
+    'z': Curve((0, 0), (0.100, 0.5, 0), (STRIKE, 5.6, 72), (0.250, 8.0, 0), (REST, 0)),
     'pitch': Curve((0, 0), (0.108, 0.5, 0), (STRIKE, -0.6, -18), (0.258, -1.5, 0), (REST, 0)),
-    'yaw': Curve((0, 0), (0.104, -6.0, 0), (STRIKE, 21.6, 450, 0), (0.242, 30.0, 0, -1030), (0.296, 28.7, -32), (REST, 0)),
+    'yaw': Curve((0, 0), (0.104, -6.0, 0), (STRIKE, 24.5, 510, 0), (0.242, 34.0, 0, -1170), (0.296, 32.5, -36), (REST, 0)),
     'roll': Curve((0, 0), (0.104, -1.0, 0), (STRIKE, 5.6, 120, 0), (0.250, 8.0, 0, -270), (0.305, 7.6, -9), (0.400, 3.0, -50), (REST, 0)),
 }, {
     'Left': {'z': Curve((0, 0), (0.090, 1.0, 0), (0.250, -1.2, 0), (REST, 0)),
              'y': Curve((0, 0), (0.250, 0.6, 0), (REST, 0))},
-    'Right': {'z': Curve((0, 0), (0.085, -2.0, 0), (0.245, 5.0, 0), (0.40, 3.0), (REST, 0)),
+    'Right': {'z': Curve((0, 0), (0.085, -2.0, 0), (0.245, 8.5, 0), (0.40, 5.1), (REST, 0)),
               'y': Curve((0, 0), (0.090, -1.2, 0), (0.255, 3.0, 0), (REST, 0))},
 }, {
     'Left': {'out': Curve((0, 0), (0.240, 3.0, 0), (REST, 0)),

@@ -62,11 +62,12 @@
   its walls, teams and damage the native bullet's. Every game computes the same: the eye, the look
   and the physics world of the same tick. That grid is the ram's. The shove's battery lands
   elsewhere on that plane (`battery_hit_strikes_metrics.txt`), so it has its own
-  (`Strike::grid`), built and ordered alike: its right end is 0.46..0.52 m right of the look,
-  past the ram's 0.3 m, its left end the pivot, at the ram's height (0.02..0.50 m below the
-  look; the ram's 0.06..0.46). The ram's grid one column to the right: -0.15, 0, 0.15, 0.3,
-  0.45 m. (The level shove of 879f0c856 landed 0.25..0.75 m below the look and had rows at the
-  look, 0.25 and 0.5 m down.)
+  (`Strike::grid`), built and ordered alike: its right end is 0.42 m right of the look at the
+  strike and 0.30 m at full reach, past the ram's 0.3 m when it lands, its left end the pivot,
+  at the ram's height (0.01..0.46 m below the look; the ram's 0.06..0.46). The ram's grid one
+  column to the right: -0.15, 0, 0.15, 0.3, 0.45 m. (The level shove of 879f0c856 landed
+  0.25..0.75 m below the look and had rows at the look, 0.25 and 0.5 m down; the raised one of
+  5f97ec913, its right arm shorter, 0.46..0.52 m right.)
 - **Damage (assumed):** the gun's melee data is blunt with an attacker, so patch 108 kills at
   once wherever it lands. A battery's own damage would need its own bullet data: the owner's
   call.
@@ -208,8 +209,8 @@
   0.3 mm at every millisecond.
 - **The shove** (`swing.SHOVE`; asked for as a hook, then "pushing the right side of the battery
   and hitting with that"): keyed about the left hand's hold. The gather draws the right end 6 degrees back; the drive turns the
-  battery about the left hand, its right end forward (450 deg/s and the right hand 6.0 m/s at the
-  strike, the battery's centre 3.2 m/s), to 30 degrees of turn and 8 of roll at full reach: the
+  battery about the left hand, its right end forward (510 deg/s and the right hand 7.5 m/s at the
+  strike, the battery's centre 4.6 m/s), to 34 degrees of turn and 8 of roll at full reach: the
   right handle goes 36 cm further forward than the left; each hand turns on its handle as its forearm comes round
   (`Strike.turning`), so no wrist bends past what a wrist does. The ram's times: the strike at
   0.2 s, the carry again at 0.55 s.
@@ -220,7 +221,7 @@
   degrees off the wall at full reach, in line with the forearm. `Strike.flat` takes that turn
   back for the right hand (eased in over the gather and the drive, whole from 0.185 s to 0.31 s,
   eased out on the way back): the hand stays as it lies in the carry and the wrist bends back
-  instead, 28 degrees at the strike and at full reach. The grip itself never changes: the hand
+  instead, 27 degrees at the strike and 24 at full reach. The grip itself never changes: the hand
   does not leave the handle (0.2 mm).
   The first take (played 2026-11-16) rolled the battery 24 degrees, which lifted the right end
   32 cm on its 39 forward, into the first-person view: the owner, "the battery goes up, not
@@ -235,9 +236,26 @@
   turn, the roll, the side shift, the hands and the times are the level shove's). Both arms
   raise it through the gather and the drive, 22 cm by the strike (9 by 0.1 s; 2.6 cm in the
   first 50 ms, the ram's 2.2), and it goes on forward from there, 2 cm down to full reach; the
-  left hand moves 24 cm, the right 49 (the ram: 35 and 49). Looking level, 37 % of the battery
-  is in view at the strike and 61 % at full reach (the ram: 29 and 73), 53 % at 0.3 s; looking
-  15 degrees down, 68 and 91 %.
+  left hand moved 24 cm, the right 49 (the ram: 35 and 49), and 37 % of the battery was in view
+  at the strike, 61 % at full reach, looking level (5f97ec913, played): the owner, "still the
+  right hand doesn't go far enough".
+  So the right arm is thrown out nearly straight. What held it back: its shoulder, 20 cm behind
+  the left in the carry stance, stays where the chest has it (the chest is mask 1), and the arm
+  pointed 27 degrees out to its side, at the battery's right end: at 0.95 of its length the arm
+  had only 2 cm more to give straightened in that line. The reach comes from the arms' own bones:
+  the right clavicle drives the shoulder 11 cm forward (5 before; the clavicle stands 14 cm long,
+  past that the shoulder leaves the chest), and the pivot gives way 17 cm to the left and 8 cm
+  forward (9 and 2 before) with 34 degrees of turn (30), so the right hand comes in before its
+  shoulder (the arm 17 degrees out to its side, was 27). The right hand goes 47 cm forward (36), its
+  arm to 0.99 of its length at full reach (elbow 162 degrees; 0.95, 144); the right hand moves
+  58 cm, the left 28 (49 and 24; the ram: 49 and 35). Looking level, 55 % of the battery is in
+  view at the strike and 72 % at full reach (37 and 61 before; the ram 29 and 73), the right
+  fist and sleeve too from the strike; looking 15 degrees down, 96 and 100 % (68 and 91). The
+  right hand at the strike: 7.5 m/s (6.0), the battery's centre 4.6 m/s (3.2). More reach needs
+  the chest: the battery already moves freely by its own offset bone, so the carried transform
+  (compute_carried_transform 0x344E40) would add none; a twist of the chest (Spin_1, Chest: mask
+  1 with Root, Weapon and the Item camera) would need its own mask bit in the skeleton and the
+  strike states' player lexeme masked to it (0x344F60 sets 2).
 - **The slam, tried and parked** (the owner, 2026-11-15: "maybe the third one when both hands
   are raised up and then shown down (we can at least try)"; 2026-11-16, of the previews: "let's
   go w/o slam for now, since it is slower, otherwise it is good"). Its keys stay (`swing.SLAM`,
@@ -280,7 +298,7 @@
   under Unicorn on the clips: within 1e-6 of `clips.py` on every track. The shove the same way
   (`preview.py <assets> <out> strikes`: `battery_hit_strikes*`, the ram beside it, and
   `battery_hit_shove_*.png`; the level shove beside it, `battery_hit_shove_before_after*`): the
-  largest change of speed in one millisecond 0.11 m/s, the hands within 0.2 mm, nothing cut by
+  largest change of speed in one millisecond 0.15 m/s, the hands within 0.2 mm, nothing cut by
   the near plane on screen (every 1/240 s, looking level, 15 and 30 degrees down) and no body
   vertex inside the battery. The near plane's test is the cut itself (`render.cut_on_screen`):
   through the raised gather the battery's right end is beside the eye, behind the plane, while
@@ -294,7 +312,7 @@
   their melee pairs; concrete, ground, stone and glass are silent, as for the gun-stock hit.
   Heavier candidates (STALKER SoC thuds, a port) are in `private/renders/battery-hit/sounds/`
   for the owner to pick; none wired.
-- **Not seen in game yet:** the raised shove (its lifted and its level takes were played); the states' timing
+- **Not seen in game yet:** the shove thrown out at full reach (its lifted, level and raised takes were played); the states' timing
   above is read from the exe, not watched; locomotion under the swing, the look pitch.
 
 ## Timing

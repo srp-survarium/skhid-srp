@@ -97,7 +97,7 @@ impl Strike {
     /// - the ram's, at the end of its push: 0.38 m left to 0.27 m right,
     ///   0.06 to 0.35 m below the look: 0.6 m wide around the look, from it
     ///   down to the battery's lower edge;
-    /// - the shove's right end, which lands: 0.46 to 0.52 m right of the
+    /// - the shove's right end, which lands: 0.30 to 0.42 m right of the
     ///   look, its left end the pivot before the carrier's left side, at
     ///   the ram's height: the ram's grid one column to the right.
     const fn grid(self) -> [(f32, f32); 15] {
