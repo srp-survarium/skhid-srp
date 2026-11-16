@@ -1086,7 +1086,6 @@ va	status	ref_021d	name
 0x001f3960	inferred-high	0x001577d7	survarium::player::serialize
 0x001f39a0	inferred-high	0x0015780e	survarium::player::deserialize
 0x001f3b30	inferred-high	0x00157984	survarium::player::on_landing
-0x001f3bd0	inferred-high	0x00157a52	survarium::player::is_first_view
 0x001f3c70	inferred-medium	0x00157ab8	survarium::player::generate_hit_event
 0x001f53d0	inferred-medium		survarium::copy_name
 0x001f56e0	inferred-medium	0x001652ab	survarium::net_stats::add_text_cell
@@ -1765,8 +1764,6 @@ va	status	ref_021d	name
 0x0029a9d0	inferred-medium		survarium::lobby_menu::process_default_drop_upgrade_item
 0x002a2fd0	inferred-medium		survarium::game_quest_progress_calculator::refresh_quest_ui_data
 0x002a61f0	inferred-medium	0x001b3bf9	survarium::load_transform
-0x002a63c0	inferred-medium		survarium::player_equipment_sound_effect::update_feet
-0x002a6410	inferred-medium		survarium::player_equipment_sound_effect::set_feet
 0x002a9660	inferred-medium	0x001ae6df	survarium::hud_game_effect_presenter::`scalar deleting destructor'
 0x002a9690	inferred-medium	0x001ae6fb	survarium::hud_game_effect_presenter::clear
 0x002a9900	inferred-medium		survarium::hud_game_effect_presenter::serialize

@@ -250,6 +250,10 @@ global engine_context_copy_resource
 global engine_context_map
 global engine_d3d_resource_release
 global engine_d3d_device_release
+global engine_on_step
+global engine_step_manager
+global engine_triangle_material
+global engine_is_first_view
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -2994,6 +2998,76 @@ engine_d3d_device_release:
     mov eax, [esp]                   ; this
     mov eax, [eax]                   ; its vtable
     call [eax + 0x8]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_on_step:
+    ; 0x248ad0 survarium::step_manager::on_step: manager ECX, position EAX, direction ESP+4, foot_material ESP+8, view ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; view -> 12
+    push dword [esp + 36]   ; foot_material -> 8
+    push dword [esp + 36]   ; direction -> 4
+    mov ecx, [esp + 32]   ; manager
+    mov eax, [esp + 36]   ; position
+    call 0x248ad0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_step_manager:
+    ; virtual survarium::game_world+0x34 (1 vtables of vtables.tsv: 0x1f63e0): world ECX; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; world
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x34]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_triangle_material:
+    ; virtual vostok::physics::base_physics_object+0x10 (2 vtables of vtables.tsv: 0x3570a0): object ECX, triangle ESP+4, compound ESP+8; pops 8; AX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; compound -> 8
+    push dword [esp + 28]   ; triangle -> 4
+    mov ecx, [esp + 28]   ; object
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x10]
+    movzx eax, ax
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_is_first_view:
+    ; 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; player
+    call 0x1f3bd0
+    movzx eax, al
     pop edi
     pop esi
     pop ebx
