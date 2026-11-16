@@ -189,6 +189,11 @@ pub struct Feel {
     /// within the harmless fall; [`Route::sprint_unsafe_drop`] asks the same at the sprint's speed). A drop that is
     /// harmless at a sprint is sprinted off. Off: the sprint as the route's straight stretch asks.
     pub drop_walk: bool,
+    /// [S5] On a held thin top (the grid's line tops, S3) the walk steers on the top's centre line, its look-ahead along the line
+    /// and cut past the client's rest bar so it turns back at 45 degrees at most, and it does not stop off the rest bar
+    /// ([`super::precise`]); the driver keeps every sideways step, strafe, sway, lane and sideways escape off while the route is
+    /// on or onto one. Off: the route's own steering there.
+    pub precise_tops: bool,
     /// A sprint gap link ([`Leap::SprintGap`]) is run up to at a sprint, the run turning onto the jump's way, and
     /// pressed at speed; off, it is made as a walking gap jump.
     pub sprint_gaps: bool,
@@ -369,6 +374,7 @@ impl Default for Feel {
             floor_height_clear: true,
             carrier_jump_m: Some(Positive::of(0.998)),
             drop_walk: true,
+            precise_tops: true,
             sprint_gaps: true,
             band_jump_gate: true,
             band_from_grid: true,
@@ -935,6 +941,11 @@ pub struct Motor {
     /// This tick's walk looks no further ahead on the route than this, m (set by the caller each tick: on a
     /// lip's floors, where a line to a point further on cuts a corner over the rim).
     pub ahead_cap: Option<f32>,
+    /// [S5] This tick's mode on a thin top ([`super::precise::Precise`], set by the caller each tick).
+    pub precise: super::precise::Precise,
+    /// [S5] The thin top's line the walk last steered on, kept while the feet stay within its moving bar (set by the caller with
+    /// [`Self::precise`], [`super::precise::Precise::kept`]).
+    pub precise_kept: Option<super::precise::Line>,
     /// The bar as the bot reckons it ([`stamina`]), when `think.stamina` is on: the sprint is let go of at an empty
     /// bar and for a jump the bar could not pay.
     pub gauge: Option<super::stamina::Gauge>,
@@ -1426,6 +1437,8 @@ impl Motor {
             exact_end: None,
             drop_aim_run: 0,
             ahead_cap: None,
+            precise: super::precise::Precise::Off,
+            precise_kept: None,
             gauge: None,
             carrying: false,
             tired: false,
@@ -1821,20 +1834,22 @@ impl Motor {
                 if let Some(gate) = route.gate_within(s, ahead) {
                     ahead = (gate - s).max(MIN_AHEAD_M);
                 }
-                match self.aim_point(route, s, ahead, &clear) {
-                    Aim::Clear(target) => match lane {
-                        Some(lane) => self.laned(route, s, ahead, pose.feet, target, lane, &clear),
-                        None => target,
+                match (self.aim_point(route, s, ahead, &clear), self.precise.line()) {
+                    // [S5] Along a thin top: on its line.
+                    (Aim::Clear(_) | Aim::Unclear(_), Some((line, forward))) => line.target(pose.feet, forward, ahead),
+                    (Aim::Clear(target), None) => match lane {
+                        Some(lane) if !self.precise.holds_line() => self.laned(route, s, ahead, pose.feet, target, lane, &clear),
+                        _ => target,
                     },
-                    Aim::Unclear(target) => target,
+                    (Aim::Unclear(target), None) => target,
                     // No point of the route is one the body walks to in a line: it is off it.
-                    Aim::None => return (Decision::default(), Walked::Off(off_m.max(off) + 0.01)),
+                    (Aim::None, _) => return (Decision::default(), Walked::Off(off_m.max(off) + 0.01)),
                 }
             }
         };
         let (dx, dz) = (target.x - pose.feet.x, target.z - pose.feet.z);
-        // No sway lining up: the jump's line is narrow.
-        let sway = if jump.is_some() { 0.0 } else { self.sway() };
+        // No sway lining up: the jump's line is narrow; nor on or onto a thin top ([S5]).
+        let sway = if jump.is_some() || self.precise.holds_line() { 0.0 } else { self.sway() };
         let heading = if dx.abs() + dz.abs() < 1e-3 {
             pose.yaw
         } else {
@@ -1856,6 +1871,11 @@ impl Motor {
         } else if self.walking && still > self.feel.stop_turn {
             self.walking = false;
         } else if !self.walking && still < self.feel.go_turn {
+            self.walking = true;
+        }
+        // [S5] Off a thin top's rest bar a stop slides the body off (F2): it walks on toward the line while it turns.
+        if !lined && !self.walking && self.precise.line().is_some_and(|(line, _)| !line.may_stop(pose.feet)) {
+            super::precise::counts::add(super::precise::counts::Slot::WalkedOn);
             self.walking = true;
         }
         self.link_why = if jump.is_none() {
@@ -2302,9 +2322,11 @@ impl Motor {
             Some(jump) => jump.aim,
             None => {
                 let ahead = self.feel.look_ahead_m.min(self.ahead_cap.unwrap_or(f32::INFINITY));
-                match self.aim_point(route, s, ahead, &clear) {
-                    Aim::Clear(target) | Aim::Unclear(target) => target,
-                    Aim::None => {
+                match (self.aim_point(route, s, ahead, &clear), self.precise.line()) {
+                    // [S5] Along a thin top: on its line.
+                    (Aim::Clear(_) | Aim::Unclear(_), Some((line, forward))) => line.target(pose.feet, forward, ahead),
+                    (Aim::Clear(target) | Aim::Unclear(target), None) => target,
+                    (Aim::None, _) => {
                         let turn = self.aim_toward(pose, aim.0, aim.1);
                         return (Decision { keys: 0, turn }, Walked::Off(off_m.max(off) + 0.01));
                     }

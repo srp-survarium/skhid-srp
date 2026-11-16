@@ -82,6 +82,7 @@ pub mod pitch;
 pub mod plays;
 pub mod pockets;
 pub mod pools;
+pub mod precise;
 pub mod protection;
 pub mod recoil;
 pub mod reflex;
@@ -2549,6 +2550,7 @@ impl Bots {
         // [S5] The reckoning's error at ground worlds, along and across the world's own move.
         let (along, across) = nav_drift::cross_track::take();
         lines.push(format!("{}{}", nav_log::PREFIX, nav_drift::cross_track::line(&along, &across)));
+        lines.push(format!("{}{}", nav_log::PREFIX, precise::counts::line()));
         let split = nav_drift::cross_track::take_split();
         lines.extend(nav_drift::cross_track::split_lines(&split).into_iter().map(|line| format!("{}{line}", nav_log::PREFIX)));
         // [A388 step 2b] The lip guard's forecasts this match: asked anew, and the same ask's answer used again.
