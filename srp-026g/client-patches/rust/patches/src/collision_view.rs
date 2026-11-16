@@ -3,7 +3,9 @@
 //! (docs/notes/collision-view.md; client_patch.md section 3.82).
 //!
 //! The command (a cc_delegate of ours, as patch 133's `where`) turns the view
-//! on and off; `collision 2`, `8` or `a` shows that group alone. While it is
+//! on and off; `collision walk` shows what stops walkers (the walk and solid
+//! groups), `shot` what stops bullets and the camera (shot and solid), `solid`
+//! the solid group alone (the same name again turns it off). While it is
 //! on, each frame's camera (`camera.viewed`, in mt_draw after the
 //! simulation, on the thread that steps the physics world) outlines the
 //! shapes of the camera's player's physics world near the eye: a mesh's
@@ -29,7 +31,7 @@ use ::ragdoll::math::sin_cos;
 
 use crate::vostok::camera;
 use crate::vostok::console::{self, Command, ConsoleArguments, ConsoleCommand, Line};
-use crate::vostok::debug_lines::{DebugLines, LineColor, LineVertex};
+use crate::vostok::debug_lines::{DebugLines, LineBuffer, LineColor};
 use crate::vostok::geometry::{Distance, Pose, WorldPoint};
 use crate::vostok::log::{self, Piece};
 use crate::vostok::shape::{Shape, Triangle, TriangleMethods, TriangleSink};
@@ -41,50 +43,51 @@ const NAME: &CStr = c"collision";
 
 static COMMAND: Command = Command::new();
 
-static STATE: Lock<Collision> = Lock::new(Collision { view: View::Off, lines: Lines::new() });
+static STATE: Lock<Collision> = Lock::new(Collision { view: View::Off, lines: None });
 
 /// The radii tried (m), the first whose lines fit the cap drawn.
-const RADII: [f32; 3] = [10.0, 5.0, 2.5];
-/// The most lines a frame draws.
-const MOST: usize = 6144;
+const RADII: [f32; 3] = [20.0, 10.0, 5.0];
+/// The most lines a frame draws (2 MiB of vertices, made the first time
+/// the view is turned on and kept).
+const MOST: usize = 64 * 1024;
 /// A circle's segments.
 const CIRCLE: usize = 12;
 
 /// A group of the level's collision.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LevelGroup {
-    /// 2: what walkers meet and bullets pass (walker meshes, invisible walls,
-    /// walkable lids).
-    Walkers,
-    /// 8: what bullets and the camera meet and walkers pass (the hittable
-    /// meshes, camera walls).
-    Bullets,
-    /// 0Ah: both.
-    Both,
+    /// `walk`, group 2: what walkers meet and bullets pass (walker meshes,
+    /// invisible walls, walkable lids).
+    Walk,
+    /// `shot`, group 8: what bullets and the camera meet and walkers pass
+    /// (the hittable meshes, camera walls).
+    Shot,
+    /// `solid`, group 0Ah: both.
+    Solid,
 }
 
-const GROUPS: [LevelGroup; 3] = [LevelGroup::Walkers, LevelGroup::Bullets, LevelGroup::Both];
+const GROUPS: [LevelGroup; 3] = [LevelGroup::Walk, LevelGroup::Shot, LevelGroup::Solid];
 
 impl LevelGroup {
     fn of(group: u16) -> Option<LevelGroup> {
         match group {
-            0x2 => Some(LevelGroup::Walkers),
-            0x8 => Some(LevelGroup::Bullets),
-            0xA => Some(LevelGroup::Both),
+            0x2 => Some(LevelGroup::Walk),
+            0x8 => Some(LevelGroup::Shot),
+            0xA => Some(LevelGroup::Solid),
             _ => None,
         }
     }
 
     fn index(self) -> usize {
         match self {
-            LevelGroup::Walkers => 0,
-            LevelGroup::Bullets => 1,
-            LevelGroup::Both => 2,
+            LevelGroup::Walk => 0,
+            LevelGroup::Shot => 1,
+            LevelGroup::Solid => 2,
         }
     }
 
     fn name(self) -> &'static str {
-        ["0x2", "0x8", "0xa"][self.index()]
+        ["walk", "shot", "solid"][self.index()]
     }
 
     /// Green, magenta and white: the same whichever of red and blue the
@@ -98,7 +101,17 @@ impl LevelGroup {
     }
 
     fn meets(self) -> &'static str {
-        ["walkers only", "bullets and the camera only", "walkers, bullets and the camera"][self.index()]
+        ["stops walkers only", "stops bullets and the camera only", "stops walkers, bullets and the camera"][self.index()]
+    }
+}
+
+/// Whether `group` is drawn under the filter `only` (none: every group): a
+/// filter shows everything that stops what it names, so `walk` and `shot`
+/// show `solid` too.
+fn shows(only: Option<LevelGroup>, group: LevelGroup) -> bool {
+    match only {
+        None => true,
+        Some(only) => only == group || group == LevelGroup::Solid,
     }
 }
 
@@ -122,55 +135,17 @@ enum Request {
 impl Request {
     fn parse(text: &[u8]) -> Request {
         let text = text.trim_ascii();
-        let digits = text.strip_prefix(b"0x").or_else(|| text.strip_prefix(b"0X")).unwrap_or(text);
-        match digits {
-            [] if text.is_empty() => Request::Toggle,
-            [b'2'] => Request::Only(LevelGroup::Walkers),
-            [b'8'] => Request::Only(LevelGroup::Bullets),
-            [b'a' | b'A'] => Request::Only(LevelGroup::Both),
-            _ => Request::Unknown,
+        if text.is_empty() {
+            return Request::Toggle;
         }
+        GROUPS.into_iter().find(|group| text.eq_ignore_ascii_case(group.name().as_bytes()))
+            .map_or(Request::Unknown, Request::Only)
     }
 }
 
-/// The lines of the last frame read, in the game's frame, until the render
-/// thread draws them.
-struct Lines {
-    vertices: [LineVertex; 2 * MOST],
-    len: usize,
-}
-
-impl Lines {
-    const fn new() -> Lines {
-        Lines { vertices: [LineVertex::NONE; 2 * MOST], len: 0 }
-    }
-
-    fn clear(&mut self) {
-        self.len = 0;
-    }
-
-    fn count(&self) -> usize {
-        self.len / 2
-    }
-
-    fn is_full(&self) -> bool {
-        self.count() == MOST
-    }
-
-    /// A line from `a` to `b` (Bullet's frame); none past the cap.
-    fn push(&mut self, a: [f32; 3], b: [f32; 3], color: LineColor) {
-        if self.is_full() {
-            return;
-        }
-        let game = |[x, y, z]: [f32; 3]| LineVertex { at: [x, y, -z], color };
-        self.vertices[self.len] = game(a);
-        self.vertices[self.len + 1] = game(b);
-        self.len += 2;
-    }
-
-    fn vertices(&self) -> &[LineVertex] {
-        &self.vertices[..self.len]
-    }
+/// A line of Bullet's frame into `lines`, in the game's (z negated).
+fn push(lines: &mut LineBuffer, [ax, ay, az]: [f32; 3], [bx, by, bz]: [f32; 3], color: LineColor) {
+    lines.push([ax, ay, -az], [bx, by, -bz], color);
 }
 
 /// How many objects of each level group the world holds.
@@ -185,10 +160,11 @@ enum View {
     On { only: Option<LevelGroup> },
 }
 
-/// The view and the lines it read (none while it is off).
+/// The view and the lines it read (none while it is off; their room made
+/// the first time it is turned on).
 struct Collision {
     view: View,
-    lines: Lines,
+    lines: Option<LineBuffer>,
 }
 
 /// What the console is told of a command.
@@ -197,6 +173,8 @@ enum Reply {
     On(Option<LevelGroup>),
     Off,
     Usage,
+    /// No room for the lines: still off.
+    NoRoom,
 }
 
 /// What a frame reads: the level near the eye.
@@ -204,22 +182,39 @@ trait Level {
     fn census(&self) -> Census;
     /// The lines of the objects of `only` (or every level group) within
     /// `reach` of the eye.
-    fn outline(&self, reach: f32, only: Option<LevelGroup>, lines: &mut Lines);
+    fn outline(&self, reach: f32, only: Option<LevelGroup>, lines: &mut LineBuffer);
 }
 
 impl Collision {
-    fn command(&mut self, request: Request) -> Reply {
+    /// `make` gives the lines' room when the view first turns on.
+    fn command(&mut self, request: Request, make: impl FnOnce() -> Option<LineBuffer>) -> Reply {
         let (view, reply) = match (self.view, request) {
             (View::Off, Request::Toggle) => (View::Starting { only: None }, Reply::On(None)),
             (_, Request::Toggle) => (View::Off, Reply::Off),
+            (View::Starting { only: Some(shown) } | View::On { only: Some(shown) }, Request::Only(group))
+                if shown == group => (View::Off, Reply::Off),
             (_, Request::Only(group)) => (View::Starting { only: Some(group) }, Reply::On(Some(group))),
             (view, Request::Unknown) => (view, Reply::Usage),
         };
+        if view != View::Off && self.lines.is_none() {
+            self.lines = make();
+            if self.lines.is_none() {
+                return Reply::NoRoom;
+            }
+        }
         self.view = view;
-        if view == View::Off {
-            self.lines.clear();
+        if let (View::Off, Some(lines)) = (view, &mut self.lines) {
+            lines.clear();
         }
         reply
+    }
+
+    /// The filter shown (none: every group, or off).
+    fn only(&self) -> Option<LevelGroup> {
+        match self.view {
+            View::Off => None,
+            View::Starting { only } | View::On { only } => only,
+        }
     }
 
     /// A frame's camera: the lines of the first radius that fits the cap
@@ -231,11 +226,12 @@ impl Collision {
             View::Starting { only } => (only, Some(level.census())),
             View::On { only } => (only, None),
         };
+        let lines = self.lines.as_mut()?;
         self.view = View::On { only };
         for reach in RADII {
-            self.lines.clear();
-            level.outline(reach, only, &mut self.lines);
-            if !self.lines.is_full() {
+            lines.clear();
+            level.outline(reach, only, lines);
+            if !lines.is_full() {
                 break;
             }
         }
@@ -261,13 +257,13 @@ impl Level for LiveLevel<'_, '_> {
         census
     }
 
-    fn outline(&self, reach: f32, only: Option<LevelGroup>, lines: &mut Lines) {
+    fn outline(&self, reach: f32, only: Option<LevelGroup>, lines: &mut LineBuffer) {
         let [x, y, z] = self.eye;
         let (Some(eye), Some(distance)) = (WorldPoint::parse([x, y, -z]), Distance::parse(reach)) else { return };
         let near = Near { eye: self.eye, reach, triangles: self.triangles };
         self.world.for_each_object(|object| {
             let Some(group) = level_group(object.group, object.motion) else { return };
-            if lines.is_full() || only.is_some_and(|only| only != group) || !object.aabb.within(eye, distance) {
+            if lines.is_full() || !shows(only, group) || !object.aabb.within(eye, distance) {
                 return;
             }
             if let Some(shape) = object.shape() {
@@ -285,17 +281,19 @@ struct Near {
 }
 
 /// A shape's lines where `pose` puts it.
-fn outline(shape: Shape<'_>, pose: &Pose, color: LineColor, near: &Near, lines: &mut Lines) {
+fn outline(shape: Shape<'_>, pose: &Pose, color: LineColor, near: &Near, lines: &mut LineBuffer) {
     match shape {
         Shape::Mesh(mesh) => {
             let eye = pose.local(near.eye);
             let low = eye.map(|v| v - near.reach);
             let high = eye.map(|v| v + near.reach);
-            mesh.triangles_in(near.triangles, low, high, &mut |[a, b, c]| {
-                if triangle_near([a, b, c], eye, near.reach) {
-                    for (from, to) in [(a, b), (b, c), (c, a)] {
-                        lines.push(pose.apply(from), pose.apply(to), color);
+            let mut previous = None;
+            mesh.triangles_in(near.triangles, low, high, &mut |triangle| {
+                if triangle_near(triangle, eye, near.reach) {
+                    for (a, b) in new_edges(triangle, previous) {
+                        push(lines, pose.apply(a), pose.apply(b), color);
                     }
+                    previous = Some(triangle);
                 }
             });
         }
@@ -306,9 +304,16 @@ fn outline(shape: Shape<'_>, pose: &Pose, color: LineColor, near: &Near, lines: 
     }
 }
 
+/// The triangle's edges but one it shares with the triangle drawn just
+/// before it (a strip's: the same two corners).
+fn new_edges([a, b, c]: [[f32; 3]; 3], previous: Option<[[f32; 3]; 3]>) -> impl Iterator<Item = ([f32; 3], [f32; 3])> {
+    let shared = move |p: [f32; 3], q: [f32; 3]| previous.is_some_and(|t| t.contains(&p) && t.contains(&q));
+    [(a, b), (b, c), (c, a)].into_iter().filter(move |&(p, q)| !shared(p, q))
+}
+
 /// A box's, sphere's, capsule's or cylinder's outline where `pose` puts it.
-fn primitive_lines(shape: Shape<'_>, pose: &Pose, color: LineColor, lines: &mut Lines) {
-    let mut line = |a: [f32; 3], b: [f32; 3]| lines.push(pose.apply(a), pose.apply(b), color);
+fn primitive_lines(shape: Shape<'_>, pose: &Pose, color: LineColor, lines: &mut LineBuffer) {
+    let mut line = |a: [f32; 3], b: [f32; 3]| push(lines, pose.apply(a), pose.apply(b), color);
     match shape {
         Shape::Box { half } => box_lines(half, &mut line),
         Shape::Sphere { radius } => sphere_lines(radius, &mut line),
@@ -413,10 +418,12 @@ pub fn on_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_execute(_: &OrigCcDelegateExecute, command: &mut ConsoleCommand<'_>, arguments: &ConsoleArguments<'_>) {
     let thread = command.thread();
     let request = Request::parse(arguments.text().map_or(&[][..], CStr::to_bytes));
-    let reply = STATE.with(thread, |state| state.command(request));
-    let mut line = Line::new();
-    describe_reply(reply, &mut line);
-    tell(thread, &line);
+    let reply = STATE.with(thread, |state| state.command(request, || LineBuffer::make(thread, MOST)));
+    for text in reply_lines(reply) {
+        let mut line = Line::new();
+        line.push(text);
+        tell(thread, &line);
+    }
 }
 
 /// update_camera after the view's update: the lines near the eye made.
@@ -429,10 +436,11 @@ pub fn on_viewed(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(world) = player.physics_world() else { return Flow::Continue };
     let [x, y, z] = view.eye;
     let level = LiveLevel { world: &world, eye: [x, y, -z], triangles: collision_view_triangles_vtable_handle() };
-    if let Some(census) = STATE.with(thread, |state| state.frame(&level)) {
-        for at in 0..=GROUPS.len() {
+    if let Some((census, only)) = STATE.with(thread, |state| Some((state.frame(&level)?, state.only()))) {
+        let shown = GROUPS.into_iter().filter(|&group| shows(only, group));
+        for group in core::iter::once(None).chain(shown.map(Some)) {
             let mut line = Line::new();
-            describe_census(census, at, &mut line);
+            describe_census(census, group, &mut line);
             tell(thread, &line);
         }
     }
@@ -448,12 +456,11 @@ pub fn on_triangle(_: &OrigTriangleProcess, sink: &mut TriangleSink<'_>, triangl
 /// once.
 pub fn on_debug_lines(ctx: &mut Context<'_>) -> Flow<NoExit> {
     STATE.with(ctx.thread(), |state| {
-        if state.lines.count() > 0 {
-            if let Some(lines) = DebugLines::at(ctx) {
-                lines.draw(state.lines.vertices());
-            }
-            state.lines.clear();
+        let Some(lines) = state.lines.as_mut().filter(|lines| lines.count() > 0) else { return };
+        if let Some(debug) = DebugLines::at(ctx) {
+            debug.draw(lines);
         }
+        lines.clear();
     });
     Flow::Continue
 }
@@ -464,44 +471,52 @@ fn tell(thread: &Thread, line: &Line) {
     log::line(&[Piece::Text(line.text())]);
 }
 
-fn describe_reply(reply: Reply, line: &mut Line) {
-    line.push("collision: ");
-    match reply {
-        Reply::On(None) => line.push("on"),
-        Reply::On(Some(group)) => {
-            line.push("on, ");
-            line.push(group.name());
-            line.push(" only");
-        }
-        Reply::Off => line.push("off"),
-        Reply::Usage => line.push("collision [2 | 8 | a] (walkers, bullets, both)"),
-    }
+/// The options, after `collision` turns the view on and after a wrong argument.
+const HELP: [&str; 4] = [
+    "  collision walk  - what stops walking (green + white)",
+    "  collision shot  - what stops bullets and the camera (magenta + white)",
+    "  collision solid - what stops both (white)",
+    "  collision       - again to turn off",
+];
+
+/// What the console is told of a command, a line each.
+fn reply_lines(reply: Reply) -> impl Iterator<Item = &'static str> {
+    let (first, help): (&str, &[&str]) = match reply {
+        Reply::On(None) => ("collision: on, all (walk green, shot magenta, solid white)", &HELP),
+        Reply::On(Some(LevelGroup::Walk)) => ("collision: on, walk (green + white)", &[]),
+        Reply::On(Some(LevelGroup::Shot)) => ("collision: on, shot (magenta + white)", &[]),
+        Reply::On(Some(LevelGroup::Solid)) => ("collision: on, solid (white)", &[]),
+        Reply::Off => ("collision: off", &[]),
+        Reply::Usage => ("collision: collision [walk | shot | solid]", &HELP),
+        Reply::NoRoom => ("collision: no room for its lines, still off", &[]),
+    };
+    core::iter::once(first).chain(help.iter().copied())
 }
 
-/// The census's line `at`: its head, then a line a group.
-fn describe_census(census: Census, at: usize, line: &mut Line) {
+/// The census's head (`None`) or a group's line.
+fn describe_census(census: Census, group: Option<LevelGroup>, line: &mut Line) {
     line.push("collision: ");
-    let Some(group) = at.checked_sub(1).and_then(|i| GROUPS.get(i)) else {
+    let Some(group) = group else {
         line.push("the level's static collision within ");
         line.number(RADII[0] as u32);
         line.push(" m (less where that is over ");
         line.number(MOST as u32);
-        line.push(" lines), a colour a group:");
+        line.push(" lines):");
         return;
     };
     line.push(group.name());
-    line.push(" ");
+    line.push(" (");
     line.push(group.color_name());
-    line.push(", ");
+    line.push(") ");
     line.number(census.0[group.index()]);
-    line.push(" in the world (");
+    line.push(" in the world: ");
     line.push(group.meets());
-    line.push(")");
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::vostok::debug_lines::LineVertex;
 
     /// A made-up level: `lines(reach)` lines a radius, of the walkers' group.
     struct Fake {
@@ -513,18 +528,32 @@ mod tests {
         fn census(&self) -> Census {
             self.census
         }
-        fn outline(&self, reach: f32, only: Option<LevelGroup>, lines: &mut Lines) {
-            if only.is_some_and(|only| only != LevelGroup::Walkers) {
+        fn outline(&self, reach: f32, only: Option<LevelGroup>, lines: &mut LineBuffer) {
+            if !shows(only, LevelGroup::Walk) {
                 return;
             }
             for i in 0..(self.lines)(reach) {
-                lines.push([i as f32, 0.0, 1.0], [i as f32, 1.0, 2.0], LevelGroup::Walkers.color());
+                push(lines, [i as f32, 0.0, 1.0], [i as f32, 1.0, 2.0], LevelGroup::Walk.color());
             }
         }
     }
 
-    fn state() -> Box<Collision> {
-        Box::new(Collision { view: View::Off, lines: Lines::new() })
+    fn buffer(lines: usize) -> LineBuffer {
+        let vertices = Box::leak(vec![LineVertex::default(); 2 * lines].into_boxed_slice());
+        let indices = Box::leak((0..32 * 1024).map(|i| i as u16).collect::<Vec<_>>().into_boxed_slice());
+        LineBuffer::over(vertices, indices)
+    }
+
+    fn state() -> Collision {
+        Collision { view: View::Off, lines: None }
+    }
+
+    fn room() -> Option<LineBuffer> {
+        Some(buffer(MOST))
+    }
+
+    fn count(s: &Collision) -> usize {
+        s.lines.as_ref().map_or(0, LineBuffer::count)
     }
 
     fn fake(lines: fn(f32) -> usize) -> Fake {
@@ -535,11 +564,10 @@ mod tests {
     fn requests_as_typed() {
         assert_eq!(Request::parse(b""), Request::Toggle);
         assert_eq!(Request::parse(b"  "), Request::Toggle);
-        assert_eq!(Request::parse(b"2"), Request::Only(LevelGroup::Walkers));
-        assert_eq!(Request::parse(b" 0x8 "), Request::Only(LevelGroup::Bullets));
-        assert_eq!(Request::parse(b"0XA"), Request::Only(LevelGroup::Both));
-        assert_eq!(Request::parse(b"a"), Request::Only(LevelGroup::Both));
-        for other in [&b"0x"[..], b"10", b"40", b"0x824", b"walkers", b"2 8"] {
+        assert_eq!(Request::parse(b"walk"), Request::Only(LevelGroup::Walk));
+        assert_eq!(Request::parse(b" shot "), Request::Only(LevelGroup::Shot));
+        assert_eq!(Request::parse(b"SOLID"), Request::Only(LevelGroup::Solid));
+        for other in [&b"2"[..], b"0x8", b"a", b"walker", b"walk shot", b"all"] {
             assert_eq!(Request::parse(other), Request::Unknown, "{other:?}");
         }
     }
@@ -547,61 +575,98 @@ mod tests {
     #[test]
     fn the_command_turns_it_on_and_off() {
         let mut s = state();
-        assert_eq!(s.command(Request::Toggle), Reply::On(None));
+        assert_eq!(s.command(Request::Toggle, room), Reply::On(None));
         assert_eq!(s.view, View::Starting { only: None });
-        assert_eq!(s.command(Request::Unknown), Reply::Usage);
+        assert_eq!(s.command(Request::Unknown, room), Reply::Usage);
         assert_eq!(s.view, View::Starting { only: None });
         s.frame(&fake(|_| 3));
         assert_eq!(s.view, View::On { only: None });
-        assert_eq!(s.command(Request::Only(LevelGroup::Bullets)), Reply::On(Some(LevelGroup::Bullets)));
-        assert_eq!(s.view, View::Starting { only: Some(LevelGroup::Bullets) });
-        assert_eq!(s.command(Request::Toggle), Reply::Off);
-        assert_eq!((s.view, s.lines.count()), (View::Off, 0), "off: the lines read dropped");
+        assert_eq!(s.command(Request::Only(LevelGroup::Shot), room), Reply::On(Some(LevelGroup::Shot)));
+        assert_eq!(s.view, View::Starting { only: Some(LevelGroup::Shot) });
+        s.frame(&fake(|_| 3));
+        assert_eq!(s.command(Request::Only(LevelGroup::Walk), room), Reply::On(Some(LevelGroup::Walk)), "another name: switched");
+        assert_eq!(s.command(Request::Only(LevelGroup::Walk), room), Reply::Off, "the shown name again: off");
+        assert_eq!(s.view, View::Off);
+        s.command(Request::Only(LevelGroup::Shot), room);
+        assert_eq!(s.command(Request::Toggle, room), Reply::Off);
+        assert_eq!((s.view, count(&s)), (View::Off, 0), "off: the lines read dropped");
     }
 
     #[test]
     fn off_reads_and_draws_nothing() {
         let mut s = state();
         assert_eq!(s.frame(&fake(|_| 3)), None);
-        assert_eq!(s.lines.count(), 0);
+        assert_eq!(count(&s), 0);
     }
 
     #[test]
     fn the_census_on_the_first_frame_only() {
         let mut s = state();
-        s.command(Request::Toggle);
+        s.command(Request::Toggle, room);
         assert_eq!(s.frame(&fake(|_| 3)), Some(Census([541, 511, 105])));
         assert_eq!(s.frame(&fake(|_| 3)), None);
-        assert_eq!(s.lines.count(), 3, "each frame reads its own lines anew");
+        assert_eq!(count(&s), 3, "each frame reads its own lines anew");
     }
 
     #[test]
     fn the_largest_radius_that_fits() {
         let mut s = state();
-        s.command(Request::Toggle);
-        s.frame(&fake(|reach| if reach > 6.0 { MOST + 1 } else { 4000 }));
-        assert_eq!(s.lines.count(), 4000, "10 m is over the cap: 5 m's");
+        s.command(Request::Toggle, room);
+        s.frame(&fake(|reach| if reach > 15.0 { MOST + 1 } else { 40_000 }));
+        assert_eq!(count(&s), 40_000, "20 m is over the cap: 10 m's");
         s.frame(&fake(|_| MOST - 1));
-        assert_eq!(s.lines.count(), MOST - 1, "under the cap: 10 m's");
-        s.frame(&fake(|_| 50_000));
-        assert_eq!(s.lines.count(), MOST, "over it at 2.5 m too: cut at the cap");
+        assert_eq!(count(&s), MOST - 1, "under the cap: 20 m's");
+        s.frame(&fake(|_| 100_000));
+        assert_eq!(count(&s), MOST, "over it at 5 m too: cut at the cap");
+    }
+
+    #[test]
+    fn no_room_stays_off() {
+        let mut s = state();
+        assert_eq!(s.command(Request::Toggle, || None), Reply::NoRoom);
+        assert_eq!(s.view, View::Off);
+        assert_eq!(s.command(Request::Toggle, room), Reply::On(None));
+        let mut made = false;
+        s.command(Request::Toggle, || { made = true; None });
+        s.command(Request::Toggle, || { made = true; None });
+        assert!(!made, "the room made once, kept");
+        assert_eq!(s.view, View::Starting { only: None });
+    }
+
+    #[test]
+    fn a_shared_edge_once() {
+        let first = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
+        let second = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0]];
+        assert_eq!(new_edges(first, None).count(), 3);
+        let edges: Vec<_> = new_edges(second, Some(first)).collect();
+        assert_eq!(edges, [([0.0, 1.0, 0.0], [1.0, 1.0, 0.0]), ([1.0, 1.0, 0.0], [1.0, 0.0, 0.0])]);
+        assert_eq!(new_edges(second, Some(second.map(|p| p.map(|v| v + 5.0)))).count(), 3);
     }
 
     #[test]
     fn lines_in_the_games_frame() {
-        let mut lines = Box::new(Lines::new());
-        lines.push([1.0, 2.0, 3.0], [4.0, 5.0, -6.0], LevelGroup::Both.color());
+        let mut lines = buffer(4);
+        push(&mut lines, [1.0, 2.0, 3.0], [4.0, 5.0, -6.0], LevelGroup::Solid.color());
         let v = lines.vertices();
         assert_eq!((v[0].at, v[1].at), ([1.0, 2.0, -3.0], [4.0, 5.0, 6.0]));
-        assert_eq!(v[0].color, LevelGroup::Both.color());
+        assert_eq!(v[0].color, LevelGroup::Solid.color());
+    }
+
+    #[test]
+    fn a_filter_shows_what_stops_it() {
+        let shown = |only| GROUPS.into_iter().filter(|&g| shows(only, g)).collect::<Vec<_>>();
+        assert_eq!(shown(None), GROUPS);
+        assert_eq!(shown(Some(LevelGroup::Walk)), [LevelGroup::Walk, LevelGroup::Solid]);
+        assert_eq!(shown(Some(LevelGroup::Shot)), [LevelGroup::Shot, LevelGroup::Solid]);
+        assert_eq!(shown(Some(LevelGroup::Solid)), [LevelGroup::Solid]);
     }
 
     #[test]
     fn only_static_level_groups() {
         for (group, motion, want) in [
-            (0x2, Motion::Static, Some(LevelGroup::Walkers)),
-            (0x8, Motion::Static, Some(LevelGroup::Bullets)),
-            (0xA, Motion::Static, Some(LevelGroup::Both)),
+            (0x2, Motion::Static, Some(LevelGroup::Walk)),
+            (0x8, Motion::Static, Some(LevelGroup::Shot)),
+            (0xA, Motion::Static, Some(LevelGroup::Solid)),
             (0x40, Motion::Static, None),     // a living player's hit model
             (0x824, Motion::Moving, None),    // a character controller
             (0xA18, Motion::Moving, None),    // a battery
@@ -657,12 +722,12 @@ mod tests {
         assert_eq!(pose.local([13.0, 2.0, 4.0]), [1.0, 2.0, 3.0]);
         let child = Pose { rows: Pose::IDENTITY.rows, origin: [1.0, 0.0, 0.0] };
         assert_eq!(pose.then(&child).apply([0.0; 3]), [10.0, 0.0, 4.0]);
-        let mut lines = Box::new(Lines::new());
-        primitive_lines(Shape::Box { half: [1.0, 1.0, 1.0] }, &pose, LevelGroup::Walkers.color(), &mut lines);
+        let mut lines = buffer(64);
+        primitive_lines(Shape::Box { half: [1.0, 1.0, 1.0] }, &pose, LevelGroup::Walk.color(), &mut lines);
         assert_eq!(lines.count(), 12);
         assert!(lines.vertices().iter().all(|v| [9.0, 11.0].contains(&v.at[0]) && [-4.0, -6.0].contains(&v.at[2])),
                 "in the game's frame, z negated");
-        primitive_lines(Shape::Other(24), &pose, LevelGroup::Walkers.color(), &mut lines);
+        primitive_lines(Shape::Other(24), &pose, LevelGroup::Walk.color(), &mut lines);
         assert_eq!(lines.count(), 12, "another shape type draws nothing");
     }
 
@@ -677,35 +742,42 @@ mod tests {
 
     #[test]
     fn what_the_console_is_told() {
-        let said = |reply| {
-            let mut line = Line::new();
-            describe_reply(reply, &mut line);
-            line.text().to_string()
-        };
-        assert_eq!(said(Reply::On(None)), "collision: on");
-        assert_eq!(said(Reply::On(Some(LevelGroup::Both))), "collision: on, 0xa only");
-        assert_eq!(said(Reply::Off), "collision: off");
-        assert_eq!(said(Reply::Usage), "collision: collision [2 | 8 | a] (walkers, bullets, both)");
-        let census: Vec<_> = (0..4)
-            .map(|at| {
+        let said = |reply| reply_lines(reply).collect::<Vec<_>>();
+        assert_eq!(said(Reply::On(None)), [
+            "collision: on, all (walk green, shot magenta, solid white)",
+            "  collision walk  - what stops walking (green + white)",
+            "  collision shot  - what stops bullets and the camera (magenta + white)",
+            "  collision solid - what stops both (white)",
+            "  collision       - again to turn off",
+        ]);
+        assert_eq!(said(Reply::On(Some(LevelGroup::Walk))), ["collision: on, walk (green + white)"]);
+        assert_eq!(said(Reply::On(Some(LevelGroup::Shot))), ["collision: on, shot (magenta + white)"]);
+        assert_eq!(said(Reply::On(Some(LevelGroup::Solid))), ["collision: on, solid (white)"]);
+        assert_eq!(said(Reply::Off), ["collision: off"]);
+        assert_eq!(said(Reply::Usage)[0], "collision: collision [walk | shot | solid]");
+        assert_eq!(said(Reply::Usage)[1..], HELP);
+        assert_eq!(said(Reply::NoRoom), ["collision: no room for its lines, still off"]);
+        let census: Vec<_> = [None, Some(LevelGroup::Walk), Some(LevelGroup::Shot), Some(LevelGroup::Solid)]
+            .into_iter()
+            .map(|group| {
                 let mut line = Line::new();
-                describe_census(Census([541, 511, 105]), at, &mut line);
+                describe_census(Census([541, 511, 105]), group, &mut line);
                 line.text().to_string()
             })
             .collect();
         assert_eq!(census, [
-            "collision: the level's static collision within 10 m (less where that is over 6144 lines), a colour a group:",
-            "collision: 0x2 green, 541 in the world (walkers only)",
-            "collision: 0x8 magenta, 511 in the world (bullets and the camera only)",
-            "collision: 0xa white, 105 in the world (walkers, bullets and the camera)",
+            "collision: the level's static collision within 20 m (less where that is over 65536 lines):",
+            "collision: walk (green) 541 in the world: stops walkers only",
+            "collision: shot (magenta) 511 in the world: stops bullets and the camera only",
+            "collision: solid (white) 105 in the world: stops walkers, bullets and the camera",
         ]);
     }
 
     #[test]
     fn colours_packed_red_lowest() {
-        assert_eq!(LevelGroup::Walkers.color().packed().to_le_bytes(), [0, 255, 0, 255]);
-        assert_eq!(LevelGroup::Bullets.color().packed().to_le_bytes(), [255, 0, 255, 255]);
-        assert_eq!(LevelGroup::Both.color().packed().to_le_bytes(), [255; 4]);
+        assert_eq!(LevelGroup::Walk.color().packed().to_le_bytes(), [0, 255, 0, 255]);
+        assert_eq!(LevelGroup::Shot.color().packed().to_le_bytes(), [255, 0, 255, 255]);
+        assert_eq!(LevelGroup::Solid.color().packed().to_le_bytes(), [255; 4]);
         assert_eq!(LineColor::opaque(255, 0, 0).packed(), u32::from_be_bytes([255, 0, 0, 255]),
                    "the stages' red: 0xFF0000FF");
     }

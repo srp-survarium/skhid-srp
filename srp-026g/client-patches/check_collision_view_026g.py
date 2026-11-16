@@ -6,7 +6,8 @@ the console command `collision` (client_patch.md section 3.82).
 
 Requires Python `unicorn`. check_console_where_026g.py's harness (the exe's
 sections and the arena loaded as they are, the log's helper write stubbed),
-the original beside the build. Stubbed: system_renderer::draw_lines
+the original beside the build. Stubbed: kernel32's VirtualAlloc (its
+import slot 0x87015C: fresh zeroed room of ours, `ret 10h`), system_renderer::draw_lines
 (0x11CD10: its arguments and the vertices kept, `ret 14h`) and
 btBvhTriangleMeshShape::processAllTriangles (0xA8660: its shape, callback
 and box kept, then x86 of ours that does what its node callback does with
@@ -25,8 +26,9 @@ dimensions +20h, margin +30h, up axis +40h; a compound's children +10h/+18h,
   execute; the original says "unknown command";
 - `collision`: "collision: on"; the next update_camera prints the census, a
   line a group; the render site then draws, through draw_lines (technique
-  0, the system renderer, 1024 vertices a call at most, indices 0..n), the
-  level's static objects within 10 m of the eye in the game's frame (z
+  0, the system renderer, 32768 vertices a call at most, indices 0..n, the
+  lines' room VirtualAlloc'd once), the
+  level's static objects within 20 m of the eye in the game's frame (z
   negated), a colour a group: a turned box's twelve edges, a compound's
   sphere, cylinder and capsule where its pose and theirs put them, and the
   edges of a mesh's triangles near the eye (asked of processAllTriangles
@@ -35,10 +37,14 @@ dimensions +20h, margin +30h, up axis +40h; a compound's children +10h/+18h,
   model (40h, even static), a controller, a battery, anything moving, far
   or of another shape type; drawn once a frame read; the span's registers
   as the original's;
-- a mesh with more lines than the cap: asked again at 5 m and 2.5 m, then
-  6144 lines, twelve draws;
-- `collision 8`: that group alone, the census again; `collision x`: the
-  usage; `collision` again: off, nothing drawn; the original never draws.
+- within 20 m: a strip's two triangles 15 m away, their shared edge once,
+  one 26 m away not (the cap's step-down and the 32768-vertex draws are the
+  crate's tests: in Unicorn a frame of more than about 7 000 lines loses a
+  carry flag when it re-executes a store, a false bounds panic);
+- `collision shot`: what stops bullets and the camera (shot and solid), the
+  census of those; `collision 8`: the usage and the options; `collision
+  walk`: switched (walk and solid); again: off; `collision solid`: solid
+  alone; `collision` off, on and off; the original never draws.
 """
 import math
 import struct
@@ -71,7 +77,13 @@ EYE = (10.0, 1.7, 20.0)                      # the game's frame; Bullet's (10, 1
 GREEN, MAGENTA, WHITE = 0xFF00FF00, 0xFFFF00FF, 0xFFFFFFFF
 TURNED = ((0.0, 0.0, 1.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0))     # a quarter turn about y
 IDENTITY = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
-MOST = 6144
+MOST = 65536
+HELP = ["  collision walk  - what stops walking (green + white)",
+        "  collision shot  - what stops bullets and the camera (magenta + white)",
+        "  collision solid - what stops both (white)",
+        "  collision       - again to turn off"]
+ON = ["collision: on, all (walk green, shot magenta, solid white)"] + HELP
+VIRTUAL_ALLOC_SLOT, ROOM = 0x87015C, 0x70000000
 
 
 class Run(where.Run):
@@ -84,6 +96,11 @@ class Run(where.Run):
         emu.mem_map(STUB, 0x200000, UC_PROT_ALL)
         emu.mem_map(hide.STACK - 0x100000, 0x100000, UC_PROT_ALL)
         emu.mem_write(STUB, STUB_CODE)
+        emu.mem_map(ROOM, 0x400000, UC_PROT_ALL)
+        self.room, self.allocations = ROOM, []
+        self.word(VIRTUAL_ALLOC_SLOT, STUB + 0x100)
+        emu.mem_write(STUB + 0x100, b"\xC2\x10\x00")
+        emu.hook_add(UC_HOOK_CODE, self.virtual_alloc, begin=STUB + 0x100, end=STUB + 0x100)
         self.word(SYSTEM_RENDERER_SLOT, SYSTEM_RENDERER)
         self.draws, self.queries, self.shapes = [], [], 0
         emu.hook_add(UC_HOOK_CODE, self.draw_lines, begin=DRAW_LINES, end=DRAW_LINES)
@@ -95,8 +112,14 @@ class Run(where.Run):
             self.emu.reg_write(reg, value)
         self.emu.reg_write(UC_X86_REG_ESP, sp)
         self.stops, self.stopped, self.started, self.calls, self.invoked = stops, None, False, [], []
-        self.emu.emu_start(start, 0, count=20_000_000)
+        self.emu.emu_start(start, 0)
         return {reg: self.emu.reg_read(reg) for reg in hide.REGS}, self.emu.reg_read(UC_X86_REG_ESP)
+
+    def virtual_alloc(self, emu, *_):
+        size = self.read(emu.reg_read(UC_X86_REG_ESP) + 8)
+        self.allocations.append(size)
+        emu.reg_write(UC_X86_REG_EAX, self.room)
+        self.room += (size + 0xFFFF) & ~0xFFFF
 
     def draw_lines(self, emu, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -281,24 +304,26 @@ def main():
     check(drawn_old == [] and drawn_new == [] and regs_old == regs_new == (RENDERER, 0x51525354),
           "off: nothing drawn; the span's EDI and EDX the original's")
 
-    check(new.said("collision") == ["collision: on"], "collision through console_commands::execute: \"collision: on\"")
+    check(new.said("collision") == ON, "collision through console_commands::execute: \"collision: on, all\" and the "
+          "four options' lines")
     lines = new.frame()
     old.frame()
-    check(lines == ["collision: the level's static collision within 10 m (less where that is over 6144 lines), a "
-                    "colour a group:",
-                    "collision: 0x2 green, 3 in the world (walkers only)",
-                    "collision: 0x8 magenta, 1 in the world (bullets and the camera only)",
-                    "collision: 0xa white, 1 in the world (walkers, bullets and the camera)"],
+    check(new.allocations == [2 * MOST * 16, 32768 * 2] and old.allocations == [],
+          "turned on: the lines' room once, VirtualAlloc'd (2 MiB of vertices, 64 KiB of indices)")
+    check(lines == ["collision: the level's static collision within 20 m (less where that is over 65536 lines):",
+                    "collision: walk (green) 3 in the world: stops walkers only",
+                    "collision: shot (magenta) 1 in the world: stops bullets and the camera only",
+                    "collision: solid (white) 1 in the world: stops walkers, bullets and the camera"],
           "the first frame: the census, a line a group: " + " | ".join(lines))
     queries = new.queries
     eye = (10.0, 1.7, -20.0)
-    want_box = tuple(e - 10.0 for e in eye) + tuple(e + 10.0 for e in eye)
+    want_box = tuple(e - 20.0 for e in eye) + tuple(e + 20.0 for e in eye)
     check(len(queries) == 2 and {q["shape"] for q in queries} == {mesh}
           and all(all(abs(a - b) < 1e-4 for a, b in zip(q["low"] + q["high"], want_box)) for q in queries)
           and all(q["slots"][0] == TRIANGLE_RTTI and q["slots"][1] == TRIANGLE_DTOR and q["slots"][2] != TRIANGLE_PROCESS
                   and q["vtable"] != TRIANGLE_METHODS for q in queries),
-          "a mesh's triangles through processAllTriangles' callback: asked with the eye's box +-10 m in the mesh's "
-          "space (the compound's mesh child and the 0xa mesh), the callback's vtable a copy of "
+          "a mesh's triangles through processAllTriangles' callback: asked with the eye's box +-20 m in the mesh's "
+          "space (the compound's mesh child and the solid mesh), the callback's vtable a copy of "
           "btConvexTriangleCallback's (its RTTI and destructor, processTriangle ours)")
 
     draws, regs = new.debug_lines()
@@ -336,30 +361,45 @@ def main():
     check(new.debug_lines()[0] == [] and old.debug_lines()[0] == [], "drawn once a frame read; the original never")
     check(new.frame() == [] and segments(new.debug_lines()[0]) == got, "the next frame: no census, the same lines")
 
-    # a mesh near the eye with more lines than the cap
-    many = [((10.0 + i * 1e-3, 1.0, -20.0), (10.0 + i * 1e-3, 1.5, -20.0), (10.2 + i * 1e-3, 1.0, -20.0))
-            for i in range(MOST // 3 + 10)]   # 6174 lines
-    new.mesh(many)
+    # 20 m: a triangle 15 m away drawn, one 25 m away not; a strip's shared edge drawn once
+    a, b, c, d = (25.0, 1.0, -20.0), (25.0, 2.0, -20.0), (25.5, 1.0, -20.0), (25.5, 2.0, -20.0)
+    beyond = ((36.0, 1.0, -20.0), (36.0, 2.0, -20.0), (36.5, 1.0, -20.0))
+    new.mesh([(a, b, c), (b, c, d), beyond])
     new.world([(0x2, 1, IDENTITY, (0.0, 0.0, 0.0), mesh)])
     new.frame()
-    halves = [round(q["high"][0] - eye[0], 3) for q in new.queries]
     draws, _ = new.debug_lines()
-    check(halves == [10.0, 5.0, 2.5] and [len(d["vertices"]) for d in draws] == [1024] * 12
-          and len({d["first"] for d in draws}) == 1,
-          f"over the cap: asked again at 5 m and 2.5 m ({halves}), then {MOST} lines in twelve draws of 1024 vertices, "
-          "the same indices")
+    edges = {frozenset((p, q)) for _, p, q in segments(draws)}
+    want = {frozenset((rounded(game(p)), rounded(game(q)))) for p, q in ((a, b), (b, c), (c, a), (c, d), (d, b))}
+    check([round(q["high"][0] - eye[0], 3) for q in new.queries] == [20.0] and len(segments(draws)) == 5
+          and edges == want,
+          "within 20 m: a strip of two triangles 15 m away, its shared edge drawn once (5 lines); 26 m away not")
     new.mesh(near + [far])
     new.world([(0x2, 1, TURNED, box_origin, box), (0x8, 1, IDENTITY, compound_origin, compound),
                (0xA, 1, IDENTITY, (0.0, 0.0, 0.0), mesh)])
 
-    check(new.said("collision 8") == ["collision: on, 0x8 only"], "collision 8: \"collision: on, 0x8 only\"")
-    check(len(new.frame()) == 4 and Counter(c for c, _, _ in segments(new.debug_lines()[0])) == {MAGENTA: 122},
-          "collision 8: the census, the 0x8 compound's lines alone")
-    check(new.said("collision x") == ["collision: collision [2 | 8 | a] (walkers, bullets, both)"]
-          and new.frame() == [] and Counter(c for c, _, _ in segments(new.debug_lines()[0])) == {MAGENTA: 122},
-          "collision x: the usage, nothing changed")
-    check(new.said("collision") == ["collision: off"] and new.frame() == [] and new.debug_lines()[0] == [],
-          "collision again: off, nothing drawn")
+    def colours():
+        return Counter(c for c, _, _ in segments(new.debug_lines()[0]))
+
+    check(new.said("collision shot") == ["collision: on, shot (magenta + white)"],
+          "collision shot: \"collision: on, shot (magenta + white)\"")
+    census = new.frame()
+    check(census[1:] == ["collision: shot (magenta) 1 in the world: stops bullets and the camera only",
+                         "collision: solid (white) 1 in the world: stops walkers, bullets and the camera"]
+          and colours() == {MAGENTA: 122, WHITE: 6},
+          "collision shot: what stops bullets and the camera, the shot compound and the solid mesh; the census of those")
+    check(new.said("collision 8") == ["collision: collision [walk | shot | solid]"] + HELP
+          and new.frame() == [] and colours() == {MAGENTA: 122, WHITE: 6},
+          "collision 8: the usage with the options, nothing changed")
+    check(new.said("collision walk") == ["collision: on, walk (green + white)"] and len(new.frame()) == 3
+          and colours() == {GREEN: 12, WHITE: 6},
+          "collision walk: switched, what stops walkers, the walk box and the solid mesh")
+    check(new.said("collision walk") == ["collision: off"] and new.frame() == [] and new.debug_lines()[0] == [],
+          "collision walk again: off, nothing drawn")
+    check(new.said("collision solid") == ["collision: on, solid (white)"] and len(new.frame()) == 2
+          and colours() == {WHITE: 6}, "collision solid: the solid mesh alone")
+    check(new.said("collision") == ["collision: off"] and new.said("collision") == ON and len(new.frame()) == 4
+          and new.said("collision") == ["collision: off"] and new.frame() == [] and new.debug_lines()[0] == [],
+          "collision: off from solid; again on (all), then off")
 
 
 if __name__ == "__main__":

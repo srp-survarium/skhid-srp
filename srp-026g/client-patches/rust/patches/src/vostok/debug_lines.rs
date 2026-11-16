@@ -35,23 +35,73 @@ pub struct LineVertex {
     pub color: LineColor,
 }
 
-impl LineVertex {
-    pub const NONE: LineVertex = LineVertex { at: [0.0; 3], color: LineColor(0) };
+impl Default for LineVertex {
+    fn default() -> Self {
+        LineVertex { at: [0.0; 3], color: LineColor(0) }
+    }
 }
 
-/// The most vertices a draw_lines of ours takes: a line list's indices
-/// 0..CHUNK, the same for every chunk.
-const CHUNK: usize = 1024;
+/// The most vertices a draw_lines of ours takes: half the system
+/// renderer's vertex stream (+74h, 100000h bytes of 10h-byte vertices,
+/// made at 0x11C265; its lock 0x3D7640 starts over at 0 when a lock does
+/// not fit and never checks a lock against the stream's size).
+const CHUNK: usize = 32 * 1024;
 
-static INDICES: [u16; CHUNK] = {
-    let mut out = [0u16; CHUNK];
-    let mut i = 0;
-    while i < CHUNK {
-        out[i] = i as u16;
-        i += 1;
+/// Lines to draw, in pages of our own (kernel32's, never an engine arena),
+/// made once and kept while the game runs; with the indices 0..CHUNK
+/// every draw takes.
+pub struct LineBuffer {
+    vertices: &'static mut [LineVertex],
+    indices: &'static [u16],
+    len: usize,
+}
+
+impl LineBuffer {
+    /// Room for `lines` lines; none when the address space has no hole for it.
+    pub fn make(thread: &Thread, lines: usize) -> Option<LineBuffer> {
+        let vertices = super::memory_profile::reserve::<LineVertex>(thread, 2 * lines)?.keep();
+        let indices = super::memory_profile::reserve::<u16>(thread, CHUNK)?.keep();
+        indices.iter_mut().enumerate().for_each(|(i, index)| *index = i as u16);
+        Some(LineBuffer { vertices, indices, len: 0 })
     }
-    out
-};
+
+    /// Over buffers of the caller's (the tests').
+    #[cfg(test)]
+    pub fn over(vertices: &'static mut [LineVertex], indices: &'static [u16]) -> LineBuffer {
+        LineBuffer { vertices, indices, len: 0 }
+    }
+
+    pub fn clear(&mut self) {
+        self.len = 0;
+    }
+
+    pub fn count(&self) -> usize {
+        self.len / 2
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.len + 2 > self.vertices.len()
+    }
+
+    /// A line from `a` to `b` (the game's frame); none once it is full.
+    pub fn push(&mut self, a: [f32; 3], b: [f32; 3], color: LineColor) {
+        if self.is_full() {
+            return;
+        }
+        self.vertices[self.len] = LineVertex { at: a, color };
+        self.vertices[self.len + 1] = LineVertex { at: b, color };
+        self.len += 2;
+    }
+
+    pub fn vertices(&self) -> &[LineVertex] {
+        &self.vertices[..self.len]
+    }
+
+    /// The lines a draw at a time: at most CHUNK vertices and as many indices.
+    fn chunks(&self) -> impl Iterator<Item = (&[LineVertex], &[u16])> {
+        self.vertices().chunks(CHUNK).map(|chunk| (chunk, &self.indices[..chunk.len()]))
+    }
+}
 
 /// draw_lines' technique: 0, as the depth-tested pass's own lines (0x13DA08).
 const DEPTH_TESTED: u32 = 0;
@@ -70,12 +120,11 @@ impl<'t> DebugLines<'t> {
         Some(DebugLines { renderer, _thread: ctx.thread() })
     }
 
-    /// `vertices` as a line list, each pair a line, CHUNK vertices a call.
-    pub fn draw(&self, vertices: &[LineVertex]) {
-        for chunk in vertices.chunks(CHUNK) {
-            let count = chunk.len() & !1;
-            let range = chunk[..count].as_ptr_range();
-            let indices = INDICES[..count].as_ptr_range();
+    /// The buffer's lines, CHUNK vertices a call.
+    pub fn draw(&self, lines: &LineBuffer) {
+        for (chunk, indices) in lines.chunks() {
+            let range = chunk.as_ptr_range();
+            let indices = indices.as_ptr_range();
             // SAFETY: the render thread, inside renderer::render where the
             // game draws its own debug lines; draw_lines copies our vertices
             // and indices into its streams before it returns.
@@ -84,5 +133,26 @@ impl<'t> DebugLines<'t> {
                                        indices.end, DEPTH_TESTED)
             };
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_draw_at_most_chunk_vertices() {
+        let vertices = Box::leak(vec![LineVertex::default(); 2 * 40_000].into_boxed_slice());
+        let indices = Box::leak((0..CHUNK).map(|i| i as u16).collect::<Vec<_>>().into_boxed_slice());
+        let mut lines = LineBuffer::over(vertices, indices);
+        for i in 0..40_000 {
+            lines.push([i as f32; 3], [0.0; 3], LineColor::opaque(0, 255, 0));
+        }
+        assert!(lines.is_full());
+        lines.push([1.0; 3], [2.0; 3], LineColor::opaque(0, 255, 0));
+        assert_eq!(lines.count(), 40_000, "full: no more");
+        let sizes: Vec<_> = lines.chunks().map(|(v, i)| (v.len(), i.len(), i.last().copied())).collect();
+        assert_eq!(sizes, [(CHUNK, CHUNK, Some(CHUNK as u16 - 1)), (CHUNK, CHUNK, Some(CHUNK as u16 - 1)),
+                           (80_000 - 2 * CHUNK, 80_000 - 2 * CHUNK, Some((80_000 - 2 * CHUNK) as u16 - 1))]);
     }
 }
