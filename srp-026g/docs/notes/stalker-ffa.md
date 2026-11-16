@@ -443,12 +443,10 @@ ladders' ledges), x -57.9..48.1, z -41.9..27.1: the nearest two 6.5 m apart, the
 nearest to the outline 8.1 m. Run again on the built project, `to_cover` keeps
 all 48 in one round.
 
-The visual lists the other three have, for `day_8` too: stock grain
-(`ported-maps-grain-1`; `day_4` had it), stock ambient occlusion
-(`stalker-maps-ao-1`) and the sun of Vostok v0.11 (`stalker-maps-sun-1`, in
-`day_4` and `day_8`: Repair Depot has the same weather, god rays 1.0 at 1.0 and
-flares x2). No grass (a pack rebuild), and its bushes do not rustle
-(`stalker-bushes@2` has the other three's).
+No list here changes its look: grain, ambient occlusion, the sun and the
+bushes are the port's since `stalker-maps@7` (`stalker-maps.md`), and `day_8`
+is a copy of that `day_4`. Its level geometry is the same in @6 and @7 (only
+the bushes' step-only objects are new), so the points planned on @6 stand.
 
 The HUD minimap is framed on the outline + 15 m (`render_minimap.py
 --frame-outline rembasa-arena.tsv`; size 89.309, posX -2.34, posY -7.075,
