@@ -4768,13 +4768,12 @@ meets nothing is silent: on a walker-only floor (cgroup 2) more than 1 m over it
 surface. 0.69d steps on the material its character controller stands on when the ray misses.
 
 **The patch** (the Rust patch `step_ground`, one lohook, `step.ground` at 0x248B5A, after the
-ray): a hit goes on as the game's. A miss looks again with the same `ray_test`: the walker
-collision too (group 34h, mask 0Ah, the same reach): its face's material; a face without one,
-the hittable surface under it to 4 m under the foot; else the face's own, stepped as `default`;
-as 0.69d: what the player's character controller touched at its last step-down sweep (four
-read-only hooks in its callback 0x84420 and the sweep 0x84FE0: `step_down.first`, `.second`,
-`.result`, `.cached`; footsteps.md, "The contact"), a face without a material taking the hittable
-surface under the touch to 4 m, else `default`; nothing touched (in the air): silent as before. A found ground goes on at
+ray): a hit goes on as the game's. A miss steps as 0.69d: on what the player's character
+controller touched at its last step-down sweep (four read-only hooks in its callback 0x84420 and
+the sweep 0x84FE0: `step_down.first`, `.second`, `.result`, `.cached`; footsteps.md, "The
+contact"), a face without a material taking the named hittable surface near the touch (from 10 cm
+over it to 30 cm under it, under it and then on rings to 30 cm across: its model's own metal),
+else `default`; nothing touched (in the air): silent as before. A found ground goes on at
 0x248B77 (EAX the material), the sound at the foot. `vostok::step::play` plays a step of a ground at a point for a player through `on_step` (for
 the ladders), and `footsteps::decide` is patch 101's rule for such steps. `SKHID_STEP_LOG=on`
 writes a line a step to the patch log (its body: the root, the foot's offset, the controller's

@@ -24,10 +24,12 @@ surfaces each with its height, collision group and mask, and material:
    get_triangle_material, part and point) and the sweep's answer (0x852EF in
    0x84FE0, run with the callback in its frame) keep it for the controller;
    the pair of the foot and that material plays at the foot. A touched face
-   without a material (3FFFh) takes the hittable surface under the touch
-   (group 30h, mask 8, from 5 cm over it to 4 m under it), and with none
-   there plays its own (material_pair's default); third person: no hud
-   flag. A sweep that takes no hit (a jump) and a cached miss (0x85083)
+   without a material (3FFFh) takes the named hittable surface near the
+   touch (group 30h, mask 8, from 10 cm over it to 30 cm under it): a beam
+   under it at 0 cm, else its model's metal on the nearest ring (5 cm
+   apart, eight looks each) beside it; with none within 30 cm (the strip
+   2 m over the ground) it plays its own (material_pair's default), not the
+   ground; third person: no hud flag. A sweep that takes no hit (a jump) and a cached miss (0x85083)
    clear it: the step is silent, as the original's;
 3. nothing touched, nothing under the foot: silent in both;
 4. water over the ground (the water-steps pack's surfaces, cgroup and
@@ -220,8 +222,9 @@ class Step:
         assert emu.reg_read(UC_X86_REG_ECX) == PHYSICS, "ray_test's world"
         assert direction == (0.0, -1.0, 0.0) and delegate == 0 and unflipped == 1, (direction, delegate, unflipped)
         self.calls.append(("ray", origin, round(length, 4), group, mask))
-        met = [(height, obj) for height, (cgroup, cmask), obj in self.surfaces
-               if cgroup & mask and cmask & group and origin[1] - length <= height <= origin[1]]
+        met = [(height, obj) for height, (cgroup, cmask), obj, (west, east) in self.surfaces
+               if cgroup & mask and cmask & group and origin[1] - length <= height <= origin[1]
+               and west <= origin[0] <= east]
         if not met:
             self.word(result + 0xC, 0)
             self.word(result + 0x1C, 0)
@@ -285,16 +288,16 @@ class Step:
         self.site(CACHED_SITE, CACHED_SITE + 5, {UC_X86_REG_ESI: SWEEPER, UC_X86_REG_EAX: CACHED}, [0, 0, 0])
 
     def run(self, surfaces, foot=ACTOR_LOCAL, view=0):
-        """One step of the foot material `foot` at FOOT over `surfaces`: the
-        calls it made."""
+        """One step of the foot material `foot` at FOOT over `surfaces`, each
+        everywhere or from west to east (x): the calls it made."""
         emu = self.emu
         self.calls, self.returned = [], False
         self.surfaces = []
-        for i, (height, groups, material) in enumerate(surfaces):
+        for i, (height, groups, material, *across) in enumerate(surfaces):
             obj = OBJECTS + 0x40 * i
             self.word(obj, OBJECT_VTABLE)
             self.objects[obj] = material
-            self.surfaces.append((height, groups, obj))
+            self.surfaces.append((height, groups, obj, across[0] if across else (-1e9, 1e9)))
         emu.mem_write(POSITION, struct.pack("<3f", *FOOT))
         sp = STACK + 0x8000
         emu.mem_write(STACK, b"\xCC" * 0x8000)                     # on_step's frame: whatever was there
@@ -399,8 +402,21 @@ def main():
     metal_touch = (METALL_THICK, (FOOT[0], 4.0, -FOOT[2]))
     strip_touch = (UNNAMED, (FOOT[0], 4.0, -FOOT[2]))
     beam = [(4.0, HITTABLE, METALL_THICK), (-1.0, HITTABLE, GROUND)]
-    f32 = lambda value: struct.unpack("<f", struct.pack("<f", value))[0]
-    under_ray = ("ray", (FOOT[0], f32(4.05), FOOT[2]), 4.05, 0x30, 8)
+    over_ground = [(2.0, HITTABLE, GROUND)]
+    # the model's own metal 10 cm beside the touch (+x), 2 cm under it, the ground 2 m under
+    beside = [(3.98, HITTABLE, METALL_THICK, (FOOT[0] + 0.08, FOOT[0] + 0.12)), (2.0, HITTABLE, GROUND)]
+
+    def f32(value):
+        return struct.unpack("<f", struct.pack("<f", value))[0]
+
+    def near_rays(rings):
+        """The looks near the touch: under it, then `rings` rings of eight
+        (5 cm apart), from 10 cm over the touch to 30 cm under it."""
+        d = f32(0.5 ** 0.5)
+        directions = [(1.0, 0.0), (d, d), (0.0, 1.0), (-d, d), (-1.0, 0.0), (-d, -d), (0.0, -1.0), (d, -d)]
+        at = [(0.0, 0.0)] + [(f32(dx * f32(0.05 * (k + 1))), f32(dz * f32(0.05 * (k + 1))))
+                             for k in range(rings) for dx, dz in directions]
+        return [("ray", (f32(FOOT[0] + dx), f32(4.1), f32(FOOT[2] + dz)), 0.4, 0x30, 8) for dx, dz in at]
     assert ours.sweep(metal_touch) == [("material", OBJECTS + 0x40 * 60, 5, 0)], "the touch's material read"
     # read only: the sweep's callback, frame and registers as the original leaves them at each site
     regs = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI, UC_X86_REG_EDI,
@@ -424,14 +440,20 @@ def main():
     print("  ok the same in third person: a point sound at the foot")
     ours.sweep(strip_touch)
     calls = ours.run(beam)
-    assert calls == [game_ray(), WATER_RAY, under_ray, material(0), ("materials", WORLD),
+    assert calls == [game_ray(), WATER_RAY] + near_rays(0) + [material(0), ("materials", WORLD),
                      ("pair", ACTOR_LOCAL, METALL_THICK)] + sound(3, AT_FOOT), calls
-    print("  ok a touched face without a material (the walkway's strip): the hittable surface under the touch,")
-    print("     its metal beam (30h/8, 5 cm over it to 4 m under it), at the foot")
-    calls = ours.run(walker_alone)
-    assert calls == [game_ray(), WATER_RAY, under_ray, ("materials", WORLD),
+    print("  ok a touched face without a material (the walkway's strip) over its metal beam at 0 cm: the beam")
+    print("     (30h/8, from 10 cm over the touch to 30 cm under it), at the foot")
+    calls = ours.run(beside)
+    rays = near_rays(2)                                            # each hit's material read at its ray
+    assert calls == [game_ray(), WATER_RAY] + rays[:10] + [material(0)] + rays[10:] + [("materials", WORLD),
+                     ("pair", ACTOR_LOCAL, METALL_THICK)] + sound(3, AT_FOOT), calls
+    print("  ok its model's metal 10 cm beside it: the rings of 5 and 10 cm, the metal, not the ground 2 m under")
+    calls = ours.run(over_ground)
+    assert calls == [game_ray(), WATER_RAY] + near_rays(6) + [("materials", WORLD),
                      ("pair", ACTOR_LOCAL, UNNAMED)] + sound(2, AT_FOOT), calls
-    print("  ok nothing named under it: its own (3FFFh), which material_pair steps as default")
+    print("  ok the strip 2 m over the ground, nothing within 30 cm: not the ground, its own (3FFFh),")
+    print("     which material_pair steps as default")
     assert ours.sweep(None) == [] and ours.run(air) == [game_ray(), WATER_RAY], "a jump: no touch, silent"
     print("  ok a sweep that takes no hit (a jump): nothing touched, silent")
     ours.sweep(metal_touch)
@@ -452,9 +474,11 @@ def main():
             (metal_touch, air, ACTOR_LOCAL, 0,
              "; contact 18 at 1000 400 -300 cm; game missed; water missed; ground 18 (touched): plays"),
             (strip_touch, beam, ACTOR_LOCAL, 0, "; contact 16383 at 1000 400 -300 cm; game missed; water missed; "
-             "under the touch met 18 at 0 cm; ground 18 (under the touch): plays"),
-            (strip_touch, walker_alone, ACTOR_LOCAL, 0, "; contact 16383 at 1000 400 -300 cm; game missed; water "
-             "missed; under the touch missed; ground 16383 (touched): plays"),
+             "near the touch met 18 at 0 cm, 0 cm across; ground 18 (near the touch): plays"),
+            (strip_touch, beside, ACTOR_LOCAL, 0, "; contact 16383 at 1000 400 -300 cm; game missed; water missed; "
+             "near the touch met 18 at 1 cm, 10 cm across; ground 18 (near the touch): plays"),
+            (strip_touch, over_ground, ACTOR_LOCAL, 0, "; contact 16383 at 1000 400 -300 cm; game missed; water "
+             "missed; near the touch missed; ground 16383 (touched): plays"),
             (None, air, ACTOR_LOCAL, 0, "; no contact; game missed; water missed; nothing under the foot, no contact: silent"),
             (metal_touch, air, ACTOR, 1,
              "; contact 18 at 1000 400 -300 cm; game missed; water missed; ground 18 (touched): plays"),

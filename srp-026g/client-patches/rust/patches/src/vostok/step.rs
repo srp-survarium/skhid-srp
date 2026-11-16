@@ -27,9 +27,9 @@ use crate::raw;
 /// (cgroup 8, cmask 10h or 20h).
 const GAME_GROUP: u32 = 0x30;
 const GAME_MASK: u32 = 0x08;
-/// How far over a touch the look under it starts (it meets the touched face
-/// itself, or what is under it).
-const LIFT: f32 = 0.05;
+/// How far over `at` a look near a touch starts: the model's own collision
+/// beside a walker face lies up to 3 cm over it (walk 3).
+const LIFT: f32 = 0.10;
 /// The drawn water surfaces (content pack water-steps, cgroup and cmask
 /// 1000h): no other object, body or ray of the game has the bit either way
 /// (the game's filters, ragdoll.md section 19's table), so this look alone
@@ -106,9 +106,10 @@ pub enum Look {
     /// The drawn water surfaces alone ([`WATER_BIT`]), as far as on_step's
     /// ray reaches: water over the foot within 1 m.
     Water,
-    /// on_step's filter from just over `at` (a touch of the controller's, the
-    /// game's frame) to `reach` metres under it: the hittable surface under a
-    /// touched face without a material. A hit's depth is under `at`.
+    /// on_step's filter from 10 cm over `at` (at or beside a touch of the
+    /// controller's, the game's frame) to `reach` metres under it: the
+    /// hittable surface near a touched face without a material. A hit's
+    /// depth is under `at`.
     Under { at: [f32; 3], reach: f32 },
 }
 
