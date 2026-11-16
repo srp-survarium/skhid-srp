@@ -1,0 +1,341 @@
+{
+ "_about": "A grenade's bounce as 0.69d plays it (the owner, 2026-11-16: only what 0.69d changed; docs/notes/grenade_bounce.md, \"0.69d's bounces\"). The bounce is the grenade material's (45) collision_sound in game_materials/material.pairs (grenade::on_collision 0x248980). 0.69d points 21 of its pairs at two composites of its own, weapons/f1_surface_hit (ground, default, concrete, asphalt, stone, gravel, grass, ground_forest, brick, the woods, schiefer, glass_hard, wood_bridge) and weapons/f1_metal_hit (metall_thin, metall_thick, rabitz, metal_car, metal_gas_tank, metall_tank), from the pack grenade-hits-069d; five of them (glass_hard, metal_car, metal_gas_tank, wood_bridge, metall_tank) had no bounce sound. Only collision_sound and its type change: no particle, decal or physics field. The pairs 0.69d leaves silent stay silent (mud, water, deep_water, bodies, foliage, glass, plastic, paper, cloth, rubber, the gratings, wood_tree, glass_car, foliage_dry, grass_soft, restrictor). The stock samples grenade-bounce-1 retuned are no longer played.",
+ "set_entry": [
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 9
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_ground",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 11
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_ground",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 13
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_wood",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 16
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_wood",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 17
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_metal",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_metal_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 18
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_metal",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_metal_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 19
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_ground",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 20
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_ground",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 21
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_ground",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 22
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_ground",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 25
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_ground",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 26
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_ground",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 31
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_ground",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 35
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_wood",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 36
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_metal",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_metal_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 39
+   },
+   "from": {
+    "collision_sound": "",
+    "collision_sound_type": 256
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 46
+   },
+   "from": {
+    "collision_sound": "",
+    "collision_sound_type": 256
+   },
+   "to": {
+    "collision_sound": "weapons/f1_metal_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 48
+   },
+   "from": {
+    "collision_sound": "",
+    "collision_sound_type": 256
+   },
+   "to": {
+    "collision_sound": "weapons/f1_metal_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 50
+   },
+   "from": {
+    "collision_sound": "",
+    "collision_sound_type": 256
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 55
+   },
+   "from": {
+    "collision_sound": "",
+    "collision_sound_type": 256
+   },
+   "to": {
+    "collision_sound": "weapons/f1_metal_hit",
+    "collision_sound_type": 257
+   }
+  },
+  {
+   "file": "game_materials/material.pairs",
+   "list": "pairs",
+   "where": {
+    "mtrl_1_id": 45,
+    "mtrl_2_id": 63
+   },
+   "from": {
+    "collision_sound": "weapons/f1/f1_hit_wood",
+    "collision_sound_type": 258
+   },
+   "to": {
+    "collision_sound": "weapons/f1_surface_hit",
+    "collision_sound_type": 257
+   }
+  }
+ ]
+}

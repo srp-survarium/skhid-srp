@@ -89,3 +89,35 @@ one `replace_string`).
 - **Other presets that fit** (stock, `volume_k` 0.5): `steps` (the footsteps': 0.34 at 1 m,
   0.12 at 5 m, 0.04 at 10 m, silent from 17 m; its `spl` curve peaks at 120, not 100),
   `low_range` (0.33 at 1 m, 0.08 at 5 m, silent from 12 m) for less reach.
+
+## 0.69d's bounces (pack grenade-hits-069d, edit list grenade-hits-069d-1)
+
+- **Asked (the owner, 2026-11-16):** "let's not change things unless 0.69 does so", of the silent
+  and quiet bounces (`sound-gaps.md` 3.4), "though 3 and 4 sound important". So only what 0.69d
+  changed.
+- **What 0.69d changed:** 21 of the grenade's (45) pairs play one of two composites of its own
+  instead of `weapons/f1/f1_hit_{ground,wood,metal}`: `weapons/f1_surface_hit` (a close collection
+  of 33 recordings to 5 m, a distant one of 10 from 5 to 25 m) for ground, default, concrete,
+  asphalt, stone, gravel, grass, ground_forest, brick, the four woods, schiefer, glass_hard and
+  wood_bridge; `weapons/f1_metal_hit` (15 close to 15 m, 10 distant to 25 m) for metall_thin,
+  metall_thick, rabitz, metal_car, metal_gas_tank and metall_tank. Five of those had no bounce
+  sound in 0.26g: glass_hard, metal_car, metal_gas_tank, wood_bridge, metall_tank. The samples:
+  `volume_k` 0.5 close, 1 distant, 0.8 metal; `spl_value` 60; preset 0.69d's `vss_main`; HDR and
+  displaceable. Peak x `volume_k` against 0.26g's: 2.3 to 2.8 dB louder on ground and wood, 8 dB on
+  metal (`sound-gaps.md` 3.4). 0.69d also empties these pairs' `reflection_sound` and
+  `piercing_sound`, which the bounce does not play (it reads `collision_sound`, +20h): not taken.
+- **What 0.69d leaves as 0.26g has it:** no bounce on mud, water, deep_water, bodies, the foliage,
+  glass, plastic, paper, cloth, rubber, the gratings, wood_tree, glass_car, foliage_dry, grass_soft
+  and restrictor. Not changed here; listen-only candidates are in the private renders
+  (`renders/sound-gaps/impacts/`).
+- **The pack:** 0.69d's configs are of a later format, so `scripts/grenade-hits-069d/make_pack.py`
+  writes each in 0.26g's from a stock config of its kind (a sample's `.raw_options`, f1_hit_ground's
+  collection, asphalt_sprint's composite, vss_main's preset) with 0.69d's values; the `.high.ogg` and
+  `.high.rms` are 0.69d's, byte for byte (`donor.sha256`). 0.69d's `vss_main` falls off nearer than
+  0.26g's (0.38 at 3 m against 6 m, silent at 25 m), so it is added as `sounds/spl/grenade_hit_069d.spl`
+  and 0.26g's VSS shots keep their own. The composites' distances are metres, as 0.26g's weapons'.
+- **Who computes it:** nothing of a match (sound only); no `simulation_changes.tsv` row. The edit list
+  sets `collision_sound` and `collision_sound_type` alone.
+- **grenade-bounce-1** retuned the stock samples' preset; with this change no pair plays them.
+- **Not heard yet.** The first louder version (revision 27) was "too loud, and almost like they use
+  different sound": these are 0.69d's own recordings, so the owner's in-game listen decides.
