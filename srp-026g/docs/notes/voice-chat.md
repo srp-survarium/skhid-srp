@@ -799,6 +799,38 @@ before and after of each can be heard in `private/renders/voice-steady/`.
   could say per talker how much of an utterance came and how evenly (it sees every AUDIO's
   number and each END's frame count); not built.
 
+## Behind a wall (the owner, 2026-11-16; built, not played)
+
+The owner, of the 10 m voice: "one thing I wonder with directional voice, it doesn't follow
+geometry at all right now"; asked whether to make it quieter and dull behind a wall: "let's try".
+Until then the voice had its side and its distance and nothing else: 5 m away behind a wall
+sounded as 5 m away in the open.
+
+- **What a listener hears.** With something solid of the level between the two heads the
+  speaker's 10 m voice is 10 dB down (`BEHIND_A_WALL` 0.316) and dull: over 700 Hz it falls 12 dB
+  an octave (`MUFFLE_HZ`), a wall letting a voice's body through and taking its consonants.
+  Never silent. The radio is not touched (it is not sound in the air).
+- **The test** (patch 66, each frame, for each player heard talking and in the world, as the
+  listener is): three lines from the listener's head (its eye matrix's place) to the speaker's
+  head and 0.3 m to either side of it, level with the ground (`WALL_SIDE_M`), each asked of the
+  simulation's physics world with the level's own filter (group 24h, mask 2: the one the foot IK
+  and the carry's reach use; the players' own bodies are not of it). How many of the three are
+  blocked is how much of the voice is behind the wall: a post or a door's edge takes a third or
+  two, not all at once.
+- **No switch.** That part changes 0.15 a frame at most (`WALL_STEP`: all of it in seven frames,
+  a tenth of a second and a little); a speaker who begins to talk behind a wall is behind it from
+  its first frame. The DLL ramps what it is told over its own 20 ms.
+- **The interface** (voice ABI 8): `sv_hear(place, left, right, muffle, radio)`; `voice_abi::Heard`
+  has `muffle` (`Muffle`, 0..1). The loudness is in the two ears' gains, which the patch scales; the
+  DLL only dulls: the voice crossed with itself through a low-pass (`Speaker::wall`), run only
+  while it is muffled at all. It comes after the leveller, so a speaker behind a wall is not
+  raised back.
+- **Not known** (nothing was heard or walked in a game): what of a map the level's filter takes
+  for solid (a fence that a bullet passes, a window's glass, a bush: whatever has collision
+  blocks, however thin), whether a remote player's eye matrix is always its head's place, and
+  whether the game's own sounds are occluded at all (if not, the voice is the one sound a wall
+  dulls). A line of sight is not sound: an open door a step aside does not let the voice round.
+
 ## Bandwidth
 
 - Talking: Opus 16 kbps, 2 frames of 20 ms per datagram (about 80 bytes of audio + 10 header +

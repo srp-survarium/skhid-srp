@@ -1,10 +1,10 @@
 use crate::{
     Decoder, FRAME, Radio, SLOTS,
-    radio::unit,
+    radio::{Biquad, Kind, unit},
     sounds::{SQUELCH_IN, SQUELCH_OUT},
     wire::Message,
 };
-pub use voice_abi::{Channel, Ears, Heard};
+pub use voice_abi::{Channel, Ears, Heard, Muffle};
 const RING: usize = 32;
 /// A frame of the mix: each sample's left and right, as WinMM's 16-bit
 /// stereo takes them.
@@ -15,25 +15,31 @@ pub type Stereo = [[i16; 2]; FRAME];
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Gains {
     plain: [f32; 2],
+    /// How much of the 10 m voice is its muffled self (0..1).
+    muffle: f32,
     radio: f32,
 }
 impl Gains {
-    const SILENT: Self = Self { plain: [0., 0.], radio: 0. };
+    const SILENT: Self = Self { plain: [0., 0.], muffle: 0., radio: 0. };
     /// An utterance on `channel` of a slot heard so.
     fn of(heard: Heard, channel: Channel) -> Self {
         match channel {
-            Channel::Near => Self { plain: heard.near.get(), radio: 0. },
-            Channel::Radio => Self { plain: [0., 0.], radio: f32::from(u8::from(heard.radio)) },
+            Channel::Near => Self { plain: heard.near.get(), muffle: heard.muffle.get(), radio: 0. },
+            Channel::Radio => Self { plain: [0., 0.], muffle: 0., radio: f32::from(u8::from(heard.radio)) },
         }
     }
 }
+/// A voice behind a wall: what is left of it over this (Hz, 12 dB an octave
+/// down from it) is gone. A wall lets a voice's body through and takes its
+/// consonants.
+const MUFFLE_HZ: f32 = 700.;
 /// How every slot is heard.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hearing([Heard; SLOTS]);
 impl Hearing {
     /// Every slot heard on both channels: its 10 m voice as decoded in both
     /// ears, its radio on.
-    pub const UNITY: Self = Self([Heard { near: Ears::UNITY, radio: true }; SLOTS]);
+    pub const UNITY: Self = Self([Heard { near: Ears::UNITY, muffle: Muffle::NONE, radio: true }; SLOTS]);
     /// A slot past the 20 changes nothing.
     pub fn set(&mut self, slot: usize, heard: Heard) {
         if let Some(place) = self.0.get_mut(slot) {
@@ -405,6 +411,8 @@ struct Speaker {
     gains: Gains,
     /// Holds its own part of the mix under the mix's ceiling.
     rider: Rider,
+    /// Its 10 m voice as heard through a wall ([`MUFFLE_HZ`]).
+    wall: Biquad,
 }
 impl Speaker {
     fn new() -> Result<Self, String> {
@@ -420,6 +428,7 @@ impl Speaker {
             channel: Channel::Near,
             gains: Gains::SILENT,
             rider: Rider::REST,
+            wall: Biquad::new(Kind::Low, MUFFLE_HZ, std::f32::consts::FRAC_1_SQRT_2, 0.),
         })
     }
     /// The utterance `id` on `channel` is this speaker's open one (now, or
@@ -734,7 +743,11 @@ impl Core {
                 sounds = true;
                 let ramp = |from: f32, to: f32, i: usize| from + (to - from) * (i + 1) as f32 / FRAME as f32;
                 if from.plain != [0., 0.] || to.plain != [0., 0.] {
+                    let muffled = from.muffle > 0. || to.muffle > 0.;
                     for (i, (a, p)) in own.iter_mut().zip(pcm).enumerate() {
+                        // Behind a wall: so much of it its dull self (the
+                        // filter runs only while it is: it comes in ramped).
+                        let p = if muffled { p + (s.wall.run(p) - p) * ramp(from.muffle, to.muffle, i) } else { p };
                         for ((ear, from), to) in a.iter_mut().zip(from.plain).zip(to.plain) {
                             *ear += p * plain * ramp(from, to, i);
                         }

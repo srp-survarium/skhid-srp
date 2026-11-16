@@ -229,7 +229,7 @@ fn ear_sums(frames: &[Stereo]) -> [f64; 2] {
 }
 /// Heard near only, by these ears (an opponent's place).
 fn near(ears: Ears) -> Heard {
-    Heard { near: ears, radio: false }
+    Heard { near: ears, muffle: Muffle::NONE, radio: false }
 }
 #[test]
 fn the_10_m_voice_is_mixed_by_the_gains_it_is_given() {
@@ -249,16 +249,39 @@ fn the_10_m_voice_is_mixed_by_the_gains_it_is_given() {
     assert!(silent.iter().flatten().all(|ears| *ears == [0, 0]));
 }
 #[test]
+fn a_voice_behind_a_wall_is_dull() {
+    // A low tone and a high one from slot 3, heard in the open, half behind
+    // a wall and wholly: the wall takes the high one (700 Hz and up, 12 dB an
+    // octave) and leaves the low one; its loudness is the ears', not this.
+    let level = |hz: f32, muffle: Muffle| {
+        let mut encoder = Encoder::new().unwrap();
+        let frames: Vec<Vec<u8>> = (0..24).map(|i| encoder.encode(&tone(i, hz, 2000.)).unwrap()).collect();
+        let mut core = Core::new().unwrap();
+        feed(&mut core, &frames);
+        let mut hearing = Hearing::UNITY;
+        hearing.set(3, Heard { near: Ears::UNITY, muffle, radio: false });
+        let played: Vec<Stereo> = (0..20).map(|tick| core.mix(0.25, &hearing, tick * 20)).collect();
+        let sums = ear_sums(&played[10..]);
+        assert_eq!(sums[0], sums[1]);
+        sums[0]
+    };
+    let half = Muffle::new(0.5);
+    let (low, high) = (level(200., Muffle::NONE), level(2800., Muffle::NONE));
+    assert!(level(200., Muffle::WHOLE) > low * 0.9, "{} {low}", level(200., Muffle::WHOLE));
+    assert!(level(2800., Muffle::WHOLE) < high * 0.1, "{} {high}", level(2800., Muffle::WHOLE));
+    assert!(level(2800., half) < high * 0.7 && level(2800., half) > high * 0.3, "{} {high}", level(2800., half));
+}
+#[test]
 fn an_utterance_is_heard_by_its_own_channel_alone() {
     let right = Ears::new(0., 1.);
-    let mate = Heard { near: right, radio: true };
+    let mate = Heard { near: right, muffle: Muffle::NONE, radio: true };
     let voice = ear_sums(&heard_tone(12, Channel::Near, |_| mate)[9..]);
     let radio = ear_sums(&heard_tone(12, Channel::Radio, |_| mate)[9..]);
     // The 10 m voice from its side; the radio centred.
     assert!(voice[0] == 0. && voice[1] > 0. && radio[0] > 0. && radio[0] == radio[1], "{voice:?} {radio:?}");
     // An opponent's radio is never heard, nor the 10 m voice of a mate far
     // away or dead: no words, no static, no squelch.
-    let far = Heard { near: Ears::SILENT, radio: true };
+    let far = Heard { near: Ears::SILENT, muffle: Muffle::NONE, radio: true };
     assert_eq!(ear_sums(&heard_tone(12, Channel::Radio, |_| near(right))), [0., 0.]);
     assert_eq!(ear_sums(&heard_tone(12, Channel::Near, |_| far)), [0., 0.]);
     // And the talking list has a slot only while it is heard.
