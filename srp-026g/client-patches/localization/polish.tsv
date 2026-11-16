@@ -2554,6 +2554,7 @@ st_srp_hud_voice_not_muted	Czat głosowy niedostępny
 st_srp_hud_voice_unmute	Włącz głos
 st_srp_hud_voice_unmuted	Głos włączony
 st_srp_inv_ammo_range	Zasięg
+st_srp_inv_artefact_duration	Czas działania artefaktów
 st_srp_inv_bullet_speed	Prędkość pocisku
 st_srp_inv_defuse_time	Czas rozbrajania
 st_srp_inv_fuse_time	Czas zapalnika

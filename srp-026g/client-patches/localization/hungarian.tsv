@@ -2554,6 +2554,7 @@ st_srp_hud_voice_not_muted	A hangcsevegés nem érhető el
 st_srp_hud_voice_unmute	Hang visszakapcsolása
 st_srp_hud_voice_unmuted	Hang visszakapcsolva
 st_srp_inv_ammo_range	Lőtávolság
+st_srp_inv_artefact_duration	Artefaktum-hatásidő
 st_srp_inv_bullet_speed	Lövedéksebesség
 st_srp_inv_defuse_time	Hatástalanítási idő
 st_srp_inv_fuse_time	Gyújtási idő

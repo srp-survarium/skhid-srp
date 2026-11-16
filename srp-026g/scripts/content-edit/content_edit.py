@@ -1364,6 +1364,8 @@ STATS = {
             'reload_speed': default_modification(114),
             'recoil': default_modification(115),
             'artefact_search': default_modification(113),
+            # player modifier 39, as the Knowledge of Artifacts skill's: an active's duration
+            'artefact_duration': default_modification(132),
             'experience': default_modification(124),
             'rep_scav': default_modification(125),
             'rep_bm': default_modification(126),
@@ -1372,7 +1374,7 @@ STATS = {
         },
         'match': {'armor', 'ano', 'arms', 'back', 'weight', 'oxygen_s', 'pockets', 'artefact_slots', 'ammo_bags',
                   'accuracy', 'aim', 'max_weight', 'health_regen', 'stamina_regen', 'movement', 'artefact_search',
-                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size', 'sway'},
+                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size', 'sway', 'artefact_duration'},
         'cards': armour_card,
     },
     'medicines': {

@@ -2554,6 +2554,7 @@ st_srp_hud_voice_not_muted	Puhechat ei käytettävissä
 st_srp_hud_voice_unmute	Poista äänen mykistys
 st_srp_hud_voice_unmuted	Äänen mykistys poistettu
 st_srp_inv_ammo_range	Kantama
+st_srp_inv_artefact_duration	Artefaktien aktiivisuusaika
 st_srp_inv_bullet_speed	Luodin nopeus
 st_srp_inv_defuse_time	Purkuaika
 st_srp_inv_fuse_time	Sytytysaika

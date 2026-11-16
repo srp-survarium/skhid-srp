@@ -2554,6 +2554,7 @@ st_srp_hud_voice_not_muted	Voice chat unavailable
 st_srp_hud_voice_unmute	Unmute voice
 st_srp_hud_voice_unmuted	Voice unmuted
 st_srp_inv_ammo_range	Range
+st_srp_inv_artefact_duration	Artifact active time
 st_srp_inv_bullet_speed	Bullet speed
 st_srp_inv_defuse_time	Defuse time
 st_srp_inv_fuse_time	Fuse time

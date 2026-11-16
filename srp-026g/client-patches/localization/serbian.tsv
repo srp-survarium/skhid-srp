@@ -2554,6 +2554,7 @@ st_srp_hud_voice_not_muted	Glasovni čet nije dostupan
 st_srp_hud_voice_unmute	Uključi glas
 st_srp_hud_voice_unmuted	Glas uključen
 st_srp_inv_ammo_range	Domet
+st_srp_inv_artefact_duration	Trajanje aktivnog efekta artefakata
 st_srp_inv_bullet_speed	Brzina metka
 st_srp_inv_defuse_time	Vreme deaktiviranja
 st_srp_inv_fuse_time	Vreme upaljača

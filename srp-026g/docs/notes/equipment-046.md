@@ -112,7 +112,8 @@ analysis, 2026-10-30).
   - Armored mask 50/15, 1.2 kg, 23,760 (no native level-15 mask).
   - Gloves 88/20, 0.6 kg, 25,000, recoil -8 %. Boots 88/20, 1.8 kg, 25,000,
     energy costs -8 %.
-  - Backpack for ammo: 4 kg, 47,500, 2 ammo bags + 1 pocket.
+  - Backpack for ammo: 4 kg, 47,500, 2 ammo bags + 1 pocket (2026-11-16: 3 ammo bags, 1052, + 2
+    pockets, 1031; backpack-bonuses-1.json).
   - Five pieces + mask 24.1 kg (Zubr 34.6, Nomad 17.3): less armour and
     isolation than Zubr, lighter.
 - **Sniper at level 11, Veles at level 13** (@9: the owner's redesign of

@@ -2554,6 +2554,7 @@ st_srp_hud_voice_not_muted	Голосовой чат недоступен
 st_srp_hud_voice_unmute	Включить голос
 st_srp_hud_voice_unmuted	Голос включён
 st_srp_inv_ammo_range	Дальность
+st_srp_inv_artefact_duration	Длительность действия артефактов
 st_srp_inv_bullet_speed	Скорость пули
 st_srp_inv_defuse_time	Время обезвреживания
 st_srp_inv_fuse_time	Время запала
