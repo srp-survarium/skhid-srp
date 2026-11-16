@@ -28649,6 +28649,21 @@ pub mod site {
         }
     }
 
+    /// battery.state_left (0x38caa0): fsm::tick 0x38CA20 leaving its current state through a transition it took (a predicate true, 0x38CA81; tried only once the state is ready, its vtable +18h), before that state's finalize (call [vtbl+0Ch] at 0x38CAA5): ECX the state left, of any machine (a battery's when its vtable is a battery state's); the only way a battery's machine leaves a state in the simulation (victory_item_core::deactivate 0x300F40 finalizes without a transition, game_world_core::deserialize 0x2D2770 reaches it through base_player::remove 0x2DA790); replayed: mov eax,[ecx] / mov edx,[eax+0Ch]
+    pub mod battery_state_left {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::battery_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<BatteryState> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(BatteryState)
+        }
+    }
+
     /// gun.stance_user (0x2e43a3): weapon_core::player_stance 0x2E43A0 (the gun's vtable +7Ch; the bullet's constructor 0x32BADE, base_player hit events for no bullet 0x2D9FB2) once it read its user (mov eax,[ecx+8]), before that user's alive byte: ECX the gun, EAX the user (0 for a deactivated gun, which natively never shoots); replayed: mov al,[eax+33Ch]
     pub mod gun_stance_user {
         #[allow(unused_imports)]

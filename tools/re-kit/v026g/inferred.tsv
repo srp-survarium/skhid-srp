@@ -3513,3 +3513,7 @@ va	status	ref_021d	name
 0x001128d0	inferred-high	0x000d1a6a	vostok::logging::new_log_file
 0x00300690	inferred-medium		survarium::victory_item_core::deactivate_physics [descriptive]
 0x00301db0	inferred-medium		survarium::victory_item_core::remove_physics_body [descriptive]
+0x002463e0	inferred-medium		survarium::victory_item::victory_item [descriptive]
+0x002f9f40	inferred-medium		survarium::victory_item_core_cook::new_victory_item_core [descriptive]
+0x002f9fa0	inferred-medium		survarium::victory_item_core_cook::create_resource [descriptive]
+0x003fe260	inferred-medium		boost::function2::operator() [descriptive]

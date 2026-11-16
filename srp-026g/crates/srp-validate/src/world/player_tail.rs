@@ -667,34 +667,42 @@ impl CarriedBattery {
         // The machine's list (patch 143, vostok/battery.rs): take, carry,
         // put; the ram's swing and recovery; the shove's carry, swing and
         // recovery.
-        let index = state_id(reader, 8)?;
-        let strike = match index {
-            0..=4 => BatteryStrike::Ram,
-            _ => BatteryStrike::Shove,
+        let carry = |reader: &mut Reader, next| -> Result<BatteryState, Fault> {
+            Ok(BatteryState::Carry {
+                motion: BatteryMotion::read(reader)?,
+                next,
+            })
         };
-        let state = match index {
+        let swing = |reader: &mut Reader, strike| -> Result<BatteryState, Fault> {
+            Ok(BatteryState::Swing {
+                strike,
+                motion: BatteryMotion::read(reader)?,
+                animation: BatteryMotion::animation(reader)?,
+            })
+        };
+        let recover = |reader: &mut Reader, strike| -> Result<BatteryState, Fault> {
+            Ok(BatteryState::Recover {
+                strike,
+                motion: BatteryMotion::read(reader)?,
+                animation: BatteryMotion::animation(reader)?,
+            })
+        };
+        let state = match state_id(reader, 8)? {
             0 => BatteryState::Take {
                 motion: BatteryMotion::read(reader)?,
                 animation: BatteryMotion::animation(reader)?,
             },
+            1 => carry(reader, BatteryStrike::Ram)?,
             2 => BatteryState::Drop {
                 motion: BatteryMotion::read(reader)?,
                 animation: BatteryMotion::animation(reader)?,
             },
-            1 | 5 => BatteryState::Carry {
-                motion: BatteryMotion::read(reader)?,
-                next: strike,
-            },
-            3 | 6 => BatteryState::Swing {
-                strike,
-                motion: BatteryMotion::read(reader)?,
-                animation: BatteryMotion::animation(reader)?,
-            },
-            _ => BatteryState::Recover {
-                strike,
-                motion: BatteryMotion::read(reader)?,
-                animation: BatteryMotion::animation(reader)?,
-            },
+            3 => swing(reader, BatteryStrike::Ram)?,
+            4 => recover(reader, BatteryStrike::Ram)?,
+            5 => carry(reader, BatteryStrike::Shove)?,
+            6 => swing(reader, BatteryStrike::Shove)?,
+            // 7: state_id refuses an index past the eight
+            _ => recover(reader, BatteryStrike::Shove)?,
         };
         Ok(Self {
             at: record_at,
@@ -1425,7 +1433,7 @@ mod tests {
             state_bytes.extend(1u32.to_le_bytes());
             state_bytes.extend([user, container, state, 0x00]);
             state_bytes.extend([0; 152]);
-            if ![1, 5, 8].contains(&state) {
+            if ![1, 5].contains(&state) {
                 state_bytes.push(0);
             }
             state_bytes.extend([0; 4]);

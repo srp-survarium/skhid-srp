@@ -10,7 +10,8 @@
 //! `battery.logic` each [`Strike`]'s swing and recovery are appended: take
 //! states (0x338940) over their authored clips, of the carry's kind (every
 //! native "is carrying" test holds through them), their vtable the patch's
-//! copy of the take's (finalize and may-be-put-away the patch's); and, for
+//! copy of the take's (may-be-put-away the patch's; the strike when fsm::tick
+//! leaves a swing, `battery.state_left`); and, for
 //! each strike but the first, a carry state of its own (0x338BE0, the
 //! carry's clips) before them: the carry a carrier stands in says which
 //! strike the melee key starts. The list: take, carry, put; the ram's swing
@@ -29,7 +30,7 @@ use super::context::Context;
 use super::hook::{CallbackEntry, Handle, Thread};
 use super::input::ActionMask;
 use super::project::NativeVtable;
-use super::world::read;
+use super::world::{held_battery, read};
 use crate::raw;
 
 /// A battery state's kind (+20h, their constructors 0x338968, 0x338C09,
@@ -291,6 +292,18 @@ impl<'t> MadeBattery<'t> {
     }
 }
 
+/// A state's room from the game's allocator, as initialize_logic takes it:
+/// `size` bytes under the allocation name at `name` (an image VA).
+///
+/// # Safety
+/// On the loading thread.
+unsafe fn state_room(size: u32, name: u32) -> Result<*mut c_void, NoSwing> {
+    let allocator = super::gun_cook::allocator().ok_or(NoSwing::OutOfMemory)?;
+    // SAFETY: the game's allocator and an allocation name of the image.
+    let room = unsafe { raw::engine_malloc(allocator, size, raw::engine_allocation_name(name as usize as *const c_void)) };
+    if room.is_null() { Err(NoSwing::OutOfMemory) } else { Ok(room) }
+}
+
 /// A carry state (initialize_logic's allocation and constructor, 0x301969)
 /// over the carry's `clips`: a strike's own carry.
 ///
@@ -298,16 +311,7 @@ impl<'t> MadeBattery<'t> {
 /// `battery` and `clips` are alive, on the loading thread.
 unsafe fn carry_again(battery: raw::VictoryItemCore, clips: raw::BatteryClips) -> Result<raw::BatteryState, NoSwing> {
     unsafe {
-        let allocator = raw::image::game_allocator().allocator()
-            .map_or(core::ptr::null_mut(), |a| a.address() as usize as *mut c_void);
-        if allocator.is_null() {
-            return Err(NoSwing::OutOfMemory);
-        }
-        let name = raw::engine_allocation_name(raw::image::CARRY_STATE_NAME as usize as *const c_void);
-        let room = raw::engine_malloc(allocator, raw::BatteryCarryState::SIZE as u32, name);
-        if room.is_null() {
-            return Err(NoSwing::OutOfMemory);
-        }
+        let room = state_room(raw::BatteryCarryState::SIZE as u32, raw::image::CARRY_STATE_NAME)?;
         raw::engine_battery_carry_state(Some(battery), room, Some(clips)).ok_or(NoSwing::OutOfMemory)
     }
 }
@@ -320,16 +324,7 @@ unsafe fn carry_again(battery: raw::VictoryItemCore, clips: raw::BatteryClips) -
 unsafe fn carry_like(battery: raw::VictoryItemCore, clips: raw::BatteryClips, time: f32,
                      methods: NativeVtable<raw::TakeStateMethods>) -> Result<raw::BatteryState, NoSwing> {
     unsafe {
-        let allocator = raw::image::game_allocator().allocator()
-            .map_or(core::ptr::null_mut(), |a| a.address() as usize as *mut c_void);
-        if allocator.is_null() {
-            return Err(NoSwing::OutOfMemory);
-        }
-        let name = raw::engine_allocation_name(raw::image::TAKE_STATE_NAME as usize as *const c_void);
-        let room = raw::engine_malloc(allocator, raw::BatteryState::SIZE as u32, name);
-        if room.is_null() {
-            return Err(NoSwing::OutOfMemory);
-        }
+        let room = state_room(raw::BatteryState::SIZE as u32, raw::image::TAKE_STATE_NAME)?;
         let state = raw::engine_battery_take_state(room, Some(battery), Some(clips), time).ok_or(NoSwing::OutOfMemory)?;
         *state.kind() = Kind::Carry as u32;
         *state.vtable() = methods.address();
@@ -358,8 +353,8 @@ unsafe fn made_states(battery: raw::VictoryItemCore)
     }
 }
 
-/// The swing as its finalize gets it (the patch's vtable slot): fsm::tick
-/// leaving it (0x38CAA5), or the battery put down.
+/// A swing or a recovery: as fsm::tick leaves it (`battery.state_left`), or
+/// as the game asks whether it may be put away (the patch's vtable slot).
 pub struct BatteryState<'t> {
     native: raw::BatteryState,
     thread: &'t Thread,
@@ -378,16 +373,23 @@ impl<'t> BatteryState<'t> {
         self.native
     }
 
-    /// Its clip ended (m_animation_has_been_ended, +28h): the swing went
-    /// through; false when it is left before (the carrier's death).
-    pub fn ended(&self) -> bool {
-        // SAFETY: the live state its finalize is called with, on its thread.
-        unsafe { read(self.native.ready()) != 0 }
+    /// The state fsm::tick leaves at `battery.state_left`, when it is one of
+    /// the strikes' (its vtable `methods`, the patch's copy): a swing or a
+    /// recovery. Any other machine's state is only compared by its vtable.
+    pub fn left_at(ctx: &'t Context<'_>, methods: NativeVtable<raw::TakeStateMethods>) -> Option<BatteryState<'t>> {
+        // SAFETY: the site's ECX, the state fsm::tick leaves, alive through
+        // the tick, on its thread; its first word a vtable whatever its kind,
+        // its fields read as a battery state's only past that compare.
+        unsafe {
+            let native = raw::site::battery_state_left::state(ctx)?;
+            (read(native.vtable()) == methods.address()).then(|| BatteryState { native, thread: ctx.thread() })
+        }
     }
 
     /// Its battery's carrier, alive.
     pub fn carrier(&self) -> Option<Carrier<'t>> {
-        // SAFETY: as above; its battery the constructor's (+1Ch).
+        // SAFETY: the live state, on its thread (fsm::tick leaving it, or the game asking
+        // about it); its battery the constructor's (+1Ch).
         unsafe { Carrier::of(self.thread, self.native.battery()?) }
     }
 
@@ -582,12 +584,7 @@ unsafe fn player_of(gun: raw::Weapon) -> Option<raw::Player> {
 /// # Safety
 /// `player` is alive, on this thread.
 unsafe fn battery_posture(player: raw::Player) -> Option<raw::PostureState> {
-    unsafe {
-        let held = player.held_item()?;
-        [raw::image::VICTORY_ITEM_VTABLE, raw::image::VICTORY_ITEM_CORE_VTABLE].contains(&read(held.vtable()))
-            .then(|| held.battery())?
-            .user_animations()?.posture()
-    }
+    unsafe { held_battery(player)?.user_animations()?.posture() }
 }
 
 /// The kill feed's weapon icon of a strike's kill: the hud movie's
@@ -626,9 +623,7 @@ pub(in crate::vostok) unsafe fn struck_by_battery(bullet: raw::Bullet) -> bool {
         if data.address() != gun.melee_data() as usize as u32 {
             return false;
         }
-        player_of(gun).and_then(|player| player.held_item()).is_some_and(|held| {
-            [raw::image::VICTORY_ITEM_VTABLE, raw::image::VICTORY_ITEM_CORE_VTABLE].contains(&read(held.vtable()))
-        })
+        player_of(gun).and_then(|player| held_battery(player)).is_some()
     }
 }
 

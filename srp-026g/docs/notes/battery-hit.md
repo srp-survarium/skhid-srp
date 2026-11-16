@@ -333,9 +333,14 @@
 - **Dropping or switching mid-swing:** the swing ends first (the state goes on only once its
   clip ended), then the put; the strike still lands (PROVEN in the check).
 - **Put away mid-swing** (a delivery, a drop, a death: `victory_item_core::deactivate` 0x300F40
-  calls the current state's finalize, 0x300FA5): the swing's finalize strikes only when its clip
-  ended and its carrier lives (PROVEN in the check, the game's own deactivate). So a battery put
-  away on the tick its thrust ended still strikes; a dead carrier never does.
+  calls the current state's finalize, 0x300FA5): no strike, its clip ended or not. The strike
+  is fsm::tick leaving the swing through a transition it took (`battery.state_left`, 0x38CAA0),
+  nothing else: deactivate also runs outside the simulation, in one game alone, when a world
+  load removes a player (game_world_core::deserialize 0x2D2770 -> base_player::remove(1)
+  0x2DA790 through the player's +24h at 0x2D284A and 0x2D2A68 -> the held item's +1Ch at
+  0x2DA7FD), and a strike there would be a bullet only that game makes. fsm::deserialize
+  (0x38CCF0) finalizes nothing. PROVEN in the check: the game's own deactivate, and the held
+  item's +1Ch with 1 as remove(1) calls it, a living carrier with the clip ended: no strike.
 - **Death mid-swing:** the swing answers "may be put away" as the carry does (its vtable +20h:
   yes once the carrier is dead, 0x338E90's rule; the take's own answers never, 0x397C20), so a
   dead carrier's battery is let go as from the carry (PROVEN in the check through
@@ -385,8 +390,12 @@
   set's key 0x3012EA: the carrier's body animates and counts as carrying through it); its
   vtable a copy of the take's (readiness +18h: its clip ended; expression +24h: the take's, the
   thrust starts at once, the put's blends in over 0.3 s, 0x339107; is_user_dead +28h shared by
-  all three), with finalize (+0Ch: the strike, the swing's only) and may-be-put-away (+20h: the
-  carry's rule) ours.
+  all three), with may-be-put-away (+20h: the carry's rule) ours.
+- The strike: a lohook in fsm::tick past the transition it took, before the left state's
+  finalize (`battery.state_left`, 0x38CAA0: ECX the state left, of any machine); a state whose
+  vtable is the strikes' copy and is a swing (its place in its machine's list) strikes when its
+  carrier lives. fsm::tick tries a take state's transitions only once its clip ended (readiness
+  +18h), so the swing has ended there.
 - A battery whose machine is not the three states, or no memory, or a carrier who cannot
   strike: a crash (`expect`), not a skip.
 - The strike: `emit_bullet` with the arguments the gun-stock hit gives it (0x33AB50), EDI the

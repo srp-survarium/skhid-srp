@@ -11,7 +11,7 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::battery::{self, BatteryState, MadeBattery, PredicateBuffer, Times, UserSite};
-use crate::vostok::{Context, Flow, NoExit, OrigBatteryStateFinalize, OrigTakeDeactivatable, battery_hit_on_wants_swing_entry,
+use crate::vostok::{Context, Flow, NoExit, OrigTakeDeactivatable, battery_hit_on_wants_swing_entry,
                     battery_hit_swing_vtable_handle};
 
 /// A strike's states' lengths, the authored clips' (scripts/battery-hit/swing.py,
@@ -36,16 +36,19 @@ pub fn on_wants_swing(buffer: PredicateBuffer<'_>) -> bool {
     buffer.carrier().is_some_and(|carrier| carrier.melee_down() && !carrier.airborne())
 }
 
-/// A swing or a recovery left (by its machine, or the battery put away):
-/// the native finalize, then, for a swing whose clip ended (the strike) and
-/// whose carrier lives, its kind's strike. A carrier who cannot strike (no
-/// gun, never in a match) is a crash, not a skip.
-pub fn on_finalize(orig: &OrigBatteryStateFinalize, state: &mut BatteryState<'_>) {
-    let struck = state.swing().filter(|_| state.ended());
-    orig.call(state);
-    if let (Some(strike), Some(carrier)) = (struck, state.carrier()) {
+/// fsm::tick leaving a state through a transition it took: a swing (its
+/// clip ended, the only time its transitions are tried) whose carrier lives
+/// strikes, its kind's. Only the simulation's tick gets here, in every game
+/// alike; a battery put away, or a world load removing its carrier, leaves
+/// the swing without a strike. A carrier who cannot strike (no gun, never
+/// in a match) is a crash, not a skip.
+pub fn on_state_left(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(left) = BatteryState::left_at(ctx, battery_hit_swing_vtable_handle())
+        && let (Some(strike), Some(carrier)) = (left.swing(), left.carrier())
+    {
         carrier.strike(strike).expect("a carrier's strike (patch 143)");
     }
+    Flow::Continue
 }
 
 /// May the battery be put away during the swing: as from the carry

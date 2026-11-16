@@ -2512,8 +2512,44 @@ battery_hit_on_logic_replay:
 ; 0x372420 the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> swing's predicate: callback -> battery_hit_on_wants_swing (wraps engine_fsm_always 0x372420)
     RUST_CDECL battery_hit_on_wants_swing, hook_battery_hit_on_wants_swing, 1
 
-; 0xa1bf90 the take state's vtable slot 3 (+0Ch, 0xA1BF84): finalize, thiscall; fsm::tick calls it on the state it leaves (0x38CAA5): vtable -> battery_hit_on_finalize (wraps engine_battery_state_finalize 0x3447f0)
-    RUST_THISCALL battery_hit_on_finalize, hook_battery_hit_on_finalize, 0
+; 0x38caa0 fsm::tick 0x38CA20 leaving its current state through a transition it took (a predicate true, 0x38CA81; tried only once the state is ready, its vtable +18h), before that state's finalize (call [vtbl+0Ch] at 0x38CAA5): ECX the state left, of any machine (a battery's when its vtable is a battery state's); the only way a battery's machine leaves a state in the simulation (victory_item_core::deactivate 0x300F40 finalizes without a transition, game_world_core::deserialize 0x2D2770 reaches it through base_player::remove 0x2DA790); replayed: mov eax,[ecx] / mov edx,[eax+0Ch]: lohook -> battery_hit_on_state_left
+global battery_hit_on_state_left
+extern hook_battery_hit_on_state_left
+battery_hit_on_state_left:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_battery_hit_on_state_left
+    mov edx, battery_hit_on_state_left_replay
+    cmp eax, 0
+    je battery_hit_on_state_left_go
+    mov edx, 0x38caa5
+    cmp eax, 1
+    je battery_hit_on_state_left_go
+    ud2
+battery_hit_on_state_left_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+battery_hit_on_state_left_replay:
+    db 0x8b, 0x01, 0x8b, 0x50, 0x0c
+    jmp 0x38caa5
 
 ; 0x2e43a3 weapon_core::player_stance 0x2E43A0 (the gun's vtable +7Ch; the bullet's constructor 0x32BADE, base_player hit events for no bullet 0x2D9FB2) once it read its user (mov eax,[ecx+8]), before that user's alive byte: ECX the gun, EAX the user (0 for a deactivated gun, which natively never shoots); replayed: mov al,[eax+33Ch]: lohook -> battery_hit_on_stance_user
 global battery_hit_on_stance_user
@@ -9613,7 +9649,7 @@ battery_hit_swing_vtable:
     dd 0x338ab0
     dd 0x344730
     dd 0x344b30
-    dd battery_hit_on_finalize
+    dd 0x3447f0
     dd 0x344950
     dd 0x344870
     dd 0x338930

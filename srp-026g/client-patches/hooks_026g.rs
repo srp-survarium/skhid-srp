@@ -1404,34 +1404,17 @@ pub unsafe extern "C" fn hook_battery_hit_on_wants_swing(a0: Option<raw::Predica
 
 // ---- battery_hit (patch 143) ----
 
-/// engine_battery_state_finalize (0x3447f0), as the vtable hook at 0xa1bf90 wraps it.
-pub struct OrigBatteryStateFinalize;
-
-impl OrigBatteryStateFinalize {
-    /// The game's own function, with these typed arguments.
-    pub fn call(&self, state: &mut BatteryState) {
-        // SAFETY: engine_battery_state_finalize at its own site; the arguments are the hook's,
-        // typed by the row (engine_026g.tsv).
-        unsafe { raw::engine_battery_state_finalize(Some(state.raw())) }
-    }
-}
-
-/// The entry `battery_hit_on_finalize` (0xa1bf90, the take state's vtable slot 3 (+0Ch, 0xA1BF84): finalize, thiscall; fsm::tick calls it on the state it leaves (0x38CAA5)) calls this with
-/// engine_battery_state_finalize's 1 arguments, typed by its row (the `raw` layer's).
-///
-/// # Safety
-/// Called only by the entry `battery_hit_on_finalize`.
+/// The entry `battery_hit_on_state_left` (0x38caa0, fsm::tick 0x38CA20 leaving its current state through a transition it took (a predicate true, 0x38CA81; tried only once the state is ready, its vtable +18h), before that state's finalize (call [vtbl+0Ch] at 0x38CAA5): ECX the state left, of any machine (a battery's when its vtable is a battery state's); the only way a battery's machine leaves a state in the simulation (victory_item_core::deactivate 0x300F40 finalizes without a transition, game_world_core::deserialize 0x2D2770 reaches it through base_player::remove 0x2DA790); replayed: mov eax,[ecx] / mov edx,[eax+0Ch]) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn hook_battery_hit_on_finalize(a0: Option<raw::BatteryState>) -> u32 {
-    // SAFETY: only the entry `battery_hit_on_finalize` calls this, from the game's call at
-    // 0xa1bf90, on the game's thread; a0.. are engine_battery_state_finalize's arguments.
-    let thread = unsafe { Thread::new() };
-    let Some(mut state) = (unsafe { BatteryState::from_raw(&thread, a0) }) else {
-        // a null BatteryState never happens at this site; take the unpatched path.
-        return { unsafe { raw::engine_battery_state_finalize(a0) }; 0 };
-    };
-    let orig = OrigBatteryStateFinalize;
-    { crate::battery_hit::on_finalize(&orig, &mut state); 0 }
+pub extern "C" fn hook_battery_hit_on_state_left(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_state_left` calls this, from the game's jump at 0x38caa0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_state_left(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
 }
 
 // ---- battery_hit (patch 143) ----

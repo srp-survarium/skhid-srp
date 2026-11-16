@@ -32,8 +32,7 @@ writers (their bytes kept). Checked:
   appends five: each strike's swing and recovery (the ram's, the shove's:
   0ECh bytes of the game's allocator, the take's allocation name; over
   the cook's clips of config states 3 to 6; the strikes' times; kind 3;
-  their vtable the take's with exactly finalize +0Ch and may-be-put-away
-  +20h ours) and, before the shove's, a carry of its own (0E0h bytes, the
+  their vtable the take's with exactly may-be-put-away +20h ours) and, before the shove's, a carry of its own (0E0h bytes, the
   carry's name, constructor and vtable, over the carry's clips); a carry's transitions put then its swing (a
   function-pointer functor whose function is ours, the battery its
   buffer's second word), a swing's put then its recovery, a recovery's put
@@ -63,9 +62,11 @@ writers (their bytes kept). Checked:
 - the kill feed: a strike's kill event (its gun's melee data, its gun's
   player holding the battery) gets the battery's icon 200; a gun-stock
   hit's, a round's and a bulletless one keep theirs;
-- put away mid-swing (deactivate): the strike only with its clip ended and
-  its carrier alive; a dead carrier's swing may be put away, a living
-  one's not; left before its clip ended: no strike;
+- put away mid-swing (deactivate, as a drop, a death or a delivery calls
+  it, and as a world load's base_player::remove(1) does through the held
+  item's +1Ch, 0x2DA7FD): its finalize runs and never strikes, its clip
+  ended or not; only fsm::tick leaving the swing strikes; a dead carrier's
+  swing may be put away, a living one's not;
 - a world saved mid-swing (the ram's, the shove's) or in the shove's carry
   and loaded by another game: its own state of that index current, every
   field the saver's;
@@ -489,8 +490,8 @@ def main():
     ours = [new.read(vtable - 4 + 4 * i) for i in range(13)]
     stock = [new.read(TAKE_VTABLE - 4 + 4 * i) for i in range(13)]
     mine = [i for i in range(13) if ours[i] != stock[i]]
-    check(vtable != TAKE_VTABLE and mine == [4, 9] and all(ours[i] >= 0xA42D000 for i in mine),
-          "its vtable: the take's RTTI and slots, finalize (+0Ch) and may-be-put-away (+20h) ours in the arena")
+    check(vtable != TAKE_VTABLE and mine == [9] and all(ours[i] >= 0xA42D000 for i in mine),
+          "its vtable: the take's RTTI and slots, may-be-put-away (+20h) ours in the arena")
     carry = new.transitions(new.carry)
     take = new.transitions(new.take)
     check([d for d, _, _ in carry] == [new.put, swing] and [d for d, _, _ in take] == [new.carry],
@@ -607,7 +608,7 @@ def main():
           "the gun is never written: still no user, no posture")
     check(new.bullets[0][0x58] == stance,
           "its stance (bullet +58h) the one the game gives a held gun in the carrier's posture")
-    check(("unsubscribe", swing) in new.channels, "the swing's own finalize ran (its channel left)")
+    check(("unsubscribe", swing) in new.channels, "the swing's own finalize ran (its channel left), the game's")
     new.emu.mem_write(recover + 0xCC, b"\x00")
     new.clip_end(recover, new.read(new.read(recover + 0xC8)))
     check(new.tick() == new.states()[5] and new.emitted == [],
@@ -741,7 +742,7 @@ def main():
     new.word(INVENTORY + 0x10C + 4 * 10, 0)
     new.emu.mem_write(swing + 0x28, b"\x01")
     try:
-        new.finalize(swing)
+        new.tick()
         crashed = None
     except UcError:
         crashed = new.emu.reg_read(UC_X86_REG_EIP)
@@ -760,15 +761,21 @@ def main():
     check(crashed is not None and crashed >= 0xA42D000, "the substitution's panic in the arena, not a fault in the game's code")
 
     print("put away mid-swing (victory_item_core::deactivate 0x300F40, to past its state's finalize)")
-    for alive, ended, want in ((1, 0, False), (1, 1, True), (0, 1, False), (0, 0, False)):
+    for alive, ended in ((1, 0), (1, 1), (0, 1), (0, 0)):
         swing = swinging()
         new.emu.mem_write(swing + 0x28, bytes([ended]))
         new.emu.mem_write(PLAYER + 0x33C, bytes([alive]))
         new.call(DEACTIVATE, BATTERY, (0,), DEACTIVATED)
-        check(new.read(BATTERY + 0x178) == 0 and (len(new.emitted) == 1) == want
-              and ("unsubscribe", swing) in new.channels,
-              f"carrier {'alive' if alive else 'dead'}, clip {'ended' if ended else 'playing'}: its finalize runs, "
-              f"{'the strike' if want else 'no strike'}")
+        check(new.read(BATTERY + 0x178) == 0 and new.emitted == [] and ("unsubscribe", swing) in new.channels,
+              f"carrier {'alive' if alive else 'dead'}, clip {'ended' if ended else 'playing'}: its finalize runs, no strike")
+    # a world load removing a carrier (game_world_core::deserialize 0x2D284A / 0x2D2A68 ->
+    # base_player::remove(1) 0x2DA790 -> the held item's +1Ch with 1, 0x2DA7FD): in that game alone
+    swing = swinging()
+    new.emu.mem_write(swing + 0x28, b"\x01")
+    new.call(new.read(new.read(BATTERY) + 0x1C), BATTERY, (1,), DEACTIVATED)
+    check(new.read(BATTERY + 0x178) == 0 and new.emitted == [] and ("unsubscribe", swing) in new.channels,
+          "a world load's base_player::remove(1) (the held item's +1Ch, as 0x2DA7FD calls it), its carrier alive and "
+          "its clip ended: the swing finalized, no strike")
     swing = swinging()
     new.emu.mem_write(POSTURE + 0x2B, b"\x01")      # the clip set's own readiness (0x30128D)
     ready = lambda: new.call(PUT_AWAY, BATTERY)[UC_X86_REG_EAX] & 0xFF
