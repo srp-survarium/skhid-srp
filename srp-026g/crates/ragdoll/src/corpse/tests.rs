@@ -901,6 +901,7 @@ fn a_lying_body_comes_to_rest_and_stays_still_on_every_surface() {
         death.hits[0] = crate::shot::Hit {
             point: Vec3::new(0.0, 1.3, -0.12),
             impulse: crate::shot::impulse(Vec3::Z, 0.02, 800.0),
+            blow: None,
         };
         death.hit_count = 1;
         let d = [Seen::Dead(death)];

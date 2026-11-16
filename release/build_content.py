@@ -777,6 +777,44 @@ def keeper_check(rows, base_files, world):
     print(f'keeper: every one of {len(projects)} map project(s) has its pool')
 
 
+GRASS_MAX = 120_000
+
+
+def grass_instances(path, data):
+    """A .veg layer's instances: its positions chunk (0x58), 12 bytes each."""
+    at = 0
+    while at + 8 <= len(data):
+        tag, size = int.from_bytes(data[at:at + 4], 'little'), int.from_bytes(data[at + 4:at + 8], 'little')
+        if tag == 0x58:
+            return size // 12
+        at += 8 + size
+    raise Problem(f'{path}: a vegetation layer without positions')
+
+
+def grass_check(base, base_files, game, world):
+    """Every map's grass, as players will have it, is at most GRASS_MAX instances: 0.26g's grass
+    cook loads all the .veg layers of a project folder at once with 16 bytes of stack an instance
+    on a 2 MiB thread (grass_cook::on_layers_loaded 0x12A820, exe patch 128), and about 130,000
+    overflow it whatever the settings (stalker-maps.md). Every port's maps pass here, made by a
+    pack or a base row; resource-porter's importer thins to the same cap."""
+    paths = sorted(p for p in set(base_files) | set(world.bytes)
+                   if p.startswith('projects/') and p.endswith('.veg') and '/vegetation/' in p)
+    files = game.get(base, [p for p in paths if p not in world.bytes])
+    files.update({p: world.bytes[p] for p in paths if p in world.bytes})
+    maps = {}
+    for path in paths:
+        folder = path.rsplit('/vegetation/', 1)[0]
+        maps[folder] = maps.get(folder, 0) + grass_instances(path, files[path])
+    over = {folder: n for folder, n in maps.items() if n > GRASS_MAX}
+    if over:
+        print()
+        for folder, n in sorted(over.items()):
+            print(f'GRASS: {folder}: {n} instances, over {GRASS_MAX}')
+        raise Problem(f'{len(over)} map(s) with more grass than the grass cook holds: no patch made')
+    folder, most = max(maps.items(), key=lambda kv: kv[1], default=('none', 0))
+    print(f'grass: each of {len(maps)} map folder(s) at most {GRASS_MAX} instances (most: {folder}, {most})')
+
+
 def pierce_check(rows, tree, base, base_files, game, world):
     """Every pierce line (an add_entry with `pierce_line`, content_edit.pierce_lines) is what the final
     files make: a row after the list's that retunes a weapon's or a round's piercing, a material's
@@ -917,6 +955,8 @@ def main():
             pierce_check(rows, args.tree, base, base_files, game, world)
         with timed('the Keeper pool'):
             keeper_check(rows, base_files, world)
+        with timed('the grass'):
+            grass_check(base, base_files, game, world)
         with timed('the clothing fit'):
             clothing_check(base, base_files, game, world)
 

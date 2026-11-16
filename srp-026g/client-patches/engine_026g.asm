@@ -234,6 +234,13 @@ global engine_respawn_point_clear
 global engine_respawn_points_push
 global engine_sound_pan
 global engine_listener_position
+global engine_battery_take_state
+global engine_battery_carry_state
+global engine_fsm_append_transition
+global engine_emit_bullet
+global engine_battery_state_finalize
+global engine_fsm_always
+global engine_take_deactivatable
 global engine_get_last_error
 global engine_swap_chain_get_buffer
 global engine_texture2d_get_desc
@@ -332,6 +339,10 @@ engine_rand_bytes equ 0x46b6e0   ; 0x46b6e0 ssleay_rand_bytes: room ESP+4, lengt
 engine_cc_delegate_execute equ 0xec830   ; 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
 engine_message_box_a equ 0xaeff30   ; the IAT slot 0xaeff30 (an import, stdcall)
 engine_exit_process equ 0x87020c   ; the IAT slot 0x87020c (an import, stdcall)
+engine_fsm_append_transition equ 0x38c970   ; 0x38c970 vostok::ai::fsm::append_transition: source ESP+4, destination ESP+8, predicate ESP+12; pops 12; stdcall, called directly
+engine_battery_state_finalize equ 0x3447f0   ; 0x3447f0 survarium::victory_item_core_animation_end_aware_state::finalize: state ECX; pops 0; thiscall, called directly
+engine_fsm_always equ 0x372420   ; 0x372420 survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition: buffer ESP+4; pops 0; AL; cdecl, called directly
+engine_take_deactivatable equ 0x397c20   ; 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
 engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (an import, stdcall)
 
 engine_options_int:
@@ -2774,6 +2785,64 @@ engine_listener_position:
     mov eax, [esp + 20]   ; scene
     mov esi, [esp + 24]   ; out
     call 0x57560
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_battery_take_state:
+    ; 0x338940 survarium::victory_item_core_take_state::victory_item_core_take_state: room ESI, battery ESP+4, clips ESP+8, time ESP+12; pops 12; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; time -> 12
+    push dword [esp + 32]   ; clips -> 8
+    push dword [esp + 32]   ; battery -> 4
+    mov esi, [esp + 32]   ; room
+    call 0x338940
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_battery_carry_state:
+    ; 0x338be0 survarium::victory_item_core_carry_state::victory_item_core_carry_state: battery EAX, room ESP+4, clips ESP+8; pops 8; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; clips -> 8
+    push dword [esp + 28]   ; room -> 4
+    mov eax, [esp + 28]   ; battery
+    call 0x338be0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_emit_bullet:
+    ; 0x322830 survarium::bullet_manager::emit_bullet: gun EDI, manager ESP+4, point ESP+8, velocity ESP+12, data ESP+16, time ESP+20, owner ESP+24, second ESP+28, unused ESP+32; pops 32; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 52]   ; unused -> 32
+    push dword [esp + 52]   ; second -> 28
+    push dword [esp + 52]   ; owner -> 24
+    push dword [esp + 52]   ; time -> 20
+    push dword [esp + 52]   ; data -> 16
+    push dword [esp + 52]   ; velocity -> 12
+    push dword [esp + 52]   ; point -> 8
+    push dword [esp + 52]   ; manager -> 4
+    mov edi, [esp + 52]   ; gun
+    call 0x322830
     pop edi
     pop esi
     pop ebx

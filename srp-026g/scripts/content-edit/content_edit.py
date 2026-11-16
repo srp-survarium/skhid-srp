@@ -60,6 +60,8 @@ Edits (edits.json):
                     declare source .b-spline and .bones_names dependencies in _inputs.
   "append_entry":   [{"file", "list", "expected_count", "unique_key", "value"}]
                     append a new indexed record, refusing stale counts and duplicate identities;
+                    "unique_key": null for a list whose entries are known by their index (the
+                    game reads them by it: a battery's `states`), the count check alone;
                     arrays in the new value are indexed tables, leaving existing records intact;
                     "files" and "expected_counts" (two lists, a count a file) in place of
                     "file" and "expected_count" append the same record to each file; with
@@ -134,6 +136,11 @@ Edits (edits.json):
                     the source's zero-time pose. The clamped cubic eases in/out with zero endpoint
                     velocity; no events, no edits to stock clips. Not shipped: the carry's pose
                     source (scripts/artefact-carry/pose.json) runs it to compile its curves.
+  "files_from_repo": [{"source", "output", "sha256"}]
+                    a new animations/ resource from a file of this repo (`source`, relative to
+                    the edit list), its bytes pinned by `sha256`; a `.b-spline` must parse as a
+                    clip. The battery swing's clips: scripts/battery-hit/make_clips.py writes
+                    them from its keys, and checks them (`--check`)
   "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
                                                        preserve runtime positions/normals byte for byte;
                                                        reject unknown, duplicate or malformed chunks
@@ -166,6 +173,7 @@ import re
 import struct
 import sys
 import zlib
+from pathlib import Path
 
 T_BOOL, T_INT, T_FLOAT, T_NAMED, T_INDEXED, T_STR = 0, 1, 2, 3, 4, 5
 REC = struct.Struct('<QQIHH')
@@ -598,11 +606,14 @@ def append_entry(buf, path, expected_count, unique_key, value, vectors=False):
     _, name, crc, kind, count = rec(buf, off)
     if kind != T_INDEXED or count != expected_count:
         raise ValueError(f'{path}: expected indexed table of {expected_count}, got {kind}/{count}')
-    if not isinstance(value, dict) or unique_key not in value:
-        raise ValueError(f'{path}: new entry must have {unique_key}')
     entries = children(buf, off)
-    if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
-        raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    if unique_key is not None:
+        if not isinstance(value, dict) or unique_key not in value:
+            raise ValueError(f'{path}: new entry must have {unique_key}')
+        if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
+            raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    elif not isinstance(value, dict):
+        raise ValueError(f'{path}: a new entry is a table')
     records = [bytes(buf[entry:entry + 24]) for entry in entries]
     records.append(value_record(buf, 0, '', as_table(value, vectors)))
     REC.pack_into(buf, off, append_array(buf, records), name, crc, kind, count + 1)
@@ -2441,7 +2452,6 @@ def main():
                 sys.exit('remove_key: no file of %s has %s' % (e['files'], key))
             print('remove %s: %d files' % (key, n))
     if 'localization' in edits:
-        from pathlib import Path
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
         from build_localization_026g import compile_catalog
         from localization_026g import FLASH_MOVIES, LANGUAGES, flash_rows, read_config, read_translations
@@ -2644,6 +2654,20 @@ def main():
         clips[stem + '.b-spline'] = make_pose_clip(source_bytes, names_bytes, e)
         clips[stem + '.bones_names'] = names_bytes
         print('pose clip %s: %g frames, %d authored bones' % (stem, e['frames'], len(e['end'])))
+    for e in edits.get('files_from_repo', []):
+        stem = e['output']
+        if not stem.startswith('animations/') or '..' in stem.split('/') or '\\' in stem:
+            raise ValueError('files_from_repo: output must be a new animations/ resource path')
+        if stem in files or stem in bufs or stem in clips:
+            raise ValueError('files_from_repo: output already exists: ' + stem)
+        source = Path(edits_file).resolve().parent / e['source']
+        data = source.read_bytes()
+        if hashlib.sha256(data).hexdigest() != e['sha256']:
+            raise ValueError('files_from_repo: %s differs from its pinned sha256' % e['source'])
+        if stem.endswith('.b-spline'):
+            clip_parse(data)
+        clips[stem] = data
+        print('file from the repo %s: %d bytes' % (stem, len(data)))
     for e in edits.get('add_event_channel', []):
         p = e['file']
         if p in bufs:
